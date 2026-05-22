@@ -78,7 +78,8 @@ flowchart LR
   Reducer -->|"content and read models"| Postgres
   API -->|"bounded graph reads"| Graph
   API -->|"content, status, read models"| Postgres
-  MCP -->|"tool-backed reads"| API
+  MCP -->|"tool-backed graph reads"| Graph
+  MCP -->|"content, status, read models"| Postgres
   CLI -->|"local and admin commands"| Postgres
 ```
 
@@ -100,27 +101,15 @@ live in [Service Runtimes](deployment/service-runtimes.md).
 
 ## Package Ownership
 
-The repository layout follows the service boundaries:
+The repository layout follows these service boundaries. Keep collection code in
+collector/parser packages, durable fact and queue state in storage packages,
+graph write contracts in the Cypher storage layer, materialization in projector
+and reducer packages, read surfaces in query packages, and operator signals in
+runtime/status/telemetry packages.
 
-| Package area | Ownership |
-| --- | --- |
-| `go/internal/collector/` | source observation, discovery, snapshotting, fact shaping |
-| `go/internal/parser/` | parser registry, language engines, SCIP support |
-| `go/internal/relationships/` | relationship evidence extraction and typed evidence families |
-| `go/internal/facts/` | durable fact models and queue contracts |
-| `go/internal/storage/postgres/` | facts, queues, status, content, recovery, workflow control |
-| `go/internal/storage/cypher/` | backend-neutral Cypher write contracts, canonical writers, edge helpers, write instrumentation |
-| `go/internal/storage/neo4j/` | Neo4j-specific graph adapter |
-| `go/internal/projector/` | source-local projection stages |
-| `go/internal/reducer/` | shared projection, canonical materialization, repair flows |
-| `go/internal/query/` | HTTP handlers, OpenAPI, query/read surfaces |
-| `go/internal/runtime/` | health, readiness, metrics, admin/status wiring, datastore opening |
-| `go/internal/status/` | lifecycle, backlog, coverage, and admin-status reporting |
-| `go/internal/coordinator/` and `go/internal/workflow/` | collector instance reconciliation, claims, workflow state |
-| `go/internal/telemetry/` | structured JSON logging, tracing, metrics, Prometheus bridge |
-| `go/internal/truth/` | truth label contracts |
-
-For the full package map, use [Source Layout](reference/source-layout.md).
+For the directory-by-directory map, use
+[Source Layout](reference/source-layout.md). This architecture page should stay
+focused on ownership rules, not repeat the source tree.
 
 ## Write Path
 

@@ -31,23 +31,6 @@ For bundled no-auth NornicDB, set `neo4j.auth.secretName=""`. Eshu still
 renders non-empty Bolt client credentials because the shared client config
 rejects empty auth fields even when the backend does not enforce auth.
 
-```yaml
-contentStore:
-  dsn: postgresql://eshu:secret@postgres:5432/eshu
-
-env:
-  ESHU_GRAPH_BACKEND: nornicdb
-  DEFAULT_DATABASE: nornic
-  NEO4J_DATABASE: nornic
-
-neo4j:
-  uri: bolt://nornicdb:7687
-  auth:
-    secretName: ""
-    username: neo4j
-    password: change-me
-```
-
 ## Bundled NornicDB
 
 `nornicdb.enabled=false` by default. When enabled, the chart renders one
@@ -75,22 +58,8 @@ Do not combine `nornicdb.enabled=true` with
 hook would run before bundled NornicDB exists.
 
 When using bundled NornicDB, also point `neo4j.uri` at the release's NornicDB
-Service and use literal Bolt client credentials:
-
-```yaml
-schemaBootstrap:
-  useHelmHooks: false
-
-nornicdb:
-  enabled: true
-
-neo4j:
-  uri: bolt://eshu-nornicdb:7687
-  auth:
-    secretName: ""
-    username: neo4j
-    password: change-me
-```
+Service, use literal Bolt client credentials, and set
+`schemaBootstrap.useHelmHooks=false`.
 
 ## API and MCP exposure
 
@@ -112,33 +81,6 @@ The chart always renders the main API Service. The default Service type is
 | `exposure.gateway.hostnames` | `[]` | Optional HTTPRoute hostnames. |
 | `exposure.gateway.parentRefs` | `[]` | Gateway parent refs. |
 
-Use one built-in external routing mode per release:
-
-```yaml
-exposure:
-  ingress:
-    enabled: true
-    backend: api
-    className: nginx
-    hosts:
-      - host: api.example.com
-        paths:
-          - path: /
-            pathType: Prefix
-```
-
-```yaml
-exposure:
-  gateway:
-    enabled: true
-    backend: mcp
-    hostnames:
-      - mcp.example.com
-    parentRefs:
-      - name: shared-gateway
-        namespace: gateway-system
-```
-
 The chart rejects `exposure.ingress.enabled=true` with
 `exposure.gateway.enabled=true`, and it rejects `backend: mcp` when
 `mcpServer.enabled=false`. If API and MCP need separate public hostnames, add a
@@ -150,19 +92,6 @@ Webhook listener ingress is separate from API/MCP exposure. It renders one
 Ingress for the webhook listener Service and adds only enabled provider paths.
 The defaults are exact paths for GitHub, GitLab, Bitbucket, and AWS freshness;
 each provider path is configurable under `webhookListener.<provider>.path`.
-
-```yaml
-webhookListener:
-  enabled: true
-  github:
-    enabled: true
-    secretName: github-webhook-secret
-  exposure:
-    ingress:
-      enabled: true
-      hosts:
-        - host: hooks.example.com
-```
 
 Admin, health, and metrics endpoints stay on the internal webhook listener
 Service unless an operator adds separate protected routing.
@@ -199,20 +128,3 @@ Services, and optional `ServiceMonitor` resources.
 | `observability.prometheus.serviceMonitor.interval` | `30s` | Scrape interval. |
 | `observability.prometheus.serviceMonitor.scrapeTimeout` | `10s` | Scrape timeout. |
 | `observability.prometheus.serviceMonitor.labels` | `{}` | Extra ServiceMonitor labels. |
-
-```yaml
-observability:
-  environment: prod
-  otel:
-    enabled: true
-    endpoint: http://otel-collector.monitoring.svc.cluster.local:4317
-    protocol: grpc
-    insecure: true
-    tracesExporter: otlp
-    metricsExporter: otlp
-    logsExporter: none
-  prometheus:
-    enabled: true
-    serviceMonitor:
-      enabled: true
-```

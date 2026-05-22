@@ -35,18 +35,6 @@ fingerprint, and skips live DDL. Brand-new installs still create schema because
 inspection finds missing objects. Set
 `env.ESHU_GRAPH_SCHEMA_ADOPT_EXISTING: "false"` only to force live DDL.
 
-```yaml
-schemaBootstrap:
-  enabled: true
-  useHelmHooks: true
-  activeDeadlineSeconds: 600
-  ttlSecondsAfterFinished: 86400
-  resources:
-    requests:
-      cpu: 100m
-      memory: 128Mi
-```
-
 No-Regression Evidence: Helm template rendering emits exactly one
 `eshu-schema-bootstrap` Job and no `db-migrate` init containers in the default
 chart output; the runtime DDL binary and environment contract remain unchanged.
@@ -88,52 +76,12 @@ Connection tuning maps to env vars only when values are non-empty.
 | `connectionTuning.neo4j.socketConnectTimeout` | `ESHU_NEO4J_SOCKET_CONNECT_TIMEOUT` |
 | `connectionTuning.neo4j.verifyTimeout` | `ESHU_NEO4J_VERIFY_TIMEOUT` |
 
-```yaml
-env:
-  ESHU_GRAPH_BACKEND: nornicdb
-  ESHU_CANONICAL_WRITE_TIMEOUT: 120s
-  ESHU_SHARED_PROJECTION_WORKERS: "8"
-
-api:
-  env:
-    GOMEMLIMIT: "1536MiB"
-
-resolutionEngine:
-  connectionTuning:
-    postgres:
-      maxOpenConns: "40"
-      pingTimeout: 15s
-    neo4j:
-      maxConnectionPoolSize: "150"
-      connectionAcquisitionTimeout: 20s
-```
-
 ## Resolution engine lanes
 
 By default Helm renders one resolution-engine Deployment that can claim all
 reducer domains. Set `resolutionEngine.lanes` to render one Deployment and
 metrics Service per lane. Each lane receives `ESHU_REDUCER_CLAIM_DOMAINS` with
 the comma-separated lane domain list.
-
-```yaml
-resolutionEngine:
-  lanes:
-    - name: code-graph
-      domains:
-        - sql_relationship_materialization
-        - inheritance_materialization
-      replicas: 3
-      env:
-        ESHU_PPROF_ADDR: "127.0.0.1:6062"
-      resources:
-        requests:
-          cpu: 750m
-          memory: 1Gi
-    - name: cloud-drift
-      domains:
-        - aws_cloud_runtime_drift
-      replicas: 2
-```
 
 | Lane value | Rule |
 | --- | --- |
@@ -193,13 +141,3 @@ not a durable data-domain attribute.
 `repoSync.source.rules` renders to `ESHU_REPOSITORY_RULES_JSON`. The chart
 rejects `repoSync.auth.method=ssh` with `repoSync.source.mode=githubOrg`; use
 `explicit` or `filesystem` for SSH-based sync paths.
-
-```yaml
-repoSync:
-  source:
-    rules:
-      - type: exact
-        value: myorg/my-repo
-      - type: regex
-        value: myorg/platform-.*
-```

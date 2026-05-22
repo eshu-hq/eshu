@@ -1,78 +1,58 @@
 # Dead-Code Fixture Corpus
 
-This corpus is for `code_quality.dead_code` maturity. It is separate from the
-general parser fixtures because parser coverage proves syntax extraction, not
-cleanup safety.
-
-Every parser-supported source language needs a fixture row before Eshu can
-claim exact dead-code behavior for that language. A language may still return
-graph-backed candidates before exactness, but its maturity remains
-`derived_candidate_only` or `derived` until the fixture and root-model gates
-below pass.
+Fixture corpus for `code_quality.dead_code` maturity. Parser coverage proves
+syntax extraction; these fixtures prove whether Eshu can avoid cleanup-unsafe
+answers for each language.
 
 ## Required Cases
 
-Each language fixture must include:
+Each language directory should name at least one symbol for:
 
-- `unused`: one symbol that should be returned as dead-code
-- `direct_reference`: one symbol reached by a direct call/import/reference
-- `entrypoint`: executable entrypoint, initializer, or module root
-- `public_api`: exported or public surface that should not be treated as dead
-- `framework_root`: route, command, worker, annotation, decorator, callback, or
-  equivalent ecosystem root
-- `semantic_dispatch`: function value, method value, interface, trait,
-  dynamic import, generated registry, or equivalent language dispatch
-- `excluded`: generated code or test-owned code excluded by default
-- `ambiguous`: dynamic case that must keep truth non-exact
-
-## Maturity States
-
-| State | Meaning |
+| Case | Meaning |
 | --- | --- |
-| `derived_candidate_only` | Parser can index the language and Eshu can return graph-backed candidates, but root fixtures are not complete. |
-| `derived` | Some root categories are modeled and tested, but exact cleanup is not proven. |
-| `ambiguous_only` | Eshu can identify uncertainty but should not return cleanup candidates for the language scope. |
-| `exact` | Fixture, root, reachability, backend, API, MCP, and CLI gates prove cleanup-safe answers for the language scope. |
+| `unused` | Candidate that may be returned as dead code when no root or reachability evidence protects it. |
+| `direct_reference` | Symbol reached by a direct call, import, or reference. |
+| `entrypoint` | Executable entrypoint, initializer, or module root. |
+| `public_api` | Exported/public surface that should not be treated as dead. |
+| `framework_root` | Route, command, worker, annotation, decorator, callback, or equivalent ecosystem root. |
+| `semantic_dispatch` | Function value, method value, interface, trait, dynamic import, generated registry, or equivalent dispatch. |
+| `excluded` | Generated or test-owned code excluded by default. |
+| `ambiguous` | Dynamic case that must keep truth non-exact. |
 
 ## Language Inventory
 
-| Language | Fixture status | Initial maturity | Required focus |
-| --- | --- | --- | --- |
-| C | active | `derived` | transitive include graphs, build-target conditionals, broader callback registries |
-| C# | active | `derived` | public API surfaces, dependency injection, reflection, source generators, partial types |
-| C++ | active | `derived` | transitive include graphs, templates, overload resolution, build-target conditionals |
-| Dart | active | `derived` | part libraries, conditional imports/exports, package exports, dynamic dispatch, Flutter routes |
-| Elixir | active | `derived` | macro expansion, dynamic dispatch, protocol dispatch, Phoenix route resolution |
-| Go | active | `derived` | function values, local interfaces, method sets, DI callbacks |
-| Groovy | planned | `derived_candidate_only` | Jenkins pipeline entrypoints and shared-library calls |
-| Haskell | planned | `derived_candidate_only` | module exports, typeclasses, executable entrypoints |
-| Java | planned | `derived_candidate_only` | public APIs, interface methods, annotations, Spring roots |
-| JavaScript | active | `derived` | module exports, Express/Next.js roots, dynamic property ambiguity |
-| Kotlin | planned | `derived_candidate_only` | public APIs, interfaces, annotations, Spring/Ktor roots |
-| Perl | active | `derived` | symbolic references, AUTOLOAD dispatch, inheritance, Moose/Moo metadata, import side effects, runtime eval |
-| PHP | active | `derived` | Composer/autoload surfaces, dynamic dispatch, reflection, broader framework routes |
-| Python | active | `derived` | Lambda roots, bounded public APIs, dataclasses/properties, dynamic imports |
-| Ruby | active | `derived` | broader Rails route resolution, metaprogramming, autoload, gem public API |
-| Rust | planned | `derived_candidate_only` | public items, traits, macro-generated roots |
-| Scala | planned | `derived_candidate_only` | public APIs, traits, annotations, framework roots |
-| Swift | active | `derived` | public APIs, macros, SwiftPM targets, protocol witnesses, dynamic dispatch |
-| TSX | active | `derived` | React/Next.js roots, component exports, hook ambiguity |
-| TypeScript | active | `derived` | exports, Express/Next.js roots, decorators, dynamic imports |
+| Language | Fixture status | Maturity |
+| --- | --- | --- |
+| C | active | `derived` |
+| C# | active | `derived` |
+| C++ | active | `derived` |
+| Dart | active | `derived` |
+| Elixir | active | `derived` |
+| Go | active | `derived` |
+| Groovy | planned | `derived_candidate_only` |
+| Haskell | planned | `derived_candidate_only` |
+| Java | planned | `derived_candidate_only` |
+| JavaScript | active | `derived` |
+| Kotlin | planned | `derived_candidate_only` |
+| Perl | active | `derived` |
+| PHP | active | `derived` |
+| Python | active | `derived` |
+| Ruby | active | `derived` |
+| Rust | planned | `derived_candidate_only` |
+| Scala | planned | `derived_candidate_only` |
+| Swift | active | `derived` |
+| TSX | active | `derived` |
+| TypeScript | active | `derived` |
 
-## Promotion Rule
+## Where It Is Asserted
 
-Exactness is language scoped. Promoting one language does not promote the whole
-dead-code capability. Promotion requires:
+- Parser root metadata is asserted by language-specific tests in
+  `go/internal/parser/*dead_code*_test.go`.
+- API/query maturity and filtering behavior is asserted under
+  `go/internal/query/*dead_code*_test.go`.
+- Backend query-shape readiness is tracked by the dead-code backend
+  conformance corpus.
 
-1. Checked-in fixture cases for the language.
-2. Parser or SCIP evidence for definitions, calls, references, and root hints.
-3. Query tests for `unused`, reachable, excluded, and ambiguous results.
-4. API/MCP output proving maturity metadata and truth labels.
-5. Backend conformance for NornicDB and Neo4j query shapes.
-
-## Parallel Ownership
-
-Subagents may work on separate language fixture directories in parallel. Shared
-parser files must have a single owner at a time. JavaScript, TypeScript, and TSX
-share parser code, so they should be assigned to one JS-family worker unless
-the task is fixture-only.
+Exactness is language-scoped. Promoting one language requires fixture cases,
+parser/root evidence, query tests for unused/reachable/excluded/ambiguous
+results, API/MCP maturity metadata, and backend conformance.

@@ -103,6 +103,10 @@ branch. Regenerate them from
 | Local Testing, Public Reference, Service Runbook, And Scoped AGENTS Compression | Used subagents plus parent review to compress local-testing subpages, public reference contracts, service/command runbooks, and scoped agent guidance while preserving mandatory accuracy, performance, concurrency, telemetry, and proof rules. |
 | Scoped AGENTS Link Repair And Fixture README Compression | Replaced deleted `docs/docs`, `docs/plans`, and `docs/superpowers` references in scoped agent guidance with current public/package docs; compressed Go, Rust, and TypeScript sample fixture READMEs to fixture intent and file maps; refreshed the docs inventory counts. |
 | Main Rebase And Image-Claim Verifier Repair | Rebasing onto `origin/main` at `73e1930` kept the current 72-tool MCP contract and container-image identity docs, then tightened docs verification so colon-shaped identifiers are not misclassified as container image refs. |
+| Verification Snapshot Compression | Reduced the internal verification snapshot from a historical command log into the current acceptance gates, proof coverage, and guidance for where durable evidence belongs. |
+| Fixture README Compression | Reduced Terraform-state drift, Tier-2 drift, JavaScript sample, and dead-code fixture READMEs to assertion-focused fixture contracts while preserving verifier-backed scenario coverage. |
+| Package README Long-Tail Compression | Reduced 15 command/internal package READMEs from 2,657 to 1,014 lines, keeping ownership, invariants, telemetry, focused tests, and links to public contracts while removing duplicated package maps and historical dumps. |
+| Public Docs Long-Tail Compression | Reduced Compose, architecture, telemetry trace/log, and Helm values pages by removing repeated examples and symbol dumps while keeping operator contracts and links to focused references. |
 
 ## Verification Snapshot
 
@@ -112,13 +116,13 @@ Current pass proof:
 
 - Rebase conflict resolution preserved the current 72-tool MCP contract,
   container-image identity read surface, and compressed public/package docs.
-- Focused Go tests passed for `cmd/eshu`, `internal/doctruth`,
-  `internal/mcp`, `internal/query`, and `internal/storage/cypher`.
+- Focused docs verification passed for `docs/public`, `go/internal`, `go/cmd`,
+  and `tests/fixtures`.
 - Broad docs verification passed for `docs/public` and the full repository with
   0 contradicted and 0 missing evidence claims.
-- `scripts/verify-package-docs.sh`, Markdown file-size scan, touched
-  `internal/doctruth` Go file-size scan, `git diff --check`,
-  `cmp -s AGENTS.md CLAUDE.md`, and strict MkDocs build passed.
+- `scripts/verify-package-docs.sh`, Markdown file-size scan,
+  `git diff --check`, `cmp -s AGENTS.md CLAUDE.md`, and strict MkDocs build
+  passed.
 
 ## What Is Left
 

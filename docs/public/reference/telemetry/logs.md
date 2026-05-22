@@ -62,25 +62,10 @@ Startup logs, fallback logs, and any log emitted outside an active span can omit
 `telemetry.EventAttr(...)` or writes the key directly during early fallback
 startup. Do not assume every log line has an event name.
 
-Current explicit event names in the Go runtimes include:
-
-| Event name | Typical source |
-| --- | --- |
-| `runtime.startup.failed` | Runtime bootstrap failures. |
-| `runtime.shutdown.failed` | Telemetry shutdown failures. |
-| `runtime.server.listening` | API, MCP, or pprof listener startup. |
-| `runtime.server.failed` | API listener failure. |
-| `runtime.server.stopped` | API shutdown completion. |
-| `runtime.postgres.connected` | Runtime Postgres connection success. |
-| `runtime.neo4j.connected` | Runtime Neo4j connection success. |
-| `bootstrap.schema.started` | Data-plane schema bootstrap started. |
-| `bootstrap.postgres.applied` | Postgres schema applied. |
-| `bootstrap.graph.applied` | Graph schema applied. |
-| `bootstrap.graph.skipped` | Graph schema bootstrap skipped. |
-| `bootstrap.graph.adopted` | Existing graph schema adopted. |
-| `bootstrap.graph.adoption_incomplete` | Existing graph schema adoption was incomplete. |
-| `documentation.extraction.completed` | Documentation extraction completed. |
-| `documentation.drift.completed` | Documentation drift analysis completed. |
+Current explicit event names cover runtime startup/shutdown/listener events,
+datastore connection events, data-plane schema bootstrap events, and
+documentation extraction/drift completion events. Use
+`telemetry.EventAttr(...)` call sites when you need the exact current registry.
 
 Older examples such as `http.request.completed`, `mcp.request.received`,
 `resolution.work_item.completed`, and `graph.batch.commit.started` are not
@@ -89,38 +74,17 @@ the current call site first.
 
 ## Structured Keys
 
-The frozen structured log-key registry is exposed by
-`telemetry.LogKeys()`. Current registered keys are:
+The frozen structured log-key registry is exposed by `telemetry.LogKeys()`.
+Operators usually start with these registered keys and emitted correlation
+fields:
 
-| Key | Use |
+| Key group | Use |
 | --- | --- |
-| `scope_id` | Scope identifier for ingestion, projection, or query work. |
-| `scope_kind` | Scope type, such as repository. |
-| `source_system` | Origin system, such as Git or Terraform state. |
-| `generation_id` | Generation identifier for a collect or projection cycle. |
-| `collector_kind` | Collector family, such as Git, Confluence, AWS, OCI, package registry, or Terraform state. |
-| `domain` | Reducer, projection, or materialization domain. |
-| `partition_key` | Domain-specific partition key for shared work. |
-| `request_id` | Request correlation identifier. |
-| `failure_class` | Closed failure classification used for triage and retry decisions. |
-| `refresh_skipped` | Whether a freshness check skipped collection. |
-| `pipeline_phase` | End-to-end pipeline phase filter. |
-| `acceptance.scope_id` | Shared-acceptance scope identifier. |
-| `acceptance.unit_id` | Shared-acceptance deployable-unit identifier. |
-| `acceptance.source_run_id` | Source run tied to an acceptance decision. |
-| `acceptance.generation_id` | Generation tied to an acceptance decision. |
-| `acceptance.stale_count` | Number of stale acceptance rows observed. |
-| `depth` | Terraform drift prior-config walk depth. |
-| `prior_config_addresses` | Prior Terraform config addresses found inside the depth window. |
-| `state_only_addresses` | Terraform state addresses absent from current config. |
-| `addresses_promoted_to_removed_from_config` | State-only addresses promoted to removed-from-config evidence. |
-| `multi_element.prefix` | Repeated Terraform nested-block prefix that was truncated. |
-| `multi_element.count` | Number of repeated block elements observed by the state flattener. |
-| `multi_element.source` | Truncation source, such as parser walk or state flattening. |
-| `resource_type` | Terraform resource type for composite-capture diagnostics. |
-| `attribute_key` | High-cardinality Terraform attribute key kept out of metric labels. |
-| `path` | Source-prefixed Terraform parser path for a composite-capture skip. |
-| `error` | Diagnostic error class or message for the logged failure. |
+| `scope_id`, `scope_kind`, `source_system`, `generation_id`, `collector_kind` | Locate the source scope and collection generation. |
+| `domain`, `partition_key`, `failure_class`, `refresh_skipped`, `pipeline_phase` | Triage reducer, projection, shared-work, retry, and skip behavior. |
+| `request_id` plus emitted `trace_id` and `span_id` fields | Correlate logs with request handling and traces. |
+| `acceptance.*` | Debug shared-acceptance decisions. |
+| Terraform drift keys such as `depth`, `prior_config_addresses`, `state_only_addresses`, `multi_element.*`, `resource_type`, `attribute_key`, `path`, and `error` | Debug Terraform-state drift and composite-capture behavior. |
 
 High-cardinality values such as file paths, repository paths, package names,
 state locators, image digests, delivery IDs, and raw cloud resource identifiers
@@ -180,28 +144,6 @@ readable and useful, but phase values are the durable operational contract.
 3. Read the attached `error` value.
 4. Confirm dependency readiness in metrics, `/readyz`, and `/admin/status`
    before restarting repeatedly.
-
-## Example
-
-```json
-{
-  "timestamp": "2026-04-16T15:08:17.112345Z",
-  "severity_text": "INFO",
-  "message": "bootstrap projection succeeded",
-  "service_name": "bootstrap-index",
-  "service_namespace": "eshu",
-  "component": "bootstrap-index",
-  "runtime_role": "bootstrap-index",
-  "trace_id": "5b2c4f1f0f0b54f8b7c1fb85ac20fd68",
-  "span_id": "f1a4e1f0c3139f0a",
-  "severity_number": 9,
-  "pipeline_phase": "projection",
-  "scope_id": "repository:payments",
-  "worker_id": 3,
-  "fact_count": 1234,
-  "duration_seconds": 2.5
-}
-```
 
 ## Change Rules
 

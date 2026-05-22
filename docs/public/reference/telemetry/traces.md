@@ -13,87 +13,16 @@ The trace source of truth is `go/internal/telemetry/contract.go` plus the
 companion `contract_*.go` files and graph read wrappers. Not every runtime emits
 every span on every request.
 
-Pipeline and reducer spans:
+Use `telemetry.SpanNames()` when you need the exhaustive registry. The
+operator-facing families are:
 
-- `collector.observe`
-- `collector.stream`
-- `scope.assign`
-- `fact.emit`
-- `projector.run`
-- `reducer_intent.enqueue`
-- `reducer.run`
-- `reducer.batch_claim`
-- `reducer.drift_evidence_load`
-- `reducer.aws_runtime_drift_evidence_load`
-- `canonical.write`
-- `canonical.projection`
-- `canonical.retract`
-- `ingestion.evidence_discovery`
-- `iac_reachability.materialize`
-- `reducer.sql_relationship_materialization`
-- `reducer.inheritance_materialization`
-- `reducer.cross_repo_resolution`
-- `shared_acceptance.lookup`
-- `shared_acceptance.upsert`
-
-Read/query spans:
-
-- `query.relationship_evidence`
-- `query.evidence_citation_packet`
-- `query.documentation_findings`
-- `query.documentation_facts`
-- `query.documentation_evidence_packet`
-- `query.documentation_packet_freshness`
-- `query.dead_iac`
-- `query.iac_unmanaged_resources`
-- `query.iac_management_status`
-- `query.iac_management_explanation`
-- `query.iac_terraform_import_plan`
-- `query.aws_runtime_drift_findings`
-- `query.infra_resource_search`
-- `query.code_structural_inventory`
-- `query.code_topic_investigation`
-- `query.hardcoded_secret_investigation`
-- `query.import_dependency_investigation`
-- `query.dead_code_investigation`
-- `query.call_graph_metrics`
-- `query.change_surface_investigation`
-- `query.entity_map`
-- `query.resource_investigation`
-- `query.package_registry_packages`
-- `query.package_registry_versions`
-- `query.package_registry_dependencies`
-- `query.package_registry_correlations`
-- `query.ci_cd_run_correlations`
-- `query.sbom_attestation_attachments`
-- `query.supply_chain_impact_findings`
-
-Collector and intake spans:
-
-- `tfstate.collector.claim.process`
-- `tfstate.discovery.resolve`
-- `tfstate.source.open`
-- `tfstate.parser.stream`
-- `tfstate.fact.emit_batch`
-- `tfstate.coordinator.complete`
-- `webhook.handle`
-- `webhook.store`
-- `oci_registry.scan`
-- `oci_registry.api_call`
-- `vulnerability_intelligence.observe`
-- `vulnerability_intelligence.fetch`
-- `package_registry.observe`
-- `package_registry.fetch`
-- `aws.collector.claim.process`
-- `aws.credentials.assume_role`
-- `aws.service.scan`
-- `aws.service.pagination.page`
-
-Dependency spans:
-
-- `postgres.exec`
-- `postgres.query`
-- `neo4j.execute`
+| Family | Common spans |
+| --- | --- |
+| Collection and projection | `collector.observe`, `collector.stream`, `scope.assign`, `fact.emit`, `projector.run`, `canonical.projection`, `canonical.write` |
+| Reducer and materialization | `reducer_intent.enqueue`, `reducer.run`, `reducer.batch_claim`, `reducer.cross_repo_resolution`, `reducer.sql_relationship_materialization`, `reducer.inheritance_materialization`, `shared_acceptance.lookup`, `shared_acceptance.upsert` |
+| Query and investigation | `query.*` spans for relationship evidence, documentation, IaC, code topic, hardcoded secrets, dead code, call-graph metrics, change surface, package registry, CI/CD, SBOM, and supply-chain impact reads |
+| External collectors and webhooks | `tfstate.*`, `webhook.handle`, `webhook.store`, `oci_registry.*`, `vulnerability_intelligence.*`, `package_registry.*`, and `aws.*` |
+| Storage dependencies | `postgres.exec`, `postgres.query`, `neo4j.execute` |
 
 Graph-backed reads can also emit `neo4j.query` and `neo4j.query.single`.
 Treat them as read-path dependency spans. They do not replace the write-path
@@ -130,13 +59,14 @@ Legacy names such as `eshu.http.*`, `eshu.mcp.*`, `eshu.query.*`,
 
 ### Read path
 
-Read traces are intentionally narrower than write traces. They expose storage
-cost and query-handler spans, not a synthetic transport namespace.
+Read traces expose storage cost and query-handler spans, not a synthetic
+transport namespace.
 
 - `postgres.query` traces content-store and read-model queries.
 - `neo4j.query` and `neo4j.query.single` trace graph-backed reads.
-- Query-specific spans, such as `query.documentation_findings` or
-  `query.call_graph_metrics`, identify the handler-level operation.
+- Query-specific spans, such as `query.documentation_findings`,
+  `query.hardcoded_secret_investigation`, or `query.call_graph_metrics`,
+  identify the handler-level operation.
 
 ### Source collectors and webhook intake
 

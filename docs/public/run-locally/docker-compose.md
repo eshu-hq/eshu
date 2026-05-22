@@ -199,34 +199,8 @@ docker compose --env-file .env.remote-e2e -f docker-compose.remote-e2e.yaml --pr
 ```
 
 Run without `--profile seed` if real AWS freshness events are already delivered
-to the webhook listener. Enable Confluence only when tenant credentials are
-available:
-
-```bash
-docker compose --env-file .env.remote-e2e -f docker-compose.remote-e2e.yaml up --build
-docker compose --env-file .env.remote-e2e -f docker-compose.remote-e2e.yaml --profile confluence up --build
-```
-
-| Service | Provides |
-| --- | --- |
-| `nornicdb` | Default graph backend for the remote proof. |
-| `postgres` | Facts, queues, status, content store, and recovery data. |
-| `remote-e2e-corpus-preflight` | Validates corpus root, repository count thresholds, and full-vs-smoke mode before indexing. |
-| `db-migrate` | One-shot data-plane schema migration. |
-| `workspace-setup` | One-shot workspace setup. |
-| `bootstrap-index` | Initial corpus indexing. |
-| `eshu` | HTTP API runtime. |
-| `mcp-server` | MCP server. |
-| `ingester` | Continuous repository ingestion. |
-| `resolution-engine` | Reducer and projection runtime. |
-| `workflow-coordinator` | Active collector scheduling and claim ownership. |
-| `webhook-listener` | AWS freshness event intake. |
-| `seed-aws-freshness` | Optional synthetic AWS freshness event seeder behind the `seed` profile. |
-| `collector-terraform-state` | Terraform state collector for the configured S3 object. |
-| `collector-oci-registry` | OCI registry collector for the configured private ECR repository. |
-| `collector-package-registry` | Package registry collector. The example target is npm `lodash`. |
-| `collector-aws-cloud` | AWS cloud inventory collector. |
-| `collector-confluence` | Optional Confluence collector behind the `confluence` profile. |
+to the webhook listener. Enable the `confluence` profile only when tenant
+credentials are available.
 
 The example env defaults to smoke mode with the fixture corpus. For a
 full-corpus gate, set `ESHU_REMOTE_E2E_CORPUS_MODE=full`, point
@@ -236,18 +210,9 @@ full-corpus gate, set `ESHU_REMOTE_E2E_CORPUS_MODE=full`, point
 effective root and repository counts before indexing and fails early when a
 full-corpus run is still mounted on the default fixtures.
 
-For slow worker-tail investigations, add the pprof overlay only to the debug
-run:
-
-```bash
-docker compose --env-file .env.remote-e2e \
-  -f docker-compose.remote-e2e.yaml \
-  -f docker-compose.remote-e2e.pprof.yaml \
-  --profile seed up --build
-```
-
-For proof commands, AWS credential requirements, pprof ports, and acceptance
-evidence, see [Remote Collector E2E](../reference/local-testing/remote-collector-e2e.md)
+For the service list, proof commands, AWS credential requirements, pprof ports,
+and acceptance evidence, see
+[Remote Collector E2E](../reference/local-testing/remote-collector-e2e.md)
 and [Profiling And Concurrency](../reference/local-testing/profiling-and-concurrency.md#remote-e2e-worker-profiles).
 
 ## Point local CLI commands at Compose

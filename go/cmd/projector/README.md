@@ -1,156 +1,70 @@
-# Projector Binary
+# cmd/projector
 
 ## Purpose
 
-`cmd/projector` is the local verification runtime for source-local projection.
-It claims projector queue items from Postgres, runs `projector.Runtime` to
-write canonical graph nodes and content store rows, and enqueues reducer intents
-for shared-domain follow-up. In the full deployed stack this work runs inside
-`eshu-ingester`; this binary exists for focused local verification and Compose
-debugging.
+`cmd/projector` builds the focused local verification runtime for source-local
+projection. It claims projector queue items from Postgres, runs
+`internal/projector`, writes canonical graph nodes and content rows, publishes
+graph readiness, and enqueues reducer follow-up.
 
-## Where this fits in the pipeline
+## Ownership boundary
 
-```mermaid
-flowchart LR
-  A["eshu-ingester\nor bootstrap-index"] --> B["Postgres projector queue"]
-  B --> C["cmd/projector\nbinary"]
-  C --> D["Graph backend\n(CanonicalNodeWriter)"]
-  C --> E["Postgres content store"]
-  C --> F["Postgres reducer queue\n(ReducerIntentWriter)"]
-  C --> G["Postgres\ngraph_projection_phase_state"]
-  H["eshu-reducer"] --> F
-```
-
-## Internal flow
-
-```mermaid
-flowchart TB
-  A["main()"] --> B["telemetry.NewBootstrap\ntelemetry.NewProviders"]
-  B --> C["runtime.OpenPostgres"]
-  C --> D["openProjectorCanonicalWriter\nOpenNeo4jDriver\nInstrumentedExecutor\nCanonicalNodeWriter"]
-  D --> E["buildProjectorService\nbuildProjectorRuntime"]
-  E --> F["app.NewHostedWithStatusServer"]
-  F --> G["service.Run\n(signal context)"]
-  G --> H["SIGINT/SIGTERM\nclean shutdown"]
-```
-
-## Lifecycle / workflow
-
-`main` bootstraps OTEL telemetry via `telemetry.NewBootstrap("projector")` and
-`telemetry.NewProviders`, then calls `run`. Inside `run`, Postgres is opened
-via `runtimecfg.OpenPostgres` and the canonical graph writer is opened via
-`openProjectorCanonicalWriter` — this creates a Neo4j session executor wrapped
-in `sourcecypher.InstrumentedExecutor` and returns a
-`sourcecypher.CanonicalNodeWriter`. `buildProjectorService` wires a
-`postgres.ProjectorQueue` as `WorkSource`, `WorkSink`, and `Heartbeater`, a
-`postgres.FactStore` for fact loading, and `buildProjectorRuntime` for
-projection execution. The assembled `projector.Service` is hosted through
-`app.NewHostedWithStatusServer` which mounts `/healthz`, `/readyz`, `/metrics`,
-and `/admin/status`. A signal-notified context (`SIGINT`/`SIGTERM`) triggers
-clean shutdown with a per-ack timeout on in-flight work.
+This binary is for local verification and Compose debugging. In the deployed
+stack, source-local projection runs inside `eshu-ingester`. The command owns
+process wiring only; projection behavior lives in `internal/projector`, graph
+write contracts in `internal/storage/cypher`, and queue storage in
+`internal/storage/postgres`.
 
 ## Exported surface
 
-This package defines `main` only; no exported types or functions. All projection
-logic lives in `internal/projector`. Wiring lives in `runtime_wiring.go`.
-The direct process contract includes `eshu-projector --version` and
-`eshu-projector -v`, handled through `buildinfo.PrintVersionFlag` before runtime
-setup begins.
-
-See `doc.go` for the package comment.
+The command package exports no API. Its process contract is version probing,
+standard Postgres/graph environment config, `ESHU_NEO4J_BATCH_SIZE`,
+`ESHU_PROJECTOR_RETRY_ONCE_SCOPE_GENERATION` for tests, hosted admin routes,
+and signal-driven shutdown. See `doc.go` for the binary summary.
 
 ## Dependencies
 
-- `internal/projector` — `projector.Service`, `projector.Runtime`,
-  `projector.CanonicalWriter`, `projector.ReducerIntentWriter`; the projection
-  engine this binary drives
-- `internal/app` — `app.NewHostedWithStatusServer`; hosts the service with the
-  shared admin surface
-- `internal/runtime` — `runtimecfg.OpenPostgres`, `runtimecfg.OpenNeo4jDriver`,
-  `runtimecfg.LoadRetryPolicyConfig`; standard config and connection helpers
-- `internal/storage/cypher` — `sourcecypher.InstrumentedExecutor`,
-  `sourcecypher.CanonicalNodeWriter`; backend-neutral graph write surface
-- `internal/storage/postgres` — `postgres.ProjectorQueue`, `postgres.FactStore`,
-  `postgres.NewContentWriter`, `postgres.NewGraphProjectionPhaseStateStore`,
-  `postgres.NewGraphProjectionPhaseRepairQueueStore`, `postgres.NewReducerQueue`;
-  Postgres-backed implementations of every projector port
-- `internal/content` — `content.LoadWriterConfig`; content writer batch-size
-  config
-- `internal/telemetry` — `telemetry.NewBootstrap`, `telemetry.NewProviders`,
-  `telemetry.NewInstruments`; OTEL bootstrap
-- `internal/status` — `statuspkg.WithRetryPolicies`, `statuspkg.DefaultRetryPolicies`;
-  retry policy wiring for the admin status reader
+The binary wires `internal/projector`, `internal/storage/postgres`,
+`internal/storage/cypher`, `internal/content`, `internal/runtime`,
+`internal/app`, `internal/status`, and `internal/telemetry`.
 
 ## Telemetry
 
-OTEL setup uses `telemetry.NewBootstrap("projector")` and `telemetry.NewProviders`.
-The Prometheus exporter is always active; OTLP export activates when the
-OTEL endpoint env var is set. The canonical writer is wrapped with
-`sourcecypher.InstrumentedExecutor` to emit `eshu_dp_neo4j_query_duration_seconds`
-spans per Cypher statement. The shared admin surface exposes `/metrics` alongside
-`eshu_runtime_*` gauges. Logger scope and component are both `projector`.
-
-All projection-specific metrics and spans (e.g. `eshu_dp_projector_run_duration_seconds`,
-`telemetry.SpanProjectorRun`) are emitted by `internal/projector`; see that
-package's telemetry section.
-
-## Operational notes
-
-- Run with `go run ./cmd/projector` from `go/` for local verification. Set the
-  Postgres DSN via the standard Postgres env contract and the Neo4j vars before
-  starting.
-- Version probes are pre-startup checks. Keep `buildinfo.PrintVersionFlag` at
-  the top of `main` so `eshu-projector --version` does not open queues or graph
-  drivers.
-- `/admin/status` reports live stage, backlog, and failure state through the
-  shared admin contract. Check this before restarting the binary.
-- `ESHU_NEO4J_BATCH_SIZE` controls how many Cypher statements the canonical node
-  writer groups per write round. The default (0) defers to the writer's built-in
-  default. Raising this without watching `eshu_dp_canonical_write_duration_seconds`
-  can hit Neo4j transaction size limits.
-- The projector lease duration for queue claims is one minute
-  (`postgres.NewProjectorQueue(database, "projector", time.Minute)`). The
-  service heartbeats each claimed row before lease expiry so large source-local
-  projections do not get re-claimed while the graph write is still running.
-- `ESHU_PROJECTOR_WORKERS` controls standalone projector worker count. Empty or
-  invalid values default to a CPU-derived cap of eight workers.
-- Shutdown is signal-driven. In-flight acks use a 5-second timeout via
-  `projectorAckContext` in `internal/projector/service.go`; claims in progress
-  at shutdown are logged as `shutdown_canceled` and left for re-claim, not
-  re-queued by this binary.
-
-## Extension points
-
-- `buildProjectorRuntime` in `runtime_wiring.go` is the single wiring point for
-  substituting the canonical writer, content writer, intent writer, phase
-  publisher, or repair queue. Add new implementations behind the relevant
-  `internal/projector` interface rather than changing the `projector.Runtime`
-  struct.
-- Retry policy is loaded via `runtimecfg.LoadRetryPolicyConfig(getenv, "PROJECTOR")`
-  and threaded through `postgres.ProjectorQueue`; change queue retry behavior
-  there, not in the binary's main loop.
+Startup uses `telemetry.NewBootstrap("projector")`, service/component
+`projector`, `telemetry.NewInstruments`, an instrumented canonical writer, and
+the shared `/healthz`, `/readyz`, `/metrics`, and `/admin/status` routes.
+Projection-specific spans and metrics are emitted by `internal/projector`.
 
 ## Gotchas / invariants
 
-- Claims go to the `projector` queue; intents go to the `reducer` queue via a
-  separate `postgres.NewReducerQueue` handle. The two queue handles have the
-  same one-minute lease duration, set in `buildProjectorService`.
-- `ESHU_PROJECTOR_RETRY_ONCE_SCOPE_GENERATION` is a fault-injection env var, not
-  a production retry knob. Leaving it set causes one forced failure per matching
-  scope-generation key and should not appear in any non-test deployment.
-- The binary does not start the resolution engine or ingester. It only drains
-  existing projector queue items and writes graph/content output. Empty queues
-  produce no errors; the binary polls indefinitely.
+- Version probes must exit before telemetry, Postgres, graph, or status setup.
+- The projector queue and reducer queue are separate handles even though this
+  binary wires both.
+- `ESHU_PROJECTOR_RETRY_ONCE_SCOPE_GENERATION` is a fault-injection knob and
+  must not appear in normal deployment.
+- Large canonical writes need lease heartbeat support; otherwise a one-minute
+  claim can be reclaimed while work is still running.
+- Empty queues are not errors. The binary polls until stopped.
 
-No-Regression Evidence: `go test ./cmd/projector -run 'TestBuildProjectorService(HeartbeatsLongRunningClaims|UsesWorkerCountFromEnv|WiresRetryPolicyFromEnv)' -count=1` covers standalone projector lease renewal, worker tuning, and retry-policy wiring. Remote E2E Compose now starts this runtime after bootstrap indexing so hosted collector `source_local/projector` rows have an always-on claimer.
+## Focused tests
 
-Observability Evidence: the standalone projector now wires the same projector spans, metrics, structured logs, runtime memory gauge, `/metrics`, `/admin/status`, and optional pprof startup log used by hosted data-plane workers.
+```bash
+cd go
+go test ./cmd/projector -run 'Test.*Runtime|Test.*Service|Test.*Retry|Test.*Batch|Test.*Driver' -count=1
+go test ./cmd/projector ./internal/projector -count=1
+```
+
+Docs-only edits should also pass the package-doc verifier and `git diff --check`.
+
+No-Regression Evidence: `go test ./cmd/projector -run 'TestBuildProjectorService(HeartbeatsLongRunningClaims|UsesWorkerCountFromEnv|WiresRetryPolicyFromEnv)' -count=1` covers standalone projector lease renewal, worker tuning, and retry-policy wiring. Remote E2E Compose starts this runtime after bootstrap indexing so hosted collector `source_local/projector` rows have an always-on claimer.
+
+Observability Evidence: the standalone projector wires the same projector spans,
+metrics, structured logs, runtime memory gauge, `/metrics`, `/admin/status`,
+and optional pprof startup log used by hosted data-plane workers.
 
 ## Related docs
 
-- `docs/public/deployment/service-runtimes.md` — local verification runtime lanes
-- `docs/public/reference/local-testing.md` — verification gates and test commands
-- `go/internal/projector/README.md` — projection logic, telemetry, and invariants
-- `go/internal/storage/cypher/README.md` — canonical node writer and executor
-  contract
+- `docs/public/deployment/service-runtimes.md`
+- `docs/public/reference/local-testing.md`
+- `go/internal/projector/README.md`
+- `go/internal/storage/cypher/README.md`

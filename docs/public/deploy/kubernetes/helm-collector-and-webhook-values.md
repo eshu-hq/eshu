@@ -45,33 +45,6 @@ collector also receives its own `<collector>.collectorInstances` as
 `ESHU_COLLECTOR_INSTANCES_JSON`; keep the selected `instanceId` aligned with
 the instance list.
 
-```yaml
-workflowCoordinator:
-  enabled: true
-  deploymentMode: active
-  claimsEnabled: true
-  collectorInstances:
-    - instance_id: package-registry-primary
-      collector_kind: package_registry
-      mode: continuous
-      enabled: true
-      claims_enabled: true
-      configuration:
-        targets: []
-
-packageRegistryCollector:
-  enabled: true
-  instanceId: package-registry-primary
-  collectorInstances:
-    - instance_id: package-registry-primary
-      collector_kind: package_registry
-      mode: continuous
-      enabled: true
-      claims_enabled: true
-      configuration:
-        targets: []
-```
-
 ## Workflow coordinator
 
 | Value | Default | Operator note |
@@ -190,16 +163,6 @@ but not for the webhook listener. Workload-specific `env` exists for workflow
 coordinator only in this group.
 
 ## Render checks
-
-Run the default chart checks plus focused overlays for any enabled optional
-runtime:
-
-```bash
-helm lint ./deploy/helm/eshu
-helm template eshu ./deploy/helm/eshu
-helm template eshu ./deploy/helm/eshu -f values.collectors.yaml
-helm template eshu ./deploy/helm/eshu -f values.webhooks.yaml
-```
 
 The render fails for common mistakes such as inactive workflow coordination for
 claim-driven collectors, empty collector instance lists, missing Confluence or
