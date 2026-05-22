@@ -220,7 +220,7 @@ func TestRunDocsVerifyMarksAPIImageTruthErrorsMissingEvidence(t *testing.T) {
 	assertDocsVerifyFinding(t, envelope.Data.Findings, "container_image_ref", "ghcr.io/acme/api:1.2.3", "missing_evidence")
 }
 
-func TestDocsVerifyFreshnessIncludesImageTruthMode(t *testing.T) {
+func TestDocsVerifyFreshnessIncludesEffectiveImageTruthMode(t *testing.T) {
 	t.Parallel()
 
 	documents := []doctruth.DocumentInput{{
@@ -233,8 +233,22 @@ func TestDocsVerifyFreshnessIncludesImageTruthMode(t *testing.T) {
 	if local == api {
 		t.Fatalf("freshness local = freshness api = %q, want image truth source in fingerprint", local)
 	}
-	if got, want := docsInventoryFreshnessHint(documents, 256*1024, 50, ""), docsInventoryFreshnessHint(documents, 256*1024, 50, "auto"); got != want {
-		t.Fatalf("empty image truth freshness = %q, want auto freshness %q", got, want)
+	cmd := newTestDocsVerifyCommand(docsVerifyDeps{})
+	if err := cmd.Flags().Set("image-truth", "auto"); err != nil {
+		t.Fatalf("Set(image-truth) error = %v, want nil", err)
+	}
+	if err := cmd.Flags().Set("service-url", "https://api.example.test"); err != nil {
+		t.Fatalf("Set(service-url) error = %v, want nil", err)
+	}
+	opts, err := docsVerifyOptionsFromCommand(cmd, []string{"README.md"})
+	if err != nil {
+		t.Fatalf("docsVerifyOptionsFromCommand() error = %v, want nil", err)
+	}
+	if got, want := effectiveDocsVerifyImageTruth(cmd, opts.ImageTruth), "api"; got != want {
+		t.Fatalf("effectiveDocsVerifyImageTruth(auto with service-url) = %q, want %q", got, want)
+	}
+	if got, want := docsInventoryFreshnessHint(documents, 256*1024, 50, effectiveDocsVerifyImageTruth(cmd, opts.ImageTruth)), api; got != want {
+		t.Fatalf("auto+service-url freshness = %q, want api freshness %q", got, want)
 	}
 }
 

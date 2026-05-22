@@ -94,6 +94,7 @@ func runDocsVerifyWithDeps(cmd *cobra.Command, args []string, deps docsVerifyDep
 	if err != nil {
 		return err
 	}
+	opts.ImageTruth = effectiveDocsVerifyImageTruth(cmd, opts.ImageTruth)
 	inventory, err := inventoryDocs(opts)
 	if err != nil {
 		return err

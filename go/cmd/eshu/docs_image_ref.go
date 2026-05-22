@@ -20,10 +20,21 @@ const (
 var errDocsVerifyImageTruthLimitReached = errors.New("image truth file limit reached")
 
 func docsVerifyContainerImageResolver(cmd remoteFlagReader, opts docsVerifyOptions) doctruth.ContainerImageResolver {
-	if opts.ImageTruth == "api" || opts.ImageTruth == "auto" && docsVerifyRemoteImageTruthConfigured(cmd) {
+	if opts.ImageTruth == "api" {
 		return docsVerifyContainerImageAPIResolver(apiClientFromRemoteFlags(cmd))
 	}
 	return docsVerifyLocalContainerImageResolver(opts.Path)
+}
+
+func effectiveDocsVerifyImageTruth(cmd remoteFlagReader, mode string) string {
+	mode = normalizedDocsVerifyImageTruth(mode)
+	if mode == "auto" {
+		if docsVerifyRemoteImageTruthConfigured(cmd) {
+			return "api"
+		}
+		return "local"
+	}
+	return mode
 }
 
 func docsVerifyLocalContainerImageResolver(verifyPath string) doctruth.ContainerImageResolver {
