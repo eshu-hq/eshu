@@ -6,10 +6,10 @@ repo's 500-line limit.
 
 ## Current Snapshot
 
-- Total Markdown files left in the checkout after the current pass: 555
+- Total Markdown files left in the checkout after the current pass: 547
 - Current branch doc status from
   `git diff --cached --name-status origin/main -- '*.md'` after the current
-  pass: 77 added, 156 modified, 123 deleted, 111 renamed
+  pass: 85 added, 156 modified, 139 deleted, 95 renamed
 - Copied image assets removed from this branch: 43 files under
   `docs/public/images/`. They were reference assets from another project and
   no longer appear in the source-doc reference scan.
@@ -91,9 +91,42 @@ cleanup pass.
 | CLI Reference Rewrite | Reduced the CLI reference into a code-grounded command matrix; corrected root flags, scan flags, API-backed query/workspace behavior, remote flag handling, component flags, deprecated `start`, the unusable `w` shortcut, and service binary version probes. |
 | Service Runtime Workflow Rewrite | Reduced the service workflow page into current ingestion, reducer, query, bootstrap/recovery, and collector-control flows; corrected source-local projector ownership, backend-neutral query wording, runtime matrix scope, ingester worker defaults, reducer shared-projection defaults, reducer retry attempts, and API key knobs. |
 | Compose Helm And Local Binary Docs Rewrite | Corrected Compose service/metrics port tables, Neo4j stack scope, local binary/MCP ownership, AWS freshness webhook coverage, Helm render examples, and the Helm quickstart collector flow. |
+| Fact Contract Rewrite | Replaced duplicated fact/plugin prose with a concise fact-envelope contract and a separate schema-versioning policy grounded in `go/internal/facts` and `go/internal/component`. |
+| Collector Reducer Readiness Rewrite | Reduced the collector/reducer readiness page to current implemented lanes, claim-driven coordinator requirements, reducer truth boundaries, and proof gates. |
+| Package README Compression | Reduced projector, runtime, ingester, workflow, query, and coordinator package READMEs to package ownership, invariants, telemetry, dependencies, and focused tests. |
+| Public Reference Polish | Reduced telemetry trace/correlation, truth-label, MCP cookbook, documentation updater, local performance, and NornicDB pitfalls references while preserving current contracts. |
+| Legacy Stub Deletion | Removed legacy getting-started, deployment, and Neo4j setup stubs after repointing backlinks to current run-local and Kubernetes docs. |
 
 ## Verification Snapshot
 
+- `go run ./cmd/eshu docs verify ../docs/public/reference/fact-envelope-reference.md --limit 1200 --fail-on contradicted,missing_evidence`
+  and `go run ./cmd/eshu docs verify ../docs/public/reference/fact-schema-versioning.md --limit 1200 --fail-on contradicted,missing_evidence`
+  passed with 0 contradicted and 0 missing evidence claims after the fact
+  contract rewrite.
+- `go run ./cmd/eshu docs verify ../docs/public/reference/collector-reducer-readiness.md --limit 1200 --fail-on contradicted,missing_evidence`
+  passed with 1 document, 1 claim, 0 contradicted, and 0 missing evidence
+  claims after the readiness rewrite.
+- Focused docs verification passed for `go/internal/projector`,
+  `go/internal/runtime`, `go/cmd/ingester`, `go/internal/workflow`,
+  `go/internal/query`, and `go/internal/coordinator` after the package README
+  compression.
+- Focused docs verification passed for `docs/public/reference/telemetry/traces.md`
+  and `docs/public/reference/telemetry/cross-service-correlation.md`; the public
+  reference polish subagent also verified the truth-label, MCP cookbook,
+  documentation updater, local performance, and NornicDB pitfalls pages with 0
+  contradicted and 0 missing evidence claims.
+- `go test ./internal/projector ./internal/runtime ./cmd/ingester ./internal/workflow ./internal/query ./internal/coordinator ./internal/facts ./internal/component -count=1`
+  passed after integrating the subagent docs batch.
+- `go run ./cmd/eshu docs verify ../docs/public --limit 1000 --fail-on contradicted,missing_evidence`
+  passed with 173 documents, 1,217 claims, 0 contradicted, and 0 missing
+  evidence claims after the subagent docs batch.
+- `go run ./cmd/eshu docs verify .. --limit 2000 --fail-on contradicted,missing_evidence`
+  passed with 561 documents, 1,619 claims, 0 contradicted, and 0 missing
+  evidence claims after the subagent docs batch.
+- `scripts/verify-package-docs.sh`, `git diff --check`, `cmp -s AGENTS.md CLAUDE.md`,
+  and `uv run --with mkdocs --with mkdocs-material --with pymdown-extensions mkdocs build --strict --clean --config-file docs/mkdocs.yml`
+  passed after the subagent docs batch. The package-doc verifier reported no
+  changed Go package source files.
 - `go run ./cmd/eshu docs verify ../docs/public/run-locally/docker-compose.md --limit 1200 --fail-on contradicted,missing_evidence`
   passed with 1 document, 6 claims, 0 contradicted, and 0 missing evidence
   claims after the Compose docs rewrite.
@@ -381,14 +414,14 @@ cleanup pass.
 
 ## What Is Left
 
-- Continue reviewing oversized public and package docs. The current largest
-  real documentation files are
-  `docs/public/reference/collector-reducer-readiness.md` and
-  `docs/public/reference/fact-envelope-reference.md`. Current subagent audits
-  identified fact-envelope/schema consolidation and collector-readiness cleanup
-  as the next ready targets. The scoped
-  `go/internal/storage/postgres/AGENTS.md` remains large, but any reduction
-  there must preserve mandatory agent guidance. The larger
+- Continue reviewing oversized public and package docs. The largest real docs
+  left are `go/internal/storage/cypher/README.md`,
+  `docs/public/run-locally/docker-compose.md`, `docs/public/why-eshu.md`,
+  `docs/public/reference/cli-reference.md`, `docs/public/reference/mcp-cookbook.md`,
+  `docs/public/guides/collector-authoring.md`, `go/internal/mcp/README.md`,
+  `docs/public/reference/local-data-root-spec.md`, and `go/cmd/reducer/README.md`.
+  The scoped `go/internal/storage/postgres/AGENTS.md` remains large, but any
+  reduction there must preserve mandatory agent guidance. The larger
   `tests/fixtures/sample_projects/sample_project_typescript/README.md` fixture
   remains test data, not a public documentation target.
 - Keep deleting historical planning notes when current public or package-local

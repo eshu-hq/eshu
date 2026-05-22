@@ -69,7 +69,7 @@ When deployed as a service, Eshu runs in one of three roles:
 - **api** — serves HTTP API only, reads from the graph
 - **ingester** — the deployed indexing runtime. Internally this still uses the `ingester` runtime role and processes indexing jobs only, writing facts and projected graph state.
 
-Split roles when you need to scale API serving and indexing independently. See [Deployment Overview](../deployment/overview.md) for details.
+Split roles when you need to scale API serving and indexing independently. See [Deploy to Kubernetes](../deploy/kubernetes/index.md) for the shared-service path.
 
 ## Next steps
 

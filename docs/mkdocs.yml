@@ -100,7 +100,7 @@ nav:
     - Collector Authoring: guides/collector-authoring.md
     - Collector And Reducer Readiness: reference/collector-reducer-readiness.md
     - Component Package Manager: reference/component-package-manager.md
-    - Fact Envelope And Plugins: reference/fact-envelope-reference.md
+    - Fact Envelope Reference: reference/fact-envelope-reference.md
     - Fact Schema Versioning: reference/fact-schema-versioning.md
     - Plugin Trust Model: reference/plugin-trust-model.md
     - Language Query DSL: reference/language-query-dsl.md
@@ -137,15 +137,6 @@ nav:
     - Component Package Manager: reference/component-package-manager.md
     - Runtime Admin API: reference/runtime-admin-api.md
     - Tag Taxonomy: reference/tag-taxonomy.md
-    - Legacy Entry Pages:
-      - Prerequisites: getting-started/prerequisites.md
-      - Installation: getting-started/installation.md
-      - Quickstart: getting-started/quickstart.md
-      - Deployment Overview: deployment/overview.md
-      - Helm: deployment/helm.md
-      - Minimal Manifests: deployment/manifests.md
-      - Argo CD: deployment/argocd.md
-      - Neo4j Setup: guides/neo4j-setup.md
     - Local Host & Capabilities:
       - Backend Conformance: reference/backend-conformance.md
       - Capability Conformance Spec: reference/capability-conformance-spec.md

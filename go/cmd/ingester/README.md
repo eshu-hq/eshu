@@ -2,282 +2,121 @@
 
 ## Purpose
 
-`cmd/ingester` is the long-running binary (`eshu-ingester`) that owns
-repository sync, parsing, fact emission, and source-local projection into the
-configured graph backend. It runs as a `StatefulSet` in Kubernetes and is the
-only runtime that mounts the shared workspace PVC. Cross-domain materialization
-belongs to the reducer; HTTP reads belong to the API and MCP server; schema DDL
-belongs to `eshu-bootstrap-data-plane`.
+`cmd/ingester` builds the `eshu-ingester` binary. The process owns repository
+sync, discovery, parsing, fact emission, and source-local projection for Git
+repository scopes. In Kubernetes it is the long-running runtime that owns the
+workspace PVC.
 
-## Where this fits in the pipeline
+## Ownership boundary
 
-```mermaid
-flowchart LR
-  A["git source\n(remote or filesystem)"] --> B["cmd/ingester\nGitSource + NativeRepositorySnapshotter"]
-  B --> C["Postgres fact store\nIngestionStore"]
-  C --> D["Projector queue\nNewProjectorQueue"]
-  D --> E["Resolution Engine\n(reducer + source-local projector)"]
-  E --> F["Graph backend"]
-  E --> G["Postgres content store"]
+The ingester runs collector and projector services in one process. It commits
+facts to Postgres, fills the projector queue, drains source-local projection,
+and runs deferred relationship maintenance after collector batch drains.
+Cross-domain materialization belongs to the reducer, HTTP reads belong to API
+and MCP runtimes, and schema DDL belongs to `eshu-bootstrap-data-plane`.
+
+Startup flow:
+
+```text
+main.run
+  -> telemetry.NewBootstrap / NewProviders
+  -> runtime.OpenPostgres
+  -> openIngesterCanonicalWriter
+  -> buildIngesterService
+  -> collector.Service + projector.Service via compositeRunner
+  -> app.NewHostedWithStatusServer
 ```
 
-## Internal flow
-
-```mermaid
-flowchart TB
-  A["main.run\ntelemetry + Postgres + canonical writer"] --> B["buildIngesterService\ncompositeRunner"]
-  B --> C["collectorSvc\ncollector.Service.Run"]
-  B --> D["projectorSvc\nprojector.Service.Run"]
-  C --> E["GitSource.Next\ndiscover + snapshot workers"]
-  E --> F["IngestionStore\ndurable fact write"]
-  F --> G{"batch drained?"}
-  G -- yes --> H["AfterBatchDrained\nBackfillAllRelationshipEvidence\nReopenDeploymentMappingWorkItems"]
-  G -- no --> E
-  D --> I["projectorQueue.Claim"]
-  I --> J["projector.Runtime.Project\ncanonical write + content write + intent enqueue"]
-  J --> K["projectorQueue.Ack"]
-```
-
-## Lifecycle / workflow
-
-`main.run` bootstraps OTEL telemetry via `telemetry.NewBootstrap("ingester")`
-and `telemetry.NewProviders`, opens Postgres through `runtimecfg.OpenPostgres`,
-and builds the canonical graph writer (`sourcecypher.NewCanonicalNodeWriter`
-backed by the adapter selected via `ESHU_GRAPH_BACKEND`). It then calls
-`buildIngesterService`, which assembles a `compositeRunner` through
-`newCompositeRunner` so `collector.Service` and `projector.Service` run
-concurrently. The first error from either service cancels the other.
-
-`signal.NotifyContext` on `SIGINT` and `SIGTERM` propagates cancellation through
-`compositeRunner.Run`. `app.NewHostedWithStatusServer` mounts `/healthz`,
-`/readyz`, `/metrics`, `/admin/status`, and `/admin/recovery` alongside the
-composite runner.
-
-When `ESHU_WEBHOOK_TRIGGER_HANDOFF_ENABLED` is true, the ingester wraps the
-normal repository selector with a webhook-trigger selector. Accepted queued
-GitHub, GitLab, and Bitbucket triggers are claimed first, synced as targeted
-repositories, then handed to the same snapshot and fact-emission path as
-scheduled polling. Unsupported provider triggers are marked failed instead of
-being routed through a guessed clone path.
-
-Set `ESHU_REPO_SCHEDULED_SYNC_ENABLED=false` when the ingester should only
-process queued webhook refresh triggers and must not fall back to broad
-scheduled repository selection. This mode requires
-`ESHU_WEBHOOK_TRIGGER_HANDOFF_ENABLED=true`; startup fails if scheduled sync is
-disabled without a trigger handoff path.
-
-Git-backed repository selection uses the same runtime logger as the rest of the
-ingester. During first startup or webhook-triggered sync, clone/fetch emits
-structured `git repository sync started`, `git repository sync progress`,
-`git repository sync completed`, and `git repository sync failed` records before
-snapshot workers start. The fields are bounded for hosted operators: operation,
-provider kind, repository id, repository ordinal/count, elapsed seconds, branch
-when known, and failure class. Credential-bearing URLs are redacted and full
-local checkout paths are not logged.
-
-Hosted fetch refreshes parse `git ls-remote --symref` HEAD output as a
-two-field symbolic ref, so `ref: refs/heads/main` resolves to `main` instead of
-the invalid `ref:` branch. When a managed shallow checkout reports an old
-`.git/shallow.lock` created by an interrupted fetch, the ingester removes only
-that stale lock under the managed repo and retries the fetch once.
-
-No-Regression Evidence: `go test ./internal/collector -run
-'TestUpdateRepositoryParsesSymrefHeadBranchFromLsRemote|TestUpdateRepositoryRecoversOldShallowLockAndRetriesFetch'
--count=1` covers hosted HEAD parsing and stale shallow-lock recovery without
-changing clone/fetch progress logging semantics.
-
-Observability Evidence: existing `git repository sync failed` and `git
-repository sync completed` logs still surface operation, repository ordinal,
-branch, elapsed time, and failure class; the retry path keeps the original fetch
-progress writer so a repeated failure remains visible.
-
-After each full collector batch drain, `AfterBatchDrained` calls
-`BackfillAllRelationshipEvidence` then `ReopenDeploymentMappingWorkItems`.
-These two calls implement the Phase 1 → Phase 3 bootstrap ordering described in
-the root agent guide: backfill populates `relationship_evidence_facts`; reopen
-re-triggers `deployment_mapping` so the reducer can produce
-`resolved_relationships`. A failure in either call exits the ingester to prevent
-partial backfill state.
-
-The projector service runs in the same process and drains the projector queue
-filled by the collector. Worker count defaults to `min(NumCPU, 8)`; on
-`local_authoritative` + NornicDB it defaults to the developer or host CPU count
-so the local authoritative path matches the production-proven concurrency
-profile. The NornicDB phase-group executor keeps canonical retractions outside
-matching upsert groups so slow cleanup and normal entity writes are timed and
-reported as separate phases. Directory and file writes remain separate bounded
-phases, while entity containment is folded into row-scoped entity upserts by
-default for NornicDB after high-cardinality Java proof runs showed the older
-file-scoped shape over-fragmented canonical writes.
-
-Positive list-seeded canonical retract statements are split into 25-key chunks
-inside the NornicDB phase-group executor before execution. Negative `NOT IN`
-cleanup statements stay intact because splitting a keep-list would make each
-chunk delete valid current files from other chunks.
-
-No-Regression Evidence: `go test ./cmd/ingester -run
-'TestNornicDBPhaseGroupExecutor.*RetractFilePaths' -count=1` proves positive
-retract file-path chunks split while negative keep-list cleanup remains one
-statement.
-
-Observability Evidence: phase-group retract errors now include the original
-statement ordinal and chunk part (`part x/y`) while preserving the sanitized
-statement summary used in queue failure details.
+`compositeRunner` cancels both collector and projector on the first returned
+error. `SIGINT` and `SIGTERM` cancel the process context.
 
 ## Exported surface
 
-`cmd/ingester` is a `main` package. There is no exported Go API. The contract
-is the process interface: environment variables, signal handling, direct
-`eshu-ingester --version` / `eshu-ingester -v` probes, and the admin HTTP surface
-listed above. Version probes run through `buildinfo.PrintVersionFlag` before
-telemetry, Postgres, or graph setup begins.
+`cmd/ingester` is a `main` package and exports no Go API. Its contract is the
+process interface:
 
-## Environment variables
-
-| Variable | Default | Purpose |
-| --- | --- | --- |
-| ESHU_POSTGRES_DSN | required | Postgres connection string |
-| ESHU_GRAPH_BACKEND | nornicdb | neo4j or nornicdb |
-| NEO4J_URI | required | Bolt URI |
-| NEO4J_USERNAME | required | Bolt auth username |
-| NEO4J_PASSWORD | required | Bolt auth password |
-| ESHU_SNAPSHOT_WORKERS | min(NumCPU,8) | Concurrent snapshot goroutines |
-| ESHU_PARSE_WORKERS | min(NumCPU,8) | Concurrent file-parse workers per snapshot |
-| ESHU_LARGE_REPO_FILE_THRESHOLD | 1000 | File-count threshold for large-repo semaphore |
-| ESHU_LARGE_REPO_MAX_CONCURRENT | 2 | Max concurrent large-repo snapshots |
-| ESHU_PROJECTOR_WORKERS | min(NumCPU,8); local_authoritative NornicDB: NumCPU | Projector worker count |
-| ESHU_LARGE_GEN_THRESHOLD | 10000 | Fact-count threshold for large-generation semaphore |
-| ESHU_LARGE_GEN_MAX_CONCURRENT | 2 | Max concurrent large-generation projections |
-| ESHU_CANONICAL_WRITE_TIMEOUT | 30s | Graph write timeout |
-| ESHU_NEO4J_PROFILE_GROUP_STATEMENTS | false | Opt-in Neo4j grouped-write statement attempt logs for performance diagnostics |
-| ESHU_NORNICDB_CANONICAL_GROUPED_WRITES | false | Enable NornicDB grouped writes (conformance gated) |
-| ESHU_NORNICDB_BATCHED_ENTITY_CONTAINMENT | true | Fold entity containment into row-scoped entity upserts; set false only for fallback comparisons |
-| ESHU_NORNICDB_PHASE_GROUP_STATEMENTS | 500 | NornicDB phase group statement cap |
-| ESHU_NORNICDB_ENTITY_BATCH_SIZE | 100 | Entity upsert row cap |
-| ESHU_NORNICDB_ENTITY_PHASE_CONCURRENCY | NumCPU clamped to 16 | Parallel chunk dispatch for canonical entity phases. Clamped to 16. Set to 1 to keep serial dispatch. |
-| ESHU_QUERY_PROFILE | — | local_lightweight or local_authoritative |
-| ESHU_DISABLE_NEO4J | — | Force local-lightweight writer when true |
-| SCIP_INDEXER | false | Enable external SCIP indexers |
-| SCIP_LANGUAGES | python,typescript,go,rust,java | Languages eligible for SCIP indexing |
-| ESHU_PROJECTOR_RETRY_ONCE_SCOPE_GENERATION | — | Fault-injection: scope generation ID for one-shot retry |
-| ESHU_WEBHOOK_TRIGGER_HANDOFF_ENABLED | false | Check queued webhook refresh triggers before scheduled repository polling |
-| ESHU_WEBHOOK_TRIGGER_HANDOFF_OWNER | ingester | Lease owner written when claiming queued webhook triggers |
-| ESHU_WEBHOOK_TRIGGER_CLAIM_LIMIT | 100 | Max webhook triggers claimed per selector pass |
-| ESHU_REPO_SCHEDULED_SYNC_ENABLED | true | Enable broad scheduled repository selection when no webhook triggers are queued |
-| ESHU_PPROF_ADDR | unset (disabled) | Opt-in `net/http/pprof` endpoint via `runtime.NewPprofServer`; port-only inputs bind to `127.0.0.1` |
-
-Per-label NornicDB tuning knobs (ESHU_NORNICDB_ENTITY_LABEL_BATCH_SIZES,
-ESHU_NORNICDB_ENTITY_LABEL_PHASE_GROUP_STATEMENTS, and the file/function/struct
-batch overrides) are documented in `docs/public/reference/nornicdb-tuning.md`.
+- `eshu-ingester --version` and `eshu-ingester -v` exit before telemetry,
+  Postgres, graph, queue, or HTTP setup.
+- `/healthz`, `/readyz`, `/metrics`, and `/admin/status` are mounted through
+  the shared runtime admin surface.
+- `/admin/recovery` is mounted only when the recovery handler can resolve the
+  API key.
+- `ESHU_WEBHOOK_TRIGGER_HANDOFF_ENABLED=true` makes repository selection check
+  queued GitHub, GitLab, and Bitbucket refresh triggers before scheduled
+  polling.
+- `ESHU_REPO_SCHEDULED_SYNC_ENABLED=false` requires webhook trigger handoff and
+  prevents fallback to broad scheduled repository selection.
 
 ## Dependencies
 
-- `internal/collector` — `collector.Service`, `GitSource`,
-  `NativeRepositorySelector`, `NativeRepositorySnapshotter`
-- `internal/projector` — `projector.Service`, `projector.Runtime`,
-  `projector.CanonicalWriter`, `projector.RetryInjector`
-- `internal/storage/postgres` — `IngestionStore`, `NewProjectorQueue`,
-  `NewReducerQueue`, `NewFactStore`, `NewContentWriter`, queue observers
-- `internal/storage/cypher` — `sourcecypher.NewCanonicalNodeWriter`
-- `internal/runtime` — `OpenPostgres`, `LoadGraphBackend`, `OpenNeo4jDriver`,
-  `ConfigureMemoryLimit`, `LoadRetryPolicyConfig`
-- `internal/app` — `app.NewHostedWithStatusServer`, `app.Runner`
-- `internal/telemetry` — bootstrap, providers, instruments
-- `internal/recovery` — `recovery.NewHandler` for the `/admin/recovery` route
+- `internal/collector` for Git source selection, sync, snapshotting, parsing,
+  and fact writes.
+- `internal/projector` for source-local projection and reducer intent enqueue.
+- `internal/storage/postgres` for fact, content, projector queue, reducer queue,
+  recovery, status, and observer stores.
+- `internal/storage/cypher` for canonical graph writer construction.
+- `internal/runtime` for datastore opening, runtime config, retry policy,
+  memory limit, pprof, and admin server wiring.
+- `internal/app`, `internal/recovery`, and `internal/telemetry` for process
+  hosting and observability.
 
 ## Telemetry
 
-The ingester inherits collector and projector telemetry. Key signals:
+The ingester inherits collector and projector signals. Key metrics include
+`eshu_dp_repo_snapshot_duration_seconds`,
+`eshu_dp_repos_snapshotted_total`,
+`eshu_dp_facts_emitted_total`,
+`eshu_dp_facts_committed_total`,
+`eshu_dp_large_repo_semaphore_wait_seconds`,
+`eshu_dp_projections_completed_total`, and
+`eshu_dp_projector_stage_duration_seconds`. Hosted Git sync emits bounded
+structured logs for start, progress, completion, and failure with credential
+values redacted.
 
-- `eshu_dp_repo_snapshot_duration_seconds` — per-repo snapshot time; elevated
-  values point to large or slow-to-parse repositories
-- `eshu_dp_repos_snapshotted_total{status="failed"}` — snapshot errors
-- `eshu_dp_facts_emitted_total` vs `eshu_dp_facts_committed_total` — a growing
-  gap signals `IngestionStore` write pressure
-- `eshu_dp_large_repo_semaphore_wait_seconds` — contention for the large-repo
-  semaphore; raise ESHU_LARGE_REPO_MAX_CONCURRENT cautiously with memory in view
-- `eshu_dp_projections_completed_total{status="failed"}` — projector failures;
-  check `failure_class` in structured logs
-- `eshu_dp_projector_stage_duration_seconds{stage="canonical_write"}` — graph
-  write bottleneck
-- Compose metrics endpoint: `http://localhost:19465/metrics`
-- `git repository sync *` structured logs — clone/fetch lifecycle and progress
-  during hosted repository sync before snapshot and parse stages begin
-
-## Operational notes
-
-- The ingester is the only runtime that should hold the workspace PVC in
-  Kubernetes. Do not attach the volume to other workloads.
-- Version probes are pre-startup checks. Keep `buildinfo.PrintVersionFlag` at
-  the top of `main` so container images can report their build without
-  requiring database credentials.
-- Align ESHU_SNAPSHOT_WORKERS and ESHU_PARSE_WORKERS with CPU requests to avoid
-  CPU throttling under concurrent parsing load. The local-authoritative owner
-  sets both to the developer machine's CPU count unless explicit env vars are
-  already present.
-- If the projector queue age (`eshu_dp_queue_oldest_age_seconds{queue="projector"}`)
-  rises while `eshu_dp_repos_snapshotted_total` grows, the projector cannot drain
-  as fast as the collector fills. Check projector worker count and graph write
-  latency before raising snapshot workers.
-- The `local_lightweight` profile (ESHU_QUERY_PROFILE=local_lightweight or
-  ESHU_DISABLE_NEO4J=true) skips canonical graph writes entirely; useful for
-  laptop code-search workflows where the graph backend is not running.
-- The recovery route (`/admin/recovery`) mounts only when
-  `NewRecoveryHandler` resolves the API key from the environment. A
-  missing route means the key is absent, not that recovery is broken.
-
-## Extension points
-
-- Add a new graph backend by adding a `wiring_<backend>_*.go` file following
-  the NornicDB pattern and handling the new ESHU_GRAPH_BACKEND value in
-  `openIngesterCanonicalWriter`. The `compositeRunner` and projector wiring do
-  not change.
-- ESHU_PROJECTOR_RETRY_ONCE_SCOPE_GENERATION wires `NewRetryOnceInjector`
-  for bounded fault-injection testing; do not use in production.
+Compose exposes the ingester metrics endpoint on `http://localhost:19465/metrics`.
 
 ## Gotchas / invariants
 
-- `compositeRunner` cancels both services on the first error. A projector
-  shutdown logged alongside a collector shutdown does not mean both failed
-  independently; check which runner returned the first non-nil error.
-- `IngestionStore.SkipRelationshipBackfill = true` suppresses per-commit
-  backfill; `AfterBatchDrained` handles backfill after each full drain instead
-  (`wiring.go:195-222`).
-- NornicDB grouped writes remain disabled by default. Enabling
-  ESHU_NORNICDB_CANONICAL_GROUPED_WRITES=true requires the fixed rollback binary
-  and a full conformance pass before production use.
-- NornicDB entity containment is batched into entity upserts by default
-  (`wiring_nornicdb_env.go:38-47`). Set
-  ESHU_NORNICDB_BATCHED_ENTITY_CONTAINMENT=false only for measured fallback
-  comparisons against the older file-scoped shape.
-- NornicDB phase grouping keeps canonical retraction statements outside
-  matching upsert groups. Grouping a REMOVE-style retract with same-label
-  UNWIND upserts can produce a Cypher shape that NornicDB rejects during
-  rollback validation.
-- ESHU_PROJECTOR_WORKERS defaults to NumCPU when
-  ESHU_QUERY_PROFILE=local_authoritative and ESHU_GRAPH_BACKEND=nornicdb. The
-  local-authoritative owner also injects that value for normal `eshu graph
-  start` runs (`wiring.go:287-292`).
-- The NornicDB canonical entity phases dispatch grouped chunks across the
-  worker pool sized by ESHU_NORNICDB_ENTITY_PHASE_CONCURRENCY. When the
-  configured concurrency is greater than one the dispatch uses
-  `executeEntityPhaseGroupStreaming` in
-  `wiring_nornicdb_phase_group_streaming.go`: the pool stays open for one
-  entity-phase call and pulls chunks from a long-lived channel as the
-  producer buffers them, so the slowest chunk in one batch no longer stalls
-  workers that have already finished their share. Within an entity label the
-  chunks MERGE on disjoint entity_id keys so parallel commit is safe;
-  retracts, singletons, and label transitions still synchronize the in-flight
-  pool before sequencing dependent work. When concurrency is at most one the
-  executor falls back to `executeEntityPhaseGroup` (the prior per-flush wave
-  path) so callers without an opt-in see no behavior change.
+- The ingester is the only long-running runtime that should mount the workspace
+  PVC in Kubernetes.
+- `IngestionStore.SkipRelationshipBackfill = true` keeps per-commit writes
+  cheap. `AfterBatchDrained` runs `BackfillAllRelationshipEvidence` and then
+  `ReopenDeploymentMappingWorkItems`; both must succeed.
+- Version probes must stay at the top of startup so image checks do not require
+  datastore credentials.
+- `ESHU_PROJECTOR_WORKERS` defaults to `min(NumCPU, 8)`, except
+  `local_authoritative` + NornicDB defaults to NumCPU unless explicitly set.
+- `ESHU_QUERY_PROFILE=local_lightweight` or `ESHU_DISABLE_NEO4J=true` skips
+  canonical graph writes for local code-search workflows.
+- NornicDB grouped writes are disabled by default. Enabling
+  `ESHU_NORNICDB_CANONICAL_GROUPED_WRITES=true` requires conformance evidence.
+- NornicDB entity containment is batched into row-scoped entity upserts by
+  default; disable it only for measured fallback comparisons.
+- Entity-phase concurrency uses `ESHU_NORNICDB_ENTITY_PHASE_CONCURRENCY`; set it
+  to `1` for serial comparison, not as a shipped workaround for write races.
+
+## Verification
+
+Use the smallest command that proves the changed contract:
+
+```bash
+cd go
+go test ./cmd/ingester -count=1
+go doc -cmd ./cmd/ingester
+go run ./cmd/eshu docs verify ../go/cmd/ingester --limit 1000 \
+  --fail-on contradicted,missing_evidence
+```
+
+If a change touches collector/projector wiring, queue behavior, graph writes,
+or NornicDB knobs, also run the focused package tests for the touched internal
+package and the performance-evidence gate from the repo root.
 
 ## Related docs
 
-- `docs/public/architecture.md` — ingester ownership and pipeline
-- `docs/public/deployment/service-runtimes.md` — StatefulSet shape, metrics port, env vars
-- `docs/public/reference/local-testing.md` — local verification gates
-- `docs/public/reference/telemetry/index.md` — metric and span reference
-- `docs/public/reference/nornicdb-tuning.md` — NornicDB knobs
-- `go/internal/collector/README.md` — collector pipeline detail
-- `go/internal/projector/README.md` — projector pipeline detail
+- `docs/public/architecture.md`
+- `docs/public/deployment/service-runtimes.md`
+- `docs/public/reference/local-testing.md`
+- `docs/public/reference/telemetry/index.md`
+- `docs/public/reference/nornicdb-tuning.md`
+- `go/internal/collector/README.md`
+- `go/internal/projector/README.md`

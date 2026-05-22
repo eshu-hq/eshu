@@ -1,30 +1,23 @@
 # Truth Label Protocol
 
-This document defines the wire-level truth contract for CLI, HTTP API, and MCP
-responses.
-
-The goal is simple: users should be able to tell whether a result is
-authoritative, derived, or unavailable without guessing from wording.
+The truth label protocol is the wire-level contract for CLI, HTTP API, and MCP
+responses. It tells clients whether a result is authoritative, derived, or an
+explicitly bounded fallback.
 
 ## Truth Levels
 
-- `exact`
-  - authoritative graph truth or durable semantic truth
-- `derived`
-  - deterministic result computed from indexed entities, content, or other
-    structured relational state
-- `fallback`
-  - exploratory result that is useful but not strong enough to claim full
-    authority for the requested capability
+| Level | Meaning |
+| --- | --- |
+| `exact` | Authoritative graph truth or durable semantic truth. |
+| `derived` | Deterministic result computed from indexed entities, content, or structured relational state. |
+| `fallback` | Exploratory result that is useful but not strong enough to claim authority for the requested capability. |
 
-High-authority capabilities such as transitive caller analysis, call-chain
-paths, and dead-code detection must not silently downgrade to `fallback` in a
-profile that cannot answer them correctly. Those return a structured
-unsupported-capability error.
+High-authority capabilities, such as transitive caller analysis, call-chain
+paths, and dead-code detection, must not silently downgrade to `fallback` when
+the current profile cannot answer them correctly. They return
+`unsupported_capability`.
 
 ## Canonical Envelope
-
-The canonical response envelope is:
 
 ```json
 {
@@ -38,13 +31,35 @@ Rules:
 
 - successful responses set `data` and `truth`, with `error: null`
 - failed responses set `error`, with `data: null`
-- failed responses may carry bounded machine-readable narrowing or diagnostic
-  fields under `error.details`
-- `truth` may still be present on partial failures if it adds useful state
+- failed responses may carry bounded machine-readable diagnostics under
+  `error.details`
+- `truth` may be present on partial failures when it adds useful state
 
-## HTTP Response Shape
+The envelope MIME type is `application/eshu.envelope+json`.
 
-Successful responses should use the canonical envelope:
+## Truth Fields
+
+| Field | Contract |
+| --- | --- |
+| `level` | Rollup truth level for the whole response. |
+| `basis` | `authoritative_graph`, `semantic_facts`, `content_index`, or `hybrid`. |
+| `capability` | Capability ID from the conformance matrix. |
+| `profile` | `local_lightweight`, `local_authoritative`, `local_full_stack`, or `production`. |
+| `backend` | Optional graph backend identity, currently `neo4j` or `nornicdb`; absent when no graph adapter was exercised. |
+| `freshness` | Object with `state`, optional `observed_at`, and optional `detail`. |
+| `reason` | Human-readable explanation for logs, CLI rendering, and debugging. |
+
+`authoritative` is not a canonical wire field. Clients infer authority from
+`level == "exact"` plus the capability semantics.
+
+Freshness states:
+
+- `fresh`: indexed truth is current for the requested scope
+- `stale`: indexed truth exists, but lag or backlog may hide newer source state
+- `building`: initial or replacement indexing is still in progress
+- `unavailable`: the required backend or authoritative source is unavailable
+
+Example:
 
 ```json
 {
@@ -65,115 +80,24 @@ Successful responses should use the canonical envelope:
 }
 ```
 
-### Fields
-
-- `level`
-  - rollup level for the whole response
-- `basis`
-  - one of:
-    - `authoritative_graph`
-    - `semantic_facts`
-    - `content_index`
-    - `hybrid`
-- `capability`
-  - capability ID from the conformance matrix
-- `profile`
-  - `local_lightweight`, `local_authoritative`, `local_full_stack`, or
-    `production`
-- `backend`
-  - optional graph-backend identity when the response was served through a
-    graph adapter. Current values: `neo4j`, `nornicdb`. Absent when no
-    graph adapter was exercised (for example on `local_lightweight`).
-- `freshness`
-  - object with:
-    - `state`
-      - `fresh`, `stale`, `building`, or `unavailable`
-    - `observed_at`
-      - optional RFC3339 timestamp
-    - `detail`
-      - optional operator-facing summary
-- `reason`
-  - human-readable explanation in English for logs, CLI rendering, and debugging
-
-`authoritative` is not a canonical wire field. Clients should infer it from
-`level == "exact"` together with capability semantics.
-
-### Freshness States
-
-- `fresh`
-  - the runtime believes the answer reflects the current indexed truth for the
-    requested scope
-- `stale`
-  - previously indexed truth exists, but backlog or lag means the answer may
-    not reflect the latest source state
-- `building`
-  - initial or replacement indexing is still in progress and authoritative data
-    is not ready yet
-- `unavailable`
-  - the required backend or authoritative source is currently unavailable
-
 ## Per-Item Truth
 
 List responses may contain mixed-confidence entries. In those cases:
 
 - each item may carry its own `truth` object
-- the top-level `truth.level` is the worst item level or response-level level,
+- top-level `truth.level` is the worst item level or response-level level,
   whichever is less authoritative
-- item truth uses the same schema shape, but `capability` and `profile` may be
-  omitted when inherited from the response
+- item truth uses the same schema shape, but may omit inherited `capability`
+  and `profile`
 
-Example:
+## Errors
 
-```json
-{
-  "data": {
-    "edges": [
-      {
-        "id": "e1",
-        "truth": {
-          "level": "exact",
-          "basis": "authoritative_graph",
-          "freshness": {
-            "state": "fresh"
-          }
-        }
-      },
-      {
-        "id": "e2",
-        "truth": {
-          "level": "derived",
-          "basis": "hybrid",
-          "freshness": {
-            "state": "stale",
-            "detail": "cross-repo enrichment is lagging"
-          },
-          "reason": "edge derived from partially converged hybrid evidence"
-        }
-      }
-    ]
-  },
-  "truth": {
-    "level": "derived",
-    "capability": "platform_impact.blast_radius",
-    "profile": "production",
-    "basis": "hybrid",
-    "freshness": {
-      "state": "stale",
-      "detail": "reducer backlog exceeds freshness threshold"
-    },
-    "reason": "response contains at least one derived edge"
-  },
-  "error": null
-}
-```
-
-## Unsupported Capability Error
-
-When a runtime cannot answer a high-authority question correctly, it should
-return:
+Unsupported high-authority requests use a structured error:
 
 ```json
 {
+  "data": null,
+  "truth": null,
   "error": {
     "code": "unsupported_capability",
     "message": "transitive callers require authoritative graph mode",
@@ -186,26 +110,27 @@ return:
 }
 ```
 
-## Error Codes
-
-The initial structured error codes are:
+Current error codes from `go/internal/query/contract.go`:
 
 - `unsupported_capability`
+- `ambiguous`
+- `unauthenticated`
+- `invalid_argument`
+- `not_found`
+- `permission_denied`
 - `backend_unavailable`
 - `index_building`
 - `scope_not_found`
 - `capability_degraded`
 - `overloaded`
+- `internal_error`
+- `documentation_read_model_unavailable`
 
 ## MCP Contract
 
-MCP tool results should include one `resource` content block whose resource
-payload is the canonical envelope.
-
-If a human-readable text block is also returned, the structured envelope remains
-the canonical client contract.
-
-Structured MCP results should therefore look like:
+MCP tool results should include one `resource` content block whose payload is
+the canonical envelope. A human-readable `text` block may also be returned, but
+the embedded envelope remains the client contract.
 
 ```json
 {
@@ -226,51 +151,32 @@ Structured MCP results should therefore look like:
 }
 ```
 
-This follows MCP's embedded-resource model rather than inventing a custom
-content block type.
-
 ## CLI Contract
 
-The CLI should display:
-
-- the normal result payload
-- a concise truth summary when the result is not `exact`
-- a stable JSON envelope when `--json` is used
-
-Example:
+The CLI should display the normal result payload and a concise truth summary
+when the result is not `exact`.
 
 ```text
 truth=derived basis=content_index capability=code_search.exact_symbol
 ```
 
-For unsupported capabilities, the CLI should fail non-zero and print an
-actionable explanation:
-
-```text
-unsupported capability: call_graph.transitive_callers
-current profile: local_lightweight
-required profile: local_authoritative
-```
-
-### CLI JSON Mode
-
-`eshu ... --json` should emit the same canonical envelope shape used by the HTTP
-API, adapted only for CLI serialization.
+For unsupported capabilities, the CLI should fail non-zero and print the
+current and required profiles. In `--json` mode, CLI commands should emit the
+canonical envelope shape.
 
 ## Cache Guidance
 
-If HTTP caching or client-side memoization is used, cached results must be
-invalidated when truth level or freshness changes. ETags, cache keys, or
-equivalent validators should therefore vary on:
+Any HTTP cache, local memoization, ETag, or equivalent validator must vary on:
 
 - request payload
 - `truth.level`
 - `truth.freshness.state`
 
-## Test Requirements
+Do not reuse a cached result across truth-level or freshness changes.
 
-- one shared truth type in Go
-- HTTP response tests for supported and unsupported cases
-- MCP response tests preserving truth metadata
-- CLI rendering tests for non-exact and unsupported cases
-- CLI `--json` tests for the canonical envelope
+## Verification
+
+Contract changes must update the shared Go truth types, the capability matrix,
+and tests for the affected HTTP, MCP, or CLI response path. New capability IDs
+must be registered before handlers call `BuildTruthEnvelope`; unknown
+capabilities panic in the Go contract tests.

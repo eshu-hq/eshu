@@ -124,9 +124,10 @@ Collectors observe source truth (git repos, Terraform state, Kubernetes
 manifests, Helm, ArgoCD, Crossplane) and emit versioned facts. They do not
 write graph truth directly — that stays owned by the reducer and canonical
 graph writers. Adding a new collector family does not require patching the
-core runtime. Plugins distribute as OCI artifacts with signed provenance
-(Sigstore/Cosign), allowlist-based activation, and hard failure on incompatible
-fact-schema versions. See
+core runtime. Component packages declare digest-pinned artifacts, emitted fact
+kinds, schema versions, source-confidence values, and consumer contracts. Local
+activation is configuration-driven today; strict provenance verification fails
+closed until a verifier is wired. See
 [Fact Envelope Reference](reference/fact-envelope-reference.md),
 [Fact Schema Versioning](reference/fact-schema-versioning.md), and
 [Plugin Trust Model](reference/plugin-trust-model.md).
@@ -259,7 +260,7 @@ Contributions welcome: new language parsers, IaC formats, query capabilities, an
 
 ## Start Here
 
-- [Quickstart](getting-started/quickstart.md) — index a repo and run your first query
+- [Start Here](start-here.md) — choose a local, MCP, API, or Kubernetes path
 - [MCP Guide](guides/mcp-guide.md) — connect Eshu to your AI assistant
 - [HTTP API](reference/http-api.md) — automation and service-to-service access
 - [Use Cases](use-cases.md) — detailed workflow examples

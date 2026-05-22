@@ -1,210 +1,103 @@
-# Fact Schema Versioning Policy
+# Fact Schema Versioning
 
-This document defines the compatibility rules for facts emitted by core
-collectors and future OCI-packaged collector plugins.
+This page defines compatibility rules for fact payload schemas. For envelope
+fields, current fact families, and promotion rules, use
+[Fact Envelope Reference](fact-envelope-reference.md).
 
-## Why This Exists
+## Identity
 
-Collector plugins only stay safe if the core runtime can answer two questions
-before activation:
-
-1. do I understand this fact schema version?
-2. if not, do I fail clearly rather than silently dropping meaning?
-
-## Fact Identity
-
-A fact must be identified by:
+A fact schema is identified by:
 
 - `fact_kind`
 - `schema_version`
 - `collector_kind`
 - `source_confidence`
 
-`schema_version` is required on every fact family that crosses collector
-boundaries.
+`schema_version` is required for every fact family that crosses collector,
+storage, projector, reducer, or query boundaries. It uses semantic versioning.
 
-`schema_version` uses semantic versioning.
-
-`collector_kind` identifies the collector family that produced the fact, such
-as `git`, `terraform_state`, `aws`, `webhook`, or `documentation`.
-
-`source_confidence` identifies how Eshu learned the fact:
-
-- `observed` — read directly from the source artifact
-- `reported` — returned by an external system or API
-- `inferred` — concluded by correlating other evidence
-- `derived` — materialized from existing Eshu facts
-- `unknown` — legacy or system fallback only
-
-New collectors must set `source_confidence` deliberately. `unknown` is allowed
-as a storage compatibility default, not as a normal authoring choice.
-
-Documentation collectors should use `source_confidence=observed` for page,
-document, section, link, mention, and claim-candidate facts read directly from
-the documentation source. A documentation claim candidate remains
-non-authoritative even when it is observed. It proves that the document says
-something, not that the claim is operationally true.
-
-## Fact Kind Namespace
-
-- core fact kinds are owned by the Eshu core runtime
-- plugin fact kinds must use a namespaced form, such as reverse-DNS or another
-  collision-resistant prefix
-
-Two plugins must not emit the same unowned fact kind.
-
-Core documentation facts use these fact kinds and schema versions:
-
-- `documentation_source` — `1.0.0`
-- `documentation_document` — `1.0.0`
-- `documentation_section` — `1.1.0`
-- `documentation_link` — `1.0.0`
-- `documentation_entity_mention` — `1.0.0`
-- `documentation_claim_candidate` — `1.0.0`
-
-`documentation_section` uses schema version `1.1.0` so Confluence sections can
-carry source-native `content` and `content_format` for updater diffing. Those
-fields are source evidence and must be handled with the same access-control and
-privacy care as source excerpts.
-
-Core Terraform state facts use these fact kinds at schema version `1.0.0`:
-
-- `terraform_state_snapshot`
-- `terraform_state_resource`
-- `terraform_state_output`
-- `terraform_state_module`
-- `terraform_state_provider_binding`
-- `terraform_state_tag_observation`
-- `terraform_state_warning`
+Core fact kinds are owned by Eshu. Optional components must use a namespaced
+fact kind such as reverse-DNS or another collision-resistant prefix. Two
+components must not claim the same unowned fact kind.
 
 ## Compatibility Rules
 
-### Major incompatibility
+| Bump | Meaning | Runtime behavior |
+| --- | --- | --- |
+| Major | Breaking semantic change, removed field, or redefined field meaning. | Unsupported majors are rejected. No silent fallback. |
+| Minor | Backward-compatible additive change. | The runtime must declare support before treating new fields as authoritative. |
+| Patch | Documentation, bug fix, or non-semantic correction. | Must remain backward-compatible. |
 
-If a plugin emits a fact with an unsupported major version, the runtime must
-reject the plugin or the emitted fact family with a hard error.
-
-### Minor compatibility
-
-If the runtime supports the fact major version but not the plugin's newer minor
-version, the runtime must fail clearly rather than silently accepting unknown
-fields as authoritative.
-
-### Patch-level compatibility
-
-Patch-level changes must be backward-compatible and must not change semantic
-meaning.
-
-## Required Plugin Metadata
-
-A plugin manifest must declare:
-
-- emitted fact kinds
-- supported schema versions
-- collector kind
-- source confidence values used by each fact family
-- minimum compatible Eshu core version
-
-Each declared fact family uses `sourceConfidence` in the manifest. For example,
-an AWS package that emits live API evidence declares:
-
-```yaml
-emittedFacts:
-  - kind: dev.eshu.aws.cloud_resource
-    schemaVersions:
-      - 1.0.0
-    sourceConfidence:
-      - reported
-```
-
-`unknown` must not be declared by component packages. It exists only so older
-stored rows and system fallback rows can be read safely while operators migrate
-or reindex.
+When in doubt, bump higher. A conservative bump is cheaper than a silent
+semantic change that corrupts downstream truth.
 
 ## Runtime Behavior
 
-At plugin load time, Eshu must:
+The runtime must fail clearly when a collector or component emits a fact schema
+it does not support. It must not silently drop unknown meaning, invent missing
+values, or downgrade facts to an older semantic shape.
 
-1. validate plugin provenance and trust policy
-2. validate declared fact-schema compatibility
-3. reject incompatible plugins before runtime ingestion starts
+For optional component packages, local manifest validation checks declared fact
+kinds, schema versions, collector kinds, source-confidence values, compatible
+core range, and digest-pinned artifacts. Current local component trust policy is
+configuration-driven: disabled mode rejects all optional components, allowlist
+mode accepts allowed identities and publishers, and strict mode fails closed
+until provenance verification is wired.
 
-Plugin trust policy is defined in `plugin-trust-model.md`.
+## In-Store Migration
 
-Silent downgrade is not allowed for incompatible fact schemas.
+Facts already in durable storage are part of the data-plane contract.
 
-If one plugin is rejected, other compatible plugins may continue to load unless
-the operator requested fail-closed startup.
+- Backward-compatible readers may dual-read old and new schema versions during
+  an operator-visible migration window.
+- Incompatible schema changes require an explicit migration or reindex path.
+- Silent in-place reinterpretation of stored facts is not allowed.
+- Rows with `source_confidence=unknown` are compatibility debt. Re-emit them
+  from the owning collector with an explicit confidence value, or run an
+  operator-visible migration that proves the source family before updating the
+  value.
 
-## Bump Rules
-
-- major bump
-  - breaking semantic change
-  - requires explicit core support update
-- minor bump
-  - backward-compatible additive change
-  - still requires declared core compatibility
-- patch bump
-  - documentation, bug fix, or non-semantic correction
-
-## In-Store Migration Policy
-
-When facts already exist in durable storage:
-
-- backward-compatible readers may dual-read old and new schema versions during a
-  migration window
-- incompatible schema changes require an explicit migration or reindex path
-- silent in-place reinterpretation of old facts is not allowed
-- rows with `source_confidence=unknown` must be handled as compatibility debt:
-  either re-emit them from the owning collector with an explicit confidence
-  value or run an operator-visible migration that proves the source family
-  before updating the value
-
-The migration window should be explicit and operator-visible. Completion may be
-driven by:
-
-- a successful reindex
-- an explicit admin migration command
-- a zero-old-version-row verification gate
+The migration window should name the acceptance signal: successful reindex,
+explicit admin migration, or zero old-version rows.
 
 ## DDL Ownership
 
-Core runtime owns durable store DDL. Plugins do not apply arbitrary database
-schema migrations directly to the core runtime.
+Core runtime owns durable-store DDL. Components and collectors do not apply
+arbitrary database schema migrations directly to Eshu's core stores.
 
-If a new plugin fact family requires new durable tables or indexes, that schema
-must be introduced through an explicit core-owned migration path.
+If a new fact family needs new durable tables, indexes, or queue contracts, land
+that schema through an explicit core-owned migration path before the collector
+is considered active.
 
 ## Consumer Compatibility
 
-Fact kinds are not useful unless a downstream consumer understands them.
+A fact kind is not useful until a downstream consumer understands it.
 
-A plugin introducing a new fact kind must also declare the reducer or query
-consumer contract expected to process it. Unknown fact kinds must not be
+New component fact families must declare their expected reducer or query
+consumer contract in structured metadata. Unknown fact kinds must not be
 presented as active platform truth.
-
-That declaration should live in structured plugin metadata, not just prose.
 
 ## Idempotency
 
-Fact emission and ingestion must be idempotent. Emitting the same fact twice
-must not create divergent truth under at-least-once delivery conditions.
-
-## Deprecation
-
-Unsupported major versions should not be removed abruptly. The compatibility
-window must be documented at release time.
-
-For additive minor versions, older stored facts may remain valid with null or
-missing fields until re-emitted or backfilled through an explicit migration
-path. The runtime must not silently invent values for absent fields.
+Fact emission and ingestion must be idempotent under at-least-once delivery.
+Emitting the same source fact twice must converge on the same stable fact key
+and must not create divergent graph or query truth.
 
 ## Test Requirements
 
-- compatible plugin accepted
+When changing schema compatibility, cover:
+
+- compatible schema accepted
 - unsupported major rejected
-- newer minor without declared compatibility rejected
-- mismatched manifest and emitted fact version rejected
-- emitted-but-not-declared fact kind rejected
-- concurrent plugin namespace conflict rejected
-- downgrade and rollback paths exercised where migrations exist
+- newer minor without declared support rejected or held non-authoritative
+- manifest-declared schema mismatch rejected
+- emitted-but-not-declared component fact kind rejected
+- namespace collision rejected
+- migration or rollback path where stored facts already exist
+
+## Related
+
+- [Fact Envelope Reference](fact-envelope-reference.md)
+- [Component Package Manager](component-package-manager.md)
+- [Plugin Trust Model](plugin-trust-model.md)
+- [Collector Authoring](../guides/collector-authoring.md)

@@ -162,7 +162,7 @@ The direct process contract includes `eshu-workflow-coordinator --version` and
 ## Related docs
 
 - [Service runtimes — Workflow Coordinator](../../../docs/public/deployment/service-runtimes.md#workflow-coordinator)
-- [Helm deployment](../../../docs/public/deployment/helm.md)
+- [Helm quickstart](../../../docs/public/deploy/kubernetes/helm-quickstart.md)
 - [Docker Compose deployment](../../../docs/public/run-locally/docker-compose.md)
 - `internal/coordinator/README.md`
 - `internal/workflow/README.md`

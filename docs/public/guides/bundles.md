@@ -48,4 +48,4 @@ shipped paths.
 
 - [HTTP API](../reference/http-api.md) — bundle import and query routes
 - [Visualization](visualization.md) — read-only query visualization in Neo4j
-- [Quickstart](../getting-started/quickstart.md) — index your first repo from scratch
+- [Start Here](../start-here.md) — choose the right first-run path

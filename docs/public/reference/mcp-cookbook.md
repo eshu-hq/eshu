@@ -18,18 +18,14 @@ Use this page for copy-ready MCP tool calls. For the full field catalog, see
 
 ### Explain a service
 
-Use `workload_id` for `get_service_story`. It may be a service workload ID or
-service name.
-
 **Tool:** `get_service_story`
 
 ```json
 { "workload_id": "payments-api", "environment": "prod" }
 ```
 
-### Scan service evidence first
-
-**Tool:** `investigate_service`
+Use `investigate_service` when you need evidence-first onboarding or a scoped
+service investigation:
 
 ```json
 { "service_name": "payments-api", "environment": "prod", "intent": "onboarding" }
@@ -90,8 +86,8 @@ fields you need to inspect.
 { "target": "process_payment", "relationship_type": "CALLS", "direction": "incoming", "repo_id": "payments", "limit": 25 }
 ```
 
-Pass `entity_id` instead of `target` when an earlier lookup already selected
-the exact function.
+Pass `entity_id` instead of `target` when an earlier lookup selected the exact
+function.
 
 ### Find bounded transitive callers
 
@@ -102,8 +98,6 @@ the exact function.
 ```
 
 ### Find a call chain
-
-`find_function_call_chain` currently accepts `start`, `end`, and `max_depth`.
 
 **Tool:** `find_function_call_chain`
 
@@ -147,8 +141,8 @@ Use `metric_type: "hub_functions"` for the most connected functions.
 { "check": "function_length", "repo_id": "payments", "min_lines": 20, "limit": 25 }
 ```
 
-Use `check: "complexity"`, `check: "argument_count"`, or
-`check: "refactoring_candidates"` for other quality views.
+Other supported checks include `complexity`, `argument_count`, and
+`refactoring_candidates`.
 
 ### Investigate dead code
 
@@ -164,18 +158,13 @@ Use `find_dead_code` only when you need the lower-level candidate list.
 
 ### Trace deployment evidence
 
-`trace_deployment_chain` currently requires `service_name`. Use
-`investigate_deployment_config` for an environment-scoped edit map.
-
 **Tool:** `trace_deployment_chain`
 
 ```json
 { "service_name": "payments-api", "direct_only": true, "max_depth": 8 }
 ```
 
-### Find deployment configuration inputs
-
-**Tool:** `investigate_deployment_config`
+Use `investigate_deployment_config` for an environment-scoped edit map:
 
 ```json
 { "service_name": "payments-api", "environment": "prod", "limit": 25 }
