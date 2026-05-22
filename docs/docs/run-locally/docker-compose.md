@@ -186,6 +186,23 @@ delivered to the webhook listener:
 docker compose --env-file .env.remote-e2e -f docker-compose.remote-e2e.yaml up --build
 ```
 
+When a hosted E2E run has a slow worker tail, add the pprof overlay for that
+debug run:
+
+```bash
+docker compose --env-file .env.remote-e2e \
+  -f docker-compose.remote-e2e.yaml \
+  -f docker-compose.remote-e2e.pprof.yaml \
+  --profile seed up --build
+```
+
+The overlay leaves normal defaults alone. It binds worker pprof listeners
+inside containers and publishes them on remote-host loopback ports only:
+`bootstrap-index` `19660`, `ingester` `19661`, `resolution-engine` `19662`,
+`workflow-coordinator` `19663`, Terraform-state collector `19664`, OCI
+registry collector `19665`, package-registry collector `19666`, AWS cloud
+collector `19667`, and Confluence collector `19668`.
+
 The EC2 instance role must expose read-only inventory permissions for the target
 account. `ReadOnlyAccess` is enough for the AWS cloud and ECR inventory calls
 covered by this stack. Terraform state also needs `s3:GetObject` on the
@@ -210,6 +227,18 @@ existing workflow, AWS freshness, AWS cloud, Terraform state, OCI registry,
 package registry, reducer, ingester, API, MCP, Postgres, and NornicDB metrics
 and status endpoints to distinguish scheduling, claim, scan, projection, graph,
 and store failures.
+
+No-Regression Evidence: the worker pprof overlay renders separately with
+`docker compose --env-file .env.remote-e2e.example -f docker-compose.remote-e2e.yaml -f docker-compose.remote-e2e.pprof.yaml config`
+and keeps the base `docker-compose.remote-e2e.yaml` free of `ESHU_PPROF_ADDR`
+and port `6060` bindings. It starts no extra workers, changes no worker counts,
+and does not alter graph, Postgres, or collector target settings.
+
+Observability Evidence: when the overlay is selected, the existing
+`runtime.NewPprofServer` startup log (`pprof server listening`) and
+`/debug/pprof/{profile,heap,goroutine,trace}` endpoints are available on
+host-loopback ports for bootstrap, ingester, reducer, workflow coordinator,
+and hosted collector processes during the same remote E2E run.
 
 ## Point local CLI commands at Compose
 
