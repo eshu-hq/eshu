@@ -34,11 +34,11 @@ flowchart LR
 `eshu docs verify`. Its first implementation slice checks Markdown-family
 documents for exact `eshu ...` command claims, HTTP endpoint claims, and
 `ESHU_*` environment variable claims. It also checks explicit backticked local
-repository paths and Markdown local-link targets when the caller supplies a
-`LocalPathResolver`; the package never walks the filesystem itself. It emits
-`documentation_finding` and `documentation_evidence_packet` fact envelopes with
-explicit statuses: `valid`, `contradicted`, `missing_evidence`, and
-`unsupported_claim_type`.
+repository paths, Markdown local-link targets, and tagged or digested container
+image references when the caller supplies matching resolvers; the package never
+walks the filesystem itself. It emits `documentation_finding` and
+`documentation_evidence_packet` fact envelopes with explicit statuses: `valid`,
+`contradicted`, `missing_evidence`, and `unsupported_claim_type`.
 
 ## Invariants
 

@@ -427,6 +427,18 @@ findings; remote links and broad prose remain out of scope. This checks local
 code/deployment path claims without opening Postgres, graph, cloud, or
 Kubernetes clients.
 
+Implementation evidence for issue #479 local image-reference truth slice:
+`eshu docs verify [path]` now extracts explicit tagged or digested container
+image refs from backticked claims and `image:` documentation snippets. The CLI
+supplies a bounded local deployment-manifest resolver rooted at the nearest Git
+worktree root. It scans Dockerfile, YAML, JSON, and TOML manifest-shaped files
+while skipping generated/vendor trees. Image refs found in local manifests
+produce `valid` documentation findings, absent refs produce `contradicted`
+findings, and incomplete local scans produce `missing_evidence` rather than a
+false pass. This slice checks local code/deployment evidence only; registry
+ownership, cloud runtime presence, and OCI digest freshness remain future
+API/collector truth work.
+
 No-Regression Evidence: focused gates for the first slice are
 `go test ./internal/doctruth -run 'TestVerifier' -count=1`,
 `go test ./cmd/eshu -run 'TestDocsVerify' -count=1`, and
@@ -442,14 +454,21 @@ The local-path truth slice adds
 `go test ./internal/doctruth -run 'TestVerifierComparesLocalPathClaims' -count=1`
 and
 `go test ./cmd/eshu -run 'TestRunDocsVerifyChecksLocalPathClaims' -count=1`.
+The local image-reference truth slice adds
+`go test ./internal/doctruth -run 'TestVerifierComparesContainerImageClaims|TestVerifierMarksContainerImageUnsupportedWithoutResolver|TestContainerImageRefsFromTextIsConservative' -count=1`
+and
+`go test ./cmd/eshu -run 'TestRunDocsVerifyChecksContainerImageClaims' -count=1`.
 The covered input shape is local Markdown documents with explicit command,
-endpoint, env-var, local repo path, and unsupported shell-command snippets.
+endpoint, env-var, local repo path, local container image ref, and unsupported
+shell-command snippets.
 Bounds are file-count and per-file byte limits plus one exact `stat` probe per
 extracted local path candidate, one scope-generation freshness lookup, and one
 kind-filtered fact read on unchanged persisted input; read-surface lookups
-remain bounded by explicit filters, `limit`, and cursor offset. Graph writes,
-backend Cypher, cloud clients, Kubernetes clients, and runtime worker counts
-are unchanged.
+remain bounded by explicit filters, `limit`, and cursor offset. Local
+image-reference truth adds a bounded manifest scan of at most 2000
+manifest-shaped files and 512 KiB per manifest file before claim comparison.
+Graph writes, backend Cypher, cloud clients, Kubernetes clients, registry
+clients, and runtime worker counts are unchanged.
 
 Observability Evidence: this slice is a local CLI/documentation-fact generator,
 so no new long-running runtime metric is required. Operator diagnosis uses the

@@ -114,14 +114,15 @@ func runDocsVerifyWithDeps(cmd *cobra.Command, args []string, deps docsVerifyDep
 		return writeDocsVerifyOutput(cmd, opts, result, envelope, exitErr)
 	}
 	verifier := doctruth.NewVerifier(doctruth.VerifierOptions{
-		Commands:             docsVerifyCommandTruth(deps),
-		HTTPEndpoints:        endpointTruthFromOpenAPI(query.OpenAPISpec()),
-		EnvironmentVariables: docsVerifyEnvironmentTruth(opts.Path),
-		LocalPathResolver:    docsVerifyLocalPathResolver(opts.Path),
-		MaxDocuments:         opts.Limit,
-		MaxDocumentBytes:     opts.MaxDocumentBytes,
-		ScopeID:              persistSummary.ScopeID,
-		GenerationID:         persistSummary.GenerationID,
+		Commands:               docsVerifyCommandTruth(deps),
+		HTTPEndpoints:          endpointTruthFromOpenAPI(query.OpenAPISpec()),
+		EnvironmentVariables:   docsVerifyEnvironmentTruth(opts.Path),
+		LocalPathResolver:      docsVerifyLocalPathResolver(opts.Path),
+		ContainerImageResolver: docsVerifyContainerImageResolver(opts.Path),
+		MaxDocuments:           opts.Limit,
+		MaxDocumentBytes:       opts.MaxDocumentBytes,
+		ScopeID:                persistSummary.ScopeID,
+		GenerationID:           persistSummary.GenerationID,
 	})
 	result, err := verifier.Verify(cmd.Context(), inventory.Documents)
 	if err != nil {
