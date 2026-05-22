@@ -439,6 +439,21 @@ false pass. This slice checks local code/deployment evidence only; registry
 ownership, cloud runtime presence, and OCI digest freshness remain future
 API/collector truth work.
 
+Implementation evidence for issue #479 container-image API truth slice:
+`eshu docs verify [path] --image-truth api` now checks explicit container image
+refs against the reducer-owned container image identity read model at
+`GET /api/v0/supply-chain/container-images/identities?image_ref=<ref>&limit=1`.
+`--image-truth auto` keeps the local-manifest truth source unless
+`--service-url`, `--api-key`, `--profile`, `ESHU_SERVICE_URL`, or
+`ESHU_API_KEY` explicitly selects remote API context. The command resolves
+`auto` to the effective `local` or `api` truth source before persistence is
+prepared. API hits produce `valid` findings only when the active read model
+returns at least one identity row for the exact image ref; empty API pages
+produce `contradicted`, and API transport or backend errors produce
+`missing_evidence`. The docs-verification freshness fingerprint includes that
+effective image truth mode so persisted local-image findings are not reused for
+API-image verification runs.
+
 No-Regression Evidence: focused gates for the first slice are
 `go test ./internal/doctruth -run 'TestVerifier' -count=1`,
 `go test ./cmd/eshu -run 'TestDocsVerify' -count=1`, and
@@ -458,6 +473,8 @@ The local image-reference truth slice adds
 `go test ./internal/doctruth -run 'TestVerifierComparesContainerImageClaims|TestVerifierMarksContainerImageUnsupportedWithoutResolver|TestContainerImageRefsFromTextIsConservative' -count=1`
 and
 `go test ./cmd/eshu -run 'TestRunDocsVerifyChecksContainerImageClaims' -count=1`.
+The container-image API truth slice adds
+`go test ./cmd/eshu -run 'TestRunDocsVerifyChecksContainerImageClaimsAgainstAPITruth|TestRunDocsVerifyMarksAPIImageTruthErrorsMissingEvidence|TestDocsVerifyFreshnessIncludesEffectiveImageTruthMode' -count=1`.
 The covered input shape is local Markdown documents with explicit command,
 endpoint, env-var, local repo path, local container image ref, and unsupported
 shell-command snippets.
@@ -467,8 +484,10 @@ kind-filtered fact read on unchanged persisted input; read-surface lookups
 remain bounded by explicit filters, `limit`, and cursor offset. Local
 image-reference truth adds a bounded manifest scan of at most 2000
 manifest-shaped files and 512 KiB per manifest file before claim comparison.
-Graph writes, backend Cypher, cloud clients, Kubernetes clients, registry
-clients, and runtime worker counts are unchanged.
+API image truth adds at most one `limit=1` container-image identity API lookup
+per unique extracted image ref in the bounded documentation input, with per-run
+cache reuse. Graph writes, backend Cypher, cloud clients, Kubernetes clients,
+registry clients, and runtime worker counts are unchanged.
 
 Observability Evidence: this slice is a local CLI/documentation-fact generator,
 so no new long-running runtime metric is required. Operator diagnosis uses the
@@ -484,6 +503,11 @@ The read-surface filter slice reuses those same route spans plus the existing
 Postgres `db.operation=list_documentation_findings` span; no new metric label
 or runtime worker signal is required because the change only narrows a bounded
 fact-record read.
+The API image truth slice additionally reuses the container image identity
+route span `query.container_image_identities`, the HTTP response envelope
+truth metadata, and the docs verifier finding counters; no new metric label is
+needed because the route already exposes the reducer-owned image identity read
+model with explicit `limit`, `count`, and `truncated` fields.
 
 ---
 

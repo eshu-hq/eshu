@@ -3,6 +3,8 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"testing"
@@ -96,7 +98,7 @@ func TestDocsVerifyContainerImageResolverScansLazily(t *testing.T) {
 		t.Fatalf("WriteFile(deployment.yaml) error = %v, want nil", err)
 	}
 
-	resolver := docsVerifyContainerImageResolver(root)
+	resolver := docsVerifyLocalContainerImageResolver(root)
 	if resolver == nil {
 		t.Fatal("docsVerifyContainerImageResolver() = nil, want resolver")
 	}
@@ -111,6 +113,142 @@ func TestDocsVerifyContainerImageResolverScansLazily(t *testing.T) {
 	resolution := resolver(doctruth.DocumentInput{}, "ghcr.io/acme/api:2.0.0")
 	if !resolution.Supported || !resolution.Exists {
 		t.Fatalf("resolution = %#v, want lazy scan to see rewritten manifest", resolution)
+	}
+}
+
+func TestRunDocsVerifyChecksContainerImageClaimsAgainstAPITruth(t *testing.T) {
+	t.Parallel()
+
+	requests := []string{}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests = append(requests, r.URL.String())
+		if got, want := r.Header.Get("Accept"), eshuEnvelopeMIMEType; got != want {
+			t.Fatalf("Accept = %q, want %q", got, want)
+		}
+		if got, want := r.URL.Path, "/api/v0/supply-chain/container-images/identities"; got != want {
+			t.Fatalf("path = %q, want %q", got, want)
+		}
+		if got, want := r.URL.Query().Get("limit"), "1"; got != want {
+			t.Fatalf("limit = %q, want %q", got, want)
+		}
+		switch r.URL.Query().Get("image_ref") {
+		case "ghcr.io/acme/api:1.2.3":
+			_, _ = w.Write([]byte(`{"data":{"identities":[{"identity_id":"image-1","image_ref":"ghcr.io/acme/api:1.2.3","outcome":"tag_resolved"}],"count":1,"limit":1,"truncated":false},"truth":{"level":"exact"},"error":null}`))
+		case "ghcr.io/acme/missing:9.9.9":
+			_, _ = w.Write([]byte(`{"data":{"identities":[],"count":0,"limit":1,"truncated":false},"truth":{"level":"exact"},"error":null}`))
+		default:
+			t.Fatalf("unexpected image_ref query %q", r.URL.Query().Get("image_ref"))
+		}
+	}))
+	defer server.Close()
+
+	root := t.TempDir()
+	docPath := filepath.Join(root, "README.md")
+	if err := os.WriteFile(
+		docPath,
+		[]byte(""+
+			"Deploy `ghcr.io/acme/api:1.2.3`.\n"+
+			"Do not publish `ghcr.io/acme/missing:9.9.9`.\n"),
+		0o600,
+	); err != nil {
+		t.Fatalf("WriteFile(README.md) error = %v, want nil", err)
+	}
+
+	cmd := newTestDocsVerifyCommand(docsVerifyDeps{})
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	cmd.SetArgs([]string{
+		docPath,
+		"--json",
+		"--image-truth",
+		"api",
+		"--service-url",
+		server.URL,
+		"--fail-on",
+		"contradicted",
+	})
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("docs verify error = nil, want non-zero for API contradicted image finding")
+	}
+
+	var envelope docsVerifyEnvelope
+	if decodeErr := json.Unmarshal(out.Bytes(), &envelope); decodeErr != nil {
+		t.Fatalf("json.Unmarshal() error = %v, want nil; output=%s", decodeErr, out.String())
+	}
+	if got, want := envelope.Data.Summary.Valid, 1; got != want {
+		t.Fatalf("Summary.Valid = %d, want %d", got, want)
+	}
+	if got, want := envelope.Data.Summary.Contradicted, 1; got != want {
+		t.Fatalf("Summary.Contradicted = %d, want %d", got, want)
+	}
+	if got, want := len(requests), 2; got != want {
+		t.Fatalf("API requests = %d, want %d; requests=%#v", got, want, requests)
+	}
+	assertDocsVerifyFinding(t, envelope.Data.Findings, "container_image_ref", "ghcr.io/acme/api:1.2.3", "valid")
+	assertDocsVerifyFinding(t, envelope.Data.Findings, "container_image_ref", "ghcr.io/acme/missing:9.9.9", "contradicted")
+}
+
+func TestRunDocsVerifyMarksAPIImageTruthErrorsMissingEvidence(t *testing.T) {
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		http.Error(w, "not ready", http.StatusServiceUnavailable)
+	}))
+	defer server.Close()
+
+	root := t.TempDir()
+	docPath := filepath.Join(root, "README.md")
+	if err := os.WriteFile(docPath, []byte("Deploy `ghcr.io/acme/api:1.2.3`.\n"), 0o600); err != nil {
+		t.Fatalf("WriteFile(README.md) error = %v, want nil", err)
+	}
+
+	cmd := newTestDocsVerifyCommand(docsVerifyDeps{})
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	cmd.SetArgs([]string{docPath, "--json", "--image-truth", "api", "--service-url", server.URL})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("docs verify error = %v, want nil for missing evidence; output=%s", err, out.String())
+	}
+
+	var envelope docsVerifyEnvelope
+	if decodeErr := json.Unmarshal(out.Bytes(), &envelope); decodeErr != nil {
+		t.Fatalf("json.Unmarshal() error = %v, want nil; output=%s", decodeErr, out.String())
+	}
+	assertDocsVerifyFinding(t, envelope.Data.Findings, "container_image_ref", "ghcr.io/acme/api:1.2.3", "missing_evidence")
+}
+
+func TestDocsVerifyFreshnessIncludesEffectiveImageTruthMode(t *testing.T) {
+	t.Parallel()
+
+	documents := []doctruth.DocumentInput{{
+		Path:       "README.md",
+		SourceURI:  "file:///repo/README.md",
+		RevisionID: "sha256:doc",
+	}}
+	local := docsInventoryFreshnessHint(documents, 256*1024, 50, "local")
+	api := docsInventoryFreshnessHint(documents, 256*1024, 50, "api")
+	if local == api {
+		t.Fatalf("freshness local = freshness api = %q, want image truth source in fingerprint", local)
+	}
+	cmd := newTestDocsVerifyCommand(docsVerifyDeps{})
+	if err := cmd.Flags().Set("image-truth", "auto"); err != nil {
+		t.Fatalf("Set(image-truth) error = %v, want nil", err)
+	}
+	if err := cmd.Flags().Set("service-url", "https://api.example.test"); err != nil {
+		t.Fatalf("Set(service-url) error = %v, want nil", err)
+	}
+	opts, err := docsVerifyOptionsFromCommand(cmd, []string{"README.md"})
+	if err != nil {
+		t.Fatalf("docsVerifyOptionsFromCommand() error = %v, want nil", err)
+	}
+	if got, want := effectiveDocsVerifyImageTruth(cmd, opts.ImageTruth), "api"; got != want {
+		t.Fatalf("effectiveDocsVerifyImageTruth(auto with service-url) = %q, want %q", got, want)
+	}
+	if got, want := docsInventoryFreshnessHint(documents, 256*1024, 50, effectiveDocsVerifyImageTruth(cmd, opts.ImageTruth)), api; got != want {
+		t.Fatalf("auto+service-url freshness = %q, want api freshness %q", got, want)
 	}
 }
 
