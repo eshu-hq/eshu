@@ -12,8 +12,8 @@ For start, stop, status, logs, and upgrades, use
 
 | Scenario | Separate NornicDB install? | Path |
 | --- | --- | --- |
-| Normal local binary mode | No | Run `eshu graph start`. |
-| Docker Compose | No | Compose provides the graph service. |
+| Normal local binary mode | No | Run `./scripts/install-local-binaries.sh`, put the install directory on `PATH`, then run `eshu graph start`. |
+| Docker Compose | No | Compose provides the graph service and pins the NornicDB image. |
 | Kubernetes or Helm | No | The deployment provides the Bolt-compatible graph endpoint. |
 | Specific NornicDB build testing | Yes | Select process mode and point at the binary. |
 | Neo4j compatibility | No | Run Neo4j separately and set graph connection variables. |
@@ -71,14 +71,9 @@ and writes:
 ${ESHU_HOME}/graph-backends/nornicdb/manifest.json
 ```
 
-Accepted sources:
-
-- local executable NornicDB binary
-- local `.tar`, `.tar.gz`, or `.tgz` archive containing `nornicdb-headless` or
-  `nornicdb`
-- local macOS `.pkg` containing `/usr/local/bin/nornicdb-headless` or
-  `/usr/local/bin/nornicdb`
-- `http://`, `https://`, or `file://` URL to one of those artifacts
+Accepted sources are a local executable, `.tar`, `.tar.gz`, `.tgz`, or macOS
+`.pkg` containing `nornicdb-headless` or `nornicdb`, or an `http://`,
+`https://`, or `file://` URL to one of those artifacts.
 
 Use `--sha256` to verify the source artifact:
 
@@ -88,7 +83,7 @@ eshu install nornicdb \
   --sha256 <expected-source-sha256>
 ```
 
-Remote downloads default to `30s`:
+Remote downloads default to `30s`; override only for slow artifact hosts:
 
 ```bash
 ESHU_NORNICDB_INSTALL_TIMEOUT=2m \
@@ -104,10 +99,10 @@ Managed install wins over `PATH`. To test another binary for one run, set
 eshu install nornicdb
 ```
 
-This is reserved for future release-backed installs. Today it fails because
-Eshu has no accepted NornicDB release asset manifest checked in. The `--full`
-flag is reserved for the same future flow. Pass an explicit `--from` source
-instead.
+This intentionally fails today. The embedded release manifest has no accepted
+NornicDB assets while Eshu tracks the latest NornicDB main branch for
+process-mode tests. The `--full` flag is reserved for the same future
+release-backed flow. Pass an explicit `--from` source instead.
 
 ## Build For Process Mode
 
@@ -128,7 +123,7 @@ eshu install nornicdb --from /tmp/nornicdb-headless
 The full `nornicdb` binary is supported when explicitly selected, but it is not
 the laptop default because it can include larger UI or local-LLM payloads.
 
-## Verify
+## Verify Process Mode
 
 ```bash
 ESHU_NORNICDB_RUNTIME=process eshu graph start
@@ -140,9 +135,8 @@ eshu graph logs
 
 Supported today:
 
-- explicit-source installs
-- optional SHA-256 checking with `--sha256`
-- remote downloads
+- explicit-source local or remote installs
+- optional source-artifact SHA-256 checking with `--sha256`
 
 Future work:
 

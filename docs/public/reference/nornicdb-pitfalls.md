@@ -9,14 +9,13 @@ substitute for checking the current NornicDB source.
 
 ## How To Use This Page
 
-1. Before patching NornicDB or routing around a suspected NornicDB bug, read
-   the matching section here.
-2. Validate the behavior against the current `NornicDB-New` checkout named by
-   local config, repo docs, or the user. It must be the source that built the
-   image under test.
+1. Read the matching section before patching NornicDB or routing around a
+   suspected NornicDB bug.
+2. Validate the behavior against the current `NornicDB-New` checkout that built
+   the image under test.
 3. Check upstream docs and release notes for the pinned `NORNICDB_IMAGE`.
-4. If the current reproduction differs, update this page in the same PR with
-   reproduction steps, observed shape, and either root cause or open question.
+4. If the current reproduction differs, update this page with the reproduction,
+   observed shape, and either the root cause or open question.
 
 NornicDB changes quickly. A behavior documented here may already be fixed in
 the binary you are testing.
@@ -55,12 +54,10 @@ hypothesis.
 
 ### Validation
 
-1. Start a dedicated Compose project with isolated volumes.
-2. Run data-plane schema bootstrap.
-3. Write one node for a label with a uid-style unique constraint.
-4. Drop and recreate that constraint through the Bolt HTTP endpoint.
-5. Reissue a `MATCH ... SET` against the same node.
-6. Tear the stack down after the experiment.
+Use an isolated Compose project: run data-plane schema bootstrap, write one
+node for a label with a uid-style unique constraint, drop and recreate that
+constraint through the Bolt HTTP endpoint, then reissue a `MATCH ... SET`
+against the same node. Tear the stack down after the experiment.
 
 ## Pitfall: Concurrent `MERGE` Can Lose At Commit-Time `UNIQUE`
 
@@ -93,12 +90,11 @@ If an upgrade changes the error shape, extend
 
 ### Eshu implications
 
-- Do not serialize workers to hide this race.
-- Do not add preflight `MATCH` checks as the fix for canonical MERGE
-  re-projection.
-- Route canonical projection through the retrying phase-group executor.
-- If the error reappears, verify `retryable_error_test.go` and
-  `retrying_executor_test.go` before changing queue or worker knobs.
+Do not serialize workers to hide this race, and do not add preflight `MATCH`
+checks as the fix for canonical MERGE re-projection. Route canonical projection
+through the retrying phase-group executor. If the error reappears, verify
+`retryable_error_test.go` and `retrying_executor_test.go` before changing queue
+or worker knobs.
 
 ## Pitfall: Persisted Graph Store Fails To Reopen After Dictionary Corruption
 
@@ -148,8 +144,7 @@ Patch NornicDB only when evidence supports one of these:
 Before drafting a patch:
 
 1. Write a failing test in `NornicDB-New`.
-2. If the bug does not reproduce in NornicDB isolation, investigate the Eshu
-   trigger first.
+2. If the bug does not reproduce in NornicDB isolation, investigate Eshu first.
 3. Build the patched binary into a unique image tag and pin that image only in
    the relevant test or Compose overlay.
 4. Never overwrite a shared production image tag for a local experiment.

@@ -18,8 +18,8 @@ the runtime ownership map.
 | Runtime | Owns | Deployed command | Storage access | Kubernetes shape |
 | --- | --- | --- | --- | --- |
 | Schema Bootstrap | Postgres and graph schema DDL | `/usr/local/bin/eshu-bootstrap-data-plane` | Postgres DDL + graph DDL | `Job` |
-| API | HTTP API, query reads, admin endpoints | `eshu api start --host 0.0.0.0 --port <port>` | graph + content reads | `Deployment` |
-| MCP Server | MCP tool transport and mounted query passthrough | `eshu mcp start --transport http` | graph + content reads | optional `Deployment` |
+| API | HTTP API, query reads, admin endpoints | `/usr/local/bin/eshu-api` | graph + content reads | `Deployment` |
+| MCP Server | MCP tool transport and mounted query passthrough | `/usr/local/bin/eshu-mcp-server` | graph + content reads | optional `Deployment` |
 | Ingester | repo sync, parsing, fact emission, workspace ownership | `/usr/local/bin/eshu-ingester` | workspace PVC + Postgres + graph backend | `StatefulSet` |
 | Webhook Listener | Git and AWS freshness webhook intake | `/usr/local/bin/eshu-webhook-listener` | Postgres trigger tables | optional `Deployment` |
 | Workflow Coordinator | collector-instance reconciliation, claim scheduling, expired-claim reaping | `/usr/local/bin/eshu-workflow-coordinator` | Postgres workflow/control tables | optional `Deployment` |
@@ -30,6 +30,10 @@ the runtime ownership map.
 | AWS Cloud Collector | claim-driven AWS observation and fact emission | `/usr/local/bin/eshu-collector-aws-cloud` | Postgres workflow + fact store | optional `Deployment` |
 | Package Registry Collector | claim-driven package metadata fetch and fact emission | `/usr/local/bin/eshu-collector-package-registry` | Postgres workflow + fact store | optional `Deployment` |
 | Bootstrap Index | one-shot initial indexing | `/usr/local/bin/eshu-bootstrap-index` | workspace + Postgres + graph backend | one-shot local or operator helper |
+
+The `eshu api start` and `eshu mcp start` CLI wrappers exec `eshu-api` and
+`eshu-mcp-server` for local operator use. Compose, Helm, and release images run
+the direct binaries above.
 
 Every direct service binary accepts `--version` and `-v` as a single argument.
 That path prints the embedded application version and exits before telemetry,

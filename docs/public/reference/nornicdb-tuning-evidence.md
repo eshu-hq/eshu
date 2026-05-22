@@ -15,6 +15,10 @@ current Eshu and NornicDB commits.
 | Five-repo and 50-repo lanes | Large PHP stress repos reached `148,948` and `176,201` facts; the 50-repo subset drained in `884s` with no timeout, retry, dead-letter, panic, or fatal lines. | Prove focused problem repos and representative subsets before scaling to full corpus. |
 | 23-repo medium corpus | Drained in about `3m11s`; projector `23/23`; reducer `184` succeeded; queue terminal clean. | Source-cache shaping and edge-index work had medium-corpus proof before promotion. |
 
+The acceptance shape is more important than the raw date: schema applied before
+indexing, clean terminal queues, no retry/dead-letter drift, and API/MCP truth
+checks against the completed graph.
+
 ## Canonical Entity Writes
 
 `php-large-repo-b` exposed the canonical entity write bottleneck: `74,475`
@@ -85,10 +89,6 @@ Compose and Helm set:
 
 No-Regression Evidence: Compose pins
 `timothyswt/nornicdb-cpu-bge:v1.1.0@sha256:65855ca2c9649020f7f9e29d2e0fbedf0bf9601457de233d87160ddbe4b473f0`.
-That tag resolves to linux/amd64 digest
-`sha256:159f988a6987e9ab55ea822520c50bd5ef7a77068eaab80c4696d8905c7754a7`
-and linux/arm64 digest
-`sha256:be0374a0cc7bfbbf8830d303ee2b51c7e3d629f4539cce6a98a718615f87d1ca`.
 
 Observability Evidence: NornicDB logs expose `BuildIndexes progress` with
 phase and processed-node counts. Eshu graph schema bootstrap logs each graph

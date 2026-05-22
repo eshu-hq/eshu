@@ -57,13 +57,23 @@ developing Eshu or running `eshu graph start` from a checkout:
 ```
 
 By default the script installs to `GOBIN`, or to `$(go env GOPATH)/bin` when
-`GOBIN` is unset. It installs `eshu`, `eshu-api`, `eshu-mcp-server`,
-`eshu-bootstrap-index`, `eshu-ingester`, `eshu-reducer`, and the supporting
-runtime helpers.
+`GOBIN` is unset.
+
+The script installs:
+
+- owner and API binaries: `eshu`, `eshu-api`, `eshu-mcp-server`
+- indexing and runtime binaries: `eshu-bootstrap-index`, `eshu-ingester`,
+  `eshu-reducer`, `eshu-projector`
+- collector and control-plane binaries: `eshu-workflow-coordinator`,
+  `eshu-collector-git`, `eshu-collector-confluence`,
+  `eshu-collector-terraform-state`, `eshu-collector-package-registry`,
+  `eshu-collector-aws-cloud`, `eshu-webhook-listener`
+- operator helpers: `eshu-bootstrap-data-plane`, `eshu-admin-status`
 
 Set `ESHU_VERSION=<version>` before running the script when you want the
 installed binaries to report a specific build version. The default is `dev`.
-Every installed Eshu binary supports a safe version probe:
+Every installed Eshu binary supports a safe version probe before opening
+telemetry, Postgres, the graph backend, queues, or HTTP listeners:
 
 ```bash
 eshu --version
@@ -71,9 +81,6 @@ eshu-api --version
 eshu-ingester -v
 eshu-reducer -v
 ```
-
-The service binaries answer those probes before opening telemetry, Postgres,
-the graph backend, queues, or HTTP listeners.
 
 The script builds only the local `eshu` binary with
 `ESHU_LOCAL_OWNER_BUILD_TAGS=nolocalllm` by default. The service binaries

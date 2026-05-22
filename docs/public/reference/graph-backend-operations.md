@@ -2,8 +2,9 @@
 
 Use this page to start, stop, inspect, and troubleshoot the local graph backend
 used by the `local_authoritative` profile. Normal local mode is embedded
-NornicDB inside the `eshu` owner process built with `-tags nolocalllm`; it does
-not require `nornicdb-headless`.
+NornicDB inside the `eshu` owner process built by
+`./scripts/install-local-binaries.sh`; it does not require
+`nornicdb-headless`.
 
 For install policy, use
 [Graph Backend Installation](graph-backend-installation.md). For NornicDB
@@ -59,9 +60,8 @@ Start with:
 eshu graph status
 ```
 
-Status reports the workspace root and ID, owner record, owner PID and profile,
-graph backend, graph PID, Bolt and health ports, data directory, log path,
-version, and health.
+Status reports owner metadata, graph backend, PID, Bolt and health ports, data
+directory, log path, version, and health for the selected workspace.
 
 For NornicDB, healthy means:
 
@@ -132,8 +132,8 @@ eshu graph upgrade \
 
 ## Backend Migration
 
-Switching a workspace between `nornicdb` and `neo4j` is not an in-place data
-migration:
+Switching a workspace between `nornicdb` and `neo4j` is a re-index, not an
+in-place data migration:
 
 1. Stop the local owner.
 2. Change `ESHU_GRAPH_BACKEND`.
@@ -146,5 +146,5 @@ fork reducers, query handlers, or MCP tools per backend.
 ## Telemetry
 
 Graph-backed runtimes label backend activity with `graph_backend` on spans,
-metrics, logs where applicable, and optional truth metadata. Use that label to
-compare NornicDB and Neo4j runs.
+metrics, logs where applicable, and optional truth metadata. Use that label plus
+queue-zero and API/MCP truth checks when comparing NornicDB and Neo4j.

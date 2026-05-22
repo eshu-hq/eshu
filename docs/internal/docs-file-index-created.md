@@ -26,9 +26,12 @@ Generated from `git diff --name-status origin/main -- "*.md"` for this documenta
 - `docs/public/guides/terraform-providers/service-categories.md`
 - `docs/public/guides/terraform-providers/updating-providers.md`
 - `docs/public/index.md`
+- `docs/public/languages/python.md`
+- `docs/public/reference/backend-conformance.md`
 - `docs/public/reference/capability-conformance-spec.md`
 - `docs/public/reference/cli-analysis.md`
 - `docs/public/reference/cli-indexing.md`
+- `docs/public/reference/cli-kiss.md`
 - `docs/public/reference/cli-reference.md`
 - `docs/public/reference/cli-system.md`
 - `docs/public/reference/collector-reducer-readiness.md`

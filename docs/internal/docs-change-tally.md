@@ -9,7 +9,7 @@ repo's 500-line limit.
 - Total Markdown files left in the checkout after the current pass: 548
 - Current branch doc status from
   `git diff --name-status origin/main -- '*.md'` after the current pass:
-  98 added, 257 modified, 151 deleted, 83 renamed
+  101 added, 257 modified, 154 deleted, 80 renamed
 - Copied image assets removed from this branch: 43 files under
   `docs/public/images/`. They were reference assets from another project and
   no longer appear in the source-doc reference scan.
@@ -127,6 +127,8 @@ branch. Regenerate them from
 | MCP Diagnostic Cypher Contract Restore | Restored the diagnostics-only raw Cypher cookbook section with scoped input and tool-level `limit` so MCP contract tests keep raw queries out of normal prompt flows. |
 | AWS SDK Adapter README Compression | Reduced eight AWS SDK adapter READMEs by removing repeated diagrams and shared dependency/telemetry prose while preserving each service's API allowlist, denylist, pagination, and redaction invariants. |
 | AWS Service Scanner README Compression | Reduced eight AWS service scanner READMEs by removing repeated scanner/client diagrams and shared dependency/telemetry prose while preserving metadata-only, redaction, relationship-evidence, and no-inference invariants. |
+| Public Runtime And Python Docs Compression | Corrected deployed runtime binary names, expanded the local installer output from the real install script, and reduced the Python parser page from a duplicated test inventory into a current parser/dead-code contract. |
+| Parallel MCP Backend Telemetry Compression | Used subagents to compress MCP/CLI, graph-backend/NornicDB, and telemetry reference groups while preserving diagnostics-only raw Cypher, schema-first backend evidence, NornicDB tuning gates, exact service names, metric/span/log contracts, and bounded-label rules. |
 
 ## Verification Snapshot
 
@@ -140,10 +142,11 @@ Current pass proof:
   and `tests/fixtures`.
 - Broad docs verification passed for `docs/public` and the full repository with
   0 contradicted and 0 missing evidence claims. Current public docs verifier
-  result: 173 documents, 1237 claims. Current full repository verifier result:
-  562 documents, 1434 claims.
+  result: 173 documents, 1245 claims. Current full repository verifier result:
+  562 documents, 1442 claims.
 - Focused AWS service docs verification passed with 76 documents, 0
   contradicted claims, and 0 missing evidence claims.
+- Focused MCP test proof passed with `go test ./internal/mcp -count=1`.
 - `scripts/verify-package-docs.sh`, Markdown file-size scan,
   `git diff --check`, `cmp -s AGENTS.md CLAUDE.md`, and strict MkDocs build
   passed.

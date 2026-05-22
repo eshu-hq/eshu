@@ -8,10 +8,11 @@ NornicDB is Eshu's default graph backend. Tune from evidence: first identify
 the phase, label, row count, grouped statement count, timeout shape, and queue
 state in logs/status. Then change the narrowest matching knob.
 
-For the full environment-variable catalog, see
-[Environment Variables](environment-variables.md). For Cypher shape rules, see
-[Cypher Performance Discipline](cypher-performance.md). For historical
-performance checkpoints, see [NornicDB Tuning Evidence](nornicdb-tuning-evidence.md).
+This page is the knob map. Use [Graph Backend Installation](graph-backend-installation.md)
+for embedded versus process mode, [Graph Backend Operations](graph-backend-operations.md)
+for start/stop/status/logs, [Cypher Performance Discipline](cypher-performance.md)
+for query-shape rules, and [NornicDB Tuning Evidence](nornicdb-tuning-evidence.md)
+for the proof behind current defaults.
 
 ## First Decision
 
@@ -42,16 +43,9 @@ A larger timeout can prove correctness. It is not the final performance answer
 until phase timing and write-shape evidence explain why the larger budget is
 acceptable.
 
-For full-corpus or remote proof, record Eshu commit, NornicDB commit/image,
-schema/bootstrap state, clean-volume state, pprof state, effective environment,
-terminal queue counts, and API/MCP truth checks.
-
-## Backend Selection
-
-Backend selection is not a tuning step. Use
-[Graph Backend Installation](graph-backend-installation.md) for embedded versus
-process-mode NornicDB, and use
-[Environment Variables](environment-variables.md) for the full variable catalog.
+For full-corpus or remote proof, record commit/image, schema/bootstrap state,
+clean-volume state, pprof state, effective environment, terminal queue counts,
+and API/MCP truth checks. Backend selection is not a tuning step.
 
 ## Canonical Write Budget
 
@@ -106,7 +100,7 @@ These knobs affect reducer-owned materialization and shared projection.
 | `ESHU_REDUCER_BATCH_CLAIM_SIZE` | worker count on NornicDB | Reducer intents claimed per poll. Keep near worker count so claimed work starts heartbeat-protected execution promptly. |
 | `ESHU_REDUCER_SEMANTIC_ENTITY_CLAIM_LIMIT` | `1` on NornicDB | Concurrent semantic entity claims after the source-local drain gate opens. Raise only in focused proofs. |
 | `ESHU_NORNICDB_SEMANTIC_ENTITY_LABEL_BATCH_SIZES` | `Annotation=5,Function=10,ImplBlock=10,Module=10,TypeAlias=5,TypeAnnotation=50,Variable=10` | Label-specific row caps for semantic entity materialization. |
-| `ESHU_SHARED_PROJECTION_WORKERS` | `1` runtime default; Helm sets `8` for the validated EKS profile | Shared projection partition workers. Raise only when queue age grows and graph backend health is proven. |
+| `ESHU_SHARED_PROJECTION_WORKERS` | runtime default is `NumCPU` capped at `4`; Compose defaults to `2`; Helm sets `8` | Shared projection partition workers. Raise only when queue age grows and graph backend health is proven. |
 | `ESHU_CODE_CALL_PROJECTION_ACCEPTANCE_SCAN_LIMIT` | `250000` | Correctness guard for complete accepted repo/run scan before rewriting CALLS edges. |
 
 Semantic materialization is reducer-owned. Do not copy canonical caps blindly.
@@ -155,10 +149,12 @@ letters, and terminal drain state.
 
 ## Hosted Defaults
 
-The Helm chart owns hosted defaults for startup probes, readiness probes,
-container flags, write timeout, and shared-projection workers. See
-[Helm Runtime Values](../deploy/kubernetes/helm-runtime-values.md) and
-[NornicDB Tuning Evidence](nornicdb-tuning-evidence.md) before changing them.
+The Helm chart owns hosted defaults for NornicDB container flags, probes,
+`ESHU_CANONICAL_WRITE_TIMEOUT=120s`, and
+`ESHU_SHARED_PROJECTION_WORKERS=8`. See
+[Helm Runtime Values](../deploy/kubernetes/helm-runtime-values.md) before
+changing chart values and [NornicDB Tuning Evidence](nornicdb-tuning-evidence.md)
+before changing their proof trail.
 
 ## Add A New Knob
 

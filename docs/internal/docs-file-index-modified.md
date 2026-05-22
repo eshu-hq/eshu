@@ -55,7 +55,6 @@ Generated from `git diff --name-status origin/main -- "*.md"` for this documenta
 - `docs/docs/languages/kustomize.md -> docs/public/languages/kustomize.md`
 - `docs/docs/languages/perl.md -> docs/public/languages/perl.md`
 - `docs/docs/languages/php.md -> docs/public/languages/php.md`
-- `docs/docs/languages/python.md -> docs/public/languages/python.md`
 - `docs/docs/languages/ruby.md -> docs/public/languages/ruby.md`
 - `docs/docs/languages/rust.md -> docs/public/languages/rust.md`
 - `docs/docs/languages/scala.md -> docs/public/languages/scala.md`
@@ -72,8 +71,6 @@ Generated from `git diff --name-status origin/main -- "*.md"` for this documenta
 - `docs/docs/operate/index.md -> docs/public/operate/index.md`
 - `docs/docs/operate/telemetry.md -> docs/public/operate/telemetry.md`
 - `docs/docs/operate/troubleshooting.md -> docs/public/operate/troubleshooting.md`
-- `docs/docs/reference/backend-conformance.md -> docs/public/reference/backend-conformance.md`
-- `docs/docs/reference/cli-kiss.md -> docs/public/reference/cli-kiss.md`
 - `docs/docs/reference/cloud-validation.md -> docs/public/reference/cloud-validation.md`
 - `docs/docs/reference/component-package-manager.md -> docs/public/reference/component-package-manager.md`
 - `docs/docs/reference/dead-code-typescript-corpus-evidence.md -> docs/public/reference/dead-code-typescript-corpus-evidence.md`

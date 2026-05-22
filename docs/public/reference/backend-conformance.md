@@ -22,24 +22,14 @@ readiness, and performance evidence.
 
 ## What The Harness Covers
 
-The default Go harness is intentionally DB-free. It proves the matrix is valid,
-that it names the same official backends as the capability matrix, and that the
-shared read/write corpora can run against any adapter that satisfies Eshu's
-graph ports.
+The default Go harness is DB-free. It validates the matrices and shared corpora.
+The live harness runs those corpora against a real Bolt endpoint.
 
-The read corpus targets `GraphQuery`.
-
-The write corpus targets the current Cypher executor family:
-
-- `Executor`
-- `GroupExecutor`
-- `PhaseGroupExecutor`
-
-The live corpus now includes the source-local canonical containment path:
-repository, directory, file, function, and `File-[:CONTAINS]->Function`. The
-live test runs those writes twice and then reads the relationship back with a
-single-edge assertion. A backend can no longer pass the canonical-write smoke
-test while skipping file/entity containment.
+| Corpus | Target | Required behavior |
+| --- | --- | --- |
+| Read | `GraphQuery` | Same bounded read contract for each official backend. |
+| Write | `Executor`, `GroupExecutor`, `PhaseGroupExecutor` | Same Cypher executor contract for canonical and reducer writes. |
+| Canonical containment smoke | repository, directory, file, function, and `File-[:CONTAINS]->Function` | Run writes twice, then read the edge back with a single-edge assertion. |
 
 Eshu does not currently expose one concrete Go interface named `GraphWrite`.
 When older docs say `GraphWrite`, read that as this Cypher write executor
@@ -74,67 +64,29 @@ against a clean graph service.
 
 ## Profile Matrix
 
-Chunk 5b is tracked in the same backend matrix under `profile_matrix`.
-NornicDB must carry a gate for each profile that can use an authoritative
-graph backend:
+The backend matrix carries a `profile_matrix` gate for every authoritative graph
+profile: `local_authoritative`, `local_full_stack`, and `production`.
 
-- `local_authoritative`
-- `local_full_stack`
-- `production`
+Current evidence:
 
-The `local_authoritative` gate is backed by the opt-in local-host performance
-tests plus the latest full-corpus API/MCP evidence. The `local_full_stack` gate
-is backed by the NornicDB Compose matrix, now running with
-`ESHU_QUERY_PROFILE=local_full_stack`. The `production` gate now has a
-latest-main full-corpus proof,
-`eshu-full-pr138-a2c630af-b68b4ef-20260504T120630Z`:
-it drained `8458/8458` queue rows in `878s`, kept retrying, failed, and
-dead-letter rows at `0`, and passed API/MCP health plus relationship-evidence
-drilldowns.
+| Profile | Required proof |
+| --- | --- |
+| `local_authoritative` | Opt-in local-host performance tests plus API/MCP truth checks against the completed graph. |
+| `local_full_stack` | Compose matrix with `ESHU_QUERY_PROFILE=local_full_stack`. |
+| `production` | Full-corpus, schema-first proof with queue-zero and API/MCP relationship-evidence checks. |
 
-The early comparison evidence looked bad for Neo4j but did not include the
-normal graph-schema bootstrap. The 2026-05-04 Neo4j run
-`eshu-neo4j-baseline-pr138-a2c630af-20260504T123656Z` was stopped by request
-after `1946s`; it was still clean (`0` retrying, failed, or dead-letter rows)
-but had only `553/896` source-local projector items succeeded. NornicDB had
-already finished the whole corpus at `878s`.
+The durable lesson from the Neo4j comparison is schema-first timing. A stopped
+Neo4j snapshot without `eshu-bootstrap-data-plane` was not production evidence;
+the corrected run applied schema first and drained the full corpus cleanly.
+Keep schema bootstrap complete before timing either backend.
 
-That stopped Neo4j snapshot was missing the product graph-schema bootstrap.
-Product Compose and Kubernetes apply graph schema with
-`eshu-bootstrap-data-plane` before indexing. When the remote Neo4j proof did the
-same thing, `eshu-neo4j-schema-profile-20260504T182712Z` drained the full corpus
-in `577s`, reached `8458/8458` succeeded queue rows with `0` retrying, failed,
-or dead-letter rows, and passed API/MCP health plus relationship-evidence
-drilldowns.
-
-Neo4j now uses the shared row-scoped batched entity-containment writer through
-ingester and bootstrap to reduce canonical statement count. NornicDB should not
-inherit that default from Neo4j: its latest-main full-corpus path already
-finished in `878s`, so cross-file batched containment remains an explicit
-NornicDB evaluation switch. Future backend changes should stay inside the
-shared Cypher contract and be measured as backend-specific evidence, not copied
-blindly between backends.
-
-The longer-term support bar is broader than these two databases. Eshu should be
-able to support backends that speak the Bolt/Cypher shape, but only through
-narrow, documented adapter seams. A new backend should not force handler-level
-branches or a pile of one-off query workarounds. Neo4j is still useful for
-companies that already pay for and operate Neo4j, but the Neo4j path cannot
-remain dramatically slower than the default NornicDB path if we call it
-production-promoted.
+Future backend changes must stay inside the shared Cypher/Bolt contract and be
+measured as backend-specific evidence. Do not copy a NornicDB or Neo4j tuning
+default into the other backend unless a same-shape proof supports it.
 
 ## Promotion Rule
 
-Chunk 5 adds the deterministic harness, backend matrix, and live Compose-backed
-adapter check. Chunk 5b records the profile-matrix proof across:
-
-- `local_authoritative`
-- `local_full_stack`
-- `production`
-
-NornicDB remains the default. Local and Compose profile gates pass against
-latest `main`, production has NornicDB full-corpus evidence, and the corrected
-schema-first Neo4j proof shows the official alternative can run the same corpus
-inside the target envelope. Keep `eshu-bootstrap-data-plane` as a completed
-schema bootstrap step in every production-profile proof before timing graph
-writes.
+NornicDB remains the default. Neo4j is the official alternative when it passes
+the same matrices, live corpus, profile gates, and schema-first performance
+evidence. Keep `eshu-bootstrap-data-plane` complete before every
+production-profile graph timing.

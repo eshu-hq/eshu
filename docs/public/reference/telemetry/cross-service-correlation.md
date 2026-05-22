@@ -1,26 +1,15 @@
-# Cross-Service Trace Correlation
+# Cross-Service Correlation
 
-Eshu runtimes emit OpenTelemetry traces through an OTEL Collector to a backend
-such as Jaeger. In Kubernetes, the collector is part of the observability stack.
-On a laptop, add `docker-compose.telemetry.yml` to the local Compose command
-when you want the local collector and Jaeger.
-
-Use this page when one user-visible operation crosses service boundaries.
-
-## Why Trace Trees Stay Separate
-
-Most Eshu service coordination is asynchronous through Postgres facts, queues,
-shared projection intents, and status rows. Trace context is not automatically
-propagated through those durable queues like it would be through direct HTTP or
-gRPC request headers.
-
-Each runtime can start its own trace root when it collects, claims, reduces, or
-serves a request. The trace trees are separate, but they share correlation keys.
+Use this page when one user-visible operation crosses runtime boundaries.
+Eshu does not rely on one trace tree for the whole pipeline because most work
+moves asynchronously through Postgres facts, queues, shared projection intents,
+and status rows. Each service can start its own trace root; the shared
+correlation keys connect those traces to logs, metrics, and `/admin/status`.
 
 ## Service Names
 
-Current Go entrypoints pass these names to `telemetry.NewBootstrap(...)`.
-All use `service.namespace = eshu`.
+Go entrypoints call `telemetry.NewBootstrap(...)` with these current
+`service.name` values. All use `service.namespace=eshu`.
 
 | Runtime | `service.name` |
 | --- | --- |
@@ -42,138 +31,61 @@ All use `service.namespace = eshu`.
 
 ## Correlation Keys
 
-Use the key emitted by the failing path. Keys can appear in spans, logs,
-metrics, admin payloads, or status rows.
+Use the key emitted by the failing path. These keys can appear in spans, logs,
+status rows, admin payloads, or metric labels when the value is bounded.
 
-| Key | Useful for |
+| Key | Use |
 | --- | --- |
-| `scope_id` | Following one repository or source scope across collection, projection, reducer work, and reads. |
-| `generation_id` | Connecting one collection generation to downstream projection and reduction. |
-| `source_run_id` | Grouping repositories or scopes from one collector run where emitted. |
-| `work_item_id` | Following one queued fact or reducer work item from enqueue to completion or failure. |
-| `request_id` | Connecting API/MCP logs for one request where emitted. |
-| `pipeline_phase` | Filtering logs by `discovery`, `parsing`, `emission`, `projection`, `reduction`, `shared`, `query`, or `serve`. |
-| `domain` | Filtering reducer work by domain, such as `workload` or `platform`. |
-| `partition_key` | Narrowing reducer or shared-projection work to one conflict partition. |
+| `scope_id` | Follow one repository or external source scope. |
+| `generation_id` | Connect one collection generation to downstream projection and reduction. |
+| `source_run_id` | Group scopes from one collector run where the source emits it. |
+| `work_item_id` | Follow one queued item when status or failure logs expose it. |
+| `request_id` | Connect API or MCP request logs with trace context where emitted. |
+| `pipeline_phase` | Filter logs by `discovery`, `parsing`, `emission`, `projection`, `reduction`, `shared`, `query`, or `serve`. |
+| `domain` | Filter reducer work by materialization domain. |
+| `partition_key` | Narrow reducer or shared-projection work to one conflict partition. |
 
-## Recipes
+The frozen log-key registry is `telemetry.LogKeys()` in
+`go/internal/telemetry/registry.go`. Runtime and reducer observability surfaces
+publish that registry for maintainer checks, but not every log line carries
+every key.
 
-### Follow a repository from ingestion to graph
+## How To Correlate
 
-1. Get the repository `scope_id` from ingester logs, status output, or the
-   `collector.observe` span attributes.
-2. Search traces and logs for that `scope_id`.
-3. Filter by `service.name` to separate ingester, reducer, and API/MCP reads.
-4. Compare these trees:
-   - ingester: `collector.observe`, `fact.emit`, `projector.run`,
-     `canonical.write`
-   - reducer: `reducer.run`, `canonical.write`
-   - read path: query spans with child `postgres.query`, `neo4j.query`, or
-     `neo4j.query.single`
+### Repository Or Source Scope
 
-### Follow one queue item
+1. Start from `/admin/status`, a queue metric, or an ingester/collector log and
+   capture `scope_id` plus `generation_id` when present.
+2. Search logs by those keys and filter by `service_name`.
+3. Open the matching `trace_id` values in the trace backend.
+4. Compare collection spans (`collector.observe`, `collector.stream`,
+   `fact.emit`), projection spans (`projector.run`, `canonical.write`), reducer
+   spans (`reducer.run`, `canonical.write`), and read-path spans.
 
-1. Get `work_item_id` from `/admin/status`, queue inspection, or the failure
-   log.
-2. Search logs for that work item. If the path does not log it directly, fall
-   back to `scope_id`, `generation_id`, `domain`, and `partition_key`.
-3. Open each matching `trace_id` in Jaeger.
-4. Compare enqueue, claim, fact load, execution, graph write, retry, and ack
-   spans.
+### Queue Or Reducer Work
 
-### Follow an API or MCP request into storage
+1. Capture `domain`, `partition_key`, and any visible work item identifier from
+   `/admin/status` or a failure log.
+2. Filter logs by `pipeline_phase=reduction` or `pipeline_phase=shared`.
+3. Use `failure_class` before retrying or replaying work.
+4. Open the trace for the same log event and compare claim, fact load, handler,
+   graph write, retry, and ack timing.
 
-1. Start from the request log or trace.
-2. Capture `request_id` and any scope or entity identifier in the request.
-3. Search logs for the request or entity context.
-4. Open the query trace and inspect `postgres.query`, `neo4j.query`,
-   `neo4j.query.single`, or `neo4j.execute` spans.
+### API Or MCP Read
 
-### Diagnose shared projection
-
-1. Filter logs by `pipeline_phase=shared` and the target `domain`.
-2. Add `partition_key` when you know the conflict key.
-3. Open the matching `canonical.write` trace.
-4. Compare intent loading, lease management, and graph write spans.
-
-## Correlation Shape
-
-```text
-API or MCP request
-  service.name: eshu-api or mcp-server
-  trace_id: A, request_id: R1
-  -> query span
-     -> postgres.query / neo4j.query / neo4j.query.single
-        scope_id: S1
-
-scope_id S1 connects to:
-
-Ingester
-  service.name: ingester
-  trace_id: B, generation_id: G1
-  -> collector.observe
-  -> fact.emit
-  -> projector.run
-  -> canonical.write
-
-Reducer
-  service.name: reducer
-  trace_id: C, domain: workload, partition_key: P1
-  -> reducer.run
-  -> canonical.write
-```
-
-## Grafana And Loki
-
-Use logs for context and traces for timing. Example LogQL filters:
-
-```logql
-{service_name=~"eshu-api|mcp-server|ingester|reducer"}
-  | json
-  | scope_id="git-repository-scope:<id>"
-```
-
-```logql
-{service_name=~"ingester|reducer"}
-  | json
-  | pipeline_phase="projection"
-```
-
-```logql
-{service_name="reducer"}
-  | json
-  | pipeline_phase="shared"
-  | domain="workload"
-  | severity_text="ERROR"
-```
-
-For logs-to-traces links, configure a Loki derived field named `trace_id` that
-extracts the JSON field and opens the matching Jaeger trace.
-
-## Dashboard Patterns
-
-- Cross-service latency: graph p95 collection, projection, reducer run, and
-  API/MCP request latency where exposed.
-- Queue health: graph queue depth, oldest queue age, runtime outstanding work,
-  shared projection cycles, and stale intent counts.
-- Scope-level progression: start from a `scope_id`, then inspect logs, traces,
-  and queue/status rows for the same scope.
+1. Start from the request log or query trace.
+2. Capture `request_id`, the requested scope/entity, and the trace IDs.
+3. Inspect query-handler spans and child storage spans:
+   `postgres.query`, `neo4j.query`, `neo4j.query.single`, or `neo4j.execute`.
+4. If the read looks stale, confirm queue and generation state in
+   `/admin/status` before blaming the read handler.
 
 ## Pitfalls
 
-- A `trace_id` identifies one service trace tree. It does not follow async work
-  across queues.
-- Correlation keys are not guaranteed on every dependency span. Check parent
-  spans and logs when a child `postgres.*` or `neo4j.*` span lacks context.
-- Always filter by `service.name` when searching by `scope_id`.
-- Logs carry failure class, retry count, domain, and partition context that
-  traces may not include.
-
-## When Correlation Fails
-
-1. Check `/healthz`, `/readyz`, and `/admin/status`.
-2. Confirm `OTEL_EXPORTER_OTLP_ENDPOINT` and collector health.
-3. Check that the query uses the current `service.name` and `pipeline_phase`.
-4. Check queue depth, oldest age, retry counts, and dead-letter state.
-5. Use logs carrying `failure_class`, `scope_id`, `generation_id`, `domain`,
-   or `partition_key` before restarting services.
+- A `trace_id` identifies one trace tree. It does not automatically follow
+  async queue work across runtimes.
+- Child storage spans may omit the high-level scope. Check the parent span and
+  logs for `scope_id`, `generation_id`, `domain`, or `partition_key`.
+- Always filter by `service_name` when searching by a shared key.
+- Logs carry high-cardinality details such as paths, resource identifiers,
+  delivery IDs, and exact errors. Do not move those values into metric labels.

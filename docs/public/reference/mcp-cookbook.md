@@ -1,23 +1,22 @@
 # MCP Cookbook
 
-Use this page for copy-ready MCP tool calls. For the full field catalog, see
-[MCP Reference](mcp-reference.md). For setup and orchestration, see
+Use this page for copy-ready MCP calls. For the full schema list, use
+[MCP Reference](mcp-reference.md). For setup, use
 [MCP Guide](../guides/mcp-guide.md).
 
 ## Call Rules
 
-- Start with story or investigation tools for explanation prompts.
-- Scope calls with the narrowest known `repo_id`, `workload_id`,
+- Start with story or investigation tools when the prompt asks for an
+  explanation.
+- Scope each call with the narrowest known `repo_id`, `workload_id`,
   `service_name`, `environment`, `resource_id`, file path, module, or entity.
-- Set `limit` and `offset` for list calls.
+- Set `limit` and `offset` for list-style calls.
 - Check `truncated`, `next_offset`, or `next_cursor` before claiming complete
   coverage.
 - Use `repo_id + relative_path` or `entity_id` for file-shaped drilldowns.
-- Treat raw Cypher as diagnostics-only; use named tools for normal prompt
-  flows. See [MCP Tool Contract Matrix](mcp-tool-contract-matrix.md) for the
-  raw Cypher contract.
+- Use raw Cypher only for diagnostics. Named tools are the normal prompt path.
 
-## Stories And Investigations
+## Story And Investigation Calls
 
 ### Explain a service
 
@@ -27,8 +26,10 @@ Use this page for copy-ready MCP tool calls. For the full field catalog, see
 { "workload_id": "payments-api", "environment": "prod" }
 ```
 
-Use `investigate_service` when the answer needs evidence-first onboarding or a
-scoped service investigation:
+Use `investigate_service` when the prompt needs evidence-first onboarding or a
+scoped investigation:
+
+**Tool:** `investigate_service`
 
 ```json
 { "service_name": "payments-api", "environment": "prod", "intent": "onboarding" }
@@ -42,9 +43,6 @@ scoped service investigation:
 { "repo_id": "payments" }
 ```
 
-Use `get_repo_context` only when the story points to lower-level repository
-fields you need to inspect.
-
 ### Investigate deployment config
 
 **Tool:** `investigate_deployment_config`
@@ -56,7 +54,7 @@ fields you need to inspect.
 Use this for prompts about image tags, values layers, resource limits, rendered
 targets, and read-first deployment files.
 
-## Code
+## Code Calls
 
 ### Find code paths for a behavior
 
@@ -66,7 +64,7 @@ targets, and read-first deployment files.
 { "topic": "repo sync authentication and GitHub App auth resolution", "repo_id": "eshu", "intent": "implementation_map", "limit": 25 }
 ```
 
-### Find a symbol
+### Find a symbol or exact source
 
 **Tool:** `find_symbol`
 
@@ -74,15 +72,11 @@ targets, and read-first deployment files.
 { "symbol": "process_payment", "repo_id": "payments", "match_mode": "exact", "limit": 25 }
 ```
 
-### Search indexed file content
-
 **Tool:** `search_file_content`
 
 ```json
 { "pattern": "shared-payments-prod", "repo_id": "payments", "limit": 25, "offset": 0 }
 ```
-
-### Read exact lines
 
 **Tool:** `get_file_lines`
 
@@ -90,9 +84,9 @@ targets, and read-first deployment files.
 { "repo_id": "payments", "relative_path": "src/server.py", "start_line": 20, "end_line": 40 }
 ```
 
-## Relationships And Inventory
+## Relationship Calls
 
-### Find direct callers
+### Find direct or transitive callers
 
 **Tool:** `get_code_relationship_story`
 
@@ -108,7 +102,7 @@ function. For bounded transitive callers, add `include_transitive` and
 { "target": "process_payment", "relationship_type": "CALLS", "direction": "incoming", "include_transitive": true, "max_depth": 7, "repo_id": "payments", "limit": 50 }
 ```
 
-### Find a call chain
+### Find a call chain or import neighborhood
 
 **Tool:** `find_function_call_chain`
 
@@ -116,15 +110,13 @@ function. For bounded transitive callers, add `include_transitive` and
 { "start": "checkout", "end": "process_payment", "max_depth": 5 }
 ```
 
-### Investigate imports
-
 **Tool:** `investigate_import_dependencies`
 
 ```json
 { "query_type": "importers", "repo_id": "payments", "target_module": "payments.client", "limit": 25 }
 ```
 
-### List structural inventory
+## Inventory, Quality, And Runtime Calls
 
 **Tool:** `inspect_code_inventory`
 
@@ -132,19 +124,11 @@ function. For bounded transitive callers, add `include_transitive` and
 { "repo_id": "payments", "language": "python", "inventory_kind": "dataclass", "limit": 50 }
 ```
 
-### Find recursive or hub functions
-
 **Tool:** `inspect_call_graph_metrics`
 
 ```json
 { "metric_type": "recursive_functions", "repo_id": "payments", "language": "typescript", "limit": 50 }
 ```
-
-Use `metric_type: "hub_functions"` for the most connected functions.
-
-## Quality, Runtime, And Safety
-
-### Find code quality risks
 
 **Tool:** `inspect_code_quality`
 
@@ -152,20 +136,11 @@ Use `metric_type: "hub_functions"` for the most connected functions.
 { "check": "function_length", "repo_id": "payments", "min_lines": 20, "limit": 25 }
 ```
 
-Other supported checks include `complexity`, `argument_count`, and
-`refactoring_candidates`.
-
-### Investigate dead code
-
 **Tool:** `investigate_dead_code`
 
 ```json
 { "repo_id": "payments", "language": "typescript", "limit": 200, "offset": 0 }
 ```
-
-Use `find_dead_code` only when you need the lower-level candidate list.
-
-### Check indexing status
 
 **Tool:** `get_index_status`
 
@@ -173,10 +148,34 @@ Use `find_dead_code` only when you need the lower-level candidate list.
 {}
 ```
 
-Use `list_ingesters` for configured ingesters and `get_ingester_status` for
-one runtime's persisted status.
+Use `list_ingesters` for configured ingesters and `get_ingester_status` for one
+runtime's persisted status.
 
-### Find hardcoded secrets
+## Deployment, Impact, And Safety Calls
+
+**Tool:** `trace_deployment_chain`
+
+```json
+{ "service_name": "payments-api", "direct_only": true, "max_depth": 8 }
+```
+
+**Tool:** `investigate_resource`
+
+```json
+{ "query": "payments-prod-db", "resource_type": "database", "environment": "prod", "limit": 25 }
+```
+
+**Tool:** `compare_environments`
+
+```json
+{ "workload_id": "payments-api", "left": "prod", "right": "staging", "limit": 25 }
+```
+
+**Tool:** `investigate_change_surface`
+
+```json
+{ "service_name": "payments-api", "environment": "prod", "max_depth": 4, "limit": 25 }
+```
 
 **Tool:** `investigate_hardcoded_secrets`
 
@@ -185,8 +184,6 @@ one runtime's persisted status.
 ```
 
 Results are redacted. Do not expect raw secret values in MCP responses.
-
-### Draft Terraform import candidates
 
 **Tool:** `propose_terraform_import_plan`
 
@@ -197,43 +194,10 @@ Results are redacted. Do not expect raw secret values in MCP responses.
 This is read-only and refuses ambiguous, stale, sensitive, or insufficiently
 covered findings.
 
-## Deployment And Impact
+## Evidence Calls
 
-### Trace deployment evidence
-
-**Tool:** `trace_deployment_chain`
-
-```json
-{ "service_name": "payments-api", "direct_only": true, "max_depth": 8 }
-```
-
-### Investigate a resource
-
-**Tool:** `investigate_resource`
-
-```json
-{ "query": "payments-prod-db", "resource_type": "database", "environment": "prod", "limit": 25 }
-```
-
-### Compare environments
-
-**Tool:** `compare_environments`
-
-```json
-{ "workload_id": "payments-api", "left": "prod", "right": "staging", "limit": 25 }
-```
-
-### Investigate change surface
-
-**Tool:** `investigate_change_surface`
-
-```json
-{ "service_name": "payments-api", "environment": "prod", "max_depth": 4, "limit": 25 }
-```
-
-## Evidence
-
-### Build citations from returned handles
+Use citation packets after story, investigation, search, or relationship tools
+return file or entity handles.
 
 **Tool:** `build_evidence_citation_packet`
 
@@ -241,25 +205,21 @@ covered findings.
 { "handles": [{ "repo_id": "payments", "relative_path": "deploy/values-prod.yaml", "reason": "image tag source" }], "limit": 10 }
 ```
 
-Use this after story, investigation, search, or relationship tools return file
-or entity handles.
-
 ## Diagnostic Cypher Queries
 
 Raw Cypher is diagnostics-only. Use named MCP tools for normal prompt flows, and
-reach for this only when you are proving a backend/query-shape issue with an
-explicit scope and bounded result set.
+reach for this only when proving a backend or query-shape issue with an explicit
+scope and bounded result set.
 
 **Tool:** `execute_cypher_query`
 
 ```json
 {
-  "cypher_query": "MATCH (r:Repository {uid: $repo_id}) RETURN r.uid AS repo_id",
-  "parameters": { "repo_id": "payments" },
+  "cypher_query": "MATCH (r:Repository) WHERE r.uid = 'payments' RETURN r.uid AS repo_id",
   "limit": 25
 }
 ```
 
-Keep `limit` at the tool level rather than embedding `LIMIT` in the Cypher
+Keep `limit` at the tool level instead of embedding `LIMIT` in the Cypher
 string. Record the backend, scope, timing, and truth envelope when the result is
 used as diagnostic evidence.
