@@ -102,6 +102,51 @@ surfaces.
    include `identity_strength`, source layers, and evidence fact IDs for
    operator diagnosis.
 
+   Performance Impact Declaration: container-image identity now affects the
+   projector reducer-intent enqueue path and the Postgres active fact loader
+   used by `DomainContainerImageIdentity`. Cardinality is bounded by one
+   reducer intent per scope generation that contains OCI digest/tag facts,
+   AWS image-reference facts, AWS container-image relationships, or Git
+   `content_entity` rows with `container_images`, plus paged active reads over
+   only those fact kinds. Known-normal baseline is the existing package-source
+   and AWS-runtime-drift intent pattern. Proof ladder is focused projector,
+   reducer, Postgres query-shape, schema mirror, package, performance-evidence,
+   and remote Compose all-collector validation. Stop threshold: any unbounded
+   active fact scan, missing active-reference index, duplicate intent fan-out
+   per generation, or remote queue growth/dead-letter count blocks EKS rollout.
+
+   No-Regression Evidence: after fixing OCI identity scheduling, focused tests
+   cover one `container_image_identity` intent per OCI registry generation,
+   active Git/AWS/OCI evidence loading through
+   `fact_records_active_container_image_refs_idx`, and real
+   `entity_metadata.container_images` parsing:
+   `go test ./internal/projector -run 'TestBuildProjectionQueuesSingleContainerImageIdentityIntentForOCIRegistryFacts' -count=1`,
+   `go test ./internal/storage/postgres -run 'TestFactStoreListActiveContainerImageIdentityFactsUsesActiveIdentityGenerations|TestBootstrapDefinitionsIncludeCICDRunCorrelationFactIndexes|TestBootstrapSQLFilesMirrorDefinitions' -count=1`, and
+   `go test ./internal/reducer -run 'TestBuildContainerImageIdentityDecisionsReadsEntityMetadataContainerImages' -count=1`.
+   Remote Compose proof with the branch-built all-collector stack then produced
+   OCI facts `oci_registry.repository=11`, `oci_registry.image_manifest=154`,
+   `oci_registry.image_tag_observation=154`,
+   `oci_registry.image_descriptor=1353`, and
+   `oci_registry.warning=154`; reducer domain
+   `container_image_identity|succeeded=16`; durable
+   `reducer_container_image_identity=125` facts with outcomes
+   `exact_digest=70` and `tag_resolved=55`; API and MCP health probes returned
+   `status=ok`; failed/retrying/dead-letter fact and workflow items were `0`.
+
+   Observability Evidence: the projector already records
+   `eshu_dp_reducer_intents_enqueued_total` and `stage=intent_enqueue`
+   duration for the new scheduling path, while the reducer continues to emit
+   `eshu_dp_container_image_identity_decisions_total` by bounded outcome after
+   durable write success. The active fact loader runs through the existing
+   Postgres instrumentation and the reducer result summary reports evaluated
+   rows, outcome counts, and canonical writes.
+
+   Follow-up read surface: standalone API/MCP reads for
+   `reducer_container_image_identity` facts are tracked in #546. Until that
+   lands, the facts are durable Postgres reducer truth and downstream input for
+   CI/CD run correlation, SBOM/attestation attachment, and supply-chain impact
+   reducers rather than a direct public query surface.
+
 2. IaC management status.
    Use Terraform config, Terraform state, AWS cloud facts, and reducer drift
    findings to answer whether a resource is managed, unmanaged, orphaned, stale,

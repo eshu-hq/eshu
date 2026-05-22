@@ -28,6 +28,10 @@
 // Package correlation indexes cover reducer ownership, publication, and
 // consumption fact rows under package_id and repository_id anchors; their v2
 // names force existing databases to build the expanded publication predicate.
+// Container-image identity active reads are similarly bounded by a partial
+// active-reference index over OCI digest/tag observations and Git/AWS image
+// references, so an OCI scan can re-evaluate existing runtime references
+// without scanning unrelated facts.
 // Current
 // source-run history lookups let chunked code-call projection avoid retracting
 // edges written by earlier chunks from the same accepted run. StatusStore also

@@ -96,11 +96,17 @@ func addAWSImageReference(byRef map[string]containerImageRefEvidence, envelope f
 }
 
 func contentEntityContainerImages(payload map[string]any) []string {
-	metadata, ok := payload["metadata"].(map[string]any)
-	if !ok {
-		return nil
+	for _, key := range []string{"entity_metadata", "metadata"} {
+		metadata, ok := payload[key].(map[string]any)
+		if !ok {
+			continue
+		}
+		refs := stringListValue(metadata["container_images"])
+		if len(refs) > 0 {
+			return refs
+		}
 	}
-	return stringListValue(metadata["container_images"])
+	return nil
 }
 
 func stringListValue(value any) []string {

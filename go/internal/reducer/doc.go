@@ -49,6 +49,9 @@
 // do not cross-attach to other releases, and durable publication fact identity
 // includes the source-hint kind, fact ID, and version scope so weak and exact
 // hints with the same URL cannot overwrite each other.
+// Container-image identity joins Git and AWS image references to active OCI
+// digest observations, accepting explicit digests and single tag resolutions
+// while leaving ambiguous, unresolved, and stale tags visible as outcomes.
 // SBOM and attestation attachment writes reducer facts for every attachment
 // status while keeping parse validity, signature verification, and component
 // evidence separate from vulnerability-impact truth; multi-subject

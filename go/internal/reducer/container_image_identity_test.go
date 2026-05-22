@@ -91,6 +91,19 @@ func TestBuildContainerImageIdentityDecisionsClassifiesDigestAndTagTruth(t *test
 		ContainerImageIdentityTagResolved, testContainerDigest, 1)
 }
 
+func TestBuildContainerImageIdentityDecisionsReadsEntityMetadataContainerImages(t *testing.T) {
+	t.Parallel()
+
+	decisions := BuildContainerImageIdentityDecisions([]facts.Envelope{
+		gitEntityMetadataImageRefFact("git-entity-metadata", "registry.example.com/team/api:prod"),
+		ociTagFact("oci-tag", "prod", testContainerDigest, false, ""),
+	})
+
+	got := decisionsByRef(decisions)
+	assertContainerImageDecision(t, got["registry.example.com/team/api:prod"],
+		ContainerImageIdentityTagResolved, testContainerDigest, 1)
+}
+
 func TestBuildContainerImageIdentityDecisionsRejectsWeakMissingAndAmbiguousTags(t *testing.T) {
 	t.Parallel()
 
@@ -457,6 +470,18 @@ func gitImageRefFact(factID string, imageRefs ...string) facts.Envelope {
 			},
 		},
 	}
+}
+
+func gitEntityMetadataImageRefFact(factID string, imageRefs ...string) facts.Envelope {
+	envelope := gitImageRefFact(factID, imageRefs...)
+	envelope.Payload = map[string]any{
+		"uid":         "entity:deployment",
+		"entity_type": "KubernetesResource",
+		"entity_metadata": map[string]any{
+			"container_images": imageRefs,
+		},
+	}
+	return envelope
 }
 
 func ociManifestFact(factID string, digest string) facts.Envelope {

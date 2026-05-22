@@ -101,6 +101,13 @@ API and MCP callers stay bounded by `package_id` or `repository_id`. The v2
 names force existing bootstrapped databases to create indexes with the expanded
 publication predicate instead of keeping the older ownership/consumption-only
 partial indexes.
+Container-image identity active reads use
+`fact_records_active_container_image_refs_idx` to page only active OCI digest
+catalog rows plus Git/AWS image-reference rows that can participate in the
+digest-first reducer join. The query excludes unrelated content entities and
+AWS relationships before the reducer sees them, so an OCI registry generation
+can re-evaluate existing source/runtime image references without scanning every
+fact in the corpus.
 CI/CD run correlation reads use
 `fact_records_ci_cd_run_correlations_lookup_idx` and
 `fact_records_ci_cd_run_correlations_run_lookup_idx` for repository/run scoped

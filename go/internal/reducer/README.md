@@ -419,7 +419,9 @@ Log phase attributes: `telemetry.PhaseReduction` (main loop),
   `ContainerImageIdentityHandler` writes `reducer_container_image_identity`
   facts only for explicit digest or single-tag-to-digest matches. Ambiguous,
   unresolved, and stale tag outcomes stay diagnostic counters until stronger
-  evidence proves safe identity.
+  evidence proves safe identity. Git parser facts can expose image references
+  through `entity_metadata.container_images`; the reducer also accepts the
+  older `metadata.container_images` fixture shape for compatibility.
 - **SBOM attachment keeps trust dimensions separate** —
   `SBOMAttestationAttachmentHandler` writes
   `reducer_sbom_attestation_attachment` facts for attached verified,
