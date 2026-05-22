@@ -103,11 +103,16 @@ See `doc.go` for the full godoc contract.
 - `ESHU_DISABLE_NEO4J` — with the local-lightweight profile, skips the
   graph driver
 - `DEFAULT_DATABASE` — graph database name, default `nornic`
+- `ESHU_API_KEY` — explicit bearer token for API and mounted runtime routes
+- `ESHU_HOME` — local runtime config directory used when loading or persisting
+  an API key
+- `ESHU_AUTO_GENERATE_API_KEY` — truthy values allow runtime key generation and
+  persistence under `ESHU_HOME`
 - `ESHU_PPROF_ADDR` — opt-in `net/http/pprof` endpoint via
   `runtime.NewPprofServer`; unset disables the profiler; port-only inputs
   (`:6060`) bind to `127.0.0.1`
-- API key resolved via `runtime.ResolveAPIKey`; Bolt details via
-  `runtime.OpenNeo4jDriver`
+- API key resolution is owned by `runtime.ResolveAPIKey`; Bolt details are
+  resolved by `runtime.OpenNeo4jDriver`.
 
 ## Telemetry
 

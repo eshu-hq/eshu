@@ -85,8 +85,9 @@ Processing model:
 - **Main reducer loop**: Concurrent by default. NornicDB uses
   `NumCPU` workers and a claim window equal to workers; Neo4j uses
   `min(NumCPU, 4)` workers and a larger bounded claim window.
-- **SharedProjectionRunner**: Sequential by default (Workers=1). Supports
-  concurrent partition workers via `ESHU_SHARED_PROJECTION_WORKERS`.
+- **SharedProjectionRunner**: Uses up to `min(NumCPU, 4)` partition workers by
+  default. Set `ESHU_SHARED_PROJECTION_WORKERS` only when shared projection
+  telemetry shows that partition work is the bottleneck.
 - **Both loops run as concurrent goroutines** within `Service.Run()`.
 - **Conflict fencing**: reducer queue rows carry `conflict_domain` and
   `conflict_key`; claim SQL fences only rows sharing the active durable
@@ -108,9 +109,9 @@ Processing model:
 | `ESHU_REDUCER_WORKERS` | Neo4j: `min(NumCPU, 4)`; NornicDB: `NumCPU` | Concurrent reducer intent workers |
 | `ESHU_REDUCER_BATCH_CLAIM_SIZE` | Neo4j: `workers * 4` capped at `64`; NornicDB: `workers` | Reducer intents leased per claim cycle |
 | `ESHU_REDUCER_SEMANTIC_ENTITY_CLAIM_LIMIT` | NornicDB: `1`; otherwise disabled | Concurrent semantic entity materialization claims after source-local drain |
-| `ESHU_SHARED_PROJECTION_WORKERS` | 1 | Concurrent shared projection workers |
+| `ESHU_SHARED_PROJECTION_WORKERS` | min(NumCPU, 4) | Concurrent shared projection workers |
 | `ESHU_SHARED_PROJECTION_PARTITION_COUNT` | 8 | Number of partitions |
-| `ESHU_SHARED_PROJECTION_POLL_INTERVAL` | 5s | Poll interval when idle |
+| `ESHU_SHARED_PROJECTION_POLL_INTERVAL` | 500ms | Poll interval when idle |
 | `ESHU_SHARED_PROJECTION_LEASE_TTL` | 60s | Partition lease duration |
 | `ESHU_SHARED_PROJECTION_BATCH_LIMIT` | 100 | Max intents per partition read |
 | `ESHU_CODE_CALL_PROJECTION_ACCEPTANCE_SCAN_LIMIT` | 250000 | Max code-call shared intents scanned or loaded for one accepted repo/run before failing safely instead of projecting partial CALLS truth |

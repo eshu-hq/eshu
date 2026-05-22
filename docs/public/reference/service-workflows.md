@@ -1,282 +1,168 @@
 # Service Workflows
 
-Use this page for the inter-service workflows that make up the normal platform
-path.
-
-This is the current-state companion to [System Architecture](../architecture.md)
-and [Service Runtimes](../deployment/service-runtimes.md). It explains how the
-services cooperate, where work becomes durable, and where operators should look
-when something slows down or fails.
+Use this page to understand how Eshu services cooperate after deployment. For
+the complete runtime matrix, use [Service Runtimes](../deployment/service-runtimes.md).
+For signals and proof gates, use [Telemetry Overview](telemetry/index.md) and
+[Local Testing](local-testing.md).
 
 ## Workflow Index
 
-- write path from repository discovery to canonical graph state
-- query path from API/MCP request to result
-- bootstrap workflow
-- replay and recovery workflow
-- operator checkpoints for each flow
+| Workflow | What to check first |
+| --- | --- |
+| Continuous ingestion and source-local projection | ingester `/admin/status`, projector queue metrics, graph-write logs |
+| Reducer and shared projection | reducer `/admin/status`, shared projection backlog, dead-letter counts |
+| Query reads | API status, graph/content availability, reducer backlog |
+| Bootstrap and recovery | bootstrap logs, queue state, replay/dead-letter rows |
+| Collector workflow control | workflow coordinator claims, collector facts, webhook triggers |
 
-## 1. Continuous Ingestion Workflow
+## Continuous Ingestion
 
-This is the normal long-running path.
+The ingester owns repository discovery, sync, snapshotting, parsing, fact
+emission, and source-local projection. The ingester binary wires two services
+and runs them concurrently:
 
 ```mermaid
 flowchart TD
   A["Ingester repo-sync loop"] --> B["Select repositories"]
   B --> C["Sync and snapshot repository"]
   C --> D["Parse source, IaC, and workflow files"]
-  D --> E["Shape content and relationship evidence"]
-  E --> F["Commit durable facts to Postgres"]
-  F --> G["Enqueue projector work"]
-  G --> H["Resolution Engine claims projector work"]
-  H --> I["Write source-local graph state"]
-  I --> J["Publish canonical_nodes_committed"]
-  J --> K["Write content entities"]
-  K --> L["Enqueue semantic + shared projection intents"]
-  L --> M["Resolution Engine materializes semantic nodes"]
-  M --> N["Publish semantic_nodes_committed"]
-  N --> O["Resolution Engine drains shared intents"]
-  O --> P["Write canonical shared graph edges"]
+  D --> E["Commit facts to Postgres"]
+  E --> F["Enqueue projector work"]
+  F --> G["Ingester-owned projector service claims work"]
+  G --> H["Write source-local graph and content state"]
+  H --> I["Publish canonical readiness"]
+  I --> J["Enqueue reducer and shared projection intents"]
 ```
 
-### Ownership Notes
+The resolution engine does not own the source-local projector queue in the
+steady-state ingester path. It owns reducer domains, semantic materialization,
+shared projection, retries, replay, and repair after source-local projection has
+published durable work.
 
-- The ingester owns discovery, sync, snapshotting, parsing, and fact emission.
-- The resolution engine owns both projector queue draining and reducer-owned
-  shared projection.
-- The projector publishes bounded canonical readiness, semantic-entity
-  materialization publishes bounded semantic readiness, and reducer-owned edge
-  domains wait on that readiness before writing shared Neo4j edges.
-- No normal-path Python runtime participates in this workflow.
+Operator checkpoints:
 
-### Operator Checkpoints
+- repository discovery and sync progress
+- fact commits to Postgres
+- projector queue depth and oldest age
+- graph write errors or fallback logs
+- reducer intents created after source-local projection
 
-- Is the ingester discovering and syncing repositories?
-- Are facts committing to Postgres?
-- Is projector work queue depth rising or draining?
-- Are shared projection intents draining?
-- Are Neo4j and content-store writes succeeding?
+## Reducer And Shared Projection
 
-Start with:
+The resolution engine consumes durable reducer work from Postgres and writes
+cross-domain truth to the configured graph backend.
 
-- [Runtime status](../reference/runtime-admin-api.md)
-- [Telemetry overview](../reference/telemetry/index.md)
-- [Local testing runbook](../reference/local-testing.md)
+```mermaid
+flowchart TD
+  A["Reducer queue"] --> B["Resolution Engine claims work"]
+  B --> C["Execute domain handler"]
+  C --> D["Write graph/content/read-model truth"]
+  D --> E["Ack, retry, or dead-letter"]
+  E --> F["Shared projection runners"]
+  F --> G["Write canonical shared edges"]
+```
 
-### Graph Projection Readiness Workflow
+Reducer work is recoverable because claims, attempts, dead-letter state,
+projection decisions, and shared projection intents are durable rows. Do not
+diagnose missing graph truth from pod health alone; inspect reducer backlog,
+failure-class logs, and the specific graph edge family that should have been
+materialized.
 
-The bounded graph-write phases are now explicit in the Go runtime:
-
-1. projector writes canonical nodes for one bounded acceptance slice
-2. projector publishes `canonical_nodes_committed`
-3. semantic-entity materialization writes semantic nodes for that same slice
-4. reducer publishes `semantic_nodes_committed`
-5. shared edge domains such as `code_calls`, `sql_relationships`, and
-   `inheritance_edges` only proceed when semantic readiness exists
-
-The durable readiness state is stored in Postgres
-`graph_projection_phase_state`. There is currently no dedicated public admin
-endpoint for per-slice phase rows; operators infer readiness behavior from
-queue/backlog state, reducer logs, and the targeted Go tests for this path.
-
-## 2. Query Workflow
-
-The read path is intentionally simpler than the write path.
+## Query Reads
 
 ```mermaid
 flowchart LR
-  A["CLI / HTTP client"] --> B["API / Query layer"]
-  F["MCP client"] --> G["MCP Server"]
-  B --> C["Neo4j canonical graph"]
-  B --> D["Postgres content store"]
-  B --> E["Status readers"]
-  G --> C
-  G --> D
+  Client["CLI or HTTP client"] --> API["API / Query layer"]
+  MCPClient["MCP client"] --> MCP["MCP Server"]
+  MCP --> API
+  API --> Graph[("Graph backend\nNornicDB default / Neo4j optional")]
+  API --> Content[("Postgres content, status, and read models")]
 ```
 
-### Read Rules
+Read surfaces use canonical graph and content state. The API does not parse
+repositories or drain queues. The MCP server serves MCP transport and delegates
+tool-backed reads through the same query contracts.
 
-- Query surfaces read canonical graph and content state.
-- The API does not parse repositories or drain queues.
-- The MCP server is a separate Go runtime that serves MCP transport and uses
-  the same canonical graph and content backends for read operations.
-- Admin and status reads use the same shared runtime/reporting model as the
-  operator surface.
+When reads look wrong, check:
 
-### What To Check When Reads Look Wrong
+1. whether the data exists in the graph backend or content store
+2. whether source-local projection finished
+3. whether shared projection finished
+4. whether the query was scoped to the intended repository, service, or
+   environment
 
-1. Is the data missing from Neo4j or the content store?
-2. Did projector work finish?
-3. Did shared projection finish?
-4. Is the query surface reading the right canonical entity or relationship
-   family?
+## Bootstrap And Recovery
 
-## 3. Bootstrap Workflow
-
-Bootstrap is the one-shot environment seeding flow.
+Bootstrap indexing is the one-shot seeding path for empty or recovered
+environments. It uses the same facts-first data plane as steady-state ingestion,
+but executes the collection, projection, and reduction sequence inside the
+bootstrap process.
 
 ```mermaid
 sequenceDiagram
   participant Bootstrap as Bootstrap Index
-  participant Postgres as Postgres Facts/Queues
-  participant Reducer as Resolution Engine Logic
-  participant Neo4j
+  participant Pg as Postgres
+  participant Reducer as Reducer logic
+  participant Graph as Graph backend
 
-  Bootstrap->>Postgres: commit initial facts
-  Bootstrap->>Postgres: enqueue projector work
-  Bootstrap->>Postgres: claim projector work
-  Bootstrap->>Neo4j: write source-local graph state
-  Bootstrap->>Postgres: write content entities
-  Bootstrap->>Postgres: enqueue shared projection intents
-  Bootstrap->>Postgres: claim shared intents
-  Bootstrap->>Neo4j: write canonical shared edges
+  Bootstrap->>Pg: commit facts
+  Bootstrap->>Pg: enqueue and claim projection work
+  Bootstrap->>Graph: write source-local graph state
+  Bootstrap->>Pg: enqueue shared projection intents
+  Bootstrap->>Reducer: run reducer/shared projection logic
+  Reducer->>Graph: write canonical shared edges
 ```
 
-### Why It Matters
+Replay and recovery target durable queue rows, not in-memory state. Dead-letter
+state is explicit. Repair and replay remain reducer/runtime ownership; the API
+and CLI only expose admin entry points.
 
-Bootstrap uses the same facts-first data plane as steady-state ingestion. It is
-not a second architecture and should not drift into one.
+## Collector Workflow Control
 
-### Typical Use Cases
-
-- first-time environment bring-up
-- recovery after schema or storage replacement
-- controlled reseed of a test environment
-
-## 4. Replay And Recovery Workflow
-
-Replay and recovery are owned by the Go runtime and Postgres-backed queue
-contracts.
+Hosted collectors are controlled through durable workflow state:
 
 ```mermaid
 flowchart TD
-  A["Operator or automation"] --> B["Admin API / CLI recovery action"]
-  B --> C["Recovery store updates queue state"]
-  C --> D["Resolution Engine reclaims replayable work"]
-  D --> E["Process projector or reducer work again"]
-  E --> F["Ack or dead-letter"]
+  A["Workflow Coordinator"] --> B["Reconcile collector instances"]
+  B --> C["Create claimable work"]
+  C --> D["Hosted collector reads source system"]
+  D --> E["Commit external-source facts"]
+  E --> F["Reducer materializes graph/read-model truth"]
+  G["Webhook Listener"] --> H["Write freshness trigger"]
+  H --> A
 ```
 
-### Recovery Rules
+The workflow coordinator creates and reaps claims. Hosted collectors read their
+source systems and emit facts. The reducer decides canonical graph truth.
 
-- replay targets durable queue rows, not in-memory state
-- dead-letter state is explicit
-- `failed` rows from older queue states are supported for recovery where documented
-- repair and replay remain reducer/runtime ownership, not API-owned write logic
+Current hosted collector families include Confluence, OCI registry,
+Terraform-state, AWS cloud, and package registry collectors. Webhook listener
+freshness triggers cover Git and AWS freshness events where enabled.
 
-### Operational Signals
+## Runtime And Deployment Shape
 
-- queue depth
-- oldest queue age
-- dead-letter counts
-- replay counters
-- failure-class logs
+Use [Service Runtimes](../deployment/service-runtimes.md) as the only full
+runtime matrix. The long-running platform includes API, MCP server, ingester,
+workflow coordinator, webhook listener, resolution engine, and enabled hosted
+collectors. Bootstrap data-plane and bootstrap-index are one-shot helper flows.
 
-## 5. Runtime And Deployment Workflow
+Compose, Helm, and local CLI reuse the same binaries but differ in command,
+environment, process shape, volumes, ports, and health checks.
 
-The deployable platform has three long-running runtimes and one one-shot helper:
-
-- API
-- MCP Server
-- Ingester
-- Resolution Engine
-- Bootstrap Index
-
-Compose, Helm, and local CLI all reuse the same binaries. The differences are:
-
-- command
-- environment
-- process shape
-- volume mounts
-- health checks
-
-Use:
-
-- [Service Runtimes](../deployment/service-runtimes.md)
-- [Docker Compose](../run-locally/docker-compose.md)
-- [Helm](../deployment/helm.md)
-
-## 6. Relationship And IaC Workflow
-
-Relationship mapping is not a sidecar feature. It is embedded into the normal
-write path.
-
-```mermaid
-flowchart TD
-  A["Parser outputs"] --> B["Relationship evidence extraction"]
-  B --> C["Typed evidence facts in Postgres"]
-  C --> D["Reducer normalization"]
-  D --> E["Canonical graph relationships"]
-  E --> F["Repository context, stories, traces, and query APIs"]
-```
-
-### Includes
-
-- Terraform and Terragrunt source and config provenance
-- Kubernetes, Helm, Kustomize, and ArgoCD deploy-source relationships
-- GitHub Actions, Jenkins/Groovy, Ansible, Docker, and Docker Compose evidence
-- Terraform provider-schema-backed classification
-
-### Documentation Anchors
-
-- [Relationship Mapping](../reference/relationship-mapping.md)
-- [Relationship Mapping Observability](../reference/relationship-mapping-observability.md)
-
-## 7. Telemetry Workflow
-
-Telemetry follows the same service boundaries as the runtime.
-
-```mermaid
-flowchart LR
-  A["API"] --> T["OTEL metrics, traces, JSON logs"]
-  B["Ingester"] --> T
-  C["Resolution Engine"] --> T
-  D["Bootstrap Index"] --> T
-  T --> E["Metrics endpoints / collector"]
-  T --> F["Trace backend"]
-  T --> G["Structured log sinks"]
-```
-
-### Required Operator View
-
-- API, MCP, ingester, reducer, and bootstrap runtimes emit structured JSON
-  logs through the shared Go telemetry package
-- metrics expose queue, runtime, and data-plane health
-- traces connect ingestion, projection, and query timing
-- `/admin/status` gives the fastest service-level state summary
-- MCP keeps its distinct transport routes while also mounting the shared admin
-  surface
-
-## 8. Local Validation Workflow
-
-When validating locally, use the repo’s actual compose and runtime contracts.
-
-### Important rules
-
-- use real absolute host paths for Compose mounts
-- do not use symlinked source roots
-- on macOS, do not rely on `/tmp` host roots because Docker resolves through
-  `/private/tmp`
-- run the smallest targeted tests first, then the compose/deployment/docs gates
-
-The source of truth is:
-
-- [Local Testing](../reference/local-testing.md)
-
-## 9. Troubleshooting By Workflow Stage
+## Troubleshooting By Stage
 
 | Symptom | Start here | Then check |
 | --- | --- | --- |
 | No new repository data | ingester `/admin/status` and ingester logs | repository selection, sync errors, parse failures |
-| Facts written but no graph update | projector queue metrics and reducer status | projector claim latency, graph backend writes, content writes |
-| Shared infra or deployment traces missing | shared projection backlog and reducer logs | relationship evidence facts, reducer normalization, canonical edge writes |
+| Facts written but graph state missing | projector queue metrics and ingester graph-write logs | source-local projection claims, graph backend writes, content writes |
+| Shared infra or deployment traces missing | reducer shared projection backlog and logs | relationship evidence facts, reducer normalization, canonical edge writes |
 | API answers stale or incomplete | API status plus reducer backlog | graph backend/content-store state, repository coverage/status |
-| Replay did not recover work | recovery metrics and status | dead-letter rows, failure class, replay selection |
+| Replay did not recover work | recovery metrics and status | dead-letter rows, failure class, replay selector |
 
 ## Related Docs
 
 - [System Architecture](../architecture.md)
 - [Service Runtimes](../deployment/service-runtimes.md)
-- [Local Testing](../reference/local-testing.md)
-- [Telemetry Overview](../reference/telemetry/index.md)
-- [Runtime Admin API](../reference/runtime-admin-api.md)
+- [Runtime Admin API](runtime-admin-api.md)
+- [Telemetry Overview](telemetry/index.md)
+- [Local Testing](local-testing.md)

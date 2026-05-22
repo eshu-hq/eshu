@@ -80,7 +80,7 @@ All env vars parsed in `config.go` and `neo4j_wiring.go`.
 | Variable | Default | Purpose |
 | --- | --- | --- |
 | `ESHU_REDUCER_RETRY_DELAY` | `30s` | Delay before a failed intent becomes re-claimable |
-| `ESHU_REDUCER_MAX_ATTEMPTS` | `5` | Terminal failure threshold |
+| `ESHU_REDUCER_MAX_ATTEMPTS` | `3` | Terminal failure threshold |
 | `ESHU_REDUCER_WORKERS` | `NumCPU` NornicDB / `min(NumCPU,4)` Neo4j | Concurrent intent workers |
 | `ESHU_REDUCER_BATCH_CLAIM_SIZE` | `workers` NornicDB / `workers×4 (max 64)` Neo4j | Items per claim batch |
 | `ESHU_REDUCER_CLAIM_DOMAIN` | `""` (all domains) | Restrict claims to one `Domain`; kept for older single-lane deployments |
@@ -93,7 +93,7 @@ present so a global legacy value cannot silently override a Helm lane allowlist.
 
 | Variable | Purpose |
 | --- | --- |
-| `ESHU_QUERY_PROFILE` | With ESHU_GRAPH_BACKEND=nornicdb, `local-authoritative` enables the projector drain gate |
+| `ESHU_QUERY_PROFILE` | With ESHU_GRAPH_BACKEND=nornicdb, `local_authoritative` enables the projector drain gate |
 | `ESHU_REDUCER_EXPECTED_SOURCE_LOCAL_PROJECTORS` | Semantic-entity claims wait until this many source-local projectors have published |
 | `ESHU_REDUCER_SEMANTIC_ENTITY_CLAIM_LIMIT` | Cap on concurrent semantic-entity claims (default `1` on NornicDB) |
 
@@ -223,10 +223,10 @@ ESHU_POSTGRES_DSN.
   backend saturation or unsafe overlap.
 - Worker leases renew at `LeaseDuration / 2`; a retry delay shorter than
   the lease TTL causes claims to churn.
-- The projector drain gate (ESHU_QUERY_PROFILE=local-authoritative +
+- The projector drain gate (ESHU_QUERY_PROFILE=local_authoritative +
   ESHU_GRAPH_BACKEND=nornicdb) delays semantic-entity claims until
   source-local projectors have finished.
-- In that same local-authoritative NornicDB profile, `CodeCallProjectionRunner`
+- In that same `local_authoritative` NornicDB profile, `CodeCallProjectionRunner`
   is wired with `NewReducerGraphDrain` so code-call edge projection waits until
   reducer-owned graph domains have drained. Keep this as a scheduling gate, not
   a graph-truth shortcut.

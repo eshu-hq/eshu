@@ -42,7 +42,7 @@ work. It runs indefinitely until stopped via SIGTERM.
   (two-lane channels for small/large repos, semaphore-limited large repo
   concurrency).
 - **Projector**: N workers (default min(NumCPU, 8); NornicDB
-  local-authoritative uses NumCPU) competing for queue items via
+  `local_authoritative` uses NumCPU) competing for queue items via
   `FOR UPDATE SKIP LOCKED`.
 - **Key difference from Bootstrap-Index**: The ingester runs indefinitely.
   After draining the current batch, `GitSource.Next()` resets and triggers a
@@ -59,12 +59,12 @@ work. It runs indefinitely until stopped via SIGTERM.
 
 | Env Var | Default | Purpose |
 |---------|---------|---------|
-| `ESHU_PROJECTOR_WORKERS` | min(NumCPU, 8); NornicDB local-authoritative: NumCPU | Concurrent projection workers |
+| `ESHU_PROJECTOR_WORKERS` | min(NumCPU, 8); NornicDB `local_authoritative`: NumCPU | Concurrent projection workers |
 | `ESHU_PROJECTOR_RETRY_DELAY` | 30s | Retry delay for failed source-local projection work |
 | `ESHU_PROJECTOR_MAX_ATTEMPTS` | 3 | Max projector attempts before terminal failure |
 | `ESHU_NEO4J_BATCH_SIZE` | 500 | Records per UNWIND batch |
-| `ESHU_SNAPSHOT_WORKERS` | 8 | Snapshot workers in GitSource |
-| `ESHU_PARSE_WORKERS` | 4 | Parser concurrency per snapshot |
+| `ESHU_SNAPSHOT_WORKERS` | min(NumCPU, 8) | Snapshot workers in GitSource |
+| `ESHU_PARSE_WORKERS` | min(NumCPU, 8) | Parser concurrency per snapshot |
 
 For the full environment variable contract, use
 [Environment Variables](../reference/environment-variables.md).
