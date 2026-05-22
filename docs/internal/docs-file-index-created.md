@@ -45,6 +45,7 @@ Generated from `git diff --name-status origin/main -- "*.md"` for this documenta
 - `docs/public/reference/environment-ingestion-queues.md`
 - `docs/public/reference/environment-runtime-storage.md`
 - `docs/public/reference/environment-variables.md`
+- `docs/public/reference/eshuignore.md`
 - `docs/public/reference/fact-envelope-reference.md`
 - `docs/public/reference/fact-schema-versioning.md`
 - `docs/public/reference/graph-backend-installation.md`

@@ -1,8 +1,9 @@
 # Local Eshu Service Data Root Spec
 
 This document defines the on-disk contract for one local Eshu service
-workspace. It covers layout, ownership, stale-process recovery, and the
-version gate used before embedded Postgres or the local graph backend starts.
+workspace. It covers the stable paths, owner metadata, startup admission, stale
+process recovery, and version gate used before embedded Postgres or the local
+graph backend starts.
 
 ## Root Location
 
@@ -16,9 +17,10 @@ Default `ESHU_HOME`:
 
 - macOS: `~/Library/Application Support/eshu`
 - Linux: `${XDG_DATA_HOME:-~/.local/share}/eshu`
-- Windows: `%LOCALAPPDATA%\\eshu`
+- Windows: `%LOCALAPPDATA%\\eshu`, falling back to
+  `%USERPROFILE%\\AppData\\Local\\eshu`
 
-The current local runtime targets macOS and Linux. Windows stubs compile, but
+The local runtime targets macOS and Linux. Windows layout helpers compile, but
 workspace ownership and embedded Postgres startup return explicit unsupported
 errors.
 
@@ -51,26 +53,35 @@ ${ESHU_HOME}/local/workspaces/<workspace_id>/
   graph/
     nornicdb/
   logs/
+    graph-nornicdb.log
+    postgres.log
   cache/
+    embedded-postgres/
+    repos/
 ```
 
 `postgres/` is owned by the embedded Postgres runtime. Its `data/` and
-`runtime/` subdirectories are runtime state; `binaries/` holds the managed
-embedded Postgres tools.
+`runtime/` subdirectories are runtime state, and `binaries/` holds the managed
+embedded Postgres tools. `cache/embedded-postgres/` is the package cache used
+by the embedded Postgres library.
 
-`graph/nornicdb/` exists only for `local_authoritative`. The current
-local-authoritative owner rebuilds that directory from the workspace source tree
-on owner start, so clients must not treat graph data files as durable user data.
-Graph logs live under `logs/`, and local graph credentials are recreated inside
-the graph data directory when the graph store is reset.
+`graph/nornicdb/` exists only for `local_authoritative`. Before a
+local-authoritative owner starts, Eshu removes `postgres/data`,
+`postgres/runtime`, `graph/nornicdb`, and `cache/repos`; those stores are
+rebuilt from the workspace source tree. Clients must not treat local
+authoritative Postgres, graph data files, or repository cache entries as
+durable user data. Graph logs live at `logs/graph-nornicdb.log`, Postgres logs
+live at `logs/postgres.log`, and local graph credentials are recreated inside
+`graph/nornicdb/eshu-credentials.json` after the graph store is reset.
 
-`cache/` contains rebuildable derived state such as filesystem repository
-selectors and embedded-Postgres package cache.
+`cache/repos/` contains rebuildable filesystem repository selections for the
+local child ingester.
 
 ## Owner Record
 
 `owner.json` is written atomically with `0600` permissions while the local owner
-is live. The current record shape is:
+is live and is removed during normal owner shutdown. The current record shape
+is:
 
 | Field | Meaning |
 | --- | --- |
@@ -104,9 +115,11 @@ One local Eshu service owns a workspace root at a time. Startup admission is:
 1. acquire `owner.lock`
 2. validate `VERSION`
 3. validate or reclaim `owner.json`
-4. start embedded Postgres
-5. start the local graph backend only for `local_authoritative`
-6. write the new `owner.json`
+4. for `local_authoritative`, reset the rebuildable stores listed in
+   [Layout](#layout)
+5. start embedded Postgres
+6. start the local graph backend only for `local_authoritative`
+7. write the new `owner.json`
 
 On Unix, `owner.lock` uses non-blocking `flock(LOCK_EX | LOCK_NB)`. If another
 process holds the lock, startup fails instead of waiting. Windows ownership is
@@ -171,11 +184,12 @@ semantics so a failure cannot strand the workspace halfway between versions.
 
 On crash or forced shutdown:
 
-- Postgres WAL recovery runs normally on the next start
+- `local_lightweight` Postgres WAL recovery runs normally on the next start
+- `local_authoritative` rebuilds `postgres/data`, `postgres/runtime`,
+  `graph/nornicdb`, and `cache/repos` from source on the next start
 - stale owner records are recoverable through the lock-first reclaim path
 - ownerless live Postgres is stopped only after lock, PID, socket, and protocol
   checks agree
-- local-authoritative graph state is rebuildable from the workspace source tree
 - derived caches under `cache/` may be pruned and rebuilt
 
 ## Permissions And Security

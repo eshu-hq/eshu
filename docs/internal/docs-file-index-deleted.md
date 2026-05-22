@@ -82,6 +82,7 @@ Generated from `git diff --name-status origin/main -- "*.md"` for this documenta
 - `docs/docs/reference/dead-code-reachability-spec.md`
 - `docs/docs/reference/documentation-updater-actuator-contract.md`
 - `docs/docs/reference/environment-variables.md`
+- `docs/docs/reference/eshuignore.md`
 - `docs/docs/reference/fact-envelope-reference.md`
 - `docs/docs/reference/fact-schema-versioning.md`
 - `docs/docs/reference/graph-backend-installation.md`

@@ -81,6 +81,7 @@ These commands call the API and honor `--service-url`, `--api-key`, and
 - `eshu admin facts list`
 - `eshu admin facts decisions`
 - `eshu admin facts replay-events`
+- `eshu docs verify` for API-backed container-image truth checks
 - `eshu find name`
 - `eshu find pattern`
 - `eshu find type`

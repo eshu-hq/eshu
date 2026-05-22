@@ -1,41 +1,109 @@
 # .eshuignore Guide
 
-The `.eshuignore` file is the simple, `.gitignore`-style exclusion contract for
-Eshu indexing. For performance tuning that needs auditable
-reasons and skip telemetry, prefer `.eshu/discovery.json`.
+The `.eshuignore` file is the plain ignore-file contract for Eshu indexing. Use
+it for repo-local generated files, local state, fixtures, or other paths that
+should not enter discovery. For repo-scale tuning that needs explicit reasons,
+preserve rules, and `user:<reason>` skip metrics, prefer
+`.eshu/discovery.json`.
 
 ## What Eshu already ignores
 
-You do not need to add common cache trees just to protect the indexer from them.
-Eshu already prunes hidden and configured cache directories before descent,
-including:
+You do not need `.eshuignore` entries for the default discovery skips. Eshu
+prunes these directory names before parser matching:
 
-- `.git/`
-- `.terraform/`
-- `.terragrunt-cache/`
-- `.terramate-cache/`
-- `.pulumi/`
-- `.crossplane/`
-- `.serverless/`
-- `.aws-sam/`
-- `cdk.out/`
+```text
+.git
+.svn
+.hg
+.eshu
+.terraform
+.terragrunt-cache
+.tox
+.mypy_cache
+.pytest_cache
+.aws-sam
+cdk.out
+.serverless
+node_modules
+bower_components
+jspm_packages
+.yarn
+.next
+.nuxt
+site-packages
+dist-packages
+__pypackages__
+__pycache__
+.venv
+venv
+.eggs
+vendor
+wp-admin
+wp-includes
+bundle
+deps
+_build
+Pods
+.build
+Carthage
+.gradle
+.m2
+.ivy2
+.stack-work
+.cabal-sandbox
+dist-newstyle
+.dart_tool
+.pub-cache
+blib
+local
+packages
+obj
+bin
+.ansible
+ansible_collections
+.jenkins
+dist
+build
+target
+out
+coverage
+.nyc_output
+htmlcov
+```
 
-Eshu also excludes built-in dependency roots before parse by default:
+Eshu also skips these suffixes before parser matching:
 
-- JavaScript and TypeScript: `node_modules/`, `bower_components/`,
-  `jspm_packages/`
-- Python: `site-packages/`, `dist-packages/`, `__pypackages__/`
-- PHP and Go: `vendor/`
-- Ruby: `vendor/bundle/`
-- Elixir: `deps/`
-- Swift ecosystem: `Carthage/Checkouts/`, `.build/checkouts/`, `Pods/`
+```text
+.log
+.out
+.min.js
+.min.mjs
+.min.css
+.bundle.js
+.chunk.js
+.min.map
+.map
+.pnp.cjs
+.pnp.loader.mjs
+.pyc
+.pyo
+.class
+.dll
+.so
+.dylib
+.exe
+.o
+.a
+.wasm
+```
 
-These directories do not enter checkpoints, Neo4j, Postgres, or finalization.
-If you need dependency internals, load them explicitly with a `.eshu` bundle
-instead of relying on routine repo indexing.
+These paths do not enter normal snapshot parsing, fact emission, graph writes,
+or finalization.
 
 Use `.eshuignore` for repo-local choices that are specific to your project,
-team, or indexing goals when a plain ignore pattern is enough.
+team, or indexing goals when a plain ignore pattern is enough. Be careful with
+broad names like `vendor/`, `bin/`, `charts/`, or lockfiles; in some
+repositories those are real, tracked inputs.
 
 For checked-in third-party source trees that live outside the conventional
 dependency directories above, prefer the reasoned discovery map at
@@ -67,7 +135,7 @@ workspace indexing by default.
 
 - Only `.gitignore` files inside the target repo are used.
 - Parent workspace `.gitignore` files do not leak into sibling repos.
-- Nested `.gitignore` files inside the repo still apply within their subtree.
+- Nested `.gitignore` files inside the repo apply within their subtree.
 - Matching files are hard-excluded from repo/workspace ingest.
 
 This means `.gitignore` is still useful for repo-local generated or published
@@ -85,73 +153,43 @@ entries just to keep them out of the default index.
 
 - **Filename:** `.eshuignore`
 - **Location:** Place it at the root of the repository or mono-folder you index.
-- **Syntax:** Standard `.gitignore`-style glob patterns.
+- **Syntax:** Eshu's ignore parser supports blank lines, `#` comments,
+  `!` negation, leading `/` root anchoring, trailing `/` directory-only rules,
+  literal path segments, and `*`, `?`, or `[]` glob patterns.
 
-When Eshu indexes a directory, it walks upward to find the nearest `.eshuignore` and applies patterns relative to that file.
+When Eshu indexes a file, it evaluates each `.eshuignore` from the repo root
+down to the file's parent directory. Patterns are relative to the directory that
+contains the ignore file, and later matching patterns can override earlier ones
+with `!`.
 
-## Recommended Example
+## Example
 
-Create a file named `.eshuignore` in your project root with content like this:
+Create a file named `.eshuignore` in your project root with only the
+project-specific paths you want Eshu to skip:
 
 ```text
-# Python
-__pycache__/
-*.py[cod]
-.venv/
-.pytest_cache/
-.mypy_cache/
-.ruff_cache/
-
-# JavaScript / TypeScript
-node_modules/
-.pnpm-store/
-.parcel-cache/
-*.tsbuildinfo
-
-# Elixir / Dart / Haskell
-_build/
-.elixir_ls/
-.dart_tool/
-.stack-work/
-
-# Minified and bundled assets
-*.min.js
-*.min.css
-*.min.json
-*.bundle.js
-*.chunk.js
-*.js.map
-*.css.map
-
-# Terraform and local state
-.terraform/
+# Local state and generated outputs that are valid repo files but not useful graph input.
 *.tfstate
 *.tfstate.*
 *.tfvars
 *tfplan*
-charts/*.tgz
+generated/
+fixtures/large-vendor-copy/
+public/assets/*.map
 
-# General generated output
-dist/
-build/
-out/
-coverage/
-*.log
-*.tmp
+# Keep a hand-written fixture inside a broader generated directory.
+!generated/fixture-source/
 ```
-
-Prefer cache, build, minified, and local-state artifacts. Be careful with broad
-top-level names like `vendor/`, `bin/`, `charts/`, or lockfiles unless you are
-certain they are generated in your repo. In many ecosystems those can be real,
-tracked source inputs.
 
 ## IaC Note
 
 If you work in Terraform, Terragrunt, Pulumi, Crossplane, CDK, or serverless
 repos, Eshu already avoids the major local cache and build directories listed
-above. Add `.eshuignore` entries only for files that are valid repo content but
-still not useful to index, such as generated manifests, rendered templates, or
-local state files.
+above, such as `.terraform/`, `.terragrunt-cache/`, `.aws-sam/`, `cdk.out/`,
+and `.serverless/`. Add `.eshuignore` or `.eshu/discovery.json` entries for
+other tool-local trees such as `.pulumi/`, `.crossplane/`, or
+`.terramate-cache/` when those paths are valid repo content but still not useful
+to index.
 
 ## Related docs
 

@@ -1,48 +1,67 @@
-## Correlation DSL Generic Corpus
+# Correlation DSL Fixture Corpus
 
-This fixture corpus is a generic multi-repository ecosystem for correlation DSL
-and compose-backed verification work.
+This corpus is the owned multi-repository fixture for deployable-unit
+correlation and delivery evidence. Each top-level directory is treated as one
+repository by filesystem source mode, and
+`scripts/verify_correlation_dsl_compose.sh` passes exact repository rules for
+those directory names.
 
-Each top-level directory is treated as one repository by the filesystem source
-mode and the exact repository rules passed by
-`scripts/verify_correlation_dsl_compose.sh`.
+## Layout
 
-Repositories:
+- `service-gha`: service code, a runtime `Dockerfile`, a GitHub Actions workflow
+  that checks out `deploy-repo`, and a local Kubernetes Deployment.
+- `service-jenkins`: service code, a runtime `Dockerfile`, and a `Jenkinsfile`
+  that references `terraform-stack-jenkins`.
+- `service-jenkins-ansible`: Jenkins controller evidence plus Ansible playbook,
+  inventory, var, and role-task files. This repository is a provenance case,
+  not a materialized workload.
+- `service-compose`: service code plus `docker-compose.yaml` with API build,
+  port, environment, dependency, and database image signals.
+- `deploy-repo`: an ArgoCD Application for `service-gha` plus an unrelated
+  shared ConfigMap that must stay provenance-only.
+- `terraform-stack-gha`: Terraform evidence with explicit `service-gha`
+  application and source-repository references.
+- `terraform-stack-jenkins`: Terraform evidence with explicit
+  `service-jenkins` application and source-repository references.
+- `multi-dockerfile-repo`: service code, a runtime `Dockerfile`, a utility-only
+  `Dockerfile.test`, and a local Kubernetes Deployment for the workload image.
 
-- `service-gha`
-  - service repo with a workload `Dockerfile`
-  - GitHub Actions workflow that checks out `deploy-repo`
-  - local Kubernetes manifests under `deploy/kubernetes`
-- `service-jenkins`
-  - service repo with a workload `Dockerfile`
-  - `Jenkinsfile` that references `terraform-stack-jenkins`
-- `service-jenkins-ansible`
-  - Jenkins-driven service repo with an Ansible deployment handoff
-  - `Jenkinsfile` invokes `ansible-playbook playbooks/deploy.yml`
-  - inventory, var, and role task files keep the Ansible family detectable
-- `service-compose`
-  - service repo with `docker-compose.yaml`
-  - runtime signals include build context, ports, environment, and `depends_on`
-- `deploy-repo`
-  - admitted service path at `argocd/service-gha/base/application.yaml`
-  - unrelated shared config at `argocd/shared-config/base/configmap.yaml`
-  - the shared config path should remain provenance-only for unrelated services
-- `terraform-stack-gha`
-  - Terraform stack with explicit `service-gha` signals
-- `terraform-stack-jenkins`
-  - Terraform stack with explicit `service-jenkins` signals
-- `multi-dockerfile-repo`
-  - one workload `Dockerfile`
-  - one utility-only `Dockerfile.test`
-  - local Kubernetes manifest for the workload image only
+## Assertion Surface
 
-The current compose verification lane proves:
+The compose verifier owns the end-to-end fixture contract:
 
-- repository selection stays exact and explicit
-- GitHub Actions, Jenkins, Jenkins plus Ansible, Docker Compose, Dockerfile,
-  ArgoCD, and Terraform artifacts are present in the indexed corpus
-- the corpus contains both likely-admission and likely-rejection cases
+- exact repository selection from the top-level directories
+- repository context surfaces for GitHub Actions, Jenkins, Jenkins-to-Ansible,
+  Docker Compose, Dockerfile, ArgoCD, and Terraform evidence
+- service context truth for admitted `service-gha` and `service-jenkins`
+  workloads
+- negative service context truth for `service-jenkins-ansible`
+- secondary Dockerfile evidence for `multi-dockerfile-repo` without admitting
+  the utility image as an independent workload
+- graph truth for admitted workload definitions, no invented workload
+  instances, and no `shared-config` workload
+- resolution-engine metrics capture for operator diagnostics
 
-Future reducer assertions should extend the compose lane to verify canonical
-admission, rejected utility images, and provenance-only shared-config behavior
-directly from materialized correlation outputs.
+Focused Go tests also read this corpus:
+
+- `go/internal/query/correlation_dsl_fixture_test.go` checks Docker Compose
+  artifact parsing and Jenkins-to-Ansible controller artifact parsing.
+- Reducer tests reuse the same repository names for deployable-unit admission
+  and secondary Dockerfile rejection cases, but those tests use stubbed facts
+  instead of reading this fixture directory.
+
+The product-truth registry records the suite as
+`tests/fixtures/product_truth/expected/correlation_dsl.json`.
+
+## Update Rules
+
+- Keep every top-level directory name stable unless the compose verifier,
+  product-truth registry, and focused tests are updated in the same change.
+- Use `rg --files --hidden tests/fixtures/correlation_dsl` when auditing this
+  corpus so hidden workflow files are included.
+- Preserve at least one positive service case, one provenance-only negative
+  case, and one ambiguous or secondary-evidence case.
+- Do not add broad setup history here. Put only fixture purpose, layout,
+  assertion surface, and update rules in this README.
+- If the compose verifier asserts a fixture file, that file must exist in this
+  corpus before the verifier result can be used as acceptance evidence.

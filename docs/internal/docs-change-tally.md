@@ -9,7 +9,7 @@ repo's 500-line limit.
 - Total Markdown files left in the checkout after the current pass: 548
 - Current branch doc status from
   `git diff --name-status origin/main -- '*.md'` after the current pass:
-  103 added, 258 modified, 156 deleted, 78 renamed
+  104 added, 259 modified, 157 deleted, 77 renamed
 - Copied image assets removed from this branch: 43 files under
   `docs/public/images/`. They were reference assets from another project and
   no longer appear in the source-doc reference scan.
@@ -131,6 +131,7 @@ branch. Regenerate them from
 | Parallel MCP Backend Telemetry Compression | Used subagents to compress MCP/CLI, graph-backend/NornicDB, and telemetry reference groups while preserving diagnostics-only raw Cypher, schema-first backend evidence, NornicDB tuning gates, exact service names, metric/span/log contracts, and bounded-label rules. |
 | Parallel Deployment Collector Reference Compression | Used subagents plus parent review to compress Compose, Helm, service-runtime, collector, reducer, fact-envelope, component-package, language-query, tag-taxonomy, local testing, and internal agent-guide docs while correcting Helm/API/MCP command truth against templates and service binaries. |
 | Templated IaC Fixture Contract Cleanup | Rewrote the templated IaC fixture README as a fixture contract and removed private/local source provenance from the README and manifest metadata. |
+| CLI, Local Data, Ignore, And Correlation Fixture Repair | Corrected `eshu docs verify` CLI flag truth, local data-root reset behavior, `.eshuignore` matching/default-skip behavior, and the correlation DSL secondary-Dockerfile fixture contract. Restored the missing `Dockerfile.test` fixture required by the compose verifier. |
 
 ## Verification Snapshot
 
@@ -145,6 +146,10 @@ Current pass proof:
 - Focused fixture verification passed for `tests/fixtures` after the templated
   IaC fixture contract cleanup: 40 documents, 2 claims, 0 contradicted, and 0
   missing evidence claims.
+- Focused CLI, local-data, ignore, MCP cookbook, and correlation fixture
+  verification passed for the current pass with 0 contradicted and 0 missing
+  evidence claims. Focused query and reducer tests passed for the correlation
+  DSL fixture and secondary-Dockerfile rejection contract.
 - Broad docs verification passed for `docs/public` and the full repository with
   0 contradicted and 0 missing evidence claims. Current public docs verifier
   result: 173 documents, 1236 claims. Current full repository verifier result:

@@ -74,7 +74,6 @@ Generated from `git diff --name-status origin/main -- "*.md"` for this documenta
 - `docs/docs/reference/cloud-validation.md -> docs/public/reference/cloud-validation.md`
 - `docs/docs/reference/component-package-manager.md -> docs/public/reference/component-package-manager.md`
 - `docs/docs/reference/dead-code-typescript-corpus-evidence.md -> docs/public/reference/dead-code-typescript-corpus-evidence.md`
-- `docs/docs/reference/eshuignore.md -> docs/public/reference/eshuignore.md`
 - `docs/docs/reference/language-query-dsl.md -> docs/public/reference/language-query-dsl.md`
 - `docs/docs/reference/local-host-lifecycle.md -> docs/public/reference/local-host-lifecycle.md`
 - `docs/docs/reference/logging.md -> docs/public/reference/logging.md`
@@ -324,6 +323,7 @@ Generated from `git diff --name-status origin/main -- "*.md"` for this documenta
 - `go/internal/truth/README.md`
 - `go/internal/workflow/README.md`
 - `scripts/README.md`
+- `tests/fixtures/correlation_dsl/README.md`
 - `tests/fixtures/deadcode/README.md`
 - `tests/fixtures/sample_projects/sample_project_c/README.md`
 - `tests/fixtures/sample_projects/sample_project_csharp/README.md`

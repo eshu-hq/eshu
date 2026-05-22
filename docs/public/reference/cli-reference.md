@@ -56,7 +56,7 @@ plain local source builds without a version override report `dev`.
 | `eshu stats` | optional repository selector or local path | API status or repository stats read through config/env/default URL |
 | `eshu watch` | optional path; `--scope`, `--workspace-root` | starts local-host watch |
 | `eshu query` | query string | API language-query call through config/env/default URL |
-| `eshu docs verify` | optional path; `--fail-on`, `--limit`, `--max-bytes`, `--scope`, `--repo`, `--persist`, `--json` | local documentation verifier; `--persist` writes findings when storage is configured |
+| `eshu docs verify` | optional path; `--fail-on`, `--limit`, `--max-bytes`, `--scope`, `--repo`, `--image-truth`, `--persist`, `--json`, remote flags | local documentation verifier; remote flags let image-reference checks use the API when `--image-truth=api` or auto selects API truth |
 | `eshu map` | `--from` required; `--type`, `--repo`, `--env`, `--relationship`, `--depth`, `--limit`, `--json`, remote flags | API entity-map call |
 | `eshu trace service` | service name; `--repo`, `--env`, `--service-id`, `--json`, remote flags | API service-trace call |
 
@@ -219,6 +219,10 @@ and `ESHU_API_KEY_<PROFILE>`. The profile name is uppercased before lookup.
 The current CLI registers remote flags on `eshu index-status` and
 `eshu workspace status`, but those handlers do not honor them yet. Use persisted
 config or process environment for those two commands.
+
+`eshu docs verify` also registers remote flags. They affect API-backed
+container-image truth checks; the verifier still reads documentation from the
+local path passed to the command.
 
 ## Version Probes
 
