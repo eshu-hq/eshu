@@ -269,6 +269,26 @@ gate, which reported `queue.dead_letter=1`, `queue.succeeded=8385`,
 queue state, failure class, timeout hint, and canonical write summaries already
 identify the failing graph-write budget.
 
+No-Regression Evidence: for #538, a preserved-volume restart of the
+`oci-relfix-full-20260521T233652Z` remote Compose proof first left API, MCP,
+reducer, workflow, webhook, migration, and bootstrap services exited after they
+raced NornicDB/Postgres startup. The regression
+`go test ./internal/runtime -run
+TestRemoteE2EComposeRestartsRuntimeServicesAfterTransientStoreStartup -count=1`
+now requires every long-running or restart-sensitive remote E2E service to set
+`restart: on-failure`, matching the collectors' existing recovery policy. After
+the fix, a forced `docker compose restart` on preserved volumes recovered API
+and MCP to HTTP `200`, kept reducer/ingester/workflow/webhook/collectors
+healthy, let `db-migrate` and `bootstrap-index` exit `0`, and produced a
+no-pending queue sample with only succeeded work rows.
+
+Observability Evidence: the restart proof used container status, API/MCP
+health, direct Postgres work-item status, and recent structured logs. Transient
+startup failures were visible as `runtime.startup.failed` and datastore
+connection errors during the dependency race window, followed by healthy
+service status and a clean queue sample after Docker reapplied the restart
+policy.
+
 ## Confluence Collector Smoke
 
 Use this when testing the Confluence collector against a real Atlassian site.

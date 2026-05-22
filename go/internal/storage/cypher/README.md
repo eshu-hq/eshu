@@ -112,10 +112,13 @@ OCI registry rows are written as `OciRegistryRepository`,
 `ContainerImage`/`OciImageManifest`, `ContainerImageIndex`/`OciImageIndex`,
 `ContainerImageDescriptor`/`OciImageDescriptor`,
 `ContainerImageTagObservation`/`OciImageTagObservation`, and
-`OciImageReferrer` nodes keyed by `uid`. Manifests, indexes, and descriptors
-use digest-backed descriptor identity; tag observations keep
-`identity_strength=weak_tag` and point at a resolved digest without making the
-tag the stable image key.
+`OciImageReferrer` nodes keyed by `uid`. OCI image, descriptor, tag, and
+referrer rows carry `repository_id` as the durable repository join key instead
+of writing repository publication or observation relationships in the canonical
+hot path. Manifests, indexes, and descriptors keep their image-family labels
+because API queries anchor on those labels. Digest-backed descriptor identity is
+the stable image key; tag observations keep `identity_strength=weak_tag` and
+point at a resolved digest without making the tag the stable image key.
 
 Package-registry rows are written as `Package`/`PackageRegistryPackage`,
 `PackageVersion`/`PackageRegistryPackageVersion`, and
@@ -297,17 +300,35 @@ Observability Evidence: existing `eshu_dp_canonical_phase_duration_seconds`,
 logs expose the phase, source system, generation id, failure class, and timeout
 hint when repository cleanup is slow or mis-scoped.
 
-No-Regression Evidence: after a preserved-volume restart surfaced NornicDB
-`UNWIND MERGE chain relationship update failed: not found` on OCI registry
-relationship updates, the focused regression
-`go test ./internal/storage/cypher -run
-'TestCanonicalNodeWriter(BuildsOCIRegistryStatements|OCIRegistryRelationshipsDoNotUpdateGeneration|OCIRegistryRelationshipsOnlySetPropertiesOnCreate)' -count=1`
-first failed on relationship replay mutation and then passed after OCI
-relationship templates stopped updating mutable generation metadata and changed
-constant relationship metadata to `ON CREATE SET`. Node `generation_id` fields
-remain refreshed on replay, while `PUBLISHES_MANIFEST`, `PUBLISHES_INDEX`,
-`PUBLISHES_DESCRIPTOR`, `OBSERVED_TAG`, and `OBSERVED_REFERRER` relationship
-properties are only initialized when the relationship is created.
+Performance Evidence: a 2026-05-21 full-corpus remote Compose run against
+NornicDB v1.1.1 plus the transaction-router fix drained `896` accepted
+repositories but dead-lettered one OCI registry `source_local` item after three
+`120s` `graph_write_timeout` attempts in `phase=oci_registry`. Focused probes
+against the populated graph showed 20-row multi-label OCI node-only `MERGE`
+completed in `5ms`, while 20-row `PUBLISHES_DESCRIPTOR` relationship writes
+took about `51s` and relationship `CREATE` variants still timed out at `30s` to
+`65s`. A single-label `MERGE` plus `SET n:ContainerImage` probe completed in
+`6ms` but did not persist the added label in NornicDB, so the canonical OCI
+writer keeps multi-label node identities for query accuracy and skips
+relationship writes until a measured relationship writer exists.
+
+Performance Evidence: after removing OCI registry relationship writes, the
+`oci-relfix-full-20260521T233652Z` remote Compose proof with pprof enabled
+reached queue-zero at `2026-05-21T23:52:03Z`: fact work items were `8389/8389`
+succeeded with `0` failed, retrying, or dead-letter rows. The OCI registry
+collector completed `1` configured scope; the `oci_registry` canonical phase
+wrote `4` statements in about `40ms`, and the source-local OCI projection
+completed `212` facts in about `69ms`. Shared projections also completed
+`344592/344592` code-call rows and `1188/1188` repo-dependency rows. A
+preserved-volume restart then recovered the API, MCP, reducer, ingester,
+workflow, webhook, and collectors, and reached a no-pending queue sample again
+with only succeeded work rows.
+
+No-Regression Evidence: `go test ./internal/storage/cypher -run
+'TestCanonicalNodeWriter(BuildsOCIRegistryStatements|OCIRegistrySkipsRelationshipWrites|OCIRegistryKeepsImageFamilyLabels)' -count=1`
+proves OCI canonical statements retain digest/tag/referrer nodes, keep
+image-family labels used by the read surface, and do not emit `PUBLISHES_*` or
+`OBSERVED_*` relationship writes in the hot path.
 
 Observability Evidence: existing canonical phase duration metrics, projector
 stage duration metrics, and structured `projection failed` logs expose the
@@ -347,11 +368,11 @@ retry, failed, and dead-letter state without adding a new metric label.
   Tags are mutable observations; do not use `tag` or `source_tag` as the
   manifest/index identity key. OCI labels participate in the stale-entity
   retract family, and `canonicalNodeRetractEntityLabels` includes that family in
-  the generated cleanup list. OCI relationship templates intentionally do not
-  update `rel.generation_id`; source-local generation metadata lives on the
-  digest, tag-observation, descriptor, index, and repository nodes so
-  preserved-volume re-projection does not force mutable relationship updates
-  through NornicDB's `UNWIND MERGE` chain relationship path.
+  the generated cleanup list. OCI registry repository truth is derived from the
+  `repository_id` property on digest, descriptor, index, tag-observation, and
+  referrer nodes. Do not reintroduce `PUBLISHES_*` or `OBSERVED_*`
+  relationships in the canonical writer without same-corpus performance proof
+  that the relationship writer no longer dominates `phase=oci_registry`.
 - Package-registry writes must keep `MERGE` anchored on `uid` for `Package`,
   `PackageVersion`, and `PackageDependency` labels. Do not add `Repository`
   matches or ownership edges to `package_registry_canonical_writer.go`; source

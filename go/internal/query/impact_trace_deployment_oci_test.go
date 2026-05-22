@@ -15,7 +15,8 @@ func TestFetchOCIImageRegistryTruthUsesDigestMatchesAsCanonical(t *testing.T) {
 	imageRef := "ghcr.io/acme/payments-api@" + testOCIDigest
 	got, err := fetchOCIImageRegistryTruth(t.Context(), fakeWorkloadGraphReader{
 		run: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
-			if !strings.Contains(cypher, "ContainerImage") || !strings.Contains(cypher, "image.digest IN $digests") {
+			if !strings.Contains(cypher, "MATCH (image:ContainerImage)") ||
+				!strings.Contains(cypher, "image.digest IN $digests") {
 				return nil, nil
 			}
 			if gotDigests, want := params["digests"], []string{testOCIDigest}; !reflect.DeepEqual(gotDigests, want) {
@@ -55,24 +56,42 @@ func TestFetchOCIImageRegistryTruthUsesSelectiveDigestAnchors(t *testing.T) {
 	t.Parallel()
 
 	imageRef := "ghcr.io/acme/payments-api@" + testOCIDigest
+	seenLabels := make(map[string]bool)
 	_, err := fetchOCIImageRegistryTruth(t.Context(), fakeWorkloadGraphReader{
 		run: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
 			assertContainsAll(t, cypher,
-				"MATCH (image:ContainerImage)",
-				"MATCH (image:ContainerImageIndex)",
-				"MATCH (image:ContainerImageDescriptor)",
 				"image.digest IN $digests",
-				"MATCH (image)<-[:PUBLISHES_MANIFEST|PUBLISHES_INDEX|PUBLISHES_DESCRIPTOR]-(repo:OciRegistryRepository)",
+				"MATCH (repo:OciRegistryRepository)",
+				"WHERE repo.uid = image.repository_id",
 			)
 			assertNotContains(t, cypher,
+				"CALL {",
+				"PUBLISHES_MANIFEST",
+				"PUBLISHES_INDEX",
+				"PUBLISHES_DESCRIPTOR",
 				"MATCH (repo:OciRegistryRepository)-[:PUBLISHES_MANIFEST|PUBLISHES_INDEX|PUBLISHES_DESCRIPTOR]->(image)",
 				"OR image:",
 			)
+			switch {
+			case strings.Contains(cypher, "MATCH (image:ContainerImage)"):
+				seenLabels["ContainerImage"] = true
+			case strings.Contains(cypher, "MATCH (image:ContainerImageIndex)"):
+				seenLabels["ContainerImageIndex"] = true
+			case strings.Contains(cypher, "MATCH (image:ContainerImageDescriptor)"):
+				seenLabels["ContainerImageDescriptor"] = true
+			default:
+				t.Fatalf("Cypher = %q, want one OCI image label anchor", cypher)
+			}
 			return nil, nil
 		},
 	}, []string{imageRef})
 	if err != nil {
 		t.Fatalf("fetchOCIImageRegistryTruth() error = %v, want nil", err)
+	}
+	for _, label := range ociImageLookupLabels {
+		if !seenLabels[label] {
+			t.Fatalf("fetchOCIImageRegistryTruth() did not query label %s", label)
+		}
 	}
 }
 
@@ -102,7 +121,8 @@ func TestFetchOCIImageRegistryTruthMarksConflictingTagObservationsAmbiguous(t *t
 	otherDigest := "sha256:2222222222222222222222222222222222222222222222222222222222222222"
 	got, err := fetchOCIImageRegistryTruth(t.Context(), fakeWorkloadGraphReader{
 		run: func(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
-			if !strings.Contains(cypher, "ContainerImageTagObservation") {
+			if !strings.Contains(cypher, "ContainerImageTagObservation") ||
+				!strings.Contains(cypher, "MATCH (image:ContainerImage)") {
 				return nil, nil
 			}
 			if gotRefs, want := params["image_refs"], []string{tagRef}; !reflect.DeepEqual(gotRefs, want) {
@@ -148,6 +168,7 @@ func TestFetchOCIImageRegistryTruthUsesSelectiveTagAnchor(t *testing.T) {
 	t.Parallel()
 
 	tagRef := "ghcr.io/acme/payments-api:latest"
+	seenLabels := make(map[string]bool)
 	_, err := fetchOCIImageRegistryTruth(t.Context(), fakeWorkloadGraphReader{
 		run: func(_ context.Context, cypher string, _ map[string]any) ([]map[string]any, error) {
 			if !strings.Contains(cypher, "ContainerImageTagObservation") {
@@ -156,23 +177,38 @@ func TestFetchOCIImageRegistryTruthUsesSelectiveTagAnchor(t *testing.T) {
 			assertContainsAll(t, cypher,
 				"MATCH (tag:ContainerImageTagObservation)",
 				"tag.image_ref IN $image_refs",
-				"MATCH (repo:OciRegistryRepository)-[:OBSERVED_TAG]->(tag)",
-				"MATCH (image:ContainerImage)",
-				"MATCH (image:ContainerImageIndex)",
-				"MATCH (image:ContainerImageDescriptor)",
+				"MATCH (repo:OciRegistryRepository)",
+				"WHERE repo.uid = tag.repository_id",
 				"image.digest = tag.resolved_digest",
 			)
 			assertNotContains(t, cypher,
+				"CALL {",
+				"OBSERVED_TAG",
 				"tag.reference IN $image_refs",
 				"OR tag.",
 				"OR image:",
 				"MATCH (image)",
 			)
+			switch {
+			case strings.Contains(cypher, "MATCH (image:ContainerImage)"):
+				seenLabels["ContainerImage"] = true
+			case strings.Contains(cypher, "MATCH (image:ContainerImageIndex)"):
+				seenLabels["ContainerImageIndex"] = true
+			case strings.Contains(cypher, "MATCH (image:ContainerImageDescriptor)"):
+				seenLabels["ContainerImageDescriptor"] = true
+			default:
+				t.Fatalf("Cypher = %q, want one OCI image label anchor", cypher)
+			}
 			return nil, nil
 		},
 	}, []string{tagRef})
 	if err != nil {
 		t.Fatalf("fetchOCIImageRegistryTruth() error = %v, want nil", err)
+	}
+	for _, label := range ociImageLookupLabels {
+		if !seenLabels[label] {
+			t.Fatalf("fetchOCIImageRegistryTruth() did not query label %s", label)
+		}
 	}
 }
 

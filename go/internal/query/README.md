@@ -270,10 +270,15 @@ truth when `ContainerImage`, `ContainerImageIndex`, or
 canonical image identity; mutable tag references surface only when a registry
 tag observation resolves to one projected digest, and conflicting tag
 observations stay ambiguous. Digest reads start from ContainerImage-family
-`digest` anchors before matching repository publish edges
-(`impact_trace_deployment_oci.go:70`), and tag reads start from
-`ContainerImageTagObservation.image_ref` before matching the resolved digest
-image (`impact_trace_deployment_oci.go:103`).
+`digest` anchors before joining repository metadata with
+`repo.uid = image.repository_id` (`impact_trace_deployment_oci.go:70`), and tag
+reads start from `ContainerImageTagObservation.image_ref`, join the repository
+with `repo.uid = tag.repository_id`, then match the resolved digest image
+(`impact_trace_deployment_oci.go:103`). The read helper runs one bounded query
+per OCI image-family label instead of a `CALL { ... UNION ... }` subquery
+followed by `MATCH`, because NornicDB v1.1.1 rejects that post-`CALL` shape.
+This keeps deployment trace truth accurate while avoiding high-cost OCI
+publication relationship traversals in the NornicDB-backed canonical write path.
 Content-backed Argo CD relationship fallback reads `source_repos` for
 multi-source Applications and emits one `DEPLOYS_FROM` relationship per source
 repo while still accepting the older singular `source_repo` metadata field.

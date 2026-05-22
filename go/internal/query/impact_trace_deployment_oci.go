@@ -2,6 +2,7 @@ package query
 
 import (
 	"context"
+	"fmt"
 	"sort"
 	"strings"
 )
@@ -12,6 +13,12 @@ const (
 	ociAmbiguousMatchStrength  = "ambiguous_tag"
 	ociRegistryProjectionBasis = "oci_registry_projection"
 )
+
+var ociImageLookupLabels = []string{
+	"ContainerImage",
+	"ContainerImageIndex",
+	"ContainerImageDescriptor",
+}
 
 func (h *ImpactHandler) fetchOCIImageRegistryTruth(
 	ctx context.Context,
@@ -66,30 +73,28 @@ func fetchOCIImageDigestRows(
 	if len(digests) == 0 {
 		return nil, nil
 	}
-	return reader.Run(ctx, `
-		CALL {
-			MATCH (image:ContainerImage)
+	rows := make([]map[string]any, 0, len(digests))
+	for _, label := range ociImageLookupLabels {
+		labelRows, err := reader.Run(ctx, fmt.Sprintf(`
+			MATCH (image:%s)
 			WHERE image.digest IN $digests
-			RETURN image
-			UNION
-			MATCH (image:ContainerImageIndex)
-			WHERE image.digest IN $digests
-			RETURN image
-			UNION
-			MATCH (image:ContainerImageDescriptor)
-			WHERE image.digest IN $digests
-			RETURN image
+			MATCH (repo:OciRegistryRepository)
+			WHERE repo.uid = image.repository_id
+			RETURN DISTINCT coalesce(image.id, image.descriptor_id) AS image_id,
+			       image.digest AS digest,
+			       repo.registry AS registry,
+			       repo.repository AS repository,
+			       repo.uid AS repository_id,
+			       image.media_type AS media_type,
+			       repo.provider AS provider
+			ORDER BY repository_id, digest
+		`, label), map[string]any{"digests": digests})
+		if err != nil {
+			return nil, err
 		}
-		MATCH (image)<-[:PUBLISHES_MANIFEST|PUBLISHES_INDEX|PUBLISHES_DESCRIPTOR]-(repo:OciRegistryRepository)
-		RETURN DISTINCT coalesce(image.id, image.descriptor_id) AS image_id,
-		       image.digest AS digest,
-		       repo.registry AS registry,
-		       repo.repository AS repository,
-		       repo.uid AS repository_id,
-		       image.media_type AS media_type,
-		       repo.provider AS provider
-		ORDER BY repository_id, digest
-	`, map[string]any{"digests": digests})
+		rows = append(rows, labelRows...)
+	}
+	return rows, nil
 }
 
 func fetchOCIImageTagRows(
@@ -100,37 +105,32 @@ func fetchOCIImageTagRows(
 	if len(imageRefs) == 0 {
 		return nil, nil
 	}
-	return reader.Run(ctx, `
-		MATCH (tag:ContainerImageTagObservation)
-		WHERE tag.image_ref IN $image_refs
-		MATCH (repo:OciRegistryRepository)-[:OBSERVED_TAG]->(tag)
-		CALL {
-			WITH tag
-			MATCH (image:ContainerImage)
+	rows := make([]map[string]any, 0, len(imageRefs))
+	for _, label := range ociImageLookupLabels {
+		labelRows, err := reader.Run(ctx, fmt.Sprintf(`
+			MATCH (tag:ContainerImageTagObservation)
+			WHERE tag.image_ref IN $image_refs
+			MATCH (repo:OciRegistryRepository)
+			WHERE repo.uid = tag.repository_id
+			MATCH (image:%s)
 			WHERE image.digest = tag.resolved_digest
-			RETURN image
-			UNION
-			WITH tag
-			MATCH (image:ContainerImageIndex)
-			WHERE image.digest = tag.resolved_digest
-			RETURN image
-			UNION
-			WITH tag
-			MATCH (image:ContainerImageDescriptor)
-			WHERE image.digest = tag.resolved_digest
-			RETURN image
+			RETURN DISTINCT tag.image_ref AS image_ref,
+			       tag.tag AS tag,
+			       tag.resolved_digest AS digest,
+			       coalesce(image.id, image.descriptor_id) AS image_id,
+			       repo.registry AS registry,
+			       repo.repository AS repository,
+			       repo.uid AS repository_id,
+			       image.media_type AS media_type,
+			       repo.provider AS provider
+			ORDER BY image_ref, digest
+		`, label), map[string]any{"image_refs": imageRefs})
+		if err != nil {
+			return nil, err
 		}
-		RETURN DISTINCT tag.image_ref AS image_ref,
-		       tag.tag AS tag,
-		       tag.resolved_digest AS digest,
-		       coalesce(image.id, image.descriptor_id) AS image_id,
-		       repo.registry AS registry,
-		       repo.repository AS repository,
-		       repo.uid AS repository_id,
-		       image.media_type AS media_type,
-		       repo.provider AS provider
-		ORDER BY image_ref, digest
-	`, map[string]any{"image_refs": imageRefs})
+		rows = append(rows, labelRows...)
+	}
+	return rows, nil
 }
 
 func splitOCIImageRefs(imageRefs []string) (map[string][]string, []string) {
