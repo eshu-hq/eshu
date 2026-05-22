@@ -296,6 +296,27 @@ exact workload-id path. Existing `neo4j.query` spans still expose the backing
 candidate lookup, workload lookup, repository lookup, instance lookup, graph
 reads, Postgres reads, and response assembly cost.
 
+Continuation note for issue #477: the service-story dossier now includes
+`code_to_runtime_trace`, a bounded synthesis over the already-scoped dossier
+fields. It reports service identity, code/API entrypoint, CI/CD, image/package,
+deployment-config, runtime, and cloud-dependency segments with explicit
+`exact`, `derived`, or `missing_evidence` status; the CLI human renderer prints
+the same segment status before the count summary.
+
+No-Regression Evidence: focused TDD covers the query contract, OpenAPI field,
+and CLI human output:
+`go test ./internal/query -run 'TestBuildServiceStoryResponseIncludesCodeToRuntimeTrace|TestOpenAPISpecServiceStoryExposesDossierFields' -count=1`
+and
+`go test ./cmd/eshu -run TestRunTraceServiceRendersOperationalSummary -count=1`.
+This continuation adds no new graph read, Cypher shape, queue, worker, or write
+path; it only synthesizes the response from existing scoped service-story data.
+
+No-Observability-Change: the synthesis runs after existing service-story
+enrichment. Operators still diagnose slowness or staleness through
+`service_query.stage_started` / `service_query.stage_completed`, `neo4j.query`,
+`postgres.query`, truth envelope metadata, and the response-level segment
+statuses plus `missing_segments`.
+
 ### `eshu map --from <thing>`
 
 `eshu map --from <thing>` means: start from one known entity and show its

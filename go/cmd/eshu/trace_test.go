@@ -93,6 +93,11 @@ func TestRunTraceServiceRendersOperationalSummary(t *testing.T) {
 	for _, want := range []string{
 		"Service: checkout",
 		"Repository: repo:checkout-service (checkout-service)",
+		"Code to runtime:",
+		"code_entrypoints: derived",
+		"deployment_config: derived",
+		"runtime: exact",
+		"cloud_dependencies: missing_evidence",
 		"Deployment lanes: 1",
 		"Runtime instances: 2",
 		"Coverage: partial",
@@ -272,6 +277,16 @@ func sampleTraceServiceStoryData() map[string]any {
 		},
 		"deployment_lanes": []any{
 			map[string]any{"lane": "gitops", "summary": "Kubernetes deployment evidence found"},
+		},
+		"code_to_runtime_trace": map[string]any{
+			"status":           "partial",
+			"missing_segments": []any{"cloud_dependencies"},
+			"segments": []any{
+				map[string]any{"name": "code_entrypoints", "status": "derived", "evidence_count": float64(1), "basis": "api_surface"},
+				map[string]any{"name": "deployment_config", "status": "derived", "evidence_count": float64(1), "basis": "deployment_evidence"},
+				map[string]any{"name": "runtime", "status": "exact", "evidence_count": float64(2), "basis": "materialized_workload_instances"},
+				map[string]any{"name": "cloud_dependencies", "status": "missing_evidence", "evidence_count": float64(0), "basis": "cloud_resource_or_dependency_evidence"},
+			},
 		},
 		"runtime_instances": []any{
 			map[string]any{"environment": "prod", "name": "checkout-prod"},

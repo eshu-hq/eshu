@@ -238,6 +238,9 @@ func renderTraceServiceSummary(w io.Writer, envelope traceServiceEnvelope) error
 			return err
 		}
 	}
+	if err := renderTraceCodeToRuntime(w, data); err != nil {
+		return err
+	}
 	if _, err := fmt.Fprintf(w, "Deployment lanes: %d\n", len(traceSlice(data, "deployment_lanes"))); err != nil {
 		return err
 	}
