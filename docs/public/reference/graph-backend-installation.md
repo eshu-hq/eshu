@@ -1,46 +1,38 @@
 # Graph Backend Installation
 
-Use this page when you need to install or replace a local NornicDB binary for
-explicit process-mode testing.
+Use this page only when you need a separate NornicDB binary for explicit
+process-mode testing. Normal local Eshu does not need it: the checkout installer
+builds the owner `eshu` binary with `-tags nolocalllm`, and
+`eshu graph start` runs embedded NornicDB inside that process.
 
-Normal local Eshu does not need this page. The local installer builds the
-owner `eshu` binary with `-tags nolocalllm`, so `local_authoritative` runs
-embedded NornicDB inside the `eshu` process.
-
-For day-to-day start, stop, status, logs, and upgrade commands, use
+For start, stop, status, logs, and upgrades, use
 [Graph Backend Operations](graph-backend-operations.md).
 
-## When Installation Is Needed
+## When To Install
 
-| Scenario | Install NornicDB separately? | What to do |
+| Scenario | Separate NornicDB install? | Path |
 | --- | --- | --- |
-| Normal local binary mode | No | Use `eshu graph start`. |
+| Normal local binary mode | No | Run `eshu graph start`. |
 | Docker Compose | No | Compose provides the graph service. |
 | Kubernetes or Helm | No | The deployment provides the Bolt-compatible graph endpoint. |
-| Testing a specific NornicDB build | Yes | Use process mode and install or point at that binary. |
-| Explicit Neo4j compatibility path | No | Operate Neo4j separately and set graph connection variables. |
+| Specific NornicDB build testing | Yes | Select process mode and point at the binary. |
+| Neo4j compatibility | No | Run Neo4j separately and set graph connection variables. |
 
-Backend selection is controlled by `ESHU_GRAPH_BACKEND`:
+`ESHU_GRAPH_BACKEND` selects the backend. `nornicdb` is the default; `neo4j` is
+the explicit compatibility backend. Invalid values fail startup.
 
-- `nornicdb` is the default.
-- `neo4j` is the explicit compatibility backend.
+## Local NornicDB Modes
 
-Invalid backend values fail at startup.
-
-## Local Runtime Modes
-
-Local-authoritative NornicDB has two runtime modes:
-
-| Mode | How to select it | Binary source |
+| Mode | Selector | Binary source |
 | --- | --- | --- |
-| embedded | unset `ESHU_NORNICDB_RUNTIME`, or set it to `embedded` | linked into `eshu` when built with `-tags nolocalllm` |
-| process | set `ESHU_NORNICDB_RUNTIME=process` | discovered from `ESHU_NORNICDB_BINARY`, managed install, or `PATH` |
+| embedded | unset `ESHU_NORNICDB_RUNTIME`, or set it to `embedded` | linked into the `eshu` binary when built with `-tags nolocalllm` |
+| process | `ESHU_NORNICDB_RUNTIME=process` | `ESHU_NORNICDB_BINARY`, managed install, or `PATH` |
 
-If embedded mode is requested but the `eshu` binary was not built with
-`-tags nolocalllm`, startup fails with rebuild guidance. It does not silently
-fall back to an external process.
+If embedded mode is requested from an `eshu` binary built without
+`-tags nolocalllm`, startup fails with rebuild guidance. It does not fall back
+to a process binary.
 
-`ESHU_NORNICDB_BINARY` is not a runtime selector. Use it with process mode:
+`ESHU_NORNICDB_BINARY` is not a mode selector. Use it with process mode:
 
 ```bash
 ESHU_NORNICDB_RUNTIME=process \
@@ -48,83 +40,63 @@ ESHU_NORNICDB_BINARY=/absolute/path/to/nornicdb-headless \
 eshu graph start
 ```
 
-Process-mode discovery order:
+Process-mode discovery checks, in order:
 
 1. `ESHU_NORNICDB_BINARY`
 2. `${ESHU_HOME}/bin/nornicdb-headless`
 3. `nornicdb-headless` on `PATH`
 4. `nornicdb` on `PATH`
 
-Every candidate must pass `<binary> version` and print a `NornicDB ...`
-version string.
+Each candidate must pass `<binary> version` and print a `NornicDB ...` version
+string.
 
-## Managed Process-Mode Install
+## Managed Process Install
 
-Managed installs copy a verified binary to:
+Install or replace the managed process-mode binary:
+
+```bash
+eshu install nornicdb --from /absolute/path/to/nornicdb-headless
+eshu install nornicdb --from /absolute/path/to/nornicdb-headless --force
+```
+
+The command copies the verified binary to:
 
 ```text
 ${ESHU_HOME}/bin/nornicdb-headless
 ```
 
-They also write:
+and writes:
 
 ```text
 ${ESHU_HOME}/graph-backends/nornicdb/manifest.json
 ```
 
-Install from an explicit source:
+Accepted sources:
+
+- local executable NornicDB binary
+- local `.tar`, `.tar.gz`, or `.tgz` archive containing `nornicdb-headless` or
+  `nornicdb`
+- local macOS `.pkg` containing `/usr/local/bin/nornicdb-headless` or
+  `/usr/local/bin/nornicdb`
+- `http://`, `https://`, or `file://` URL to one of those artifacts
+
+Use `--sha256` to verify the source artifact:
 
 ```bash
-eshu install nornicdb --from /absolute/path/to/nornicdb-headless
-```
-
-Install from an archive, package, or URL:
-
-```bash
-eshu install nornicdb \
-  --from /absolute/path/to/nornicdb-headless-darwin-arm64.tar.gz \
-  --sha256 <expected-source-sha256>
-
-eshu install nornicdb \
-  --from /absolute/path/to/NornicDB-main-arm64-lite.pkg \
-  --sha256 <expected-source-sha256>
-
 eshu install nornicdb \
   --from https://example.com/releases/nornicdb-headless-darwin-arm64.tar.gz \
   --sha256 <expected-source-sha256>
 ```
 
-Replace an existing managed binary:
-
-```bash
-eshu install nornicdb --from /absolute/path/to/nornicdb-headless --force
-```
-
-Remote downloads default to `30s` and honor cancellation. Raise the download
-timeout only when the artifact source is slow:
+Remote downloads default to `30s`:
 
 ```bash
 ESHU_NORNICDB_INSTALL_TIMEOUT=2m \
 eshu install nornicdb --from https://example.com/nornicdb-headless.tar.gz
 ```
 
-## Accepted Source Types
-
-`eshu install nornicdb` accepts:
-
-- a local executable NornicDB binary
-- a local `.tar`, `.tar.gz`, or `.tgz` archive containing `nornicdb-headless`
-  or `nornicdb`
-- a local macOS `.pkg` containing `/usr/local/bin/nornicdb-headless` or
-  `/usr/local/bin/nornicdb`
-- an `http://`, `https://`, or `file://` URL to one of those artifacts
-
-The command verifies the resulting binary, computes source and binary
-checksums, compares `--sha256` when provided, writes the managed binary, and
-records the install manifest.
-
-Managed install wins over `PATH`. If a managed binary is old, either reinstall
-with `--force` or set `ESHU_NORNICDB_BINARY` for one process-mode run.
+Managed install wins over `PATH`. To test another binary for one run, set
+`ESHU_NORNICDB_BINARY` with `ESHU_NORNICDB_RUNTIME=process`.
 
 ## No-Argument Install
 
@@ -132,17 +104,14 @@ with `--force` or set `ESHU_NORNICDB_BINARY` for one process-mode run.
 eshu install nornicdb
 ```
 
-This command is reserved for future release-backed installs. Today it fails
-because Eshu has no accepted NornicDB release asset manifest checked in. Build
-or choose the binary you want and pass it with `--from`.
+This is reserved for future release-backed installs. Today it fails because
+Eshu has no accepted NornicDB release asset manifest checked in. The `--full`
+flag is reserved for the same future flow. Pass an explicit `--from` source
+instead.
 
-The `--full` flag is also reserved for that future no-argument release flow.
-To install a full NornicDB binary today, pass it explicitly with `--from`.
+## Build For Process Mode
 
-## Build A Binary For Process Mode
-
-From a NornicDB checkout, prefer the project target when its prerequisites are
-installed:
+From a NornicDB checkout:
 
 ```bash
 make build-headless
@@ -158,64 +127,31 @@ eshu install nornicdb --from /tmp/nornicdb-headless
 
 The full `nornicdb` binary is supported when explicitly selected, but it is not
 the laptop default because it can include larger UI or local-LLM payloads.
-Process mode starts it with headless runtime flags.
-
-## Upgrade And Rollback
-
-Upgrade the managed process-mode binary only after stopping the workspace:
-
-```bash
-eshu graph stop
-eshu graph upgrade --from /absolute/path/to/nornicdb-headless
-```
-
-Rollback is a reinstall of a previous binary:
-
-```bash
-eshu install nornicdb --from /absolute/path/to/previous-nornicdb-headless --force
-```
-
-Workspace graph data is separate from the managed binary. Preserve it unless
-you are intentionally discarding local graph state.
 
 ## Verify
 
-After install:
-
-```bash
-eshu graph status
-```
-
-For process mode, start the graph with:
-
 ```bash
 ESHU_NORNICDB_RUNTIME=process eshu graph start
-```
-
-Then check status and logs:
-
-```bash
 eshu graph status
 eshu graph logs
 ```
 
 ## Supply Chain Status
 
-Current status:
+Supported today:
 
-- explicit-source installs are supported
-- SHA-256 checking is supported when `--sha256` is supplied
-- remote downloads are supported
-- signature verification is future work
-- release-backed no-argument installs are future work
+- explicit-source installs
+- optional SHA-256 checking with `--sha256`
+- remote downloads
 
-Before no-argument installs are enabled, Eshu needs an accepted release or
-build manifest, checksum policy, signature policy, and artifact publication
-strategy.
+Future work:
+
+- signature verification
+- release-backed no-argument installs
+- accepted release/build manifest and artifact publication policy
 
 ## Non-Goals
 
-- Installing Neo4j. Neo4j is an operator-managed compatibility backend.
-- Running process-mode NornicDB as a system service. The local Eshu service
-  owns the process lifecycle.
-- Installing NornicDB for normal embedded local mode.
+- installing Neo4j
+- running NornicDB as a system service
+- installing NornicDB for normal embedded local mode

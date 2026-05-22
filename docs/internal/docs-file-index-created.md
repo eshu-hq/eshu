@@ -8,6 +8,7 @@ Generated from `git diff --name-status origin/main -- "*.md"` for this documenta
 - `docs/internal/docs-file-index-created.md`
 - `docs/internal/docs-file-index-deleted.md`
 - `docs/internal/docs-file-index-modified.md`
+- `docs/internal/docs-verification-snapshot.md`
 - `docs/public/architecture.md`
 - `docs/public/deploy/kubernetes/helm-collector-and-webhook-values.md`
 - `docs/public/deploy/kubernetes/helm-routing-and-storage-values.md`
@@ -21,12 +22,16 @@ Generated from `git diff --name-status origin/main -- "*.md"` for this documenta
 - `docs/public/guides/collector-authoring.md`
 - `docs/public/guides/mcp-guide.md`
 - `docs/public/guides/starter-prompts.md`
+- `docs/public/guides/terraform-providers/adding-providers.md`
+- `docs/public/guides/terraform-providers/service-categories.md`
+- `docs/public/guides/terraform-providers/updating-providers.md`
 - `docs/public/index.md`
 - `docs/public/reference/capability-conformance-spec.md`
 - `docs/public/reference/cli-reference.md`
 - `docs/public/reference/cli-system.md`
 - `docs/public/reference/collector-reducer-readiness.md`
 - `docs/public/reference/configuration.md`
+- `docs/public/reference/cypher-performance.md`
 - `docs/public/reference/dead-code-language-maturity.md`
 - `docs/public/reference/dead-code-reachability-spec.md`
 - `docs/public/reference/documentation-updater-actuator-contract.md`

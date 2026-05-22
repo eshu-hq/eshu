@@ -32,10 +32,7 @@ Generated from `git diff --name-status origin/main -- "*.md"` for this documenta
 - `docs/docs/guides/fixture-ecosystems.md -> docs/public/guides/fixture-ecosystems.md`
 - `docs/docs/guides/relationship-graphs.md -> docs/public/guides/relationship-graphs.md`
 - `docs/docs/guides/shared-infra-trace.md -> docs/public/guides/shared-infra-trace.md`
-- `docs/docs/guides/terraform-providers/adding-providers.md -> docs/public/guides/terraform-providers/adding-providers.md`
 - `docs/docs/guides/terraform-providers/index.md -> docs/public/guides/terraform-providers/index.md`
-- `docs/docs/guides/terraform-providers/service-categories.md -> docs/public/guides/terraform-providers/service-categories.md`
-- `docs/docs/guides/terraform-providers/updating-providers.md -> docs/public/guides/terraform-providers/updating-providers.md`
 - `docs/docs/guides/visualization.md -> docs/public/guides/visualization.md`
 - `docs/docs/languages/argocd.md -> docs/public/languages/argocd.md`
 - `docs/docs/languages/c.md -> docs/public/languages/c.md`
@@ -81,7 +78,6 @@ Generated from `git diff --name-status origin/main -- "*.md"` for this documenta
 - `docs/docs/reference/cli-kiss.md -> docs/public/reference/cli-kiss.md`
 - `docs/docs/reference/cloud-validation.md -> docs/public/reference/cloud-validation.md`
 - `docs/docs/reference/component-package-manager.md -> docs/public/reference/component-package-manager.md`
-- `docs/docs/reference/cypher-performance.md -> docs/public/reference/cypher-performance.md`
 - `docs/docs/reference/dead-code-typescript-corpus-evidence.md -> docs/public/reference/dead-code-typescript-corpus-evidence.md`
 - `docs/docs/reference/eshuignore.md -> docs/public/reference/eshuignore.md`
 - `docs/docs/reference/language-query-dsl.md -> docs/public/reference/language-query-dsl.md`

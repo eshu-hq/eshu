@@ -64,12 +64,16 @@ Generated from `git diff --name-status origin/main -- "*.md"` for this documenta
 - `docs/docs/guides/mcp-guide.md`
 - `docs/docs/guides/neo4j-setup.md`
 - `docs/docs/guides/starter-prompts.md`
+- `docs/docs/guides/terraform-providers/adding-providers.md`
+- `docs/docs/guides/terraform-providers/service-categories.md`
+- `docs/docs/guides/terraform-providers/updating-providers.md`
 - `docs/docs/index.md`
 - `docs/docs/reference/capability-conformance-spec.md`
 - `docs/docs/reference/cli-reference.md`
 - `docs/docs/reference/cli-system.md`
 - `docs/docs/reference/collector-reducer-readiness.md`
 - `docs/docs/reference/configuration.md`
+- `docs/docs/reference/cypher-performance.md`
 - `docs/docs/reference/dead-code-reachability-spec.md`
 - `docs/docs/reference/documentation-updater-actuator-contract.md`
 - `docs/docs/reference/environment-variables.md`

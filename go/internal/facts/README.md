@@ -2,223 +2,89 @@
 
 ## Purpose
 
-`facts` defines the durable Go representations that Eshu writes before graph
-projection. An `Envelope` carries one parsed observation from a collector or
-parser through the queue, into the projector, and on to the reducer. A `Ref`
-identifies the source-local record that produced the fact. These types are the
-contract between collection, queueing, projection, and reducer-owned
-materialization.
+`facts` defines the durable Go data-plane records that Eshu writes before graph
+projection. `Envelope` carries one source observation through collection,
+queueing, projection, reducer materialization, replay, and repair. `Ref`
+preserves the source-local provenance for that observation.
 
-## Ownership boundary
+## Ownership Boundary
 
-Owns the durable fact value types and the stable-ID function. Per the ownership
-table in `docs/internal/agent-guide.md`, `go/internal/facts/` owns durable fact
-models and queue contracts.
+This package owns durable fact value types, source-confidence values, fact-kind
+registries, schema-version helpers, and stable-ID helpers. It does not own queue
+rows, scope assignment, graph writes, Postgres storage, or reducer admission.
 
-This package does not own queue row logic (`internal/queue`), scope identity
-(`internal/scope`), graph writes, or Postgres persistence. Those packages
-consume these types as their input or storage shape.
+## Core Flow
 
-## Exported surface
+```mermaid
+flowchart LR
+  Collector["collector or parser"] --> Envelope["facts.Envelope"]
+  Envelope --> Store["Postgres fact store"]
+  Store --> Projector["projector"]
+  Store --> Reducer["reducer"]
+  Envelope --> Truth["graph/read-model materialization"]
+```
 
-- `Envelope` — the interchange unit that travels from collector to projector.
-  Fields: `FactID`, `ScopeID`, `GenerationID`, `FactKind`, `StableFactKey`,
-  `SchemaVersion`, `CollectorKind`, `FencingToken`, `SourceConfidence`,
-  `ObservedAt`, `Payload`, `IsTombstone`, `SourceRef`.
-- `Ref` — the source-local provenance record embedded in `Envelope.SourceRef`.
-  Fields: `SourceSystem`, `ScopeID`, `GenerationID`, `FactKey`, `SourceURI`,
-  `SourceRecordID`.
-- `Envelope.ScopeGenerationKey()` — returns the durable `scopeID:generationID`
-  boundary string used by callers to group envelopes by scope generation.
-- `Ref.ScopeGenerationKey()` — same boundary string on the ref side.
-- `Envelope.Clone()` — deep-copies the envelope including nested `Payload` maps
-  and slices; safe to pass to replay pipelines that must not share mutable
-  state.
-- `StableID(factType, identity)` — deterministic SHA-256 hex ID derived from
-  `factType` and the normalized `identity` map; used to assign a stable fact
-  key that survives re-ingestion of the same source record.
-- Documentation fact payloads — source-neutral payload structs and stable-ID
-  helpers for documentation sources, documents, sections, links, entity
-  mentions, non-authoritative claim candidates, owner references, ACL
-  summaries, and evidence references.
+Every downstream package treats fact IDs, stable keys, schema versions, source
+confidence, fencing tokens, and payload shape as persisted contract data.
 
-Documentation fact kinds use these schema versions:
+## Exported Surface
 
-- `documentation_source` — `1.0.0`
-- `documentation_document` — `1.0.0`
-- `documentation_section` — `1.1.0`
-- `documentation_link` — `1.0.0`
-- `documentation_entity_mention` — `1.0.0`
-- `documentation_claim_candidate` — `1.0.0`
+See `doc.go` and `go doc ./internal/facts` for the full contract. The main
+surface is:
 
-`documentation_section` uses schema version `1.1.0` and may include
-source-native `content` and `content_format` fields for updater diffing.
+- base types: `Envelope`, `Ref`
+- identity helpers: `StableID`, `Envelope.ScopeGenerationKey`,
+  `Ref.ScopeGenerationKey`, `Envelope.Clone`
+- source-confidence helpers: `ValidateSourceConfidence` and
+  `SourceConfidence*` constants
+- fact-kind registries and schema-version helpers for documentation,
+  Terraform state, package registry, OCI registry, SBOM/attestation,
+  vulnerability intelligence, service catalog, AWS cloud, and CI/CD run
+  evidence
+- payload and stable-ID helpers for documentation facts
 
-Terraform state fact kinds also use schema version `1.0.0` for the first
-collector contract:
-
-- `terraform_state_candidate`
-- `terraform_state_snapshot`
-- `terraform_state_resource`
-- `terraform_state_output`
-- `terraform_state_module`
-- `terraform_state_provider_binding`
-- `terraform_state_tag_observation`
-- `terraform_state_warning`
-
-Use `TerraformStateFactKinds` when callers need the full accepted set, and
-`TerraformStateSchemaVersion` when building envelopes. That keeps reader code
-from copying string literals.
-
-`terraform_state_candidate` is emitted by the Git collector, not by the
-Terraform-state reader. It is metadata-only evidence for repo-local `.tfstate`
-files and must not contain raw state content or an absolute local path.
-
-Package registry fact kinds use schema version `1.0.0` for the first collector
-contract:
-
-- `package_registry.package`
-- `package_registry.package_version`
-- `package_registry.package_dependency`
-- `package_registry.package_artifact`
-- `package_registry.source_hint`
-- `package_registry.vulnerability_hint`
-- `package_registry.registry_event`
-- `package_registry.repository_hosting`
-- `package_registry.warning`
-
-Use `PackageRegistryFactKinds` when callers need the full accepted set, and
-`PackageRegistrySchemaVersion` when building package-registry envelopes. These
-facts are reported registry evidence. Reducers must corroborate ownership,
-publication, and consumption before graph promotion.
-
-OCI registry fact kinds use schema version `1.0.0` for the first collector
-contract:
-
-- `oci_registry.repository`
-- `oci_registry.image_tag_observation`
-- `oci_registry.image_manifest`
-- `oci_registry.image_index`
-- `oci_registry.image_descriptor`
-- `oci_registry.image_referrer`
-- `oci_registry.warning`
-
-Use `OCIRegistryFactKinds` when callers need the full accepted set, and
-`OCIRegistrySchemaVersion` when building OCI registry envelopes. These facts are
-reported OCI evidence. Tags are mutable observations; digest-addressed
-descriptors, manifests, indexes, and referrers carry the stronger identity.
-
-SBOM and attestation fact kinds use schema version `1.0.0` for the first
-collector contract:
-
-- `sbom.document`
-- `sbom.component`
-- `sbom.dependency_relationship`
-- `sbom.external_reference`
-- `attestation.statement`
-- `attestation.slsa_provenance`
-- `attestation.signature_verification`
-- `sbom.warning`
-
-Use `SBOMAttestationFactKinds` when callers need the full accepted set, and
-`SBOMAttestationSchemaVersion` when building SBOM/attestation envelopes. These
-facts are sensitive evidence. Reducers must keep document parse status,
-subject attachment status, and signature verification status separate.
-
-Vulnerability intelligence fact kinds use schema version `1.0.0` for the first
-collector contract:
-
-- `vulnerability.source_snapshot`
-- `vulnerability.cve`
-- `vulnerability.affected_product`
-- `vulnerability.affected_package`
-- `vulnerability.epss_score`
-- `vulnerability.known_exploited`
-- `vulnerability.reference`
-- `vulnerability.warning`
-
-Use `VulnerabilityIntelligenceFactKinds` when callers need the full accepted
-set, and `VulnerabilityIntelligenceSchemaVersion` when building
-vulnerability-intelligence envelopes. These facts are source truth only:
-reducers must decide package, image, workload, deployment, and fixed-version
-impact.
-
-Service catalog fact kinds use schema version `1.0.0` for the first collector
-contract:
-
-- `service_catalog.entity`
-- `service_catalog.ownership`
-- `service_catalog.repository_link`
-- `service_catalog.dependency`
-- `service_catalog.api_link`
-- `service_catalog.operational_link`
-- `service_catalog.scorecard_definition`
-- `service_catalog.scorecard_result`
-- `service_catalog.warning`
-
-Use `ServiceCatalogFactKinds` when callers need the full accepted set, and
-`ServiceCatalogSchemaVersion` when building service-catalog envelopes. These
-facts are organizational declarations and source context. Reducers must
-corroborate ownership, dependency, workload, API, and drift truth before
-promotion.
-
-AWS cloud fact kinds use schema version `1.0.0` for the first collector
-contract:
-
-- `aws_resource`
-- `aws_relationship`
-- `aws_tag_observation`
-- `aws_dns_record`
-- `aws_image_reference`
-- `aws_warning`
-
-Use `AWSFactKinds` when callers need the full accepted set, and
-`AWSSchemaVersion` when building AWS cloud envelopes. These facts are reported
-AWS evidence. Reducers must corroborate workload, deployment, ownership, and
-environment truth before graph promotion.
-
-See `doc.go` for the full godoc contract.
+The README should not duplicate every fact-kind constant. Use the focused
+`*_test.go` files and `go doc` when changing a family.
 
 ## Dependencies
 
-No internal package imports. `internal/facts` is a leaf contract package. It
-depends only on the Go standard library.
+`facts` is a leaf contract package. It imports only the Go standard library.
 
 ## Telemetry
 
-This package emits no metrics, spans, or logs. Telemetry around fact loading
-and processing lives in `internal/projector` and `internal/storage/postgres`.
+This package emits no metrics, spans, or logs. Runtime telemetry around fact
+commit, queueing, loading, and processing lives in the packages that perform
+that work.
 
-## Gotchas / invariants
+## Gotchas / Invariants
 
-- `Envelope` fields and their types are frozen on-disk contracts. New fields
-  must be additive; removing or renaming a field breaks stored rows. The
-  `doc.go` contract states this explicitly.
-- `CollectorKind` and `SourceConfidence` are part of the durable collector
-  contract. `CollectorKind` says which collector family emitted the fact.
-  `SourceConfidence` says how Eshu learned it: direct observation, external
-  report, inference, or derived materialization. New collector code should set
-  both fields explicitly instead of relying on storage defaults.
-- `Envelope.Payload` is a `map[string]any`. Callers must not mutate the map
-  after passing the envelope to a downstream stage. Use `Clone` when branching
-  or replaying.
-- Documentation claim candidates are evidence about what documentation says.
-  They are not operational truth and must not override source-code, deployment,
-  runtime, or graph truth.
-- Documentation ACL and owner fields are source-reported context. They help
-  explain provenance and visibility, but they do not become authorization
-  policy inside the facts package.
-- Documentation section payloads can carry source-native body content for
-  downstream diff generation. Callers must treat that content as sensitive
-  source data: persist it only through the fact store and never add it to logs,
-  metrics, or stable-ID identity maps.
-- `StableID` panics if `json.Marshal` fails on the identity map. Callers must
-  not pass identity maps containing non-serializable values.
-- `IsTombstone` is set by the collector to signal deletion. Projectors and
-  reducers must check this flag before writing graph nodes.
+- `Envelope` fields are on-disk contracts. Remove or rename only with a storage
+  compatibility plan.
+- New fact fields must be additive and backward-compatible.
+- `Payload` is mutable Go data. Use `Clone` before branching, replaying, or
+  passing an envelope to code that might mutate nested maps or slices.
+- `StableID` expects JSON-serializable identity maps. Do not include source
+  body content, raw credentials, or high-cardinality mutable values in identity
+  maps.
+- `FencingToken` travels in the envelope so stale workers cannot overwrite newer
+  generation data.
+- `terraform_state_candidate` is metadata-only evidence from the Git collector;
+  raw state bytes belong on the Terraform-state collector path.
+- Registry, cloud, SBOM, vulnerability, service catalog, documentation, and
+  CI/CD facts are reported evidence. Reducers decide which parts become graph
+  truth.
 
-## Related docs
+## Focused Tests
 
-- `docs/public/architecture.md` — pipeline and ownership table
-- `docs/public/deployment/service-runtimes.md` — ingester and projector runtime
-  lanes
+- `go test ./internal/facts -run TestFactEnvelope -count=1`
+- `go test ./internal/facts -run TestValidateSourceConfidence -count=1`
+- `go test ./internal/facts -run Test.*FactKind -count=1`
+- `go test ./internal/facts -run TestDocumentation -count=1`
+- `go test ./internal/facts -run Test.*SchemaVersion -count=1`
+
+## Related Docs
+
+- `docs/public/architecture.md`
+- `docs/public/deployment/service-runtimes.md`
+- `docs/public/reference/fact-envelope-reference.md`
+- `docs/public/guides/collector-authoring.md`

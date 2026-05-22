@@ -1,24 +1,21 @@
-# Adding a New Terraform Provider
+# Adding A Terraform Provider
 
-This guide shows how to add support for a new Terraform provider to Eshu.
+Use this page when a provider is not already packaged under
+`go/internal/terraformschema/schemas/`.
 
-## Prerequisites
+Provider support is schema-driven. The normal change is:
 
-- Terraform CLI installed (`terraform` command available)
-- Access to the provider on the Terraform Registry
-- Git working tree (for committing the schema)
+1. add `terraform_providers/<provider>/versions.tf`
+2. generate `schemas/<provider>.json`
+3. package `go/internal/terraformschema/schemas/<provider>-<version>.json.gz`
+4. add service-category mappings only when the default category would be too
+   generic
+5. run the schema and relationship tests
 
-## Step-by-Step Process
+## Provider Config
 
-### 1. Create the Provider Configuration
-
-Create a directory and `versions.tf` file for the new provider:
-
-```bash
-mkdir -p terraform_providers/<provider>
-```
-
-**Example:** Adding the Datadog provider
+Create `terraform_providers/<provider>/versions.tf` with the Terraform Registry
+source and a stable version constraint:
 
 ```hcl title="terraform_providers/datadog/versions.tf"
 terraform {
@@ -33,203 +30,82 @@ terraform {
 provider "datadog" {}
 ```
 
-**Key points:**
-- Provider `source` must match the Terraform Registry namespace (e.g., `datadog/datadog`, `hashicorp/aws`)
-- Use a version constraint that pins the major version (e.g., `~> 3.0` means `>= 3.0, < 4.0`)
-- The `provider` block with no config is required for schema generation
+The provider block can stay empty when the provider can initialize without
+credentials. If a provider requires configuration just to expose its schema,
+stop and decide whether it belongs in the committed provider set.
 
-### 2. Generate the Raw Schema
+## Generate And Package
 
-Run the schema generation script:
-
-```bash
-./scripts/generate_terraform_provider_schema.sh <provider>
-```
-
-**Example:**
+The scripts run from the repository root:
 
 ```bash
 ./scripts/generate_terraform_provider_schema.sh datadog
-```
-
-**What this does:**
-1. Runs `terraform init` in the provider directory
-2. Runs `terraform providers schema -json` to extract the schema
-3. Writes the raw JSON to `schemas/<provider>.json`
-4. Extracts the version from `.terraform.lock.hcl`
-
-**Expected output:**
-
-```
-Generating schema for provider: datadog
-Running terraform init...
-Extracting schema...
-Schema written to schemas/datadog.json
-Detected version: 3.47.0
-```
-
-### 3. Package the Schema
-
-Compress and version the schema for distribution:
-
-```bash
-./scripts/package_terraform_schemas.sh <provider>
-```
-
-**Example:**
-
-```bash
 ./scripts/package_terraform_schemas.sh datadog
 ```
 
-**What this does:**
-1. Reads `schemas/<provider>.json`
-2. Extracts the provider version
-3. Compresses to `.json.gz`
-4. Writes versioned file to `go/internal/terraformschema/schemas/<provider>-<version>.json.gz`
-5. Removes the old unversioned schema (if it exists)
+`generate_terraform_provider_schema.sh` runs `terraform init` in
+`terraform_providers/<provider>/`, then writes raw JSON to
+`schemas/<provider>.json`. The script uses `jq` to print the resource count, so
+both Terraform and `jq` must be installed.
 
-**Expected output:**
+`package_terraform_schemas.sh` reads the resolved version from
+`terraform_providers/<provider>/.terraform.lock.hcl`, gzips the raw schema, and
+writes `go/internal/terraformschema/schemas/<provider>-<version>.json.gz`.
+It removes older packaged schemas for the same provider. Keep exactly one
+packaged version per provider unless the loader and docs are changed together.
 
-```
-Packaging schema for provider: datadog
-Found schema: schemas/datadog.json
-Detected version: 3.47.0
-Packaged: go/internal/terraformschema/schemas/datadog-3.47.0.json.gz (142.3 KB)
-```
+## Category Mapping
 
-### 4. Add Service Category Mappings (Optional)
-
-If the provider has resource types that should be classified into specific
-service categories (compute, storage, data, networking, security, etc.), add
-mappings to `go/internal/terraformschema/categories.go`.
-
-**Example:** Datadog resources
+Only edit `go/internal/terraformschema/categories.go` when the provider's
+resource types need a better category than `infrastructure`.
 
 ```go title="go/internal/terraformschema/categories.go"
 var serviceCategories = map[string]string{
-    // ... existing mappings ...
-
-    // --- Datadog (datadog_ prefix) ---
-    "monitor": "monitoring",
-    "dashboard": "monitoring",
-    "synthetics": "monitoring",
-    "logs": "monitoring",
-    "integration": "monitoring",
-    "downtime": "monitoring",
-}
+	// Existing mappings...
+	"monitor":             "monitoring",
+	"dashboard":           "monitoring",
+	"synthetics":          "monitoring",
+	"security_monitoring": "security",
 }
 ```
 
-**Notes:**
-- Keys are the service portion *after* stripping the provider prefix (e.g., `datadog_monitor` → `monitor`)
-- Longer prefixes are tried first (e.g., `cloudwatch_event` matches before `cloudwatch`)
-- Unmapped resource types default to `infrastructure`
-- This step is optional — extractors work without category mappings
+Use the resource type service part after the first underscore:
+`datadog_security_monitoring_rule` can match `security_monitoring`. The
+classifier tries the longest prefix first, then shorter prefixes, then falls
+back to the first service token. Unknown services become category
+`infrastructure`.
 
-### 5. Verify Registration
+## Runtime Path
 
-Check that the Go loader and relationship registry accept the new packaged
-schema:
+The packaged schema is loaded by `go/internal/terraformschema`. The
+relationship extractor bootstrap in `go/internal/relationships` scans schema
+files with `*.json*`, infers identity keys from string attributes, classifies
+the resource category, and registers Terraform evidence extractors.
+
+No provider-specific extractor code is needed for ordinary resource types.
+Add code only when the schema-driven path cannot express the evidence safely.
+
+## Verification
+
+Run the focused gate after adding the provider or changing categories:
 
 ```bash
 cd go
 go test ./internal/terraformschema ./internal/relationships -count=1
 ```
 
-### 6. Run Tests
+If category mappings changed, make sure the classify tests cover the new
+prefixes. If identity-key behavior changed, add or update identity tests before
+changing `identityKeyPatterns` in `schema.go`.
 
-Verify the schema loads correctly:
-
-```bash
-cd go
-go test ./internal/terraformschema ./internal/relationships -count=1
-```
-
-### 7. Commit the Schema
-
-Commit the versioned schema and provider configuration:
-
-```bash
-git add go/internal/terraformschema/schemas/datadog-3.47.0.json.gz
-git add terraform_providers/datadog/versions.tf
-git add go/internal/terraformschema/categories.go  # if you added mappings
-git commit -m "feat: add Datadog provider schema (3.47.0, 47 resource types)"
-```
-
-### 8. Update Documentation
-
-Add the new provider to the provider list in `docs/public/guides/terraform-providers/index.md`:
-
-```markdown
-| Datadog | 3.47.0 | 47 | `datadog/datadog` |
-```
-
-And to the current provider support table:
-
-```markdown
-| Datadog (`datadog/datadog`) | 3.47.0 | 47 |
-```
+Update `docs/public/guides/terraform-providers/index.md` with the packaged
+provider version and resource count after the schema is regenerated.
 
 ## Troubleshooting
 
-### Schema file is empty or malformed
-
-**Symptom:** `schemas/<provider>.json` is 0 bytes or contains an error message.
-
-**Cause:** `terraform providers schema -json` failed.
-
-**Fix:**
-1. Run `terraform init` manually in `terraform_providers/<provider>/`
-2. Check for errors in the output
-3. Verify the provider source and version are correct in `versions.tf`
-4. Try running `terraform providers schema -json` manually to see the error
-
-### Version detection fails (shows "unknown")
-
-**Symptom:** Packaged schema is named `<provider>-unknown.json.gz`
-
-**Cause:** `.terraform.lock.hcl` doesn't exist or doesn't contain the provider version.
-
-**Fix:**
-1. Ensure `terraform init` ran successfully
-2. Check that `.terraform.lock.hcl` exists in `terraform_providers/<provider>/`
-3. Verify the lock file contains the provider entry
-
-### No resource types registered
-
-**Symptom:** Provider schema loads but 0 resource types are registered.
-
-**Cause:** Provider has no resources, only data sources (e.g., `http`, `external`).
-
-**Fix:** This is expected for some utility providers. Data sources are not extracted as relationship evidence.
-
-### Template provider fails to initialize
-
-**Symptom:** `terraform init` fails for the `hashicorp/template` provider.
-
-**Cause:** The `template` provider is deprecated and archived.
-
-**Fix:** Skip the template provider — it has no active resources and is not needed.
-
-## What Happens Next
-
-Once the schema is committed:
-
-1. **Import-time registration:** When `eshu.relationships.terraform_evidence` is imported, the schema is loaded and extractors are auto-registered
-2. **Indexing:** When Eshu indexes Terraform files, resource blocks matching the new provider's types are extracted
-3. **Relationship resolution:** Extracted identities are matched against repository names/aliases to create cross-repo relationships
-
-No code changes are needed — the schema drives everything.
-
-## Contributing
-
-When contributing a new provider:
-
-1. Ensure the provider is publicly available on the Terraform Registry
-2. Use the latest stable version (avoid pre-release versions)
-3. Include a brief description of the provider in the commit message
-4. Add both the cloud provider list (if applicable) and the partner/community list
-5. Run the full test suite before submitting
-
-See [Contributing](../../contributing.md) for general contribution guidelines.
+| Symptom | Check |
+| --- | --- |
+| `schemas/<provider>.json` is empty or invalid | Run `terraform init` and `terraform providers schema -json` manually in `terraform_providers/<provider>/`. |
+| Packaged file ends in `unknown.json.gz` | Confirm `.terraform.lock.hcl` exists and contains a resolved provider version. |
+| No resource types register | The provider may expose only data sources. Relationship evidence is registered from resource schemas. |
+| A known resource stays `infrastructure` | Add the longest stable service prefix to `serviceCategories` and test it. |

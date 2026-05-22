@@ -1,50 +1,39 @@
-# Helm runtime values
+# Helm Runtime Values
 
-Use this page for schema bootstrap, runtime environment overrides, reducer
-lanes, and repository sync. The chart source is `deploy/helm/eshu`.
+Use this page as the operator map for schema bootstrap, runtime env, reducer
+lanes, and repository sync. The chart contract lives in `deploy/helm/eshu`.
 
 ## Schema bootstrap
 
-The chart renders one `schema-bootstrap` `Job` when
-`schemaBootstrap.enabled=true`. The job runs
-`/usr/local/bin/eshu-bootstrap-data-plane` and owns Postgres plus graph schema
-setup for the release. Runtime pods then start without revalidating graph
-schema in parallel.
+`schemaBootstrap.enabled=true` renders one `Job` named
+`<release>-eshu-schema-bootstrap`. The job runs
+`/usr/local/bin/eshu-bootstrap-data-plane` and applies Postgres plus graph
+schema before runtime pods start when Helm hooks are enabled.
 
-| Value | Default | Purpose |
+| Value | Default | Operator note |
 | --- | --- | --- |
-| `schemaBootstrap.enabled` | `true` | Render the schema bootstrap `Job`. |
-| `schemaBootstrap.useHelmHooks` | `true` | Add Helm `pre-install,pre-upgrade` hook annotations. |
-| `schemaBootstrap.backoffLimit` | `1` | Retry budget for the job. |
+| `schemaBootstrap.enabled` | `true` | Renders the schema bootstrap Job. |
+| `schemaBootstrap.useHelmHooks` | `true` | Adds `pre-install,pre-upgrade` Helm hook annotations. |
+| `schemaBootstrap.backoffLimit` | `1` | Job retry budget. |
 | `schemaBootstrap.activeDeadlineSeconds` | `600` | Upper bound for one job attempt. |
 | `schemaBootstrap.ttlSecondsAfterFinished` | `86400` | Cleanup window for non-hook job history. |
-| `schemaBootstrap.serviceAccountName` | empty | Optional ServiceAccount for the bootstrap job. |
-| `schemaBootstrap.resources` | `{}` | Resource requests and limits for the job. |
+| `schemaBootstrap.serviceAccountName` | empty | Optional bootstrap ServiceAccount. |
+| `schemaBootstrap.annotations` | `{}` | Extra Job annotations. |
+| `schemaBootstrap.podAnnotations` | `{}` | Extra pod annotations merged after global `podAnnotations`. |
+| `schemaBootstrap.resources` | `100m/128Mi` request, `1000m/1Gi` limit | Job container resources. |
 
-By default Helm waits for the hook before continuing the release, and Argo CD
-maps Helm hooks to its `PreSync` flow. Existing Postgres, graph, and credential
-dependencies must exist before the hook runs.
+Do not combine `schemaBootstrap.useHelmHooks=true` with
+`nornicdb.enabled=true`. Helm pre-install hooks run before normal chart
+resources exist, so the bundled NornicDB Service and Deployment are not ready
+for the hook. Deploy NornicDB outside the release first, or set
+`schemaBootstrap.useHelmHooks=false` and provide ordering outside the chart.
 
-Do not combine `schemaBootstrap.useHelmHooks=true` with chart-managed NornicDB
-(`nornicdb.enabled=true`). Helm pre-install hooks run before normal chart
-resources are created, so the in-chart NornicDB Service and Deployment do not
-exist yet. Deploy NornicDB separately first, point `neo4j.uri` at an existing
-backend, or set `schemaBootstrap.useHelmHooks=false` and provide ordering
-outside this chart.
-
-When `schemaBootstrap.useHelmHooks=false`, the job is a normal chart resource.
-Helm and Argo CD will not wait for it before creating API, MCP, ingester,
-collector, or reducer workloads unless the caller supplies ordering outside the
-chart, such as a split release or explicit GitOps sync wave.
-
-For upgrades from older deployments where graph schema objects already exist
-but the Postgres `graph_schema_applications` marker is empty, the NornicDB
-bootstrap path automatically inspects existing constraints and indexes. When
-all expected schema object names are present it records the current
-backend/schema fingerprint and skips the live DDL pass. Brand-new installs still
-create the schema normally because the inspection finds missing objects and
-falls through to DDL. Set `env.ESHU_GRAPH_SCHEMA_ADOPT_EXISTING: "false"` only
-when an operator intentionally wants to bypass adoption and force live DDL.
+For retained NornicDB graphs where graph schema objects already exist but the
+Postgres `graph_schema_applications` marker is empty, bootstrap automatically
+inspects existing constraints and indexes, records the compatible schema
+fingerprint, and skips live DDL. Brand-new installs still create schema because
+inspection finds missing objects. Set
+`env.ESHU_GRAPH_SCHEMA_ADOPT_EXISTING: "false"` only to force live DDL.
 
 ```yaml
 schemaBootstrap:
@@ -68,24 +57,36 @@ Observability Evidence: bootstrap logs emit `bootstrap.schema.started`,
 `runtime.startup.failed`; Kubernetes also exposes bounded rollout state through
 `activeDeadlineSeconds`, `backoffLimit`, and Job success/failure status.
 
-## Runtime environment and connection tuning
+## Runtime env and connection tuning
 
-The chart renders global `env` first and workload-specific `env` second. Use
-that merge order to set shared defaults globally and override only the workload
-that needs a different value.
+The chart renders global `env` first and workload-specific `env` second where
+the workload has its own env block. Use global values for shared runtime
+defaults and workload values for deliberate overrides.
 
 | Block | Applies to |
 | --- | --- |
-| `env` | API, MCP, ingester, reducer, workflow coordinator, and collectors. |
+| `env` | API, MCP, ingester, reducer, workflow coordinator, schema bootstrap, and collectors. |
 | `api.env` | API only. |
-| `mcpServer.env` | MCP only. |
+| `mcpServer.env` | MCP server only. |
 | `ingester.env` | Ingester only. |
-| `resolutionEngine.env` | Reducer only unless a lane overrides it. |
+| `resolutionEngine.env` | Reducer only when no lanes are configured. |
+| `resolutionEngine.lanes[].env` | One reducer lane. |
 | `workflowCoordinator.env` | Workflow coordinator only. |
 
-Connection tuning follows the same pattern. Each runtime can tune Postgres pool
-values and Bolt driver values through `connectionTuning.postgres` and
-`connectionTuning.neo4j`.
+Connection tuning maps to env vars only when values are non-empty.
+
+| Tuning block | Env prefix |
+| --- | --- |
+| `connectionTuning.postgres.maxOpenConns` | `ESHU_POSTGRES_MAX_OPEN_CONNS` |
+| `connectionTuning.postgres.maxIdleConns` | `ESHU_POSTGRES_MAX_IDLE_CONNS` |
+| `connectionTuning.postgres.connMaxLifetime` | `ESHU_POSTGRES_CONN_MAX_LIFETIME` |
+| `connectionTuning.postgres.connMaxIdleTime` | `ESHU_POSTGRES_CONN_MAX_IDLE_TIME` |
+| `connectionTuning.postgres.pingTimeout` | `ESHU_POSTGRES_PING_TIMEOUT` |
+| `connectionTuning.neo4j.maxConnectionPoolSize` | `ESHU_NEO4J_MAX_CONNECTION_POOL_SIZE` |
+| `connectionTuning.neo4j.maxConnectionLifetime` | `ESHU_NEO4J_MAX_CONNECTION_LIFETIME` |
+| `connectionTuning.neo4j.connectionAcquisitionTimeout` | `ESHU_NEO4J_CONNECTION_ACQUISITION_TIMEOUT` |
+| `connectionTuning.neo4j.socketConnectTimeout` | `ESHU_NEO4J_SOCKET_CONNECT_TIMEOUT` |
+| `connectionTuning.neo4j.verifyTimeout` | `ESHU_NEO4J_VERIFY_TIMEOUT` |
 
 ```yaml
 env:
@@ -109,12 +110,10 @@ resolutionEngine:
 
 ## Resolution engine lanes
 
-By default Helm renders one `resolution-engine` `Deployment` that can claim all
-reducer domains. Set `resolutionEngine.lanes` when a cluster needs separate
-scaling lanes for different reducer domains. When lanes are configured, the
-chart does not render the undifferentiated deployment; it renders one
-deployment and metrics service per lane and sets `ESHU_REDUCER_CLAIM_DOMAINS`
-inside each pod.
+By default Helm renders one resolution-engine Deployment that can claim all
+reducer domains. Set `resolutionEngine.lanes` to render one Deployment and
+metrics Service per lane. Each lane receives `ESHU_REDUCER_CLAIM_DOMAINS` with
+the comma-separated lane domain list.
 
 ```yaml
 resolutionEngine:
@@ -136,15 +135,20 @@ resolutionEngine:
       replicas: 2
 ```
 
-Use lanes to keep optional collector domains optional. For example, a cluster
-that runs only Git and Terraform can omit AWS, OCI, Package Registry, and
-Confluence lanes without leaving an all-domain reducer competing for that work.
-The queue still enforces conflict keys and lease ownership; lanes only bound
-which domains a reducer replica can claim.
+| Lane value | Rule |
+| --- | --- |
+| `name` | Required; must be a Kubernetes label-safe lowercase name. |
+| `domains` | Required; at least one reducer domain. |
+| `replicas` | Optional; falls back to `resolutionEngine.replicas`. |
+| `env` | Optional; merged after global `env`. |
+| `connectionTuning` | Optional; falls back to `resolutionEngine.connectionTuning`. |
+| `resources` | Optional; falls back to `resolutionEngine.resources`. |
 
 Do not set global `env.ESHU_REDUCER_CLAIM_DOMAIN` or
 `env.ESHU_REDUCER_CLAIM_DOMAINS` when `resolutionEngine.lanes` is non-empty.
 The chart rejects that combination because each lane owns its domain allowlist.
+Lanes bound which domains each reducer can claim; queue conflict keys and lease
+ownership still control correctness.
 
 Performance Impact Declaration: this changes reducer queue claims from one
 optional domain equality to an optional `ANY(text[])` allowlist. The affected
@@ -171,18 +175,24 @@ not a durable data-domain attribute.
 
 `repoSync` controls how the ingester discovers repositories.
 
-| Value | Default | Purpose |
+| Value | Default | Operator note |
 | --- | --- | --- |
-| `repoSync.enabled` | `true` | Enable the recurring repo-sync loop. |
-| `repoSync.bootstrap` | `true` | Run an initial sync at startup. |
+| `repoSync.enabled` | `true` | Enables the recurring sync loop and ingester workload. |
+| `repoSync.bootstrap` | `true` | Runs an initial sync at startup. |
+| `repoSync.initialDelaySeconds` | `0` | Delay before recurring sync starts. |
 | `repoSync.intervalSeconds` | `900` | Recurring sync interval. |
-| `repoSync.auth.method` | `githubApp` | Auth mode: `githubApp`, `token`, `ssh`, or `none`. |
-| `repoSync.source.mode` | `githubOrg` | Source mode: `githubOrg`, `explicit`, or `filesystem`. |
+| `repoSync.source.mode` | `githubOrg` | `githubOrg`, `explicit`, or `filesystem`. |
+| `repoSync.source.githubOrg` | `eshu-hq` | GitHub organization for `githubOrg` mode. |
+| `repoSync.source.repositories` | `[]` | Explicit repository list. |
 | `repoSync.source.rules` | `[]` | Exact or regex repository filters. |
+| `repoSync.source.filesystemRoot` | `/fixtures` | Filesystem source root. |
+| `repoSync.source.cloneDepth` | `1` | Git clone depth. |
+| `repoSync.source.limit` | `4000` | Repository discovery limit. |
+| `repoSync.auth.method` | `githubApp` | `githubApp`, `token`, `ssh`, or `none`. |
 
-`repoSync.source.rules` is rendered to `ESHU_REPOSITORY_RULES_JSON`. Use
-`type: exact` or `type: regex` with a `value` field so the chart schema can
-validate the value before install.
+`repoSync.source.rules` renders to `ESHU_REPOSITORY_RULES_JSON`. The chart
+rejects `repoSync.auth.method=ssh` with `repoSync.source.mode=githubOrg`; use
+`explicit` or `filesystem` for SSH-based sync paths.
 
 ```yaml
 repoSync:
@@ -193,7 +203,3 @@ repoSync:
       - type: regex
         value: myorg/platform-.*
 ```
-
-The chart rejects `repoSync.auth.method=ssh` with
-`repoSync.source.mode=githubOrg`; use `explicit` or `filesystem` for SSH-based
-sync paths.
