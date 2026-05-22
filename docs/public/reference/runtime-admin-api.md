@@ -1,88 +1,57 @@
 # Runtime Admin API
 
-Use this page when you need the operator-facing HTTP contract for the
-long-running Go runtimes rather than the public `/api/v0` query API.
+Use this page for the service-local HTTP surface mounted by long-running Go
+runtimes. This is separate from the public `/api/v0` query API and separate
+from public API admin routes under `/api/v0/admin/*`.
 
-## Contract Split
-
-Eshu currently has two HTTP contract families:
-
-- Public query API:
-  served by the Go API runtime and published at `/api/v0/openapi.json`
-- Public API admin routes:
-  served by the same API runtime under `/api/v0/admin/*`
-- Runtime admin API:
-  a separate mounted runtime surface for probes and operator status
-
-The runtime admin API is intentionally **not** part of the public `/api/v0`
-OpenAPI document because it is served by individual long-running runtimes such
-as the ingester, projector, and reducer processes.
-
-The checked-in OpenAPI contract for that runtime surface lives at:
-
-`docs/openapi/runtime-admin-v1.yaml`
-
-The runtime admin API is distinct from the public API admin routes. The public
-API exposes the `/api/v0/admin/*` control and inspection surface in
-`/api/v0/openapi.json`, while this page covers the service-local `/admin/*`
-endpoints mounted by a long-running runtime itself.
+The checked-in OpenAPI contract for this surface is
+`docs/openapi/runtime-admin-v1.yaml`. The Go implementation lives in
+`go/internal/runtime` and `go/internal/status`.
 
 ## Mounted Endpoints
 
-Every runtime that mounts the shared admin surface exposes:
+Every runtime that uses the shared admin mux exposes:
 
-- `GET` and `HEAD` `/healthz`
-- `GET` and `HEAD` `/readyz`
-- `GET` and `HEAD` `/admin/status`
+- `GET` and `HEAD /healthz`
+- `GET` and `HEAD /readyz`
 
-When the runtime also mounts a metrics handler, it exposes:
+When configured with a status handler, it exposes:
 
-- `GET` and `HEAD` `/metrics`
+- `GET` and `HEAD /admin/status`
 
-Runtimes that mount the Go recovery handler also expose:
+When configured with a metrics handler, it exposes:
 
-- `POST` `/admin/replay`
-- `POST` `/admin/refinalize`
+- `GET` and `HEAD /metrics`
 
-Current runtime shape:
+When configured with the recovery handler, it exposes:
 
-- API: shared probes, status, and metrics
-- MCP server: shared probes, status, and metrics
-- Ingester: shared probes, status, metrics, plus recovery routes
-- Reducer: shared probes, status, and metrics
-- Claim-driven collectors such as `collector-terraform-state`,
-  `collector-aws-cloud`, and `collector-package-registry`: shared probes,
-  status, and metrics
+- `POST /admin/replay`
+- `POST /admin/refinalize`
 
-The shared runtime metrics families are documented in
-[Telemetry Metrics](telemetry/metrics.md).
+Unsupported verbs return `405 Method Not Allowed` with `Allow: GET, HEAD` for
+probe and status endpoints, or `Allow: POST` for recovery endpoints.
 
-When AWS tag normalization is enabled, `/admin/status` also reports the tag
-taxonomy learning-loop summary described in [Tag Taxonomy](tag-taxonomy.md):
-canonical-key coverage, unknown tag keys, applied aliases, disabled aliases,
-and missing expected tags after source readiness.
+## Current Runtime Shape
 
-Unsupported verbs return `405 Method Not Allowed` with an `Allow` header
-listing the methods supported by that endpoint. For GET/HEAD-only endpoints
-(`/healthz`, `/readyz`, `/admin/status`), the header is `Allow: GET, HEAD`.
-When recovery routes are mounted, `/admin/replay` and `/admin/refinalize`
-return `Allow: POST` for all non-`POST` requests.
+The shared admin surface is used by long-running runtimes such as API, MCP
+server, ingester, reducer, and claim-driven collectors. `bootstrap-index` is a
+one-shot helper and does not mount this runtime-local admin surface.
 
-If you need the public API admin surface instead of the runtime-local one, use
-the `/api/v0/openapi.json` contract for:
+The public API admin surface remains under `/api/v0/admin/*` and is described
+by `/api/v0/openapi.json`, not by this page.
 
-- `POST /api/v0/admin/refinalize`
-- `POST /api/v0/admin/reindex`
-- `GET /api/v0/admin/shared-projection/tuning-report`
-- `POST /api/v0/admin/replay`
-- `POST /api/v0/admin/dead-letter`
-- `POST /api/v0/admin/skip`
-- `POST /api/v0/admin/backfill`
-- `POST /api/v0/admin/work-items/query`
-- `POST /api/v0/admin/decisions/query`
-- `POST /api/v0/admin/replay-events/query`
+## Probe Responses
 
-## Response Shape
+`/healthz` and `/readyz` return text:
+
+```text
+service=<service> probe=<healthz|readyz> status=ok
+```
+
+Failed checks return HTTP 503 with `status=error` and the check error in the
+body. `HEAD` returns only headers and status.
+
+## Status Response
 
 `/admin/status` supports:
 
@@ -90,19 +59,24 @@ the `/api/v0/openapi.json` contract for:
 - `format=json`
 - `Accept: application/json` when `format` is omitted
 
-`HEAD /admin/status` follows the same format-selection rules as `GET`, but it
-returns headers and status code only.
+`HEAD /admin/status` follows the same format-selection rules and returns no
+body.
 
-The JSON response follows the shared status report shape from
-`go/internal/status/`:
+The JSON report is rendered by `go/internal/status.RenderJSON` and may include:
 
+- `version`
 - `as_of`
 - `health`
+- `coordinator`
 - `flow`
 - `queue`
-  The queue payload distinguishes `dead_letter` rows from `failed` rows when
-  both appear in the same snapshot.
+- `latest_failure`
 - `retry_policies`
+- `registry_collectors`
+- `aws_cloud_scans`
+- `aws_freshness`
+- `aws_cloud_scans_truncated`
+- `aws_cloud_scan_limit`
 - `scope_activity`
 - `generation_history`
 - `generation_transitions`
@@ -111,84 +85,35 @@ The JSON response follows the shared status report shape from
 - `stages`
 - `domains`
 - `queue_blockages`
-- `tag_taxonomy`
-- `aws_cloud_scans`
-- `aws_cloud_scans_truncated`
-- `aws_cloud_scan_limit`
+- `terraform_state`
 
-`tag_taxonomy` appears when AWS tag normalization is enabled. It includes the
-first-party and override alias packs in use, canonical-key coverage, unknown
-tag keys, applied aliases, disabled aliases, and missing expected tags after
-source readiness. The tag taxonomy contract lives in
-[Tag Taxonomy](tag-taxonomy.md).
+Queue and domain age fields include both human-readable duration strings and
+seconds values, such as `oldest_outstanding_age_seconds` and
+`oldest_age_seconds`.
 
-`aws_cloud_scans` appears when AWS cloud scanner status rows exist. Each row is
-keyed by collector instance, account, region, and service kind, and includes
-scanner status, commit status, API call count, throttle count, warning count,
-resource count, relationship count, tag-observation count, budget-exhausted
-state, credential-failed state, and last-started/observed/completed timestamps.
-When the row cap is reached, `aws_cloud_scans_truncated` is `true` and
-`aws_cloud_scan_limit` reports the cap used for the response. The operator
-runbook lives in [AWS Cloud Collector](../services/collector-aws-cloud.md).
+## Recovery Routes
 
-Queue entries include both a duration string and seconds value:
+`POST /admin/replay` replays failed projector or reducer work through the Go
+recovery handler. The request accepts `stage`, `scope_ids`, `failure_class`,
+and `limit`. The response includes `status`, `stage`, `replayed`, and
+`work_item_ids`.
 
-- `oldest_outstanding_age`
-- `oldest_outstanding_age_seconds`
+`POST /admin/refinalize` re-enqueues projector work for `scope_ids`. The
+response includes `status`, `enqueued`, and `scope_ids`.
 
-Domain entries include both a duration string and seconds value:
+Recovery routes are mounted only when the runtime is explicitly configured
+with `WithRecoveryHandler`.
 
-- `in_flight`
-- `oldest_age`
-- `oldest_age_seconds`
+## Ownership
 
-For shared projection domains, `in_flight` counts active partition leases. A
-large domain backlog with a non-zero `in_flight` value means reducer-owned graph
-edges are still being written, so status remains `progressing` instead of
-`stalled`.
+New runtimes should reuse the shared mux instead of creating bespoke probes or
+status endpoints:
 
-`queue_blockages` entries are present when reducer work is visible and
-claimable except for an active coordination gate on the same conflict domain.
-They include:
+- `go/internal/runtime/admin.go`
+- `go/internal/runtime/status_server.go`
+- `go/internal/runtime/http_server.go`
+- `go/internal/runtime/recovery_handler.go`
+- `go/internal/status/http.go`
+- `go/internal/status/json.go`
 
-- `stage`
-- `domain`
-- `conflict_domain`
-- `conflict_key`
-- `blocked`
-- `oldest_age`
-- `oldest_age_seconds`
-
-Retry policy entries include:
-
-- `stage`
-- `max_attempts`
-- `retry_delay`
-- `retry_delay_seconds`
-
-Generation transition entries include:
-
-- `scope_id`
-- `generation_id`
-- `status`
-- `trigger_kind`
-- `freshness_hint`
-- `observed_at`
-- `activated_at`
-- `superseded_at`
-- `current_active_generation_id`
-
-## Runtime Ownership
-
-The shared mounted runtime admin surface is implemented through:
-
-- `go/internal/status/http.go` for report rendering
-- `go/internal/runtime/admin.go` for the shared probe/admin mux
-- `go/internal/runtime/status_server.go` for mounted status-server wiring
-- `go/internal/runtime/http_server.go` for lifecycle-owned HTTP serving
-- `go/internal/runtime/recovery_handler.go` for optional recovery mounts
-
-That means new runtimes should not build bespoke probe or status endpoints.
-They should reuse the shared mounted contract and only provide the service-
-specific backing reader, metrics handler, and optional recovery handler. The Go
-runtime is the source of truth for mounted recovery and status behavior today.
+Runtime metrics are documented in [Telemetry Metrics](telemetry/metrics.md).

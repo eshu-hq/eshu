@@ -60,12 +60,14 @@ Generated from `git diff --name-status origin/main -- "*.md"` for this documenta
 - `docs/public/reference/local-testing/remote-collector-e2e.md`
 - `docs/public/reference/local-testing/verification-gates.md`
 - `docs/public/reference/mcp-cookbook.md`
+- `docs/public/reference/mcp-reference.md`
 - `docs/public/reference/nornicdb-pitfalls.md`
 - `docs/public/reference/nornicdb-tuning-evidence.md`
 - `docs/public/reference/nornicdb-tuning.md`
 - `docs/public/reference/relationship-mapping-evidence.md`
 - `docs/public/reference/relationship-mapping-runtime-stories.md`
 - `docs/public/reference/relationship-mapping.md`
+- `docs/public/reference/runtime-admin-api.md`
 - `docs/public/reference/service-workflows.md`
 - `docs/public/reference/telemetry/cross-service-correlation.md`
 - `docs/public/reference/telemetry/index.md`

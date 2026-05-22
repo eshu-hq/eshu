@@ -1,215 +1,89 @@
-# MCP Reference & Natural Language Queries
+# MCP Reference
 
-This page lists all available **MCP Tools** that your AI assistant (Cursor, Claude, VS Code) can use.
+The MCP server exposes read-only tools over stdio and HTTP/SSE. Tool dispatch
+routes into the same `internal/query` HTTP handlers used by the API, so MCP and
+HTTP share authorization passthrough, truth envelopes, pagination, and backend
+behavior.
 
-When you ask a question in natural language, the AI selects one of these tools behind the scenes.
+The code source of truth is `go/internal/mcp`: `ReadOnlyTools` registers tool
+definitions, `resolveRoute` maps tool names to HTTP routes, and dispatch tests
+prove every registered tool has a route.
 
-For the bounded-call, envelope, pagination, and diagnostics-only contract for
-each tool, see the [MCP Tool Contract Matrix](mcp-tool-contract-matrix.md).
-For the current prompt-family audit and remaining prompt coverage gaps, see
-the [MCP Prompt Surface Audit](mcp-prompt-surface-audit.md).
+For per-tool bounds, required fields, envelopes, and prompt-readiness notes, use
+[MCP Tool Contract Matrix](mcp-tool-contract-matrix.md). This page is the public
+tool index, not a second copy of every schema.
 
-For documentation-oriented answers, use a simple orchestration rule:
+## Call Rules
 
-- start with story or context when the user wants explanation, onboarding, support guidance, or deployment narrative
-- use content reads and content search after the story identifies the exact artifacts worth citing
-- keep all file-shaped answers portable through `repo_id + relative_path` or `entity_id`
-- when the answer spans multiple repos, tell Eshu to scan all related repositories, deployment sources, and indexed documentation first
+- Prefer canonical IDs at the tool boundary when the tool supports them.
+- Use repository selectors only as compatibility aliases; portable file answers
+  should use `repo_id + relative_path`.
+- Use story, investigation, or search tools first, then hydrate exact evidence
+  with content or citation tools.
+- Treat `execute_cypher_query` as diagnostics-only. Prefer named tools for user
+  prompts.
+- Inspect the embedded `application/eshu.envelope+json` resource when a tool
+  returns one; human text is only a summary.
 
-Repository-bearing results may include `repo_access` metadata. If Eshu is running remotely, treat repository identity as remote-first and use `repo_id`, `repo_slug`, and repo-relative paths before assuming any `local_path` exists on the user's machine.
+## Tool Families
 
-Canonical-first query behavior now has one explicit rule:
+`go/internal/mcp/README.md` records the current registry count. The public tool
+families are:
 
-- prefer canonical IDs at the tool boundary whenever the tool supports them
-- treat name-based repository lookup as a supported compatibility alias, not the canonical contract
-- use inspection-style tools when the caller wants evidence widening and coverage reporting, not a second truth model
-- inspection results may report `complete`, `partial`, or `unknown` coverage based on indexed evidence; they should not imply certainty the graph does not have
+| Family | Tools |
+| --- | --- |
+| Code search and analysis | `find_code`, `find_symbol`, `inspect_code_inventory`, `investigate_import_dependencies`, `inspect_call_graph_metrics`, `investigate_code_topic`, `investigate_hardcoded_secrets`, `get_code_relationship_story`, `analyze_code_relationships`, `find_dead_code`, `investigate_dead_code`, `calculate_cyclomatic_complexity`, `find_most_complex_functions`, `inspect_code_quality`, `execute_language_query`, `find_function_call_chain` |
+| IaC and cloud management | `find_dead_iac`, `find_unmanaged_resources`, `get_iac_management_status`, `explain_iac_management_status`, `propose_terraform_import_plan`, `list_aws_runtime_drift_findings` |
+| Infrastructure and impact | `get_ecosystem_overview`, `trace_deployment_chain`, `investigate_deployment_config`, `find_blast_radius`, `find_infra_resources`, `investigate_resource`, `analyze_infra_relationships`, `trace_resource_to_code`, `explain_dependency_path`, `find_change_surface`, `investigate_change_surface`, `compare_environments` |
+| Repository and relationship drilldowns | `get_repo_summary`, `get_repo_context`, `get_repo_story`, `get_repository_coverage`, `get_relationship_evidence`, `search_registry_bundles` |
+| Context and stories | `resolve_entity`, `get_entity_context`, `get_workload_context`, `get_workload_story`, `get_service_context`, `get_service_story`, `investigate_service` |
+| Content and citations | `get_file_content`, `get_file_lines`, `get_entity_content`, `build_evidence_citation_packet`, `search_file_content`, `search_entity_content` |
+| Package registry | `list_package_registry_packages`, `list_package_registry_versions`, `list_package_registry_dependencies`, `list_package_registry_correlations` |
+| CI/CD and supply chain | `list_ci_cd_run_correlations`, `list_supply_chain_impact_findings`, `list_sbom_attestation_attachments` |
+| Documentation truth | `list_documentation_findings`, `list_documentation_facts`, `get_documentation_evidence_packet`, `check_documentation_evidence_packet_freshness` |
+| Runtime status | `list_ingesters`, `get_ingester_status`, `get_index_status` |
+| Diagnostics | `execute_cypher_query`, `visualize_graph_query` |
 
-Content-oriented tools use the same rule:
+## Content And Repository Identity
 
-- file lookup uses `repo_id + relative_path`
-- entity lookup uses `entity_id`
-- deployed MCP/API runtimes prefer the PostgreSQL content store and report `unavailable` when a row is not yet indexed
-- local helper flows may use workspace or graph-cache fallbacks when the content store is not the answering backend
-- file and entity read responses include `source_backend` so the client can see whether Eshu answered from `postgres`, `workspace`, `graph-cache`, or `unavailable`
-- content search tools require the PostgreSQL content store and return an error when it is disabled
-- `repo_access` prompting is only for workflows that truly need the user's local machine
+Repository-bearing results may include `repo_access` metadata. Remote runtimes
+should treat repository identity as remote-first: use `repo_id`, `repo_slug`,
+and repo-relative paths before assuming a server-local `local_path` is useful
+to the caller.
 
-Prompt-suite and docs examples should stay portable too:
+Content tools use these portable handles:
 
-- use `repo_id + relative_path` for file-shaped answers
-- prefer structured query tools before `execute_cypher_query`
-- treat raw Cypher as a manual diagnostic tool, not a fallback path for prompt coverage
-- avoid teaching prompt tests to depend on server-local filesystem paths
+- file lookup: `repo_id + relative_path`
+- entity lookup: `entity_id`
+- evidence hydration: file or entity handles returned by story, investigation,
+  search, or drilldown tools
 
-!!! tip "File Exclusion"
-    You can control what gets indexed using `.eshuignore`.
-    [**📄 Read the Guide**](eshuignore.md)
+Deployed MCP/API runtimes use the PostgreSQL content store for content reads and
+search. Local helper flows may report workspace or graph-cache fallbacks when
+those are the answering backend.
 
-## Core Analysis Tools
+## MCP Result Shape
 
-These are the most commonly used tools for understanding code.
+When the underlying HTTP route returns the canonical Eshu envelope, MCP returns
+a text summary plus a resource content block:
 
-| Tool Name | Description | Natural Language Example |
-| :--- | :--- | :--- |
-| **`find_code`** | Search for code by name or fuzzy text. | "Where is the `User` class defined?" |
-| **`find_symbol`** | Find exact or fuzzy symbol definitions with `source_handle`, `truncated`, and `ambiguity` metadata. | "Where is `process_payment` implemented?" |
-| **`inspect_code_inventory`** | List bounded structural inventory from the content index: functions, classes, top-level Function/Class elements, dataclasses, documented functions, decorated methods, class-method matches, `super()` calls, and function counts per file. Requires at least one of `repo_id`, `file_path`, `language`, `entity_kind`, or `symbol`. | "Find all dataclasses in this repo." |
-| **`investigate_import_dependencies`** | Investigate imports by file, importers, package imports, direct Python file import cycles, and cross-module calls with scope anchors, source handles, paging, and truncation metadata. Requires at least one of `repo_id`, `source_file`, `target_file`, `source_module`, or `target_module`. Returns one canonical row key by query type: `dependencies`, `modules`, `cycles`, or `cross_module_calls`. | "What modules does `src/module_a.py` import?" |
-| **`inspect_call_graph_metrics`** | Inspect recursive functions and hub functions with a required `repo_id`, optional `language`, `limit`, `offset`, source handles, hub call-degree counts, recursion evidence, and truncation metadata. Returns canonical `functions` rows. | "Find recursive functions in this repo." |
-| **`investigate_code_topic`** | Investigate broad behavior or implementation topics with ranked files, symbols, coverage, truncation, and exact next-call handles. | "Find the code paths responsible for repo sync authentication." |
-| **`get_code_relationship_story`** | Resolve one symbol or entity id, return ambiguity candidates, then fetch bounded callers, callees, imports, or transitive CALLS edges with truncation metadata. | "Who calls `process_payment`, and show me if the name is ambiguous." |
-| **`analyze_code_relationships`** | Bounded relationship analysis for callers, callees, imports, class hierarchy, and overrides. | "Show methods and subclasses for `Base`, then list overridden methods." |
-| **`calculate_cyclomatic_complexity`** | Measure function complexity. | "What is the complexity of `main`?" |
-| **`find_most_complex_functions`** | List the hardest-to-maintain functions. | "Show me the 5 most complex functions." |
-| **`inspect_code_quality`** | Inspect complexity, function length, argument count, and refactoring candidates with source handles, paging, and truncation. | "Find functions with more than 20 lines or more than 5 arguments." |
-| **`find_dead_code`** | Identify derived dead-code candidates, optionally scoped by `repo_id` as a canonical ID, repository name, repo slug, or indexed path, with optional `limit`, default entrypoint, direct Go Cobra/stdlib-HTTP/controller-runtime signature, Go public-API, test, and generated-code exclusions, optional decorator-owned entry-point exclusions, and a `truncated` signal when the bounded result window is cut off. | "Find dead code in this repo, but ignore `@route`." |
-| **`investigate_dead_code`** | Return a prompt-ready dead-code investigation packet with coverage, language maturity, exactness blockers, cleanup-ready/ambiguous/suppressed buckets, source handles, and recommended next calls. JavaScript and TypeScript candidates stay ambiguous until corpus precision is proven. | "What code is dead in `api-gateway`, and what is safe versus ambiguous?" |
-| **`investigate_hardcoded_secrets`** | Return redacted hardcoded password, API key, token, private-key, and risky-literal candidates from indexed content with suppression notes, source handles, paging, and truncation coverage. | "Find potential hardcoded passwords, API keys, or secrets." |
+```json
+{
+  "type": "resource",
+  "resource": {
+    "uri": "eshu://tool-result/envelope",
+    "mimeType": "application/eshu.envelope+json",
+    "text": "{\"data\":{},\"truth\":{},\"error\":null}"
+  }
+}
+```
 
-## Story & Context
+Clients should read the resource block for `truth.level`,
+`truth.capability`, `truth.profile`, `truth.freshness.state`, and `error`.
 
-Use these tools when the user is asking for a narrative answer such as
-"Internet to cloud to code" or "tell me everything about this service."
+## Related Docs
 
-| Tool Name | Description | Natural Language Example |
-| :--- | :--- | :--- |
-| **`get_repo_story`** | Return a structured repository story with `subject`, `story`, `story_sections`, optional `semantic_overview`, evidence-oriented overviews, limitations, coverage, and drill-down handles. Accepts a repository selector: canonical ID, name, repo slug, or indexed path. | "Tell me the end-to-end story for payments-api." |
-| **`get_workload_story`** | Return a narrative workload story using canonical workload identity, optionally scoped to one environment. Use `trace_deployment_chain` when you need the richer deployment-mapping fields such as `controller_overview` or `deployment_fact_summary`. | "Show me how payments-api is deployed in prod." |
-| **`get_service_story`** | Return the one-call service dossier for service-shaped prompts, including identity, API surface, deployment lanes, upstream dependencies, downstream consumers, evidence graph, bounded counts, and drill-down handles. | "What can you tell me about payments-api in QA?" |
-| **`investigate_service`** | Return the service investigation packet for coverage-first prompts, including repositories considered, repositories with evidence, evidence families found, coverage summary, findings, and recommended next calls. | "Scan the related repos and docs for payments-api before you explain it." |
-| **`investigate_deployment_config`** | Return a bounded service deployment configuration story with influencing repositories, values layers, image tag sources, runtime setting sources, resource limit sources, rendered targets, read-first file handles, and truncation coverage. | "Which repos and files influence the image tag and resource limits for payments-api in prod?" |
-| **`investigate_resource`** | Resolve a queue, database, cloud resource, Terraform resource, or Kubernetes object into a bounded packet with ambiguity candidates, workload users, repository provenance paths, source handles, limitations, and next calls. | "Which workloads use this database, and what provisions it?" |
-| **`resolve_entity`** | Resolve fuzzy input into canonical entities before story or context calls, with an optional repository selector filter. | "What canonical entity matches `payments prod rds`?" |
-| **`get_entity_context`** | Fetch full context for one canonical entity id. | "Show me the context for this resolved entity." |
-| **`get_repo_context`** | Durable drill-down for repository details after the story answer. Accepts a repository selector: canonical ID, name, repo slug, or indexed path. | "Show me the full repo context behind that story." |
-| **`get_relationship_evidence`** | Durable drill-down for a relationship evidence pointer returned as `resolved_id` in deployment evidence artifacts or evidence indexes. | "Why does this dependency/deployment edge exist?" |
-| **`get_workload_context`** | Durable drill-down for workload details after the story answer. | "Show me the workload context behind that story." |
-| **`get_service_context`** | Service alias drill-down for service-shaped prompts. | "Show me the service context behind that story." |
-
-## Evidence Citations
-
-Use this tool after a story, investigation, search, or relationship drill-down
-has already returned file or entity handles.
-
-| Tool Name | Description | Natural Language Example |
-| :--- | :--- | :--- |
-| **`build_evidence_citation_packet`** | Hydrate bounded file and entity handles into ranked source, documentation, manifest, and deployment citations. Accepts up to 500 input handles using `repo_id + relative_path` file handles or `entity_id` handles, optional line ranges, `evidence_family`, `reason`, and `limit` up to 50. Returns bounded excerpts, missing handles, truncation coverage, and recommended next calls without graph traversal. | "Show me the source and docs evidence behind this explanation." |
-
-`trace_deployment_chain` now exposes the deployment-mapping fields that callers should use for deployment-specific answers:
-
-- `controller_overview`
-- `runtime_overview`
-- `deployment_sources`
-- `cloud_resources`
-- `k8s_resources`
-- `image_refs`
-- `k8s_relationships`
-- `deployment_facts`
-- `controller_driven_paths`
-- `delivery_paths`
-- `deployment_fact_summary`
-
-Use `investigate_deployment_config` when the prompt is about what to edit or
-read first for image tags, runtime settings, resource limits, Helm/Kustomize or
-ArgoCD values layers, and rendered Kubernetes targets. It returns portable
-`repo_id` plus `relative_path` handles instead of file bodies, so callers can
-page into exact snippets with `get_file_lines` only when needed.
-
-Repository and service deployment summaries may also expose grouped delivery-family fields inside
-`deployment_overview`:
-
-- `delivery_family_paths`
-- `delivery_family_story`
-- `delivery_workflows`
-- `shared_config_paths`
-
-When the deployment repos contain ArgoCD controller entities, `controller_overview`
-also includes those concrete controller records under `entities`.
-
-`deployment_facts` are normalized, evidence-backed facts such as:
-
-- `MANAGED_BY_CONTROLLER`
-- `PROVISIONED_BY_IAC`
-- `USES_PACKAGING_LAYER`
-- `DEPLOYS_FROM`
-- `DISCOVERS_CONFIG_IN`
-- `RUNS_ON_PLATFORM`
-- `OBSERVED_IN_ENVIRONMENT`
-- `EXPOSES_ENTRYPOINT`
-- `DELIVERY_PATH_PRESENT`
-
-Within `trace_deployment_chain`, `deployment_fact_summary` is the compact interpretation layer:
-
-- `mapping_mode=controller` means explicit controller evidence was found
-- `mapping_mode=iac` means explicit infrastructure-as-code evidence was found
-- `mapping_mode=evidence_only` means only delivery/runtime evidence was found, and Eshu intentionally avoided guessing a controller family
-- `mapping_mode=none` means the indexed context is too sparse to map deployment evidence truthfully yet
-- `overall_confidence_reason` explains the reason code behind the top-level confidence
-- `fact_thresholds` maps each emitted fact type to a stable threshold code
-- `limitations` uses stable deployment-mapping limitation codes
-
-Current threshold-code examples:
-
-- `explicit_iac_adapter`
-- `explicit_controller_signal`
-- `explicit_packaging_signal`
-- `explicit_automation_signal`
-- `named_deployment_source`
-- `named_config_source`
-- `explicit_platform_match`
-- `explicit_environment_evidence`
-- `named_entrypoint`
-- `delivery_path_present`
-
-This keeps the contract portable across ArgoCD, Flux, Terraform, CloudFormation, plain Kubernetes manifests, ECS, Lambda, and environments that do not use a controller at all.
-
-## Content Retrieval & Search
-
-Tools for portable source retrieval and indexed content search.
-
-Use these after story, context, or `investigate_code_topic` determines which
-files, snippets, or docs matter most.
-
-| Tool Name | Description | Natural Language Example |
-| :--- | :--- | :--- |
-| **`get_file_content`** | Read a file using `repo_id + relative_path`, where `repo_id` may be a canonical ID, repository name, repo slug, or indexed path. | "Show me `src/payments.py` from the payments repo." |
-| **`get_file_lines`** | Read a specific line range from one repo-relative file using the same repository selector contract as `get_file_content`. | "Show me lines 20 to 40 from `src/server.py`." |
-| **`get_entity_content`** | Read source for one content-bearing entity using its canonical `entity_id`. | "Show me the source for this resolved function." |
-| **`search_file_content`** | Search indexed file text through the content store, optionally scoped by repository selectors. | "Find every file that mentions `shared-payments-prod`." |
-| **`search_entity_content`** | Search cached entity snippets through the content store, optionally scoped by repository selectors. | "Find entities whose source mentions `process_payment`." |
-
-## Runtime & Repository Status
-
-Tools for runtime health, completeness, and repository inventory.
-
-| Tool Name | Description | Natural Language Example |
-| :--- | :--- | :--- |
-| **`get_index_status`** | Show the latest checkpointed completeness state. | "Is indexing complete right now?" |
-| **`list_ingesters`** | Show the latest persisted status for all configured ingesters. | "What ingesters are configured and what state are they in?" |
-| **`get_ingester_status`** | Show detailed status for one ingester runtime, including retry timing and repo progress counts. | "What is the repository ingester doing right now?" |
-| **`list_indexed_repositories`** | Show a bounded page of currently indexed projects with `limit`, `offset`, and `truncated`. | "What repos are indexed?" |
-| **`get_repository_stats`** | Show counts of files, classes, and other repository stats, optionally scoped by repository selector. | "Show stats for the backend repo." |
-
-## Bundles & Registry
-
-| Tool Name | Description | Natural Language Example |
-| :--- | :--- | :--- |
-| **`search_registry_bundles`** | Search the bundle catalog view exposed by the query surface. | "Search for a `flask` bundle." |
-
-## Advanced Querying
-
-For complex questions that standard tools can't answer.
-
-| Tool Name | Description | Natural Language Example |
-| :--- | :--- | :--- |
-| **`execute_cypher_query`** | Run a raw read-only database query for diagnostics only after named tools do not cover the question. | "Inspect a bounded diagnostic query." |
-| **`visualize_graph_query`** | Generate a Neo4j Browser link for a query. | "Visualize the class hierarchy of `BaseModel`." |
-
----
-
-## Example Queries (Cookbook)
-
-For a deep dive into exactly how to phrase questions and what JSON arguments look like, check out the Cookbook.
-
-[📖 View the MCP Cookbook](mcp-cookbook.md)
+- [MCP Tool Contract Matrix](mcp-tool-contract-matrix.md)
+- [MCP Guide](../guides/mcp-guide.md)
+- [HTTP API Reference](http-api.md)
+- [Truth Label Protocol](truth-label-protocol.md)

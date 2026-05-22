@@ -1,23 +1,34 @@
 # Truth Label Protocol
 
-The truth label protocol is the wire-level contract for CLI, HTTP API, and MCP
-responses. It tells clients whether a result is authoritative, derived, or an
-explicitly bounded fallback.
+Truth labels are the wire-level authority contract for HTTP API, MCP, and CLI
+responses. They tell clients whether a result is authoritative, derived from
+indexed state, or an explicitly bounded fallback.
+
+The query-response implementation lives in `go/internal/query/contract.go`.
+Reducer materialization layer names live in `go/internal/truth`.
 
 ## Truth Levels
 
 | Level | Meaning |
 | --- | --- |
 | `exact` | Authoritative graph truth or durable semantic truth. |
-| `derived` | Deterministic result computed from indexed entities, content, or structured relational state. |
-| `fallback` | Exploratory result that is useful but not strong enough to claim authority for the requested capability. |
+| `derived` | Deterministic result from indexed entities, content, or structured relational state. |
+| `fallback` | Exploratory result that is useful but not authoritative for the capability. |
 
-High-authority capabilities, such as transitive caller analysis, call-chain
-paths, and dead-code detection, must not silently downgrade to `fallback` when
-the current profile cannot answer them correctly. They return
-`unsupported_capability`.
+High-authority capabilities such as transitive call graphs, call-chain paths,
+and dead-code cleanup must return `unsupported_capability` when the active
+profile cannot answer them correctly. They must not silently downgrade to
+`fallback`.
 
 ## Canonical Envelope
+
+Programmatic HTTP clients opt in with:
+
+```http
+Accept: application/eshu.envelope+json
+```
+
+The canonical envelope is:
 
 ```json
 {
@@ -27,90 +38,35 @@ the current profile cannot answer them correctly. They return
 }
 ```
 
-Rules:
-
-- successful responses set `data` and `truth`, with `error: null`
-- failed responses set `error`, with `data: null`
-- failed responses may carry bounded machine-readable diagnostics under
-  `error.details`
-- `truth` may be present on partial failures when it adds useful state
-
-The envelope MIME type is `application/eshu.envelope+json`.
+Successful responses set `data` and `truth`, with `error: null`. Failed
+responses set `error`, usually with `data: null`. Error details may carry
+bounded machine-readable diagnostics.
 
 ## Truth Fields
 
 | Field | Contract |
 | --- | --- |
-| `level` | Rollup truth level for the whole response. |
-| `basis` | `authoritative_graph`, `semantic_facts`, `content_index`, or `hybrid`. |
+| `level` | Rollup truth level for the response. |
 | `capability` | Capability ID from the conformance matrix. |
 | `profile` | `local_lightweight`, `local_authoritative`, `local_full_stack`, or `production`. |
-| `backend` | Optional graph backend identity, currently `neo4j` or `nornicdb`; absent when no graph adapter was exercised. |
+| `basis` | `authoritative_graph`, `semantic_facts`, `content_index`, or `hybrid`. |
+| `backend` | Optional graph backend identity, currently `neo4j` or `nornicdb`. |
 | `freshness` | Object with `state`, optional `observed_at`, and optional `detail`. |
-| `reason` | Human-readable explanation for logs, CLI rendering, and debugging. |
+| `reason` | Human-readable explanation for logs, CLI output, and debugging. |
 
 `authoritative` is not a canonical wire field. Clients infer authority from
-`level == "exact"` plus the capability semantics.
+`level == "exact"` plus capability semantics.
 
-Freshness states:
+Freshness states are:
 
-- `fresh`: indexed truth is current for the requested scope
-- `stale`: indexed truth exists, but lag or backlog may hide newer source state
-- `building`: initial or replacement indexing is still in progress
-- `unavailable`: the required backend or authoritative source is unavailable
+- `fresh`
+- `stale`
+- `building`
+- `unavailable`
 
-Example:
+## Error Codes
 
-```json
-{
-  "data": {
-    "matches": []
-  },
-  "truth": {
-    "level": "derived",
-    "capability": "code_search.exact_symbol",
-    "profile": "local_lightweight",
-    "basis": "content_index",
-    "freshness": {
-      "state": "fresh"
-    },
-    "reason": "resolved from indexed entity and content tables"
-  },
-  "error": null
-}
-```
-
-## Per-Item Truth
-
-List responses may contain mixed-confidence entries. In those cases:
-
-- each item may carry its own `truth` object
-- top-level `truth.level` is the worst item level or response-level level,
-  whichever is less authoritative
-- item truth uses the same schema shape, but may omit inherited `capability`
-  and `profile`
-
-## Errors
-
-Unsupported high-authority requests use a structured error:
-
-```json
-{
-  "data": null,
-  "truth": null,
-  "error": {
-    "code": "unsupported_capability",
-    "message": "transitive callers require authoritative graph mode",
-    "capability": "call_graph.transitive_callers",
-    "profiles": {
-      "current": "local_lightweight",
-      "required": "local_authoritative"
-    }
-  }
-}
-```
-
-Current error codes from `go/internal/query/contract.go`:
+Current query error codes are:
 
 - `unsupported_capability`
 - `ambiguous`
@@ -126,57 +82,64 @@ Current error codes from `go/internal/query/contract.go`:
 - `internal_error`
 - `documentation_read_model_unavailable`
 
+Unsupported capability errors include the capability and current/required
+profiles when the handler has that information.
+
+## Per-Item Truth
+
+List responses may contain mixed-confidence entries. Individual items may carry
+their own `truth` object. The top-level `truth.level` should be the worst item
+level or the response-level level, whichever is less authoritative.
+
 ## MCP Contract
 
-MCP tool results should include one `resource` content block whose payload is
-the canonical envelope. A human-readable `text` block may also be returned, but
-the embedded envelope remains the client contract.
+MCP tool results should include a resource content block whose payload is the
+canonical envelope:
 
 ```json
 {
-  "content": [
-    {
-      "type": "text",
-      "text": "Found 3 matches."
-    },
-    {
-      "type": "resource",
-      "resource": {
-        "uri": "eshu://tool-result/envelope",
-        "mimeType": "application/eshu.envelope+json",
-        "text": "{\"data\":{},\"truth\":{},\"error\":null}"
-      }
-    }
-  ]
+  "type": "resource",
+  "resource": {
+    "uri": "eshu://tool-result/envelope",
+    "mimeType": "application/eshu.envelope+json",
+    "text": "{\"data\":{},\"truth\":{},\"error\":null}"
+  }
 }
 ```
 
+A text block may summarize the result, but the embedded envelope remains the
+client contract.
+
 ## CLI Contract
 
-The CLI should display the normal result payload and a concise truth summary
-when the result is not `exact`.
+CLI JSON mode should emit the canonical envelope shape. Human output may render
+the result payload plus a concise truth summary when the result is not exact:
 
 ```text
 truth=derived basis=content_index capability=code_search.exact_symbol
 ```
 
-For unsupported capabilities, the CLI should fail non-zero and print the
-current and required profiles. In `--json` mode, CLI commands should emit the
-canonical envelope shape.
+For unsupported capabilities, CLI commands should fail non-zero and report the
+current and required profiles.
+
+## Truth Layers
+
+`go/internal/truth` defines reducer materialization layers:
+
+- `source_declaration`
+- `applied_declaration`
+- `observed_resource`
+- `canonical_asset`
+
+`canonical_asset` is reducer output, not an accepted source input for
+`truth.Contract.SourceLayers`.
 
 ## Cache Guidance
 
-Any HTTP cache, local memoization, ETag, or equivalent validator must vary on:
+HTTP caches, local memoization, ETags, or equivalent validators must vary on:
 
 - request payload
 - `truth.level`
 - `truth.freshness.state`
 
 Do not reuse a cached result across truth-level or freshness changes.
-
-## Verification
-
-Contract changes must update the shared Go truth types, the capability matrix,
-and tests for the affected HTTP, MCP, or CLI response path. New capability IDs
-must be registered before handlers call `BuildTruthEnvelope`; unknown
-capabilities panic in the Go contract tests.

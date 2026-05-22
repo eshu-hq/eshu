@@ -18,13 +18,13 @@ ship single-worker settings as a fix for a concurrency bug.
 | `ESHU_REDUCER_BATCH_CLAIM_SIZE` | NornicDB: `workers`; Neo4j: `workers * 4` capped at `64` | Reducer | Reducer intents leased per claim cycle |
 | `ESHU_REDUCER_SEMANTIC_ENTITY_CLAIM_LIMIT` | NornicDB: `1`; otherwise disabled | Reducer | Concurrent semantic entity materialization claims after source-local drain |
 | `ESHU_CODE_CALL_PROJECTION_ACCEPTANCE_SCAN_LIMIT` | `250000` | Reducer | Maximum code-call shared intents scanned or loaded for one accepted repo/run before failing safely |
-| `ESHU_SHARED_PROJECTION_WORKERS` | `1` | Reducer | Concurrent shared projection partition goroutines |
+| `ESHU_SHARED_PROJECTION_WORKERS` | `min(NumCPU,4)` | Reducer | Concurrent shared projection partition goroutines |
 | `ESHU_SHARED_PROJECTION_PARTITION_COUNT` | `8` | Reducer | Partitions per shared projection domain |
 | `ESHU_SHARED_PROJECTION_BATCH_LIMIT` | `100` | Reducer | Intents processed per partition batch |
-| `ESHU_SHARED_PROJECTION_POLL_INTERVAL` | `5s` | Reducer | Shared projection poll interval |
+| `ESHU_SHARED_PROJECTION_POLL_INTERVAL` | `500ms` | Reducer | Shared projection poll interval; idle cycles back off up to `5s` |
 | `ESHU_SHARED_PROJECTION_LEASE_TTL` | `60s` | Reducer | Partition lease time-to-live |
 
-Validate queue work beyond the happy path:
+When changing queue or worker behavior, also prove:
 
 - expired claims can be reclaimed
 - overdue claims surface through status
@@ -33,10 +33,8 @@ Validate queue work beyond the happy path:
 
 ## Process Profiling
 
-Each Go runtime binary (`eshu-api`, `eshu-mcp-server`, `eshu-ingester`,
-`eshu-reducer`, `eshu-bootstrap-index`, `eshu-workflow-coordinator`, and the
-hosted collectors) ships an opt-in `net/http/pprof` endpoint. It is disabled by
-default and gated by `ESHU_PPROF_ADDR`.
+Each Go runtime binary ships an opt-in `net/http/pprof` endpoint. It is
+disabled by default and gated by `ESHU_PPROF_ADDR`.
 
 ```bash
 ESHU_PPROF_ADDR=:6060 eshu-ingester
@@ -101,9 +99,8 @@ curl -sS http://127.0.0.1:19662/debug/pprof/goroutine?debug=2 \
 go tool pprof http://127.0.0.1:19667/debug/pprof/heap
 ```
 
-Use this during slow queue-tail investigations only after logs, metrics, and
-status identify the runtime that owns the cost. Do not add the overlay to normal
-Compose, Helm, or Kubernetes defaults.
+Use this only after logs, metrics, and status identify the runtime that owns the
+cost. Do not add the overlay to normal Compose, Helm, or Kubernetes defaults.
 
 ## CPU Capture During A Phase
 

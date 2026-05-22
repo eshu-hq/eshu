@@ -36,9 +36,11 @@ documents for exact `eshu ...` command claims, HTTP endpoint claims, and
 `ESHU_*` environment variable claims. It also checks explicit backticked local
 repository paths, Markdown local-link targets, tagged or digested container
 image references, and Terraform block addresses when the caller supplies
-matching resolvers; the package never walks the filesystem itself. It emits
-`documentation_finding` and `documentation_evidence_packet` fact envelopes with
-explicit statuses: `valid`, `contradicted`, `missing_evidence`, and
+matching resolvers; the package never walks the filesystem itself. Generic
+examples such as globs, placeholders, home-directory paths, project-local
+optional config paths, and bare filenames are not local repo truth claims. It
+emits `documentation_finding` and `documentation_evidence_packet` fact
+envelopes with explicit statuses: `valid`, `contradicted`, `missing_evidence`, and
 `unsupported_claim_type`.
 
 Command claims may include documented argument placeholders such as `<path>` or

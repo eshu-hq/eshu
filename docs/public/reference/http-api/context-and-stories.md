@@ -1,189 +1,106 @@
 # HTTP Context And Story Routes
 
 Use these routes when the caller has a fuzzy name or canonical entity and needs
-context, catalog navigation, a narrative story, or an investigation packet.
+context, catalog navigation, a narrative story, or an investigation packet. The
+route list is verified against `go/internal/query`.
+
+## Route Map
+
+| Area | Routes |
+| --- | --- |
+| Entity resolution | `POST /api/v0/entities/resolve` |
+| Context | `GET /api/v0/entities/{entity_id}/context`, `GET /api/v0/workloads/{workload_id}/context`, `GET /api/v0/services/{service_name}/context`, `GET /api/v0/repositories/{repo_id}/context` |
+| Catalog | `GET /api/v0/catalog` |
+| Stories | `GET /api/v0/repositories/{repo_id}/story`, `GET /api/v0/workloads/{workload_id}/story`, `GET /api/v0/services/{service_name}/story`, `POST /api/v0/impact/trace-deployment-chain`, `POST /api/v0/impact/deployment-config-influence` |
+| Investigation | `GET /api/v0/investigations/services/{service_name}` |
+
+OpenAPI remains canonical for full request and response schemas.
 
 ## Entity Resolution
 
-`POST /api/v0/entities/resolve`
+`POST /api/v0/entities/resolve` accepts `name`, optional `type`, optional
+`repo_id`, and optional `limit`. `name` is required. The response includes
+`entities`, `count`, normalized `limit`, and `truncated`.
 
-Use this before context lookups when the caller has a fuzzy name, alias, or
-partial resource description.
+Use this route before context or story routes when the caller starts with a
+fuzzy name, alias, or partial resource description.
 
-```json
-{
-  "name": "payments-api",
-  "type": "workload",
-  "repo_id": "payments",
-  "limit": 5
-}
-```
+## Context
 
-Responses include `entities`, `count`, normalized `limit`, and `truncated` so
-clients can page or disambiguate before calling context routes.
+Context routes are canonical-ID oriented:
 
-## Context Routes
-
-- `GET /api/v0/entities/{entity_id}/context`
-- `GET /api/v0/workloads/{workload_id}/context`
-- `GET /api/v0/services/{service_name}/context`
-- `GET /api/v0/repositories/{repo_id}/context`
-
-Examples:
-
-- `GET /api/v0/entities/workload:payments-api/context`
-- `GET /api/v0/workloads/workload:payments-api/context?environment=prod`
-- `GET /api/v0/services/workload:payments-api/context?environment=prod`
-
-`/services/{service_name}/context` is an alias route over workload context and
-adds `requested_as=service`.
+- entity context requires `entity_id`
+- workload context requires `workload_id`
+- repository context requires `repo_id`
+- service context is an alias over workload context and adds
+  `requested_as=service`
 
 When a repository has workload identity facts but no materialized `Workload`
-node yet, service context can fall back to the repository read model. Those
+node, service context can fall back to the repository read model. Those
 responses use `materialization_status=identity_only`,
 `query_basis=repository_read_model`, an empty `instances` array, and a
 `limitations` entry of `workload_identity_not_materialized`.
 
-Entity context responses may include semantic narrative fields when the entity
-carries normalized semantic metadata:
-
-- `semantic_summary`
-- `semantic_profile`
-- `story`
+Entity context may include semantic narrative fields when normalized semantic
+metadata exists: `semantic_summary`, `semantic_profile`, and `story`.
 
 ## Catalog
 
-`GET /api/v0/catalog`
+`GET /api/v0/catalog` is the bounded navigation surface for Console and MCP
+clients. It returns repository, workload, and service handles plus counts,
+`limit`, `truncated`, and limitations when the runtime can only return
+repository handles.
 
-The catalog route is the bounded navigation surface for Console and MCP
-clients. It returns handles for:
+The optional `limit` caps each returned collection. The default is 2000 and the
+maximum accepted value is 5000.
 
-- indexed repositories
-- canonical `Workload` graph nodes when a graph backend is available
-- identity-only workloads from the repository read model
-- services, which are workload rows whose normalized `kind` is `service`
-- counts, `limit`, and `truncated`
-- limitations when the runtime can only return repository handles
+## Stories
 
-The optional `limit` query parameter caps each returned collection. The default
-is `2000`; the maximum accepted value is `5000`.
+Story routes return structured narrative first and drilldown handles second.
+They are the right entry point for onboarding, support, service explanation,
+and documentation generation prompts.
 
-No-Regression Evidence: The catalog route uses bounded repository, workload
-graph, and workload-identity reads with `LIMIT`; it returns handles rather than
-story payloads.
+Service story supports disambiguation with:
 
-No-Observability-Change: Graph reads continue through the query package
-`GraphQuery` port and existing handler error paths.
+- `service_id` for an exact workload/service ID
+- `repo` for repository-scoped disambiguation
+- `environment` for environment-scoped disambiguation
 
-## Story Routes
-
-Use story routes when the caller wants a structured narrative first and
-evidence second.
-
-- `GET /api/v0/repositories/{repo_id}/story`
-- `GET /api/v0/workloads/{workload_id}/story`
-- `GET /api/v0/services/{service_name}/story`
-- `POST /api/v0/impact/trace-deployment-chain`
-
-Repository story responses may include:
-
-- `subject`
-- `story`
-- `story_sections`
-- `semantic_overview`
-- `deployment_overview`
-- `gitops_overview`
-- `documentation_overview`
-- `support_overview`
-- `coverage_summary`
-- `limitations`
-- `drilldowns`
-
-Service story responses expose the one-call service dossier contract:
-
-- `service_identity`
-- `story`
-- `story_sections`
-- `api_surface`
-- `deployment_lanes`
-- `upstream_dependencies`
-- `downstream_consumers`
-- `evidence_graph`
-- `investigation`
-- `deployment_overview`
-- `documentation_overview`
-- `support_overview`
-- `result_limits`
+When a service name matches multiple workloads, service story returns HTTP 409
+with envelope `error.code=ambiguous`, `data=null`, and candidate details. It
+does not choose the first match.
 
 Deployment trace responses are evidence-first and may include deployment,
 GitOps, controller, runtime, cloud, Kubernetes, image, relationship, and
-fact-summary sections.
+fact-summary sections. Mapping modes are:
 
-Mapping modes in deployment traces are controller-agnostic:
+- `controller`
+- `iac`
+- `evidence_only`
+- `none`
 
-- `controller` for explicit controller evidence such as ArgoCD or Flux
-- `iac` for explicit infrastructure-as-code evidence such as Terraform or
-  CloudFormation
-- `evidence_only` when delivery/runtime evidence exists but no trusted
-  controller or IaC adapter was found
-- `none` when no deployment evidence cleared the thresholds
-
-HTTP story routes stay canonical-ID based. If a caller starts with a fuzzy
-name or alias, resolve first and then call the story route.
-
-## Service Story Disambiguation
-
-`GET /api/v0/services/{service_name}/story`
-
-Optional query params:
-
-- `service_id` is the exact workload/service ID selector.
-- `repo` disambiguates duplicate service names by canonical repository ID,
-  name, slug, path, or remote URL.
-- `environment` narrows duplicate service names to workloads with a matching
-  runtime instance environment.
-
-When the name resolves to multiple workloads, the route returns HTTP 409 with
-canonical envelope `error.code=ambiguous`, `data=null`, and candidate details.
-It does not pick the first matching workload.
-
-## Documentation Generation Flow
-
-For documentation generation:
-
-1. Call a story route first.
-2. For repository stories, read `story_sections`, deployment, GitOps,
-   documentation, support, coverage, and limitation fields.
-3. For service stories, read the dossier fields and embedded investigation
-   packet.
-4. Pair workload stories with `trace_deployment_chain` before expecting rich
-   deployment overviews.
-5. Call content routes only when exact file or snippet evidence is needed.
-
-## Deployment Config Influence
-
-`POST /api/v0/impact/deployment-config-influence`
-
-Use this route when the caller asks which repositories and files influence a
-service image tag, runtime setting, resource limit, values layer, or rendered
-Kubernetes resource. Provide `service_name` or `workload_id`; add
-`environment` to scope the answer without dropping shared values layers.
-
-The response is story-first and bounded per section by `limit`.
+`POST /api/v0/impact/deployment-config-influence` accepts `service_name` or
+`workload_id`, optional `environment`, and optional `limit`. Use it when the
+caller asks which repositories and files influence image tags, runtime
+settings, resource limits, values layers, or rendered Kubernetes resources.
 
 ## Service Investigation
 
-`GET /api/v0/investigations/services/{service_name}`
+`GET /api/v0/investigations/services/{service_name}` accepts optional
+`environment`, `intent`, and `question`.
 
-Optional query params:
+It returns an investigation packet rather than a polished story: repositories
+considered, repositories with evidence, evidence families found, coverage
+summary, findings, and recommended next calls. Use it when the caller should
+not need to know which deployment, GitOps, Terraform, workflow, support, or
+documentation repositories to inspect first.
 
-- `environment`
-- `intent`
-- `question`
+## Documentation Generation Flow
 
-The response is investigation-first rather than story-first. It includes
-repositories considered, repositories with evidence, evidence families found,
-coverage summary, findings, and recommended next calls.
+For generated docs or support prose:
 
-Use it for prompts where the operator should not have to know which deployment,
-GitOps, Terraform, workflow, or support repositories to inspect next.
+1. Call a story or service investigation route first.
+2. Use deployment trace or deployment config influence when deployment details
+   matter.
+3. Use content routes only after the story identifies exact files, snippets, or
+   entity handles worth citing.

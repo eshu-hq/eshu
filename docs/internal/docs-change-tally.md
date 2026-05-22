@@ -9,7 +9,7 @@ repo's 500-line limit.
 - Total Markdown files left in the checkout after the current pass: 548
 - Current branch doc status from
   `git diff --name-status origin/main -- '*.md'` after the current pass:
-  93 added, 158 modified, 146 deleted, 88 renamed
+  95 added, 162 modified, 148 deleted, 86 renamed
 - Copied image assets removed from this branch: 43 files under
   `docs/public/images/`. They were reference assets from another project and
   no longer appear in the source-doc reference scan.
@@ -100,6 +100,7 @@ branch. Regenerate them from
 | Docker Compose Run-Local Compression | Reduced the Compose run-local page from 308 to 280 lines by keeping the service/file map and linking remote E2E proof details to the focused local-testing references. |
 | Parallel Remaining Docs Compression | Used subagents plus parent review to compress the remaining high-priority public, MCP, CLI, API, collector, reducer, why, local-data-root, and agent-guide docs while preserving code-verified contracts. |
 | Terraform, Helm, Backend, And Package Docs Compression | Compressed Terraform provider guides, Helm values references, graph backend operations/install, Cypher performance discipline, bootstrap-index, observability, and core package READMEs while preserving code-verified contracts. |
+| Local Testing, Public Reference, Service Runbook, And Scoped AGENTS Compression | Used subagents plus parent review to compress local-testing subpages, public reference contracts, service/command runbooks, and scoped agent guidance while preserving mandatory accuracy, performance, concurrency, telemetry, and proof rules. |
 
 ## Verification Snapshot
 
@@ -107,19 +108,18 @@ Detailed historical verification moved to `docs/internal/docs-verification-snaps
 
 Current pass proof:
 
-- Focused docs verification passed for Terraform provider guides, Kubernetes Helm docs, graph backend install/operations, Cypher performance, bootstrap-index, graph, status, relationships, facts, and telemetry docs with 0 contradicted and 0 missing evidence claims. Unsupported claim types were limited to Terraform, Helm, and kubectl shell-command examples.
-- Focused Go tests passed for Terraform schema/relationships, HCL parser/parser filters, graph CLI install/runtime paths, bootstrap-index, graph, status, facts, and telemetry packages.
-- Helm lint and default/package-registry/webhook/bundled-NornicDB reducer-lane renders passed.
+- Focused docs verification passed for local-testing subpages, public reference pages, service runbooks, command READMEs, and scoped agent guidance with 0 contradicted and 0 missing evidence claims.
+- Focused Go tests passed for query, MCP, API, CLI, backend conformance, runtime, status, truth, collector commands, Postgres storage, parser, and collector packages.
+- Local script checks passed for remote E2E runtime-state validation and relevant local-testing shell syntax.
 - Broad docs verification passed for `docs/public` and the full repository with 0 contradicted and 0 missing evidence claims.
 - `scripts/verify-package-docs.sh`, `git diff --check`, `cmp -s AGENTS.md CLAUDE.md`, and strict MkDocs build passed.
 
 ## What Is Left
 
 - Continue reviewing docs by topic instead of by single file. Remaining
-  high-value groups are local-testing subpages, remaining public reference
-  pages over roughly 180 lines, service runbooks, package READMEs that still
-  duplicate public references, and scoped agent guidance only when the mandatory
-  instructions can stay strict. The larger
+  high-value groups are now the long-tail package READMEs, fixture docs that
+  are true test data, generated/reference indexes, and any public pages still
+  duplicating package-local contracts. The larger
   `tests/fixtures/sample_projects/sample_project_typescript/README.md` fixture
   remains test data, not a public documentation target.
 - Keep deleting historical planning notes when current public or package-local

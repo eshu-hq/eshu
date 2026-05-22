@@ -84,13 +84,11 @@ Generated from `git diff --name-status origin/main -- "*.md"` for this documenta
 - `docs/docs/reference/local-host-lifecycle.md -> docs/public/reference/local-host-lifecycle.md`
 - `docs/docs/reference/logging.md -> docs/public/reference/logging.md`
 - `docs/docs/reference/mcp-prompt-surface-audit.md -> docs/public/reference/mcp-prompt-surface-audit.md`
-- `docs/docs/reference/mcp-reference.md -> docs/public/reference/mcp-reference.md`
 - `docs/docs/reference/mcp-tool-contract-matrix.md -> docs/public/reference/mcp-tool-contract-matrix.md`
 - `docs/docs/reference/parity-closure-matrix.md -> docs/public/reference/parity-closure-matrix.md`
 - `docs/docs/reference/plugin-trust-model.md -> docs/public/reference/plugin-trust-model.md`
 - `docs/docs/reference/relationship-mapping-observability.md -> docs/public/reference/relationship-mapping-observability.md`
 - `docs/docs/reference/remote-e2e-runtime-state.md -> docs/public/reference/remote-e2e-runtime-state.md`
-- `docs/docs/reference/runtime-admin-api.md -> docs/public/reference/runtime-admin-api.md`
 - `docs/docs/reference/source-layout.md -> docs/public/reference/source-layout.md`
 - `docs/docs/reference/tag-taxonomy.md -> docs/public/reference/tag-taxonomy.md`
 - `docs/docs/reference/troubleshooting.md -> docs/public/reference/troubleshooting.md`
@@ -113,6 +111,7 @@ Generated from `git diff --name-status origin/main -- "*.md"` for this documenta
 - `go/cmd/collector-git/README.md`
 - `go/cmd/collector-oci-registry/README.md`
 - `go/cmd/collector-package-registry/README.md`
+- `go/cmd/collector-terraform-state/README.md`
 - `go/cmd/eshu/README.md`
 - `go/cmd/ingester/AGENTS.md`
 - `go/cmd/ingester/README.md`
@@ -123,6 +122,7 @@ Generated from `git diff --name-status origin/main -- "*.md"` for this documenta
 - `go/internal/README.md`
 - `go/internal/app/README.md`
 - `go/internal/buildinfo/README.md`
+- `go/internal/collector/AGENTS.md`
 - `go/internal/collector/README.md`
 - `go/internal/collector/awscloud/README.md`
 - `go/internal/collector/awscloud/awsruntime/README.md`
@@ -196,6 +196,7 @@ Generated from `git diff --name-status origin/main -- "*.md"` for this documenta
 - `go/internal/graph/README.md`
 - `go/internal/iacreachability/README.md`
 - `go/internal/mcp/README.md`
+- `go/internal/parser/AGENTS.md`
 - `go/internal/parser/README.md`
 - `go/internal/parser/c/README.md`
 - `go/internal/parser/cloudformation/README.md`
@@ -221,6 +222,7 @@ Generated from `git diff --name-status origin/main -- "*.md"` for this documenta
 - `go/internal/parser/swift/README.md`
 - `go/internal/parser/yaml/README.md`
 - `go/internal/projector/README.md`
+- `go/internal/query/AGENTS.md`
 - `go/internal/query/README.md`
 - `go/internal/queue/README.md`
 - `go/internal/recovery/README.md`

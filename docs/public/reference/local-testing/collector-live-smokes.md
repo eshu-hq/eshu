@@ -4,14 +4,15 @@ Use these only for maintainer/operator validation against real external
 systems. They are opt-in and must not run in default CI. Keep registry hosts,
 account IDs, repository names, usernames, and tokens in local shell config only.
 
-## Confluence Collector Smoke
+For fixture-backed collector checks, prefer
+[Verification gates](verification-gates.md). For hosted all-collector proof, use
+[Remote collector E2E](remote-collector-e2e.md).
+
+## Confluence
 
 Use this when testing the Confluence collector against a real Atlassian site.
 The collector is read-only against Confluence and writes documentation facts to
 the local Postgres content store.
-
-Load your local Jira/Confluence credential file, then normalize the env names
-the collector expects:
 
 ```bash
 set -a
@@ -26,8 +27,6 @@ export ESHU_CONFLUENCE_PAGE_LIMIT="${ESHU_CONFLUENCE_PAGE_LIMIT:-25}"
 export ESHU_CONFLUENCE_POLL_INTERVAL="${ESHU_CONFLUENCE_POLL_INTERVAL:-5m}"
 ```
 
-Resolve the space key to the numeric space ID used by the Confluence API:
-
 ```bash
 export ESHU_CONFLUENCE_SPACE_ID="$(
   curl -fsS \
@@ -40,8 +39,6 @@ test -n "$ESHU_CONFLUENCE_SPACE_ID"
 test "$ESHU_CONFLUENCE_SPACE_ID" != "null"
 ```
 
-Start Postgres, apply the data-plane schema, then run the collector:
-
 ```bash
 docker compose up -d postgres
 
@@ -50,7 +47,7 @@ go run ./cmd/bootstrap-data-plane
 go run ./cmd/collector-confluence
 ```
 
-In another shell, check the status endpoint and stored facts:
+In another shell:
 
 ```bash
 curl -fsS http://127.0.0.1:8080/readyz
@@ -61,10 +58,10 @@ docker compose exec -T postgres \
 ```
 
 Stop the collector with Ctrl-C after the first successful sync unless you are
-testing repeated polling.
+testing repeated polling. Record page count, visible document count, emitted
+section/link counts, wall time, and HTTP GET count.
 
-For a fixture-backed performance and observability proof without live
-Atlassian traffic:
+Fixture-backed metric proof:
 
 ```bash
 cd go
@@ -73,53 +70,52 @@ go test ./internal/collector/confluence \
   -count=1 -v
 ```
 
-Record the page count, visible document count, emitted section/link counts,
-wall time, and HTTP GET count in the changed package README or reference page.
+## Vulnerability Intelligence Fixture
 
-## Vulnerability Intelligence Source Fixture Proof
-
-Use this when changing vulnerability source-client slices. This is not a live
-hosted collector smoke. It verifies bounded OSV, CISA KEV, FIRST EPSS, and NVD
-request shaping plus source snapshot facts, affected package normalization,
-risk-signal facts, fixed-version extraction, and URL credential stripping.
+This is not a live hosted smoke. It verifies bounded OSV, CISA KEV, FIRST EPSS,
+and NVD request shaping plus source snapshot facts, affected package
+normalization, risk-signal facts, fixed-version extraction, and URL credential
+stripping.
 
 ```bash
 cd go
 go test ./internal/collector/vulnerabilityintelligence -count=1 -v
 ```
 
-Record expanded source coverage in the changed collector README or
-[Collector And Reducer Readiness](../collector-reducer-readiness.md). Hosted
-vulnerability-intelligence validation must add request budgets, rate-limit
-telemetry, fact-emission metrics, admin/status output, and deployment docs
-before enabling hosted collection.
+Hosted vulnerability-intelligence validation must add request budgets,
+rate-limit telemetry, fact-emission metrics, admin/status output, and deployment
+docs before enabling hosted collection.
 
-## JFrog OCI Smoke
+## OCI Registry Smokes
 
-```bash
-set -a
-source /path/to/local/private/env
-set +a
+All smokes are read-only and skip unless their live flag is set.
 
-export ESHU_JFROG_OCI_LIVE=1
-export ESHU_JFROG_OCI_URL="${ESHU_JFROG_OCI_URL:-${JFROG_URL:-${JFROG_BASE_URL:-}}}"
-export ESHU_JFROG_OCI_REPOSITORY_KEY="${ESHU_JFROG_OCI_REPOSITORY_KEY:-${JFROG_DOCKER_REPOSITORY_KEY:-}}"
-export ESHU_JFROG_OCI_IMAGE_REPOSITORY="${ESHU_JFROG_OCI_IMAGE_REPOSITORY:-${JFROG_IMAGE_REPOSITORY:-}}"
-export ESHU_JFROG_OCI_REFERENCE="${ESHU_JFROG_OCI_REFERENCE:-${JFROG_IMAGE_REFERENCE:-}}"
-export ESHU_JFROG_OCI_USERNAME="${ESHU_JFROG_OCI_USERNAME:-${JFROG_USERNAME:-${JFROG_USER:-}}}"
-export ESHU_JFROG_OCI_PASSWORD="${ESHU_JFROG_OCI_PASSWORD:-${JFROG_PASSWORD:-}}"
-export ESHU_JFROG_OCI_BEARER_TOKEN="${ESHU_JFROG_OCI_BEARER_TOKEN:-${JFROG_ACCESS_TOKEN:-${JFROG_BEARER_TOKEN:-}}}"
+| Provider | Required live flag | Command |
+| --- | --- | --- |
+| JFrog OCI | `ESHU_JFROG_OCI_LIVE=1` | `cd go && go test ./internal/collector/ociregistry/jfrog -run TestLiveJFrog -count=1 -v` |
+| ECR | `ESHU_ECR_OCI_LIVE=1` | `cd go && go test ./internal/collector/ociregistry/ecr -run TestLiveECR -count=1 -v` |
+| Docker Hub | `ESHU_DOCKERHUB_OCI_LIVE=1` | `cd go && go test ./internal/collector/ociregistry/dockerhub -run TestLiveDockerHub -count=1 -v` |
+| GHCR | `ESHU_GHCR_OCI_LIVE=1` | `cd go && go test ./internal/collector/ociregistry/ghcr -run TestLiveGHCR -count=1 -v` |
+| Harbor | `ESHU_HARBOR_OCI_LIVE=1` | `cd go && go test ./internal/collector/ociregistry/harbor -run TestLiveHarbor -count=1 -v` |
+| Google Artifact Registry | `ESHU_GAR_OCI_LIVE=1` | `cd go && go test ./internal/collector/ociregistry/gar -run TestLiveGAR -count=1 -v` |
+| Azure Container Registry | `ESHU_ACR_OCI_LIVE=1` | `cd go && go test ./internal/collector/ociregistry/acr -run TestLiveACR -count=1 -v` |
 
-cd go
-go test ./internal/collector/ociregistry/jfrog -run TestLiveJFrog -count=1 -v
-```
+Minimum provider env:
 
-The challenge smoke can run with only `ESHU_JFROG_OCI_URL`. The tag-list smoke
-also needs `ESHU_JFROG_OCI_IMAGE_REPOSITORY`.
-`ESHU_JFROG_OCI_REPOSITORY_KEY` is required only for the Artifactory
-`/artifactory/api/docker/<repository-key>` route.
+| Provider | Required target env |
+| --- | --- |
+| JFrog OCI | `ESHU_JFROG_OCI_URL`; tag-list proof also needs `ESHU_JFROG_OCI_IMAGE_REPOSITORY`; Artifactory Docker API proof needs `ESHU_JFROG_OCI_REPOSITORY_KEY`. |
+| ECR | `ESHU_ECR_OCI_REGION`, `ESHU_ECR_OCI_REGISTRY_ID`, `ESHU_ECR_OCI_REPOSITORY`; `ESHU_ECR_OCI_REFERENCE` is optional. |
+| Docker Hub | `ESHU_DOCKERHUB_OCI_REPOSITORY`; use username/password for private repositories or rate-limit avoidance. |
+| GHCR | `ESHU_GHCR_OCI_REPOSITORY`; use username/password for private or organization packages that deny anonymous pulls. |
+| Harbor | `ESHU_HARBOR_OCI_URL`, `ESHU_HARBOR_OCI_REPOSITORY`, username/password when required. |
+| Google Artifact Registry | `ESHU_GAR_OCI_REGISTRY_HOST`, `ESHU_GAR_OCI_REPOSITORY`, username/password when required. |
+| Azure Container Registry | `ESHU_ACR_OCI_REGISTRY_HOST`, `ESHU_ACR_OCI_REPOSITORY`, username/password when required. |
 
-## JFrog Package Feed Smoke
+Use `ESHU_*_OCI_REFERENCE` for reference-specific checks when the provider test
+supports it. Use `ESHU_ECR_OCI_REGISTRY_HOST` for nonstandard ECR host shapes.
+
+## JFrog Package Feed
 
 ```bash
 set -a
@@ -141,93 +137,7 @@ go test ./internal/collector/packageregistry/packageruntime \
   -run TestLiveJFrogPackageFeed -count=1 -v
 ```
 
-The package smoke is read-only and skips unless `ESHU_JFROG_PACKAGE_LIVE=1`.
-It strips query strings and fragments from emitted source references and fails
-if credential material appears in errors, source refs, or fact payloads. For
-Maven, set `ESHU_JFROG_PACKAGE_NAMESPACE` to the package `groupId`.
-
-## ECR Smoke
-
-```bash
-export ESHU_ECR_OCI_LIVE=1
-export ESHU_ECR_OCI_REGION="us-east-1"
-export ESHU_ECR_OCI_REGISTRY_ID="123456789012"
-export ESHU_ECR_OCI_REPOSITORY="team/api"
-export ESHU_ECR_OCI_REFERENCE="latest"
-
-cd go
-go test ./internal/collector/ociregistry/ecr -run TestLiveECR -count=1 -v
-```
-
-`ESHU_ECR_OCI_REFERENCE` is optional. Use
-`ESHU_ECR_OCI_REGISTRY_HOST` when testing a nonstandard host shape.
-
-## Docker Hub Smoke
-
-```bash
-export ESHU_DOCKERHUB_OCI_LIVE=1
-export ESHU_DOCKERHUB_OCI_REPOSITORY="library/busybox"
-export ESHU_DOCKERHUB_OCI_REFERENCE="latest"
-
-cd go
-go test ./internal/collector/ociregistry/dockerhub -run TestLiveDockerHub -count=1 -v
-```
-
-Set `ESHU_DOCKERHUB_OCI_USERNAME` and `ESHU_DOCKERHUB_OCI_PASSWORD` for private
-repositories or anonymous rate-limit avoidance.
-
-## GHCR Smoke
-
-```bash
-export ESHU_GHCR_OCI_LIVE=1
-export ESHU_GHCR_OCI_REPOSITORY="stargz-containers/busybox"
-export ESHU_GHCR_OCI_REFERENCE="1.32.0-org"
-
-cd go
-go test ./internal/collector/ociregistry/ghcr -run TestLiveGHCR -count=1 -v
-```
-
-Set `ESHU_GHCR_OCI_USERNAME` and `ESHU_GHCR_OCI_PASSWORD` for private GHCR
-repositories or organization packages that deny anonymous pulls.
-
-## Harbor Smoke
-
-```bash
-export ESHU_HARBOR_OCI_LIVE=1
-export ESHU_HARBOR_OCI_URL="https://harbor.example.com"
-export ESHU_HARBOR_OCI_REPOSITORY="project/image"
-export ESHU_HARBOR_OCI_REFERENCE="latest"
-export ESHU_HARBOR_OCI_USERNAME="robot$reader"
-export ESHU_HARBOR_OCI_PASSWORD="local-secret"
-
-cd go
-go test ./internal/collector/ociregistry/harbor -run TestLiveHarbor -count=1 -v
-```
-
-## Google Artifact Registry Smoke
-
-```bash
-export ESHU_GAR_OCI_LIVE=1
-export ESHU_GAR_OCI_REGISTRY_HOST="us-west1-docker.pkg.dev"
-export ESHU_GAR_OCI_REPOSITORY="project-id/repository/image"
-export ESHU_GAR_OCI_REFERENCE="latest"
-export ESHU_GAR_OCI_USERNAME="oauth2accesstoken"
-export ESHU_GAR_OCI_PASSWORD="local-access-token"
-
-cd go
-go test ./internal/collector/ociregistry/gar -run TestLiveGAR -count=1 -v
-```
-
-## Azure Container Registry Smoke
-
-```bash
-export ESHU_ACR_OCI_LIVE=1
-export ESHU_ACR_OCI_REGISTRY_HOST="example.azurecr.io"
-export ESHU_ACR_OCI_REPOSITORY="samples/artifact"
-export ESHU_ACR_OCI_REFERENCE="latest"
-export ESHU_ACR_OCI_USERNAME="00000000-0000-0000-0000-000000000000"
-export ESHU_ACR_OCI_PASSWORD="local-access-token"
-
-cd go
-go test ./internal/collector/ociregistry/acr -run TestLiveACR -count=1 -v
-```
+The package smoke strips query strings and fragments from emitted source
+references and fails if credential material appears in errors, source refs, or
+fact payloads. For Maven, set `ESHU_JFROG_PACKAGE_NAMESPACE` to the package
+`groupId`.

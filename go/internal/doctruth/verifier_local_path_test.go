@@ -50,6 +50,35 @@ func TestVerifierComparesLocalPathClaims(t *testing.T) {
 	}
 }
 
+func TestVerifierIgnoresGenericPathExamples(t *testing.T) {
+	t.Parallel()
+
+	verifier := doctruth.NewVerifier(doctruth.VerifierOptions{
+		LocalPathResolver: func(_ doctruth.DocumentInput, normalizedPath string) doctruth.LocalPathResolution {
+			return doctruth.LocalPathResolution{Supported: true, Exists: false}
+		},
+	})
+
+	result, err := verifier.Verify(context.Background(), []doctruth.DocumentInput{{
+		Path:       "docs/reference/examples.md",
+		RevisionID: "rev-generic-paths",
+		Content: "" +
+			"Use `values*.yaml` for value overlays.\n" +
+			"Create `charts/<name>/Chart.yaml` for a chart.\n" +
+			"Examples may mention `~/repos/services/api/Dockerfile`.\n" +
+			"Project-local optional config is `.eshu/discovery.json`.\n" +
+			"Use `expected/*.json` for generated fixture output.\n" +
+			"Generic filenames like `Chart.yaml` are not repo claims.\n",
+	}})
+	if err != nil {
+		t.Fatalf("Verify() error = %v, want nil", err)
+	}
+
+	if got := result.Summary.ClaimsChecked; got != 0 {
+		t.Fatalf("ClaimsChecked = %d, want 0; findings=%#v", got, result.Findings)
+	}
+}
+
 func assertFindingStatusForClaim(
 	t *testing.T,
 	findings []doctruth.VerificationFinding,

@@ -86,9 +86,11 @@ Generated from `git diff --name-status origin/main -- "*.md"` for this documenta
 - `docs/docs/reference/local-performance-envelope.md`
 - `docs/docs/reference/local-testing.md`
 - `docs/docs/reference/mcp-cookbook.md`
+- `docs/docs/reference/mcp-reference.md`
 - `docs/docs/reference/nornicdb-pitfalls.md`
 - `docs/docs/reference/nornicdb-tuning.md`
 - `docs/docs/reference/relationship-mapping.md`
+- `docs/docs/reference/runtime-admin-api.md`
 - `docs/docs/reference/service-workflows.md`
 - `docs/docs/reference/telemetry/cross-service-correlation.md`
 - `docs/docs/reference/telemetry/index.md`
