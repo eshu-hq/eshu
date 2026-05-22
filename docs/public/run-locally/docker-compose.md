@@ -199,15 +199,11 @@ docker compose --env-file .env.remote-e2e -f docker-compose.remote-e2e.yaml --pr
 ```
 
 Run without `--profile seed` if real AWS freshness events are already delivered
-to the webhook listener:
+to the webhook listener. Enable Confluence only when tenant credentials are
+available:
 
 ```bash
 docker compose --env-file .env.remote-e2e -f docker-compose.remote-e2e.yaml up --build
-```
-
-Enable Confluence only when tenant credentials are available:
-
-```bash
 docker compose --env-file .env.remote-e2e -f docker-compose.remote-e2e.yaml --profile confluence up --build
 ```
 
@@ -232,26 +228,16 @@ docker compose --env-file .env.remote-e2e -f docker-compose.remote-e2e.yaml --pr
 | `collector-aws-cloud` | AWS cloud inventory collector. |
 | `collector-confluence` | Optional Confluence collector behind the `confluence` profile. |
 
-The example env defaults to smoke mode with
-`ESHU_REMOTE_E2E_CORPUS_MODE=smoke`,
-`ESHU_REMOTE_E2E_MIN_REPOSITORY_COUNT=0`, and
-`ESHU_FILESYSTEM_HOST_ROOT=./tests/fixtures/ecosystems`. Use that path for
-collector-specific or configuration proofs where the corpus itself is not the
-thing under test.
+The example env defaults to smoke mode with the fixture corpus. For a
+full-corpus gate, set `ESHU_REMOTE_E2E_CORPUS_MODE=full`, point
+`ESHU_FILESYSTEM_HOST_ROOT` at the absolute corpus path, and set either
+`ESHU_REMOTE_E2E_MIN_REPOSITORY_COUNT` or
+`ESHU_REMOTE_E2E_EXPECTED_REPOSITORY_COUNT`. The preflight service prints the
+effective root and repository counts before indexing and fails early when a
+full-corpus run is still mounted on the default fixtures.
 
-For a full-corpus gate, set `ESHU_REMOTE_E2E_CORPUS_MODE=full`, set
-`ESHU_FILESYSTEM_HOST_ROOT` to the absolute host path for that corpus, and set
-either `ESHU_REMOTE_E2E_MIN_REPOSITORY_COUNT` or
-`ESHU_REMOTE_E2E_EXPECTED_REPOSITORY_COUNT`. The
-`remote-e2e-corpus-preflight` service prints the effective host root, mounted
-root, mode, `candidate_repository_roots`, and `git_repository_roots` before
-indexing. In full mode it fails if the stack is still mounted on the default
-fixture corpus or if the count is below the declared threshold. It also validates
-the count variables before numeric comparisons so malformed values fail with a
-targeted message.
-
-When a hosted E2E run has a slow worker tail, add the pprof overlay for that
-debug run:
+For slow worker-tail investigations, add the pprof overlay only to the debug
+run:
 
 ```bash
 docker compose --env-file .env.remote-e2e \
@@ -260,23 +246,9 @@ docker compose --env-file .env.remote-e2e \
   --profile seed up --build
 ```
 
-The overlay leaves normal defaults alone. It binds worker pprof listeners
-inside containers and publishes them on remote-host loopback ports only:
-`bootstrap-index` `19660`, `ingester` `19661`, `resolution-engine` `19662`,
-`workflow-coordinator` `19663`, Terraform-state collector `19664`, OCI registry
-collector `19665`, package-registry collector `19666`, AWS cloud collector
-`19667`, and Confluence collector `19668`.
-
-The EC2 instance role must expose read-only inventory permissions for the target
-account. `ReadOnlyAccess` is enough for the AWS cloud and ECR inventory calls
-covered by this stack. Terraform state also needs `s3:GetObject` on the
-configured state object, plus `kms:Decrypt` if that object uses a customer
-managed KMS key. If Docker containers rely on the EC2 instance profile through
-IMDSv2, set the instance metadata response hop limit to at least `2`; otherwise
-the AWS SDK inside the containers may not be able to obtain role credentials.
-
-For proof commands, acceptance gates, and evidence notes, see
-[Local Testing](../reference/local-testing.md#remote-collector-e2e-compose-proof).
+For proof commands, AWS credential requirements, pprof ports, and acceptance
+evidence, see [Remote Collector E2E](../reference/local-testing/remote-collector-e2e.md)
+and [Profiling And Concurrency](../reference/local-testing/profiling-and-concurrency.md#remote-e2e-worker-profiles).
 
 ## Point local CLI commands at Compose
 
@@ -300,9 +272,9 @@ needed to point `eshu scan` or `eshu index` at Compose stores, see
 | Ingester metrics | `http://localhost:19465/metrics` |
 | Resolution engine metrics | `http://localhost:19466/metrics` |
 | Bootstrap index metrics | `http://localhost:19467/metrics` |
-| Workflow coordinator, when profiled on | `http://localhost:18082` |
-| Workflow coordinator metrics, when profiled on | `http://localhost:19469/metrics` |
-| Webhook listener, default stack only and when profiled on | `http://localhost:18083` |
+| Workflow coordinator, when profile enabled | `http://localhost:18082` |
+| Workflow coordinator metrics, when profile enabled | `http://localhost:19469/metrics` |
+| Webhook listener, default stack only and when profile enabled | `http://localhost:18083` |
 | Jaeger, with telemetry overlay | `http://localhost:16686` |
 
 See [Connect MCP locally](mcp-local.md) for MCP client setup.

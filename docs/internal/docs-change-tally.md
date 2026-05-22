@@ -98,9 +98,16 @@ cleanup pass.
 | Legacy Stub Deletion | Removed legacy getting-started, deployment, and Neo4j setup stubs after repointing backlinks to current run-local and Kubernetes docs. |
 | Cypher Storage Guide Compression | Reduced the Cypher storage README from 487 to 254 lines, kept the hot-path evidence markers, and corrected scoped agent guidance for the current `package_registry` phase. |
 | Postgres Scoped AGENTS Compression | Reduced the Postgres scoped agent guidance from 333 to 185 lines while preserving mandatory queue, lease, fencing, drift, status, and concurrency guardrails. |
+| Docker Compose Run-Local Compression | Reduced the Compose run-local page from 308 to 280 lines by keeping the service/file map and linking remote E2E proof details to the focused local-testing references. |
 
 ## Verification Snapshot
 
+- `go run ./cmd/eshu docs verify ../docs/public/run-locally/docker-compose.md --limit 1200 --fail-on contradicted,missing_evidence`
+  passed with 1 document, 6 claims, 0 contradicted, and 0 missing evidence
+  claims after the Docker Compose run-local compression. `git diff --check`
+  and `uv run --with mkdocs --with mkdocs-material --with pymdown-extensions mkdocs build --strict --clean --config-file docs/mkdocs.yml`
+  also passed. Compose config rendering was not run because `docker` is not
+  installed in this shell.
 - `go run ./cmd/eshu docs verify ../go/internal/storage/postgres --limit 1000 --fail-on contradicted,missing_evidence`
   passed with 3 documents, 4 claims, 0 contradicted, and 0 missing evidence
   claims after the Postgres scoped AGENTS compression.
@@ -427,9 +434,9 @@ cleanup pass.
 ## What Is Left
 
 - Continue reviewing oversized public and package docs. The largest real docs
-  left are `docs/public/run-locally/docker-compose.md`, `docs/public/why-eshu.md`,
-  `docs/public/reference/cli-reference.md`, `docs/public/reference/mcp-cookbook.md`,
-  `docs/internal/agent-guide.md`, `docs/public/reference/http-api/code.md`,
+  left are `docs/public/why-eshu.md`, `docs/public/reference/cli-reference.md`,
+  `docs/public/reference/mcp-cookbook.md`, `docs/internal/agent-guide.md`,
+  `docs/public/reference/http-api/code.md`,
   `docs/public/guides/collector-authoring.md`, `go/internal/mcp/README.md`,
   `docs/public/reference/local-data-root-spec.md`, and `go/cmd/reducer/README.md`.
   The larger `tests/fixtures/sample_projects/sample_project_typescript/README.md`
