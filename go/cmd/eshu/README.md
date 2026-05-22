@@ -83,9 +83,11 @@ launched runtime via the shared `telemetry` package. Errors print to
 - `eshu docs verify [path]` is a local documentation-truth verifier. It scans
   Markdown-family files with `--limit` and `--max-bytes`, extracts explicit
   Eshu CLI command claims, HTTP endpoint claims, `ESHU_*` environment-variable
-  claims, and known unsupported shell-command claims, then generates
-  documentation finding and evidence-packet fact envelopes in memory. Without
-  `--persist`, it does not open Postgres or graph connections. With
+  claims, explicit local repo path claims, and known unsupported shell-command
+  claims, then generates documentation finding and evidence-packet fact
+  envelopes in memory. Local path claims are checked against the nearest Git
+  worktree root or current working directory; missing files are contradicted
+  findings, not valid docs. Without `--persist`, it does not open Postgres or graph connections. With
   `--persist`, it opens the shared Postgres fact-store DSN, writes a
   documentation-source scope generation, and skips re-verification when the
   current pending or active generation has the same document fingerprint while

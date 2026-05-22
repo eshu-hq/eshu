@@ -416,6 +416,17 @@ read model enriches each listed finding with its persisted `scope_id`,
 when present. This keeps the CLI writer, API route, and MCP tool on the same
 durable fact identity without adding graph reads or a second truth path.
 
+Implementation evidence for issue #479 local-path truth slice: `eshu docs
+verify [path]` now extracts explicit backticked local repository paths and
+Markdown local-link targets for Terraform, Kubernetes/YAML, Helm, Docker
+Compose, HCL, JSON, and TOML-shaped files. The CLI supplies a bounded
+filesystem truth resolver rooted at the nearest Git worktree root, or the
+current working directory when no Git root is available. Existing paths produce
+`valid` documentation findings and missing paths produce `contradicted`
+findings; remote links and broad prose remain out of scope. This checks local
+code/deployment path claims without opening Postgres, graph, cloud, or
+Kubernetes clients.
+
 No-Regression Evidence: focused gates for the first slice are
 `go test ./internal/doctruth -run 'TestVerifier' -count=1`,
 `go test ./cmd/eshu -run 'TestDocsVerify' -count=1`, and
@@ -427,12 +438,18 @@ The read-surface slice adds
 `go test ./internal/query -run 'TestDocumentationHandlerPassesPersistedScopeFilters|TestBuildDocumentationFindingsSQLFiltersPersistedScopeIdentity|TestDocumentationHandlerListsScopeMetadataInFindings' -count=1`
 and
 `go test ./internal/mcp -run 'TestListDocumentationFindings' -count=1`.
+The local-path truth slice adds
+`go test ./internal/doctruth -run 'TestVerifierComparesLocalPathClaims' -count=1`
+and
+`go test ./cmd/eshu -run 'TestRunDocsVerifyChecksLocalPathClaims' -count=1`.
 The covered input shape is local Markdown documents with explicit command,
-endpoint, env-var, and unsupported shell-command snippets. Bounds are
-file-count and per-file byte limits plus one scope-generation freshness lookup
-and one kind-filtered fact read on unchanged persisted input; read-surface
-lookups remain bounded by explicit filters, `limit`, and cursor offset. Graph
-writes, backend Cypher, and runtime worker counts are unchanged.
+endpoint, env-var, local repo path, and unsupported shell-command snippets.
+Bounds are file-count and per-file byte limits plus one exact `stat` probe per
+extracted local path candidate, one scope-generation freshness lookup, and one
+kind-filtered fact read on unchanged persisted input; read-surface lookups
+remain bounded by explicit filters, `limit`, and cursor offset. Graph writes,
+backend Cypher, cloud clients, Kubernetes clients, and runtime worker counts
+are unchanged.
 
 Observability Evidence: this slice is a local CLI/documentation-fact generator,
 so no new long-running runtime metric is required. Operator diagnosis uses the

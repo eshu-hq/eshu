@@ -117,6 +117,7 @@ func runDocsVerifyWithDeps(cmd *cobra.Command, args []string, deps docsVerifyDep
 		Commands:             docsVerifyCommandTruth(deps),
 		HTTPEndpoints:        endpointTruthFromOpenAPI(query.OpenAPISpec()),
 		EnvironmentVariables: docsVerifyEnvironmentTruth(opts.Path),
+		LocalPathResolver:    docsVerifyLocalPathResolver(opts.Path),
 		MaxDocuments:         opts.Limit,
 		MaxDocumentBytes:     opts.MaxDocumentBytes,
 		ScopeID:              persistSummary.ScopeID,
