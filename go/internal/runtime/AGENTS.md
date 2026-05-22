@@ -91,9 +91,9 @@
 - **Expose pprof from another binary** → call `NewPprofServer(os.Getenv)`
   after telemetry/logger setup and before the main blocking work in that
   binary's `main`/`run`; check for a nil return, then `Start(ctx)`, log the
-  bound address, and `defer Stop(context.Background())`. The five existing
-  binaries (`go/cmd/{api,mcp-server,ingester,reducer,bootstrap-index}`)
-  follow this pattern; copy from there. Do not add new env vars; reuse
+  bound address, and `defer Stop(context.Background())`. API, MCP, ingester,
+  reducer, bootstrap-index, workflow-coordinator, and hosted collector
+  binaries follow this pattern. Do not add new env vars; reuse
   `ESHU_PPROF_ADDR` so operators have one knob.
 
 - **Expose a new recovery admin route** → add a method to `RecoveryHandler` in

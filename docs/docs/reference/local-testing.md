@@ -246,11 +246,11 @@ Observability Evidence: the proof used workflow-run state, workflow work-item
 state, fact work-item terminal counts, Terraform warning facts, API/MCP
 `/healthz`, collector health, and queue-domain breakdowns to distinguish
 collection, source-local projection, reducer materialization, and workflow
-completion. API and MCP pprof endpoints were reachable for this proof; worker
-service pprof exposure remains a separate performance-debugging follow-up
-because reducer and bootstrap tail analysis needs profiles from
-`resolution-engine`, `bootstrap-index`, and collector processes rather than
-only the read surfaces.
+completion. API/MCP pprof remains available through their runtime knobs, and
+the remote E2E pprof overlay now adds opt-in worker profiles for
+`resolution-engine`, `bootstrap-index`, `ingester`, `workflow-coordinator`, and
+hosted collector processes when a slow-tail proof needs CPU, heap, goroutine,
+or trace captures from the process doing the work.
 
 No-Regression Evidence: after the merged-main remote proof for #528 reached all
 `896` repositories but dead-lettered one OCI registry `source_local` item with
@@ -921,8 +921,9 @@ Validate queue work beyond the happy path:
 ## Process Profiling
 
 Each Go runtime binary (`eshu-api`, `eshu-mcp-server`, `eshu-ingester`,
-`eshu-reducer`, `eshu-bootstrap-index`) ships an opt-in `net/http/pprof`
-endpoint. It is disabled by default and gated by `ESHU_PPROF_ADDR`.
+`eshu-reducer`, `eshu-bootstrap-index`, `eshu-workflow-coordinator`, and the
+hosted collectors) ships an opt-in `net/http/pprof` endpoint. It is disabled by
+default and gated by `ESHU_PPROF_ADDR`.
 
 ```bash
 ESHU_PPROF_ADDR=:6060 eshu-ingester
@@ -943,6 +944,48 @@ the rest of the runtime contract.
 Capture a profile while reproducing the slow path on the same host as the
 runtime; loopback-only binding means `kubectl port-forward` (in a deployment)
 or just running the binary locally (for dogfood) is the typical access path.
+
+### Remote E2E Worker Profiles
+
+For hosted remote E2E performance debugging, keep the base stack unchanged and
+add the pprof overlay only for the run that needs profiles:
+
+```bash
+docker compose --env-file .env.remote-e2e \
+  -f docker-compose.remote-e2e.yaml \
+  -f docker-compose.remote-e2e.pprof.yaml \
+  --profile seed up --build
+```
+
+The overlay sets `ESHU_PPROF_ADDR=0.0.0.0:6060` inside each worker container,
+then publishes that container port on the remote host loopback interface. That
+keeps the profiler private to the test host while still allowing an operator to
+use an SSH tunnel from their laptop.
+
+| Service | Host endpoint |
+| --- | --- |
+| `bootstrap-index` | `127.0.0.1:19660` |
+| `ingester` | `127.0.0.1:19661` |
+| `resolution-engine` | `127.0.0.1:19662` |
+| `workflow-coordinator` | `127.0.0.1:19663` |
+| `collector-terraform-state` | `127.0.0.1:19664` |
+| `collector-oci-registry` | `127.0.0.1:19665` |
+| `collector-package-registry` | `127.0.0.1:19666` |
+| `collector-aws-cloud` | `127.0.0.1:19667` |
+| `collector-confluence` | `127.0.0.1:19668` |
+
+Example captures from the remote host:
+
+```bash
+go tool pprof -seconds=30 http://127.0.0.1:19662/debug/pprof/profile
+curl -sS http://127.0.0.1:19662/debug/pprof/goroutine?debug=2 \
+  > resolution-engine-goroutines.txt
+go tool pprof http://127.0.0.1:19667/debug/pprof/heap
+```
+
+Use this during slow queue-tail investigations only after logs, metrics, and
+status have identified the runtime that owns the cost. Do not add the overlay
+to normal Compose, Helm, or Kubernetes defaults.
 
 For Helm deployments, use workload-specific `env` maps when only one runtime
 needs a profile:

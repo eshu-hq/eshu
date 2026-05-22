@@ -127,6 +127,62 @@ func TestRemoteE2EComposeRestartsRuntimeServicesAfterTransientStoreStartup(t *te
 	}
 }
 
+func TestRemoteE2EComposeKeepsWorkerPprofDisabledByDefault(t *testing.T) {
+	t.Parallel()
+
+	doc := readComposeDocument(t, "docker-compose.remote-e2e.yaml")
+	for _, serviceName := range remoteE2EWorkerPprofServices() {
+		service := requireComposeService(t, doc, serviceName)
+		assertComposeEnvMissing(t, service, "ESHU_PPROF_ADDR")
+		assertComposePortMissing(t, service, "6060")
+	}
+}
+
+func TestRemoteE2EWorkerPprofOverlayBindsWorkersToHostLoopback(t *testing.T) {
+	t.Parallel()
+
+	doc := readComposeDocument(t, "docker-compose.remote-e2e.pprof.yaml")
+	for serviceName, hostPort := range map[string]string{
+		"bootstrap-index":            "19660",
+		"ingester":                   "19661",
+		"resolution-engine":          "19662",
+		"workflow-coordinator":       "19663",
+		"collector-terraform-state":  "19664",
+		"collector-oci-registry":     "19665",
+		"collector-package-registry": "19666",
+		"collector-aws-cloud":        "19667",
+		"collector-confluence":       "19668",
+	} {
+		service := requireComposeService(t, doc, serviceName)
+		assertComposeEnv(t, service, "ESHU_PPROF_ADDR", "0.0.0.0:6060")
+		assertComposePortContains(t, service, "127.0.0.1:"+hostPort+":6060")
+	}
+}
+
+func TestHostedWorkerCommandsStartPprofServer(t *testing.T) {
+	t.Parallel()
+
+	for _, sourcePath := range []string{
+		"go/cmd/collector-aws-cloud/main.go",
+		"go/cmd/collector-confluence/main.go",
+		"go/cmd/collector-git/main.go",
+		"go/cmd/collector-oci-registry/main.go",
+		"go/cmd/collector-package-registry/main.go",
+		"go/cmd/collector-terraform-state/main.go",
+		"go/cmd/workflow-coordinator/main.go",
+	} {
+		content := readRepositoryFile(t, "../../..", sourcePath)
+		for _, want := range []string{
+			"runtimecfg.NewPprofServer(os.Getenv)",
+			"pprof server listening",
+		} {
+			if !strings.Contains(content, want) {
+				t.Fatalf("%s missing pprof startup term %q", sourcePath, want)
+			}
+		}
+	}
+}
+
 func TestRemoteE2EPreflightScriptValidatesFullCorpusInputs(t *testing.T) {
 	t.Parallel()
 
@@ -182,5 +238,40 @@ func assertComposeScriptContains(t *testing.T, service composeService, want stri
 	body := fmt.Sprintf("%#v %#v", service.Entrypoint, service.Command)
 	if !strings.Contains(body, want) {
 		t.Fatalf("compose script missing %q in %s", want, body)
+	}
+}
+
+func remoteE2EWorkerPprofServices() []string {
+	return []string{
+		"bootstrap-index",
+		"ingester",
+		"resolution-engine",
+		"workflow-coordinator",
+		"collector-terraform-state",
+		"collector-oci-registry",
+		"collector-package-registry",
+		"collector-aws-cloud",
+		"collector-confluence",
+	}
+}
+
+func assertComposePortContains(t *testing.T, service composeService, want string) {
+	t.Helper()
+
+	for _, port := range service.Ports {
+		if fmt.Sprint(port) == want {
+			return
+		}
+	}
+	t.Fatalf("compose port %q missing from %#v", want, service.Ports)
+}
+
+func assertComposePortMissing(t *testing.T, service composeService, forbidden string) {
+	t.Helper()
+
+	for _, port := range service.Ports {
+		if strings.Contains(fmt.Sprint(port), forbidden) {
+			t.Fatalf("compose port %q unexpectedly present in %#v", forbidden, service.Ports)
+		}
 	}
 }

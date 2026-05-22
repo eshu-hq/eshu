@@ -1,0 +1,61 @@
+# Opt-in worker pprof overlay for the remote collector E2E stack.
+#
+# Use with docker-compose.remote-e2e.yaml only on private test hosts. Each
+# runtime binds pprof inside the container and publishes it on the host
+# loopback interface so operators can reach it through SSH tunnels without
+# exposing profiling endpoints on the network.
+
+services:
+  bootstrap-index:
+    environment:
+      ESHU_PPROF_ADDR: 0.0.0.0:6060
+    ports:
+      - "127.0.0.1:19660:6060"
+
+  ingester:
+    environment:
+      ESHU_PPROF_ADDR: 0.0.0.0:6060
+    ports:
+      - "127.0.0.1:19661:6060"
+
+  resolution-engine:
+    environment:
+      ESHU_PPROF_ADDR: 0.0.0.0:6060
+    ports:
+      - "127.0.0.1:19662:6060"
+
+  workflow-coordinator:
+    environment:
+      ESHU_PPROF_ADDR: 0.0.0.0:6060
+    ports:
+      - "127.0.0.1:19663:6060"
+
+  collector-terraform-state:
+    environment:
+      ESHU_PPROF_ADDR: 0.0.0.0:6060
+    ports:
+      - "127.0.0.1:19664:6060"
+
+  collector-oci-registry:
+    environment:
+      ESHU_PPROF_ADDR: 0.0.0.0:6060
+    ports:
+      - "127.0.0.1:19665:6060"
+
+  collector-package-registry:
+    environment:
+      ESHU_PPROF_ADDR: 0.0.0.0:6060
+    ports:
+      - "127.0.0.1:19666:6060"
+
+  collector-aws-cloud:
+    environment:
+      ESHU_PPROF_ADDR: 0.0.0.0:6060
+    ports:
+      - "127.0.0.1:19667:6060"
+
+  collector-confluence:
+    environment:
+      ESHU_PPROF_ADDR: 0.0.0.0:6060
+    ports:
+      - "127.0.0.1:19668:6060"

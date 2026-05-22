@@ -31,6 +31,12 @@ MCP, that mount `go/internal/runtime`:
 - the CLI and HTTP/admin views should render the same underlying report
 - live-versus-inferred state must be explicit in both views
 
+Most Go service binaries also honor the opt-in `ESHU_PPROF_ADDR` profiler
+listener for focused CPU, heap, goroutine, and trace capture. Leave it unset in
+normal deployment defaults; enable it only on the runtime that owns the slow
+stage and keep the endpoint private through loopback binding, port-forwarding,
+or equivalent network controls.
+
 Current platform reality:
 
 - the platform runtime is implemented end to end in the checked-in services
@@ -129,6 +135,7 @@ workflow work. Only the long-running hosted variants that mount
 - `collector-oci-registry`: `go run ./cmd/collector-oci-registry`
 - `collector-package-registry`: `go run ./cmd/collector-package-registry`
 - `collector-terraform-state`: `go run ./cmd/collector-terraform-state`
+- `collector-confluence`: `go run ./cmd/collector-confluence`
 - `projector`: `go run ./cmd/projector`
 - `reducer`: `go run ./cmd/reducer`
 
