@@ -1,254 +1,184 @@
 # Collector Authoring Guide
 
-Use this guide when adding a new collector family such as AWS, Kubernetes,
-SQL/data systems, or another source that should feed the shared Eshu data plane.
-The current parser/runtime stack is implemented in the checked-in services, so
-new collector work should start from the current service and parser boundaries
-documented here rather than introducing alternate runtime seams.
+Use this guide when adding or expanding a collector family that feeds Eshu's
+shared data plane. Collectors observe source truth and emit typed facts; they
+do not own canonical graph correlation, API repair behavior, or cross-source
+truth.
 
-The goal is not to teach one collector how to fit the current Git path. The
-goal is to make every new ingestor follow the same platform contract so the
-system can grow without core rewrites.
+For the currently deployed collector lanes and readiness gaps, see
+[Collector And Reducer Readiness](../reference/collector-reducer-readiness.md).
 
-## Non-Negotiable Rules
+## Contract
 
-- One collector family owns one source-truth boundary.
-- Collectors observe and normalize source truth; they do not own canonical
-  graph correlation.
-- Source-local projection belongs to projector logic, not to the API and not to
-  ad hoc finalization hooks.
-- Cross-source or cross-domain correlation belongs to reducers.
-- Parser discovery, parser selection, and content shaping belong to the
-  collector/parser platform boundary, not to finalization hooks or API repair
-  code.
-- New collectors must reuse the shared admin, telemetry, logging, and
-  configurability contract.
-- Do not add post-commit sidecar repair hooks or alternate runtime ownership
-  for normal-path production behavior.
-
-If a design needs bespoke post-commit or repair behavior outside the shared Go
-runtime, it is almost certainly landing in the wrong place.
-
-## The Collector Contract
-
-Every new collector should be able to explain one bounded work unit end to end:
+Every collector must define one bounded work unit before implementation starts:
 
 ```mermaid
 flowchart LR
-  A["Source observation"] --> B["Scope assignment"]
-  B --> C["Generation assignment"]
-  C --> D["Typed fact emission"]
-  D --> E["Projector work"]
-  E --> F["Reducer intents"]
-  F --> G["Canonical graph + content writes"]
+  Source["Source observation"] --> Scope["Scope assignment"]
+  Scope --> Generation["Generation assignment"]
+  Generation --> Facts["Typed fact emission"]
+  Facts --> Projection["Projector or reducer-owned work"]
 ```
 
-The collector itself owns only the first four stages:
+The collector owns source observation, scope identity, generation identity, and
+fact emission. Source-local projection belongs to projector code. Cross-source
+correlation, graph promotion, read-model truth, retries, and dead-letter
+handling belong to reducers and shared storage contracts.
 
-- source observation
-- scope assignment
-- generation assignment
-- typed fact emission
+Lock these decisions first:
 
-Everything after that should reuse platform-owned projection and reduction
-contracts.
+| Decision | Required answer |
+| --- | --- |
+| Source truth | Which system is authoritative: Git, cloud API, registry, state file, documentation source, or another source. |
+| Scope model | The durable ingestion shard: repository, account, region, cluster, registry target, space, dataset, or equivalent. |
+| Generation model | What replaces the previous authoritative snapshot for that scope. |
+| Fact model | Which typed facts are emitted before downstream projection begins. |
+| Confidence | Whether each fact is observed, reported, inferred, derived, or legacy unknown. |
+| Failure model | Which errors are retryable, terminal, rate-limited, auth-related, or source-missing. |
+| Operator model | Which health, backlog, duration, throttle, retry, pool, and status signals prove progress. |
 
-## What A Collector Must Define
+If any row is still fuzzy, the collector is not ready for code.
 
-Before implementation starts, lock these decisions:
+## Fact Confidence
 
-1. Source truth
-   What system is authoritative for this collector: Git, cloud APIs,
-   Kubernetes API, warehouse metadata, query history, or something else?
-2. Scope model
-   What is the bounded unit of ingestion: repository, account, region, cluster,
-   workspace, dataset, or another durable shard?
-3. Generation model
-   What counts as one authoritative snapshot replacement for that scope?
-4. Fact model
-   Which typed facts are emitted before any projector or reducer work begins?
-5. Source confidence
-   How much trust should consumers place in the fact: was it observed directly,
-   reported by another system, inferred from evidence, or derived by Eshu?
-6. Failure model
-   Which failures are retryable, terminal, rate-limit driven, or source-auth
-   related?
-7. Operator model
-   Which health, backlog, concurrency, and pool-tuning signals must be visible
-   to operators?
+Every emitted fact must carry `collector_kind` and `source_confidence`.
+`collector_kind` identifies the producing family. `source_confidence` tells
+reducers how much trust to place in the claim when sources disagree.
 
-If those seven points are still fuzzy, the collector is not ready for
-implementation.
+Use the vocabulary in `go/internal/facts/source_confidence.go`:
 
-## Source Confidence
+| Value | Meaning |
+| --- | --- |
+| `observed` | Eshu read the source artifact directly, such as Git contents or Terraform state. |
+| `reported` | An external API reported the value, such as AWS or registry metadata. |
+| `inferred` | Eshu concluded the claim by comparing or correlating other facts. |
+| `derived` | Eshu materialized the value from existing Eshu facts. |
+| `unknown` | Legacy or system fallback. New collector work should not depend on it. |
 
-Every emitted fact must say how Eshu learned it. This is separate from
-`collector_kind`.
+Documentation sources are observed evidence about what a document says. They do
+not prove that the documented claim is operationally true. Documentation facts
+must feed reducer-owned findings before they affect graph, deployment, runtime,
+source-code, or infrastructure truth.
 
-`collector_kind` tells us which collector family produced the fact. For example,
-facts from the default repository collector should carry `collector_kind=git`.
-`source_confidence` tells downstream consumers how to treat the claim when two
-sources disagree.
+## Runtime Shape
 
-Use these values:
+Hosted collectors should use the shared service shape:
 
-- `observed` — Eshu read the source artifact directly. Git file contents and
-  Terraform state files fit here.
-- `reported` — an external API reported the value. AWS API responses fit here.
-- `inferred` — Eshu reached the claim by comparing or correlating other facts.
-  IaC reachability and ownership correlation fit here.
-- `derived` — Eshu materialized the value from existing Eshu facts without
-  claiming it came from a new external source.
-- `unknown` — compatibility fallback for older or system rows. New collector
-  work should not rely on this value.
+- one CLI entrypoint for local replay and controlled runs
+- `/healthz`, `/readyz`, `/metrics`, and shared status/admin wiring when the
+  runtime mounts HTTP admin
+- structured logs with trace and correlation fields
+- source-stage counters, duration histograms, throttle/rate-limit counters when
+  the source has that failure mode, and bounded failure counters
+- configurable database pools, worker counts, queue depths, API budgets, and
+  runtime limits
 
-This matters most when the graph compares intent, managed state, and live
-reality. A Terraform file may express intent. A Terraform state snapshot may
-show what Terraform believes it manages. An AWS scan may report what exists in
-the account right now. Those are all useful facts, but they should not carry
-the same trust label.
+Claim-driven collectors must run through `collector.ClaimedService` and durable
+workflow claims. The workflow coordinator plans bounded work rows; collector
+runtimes claim the work, heartbeat the claim, emit facts through the normal
+commit boundary, and complete, release, or fail the claim with fencing.
 
-Documentation collectors are a special case of observed evidence. A Confluence
-page, Git Markdown file, runbook, or design record can prove what the document
-says, who owns it, which section contains a claim, and which entities it
-mentions. It does not prove that the documented claim is operationally true.
-Documentation facts must therefore feed reducer-owned drift findings; they must
-not override graph, deployment, runtime, source-code, or infrastructure truth.
+Do not add a Helm or deployment knob for a design-only collector. A chart value
+is an operator promise that the binary, fact contract, configuration, status
+path, and runtime proof exist.
 
-## Runtime Requirements
+## Evidence Gates
 
-Every collector runtime should be operable in the same way as the rest of the
-platform.
+Collector packages must be concrete before they land. The current gates are:
 
-Required capabilities:
+| Gate | What it enforces |
+| --- | --- |
+| `scripts/verify-package-docs.sh` | Changed Go packages under `go/internal` or `go/cmd` have `doc.go`, `README.md`, and scoped `AGENTS.md`. |
+| `scripts/verify-performance-evidence.sh` | Hot-path collector changes with Cypher, graph writes, workers, leases, batching, goroutines, channels, queues, or runtime stages carry tracked performance and observability evidence. |
+| `scripts/verify-collector-authoring-gate.sh` | Changed collector source packages have package docs, tests, collector evidence, observability evidence, and a deployment or ServiceMonitor decision note. |
 
-- CLI entrypoint for local development and controlled replay
-- `/healthz` and `/readyz` semantics for process health and readiness
-- `/admin/status` or the shared status seam when the runtime mounts HTTP admin
-- `/metrics` with service, queue, retry, and pool-pressure signals
-- structured JSON logs with trace and correlation fields
-- configurable database pools, worker counts, queue depths, and runtime limits
-
-For deployed services, prefer environment or chart/config-driven tuning over
-hard-coded values.
-
-## Evidence And Documentation Gates
-
-New collector packages must be concrete before they land. CI enforces two
-guardrails:
-
-- `scripts/verify-package-docs.sh` fails changed Go packages under
-  `go/internal` or `go/cmd` unless the package has `doc.go`, `README.md`, and
-  scoped `AGENTS.md`.
-- `scripts/verify-performance-evidence.sh` fails collector changes that add
-  Cypher, graph writes, worker claims, leases, batching, goroutines, channels,
-  queue behavior, or runtime stages without tracked benchmark and observability
-  evidence.
-- `scripts/verify-collector-authoring-gate.sh` fails changed collector source
-  packages unless they have package docs, package tests, collector performance
-  evidence, collector observability evidence, and a deployment or
-  ServiceMonitor decision note.
-
-Use these markers in the changed reference doc or package README:
+Use these markers in a changed reference doc or package README:
 
 ```text
-Collector Performance Evidence: <baseline, after measurement, input shape, fact
-count, wall time, remote/API budget, backend where relevant, and result>
+Collector Performance Evidence: <baseline, after measurement, input shape,
+fact count, wall time, remote/API budget, backend where relevant, and result>
 
 Collector Observability Evidence: <source-stage metrics, spans, logs, status
 fields, pprof, or queue/domain counters that let an operator diagnose this
 collector>
 
-Collector Deployment Evidence: <health, readiness, metrics, ServiceMonitor, and
-admin/status proof, or a clear no-hosted-runtime decision>
+Collector Deployment Evidence: <health, readiness, metrics, ServiceMonitor,
+and admin/status proof, or a clear no-hosted-runtime decision>
 ```
 
-For a correctness-only change, use `No-Regression Evidence:` instead of
+For correctness-only work, use `No-Regression Evidence:` instead of
 `Collector Performance Evidence:`. If existing telemetry already covers the
-path, use `No-Observability-Change:` and name the existing signals. Do not land
-"covered by logs" without naming the log event, metric, span, or status field.
+path, use `No-Observability-Change:` and name the exact existing metric, span,
+log event, status field, or pprof path.
 
-The collector observability bar is source-stage specific. New or expanded
-collectors need bounded API/request counters, rate-limit or throttle counters
-when the source has that failure mode, duration histograms, parse and
-fact-emission counters, and bounded failure counters. Hosted collectors also
-need proof for `/healthz`, `/readyz`, `/metrics`, ServiceMonitor rendering when
-charted, and admin/status visibility when claim-driven.
+## Implementation Order
 
-## Implementation Sequence
+Follow this order so the collector lands on stable ownership boundaries:
 
-Follow this order so the collector lands on stable boundaries:
-
-1. Update the published architecture or workflow docs if the source changes a
-   runtime or ownership rule.
+1. Update published architecture, workflow, or runtime docs when the source
+   changes ownership or deployment rules.
 2. Define scope and generation identity.
-3. Define typed fact payloads and validation rules.
+3. Define fact payloads, validation, and confidence.
 4. Implement source observation and normalization.
 5. Emit facts into the durable store.
 6. Reuse projector and reducer contracts for downstream work.
-7. Add telemetry, traces, logs, and admin/status surfacing.
-8. Add local and cloud validation gates.
-9. Update docs before calling the slice complete.
+7. Add telemetry, logs, traces, status, and claim handling where relevant.
+8. Add local replay, fixture, and cloud validation gates.
+9. Update package and public docs before calling the slice complete.
 
-Do not reverse that order by starting with answer shaping, graph mutations, or
-temporary repair hooks.
+Do not start with answer shaping, direct graph mutations, post-commit repair
+hooks, or one-off API fixes. Those are downstream ownership problems, not
+collector contracts.
 
 For documentation collectors, start with source-neutral facts:
+`documentation_source`, `documentation_document`, `documentation_section`,
+`documentation_link`, `documentation_entity_mention`, and
+`documentation_claim_candidate`. Keep source-specific fields in metadata until
+the shape is stable across at least two documentation source families.
 
-- `documentation_source`
-- `documentation_document`
-- `documentation_section`
-- `documentation_link`
-- `documentation_entity_mention`
-- `documentation_claim_candidate`
+## Verification
 
-Keep source-specific fields in metadata until a field proves stable across at
-least two documentation source families. Confluence page IDs and Git paths can
-both populate source-neutral document identity; neither should force the core
-schema to become source-specific.
+At minimum, a collector slice needs:
 
-## Verification Gates
+- unit tests for normalization, identity, fact validation, and serialization
+- replay or fixture-backed integration coverage for one full scope generation
+- projector or reducer tests when downstream materialization changes
+- telemetry/log/status assertions for the hosted runtime or a documented
+  no-hosted-runtime decision
+- local and cloud runbook updates that do not require live production
+  credentials
 
-At minimum, a new collector should ship with:
-
-- unit tests for normalization, identity, and fact serialization
-- replay or fixture-backed integration tests for one full scope generation
-- projector or reducer integration tests when the collector changes downstream
-  materialization
-- telemetry and logging verification for the new runtime
-- local operator runbook updates
-- cloud validation steps that prove the collector can run independently
-
-The release gate should never depend on live production credentials.
-
-## Required Documentation Updates
-
-When a collector lands, update these repo-hosted docs in the same milestone:
-
-- [System Architecture](../architecture.md)
-- [Source Layout](../reference/source-layout.md)
-- [Relationship Mapping](../reference/relationship-mapping.md) when the new
-  source changes traversal or canonical relationship meaning
-- [Local Testing Runbook](../reference/local-testing.md)
-- [Cloud Validation Runbook](../reference/cloud-validation.md)
-- [Telemetry Overview](../reference/telemetry/index.md)
-- any current deployment, workflow, or service-level reference docs that
-  explain how operators run or validate the collector today
-
-Future workers should be able to onboard to the collector from docs alone
-without guessing which service owns truth.
+Before promoting a collector lane, also prove the deployed shape in
+[Collector And Reducer Readiness](../reference/collector-reducer-readiness.md):
+runtime health, status, metrics, durable facts, claim behavior for
+claim-driven collectors, reducer drain, dead-letter state, and API/MCP truth.
 
 ## Anti-Patterns
 
-Avoid these patterns even if they look faster in the short term:
+Avoid these patterns:
 
-- writing canonical graph edges directly from the collector because the reducer
-  does not exist yet
+- writing canonical graph edges directly from collectors
+- hiding source gaps behind optimistic status output
 - encoding source-specific meaning in generic fallback fields
-- using full re-index as the normal freshness path
-- hiding source gaps or partial coverage behind optimistic status output
-- creating a second admin or metrics shape that only one collector uses
-- reintroducing compatibility shims or alternate runtime paths for new
-  production behavior
+- using full re-indexing as the normal freshness path
+- adding a second admin, metrics, or logging shape for one collector
+- adding compatibility shims or alternate production runtimes outside the
+  shared Go service contracts
 
-Those patterns all increase coupling and make the next collector harder to add.
+Those choices make the next collector harder to add and move truth out of the
+layer that owns it.
+
+## Required Docs
+
+When a collector lands, update the affected repo-hosted docs in the same
+milestone:
+
+- [System Architecture](../architecture.md)
+- [Source Layout](../reference/source-layout.md)
+- [Relationship Mapping](../reference/relationship-mapping.md) when traversal
+  or canonical relationship meaning changes
+- [Local Testing](../reference/local-testing.md)
+- [Cloud Validation](../reference/cloud-validation.md)
+- [Telemetry Overview](../reference/telemetry/index.md)
+- deployment, workflow, or service-level references that explain how operators
+  run or validate the collector today

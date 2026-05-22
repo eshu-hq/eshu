@@ -1,37 +1,41 @@
 # Agent Engineering Guide
 
-This maintainer-only guide carries the detailed rules behind the root
-`AGENTS.md` and `CLAUDE.md` entrypoints. Keep the root files short and mirrored;
-put expanded workflow detail here or in package READMEs.
+This maintainer-only guide expands the mandatory root `AGENTS.md` and
+`CLAUDE.md` rules. Keep the root files short and mirrored; put detailed
+workflow guidance here or in scoped package docs.
 
-## Communication
+This guide is mandatory for agents. It is not optional background reading.
 
-Talk to the repo owner like a peer. Use direct, plain language. Define jargon
-the first time it matters. Lead status updates with the result, then numbers,
-then caveats. Keep code comments and docs precise, not chatty.
+## Operating Standard
 
-## Life Motto Enforcement
+Talk to the repo owner like a peer: direct, plain, and specific. Lead with the
+result, then the numbers, then caveats. Define jargon the first time it matters.
+Keep code comments and docs precise.
 
-Accuracy, performance, and concurrency are mandatory for runtime work.
+For runtime work, the order is fixed:
 
-- Accuracy proof comes first: fixture intent, persisted truth, graph truth, and
-  API/MCP/CLI truth must agree for the touched behavior.
-- Performance proof comes second: capture before/after or no-regression
-  measurements on the same shape, and record evidence in a versioned repo file
-  when a hot path is touched.
-- Concurrency proof comes third: validate idempotency, retry boundaries, claim
-  ordering, transaction scope, conflict keys, dead-letter behavior, and that no
-  shipped worker knob hides the real design problem.
+1. **Accuracy:** persisted facts, graph truth, API/MCP/CLI truth, and fixture
+   intent agree.
+2. **Performance:** the correct path has a before/after or no-regression
+   measurement on the same input shape.
+3. **Concurrency:** idempotency, retry boundaries, claim ordering, transaction
+   scope, conflict keys, and dead-letter behavior hold under intended worker
+   counts.
 
-Agents MUST use the correct project skill for each of those dimensions:
-`eshu-correlation-truth` for truth, `eshu-diagnostic-rigor` for performance and
-runtime proof, `cypher-query-rigor` for Cypher/graph paths, and
-`concurrency-deadlock-rigor` for workers, leases, queues, retries, or shared
-writes.
+Use the project skill that matches the surface:
 
-## Service Boundaries
+- `eshu-correlation-truth` for materialization, deployment tracing, or query
+  truth
+- `eshu-diagnostic-rigor` for runtime proof, reducer throughput, queue behavior,
+  or performance evidence
+- `cypher-query-rigor` for graph query/write/index or backend dialect work
+- `concurrency-deadlock-rigor` for workers, leases, retries, queues, or shared
+  writes
+- `golang-engineering` for Go code edits and Go tests
 
-Do not collapse ownership boundaries casually.
+## Ownership Boundaries
+
+Do not collapse package ownership casually.
 
 | Area | Owns |
 | --- | --- |
@@ -39,7 +43,7 @@ Do not collapse ownership boundaries casually.
 | `go/internal/parser/` | Parser registry, adapters, language behavior, SCIP support |
 | `go/internal/facts/` | Durable fact models and queue contracts |
 | `go/internal/storage/postgres/` | Facts, queue, status, content, recovery, decisions |
-| `go/internal/storage/cypher/` | Backend-neutral Cypher write contracts, canonical writers, edge helpers, instrumentation |
+| `go/internal/storage/cypher/` | Backend-neutral Cypher writes, canonical writers, edge helpers, instrumentation |
 | `go/internal/storage/neo4j/` | Neo4j-specific graph adapters |
 | `go/internal/projector/` | Source-local projection stages |
 | `go/internal/reducer/` | Cross-domain materialization and shared projection |
@@ -50,20 +54,20 @@ Do not collapse ownership boundaries casually.
 | `go/internal/telemetry/` | OTEL tracing, metrics, structured logs |
 | `go/internal/truth/` | Canonical truth contracts |
 
-Handlers depend on ports such as `GraphQuery` and `GraphWrite`, not concrete
-backend implementations. Backend dialect differences belong only in documented
-seams such as schema DDL, runtime settings, retry classification, and query
-builders.
+Handlers depend on ports such as `GraphQuery`, `GraphWrite`, and
+`ContentStore`, not concrete backend drivers. Backend-specific behavior belongs
+only in documented seams: schema DDL, runtime settings, retry classification,
+query builders, and measured adapters.
 
 ## Runtime Contract
 
-| Runtime | Responsibility | Command | Kubernetes shape |
-| --- | --- | --- | --- |
-| API | HTTP API, admin/query reads | `eshu api start --host 0.0.0.0 --port 8080` | `Deployment` |
-| MCP Server | MCP tool server | `eshu mcp start` | `Deployment` or sidecar |
-| Ingester | Repo sync, parse, fact emission | `/usr/local/bin/eshu-ingester` | `StatefulSet` + PVC |
-| Reducer | Queue drain, graph projection, repair flows | `/usr/local/bin/eshu-reducer` | `Deployment` |
-| Bootstrap Index | One-shot initial indexing | `/usr/local/bin/eshu-bootstrap-index` | job / init step |
+| Runtime | Responsibility | Command |
+| --- | --- | --- |
+| API | HTTP API, admin/query reads | `eshu api start --host 0.0.0.0 --port 8080` |
+| MCP Server | MCP tool server | `eshu mcp start` |
+| Ingester | Repo sync, parsing, fact emission | `/usr/local/bin/eshu-ingester` |
+| Reducer | Queue drain, graph projection, repair flows | `/usr/local/bin/eshu-reducer` |
+| Bootstrap Index | One-shot initial indexing | `/usr/local/bin/eshu-bootstrap-index` |
 
 For local runtime validation that executes local binaries, rebuild first:
 
@@ -74,19 +78,19 @@ export PATH="$(go env GOPATH)/bin:$PATH"
 
 `eshu graph start` discovers helper binaries through `PATH`.
 
-## TDD And Debugging
+## Code Change Workflow
 
-For bugs:
+For bugs, use TDD:
 
-1. Write a failing test that reproduces the exact failure.
+1. Write the failing regression test.
 2. Run the focused test and confirm the expected failure.
 3. Fix the right ownership boundary.
 4. Rerun the focused test.
-5. Add edge-case coverage for retries, ordering, idempotency, or concurrency
-   when relevant.
+5. Add edge-case coverage for retries, ordering, idempotency, concurrency, or
+   rollback when relevant.
 6. Run the smallest package or integration gate that proves the contract.
 
-Root-cause workflow:
+For root cause:
 
 1. Gather evidence.
 2. Form hypotheses.
@@ -94,20 +98,23 @@ Root-cause workflow:
 4. Fix the actual failure mode.
 5. Add regression coverage and telemetry when runtime behavior changed.
 
-## Performance
+## Performance And Evidence
 
-Performance work must show measured value. Before implementation, write a
-performance impact declaration naming the stage, cardinality, expected hot path,
-baseline or known-normal timing, proof ladder, and stop threshold.
+Performance work needs a written impact declaration before implementation. Name
+the stage, cardinality, hot path, baseline or known-normal timing, proof ladder,
+and stop threshold.
 
-Capture before/after data with the same benchmark, trace, metric sample,
-runtime status report, or Compose proof. For full-corpus or remote proof,
-report collector stream complete, projection/bootstrap complete, and queue-zero
-separately.
+Capture before/after data with the same benchmark, trace, metric sample, runtime
+status report, or Compose proof. For full-corpus and remote proof, report these
+separately:
+
+- collector stream complete
+- projection or bootstrap complete
+- queue-zero
 
 Hot-path changes that touch Cypher, graph writes, reducers, projectors, queues,
 workers, leases, batching, runtime stages, collectors, Compose, Helm, pprof, or
-NornicDB knobs must update a tracked repo file with one evidence marker and one
+NornicDB knobs must update a tracked repo file with one benchmark marker and one
 observability marker:
 
 - `Performance Evidence:`
@@ -116,46 +123,47 @@ observability marker:
 - `Observability Evidence:`
 - `No-Observability-Change:`
 
-PR text alone is not enough.
+PR text alone is not proof. Review acceptance requires the exact command,
+runtime run, or measurement that proves the changed behavior.
 
-Review acceptance requires proof, not confidence. For code changes, cite the
-focused test or integration gate that proves the changed behavior works. For
-runtime-affecting changes, cite performance evidence or no-regression evidence
-from the same input shape before accepting the PR.
-
-## MCP And API Reads
+## API, MCP, And Query Reads
 
 Potentially expensive reads must be scoped, cancellable, observable, and cheap
-to fail:
+to fail.
 
-- resolve canonical scope first
-- require `limit`, timeout, deterministic ordering, and `truncated`
-- run a cheap local MCP preflight before graph-backed calls
-- prefer summary/count/handles first, payload second
-- keep high-volume metadata out of graph hot paths unless measured
-- classify slow calls before retrying
+- Resolve canonical scope first.
+- Require `limit`, timeout, deterministic ordering, and `truncated`.
+- Run a cheap local MCP preflight before graph-backed calls.
+- Prefer summary/count/handles first, payload second.
+- Keep high-volume metadata out of graph hot paths unless measured.
+- Classify slow calls before retrying.
 
 Runtime modes with different performance profiles require explicit opt-in.
 
 ## Concurrency
 
 Before changing workers, leases, retries, queues, transactions, or shared graph
-writes, describe shared state, lock/claim ordering, transaction scope, retry
-boundaries, idempotency keys, conflict domains, starvation risks, write
-amplification, and dead-letter behavior.
+writes, describe:
 
-Research actual Postgres, Neo4j, NornicDB, or Go runtime behavior before
-deciding. If a path must be concurrent, fix the design with idempotent writes,
-conflict-key partitioning, or a measured redesign. Do not ship serialization as
-a concurrency fix.
+- shared state and conflict domains
+- lock or claim ordering
+- transaction scope
+- retry scope
+- idempotency keys
+- starvation and write-amplification risks
+- dead-letter behavior
 
-## Facts-First Bootstrap Ordering
+Do not ship serialization as a concurrency fix. Worker-count reductions,
+single-threaded drains, disabled concurrent writers, or batch size `1` are
+diagnostics unless a design record proves the serial path is permanent and
+within the performance contract.
 
-The bootstrap-index orchestrator in `go/cmd/bootstrap-index/main.go` runs a
-multi-pass pipeline:
+## Bootstrap And Correlation Truth
+
+The bootstrap-index orchestrator runs a facts-first pipeline:
 
 ```text
-Phase 1 - Collection + First-Pass Reduction
+Phase 1 - Collection + first-pass reduction
 Phase 2 - Backfill relationship evidence
 Phase 3 - Reopen deployment_mapping
 Phase 4 - Second-pass consumers of resolved_relationships
@@ -164,13 +172,7 @@ Phase 4 - Second-pass consumers of resolved_relationships
 Any domain that consumes `resolved_relationships` needs a post-Phase-3 reopen
 or re-trigger mechanism.
 
-## Correlation Truth
-
-Use `eshu-correlation-truth` whenever a change touches workload admission,
-deployable-unit correlation, materialization, deployment tracing, or query truth
-in reducer, query, graph, relationships, or correlation fixtures.
-
-Required proof:
+Correlation and materialization changes must prove:
 
 - raw evidence -> candidate -> admission -> projection row -> graph write ->
   query surface
@@ -178,7 +180,6 @@ Required proof:
 - what materializes and what remains provenance-only
 - utility, controller, deployment, and ambiguous multi-unit repositories
 - fresh rebuild/restart before blaming timing
-- fixture intent, reducer graph truth, and API/query truth agreement
 
 Namespace, folder, or repo-name heuristics must not invent environment or
 platform truth without explicit environment aliases or stronger deployment
@@ -186,8 +187,8 @@ evidence.
 
 ## Observability
 
-Every runtime-affecting code change must include telemetry or a clear
-`No-Observability-Change:` marker that names existing signals.
+Every runtime-affecting code change must include telemetry or a
+`No-Observability-Change:` marker naming existing signals.
 
 | Change type | Required telemetry |
 | --- | --- |
@@ -208,7 +209,7 @@ logs, not metric labels.
 For non-trivial Cypher work, read the current NornicDB-New hot-path cookbook,
 failing query shapes, and relevant `pkg/cypher/*hotpath*_test.go` files before
 proposing a change. State which executor path or fast path the production query
-uses and how your change engages it.
+uses and how the change engages it.
 
 When Eshu hits a NornicDB incompatibility, check upstream source before
 guessing. If NornicDB supports the behavior, fix Eshu. If it needs a workaround,
@@ -216,29 +217,20 @@ use a documented backend seam. If NornicDB must be patched, land an
 evidence-backed fix in the maintained fork, rebuild, and pin the binary until
 upstream absorbs it.
 
-Eshu maintainers may patch NornicDB only for:
-
-- a correctness fix in NornicDB itself
-- a measured NornicDB performance win that generalizes
-- a measured Eshu runtime win proven by focused and corpus-level evidence
-
-Speculative throughput patches must be reverted.
+Speculative NornicDB throughput patches must be reverted.
 
 ## Documentation Workflow
 
 Every changed Go package under `go/internal` or `go/cmd` must carry `doc.go`,
-`README.md`, and package-local `AGENTS.md`. The scoped `AGENTS.md` file is not
-reader-facing prose; it is harness-loaded instruction for Codex and other coding
-agents working inside that directory tree.
+`README.md`, and package-local `AGENTS.md`.
 
-Use `eshu-folder-doc-keeper` when code moves and package docs drift. Use:
+- `doc.go` is the godoc contract.
+- `README.md` is human architecture and operational context.
+- `AGENTS.md` is harness-loaded scoped instruction for agents working in that
+  directory tree.
 
-```bash
-scripts/check-docs-stale.sh --all
-scripts/verify-doc-claims.sh go/internal/<pkg>
-```
-
-The package docs gate is:
+Use `eshu-folder-doc-keeper` when code moves and package docs drift. The package
+docs gate is:
 
 ```bash
 scripts/test-verify-package-docs.sh

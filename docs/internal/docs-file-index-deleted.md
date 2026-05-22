@@ -1,6 +1,6 @@
 # Deleted Documentation Files
 
-Generated from `git diff --cached --name-status origin/main -- "*.md"` for this documentation cleanup branch.
+Generated from `git diff --name-status origin/main -- "*.md"` for this documentation cleanup branch.
 
 - `DESIGN.md`
 - `PRODUCT.md`
@@ -60,6 +60,7 @@ Generated from `git diff --cached --name-status origin/main -- "*.md"` for this 
 - `docs/docs/getting-started/prerequisites.md`
 - `docs/docs/getting-started/quickstart.md`
 - `docs/docs/guides/bundles.md`
+- `docs/docs/guides/collector-authoring.md`
 - `docs/docs/guides/mcp-guide.md`
 - `docs/docs/guides/neo4j-setup.md`
 - `docs/docs/guides/starter-prompts.md`
@@ -77,6 +78,7 @@ Generated from `git diff --cached --name-status origin/main -- "*.md"` for this 
 - `docs/docs/reference/graph-backend-installation.md`
 - `docs/docs/reference/graph-backend-operations.md`
 - `docs/docs/reference/http-api.md`
+- `docs/docs/reference/local-data-root-spec.md`
 - `docs/docs/reference/local-performance-envelope.md`
 - `docs/docs/reference/local-testing.md`
 - `docs/docs/reference/mcp-cookbook.md`
@@ -101,6 +103,7 @@ Generated from `git diff --cached --name-status origin/main -- "*.md"` for this 
 - `docs/docs/use/code-questions.md`
 - `docs/docs/use/index-repositories.md`
 - `docs/docs/use/index.md`
+- `docs/docs/why-eshu.md`
 - `docs/internal/2026-04-17-collector-reducer-briefing.md`
 - `docs/internal/2026-04-17-future-aws-collector-design-constraints.md`
 - `docs/internal/2026-04-17-inline-shared-followup-investigation.md`

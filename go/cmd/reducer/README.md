@@ -1,115 +1,95 @@
 # cmd/reducer
 
-`cmd/reducer` builds the `eshu-reducer` binary — the long-running
-`resolution-engine` runtime that drains the reducer fact-work queue,
-executes domain handlers, materializes cross-domain truth, and writes
-shared edges into the configured graph backend. The deployed service
-identity is `resolution-engine`.
+## Purpose
 
-## Where this fits in the pipeline
+`cmd/reducer` builds `eshu-reducer`, the deployed `resolution-engine`
+runtime. It drains reducer intents from Postgres, executes
+`internal/reducer` domain handlers, materializes reducer-owned truth, writes
+shared graph edges through the configured graph backend, and hosts the shared
+admin surface.
+
+## Ownership boundary
+
+This package owns process startup and wiring only. Domain behavior, truth
+contracts, shared projection, repair, and reducer-owned fact publication live
+in `internal/reducer`. Graph writes go through `internal/storage/cypher`
+adapters; handlers must not branch on raw Neo4j or NornicDB driver types.
+
+Runtime shape:
 
 ```mermaid
 flowchart LR
-  Ingester["Ingester\n(fact emission)"] --> ProjQ["Projector\nqueue"]
-  ProjQ --> Projector["internal/projector\n(source-local projection)"]
-  Projector --> ReducerQ["Reducer queue\n(Postgres)"]
-  ReducerQ --> Reducer["eshu-reducer\n(this binary)"]
-  Reducer --> Graph["Graph backend\n(Neo4j / NornicDB)"]
-  Reducer --> PhaseState["graph_projection_phase_state\n(Postgres)"]
-  PhaseState --> SharedRunners["SharedProjectionRunner\nCodeCallProjectionRunner\nRepoDependencyProjectionRunner"]
-  SharedRunners --> Graph
+  Queue["Reducer queue\n(Postgres)"] --> Service["reducer.Service"]
+  Service --> Runtime["internal/reducer Runtime"]
+  Runtime --> Handlers["Domain handlers"]
+  Handlers --> Facts["Reducer facts\n(Postgres)"]
+  Handlers --> Graph["Graph backend\nNornicDB or Neo4j"]
+  Service --> Shared["Shared, code-call,\nrepo-dependency runners"]
+  Shared --> Graph
+  Service --> Repair["GraphProjectionPhaseRepairer"]
 ```
 
-## Internal flow
+Startup order:
 
-```mermaid
-flowchart TB
-  run["run()"] --> Telemetry["telemetry.NewBootstrap\nNewProviders"]
-  run --> DB["runtimecfg.OpenPostgres"]
-  run --> Graph["openReducerNeo4jAdapters"]
-  run --> Build["buildReducerService()"]
-  Build --> Handlers["DefaultHandlers wired\n(all domain handlers)"]
-  Build --> Queue["postgres.NewReducerQueue"]
-  Build --> Runners["SharedProjectionRunner\nCodeCallProjectionRunner\nRepoDependencyProjectionRunner\nGraphProjectionPhaseRepairer"]
-  Build --> SvcObj["reducer.Service"]
-  SvcObj --> AdminSurface["app.NewHostedWithStatusServer\n/healthz /readyz /metrics /admin/status"]
-  AdminSurface --> RunLoop["service.Run(ctx)\nblocks until SIGINT/SIGTERM"]
-```
+1. `--version` or `-v` prints build info and exits before telemetry, storage,
+   graph, or HTTP setup.
+2. `telemetry.NewBootstrap("reducer")` and `telemetry.NewProviders` create
+   logger, tracer, meter, and Prometheus handler.
+3. `runtimecfg.NewPprofServer` starts only when `ESHU_PPROF_ADDR` is set.
+4. `runtimecfg.OpenPostgres` opens the Postgres store.
+5. `telemetry.RegisterObservableGauges` registers queue-depth gauges.
+6. `openReducerNeo4jAdapters` opens the configured graph backend. Invalid
+   `ESHU_GRAPH_BACKEND` values fail startup.
+7. `buildReducerService` wires stores, graph adapters, domain handlers, runners,
+   queue policy, claim gates, and telemetry.
+8. `app.NewHostedWithStatusServer` mounts `/healthz`, `/readyz`, `/metrics`,
+   and `/admin/status`.
+9. `service.Run(ctx)` runs until `SIGINT` or `SIGTERM`, then drains through the
+   hosted runtime.
 
-## Startup sequence
-
-1. `telemetry.NewBootstrap("reducer")` + `telemetry.NewProviders` — OTEL
-   logger, tracer, meter, Prometheus handler.
-2. `runtimecfg.OpenPostgres` — Postgres connection from ESHU_POSTGRES_DSN.
-3. `postgres.NewQueueObserverStore` + `telemetry.RegisterObservableGauges`
-   — queue-depth observable gauges.
-4. `openReducerNeo4jAdapters` — opens graph-backend driver; backend is
-   chosen by ESHU_GRAPH_BACKEND (default `nornicdb`). Invalid values fail
-   at startup.
-5. `buildReducerService` — loads all config, wires `DefaultHandlers`
-   (including the Terraform config-vs-state drift adapters
-   `TerraformBackendResolver`, `DriftEvidenceLoader`, and `DriftLogger`
-   activated for chunk #163; the evidence loader carries the runtime
-   `Tracer`, `Logger`, and `Instruments` so its four-query join opens
-   `SpanReducerDriftEvidenceLoad`, surfaces decode-failure WARN logs,
-   and increments
-   `eshu_dp_drift_unresolved_module_calls_total` per unresolvable
-   `module {}` source per the issue #169 module-aware join; the AWS runtime
-   drift adapters `PostgresAWSCloudRuntimeDriftEvidenceLoader` and
-   `PostgresAWSCloudRuntimeDriftWriter` are wired for issue #39 so
-   `aws_resource` reducer intents can publish durable orphan/unmanaged
-   findings after the bounded ARN join; the SBOM/attestation attachment
-   writer publishes digest-subject attachment facts; the service-catalog
-   correlation writer publishes repository-evidence-gated catalog correlation
-   facts; and the supply-chain impact writer publishes reducer-owned
-   vulnerability impact facts without graph writes),
-   `SharedProjectionRunner`, `CodeCallProjectionRunner`,
-   `RepoDependencyProjectionRunner`, `GraphProjectionPhaseRepairer`, and
-   the `postgres.NewReducerQueue`.
-6. `app.NewHostedWithStatusServer` — mounts the shared admin surface.
-7. `signal.NotifyContext` for `os.Interrupt` / `syscall.SIGTERM`.
-8. `service.Run(ctx)` — blocks until the context is canceled; hosted
-   runtime drains in-flight work before returning.
-
-## Configuration reference
+## Configuration
 
 All env vars parsed in `config.go` and `neo4j_wiring.go`.
 
-### Queue and retry
+`buildReducerService` wires the drift adapters, AWS runtime drift writer,
+container-image identity writer, CI/CD correlation writer, service-catalog
+correlation writer, SBOM/attestation attachment writer, supply-chain impact
+writer, shared projection runners, code-call runner, repo-dependency runner,
+graph phase repairer, and reducer queue. Domain contracts live in
+`internal/reducer`; this command only provides the process wiring.
+
+Queue and retry:
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
-| `ESHU_REDUCER_RETRY_DELAY` | `30s` | Delay before a failed intent becomes re-claimable |
-| `ESHU_REDUCER_MAX_ATTEMPTS` | `3` | Terminal failure threshold |
-| `ESHU_REDUCER_WORKERS` | `NumCPU` NornicDB / `min(NumCPU,4)` Neo4j | Concurrent intent workers |
-| `ESHU_REDUCER_BATCH_CLAIM_SIZE` | `workers` NornicDB / `workers×4 (max 64)` Neo4j | Items per claim batch |
-| `ESHU_REDUCER_CLAIM_DOMAIN` | `""` (all domains) | Restrict claims to one `Domain`; kept for older single-lane deployments |
-| `ESHU_REDUCER_CLAIM_DOMAINS` | `""` (all domains) | Comma-separated `Domain` allowlist for a domain-specific reducer lane |
+| `ESHU_REDUCER_RETRY_DELAY` | `30s` | Delay before a failed intent becomes re-claimable. |
+| `ESHU_REDUCER_MAX_ATTEMPTS` | `3` | Terminal failure threshold. |
+| `ESHU_REDUCER_WORKERS` | `NumCPU` on NornicDB, `min(NumCPU,4)` on Neo4j | Concurrent intent workers. |
+| `ESHU_REDUCER_BATCH_CLAIM_SIZE` | worker count on NornicDB, `workers*4` capped at `64` on Neo4j | Intents claimed per batch. |
+| `ESHU_REDUCER_CLAIM_DOMAIN` | unset | Legacy single-domain claim filter. |
+| `ESHU_REDUCER_CLAIM_DOMAINS` | unset | Comma-separated claim allowlist for lane-specific reducer deployments. |
 
-Set only one claim-domain variable. The reducer fails startup when both are
-present so a global legacy value cannot silently override a Helm lane allowlist.
+Set only one claim-domain variable. Startup fails when both are present.
 
-### Claim gating
-
-| Variable | Purpose |
-| --- | --- |
-| `ESHU_QUERY_PROFILE` | With ESHU_GRAPH_BACKEND=nornicdb, `local_authoritative` enables the projector drain gate |
-| `ESHU_REDUCER_EXPECTED_SOURCE_LOCAL_PROJECTORS` | Semantic-entity claims wait until this many source-local projectors have published |
-| `ESHU_REDUCER_SEMANTIC_ENTITY_CLAIM_LIMIT` | Cap on concurrent semantic-entity claims (default `1` on NornicDB) |
-
-### Shared projection
-
-Parsed by `LoadSharedProjectionConfig` in `internal/reducer`.
+Claim gates:
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
-| ESHU_SHARED_PROJECTION_PARTITION_COUNT | `8` | Partitions per domain |
-| ESHU_SHARED_PROJECTION_BATCH_LIMIT | `100` | Intents per batch |
-| ESHU_SHARED_PROJECTION_POLL_INTERVAL | `500ms` | Base poll interval |
-| ESHU_SHARED_PROJECTION_LEASE_TTL | `60s` | Partition lease TTL |
-| ESHU_SHARED_PROJECTION_WORKERS | `min(NumCPU,4)` | Concurrent partition workers |
+| `ESHU_QUERY_PROFILE` | default query profile | With `ESHU_GRAPH_BACKEND=nornicdb`, `local_authoritative` enables the source-local projector drain gate. |
+| `ESHU_REDUCER_EXPECTED_SOURCE_LOCAL_PROJECTORS` | `0` | Semantic-entity claims wait until this many source-local projectors have published. |
+| `ESHU_REDUCER_SEMANTIC_ENTITY_CLAIM_LIMIT` | `1` on NornicDB, unlimited otherwise | Cap on concurrent semantic-entity claims. |
 
-### Code-call projection
+Shared projection:
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `ESHU_SHARED_PROJECTION_PARTITION_COUNT` | `8` | Partitions per shared domain. |
+| `ESHU_SHARED_PROJECTION_BATCH_LIMIT` | `100` | Intents per batch. |
+| `ESHU_SHARED_PROJECTION_POLL_INTERVAL` | `500ms` | Base poll interval. |
+| `ESHU_SHARED_PROJECTION_LEASE_TTL` | `60s` | Partition lease TTL. |
+| `ESHU_SHARED_PROJECTION_WORKERS` | `min(NumCPU,4)` | Concurrent partition workers. |
+
+Code-call projection:
 
 | Variable | Default |
 | --- | --- |
@@ -119,7 +99,7 @@ Parsed by `LoadSharedProjectionConfig` in `internal/reducer`.
 | `ESHU_CODE_CALL_PROJECTION_ACCEPTANCE_SCAN_LIMIT` | `250000` |
 | `ESHU_CODE_CALL_PROJECTION_LEASE_OWNER` | `code-call-projection-runner` |
 
-### Repo-dependency projection
+Repo-dependency projection:
 
 | Variable | Default |
 | --- | --- |
@@ -127,125 +107,121 @@ Parsed by `LoadSharedProjectionConfig` in `internal/reducer`.
 | `ESHU_REPO_DEPENDENCY_PROJECTION_LEASE_TTL` | `60s` |
 | `ESHU_REPO_DEPENDENCY_PROJECTION_BATCH_LIMIT` | `100` |
 
-### Edge writers
+Edge writers:
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
-| `ESHU_CODE_CALL_EDGE_BATCH_SIZE` | `1000` | Code-call edge rows per graph write |
-| `ESHU_CODE_CALL_EDGE_GROUP_BATCH_SIZE` | `1` | Code-call grouped-write batch |
-| `ESHU_INHERITANCE_EDGE_GROUP_BATCH_SIZE` | `1` | Inheritance grouped-write batch |
-| `ESHU_SQL_RELATIONSHIP_EDGE_GROUP_BATCH_SIZE` | `1` | SQL relationship grouped-write batch |
+| `ESHU_CODE_CALL_EDGE_BATCH_SIZE` | `1000` | Code-call edge rows per graph write. |
+| `ESHU_CODE_CALL_EDGE_GROUP_BATCH_SIZE` | `1` | Code-call grouped-write batch. |
+| `ESHU_INHERITANCE_EDGE_GROUP_BATCH_SIZE` | `1` | Inheritance grouped-write batch. |
+| `ESHU_SQL_RELATIONSHIP_EDGE_GROUP_BATCH_SIZE` | `1` | SQL relationship grouped-write batch. |
 
-### Repair runner
-
-| Variable | Default |
-| --- | --- |
-| `ESHU_GRAPH_PROJECTION_REPAIR_POLL_INTERVAL` | `1s` |
-| `ESHU_GRAPH_PROJECTION_REPAIR_BATCH_LIMIT` | `100` |
-| `ESHU_GRAPH_PROJECTION_REPAIR_RETRY_DELAY` | `1m` |
-
-### Terraform drift
+Repair and drift:
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
-| `ESHU_DRIFT_PRIOR_CONFIG_DEPTH` | `10` | Number of prior repo-snapshot generations the drift loader walks to detect `removed_from_config`. `0` means use the default (10). Invalid or non-positive input falls back to `0` with a structured WARN log and the env key `failure_class=env_parse`. Parsed by `parsePriorConfigDepth` in `config.go:311` and stored in `PostgresDriftEvidenceLoader.PriorConfigDepth`. |
+| `ESHU_GRAPH_PROJECTION_REPAIR_POLL_INTERVAL` | `1s` | Repair queue poll interval. |
+| `ESHU_GRAPH_PROJECTION_REPAIR_BATCH_LIMIT` | `100` | Repair rows per cycle. |
+| `ESHU_GRAPH_PROJECTION_REPAIR_RETRY_DELAY` | `1m` | Delay after failed repair publication. |
+| `ESHU_DRIFT_PRIOR_CONFIG_DEPTH` | `10` effective default | Prior generations walked for Terraform config-vs-state `removed_from_config`; empty or `0` uses the loader default, invalid or negative input logs `failure_class=env_parse` and falls back to that default. |
 
-### NornicDB knobs (narrow seam)
-
-| Variable | Purpose |
-| --- | --- |
-| `ESHU_CANONICAL_WRITE_TIMEOUT` | Per-write timeout for NornicDB canonical writes (default `30s`) |
-| `ESHU_NORNICDB_CANONICAL_GROUPED_WRITES` | Enable NornicDB semantic grouped writes for conformance testing |
-| `ESHU_NORNICDB_SEMANTIC_ENTITY_LABEL_BATCH_SIZES` | Override label batch sizes for NornicDB semantic entity writes |
-
-### Profiling
+NornicDB seam:
 
 | Variable | Purpose |
 | --- | --- |
-| `ESHU_PPROF_ADDR` | Opt-in `net/http/pprof` endpoint via `runtime.NewPprofServer`; unset disables; port-only inputs (`:6060`) bind to `127.0.0.1` |
+| `ESHU_CANONICAL_WRITE_TIMEOUT` | Per-write timeout for NornicDB canonical writes, default `30s`. |
+| `ESHU_NORNICDB_CANONICAL_GROUPED_WRITES` | Conformance-only grouped-write switch; do not promote to production default without evidence. |
+| `ESHU_NORNICDB_SEMANTIC_ENTITY_LABEL_BATCH_SIZES` | Label-specific semantic entity batch sizes for NornicDB. |
+
+Profiling:
+
+| Variable | Purpose |
+| --- | --- |
+| `ESHU_PPROF_ADDR` | Opt-in `net/http/pprof`; port-only values such as `:6060` bind to `127.0.0.1`. |
 
 ## Exported surface
 
-`buildReducerService` (unexported) returns a `reducer.Service` value. The
-binary itself exports nothing; all domain logic is owned by
-`internal/reducer`. Wiring-level adapters in `neo4j_wiring.go` expose
-unexported executor adapters (`reducerNeo4jExecutor`,
-`reducerCypherExecutor`) used only inside this package.
-
-The direct process contract includes `eshu-reducer --version` and
-`eshu-reducer -v`. Both flags print the build-time version through
-`buildinfo.PrintVersionFlag` before telemetry, Postgres, or graph setup begins.
+The command package exports no API. `buildReducerService` is unexported and
+returns `reducer.Service` for tests and process wiring. `neo4j_wiring.go`
+contains unexported executor adapters used inside this package only.
 
 ## Dependencies
 
-- `internal/reducer` — `Service`, `DefaultHandlers`, all domain handler
-  types, `SharedProjectionRunner`, `CodeCallProjectionRunner`,
-  `RepoDependencyProjectionRunner`, `GraphProjectionPhaseRepairer`
-- `internal/storage/postgres` — `NewReducerQueue`, `InstrumentedDB`,
-  `NewSharedIntentStore`, `NewGraphProjectionPhaseStateStore`,
-  `NewGraphProjectionPhaseRepairQueueStore`, `NewReducerGraphDrain`, all
-  fact/relationship stores
-- `internal/storage/cypher` — `InstrumentedExecutor`, `NewEdgeWriter`
-- `internal/runtime` — `OpenPostgres`, `LoadGraphBackend`, retry policy
-- `internal/query` — `GraphQuery` port, `ParseQueryProfile`
-- `internal/app` — `NewHostedWithStatusServer`
-- `internal/telemetry` — bootstrap, providers, instruments
-
-Graph writes flow through `storage/cypher.EdgeWriter` and
-`storage/cypher.InstrumentedExecutor`, never through a raw driver.
-
-The graph backend is selected via ESHU_GRAPH_BACKEND (default `nornicdb`).
-Invalid values fail at startup. The Postgres DSN is configured via
-ESHU_POSTGRES_DSN.
+- `internal/reducer` for `Service`, `DefaultHandlers`, domain handlers, shared
+  projection, code-call projection, repo-dependency projection, and graph phase
+  repair.
+- `internal/storage/postgres` for reducer queues, facts, relationship stores,
+  shared intents, readiness state, repair queues, status, and graph-drain
+  checks.
+- `internal/storage/cypher` for instrumented graph execution and edge writes.
+- `internal/runtime` for Postgres, graph backend selection, retry policy, and
+  pprof setup.
+- `internal/query` for graph query ports and query-profile parsing.
+- `internal/app` for the hosted admin/status server.
+- `internal/telemetry` for bootstrap, providers, instruments, spans, metrics,
+  and structured log attributes.
 
 ## Telemetry
 
-- Logger scope: `reducer`, component `reducer`.
-- Tracer: `providers.TracerProvider.Tracer(telemetry.DefaultSignalName)`.
-- Postgres instrumentation: `postgres.InstrumentedDB{StoreName: "reducer"}`.
-- Graph instrumentation: `sourcecypher.InstrumentedExecutor`.
-- Queue depth: `postgres.NewQueueObserverStore` → `telemetry.RegisterObservableGauges`.
-- Admin surface: `/healthz`, `/readyz`, `/metrics`, `/admin/status` via
-  `app.NewHostedWithStatusServer`.
+Reducer diagnostics use:
 
-## Operational notes
+- logger scope `reducer`, component `reducer`
+- tracer `telemetry.DefaultSignalName`
+- `SpanReducerRun` around domain execution
+- `SpanReducerDriftEvidenceLoad` and
+  `SpanReducerAWSRuntimeDriftEvidenceLoad` for drift loaders
+- `postgres.InstrumentedDB{StoreName: "reducer"}` for Postgres timing
+- `sourcecypher.InstrumentedExecutor` for graph timing
+- queue-depth gauges through `postgres.NewQueueObserverStore`
+- reducer run, queue wait, shared projection, repair, and domain-specific
+  counters from `telemetry.Instruments`
+- `/healthz`, `/readyz`, `/metrics`, and `/admin/status`
 
-- Scale the `resolution-engine` Deployment when queue age rises and workers
-  remain busy. Do not scale it to fix Postgres saturation — fix database
-  pressure first.
-- Version probes are pre-startup checks. Keep `buildinfo.PrintVersionFlag` at
-  the top of `main` so operators can inspect the reducer binary without opening
-  queues or graph drivers.
-- In Kubernetes, size the Postgres connection pool to accommodate
-  `ESHU_REDUCER_WORKERS × replica_count` concurrent connections.
-- On NornicDB, the default reducer worker count now matches host CPU count.
-  Lower it only when queue, conflict-key, and graph-write telemetry show
-  backend saturation or unsafe overlap.
-- Worker leases renew at `LeaseDuration / 2`; a retry delay shorter than
-  the lease TTL causes claims to churn.
-- The projector drain gate (ESHU_QUERY_PROFILE=local_authoritative +
-  ESHU_GRAPH_BACKEND=nornicdb) delays semantic-entity claims until
-  source-local projectors have finished.
-- In that same `local_authoritative` NornicDB profile, `CodeCallProjectionRunner`
-  is wired with `NewReducerGraphDrain` so code-call edge projection waits until
-  reducer-owned graph domains have drained. Keep this as a scheduling gate, not
-  a graph-truth shortcut.
+When the reducer is slow, classify the stage first: fact load, relationship
+extraction, intent upsert, graph write, phase publication, shared projection,
+repair, Postgres pressure, or backend pressure.
 
 ## Gotchas / invariants
 
-- Invalid ESHU_GRAPH_BACKEND values fail at startup via
-  `runtimecfg.LoadGraphBackend`.
-- ESHU_NORNICDB_CANONICAL_GROUPED_WRITES=true is only for conformance
-  validation; grouped canonical writes on NornicDB are not promoted to
-  production default.
-- Handler code must not branch on graph backend type directly; backend
-  differences belong in `storage/cypher` narrow seams only.
-- Handlers depend on `graph_projection_phase_state` rows published by the
-  projector; missing phase publications cause edge domains to block.
+- Invalid `ESHU_GRAPH_BACKEND` values fail startup.
+- NornicDB reducer workers default to host CPU count; lower worker counts only
+  with queue, conflict-key, and graph-write evidence. Serialization is not a
+  fix for a non-idempotent write path.
+- NornicDB batch claim size defaults to worker count so claimed work starts
+  heartbeat-protected execution promptly.
+- Worker heartbeats run at `LeaseDuration / 2`; a retry delay shorter than the
+  lease TTL can churn claims.
+- The NornicDB `local_authoritative` profile delays semantic-entity claims
+  until source-local projectors have drained.
+- In that same profile, `CodeCallProjectionRunner` uses `NewReducerGraphDrain`
+  so code-call edge projection waits for reducer-owned graph domains to drain.
+  Keep this as scheduling, not a graph-truth shortcut.
+- Graph writes and `graph_projection_phase_state` publication are not atomic.
+  Keep `GraphProjectionPhaseRepairer` wired so committed graph writes can
+  retry exact readiness publication.
+- `ESHU_NORNICDB_CANONICAL_GROUPED_WRITES=true` is for conformance validation
+  only.
+- Handler code must not add backend-specific branches outside documented
+  storage/cypher or command wiring seams.
+
+## Verification
+
+```bash
+cd go
+go test ./cmd/reducer ./internal/reducer -count=1
+go run ./cmd/eshu docs verify ../go/cmd/reducer --limit 1200 \
+  --fail-on contradicted,missing_evidence
+```
+
+Run broader storage, telemetry, query, MCP, or runtime gates when a reducer
+change alters persisted facts, graph writes, API read models, tool routing,
+metrics, or deployment behavior.
 
 ## Related docs
 
-- [Service runtimes — Resolution Engine](../../../docs/public/deployment/service-runtimes.md#resolution-engine)
-- [NornicDB tuning](../../../docs/public/reference/nornicdb-tuning.md)
-- [Telemetry overview](../../../docs/public/reference/telemetry/index.md)
-- `go/internal/reducer/README.md`
+- [Service Runtimes](../../../docs/public/deployment/service-runtimes.md)
+- [NornicDB Tuning](../../../docs/public/reference/nornicdb-tuning.md)
+- [Collector And Reducer Readiness](../../../docs/public/reference/collector-reducer-readiness.md)
+- [Telemetry Overview](../../../docs/public/reference/telemetry/index.md)
+- [Local Testing](../../../docs/public/reference/local-testing.md)
+- [internal/reducer](../../internal/reducer/README.md)

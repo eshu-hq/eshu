@@ -1,258 +1,165 @@
 # internal/mcp
 
 `mcp` owns the Model Context Protocol tool surface for Eshu. It implements the
-MCP server, the JSON-RPC dispatcher, the SSE session model, and the 73
-read-only tool definitions. Tool dispatch calls into the same `http.Handler`
-chain the HTTP API uses, so a tool response and the corresponding HTTP query
-response share the same truth.
+MCP server, JSON-RPC message handling, SSE sessions, and the 73 read-only tool
+definitions. Tool dispatch calls the same `http.Handler` chain used by the HTTP
+API, so MCP and HTTP responses share the same query truth, envelopes, auth
+checks, and backend behavior.
 
-## Where this fits in the pipeline
+## Purpose
+
+This package translates MCP protocol messages into bounded internal HTTP
+requests. It does not query Postgres, Neo4j, or NornicDB directly; data access
+belongs to `internal/query` and the storage adapters behind that package.
+
+## Ownership Boundary
+
+`mcp` owns:
+
+- `initialize`, `tools/list`, `tools/call`, and `ping` JSON-RPC handling
+- stdio transport through `Server.Run`
+- HTTP/SSE transport through `Server.RunHTTP`, `GET /sse`, and
+  `POST /mcp/message`
+- the `ReadOnlyTools` registry and per-tool input schemas
+- tool-name to HTTP-route mapping in `resolveRoute`
+- canonical envelope detection and MCP result shaping
+
+`mcp` does not own query planning, graph reads, content-store reads, result
+truth, pagination semantics, or route-level authorization. Those stay in
+`internal/query`; this package forwards requests to that handler.
+
+## Invocation Flow
 
 ```mermaid
 flowchart LR
     Client["MCP client"]
-    Srv["Server\nserver.go"]
-    Dispatch["dispatchTool\ndispatch.go"]
-    Route["resolveRoute\ndispatch.go"]
-    Handler["internal/query\nAPIRouter handlers"]
-    PG["Postgres"]
-    Graph["Neo4j / NornicDB"]
-    Envelope["query.ResponseEnvelope\n{data, truth, error}"]
+    Server["Server\nserver.go"]
+    Dispatch["dispatchTool\nresolveRoute"]
+    Query["internal/query\nAPIRouter handlers"]
+    Stores["Postgres + graph backend"]
+    Result["mcpToolResult\ntext + optional envelope resource"]
 
-    Client -->|"JSON-RPC"| Srv
-    Srv -->|"tools/call"| Dispatch
-    Dispatch --> Route
-    Route -->|"http.Request via httptest"| Handler
-    Handler --> PG
-    Handler --> Graph
-    Handler -->|"ResponseEnvelope"| Dispatch
-    Dispatch -->|"mcpToolResult"| Srv
-    Srv -->|"JSON-RPC response"| Client
-    Envelope -.->|"embedded resource\nmimeType=EnvelopeMIMEType"| Srv
+    Client -->|"JSON-RPC"| Server
+    Server -->|"tools/call"| Dispatch
+    Dispatch -->|"http.Request via httptest"| Query
+    Query --> Stores
+    Query -->|"query.ResponseEnvelope or JSON"| Dispatch
+    Dispatch --> Result
+    Result --> Client
 ```
 
-## Internal flow — one tool invocation
+`dispatchTool` always sets `Accept: application/eshu.envelope+json`. If the
+original MCP HTTP request includes `Authorization`, dispatch forwards that
+header to the internal query handler. `parseCanonicalEnvelope` treats a response
+as the canonical Eshu envelope only when `data`, `truth`, and `error` are all
+present.
 
-```mermaid
-flowchart TB
-    hm["handleMessage()\nserver.go:333"]
-    parse["json.Unmarshal params\nmcpToolCallParams"]
-    dt["dispatchTool()\ndispatch.go:18"]
-    rr["resolveRoute(toolName, args)\ndispatch.go:173"]
-    req["http.NewRequestWithContext\nmethod + path + body + auth"]
-    rec["httptest.NewRecorder"]
-    serve["handler.ServeHTTP(rec, req)"]
-    pce["parseCanonicalEnvelope(body)\ndispatch_envelope.go:15"]
-    envelope["mcpToolResult with\ntext summary + resource block"]
-    plain["mcpToolResult with\ntext JSON block"]
-
-    hm --> parse
-    parse --> dt
-    dt --> rr
-    rr -->|"route{method, path, body, query}"| req
-    req --> rec
-    rec --> serve
-    serve --> pce
-    pce -->|"envelope detected"| envelope
-    pce -->|"plain JSON"| plain
-```
-
-## Tool groups
+## Tool Groups
 
 `ReadOnlyTools` assembles 73 tools from the tool definition files.
 
 | Group | Count | Source file |
-|---|---|---|
-| `codebaseTools` | 27 | `tools_codebase.go`, `tools_code_topic.go`, `tools_dead_code.go`, `tools_import_dependencies.go`, `tools_call_graph_metrics.go`, `tools_security.go`, `tools_structural_inventory.go`, `tools_iac.go` |
-| `ecosystemTools` | 19 | `tools_ecosystem.go` |
-| `packageRegistryTools` | 2 | `tools_package_registry.go` |
-| `cicdTools` | 1 | `tools_cicd.go` |
-| `serviceCatalogTools` | 1 | `tools_service_catalog.go` |
-| `supplyChainTools` | 3 | `tools_supply_chain.go` |
-| `contextTools` | 7 | `tools_context.go` |
-| `contentTools` | 6 | `tools_content.go` |
-| `documentationTools` | 4 | `tools_documentation.go` |
-| `runtimeTools` | 3 | `tools_runtime.go` |
+|---|---:|---|
+| Codebase and code analysis | 27 | `tools_codebase.go`, `tools_code_topic.go`, `tools_dead_code.go`, `tools_import_dependencies.go`, `tools_call_graph_metrics.go`, `tools_security.go`, `tools_structural_inventory.go`, `tools_iac.go` |
+| Ecosystem, deployment, impact, repositories | 19 | `tools_ecosystem.go` |
+| Package registry | 2 | `tools_package_registry.go` |
+| CI/CD | 1 | `tools_cicd.go` |
+| Service catalog | 1 | `tools_service_catalog.go` |
+| Supply chain | 3 | `tools_supply_chain.go` |
+| Context | 7 | `tools_context.go` |
+| Content and citations | 6 | `tools_content.go` |
+| Documentation | 4 | `tools_documentation.go` |
+| Runtime status | 3 | `tools_runtime.go` |
 
-Representative tool-to-route mappings from `resolveRoute` (`dispatch.go:173`):
+The main route families are:
 
-| Tool | HTTP method | Path |
-|---|---|---|
-| `find_code` | POST | `/api/v0/code/search` |
-| `find_symbol` | POST | `/api/v0/code/symbols/search` |
-| `inspect_code_inventory` | POST | `/api/v0/code/structure/inventory` |
-| `investigate_import_dependencies` | POST | `/api/v0/code/imports/investigate` |
-| `inspect_call_graph_metrics` | POST | `/api/v0/code/call-graph/metrics` |
-| `investigate_code_topic` | POST | `/api/v0/code/topics/investigate` |
-| `investigate_hardcoded_secrets` | POST | `/api/v0/code/security/secrets/investigate` |
-| `investigate_dead_code` | POST | `/api/v0/code/dead-code/investigate` |
-| `get_code_relationship_story` | POST | `/api/v0/code/relationships/story` |
-| `analyze_code_relationships` | POST | `/api/v0/code/relationships/story` for callers/callees/importers/class hierarchy/overrides; `/api/v0/code/relationships` for unresolved compatibility fallbacks |
-| `find_dead_iac` | POST | `/api/v0/iac/dead` |
-| `find_unmanaged_resources` | POST | `/api/v0/iac/unmanaged-resources` |
-| `get_iac_management_status` | POST | `/api/v0/iac/management-status` |
-| `explain_iac_management_status` | POST | `/api/v0/iac/management-status/explain` |
-| `propose_terraform_import_plan` | POST | `/api/v0/iac/terraform-import-plan/candidates` |
-| `list_aws_runtime_drift_findings` | POST | `/api/v0/aws/runtime-drift/findings` |
-| `get_relationship_evidence` | GET | `/api/v0/evidence/relationships/{resolved_id}` |
-| `build_evidence_citation_packet` | POST | `/api/v0/evidence/citations` |
-| `list_package_registry_packages` | GET | `/api/v0/package-registry/packages` |
-| `list_package_registry_versions` | GET | `/api/v0/package-registry/versions` |
-| `list_package_registry_dependencies` | GET | `/api/v0/package-registry/dependencies` |
-| `list_package_registry_correlations` | GET | `/api/v0/package-registry/correlations` |
-| `list_ci_cd_run_correlations` | GET | `/api/v0/ci-cd/run-correlations` |
-| `list_service_catalog_correlations` | GET | `/api/v0/service-catalog/correlations` |
-| `list_container_image_identities` | GET | `/api/v0/supply-chain/container-images/identities` |
-| `list_supply_chain_impact_findings` | GET | `/api/v0/supply-chain/impact/findings` |
-| `list_sbom_attestation_attachments` | GET | `/api/v0/supply-chain/sbom-attestations/attachments` |
-| `investigate_change_surface` | POST | `/api/v0/impact/change-surface/investigate` |
-| `investigate_resource` | POST | `/api/v0/impact/resource-investigation` |
-| `resolve_entity` | POST | `/api/v0/entities/resolve` |
-| `get_service_story` | GET | `/api/v0/services/{service_name}/story` |
-| `investigate_service` | GET | `/api/v0/investigations/services/{service_name}` |
-| `get_file_content` | POST | `/api/v0/content/files/read` |
-| `list_documentation_findings` | GET | `/api/v0/documentation/findings` |
-| `list_documentation_facts` | GET | `/api/v0/documentation/facts` |
-| `get_documentation_evidence_packet` | GET | `/api/v0/documentation/findings/{finding_id}/evidence-packet` |
-| `check_documentation_evidence_packet_freshness` | GET | `/api/v0/documentation/evidence-packets/{packet_id}/freshness` |
-| `list_ingesters` | GET | `/api/v0/status/ingesters` |
-| `trace_deployment_chain` | POST | `/api/v0/impact/trace-deployment-chain` |
-| `investigate_deployment_config` | POST | `/api/v0/impact/deployment-config-influence` |
+| Tool family | HTTP route owner |
+|---|---|
+| Code search, symbols, relationships, call graph, quality, dead code, language query, diagnostic Cypher | `/api/v0/code/*` handlers in `internal/query` |
+| Repository and ecosystem stories | `/api/v0/repositories/*`, `/api/v0/ecosystem/*` |
+| Entity, workload, and service context or stories | `/api/v0/entities/*`, `/api/v0/workloads/*`, `/api/v0/services/*`, `/api/v0/investigations/*` |
+| File/entity content and citation hydration | `/api/v0/content/*`, `/api/v0/evidence/*` |
+| IaC, infrastructure, deployment, impact, environment comparison | `/api/v0/iac/*`, `/api/v0/infra/*`, `/api/v0/impact/*`, `/api/v0/compare/*` |
+| Package registry, CI/CD, supply chain, documentation, runtime status | their matching `/api/v0/*` query route families, including container-image identity reads |
 
-`investigate_import_dependencies` passes paging and scope arguments directly to
-the HTTP handler. The handler rejects negative bounds and returns exactly one
-canonical row key for each `query_type`: `dependencies`, `modules`, `cycles`, or
-`cross_module_calls`.
+Keep this table at the family level. Exact argument shaping belongs in
+`resolveRoute`, the matching `tools_*.go` schema, and the dispatch tests.
 
-`inspect_call_graph_metrics` keeps MCP as transport for recursive and
-hub-function prompts. Dispatch forwards `repo_id`, `language`, `metric_type`,
-`limit`, and `offset` to the HTTP handler; the query layer owns graph bounds,
-truth metadata, source handles, and the canonical `functions` row key.
-
-`build_evidence_citation_packet` keeps MCP as transport only: dispatch forwards
-the caller's bounded handle array to the HTTP evidence route. The advertised
-schema caps input at 500 handles and the query handler hydrates at most 50
-citations per packet.
-
-Package-registry tools keep MCP as transport too. Ownership candidates,
-package-version publication evidence, and manifest-backed consumption all come
-from the query handler; `dispatch_package_registry.go` owns the bounded route
-builders while MCP only maps arguments and preserves the envelope.
-
-Supply-chain tools keep the same transport-only contract. The SBOM/attestation
-tool schema accepts only the reducer-owned attachment statuses, including
-`ambiguous_subject`, so multi-subject attestations stay visible without becoming
-canonical image attachments. Container-image identity reads stay anchored by
-digest, image reference, repository, or outcome and return source layers plus
-evidence fact IDs instead of promoting weak tag observations to truth.
-
-IaC management tools also keep MCP as transport only. The HTTP query layer adds
-`safety_gate`, `safety_summary`, import-plan candidate shaping, and
-sensitive-value redaction before the envelope reaches MCP, so tool callers see
-the same review-required and refused Terraform import-plan actions as HTTP
-callers.
-
-## Exported surface
+## Exported Surface
 
 | Identifier | File | Notes |
 |---|---|---|
-| `Server` | `server.go:94` | MCP server struct; fields `handler`, `tools`, `logger`, `sessions` |
-| `NewServer` | `server.go:107` | constructs `Server`; calls `ReadOnlyTools()` to populate `tools` |
-| `Server.Run` (`Run`) | `server.go:288` | stdio transport; reads stdin, writes stdout |
-| `Server.RunHTTP` (`RunHTTP`) | `server.go:128` | HTTP+SSE transport; listens on `addr` |
-| `ToolDefinition` | `types.go:4` | `Name`, `Description`, `InputSchema` |
-| `ReadOnlyTools` | `types.go:11` | returns all 73 tool definitions |
-
-## SSE session model
-
-`handleSSE` (`server.go:181`) creates an `sseSession` with a 64-element
-channel. It sends an `endpoint` event with the POST URL, then loops on the
-session channel and a 30-second keepalive ticker. `handleHTTPMessage`
-(`server.go:241`) routes responses to the session channel when a `sessionId`
-query param is present and returns HTTP 202; otherwise it returns the response
-directly with HTTP 200.
+| `Server` | `server.go` | MCP server with query handler, tools, logger, and SSE sessions |
+| `NewServer` | `server.go` | constructs a server and populates tools with `ReadOnlyTools()` |
+| `Server.Run` | `server.go` | stdio JSON-RPC transport |
+| `Server.RunHTTP` | `server.go` | HTTP+SSE transport; mounts `/sse`, `/mcp/message`, `/health`, and `/api/` |
+| `ToolDefinition` | `types.go` | advertised MCP tool name, description, and input schema |
+| `ReadOnlyTools` | `types.go` | returns all 73 read-only tool definitions |
 
 ## Dependencies
 
-Internal packages: `internal/buildinfo` (version string for `mcpInitializeResult`),
-`internal/query` (`query.ResponseEnvelope`, `query.EnvelopeMIMEType`, the
-mounted `http.Handler`). No direct dependency on storage drivers, facts, or
-telemetry metric instruments.
+Internal packages:
+
+- `internal/buildinfo` for the initialize response version string
+- `internal/query` for `ResponseEnvelope`, `EnvelopeMIMEType`, and the mounted
+  HTTP handler
+
+This package has no direct dependency on storage drivers, facts, or telemetry
+metric instruments.
 
 ## Telemetry
 
 This package does not declare its own metrics or spans. Spans and metrics are
-emitted by the `internal/query` handlers that `dispatchTool` calls into.
-Structured log events in `server.go`: `"mcp server started"` (with `transport`
-and `tools` count), `"sse session started"`, `"sse session closed"`, and
-`"sse session buffer full"`. `dispatchTool` logs at debug level with tool name,
-HTTP method, and path (`dispatch.go:26`).
+emitted by the `internal/query` handlers that `dispatchTool` calls.
 
-## Operational notes
+Structured log events in `server.go`:
 
-The `Accept: application/eshu.envelope+json` header is always set on internal
-dispatch requests (`dispatch.go:42`). Handlers that check this header will
-return the canonical envelope shape.
+- `"mcp server started"` with transport and tool count
+- `"sse session started"`
+- `"sse session closed"`
+- `"sse session buffer full"`
 
-`normalizeQualifiedIdentifier` strips the `workload:` prefix from service
-identifiers before building path segments. If a new service tool is added,
-apply this helper when the input may include a type qualifier.
+`dispatchTool` logs the tool name, HTTP method, and path at debug level.
 
-`contentSearchBody` normalises `repo_ids` to a single `repo_id` when only one
-element is present. The function uses `firstString` to extract the first
-element and sets `repo_id` rather than `repo_ids`.
+## Gotchas / Invariants
 
-## Extension points
+- Every tool returned by `ReadOnlyTools` must have a matching `resolveRoute`
+  case or helper route. `TestEveryRegisteredToolHasDispatchRoute` enforces this.
+- MCP dispatch must stay transport-only. Add query behavior in `internal/query`
+  and route to it from this package.
+- The canonical MCP result has two content blocks when the HTTP response is an
+  Eshu envelope: a text summary and a resource block with
+  `query.EnvelopeMIMEType`.
+- Do not replace `query.EnvelopeMIMEType` with a string literal.
+- Changing `ToolDefinition.Name`, required schema fields, or `ReadOnlyTools`
+  output is a client-facing breaking change. Coordinate public docs and version
+  handling.
+- `normalizeQualifiedIdentifier` strips prefixes such as `workload:` before
+  service paths are built.
+- `contentSearchBody` accepts `repo_id` or `repo_ids`; a single `repo_ids`
+  value is normalized to `repo_id` for the query handler.
+- SSE sessions use a 64-element response channel and a 30-second keepalive
+  ticker. Channel overflow is non-fatal: the server logs a warning and drops
+  the response.
 
-- **Add a tool**: add a `ToolDefinition` to the matching `tools_*.go` file,
-  add a `case` in `resolveRoute` in `dispatch.go`, and add a test in
-  `tools_test.go` and `dispatch_test.go`. The `ReadOnlyTools` count test and
-  the dispatch route test will both catch missing or mismatched entries.
-- **Add an argument helper**: add to `dispatch.go` near `str`, `intOr`,
-  and `boolOr`, or to `dispatch_args.go` near `stringSlice` for shared slice or
-  identifier helpers. Keep the helpers side-effect-free.
-- **Change a tool argument mapping**: update `resolveRoute`, the advertised
-  `InputSchema`, and the dispatch tests together. The schema is the client
-  contract; dispatch-only changes silently create wrong queries.
-- **Change SSE behavior**: update `handleSSE`, keep the endpoint event format
-  stable, and document keepalive cadence changes in the MCP guide.
-- **Change protocol version**: update the initialize response only after
-  checking client compatibility.
+## Extension Points
 
-## Gotchas / invariants
+- Add a tool by updating the matching `tools_*.go` file, adding a route mapping
+  in `resolveRoute`, and adding dispatch and registry tests.
+- Change an argument mapping by updating the advertised `InputSchema`,
+  `resolveRoute`, and tests together.
+- Change SSE behavior in `handleSSE`; preserve the endpoint event format unless
+  client compatibility has been handled.
+- Change protocol version only after checking MCP client compatibility.
 
-- Every tool name returned by `ReadOnlyTools` must have a matching `case` in
-  `resolveRoute` (`dispatch.go:173`). A test in `tools_test.go` calls
-  `resolveRoute` for every tool and fails if any returns an error.
+## Related Docs
 
-- `parseCanonicalEnvelope` (`dispatch_envelope.go:15`) requires all three keys `data`,
-  `truth`, and `error` to be present in the response JSON. A partial envelope
-  falls back to the plain JSON path.
-
-- Changing `ToolDefinition.Name` or `ReadOnlyTools` output is a breaking change
-  for any MCP client that has cached tool names. Coordinate with the MCP guide
-  and a version bump.
-
-- The `Envelope` field of `dispatchResult` is populated by
-  `parseCanonicalEnvelope` (`server.go:377`). When it is non-nil, the response
-  is returned as a two-block `mcpToolResult`. Do not substitute the
-  `query.EnvelopeMIMEType` string literal; use the constant.
-- `dispatchTool` forwards the original `Authorization` header and always sends
-  `Accept: application/eshu.envelope+json` to the internal HTTP handler. Losing
-  either header breaks authenticated tools or canonical envelope detection.
-- MCP dispatch must stay transport-only. Do not query Postgres or the graph from
-  `dispatchTool` or `resolveRoute`; add query behavior in `internal/query` and
-  route to it.
-- SSE session channel overflow is non-fatal. The server logs a warning and
-  drops the message when the buffer is full; callers cannot assume every
-  response arrives over SSE under saturation.
-
-## Related docs
-
-- `docs/public/guides/mcp-guide.md` — client setup, tool usage, and story-first
-  orchestration patterns
-- `docs/public/reference/http-api.md` — underlying HTTP routes that every tool
-  dispatches into
-- `docs/public/architecture.md` — service boundary for the MCP runtime
-- `go/cmd/mcp-server/README.md` — binary wiring, transport selection, and
-  admin surface
+- `docs/public/guides/mcp-guide.md` - client usage, envelopes, and bounded-call
+  guidance
+- `docs/public/reference/mcp-reference.md` - full MCP tool list
+- `docs/public/reference/mcp-tool-contract-matrix.md` - prompt-readiness bounds
+  and envelope status
+- `docs/public/reference/http-api.md` - HTTP route families behind MCP dispatch
+- `docs/public/concepts/how-it-works.md` - service boundary for the MCP runtime
+- `go/cmd/mcp-server/README.md` - binary wiring, transport selection, and admin
+  surface

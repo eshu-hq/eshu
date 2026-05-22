@@ -8,8 +8,8 @@ repo's 500-line limit.
 
 - Total Markdown files left in the checkout after the current pass: 547
 - Current branch doc status from
-  `git diff --cached --name-status origin/main -- '*.md'` after the current
-  pass: 85 added, 158 modified, 139 deleted, 95 renamed
+  `git diff --name-status origin/main -- '*.md'` after the current pass:
+  88 added, 158 modified, 142 deleted, 92 renamed
 - Copied image assets removed from this branch: 43 files under
   `docs/public/images/`. They were reference assets from another project and
   no longer appear in the source-doc reference scan.
@@ -28,8 +28,7 @@ repo's 500-line limit.
 
 The generated file indexes preserve the per-file tally requested for this
 branch. Regenerate them from
-`git diff --cached --name-status origin/main -- '*.md'` after staging each
-cleanup pass.
+`git diff --name-status origin/main -- '*.md'` after each cleanup pass.
 
 ## Pass Ledger
 
@@ -99,9 +98,29 @@ cleanup pass.
 | Cypher Storage Guide Compression | Reduced the Cypher storage README from 487 to 254 lines, kept the hot-path evidence markers, and corrected scoped agent guidance for the current `package_registry` phase. |
 | Postgres Scoped AGENTS Compression | Reduced the Postgres scoped agent guidance from 333 to 185 lines while preserving mandatory queue, lease, fencing, drift, status, and concurrency guardrails. |
 | Docker Compose Run-Local Compression | Reduced the Compose run-local page from 308 to 280 lines by keeping the service/file map and linking remote E2E proof details to the focused local-testing references. |
+| Parallel Remaining Docs Compression | Used subagents plus parent review to compress the remaining high-priority public, MCP, CLI, API, collector, reducer, why, local-data-root, and agent-guide docs while preserving code-verified contracts. |
 
 ## Verification Snapshot
 
+- Focused docs verification passed after the parallel remaining-docs compression
+  for `docs/public/why-eshu.md`, `docs/internal/agent-guide.md`,
+  `docs/public/reference/cli-reference.md`,
+  `docs/public/reference/mcp-cookbook.md`, `go/internal/mcp`,
+  `docs/public/reference/http-api/code.md`,
+  `docs/public/reference/local-data-root-spec.md`,
+  `docs/public/guides/collector-authoring.md`, and `go/cmd/reducer`, with 0
+  contradicted and 0 missing evidence claims on each focused run.
+- `go test ./cmd/eshu ./internal/mcp ./internal/query ./cmd/api ./cmd/reducer ./internal/reducer -count=1`
+  passed after the parallel remaining-docs compression.
+- `go run ./cmd/eshu docs verify ../docs/public --limit 1000 --fail-on contradicted,missing_evidence`
+  passed with 173 documents, 1,228 claims, 0 contradicted, and 0 missing
+  evidence claims after the parallel remaining-docs compression.
+- `go run ./cmd/eshu docs verify .. --limit 2000 --fail-on contradicted,missing_evidence`
+  passed with 561 documents, 1,626 claims, 0 contradicted, and 0 missing
+  evidence claims after the parallel remaining-docs compression.
+- `scripts/verify-package-docs.sh`, `git diff --check`, `cmp -s AGENTS.md CLAUDE.md`,
+  and `uv run --with mkdocs --with mkdocs-material --with pymdown-extensions mkdocs build --strict --clean --config-file docs/mkdocs.yml`
+  passed after the parallel remaining-docs compression.
 - `go run ./cmd/eshu docs verify ../docs/public/run-locally/docker-compose.md --limit 1200 --fail-on contradicted,missing_evidence`
   passed with 1 document, 6 claims, 0 contradicted, and 0 missing evidence
   claims after the Docker Compose run-local compression. `git diff --check`
@@ -433,14 +452,12 @@ cleanup pass.
 
 ## What Is Left
 
-- Continue reviewing oversized public and package docs. The largest real docs
-  left are `docs/public/why-eshu.md`, `docs/public/reference/cli-reference.md`,
-  `docs/public/reference/mcp-cookbook.md`, `docs/internal/agent-guide.md`,
-  `docs/public/reference/http-api/code.md`,
-  `docs/public/guides/collector-authoring.md`, `go/internal/mcp/README.md`,
-  `docs/public/reference/local-data-root-spec.md`, and `go/cmd/reducer/README.md`.
-  The larger `tests/fixtures/sample_projects/sample_project_typescript/README.md`
-  fixture remains test data, not a public documentation target.
+- Continue reviewing the next tier of docs by topic instead of by single file:
+  Terraform provider guides, Kubernetes Helm values, bootstrap-index/Cypher
+  references, graph-backend operations/install, and remaining package READMEs
+  over roughly 180 lines. The larger
+  `tests/fixtures/sample_projects/sample_project_typescript/README.md` fixture
+  remains test data, not a public documentation target.
 - Keep deleting historical planning notes when current public or package-local
   docs already carry the useful invariant.
 - Keep folding durable lessons into current architecture, workflow,

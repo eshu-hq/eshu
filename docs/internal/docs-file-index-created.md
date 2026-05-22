@@ -1,6 +1,6 @@
 # Created Documentation Files
 
-Generated from `git diff --cached --name-status origin/main -- "*.md"` for this documentation cleanup branch.
+Generated from `git diff --name-status origin/main -- "*.md"` for this documentation cleanup branch.
 
 - `docs/README.md`
 - `docs/internal/agent-guide.md`
@@ -18,6 +18,7 @@ Generated from `git diff --cached --name-status origin/main -- "*.md"` for this 
 - `docs/public/deployment/service-runtimes-core.md`
 - `docs/public/deployment/service-runtimes.md`
 - `docs/public/guides/bundles.md`
+- `docs/public/guides/collector-authoring.md`
 - `docs/public/guides/mcp-guide.md`
 - `docs/public/guides/starter-prompts.md`
 - `docs/public/index.md`
@@ -45,6 +46,7 @@ Generated from `git diff --cached --name-status origin/main -- "*.md"` for this 
 - `docs/public/reference/http-api/iac-content-infra.md`
 - `docs/public/reference/http-api/repositories-ingesters-bundles.md`
 - `docs/public/reference/http-api/status-admin.md`
+- `docs/public/reference/local-data-root-spec.md`
 - `docs/public/reference/local-performance-envelope.md`
 - `docs/public/reference/local-testing.md`
 - `docs/public/reference/local-testing/collector-live-smokes.md`
@@ -86,4 +88,5 @@ Generated from `git diff --cached --name-status origin/main -- "*.md"` for this 
 - `docs/public/use/code-questions.md`
 - `docs/public/use/index-repositories.md`
 - `docs/public/use/index.md`
+- `docs/public/why-eshu.md`
 - `go/internal/storage/postgres/change-guide.md`

@@ -1,255 +1,128 @@
 # HTTP Code Routes
 
-Use these routes when a caller needs code relationships and source-backed
-answers without pulling the full code-to-cloud graph story.
+Use these routes for source-backed code search, symbol lookup, dependency
+questions, call-graph reads, and bounded diagnostics. Detailed request and
+response schemas live in `GET /api/v0/openapi.json`; this page keeps the public
+contract map short.
+
+Repository-scoped requests accept `repo_id` as a repository ID, name, slug, or
+indexed path. The server resolves that selector to the canonical repository ID
+before querying. Treat returned file locations as `repo_id + relative_path`;
+absolute server paths are not portable client identifiers.
 
 ## Route Index
 
-- `POST /api/v0/code/search`
-- `POST /api/v0/code/symbols/search`
-- `POST /api/v0/code/structure/inventory`
-- `POST /api/v0/code/topics/investigate`
-- `POST /api/v0/code/security/secrets/investigate`
-- `POST /api/v0/code/imports/investigate`
-- `POST /api/v0/code/call-graph/metrics`
-- `POST /api/v0/code/relationships`
-- `POST /api/v0/code/relationships/story`
-- `POST /api/v0/code/call-chain`
-- `POST /api/v0/code/dead-code`
-- `POST /api/v0/code/dead-code/investigate`
-- `POST /api/v0/code/complexity`
-- `POST /api/v0/code/quality/inspect`
-- `POST /api/v0/code/language-query`
-- `POST /api/v0/code/cypher`
-- `POST /api/v0/code/bundles`
+| Route | Use it for |
+| --- | --- |
+| `POST /api/v0/code/search` | Text or entity-name search when the caller has terms but not a canonical symbol. |
+| `POST /api/v0/code/symbols/search` | Definition-shaped symbol rows, exact or fuzzy, with paging metadata. |
+| `POST /api/v0/code/structure/inventory` | Bounded structural inventory: functions, classes, top-level elements, dataclasses, documented/decorated symbols, classes with a method, super calls, and function counts by file. |
+| `POST /api/v0/code/topics/investigate` | Broad behavior/topic exploration before exact symbol or relationship lookup. |
+| `POST /api/v0/code/security/secrets/investigate` | Redacted hardcoded-secret findings, confidence, severity, suppression notes, source handles, and coverage. |
+| `POST /api/v0/code/imports/investigate` | Importers, imports by file, package imports, module dependencies, direct Python file cycles, and cross-module calls. |
+| `POST /api/v0/code/call-graph/metrics` | Hub functions and recursive functions for one repository. |
+| `POST /api/v0/code/relationships` | Direct or bounded transitive relationships for a canonical entity or resolved name. |
+| `POST /api/v0/code/relationships/story` | Narrative relationship packet with ambiguity handling and recommended follow-up calls. |
+| `POST /api/v0/code/call-chain` | Bounded path between start and end symbols or entity IDs. |
+| `POST /api/v0/code/dead-code` | Lower-level graph-backed dead-code candidate scan. |
+| `POST /api/v0/code/dead-code/investigate` | Dead-code investigation packet with cleanup-ready and ambiguous buckets. |
+| `POST /api/v0/code/complexity` | Single-function relationship metrics or a bounded list of complex functions. |
+| `POST /api/v0/code/quality/inspect` | Complexity, function length, argument count, or refactoring-candidate inspections. |
+| `POST /api/v0/code/language-query` | Language/entity-type queries that do not fit the focused routes above. |
+| `POST /api/v0/code/cypher` | Diagnostics-only bounded read-only Cypher. |
+| `POST /api/v0/code/bundles` | Search indexed repositories as pre-indexed bundle candidates. |
 
-Public code-query requests accept a repository selector in `repo_id` when a
-repository scope is part of the request. The selector may be the canonical
-repository ID, repository name, repository slug, or indexed path. The server
-resolves it to the canonical repository ID before querying.
+## Search And Discovery
 
-Interpret results using canonical `repo_id + relative_path`, not absolute
-server-local paths.
+`POST /api/v0/code/search` requires `query`. Optional filters include
+`repo_id`, `language`, `limit`, `exact`, and `search_type`. The handler searches
+graph entities first and falls back to the content index when graph search has
+no rows.
 
-## Code Search
+`POST /api/v0/code/symbols/search` accepts `symbol` or `query`, optional
+`match_mode`, repository/language/entity filters, `limit`, and `offset`.
+Responses include definition rows, `source_handle`, `classification=definition`,
+`match_kind`, `truncated`, and `ambiguity`.
 
-`POST /api/v0/code/search`
+`POST /api/v0/code/topics/investigate` accepts `topic` or `query`, plus optional
+`intent`, repository/language filters, `limit`, and `offset`. Responses include
+searched terms, matched files and symbols, evidence groups, source handles,
+relationship-story handles, coverage, and truncation state.
 
-```json
-{
-  "query": "process_payment",
-  "repo_id": "payments",
-  "exact": false,
-  "limit": 10
-}
-```
+## Inventory And Dependencies
 
-Use this for text and indexed code search when the caller has search terms but
-not a known entity ID.
+`POST /api/v0/code/structure/inventory` requires at least one scope filter:
+`repo_id`, `file_path`, `language`, `entity_kind`, or `symbol`. Supported
+`inventory_kind` values include `entity`, `top_level`, `dataclass`,
+`documented`, `documented_function`, `decorated`, `class_with_method`,
+`super_call`, and `function_count_by_file`. Responses are deterministic and
+paged with `truncated` and `next_offset`.
 
-## Symbol Search
+`POST /api/v0/code/imports/investigate` requires at least one scope anchor:
+`repo_id`, `source_file`, `target_file`, `source_module`, or `target_module`.
+Supported `query_type` values are `imports_by_file`, `importers`,
+`module_dependencies`, `package_imports`, `file_import_cycles`, and
+`cross_module_calls`. The response uses one canonical row key for the selected
+query: `dependencies`, `modules`, `cycles`, or `cross_module_calls`.
 
-`POST /api/v0/code/symbols/search`
+`POST /api/v0/code/call-graph/metrics` requires `repo_id`. It supports
+`hub_functions` and `recursive_functions`, deterministic ordering, paging,
+truncation metadata, source handles, and coverage.
 
-```json
-{
-  "symbol": "process_payment",
-  "repo_id": "payments",
-  "match_mode": "exact",
-  "entity_types": ["function"],
-  "limit": 25,
-  "offset": 0
-}
-```
+## Relationships And Paths
 
-The symbol route returns definition-shaped rows with `source_handle`,
-`classification=definition`, `match_kind`, `truncated`, and `ambiguity`.
+`POST /api/v0/code/relationships` accepts either `entity_id` or `name`. Optional
+filters include `direction`, `relationship_type`, `transitive`, and
+`max_depth`. Set `transitive=true` with `relationship_type=CALLS` for indirect
+callers or callees; `max_depth` caps traversal.
 
-## Structural Inventory
+`POST /api/v0/code/relationships/story` resolves one target first. If the target
+is ambiguous, it returns bounded candidates instead of guessing. It supports
+direct relationships, bounded transitive `CALLS`, class hierarchy prompts, and
+override prompts.
 
-`POST /api/v0/code/structure/inventory`
-
-```json
-{
-  "repo_id": "payments",
-  "language": "python",
-  "inventory_kind": "dataclass",
-  "entity_kind": "class",
-  "limit": 25,
-  "offset": 0
-}
-```
-
-Use this for prompts such as "list functions/classes", "show top-level
-elements", "find dataclasses", "find documented functions", and "count
-functions per file." Every request must include at least one scope filter:
-`repo_id`, `file_path`, `language`, `entity_kind`, or `symbol`.
-
-Responses are deterministic and paged with `truncated` and `next_offset`.
-
-## Topic Investigation
-
-`POST /api/v0/code/topics/investigate`
-
-```json
-{
-  "topic": "repo sync authentication and GitHub App auth resolution",
-  "repo_id": "eshu",
-  "intent": "explain_auth_flow",
-  "limit": 25,
-  "offset": 0
-}
-```
-
-Use this before exact symbol lookup when the caller names a behavior instead of
-a known symbol. Responses include searched terms, matched files, matched
-symbols, evidence groups, call graph handles, recommended next calls, coverage,
-limit, offset, and truncation state.
-
-## Hardcoded Secret Investigation
-
-`POST /api/v0/code/security/secrets/investigate`
-
-```json
-{
-  "repo_id": "payments",
-  "finding_kinds": ["api_token", "password_literal"],
-  "include_suppressed": false,
-  "limit": 25,
-  "offset": 0
-}
-```
-
-Use this for prompts about potential hardcoded passwords, API keys, and
-secrets. Responses return redacted excerpts, finding kind, confidence,
-severity, suppression notes, source handles, coverage, limit, offset, and
-truncation state.
-
-## Import Dependencies
-
-`POST /api/v0/code/imports/investigate`
-
-```json
-{
-  "query_type": "imports_by_file",
-  "repo_id": "payments",
-  "source_file": "src/module_a.py",
-  "language": "python",
-  "limit": 25,
-  "offset": 0
-}
-```
-
-The route supports imports by file, importers, package imports, direct file
-cycles, module dependencies, and cross-module calls. It requires at least one
-scope anchor: `repo_id`, `source_file`, `target_file`, `source_module`, or
-`target_module`.
-
-## Call Graph Metrics
-
-`POST /api/v0/code/call-graph/metrics`
-
-```json
-{
-  "metric_type": "hub_functions",
-  "repo_id": "payments",
-  "language": "go",
-  "limit": 25,
-  "offset": 0
-}
-```
-
-The route requires `repo_id` and supports `hub_functions` and
-`recursive_functions`. Hub rows include incoming, outgoing, and total degree.
-Recursive rows include recursion kind and evidence.
-
-## Relationships And Call Chains
-
-`POST /api/v0/code/relationships`
-
-Use `entity_id` when the caller already has a canonical entity. The route also
-accepts `name`, optional `direction`, and `relationship_type`. Set
-`transitive=true` with `relationship_type=CALLS` for indirect callers or
-callees, and use `max_depth` to cap traversal.
-
-`POST /api/v0/code/relationships/story`
-
-Use this when the caller needs a narrative relationship packet. The route
-resolves one target first and returns bounded candidates if the target is
-ambiguous. It supports direct relationships, bounded transitive CALLS
-traversal, class hierarchy prompts, and override prompts.
-
-`POST /api/v0/code/call-chain`
-
-Use this when the caller needs a bounded path between a start and end symbol or
-entity. Lightweight profiles that cannot answer authoritative graph traversal
-return `unsupported_capability` instead of guessing.
+`POST /api/v0/code/call-chain` finds a bounded path between `start` and `end`,
+or between `start_entity_id` and `end_entity_id`. `repo_id` scopes both
+endpoints when provided. Lightweight profiles that cannot answer authoritative
+graph traversal return `unsupported_capability` rather than fallback prose.
 
 ## Dead Code
 
-`POST /api/v0/code/dead-code/investigate`
+`POST /api/v0/code/dead-code/investigate` is the normal prompt-facing dead-code
+route. It returns coverage, language maturity, exactness blockers,
+cleanup-ready and ambiguous buckets, suppressed modeled roots, source handles,
+recommended next calls, paging, and truncation state.
 
-```json
-{
-  "repo_id": "payments",
-  "language": "typescript",
-  "limit": 100,
-  "offset": 0,
-  "exclude_decorated_with": ["@route", "@app.route"]
-}
-```
+`POST /api/v0/code/dead-code` is the lower-level candidate scan. `repo_id` and
+`language` are optional; `limit` defaults to `100` and is capped at `500`.
 
-Use investigation mode for prompts such as "What code is dead in this repo?"
-It returns coverage, language maturity, exactness blockers, cleanup-ready and
-ambiguous buckets, source handles, and recommended next calls.
+Both routes remain `derived` until the broader framework, public API,
+reflection, and user-configured root registry from
+[Dead-Code Reachability Spec](../dead-code-reachability-spec.md) is complete.
+Language-specific root and blocker details belong in that spec and the OpenAPI
+description, not in this route map.
 
-`POST /api/v0/code/dead-code`
+## Complexity, Quality, And Language Queries
 
-Use the lower-level candidate scan when a client needs raw candidate rows.
-`repo_id` and `language` are optional. `limit` defaults to `100` and is capped
-at `500`.
+`POST /api/v0/code/complexity` accepts `entity_id` or `function_name` for a
+single function. Without a single selector, it returns a bounded deterministic
+`results` list with `limit` and `truncated`.
 
-The dead-code response is intentionally `derived` until the broader framework,
-public API, reflection, and user-configured root registry from
-[Dead-Code Reachability Spec](../dead-code-reachability-spec.md) is implemented.
-Language-specific root and blocker details live in that spec and the OpenAPI
-description; do not duplicate the full language matrix here.
+`POST /api/v0/code/quality/inspect` supports `complexity`, `function_length`,
+`argument_count`, and `refactoring_candidates`, with threshold fields and
+recommended next calls in the response.
 
-## Complexity And Quality
+`POST /api/v0/code/language-query` requires `language` and `entity_type`.
+Use focused routes first when they answer the question; use language-query for
+language/entity-type contracts that do not fit symbol, relationship,
+inventory, dependency, or dead-code routes.
 
-`POST /api/v0/code/complexity`
+## Diagnostics And Bundles
 
-Accepts `entity_id` or `function_name` for a single function. Without a single
-selector, it returns a bounded deterministic `results` list with `limit` and
-`truncated`.
+`POST /api/v0/code/cypher` is diagnostics-only. It accepts `cypher_query` plus
+optional `limit`, rejects mutation keywords, caps query length, uses a request
+timeout, and appends or enforces bounded `LIMIT` values. Use purpose-built
+code, story, impact, and content routes for normal client workflows.
 
-`POST /api/v0/code/quality/inspect`
-
-Use this for prompts about complex functions, long functions, high argument
-count, or combined refactoring candidates. Supported `check` values are
-`complexity`, `function_length`, `argument_count`, and
-`refactoring_candidates`.
-
-## Language Query
-
-`POST /api/v0/code/language-query`
-
-Use this for language-specific query contracts that do not fit the generic
-symbol, relationship, or structural inventory routes. Prefer the focused code
-routes first when they can answer the request.
-
-## Diagnostics-Only Code Routes
-
-`POST /api/v0/code/cypher`
-
-Diagnostics-only. It accepts `cypher_query` plus optional `limit`, rejects
-writes, uses a request timeout, and appends or enforces bounded limits. Use
-purpose-built code, story, impact, and content routes for normal prompt
-contracts.
-
-## Bundle Search
-
-`POST /api/v0/code/bundles`
-
-Searches indexed repositories as pre-indexed bundle candidates. It does not
-upload files, mutate graph state, or import `.eshu` archives.
+`POST /api/v0/code/bundles` searches indexed repositories as bundle candidates.
+It does not upload files, import `.eshu` archives, or mutate graph state.

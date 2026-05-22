@@ -1,6 +1,6 @@
 # Modified Documentation Files
 
-Generated from `git diff --cached --name-status origin/main -- "*.md"` for this documentation cleanup branch.
+Generated from `git diff --name-status origin/main -- "*.md"` for this documentation cleanup branch.
 
 - `AGENTS.md`
 - `CLAUDE.md`
@@ -29,7 +29,6 @@ Generated from `git diff --cached --name-status origin/main -- "*.md"` for this 
 - `docs/docs/extend/index.md -> docs/public/extend/index.md`
 - `docs/docs/getting-started/windows-setup.md -> docs/public/getting-started/windows-setup.md`
 - `docs/docs/guides/ci-cd.md -> docs/public/guides/ci-cd.md`
-- `docs/docs/guides/collector-authoring.md -> docs/public/guides/collector-authoring.md`
 - `docs/docs/guides/fixture-ecosystems.md -> docs/public/guides/fixture-ecosystems.md`
 - `docs/docs/guides/relationship-graphs.md -> docs/public/guides/relationship-graphs.md`
 - `docs/docs/guides/shared-infra-trace.md -> docs/public/guides/shared-infra-trace.md`
@@ -86,7 +85,6 @@ Generated from `git diff --cached --name-status origin/main -- "*.md"` for this 
 - `docs/docs/reference/dead-code-typescript-corpus-evidence.md -> docs/public/reference/dead-code-typescript-corpus-evidence.md`
 - `docs/docs/reference/eshuignore.md -> docs/public/reference/eshuignore.md`
 - `docs/docs/reference/language-query-dsl.md -> docs/public/reference/language-query-dsl.md`
-- `docs/docs/reference/local-data-root-spec.md -> docs/public/reference/local-data-root-spec.md`
 - `docs/docs/reference/local-host-lifecycle.md -> docs/public/reference/local-host-lifecycle.md`
 - `docs/docs/reference/logging.md -> docs/public/reference/logging.md`
 - `docs/docs/reference/mcp-prompt-surface-audit.md -> docs/public/reference/mcp-prompt-surface-audit.md`
@@ -107,7 +105,6 @@ Generated from `git diff --cached --name-status origin/main -- "*.md"` for this 
 - `docs/docs/services/resolution-engine.md -> docs/public/services/resolution-engine.md`
 - `docs/docs/understand/index.md -> docs/public/understand/index.md`
 - `docs/docs/use/trace-infrastructure.md -> docs/public/use/trace-infrastructure.md`
-- `docs/docs/why-eshu.md -> docs/public/why-eshu.md`
 - `go/README.md`
 - `go/cmd/README.md`
 - `go/cmd/admin-status/README.md`

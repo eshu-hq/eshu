@@ -1,52 +1,48 @@
 # CLI Reference
 
-This page is the lookup reference for the public `eshu` CLI. Use the workflow
-pages first when you are trying to do a task:
+This page is the lookup reference for the public `eshu` CLI. Use task-focused
+workflow pages first:
 
 - [Index Repositories](../use/index-repositories.md)
 - [Ask Code Questions](../use/code-questions.md)
 - [Trace Infrastructure](../use/trace-infrastructure.md)
 - [Connect MCP](../mcp/index.md)
 
-## How The CLI Works
+## Command Model
 
-The CLI has three command shapes:
+The `eshu` binary has three public command shapes:
 
-- local commands start local runtimes or shell into local service binaries
-- API commands call the Eshu HTTP API
-- compatibility stubs keep old command names visible but return replacement
-  guidance instead of doing removed Python-era work
+- local commands start or attach to local Eshu runtimes
+- API commands call the HTTP API
+- compatibility commands keep old names visible and return replacement guidance
 
 CLI read commands use the HTTP API, not MCP. MCP is the assistant and IDE
 integration surface.
 
-When a command honors remote flags, the API client resolves values in this
-order:
+Remote API clients resolve connection values in this order:
 
 1. command flags
 2. persisted `eshu config` values
 3. process environment
-4. default `http://localhost:8080`
+4. `http://localhost:8080`
 
-Commands that call the API but do not honor remote flags still use persisted
-config, environment, and the default URL.
+Commands that call the API but do not register remote flags still use persisted
+config, process environment, and the default URL.
 
 ## Root Flags
 
 | Flag | Scope |
 | --- | --- |
-| `--database` | Temporarily sets `ESHU_RUNTIME_DB_TYPE` for the command process. |
-| `--visual`, `-V` | Requests visual output for supported local command paths. |
+| `--database` | Temporarily sets `ESHU_RUNTIME_DB_TYPE` for this process. |
+| `--visual`, `-V` | Requests visual output on supported local paths. |
 | `--version`, `-v` | Prints the installed CLI version. |
 | `--help`, `-h` | Prints help. |
 
-`--workspace-root` is not global. It is command-local on scan, watch, graph,
-MCP, and workspace-watch paths.
+`--workspace-root` is command-local on scan, watch, graph, MCP, and
+workspace-watch paths. Release and installer builds report the injected version;
+plain local source builds without a version override report `dev`.
 
-Release and installer builds report the injected version. Plain local source
-builds without a version override report `dev`.
-
-## Command Matrix
+## Top-Level Commands
 
 | Command | Key arguments and flags | Backend behavior |
 | --- | --- | --- |
@@ -57,14 +53,14 @@ builds without a version override report `dev`.
 | `eshu index` | optional path; `--force`, `--discovery-report` | execs `eshu-bootstrap-index`; no readiness wait |
 | `eshu index-status` | registered remote flags | API status read; current handler ignores those flags |
 | `eshu list` | none | API read through config/env/default URL |
-| `eshu stats` | optional repository selector or local path | API read through config/env/default URL |
+| `eshu stats` | optional repository selector or local path | API status or repository stats read through config/env/default URL |
 | `eshu watch` | optional path; `--scope`, `--workspace-root` | starts local-host watch |
 | `eshu query` | query string | API language-query call through config/env/default URL |
 | `eshu docs verify` | optional path; `--fail-on`, `--limit`, `--max-bytes`, `--scope`, `--repo`, `--persist`, `--json` | local documentation verifier; `--persist` writes findings when storage is configured |
 | `eshu map` | `--from` required; `--type`, `--repo`, `--env`, `--relationship`, `--depth`, `--limit`, `--json`, remote flags | API entity-map call |
 | `eshu trace service` | service name; `--repo`, `--env`, `--service-id`, `--json`, remote flags | API service-trace call |
 
-## Search Commands
+## Search And Analysis
 
 `eshu find` subcommands are API-backed and honor remote flags.
 
@@ -77,8 +73,6 @@ builds without a version override report `dev`.
 | `eshu find content` | text | content search |
 | `eshu find decorator` | name | code search |
 | `eshu find argument` | name | code search |
-
-## Analysis Commands
 
 `eshu analyze` subcommands are API-backed and honor remote flags.
 
@@ -112,7 +106,7 @@ Admin commands are API-backed and honor remote flags.
 | `eshu admin facts backfill` | `--repository-id`, `--source-run-id` |
 | `eshu admin facts replay-events` | `--limit` |
 
-## Local Services
+## Local Runtime Commands
 
 These commands manage local service processes, graph backend state, MCP, API, or
 local configuration.
@@ -136,10 +130,9 @@ local configuration.
 | `eshu config reset` | none | reset persisted CLI config after confirmation |
 | `eshu config db` | backend | switch persisted graph backend defaults |
 
-For graph lifecycle details, use
-[Graph Backend Operations](graph-backend-operations.md). For environment
-variables and tuning guidance, use
-[Environment Variables](environment-variables.md).
+For local binary installation, use [Local binaries](../run-locally/local-binaries.md).
+For graph lifecycle details, use [Graph Backend Operations](graph-backend-operations.md).
+For runtime ownership, use [Service Runtimes](../deployment/service-runtimes.md).
 
 ## Workspace Commands
 
@@ -170,38 +163,13 @@ variables and tuning guidance, use
 Trust policy flags are `--trust-mode`, `--allow-id`, `--allow-publisher`,
 `--revoke-id`, and `--revoke-publisher`.
 
-## Ecosystem Commands
+## Ecosystem, Compatibility, And Shortcuts
 
 | Command | Purpose |
 | --- | --- |
-| `eshu ecosystem overview` | API ecosystem overview through config/env/default URL. |
-| `eshu ecosystem index` | compatibility stub with replacement indexing guidance. |
-| `eshu ecosystem status` | compatibility stub with replacement status guidance. |
-
-## Remote Flags
-
-Commands that honor remote flags accept:
-
-- `--service-url`
-- `--api-key`
-- `--profile`
-
-Remote flag values override persisted config for that command. Persisted config
-keys are:
-
-- `ESHU_SERVICE_URL`
-- `ESHU_API_KEY`
-- `ESHU_SERVICE_PROFILE`
-- `ESHU_REMOTE_TIMEOUT_SECONDS`
-
-Profile-specific keys follow the patterns `ESHU_SERVICE_URL_<PROFILE>` and
-`ESHU_API_KEY_<PROFILE>`. The profile name is uppercased before lookup.
-
-The current CLI registers remote flags on `eshu index-status` and
-`eshu workspace status`, but those handlers do not honor them yet. Use persisted
-config or process environment for those two commands.
-
-## Compatibility And Shortcuts
+| `eshu ecosystem overview` | API ecosystem overview through config/env/default URL |
+| `eshu ecosystem index` | compatibility stub with replacement indexing guidance |
+| `eshu ecosystem status` | compatibility stub with replacement status guidance |
 
 Compatibility stubs remain visible for older scripts:
 
@@ -217,8 +185,6 @@ Compatibility stubs remain visible for older scripts:
 
 `eshu start` is a deprecated alias for `eshu mcp start`.
 
-Current shortcuts:
-
 | Shortcut | Expands to |
 | --- | --- |
 | `eshu m` | `eshu mcp setup` |
@@ -231,30 +197,35 @@ Current shortcuts:
 the command-local `--workspace-root` flag that `runWatch` reads. Use
 `eshu watch` or `eshu workspace watch` instead.
 
-## Service Binary Version Checks
+## Remote Flags And Config
 
-Installed service binaries accept `--version` and `-v` as a single argument.
-They print their build-time version and exit before telemetry, Postgres, graph,
-queue, or HTTP startup:
+Commands that honor remote flags accept:
 
-```bash
-eshu-admin-status --version
-eshu-api --version
-eshu-bootstrap-data-plane --version
-eshu-bootstrap-index --version
-eshu-collector-aws-cloud --version
-eshu-collector-confluence --version
-eshu-collector-git --version
-eshu-collector-oci-registry --version
-eshu-collector-package-registry --version
-eshu-collector-terraform-state --version
-eshu-ingester --version
-eshu-mcp-server --version
-eshu-projector --version
-eshu-reducer --version
-eshu-webhook-listener --version
-eshu-workflow-coordinator --version
-```
+- `--service-url`
+- `--api-key`
+- `--profile`
+
+Remote flag values override persisted config for that command. Persisted config
+keys are:
+
+- `ESHU_SERVICE_URL`
+- `ESHU_API_KEY`
+- `ESHU_SERVICE_PROFILE`
+- `ESHU_REMOTE_TIMEOUT_SECONDS`
+
+Profile-specific persisted keys follow the patterns `ESHU_SERVICE_URL_<PROFILE>`
+and `ESHU_API_KEY_<PROFILE>`. The profile name is uppercased before lookup.
+
+The current CLI registers remote flags on `eshu index-status` and
+`eshu workspace status`, but those handlers do not honor them yet. Use persisted
+config or process environment for those two commands.
+
+## Version Probes
+
+The direct service binaries listed in
+[Service Runtimes](../deployment/service-runtimes.md) accept `--version` and
+`-v` as a single argument. They print their build-time version and exit before
+telemetry, Postgres, graph, queue, or HTTP startup.
 
 ## Related Docs
 

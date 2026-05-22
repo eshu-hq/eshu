@@ -4,17 +4,18 @@ Use this page for copy-ready MCP tool calls. For the full field catalog, see
 [MCP Reference](mcp-reference.md). For setup and orchestration, see
 [MCP Guide](../guides/mcp-guide.md).
 
-## Rules
+## Call Rules
 
 - Start with story or investigation tools for explanation prompts.
-- Scope every call with the narrowest known `repo_id`, `workload_id`,
+- Scope calls with the narrowest known `repo_id`, `workload_id`,
   `service_name`, `environment`, `resource_id`, file path, module, or entity.
 - Set `limit` and `offset` for list calls.
 - Check `truncated`, `next_offset`, or `next_cursor` before claiming complete
   coverage.
+- Use `repo_id + relative_path` or `entity_id` for file-shaped drilldowns.
 - Use raw Cypher only in the diagnostics-only section at the end.
 
-## Stories
+## Stories And Investigations
 
 ### Explain a service
 
@@ -24,8 +25,8 @@ Use this page for copy-ready MCP tool calls. For the full field catalog, see
 { "workload_id": "payments-api", "environment": "prod" }
 ```
 
-Use `investigate_service` when you need evidence-first onboarding or a scoped
-service investigation:
+Use `investigate_service` when the answer needs evidence-first onboarding or a
+scoped service investigation:
 
 ```json
 { "service_name": "payments-api", "environment": "prod", "intent": "onboarding" }
@@ -41,6 +42,17 @@ service investigation:
 
 Use `get_repo_context` only when the story points to lower-level repository
 fields you need to inspect.
+
+### Investigate deployment config
+
+**Tool:** `investigate_deployment_config`
+
+```json
+{ "service_name": "payments-api", "environment": "prod", "limit": 25 }
+```
+
+Use this for prompts about image tags, values layers, resource limits, rendered
+targets, and read-first deployment files.
 
 ## Code
 
@@ -76,7 +88,7 @@ fields you need to inspect.
 { "repo_id": "payments", "relative_path": "src/server.py", "start_line": 20, "end_line": 40 }
 ```
 
-## Relationships
+## Relationships And Inventory
 
 ### Find direct callers
 
@@ -87,11 +99,8 @@ fields you need to inspect.
 ```
 
 Pass `entity_id` instead of `target` when an earlier lookup selected the exact
-function.
-
-### Find bounded transitive callers
-
-**Tool:** `get_code_relationship_story`
+function. For bounded transitive callers, add `include_transitive` and
+`max_depth`:
 
 ```json
 { "target": "process_payment", "relationship_type": "CALLS", "direction": "incoming", "include_transitive": true, "max_depth": 7, "repo_id": "payments", "limit": 50 }
@@ -113,8 +122,6 @@ function.
 { "query_type": "importers", "repo_id": "payments", "target_module": "payments.client", "limit": 25 }
 ```
 
-## Inventory And Quality
-
 ### List structural inventory
 
 **Tool:** `inspect_code_inventory`
@@ -123,7 +130,7 @@ function.
 { "repo_id": "payments", "language": "python", "inventory_kind": "dataclass", "limit": 50 }
 ```
 
-### Find recursive or high-degree functions
+### Find recursive or hub functions
 
 **Tool:** `inspect_call_graph_metrics`
 
@@ -132,6 +139,8 @@ function.
 ```
 
 Use `metric_type: "hub_functions"` for the most connected functions.
+
+## Quality, Runtime, And Safety
 
 ### Find code quality risks
 
@@ -154,6 +163,38 @@ Other supported checks include `complexity`, `argument_count`, and
 
 Use `find_dead_code` only when you need the lower-level candidate list.
 
+### Check indexing status
+
+**Tool:** `get_index_status`
+
+```json
+{}
+```
+
+Use `list_ingesters` for configured ingesters and `get_ingester_status` for
+one runtime's persisted status.
+
+### Find hardcoded secrets
+
+**Tool:** `investigate_hardcoded_secrets`
+
+```json
+{ "repo_id": "payments", "limit": 25, "include_suppressed": false }
+```
+
+Results are redacted. Do not expect raw secret values in MCP responses.
+
+### Draft Terraform import candidates
+
+**Tool:** `propose_terraform_import_plan`
+
+```json
+{ "account_id": "123456789012", "region": "us-east-1", "limit": 25 }
+```
+
+This is read-only and refuses ambiguous, stale, sensitive, or insufficiently
+covered findings.
+
 ## Deployment And Impact
 
 ### Trace deployment evidence
@@ -162,12 +203,6 @@ Use `find_dead_code` only when you need the lower-level candidate list.
 
 ```json
 { "service_name": "payments-api", "direct_only": true, "max_depth": 8 }
-```
-
-Use `investigate_deployment_config` for an environment-scoped edit map:
-
-```json
-{ "service_name": "payments-api", "environment": "prod", "limit": 25 }
 ```
 
 ### Investigate a resource
@@ -207,40 +242,6 @@ Use `investigate_deployment_config` for an environment-scoped edit map:
 Use this after story, investigation, search, or relationship tools return file
 or entity handles.
 
-## Runtime And Safety
-
-### Check indexing status
-
-**Tool:** `get_index_status`
-
-```json
-{}
-```
-
-Use `list_ingesters` for configured ingesters and `get_ingester_status` for
-one runtime's persisted status.
-
-### Find hardcoded secrets
-
-**Tool:** `investigate_hardcoded_secrets`
-
-```json
-{ "repo_id": "payments", "limit": 25, "include_suppressed": false }
-```
-
-Results are redacted. Do not expect raw secret values in MCP responses.
-
-### Draft Terraform import candidates
-
-**Tool:** `propose_terraform_import_plan`
-
-```json
-{ "account_id": "123456789012", "region": "us-east-1", "limit": 25 }
-```
-
-This is read-only and refuses ambiguous, stale, sensitive, or insufficiently
-covered findings.
-
 ## Diagnostic Cypher Queries
 
 This section is diagnostics-only. `execute_cypher_query` is not a normal prompt
@@ -256,10 +257,4 @@ Use `investigate_dead_code` for normal dead-code prompts.
 
 ```json
 { "cypher_query": "MATCH (f:Function) WHERE NOT (()-[:CALLS]->(f)) AND f.is_dependency = false RETURN f.name, f.path", "limit": 100 }
-```
-
-### Inspect function nodes during backend debugging
-
-```json
-{ "cypher_query": "MATCH (f:Function) RETURN f.name, f.path", "limit": 50 }
 ```
