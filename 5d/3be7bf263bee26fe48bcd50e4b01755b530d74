@@ -1,0 +1,44 @@
+go/cmd/eshu/docs_terraform.go
+  s_f2f7fbb6f30866::t_7283cd9a1a14bf 1-155
+go/cmd/eshu/README.md
+  s_f2f7fbb6f30866::t_2c3ffa756a5fbd 89-95
+go/internal/doctruth/verifier_terraform.go
+  s_f2f7fbb6f30866::t_68149f3c5d28db 1-27
+go/internal/doctruth/verifier_terraform_test.go
+  s_f2f7fbb6f30866::t_47c1a1731bb494 1-4,6-88
+  s_f2f7fbb6f30866::t_7d9887609ddbb1 5
+go/cmd/eshu/docs.go
+  s_f2f7fbb6f30866::t_35dfac6647c57a 126
+go/internal/doctruth/doc.go
+  s_f2f7fbb6f30866::t_0e2d15f19d30c1 7-10
+go/cmd/eshu/docs_terraform_test.go
+  s_f2f7fbb6f30866::t_b3b6eb1efe019f 6,85-114
+  s_f2f7fbb6f30866::t_8b12c0a2fc18a2 1-5,7-84,115-116
+go/internal/doctruth/README.md
+  s_f2f7fbb6f30866::t_985b1d4bf43338 37-42
+docs/docs/adrs/2026-05-20-public-cli-command-contracts.md
+  s_f2f7fbb6f30866::t_a8033a11d07e83 458,518-532,554-557,559-560,569-577,599-603
+  s_f2f7fbb6f30866::t_29fb68ed6f0d9d 578
+go/internal/doctruth/verifier_claims.go
+  s_f2f7fbb6f30866::t_d9f87893efb037 1-95
+go/internal/doctruth/verifier.go
+  s_f2f7fbb6f30866::t_5426c49eb72a82 23-24,76,141,162,290-295
+docs/docs/reference/cli-reference.md
+  s_f2f7fbb6f30866::t_4a5051181ced70 226
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.0",
+  "base_commit_sha": "5d3be7bf263bee26fe48bcd50e4b01755b530d74",
+  "prompts": {},
+  "sessions": {
+    "s_f2f7fbb6f30866": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e360b-90eb-7472-bac7-56d488b65f77",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
