@@ -57,3 +57,25 @@ kubectl logs -n eshu deployment/eshu-resolution-engine --tail=50
 
 If API and MCP are healthy but answers are stale, check ingestion, queue drain,
 Postgres, and graph projection next.
+
+## Graph Backend Data Loss
+
+With the default NornicDB backend, graph storage is rebuildable projection
+state. A graph volume that cannot reopen should be handled like a lost search
+index or materialized view, not like loss of the authoritative sources.
+
+Operator sequence:
+
+1. Confirm Postgres is healthy and the API/MCP health checks are failing
+   because the graph backend cannot start.
+2. Preserve the graph volume or pod logs if the failure needs forensic review.
+3. Recreate only the NornicDB graph data directory or PVC.
+4. Run the data-plane schema bootstrap before projection work resumes.
+5. Re-run bootstrap indexing, replay projection work, or recollect from source
+   systems depending on which Postgres facts and workflow rows are available.
+6. Verify `GET /api/v0/index-status` reports `status=healthy`, `pending=0`,
+   `retrying=0`, `failed=0`, and `dead_letter=0`.
+
+Do not delete Postgres during graph recovery unless the intended plan is a full
+source-system recollection. Postgres holds facts, content, queues, workflow
+state, and the durable inputs that make graph rebuild possible.

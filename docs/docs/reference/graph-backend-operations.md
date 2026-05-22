@@ -9,6 +9,28 @@ lifecycle contract that governs startup / shutdown ordering, see
 NornicDB environment-variable map, see
 [NornicDB Tuning](nornicdb-tuning.md).
 
+## Graph State Is Rebuildable
+
+Eshu treats the graph backend as a rebuildable projection, not the source of
+truth. The graph makes API, MCP, CLI, and relationship queries fast and
+connected, but the facts that rebuild it come from source systems, repository
+snapshots, collector facts, workflow state, and Postgres-backed queues.
+
+That means total NornicDB data loss is operationally disruptive, but it is not
+customer-truth loss when the upstream sources and Postgres facts are still
+available. The supported recovery posture is:
+
+- preserve or snapshot the broken graph volume when forensic evidence matters
+- recreate only the graph backend data directory or PVC
+- run schema bootstrap before writes resume
+- replay projection work from stored facts or recollect from source systems
+- verify API/MCP health and indexing completeness after the queue drains
+
+Do not delete Postgres as part of graph recovery unless the operator has
+explicitly accepted a full recollection from source systems. Postgres carries
+facts, workflow state, content, queues, and replay inputs; losing it changes
+the recovery from graph rebuild to source recollection.
+
 ## Current command group
 
 ```text
