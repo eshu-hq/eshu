@@ -414,7 +414,6 @@ func packageRegistryPackagesCypher(packageID, ecosystem, name string, limit int)
 	}
 	return match + `
 OPTIONAL MATCH (p)-[:HAS_VERSION]->(v:PackageVersion)
-WITH p, count(v) AS version_count
 RETURN p.uid AS package_id,
        p.ecosystem AS ecosystem,
        p.registry AS registry,
@@ -422,7 +421,7 @@ RETURN p.uid AS package_id,
        p.normalized_name AS normalized_name,
        p.visibility AS visibility,
        p.source_confidence AS source_confidence,
-       version_count
+       count(v) AS version_count
 ORDER BY p.ecosystem, p.normalized_name, p.uid
 LIMIT $limit`, params
 }

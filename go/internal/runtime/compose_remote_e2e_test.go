@@ -35,6 +35,7 @@ func TestRemoteE2EExampleEnvDefaultsToSmokeCorpusPreflight(t *testing.T) {
 		"ESHU_REMOTE_E2E_MIN_REPOSITORY_COUNT=0",
 		"ESHU_FILESYSTEM_HOST_ROOT=./tests/fixtures/ecosystems",
 		"ESHU_CANONICAL_WRITE_TIMEOUT=120s",
+		"ESHU_API_KEY=",
 	} {
 		if !strings.Contains(content, want) {
 			t.Fatalf(".env.remote-e2e.example missing %q", want)
@@ -99,6 +100,18 @@ func TestRemoteE2EComposeUsesProductionCanonicalWriteTimeout(t *testing.T) {
 	} {
 		service := requireComposeService(t, doc, serviceName)
 		assertComposeEnv(t, service, "ESHU_CANONICAL_WRITE_TIMEOUT", "${ESHU_CANONICAL_WRITE_TIMEOUT:-120s}")
+	}
+}
+
+func TestRemoteE2EComposeSharesGeneratedAPIKeyState(t *testing.T) {
+	t.Parallel()
+
+	doc := readComposeDocument(t, "docker-compose.remote-e2e.yaml")
+	for _, serviceName := range []string{"eshu", "mcp-server"} {
+		service := requireComposeService(t, doc, serviceName)
+		assertComposeEnv(t, service, "ESHU_HOME", "/data/.eshu")
+		assertComposeEnv(t, service, "ESHU_API_KEY", "${ESHU_API_KEY:-}")
+		assertComposeEnv(t, service, "ESHU_AUTO_GENERATE_API_KEY", "true")
 	}
 }
 

@@ -69,6 +69,16 @@ ecosystem, or version anchor, dependency lookup requires `package_id` or
 dependency truth only; correlation routes expose reducer-owned ownership
 candidates, provenance-only publication evidence, and admitted manifest-backed
 consumption without letting package source hints become ownership truth.
+No-Regression Evidence: remote all-collector Compose proof on NornicDB
+`nornicdb-pr177-search-index-flags:80719f25520e` showed the package-list
+route returning `package_id:""` when the Cypher used `WITH p, count(v)`.
+The diagnostics route proved the same package anchor returned scalar aliases
+correctly when the package-list query used direct `RETURN ... count(v)` without
+the intermediate `WITH`; focused coverage is
+`go test ./internal/query -run TestPackageRegistryListPackagesUsesIndexedPackageScopeAndTruncates -count=1`.
+No-Observability-Change: the package registry handler already wraps the route
+with `query.package_registry.packages`, GraphQuery spans, HTTP status/errors,
+truth envelope metadata, and response `count/limit/truncated` fields.
 `CICDHandler` (`ci_cd.go:16`) reads reducer-owned CI/CD run correlation facts
 from Postgres. It requires an explicit scope, repository, commit, provider-run,
 artifact-digest, or environment anchor plus `limit`, and it keeps CI success,

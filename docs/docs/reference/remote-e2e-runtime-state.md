@@ -62,6 +62,13 @@ Set `ESHU_REMOTE_E2E_API_BASE_URL` and `ESHU_REMOTE_E2E_API_KEY` when the API
 is not discoverable through the `eshu` Compose service port and generated
 token.
 
+Remote E2E Compose supports either an explicit `ESHU_API_KEY` in the env file
+or an auto-generated local token. When `ESHU_API_KEY` is blank, the API writes
+the generated token under the shared `/data/.eshu/.env` volume, and the MCP
+runtime reads the same token from that mounted Eshu home. That keeps
+authenticated API and MCP `/api/*` validation on one bearer-token contract
+instead of generating container-local tokens per service.
+
 ## Evidence
 
 No-Regression Evidence: `scripts/test-verify-remote-e2e-runtime-state.sh`
@@ -112,3 +119,16 @@ counts, and bootstrap or collector structured logs. No new metric label was
 added because the signal is a bounded status projection over
 `scope_generations` timestamps, and high-cardinality repository or path details
 remain in logs rather than status metrics.
+
+No-Regression Evidence: remote E2E Compose now overrides API and MCP
+`ESHU_HOME` to `/data/.eshu` while preserving `ESHU_API_KEY=${ESHU_API_KEY:-}`
+and `ESHU_AUTO_GENERATE_API_KEY=true`; focused coverage is
+`go test ./internal/runtime -run 'TestRemoteE2EComposeSharesGeneratedAPIKeyState|TestRemoteE2EExampleEnvRequestsFullCorpusPreflight' -count=1`.
+The change only moves remote read-surface auth state for API/MCP onto the
+existing shared Eshu data volume; it does not change collector scheduling,
+worker counts, graph writes, NornicDB settings, or fact/reducer queue behavior.
+
+No-Observability-Change: authenticated validation still uses API and MCP
+`/healthz`, mounted `/api/*` routes, Docker health state, and the verifier's
+status payload. The token location is an operator contract, not a new runtime
+signal, so no metric label or span attribute was added.
