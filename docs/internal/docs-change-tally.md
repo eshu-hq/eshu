@@ -123,6 +123,8 @@ branch. Regenerate them from
 | Scoped AGENTS ADR Cleanup Batch C | Replaced deleted-ADR references in command, backend, collector, and OCI scoped agent files with current-doc, test, backend-conformance, and architecture-owner proof requirements. |
 | Public Run And CLI Analysis Compression | Reduced Docker Compose and CLI analysis references by removing repeated proof commands, delegating runbook detail to focused pages, and correcting the call-chain API route. |
 | Package README Mid-Size Compression Batch C | Reduced 15 more package READMEs, preserving ownership, invariants, telemetry, focused tests, and package-specific correctness notes. |
+| Main Rebase Refresh At 48aae51 | Rebasing onto current `origin/main` preserved new package-registry query/schema truth while keeping the compressed public and package-doc structure. |
+| MCP Diagnostic Cypher Contract Restore | Restored the diagnostics-only raw Cypher cookbook section with scoped input and tool-level `limit` so MCP contract tests keep raw queries out of normal prompt flows. |
 
 ## Verification Snapshot
 

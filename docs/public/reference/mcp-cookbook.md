@@ -243,3 +243,23 @@ covered findings.
 
 Use this after story, investigation, search, or relationship tools return file
 or entity handles.
+
+## Diagnostic Cypher Queries
+
+Raw Cypher is diagnostics-only. Use named MCP tools for normal prompt flows, and
+reach for this only when you are proving a backend/query-shape issue with an
+explicit scope and bounded result set.
+
+**Tool:** `execute_cypher_query`
+
+```json
+{
+  "cypher_query": "MATCH (r:Repository {uid: $repo_id}) RETURN r.uid AS repo_id",
+  "parameters": { "repo_id": "payments" },
+  "limit": 25
+}
+```
+
+Keep `limit` at the tool level rather than embedding `LIMIT` in the Cypher
+string. Record the backend, scope, timing, and truth envelope when the result is
+used as diagnostic evidence.
