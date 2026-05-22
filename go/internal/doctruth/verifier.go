@@ -297,8 +297,8 @@ func classifyClaim(raw string, line int) extractedClaim {
 	if localPath := normalizeLocalPathClaim(text); localPath != "" {
 		return extractedClaim{claimType: ClaimTypeLocalPath, text: text, normalized: localPath, line: line}
 	}
-	if imageRefs := ContainerImageRefsFromText(text); len(imageRefs) == 1 && imageRefs[0] == text {
-		return extractedClaim{claimType: ClaimTypeContainerImageRef, text: text, normalized: imageRefs[0], line: line}
+	if imageRef := NormalizeContainerImageRefClaim(text); imageRef != "" {
+		return extractedClaim{claimType: ClaimTypeContainerImageRef, text: text, normalized: imageRef, line: line}
 	}
 	lower := strings.ToLower(text)
 	for _, prefix := range []string{"terraform ", "kubectl ", "helm ", "aws "} {

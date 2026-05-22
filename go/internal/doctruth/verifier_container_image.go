@@ -8,6 +8,7 @@ import (
 
 var (
 	containerImageDirectivePattern = regexp.MustCompile(`(?i)\bimage:\s*["']?([^"'\s#]+)["']?`)
+	containerImageFromPattern      = regexp.MustCompile(`(?i)^\s*FROM\s+([^"'\s#]+)`)
 	containerImageTokenPattern     = regexp.MustCompile(`[A-Za-z0-9][A-Za-z0-9._:-]*(?:/[A-Za-z0-9][A-Za-z0-9._-]*)*(?::[A-Za-z0-9._-]+|@sha256:[a-fA-F0-9]{64})`)
 	containerImageEnvDefault       = regexp.MustCompile(`\$\{[^:}]+:-([^}]+)\}`)
 	containerImageRepository       = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._:/-]*$`)
@@ -25,7 +26,7 @@ type ContainerImageResolution struct {
 
 func containerImageClaimsFromLine(line string, lineNumber int) []extractedClaim {
 	claims := []extractedClaim{}
-	for _, imageRef := range ContainerImageRefsFromText(line) {
+	for _, imageRef := range containerImageRefsFromImageDirectives(line) {
 		claims = append(claims, extractedClaim{
 			claimType:  ClaimTypeContainerImageRef,
 			text:       imageRef,
@@ -40,10 +41,11 @@ func containerImageClaimsFromLine(line string, lineNumber int) []extractedClaim 
 func ContainerImageRefsFromText(content string) []string {
 	refs := map[string]struct{}{}
 	for _, line := range strings.Split(content, "\n") {
-		for _, match := range containerImageDirectivePattern.FindAllStringSubmatch(line, -1) {
-			for _, ref := range containerImageRefsFromToken(match[1]) {
-				refs[ref] = struct{}{}
-			}
+		for _, ref := range containerImageRefsFromImageDirectives(line) {
+			refs[ref] = struct{}{}
+		}
+		for _, ref := range containerImageRefsFromFromDirective(line) {
+			refs[ref] = struct{}{}
 		}
 	}
 	if len(refs) == 0 {
@@ -57,6 +59,22 @@ func ContainerImageRefsFromText(content string) []string {
 	}
 	sort.Strings(out)
 	return out
+}
+
+func containerImageRefsFromImageDirectives(line string) []string {
+	refs := []string{}
+	for _, match := range containerImageDirectivePattern.FindAllStringSubmatch(line, -1) {
+		refs = append(refs, containerImageRefsFromToken(match[1])...)
+	}
+	return refs
+}
+
+func containerImageRefsFromFromDirective(line string) []string {
+	match := containerImageFromPattern.FindStringSubmatch(line)
+	if len(match) != 2 {
+		return nil
+	}
+	return containerImageRefsFromToken(match[1])
 }
 
 func containerImageRefsFromToken(raw string) []string {
@@ -107,10 +125,18 @@ func NormalizeContainerImageRefClaim(raw string) string {
 	if tagIndex <= slashIndex || tagIndex == len(text)-1 {
 		return ""
 	}
-	if !looksLikeImageRepository(text[:tagIndex]) {
+	repository := text[:tagIndex]
+	if !strings.Contains(repository, "/") && looksLikeHostPortWithoutPath(repository) {
+		return ""
+	}
+	if !looksLikeImageRepository(repository) {
 		return ""
 	}
 	return text
+}
+
+func looksLikeHostPortWithoutPath(repository string) bool {
+	return strings.EqualFold(repository, "localhost") || strings.Contains(repository, ".")
 }
 
 func looksLikeImageRepository(repository string) bool {

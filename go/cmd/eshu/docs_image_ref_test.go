@@ -81,6 +81,39 @@ func TestDocsVerifyContainerImageTruthMarksOversizedManifestIncomplete(t *testin
 	}
 }
 
+func TestDocsVerifyContainerImageResolverScansLazily(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	if err := os.Mkdir(filepath.Join(root, ".git"), 0o700); err != nil {
+		t.Fatalf("Mkdir(.git) error = %v, want nil", err)
+	}
+	if err := os.WriteFile(
+		filepath.Join(root, "deployment.yaml"),
+		[]byte("image: ghcr.io/acme/api:1.2.3\n"),
+		0o600,
+	); err != nil {
+		t.Fatalf("WriteFile(deployment.yaml) error = %v, want nil", err)
+	}
+
+	resolver := docsVerifyContainerImageResolver(root)
+	if resolver == nil {
+		t.Fatal("docsVerifyContainerImageResolver() = nil, want resolver")
+	}
+	if err := os.WriteFile(
+		filepath.Join(root, "deployment.yaml"),
+		[]byte("image: ghcr.io/acme/api:2.0.0\n"),
+		0o600,
+	); err != nil {
+		t.Fatalf("rewrite deployment.yaml error = %v, want nil", err)
+	}
+
+	resolution := resolver(doctruth.DocumentInput{}, "ghcr.io/acme/api:2.0.0")
+	if !resolution.Supported || !resolution.Exists {
+		t.Fatalf("resolution = %#v, want lazy scan to see rewritten manifest", resolution)
+	}
+}
+
 func assertDocsVerifyFinding(
 	t *testing.T,
 	findings []doctruth.VerificationFinding,

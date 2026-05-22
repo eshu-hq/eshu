@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	"github.com/eshu-hq/eshu/go/internal/doctruth"
 )
@@ -23,12 +24,17 @@ func docsVerifyContainerImageResolver(verifyPath string) doctruth.ContainerImage
 	if !ok {
 		return nil
 	}
-	refs, complete := docsVerifyContainerImageTruth(root)
+	var once sync.Once
+	var refs map[string]struct{}
+	var complete bool
 	return func(_ doctruth.DocumentInput, imageRef string) doctruth.ContainerImageResolution {
 		normalized := doctruth.NormalizeContainerImageRefClaim(imageRef)
 		if normalized == "" {
 			return doctruth.ContainerImageResolution{}
 		}
+		once.Do(func() {
+			refs, complete = docsVerifyContainerImageTruth(root)
+		})
 		if _, ok := refs[normalized]; ok {
 			return doctruth.ContainerImageResolution{Supported: true, Exists: true}
 		}
