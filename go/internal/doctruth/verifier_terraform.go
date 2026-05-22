@@ -19,7 +19,7 @@ type TerraformAddressResolution struct {
 // NormalizeTerraformAddressClaim returns a supported Terraform address claim or an empty string.
 func NormalizeTerraformAddressClaim(raw string) string {
 	value := strings.TrimSpace(raw)
-	value = strings.Trim(value, ".,;:")
+	value = strings.TrimRight(value, ".,;:")
 	if !terraformAddressPattern.MatchString(value) {
 		return ""
 	}

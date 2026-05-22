@@ -85,6 +85,43 @@ func TestDocsVerifyTerraformTruthMarksInvalidHCLIncomplete(t *testing.T) {
 	}
 }
 
+func TestRunDocsVerifyReportsTerraformMissingEvidenceWhenTruthIncomplete(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	if err := os.Mkdir(filepath.Join(root, ".git"), 0o700); err != nil {
+		t.Fatalf("Mkdir(.git) error = %v, want nil", err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "main.tf"), []byte(`resource "aws_s3_bucket" "logs" {`), 0o600); err != nil {
+		t.Fatalf("WriteFile(main.tf) error = %v, want nil", err)
+	}
+	docPath := filepath.Join(root, "README.md")
+	if err := os.WriteFile(docPath, []byte("Bucket: `aws_s3_bucket.logs`.\n"), 0o600); err != nil {
+		t.Fatalf("WriteFile(README.md) error = %v, want nil", err)
+	}
+
+	cmd := newTestDocsVerifyCommand(docsVerifyDeps{})
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	cmd.SetArgs([]string{docPath, "--json", "--fail-on", "contradicted"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("docs verify error = %v, want nil for missing evidence with --fail-on contradicted; output=%s", err, out.String())
+	}
+
+	var envelope docsVerifyEnvelope
+	if err := json.Unmarshal(out.Bytes(), &envelope); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v, want nil; output=%s", err, out.String())
+	}
+	if got, want := envelope.Data.Summary.MissingEvidence, 1; got != want {
+		t.Fatalf("Summary.MissingEvidence = %d, want %d", got, want)
+	}
+	if got := envelope.Data.Summary.Contradicted; got != 0 {
+		t.Fatalf("Summary.Contradicted = %d, want 0", got)
+	}
+	assertDocsVerifyFinding(t, envelope.Data.Findings, "terraform_address", "aws_s3_bucket.logs", "missing_evidence")
+}
+
 func BenchmarkDocsVerifyTerraformAddressTruthLargeTree(b *testing.B) {
 	root := b.TempDir()
 	stack := filepath.Join(root, "terraform")

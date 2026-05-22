@@ -76,6 +76,8 @@ func TestNormalizeTerraformAddressClaimIsConservative(t *testing.T) {
 		{raw: "data.aws_iam_policy_document.reader", want: "data.aws_iam_policy_document.reader"},
 		{raw: "terraform/module.network", want: "module.network"},
 		{raw: "module.network,", want: "module.network"},
+		{raw: ".module.network", want: ""},
+		{raw: ",aws_s3_bucket.logs", want: ""},
 		{raw: "aws s3 ls", want: ""},
 		{raw: "aws_s3_bucket", want: ""},
 		{raw: "terraform/prod/main.tf", want: ""},
