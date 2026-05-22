@@ -25,5 +25,7 @@
 // provenance, signature verification, and warning evidence. Vulnerability
 // intelligence fact kind constants and schema-version helpers live here for
 // CVE, affected package/product, EPSS, KEV, reference, snapshot, and warning
-// evidence.
+// evidence. Service catalog fact kind constants and schema-version helpers live
+// here for provider-native entity, ownership, repository link, dependency, API,
+// operational link, scorecard, and warning evidence.
 package facts

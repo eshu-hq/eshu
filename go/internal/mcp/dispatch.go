@@ -317,6 +317,8 @@ func resolveRoute(toolName string, args map[string]any) (*route, error) {
 		return packageRegistryCorrelationsRoute(args), nil
 	case "list_ci_cd_run_correlations":
 		return cicdRunCorrelationsRoute(args), nil
+	case "list_service_catalog_correlations":
+		return serviceCatalogCorrelationsRoute(args), nil
 	case "list_container_image_identities":
 		return containerImageIdentitiesRoute(args), nil
 	case "list_supply_chain_impact_findings":

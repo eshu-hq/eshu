@@ -171,6 +171,10 @@ func newMCPQueryRouter(
 			Correlations: query.NewPostgresCICDRunCorrelationStore(db),
 			Profile:      queryProfile,
 		},
+		ServiceCatalog: &query.ServiceCatalogHandler{
+			Correlations: query.NewPostgresServiceCatalogCorrelationStore(db),
+			Profile:      queryProfile,
+		},
 		SupplyChain: &query.SupplyChainHandler{
 			SBOMAttachments:          query.NewPostgresSBOMAttestationAttachmentStore(db),
 			ImpactFindings:           query.NewPostgresSupplyChainImpactFindingStore(db),

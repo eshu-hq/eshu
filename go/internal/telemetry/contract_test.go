@@ -110,6 +110,7 @@ func TestSpanNames(t *testing.T) {
 		"query.package_registry_dependencies",
 		"query.package_registry_correlations",
 		"query.ci_cd_run_correlations",
+		"query.service_catalog_correlations",
 		"query.container_image_identities",
 		"query.sbom_attestation_attachments",
 		"query.supply_chain_impact_findings",

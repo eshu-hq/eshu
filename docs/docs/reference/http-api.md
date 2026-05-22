@@ -363,6 +363,19 @@ deployment truth by themselves; those rows stay derived, unresolved, ambiguous,
 or rejected with `provenance_only=true` when appropriate. Truncated responses
 include `next_cursor.after_correlation_id` for the next bounded read.
 
+### Service Catalog Correlations
+
+`GET /api/v0/service-catalog/correlations` lists reducer-owned service catalog
+ownership and drift correlation facts. The caller must provide `limit` and at
+least one bounded anchor: `scope_id`, `entity_ref`, `repository_id`,
+`service_id`, `workload_id`, or `owner_ref`.
+
+Rows expose provider-native entity refs, owner refs, lifecycle, tier, outcome,
+drift status, and evidence fact IDs. Catalog names, owners, and declared
+dependencies remain provenance until reducer evidence corroborates them against
+repository, service, workload, runtime, or deployment truth. Truncated
+responses include `next_cursor.after_correlation_id` for the next bounded read.
+
 ### Container Image Identities
 
 `GET /api/v0/supply-chain/container-images/identities` lists reducer-owned
