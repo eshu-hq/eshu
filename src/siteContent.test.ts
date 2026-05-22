@@ -81,7 +81,7 @@ describe("siteContent", () => {
       "Docs"
     ]);
     expect(siteContent.commandDemos.map((command) => command.command)).toEqual([
-      "eshu scan",
+      "eshu scan --json",
       "eshu trace service checkout",
       "eshu map --from terraform/aws_lb.main",
       "eshu docs verify"
@@ -95,15 +95,21 @@ describe("siteContent", () => {
       siteContent.commandDemos.map((demo) => [demo.command, demo.output])
     );
 
-    expect(demosByCommand["eshu scan"]).toContain("repos: 896 indexed");
-    expect(demosByCommand["eshu scan"]).toContain("elapsed: 14m13.6s");
-    expect(demosByCommand["eshu scan"]).not.toContain("repos: 897 indexed");
-    expect(demosByCommand["eshu scan"]).not.toContain("elapsed: 14m 32s");
+    expect(demosByCommand["eshu scan --json"]).toEqual(
+      expect.arrayContaining([
+        "\"status\": \"ready\",",
+        "\"succeeded\": 8347,",
+        "\"queue_zero_ms\": 853600,",
+        "\"freshness\": \"current\""
+      ])
+    );
+    expect(demosByCommand["eshu scan --json"]).not.toContain("repos: 896 indexed");
+    expect(demosByCommand["eshu scan --json"]).not.toContain("elapsed: 14m13.6s");
 
     expect(demosByCommand["eshu trace service checkout"]).toEqual(
       expect.arrayContaining([
         "Service: checkout-service",
-        "Truth freshness: current",
+        "Truth freshness: fresh",
         "Code to runtime:",
         "Trace status: partial",
         "Missing evidence: runtime"
@@ -113,8 +119,8 @@ describe("siteContent", () => {
     expect(demosByCommand["eshu map --from terraform/aws_lb.main"]).toEqual(
       expect.arrayContaining([
         "Map: terraform/aws_lb.main",
-        "Resolved: TerraformResource tf:aws_lb.main (aws_lb.main)",
-        "Evidence: 4 relationships"
+        "Resolved: TerraformResource tfstate:aws_lb.main (aws_lb.main)",
+        "Evidence: 2 relationships"
       ])
     );
 
@@ -124,6 +130,9 @@ describe("siteContent", () => {
         "- contradicted terraform_address aws_sqs_queue.missing",
         "- missing_evidence image_ref ghcr.io/acme/checkout:1.2.3"
       ])
+    );
+    expect(demosByCommand["eshu docs verify"]).not.toContain(
+      "result: fail-on contradicted would exit 1"
     );
     expect(demosByCommand["eshu docs verify"]).not.toContain(
       "docs/architecture/payments.md: missing runtime edge"

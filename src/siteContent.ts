@@ -132,14 +132,14 @@ export const siteContent = {
   },
   commandDemos: [
     {
-      command: "eshu scan",
+      command: "eshu scan --json",
       summary: "Graph ready for organization-wide questions.",
       activeNodeId: "code",
       output: [
-        "repos: 896 indexed",
-        "queue: 8347/8347 succeeded",
-        "elapsed: 14m13.6s",
-        "status: healthy and queryable"
+        "\"status\": \"ready\",",
+        "\"succeeded\": 8347,",
+        "\"queue_zero_ms\": 853600,",
+        "\"freshness\": \"current\""
       ]
     },
     {
@@ -149,7 +149,7 @@ export const siteContent = {
       output: [
         "Service: checkout-service",
         "Repository: repo-checkout (checkout-service)",
-        "Truth freshness: current",
+        "Truth freshness: fresh",
         "Code to runtime:",
         "Trace status: partial",
         "- source: exact (2 evidence)",
@@ -163,12 +163,12 @@ export const siteContent = {
       activeNodeId: "terraform",
       output: [
         "Map: terraform/aws_lb.main",
-        "Resolved: TerraformResource tf:aws_lb.main (aws_lb.main)",
+        "Resolved: TerraformResource tfstate:aws_lb.main (aws_lb.main)",
         "Defined by:",
-        "- DEFINED_IN modules/payments-lb repo=repo-checkout",
-        "Runs as:",
-        "- SERVES checkout-api repo=repo-checkout",
-        "Evidence: 4 relationships"
+        "- DEFINES infra-repo",
+        "Depends on:",
+        "- PROVISIONS_DEPENDENCY_FOR checkout",
+        "Evidence: 2 relationships"
       ]
     },
     {
@@ -178,8 +178,7 @@ export const siteContent = {
       output: [
         "Docs verify: documents=3 claims=6 valid=4 contradicted=1 missing_evidence=1 unsupported=0 truncated=false",
         "- contradicted terraform_address aws_sqs_queue.missing",
-        "- missing_evidence image_ref ghcr.io/acme/checkout:1.2.3",
-        "result: fail-on contradicted would exit 1"
+        "- missing_evidence image_ref ghcr.io/acme/checkout:1.2.3"
       ]
     }
   ] satisfies readonly CommandDemo[],

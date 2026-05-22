@@ -34,7 +34,7 @@ describe("App", () => {
     expect(screen.getAllByText(/SQL, Terraform, Kubernetes/)).toHaveLength(2);
     expect(screen.getByRole("heading", { name: "Built for the whole organization" })).toBeInTheDocument();
     expect(screen.getAllByText(/896 repos/)).toHaveLength(2);
-    expect(screen.getAllByText(/14m13\.6s/)).toHaveLength(2);
+    expect(screen.getAllByText(/14m13\.6s/)).toHaveLength(1);
     expect(screen.getByRole("heading", { name: "Prompts for different jobs" })).toBeInTheDocument();
   });
 
