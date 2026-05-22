@@ -68,8 +68,9 @@
   the `dirHasEntriesExcept` logic needs updating.
 
 - **Change the workspace ID algorithm** → this is a breaking change for
-  existing workspaces. Read `docs/docs/reference/local-data-root-spec.md`
-  first, confirm with the team, document a migration path. Do not make this
+  existing workspaces. Read `docs/public/reference/local-data-root-spec.md`
+  and `docs/public/reference/local-host-lifecycle.md` first, confirm with the
+  team, document a migration path. Do not make this
   change speculatively.
 
 - **Add a new reclaim condition** → add a typed error var in `reclaim.go`, add

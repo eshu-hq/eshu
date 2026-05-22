@@ -12,7 +12,7 @@ Guidance for LLM assistants editing this package.
    row (where the config-side composite key is recorded).
 5. `../../projector/tfstate_canonical.go:14-75` — state-side row
    shapes (Address, Lineage, Serial, BackendKind, LocatorHash).
-6. `docs/superpowers/plans/2026-05-10-tfstate-config-state-drift-design.md` §9 Q1, Q4 — design rationale.
+6. `README.md` — package-local ownership boundary and resolver contract.
 
 ## Invariants
 

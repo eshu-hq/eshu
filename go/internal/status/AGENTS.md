@@ -18,7 +18,7 @@
    projection support
 8. `go/internal/status/aws_freshness.go` — AWS freshness trigger backlog text
    and JSON projection support
-9. `docs/docs/reference/http-api.md` and `docs/docs/reference/cli-reference.md`
+9. `docs/public/reference/http-api.md` and `docs/public/reference/cli-reference.md`
    — the documented operator contract this package backs
 
 ## Invariants this package enforces
@@ -62,8 +62,8 @@
 
 - **Add a new field to `Report` or `RawSnapshot`** → add the field, populate it
   in `BuildReport`, render it in `RenderText`, and add it to the `RenderJSON`
-  anonymous struct in `json.go`. Update `docs/docs/reference/http-api.md` and
-  `docs/docs/reference/cli-reference.md` in the same PR. Why: both the text and
+  anonymous struct in `json.go`. Update `docs/public/reference/http-api.md` and
+  `docs/public/reference/cli-reference.md` in the same PR. Why: both the text and
   JSON outputs are operator contract surfaces; missing one breaks the CLI while
   the HTTP surface looks correct.
 

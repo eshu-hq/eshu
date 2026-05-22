@@ -5,7 +5,7 @@
 1. `README.md` — Docker Hub boundary and exported helpers
 2. `adapter.go` — repository normalization and token-backed client
 3. `live_test.go` — opt-in public Docker Hub validation gate
-4. `docs/docs/adrs/2026-05-10-oci-container-registry-collector.md`
+4. `../README.md` — OCI registry source-truth and fact boundary
 
 ## Invariants
 

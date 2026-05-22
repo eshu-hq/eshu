@@ -11,8 +11,10 @@
    contract.
 6. Service `awssdk` README files under
    `go/internal/collector/awscloud/services/` - SDK adapter contracts.
-7. `docs/docs/adrs/2026-04-20-aws-cloud-scanner-collector.md` - security and
-   runtime requirements.
+7. `docs/public/services/collector-aws-cloud-security.md` - credential,
+   target-scope, IAM, and redaction requirements.
+8. `docs/public/services/collector-aws-cloud-scanners.md` - scanner coverage
+   and forbidden data classes.
 
 ## Invariants
 

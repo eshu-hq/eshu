@@ -81,7 +81,7 @@
 - **Change concurrency behavior** → touch `service.go` `runConcurrent`,
   `service_superseded.go`, and the large-generation semaphore; run
   `service_test.go` and `service_shutdown_test.go`; read
-  `docs/docs/reference/telemetry/index.md` for
+  `docs/public/reference/telemetry/index.md` for
   `eshu_dp_large_repo_semaphore_wait_seconds` guidance. Why: worker goroutines
   share a cancel context; wrong cancellation propagation causes silent dropped
   work or stale-generation graph writes.
@@ -149,12 +149,11 @@
 ## What NOT to change without an ADR
 
 - `CanonicalWriter` interface shape — changing the signature breaks every caller
-  and the backend-neutral contract; see
-  `docs/docs/adrs/2026-04-22-nornicdb-graph-backend-candidate.md`.
+  and the backend-neutral contract. Update backend conformance evidence in
+  `docs/public/reference/backend-conformance.md` before changing it.
 - `graph_projection_phase_state` publish semantics — reducer edge domains gate
   on `canonical_nodes_committed`; removing or deferring the publish breaks
   shared projection ordering.
 - `entityTypeLabelMap` entries once a label has graph schema constraints — label
-  renames require coordinated graph migration; see
-  `docs/docs/adrs/2026-04-17-neo4j-deadlock-elimination-batch-isolation.md` for
-  write-order constraints.
+  renames require coordinated graph migration, schema-bootstrap updates, and
+  same-shape Cypher performance evidence.

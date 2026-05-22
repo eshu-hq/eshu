@@ -67,4 +67,4 @@
 ## What NOT to change without an ADR
 
 - The `--format` flag name and accepted values — external scripts and operator
-  runbooks depend on these; see `docs/docs/reference/cli-reference.md`.
+  runbooks depend on these; see `docs/public/reference/cli-reference.md`.

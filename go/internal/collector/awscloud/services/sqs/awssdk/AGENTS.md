@@ -8,8 +8,7 @@
 3. `../scanner.go` - scanner-owned SQS fact selection.
 4. `../README.md` - SQS scanner contract.
 5. `../../../README.md` - AWS cloud envelope contract.
-6. `docs/docs/adrs/2026-04-20-aws-cloud-scanner-collector.md` - AWS collector
-   service coverage and runtime requirements.
+6. `docs/public/services/collector-aws-cloud-scanners.md` - scanner coverage and metadata-only data boundaries.
 
 ## Invariants
 

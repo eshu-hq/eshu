@@ -6,8 +6,7 @@
 2. `client.go` - ECS SDK pagination, batched describes, mapping, and telemetry.
 3. `../scanner.go` - scanner-owned ECS fact selection and redaction.
 4. `../README.md` - ECS scanner contract.
-5. `docs/docs/adrs/2026-04-20-aws-cloud-scanner-collector.md` - AWS collector
-   runtime and security requirements.
+5. `docs/public/services/collector-aws-cloud-scanners.md` - scanner coverage and metadata-only data boundaries.
 
 ## Invariants
 

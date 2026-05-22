@@ -9,7 +9,7 @@ repo's 500-line limit.
 - Total Markdown files left in the checkout after the current pass: 548
 - Current branch doc status from
   `git diff --name-status origin/main -- '*.md'` after the current pass:
-  95 added, 162 modified, 148 deleted, 86 renamed
+  95 added, 223 modified, 148 deleted, 86 renamed
 - Copied image assets removed from this branch: 43 files under
   `docs/public/images/`. They were reference assets from another project and
   no longer appear in the source-doc reference scan.
@@ -101,6 +101,7 @@ branch. Regenerate them from
 | Parallel Remaining Docs Compression | Used subagents plus parent review to compress the remaining high-priority public, MCP, CLI, API, collector, reducer, why, local-data-root, and agent-guide docs while preserving code-verified contracts. |
 | Terraform, Helm, Backend, And Package Docs Compression | Compressed Terraform provider guides, Helm values references, graph backend operations/install, Cypher performance discipline, bootstrap-index, observability, and core package READMEs while preserving code-verified contracts. |
 | Local Testing, Public Reference, Service Runbook, And Scoped AGENTS Compression | Used subagents plus parent review to compress local-testing subpages, public reference contracts, service/command runbooks, and scoped agent guidance while preserving mandatory accuracy, performance, concurrency, telemetry, and proof rules. |
+| Scoped AGENTS Link Repair And Fixture README Compression | Replaced deleted `docs/docs`, `docs/plans`, and `docs/superpowers` references in scoped agent guidance with current public/package docs; compressed Go, Rust, and TypeScript sample fixture READMEs to fixture intent and file maps; refreshed the docs inventory counts. |
 
 ## Verification Snapshot
 
@@ -108,9 +109,9 @@ Detailed historical verification moved to `docs/internal/docs-verification-snaps
 
 Current pass proof:
 
-- Focused docs verification passed for local-testing subpages, public reference pages, service runbooks, command READMEs, and scoped agent guidance with 0 contradicted and 0 missing evidence claims.
-- Focused Go tests passed for query, MCP, API, CLI, backend conformance, runtime, status, truth, collector commands, Postgres storage, parser, and collector packages.
-- Local script checks passed for remote E2E runtime-state validation and relevant local-testing shell syntax.
+- Focused docs verification passed for command scoped agents, internal scoped agents, collector scoped agents, correlation scoped agents, fixture sample-project READMEs, and internal maintainer docs with 0 contradicted and 0 missing evidence claims.
+- Stale scoped-agent reference scan found no remaining `docs/docs`, `docs/plans`, `docs/superpowers`, or `public/adrs` references outside the generated deleted/renamed file indexes.
+- Focused Go tests from the prior checkpoint passed for query, MCP, API, CLI, backend conformance, runtime, status, truth, collector commands, Postgres storage, parser, and collector packages.
 - Broad docs verification passed for `docs/public` and the full repository with 0 contradicted and 0 missing evidence claims.
 - `scripts/verify-package-docs.sh`, `git diff --check`, `cmp -s AGENTS.md CLAUDE.md`, and strict MkDocs build passed.
 

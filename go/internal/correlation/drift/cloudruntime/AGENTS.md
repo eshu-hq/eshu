@@ -7,8 +7,11 @@
 3. `candidate.go` — ARN-keyed candidate and evidence construction.
 4. `telemetry.go` — bounded metric emission.
 5. `../../rules/aws_cloud_runtime_drift_rules.go` — rule-pack declaration.
-6. `docs/docs/adrs/2026-04-19-multi-source-correlation-dsl-and-collector-readiness.md`
-   — cloud observation joins phase.
+6. `README.md` — cloud observation join contract and package boundary.
+7. `docs/public/services/collector-aws-cloud.md` — AWS observation source
+   contract.
+8. `docs/public/reference/telemetry/metrics-reducer-storage.md` — drift
+   counters exposed to operators.
 
 ## Invariants
 

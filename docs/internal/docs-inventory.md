@@ -5,20 +5,20 @@ decide whether a document should be public product guidance, maintainer-only
 guidance, package-local orientation, historical evidence, or deleted.
 
 Current inventory snapshot after removing historical working-plan,
-decision-log, misplaced console, and stale internal working-note docs: 532
+decision-log, misplaced console, and stale internal working-note docs: 548
 Markdown files.
 
 ## Functional Groups
 
 | Group | Count | Paths | Function | Default action |
 | --- | ---: | --- | --- | --- |
-| Public product, concepts, and contribution docs | 14 | `docs/public/*.md`, `docs/public/concepts/`, `docs/public/understand/`, `docs/public/extend/`, `docs/public/releases/` | Explain what Eshu is and how the product fits together. | Keep, but remove overlap with the root `README.md`. |
-| Public onboarding and local run docs | 9 | `docs/public/start-here.md`, `docs/public/getting-started/`, `docs/public/run-locally/` | Help a new user install, run, and connect Eshu locally. | Keep and make this the main beginner path. |
-| Public deployment, operations, and service docs | 23 | `docs/public/deployment/`, `docs/public/deploy/`, `docs/public/operate/`, `docs/public/services/` | Explain Compose, Helm, Kubernetes, service runtimes, and operations. | Keep, but merge duplicated Docker Compose, Helm, and service-runtime guidance. |
-| Public workflow guides | 19 | `docs/public/guides/`, `docs/public/use/`, `docs/public/mcp/` | Explain user tasks such as indexing, MCP use, relationships, fixture ecosystems, and Terraform providers. | Keep only task-oriented pages. Merge or delete pages that repeat reference material. |
-| Public reference docs | 61 | `docs/public/reference/` | Authoritative CLI, API, config, telemetry, backend, and protocol reference. | Keep as canonical reference. Remove tutorial prose that belongs in guides. |
+| Public product, concepts, and contribution docs | 15 | `docs/public/*.md`, `docs/public/concepts/`, `docs/public/understand/`, `docs/public/extend/`, `docs/public/releases/` | Explain what Eshu is and how the product fits together. | Keep, but remove overlap with the root `README.md`. |
+| Public onboarding and local run docs | 5 | `docs/public/start-here.md`, `docs/public/getting-started/`, `docs/public/run-locally/` | Help a new user install, run, and connect Eshu locally. | Keep and make this the main beginner path. |
+| Public deployment, operations, and service docs | 29 | `docs/public/deployment/`, `docs/public/deploy/`, `docs/public/operate/`, `docs/public/services/` | Explain Compose, Helm, Kubernetes, service runtimes, and operations. | Keep, but merge duplicated Docker Compose, Helm, and service-runtime guidance. |
+| Public workflow guides | 18 | `docs/public/guides/`, `docs/public/use/`, `docs/public/mcp/` | Explain user tasks such as indexing, MCP use, relationships, fixture ecosystems, and Terraform providers. | Keep only task-oriented pages. Merge or delete pages that repeat reference material. |
+| Public reference docs | 74 | `docs/public/reference/` | Authoritative CLI, API, config, telemetry, backend, and protocol reference. | Keep as canonical reference. Remove tutorial prose that belongs in guides. |
 | Public language support docs | 32 | `docs/public/languages/` | Explain parser and language-family support. | Keep, but drive from code and matrices. |
-| Maintainer docs | 8 | `docs/internal/` | Maintainer-only workflow guidance, cleanup tracking, and generated file indexes for this docs PR. | Keep only active workflow guidance. Delete stale investigation notes or move durable facts into reference docs. |
+| Maintainer docs | 9 | `docs/internal/` | Maintainer-only workflow guidance, cleanup tracking, and generated file indexes for this docs PR. | Keep only active workflow guidance. Delete stale investigation notes or move durable facts into reference docs. |
 | Removed historical plans | 0 | `docs/plans/`, `docs/superpowers/` | Former working plans, specs, and proof notes. | Deleted from the stable docs tree. Durable learnings must live in current reference, workflow, architecture, or package-local docs. |
 | Removed historical decision records | 0 | `docs/public/adrs/` | Former decision logs and proof trails. | Deleted from the stable docs tree. Durable decisions, workflows, performance lessons, and backend rules must live in current reference, workflow, architecture, or package-local docs. |
 | Root governance and entrypoints | 8 | root `*.md` files | Repo entrypoints, contributor guidance, security, testing, agent rules, and Cloudflare Pages setup. | Keep root `README.md`, `CONTRIBUTING.md`, `SECURITY.md`, `TESTING.md`, `DEVELOPING.md`, `AGENTS.md`, `CLAUDE.md`, and `CLOUDFLARE_PAGES.md`. |

@@ -6,7 +6,7 @@
 2. `adapter.go` — registry URI and Distribution client helpers
 3. `auth.go` — fakeable ECR token conversion seam
 4. `live_test.go` — opt-in private ECR validation gate
-5. `docs/docs/adrs/2026-05-10-oci-container-registry-collector.md`
+5. `../README.md` — OCI registry source-truth and fact boundary
 
 ## Invariants
 

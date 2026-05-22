@@ -12,10 +12,10 @@
 5. `envelope.go` - durable fact-envelope construction and validation.
 6. Service package docs under `services/` before changing scanner-specific
    behavior.
-7. `docs/docs/adrs/2026-04-20-aws-cloud-scanner-collector.md` - AWS collector
-   source-truth, claim, and credential contract.
-8. `docs/docs/guides/collector-authoring.md` - general collector fact
-   contract.
+7. `docs/public/services/collector-aws-cloud.md` - AWS collector runtime flow, claim, and fact boundary.
+8. `docs/public/services/collector-aws-cloud-security.md` - credential, scope, and redaction guardrails.
+9. `docs/public/services/collector-aws-cloud-scanners.md` - scanner coverage and forbidden data classes.
+10. `docs/public/guides/collector-authoring.md` - general collector fact contract.
 
 ## Invariants
 

@@ -6,7 +6,7 @@
 2. `client.go` - SDK call surface and API-call recording.
 3. `mapper.go` - safe response mapping into scanner-owned types.
 4. `../README.md` - service package metadata-only contract.
-5. `docs/docs/adrs/2026-04-20-aws-cloud-scanner-collector.md`.
+5. `docs/public/services/collector-aws-cloud-scanners.md` - scanner coverage and metadata-only data boundaries.
 
 ## Invariants
 

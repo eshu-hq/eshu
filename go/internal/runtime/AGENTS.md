@@ -64,7 +64,7 @@
 - **Add a new env var to `Config`** → add the field to `Config` in `config.go`,
   read it in `LoadConfig`, add validation in `Config.Validate`; update
   `go/internal/runtime/config_test.go` with both a valid and invalid case;
-  update `docs/docs/reference/cli-reference.md` or the docker-compose docs
+  update `docs/public/reference/cli-reference.md` or the docker-compose docs
   if the var affects the Compose contract; run
   `go test ./internal/runtime -count=1`.
 
@@ -79,7 +79,7 @@
 - **Change Postgres pool defaults** → update the `defaultPostgresXxx` constants
   in `data_stores.go` (lines 16–28); add a `compose_defaults_test.go`
   assertion if the change affects Compose env; update
-  `docs/docs/reference/nornicdb-tuning.md` for any NornicDB-relevant pool
+  `docs/public/reference/nornicdb-tuning.md` for any NornicDB-relevant pool
   change.
 
 - **Add a new graph backend** → add a `GraphBackend` constant in
@@ -152,8 +152,10 @@
 ## What NOT to change without an ADR
 
 - `LoadGraphBackend` accepted values — adding or removing a valid backend
-  string changes the deployment contract for all binaries; see
-  `docs/docs/adrs/2026-04-22-nornicdb-graph-backend-candidate.md`.
+  string changes the deployment contract for all binaries. Update
+  `docs/public/reference/backend-conformance.md`,
+  `docs/public/reference/graph-backend-operations.md`, and
+  `docs/public/reference/nornicdb-tuning.md` before changing it.
 - Admin route contract (`/healthz`, `/readyz`, `/admin/status`, `/metrics`,
   `/admin/replay`, `/admin/refinalize`) — Kubernetes probes, dashboards, and
   operator runbooks depend on these paths; path or method changes require

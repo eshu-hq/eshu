@@ -12,9 +12,9 @@
 5. `envelope.go`, `version.go`, `dependency.go`, `artifact.go`,
    `source_hint.go`, `vulnerability_hint.go`, `registry_event.go`,
    `repository_hosting.go`, `warning.go` — durable fact-envelope construction
-6. `docs/docs/adrs/2026-05-12-package-registry-collector.md` — source-truth
-   boundary and implementation slices
-7. `packageruntime/README.md` — claim-driven metadata fetch and commit flow
+6. `docs/public/guides/collector-authoring.md` — general collector fact contract
+7. `docs/public/reference/component-package-manager.md` — optional component package manager contract
+8. `packageruntime/README.md` — claim-driven metadata fetch and commit flow
 
 ## Invariants
 

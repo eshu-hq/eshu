@@ -5,7 +5,7 @@
 1. `README.md` — package purpose and wire-contract boundaries
 2. `client.go` — bounded OCI Distribution HTTP calls
 3. `client_test.go` — fake-server contract coverage
-4. `docs/docs/adrs/2026-05-10-oci-container-registry-collector.md`
+4. `../README.md` — OCI registry source-truth and fact boundary
 
 ## Invariants
 

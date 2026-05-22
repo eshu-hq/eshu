@@ -77,7 +77,8 @@
 
 - The DDL idempotency contract (`CREATE ... IF NOT EXISTS`) — removing it
   breaks safe re-runs and coordinated Kubernetes deployment; see
-  `docs/docs/deployment/service-runtimes.md`.
+  `docs/public/deployment/service-runtimes.md`.
 - The ESHU_GRAPH_BACKEND values understood by `schemaBackendFromEnv` — adding
   or renaming backend values is a multi-package change; see
-  `docs/docs/adrs/2026-04-22-nornicdb-graph-backend-candidate.md`.
+  `docs/public/architecture.md` and
+  `docs/public/reference/graph-backend-installation.md`.

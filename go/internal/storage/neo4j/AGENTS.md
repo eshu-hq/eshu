@@ -39,8 +39,8 @@
 
 - **Add a PhaseGroupExecutor adapter** → implement the
   `cypher.PhaseGroupExecutor` interface on the adapter; wire in `cmd/` to
-  enable phase-grouped writes; verify against Neo4j deadlock behavior documented
-  in the ADR.
+  enable phase-grouped writes; verify against the shared backend conformance
+  corpus and the Cypher performance gate.
 
 - **Add connection pool configuration** → expose as constructor options on the
   adapter struct; document as env-var-backed knobs per the
@@ -79,7 +79,9 @@ Since the package currently has no code, failures today are in `cmd/` wiring:
 
 - `cypher.Executor` interface shape — adding methods here or in `cmd/` wiring
   without updating all backends (Neo4j and NornicDB) breaks the backend-neutral
-  contract; see `docs/docs/adrs/2026-04-22-nornicdb-graph-backend-candidate.md`.
+  contract. Update `docs/public/reference/backend-conformance.md` and the
+  shared conformance corpus before changing it.
 - Bolt session transaction model — session read/write mode and transaction
-  timeout behavior are correctness constraints; see
-  `docs/docs/adrs/2026-04-17-neo4j-deadlock-elimination-batch-isolation.md`.
+  timeout behavior are correctness constraints. Preserve the
+  backend-neutral Cypher contract and capture same-shape performance evidence
+  before changing it.

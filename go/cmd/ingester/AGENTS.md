@@ -43,9 +43,10 @@
 - **Add a new NornicDB tuning knob** → add the env var constant in `wiring.go`
   alongside the existing `nornicDBCanonicalGroupedWritesEnv` constants, add the
   reader in `wiring_nornicdb_env.go`, pass the value through
-  `openIngesterCanonicalWriter`, and update `docs/docs/reference/nornicdb-tuning.md`
-  and the active NornicDB ADR in the same PR. See CLAUDE.md NornicDB
-  Compatibility Workflow.
+  `openIngesterCanonicalWriter`, and update
+  `docs/public/reference/nornicdb-tuning.md` plus any affected current backend
+  or runtime reference in the same PR. See CLAUDE.md NornicDB Compatibility
+  Workflow.
 
 - **Change projector worker defaults** → edit `projectorWorkerCount` in
   `wiring.go`; add a test in `wiring_nornicdb_phase_group_test.go` or a new

@@ -9,8 +9,8 @@
 4. `go/internal/component/registry.go` — installed registry and activation
    state
 5. `go/cmd/eshu/component.go` — CLI entry points that call this package
-6. `docs/docs/reference/component-package-manager.md` — user-facing behavior
-7. `docs/docs/reference/plugin-trust-model.md` — trust model constraints
+6. `docs/public/reference/component-package-manager.md` — user-facing behavior
+7. `docs/public/reference/plugin-trust-model.md` — trust model constraints
 
 ## Invariants this package enforces
 
@@ -34,7 +34,7 @@
 ## Common changes and how to scope them
 
 - **Add a manifest field** → update `manifest.go`, add validation tests in
-  `manifest_test.go`, update `docs/docs/reference/component-package-manager.md`,
+  `manifest_test.go`, update `docs/public/reference/component-package-manager.md`,
   and keep backward compatibility explicit.
 
 - **Add a trust backend** → extend `Policy.Verify` through a narrow seam, add

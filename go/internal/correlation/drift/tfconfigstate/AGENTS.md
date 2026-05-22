@@ -11,8 +11,10 @@ Guidance for LLM assistants editing this package.
 5. `attribute_allowlist.go` — per-resource-type attribute policy.
 6. `../../rules/terraform_config_state_drift_rules.go` — the rule-pack
    declaration this package supports (do not edit it from here).
-7. `docs/superpowers/plans/2026-05-10-tfstate-config-state-drift-design.md`
-   — design contract (§5 drift kinds, §6 fixtures, §10 deferrals).
+7. `README.md` — drift pipeline, dispatch order, telemetry, known limitations,
+   and extension rules.
+8. `docs/public/reference/local-testing/verification-gates.md` — Terraform
+   config-vs-state drift proof gates.
 
 ## Invariants
 

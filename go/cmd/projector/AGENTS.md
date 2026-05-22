@@ -95,4 +95,4 @@
 - The admin surface endpoints (`/healthz`, `/readyz`, `/metrics`,
   `/admin/status`) mounted by `app.NewHostedWithStatusServer` — these are part
   of the shared operator contract across all Eshu runtimes; see
-  `docs/docs/deployment/service-runtimes.md`.
+  `docs/public/deployment/service-runtimes.md`.

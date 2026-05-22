@@ -8,8 +8,7 @@
 4. `../../../checkpoint/README.md` - durable pagination checkpoint contract.
 5. `../README.md` - ECR scanner contract.
 6. `../../../README.md` - AWS cloud envelope contract.
-7. `docs/docs/adrs/2026-04-20-aws-cloud-scanner-collector.md` - AWS collector
-   service coverage and runtime requirements.
+7. `docs/public/services/collector-aws-cloud-scanners.md` - scanner coverage and metadata-only data boundaries.
 
 ## Invariants
 
