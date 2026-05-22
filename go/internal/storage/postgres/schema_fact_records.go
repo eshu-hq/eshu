@@ -194,6 +194,30 @@ CREATE INDEX IF NOT EXISTS fact_records_container_image_identity_digest_idx
     WHERE fact_kind = 'reducer_container_image_identity'
       AND is_tombstone = FALSE;
 
+CREATE INDEX IF NOT EXISTS fact_records_active_container_image_refs_idx
+    ON fact_records (
+        source_system,
+        observed_at ASC,
+        fact_id ASC,
+        generation_id
+    )
+    WHERE is_tombstone = FALSE
+      AND (
+        (fact_kind IN ('oci_registry.image_tag_observation', 'oci_registry.image_manifest', 'oci_registry.image_index')
+          AND source_system = 'oci_registry')
+        OR (fact_kind = 'aws_image_reference'
+          AND source_system = 'aws')
+        OR (fact_kind = 'aws_relationship'
+          AND source_system = 'aws'
+          AND payload->>'target_type' = 'container_image')
+        OR (fact_kind = 'content_entity'
+          AND source_system = 'git'
+          AND (
+            payload->'entity_metadata' ? 'container_images'
+            OR payload->'metadata' ? 'container_images'
+          ))
+      );
+
 CREATE INDEX IF NOT EXISTS fact_records_oci_image_referrer_subject_idx
     ON fact_records (
         (payload->>'subject_digest'),

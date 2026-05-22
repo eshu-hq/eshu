@@ -156,6 +156,13 @@ AWS resources to Terraform state; when a generation contains one or more
 `aws_resource` facts, `buildAWSCloudRuntimeDriftReducerIntent` emits one
 `aws_cloud_runtime_drift` reducer intent for the AWS scope/generation so the
 reducer can run the bounded ARN join after source-local projection succeeds.
+Container-image identity follows the same handoff rule: when a generation
+contains OCI digest/tag facts, AWS image-reference facts, AWS container-image
+relationships, or Git content-entity image references,
+`buildContainerImageIdentityReducerIntent` emits one
+`container_image_identity` reducer intent for that scope/generation. The
+projector still does not join images to workloads or runtime evidence; the
+reducer owns digest-first admission after source-local projection succeeds.
 
 ## Telemetry
 
@@ -243,7 +250,9 @@ backend-specific adapters.
   tag-only facts must not mint canonical image identity. The OCI rows live on
   `CanonicalMaterialization` alongside Terraform rows (`canonical.go:27`), and
   the label map includes the ContainerImage and OciImage labels required by the
-  graph schema.
+  graph schema. OCI registry generations now enqueue one
+  `DomainContainerImageIdentity` follow-up intent so active Git/AWS image
+  references can be joined against the active OCI digest catalog.
 - File paths in `EntityRow.FilePath` and `FileRow.Path` are repo-qualified
   (`repoPath/relative_path`) to prevent cross-repository MERGE collisions in the
   graph (`canonical_builder.go:112`).

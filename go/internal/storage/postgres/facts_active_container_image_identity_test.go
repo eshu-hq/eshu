@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-func TestFactStoreListActiveContainerImageIdentityFactsUsesActiveOCIGenerations(t *testing.T) {
+func TestFactStoreListActiveContainerImageIdentityFactsUsesActiveIdentityGenerations(t *testing.T) {
 	t.Parallel()
 
 	db := &fakeExecQueryer{
@@ -30,6 +30,40 @@ func TestFactStoreListActiveContainerImageIdentityFactsUsesActiveOCIGenerations(
 					time.Date(2026, time.May, 15, 10, 0, 0, 0, time.UTC),
 					false,
 					[]byte(`{"registry":"registry.example.com","repository":"team/api","tag":"prod","resolved_digest":"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}`),
+				}, {
+					"fact-aws-image-1",
+					"aws:123456789012:us-east-1:ecr",
+					"generation-aws",
+					"aws_image_reference",
+					"aws-image:team-api",
+					"1.0.0",
+					"aws_cloud",
+					int64(0),
+					"reported",
+					"aws",
+					"aws-image:team-api",
+					"arn:aws:ecr:us-east-1:123456789012:repository/team/api",
+					"team/api@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+					time.Date(2026, time.May, 15, 10, 0, 1, 0, time.UTC),
+					false,
+					[]byte(`{"account_id":"123456789012","region":"us-east-1","repository_name":"team/api","image_digest":"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}`),
+				}, {
+					"fact-git-entity-1",
+					"repo:team-api",
+					"generation-git",
+					"content_entity",
+					"content_entity:repo:team-api:deploy",
+					"1.0.0",
+					"git",
+					int64(0),
+					"reported",
+					"git",
+					"content_entity:repo:team-api:deploy",
+					"https://example.test/team/api/deploy.yaml",
+					"deploy.yaml",
+					time.Date(2026, time.May, 15, 10, 0, 2, 0, time.UTC),
+					false,
+					[]byte(`{"entity_type":"KubernetesResource","entity_metadata":{"container_images":["registry.example.com/team/api:prod"]}}`),
 				}},
 			},
 		},
@@ -40,20 +74,29 @@ func TestFactStoreListActiveContainerImageIdentityFactsUsesActiveOCIGenerations(
 	if err != nil {
 		t.Fatalf("ListActiveContainerImageIdentityFacts() error = %v, want nil", err)
 	}
-	if got, want := len(loaded), 1; got != want {
+	if got, want := len(loaded), 3; got != want {
 		t.Fatalf("ListActiveContainerImageIdentityFacts() len = %d, want %d", got, want)
 	}
 	if got, want := loaded[0].FactKind, "oci_registry.image_tag_observation"; got != want {
+		t.Fatalf("FactKind = %q, want %q", got, want)
+	}
+	if got, want := loaded[1].FactKind, "aws_image_reference"; got != want {
+		t.Fatalf("FactKind = %q, want %q", got, want)
+	}
+	if got, want := loaded[2].FactKind, "content_entity"; got != want {
 		t.Fatalf("FactKind = %q, want %q", got, want)
 	}
 	query := db.queries[0].query
 	for _, want := range []string{
 		"scope.active_generation_id = fact.generation_id",
 		"generation.status = 'active'",
-		"fact.fact_kind = ANY($1::text[])",
-		"fact.source_system = 'oci_registry'",
+		"fact.fact_kind IN ('oci_registry.image_tag_observation', 'oci_registry.image_manifest', 'oci_registry.image_index')",
+		"fact.fact_kind = 'aws_image_reference'",
+		"fact.fact_kind = 'aws_relationship'",
+		"fact.fact_kind = 'content_entity'",
+		"fact.payload->'entity_metadata' ? 'container_images'",
 		"ORDER BY fact.observed_at ASC, fact.fact_id ASC",
-		"LIMIT $4",
+		"LIMIT $3",
 	} {
 		if !strings.Contains(query, want) {
 			t.Fatalf("query missing %q:\n%s", want, query)

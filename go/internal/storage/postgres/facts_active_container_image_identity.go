@@ -33,25 +33,40 @@ JOIN ingestion_scopes AS scope
 JOIN scope_generations AS generation
   ON generation.scope_id = fact.scope_id
  AND generation.generation_id = fact.generation_id
-WHERE fact.fact_kind = ANY($1::text[])
-  AND fact.source_system = 'oci_registry'
+WHERE (
+    (
+      fact.fact_kind IN ('oci_registry.image_tag_observation', 'oci_registry.image_manifest', 'oci_registry.image_index')
+      AND fact.source_system = 'oci_registry'
+    )
+    OR (
+      fact.fact_kind = 'aws_image_reference'
+      AND fact.source_system = 'aws'
+    )
+    OR (
+      fact.fact_kind = 'aws_relationship'
+      AND fact.source_system = 'aws'
+      AND fact.payload->>'target_type' = 'container_image'
+    )
+    OR (
+      fact.fact_kind = 'content_entity'
+      AND fact.source_system = 'git'
+      AND (
+        fact.payload->'entity_metadata' ? 'container_images'
+        OR fact.payload->'metadata' ? 'container_images'
+      )
+    )
+  )
   AND generation.status = 'active'
   AND (
-    $2::timestamptz IS NULL
-    OR (fact.observed_at, fact.fact_id) > ($2::timestamptz, $3::text)
+    $1::timestamptz IS NULL
+    OR (fact.observed_at, fact.fact_id) > ($1::timestamptz, $2::text)
   )
 ORDER BY fact.observed_at ASC, fact.fact_id ASC
-LIMIT $4
+LIMIT $3
 `
 
-var activeContainerImageIdentityFactKinds = []string{
-	facts.OCIImageTagObservationFactKind,
-	facts.OCIImageManifestFactKind,
-	facts.OCIImageIndexFactKind,
-}
-
-// ListActiveContainerImageIdentityFacts loads active OCI registry facts used
-// by reducer domains that need a cross-scope container image digest catalog.
+// ListActiveContainerImageIdentityFacts loads active OCI registry facts and
+// active Git/AWS image-reference facts for cross-scope identity joins.
 func (s FactStore) ListActiveContainerImageIdentityFacts(ctx context.Context) ([]facts.Envelope, error) {
 	if s.db == nil {
 		return nil, fmt.Errorf("fact store database is required")
@@ -90,7 +105,6 @@ func (s FactStore) listActiveContainerImageIdentityFactsPage(
 	rows, err := s.db.QueryContext(
 		ctx,
 		listActiveContainerImageIdentityFactsQuery,
-		activeContainerImageIdentityFactKinds,
 		cursor,
 		cursorFactID,
 		listFactsByKindPageSize,
