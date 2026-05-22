@@ -1,0 +1,83 @@
+go/internal/telemetry/contract_test.go
+  s_072c5984f68e14::t_eddf407e3b2c59 113
+go/internal/query/service_catalog_correlations.go
+  s_072c5984f68e14::t_0afcdd52c78316 1-190
+specs/capability-matrix.v1.yaml
+  s_072c5984f68e14::t_536bd0c0b33a3b 330-336
+go/internal/query/handler.go
+  s_072c5984f68e14::t_eddf407e3b2c59 122,196-198
+go/cmd/api/wiring.go
+  s_072c5984f68e14::t_eddf407e3b2c59 227-230
+go/cmd/mcp-server/wiring.go
+  s_072c5984f68e14::t_eddf407e3b2c59 174-177
+go/internal/telemetry/contract_supply_chain.go
+  s_072c5984f68e14::t_4ea8816bc1e16a 20-27,31-37
+go/internal/mcp/tools_service_catalog.go
+  s_072c5984f68e14::t_0c7e1f3036be0c 1-63
+docs/docs/reference/http-api.md
+  s_072c5984f68e14::t_536bd0c0b33a3b 366-378
+docs/docs/reference/collector-reducer-readiness.md
+  s_072c5984f68e14::t_16886557d6ce92 69,231-256,285
+go/internal/mcp/dispatch_service_catalog.go
+  s_072c5984f68e14::t_0c7e1f3036be0c 1-19
+go/internal/mcp/dispatch_service_catalog_test.go
+  s_072c5984f68e14::t_d8dda0ad5fba03 1-47
+go/internal/query/openapi_paths_service_catalog.go
+  s_072c5984f68e14::t_0c7e1f3036be0c 1-80
+go/internal/facts/doc.go
+  s_072c5984f68e14::t_536bd0c0b33a3b 28-30
+go/cmd/api/wiring_test.go
+  s_072c5984f68e14::t_eddf407e3b2c59 129-134
+go/internal/mcp/server_test.go
+  s_072c5984f68e14::t_46d404d2047656 91
+go/internal/query/service_catalog_correlations_test.go
+  s_072c5984f68e14::t_d8dda0ad5fba03 1-141
+go/internal/query/README.md
+  s_072c5984f68e14::t_536bd0c0b33a3b 143-147
+go/internal/mcp/types.go
+  s_072c5984f68e14::t_eddf407e3b2c59 17
+go/internal/mcp/tools_test.go
+  s_072c5984f68e14::t_eddf407e3b2c59 10,59
+go/internal/telemetry/contract_service_catalog.go
+  s_072c5984f68e14::t_0c7e1f3036be0c 1-7
+go/internal/facts/README.md
+  s_072c5984f68e14::t_536bd0c0b33a3b 146-164
+go/internal/query/openapi.go
+  s_072c5984f68e14::t_eddf407e3b2c59 69
+go/internal/query/service_catalog.go
+  s_072c5984f68e14::t_0afcdd52c78316 1-156
+go/internal/query/contract_service_catalog.go
+  s_072c5984f68e14::t_0c7e1f3036be0c 1-11
+docs/docs/reference/mcp-tool-contract-matrix.md
+  s_072c5984f68e14::t_4ea8816bc1e16a 54
+go/internal/facts/service_catalog_test.go
+  s_072c5984f68e14::t_d8dda0ad5fba03 1-41
+go/internal/mcp/README.md
+  s_072c5984f68e14::t_536bd0c0b33a3b 103
+  s_072c5984f68e14::t_ab095920aab88e 62,160
+go/internal/facts/service_catalog.go
+  s_072c5984f68e14::t_0afcdd52c78316 1-31,34-48,58-71
+  s_072c5984f68e14::t_71f499e5f0878c 32-33,49-57
+go/internal/mcp/dispatch.go
+  s_072c5984f68e14::t_eddf407e3b2c59 320-321
+go/cmd/mcp-server/wiring_test.go
+  s_072c5984f68e14::t_eddf407e3b2c59 93-98
+go/internal/query/openapi_service_catalog_test.go
+  s_072c5984f68e14::t_d8dda0ad5fba03 1-31
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.0",
+  "base_commit_sha": "ee02682d404f897fcaa59c6a7ee21d7a6562c53c",
+  "prompts": {},
+  "sessions": {
+    "s_072c5984f68e14": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e4636-8361-7713-a3c6-b30ed9bbfc7b",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
