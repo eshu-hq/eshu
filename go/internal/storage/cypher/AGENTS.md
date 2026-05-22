@@ -2,8 +2,8 @@
 
 ## Read first
 
-1. `go/internal/storage/cypher/README.md` — pipeline position, executor chain,
-   exported surface, and operational notes
+1. `go/internal/storage/cypher/README.md` — package purpose, ownership
+   boundary, exported surface, hot-path invariants, and evidence markers
 2. `go/internal/storage/cypher/writer.go` — `Executor` interface, `Statement`,
    `Plan`, `GroupExecutor`, `PhaseGroupExecutor`, `Adapter`; the full contract
    before touching anything else
@@ -22,10 +22,10 @@
 - **Phase order** — `CanonicalNodeWriter.Write` phases run strictly in order:
   retract → repository_cleanup → repository → directories → files → entities →
   entity_retract → entity_containment → terraform_state → oci_registry →
-  modules → structural_edges. Parent nodes must exist before child MATCH
-  statements run, repository cleanup must commit before the repository MERGE,
-  and stale entity cleanup must run after current entity upserts so it can avoid
-  giant `uid IN` exclusion filters.
+  package_registry → modules → structural_edges. Parent nodes must exist before
+  child MATCH statements run, repository cleanup must commit before the
+  repository MERGE, and stale entity cleanup must run after current entity
+  upserts so it can avoid giant `uid IN` exclusion filters.
 - **No GraphWrite type** — this package does not export a GraphWrite port.
   The backend seam is `Executor`. Every caller in `internal/projector` and
   `internal/reducer` uses the projector CanonicalWriter or
@@ -156,11 +156,10 @@
 ## What NOT to change without an ADR
 
 - `Executor` interface shape — changes break every `cmd/` wiring site and the
-  projector CanonicalWriter contract; see
-  `docs/docs/adrs/2026-04-22-nornicdb-graph-backend-candidate.md`.
+  projector CanonicalWriter contract. Ask before changing this seam.
 - `CanonicalNodeWriter` phase order — phase ordering is a correctness constraint
-  because later phases MATCH nodes created by earlier phases; see
-  `docs/docs/adrs/2026-04-17-neo4j-deadlock-elimination-batch-isolation.md`.
+  because later phases MATCH nodes created by earlier phases. Ask before
+  changing this order.
 - Retraction Cypher label sets — adding or removing node labels from retract
   queries requires coordinated graph schema migration.
 - `RetryingExecutor` retry classification logic — NornicDB compatibility
