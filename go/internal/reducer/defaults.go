@@ -17,6 +17,7 @@ type DefaultHandlers struct {
 	WorkloadIdentityWriter           WorkloadIdentityWriter
 	CloudAssetResolutionWriter       CloudAssetResolutionWriter
 	PlatformMaterializationWriter    PlatformMaterializationWriter
+	PlatformGraphLocker              PlatformGraphLocker
 	WorkloadMaterializationReplayer  WorkloadMaterializationReplayer
 
 	// Cypher-backed adapters for canonical graph writes.
@@ -184,6 +185,7 @@ func implementedDefaultDomainDefinitions(handlers DefaultHandlers) []DomainDefin
 				Writer:                          handlers.PlatformMaterializationWriter,
 				FactLoader:                      handlers.FactLoader,
 				InfrastructureMaterializer:      handlers.InfrastructurePlatformMaterializer,
+				PlatformGraphLocker:             handlers.PlatformGraphLocker,
 				CrossRepoResolver:               crossRepoResolver,
 				WorkloadMaterializationReplayer: handlers.WorkloadMaterializationReplayer,
 				PhasePublisher:                  handlers.GraphProjectionPhasePublisher,

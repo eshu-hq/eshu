@@ -35,6 +35,14 @@ type PlatformMaterializationWriter interface {
 	WritePlatformMaterialization(context.Context, PlatformMaterializationWrite) (PlatformMaterializationWriteResult, error)
 }
 
+// PlatformGraphLocker coordinates writes that can touch the same Platform.id.
+// Implementations should lock keys in a deterministic order and release the
+// locks when fn returns so unrelated platform IDs can still project in
+// parallel.
+type PlatformGraphLocker interface {
+	WithPlatformLocks(ctx context.Context, platformIDs []string, fn func(context.Context) error) error
+}
+
 // WorkloadMaterializationReplayer requeues workload materialization after
 // stronger deployment evidence becomes available for the same scope generation.
 type WorkloadMaterializationReplayer interface {
@@ -51,6 +59,7 @@ type PlatformMaterializationHandler struct {
 	Writer                          PlatformMaterializationWriter
 	FactLoader                      FactLoader
 	InfrastructureMaterializer      *InfrastructurePlatformMaterializer
+	PlatformGraphLocker             PlatformGraphLocker
 	CrossRepoResolver               *CrossRepoRelationshipHandler
 	WorkloadMaterializationReplayer WorkloadMaterializationReplayer
 	PhasePublisher                  GraphProjectionPhasePublisher
@@ -124,7 +133,7 @@ func (h PlatformMaterializationHandler) Handle(
 		infraRows = len(rows)
 		if len(rows) > 0 {
 			infraStarted := time.Now()
-			infraResult, err := h.InfrastructureMaterializer.Materialize(ctx, rows)
+			infraResult, err := h.materializeInfrastructurePlatforms(ctx, rows)
 			timing.infrastructureGraphWrite = time.Since(infraStarted)
 			if err != nil {
 				return Result{}, fmt.Errorf("materialize infrastructure platforms: %w", err)
@@ -205,6 +214,41 @@ func (h PlatformMaterializationHandler) Handle(
 		EvidenceSummary: evidenceSummary,
 		CanonicalWrites: canonicalWrites,
 	}, nil
+}
+
+func (h PlatformMaterializationHandler) materializeInfrastructurePlatforms(
+	ctx context.Context,
+	rows []InfrastructurePlatformRow,
+) (InfrastructurePlatformResult, error) {
+	if h.PlatformGraphLocker == nil {
+		result, err := h.InfrastructureMaterializer.Materialize(ctx, rows)
+		return result, err
+	}
+
+	var result InfrastructurePlatformResult
+	err := h.PlatformGraphLocker.WithPlatformLocks(
+		ctx,
+		infrastructurePlatformLockIDs(rows),
+		func(lockCtx context.Context) error {
+			var writeErr error
+			result, writeErr = h.InfrastructureMaterializer.Materialize(lockCtx, rows)
+			return writeErr
+		},
+	)
+	if err != nil {
+		return InfrastructurePlatformResult{}, err
+	}
+	return result, nil
+}
+
+func infrastructurePlatformLockIDs(rows []InfrastructurePlatformRow) []string {
+	keys := make([]string, 0, len(rows))
+	for _, row := range rows {
+		if key := strings.TrimSpace(row.PlatformID); key != "" {
+			keys = append(keys, key)
+		}
+	}
+	return uniqueSortedStrings(keys)
 }
 
 func logPlatformMaterializationCompleted(
