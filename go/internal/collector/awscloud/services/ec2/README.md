@@ -16,16 +16,6 @@ This package owns scanner-owned EC2 models and fact-envelope construction. It
 does not own AWS SDK calls, credentials, throttling, workflow claims, graph
 writes, reducer admission, instance inventory, or query behavior.
 
-```mermaid
-flowchart LR
-  A["ec2.Client"] --> B["Scanner.Scan"]
-  B --> C["VPC / Subnet / SecurityGroup"]
-  B --> D["SecurityGroupRule / NetworkInterface"]
-  C --> E["aws_resource facts"]
-  D --> E
-  D --> F["aws_relationship facts"]
-```
-
 ## Exported surface
 
 See `doc.go` for the godoc contract.
@@ -39,13 +29,15 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for AWS boundaries and fact envelopes.
-- `internal/facts` for durable fact envelopes.
+The scanner imports AWS collector boundaries, fact envelope builders, and fact
+envelope kinds. It depends on a scanner-owned `Client` port rather than the AWS
+SDK.
 
 ## Telemetry
 
-This package emits no metrics or spans directly. The `awssdk` adapter emits
-AWS API call counters, throttle counters, and pagination spans.
+This scanner emits no metrics directly. The AWS SDK adapter records API calls
+with shared AWS collector events, spans, throttle counters, and operation
+labels.
 
 ## Gotchas / invariants
 

@@ -15,15 +15,6 @@ This package owns scanner-owned Route 53 models and fact-envelope construction.
 It does not own AWS SDK calls, credentials, throttling, workflow claims, graph
 writes, reducer admission, or query behavior.
 
-```mermaid
-flowchart LR
-  A["route53.Client"] --> B["Scanner.Scan"]
-  B --> C["HostedZone"]
-  B --> D["RecordSet"]
-  C --> E["aws_resource facts"]
-  D --> F["aws_dns_record facts"]
-```
-
 ## Exported surface
 
 See `doc.go` for the godoc contract.
@@ -39,13 +30,15 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for AWS boundaries and fact envelopes.
-- `internal/facts` for durable fact envelopes.
+The scanner imports AWS collector boundaries, fact envelope builders, and fact
+envelope kinds. It depends on a scanner-owned `Client` port rather than the AWS
+SDK.
 
 ## Telemetry
 
-This package emits no metrics or spans directly. The `awssdk` adapter emits AWS
-API call counters, throttle counters, and pagination spans.
+This scanner emits no metrics directly. The AWS SDK adapter records API calls
+with shared AWS collector events, spans, throttle counters, and operation
+labels.
 
 ## Gotchas / invariants
 

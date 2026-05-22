@@ -126,6 +126,7 @@ branch. Regenerate them from
 | Main Rebase Refresh At 48aae51 | Rebasing onto current `origin/main` preserved new package-registry query/schema truth while keeping the compressed public and package-doc structure. |
 | MCP Diagnostic Cypher Contract Restore | Restored the diagnostics-only raw Cypher cookbook section with scoped input and tool-level `limit` so MCP contract tests keep raw queries out of normal prompt flows. |
 | AWS SDK Adapter README Compression | Reduced eight AWS SDK adapter READMEs by removing repeated diagrams and shared dependency/telemetry prose while preserving each service's API allowlist, denylist, pagination, and redaction invariants. |
+| AWS Service Scanner README Compression | Reduced eight AWS service scanner READMEs by removing repeated scanner/client diagrams and shared dependency/telemetry prose while preserving metadata-only, redaction, relationship-evidence, and no-inference invariants. |
 
 ## Verification Snapshot
 
@@ -141,6 +142,8 @@ Current pass proof:
   0 contradicted and 0 missing evidence claims. Current public docs verifier
   result: 173 documents, 1237 claims. Current full repository verifier result:
   562 documents, 1434 claims.
+- Focused AWS service docs verification passed with 76 documents, 0
+  contradicted claims, and 0 missing evidence claims.
 - `scripts/verify-package-docs.sh`, Markdown file-size scan,
   `git diff --check`, `cmp -s AGENTS.md CLAUDE.md`, and strict MkDocs build
   passed.

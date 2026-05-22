@@ -13,13 +13,6 @@ and directly reported ACM certificate and WAF web ACL relationship evidence. It
 does not call AWS APIs, schedule claims, load credentials, write facts, or infer
 workload, environment, repository, or deployable-unit truth.
 
-```mermaid
-flowchart LR
-    Runtime[awsruntime target] --> Scanner[cloudfront.Scanner]
-    Scanner --> Client[CloudFront client port]
-    Scanner --> Facts[AWS resource and relationship facts]
-```
-
 The scanner emits one `aws_cloudfront_distribution` resource per distribution
 reported by the client. Origin custom header values are not part of the package
 contract; only custom header names are retained so operators can see that a
@@ -38,15 +31,15 @@ See `doc.go` for the godoc-rendered package contract.
 
 ## Dependencies
 
-- `internal/collector/awscloud` for boundaries, service constants, and
-  resource and relationship observation contracts.
-- `internal/facts` for the fact envelope returned by `Scanner`.
+The scanner imports AWS collector boundaries, resource/relationship observation
+contracts, and fact envelope kinds. It depends on a scanner-owned CloudFront
+`Client` port rather than the AWS SDK.
 
 ## Telemetry
 
-The scanner itself emits no new metrics. The AWS SDK adapter records API calls
-with the shared AWS collector API-call events, spans, throttle counters, and
-operation labels.
+The scanner emits no metrics directly. The AWS SDK adapter records API calls
+with shared AWS collector events, spans, throttle counters, and operation
+labels.
 
 ## Gotchas / invariants
 
@@ -58,17 +51,6 @@ operation labels.
   `TargetResourceID` populated and leaves `TargetARN` empty for those values.
 - Origin custom header names are safe metadata; origin custom header values are
   not.
-
-## Verification
-
-```bash
-go test ./internal/collector/awscloud/services/cloudfront/... -count=1
-go test ./cmd/collector-aws-cloud ./internal/collector/awscloud/... -count=1
-go run ./cmd/eshu docs verify ../go/internal/collector/awscloud/services/cloudfront --limit 1000 \
-  --fail-on contradicted,missing_evidence
-```
-
-Run the AWS runtime tests when scan warnings or partial-status behavior changes.
 
 ## Related docs
 
