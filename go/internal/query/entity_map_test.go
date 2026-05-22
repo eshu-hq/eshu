@@ -166,8 +166,8 @@ func TestEntityMapUsesTypedAnchorAndGroupsBoundedNeighborhood(t *testing.T) {
 	if got, want := w.Code, http.StatusOK; got != want {
 		t.Fatalf("status = %d, want %d body=%s", got, want, w.Body.String())
 	}
-	if got, want := len(graph.runCalls), 3; got != want {
-		t.Fatalf("graph Run calls = %d, want resolver plus outgoing and incoming traversals", got)
+	if got, want := len(graph.runCalls), 1+len(entityMapDefaultOutgoingRelationships)+len(entityMapDefaultIncomingRelationships); got != want {
+		t.Fatalf("graph Run calls = %d, want resolver plus fixed relationship-family traversals", got)
 	}
 	if resolver := graph.runCalls[0].cypher; strings.Contains(resolver, "MATCH (n) WHERE") {
 		t.Fatalf("resolver used unlabelled scan: %s", resolver)
@@ -217,7 +217,7 @@ func TestEntityMapUsesTypedAnchorAndGroupsBoundedNeighborhood(t *testing.T) {
 		}
 	}
 	coverage := data["coverage"].(map[string]any)
-	if got, want := coverage["query_shape"], "typed_entity_map_neighborhood"; got != want {
+	if got, want := coverage["query_shape"], "typed_entity_map_bounded_relationship_family"; got != want {
 		t.Fatalf("coverage.query_shape = %#v, want %#v", got, want)
 	}
 }
@@ -256,8 +256,8 @@ func TestEntityMapResolvesTerraformAddressWithoutWholeGraphScan(t *testing.T) {
 	if got, want := w.Code, http.StatusOK; got != want {
 		t.Fatalf("status = %d, want %d body=%s", got, want, w.Body.String())
 	}
-	if got, want := len(graph.runCalls), 3; got != want {
-		t.Fatalf("graph Run calls = %d, want terraform resolver plus bounded traversals", got)
+	if got, want := len(graph.runCalls), 1+len(entityMapDefaultOutgoingRelationships)+len(entityMapDefaultIncomingRelationships); got != want {
+		t.Fatalf("graph Run calls = %d, want terraform resolver plus fixed relationship-family traversals", got)
 	}
 	resolver := graph.runCalls[0]
 	if strings.Contains(resolver.cypher, "MATCH (n) WHERE") {

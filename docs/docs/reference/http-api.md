@@ -1420,9 +1420,18 @@ normalizes `terraform/<address>` and `k8s/<qualified-name>` prefixes, resolves
 the selector with exact label/property probes for supported graph families, and
 does not run traversal until exactly one start entity is selected. Ambiguous
 selectors return `status=ambiguous` with candidates and no traversal. Resolved
-selectors use the selected entity's typed anchor, run bounded outgoing and
-incoming traversals with `depth` default 1 and cap 4, `limit` default 25 and cap
-100, and group rows into `defined_by`, `deployed_by`, `runs_as`, `depends_on`,
+selectors use the selected entity's typed anchor and a relationship-family
+query shape. The default `depth=1` shape uses direct outgoing and incoming
+adjacency queries so high-cardinality structural repository edges do not have
+to expand before `limit` can cut the result set. Deeper requests remain bounded
+with `depth` cap 4, `limit` default 25 and cap 100, and the response reports
+`coverage.query_shape`. By default repository anchors skip structural
+`CONTAINS` and `REPO_CONTAINS` fanout; callers that need those graph families
+can request an exact `relationship` filter. They also skip outgoing repository
+and code-edge fanout by default for repository anchors, focusing the default map
+on deploys-from and config-reading consumers; callers can request exact
+relationships when they want structural, outgoing, or code-edge evidence.
+Results are grouped into `defined_by`, `deployed_by`, `runs_as`, `depends_on`,
 `consumed_by`, and `evidence`. Supported first-slice handles are workload and
 service ids/names, workload instances, repositories, cloud resources, Terraform
 resources/data sources/modules, Kubernetes resources, and graph file paths.

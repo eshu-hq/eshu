@@ -25,13 +25,20 @@ func entityMapResponse(
 			"relationship_filter": req.Relationship,
 		},
 		"coverage": map[string]any{
-			"query_shape": "typed_entity_map_neighborhood",
+			"query_shape": entityMapQueryShape(req),
 			"depth":       req.Depth,
 			"limit":       req.Limit,
 			"truncated":   truncated || BoolVal(resolution, "truncated"),
 		},
 		"warnings": entityMapWarnings(status),
 	}
+}
+
+func entityMapQueryShape(req entityMapRequest) string {
+	if req.Depth <= 1 {
+		return "typed_entity_map_relationship_family"
+	}
+	return "typed_entity_map_bounded_relationship_family"
 }
 
 func entityMapScope(req entityMapRequest) map[string]any {

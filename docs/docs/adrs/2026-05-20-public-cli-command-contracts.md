@@ -354,12 +354,18 @@ service names, workload instances, repositories, cloud resources, Terraform
 resources/data sources/modules, Kubernetes resources, and graph file paths.
 Image refs, package refs, and cloud-only runtime handles remain future handle
 families unless they already materialize into one of those typed graph nodes.
+Entity-map traversal uses relationship-family query shapes instead of raw
+whole-neighborhood expansion. The default `depth=1` path uses direct typed
+adjacency reads and repository anchors skip structural `CONTAINS` /
+`REPO_CONTAINS`, outgoing repository, and code-edge `CALLS` / `IMPORTS` fanout
+unless callers pass an exact `relationship` filter.
 
 No-Regression Evidence: focused API and CLI tests cover command registration,
 canonical envelope POST behavior, JSON passthrough, ambiguous-input exit code,
 stale-freshness exit code, Terraform address normalization, no whole-graph
 resolver scan, typed Workload and TerraformResource traversal anchors, bounded
-depth/limit query shape, grouped output sections, and traversal suppression on
+depth/limit query shape, relationship-family repository traversal, explicit
+relationship filters, grouped output sections, and traversal suppression on
 ambiguity:
 `go test ./cmd/eshu -run 'TestMapFrom|TestFetchEntityMap|TestRunMapFrom' -count=1`
 and `go test ./internal/query -run 'TestEntityMap' -count=1`. This PR adds a
