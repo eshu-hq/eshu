@@ -124,6 +124,35 @@ func TestContainerImageLineClaimsDoNotExtractBareHostPort(t *testing.T) {
 	}
 }
 
+func TestVerifierDoesNotTreatBacktickedColonIdentifiersAsImages(t *testing.T) {
+	t.Parallel()
+
+	verifier := doctruth.NewVerifier(doctruth.VerifierOptions{
+		ContainerImageResolver: func(_ doctruth.DocumentInput, imageRef string) doctruth.ContainerImageResolution {
+			t.Fatalf("unexpected image resolver call for %q", imageRef)
+			return doctruth.ContainerImageResolution{}
+		},
+	})
+
+	result, err := verifier.Verify(context.Background(), []doctruth.DocumentInput{{
+		Path:       "docs/reference.md",
+		RevisionID: "rev-colon-identifiers",
+		Content: strings.Join([]string{
+			"Graph labels include `node:Function` and `relationship:CALLS`.",
+			"Use `go/internal/storage/postgres/rows.go:22` for the code pointer.",
+			"Runtime evidence may include `2026-05-21T23:52:03Z`.",
+			"AWS actions such as `dynamodb:GetItem` are not images.",
+			"Scoped ids such as `repository:r_<8-hex>` are not images.",
+		}, "\n"),
+	}})
+	if err != nil {
+		t.Fatalf("Verify() error = %v, want nil", err)
+	}
+	if got := len(result.Findings); got != 0 {
+		t.Fatalf("len(Findings) = %d, want 0; findings=%#v", got, result.Findings)
+	}
+}
+
 func TestNormalizeContainerImageRefRejectsHostPortsWithoutPath(t *testing.T) {
 	t.Parallel()
 

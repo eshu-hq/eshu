@@ -133,7 +133,7 @@ spec:
     - cloud_snapshot
   artifacts:
     - platform: linux/amd64
-      image: ghcr.io/example/cloud-snapshot@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+      image: "registry.example/cloud-snapshot@sha256:<64-hex-digest>"
   emittedFacts:
     - kind: dev.example.cloud_snapshot.resource
       schemaVersions: ["1.0.0"]

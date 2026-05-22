@@ -126,7 +126,7 @@ spec:
     - aws
   artifacts:
     - platform: linux/amd64
-      image: ghcr.io/eshu-hq/components/aws-collector@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+      image: "registry.example/eshu/aws-collector@sha256:<64-hex-digest>"
   emittedFacts:
     - kind: dev.eshu.aws.cloud_resource
       schemaVersions:

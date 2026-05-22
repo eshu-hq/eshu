@@ -82,7 +82,7 @@ branch. Regenerate them from
 | Telemetry Package README Rewrite | Reduced the telemetry package README from a duplicated metric/span/log catalog into the maintainer contract for package ownership, startup wiring, frozen registries, and change rules; updated scoped agent guidance to point at current public telemetry docs. |
 | Capability Conformance Spec Rewrite | Reduced the capability conformance page from a stale copied capability list into the current contract guide for YAML source of truth, runtime profiles, truth ceilings, backend conformance, validators, and change policy. |
 | Telemetry Logs And Correlation Rewrite | Replaced stale universal log-event guidance with the current Go structured log contract, corrected service names and cross-service correlation guidance, and removed old event families from operator recipes. |
-| MCP Cookbook Rewrite | Reduced the MCP cookbook into copy-ready current recipes, removed invalid arguments from deployment and call-chain examples, and corrected the MCP package README to the current 71-tool contract. |
+| MCP Cookbook Rewrite | Reduced the MCP cookbook into copy-ready current recipes, removed invalid arguments from deployment and call-chain examples, and corrected the MCP package README to the then-current tool contract. |
 | Documentation Updater Actuator Contract Rewrite | Reduced the updater actuator contract from stale future-planning prose into the current read-only documentation findings, facts, evidence-packet, freshness, permission, and error contract grounded in query/MCP code. |
 | Bootstrap Index Docs And Copied Image Cleanup | Reduced the bootstrap-index package README into the current one-shot runtime contract, corrected scoped agent guidance and public service wording, and removed copied image assets that did not belong to Eshu docs. |
 | Helm Collector And Webhook Values Rewrite | Reduced the collector/webhook Helm values page from example-heavy provider snippets into the current operator map for coordinator, direct collectors, claim-driven collectors, webhook routing, shared workload settings, and render guardrails grounded in chart values and templates. |
@@ -102,6 +102,7 @@ branch. Regenerate them from
 | Terraform, Helm, Backend, And Package Docs Compression | Compressed Terraform provider guides, Helm values references, graph backend operations/install, Cypher performance discipline, bootstrap-index, observability, and core package READMEs while preserving code-verified contracts. |
 | Local Testing, Public Reference, Service Runbook, And Scoped AGENTS Compression | Used subagents plus parent review to compress local-testing subpages, public reference contracts, service/command runbooks, and scoped agent guidance while preserving mandatory accuracy, performance, concurrency, telemetry, and proof rules. |
 | Scoped AGENTS Link Repair And Fixture README Compression | Replaced deleted `docs/docs`, `docs/plans`, and `docs/superpowers` references in scoped agent guidance with current public/package docs; compressed Go, Rust, and TypeScript sample fixture READMEs to fixture intent and file maps; refreshed the docs inventory counts. |
+| Main Rebase And Image-Claim Verifier Repair | Rebasing onto `origin/main` at `73e1930` kept the current 72-tool MCP contract and container-image identity docs, then tightened docs verification so colon-shaped identifiers are not misclassified as container image refs. |
 
 ## Verification Snapshot
 
@@ -109,11 +110,15 @@ Detailed historical verification moved to `docs/internal/docs-verification-snaps
 
 Current pass proof:
 
-- Focused docs verification passed for command scoped agents, internal scoped agents, collector scoped agents, correlation scoped agents, fixture sample-project READMEs, and internal maintainer docs with 0 contradicted and 0 missing evidence claims.
-- Stale scoped-agent reference scan found no remaining `docs/docs`, `docs/plans`, `docs/superpowers`, or `public/adrs` references outside the generated deleted/renamed file indexes.
-- Focused Go tests from the prior checkpoint passed for query, MCP, API, CLI, backend conformance, runtime, status, truth, collector commands, Postgres storage, parser, and collector packages.
-- Broad docs verification passed for `docs/public` and the full repository with 0 contradicted and 0 missing evidence claims.
-- `scripts/verify-package-docs.sh`, `git diff --check`, `cmp -s AGENTS.md CLAUDE.md`, and strict MkDocs build passed.
+- Rebase conflict resolution preserved the current 72-tool MCP contract,
+  container-image identity read surface, and compressed public/package docs.
+- Focused Go tests passed for `cmd/eshu`, `internal/doctruth`,
+  `internal/mcp`, `internal/query`, and `internal/storage/cypher`.
+- Broad docs verification passed for `docs/public` and the full repository with
+  0 contradicted and 0 missing evidence claims.
+- `scripts/verify-package-docs.sh`, Markdown file-size scan, touched
+  `internal/doctruth` Go file-size scan, `git diff --check`,
+  `cmp -s AGENTS.md CLAUDE.md`, and strict MkDocs build passed.
 
 ## What Is Left
 
