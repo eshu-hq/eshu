@@ -88,9 +88,24 @@ cleanup pass.
 | Bootstrap Index Docs And Copied Image Cleanup | Reduced the bootstrap-index package README into the current one-shot runtime contract, corrected scoped agent guidance and public service wording, and removed copied image assets that did not belong to Eshu docs. |
 | Helm Collector And Webhook Values Rewrite | Reduced the collector/webhook Helm values page from example-heavy provider snippets into the current operator map for coordinator, direct collectors, claim-driven collectors, webhook routing, shared workload settings, and render guardrails grounded in chart values and templates. |
 | Configuration Reference Rewrite | Reduced the configuration page from a duplicated environment catalog into a route map for `eshu config`, environment references, local binaries, graph backend install, project-local discovery, and workspace/recovery references grounded in CLI config code. |
+| CLI Reference Rewrite | Reduced the CLI reference into a code-grounded command matrix; corrected root flags, scan flags, API-backed query/workspace behavior, remote flag handling, component flags, deprecated `start`, the unusable `w` shortcut, and service binary version probes. |
 
 ## Verification Snapshot
 
+- `go run ./cmd/eshu docs verify ../docs/public/reference/cli-reference.md --limit 1200 --fail-on contradicted,missing_evidence`
+  passed with 1 document, 108 claims, 0 contradicted, and 0 missing evidence
+  claims after the CLI reference rewrite.
+- `go run ./cmd/eshu docs verify ../docs/public --limit 1000 --fail-on contradicted,missing_evidence`
+  passed with 181 documents, 1,227 claims, 0 contradicted, and 0 missing
+  evidence claims after the CLI reference rewrite.
+- `go run ./cmd/eshu docs verify .. --limit 2000 --fail-on contradicted,missing_evidence`
+  passed with 569 documents, 1,681 claims, 0 contradicted, and 0 missing
+  evidence claims after the CLI reference rewrite.
+- `go test ./cmd/eshu -count=1`, `scripts/verify-package-docs.sh`, and
+  `git diff --check` passed after the CLI reference rewrite. The package-doc
+  verifier reported no changed Go package source files.
+- `uv run --with mkdocs --with mkdocs-material --with pymdown-extensions mkdocs build --strict --clean --config-file docs/mkdocs.yml`
+  passed after the CLI reference rewrite.
 - `go run ./cmd/eshu docs verify ../docs/public/reference/configuration.md --limit 1200 --fail-on contradicted,missing_evidence`
   passed with 1 document, 14 claims, 0 contradicted, and 0 missing evidence
   claims after the configuration reference rewrite.
@@ -316,10 +331,11 @@ cleanup pass.
 
 - Continue reviewing oversized public and package docs. The current largest
   real documentation files are
-  `docs/public/reference/cli-reference.md`,
   `go/internal/projector/README.md`,
   `docs/public/reference/collector-reducer-readiness.md`, and
-  `docs/public/reference/fact-envelope-reference.md`. The scoped
+  `docs/public/reference/fact-envelope-reference.md`. Current subagent audits
+  also identified service workflow/runtime docs and Compose/Helm/local-binary
+  docs as ready next-pass targets. The scoped
   `go/internal/storage/postgres/AGENTS.md` remains large, but any reduction
   there must preserve mandatory agent guidance. The larger
   `tests/fixtures/sample_projects/sample_project_typescript/README.md` fixture
