@@ -29,10 +29,10 @@ func TestVerifierComparesTerraformAddressClaims(t *testing.T) {
 			SourceURI:  "file:///README.md",
 			RevisionID: "rev-1",
 			Content: strings.Join([]string{
-				"Bucket: `aws_s3_bucket.logs`.",
-				"Policy: `data.aws_iam_policy_document.reader`.",
+				"Bucket: `terraform/aws_s3_bucket.logs`.",
+				"Policy: `terraform/data.aws_iam_policy_document.reader`.",
 				"Module: `terraform/module.network`.",
-				"Queue: `aws_sqs_queue.missing`.",
+				"Queue: `terraform/aws_sqs_queue.missing`.",
 			}, "\n"),
 		},
 	})
@@ -55,7 +55,7 @@ func TestVerifierMarksTerraformAddressUnsupportedWithoutResolver(t *testing.T) {
 			Path:       "README.md",
 			SourceURI:  "file:///README.md",
 			RevisionID: "rev-1",
-			Content:    "`aws_s3_bucket.logs`",
+			Content:    "`terraform/aws_s3_bucket.logs`",
 		},
 	})
 	if err != nil {

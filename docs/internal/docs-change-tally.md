@@ -144,7 +144,7 @@ Current pass proof:
 - Broad docs verification passed for `docs/public` and the full repository with
   0 contradicted and 0 missing evidence claims. Current public docs verifier
   result: 173 documents, 1236 claims. Current full repository verifier result:
-  562 documents, 1433 claims.
+  562 documents, 1434 claims.
 - Focused service, collector, Terraform-state, reducer, fact, component,
   relationship, tag, and language-query tests passed for the current pass.
 - `scripts/verify-package-docs.sh`, `helm lint`, `helm template`, Markdown
