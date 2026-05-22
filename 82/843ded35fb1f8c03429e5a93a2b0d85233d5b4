@@ -1,0 +1,23 @@
+src/siteContent.ts
+  s_f2f7fbb6f30866::t_fb25b74ae7c15e 135,139-142,152,166,168-171,181
+src/App.test.tsx
+  s_f2f7fbb6f30866::t_b7dae85e336352 37
+src/siteContent.test.ts
+  s_f2f7fbb6f30866::t_60b8699ff28ca0 84,98-107,112,122-123,134-135
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.0",
+  "base_commit_sha": "82843ded35fb1f8c03429e5a93a2b0d85233d5b4",
+  "prompts": {},
+  "sessions": {
+    "s_f2f7fbb6f30866": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e360b-90eb-7472-bac7-56d488b65f77",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
