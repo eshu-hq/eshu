@@ -19,7 +19,14 @@ const (
 
 var errDocsVerifyImageTruthLimitReached = errors.New("image truth file limit reached")
 
-func docsVerifyContainerImageResolver(verifyPath string) doctruth.ContainerImageResolver {
+func docsVerifyContainerImageResolver(cmd remoteFlagReader, opts docsVerifyOptions) doctruth.ContainerImageResolver {
+	if opts.ImageTruth == "api" || opts.ImageTruth == "auto" && docsVerifyRemoteImageTruthConfigured(cmd) {
+		return docsVerifyContainerImageAPIResolver(apiClientFromRemoteFlags(cmd))
+	}
+	return docsVerifyLocalContainerImageResolver(opts.Path)
+}
+
+func docsVerifyLocalContainerImageResolver(verifyPath string) doctruth.ContainerImageResolver {
 	root, ok := docsVerifyTruthRoot(verifyPath)
 	if !ok {
 		return nil

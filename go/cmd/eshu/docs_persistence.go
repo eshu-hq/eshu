@@ -124,7 +124,7 @@ func prepareDocsVerifyPersistence(
 		return nil, nil, summary, fmt.Errorf("documentation persistence is not configured")
 	}
 	scopeID := docsVerifyScopeID(opts.Path, opts.Scope)
-	freshness := docsInventoryFreshnessHint(inventory.Documents, opts.MaxDocumentBytes, opts.Limit)
+	freshness := docsInventoryFreshnessHint(inventory.Documents, opts.MaxDocumentBytes, opts.Limit, opts.ImageTruth)
 	generationID := docsVerifyGenerationID(scopeID, freshness)
 	summary = docsVerifyPersistenceSummary{
 		Enabled:       true,
@@ -261,7 +261,12 @@ func docsVerifyGenerationID(scopeID, freshness string) string {
 	})
 }
 
-func docsInventoryFreshnessHint(documents []doctruth.DocumentInput, maxDocumentBytes int, limit int) string {
+func docsInventoryFreshnessHint(
+	documents []doctruth.DocumentInput,
+	maxDocumentBytes int,
+	limit int,
+	imageTruth string,
+) string {
 	type docFingerprint struct {
 		Path       string `json:"path"`
 		SourceURI  string `json:"source_uri"`
@@ -272,6 +277,7 @@ func docsInventoryFreshnessHint(documents []doctruth.DocumentInput, maxDocumentB
 		Version          string           `json:"version"`
 		MaxDocumentBytes int              `json:"max_document_bytes"`
 		Limit            int              `json:"limit"`
+		ImageTruth       string           `json:"image_truth"`
 		Documents        []docFingerprint `json:"documents"`
 	}
 	fingerprints := make([]docFingerprint, 0, len(documents))
@@ -293,6 +299,7 @@ func docsInventoryFreshnessHint(documents []doctruth.DocumentInput, maxDocumentB
 		Version:          docsVerifyFreshnessVersion,
 		MaxDocumentBytes: maxDocumentBytes,
 		Limit:            limit,
+		ImageTruth:       normalizedDocsVerifyImageTruth(imageTruth),
 		Documents:        fingerprints,
 	})
 	if err != nil {

@@ -22,6 +22,7 @@ type docsVerifyOptions struct {
 	Persist          bool
 	Scope            string
 	Repo             string
+	ImageTruth       string
 }
 
 type docsVerifyEnvelope struct {
@@ -81,8 +82,10 @@ func newDocsVerifyCommandWithDeps(deps docsVerifyDeps) *cobra.Command {
 	cmd.Flags().String("fail-on", "", "Comma-separated finding statuses that should fail the command")
 	cmd.Flags().String("scope", "", "Documentation verification scope identifier")
 	cmd.Flags().String("repo", "", "Repository selector recorded on persisted documentation scope")
+	cmd.Flags().String("image-truth", "auto", "Container image truth source: auto, local, or api")
 	cmd.Flags().Bool("persist", false, "Persist generated documentation findings and evidence packets to Postgres")
 	cmd.Flags().Bool("json", false, "Write documentation verification as JSON")
+	addRemoteFlags(cmd)
 	return cmd
 }
 
@@ -118,7 +121,7 @@ func runDocsVerifyWithDeps(cmd *cobra.Command, args []string, deps docsVerifyDep
 		HTTPEndpoints:          endpointTruthFromOpenAPI(query.OpenAPISpec()),
 		EnvironmentVariables:   docsVerifyEnvironmentTruth(opts.Path),
 		LocalPathResolver:      docsVerifyLocalPathResolver(opts.Path),
-		ContainerImageResolver: docsVerifyContainerImageResolver(opts.Path),
+		ContainerImageResolver: docsVerifyContainerImageResolver(cmd, opts),
 		MaxDocuments:           opts.Limit,
 		MaxDocumentBytes:       opts.MaxDocumentBytes,
 		ScopeID:                persistSummary.ScopeID,
@@ -196,6 +199,17 @@ func docsVerifyOptionsFromCommand(cmd *cobra.Command, args []string) (docsVerify
 	if err != nil {
 		return docsVerifyOptions{}, err
 	}
+	imageTruth, err := cmd.Flags().GetString("image-truth")
+	if err != nil {
+		return docsVerifyOptions{}, err
+	}
+	imageTruth = strings.TrimSpace(strings.ToLower(imageTruth))
+	imageTruth = normalizedDocsVerifyImageTruth(imageTruth)
+	switch imageTruth {
+	case "auto", "local", "api":
+	default:
+		return docsVerifyOptions{}, commandExitError{message: "--image-truth must be auto, local, or api", code: 2}
+	}
 	path := "."
 	if len(args) > 0 {
 		path = args[0]
@@ -215,7 +229,16 @@ func docsVerifyOptionsFromCommand(cmd *cobra.Command, args []string) (docsVerify
 		Persist:          persist,
 		Scope:            scopeID,
 		Repo:             repo,
+		ImageTruth:       imageTruth,
 	}, nil
+}
+
+func normalizedDocsVerifyImageTruth(value string) string {
+	value = strings.TrimSpace(strings.ToLower(value))
+	if value == "" {
+		return "auto"
+	}
+	return value
 }
 
 func commandTruthFromCobra(root *cobra.Command) []doctruth.CommandTruth {

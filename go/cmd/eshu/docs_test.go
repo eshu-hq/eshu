@@ -227,7 +227,7 @@ func TestRunDocsVerifyPersistSkipsUnchangedAndReturnsStoredFindings(t *testing.T
 	persistence := &recordingDocsVerifyPersistence{
 		current: docsPersistedGeneration{
 			GenerationID:  generationID,
-			FreshnessHint: docsInventoryFreshnessHint(inventory.Documents, 256*1024, 50),
+			FreshnessHint: docsInventoryFreshnessHint(inventory.Documents, 256*1024, 50, "auto"),
 		},
 		currentFound: true,
 		listed: []facts.Envelope{
@@ -282,7 +282,7 @@ func TestRunDocsVerifyPersistDoesNotSkipWhenMaxBytesChanges(t *testing.T) {
 	persistence := &recordingDocsVerifyPersistence{
 		current: docsPersistedGeneration{
 			GenerationID:  "docs-verify-generation-existing",
-			FreshnessHint: docsInventoryFreshnessHint(previousInventory.Documents, 8, 50),
+			FreshnessHint: docsInventoryFreshnessHint(previousInventory.Documents, 8, 50, "auto"),
 		},
 		currentFound: true,
 	}
@@ -332,7 +332,7 @@ func TestRunDocsVerifyPersistSkipReportsCurrentInventoryCountersAndTruncation(t 
 	persistence := &recordingDocsVerifyPersistence{
 		current: docsPersistedGeneration{
 			GenerationID:  generationID,
-			FreshnessHint: docsInventoryFreshnessHint(inventory.Documents, opts.MaxDocumentBytes, opts.Limit),
+			FreshnessHint: docsInventoryFreshnessHint(inventory.Documents, opts.MaxDocumentBytes, opts.Limit, opts.ImageTruth),
 		},
 		currentFound: true,
 		listed: []facts.Envelope{
