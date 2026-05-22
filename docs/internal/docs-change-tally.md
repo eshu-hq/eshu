@@ -9,7 +9,7 @@ repo's 500-line limit.
 - Total Markdown files left in the checkout after the current pass: 547
 - Current branch doc status from
   `git diff --cached --name-status origin/main -- '*.md'` after the current
-  pass: 85 added, 157 modified, 139 deleted, 95 renamed
+  pass: 85 added, 158 modified, 139 deleted, 95 renamed
 - Copied image assets removed from this branch: 43 files under
   `docs/public/images/`. They were reference assets from another project and
   no longer appear in the source-doc reference scan.
@@ -97,9 +97,15 @@ cleanup pass.
 | Public Reference Polish | Reduced telemetry trace/correlation, truth-label, MCP cookbook, documentation updater, local performance, and NornicDB pitfalls references while preserving current contracts. |
 | Legacy Stub Deletion | Removed legacy getting-started, deployment, and Neo4j setup stubs after repointing backlinks to current run-local and Kubernetes docs. |
 | Cypher Storage Guide Compression | Reduced the Cypher storage README from 487 to 254 lines, kept the hot-path evidence markers, and corrected scoped agent guidance for the current `package_registry` phase. |
+| Postgres Scoped AGENTS Compression | Reduced the Postgres scoped agent guidance from 333 to 185 lines while preserving mandatory queue, lease, fencing, drift, status, and concurrency guardrails. |
 
 ## Verification Snapshot
 
+- `go run ./cmd/eshu docs verify ../go/internal/storage/postgres --limit 1000 --fail-on contradicted,missing_evidence`
+  passed with 3 documents, 4 claims, 0 contradicted, and 0 missing evidence
+  claims after the Postgres scoped AGENTS compression.
+- `go test ./internal/storage/postgres -count=1`, `scripts/verify-package-docs.sh`,
+  and `git diff --check` passed after the Postgres scoped AGENTS compression.
 - `go run ./cmd/eshu docs verify ../go/internal/storage/cypher --limit 1200 --fail-on contradicted,missing_evidence`
   passed with 2 documents, 1 claim, 0 contradicted, and 0 missing evidence
   claims after the Cypher storage guide compression.
@@ -421,8 +427,7 @@ cleanup pass.
 ## What Is Left
 
 - Continue reviewing oversized public and package docs. The largest real docs
-  left are `go/internal/storage/postgres/AGENTS.md`,
-  `docs/public/run-locally/docker-compose.md`, `docs/public/why-eshu.md`,
+  left are `docs/public/run-locally/docker-compose.md`, `docs/public/why-eshu.md`,
   `docs/public/reference/cli-reference.md`, `docs/public/reference/mcp-cookbook.md`,
   `docs/internal/agent-guide.md`, `docs/public/reference/http-api/code.md`,
   `docs/public/guides/collector-authoring.md`, `go/internal/mcp/README.md`,

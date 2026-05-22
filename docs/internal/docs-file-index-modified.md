@@ -246,6 +246,7 @@ Generated from `git diff --cached --name-status origin/main -- "*.md"` for this 
 - `go/internal/storage/cypher/AGENTS.md`
 - `go/internal/storage/cypher/README.md`
 - `go/internal/storage/neo4j/README.md`
+- `go/internal/storage/postgres/AGENTS.md`
 - `go/internal/storage/postgres/README.md`
 - `go/internal/telemetry/AGENTS.md`
 - `go/internal/telemetry/README.md`
