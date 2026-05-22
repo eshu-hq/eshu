@@ -321,9 +321,9 @@ const openAPIPathsImpact = `
     },
     "/api/v0/impact/entity-map": {
       "post": {
-		"tags": ["impact"],
-		"summary": "Map a bounded entity neighborhood",
-		"description": "Resolves one supported entity handle with typed label/property probes, then returns a bounded code/cloud neighborhood through relationship-family traversal grouped into defined_by, deployed_by, runs_as, depends_on, consumed_by, and evidence sections.",
+        "tags": ["impact"],
+        "summary": "Map a bounded entity neighborhood",
+        "description": "Resolves one supported entity handle with typed label/property probes, then returns a bounded code/cloud neighborhood through relationship-family traversal grouped into defined_by, deployed_by, runs_as, depends_on, consumed_by, and evidence sections.",
         "operationId": "entityMap",
         "requestBody": {
           "required": true,

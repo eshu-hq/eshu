@@ -84,7 +84,7 @@ type entityMapTraversalSpec struct {
 }
 
 func entityMapTraversalSpecs(selected entityMapCandidate, req entityMapRequest) []entityMapTraversalSpec {
-	if req.Depth > 1 || req.Relationship != "" {
+	if req.Relationship != "" {
 		return []entityMapTraversalSpec{
 			{direction: "outgoing", relationship: req.Relationship},
 			{direction: "incoming", relationship: req.Relationship},
@@ -169,7 +169,7 @@ func entityMapRelationshipTypes(selected entityMapCandidate, direction string, r
 	if direction == "incoming" {
 		return strings.Join(entityMapDefaultIncomingRelationshipTypes(selected), "|")
 	}
-	return strings.Join(entityMapDefaultOutgoingRelationships, "|")
+	return strings.Join(entityMapDefaultOutgoingRelationshipTypes(selected), "|")
 }
 
 func entityMapDefaultIncomingRelationshipTypes(selected entityMapCandidate) []string {
