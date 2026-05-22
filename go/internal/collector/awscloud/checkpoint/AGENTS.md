@@ -28,7 +28,7 @@
   service scanner.
 - Update this package's README when the commit boundary changes.
 
-## What Not To Change Without An ADR
+## What Not To Change Without Owner Approval And Proof
 
 - Do not make checkpoint state part of AWS fact payloads.
 - Do not advance checkpoints beyond uncommitted facts.

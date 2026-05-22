@@ -27,7 +27,9 @@
 - **DETERMINISM: tie-break** — `admitWinners` at `engine.go:92` uses
   `compareCandidates` at `engine.go:115`: higher `Confidence` wins; equal
   `Confidence` resolves to lower lexicographic `ID`. The loser receives
-  rejection reason `lost_tie_break`. Do not change this ordering without an ADR.
+  rejection reason `lost_tie_break`. Do not change this ordering without
+  architecture-owner approval, updated package docs, and correlation proof for
+  positive, negative, and ambiguous candidate sets.
 - **No partial results** — `Evaluate` returns `(Evaluation{}, err)` on the
   first validation error. Callers must not treat an empty `Evaluation` as a
   valid empty result.
@@ -105,13 +107,17 @@
   patterns or evidence key prefixes. CLAUDE.md forbids heuristics that invent
   environment truth.
 
-## What NOT to change without an ADR
+## What NOT to change without owner approval and proof
 
 - `compareCandidates` tie-break order — changing which candidate wins for a
-  given `CorrelationKey` changes materialized graph truth.
+  given `CorrelationKey` changes materialized graph truth. Prove fixture intent,
+  reducer graph truth, and query truth still agree.
 - `slices.SortFunc` ordering in `Evaluate` results — explain rendering and
-  replay tests depend on stable result order.
+  replay tests depend on stable result order. Update golden/explain coverage in
+  the same change.
 - Rule sort key `(Priority, Name)` — pack authors set priorities to control
-  order; changing the sort breaks their intent and all golden tests.
+  order; changing the sort breaks their intent and all golden tests. Document
+  the new ordering contract in `go/internal/correlation/engine/README.md`.
 - The semantics of `Evaluation.OrderedRuleNames` — callers derive the
-  evaluated rule count from its length.
+  evaluated rule count from its length. Prove every downstream summary/status
+  consumer still reports the intended count.

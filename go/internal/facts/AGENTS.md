@@ -80,9 +80,11 @@
   Use `Clone` before mutating for downstream stages, and never pass a
   non-cloned envelope to two concurrent goroutines.
 
-## What NOT to change without an ADR
+## What NOT to change without owner approval and proof
 
 - The `Envelope` wire shape — any change that affects Postgres serialization or
-  cross-stage interchange requires a migration plan and ADR.
+  cross-stage interchange requires a migration plan, updated facts/storage
+  package docs, and read/write compatibility proof.
 - `StableID` normalization behavior — changing it silently changes fact
-  deduplication across ingestion runs.
+  deduplication across ingestion runs. Prove old and new keys can be reconciled
+  before changing the normalization.

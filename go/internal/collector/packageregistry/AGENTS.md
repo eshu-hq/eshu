@@ -50,7 +50,7 @@
 - Add live registry calls in `packageruntime`, not in identity helpers or
   envelope builders.
 
-## What Not To Change Without An ADR
+## What Not To Change Without Owner Approval And Proof
 
 - Do not move ECR into package-registry support. ECR belongs to the OCI registry
   collector lane.

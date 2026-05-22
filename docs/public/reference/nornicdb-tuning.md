@@ -48,12 +48,10 @@ terminal queue counts, and API/MCP truth checks.
 
 ## Backend Selection
 
-| Variable | Default | Scope | Use |
-| --- | --- | --- | --- |
-| `ESHU_GRAPH_BACKEND` | `nornicdb` | API, MCP, ingester, reducer, local Eshu service | Selects the graph adapter. Set to `neo4j` only for the explicit Neo4j path. Invalid values fail startup. |
-| `ESHU_NORNICDB_RUNTIME` | `embedded` | local Eshu service | Selects local NornicDB runtime: `embedded` or `process`. Use `process` only when testing an external binary. |
-| `ESHU_NORNICDB_BINARY` | unset | local Eshu service, install, tests | Explicit process-mode NornicDB binary path. Wins over managed `${ESHU_HOME}/bin/nornicdb-headless` and `PATH`. |
-| `ESHU_NORNICDB_INSTALL_TIMEOUT` | `30s` | `eshu install nornicdb` | Extends remote download timeout for slow links. |
+Backend selection is not a tuning step. Use
+[Graph Backend Installation](graph-backend-installation.md) for embedded versus
+process-mode NornicDB, and use
+[Environment Variables](environment-variables.md) for the full variable catalog.
 
 ## Canonical Write Budget
 
@@ -155,20 +153,12 @@ letters, and terminal drain state.
 | `NORNICDB_PERSIST_SEARCH_INDEXES` | `true` in Eshu Compose and Helm | Keeps NornicDB from rebuilding search indexes by scanning the whole graph after normal restarts. |
 | `NORNICDB_EMBEDDING_ENABLED` | `false` in Eshu Compose and Helm | Keeps embedding generation off during Eshu indexing. Enable only for semantic-search experiments after indexing baseline is understood. |
 
-## EKS Defaults
+## Hosted Defaults
 
-The Helm chart promotes the Compose-proven NornicDB defaults for hosted
-deployments:
-
-- `NORNICDB_PERSIST_SEARCH_INDEXES=true`
-- `NORNICDB_EMBEDDING_ENABLED=false`
-- NornicDB startup probe window long enough for large-graph startup
-- readiness probes against `/health`
-- `ESHU_CANONICAL_WRITE_TIMEOUT=120s`
-- `ESHU_SHARED_PROJECTION_WORKERS=8`
-
-Reducer workers are not pinned by chart values; the runtime uses the NornicDB
-`NumCPU` default unless `ESHU_REDUCER_WORKERS` is set explicitly.
+The Helm chart owns hosted defaults for startup probes, readiness probes,
+container flags, write timeout, and shared-projection workers. See
+[Helm Runtime Values](../deploy/kubernetes/helm-runtime-values.md) and
+[NornicDB Tuning Evidence](nornicdb-tuning-evidence.md) before changing them.
 
 ## Add A New Knob
 
@@ -193,6 +183,7 @@ before lowering global workers.
 
 - [NornicDB Tuning Evidence](nornicdb-tuning-evidence.md)
 - [NornicDB Pitfalls](nornicdb-pitfalls.md)
+- [Graph Backend Installation](graph-backend-installation.md)
 - [Graph Backend Operations](graph-backend-operations.md)
 - [Backend Conformance](backend-conformance.md)
 - [Cypher Performance Discipline](cypher-performance.md)

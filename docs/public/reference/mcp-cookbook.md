@@ -13,7 +13,9 @@ Use this page for copy-ready MCP tool calls. For the full field catalog, see
 - Check `truncated`, `next_offset`, or `next_cursor` before claiming complete
   coverage.
 - Use `repo_id + relative_path` or `entity_id` for file-shaped drilldowns.
-- Use raw Cypher only in the diagnostics-only section at the end.
+- Treat raw Cypher as diagnostics-only; use named tools for normal prompt
+  flows. See [MCP Tool Contract Matrix](mcp-tool-contract-matrix.md) for the
+  raw Cypher contract.
 
 ## Stories And Investigations
 
@@ -241,20 +243,3 @@ covered findings.
 
 Use this after story, investigation, search, or relationship tools return file
 or entity handles.
-
-## Diagnostic Cypher Queries
-
-This section is diagnostics-only. `execute_cypher_query` is not a normal prompt
-contract and should not be used by starter prompts, cookbook happy paths, or
-prompt-suite tests. Prefer named MCP tools when they answer the question.
-
-When you use raw Cypher, include a small top-level `limit`. The server reports
-`truncated` when the row window clips the result.
-
-### Compare graph state for apparently uncalled functions
-
-Use `investigate_dead_code` for normal dead-code prompts.
-
-```json
-{ "cypher_query": "MATCH (f:Function) WHERE NOT (()-[:CALLS]->(f)) AND f.is_dependency = false RETURN f.name, f.path", "limit": 100 }
-```

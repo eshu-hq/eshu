@@ -103,10 +103,16 @@
   does not protect `/api/`. Auth for those routes is enforced by
   `query.AuthMiddleware` at `wiring.go:89`.
 
-## What NOT to change without an ADR
+## What NOT to change without owner approval and proof
 
 - The query handler composition in `newMCPQueryRouter` — adding or removing
   handlers changes the MCP tool surface and must be coordinated with
-  `internal/mcp/dispatch.go` tool definitions and `docs/public/guides/mcp-guide.md`.
+  `internal/mcp/dispatch.go` tool definitions, `docs/public/mcp/index.md`,
+  `docs/public/reference/mcp-reference.md`, and
+  `docs/public/reference/mcp-tool-contract-matrix.md`. Add route/dispatch tests
+  and MCP contract proof before landing.
 - Transport options for `ESHU_MCP_TRANSPORT` — adding a new transport type
-  changes the documented wire contract; see `docs/public/deployment/service-runtimes.md`.
+  changes the documented wire contract; update
+  `docs/public/deployment/service-runtimes.md` and
+  `docs/public/reference/environment-runtime-storage.md`, then prove startup,
+  shutdown, auth, and telemetry behavior for the new mode.

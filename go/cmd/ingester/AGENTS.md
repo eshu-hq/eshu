@@ -106,7 +106,7 @@
   conformance pass. Using it prematurely can produce partial writes.
 
 - **Raising ESHU_NORNICDB_ENTITY_PHASE_CONCURRENCY without measuring NornicDB
-  commit headroom** — the streaming dispatcher in
+  commit capacity** — the streaming dispatcher in
   `wiring_nornicdb_phase_group_streaming.go` keeps one Bolt session per
   worker open for the lifetime of an entity-phase call, so peak Bolt session
   demand is `ESHU_PROJECTOR_WORKERS * ESHU_NORNICDB_ENTITY_PHASE_CONCURRENCY`
@@ -116,13 +116,15 @@
   names the canonical entities phase as the wall-clock bottleneck and
   NornicDB structured logs show no contention on parallel commits.
 
-## What NOT to change without an ADR
+## What NOT to change without owner approval and proof
 
 - `AfterBatchDrained` call order (`BackfillAllRelationshipEvidence` before
   `ReopenDeploymentMappingWorkItems`) — changing this order breaks the
-  bootstrap phase contract in `CLAUDE.md`.
+  bootstrap phase contract in `CLAUDE.md`. Prove deployment-mapping reopen and
+  second-pass consumers still drain correctly before changing it.
 - `compositeRunner` error propagation — silencing either service error hides
-  real failures from operators.
+  real failures from operators. Require telemetry/status proof that operators
+  still see collector and projector failures.
 - The workspace PVC ownership model — moving workspace ownership to another
-  runtime requires a coordinated deployment change and an ADR documenting
-  the new ownership boundary.
+  runtime requires a coordinated deployment-doc update, owner-approved
+  migration plan, and concurrency proof for repository snapshot writes.

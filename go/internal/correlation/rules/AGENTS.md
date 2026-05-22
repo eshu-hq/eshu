@@ -48,8 +48,10 @@
 - **Change a MinAdmissionConfidence value** → verify that the new threshold
   does not admit or reject candidates that would produce wrong graph truth
   (see CLAUDE.md "Correlation Truth Gates"). Run the full correlation test
-  suite: `go test ./internal/correlation/... -count=1`. Document the change
-  in the active ADR evidence row.
+  suite: `go test ./internal/correlation/... -count=1`. Document the changed
+  admission contract in `go/internal/correlation/rules/README.md` and include
+  fixture intent, graph truth, and query truth proof in the current evidence
+  note.
 
 - **Add a new RuleKind constant** → add to `schema.go`, add the case to
   `RuleKind.Validate()`, add the case to `engine.Evaluate`'s `matchCounts`
@@ -104,15 +106,18 @@
   variables to reuse across packs; the engine sorts in place on a clone, but
   sharing state is a future-maintenance hazard.
 
-## What NOT to change without an ADR
+## What NOT to change without owner approval and proof
 
 - `MinAdmissionConfidence` values in shipped packs — admission threshold
   changes affect which correlations appear in the graph; treat as a
-  correctness decision requiring evidence.
+  correctness decision requiring positive, negative, and ambiguous evidence.
 - `EvidenceRequirement.MinCount` and `MatchAll` selectors in shipped packs —
   structural requirements define what evidence must exist for admission;
-  changes affect admitted populations.
+  changes affect admitted populations. Prove rejected/admitted populations
+  move only as intended.
 - `RuleKind` and `EvidenceField` string wire values once they are recorded in
-  explain output, status APIs, or persisted state.
+  explain output, status APIs, or persisted state. Require compatibility proof
+  for every consumer before changing them.
 - The `ContainerRulePacks` / `FirstPartyRulePacks` split — callers may depend
-  on the distinction; removing or merging it changes caller behavior.
+  on the distinction; removing or merging it changes caller behavior. Update
+  package docs and downstream tests in the same change.

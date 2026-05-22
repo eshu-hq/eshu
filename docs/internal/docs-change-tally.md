@@ -115,6 +115,10 @@ branch. Regenerate them from
 | Scoped AGENTS ADR Cleanup Batch A | Replaced stale ADR gates in 15 scoped agent files with architecture-owner approval language while preserving mandatory local invariants and proof requirements. |
 | Public Reference Duplicate Cleanup | Collapsed duplicated HTTP envelope/truth tables, removed repeated component-package YAML from the fact envelope reference, and corrected component package manager state wording. |
 | Package README Mid-Size Compression | Reduced 15 more command/internal package READMEs while preserving package ownership, invariants, telemetry, focused tests, and links to canonical public docs. |
+| Troubleshooting Reference Compression | Replaced the stale troubleshooting reference with a compact symptom map that points to current local binaries, Compose, backend, workflow, and telemetry docs. |
+| Scoped AGENTS ADR Cleanup Batch B | Replaced stale ADR/current-tracker wording in 15 more scoped agent files with architecture-owner approval, migration, proof, telemetry, and package-doc requirements. |
+| Public Reference Duplicate Cleanup Batch B | Removed duplicate raw-query and backend-default detail from the MCP cookbook and NornicDB tuning page while preserving larger reference pages with distinct reader jobs. |
+| Package README Mid-Size Compression Batch B | Reduced 15 more package READMEs, keeping ownership, invariants, telemetry, focused tests, and current public-doc links while removing diagrams and duplicated catalogs. |
 
 ## Verification Snapshot
 

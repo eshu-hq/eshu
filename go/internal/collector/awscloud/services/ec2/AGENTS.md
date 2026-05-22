@@ -30,7 +30,7 @@
 - Keep instance inventory, live reachability, and exposure analysis in later
   reducer/query slices, not this scanner package.
 
-## What Not To Change Without An ADR
+## What Not To Change Without Owner Approval And Proof
 
 - Do not add EC2 write APIs.
 - Do not make the scanner write graph rows directly.

@@ -94,13 +94,16 @@
   order for diff stability. Every new code path that returns rows must go
   through the sort at the end of `Analyze` or `CleanupRows`.
 
-## What NOT to change without an ADR
+## What NOT to change without owner approval and proof
 
 - Confidence values (`0.99`, `0.75`, `0.40`) — these are exposed in the
   cleanup-truth HTTP response and relied on by operator tooling for rank ordering;
-  see `docs/public/reference/http-api.md`.
+  update `docs/public/reference/http-api.md` and prove response ordering before
+  changing them.
 - `FindingCandidateDead` string value — stored in HTTP responses and
-  potentially in operator dashboards; renaming it is a breaking API change.
+  potentially in operator dashboards; renaming it is a breaking API change and
+  requires migration guidance plus API compatibility proof.
 - `RelevantFile` extension list — removing an extension causes the HTTP handler
   to stop passing those files to `Analyze`, making all artifacts of that type
-  appear unused.
+  appear unused. Add positive, negative, and ambiguous fixture coverage for any
+  extension change.

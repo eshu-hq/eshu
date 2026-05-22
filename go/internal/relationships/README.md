@@ -2,88 +2,50 @@
 
 ## Purpose
 
-`relationships` extracts deployment and dependency evidence from fact envelopes
-before reducer admission. It recognizes Terraform, Terraform provider-schema,
-Terragrunt, Helm, Kustomize, Argo CD, GitHub Actions, Jenkins, Ansible,
-Dockerfile, and Docker Compose signals.
+`relationships` extracts Terraform, provider-schema, Terragrunt, Helm,
+Kustomize, Argo CD, CI, Ansible, Dockerfile, and Docker Compose relationship
+evidence before reducer admission.
 
-The package reports evidence. It does not decide graph truth.
+## Ownership boundary
 
-## Ownership Boundary
+This package reports evidence and candidates. It does not decide canonical graph
+truth, write Postgres rows, enqueue reducer work, or materialize graph edges.
+Reducers own persistence, admission, and later graph projection.
 
-This package owns evidence extraction, evidence deduplication, candidate
-building, assertion handling, and confidence-based promotion to
-`ResolvedRelationship` values. The reducer owns persistence, admission into
-relationship tables, and any later graph materialization.
+## Exported surface
 
-## Core Flow
-
-```mermaid
-flowchart LR
-  Facts["[]facts.Envelope"] --> Discover["DiscoverEvidence"]
-  Catalog["[]CatalogEntry aliases"] --> Discover
-  Discover --> Evidence["[]EvidenceFact"]
-  Evidence --> Resolve["Resolve"]
-  Assertions["[]Assertion"] --> Resolve
-  Resolve --> Candidates["[]Candidate"]
-  Resolve --> Resolved["[]ResolvedRelationship"]
-```
-
-`DiscoverEvidence` routes each envelope by artifact type and path, uses catalog
-aliases to match referenced repositories, and deduplicates evidence within the
-pass. `Resolve` groups evidence by source, target, and relationship type, applies
-assertions, and promotes only candidates that meet the confidence threshold.
-
-## Exported Surface
-
-See `doc.go` and `go doc ./internal/relationships` for the full contract. The
-durable surface is:
-
-- `DiscoverEvidence`
-- `DedupeEvidenceFacts`
-- `Resolve`
-- `ResolvedRelationshipID`
-- `RegisterSchemaDrivenTerraformExtractors`
-- model types: `CatalogEntry`, `EvidenceFact`, `Assertion`, `Candidate`,
-  `ResolvedRelationship`, `Generation`
-- enums: `EvidenceKind`, `RelationshipType`, `ResolutionSource`
+Use `doc.go` and `go doc ./internal/relationships` for the exported contract.
+The main surfaces are evidence discovery, deduplication, assertion handling,
+relationship resolution, schema-driven Terraform extractor registration, and
+the candidate and resolved-relationship model types.
 
 ## Dependencies
 
 `relationships` reads `facts.Envelope` from `internal/facts` and uses
-`internal/terraformschema` for schema-driven Terraform resource extraction. It
-does not write Postgres rows, graph nodes, or queue work items directly.
+`internal/terraformschema` for schema-driven Terraform extraction.
 
 ## Telemetry
 
 This package emits no metrics, spans, or structured logs. Reducer and storage
-callers surface extraction/admission counts and persistence failures.
+callers expose extraction counts, admission counts, persistence failures, and
+graph-write signals.
 
-## Gotchas / Invariants
+## Gotchas / invariants
 
-- Extractors must be deterministic for the same envelopes, catalog, and schema
-  inputs.
-- Ambiguous signals stay as low-confidence evidence unless an explicit
-  assertion admits them.
-- `DefaultConfidenceThreshold` is `0.75`; do not lower it to force graph truth.
-- `CatalogEntry.Aliases` should include real repo names and known aliases, but
-  overly short aliases can match unrelated text.
+- Extractors must be deterministic for the same facts, catalog aliases, and
+  schema inputs.
+- Ambiguous signals stay low-confidence unless an explicit assertion admits
+  them.
+- Do not lower `DefaultConfidenceThreshold` to force graph truth.
+- Repository aliases should be real repo names or known aliases; overly short
+  aliases can match unrelated text.
 - Terraform registry source strings are not repository aliases by themselves.
-- Argo CD multi-source applications preserve source/path/root/revision tuple
-  alignment by source index.
-- ApplicationSet template extraction needs the generator files in the same
-  envelope batch.
-- `Assertion.Decision` accepts only `assert` and `reject`.
+- Argo CD multi-source applications must preserve source/path/root/revision
+  tuple alignment by source index.
+- ApplicationSet template extraction needs generator files in the same envelope
+  batch.
 
-## Focused Tests
-
-- `go test ./internal/relationships -run TestDiscoverEvidence -count=1`
-- `go test ./internal/relationships -run TestResolve -count=1`
-- `go test ./internal/relationships -run TestDiscoverStructuredArgoCDEvidence -count=1`
-- `go test ./internal/relationships -run TestDiscoverDockerComposeEvidence -count=1`
-- `go test ./internal/relationships -run TestRelationshipPlatformFixture -count=1`
-
-## Related Docs
+## Related docs
 
 - `docs/public/architecture.md`
 - `docs/public/reference/local-testing.md`

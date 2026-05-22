@@ -73,10 +73,12 @@
   `Handler.ReplayFailed` / `Handler.Refinalize` to do so) before passing a
   filter to the store. The store implementation may not re-validate.
 
-## What NOT to change without an ADR
+## What NOT to change without owner approval and proof
 
 - `StageProjector` and `StageReducer` string values — these map to queue table
   `stage` column values stored on disk; changing them without a migration
-  breaks existing rows.
+  breaks existing rows. Require a migration plan, replay/readback proof, and
+  updated recovery package docs.
 - `Handler.time()` UTC behavior — callers depend on UTC timestamps matching
-  Postgres NOW() UTC comparisons in the store.
+  Postgres NOW() UTC comparisons in the store. Prove Postgres comparisons and
+  replay filters still behave correctly before changing it.

@@ -79,12 +79,14 @@
   is a string constant for operator-facing display. Do not define error
   wrapping or sentinel comparisons on it.
 
-## What NOT to change without an ADR
+## What NOT to change without owner approval and proof
 
 - `CandidateState` string values once they are persisted in the graph or
-  status store — changing the wire value requires a migration.
+  status store — changing the wire value requires a migration and compatibility
+  proof for graph, status, and explain consumers.
 - `RejectionReason` string values once they appear in explain output, API
   responses, or structured logs — operators and tooling pattern-match on them.
+  Update package docs and prove every consumer handles the new values.
 - `Candidate.CorrelationKey` semantics — this is the tie-break domain key;
   changing what it means breaks the engine's winner-selection logic and
-  materialization grouping.
+  materialization grouping. Require correlation truth proof before changing it.

@@ -89,10 +89,10 @@
   `supportedServiceKinds`; command-side target-scope validation uses
   `SupportsServiceKind` so startup acceptance stays aligned with the production
   registry.
-- Change claim shape only with coordinator, workflow, and ADR updates in the
-  same PR.
+- Change claim shape only with coordinator, workflow, public collector docs,
+  and claim/retry/idempotency proof in the same PR.
 
-## What Not To Change Without An ADR
+## What Not To Change Without Owner Approval And Proof
 
 - Do not bypass workflow claims or claim fencing.
 - Do not cache cross-account credentials beyond a claim lease.

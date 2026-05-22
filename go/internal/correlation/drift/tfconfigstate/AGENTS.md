@@ -87,14 +87,18 @@ Guidance for LLM assistants editing this package.
 - Do NOT add a backend selection branch (no graph-backend env var
   conditional). Drift correlation is backend-neutral.
 
-## What NOT to change without an ADR
+## What NOT to change without owner approval and proof
 
 - The dispatch order in `Classify`. Rearranging it changes which drift
-  kind wins on ambiguous inputs.
+  kind wins on ambiguous inputs. Require positive, negative, and ambiguous
+  fixture proof before changing it.
 - The closed `DriftKind` enum. Adding a value expands the
-  `drift_kind` metric label space and requires a chunk-status row.
+  `drift_kind` metric label space and requires updated package docs plus
+  metrics/cardinality proof.
 - The single-source attribute allowlist. Promotion to a versioned data
-  file is design doc §9 Q5 — handle it as an explicit follow-up.
+  file requires owner approval, updated `README.md`, and a separate proof note
+  covering dispatch, fixture corpus, and operator rollout behavior.
 - The cross-scope candidate pattern. Other rule packs may adopt it after
   this one ships, but the engine and `Candidate.Validate` contract must
-  remain unchanged.
+  remain unchanged. Prove any reuse keeps admission and materialization truth
+  unchanged for existing packs.

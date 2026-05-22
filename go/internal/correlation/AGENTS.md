@@ -82,9 +82,12 @@
   sort, filter, or modify `evaluation.Results`. Callers may retain a reference
   to the evaluation after calling `BuildSummary`.
 
-## What NOT to change without an ADR
+## What NOT to change without owner approval and proof
 
 - `Summary` field names once reducer status surfaces depend on them — renaming
-  exported fields breaks JSON serialization in status APIs.
+  exported fields breaks JSON serialization in status APIs. Require status API
+  compatibility proof and updated package docs.
 - The split between `ConflictCount` and `LowConfidenceCount` — these map to
   distinct rejection reasons; merging them obscures which gate is failing.
+  Prove operator-visible status still separates confidence failures from
+  conflict failures before changing it.

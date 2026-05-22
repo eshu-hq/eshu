@@ -2,89 +2,56 @@
 
 ## Purpose
 
-`collector-package-registry` runs the claim-aware `package_registry` collector.
-It fetches explicit package metadata documents from configured registry targets
-and emits package, version, dependency, artifact, source-hint,
-vulnerability-hint, registry-event, hosting, and warning facts through the
-shared collector commit boundary.
+`collector-package-registry` runs the claim-aware `package_registry` hosted
+collector binary.
 
-## Ownership Boundary
+## Ownership boundary
 
-This binary owns process wiring only: collector-instance selection, target JSON
-parsing, credential environment resolution, `collector.ClaimedService` setup,
-Postgres ingestion, telemetry, and the hosted status surface. Package identity,
-parser registration, and envelope construction live in
-`internal/collector/packageregistry`; runtime fetch and claim handling live in
+This command owns process wiring: package-registry collector-instance selection,
+target JSON parsing, credential environment resolution, telemetry bootstrap,
+`collector.ClaimedService` setup, Postgres ingestion, workflow claim fencing,
+and the hosted runtime status surface.
+
+Package identity, metadata parsers, and envelope construction live in
+`internal/collector/packageregistry`. Runtime fetch and claim handling live in
 `internal/collector/packageregistry/packageruntime`.
 
-## Entry Points
+## Exported surface
 
-- `main` and `run` in `go/cmd/collector-package-registry/main.go`
-- `loadClaimedRuntimeConfig` in `go/cmd/collector-package-registry/config.go`
-- `buildClaimedService` in `go/cmd/collector-package-registry/service.go`
-- `go run ./cmd/collector-package-registry` for local verification
-- `eshu-collector-package-registry --version` and
-  `eshu-collector-package-registry -v` print the build-time version
+This is a command package. Use `doc.go` for the command contract. Local
+verification can run `go run ./cmd/collector-package-registry`; the installed
+binary also supports `--version` and `-v`.
 
-## Configuration
+## Dependencies
 
-The collector requires standard Postgres env values plus
-`ESHU_COLLECTOR_INSTANCES_JSON`. It selects the `package_registry` instance,
-requires `enabled=true` and `claims_enabled=true`, and uses:
-
-- `ESHU_PACKAGE_REGISTRY_COLLECTOR_INSTANCE_ID` when multiple package-registry
-  instances exist
-- `ESHU_PACKAGE_REGISTRY_POLL_INTERVAL` for idle claim polling
-- `ESHU_PACKAGE_REGISTRY_CLAIM_LEASE_TTL`
-- `ESHU_PACKAGE_REGISTRY_HEARTBEAT_INTERVAL`
-- `ESHU_PACKAGE_REGISTRY_COLLECTOR_OWNER_ID`
-
-Each selected instance's `configuration.targets` array supports:
-
-- `provider`
-- `ecosystem`: `npm`, `pypi`, `gomod`, `maven`, `nuget`, or `generic`
-- `registry`
-- `scope_id`
-- `packages`, `package_limit`, and `version_limit`; `package_limit` rejects
-  oversized target scope, while `version_limit` keeps the first bounded version
-  set and emits a `version_limit_truncated` warning fact
-- `metadata_url`
-- `document_format`: optional, defaults to `native`; use `artifactory_package`
-  when the response is an Artifactory wrapper around package-native metadata
-- credential indirection fields: `username_env`, `password_env`,
-  `bearer_token_env`
-
-Credentials are resolved from the named environment variables at runtime and
-are not copied into facts, logs, metrics, or docs.
+The command wires `collector.ClaimedService`, `packageruntime.ClaimedSource`,
+Postgres ingestion and workflow stores, `scope.CollectorPackageRegistry`, and
+`telemetry` providers.
 
 ## Telemetry
 
-The binary exposes the shared hosted runtime with `/healthz`, `/readyz`,
-`/metrics`, and `/admin/status`. Package-registry collection records:
+The binary exposes `/healthz`, `/readyz`, `/metrics`, and `/admin/status`.
+Package-registry observation metrics and registry-collector status rows are
+emitted by the runtime components this command wires. Package names, feed URLs,
+versions, artifact paths, credential environment variable names, and credential
+values stay out of metric labels and status details.
 
-| Metric | Type | Labels | Purpose |
-| --- | --- | --- | --- |
-| `eshu_dp_package_registry_observe_duration_seconds` | Float64 histogram | `provider`, `ecosystem`, `result` | Measures one claimed target from fetch through fact envelope construction. |
-| `eshu_dp_package_registry_requests_total` | Counter | `ecosystem`, `status_class` | Counts metadata fetch attempts and separates success, error, and rate-limited outcomes. |
-| `eshu_dp_package_registry_facts_emitted_total` | Counter | `ecosystem`, `fact_kind` | Counts emitted package-registry fact envelopes by kind. |
-| `eshu_dp_package_registry_rate_limited_total` | Counter | `ecosystem` | Counts HTTP 429 metadata responses. |
-| `eshu_dp_package_registry_generation_lag_seconds` | Float64 histogram | `ecosystem` | Measures source document observation lag when providers report it. |
-| `eshu_dp_package_registry_parse_failures_total` | Counter | `ecosystem`, `document_type` | Counts parser failures by package-native document family. |
+## Gotchas / invariants
 
-Package names, feed URLs, versions, and artifact paths stay out of metric
-labels.
+- `ESHU_COLLECTOR_INSTANCES_JSON` must contain exactly one matching enabled,
+  claim-capable `package_registry` instance unless
+  `ESHU_PACKAGE_REGISTRY_COLLECTOR_INSTANCE_ID` selects one.
+- Heartbeat interval must be less than the claim lease TTL.
+- Credential fields are environment-variable indirections. Resolve values at
+  runtime and do not copy them into facts, logs, metrics, status, or docs.
+- `package_limit` rejects oversized target scope; `version_limit` bounds
+  version reads and lets the collector emit truncation warnings.
+- Preserve the target `document_format`; `artifactory_package` means a wrapper
+  around package-native metadata.
 
-`/admin/status` also includes package-registry rows in `registry_collectors`.
-Those rows show configured instance count, active scope count, completed
-generation count for the last 24 hours, last completed timestamp, retryable and
-terminal failure counts, and bounded failure classes such as `registry_auth_denied`,
-`registry_not_found`, `registry_rate_limited`, `registry_retryable_failure`,
-`registry_canceled`, and `registry_terminal_failure`. Status messages and
-details keep package names, private feed URLs, metadata paths, credential
-environment variable names, and credential values out of the operator payload.
+## Related docs
 
-## Related Docs
-
-- [Collector readiness](../../../docs/public/reference/collector-reducer-readiness.md)
-- [Telemetry reference](../../../docs/public/reference/telemetry/index.md)
-- [Service runtimes](../../../docs/public/deployment/service-runtimes.md)
+- `go/internal/collector/packageregistry/README.md`
+- `go/internal/collector/packageregistry/packageruntime/README.md`
+- `docs/public/reference/collector-reducer-readiness.md`
+- `docs/public/deployment/service-runtimes.md`

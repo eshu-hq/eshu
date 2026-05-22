@@ -57,7 +57,8 @@
   `schemaConstraints` in `schema.go` and, if the label needs uid-uniqueness
   with NornicDB, add it to `uidConstraintLabels`. Run
   `go test ./internal/graph -count=1` and `go test ./internal/storage/cypher -count=1`.
-  Update the active ADR chunk status row.
+  Update `go/internal/graph/README.md` and any affected public graph/backend
+  reference with no-regression and observability evidence for the schema path.
 
 - **Add a new entity merge path** → if it is a single merge, use
   `BuildEntityMergeStatement` or `MergeEntity`. If it is bulk, add a

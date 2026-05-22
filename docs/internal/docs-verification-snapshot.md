@@ -24,12 +24,12 @@ uv run --with mkdocs --with mkdocs-material --with pymdown-extensions \
   mkdocs build --strict --clean --config-file docs/mkdocs.yml
 ```
 
-Current checkpoint after the internal guide, public reference, package README,
+Current checkpoint after the troubleshooting, public reference, package README,
 and scoped AGENTS follow-up pass:
 
-- Public docs verification: `173` documents, `1229` claims,
+- Public docs verification: `173` documents, `1211` claims,
   `0` contradicted, `0` missing evidence.
-- Full repository docs verification: `562` documents, `1431` claims,
+- Full repository docs verification: `562` documents, `1408` claims,
   `0` contradicted, `0` missing evidence.
 - Package docs verification passed for `go/internal` and `go/cmd`; fixture docs
   verification passed for `tests/fixtures`.
