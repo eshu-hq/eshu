@@ -196,10 +196,10 @@ CREATE INDEX IF NOT EXISTS fact_records_container_image_identity_digest_idx
 
 CREATE INDEX IF NOT EXISTS fact_records_active_container_image_refs_idx
     ON fact_records (
-        source_system,
         observed_at ASC,
         fact_id ASC,
-        generation_id
+        generation_id,
+        source_system
     )
     WHERE is_tombstone = FALSE
       AND (

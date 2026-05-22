@@ -56,6 +56,7 @@ WHERE (
       )
     )
   )
+  AND fact.is_tombstone = FALSE
   AND generation.status = 'active'
   AND (
     $1::timestamptz IS NULL

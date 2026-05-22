@@ -320,6 +320,19 @@ func TestBootstrapDefinitionsIncludeCICDRunCorrelationFactIndexes(t *testing.T) 
 			t.Fatalf("fact_records SQL missing %q", want)
 		}
 	}
+
+	containerRefsIndex := `
+CREATE INDEX IF NOT EXISTS fact_records_active_container_image_refs_idx
+    ON fact_records (
+        observed_at ASC,
+        fact_id ASC,
+        generation_id,
+        source_system
+    )
+    WHERE is_tombstone = FALSE`
+	if !strings.Contains(facts.SQL, containerRefsIndex) {
+		t.Fatalf("fact_records active container image refs index must start with cursor keys:\n%s", facts.SQL)
+	}
 }
 
 func TestBootstrapDefinitionsIncludeSBOMAttestationAttachmentFactIndexes(t *testing.T) {

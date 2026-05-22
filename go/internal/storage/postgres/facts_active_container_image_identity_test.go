@@ -95,6 +95,7 @@ func TestFactStoreListActiveContainerImageIdentityFactsUsesActiveIdentityGenerat
 		"fact.fact_kind = 'aws_relationship'",
 		"fact.fact_kind = 'content_entity'",
 		"fact.payload->'entity_metadata' ? 'container_images'",
+		"fact.is_tombstone = FALSE",
 		"ORDER BY fact.observed_at ASC, fact.fact_id ASC",
 		"LIMIT $3",
 	} {
