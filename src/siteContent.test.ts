@@ -62,11 +62,11 @@ describe("siteContent", () => {
   it("highlights Kubernetes deployment coverage, indexing scale, and org-wide use", () => {
     expect(siteContent.proofPoints.map((point) => point.value)).toEqual([
       "Kubernetes",
-      "nearly 900 repos",
+      "896 repos",
       "organization-wide"
     ]);
     expect(siteContent.proofPoints[0].description).toContain("where software runs");
-    expect(siteContent.proofPoints[1].description).toContain("under 15 minutes");
+    expect(siteContent.proofPoints[1].description).toContain("14m13.6s");
     expect(siteContent.proofPoints[2].description).toContain("whole organization");
   });
 
@@ -81,12 +81,67 @@ describe("siteContent", () => {
       "Docs"
     ]);
     expect(siteContent.commandDemos.map((command) => command.command)).toEqual([
-      "eshu scan",
+      "eshu scan --json",
       "eshu trace service checkout",
       "eshu map --from terraform/aws_lb.main",
       "eshu docs verify"
     ]);
     expect(siteContent.personaDemos.map((persona) => persona.role)).toContain("Leadership");
     expect(siteContent.cleanupModes.map((mode) => mode.label)).toEqual(["Dead code", "Dead IaC"]);
+  });
+
+  it("keeps demo outputs aligned with shipped command output shapes", () => {
+    const demosByCommand = Object.fromEntries(
+      siteContent.commandDemos.map((demo) => [demo.command, demo.output])
+    );
+
+    expect(demosByCommand["eshu scan --json"]).toEqual(
+      expect.arrayContaining([
+        "\"status\": \"ready\",",
+        "\"succeeded\": 8347,",
+        "\"queue_zero_ms\": 853600,",
+        "\"freshness\": \"current\""
+      ])
+    );
+    expect(demosByCommand["eshu scan --json"]).not.toContain("repos: 896 indexed");
+    expect(demosByCommand["eshu scan --json"]).not.toContain("elapsed: 14m13.6s");
+
+    expect(demosByCommand["eshu trace service checkout"]).toEqual(
+      expect.arrayContaining([
+        "Service: checkout-service",
+        "Truth freshness: fresh",
+        "Code to runtime:",
+        "Trace status: partial",
+        "Missing evidence: runtime"
+      ])
+    );
+
+    expect(demosByCommand["eshu map --from terraform/aws_lb.main"]).toEqual(
+      expect.arrayContaining([
+        "Map: terraform/aws_lb.main",
+        "Resolved: TerraformResource tfstate:aws_lb.main (aws_lb.main)",
+        "Evidence: 2 relationships"
+      ])
+    );
+
+    expect(demosByCommand["eshu docs verify"]).toEqual(
+      expect.arrayContaining([
+        "Docs verify: documents=3 claims=6 valid=4 contradicted=1 missing_evidence=1 unsupported=0 truncated=false",
+        "- contradicted terraform_address aws_sqs_queue.missing",
+        "- missing_evidence image_ref ghcr.io/acme/checkout:1.2.3"
+      ])
+    );
+    expect(demosByCommand["eshu docs verify"]).not.toContain(
+      "result: fail-on contradicted would exit 1"
+    );
+    expect(demosByCommand["eshu docs verify"]).not.toContain(
+      "docs/architecture/payments.md: missing runtime edge"
+    );
+  });
+
+  it("labels broad coverage as profile-aware and derived where appropriate", () => {
+    expect(siteContent.coverage).toContain("exact and derived");
+    expect(siteContent.coverage).toContain("profile");
+    expect(siteContent.coverage).toContain("candidate");
   });
 });

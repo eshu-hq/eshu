@@ -87,7 +87,7 @@ export const siteContent = {
     {
       title: "Keep docs honest",
       description:
-        "Compare documentation against the graph so stale runbooks and architecture notes stop drifting quietly."
+        "Verify checkable Markdown claims against CLI, API, environment, path, image, and Terraform truth before stale notes drift quietly."
     },
     {
       title: "Find dead code and dead IaC",
@@ -132,14 +132,14 @@ export const siteContent = {
   },
   commandDemos: [
     {
-      command: "eshu scan",
+      command: "eshu scan --json",
       summary: "Graph ready for organization-wide questions.",
       activeNodeId: "code",
       output: [
-        "repos: 897 indexed",
-        "elapsed: 14m 32s",
-        "parsers: code, SQL, Terraform, Kubernetes, Helm",
-        "status: graph ready"
+        "\"status\": \"ready\",",
+        "\"succeeded\": 8347,",
+        "\"queue_zero_ms\": 853600,",
+        "\"freshness\": \"current\""
       ]
     },
     {
@@ -147,12 +147,14 @@ export const siteContent = {
       summary: "Trace checkout from source to the runtime that serves it.",
       activeNodeId: "kubernetes",
       output: [
-        "service: checkout-service",
-        "source: services/checkout/cmd/api",
-        "sql: orders.payments, orders.ledger",
-        "terraform: modules/payments-lb/aws_lb.main",
-        "k8s: namespace payments, deployment checkout-api",
-        "runtime: prod-us-east-1/checkout-api"
+        "Service: checkout-service",
+        "Repository: repo-checkout (checkout-service)",
+        "Truth freshness: fresh",
+        "Code to runtime:",
+        "Trace status: partial",
+        "- source: exact (2 evidence)",
+        "- deployment: derived (3 evidence)",
+        "Missing evidence: runtime"
       ]
     },
     {
@@ -160,22 +162,23 @@ export const siteContent = {
       summary: "Start from IaC and find the services behind the resource.",
       activeNodeId: "terraform",
       output: [
-        "resource: terraform/aws_lb.main",
-        "module: modules/payments-lb",
-        "routes: checkout-api, payment-worker",
-        "owners: platform-payments",
-        "risk: 2 downstream services"
+        "Map: terraform/aws_lb.main",
+        "Resolved: TerraformResource tfstate:aws_lb.main (aws_lb.main)",
+        "Defined by:",
+        "- DEFINES infra-repo",
+        "Depends on:",
+        "- PROVISIONS_DEPENDENCY_FOR checkout",
+        "Evidence: 2 relationships"
       ]
     },
     {
       command: "eshu docs verify",
-      summary: "Compare written claims against indexed system evidence.",
+      summary: "Compare written claims against bounded local truth.",
       activeNodeId: "docs",
       output: [
-        "docs/runbooks/checkout.md: stale namespace",
-        "docs/architecture/payments.md: missing runtime edge",
-        "docs/oncall/payment-incidents.md: verified",
-        "result: 2 updates needed"
+        "Docs verify: documents=3 claims=6 valid=4 contradicted=1 missing_evidence=1 unsupported=0 truncated=false",
+        "- contradicted terraform_address aws_sqs_queue.missing",
+        "- missing_evidence image_ref ghcr.io/acme/checkout:1.2.3"
       ]
     }
   ] satisfies readonly CommandDemo[],
@@ -190,7 +193,7 @@ export const siteContent = {
       role: "Platform",
       question: "Which Kubernetes workloads does this Terraform feed?",
       answer:
-        "The load balancer maps to the payments namespace, checkout-api deployment, and two runtime endpoints in prod."
+        "The map command resolves a typed Terraform resource, shows bounded graph neighborhoods, and marks ambiguous selectors instead of guessing."
     },
     {
       role: "SRE",
@@ -208,13 +211,13 @@ export const siteContent = {
       role: "Docs",
       question: "Which runbooks disagree with production?",
       answer:
-        "Docs verification flags stale namespaces, missing runtime edges, and claims that no longer match the graph."
+        "Docs verification checks explicit local Markdown claims first, then persists finding and evidence packets for API and MCP readers when configured."
     },
     {
       role: "Leadership",
       question: "How much of the engineering estate is covered?",
       answer:
-        "Nearly 900 repos indexed in under 15 minutes, with code, IaC, Kubernetes, SQL, runtime evidence, and docs in one organization-wide graph."
+        "Eshu has drained 896 repositories and 8,347 fact queue rows in 14m13.6s, with code, IaC, Kubernetes, SQL, runtime evidence, and docs in one organization-wide graph."
     }
   ] satisfies readonly PersonaDemo[],
   cleanupModes: [
@@ -260,7 +263,7 @@ export const siteContent = {
     }
   ] satisfies readonly Surface[],
   coverage:
-    "Eshu indexes code and IaC together: SQL, Terraform, Kubernetes, Helm, Kustomize, Argo CD, Crossplane, CloudFormation, Terragrunt, Docker Compose, and language parsers for Go, TypeScript, Python, Java, Rust, PHP, Ruby, C#, Swift, Kotlin, and more. It can find symbols and dead code, then apply the same graph reachability model to dead IaC.",
+    "Eshu indexes code and IaC together: SQL, Terraform, Kubernetes, Helm, Kustomize, Argo CD, Crossplane, CloudFormation, Terragrunt, Docker Compose, and language parsers for Go, TypeScript, Python, Java, Rust, PHP, Ruby, C#, Swift, Kotlin, and more. Capability truth is profile-aware: some answers are exact and derived from indexed facts, while dead code and dead IaC cleanup remain candidate findings until reachability roots and runtime evidence prove them.",
   proofPoints: [
     {
       value: "Kubernetes",
@@ -269,10 +272,10 @@ export const siteContent = {
         "Eshu follows services through Kubernetes manifests, Helm values, workloads, and runtime evidence so teams can see where software runs."
     },
     {
-      value: "nearly 900 repos",
+      value: "896 repos",
       title: "Indexed in under 15 minutes",
       description:
-        "Eshu has indexed nearly 900 repositories in under 15 minutes, which makes whole-organization coverage practical."
+        "Eshu has drained 896 repositories and 8,347 fact queue rows in 14m13.6s, which makes whole-organization coverage practical."
     },
     {
       value: "organization-wide",

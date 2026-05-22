@@ -31,10 +31,10 @@ describe("App", () => {
     expect(screen.getByLabelText("Source to runtime graph")).toBeInTheDocument();
     expect(screen.getByText(/eshu trace service checkout/)).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Where the graph shows up" })).toBeInTheDocument();
-    expect(screen.getAllByText(/SQL, Terraform, Kubernetes/)).toHaveLength(3);
+    expect(screen.getAllByText(/SQL, Terraform, Kubernetes/)).toHaveLength(2);
     expect(screen.getByRole("heading", { name: "Built for the whole organization" })).toBeInTheDocument();
-    expect(screen.getAllByText(/nearly 900 repos/)).toHaveLength(2);
-    expect(screen.getAllByText(/under 15 minutes/)).toHaveLength(2);
+    expect(screen.getAllByText(/896 repos/)).toHaveLength(2);
+    expect(screen.getAllByText(/14m13\.6s/)).toHaveLength(1);
     expect(screen.getByRole("heading", { name: "Prompts for different jobs" })).toBeInTheDocument();
   });
 
@@ -45,11 +45,11 @@ describe("App", () => {
     expect(screen.getAllByText(/Graph ready for organization-wide questions/)).toHaveLength(2);
 
     fireEvent.click(screen.getByRole("button", { name: "eshu trace service checkout" }));
-    expect(screen.getByText(/service: checkout-service/)).toBeInTheDocument();
-    expect(screen.getByText(/k8s: namespace payments/)).toBeInTheDocument();
+    expect(screen.getByText(/Service: checkout-service/)).toBeInTheDocument();
+    expect(screen.getByText(/Trace status: partial/)).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Leadership" }));
-    expect(screen.getByText(/Nearly 900 repos indexed in under 15 minutes/)).toBeInTheDocument();
+    expect(screen.getAllByText(/896 repositories and 8,347 fact queue rows in 14m13\.6s/)).toHaveLength(2);
 
     fireEvent.click(screen.getByRole("button", { name: "Dead IaC" }));
     expect(screen.getByText(/terraform\/modules\/legacy-cache/)).toBeInTheDocument();
