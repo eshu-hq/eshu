@@ -1,26 +1,32 @@
-# Helm collector and webhook values
+# Helm Collector And Webhook Values
 
-Use this page to enable optional collectors and public webhook intake in the
-Helm chart. The chart source is `deploy/helm/eshu`.
+Use this page when enabling optional hosted collectors, the workflow
+coordinator, or public webhook intake in the Helm chart. The source of truth is
+`deploy/helm/eshu/values.yaml`, `values.schema.json`, and
+`templates/validate.yaml`.
 
-## Collector modes
+For runtime ownership, read
+[Collector Runtime Services](../../deployment/service-runtimes-collectors.md)
+and [Core Runtime Services](../../deployment/service-runtimes-core.md).
 
-The public chart supports two collector styles.
+## Enable The Right Runtime
 
-| Style | Workloads | Work source |
-| --- | --- | --- |
-| Direct-target collector | Confluence, OCI registry | Target values under the collector block. |
-| Claim-driven collector | Terraform-state, AWS cloud, Package Registry | Durable claims created by the workflow coordinator. |
+| Runtime | Chart block | Work source | Default |
+| --- | --- | --- | --- |
+| Workflow Coordinator | `workflowCoordinator` | reconciles collector instances and claims | disabled |
+| Webhook Listener | `webhookListener` | provider webhook deliveries | disabled |
+| Confluence Collector | `confluenceCollector` | explicit Confluence scope | disabled |
+| OCI Registry Collector | `ociRegistryCollector` | explicit registry targets | disabled |
+| Terraform State Collector | `terraformStateCollector` | workflow claims | disabled |
+| AWS Cloud Collector | `awsCloudCollector` | workflow claims | disabled |
+| Package Registry Collector | `packageRegistryCollector` | workflow claims | disabled |
 
-Claim-driven collectors require the workflow coordinator in active claim mode.
-The chart rejects installs where Terraform-state, AWS cloud, or Package
-Registry collector deployments are enabled without
-`workflowCoordinator.enabled=true`, `workflowCoordinator.deploymentMode=active`,
-and `workflowCoordinator.claimsEnabled=true`.
+Confluence and OCI registry are direct-target collectors in the public chart.
+Terraform-state, AWS cloud, and package-registry are claim-driven collectors.
 
-## Workflow coordinator
+## Claim-Driven Collector Rule
 
-Enable the coordinator before enabling claim-driven collectors.
+Claim-driven collector Deployments require an active workflow coordinator.
 
 ```yaml
 workflowCoordinator:
@@ -34,290 +40,210 @@ workflowCoordinator:
       enabled: true
       claims_enabled: true
       configuration:
-        targets:
-          - provider: npm
-            ecosystem: npm
-            registry: https://registry.npmjs.org
-            scope_id: npm://registry.npmjs.org/lodash
-            packages: [lodash]
-            package_limit: 1
-            version_limit: 2
-            metadata_url: https://registry.npmjs.org/lodash
+        targets: []
 ```
 
-## Confluence collector
+The chart fails during render when any claim-driven collector is enabled
+without all three coordinator settings:
 
-The Confluence collector is off by default. When enabled, it stores
-documentation sections in Postgres and keeps the runtime read-only against
-Confluence.
+- `workflowCoordinator.enabled=true`
+- `workflowCoordinator.deploymentMode=active`
+- `workflowCoordinator.claimsEnabled=true`
+
+When `workflowCoordinator.claimsEnabled=true`, the chart also requires
+`workflowCoordinator.collectorInstances` to contain at least one instance.
+
+## Workflow Coordinator Values
 
 | Value | Default | Purpose |
 | --- | --- | --- |
-| `confluenceCollector.enabled` | `false` | Deploy the collector. |
-| `confluenceCollector.baseUrl` | empty | Atlassian wiki base URL. |
-| `confluenceCollector.spaceId` | empty | Crawl one Confluence space by ID. |
-| `confluenceCollector.spaceIds` | `[]` | Crawl an explicit allowlist of Confluence space IDs. |
-| `confluenceCollector.spaceKey` | empty | Optional space key rendered to `ESHU_CONFLUENCE_SPACE_KEY`. |
+| `workflowCoordinator.enabled` | `false` | Render the coordinator Deployment and metrics Service. |
+| `workflowCoordinator.deploymentMode` | `dark` | `active` schedules claims; `dark` does not. |
+| `workflowCoordinator.claimsEnabled` | `false` | Allow claim creation and claim reaping. |
+| `workflowCoordinator.collectorInstances` | `[]` | Rendered to `ESHU_COLLECTOR_INSTANCES_JSON`. |
+| `workflowCoordinator.replicas` | `1` | Coordinator replica count. |
+| `workflowCoordinator.env` | `{}` | Coordinator-specific environment overrides. |
+| `workflowCoordinator.connectionTuning.postgres.*` | empty | Postgres pool and timeout overrides. |
+| `workflowCoordinator.connectionTuning.neo4j.*` | empty | Graph client pool and timeout overrides. |
+
+`workflowCoordinator.collectorInstances` is shared control-plane state. Keep the
+instance IDs aligned with each collector's `instanceId` value.
+
+## Direct Collectors
+
+### Confluence
+
+The Confluence collector reads Confluence documentation and writes
+documentation facts. It is read-only against Confluence.
+
+| Value | Default | Purpose |
+| --- | --- | --- |
+| `confluenceCollector.enabled` | `false` | Render the collector Deployment and metrics Service. |
+| `confluenceCollector.baseUrl` | empty | Atlassian wiki base URL. Required when enabled. |
+| `confluenceCollector.spaceId` | empty | Crawl one space by ID. |
+| `confluenceCollector.spaceIds` | `[]` | Crawl an explicit space allowlist. |
 | `confluenceCollector.rootPageId` | empty | Crawl under one root page. |
+| `confluenceCollector.spaceKey` | empty | Optional space key env. |
 | `confluenceCollector.pageLimit` | empty | Optional page limit. |
 | `confluenceCollector.pollInterval` | `5m` | Poll interval. |
-| `confluenceCollector.credentials.secretName` | empty | Secret containing Confluence auth material. |
+| `confluenceCollector.credentials.secretName` | empty | Secret containing auth material. Required when enabled. |
+| `confluenceCollector.credentials.emailKey` | `email` | Email key for email/API-token auth. |
+| `confluenceCollector.credentials.apiTokenKey` | `api-token` | API token key for email/API-token auth. |
+| `confluenceCollector.credentials.bearerTokenKey` | empty | Bearer token key. Replaces email/API-token auth when set. |
 
-The chart requires `baseUrl`, credentials, and exactly one crawl scope:
-`spaceId`, `spaceIds`, or `rootPageId`.
+The chart requires `baseUrl`, a credentials secret, and exactly one crawl
+scope: `spaceId`, `spaceIds`, or `rootPageId`.
 
-Use email/API-token credentials:
+### OCI Registry
 
-```yaml
-confluenceCollector:
-  enabled: true
-  baseUrl: https://example.atlassian.net/wiki
-  spaceId: "123456789"
-  credentials:
-    secretName: confluence-collector-credentials
-    emailKey: email
-    apiTokenKey: api-token
-```
-
-Or use a bearer token and a multi-space allowlist:
-
-```yaml
-confluenceCollector:
-  enabled: true
-  baseUrl: https://example.atlassian.net/wiki
-  spaceIds:
-    - "123456789"
-    - "987654321"
-  credentials:
-    secretName: confluence-collector-credentials
-    bearerTokenKey: token
-```
-
-## OCI registry collector
-
-The OCI registry collector is off by default. When enabled, it scans configured
-registry repositories and writes digest-addressed image facts to Postgres.
+The OCI registry collector reads configured registry targets and writes
+digest-addressed image facts.
 
 | Value | Default | Purpose |
 | --- | --- | --- |
-| `ociRegistryCollector.enabled` | `false` | Deploy the collector. |
-| `ociRegistryCollector.instanceId` | `oci-registry-primary` | Instance ID used in emitted scope metadata. |
+| `ociRegistryCollector.enabled` | `false` | Render the collector Deployment and metrics Service. |
+| `ociRegistryCollector.instanceId` | `oci-registry-primary` | Collector instance ID. |
 | `ociRegistryCollector.pollInterval` | `5m` | Poll interval. |
 | `ociRegistryCollector.targets` | `[]` | Direct registry targets. Required when enabled. |
-| `ociRegistryCollector.aws.region` | empty | Optional default AWS region for ECR targets. |
-| `ociRegistryCollector.extraEnv` | `[]` | Secret-backed env vars used by target credential indirection. |
+| `ociRegistryCollector.aws.region` | empty | Optional default AWS region for ECR. |
+| `ociRegistryCollector.extraEnv` | `[]` | Secret-backed env vars for target credential indirection. |
 
-The chart schema allows `jfrog`, `ecr`, `dockerhub`, and `ghcr` target
-providers. This chart keeps OCI registry in explicit direct-target mode through
-`ociRegistryCollector.targets`. Claim-aware OCI mode remains a runtime feature
-for local or custom deployments that set `ESHU_COLLECTOR_INSTANCES_JSON`
-directly.
+`values.schema.json` allows target providers `jfrog`, `ecr`, `dockerhub`, and
+`ghcr`. Each target requires `provider` and `repository`.
 
-ECR on EKS should use IAM Roles for Service Accounts through
-`serviceAccount.annotations`; do not set `aws_profile` in Kubernetes values.
+Use workload identity for ECR on EKS. Do not put static registry passwords in
+values; use target-level `*_env` fields plus `extraEnv` Secret references.
 
-```yaml
-serviceAccount:
-  annotations:
-    eks.amazonaws.com/role-arn: arn:aws:iam::123456789012:role/eshu-oci-registry-collector
+## Claim-Driven Collectors
 
-ociRegistryCollector:
-  enabled: true
-  instanceId: oci-registry-primary
-  aws:
-    region: us-east-1
-  targets:
-    - provider: ecr
-      registry_id: "123456789012"
-      region: us-east-1
-      repository: team/api
-      references: ["latest"]
-    - provider: dockerhub
-      repository: library/busybox
-      references: ["latest"]
-```
+### Terraform State
 
-Private JFrog, Docker Hub, and GHCR targets should use target-level env
-indirection plus `extraEnv` Secret refs:
-
-```yaml
-ociRegistryCollector:
-  enabled: true
-  targets:
-    - provider: jfrog
-      base_url: https://artifacts.example.test
-      repository_key: docker-local
-      repository: team/app
-      username_env: JFROG_USERNAME
-      password_env: JFROG_PASSWORD
-  extraEnv:
-    - name: JFROG_USERNAME
-      valueFrom:
-        secretKeyRef:
-          name: jfrog-oci-credentials
-          key: username
-    - name: JFROG_PASSWORD
-      valueFrom:
-        secretKeyRef:
-          name: jfrog-oci-credentials
-          key: password
-```
-
-This collector currently proves registry-to-Postgres fact ingestion. Graph
-projection and API/MCP image-correlation answers are a separate promotion step.
-
-## Terraform-state collector
-
-Terraform-state is claim-driven and uses secret-backed redaction. Do not put
-redaction keys or state credentials in values.
+Terraform-state collection is claim-driven and redacts sensitive state evidence.
 
 | Value | Default | Purpose |
 | --- | --- | --- |
-| `terraformStateCollector.enabled` | `false` | Deploy the collector. |
-| `terraformStateCollector.instanceId` | `terraform-state-primary` | Selected instance ID. |
-| `terraformStateCollector.pollInterval` | `1s` | Claim polling interval. |
-| `terraformStateCollector.claimLeaseTTL` | empty | Optional claim lease TTL override. |
-| `terraformStateCollector.heartbeatInterval` | empty | Optional claim heartbeat interval override. |
-| `terraformStateCollector.sourceMaxBytes` | empty | Optional maximum source payload size. |
+| `terraformStateCollector.enabled` | `false` | Render the collector Deployment and metrics Service. |
+| `terraformStateCollector.instanceId` | `terraform-state-primary` | Selected collector instance. Required when enabled. |
+| `terraformStateCollector.pollInterval` | `1s` | Claim poll interval. |
+| `terraformStateCollector.claimLeaseTTL` | empty | Optional claim lease TTL. |
+| `terraformStateCollector.heartbeatInterval` | empty | Optional claim heartbeat interval. |
+| `terraformStateCollector.sourceMaxBytes` | empty | Optional state payload limit. |
 | `terraformStateCollector.collectorInstances` | `[]` | Rendered to `ESHU_COLLECTOR_INSTANCES_JSON`. Required when enabled. |
 | `terraformStateCollector.redaction.secretName` | empty | Secret containing the redaction key. Required when enabled. |
-| `terraformStateCollector.redaction.keyKey` | `redaction-key` | Secret key name for the redaction key. |
+| `terraformStateCollector.redaction.keyKey` | `redaction-key` | Secret key for the redaction key. |
 | `terraformStateCollector.redaction.rulesetVersion` | empty | Redaction ruleset version. Required when enabled. |
+| `terraformStateCollector.redaction.sensitiveKeys` | empty | Optional sensitive-key override list. |
+| `terraformStateCollector.extraEnv` | `[]` | Extra Secret-backed environment variables. |
 
-```yaml
-terraformStateCollector:
-  enabled: true
-  instanceId: terraform-state-primary
-  redaction:
-    secretName: tfstate-redaction
-    keyKey: redaction-key
-    rulesetVersion: schema-v1
-  collectorInstances:
-    - instance_id: terraform-state-primary
-      collector_kind: terraform_state
-      mode: continuous
-      enabled: true
-      claims_enabled: true
-      configuration:
-        target_scopes:
-          - target_scope_id: aws-prod
-            provider: aws
-            deployment_mode: central
-            credential_mode: local_workload_identity
-            allowed_regions: [us-east-1]
-            allowed_backends: [s3]
-```
+Use the [Terraform State Collector](../../services/collector-terraform-state.md)
+runbook for target-scope and redaction details.
 
-## AWS cloud collector
+### AWS Cloud
 
-AWS cloud is claim-driven. On EKS, use workload identity instead of static
-access keys.
-
-```yaml
-awsCloudCollector:
-  enabled: true
-  instanceId: aws-primary
-  serviceAccount:
-    create: true
-    annotations:
-      eks.amazonaws.com/role-arn: arn:aws:iam::123456789012:role/eshu-aws-collector
-  collectorInstances:
-    - instance_id: aws-primary
-      collector_kind: aws
-      mode: continuous
-      enabled: true
-      claims_enabled: true
-      configuration:
-        target_scopes:
-          - account_id: "123456789012"
-            allowed_regions: [us-east-1]
-            allowed_services: [iam, ecr]
-            credentials:
-              mode: local_workload_identity
-```
-
-Use `awsCloudCollector.redaction.secretName` only when the selected AWS scan
-requires redaction material. The chart renders a dedicated ServiceAccount when
-`awsCloudCollector.serviceAccount.create=true`; otherwise it uses the shared
-release ServiceAccount.
-
-## Package Registry collector
-
-Package Registry is claim-driven. Credentials use target-level env indirection
-plus Secret refs.
-
-```yaml
-packageRegistryCollector:
-  enabled: true
-  collectorInstances:
-    - instance_id: package-registry-primary
-      collector_kind: package_registry
-      mode: continuous
-      enabled: true
-      claims_enabled: true
-      configuration:
-        targets:
-          - provider: jfrog
-            ecosystem: npm
-            registry: https://artifacts.example.test
-            scope_id: npm://artifacts.example.test/team/app
-            metadata_url: https://artifacts.example.test/api/npm/team/app
-            username_env: PACKAGE_REGISTRY_USERNAME
-            password_env: PACKAGE_REGISTRY_PASSWORD
-  extraEnv:
-    - name: PACKAGE_REGISTRY_USERNAME
-      valueFrom:
-        secretKeyRef:
-          name: package-registry-credentials
-          key: username
-    - name: PACKAGE_REGISTRY_PASSWORD
-      valueFrom:
-        secretKeyRef:
-          name: package-registry-credentials
-          key: password
-```
-
-## Webhook listener
-
-The webhook listener is off by default. When enabled, it accepts provider
-webhook deliveries, verifies provider secrets, and writes refresh triggers to
-Postgres. It does not mount the repository workspace PVC or graph credentials.
+AWS cloud collection is claim-driven. On EKS, prefer IRSA through
+`awsCloudCollector.serviceAccount.annotations`.
 
 | Value | Default | Purpose |
 | --- | --- | --- |
-| `webhookListener.enabled` | `false` | Deploy the listener. |
+| `awsCloudCollector.enabled` | `false` | Render the collector Deployment and metrics Service. |
+| `awsCloudCollector.instanceId` | `aws-cloud-primary` | Selected collector instance. Required when enabled. |
+| `awsCloudCollector.pollInterval` | `1s` | Claim poll interval. |
+| `awsCloudCollector.claimLeaseTTL` | empty | Optional claim lease TTL. |
+| `awsCloudCollector.heartbeatInterval` | empty | Optional claim heartbeat interval. |
+| `awsCloudCollector.collectorInstances` | `[]` | Rendered to `ESHU_COLLECTOR_INSTANCES_JSON`. Required when enabled. |
+| `awsCloudCollector.serviceAccount.create` | `false` | Render a dedicated collector ServiceAccount. |
+| `awsCloudCollector.serviceAccount.name` | empty | Existing ServiceAccount name override. |
+| `awsCloudCollector.serviceAccount.annotations` | `{}` | IRSA or cloud-identity annotations. |
+| `awsCloudCollector.redaction.secretName` | empty | Optional redaction key Secret. |
+| `awsCloudCollector.redaction.keyKey` | `redaction-key` | Secret key for optional redaction material. |
+| `awsCloudCollector.extraEnv` | `[]` | Extra Secret-backed environment variables. |
+
+Use the [AWS Cloud Collector](../../services/collector-aws-cloud.md) runbook for
+target-scope, permissions, and scanner coverage.
+
+### Package Registry
+
+Package registry collection is claim-driven and uses target-level credential
+environment indirection.
+
+| Value | Default | Purpose |
+| --- | --- | --- |
+| `packageRegistryCollector.enabled` | `false` | Render the collector Deployment and metrics Service. |
+| `packageRegistryCollector.instanceId` | `package-registry-primary` | Selected collector instance. Required when enabled. |
+| `packageRegistryCollector.pollInterval` | `1s` | Claim poll interval. |
+| `packageRegistryCollector.claimLeaseTTL` | empty | Optional claim lease TTL. |
+| `packageRegistryCollector.heartbeatInterval` | empty | Optional claim heartbeat interval. |
+| `packageRegistryCollector.collectorInstances` | `[]` | Rendered to `ESHU_COLLECTOR_INSTANCES_JSON`. Required when enabled. |
+| `packageRegistryCollector.extraEnv` | `[]` | Secret-backed env vars for registry credentials. |
+
+Supported parser families are documented in
+[Collector Runtime Services](../../deployment/service-runtimes-collectors.md).
+
+## Webhook Listener
+
+The webhook listener verifies provider secrets and writes durable refresh
+triggers to Postgres. It does not mount the repository workspace PVC and does
+not connect to the graph backend.
+
+| Value | Default | Purpose |
+| --- | --- | --- |
+| `webhookListener.enabled` | `false` | Render the listener Deployment and Service. |
 | `webhookListener.maxBodyBytes` | `1048576` | Maximum webhook body size. |
-| `webhookListener.defaultBranch` | empty | Optional default branch for refresh triggers. |
-| `webhookListener.github.enabled` | `false` | Enable the GitHub route. |
-| `webhookListener.gitlab.enabled` | `false` | Enable the GitLab route. |
-| `webhookListener.bitbucket.enabled` | `false` | Enable the Bitbucket route. |
-| `webhookListener.awsFreshness.enabled` | `false` | Enable the AWS freshness route. |
-| `webhookListener.exposure.ingress.enabled` | `false` | Render provider-only ingress paths. |
+| `webhookListener.defaultBranch` | empty | Optional fallback branch for refresh triggers. |
+| `webhookListener.github.enabled` | `false` | Enable `/webhooks/github` by default. |
+| `webhookListener.github.secretName` | empty | GitHub secret Secret name. Required when GitHub is enabled. |
+| `webhookListener.gitlab.enabled` | `false` | Enable `/webhooks/gitlab` by default. |
+| `webhookListener.gitlab.secretName` | empty | GitLab token Secret name. Required when GitLab is enabled. |
+| `webhookListener.bitbucket.enabled` | `false` | Enable `/webhooks/bitbucket` by default. |
+| `webhookListener.bitbucket.secretName` | empty | Bitbucket secret Secret name. Required when Bitbucket is enabled. |
+| `webhookListener.awsFreshness.enabled` | `false` | Enable `/webhooks/aws/eventbridge` by default. |
+| `webhookListener.awsFreshness.secretName` | empty | AWS freshness token Secret name. Required when AWS freshness is enabled. |
+| `webhookListener.exposure.ingress.enabled` | `false` | Render provider-only Ingress paths. |
+| `webhookListener.exposure.ingress.hosts` | `[]` | Hosts for provider-only webhook routing. |
 
-The chart requires at least one provider route when the listener is enabled.
-Each enabled provider requires its Secret name.
+When `webhookListener.enabled=true`, the chart requires at least one enabled
+provider. The webhook Ingress renders only exact provider paths. Keep health,
+status, and metrics routes internal unless you add separate protected routing.
 
-```yaml
-webhookListener:
-  enabled: true
-  github:
-    enabled: true
-    secretName: github-webhook-secret
-  bitbucket:
-    enabled: true
-    secretName: bitbucket-webhook-secret
-  awsFreshness:
-    enabled: true
-    secretName: aws-freshness-webhook-token
-  exposure:
-    ingress:
-      enabled: true
-      hosts:
-        - host: hooks.example.com
+## Shared Workload Settings
+
+Each collector and the webhook listener supports:
+
+- `replicas`
+- `revisionHistoryLimit`
+- `resources`
+- `connectionTuning.postgres.*`
+- global `podLabels`, `podAnnotations`, `nodeSelector`, `affinity`, and
+  `tolerations`
+
+Workflow coordinator also supports `connectionTuning.neo4j.*`. Workload
+environment maps are rendered after global `env` when a workload has its own
+`env` block.
+
+## Render Checks
+
+Run these before applying collector or webhook values:
+
+```bash
+helm template eshu ./deploy/helm/eshu -f values.yaml
+helm lint ./deploy/helm/eshu -f values.yaml
 ```
 
-Only provider webhook paths are routed by the chart ingress. Set those paths
-with `webhookListener.github.path`, `webhookListener.gitlab.path`,
-`webhookListener.bitbucket.path`, and `webhookListener.awsFreshness.path`.
-Runtime health, status, and metrics endpoints stay on the internal service
-unless an operator adds separate protected routing.
+The render fails for these common mistakes:
+
+- claim-driven collectors without an active workflow coordinator
+- empty `collectorInstances` for enabled claim-driven collectors
+- missing Terraform-state redaction Secret or ruleset version
+- OCI registry enabled with no targets
+- webhook listener enabled with no provider
+- webhook provider enabled without its Secret name
+- Confluence enabled without base URL, credentials, or exactly one crawl scope
+
+## Related Docs
+
+- [Helm Values](helm-values.md)
+- [Runtime Values](helm-runtime-values.md)
+- [Routing And Storage Values](helm-routing-and-storage-values.md)
+- [Collector Runtime Services](../../deployment/service-runtimes-collectors.md)
+- [Workflow Coordinator Runtime](../../deployment/service-runtimes-core.md#workflow-coordinator)
+- [Webhook Listener Runtime](../../deployment/service-runtimes-core.md#webhook-listener)

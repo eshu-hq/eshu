@@ -86,9 +86,16 @@ cleanup pass.
 | MCP Cookbook Rewrite | Reduced the MCP cookbook into copy-ready current recipes, removed invalid arguments from deployment and call-chain examples, and corrected the MCP package README to the current 71-tool contract. |
 | Documentation Updater Actuator Contract Rewrite | Reduced the updater actuator contract from stale future-planning prose into the current read-only documentation findings, facts, evidence-packet, freshness, permission, and error contract grounded in query/MCP code. |
 | Bootstrap Index Docs And Copied Image Cleanup | Reduced the bootstrap-index package README into the current one-shot runtime contract, corrected scoped agent guidance and public service wording, and removed copied image assets that did not belong to Eshu docs. |
+| Helm Collector And Webhook Values Rewrite | Reduced the collector/webhook Helm values page from example-heavy provider snippets into the current operator map for coordinator, direct collectors, claim-driven collectors, webhook routing, shared workload settings, and render guardrails grounded in chart values and templates. |
 
 ## Verification Snapshot
 
+- `go run ./cmd/eshu docs verify ../docs/public/deploy/kubernetes/helm-collector-and-webhook-values.md --limit 1200 --fail-on contradicted,missing_evidence`
+  passed with 1 document, 4 claims, 0 contradicted, and 0 missing evidence
+  claims after the Helm collector/webhook values rewrite.
+- `helm template eshu ./deploy/helm/eshu` and
+  `helm lint ./deploy/helm/eshu` passed after the Helm collector/webhook values
+  rewrite. Helm lint reported only the chart-icon recommendation.
 - `go run ./cmd/eshu docs verify .. --limit 2000 --fail-on contradicted,missing_evidence`
   passed with 569 documents, 1,751 claims, 0 contradicted, and 0 missing
   evidence claims after the bootstrap-index docs and copied-image cleanup.
@@ -292,9 +299,9 @@ cleanup pass.
 
 - Continue reviewing oversized public and package docs. The current largest
   real documentation files are
-  `docs/public/deploy/kubernetes/helm-collector-and-webhook-values.md`, and
-  `docs/public/reference/cli-reference.md`, and
-  `docs/public/reference/configuration.md`. The scoped
+  `docs/public/reference/cli-reference.md`,
+  `docs/public/reference/configuration.md`, and
+  `go/internal/projector/README.md`. The scoped
   `go/internal/storage/postgres/AGENTS.md` remains large, but any reduction
   there must preserve mandatory agent guidance. The larger
   `tests/fixtures/sample_projects/sample_project_typescript/README.md` fixture
