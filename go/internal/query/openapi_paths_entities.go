@@ -193,6 +193,7 @@ const openAPIPathsEntities = `
                     "service_name": {"type": "string"},
                     "story": {"type": "string"},
                     "story_sections": {"type": "array", "items": {"type": "object"}},
+                    "code_to_runtime_trace": {"type": "object"},
                     "service_identity": {"type": "object"},
                     "api_surface": {"type": "object"},
                     "deployment_lanes": {"type": "array", "items": {"type": "object"}},

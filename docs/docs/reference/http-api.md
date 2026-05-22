@@ -675,6 +675,13 @@ Treat the story routes as the top-level contract for repo/service/workload
 narratives. Use the context routes, trace routes, and content routes named in
 `drilldowns` for follow-up evidence.
 
+Service story responses include `code_to_runtime_trace`, a bounded segment
+summary over the already-scoped dossier. It reports service identity, code/API
+entrypoint, CI/CD, image/package, deployment-config, runtime, and cloud
+dependency segments with explicit `exact`, `derived`, or `missing_evidence`
+status. Missing cloud or CI evidence stays visible as a missing segment; the
+route does not infer runtime truth from repository names.
+
 For documentation generation, use this HTTP flow:
 
 1. call a story route first

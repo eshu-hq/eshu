@@ -22,6 +22,7 @@ func TestOpenAPISpecServiceStoryExposesDossierFields(t *testing.T) {
 
 	for _, field := range []string{
 		"service_identity",
+		"code_to_runtime_trace",
 		"api_surface",
 		"deployment_lanes",
 		"upstream_dependencies",

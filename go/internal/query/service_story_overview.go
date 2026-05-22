@@ -10,10 +10,11 @@ import (
 func buildServiceStoryResponse(serviceName string, workloadContext map[string]any) map[string]any {
 	serviceName = canonicalServiceName(serviceName, workloadContext)
 	response := map[string]any{
-		"service_name":        serviceName,
-		"story":               buildWorkloadStory(workloadContext),
-		"story_sections":      buildServiceStorySections(workloadContext),
-		"deployment_overview": buildServiceDeploymentOverview(workloadContext),
+		"service_name":          serviceName,
+		"story":                 buildWorkloadStory(workloadContext),
+		"story_sections":        buildServiceStorySections(workloadContext),
+		"deployment_overview":   buildServiceDeploymentOverview(workloadContext),
+		"code_to_runtime_trace": buildServiceCodeToRuntimeTrace(workloadContext),
 	}
 	for _, key := range []string{"documentation_overview", "support_overview"} {
 		if value, ok := workloadContext[key]; ok && value != nil {
