@@ -338,6 +338,40 @@ CREATE INDEX IF NOT EXISTS fact_records_active_container_image_refs_idx
 	}
 }
 
+func TestBootstrapDefinitionsIncludeServiceCatalogCorrelationFactIndexes(t *testing.T) {
+	t.Parallel()
+
+	var facts Definition
+	for _, def := range BootstrapDefinitions() {
+		if def.Name == "fact_records" {
+			facts = def
+			break
+		}
+	}
+	if facts.Name == "" {
+		t.Fatal("fact_records definition missing")
+	}
+	for _, want := range []string{
+		"fact_records_service_catalog_correlations_entity_idx",
+		"fact_records_service_catalog_correlations_repository_idx",
+		"fact_records_service_catalog_correlations_owner_idx",
+		"'reducer_service_catalog_correlation'",
+		"(payload->>'provider')",
+		"(payload->>'entity_ref')",
+		"(payload->>'repository_id')",
+		"(payload->>'service_id')",
+		"(payload->>'workload_id')",
+		"(payload->>'owner_ref')",
+		"(payload->>'outcome')",
+		"(payload->>'drift_status')",
+		"fact_id ASC",
+	} {
+		if !strings.Contains(facts.SQL, want) {
+			t.Fatalf("fact_records SQL missing %q", want)
+		}
+	}
+}
+
 func TestBootstrapDefinitionsIncludeSBOMAttestationAttachmentFactIndexes(t *testing.T) {
 	t.Parallel()
 

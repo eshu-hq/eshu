@@ -69,6 +69,7 @@ canonical-write or bounded counter-emission requirements.
 | `DomainAWSCloudRuntimeDrift` | Publish admitted AWS runtime orphan, unmanaged, unknown, and ambiguous drift findings as canonical reducer facts |
 | `DomainContainerImageIdentity` | Join Git, OCI registry, and runtime image references into digest-keyed reducer facts |
 | `DomainCICDRunCorrelation` | Correlate CI/CD runs, artifacts, and environments with artifact identity evidence |
+| `DomainServiceCatalogCorrelation` | Correlate service-catalog entities with explicit repository links and ownership evidence without inventing workloads |
 | `DomainSBOMAttestationAttachment` | Attach SBOM and attestation documents to image digests only when subject evidence is explicit |
 | `DomainSupplyChainImpact` | Publish vulnerability impact findings only when explicit vulnerability, package, SBOM, image, or repository evidence exists |
 
@@ -396,6 +397,12 @@ Key metrics (all prefixed `eshu_dp_`):
   source-hint ownership candidates and package-version publication evidence as
   `provenance_only=true`, while manifest-backed consumption decisions are
   canonical package consumption truth.
+- `service_catalog_correlations_total` — service-catalog correlation decisions
+  by bounded outcome (`exact`, `derived`, `ambiguous`, `unresolved`, `stale`,
+  `rejected`) and reducer domain. Durable service-catalog correlation facts
+  store catalog entity, owner, repository, service/workload IDs when explicitly
+  supplied by evidence, drift status, candidate repository IDs, and evidence
+  fact IDs for API/MCP freshness checks.
 - `correlation_rule_matches_total`, `correlation_orphan_detected_total`, and
   `correlation_unmanaged_detected_total` — AWS runtime drift rule execution and
   admitted orphan/unmanaged findings. Unknown and ambiguous findings are exposed
@@ -444,6 +451,13 @@ Log phase attributes: `telemetry.PhaseReduction` (main loop),
   source declaration. Publication fact identity includes source-hint kind, fact
   ID, and version scope so repository and homepage hints with the same URL do
   not overwrite one another.
+- **Service catalog correlation is repository-evidence gated** —
+  `ServiceCatalogCorrelationHandler` writes
+  `reducer_service_catalog_correlation` facts for explicit repository-id or
+  repository-URL links only. Name-only links are rejected, tombstoned matches are
+  stale, and multiple active repository matches are ambiguous. Catalog names,
+  component names, and ownership labels never create repository, service, or
+  workload truth by themselves.
 - **Projection must be idempotent** — queue retries, duplicate claims, and
   partial graph writes must converge on the same truth.
 - **Generation supersession** — `Runtime.execute` calls `GenerationCheck`

@@ -106,6 +106,10 @@ type DefaultHandlers struct {
 	// environment correlation decisions for CI/CD evidence.
 	CICDRunCorrelationWriter CICDRunCorrelationWriter
 
+	// ServiceCatalogCorrelationWriter persists service-catalog ownership and
+	// repository correlation decisions.
+	ServiceCatalogCorrelationWriter ServiceCatalogCorrelationWriter
+
 	// SBOMAttestationAttachmentWriter persists SBOM and attestation document
 	// attachment decisions for digest-keyed image evidence.
 	SBOMAttestationAttachmentWriter SBOMAttestationAttachmentWriter
@@ -267,6 +271,15 @@ func implementedDefaultDomainDefinitions(handlers DefaultHandlers) []DomainDefin
 			Instruments: handlers.Instruments,
 		}
 		definitions = append(definitions, cicdRun)
+	}
+	if handlers.FactLoader != nil && handlers.ServiceCatalogCorrelationWriter != nil {
+		serviceCatalog := serviceCatalogCorrelationDomainDefinition()
+		serviceCatalog.Handler = ServiceCatalogCorrelationHandler{
+			FactLoader:  handlers.FactLoader,
+			Writer:      handlers.ServiceCatalogCorrelationWriter,
+			Instruments: handlers.Instruments,
+		}
+		definitions = append(definitions, serviceCatalog)
 	}
 	if handlers.FactLoader != nil && handlers.SBOMAttestationAttachmentWriter != nil {
 		attachments := sbomAttestationAttachmentDomainDefinition()

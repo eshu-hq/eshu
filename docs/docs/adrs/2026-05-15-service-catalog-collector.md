@@ -306,6 +306,35 @@ Rules:
 - The collector must not write back to Backstage, OpsLevel, Cortex, Git, Jira,
   Slack, PagerDuty, or any catalog system.
 
+## Implementation Status
+
+2026-05-22:
+
+- Fact-kind contracts and bounded API/MCP reads are implemented for
+  `reducer_service_catalog_correlation`.
+- The projector emits one `service_catalog_correlation` reducer intent per
+  service-catalog scope/generation and rejects unsupported service-catalog
+  schema versions before queueing reducer work.
+- `DomainServiceCatalogCorrelation` persists reducer-owned facts for exact,
+  derived, ambiguous, unresolved, stale, and rejected repository-link outcomes.
+  Name-only links are rejected and catalog names do not create repositories,
+  services, or workloads.
+- Postgres fact-record indexes bound reads by scope, provider, entity,
+  repository, service, workload, owner, outcome, and drift status.
+
+No-Regression Evidence:
+`go test ./internal/reducer -run 'TestBuildServiceCatalog|TestServiceCatalogCorrelation|TestPostgresServiceCatalog|TestImplementedDefaultDomainDefinitions.*ServiceCatalogCorrelation' -count=1`,
+`go test ./internal/projector -run 'TestBuildProjection.*ServiceCatalog' -count=1`,
+`go test ./internal/storage/postgres -run 'TestBootstrapDefinitionsIncludeServiceCatalogCorrelationFactIndexes' -count=1`,
+and `go test ./internal/telemetry -run 'TestInstruments|TestMetricDimensionKeys|TestSpanNames' -count=1`.
+
+Observability Evidence:
+`eshu_dp_service_catalog_correlations_total` reports reducer decisions by
+domain and outcome. API/MCP reads remain covered by
+`query.service_catalog_correlations`, existing Postgres query-duration
+instrumentation, indexed fact-record predicates, and paginated response
+metadata.
+
 ## Implementation Gate
 
 The first implementation should be split into small PRs:

@@ -77,6 +77,7 @@ type Instruments struct {
 	PackageSourceCorrelations                 metric.Int64Counter
 	ContainerImageIdentityDecisions           metric.Int64Counter
 	CICDRunCorrelations                       metric.Int64Counter
+	ServiceCatalogCorrelations                metric.Int64Counter
 	SBOMAttestationAttachments                metric.Int64Counter
 	SupplyChainImpactFindings                 metric.Int64Counter
 	ConfluenceHTTPRequests                    metric.Int64Counter
@@ -568,6 +569,14 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register CICDRunCorrelations counter: %w", err)
+	}
+
+	inst.ServiceCatalogCorrelations, err = meter.Int64Counter(
+		"eshu_dp_service_catalog_correlations_total",
+		metric.WithDescription("Total service catalog correlation decisions by reducer domain and outcome"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register ServiceCatalogCorrelations counter: %w", err)
 	}
 
 	inst.SBOMAttestationAttachments, err = meter.Int64Counter(
