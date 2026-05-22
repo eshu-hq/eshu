@@ -10,7 +10,7 @@ you run that separately.
 ## Full local end-to-end
 
 Use this path from a checkout when you want the local Eshu service to manage the
-graph, Postgres, ingester, reducer, and MCP helper binaries for one workspace:
+graph, Postgres, ingester, and reducer for one workspace:
 
 ```bash
 git clone https://github.com/eshu-hq/eshu.git
@@ -82,9 +82,10 @@ style binaries that connect to an external graph endpoint. Set
 `ESHU_LOCAL_OWNER_BUILD_TAGS=` only when you deliberately want a plain local
 service build for explicit process-mode testing.
 
-`eshu graph start` discovers `eshu-ingester`, `eshu-reducer`, and
-`eshu-mcp-server` through `PATH`, so keep that install directory on `PATH` for
-the shell where you start Eshu.
+`eshu graph start` discovers `eshu-ingester` and `eshu-reducer` through
+`PATH`, so keep that install directory on `PATH` for the shell where you start
+Eshu. `eshu mcp start` discovers `eshu-mcp-server` through `PATH` when you
+start the local MCP surface.
 
 ## NornicDB runtime mode
 

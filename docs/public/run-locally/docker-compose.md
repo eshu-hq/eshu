@@ -10,7 +10,7 @@ want fast rebuilds without containers.
 | Compose file or profile | What it starts | Use it when |
 | --- | --- | --- |
 | `docker-compose.yaml` | Default local stack with NornicDB, Postgres, migration, workspace setup, bootstrap indexing, API, MCP, ingester, and reducer. | You want the normal local product stack. Start here. |
-| `docker-compose.neo4j.yml` | Same runtime shape as the default stack, but with Neo4j instead of NornicDB. | You need Neo4j compatibility checks or a Neo4j-backed migration path. |
+| `docker-compose.neo4j.yml` | Same core runtime shape as the default stack, but with Neo4j instead of NornicDB. It includes the workflow-coordinator profile, but not the default-stack webhook-listener profile. | You need Neo4j compatibility checks or a Neo4j-backed migration path. |
 | `docker-compose.telemetry.yml` | Adds Jaeger, the OpenTelemetry collector, and OTLP export settings to the main runtimes. | You need local traces, metrics export, or operator debugging data. |
 | `--profile workflow-coordinator` | Adds the workflow coordinator to the default or Neo4j stack. | You are testing collector claims, scheduling, or control-plane behavior. |
 | `--profile webhook-listener` | Adds the webhook listener to the default NornicDB stack. | You are testing webhook-driven freshness or external event ingestion locally. |
@@ -36,8 +36,8 @@ state, facts, queues, status, content, and recovery data.
 | `db-migrate` | One-shot data-plane schema migration for Postgres and the graph backend. | none |
 | `workspace-setup` | One-shot setup for `/data/.eshu`, `/data/repos`, and optional `.eshuignore` input. | none |
 | `bootstrap-index` | One-shot initial repository indexing and first projection pass. | `19467` metrics |
-| `eshu` | HTTP API runtime. | `8080` |
-| `mcp-server` | MCP server for assistant and tool clients. | `8081` |
+| `eshu` | HTTP API runtime. The API mounts `/metrics` on the same container listener. | `8080`, `19464` metrics |
+| `mcp-server` | MCP server for assistant and tool clients. MCP mounts `/metrics` on the same container listener. | `8081`, `19468` metrics |
 | `ingester` | Continuous repository sync, discovery, parsing, and fact emission. | `19465` metrics |
 | `resolution-engine` | Reducer queue drain, graph projection, repair flows, and shared materialization. | `19466` metrics |
 
@@ -68,8 +68,8 @@ enable a profile.
 
 | Profile | Service | Provides | Use it when |
 | --- | --- | --- | --- |
-| `workflow-coordinator` | `workflow-coordinator` | Collector scheduling and claim ownership control plane. | You need to inspect scheduler state or run an active claim proof. |
-| `webhook-listener` | `webhook-listener` | HTTP intake for webhook freshness events. | You need to test webhook-driven refresh behavior. |
+| `workflow-coordinator` | `workflow-coordinator` | Collector scheduling and claim ownership control plane on `18082`, with metrics on `19469`. | You need to inspect scheduler state or run an active claim proof. |
+| `webhook-listener` | `webhook-listener` | HTTP intake for GitHub, GitLab, Bitbucket, and AWS freshness events on `18083`. | You need to test webhook-driven refresh behavior. |
 
 Start the workflow coordinator in its default dark mode:
 
@@ -96,8 +96,8 @@ docker compose -f docker-compose.neo4j.yml up --build
 | `db-migrate` | One-shot schema migration for Postgres and Neo4j. | none |
 | `workspace-setup` | One-shot local workspace setup. | none |
 | `bootstrap-index` | One-shot initial indexing and first projection pass. | `19467` metrics |
-| `eshu` | HTTP API runtime. | `8080` |
-| `mcp-server` | MCP server for assistant and tool clients. | `8081` |
+| `eshu` | HTTP API runtime. The API mounts `/metrics` on the same container listener. | `8080`, `19464` metrics |
+| `mcp-server` | MCP server for assistant and tool clients. MCP mounts `/metrics` on the same container listener. | `8081`, `19468` metrics |
 | `ingester` | Continuous repository sync, discovery, parsing, and fact emission. | `19465` metrics |
 | `workflow-coordinator` | Optional workflow coordinator profile. | `18082`, `19469` metrics |
 | `resolution-engine` | Reducer queue drain, graph projection, repair flows, and shared materialization. | `19466` metrics |
@@ -292,9 +292,17 @@ needed to point `eshu scan` or `eshu index` at Compose stores, see
 | Endpoint | URL or address |
 | --- | --- |
 | API | `http://localhost:8080` |
+| API metrics | `http://localhost:19464/metrics` |
 | MCP server | `http://localhost:8081` |
+| MCP metrics | `http://localhost:19468/metrics` |
 | Postgres | `localhost:15432` |
 | Graph Bolt endpoint | `localhost:7687` |
+| Ingester metrics | `http://localhost:19465/metrics` |
+| Resolution engine metrics | `http://localhost:19466/metrics` |
+| Bootstrap index metrics | `http://localhost:19467/metrics` |
+| Workflow coordinator, when profiled on | `http://localhost:18082` |
+| Workflow coordinator metrics, when profiled on | `http://localhost:19469/metrics` |
+| Webhook listener, default stack only and when profiled on | `http://localhost:18083` |
 | Jaeger, with telemetry overlay | `http://localhost:16686` |
 
 See [Connect MCP locally](mcp-local.md) for MCP client setup.

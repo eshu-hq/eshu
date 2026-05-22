@@ -23,13 +23,15 @@ to edit, then open the focused page for the details.
 Render the chart locally whenever values change:
 
 ```bash
-helm template eshu ./deploy/helm/eshu -f values.yaml
+helm template eshu ./deploy/helm/eshu
+helm template eshu ./deploy/helm/eshu -f values.eshu.yaml
 ```
 
 Use `helm lint` when Helm is available in the local environment:
 
 ```bash
-helm lint ./deploy/helm/eshu -f values.yaml
+helm lint ./deploy/helm/eshu
+helm lint ./deploy/helm/eshu -f values.eshu.yaml
 ```
 
 ## Values to review first

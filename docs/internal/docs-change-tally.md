@@ -90,9 +90,36 @@ cleanup pass.
 | Configuration Reference Rewrite | Reduced the configuration page from a duplicated environment catalog into a route map for `eshu config`, environment references, local binaries, graph backend install, project-local discovery, and workspace/recovery references grounded in CLI config code. |
 | CLI Reference Rewrite | Reduced the CLI reference into a code-grounded command matrix; corrected root flags, scan flags, API-backed query/workspace behavior, remote flag handling, component flags, deprecated `start`, the unusable `w` shortcut, and service binary version probes. |
 | Service Runtime Workflow Rewrite | Reduced the service workflow page into current ingestion, reducer, query, bootstrap/recovery, and collector-control flows; corrected source-local projector ownership, backend-neutral query wording, runtime matrix scope, ingester worker defaults, reducer shared-projection defaults, reducer retry attempts, and API key knobs. |
+| Compose Helm And Local Binary Docs Rewrite | Corrected Compose service/metrics port tables, Neo4j stack scope, local binary/MCP ownership, AWS freshness webhook coverage, Helm render examples, and the Helm quickstart collector flow. |
 
 ## Verification Snapshot
 
+- `go run ./cmd/eshu docs verify ../docs/public/run-locally/docker-compose.md --limit 1200 --fail-on contradicted,missing_evidence`
+  passed with 1 document, 6 claims, 0 contradicted, and 0 missing evidence
+  claims after the Compose docs rewrite.
+- `go run ./cmd/eshu docs verify ../docs/public/run-locally/local-binaries.md --limit 1200 --fail-on contradicted,missing_evidence`
+  passed with 1 document, 17 claims, 0 contradicted, and 0 missing evidence
+  claims after correcting local service and MCP binary ownership.
+- `go run ./cmd/eshu docs verify ../docs/public/deploy/kubernetes --limit 1200 --fail-on contradicted,missing_evidence`
+  passed with 12 documents, 28 claims, 0 contradicted, and 0 missing evidence
+  claims after the Helm/Kubernetes docs rewrite. The verifier reported only
+  unsupported shell-command claim types for `helm` and `kubectl`.
+- `helm lint ./deploy/helm/eshu`, `helm template eshu ./deploy/helm/eshu`,
+  Prometheus ServiceMonitor render, bundled-NornicDB render with Helm hooks
+  disabled, AWS freshness webhook render, and active Terraform-state collector
+  render passed after the Helm docs rewrite. Helm lint reported only the
+  chart-icon recommendation.
+- `go run ./cmd/eshu docs verify ../docs/public --limit 1000 --fail-on contradicted,missing_evidence`
+  passed with 181 documents, 1,230 claims, 0 contradicted, and 0 missing
+  evidence claims after the Compose/Helm/local-binary docs rewrite.
+- `go run ./cmd/eshu docs verify .. --limit 2000 --fail-on contradicted,missing_evidence`
+  passed with 569 documents, 1,689 claims, 0 contradicted, and 0 missing
+  evidence claims after the Compose/Helm/local-binary docs rewrite.
+- `scripts/verify-package-docs.sh`, `git diff --check`, `cmp -s AGENTS.md CLAUDE.md`,
+  and `uv run --with mkdocs --with mkdocs-material --with pymdown-extensions mkdocs build --strict --clean --config-file docs/mkdocs.yml`
+  passed after the Compose/Helm/local-binary docs rewrite. The package-doc
+  verifier reported no changed Go package source files. Docker Compose config
+  expansion was not run because `docker` is not installed in this shell.
 - `go run ./cmd/eshu docs verify ../docs/public/reference/service-workflows.md --limit 1200 --fail-on contradicted,missing_evidence`
   passed with 1 document, 0 claims, 0 contradicted, and 0 missing evidence
   claims after the service runtime workflow rewrite.
@@ -358,9 +385,8 @@ cleanup pass.
   real documentation files are
   `docs/public/reference/collector-reducer-readiness.md` and
   `docs/public/reference/fact-envelope-reference.md`. Current subagent audits
-  identified Compose/Helm/local-binary docs as the next ready target, and the
-  collector/fact/reducer extension audit found fact-envelope/schema and
-  collector-readiness cleanup targets. The scoped
+  identified fact-envelope/schema consolidation and collector-readiness cleanup
+  as the next ready targets. The scoped
   `go/internal/storage/postgres/AGENTS.md` remains large, but any reduction
   there must preserve mandatory agent guidance. The larger
   `tests/fixtures/sample_projects/sample_project_typescript/README.md` fixture

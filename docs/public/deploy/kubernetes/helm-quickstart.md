@@ -15,7 +15,7 @@ The defaults expect:
 - `eshu-api-auth` with key `api-key`
 - `eshu-neo4j` with keys `username` and `password`
 - `github-app-credentials` when `repoSync.auth.method=githubApp`
-- `confluence-collector-credentials` when `confluenceCollector.enabled=true`
+- collector credentials only for the optional collectors you enable
 
 For Confluence Cloud email/API-token auth:
 
@@ -50,23 +50,10 @@ repoSync:
         value: eshu-hq/eshu
 ```
 
-To deploy the Confluence collector in the same release, add one crawl scope and
-point it at the Secret:
-
-```yaml
-confluenceCollector:
-  enabled: true
-  baseUrl: https://example.atlassian.net/wiki
-  spaceId: "123456789"
-  spaceKey: DEV
-  pollInterval: 5m
-  credentials:
-    secretName: confluence-collector-credentials
-```
-
-Use `rootPageId` instead of `spaceId` when you want a smaller subtree crawl.
-The collector writes documentation sections to Postgres and does not write back
-to Confluence.
+For collector-specific values, credentials, and guardrails, use
+[Collector and webhook values](helm-collector-and-webhook-values.md). Keep the
+first install small; add collectors after the API, MCP server, ingester, and
+resolution engine roll out cleanly.
 
 ## 4. Install or upgrade
 
@@ -85,8 +72,8 @@ kubectl -n eshu rollout status deployment/eshu-mcp-server
 kubectl -n eshu rollout status statefulset/eshu
 kubectl -n eshu rollout status deployment/eshu-resolution-engine
 
-# If confluenceCollector.enabled=true:
-kubectl -n eshu rollout status deployment/eshu-confluence-collector
+# If optional collectors or the webhook listener are enabled:
+kubectl -n eshu get deployments
 ```
 
 Exact resource names depend on the release name and chart helpers. The API and
@@ -94,25 +81,10 @@ MCP workloads expose HTTP health endpoints through chart probes. Use logs,
 metrics, and runtime status surfaces to diagnose ingester or resolution-engine
 progress.
 
-## 6. Validate Confluence in EKS
+## 6. Add optional collectors
 
-After rollout, confirm the collector is healthy and that it stored page content:
-
-```bash
-kubectl -n eshu logs deployment/eshu-confluence-collector --tail=100
-kubectl -n eshu port-forward deployment/eshu-confluence-collector 8080:8080
-curl -fsS http://127.0.0.1:8080/readyz
-```
-
-Then query the shared Postgres content store from your normal database access
-path:
-
-```sql
-select count(*)
-from fact_records
-where fact_kind = 'documentation_section'
-  and source_system = 'confluence';
-```
-
-If the count is zero, check the configured `baseUrl`, crawl scope, Secret keys,
-and outbound network access from the EKS nodes to Atlassian Cloud.
+Enable collectors one family at a time. Claim-driven collectors require an
+active workflow coordinator and collector instances; provider webhooks require a
+webhook route plus the matching Secret. See
+[Collector and webhook values](helm-collector-and-webhook-values.md) for those
+values and the render-time guardrails.

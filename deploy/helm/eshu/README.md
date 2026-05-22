@@ -28,13 +28,14 @@ helm template eshu ./deploy/helm/eshu
 With overrides:
 
 ```bash
-helm template eshu ./deploy/helm/eshu -f values.yaml
+helm template eshu ./deploy/helm/eshu -f values.eshu.yaml
 ```
 
 When Helm is available, lint the chart before applying or packaging:
 
 ```bash
-helm lint ./deploy/helm/eshu -f values.yaml
+helm lint ./deploy/helm/eshu
+helm lint ./deploy/helm/eshu -f values.eshu.yaml
 ```
 
 ## Workload map

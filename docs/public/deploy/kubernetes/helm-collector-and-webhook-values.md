@@ -225,8 +225,8 @@ environment maps are rendered after global `env` when a workload has its own
 Run these before applying collector or webhook values:
 
 ```bash
-helm template eshu ./deploy/helm/eshu -f values.yaml
-helm lint ./deploy/helm/eshu -f values.yaml
+helm template eshu ./deploy/helm/eshu -f values.eshu.yaml
+helm lint ./deploy/helm/eshu -f values.eshu.yaml
 ```
 
 The render fails for these common mistakes:

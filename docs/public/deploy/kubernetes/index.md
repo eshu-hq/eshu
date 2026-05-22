@@ -7,10 +7,10 @@ workloads for the API, MCP server, ingester, optional workflow coordinator, and
 resolution engine. It renders a short-lived schema bootstrap Job before
 workload rollout. It can also render optional collectors for Confluence
 documentation, OCI registries, Terraform state, AWS cloud facts, package
-registries, and public GitHub, GitLab, or Bitbucket default-branch refresh
-triggers. The bootstrap Job runs `eshu-bootstrap-data-plane` once per install or
-upgrade so individual runtime pods do not all re-run graph schema verification
-during rolling updates.
+registries, and webhook-triggered refresh events from GitHub, GitLab,
+Bitbucket, or AWS freshness EventBridge deliveries. The bootstrap Job runs
+`eshu-bootstrap-data-plane` once per install or upgrade so individual runtime
+pods do not all re-run graph schema verification during rolling updates.
 Before enabling several collector families together, read
 [Collector And Reducer Readiness](../../reference/collector-reducer-readiness.md)
 to check which collectors are implemented, which reducers can consume their
