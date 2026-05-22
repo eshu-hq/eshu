@@ -73,8 +73,9 @@ Operator sequence:
 4. Run the data-plane schema bootstrap before projection work resumes.
 5. Re-run bootstrap indexing, replay projection work, or recollect from source
    systems depending on which Postgres facts and workflow rows are available.
-6. Verify `GET /api/v0/index-status` reports `status=healthy`, `pending=0`,
-   `retrying=0`, `failed=0`, and `dead_letter=0`.
+6. Verify `GET /api/v0/index-status` reports `status=healthy`,
+   `queue.pending=0`, `queue.retrying=0`, `queue.failed=0`, and
+   `queue.dead_letter=0`.
 
 Do not delete Postgres during graph recovery unless the intended plan is a full
 source-system recollection. Postgres holds facts, content, queues, workflow
