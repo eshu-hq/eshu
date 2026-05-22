@@ -1,6 +1,55 @@
 package query
 
 const openAPIPathsSupplyChain = `
+    "/api/v0/supply-chain/container-images/identities": {
+      "get": {
+        "summary": "List container image identities",
+        "operationId": "listContainerImageIdentities",
+        "parameters": [
+          {"name": "digest", "in": "query", "schema": {"type": "string"}},
+          {"name": "image_ref", "in": "query", "schema": {"type": "string"}},
+          {"name": "repository_id", "in": "query", "schema": {"type": "string"}},
+          {"name": "outcome", "in": "query", "schema": {"type": "string", "enum": ["exact_digest", "tag_resolved"]}},
+          {"name": "after_identity_id", "in": "query", "schema": {"type": "string"}},
+          {"name": "limit", "in": "query", "required": true, "schema": {"type": "integer", "minimum": 1, "maximum": 200}}
+        ],
+        "responses": {
+          "200": {
+            "description": "Container image identity page",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "identities": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "identity_id": {"type": "string"},
+                          "digest": {"type": "string"},
+                          "image_ref": {"type": "string"},
+                          "repository_id": {"type": "string"},
+                          "outcome": {"type": "string"},
+                          "reason": {"type": "string"},
+                          "identity_strength": {"type": "string"},
+                          "source_layers": {"type": "array", "items": {"type": "string"}},
+                          "evidence_fact_ids": {"type": "array", "items": {"type": "string"}}
+                        }
+                      }
+                    },
+                    "count": {"type": "integer"},
+                    "limit": {"type": "integer"},
+                    "truncated": {"type": "boolean"},
+                    "next_cursor": {"type": "object"}
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v0/supply-chain/impact/findings": {
       "get": {
         "summary": "List supply-chain impact findings",

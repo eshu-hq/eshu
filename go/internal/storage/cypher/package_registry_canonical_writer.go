@@ -8,7 +8,11 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/projector"
 )
 
-const canonicalPhasePackageRegistry = "package_registry"
+const (
+	canonicalPhasePackageRegistryPackages     = "package_registry_packages"
+	canonicalPhasePackageRegistryVersions     = "package_registry_versions"
+	canonicalPhasePackageRegistryDependencies = "package_registry_dependencies"
+)
 
 const canonicalPackageRegistryPackageUpsertCypher = `UNWIND $rows AS row
 MERGE (p:Package:PackageRegistryPackage {uid: row.uid})
@@ -112,37 +116,43 @@ SET depends.generation_id = row.generation_id,
 
 func (w *CanonicalNodeWriter) buildPackageRegistryStatements(mat projector.CanonicalMaterialization) []Statement {
 	var statements []Statement
-	statements = append(
-		statements,
-		packageRegistryBatchedStatements(
-			canonicalPackageRegistryPackageUpsertCypher,
-			packageRegistryPackageRows(mat),
-			w.batchSize,
-			"PackageRegistryPackage",
-			mat,
-		)...,
-	)
-	statements = append(
-		statements,
-		packageRegistryBatchedStatements(
-			canonicalPackageRegistryVersionUpsertCypher,
-			packageRegistryVersionRows(mat),
-			w.batchSize,
-			"PackageRegistryPackageVersion",
-			mat,
-		)...,
-	)
-	statements = append(
-		statements,
-		packageRegistryBatchedStatements(
-			canonicalPackageRegistryDependencyUpsertCypher,
-			packageRegistryDependencyRows(mat),
-			w.batchSize,
-			"PackageRegistryPackageDependency",
-			mat,
-		)...,
-	)
+	statements = append(statements, w.buildPackageRegistryPackageStatements(mat)...)
+	statements = append(statements, w.buildPackageRegistryVersionStatements(mat)...)
+	statements = append(statements, w.buildPackageRegistryDependencyStatements(mat)...)
 	return statements
+}
+
+func (w *CanonicalNodeWriter) buildPackageRegistryPackageStatements(mat projector.CanonicalMaterialization) []Statement {
+	return packageRegistryBatchedStatements(
+		canonicalPackageRegistryPackageUpsertCypher,
+		packageRegistryPackageRows(mat),
+		w.batchSize,
+		"PackageRegistryPackage",
+		canonicalPhasePackageRegistryPackages,
+		mat,
+	)
+}
+
+func (w *CanonicalNodeWriter) buildPackageRegistryVersionStatements(mat projector.CanonicalMaterialization) []Statement {
+	return packageRegistryBatchedStatements(
+		canonicalPackageRegistryVersionUpsertCypher,
+		packageRegistryVersionRows(mat),
+		w.batchSize,
+		"PackageRegistryPackageVersion",
+		canonicalPhasePackageRegistryVersions,
+		mat,
+	)
+}
+
+func (w *CanonicalNodeWriter) buildPackageRegistryDependencyStatements(mat projector.CanonicalMaterialization) []Statement {
+	return packageRegistryBatchedStatements(
+		canonicalPackageRegistryDependencyUpsertCypher,
+		packageRegistryDependencyRows(mat),
+		w.batchSize,
+		"PackageRegistryPackageDependency",
+		canonicalPhasePackageRegistryDependencies,
+		mat,
+	)
 }
 
 func packageRegistryBatchedStatements(
@@ -150,12 +160,13 @@ func packageRegistryBatchedStatements(
 	rows []map[string]any,
 	batchSize int,
 	label string,
+	phase string,
 	mat projector.CanonicalMaterialization,
 ) []Statement {
 	statements := buildBatchedStatements(cypher, rows, batchSize)
 	for index := range statements {
 		batchRows := statements[index].Parameters["rows"].([]map[string]any)
-		statements[index].Parameters[StatementMetadataPhaseKey] = canonicalPhasePackageRegistry
+		statements[index].Parameters[StatementMetadataPhaseKey] = phase
 		statements[index].Parameters[StatementMetadataEntityLabelKey] = label
 		statements[index].Parameters[StatementMetadataScopeIDKey] = mat.ScopeID
 		statements[index].Parameters[StatementMetadataGenerationIDKey] = mat.GenerationID

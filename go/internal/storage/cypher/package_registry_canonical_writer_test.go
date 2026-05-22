@@ -1,6 +1,7 @@
 package cypher
 
 import (
+	"context"
 	"strings"
 	"testing"
 	"time"
@@ -92,7 +93,7 @@ func TestCanonicalNodeWriterBuildsPackageRegistryStatements(t *testing.T) {
 	if strings.Contains(pkg.Cypher, "Repository") {
 		t.Fatalf("package Cypher = %q, must not infer repository ownership", pkg.Cypher)
 	}
-	if got, want := pkg.Parameters[StatementMetadataPhaseKey], canonicalPhasePackageRegistry; got != want {
+	if got, want := pkg.Parameters[StatementMetadataPhaseKey], canonicalPhasePackageRegistryPackages; got != want {
 		t.Fatalf("package phase = %#v, want %#v", got, want)
 	}
 
@@ -133,4 +134,82 @@ func TestCanonicalNodeWriterBuildsPackageRegistryStatements(t *testing.T) {
 	if strings.Contains(dependency.Cypher, "Repository") {
 		t.Fatalf("dependency Cypher = %q, must not infer repository ownership", dependency.Cypher)
 	}
+}
+
+func TestCanonicalNodeWriterSeparatesPackageRegistryPhaseGroups(t *testing.T) {
+	t.Parallel()
+
+	exec := &mockPhaseGroupExecutor{}
+	writer := NewCanonicalNodeWriter(exec, 500, nil)
+	err := writer.Write(context.Background(), projector.CanonicalMaterialization{
+		ScopeID:      "package-registry-scope-1",
+		GenerationID: "package-registry-generation-1",
+		PackageRegistryPackages: []projector.PackageRegistryPackageRow{{
+			UID:              "npm://registry.npmjs.org/lodash",
+			Ecosystem:        "npm",
+			Registry:         "registry.npmjs.org",
+			NormalizedName:   "lodash",
+			SourceFactID:     "package-registry-package-1",
+			StableFactKey:    "npm://registry.npmjs.org/lodash",
+			SourceSystem:     "package_registry",
+			SourceConfidence: facts.SourceConfidenceReported,
+			CollectorKind:    "package_registry",
+		}},
+		PackageRegistryVersions: []projector.PackageRegistryVersionRow{{
+			UID:              "npm://registry.npmjs.org/lodash@1.0.0",
+			PackageID:        "npm://registry.npmjs.org/lodash",
+			Ecosystem:        "npm",
+			Registry:         "registry.npmjs.org",
+			Version:          "1.0.0",
+			SourceFactID:     "package-registry-version-1",
+			StableFactKey:    "npm://registry.npmjs.org/lodash@1.0.0",
+			SourceSystem:     "package_registry",
+			SourceConfidence: facts.SourceConfidenceReported,
+			CollectorKind:    "package_registry",
+		}},
+		PackageRegistryDependencies: []projector.PackageRegistryDependencyRow{{
+			UID:                  "package-registry-dependency-1",
+			PackageID:            "npm://registry.npmjs.org/lodash",
+			VersionID:            "npm://registry.npmjs.org/lodash@1.0.0",
+			Version:              "1.0.0",
+			DependencyPackageID:  "npm://registry.npmjs.org/left-pad",
+			DependencyEcosystem:  "npm",
+			DependencyRegistry:   "registry.npmjs.org",
+			DependencyNormalized: "left-pad",
+			SourceFactID:         "package-registry-dependency-1",
+			StableFactKey:        "package-registry-dependency-1",
+			SourceSystem:         "package_registry",
+			SourceConfidence:     facts.SourceConfidenceReported,
+			CollectorKind:        "package_registry",
+		}},
+	})
+	if err != nil {
+		t.Fatalf("Write() error = %v", err)
+	}
+
+	packageGroup := packageRegistryPhaseGroupIndex(t, exec.phaseGroups, "PackageRegistryPackage")
+	versionGroup := packageRegistryPhaseGroupIndex(t, exec.phaseGroups, "PackageRegistryPackageVersion")
+	dependencyGroup := packageRegistryPhaseGroupIndex(t, exec.phaseGroups, "PackageRegistryPackageDependency")
+	if packageGroup >= versionGroup || versionGroup >= dependencyGroup {
+		t.Fatalf(
+			"package registry phase groups = package:%d version:%d dependency:%d, want package before version before dependency",
+			packageGroup,
+			versionGroup,
+			dependencyGroup,
+		)
+	}
+}
+
+func packageRegistryPhaseGroupIndex(t *testing.T, groups [][]Statement, label string) int {
+	t.Helper()
+
+	for groupIndex, group := range groups {
+		for _, stmt := range group {
+			if got, _ := stmt.Parameters[StatementMetadataEntityLabelKey].(string); got == label {
+				return groupIndex
+			}
+		}
+	}
+	t.Fatalf("missing package registry phase group for %s", label)
+	return -1
 }

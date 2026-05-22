@@ -81,6 +81,9 @@ func TestNewMCPQueryRouterMountsMCPBackedHandlers(t *testing.T) {
 	if router.SupplyChain.SBOMAttachments == nil {
 		t.Fatal("newMCPQueryRouter().SupplyChain.SBOMAttachments = nil, want Postgres read model store")
 	}
+	if router.SupplyChain.ContainerImageIdentities == nil {
+		t.Fatal("newMCPQueryRouter().SupplyChain.ContainerImageIdentities = nil, want Postgres read model store")
+	}
 	if router.CICD == nil {
 		t.Fatal("newMCPQueryRouter().CICD = nil, want CI/CD run correlation route mounted")
 	}

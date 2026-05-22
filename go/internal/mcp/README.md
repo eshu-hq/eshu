@@ -1,7 +1,7 @@
 # internal/mcp
 
 `mcp` owns the Model Context Protocol tool surface for Eshu. It implements the
-MCP server, the JSON-RPC dispatcher, the SSE session model, and the 70
+MCP server, the JSON-RPC dispatcher, the SSE session model, and the 72
 read-only tool definitions. Tool dispatch calls into the same `http.Handler`
 chain the HTTP API uses, so a tool response and the corresponding HTTP query
 response share the same truth.
@@ -59,7 +59,7 @@ flowchart TB
 
 ## Tool groups
 
-`ReadOnlyTools` assembles 71 tools from the tool definition files.
+`ReadOnlyTools` assembles 72 tools from the tool definition files.
 
 | Group | Count | Source file |
 |---|---|---|
@@ -67,7 +67,7 @@ flowchart TB
 | `ecosystemTools` | 19 | `tools_ecosystem.go` |
 | `packageRegistryTools` | 2 | `tools_package_registry.go` |
 | `cicdTools` | 1 | `tools_cicd.go` |
-| `supplyChainTools` | 2 | `tools_supply_chain.go` |
+| `supplyChainTools` | 3 | `tools_supply_chain.go` |
 | `contextTools` | 7 | `tools_context.go` |
 | `contentTools` | 6 | `tools_content.go` |
 | `documentationTools` | 4 | `tools_documentation.go` |

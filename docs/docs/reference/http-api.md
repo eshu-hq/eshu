@@ -363,6 +363,19 @@ deployment truth by themselves; those rows stay derived, unresolved, ambiguous,
 or rejected with `provenance_only=true` when appropriate. Truncated responses
 include `next_cursor.after_correlation_id` for the next bounded read.
 
+### Container Image Identities
+
+`GET /api/v0/supply-chain/container-images/identities` lists reducer-owned
+container image identity facts. The caller must provide `limit` and at least one
+bounded anchor: `digest`, `image_ref`, `repository_id`, or `outcome`. Valid
+durable outcomes are `exact_digest` and `tag_resolved`.
+
+Rows expose `identity_strength`, `source_layers`, and `evidence_fact_ids` so
+callers can see why a digest was admitted. Weak, ambiguous, unresolved, and
+stale tag observations remain diagnostic reducer outcomes rather than
+canonical deployment or vulnerability impact truth. Truncated responses include
+`next_cursor.after_identity_id` for the next bounded read.
+
 ### Supply-Chain Impact Findings
 
 `GET /api/v0/supply-chain/impact/findings` lists reducer-owned vulnerability

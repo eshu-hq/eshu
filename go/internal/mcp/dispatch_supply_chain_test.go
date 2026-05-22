@@ -30,3 +30,35 @@ func TestResolveRouteMapsSBOMAttestationAttachmentsToBoundedQuery(t *testing.T) 
 		t.Fatalf("route.query[limit] = %#v, want %#v", got, want)
 	}
 }
+
+func TestResolveRouteMapsContainerImageIdentitiesToBoundedQuery(t *testing.T) {
+	t.Parallel()
+
+	route, err := resolveRoute("list_container_image_identities", map[string]any{
+		"after_identity_id": "identity-1",
+		"digest":            "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+		"outcome":           "tag_resolved",
+		"limit":             float64(25),
+	})
+	if err != nil {
+		t.Fatalf("resolveRoute() error = %v, want nil", err)
+	}
+	if got, want := route.method, "GET"; got != want {
+		t.Fatalf("route.method = %q, want %q", got, want)
+	}
+	if got, want := route.path, "/api/v0/supply-chain/container-images/identities"; got != want {
+		t.Fatalf("route.path = %q, want %q", got, want)
+	}
+	if got, want := route.query["digest"], "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"; got != want {
+		t.Fatalf("route.query[digest] = %#v, want %#v", got, want)
+	}
+	if got, want := route.query["outcome"], "tag_resolved"; got != want {
+		t.Fatalf("route.query[outcome] = %#v, want %#v", got, want)
+	}
+	if got, want := route.query["after_identity_id"], "identity-1"; got != want {
+		t.Fatalf("route.query[after_identity_id] = %#v, want %#v", got, want)
+	}
+	if got, want := route.query["limit"], "25"; got != want {
+		t.Fatalf("route.query[limit] = %#v, want %#v", got, want)
+	}
+}

@@ -89,6 +89,12 @@ document ID, or document digest plus `limit`, and it keeps attachment status,
 parse status, and verification status as separate response fields so callers do
 not mistake parsed component evidence for trusted vulnerability impact or
 promote `ambiguous_subject` attestations into canonical image attachments.
+The same handler exposes reducer-owned container image identities through a
+separate Postgres read model. Container image identity reads require a digest,
+image reference, repository, or outcome anchor plus `limit`, and they keep
+`identity_strength`, source layers, and evidence fact IDs visible so callers can
+inspect digest admission without turning weak or stale tag diagnostics into
+deployment truth.
 The same handler exposes supply-chain impact findings through a separate
 Postgres read model. Impact reads require a CVE, package, repository, subject
 digest, or status anchor plus `limit`, and keep CVSS, EPSS, KEV, reachability,

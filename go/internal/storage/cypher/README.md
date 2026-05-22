@@ -126,7 +126,10 @@ Package-registry rows are written as `Package`/`PackageRegistryPackage`,
 This phase emits `HAS_VERSION`, `DECLARES_DEPENDENCY`, and
 `DEPENDS_ON_PACKAGE` for package-native dependency metadata only; source
 repository hints are not promoted to ownership or publication edges until
-reducer correlation supplies corroborating evidence.
+reducer correlation supplies corroborating evidence. NornicDB phase-group
+execution commits package, version, and dependency writes in separate ordered
+phase groups because version and dependency statements `MATCH` identities
+created by earlier package-registry statements.
 
 `EdgeWriter.WriteEdges` maps a `reducer.Domain` to a batched UNWIND Cypher
 template and dispatches rows in batches of `BatchSize` (default
@@ -377,6 +380,18 @@ retry, failed, and dead-letter state without adding a new metric label.
   `PackageVersion`, and `PackageDependency` labels. Do not add `Repository`
   matches or ownership edges to `package_registry_canonical_writer.go`; source
   hints need reducer admission first.
+
+  No-Regression Evidence: `go test ./internal/projector ./internal/storage/cypher -count=1`
+  on 2026-05-22 covered package-registry phase ordering with 1 package, 1
+  version, and 1 dependency row. The change preserves the same Cypher templates
+  and only splits NornicDB phase-group commits so dependent `MATCH` statements
+  see prior identities.
+
+  Observability Evidence: `CanonicalNodeWriter` phase logs now expose
+  `phase=package_registry_packages`, `phase=package_registry_versions`, and
+  `phase=package_registry_dependencies`; projector canonical-write logs expose
+  `package_registry_package_count`, `package_registry_version_count`, and
+  `package_registry_dependency_count`.
 - Repository-root `File` rows are the exception to the Directory parent rule:
   they must attach directly to `Repository` through `REPO_CONTAINS` because
   `buildDirectoryChain` intentionally does not create a synthetic Directory for

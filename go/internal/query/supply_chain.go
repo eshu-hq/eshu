@@ -11,15 +11,18 @@ import (
 const (
 	sbomAttestationAttachmentsCapability = "supply_chain.sbom_attestation_attachments.list"
 	supplyChainImpactFindingsCapability  = "supply_chain.impact_findings.list"
+	containerImageIdentitiesCapability   = "supply_chain.container_image_identities.list"
 	sbomAttestationAttachmentMaxLimit    = 200
 	supplyChainImpactFindingMaxLimit     = 200
+	containerImageIdentityMaxLimit       = 200
 )
 
 // SupplyChainHandler exposes reducer-owned supply-chain read models.
 type SupplyChainHandler struct {
-	SBOMAttachments SBOMAttestationAttachmentStore
-	ImpactFindings  SupplyChainImpactFindingStore
-	Profile         QueryProfile
+	SBOMAttachments          SBOMAttestationAttachmentStore
+	ImpactFindings           SupplyChainImpactFindingStore
+	ContainerImageIdentities ContainerImageIdentityStore
+	Profile                  QueryProfile
 }
 
 // SBOMAttestationAttachmentResult is one reducer-owned SBOM or attestation
@@ -75,10 +78,29 @@ type SupplyChainImpactFindingResult struct {
 	SourceConfidence    string   `json:"source_confidence,omitempty"`
 }
 
+// ContainerImageIdentityResult is one reducer-owned container image identity
+// row returned by the public API.
+type ContainerImageIdentityResult struct {
+	IdentityID       string   `json:"identity_id"`
+	Digest           string   `json:"digest,omitempty"`
+	ImageRef         string   `json:"image_ref,omitempty"`
+	RepositoryID     string   `json:"repository_id,omitempty"`
+	Outcome          string   `json:"outcome"`
+	Reason           string   `json:"reason,omitempty"`
+	IdentityStrength string   `json:"identity_strength,omitempty"`
+	CanonicalID      string   `json:"canonical_id,omitempty"`
+	CanonicalWrites  int      `json:"canonical_writes"`
+	SourceLayers     []string `json:"source_layers,omitempty"`
+	EvidenceFactIDs  []string `json:"evidence_fact_ids,omitempty"`
+	SourceFreshness  string   `json:"source_freshness,omitempty"`
+	SourceConfidence string   `json:"source_confidence,omitempty"`
+}
+
 // Mount registers supply-chain query routes.
 func (h *SupplyChainHandler) Mount(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/v0/supply-chain/sbom-attestations/attachments", h.listSBOMAttachments)
 	mux.HandleFunc("GET /api/v0/supply-chain/impact/findings", h.listImpactFindings)
+	mux.HandleFunc("GET /api/v0/supply-chain/container-images/identities", h.listContainerImageIdentities)
 }
 
 func (h *SupplyChainHandler) profile() QueryProfile {
@@ -170,6 +192,94 @@ func (h *SupplyChainHandler) listImpactFindings(w http.ResponseWriter, r *http.R
 		supplyChainImpactFindingsCapability,
 		TruthBasisSemanticFacts,
 		"resolved from reducer-owned impact facts; CVSS, EPSS, KEV, reachability, and missing evidence remain separate",
+	))
+}
+
+func (h *SupplyChainHandler) listContainerImageIdentities(w http.ResponseWriter, r *http.Request) {
+	r, span := startQueryHandlerSpan(
+		r,
+		telemetry.SpanQueryContainerImageIdentities,
+		"GET /api/v0/supply-chain/container-images/identities",
+		containerImageIdentitiesCapability,
+	)
+	defer span.End()
+
+	if capabilityUnsupported(h.profile(), containerImageIdentitiesCapability) {
+		WriteContractError(
+			w,
+			r,
+			http.StatusNotImplemented,
+			"container image identities require the Postgres reducer read model",
+			ErrorCodeUnsupportedCapability,
+			containerImageIdentitiesCapability,
+			h.profile(),
+			requiredProfile(containerImageIdentitiesCapability),
+		)
+		return
+	}
+	limit, ok := requiredContainerImageIdentityLimit(w, r)
+	if !ok {
+		return
+	}
+	filter := ContainerImageIdentityFilter{
+		Digest:          QueryParam(r, "digest"),
+		ImageRef:        QueryParam(r, "image_ref"),
+		RepositoryID:    QueryParam(r, "repository_id"),
+		Outcome:         QueryParam(r, "outcome"),
+		AfterIdentityID: QueryParam(r, "after_identity_id"),
+		Limit:           limit + 1,
+	}
+	if !filter.hasScope() {
+		WriteError(w, http.StatusBadRequest, "digest, image_ref, repository_id, or outcome is required")
+		return
+	}
+	if filter.Outcome != "" && !isSupportedContainerImageIdentityOutcome(filter.Outcome) {
+		WriteError(w, http.StatusBadRequest, "outcome must be exact_digest or tag_resolved")
+		return
+	}
+	if h.ContainerImageIdentities == nil {
+		WriteContractError(
+			w,
+			r,
+			http.StatusServiceUnavailable,
+			"container image identities require the Postgres reducer read model",
+			ErrorCodeBackendUnavailable,
+			containerImageIdentitiesCapability,
+			h.profile(),
+			requiredProfile(containerImageIdentitiesCapability),
+		)
+		return
+	}
+
+	rows, err := h.ContainerImageIdentities.ListContainerImageIdentities(r.Context(), filter)
+	if err != nil {
+		WriteError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	truncated := len(rows) > limit
+	if truncated {
+		rows = rows[:limit]
+	}
+	results := make([]ContainerImageIdentityResult, 0, len(rows))
+	for _, row := range rows {
+		results = append(results, ContainerImageIdentityResult(row))
+	}
+	body := map[string]any{
+		"identities": results,
+		"count":      len(results),
+		"limit":      limit,
+		"truncated":  truncated,
+	}
+	if truncated && len(results) > 0 {
+		body["next_cursor"] = map[string]string{
+			"after_identity_id": results[len(results)-1].IdentityID,
+		}
+	}
+	WriteSuccess(w, r, http.StatusOK, body, BuildTruthEnvelope(
+		h.profile(),
+		containerImageIdentitiesCapability,
+		TruthBasisSemanticFacts,
+		"resolved from reducer-owned container image identity facts; weak, ambiguous, unresolved, and stale tags remain diagnostic reducer outcomes",
 	))
 }
 
@@ -284,4 +394,27 @@ func requiredSupplyChainImpactFindingLimit(w http.ResponseWriter, r *http.Reques
 		return 0, false
 	}
 	return limit, true
+}
+
+func requiredContainerImageIdentityLimit(w http.ResponseWriter, r *http.Request) (int, bool) {
+	raw := QueryParam(r, "limit")
+	if raw == "" {
+		WriteError(w, http.StatusBadRequest, "limit is required")
+		return 0, false
+	}
+	limit, err := strconv.Atoi(raw)
+	if err != nil || limit <= 0 || limit > containerImageIdentityMaxLimit {
+		WriteError(w, http.StatusBadRequest, fmt.Sprintf("limit must be between 1 and %d", containerImageIdentityMaxLimit))
+		return 0, false
+	}
+	return limit, true
+}
+
+func isSupportedContainerImageIdentityOutcome(outcome string) bool {
+	switch outcome {
+	case "exact_digest", "tag_resolved":
+		return true
+	default:
+		return false
+	}
 }
