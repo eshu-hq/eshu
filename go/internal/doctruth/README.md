@@ -33,9 +33,11 @@ flowchart LR
 `Verifier` is the active documentation claim checker used by
 `eshu docs verify`. Its first implementation slice checks Markdown-family
 documents for exact `eshu ...` command claims, HTTP endpoint claims, and
-`ESHU_*` environment variable claims. It emits `documentation_finding` and
-`documentation_evidence_packet` fact envelopes with explicit statuses:
-`valid`, `contradicted`, `missing_evidence`, and
+`ESHU_*` environment variable claims. It also checks explicit backticked local
+repository paths and Markdown local-link targets when the caller supplies a
+`LocalPathResolver`; the package never walks the filesystem itself. It emits
+`documentation_finding` and `documentation_evidence_packet` fact envelopes with
+explicit statuses: `valid`, `contradicted`, `missing_evidence`, and
 `unsupported_claim_type`.
 
 ## Invariants

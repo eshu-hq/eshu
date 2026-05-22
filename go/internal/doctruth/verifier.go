@@ -19,6 +19,8 @@ const (
 	ClaimTypeHTTPEndpoint = "http_endpoint"
 	// ClaimTypeEnvironmentVariable identifies documentation claims about Eshu env vars.
 	ClaimTypeEnvironmentVariable = "environment_variable"
+	// ClaimTypeLocalPath identifies documentation claims about local repo paths.
+	ClaimTypeLocalPath = "local_path"
 	// ClaimTypeShellCommand identifies a shell command outside this verifier slice.
 	ClaimTypeShellCommand = "shell_command"
 
@@ -68,6 +70,7 @@ type VerifierOptions struct {
 	Commands             []CommandTruth
 	HTTPEndpoints        []HTTPEndpointTruth
 	EnvironmentVariables []string
+	LocalPathResolver    LocalPathResolver
 	MaxDocuments         int
 	MaxDocumentBytes     int
 	ScopeID              string
@@ -130,6 +133,7 @@ type Verifier struct {
 	commands     map[string]struct{}
 	endpoints    map[string]struct{}
 	envVars      map[string]struct{}
+	localPaths   LocalPathResolver
 	maxDocuments int
 	maxBytes     int
 	scopeID      string
@@ -155,6 +159,7 @@ func NewVerifier(options VerifierOptions) *Verifier {
 		commands:     map[string]struct{}{},
 		endpoints:    map[string]struct{}{},
 		envVars:      map[string]struct{}{},
+		localPaths:   options.LocalPathResolver,
 		maxDocuments: options.MaxDocuments,
 		maxBytes:     options.MaxDocumentBytes,
 		scopeID:      firstNonEmpty(options.ScopeID, "documentation-verify-local"),
@@ -236,6 +241,9 @@ func extractClaims(content string) []extractedClaim {
 		for _, match := range backtickPattern.FindAllStringSubmatch(line, -1) {
 			addExtractedClaim(lineClaims, classifyClaim(match[1], lineNumber+1))
 		}
+		for _, claim := range localPathClaimsFromMarkdownLinks(line, lineNumber+1) {
+			addExtractedClaim(lineClaims, claim)
+		}
 		for _, match := range httpEndpointPattern.FindAllStringSubmatch(line, -1) {
 			addExtractedClaim(lineClaims, extractedClaim{
 				claimType:  ClaimTypeHTTPEndpoint,
@@ -280,6 +288,9 @@ func classifyClaim(raw string, line int) extractedClaim {
 	if envVar := envVarPattern.FindString(text); envVar != "" && envVar == text {
 		return extractedClaim{claimType: ClaimTypeEnvironmentVariable, text: text, normalized: envVar, line: line}
 	}
+	if localPath := normalizeLocalPathClaim(text); localPath != "" {
+		return extractedClaim{claimType: ClaimTypeLocalPath, text: text, normalized: localPath, line: line}
+	}
 	lower := strings.ToLower(text)
 	for _, prefix := range []string{"terraform ", "kubectl ", "helm ", "aws "} {
 		if strings.HasPrefix(lower, prefix) {
@@ -320,6 +331,20 @@ func (v *Verifier) verifyClaim(doc DocumentInput, claim extractedClaim) (Verific
 			truthLevel = string(TruthLevelExact)
 		} else {
 			status = VerificationStatusMissingEvidence
+		}
+	case ClaimTypeLocalPath:
+		if v.localPaths == nil {
+			status = VerificationStatusUnsupportedClaimType
+			break
+		}
+		resolution := v.localPaths(doc, claim.normalized)
+		if !resolution.Supported {
+			status = VerificationStatusMissingEvidence
+		} else if resolution.Exists {
+			status = VerificationStatusValid
+			truthLevel = string(TruthLevelExact)
+		} else {
+			status = VerificationStatusContradicted
 		}
 	}
 	version := v.version()
