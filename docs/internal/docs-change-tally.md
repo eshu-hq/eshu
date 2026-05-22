@@ -132,6 +132,7 @@ branch. Regenerate them from
 | Parallel Deployment Collector Reference Compression | Used subagents plus parent review to compress Compose, Helm, service-runtime, collector, reducer, fact-envelope, component-package, language-query, tag-taxonomy, local testing, and internal agent-guide docs while correcting Helm/API/MCP command truth against templates and service binaries. |
 | Templated IaC Fixture Contract Cleanup | Rewrote the templated IaC fixture README as a fixture contract and removed private/local source provenance from the README and manifest metadata. |
 | CLI, Local Data, Ignore, And Correlation Fixture Repair | Corrected `eshu docs verify` CLI flag truth, local data-root reset behavior, `.eshuignore` matching/default-skip behavior, and the correlation DSL secondary-Dockerfile fixture contract. Restored the missing `Dockerfile.test` fixture required by the compose verifier. |
+| Main Rebase Refresh At e6ac80a | Rebasing onto current `origin/main` kept the public docs information architecture, deleted stale `docs/docs` HTTP API history, and preserved the current 73-tool MCP contract plus service-catalog fact family truth in compressed package docs. |
 
 ## Verification Snapshot
 
@@ -139,7 +140,7 @@ Detailed historical verification moved to `docs/internal/docs-verification-snaps
 
 Current pass proof:
 
-- Rebase conflict resolution preserved the current 72-tool MCP contract,
+- Rebase conflict resolution preserved the current 73-tool MCP contract,
   container-image identity read surface, and compressed public/package docs.
 - Focused docs verification passed for `docs/public`, `go/internal`, `go/cmd`,
   and `tests/fixtures`.
@@ -152,8 +153,9 @@ Current pass proof:
   DSL fixture and secondary-Dockerfile rejection contract.
 - Broad docs verification passed for `docs/public` and the full repository with
   0 contradicted and 0 missing evidence claims. Current public docs verifier
-  result: 173 documents, 1236 claims. Current full repository verifier result:
-  562 documents, 1434 claims.
+  result: 173 documents, 1238 claims, 11 unsupported shell-command claim
+  types. Current full repository verifier result: 562 documents, 1438 claims,
+  15 unsupported shell-command claim types.
 - Focused service, collector, Terraform-state, reducer, fact, component,
   relationship, tag, and language-query tests passed for the current pass.
 - `scripts/verify-package-docs.sh`, `helm lint`, `helm template`, Markdown
