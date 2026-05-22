@@ -36,7 +36,7 @@ classification. It must not import the parent `internal/parser` package.
 File parse timing is owned by the parent parser engine through
 `eshu_dp_file_parse_duration_seconds`. The walker emits one debug-level slog
 record per duplicate multi-element repeated nested block at
-`terraform_resource_attributes.go:132` — the
+`terraform_resource_attributes.go:132` - the
 `drift parser walk truncated multi-element repeated block` message, with the
 frozen log keys `LogKeyDriftMultiElementPrefix` and
 `LogKeyDriftMultiElementSource` (value `"parser_walk"`). The log uses
@@ -65,18 +65,21 @@ Terragrunt `remote_state` rows store the parser-side source file path under
 `source_path`, kept distinct from the local backend's `path` attribute so
 neither value silently overwrites the other (`terragrunt_remote_state.go:54`).
 
-Terraform resource attribute extraction (`terraform_resource_attributes.go`)
-uses cty-value evaluation via `hclsyntax.Expression.Value(nil)` rather than
-byte-level source reads to produce the `attributes` and
-`unknown_attributes` fields on each `terraform_resources` row. This correctly handles heredoc strings (which
-evaluate to the unindented body content) and escaped-quote strings (which
-evaluate to the unescaped character). The encoding must stay in lockstep with
-the state-side flattener in `tfstate_drift_evidence_state_row.go` — see
-`literalAttributeValue` and `ctyValueToDriftString` in
-`terraform_resource_attributes.go`.
+Terraform resource attribute extraction uses cty-value evaluation rather than
+byte-level source reads so heredoc and escaped strings match the state-side
+drift flattener. Keep `literalAttributeValue` and `ctyValueToDriftString` in
+lockstep with `tfstate_drift_evidence_state_row.go`.
 
 Payload buckets must stay deterministic. Rows are sorted before `Parse`
 returns so ingestion retries and repair runs converge on the same facts.
+
+## Verification
+
+```bash
+go test ./internal/parser/hcl -count=1
+go run ./cmd/eshu docs verify ../go/internal/parser/hcl --limit 1000 \
+  --fail-on contradicted,missing_evidence
+```
 
 ## Related docs
 

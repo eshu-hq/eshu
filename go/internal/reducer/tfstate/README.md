@@ -8,14 +8,10 @@ turned into canonical graph nodes.
 
 ## Where this fits in the pipeline
 
-```mermaid
-flowchart LR
-  TFStateCollector["Terraform state\ncollector (future)"] --> FactStore["Postgres\nfact store"]
-  FactStore --> ProjectorQ["Projector queue"]
-  ProjectorQ --> Projector["internal/projector\nTerraform-state canonical rows"]
-  Projector --> PhaseRows["terraform_resource_uid\nterraform_module_uid\ncanonical_nodes_committed"]
-  PhaseRows --> DownstreamEdges["DSL evaluator\nedge domains"]
-```
+Terraform-state collection commits facts to Postgres. Source-local projection
+later materializes Terraform resource and module canonical rows, then publishes
+the readiness checkpoints named by this package. Downstream edge domains must
+wait for those checkpoints before consuming Terraform-state-derived rows.
 
 ## Purpose
 
@@ -35,12 +31,9 @@ fixtures accept it.
 
 ## Exported surface
 
-- `PublishedCheckpoint{Keyspace, Phase}` — `contract.go:13`.
-- `RuntimeContract{Components, Checkpoints}` — `contract.go:20`.
-- `RuntimeContract.Validate` — `contract.go:55`.
-- `DefaultRuntimeContract()` — `contract.go:43` — defensive copy.
-- `RuntimeContractTemplate()` — `contract.go:50` — alias for
-  `DefaultRuntimeContract`.
+See `doc.go` and the exported comments in `contract.go` for the godoc contract.
+The exported surface is intentionally small: a runtime contract value, published
+checkpoint values, validation, and defensive-copy helpers.
 
 The accepted scaffold:
 
@@ -54,7 +47,7 @@ The accepted scaffold:
 
 ## Dependencies
 
-- `go/internal/reducer` — `GraphProjectionKeyspace` and
+- `go/internal/reducer` - `GraphProjectionKeyspace` and
   `GraphProjectionPhase` constants only.
 
 ## Telemetry
@@ -82,5 +75,3 @@ canonical-write stage.
 
 - `docs/public/architecture.md`
 - `go/internal/reducer/README.md`
-- `go/internal/reducer/aws/README.md`
-- `go/internal/reducer/dsl/README.md`

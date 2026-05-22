@@ -21,7 +21,7 @@
   live tests.
 - Keep decoded tokens out of errors, logs, metrics, and docs.
 
-## What Not To Change Without An ADR
+## What Not To Change Without Architecture-Owner Approval
 
 - Do not infer GitHub source ownership from GHCR metadata without reducer-side
   correlation evidence.

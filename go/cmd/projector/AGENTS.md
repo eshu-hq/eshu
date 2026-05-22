@@ -87,11 +87,12 @@
   Use the `PROJECTOR`-prefixed max-attempts and retry-delay env vars loaded via
   `runtimecfg.LoadRetryPolicyConfig` for production retry policy.
 
-## What NOT to change without an ADR
+## What NOT to change without architecture-owner approval
 
 - The `projector` queue lease duration (currently one minute) — changing it
-  affects claim contention across all projector workers; coordinate with
-  `eshu-ingester` and `eshu-reducer` owners.
+  affects claim contention across all projector workers. Coordinate with
+  `eshu-ingester` and `eshu-reducer` owners, then capture same-shape
+  queue/concurrency proof before changing it.
 - The admin surface endpoints (`/healthz`, `/readyz`, `/metrics`,
   `/admin/status`) mounted by `app.NewHostedWithStatusServer` — these are part
   of the shared operator contract across all Eshu runtimes; see

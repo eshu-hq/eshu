@@ -1,7 +1,9 @@
 # Harbor Adapter Notes
 
-Read `adapter.go`, `adapter_test.go`, and the OCI registry ADR before changing
-this package.
+Read `adapter.go`, `adapter_test.go`, `../README.md`,
+`../ociruntime/README.md`, and
+`docs/public/reference/collector-reducer-readiness.md` before changing this
+package.
 
 Keep this package narrow. Harbor should delegate Distribution API behavior to
 `go/internal/collector/ociregistry/distribution`; provider-specific code here is

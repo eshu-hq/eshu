@@ -69,6 +69,8 @@ Generated from `git diff --name-status origin/main -- "*.md"` for this documenta
 - `docs/docs/guides/terraform-providers/updating-providers.md`
 - `docs/docs/index.md`
 - `docs/docs/reference/capability-conformance-spec.md`
+- `docs/docs/reference/cli-analysis.md`
+- `docs/docs/reference/cli-indexing.md`
 - `docs/docs/reference/cli-reference.md`
 - `docs/docs/reference/cli-system.md`
 - `docs/docs/reference/collector-reducer-readiness.md`
@@ -97,6 +99,7 @@ Generated from `git diff --name-status origin/main -- "*.md"` for this documenta
 - `docs/docs/reference/telemetry/logs.md`
 - `docs/docs/reference/telemetry/metrics.md`
 - `docs/docs/reference/telemetry/traces.md`
+- `docs/docs/reference/troubleshooting.md`
 - `docs/docs/reference/truth-label-protocol.md`
 - `docs/docs/run-locally/docker-compose.md`
 - `docs/docs/run-locally/index.md`

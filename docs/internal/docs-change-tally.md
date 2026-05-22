@@ -9,7 +9,7 @@ repo's 500-line limit.
 - Total Markdown files left in the checkout after the current pass: 548
 - Current branch doc status from
   `git diff --name-status origin/main -- '*.md'` after the current pass:
-  95 added, 223 modified, 148 deleted, 86 renamed
+  98 added, 257 modified, 151 deleted, 83 renamed
 - Copied image assets removed from this branch: 43 files under
   `docs/public/images/`. They were reference assets from another project and
   no longer appear in the source-doc reference scan.
@@ -119,6 +119,10 @@ branch. Regenerate them from
 | Scoped AGENTS ADR Cleanup Batch B | Replaced stale ADR/current-tracker wording in 15 more scoped agent files with architecture-owner approval, migration, proof, telemetry, and package-doc requirements. |
 | Public Reference Duplicate Cleanup Batch B | Removed duplicate raw-query and backend-default detail from the MCP cookbook and NornicDB tuning page while preserving larger reference pages with distinct reader jobs. |
 | Package README Mid-Size Compression Batch B | Reduced 15 more package READMEs, keeping ownership, invariants, telemetry, focused tests, and current public-doc links while removing diagrams and duplicated catalogs. |
+| Local Performance Envelope Compression | Reduced the local performance reference to profile targets, dogfood tiers, evidence rules, gate commands, and open evidence without lowering the performance bar. |
+| Scoped AGENTS ADR Cleanup Batch C | Replaced deleted-ADR references in command, backend, collector, and OCI scoped agent files with current-doc, test, backend-conformance, and architecture-owner proof requirements. |
+| Public Run And CLI Analysis Compression | Reduced Docker Compose and CLI analysis references by removing repeated proof commands, delegating runbook detail to focused pages, and correcting the call-chain API route. |
+| Package README Mid-Size Compression Batch C | Reduced 15 more package READMEs, preserving ownership, invariants, telemetry, focused tests, and package-specific correctness notes. |
 
 ## Verification Snapshot
 
@@ -131,7 +135,9 @@ Current pass proof:
 - Focused docs verification passed for `docs/public`, `go/internal`, `go/cmd`,
   and `tests/fixtures`.
 - Broad docs verification passed for `docs/public` and the full repository with
-  0 contradicted and 0 missing evidence claims.
+  0 contradicted and 0 missing evidence claims. Current public docs verifier
+  result: 173 documents, 1237 claims. Current full repository verifier result:
+  562 documents, 1434 claims.
 - `scripts/verify-package-docs.sh`, Markdown file-size scan,
   `git diff --check`, `cmp -s AGENTS.md CLAUDE.md`, and strict MkDocs build
   passed.

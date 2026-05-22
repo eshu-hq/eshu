@@ -23,11 +23,9 @@ options. This package must not import the parent parser package.
 
 ## Exported surface
 
-The godoc contract is in `doc.go`. Current exports are `ParserFactory`,
-`Parse`, `PreScan`, `TSConfigImportResolver`,
-`NewTSConfigImportResolver`, `TSConfigImportResolver.ResolveSource`,
-`TSConfigSourceCandidates`, `PackageFileRootKinds`, `NearestPackageRoot`, and
-`PackagePublicSourcePaths`, and `ExpressServerSymbols`.
+See `doc.go` and exported comments in the package sources for the godoc
+contract. Keep parser helper catalogs in source comments; this README should
+describe ownership, determinism, and evidence limits.
 
 ## Dependencies
 
@@ -64,21 +62,20 @@ artifact path, so `lib/index.d.ts` can map back to authored sources such as
 `src/index.ts` when generated declaration files are not checked in.
 
 Dead-code roots are evidence rows, not guesses. Package entrypoints, CommonJS
-exports, methods on CommonJS default-exported classes, Hapi handlers, Next.js
-route exports, Fastify route-object handlers, framework callbacks, TypeScript
-interface implementation methods, module-contract exports, and public API
+exports, framework routes, callbacks, module-contract exports, and public API
 re-exports must remain grounded in syntax or bounded repository files.
-Function values passed as call or constructor arguments are emitted as
-reference evidence so worker processors and route-handler callbacks do not
-look unused only because the framework owns invocation. CommonJS default-export
-class method roots apply only to the exported class expression, not helper
-classes nested inside another exported expression. Declaration public-surface
-walking follows repo-bounded static re-export barrels with a small cycle-safe
-depth cap so package `types` surfaces such as
-`index.d.ts -> types/index.d.ts -> plugin.d.ts` stay rooted without whole-repo
-inference. It also follows declaration entrypoints that import symbols and
-export them through local `export type { ... }` clauses, including public
-generic defaults that reference imported declaration types.
+CommonJS default-export class method roots apply only to the exported class
+expression, not helper classes nested inside another exported expression.
+Declaration public-surface walking stays repository-bounded, static, and
+depth-capped.
+
+## Verification
+
+```bash
+go test ./internal/parser/javascript -count=1
+go run ./cmd/eshu docs verify ../go/internal/parser/javascript --limit 1000 \
+  --fail-on contradicted,missing_evidence
+```
 
 ## Related docs
 

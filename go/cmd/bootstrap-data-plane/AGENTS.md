@@ -60,8 +60,9 @@
 
 - Symptom: graph DDL fails with a Cypher parse error → cause: the graph backend
   does not recognize a DDL statement → compare the statement against the backend
-  dialect; for NornicDB, check the NornicDB ADR and tuning reference for
-  known Cypher dialect gaps.
+  dialect; for NornicDB, check `docs/public/reference/nornicdb-pitfalls.md`,
+  `docs/public/reference/nornicdb-tuning.md`, and the current NornicDB-New
+  source before changing DDL.
 
 ## Anti-patterns specific to this package
 
@@ -73,12 +74,13 @@
   Adding a poll loop breaks the deployment bootstrap contract and prevents
   dependent services from starting.
 
-## What NOT to change without an ADR
+## What NOT to change without architecture-owner approval
 
 - The DDL idempotency contract (`CREATE ... IF NOT EXISTS`) — removing it
   breaks safe re-runs and coordinated Kubernetes deployment; see
   `docs/public/deployment/service-runtimes.md`.
 - The ESHU_GRAPH_BACKEND values understood by `schemaBackendFromEnv` — adding
-  or renaming backend values is a multi-package change; see
-  `docs/public/architecture.md` and
-  `docs/public/reference/graph-backend-installation.md`.
+  or renaming backend values is a multi-package change. Update
+  `docs/public/architecture.md`,
+  `docs/public/reference/graph-backend-installation.md`, and backend
+  conformance evidence before changing it.

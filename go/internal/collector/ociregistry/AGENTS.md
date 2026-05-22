@@ -18,7 +18,8 @@
 - ECR belongs here, not in the package-registry collector lane.
 - Strip URL credentials and sensitive token query parameters before adding URLs
   to payloads or source refs.
-- Redact unknown OCI annotation values unless an ADR defines an allowlist.
+- Redact unknown OCI annotation values unless architecture-owner approval adds
+  a current allowlist, package tests, and public collector docs.
 - Do not put registry hosts, repository paths, image tags, digests, URLs, or
   credentials in metrics.
 
@@ -31,7 +32,7 @@
 - Add live registry calls in `ociruntime` or a provider subpackage, not in
   identity helpers or envelope builders.
 
-## What Not To Change Without An ADR
+## What Not To Change Without Architecture-Owner Approval
 
 - Do not move package-manager feeds into this package.
 - Do not materialize graph nodes or relationships from this package.

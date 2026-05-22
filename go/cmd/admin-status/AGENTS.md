@@ -64,7 +64,7 @@
   must only open Postgres and delegate to `renderStatus`. Any report-shaping
   logic belongs in `internal/status`.
 
-## What NOT to change without an ADR
+## What NOT to change without architecture-owner approval
 
 - The `--format` flag name and accepted values — external scripts and operator
   runbooks depend on these; see `docs/public/reference/cli-reference.md`.

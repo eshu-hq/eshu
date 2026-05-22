@@ -13,26 +13,11 @@ This package owns scanner-level EventBridge fact selection and identity mapping.
 It does not own AWS SDK pagination, STS credentials, workflow claims, fact
 persistence, graph writes, reducer admission, or query behavior.
 
-```mermaid
-flowchart LR
-  A["EventBridge API adapter"] --> B["Client"]
-  B --> C["Scanner.Scan"]
-  C --> D["aws_resource"]
-  C --> E["aws_relationship"]
-  D --> F["facts.Envelope"]
-  E --> F
-```
-
 ## Exported surface
 
-See `doc.go` for the godoc contract.
-
-- `Client` - minimal EventBridge metadata read surface consumed by `Scanner`.
-- `Scanner` - emits event bus, rule, and target relationship facts for one
-  boundary.
-- `EventBus` - scanner-owned event bus representation.
-- `Rule` - scanner-owned rule representation.
-- `Target` - safe target metadata with payload fields intentionally omitted.
+See `doc.go` and the exported comments in `types.go` and `scanner.go` for the
+godoc contract. Keep target model details in source comments so payload-safety
+rules stay close to the scanner types.
 
 ## Dependencies
 
@@ -79,4 +64,5 @@ Run the AWS runtime tests when scan warnings or partial-status behavior changes.
 ## Related docs
 
 - `docs/public/services/collector-aws-cloud.md`
+- `docs/public/services/collector-aws-cloud-scanners.md`
 - `docs/public/guides/collector-authoring.md`

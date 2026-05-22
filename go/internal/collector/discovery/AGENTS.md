@@ -103,7 +103,7 @@
   include semantic is a deliberate design choice. Overly aggressive exclusion
   causes fixture-level mismatch and undercounts indexed files.
 
-## What NOT to change without an ADR
+## What NOT to change without architecture-owner approval
 
 - `RepoFileSet.RepoRoot` and `Files` being absolute paths — changing either to
   relative paths breaks the collector snapshotter, `streamFacts`,

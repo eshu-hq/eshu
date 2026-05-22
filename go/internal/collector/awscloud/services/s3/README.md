@@ -13,26 +13,11 @@ This package owns scanner-level S3 fact selection and identity mapping. It does
 not own AWS SDK pagination, STS credentials, workflow claims, fact persistence,
 graph writes, reducer admission, or query behavior.
 
-```mermaid
-flowchart LR
-  A["S3 API adapter"] --> B["Client"]
-  B --> C["Scanner.Scan"]
-  C --> D["aws_resource"]
-  C --> E["aws_relationship"]
-  D --> F["facts.Envelope"]
-  E --> F
-```
-
 ## Exported surface
 
-See `doc.go` for the godoc contract.
-
-- `Client` - minimal S3 bucket metadata read surface consumed by `Scanner`.
-- `Scanner` - emits bucket resources and logging-target relationship facts for
-  one boundary.
-- `Bucket` - scanner-owned bucket representation with safe metadata only.
-- `Versioning`, `Encryption`, `PublicAccessBlock`, `Website`, and `Logging` -
-  scanner-owned control-plane metadata groups.
+See `doc.go` and the exported comments in `types.go` and `scanner.go` for the
+godoc contract. Keep bucket model field details in source comments, not in this
+README.
 
 ## Dependencies
 
@@ -79,4 +64,5 @@ Run the AWS runtime tests when scan warnings or partial-status behavior changes.
 ## Related docs
 
 - `docs/public/services/collector-aws-cloud.md`
+- `docs/public/services/collector-aws-cloud-scanners.md`
 - `docs/public/guides/collector-authoring.md`

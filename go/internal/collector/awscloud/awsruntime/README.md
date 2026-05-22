@@ -17,17 +17,9 @@ write graph rows, or decide reducer/query truth.
 
 ## Exported surface
 
-Use `go doc ./internal/collector/awscloud/awsruntime` for the complete contract.
-The main surface is:
-
-- `ClaimedSource`, `Config`, `Target`, `TargetScope`, and credential config
-  types.
-- `CredentialProvider`, `CredentialLease`, `AWSConfigLease`, and SDK-backed
-  implementations.
-- `AccountLimiter` for per-account concurrency.
-- `ScannerFactory`, `ServiceScanner`, `DefaultScannerFactory`,
-  `SupportedServiceKinds`, and `SupportsServiceKind`.
-- `ScanStatusStore` and checkpoint store aliases used by runtime wiring.
+See `doc.go` and exported comments in the package sources for the godoc
+contract. Keep identifier-level behavior in source comments; this README tracks
+runtime ownership, telemetry, and claim-safety rules.
 
 ## Dependencies
 
@@ -65,13 +57,16 @@ raw AWS errors out of metric labels.
 - ECS and Lambda scanners require a redaction key.
 - Add full-scan services through `DefaultScannerFactory` and
   `SupportedServiceKinds`; do not branch scanner selection in commands.
+- Copy the workflow fencing token into every emitted fact envelope so stale
+  workers cannot overwrite newer generations.
 
-## Focused tests
+## Verification
 
 ```bash
 go test ./internal/collector/awscloud/awsruntime -count=1
 go test ./cmd/collector-aws-cloud -count=1
-go doc ./internal/collector/awscloud/awsruntime
+go run ./cmd/eshu docs verify ../go/internal/collector/awscloud/awsruntime --limit 1000 \
+  --fail-on contradicted,missing_evidence
 ```
 
 ## Related docs

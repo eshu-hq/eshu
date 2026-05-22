@@ -27,6 +27,8 @@ Generated from `git diff --name-status origin/main -- "*.md"` for this documenta
 - `docs/public/guides/terraform-providers/updating-providers.md`
 - `docs/public/index.md`
 - `docs/public/reference/capability-conformance-spec.md`
+- `docs/public/reference/cli-analysis.md`
+- `docs/public/reference/cli-indexing.md`
 - `docs/public/reference/cli-reference.md`
 - `docs/public/reference/cli-system.md`
 - `docs/public/reference/collector-reducer-readiness.md`
@@ -79,6 +81,7 @@ Generated from `git diff --name-status origin/main -- "*.md"` for this documenta
 - `docs/public/reference/telemetry/shared-write-operations.md`
 - `docs/public/reference/telemetry/streaming-memory.md`
 - `docs/public/reference/telemetry/traces.md`
+- `docs/public/reference/troubleshooting.md`
 - `docs/public/reference/truth-label-protocol.md`
 - `docs/public/run-locally/docker-compose.md`
 - `docs/public/run-locally/index.md`

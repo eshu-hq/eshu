@@ -14,26 +14,11 @@ mapping. It does not own AWS SDK pagination, STS credentials, workflow claims,
 fact persistence, graph writes, reducer admission, workload ownership, or query
 behavior.
 
-```mermaid
-flowchart LR
-  A["SSM API adapter"] --> B["Client"]
-  B --> C["Scanner.Scan"]
-  C --> D["aws_resource"]
-  C --> E["aws_relationship"]
-  D --> F["facts.Envelope"]
-  E --> F
-```
-
 ## Exported surface
 
-See `doc.go` for the godoc contract.
-
-- `Client` - minimal SSM Parameter Store metadata read surface consumed by
-  `Scanner`.
-- `Scanner` - emits parameter metadata and direct KMS relationship facts for
-  one boundary.
-- `Parameter` - scanner-owned metadata-only parameter representation.
-- `PolicyMetadata` - safe policy shape with type and status only.
+See `doc.go` and the exported comments in `types.go` and `scanner.go` for the
+godoc contract. Keep the parameter model catalog in source comments so secret
+exclusion rules stay close to the data shape.
 
 ## Dependencies
 
@@ -78,4 +63,5 @@ Run the AWS runtime tests when scan warnings or partial-status behavior changes.
 ## Related docs
 
 - `docs/public/services/collector-aws-cloud.md`
+- `docs/public/services/collector-aws-cloud-scanners.md`
 - `docs/public/guides/collector-authoring.md`

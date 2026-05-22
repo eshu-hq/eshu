@@ -75,7 +75,7 @@ Since the package currently has no code, failures today are in `cmd/` wiring:
   `internal/storage/cypher` and are composed in `cmd/` wiring. Adapters in
   this package are the innermost layer.
 
-## What NOT to change without an ADR
+## What NOT to change without architecture-owner approval
 
 - `cypher.Executor` interface shape — adding methods here or in `cmd/` wiring
   without updating all backends (Neo4j and NornicDB) breaks the backend-neutral

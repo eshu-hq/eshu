@@ -13,15 +13,6 @@ not emit fact envelopes, schedule claims, load credentials, write facts, call
 API execution paths, or infer workload, environment, repository, or
 deployable-unit truth.
 
-```mermaid
-flowchart LR
-    Client[awssdk.Client] --> Rest[REST API Gateway reads]
-    Client --> V2[HTTP and WebSocket API reads]
-    Rest --> Mapper[metadata mapper]
-    V2 --> Mapper
-    Mapper --> Port[apigateway.Client]
-```
-
 The adapter pages `GetRestApis`, `GetResources` with `embed=methods`,
 `GetDomainNames`, `GetBasePathMappings`, `GetApis`, `GetStages`,
 `GetIntegrations`, and `GetApiMappings` with bounded page sizes. It maps only
@@ -30,11 +21,9 @@ stage variable values.
 
 ## Exported surface
 
-See `doc.go` for the godoc-rendered package contract.
-
-- `Client` implements the parent package client port with AWS SDK calls.
-- `NewClient` builds the production adapter from an AWS SDK config and
-  collector boundary.
+See `doc.go` and the exported comments in `client.go` for the godoc contract.
+The parent scanner package owns the metadata model; this package owns AWS SDK
+pagination and call accounting.
 
 ## Dependencies
 
@@ -78,4 +67,5 @@ Run the AWS runtime tests when API-call status or partial-status behavior change
 ## Related docs
 
 - `docs/public/services/collector-aws-cloud.md`
+- `docs/public/services/collector-aws-cloud-scanners.md`
 - `docs/public/reference/telemetry/index.md`

@@ -14,25 +14,11 @@ mapping. It does not own AWS SDK pagination, STS credentials, workflow claims,
 fact persistence, graph writes, reducer admission, workload ownership, or query
 behavior.
 
-```mermaid
-flowchart LR
-  A["CloudWatch Logs API adapter"] --> B["Client"]
-  B --> C["Scanner.Scan"]
-  C --> D["aws_resource"]
-  C --> E["aws_relationship"]
-  D --> F["facts.Envelope"]
-  E --> F
-```
-
 ## Exported surface
 
-See `doc.go` for the godoc contract.
-
-- `Client` - minimal CloudWatch Logs metadata read surface consumed by
-  `Scanner`.
-- `Scanner` - emits log group metadata and direct KMS relationship facts for
-  one boundary.
-- `LogGroup` - scanner-owned metadata-only log group representation.
+See `doc.go` and the exported comments in `types.go` and `scanner.go` for the
+godoc contract. Keep field-level log group metadata details in source comments,
+not in this README.
 
 ## Dependencies
 
@@ -78,4 +64,5 @@ Run the AWS runtime tests when scan warnings or partial-status behavior changes.
 ## Related docs
 
 - `docs/public/services/collector-aws-cloud.md`
+- `docs/public/services/collector-aws-cloud-scanners.md`
 - `docs/public/guides/collector-authoring.md`

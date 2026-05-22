@@ -34,32 +34,17 @@ exact binary set on `PATH`.
 
 ## Pipeline shape
 
-```mermaid
-flowchart LR
-  ingester[ingester] --> postgres[(postgres facts/queue)]
-  projector[projector] -.local profiles.-> postgres
-  postgres --> reducer[reducer]
-  reducer --> graph[(graph backend)]
-  bootstrap[bootstrap-index] -.one-shot.-> ingester
-  bootstrap -.one-shot.-> reducer
-  workflow[workflow-coordinator] --> postgres
-  tfstate[collector-terraform-state] --> postgres
-  aws[collector-aws-cloud] --> postgres
-  webhook[webhook-listener] --> postgres
-  api[api] --> graph
-  api --> postgres
-  mcp[mcp-server] --> api
-```
-
-For the full lifecycle of any one binary, open its `README.md`.
+Long-running binaries either observe source systems and commit facts, drain
+durable work into graph/content state, coordinate claimable collector work, or
+serve bounded read surfaces. One-shot binaries initialize schema or bootstrap an
+empty environment. For the lifecycle of any one binary, open its `README.md`.
 
 ## Per-package documentation convention
 
 Every Go package directory under `go/cmd/` carries two required files:
 
-- `doc.go` — godoc contract.
-- `README.md` — architectural and operational lens with mermaid flow
-  diagrams and runbook-shape operational notes.
+- `doc.go` - godoc contract.
+- `README.md` - architectural and operational lens with runbook-shape notes.
 
 Use a package-local `AGENTS.md` only when command-specific assistant workflow
 rules cannot fit cleanly in the root agent guide or user-facing command README.

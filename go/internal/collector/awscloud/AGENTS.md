@@ -109,7 +109,7 @@
 - Add redaction or credential rules at the runtime boundary unless the value is
   part of the durable envelope contract.
 
-## What Not To Change Without An ADR
+## What Not To Change Without Architecture-Owner Approval
 
 - Do not make this package call AWS APIs directly.
 - Do not add graph writes, reducer admission, or query behavior here.

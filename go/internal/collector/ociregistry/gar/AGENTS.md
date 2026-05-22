@@ -1,7 +1,9 @@
 # GAR Adapter Notes
 
-Read `adapter.go`, `adapter_test.go`, and the OCI registry ADR before changing
-this package.
+Read `adapter.go`, `adapter_test.go`, `../README.md`,
+`../ociruntime/README.md`, and
+`docs/public/reference/collector-reducer-readiness.md` before changing this
+package.
 
 Keep GAR behavior as a narrow adapter over
 `go/internal/collector/ociregistry/distribution`. Do not implement Google

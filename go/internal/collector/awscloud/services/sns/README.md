@@ -13,28 +13,10 @@ This package owns scanner-level SNS fact selection and identity mapping. It does
 not own AWS SDK pagination, STS credentials, workflow claims, fact persistence,
 graph writes, reducer admission, or query behavior.
 
-```mermaid
-flowchart LR
-  A["SNS API adapter"] --> B["Client"]
-  B --> C["Scanner.Scan"]
-  C --> D["aws_resource"]
-  C --> E["aws_relationship"]
-  D --> F["facts.Envelope"]
-  E --> F
-```
-
 ## Exported surface
 
-See `doc.go` for the godoc contract.
-
-- `Client` - minimal SNS metadata read surface consumed by `Scanner`.
-- `Scanner` - emits topic metadata facts for one boundary.
-- `Topic` - scanner-owned SNS topic representation.
-- `TopicAttributes` - safe topic metadata fields. Topic policy JSON,
-  delivery-policy JSON, data-protection-policy JSON, and message payloads are
-  intentionally outside the contract.
-- `Subscription` - safe subscription metadata with only ARN-shaped endpoints
-  retained.
+See `doc.go` and the exported comments in `types.go` and `scanner.go` for the
+godoc contract. Do not duplicate the exported model catalog here.
 
 ## Dependencies
 
@@ -79,4 +61,5 @@ Run the AWS runtime tests when scan warnings or partial-status behavior changes.
 ## Related docs
 
 - `docs/public/services/collector-aws-cloud.md`
+- `docs/public/services/collector-aws-cloud-scanners.md`
 - `docs/public/guides/collector-authoring.md`

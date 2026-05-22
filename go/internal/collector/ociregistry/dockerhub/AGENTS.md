@@ -22,7 +22,7 @@
   helpers before touching live tests.
 - Keep decoded tokens out of errors, logs, metrics, and docs.
 
-## What Not To Change Without An ADR
+## What Not To Change Without Architecture-Owner Approval
 
 - Do not treat Docker Hub tag evidence as immutable image truth.
 - Do not add package-feed behavior here.

@@ -73,8 +73,6 @@ Generated from `git diff --name-status origin/main -- "*.md"` for this documenta
 - `docs/docs/operate/telemetry.md -> docs/public/operate/telemetry.md`
 - `docs/docs/operate/troubleshooting.md -> docs/public/operate/troubleshooting.md`
 - `docs/docs/reference/backend-conformance.md -> docs/public/reference/backend-conformance.md`
-- `docs/docs/reference/cli-analysis.md -> docs/public/reference/cli-analysis.md`
-- `docs/docs/reference/cli-indexing.md -> docs/public/reference/cli-indexing.md`
 - `docs/docs/reference/cli-kiss.md -> docs/public/reference/cli-kiss.md`
 - `docs/docs/reference/cloud-validation.md -> docs/public/reference/cloud-validation.md`
 - `docs/docs/reference/component-package-manager.md -> docs/public/reference/component-package-manager.md`
@@ -91,7 +89,6 @@ Generated from `git diff --name-status origin/main -- "*.md"` for this documenta
 - `docs/docs/reference/remote-e2e-runtime-state.md -> docs/public/reference/remote-e2e-runtime-state.md`
 - `docs/docs/reference/source-layout.md -> docs/public/reference/source-layout.md`
 - `docs/docs/reference/tag-taxonomy.md -> docs/public/reference/tag-taxonomy.md`
-- `docs/docs/reference/troubleshooting.md -> docs/public/reference/troubleshooting.md`
 - `docs/docs/releases/index.md -> docs/public/releases/index.md`
 - `docs/docs/releases/v0.0.2.md -> docs/public/releases/v0.0.2.md`
 - `docs/docs/run-locally/local-binaries.md -> docs/public/run-locally/local-binaries.md`
@@ -115,6 +112,7 @@ Generated from `git diff --name-status origin/main -- "*.md"` for this documenta
 - `go/cmd/collector-git/AGENTS.md`
 - `go/cmd/collector-git/README.md`
 - `go/cmd/collector-oci-registry/README.md`
+- `go/cmd/collector-package-registry/AGENTS.md`
 - `go/cmd/collector-package-registry/README.md`
 - `go/cmd/collector-terraform-state/README.md`
 - `go/cmd/eshu/AGENTS.md`
@@ -127,8 +125,10 @@ Generated from `git diff --name-status origin/main -- "*.md"` for this documenta
 - `go/cmd/projector/README.md`
 - `go/cmd/reducer/AGENTS.md`
 - `go/cmd/reducer/README.md`
+- `go/cmd/webhook-listener/AGENTS.md`
 - `go/cmd/workflow-coordinator/README.md`
 - `go/internal/README.md`
+- `go/internal/app/AGENTS.md`
 - `go/internal/app/README.md`
 - `go/internal/backendconformance/AGENTS.md`
 - `go/internal/buildinfo/README.md`
@@ -138,6 +138,7 @@ Generated from `git diff --name-status origin/main -- "*.md"` for this documenta
 - `go/internal/collector/awscloud/README.md`
 - `go/internal/collector/awscloud/awsruntime/AGENTS.md`
 - `go/internal/collector/awscloud/awsruntime/README.md`
+- `go/internal/collector/awscloud/checkpoint/AGENTS.md`
 - `go/internal/collector/awscloud/services/apigateway/README.md`
 - `go/internal/collector/awscloud/services/apigateway/awssdk/README.md`
 - `go/internal/collector/awscloud/services/cloudfront/README.md`
@@ -150,6 +151,7 @@ Generated from `git diff --name-status origin/main -- "*.md"` for this documenta
 - `go/internal/collector/awscloud/services/dynamodb/README.md`
 - `go/internal/collector/awscloud/services/dynamodb/awssdk/AGENTS.md`
 - `go/internal/collector/awscloud/services/dynamodb/awssdk/README.md`
+- `go/internal/collector/awscloud/services/ec2/AGENTS.md`
 - `go/internal/collector/awscloud/services/ec2/README.md`
 - `go/internal/collector/awscloud/services/ec2/awssdk/README.md`
 - `go/internal/collector/awscloud/services/ecr/AGENTS.md`
@@ -203,17 +205,21 @@ Generated from `git diff --name-status origin/main -- "*.md"` for this documenta
 - `go/internal/collector/cicdrun/AGENTS.md`
 - `go/internal/collector/cicdrun/README.md`
 - `go/internal/collector/confluence/README.md`
+- `go/internal/collector/discovery/AGENTS.md`
 - `go/internal/collector/discovery/README.md`
 - `go/internal/collector/ociregistry/AGENTS.md`
 - `go/internal/collector/ociregistry/README.md`
+- `go/internal/collector/ociregistry/acr/AGENTS.md`
 - `go/internal/collector/ociregistry/distribution/AGENTS.md`
 - `go/internal/collector/ociregistry/distribution/README.md`
 - `go/internal/collector/ociregistry/dockerhub/AGENTS.md`
 - `go/internal/collector/ociregistry/dockerhub/README.md`
 - `go/internal/collector/ociregistry/ecr/AGENTS.md`
 - `go/internal/collector/ociregistry/ecr/README.md`
+- `go/internal/collector/ociregistry/gar/AGENTS.md`
 - `go/internal/collector/ociregistry/ghcr/AGENTS.md`
 - `go/internal/collector/ociregistry/ghcr/README.md`
+- `go/internal/collector/ociregistry/harbor/AGENTS.md`
 - `go/internal/collector/ociregistry/jfrog/AGENTS.md`
 - `go/internal/collector/ociregistry/jfrog/README.md`
 - `go/internal/collector/packageregistry/AGENTS.md`
@@ -225,24 +231,31 @@ Generated from `git diff --name-status origin/main -- "*.md"` for this documenta
 - `go/internal/collector/vulnerabilityintelligence/AGENTS.md`
 - `go/internal/collector/vulnerabilityintelligence/README.md`
 - `go/internal/component/AGENTS.md`
+- `go/internal/component/README.md`
 - `go/internal/content/README.md`
 - `go/internal/content/shape/README.md`
 - `go/internal/contentrefs/README.md`
 - `go/internal/coordinator/README.md`
+- `go/internal/correlation/AGENTS.md`
 - `go/internal/correlation/README.md`
 - `go/internal/correlation/admission/README.md`
 - `go/internal/correlation/drift/cloudruntime/AGENTS.md`
 - `go/internal/correlation/drift/cloudruntime/README.md`
 - `go/internal/correlation/drift/tfconfigstate/AGENTS.md`
 - `go/internal/correlation/drift/tfconfigstate/README.md`
+- `go/internal/correlation/engine/AGENTS.md`
 - `go/internal/correlation/engine/README.md`
 - `go/internal/correlation/explain/README.md`
+- `go/internal/correlation/model/AGENTS.md`
 - `go/internal/correlation/model/README.md`
+- `go/internal/correlation/rules/AGENTS.md`
 - `go/internal/correlation/rules/README.md`
 - `go/internal/doctruth/README.md`
 - `go/internal/eshulocal/AGENTS.md`
 - `go/internal/eshulocal/README.md`
+- `go/internal/facts/AGENTS.md`
 - `go/internal/facts/README.md`
+- `go/internal/graph/AGENTS.md`
 - `go/internal/graph/README.md`
 - `go/internal/iacreachability/AGENTS.md`
 - `go/internal/iacreachability/README.md`
@@ -277,20 +290,28 @@ Generated from `git diff --name-status origin/main -- "*.md"` for this documenta
 - `go/internal/projector/README.md`
 - `go/internal/query/AGENTS.md`
 - `go/internal/query/README.md`
+- `go/internal/queue/AGENTS.md`
 - `go/internal/queue/README.md`
+- `go/internal/recovery/AGENTS.md`
 - `go/internal/recovery/README.md`
 - `go/internal/reducer/AGENTS.md`
 - `go/internal/reducer/README.md`
+- `go/internal/reducer/aws/AGENTS.md`
 - `go/internal/reducer/aws/README.md`
+- `go/internal/reducer/dsl/AGENTS.md`
 - `go/internal/reducer/dsl/README.md`
+- `go/internal/reducer/tags/AGENTS.md`
 - `go/internal/reducer/tags/README.md`
+- `go/internal/reducer/tfstate/AGENTS.md`
 - `go/internal/reducer/tfstate/README.md`
+- `go/internal/relationships/AGENTS.md`
 - `go/internal/relationships/README.md`
 - `go/internal/relationships/tfstatebackend/AGENTS.md`
 - `go/internal/relationships/tfstatebackend/README.md`
 - `go/internal/repositoryidentity/README.md`
 - `go/internal/runtime/AGENTS.md`
 - `go/internal/runtime/README.md`
+- `go/internal/scope/AGENTS.md`
 - `go/internal/scope/README.md`
 - `go/internal/status/AGENTS.md`
 - `go/internal/status/README.md`
@@ -303,11 +324,21 @@ Generated from `git diff --name-status origin/main -- "*.md"` for this documenta
 - `go/internal/storage/postgres/README.md`
 - `go/internal/telemetry/AGENTS.md`
 - `go/internal/telemetry/README.md`
+- `go/internal/terraformschema/AGENTS.md`
 - `go/internal/terraformschema/README.md`
 - `go/internal/truth/README.md`
 - `go/internal/workflow/README.md`
 - `scripts/README.md`
+- `tests/fixtures/deadcode/README.md`
+- `tests/fixtures/sample_projects/sample_project_c/README.md`
+- `tests/fixtures/sample_projects/sample_project_csharp/README.md`
 - `tests/fixtures/sample_projects/sample_project_go/README.md`
+- `tests/fixtures/sample_projects/sample_project_java/README.md`
+- `tests/fixtures/sample_projects/sample_project_javascript/README.md`
+- `tests/fixtures/sample_projects/sample_project_php/README.md`
 - `tests/fixtures/sample_projects/sample_project_rust/README.md`
+- `tests/fixtures/sample_projects/sample_project_swift/README.md`
 - `tests/fixtures/sample_projects/sample_project_typescript/README.md`
 - `tests/fixtures/tfstate_drift/README.md`
+- `tests/fixtures/tfstate_drift_tier2/README.md`
+- `tests/fixtures/tfstate_drift_tier2/v25/README.md`

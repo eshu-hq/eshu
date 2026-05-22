@@ -132,15 +132,11 @@ Jaeger is available at `http://localhost:16686` when this overlay is enabled.
 
 ## Tier-2 Terraform state overlay
 
-Use `docker-compose.tier2-tfstate.yaml` with the verifier script:
-
-```bash
-scripts/verify_tfstate_drift_compose_tier2.sh
-```
-
-This overlay layers Terraform state drift proof services onto the default stack.
-It also redirects `bootstrap-index`, `ingester`, `resolution-engine`, and `eshu`
-to `./tests/fixtures/tfstate_drift_tier2/repos/` so the proof owns its fixture
+Use `docker-compose.tier2-tfstate.yaml` when the Terraform state drift proof
+needs MinIO, active workflow coordination, and a Terraform state collector in
+the local Compose topology. The overlay redirects `bootstrap-index`,
+`ingester`, `resolution-engine`, and `eshu` to
+`./tests/fixtures/tfstate_drift_tier2/repos/` so the proof owns its fixture
 corpus.
 
 | Service or override | Provides |
@@ -156,17 +152,14 @@ The overlay pins MinIO images to immutable release tags
 `minio/mc:RELEASE.2025-08-13T08-35-41Z`). Confirm replacement tags exist on
 Docker Hub before bumping them; do not switch to `:latest`.
 
+Runbook command details live in
+[Verification Gates](../reference/local-testing/verification-gates.md#targeted-graph-and-terraform-gates).
+
 ## Tier-2 Terraform state v2.5 overlay
 
-Use `docker-compose.tier2-tfstate-v25.yaml` with the v2.5 verifier script:
-
-```bash
-scripts/verify_tfstate_drift_compose_tier2_v25.sh
-```
-
-This overlay is for two-generation Terraform state drift proof. It does not
-stack on top of `docker-compose.tier2-tfstate.yaml`; use it with the default
-stack.
+Use `docker-compose.tier2-tfstate-v25.yaml` for the two-generation Terraform
+state drift proof. It does not stack on top of
+`docker-compose.tier2-tfstate.yaml`; use it with the default stack.
 
 | Service or override | Provides |
 | --- | --- |
@@ -184,31 +177,11 @@ you need the single-generation proof.
 ## Remote collector E2E stack
 
 Use `docker-compose.remote-e2e.yaml` on a VPN-attached or account-local EC2 test
-machine when you want one Compose project for the default runtime plus
+machine when you want one isolated Compose project for the default runtime plus
 claim-driven Terraform state, OCI registry, package registry, AWS cloud, and
-optional Confluence collectors. The file is standalone so the remote proof does
-not mutate the default local stack or the Tier-2 MinIO overlays.
-
-The Compose project defaults to `eshu-remote-e2e`, so its volumes are isolated
-from the default stack even when both files are run from the same checkout.
-
-```bash
-cp .env.remote-e2e.example .env.remote-e2e
-# Edit .env.remote-e2e with the account, region, state object, and ECR repo.
-docker compose --env-file .env.remote-e2e -f docker-compose.remote-e2e.yaml --profile seed up --build
-```
-
-Run without `--profile seed` if real AWS freshness events are already delivered
-to the webhook listener. Enable the `confluence` profile only when tenant
-credentials are available.
-
-The example env defaults to smoke mode with the fixture corpus. For a
-full-corpus gate, set `ESHU_REMOTE_E2E_CORPUS_MODE=full`, point
-`ESHU_FILESYSTEM_HOST_ROOT` at the absolute corpus path, and set either
-`ESHU_REMOTE_E2E_MIN_REPOSITORY_COUNT` or
-`ESHU_REMOTE_E2E_EXPECTED_REPOSITORY_COUNT`. The preflight service prints the
-effective root and repository counts before indexing and fails early when a
-full-corpus run is still mounted on the default fixtures.
+optional Confluence collectors. The file is standalone and defaults the Compose
+project to `eshu-remote-e2e`, so its volumes do not collide with the default
+local stack or the Tier-2 MinIO overlays.
 
 For the service list, proof commands, AWS credential requirements, pprof ports,
 and acceptance evidence, see

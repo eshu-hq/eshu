@@ -15,27 +15,11 @@ does not own AWS SDK pagination, STS credentials, workflow claims, fact
 persistence, graph writes, reducer admission, workload ownership, or query
 behavior.
 
-```mermaid
-flowchart LR
-  A["RDS API adapter"] --> B["Client"]
-  B --> C["Scanner.Scan"]
-  C --> D["aws_resource"]
-  C --> E["aws_relationship"]
-  D --> F["facts.Envelope"]
-  E --> F
-```
-
 ## Exported surface
 
-See `doc.go` for the godoc contract.
-
-- `Client` - minimal RDS metadata read surface consumed by `Scanner`.
-- `Scanner` - emits DB instance, DB cluster, DB subnet group, and direct
-  relationship facts for one boundary.
-- `DBInstance`, `DBCluster`, and `DBSubnetGroup` - scanner-owned metadata-only
-  resource representations.
-- `ParameterGroup`, `OptionGroup`, and `ClusterMember` - reported RDS
-  relationship details.
+See `doc.go` and the exported comments in `types.go` and `scanner.go` for the
+godoc contract. Keep identifier-level documentation there; this README should
+stay focused on package ownership and safety rules.
 
 ## Dependencies
 
@@ -83,4 +67,5 @@ Run the AWS runtime tests when scan warnings or partial-status behavior changes.
 ## Related docs
 
 - `docs/public/services/collector-aws-cloud.md`
+- `docs/public/services/collector-aws-cloud-scanners.md`
 - `docs/public/guides/collector-authoring.md`

@@ -24,7 +24,7 @@
 - Add provider quirks in provider packages, then keep the translated call shape
   narrow before it reaches `Client`.
 
-## What Not To Change Without An ADR
+## What Not To Change Without Architecture-Owner Approval
 
 - Do not turn this package into a graph projector or reducer.
 - Do not decide that missing Referrers API means a digest has no referrers.

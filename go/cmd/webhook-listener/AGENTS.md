@@ -38,6 +38,7 @@ Read these files first:
 ## Do Not
 
 - Do not mount `/admin/status` publicly by chart default.
-- Do not store raw webhook payload bodies unless an ADR adds bounded retention
-  and redaction requirements.
+- Do not store raw webhook payload bodies unless architecture-owner approval
+  adds bounded retention, redaction requirements, tests, and public operator
+  docs.
 - Do not turn ignored trigger decisions into repository refresh work.
