@@ -18,6 +18,12 @@ services:
     ports:
       - "127.0.0.1:19661:6060"
 
+  projector:
+    environment:
+      ESHU_PPROF_ADDR: 0.0.0.0:6060
+    ports:
+      - "127.0.0.1:19669:6060"
+
   resolution-engine:
     environment:
       ESHU_PPROF_ADDR: 0.0.0.0:6060

@@ -32,6 +32,23 @@ func evaluateHealth(
 	producerActive := recentProducerActivityReason(producerActivity, opts)
 	if queue.Outstanding > 0 && queue.InFlight == 0 && queue.OldestOutstandingAge >= opts.StallAfter {
 		if producerActive == "" {
+			if backlog := largestDomainBacklog(domainBacklogs); backlog.Outstanding > 0 {
+				oldestAge := backlog.OldestAge
+				if oldestAge <= 0 {
+					oldestAge = queue.OldestOutstandingAge
+				}
+				return HealthSummary{
+					State: healthStalled,
+					Reasons: []string{
+						fmt.Sprintf(
+							"domain %s has %d outstanding items with no in-flight work for %s",
+							backlog.Domain,
+							backlog.Outstanding,
+							oldestAge,
+						),
+					},
+				}
+			}
 			return HealthSummary{
 				State: healthStalled,
 				Reasons: []string{
@@ -155,6 +172,20 @@ func sharedProjectionBacklog(rows []DomainBacklog) DomainBacklog {
 		}
 	}
 
+	return largest
+}
+
+func largestDomainBacklog(rows []DomainBacklog) DomainBacklog {
+	var largest DomainBacklog
+	for _, row := range rows {
+		if strings.TrimSpace(row.Domain) == "" || row.Outstanding <= 0 || row.InFlight > 0 {
+			continue
+		}
+		if row.Outstanding > largest.Outstanding ||
+			(row.Outstanding == largest.Outstanding && row.OldestAge > largest.OldestAge) {
+			largest = row
+		}
+	}
 	return largest
 }
 

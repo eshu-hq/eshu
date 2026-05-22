@@ -250,6 +250,29 @@ services:
     environment:
       <<: [*remote_e2e_runtime_env, *remote_e2e_collector_env]
 
+  projector:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: on-failure
+    command: ["/usr/local/bin/eshu-projector"]
+    ports:
+      - "${ESHU_PROJECTOR_HTTP_PORT:-18084}:8080"
+      - "${ESHU_PROJECTOR_METRICS_PORT:-19475}:9464"
+    environment:
+      <<: *remote_e2e_runtime_env
+      ESHU_PROJECTOR_WORKERS: ${ESHU_PROJECTOR_WORKERS:-}
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/healthz"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+    depends_on:
+      db-migrate:
+        condition: service_completed_successfully
+      bootstrap-index:
+        condition: service_completed_successfully
+
   resolution-engine:
     extends:
       file: docker-compose.yaml
@@ -402,6 +425,8 @@ services:
       timeout: 5s
       retries: 10
     depends_on:
+      projector:
+        condition: service_healthy
       workflow-coordinator:
         condition: service_healthy
 
@@ -426,6 +451,8 @@ services:
       timeout: 5s
       retries: 10
     depends_on:
+      projector:
+        condition: service_healthy
       workflow-coordinator:
         condition: service_healthy
 
@@ -450,6 +477,8 @@ services:
       timeout: 5s
       retries: 10
     depends_on:
+      projector:
+        condition: service_healthy
       workflow-coordinator:
         condition: service_healthy
 
@@ -475,6 +504,8 @@ services:
       timeout: 5s
       retries: 10
     depends_on:
+      projector:
+        condition: service_healthy
       workflow-coordinator:
         condition: service_healthy
 

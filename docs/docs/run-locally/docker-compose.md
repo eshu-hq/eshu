@@ -126,9 +126,10 @@ collectors. The file is standalone so the remote proof does not mutate the
 default local stack or the Tier-2 MinIO overlay.
 
 The stack still uses the pinned NornicDB v1.1.0 image from the default Compose
-file. It runs Postgres, NornicDB, a corpus preflight, schema migration, bootstrap indexing, API,
-MCP, ingester, reducer, workflow coordinator, webhook listener, collector
-workers, and an optional AWS freshness seeder. AWS cloud scans are freshness
+file. It runs Postgres, NornicDB, a corpus preflight, schema migration,
+bootstrap indexing, API, MCP, ingester, standalone projector, reducer, workflow
+coordinator, webhook listener, collector workers, and an optional AWS freshness
+seeder. AWS cloud scans are freshness
 trigger driven today; the seeder posts synthetic AWS Config change events into
 the webhook listener so the workflow coordinator creates AWS scan work.
 The Compose project defaults to `eshu-remote-e2e`, so its volumes are isolated
@@ -198,8 +199,8 @@ docker compose --env-file .env.remote-e2e \
 
 The overlay leaves normal defaults alone. It binds worker pprof listeners
 inside containers and publishes them on remote-host loopback ports only:
-`bootstrap-index` `19660`, `ingester` `19661`, `resolution-engine` `19662`,
-`workflow-coordinator` `19663`, Terraform-state collector `19664`, OCI
+`bootstrap-index` `19660`, `ingester` `19661`, `projector` `19669`,
+`resolution-engine` `19662`, `workflow-coordinator` `19663`, Terraform-state collector `19664`, OCI
 registry collector `19665`, package-registry collector `19666`, AWS cloud
 collector `19667`, and Confluence collector `19668`.
 
@@ -219,14 +220,17 @@ docker compose --env-file .env.remote-e2e -f docker-compose.remote-e2e.yaml --pr
 
 No-Regression Evidence: the remote E2E stack is additive and validates with
 `docker compose --env-file .env.remote-e2e.example -f docker-compose.remote-e2e.yaml config`;
-it does not change existing Compose service defaults or worker counts.
+it keeps bootstrap ordering stable by starting the standalone projector after
+`bootstrap-index` completes, then keeps a live source-local projector claimer
+for Terraform-state, OCI registry, package registry, AWS cloud, and optional
+Confluence collector rows.
 
 Observability Evidence: every long-running remote E2E runtime keeps the shared
 `/healthz`, `/readyz`, `/metrics`, and `/admin/status` surfaces. The proof uses
 existing workflow, AWS freshness, AWS cloud, Terraform state, OCI registry,
-package registry, reducer, ingester, API, MCP, Postgres, and NornicDB metrics
-and status endpoints to distinguish scheduling, claim, scan, projection, graph,
-and store failures.
+package registry, projector, reducer, ingester, API, MCP, Postgres, and
+NornicDB metrics and status endpoints to distinguish scheduling, claim, scan,
+projection, graph, and store failures.
 
 No-Regression Evidence: the worker pprof overlay renders separately with
 `docker compose --env-file .env.remote-e2e.example -f docker-compose.remote-e2e.yaml -f docker-compose.remote-e2e.pprof.yaml config`

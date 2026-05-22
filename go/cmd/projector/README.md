@@ -43,7 +43,7 @@ via `runtimecfg.OpenPostgres` and the canonical graph writer is opened via
 `openProjectorCanonicalWriter` — this creates a Neo4j session executor wrapped
 in `sourcecypher.InstrumentedExecutor` and returns a
 `sourcecypher.CanonicalNodeWriter`. `buildProjectorService` wires a
-`postgres.ProjectorQueue` as `WorkSource` and `WorkSink`, a
+`postgres.ProjectorQueue` as `WorkSource`, `WorkSink`, and `Heartbeater`, a
 `postgres.FactStore` for fact loading, and `buildProjectorRuntime` for
 projection execution. The assembled `projector.Service` is hosted through
 `app.NewHostedWithStatusServer` which mounts `/healthz`, `/readyz`, `/metrics`,
@@ -110,10 +110,11 @@ package's telemetry section.
   default. Raising this without watching `eshu_dp_canonical_write_duration_seconds`
   can hit Neo4j transaction size limits.
 - The projector lease duration for queue claims is one minute
-  (`postgres.NewProjectorQueue(database, "projector", time.Minute)`). If
-  canonical writes take longer than that without a heartbeat, the work item may
-  be re-claimed by another worker. Wire `projector.Service.Heartbeater` and a
-  heartbeat interval to prevent this for large repositories.
+  (`postgres.NewProjectorQueue(database, "projector", time.Minute)`). The
+  service heartbeats each claimed row before lease expiry so large source-local
+  projections do not get re-claimed while the graph write is still running.
+- `ESHU_PROJECTOR_WORKERS` controls standalone projector worker count. Empty or
+  invalid values default to a CPU-derived cap of eight workers.
 - Shutdown is signal-driven. In-flight acks use a 5-second timeout via
   `projectorAckContext` in `internal/projector/service.go`; claims in progress
   at shutdown are logged as `shutdown_canceled` and left for re-claim, not
@@ -141,6 +142,10 @@ package's telemetry section.
 - The binary does not start the resolution engine or ingester. It only drains
   existing projector queue items and writes graph/content output. Empty queues
   produce no errors; the binary polls indefinitely.
+
+No-Regression Evidence: `go test ./cmd/projector -run 'TestBuildProjectorService(HeartbeatsLongRunningClaims|UsesWorkerCountFromEnv|WiresRetryPolicyFromEnv)' -count=1` covers standalone projector lease renewal, worker tuning, and retry-policy wiring. Remote E2E Compose now starts this runtime after bootstrap indexing so hosted collector `source_local/projector` rows have an always-on claimer.
+
+Observability Evidence: the standalone projector now wires the same projector spans, metrics, structured logs, runtime memory gauge, `/metrics`, `/admin/status`, and optional pprof startup log used by hosted data-plane workers.
 
 ## Related docs
 

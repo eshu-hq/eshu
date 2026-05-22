@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"log/slog"
+	"runtime"
 	"strconv"
 	"strings"
 	"time"
@@ -27,6 +29,9 @@ func buildProjectorService(
 	database postgres.SQLDB,
 	canonicalWriter projector.CanonicalWriter,
 	getenv func(string) string,
+	tracer trace.Tracer,
+	instruments *telemetry.Instruments,
+	logger *slog.Logger,
 ) (projector.Service, error) {
 	projectorQueue := postgres.NewProjectorQueue(database, "projector", time.Minute)
 	reducerQueue := postgres.NewReducerQueue(database, "projector", time.Minute)
@@ -41,18 +46,54 @@ func buildProjectorService(
 	projectorQueue.RetryDelay = retryPolicy.RetryDelay
 	projectorQueue.MaxAttempts = retryPolicy.MaxAttempts
 
-	runner, err := buildProjectorRuntime(database, canonicalWriter, reducerQueue, retryInjector, getenv)
+	runner, err := buildProjectorRuntime(database, canonicalWriter, reducerQueue, retryInjector, getenv, tracer, instruments, logger)
 	if err != nil {
 		return projector.Service{}, err
 	}
 
 	return projector.Service{
-		PollInterval: time.Second,
-		WorkSource:   projectorQueue,
-		FactStore:    postgres.NewFactStore(database),
-		Runner:       runner,
-		WorkSink:     projectorQueue,
+		PollInterval:      time.Second,
+		WorkSource:        projectorQueue,
+		FactStore:         postgres.NewFactStore(database),
+		Runner:            runner,
+		WorkSink:          projectorQueue,
+		Heartbeater:       projectorQueue,
+		HeartbeatInterval: projectorHeartbeatInterval(projectorQueue.LeaseDuration),
+		Tracer:            tracer,
+		Instruments:       instruments,
+		Logger:            logger,
+		Workers:           projectorWorkerCount(getenv),
 	}, nil
+}
+
+func projectorHeartbeatInterval(leaseDuration time.Duration) time.Duration {
+	if leaseDuration <= 0 {
+		return time.Minute
+	}
+	interval := leaseDuration / 3
+	if interval <= 0 {
+		return time.Second
+	}
+	if interval > time.Minute {
+		return time.Minute
+	}
+	return interval
+}
+
+func projectorWorkerCount(getenv func(string) string) int {
+	if raw := strings.TrimSpace(getenv("ESHU_PROJECTOR_WORKERS")); raw != "" {
+		if n, err := strconv.Atoi(raw); err == nil && n > 0 {
+			return n
+		}
+	}
+	n := runtime.NumCPU()
+	if n > 8 {
+		n = 8
+	}
+	if n < 1 {
+		n = 1
+	}
+	return n
 }
 
 func buildProjectorRuntime(
@@ -61,6 +102,9 @@ func buildProjectorRuntime(
 	intentWriter projector.ReducerIntentWriter,
 	retryInjector projector.RetryInjector,
 	getenv func(string) string,
+	tracer trace.Tracer,
+	instruments *telemetry.Instruments,
+	logger *slog.Logger,
 ) (projector.Runtime, error) {
 	contentConfig, err := content.LoadWriterConfig(getenv)
 	if err != nil {
@@ -74,6 +118,9 @@ func buildProjectorRuntime(
 		PhasePublisher:  postgres.NewGraphProjectionPhaseStateStore(database),
 		RepairQueue:     postgres.NewGraphProjectionPhaseRepairQueueStore(database),
 		RetryInjector:   retryInjector,
+		Tracer:          tracer,
+		Instruments:     instruments,
+		Logger:          logger,
 	}, nil
 }
 
