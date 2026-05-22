@@ -85,6 +85,18 @@ func runTraceService(cmd *cobra.Command, args []string) error {
 		envelope.Error = &traceServiceError{Code: "not_found", Message: "service story response did not include data"}
 		return finishTraceService(cmd, opts, envelope, traceEnvelopeError(envelope.Error))
 	}
+	if freshness := traceServiceFreshnessState(envelope); freshness == "stale" || freshness == "building" {
+		return finishTraceService(cmd, opts, envelope, commandExitError{
+			message: fmt.Sprintf("service trace freshness is %s", freshness),
+			code:    4,
+		})
+	}
+	if status := traceServiceStatus(envelope); status == "partial" {
+		return finishTraceService(cmd, opts, envelope, commandExitError{
+			message: "service trace is partial",
+			code:    5,
+		})
+	}
 	return finishTraceService(cmd, opts, envelope, nil)
 }
 
@@ -143,8 +155,14 @@ func finishTraceService(cmd *cobra.Command, opts traceServiceOptions, envelope t
 		return err
 	}
 	if err != nil {
+		var renderErr error
 		if envelope.Error != nil && envelope.Error.Code == "ambiguous" {
-			_ = renderTraceServiceError(cmd.OutOrStdout(), envelope)
+			renderErr = renderTraceServiceError(cmd.OutOrStdout(), envelope)
+		} else if envelope.Error == nil && envelope.Data != nil {
+			renderErr = renderTraceServiceSummary(cmd.OutOrStdout(), envelope)
+		}
+		if renderErr != nil {
+			return renderErr
 		}
 		return err
 	}
@@ -238,6 +256,9 @@ func renderTraceServiceSummary(w io.Writer, envelope traceServiceEnvelope) error
 			return err
 		}
 	}
+	if err := renderTraceTruthFreshness(w, envelope); err != nil {
+		return err
+	}
 	if err := renderTraceCodeToRuntime(w, data); err != nil {
 		return err
 	}
@@ -272,6 +293,31 @@ func renderTraceServiceSummary(w io.Writer, envelope traceServiceEnvelope) error
 		}
 	}
 	return nil
+}
+
+func renderTraceTruthFreshness(w io.Writer, envelope traceServiceEnvelope) error {
+	freshness := traceMap(envelope.Truth, "freshness")
+	state := traceString(freshness, "state")
+	if state == "" {
+		return nil
+	}
+	if _, err := fmt.Fprintf(w, "Truth freshness: %s\n", state); err != nil {
+		return err
+	}
+	if detail := traceFirstString(traceString(freshness, "detail"), traceString(envelope.Truth, "reason")); detail != "" {
+		if _, err := fmt.Fprintf(w, "Freshness detail: %s\n", detail); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func traceServiceFreshnessState(envelope traceServiceEnvelope) string {
+	return traceString(traceMap(envelope.Truth, "freshness"), "state")
+}
+
+func traceServiceStatus(envelope traceServiceEnvelope) string {
+	return traceString(traceMap(envelope.Data, "code_to_runtime_trace"), "status")
 }
 
 func traceRuntimeInstanceCount(data map[string]any) int {

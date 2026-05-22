@@ -96,6 +96,51 @@ func TestBuildServiceStoryResponseIncludesCodeToRuntimeTrace(t *testing.T) {
 	}
 }
 
+func BenchmarkBuildServiceCodeToRuntimeTraceLargeDossier(b *testing.B) {
+	ctx := sampleServiceDossierContext()
+	ctx["api_surface"] = map[string]any{
+		"endpoints": serviceTraceBenchmarkRows(250),
+	}
+	ctx["entrypoints"] = serviceTraceBenchmarkRows(100)
+	ctx["deployment_evidence"] = map[string]any{
+		"artifacts":               serviceTraceBenchmarkRows(250),
+		"delivery_workflows":      serviceTraceBenchmarkRows(100),
+		"delivery_paths":          serviceTraceBenchmarkRows(250),
+		"shared_config_paths":     serviceTraceBenchmarkRows(250),
+		"artifact_count":          250,
+		"delivery_path_count":     250,
+		"delivery_workflow_count": 100,
+	}
+	ctx["instances"] = serviceTraceBenchmarkRows(250)
+	ctx["cloud_resources"] = serviceTraceBenchmarkRows(250)
+
+	b.ReportAllocs()
+	for b.Loop() {
+		got := buildServiceCodeToRuntimeTrace(ctx)
+		if StringVal(got, "status") != "complete" {
+			b.Fatalf("status = %#v, want complete", got["status"])
+		}
+	}
+}
+
+func serviceTraceBenchmarkRows(count int) []map[string]any {
+	rows := make([]map[string]any, 0, count)
+	for range count {
+		rows = append(rows, map[string]any{
+			"path":             "services/checkout/deploy.yaml",
+			"tool_family":      "kubernetes",
+			"image_ref":        "ghcr.io/acme/checkout-api:1.2.3",
+			"container_images": []string{"ghcr.io/acme/checkout-api:1.2.3"},
+			"name":             "checkout-api",
+			"environment":      "prod",
+			"platform_name":    "eks-prod",
+			"methods":          []string{"GET", "POST"},
+			"operation_ids":    []string{"getCheckout", "createCheckout"},
+		})
+	}
+	return rows
+}
+
 func segmentByName(segments []map[string]any, name string) map[string]any {
 	for _, segment := range segments {
 		if StringVal(segment, "name") == name {

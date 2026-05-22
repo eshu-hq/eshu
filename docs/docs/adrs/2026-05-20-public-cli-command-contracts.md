@@ -307,7 +307,7 @@ No-Regression Evidence: focused TDD covers the query contract, OpenAPI field,
 and CLI human output:
 `go test ./internal/query -run 'TestBuildServiceStoryResponseIncludesCodeToRuntimeTrace|TestOpenAPISpecServiceStoryExposesDossierFields' -count=1`
 and
-`go test ./cmd/eshu -run TestRunTraceServiceRendersOperationalSummary -count=1`.
+`go test ./cmd/eshu -run TestRunTraceServiceReturnsPartialExitAndRendersOperationalSummary -count=1`.
 This continuation adds no new graph read, Cypher shape, queue, worker, or write
 path; it only synthesizes the response from existing scoped service-story data.
 
@@ -316,6 +316,40 @@ enrichment. Operators still diagnose slowness or staleness through
 `service_query.stage_started` / `service_query.stage_completed`, `neo4j.query`,
 `postgres.query`, truth envelope metadata, and the response-level segment
 statuses plus `missing_segments`.
+
+Continuation note for issue #477: `eshu trace service` now treats stale or
+building truth freshness and partial code-to-runtime traces as explicit
+non-success states. Human output still renders the service summary, truth
+freshness, trace status, and missing segment list so operators can use the
+evidence that exists without mistaking it for a complete trace. `--json`
+continues to write the canonical envelope unchanged and returns the same
+non-zero exit status for stale or partial states.
+
+Performance Impact: this continuation affects only CLI response classification
+and bounded code-to-runtime response synthesis. Cardinality is capped by
+`serviceStoryItemLimit` per segment after the already-scoped service-story
+dossier has been fetched. Stop threshold: any response-synthesis benchmark above
+2 ms/op or an allocation increase above 2 MiB/op on the same synthetic large
+dossier must be profiled before merge.
+
+No-Regression Evidence: focused TDD covers partial trace exit `5`, stale
+freshness exit `4`, truth freshness rendering, trace status rendering, JSON
+success passthrough, and JSON partial-exit passthrough:
+`go test ./cmd/eshu -run 'TestRunTraceServiceReturnsPartialExitAndRendersOperationalSummary|TestRunTraceServiceReturnsStaleExitAndRendersTruthFreshness|TestRunTraceServiceJSONPassesCanonicalEnvelope|TestRunTraceServiceJSONReturnsPartialExitAfterWritingEnvelope' -count=1`.
+
+Benchmark Evidence: local response-synthesis benchmark on Apple M3 Pro,
+Darwin arm64, synthetic dossier with 250 API endpoints, 100 entrypoints,
+250 deployment artifacts, 100 delivery workflows, 250 delivery paths, 250 shared
+config paths, 250 runtime instances, and 250 cloud resources:
+`go test ./internal/query -run '^$' -bench 'BenchmarkBuildServiceCodeToRuntimeTraceLargeDossier' -benchmem`
+reported `778488 ns/op`, `1258979 B/op`, and `13530 allocs/op`.
+
+No-Observability-Change: this continuation adds no new API query, graph read,
+Cypher shape, queue, worker, collector, batch, or write path. Operators diagnose
+the same route through `service_query.stage_started`,
+`service_query.stage_completed`, `neo4j.query`, `postgres.query`, truth envelope
+freshness, and response-level `code_to_runtime_trace.status`,
+`segments[].status`, `segments[].truncated`, and `missing_segments`.
 
 ### `eshu map --from <thing>`
 

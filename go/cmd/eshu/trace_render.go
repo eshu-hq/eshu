@@ -18,6 +18,11 @@ func renderTraceCodeToRuntime(w io.Writer, data map[string]any) error {
 	if _, err := fmt.Fprintln(w, "Code to runtime:"); err != nil {
 		return err
 	}
+	if status := traceString(trace, "status"); status != "" {
+		if _, err := fmt.Fprintf(w, "Trace status: %s\n", status); err != nil {
+			return err
+		}
+	}
 	for _, item := range segments {
 		segment, ok := item.(map[string]any)
 		if !ok {
