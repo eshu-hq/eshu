@@ -257,6 +257,7 @@ func buildReducerService(
 		WorkloadIdentityWriter:             reducer.PostgresWorkloadIdentityWriter{DB: database},
 		CloudAssetResolutionWriter:         reducer.PostgresCloudAssetResolutionWriter{DB: database},
 		PlatformMaterializationWriter:      reducer.PostgresPlatformMaterializationWriter{DB: database},
+		PlatformGraphLocker:                platformGraphLockerForReducer(database),
 		WorkloadMaterializationReplayer:    workQueue,
 		WorkloadMaterializer:               reducer.NewWorkloadMaterializer(cypherExec),
 		InfrastructurePlatformMaterializer: reducer.NewInfrastructurePlatformMaterializer(cypherExec),
@@ -409,6 +410,21 @@ func buildReducerService(
 		Instruments:    instruments,
 		Logger:         logger,
 	}, nil
+}
+
+func platformGraphLockerForReducer(database postgres.ExecQueryer) reducer.PlatformGraphLocker {
+	beginner := reducerBeginner(database)
+	if beginner == nil {
+		return nil
+	}
+	return postgres.PlatformGraphLocker{DB: beginner}
+}
+
+func reducerBeginner(database postgres.ExecQueryer) postgres.Beginner {
+	if beginner, ok := database.(postgres.Beginner); ok {
+		return beginner
+	}
+	return nil
 }
 
 func reducerDomainStrings(domains []reducer.Domain) []string {

@@ -147,6 +147,26 @@ func TestBuildReducerServiceWiresDefaultRuntimeAndQueue(t *testing.T) {
 	}
 }
 
+func TestPlatformGraphLockerForReducerSkipsDBWithoutTransactions(t *testing.T) {
+	t.Parallel()
+
+	if locker := platformGraphLockerForReducer(&fakeReducerDB{}); locker != nil {
+		t.Fatalf("platformGraphLockerForReducer() = %T, want nil", locker)
+	}
+}
+
+func TestPlatformGraphLockerForReducerUsesTransactionalDB(t *testing.T) {
+	t.Parallel()
+
+	locker := platformGraphLockerForReducer(&fakeReducerTransactionalDB{})
+	if locker == nil {
+		t.Fatal("platformGraphLockerForReducer() = nil, want locker")
+	}
+	if _, ok := locker.(postgres.PlatformGraphLocker); !ok {
+		t.Fatalf("platformGraphLockerForReducer() type = %T, want postgres.PlatformGraphLocker", locker)
+	}
+}
+
 func TestBuildReducerServiceWiresSharedEdgeGroupBatchOverrides(t *testing.T) {
 	t.Parallel()
 
@@ -387,6 +407,14 @@ func TestBuildReducerServiceWiresSemanticEntityClaimLimit(t *testing.T) {
 
 type fakeReducerDB struct {
 	execs []fakeReducerExecCall
+}
+
+type fakeReducerTransactionalDB struct {
+	fakeReducerDB
+}
+
+func (f *fakeReducerTransactionalDB) Begin(context.Context) (postgres.Transaction, error) {
+	return nil, nil
 }
 
 type fakeReducerExecCall struct {
