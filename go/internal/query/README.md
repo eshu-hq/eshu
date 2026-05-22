@@ -95,7 +95,7 @@ queried lodash dependencies through both surfaces. API returned
 `count=0`, `truncated=false`, `limit=5` in `7ms`; MCP returned
 `Returned 0 result(s).` in `7ms`.
 No-Observability-Change: the package registry handler already wraps the route
-with `query.package_registry.packages`,
+with `query.package_registry_packages`,
 `query.package_registry_dependencies`, GraphQuery spans, HTTP status/errors,
 truth envelope metadata, and response `count/limit/truncated` fields. Empty
 dependency data is distinguishable from a slow or failed graph path by the
