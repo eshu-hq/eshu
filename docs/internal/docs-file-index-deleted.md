@@ -74,6 +74,7 @@ Generated from `git diff --cached --name-status origin/main -- "*.md"` for this 
 - `docs/docs/reference/telemetry/metrics.md`
 - `docs/docs/run-locally/docker-compose.md`
 - `docs/docs/run-locally/index.md`
+- `docs/docs/services/bootstrap-index.md`
 - `docs/docs/services/collector-aws-cloud.md`
 - `docs/docs/services/collector-terraform-state.md`
 - `docs/docs/services/ingester.md`

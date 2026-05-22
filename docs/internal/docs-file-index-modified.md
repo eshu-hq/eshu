@@ -10,9 +10,6 @@ Generated from `git diff --cached --name-status origin/main -- "*.md"` for this 
 - `apps/console/README.md`
 - `deploy/helm/eshu/README.md`
 - `deploy/observability/README.md`
-- `docs/internal/README.md`
-- `docs/internal/docs-inventory.md`
-- `docs/internal/updating-docs.md`
 - `docs/docs/concepts/graph-model.md -> docs/public/concepts/graph-model.md`
 - `docs/docs/concepts/how-it-works.md -> docs/public/concepts/how-it-works.md`
 - `docs/docs/concepts/modes.md -> docs/public/concepts/modes.md`
@@ -122,16 +119,19 @@ Generated from `git diff --cached --name-status origin/main -- "*.md"` for this 
 - `docs/docs/releases/v0.0.2.md -> docs/public/releases/v0.0.2.md`
 - `docs/docs/run-locally/local-binaries.md -> docs/public/run-locally/local-binaries.md`
 - `docs/docs/run-locally/mcp-local.md -> docs/public/run-locally/mcp-local.md`
-- `docs/docs/services/bootstrap-index.md -> docs/public/services/bootstrap-index.md`
 - `docs/docs/services/resolution-engine.md -> docs/public/services/resolution-engine.md`
 - `docs/docs/understand/index.md -> docs/public/understand/index.md`
 - `docs/docs/use/trace-infrastructure.md -> docs/public/use/trace-infrastructure.md`
 - `docs/docs/why-eshu.md -> docs/public/why-eshu.md`
+- `docs/internal/README.md`
+- `docs/internal/docs-inventory.md`
+- `docs/internal/updating-docs.md`
 - `go/README.md`
 - `go/cmd/README.md`
 - `go/cmd/admin-status/README.md`
 - `go/cmd/api/README.md`
 - `go/cmd/bootstrap-data-plane/README.md`
+- `go/cmd/bootstrap-index/AGENTS.md`
 - `go/cmd/bootstrap-index/README.md`
 - `go/cmd/collector-aws-cloud/README.md`
 - `go/cmd/collector-confluence/README.md`

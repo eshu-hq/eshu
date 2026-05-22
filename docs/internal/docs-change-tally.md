@@ -9,7 +9,10 @@ repo's 500-line limit.
 - Total Markdown files left in the checkout after the current pass: 555
 - Current branch doc status from
   `git diff --cached --name-status origin/main -- '*.md'` after the current
-  pass: 188 created, 269 modified, 120 deleted
+  pass: 188 created, 269 modified, 121 deleted
+- Copied image assets removed from this branch: 43 files under
+  `docs/public/images/`. They were reference assets from another project and
+  no longer appear in the source-doc reference scan.
 - Stable public docs surface: `docs/public/`
 - Maintainer-only docs surface: `docs/internal/`
 - Deleted stable-doc history surfaces: `docs/plans/`, `docs/superpowers/`,
@@ -82,9 +85,31 @@ cleanup pass.
 | Telemetry Logs And Correlation Rewrite | Replaced stale universal log-event guidance with the current Go structured log contract, corrected service names and cross-service correlation guidance, and removed old event families from operator recipes. |
 | MCP Cookbook Rewrite | Reduced the MCP cookbook into copy-ready current recipes, removed invalid arguments from deployment and call-chain examples, and corrected the MCP package README to the current 71-tool contract. |
 | Documentation Updater Actuator Contract Rewrite | Reduced the updater actuator contract from stale future-planning prose into the current read-only documentation findings, facts, evidence-packet, freshness, permission, and error contract grounded in query/MCP code. |
+| Bootstrap Index Docs And Copied Image Cleanup | Reduced the bootstrap-index package README into the current one-shot runtime contract, corrected scoped agent guidance and public service wording, and removed copied image assets that did not belong to Eshu docs. |
 
 ## Verification Snapshot
 
+- `go run ./cmd/eshu docs verify .. --limit 2000 --fail-on contradicted,missing_evidence`
+  passed with 569 documents, 1,751 claims, 0 contradicted, and 0 missing
+  evidence claims after the bootstrap-index docs and copied-image cleanup.
+- `go run ./cmd/eshu docs verify ../docs/public --limit 1000 --fail-on contradicted,missing_evidence`
+  passed with 181 documents, 1,300 claims, 0 contradicted, and 0 missing
+  evidence claims after the bootstrap-index docs and copied-image cleanup.
+- `go run ./cmd/eshu docs verify ../go/cmd/bootstrap-index --limit 1200 --fail-on contradicted,missing_evidence`
+  passed with 2 documents, 24 claims, 0 contradicted, and 0 missing evidence
+  claims after the bootstrap-index docs cleanup.
+- `go run ./cmd/eshu docs verify ../docs/public/services/bootstrap-index.md --limit 1200 --fail-on contradicted,missing_evidence`
+  passed with 1 document, 5 claims, 0 contradicted, and 0 missing evidence
+  claims after the bootstrap-index public service cleanup.
+- `go test ./cmd/bootstrap-index -count=1` passed after comparing the
+  bootstrap-index docs against current command code and tests.
+- `go test ./cmd/eshu -count=1`, `scripts/verify-package-docs.sh`,
+  `git diff --cached --check`, and `cmp -s AGENTS.md CLAUDE.md` passed after
+  the bootstrap-index docs cleanup.
+- `uv run --with mkdocs --with mkdocs-material --with pymdown-extensions mkdocs build --strict --clean --config-file docs/mkdocs.yml`
+  passed after deleting the copied image assets.
+- `rg -n "docs/public/images|public/images|\\.\\./images|\\./images|images/[A-Za-z0-9_.-]+\\.(png|jpg|jpeg|gif|webp|svg)|!\\[[^]]*\\]\\([^)]*\\.(png|jpg|jpeg|gif|webp|svg)[^)]*\\)" docs/public docs/mkdocs.yml README.md`
+  returned no source-doc references after deleting copied image assets.
 - `go run ./cmd/eshu docs verify .. --limit 2000 --fail-on contradicted,missing_evidence`
   passed with 569 documents, 1,756 claims, 0 contradicted, and 0 missing
   evidence claims after the documentation updater actuator contract rewrite.
@@ -267,10 +292,10 @@ cleanup pass.
 
 - Continue reviewing oversized public and package docs. The current largest
   real documentation files are
-  `go/cmd/bootstrap-index/README.md`, and
   `docs/public/deploy/kubernetes/helm-collector-and-webhook-values.md`, and
-  `docs/public/reference/cli-reference.md`. The scoped
-  `go/internal/storage/postgres/AGENTS.md` is also large, but any reduction
+  `docs/public/reference/cli-reference.md`, and
+  `docs/public/reference/configuration.md`. The scoped
+  `go/internal/storage/postgres/AGENTS.md` remains large, but any reduction
   there must preserve mandatory agent guidance. The larger
   `tests/fixtures/sample_projects/sample_project_typescript/README.md` fixture
   remains test data, not a public documentation target.

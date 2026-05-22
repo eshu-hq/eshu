@@ -1,324 +1,241 @@
 # bootstrap-index
 
-`eshu-bootstrap-index` is the one-shot operator helper for seeding an empty or
-recovered Eshu environment. It runs the multi-pass facts-first pipeline: pipelined
-collection with source-local projection, deferred relationship-evidence backfill,
-IaC reachability materialization, and deployment-mapping reopen. It exits when
-all phases complete; it is not a steady-state runtime.
+`eshu-bootstrap-index` is the one-shot runtime that seeds an empty or recovered
+Eshu environment. It collects a finite repository set, commits facts to
+Postgres, runs source-local projection, and drives the post-collection passes
+that let the steady-state reducer finish cross-repository truth.
 
-## Purpose
+Use this README when changing `go/cmd/bootstrap-index/`. Use the public
+[Bootstrap Index service page](../../../docs/public/services/bootstrap-index.md)
+when operating it.
 
-The binary exists because the normal steady-state services (`eshu-ingester` and
-`eshu-reducer`) are designed for incremental, continuous operation. Bootstrap
-fills the gap for cold-start and recovery scenarios where an operator needs a
-full facts-first pass over a known repository set before the incremental cycle
-takes over. The same write contracts — `projector.CanonicalWriter`,
-`postgres.IngestionStore`, the projector queue — apply here, so the output is
-identical to what the ingester and reducer would eventually produce.
+## Runtime Role
 
-## Where this fits in the pipeline
+Bootstrap indexing exists because steady-state services are incremental:
 
-```
-sync -> discover -> parse -> emit facts -> enqueue projector work
-  -> source-local projection (graph writes, content writes, reducer intents)
-     -> backfill relationship evidence
-     -> IaC reachability materialization
-     -> reopen deployment_mapping for reducer second pass
-```
+- `eshu-ingester` owns ongoing repository sync, parsing, and fact emission.
+- `eshu-reducer` owns queued cross-domain materialization and repair.
+- `eshu-bootstrap-index` owns the first finite pass over a known repository
+  set, then exits.
 
-`eshu-bootstrap-index` owns steps 1–7. After it exits, `eshu-reducer` drains the
-reducer intents that were enqueued during source-local projection.
+The binary is not a steady-state Kubernetes workload in the public Helm chart.
+It is packaged for Compose and can run manually as a direct process. Repeated
+restarts or long-running bootstrap activity are incidents; normal freshness
+belongs to the ingester, workflow coordinator, hosted collectors, and reducer.
 
-## Internal flow — the pipeline phases
+## Current Flow
 
-The orchestrator in `runPipelined` (`main.go:213`) drives six sequential
-steps: collection + projection (Phase 1), relationship-evidence backfill
-(Phase 2), IaC reachability materialization, deployment-mapping reopen
-(Phase 3), drift-intent enqueue (Phase 3.5), and the final shutdown
-path.
-
-```mermaid
-flowchart TD
-    A["run: wire telemetry, Postgres, graph backend\n(main.go:107)"]
-    A --> B["Phase 1: pipelined collection + projection\nrunPipelined (main.go:190)"]
-
-    subgraph Phase1["Phase 1 — concurrent goroutines"]
-        C["drainCollector (main.go:431)\nGitSource.Next → CommitScopeGeneration\nSkipRelationshipBackfill=true"]
-        D["drainProjectorPipelined (main.go:340)\ndrainingWorkSource polls queue\nN workers via drainProjectorWorkItem"]
-        C -- "collectorDone channel" --> D
-    end
-
-    B --> Phase1
-    Phase1 --> E["Phase 2: BackfillAllRelationshipEvidence\n(main.go:259)\npopulates relationship_evidence_facts\npublishes backward_evidence_committed readiness"]
-    E --> F["wait for projector drain\n(main.go:274)\ndrainProjectorPipelined must exit\nbefore reopen"]
-    F --> G["IaC reachability: MaterializeIaCReachability\n(main.go:279)\ncorpus-wide active-generation classification"]
-    G --> H["Phase 4: ReopenDeploymentMappingWorkItems\n(main.go:296)\nreopens succeeded deployment_mapping rows\nreducer creates resolved_relationships"]
-    H --> H2["Phase 3.5: EnqueueConfigStateDriftIntents\n(main.go:307)\nenqueues config_state_drift intents for\nactive state_snapshot scopes"]
-    H2 --> I["exit 0"]
+```text
+open telemetry
+open Postgres
+apply Postgres bootstrap schema
+open graph writer
+build Git collector
+build source-local projector
+run finite collection and projection
+backfill relationship evidence
+wait for source-local projector drain
+materialize IaC reachability
+reopen deployment_mapping reducer work
+enqueue config_state_drift reducer work
+exit
 ```
 
-### Phase 1 — collection and first-pass reduction
+The source-local projector writes canonical graph and content state and emits
+reducer intents. After bootstrap exits, `eshu-reducer` drains the reducer
+domains that need cross-repository evidence or shared materialization.
 
-`drainCollector` runs `collector.GitSource.Next` in a loop, committing each
-scope generation via `committer.CommitScopeGeneration`. The committer is wired
-with `SkipRelationshipBackfill=true`, which suppresses the per-commit backfill
-path that would be quadratically expensive across all repos.
+## Facts-First Ordering
 
-Concurrently, `drainProjectorPipelined` claims work from the Postgres projector
-queue using `FOR UPDATE SKIP LOCKED`. `N` goroutines (default `min(NumCPU, 8)`,
-overridden by `ESHU_PROJECTION_WORKERS`) each call `drainProjectorWorkItem` in
-a loop. The queue claim is scoped to git source systems because this one-shot
-runtime owns the finite repository corpus; continuous collectors publish their
-own source-local work for steady-state services to drain. Each work item:
-claim → `factStore.LoadFacts` → `runner.Project`
-(canonical graph write + content write + reducer intent enqueue) → `workSink.Ack`.
-If the shared `ProjectorWorkHeartbeater` reports `projector.ErrWorkSuperseded`,
-the worker records `status=superseded` and returns to the claim loop without
-acking or failing the stale generation.
+The ordering in `runPipelined` is a correctness contract.
 
-The `drainingWorkSource` wrapper converts between two modes: while the
-collector goroutine is running, an empty queue triggers a 500ms poll-wait and
-retry; once `collectorDone` is closed, `maxEmptyPolls` (5) consecutive empty
-claims trigger a clean exit via the `errProjectorDrained` sentinel.
-
-Bootstrap uses the same canonical writer policy as the steady-state ingester.
-That keeps graph-property filtering, NornicDB phase-group behavior, and
-row-scoped batched entity containment aligned between one-shot seeding and
-local-authoritative watch runs.
-
-`deployment_mapping` work items may project and succeed, or remain pending,
-during this phase. Both outcomes are valid because `backward_evidence` is not
-committed yet.
-
-### Phase 2 — relationship-evidence backfill
-
-After `drainCollector` returns (collector goroutine done, before projector
-drains), `runPipelined` calls `cd.committer.BackfillAllRelationshipEvidence`.
-This is defined on `postgres.IngestionStore` and satisfies
-`bootstrapCommitter.BackfillAllRelationshipEvidence`. It populates
-`relationship_evidence_facts` across all committed scope generations and
-publishes `backward_evidence_committed` readiness rows in
-`graph_projection_phase_state`. A failure here is fatal; the projector is
-cancelled and errors are joined.
-
-### Wait for projector drain
-
-`runPipelined` blocks on `projectorErr := <-errc` (`main.go:274`) before
-issuing the reopen call. This ordering invariant prevents `deployment_mapping`
-items emitted after the reopen pass from missing reopening.
-
-### IaC reachability materialization
-
-`cd.committer.MaterializeIaCReachability` classifies active-generation IaC
-usage corpus-wide and writes reachability rows to Postgres. Fatal on error.
-
-### Phase 4 — deployment-mapping reopen
-
-`cd.committer.ReopenDeploymentMappingWorkItems` reopens only the
-`deployment_mapping` work items that already **succeeded** with the
-cross-repo readiness gate closed. Items still pending or claimed at reopen
-time will see the now-open gate when they run next and do not need reopening.
-A small window exists where an in-flight item succeeds between Phase 2 and
-Phase 4; those stragglers require manual admin replay or a future automated
-straggler-replay mechanism.
-
-After Phase 4 exits successfully, `eshu-reducer` can drain the
-`deployment_mapping` and `resolved_relationships` reducer intents normally.
-
-## Lifecycle
-
-```
-main -> run
-  telemetry.NewBootstrap("bootstrap-index")
-  telemetry.NewProviders
-  telemetry.NewInstruments
-  runtimecfg.ConfigureMemoryLimit -> telemetry.RecordGOMEMLIMIT
-  openBootstrapDB (runtimecfg.OpenPostgres)
-  applySchema (postgres.ApplyBootstrap — idempotent DDL)
-  openBootstrapGraph (openBootstrapCanonicalWriter)
-  buildBootstrapCollector (GitSource + IngestionStore)
-  buildBootstrapProjector (projector.Runtime + queue deps)
-  projectionWorkerCount (ESHU_PROJECTION_WORKERS or min(NumCPU,8))
-  runPipelined → phases 1–4
-  exit 0 on success, exit 1 on any error
-```
-
-Signal handling: none. The binary is designed to run to completion; it does not
-register `SIGINT`/`SIGTERM` handlers. Operator interruption kills the process
-without cleanup.
-
-## Exported surface
-
-`package main` — no exported identifiers intended for import by other packages.
-The public contract is the binary's exit code and its side effects on Postgres
-and the graph backend. `eshu-bootstrap-index --version` and
-`eshu-bootstrap-index -v` print the build-time version through
-`printBootstrapIndexVersionFlag`, which wraps `buildinfo.PrintVersionFlag`,
-before opening either store.
-
-Key unexported interfaces and types used to make the binary testable via
-dependency injection:
-
-- `bootstrapCommitter` (`main.go:43`) — extends `collector.Committer` with
-  `BackfillAllRelationshipEvidence`, `MaterializeIaCReachability`, and
-  `ReopenDeploymentMappingWorkItems`
-- `collectorDeps`, `projectorDeps`, `graphDeps` — wiring structs passed through
-  `run` and `runPipelined`
-- `drainingWorkSource` (`main.go:369`) — wraps `ProjectorWorkSource`
-  to add drain-then-exit behavior
-- `bootstrapNeo4jExecutor` (`wiring.go:231`) — `DriverWithContext`-based Bolt
-  session executor for canonical writes
-- `bootstrapNornicDBPhaseGroupExecutor` (`nornicdb_wiring.go:109`) — NornicDB
-  phase-group chunking `Executor` wrapper
-
-Function-type aliases (`openBootstrapDBFn`, `applyBootstrapFn`, `openGraphFn`,
-`buildCollectorFn`, `buildProjectorFn`) are injected into `run` so tests can
-replace any wiring layer without starting Postgres or a graph backend.
-
-See `doc.go` for the package-level contract.
-
-## Dependencies
-
-Internal packages:
-
-| Package | Role |
-| --- | --- |
-| `internal/collector` | `collector.GitSource`, `collector.Committer`, `collector.DiscoveryAdvisoryReport` |
-| `internal/projector` | `projector.Runtime`, `projector.CanonicalWriter`, work source/sink/heartbeater interfaces |
-| `internal/runtime` (alias `runtimecfg`) | `OpenPostgres`, `LoadGraphBackend`, `OpenNeo4jDriver`, `ConfigureMemoryLimit` |
-| `internal/storage/postgres` | `postgres.IngestionStore`, `postgres.NewProjectorQueue`, `postgres.NewReducerQueue`, `postgres.NewFactStore`, `postgres.NewContentWriter`, `postgres.ApplyBootstrap`, `postgres.InstrumentedDB`, `postgres.NewGraphProjectionPhaseStateStore`, `postgres.NewGraphProjectionPhaseRepairQueueStore` |
-| `internal/storage/cypher` (alias `sourcecypher`) | `sourcecypher.NewCanonicalNodeWriter`, `sourcecypher.InstrumentedExecutor`, `sourcecypher.RetryingExecutor`, `sourcecypher.TimeoutExecutor`, `sourcecypher.Statement`, phase-group constants |
-| `internal/content` | `content.LoadWriterConfig` |
-| `internal/telemetry` | `telemetry.NewBootstrap`, `telemetry.NewProviders`, `telemetry.NewInstruments`, span/phase/failure-class attributes |
-
-The `projector.CanonicalWriter` interface is the write-side abstraction. The
-concrete writer is `sourcecypher.NewCanonicalNodeWriter`, which sits in front of
-`bootstrapNeo4jExecutor`. Both Neo4j and NornicDB run through the same writer;
-backend differences are confined to the executor layer in `nornicdb_wiring.go`.
-
-## Telemetry
-
-`bootstrap-index` exports OTEL only. It does **not** mount a `/metrics` HTTP
-endpoint.
-
-| Signal | Name or key | Where |
+| Step | What runs | Why it matters |
 | --- | --- | --- |
-| Span | `telemetry.SpanCollectorObserve` | `main.go:448` — one collect + commit cycle |
-| Span | `telemetry.SpanProjectorRun` | `main.go:657` — one claim + project + ack cycle |
-| Metric | `eshu_dp_facts_emitted_total` | `instruments.FactsEmitted` (`main.go:438`) |
-| Metric | `eshu_dp_facts_committed_total` | `instruments.FactsCommitted` (`main.go:481`) |
-| Metric | `eshu_dp_collector_observe_duration_seconds` | `instruments.CollectorObserveDuration` (`main.go:483`) |
-| Metric | `eshu_dp_queue_claim_duration_seconds` | `instruments.QueueClaimDuration`, `queue=projector` (`main.go:646`) |
-| Metric | `eshu_dp_projector_run_duration_seconds` | `instruments.ProjectorRunDuration` (`main.go:797`) |
-| Metric | `eshu_dp_projections_completed_total` | `instruments.ProjectionsCompleted` (`main.go:800`) |
-| Metric | `eshu_dp_gomemlimit_bytes` | `telemetry.RecordGOMEMLIMIT` (`main.go:115`) |
+| Collection and source-local projection | `drainCollector` and `drainProjectorPipelined` run concurrently. | Small repositories can project while larger repositories are still being collected. |
+| Relationship-evidence backfill | `BackfillAllRelationshipEvidence` populates `relationship_evidence_facts` and publishes `backward_evidence_committed`. | Deployment mapping needs the backward evidence gate before it can create complete cross-repository truth. |
+| Projector drain wait | The pipeline waits for the source-local projector goroutine to finish. | Work emitted after a reopen pass would otherwise miss reopening. |
+| IaC reachability | `MaterializeIaCReachability` writes active-generation IaC usage rows. | Query and reducer paths need current corpus-wide IaC classification. |
+| Deployment mapping reopen | `ReopenDeploymentMappingWorkItems` reopens succeeded `deployment_mapping` rows that ran before the gate was open. | The reducer can re-claim them and create `resolved_relationships`. |
+| Drift intent enqueue | `EnqueueConfigStateDriftIntents` enqueues one `config_state_drift` intent per active `state_snapshot:*` scope. | Terraform drift consumes both config-side parser facts and state-side collector facts. |
 
-Enable OTEL export by setting OTEL_EXPORTER_OTLP_ENDPOINT. When unset, a
-noop exporter is used and only local structured logs flow.
+Do not reorder or merge these calls. Any domain that consumes
+`resolved_relationships` needs a reopen or re-trigger mechanism after
+deployment mapping reopens.
 
-Failure-class log keys emitted via `telemetry.FailureClassAttr`:
+## Collection And Projection
 
-| Key | Phase |
-| --- | --- |
-| `commit_failure` | Phase 1 — per-scope commit |
-| `backfill_deferred_failure` | Phase 2 — `BackfillAllRelationshipEvidence` |
-| `iac_reachability_materialization_failure` | IaC materialization |
-| `reopen_deployment_mapping_failure` | Phase 4 — `ReopenDeploymentMappingWorkItems` |
-| `projection_failure` | Phase 1 — projection worker |
-| `lease_heartbeat_failure` | Phase 1 — heartbeat goroutine |
-| `status=superseded` | Phase 1 — stale projector generation replaced by newer same-scope work |
+`buildBootstrapCollector` wires a `collector.GitSource` with the native
+repository selector and snapshotter. It commits each collected generation with
+`postgres.IngestionStore.SkipRelationshipBackfill=true`. That flag is required:
+running relationship backfill per committed repository would turn the bootstrap
+cost quadratic across the corpus.
+
+`buildBootstrapProjector` wires a Postgres-backed projector queue scoped to git
+source systems. Projection workers claim queue rows with `FOR UPDATE SKIP
+LOCKED`, load facts for the claimed generation, run `projector.Runtime`, ack
+succeeded work, and emit reducer intents through the reducer queue.
+
+`drainingWorkSource` controls shutdown:
+
+- while collection is still running, empty queue claims sleep briefly and retry
+- after collection finishes, five consecutive empty claims end projection
+- any real claim resets the empty-poll counter
+
+`ESHU_PROJECTION_WORKERS` controls bootstrap projection concurrency. The default
+is `min(runtime.NumCPU(), 8)`. Setting it to `1` is useful for comparison runs,
+but it must not be shipped as a fix for a race or idempotency bug.
+
+## Lease And Supersession Rules
+
+Bootstrap projection uses the same stale-work discipline as the steady-state
+projector service:
+
+- `ProjectorQueue.Heartbeat` renews long-running claimed work.
+- The heartbeat interval is `leaseDuration / 3`, capped at one minute.
+- A stale claim rejection fails the worker item.
+- `projector.ErrWorkSuperseded` means a newer same-scope generation replaced
+  the current work. The worker records `status=superseded`, does not ack stale
+  graph state, and returns to the claim loop.
+
+This behavior is covered by bootstrap projector tests and the Postgres
+projector queue lifecycle tests.
+
+## Graph Writer
+
+Bootstrap uses the same canonical writer contract as source-local ingestion:
+
+- Neo4j and NornicDB both flow through `sourcecypher.NewCanonicalNodeWriter`.
+- Backend-specific differences stay in executor wiring.
+- NornicDB uses bounded phase-group execution by default instead of one
+  oversized grouped transaction.
+- `ESHU_NORNICDB_CANONICAL_GROUPED_WRITES` remains a conformance switch, not a
+  production default.
+- Row-scoped batched entity containment is enabled for NornicDB so bootstrap
+  and steady-state ingestion share the same high-cardinality entity write
+  shape.
+
+Update [NornicDB tuning](../../../docs/public/reference/nornicdb-tuning.md) if
+you change any NornicDB batch, phase-group, grouped-write, timeout, or
+containment knob.
+
+## Public Contract
+
+The binary has no importable API. Its public contract is:
+
+- `eshu-bootstrap-index --version` and `-v` print the embedded build version
+  before opening telemetry, Postgres, or the graph backend.
+- exit code `0` means every bootstrap step completed
+- exit code `1` means collection, projection, graph writer setup, schema
+  bootstrap, or a post-collection pass failed
+- the binary does not mount `/healthz`, `/readyz`, `/metrics`, or
+  `/admin/status`
+- `ESHU_PPROF_ADDR` enables an opt-in local pprof endpoint through
+  `runtime.NewPprofServer`
 
 ## Configuration
 
-| Variable | Default | Effect |
+| Variable | Default | Purpose |
 | --- | --- | --- |
-| ESHU_POSTGRES_DSN | required | Postgres connection string |
-| ESHU_GRAPH_BACKEND | `nornicdb` | Graph backend; `neo4j` or `nornicdb`; invalid value fails at startup |
-| NEO4J_URI | required | Bolt URI |
-| NEO4J_USERNAME | required | Bolt auth username |
-| NEO4J_PASSWORD | required | Bolt auth password |
-| DEFAULT_DATABASE | `nornic` | Bolt database name |
-| `ESHU_NEO4J_BATCH_SIZE` | backend default | Canonical node batch size |
-| `ESHU_PROJECTION_WORKERS` | `min(NumCPU, 8)` | Concurrent projection goroutines |
-| `ESHU_DISCOVERY_REPORT` | `""` | File path to write discovery advisory JSON; empty disables |
-| `ESHU_CANONICAL_WRITE_TIMEOUT` | `30s` (NornicDB) | Graph write transaction timeout |
-| `ESHU_NEO4J_PROFILE_GROUP_STATEMENTS` | `false` | Opt-in Neo4j grouped-write statement attempt logs for performance diagnostics |
-| `ESHU_NORNICDB_CANONICAL_GROUPED_WRITES` | `false` | Enable NornicDB grouped canonical writes; conformance gate required |
-| `ESHU_NORNICDB_PHASE_GROUP_STATEMENTS` | `500` | NornicDB phase group statement cap |
-| `ESHU_NORNICDB_FILE_BATCH_SIZE` | `100` | NornicDB file upsert row cap |
-| `ESHU_NORNICDB_ENTITY_BATCH_SIZE` | `100` | NornicDB entity upsert row cap |
-| `ESHU_NORNICDB_ENTITY_LABEL_BATCH_SIZES` | per-label defaults | Per-label batch size overrides (`Label=size,...`) |
-| `ESHU_PPROF_ADDR` | unset (disabled) | Opt-in `net/http/pprof` endpoint via `runtime.NewPprofServer`; port-only inputs bind to `127.0.0.1` |
+| `ESHU_POSTGRES_DSN` | required | Postgres connection string. |
+| `ESHU_GRAPH_BACKEND` | `nornicdb` | Graph backend, `nornicdb` or `neo4j`. Invalid values fail startup. |
+| `NEO4J_URI` | required | Bolt URI for NornicDB or Neo4j. |
+| `NEO4J_USERNAME` | required | Bolt username. |
+| `NEO4J_PASSWORD` | required | Bolt password. |
+| `DEFAULT_DATABASE` | `nornic` | Bolt database name. |
+| `ESHU_PROJECTION_WORKERS` | `min(NumCPU, 8)` | Bootstrap projection worker count. |
+| `ESHU_DISCOVERY_REPORT` | unset | Write one discovery advisory JSON array for the collected repositories. |
+| `ESHU_PPROF_ADDR` | unset | Enable opt-in pprof. Bare ports bind to `127.0.0.1`. |
+| `ESHU_NEO4J_BATCH_SIZE` | backend default | Generic canonical writer batch size. |
+| `ESHU_NEO4J_PROFILE_GROUP_STATEMENTS` | `false` | Neo4j grouped-write timing diagnostics. |
+| `ESHU_CANONICAL_WRITE_TIMEOUT` | `30s` for NornicDB | Graph write transaction timeout. |
+| `ESHU_NORNICDB_PHASE_GROUP_STATEMENTS` | `500` | Broad NornicDB grouped-statement cap. |
+| `ESHU_NORNICDB_FILE_PHASE_GROUP_STATEMENTS` | `5` | File-phase grouped-statement cap. |
+| `ESHU_NORNICDB_FILE_BATCH_SIZE` | `100` | File upsert row cap. |
+| `ESHU_NORNICDB_ENTITY_PHASE_GROUP_STATEMENTS` | `25` | Canonical entity grouped-statement cap before label overrides. |
+| `ESHU_NORNICDB_ENTITY_BATCH_SIZE` | `100` | Canonical entity row cap before label overrides. |
+| `ESHU_NORNICDB_ENTITY_LABEL_BATCH_SIZES` | `Function=15,K8sResource=1,Struct=50,Variable=100` | Label-specific entity row caps. |
+| `ESHU_NORNICDB_ENTITY_LABEL_PHASE_GROUP_STATEMENTS` | `Function=5,K8sResource=1,Struct=15,Variable=5` | Label-specific grouped-statement caps. |
+| `ESHU_NORNICDB_CANONICAL_GROUPED_WRITES` | `false` | Conformance-only switch for Neo4j-style grouped canonical writes on NornicDB. |
 
-Full NornicDB tuning reference: `docs/public/reference/nornicdb-tuning.md`.
+Repository selection, snapshot, parse-worker, discovery-overlay, and local data
+root settings are shared with the ingester and CLI indexing path. See
+[Environment Variables](../../../docs/public/reference/environment-variables.md)
+and [CLI Indexing](../../../docs/public/reference/cli-indexing.md).
 
-## Operational notes
+## Telemetry
 
-- **One-shot only.** The binary exits after Phase 4. Running it repeatedly on
-  an already-seeded environment re-indexes all repos and replays all
-  deployment-mapping work items. Use the ingester's incremental path instead.
-- **Version probes do not touch stores.** Keep `printBootstrapIndexVersionFlag`
-  at the top of `main` so install checks can inspect the binary without a
-  running graph or Postgres instance.
-- **No admin surface.** `/healthz`, `/readyz`, `/metrics`, and `/admin/status`
-  are not mounted. Monitor via OTEL traces and structured logs.
-- **Projector lease heartbeat.** Long canonical graph writes can outlast the
-  default projector lease. `startBootstrapProjectorHeartbeat` renews the lease
-  at `leaseDuration/3`, capped at 1 minute. A heartbeat can also return
-  `projector.ErrWorkSuperseded` when a newer same-scope generation exists; this
-  is an expected stale-work cancellation, not a bootstrap failure.
-- **NornicDB grouped writes.** `ESHU_NORNICDB_CANONICAL_GROUPED_WRITES=false`
-  by default. Enabling it without running the grouped-write safety probe test
-  carries the same rollback-safety risks as the ingester path.
-- **NornicDB entity containment.** Bootstrap enables row-scoped batched entity
-  containment for NornicDB (`canonical_writer_config.go:20-38`) so cold-start
-  indexing and the steady-state ingester use the same high-cardinality entity
-  write shape.
-- **Discovery advisory reports.** Set `ESHU_DISCOVERY_REPORT=<path>` to write a
-  per-repo advisory JSON. Useful for diagnosing oversized repositories before
-  committing to a full bootstrap run.
+Bootstrap exports OpenTelemetry through the normal providers. It does not expose
+the shared Prometheus HTTP endpoint.
 
-## Extension points
+| Signal | Where it is used |
+| --- | --- |
+| `telemetry.SpanCollectorObserve` | One collect and commit cycle. |
+| `telemetry.SpanProjectorRun` | One claim, project, and ack cycle. |
+| `eshu_dp_facts_emitted_total` | Facts emitted by bootstrap collection. |
+| `eshu_dp_facts_committed_total` | Facts committed to Postgres. |
+| `eshu_dp_collector_observe_duration_seconds` | Per-scope collection duration. |
+| `eshu_dp_queue_claim_duration_seconds{queue=projector}` | Projector queue claim duration. |
+| `eshu_dp_projector_run_duration_seconds` | Per-work-item projection duration. |
+| `eshu_dp_projections_completed_total` | Projection completion count by status. |
+| `eshu_dp_pipeline_overlap_seconds` | Time collection and projection overlapped. |
+| `eshu_dp_gomemlimit_bytes` | Configured Go memory limit. |
+| `eshu_dp_correlation_drift_intents_enqueued_total` | Phase 3.5 drift intents enqueued. |
 
-Adding a new post-collection pass (analogous to Phase 2 or Phase 4) requires:
+Important failure classes:
 
-1. Add the method to `bootstrapCommitter` (`main.go:41`).
-2. Implement it on `postgres.IngestionStore` (or the relevant concrete type).
-3. Add a call in `runPipelined` after the projector drain (`main.go:251`),
-   following the existing fatal-error pattern.
-4. Add a failure-class log key constant in `go/internal/telemetry/contract.go`.
-5. Add a test in `main_test.go` proving the ordering invariant.
+- `commit_failure`
+- `backfill_deferred_failure`
+- `iac_reachability_materialization_failure`
+- `reopen_deployment_mapping_failure`
+- `enqueue_config_state_drift_failure`
+- `projection_failure`
+- `lease_heartbeat_failure`
 
-Any domain that consumes `resolved_relationships` must have a reopen or
-re-trigger mechanism after Phase 4. See `docs/internal/agent-guide.md` —
-"Facts-First Bootstrap
-Ordering".
+## Known Edge Cases
 
-## Gotchas / invariants
+- Items still pending or claimed during the reopen pass naturally see the open
+  readiness gate when they run.
+- Items that succeed in the small window between relationship backfill and the
+  reopen pass are not automatically replayed today. Use admin replay or wait
+  for incremental refresh.
+- `errProjectorDrained` means the wrapped projector queue is empty after the
+  collector finished. It is a clean shutdown sentinel, not a pipeline error.
+- A discovery advisory report is an operator artifact. Do not turn its
+  repository paths or file names into metric labels.
+- The binary has no signal cleanup path. If a future change adds signal
+  handling, it must define partial-phase recovery semantics first.
 
-- `SkipRelationshipBackfill=true` on the `postgres.IngestionStore` committer is
-  not optional. Without it, every `CommitScopeGeneration` call would run a full
-  relationship backfill, making the total cost quadratic across the repo set.
-- Phase ordering is a correctness invariant, not a performance choice. Phase 2
-  must run before the projector drains; Phase 4 must run after the projector
-  drains. Swapping these creates E2E-only bugs (deployment-mapping items that
-  succeed before relationship evidence exists produce incomplete graph truth).
-- The straggler window between Phase 2 and Phase 4 is a known limitation. Items
-  that succeed in that window are not automatically replayed. Operators must use
-  `/admin/replay` or wait for the ingester's incremental refresh.
-- `errProjectorDrained` is a sentinel value (`main.go:657`). It signals clean
-  exit from `drainProjectorWorkItem` after the `PhaseProjection` drain loop
-  exhausts the queue; it is not an error. Worker goroutines return on
-  this value; they do not propagate it as an error.
-- `drainingWorkSource.Claim` counts consecutive empty polls using `atomic.Int32`.
-  The count resets to zero each time a work item is claimed successfully, so a
-  burst of real work after a quiet period does not trigger spurious exit.
+## Verification
 
-## Related docs
+Docs-only changes in this directory require:
 
-- [Service Runtimes — Bootstrap Index](../../../docs/public/deployment/service-runtimes.md#bootstrap-index)
-- [Docker Compose deployment](../../../docs/public/run-locally/docker-compose.md)
-- [Architecture — Bootstrap Index](../../../docs/public/architecture.md)
+```bash
+uv run --with mkdocs --with mkdocs-material --with pymdown-extensions \
+  mkdocs build --strict --clean --config-file docs/mkdocs.yml
+git diff --check
+```
+
+Runtime or code changes require focused command tests first:
+
+```bash
+cd go
+go test ./cmd/bootstrap-index -count=1
+go test ./cmd/bootstrap-index ./cmd/ingester ./internal/storage/postgres -count=1
+```
+
+Run the performance-evidence gates when changing workers, queues, leases,
+batching, graph writes, NornicDB knobs, or any hot-path runtime behavior:
+
+```bash
+scripts/test-verify-performance-evidence.sh
+scripts/verify-performance-evidence.sh
+```
+
+## Related Docs
+
+- [Bootstrap Runtime Services](../../../docs/public/deployment/service-runtimes-bootstrap.md)
+- [Docker Compose](../../../docs/public/run-locally/docker-compose.md)
+- [Architecture](../../../docs/public/architecture.md)
 - [Local Testing](../../../docs/public/reference/local-testing.md)
-- [NornicDB tuning](../../../docs/public/reference/nornicdb-tuning.md)
+- [Profiling And Concurrency](../../../docs/public/reference/local-testing/profiling-and-concurrency.md)
 - [Service Workflows](../../../docs/public/reference/service-workflows.md)

@@ -16,18 +16,17 @@ touching any file in `go/cmd/bootstrap-index/`.
   `BackfillAllRelationshipEvidence`, `ReopenDeploymentMappingWorkItems`, and
   `MaterializeIaCReachability` (the `bootstrapCommitter` methods).
 - `go/internal/storage/postgres/drift_enqueue.go` — owns
-  `EnqueueConfigStateDriftIntents` (the Phase 3.5 trigger added for chunk
-  #163).
+  `EnqueueConfigStateDriftIntents` (the Phase 3.5 trigger).
 
 ## Phase-ordering invariant
 
-The six pipeline steps in `runPipelined` (`main.go:227`) must execute in
+The six pipeline steps in `runPipelined` must execute in
 order:
 
 1. `drainCollector` + `drainProjectorPipelined` run concurrently.
    `BackfillAllRelationshipEvidence` is called after `drainCollector` returns,
    before the projector goroutine drains.
-2. `cd.committer.BackfillAllRelationshipEvidence` (`main.go:273`) populates
+2. `cd.committer.BackfillAllRelationshipEvidence` populates
    `relationship_evidence_facts` and publishes `backward_evidence_committed`.
 3. `projectorErr := <-errc` waits for `drainProjectorPipelined` to exit before
    the reopen call. This prevents `deployment_mapping` items emitted after
@@ -68,15 +67,16 @@ or create a new method on `bootstrapCommitter` and wire it after
 All NornicDB knobs are in `nornicdb_wiring.go`. Add or change a constant in the
 `const` block, read the env var via `nornicDBPositiveIntEnv`, and pass the value
 through `bootstrapNornicDBPhaseGroupExecutor`. Update
-`docs/docs/reference/nornicdb-tuning.md` and the active NornicDB ADR in the
-same PR.
+  `docs/public/reference/nornicdb-tuning.md` and the active NornicDB ADR in the
+  same PR.
 
 ### Change projection worker count behavior
 
-`projectionWorkerCount` (`main.go:426`) reads `ESHU_PROJECTION_WORKERS` and
+`projectionWorkerCount` reads `ESHU_PROJECTION_WORKERS` and
 defaults to `min(NumCPU, 8)`. If you change the cap or the default, update the
-concurrency reference table in `docs/docs/reference/local-testing.md` and
-`docs/docs/deployment/service-runtimes.md`.
+concurrency reference table in
+`docs/public/reference/local-testing/profiling-and-concurrency.md` and
+`docs/public/deployment/service-runtimes.md`.
 
 ## Failure modes
 
@@ -95,10 +95,10 @@ concurrency reference table in `docs/docs/reference/local-testing.md` and
   `CommitScopeGeneration` call runs a full per-repo backfill. On 800+ repos
   this is quadratically expensive and defeats the deferred-backfill design.
 - **Do not call `ReopenDeploymentMappingWorkItems` before the projector drains.**
-  The comment at `main.go:299` explains why; `MaterializeIaCReachability` must
-  also not run before the drain. Any refactor that merges or reorders these
-  calls requires re-reading the ADR at
-  `docs/docs/adrs/2026-04-18-bootstrap-relationship-backfill-quadratic-cost.md`.
+  `MaterializeIaCReachability` must also not run before the drain. Any refactor
+  that merges or reorders these calls requires re-reading the current
+  facts-first bootstrap ordering in `CLAUDE.md` and
+  `docs/internal/agent-guide.md`.
 - **Do not add signal handling without also adding a cleanup path for all
   phases.** The binary currently has no signal handlers by design (one-shot).
   If you add `SIGTERM` handling, you must decide what partial-phase state means
@@ -107,10 +107,9 @@ concurrency reference table in `docs/docs/reference/local-testing.md` and
   without running the conformance gate** (the grouped-write safety probe and
   rollback conformance tests). See `CLAUDE.md` section
   "NornicDB Compatibility Workflow".
-- **Do not treat `errProjectorDrained` as an error.** It is a sentinel
-  (`main.go:671`) emitted after the `PhaseProjection` drain loop exhausts the
-  queue. Worker goroutines return on it; do not propagate it through error
-  channels.
+- **Do not treat `errProjectorDrained` as an error.** It is a sentinel emitted
+  after the `PhaseProjection` drain loop exhausts the queue. Worker goroutines
+  return on it; do not propagate it through error channels.
 - **Do not treat `projector.ErrWorkSuperseded` as a bootstrap failure.** The
   queue has already moved the stale generation out of the live backlog. The
   worker must return to the claim loop so the newer generation can run.
