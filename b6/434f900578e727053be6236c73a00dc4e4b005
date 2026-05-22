@@ -1,0 +1,23 @@
+go/internal/mcp/README.md
+  s_072c5984f68e14::t_58d14a9e077d98 4,70
+go/internal/telemetry/contract_supply_chain.go
+  s_072c5984f68e14::t_58d14a9e077d98 19-29
+go/internal/telemetry/contract_service_catalog.go
+  s_072c5984f68e14::t_58d14a9e077d98 3-4,10-19
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.0",
+  "base_commit_sha": "b6434f900578e727053be6236c73a00dc4e4b005",
+  "prompts": {},
+  "sessions": {
+    "s_072c5984f68e14": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e4636-8361-7713-a3c6-b30ed9bbfc7b",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
