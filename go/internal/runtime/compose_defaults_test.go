@@ -19,6 +19,7 @@ type composeService struct {
 	Command     any            `yaml:"command"`
 	Entrypoint  any            `yaml:"entrypoint"`
 	Image       string         `yaml:"image"`
+	Restart     string         `yaml:"restart"`
 	DependsOn   any            `yaml:"depends_on"`
 	Environment map[string]any `yaml:"environment"`
 	Volumes     []any          `yaml:"volumes"`

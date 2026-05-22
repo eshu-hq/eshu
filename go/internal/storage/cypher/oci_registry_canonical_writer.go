@@ -28,7 +28,6 @@ SET r.id = row.uid,
     r.evidence_source = 'projector/oci_registry'`
 
 const canonicalOCIImageManifestUpsertCypher = `UNWIND $rows AS row
-MATCH (r:OciRegistryRepository {uid: row.repository_id})
 MERGE (m:ContainerImage:OciImageManifest {uid: row.uid})
 SET m.id = row.uid,
     m.name = row.digest,
@@ -50,12 +49,9 @@ SET m.id = row.uid,
     m.correlation_anchors = row.correlation_anchors,
     m.scope_id = row.scope_id,
     m.generation_id = row.generation_id,
-    m.evidence_source = 'projector/oci_registry'
-MERGE (r)-[rel:PUBLISHES_MANIFEST]->(m)
-ON CREATE SET rel.evidence_source = 'projector/oci_registry'`
+    m.evidence_source = 'projector/oci_registry'`
 
 const canonicalOCIImageIndexUpsertCypher = `UNWIND $rows AS row
-MATCH (r:OciRegistryRepository {uid: row.repository_id})
 MERGE (i:ContainerImageIndex:OciImageIndex {uid: row.uid})
 SET i.id = row.uid,
     i.name = row.digest,
@@ -74,12 +70,9 @@ SET i.id = row.uid,
     i.correlation_anchors = row.correlation_anchors,
     i.scope_id = row.scope_id,
     i.generation_id = row.generation_id,
-    i.evidence_source = 'projector/oci_registry'
-MERGE (r)-[rel:PUBLISHES_INDEX]->(i)
-ON CREATE SET rel.evidence_source = 'projector/oci_registry'`
+    i.evidence_source = 'projector/oci_registry'`
 
 const canonicalOCIImageDescriptorUpsertCypher = `UNWIND $rows AS row
-MATCH (r:OciRegistryRepository {uid: row.repository_id})
 MERGE (d:ContainerImageDescriptor:OciImageDescriptor {uid: row.uid})
 SET d.id = row.uid,
     d.name = row.digest,
@@ -96,12 +89,9 @@ SET d.id = row.uid,
     d.collector_kind = row.collector_kind,
     d.scope_id = row.scope_id,
     d.generation_id = row.generation_id,
-    d.evidence_source = 'projector/oci_registry'
-MERGE (r)-[rel:PUBLISHES_DESCRIPTOR]->(d)
-ON CREATE SET rel.evidence_source = 'projector/oci_registry'`
+    d.evidence_source = 'projector/oci_registry'`
 
 const canonicalOCIImageTagObservationUpsertCypher = `UNWIND $rows AS row
-MATCH (r:OciRegistryRepository {uid: row.repository_id})
 MERGE (t:ContainerImageTagObservation:OciImageTagObservation {uid: row.uid})
 SET t.id = row.uid,
     t.name = row.tag,
@@ -123,14 +113,9 @@ SET t.id = row.uid,
     t.collector_kind = row.collector_kind,
     t.scope_id = row.scope_id,
     t.generation_id = row.generation_id,
-    t.evidence_source = 'projector/oci_registry'
-MERGE (r)-[rel:OBSERVED_TAG]->(t)
-ON CREATE SET rel.confidence = 0.5,
-    rel.reason = 'Registry tag is mutable evidence for a digest observation',
-    rel.evidence_source = 'projector/oci_registry'`
+    t.evidence_source = 'projector/oci_registry'`
 
 const canonicalOCIImageReferrerUpsertCypher = `UNWIND $rows AS row
-MATCH (r:OciRegistryRepository {uid: row.repository_id})
 MERGE (ref:OciImageReferrer {uid: row.uid})
 SET ref.id = row.uid,
     ref.name = row.referrer_digest,
@@ -150,9 +135,7 @@ SET ref.id = row.uid,
     ref.collector_kind = row.collector_kind,
     ref.scope_id = row.scope_id,
     ref.generation_id = row.generation_id,
-    ref.evidence_source = 'projector/oci_registry'
-MERGE (r)-[rel:OBSERVED_REFERRER]->(ref)
-ON CREATE SET rel.evidence_source = 'projector/oci_registry'`
+    ref.evidence_source = 'projector/oci_registry'`
 
 func (w *CanonicalNodeWriter) buildOCIRegistryStatements(mat projector.CanonicalMaterialization) []Statement {
 	var statements []Statement

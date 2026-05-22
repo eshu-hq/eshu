@@ -80,8 +80,8 @@ func TestCanonicalNodeWriterBuildsOCIRegistryStatements(t *testing.T) {
 	}
 
 	manifest := statements[1]
-	if !strings.Contains(manifest.Cypher, "MATCH (r:OciRegistryRepository {uid: row.repository_id})") {
-		t.Fatalf("manifest Cypher = %q, want repository uid anchor", manifest.Cypher)
+	if strings.Contains(manifest.Cypher, "MATCH (r:OciRegistryRepository {uid: row.repository_id})") {
+		t.Fatalf("manifest Cypher = %q, must not require repository relationship anchor", manifest.Cypher)
 	}
 	if !strings.Contains(manifest.Cypher, "MERGE (m:ContainerImage:OciImageManifest {uid: row.uid})") {
 		t.Fatalf("manifest Cypher = %q, want ContainerImage/OciImageManifest uid merge", manifest.Cypher)
@@ -106,7 +106,7 @@ func TestCanonicalNodeWriterBuildsOCIRegistryStatements(t *testing.T) {
 	}
 }
 
-func TestCanonicalNodeWriterOCIRegistryRelationshipsDoNotUpdateGeneration(t *testing.T) {
+func TestCanonicalNodeWriterOCIRegistrySkipsRelationshipWrites(t *testing.T) {
 	t.Parallel()
 
 	writer := NewCanonicalNodeWriter(&recordingExecutor{}, 2, nil)
@@ -144,16 +144,16 @@ func TestCanonicalNodeWriterOCIRegistryRelationshipsDoNotUpdateGeneration(t *tes
 
 	statements := writer.buildOCIRegistryStatements(mat)
 	for _, statement := range statements {
-		if !strings.Contains(statement.Cypher, "MERGE (r)-[rel:") {
-			continue
+		if strings.Contains(statement.Cypher, "MERGE (r)-[rel:") {
+			t.Fatalf("OCI registry Cypher must not write repository publication relationships:\n%s", statement.Cypher)
 		}
-		if strings.Contains(statement.Cypher, "rel.generation_id") {
-			t.Fatalf("OCI relationship Cypher mutates rel.generation_id on replay:\n%s", statement.Cypher)
+		if strings.Contains(statement.Cypher, "PUBLISHES_") || strings.Contains(statement.Cypher, "OBSERVED_") {
+			t.Fatalf("OCI registry Cypher must derive repository truth from node properties, not relationships:\n%s", statement.Cypher)
 		}
 	}
 }
 
-func TestCanonicalNodeWriterOCIRegistryRelationshipsOnlySetPropertiesOnCreate(t *testing.T) {
+func TestCanonicalNodeWriterOCIRegistryKeepsImageFamilyLabels(t *testing.T) {
 	t.Parallel()
 
 	writer := NewCanonicalNodeWriter(&recordingExecutor{}, 2, nil)
@@ -237,15 +237,21 @@ func TestCanonicalNodeWriterOCIRegistryRelationshipsOnlySetPropertiesOnCreate(t 
 	}
 
 	statements := writer.buildOCIRegistryStatements(mat)
+	wants := map[string]string{
+		"OciImageManifest":       "MERGE (m:ContainerImage:OciImageManifest {uid: row.uid})",
+		"OciImageIndex":          "MERGE (i:ContainerImageIndex:OciImageIndex {uid: row.uid})",
+		"OciImageDescriptor":     "MERGE (d:ContainerImageDescriptor:OciImageDescriptor {uid: row.uid})",
+		"OciImageTagObservation": "MERGE (t:ContainerImageTagObservation:OciImageTagObservation {uid: row.uid})",
+		"OciImageReferrer":       "MERGE (ref:OciImageReferrer {uid: row.uid})",
+	}
 	for _, statement := range statements {
-		if !strings.Contains(statement.Cypher, "MERGE (r)-[rel:") {
+		label, _ := statement.Parameters[StatementMetadataEntityLabelKey].(string)
+		wantMerge, ok := wants[label]
+		if !ok {
 			continue
 		}
-		if strings.Contains(statement.Cypher, "\nSET rel.") {
-			t.Fatalf("OCI relationship Cypher updates rel properties after MERGE on replay:\n%s", statement.Cypher)
-		}
-		if !strings.Contains(statement.Cypher, "ON CREATE SET rel.") {
-			t.Fatalf("OCI relationship Cypher must initialize rel properties only on create:\n%s", statement.Cypher)
+		if !strings.Contains(statement.Cypher, wantMerge) {
+			t.Fatalf("%s Cypher = %q, want %q", label, statement.Cypher, wantMerge)
 		}
 	}
 }

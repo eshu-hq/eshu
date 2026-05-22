@@ -199,6 +199,7 @@ services:
     extends:
       file: docker-compose.yaml
       service: db-migrate
+    restart: on-failure
 
   workspace-setup:
     extends:
@@ -209,6 +210,7 @@ services:
     extends:
       file: docker-compose.yaml
       service: bootstrap-index
+    restart: on-failure
     environment:
       <<: [*remote_e2e_runtime_env, *remote_e2e_collector_env]
     depends_on:
@@ -222,6 +224,7 @@ services:
     extends:
       file: docker-compose.yaml
       service: eshu
+    restart: on-failure
     environment:
       <<: [*remote_e2e_runtime_env, *remote_e2e_collector_env]
 
@@ -229,6 +232,7 @@ services:
     extends:
       file: docker-compose.yaml
       service: mcp-server
+    restart: on-failure
     environment:
       <<: [*remote_e2e_runtime_env, *remote_e2e_collector_env]
 
@@ -236,6 +240,7 @@ services:
     extends:
       file: docker-compose.yaml
       service: ingester
+    restart: on-failure
     environment:
       <<: [*remote_e2e_runtime_env, *remote_e2e_collector_env]
 
@@ -243,6 +248,7 @@ services:
     extends:
       file: docker-compose.yaml
       service: resolution-engine
+    restart: on-failure
     environment:
       <<: *remote_e2e_runtime_env
 
@@ -250,6 +256,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+    restart: on-failure
     command: ["/usr/local/bin/eshu-workflow-coordinator"]
     ports:
       - "${ESHU_WORKFLOW_COORDINATOR_HTTP_PORT:-18082}:8080"
@@ -275,6 +282,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+    restart: on-failure
     command: ["/usr/local/bin/eshu-webhook-listener"]
     ports:
       - "${ESHU_WEBHOOK_LISTENER_HTTP_PORT:-18083}:8080"

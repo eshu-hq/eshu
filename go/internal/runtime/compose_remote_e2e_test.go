@@ -94,6 +94,31 @@ func TestRemoteE2EComposeUsesProductionCanonicalWriteTimeout(t *testing.T) {
 	}
 }
 
+func TestRemoteE2EComposeRestartsRuntimeServicesAfterTransientStoreStartup(t *testing.T) {
+	t.Parallel()
+
+	doc := readComposeDocument(t, "docker-compose.remote-e2e.yaml")
+	for _, serviceName := range []string{
+		"db-migrate",
+		"bootstrap-index",
+		"eshu",
+		"mcp-server",
+		"ingester",
+		"resolution-engine",
+		"workflow-coordinator",
+		"webhook-listener",
+		"collector-terraform-state",
+		"collector-oci-registry",
+		"collector-package-registry",
+		"collector-aws-cloud",
+	} {
+		service := requireComposeService(t, doc, serviceName)
+		if service.Restart != "on-failure" {
+			t.Fatalf("%s restart = %q, want on-failure", serviceName, service.Restart)
+		}
+	}
+}
+
 func TestRemoteE2EPreflightScriptValidatesFullCorpusInputs(t *testing.T) {
 	t.Parallel()
 
