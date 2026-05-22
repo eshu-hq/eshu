@@ -455,7 +455,7 @@ claims, then emits documentation finding and evidence-packet fact envelopes in
 memory. This slice validates CLI claims against the current Cobra command tree,
 HTTP endpoint claims against the generated OpenAPI path inventory, and
 environment claims against the documented Eshu env-var allowlist. It does not
-yet verify cloud, Kubernetes, Terraform, package/image ownership, or external
+yet verify cloud runtime, Kubernetes object, package ownership, or external
 documentation collector claims; those remain unsupported rather than passed.
 
 Implementation evidence for issue #479 persistence slice: `eshu docs verify
@@ -515,6 +515,21 @@ produce `contradicted`, and API transport or backend errors produce
 effective image truth mode so persisted local-image findings are not reused for
 API-image verification runs.
 
+Implementation evidence for issue #479 Terraform-address truth slice:
+`eshu docs verify [path]` now extracts explicit backticked Terraform block
+addresses such as `aws_s3_bucket.logs`,
+`data.aws_iam_policy_document.reader`, and `module.network`. The CLI supplies a
+bounded local Terraform resolver rooted at the nearest Git worktree root. It
+parses `.tf` and `.tf.json` files with HashiCorp HCL, skips generated/vendor
+trees including `.terraform`, and treats matching `resource`, `data`, and
+`module` blocks as exact local deployment evidence. Existing Terraform
+addresses produce `valid` findings, absent addresses produce `contradicted`
+findings when the scan is complete, and invalid/oversized/incomplete Terraform
+inputs produce `missing_evidence` rather than a false contradiction. This slice
+checks local IaC evidence only; Terraform state, cloud runtime presence,
+Kubernetes live objects, and ownership claims remain future collector/API truth
+work.
+
 No-Regression Evidence: focused gates for the first slice are
 `go test ./internal/doctruth -run 'TestVerifier' -count=1`,
 `go test ./cmd/eshu -run 'TestDocsVerify' -count=1`, and
@@ -536,9 +551,13 @@ and
 `go test ./cmd/eshu -run 'TestRunDocsVerifyChecksContainerImageClaims' -count=1`.
 The container-image API truth slice adds
 `go test ./cmd/eshu -run 'TestRunDocsVerifyChecksContainerImageClaimsAgainstAPITruth|TestRunDocsVerifyMarksAPIImageTruthErrorsMissingEvidence|TestDocsVerifyFreshnessIncludesEffectiveImageTruthMode' -count=1`.
+The Terraform-address truth slice adds
+`go test ./internal/doctruth -run 'TestVerifierComparesTerraformAddressClaims|TestVerifierMarksTerraformAddressUnsupportedWithoutResolver|TestNormalizeTerraformAddressClaimIsConservative' -count=1`
+and
+`go test ./cmd/eshu -run 'TestRunDocsVerifyChecksTerraformAddressClaims|TestDocsVerifyTerraformTruthMarksInvalidHCLIncomplete' -count=1`.
 The covered input shape is local Markdown documents with explicit command,
-endpoint, env-var, local repo path, local container image ref, and unsupported
-shell-command snippets.
+endpoint, env-var, local repo path, local container image ref, Terraform
+address, and unsupported shell-command snippets.
 Bounds are file-count and per-file byte limits plus one exact `stat` probe per
 extracted local path candidate, one scope-generation freshness lookup, and one
 kind-filtered fact read on unchanged persisted input; read-surface lookups
@@ -547,8 +566,16 @@ image-reference truth adds a bounded manifest scan of at most 2000
 manifest-shaped files and 512 KiB per manifest file before claim comparison.
 API image truth adds at most one `limit=1` container-image identity API lookup
 per unique extracted image ref in the bounded documentation input, with per-run
-cache reuse. Graph writes, backend Cypher, cloud clients, Kubernetes clients,
-registry clients, and runtime worker counts are unchanged.
+cache reuse. Terraform-address truth adds a bounded local scan of at most 2000
+Terraform-shaped files and 512 KiB per Terraform file before claim comparison.
+Graph writes, backend Cypher, cloud clients, Kubernetes clients, registry
+clients, and runtime worker counts are unchanged.
+
+Benchmark Evidence: local Terraform-address truth benchmark on Apple M3 Pro,
+Darwin arm64, synthetic tree with 200 `.tf` files and 600 Terraform block
+addresses:
+`go test ./cmd/eshu -run '^$' -bench 'BenchmarkDocsVerifyTerraformAddressTruthLargeTree' -benchmem`
+reported `15438400 ns/op`, `3665501 B/op`, and `27845 allocs/op`.
 
 Observability Evidence: this slice is a local CLI/documentation-fact generator,
 so no new long-running runtime metric is required. Operator diagnosis uses the
@@ -569,6 +596,11 @@ route span `query.container_image_identities`, the HTTP response envelope
 truth metadata, and the docs verifier finding counters; no new metric label is
 needed because the route already exposes the reducer-owned image identity read
 model with explicit `limit`, `count`, and `truncated` fields.
+The Terraform-address truth slice adds no API query, graph read, Cypher shape,
+queue, worker, collector, batch, or write path. Operators diagnose it through
+existing docs verifier summary counters, `terraform_address` finding statuses,
+JSON evidence packets, the `truncated` signal when local input bounds are hit,
+and the existing persistence/read-route signals when `--persist` is used.
 
 ---
 
