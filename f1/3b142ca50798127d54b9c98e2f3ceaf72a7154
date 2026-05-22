@@ -1,0 +1,46 @@
+go/internal/doctruth/verifier_container_image_test.go
+  s_f2f7fbb6f30866::t_1be27488c3ad79 1-76,78-84,86-117
+  s_f2f7fbb6f30866::t_2f95612f74bde7 77,85
+go/cmd/eshu/docs.go
+  s_f2f7fbb6f30866::t_09d26f1fe4ab34 121
+go/cmd/eshu/docs_image_ref_test.go
+  s_f2f7fbb6f30866::t_0ec5dfa2b1b4a9 1-8,11-33,36-63,102
+  s_f2f7fbb6f30866::t_a9aa331bba2cc7 9-10,82-101
+  s_f2f7fbb6f30866::t_7205141095ef46 34-35,64-81
+go/internal/doctruth/verifier_container_image.go
+  s_f2f7fbb6f30866::t_5f2d46b7523b9a 1-10,12,15-63,74-99,101-119,137
+  s_f2f7fbb6f30866::t_b950fba967def2 14,64-66,100
+  s_f2f7fbb6f30866::t_1b235f1f6b3e37 11,13,120-136
+  s_f2f7fbb6f30866::t_36b7e146ab493e 67-73
+go/internal/doctruth/doc.go
+  s_f2f7fbb6f30866::t_1346320b9b8357 8-12
+docs/docs/reference/cli-reference.md
+  s_f2f7fbb6f30866::t_9fcca77e081b6f 226
+go/internal/doctruth/verifier_identity.go
+  s_f2f7fbb6f30866::t_0cd35d5ff8fae4 1-27
+docs/docs/adrs/2026-05-20-public-cli-command-contracts.md
+  s_f2f7fbb6f30866::t_096fb5dc2c74ed 430-441,457-460,462-463,467-471
+go/internal/doctruth/verifier.go
+  s_f2f7fbb6f30866::t_b3ace96143fab5 22-23,70-80,134-144,161-171,250-252,300-302,358-363
+go/cmd/eshu/docs_image_ref.go
+  s_f2f7fbb6f30866::t_a591b335725632 1-63,69-103,105-106,108-112,114,116
+  s_f2f7fbb6f30866::t_ddc8855a50f337 64-68,104,107,113,115
+go/internal/doctruth/README.md
+  s_f2f7fbb6f30866::t_30834b90f0b572 37-41
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.0",
+  "base_commit_sha": "f13b142ca50798127d54b9c98e2f3ceaf72a7154",
+  "prompts": {},
+  "sessions": {
+    "s_f2f7fbb6f30866": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e360b-90eb-7472-bac7-56d488b65f77",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
