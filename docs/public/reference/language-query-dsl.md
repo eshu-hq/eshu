@@ -5,15 +5,14 @@ indexed code. It is the canonical surface for "give me decorators on this
 class," "list methods of this struct," "which imports reference this symbol,"
 and similar structured-code questions.
 
-Two transport equivalents expose the same DSL:
+Two transport paths expose the same DSL:
 
 - MCP tool: `execute_language_query`
 - HTTP route: `POST /api/v0/code/language-query`
 
-Both accept the same JSON payload and return the same result shape. When the
-client opts into the canonical envelope via
-`Accept: application/eshu.envelope+json`, results arrive as a
-[`{data, truth, error}` envelope](truth-label-protocol.md).
+Both accept the same JSON payload. The MCP dispatcher requests the canonical
+Eshu envelope from the mounted HTTP route; the direct HTTP handler currently
+returns the data object itself.
 
 ## Payload
 
@@ -39,13 +38,14 @@ client opts into the canonical envelope via
 
 ## Supported languages
 
-Canonical names accepted by the `language` field:
+Accepted names:
 
-`c`, `cpp`, `csharp`, `dart`, `go`, `haskell`, `java`, `javascript`, `perl`,
-`python`, `ruby`, `rust`, `scala`, `sql`, `swift`, `typescript`.
+`c`, `cpp`, `csharp`, `dart`, `elixir`, `go`, `haskell`, `hcl`, `java`,
+`javascript`, `jsx`, `kotlin`, `perl`, `php`, `python`, `ruby`, `rust`,
+`scala`, `sql`, `swift`, `tsx`, `typescript`.
 
-Common aliases are normalized at request time. Unsupported languages return
-HTTP 400 with a list of valid values.
+`jsx` normalizes to `javascript`; `tsx` normalizes to `typescript`.
+Unsupported languages return HTTP 400 with the valid values.
 
 ## Entity types
 
@@ -56,28 +56,34 @@ Entity types are resolved against three backing stores:
   content store if graph is empty for the language/type.
 - **Content-only** — served from the Postgres content store.
 
-Accepted values in the `entity_type` enum:
+Accepted values in the current `entity_type` enum:
 
-`repository`, `directory`, `file`, `module`, `function`, `class`, `struct`,
-`enum`, `union`, `macro`, `variable`, `sql_table`, `sql_view`,
-`sql_function`, `sql_trigger`, `sql_index`, `sql_column`.
+`annotation`, `class`, `component`, `directory`, `enum`, `file`, `function`,
+`guard`, `impl_block`, `macro`, `module`, `module_attribute`, `protocol`,
+`protocol_implementation`, `repository`, `sql_column`, `sql_function`,
+`sql_index`, `sql_table`, `sql_trigger`, `sql_view`, `struct`,
+`terraform_backend`, `terraform_check`, `terraform_import`,
+`terraform_lock_provider`, `terraform_module`, `terraform_moved_block`,
+`terraform_removed_block`, `terragrunt_config`, `terragrunt_dependency`,
+`terragrunt_input`, `terragrunt_local`, `type_alias`, `type_annotation`,
+`typedef`, `union`, `variable`.
 
-The surface also accepts `guard` as a semantic filter over `function`
-entities (returns guard-classified functions only).
+`guard` is a semantic filter over `function` entities and returns
+guard-classified functions only.
 
-## Capability mapping
+## Capability Mapping
 
-Each `entity_type` answers one capability from the
-[capability matrix](capability-conformance-spec.md). Truth level per profile
-follows the matrix:
+Selected semantic filters answer symbol-graph capabilities from the
+[capability matrix](capability-conformance-spec.md). Truth ceilings for those
+capabilities are:
 
-| `entity_type` | Capability | `local_lightweight` | `local_full_stack` | `production` |
+| Capability | `local_lightweight` | `local_authoritative` | `local_full_stack` | `production` |
 | --- | --- | --- | --- | --- |
-| `class` | `symbol_graph.class_methods` | `derived` | `exact` | `exact` |
-| `function` (decorators filter) | `symbol_graph.decorators` | `derived` | `exact` | `exact` |
-| `function` (arguments filter) | `symbol_graph.argument_names` | `derived` | `exact` | `exact` |
-| `module` / `file` (import filter) | `symbol_graph.imports` | `derived` | `exact` | `exact` |
-| `class` / `struct` (inheritance) | `symbol_graph.inheritance` | `derived` | `exact` | `exact` |
+| `symbol_graph.class_methods` | `derived` | `exact` | `exact` | `exact` |
+| `symbol_graph.decorators` | `derived` | `exact` | `exact` | `exact` |
+| `symbol_graph.argument_names` | `derived` | `exact` | `exact` | `exact` |
+| `symbol_graph.imports` | `derived` | `exact` | `exact` | `exact` |
+| `symbol_graph.inheritance` | `derived` | `exact` | `exact` | `exact` |
 
 Under `local_lightweight`, answers are served from indexed entities and
 relational content without the authoritative graph. Higher profiles serve the
@@ -89,7 +95,6 @@ HTTP:
 
 ```http
 POST /api/v0/code/language-query HTTP/1.1
-Accept: application/eshu.envelope+json
 Content-Type: application/json
 
 {
@@ -101,37 +106,26 @@ Content-Type: application/json
 }
 ```
 
-Envelope response:
+Direct HTTP response:
 
 ```json
 {
-  "data": {
-    "language": "python",
-    "entity_type": "class",
-    "query": "User",
-    "results": [
-      {
-        "entity_id": "py-user-class-1",
-        "name": "User",
-        "labels": ["Class"],
-        "file_path": "src/models/user.py",
-        "repo_id": "eshu",
-        "language": "python",
-        "start_line": 12,
-        "end_line": 87,
-        "metadata": { "semantic_kind": "data_class" }
-      }
-    ]
-  },
-  "truth": {
-    "level": "derived",
-    "capability": "symbol_graph.class_methods",
-    "profile": "local_lightweight",
-    "basis": "content_index",
-    "freshness": { "state": "fresh" },
-    "reason": "resolved from indexed entity and content tables"
-  },
-  "error": null
+  "language": "python",
+  "entity_type": "class",
+  "query": "User",
+  "results": [
+    {
+      "entity_id": "py-user-class-1",
+      "name": "User",
+      "labels": ["Class"],
+      "file_path": "src/models/user.py",
+      "repo_id": "eshu",
+      "language": "python",
+      "start_line": 12,
+      "end_line": 87,
+      "metadata": { "semantic_kind": "data_class" }
+    }
+  ]
 }
 ```
 

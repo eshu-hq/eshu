@@ -24,20 +24,11 @@ It writes no application data.
 
 ## Compose Contract
 
-In Compose, `db-migrate` runs schema bootstrap before the long-running services:
-
-```yaml
-db-migrate:
-  command: ["/usr/local/bin/eshu-bootstrap-data-plane"]
-  depends_on:
-    nornicdb:
-      condition: service_healthy
-    postgres:
-      condition: service_healthy
-```
-
-Other services depend on `db-migrate` with
-`condition: service_completed_successfully`. Use the base Compose file for
+In Compose, `db-migrate` runs
+`/usr/local/bin/eshu-bootstrap-data-plane` after Postgres and the graph backend
+are healthy. API, MCP, ingester, reducer, workflow coordinator, webhook
+listener, and bootstrap-index depend on `db-migrate` with
+`condition: service_completed_successfully`. Use `docker-compose.yaml` for
 NornicDB and `docker-compose.neo4j.yml` for the explicit Neo4j compatibility
 stack.
 
@@ -110,16 +101,10 @@ paths for normal freshness.
 
 ## Local Full-Stack Flow
 
-```mermaid
-flowchart LR
-  A["eshu-bootstrap-data-plane"] --> B["empty valid schema"]
-  B --> C["eshu-bootstrap-index"]
-  C --> D["initial facts and graph projection"]
-  E["ingester"] --> F["ongoing repository refresh"]
-  F --> G["fact work queue"]
-  G --> H["resolution engine"]
-  H --> I["graph and content reads"]
-```
+The local full-stack order is schema bootstrap, optional bootstrap indexing,
+then steady-state ingester and resolution-engine refresh. Bootstrap indexing
+creates initial facts and graph projection. After that, normal freshness comes
+from incremental ingester, collector, workflow-coordinator, and reducer paths.
 
 ## Related Pages
 

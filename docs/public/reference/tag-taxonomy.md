@@ -1,139 +1,51 @@
 # Tag Taxonomy
 
-Eshu uses tag taxonomy to normalize cloud, Terraform state, and configuration
-tags into a small set of canonical keys. Collectors do not decide tag meaning.
-They emit raw observations. The reducer-owned tag normalizer and correlation
-DSL decide normalized meaning from versioned packs and explicit overrides.
+Eshu treats tags as source evidence until reducer-owned correlation admits
+stronger truth. Collectors emit raw tag observations. They do not decide that a
+tag proves workload, owner, service, or environment truth.
 
-## First-Party Alias Pack
+The current Go implementation is a reducer seam, not a complete public alias
+pack. The code source of truth is `go/internal/reducer/tags`.
 
-The first shipped pack is `first-party/aws-core`.
+## Current Runtime Contract
 
-| Canonical key | Aliases |
-| --- | --- |
-| `environment` | `environment`, `env`, `stage`, `app_env`, `application_environment`, `deployment_environment` |
-| `service` | `service`, `service_name`, `app`, `app_name`, `application`, `component`, `workload`, `project` |
-| `owner` | `owner`, `team`, `squad`, `tribe`, `cost_center`, `business_unit` |
+`go/internal/reducer/tags` currently owns:
 
-Key matching trims whitespace and ignores case. Raw keys and values remain
-unchanged in source facts. Normalized tags are derived evidence and must keep
-their provenance.
+- `Normalizer`, the interface for a future concrete normalizer.
+- `ObservationBatch`, `ObservedResource`, `NormalizedResource`, and
+  `NormalizationResult`, the bounded value shapes handed across the seam.
+- `DefaultRuntimeContract`, whose scaffold contains one component
+  (`normalizer`) and one canonical keyspace (`cloud_resource_uid`).
+- `PublishNormalizationResult`, which converts normalized resources into
+  `(cloud_resource_uid, canonical_nodes_committed)` readiness rows through
+  `reducer.GraphProjectionPhasePublisher`.
 
-## Override Schema
+It does not currently ship a concrete first-party alias pack, override file
+schema, tag-distribution fact family, or `/admin/status` `tag_taxonomy` response
+contract.
 
-Use overrides when a company has local tag names or value spelling that should
-map to canonical keys.
+## Source Rules
 
-```yaml
-tagTaxonomy:
-  aliasPacks:
-    - first-party/aws-core
-  aliases:
-    environment:
-      - StageName
-    service:
-      - Product
-  valueMap:
-    environment:
-      prd: production
-      prod: production
-      stg: staging
-  disabledAliases:
-    owner:
-      - business_unit
-  accountOverrides:
-    "123456789012":
-      aliases:
-        owner:
-          - OwningTeam
-      valueMap:
-        environment:
-          live: production
-```
+- Raw tag keys and values remain source evidence.
+- Normalized tags are derived evidence and must keep their provenance.
+- `Name` tags and resource names are weak signals. They can group or explain
+  candidates, but they cannot admit canonical workload, owner, service, or
+  environment truth by themselves.
+- A missing scan is a coverage gap, not negative evidence, until the relevant
+  scope is ready.
+- Raw tag values must not be metric labels. Put high-cardinality or sensitive
+  tag material in payload evidence, logs, or trace attributes with the same
+  redaction discipline used for collector facts.
 
-Precedence is account override, then runtime-instance override, then
-first-party pack. Overrides can add aliases, disable aliases, or normalize
-values. They cannot rename canonical keys or mutate raw facts.
+## Extension Checklist
 
-## Source Precedence
+Before adding a concrete tag taxonomy implementation:
 
-For the same resolved resource identity, current-state tag truth uses this
-order:
-
-1. Live cloud observation.
-2. Terraform state observation.
-3. Source configuration.
-
-If sources disagree, the higher-precedence value is used for current-state
-queries and the conflict remains visible as evidence. A missing scan is a
-coverage gap, not negative evidence, until the relevant scope is ready.
-
-## Weak Signals
-
-`Name` tags and resource names are weak signals. They can help explain or group
-candidates, but they cannot admit canonical workload, owner, service, or
-environment truth by themselves.
-
-Name-derived matches need a stronger anchor such as an ARN, image digest,
-Terraform provider-resolved ARN, module source path, explicit service tag, or
-explicit environment tag.
-
-## Learning Loop
-
-AWS scans emit `aws_tag_distribution` summary facts so operators can see local
-tag patterns that are not covered by the current taxonomy.
-
-```json
-{
-  "fact_kind": "aws_tag_distribution",
-  "account_id": "123456789012",
-  "region": "us-east-1",
-  "resource_type": "ecs_service",
-  "tag_key_raw": "StageName",
-  "tag_key_normalized": "",
-  "observed_count": 37,
-  "distinct_value_count": 3,
-  "top_value_hashes": [
-    {"hash": "sha256:...", "count": 31}
-  ],
-  "first_seen_generation_id": "aws-17",
-  "last_seen_generation_id": "aws-21"
-}
-```
-
-`/admin/status` must expose tag taxonomy status when the AWS and reducer tag
-normalization surfaces are enabled:
-
-- coverage by canonical key
-- top unknown tag keys
-- aliases and overrides applied
-- disabled aliases encountered
-- resources missing expected canonical tags after source readiness
-
-JSON responses expose the summary under `tag_taxonomy`:
-
-```json
-{
-  "tag_taxonomy": {
-    "alias_packs": ["first-party/aws-core"],
-    "coverage": [
-      {"canonical_key": "environment", "resources_observed": 120, "resources_with_key": 104}
-    ],
-    "unknown_tag_keys": [
-      {"tag_key_raw": "StageName", "resource_type": "ecs_service", "observed_count": 37}
-    ],
-    "applied_aliases": [
-      {"canonical_key": "environment", "alias": "env", "source": "first-party/aws-core"}
-    ],
-    "disabled_aliases": [
-      {"canonical_key": "owner", "alias": "business_unit", "source": "runtime-instance"}
-    ],
-    "missing_expected_tags": [
-      {"canonical_key": "owner", "resource_type": "lambda_function", "count": 9}
-    ]
-  }
-}
-```
-
-Metrics must not use raw tag values as labels. Raw values are evidence data and
-must follow the same redaction discipline as collector payloads.
+1. Define the alias pack or override schema in code and tests.
+2. Preserve raw facts unchanged.
+3. Emit normalized values as derived evidence with provenance.
+4. Prove source precedence when live cloud, Terraform state, and source config
+   disagree.
+5. Add positive, negative, and ambiguous tests for weak `Name`-style signals.
+6. Add status and telemetry contracts only after the runtime emits them.
+7. Keep graph/query promotion in reducer/query code, not in collectors.

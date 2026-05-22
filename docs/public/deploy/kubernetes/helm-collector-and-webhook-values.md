@@ -47,54 +47,28 @@ the instance list.
 
 ## Workflow coordinator
 
-| Value | Default | Operator note |
-| --- | --- | --- |
-| `workflowCoordinator.enabled` | `false` | Renders the coordinator Deployment and metrics Service. |
-| `workflowCoordinator.deploymentMode` | `dark` | Must be `active` before claims are scheduled. |
-| `workflowCoordinator.claimsEnabled` | `false` | Requires `deploymentMode=active` when true. |
-| `workflowCoordinator.collectorInstances` | `[]` | JSON control-plane state for collector instances. |
-| `workflowCoordinator.replicas` | `1` | Coordinator replica count. |
-| `workflowCoordinator.env` | `{}` | Coordinator-specific env overrides merged after global `env`. |
-| `workflowCoordinator.connectionTuning.postgres.*` | empty | Postgres pool and timeout env. |
-| `workflowCoordinator.connectionTuning.neo4j.*` | empty | Bolt driver pool and timeout env. |
+Defaults: disabled, `deploymentMode=dark`, `claimsEnabled=false`, empty
+`collectorInstances`, one replica, empty `env`, and empty Postgres/Bolt
+connection-tuning values. Claims require active mode.
 
 ## Direct collectors
 
 ### Confluence
 
-| Value | Default | Operator note |
-| --- | --- | --- |
-| `confluenceCollector.enabled` | `false` | Renders the collector Deployment and metrics Service. |
-| `confluenceCollector.baseUrl` | empty | Required when enabled. |
-| `confluenceCollector.spaceId` | empty | One allowed crawl scope. |
-| `confluenceCollector.spaceIds` | `[]` | One allowed crawl scope. |
-| `confluenceCollector.rootPageId` | empty | One allowed crawl scope. |
-| `confluenceCollector.spaceKey` | empty | Optional env for space-key workflows. |
-| `confluenceCollector.pageLimit` | empty | Optional page limit. |
-| `confluenceCollector.pollInterval` | `5m` | Poll interval. |
-| `confluenceCollector.credentials.secretName` | empty | Required when enabled. |
-| `confluenceCollector.credentials.emailKey` | `email` | Used with `apiTokenKey` unless `bearerTokenKey` is set. |
-| `confluenceCollector.credentials.apiTokenKey` | `api-token` | Used with `emailKey` unless `bearerTokenKey` is set. |
-| `confluenceCollector.credentials.bearerTokenKey` | empty | Uses bearer-token auth instead of email/API-token auth. |
-
-The chart requires exactly one crawl scope: `spaceId`, `spaceIds`, or
+Defaults: disabled, empty `baseUrl`, empty crawl scope, empty `spaceKey`, empty
+`pageLimit`, `pollInterval=5m`, empty credentials Secret, `emailKey=email`,
+`apiTokenKey=api-token`, and empty bearer token key. When enabled, the chart
+requires credentials and exactly one crawl scope: `spaceId`, `spaceIds`, or
 `rootPageId`.
 
 ### OCI registry
 
-| Value | Default | Operator note |
-| --- | --- | --- |
-| `ociRegistryCollector.enabled` | `false` | Renders the collector Deployment and metrics Service. |
-| `ociRegistryCollector.instanceId` | `oci-registry-primary` | Collector instance identifier. |
-| `ociRegistryCollector.pollInterval` | `5m` | Poll interval. |
-| `ociRegistryCollector.targets` | `[]` | Required when enabled. |
-| `ociRegistryCollector.aws.region` | empty | Optional default AWS region for ECR. |
-| `ociRegistryCollector.extraEnv` | `[]` | Secret-backed target credential env. |
-
-Each target requires `provider` and `repository`. The schema allows `jfrog`,
-`ecr`, `dockerhub`, and `ghcr`. Use target-level `*_env` fields plus
-`extraEnv` Secret references for credentials; do not put static passwords in
-values.
+Defaults: disabled, `instanceId=oci-registry-primary`, `pollInterval=5m`, no
+targets, no default AWS region, and no `extraEnv`. When enabled, at least one
+target is required. Each target needs `provider` and `repository`; the schema
+allows `jfrog`, `ecr`, `dockerhub`, and `ghcr`. Use target-level `*_env`
+fields plus `extraEnv` Secret references for credentials; do not put static
+passwords in values.
 
 ## Claim-driven collectors
 
@@ -123,29 +97,12 @@ The webhook listener verifies provider secrets and writes durable refresh
 triggers to Postgres. It does not mount the repository workspace PVC and does
 not connect to the graph backend.
 
-| Value | Default | Operator note |
-| --- | --- | --- |
-| `webhookListener.enabled` | `false` | Renders the listener Deployment and Service. |
-| `webhookListener.maxBodyBytes` | `1048576` | Maximum accepted body size. |
-| `webhookListener.defaultBranch` | empty | Optional fallback branch. |
-| `webhookListener.github.enabled` | `false` | Enables the GitHub path. |
-| `webhookListener.github.path` | `/webhooks/github` | GitHub request path. |
-| `webhookListener.github.secretName` | empty | Required when GitHub is enabled. |
-| `webhookListener.github.secretKey` | `secret` | Secret key for GitHub verification. |
-| `webhookListener.gitlab.enabled` | `false` | Enables the GitLab path. |
-| `webhookListener.gitlab.path` | `/webhooks/gitlab` | GitLab request path. |
-| `webhookListener.gitlab.secretName` | empty | Required when GitLab is enabled. |
-| `webhookListener.gitlab.tokenKey` | `token` | Secret key for GitLab verification. |
-| `webhookListener.bitbucket.enabled` | `false` | Enables the Bitbucket path. |
-| `webhookListener.bitbucket.path` | `/webhooks/bitbucket` | Bitbucket request path. |
-| `webhookListener.bitbucket.secretName` | empty | Required when Bitbucket is enabled. |
-| `webhookListener.bitbucket.secretKey` | `secret` | Secret key for Bitbucket verification. |
-| `webhookListener.awsFreshness.enabled` | `false` | Enables the AWS freshness path. |
-| `webhookListener.awsFreshness.path` | `/webhooks/aws/eventbridge` | AWS freshness request path. |
-| `webhookListener.awsFreshness.secretName` | empty | Required when AWS freshness is enabled. |
-| `webhookListener.awsFreshness.tokenKey` | `token` | Secret key for AWS freshness verification. |
-| `webhookListener.exposure.ingress.enabled` | `false` | Renders provider-only Ingress paths. |
-| `webhookListener.exposure.ingress.hosts` | `[]` | Host list for webhook routing. |
+Defaults: disabled, one replica, `maxBodyBytes=1048576`, empty
+`defaultBranch`, all providers disabled, provider paths
+`/webhooks/github`, `/webhooks/gitlab`, `/webhooks/bitbucket`, and
+`/webhooks/aws/eventbridge`, empty provider Secret names, Secret keys
+`secret` for GitHub/Bitbucket and `token` for GitLab/AWS freshness, disabled
+webhook Ingress, and no webhook hosts.
 
 When `webhookListener.enabled=true`, at least one provider must be enabled.
 Webhook ingress renders only the enabled provider paths as `Exact` paths to the

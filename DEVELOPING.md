@@ -2,7 +2,7 @@
 
 This document is for anyone writing code in this repo. It covers how the
 Go-owned parser system works, how to add language or IaC support, and how to
-validate runtime changes honestly on the migration branch.
+validate runtime changes honestly.
 
 For general contribution rules, see [CONTRIBUTING.md](CONTRIBUTING.md).
 

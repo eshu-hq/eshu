@@ -3,8 +3,9 @@
 This page lists the AWS service families backed by production scanner adapters
 in `go/internal/collector/awscloud/awsruntime/registry.go`.
 
-The collector is metadata-only. It emits reported facts for reducer admission;
-it does not mutate AWS resources, read protected payloads, or write graph truth.
+The collector is metadata-only. It emits reported facts for reducer admission.
+It does not mutate AWS resources, read protected payloads, or write graph
+truth.
 
 ## Supported Service Kinds
 
@@ -38,27 +39,12 @@ so the claim shape remains `(account_id, region, service_kind)`.
 
 ## Data Boundaries
 
-The collector intentionally does not read:
-
-- S3 object contents or object keys
-- SQS messages
-- DynamoDB table items, stream records, backups, exports, or PartiQL results
-- RDS database contents, snapshots, logs, schemas, tables, or Performance
-  Insights samples
-- CloudWatch log events, log stream payloads, Insights query results, or export
-  payloads
-- Secrets Manager secret values or version payloads
-- SSM parameter values, history values, or decrypted SecureString content
-- API Gateway execution payloads, API exports, API keys, authorizer secrets,
-  template bodies, integration credentials, or stage variable values
-- Lambda code packages or presigned package URLs
-- CloudFront origin payloads, certificate bodies, private keys, origin custom
-  header values, or distribution config payloads
-- raw SNS email, SMS, HTTP, or HTTPS subscription endpoints
-- raw EventBridge target input payloads, input transformers, HTTP target
-  parameters, or non-ARN target identities
-- IAM or resource policy JSON unless a service package explicitly documents a
-  sanitized metadata-only exception
+The collector intentionally does not read S3 object contents, SQS messages,
+DynamoDB table data, RDS database contents, CloudWatch log events, Secrets
+Manager secret values, SSM parameter values, API Gateway execution payloads,
+Lambda code packages, CloudFront origin payloads, private keys, raw SNS
+endpoints, raw EventBridge target inputs, or IAM/resource policy JSON unless a
+service package explicitly documents a sanitized metadata-only exception.
 
 The collector also does not call AWS mutation APIs. If a scanner needs a new
 API family, update the owning service package README with source APIs,
@@ -81,16 +67,9 @@ ownership, drift, or unmanaged-resource truth.
 
 ## Status And Telemetry
 
-Scanner runs record:
-
-- API call and throttle counts
-- budget exhaustion
-- pagination checkpoint events
-- emitted resource, relationship, and tag-observation counts
-- scan duration by account, region, service, and result
-- scanner status and commit status in the admin status projection
-
-The runtime spans are:
+Scanner runs record API call and throttle counts, budget exhaustion, pagination
+checkpoint events, emitted fact counts, scan duration, scanner status, and
+commit status. Runtime spans include:
 
 - `aws.collector.claim.process`
 - `aws.credentials.assume_role`
@@ -100,26 +79,13 @@ The runtime spans are:
 For the full metric catalog, use
 [Ingestion And Collector Metrics](../reference/telemetry/metrics-ingestion-collectors.md).
 
-## Change Checklist
+## Change Rules
 
-When adding or widening a scanner:
-
-- Keep the scanner metadata-only unless an active design record says otherwise.
-- Add scanner tests and SDK-adapter tests.
-- Update the service package README with source APIs, emitted evidence, and
-  forbidden data classes.
-- Add the service kind to `awsruntime.SupportedServiceKinds`.
-- Update command-side target validation tests.
-- Run the performance evidence gate when the scanner adds pagination fanout,
-  claim concurrency, batch sizing, queue pressure, or downstream reducer work.
-
-No-Regression Evidence: `go test ./cmd/collector-aws-cloud ./internal/collector/awscloud/... -count=1`
-covers command-side validation, scanner registry support, claim runtime,
-service scanners, redaction, status commits, and AWS fact envelope boundaries.
-
-No-Observability-Change: this documentation split does not change runtime
-behavior. Existing AWS collector metrics, scan status rows, and spans remain
-the diagnostic contract.
+When adding or widening a scanner, keep it metadata-only unless an active design
+record says otherwise. Add scanner tests, SDK-adapter tests, command-side target
+validation tests, and registry support through `awsruntime.SupportedServiceKinds`.
+Run the performance evidence gate when the scanner adds pagination fanout,
+claim concurrency, batch sizing, queue pressure, or downstream reducer work.
 
 ## Related Docs
 

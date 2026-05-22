@@ -97,6 +97,7 @@ Generated from `git diff --name-status origin/main -- "*.md"` for this documenta
 - `docs/docs/reference/relationship-mapping.md`
 - `docs/docs/reference/runtime-admin-api.md`
 - `docs/docs/reference/service-workflows.md`
+- `docs/docs/reference/tag-taxonomy.md`
 - `docs/docs/reference/telemetry/cross-service-correlation.md`
 - `docs/docs/reference/telemetry/index.md`
 - `docs/docs/reference/telemetry/logs.md`
@@ -110,6 +111,7 @@ Generated from `git diff --name-status origin/main -- "*.md"` for this documenta
 - `docs/docs/services/collector-aws-cloud.md`
 - `docs/docs/services/collector-terraform-state.md`
 - `docs/docs/services/ingester.md`
+- `docs/docs/services/resolution-engine.md`
 - `docs/docs/start-here.md`
 - `docs/docs/use-cases.md`
 - `docs/docs/use/code-questions.md`

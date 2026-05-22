@@ -42,43 +42,10 @@ The runtime uses the shared admin surface:
 - `/metrics`
 - `/admin/status?format=json`
 
-Terraform-state instances appear in `collector_instances`:
-
-```bash
-curl -s http://localhost:8080/admin/status?format=json \
-  | jq '.collector_instances[] | select(.collector_kind=="terraform_state")'
-```
-
-The status response also includes a Terraform-state section keyed by safe
-locator hash:
-
-```json
-{
-  "terraform_state": {
-    "last_serials": [
-      {
-        "safe_locator_hash": "abc123",
-        "backend_kind": "s3",
-        "lineage": "lineage-1",
-        "serial": 5,
-        "generation_id": "terraform_state:state_snapshot:s3:abc123:lineage-1:serial:5",
-        "observed_at": "2026-05-03T10:00:00Z"
-      }
-    ],
-    "recent_warnings": [
-      {
-        "safe_locator_hash": "abc123",
-        "warning_kind": "state_in_vcs",
-        "reason": "approved_local",
-        "source": "git_local_file"
-      }
-    ]
-  }
-}
-```
-
-Recent warnings are capped at 50 rows per safe locator hash. Postgres remains
-the source of truth for full history.
+Terraform-state instances appear in `collector_instances`. Terraform-state
+snapshot status is keyed by safe locator hash and includes recent lineage,
+serial, generation, and warning data. Recent warnings are capped at 50 rows per
+safe locator hash. Postgres remains the source of truth for full history.
 
 ## Failure Triage
 

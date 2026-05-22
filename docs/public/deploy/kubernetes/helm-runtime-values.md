@@ -10,17 +10,10 @@ lanes, and repository sync. The chart contract lives in `deploy/helm/eshu`.
 `/usr/local/bin/eshu-bootstrap-data-plane` and applies Postgres plus graph
 schema before runtime pods start when Helm hooks are enabled.
 
-| Value | Default | Operator note |
-| --- | --- | --- |
-| `schemaBootstrap.enabled` | `true` | Renders the schema bootstrap Job. |
-| `schemaBootstrap.useHelmHooks` | `true` | Adds `pre-install,pre-upgrade` Helm hook annotations. |
-| `schemaBootstrap.backoffLimit` | `1` | Job retry budget. |
-| `schemaBootstrap.activeDeadlineSeconds` | `600` | Upper bound for one job attempt. |
-| `schemaBootstrap.ttlSecondsAfterFinished` | `86400` | Cleanup window for non-hook job history. |
-| `schemaBootstrap.serviceAccountName` | empty | Optional bootstrap ServiceAccount. |
-| `schemaBootstrap.annotations` | `{}` | Extra Job annotations. |
-| `schemaBootstrap.podAnnotations` | `{}` | Extra pod annotations merged after global `podAnnotations`. |
-| `schemaBootstrap.resources` | `100m/128Mi` request, `1000m/1Gi` limit | Job container resources. |
+Defaults: `enabled=true`, `useHelmHooks=true`, `backoffLimit=1`,
+`activeDeadlineSeconds=600`, `ttlSecondsAfterFinished=86400`,
+`serviceAccountName=""`, empty annotations, empty pod annotations, and
+resources of `100m/128Mi` requests with `1000m/1Gi` limits.
 
 Do not combine `schemaBootstrap.useHelmHooks=true` with
 `nornicdb.enabled=true`. Helm pre-install hooks run before normal chart
@@ -83,14 +76,9 @@ reducer domains. Set `resolutionEngine.lanes` to render one Deployment and
 metrics Service per lane. Each lane receives `ESHU_REDUCER_CLAIM_DOMAINS` with
 the comma-separated lane domain list.
 
-| Lane value | Rule |
-| --- | --- |
-| `name` | Required; must be a Kubernetes label-safe lowercase name. |
-| `domains` | Required; at least one reducer domain. |
-| `replicas` | Optional; falls back to `resolutionEngine.replicas`. |
-| `env` | Optional; merged after global `env`. |
-| `connectionTuning` | Optional; falls back to `resolutionEngine.connectionTuning`. |
-| `resources` | Optional; falls back to `resolutionEngine.resources`. |
+Each lane needs a Kubernetes label-safe lowercase `name` and at least one
+domain in `domains`. `replicas`, `env`, `connectionTuning`, and `resources`
+are optional and fall back to the parent `resolutionEngine` block.
 
 Do not set global `env.ESHU_REDUCER_CLAIM_DOMAIN` or
 `env.ESHU_REDUCER_CLAIM_DOMAINS` when `resolutionEngine.lanes` is non-empty.
@@ -123,20 +111,10 @@ not a durable data-domain attribute.
 
 `repoSync` controls how the ingester discovers repositories.
 
-| Value | Default | Operator note |
-| --- | --- | --- |
-| `repoSync.enabled` | `true` | Enables the recurring sync loop and ingester workload. |
-| `repoSync.bootstrap` | `true` | Runs an initial sync at startup. |
-| `repoSync.initialDelaySeconds` | `0` | Delay before recurring sync starts. |
-| `repoSync.intervalSeconds` | `900` | Recurring sync interval. |
-| `repoSync.source.mode` | `githubOrg` | `githubOrg`, `explicit`, or `filesystem`. |
-| `repoSync.source.githubOrg` | `eshu-hq` | GitHub organization for `githubOrg` mode. |
-| `repoSync.source.repositories` | `[]` | Explicit repository list. |
-| `repoSync.source.rules` | `[]` | Exact or regex repository filters. |
-| `repoSync.source.filesystemRoot` | `/fixtures` | Filesystem source root. |
-| `repoSync.source.cloneDepth` | `1` | Git clone depth. |
-| `repoSync.source.limit` | `4000` | Repository discovery limit. |
-| `repoSync.auth.method` | `githubApp` | `githubApp`, `token`, `ssh`, or `none`. |
+Defaults: `enabled=true`, `bootstrap=true`, `initialDelaySeconds=0`,
+`intervalSeconds=900`, `source.mode=githubOrg`, `source.githubOrg=eshu-hq`,
+empty explicit repositories and rules, `source.filesystemRoot=/fixtures`,
+`source.cloneDepth=1`, `source.limit=4000`, and `auth.method=githubApp`.
 
 `repoSync.source.rules` renders to `ESHU_REPOSITORY_RULES_JSON`. The chart
 rejects `repoSync.auth.method=ssh` with `repoSync.source.mode=githubOrg`; use

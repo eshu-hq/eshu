@@ -89,21 +89,12 @@ Start the Neo4j-backed stack with:
 docker compose -f docker-compose.neo4j.yml up --build
 ```
 
-| Service | Provides | Default host port |
-| --- | --- | --- |
-| `neo4j` | Alternative graph database for backend compatibility testing. | `7474`, `7687` |
-| `postgres` | Facts, work queues, status, content store, and recovery data. | `15432` |
-| `db-migrate` | One-shot schema migration for Postgres and Neo4j. | none |
-| `workspace-setup` | One-shot local workspace setup. | none |
-| `bootstrap-index` | One-shot initial indexing and first projection pass. | `19467` metrics |
-| `eshu` | HTTP API runtime. The API mounts `/metrics` on the same container listener. | `8080`, `19464` metrics |
-| `mcp-server` | MCP server for assistant and tool clients. MCP mounts `/metrics` on the same container listener. | `8081`, `19468` metrics |
-| `ingester` | Continuous repository sync, discovery, parsing, and fact emission. | `19465` metrics |
-| `workflow-coordinator` | Optional workflow coordinator profile. | `18082`, `19469` metrics |
-| `resolution-engine` | Reducer queue drain, graph projection, repair flows, and shared materialization. | `19466` metrics |
-
-Use this stack only when you need Neo4j behavior. Use the default NornicDB stack
-for normal local evaluation.
+The service shape and host ports match the default stack except the graph
+service is `neo4j`, `ESHU_GRAPH_BACKEND=neo4j`, and the graph database name is
+`neo4j`. The file includes the `workflow-coordinator` profile and omits the
+default-stack `webhook-listener` profile. Use this stack only when you need
+Neo4j compatibility behavior; use the default NornicDB stack for normal local
+evaluation.
 
 ## Telemetry overlay
 
@@ -122,13 +113,9 @@ Neo4j stack with telemetry:
 docker compose -f docker-compose.neo4j.yml -f docker-compose.telemetry.yml up --build
 ```
 
-| Service or change | Provides | Default host port |
-| --- | --- | --- |
-| `jaeger` | Local trace UI. | `16686` |
-| `otel-collector` | OpenTelemetry collector for runtime telemetry. | `4317`, `4318`, `9464` |
-| Runtime env overrides | OTLP endpoint and metrics export settings for API, MCP, ingester, reducer, bootstrap index, and workflow coordinator. | none |
-
-Jaeger is available at `http://localhost:16686` when this overlay is enabled.
+The overlay adds Jaeger on `http://localhost:16686`, an OpenTelemetry collector
+on `4317`, `4318`, and `9464`, and OTLP env overrides for API, MCP, ingester,
+reducer, bootstrap index, and workflow coordinator.
 
 ## Tier-2 Terraform state overlay
 
@@ -187,6 +174,9 @@ For the service list, proof commands, AWS credential requirements, pprof ports,
 and acceptance evidence, see
 [Remote Collector E2E](../reference/local-testing/remote-collector-e2e.md)
 and [Profiling And Concurrency](../reference/local-testing/profiling-and-concurrency.md#remote-e2e-worker-profiles).
+The optional `docker-compose.remote-e2e.pprof.yaml` overlay binds host pprof
+ports to `127.0.0.1`; keep profiler access private and use it only for focused
+proof runs.
 
 ## Point local CLI commands at Compose
 

@@ -4,18 +4,11 @@ Last updated: 2026-05-22.
 
 Use this page to decide whether a source family is ready for deployed
 collection, reducer materialization, and API or MCP reads. Eshu is facts-first:
-
-```mermaid
-flowchart LR
-  A["Collector observes source truth"] --> B["Typed facts in Postgres"]
-  B --> C["Claimable reducer work"]
-  C --> D["Reducer-owned truth"]
-  D --> E["Graph, read models, status, API, MCP"]
-```
-
-Collectors and webhooks observe source systems and commit facts. The resolution
+collectors and webhooks observe source systems and commit facts; the resolution
 engine owns graph truth, read-model truth, retries, dead letters, and completion
-state. A collector is not production-ready just because its binary exists; the
+state.
+
+A collector is not production-ready just because its binary exists. The
 deployment path must also prove bounded collection, durable facts, reducer
 drain, and operator-visible status.
 
@@ -29,6 +22,7 @@ The implemented deployed collector lane is:
 - claim-driven Terraform-state collection
 - claim-driven AWS cloud collection
 - claim-driven package-registry collection
+- remote-E2E-gated vulnerability intelligence collection
 - webhook listener intake for Git provider events and AWS freshness triggers
 
 Do not add chart values for design-only collectors. A Helm knob is an operator
@@ -51,16 +45,16 @@ instances.
 
 ## Implemented Collector Lanes
 
-| Source family | Runtime state | Work source | Reducer and read state | Readiness gap |
-| --- | --- | --- | --- | --- |
-| Git and repository | Ingester and Git collector paths emit repository, parser, relationship, and follow-up facts. | Repository selection, sync, snapshot, parse, and fact queues. | Workload identity, deployment mapping, code-call, semantic entity, SQL relationship, inheritance, package-source, and shared projection domains exist. | Deployment proof still has to show sync, fact commit, queue drain, graph projection, and API/MCP truth on the target cluster. |
-| Confluence documentation | `eshu-collector-confluence` reads one bounded Confluence scope. | Direct runtime config: one space, explicit space allowlist, or one root page tree. | Emits documentation source, document, section, link, and optional claim-candidate facts. Documentation facts remain evidence unless a reducer domain admits them. | Prove the configured Confluence scope, credentials, metrics, and status in the target environment. |
-| OCI registry | `eshu-collector-oci-registry` reads registry targets. Runtime code supports direct and claim-aware modes. | Public chart uses direct targets; claim-aware mode uses `ESHU_COLLECTOR_INSTANCES_JSON`. | Container image identity is digest-first. Explicit digests and single tag observations can become `reducer_container_image_identity` facts; ambiguous, unresolved, or stale tags stay diagnostic. | Prove registry collection in the target environment and keep image reads digest-bound before vulnerability impact work. |
-| Terraform state | `eshu-collector-terraform-state` is claim-driven. | Workflow coordinator creates candidate-scoped state work from collector instance configuration and discovered backend facts. | Terraform-state facts feed graph projection and `config_state_drift`. Drift v1 emits bounded counters and structured logs; graph/read-model promotion remains separate. | Prove live local or S3 state collection, redaction policy version, claim handoff, reducer drain, and management-status reads together. |
-| AWS cloud | `eshu-collector-aws-cloud` is claim-driven. | Workflow coordinator creates account, region, and service work from AWS collector instance target scopes. | AWS facts feed cloud-asset and AWS runtime-drift domains. AWS runtime drift writes durable reducer facts and bounded Postgres reads; cloud-resource graph projection remains graph-neutral until its shape is frozen. | Prove read-only AWS collection, claim-scoped credentials, AWS service coverage, reducer drain, drift reads, and status visibility in the target environment. |
-| AWS freshness | `eshu-webhook-listener` accepts AWS freshness events and stores durable triggers. | Active workflow coordinator claims freshness triggers and creates ordinary AWS work when an enabled AWS collector instance authorizes the target. | Freshness narrows the next AWS collection target. Scheduled scans remain the baseline completeness path. | Prove one live AWS EventBridge or AWS Config sample through webhook intake, trigger handoff, AWS work creation, and final status. |
-| Package registry | `eshu-collector-package-registry` is claim-driven. | Workflow coordinator creates target-scoped registry metadata work from claim-capable package-registry instances. | Package source correlation classifies source hints without ownership promotion. Package-native dependency and publication facts are safe as provenance/read-model evidence. | Expand ownership and usage correlation only after exact, derived, ambiguous, unresolved, stale, and rejected cases are proven. |
-| Vulnerability intelligence | `eshu-collector-vulnerability-intelligence` has source clients for CISA KEV, FIRST EPSS, OSV, and NVD. | Remote E2E Compose runs the hosted collector; Helm enablement remains gated behind remote proof and EKS rollout discipline. | Source-truth `vulnerability.*` facts exist. Impact reducers remain separate and must not infer reachability from CVSS, EPSS, or KEV alone. | Prove live source collection, API/MCP fact visibility, then package/image/deployment impact joins after upstream collectors are proven together. |
+| Source family | Runtime state | Reducer and read state | Readiness gap |
+| --- | --- | --- | --- |
+| Git and repository | Ingester and Git collector paths emit repository, parser, relationship, and follow-up facts. | Workload identity, deployment mapping, code-call, semantic entity, SQL relationship, inheritance, package-source, and shared projection domains exist. | Prove sync, fact commit, queue drain, graph projection, and API/MCP truth on the target cluster. |
+| Confluence documentation | `eshu-collector-confluence` reads one bounded Confluence scope. | Emits documentation source, document, section, link, and optional claim-candidate facts. Documentation facts remain evidence unless a reducer domain admits them. | Prove the configured Confluence scope, credentials, metrics, and status in the target environment. |
+| OCI registry | `eshu-collector-oci-registry` reads registry targets. Runtime code supports direct and claim-aware modes. | Container image identity is digest-first. Explicit digests and single tag observations can become reducer image identity facts; ambiguous, unresolved, or stale tags stay diagnostic. | Prove registry collection in the target environment and keep image reads digest-bound before vulnerability impact work. |
+| Terraform state | `eshu-collector-terraform-state` is claim-driven. | Terraform-state facts feed graph projection and `config_state_drift`. Drift v1 emits bounded counters and structured logs; graph/read-model promotion remains separate. | Prove live local or S3 state collection, redaction policy version, claim handoff, reducer drain, and management-status reads together. |
+| AWS cloud | `eshu-collector-aws-cloud` is claim-driven. | AWS facts feed cloud-asset and AWS runtime-drift domains. AWS runtime drift writes durable reducer facts and bounded Postgres reads; graph shape remains reducer-owned. | Prove read-only AWS collection, claim-scoped credentials, AWS service coverage, reducer drain, drift reads, and status visibility in the target environment. |
+| AWS freshness | `eshu-webhook-listener` accepts AWS freshness events and stores durable triggers. | Freshness narrows the next AWS collection target. Scheduled scans remain the baseline completeness path. | Prove one live AWS EventBridge or AWS Config sample through webhook intake, trigger handoff, AWS work creation, and final status. |
+| Package registry | `eshu-collector-package-registry` is claim-driven. | Package source correlation classifies source hints without ownership promotion. Package-native dependency and publication facts are safe as provenance/read-model evidence. | Expand ownership and usage correlation only after exact, derived, ambiguous, unresolved, stale, and rejected cases are proven. |
+| Vulnerability intelligence | `eshu-collector-vulnerability-intelligence` has source clients for CISA KEV, FIRST EPSS, OSV, and NVD. | Source-truth `vulnerability.*` facts exist. Impact reducers remain separate and must not infer reachability from CVSS, EPSS, or KEV alone. | Prove live source collection, API/MCP fact visibility, then package/image/deployment impact joins after upstream collectors are proven together. |
 
 ## Reducer Truth Boundaries
 
@@ -72,7 +66,7 @@ Current reducer domains that matter to collector readiness:
 | `config_state_drift` | Bounded counters and structured logs for Terraform config-vs-state drift. | V1 is intentionally not a graph write. |
 | `package_source_correlation` | Package ownership candidates, publication evidence, and manifest-backed consumption truth. | Source hints do not promote ownership by themselves. |
 | `container_image_identity` | Digest-keyed image identity facts. | Mutable tags require a single active digest observation; ambiguous or stale tags stay diagnostic. |
-| `aws_cloud_runtime_drift` | Durable AWS runtime drift finding facts and bounded active reads. | Graph nodes wait for the frozen drift graph shape. |
+| `aws_cloud_runtime_drift` | Durable AWS runtime drift finding facts and bounded active reads. | Collector facts are evidence; reducer admission owns drift truth. |
 | `ci_cd_run_correlation` | Durable CI/CD run, artifact, and environment correlation facts. | Exact canonical writes require artifact identity evidence, not CI success alone. |
 | `service_catalog_correlation` | Durable service-catalog correlation facts from explicit repository evidence. | Catalog names, owners, and labels stay provenance unless repository evidence admits exact or derived correlation. |
 | `sbom_attestation_attachment` | Durable SBOM and attestation attachment facts. | Attachment requires explicit subject digest evidence; parse validity and verification trust stay separate. |
@@ -81,8 +75,8 @@ Current reducer domains that matter to collector readiness:
 Workflow completeness depends on reducer-owned phase publications only for
 collector families that declare required phases. Git and Terraform-state have
 required graph projection phases. AWS, OCI registry, package registry, and
-documentation currently publish fact-backed or read-model truth without required
-workflow phase gates.
+documentation currently publish fact-backed or read-model truth without
+required workflow phase gates.
 
 ## Gated Source Families
 

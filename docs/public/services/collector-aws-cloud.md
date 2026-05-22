@@ -19,14 +19,15 @@ service ownership.
 
 ## Operator Path
 
-1. Enable an active workflow coordinator with claims.
-2. Configure one enabled `aws` collector instance with `claims_enabled=true`.
+1. Run an active workflow coordinator with claims enabled.
+2. Configure one enabled `aws` collector instance with
+   `claims_enabled=true`.
 3. Configure exact target scopes: 12-digit account, concrete regions, concrete
    service kinds, per-account concurrency, and one credential mode.
 4. Mount `ESHU_AWS_REDACTION_KEY` when any target scope enables `ecs` or
    `lambda`.
-5. Check `/healthz`, `/readyz`, `/metrics`, and `/admin/status?format=json` on
-   the collector.
+5. Check `/healthz`, `/readyz`, `/metrics`, and
+   `/admin/status?format=json` on the collector.
 6. Confirm scanner status and commit status before debugging reducer or query
    results.
 
@@ -53,23 +54,16 @@ ESHU_COLLECTOR_INSTANCES_JSON
 Facts are reported evidence. Reducer domains decide whether any AWS observation
 becomes drift, ownership, deployment, or graph truth.
 
-## Status
+## Status And Metrics
 
-Start with the service-local admin surface:
-
-```bash
-curl -fsS http://collector-aws-cloud.example/admin/status?format=json \
-  | jq '.aws_cloud_scans[]'
-```
-
-Each row is keyed by collector instance, account, region, and service. The key
-fields are:
+The service-local admin status projects one row per collector instance,
+account, region, and service. Start with:
 
 | Field | Meaning |
 | --- | --- |
 | `status` | Scanner result for the AWS read. |
 | `commit_status` | Whether the fenced fact transaction reached Postgres. |
-| `api_call_count` / `throttle_count` | AWS API pressure for this scanner run. |
+| `api_call_count` / `throttle_count` | AWS API pressure for the scanner run. |
 | `warning_count` | Non-fatal scanner warnings. |
 | `resource_count`, `relationship_count`, `tag_observation_count` | Emitted fact counts. |
 | `budget_exhausted` | Scanner stopped after its API budget. |
@@ -78,24 +72,7 @@ fields are:
 `status=succeeded` with `commit_status=failed` means AWS collection worked but
 fact persistence did not. Fix that before changing scanner logic.
 
-## Failure Modes
-
-| Symptom | First check |
-| --- | --- |
-| Runtime starts but never claims | Workflow coordinator mode, selected instance ID, and `claims_enabled=true`. |
-| `credential_failed=true` | IRSA annotation, role ARN account, external ID, trust policy, and STS spans. |
-| ECS or Lambda target fails at startup | `ESHU_AWS_REDACTION_KEY` Secret and startup logs. |
-| Throttles rise | Same-account claim concurrency and enabled service count. |
-| `budget_exhausted=true` | Scanner API budget and pagination checkpoint progress. |
-| Facts missing downstream | Scanner status, commit status, Postgres spans, then reducer queues. |
-
-Do not broaden IAM or raise concurrency as the first response. Prove whether the
-blocker is credentials, AWS throttling, pagination, fact commit, or downstream
-reducer work.
-
-## Metrics
-
-Use these as dashboard starting points:
+Dashboard starting points:
 
 | Question | Signal |
 | --- | --- |
@@ -110,20 +87,20 @@ Metric labels may include account and region. They must not include ARNs, tags,
 digests, policy JSON, secret names, parameter names, queue names, object keys,
 or raw AWS error payloads.
 
-## Validation
+## Failure Boundaries
 
-Use focused non-live checks for normal PR validation:
+| Symptom | First check |
+| --- | --- |
+| Runtime starts but never claims | Workflow coordinator mode, selected instance ID, and `claims_enabled=true`. |
+| `credential_failed=true` | IRSA annotation, role ARN account, external ID, trust policy, and STS spans. |
+| ECS or Lambda target fails at startup | `ESHU_AWS_REDACTION_KEY` Secret and startup logs. |
+| Throttles rise | Same-account claim concurrency and enabled service count. |
+| `budget_exhausted=true` | Scanner API budget and pagination checkpoint progress. |
+| Facts missing downstream | Scanner status, commit status, Postgres spans, then reducer queues. |
 
-```bash
-cd go
-go test ./cmd/collector-aws-cloud ./internal/collector/awscloud/... -count=1
-go run ./cmd/eshu docs verify ../docs/public/services/collector-aws-cloud.md \
-  --limit 1200 --fail-on contradicted,missing_evidence
-```
-
-Live AWS smokes are operator-controlled and must use read-only target roles.
-Keep real account IDs, role ARNs, external IDs, and local AWS profiles out of
-committed docs and PR comments.
+Do not broaden IAM or raise concurrency as the first response. Prove whether the
+blocker is credentials, AWS throttling, pagination, fact commit, or downstream
+reducer work.
 
 ## Related Docs
 

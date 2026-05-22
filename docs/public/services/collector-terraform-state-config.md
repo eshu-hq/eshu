@@ -32,63 +32,23 @@ Optional runtime knobs:
 
 The selected `ESHU_COLLECTOR_INSTANCES_JSON` entry must be enabled, claimable,
 and use `collector_kind="terraform_state"`. Source-specific configuration
-lives under `configuration`:
+lives under `configuration`.
 
-```json
-{
-  "instance_id": "terraform-state-prod",
-  "collector_kind": "terraform_state",
-  "mode": "continuous",
-  "enabled": true,
-  "claims_enabled": true,
-  "configuration": {
-    "target_scopes": [
-      {
-        "target_scope_id": "aws-prod",
-        "provider": "aws",
-        "deployment_mode": "central",
-        "credential_mode": "central_assume_role",
-        "role_arn": "arn:aws:iam::123456789012:role/eshu-tfstate-read",
-        "external_id": "external-123",
-        "allowed_regions": ["us-east-1"],
-        "allowed_backends": ["s3", "local"]
-      }
-    ],
-    "discovery": {
-      "graph": true,
-      "local_repos": ["platform-infra"],
-      "backend_filters": [
-        {
-          "target_scope_id": "aws-prod",
-          "backend_kind": "s3",
-          "bucket": "company-terraform-state",
-          "region": "us-east-1"
-        }
-      ],
-      "local_state_candidates": {
-        "mode": "approved_candidates",
-        "approved": [
-          {
-            "repo_id": "platform-infra",
-            "path": "env/prod/terraform.tfstate",
-            "target_scope_id": "aws-prod"
-          }
-        ]
-      },
-      "seeds": [
-        {
-          "kind": "s3",
-          "target_scope_id": "aws-prod",
-          "bucket": "company-terraform-state",
-          "key": "prod/app/terraform.tfstate",
-          "region": "us-east-1",
-          "dynamodb_table": "company-terraform-locks"
-        }
-      ]
-    }
-  }
-}
-```
+Required target-scope fields:
+
+| Field | Rule |
+| --- | --- |
+| `target_scope_id` | Unique scope ID used by discovery candidates and claims. |
+| `provider` | Currently `aws`. |
+| `deployment_mode` | `central` requires `central_assume_role`; `account_local` requires `local_workload_identity`. |
+| `credential_mode` | `central_assume_role` or `local_workload_identity`. |
+| `allowed_regions` | Concrete regions allowed for S3 reads. |
+| `allowed_backends` | `s3`, `local`, or both. |
+
+`central_assume_role` requires `role_arn` and `external_id`.
+`local_workload_identity` rejects both fields. The legacy top-level
+`aws.role_arn` field still works for one AWS identity, but it cannot be mixed
+with `target_scopes`.
 
 ## Discovery Modes
 
@@ -103,22 +63,6 @@ lives under `configuration`:
 not become a whole-database scan. Dynamic backend expressions, workspace
 prefixes, non-S3 cloud backends, prefix-only S3 keys, and unapproved local paths
 are not candidates.
-
-## Credential Routing
-
-Use target scopes for new deployments.
-
-| Credential mode | Behavior |
-| --- | --- |
-| `central_assume_role` | Assumes the configured account-scoped read role before opening matching S3 state. |
-| `local_workload_identity` | Uses the local AWS SDK credential chain in the target account or account-local boundary. |
-
-Explicit seeds may name `target_scope_id`. Graph-discovered S3 candidates route
-through backend and region allowlists. If more than one target scope matches,
-the collector fails before opening the object.
-
-The legacy top-level `aws.role_arn` field still works for one AWS identity, but
-it cannot be mixed with `target_scopes`.
 
 ## Redaction And Schemas
 

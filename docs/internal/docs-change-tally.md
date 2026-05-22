@@ -9,7 +9,7 @@ repo's 500-line limit.
 - Total Markdown files left in the checkout after the current pass: 548
 - Current branch doc status from
   `git diff --name-status origin/main -- '*.md'` after the current pass:
-  101 added, 257 modified, 154 deleted, 80 renamed
+  103 added, 257 modified, 156 deleted, 78 renamed
 - Copied image assets removed from this branch: 43 files under
   `docs/public/images/`. They were reference assets from another project and
   no longer appear in the source-doc reference scan.
@@ -129,6 +129,7 @@ branch. Regenerate them from
 | AWS Service Scanner README Compression | Reduced eight AWS service scanner READMEs by removing repeated scanner/client diagrams and shared dependency/telemetry prose while preserving metadata-only, redaction, relationship-evidence, and no-inference invariants. |
 | Public Runtime And Python Docs Compression | Corrected deployed runtime binary names, expanded the local installer output from the real install script, and reduced the Python parser page from a duplicated test inventory into a current parser/dead-code contract. |
 | Parallel MCP Backend Telemetry Compression | Used subagents to compress MCP/CLI, graph-backend/NornicDB, and telemetry reference groups while preserving diagnostics-only raw Cypher, schema-first backend evidence, NornicDB tuning gates, exact service names, metric/span/log contracts, and bounded-label rules. |
+| Parallel Deployment Collector Reference Compression | Used subagents plus parent review to compress Compose, Helm, service-runtime, collector, reducer, fact-envelope, component-package, language-query, tag-taxonomy, local testing, and internal agent-guide docs while correcting Helm/API/MCP command truth against templates and service binaries. |
 
 ## Verification Snapshot
 
@@ -142,23 +143,21 @@ Current pass proof:
   and `tests/fixtures`.
 - Broad docs verification passed for `docs/public` and the full repository with
   0 contradicted and 0 missing evidence claims. Current public docs verifier
-  result: 173 documents, 1245 claims. Current full repository verifier result:
-  562 documents, 1442 claims.
-- Focused AWS service docs verification passed with 76 documents, 0
-  contradicted claims, and 0 missing evidence claims.
-- Focused MCP test proof passed with `go test ./internal/mcp -count=1`.
-- `scripts/verify-package-docs.sh`, Markdown file-size scan,
-  `git diff --check`, `cmp -s AGENTS.md CLAUDE.md`, and strict MkDocs build
-  passed.
+  result: 173 documents, 1236 claims. Current full repository verifier result:
+  562 documents, 1433 claims.
+- Focused service, collector, Terraform-state, reducer, fact, component,
+  relationship, tag, and language-query tests passed for the current pass.
+- `scripts/verify-package-docs.sh`, `helm lint`, `helm template`, Markdown
+  file-size scan, `git diff --check`, `cmp -s AGENTS.md CLAUDE.md`, and strict
+  MkDocs build passed.
 
 ## What Is Left
 
 - Continue reviewing docs by topic instead of by single file. Remaining
   high-value groups are now the long-tail package READMEs, fixture docs that
   are true test data, generated/reference indexes, and any public pages still
-  duplicating package-local contracts. The larger
-  `tests/fixtures/sample_projects/sample_project_typescript/README.md` fixture
-  remains test data, not a public documentation target.
+  duplicating package-local contracts. The larger TypeScript sample fixture
+  README remains test data, not a public documentation target.
 - Keep deleting historical planning notes when current public or package-local
   docs already carry the useful invariant.
 - Keep folding durable lessons into current architecture, workflow,

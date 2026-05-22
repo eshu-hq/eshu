@@ -36,34 +36,14 @@ helm lint ./deploy/helm/eshu -f values.eshu.yaml
 
 ## Values to review first
 
-| Value | Default | Why it matters |
-| --- | --- | --- |
-| `image.repository` | `ghcr.io/eshu-hq/eshu` | Runtime image for every Eshu workload. |
-| `image.tag` | `v0.0.2` | Runtime image tag. Pin this per rollout. |
-| `contentStore.dsn` | empty | Postgres DSN for facts, queue, content, status, and recovery data. |
-| `env.ESHU_GRAPH_BACKEND` | `nornicdb` | Graph adapter used by the runtime. |
-| `neo4j.uri` | `bolt://neo4j:7687` | Bolt URI for NornicDB or Neo4j. |
-| `schemaBootstrap.enabled` | `true` | Renders the one-shot schema bootstrap `Job`. |
-| `schemaBootstrap.useHelmHooks` | `true` | Runs bootstrap as a Helm `pre-install,pre-upgrade` hook. |
-| `repoSync.enabled` | `true` | Enables the ingester repo-sync loop. |
-| `repoSync.source.mode` | `githubOrg` | Default repository source mode. |
-| `api.replicas` | `1` | API replica count. |
-| `mcpServer.enabled` | `true` | Deploys the MCP runtime. External access still needs routing to `backend: mcp`. |
-| `ingester.persistence.size` | `100Gi` | Workspace PVC size for repository snapshots. |
-| `resolutionEngine.enabled` | `true` | Deploys the reducer runtime. |
-| `resolutionEngine.lanes` | `[]` | Optional domain-specific reducer deployments. |
-| `workflowCoordinator.enabled` | `false` | Required for active claim-driven collectors. |
-| `confluenceCollector.enabled` | `false` | Optional Confluence documentation collector. |
-| `ociRegistryCollector.enabled` | `false` | Optional direct-target OCI registry collector. |
-| `terraformStateCollector.enabled` | `false` | Optional claim-driven Terraform-state collector. |
-| `awsCloudCollector.enabled` | `false` | Optional claim-driven AWS cloud collector. |
-| `packageRegistryCollector.enabled` | `false` | Optional claim-driven package registry collector. |
-| `webhookListener.enabled` | `false` | Optional public webhook listener. |
-| `service.type` | `ClusterIP` | Kubernetes Service type for the main service. |
-| `exposure.ingress.enabled` | `false` | Renders API or MCP Ingress. |
-| `exposure.gateway.enabled` | `false` | Renders API or MCP Gateway API `HTTPRoute`. |
-| `networkPolicy.enabled` | `true` | Renders chart NetworkPolicies. |
-| `observability.prometheus.serviceMonitor.enabled` | `false` | Renders `ServiceMonitor` resources. |
+| Area | Defaults to check |
+| --- | --- |
+| Image | `image.repository=ghcr.io/eshu-hq/eshu`, `image.tag=v0.0.2`, `image.pullPolicy=IfNotPresent`. Pin the tag per rollout. |
+| Storage | `contentStore.dsn` is empty and must be supplied for real deployments. `env.ESHU_GRAPH_BACKEND=nornicdb`, `env.DEFAULT_DATABASE=nornic`, `env.NEO4J_DATABASE=nornic`, and `neo4j.uri=bolt://neo4j:7687`. |
+| Schema bootstrap | `schemaBootstrap.enabled=true` and `schemaBootstrap.useHelmHooks=true` render the pre-install/pre-upgrade schema Job. |
+| Core runtimes | `repoSync.enabled=true`, `repoSync.source.mode=githubOrg`, `api.replicas=1`, `mcpServer.enabled=true`, `resolutionEngine.enabled=true`, `resolutionEngine.lanes=[]`, and `ingester.persistence.size=100Gi`. |
+| Optional runtimes | `workflowCoordinator`, all hosted collectors, and `webhookListener` are disabled by default. Active claim-driven collectors require the workflow coordinator. |
+| Exposure and policy | `service.type=ClusterIP`, `exposure.ingress.enabled=false`, `exposure.gateway.enabled=false`, `networkPolicy.enabled=true`, and `observability.prometheus.serviceMonitor.enabled=false`. |
 
 Each long-running workload has `resources`, `env`, and `connectionTuning`
 blocks. Workload-specific `env` maps are rendered after global `env`, so a pod
@@ -114,6 +94,10 @@ resolutionEngine:
     neo4j:
       maxConnectionPoolSize: "150"
 ```
+
+Enable `ESHU_PPROF_ADDR` only on the workload that owns the slow stage. Keep it
+private through loopback binding, port-forwarding, or an equivalent protected
+network path; do not turn it on globally.
 
 ## Security defaults
 

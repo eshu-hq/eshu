@@ -15,25 +15,7 @@ Collectors observe source truth and emit versioned facts. They do not write the
 canonical graph, run durable-store DDL, or synthesize truth across sources.
 Projection and reducer code own those later steps.
 
-The Go source of truth is `go/internal/facts`.
-
-```go
-type Envelope struct {
-    FactID           string
-    ScopeID          string
-    GenerationID     string
-    FactKind         string
-    StableFactKey    string
-    SchemaVersion    string
-    CollectorKind    string
-    FencingToken     int64
-    SourceConfidence string
-    ObservedAt       time.Time
-    Payload          map[string]any
-    IsTombstone      bool
-    SourceRef        Ref
-}
-```
+The Go source of truth is `go/internal/facts`. The durable envelope fields are:
 
 | Field | Meaning |
 | --- | --- |
@@ -87,10 +69,10 @@ current families are:
 | SBOM and attestations | collector-specific SBOM or attestation source | `sbom.document`, `sbom.component`, `sbom.dependency_relationship`, `sbom.external_reference`, `attestation.statement`, `attestation.slsa_provenance`, `attestation.signature_verification`, `sbom.warning` |
 | Vulnerability intelligence | collector-specific vulnerability source | `vulnerability.source_snapshot`, `vulnerability.cve`, `vulnerability.affected_product`, `vulnerability.affected_package`, `vulnerability.epss_score`, `vulnerability.known_exploited`, `vulnerability.reference`, `vulnerability.warning` |
 
-`documentation_section` currently uses schema version `1.1.0` because section
-payloads can carry source-native content for updater diff generation. Most
-other current core families use `1.0.0`; check the helper function for the
-specific family before emitting rows.
+Most current core families use schema version `1.0.0`.
+`documentation_section` uses `1.1.0` because section payloads can carry
+source-native content for updater diff generation. Check the fact-family helper
+before emitting rows.
 
 ## Promotion Rules
 

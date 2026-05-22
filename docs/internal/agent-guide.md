@@ -63,11 +63,15 @@ query builders, and measured adapters.
 
 | Runtime | Responsibility | Command |
 | --- | --- | --- |
-| API | HTTP API, admin/query reads | `eshu api start --host 0.0.0.0 --port 8080` |
-| MCP Server | MCP tool server | `eshu mcp start` |
+| API | HTTP API, admin/query reads | Helm: `eshu api start`; direct binary: `/usr/local/bin/eshu-api` |
+| MCP Server | MCP tool server | Helm: `eshu mcp start --transport http`; Compose/direct binary: `/usr/local/bin/eshu-mcp-server` |
 | Ingester | Repo sync, parsing, fact emission | `/usr/local/bin/eshu-ingester` |
 | Reducer | Queue drain, graph projection, repair flows | `/usr/local/bin/eshu-reducer` |
 | Bootstrap Index | One-shot initial indexing | `/usr/local/bin/eshu-bootstrap-index` |
+
+The direct service binaries are still the support/version-check artifacts.
+Helm currently starts API and MCP through the `eshu` CLI wrapper; Compose starts
+MCP through `/usr/local/bin/eshu-mcp-server`.
 
 For local runtime validation that executes local binaries, rebuild first:
 

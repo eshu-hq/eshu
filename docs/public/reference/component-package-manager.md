@@ -24,51 +24,26 @@ Installed is not enabled. Enabled is not claim-capable.
 
 ## Commands
 
-Inspect a local manifest:
+The CLI commands are local-state operations:
 
 ```bash
 eshu component inspect ./aws-component.yaml
-```
-
-Verify with an allowlist policy:
-
-```bash
 eshu component verify ./aws-component.yaml \
   --trust-mode allowlist \
   --allow-id dev.eshu.collector.aws \
   --allow-publisher eshu-hq
-```
-
-Install into a local component home:
-
-```bash
 eshu component install ./aws-component.yaml \
   --component-home ~/.eshu/components \
   --trust-mode allowlist \
   --allow-id dev.eshu.collector.aws \
   --allow-publisher eshu-hq
-```
-
-Enable a named instance:
-
-```bash
 eshu component enable dev.eshu.collector.aws \
   --component-home ~/.eshu/components \
   --instance prod-aws \
   --mode scheduled \
   --claims \
   --config ./aws-collector.yaml
-```
-
-List installed components:
-
-```bash
 eshu component list --component-home ~/.eshu/components
-```
-
-Disable and uninstall:
-
-```bash
 eshu component disable dev.eshu.collector.aws \
   --component-home ~/.eshu/components \
   --instance prod-aws
@@ -111,35 +86,21 @@ allowlists.
 
 The first manifest version is `eshu.dev/v1alpha1`.
 
-```yaml
-apiVersion: eshu.dev/v1alpha1
-kind: ComponentPackage
-metadata:
-  id: dev.eshu.collector.aws
-  name: AWS cloud scanner
-  publisher: eshu-hq
-  version: 0.1.0
-spec:
-  compatibleCore: ">=0.0.5 <0.1.0"
-  componentType: collector
-  collectorKinds:
-    - aws
-  artifacts:
-    - platform: linux/amd64
-      image: "registry.example/eshu/aws-collector@sha256:<64-hex-digest>"
-  emittedFacts:
-    - kind: dev.eshu.aws.cloud_resource
-      schemaVersions:
-        - 1.0.0
-      sourceConfidence:
-        - reported
-  consumerContracts:
-    reducer:
-      phases:
-        - cloud_resource_uid:canonical_nodes_committed
-  telemetry:
-    metricsPrefix: eshu_dp_aws_
-```
+Required manifest fields:
+
+| Field | Contract |
+| --- | --- |
+| `apiVersion` | Must be `eshu.dev/v1alpha1`. |
+| `kind` | Must be `ComponentPackage`. |
+| `metadata.id` / `metadata.publisher` | Lowercase identifier. Revocation and allowlists match these values exactly. |
+| `metadata.version` | Semantic version. |
+| `spec.compatibleCore` | Core version range. Release builds enforce it; local `dev` builds parse it but skip release comparison. |
+| `spec.componentType` | Currently only `collector`. |
+| `spec.collectorKinds` | One or more collector-family identifiers. |
+| `spec.artifacts[].image` | Digest-pinned image with a full SHA256 digest. |
+| `spec.emittedFacts[]` | Fact kind, schema versions, and source-confidence values emitted by the component. |
+| `spec.consumerContracts.reducer.phases` | Reducer phase contracts the emitted fact kinds need. |
+| `spec.telemetry.metricsPrefix` | Component-owned metric prefix, when the component emits metrics. |
 
 Artifacts must be digest-pinned with a SHA256 digest. Mutable tags and short
 or malformed digests are rejected.

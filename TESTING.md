@@ -58,13 +58,14 @@ uv run --with mkdocs --with mkdocs-material --with pymdown-extensions \
 
 ## Local Service Stack
 
-The Docker Compose stack mirrors the production lifecycle:
+The default Docker Compose stack mirrors the production lifecycle with
+NornicDB, Postgres, API, MCP, ingester, reducer, and bootstrap services:
 
-1. Start Neo4j and Postgres
-2. Run bootstrap indexing
-3. Start the Go API service
-4. Start the Go ingester
-5. Start the Go reducer
+1. Start NornicDB and Postgres.
+2. Apply data-plane schema through `db-migrate`.
+3. Prepare the workspace volume.
+4. Run bootstrap indexing.
+5. Start API, MCP, ingester, and reducer services.
 
 ```bash
 docker compose up --build
@@ -84,6 +85,8 @@ The fixture ecosystems used by the stack live under `tests/fixtures/ecosystems/`
 When you point Compose at host repositories, set `ESHU_FILESYSTEM_HOST_ROOT` to
 an absolute real directory. Do not use symlinks, and do not use macOS `/tmp`
 because Docker resolves it through `/private/tmp`.
+
+Use `docker-compose.neo4j.yml` only for Neo4j compatibility checks.
 
 ## What We Verify
 
