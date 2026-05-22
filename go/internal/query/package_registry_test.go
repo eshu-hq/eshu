@@ -11,18 +11,20 @@ import (
 )
 
 type recordingPackageRegistryGraphReader struct {
-	runRows    []map[string]any
-	lastCypher string
-	lastParams map[string]any
+	runRows     []map[string]any
+	lastCypher  string
+	lastParams  map[string]any
+	sawDeadline bool
 }
 
 func (r *recordingPackageRegistryGraphReader) Run(
-	_ context.Context,
+	ctx context.Context,
 	cypher string,
 	params map[string]any,
 ) ([]map[string]any, error) {
 	r.lastCypher = cypher
 	r.lastParams = params
+	_, r.sawDeadline = ctx.Deadline()
 	return r.runRows, nil
 }
 
@@ -322,13 +324,14 @@ func TestPackageRegistryListDependenciesUsesPackageOrVersionAnchor(t *testing.T)
 		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
 	}
 	for _, fragment := range []string{
-		"MATCH (p:Package {uid: $package_id})-[:HAS_VERSION]->(v:PackageVersion)",
-		"MATCH (v)-[:DECLARES_DEPENDENCY]->(d:PackageDependency)-[:DEPENDS_ON_PACKAGE]->(target:Package)",
+		"MATCH (d:PackageDependency)",
+		"WHERE d.package_id = $package_id",
+		"MATCH (d)-[:DEPENDS_ON_PACKAGE]->(target:Package)",
 		"d.uid IS NOT NULL",
 		"d.package_id IS NOT NULL",
 		"d.version_id IS NOT NULL",
 		"target.uid IS NOT NULL",
-		"ORDER BY v.uid, d.uid",
+		"ORDER BY d.version_id, d.uid",
 		"LIMIT $limit",
 	} {
 		if !strings.Contains(reader.lastCypher, fragment) {
@@ -366,6 +369,70 @@ func TestPackageRegistryListDependenciesUsesPackageOrVersionAnchor(t *testing.T)
 	}
 }
 
+func TestPackageRegistryListDependenciesReturnsEmptySparsePackageQuickly(t *testing.T) {
+	t.Parallel()
+
+	reader := &recordingPackageRegistryGraphReader{}
+	handler := &PackageRegistryHandler{Neo4j: reader}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"/api/v0/package-registry/dependencies?package_id=npm://registry.npmjs.org/lodash&limit=5",
+		nil,
+	)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if got, want := w.Code, http.StatusOK; got != want {
+		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
+	}
+	for _, fragment := range []string{
+		"MATCH (d:PackageDependency)",
+		"WHERE d.package_id = $package_id",
+		"MATCH (d)-[:DEPENDS_ON_PACKAGE]->(target:Package)",
+		"ORDER BY d.version_id, d.uid",
+		"LIMIT $limit",
+	} {
+		if !strings.Contains(reader.lastCypher, fragment) {
+			t.Fatalf("cypher = %q, want fragment %q", reader.lastCypher, fragment)
+		}
+	}
+	if strings.Contains(reader.lastCypher, "MATCH (p:Package {uid: $package_id})-[:HAS_VERSION]->(v:PackageVersion)") {
+		t.Fatalf("cypher = %q, must not expand every package version before discovering sparse dependencies", reader.lastCypher)
+	}
+	if !reader.sawDeadline {
+		t.Fatal("dependency query context has no deadline; sparse reads need a server-side read budget")
+	}
+
+	var resp struct {
+		Dependencies []PackageRegistryDependencyResult `json:"dependencies"`
+		Count        int                               `json:"count"`
+		Limit        int                               `json:"limit"`
+		Truncated    bool                              `json:"truncated"`
+		NextCursor   map[string]string                 `json:"next_cursor"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("json.Unmarshal: %v", err)
+	}
+	if got := len(resp.Dependencies); got != 0 {
+		t.Fatalf("len(dependencies) = %d, want 0", got)
+	}
+	if got := resp.Count; got != 0 {
+		t.Fatalf("count = %d, want 0", got)
+	}
+	if got, want := resp.Limit, 5; got != want {
+		t.Fatalf("limit = %d, want %d", got, want)
+	}
+	if resp.Truncated {
+		t.Fatal("truncated = true, want false")
+	}
+	if resp.NextCursor != nil {
+		t.Fatalf("next_cursor = %#v, want absent", resp.NextCursor)
+	}
+}
+
 func TestPackageRegistryListDependenciesUsesBothAnchorsWhenProvided(t *testing.T) {
 	t.Parallel()
 
@@ -385,8 +452,17 @@ func TestPackageRegistryListDependenciesUsesBothAnchorsWhenProvided(t *testing.T
 	if got, want := w.Code, http.StatusOK; got != want {
 		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
 	}
-	if want := "MATCH (p:Package {uid: $package_id})-[:HAS_VERSION]->(v:PackageVersion {uid: $version_id})"; !strings.Contains(reader.lastCypher, want) {
-		t.Fatalf("cypher = %q, want fragment %q", reader.lastCypher, want)
+	for _, want := range []string{
+		"WHERE d.version_id = $version_id",
+		"($package_id = '' OR d.package_id = $package_id)",
+		"($version_id = '' OR d.version_id = $version_id)",
+	} {
+		if !strings.Contains(reader.lastCypher, want) {
+			t.Fatalf("cypher = %q, want fragment %q", reader.lastCypher, want)
+		}
+	}
+	if strings.Contains(reader.lastCypher, "MATCH (p:Package {uid: $package_id})-[:HAS_VERSION]->(v:PackageVersion") {
+		t.Fatalf("cypher = %q, must not expand package versions when an exact version anchor is provided", reader.lastCypher)
 	}
 	if got, want := reader.lastParams["package_id"], "package:npm:@eshu/core-api"; got != want {
 		t.Fatalf("params[package_id] = %#v, want %#v", got, want)
@@ -438,7 +514,7 @@ func TestPackageRegistryListDependenciesReturnsCursorForTruncatedPage(t *testing
 			t.Fatalf("params[%s] = %#v, want %#v", key, got, want)
 		}
 	}
-	if want := "v.uid > $after_version_id OR (v.uid = $after_version_id AND d.uid > $after_dependency_id)"; !strings.Contains(reader.lastCypher, want) {
+	if want := "d.version_id > $after_version_id OR (d.version_id = $after_version_id AND d.uid > $after_dependency_id)"; !strings.Contains(reader.lastCypher, want) {
 		t.Fatalf("cypher = %q, want cursor fragment %q", reader.lastCypher, want)
 	}
 
