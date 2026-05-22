@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/doctruth"
+	"github.com/eshu-hq/eshu/go/internal/eshulocal"
 )
 
 func docsVerifyLocalPathResolver(verifyPath string) doctruth.LocalPathResolver {
@@ -18,6 +19,7 @@ func docsVerifyLocalPathResolver(verifyPath string) doctruth.LocalPathResolver {
 		if strings.TrimSpace(normalizedPath) == "" {
 			return doctruth.LocalPathResolution{}
 		}
+		checked := false
 		for _, base := range docsVerifyLocalPathBases(root, doc) {
 			candidate, ok := safeJoinLocalPath(root, base, normalizedPath)
 			if !ok {
@@ -25,7 +27,14 @@ func docsVerifyLocalPathResolver(verifyPath string) doctruth.LocalPathResolver {
 			}
 			if _, err := os.Stat(candidate); err == nil {
 				return doctruth.LocalPathResolution{Supported: true, Exists: true}
+			} else if os.IsNotExist(err) {
+				checked = true
+			} else {
+				return doctruth.LocalPathResolution{}
 			}
+		}
+		if !checked {
+			return doctruth.LocalPathResolution{}
 		}
 		return doctruth.LocalPathResolution{Supported: true, Exists: false}
 	}
@@ -36,36 +45,29 @@ func docsVerifyTruthRoot(verifyPath string) (string, bool) {
 	if start == "" {
 		start = "."
 	}
-	absolute, err := filepath.Abs(start)
+	root, err := eshulocal.ResolveWorkspaceRoot(start, "")
 	if err != nil {
 		return "", false
 	}
-	if info, err := os.Stat(absolute); err == nil && !info.IsDir() {
-		absolute = filepath.Dir(absolute)
-	}
-	for current := absolute; ; current = filepath.Dir(current) {
-		if info, err := os.Stat(filepath.Join(current, ".git")); err == nil && info.IsDir() {
-			return current, true
-		}
-		parent := filepath.Dir(current)
-		if parent == current {
-			break
-		}
-	}
-	if cwd, err := os.Getwd(); err == nil {
-		return cwd, true
-	}
-	return absolute, true
+	return root, true
 }
 
 func docsVerifyLocalPathBases(root string, doc doctruth.DocumentInput) []string {
 	bases := []string{root}
 	if docPath := filePathFromURI(doc.SourceURI); docPath != "" {
-		bases = append(bases, filepath.Dir(docPath))
+		bases = append(bases, resolvedDir(filepath.Dir(docPath)))
 	} else if strings.TrimSpace(doc.Path) != "" {
-		bases = append(bases, filepath.Dir(doc.Path))
+		bases = append(bases, resolvedDir(filepath.Dir(doc.Path)))
 	}
 	return bases
+}
+
+func resolvedDir(dir string) string {
+	resolved, err := filepath.EvalSymlinks(dir)
+	if err != nil {
+		return filepath.Clean(dir)
+	}
+	return resolved
 }
 
 func filePathFromURI(raw string) string {
