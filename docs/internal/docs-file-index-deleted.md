@@ -60,6 +60,7 @@ Generated from `git diff --cached --name-status origin/main -- "*.md"` for this 
 - `docs/docs/reference/cli-reference.md`
 - `docs/docs/reference/cli-system.md`
 - `docs/docs/reference/dead-code-reachability-spec.md`
+- `docs/docs/reference/documentation-updater-actuator-contract.md`
 - `docs/docs/reference/environment-variables.md`
 - `docs/docs/reference/graph-backend-installation.md`
 - `docs/docs/reference/graph-backend-operations.md`

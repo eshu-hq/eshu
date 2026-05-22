@@ -94,7 +94,6 @@ Generated from `git diff --cached --name-status origin/main -- "*.md"` for this 
 - `docs/docs/reference/configuration.md -> docs/public/reference/configuration.md`
 - `docs/docs/reference/cypher-performance.md -> docs/public/reference/cypher-performance.md`
 - `docs/docs/reference/dead-code-typescript-corpus-evidence.md -> docs/public/reference/dead-code-typescript-corpus-evidence.md`
-- `docs/docs/reference/documentation-updater-actuator-contract.md -> docs/public/reference/documentation-updater-actuator-contract.md`
 - `docs/docs/reference/eshuignore.md -> docs/public/reference/eshuignore.md`
 - `docs/docs/reference/fact-envelope-reference.md -> docs/public/reference/fact-envelope-reference.md`
 - `docs/docs/reference/fact-schema-versioning.md -> docs/public/reference/fact-schema-versioning.md`

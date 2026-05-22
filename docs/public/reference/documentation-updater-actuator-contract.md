@@ -1,33 +1,33 @@
 # Documentation Updater Actuator Contract
 
 This contract defines how a write-capable documentation updater may use Eshu.
-It keeps the boundary simple: Eshu reports documentation truth findings and
-evidence packets. The updater decides whether to draft, review, diff, and
-publish changes outside Eshu.
+Eshu provides read-only documentation truth findings and evidence packets. The
+external updater decides whether to draft, review, diff, and publish changes
+outside Eshu.
 
-The contract applies to future updater services for Confluence, Git-backed
-Markdown, Notion, Google Docs, Backstage, decision records, RFCs, finance pages, runbooks,
-and similar documentation systems.
+Use this page for updater integration boundaries. For MCP tool names, see
+[MCP Reference](mcp-reference.md). For the deterministic verifier package, see
+`go/internal/doctruth/README.md`.
 
 ## Boundary
 
-Eshu owns read-only truth:
+Eshu owns read-only documentation truth:
 
-- documentation source collection
-- document, section, link, mention, and claim-candidate facts
-- drift findings
+- documentation source, document, section, link, mention, and claim-candidate
+  facts
+- deterministic documentation claim verification
+- durable documentation findings
 - evidence packet assembly
 - truth labels, freshness, ambiguity, and unsupported states
-- permission-aware evidence redaction
+- permission-aware evidence denial
 
-The external updater owns write behavior:
+The external updater owns all write behavior:
 
 - LLM provider adapters and customer-managed API keys
-- prompt templates and writer modes
-- style profiles
+- prompt templates, writer modes, and style profiles
 - deterministic patch planning
 - bounded LLM drafting
-- verification
+- deterministic and optional semantic verification
 - diff rendering
 - approval workflow
 - destination publisher adapters
@@ -42,64 +42,83 @@ Eshu core must not:
   Backstage, Jira, or any other documentation destination
 - treat documentation text as more authoritative than source evidence
 
-## Required Eshu APIs
+## Current Read APIs
 
-The API names below define the Eshu-side contract for updater actuators. These
-routes return read-only evidence; they do not draft text or write to destination
-systems.
+The documentation read routes are mounted by
+`go/internal/query/documentation.go`. MCP exposes the same routes through
+`go/internal/mcp/tools_documentation.go`.
 
-### List Findings
+| Purpose | HTTP route | MCP tool |
+| --- | --- | --- |
+| List visible documentation findings | `GET /api/v0/documentation/findings` | `list_documentation_findings` |
+| List collected documentation facts | `GET /api/v0/documentation/facts` | `list_documentation_facts` |
+| Read one evidence packet | `GET /api/v0/documentation/findings/{finding_id}/evidence-packet` | `get_documentation_evidence_packet` |
+| Check saved packet freshness | `GET /api/v0/documentation/evidence-packets/{packet_id}/freshness` | `check_documentation_evidence_packet_freshness` |
+
+These routes return read-only evidence. They do not draft text or write to
+destination systems.
+
+## List Findings
 
 `GET /api/v0/documentation/findings`
 
-Returns documentation findings the updater may inspect. Eshu filters findings
-through the same documentation visibility rules used for evidence packets, so
-denied source or document metadata is not exposed in the list response.
+Use this route to find documentation findings that are safe for the caller to
+inspect. The read model filters out findings when source visibility is denied,
+unknown, or not evaluated.
 
-Required filters:
+Supported filters:
 
+- `scope_id`
+- `generation_id`
+- `repo`
 - `finding_type`
 - `source_id`
 - `document_id`
 - `status`
 - `truth_level`
 - `freshness_state`
-- `updated_since`
+- `updated_since` as an RFC3339 timestamp
 - `limit` as an integer from `1` through `200`
 - `cursor` as a non-negative integer offset returned by `next_cursor`
 
-Response shape:
+The response returns `findings` and `next_cursor`. Each finding includes the
+finding identity, type, status, truth/freshness state, source/document/section
+identity, summary, and evidence-packet URL.
 
-```json
-{
-  "findings": [
-    {
-      "finding_id": "doc-finding:service_deployment_drift:...",
-      "finding_version": "2026-05-09T19:00:00Z",
-      "finding_type": "service_deployment_drift",
-      "status": "conflict",
-      "truth_level": "derived",
-      "freshness_state": "fresh",
-      "source_id": "doc-source:confluence:example.atlassian.net:100",
-      "document_id": "doc:confluence:123",
-      "section_id": "body",
-      "summary": "The page says payment-service deploys from one chart, but Eshu currently sees a different deployment source.",
-      "evidence_packet_url": "/api/v0/documentation/findings/doc-finding:service_deployment_drift:.../evidence-packet"
-    }
-  ],
-  "next_cursor": ""
-}
-```
+## List Documentation Facts
 
-### Get Evidence Packet
+`GET /api/v0/documentation/facts`
+
+Use this route for audit and inspection of collected documentation facts. Do
+not use raw facts as the updater's write basis when an evidence packet exists.
+The updater's immutable snapshot should be the evidence packet.
+
+Supported filters:
+
+- `fact_kind`: `source`, `document`, `section`, `link`, `entity_mention`, or
+  `claim_candidate`
+- `scope_id`
+- `generation_id`
+- `source_id`
+- `document_id`
+- `section_id`
+- `q` for case-insensitive text search over source display name, document
+  title, section heading, and section content
+- `updated_since` as an RFC3339 timestamp
+- `limit` as an integer from `1` through `200`
+- `cursor` as a non-negative integer offset returned by `next_cursor`
+
+Except for `fact_kind=source`, the request must include at least one of
+`scope_id`, `source_id`, `document_id`, or `section_id`.
+
+## Get Evidence Packet
 
 `GET /api/v0/documentation/findings/{finding_id}/evidence-packet`
 
-Returns the bounded evidence the updater may snapshot before planning a diff.
-The updater must not infer write context by issuing arbitrary private graph
-queries.
+Use this route before planning any updater diff. The updater must not infer
+write context by issuing arbitrary private graph queries.
 
-Required fields:
+Required packet fields:
 
 - `packet_id`
 - `packet_version`
@@ -115,142 +134,72 @@ Required fields:
 - `permissions`
 - `states`
 
-Response shape:
+Important state fields:
 
-```json
-{
-  "packet_id": "doc-packet:service_deployment_drift:...",
-  "packet_version": "1",
-  "generated_at": "2026-05-09T19:00:00Z",
-  "finding": {
-    "finding_id": "doc-finding:service_deployment_drift:...",
-    "finding_version": "2026-05-09T19:00:00Z",
-    "finding_type": "service_deployment_drift",
-    "status": "conflict"
-  },
-  "document": {
-    "source_id": "doc-source:confluence:example.atlassian.net:100",
-    "document_id": "doc:confluence:123",
-    "external_id": "123",
-    "canonical_uri": "https://example.atlassian.net/wiki/spaces/PLAT/pages/123",
-    "revision_id": "17",
-    "title": "Payment Service Deployment"
-  },
-  "section": {
-    "section_id": "body",
-    "heading_text": "Deployment",
-    "text_hash": "sha256:..."
-  },
-  "bounded_excerpt": {
-    "text": "payment-service deploys from platform/payment-chart",
-    "text_hash": "sha256:...",
-    "source_start_ref": "storage:body",
-    "source_end_ref": "storage:body"
-  },
-  "linked_entities": [
-    {
-      "entity_id": "service:payment-service",
-      "entity_type": "service",
-      "match_status": "exact",
-      "confidence": "observed"
-    }
-  ],
-  "current_truth": {
-    "claim_key": "deployment_source",
-    "documented_value": "platform/payment-chart",
-    "current_value": "platform/payment-service/deploy",
-    "truth_level": "derived",
-    "freshness_state": "fresh"
-  },
-  "evidence_refs": [
-    {
-      "fact_id": "fact:...",
-      "source_system": "git",
-      "source_uri": "https://github.com/example/platform-deployments",
-      "source_record_id": "payment-service/deploy.yaml"
-    }
-  ],
-  "truth": {
-    "label": "derived",
-    "basis": "deployment graph evidence",
-    "ambiguity": []
-  },
-  "permissions": {
-    "viewer_can_read_source": true,
-    "packet_redacted": false,
-    "write_permission_decision": "external_updater_must_check"
-  },
-  "states": {
-    "finding_state": "ready",
-    "unsupported_reason": "",
-    "stale_reason": ""
-  }
-}
-```
+| Field | Meaning |
+| --- | --- |
+| `finding.status` | Finding state such as `conflict`, `stale`, `ambiguous`, or `unsupported`. |
+| `states.finding_state` | Current state repeated for updater policy checks. |
+| `states.freshness_state` | Packet freshness state. |
+| `states.unsupported_reason` | Why the packet is unsupported, when applicable. |
+| `states.stale_reason` | Why the packet is stale, when applicable. |
+| `states.permission_decision` | Permission decision, such as `allowed` or `denied`. |
+| `permissions.viewer_can_read_source` | Must be `true` before Eshu returns packet evidence. |
+| `permissions.source_acl_evaluated` | If explicitly `false`, findings are not listed and packets are denied. |
 
-### Check Packet Freshness
+The packet is the updater's write-planning source. Save it before drafting and
+use freshness checks before publishing.
+
+## Check Packet Freshness
 
 `GET /api/v0/documentation/evidence-packets/{packet_id}/freshness?packet_version={saved_packet_version}`
 
-Allows the updater to check whether a saved packet is still current before it
-publishes a diff. The `packet_version` query parameter should be the version
-from the updater's immutable evidence snapshot. If it differs from the latest
-packet version, Eshu returns `freshness_state: "stale"` with the latest version
-for the caller to refetch.
+Use this route immediately before publishing a diff. Pass the packet version
+from the updater's immutable evidence snapshot.
 
-Response shape:
+If the saved version differs from the latest packet version, Eshu returns
+`freshness_state: "stale"` with the latest version. The route still returns
+`200`; the updater must enforce stale-packet policy.
 
 ```json
 {
-  "packet_id": "doc-packet:service_deployment_drift:...",
+  "packet_id": "doc-packet:service-deployment:1",
   "packet_version": "1",
-  "freshness_state": "fresh",
-  "latest_packet_version": "1"
+  "freshness_state": "stale",
+  "latest_packet_version": "2"
 }
 ```
 
 ## Error States
 
-Eshu responses must use explicit states instead of vague failures.
+Current documentation routes use these stable error shapes.
 
 | HTTP status | Error code | Meaning | Updater behavior |
 | --- | --- | --- | --- |
-| `400` | `invalid_argument` | Request parameters are invalid, such as a malformed `updated_since` timestamp. | Fix the request before retrying. |
-| `401` | `unauthenticated` | Caller identity is missing or invalid. | Stop and require auth. |
-| `403` | `permission_denied` | Caller cannot view the requested source, document, or evidence. | Do not draft. |
-| `404` | `not_found` | Finding, packet, document, or section does not exist. | Drop or refresh the item. |
-| `409` | `stale_packet` | The packet is no longer current. | Fetch the latest packet and restart planning. |
-| `422` | `unsupported_finding` | Eshu cannot produce a supported packet for this finding type. | Mark unsupported. |
-| `423` | `building` | Eshu is still collecting or reducing required evidence. | Retry later with backoff. |
-| `429` | `rate_limited` | Caller exceeded rate limits. | Retry after the stated interval. |
+| `400` | `invalid_argument` | Invalid timestamp, pagination, fact kind, or missing required scope. | Fix the request before retrying. |
+| `403` | `permission_denied` | Caller cannot view the requested source, finding, packet, or freshness result. | Do not draft. |
+| `404` | `not_found` | Finding or packet does not exist. | Drop or refresh the item. |
 | `500` | `internal_error` | Eshu failed unexpectedly. | Retry according to updater policy. |
-| `501` | `documentation_read_model_unavailable` | The runtime cannot serve documentation packets because the Postgres read model is not wired. | Disable drafting and alert the operator. |
-| `501` | `unsupported_capability` | The current runtime profile does not support documentation evidence packets. | Use a fuller Eshu profile before drafting. |
-| `503` | `source_unavailable` | Required source evidence is temporarily unavailable. | Retry later. |
+| `501` | `documentation_read_model_unavailable` | The runtime cannot serve documentation routes because the Postgres read model is not wired. | Disable drafting and alert the operator. |
+| `501` | `unsupported_capability` | The current runtime profile does not support durable documentation routes. | Use a fuller Eshu profile before drafting. |
 
-Error bodies must include:
+Non-envelope error bodies include:
 
 - `error_code`
 - `message`
-- `retry_after_seconds` when retryable
 - `correlation_id`
+- `capability` when the error is capability-specific
+
+When the caller sends `Accept: application/eshu.envelope+json`, Eshu returns
+the same error in the canonical response envelope.
 
 ## Immutable Evidence Snapshots
 
 Before drafting, the updater must save the exact evidence packet it used.
 
-The snapshot must include:
-
-- raw packet body
-- packet hash
-- Eshu base URL
-- finding ID and version
-- packet ID and version
-- updater run ID
-- writer mode ID and version
-- destination target ID
-- actor or service identity
-- created timestamp
+The snapshot must include the raw packet body, packet hash, Eshu base URL,
+finding ID/version, packet ID/version, updater run ID, writer mode ID/version,
+destination target ID, actor or service identity, and created timestamp.
 
 The updater may store additional fields, but it must not rewrite the saved
 packet after drafting starts. If Eshu later returns a newer packet version, the
@@ -264,16 +213,10 @@ whether it can write to the destination.
 Eshu must:
 
 - enforce read permissions for findings and evidence packets
-- redact or deny evidence that the caller cannot view
-- include redaction state in the packet
+- deny evidence when source visibility is unknown or source ACLs were not
+  evaluated
+- include permission state in the packet
 - avoid exposing destination write tokens
-- treat missing or unknown evidence visibility as denied
-
-Documentation evidence packets must include an explicit permission decision.
-If `permissions.viewer_can_read_source` is absent or false, Eshu must not return
-the packet body or any bounded excerpt. If a source reports only partial ACL
-metadata, the packet producer must either prove the caller can read the source
-or mark the packet denied.
 
 The updater must:
 
@@ -282,17 +225,16 @@ The updater must:
 - honor review-required policy for protected writer modes
 - record who approved or published a change
 
-Confluence is currently collected through read-only credentials. The collector
-records source and document ACL summaries as partial when page restrictions are
-not fetched from the source API. That metadata is evidence for security review;
-it is not a write permission grant.
+Confluence is collected through read-only credentials. Source and document ACL
+summaries are evidence for security review; they are not write permission
+grants.
 
 ## Updater Policy Requirements
 
 An updater must treat Eshu evidence as the source of stale-state detection.
 The LLM must not decide whether documentation is stale.
 
-The minimum updater flow is:
+Minimum updater flow:
 
 ```text
 Eshu finding
@@ -310,9 +252,9 @@ Eshu finding
 Writer modes must be versioned. Editing an active writer mode creates a new
 version that returns to draft or dry-run state.
 
-High-risk modes such as finance, decision-record, RFC, compliance, and runbook writers
-should remain review-required unless they only update an explicitly managed
-generated section.
+High-risk modes such as finance, decision records, RFCs, compliance pages, and
+runbooks should remain review-required unless they only update an explicitly
+managed generated section.
 
 ## Non-Goals
 
@@ -326,12 +268,4 @@ This contract does not define:
 - storage schema for the updater service
 - legal or compliance retention policy beyond immutable packet snapshots
 
-Those belong to the external updater repo.
-
-## Follow-Up Work
-
-- Implement the evidence packet API in Eshu (#71).
-- Implement `service_deployment_drift` findings (#65).
-- Create the external updater repository and file implementation issues there.
-- Add security review for writer modes, BYOK handling, destination publishers,
-  and immutable audit storage.
+Those belong to the external updater.
