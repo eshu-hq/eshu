@@ -233,6 +233,10 @@ func (h *SupplyChainHandler) listContainerImageIdentities(w http.ResponseWriter,
 		WriteError(w, http.StatusBadRequest, "digest, image_ref, repository_id, or outcome is required")
 		return
 	}
+	if filter.Outcome != "" && !isSupportedContainerImageIdentityOutcome(filter.Outcome) {
+		WriteError(w, http.StatusBadRequest, "outcome must be exact_digest or tag_resolved")
+		return
+	}
 	if h.ContainerImageIdentities == nil {
 		WriteContractError(
 			w,
@@ -404,4 +408,13 @@ func requiredContainerImageIdentityLimit(w http.ResponseWriter, r *http.Request)
 		return 0, false
 	}
 	return limit, true
+}
+
+func isSupportedContainerImageIdentityOutcome(outcome string) bool {
+	switch outcome {
+	case "exact_digest", "tag_resolved":
+		return true
+	default:
+		return false
+	}
 }

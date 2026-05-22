@@ -48,6 +48,33 @@ func TestSupplyChainListContainerImageIdentitiesRequiresScopeAndLimit(t *testing
 	}
 }
 
+func TestSupplyChainListContainerImageIdentitiesRejectsUnsupportedOutcome(t *testing.T) {
+	t.Parallel()
+
+	store := &recordingContainerImageIdentityStore{}
+	handler := &SupplyChainHandler{ContainerImageIdentities: store}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"/api/v0/supply-chain/container-images/identities?outcome=ambiguous_tag&limit=10",
+		nil,
+	)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if got, want := w.Code, http.StatusBadRequest; got != want {
+		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
+	}
+	if got, want := w.Body.String(), "outcome must be exact_digest or tag_resolved"; !strings.Contains(got, want) {
+		t.Fatalf("body = %s, want %q", got, want)
+	}
+	if store.lastFilter.Outcome != "" {
+		t.Fatalf("store was called with outcome %q, want no store call", store.lastFilter.Outcome)
+	}
+}
+
 func TestSupplyChainListContainerImageIdentitiesUsesBoundedStore(t *testing.T) {
 	t.Parallel()
 
