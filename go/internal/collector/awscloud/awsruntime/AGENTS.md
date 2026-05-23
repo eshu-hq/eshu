@@ -11,7 +11,7 @@
 6. `scan_status.go` - scanner-side durable status projection.
 7. `../checkpoint/README.md` - durable pagination checkpoint contract.
 8. `../README.md` - shared AWS fact-envelope contract.
-9. `docs/docs/adrs/2026-04-20-aws-cloud-scanner-collector.md` - runtime and
+9. `docs/public/services/collector-aws-cloud.md` - runtime and
    credential requirements.
 
 ## Invariants

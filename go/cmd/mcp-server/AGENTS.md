@@ -107,6 +107,6 @@
 
 - The query handler composition in `newMCPQueryRouter` — adding or removing
   handlers changes the MCP tool surface and must be coordinated with
-  `internal/mcp/dispatch.go` tool definitions and `docs/docs/guides/mcp-guide.md`.
+  `internal/mcp/dispatch.go` tool definitions and `docs/public/guides/mcp-guide.md`.
 - Transport options for `ESHU_MCP_TRANSPORT` — adding a new transport type
-  changes the documented wire contract; see `docs/docs/deployment/service-runtimes.md`.
+  changes the documented wire contract; see `docs/public/deployment/service-runtimes.md`.

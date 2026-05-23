@@ -219,6 +219,6 @@ and processing lives in `internal/projector` and `internal/storage/postgres`.
 
 ## Related docs
 
-- `docs/docs/architecture.md` — pipeline and ownership table
-- `docs/docs/deployment/service-runtimes.md` — ingester and projector runtime
+- `docs/public/architecture.md` — pipeline and ownership table
+- `docs/public/deployment/service-runtimes.md` — ingester and projector runtime
   lanes

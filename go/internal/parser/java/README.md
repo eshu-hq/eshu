@@ -63,5 +63,5 @@ for continued values.
 
 ## Related docs
 
-- `docs/docs/reference/local-testing.md`
-- `docs/docs/architecture.md`
+- `docs/public/reference/local-testing.md`
+- `docs/public/architecture.md`

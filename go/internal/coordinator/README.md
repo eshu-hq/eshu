@@ -253,7 +253,7 @@ metrics, `workflow_runs`, `workflow_run_completeness`, and
 
 ## Related docs
 
-- `docs/docs/deployment/service-runtimes.md`
-- `docs/docs/reference/telemetry/index.md`
+- `docs/public/deployment/service-runtimes.md`
+- `docs/public/reference/telemetry/index.md`
 - `go/internal/workflow/README.md`
 - `go/cmd/workflow-coordinator/README.md`

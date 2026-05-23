@@ -59,4 +59,4 @@ JSON dependency rows do not mix with infrastructure payload rows.
 
 ## Related docs
 
-- `docs/plans/2026-05-09-parser-language-layout.md`
+- `docs/public/languages/support-maturity.md`

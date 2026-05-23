@@ -12,7 +12,8 @@ Guidance for LLM assistants editing this package.
    row (where the config-side composite key is recorded).
 5. `../../projector/tfstate_canonical.go:14-75` — state-side row
    shapes (Address, Lineage, Serial, BackendKind, LocatorHash).
-6. `docs/superpowers/plans/2026-05-10-tfstate-config-state-drift-design.md` §9 Q1, Q4 — design rationale.
+6. `docs/public/reference/relationship-mapping.md` — current relationship and
+   drift-correlation contract.
 
 ## Invariants
 
@@ -35,8 +36,9 @@ Guidance for LLM assistants editing this package.
   `ErrNoConfigRepoOwnsBackend` and `ErrAmbiguousBackendOwner`,
   document the operator-visible failure mode in `doc.go`, and add a
   classifier test in the drift package fixture corpus.
-- Change the selection rule: requires an ADR amendment; tie-break
-  semantics are part of the design contract.
+- Change the selection rule: requires architecture-owner approval, updated
+  relationship-mapping docs, and regression coverage; tie-break semantics are
+  part of the design contract.
 - Attach prior-generation evidence: extend the return shape
   (`CommitAnchor` or a sibling helper), keep the resolver call
   bounded — never join across more than one prior generation per
@@ -52,7 +54,7 @@ Guidance for LLM assistants editing this package.
 - Do NOT pick winners by repo name, modification time of files in the
   repo, or any heuristic outside `(CommitObservedAt, CommitID)`.
 
-## What NOT to change without an ADR
+## What NOT to change without architecture-owner approval
 
 - The single-owner policy. Multi-owner resolution requires explicit
   design and operator documentation.

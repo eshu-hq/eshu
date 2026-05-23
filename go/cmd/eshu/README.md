@@ -180,6 +180,6 @@ launched runtime via the shared `telemetry` package. Errors print to
 
 ## Related docs
 
-- [Service runtimes](../../../docs/docs/deployment/service-runtimes.md)
-- [CLI reference](../../../docs/docs/reference/cli-reference.md)
-- [CLI indexing](../../../docs/docs/reference/cli-indexing.md)
+- [Service runtimes](../../../docs/public/deployment/service-runtimes.md)
+- [CLI reference](../../../docs/public/reference/cli-reference.md)
+- [CLI indexing](../../../docs/public/reference/cli-indexing.md)

@@ -19,9 +19,27 @@ and the rich documentation:
 - `go/internal/` — every internal package, with per-package `README.md`,
   `doc.go`, and scoped `AGENTS.md`.
 
-Open `go/cmd/README.md` for the binary-to-runtime map, or
+Open `go/cmd/README.md` for the binary-to-runtime map and
 `go/internal/README.md` for the internal-package layout diagram and the
 where-to-start-by-intent table.
+
+## Pipeline at a glance
+
+```mermaid
+flowchart LR
+  source[git source] --> collector
+  collector --> parser
+  parser --> facts[(facts)]
+  facts --> projector
+  projector --> reducer
+  projector --> cypher
+  reducer --> cypher
+  cypher --> graph[(graph backend)]
+  facts --> postgres[(postgres)]
+  api --> graph
+  api --> postgres
+  mcp[mcp-server] --> api
+```
 
 ## Per-package documentation convention
 

@@ -45,6 +45,6 @@ shared contract lives in `internal/telemetry`.
 
 ## Related docs
 
-- `docs/docs/architecture.md`
-- `docs/docs/reference/nornicdb-tuning.md`
-- `docs/docs/adrs/2026-04-22-nornicdb-graph-backend-candidate.md`
+- `docs/public/architecture.md`
+- `docs/public/reference/nornicdb-tuning.md`
+- `docs/public/reference/backend-conformance.md`

@@ -5,7 +5,7 @@
 1. `README.md` — package purpose and JFrog boundary
 2. `adapter.go` — Artifactory URL and credential mapping
 3. `live_test.go` — opt-in private JFrog validation gate
-4. `docs/docs/adrs/2026-05-10-oci-container-registry-collector.md`
+4. `docs/public/deployment/service-runtimes-collectors.md`
 
 ## Invariants
 

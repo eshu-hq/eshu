@@ -3,9 +3,10 @@
 Resolver that joins a Terraform state snapshot to the config repo commit
 that declared its backend.
 
-Implements the prerequisite join for chunk #43
-(`docs/superpowers/plans/2026-05-10-tfstate-config-state-drift-design.md`).
-Chunk #163 wired the PostgresTerraformBackendQuery adapter
+Implements the prerequisite join for Terraform state/config drift correlation.
+The current operator-facing contract lives in
+`docs/public/reference/relationship-mapping.md`.
+The PostgresTerraformBackendQuery adapter
 (`go/internal/storage/postgres/tfstate_backend_canonical.go`) into
 `cmd/reducer/main.go`; the resolver runs against real parser facts in
 production.
@@ -45,12 +46,14 @@ flowchart LR
 ## Selection rule
 
 "Latest" = highest `CommitObservedAt`. Ties break by `CommitID`
-lexicographic ascending. The rule is deterministic and ADR-able.
+lexicographic ascending. The rule is deterministic and part of the current
+relationship-mapping contract.
 
 ## Known limitations (v1)
 
 - Single config repo per `(backend_kind, locator_hash)`. Multi-owner
-  resolution is a future ADR.
+  resolution requires architecture-owner approval and a current reference-doc
+  update before implementation.
 - No support for state files that were never committed to a repo
   (operator-managed buckets). The resolver returns
   `ErrNoConfigRepoOwnsBackend` in this case.

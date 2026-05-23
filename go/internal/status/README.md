@@ -162,8 +162,8 @@ strings.
 
 - **JSON shapes are operator contract.** Every exported JSON field name is
   consumed by operators and automation. Changes require coordination with the
-  CLI reference doc (`docs/docs/reference/cli-reference.md`) and the HTTP API
-  doc (`docs/docs/reference/http-api.md`).
+  CLI reference doc (`docs/public/reference/cli-reference.md`) and the HTTP API
+  doc (`docs/public/reference/http-api.md`).
 - **`QueueFailureSnapshot` must not appear in metrics.** Its fields (`FailureMessage`,
   `FailureDetails`) can be multi-hundred-character strings from graph backend
   errors. They are bounded to 240 characters in text rendering but are never

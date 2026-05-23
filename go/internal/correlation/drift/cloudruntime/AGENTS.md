@@ -7,7 +7,7 @@
 3. `candidate.go` — ARN-keyed candidate and evidence construction.
 4. `telemetry.go` — bounded metric emission.
 5. `../../rules/aws_cloud_runtime_drift_rules.go` — rule-pack declaration.
-6. `docs/docs/adrs/2026-04-19-multi-source-correlation-dsl-and-collector-readiness.md`
+6. `docs/public/reference/relationship-mapping.md`
    — cloud observation joins phase.
 
 ## Invariants

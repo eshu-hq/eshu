@@ -11,7 +11,7 @@
    `ScopeAttrs`, `DomainAttrs`, and `PhaseAttr`
 5. `go/internal/telemetry/provider.go` — `NewProviders`, `Providers`, OTLP and
    Prometheus wiring
-6. `docs/docs/reference/telemetry/index.md` — operator-facing tuning and
+6. `docs/public/reference/telemetry/index.md` — operator-facing tuning and
    signal-selection guidance
 
 ## Invariants this package enforces
@@ -49,7 +49,7 @@
    `metricDimensionKeys` so `MetricDimensionKeys()` stays current. Add a
    matching `AttrScopeID`-style helper function in `instruments.go`.
 4. Run `go test ./internal/telemetry -count=1` to verify registration succeeds.
-5. Update `docs/docs/reference/telemetry/index.md` (metrics table) and this
+5. Update `docs/public/reference/telemetry/index.md` (metrics table) and this
    package's `README.md` in the same PR.
 
 ## How to add a new span
@@ -58,7 +58,7 @@
 2. Add the constant to the `spanNames` slice so `SpanNames()` returns it.
 3. In the calling package, use `tracer.Start(ctx, telemetry.SpanXxx)` — never
    inline the string literal.
-4. Update `docs/docs/reference/telemetry/index.md` (span table).
+4. Update `docs/public/reference/telemetry/index.md` (span table).
 
 ## How to add a new log key
 
@@ -85,7 +85,7 @@
 
 2. Use `PhaseAttr` with the new constant value at every log site for the new
    phase.
-3. Update `docs/docs/reference/telemetry/index.md` (structured log keys table).
+3. Update `docs/public/reference/telemetry/index.md` (structured log keys table).
 
 ## Observable gauge wiring
 

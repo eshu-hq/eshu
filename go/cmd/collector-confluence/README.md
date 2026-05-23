@@ -98,6 +98,6 @@ Collector Deployment Evidence: the command keeps the shared hosted runtime surfa
 
 ## Related Docs
 
-- [Collector authoring](../../../docs/docs/guides/collector-authoring.md)
-- [CLI reference](../../../docs/docs/reference/cli-reference.md)
-- [Telemetry reference](../../../docs/docs/reference/telemetry/index.md)
+- [Collector authoring](../../../docs/public/guides/collector-authoring.md)
+- [CLI reference](../../../docs/public/reference/cli-reference.md)
+- [Telemetry reference](../../../docs/public/reference/telemetry/index.md)

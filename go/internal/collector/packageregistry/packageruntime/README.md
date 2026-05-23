@@ -80,5 +80,5 @@ Collector Deployment Evidence: `helm lint deploy/helm/eshu` and `go test ./inter
 
 ## Related Docs
 
-- [Package registry ADR](../../../../../docs/docs/adrs/2026-05-12-package-registry-collector.md)
-- [Service runtimes](../../../../../docs/docs/deployment/service-runtimes.md)
+- [Package registry ADR](../../../../../docs/public/reference/component-package-manager.md)
+- [Service runtimes](../../../../../docs/public/deployment/service-runtimes.md)

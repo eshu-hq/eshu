@@ -157,10 +157,10 @@
 
 - `Executor` interface shape — changes break every `cmd/` wiring site and the
   projector CanonicalWriter contract; see
-  `docs/docs/adrs/2026-04-22-nornicdb-graph-backend-candidate.md`.
+  `docs/public/reference/backend-conformance.md`.
 - `CanonicalNodeWriter` phase order — phase ordering is a correctness constraint
   because later phases MATCH nodes created by earlier phases; see
-  `docs/docs/adrs/2026-04-17-neo4j-deadlock-elimination-batch-isolation.md`.
+  `docs/public/reference/cypher-performance.md`.
 - Retraction Cypher label sets — adding or removing node labels from retract
   queries requires coordinated graph schema migration.
 - `RetryingExecutor` retry classification logic — NornicDB compatibility

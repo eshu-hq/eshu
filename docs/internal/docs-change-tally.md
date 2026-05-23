@@ -6,10 +6,10 @@ repo's 500-line limit.
 
 ## Current Snapshot
 
-- Total Markdown files left in the checkout after the current pass: 548
+- Total Markdown files left in the checkout after the current pass: 558
 - Current branch doc status from
   `git diff --name-status origin/main -- '*.md'` after the current pass:
-  121 added, 322 modified, 174 deleted, 60 renamed
+  127 added, 237 modified, 174 deleted, 60 renamed
 - Copied image assets removed from this branch: 43 files under
   `docs/public/images/`. They were reference assets from another project and
   no longer appear in the source-doc reference scan.
@@ -17,9 +17,9 @@ repo's 500-line limit.
 - Maintainer-only docs surface: `docs/internal/`
 - Deleted stable-doc history surfaces: `docs/plans/`, `docs/superpowers/`,
   and old ADR trees
-- Remaining `AGENTS.md` files: 152 total; root plus scoped package/command
+- Remaining `AGENTS.md` files: 154 total; root plus scoped package/command
   files remain harness-loaded guidance.
-  Current total scoped-agent content is 5,625 lines, with root `AGENTS.md`
+  Current total agent-guidance content is 10,778 lines, with root `AGENTS.md`
   preserved as mandatory harness guidance.
 
 ## File Indexes
@@ -154,6 +154,7 @@ branch. Regenerate them from
 | Parallel AWS Public And Package Docs Compression | Used five subagents plus parent review to compress AWS collector scoped guidance, parent subsystem agent guidance, mid-size package READMEs, public architecture/reference pages, and language-support pages. This pass changed 95 Markdown files with 1,773 insertions and 3,368 deletions; AWS cloud collector agent guidance fell from 1,746 to 812 lines, selected package READMEs fell from 1,355 to 892 lines, and total scoped-agent content fell to 5,625 lines while root `AGENTS.md` stayed mandatory. |
 | Final Parallel Public And Package Docs Compression | Used four subagents plus parent review to compress operator/reference pages, deployment and Helm docs, language/guide pages, and package-local READMEs. This pass changed 60 Markdown files with 1,429 insertions and 2,762 deletions, removed 1,333 net lines, corrected the Confluence Helm secret example to use `CONFLUENCE_*` variables, and kept root and scoped `AGENTS.md` guidance intact. |
 | Reviewer Correction: Restore Package Docs And Scoped Agents | Restored existing `go/**/README.md` and `go/**/AGENTS.md` files from `origin/main` after reviewer feedback showed package-level Mermaid diagrams, flow maps, invariants, and scoped agent rules had been over-compressed. Public docs remain reorganized; package-local docs now preserve the high-signal guidance agents and maintainers rely on. |
+| Reviewer Correction: Link Repair And Package Guide Splits | Repaired active package links from deleted `docs/docs`, `docs/plans`, and `docs/superpowers` paths to current public/package docs; restored the Go module pipeline Mermaid diagram; split oversized query, reducer, and Postgres package READMEs into focused package-local guides while preserving diagrams, invariants, telemetry, and proof notes. |
 
 ## Verification Snapshot
 
@@ -164,13 +165,31 @@ Current pass proof:
 - Rebase conflict resolution preserved the current 73-tool MCP contract,
   container-image identity read surface, and compressed public/package docs.
 - Reviewer correction restored package-local `README.md` and scoped `AGENTS.md`
-  files from `origin/main`; the Mermaid regression audit found no existing
-  package README with fewer Mermaid or flow markers than `origin/main`.
+  files from `origin/main`; the latest Mermaid regression audit found no Go
+  README with fewer Mermaid or flow markers than `origin/main`, and restored
+  the missing `go/README.md` pipeline diagram.
 - Root `README.md` repository-surface paths are clickable links, and the docs
   badge points at `docs/public/index.md`.
+- Active docs no longer reference deleted `docs/docs`, `docs/plans`, or
+  `docs/superpowers` paths; the only remaining mentions are internal inventory
+  notes that explain those deleted history surfaces.
+- Query, reducer, and Postgres package READMEs are below 500 lines after
+  moving durable detail into `go/internal/query/read-models.md`,
+  `go/internal/query/dead-code-reachability.md`,
+  `go/internal/reducer/code-call-materialization.md`,
+  `go/internal/reducer/shared-projection.md`,
+  `go/internal/storage/postgres/lifecycle-and-workflow-guide.md`, and
+  `go/internal/storage/postgres/exported-surface-guide.md`.
 - Docs verifier prefix extraction no longer treats wildcard families such as
   `ESHU_WORKFLOW_COORDINATOR_*` as concrete variables like
   `ESHU_WORKFLOW_COORDINATOR_`.
+- The cmd-side docs inventory path now has a regression test proving wildcard
+  env families do not enter environment truth while concrete variables still do.
+- Current Go docs verifier result: 319 documents, 459 claims, 454 valid,
+  0 contradicted, 0 missing evidence, and 5 unsupported shell-command claims.
+- Current full-repository docs verifier result: 572 documents, 1599 claims,
+  1584 valid, 0 contradicted, 0 missing evidence, and 15 unsupported
+  shell-command claims.
 - Focused docs verification passed for `docs/public`, `go/internal`, `go/cmd`,
   and `tests/fixtures`.
 - Focused fixture verification passed for `tests/fixtures` after the templated
@@ -225,13 +244,12 @@ Current pass proof:
 
 ## What Is Left
 
-- No stale `docs/docs`, `docs/plans`, `docs/superpowers`, copied-image, AI
-  attribution, contradicted-claim, or missing-evidence cleanup remains known on
-  this branch.
-- The remaining large Markdown files are current references, generated file
-  indexes, root agent guidance, or maintainer guides. Keep compressing only
-  when a reviewer finds duplicated contracts or stale claims; do not delete
-  mandatory root or scoped `AGENTS.md` guidance.
+- No active stale `docs/docs`, `docs/plans`, `docs/superpowers`, copied-image,
+  AI attribution, contradicted-claim, missing-evidence, Mermaid-regression, or
+  over-500-line Markdown cleanup remains known on this branch.
+- Keep compressing only when a reviewer finds duplicated contracts or stale
+  claims; do not delete mandatory root or scoped `AGENTS.md` guidance, and do
+  not remove useful Mermaid flow maps.
 - Future docs work should be normal feature maintenance: keep public pages,
   package READMEs, `doc.go`, and scoped `AGENTS.md` files aligned whenever code,
   runtime, CLI, Helm, collector, parser, query, or backend contracts change.

@@ -6,7 +6,7 @@
 2. `types.go` - scanner-owned IAM domain types.
 3. `scanner.go` - IAM resource and relationship emission.
 4. `../../README.md` - shared AWS cloud observation and envelope contract.
-5. `docs/docs/adrs/2026-04-20-aws-cloud-scanner-collector.md` - IAM slice
+5. `docs/public/services/collector-aws-cloud.md` - IAM slice
    requirements.
 
 ## Invariants

@@ -72,5 +72,5 @@ invokes `Handler`.
 
 ## Related docs
 
-- `docs/docs/deployment/service-runtimes.md` — admin recovery entry points
-- `docs/docs/architecture.md` — facts-first bootstrap ordering
+- `docs/public/deployment/service-runtimes.md` — admin recovery entry points
+- `docs/public/architecture.md` — facts-first bootstrap ordering

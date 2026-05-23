@@ -36,13 +36,13 @@
 - **Add a new graph backend** → add `wiring_<backend>_executor.go` and
   `wiring_<backend>_env.go` following the NornicDB pattern; handle the new
   `ESHU_GRAPH_BACKEND` value in `openIngesterCanonicalWriter`; update
-  `docs/docs/reference/nornicdb-tuning.md` if new tuning knobs are added.
+  `docs/public/reference/nornicdb-tuning.md` if new tuning knobs are added.
   Do not branch on backend inside `buildIngesterService` or `buildIngesterProjectorService`.
 
 - **Add a new NornicDB tuning knob** → add the env var constant in `wiring.go`
   alongside the existing `nornicDBCanonicalGroupedWritesEnv` constants, add the
   reader in `wiring_nornicdb_env.go`, pass the value through
-  `openIngesterCanonicalWriter`, and update `docs/docs/reference/nornicdb-tuning.md`
+  `openIngesterCanonicalWriter`, and update `docs/public/reference/nornicdb-tuning.md`
   and the active NornicDB ADR in the same PR. See CLAUDE.md NornicDB
   Compatibility Workflow.
 

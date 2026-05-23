@@ -100,6 +100,6 @@ span, and log-key catalog.
 
 ## Related docs
 
-- `docs/docs/architecture.md`
-- `docs/docs/reference/telemetry/index.md`
-- `docs/docs/deployment/service-runtimes.md`
+- `docs/public/architecture.md`
+- `docs/public/reference/telemetry/index.md`
+- `docs/public/deployment/service-runtimes.md`

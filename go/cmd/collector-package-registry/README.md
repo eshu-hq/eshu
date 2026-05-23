@@ -85,6 +85,6 @@ environment variable names, and credential values out of the operator payload.
 
 ## Related Docs
 
-- [Package registry ADR](../../../docs/docs/adrs/2026-05-12-package-registry-collector.md)
-- [Telemetry reference](../../../docs/docs/reference/telemetry/index.md)
-- [Service runtimes](../../../docs/docs/deployment/service-runtimes.md)
+- [Package registry ADR](../../../docs/public/reference/component-package-manager.md)
+- [Telemetry reference](../../../docs/public/reference/telemetry/index.md)
+- [Service runtimes](../../../docs/public/deployment/service-runtimes.md)

@@ -154,7 +154,7 @@ cleanup-truth handler in `internal/query` owns call-site instrumentation.
 
 ## Related docs
 
-- `docs/docs/architecture.md` — pipeline and ownership table
-- `docs/docs/reference/http-api.md` — cleanup-truth HTTP surface
+- `docs/public/architecture.md` — pipeline and ownership table
+- `docs/public/reference/http-api.md` — cleanup-truth HTTP surface
 - `go/internal/relationships/README.md` — complement: evidence-based
   relationship extraction

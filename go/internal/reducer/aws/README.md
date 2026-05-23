@@ -73,7 +73,7 @@ projector family is implemented.
 
 ## Related docs
 
-- `docs/docs/architecture.md`
+- `docs/public/architecture.md`
 - `go/internal/reducer/README.md`
 - `go/internal/reducer/dsl/README.md`
 - `go/internal/reducer/tfstate/README.md`

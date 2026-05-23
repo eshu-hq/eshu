@@ -259,9 +259,9 @@ Prometheus output after the hand-rolled gauges at the same `/metrics` endpoint.
 
 ## Related docs
 
-- `docs/docs/deployment/service-runtimes.md`
-- `docs/docs/deployment/docker-compose.md`
-- `docs/docs/reference/telemetry/index.md`
-- `docs/docs/reference/local-testing.md`
-- ADR: `docs/docs/adrs/2026-04-22-nornicdb-graph-backend-candidate.md`
-- ADR: `docs/docs/adrs/2026-04-20-embedded-local-backends-implementation-plan.md`
+- `docs/public/deployment/service-runtimes.md`
+- `docs/public/run-locally/docker-compose.md`
+- `docs/public/reference/telemetry/index.md`
+- `docs/public/reference/local-testing.md`
+- ADR: `docs/public/reference/backend-conformance.md`
+- ADR: `docs/public/reference/graph-backend-operations.md`

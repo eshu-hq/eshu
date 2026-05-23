@@ -153,8 +153,8 @@ or spans beyond the startup/connection events.
 
 ## Related docs
 
-- `docs/docs/deployment/service-runtimes.md` — MCP server runtime lane
-- `docs/docs/guides/mcp-guide.md` — client setup and usage
-- `docs/docs/deployment/docker-compose.md` — Compose topology
+- `docs/public/deployment/service-runtimes.md` — MCP server runtime lane
+- `docs/public/guides/mcp-guide.md` — client setup and usage
+- `docs/public/run-locally/docker-compose.md` — Compose topology
 - `go/internal/mcp/README.md` — tool dispatch and MCP protocol implementation
 - `go/internal/query/` — HTTP handlers that back every MCP tool call

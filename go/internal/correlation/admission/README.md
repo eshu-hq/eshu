@@ -84,4 +84,4 @@ None. Callers attach telemetry around `Evaluate`.
   and selectors
 - `go/internal/correlation/model/README.md` — candidate and evidence atom
   types
-- ADR: `docs/docs/adrs/2026-04-19-deployable-unit-correlation-and-materialization-framework.md`
+- ADR: `docs/public/reference/relationship-mapping.md`

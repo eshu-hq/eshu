@@ -149,8 +149,8 @@ Observability Evidence: the standalone projector now wires the same projector sp
 
 ## Related docs
 
-- `docs/docs/deployment/service-runtimes.md` — local verification runtime lanes
-- `docs/docs/reference/local-testing.md` — verification gates and test commands
+- `docs/public/deployment/service-runtimes.md` — local verification runtime lanes
+- `docs/public/reference/local-testing.md` — verification gates and test commands
 - `go/internal/projector/README.md` — projection logic, telemetry, and invariants
 - `go/internal/storage/cypher/README.md` — canonical node writer and executor
   contract

@@ -131,7 +131,7 @@ graph schema statement is slow or blocked.
 
 ## Related docs
 
-- [Service runtimes — Schema Bootstrap](../../../docs/docs/deployment/service-runtimes.md#schema-bootstrap)
-- [Docker Compose deployment](../../../docs/docs/deployment/docker-compose.md)
-- [Helm deployment](../../../docs/docs/deployment/helm.md)
-- [CLI reference](../../../docs/docs/reference/cli-reference.md)
+- [Service runtimes — Schema Bootstrap](../../../docs/public/deployment/service-runtimes.md#schema-bootstrap)
+- [Docker Compose deployment](../../../docs/public/run-locally/docker-compose.md)
+- [Helm deployment](../../../docs/public/deploy/kubernetes/index.md)
+- [CLI reference](../../../docs/public/reference/cli-reference.md)

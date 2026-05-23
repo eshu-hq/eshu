@@ -8,7 +8,7 @@
 3. `mapper.go` - AWS SDK shape to scanner-owned metadata mapping.
 4. `../README.md` - scanner-level DynamoDB fact contract.
 5. `../../../awsruntime/README.md` - runtime registry and claim contract.
-6. `docs/docs/adrs/2026-04-20-aws-cloud-scanner-collector.md` - AWS collector
+6. `docs/public/services/collector-aws-cloud.md` - AWS collector
    service coverage and runtime requirements.
 
 ## Invariants

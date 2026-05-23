@@ -98,7 +98,7 @@
 
 - Confidence values (`0.99`, `0.75`, `0.40`) — these are exposed in the
   cleanup-truth HTTP response and relied on by operator tooling for rank ordering;
-  see `docs/docs/reference/http-api.md`.
+  see `docs/public/reference/http-api.md`.
 - `FindingCandidateDead` string value — stored in HTTP responses and
   potentially in operator dashboards; renaming it is a breaking API change.
 - `RelevantFile` extension list — removing an extension causes the HTTP handler

@@ -67,6 +67,31 @@ func TestDocsVerifyEnvironmentTruthReadsSplitEnvironmentReferencePages(t *testin
 	}
 }
 
+func TestDocsVerifyEnvironmentTruthIgnoresWildcardEnvironmentFamilies(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	referenceDir := filepath.Join(dir, "docs", "public", "reference")
+	if err := os.MkdirAll(referenceDir, 0o755); err != nil {
+		t.Fatalf("MkdirAll() error = %v, want nil", err)
+	}
+	if err := os.WriteFile(
+		filepath.Join(referenceDir, "environment-runtime-storage.md"),
+		[]byte("Family `ESHU_WORKFLOW_COORDINATOR_*`; concrete `ESHU_WORKFLOW_COORDINATOR_DEPLOYMENT_MODE`.\n"),
+		0o600,
+	); err != nil {
+		t.Fatalf("WriteFile(environment-runtime-storage.md) error = %v, want nil", err)
+	}
+
+	pagePath := filepath.Join(dir, "docs", "public", "reference", "environment-runtime-storage.md")
+	if containsEnvTruth(pagePath, "ESHU_WORKFLOW_COORDINATOR_") {
+		t.Fatal("docsVerifyEnvironmentTruth() treated wildcard family prefix as a concrete environment variable")
+	}
+	if !containsEnvTruth(pagePath, "ESHU_WORKFLOW_COORDINATOR_DEPLOYMENT_MODE") {
+		t.Fatal("docsVerifyEnvironmentTruth() did not keep the concrete environment variable")
+	}
+}
+
 func TestReadDocumentInputBoundsContentButHashesFullFile(t *testing.T) {
 	t.Parallel()
 

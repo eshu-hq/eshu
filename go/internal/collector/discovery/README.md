@@ -147,8 +147,8 @@ report built from `DiscoveryStats` is available via
 
 ## Related docs
 
-- `docs/docs/reference/local-testing.md`
-- `docs/docs/architecture.md` — collector pipeline section
+- `docs/public/reference/local-testing.md`
+- `docs/public/architecture.md` — collector pipeline section
 - `go/internal/collector/README.md` — how discovery fits in the snapshot flow
 - `go/internal/parser/README.md` — how `SupportedFileMatcher` is built from
   the parser registry

@@ -88,4 +88,4 @@ None. Pure data types.
   `EvidenceAtom` for gate checks
 - `go/internal/correlation/engine/README.md` — consumes and mutates
   `CandidateState` and `RejectionReasons`
-- ADR: `docs/docs/adrs/2026-04-19-deployable-unit-correlation-and-materialization-framework.md`
+- ADR: `docs/public/reference/relationship-mapping.md`

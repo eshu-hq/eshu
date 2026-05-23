@@ -129,4 +129,4 @@
   when calling `eshuExec`; renaming them silently breaks both flows.
 - The `--database` flag name and its effect on `ESHU_RUNTIME_DB_TYPE` — external
   scripts and the local-authoritative profile depend on this flag; see
-  `docs/docs/reference/cli-reference.md`.
+  `docs/public/reference/cli-reference.md`.

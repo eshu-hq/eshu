@@ -7,7 +7,7 @@
 3. `http_provider.go` — explicit metadata URL fetch boundary
 4. `../runtime_config.go`, `../parser_registry.go` — shared config and parser
    contracts
-5. `docs/docs/adrs/2026-05-12-package-registry-collector.md`
+5. `docs/public/reference/component-package-manager.md`
 
 ## Invariants
 

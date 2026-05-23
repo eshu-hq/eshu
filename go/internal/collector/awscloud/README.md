@@ -8,7 +8,7 @@ resource, relationship, and warning observations into reported-confidence
 facts that the shared fact store can persist.
 
 This package implements the runtime-neutral contract slice from
-`docs/docs/adrs/2026-04-20-aws-cloud-scanner-collector.md`.
+`docs/public/services/collector-aws-cloud.md`.
 
 ## Ownership boundary
 
@@ -202,6 +202,6 @@ request.
 
 ## Related docs
 
-- `docs/docs/adrs/2026-04-20-aws-cloud-scanner-collector.md`
-- `docs/docs/guides/collector-authoring.md`
-- `docs/docs/reference/telemetry/index.md`
+- `docs/public/services/collector-aws-cloud.md`
+- `docs/public/guides/collector-authoring.md`
+- `docs/public/reference/telemetry/index.md`

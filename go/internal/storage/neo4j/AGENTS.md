@@ -79,7 +79,7 @@ Since the package currently has no code, failures today are in `cmd/` wiring:
 
 - `cypher.Executor` interface shape — adding methods here or in `cmd/` wiring
   without updating all backends (Neo4j and NornicDB) breaks the backend-neutral
-  contract; see `docs/docs/adrs/2026-04-22-nornicdb-graph-backend-candidate.md`.
+  contract; see `docs/public/reference/backend-conformance.md`.
 - Bolt session transaction model — session read/write mode and transaction
   timeout behavior are correctness constraints; see
-  `docs/docs/adrs/2026-04-17-neo4j-deadlock-elimination-batch-isolation.md`.
+  `docs/public/reference/cypher-performance.md`.

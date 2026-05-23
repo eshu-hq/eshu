@@ -168,6 +168,6 @@ to the original Go source.
 
 ## Related docs
 
-- `docs/plans/2026-05-09-parser-language-layout.md`
+- `docs/public/languages/support-maturity.md`
 - `go/internal/parser/README.md`
 - `go/internal/parser/shared/README.md`

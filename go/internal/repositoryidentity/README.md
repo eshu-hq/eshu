@@ -75,6 +75,6 @@ fact payloads.
 
 ## Related docs
 
-- `docs/docs/architecture.md` — pipeline and ownership table
+- `docs/public/architecture.md` — pipeline and ownership table
 - `go/internal/collector/README.md` — callers that build `Metadata` during
   repository discovery

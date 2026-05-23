@@ -149,7 +149,7 @@
   and a protocol version update.
 - `parseCanonicalEnvelope` detection logic — the three-key check (`data`,
   `truth`, `error`) is the wire contract between `internal/query` and this
-  package; see `docs/docs/guides/mcp-guide.md` for the structured results
+  package; see `docs/public/guides/mcp-guide.md` for the structured results
   contract.
 - SSE session model (endpoint event format, channel-backed delivery) — clients
   depend on the `event: endpoint\ndata: /mcp/message?sessionId=...` format;

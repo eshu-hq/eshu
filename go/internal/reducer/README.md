@@ -132,165 +132,29 @@ publication fails; the repairer retries exact rows durably.
 ## Code-call materialization
 
 `ExtractCodeCallRows` turns parser `function_calls` and SCIP call facts into
-canonical `CALLS` edges. Native parser calls resolve in this order: same-file
-symbols, Go package-qualified import targets, Go method-return chains, Go
-same-directory symbols, repository-unique symbols, then imported cross-file
-symbols when the prescan import map proves the target file. For
-JavaScript-family files, import resolution also honors parser-proven namespace
-aliases, CommonJS property requires such as `require("./x").handler`, CommonJS
-`module.exports` self-aliases, tsconfig `baseUrl` `resolved_source` metadata,
-one bounded hop through static relative re-export barrels, and dynamic
-JavaScript imports whose runtime `.js` specifiers point at TypeScript source.
-Qualified JavaScript-family calls that match an imported namespace resolve the
-imported target before trying same-file trailing-name matches, so controller and
-model functions with the same method name do not collapse into self-calls.
-Constructor calls, local receiver type metadata, returned and
-constructor-argument function-value references, TypeScript type references, and
-Function prototype receiver calls such as `callback.call(...)` let `new Type()`,
-`value.method()`, type-only imports, worker processors, route-handler callback
-objects, callback returns, and function receiver dispatch resolve when parser
-evidence proves the local target. Static object registries are resolved only
-inside the containing function source, including destructured aliases and
-literal bracket keys; runtime-computed keys do not create edges. `JavaScript`
-static alias metadata is cached on the code entity index
-(`code_call_materialization_index.go:45`) and reused during dynamic call
-resolution (`code_call_materialization_dynamic_javascript.go:41`), so
-generated bundles with thousands of call sites do not re-parse the same
-containing function source for every call. Sources with no static aliases are
-cached too; a negative scan is still the proof that the reducer can skip the
-expensive regex pass on later calls in the same source span.
+canonical `CALLS` or `REFERENCES` edge intents. Resolution stays evidence
+bounded: same-file and parser-proven language metadata win before broader
+repository matching, type and reflection references stay `REFERENCES`, and
+duplicate facts for the same caller, callee, and reference line collapse before
+graph writes.
 
-For package entrypoint, package bin, package
-export, and top-level JavaScript reference files, the repository scoped
-`File.uid` may be the caller so executable module bodies can make `main()`,
-constructor, member, function-value, and type-reference edges reachable without
-treating every library module as a root. Code-call rows now carry
-`caller_entity_type` and `callee_entity_type` from the entity index, using
-`File` for repository-scoped file-root callers, so the graph writer can use the
-exact endpoint label and `uid` instead of a broad label family. The Go
-same-directory step applies to functions and type entities from `structs` and
-`interfaces`; command packages commonly reuse local helper names such as
-`wireAPI` in sibling `cmd/*` directories, so repo-wide bare-name resolution must
-stay ambiguous in that case. Go package-qualified resolution maps parser import
-metadata such as `github.com/hashicorp/terraform/internal/actions` to matching
-repository directories before resolving calls like `actions.NewActions()`, and
-honors explicit Go import aliases through parser `alias` metadata. Go
-method-return chain resolution uses parser-provided `return_type`,
-`chain_receiver_obj_type`, and `chain_receiver_method` metadata, so
-`ctx.Actions().GetActionInstance()` can reach `Actions.GetActionInstance`
-only after the parser proves that `ctx` has a receiver type whose `Actions`
-method returns `Actions`.
-
-For Java, parser-provided `inferred_obj_type` metadata lets receiver-qualified
-calls such as `factory.basicAuth(...)` resolve to methods on the parsed
-receiver type when local syntax proves the variable, parameter, field, or
-inline constructor receiver. Enhanced-for variables use the same receiver
-metadata, so loop-local calls such as `alignment.accepts(...)` resolve to the
-record or class declared in the loop header. Unqualified calls inside nested
-classes use parser-proven `enclosing_class_contexts` as exact candidates, so an
-inner helper wins before the reducer tries the enclosing class method. Explicit
-outer-this field receivers in Java's named-outer-instance field form use
-the enclosing class field type to resolve calls on collaborator objects.
-`code_call_materialization_arity.go` converts `argument_count` and
-`parameter_count` metadata into `name#arity` candidates before broad name
-matching, so overloaded methods such as `basicAuth(String)` and
-`basicAuth(String, String)` do not collapse into one reachability result.
-When Java parser rows also carry `argument_types` and `parameter_types`,
-the reducer adds type-signature candidates such as
-`configureBootJarTask(BootJar,TaskProvider)` before falling back to broader
-names. That lets class-literal typed Gradle lambdas and helper-call return
-values resolve overloaded callback methods without treating every same-name
-overload as reached.
-Parser rows with `call_kind=java.method_reference` resolve method-reference
-syntax such as `this::configureTask` to same-class methods and materialize as
-`REFERENCES`, because the source proves reachability through a functional
-callback without proving an immediate invocation.
-This keeps Java method reachability bounded to evidence from the parsed files
-instead of treating every method with the same name as live.
-Parser rows with `call_kind=java.reflection_class_reference` and
-`call_kind=java.reflection_method_reference` also materialize as `REFERENCES`
-when the parser saw literal class or method names in reflection calls. Dynamic
-reflection strings stay unmodeled. Java metadata files produce
-`call_kind=java.service_loader_provider` and
-`call_kind=java.spring_autoconfiguration_class` rows; the reducer uses the
-metadata file as the caller and the referenced provider or auto-configuration
-class as the callee.
-
-For Python, parser-provided `class_context`, `inferred_obj_type`, and
-`constructor_call` metadata keep method and constructor resolution bounded to
-evidence in the parsed file. Local constructor assignments and `self` member
-calls can both carry receiver type. Constructor calls can reach both the class
-entity and its `__init__` method. Class receiver rows with
-`call_kind=python.class_reference` materialize as `REFERENCES`, while a
-class-qualified method call may resolve to a
-unique inherited method name when no exact class-context method exists. That
-protects dataclass and model helper paths without making all same-named Python
-methods reachable.
-
-Parser metadata rows with `call_kind=go.composite_literal_type_reference`,
-`call_kind=typescript.type_reference`, `call_kind=python.class_reference`, or
-`call_kind=java.method_reference`, plus Java literal-reflection,
-ServiceLoader, and Spring auto-configuration class references, materialize as
-deduplicated `REFERENCES` edges. They prove reference roots for dead-code
-classification, but must not materialize as `CALLS` because that would make
-graph truth claim that type or class references are invocations.
-
-`CodeCallMaterializationHandler` logs `code call materialization completed`
-with fact count, repository count, row counts, and timing for fact load,
-context build, extraction, intent build, intent upsert, and total duration
-(`code_call_materialization.go:62-156`). Keep that signal when changing the
-handler; it is the first split used to tell parser extraction cost from
-Postgres intent-write cost on large repositories.
-
-SCIP edges bypass the heuristic resolver when both caller and callee locations
-map to known entities. Keep the native and SCIP paths idempotent: duplicate
-facts for the same caller, callee, and reference line must collapse to one
-intent row before graph writes.
+Keep the detailed resolver ordering, language metadata rules, JavaScript
+static-alias cache contract, SCIP bypass, and handler timing log in
+[`code-call-materialization.md`](code-call-materialization.md).
 
 ## Shared projection runner
 
-`SharedProjectionRunner` (`shared_projection_runner.go:95`) iterates all
-shared-projection domains and all partitions each cycle, calling
-`ProcessPartitionOnce` for each domain/partition pair. Domains processed:
-`platform_infra`, `workload_dependency`, `inheritance_edges`,
-`sql_relationships`.
+`SharedProjectionRunner` (`shared_projection_runner.go:95`) iterates
+shared-projection domains by domain and partition. `CodeCallProjectionRunner`
+owns `code_calls` separately because it preserves repo-wide retraction
+semantics while processing large accepted units in capped chunks. Edge domains
+stay readiness-gated; the local-authoritative code-call drain gate schedules
+work only and never changes admitted graph truth.
 
-The runner uses exponential back-off (doubling each empty cycle, capped at
-`5s`) to avoid sustained high-frequency polling during idle periods. When
-intents are blocked on a readiness phase (`BlockedReadiness > 0`), it
-re-polls at the base interval without backing off.
-
-`CodeCallProjectionRunner` owns the `code_calls` domain separately because it
-rewrites one accepted repo/run unit at a time while preserving repo-wide
-retraction semantics. Very large accepted units are processed in capped chunks:
-the first chunk retracts when prior durable history exists, and later chunks
-from the same source run skip retraction so earlier chunk writes stay
-graph-visible. In local-authoritative NornicDB runs it can receive a
-`ReducerGraphDrain`; when active reducer graph domains remain, the runner
-records a blocked cycle and waits before claiming the code-call partition. The
-gate only schedules work. It does not change which rows become `CALLS`,
-`REFERENCES`, or `USES_METACLASS`.
-
-Configuration via `LoadSharedProjectionConfig` reads
-ESHU_SHARED_PROJECTION_* env vars; see `cmd/reducer/README.md`.
-
-`InheritanceMaterializationHandler` and `SQLRelationshipMaterializationHandler`
-load only the `content_entity` rows whose `entity_type` can participate in
-their domains (`inheritance_materialization.go:69-77`,
-`sql_relationship_materialization.go:60-69`). The filters are correctness
-filters, not sampling: every allowed type is still processed, and unsupported
-types stay invisible to those domain reducers.
-SQL relationship materialization writes trigger-to-table `TRIGGERS` edges and
-trigger-to-function `EXECUTES` edges from the same `SqlTrigger` entity when the
-parser proves both targets. The `EXECUTES` row is part of code dead-code
-reachability for `SqlFunction` routines, so removing it can turn trigger-bound
-stored procedures into false cleanup candidates. The helper code in
-`sql_relationship_names.go` indexes both qualified names and trailing
-unqualified aliases, then
-`resolveSQLRelationshipTarget` prefers the same repository and relative path
-before falling back only when the SQL name is unique in the repository;
-ambiguous cross-file names stay unresolved rather than creating false
-reachability.
+Keep the runner loop, back-off behavior, `LoadSharedProjectionConfig`
+configuration contract, SQL trigger `EXECUTES` reachability rule, and
+inheritance/SQL entity-type filters in
+[`shared-projection.md`](shared-projection.md).
 
 ## Facts-First Bootstrap Ordering
 
@@ -501,12 +365,14 @@ No-Regression Evidence: `go test ./internal/reducer ./internal/storage/postgres 
 Observability Evidence: existing reducer queue conflict fields, fact-work retry counters, deployment_mapping completion logs, graph-write retry WARNs, and Postgres query errors expose blocked, retrying, failed, and completed platform materialization work; no new metric label was needed.
 ## Related docs
 
-- `docs/docs/architecture.md`
-- `docs/docs/deployment/service-runtimes.md`
-- `docs/docs/reference/telemetry/index.md`
-- `docs/docs/reference/local-testing.md`
+- `docs/public/architecture.md`
+- `docs/public/deployment/service-runtimes.md`
+- `docs/public/reference/telemetry/index.md`
+- `docs/public/reference/local-testing.md`
 - `go/cmd/reducer/README.md`
 - `go/internal/projector/README.md` (upstream handoff)
+- `go/internal/reducer/code-call-materialization.md`
+- `go/internal/reducer/shared-projection.md`
 - `go/internal/reducer/dsl/README.md`
 - `go/internal/reducer/aws/README.md`
 - `go/internal/reducer/tags/README.md`

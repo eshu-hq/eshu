@@ -272,8 +272,8 @@ health, drift read-model publication, and future graph-readiness gaps.
 
 ## Related docs
 
-- `docs/docs/architecture.md`
-- `docs/docs/deployment/service-runtimes.md`
+- `docs/public/architecture.md`
+- `docs/public/deployment/service-runtimes.md`
 - `go/internal/coordinator/README.md`
 - `go/internal/storage/postgres` — the Postgres WorkflowControlStore type
   implements `ControlStore`
