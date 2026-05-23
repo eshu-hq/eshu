@@ -1,0 +1,25 @@
+go/internal/reducer/supply_chain_impact.go
+  s_072c5984f68e14::t_470c235aff606a 46,57-58,191,194-195,197,200-202,204-205,213-216,281,290-291,299,305-309,314-315
+  s_072c5984f68e14::t_0255cbb768dc31 292-294
+go/internal/reducer/supply_chain_impact_product_test.go
+  s_072c5984f68e14::t_d37e19b52936fb 1-15,17-29,43,53-103,151-232,258-289,132,134-135,137-138,140,142,145,148-150
+  s_072c5984f68e14::t_d47cda535c1e41 104-118
+  s_072c5984f68e14::t_d5499d12b2cc2c 119-120,123,127-129,130,133,136,139,143-144,146-147
+  s_072c5984f68e14::t_6532849f37ef3e 233-257,131,141
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.0",
+  "base_commit_sha": "29f575fd697e404e11858cb51cdb0106302c99bc",
+  "prompts": {},
+  "sessions": {
+    "s_072c5984f68e14": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e4636-8361-7713-a3c6-b30ed9bbfc7b",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
