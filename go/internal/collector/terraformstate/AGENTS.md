@@ -1,56 +1,57 @@
-# AGENTS.md — internal/collector/terraformstate guidance for LLM assistants
+# AGENTS.md - internal/collector/terraformstate
 
-## Read first
+Use `README.md` and `doc.go` for the package contract. This file keeps the
+agent-only safety rules for state sources, parser redaction, and identity.
 
-1. `go/internal/collector/terraformstate/README.md` — package contract,
-   safety rules, and current surface
-2. `go/internal/collector/terraformstate/source_local.go` — explicit local
-   source behavior
-3. `go/internal/collector/terraformstate/source_s3.go` — read-only S3 source
-   seam and exact-key validation
-4. `go/internal/collector/terraformstate/parser.go` — streaming parser,
-   redaction, warning facts, and envelope construction
-5. `go/internal/redact/README.md` — redaction invariants before changing value
-   handling
+## Read First
 
-## Invariants this package enforces
+1. `README.md`, `doc.go`, `source_local.go`, `source_s3.go`, `parser.go`,
+   `identity.go`, and `config.go`.
+2. `attributes.go`, `tags.go`, `composite_walker.go`, and `json_token.go`
+   before changing parser memory or redaction behavior.
+3. `go/internal/redact/README.md` before changing value handling.
+4. `go/internal/terraformschema/README.md` before changing schema resolver
+   behavior.
 
-- Raw Terraform state bytes stay inside source readers and parser-local JSON
-  decoder windows.
+## Mandatory Invariants
+
+- Raw Terraform state bytes stay inside `StateSource` readers and parser-local
+  decoder windows. Do not persist or log unredacted state values.
 - Local state sources must be exact operator-approved absolute files or
-  approved Git-local candidates resolved from safe metadata. Do not treat
-  discovered `.tfstate` metadata as permission to read the file.
-- S3 state sources must name an exact bucket/key. Prefix-only keys are rejected.
-- S3 source construction must reject write-capable configuration.
-- Facts must not include full S3 URLs or local paths. Use locator hashes in
-  payloads and source references.
+  approved Git-local candidates resolved from safe metadata.
+- S3 state sources must name an exact bucket/key and reject write-capable or
+  prefix-only configuration.
+- Facts, logs, spans, metrics, admin status, and content storage must not carry
+  full S3 URLs, local paths, raw locators, or raw state bytes.
 - Redaction key material is mandatory before parsing.
-- Unknown provider-schema scalar attributes are redacted. Unknown composites
-  are dropped via `skipNested` and observed through the
-  `eshu_dp_drift_schema_unknown_composite_total` counter wired by
-  `CompositeCaptureRecorder` so operators can detect provider-schema drift.
-- Schema-known composite attributes are captured through the streaming nested
-  walker in `composite_walker.go`. The walker reuses the existing
-  `json.Decoder` (no `json.Unmarshal` calls), classifies every scalar leaf
-  through `RedactionRules.Classify`, and emits the nested-singleton-array
-  shape the drift loader's flattener expects. Memory growth is bounded by
-  schema depth; the 48 MB ceiling enforced by
-  `TestParseStream_PeakMemoryGate_CompositeCapture` is non-negotiable.
-- `tags` and `tags_all` are emitted as correlation evidence, but scalar tag
-  keys and values still follow the unknown provider-schema rule and are
-  redacted by default. Non-scalar tag values are dropped with warning facts.
+- `LocatorHash` includes version identity. `ScopeLocatorHash` is
+  version-agnostic and is the drift join key.
+- Unknown provider-schema scalars are redacted. Unknown composites are dropped
+  through `skipNested` and observed through `CompositeCaptureRecorder`.
+- Schema-known composite capture uses streaming `json.Decoder` traversal; do
+  not use full-payload `json.Unmarshal`.
+- `tags` and `tags_all` are correlation evidence only. Scalar tag keys and
+  values still follow redaction rules; non-scalar tag values emit warnings.
 
-## Common changes and how to scope them
+## Change Routing
 
-- Add AWS SDK wiring behind `S3ObjectClient`; keep SDK types out of parser code.
-- Add DynamoDB lock metadata behind a small read-only interface.
-- Add parser fields through tests that prove raw values do not leak.
-- Add telemetry in collector-owned integration code, not inside `redact`.
+- State-source changes require exact-source tests, safe-error tests, and
+  cancellation/too-large/not-modified coverage where relevant.
+- Parser field changes require tests proving raw values do not leak and memory
+  stays bounded.
+- AWS SDK wiring belongs behind `S3ObjectClient`; keep SDK types out of parser
+  code.
+- Telemetry for collector integration belongs in collector/runtime wiring, not
+  in `redact`.
 
-## Anti-patterns specific to this package
+## Do Not Change Without Owner Approval And Proof
 
-- Calling `json.Unmarshal` on the full Terraform state payload.
-- Persisting raw state bytes or full source locators in facts, logs, spans,
-  metrics, admin status, or content storage.
-- Adding graph, reducer, query, or storage imports to this package.
-- Treating local `.tfstate` as normal Git content or persisting its raw bytes.
+- Do not treat discovered `.tfstate` metadata as permission to read raw state.
+- Do not import graph, reducer, query, or storage packages here.
+- Do not replace streaming parser behavior with full-payload decoding.
+
+## Required Proof
+
+- Run `cd go && go test ./internal/collector/terraformstate -count=1`.
+- Run memory/composite focused tests when parser capture changes.
+- For docs-only edits, run `go run ./cmd/eshu docs verify ../go/internal/collector/terraformstate --fail-on contradicted,missing_evidence` from `go/`.

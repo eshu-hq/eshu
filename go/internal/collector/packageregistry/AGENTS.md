@@ -1,59 +1,59 @@
-# AGENTS.md — internal/collector/packageregistry guidance
+# AGENTS.md - internal/collector/packageregistry
+
+Use `README.md` and `doc.go` for the package contract. This file keeps the
+agent-only rules for package identity, metadata parsing, and fact envelopes.
 
 ## Read First
 
-1. `README.md` — package purpose, exported surface, and invariants
-2. `identity.go` — ecosystem-specific identity normalization
-3. `runtime_config.go`, `parser_registry.go` — bounded target config and
-   ecosystem parser registration
-4. `metadata_parsers.go`, `gomod_parser.go`, `maven_parser.go`,
-   `nuget_parser.go`, `metadata_parser_helpers.go` — local fixture parsing
-   into observation structs
-5. `envelope.go`, `version.go`, `dependency.go`, `artifact.go`,
-   `source_hint.go`, `vulnerability_hint.go`, `registry_event.go`,
-   `repository_hosting.go`, `warning.go` — durable fact-envelope construction
-6. `docs/public/guides/collector-authoring.md` — general collector fact contract
-7. `docs/public/reference/component-package-manager.md` — optional component package manager contract
-8. `packageruntime/README.md` — claim-driven metadata fetch and commit flow
+1. `README.md`, `doc.go`, `identity.go`, `runtime_config.go`, and
+   `parser_registry.go`.
+2. Metadata parser files before changing fixture parsing.
+3. Envelope files before changing durable fact identity or payloads.
+4. `packageruntime/README.md` before changing live metadata fetching.
+5. `docs/public/guides/collector-authoring.md` and
+   `docs/public/reference/component-package-manager.md`.
 
-## Invariants
+## Mandatory Invariants
 
 - Registry metadata is reported evidence. Do not claim canonical package
-  ownership or dependency truth in this package.
-- Keep ecosystem semantics separate. npm, PyPI, Go modules, Maven, NuGet, and
-  generic feeds do not share one universal identity rule.
-- Use normalized identity for `StableFactKey` and `FactID`.
-- Use stable source-native keys for artifact, hosting, source-hint, and warning
-  envelopes.
-- Strip URL credentials and sensitive token query parameters before adding URLs
-  to payloads or source refs.
-- Keep metadata parsers local and deterministic. Live HTTP clients and workflow
-  claims belong in `packageruntime`; graph writes and ownership decisions do not
-  belong in this package tree.
-- Keep runtime config bounded by explicit provider, ecosystem, registry, scope,
-  package limits, and version limits. Do not let config imply full registry
-  crawling.
-- Add new ecosystem parsing through `MetadataParserRegistry` registration
-  instead of a runtime source switch that hides package-native behavior.
-- Do not put package names, private feed names, versions, URLs, or artifact
-  paths in metrics.
+  ownership, dependency truth, or graph truth in this package.
+- Keep ecosystem identity rules separate; npm, PyPI, Go modules, Maven, NuGet,
+  and generic feeds do not share one universal normalization rule.
+- Use normalized identity for `StableFactKey` and scope/generation-specific
+  identity for `FactID`.
+- Strip URL credentials and sensitive token query parameters before payload or
+  source-ref emission.
+- Metadata parsers stay local and deterministic. Live HTTP, credentials, and
+  workflow claims belong in `packageruntime`.
+- Runtime config stays bounded by explicit provider, ecosystem, registry,
+  scope, package limits, and version limits.
+- New ecosystem parsing goes through explicit `MetadataParserRegistry`
+  registration.
+- Package names, private feed names, versions, URLs, artifact paths, and
+  credentials stay out of metrics.
 
-## Common Changes
+## Change Routing
 
-- Add a new ecosystem by extending `Ecosystem`, `normalizeNameForEcosystem`,
-  and the table tests in `identity_test.go`.
-- Add a new fact envelope builder only after `internal/facts` exposes the fact
-  kind and schema version. Keep the source confidence explicit.
-- Add package-native fixture parsing in this package only when it maps to
-  existing observation structs without inventing graph truth, then register the
-  parser explicitly with `MetadataParserRegistry`.
-- Add live registry calls in `packageruntime`, not in identity helpers or
-  envelope builders.
+- New ecosystem: extend `Ecosystem`, normalization, parser registration, and
+  table tests together.
+- New fact envelope: add the fact kind/schema in `internal/facts` first, then
+  add envelope tests here.
+- New fixture parser: map to existing observation structs without inventing
+  graph truth, then register it explicitly.
+- Live registry calls go in `packageruntime`, not identity helpers or envelope
+  builders.
 
-## What Not To Change Without Owner Approval And Proof
+## Do Not Change Without Owner Approval And Proof
 
-- Do not move ECR into package-registry support. ECR belongs to the OCI registry
-  collector lane.
+- Do not move ECR into package-registry support; ECR belongs to OCI registry
+  evidence.
 - Do not materialize graph nodes or relationships from this package.
-- Do not flatten dependency scopes such as dev, peer, optional, runtime, target
-  framework, or classifier-specific edges into a generic dependency claim.
+- Do not flatten package-native dependency scopes into one generic dependency
+  claim.
+
+## Required Proof
+
+- Run `cd go && go test ./internal/collector/packageregistry -count=1`.
+- Run `./internal/collector/packageregistry/packageruntime` tests when runtime
+  config or live fetching is affected.
+- For docs-only edits, run `go run ./cmd/eshu docs verify ../go/internal/collector/packageregistry --fail-on contradicted,missing_evidence` from `go/`.
