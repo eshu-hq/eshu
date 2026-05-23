@@ -17,8 +17,8 @@ Before making code or documentation changes, agents MUST:
 
 1. Read this file.
 2. Read [Agent Engineering Guide](docs/internal/agent-guide.md).
-3. Read the local docs named under [Read These First](#read-these-first) for the
-   touched surface.
+3. Read the local docs named under [Read These First](#read-these-first) when
+   the touched surface matches those docs.
 4. Load the applicable project skill from `.agents/skills/`.
 5. Stop and ask if the correct owner, design intent, performance contract, or
    verification gate is unclear.
@@ -103,9 +103,10 @@ If a change affects NornicDB knobs or compatibility, agents MUST also read:
 ## Skill Routing
 
 Project skills in `.agents/skills/` are the source of truth for Eshu. Agents
-MUST use the correct project skill every time a listed skill applies. The
-`.claude/skills/` and `.codex/skills/` directories symlink to those
-repository-owned skills.
+MUST inspect the project skill names and descriptions before editing, then load
+every project skill whose trigger applies to the touched surface. The short
+list below is not exhaustive. The `.claude/skills/` and `.codex/skills/`
+directories symlink to those repository-owned skills.
 
 Skipping an applicable skill is a rule violation. If more than one skill
 applies, use the minimal set that covers the touched surface and state which
@@ -124,6 +125,8 @@ skills are active.
   graph-backed query contracts.
 - MUST add `eshu-release` for release, versioning, image, Helm, and GitHub
   Release work.
+- MUST add `eshu-folder-doc-keeper` for package `README.md`, `doc.go`, or
+  scoped `AGENTS.md` changes.
 
 ## Golden Rules
 

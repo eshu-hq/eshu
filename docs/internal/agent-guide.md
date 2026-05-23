@@ -31,6 +31,8 @@ Use the project skill that matches the touched surface:
 - `concurrency-deadlock-rigor` for workers, leases, retries, queues, or shared
   writes
 - `golang-engineering` for Go code edits and Go tests
+- `eshu-folder-doc-keeper` for package `README.md`, `doc.go`, or scoped
+  `AGENTS.md` changes
 
 ## Ownership Boundaries
 
