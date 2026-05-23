@@ -112,7 +112,7 @@ gauge when a shared-acceptance observer is available.
 | `PackageRegistryFactsEmitted` | `eshu_dp_package_registry_facts_emitted_total` |
 | `PackageRegistryRateLimited` | `eshu_dp_package_registry_rate_limited_total` |
 | `PackageRegistryParseFailures` | `eshu_dp_package_registry_parse_failures_total` |
-| `VulnerabilityIntelligenceRequests` | `eshu_dp_vulnerability_intelligence_requests_total` |
+| `VulnerabilityIntelligenceObservations` | `eshu_dp_vulnerability_intelligence_observations_total` |
 | `VulnerabilityIntelligenceFactsEmitted` | `eshu_dp_vulnerability_intelligence_facts_emitted_total` |
 | `VulnerabilityIntelligenceRateLimited` | `eshu_dp_vulnerability_intelligence_rate_limited_total` |
 | `PackageSourceCorrelations` | `eshu_dp_package_source_correlations_total` |

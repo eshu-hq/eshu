@@ -260,13 +260,15 @@ For shared-write debugging specifically:
 
 - Metrics answer source fetch success, rate limiting, fetch duration, and
   emitted vulnerability fact volume for CISA KEV, FIRST EPSS, OSV, and NVD.
-- `eshu_dp_vulnerability_intelligence_requests_total` is labeled by source and
-  bounded status class.
+- `eshu_dp_vulnerability_intelligence_observations_total` is labeled by source
+  and bounded status class. It counts claimed source target observations, not
+  individual upstream HTTP attempts.
 - `eshu_dp_vulnerability_intelligence_facts_emitted_total` is labeled by source
   and fact kind.
 - `vulnerability_intelligence.observe` spans wrap one claimed source target
   through fact envelope construction. `vulnerability_intelligence.fetch`
-  isolates the source fetch.
+  isolates the bounded source fetch operation, which may include multiple
+  upstream HTTP requests.
 - CVE descriptions, package names, PURLs, source URLs, API keys, and credential
   env names stay out of metric labels.
 
@@ -511,9 +513,9 @@ log streams.
 | `eshu_dp_package_registry_facts_emitted_total` | Package registry facts emitted by parser output | `ecosystem`, `fact_kind` |
 | `eshu_dp_package_registry_rate_limited_total` | Package registry metadata requests rejected with HTTP 429 | `ecosystem` |
 | `eshu_dp_package_registry_parse_failures_total` | Package registry metadata parse failures | `ecosystem`, `document_type` |
-| `eshu_dp_vulnerability_intelligence_requests_total` | Vulnerability source request attempts | `source`, `status_class` |
+| `eshu_dp_vulnerability_intelligence_observations_total` | Vulnerability source target observations | `source`, `status_class` |
 | `eshu_dp_vulnerability_intelligence_facts_emitted_total` | Vulnerability source facts emitted | `source`, `fact_kind` |
-| `eshu_dp_vulnerability_intelligence_rate_limited_total` | Vulnerability source requests rejected with HTTP 429 | `source` |
+| `eshu_dp_vulnerability_intelligence_rate_limited_total` | Vulnerability source observations that ended rate limited | `source` |
 | `eshu_dp_package_source_correlations_total` | Package source-correlation decisions emitted by reducer outcome | `domain`, `outcome` |
 | `eshu_dp_ci_cd_run_correlations_total` | CI/CD run correlation decisions emitted by reducer outcome | `domain`, `outcome` |
 | `eshu_dp_aws_api_calls_total` | AWS API calls by operation outcome | `service`, `account`, `region`, `operation`, `result` |

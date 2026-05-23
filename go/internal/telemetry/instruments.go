@@ -74,7 +74,7 @@ type Instruments struct {
 	PackageRegistryFactsEmitted               metric.Int64Counter
 	PackageRegistryRateLimited                metric.Int64Counter
 	PackageRegistryParseFailures              metric.Int64Counter
-	VulnerabilityIntelligenceRequests         metric.Int64Counter
+	VulnerabilityIntelligenceObservations     metric.Int64Counter
 	VulnerabilityIntelligenceFactsEmitted     metric.Int64Counter
 	VulnerabilityIntelligenceRateLimited      metric.Int64Counter
 	PackageSourceCorrelations                 metric.Int64Counter
@@ -551,12 +551,12 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 		return nil, fmt.Errorf("register PackageRegistryParseFailures counter: %w", err)
 	}
 
-	inst.VulnerabilityIntelligenceRequests, err = meter.Int64Counter(
-		"eshu_dp_vulnerability_intelligence_requests_total",
-		metric.WithDescription("Total vulnerability source requests by source and status class"),
+	inst.VulnerabilityIntelligenceObservations, err = meter.Int64Counter(
+		"eshu_dp_vulnerability_intelligence_observations_total",
+		metric.WithDescription("Total vulnerability source target observations by source and status class"),
 	)
 	if err != nil {
-		return nil, fmt.Errorf("register VulnerabilityIntelligenceRequests counter: %w", err)
+		return nil, fmt.Errorf("register VulnerabilityIntelligenceObservations counter: %w", err)
 	}
 
 	inst.VulnerabilityIntelligenceFactsEmitted, err = meter.Int64Counter(
@@ -569,7 +569,7 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 
 	inst.VulnerabilityIntelligenceRateLimited, err = meter.Int64Counter(
 		"eshu_dp_vulnerability_intelligence_rate_limited_total",
-		metric.WithDescription("Total vulnerability source requests that were rate limited by source"),
+		metric.WithDescription("Total vulnerability source observations that ended rate limited by source"),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register VulnerabilityIntelligenceRateLimited counter: %w", err)

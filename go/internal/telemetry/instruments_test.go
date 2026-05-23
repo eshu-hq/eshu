@@ -44,7 +44,7 @@ func TestNewInstrumentsNoError(t *testing.T) {
 	assert.NotNil(t, inst.PackageRegistryFactsEmitted, "PackageRegistryFactsEmitted counter should be registered")
 	assert.NotNil(t, inst.PackageRegistryRateLimited, "PackageRegistryRateLimited counter should be registered")
 	assert.NotNil(t, inst.PackageRegistryParseFailures, "PackageRegistryParseFailures counter should be registered")
-	assert.NotNil(t, inst.VulnerabilityIntelligenceRequests, "VulnerabilityIntelligenceRequests counter should be registered")
+	assert.NotNil(t, inst.VulnerabilityIntelligenceObservations, "VulnerabilityIntelligenceObservations counter should be registered")
 	assert.NotNil(t, inst.VulnerabilityIntelligenceFactsEmitted, "VulnerabilityIntelligenceFactsEmitted counter should be registered")
 	assert.NotNil(t, inst.VulnerabilityIntelligenceRateLimited, "VulnerabilityIntelligenceRateLimited counter should be registered")
 	assert.NotNil(t, inst.PackageSourceCorrelations, "PackageSourceCorrelations counter should be registered")
