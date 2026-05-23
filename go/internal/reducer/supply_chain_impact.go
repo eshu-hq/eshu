@@ -289,7 +289,9 @@ func supplyChainImpactFilter(envelopes []facts.Envelope) SupplyChainImpactFactFi
 			cveIDs = append(cveIDs, supplyChainCVEID(envelope.Payload))
 		case facts.VulnerabilityAffectedProductFactKind:
 			cveIDs = append(cveIDs, supplyChainCVEID(envelope.Payload))
-			productCriteria = append(productCriteria, payloadStr(envelope.Payload, "criteria"))
+			if payloadBool(envelope.Payload, "vulnerable") {
+				productCriteria = append(productCriteria, payloadStr(envelope.Payload, "criteria"))
+			}
 		case facts.VulnerabilityEPSSScoreFactKind, facts.VulnerabilityKnownExploitedFactKind:
 			cveIDs = append(cveIDs, supplyChainCVEID(envelope.Payload))
 		case facts.SBOMComponentFactKind:

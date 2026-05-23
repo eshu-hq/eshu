@@ -127,6 +127,27 @@ func TestBuildSupplyChainImpactFindingsSkipsNonVulnerableNVDProductCriteria(t *t
 	}
 }
 
+func TestSupplyChainImpactFilterSkipsNonVulnerableProductCriteria(t *testing.T) {
+	t.Parallel()
+
+	filter := supplyChainImpactFilter([]facts.Envelope{
+		vulnerabilityAffectedProductFact(
+			"product-1",
+			"CVE-2026-0106",
+			testImpactProductCriteria,
+			testImpactMatchCriteriaID,
+			false,
+		),
+	})
+
+	if got, want := strings.Join(filter.CVEIDs, ","), "CVE-2026-0106"; got != want {
+		t.Fatalf("CVEIDs = %q, want %q", got, want)
+	}
+	if got := strings.Join(filter.ProductCriteria, ","); got != "" {
+		t.Fatalf("ProductCriteria = %q, want blank for non-vulnerable product evidence", got)
+	}
+}
+
 func TestBuildSupplyChainImpactFindingsRanksPackageEvidenceAboveProductEvidence(t *testing.T) {
 	t.Parallel()
 
