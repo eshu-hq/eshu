@@ -1,39 +1,15 @@
-# AGENTS.md - internal/collector/awscloud/services/sqs/awssdk guidance
+# AGENTS.md - services/sqs/awssdk
 
-## Read First
+Read `README.md`, `doc.go`, `client.go`, `mapper.go`, and `../README.md`
+before editing this adapter.
 
-1. `README.md` - package purpose, telemetry, and invariants.
-2. `client.go` - SQS SDK pagination, safe attribute selection, mapping, and
-   telemetry.
-3. `../scanner.go` - scanner-owned SQS fact selection.
-4. `../README.md` - SQS scanner contract.
-5. `../../../README.md` - AWS cloud envelope contract.
-6. `docs/public/services/collector-aws-cloud-scanners.md` - scanner coverage and metadata-only data boundaries.
+## Mandatory Rules
 
-## Invariants
-
-- Keep SQS SDK calls here, not in `cmd/collector-aws-cloud` or the scanner
-  package.
-- Wrap each AWS paginator page or point read in `recordAPICall`.
-- Keep metric labels bounded to service, account, region, operation, and
-  result.
-- Request only safe queue metadata attributes. Do not request `Policy`.
-- Do not call message-content APIs such as `ReceiveMessage`.
-- Do not cache AWS credentials or SDK clients beyond the claim-scoped runtime
-  object that created this adapter.
-
-## Common Changes
-
-- Add a new SQS metadata read by extending `sqs.Client`, writing a scanner or
-  adapter test first, then mapping the SDK response into scanner-owned types.
-- Add a new throttle code in `isThrottleError` only after AWS or Smithy evidence
-  shows the code is retry/throttle-shaped.
-- Extend queue mapping only for AWS source data that is metadata and does not
-  reveal message contents or queue policy JSON.
-
-## What Not To Change Without Architecture-Owner Approval
-
-- Do not read, delete, purge, or mutate SQS messages.
-- Do not infer workload, environment, deployment, or ownership truth from queue
-  names, tags, or DLQ links.
-- Do not write facts, graph rows, workflow rows, or reducer-owned state here.
+- Allowed calls are `ListQueues`, `GetQueueAttributes` with an explicit safe
+  metadata allowlist, and `ListQueueTags`.
+- Do not request or persist the queue `Policy` attribute.
+- Wrap every paginator page and point read in `recordAPICall`.
+- Do not call `ReceiveMessage`, `DeleteMessage`, `PurgeQueue`, queue/message
+  mutation, credential, STS, graph, or reducer APIs.
+- Keep queue URLs, names, ARNs, tags, redrive policy values, page tokens, and
+  raw AWS errors out of metric labels.

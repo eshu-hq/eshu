@@ -1,43 +1,17 @@
-# AGENTS.md - internal/collector/awscloud/services/eventbridge guidance
+# AGENTS.md - services/eventbridge
 
-## Read First
+Read `README.md`, `doc.go`, `types.go`, `scanner.go`, `relationships.go`, and
+`awssdk/README.md` before editing this service.
 
-1. `README.md` - package purpose, exported surface, and invariants.
-2. `types.go` - scanner-owned EventBridge domain types.
-3. `scanner.go` - event bus, rule, and target relationship emission.
-4. `../../README.md` - shared AWS cloud observation and envelope contract.
-5. `docs/public/services/collector-aws-cloud-scanners.md` - scanner coverage and metadata-only data boundaries.
+## Mandatory Rules
 
-## Invariants
-
-- Keep EventBridge API access behind `Client`; do not import the AWS SDK into
-  this package.
-- Never put events or mutate event buses, rules, or targets.
-- Never persist event bus policy JSON.
-- Never persist target input payloads, input paths, input transformers, or HTTP
-  parameters.
-- Never persist raw non-ARN target identities such as webhook URLs.
-- Emit reported evidence only. Do not infer deployment, workload, repository
-  ownership, or deployable-unit truth from bus names, rule names, or tags.
-- Preserve stable event bus and rule identities across repeated observations in
-  the same AWS generation.
-- Keep event bus ARNs, rule ARNs, target ARNs, tags, and event patterns out of
-  metric labels.
-
-## Common Changes
-
-- Add a new EventBridge metadata field by extending the scanner-owned type,
-  writing a focused scanner or adapter test first, then mapping it through
-  `awscloud` envelope builders.
-- Add new relationship evidence only when the EventBridge API reports both sides
-  directly and the target identity is not sensitive.
-- Extend SDK pagination in the `awssdk` adapter, not here.
-
-## What Not To Change Without Architecture-Owner Approval
-
-- Do not put events, delete rules, add targets, remove targets, or mutate
-  EventBridge resources.
-- Do not resolve bus names, rule names, tags, event patterns, or targets into
-  workload ownership here; correlation belongs in reducers.
-- Do not add graph writes, reducer logic, or query behavior.
-- Do not add AWS credential loading or STS calls to this package.
+- Keep EventBridge AWS access behind `Client`; the scanner package must not
+  import the AWS SDK.
+- Emit reported event bus, rule, target, tag, and direct target relationship
+  evidence only.
+- Do not persist event bus policies, target payload fields, input templates,
+  credentials, or event payloads.
+- Do not call `PutEvents` or infer workload, environment, repository,
+  ownership, or deployable-unit truth from rule names, targets, or tags.
+- Keep bus names, rule names, target IDs, ARNs, tags, raw AWS errors, and page
+  tokens out of metric labels.

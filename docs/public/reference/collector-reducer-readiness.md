@@ -1,7 +1,5 @@
 # Collector And Reducer Readiness
 
-Last updated: 2026-05-22.
-
 Use this page to decide whether a source family is ready for deployed
 collection, reducer materialization, and API or MCP reads. Eshu is facts-first:
 collectors and webhooks observe source systems and commit facts; the resolution

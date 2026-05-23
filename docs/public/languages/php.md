@@ -32,15 +32,15 @@ Canonical implementation:
 
 ## Current Truth
 
-- The current Go parser covers the documented PHP object-call and aliasing
-  families end to end.
-- The public Go `code/relationships` surface now has checked-in proof for the
+- The Go parser covers the documented PHP object-call and aliasing families end
+  to end.
+- The public Go `code/relationships` surface has checked-in proof for the
   bounded PHP receiver families covered on this page.
 - `code_quality.dead_code` reports PHP as `derived`, not exact. The current
   root model is parser-backed and bounded to same-file declarations plus
   literal route, attribute, and hook registrations.
-- Remaining PHP work, if any, is net-new future enhancement work around fully
-  dynamic dispatch and reflection-heavy flows beyond the documented contract.
+- Fully dynamic dispatch and reflection-heavy flows remain outside the
+  documented contract.
 
 ## Known Limitations
 
@@ -49,4 +49,4 @@ Canonical implementation:
 - Fully dynamic PHP dispatch, reflection-heavy call sites, Composer/autoload
   public surfaces, include/require resolution, namespace alias breadth, broader
   framework route resolution, and arbitrary whole-program alias flow remain
-  bounded future work beyond the documented contract.
+  outside the documented contract.

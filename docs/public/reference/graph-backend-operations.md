@@ -1,10 +1,9 @@
 # Graph Backend Operations
 
 Use this page to start, stop, inspect, and troubleshoot the local graph backend
-used by the `local_authoritative` profile. Normal local mode is embedded
-NornicDB inside the `eshu` owner process built by
-`./scripts/install-local-binaries.sh`; it does not require
-`nornicdb-headless`.
+used by the `local_authoritative` profile. Normal local mode embeds NornicDB in
+the `eshu` owner process built by `./scripts/install-local-binaries.sh`; it does
+not require `nornicdb-headless`.
 
 For install policy, use
 [Graph Backend Installation](graph-backend-installation.md). For NornicDB
@@ -37,9 +36,8 @@ Foreground options:
 - `--logs file`, `terminal`, or `quiet`
 - `--verbose`, equivalent to terminal child logs
 
-`eshu graph start` execs the hidden local-host supervisor. It is not a detached
-daemon. Stop it with Ctrl-C in the same terminal or `eshu graph stop` from
-another terminal.
+`eshu graph start` execs the local-host supervisor in the foreground. Stop it
+with Ctrl-C in that terminal or `eshu graph stop` from another terminal.
 
 Process mode is explicit:
 
@@ -60,7 +58,7 @@ Start with:
 eshu graph status
 ```
 
-Status reports owner metadata, graph backend, PID, Bolt and health ports, data
+Status reports owner metadata, backend, PID, Bolt and health ports, data
 directory, log path, version, and health for the selected workspace.
 
 For NornicDB, healthy means:

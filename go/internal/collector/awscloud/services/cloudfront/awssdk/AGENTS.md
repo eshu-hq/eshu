@@ -1,17 +1,15 @@
-# CloudFront AWS SDK Adapter
+# AGENTS.md - services/cloudfront/awssdk
 
-Read these files before editing this package:
+Read `README.md`, `doc.go`, `client.go`, `mapper.go`, and `../README.md`
+before editing this adapter.
 
-1. `README.md`
-2. `doc.go`
-3. `client.go`
-4. `mapper.go`
-5. `../README.md`
+## Mandatory Rules
 
-Allowed API calls are `ListDistributions` and `ListTagsForResource`.
-Do not add `GetDistributionConfig`, mutation calls, object reads, policy
-document fetches, certificate body reads, private-key handling, or origin custom
-header value persistence without a new issue and evidence note.
-
-Keep pagination bounded and observable through `recordAPICall`. New AWS calls
-must add focused fake-client tests that prove the request shape and mapping.
+- Allowed calls are `ListDistributions` and `ListTagsForResource`.
+- Wrap each page or point read in `recordAPICall`; keep global-service
+  telemetry bounded.
+- Do not add `GetDistributionConfig`, mutations, object reads, policy document
+  fetches, certificate body reads, private-key handling, or origin custom
+  header value persistence.
+- Map only scanner-owned metadata and keep identifiers, tags, header values,
+  page tokens, raw AWS errors, and secrets out of metric labels.

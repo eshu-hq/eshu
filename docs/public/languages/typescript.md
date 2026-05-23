@@ -1,102 +1,82 @@
 # TypeScript Parser
 
-This page tracks the checked-in Go parser contract in the current repository state.
-Canonical implementation: `go/internal/parser/registry.go` plus the entrypoint and tests listed below.
+This page describes the current Go parser and query contract for TypeScript.
+Detailed parser mechanics live in `go/internal/parser/README.md` and
+`go/internal/parser/javascript_language.go`.
 
 ## Parser Contract
-- Language: `typescript`
-- Family: `language`
-- Parser: `DefaultEngine (typescript)`
-- Entrypoint: `go/internal/parser/javascript_language.go`
-- Fixture repo: `tests/fixtures/ecosystems/typescript_comprehensive/`
-- Unit test suite: `go/internal/parser/engine_javascript_semantics_test.go`
-- Integration validation: compose-backed fixture verification (see `../reference/local-testing.md`)
 
-## Dead-code Support
+| Field | Value |
+| --- | --- |
+| Language | `typescript` |
+| Family | `language` |
+| Parser | `DefaultEngine (typescript)` |
+| Entrypoint | `go/internal/parser/javascript_language.go` |
+| Fixture repo | `tests/fixtures/ecosystems/typescript_comprehensive/` |
+| Main parser tests | `go/internal/parser/engine_javascript_semantics_test.go`, `go/internal/parser/engine_typescript_advanced_semantics_test.go` |
+| Runtime validation | Compose-backed fixture verification; see [Local Testing](../reference/local-testing.md) |
 
-TypeScript dead-code support is `derived`. It shares the JavaScript-family
-package and framework roots, then adds TypeScript-specific public surface and
-type-reference evidence. Runtime-built property access and framework behavior
-that is not represented in source or metadata remains outside the model.
+## Supported Surfaces
 
-Supported roots and reachability evidence:
+The TypeScript path supports the JavaScript-family declaration and framework
+surface plus TypeScript-specific type metadata.
 
-- Node package roots: nearest owning `package.json` entrypoints, `bin` targets,
-  scripts, exports, and declaration/public-surface files.
-- TypeScript public surfaces: declaration-only barrels, one-hop static
-  re-exports, module-contract exports, exported static registry members, and
-  public methods on classes with `implements` evidence.
-- Framework routes and callbacks: Next.js app/route exports, Express, Koa,
-  Fastify, NestJS, and Hapi handler/plugin surfaces shared with the
-  JavaScript parser path.
-- Reference evidence: `typescript.type_reference` rows, returned function
-  values, static relative re-exports, and CommonJS/Hapi handler references.
-- Resolution evidence: JSONC `tsconfig.json` parsing for `baseUrl` and `paths`,
-  including comments and trailing commas.
+| Surface | Current contract |
+| --- | --- |
+| Source entities | Functions, classes, interfaces, imports, variables, enums, modules, namespaces, type aliases, and declaration-merge groups. |
+| Type metadata | Type parameters, mapped and conditional type aliases, decorators, type references, and declaration-merge metadata. |
+| Graph-backed queries | `code/language-query`, `code/search`, `entities/resolve`, entity-context, `code/relationships`, `code/complexity`, and dead-code responses preserve TypeScript semantic metadata when graph or content rows carry it. |
+| Framework and package roots | Shares the JavaScript-family Node package, React, Next.js, Express, Hapi, AWS SDK, and GCP SDK framework packs. |
 
-Checked Node/TypeScript fixtures live under `tests/fixtures/dead-code/node-typescript`
-and `tests/fixtures/ecosystems/typescript_comprehensive/`. Focused coverage
-lives in `go/internal/parser/javascript_dead_code_node_typescript_fixture_test.go`,
+Primary proof:
+
+- `go/internal/parser/engine_typescript_advanced_semantics_test.go`
+- `go/internal/query/typescript_graph_metadata_test.go`
+- `go/internal/query/language_query_graph_first_test.go`
+- `go/internal/reducer/semantic_entity_materialization_typescript_test.go`
+- `go/internal/storage/cypher/semantic_entity_test.go`
+
+## Dead-Code Support
+
+TypeScript dead-code support is `derived`. Eshu models source-proven roots and
+reference evidence, then keeps cleanup truth conservative where runtime loading
+or broad public API surfaces can keep symbols live.
+
+Modeled roots and evidence include:
+
+- Node package entrypoints, `bin` targets, scripts, exports, and declaration
+  or public-surface files.
+- Declaration-only barrels, one-hop static reexports, module-contract exports,
+  exported static registry members, and public methods on classes with
+  `implements` evidence.
+- Next.js app/route exports plus Express, Koa, Fastify, NestJS, and Hapi
+  handler or plugin surfaces.
+- `typescript.type_reference` rows, returned function values, static relative
+  reexports, CommonJS/Hapi handler references, and JSONC `tsconfig.json`
+  `baseUrl`/`paths` parsing.
+
+Focused coverage lives in
+`go/internal/parser/javascript_dead_code_node_typescript_fixture_test.go`,
 `go/internal/parser/javascript_dead_code_typescript_surface_test.go`,
 `go/internal/query/code_dead_code_typescript_semantics_test.go`, and
 `go/internal/query/code_dead_code_node_typescript_matrix_test.go`.
 
-## Capability Checklist
-| Capability | ID | Status | Extracted Bucket/Key | Required Fields | Graph Surface | Unit Coverage | Integration Coverage | Rationale |
-|-----------|----|--------|------------------------|-----------------|---------------|---------------|----------------------|-----------|
-| Functions | `functions` | supported | `functions` | `name, line_number` | `node:Function` | `go/internal/parser/engine_test.go::TestDefaultEngineParsePathTypeScript` | Compose-backed fixture verification | - |
-| Classes | `classes` | supported | `classes` | `name, line_number` | `node:Class` | `go/internal/parser/engine_test.go::TestDefaultEngineParsePathTypeScript` | Compose-backed fixture verification | - |
-| Interfaces | `interfaces` | supported | `interfaces` | `name, line_number` | `node:Interface` | `go/internal/parser/engine_test.go::TestDefaultEngineParsePathTypeScript` | Compose-backed fixture verification | - |
-| Imports | `imports` | supported | `imports` | `name, line_number` | `relationship:IMPORTS` | `go/internal/parser/engine_test.go::TestDefaultEngineParsePathTypeScript` | Compose-backed fixture verification | - |
-| Function calls | `function-calls` | supported | `function_calls` | `name, line_number` | `relationship:CALLS` | `go/internal/parser/engine_test.go::TestDefaultEngineParsePathTypeScript` | Compose-backed fixture verification | - |
-| Variables | `variables` | supported | `variables` | `name, line_number` | `node:Variable` | `go/internal/parser/engine_test.go::TestDefaultEngineParsePathTypeScript` | Compose-backed fixture verification | - |
-| Enums | `enums` | supported | `enums` | `name, line_number` | `node:Enum` | `go/internal/parser/engine_javascript_semantics_test.go::TestDefaultEngineParsePathTypeScriptSemanticsAndTypes` | Compose-backed fixture verification | - |
-| Type aliases | `type-aliases` | supported | `type_aliases` | `name, line_number` | `node:TypeAlias + graph-first code/language-query + entity_context.story` | `go/internal/query/language_query_graph_first_test.go::TestHandleLanguageQuery_TypeAliasPrefersGraphPathAndUsesGraphMetadataWithoutContent`, `go/internal/projector/runtime_test.go::TestRuntimeProjectEnqueuesSemanticEntityMaterializationForAnnotationTypedefTypeAliasAndComponent`, `go/internal/reducer/semantic_entity_materialization_test.go::TestExtractSemanticEntityRowsFiltersAnnotationTypedefTypeAliasAndComponentFacts`, `go/internal/storage/cypher/semantic_entity_test.go::TestSemanticEntityWriterWritesAnnotationTypedefTypeAliasAndComponentNodes`, `go/internal/query/entity_content_fallback_test.go::TestResolveEntityFallsBackToContentEntities`, `go/internal/query/content_reader_test.go::TestCodeHandlerSearchEntityContentIncludesEntityNameMatches` | Compose-backed fixture verification | Type aliases now persist as first-class `TypeAlias` graph nodes through the Go projector/reducer/Cypher graph path, the normal `code/language-query` surface prefers graph rows before falling back to content, and normal entity resolve/context plus `code/search` still preserve the fallback path when the graph is empty. |
-| Decorators | `decorators` | supported | `classes` | `name, line_number` | `content:Entity.metadata.decorators + code/language/entity_context.story + repository_story.semantic_overview` | `go/internal/parser/engine_javascript_semantics_test.go::TestDefaultEngineParsePathTypeScriptDecoratorAndGenericParity`, `go/internal/query/language_query_metadata_test.go::TestEnrichLanguageResultsWithContentMetadata`, `go/internal/query/code_search_metadata_test.go::TestEnrichGraphSearchResultsWithContentMetadata`, `go/internal/query/entity_metadata_test.go::TestEnrichEntityResultsWithContentMetadata`, `go/internal/query/entity_story_test.go::TestAttachSemanticSummaryAddsStoryForSemanticEntities`, `go/internal/query/repository_story_semantics_test.go::TestBuildRepositoryStoryResponseIncludesSemanticOverview` | Compose-backed fixture verification | Decorator metadata is emitted and preserved in content entities, and graph-backed `language-query`, `code/search`, `dead-code`, `code/relationships`, `code/complexity`, `entities/resolve`, and entity-context responses enrich matching rows with that metadata while also emitting a structured `semantic_profile`; entity-context emits a first-class `story`, and repository stories carry a semantic overview derived from those same entities. |
-| Generics | `generics` | supported | `type_parameters` | `name, line_number, type_parameters` | `graph-backed canonical Function/Class/Interface/Enum metadata + code/language/entity_context.story + repository_story.semantic_overview` | `go/internal/parser/engine_javascript_semantics_test.go::TestDefaultEngineParsePathTypeScriptDecoratorAndGenericParity`, `go/internal/parser/engine_javascript_semantics_test.go::TestDefaultEngineParsePathTypeScriptCapturesNestedGenericTypeParameters`, `go/internal/query/language_query_metadata_test.go::TestEnrichLanguageResultsWithContentMetadata`, `go/internal/query/code_search_metadata_test.go::TestEnrichGraphSearchResultsWithContentMetadata`, `go/internal/query/entity_metadata_test.go::TestEnrichEntityResultsWithContentMetadata`, `go/internal/query/entity_story_test.go::TestAttachSemanticSummaryAddsStoryForSemanticEntities`, `go/internal/query/repository_story_semantics_test.go::TestBuildRepositoryStoryResponseIncludesSemanticOverview` | Compose-backed fixture verification | Type parameter metadata is preserved in content entities, canonical TypeScript `Function`, `Class`, and `Interface` rows persist `type_parameters` on the graph-backed path, and those values flow into graph-backed `language-query`, `code/search`, `dead-code`, `code/relationships`, `code/complexity`, `entities/resolve`, and entity-context responses for matching entities, including a structured `semantic_profile`; the parser keeps nested generic constraints and defaults intact enough to recover the declared type parameter names, entity-context emits a first-class `story`, and repository stories carry a semantic overview derived from those same entities. |
-| Mapped types | `mapped-types` | supported | `type_aliases` | `name, line_number, type_alias_kind=mapped_type` | `node:TypeAlias + graph-first code/language-query + entity_context.story` | `go/internal/parser/engine_typescript_advanced_semantics_test.go::TestDefaultEngineParsePathTypeScriptCapturesAdvancedTypeSemantics`, `go/internal/query/typescript_graph_metadata_test.go::TestHandleLanguageQueryProjectsTypeScriptGraphMetadata`, `go/internal/query/typescript_graph_metadata_test.go::TestCodeSearchProjectsTypeScriptGraphMetadata`, `go/internal/query/typescript_graph_metadata_test.go::TestGetEntityContextProjectsTypeScriptGraphMetadata` | Compose-backed fixture verification | The Go parser now tags mapped type aliases directly, and the graph-backed query/context/search surfaces now project `type_alias_kind` and `type_parameters` from Neo4j rows when present. Mapped aliases are first-class TypeAlias graph entities in the current platform state. |
-| Conditional types | `conditional-types` | supported | `type_aliases` | `name, line_number, type_alias_kind=conditional_type` | `node:TypeAlias + graph-first code/language-query + entity_context.story` | `go/internal/parser/engine_typescript_advanced_semantics_test.go::TestDefaultEngineParsePathTypeScriptCapturesAdvancedTypeSemantics`, `go/internal/query/typescript_graph_metadata_test.go::TestHandleLanguageQueryProjectsTypeScriptGraphMetadata`, `go/internal/query/typescript_graph_metadata_test.go::TestCodeSearchProjectsTypeScriptGraphMetadata`, `go/internal/query/typescript_graph_metadata_test.go::TestGetEntityContextProjectsTypeScriptGraphMetadata` | Compose-backed fixture verification | Conditional type aliases now survive on the Go parser/content/query path with dedicated semantic promotion, and the graph-backed query/context/search surfaces now project their `type_alias_kind` and `type_parameters` metadata directly from Neo4j rows. Conditional aliases are first-class TypeAlias graph entities in the current platform state. |
-| Namespaces | `namespaces` | supported | `modules` | `name, line_number, module_kind=namespace` | `node:Module + graph-first code/language-query + entity_context.story` | `go/internal/parser/engine_typescript_advanced_semantics_test.go::TestDefaultEngineParsePathTypeScriptCapturesAdvancedTypeSemantics`, `go/internal/query/language_query_graph_first_test.go::TestHandleLanguageQuery_TypeScriptNamespaceUsesGraphMetadataWithoutContent`, `go/internal/query/entity_metadata_typescript_semantics_test.go::TestEnrichEntityResultsWithContentMetadataTypeScriptNamespaceModule`, `go/internal/reducer/semantic_entity_materialization_module_test.go::TestExtractSemanticEntityRowsIncludesTypeScriptModuleFacts`, `go/internal/projector/semantic_entity_intents_test.go::TestBuildSemanticEntityReducerIntentQueuesTypeScriptModuleSemanticEntities`, `go/internal/storage/cypher/semantic_entity_test.go::TestSemanticEntityWriterWritesTypeScriptModuleSemanticMetadata` | Compose-backed fixture verification | TypeScript namespace declarations now materialize as first-class `Module` graph nodes through the Go projector/reducer/Cypher graph path, and the shared graph-backed `language-query` path can summarize namespace rows directly when the graph already carries `module_kind`. |
-| Declaration merging | `declaration-merging` | supported | `functions`, `classes`, `interfaces`, `modules`, `enums` | `name, declaration_merge_group, declaration_merge_count, declaration_merge_kinds` | `node:Module + graph-first code/language-query + entity_context.story` | `go/internal/parser/engine_typescript_advanced_semantics_test.go::TestDefaultEngineParsePathTypeScriptCapturesDeclarationMerging`, `go/internal/query/language_query_graph_first_test.go::TestHandleLanguageQuery_TypeScriptDeclarationMergeUsesGraphMetadataWithoutContent`, `go/internal/query/entity_metadata_typescript_semantics_test.go::TestEnrichEntityResultsWithContentMetadataTypeScriptDeclarationMerging`, `go/internal/reducer/semantic_entity_materialization_module_test.go::TestExtractSemanticEntityRowsIncludesTypeScriptModuleFacts`, `go/internal/projector/semantic_entity_intents_test.go::TestBuildSemanticEntityReducerIntentQueuesTypeScriptModuleSemanticEntities`, `go/internal/storage/cypher/semantic_entity_test.go::TestSemanticEntityWriterWritesTypeScriptModuleSemanticMetadata` | Compose-backed fixture verification | Same-file TypeScript declaration merging between supported declarations now survives the Go parser, is surfaced through semantic summaries, profiles, and stories on the normal content/query path, and is now also persisted as first-class `Module` graph nodes through the Go projector/reducer/Cypher graph path when matching graph rows already carry the merge metadata. |
-
 ## Support Maturity
-- Grammar routing: `supported`
-- Normalization: `supported`
-- Framework pack status: `supported`
-- Framework packs: `react-base`, `nextjs-app-router-base`, `express-base`, `hapi-base`, `aws-sdk-base`, `gcp-sdk-base`
-- Query surfacing: `supported`
-- Real-repo validation: `supported`
-- End-to-end indexing: `supported`
-- Notes:
-  - Real-repo validation covers pure TypeScript repositories without requiring
-    TSX-specific framework evidence.
-  - TypeScript uses the same declarative Node HTTP and provider-pack framework
-    families as JavaScript.
-- Type aliases now persist as first-class `TypeAlias` graph nodes through
-  the Go projector/reducer/Cypher graph path, and the graph-backed `code/language-query`,
-  `code/search`, `entities/resolve`, and entity-context surfaces now project
-  `type_alias_kind`, `type_parameters`, and related declaration-merge
-  metadata directly from Neo4j rows. Mapped and conditional aliases are now
-  first-class graph-backed entities in the current platform state, including wrapped
-  conditional aliases that the parser normalizes.
-- Graph-backed TypeScript query surfaces now also attach a dedicated
-  `typescript_semantics` bundle when class-family rows already carry
-  decorators, type parameters, or declaration-merge metadata. That bundle now
-  shows up on the shared `code/search`, `code/dead-code`, `entities/resolve`,
-  `code/relationships`, `code/complexity`, `code/language-query`, and
-  entity-context/story paths.
-- Canonical TypeScript `Class`, `Interface`, `Enum`, and decorated/generic
-  `Function` rows now preserve `decorators`, `type_parameters`, and
-  `declaration_merge_*` metadata through the Go projector and Neo4j writer
-  when those values are present in the entity payloads.
-- Graph-backed `language-query`, `code/search`, and entity-context results
-  now also surface `decorators`, `type_parameters`, and
-  `declaration_merge_*` directly from Neo4j rows when those semantic entities
-  were persisted by the graph writer.
-- The same graph-backed rows now also attach `typescript_semantics`, which
-  keeps the TypeScript query surfaces aligned when the graph already has the
-  canonical class-family metadata.
 
+| Dimension | Status |
+| --- | --- |
+| Grammar routing | `supported` |
+| Normalization | `supported` |
+| Framework packs | `react-base`, `nextjs-app-router-base`, `express-base`, `hapi-base`, `aws-sdk-base`, `gcp-sdk-base` |
+| Query surfacing | `supported` |
+| Real-repo validation | `supported` |
+| End-to-end indexing | `supported` |
+| Dead-code exactness | `derived`, not cleanup-safe exact truth |
 
 ## Known Limitations
-- No known graph-first gaps remain on the documented TypeScript surfaces.
+
+- Runtime-built imports, property dispatch, decorators with container-specific
+  behavior, framework plugin loading, declaration-surface precision, and broad
+  package export surfaces remain outside the exactness boundary.
+- TSX uses the same TypeScript-family query path but has separate React wrapper
+  coverage; see the parser support matrix for TSX status.

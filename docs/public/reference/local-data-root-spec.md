@@ -1,11 +1,9 @@
 # Local Eshu Service Data Root
 
 This page defines the on-disk contract for one local Eshu service workspace:
-where files live, how a workspace is identified, which stores are rebuildable,
-and what `owner.json` means. Maintainer implementation details live in
-`go/internal/eshulocal/README.md`.
+layout, workspace identity, rebuildable stores, and `owner.json`.
 
-## Root location
+## Root Location
 
 Default root:
 
@@ -25,7 +23,7 @@ The local runtime targets macOS and Linux. Windows layout helpers compile, but
 workspace ownership and embedded Postgres startup return explicit unsupported
 errors.
 
-## Workspace identity
+## Workspace Identity
 
 Workspace root resolution happens in this order:
 
@@ -35,8 +33,8 @@ Workspace root resolution happens in this order:
 4. invocation working directory
 
 `workspace_id` is the first 20 bytes of the SHA-256 hash of the symlink-resolved
-workspace root, encoded as lowercase hex. Paths are normalized to `/`, and
-case-insensitive filesystems lowercase the resolved path before hashing.
+workspace root, encoded as lowercase hex. Paths are normalized to `/`; on
+case-insensitive filesystems, the resolved path is lowercased before hashing.
 
 ## Layout Contract
 
@@ -111,8 +109,8 @@ order:
 
 On Unix, `owner.lock` uses non-blocking `flock(LOCK_EX | LOCK_NB)`. If another
 process holds the lock, startup fails instead of waiting. A second command may
-attach to a healthy owner when that command supports attach semantics, but it
-must not start a competing owner for the same workspace.
+attach to a healthy owner when supported, but it must not start a competing
+owner for the same workspace.
 
 Stale owner recovery is lock-first. A new owner can reclaim `owner.json` only
 after holding `owner.lock` and proving the recorded owner is no longer healthy.
@@ -146,9 +144,8 @@ There is no silent forward or backward compatibility path.
   written with owner-only permissions where the runtime creates them.
 - Eshu does not provide encryption at rest; use host-level disk encryption when
   required.
-- Use local filesystems with reliable advisory locking. Do not rely on this
-  ownership contract over NFS or SMB unless Eshu adds verified compatibility for
-  that filesystem class.
+- Use local filesystems with reliable advisory locking. NFS and SMB are not
+  supported unless Eshu adds verified compatibility for that filesystem class.
 
 ## Verification
 

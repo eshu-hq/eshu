@@ -1,40 +1,18 @@
-# AGENTS.md - internal/collector/awscloud/services/ecs guidance
+# AGENTS.md - services/ecs
 
-## Read First
+Read `README.md`, `doc.go`, `types.go`, `scanner.go`, `relationships.go`, and
+`awssdk/README.md` before editing this service.
 
-1. `README.md` - package purpose, exported surface, and invariants.
-2. `types.go` - scanner-owned ECS domain types.
-3. `scanner.go` - cluster, service, task-definition, task, and relationship
-   emission.
-4. `../../README.md` - shared AWS cloud observation and envelope contract.
-5. `docs/public/services/collector-aws-cloud-scanners.md` - scanner coverage and metadata-only data boundaries.
+## Mandatory Rules
 
-## Invariants
-
-- Keep ECS API access behind `Client`; do not import the AWS SDK into this
-  package.
-- Emit reported evidence only. Do not infer environment, workload ownership, or
-  deployable-unit truth from service names, task families, images, or tags.
-- Redact task-definition environment values with `internal/redact` before they
-  cross the scanner boundary.
-- Preserve ECS secret `value_from` references and never attempt to resolve or
-  read secret values.
-- Preserve ECS task ENI IDs from task describe responses so EC2 topology can join tasks
-  to subnets and VPCs later.
-- Keep task-definition env values, secret refs, resource ARNs, tags, and image
-  refs out of metric labels.
-
-## Common Changes
-
-- Add a new ECS resource by extending the scanner-owned type, writing a focused
-  scanner test first, then mapping it through `awscloud` envelope builders.
-- Add new task-definition fields only when the ECS API reports them directly
-  and the field is safe for persistence.
-- Extend SDK pagination in the `awssdk` adapter, not here.
-
-## What Not To Change Without Architecture-Owner Approval
-
-- Do not resolve ECS services or images to source repositories here;
-  correlation belongs in reducers.
-- Do not add graph writes, reducer logic, or query behavior.
-- Do not add AWS credential loading or STS calls to this package.
+- Keep ECS AWS access behind `Client`; the scanner package must not import the
+  AWS SDK.
+- Redact task-definition environment values with the configured redactor before
+  any envelope is built.
+- Preserve secret `value_from` references as references only; never read secret
+  values.
+- Emit reported resource, relationship, and image-reference evidence only.
+- Do not infer workload, environment, repository, ownership, or deployable-unit
+  truth from cluster names, service names, tags, task families, or images.
+- Keep cluster names, service names, task ARNs, tags, image URIs, environment
+  values, raw AWS errors, and page tokens out of metric labels.

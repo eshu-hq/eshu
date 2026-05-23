@@ -4,13 +4,12 @@ These rules are mandatory for changes under `go/internal/reducer`.
 
 ## Read First
 
-1. `CLAUDE.md`
+1. `README.md` and `doc.go`.
 2. `docs/public/architecture.md`
 3. `docs/public/deployment/service-runtimes.md`
 4. `docs/public/reference/telemetry/index.md`
-5. `go/internal/reducer/README.md`
-6. `go/internal/projector/README.md`
-7. `go/cmd/reducer/README.md`
+5. `go/internal/projector/README.md`
+6. `go/cmd/reducer/README.md`
 
 ## Invariants
 

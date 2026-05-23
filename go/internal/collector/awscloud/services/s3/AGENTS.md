@@ -1,44 +1,20 @@
-# AGENTS.md - internal/collector/awscloud/services/s3 guidance
+# AGENTS.md - services/s3
 
-## Read First
+Read `README.md`, `doc.go`, `types.go`, `scanner.go`, `relationships.go`, and
+`awssdk/README.md` before editing this service.
 
-1. `README.md` - package purpose, exported surface, and invariants.
-2. `types.go` - scanner-owned S3 domain types.
-3. `scanner.go` - bucket and logging-target relationship emission.
-4. `../../README.md` - shared AWS cloud observation and envelope contract.
-5. `docs/public/services/collector-aws-cloud-scanners.md` - scanner coverage and metadata-only data boundaries.
+## Mandatory Rules
 
-## Invariants
-
-- Keep S3 API access behind `Client`; do not import the AWS SDK into this
-  package.
-- Never read objects, list object keys, or mutate S3 buckets.
-- Never persist bucket policy JSON, ACL grants, replication rules, lifecycle
-  rules, notification configuration, inventory configuration, analytics
-  configuration, or metrics configuration.
-- Never persist website index or error document object keys.
-- Emit reported evidence only. Do not infer deployment, workload, repository
-  ownership, or deployable-unit truth from bucket names or tags.
-- Preserve stable bucket identities across repeated observations in the same
-  AWS generation.
-- Keep bucket ARNs, bucket names, tags, prefixes, and KMS key IDs out of metric
-  labels.
-
-## Common Changes
-
-- Add a new S3 metadata field by extending the scanner-owned type, writing a
-  focused scanner or adapter test first, then mapping it through `awscloud`
-  envelope builders.
-- Add new relationship evidence only when S3 reports both sides directly and
-  the target identity is not sensitive.
-- Extend SDK pagination and optional-not-configured handling in the `awssdk`
-  adapter, not here.
-
-## What Not To Change Without Architecture-Owner Approval
-
-- Do not read objects, list object versions, list multipart uploads, mutate
-  buckets, or mutate bucket configuration.
-- Do not resolve bucket names, tags, website status, or logging targets into
-  workload ownership here; correlation belongs in reducers.
-- Do not add graph writes, reducer logic, or query behavior.
-- Do not add AWS credential loading or STS calls to this package.
+- Keep S3 AWS access behind `Client`; the scanner package must not import the
+  AWS SDK.
+- Keep S3 claims regional. Do not turn `aws-global` into an unfiltered bucket
+  scan.
+- Emit reported bucket control-plane metadata and logging-target relationship
+  evidence only.
+- Do not read objects, list object keys or versions, read bucket policy JSON,
+  ACL grants, lifecycle rules, replication rules, notifications, inventory,
+  analytics, metrics, or mutation results.
+- Do not infer workload, environment, repository, ownership, or deployable-unit
+  truth from bucket names, tags, website status, or logging targets.
+- Keep bucket names, ARNs, tags, prefixes, KMS IDs, object keys, raw AWS
+  errors, and page tokens out of metric labels.

@@ -1,45 +1,17 @@
-# AGENTS.md - internal/collector/awscloud/services/rds guidance
+# AGENTS.md - services/rds
 
-## Read First
+Read `README.md`, `doc.go`, `types.go`, `scanner.go`, `relationships.go`, and
+`awssdk/README.md` before editing this service.
 
-1. `README.md` - package purpose, exported surface, and invariants.
-2. `types.go` - scanner-owned RDS domain types.
-3. `scanner.go` - resource emission for instances, clusters, and subnet groups.
-4. `relationships.go` - direct RDS relationship evidence.
-5. `../../README.md` - shared AWS cloud observation and envelope contract.
-6. `docs/public/services/collector-aws-cloud-scanners.md` - scanner coverage and metadata-only data boundaries.
+## Mandatory Rules
 
-## Invariants
-
-- Keep RDS API access behind `Client`; do not import the AWS SDK into this
-  package.
-- Never connect to a database, read snapshot payloads, read log contents, read
-  Performance Insights samples, discover schemas or tables, or mutate RDS
-  resources.
-- Never persist database names, master usernames, passwords, connection
-  secrets, snapshot identifiers, log payloads, schemas, tables, or row data.
-- Emit reported evidence only. Do not infer deployment, workload, repository,
-  ownership, or deployable-unit truth from endpoints, names, tags, or account
-  aliases.
-- Preserve stable RDS identities across repeated observations in the same AWS
-  generation.
-- Keep endpoints, ARNs, resource names, tags, KMS key IDs, and parameter group
-  names out of metric labels.
-
-## Common Changes
-
-- Add a new RDS metadata field by extending the scanner-owned type, writing a
-  focused scanner or adapter test first, then mapping it through `awscloud`
-  envelope builders.
-- Add new relationship evidence only when RDS directly reports both sides and
-  the target identity is not secret.
-- Extend SDK pagination and optional-not-found handling in the `awssdk` adapter,
-  not here.
-
-## What Not To Change Without Architecture-Owner Approval
-
-- Do not connect to RDS engines, read data-plane metadata, read logs, inspect
-  snapshots, mutate resources, or add graph writes.
-- Do not resolve endpoint names, tags, or subnet group names into workload
-  ownership here; correlation belongs in reducers.
-- Do not add AWS credential loading or STS calls to this package.
+- Keep RDS AWS access behind `Client`; the scanner package must not import the
+  AWS SDK.
+- Emit reported DB instance, cluster, subnet group, tag, security-group,
+  subnet, KMS, and role evidence only.
+- Do not read database rows, snapshots, logs, secret values, parameter values,
+  policy bodies, or mutation results.
+- Do not infer workload, environment, repository, ownership, or deployable-unit
+  truth from identifiers, endpoints, tags, accounts, or aliases.
+- Keep DB identifiers, endpoints, ARNs, tags, KMS IDs, security group IDs, raw
+  AWS errors, and page tokens out of metric labels.

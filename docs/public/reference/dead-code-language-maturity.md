@@ -15,8 +15,8 @@ For the analyzer contract, response fields, and promotion rules, see
 | `derived_candidate_only` | Eshu can index the language and return candidates, but language roots are too thin for cleanup-ready answers. |
 | `non_code_iac_evidence` | Eshu indexes infrastructure/configuration evidence, but `code_quality.dead_code` does not return source-code cleanup candidates for the language. |
 | `unsupported_language` | The language is outside this capability's parser/indexing contract. |
-| future `exact` | Fixture, root, reachability, backend, API, MCP, CLI, and performance gates prove cleanup-safe answers for the scope. |
-| future `ambiguous_only` | Eshu can identify uncertainty but should not return actionable unused symbols for the scope. |
+| reserved `exact` | Fixture, root, reachability, backend, API, MCP, CLI, and performance gates prove cleanup-safe answers for the scope. No language is documented at this level here. |
+| reserved `ambiguous_only` | Eshu can identify uncertainty but should not return actionable unused symbols for the scope. No language is documented at this level here. |
 
 ## Current Matrix
 
@@ -47,19 +47,18 @@ For the analyzer contract, response fields, and promotion rules, see
 
 ## Evidence Locations
 
-- Query maturity map:
-  `go/internal/query/code_dead_code_language_maturity.go`
-- Query response contract:
-  `go/internal/query/code_dead_code_analysis.go`
-- Candidate scan and incoming-edge policy:
-  `go/internal/query/code_dead_code.go` and
-  `go/internal/query/code_dead_code_scan.go`
-- Fixture inventory:
-  `tests/fixtures/deadcode/README.md`
-- TypeScript corpus evidence:
-  [TypeScript Dead-Code Corpus Evidence](dead-code-typescript-corpus-evidence.md)
-- Per-language parser pages:
-  [Language Support](../languages/support-maturity.md)
+The source of truth is split by owner:
+
+| Evidence | Location |
+| --- | --- |
+| Language maturity map | `go/internal/query/code_dead_code_language_maturity.go` |
+| Response contract | `go/internal/query/code_dead_code_analysis.go` |
+| Candidate scan and incoming-edge policy | `go/internal/query/code_dead_code.go`, `go/internal/query/code_dead_code_scan.go` |
+| Fixture contract | `tests/fixtures/deadcode/README.md` |
+| Parser support summary | [Parser Support Matrix](../languages/support-maturity.md) |
+
+Keep per-language fixture inventories in the fixture README and parser package
+tests. This page should stay at the maturity and exactness-boundary level.
 
 ## Promotion Rule
 

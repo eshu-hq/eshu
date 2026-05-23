@@ -1,6 +1,6 @@
 # Relationship Evidence And Resolution
 
-This page documents the current evidence and resolver contract from
+This page documents the current evidence and resolver contract owned by
 `go/internal/relationships`.
 
 ## Code Ownership
@@ -15,7 +15,7 @@ This page documents the current evidence and resolver contract from
 `DiscoverEvidence` and `Resolve` do not write graph edges directly. They feed
 reducer-owned persistence and materialization.
 
-## Evidence Flow
+## Resolver Contract
 
 ```mermaid
 flowchart LR
@@ -39,7 +39,7 @@ preview of evidence details, applies rejection/assertion overrides, filters
 below `DefaultConfidenceThreshold` (`0.75`), then deduplicates and sorts the
 resolved output.
 
-Important accuracy point: the resolver does not globally suppress generic
+Accuracy rule: the resolver does not globally suppress generic
 `DEPENDS_ON` just because a typed edge also exists for the same pair. If both
 types are emitted and both pass assertion/confidence rules, both can become
 resolved relationships. Query and story surfaces should prefer the more
@@ -57,10 +57,9 @@ Assertions are explicit control-plane or human overrides:
 
 Any other decision string is ignored by `groupAssertions`.
 
-## Current Evidence Families
+## Evidence Families
 
-The relationship package currently extracts evidence from these source
-families:
+Current extraction families:
 
 | Family | Evidence examples | Common relationship types |
 | --- | --- | --- |
@@ -75,11 +74,10 @@ families:
 | Dockerfile | source labels | `DEPLOYS_FROM` |
 | Docker Compose | build contexts, image refs, explicit `depends_on` services | `DEPLOYS_FROM`, `DEPENDS_ON` |
 
-The exact `EvidenceKind` constants live in `models.go`. Renaming them requires
-a storage compatibility plan because they are persisted in relationship
-evidence.
+`EvidenceKind` constants live in `models.go` and are persisted. Renaming them
+requires a storage compatibility plan.
 
-## Repository Matching
+## Matching Rules
 
 Relationship extraction uses the catalog passed into `DiscoverEvidence`.
 Catalog entries map repository IDs to known aliases. Extractors call
@@ -93,9 +91,9 @@ Operational consequences:
 - source files in nested Git checkouts must be indexed as independent
   repositories before cross-repo evidence can resolve truthfully
 
-## Terraform And Terragrunt Rules
+## Terraform And Terragrunt
 
-Terraform provider-schema support is runtime-owned by Go:
+Provider-schema support is runtime-owned by Go:
 
 - schema loading and identity-key inference live under
   `go/internal/terraformschema`
@@ -112,7 +110,7 @@ Terragrunt helper expressions are normalized only when they can be proven as
 repo-local or repo-bearing paths. Unsupported helper expressions produce no
 evidence rather than a guessed edge.
 
-## Runtime Family Rules
+## Runtime Families
 
 Terraform-managed runtime summaries stay provider-neutral at extraction time.
 Portable module metadata such as `deployment_name`, `repo_name`,
@@ -120,8 +118,8 @@ Portable module metadata such as `deployment_name`, `repo_name`,
 preserved first. Runtime-family interpretation belongs in shared runtime-family
 logic and reducer/query layers, not in one-off parser rules.
 
-ECS and EKS are current examples. Future runtime families should extend the
-shared registry before adding provider-specific story text.
+ECS and EKS are current examples. Add new runtime families through the shared
+registry before adding provider-specific story text.
 
 ## Mixed-Source Repositories
 

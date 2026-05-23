@@ -1,42 +1,16 @@
-# AGENTS.md - internal/collector/awscloud/services/cloudwatchlogs/awssdk guidance
+# AGENTS.md - services/cloudwatchlogs/awssdk
 
-## Read First
+Read `README.md`, `doc.go`, `client.go`, `mapper.go`, and `../README.md`
+before editing this adapter.
 
-1. `README.md` - package purpose, exported surface, and invariants.
-2. `client.go` - DescribeLogGroups pagination, tag reads, API telemetry, and
-   throttle accounting.
-3. `mapper.go` - AWS SDK shape to scanner-owned metadata mapping.
-4. `../README.md` - scanner-level CloudWatch Logs fact contract.
-5. `../../../awsruntime/README.md` - runtime registry and claim contract.
-6. `docs/public/services/collector-aws-cloud-scanners.md` - scanner coverage and metadata-only data boundaries.
+## Mandatory Rules
 
-## Invariants
-
-- Keep the API surface metadata-only: `DescribeLogGroups` and
-  `ListTagsForResource`.
-- Never call log event APIs, log stream payload APIs, Insights query APIs,
-  export payload APIs, resource-policy APIs, subscription payload APIs, or
-  mutation APIs.
-- Set `Limit=50` and follow `NextToken` for `DescribeLogGroups`.
-- Use the non-wildcard log group ARN for `ListTagsForResource`; trim a trailing
-  `:*` from `arn` when `logGroupArn` is absent.
-- Record every AWS SDK call with bounded telemetry labels only.
-- Keep log group names, ARNs, tags, KMS key IDs, and raw AWS error payloads out
+- Allowed calls are `DescribeLogGroups` and `ListTagsForResource`.
+- Use `Limit=50`, follow `NextToken`, and wrap every AWS call in
+  `recordAPICall`.
+- Use the non-wildcard log group ARN for tags; trim a trailing `:*` only when
+  `logGroupArn` is absent.
+- Do not add log event, log stream payload, Insights, export, resource-policy,
+  subscription, mutation, credential, STS, graph, or reducer behavior here.
+- Keep log group names, ARNs, tags, KMS IDs, page tokens, and raw AWS errors out
   of metric labels.
-
-## Common Changes
-
-- Add a new safe metadata field by updating `mapper.go` and writing an adapter
-  test that proves data-plane fields are still dropped.
-- Add a new CloudWatch Logs API call only after checking official AWS docs and
-  updating the scanner package README with the metadata-only reason.
-- Update `client.go` API-call telemetry whenever pagination or tag reads
-  change.
-
-## What Not To Change Without Architecture-Owner Approval
-
-- Do not add CloudWatch Logs mutation APIs, log event reads, log stream payload
-  reads, Insights query calls, export payload reads, resource-policy reads,
-  subscription payload reads, or graph writes.
-- Do not move credential acquisition, STS, or target authorization into this
-  package.

@@ -2,10 +2,10 @@
 
 This page is the operational companion to
 [NornicDB Tuning](nornicdb-tuning.md). It records NornicDB behaviors that have
-affected Eshu integration, dogfood, and PR work.
+affected Eshu integration and proof work.
 
-Use it to avoid rediscovering the same failure shape. Do not treat it as a
-substitute for checking the current NornicDB source.
+Use it to avoid rediscovering the same failure shape. Still check the current
+NornicDB source before patching.
 
 ## How To Use This Page
 
@@ -17,8 +17,8 @@ substitute for checking the current NornicDB source.
 4. If the current reproduction differs, update this page with the reproduction,
    observed shape, and either the root cause or open question.
 
-NornicDB changes quickly. A behavior documented here may already be fixed in
-the binary you are testing.
+NornicDB changes quickly. A documented behavior may already be fixed in the
+binary you are testing.
 
 ## Pitfall: Recreating Single-Property `UNIQUE` Constraints On A Live Store
 
@@ -33,12 +33,11 @@ On a running NornicDB instance with existing nodes:
 
 The row remains readable. `MATCH (n {prop: value}) RETURN id(n)` still finds it.
 
-### Working hypothesis
+### Hypothesis
 
-The value-cache rebuild can register existing values with user-facing node IDs
-while transactional validation compares a different internal ID shape. The
-commit path then treats the matched node as another node with the same unique
-value.
+The value-cache rebuild can register existing values with one node ID shape
+while transactional validation compares another. The commit path then treats the
+matched node as another node with the same unique value.
 
 Verify this against the current `NornicDB-New` source before relying on the
 hypothesis.
@@ -75,7 +74,7 @@ Neo4jError: Neo.ClientError.Transaction.TransactionCommitFailed
 ```
 
 That is normal concurrent `MERGE` behavior. Re-executing the same MERGE after
-the winning commit should match the existing node and succeed.
+the winning commit should match the existing node.
 
 ### Eshu status
 

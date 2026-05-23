@@ -2,71 +2,42 @@
 
 ## Purpose
 
-`shape` converts parser-emitted file and entity payloads into the
-`content.Materialization` rows that `content.Writer.Write` persists. It
-centralizes the entity-bucket label mapping, `source_cache` snippet derivation,
-and the byte limits that keep low-signal entity rows from bloating the content
-store.
+`shape` turns parser-emitted file and entity payloads into
+`content.Materialization` rows for the content store. It centralizes
+entity-bucket label mapping, canonical entity IDs, `source_cache` derivation,
+and byte limits for low-signal snippets.
 
-## Ownership boundary
+## Ownership Boundary
 
-This package owns content shaping only:
+This package owns content shaping only. It does not write Postgres rows, enqueue
+work, emit facts, or write graph state. Callers in ingester/projector paths own
+runtime orchestration and persistence.
 
-- translating parser buckets into `content.EntityRecord` values
-- deriving `content.CanonicalEntityID` for each entity
-- extracting `source_cache` snippets from parser source or file body
-- preserving per-entity line, language, artifact, template, IaC, and metadata
-  fields for the content store
-- applying byte limits to oversized low-signal entities
+## Exported Surface
 
-It does not own graph writes, the Postgres schema, queue operations, or fact
-loading. All of those belong to `internal/projector`, `internal/collector`, or
-`internal/storage/postgres`.
-
-## Exported surface
-
-See `doc.go` and `go doc ./internal/content/shape` for the godoc contract.
-Callers use `Input`, `File`, `Entity`, and `Materialize`. `Materialize` returns
-an error when the repository ID or any file path is blank.
-
-## Dependencies
-
-- `internal/content` — `Materialization`, `EntityRecord`, `CanonicalEntityID`.
-  No other internal imports. No external imports beyond the standard library.
+See `doc.go` and `go doc ./internal/content/shape`. Callers use `Input`,
+`File`, `Entity`, and `Materialize`. `Materialize` rejects blank repository IDs
+and blank file paths.
 
 ## Telemetry
 
-None. Callers (ingester or projector workers) add duration and outcome metrics
-around the `Materialize` call.
+None. Callers wrap `Materialize` with their own runtime metrics, spans, and
+status reporting.
 
-## Gotchas / invariants
+## Gotchas / Invariants
 
-- `contentEntityBuckets` order is fixed. Reordering the bucket list changes the
-  persisted row sequence and produces diff churn in existing content-store rows.
-  Add new buckets at the end.
-- Terraform buckets cover authored configuration and parser evidence such as
-  backends, imports, moved blocks, removed blocks, checks, and lockfile
-  providers. Keep those labels in step with collector snapshot mapping and
-  projector label mapping.
-- `entityLabelForBucket` rewrites `Module` rows whose parser metadata carries
-  `module_kind == "protocol_implementation"` to the `ProtocolImplementation`
-  label. This handles Elixir `defimpl` blocks.
-- `entitySourceCache` prefers the parser-supplied `Source` field for labels in
-  `sourceFieldContainsCode`, then falls back to a file-body line range, then
-  falls back to `item.Source` again for non-code labels. The distinction matters
-  for IaC entity types that carry structured YAML rather than source code.
-- `limitEntitySourceCache` truncates `Variable` snippets at 4096 bytes and
-  writes `source_cache_truncated`, `source_cache_original_bytes`, and
-  `source_cache_limit_bytes` into entity metadata so API clients can detect the
-  cut. Truncation is UTF-8-safe (`truncateUTF8ByBytes`).
-- `entityEndLine` falls back in order: entity's own `EndLine`, next entity's
-  `LineNumber - 1`, `startLine + 24` capped to total lines, then `startLine`
-  when the body is empty. This means entities without an `EndLine` in the
-  parser output get a bounded snippet rather than the rest of the file.
-- Output ordering is deterministic: entities are sorted by line number, then
-  label, then name before writing. Storage diffs stay stable across re-runs.
+- `contentEntityBuckets` order is persisted output order. Add new buckets at
+  the end to avoid row churn.
+- Terraform bucket labels must stay aligned with parser and projector mapping.
+- Elixir `defimpl` rows become `ProtocolImplementation` when parser metadata
+  carries `module_kind == "protocol_implementation"`.
+- `source_cache` prefers parser-provided source for code labels, then bounded
+  file-body ranges, then non-code source fields.
+- Variable snippets are truncated UTF-8 safely at 4096 bytes and record
+  truncation metadata.
+- Entity ordering is deterministic: line number, label, then name.
 
-## Focused tests
+## Focused Tests
 
 ```bash
 cd go
@@ -75,8 +46,8 @@ go vet ./internal/content/shape
 go doc ./internal/content/shape
 ```
 
-## Related docs
+## Related Docs
 
-- `go/internal/content/README.md` — the `Writer` port and `Materialization` shape
-- `docs/public/architecture.md` — pipeline and Postgres content store role
+- `go/internal/content/README.md`
+- `docs/public/architecture.md`
 - `docs/public/reference/local-testing.md`

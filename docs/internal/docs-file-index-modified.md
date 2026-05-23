@@ -47,8 +47,6 @@ Generated from `git diff --name-status origin/main -- "*.md"` for this documenta
 - `docs/docs/languages/groovy.md -> docs/public/languages/groovy.md`
 - `docs/docs/languages/haskell.md -> docs/public/languages/haskell.md`
 - `docs/docs/languages/helm.md -> docs/public/languages/helm.md`
-- `docs/docs/languages/java.md -> docs/public/languages/java.md`
-- `docs/docs/languages/javascript.md -> docs/public/languages/javascript.md`
 - `docs/docs/languages/json.md -> docs/public/languages/json.md`
 - `docs/docs/languages/kotlin.md -> docs/public/languages/kotlin.md`
 - `docs/docs/languages/kubernetes.md -> docs/public/languages/kubernetes.md`
@@ -56,14 +54,11 @@ Generated from `git diff --name-status origin/main -- "*.md"` for this documenta
 - `docs/docs/languages/perl.md -> docs/public/languages/perl.md`
 - `docs/docs/languages/php.md -> docs/public/languages/php.md`
 - `docs/docs/languages/ruby.md -> docs/public/languages/ruby.md`
-- `docs/docs/languages/rust.md -> docs/public/languages/rust.md`
 - `docs/docs/languages/scala.md -> docs/public/languages/scala.md`
 - `docs/docs/languages/sql.md -> docs/public/languages/sql.md`
-- `docs/docs/languages/support-maturity.md -> docs/public/languages/support-maturity.md`
 - `docs/docs/languages/swift.md -> docs/public/languages/swift.md`
 - `docs/docs/languages/terraform.md -> docs/public/languages/terraform.md`
 - `docs/docs/languages/terragrunt.md -> docs/public/languages/terragrunt.md`
-- `docs/docs/languages/typescript.md -> docs/public/languages/typescript.md`
 - `docs/docs/languages/typescriptjsx.md -> docs/public/languages/typescriptjsx.md`
 - `docs/docs/license.md -> docs/public/license.md`
 - `docs/docs/mcp/index.md -> docs/public/mcp/index.md`
@@ -73,7 +68,6 @@ Generated from `git diff --name-status origin/main -- "*.md"` for this documenta
 - `docs/docs/operate/troubleshooting.md -> docs/public/operate/troubleshooting.md`
 - `docs/docs/reference/cloud-validation.md -> docs/public/reference/cloud-validation.md`
 - `docs/docs/reference/component-package-manager.md -> docs/public/reference/component-package-manager.md`
-- `docs/docs/reference/dead-code-typescript-corpus-evidence.md -> docs/public/reference/dead-code-typescript-corpus-evidence.md`
 - `docs/docs/reference/language-query-dsl.md -> docs/public/reference/language-query-dsl.md`
 - `docs/docs/reference/local-host-lifecycle.md -> docs/public/reference/local-host-lifecycle.md`
 - `docs/docs/reference/logging.md -> docs/public/reference/logging.md`
@@ -138,9 +132,14 @@ Generated from `git diff --name-status origin/main -- "*.md"` for this documenta
 - `go/internal/collector/awscloud/awsruntime/AGENTS.md`
 - `go/internal/collector/awscloud/awsruntime/README.md`
 - `go/internal/collector/awscloud/checkpoint/AGENTS.md`
+- `go/internal/collector/awscloud/freshness/AGENTS.md`
+- `go/internal/collector/awscloud/services/apigateway/AGENTS.md`
 - `go/internal/collector/awscloud/services/apigateway/README.md`
+- `go/internal/collector/awscloud/services/apigateway/awssdk/AGENTS.md`
 - `go/internal/collector/awscloud/services/apigateway/awssdk/README.md`
+- `go/internal/collector/awscloud/services/cloudfront/AGENTS.md`
 - `go/internal/collector/awscloud/services/cloudfront/README.md`
+- `go/internal/collector/awscloud/services/cloudfront/awssdk/AGENTS.md`
 - `go/internal/collector/awscloud/services/cloudfront/awssdk/README.md`
 - `go/internal/collector/awscloud/services/cloudwatchlogs/AGENTS.md`
 - `go/internal/collector/awscloud/services/cloudwatchlogs/README.md`

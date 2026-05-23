@@ -3,7 +3,7 @@
 This package is deterministic helper Go for the
 `terraform_config_state_drift` rule pack. It classifies config/current-state/
 prior-state rows and builds candidates; it MUST NOT own reducer queues,
-telemetry emission, graph projection, or future cloud joins.
+telemetry emission, graph projection, or cloud joins.
 
 ## Read First
 

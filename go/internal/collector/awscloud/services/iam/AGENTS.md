@@ -1,34 +1,18 @@
-# AGENTS.md - internal/collector/awscloud/services/iam guidance
+# AGENTS.md - services/iam
 
-## Read First
+Read `README.md`, `doc.go`, `types.go`, `scanner.go`, `relationships.go`, and
+`awssdk/README.md` before editing this service.
 
-1. `README.md` - package purpose, exported surface, and invariants.
-2. `types.go` - scanner-owned IAM domain types.
-3. `scanner.go` - IAM resource and relationship emission.
-4. `../../README.md` - shared AWS cloud observation and envelope contract.
-5. `docs/public/services/collector-aws-cloud-scanners.md` - scanner coverage and metadata-only data boundaries.
+## Mandatory Rules
 
-## Invariants
-
-- Keep IAM API access behind `Client`; do not import the AWS SDK into this
-  package.
-- Emit reported evidence only. Do not infer environment, deployment, workload,
-  or deployable-unit truth from IAM names or policy text.
-- Preserve stable role, policy, profile, and relationship identities across
-  repeated observations in the same AWS generation.
-- Keep trust policy JSON and ARNs out of metric labels.
-
-## Common Changes
-
-- Add a new IAM resource by extending the scanner-owned type, writing a focused
-  scanner test first, then mapping it through `awscloud` envelope builders.
-- Add a new IAM relationship by defining the relationship constant in
-  `awscloud`, adding scanner coverage, and keeping source and target identity
-  explicit.
-- Extend SDK pagination in the runtime adapter, not here.
-
-## What Not To Change Without Architecture-Owner Approval
-
-- Do not turn IAM trust principals into canonical identity truth here.
-- Do not add graph writes, reducer logic, or query behavior.
-- Do not add AWS credential loading or STS calls to this package.
+- Keep IAM AWS access behind `Client`; the scanner package must not import the
+  AWS SDK.
+- Keep IAM global and use the configured global region label.
+- Emit reported role, policy, instance-profile, trust-policy, and attachment
+  metadata only.
+- Do not persist credential material, access keys, inline policy bodies beyond
+  the documented safe projection, or mutation results.
+- Do not infer workload, environment, repository, ownership, or deployable-unit
+  truth from names, paths, tags, policies, accounts, or aliases.
+- Keep IAM names, paths, ARNs, tags, trust policy text, raw AWS errors, and page
+  tokens out of metric labels.

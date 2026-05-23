@@ -1,37 +1,16 @@
-# AGENTS.md - internal/collector/awscloud/services/ssm/awssdk guidance
+# AGENTS.md - services/ssm/awssdk
 
-## Read First
+Read `README.md`, `doc.go`, `client.go`, `mapper.go`, and `../README.md`
+before editing this adapter.
 
-1. `README.md` - adapter boundary and telemetry.
-2. `client.go` - SDK call surface and API-call recording.
-3. `mapper.go` - safe response mapping into scanner-owned types.
-4. `../README.md` - service package metadata-only contract.
-5. `docs/public/services/collector-aws-cloud-scanners.md` - scanner coverage and metadata-only data boundaries.
+## Mandatory Rules
 
-## Invariants
-
-- Keep the AWS SDK contained in this adapter package.
-- Use DescribeParameters and ListTagsForResource only for this slice. Do not
-  add GetParameter, GetParameters, GetParametersByPath, GetParameterHistory,
-  decryption, or mutation calls without architecture-owner approval and security review.
-- Keep operation labels aligned with AWS SDK operation names.
-- Record every AWS call through `recordAPICall` so status rows and metrics keep
-  API call and throttle counts.
-- Do not put parameter names, paths, ARNs, tags, KMS IDs, page tokens, or raw
-  AWS error text in metric labels.
-
-## Common Changes
-
-- Add a safe metadata field by first adding adapter and scanner tests, then
-  mapping it through `mapParameter`.
-- Add optional pagination behavior in `client.go` and keep page tokens scoped
-  to SDK inputs only.
-- Update `README.md` evidence if call shape, telemetry, or security boundary
-  changes.
-
-## What Not To Change Without Architecture-Owner Approval
-
-- Do not read parameter values, history values, raw policy JSON, decrypted
-  content, or mutation APIs.
-- Do not add credential loading, STS calls, fact persistence, graph writes, or
-  reducer correlation here.
+- Allowed calls are `DescribeParameters` and `ListTagsForResource`.
+- Use resource type `Parameter`, wrap every page and point read in
+  `recordAPICall`, and keep operation labels aligned with AWS SDK names.
+- Do not expose `GetParameter`, `GetParameters`, `GetParametersByPath`,
+  `GetParameterHistory`, decryption, raw policy JSON, mutation, credential,
+  STS, graph, or reducer behavior here.
+- Reduce raw descriptions and allowed patterns to presence flags only.
+- Keep parameter names, paths, ARNs, tags, KMS IDs, page tokens, and raw AWS
+  errors out of metric labels.

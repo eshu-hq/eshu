@@ -101,8 +101,8 @@ eshu install nornicdb
 
 This intentionally fails today. The embedded release manifest has no accepted
 NornicDB assets while Eshu tracks the latest NornicDB main branch for
-process-mode tests. The `--full` flag is reserved for the same future
-release-backed flow. Pass an explicit `--from` source instead.
+process-mode tests. The `--full` flag is reserved until release-backed
+NornicDB assets exist. Pass an explicit `--from` source instead.
 
 ## Build For Process Mode
 

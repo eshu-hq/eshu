@@ -52,82 +52,26 @@ For audited family-level closure status and bounded gaps, see
 | TypeScript | `DefaultEngine (typescript)` | supported | supported | supported | `react-base`, `nextjs-app-router-base`, `express-base`, `hapi-base`, `aws-sdk-base`, `gcp-sdk-base` | supported | supported | supported |
 | TypeScript JSX | `DefaultEngine (tsx)` | supported | supported | supported | `react-base`, `nextjs-app-router-base` | supported | supported | supported |
 
-For JavaScript, TypeScript, TypeScript JSX, Python, and Java, query surfacing is now
-`supported` because the shared Go query outputs expose enriched metadata,
-semantic summaries, and a structured `semantic_profile` on the normal
-language-query, code-search, entities-resolve, and entity-context surfaces.
-JavaScript method-kind rows now also get a dedicated `javascript_method`
-surface kind in those shared query outputs.
-Java dead-code support remains `derived`, but parser and reducer coverage now
-models main/constructor/override roots, Gradle, Spring, JUnit, Jenkins,
-Stapler, serialization hooks, bounded literal reflection, ServiceLoader
-providers, and Spring metadata roots with checked fixtures.
-Kotlin dead-code support is `derived`: parser metadata models top-level main,
-secondary constructors, interface methods and same-file implementations,
-overrides, Gradle plugin/task callbacks, Spring component and method callbacks,
-lifecycle callbacks, and JUnit methods, while exact cleanup remains blocked by
-reflection, dependency injection, annotation processing, compiler plugins,
-dynamic dispatch, Gradle source sets, Kotlin multiplatform targets, and broad
-public API surfaces.
-Scala dead-code support is `derived`: parser metadata models main methods,
-`App` objects, trait methods and same-file implementations, overrides, Play
-controller actions, Akka actor `receive` methods, lifecycle callbacks, JUnit
-methods, and ScalaTest suite classes, while exact cleanup remains blocked by
-macros, implicit/given resolution, dynamic dispatch, reflection, sbt source
-sets, framework route files, compiler plugins, and broad public API surfaces.
-Issue #105 dogfood validated this path against Play Framework and the Scala
-compiler with fresh `derived` dead-code API truth after queue drain.
-Elixir dead-code support is `derived`: parser metadata models Application
-`start/2`, public macros and guards, `@impl` behaviour callbacks,
-arity-checked GenServer and Supervisor callbacks, Mix task `run/1`, protocol
-functions and implementations, Phoenix controller actions shaped as `action/2`,
-and arity-checked LiveView callbacks. It remains non-exact until macro
-expansion, dynamic dispatch, behaviour callback resolution, protocol dispatch,
-Phoenix route resolution, supervision trees, Mix environment selection, and
-broad public API surfaces are
-modeled or scoped out.
-Dart dead-code support is `derived`: parser metadata models top-level
-`main()`, constructors and named constructors, `@override` methods, Flutter
-`build` and `createState` callbacks, and public `lib/` API declarations outside
-`lib/src/`. It remains non-exact until part-file library resolution,
-conditional import/export selection, package export surfaces, dynamic dispatch,
-Flutter route/lifecycle wiring, generated code, reflection/mirrors, and broad
-public API surfaces are modeled or scoped out. Issue #98 dogfood validated this
-path against Flutter and `dart-lang/http` with fresh `derived` dead-code API
-truth from isolated Compose runs.
-Haskell dead-code support is `derived`: parser metadata models `main`, explicit
-module-exported functions and types, typeclass method declarations, and
-instance methods. Function-call rows are bounded lexical evidence from
-definition right-hand sides. Exact cleanup remains blocked by Template Haskell,
-CPP conditional compilation, Cabal component membership, implicit module export
-surfaces, typeclass dispatch, module re-export resolution, and FFI callbacks.
-Perl dead-code support is `derived`: parser metadata models script `main`,
-public package namespaces, Exporter `@EXPORT` and `@EXPORT_OK` functions,
-package constructors, compile/runtime special blocks, `AUTOLOAD`, and
-`DESTROY`. Exact cleanup remains blocked by symbolic reference dispatch,
-AUTOLOAD target resolution, `@ISA` inheritance, Moose/Moo metadata, import side
-effects, runtime `eval`, and broad public API surfaces. Issue #103 dogfood is
-validated against Mojolicious and MetaCPAN, with the larger `Perl/perl5` run
-recorded as a Neo4j default-memory projection limit after successful parse and
-materialization.
-SQL real-repo and end-to-end indexing are `supported` on the current Go
-parser/query path. The remaining dbt lineage limits are bounded non-goals for
-the documented SQL surface.
-Swift dead-code support is `derived`: parser metadata models `@main`, top-level
-`main`, SwiftUI app/body roots, protocol methods and same-file implementations,
-constructors, overrides, UIKit application delegate callbacks, Vapor route
-handlers, XCTest methods, and Swift Testing `@Test` methods. Exact cleanup
-remains blocked by macro expansion, conditional compilation, SwiftPM target
-membership, protocol witness resolution, dynamic dispatch, property-wrapper and
-result-builder generated code, Objective-C runtime dispatch, and broad public
-API surfaces.
-Terraform and Terragrunt dead-code support is `non_code_iac_evidence`: parser
-and query surfaces expose Terraform and Terragrunt entities as infrastructure
-and configuration evidence, while the code dead-code endpoint does not treat
-HCL entities as source-code cleanup candidates. Exact cleanup-safe IaC liveness
-requires Terraform plan/state availability, module and dependency graph
-resolution, workspace and variable selection, dynamic block expansion, and
-Terragrunt runtime include resolution.
+## Reading The Matrix
+
+The table is a support summary, not a release plan. Detailed parser behavior
+lives with the language package READMEs and focused tests under
+`go/internal/parser`; query behavior lives under `go/internal/query`.
+
+Current high-level boundaries:
+
+- JavaScript, TypeScript, TSX, Python, and Java expose graph-backed query
+  metadata, semantic summaries, and `semantic_profile` fields on the documented
+  query surfaces.
+- Code dead-code support remains `derived` for source languages listed in
+  [Dead Code Language Maturity](../reference/dead-code-language-maturity.md).
+  `derived` means Eshu can return graph-backed candidates with modeled roots,
+  not cleanup-safe exact truth.
+- Terraform and Terragrunt are `non_code_iac_evidence` for dead-code purposes:
+  their parser/query surfaces expose infrastructure evidence, but
+  `code_quality.dead_code` does not treat HCL entities as source-code cleanup
+  candidates.
+- Empty cells mean this page makes no audited support claim for that dimension.
 
 This matrix stays intentionally coarse and should not be read as the
 canonical signoff checklist.

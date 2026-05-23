@@ -6,7 +6,7 @@ many allocate local ports and reuse Compose project state.
 
 ## Go Runtime Package Gate
 
-Use this broad package gate for current runtime and collector wiring:
+Use this broad package gate for runtime and collector wiring:
 
 ```bash
 cd go
@@ -21,9 +21,9 @@ go test ./internal/parser ./internal/collector/discovery ./internal/content/shap
 
 ## Collector Gates
 
-Use these focused checks when changing collector families or source providers.
-Tracked evidence must name input size, fact count, wall time, remote/API
-budget, and the telemetry that makes the source stage diagnosable.
+Use focused checks when changing collector families or source providers.
+Tracked evidence must name input size, fact count, wall time, API budget, and
+telemetry.
 
 ```bash
 cd go
@@ -100,9 +100,9 @@ The status output should report no active owner for that workspace.
 
 ## Compose Gates
 
-Run only the gate that matches the touched behavior. These scripts own their
-fixture setup and teardown details; do not replace them with a hand-run Compose
-session when you need acceptance evidence.
+Run only the gate that matches the touched behavior. These scripts own fixture
+setup and teardown; use them instead of hand-run Compose when you need
+acceptance evidence.
 
 ```bash
 ./scripts/verify_collector_git_runtime_compose.sh

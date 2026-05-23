@@ -1,8 +1,8 @@
 # MCP Cookbook
 
-Use this page for copy-ready MCP workflows. It does not repeat every tool
-schema. For setup, use [MCP Guide](../guides/mcp-guide.md). For the full tool
-index and bounds, use [MCP Reference](mcp-reference.md) and
+Use this page for copy-ready MCP workflows. For setup, use
+[MCP Guide](../guides/mcp-guide.md). For the full tool index and bounds, use
+[MCP Reference](mcp-reference.md) and
 [MCP Tool Contract Matrix](mcp-tool-contract-matrix.md).
 
 ## Call Rules
@@ -27,8 +27,7 @@ Start with the story tool when the user wants the current service picture:
 { "workload_id": "payments-api", "environment": "prod" }
 ```
 
-Use the investigation tool when the prompt needs evidence-first onboarding or a
-scoped question:
+Use the investigation tool for evidence-first onboarding or a scoped question:
 
 **Tool:** `investigate_service`
 
@@ -36,7 +35,7 @@ scoped question:
 { "service_name": "payments-api", "environment": "prod", "intent": "onboarding", "limit": 25 }
 ```
 
-Follow with citation hydration for files or entities that the story returns:
+Hydrate cited files or entities that the story returns:
 
 **Tool:** `build_evidence_citation_packet`
 
@@ -188,9 +187,9 @@ runtime's persisted status.
 
 ## Diagnostic Cypher Queries
 
-Raw Cypher is diagnostics-only. Use named MCP tools for normal prompt flows, and
-reach for this only when proving a backend or query-shape issue with an explicit
-scope and bounded result set.
+Raw Cypher is diagnostics-only. Use named tools for normal prompt flows. Use
+Cypher only when proving a backend or query-shape issue with explicit scope and
+bounded results.
 
 **Tool:** `execute_cypher_query`
 

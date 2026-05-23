@@ -4,16 +4,11 @@ Eshu turns repository content, infrastructure definitions, deployment metadata,
 registry metadata, cloud observations, and runtime evidence into one queryable
 graph.
 
-Use this page for the current system shape:
+Use this page for the current runtime boundaries, write/read paths, backend
+seam, and links to the deeper contracts.
 
-- what the major runtime and storage boundaries are
-- how source evidence becomes graph truth
-- which packages own each part of the data plane
-- where to go for deeper runtime, backend, telemetry, and extension contracts
-
-If you want the shorter concept path first, start with
-[Understand Eshu](understand/index.md). If you are operating a running system,
-start with [Operate Eshu](operate/index.md). If you are adding collectors,
+For the shorter concept path, start with [Understand Eshu](understand/index.md).
+For operations, start with [Operate Eshu](operate/index.md). For collectors,
 facts, or language support, start with [Extend Eshu](extend/index.md).
 
 ## Core Model
@@ -87,7 +82,7 @@ flowchart LR
 
 ## Runtime Boundaries
 
-The runtime split has three ownership rules:
+Runtime ownership has three rules:
 
 - Intake runtimes observe bounded source scopes and commit facts.
 - The resolution engine owns canonical graph projection, shared
@@ -100,10 +95,10 @@ live in [Service Runtimes](deployment/service-runtimes.md).
 
 ## Package Ownership
 
-The repository layout follows these service boundaries. Keep collection code in
-collector/parser packages, durable fact and queue state in storage packages,
-graph write contracts in the Cypher storage layer, materialization in projector
-and reducer packages, read surfaces in query packages, and operator signals in
+The repository layout follows service boundaries: collection belongs in
+collector/parser packages, fact and queue state in storage packages, graph write
+contracts in the Cypher storage layer, materialization in projector/reducer
+packages, reads in query packages, and operator signals in
 runtime/status/telemetry packages.
 
 For the directory-by-directory map, use
@@ -130,10 +125,10 @@ sequenceDiagram
   Reducer->>Pg: ack, retry, or dead-letter work
 ```
 
-This path is replayable because every service boundary crosses through durable
-facts, queues, claims, status rows, and graph-write telemetry. A failed graph
-write should be diagnosed from queue state and telemetry, not hidden by moving
-graph writes into intake services.
+This path is replayable because service boundaries cross through durable facts,
+queues, claims, status rows, and graph-write telemetry. Diagnose failed graph
+writes from queue state and telemetry; do not move graph writes into intake
+services.
 
 ## Read Path
 
@@ -151,13 +146,12 @@ flowchart LR
 
 Read handlers are bounded before execution. List-style reads need scope, limit,
 timeout, and deterministic ordering. If a surface cannot answer accurately from
-the active profile, it should return a structured `unsupported_capability` or
-truth-labeled response instead of silently downgrading.
+the active profile, it returns `unsupported_capability` or a truth-labeled
+response instead of silently downgrading.
 
-## Shared Contracts
+## Contract Links
 
-Eshu keeps the main contracts in focused references so architecture prose does
-not become the source of stale truth.
+Focused references own the details:
 
 | Contract | Current source |
 | --- | --- |
@@ -201,8 +195,8 @@ The same contracts run in local and deployed shapes:
   configured graph backend.
 
 The capability matrix defines each profile's supported capabilities and truth
-levels. Lightweight local mode refuses graph-authoritative questions that need
-the graph backend instead of silently returning low-authority answers.
+levels. Lightweight local mode refuses graph-authoritative questions that need a
+graph backend instead of silently returning low-authority answers.
 
 ## What Belongs Elsewhere
 

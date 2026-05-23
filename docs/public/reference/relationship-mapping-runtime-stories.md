@@ -1,7 +1,7 @@
 # Relationship Runtime And Stories
 
 This page explains how resolved relationships become graph edges and how query
-surfaces turn those edges into deployment and service stories.
+surfaces shape deployment and service stories.
 
 ## Runtime Topology
 
@@ -16,7 +16,7 @@ Repository -[:PROVISIONS_PLATFORM]-> Platform
 WorkloadInstance -[:DEPLOYMENT_SOURCE]-> Repository
 ```
 
-Repository-level platform counts and stories should follow the workload-instance
+Repository-level platform counts and stories follow the workload-instance
 runtime shape:
 
 ```text
@@ -34,7 +34,7 @@ runtime ownership lives on workload instances.
 The Go write path uses explicit phase rows so shared edge writers do not run
 before their required nodes exist.
 
-Current readiness flow:
+Readiness flow:
 
 1. projector writes canonical nodes for a bounded acceptance slice
 2. projector publishes `canonical_nodes_committed`
@@ -56,10 +56,10 @@ See [Service Workflows](service-workflows.md) and
 [Shared-Write Operations](telemetry/shared-write-operations.md) for operator
 signals.
 
-## Deployment Overview
+## Story Fields
 
-Repository and service story responses are story-first. Read `story` first,
-then `deployment_overview`, then drill-down fields.
+Repository and service responses are story-first: read `story`, then
+`deployment_overview`, then drill-down fields.
 
 `deployment_overview` is assembled from materialized graph truth plus read-side
 artifact extraction. Common fields include:
@@ -76,7 +76,8 @@ artifact extraction. Common fields include:
 - `platforms`
 - `infrastructure_families`
 
-These fields are summaries. They do not create canonical relationships.
+These fields summarize existing truth. They do not create canonical
+relationships.
 
 ## Shared Config And Consumers
 
@@ -138,8 +139,8 @@ Rules:
 `POST /api/v0/impact/trace-deployment-chain` is the deployment-specific story
 surface. It resolves a service/workload, fetches deployment sources, cloud
 resources, Kubernetes evidence, image refs, OCI registry truth, controller
-entities, and consumer evidence, then returns a story-first response with
-truth metadata.
+entities, and consumer evidence, then returns a story-first response with truth
+metadata.
 
 Use this route when a repository story is not enough and the user asks how a
 service reaches runtime.

@@ -5,20 +5,20 @@ ingestion, reduction, Postgres, and a graph backend. Use
 [Local binaries](local-binaries.md) when you are editing source code and want
 fast rebuilds without containers.
 
-## Choose a Compose file
+## Choose A Compose File
 
 | Compose file or profile | What it starts | Use it when |
 | --- | --- | --- |
-| `docker-compose.yaml` | Default local stack with NornicDB, Postgres, migration, workspace setup, bootstrap indexing, API, MCP, ingester, and reducer. | You want the normal local product stack. Start here. |
-| `docker-compose.neo4j.yml` | Core runtime shape with Neo4j instead of NornicDB. It includes the workflow-coordinator profile, but not the default-stack webhook-listener profile. | You need Neo4j compatibility checks or a Neo4j-backed migration path. |
-| `docker-compose.telemetry.yml` | Adds Jaeger, the OpenTelemetry collector, and OTLP export settings to the main runtimes. | You need local traces, metrics export, or operator debugging data. |
+| `docker-compose.yaml` | Default stack: NornicDB, Postgres, migration, workspace setup, bootstrap indexing, API, MCP, ingester, and reducer. | You want the normal local product stack. |
+| `docker-compose.neo4j.yml` | Neo4j compatibility stack. Includes the workflow-coordinator profile but not the default webhook-listener profile. | You need Neo4j compatibility checks. |
+| `docker-compose.telemetry.yml` | Jaeger, OpenTelemetry collector, and OTLP export settings. | You need local traces or metrics export. |
 | `--profile workflow-coordinator` | Adds the workflow coordinator to the default or Neo4j stack. | You are testing collector claims, scheduling, or control-plane behavior. |
 | `--profile webhook-listener` | Adds the webhook listener to the default NornicDB stack. | You are testing webhook-driven freshness or external event ingestion locally. |
 | `docker-compose.tier2-tfstate.yaml` | Layers MinIO, MinIO setup, active workflow coordination, and one Terraform state collector onto the default stack. | You are running the Tier-2 Terraform state drift proof. |
 | `docker-compose.tier2-tfstate-v25.yaml` | Layers MinIO, two generation-specific MinIO setup jobs, active workflow coordination, and two Terraform state collectors. | You are running the v2.5 Terraform state drift proof across two fixture generations. |
 | `docker-compose.remote-e2e.yaml` | Standalone remote proof stack with runtime services, preflight, workflow coordination, webhook listener, and cloud/package/registry collectors. | You are on an EC2 or VPN-attached host and need a full remote collector proof. |
 
-## Default stack
+## Default Stack
 
 Start the default stack from the repository root:
 
@@ -46,8 +46,7 @@ The NornicDB service defaults to a pinned multi-arch Docker manifest:
 Leave `NORNICDB_PLATFORM` unset for normal local runs. Docker selects the
 `linux/arm64` image on Apple Silicon and the `linux/amd64` image on x86 hosts.
 
-When testing a local NornicDB main build, override the image and platform
-together:
+When testing a local NornicDB build, override image and platform together:
 
 ```bash
 NORNICDB_IMAGE=nornicdb-main-eshu:cb20824-arm64 \
@@ -55,14 +54,12 @@ NORNICDB_PLATFORM=linux/arm64 \
 docker compose up --build bootstrap-index
 ```
 
-NornicDB graph-only note: Eshu Compose sets `NORNICDB_EMBEDDING_ENABLED=false`
-and `NORNICDB_PERSIST_SEARCH_INDEXES=true`. NornicDB does not currently
-document a supported switch that disables search/BM25 services entirely for
-graph-only deployments. Eshu tracks that upstream gap in
-[orneryd/NornicDB#175](https://github.com/orneryd/NornicDB/issues/175); until
-that exists, do not add a fake `NORNICDB_SEARCH_ENABLED` style variable.
+Eshu Compose sets `NORNICDB_EMBEDDING_ENABLED=false` and
+`NORNICDB_PERSIST_SEARCH_INDEXES=true`. NornicDB does not document a supported
+search/BM25 disable switch for graph-only deployments; do not invent a fake
+`NORNICDB_SEARCH_ENABLED` variable.
 
-## Optional default-stack profiles
+## Optional Profiles
 
 The default `docker-compose.yaml` also defines services that are off unless you
 enable a profile.
@@ -78,11 +75,9 @@ Start the workflow coordinator in its default dark mode:
 docker compose --profile workflow-coordinator up --build workflow-coordinator
 ```
 
-Use active mode only in fenced proof runs. The Kubernetes chart remains
-dark-only until remote full-corpus, API, MCP, and evidence-truth checks are
-clean.
+Use active mode only in fenced proof runs.
 
-## Neo4j stack
+## Neo4j Stack
 
 Start the Neo4j-backed stack with:
 
@@ -97,10 +92,10 @@ default-stack `webhook-listener` profile. Use this stack only when you need
 Neo4j compatibility behavior; use the default NornicDB stack for normal local
 evaluation.
 
-## Telemetry overlay
+## Telemetry Overlay
 
-The telemetry overlay is additive. It does not replace the default or Neo4j
-stack; it layers tracing and metrics export onto whichever stack you choose.
+The telemetry overlay layers tracing and metrics export onto the default or
+Neo4j stack.
 
 Default stack with telemetry:
 
@@ -118,14 +113,12 @@ The overlay adds Jaeger on `http://localhost:16686`, an OpenTelemetry collector
 on `4317`, `4318`, and `9464`, and OTLP env overrides for API, MCP, ingester,
 reducer, bootstrap index, and workflow coordinator.
 
-## Tier-2 Terraform state overlay
+## Tier-2 Terraform State Overlay
 
-Use `docker-compose.tier2-tfstate.yaml` when the Terraform state drift proof
-needs MinIO, active workflow coordination, and a Terraform state collector in
-the local Compose topology. The overlay redirects `bootstrap-index`,
-`ingester`, `resolution-engine`, and `eshu` to
-`./tests/fixtures/tfstate_drift_tier2/repos/` so the proof owns its fixture
-corpus.
+Use `docker-compose.tier2-tfstate.yaml` for the Terraform state drift proof
+with MinIO, active workflow coordination, and one Terraform state collector.
+The overlay points runtime services at
+`./tests/fixtures/tfstate_drift_tier2/repos/`.
 
 | Service or override | Provides |
 | --- | --- |
@@ -140,14 +133,14 @@ The overlay pins MinIO images to immutable release tags
 `minio/mc:RELEASE.2025-08-13T08-35-41Z`). Confirm replacement tags exist on
 Docker Hub before bumping them; do not switch to `:latest`.
 
-Runbook command details live in
+Run commands live in
 [Verification Gates](../reference/local-testing/verification-gates.md#targeted-graph-and-terraform-gates).
 
-## Tier-2 Terraform state v2.5 overlay
+## Tier-2 Terraform State v2.5 Overlay
 
 Use `docker-compose.tier2-tfstate-v25.yaml` for the two-generation Terraform
-state drift proof. It does not stack on top of
-`docker-compose.tier2-tfstate.yaml`; use it with the default stack.
+state drift proof. It does not stack on
+`docker-compose.tier2-tfstate.yaml`; layer it with the default stack.
 
 | Service or override | Provides |
 | --- | --- |
@@ -162,14 +155,12 @@ state drift proof. It does not stack on top of
 Use this overlay only for the v2.5 proof. Use the simpler Tier-2 overlay for
 the single-generation proof.
 
-## Remote collector E2E stack
+## Remote Collector E2E Stack
 
-Use `docker-compose.remote-e2e.yaml` on a VPN-attached or account-local EC2
-test machine when you need an isolated proof for the default runtime plus
-claim-driven Terraform state, OCI registry, package registry, AWS cloud, and
-optional Confluence collectors. The file is standalone and defaults the Compose
-project to `eshu-remote-e2e`, so its volumes do not collide with the default
-local stack or the Tier-2 MinIO overlays.
+Use `docker-compose.remote-e2e.yaml` on a VPN-attached or account-local test
+machine for the default runtime plus claim-driven Terraform state, OCI
+registry, package registry, AWS cloud, and optional Confluence collectors. It
+is standalone and defaults the Compose project to `eshu-remote-e2e`.
 
 For the service list, proof commands, AWS credential requirements, pprof ports,
 and acceptance evidence, see
@@ -179,7 +170,7 @@ The optional `docker-compose.remote-e2e.pprof.yaml` overlay binds host pprof
 ports to `127.0.0.1`; keep profiler access private and use it only for focused
 proof runs.
 
-## Point local CLI commands at Compose
+## Point CLI Commands At Compose
 
 The API is available at `http://localhost:8080` by default. The MCP service is
 available at `http://localhost:8081` by default.

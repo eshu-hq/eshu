@@ -1,40 +1,17 @@
-# AGENTS.md - internal/collector/awscloud/services/ecs/awssdk guidance
+# AGENTS.md - services/ecs/awssdk
 
-## Read First
+Read `README.md`, `doc.go`, `client.go`, `mapper.go`, and `../README.md`
+before editing this adapter.
 
-1. `README.md` - adapter purpose, exported surface, and invariants.
-2. `client.go` - ECS SDK pagination, batched describes, mapping, and telemetry.
-3. `../scanner.go` - scanner-owned ECS fact selection and redaction.
-4. `../README.md` - ECS scanner contract.
-5. `docs/public/services/collector-aws-cloud-scanners.md` - scanner coverage and metadata-only data boundaries.
+## Mandatory Rules
 
-## Invariants
-
-- Keep ECS SDK calls here, not in `cmd/collector-aws-cloud` or the scanner
-  package.
-- Preserve AWS API telemetry for every SDK call, including batched describe
-  calls.
-- Batch ECS describe APIs at documented limits: clusters `100`, services `10`,
-  and tasks `100`.
-- Preserve ElasticNetworkInterface attachment details from `DescribeTasks`.
-- Do not log or label task-definition environment values, secret references,
-  resource ARNs, tags, or image refs.
-- Do not read secret values. ECS `Secret.ValueFrom` is a reference and should
-  be mapped as-is.
-
-## Common Changes
-
-- Add a new ECS API read by extending `ecs.Client`, writing adapter mapping
-  tests, and wrapping the SDK call with `recordAPICall`.
-- Add mapping fields only after confirming they are reported by ECS and safe for
-  persistence.
-- Keep retry and throttling behavior in the AWS SDK and telemetry wrapper; do
-  not add local retry loops here without architecture-owner approval.
-
-## What Not To Change Without Architecture-Owner Approval
-
-- Do not infer workload, environment, deployment, or ownership truth from ECS
-  names or tags here.
-- Do not add graph writes, reducer logic, or query behavior.
-- Do not cache cross-account credentials or create SDK clients outside the
-  claim-scoped factory path.
+- Allowed calls are ECS list/describe calls for clusters, services, task
+  definitions, and tasks.
+- Wrap every page, batch, and point read in `recordAPICall`.
+- Do not add `ExecuteCommand`, task stop/start, service mutation, secret-value
+  reads, credential, STS, graph, or reducer behavior here.
+- Preserve SDK response mapping as scanner-owned metadata; scanner code owns
+  redaction before persistence.
+- Keep cluster names, service names, task ARNs, task definition ARNs, tags,
+  image URIs, environment values, page tokens, and raw AWS errors out of metric
+  labels.

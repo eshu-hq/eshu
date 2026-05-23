@@ -1,16 +1,13 @@
-# AGENTS - internal/reducer/tags
+# internal/reducer/tags Agent Rules
 
-Read this before touching `go/internal/reducer/tags`.
+These rules are mandatory for changes under `go/internal/reducer/tags`.
 
 ## Read first
 
-1. `go/internal/reducer/README.md` — full reducer context and the
-   post-Phase-3 reopen requirement.
-2. `go/internal/reducer/AGENTS.md` — invariants governing all reducer
-   sub-packages.
-3. `CLAUDE.md` "Facts-First Bootstrap Ordering" — Phase 1 canonical-nodes
-   publications from this package feed downstream domains that may require
-   Phase 3 reopen.
+1. `README.md` and `doc.go`.
+2. `go/internal/reducer/README.md` and `go/internal/reducer/AGENTS.md`.
+3. `docs/internal/agent-guide.md` section "Bootstrap And Correlation Truth"
+   before changing readiness publications.
 
 ## Mandatory Invariants
 
@@ -27,21 +24,13 @@ Read this before touching `go/internal/reducer/tags`.
 - `DefaultRuntimeContract` and `RuntimeContractTemplate` return defensive
   copies.
 
-## Common changes
+## Change Rules
 
-### Add a new canonical keyspace to the contract
-
-1. Append to `defaultRuntimeContract.CanonicalKeyspaces` in `contract.go`.
-2. Update `PhaseStates` in `normalizer.go` to produce a row for the new
-   keyspace if it needs a different phase or keyspace mapping.
-3. Update this README.
-
-### Implement a concrete `Normalizer`
-
-- The normalizer belongs in a separate package. It must satisfy
-  `Normalizer` (`normalizer.go:14`) and produce a `NormalizationResult`
-  with `CanonicalResourceID` values that match canonical nodes already
-  written to the graph.
+- New canonical keyspace: update the runtime contract, phase-state mapping,
+  README, and tests together.
+- Concrete normalizer: implement it outside this package. It MUST satisfy
+  `Normalizer` and produce `CanonicalResourceID` values that match canonical
+  nodes already written to the graph.
 
 ## Failure modes
 
@@ -49,11 +38,11 @@ Read this before touching `go/internal/reducer/tags`.
   edge domains that gate on `canonical_nodes_committed` for
   `cloud_resource_uid` will block. Verify the normalizer ran and
   `PublishNormalizationResult` was called with a non-nil publisher.
-- **`NormalizationResult` with blank `CanonicalResourceID`**: `Validate`
-  (`normalizer.go:47`) returns an error, and `PhaseStates` will not be
-  called. The error must propagate to the caller, not be swallowed.
+- **`NormalizationResult` with blank `CanonicalResourceID`**: validation
+  returns an error and `PhaseStates` must not run. The error MUST propagate to
+  the caller.
 
-## Anti-patterns
+## Anti-Patterns
 
 - Do not add cloud-tag normalization logic to this package.
 - Do not publish a different phase or keyspace than
@@ -61,7 +50,7 @@ Read this before touching `go/internal/reducer/tags`.
   If the substrate needs different readiness metadata, extend the contract
   through a new output kind or a separate `PhaseStates`-equivalent.
 
-## What MUST NOT change without architecture-owner approval
+## Forbidden Without Architecture-Owner Approval
 
 - The hardcoded `cloud_resource_uid` / `canonical_nodes_committed`
   mapping in `PhaseStates`. Changing it alters the Phase 1 readiness

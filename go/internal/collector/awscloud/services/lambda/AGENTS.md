@@ -1,38 +1,18 @@
-# AGENTS.md - internal/collector/awscloud/services/lambda guidance
+# AGENTS.md - services/lambda
 
-## Read First
+Read `README.md`, `doc.go`, `types.go`, `scanner.go`, `relationships.go`, and
+`awssdk/README.md` before editing this service.
 
-1. `README.md` - package purpose, exported surface, and invariants.
-2. `types.go` - scanner-owned Lambda records and client seam.
-3. `scanner.go` - fact-envelope construction and environment redaction.
-4. `relationships.go` - alias, event-source, image, IAM, subnet, and security
-   group relationship evidence.
-5. `awssdk/README.md` - AWS SDK adapter contract.
+## Mandatory Rules
 
-## Invariants
-
-- Lambda facts are reported AWS evidence. Do not materialize graph truth here.
-- Redact every environment variable value with `redact.String` before
-  persistence. Never preserve raw function environment values in facts, logs,
-  spans, tests, or docs.
-- Preserve container image URI and resolved image URI as join evidence for ECR.
-- Preserve VPC subnet and security group IDs as join evidence for EC2 topology.
-- Preserve event-source ARNs on mapping facts and mapping-to-function
-  relationships.
-- Do not persist AWS Lambda GetFunction package download URLs; they are
-  presigned and short-lived.
-
-## Common Changes
-
-- Add a new Lambda attribute in `Function` and map it in `scanner.go`.
-- Add a new relationship in `relationships.go` only when the downstream reducer
-  can use the evidence without collector-side inference.
-- Extend SDK mapping in `awssdk/client.go`; keep AWS SDK types out of this
-  package.
-
-## What Not To Change Without Architecture-Owner Approval
-
-- Do not call AWS APIs from this package.
-- Do not infer source repository, deployment environment, or workload ownership
-  from function names, aliases, tags, or event-source names.
-- Do not add live invocation state, logs, or function code contents to facts.
+- Keep Lambda AWS access behind `Client`; the scanner package must not import
+  the AWS SDK.
+- Redact environment values before envelope construction.
+- Emit reported function, alias, event-source mapping, VPC, log group, layer,
+  image, and role relationship evidence only.
+- Do not persist presigned code URLs, function code, payloads, raw environment
+  values, resource policies, invocation data, or mutation results.
+- Do not infer workload, environment, repository, ownership, or deployable-unit
+  truth from function names, tags, layers, images, or accounts.
+- Keep function names, ARNs, tags, image URIs, environment values, code URLs,
+  raw AWS errors, and page tokens out of metric labels.

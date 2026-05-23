@@ -4,61 +4,41 @@
 
 `internal/projector` owns source-local projection stages. It turns committed
 fact envelopes into canonical graph rows and publishes readiness or reducer
-intents for shared, cross-source domains.
+intents for shared domains.
 
-## Ownership boundary
+## Ownership Boundary
 
 The projector owns fact filtering, source-local canonical rows, failure
-classification, queue retry behavior, readiness publication, and handoff to
-Cypher writers. It does not admit cross-source truth; reducer domains own
-correlation, materialization, and shared graph projection.
+classification, queue retry behavior, readiness publication, and Cypher writer
+handoff. It does not admit cross-source truth; reducer domains own correlation,
+materialization, and shared graph projection.
 
-## Exported surface
+## Exported Surface
 
-See `doc.go` for the godoc contract. The main surfaces are `Runtime`,
-`Service`, `ProjectionRunner`, work source/sink/heartbeat ports, retry helpers,
-stage functions such as `ProjectFileStage`, `ProjectEntityStage`,
-`ProjectRelationshipStage`, and `ProjectWorkloadStage`, canonical row types,
-failure classification types, `EntityTypeLabel`, and `EntityTypeLabelMap`.
-
-## Dependencies
-
-`internal/facts` supplies durable envelopes and fact kinds.
-`internal/storage/cypher` consumes canonical graph rows. `internal/reducer`
-consumes published reducer intents and readiness rows. `internal/telemetry`
-supplies projector spans, stage metrics, queue metrics, and structured log
-keys.
-
-Graph writes route through the `CanonicalWriter` interface. Source-local
-evidence such as package-registry source hints, AWS resources, image
-references, and service-catalog facts enqueue reducer intents instead of
-admitting cross-source truth here.
+See `doc.go` and `go doc ./internal/projector`. Main surfaces include
+`Runtime`, `Service`, `ProjectionRunner`, work source/sink/heartbeat ports,
+retry helpers, stage functions, canonical row types, failure classification,
+`EntityTypeLabel`, and `EntityTypeLabelMap`.
 
 ## Telemetry
 
-Projector code emits `SpanProjectorRun`, `SpanReducerIntentEnqueue`,
-`SpanCanonicalWrite`, projector stage duration metrics, canonical projection
-metrics, reducer-intent enqueue counters, queue claim/ack/failure signals,
-generation processing logs, failure classification, supersession logs, and
-large-generation semaphore wait metrics.
+Projector code emits projector run, reducer-intent enqueue, canonical write,
+stage duration, queue, supersession, failure-classification, and large-generation
+semaphore signals through `internal/telemetry`.
 
-## Gotchas / invariants
+## Gotchas / Invariants
 
 - Projection must be idempotent across duplicate claims, retries, and partial
   graph writes.
-- `ErrWorkSuperseded` means a newer same-scope generation replaced stale local
-  polling work; do not report it as corrupt data.
-- Source-local projection does not invent cross-source deployment, workload, or
+- `ErrWorkSuperseded` means newer same-scope work replaced stale local polling;
+  do not treat it as corrupt data.
+- Source-local projection must not invent cross-source deployment, workload, or
   ownership truth.
-- OCI registry projection treats digest-addressed manifests, indexes, and
-  descriptors as canonical identity; tags remain weak mutable observations.
-- OCI, Git, and AWS image-reference evidence emit
-  `container_image_identity` reducer intents for reducer-owned joins.
-- AWS resource observations stay source-local until an
-  `aws_cloud_runtime_drift` reducer intent is emitted.
-- Entity labels must stay aligned with graph schema support.
+- OCI digest identities are canonical; tags are mutable observations.
+- AWS resource observations stay source-local until reducer intent handles
+  runtime-drift materialization.
 
-## Focused tests
+## Focused Tests
 
 ```bash
 cd go
@@ -68,11 +48,10 @@ go run ./cmd/eshu docs verify ../go/internal/projector --limit 1000 \
   --fail-on contradicted,missing_evidence
 ```
 
-## Related docs
+## Related Docs
 
 - `docs/public/architecture.md`
 - `docs/public/deployment/service-runtimes.md`
 - `docs/public/reference/telemetry/index.md`
 - `docs/public/reference/cypher-performance.md`
 - `go/internal/storage/cypher/README.md`
-- `go/internal/reducer/README.md`

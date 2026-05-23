@@ -9,7 +9,7 @@ repo's 500-line limit.
 - Total Markdown files left in the checkout after the current pass: 548
 - Current branch doc status from
   `git diff --name-status origin/main -- '*.md'` after the current pass:
-  104 added, 317 modified, 157 deleted, 77 renamed
+  110 added, 322 modified, 163 deleted, 71 renamed
 - Copied image assets removed from this branch: 43 files under
   `docs/public/images/`. They were reference assets from another project and
   no longer appear in the source-doc reference scan.
@@ -19,7 +19,7 @@ repo's 500-line limit.
   and old ADR trees
 - Remaining `AGENTS.md` files: 152 total; root plus scoped package/command
   files remain harness-loaded guidance.
-  Current total scoped-agent content is 6,613 lines, with root `AGENTS.md`
+  Current total scoped-agent content is 5,625 lines, with root `AGENTS.md`
   preserved as mandatory harness guidance.
 
 ## File Indexes
@@ -151,6 +151,7 @@ branch. Regenerate them from
 | Collector Scoped AGENTS Compression | Reduced collector scoped agent guidance from 749 to 492 lines while preserving source-evidence, claim fencing, memory, discovery, telemetry, redaction, and performance proof rules. |
 | Parallel Command Workflow Storage Docs Compression | Used five subagents plus parent review to compress command, workflow, correlation, graph, storage, IaC, public runbook, and package README docs. This pass changed 60 Markdown files with 2,090 insertions and 4,127 deletions while preserving root `AGENTS.md` and package-specific mandatory rules. |
 | Parallel Front Door Parser Collector Docs Compression | Used five subagents plus parent review to compress root/developer/testing docs, repo/deploy READMEs, parser/collector/content scoped agent guidance, and public Terraform/logging/dead-code/E2E references. This pass changed 67 Markdown files with 1,364 insertions and 2,130 deletions while preserving root `AGENTS.md` and correcting Terraform provider schema totals to 21 providers and 6,236 resource types. |
+| Parallel AWS Public And Package Docs Compression | Used five subagents plus parent review to compress AWS collector scoped guidance, parent subsystem agent guidance, mid-size package READMEs, public architecture/reference pages, and language-support pages. This pass changed 95 Markdown files with 1,773 insertions and 3,368 deletions; AWS cloud collector agent guidance fell from 1,746 to 812 lines, selected package READMEs fell from 1,355 to 892 lines, and total scoped-agent content fell to 5,625 lines while root `AGENTS.md` stayed mandatory. |
 
 ## Verification Snapshot
 
@@ -169,17 +170,14 @@ Current pass proof:
   verification passed for the current pass with 0 contradicted and 0 missing
   evidence claims. Focused query and reducer tests passed for the correlation
   DSL fixture and secondary-Dockerfile rejection contract.
-- Broad docs verification passed for `docs/public` and the full repository with
-  0 contradicted and 0 missing evidence claims. Current public docs verifier
-  result: 173 documents, 1167 claims, 11 unsupported shell-command claim
-  types. Current full repository verifier result: 562 documents, 1303 claims,
-  15 unsupported shell-command claim types.
-- Current Go docs verifier result after parallel scoped-agent and README
-  compression: 309 documents, 103 claims, 0 contradicted, 0 missing evidence,
-  and 3 unsupported shell-command claim types.
-- Current full repository docs verifier result after front-door/parser/collector
-  compression: 562 documents, 1298 claims, 0 contradicted, 0 missing evidence,
-  and 15 unsupported shell-command claim types.
+- Broad docs verification passed for `go`, `docs/public`, and the full
+  repository with 0 contradicted and 0 missing evidence claims after the
+  parallel AWS/public/package compression. Current Go docs verifier result:
+  309 documents, 101 claims, 98 valid, 3 unsupported shell-command claim
+  types. Current public docs verifier result: 173 documents, 1167 claims, 1156
+  valid, 11 unsupported shell-command claim types. Current full repository
+  verifier result: 562 documents, 1297 claims, 1281 valid, 16 unsupported
+  shell-command claim types.
 - Current strict docs build passed:
   `uv run --with mkdocs --with mkdocs-material --with pymdown-extensions mkdocs build --strict --clean --config-file docs/mkdocs.yml`.
 - Focused public reference verification passed after the operator-reference

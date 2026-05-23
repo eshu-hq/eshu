@@ -1,6 +1,6 @@
 # CLI K.I.S.S.
 
-This page is the simple version.
+Use this page when you need the short mental model for `eshu`.
 
 If you only remember five things about `eshu`, make it these:
 
@@ -104,7 +104,7 @@ These commands call the API and honor `--service-url`, `--api-key`, and
 ## API-Backed Without Remote Flags
 
 These commands call the API through persisted config, process environment, or
-the local default URL. They do not currently accept per-command remote flags:
+the local default URL:
 
 - `eshu list`
 - `eshu stats`
@@ -131,8 +131,8 @@ These commands manage local binaries, local processes, or local configuration:
 
 ## Compatibility Stubs
 
-These names remain visible for older scripts or muscle memory, but they return
-replacement guidance instead of doing old Python-era work:
+These names remain visible for older scripts, but they return replacement
+guidance instead of doing old Python-era work:
 
 - `eshu clean`
 - `eshu delete`

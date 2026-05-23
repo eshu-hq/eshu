@@ -1,38 +1,17 @@
-# AGENTS.md - internal/collector/awscloud/services/sqs guidance
+# AGENTS.md - services/sqs
 
-## Read First
+Read `README.md`, `doc.go`, `types.go`, `scanner.go`, and `awssdk/README.md`
+before editing this service.
 
-1. `README.md` - package purpose, exported surface, and invariants.
-2. `types.go` - scanner-owned SQS domain types.
-3. `scanner.go` - queue resource and dead-letter relationship emission.
-4. `../../README.md` - shared AWS cloud observation and envelope contract.
-5. `docs/public/services/collector-aws-cloud-scanners.md` - scanner coverage and metadata-only data boundaries.
+## Mandatory Rules
 
-## Invariants
-
-- Keep SQS API access behind `Client`; do not import the AWS SDK into this
-  package.
-- Never read messages or persist message bodies.
-- Never persist queue policy JSON.
-- Emit reported evidence only. Do not infer deployment, workload, repository
-  ownership, or deployable-unit truth from queue names or tags.
-- Preserve stable queue identities across repeated observations in the same AWS
-  generation.
-- Keep queue URLs, ARNs, tags, and redrive policy values out of metric labels.
-
-## Common Changes
-
-- Add a new SQS metadata field by extending `QueueAttributes`, writing a focused
-  scanner or adapter test first, then mapping it through `awscloud` envelope
-  builders.
-- Add new relationship evidence only when the SQS API reports both sides
-  directly.
-- Extend SDK pagination in the `awssdk` adapter, not here.
-
-## What Not To Change Without Architecture-Owner Approval
-
-- Do not read or sample queue messages.
-- Do not resolve queue names, tags, or DLQ links into workload ownership here;
-  correlation belongs in reducers.
-- Do not add graph writes, reducer logic, or query behavior.
-- Do not add AWS credential loading or STS calls to this package.
+- Keep SQS AWS access behind `Client`; the scanner package must not import the
+  AWS SDK.
+- Emit reported queue metadata, tags, and dead-letter queue relationship
+  evidence only.
+- Do not read messages, persist message bodies, persist queue policy JSON, or
+  mutate queues or messages.
+- Do not infer workload, environment, repository, ownership, or deployable-unit
+  truth from queue names, tags, or DLQ links.
+- Keep queue URLs, names, ARNs, tags, redrive policy values, raw AWS errors, and
+  page tokens out of metric labels.

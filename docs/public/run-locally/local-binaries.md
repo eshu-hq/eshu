@@ -110,7 +110,7 @@ eshu graph start --workspace-root /path/to/repo
 
 `eshu install nornicdb --from <source>` is still available for process-mode
 testing and upgrade workflows. Bare `eshu install nornicdb` remains reserved for
-future release-backed installs.
+release-backed installs.
 
 ## Start the local Eshu service
 

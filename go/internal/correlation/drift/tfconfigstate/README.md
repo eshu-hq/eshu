@@ -16,7 +16,7 @@ the pack metadata, while this package performs value comparison before
 `engine.Evaluate(rules.TerraformConfigStateDriftRulePack(), ...)` runs.
 
 It does not own reducer queue handling, telemetry emission, graph projection, or
-future state-to-cloud ARN joins.
+state-to-cloud ARN joins.
 
 ## Exported surface
 
@@ -59,7 +59,7 @@ they belong in structured logs or explain evidence.
 - `BuildCandidates` sorts by address so explain traces are stable across
   reducer reruns.
 - The v1 allowlist is code-owned in `attribute_allowlist.go`. Moving it to data
-  needs a current design note first.
+  requires architecture-owner approval and focused drift evidence.
 
 ## Focused tests
 

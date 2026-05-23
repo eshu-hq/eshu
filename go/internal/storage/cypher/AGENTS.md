@@ -45,8 +45,9 @@ These rules are mandatory for changes under `go/internal/storage/cypher`.
   writer tests, and backend proof for active backends.
 - SQL relationship change: update write and retract paths together; preserve
   trigger-to-function `EXECUTES` reachability.
-- New executor wrapper: implement `Executor`, optionally group interfaces, add
-  tests, and wire in `cmd/` only.
+- New executor wrapper: implement `Executor`, implement group interfaces when
+  grouped execution is part of the contract, add tests, and wire in `cmd/`
+  only.
 - Backend batch tuning: use writer options in command wiring; do not hard-code
   backend-specific batch sizes in canonical writers.
 - Hot-path Cypher change: follow the Cypher performance page, capture

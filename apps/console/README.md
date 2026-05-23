@@ -64,7 +64,7 @@ console if you want real data.
 Until Eshu has real auth and authorization, real-data console deployments should
 stay local or inside a trusted private network. The console is read-only, but
 the data can still expose repositories, services, infrastructure, docs, runtime
-state, findings, and future security posture.
+state, findings, and security posture.
 
 No mutating controls belong in this app until auth, audit logging, confirmation,
 and role policy exist.

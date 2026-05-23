@@ -1,40 +1,16 @@
-# AGENTS.md - internal/collector/awscloud/services/ecr/awssdk guidance
+# AGENTS.md - services/ecr/awssdk
 
-## Read First
+Read `README.md`, `doc.go`, `client.go`, `checkpoint.go`, `mapper.go`, and
+`../README.md` before editing this adapter.
 
-1. `README.md` - package purpose, telemetry, and invariants.
-2. `client.go` - ECR SDK pagination, mapping, and telemetry.
-3. `../scanner.go` - scanner-owned ECR fact selection.
-4. `../../../checkpoint/README.md` - durable pagination checkpoint contract.
-5. `../README.md` - ECR scanner contract.
-6. `../../../README.md` - AWS cloud envelope contract.
-7. `docs/public/services/collector-aws-cloud-scanners.md` - scanner coverage and metadata-only data boundaries.
+## Mandatory Rules
 
-## Invariants
-
-- Keep ECR SDK calls here, not in `cmd/collector-aws-cloud` or the scanner
-  package.
-- Wrap each AWS paginator page or point read in `recordAPICall`.
-- Save only retry-safe `DescribeImages` page tokens unless a future committer
-  hook proves next-token advancement happens after durable fact commit.
-- Keep checkpoint resource parents and page tokens out of metric labels.
-- Keep metric labels bounded to service, account, region, operation, and
-  result.
-- Treat missing lifecycle policies as empty results, not scan failures.
-- Do not cache AWS credentials or SDK clients beyond the claim-scoped runtime
-  object that created this adapter.
-
-## Common Changes
-
-- Add a new ECR API read by extending `ecr.Client`, writing a scanner or adapter
-  test first, then mapping the SDK response into scanner-owned types.
-- Add a new throttle code in `isThrottleError` only after AWS or Smithy evidence
-  shows the code is retry/throttle-shaped.
-- Extend image mapping in `mapImageDetail` when AWS source data needs to become
-  scanner-owned evidence.
-
-## What Not To Change Without Architecture-Owner Approval
-
-- Do not infer workload, environment, deployment, or ownership truth from ECR
-  repository names, tags, or image digests.
-- Do not write facts, graph rows, workflow rows, or reducer-owned state here.
+- Allowed calls are repository and image pagination, `GetLifecyclePolicy`, and
+  `ListTagsForResource`.
+- Keep durable image pagination checkpoints retry-safe; save only the token that
+  can be safely retried for the current claim boundary.
+- Wrap every page and point read in `recordAPICall`.
+- Do not add image layer downloads, auth token exposure, repository mutation,
+  image mutation, credential, STS, graph, or reducer behavior here.
+- Keep repository names, ARNs, image digests, tags, policy JSON, checkpoint
+  parents, page tokens, and raw AWS errors out of metric labels.

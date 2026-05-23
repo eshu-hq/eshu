@@ -1,42 +1,17 @@
-# AGENTS.md - internal/collector/awscloud/services/secretsmanager guidance
+# AGENTS.md - services/secretsmanager
 
-## Read First
+Read `README.md`, `doc.go`, `types.go`, `scanner.go`, `relationships.go`, and
+`awssdk/README.md` before editing this service.
 
-1. `README.md` - package purpose, exported surface, and invariants.
-2. `types.go` - scanner-owned Secrets Manager domain types.
-3. `scanner.go` - secret resource emission.
-4. `relationships.go` - direct KMS and rotation Lambda relationship evidence.
-5. `../../README.md` - shared AWS cloud observation and envelope contract.
-6. `docs/public/services/collector-aws-cloud-scanners.md` - scanner coverage and metadata-only data boundaries.
+## Mandatory Rules
 
-## Invariants
-
-- Keep Secrets Manager API access behind `Client`; do not import the AWS SDK
-  into this package.
-- Never read secret values, version payloads, resource policy JSON, external
-  rotation partner metadata, or mutate Secrets Manager resources.
-- Emit reported evidence only. Do not infer deployment, workload, repository,
-  ownership, environment, or deployable-unit truth from secret names, tags, or
-  account aliases.
-- Preserve stable Secrets Manager secret identities across repeated
-  observations in the same AWS generation.
-- Keep secret names, ARNs, tags, KMS key IDs, Lambda ARNs, and raw AWS error
-  payloads out of metric labels.
-
-## Common Changes
-
-- Add a new Secrets Manager metadata field by extending the scanner-owned type,
-  writing a focused scanner or adapter test first, then mapping it through
-  `awscloud` envelope builders.
-- Add new relationship evidence only when Secrets Manager directly reports both
-  sides and the target identity is not secret material.
-- Extend SDK pagination and optional-not-found handling in the `awssdk` adapter,
-  not here.
-
-## What Not To Change Without Architecture-Owner Approval
-
-- Do not add value reads, version reads, resource-policy persistence, external
-  rotation partner metadata persistence, mutations, or graph writes.
-- Do not resolve secret names or tags into workload ownership here; correlation
-  belongs in reducers.
-- Do not add AWS credential loading or STS calls to this package.
+- Keep Secrets Manager AWS access behind `Client`; the scanner package must not
+  import the AWS SDK.
+- Emit reported secret metadata, tag evidence, KMS evidence, and rotation
+  Lambda relationship evidence only.
+- Do not read secret values, version payloads, resource policy JSON, external
+  rotation partner metadata, or mutation results.
+- Do not infer workload, environment, repository, ownership, or deployable-unit
+  truth from secret names, tags, accounts, or aliases.
+- Keep secret names, ARNs, tags, KMS IDs, Lambda ARNs, raw AWS errors, and page
+  tokens out of metric labels.

@@ -74,8 +74,8 @@ Focused coverage lives in:
 - Dead-code results remain `derived`, not exact cleanup-safe truth.
 - Dynamic imports, monkey-patching, plugin discovery, dependency injection, and
   runtime reflection can keep symbols live without a static edge.
-- Remaining validation is broader corpus breadth; the documented Python parser
-  and query surfaces are implemented on the Go path.
+- Broader corpus breadth is validation scope, not a page-level parser/query
+  gap for the documented Go path.
 
 ## Related Docs
 

@@ -1,17 +1,13 @@
-# AGENTS - internal/reducer/dsl
+# internal/reducer/dsl Agent Rules
 
-Read this before touching `go/internal/reducer/dsl`.
+These rules are mandatory for changes under `go/internal/reducer/dsl`.
 
 ## Read first
 
-1. `go/internal/reducer/README.md` — full reducer context, phase
-   coordination model, and the post-Phase-3 reopen requirement.
-2. `go/internal/reducer/AGENTS.md` — invariants governing all reducer
-   sub-packages.
-3. `CLAUDE.md` "Facts-First Bootstrap Ordering" — Phase 1–4 ordering.
-   Specifically: any domain that consumes `resolved_relationships` must have
-   a post-Phase-3 reopen; `OutputKindResolvedRelationship` publications from
-   this package feed those rows.
+1. `README.md` and `doc.go`.
+2. `go/internal/reducer/README.md` and `go/internal/reducer/AGENTS.md`.
+3. `docs/internal/agent-guide.md` section "Bootstrap And Correlation Truth"
+   before changing publications that feed `resolved_relationships`.
 
 ## Mandatory Invariants
 
@@ -28,29 +24,14 @@ Read this before touching `go/internal/reducer/dsl`.
 - `DefaultRuntimeContract` and `RuntimeContractTemplate` return defensive
   copies.
 
-## Common changes
+## Change Rules
 
-### Add a new `OutputKind`
-
-1. Add the constant to `evaluator.go` alongside `OutputKindResolvedRelationship`.
-2. If the new output kind feeds `resolved_relationships`, document the
-   post-Phase-3 reopen obligation in this README.
-3. Add a `contract_test.go` or `evaluator_test.go` case.
-
-### Add a new checkpoint to the DSL contract
-
-1. Append to `defaultRuntimeContract.Checkpoints` in `contract.go`.
-2. If the new phase gates a domain that is currently blocked, verify the
-   `sharedProjectionReadinessPhase` switch in
-   `internal/reducer/shared_projection.go:91` is updated accordingly.
-3. Update this README's checkpoint table.
-
-### Implement a concrete `Evaluator`
-
-- The evaluator belongs in a separate package, not here. It must satisfy
-  the `Evaluator` interface (`evaluator.go:41`) and return an
-  `EvaluationResult` whose `Publications` use only keyspaces and phases
-  declared in `internal/reducer/graph_projection_phase.go`.
+- New `OutputKind`: add the constant, document any
+  `resolved_relationships` reopen obligation, and add contract coverage.
+- New checkpoint: update the runtime contract, readiness-phase routing, README
+  checkpoint table, and tests together.
+- Concrete evaluator: implement it outside this package. It MUST satisfy
+  `Evaluator` and publish only declared reducer keyspaces and phases.
 
 ## Failure modes
 
@@ -65,14 +46,14 @@ Read this before touching `go/internal/reducer/dsl`.
   `PublishEvaluationResult` will each write a row. Ensure idempotency at
   the caller.
 
-## Anti-patterns
+## Anti-Patterns
 
 - Do not add evaluation logic to this package. The package owns the seam.
 - Do not publish `cross_source_anchor_ready` from outside DSL substrate code.
 - Do not skip `PhaseStates.Validate` return check; a blank `AcceptanceUnitID`
   will silently produce a broken row.
 
-## What MUST NOT change without architecture-owner approval
+## Forbidden Without Architecture-Owner Approval
 
 - The `OutputKind` constants. They are referenced in contract tests and
   downstream domain expectations.

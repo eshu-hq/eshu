@@ -1,12 +1,12 @@
 # NornicDB Tuning
 
-Use this page when Eshu runs with `ESHU_GRAPH_BACKEND=nornicdb` and a
-repo-scale proof exposes a graph write timeout, slow phase, or backend
-compatibility gate. It is the knob map, not the install or operations runbook.
+Use this page when `ESHU_GRAPH_BACKEND=nornicdb` and a proof exposes a graph
+write timeout, slow phase, or backend compatibility gate. It is the knob map,
+not the install or operations runbook.
 
-Tune from evidence: first identify the phase, label, row count, grouped
-statement count, timeout shape, and queue state in logs/status. Then change the
-narrowest matching knob. For local start/stop/install commands, use
+Tune from evidence: identify phase, label, row count, grouped statement count,
+timeout shape, and queue state before changing the narrowest matching knob. For
+local start/stop/install commands, use
 [Graph Backend Installation](graph-backend-installation.md) and
 [Graph Backend Operations](graph-backend-operations.md). For query-shape rules,
 use [Cypher Performance Discipline](cypher-performance.md). For the proof behind
@@ -39,14 +39,12 @@ Do not use the full corpus as the first debugging loop.
 5. Run the full corpus only after focused and medium lanes pass.
 
 A larger timeout can prove correctness. It is not the final performance answer
-until phase timing and write-shape evidence explain why the larger budget is
-acceptable.
+until phase timing and write-shape evidence justify the larger budget.
 
 For full-corpus or remote proof, record commit/image, schema/bootstrap state,
 clean-volume state, pprof state, effective environment, terminal queue counts,
-and API/MCP truth checks. Backend selection is not a tuning step. Switch to
-Neo4j only for compatibility verification, not to explain an unclassified
-NornicDB slowdown.
+and API/MCP truth checks. Switch to Neo4j only for compatibility verification,
+not to explain an unclassified NornicDB slowdown.
 
 ## Canonical Write Budget
 
@@ -88,8 +86,7 @@ many grouped transactions run in parallel. Peak Bolt session demand is roughly:
 ESHU_PROJECTOR_WORKERS * ESHU_NORNICDB_ENTITY_PHASE_CONCURRENCY
 ```
 
-Pin concurrency lower only when NornicDB shows parallel commit contention
-rather than headroom.
+Pin concurrency lower only when NornicDB shows parallel commit contention.
 
 ## Semantic And Shared Reducer Budget
 
@@ -104,9 +101,8 @@ These knobs affect reducer-owned materialization and shared projection.
 | `ESHU_SHARED_PROJECTION_WORKERS` | runtime default is `NumCPU` capped at `4`; Compose defaults to `2`; Helm sets `8` | Shared projection partition workers. Raise only when queue age grows and graph backend health is proven. |
 | `ESHU_CODE_CALL_PROJECTION_ACCEPTANCE_SCAN_LIMIT` | `250000` | Correctness guard for complete accepted repo/run scan before rewriting CALLS edges. |
 
-Semantic materialization is reducer-owned. Do not copy canonical caps into it
-blindly. Tune semantic labels only after timeout summaries name the semantic
-label and row count.
+Semantic materialization is reducer-owned. Tune semantic labels only after
+timeout summaries name the semantic label and row count.
 
 `ESHU_CODE_CALL_PROJECTION_ACCEPTANCE_SCAN_LIMIT` is not a graph-write tuning
 knob. Increase it only when reducer logs name an acceptance-scan cap and a
