@@ -190,6 +190,24 @@ func TestCollectorContractForPackageRegistryHasNoOperationalKeyspaces(t *testing
 	}
 }
 
+func TestCollectorContractForVulnerabilityIntelligenceHasNoOperationalKeyspaces(t *testing.T) {
+	t.Parallel()
+
+	contract, ok := CollectorContractFor(scope.CollectorVulnerabilityIntelligence)
+	if !ok {
+		t.Fatalf("CollectorContractFor(%q) found = false, want true", scope.CollectorVulnerabilityIntelligence)
+	}
+	if contract.CollectorKind != scope.CollectorVulnerabilityIntelligence {
+		t.Fatalf("CollectorKind = %q, want %q", contract.CollectorKind, scope.CollectorVulnerabilityIntelligence)
+	}
+	if len(contract.CanonicalKeyspaces) != 0 {
+		t.Fatalf("CanonicalKeyspaces = %#v, want empty for fact-only vulnerability intelligence slice", contract.CanonicalKeyspaces)
+	}
+	if len(contract.RequiredPhases) != 0 {
+		t.Fatalf("RequiredPhases = %#v, want empty for fact-only vulnerability intelligence slice", contract.RequiredPhases)
+	}
+}
+
 func TestCollectorContractForReturnsClonedSlices(t *testing.T) {
 	t.Parallel()
 

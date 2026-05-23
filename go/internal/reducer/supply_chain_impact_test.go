@@ -181,6 +181,19 @@ func TestSupplyChainImpactHandlerLoadsActiveEvidenceAndWritesFindings(t *testing
 	}
 }
 
+func TestSupplyChainImpactFilterUsesRiskSignalCVEIDs(t *testing.T) {
+	t.Parallel()
+
+	filter := supplyChainImpactFilter([]facts.Envelope{
+		vulnerabilityEPSSFact("epss-1", "CVE-2026-0001", "0.71", "0.98"),
+		vulnerabilityKEVFact("kev-1", "CVE-2026-0002"),
+	})
+
+	if got, want := strings.Join(filter.CVEIDs, ","), "CVE-2026-0001,CVE-2026-0002"; got != want {
+		t.Fatalf("CVEIDs = %q, want %q", got, want)
+	}
+}
+
 func TestSupplyChainImpactStableFactKeyIncludesRepository(t *testing.T) {
 	t.Parallel()
 

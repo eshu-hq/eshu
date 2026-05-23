@@ -34,6 +34,8 @@ JOIN scope_generations AS generation
   ON generation.scope_id = fact.scope_id
  AND generation.generation_id = fact.generation_id
 WHERE fact.fact_kind IN (
+    'vulnerability.cve',
+    'vulnerability.affected_package',
     'package_registry.package_version',
     'package_registry.vulnerability_hint',
     'reducer_package_consumption_correlation',

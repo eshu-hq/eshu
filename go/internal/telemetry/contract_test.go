@@ -113,6 +113,8 @@ func TestSpanNames(t *testing.T) {
 		"query.service_catalog_correlations",
 		"query.container_image_identities",
 		"query.sbom_attestation_attachments",
+		"vulnerability_intelligence.observe",
+		"vulnerability_intelligence.fetch",
 		"query.supply_chain_impact_findings",
 		"tfstate.collector.claim.process",
 		"tfstate.discovery.resolve",

@@ -71,6 +71,7 @@ Current platform reality:
 | Webhook Listener | public Git and AWS freshness webhook intake and durable refresh triggers | `/usr/local/bin/eshu-webhook-listener` | Postgres trigger tables only | direct `/metrics`, optional `ServiceMonitor` | `Deployment` |
 | OCI Registry Collector | OCI registry scan, tag observation, manifest/referrer fact emission | `/usr/local/bin/eshu-collector-oci-registry` | Postgres fact store only | direct `/metrics`, optional `ServiceMonitor` | optional `Deployment` |
 | Package Registry Collector | package metadata fetch, parser routing, package/version/dependency fact emission | `/usr/local/bin/eshu-collector-package-registry` | Postgres workflow + fact store only | direct `/metrics`, optional `ServiceMonitor` | optional `Deployment` |
+| Vulnerability Intelligence Collector | bounded CISA KEV, FIRST EPSS, OSV, and NVD source observation | `/usr/local/bin/eshu-collector-vulnerability-intelligence` | Postgres workflow + fact store only | direct `/metrics`, optional `ServiceMonitor` | optional `Deployment` |
 | AWS Cloud Collector | AWS IAM-first cloud observation and fact emission | `/usr/local/bin/eshu-collector-aws-cloud` | Postgres workflow + fact store only | direct `/metrics`, optional `ServiceMonitor` | optional `Deployment` |
 | Workflow Coordinator | scheduling, trigger intake, claims, completeness, run orchestration | `/usr/local/bin/eshu-workflow-coordinator` | Postgres + graph backend | internal admin/status service plus `/metrics`, optional `ServiceMonitor` | `Deployment` |
 | Resolution Engine | queue draining, projection, retries, replay, recovery | `/usr/local/bin/eshu-reducer` | Postgres + graph backend | direct `/metrics`, optional `ServiceMonitor` | `Deployment` |
@@ -123,10 +124,11 @@ directly.
 
 The public chart can deploy several collector runtimes as optional Kubernetes
 workloads. `collector-oci-registry` uses explicit direct targets in Helm values.
-`collector-terraform-state`, `collector-aws-cloud`, and
-`collector-package-registry` are claim-driven workloads that receive
-`ESHU_COLLECTOR_INSTANCES_JSON` from their chart values and claim durable
-workflow work. Only the long-running hosted variants that mount
+`collector-terraform-state`, `collector-aws-cloud`,
+`collector-package-registry`, and `collector-vulnerability-intelligence` are
+claim-driven workloads that receive `ESHU_COLLECTOR_INSTANCES_JSON` from their
+chart values and claim durable workflow work. Only the long-running hosted
+variants that mount
 `go/internal/runtime` expose the shared `/healthz`, `/readyz`, optional
 `/metrics`, and optional `/admin/status` contract:
 
@@ -135,6 +137,7 @@ workflow work. Only the long-running hosted variants that mount
 - `collector-oci-registry`: `go run ./cmd/collector-oci-registry`
 - `collector-package-registry`: `go run ./cmd/collector-package-registry`
 - `collector-terraform-state`: `go run ./cmd/collector-terraform-state`
+- `collector-vulnerability-intelligence`: `go run ./cmd/collector-vulnerability-intelligence`
 - `collector-confluence`: `go run ./cmd/collector-confluence`
 - `projector`: `go run ./cmd/projector`
 - `reducer`: `go run ./cmd/reducer`
@@ -204,6 +207,19 @@ family documented in the telemetry reference.
 Registry HTTP and transport failures use the same bounded `registry_*` failure
 classes; status output does not include package names, feed URLs, metadata
 paths, credential environment names, or credential values.
+
+`collector-vulnerability-intelligence` is claim-driven. It selects one enabled
+`vulnerability_intelligence` collector instance from
+`ESHU_COLLECTOR_INSTANCES_JSON`, claims one workflow work item per configured
+target, fetches bounded source scopes from CISA KEV, FIRST EPSS, OSV, or NVD,
+and commits reported vulnerability facts through the shared ingestion boundary.
+It exposes `vulnerability_intelligence.observe` and
+`vulnerability_intelligence.fetch` spans plus the
+`eshu_dp_vulnerability_intelligence_*` metric family. Source target config must
+stay explicit: CVE ID sets, OSV package-version queries, CISA KEV snapshots, or
+NVD modified windows with explicit page size. Status output and metrics do not
+include CVE descriptions, package names, PURLs, source URLs, credential
+environment names, or credential values.
 
 ## Admin Contract
 

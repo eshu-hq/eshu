@@ -43,6 +43,12 @@ type PackageRegistryPlanner interface {
 	PlanPackageRegistryWork(context.Context, PackageRegistryPlanRequest) (workflow.Run, []workflow.WorkItem, error)
 }
 
+// VulnerabilityIntelligencePlanner plans vulnerability-intelligence workflow
+// rows from collector instance configuration.
+type VulnerabilityIntelligencePlanner interface {
+	PlanVulnerabilityIntelligenceWork(context.Context, VulnerabilityIntelligencePlanRequest) (workflow.Run, []workflow.WorkItem, error)
+}
+
 // AWSScheduledPlanner plans scheduled AWS collector work from configuration.
 type AWSScheduledPlanner interface {
 	PlanAWSScheduledWork(context.Context, AWSScheduledPlanRequest) (workflow.Run, []workflow.WorkItem, error)
@@ -50,18 +56,19 @@ type AWSScheduledPlanner interface {
 
 // Service is the dark-deployed workflow coordinator runner.
 type Service struct {
-	Config                 Config
-	Store                  Store
-	Metrics                Metrics
-	Logger                 *slog.Logger
-	TerraformStatePlanner  TerraformStatePlanner
-	OCIRegistryPlanner     OCIRegistryPlanner
-	PackageRegistryPlanner PackageRegistryPlanner
-	AWSScheduledPlanner    AWSScheduledPlanner
-	AWSFreshnessTriggers   AWSFreshnessTriggerStore
-	AWSFreshnessPlanner    AWSFreshnessPlanner
-	AWSFreshnessEvents     awsFreshnessEventCounter
-	Clock                  func() time.Time
+	Config                           Config
+	Store                            Store
+	Metrics                          Metrics
+	Logger                           *slog.Logger
+	TerraformStatePlanner            TerraformStatePlanner
+	OCIRegistryPlanner               OCIRegistryPlanner
+	PackageRegistryPlanner           PackageRegistryPlanner
+	VulnerabilityIntelligencePlanner VulnerabilityIntelligencePlanner
+	AWSScheduledPlanner              AWSScheduledPlanner
+	AWSFreshnessTriggers             AWSFreshnessTriggerStore
+	AWSFreshnessPlanner              AWSFreshnessPlanner
+	AWSFreshnessEvents               awsFreshnessEventCounter
+	Clock                            func() time.Time
 }
 
 // Run periodically reconciles declarative collector instance state and, in
@@ -196,6 +203,15 @@ func (s Service) runReconcile(ctx context.Context) error {
 		})
 		return err
 	}
+	if err := s.scheduleVulnerabilityIntelligenceWork(ctx, observedAt, instances); err != nil {
+		s.recordReconcile(ctx, ReconcileObservation{
+			Outcome:      reconcileOutcomeReconcileError,
+			Duration:     time.Since(startedAt),
+			DesiredCount: desiredCount,
+			DurableCount: durableCount,
+		})
+		return err
+	}
 	if err := s.scheduleAWSScheduledWork(ctx, observedAt, instances); err != nil {
 		s.recordReconcile(ctx, ReconcileObservation{
 			Outcome:      reconcileOutcomeReconcileError,
@@ -296,6 +312,60 @@ func shouldSchedulePackageRegistry(instance workflow.CollectorInstance) bool {
 }
 
 func (s Service) packageRegistryPlanKey(instance workflow.CollectorInstance, observedAt time.Time) string {
+	if instance.Bootstrap {
+		return "bootstrap"
+	}
+	interval := s.Config.ReconcileInterval
+	if interval <= 0 {
+		interval = defaultReconcileInterval
+	}
+	prefix := strings.TrimSpace(string(instance.Mode))
+	if prefix == "" {
+		prefix = "schedule"
+	}
+	return fmt.Sprintf("%s-%s", prefix, observedAt.UTC().Truncate(interval).Format("20060102T150405Z"))
+}
+
+func (s Service) scheduleVulnerabilityIntelligenceWork(
+	ctx context.Context,
+	observedAt time.Time,
+	instances []workflow.CollectorInstance,
+) error {
+	if s.Config.DeploymentMode != deploymentModeActive || !s.Config.ClaimsEnabled {
+		return nil
+	}
+	for _, instance := range instances {
+		if !shouldScheduleVulnerabilityIntelligence(instance) {
+			continue
+		}
+		if s.VulnerabilityIntelligencePlanner == nil {
+			return fmt.Errorf("vulnerability intelligence planner is required for active vulnerability_intelligence collectors")
+		}
+		run, items, err := s.VulnerabilityIntelligencePlanner.PlanVulnerabilityIntelligenceWork(ctx, VulnerabilityIntelligencePlanRequest{
+			Instance:   instance,
+			ObservedAt: observedAt,
+			PlanKey:    s.vulnerabilityIntelligencePlanKey(instance, observedAt),
+		})
+		if err != nil {
+			return fmt.Errorf("plan vulnerability intelligence work for %q: %w", instance.InstanceID, err)
+		}
+		if len(items) == 0 {
+			continue
+		}
+		if _, err := s.createWorkflowWorkIfNoOpenTargets(ctx, instance, run, items); err != nil {
+			return fmt.Errorf("create vulnerability intelligence scheduled work for %q: %w", instance.InstanceID, err)
+		}
+	}
+	return nil
+}
+
+func shouldScheduleVulnerabilityIntelligence(instance workflow.CollectorInstance) bool {
+	return instance.CollectorKind == scope.CollectorVulnerabilityIntelligence &&
+		instance.Enabled &&
+		instance.ClaimsEnabled
+}
+
+func (s Service) vulnerabilityIntelligencePlanKey(instance workflow.CollectorInstance, observedAt time.Time) string {
 	if instance.Bootstrap {
 		return "bootstrap"
 	}

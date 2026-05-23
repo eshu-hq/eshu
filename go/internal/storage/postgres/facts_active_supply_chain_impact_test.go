@@ -13,6 +13,8 @@ func TestListActiveSupplyChainImpactFactsQueryIsPackageBoundedAndPaged(t *testin
 		"generation.status = 'active'",
 		"fact.is_tombstone = FALSE",
 		"fact.fact_kind IN (",
+		"'vulnerability.cve'",
+		"'vulnerability.affected_package'",
 		"fact.payload->>'package_id' = ANY($1::text[])",
 		"fact.payload->>'purl' = ANY($2::text[])",
 		"fact.payload->>'cve_id' = ANY($3::text[])",

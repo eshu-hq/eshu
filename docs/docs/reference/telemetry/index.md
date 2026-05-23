@@ -252,8 +252,25 @@ For shared-write debugging specifically:
   ecosystem, operation, and HTTP status code when available, but not package
   names, feed URLs, paths, or credential environment names.
 - `registry_canceled` is reserved for operator/shutdown cancellation. Request
-  timeouts such as context deadlines remain `registry_retryable_failure` so
-  they stay in the retryable incident bucket.
+  deadlines and transport failures use retryable or terminal classes according
+  to the status code and context. Timeouts such as context deadlines remain
+  `registry_retryable_failure` so they stay in the retryable incident bucket.
+
+### Vulnerability Intelligence Collector
+
+- Metrics answer source fetch success, rate limiting, fetch duration, and
+  emitted vulnerability fact volume for CISA KEV, FIRST EPSS, OSV, and NVD.
+- `eshu_dp_vulnerability_intelligence_observations_total` is labeled by source
+  and bounded status class. It counts claimed source target observations, not
+  individual upstream HTTP attempts.
+- `eshu_dp_vulnerability_intelligence_facts_emitted_total` is labeled by source
+  and fact kind.
+- `vulnerability_intelligence.observe` spans wrap one claimed source target
+  through fact envelope construction. `vulnerability_intelligence.fetch`
+  isolates the bounded source fetch operation, which may include multiple
+  upstream HTTP requests.
+- CVE descriptions, package names, PURLs, source URLs, API keys, and credential
+  env names stay out of metric labels.
 
 ### Confluence Collector
 
@@ -496,6 +513,9 @@ log streams.
 | `eshu_dp_package_registry_facts_emitted_total` | Package registry facts emitted by parser output | `ecosystem`, `fact_kind` |
 | `eshu_dp_package_registry_rate_limited_total` | Package registry metadata requests rejected with HTTP 429 | `ecosystem` |
 | `eshu_dp_package_registry_parse_failures_total` | Package registry metadata parse failures | `ecosystem`, `document_type` |
+| `eshu_dp_vulnerability_intelligence_observations_total` | Vulnerability source target observations | `source`, `status_class` |
+| `eshu_dp_vulnerability_intelligence_facts_emitted_total` | Vulnerability source facts emitted | `source`, `fact_kind` |
+| `eshu_dp_vulnerability_intelligence_rate_limited_total` | Vulnerability source observations that ended rate limited | `source` |
 | `eshu_dp_package_source_correlations_total` | Package source-correlation decisions emitted by reducer outcome | `domain`, `outcome` |
 | `eshu_dp_ci_cd_run_correlations_total` | CI/CD run correlation decisions emitted by reducer outcome | `domain`, `outcome` |
 | `eshu_dp_aws_api_calls_total` | AWS API calls by operation outcome | `service`, `account`, `region`, `operation`, `result` |
@@ -524,6 +544,7 @@ log streams.
 | `eshu_dp_oci_registry_scan_duration_seconds` | OCI registry repository scan duration before durable commit | s | 0.05 .. 120 |
 | `eshu_dp_package_registry_observe_duration_seconds` | Package registry claimed target observation duration | s | 0.01 .. 60 |
 | `eshu_dp_package_registry_generation_lag_seconds` | Package registry source observation lag | s | 0.01 .. 60 |
+| `eshu_dp_vulnerability_intelligence_fetch_duration_seconds` | Vulnerability source fetch duration | s | 0.01 .. 60 |
 | `eshu_dp_aws_scan_duration_seconds` | AWS service claim scan duration before durable commit | s | 0.05 .. 300 |
 | `eshu_dp_scope_assign_duration_seconds` | Scope assignment duration | s | default |
 | `eshu_dp_fact_emit_duration_seconds` | Fact emission duration | s | default |
@@ -601,6 +622,8 @@ The `eshu_dp_projector_stage_duration_seconds` histogram carries a `stage` attri
 | `oci_registry.api_call` | OCI registry collector | One ping, tag-list, manifest, or referrer API call |
 | `package_registry.observe` | Package registry collector | One claimed package-registry target observation |
 | `package_registry.fetch` | Package registry collector | One explicit metadata document request |
+| `vulnerability_intelligence.observe` | Vulnerability intelligence collector | One claimed source target observation |
+| `vulnerability_intelligence.fetch` | Vulnerability intelligence collector | One CISA KEV, FIRST EPSS, OSV, or NVD source fetch |
 | `aws.collector.claim.process` | AWS cloud collector | One claimed `(account, region, service)` work item |
 | `aws.credentials.assume_role` | AWS cloud collector | Claim-scoped credential acquisition |
 | `aws.service.scan` | AWS cloud collector | One AWS service scan |

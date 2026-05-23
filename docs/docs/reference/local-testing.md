@@ -389,10 +389,13 @@ go test ./internal/collector/vulnerabilityintelligence -count=1 -v
 
 Record any expanded source coverage in
 `docs/docs/adrs/2026-05-15-vulnerability-intelligence-collector.md`. Live
-vulnerability-intelligence runtime validation must wait for the ADR's collector
-proof gate and must add request budgets, rate-limit telemetry, fact-emission
-metrics, admin/status output, and deployment docs before enabling hosted
-collection.
+vulnerability-intelligence runtime validation must use the claim-driven hosted
+runtime, not direct source-client tests. The remote E2E Compose stack includes
+`collector-vulnerability-intelligence` with CISA KEV, FIRST EPSS, OSV, and NVD
+targets. Keep the proof bounded to explicit CVE IDs, package-version queries,
+or NVD modified windows, and record request counts, fact counts, rate-limit
+metrics, admin/status state, and queue terminal state before promoting an EKS
+image.
 
 ## OCI Registry Live Smokes
 
@@ -973,6 +976,7 @@ use an SSH tunnel from their laptop.
 | `collector-package-registry` | `127.0.0.1:19666` |
 | `collector-aws-cloud` | `127.0.0.1:19667` |
 | `collector-confluence` | `127.0.0.1:19668` |
+| `collector-vulnerability-intelligence` | `127.0.0.1:19670` |
 
 Example captures from the remote host:
 

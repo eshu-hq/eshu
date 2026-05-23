@@ -48,6 +48,8 @@ The stable span families are:
 - `webhook.store`
 - `oci_registry.scan`
 - `oci_registry.api_call`
+- `vulnerability_intelligence.observe`
+- `vulnerability_intelligence.fetch`
 - `aws.collector.claim.process`
 - `aws.credentials.assume_role`
 - `aws.service.scan`
@@ -90,6 +92,15 @@ Legacy span families such as `eshu.http.*`, `eshu.mcp.*`, `eshu.query.*`,
   `ping`, `list_tags`, `get_manifest`, or `list_referrers`
 - child `postgres.exec` and `postgres.query` spans still belong to the
   collector commit path, not to registry API time
+
+### Vulnerability intelligence collector path
+
+- `vulnerability_intelligence.observe` is one claimed source target before
+  durable commit
+- `vulnerability_intelligence.fetch` is one bounded CISA KEV, FIRST EPSS, OSV,
+  or NVD source fetch
+- child `postgres.exec` and `postgres.query` spans still belong to the
+  collector commit path, not to source API time
 
 ### AWS cloud collector path
 

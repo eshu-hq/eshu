@@ -1,0 +1,50 @@
+package projector
+
+import (
+	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/scope"
+)
+
+func buildSupplyChainImpactReducerIntent(
+	scopeValue scope.IngestionScope,
+	generation scope.ScopeGeneration,
+	envelopes []facts.Envelope,
+) (ReducerIntent, bool) {
+	for _, envelope := range envelopes {
+		if !supplyChainImpactTriggerFact(envelope) {
+			continue
+		}
+		return ReducerIntent{
+			ScopeID:      scopeValue.ScopeID,
+			GenerationID: generation.GenerationID,
+			Domain:       reducer.DomainSupplyChainImpact,
+			EntityKey:    "supply_chain_impact:" + scopeValue.ScopeID,
+			Reason:       "supply-chain vulnerability evidence observed",
+			FactID:       envelope.FactID,
+			SourceSystem: supplyChainImpactSourceSystem(envelope),
+		}, true
+	}
+	return ReducerIntent{}, false
+}
+
+func supplyChainImpactTriggerFact(envelope facts.Envelope) bool {
+	switch envelope.FactKind {
+	case facts.VulnerabilityCVEFactKind,
+		facts.VulnerabilityAffectedPackageFactKind,
+		facts.VulnerabilityEPSSScoreFactKind,
+		facts.VulnerabilityKnownExploitedFactKind:
+		return true
+	default:
+		return false
+	}
+}
+
+func supplyChainImpactSourceSystem(envelope facts.Envelope) string {
+	if value := strings.TrimSpace(envelope.SourceRef.SourceSystem); value != "" {
+		return value
+	}
+	return strings.TrimSpace(envelope.CollectorKind)
+}
