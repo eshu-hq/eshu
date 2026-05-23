@@ -54,6 +54,7 @@ visibility together before relaxing that guard.
 | AWS freshness | Implemented through `go/cmd/webhook-listener` and `go/internal/collector/awscloud/freshness`. | Webhook listener and `awsFreshness` ingress path are charted. | Freshness creates targeted AWS collector work; scheduled scans remain authoritative. | #37 remains open for live AWS EventBridge/AWS Config sample, dashboard visibility, and security sign-off. |
 | OCI registry | `go/cmd/collector-oci-registry` exists. | Optional `ociRegistryCollector` deployment exists. | No first-class container-image identity reducer is complete. | Add digest identity/read model joining Git image refs, AWS runtime refs, OCI manifests, and later SBOM/attestation. |
 | Package registry | `go/cmd/collector-package-registry` exists. | Optional `packageRegistryCollector` deployment exists. | `DomainPackageSourceCorrelation` classifies source hints with counters only; it does not promote package ownership. Package-native dependency facts now project to bounded package dependency graph reads. | Expand package ownership/usage correlation after EKS collector proof and image identity. |
+| Vulnerability intelligence | `go/cmd/collector-vulnerability-intelligence` and source clients exist for CISA KEV, FIRST EPSS, OSV, and NVD. | Remote E2E Compose runs the hosted collector; Helm enablement remains gated behind remote proof and EKS rollout discipline. | Source-truth `vulnerability.*` facts exist. Impact reducers remain separate and must not infer reachability from CVSS, EPSS, or KEV alone. | Remote Compose proof for live source collection, API/MCP fact visibility, then package/image/deployment impact joins after the upstream collectors are proven together. |
 | Confluence documentation | `go/cmd/collector-confluence` exists. | Optional `confluenceCollector` deployment exists. | Documentation facts remain evidence, not operational truth. | Useful for documentation drift later; not required for the AWS/IaC EKS proof path. |
 
 ## Design-Only Or Incomplete Collector Families
@@ -68,7 +69,6 @@ fixtures, reducer contracts, telemetry, and binary wiring exist.
 | CI/CD runs | ADR exists; hosted runtime is not implemented. The first reducer slice writes `reducer_ci_cd_run_correlation` facts from fixture-backed run/artifact/environment evidence and exposes bounded API/MCP reads. The first collector implementation slice adds a GitHub Actions fixture normalizer that emits provider run, job, step, artifact, trigger, environment, and warning facts without hosted polling. | GitLab/Jenkins/Buildkite fixture normalizers, hosted GitHub Actions runtime, credentials/redaction proof, request-budget/status evidence, and live provider proof. |
 | Service catalog | ADR exists, fact-kind contracts exist, and the first reducer writer now publishes `reducer_service_catalog_correlation` facts for exact, derived, ambiguous, unresolved, stale, and rejected repository-link outcomes. API/MCP reads are bounded by scope, entity, repository, service, workload, owner, outcome, and drift status. | Fixture-backed fact emitter, service-story integration, hosted runtime proof, and service/workload admission only after stronger deployment/runtime evidence exists. |
 | Observability | ADR exists; no runtime package or reducer. | OTel/Prometheus/Grafana/Datadog fact fixtures, reducer coverage outcomes, then hosted runtime. |
-| Vulnerability intelligence | ADR exists and is intentionally gated. | Package, OCI, SBOM, AWS, Terraform state, and deployment evidence must be proven before impact reducers. |
 | Incident/change | Research/design issue remains open. | ADR before implementation. |
 | Secrets/IAM posture | Research/design issue remains open and needs security review. | ADR before implementation; no source credentials or secret values in facts. |
 | GCP/Azure/multi-cloud | Research/design issues remain open. | Shared multi-cloud runtime contract first, then provider-specific collector ADRs. |
@@ -376,7 +376,8 @@ Recommended order:
 
 Open tracking issues that still matter for this path:
 
-- #12 vulnerability intelligence collector: keep gated until package, OCI,
+- #12 vulnerability intelligence collector: hosted source collection now has a
+  bounded runtime path, but impact reducers stay gated until package, OCI,
   SBOM, AWS, Terraform state, and deployment facts are proven together.
 - #20 multi-cloud runtime collectors beyond AWS.
 - #21 GCP cloud collector.

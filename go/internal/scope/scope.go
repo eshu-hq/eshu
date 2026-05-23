@@ -28,6 +28,8 @@ const (
 	KindContainerRegistryRepository ScopeKind = "container_registry_repository"
 	// KindPackageRegistry represents a package registry target scope.
 	KindPackageRegistry ScopeKind = "package_registry"
+	// KindVulnerabilityIntelligence represents a vulnerability source scope.
+	KindVulnerabilityIntelligence ScopeKind = "vulnerability_intelligence"
 )
 
 // CollectorKind identifies the collector family that owns the scope.
@@ -48,6 +50,8 @@ const (
 	CollectorOCIRegistry CollectorKind = "oci_registry"
 	// CollectorPackageRegistry represents the package registry collector.
 	CollectorPackageRegistry CollectorKind = "package_registry"
+	// CollectorVulnerabilityIntelligence represents the vulnerability source collector.
+	CollectorVulnerabilityIntelligence CollectorKind = "vulnerability_intelligence"
 )
 
 // TriggerKind identifies how a generation was produced.

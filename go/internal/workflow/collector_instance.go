@@ -51,6 +51,11 @@ func (d DesiredCollectorInstance) Validate() error {
 			return err
 		}
 	}
+	if d.CollectorKind == scope.CollectorVulnerabilityIntelligence {
+		if err := ValidateVulnerabilityIntelligenceCollectorConfiguration(d.Configuration); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
@@ -92,6 +97,11 @@ func (i CollectorInstance) Validate() error {
 	}
 	if i.CollectorKind == scope.CollectorPackageRegistry {
 		if err := ValidatePackageRegistryCollectorConfiguration(i.Configuration); err != nil {
+			return err
+		}
+	}
+	if i.CollectorKind == scope.CollectorVulnerabilityIntelligence {
+		if err := ValidateVulnerabilityIntelligenceCollectorConfiguration(i.Configuration); err != nil {
 			return err
 		}
 	}

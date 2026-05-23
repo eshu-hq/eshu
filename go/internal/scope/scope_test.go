@@ -77,6 +77,11 @@ func TestIngestionScopeValidateAllowsAdditionalCollectorKinds(t *testing.T) {
 			sourceSystem:  "package_registry",
 			collectorKind: CollectorPackageRegistry,
 		},
+		{
+			name:          "vulnerability_intelligence",
+			sourceSystem:  "vulnerability_intelligence",
+			collectorKind: CollectorVulnerabilityIntelligence,
+		},
 	}
 
 	for _, tt := range tests {
@@ -172,6 +177,14 @@ func TestIngestionScopeValidateAllowsAdditionalScopeKinds(t *testing.T) {
 			scopeKind:     KindPackageRegistry,
 			collectorKind: CollectorPackageRegistry,
 			partitionKey:  "jfrog:generic",
+		},
+		{
+			name:          "vulnerability_intelligence",
+			sourceSystem:  "vulnerability_intelligence",
+			scopeID:       "vuln-intel://osv/npm",
+			scopeKind:     KindVulnerabilityIntelligence,
+			collectorKind: CollectorVulnerabilityIntelligence,
+			partitionKey:  "osv:npm",
 		},
 	}
 

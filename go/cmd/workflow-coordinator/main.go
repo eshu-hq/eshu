@@ -100,14 +100,15 @@ func run(parent context.Context) error {
 			GitReadiness: postgres.TerraformStateGitReadinessChecker{DB: postgres.SQLQueryer{DB: db}},
 			BackendFacts: postgres.TerraformStateBackendFactReader{DB: postgres.SQLQueryer{DB: db}},
 		},
-		OCIRegistryPlanner:     coordinator.OCIRegistryWorkPlanner{},
-		PackageRegistryPlanner: coordinator.PackageRegistryWorkPlanner{},
-		AWSScheduledPlanner:    coordinator.AWSScheduledWorkPlanner{},
-		AWSFreshnessTriggers:   awsFreshnessStore,
-		AWSFreshnessPlanner:    coordinator.AWSFreshnessWorkPlanner{},
-		AWSFreshnessEvents:     instruments.AWSFreshnessEvents,
-		Metrics:                metrics,
-		Logger:                 logger,
+		OCIRegistryPlanner:               coordinator.OCIRegistryWorkPlanner{},
+		PackageRegistryPlanner:           coordinator.PackageRegistryWorkPlanner{},
+		VulnerabilityIntelligencePlanner: coordinator.VulnerabilityIntelligenceWorkPlanner{},
+		AWSScheduledPlanner:              coordinator.AWSScheduledWorkPlanner{},
+		AWSFreshnessTriggers:             awsFreshnessStore,
+		AWSFreshnessPlanner:              coordinator.AWSFreshnessWorkPlanner{},
+		AWSFreshnessEvents:               instruments.AWSFreshnessEvents,
+		Metrics:                          metrics,
+		Logger:                           logger,
 	}
 	statusReader := postgres.NewStatusStore(postgres.SQLQueryer{DB: db})
 	service, err := app.NewHostedWithStatusServer(

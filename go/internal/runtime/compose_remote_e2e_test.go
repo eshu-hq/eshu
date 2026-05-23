@@ -97,6 +97,7 @@ func TestRemoteE2EComposeUsesProductionCanonicalWriteTimeout(t *testing.T) {
 		"collector-terraform-state",
 		"collector-oci-registry",
 		"collector-package-registry",
+		"collector-vulnerability-intelligence",
 		"collector-aws-cloud",
 	} {
 		service := requireComposeService(t, doc, serviceName)
@@ -123,6 +124,7 @@ func TestRemoteE2EComposeRunsProjectorForHostedCollectorSourceLocalWork(t *testi
 		"collector-terraform-state",
 		"collector-oci-registry",
 		"collector-package-registry",
+		"collector-vulnerability-intelligence",
 		"collector-aws-cloud",
 	} {
 		service := requireComposeService(t, doc, serviceName)
@@ -159,6 +161,7 @@ func TestRemoteE2EComposeRestartsRuntimeServicesAfterTransientStoreStartup(t *te
 		"collector-terraform-state",
 		"collector-oci-registry",
 		"collector-package-registry",
+		"collector-vulnerability-intelligence",
 		"collector-aws-cloud",
 	} {
 		service := requireComposeService(t, doc, serviceName)
@@ -184,16 +187,17 @@ func TestRemoteE2EWorkerPprofOverlayBindsWorkersToHostLoopback(t *testing.T) {
 
 	doc := readComposeDocument(t, "docker-compose.remote-e2e.pprof.yaml")
 	for serviceName, hostPort := range map[string]string{
-		"bootstrap-index":            "19660",
-		"ingester":                   "19661",
-		"resolution-engine":          "19662",
-		"workflow-coordinator":       "19663",
-		"collector-terraform-state":  "19664",
-		"collector-oci-registry":     "19665",
-		"collector-package-registry": "19666",
-		"collector-aws-cloud":        "19667",
-		"collector-confluence":       "19668",
-		"projector":                  "19669",
+		"bootstrap-index":                      "19660",
+		"ingester":                             "19661",
+		"resolution-engine":                    "19662",
+		"workflow-coordinator":                 "19663",
+		"collector-terraform-state":            "19664",
+		"collector-oci-registry":               "19665",
+		"collector-package-registry":           "19666",
+		"collector-aws-cloud":                  "19667",
+		"collector-confluence":                 "19668",
+		"collector-vulnerability-intelligence": "19670",
+		"projector":                            "19669",
 	} {
 		service := requireComposeService(t, doc, serviceName)
 		assertComposeEnv(t, service, "ESHU_PPROF_ADDR", "0.0.0.0:6060")
@@ -211,6 +215,7 @@ func TestHostedWorkerCommandsStartPprofServer(t *testing.T) {
 		"go/cmd/collector-oci-registry/main.go",
 		"go/cmd/collector-package-registry/main.go",
 		"go/cmd/collector-terraform-state/main.go",
+		"go/cmd/collector-vulnerability-intelligence/main.go",
 		"go/cmd/projector/main.go",
 		"go/cmd/workflow-coordinator/main.go",
 	} {
@@ -222,6 +227,48 @@ func TestHostedWorkerCommandsStartPprofServer(t *testing.T) {
 			if !strings.Contains(content, want) {
 				t.Fatalf("%s missing pprof startup term %q", sourcePath, want)
 			}
+		}
+	}
+}
+
+func TestRemoteE2EComposeIncludesVulnerabilityIntelligenceCollector(t *testing.T) {
+	t.Parallel()
+
+	doc := readComposeDocument(t, "docker-compose.remote-e2e.yaml")
+	service := requireComposeService(t, doc, "collector-vulnerability-intelligence")
+	if fmt.Sprint(service.Command) != "[/usr/local/bin/eshu-collector-vulnerability-intelligence]" {
+		t.Fatalf("collector command = %#v, want eshu-collector-vulnerability-intelligence", service.Command)
+	}
+	assertComposeEnv(t, service, "ESHU_VULNERABILITY_INTELLIGENCE_COLLECTOR_INSTANCE_ID", "remote-e2e-vulnerability-intelligence")
+	assertComposeEnv(t, service, "ESHU_VULNERABILITY_INTELLIGENCE_COLLECTOR_OWNER_ID", "remote-e2e-vulnerability-worker")
+	assertComposeEnv(t, service, "ESHU_VULNERABILITY_INTELLIGENCE_POLL_INTERVAL", "${ESHU_VULNERABILITY_INTELLIGENCE_POLL_INTERVAL:-2s}")
+	assertComposeEnv(t, service, "NVD_API_KEY", "${ESHU_NVD_API_KEY:-}")
+	assertComposePortContains(t, service, "${ESHU_COLLECTOR_VULNERABILITY_INTELLIGENCE_METRICS_PORT:-19476}:9464")
+	assertComposeDependency(t, service, "projector")
+	assertComposeDependency(t, service, "workflow-coordinator")
+
+	compose := readRepositoryFile(t, "../../..", "docker-compose.remote-e2e.yaml")
+	for _, want := range []string{
+		`"instance_id": "remote-e2e-vulnerability-intelligence"`,
+		`"collector_kind": "vulnerability_intelligence"`,
+		`"source": "first_epss"`,
+		`"source": "cisa_kev"`,
+		`"source": "osv"`,
+		`"source": "nvd"`,
+		`"api_key_env": "NVD_API_KEY"`,
+	} {
+		if !strings.Contains(compose, want) {
+			t.Fatalf("docker-compose.remote-e2e.yaml missing vulnerability collector term %q", want)
+		}
+	}
+
+	exampleEnv := readRepositoryFile(t, "../../..", ".env.remote-e2e.example")
+	for _, want := range []string{
+		"ESHU_VULNERABILITY_E2E_CVE_ID=CVE-2021-44228",
+		"ESHU_NVD_API_KEY=",
+	} {
+		if !strings.Contains(exampleEnv, want) {
+			t.Fatalf(".env.remote-e2e.example missing %q", want)
 		}
 	}
 }
@@ -293,6 +340,7 @@ func remoteE2EWorkerPprofServices() []string {
 		"collector-terraform-state",
 		"collector-oci-registry",
 		"collector-package-registry",
+		"collector-vulnerability-intelligence",
 		"collector-aws-cloud",
 		"projector",
 		"collector-confluence",

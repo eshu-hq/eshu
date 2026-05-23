@@ -144,6 +144,47 @@ x-collector-env: &remote_e2e_collector_env
             }
           ]
         }
+      },
+      {
+        "instance_id": "remote-e2e-vulnerability-intelligence",
+        "collector_kind": "vulnerability_intelligence",
+        "mode": "continuous",
+        "enabled": true,
+        "claims_enabled": true,
+        "configuration": {
+          "targets": [
+            {
+              "source": "first_epss",
+              "scope_id": "vuln-intel://first/epss",
+              "cve_ids": ["${ESHU_VULNERABILITY_E2E_CVE_ID:-CVE-2021-44228}"]
+            },
+            {
+              "source": "cisa_kev",
+              "scope_id": "vuln-intel://cisa/kev"
+            },
+            {
+              "source": "osv",
+              "scope_id": "vuln-intel://osv/maven/log4j-core",
+              "ecosystem": "maven",
+              "queries": [
+                {
+                  "package": {
+                    "name": "org.apache.logging.log4j:log4j-core",
+                    "ecosystem": "Maven"
+                  },
+                  "version": "2.14.1"
+                }
+              ]
+            },
+            {
+              "source": "nvd",
+              "scope_id": "vuln-intel://nvd/cve",
+              "cve_ids": ["${ESHU_VULNERABILITY_E2E_CVE_ID:-CVE-2021-44228}"],
+              "results_per_page": 100,
+              "api_key_env": "NVD_API_KEY"
+            }
+          ]
+        }
       }
     ]
 
@@ -471,6 +512,33 @@ services:
       ESHU_PACKAGE_REGISTRY_POLL_INTERVAL: ${ESHU_PACKAGE_REGISTRY_POLL_INTERVAL:-2s}
       ESHU_PACKAGE_REGISTRY_CLAIM_LEASE_TTL: ${ESHU_PACKAGE_REGISTRY_CLAIM_LEASE_TTL:-60s}
       ESHU_PACKAGE_REGISTRY_HEARTBEAT_INTERVAL: ${ESHU_PACKAGE_REGISTRY_HEARTBEAT_INTERVAL:-10s}
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/healthz"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+    depends_on:
+      projector:
+        condition: service_healthy
+      workflow-coordinator:
+        condition: service_healthy
+
+  collector-vulnerability-intelligence:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: on-failure
+    command: ["/usr/local/bin/eshu-collector-vulnerability-intelligence"]
+    ports:
+      - "${ESHU_COLLECTOR_VULNERABILITY_INTELLIGENCE_METRICS_PORT:-19476}:9464"
+    environment:
+      <<: [*remote_e2e_runtime_env, *remote_e2e_collector_env]
+      ESHU_VULNERABILITY_INTELLIGENCE_COLLECTOR_INSTANCE_ID: remote-e2e-vulnerability-intelligence
+      ESHU_VULNERABILITY_INTELLIGENCE_COLLECTOR_OWNER_ID: remote-e2e-vulnerability-worker
+      ESHU_VULNERABILITY_INTELLIGENCE_POLL_INTERVAL: ${ESHU_VULNERABILITY_INTELLIGENCE_POLL_INTERVAL:-2s}
+      ESHU_VULNERABILITY_INTELLIGENCE_CLAIM_LEASE_TTL: ${ESHU_VULNERABILITY_INTELLIGENCE_CLAIM_LEASE_TTL:-60s}
+      ESHU_VULNERABILITY_INTELLIGENCE_HEARTBEAT_INTERVAL: ${ESHU_VULNERABILITY_INTELLIGENCE_HEARTBEAT_INTERVAL:-10s}
+      NVD_API_KEY: ${ESHU_NVD_API_KEY:-}
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://localhost:8080/healthz"]
       interval: 15s

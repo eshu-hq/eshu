@@ -116,6 +116,11 @@ var collectorContracts = map[scope.CollectorKind]CollectorContract{
 		CanonicalKeyspaces: nil,
 		RequiredPhases:     nil,
 	},
+	scope.CollectorVulnerabilityIntelligence: {
+		CollectorKind:      scope.CollectorVulnerabilityIntelligence,
+		CanonicalKeyspaces: nil,
+		RequiredPhases:     nil,
+	},
 }
 
 // CollectorContractFor returns the accepted reducer-facing contract for one

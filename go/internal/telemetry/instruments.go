@@ -74,6 +74,9 @@ type Instruments struct {
 	PackageRegistryFactsEmitted               metric.Int64Counter
 	PackageRegistryRateLimited                metric.Int64Counter
 	PackageRegistryParseFailures              metric.Int64Counter
+	VulnerabilityIntelligenceRequests         metric.Int64Counter
+	VulnerabilityIntelligenceFactsEmitted     metric.Int64Counter
+	VulnerabilityIntelligenceRateLimited      metric.Int64Counter
 	PackageSourceCorrelations                 metric.Int64Counter
 	ContainerImageIdentityDecisions           metric.Int64Counter
 	CICDRunCorrelations                       metric.Int64Counter
@@ -201,34 +204,35 @@ type Instruments struct {
 	DriftSchemaUnknownComposite metric.Int64Counter
 
 	// Histograms track distributions
-	CollectorObserveDuration             metric.Float64Histogram
-	TerraformStateClaimWaitDuration      metric.Float64Histogram
-	TerraformStateSnapshotBytes          metric.Int64Histogram
-	TerraformStateParseDuration          metric.Float64Histogram
-	OCIRegistryScanDuration              metric.Float64Histogram
-	PackageRegistryObserveDuration       metric.Float64Histogram
-	PackageRegistryGenerationLag         metric.Float64Histogram
-	ConfluenceFetchDuration              metric.Float64Histogram
-	AWSScanDuration                      metric.Float64Histogram
-	ScopeAssignDuration                  metric.Float64Histogram
-	FactEmitDuration                     metric.Float64Histogram
-	ProjectorRunDuration                 metric.Float64Histogram
-	ProjectorStageDuration               metric.Float64Histogram
-	ReducerRunDuration                   metric.Float64Histogram
-	ReducerQueueWaitDuration             metric.Float64Histogram
-	CanonicalWriteDuration               metric.Float64Histogram
-	QueueClaimDuration                   metric.Float64Histogram
-	PostgresQueryDuration                metric.Float64Histogram
-	Neo4jQueryDuration                   metric.Float64Histogram
-	SharedAcceptanceUpsertDuration       metric.Float64Histogram
-	SharedAcceptanceLookupDuration       metric.Float64Histogram
-	SharedAcceptancePrefetchSize         metric.Int64Histogram
-	SharedProjectionIntentWaitDuration   metric.Float64Histogram
-	SharedProjectionProcessingDuration   metric.Float64Histogram
-	SharedProjectionStepDuration         metric.Float64Histogram
-	DocumentationDriftGenerationDuration metric.Float64Histogram
-	WebhookRequestDuration               metric.Float64Histogram
-	WebhookStoreDuration                 metric.Float64Histogram
+	CollectorObserveDuration               metric.Float64Histogram
+	TerraformStateClaimWaitDuration        metric.Float64Histogram
+	TerraformStateSnapshotBytes            metric.Int64Histogram
+	TerraformStateParseDuration            metric.Float64Histogram
+	OCIRegistryScanDuration                metric.Float64Histogram
+	PackageRegistryObserveDuration         metric.Float64Histogram
+	PackageRegistryGenerationLag           metric.Float64Histogram
+	VulnerabilityIntelligenceFetchDuration metric.Float64Histogram
+	ConfluenceFetchDuration                metric.Float64Histogram
+	AWSScanDuration                        metric.Float64Histogram
+	ScopeAssignDuration                    metric.Float64Histogram
+	FactEmitDuration                       metric.Float64Histogram
+	ProjectorRunDuration                   metric.Float64Histogram
+	ProjectorStageDuration                 metric.Float64Histogram
+	ReducerRunDuration                     metric.Float64Histogram
+	ReducerQueueWaitDuration               metric.Float64Histogram
+	CanonicalWriteDuration                 metric.Float64Histogram
+	QueueClaimDuration                     metric.Float64Histogram
+	PostgresQueryDuration                  metric.Float64Histogram
+	Neo4jQueryDuration                     metric.Float64Histogram
+	SharedAcceptanceUpsertDuration         metric.Float64Histogram
+	SharedAcceptanceLookupDuration         metric.Float64Histogram
+	SharedAcceptancePrefetchSize           metric.Int64Histogram
+	SharedProjectionIntentWaitDuration     metric.Float64Histogram
+	SharedProjectionProcessingDuration     metric.Float64Histogram
+	SharedProjectionStepDuration           metric.Float64Histogram
+	DocumentationDriftGenerationDuration   metric.Float64Histogram
+	WebhookRequestDuration                 metric.Float64Histogram
+	WebhookStoreDuration                   metric.Float64Histogram
 
 	// Collector concurrency histograms and counters
 	RepoSnapshotDuration metric.Float64Histogram
@@ -545,6 +549,30 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register PackageRegistryParseFailures counter: %w", err)
+	}
+
+	inst.VulnerabilityIntelligenceRequests, err = meter.Int64Counter(
+		"eshu_dp_vulnerability_intelligence_requests_total",
+		metric.WithDescription("Total vulnerability source requests by source and status class"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register VulnerabilityIntelligenceRequests counter: %w", err)
+	}
+
+	inst.VulnerabilityIntelligenceFactsEmitted, err = meter.Int64Counter(
+		"eshu_dp_vulnerability_intelligence_facts_emitted_total",
+		metric.WithDescription("Total vulnerability intelligence facts emitted by source and fact kind"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register VulnerabilityIntelligenceFactsEmitted counter: %w", err)
+	}
+
+	inst.VulnerabilityIntelligenceRateLimited, err = meter.Int64Counter(
+		"eshu_dp_vulnerability_intelligence_rate_limited_total",
+		metric.WithDescription("Total vulnerability source requests that were rate limited by source"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register VulnerabilityIntelligenceRateLimited counter: %w", err)
 	}
 
 	inst.PackageSourceCorrelations, err = meter.Int64Counter(
@@ -891,6 +919,17 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register PackageRegistryGenerationLag histogram: %w", err)
+	}
+
+	vulnerabilityBuckets := []float64{0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60}
+	inst.VulnerabilityIntelligenceFetchDuration, err = meter.Float64Histogram(
+		"eshu_dp_vulnerability_intelligence_fetch_duration_seconds",
+		metric.WithDescription("Vulnerability source fetch and normalization duration by source and result"),
+		metric.WithUnit("s"),
+		metric.WithExplicitBucketBoundaries(vulnerabilityBuckets...),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register VulnerabilityIntelligenceFetchDuration histogram: %w", err)
 	}
 
 	confluenceFetchBuckets := []float64{0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60}

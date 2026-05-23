@@ -112,6 +112,9 @@ gauge when a shared-acceptance observer is available.
 | `PackageRegistryFactsEmitted` | `eshu_dp_package_registry_facts_emitted_total` |
 | `PackageRegistryRateLimited` | `eshu_dp_package_registry_rate_limited_total` |
 | `PackageRegistryParseFailures` | `eshu_dp_package_registry_parse_failures_total` |
+| `VulnerabilityIntelligenceRequests` | `eshu_dp_vulnerability_intelligence_requests_total` |
+| `VulnerabilityIntelligenceFactsEmitted` | `eshu_dp_vulnerability_intelligence_facts_emitted_total` |
+| `VulnerabilityIntelligenceRateLimited` | `eshu_dp_vulnerability_intelligence_rate_limited_total` |
 | `PackageSourceCorrelations` | `eshu_dp_package_source_correlations_total` |
 | `ContainerImageIdentityDecisions` | `eshu_dp_container_image_identity_decisions_total` |
 | `CICDRunCorrelations` | `eshu_dp_ci_cd_run_correlations_total` |
@@ -166,6 +169,7 @@ module prefixes across generations.
 | `OCIRegistryScanDuration` | `eshu_dp_oci_registry_scan_duration_seconds` | 0.05–120 s |
 | `PackageRegistryObserveDuration` | `eshu_dp_package_registry_observe_duration_seconds` | 0.01–60 s |
 | `PackageRegistryGenerationLag` | `eshu_dp_package_registry_generation_lag_seconds` | 0.01–60 s |
+| `VulnerabilityIntelligenceFetchDuration` | `eshu_dp_vulnerability_intelligence_fetch_duration_seconds` | 0.01–60 s |
 | `ConfluenceFetchDuration` | `eshu_dp_confluence_fetch_duration_seconds` | 0.01–60 s |
 | `ScopeAssignDuration` | `eshu_dp_scope_assign_duration_seconds` | default |
 | `FactEmitDuration` | `eshu_dp_fact_emit_duration_seconds` | default |
