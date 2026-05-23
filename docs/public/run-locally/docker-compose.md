@@ -1,16 +1,16 @@
 # Docker Compose
 
-Use Docker Compose when you want Eshu's services running together: API, MCP,
+Use Docker Compose when you want the full local product stack: API, MCP,
 ingestion, reduction, Postgres, and a graph backend. Use
-[Local binaries](local-binaries.md) instead when you are editing source code and
-want fast rebuilds without containers.
+[Local binaries](local-binaries.md) when you are editing source code and want
+fast rebuilds without containers.
 
 ## Choose a Compose file
 
 | Compose file or profile | What it starts | Use it when |
 | --- | --- | --- |
 | `docker-compose.yaml` | Default local stack with NornicDB, Postgres, migration, workspace setup, bootstrap indexing, API, MCP, ingester, and reducer. | You want the normal local product stack. Start here. |
-| `docker-compose.neo4j.yml` | Same core runtime shape as the default stack, but with Neo4j instead of NornicDB. It includes the workflow-coordinator profile, but not the default-stack webhook-listener profile. | You need Neo4j compatibility checks or a Neo4j-backed migration path. |
+| `docker-compose.neo4j.yml` | Core runtime shape with Neo4j instead of NornicDB. It includes the workflow-coordinator profile, but not the default-stack webhook-listener profile. | You need Neo4j compatibility checks or a Neo4j-backed migration path. |
 | `docker-compose.telemetry.yml` | Adds Jaeger, the OpenTelemetry collector, and OTLP export settings to the main runtimes. | You need local traces, metrics export, or operator debugging data. |
 | `--profile workflow-coordinator` | Adds the workflow coordinator to the default or Neo4j stack. | You are testing collector claims, scheduling, or control-plane behavior. |
 | `--profile webhook-listener` | Adds the webhook listener to the default NornicDB stack. | You are testing webhook-driven freshness or external event ingestion locally. |
@@ -56,7 +56,8 @@ docker compose up --build bootstrap-index
 ```
 
 NornicDB graph-only note: Eshu Compose sets `NORNICDB_EMBEDDING_ENABLED=false`
-and `NORNICDB_PERSIST_SEARCH_INDEXES=true`. NornicDB does not currently document a supported switch that disables search/BM25 services entirely for
+and `NORNICDB_PERSIST_SEARCH_INDEXES=true`. NornicDB does not currently
+document a supported switch that disables search/BM25 services entirely for
 graph-only deployments. Eshu tracks that upstream gap in
 [orneryd/NornicDB#175](https://github.com/orneryd/NornicDB/issues/175); until
 that exists, do not add a fake `NORNICDB_SEARCH_ENABLED` style variable.
@@ -77,9 +78,9 @@ Start the workflow coordinator in its default dark mode:
 docker compose --profile workflow-coordinator up --build workflow-coordinator
 ```
 
-Use active mode only in fenced proof runs. The Kubernetes chart remains dark-only
-until the remote full-corpus proof, API checks, MCP checks, and evidence truth
-checks are clean.
+Use active mode only in fenced proof runs. The Kubernetes chart remains
+dark-only until remote full-corpus, API, MCP, and evidence-truth checks are
+clean.
 
 ## Neo4j stack
 
@@ -158,13 +159,13 @@ state drift proof. It does not stack on top of
 | `collector-terraform-state-gen2` | Terraform state collector for generation 2. |
 | Runtime fixture overrides | Point runtime services at the v2.5 fixture repository tree. |
 
-Use this overlay for the v2.5 proof only. Use the simpler Tier-2 overlay when
-you need the single-generation proof.
+Use this overlay only for the v2.5 proof. Use the simpler Tier-2 overlay for
+the single-generation proof.
 
 ## Remote collector E2E stack
 
-Use `docker-compose.remote-e2e.yaml` on a VPN-attached or account-local EC2 test
-machine when you want one isolated Compose project for the default runtime plus
+Use `docker-compose.remote-e2e.yaml` on a VPN-attached or account-local EC2
+test machine when you need an isolated proof for the default runtime plus
 claim-driven Terraform state, OCI registry, package registry, AWS cloud, and
 optional Confluence collectors. The file is standalone and defaults the Compose
 project to `eshu-remote-e2e`, so its volumes do not collide with the default

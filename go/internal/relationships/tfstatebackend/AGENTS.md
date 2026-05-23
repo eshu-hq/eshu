@@ -1,62 +1,41 @@
-# AGENTS — tfstatebackend
+# internal/relationships/tfstatebackend Agent Instructions
 
-Guidance for LLM assistants editing this package.
+These rules are mandatory for this package. Root `AGENTS.md` still owns the
+repo-wide proof, performance, concurrency, and skill-routing rules.
 
-## Read first (in order)
+## Read First
 
-1. `doc.go` — package contract.
-2. `resolver.go` — the single exported entry point.
-3. `../../scope/tfstate.go:33-40` — state-snapshot scope construction
-   (where the composite key originates).
-4. `../../projector/canonical.go:172` — `TerraformBackend` canonical
-   row (where the config-side composite key is recorded).
-5. `../../projector/tfstate_canonical.go:14-75` — state-side row
-   shapes (Address, Lineage, Serial, BackendKind, LocatorHash).
-6. `README.md` — package-local ownership boundary and resolver contract.
+1. `README.md`, `doc.go`, and `resolver.go`.
+2. `go/internal/scope/tfstate.go` for state-snapshot scope identity.
+3. `go/internal/storage/postgres/tfstate_backend_canonical.go` for the
+   production query adapter.
+4. Drift reducer docs/tests before changing caller-visible error behavior.
 
-## Invariants
+## Local Rules
 
-- `Resolver.ResolveConfigCommitForBackend` MUST return at most one
-  `CommitAnchor`. Multi-owner conflicts return
-  `ErrAmbiguousBackendOwner`; missing owners return
-  `ErrNoConfigRepoOwnsBackend` (`resolver.go:80, 87`).
-- "Latest" selection is deterministic: highest `CommitObservedAt`,
-  tie-broken by `CommitID` lexicographic ascending. Never randomize
-  (`resolver.go:142`).
-- The resolver is read-only. It does not mutate canonical rows, queue
-  state, or facts.
-- A nil `TerraformBackendQuery` is a permitted "no owner" mode that
-  always returns `ErrNoConfigRepoOwnsBackend` (`resolver.go:118`).
-  Callers wire a real implementation when the storage adapter is ready.
+- The resolver is read-only. It must not mutate canonical rows, queue state, or
+  facts.
+- `ResolveConfigCommitForBackend` returns at most one `CommitAnchor`.
+- A nil `TerraformBackendQuery` is valid no-owner mode and must return
+  `ErrNoConfigRepoOwnsBackend`.
+- Multi-owner conflicts return `ErrAmbiguousBackendOwner`; do not pick a repo
+  winner.
+- Missing owners return `ErrNoConfigRepoOwnsBackend`; callers must not classify
+  config-vs-state drift from absence alone.
+- Latest selection is deterministic: highest `CommitObservedAt`, with
+  lexicographic ascending `CommitID` as the tie-break.
+- Do not call the resolver in an unbounded hot loop without caller-side caching
+  or batching.
 
-## Common changes scoped by file
+## Change Gates
 
-- Add a new error class: declare in `resolver.go` near
-  `ErrNoConfigRepoOwnsBackend` and `ErrAmbiguousBackendOwner`,
-  document the operator-visible failure mode in `doc.go`, and add a
-  classifier test in the drift package fixture corpus.
-- Change the selection rule: requires architecture-owner approval and current
-  package documentation updates; tie-break semantics are part of the design
-  contract.
-- Attach prior-generation evidence: extend the return shape
-  (`CommitAnchor` or a sibling helper), keep the resolver call
-  bounded — never join across more than one prior generation per
-  resolve call.
+- Error changes require resolver tests and drift-handler classification tests.
+- Selection-rule changes require architecture-owner approval and package docs.
+- Return-shape changes must keep each resolve call bounded to the matching
+  `(backend_kind, locator_hash)` ownership key.
 
-## Anti-patterns specific to this package
+## Do Not Change Without Owner Review
 
-- Do NOT call this resolver in a hot loop without a cache. Every call
-  touches the canonical row table.
-- Do NOT swallow `ErrAmbiguousBackendOwner` to "try the next repo."
-  The conflict is operator-actionable; suppressing it hides graph
-  truth.
-- Do NOT pick winners by repo name, modification time of files in the
-  repo, or any heuristic outside `(CommitObservedAt, CommitID)`.
-
-## What MUST NOT change without architecture-owner approval
-
-- The single-owner policy. Multi-owner resolution requires explicit
-  design and operator documentation.
-- The deterministic selection rule.
-- The two typed errors. The drift handler depends on
-  distinguishing them.
+- Single-owner policy.
+- Deterministic latest selection.
+- Typed error meanings.

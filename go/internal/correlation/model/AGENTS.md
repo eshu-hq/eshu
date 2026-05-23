@@ -1,92 +1,56 @@
-# AGENTS.md — internal/correlation/model guidance for LLM assistants
+# internal/correlation/model Agent Rules
 
-## Read first
+This package owns the shared candidate, evidence, state, and rejection-reason
+types. It MUST remain pure data and validation: no rule matching, admission,
+winner selection, rendering, telemetry, or materialization logic.
 
-1. `go/internal/correlation/model/README.md` — ownership boundary, exported
-   surface, and invariants
-2. `go/internal/correlation/model/types.go` — all exported types, constants,
-   and `Validate` methods
-3. `CLAUDE.md` "Correlation Truth Gates" — mandatory before changing any type
-   that flows into materialization truth
+## Read First
 
-## Invariants this package enforces
+MUST read these before editing:
 
-- **Confidence range** — `Candidate.Confidence` and
-  `EvidenceAtom.Confidence` must be in `[0, 1]`. `Validate()` at
-  `types.go:78` and `types.go:106` returns an error for values outside this
-  range. Callers must not bypass `Validate` when constructing fixtures or
-  test candidates.
-- **Non-blank required fields** — `ID`, `Kind`, `CorrelationKey` on
-  `Candidate`; `ID`, `SourceSystem`, `EvidenceType`, `ScopeID`, `Key` on
-  `EvidenceAtom`. `Validate` uses `strings.TrimSpace` checks, so a field
-  containing only whitespace is rejected.
-- **State machine** — `CandidateStateProvisional` is the pre-evaluation state.
-  `CandidateStateAdmitted` and `CandidateStateRejected` are final states set
-  by `admission.Evaluate`. No other state transitions exist; the engine must
-  not store a provisional candidate as a final engine.Result.
-- **RejectionReasons is a slice, not a set** — duplicates are not prevented
-  at the model layer. The engine and admission packages are responsible for
-  not appending the same reason twice.
-- **Value is optional** — `EvidenceAtom.Value` has no non-blank constraint.
-  Do not add one without understanding callers that intentionally leave
-  `Value` empty.
+1. `README.md` and `doc.go`.
+2. `types.go` and `types_test.go`.
+3. Root correlation truth gates before changing any value that can flow into
+   materialization or explain output.
 
-## Common changes and how to scope them
+## Local Invariants
 
-- **Add a new RejectionReason constant** → add the constant in `types.go`,
-  add a branch in `correlation.BuildSummary` (`observability.go`), add
-  the appending logic in `engine.Evaluate` (`engine.go`). Run
-  `go test ./internal/correlation/... -count=1`. Update
-  `observability_test.go` to cover the new reason.
+- Candidate and evidence confidence values MUST stay in `[0,1]`.
+- Required identity fields MUST reject blank or whitespace-only values.
+- `EvidenceAtom.Value` is optional and may be empty.
+- `CandidateStateProvisional` is pre-evaluation only. Final engine results
+  MUST be admitted or rejected.
+- `RejectionReasons` is a slice, not a set. Duplicate prevention belongs in the
+  engine/admission flow, not this model package.
+- Fixtures SHOULD call `Validate`; invalid model fixtures hide pipeline bugs.
 
-- **Add a new field to Candidate or EvidenceAtom** → add the field to the
-  struct; if it must be non-blank, add a `strings.TrimSpace` check in
-  `Validate`; if it has a numeric range, add the range check. Run
-  `go test ./internal/correlation/... -count=1`. Every downstream package
-  that constructs a `Candidate` fixture must be updated.
+## Change Rules
 
-- **Add a new CandidateState constant** → add the constant in `types.go`,
-  add the switch case in `CandidateState.Validate()`. Audit every
-  `switch result.Candidate.State` in `engine`, `admission`, and
-  `correlation` for the new state.
+- New rejection reason: add the constant here, append it in the engine, update
+  root summary if operators need a counter, and update explain/status tests.
+- New candidate or evidence fields MUST define validation rules and update every
+  downstream fixture constructor.
+- New state values require validation plus an audit of switches in `engine`,
+  `admission`, `correlation`, and explain/status consumers.
 
-## Failure modes and how to debug
+## Do Not Change Without Proof
 
-- Symptom: `admission.Evaluate` returns an error on a candidate you
-  constructed → likely cause: `Candidate.Validate()` failed — check that
-  all required string fields are non-blank and `Confidence` is in `[0, 1]`.
+- State and rejection reason string values are wire/output contracts once they
+  appear in explain text, APIs, logs, or persisted graph/status data.
+- `Candidate.CorrelationKey` is the tie-break and materialization grouping key.
+  Changing its meaning requires correlation truth proof.
 
-- Symptom: engine emits a candidate with `CandidateStateProvisional` in
-  the final evaluation results → this is a pipeline bug; `admission.Evaluate`
-  must set state to `CandidateStateAdmitted` or `CandidateStateRejected`.
-  Check the `admission.Evaluate` call path in `engine.go`.
+## Proof
 
-- Symptom: `RejectionReasons` has duplicate entries → admission or engine
-  added the same reason twice; check the appending logic in `engine.go` for
-  double-append on the same rejection path.
+Run the focused gate for any edit:
 
-## Anti-patterns specific to this package
+```bash
+cd go
+go test ./internal/correlation/model -count=1
+go vet ./internal/correlation/model
+go doc ./internal/correlation/model
+```
 
-- **Bypassing Validate in fixtures** — test helpers that construct `Candidate`
-  or `EvidenceAtom` without calling `Validate` can hide contract violations.
-  Call `Validate()` in test setup and assert `err == nil`.
-
-- **Adding evaluation logic here** — this package must remain pure data.
-  Do not add rule matching, confidence computation, or state-transition logic
-  to `types.go`. Those belong in `admission` and `engine`.
-
-- **Reusing RejectionReason as a structured error type** — `RejectionReason`
-  is a string constant for operator-facing display. Do not define error
-  wrapping or sentinel comparisons on it.
-
-## What NOT to change without owner approval and proof
-
-- `CandidateState` string values once they are persisted in the graph or
-  status store — changing the wire value requires a migration and compatibility
-  proof for graph, status, and explain consumers.
-- `RejectionReason` string values once they appear in explain output, API
-  responses, or structured logs — operators and tooling pattern-match on them.
-  Update package docs and prove every consumer handles the new values.
-- `Candidate.CorrelationKey` semantics — this is the tie-break domain key;
-  changing what it means breaks the engine's winner-selection logic and
-  materialization grouping. Require correlation truth proof before changing it.
+Model-contract changes require `go test ./internal/correlation/... -count=1`.
+Docs-only edits also need the package-doc verifier for this directory and
+`git diff --check`.

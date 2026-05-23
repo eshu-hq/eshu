@@ -1,53 +1,37 @@
-# AGENTS.md — internal/truth guidance for LLM assistants
+# internal/truth Agent Instructions
 
-## Read first
+These rules are mandatory for this package. Root `AGENTS.md` still owns the
+repo-wide proof, performance, concurrency, and skill-routing rules.
 
-1. `go/internal/truth/README.md` — purpose, exported surface, invariants
-2. `go/internal/truth/model.go` — `Layer`, `Contract`, `ParseLayer`; the
-   entire surface fits in one file
-3. `go/internal/reducer/registry.go` — how `Contract` is used during
-   reducer domain registration
+## Read First
 
-## Invariants this package enforces
+1. `README.md` and `doc.go`.
+2. `model.go` before changing layers or contracts.
+3. `go/internal/reducer/registry.go` before changing reducer registration
+   behavior.
+4. Query/status response docs before changing API-visible truth fields.
 
-- **`LayerCanonicalAsset` is output-only** — `Contract.Validate` at
-  `model.go:61` explicitly rejects `LayerCanonicalAsset` in `SourceLayers`.
-  Never add it as a source layer in a reducer registration.
-- **Non-empty, duplicate-free `SourceLayers`** — `model.go:53` and `:57`
-  enforce both. A `Contract` with an empty or duplicate `SourceLayers` slice
-  fails validation at domain registration.
-- **`ParseLayer` trims whitespace** — `model.go:30` trims before validating.
-  Raw layer strings from config or wire formats must go through `ParseLayer`,
-  not direct `Layer(raw)` casts.
+## Local Rules
 
-## Common changes and how to scope them
+- Keep this package pure value logic with standard-library imports only.
+- Use `ParseLayer` for raw strings; do not cast external input directly to
+  `Layer`.
+- `LayerCanonicalAsset` is output-only. `Contract.Validate` must reject it in
+  `SourceLayers`.
+- `SourceLayers` must stay non-empty and duplicate-free.
+- `Contract.Supports` can remain a linear scan because source-layer lists are
+  intentionally short.
+- This package must not own reducer dispatch, storage, query serialization, or
+  runtime state.
 
-- **Add a new truth layer** — add a constant in `model.go`, extend the
-  `Validate` switch (`model.go:39`), and update `ParseLayer`. Then update
-  every reducer domain that declares `SourceLayers`. Run
-  `go test ./internal/truth ./internal/reducer -count=1`. Tests
-  TestParseLayerRejectsUnknownValue and TestParseLayerAcceptsKnownValues
-  cover the parser gate.
+## Change Gates
 
-- **Add a `Contract` method** — keep it pure value logic with no I/O.
-  Add a test in `model_test.go` before implementing.
+- New layers require parser validation tests, contract validation tests,
+  reducer registration updates, and API/query docs if surfaced.
+- New contract helpers require tests first in `model_test.go`.
 
-## Failure modes and how to debug
+## Do Not Change Without Owner Review
 
-- Symptom: reducer domain registration panics or returns an error about
-  `canonical_asset` in source layers → cause: caller passed
-  `LayerCanonicalAsset` in `Contract.SourceLayers` → fix: use only
-  `LayerSourceDeclaration`, `LayerAppliedDeclaration`, or
-  `LayerObservedResource` as source layers.
-
-- Symptom: `ParseLayer` returns `unknown truth layer "..."` → cause: raw
-  value does not match any of the four known layer strings → fix: verify
-  the config or wire value against the constants in `model.go`.
-
-## Anti-patterns specific to this package
-
-- **Casting raw strings directly to `Layer`** — always use `ParseLayer` for
-  external input. Direct casts bypass whitespace trimming and the known-set
-  check.
-- **Adding runtime state** — this package must remain a pure value library.
-  No init functions, no global vars, no I/O.
+- Existing layer string values.
+- `canonical_asset` as output-only.
+- No-I/O/no-internal-imports package boundary.

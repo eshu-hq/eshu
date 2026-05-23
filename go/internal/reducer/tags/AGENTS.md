@@ -1,7 +1,6 @@
-# AGENTS — internal/reducer/tags
+# AGENTS - internal/reducer/tags
 
-This file guides LLM assistants working in `go/internal/reducer/tags`. Read
-it before touching any file in this directory.
+Read this before touching `go/internal/reducer/tags`.
 
 ## Read first
 
@@ -13,24 +12,20 @@ it before touching any file in this directory.
    publications from this package feed downstream domains that may require
    Phase 3 reopen.
 
-## Invariants (cite file:line)
+## Mandatory Invariants
 
-- **Scaffold seam only** — `doc.go:1–9`; no normalization logic lives here.
-  Do not add cloud-tag parsing or normalization code; create a separate
-  concrete implementation satisfying `Normalizer`.
-- **`PhaseStates` always produces `canonical_nodes_committed` for
-  `cloud_resource_uid`** — `normalizer.go:86–97`; the keyspace and phase
-  are hardcoded. If a normalizer substrate needs a different keyspace,
-  define a separate seam or extend this contract in a new revision.
-- **`PhaseStates` deduplicates by `CanonicalResourceID`** —
-  `normalizer.go:79–85`; this is a correctness property for replay
-  stability.
-- **Post-Phase-3 reopen is not owned here** — the `canonical_nodes_committed`
-  publication is Phase 1; any domain deriving `resolved_relationships` from
-  AWS/cloud canonical rows needs the Phase 3 reopen from
-  `bootstrap-index/main.go:273`.
-- **Defensive copies from factory functions** — `contract.go:27–37`; both
-  `DefaultRuntimeContract` and `RuntimeContractTemplate` use `slices.Clone`.
+- This package owns the normalization seam only. Do not add cloud-tag parsing
+  or concrete normalization logic here.
+- `PhaseStates` always produces `cloud_resource_uid` at
+  `canonical_nodes_committed`. A different keyspace or phase requires an
+  explicit contract change.
+- `PhaseStates` deduplicates by `CanonicalResourceID`; this is a replay
+  correctness property.
+- Post-Phase-3 reopen is not owned here. Any domain deriving
+  `resolved_relationships` from cloud canonical rows needs that reopen outside
+  this package.
+- `DefaultRuntimeContract` and `RuntimeContractTemplate` return defensive
+  copies.
 
 ## Common changes
 

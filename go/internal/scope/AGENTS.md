@@ -1,96 +1,44 @@
-# AGENTS.md — internal/scope guidance for LLM assistants
+# internal/scope Agent Instructions
 
-## Read first
+These rules are mandatory for this package. Root `AGENTS.md` still owns the
+repo-wide proof, performance, concurrency, and skill-routing rules.
 
-1. `go/internal/scope/README.md` — lifecycle diagram, exported surface, and
-   invariants
-2. `go/internal/scope/scope.go` — `IngestionScope`, `ScopeGeneration`,
-   `GenerationStatus`, and all enum constants
-3. `go/internal/scope/doc.go` — package contract statement
-4. `go/internal/storage/postgres/` — Postgres rows that use these types as
-   their in-memory shape
+## Read First
 
-## Invariants this package enforces
+1. `README.md` and `doc.go`.
+2. `scope.go` before changing scope or generation lifecycle types.
+3. `tfstate.go` before changing Terraform-state scope identity.
+4. `go/internal/storage/postgres/README.md` before changing persisted fields.
 
-- **Transition table is authoritative** — `allowedGenerationTransitions`
-  defines every allowed status move. `TransitionTo` enforces it; forbidden
-  moves return an error. Do not bypass it by setting `Status` directly.
-- **Terminal states do not move** — `GenerationStatusSuperseded`,
-  `GenerationStatusCompleted`, and `GenerationStatusFailed` have no outgoing
-  transitions. `IsTerminal` reports this.
-- **`PreviousGenerationExists` is the prior-generation gate** — do not use
-  `ActiveGenerationID != ""` as a proxy. A scope whose first generation failed
-  has no active generation ID but does have a prior generation row.
-  `HasPriorGeneration` returns `PreviousGenerationExists` directly.
-- **`IngestedAt` must not precede `ObservedAt`** — `ScopeGeneration.Validate`
-  enforces this; constructors must set both timestamps correctly.
-- **Blank identifiers are rejected** — `Validate` rejects blank `ScopeID`,
-  `SourceSystem`, `ScopeKind`, `CollectorKind`, and `PartitionKey`. Every scope
-  must provide all five.
+## Local Rules
 
-## Common changes and how to scope them
+- Keep this package pure value logic with standard-library imports only.
+- Use `TransitionTo` or the named transition helpers; do not set
+  `ScopeGeneration.Status` directly outside controlled construction.
+- Keep terminal generation states terminal. `completed`, `failed`, and
+  `superseded` must not gain casual outgoing transitions.
+- Use `PreviousGenerationExists` for prior-generation checks. Do not infer prior
+  history from `ActiveGenerationID`.
+- Preserve timestamp validation: `IngestedAt` must not precede `ObservedAt`.
+- Preserve required identifiers: scope ID, source system, scope kind, collector
+  kind, partition key, generation ID, and trigger kind must stay non-blank.
+- Terraform-state scope identity is backend kind plus locator hash. Serial and
+  lineage belong to generation identity, not scope identity.
+- Keep the Terraform-state locator hash byte-compatible with
+  `terraformstate.ScopeLocatorHash`.
 
-- **Add a new `ScopeKind`** → add the constant to `scope.go`; `Validate` uses
-  `validateIdentifier` (string non-blank check) and does not enumerate known
-  kinds, so no switch update is needed; add a test in `scope_test.go` confirming
-  the new kind passes validation.
+## Change Gates
 
-- **Add a new `CollectorKind`** → same pattern as `ScopeKind`; confirm any
-  downstream switch on `CollectorKind` in `internal/collector` or
-  `internal/storage/postgres` covers the new value.
+- New status values require transition-table updates, README lifecycle updates,
+  and tests for valid and invalid transitions.
+- New persisted fields require additive validation, Postgres storage support,
+  and migration/default behavior in the same PR.
+- New scope or collector kind constants require downstream switch checks in
+  collectors and Postgres storage.
 
-- **Add a new `GenerationStatus`** → add the constant; update the `switch` in
-  `GenerationStatus.Validate`; update `allowedGenerationTransitions`; update
-  `GenerationStatus.IsTerminal` if it is terminal; update the diagram in
-  `README.md`; add tests covering valid transitions into and out of the new
-  state.
+## Do Not Change Without Owner Review
 
-- **Add a new field to `IngestionScope` or `ScopeGeneration`** → the field must
-  be additive; update `Validate` if the field has constraints; update
-  `MetadataCopy` pattern if the field is a map; add Postgres column in
-  `internal/storage/postgres` in the same PR.
-
-## Failure modes and how to debug
-
-- Symptom: `Validate` returns "scope_id must not be blank" or similar →
-  the collector or ingest path is constructing an `IngestionScope` without
-  all required fields; check the ingest code that creates `IngestionScope`
-  from the collector payload.
-
-- Symptom: `TransitionTo` returns "cannot transition generation status from X
-  to Y" → a caller is attempting a forbidden status move; check the transition
-  table diagram in `README.md`; the most common forbidden move is from a
-  terminal state or from `pending` directly to `completed`.
-
-- Symptom: projector skips cleanup on a re-ingested scope → `HasPriorGeneration`
-  returned false because `PreviousGenerationExists` was not set by the ingest
-  path; check the Postgres query in `internal/storage/postgres` that populates
-  `PreviousGenerationExists` when constructing `IngestionScope`.
-
-- Symptom: `ValidateForScope` returns scope_id mismatch → the `ScopeGeneration`
-  was constructed with a different `ScopeID` than the `IngestionScope` it is
-  being paired with; check the ingest path that pairs generations with scopes.
-
-## Anti-patterns specific to this package
-
-- **Setting `Status` directly on `ScopeGeneration`** — always use `TransitionTo`
-  or the named helpers (`MarkActive`, `MarkCompleted`, `MarkSuperseded`,
-  `MarkFailed`). Direct field assignment bypasses the transition table and
-  creates invalid state.
-
-- **Using `ActiveGenerationID != ""` as a prior-generation check** — use
-  `HasPriorGeneration` instead. `ActiveGenerationID` is not set for scopes
-  whose most recent generation failed before being promoted to active.
-
-- **Adding I/O or package-level state** — this is a pure value package.
-  No database connections or global variables belong here.
-
-## What MUST NOT change without architecture-owner approval
-
-- `GenerationStatus` string values — these are stored on disk and appear in
-  the Postgres `generation_status` column; changing a value string without a
-  migration corrupts existing rows.
-- `allowedGenerationTransitions` contents — removing a valid transition breaks
-  existing workflows; adding a transition that bypasses terminal states breaks
-  the lifecycle invariant relied on by the projector and reducer.
-- `ScopeKind` and `CollectorKind` string values — stored on disk in scope rows.
+- Stored string values for scope kind, collector kind, trigger kind, or
+  generation status.
+- `allowedGenerationTransitions`.
+- Terraform-state scope and generation identity formulas.

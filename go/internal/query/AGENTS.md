@@ -26,7 +26,8 @@ change as a public wire-contract change.
   wiring details.
 - Use `WriteSuccess` for public success responses so MCP can negotiate
   `application/eshu.envelope+json`. Do not change `ResponseEnvelope`,
-  `TruthEnvelope`, or `EnvelopeMIMEType` without a design record.
+  `TruthEnvelope`, or `EnvelopeMIMEType` without architecture-owner approval
+  and tracked compatibility evidence.
 - A handler behavior change MUST update the matching OpenAPI fragment in the
   same PR. The OpenAPI spec is static Go text, not reflection.
 - Do not add unauthenticated routes to `publicHTTPPaths` without explicit

@@ -2,8 +2,8 @@
 
 ## Purpose
 
-`internal/reducer/dsl` defines the evaluator seam for future cross-source DSL
-evaluation and the readiness-publication helpers shared with reducer phase
+`internal/reducer/dsl` defines the evaluator seam for cross-source DSL
+substrates and the readiness-publication helpers shared with reducer phase
 publishers.
 
 ## Ownership boundary
@@ -12,9 +12,9 @@ This package owns the in-process contract: evaluator interfaces, bounded
 canonical views, evaluation results, publication rows, runtime contract
 templates, and conversion to `GraphProjectionPhaseState` rows.
 
-It does not evaluate a DSL today, read storage directly, write graph edges, or
-own reducer domain orchestration. Downstream evaluators must implement the
-interfaces here and publish through reducer-owned ports.
+It does not evaluate a DSL, read storage directly, write graph edges, or own
+reducer domain orchestration. Concrete evaluators implement the interfaces here
+and publish through reducer-owned ports.
 
 ## Exported surface
 

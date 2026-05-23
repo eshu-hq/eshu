@@ -159,8 +159,8 @@ writes, describe:
 
 Do not ship serialization as a concurrency fix. Worker-count reductions,
 single-threaded drains, disabled concurrent writers, or batch size `1` are
-diagnostics unless a design record proves the serial path is permanent and
-within the performance contract.
+diagnostics unless architecture-owner approval and tracked evidence prove the
+serial path is permanent and within the performance contract.
 
 ## Bootstrap And Correlation Truth
 

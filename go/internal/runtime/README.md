@@ -19,62 +19,52 @@ and optional application routes.
 
 ## Exported surface
 
-See `doc.go` and `go doc ./internal/runtime` for the godoc contract. Callers
-depend on the config/lifecycle helpers, HTTP/admin mux builders, datastore
-opening helpers, backend parsing, retry policy loading, API key resolution,
-memory-limit tuning, pprof wiring, and status request handlers.
+See `doc.go` for the godoc contract. Callers depend on config/lifecycle
+helpers, HTTP/admin mux builders, datastore opening helpers, graph backend
+parsing, retry policy loading, API key resolution, memory-limit tuning, pprof
+wiring, metrics handlers, and status request handlers.
 
 ## Dependencies
 
-- `internal/app` consumes runtime lifecycles from binary wiring.
-- `internal/buildinfo` supplies runtime identity in metrics.
-- `internal/recovery` backs recovery admin routes.
-- `internal/status` provides status snapshots for admin and metrics handlers.
-- `internal/telemetry` provides bootstrap state and frozen metric/span/log
-  contract names.
+`internal/app` consumes runtime lifecycles from binary wiring.
+`internal/buildinfo` supplies runtime identity in metrics. `internal/recovery`
+backs recovery admin routes. `internal/status` provides status snapshots for
+admin and metrics handlers. `internal/telemetry` provides bootstrap state and
+frozen metric/span/log contract names.
 
 ## Telemetry
 
 This package emits no OTEL spans of its own. `/metrics` exposes
 Prometheus-style runtime gauges and counters with the `eshu_runtime_` prefix,
 including runtime identity, scope refresh status, retry-policy values,
-health-state gauges, queue gauges, stage item counts, domain backlog gauges, and
-workflow-coordinator status gauges. When `WithPrometheusHandler` is set,
-`NewCompositeMetricsHandler` appends OTEL Prometheus output to the same
-endpoint.
+health-state gauges, queue gauges, stage item counts, domain backlog gauges,
+and workflow-coordinator status gauges. When `WithPrometheusHandler` is set,
+OTEL Prometheus output is appended to the same endpoint.
 
 ## Gotchas / invariants
 
 - `LoadGraphBackend` defaults empty `ESHU_GRAPH_BACKEND` to `nornicdb` and
   rejects unknown values at startup.
 - Neo4j and NornicDB both use the shared Bolt driver path in
-  `OpenNeo4jDriver`; backend-specific behavior belongs only in narrow seams.
+  `OpenNeo4jDriver`; backend-specific behavior belongs in narrow seams.
 - `NewStatusMetricsServer` and `NewPprofServer` can return `(nil, nil)`;
   callers must handle the nil server.
 - `NewPprofServer` is gated by `ESHU_PPROF_ADDR`. Port-only values bind to
   `127.0.0.1`.
-- `ConfigureMemoryLimit` respects an explicit `GOMEMLIMIT`; call it once per
-  process after telemetry bootstrap.
+- `ConfigureMemoryLimit` respects explicit `GOMEMLIMIT` and should run once
+  per process after telemetry bootstrap.
 - Admin routes are not authenticated by this package. Expose them only through
   operator-controlled network paths.
-- Recovery admin routes mount `/admin/replay` and `/admin/refinalize`; they are
-  distinct from command-specific route aliases.
 
 ## Focused tests
-
-Use the smallest command that proves the changed contract:
 
 ```bash
 cd go
 go test ./internal/runtime -count=1
 go vet ./internal/runtime
-go doc ./internal/runtime
 go run ./cmd/eshu docs verify ../go/internal/runtime --limit 1000 \
   --fail-on contradicted,missing_evidence
 ```
-
-Compose, Helm, admin-route, or runtime-default changes usually need the broader
-runtime package tests named by the changed contract.
 
 ## Related docs
 

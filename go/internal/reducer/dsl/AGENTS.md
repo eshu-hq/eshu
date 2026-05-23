@@ -1,7 +1,6 @@
-# AGENTS — internal/reducer/dsl
+# AGENTS - internal/reducer/dsl
 
-This file guides LLM assistants working in `go/internal/reducer/dsl`. Read
-it before touching any file in this directory.
+Read this before touching `go/internal/reducer/dsl`.
 
 ## Read first
 
@@ -14,27 +13,20 @@ it before touching any file in this directory.
    a post-Phase-3 reopen; `OutputKindResolvedRelationship` publications from
    this package feed those rows.
 
-## Invariants (cite file:line)
+## Mandatory Invariants
 
-- **This package owns the seam, not the implementation** — `doc.go:1–11`;
-  concrete DSL substrates land elsewhere. Do not add evaluation logic here.
-- **`OutputKindResolvedRelationship` triggers the Phase 3 reopen
-  requirement** — `evaluator.go:20`; any consumer of the resulting
-  `resolved_relationships` rows needs a post-Phase-3 reopen
-  (`bootstrap-index/main.go:273`). This package does not own that reopen.
-- **`PhaseStates` deduplicates and sorts** — `evaluator.go:108–149`; the
-  output order is deterministic by `(AcceptanceUnitID, Keyspace, Phase)`;
-  callers must not depend on insertion order.
-- **`cross_source_anchor_ready` is reserved** —
-  `GraphProjectionPhaseCrossSourceAnchorReady` is declared in
-  `internal/reducer/graph_projection_phase.go`; publish only from DSL
-  substrate code, not from canonical projectors or other reducer handlers.
-- **`PublishEvaluationResult` is nil-safe** — `evaluator.go:163`; a nil
-  `publisher` is silently a no-op. This is intentional for test scaffolding
-  but can hide wiring mistakes in production. Always verify the publisher is
-  non-nil in integration tests.
-- **Defensive copies from factory functions** — `contract.go:56–67`; both
-  `DefaultRuntimeContract` and `RuntimeContractTemplate` use `slices.Clone`.
+- This package owns the seam, not DSL evaluation logic. Concrete substrates
+  land outside this package.
+- `OutputKindResolvedRelationship` feeds `resolved_relationships`; consumers
+  need a post-Phase-3 reopen outside this package.
+- `PhaseStates` deduplicates and sorts by `(AcceptanceUnitID, Keyspace,
+  Phase)`. Callers must not depend on insertion order.
+- `cross_source_anchor_ready` is reserved for DSL substrate code. Do not
+  publish it from canonical projectors or unrelated reducer handlers.
+- `PublishEvaluationResult` is nil-safe. Verify the publisher is non-nil in
+  integration tests so production wiring mistakes do not hide behind no-ops.
+- `DefaultRuntimeContract` and `RuntimeContractTemplate` return defensive
+  copies.
 
 ## Common changes
 

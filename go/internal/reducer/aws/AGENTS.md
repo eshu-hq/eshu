@@ -1,7 +1,6 @@
-# AGENTS — internal/reducer/aws
+# AGENTS - internal/reducer/aws
 
-This file guides LLM assistants working in `go/internal/reducer/aws`. Read
-it before touching any file in this directory.
+Read this before touching `go/internal/reducer/aws`.
 
 ## Read first
 
@@ -12,25 +11,22 @@ it before touching any file in this directory.
 3. `CLAUDE.md` "Facts-First Bootstrap Ordering" — the Phase 1/2/3/4 contract
    that any AWS collector → reducer pipeline must honor.
 
-## Invariants (cite file:line)
+## Mandatory Invariants
 
-- **Scaffold only** — `doc.go:1–5` is explicit: no live projection logic
-  lives here. Do not add materialization code to this package; create a new
-  package or extend the parent reducer domain catalog.
-- **`Validate` enforces non-blank fields** — `contract.go:52–76`; it does
-  not check that listed component names map to any implementation.
-- **One checkpoint — Phase 1 only** — `contract.go:27–36`; the scaffold
-  declares `canonical_nodes_committed` for `cloud_resource_uid`. The
-  post-Phase-3 reopen for any domain consuming `resolved_relationships`
-  derived from these nodes is not owned by this package.
-- **Defensive copies from factory functions** — `DefaultRuntimeContract`
-  (`contract.go:41`) and `RuntimeContractTemplate` (`contract.go:48`) both
-  call `slices.Clone`; do not take pointers to the internal default and
-  mutate it.
+- This package is a contract package only. Do not add materialization code
+  here; reducer runtime logic belongs in a registered reducer handler.
+- `Validate` enforces non-blank fields. It does not prove the named components
+  are implemented.
+- The accepted checkpoint is Phase 1 only:
+  `cloud_resource_uid` at `canonical_nodes_committed`. Any domain consuming
+  `resolved_relationships` derived from those nodes still needs the standard
+  post-Phase-3 reopen outside this package.
+- `DefaultRuntimeContract` and `RuntimeContractTemplate` return defensive
+  copies. Do not mutate package globals through returned values.
 
 ## Common changes
 
-### Add a new component to the scaffold
+### Add a new component
 
 1. Append to the `Components` slice in `defaultRuntimeContract` in
    `contract.go`.
@@ -47,16 +43,14 @@ it before touching any file in this directory.
 
 ## Failure modes
 
-- **Scaffold contract drift**: if contract fixtures use this scaffold and
-  `Validate` passes on an outdated contract, downstream wiring will
-  silently miss required checkpoints. Treat failing `Validate` in tests as a
+- **Contract drift**: if fixtures accept an outdated contract, downstream
+  wiring can miss required checkpoints. Treat failing `Validate` in tests as a
   hard stop.
 
 ## Anti-patterns
 
-- Do not add live projection code to this package. The package is a
-  planning artifact. Materialization code belongs in a separate handler
-  registered with `internal/reducer.NewDefaultRegistry`.
+- Do not add live projection code to this package. Materialization code belongs
+  in a separate handler registered with `internal/reducer.NewDefaultRegistry`.
 - Do not export new types that reference concrete graph backend types
   (Neo4j, NornicDB). The scaffold should remain backend-agnostic.
 

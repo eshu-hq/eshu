@@ -120,6 +120,7 @@ Generated from `git diff --name-status origin/main -- "*.md"` for this documenta
 - `go/cmd/reducer/AGENTS.md`
 - `go/cmd/reducer/README.md`
 - `go/cmd/webhook-listener/AGENTS.md`
+- `go/cmd/workflow-coordinator/AGENTS.md`
 - `go/cmd/workflow-coordinator/README.md`
 - `go/internal/README.md`
 - `go/internal/app/AGENTS.md`
@@ -239,6 +240,7 @@ Generated from `git diff --name-status origin/main -- "*.md"` for this documenta
 - `go/internal/content/README.md`
 - `go/internal/content/shape/README.md`
 - `go/internal/contentrefs/README.md`
+- `go/internal/coordinator/AGENTS.md`
 - `go/internal/coordinator/README.md`
 - `go/internal/correlation/AGENTS.md`
 - `go/internal/correlation/README.md`
@@ -352,7 +354,10 @@ Generated from `git diff --name-status origin/main -- "*.md"` for this documenta
 - `go/internal/telemetry/README.md`
 - `go/internal/terraformschema/AGENTS.md`
 - `go/internal/terraformschema/README.md`
+- `go/internal/truth/AGENTS.md`
 - `go/internal/truth/README.md`
+- `go/internal/webhook/README.md`
+- `go/internal/workflow/AGENTS.md`
 - `go/internal/workflow/README.md`
 - `scripts/README.md`
 - `tests/fixtures/correlation_dsl/README.md`

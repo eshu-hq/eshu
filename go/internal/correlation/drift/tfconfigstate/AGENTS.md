@@ -1,104 +1,61 @@
-# AGENTS — tfconfigstate
+# internal/correlation/drift/tfconfigstate Agent Rules
 
-Guidance for LLM assistants editing this package.
+This package is deterministic helper Go for the
+`terraform_config_state_drift` rule pack. It classifies config/current-state/
+prior-state rows and builds candidates; it MUST NOT own reducer queues,
+telemetry emission, graph projection, or future cloud joins.
 
-## Read first (in order)
+## Read First
 
-1. `doc.go` — package contract and DSL-routing rationale.
-2. `drift_kind.go` — closed enum that labels the drift metric.
-3. `classify.go` — `Classify` dispatcher and the five helper functions.
-4. `candidate.go` — `BuildCandidates` cross-scope candidate constructor.
-5. `attribute_allowlist.go` — per-resource-type attribute policy.
-6. `../../rules/terraform_config_state_drift_rules.go` — the rule-pack
-   declaration this package supports (do not edit it from here).
-7. `README.md` — drift pipeline, dispatch order, telemetry, known limitations,
-   and extension rules.
-8. `docs/public/reference/local-testing/verification-gates.md` — Terraform
-   config-vs-state drift proof gates.
+MUST read these before editing:
 
-## Invariants
+1. `README.md` and `doc.go`.
+2. `drift_kind.go`, `classify.go`, `candidate.go`,
+   `attribute_allowlist.go`, and focused tests.
+3. `../../rules/terraform_config_state_drift_rules.go`.
+4. `docs/public/reference/local-testing.md` drift proof gates.
 
-- `Classify` is exclusive: returns at most one `DriftKind` per call
-  (`classify.go:65`). Dispatch order is load-bearing — see the doc
-  comment.
-- `BuildCandidates` emits address-sorted output for deterministic explain
-  traces (`candidate.go:73`).
-- Every emitted `Candidate` carries an `EvidenceTypeDriftAddress` atom so
-  the rule pack's structural gate admits it
-  (`candidate.go:13`).
-- Computed/unknown config-side attributes (`ResourceRow.UnknownAttributes`)
-  never raise `attribute_drift` against a concrete state value
-  (`classify.go:155`). `attribute_drift` is active end-to-end as of #167:
-  the HCL parser now emits flat dot-path `attributes` and `unknown_attributes`
-  maps; `configRowFromParserEntry` bridges them into `ResourceRow`
-  (`go/internal/storage/postgres/tfstate_drift_evidence_config_row.go:22`).
-  The state side uses `flattenStateAttributes` with the same dot-path rules
-  (`go/internal/storage/postgres/tfstate_drift_evidence_state_row.go:71`).
-- `removed_from_config` is active end-to-end as of issue #168. State-only
-  addresses present in the prior-config snapshot (returned by
-  PostgresDriftEvidenceLoader.loadPriorConfigAddresses in
-  `go/internal/storage/postgres/tfstate_drift_evidence_prior_config.go:45`)
-  get `ResourceRow.State.PreviouslyDeclaredInConfig=true`; the classifier
-  emits `DriftKindRemovedFromConfig` for them (`classify.go`). Operator-imported
-  addresses — never declared in any prior generation within the depth window
-  (default 10, configurable via the env var ESHU_DRIFT_PRIOR_CONFIG_DEPTH in
-  `go/cmd/reducer/config.go:270`) — keep the flag false and surface as
-  `added_in_state`, the conservative outside-window fallback.
-- `LineageRotation` on a prior row short-circuits the dispatcher
-  (`classify.go:73`).
-- High-cardinality values (addresses, attribute paths, module paths)
-  belong in `Evidence` atom values, NOT in metric labels.
+## Local Invariants
 
-## Common changes scoped by file
+- `Classify` MUST be exclusive: at most one `DriftKind` per address.
+- Dispatch order is load-bearing: lineage rotation suppression,
+  `removed_from_state`, `removed_from_config`, `added_in_state`,
+  `added_in_config`, then `attribute_drift`.
+- `removed_from_config` requires `PreviouslyDeclaredInConfig`; raw state-only
+  presence is not enough.
+- Unknown/computed config attributes MUST suppress `attribute_drift` for that
+  path.
+- `BuildCandidates` MUST sort by address for deterministic candidate IDs and
+  explain traces.
+- Every emitted candidate MUST carry `EvidenceTypeDriftAddress`; the rule pack
+  structural gate depends on it.
+- Config evidence uses the config anchor scope; state and prior evidence use
+  the state snapshot scope.
+- High-cardinality addresses, module paths, and attribute paths MUST stay out of
+  metric labels.
 
-- Add a resource type to the attribute allowlist: edit
-  `attribute_allowlist.go` only. Run `attribute_allowlist_test.go` and the
-  fixture corpus to confirm no regression.
-- Add a drift kind: edit `drift_kind.go` (enum), `classify.go`
-  (helper + dispatch), `testdata/<new_kind>/{positive,negative,ambiguous}.json`,
-  and the rule pack's `RequiredEvidence` if structural shape changes.
-- Change candidate evidence shape: edit `candidate.go`; the rule pack's
-  `EvidenceFieldEvidenceType` selector must still match
-  `EvidenceTypeDriftAddress` or admission breaks.
-- Update fixtures: edit JSON under `testdata/<kind>/`. Each subdirectory
-  must keep `positive.json`, `negative.json`, and `ambiguous.json`
-  (asserted by `fixture_corpus_test.go`).
+## Change Rules
 
-## Failure modes mapped to metric / log / span
+- New drift kind: update enum, classifier, candidate evidence if needed, rule
+  docs, telemetry cardinality proof, and positive/negative/ambiguous fixtures.
+- Allowlist additions MUST stay small and high-signal; run allowlist and corpus
+  tests.
+- Candidate evidence changes MUST keep
+  `rules.TerraformConfigStateDriftRulePack` structural selectors aligned.
+- Do not move value comparison into `correlation/rules`; the DSL does not
+  compare values.
 
-- Drift classified: `eshu_dp_correlation_drift_detected_total{pack, rule, drift_kind}`
-  +1 (emitted by the reducer handler that consumes this package).
-- Drift suppressed by lineage rotation: no counter; structured log via the
-  handler at `failure_class="lineage_rotation"`.
-- Allowlist miss for `attribute_drift`: no counter; classifier returns
-  empty. Operators must extend the allowlist or accept the gap.
+## Proof
 
-## Anti-patterns specific to this package
+Run the focused gate for any edit:
 
-- Do NOT do drift comparison inside the rule-pack declaration in
-  `../../rules/`. The DSL does not compare values.
-- Do NOT embed full attribute maps in `EvidenceAtom.Value` — atoms are
-  for join-key carriage and provenance, not full row contents. Use logs
-  for high-volume payloads.
-- Do NOT call `Classify` in a hot loop against every state row; the
-  reducer handler joins on `(backend_kind, locator_hash)` first and only
-  passes through addresses that the join surfaced as disagreement
-  candidates.
-- Do NOT add a backend selection branch (no graph-backend env var
-  conditional). Drift correlation is backend-neutral.
+```bash
+cd go
+go test ./internal/correlation/drift/tfconfigstate -count=1
+go vet ./internal/correlation/drift/tfconfigstate
+go doc ./internal/correlation/drift/tfconfigstate
+```
 
-## What NOT to change without owner approval and proof
-
-- The dispatch order in `Classify`. Rearranging it changes which drift
-  kind wins on ambiguous inputs. Require positive, negative, and ambiguous
-  fixture proof before changing it.
-- The closed `DriftKind` enum. Adding a value expands the
-  `drift_kind` metric label space and requires updated package docs plus
-  metrics/cardinality proof.
-- The single-source attribute allowlist. Promotion to a versioned data
-  file requires owner approval, updated `README.md`, and a separate proof note
-  covering dispatch, fixture corpus, and operator rollout behavior.
-- The cross-scope candidate pattern. Other rule packs may adopt it after
-  this one ships, but the engine and `Candidate.Validate` contract must
-  remain unchanged. Prove any reuse keeps admission and materialization truth
-  unchanged for existing packs.
+Classifier changes require positive, negative, and ambiguous fixture proof plus
+`go test ./internal/correlation/... -count=1`. Docs-only edits also need the
+package-doc verifier for this directory and `git diff --check`.

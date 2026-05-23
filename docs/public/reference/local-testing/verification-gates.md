@@ -100,6 +100,10 @@ The status output should report no active owner for that workspace.
 
 ## Compose Gates
 
+Run only the gate that matches the touched behavior. These scripts own their
+fixture setup and teardown details; do not replace them with a hand-run Compose
+session when you need acceptance evidence.
+
 ```bash
 ./scripts/verify_collector_git_runtime_compose.sh
 ./scripts/verify_projector_runtime_compose.sh
@@ -147,10 +151,12 @@ ESHU_TFSTATE_DRIFT_PROOF_OUT=/tmp/eshu-tfstate-drift-compose-$(date +%Y-%m-%d).m
   bash scripts/verify_tfstate_drift_compose.sh
 
 bash scripts/verify_tfstate_drift_compose_tier2.sh
+
+bash scripts/verify_tfstate_drift_compose_tier2_v25.sh
 ```
 
-The tier 1 and tier 2 scripts use distinct `COMPOSE_PROJECT_NAME` values and
-dynamic host ports, so they can run side-by-side.
+The Terraform-state scripts use distinct `COMPOSE_PROJECT_NAME` values and
+dynamic host ports, so tier 1, tier 2, and v2.5 proofs can run side by side.
 
 Webhook refresh:
 

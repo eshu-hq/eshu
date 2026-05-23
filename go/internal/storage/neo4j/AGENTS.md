@@ -1,87 +1,42 @@
-# AGENTS.md — storage/neo4j guidance for LLM assistants
+# internal/storage/neo4j Agent Instructions
 
-## Read first
+These rules are mandatory for this package. Root `AGENTS.md` still owns the
+repo-wide proof, performance, concurrency, and skill-routing rules.
 
-1. `go/internal/storage/neo4j/README.md` — current state, what is here and
-   what is not, and the planned adapter boundary
-2. `go/internal/storage/cypher/README.md` — the `cypher.Executor` seam and all
-   backend-neutral write contracts that future adapters in this package will
-   implement
-3. `go/internal/storage/cypher/writer.go` — the `cypher.Executor`,
-   `cypher.GroupExecutor`, and `cypher.PhaseGroupExecutor` interfaces and
-   `cypher.Statement`; understand these before adding adapter code here
-4. `go/cmd/ingester/wiring_neo4j_executor.go` and
-   `go/cmd/reducer/neo4j_wiring.go` — the current cmd/-local adapter
-   implementations that will eventually move here
+## Read First
 
-## Invariants this package enforces
+1. `README.md` and `doc.go`.
+2. `go/internal/storage/cypher/README.md` before adding adapter code.
+3. Current command wiring in `cmd/ingester` and `cmd/reducer` before moving
+   Neo4j Bolt session adapters here.
+4. `docs/public/reference/cypher-performance.md` before changing hot-path
+   Neo4j query behavior.
 
-- **No exported symbols today** — the package has only `doc.go`. Do not add
-  new exports here without a plan to move existing `cmd/` adapters here at the
-  same time; partial migration creates two adapter sites.
-- **Adapter-only boundary** — this package will implement the `cypher.Executor`
-  interface and optionally `cypher.GroupExecutor` / `cypher.PhaseGroupExecutor`.
-  It must not contain statement builders, write plans, or canonical writer logic
-  — those belong in `internal/storage/cypher`.
-- **No imports from `internal/` callers** — `internal/projector`,
-  `internal/reducer`, `internal/query`, and other `internal/` packages must
-  never import this package. Only `cmd/` wiring imports Neo4j driver adapters.
-- **Backend-neutral contract preserved** — any adapter here must implement the
-  same `cypher.Executor` interface that NornicDB adapters implement. Do not add
-  Neo4j-specific method shapes to the interface.
+## Local Rules
 
-## Common changes and how to scope them
+- This package is currently reserved. It exports no runtime adapter yet.
+- Backend-neutral statement building, planning, batching, retry wrappers, and
+  instrumentation stay in `internal/storage/cypher`.
+- Future code here may implement Neo4j-specific driver adapters for
+  `cypher.Executor`, `cypher.GroupExecutor`, or `cypher.PhaseGroupExecutor`.
+- Do not import this package from projector, reducer, query, or other internal
+  packages. Backend selection stays in command/runtime wiring.
+- Do not make Neo4j the implicit default. `ESHU_GRAPH_BACKEND=neo4j` must stay
+  explicit; NornicDB remains the default graph backend.
 
-- **Move `cmd/ingester/wiring_neo4j_executor.go` here** → create an exported
-  struct implementing `cypher.Executor` and `cypher.GroupExecutor`; move the
-  Bolt session logic; update `cmd/ingester/wiring.go` to construct the adapter
-  from this package; add unit tests for the Execute and ExecuteGroup methods.
+## Change Gates
 
-- **Add a PhaseGroupExecutor adapter** → implement the
-  `cypher.PhaseGroupExecutor` interface on the adapter; wire in `cmd/` to
-  enable phase-grouped writes; verify against the shared backend conformance
-  corpus and the Cypher performance gate.
+- Moving an adapter here requires focused tests, command wiring updates, and no
+  change to the backend-neutral `cypher` contract unless that contract is
+  reviewed separately.
+- Hot-path query or transaction behavior requires before/after or
+  no-regression evidence against the pinned Neo4j version.
+- New telemetry must reuse `cypher.InstrumentedExecutor` patterns unless there
+  is a measured reason to add a Neo4j-specific signal.
 
-- **Add connection pool configuration** → expose as constructor options on the
-  adapter struct; document as env-var-backed knobs per the
-  ESHU_GRAPH_BACKEND=neo4j configuration surface.
+## Do Not Change Without Owner Review
 
-## Failure modes and how to debug
-
-Since the package currently has no code, failures today are in `cmd/` wiring:
-
-- Symptom: Neo4j connection failure at startup → check ESHU_NEO4J_URI,
-  ESHU_NEO4J_USERNAME (legacy NEO4J_USERNAME also accepted), ESHU_NEO4J_PASSWORD
-  (legacy NEO4J_PASSWORD also accepted) in environment; check that the
-  Neo4j service is healthy in Docker Compose or Kubernetes.
-
-- Symptom: `eshu_dp_neo4j_deadlock_retries_total` rising → MERGE contention on
-  shared nodes; `cypher.RetryingExecutor` handles this transparently; check
-  worker concurrency in projector/reducer.
-
-- Symptom: `failure_class=graph_write_timeout` in queue rows → the
-  `cypher.TimeoutExecutor` deadline was exceeded; check the TimeoutHint field
-  in the error for the env var to adjust.
-
-## Anti-patterns
-
-- **Do not import this package from `internal/` packages**. Concrete driver
-  adapters are wiring concerns; `internal/` packages talk to backends only
-  through the `cypher.Executor` seam.
-- **Do not add statement builders here**. All BuildCanonical... and BuildRetract...
-  functions belong in `internal/storage/cypher`.
-- **Do not duplicate the executor wrapper chain** (InstrumentedExecutor,
-  RetryingExecutor, TimeoutExecutor) here. Those wrappers live in
-  `internal/storage/cypher` and are composed in `cmd/` wiring. Adapters in
-  this package are the innermost layer.
-
-## What NOT to change without architecture-owner approval
-
-- `cypher.Executor` interface shape — adding methods here or in `cmd/` wiring
-  without updating all backends (Neo4j and NornicDB) breaks the backend-neutral
-  contract. Update `docs/public/reference/backend-conformance.md` and the
-  shared conformance corpus before changing it.
-- Bolt session transaction model — session read/write mode and transaction
-  timeout behavior are correctness constraints. Preserve the
-  backend-neutral Cypher contract and capture same-shape performance evidence
-  before changing it.
+- Backend selection semantics.
+- `cypher` package ownership of statement builders and wrappers.
+- Adapter boundaries that would make reducers or query handlers depend on a
+  concrete Neo4j driver.

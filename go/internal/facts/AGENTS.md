@@ -1,90 +1,47 @@
-# AGENTS.md — internal/facts guidance for LLM assistants
+# internal/facts Agent Instructions
 
-## Read first
+These rules are mandatory for this package. Root `AGENTS.md` still owns the
+repo-wide proof, performance, concurrency, and skill-routing rules.
 
-1. `go/internal/facts/README.md` — purpose, ownership boundary, exported
-   surface, and invariants
-2. `go/internal/facts/models.go` — `Envelope`, `Ref`, `ScopeGenerationKey`,
-   `Clone`
-3. `go/internal/facts/stableid.go` — `StableID`, the SHA-256 normalization path
-4. `go/internal/facts/doc.go` — package contract statement
+## Read First
 
-## Invariants this package enforces
+1. `README.md` and `doc.go`.
+2. `models.go`, `stableid.go`, and `source_confidence.go`.
+3. The fact-family file you touch, such as `tfstate.go`,
+   `package_registry.go`, `oci_registry.go`, `aws.go`, `ci_cd_run.go`,
+   `sbom_attestation.go`, `vulnerability_intelligence.go`,
+   `service_catalog.go`, or `documentation.go`.
+4. `go/internal/storage/postgres/README.md` before changing persisted shapes.
 
-- **Additive-only fields** — `Envelope` and `Ref` are on-disk contracts. Removing
-  or renaming any field breaks stored rows. Every new field must be optional and
-  back-compatible.
-- **Payload immutability after handoff** — `Envelope.Payload` is a
-  `map[string]any`. Once an envelope is handed to a downstream stage, the map
-  must not be mutated. Use `Clone` when branching or replaying.
-- **StableID determinism** — `StableID` normalizes `time.Time` values to UTC
-  RFC3339Nano and sorts map keys via `json.Marshal`. Do not change the
-  normalization without migrating all stored stable keys.
-- **Tombstone handling** — `IsTombstone` is a first-class field. Any stage that
-  writes graph nodes or content rows must check this flag and take the deletion
-  path, not the upsert path.
+## Local Rules
 
-- **Collector provenance** — new fact emitters must set `CollectorKind` and
-  `SourceConfidence`. `CollectorKind` names the collector family. Use
-  `SourceConfidence` to say whether the claim was `observed`, `reported`,
-  `inferred`, or `derived`. Treat `unknown` as a compatibility fallback, not as
-  the expected value for new collector work.
+- Keep this package standard-library-only and storage-neutral.
+- Treat `Envelope`, `Ref`, fact kind strings, schema versions, stable IDs, and
+  source-confidence values as on-disk contracts.
+- New fields must be additive and backward-compatible. Convenience fields for a
+  single caller belong outside this package.
+- Clone envelopes before replaying, branching, or passing payloads to code that
+  may mutate nested maps or slices.
+- Stable ID inputs must be deterministic, JSON-serializable identity maps. Do
+  not include credentials, raw source content, timestamps that are not identity,
+  or mutable high-cardinality values.
+- `FencingToken` must travel with envelopes so stale workers cannot overwrite
+  newer generation data.
+- Terraform state, registry, cloud, SBOM, vulnerability, documentation,
+  service-catalog, and CI/CD facts are evidence. Reducers decide graph truth.
 
-## Common changes and how to scope them
+## Change Gates
 
-- **Add a new field to `Envelope`** → add it with a zero value default;
-  ensure `Clone` copies it if it is a reference type (map, slice, pointer);
-  update the test in `models_test.go`; confirm the Postgres column is added in
-  `internal/storage/postgres` in the same PR.
+- New fact families require kind constants, schema-version helpers, stable ID
+  tests, source-confidence validation, and storage/parser/collector consumers in
+  the same PR.
+- Renames or removals require a storage compatibility and migration plan.
+- Any fact payload shape used by API/MCP or reducer truth needs fixture proof
+  from source fact through reducer/query behavior.
 
-- **Add a new field to `Ref`** → same additive-only rule; check that all
-  callers that construct `Ref` literals compile without modification.
+## Do Not Change Without Owner Review
 
-- **Add a new collector fact kind registry** → add constants, schema-version
-  helpers, tests, and README/doc.go contract text in the same slice. Keep the
-  package leaf-only: no collector imports and no I/O.
-
-- **Change `StableID` normalization** → first understand whether existing stored
-  keys must be migrated. If yes, write a migration before merging. The stable key
-  is used as a deduplication signal across ingestion runs; changing it changes
-  which facts are considered "same as before."
-
-## Failure modes and how to debug
-
-- Symptom: projector loads facts with missing `FactKind` or blank `ScopeID` →
-  likely cause: collector or parser emitted a partial envelope → check the
-  ingester structured logs for the ingest step that produced this generation;
-  look for `FactKind = ""` or `ScopeID = ""` in the Postgres facts table.
-
-- Symptom: two runs produce different `StableFactKey` for the same source
-  record → likely cause: non-deterministic map iteration in the identity
-  argument passed to `StableID` → `StableID` normalizes via `json.Marshal`
-  which sorts keys; if keys differ between runs, the identity map itself is
-  inconsistent.
-
-- Symptom: `Clone` returns a shallow copy that still shares mutable state →
-  `Clone` deep-copies maps and slices but does not copy custom types embedded
-  inside `any` values. If `Payload` holds a struct pointer, callers must handle
-  that themselves.
-
-## Anti-patterns specific to this package
-
-- **Adding caller-specific convenience fields** — `doc.go` states this
-  explicitly: convenience fields that only help one caller belong elsewhere.
-  Keep `Envelope` and `Ref` minimal.
-
-- **Adding I/O or package-level state** — this is a leaf contract package.
-  No database connections, HTTP clients, or global variables belong here.
-
-- **Using `Envelope` as a mutation target** — treat `Envelope` as a value type.
-  Use `Clone` before mutating for downstream stages, and never pass a
-  non-cloned envelope to two concurrent goroutines.
-
-## What NOT to change without owner approval and proof
-
-- The `Envelope` wire shape — any change that affects Postgres serialization or
-  cross-stage interchange requires a migration plan, updated facts/storage
-  package docs, and read/write compatibility proof.
-- `StableID` normalization behavior — changing it silently changes fact
-  deduplication across ingestion runs. Prove old and new keys can be reconciled
-  before changing the normalization.
+- Existing fact kind strings or schema versions.
+- `Envelope` persisted field semantics.
+- `StableID` identity behavior.
+- Source-confidence vocabulary.

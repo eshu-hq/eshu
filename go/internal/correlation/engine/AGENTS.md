@@ -1,123 +1,54 @@
-# AGENTS.md — internal/correlation/engine guidance for LLM assistants
+# internal/correlation/engine Agent Rules
 
-## Read first
+This package owns deterministic evaluation orchestration: rule ordering,
+candidate admission calls, rejection reason attachment, tie-breaking, and final
+result ordering. It MUST NOT define rule packs, classify drift values, render
+explain output, or write graph truth.
 
-1. `go/internal/correlation/engine/README.md` — lifecycle, sort contracts,
-   tie-break logic, and invariants
-2. `go/internal/correlation/engine/engine.go` — `Evaluate`, `admitWinners`,
-   `compareCandidates`, `boundedMatchCount`; read the full file before
-   changing any sort order
-3. `go/internal/correlation/admission/README.md` — what admission.Evaluate
-   returns and does NOT do (does not append rejection reasons)
-4. `go/internal/correlation/model/README.md` — candidate state and rejection
-   reason constants
-5. `CLAUDE.md` "Correlation Truth Gates" — mandatory before any change that
-   affects which candidates are admitted
+## Read First
 
-## Invariants this package enforces
+MUST read these before editing:
 
-- **DETERMINISM: rule sort** — `Evaluate` clones the pack's `Rules` slice and
-  sorts by `(Priority ascending, Name ascending)` with `slices.SortFunc` at
-  `engine.go:31`. Do not remove or reorder this sort. `OrderedRuleNames`
-  reflects the post-sort order; callers and tests depend on it.
-- **DETERMINISM: result sort** — results are sorted by
-  `(CorrelationKey ascending, admitted-before-rejected, ID ascending)` with
-  `slices.SortFunc` at `engine.go:71`. This ordering is part of the public
-  contract for explain rendering and replay.
-- **DETERMINISM: tie-break** — `admitWinners` at `engine.go:92` uses
-  `compareCandidates` at `engine.go:115`: higher `Confidence` wins; equal
-  `Confidence` resolves to lower lexicographic `ID`. The loser receives
-  rejection reason `lost_tie_break`. Do not change this ordering without
-  architecture-owner approval, updated package docs, and correlation proof for
-  positive, negative, and ambiguous candidate sets.
-- **No partial results** — `Evaluate` returns `(Evaluation{}, err)` on the
-  first validation error. Callers must not treat an empty `Evaluation` as a
-  valid empty result.
-- **Rejection reasons appended here, not in admission** — admission.Evaluate
-  returns an outcome but does not append rejection reasons. The engine appends
-  `low_confidence` at `engine.go:57` and `structural_mismatch` at
-  `engine.go:60`. Do not move reason appending into admission.
-- **MatchCounts only for RuleKindMatch** — the `MatchCounts` loop at
-  `engine.go:51` skips non-match rules with `continue`. Adding a new rule
-  kind that should produce match counts requires an explicit case here.
+1. `README.md` and `doc.go`.
+2. `engine.go` and `engine_test.go`.
+3. `../admission/README.md`, `../rules/README.md`, and `../model/README.md`.
+4. Root correlation truth gates before changing which candidates admit.
 
-## Common changes and how to scope them
+## Local Invariants
 
-- **Add a new rejection reason** → add the constant in `correlation/model`,
-  identify when in the evaluation loop the reason should be appended, add the
-  append call in `engine.go`, add a branch in `correlation.BuildSummary`.
-  Run `go test ./internal/correlation/... -count=1`. Add a test in
-  `engine_test.go` that proves the reason appears under the new condition.
-
-- **Change tie-break logic** → touch `compareCandidates` at `engine.go:115`
-  and `admitWinners` at `engine.go:92`. Update the tie-break test in
-  `engine_test.go` to assert the new winner. Update explain golden tests if
-  the candidate order changes. This is a correctness decision — read
-  CLAUDE.md "Correlation Truth Gates" first.
-
-- **Add a new result sort key** → touch the `slices.SortFunc` call at
-  `engine.go:71`. Ensure the new key is deterministic (not random, not
-  map-iteration-order). Update `engine_test.go` tests that assert result order.
-
-- **Support a new rule kind in MatchCounts** → add the kind to the
-  `if rule.Kind != rules.RuleKindMatch { continue }` guard at `engine.go:51`.
-  Add a test that confirms the count is populated for the new kind.
-
-## Failure modes and how to debug
-
-- Symptom: `Evaluate` returns an error on a valid-looking pack → call
-  `pack.Validate()` separately and log the error. Most common causes: empty
-  `Rules` slice, `MinAdmissionConfidence` outside `[0, 1]`, blank rule name.
-
-- Symptom: admitted count is 0 when you expect some admissions → check
-  admission.Evaluate outcomes directly; log `MeetsConfidence` and
-  `MeetsStructure`. Confirm candidate `Confidence` values meet the pack
-  threshold.
-
-- Symptom: tie-break winner is unexpected → candidates with equal confidence
-  are resolved by lexicographic `ID`. If `ID` values are GUIDs or
-  content-addressed hashes, the winner is the one whose ID is alphabetically
-  first. Check `compareCandidates` at `engine.go:115`.
-
-- Symptom: `MatchCounts` is empty for a match rule → confirm the rule has
-  `Kind == rules.RuleKindMatch`. Non-match kinds are skipped. Confirm the
-  candidate's evidence slice is non-empty.
-
-- Symptom: `OrderedRuleNames` does not match what you expect → rules are
-  sorted before the names list is built (`engine.go:39-42`). The order comes
-  from `(Priority, Name)`, not from the pack constructor's slice order.
-
-## Anti-patterns specific to this package
-
-- **Returning partial results on error** — do not change `Evaluate` to return
-  partial results when a candidate fails validation. Callers assume an error
-  means no valid evaluation occurred.
-
-- **Sorting rules inside the pack constructor** — pack constructors in rules
-  return value types with unsorted slices. The engine sorts at evaluation time.
-  Do not pre-sort in constructors to "help" the engine; the sort here is the
-  canonical source of order.
-
-- **Moving rejection reason appending into admission** — admission.Evaluate
-  returns an outcome without mutation. Appending reasons in admission would
-  mean the engine has no opportunity to add multiple reasons cleanly.
-
-- **Adding namespace or folder heuristics** — do not add any logic that infers
-  environment, cluster, or platform placement from `CorrelationKey` string
-  patterns or evidence key prefixes. CLAUDE.md forbids heuristics that invent
+- `Evaluate` MUST validate the pack and return no partial results on error.
+- Rule order MUST remain deterministic by `(Priority, Name)`.
+- Result order MUST remain deterministic by
+  `(CorrelationKey, admitted-before-rejected, ID)`.
+- Tie-break winners MUST be selected by higher confidence, then lower
+  lexicographic candidate ID. Losers receive `lost_tie_break`.
+- `admission.Evaluate` returns outcomes; this package appends rejection reasons.
+- Match counts currently apply only to `RuleKindMatch`.
+- Do not make map iteration order observable in output, explain traces, or
+  replay.
+- Do not add namespace/folder/key-prefix heuristics that invent deployment or
   environment truth.
 
-## What NOT to change without owner approval and proof
+## Change Rules
 
-- `compareCandidates` tie-break order — changing which candidate wins for a
-  given `CorrelationKey` changes materialized graph truth. Prove fixture intent,
-  reducer graph truth, and query truth still agree.
-- `slices.SortFunc` ordering in `Evaluate` results — explain rendering and
-  replay tests depend on stable result order. Update golden/explain coverage in
-  the same change.
-- Rule sort key `(Priority, Name)` — pack authors set priorities to control
-  order; changing the sort breaks their intent and all golden tests. Document
-  the new ordering contract in `go/internal/correlation/engine/README.md`.
-- The semantics of `Evaluation.OrderedRuleNames` — callers derive the
-  evaluated rule count from its length. Prove every downstream summary/status
-  consumer still reports the intended count.
+- New rejection reason: add model constant, append it here, update root summary
+  if operators need a counter, and add focused engine tests.
+- New rule kind affecting counts: update the match-count loop and tests.
+- Tie-break or sort changes are graph-truth changes; they require positive,
+  negative, and ambiguous correlation proof plus explain/golden updates.
+
+## Proof
+
+Run the focused gate for any edit:
+
+```bash
+cd go
+go test ./internal/correlation/engine -count=1
+go vet ./internal/correlation/engine
+go doc ./internal/correlation/engine
+```
+
+Admission or materialization-shape changes require
+`go test ./internal/correlation/... -count=1` and the correlation proof matrix.
+Docs-only edits also need the package-doc verifier for this directory and
+`git diff --check`.

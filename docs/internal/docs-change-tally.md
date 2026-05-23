@@ -9,7 +9,7 @@ repo's 500-line limit.
 - Total Markdown files left in the checkout after the current pass: 548
 - Current branch doc status from
   `git diff --name-status origin/main -- '*.md'` after the current pass:
-  104 added, 298 modified, 157 deleted, 77 renamed
+  104 added, 303 modified, 157 deleted, 77 renamed
 - Copied image assets removed from this branch: 43 files under
   `docs/public/images/`. They were reference assets from another project and
   no longer appear in the source-doc reference scan.
@@ -19,6 +19,8 @@ repo's 500-line limit.
   and old ADR trees
 - Remaining `AGENTS.md` files: 152 total; root plus scoped package/command
   files remain harness-loaded guidance.
+  Current total scoped-agent content is 7,195 lines, with root `AGENTS.md`
+  preserved as mandatory harness guidance.
 
 ## File Indexes
 
@@ -147,6 +149,7 @@ branch. Regenerate them from
 | Core Scoped AGENTS Compression | Reduced telemetry, runtime, Cypher storage, reducer, projector, MCP, and status agent guidance from 1,590 to 465 lines while preserving mandatory accuracy, performance, concurrency, telemetry, and proof guardrails. |
 | Parser Scoped AGENTS Compression | Reduced parser scoped agent guidance from 586 to 365 lines while preserving deterministic output, runtime reuse, package-boundary, payload-shape, SCIP, and proof rules. |
 | Collector Scoped AGENTS Compression | Reduced collector scoped agent guidance from 749 to 492 lines while preserving source-evidence, claim fencing, memory, discovery, telemetry, redaction, and performance proof rules. |
+| Parallel Command Workflow Storage Docs Compression | Used five subagents plus parent review to compress command, workflow, correlation, graph, storage, IaC, public runbook, and package README docs. This pass changed 60 Markdown files with 2,090 insertions and 4,127 deletions while preserving root `AGENTS.md` and package-specific mandatory rules. |
 
 ## Verification Snapshot
 
@@ -167,9 +170,14 @@ Current pass proof:
   DSL fixture and secondary-Dockerfile rejection contract.
 - Broad docs verification passed for `docs/public` and the full repository with
   0 contradicted and 0 missing evidence claims. Current public docs verifier
-  result: 173 documents, 1170 claims, 11 unsupported shell-command claim
-  types. Current full repository verifier result: 562 documents, 1358 claims,
+  result: 173 documents, 1167 claims, 11 unsupported shell-command claim
+  types. Current full repository verifier result: 562 documents, 1303 claims,
   15 unsupported shell-command claim types.
+- Current Go docs verifier result after parallel scoped-agent and README
+  compression: 309 documents, 106 claims, 0 contradicted, 0 missing evidence,
+  and 3 unsupported shell-command claim types.
+- Current strict docs build passed:
+  `uv run --with mkdocs --with mkdocs-material --with pymdown-extensions mkdocs build --strict --clean --config-file docs/mkdocs.yml`.
 - Focused public reference verification passed after the operator-reference
   compression: 74 documents, 907 claims, 0 contradicted, and 0 missing evidence
   claims.
@@ -206,9 +214,13 @@ Current pass proof:
 ## What Is Left
 
 - Continue reviewing docs by topic instead of by single file. Remaining
-  high-value groups are now the long-tail package READMEs, remaining scoped
-  `AGENTS.md` files outside the compressed core/parser/collector slices, and
-  any public pages still duplicating package-local contracts.
+  high-value groups are now the long-tail scoped `AGENTS.md` files outside
+  this compressed command/workflow/storage slice, the largest public reference
+  pages that still read like inventories, and any remaining package README that
+  duplicates public contracts.
+- Next scoped-agent candidates by line count include content, content/shape,
+  collector-git, buildinfo, contentrefs, repositoryidentity, parser SQL, and
+  remaining collector/provider leaf packages.
 - Keep deleting historical planning notes when current public or package-local
   docs already carry the useful invariant.
 - Keep folding durable lessons into current architecture, workflow,

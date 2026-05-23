@@ -1,8 +1,8 @@
 # Graph Backend Installation
 
 Use this page only when you need a separate NornicDB binary for explicit
-process-mode testing. Normal local Eshu does not need it: the checkout installer
-builds the owner `eshu` binary with `-tags nolocalllm`, and
+process-mode testing. Normal local Eshu does not need it: the checkout
+installer builds the owner `eshu` binary with `-tags nolocalllm`, and
 `eshu graph start` runs embedded NornicDB inside that process.
 
 For start, stop, status, logs, and upgrades, use
@@ -90,8 +90,8 @@ ESHU_NORNICDB_INSTALL_TIMEOUT=2m \
 eshu install nornicdb --from https://example.com/nornicdb-headless.tar.gz
 ```
 
-Managed install wins over `PATH`. To test another binary for one run, set
-`ESHU_NORNICDB_BINARY` with `ESHU_NORNICDB_RUNTIME=process`.
+Managed install wins over `PATH`. To test another binary for one run, set both
+`ESHU_NORNICDB_RUNTIME=process` and `ESHU_NORNICDB_BINARY`.
 
 ## No-Argument Install
 
@@ -130,6 +130,9 @@ ESHU_NORNICDB_RUNTIME=process eshu graph start
 eshu graph status
 eshu graph logs
 ```
+
+Use `eshu graph stop` before switching back to embedded mode or replacing the
+managed process-mode binary.
 
 ## Supply Chain Status
 

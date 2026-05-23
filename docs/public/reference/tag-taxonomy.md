@@ -11,7 +11,7 @@ pack. The code source of truth is `go/internal/reducer/tags`.
 
 `go/internal/reducer/tags` currently owns:
 
-- `Normalizer`, the interface for a future concrete normalizer.
+- `Normalizer`, the interface concrete normalizers implement.
 - `ObservationBatch`, `ObservedResource`, `NormalizedResource`, and
   `NormalizationResult`, the bounded value shapes handed across the seam.
 - `DefaultRuntimeContract`, whose scaffold contains one component

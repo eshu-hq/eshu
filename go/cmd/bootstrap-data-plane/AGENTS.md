@@ -1,86 +1,51 @@
-# AGENTS.md — cmd/bootstrap-data-plane guidance for LLM assistants
+# cmd/bootstrap-data-plane Agent Rules
 
-## Read first
+These rules apply only inside `go/cmd/bootstrap-data-plane/`. Root
+`AGENTS.md` still controls global proof, performance, concurrency, and skill
+requirements.
 
-1. `go/cmd/bootstrap-data-plane/README.md` — binary purpose, configuration,
-   idempotency contract, and gotchas
-2. `go/cmd/bootstrap-data-plane/main.go` — `run`, `schemaBackendFromEnv`,
-   `openNeo4j`, and `neo4jSchemaExecutor`; the full wiring is here
-3. `go/internal/storage/postgres/README.md` — `ApplyBootstrap` and `Executor`;
-   the Postgres DDL applied here
-4. `go/internal/graph/README.md` — `EnsureSchemaWithBackend`, `CypherExecutor`,
-   `SchemaBackend`; the graph DDL applied here
-5. `go/internal/runtime/README.md` — `OpenPostgres`, `OpenNeo4jDriver`,
-   `LoadGraphBackend`; shared config helpers
+## Read First
 
-## Invariants this package enforces
+- `go/cmd/bootstrap-data-plane/README.md`
+- `go/cmd/bootstrap-data-plane/doc.go`
+- `go/cmd/bootstrap-data-plane/main.go`
+- `go/internal/storage/postgres/README.md`
+- `go/internal/graph/README.md`
+- `go/internal/runtime/README.md`
 
-- **Idempotency** — every DDL statement uses `CREATE ... IF NOT EXISTS`; the
-  binary is safe to run as a Kubernetes schema-bootstrap Job or Compose
-  `db-migrate` service on every deploy. On NornicDB, marker-missing preserved
-  graphs must adopt the existing schema before DDL because repeated constraint
-  checks can be minutes per statement on large graphs. This is the doc.go
-  contract.
-- **Both stores must succeed** — `run` applies Postgres first (logging with
-  `EventAttr`), then graph; if either fails the process exits non-zero. Close
-  errors are joined with `errors.Join` rather than swallowed. Enforced at
-  `main.go:90` and `main.go:113`.
-- **Backend gate** — `schemaBackendFromEnv` calls `LoadGraphBackend` and maps
-  the result to `graph.SchemaBackend`; unknown values return an error before
-  any DDL runs. Enforced at `main.go:156`.
-- **Write session only** — `neo4jSchemaExecutor` always opens a session with
-  `AccessModeWrite`; it must not be pointed at a read replica. Enforced at
-  `main.go:226`.
+## Local Invariants
 
-## Common changes and how to scope them
+- MUST keep this binary schema-only. It must not ingest repositories, emit
+  facts, insert application rows, create graph data, drain queues, or run
+  service loops.
+- MUST keep version probes before store opening.
+- MUST apply Postgres schema before graph schema.
+- MUST keep graph schema application strict, idempotent, and protected by
+  per-statement deadlines.
+- MUST use automatic existing-schema adoption for marker-missing preserved
+  NornicDB graphs before live DDL, unless
+  `ESHU_GRAPH_SCHEMA_ADOPT_EXISTING=false` explicitly disables adoption.
+- MUST mark graph schema as applied only after fingerprint verification,
+  successful adoption, or successful graph DDL.
+- MUST join close errors with the primary error instead of swallowing them.
+- MUST keep graph schema sessions in write mode.
+- MUST fail before DDL when `ESHU_GRAPH_BACKEND` is unsupported.
 
-- **Add a new Postgres migration** → add the DDL to `postgres.ApplyBootstrap`
-  in `internal/storage/postgres/`; this binary calls it without change. Why:
-  DDL ownership lives in the storage package, not here.
+## Change Gates
 
-- **Add a new graph backend** → add a case to `schemaBackendFromEnv` mapping
-  the new `runtimecfg.GraphBackend*` constant to a `graph.SchemaBackend`
-  value; add a case in `graph.EnsureSchemaWithBackend`. Why:
-  `schemaBackendFromEnv` is the only backend-selection point in this binary.
+- New Postgres DDL belongs in `internal/storage/postgres.ApplyBootstrap`, not
+  in this command.
+- New graph backend support MUST update `schemaBackendFromEnv`, graph schema
+  selection, backend docs, and conformance evidence.
+- Graph DDL changes MUST be validated against the active backend behavior and
+  keep adoption/marker semantics correct for preserved-volume restarts.
+- Long-running wait loops are not allowed here; dependent services need this
+  job to exit.
 
-- **Change the Neo4j driver configuration** → touch `openNeo4j`; the
-  `neo4jDeps` struct and its `close` func are the seam. Why: the close func
-  must honor `neo4jCloseTimeout` (currently 10 seconds) to avoid leaking
-  driver connections on error paths.
+## Focused Verification
 
-## Failure modes and how to debug
-
-- Symptom: binary exits with a Postgres open error → cause: ESHU_POSTGRES_DSN
-  wrong or Postgres not yet ready → check the env var; in Compose this binary
-  is the `db-migrate` service that must run after Postgres health checks pass.
-
-- Symptom: binary exits with `unsupported graph backend for schema` → cause:
-  ESHU_GRAPH_BACKEND is not `neo4j` or `nornicdb` → check the env var spelling
-  and value.
-
-- Symptom: graph DDL fails with a Cypher parse error → cause: the graph backend
-  does not recognize a DDL statement → compare the statement against the backend
-  dialect; for NornicDB, check `docs/public/reference/nornicdb-pitfalls.md`,
-  `docs/public/reference/nornicdb-tuning.md`, and the current NornicDB-New
-  source before changing DDL.
-
-## Anti-patterns specific to this package
-
-- **Writing application data here** — this binary owns schema DDL only; it
-  must not insert rows, create graph nodes, or emit facts. Data population
-  belongs in `bootstrap-index` or the ingester.
-
-- **Adding a long-running loop** — the binary must exit after DDL completes.
-  Adding a poll loop breaks the deployment bootstrap contract and prevents
-  dependent services from starting.
-
-## What NOT to change without architecture-owner approval
-
-- The DDL idempotency contract (`CREATE ... IF NOT EXISTS`) — removing it
-  breaks safe re-runs and coordinated Kubernetes deployment; see
-  `docs/public/deployment/service-runtimes.md`.
-- The ESHU_GRAPH_BACKEND values understood by `schemaBackendFromEnv` — adding
-  or renaming backend values is a multi-package change. Update
-  `docs/public/architecture.md`,
-  `docs/public/reference/graph-backend-installation.md`, and backend
-  conformance evidence before changing it.
+```bash
+cd go
+go test ./cmd/bootstrap-data-plane -count=1
+go doc -cmd ./cmd/bootstrap-data-plane
+```

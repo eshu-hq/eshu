@@ -2,116 +2,67 @@
 
 ## Purpose
 
-`internal/storage/postgres` owns Eshu's relational persistence: facts, queues,
-content rows, status, recovery data, decisions, webhook and AWS freshness
-triggers, workflow control, Terraform-state admin/read models, and reducer
+`internal/storage/postgres` owns Eshu's relational persistence: facts, queue
+state, content rows, status, recovery data, decisions, workflow control,
+webhook and freshness triggers, Terraform-state read models, and reducer
 support stores.
 
 ## Ownership boundary
 
 This package owns Postgres schema and typed storage adapters. It does not own
 collector observation, parser semantics, graph-write Cypher, reducer truth
-decisions, or public HTTP/MCP handlers. Callers must preserve the transaction,
-lease, freshness, retry, and idempotency contracts documented on the storage
-helpers they use.
+decisions, or public HTTP/MCP handlers. Callers are responsible for preserving
+the transaction, lease, freshness, retry, and idempotency contracts documented
+on the store they use.
 
 ## Exported surface
 
-See `doc.go` for the package contract. Main surfaces include:
+See `doc.go` for the godoc contract. The main surfaces are schema bootstrap
+helpers, `ExecQueryer` and transaction wrappers, fact and ingestion stores,
+content stores, projector and reducer queues, workflow control, status and
+recovery stores, shared projection intent stores, graph phase repair stores,
+webhook/freshness stores, and domain-specific active fact readers.
 
-- schema bootstrap helpers and `ExecQueryer`/transaction wrappers
-- `IngestionStore`, `FactStore`, `ContentWriter`, and `ContentStore`
-- `ProjectorQueue`, `ReducerQueue`, workflow control, and queue observers
-- graph phase state/repair, shared intent and acceptance stores
-- status, recovery, decision, webhook, AWS freshness, AWS scan, and workflow
-  coordinator stores
-- Terraform-state backend/status/drift evidence and IaC reachability stores
-- active reducer fact queries and writers for package, image, CI/CD,
-  service-catalog, SBOM, and supply-chain domains
-
-This README intentionally avoids a full exported-symbol catalog; use godoc for
-the current list.
-
-## Core contracts
-
-- Schema bootstrap is idempotent and ordered. DDL helpers use `IF NOT EXISTS`,
-  and tables with foreign keys must appear after referenced tables in
-  `BootstrapDefinitions`.
-- `graph_schema_applications` stores the graph backend/schema fingerprint after
-  `eshu-bootstrap-data-plane` applies graph DDL. Preserved-volume restarts use
-  it to skip repeated NornicDB constraint/index checks when the schema is
-  unchanged.
-- Fact writes deduplicate by `fact_id` before batching. Skipping
-  `deduplicateEnvelopes` can trigger `SQLSTATE 21000` in a multi-row
-  `ON CONFLICT DO UPDATE`.
-- Fact payloads pass through `sanitizeJSONB` before insert so binary or
-  non-UTF-8 repository content does not poison Postgres JSONB writes.
-- `CommitScopeGeneration` de-dupes against the newest pending or active
-  same-scope generation. Failed generations do not satisfy the skip path, so a
-  failed first projection remains retryable.
-- `ProjectorQueue.Claim` preserves one active source-local generation per
-  `scope_id` with `FOR UPDATE SKIP LOCKED`, oldest-ready-row selection,
-  expired-lease priority, stale duplicate reclaim, and supersession of older
-  same-scope generations.
-- `ProjectorQueue.Ack` is a four-step transaction: supersede stale active
-  generation, activate target generation, update scope pointer, mark work
-  succeeded. It requires a `Beginner` such as `SQLDB` or `InstrumentedDB` around
-  `SQLDB`.
-- `ReducerQueue.Claim` owns the NornicDB semantic gate. When enabled,
-  `semantic_entity_materialization` waits for source-local projection to stop
-  competing for graph label indexes.
-- `StatusStore` merges `fact_work_items`, pending `shared_projection_intents`,
-  and active shared projection leases so `/admin/status` does not report
-  healthy before reducer-owned edges become graph-visible.
-- Reducer-owned read models use partial indexes for active facts such as
-  package correlations, container-image identity, CI/CD run correlations,
-  service-catalog correlations, SBOM/attestation attachments, and
-  supply-chain impact. Do not add an API/MCP read path that scans all
-  `fact_records` rows.
-- Workflow, projector, reducer, AWS checkpoint, and AWS scan-status mutations
-  are lease- or fencing-token-aware. A rejected fenced write means the caller no
-  longer owns the work and must stop.
-- Scheduled collector target admission is guarded by
-  `CreateRunWithWorkItemsIfNoOpenTargets`. It skips duplicate non-terminal
-  targets and uses the deterministic run id plus target tuple as an idempotency
-  key during preserved-volume restarts.
+Use godoc for the exported-symbol list; this README should stay a boundary
+guide, not a second package index.
 
 ## Dependencies
 
-The package depends on facts, scope/workflow models, reducer/projector ports,
-query/status contracts, telemetry, and Postgres driver interfaces. Graph Cypher
-execution stays in `internal/storage/cypher`.
+The package depends on durable fact models, workflow/scope models, reducer and
+projector ports, query/status contracts, telemetry, and Postgres driver
+interfaces. Graph execution stays in `internal/storage/cypher`.
 
 ## Telemetry
 
-Postgres paths use `InstrumentedDB`, queue observer gauges, fact emission spans,
-IaC reachability materialization spans, drift evidence spans, AWS drift
-evidence spans, queue claim/run metrics, and structured failure logs. Keep
-repository paths, fact IDs, cloud IDs, and row payload details out of metric
-labels.
+Postgres paths use `InstrumentedDB`, queue observer gauges, fact emission
+spans, drift evidence spans, AWS checkpoint counters, shared acceptance upsert
+metrics, queue claim/run metrics, and structured failure logs. Keep repository
+paths, fact IDs, cloud IDs, and row payload details out of metric labels.
 
 ## Gotchas / invariants
 
-- Queue claim, heartbeat, ack, fail, replay, supersession, and reclaim paths
-  must remain idempotent under retry and partial failure.
-- Projector supersession of rows and scope generations must stay atomic.
-- Reducer claim-domain filters and semantic-entity claim gates are scheduling
-  controls, not alternate truth semantics.
-- Fact reads that filter by kind or payload must stay bounded and stable.
+- Schema bootstrap is idempotent and ordered by foreign-key dependency.
+- Fact writes deduplicate by `fact_id` and sanitize JSONB before insert.
+- Projector and reducer queue claim, heartbeat, ack, fail, replay,
+  supersession, and reclaim paths must stay retry-safe and fenced.
+- `ProjectorQueue.Ack` keeps supersession, activation, scope pointer update,
+  and work success in one transaction.
+- `/admin/status` must include pending shared projection intents and active
+  shared projection leases so graph-visible reducer edges are not reported
+  complete too early.
+- Reducer read models use bounded active-fact indexes; API/MCP reads must not
+  scan all `fact_records`.
 - Terraform config-vs-state drift depends on byte-compatible dot-path
   flattening between parser config rows and state rows.
-- Schema changes require matching status/recovery/query docs and migration
-  proof.
 
 ## Focused tests
 
 ```bash
 cd go
-go test ./internal/storage/postgres -run 'Test.*Queue|Test.*Workflow|Test.*Ingestion|Test.*Status|Test.*Drift|Test.*Schema|Test.*Content|Test.*Fact' -count=1
 go test ./internal/storage/postgres -count=1
+go run ./cmd/eshu docs verify ../go/internal/storage/postgres --limit 1000 \
+  --fail-on contradicted,missing_evidence
 ```
-
-Docs-only edits should also pass the package-doc verifier and `git diff --check`.
 
 ## Related docs
 

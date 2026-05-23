@@ -128,7 +128,7 @@ eshu graph upgrade \
 | `status` says no graph is running | Start `eshu graph start`; if you used `eshu watch`, confirm the active profile is `local_authoritative`. |
 | Process mode cannot find NornicDB | Check `ESHU_NORNICDB_BINARY`, `${ESHU_HOME}/bin/nornicdb-headless`, then `PATH`. Each candidate must print a `NornicDB ...` version. |
 | Queries report `backend_unavailable` | Run `eshu graph status` and `eshu graph logs`; restart the local owner if metadata points at a dead process. |
-| Content search works but graph answers are degraded | Treat it as graph projection failure or timeout; keep status/log output and check NornicDB tuning before changing timeouts or batch sizes. |
+| Content search works but graph answers are degraded | Treat it as graph projection failure or timeout. Keep status/log output and check NornicDB tuning before changing timeouts or batch sizes. |
 
 ## Backend Migration
 

@@ -1,21 +1,21 @@
 # MCP Cookbook
 
-Use this page for copy-ready MCP workflows. For the full tool index, schemas,
-and contract notes, use [MCP Reference](mcp-reference.md) and
-[MCP Tool Contract Matrix](mcp-tool-contract-matrix.md). For setup, use
-[MCP Guide](../guides/mcp-guide.md).
+Use this page for copy-ready MCP workflows. It does not repeat every tool
+schema. For setup, use [MCP Guide](../guides/mcp-guide.md). For the full tool
+index and bounds, use [MCP Reference](mcp-reference.md) and
+[MCP Tool Contract Matrix](mcp-tool-contract-matrix.md).
 
 ## Call Rules
 
 - Start with story or investigation tools when the prompt asks for an
   explanation.
-- Scope each call with the narrowest known `repo_id`, `workload_id`,
-  `service_name`, `environment`, `resource_id`, file path, module, or entity.
+- Scope each call with the narrowest known repository, workload, service,
+  environment, resource, file path, module, or entity.
 - Set `limit` and `offset` for list-style calls.
 - Check `truncated`, `next_offset`, or `next_cursor` before claiming complete
   coverage.
 - Use `repo_id + relative_path` or `entity_id` for file-shaped drilldowns.
-- Use raw Cypher only for diagnostics. Named tools are the normal prompt path.
+- Raw Cypher is diagnostics-only. Named tools are the normal prompt path.
 
 ## Explain A Service
 

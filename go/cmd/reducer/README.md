@@ -16,65 +16,54 @@ truth decisions, queue schema, or public query handlers.
 Invalid `ESHU_GRAPH_BACKEND` values fail startup. Backend-specific behavior
 belongs in command wiring or storage/cypher seams, not in domain handlers.
 
-`buildReducerService` wires reducer domain adapters, shared projection runners,
-code-call and repo-dependency runners, graph phase repair, queue policy, claim
-gates, and telemetry. Domain contracts live in `internal/reducer`; this command
-only provides process wiring.
-
 ## Exported surface
 
-The command package exports no API. `main`, `buildReducerService`,
-`openReducerNeo4jAdapters`, configuration helpers, and graph adapter wrappers
-are unexported process wiring. See `doc.go` for the binary contract.
+The command package exports no API. Its contract is the `eshu-reducer` process:
+`--version` / `-v`, environment-derived configuration, reducer service wiring,
+admin/status hosting, metrics, pprof opt-in, and clean shutdown.
 
 ## Dependencies
 
-- `internal/reducer` for the service, runtime, handlers, shared projection,
-  code-call projection, repo-dependency projection, and graph phase repair.
-- `internal/storage/postgres` for queues, facts, relationship stores, shared
-  intents, phase state, repair queues, status, and graph-drain checks.
-- `internal/storage/cypher` for instrumented graph execution and edge writers.
-- `internal/runtime`, `internal/app`, and `internal/telemetry` for datastore
-  setup, pprof, hosted admin routes, logging, metrics, and tracing.
-- `internal/query` for graph backend/profile parsing and query ports needed by
-  wiring adapters.
+`internal/reducer` supplies service and domain logic. `internal/storage/postgres`
+supplies queues, facts, relationship stores, shared intents, phase state,
+repair queues, status, and graph-drain checks. `internal/storage/cypher`
+supplies instrumented graph execution and edge writers. `internal/runtime`,
+`internal/app`, and `internal/telemetry` supply datastore setup, pprof, hosted
+admin routes, logging, metrics, and tracing. `internal/query` supplies backend
+and profile parsing plus query ports needed by wiring adapters.
 
 ## Telemetry
 
 Startup uses `telemetry.NewBootstrap("reducer")`, service/component
-`reducer`, the default tracer/meter, `postgres.InstrumentedDB{StoreName:
-"reducer"}`, and instrumented Cypher executors. Runtime signals include
-`/healthz`, `/readyz`, `/metrics`, `/admin/status`, reducer queue depth,
-domain run spans, shared projection metrics, graph phase repair metrics, and
-domain counters.
-
-Use `ESHU_PPROF_ADDR` only for focused profiling. Port-only values bind to
-`127.0.0.1`.
+`reducer`, `postgres.InstrumentedDB{StoreName: "reducer"}`, and instrumented
+Cypher executors. Runtime signals include `/healthz`, `/readyz`, `/metrics`,
+`/admin/status`, reducer queue depth, domain run spans, shared projection
+metrics, graph phase repair metrics, and domain counters. `ESHU_PPROF_ADDR` is
+for focused profiling only; port-only values bind to `127.0.0.1`.
 
 ## Gotchas / invariants
 
-- `--version` and `-v` must exit before telemetry, storage, graph, pprof, or
-  HTTP setup.
+- `--version` and `-v` exit before telemetry, storage, graph, pprof, or HTTP
+  setup.
 - Set either `ESHU_REDUCER_CLAIM_DOMAIN` or `ESHU_REDUCER_CLAIM_DOMAINS`, not
   both.
 - NornicDB defaults use more reducer concurrency than Neo4j. Lower worker
   counts only with queue, conflict-key, and graph-write evidence.
 - The local-authoritative NornicDB profile gates semantic-entity and code-call
   projection so graph write lanes do not compete unnecessarily.
-- Keep `GraphProjectionPhaseRepairer` and reducer graph-drain wiring in place;
-  they are scheduling and recovery paths, not alternate truth sources.
-- `ESHU_NORNICDB_CANONICAL_GROUPED_WRITES` is conformance-only unless a tracked
-  benchmark and observability note promotes it.
+- Keep graph phase repair and reducer graph-drain wiring in place; they are
+  scheduling and recovery paths, not alternate truth sources.
+- `ESHU_NORNICDB_CANONICAL_GROUPED_WRITES` remains conformance-only unless a
+  tracked benchmark and observability note promote it.
 
 ## Focused tests
 
 ```bash
 cd go
-go test ./cmd/reducer -run 'Test.*Config|Test.*Wiring|Test.*Claim|Test.*Backend|Test.*WorkloadDependency' -count=1
-go test ./cmd/reducer ./internal/reducer -count=1
+go test ./cmd/reducer -count=1
+go run ./cmd/eshu docs verify ../go/cmd/reducer --limit 1000 \
+  --fail-on contradicted,missing_evidence
 ```
-
-Docs-only edits should also pass the package-doc verifier and `git diff --check`.
 
 ## Related docs
 

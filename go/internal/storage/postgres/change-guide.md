@@ -96,7 +96,7 @@ drift loaders, AWS status stores, or status/readiness queries.
 - `SQLSTATE 22P05` or `SQLSTATE 22P02`: payload sanitization was bypassed or a
   fact carries unsupported binary/control-byte content.
 
-## Do Not Change Without A Current Design Record
+## Do Not Change Without Architecture-Owner Approval
 
 - `fact_work_items` schema, conflict keys, lifecycle states, or claim ordering.
 - `graph_projection_phase_state` schema or phase semantics.

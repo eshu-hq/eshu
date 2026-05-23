@@ -2,17 +2,16 @@
 
 Use this page when Eshu runs with `ESHU_GRAPH_BACKEND=nornicdb` and a
 repo-scale proof exposes a graph write timeout, slow phase, or backend
-compatibility gate.
+compatibility gate. It is the knob map, not the install or operations runbook.
 
-NornicDB is Eshu's default graph backend. Tune from evidence: first identify
-the phase, label, row count, grouped statement count, timeout shape, and queue
-state in logs/status. Then change the narrowest matching knob.
-
-This page is the knob map. Use [Graph Backend Installation](graph-backend-installation.md)
-for embedded versus process mode, [Graph Backend Operations](graph-backend-operations.md)
-for start/stop/status/logs, [Cypher Performance Discipline](cypher-performance.md)
-for query-shape rules, and [NornicDB Tuning Evidence](nornicdb-tuning-evidence.md)
-for the proof behind current defaults.
+Tune from evidence: first identify the phase, label, row count, grouped
+statement count, timeout shape, and queue state in logs/status. Then change the
+narrowest matching knob. For local start/stop/install commands, use
+[Graph Backend Installation](graph-backend-installation.md) and
+[Graph Backend Operations](graph-backend-operations.md). For query-shape rules,
+use [Cypher Performance Discipline](cypher-performance.md). For the proof behind
+current defaults, use
+[NornicDB Tuning Evidence](nornicdb-tuning-evidence.md).
 
 ## First Decision
 
@@ -45,7 +44,9 @@ acceptable.
 
 For full-corpus or remote proof, record commit/image, schema/bootstrap state,
 clean-volume state, pprof state, effective environment, terminal queue counts,
-and API/MCP truth checks. Backend selection is not a tuning step.
+and API/MCP truth checks. Backend selection is not a tuning step. Switch to
+Neo4j only for compatibility verification, not to explain an unclassified
+NornicDB slowdown.
 
 ## Canonical Write Budget
 
@@ -103,9 +104,9 @@ These knobs affect reducer-owned materialization and shared projection.
 | `ESHU_SHARED_PROJECTION_WORKERS` | runtime default is `NumCPU` capped at `4`; Compose defaults to `2`; Helm sets `8` | Shared projection partition workers. Raise only when queue age grows and graph backend health is proven. |
 | `ESHU_CODE_CALL_PROJECTION_ACCEPTANCE_SCAN_LIMIT` | `250000` | Correctness guard for complete accepted repo/run scan before rewriting CALLS edges. |
 
-Semantic materialization is reducer-owned. Do not copy canonical caps blindly.
-Tune semantic labels only after timeout summaries name the semantic label and
-row count.
+Semantic materialization is reducer-owned. Do not copy canonical caps into it
+blindly. Tune semantic labels only after timeout summaries name the semantic
+label and row count.
 
 `ESHU_CODE_CALL_PROJECTION_ACCEPTANCE_SCAN_LIMIT` is not a graph-write tuning
 knob. Increase it only when reducer logs name an acceptance-scan cap and a
@@ -122,8 +123,8 @@ Content writes are Postgres work, not NornicDB graph work.
 | `ESHU_LOCAL_AUTHORITATIVE_DEFER_CONTENT_SEARCH_INDEXES` | unset / `false` | Local-authoritative bulk-load knob that defers expensive content trigram search indexes and rebuilds them after clean drain. Do not use as a deployed Postgres schema default. |
 
 If changing `ESHU_CONTENT_ENTITY_BATCH_SIZE` changes statement count but not
-wall time, inspect source-cache size and trigram index maintenance instead of
-continuing to raise the batch.
+wall time, inspect source-cache size and trigram index maintenance before
+raising the batch again.
 
 ## Compatibility And Conformance Switches
 
