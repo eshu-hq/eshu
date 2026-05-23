@@ -87,6 +87,8 @@ func TestSupplyChainListImpactFindingsUsesBoundedStore(t *testing.T) {
 				CVEID:               "CVE-2026-0001",
 				PackageID:           "pkg:npm/example",
 				PURL:                "pkg:npm/example@1.2.3",
+				ProductCriteria:     "cpe:2.3:a:example:server:1.4.2:*:*:*:*:*:*:*",
+				MatchCriteriaID:     "b5ec4c98-0000-4000-9000-000000000001",
 				ImpactStatus:        "affected_exact",
 				Confidence:          "exact",
 				CVSSScore:           9.8,
@@ -139,6 +141,12 @@ func TestSupplyChainListImpactFindingsUsesBoundedStore(t *testing.T) {
 	}
 	if !resp.Findings[0].KnownExploited {
 		t.Fatalf("KnownExploited = false, want true")
+	}
+	if got, want := resp.Findings[0].ProductCriteria, "cpe:2.3:a:example:server:1.4.2:*:*:*:*:*:*:*"; got != want {
+		t.Fatalf("ProductCriteria = %q, want %q", got, want)
+	}
+	if got, want := resp.Findings[0].MatchCriteriaID, "b5ec4c98-0000-4000-9000-000000000001"; got != want {
+		t.Fatalf("MatchCriteriaID = %q, want %q", got, want)
 	}
 	if !resp.Truncated {
 		t.Fatal("truncated = false, want true")

@@ -79,6 +79,8 @@ const openAPIPathsSupplyChain = `
                           "finding_id": {"type": "string"},
                           "cve_id": {"type": "string"},
                           "package_id": {"type": "string"},
+                          "product_criteria": {"type": "string"},
+                          "match_criteria_id": {"type": "string"},
                           "impact_status": {"type": "string"},
                           "confidence": {"type": "string"},
                           "runtime_reachability": {"type": "string"},

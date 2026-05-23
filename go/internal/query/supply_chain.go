@@ -59,6 +59,8 @@ type SupplyChainImpactFindingResult struct {
 	Ecosystem           string   `json:"ecosystem,omitempty"`
 	PackageName         string   `json:"package_name,omitempty"`
 	PURL                string   `json:"purl,omitempty"`
+	ProductCriteria     string   `json:"product_criteria,omitempty"`
+	MatchCriteriaID     string   `json:"match_criteria_id,omitempty"`
 	ObservedVersion     string   `json:"observed_version,omitempty"`
 	FixedVersion        string   `json:"fixed_version,omitempty"`
 	ImpactStatus        string   `json:"impact_status"`

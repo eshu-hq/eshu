@@ -81,6 +81,8 @@ func supplyChainImpactStableFactKey(write SupplyChainImpactWrite, finding Supply
 		strings.TrimSpace(fmt.Sprint(identity["generation_id"])),
 		strings.TrimSpace(fmt.Sprint(identity["cve_id"])),
 		strings.TrimSpace(fmt.Sprint(identity["package_id"])),
+		strings.TrimSpace(fmt.Sprint(identity["product_criteria"])),
+		strings.TrimSpace(fmt.Sprint(identity["match_criteria_id"])),
 		strings.TrimSpace(fmt.Sprint(identity["repository_id"])),
 		strings.TrimSpace(fmt.Sprint(identity["subject_digest"])),
 	}, ":")
@@ -88,12 +90,14 @@ func supplyChainImpactStableFactKey(write SupplyChainImpactWrite, finding Supply
 
 func supplyChainImpactIdentity(write SupplyChainImpactWrite, finding SupplyChainImpactFinding) map[string]any {
 	return map[string]any{
-		"scope_id":       strings.TrimSpace(write.ScopeID),
-		"generation_id":  strings.TrimSpace(write.GenerationID),
-		"cve_id":         strings.TrimSpace(finding.CVEID),
-		"package_id":     strings.TrimSpace(finding.PackageID),
-		"subject_digest": strings.TrimSpace(finding.SubjectDigest),
-		"repository_id":  strings.TrimSpace(finding.RepositoryID),
+		"scope_id":          strings.TrimSpace(write.ScopeID),
+		"generation_id":     strings.TrimSpace(write.GenerationID),
+		"cve_id":            strings.TrimSpace(finding.CVEID),
+		"package_id":        strings.TrimSpace(finding.PackageID),
+		"product_criteria":  strings.TrimSpace(finding.ProductCriteria),
+		"match_criteria_id": strings.TrimSpace(finding.MatchCriteriaID),
+		"subject_digest":    strings.TrimSpace(finding.SubjectDigest),
+		"repository_id":     strings.TrimSpace(finding.RepositoryID),
 	}
 }
 
@@ -111,6 +115,8 @@ func supplyChainImpactPayload(write SupplyChainImpactWrite, finding SupplyChainI
 		"ecosystem":            finding.Ecosystem,
 		"package_name":         finding.PackageName,
 		"purl":                 finding.PURL,
+		"product_criteria":     finding.ProductCriteria,
+		"match_criteria_id":    finding.MatchCriteriaID,
 		"observed_version":     finding.ObservedVersion,
 		"fixed_version":        finding.FixedVersion,
 		"impact_status":        string(finding.Status),

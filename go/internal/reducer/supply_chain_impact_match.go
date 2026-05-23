@@ -29,6 +29,16 @@ func supplyChainAffectedPackageFromEnvelope(envelope facts.Envelope) supplyChain
 	}
 }
 
+func supplyChainAffectedProductFromEnvelope(envelope facts.Envelope) supplyChainAffectedProduct {
+	return supplyChainAffectedProduct{
+		factID:          envelope.FactID,
+		cveID:           supplyChainCVEID(envelope.Payload),
+		criteria:        payloadStr(envelope.Payload, "criteria"),
+		matchCriteriaID: payloadStr(envelope.Payload, "match_criteria_id"),
+		vulnerable:      payloadBool(envelope.Payload, "vulnerable"),
+	}
+}
+
 func supplyChainPackageVersionFromEnvelope(envelope facts.Envelope) supplyChainPackageVersion {
 	return supplyChainPackageVersion{
 		factID:    envelope.FactID,
@@ -52,6 +62,7 @@ func supplyChainSBOMComponentFromEnvelope(envelope facts.Envelope) supplyChainSB
 		factID:     envelope.FactID,
 		documentID: payloadStr(envelope.Payload, "document_id"),
 		purl:       purl,
+		cpe:        payloadStr(envelope.Payload, "cpe"),
 		packageID:  packageIDFromPURL(purl),
 		version:    firstNonBlank(payloadStr(envelope.Payload, "version"), versionFromPURL(purl)),
 	}
@@ -120,6 +131,27 @@ func firstSBOMImpactPath(
 	return supplyChainSBOMComponent{}, supplyChainAttachment{}, supplyChainImageIdentity{}, false
 }
 
+func firstSBOMProductImpactPath(
+	product supplyChainAffectedProduct,
+	index supplyChainImpactIndex,
+) (supplyChainSBOMComponent, supplyChainAttachment, supplyChainImageIdentity, bool) {
+	for _, component := range index.components {
+		if !componentMatchesAffectedProduct(component, product) {
+			continue
+		}
+		attachment := index.attachments[component.documentID]
+		if attachment.subjectDigest == "" || attachment.status == "subject_mismatch" || attachment.status == "unknown_subject" {
+			continue
+		}
+		image := index.images[attachment.subjectDigest]
+		if image.digest == "" {
+			continue
+		}
+		return component, attachment, image, true
+	}
+	return supplyChainSBOMComponent{}, supplyChainAttachment{}, supplyChainImageIdentity{}, false
+}
+
 func componentMatchesAffectedPackage(component supplyChainSBOMComponent, pkg supplyChainAffectedPackage) bool {
 	if pkg.purl != "" && component.purl == pkg.purl {
 		return true
@@ -128,6 +160,13 @@ func componentMatchesAffectedPackage(component supplyChainSBOMComponent, pkg sup
 		return true
 	}
 	return false
+}
+
+func componentMatchesAffectedProduct(component supplyChainSBOMComponent, product supplyChainAffectedProduct) bool {
+	if product.criteria == "" || component.cpe == "" {
+		return false
+	}
+	return strings.EqualFold(strings.TrimSpace(product.criteria), strings.TrimSpace(component.cpe))
 }
 
 func versionAffected(observed string, affected []string) bool {
@@ -214,6 +253,33 @@ func versionFromPURL(purl string) string {
 		return version
 	}
 	return after
+}
+
+func versionFromCPE23Criteria(criteria string) string {
+	criteria = strings.TrimSpace(criteria)
+	if !strings.HasPrefix(criteria, "cpe:2.3:") {
+		return ""
+	}
+	parts := strings.Split(criteria, ":")
+	if len(parts) < 6 {
+		return ""
+	}
+	version := strings.TrimSpace(parts[5])
+	if version == "*" || version == "-" {
+		return ""
+	}
+	return version
+}
+
+func payloadBool(payload map[string]any, key string) bool {
+	switch value := payload[key].(type) {
+	case bool:
+		return value
+	case string:
+		return strings.EqualFold(strings.TrimSpace(value), "true")
+	default:
+		return false
+	}
 }
 
 func missingImpactEvidence(finding SupplyChainImpactFinding) []string {
