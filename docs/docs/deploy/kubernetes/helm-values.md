@@ -83,12 +83,13 @@ graph schema DDL for the release; runtime pods then start without revalidating
 graph schema in parallel.
 
 For upgrades from older deployments where graph schema objects already exist
-but the Postgres `graph_schema_applications` marker is empty, set
-`env.ESHU_GRAPH_SCHEMA_ADOPT_EXISTING: "true"` for one rollout. The bootstrap
-binary inspects `SHOW CONSTRAINTS` and `SHOW INDEXES`; when all expected schema
-object names are present it records the current backend/schema fingerprint and
-skips the live DDL pass. Leave the value unset for brand-new installs, where
-the Job should create the schema normally.
+but the Postgres `graph_schema_applications` marker is empty, the NornicDB
+bootstrap path automatically inspects `SHOW CONSTRAINTS` and `SHOW INDEXES`;
+when all expected schema object names are present it records the current
+backend/schema fingerprint and skips the live DDL pass. Brand-new installs still
+create the schema normally because the inspection finds missing objects and
+falls through to DDL. Set `env.ESHU_GRAPH_SCHEMA_ADOPT_EXISTING: "false"` only
+when an operator intentionally wants to bypass adoption and force live DDL.
 
 By default the Job is a Helm `pre-install,pre-upgrade` hook. Helm waits for the
 hook before continuing the release, and Argo CD treats those Helm hooks as
@@ -114,7 +115,16 @@ ServiceAccount for the pre-install/pre-upgrade bootstrap job.
 
 No-Regression Evidence: `helm template` renders exactly one
 `eshu-schema-bootstrap` Job and no `db-migrate` init containers in the default
-chart output; the runtime DDL binary and environment contract remain unchanged.
+chart output; the runtime DDL binary remains the only graph schema writer during
+install and upgrade.
+
+Performance Evidence: a hosted EKS validation deployment preserved a populated
+NornicDB graph but had no matching Postgres graph-schema marker. The 2026-05-23
+schema-bootstrap Job finished successfully but spent 3h52m re-running
+idempotent graph DDL, with many existing `CREATE CONSTRAINT ... IF NOT EXISTS`
+statements taking about 77s-102s each. Default NornicDB schema adoption changes
+that retained-graph path to metadata reads plus a marker write when the expected
+schema is already present.
 
 Observability Evidence: the existing bootstrap logs emit
 `bootstrap.schema.started`, `bootstrap.postgres.applied`,
@@ -132,8 +142,6 @@ schemaBootstrap:
     requests:
       cpu: 100m
       memory: 128Mi
-env:
-  ESHU_GRAPH_SCHEMA_ADOPT_EXISTING: "true"
 ```
 
 ## Resolution engine lanes

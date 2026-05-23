@@ -34,17 +34,20 @@ Resolved through `runtime.OpenPostgres`, `runtime.OpenNeo4jDriver`, and
 - ESHU_GRAPH_BACKEND — `neo4j` or `nornicdb`
 - ESHU_GRAPH_SCHEMA_STATEMENT_TIMEOUT — per graph DDL statement timeout,
   default `2m`
-- ESHU_GRAPH_SCHEMA_ADOPT_EXISTING — when truthy, inspect `SHOW CONSTRAINTS`
-  and `SHOW INDEXES` before applying graph DDL. If every current schema object
-  already exists, mark the backend/fingerprint as applied and skip the DDL pass.
-  The inspection uses the ESHU_GRAPH_SCHEMA_STATEMENT_TIMEOUT budget.
+- ESHU_GRAPH_SCHEMA_ADOPT_EXISTING — controls existing-schema adoption when the
+  Postgres graph schema marker is missing. Unset defaults to opportunistic
+  adoption for NornicDB and disabled adoption for Neo4j. Truthy values require
+  inspection support for either backend. False values disable adoption. Adoption
+  inspects `SHOW CONSTRAINTS` and `SHOW INDEXES`; if every current schema object
+  already exists, it marks the backend/fingerprint as applied and skips the DDL
+  pass. The inspection uses the ESHU_GRAPH_SCHEMA_STATEMENT_TIMEOUT budget.
 - NEO4J_URI, NEO4J_USERNAME, NEO4J_PASSWORD
 - DEFAULT_DATABASE
 
 Invalid ESHU_GRAPH_BACKEND values fail with `unsupported graph backend for
 schema`. Invalid or non-positive ESHU_GRAPH_SCHEMA_STATEMENT_TIMEOUT values fail
-before any DDL runs. When ESHU_GRAPH_SCHEMA_ADOPT_EXISTING is truthy, schema
-inspection errors fail closed instead of falling back to live DDL.
+before any DDL runs. When existing-schema adoption runs, schema inspection
+errors fail closed instead of falling back to live DDL.
 
 ## Telemetry
 
@@ -70,11 +73,13 @@ failure class, and a bounded schema statement summary.
   fingerprint in Postgres. A later run with the same fingerprint skips graph DDL
   instead of asking NornicDB to re-check every constraint/index against a
   populated graph.
-- existing-schema adoption is explicit opt-in. It is for deployments that
-  already have the complete graph schema but lack the Postgres fingerprint
-  marker, such as upgrades from older chart/image combinations. It compares the
-  expected schema object names to `SHOW CONSTRAINTS` and `SHOW INDEXES` before
-  writing the marker.
+- existing-schema adoption is automatic for NornicDB when the Postgres marker is
+  missing. It is for deployments that already have the complete graph schema but
+  lack the Postgres fingerprint marker, such as upgrades from older chart/image
+  combinations. It compares the expected schema object names to
+  `SHOW CONSTRAINTS` and `SHOW INDEXES` before writing the marker. Set
+  `ESHU_GRAPH_SCHEMA_ADOPT_EXISTING=false` only when an operator intentionally
+  wants to force the live DDL pass.
 - version probes are pre-startup checks; keep `buildinfo.PrintVersionFlag` at
   the top of `main` so deployment diagnostics do not run DDL
 - each graph DDL statement runs under `ESHU_GRAPH_SCHEMA_STATEMENT_TIMEOUT`
@@ -88,12 +93,14 @@ failure class, and a bounded schema statement summary.
   database name; do not point it at a read replica
 
 No-Regression Evidence: `go test ./cmd/bootstrap-data-plane -run
-'TestRun(SkipsGraphSchemaWhenFingerprintAlreadyApplied|AppliesAndMarksGraphSchemaWhenFingerprintMissing|DoesNotMarkGraphSchemaAfterApplyFailure|AdoptsExistingGraphSchemaWhenMarkerMissing|AppliesGraphSchemaWhenAdoptionFindsMissingObjects|FailsWhenAdoptionInspectionFails)'`
+'TestRun(SkipsGraphSchemaWhenFingerprintAlreadyApplied|AppliesAndMarksGraphSchemaWhenFingerprintMissing|DoesNotMarkGraphSchemaAfterApplyFailure|AdoptsExistingNornicDBGraphSchemaByDefaultWhenMarkerMissing|CanDisableDefaultNornicDBGraphSchemaAdoption|DoesNotDefaultAdoptNeo4jGraphSchema|AdoptsExistingGraphSchemaWhenMarkerMissing|AppliesGraphSchemaWhenAdoptionFindsMissingObjects|FailsWhenAdoptionInspectionFails)'`
 proves same-fingerprint restarts skip graph DDL, missing markers still apply and
 record graph schema completion, and failed graph DDL never records a successful
-marker. The adoption cases prove complete existing graph schema marks and skips,
-missing graph schema falls back to DDL, and failed schema inspection does not
-blindly run DDL against a live graph. `go test ./internal/graph -run
+marker. The adoption cases prove complete existing NornicDB graph schema marks
+and skips by default, operators can disable that default, Neo4j keeps its
+existing default DDL path, missing graph schema falls back to DDL, and failed
+schema inspection does not blindly run DDL against a live graph. `go test
+./internal/graph -run
 TestEnsureSchemaWithBackendStrictReturnsStatementFailures` proves the strict
 data-plane path returns a non-context schema failure instead of warning and
 continuing to the marker write. Existing focused unit coverage proves generic
@@ -104,6 +111,14 @@ Remote Compose preserved-volume restart evidence on 2026-05-19 logged
 `bootstrap.graph.skipped` with `statement_count=209`, restarted the stack in
 about 2m38s, and left projector/reducer queues terminal with no failed,
 retrying, or dead-letter rows.
+
+Performance Evidence: on 2026-05-23, a hosted EKS schema bootstrap against a
+retained NornicDB graph without a matching Postgres marker completed
+successfully but took 3h52m because repeated `CREATE CONSTRAINT ... IF NOT
+EXISTS` statements spent roughly 77s-102s each refreshing existing constraint
+state. Default NornicDB adoption changes that marker-missing retained-graph path
+to two bounded schema metadata reads plus one marker write when all expected
+objects already exist.
 
 Observability Evidence: `bootstrap.graph.skipped` tells operators that a
 preserved-volume restart reused the recorded graph schema fingerprint.
