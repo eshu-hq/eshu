@@ -244,7 +244,7 @@ capabilities:
       local_full_stack: {status: supported, max_truth_level: exact, required_runtime: full_stack, p95_latency_ms: 4000, max_scope_size: indexed_workspace, verification: [{compose_e2e: context-overview}], notes: authoritative repository, service, and ecosystem context}
       production: {status: supported, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 6000, max_scope_size: multi_repo_platform, verification: [{remote_validation: prod-context-overview}], notes: authoritative repository, service, and ecosystem context}
   - capability: platform_impact.catalog
-    tools: [get_ecosystem_overview]
+    tools: [get_ecosystem_overview, count_repositories_by_language, list_repositories_by_language, get_repository_language_inventory]
     profiles:
       local_lightweight: {status: supported, max_truth_level: derived, required_runtime: local_host, p95_latency_ms: 1000, max_scope_size: indexed_workspace, verification: [{go_test: ./internal/query}], notes: bounded repository handles from the relational catalog; workload and service rows require graph truth}
       local_authoritative: {status: supported, max_truth_level: exact, required_runtime: local_host_plus_graph, p95_latency_ms: 2000, max_scope_size: indexed_workspace, verification: [{go_test: ./internal/query}], notes: bounded repository and workload handles from the local graph}

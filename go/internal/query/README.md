@@ -344,6 +344,11 @@ dialect differences belong in `internal/storage/cypher` adapters behind the
 - `ContentReader` traces each Postgres call with an OTEL span labeled
   `db.sql.table`; queries that scan multiple tables need per-call spans to avoid
   misleading attribution (`content_reader.go:45`).
+- Repository-language inventory reads use the Postgres content index through
+  `CountRepositoriesByLanguage`, `ListRepositoriesByLanguage`, and
+  `RepositoryLanguageInventory`. The API and MCP contract is count-first and
+  paged so "how many TypeScript repos?" does not require per-repository
+  coverage fan-out.
 - `queryContentStoreCoverage` uses `ContentReader.RepositoryCoverage` as the
   bounded count source when content rows are available. The graph count in
   `queryRepositoryGraphCoverageStats` is a no-content fallback, so

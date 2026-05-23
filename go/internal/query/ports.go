@@ -30,6 +30,9 @@ type ContentStore interface {
 	SearchEntitiesByLanguageAndType(ctx context.Context, repoID, language, entityType, query string, limit int) ([]EntityContent, error)
 	ListFrameworkRoutes(ctx context.Context, repoID string) ([]FrameworkRouteEvidence, error)
 	RepositoryCoverage(ctx context.Context, repoID string) (RepositoryContentCoverage, error)
+	CountRepositoriesByLanguage(ctx context.Context, languages []string) (RepositoryLanguageAggregate, error)
+	ListRepositoriesByLanguage(ctx context.Context, languages []string, limit int, offset int) ([]RepositoryLanguageRepository, error)
+	RepositoryLanguageInventory(ctx context.Context, limit int, offset int) ([]RepositoryLanguageInventoryRow, error)
 	ListRepositories(ctx context.Context) ([]RepositoryCatalogEntry, error)
 	MatchRepositories(ctx context.Context, selector string) ([]RepositoryCatalogEntry, error)
 	ResolveRepository(ctx context.Context, selector string) (*RepositoryCatalogEntry, error)
@@ -49,6 +52,29 @@ type RepositoryContentCoverage struct {
 type RepositoryLanguageCount struct {
 	Language  string
 	FileCount int
+}
+
+// RepositoryLanguageAggregate captures corpus-level language coverage counts.
+type RepositoryLanguageAggregate struct {
+	RepositoryCount int
+	FileCount       int
+	LastIndexedAt   time.Time
+}
+
+// RepositoryLanguageRepository captures one repository matched by language.
+type RepositoryLanguageRepository struct {
+	Repository RepositoryCatalogEntry
+	Languages  []RepositoryLanguageCount
+	FileCount  int
+	IndexedAt  time.Time
+}
+
+// RepositoryLanguageInventoryRow captures one language bucket across repositories.
+type RepositoryLanguageInventoryRow struct {
+	Language        string
+	RepositoryCount int
+	FileCount       int
+	LastIndexedAt   time.Time
 }
 
 // RepositoryCatalogEntry is the relational repository catalog row used when the

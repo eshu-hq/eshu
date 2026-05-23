@@ -1,0 +1,64 @@
+package mcp
+
+import "net/url"
+
+func repositoryRoute(toolName string, args map[string]any) (*route, bool) {
+	switch toolName {
+	case "list_indexed_repositories":
+		return &route{method: "GET", path: "/api/v0/repositories", query: paginationQuery(args, 100)}, true
+	case "count_repositories_by_language":
+		return &route{method: "GET", path: "/api/v0/repositories/by-language", query: map[string]string{
+			"language": str(args, "language"),
+			"limit":    "0",
+			"offset":   "0",
+		}}, true
+	case "list_repositories_by_language":
+		return &route{method: "GET", path: "/api/v0/repositories/by-language", query: map[string]string{
+			"language": str(args, "language"),
+			"limit":    intString(args, "limit", 100),
+			"offset":   intString(args, "offset", 0),
+		}}, true
+	case "get_repository_language_inventory":
+		return &route{method: "GET", path: "/api/v0/repositories/language-inventory", query: paginationQuery(args, 100)}, true
+	case "get_repository_stats":
+		repoID := str(args, "repo_id")
+		if repoID == "" {
+			return &route{method: "GET", path: "/api/v0/repositories"}, true
+		}
+		return &route{method: "GET", path: "/api/v0/repositories/" + url.PathEscape(repoID) + "/stats"}, true
+	case "get_repo_context":
+		return &route{method: "GET", path: "/api/v0/repositories/" + url.PathEscape(str(args, "repo_id")) + "/context"}, true
+	case "get_relationship_evidence":
+		return &route{method: "GET", path: "/api/v0/evidence/relationships/" + url.PathEscape(str(args, "resolved_id"))}, true
+	case "list_package_registry_packages":
+		return packageRegistryPackagesRoute(args), true
+	case "list_package_registry_versions":
+		return packageRegistryVersionsRoute(args), true
+	case "list_package_registry_dependencies":
+		return packageRegistryDependenciesRoute(args), true
+	case "list_package_registry_correlations":
+		return packageRegistryCorrelationsRoute(args), true
+	case "list_ci_cd_run_correlations":
+		return cicdRunCorrelationsRoute(args), true
+	case "list_service_catalog_correlations":
+		return serviceCatalogCorrelationsRoute(args), true
+	case "list_container_image_identities":
+		return containerImageIdentitiesRoute(args), true
+	case "list_supply_chain_impact_findings":
+		return supplyChainImpactFindingsRoute(args), true
+	case "list_sbom_attestation_attachments":
+		return sbomAttestationAttachmentsRoute(args), true
+	case "get_repo_story":
+		return &route{method: "GET", path: "/api/v0/repositories/" + url.PathEscape(str(args, "repo_id")) + "/story"}, true
+	case "get_repo_summary":
+		name := str(args, "repo_name")
+		if name == "" {
+			name = str(args, "repo_id")
+		}
+		return &route{method: "GET", path: "/api/v0/repositories/" + url.PathEscape(name) + "/context"}, true
+	case "get_repository_coverage":
+		return &route{method: "GET", path: "/api/v0/repositories/" + url.PathEscape(str(args, "repo_id")) + "/coverage"}, true
+	default:
+		return nil, false
+	}
+}

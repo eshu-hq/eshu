@@ -140,6 +140,12 @@ func TestBootstrapDefinitionsIncludeContentStoreTables(t *testing.T) {
 	if !strings.Contains(contentStore.SQL, "content_entities_source_trgm_idx") {
 		t.Fatal("content_store SQL missing content_entities trigram index")
 	}
+	if !strings.Contains(contentStore.SQL, "content_files_language_repo_idx") {
+		t.Fatal("content_store SQL missing language/repository inventory index")
+	}
+	if !strings.Contains(contentStore.SQL, "ON content_files (language, repo_id)") {
+		t.Fatal("content_store SQL missing language/repository index columns")
+	}
 }
 
 func TestBootstrapDefinitionsIncludeFrameworkRouteFactIndex(t *testing.T) {

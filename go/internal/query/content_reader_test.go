@@ -9,6 +9,7 @@ import (
 	"strings"
 	"sync/atomic"
 	"testing"
+	"time"
 )
 
 func TestContentReaderMatchRepositoriesReturnsExactMatches(t *testing.T) {
@@ -121,6 +122,112 @@ func TestContentReaderListRepoFilesIncludesArtifactType(t *testing.T) {
 	}
 	if got, want := results[0].ArtifactType, "github_actions_workflow"; got != want {
 		t.Fatalf("ArtifactType = %q, want %q", got, want)
+	}
+}
+
+func TestContentReaderListRepositoriesByLanguageUsesIndexedLanguageScope(t *testing.T) {
+	t.Parallel()
+
+	db, recorder := openRecordingContentReaderDB(t, []recordingContentReaderQueryResult{
+		{
+			columns: []string{
+				"repo_id", "name", "path", "local_path", "remote_url", "repo_slug", "has_remote",
+				"language", "file_count", "last_indexed_at",
+			},
+			rows: [][]driver.Value{
+				{
+					"repository:web", "web", "/src/web", "/src/web", "https://example.test/web", "acme/web", true,
+					"typescript", int64(7), time.Date(2026, 5, 23, 14, 0, 0, 0, time.UTC),
+				},
+			},
+		},
+	})
+
+	reader := NewContentReader(db)
+	rows, err := reader.ListRepositoriesByLanguage(context.Background(), []string{"typescript", "tsx"}, 10, 0)
+	if err != nil {
+		t.Fatalf("ListRepositoriesByLanguage() error = %v, want nil", err)
+	}
+	if got, want := len(rows), 1; got != want {
+		t.Fatalf("len(rows) = %d, want %d", got, want)
+	}
+	if got, want := rows[0].Repository.RepoSlug, "acme/web"; got != want {
+		t.Fatalf("RepoSlug = %q, want %q", got, want)
+	}
+	if got, want := rows[0].FileCount, 7; got != want {
+		t.Fatalf("FileCount = %d, want %d", got, want)
+	}
+	if got, want := len(recorder.queries), 1; got != want {
+		t.Fatalf("len(recorder.queries) = %d, want %d", got, want)
+	}
+	query := recorder.queries[0]
+	for _, want := range []string{
+		"WHERE language = ANY($1)",
+		"GROUP BY repo_id, language",
+		"ORDER BY total_file_count DESC, repo_name, repo_id",
+		"LIMIT $2 OFFSET $3",
+	} {
+		if !strings.Contains(query, want) {
+			t.Fatalf("query = %q, want %q", query, want)
+		}
+	}
+}
+
+func TestContentReaderCountRepositoriesByLanguageUsesDistinctRepoScope(t *testing.T) {
+	t.Parallel()
+
+	indexedAt := time.Date(2026, 5, 23, 14, 15, 0, 0, time.UTC)
+	db := openContentReaderTestDB(t, []contentReaderQueryResult{
+		{
+			columns: []string{"repository_count", "file_count", "last_indexed_at"},
+			rows: [][]driver.Value{
+				{int64(135), int64(10749), indexedAt},
+			},
+		},
+	})
+
+	reader := NewContentReader(db)
+	aggregate, err := reader.CountRepositoriesByLanguage(context.Background(), []string{"typescript", "tsx"})
+	if err != nil {
+		t.Fatalf("CountRepositoriesByLanguage() error = %v, want nil", err)
+	}
+	if got, want := aggregate.RepositoryCount, 135; got != want {
+		t.Fatalf("RepositoryCount = %d, want %d", got, want)
+	}
+	if got, want := aggregate.FileCount, 10749; got != want {
+		t.Fatalf("FileCount = %d, want %d", got, want)
+	}
+	if !aggregate.LastIndexedAt.Equal(indexedAt) {
+		t.Fatalf("LastIndexedAt = %s, want %s", aggregate.LastIndexedAt, indexedAt)
+	}
+}
+
+func TestContentReaderRepositoryLanguageInventoryReturnsAggregateRows(t *testing.T) {
+	t.Parallel()
+
+	db := openContentReaderTestDB(t, []contentReaderQueryResult{
+		{
+			columns: []string{"language", "repository_count", "file_count", "last_indexed_at"},
+			rows: [][]driver.Value{
+				{"typescript", int64(135), int64(7140), time.Date(2026, 5, 23, 14, 0, 0, 0, time.UTC)},
+				{"go", int64(3), int64(30), time.Date(2026, 5, 23, 13, 0, 0, 0, time.UTC)},
+			},
+		},
+	})
+
+	reader := NewContentReader(db)
+	rows, err := reader.RepositoryLanguageInventory(context.Background(), 10, 0)
+	if err != nil {
+		t.Fatalf("RepositoryLanguageInventory() error = %v, want nil", err)
+	}
+	if got, want := len(rows), 2; got != want {
+		t.Fatalf("len(rows) = %d, want %d", got, want)
+	}
+	if got, want := rows[0].Language, "typescript"; got != want {
+		t.Fatalf("rows[0].Language = %q, want %q", got, want)
+	}
+	if got, want := rows[0].RepositoryCount, 135; got != want {
+		t.Fatalf("rows[0].RepositoryCount = %d, want %d", got, want)
 	}
 }
 

@@ -7,7 +7,7 @@ import (
 func TestReadOnlyTools(t *testing.T) {
 	tools := ReadOnlyTools()
 
-	expectedCount := 73
+	expectedCount := 76
 	if len(tools) != expectedCount {
 		t.Errorf("Expected %d tools, got %d", expectedCount, len(tools))
 	}
@@ -67,6 +67,9 @@ func TestReadOnlyTools(t *testing.T) {
 		"get_documentation_evidence_packet",
 		"check_documentation_evidence_packet_freshness",
 		"list_ingesters",
+		"count_repositories_by_language",
+		"list_repositories_by_language",
+		"get_repository_language_inventory",
 	}
 
 	toolNames := make(map[string]bool)
@@ -148,6 +151,13 @@ func TestEcosystemTools(t *testing.T) {
 	}
 }
 
+func TestRepositoryLanguageTools(t *testing.T) {
+	tools := repositoryLanguageTools()
+	if len(tools) != 3 {
+		t.Errorf("Expected 3 repository language tools, got %d", len(tools))
+	}
+}
+
 func TestContextTools(t *testing.T) {
 	tools := contextTools()
 	if len(tools) != 7 {
@@ -188,11 +198,22 @@ func TestEveryRegisteredToolHasDispatchRoute(t *testing.T) {
 	}
 }
 
-func TestReadOnlyToolsDoNotAdvertiseUnsupportedCoverageListing(t *testing.T) {
+func TestReadOnlyToolsAdvertiseRepositoryLanguageInventoryWithoutCoverageFanout(t *testing.T) {
 	tools := ReadOnlyTools()
+	names := map[string]bool{}
 	for _, tool := range tools {
+		names[tool.Name] = true
 		if tool.Name == "list_repository_coverage" {
 			t.Fatal("unexpected list_repository_coverage tool in read-only tool set")
+		}
+	}
+	for _, want := range []string{
+		"count_repositories_by_language",
+		"list_repositories_by_language",
+		"get_repository_language_inventory",
+	} {
+		if !names[want] {
+			t.Fatalf("missing repository language tool %q", want)
 		}
 	}
 }

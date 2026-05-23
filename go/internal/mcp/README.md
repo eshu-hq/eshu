@@ -1,7 +1,7 @@
 # internal/mcp
 
 `mcp` owns the Model Context Protocol tool surface for Eshu. It implements the
-MCP server, the JSON-RPC dispatcher, the SSE session model, and the 73
+MCP server, the JSON-RPC dispatcher, the SSE session model, and the 76
 read-only tool definitions. Tool dispatch calls into the same `http.Handler`
 chain the HTTP API uses, so a tool response and the corresponding HTTP query
 response share the same truth.
@@ -59,11 +59,12 @@ flowchart TB
 
 ## Tool groups
 
-`ReadOnlyTools` assembles 73 tools from the tool definition files.
+`ReadOnlyTools` assembles 76 tools from the tool definition files.
 
 | Group | Count | Source file |
 |---|---|---|
 | `codebaseTools` | 27 | `tools_codebase.go`, `tools_code_topic.go`, `tools_dead_code.go`, `tools_import_dependencies.go`, `tools_call_graph_metrics.go`, `tools_security.go`, `tools_structural_inventory.go`, `tools_iac.go` |
+| `repositoryLanguageTools` | 3 | `tools_repository_language.go` |
 | `ecosystemTools` | 19 | `tools_ecosystem.go` |
 | `packageRegistryTools` | 2 | `tools_package_registry.go` |
 | `cicdTools` | 1 | `tools_cicd.go` |
@@ -104,6 +105,9 @@ Representative tool-to-route mappings from `resolveRoute` (`dispatch.go:173`):
 | `list_service_catalog_correlations` | GET | `/api/v0/service-catalog/correlations` |
 | `list_supply_chain_impact_findings` | GET | `/api/v0/supply-chain/impact/findings` |
 | `list_sbom_attestation_attachments` | GET | `/api/v0/supply-chain/sbom-attestations/attachments` |
+| `count_repositories_by_language` | GET | `/api/v0/repositories/by-language?limit=0` |
+| `list_repositories_by_language` | GET | `/api/v0/repositories/by-language` |
+| `get_repository_language_inventory` | GET | `/api/v0/repositories/language-inventory` |
 | `investigate_change_surface` | POST | `/api/v0/impact/change-surface/investigate` |
 | `investigate_resource` | POST | `/api/v0/impact/resource-investigation` |
 | `resolve_entity` | POST | `/api/v0/entities/resolve` |
@@ -137,6 +141,11 @@ Package-registry tools keep MCP as transport too. Ownership candidates,
 package-version publication evidence, and manifest-backed consumption all come
 from the query handler; `dispatch_package_registry.go` owns the bounded route
 builders while MCP only maps arguments and preserves the envelope.
+
+Repository-language tools keep MCP as transport only. The HTTP query layer owns
+the content-index aggregate, language-family aliases, paging, truncation, and
+truth metadata so MCP clients do not have to fan out through every repository
+coverage response to answer inventory questions.
 
 Supply-chain tools keep the same transport-only contract. The SBOM/attestation
 tool schema accepts only the reducer-owned attachment statuses, including
@@ -202,7 +211,7 @@ element and sets `repo_id` rather than `repo_ids`.
 ## Extension points
 
 - **Add a tool**: add a `ToolDefinition` to the matching `tools_*.go` file,
-  add a `case` in `resolveRoute` in `dispatch.go`, and add a test in
+  add a route in `resolveRoute` or a route helper, and add a test in
   `tools_test.go` and `dispatch_test.go`. The `ReadOnlyTools` count test and
   the dispatch route test will both catch missing or mismatched entries.
 - **Add an argument helper**: add to `dispatch.go` near `str`, `intOr`,
@@ -211,8 +220,8 @@ element and sets `repo_id` rather than `repo_ids`.
 
 ## Gotchas / invariants
 
-- Every tool name returned by `ReadOnlyTools` must have a matching `case` in
-  `resolveRoute` (`dispatch.go:173`). A test in `tools_test.go` calls
+- Every tool name returned by `ReadOnlyTools` must have a matching route in
+  `resolveRoute` or a route helper. A test in `tools_test.go` calls
   `resolveRoute` for every tool and fails if any returns an error.
 
 - `parseCanonicalEnvelope` (`dispatch_envelope.go:15`) requires all three keys `data`,

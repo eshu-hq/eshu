@@ -70,6 +70,57 @@ func TestResolveRouteMapsListIndexedRepositoriesToBoundedQuery(t *testing.T) {
 	}
 }
 
+func TestResolveRouteMapsRepositoryLanguageToolsToBoundedQueries(t *testing.T) {
+	t.Parallel()
+
+	for _, tt := range []struct {
+		name       string
+		args       map[string]any
+		wantPath   string
+		wantLimit  string
+		wantOffset string
+	}{
+		{
+			name:       "count_repositories_by_language",
+			args:       map[string]any{"language": "typescript"},
+			wantPath:   "/api/v0/repositories/by-language",
+			wantLimit:  "0",
+			wantOffset: "0",
+		},
+		{
+			name:       "list_repositories_by_language",
+			args:       map[string]any{"language": "typescript", "limit": float64(25), "offset": float64(50)},
+			wantPath:   "/api/v0/repositories/by-language",
+			wantLimit:  "25",
+			wantOffset: "50",
+		},
+		{
+			name:       "get_repository_language_inventory",
+			args:       map[string]any{"limit": float64(25), "offset": float64(50)},
+			wantPath:   "/api/v0/repositories/language-inventory",
+			wantLimit:  "25",
+			wantOffset: "50",
+		},
+	} {
+		route, err := resolveRoute(tt.name, tt.args)
+		if err != nil {
+			t.Fatalf("resolveRoute(%q) error = %v, want nil", tt.name, err)
+		}
+		if got, want := route.method, "GET"; got != want {
+			t.Fatalf("%s method = %q, want %q", tt.name, got, want)
+		}
+		if got := route.path; got != tt.wantPath {
+			t.Fatalf("%s path = %q, want %q", tt.name, got, tt.wantPath)
+		}
+		if got := route.query["limit"]; got != tt.wantLimit {
+			t.Fatalf("%s limit = %#v, want %#v", tt.name, got, tt.wantLimit)
+		}
+		if got := route.query["offset"]; got != tt.wantOffset {
+			t.Fatalf("%s offset = %#v, want %#v", tt.name, got, tt.wantOffset)
+		}
+	}
+}
+
 func TestResolveRouteMapsQualifiedServiceIDToServicePath(t *testing.T) {
 	t.Parallel()
 

@@ -32,6 +32,8 @@ Use story and investigation tools for explanations:
 | Question | Start with |
 | --- | --- |
 | What does this repo do? | `get_repo_story` |
+| How many TypeScript, Go, Python, Java, PHP, or Terraform repos exist? | `count_repositories_by_language`, then `list_repositories_by_language` when you need names |
+| Which language buckets exist across the index? | `get_repository_language_inventory` |
 | Explain this service. | `get_service_story` or `investigate_service` |
 | How is this deployed? | `trace_deployment_chain` |
 | What uses this database, queue, or bucket? | `investigate_resource` |

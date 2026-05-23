@@ -85,6 +85,9 @@ func resolveRoute(toolName string, args map[string]any) (*route, error) {
 	if route, ok := documentationRoute(toolName, args); ok {
 		return route, nil
 	}
+	if route, ok := repositoryRoute(toolName, args); ok {
+		return route, nil
+	}
 	switch toolName {
 	// ── Code ──
 	case "find_code":
@@ -293,49 +296,6 @@ func resolveRoute(toolName string, args map[string]any) (*route, error) {
 			"unique_only": boolOr(args, "unique_only", false),
 			"limit":       intOr(args, "limit", 50),
 		}}, nil
-
-	// ── Repositories ──
-	case "list_indexed_repositories":
-		return &route{method: "GET", path: "/api/v0/repositories", query: paginationQuery(args, 100)}, nil
-	case "get_repository_stats":
-		repoID := str(args, "repo_id")
-		if repoID == "" {
-			return &route{method: "GET", path: "/api/v0/repositories"}, nil
-		}
-		return &route{method: "GET", path: "/api/v0/repositories/" + url.PathEscape(repoID) + "/stats"}, nil
-	case "get_repo_context":
-		return &route{method: "GET", path: "/api/v0/repositories/" + url.PathEscape(str(args, "repo_id")) + "/context"}, nil
-	case "get_relationship_evidence":
-		return &route{method: "GET", path: "/api/v0/evidence/relationships/" + url.PathEscape(str(args, "resolved_id"))}, nil
-	case "list_package_registry_packages":
-		return packageRegistryPackagesRoute(args), nil
-	case "list_package_registry_versions":
-		return packageRegistryVersionsRoute(args), nil
-	case "list_package_registry_dependencies":
-		return packageRegistryDependenciesRoute(args), nil
-	case "list_package_registry_correlations":
-		return packageRegistryCorrelationsRoute(args), nil
-	case "list_ci_cd_run_correlations":
-		return cicdRunCorrelationsRoute(args), nil
-	case "list_service_catalog_correlations":
-		return serviceCatalogCorrelationsRoute(args), nil
-	case "list_container_image_identities":
-		return containerImageIdentitiesRoute(args), nil
-	case "list_supply_chain_impact_findings":
-		return supplyChainImpactFindingsRoute(args), nil
-	case "list_sbom_attestation_attachments":
-		return sbomAttestationAttachmentsRoute(args), nil
-	case "get_repo_story":
-		return &route{method: "GET", path: "/api/v0/repositories/" + url.PathEscape(str(args, "repo_id")) + "/story"}, nil
-	case "get_repo_summary":
-		// repo_summary uses repo_name, map to context endpoint
-		name := str(args, "repo_name")
-		if name == "" {
-			name = str(args, "repo_id")
-		}
-		return &route{method: "GET", path: "/api/v0/repositories/" + url.PathEscape(name) + "/context"}, nil
-	case "get_repository_coverage":
-		return &route{method: "GET", path: "/api/v0/repositories/" + url.PathEscape(str(args, "repo_id")) + "/coverage"}, nil
 
 	// ── Entities ──
 	case "resolve_entity":

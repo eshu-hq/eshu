@@ -84,6 +84,9 @@ Service-catalog correlation reads use
 `fact_records_service_catalog_correlations_owner_idx` so API/MCP filters by
 scope, provider, entity, repository, service, workload, owner, outcome, and
 drift status stay bounded to `reducer_service_catalog_correlation` facts.
+Repository-language inventory reads use `content_files_language_repo_idx` so
+content-index questions such as "how many TypeScript repos?" can count and page
+by language family without scanning every repository coverage response.
 SBOM/attestation attachment reads use
 `fact_records_oci_image_referrer_subject_idx`,
 `fact_records_sbom_attestation_attachments_subject_idx`,
