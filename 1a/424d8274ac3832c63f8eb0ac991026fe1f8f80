@@ -1,0 +1,35 @@
+go/internal/storage/postgres/facts_active_supply_chain_impact.go
+  s_072c5984f68e14::t_bcc4ca0cb67a52 37-38
+go/internal/projector/runtime.go
+  s_072c5984f68e14::t_9202dc7f03f047 405-407
+go/internal/projector/supply_chain_impact_intents.go
+  s_072c5984f68e14::t_3a564117a4e491 1-50
+go/internal/projector/supply_chain_impact_intents_test.go
+  s_072c5984f68e14::t_fc45cc7156262e 1-75
+docker-compose.remote-e2e.yaml
+  s_072c5984f68e14::t_60fa1dd90622eb 144-156
+docs/docs/adrs/2026-05-15-vulnerability-intelligence-collector.md
+  s_072c5984f68e14::t_0a71a5b9568f18 498-538
+go/internal/storage/postgres/facts_active_supply_chain_impact_test.go
+  s_072c5984f68e14::t_872085f7f0d1e7 16-17
+go/internal/reducer/supply_chain_impact.go
+  s_072c5984f68e14::t_4d1f89f714355e 277-278
+go/internal/reducer/supply_chain_impact_test.go
+  s_072c5984f68e14::t_f4c740b46a7ba7 184-196
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.0",
+  "base_commit_sha": "1a424d8274ac3832c63f8eb0ac991026fe1f8f80",
+  "prompts": {},
+  "sessions": {
+    "s_072c5984f68e14": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e4636-8361-7713-a3c6-b30ed9bbfc7b",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
