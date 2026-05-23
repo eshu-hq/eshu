@@ -82,9 +82,10 @@ func TestBuildSupplyChainImpactFindingsClassifiesEvidencePaths(t *testing.T) {
 		vulnerabilityCVEFact("cve-fixed", "CVE-2026-0002", 9.8),
 		vulnerabilityAffectedPackageFact("affected-fixed", "CVE-2026-0002", "pkg:npm/fixed", "npm", "fixed", "1.2.3", "1.3.0"),
 		packageVersionFact("version-fixed", "pkg:npm/fixed", "pkg:npm/fixed@1.3.0", "1.3.0"),
+		packageConsumptionFact("consume-fixed", "pkg:npm/fixed", testImpactRepositoryID),
 
-		vulnerabilityCVEFact("cve-possible", "CVE-2026-0003", 5.0),
-		vulnerabilityAffectedPackageFact("affected-possible", "CVE-2026-0003", "pkg:npm/other", "npm", "other", "", "2.0.0"),
+		vulnerabilityCVEFact("cve-unanchored", "CVE-2026-0003", 5.0),
+		vulnerabilityAffectedPackageFact("affected-unanchored", "CVE-2026-0003", "pkg:npm/other", "npm", "other", "", "2.0.0"),
 
 		vulnerabilityCVEFact("cve-unknown", "CVE-2026-0004", 7.5),
 	})
@@ -98,8 +99,15 @@ func TestBuildSupplyChainImpactFindingsClassifiesEvidencePaths(t *testing.T) {
 		t.Fatalf("CVE-2026-0001 RuntimeReachability = blank, want package reachability")
 	}
 	assertSupplyChainImpactStatus(t, got["CVE-2026-0002"], SupplyChainImpactNotAffectedKnownFixed)
-	assertSupplyChainImpactStatus(t, got["CVE-2026-0003"], SupplyChainImpactPossiblyAffected)
-	assertSupplyChainImpactStatus(t, got["CVE-2026-0004"], SupplyChainImpactUnknown)
+	if got["CVE-2026-0002"].RepositoryID == "" {
+		t.Fatalf("CVE-2026-0002 RepositoryID = blank, want anchored known-fixed finding")
+	}
+	if _, ok := got["CVE-2026-0003"]; ok {
+		t.Fatalf("CVE-2026-0003 produced an impact finding without owned package, repository, or image evidence: %#v", got["CVE-2026-0003"])
+	}
+	if _, ok := got["CVE-2026-0004"]; ok {
+		t.Fatalf("CVE-2026-0004 produced an impact finding from source-only CVE evidence: %#v", got["CVE-2026-0004"])
+	}
 }
 
 func TestBuildSupplyChainImpactFindingsDerivesImagePathFromSBOMAttachment(t *testing.T) {

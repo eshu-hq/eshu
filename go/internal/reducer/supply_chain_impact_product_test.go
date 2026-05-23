@@ -13,7 +13,7 @@ const (
 	testImpactMatchCriteriaID = "b5ec4c98-0000-4000-9000-000000000001"
 )
 
-func TestBuildSupplyChainImpactFindingsUsesNVDProductEvidenceWhenPackageEvidenceMissing(t *testing.T) {
+func TestBuildSupplyChainImpactFindingsSkipsProductOnlyEvidenceWithoutOwnedSBOM(t *testing.T) {
 	t.Parallel()
 
 	findings := BuildSupplyChainImpactFindings([]facts.Envelope{
@@ -27,28 +27,8 @@ func TestBuildSupplyChainImpactFindingsUsesNVDProductEvidenceWhenPackageEvidence
 		),
 	})
 
-	if got, want := len(findings), 1; got != want {
-		t.Fatalf("len(findings) = %d, want %d: %#v", got, want, findings)
-	}
-	got := findings[0]
-	assertSupplyChainImpactStatus(t, got, SupplyChainImpactPossiblyAffected)
-	if got.Confidence != "weak_product" {
-		t.Fatalf("Confidence = %q, want weak_product", got.Confidence)
-	}
-	if got.ProductCriteria != testImpactProductCriteria {
-		t.Fatalf("ProductCriteria = %q, want %q", got.ProductCriteria, testImpactProductCriteria)
-	}
-	if got.MatchCriteriaID != testImpactMatchCriteriaID {
-		t.Fatalf("MatchCriteriaID = %q, want %q", got.MatchCriteriaID, testImpactMatchCriteriaID)
-	}
-	if got.PackageID != "" {
-		t.Fatalf("PackageID = %q, want blank for product-only evidence", got.PackageID)
-	}
-	if got.RuntimeReachability != "unknown" {
-		t.Fatalf("RuntimeReachability = %q, want unknown", got.RuntimeReachability)
-	}
-	if !strings.Contains(strings.Join(got.EvidencePath, " -> "), facts.VulnerabilityAffectedProductFactKind) {
-		t.Fatalf("EvidencePath = %#v, want affected_product evidence", got.EvidencePath)
+	if got := len(findings); got != 0 {
+		t.Fatalf("len(findings) = %d, want 0 for product-only source intelligence: %#v", got, findings)
 	}
 }
 
@@ -118,12 +98,8 @@ func TestBuildSupplyChainImpactFindingsSkipsNonVulnerableNVDProductCriteria(t *t
 		containerImageIdentityImpactFact("image-1", testImpactSubjectDigest, testImpactRepositoryID),
 	})
 
-	if got, want := len(findings), 1; got != want {
-		t.Fatalf("len(findings) = %d, want %d: %#v", got, want, findings)
-	}
-	assertSupplyChainImpactStatus(t, findings[0], SupplyChainImpactUnknown)
-	if strings.Contains(strings.Join(findings[0].EvidencePath, " -> "), facts.VulnerabilityAffectedProductFactKind) {
-		t.Fatalf("EvidencePath = %#v, want non-vulnerable CPE ignored", findings[0].EvidencePath)
+	if got := len(findings); got != 0 {
+		t.Fatalf("len(findings) = %d, want 0 for non-vulnerable product evidence: %#v", got, findings)
 	}
 }
 

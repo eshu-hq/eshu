@@ -168,11 +168,17 @@ func classifySupplyChainImpactPackage(
 	finding := baseSupplyChainImpactFinding(cve, pkg, index)
 	version, hasVersion := firstPackageVersion(pkg, index.packageVersions[pkg.packageID])
 	component, attachment, image, hasComponentPath := firstSBOMImpactPath(pkg, index)
+	consumption := firstConsumption(pkg.packageID, index.consumption)
 	if hasVersion {
 		finding.PURL = firstNonBlank(version.purl, finding.PURL)
 		finding.ObservedVersion = version.version
 		finding.EvidenceFactIDs = append(finding.EvidenceFactIDs, version.factID)
 		finding.EvidencePath = append(finding.EvidencePath, facts.PackageRegistryPackageVersionFactKind)
+	}
+	if hasVersion && consumption.factID != "" {
+		finding.RepositoryID = consumption.repositoryID
+		finding.EvidenceFactIDs = append(finding.EvidenceFactIDs, consumption.factID)
+		finding.EvidencePath = append(finding.EvidencePath, packageConsumptionCorrelationFactKind)
 	}
 	if hasComponentPath {
 		finding.PURL = firstNonBlank(component.purl, finding.PURL)
@@ -192,14 +198,11 @@ func classifySupplyChainImpactPackage(
 		finding.MissingEvidence = missingImpactEvidence(finding)
 		return finding
 	}
-	if consumption := firstConsumption(pkg.packageID, index.consumption); hasVersion && consumption.factID != "" && versionAffected(finding.ObservedVersion, pkg.affectedVersions) {
+	if hasVersion && consumption.factID != "" && versionAffected(finding.ObservedVersion, pkg.affectedVersions) {
 		finding.Status = SupplyChainImpactAffectedExact
 		finding.Confidence = "exact"
-		finding.RepositoryID = consumption.repositoryID
 		finding.RuntimeReachability = "package_manifest"
 		finding.CanonicalWrites = 1
-		finding.EvidenceFactIDs = append(finding.EvidenceFactIDs, consumption.factID)
-		finding.EvidencePath = append(finding.EvidencePath, packageConsumptionCorrelationFactKind)
 		finding.MissingEvidence = missingImpactEvidence(finding)
 		return finding
 	}
@@ -247,24 +250,6 @@ func classifySupplyChainImpactProduct(
 	finding.RuntimeReachability = "unknown"
 	finding.CanonicalWrites = 1
 	finding.MissingEvidence = missingImpactEvidence(finding)
-	return finding
-}
-
-func unknownSupplyChainImpactFinding(
-	cve supplyChainImpactCVE,
-	index supplyChainImpactIndex,
-) SupplyChainImpactFinding {
-	finding := SupplyChainImpactFinding{
-		CVEID:           cve.cveID,
-		AdvisoryID:      firstNonBlank(cve.advisoryID, cve.cveID),
-		Status:          SupplyChainImpactUnknown,
-		Confidence:      "unknown",
-		CVSSScore:       cve.cvssScore,
-		MissingEvidence: []string{"affected package evidence missing", "package or SBOM evidence missing", "runtime reachability evidence missing"},
-		EvidencePath:    []string{facts.VulnerabilityCVEFactKind},
-		EvidenceFactIDs: []string{cve.factID},
-	}
-	applyRiskSignals(&finding, index.riskSignals[cve.cveID])
 	return finding
 }
 

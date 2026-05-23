@@ -130,6 +130,9 @@ Valid impact statuses are `affected_exact`, `affected_derived`,
 `possibly_affected`, `not_affected_known_fixed`, and `unknown_impact`.
 Rows keep CVSS, EPSS, KEV, fixed-version state, runtime reachability,
 repository/image evidence, and missing evidence separate.
+Product-only CPE facts and package-registry facts without owned repository,
+image, package-manifest, or SBOM evidence remain source intelligence and do not
+appear as impact findings.
 
 ## SBOM And Attestation Attachments
 

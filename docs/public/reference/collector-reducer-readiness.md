@@ -52,7 +52,7 @@ instances.
 | AWS cloud | `eshu-collector-aws-cloud` is claim-driven. | AWS facts feed cloud-asset and AWS runtime-drift domains. AWS runtime drift writes durable reducer facts and bounded Postgres reads; graph shape remains reducer-owned. | Prove read-only AWS collection, claim-scoped credentials, AWS service coverage, reducer drain, drift reads, and status visibility in the target environment. |
 | AWS freshness | `eshu-webhook-listener` accepts AWS freshness events and stores durable triggers. | Freshness narrows the next AWS collection target. Scheduled scans remain the baseline completeness path. | Prove one live AWS EventBridge or AWS Config sample through webhook intake, trigger handoff, AWS work creation, and final status. |
 | Package registry | `eshu-collector-package-registry` is claim-driven. | Package source correlation classifies source hints without ownership promotion. Package-native dependency and publication facts are safe as provenance/read-model evidence. | Expand ownership and usage correlation only after exact, derived, ambiguous, unresolved, stale, and rejected cases are proven. |
-| Vulnerability intelligence | `eshu-collector-vulnerability-intelligence` has source clients for CISA KEV, FIRST EPSS, OSV, and NVD. | Source-truth `vulnerability.*` facts exist. Impact reducers remain separate and must not infer reachability from CVSS, EPSS, or KEV alone. | Prove live source collection, API/MCP fact visibility, then package/image/deployment impact joins after upstream collectors are proven together. |
+| Vulnerability intelligence | `eshu-collector-vulnerability-intelligence` has source clients for CISA KEV, FIRST EPSS, OSV, and NVD. | Source-truth `vulnerability.*` facts exist. Impact reducers require owned package-manifest, repository, image, or SBOM evidence before publishing user-facing impact findings. They must not infer reachability from CVSS, EPSS, KEV, product-only CPEs, or package-registry facts alone. | Prove live source collection, API/MCP fact visibility, then package/image/deployment impact joins after upstream collectors are proven together. |
 
 ## Reducer Truth Boundaries
 
@@ -69,13 +69,44 @@ the collector naming something truth. Current reducer-owned surfaces include:
 | `ci_cd_run_correlation` | Exact CI/CD correlation requires artifact identity evidence, not CI success alone. |
 | `service_catalog_correlation` | Catalog names, owners, and labels remain provenance until explicit repository evidence admits correlation. |
 | `sbom_attestation_attachment` | SBOM and attestation attachment requires explicit subject digest evidence; parse validity and verification trust stay separate. |
-| `supply_chain_impact` | Vulnerability impact findings come from explicit CVE/advisory to package/component to repository/image evidence paths. |
+| `supply_chain_impact` | Vulnerability impact findings come from explicit CVE/advisory to package/component to repository/image evidence paths. Source-only vulnerability intelligence is retained as facts but stays out of user-facing impact findings until it joins to owned package-manifest, repository, image, or SBOM evidence. |
 
 Workflow completeness depends on reducer-owned phase publications only for
 collector families that declare required phases. Git and Terraform-state have
 required graph projection phases. AWS, OCI registry, package registry, and
 documentation currently publish fact-backed or read-model truth without
 required workflow phase gates.
+
+No-Regression Evidence: the anchored-impact correction ran
+`go test ./internal/reducer -run
+'TestBuildSupplyChainImpactFindings(SkipsProductOnlyEvidenceWithoutOwnedSBOM|ClassifiesEvidencePaths|SkipsNonVulnerableNVDProductCriteria|DerivesProductImpactFromSBOMCPE|RequiresAffectedVersionForExactImpact)'
+-count=1`, `go test ./internal/reducer ./internal/storage/postgres
+./internal/query ./internal/mcp -count=1`, and
+`go test ./internal/reducer ./internal/query ./internal/mcp
+./internal/storage/postgres ./internal/telemetry ./cmd/reducer ./cmd/api
+./cmd/mcp-server -count=1`. The input shape covers product-only CPE source
+intelligence, non-vulnerable CPE rows, package-only source intelligence,
+known-fixed package-manifest evidence, package-manifest repository anchors, and
+CPE/SBOM/image anchors. Product-only and source-only rows produce zero impact
+facts; anchored rows keep their exact, derived, possible, or known-fixed status.
+Remote Compose run `pr573-anchored-impact-20260523T162055Z` completed the
+45-repository smoke corpus with `435/435` queue rows succeeded, zero pending,
+retrying, failed, or dead-letter rows, and workflow counts `aws=19`,
+`oci_registry=1`, `package_registry=2`, `terraform_state=1`, and
+`vulnerability_intelligence=4` completed. Source intelligence was still stored
+(`vulnerability.cve=8`, `vulnerability.affected_package=14`,
+`vulnerability.affected_product=19`), while unanchored
+`reducer_supply_chain_impact_finding` facts were absent. API
+`GET /api/v0/supply-chain/impact/findings?impact_status=possibly_affected&limit=200`
+returned `count=0`, `truncated=false`; MCP
+`list_supply_chain_impact_findings` returned the same zero-result envelope with
+truth `exact`, profile `production`, and freshness `fresh`.
+
+Observability Evidence: no telemetry contract changed for the anchored-impact
+correction. Existing reducer outcome counts, `query.supply_chain_impact_findings`
+spans, Postgres query duration metrics, API/MCP truth envelopes, and the
+missing-evidence payload explain whether a finding is anchored to a repository,
+subject digest, package manifest, or image/SBOM path.
 
 ## Gated Source Families
 

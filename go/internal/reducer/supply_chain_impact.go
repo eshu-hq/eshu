@@ -193,18 +193,17 @@ func BuildSupplyChainImpactFindings(envelopes []facts.Envelope) []SupplyChainImp
 		affected := index.affectedPackages[cve.cveID]
 		if len(affected) > 0 {
 			for _, pkg := range affected {
-				findings = append(findings, classifySupplyChainImpactPackage(cve, pkg, index))
+				findings = appendSupplyChainImpactFinding(findings, classifySupplyChainImpactPackage(cve, pkg, index))
 			}
 			continue
 		}
 		products := index.affectedProducts[cve.cveID]
 		if len(products) > 0 {
 			for _, product := range products {
-				findings = append(findings, classifySupplyChainImpactProduct(cve, product, index))
+				findings = appendSupplyChainImpactFinding(findings, classifySupplyChainImpactProduct(cve, product, index))
 			}
 			continue
 		}
-		findings = append(findings, unknownSupplyChainImpactFinding(cve, index))
 	}
 	sort.SliceStable(findings, func(i, j int) bool {
 		if findings[i].CVEID != findings[j].CVEID {
@@ -216,6 +215,20 @@ func BuildSupplyChainImpactFindings(envelopes []facts.Envelope) []SupplyChainImp
 		return findings[i].ProductCriteria < findings[j].ProductCriteria
 	})
 	return findings
+}
+
+func appendSupplyChainImpactFinding(
+	findings []SupplyChainImpactFinding,
+	finding SupplyChainImpactFinding,
+) []SupplyChainImpactFinding {
+	if !supplyChainImpactFindingHasOwnedAnchor(finding) {
+		return findings
+	}
+	return append(findings, finding)
+}
+
+func supplyChainImpactFindingHasOwnedAnchor(finding SupplyChainImpactFinding) bool {
+	return strings.TrimSpace(finding.RepositoryID) != "" || strings.TrimSpace(finding.SubjectDigest) != ""
 }
 
 func supplyChainImpactFactKinds() []string {
