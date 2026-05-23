@@ -1,33 +1,33 @@
-# Helm quickstart
+# Helm Quickstart
 
-Use Helm when you want the supported split-service Kubernetes deployment.
+Use Helm when you want the supported split-service Kubernetes deployment. Keep
+the first install small: API, MCP, ingester, resolution engine, schema
+bootstrap, Postgres, and an existing graph backend.
 
-## 1. Create the namespace
+## 1. Create Namespace
 
 ```bash
 kubectl create namespace eshu
 ```
 
-## 2. Create required secrets
+## 2. Create Required Secrets
 
-The defaults expect:
+The chart defaults expect:
 
 - `eshu-api-auth` with key `api-key`
 - `eshu-neo4j` with keys `username` and `password`
 - `github-app-credentials` when `repoSync.auth.method=githubApp`
-- collector credentials only for the optional collectors you enable
+- optional collector credentials only for collectors you enable
 
-For Confluence Cloud email/API-token auth:
+For Confluence email/API-token auth:
 
 ```bash
 kubectl -n eshu create secret generic confluence-collector-credentials \
-  --from-literal=email="$JIRA_EMAIL" \
-  --from-literal=api-token="$JIRA_API_TOKEN"
+  --from-literal=email="$CONFLUENCE_EMAIL" \
+  --from-literal=api-token="$CONFLUENCE_API_TOKEN"
 ```
 
-## 3. Write values
-
-Start with a small override file:
+## 3. Write Minimal Values
 
 ```yaml
 contentStore:
@@ -50,20 +50,20 @@ repoSync:
         value: eshu-hq/eshu
 ```
 
-For collector-specific values, credentials, and guardrails, use
-[Collector and webhook values](helm-collector-and-webhook-values.md). Keep the
-first install small; add collectors after the API, MCP server, ingester, and
-resolution engine roll out cleanly.
+For bundled NornicDB, read [Storage](storage.md) first. Helm-hook schema
+bootstrap cannot run before chart-managed NornicDB exists.
 
-## 4. Install or upgrade
+## 4. Render, Then Install
 
 ```bash
+helm template eshu ./deploy/helm/eshu -f values.eshu.yaml
+
 helm upgrade --install eshu ./deploy/helm/eshu \
   --namespace eshu \
   -f values.eshu.yaml
 ```
 
-## 5. Check rollout
+## 5. Check Rollout
 
 ```bash
 kubectl -n eshu get pods
@@ -71,20 +71,17 @@ kubectl -n eshu rollout status deployment/eshu-api
 kubectl -n eshu rollout status deployment/eshu-mcp-server
 kubectl -n eshu rollout status statefulset/eshu
 kubectl -n eshu rollout status deployment/eshu-resolution-engine
-
-# If optional collectors or the webhook listener are enabled:
-kubectl -n eshu get deployments
 ```
 
-Exact resource names depend on the release name and chart helpers. The API and
-MCP workloads expose HTTP health endpoints through chart probes. Use logs,
-metrics, and runtime status surfaces to diagnose ingester or resolution-engine
-progress.
+Exact resource names depend on the release name and chart helpers. Use logs,
+metrics, and `/admin/status` to diagnose ingester or resolution-engine progress;
+pod health alone does not prove indexing is complete.
 
-## 6. Add optional collectors
+## 6. Add Optional Runtimes
 
 Enable collectors one family at a time. Claim-driven collectors require an
-active workflow coordinator and collector instances; provider webhooks require a
-webhook route plus the matching Secret. See
-[Collector and webhook values](helm-collector-and-webhook-values.md) for those
-values and the render-time guardrails.
+active workflow coordinator and collector instances. Provider webhooks require a
+webhook route plus the matching Secret.
+
+Use [Collector and Webhook Values](helm-collector-and-webhook-values.md) for
+those values and guardrails.

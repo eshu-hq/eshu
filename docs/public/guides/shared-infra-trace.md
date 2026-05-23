@@ -1,19 +1,15 @@
-# Tracing Shared Infra From Terraform To Workloads
+# Trace Shared Infrastructure
 
-This guide walks a common platform scenario: a Terraform module provisions a shared RDS cluster, and multiple workloads consume it in one environment.
+Use this flow when a shared resource, such as an RDS cluster, supports multiple
+workloads in one environment.
 
-## Scenario
+## 1. Resolve The Resource
 
-- a Terraform module creates a **shared RDS** cluster
-- multiple workloads connect to it
-- developers may still talk about one of those workloads as a service
-- the graph must preserve the shared resource as first-class infrastructure rather than pretending a single service owns it
+Start with a fuzzy entity lookup and keep the canonical ID from the response:
 
-## Step 1: Resolve The Shared Resource
-
-Start with a fuzzy lookup:
-
-`POST /api/v0/entities/resolve`
+```http
+POST /api/v0/entities/resolve
+```
 
 ```json
 {
@@ -24,13 +20,11 @@ Start with a fuzzy lookup:
 }
 ```
 
-Use the canonical ID from the response for the next calls.
+## 2. Trace Resource To Code
 
-## Step 2: Trace Resource To Code
-
-Follow the shared resource back through Terraform, configuration, and workload usage:
-
-`POST /api/v0/impact/trace-resource-to-code`
+```http
+POST /api/v0/impact/trace-resource-to-code
+```
 
 ```json
 {
@@ -40,25 +34,31 @@ Follow the shared resource back through Terraform, configuration, and workload u
 }
 ```
 
-This shows how the Terraform definition and runtime wiring connect that resource back to code.
+This follows Terraform, configuration, workload usage, and repository evidence
+when those paths have been indexed.
 
-## Step 3: Inspect A Workload Or Use The Service Alias
+## 3. Inspect A Workload
 
-Canonical view:
+Canonical workload view:
 
-- `GET /api/v0/workloads/workload:payments-api/context?environment=prod`
+```http
+GET /api/v0/workloads/workload:payments-api/context?environment=prod
+```
 
-Common engineering language:
+Service alias view:
 
-- `GET /api/v0/services/workload:payments-api/context?environment=prod`
+```http
+GET /api/v0/services/workload:payments-api/context?environment=prod
+```
 
-The `service alias` route is only a convenience surface. The canonical graph model still treats the underlying node as a workload.
+The service route is a convenience surface. The graph still treats the runtime
+node as a workload.
 
-## Step 4: Measure Blast Radius
+## 4. Measure Impact
 
-If you change the Terraform module or the shared RDS resource, ask for impact directly:
-
-`POST /api/v0/impact/change-surface`
+```http
+POST /api/v0/impact/change-surface
+```
 
 ```json
 {
@@ -67,13 +67,14 @@ If you change the Terraform module or the shared RDS resource, ask for impact di
 }
 ```
 
-This is where shared infrastructure becomes valuable: the graph can return every workload and repository that depends on the same cluster instead of collapsing the answer to a single service.
+Shared infrastructure matters because the answer should include every workload
+and repository that depends on the same resource, not just one service alias.
 
-## Step 5: Explain A Specific Dependency Path
+## 5. Explain One Path
 
-When you need a justification path:
-
-`POST /api/v0/impact/explain-dependency-path`
+```http
+POST /api/v0/impact/explain-dependency-path
+```
 
 ```json
 {
@@ -83,17 +84,10 @@ When you need a justification path:
 }
 ```
 
-Use this to show why a workload depends on the shared RDS cluster and what evidence supports that path.
+Use this when you need the source evidence behind one dependency claim.
 
-## Why This Matters
+## Related Docs
 
-- Terraform remains visible as infrastructure intent.
-- The shared RDS resource stays first-class instead of being flattened into one app.
-- Each workload keeps its own runtime context.
-- Engineers can still use the service alias when that is the natural language of the question.
-
-## See also
-
-- [MCP Cookbook](../reference/mcp-cookbook.md) — more query examples
-- [Graph Model](../concepts/graph-model.md) — node types and relationships
-- [HTTP API Reference](../reference/http-api.md) — full endpoint documentation
+- [HTTP API Reference](../reference/http-api.md)
+- [Relationship Mapping](../reference/relationship-mapping.md)
+- [MCP Cookbook](../reference/mcp-cookbook.md)

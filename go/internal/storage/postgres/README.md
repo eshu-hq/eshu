@@ -17,20 +17,17 @@ on the store they use.
 
 ## Exported surface
 
-See `doc.go` for the godoc contract. The main surfaces are schema bootstrap
-helpers, `ExecQueryer` and transaction wrappers, fact and ingestion stores,
-content stores, projector and reducer queues, workflow control, status and
-recovery stores, shared projection intent stores, graph phase repair stores,
-webhook/freshness stores, and domain-specific active fact readers.
-
-Use godoc for the exported-symbol list; this README should stay a boundary
-guide, not a second package index.
+See `doc.go` and `go doc ./internal/storage/postgres` for the contract. The
+stable anchors are schema bootstrap, transaction wrappers, fact/content stores,
+projector and reducer queues, workflow control, status/recovery stores, shared
+projection intents, graph phase repair, webhook/freshness stores, and bounded
+active-fact readers. Do not turn this README into an exported-symbol index.
 
 ## Dependencies
 
-The package depends on durable fact models, workflow/scope models, reducer and
-projector ports, query/status contracts, telemetry, and Postgres driver
-interfaces. Graph execution stays in `internal/storage/cypher`.
+The package depends on fact models, workflow/scope models, reducer/projector
+ports, query/status contracts, telemetry, and Postgres driver interfaces. Graph
+execution stays in `internal/storage/cypher`.
 
 ## Telemetry
 
@@ -51,7 +48,7 @@ paths, fact IDs, cloud IDs, and row payload details out of metric labels.
   shared projection leases so graph-visible reducer edges are not reported
   complete too early.
 - Reducer read models use bounded active-fact indexes; API/MCP reads must not
-  scan all `fact_records`.
+  scan all fact rows.
 - Terraform config-vs-state drift depends on byte-compatible dot-path
   flattening between parser config rows and state rows.
 

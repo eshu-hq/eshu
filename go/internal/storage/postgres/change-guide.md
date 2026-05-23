@@ -1,7 +1,8 @@
 # storage/postgres Change Guide
 
-Use this guide when changing Postgres stores, queues, schema definitions,
-drift loaders, AWS status stores, or status/readiness queries.
+Use this guide when changing Postgres stores, queues, schema definitions, drift
+loaders, AWS status stores, or status/readiness queries. Keep the README as the
+package boundary; keep this file as the local change checklist.
 
 ## Read First
 
@@ -19,26 +20,21 @@ drift loaders, AWS status stores, or status/readiness queries.
 
 ## Change Checklist
 
-- Add a store by implementing against `ExecQueryer`, adding a `New*Store`
-  constructor, adding idempotent `*SchemaSQL()` when the store owns a table,
-  registering the table in `BootstrapDefinitions`, and wrapping with
-  `InstrumentedDB` in command wiring.
-- Add a table by placing its `Definition` after referenced tables, keeping DDL
-  idempotent, adding SQL mirror tests when applicable, and adding bootstrap
-  tests.
-- Add a fact column or fact kind by updating the insert column list, scanner,
-  schema DDL, and migration plan for non-nullable data.
-- Add a queue domain by adding the reducer domain constant, extending claim
-  filtering, and testing claim, ack, fail, retry, and stale-lease behavior.
-- Add an enqueue-only reducer call site by using `ReducerQueue{db: s.db}` when
-  only inserts are needed. Do not invent a parallel enqueuer port; the
-  projector-facing narrow interface already exists.
-- Add a graph projection phase by adding the reducer phase constant, storing it
-  through `GraphProjectionPhaseStateStore`, and adding a readiness lookup when
-  reducer domains gate on it.
-- Add Postgres telemetry by wrapping the connection with `InstrumentedDB` and a
-  bounded `StoreName`. Do not add query text, paths, ARNs, fact IDs, or
-  resource names to metric labels.
+- New store: implement against `ExecQueryer`, add `New*Store`, add idempotent
+  `*SchemaSQL()` when it owns tables, register DDL in `BootstrapDefinitions`,
+  and wire the connection through `InstrumentedDB`.
+- New table: order `Definition` after dependencies, keep DDL idempotent, add SQL
+  mirror tests when applicable, and cover bootstrap ordering.
+- New fact column or kind: update insert columns, scanners, schema DDL, and the
+  migration plan for non-nullable data.
+- New queue domain: add the reducer domain constant, extend claim filtering,
+  and test claim, ack, fail, retry, stale lease, and dead-letter behavior.
+- Enqueue-only reducer call site: use `ReducerQueue{db: s.db}`. Do not invent a
+  parallel enqueuer port.
+- Graph projection phase: add the reducer phase constant, persist it through
+  `GraphProjectionPhaseStateStore`, and add readiness lookup coverage.
+- Postgres telemetry: use `InstrumentedDB` and a bounded `StoreName`; keep query
+  text, paths, ARNs, fact IDs, and resource names out of metric labels.
 
 ## Queue Rules
 
@@ -91,10 +87,10 @@ drift loaders, AWS status stores, or status/readiness queries.
   fixed.
 - Missing graph readiness rows: inspect `GraphProjectionPhaseRepairQueueStore`
   and projector `publish_phases` failures.
-- `SQLSTATE 21000`: duplicate `fact_id` entered one batch; verify
-  `deduplicateEnvelopes` still runs.
-- `SQLSTATE 22P05` or `SQLSTATE 22P02`: payload sanitization was bypassed or a
-  fact carries unsupported binary/control-byte content.
+- `SQLSTATE 21000`: duplicate `fact_id` entered one batch; verify the batch
+  dedupe path still runs.
+- `SQLSTATE 22P05` or `SQLSTATE 22P02`: payload sanitization was bypassed, or a
+  fact carries unsupported binary or control-byte content.
 
 ## Do Not Change Without Architecture-Owner Approval
 

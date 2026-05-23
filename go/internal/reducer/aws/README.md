@@ -15,9 +15,8 @@ live in projector/reducer runtime code.
 
 ## Exported Surface
 
-See `doc.go` and `go doc ./internal/reducer/aws`. The package exposes runtime
-contract structs, default contract helpers, validation, and defensive-copy
-templates.
+See `doc.go` and `go doc ./internal/reducer/aws` for the contract. The stable
+anchors are runtime contract structs, validation, and defensive-copy helpers.
 
 ## Telemetry
 

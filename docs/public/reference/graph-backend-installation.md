@@ -136,16 +136,8 @@ managed process-mode binary.
 
 ## Supply Chain Status
 
-Supported today:
-
 - explicit-source local or remote installs
 - optional source-artifact SHA-256 checking with `--sha256`
-
-Future work:
-
-- signature verification
-- release-backed no-argument installs
-- accepted release/build manifest and artifact publication policy
 
 ## Non-Goals
 

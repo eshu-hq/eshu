@@ -20,13 +20,9 @@ and downstream docs.
 
 ## Exported surface
 
-See `doc.go` for the godoc contract. Main surfaces include `Engine`,
-`DefaultEngine`, `NewEngine`, `Runtime`, `NewRuntime`, `Definition`,
-`Registry`, `DefaultRegistry`, parser options, Go package semantic root option
-types, SCIP indexer/parser helpers, and selected language metadata helpers.
-
-Use `DefaultRegistry().Definitions()` for the current language mapping instead
-of copying extension tables into docs.
+See `doc.go` and `go doc ./internal/parser` for the contract. Use
+`DefaultRegistry().Definitions()` for the current language mapping instead of
+copying extension tables into docs.
 
 ## Dependencies
 

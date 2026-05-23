@@ -1,157 +1,71 @@
 # Terraform Provider Support
 
-Eshu uses Terraform provider schemas to extract infrastructure relationship
-evidence from Terraform code. The runtime does not need one hand-written
-extractor per resource type.
+Eshu uses packaged Terraform provider schemas to extract infrastructure
+relationship evidence without hand-writing an extractor for every resource type.
 
-## Runtime Ownership
+## Runtime Contract
 
-Terraform provider-schema support ships in the current runtime.
-
-The canonical packaged schema assets live under:
+Schema assets live under:
 
 - `go/internal/terraformschema/schemas/*.json.gz`
 
-The runtime path is:
+Runtime ownership is split across:
 
-- `go/internal/terraformschema/*` for loading, identity-key inference, and
+- `go/internal/terraformschema` for loading, identity-key inference, and
   category classification
-- `go/internal/relationships/*` for schema-driven relationship extraction
+- `go/internal/relationships` for schema-driven relationship extraction
 
-This matters because the provider schemas are not just an offline packaging
-detail. They are live runtime inputs used to register schema-driven extractors,
-load provider metadata, infer identity keys, classify service families, and
-emit infrastructure relationship evidence.
+The schemas are runtime inputs. They register extractors, infer resource
+identity keys, classify service families, and emit relationship evidence through
+the normal reducer-owned flow.
 
-That evidence path is proven through the Postgres ingestion
-transaction: repository facts are read back into a catalog, Terraform fact
-batches are scanned against that catalog, and matching rows are persisted to
-`relationship_evidence_facts` before the projector queue is enqueued.
+## Current Packaged Set
 
-## Why The Schemas Exist
+The checked-in bundle contains 21 providers and 6,236 resource types.
 
-Eshu uses the output of `terraform providers schema -json` so it can reason
-about provider resource shapes instead of hard-coding one extractor per
-Terraform resource type.
+| Provider | Version | Resource types |
+| --- | --- | --- |
+| AWS | 5.100.0 | 1,526 |
+| AzureRM | 4.66.0 | 1,124 |
+| Google | 6.50.0 | 1,096 |
+| Alibaba Cloud | 1.273.0 | 1,125 |
+| Oracle Cloud | 6.37.0 | 813 |
+| Cloudflare | 5.18.0 | 215 |
+| Kubernetes | 2.38.0 | 82 |
+| Helm | 2.17.0 | 1 |
+| GitHub | 6.11.1 | 85 |
+| Grafana | 3.25.9 | 75 |
+| PagerDuty | 3.32.1 | 51 |
+| RabbitMQ | 1.10.1 | 11 |
+| MySQL | 3.0.91 | 10 |
+| Random | 3.8.1 | 10 |
+| TLS | 4.2.1 | 4 |
+| Time | 0.13.1 | 4 |
+| Local | 2.7.0 | 2 |
+| Archive | 2.7.1 | 1 |
+| Null | 3.2.4 | 1 |
+| HTTP | 3.5.0 | 0 |
+| External | 2.3.5 | 0 |
 
-That keeps the runtime generic:
+Providers with zero resource types can still be valid Terraform providers, but
+they do not add schema-driven relationship evidence.
 
-- schema assets come from real provider metadata
-- extractor registration is data-driven
-- relationship evidence can cover new resource families without one-off parser
-  rules
+## Extraction Rules
 
-If you see packaged provider schemas in the repository, treat them as a
-required Go runtime dependency for Terraform relationship extraction.
+For each Terraform resource, Eshu tries to infer:
 
-## How It Works
+- resource identity from known fields such as `name`, `function_name`, `bucket`,
+  `cluster_name`, `queue_name`, and `topic_name`
+- service category from the provider prefix and service token
+- repository candidates when an identity matches indexed repo aliases
 
-1. Generate provider schemas from provider binaries with
-   `terraform providers schema -json`.
-2. Commit compressed `.json.gz` assets with versioned names such as
-   `aws-5.100.0.json.gz`.
-3. Load the packaged schemas from the Go runtime tree or embedded schema
-   bundle.
-4. Register schema-driven extractors for resource types with name-like
-   identity attributes.
-5. Emit relationship evidence through the same reducer-owned relationship flow
-   as hand-written evidence families.
+Resources without a safe name-like attribute are skipped by the schema-driven
+extractor. Category mapping lives in
+`go/internal/terraformschema/categories.go`.
 
-## Packaged Providers
+## Related Docs
 
-The checked-in schema bundle currently includes 21 providers covering 6,236
-resource types.
-
-### Cloud Providers
-
-| Provider | Version | Resource Types | Namespace |
-|---|---|---|---|
-| AWS | 5.100.0 | 1,526 | `hashicorp/aws` |
-| Azure | 4.66.0 | 1,124 | `hashicorp/azurerm` |
-| GCP | 6.50.0 | 1,096 | `hashicorp/google` |
-| Alibaba Cloud | 1.273.0 | 1,125 | `aliyun/alicloud` |
-| Oracle Cloud | 6.37.0 | 813 | `oracle/oci` |
-| Cloudflare | 5.18.0 | 215 | `cloudflare/cloudflare` |
-| Kubernetes | 2.38.0 | 82 | `hashicorp/kubernetes` |
-| Helm | 2.17.0 | 1 | `hashicorp/helm` |
-
-### Utility Providers
-
-| Provider | Version | Resource Types | Purpose |
-|---|---|---|---|
-| Random | 3.8.1 | 10 | Random values, UUIDs |
-| TLS | 4.2.1 | 4 | Certificates, keys |
-| Time | 0.13.1 | 4 | Time-based resources |
-| Local | 2.7.0 | 2 | Local files |
-| Archive | 2.7.1 | 1 | Archive files |
-| Null | 3.2.4 | 1 | Null resources |
-| HTTP | 3.5.0 | 0 | HTTP data sources only |
-| External | 2.3.5 | 0 | External data sources only |
-
-### Partner/Community Providers
-
-| Provider | Version | Resource Types | Namespace |
-|---|---|---|---|
-| GitHub | 6.11.1 | 85 | `integrations/github` |
-| Grafana | 3.25.9 | 75 | `grafana/grafana` |
-| PagerDuty | 3.32.1 | 51 | `pagerduty/pagerduty` |
-| RabbitMQ | 1.10.1 | 11 | `cyrilgdn/rabbitmq` |
-| MySQL | 3.0.91 | 10 | `petoju/mysql` |
-
-## Extracted Fields
-
-For each Terraform resource, Eshu extracts:
-
-- **Resource identity**: Name or identifier attribute (e.g., `name`, `cluster_name`, `bucket`)
-- **Service category**: Compute, storage, data, networking, security, messaging, monitoring, etc.
-- **Repository candidate**: When the resource name matches another repository (enables cross-repo linking)
-- **Confidence score**: 0.75 for name-based extraction (same as hand-written extractors)
-
-Example:
-
-```hcl
-resource "aws_lambda_function" "api_handler" {
-  function_name = "checkout-api"
-  runtime       = "provided.al2023"
-  role          = aws_iam_role.lambda_role.arn
-}
-```
-
-Eshu extracts `checkout-api` as the resource identity, classifies
-`aws_lambda_function` as `compute`, checks the identity against repository
-aliases, and emits schema-driven evidence with confidence `0.75`.
-
-## Identity Key Inference
-
-Eshu automatically infers which attribute to use as the resource identifier:
-
-1. Prefer the canonical identity list in `go/internal/terraformschema/schema.go`
-   such as `name`, `function_name`, `bucket`, `cluster_name`, `queue_name`, and
-   `topic_name`.
-2. Fall back to string attributes ending in `_name` or `_identifier`.
-3. Skip resources without a name-like attribute.
-
-## Service Category Classification
-
-Eshu maps resource types to service categories using the provider prefix + service token:
-
-**Examples:**
-
-| Resource Type | Category | Reason |
-|---|---|---|
-| `aws_lambda_function` | compute | `lambda` → compute |
-| `aws_s3_bucket` | storage | `s3` → storage |
-| `aws_rds_cluster` | data | `rds` → data |
-| `aws_route53_zone` | networking | `route53` → networking |
-| `aws_iam_role` | security | `iam` → security |
-| `random_password` | infrastructure | No category mapping (default) |
-
-Categories help group resources in queries and visualizations. The canonical
-mapping lives in `go/internal/terraformschema/categories.go`.
-
-## Next Steps
-
-- [Adding a New Provider](adding-providers.md) — contribute support for additional Terraform providers
-- [Updating Provider Versions](updating-providers.md) — upgrade to newer provider versions
-- [Custom Service Categories](service-categories.md) — map resource types to custom categories
-- [Relationship Mapping Reference](../../reference/relationship-mapping.md) — how evidence flows to relationships
+- [Adding a Provider](adding-providers.md)
+- [Updating Provider Versions](updating-providers.md)
+- [Service Categories](service-categories.md)
+- [Relationship Mapping](../../reference/relationship-mapping.md)

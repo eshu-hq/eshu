@@ -17,15 +17,14 @@ or handlers.
 
 ## Exported Surface
 
-See `doc.go` and `go doc ./internal/storage/cypher`. The main surface includes
-canonical writers, entity writers, edge writers, retrying and timeout executors,
-instrumented executors, statement chunking, group statement profiles, and
-backend retry classification.
+See `doc.go` and `go doc ./internal/storage/cypher` for the contract. Keep
+writer and executor details in godoc; this README should stay focused on graph
+write boundaries and invariants.
 
 ## Telemetry
 
-Instrumentation records Cypher execution, canonical phase duration, graph write
-rows, retry attempts, edge summaries, and writer failure classes through
+Instrumentation records execution, canonical phase duration, graph write rows,
+retry attempts, edge summaries, and writer failure classes through
 `internal/telemetry`. High-cardinality node IDs, file paths, and statements stay
 out of metric labels.
 

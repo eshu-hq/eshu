@@ -14,10 +14,10 @@ not own queue persistence, HTTP routing, or metric emission.
 
 ## Exported surface
 
-Use `doc.go` and `go doc ./internal/status` for the full operator contract. The
-stable surface includes raw snapshots, projected reports, health summaries,
-queue and generation views, collector status sections, renderers, loaders, and
-the HTTP handler adapter.
+Use `doc.go` and `go doc ./internal/status` for the operator contract. The
+stable anchors are raw snapshots, projected reports, health summaries, queue and
+generation views, collector status sections, renderers, loaders, and the HTTP
+handler adapter.
 
 ## Dependencies
 

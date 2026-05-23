@@ -15,9 +15,9 @@ connections, or decide graph truth. `internal/workflow` owns value contracts;
 
 ## Exported Surface
 
-See `doc.go` and `go doc ./internal/coordinator`. Callers use `Service`,
-`LoadConfig`, `Store`, `NewMetrics`, and planners for Terraform state, OCI
-registries, package registries, scheduled AWS scans, and AWS freshness.
+See `doc.go` and `go doc ./internal/coordinator` for the contract. Callers use
+`Service`, `LoadConfig`, `Store`, `NewMetrics`, and the focused work planners;
+planner lists belong in godoc, not duplicated here.
 
 ## Telemetry
 

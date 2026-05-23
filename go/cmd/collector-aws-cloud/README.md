@@ -16,25 +16,21 @@ reducer admission, or workload ownership inference.
 
 ## Exported surface
 
-This is a `package main` binary. Its public contract is the process entrypoint,
-`--version` / `-v`, `ESHU_COLLECTOR_INSTANCES_JSON`,
-`ESHU_AWS_COLLECTOR_INSTANCE_ID`, `ESHU_AWS_COLLECTOR_OWNER_ID`,
-`ESHU_AWS_COLLECTOR_POLL_INTERVAL`, `ESHU_AWS_COLLECTOR_CLAIM_LEASE_TTL`,
-`ESHU_AWS_COLLECTOR_HEARTBEAT_INTERVAL`, `ESHU_AWS_REDACTION_KEY`, and shared
-Postgres, OTEL, metrics, and `ESHU_PPROF_ADDR` runtime env.
+This `package main` binary exposes the process entrypoint, `--version` / `-v`,
+`ESHU_COLLECTOR_INSTANCES_JSON`, AWS collector env, shared Postgres/OTEL/metrics
+env, and `ESHU_PPROF_ADDR`. See `doc.go` and config tests for the exact env
+contract.
 
-The selected instance must be enabled, use `collector_kind="aws"`, and set
-`claims_enabled=true`. Target scopes must name a 12-digit account, concrete
-regions, concrete service kinds supported by `awsruntime.SupportsServiceKind`,
-and either `central_assume_role` or `local_workload_identity` credentials.
+The selected instance must be enabled, use `collector_kind="aws"`, set
+`claims_enabled=true`, and authorize concrete `(account, region, service_kind)`
+targets through either `central_assume_role` or `local_workload_identity`.
 
 ## Dependencies
 
 - `internal/app` for the hosted service and status server.
 - `internal/collector` for the claim-aware runner.
 - `internal/collector/awscloud/awsruntime` for claim validation, target
-  authorization, credentials, scanner registry, pagination checkpoints, and
-  collected generations.
+  authorization, credentials, scanners, checkpoints, and collected generations.
 - `internal/storage/postgres` for workflow claims, ingestion commits, scan
   status, and status reports.
 - `internal/telemetry` for metrics, traces, logs, and Prometheus wiring.
@@ -42,11 +38,9 @@ and either `central_assume_role` or `local_workload_identity` credentials.
 ## Telemetry
 
 The command registers shared data-plane instruments plus AWS claim, scan,
-API-call, throttle, AssumeRole, pagination-checkpoint, resource, relationship,
-and tag-observation signals. The claim runner uses the AWS collector span family
-(`aws.collector.claim.process`, `aws.credentials.assume_role`,
-`aws.service.scan`, and `aws.service.pagination.page`). The hosted runtime
-mounts `/healthz`, `/readyz`, `/metrics`, and `/admin/status`.
+API-call, throttle, AssumeRole, checkpoint, resource, relationship, and tag
+signals. The hosted runtime mounts `/healthz`, `/readyz`, `/metrics`, and
+`/admin/status`.
 
 ## Gotchas / invariants
 
@@ -61,9 +55,8 @@ mounts `/healthz`, `/readyz`, `/metrics`, and `/admin/status`.
   `service_kind`.
 - `/admin/status` separates scanner status from durable commit status. A
   succeeded scan with failed commit is a persistence problem.
-- Scanner-specific data boundaries belong in
-  `docs/public/services/collector-aws-cloud-scanners.md` and the service
-  package READMEs, not this command README.
+- Scanner-specific data boundaries belong in the public scanner reference and
+  service package READMEs, not this command README.
 
 ## Focused tests
 

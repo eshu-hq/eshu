@@ -13,16 +13,12 @@ Runtime code provides process-level helpers. It does not own collector,
 projector, reducer, query, or storage business logic, and callers should not
 fork its datastore, admin-route, retry, or memory-limit contracts.
 
-`NewStatusAdminServer` delegates to `NewStatusAdminMux`, which combines
-`/healthz`, `/readyz`, `/admin/status`, `/metrics`, optional recovery routes,
-and optional application routes.
-
 ## Exported surface
 
-See `doc.go` for the godoc contract. Callers depend on config/lifecycle
-helpers, HTTP/admin mux builders, datastore opening helpers, graph backend
-parsing, retry policy loading, API key resolution, memory-limit tuning, pprof
-wiring, metrics handlers, and status request handlers.
+See `doc.go` and `go doc ./internal/runtime` for the contract. The stable
+anchors are config/lifecycle helpers, admin mux builders, datastore openers,
+graph backend parsing, retry policy loading, API key resolution, memory-limit
+tuning, pprof wiring, metrics handlers, and status handlers.
 
 ## Dependencies
 
@@ -36,10 +32,7 @@ frozen metric/span/log contract names.
 
 This package emits no OTEL spans of its own. `/metrics` exposes
 Prometheus-style runtime gauges and counters with the `eshu_runtime_` prefix,
-including runtime identity, scope refresh status, retry-policy values,
-health-state gauges, queue gauges, stage item counts, domain backlog gauges,
-and workflow-coordinator status gauges. When `WithPrometheusHandler` is set,
-OTEL Prometheus output is appended to the same endpoint.
+plus optional OTEL Prometheus output when `WithPrometheusHandler` is set.
 
 ## Gotchas / invariants
 

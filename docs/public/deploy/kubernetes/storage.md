@@ -1,25 +1,26 @@
 # Storage
 
-Eshu uses two external data stores and one Kubernetes workspace volume.
+Use this page to choose the Kubernetes storage shape. Value names and render
+details live in [Routing and Storage Values](helm-routing-and-storage-values.md).
 
 ## Postgres
 
 Postgres is required. It stores facts, durable queues, status, content, and
-recovery data. The chart writes the same DSN to `ESHU_CONTENT_STORE_DSN` and
-`ESHU_POSTGRES_DSN` from `contentStore.dsn`.
+recovery data. Helm writes `contentStore.dsn` to both `ESHU_CONTENT_STORE_DSN`
+and `ESHU_POSTGRES_DSN`.
 
 ```yaml
 contentStore:
   dsn: postgresql://eshu:secret@postgres.platform.svc.cluster.local:5432/eshu
 ```
 
-The Postgres instance must support the `pg_trgm` extension because Eshu creates
-trigram indexes for file and entity content search.
+The database must support `pg_trgm`; Eshu creates trigram indexes for file and
+entity content search.
 
-## Graph backend
+## Graph Backend
 
 NornicDB is the default graph backend. The normal production shape is an
-existing NornicDB endpoint:
+existing Bolt endpoint:
 
 ```yaml
 env:
@@ -30,11 +31,7 @@ neo4j:
   uri: bolt://nornicdb.platform.svc.cluster.local:7687
 ```
 
-That default reflects the current Eshu runtime direction. The current backend
-references track Neo4j support separately: either Neo4j proves it can run the
-shared Eshu Cypher contract fast enough, or it remains compatibility-only.
-
-Neo4j is the explicit official alternative backend:
+Neo4j is the explicit compatibility backend:
 
 ```yaml
 env:
@@ -45,10 +42,12 @@ neo4j:
   uri: bolt://neo4j.platform.svc.cluster.local:7687
 ```
 
-The value key is `neo4j.uri` for both backends because the runtime uses the
-Neo4j Bolt driver shape. Unsupported graph backends are not official.
+The value key remains `neo4j.uri` for both backends because the runtime uses the
+Neo4j Bolt driver shape.
 
-The chart can render a bundled single-NornicDB deployment for test or
+## Bundled NornicDB
+
+The chart can render one bundled NornicDB deployment for test or small
 single-cluster installs:
 
 ```yaml
@@ -59,12 +58,13 @@ neo4j:
   uri: bolt://eshu-nornicdb:7687
   auth:
     secretName: ""
+
+schemaBootstrap:
+  useHelmHooks: false
 ```
 
-Do not combine this with `schemaBootstrap.useHelmHooks=true`. Helm pre-install
-hooks run before the bundled NornicDB Service and Deployment exist. Deploy
-NornicDB separately first, or set `schemaBootstrap.useHelmHooks=false` and
-provide ordering from your GitOps or release workflow.
+Do not use Helm hooks for schema bootstrap in this shape. Hooks run before the
+bundled NornicDB Service exists.
 
 ## Workspace PVC
 

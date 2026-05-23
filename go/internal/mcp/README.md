@@ -15,9 +15,8 @@ labels, and route authorization stay in `internal/query`.
 
 ## Exported Surface
 
-See `doc.go` and `go doc ./internal/mcp`. Stable exports are `Server`,
-`NewServer`, `Server.Run`, `Server.RunHTTP`, `ToolDefinition`, and
-`ReadOnlyTools`.
+See `doc.go` and `go doc ./internal/mcp` for the contract. The stable anchors
+are server construction/run methods, `ToolDefinition`, and `ReadOnlyTools`.
 
 ## Telemetry
 
@@ -33,7 +32,7 @@ method/path details.
   `data`/`truth`/`error` responses as canonical envelopes.
 - Outer MCP authorization is forwarded to the internal query handler.
 - Canonical MCP results include both text and resource blocks.
-- Tool schema/name changes are client-facing and need docs plus tests.
+- Tool schema or name changes are client-facing and need docs plus tests.
 - SSE uses a bounded response channel; overflow is logged and dropped.
 
 ## Focused Tests

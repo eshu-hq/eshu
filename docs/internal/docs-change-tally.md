@@ -9,7 +9,7 @@ repo's 500-line limit.
 - Total Markdown files left in the checkout after the current pass: 548
 - Current branch doc status from
   `git diff --name-status origin/main -- '*.md'` after the current pass:
-  110 added, 322 modified, 163 deleted, 71 renamed
+  121 added, 322 modified, 174 deleted, 60 renamed
 - Copied image assets removed from this branch: 43 files under
   `docs/public/images/`. They were reference assets from another project and
   no longer appear in the source-doc reference scan.
@@ -152,6 +152,7 @@ branch. Regenerate them from
 | Parallel Command Workflow Storage Docs Compression | Used five subagents plus parent review to compress command, workflow, correlation, graph, storage, IaC, public runbook, and package README docs. This pass changed 60 Markdown files with 2,090 insertions and 4,127 deletions while preserving root `AGENTS.md` and package-specific mandatory rules. |
 | Parallel Front Door Parser Collector Docs Compression | Used five subagents plus parent review to compress root/developer/testing docs, repo/deploy READMEs, parser/collector/content scoped agent guidance, and public Terraform/logging/dead-code/E2E references. This pass changed 67 Markdown files with 1,364 insertions and 2,130 deletions while preserving root `AGENTS.md` and correcting Terraform provider schema totals to 21 providers and 6,236 resource types. |
 | Parallel AWS Public And Package Docs Compression | Used five subagents plus parent review to compress AWS collector scoped guidance, parent subsystem agent guidance, mid-size package READMEs, public architecture/reference pages, and language-support pages. This pass changed 95 Markdown files with 1,773 insertions and 3,368 deletions; AWS cloud collector agent guidance fell from 1,746 to 812 lines, selected package READMEs fell from 1,355 to 892 lines, and total scoped-agent content fell to 5,625 lines while root `AGENTS.md` stayed mandatory. |
+| Final Parallel Public And Package Docs Compression | Used four subagents plus parent review to compress operator/reference pages, deployment and Helm docs, language/guide pages, and package-local READMEs. This pass changed 60 Markdown files with 1,429 insertions and 2,762 deletions, removed 1,333 net lines, corrected the Confluence Helm secret example to use `CONFLUENCE_*` variables, and kept root and scoped `AGENTS.md` guidance intact. |
 
 ## Verification Snapshot
 
@@ -171,13 +172,13 @@ Current pass proof:
   evidence claims. Focused query and reducer tests passed for the correlation
   DSL fixture and secondary-Dockerfile rejection contract.
 - Broad docs verification passed for `go`, `docs/public`, and the full
-  repository with 0 contradicted and 0 missing evidence claims after the
-  parallel AWS/public/package compression. Current Go docs verifier result:
-  309 documents, 101 claims, 98 valid, 3 unsupported shell-command claim
-  types. Current public docs verifier result: 173 documents, 1167 claims, 1156
-  valid, 11 unsupported shell-command claim types. Current full repository
-  verifier result: 562 documents, 1297 claims, 1281 valid, 16 unsupported
-  shell-command claim types.
+  repository with 0 contradicted and 0 missing evidence claims after the final
+  parallel public/package compression. Current Go docs verifier result: 309
+  documents, 95 claims, 92 valid, 3 unsupported shell-command claim types.
+  Current public docs verifier result: 173 documents, 1111 claims, 1103 valid,
+  8 unsupported shell-command claim types. Current full repository verifier
+  result: 562 documents, 1235 claims, 1222 valid, 13 unsupported shell-command
+  claim types.
 - Current strict docs build passed:
   `uv run --with mkdocs --with mkdocs-material --with pymdown-extensions mkdocs build --strict --clean --config-file docs/mkdocs.yml`.
 - Focused public reference verification passed after the operator-reference
@@ -215,21 +216,13 @@ Current pass proof:
 
 ## What Is Left
 
-- Continue reviewing docs by topic instead of by single file. Remaining
-  high-value groups are now the long-tail scoped `AGENTS.md` files outside
-  this compressed command/workflow/storage slice, the largest public reference
-  pages that still read like inventories, and any remaining package README that
-  duplicates public contracts.
-- Next scoped-agent candidates by line count include content, content/shape,
-  collector-git, buildinfo, contentrefs, repositoryidentity, parser SQL, and
-  remaining collector/provider leaf packages.
-  The latest pass completed those named candidates; the next candidates by
-  line count are parent subsystem guidance and AWS service leaf guidance:
-  reducer/dsl, storage/cypher, reducer, collector, reducer/tags, projector,
-  vulnerability-intelligence collector, storage/postgres, runtime, AWS cloud,
-  status, reducer/tfstate, parser, reducer/aws, coordinator, workflow,
-  telemetry, and AWS service/SDK leaves.
-- Keep deleting historical planning notes when current public or package-local
-  docs already carry the useful invariant.
-- Keep folding durable lessons into current architecture, workflow,
-  performance, backend, MCP, collector, and package-local docs.
+- No stale `docs/docs`, `docs/plans`, `docs/superpowers`, copied-image, AI
+  attribution, contradicted-claim, or missing-evidence cleanup remains known on
+  this branch.
+- The remaining large Markdown files are current references, generated file
+  indexes, root agent guidance, or maintainer guides. Keep compressing only
+  when a reviewer finds duplicated contracts or stale claims; do not delete
+  mandatory root or scoped `AGENTS.md` guidance.
+- Future docs work should be normal feature maintenance: keep public pages,
+  package READMEs, `doc.go`, and scoped `AGENTS.md` files aligned whenever code,
+  runtime, CLI, Helm, collector, parser, query, or backend contracts change.

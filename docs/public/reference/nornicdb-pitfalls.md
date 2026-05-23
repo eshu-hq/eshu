@@ -126,12 +126,6 @@ Supported response:
 Do not delete Postgres unless the accepted recovery plan is full source
 recollection. Do not make Eshu silently delete graph data at startup.
 
-### Upstream follow-up
-
-Track this upstream when the current binary still reproduces it. The database
-should classify the corruption signal and restore large node sets in bounded
-chunks rather than one oversized transaction.
-
 ## When To Patch NornicDB
 
 Patch NornicDB only when evidence supports one of these:

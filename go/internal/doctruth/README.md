@@ -17,10 +17,9 @@ paths, images, and Terraform addresses.
 
 ## Exported Surface
 
-See `doc.go` and `go doc ./internal/doctruth`. The active surface includes
-extractors, verifier inputs/results, finding and evidence-packet fact builders,
-local-path, command, HTTP endpoint, environment-variable, container-image, and
-Terraform claim checks, plus drift analysis for service deployment claims.
+See `doc.go` and `go doc ./internal/doctruth` for the contract. Keep verifier
+type lists in godoc; this README should stay focused on what the package may
+and may not treat as truth.
 
 ## Telemetry
 

@@ -18,10 +18,9 @@ must stay aligned whenever a public route or response shape changes.
 
 ## Exported surface
 
-See `doc.go` for the godoc contract. The main surfaces are `APIRouter`, route
-family handlers, `ResponseEnvelope`, `TruthEnvelope`, response writers,
-`GraphQuery`, `ContentStore`, query-local read-store interfaces,
-`OpenAPISpec`, `QueryProfile`, `TruthLevel`, `TruthBasis`, and capability
+See `doc.go` and `go doc ./internal/query` for the contract. The stable anchors
+are `APIRouter`, route handlers, envelope types, response writers, `GraphQuery`,
+`ContentStore`, `OpenAPISpec`, runtime profiles, truth levels, and capability
 matrices.
 
 ## Dependencies
@@ -33,12 +32,9 @@ Concrete storage adapters are wired by binaries; handlers depend on ports.
 
 ## Telemetry
 
-Query handlers use spans and timing logs for visible read families such as
-relationship evidence, citations, documentation, workload/service context,
-deployment trace, dead code, call graph metrics, package registry, container
-image identity, and supply-chain reads. Expensive reads must be scoped,
-bounded, cancellable, ordered, and explicit about truncation when lists can
-grow.
+Query handlers use spans and timing logs for expensive read families. Expensive
+reads must be scoped, bounded, cancellable, ordered, and explicit about
+truncation when lists can grow.
 
 ## Gotchas / invariants
 

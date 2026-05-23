@@ -15,10 +15,9 @@ their own packages.
 
 ## Exported Surface
 
-See `doc.go` and `go doc ./internal/workflow`. The package exposes run/work/
-claim values, `ControlStore`, claim mutation types, reducer phase contracts,
-run-progress reconciliation, family fairness scheduling, and family config
-validators.
+See `doc.go` and `go doc ./internal/workflow` for the contract. Keep the
+value-type and validator list in godoc; this README should stay focused on the
+control-plane invariants.
 
 ## Telemetry
 

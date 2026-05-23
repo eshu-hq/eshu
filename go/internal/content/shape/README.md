@@ -15,9 +15,8 @@ runtime orchestration and persistence.
 
 ## Exported Surface
 
-See `doc.go` and `go doc ./internal/content/shape`. Callers use `Input`,
-`File`, `Entity`, and `Materialize`. `Materialize` rejects blank repository IDs
-and blank file paths.
+See `doc.go` and `go doc ./internal/content/shape` for the contract. Callers use
+`Materialize`; it rejects blank repository IDs and blank file paths.
 
 ## Telemetry
 

@@ -14,9 +14,9 @@ Live source-local projection belongs to `internal/projector`.
 
 ## Exported Surface
 
-See `doc.go` and `go doc ./internal/reducer/tfstate`. The package exposes
-`RuntimeContract`, `PublishedCheckpoint`, validation, `DefaultRuntimeContract`,
-and `RuntimeContractTemplate`.
+See `doc.go` and `go doc ./internal/reducer/tfstate` for the contract. The
+stable anchors are the runtime contract, published checkpoints, validation, and
+defensive-copy helpers.
 
 ## Telemetry
 

@@ -1,16 +1,15 @@
 # Agent Engineering Guide
 
 This maintainer-only guide expands the mandatory root `AGENTS.md` and
-`CLAUDE.md` rules. Keep the root files short and mirrored; put detailed
-workflow guidance here or in scoped package docs.
+`CLAUDE.md` rules. Keep root guidance mirrored; put detailed workflow guidance
+here or in scoped package docs.
 
 This guide is mandatory for agents. It is not optional background reading.
 
 ## Operating Standard
 
 Talk to the repo owner like a peer: direct, plain, and specific. Lead with the
-result, then the numbers, then caveats. Define jargon the first time it matters.
-Keep code comments and docs precise.
+result, numbers, and caveats. Define jargon the first time it matters.
 
 For runtime work, the order is fixed:
 
@@ -22,7 +21,7 @@ For runtime work, the order is fixed:
    scope, conflict keys, and dead-letter behavior hold under intended worker
    counts.
 
-Use the project skill that matches the surface:
+Use the project skill that matches the touched surface:
 
 - `eshu-correlation-truth` for materialization, deployment tracing, or query
   truth
@@ -55,9 +54,9 @@ Do not collapse package ownership casually.
 | `go/internal/truth/` | Canonical truth contracts |
 
 Handlers depend on ports such as `GraphQuery`, `GraphWrite`, and
-`ContentStore`, not concrete backend drivers. Backend-specific behavior belongs
-only in documented seams: schema DDL, runtime settings, retry classification,
-query builders, and measured adapters.
+`ContentStore`, not concrete backend drivers. Backend behavior belongs only in
+documented seams: schema DDL, runtime settings, retry classification, query
+builders, and measured adapters.
 
 ## Runtime Contract
 
@@ -69,11 +68,11 @@ query builders, and measured adapters.
 | Reducer | Queue drain, graph projection, repair flows | `/usr/local/bin/eshu-reducer` |
 | Bootstrap Index | One-shot initial indexing | `/usr/local/bin/eshu-bootstrap-index` |
 
-The direct service binaries are still the support/version-check artifacts.
-Helm currently starts API and MCP through the `eshu` CLI wrapper; Compose starts
-MCP through `/usr/local/bin/eshu-mcp-server`.
+The direct service binaries are the support/version-check artifacts. Helm starts
+API and MCP through the `eshu` CLI wrapper; Compose starts MCP through
+`/usr/local/bin/eshu-mcp-server`.
 
-For local runtime validation that executes local binaries, rebuild first:
+Before local runtime validation that executes Eshu binaries, rebuild first:
 
 ```bash
 ./scripts/install-local-binaries.sh
@@ -84,7 +83,7 @@ export PATH="$(go env GOPATH)/bin:$PATH"
 
 ## Code Change Workflow
 
-For bugs, use TDD:
+Use TDD for bugs:
 
 1. Write the failing regression test.
 2. Run the focused test and confirm the expected failure.
@@ -94,7 +93,7 @@ For bugs, use TDD:
    rollback when relevant.
 6. Run the smallest package or integration gate that proves the contract.
 
-For root cause:
+Use this root-cause shape:
 
 1. Gather evidence.
 2. Form hypotheses.
@@ -104,22 +103,22 @@ For root cause:
 
 ## Performance And Evidence
 
-Performance work needs a written impact declaration before implementation. Name
-the stage, cardinality, hot path, baseline or known-normal timing, proof ladder,
+Performance work needs a written impact declaration before implementation:
+stage, cardinality, hot path, baseline or known-normal timing, proof ladder,
 and stop threshold.
 
-Capture before/after data with the same benchmark, trace, metric sample, runtime
-status report, or Compose proof. For full-corpus and remote proof, report these
-separately:
+Capture before/after data with the same benchmark, trace, metric sample,
+runtime status report, or Compose proof. For full-corpus and remote proof,
+report these separately:
 
 - collector stream complete
 - projection or bootstrap complete
 - queue-zero
 
-Hot-path changes that touch Cypher, graph writes, reducers, projectors, queues,
+Hot-path changes touching Cypher, graph writes, reducers, projectors, queues,
 workers, leases, batching, runtime stages, collectors, Compose, Helm, pprof, or
-NornicDB knobs must update a tracked repo file with one benchmark marker and one
-observability marker:
+NornicDB knobs must update a tracked repo file with one benchmark marker and
+one observability marker:
 
 - `Performance Evidence:`
 - `Benchmark Evidence:`
@@ -127,13 +126,13 @@ observability marker:
 - `Observability Evidence:`
 - `No-Observability-Change:`
 
-PR text alone is not proof. Review acceptance requires the exact command,
-runtime run, or measurement that proves the changed behavior.
+PR text alone is not proof. Review acceptance requires the exact command, run,
+or measurement that proves the changed behavior.
 
 ## API, MCP, And Query Reads
 
 Potentially expensive reads must be scoped, cancellable, observable, and cheap
-to fail.
+to fail:
 
 - Resolve canonical scope first.
 - Require `limit`, timeout, deterministic ordering, and `truncated`.
@@ -159,8 +158,8 @@ writes, describe:
 
 Do not ship serialization as a concurrency fix. Worker-count reductions,
 single-threaded drains, disabled concurrent writers, or batch size `1` are
-diagnostics unless architecture-owner approval and tracked evidence prove the
-serial path is permanent and within the performance contract.
+diagnostics unless architecture-owner approval and tracked evidence prove a
+permanent serial path is within the performance contract.
 
 ## Bootstrap And Correlation Truth
 
@@ -212,12 +211,12 @@ logs, not metric labels.
 
 For non-trivial Cypher work, read the current NornicDB-New hot-path cookbook,
 failing query shapes, and relevant `pkg/cypher/*hotpath*_test.go` files before
-proposing a change. State which executor path or fast path the production query
-uses and how the change engages it.
+proposing a change. State the production executor path or fast path and how the
+change engages it.
 
 When Eshu hits a NornicDB incompatibility, check upstream source before
-guessing. If NornicDB supports the behavior, fix Eshu. If it needs a workaround,
-use a documented backend seam. If NornicDB must be patched, land an
+guessing. If NornicDB supports the behavior, fix Eshu. If it needs a
+workaround, use a documented backend seam. If NornicDB must be patched, land an
 evidence-backed fix in the maintained fork, rebuild, and pin the binary until
 upstream absorbs it.
 

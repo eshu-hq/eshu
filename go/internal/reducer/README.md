@@ -20,21 +20,16 @@ projected row, graph or fact write, phase publication, and API/MCP read truth.
 
 ## Exported surface
 
-See `doc.go` for the godoc contract. The main surfaces are `Service`,
-`Runtime`, `Registry`, `DomainDefinition`, `Handler`, reducer `Intent` and
-`Result` types, retry and generation checks, graph phase repair types, domain
-handlers, writer interfaces, and shared projection runners.
-
-Use `DefaultDomainDefinitions`, `NewDefaultRegistry`, and `NewDefaultRuntime`
-for the wired domain set instead of duplicating a domain catalog in docs.
+See `doc.go` and `go doc ./internal/reducer` for the contract. Use
+`DefaultDomainDefinitions`, `NewDefaultRegistry`, and `NewDefaultRuntime` for
+the wired domain set instead of duplicating a domain catalog in docs.
 
 ## Dependencies
 
 Reducer code consumes fact envelopes and storage/query ports from
 `internal/facts`, `internal/storage/postgres`, `internal/storage/cypher`, and
-`internal/query`. Parser, collector, and projector packages feed evidence but
-do not own reducer truth. Command packages provide concrete Postgres and graph
-adapters.
+`internal/query`. Parser, collector, and projector packages feed evidence;
+command packages provide concrete adapters.
 
 ## Telemetry
 
@@ -57,8 +52,8 @@ counts or timeouts.
   after deployment mapping is reopened.
 - Do not serialize worker lanes to hide non-idempotent writes. Fix the
   conflict key, retry path, or write design.
-- Ambiguous code, SQL, package, image, service-catalog, and cloud evidence
-  stays provenance-only until the domain admits truth from explicit evidence.
+- Ambiguous code, SQL, package, image, service-catalog, and cloud evidence stays
+  provenance-only until explicit evidence admits truth.
 - Type/class references are `REFERENCES`, not `CALLS`; SQL trigger-bound
   functions keep `EXECUTES` reachability.
 

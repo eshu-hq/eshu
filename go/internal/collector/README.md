@@ -19,11 +19,9 @@ owns approved state reads and redaction.
 
 ## Exported surface
 
-See `doc.go` for the package contract. Main surfaces include `GitSource`,
-`RepositorySelector`, `RepositorySnapshotter`, `Service`, `ClaimedService`,
-`Committer`, `ClaimedCommitter`, repository selection config, discovery
-advisory rows, priority selection, webhook trigger selection, and snapshot
-parser/SCIP config.
+See `doc.go` and `go doc ./internal/collector` for the contract. Keep exported
+symbol details in godoc; this README should describe the boundary and the
+invariants reviewers need while changing collection.
 
 ## Dependencies
 
@@ -33,10 +31,9 @@ packages remain downstream boundaries.
 
 ## Telemetry
 
-Collector paths use `SpanCollectorObserve`, `SpanCollectorStream`,
-`SpanScopeAssign`, `SpanFactEmit`, `SpanTerraformStateFactEmitBatch`, parse and
-stream metrics, skip counters, claim wait duration, and structured failure
-classes for discovery, streaming, parsing, emission, and commit failures.
+Collector paths use observe/stream/scope/fact spans, parse and stream metrics,
+skip counters, claim wait duration, and structured failure classes for
+discovery, streaming, parsing, emission, and commit failures.
 
 High-cardinality repository and path details belong in logs or spans, not
 metric labels.

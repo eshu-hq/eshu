@@ -1,63 +1,55 @@
 # Core Runtime Services
 
-This page covers the long-running core services: API, MCP server, ingester,
+Use this page for the long-running core services: API, MCP server, ingester,
 workflow coordinator, webhook listener, and resolution engine. Use
-[Service Runtimes](service-runtimes.md) as the high-level matrix.
+[Service Runtimes](service-runtimes.md) for the short operator map.
 
 ## Incremental Refresh
 
-Eshu refreshes incrementally by default:
+Normal freshness is incremental:
 
-- `ingester` reconciles changed repository scopes and generations.
-- `webhook-listener` persists provider refresh triggers; it does not clone,
-  parse, emit facts, or write graph truth.
-- `workflow-coordinator` reconciles configured collector instances, creates
-  supported collector claims when active, and reaps expired claim leases.
-- `resolution-engine` drains queued follow-up work and shared corrections from
-  durable state.
-- `bootstrap-index` remains the one-shot escape hatch for empty environments or
-  operator recovery.
+- The ingester syncs repositories, parses content, emits facts, and hands off
+  projection work.
+- The webhook listener persists verified provider refresh triggers. It does not
+  clone, parse, emit facts, or write graph truth.
+- The workflow coordinator reconciles collector instances, creates supported
+  claims when active, and reaps expired leases.
+- The resolution engine drains durable reducer and shared-projection work.
+- Bootstrap indexing remains a one-shot empty-environment or recovery tool.
 
-Use status, queue age, generation state, and collector completeness before
-choosing to restart or reindex. Full re-indexing is a recovery tool, not the
-normal freshness path.
+Check status, queue age, generation readiness, and collector completeness
+before restarting services or reindexing.
 
-## Runtime Map
+## Core Runtime Map
 
-| Runtime | Owns | Does not own | Compose | Helm template | Command |
-| --- | --- | --- | --- | --- | --- |
-| API | HTTP query and admin requests over graph and content reads | repository sync, parsing, fact emission, queue drain | `eshu` | `deploy/helm/eshu/templates/deployment.yaml` | `eshu api start --host 0.0.0.0 --port <service.port>` |
-| MCP Server | MCP HTTP/SSE or stdio transport over the query surface | repository sync, parsing, fact emission, graph writes | `mcp-server` | `deploy/helm/eshu/templates/deployment-mcp-server.yaml` | Helm: `eshu mcp start --transport http`; Compose: `/usr/local/bin/eshu-mcp-server` |
-| Ingester | repository sync, workspace PVC, parsing, fact emission, projection work handoff | external cloud/registry reads, graph truth | `ingester` | `deploy/helm/eshu/templates/statefulset.yaml` | `/usr/local/bin/eshu-ingester` |
-| Resolution Engine | reducer queue drain, graph/content projection, retry, replay, dead-letter, recovery | source collection, query serving | `resolution-engine` | `deploy/helm/eshu/templates/deployment-resolution-engine.yaml` | `/usr/local/bin/eshu-reducer` |
-| Workflow Coordinator | collector instance reconciliation, claim creation, expired-claim reaping, run state | parsing, cloud reads, registry reads, graph truth | `workflow-coordinator` profile | `deploy/helm/eshu/templates/deployment-workflow-coordinator.yaml` | `/usr/local/bin/eshu-workflow-coordinator` |
-| Webhook Listener | verified Git and AWS freshness trigger intake | cloning, parsing, fact emission, graph truth | `webhook-listener` profile | `deploy/helm/eshu/templates/deployment-webhook-listener.yaml` | `/usr/local/bin/eshu-webhook-listener` |
+| Runtime | Command | Owns | Helm template |
+| --- | --- | --- | --- |
+| API | `eshu api start --host 0.0.0.0 --port <service.port>` | HTTP query and admin reads. | `deployment.yaml` |
+| MCP Server | Helm: `eshu mcp start --transport http`; Compose: `/usr/local/bin/eshu-mcp-server` | MCP transport over the query surface. | `deployment-mcp-server.yaml` |
+| Ingester | `/usr/local/bin/eshu-ingester` | Repository workspace, sync, parsing, fact emission. | `statefulset.yaml` |
+| Resolution Engine | `/usr/local/bin/eshu-reducer` | Reducer queue, projection, replay, retry, recovery. | `deployment-resolution-engine.yaml` |
+| Workflow Coordinator | `/usr/local/bin/eshu-workflow-coordinator` | Collector instance reconciliation and claim lifecycle. | `deployment-workflow-coordinator.yaml` |
+| Webhook Listener | `/usr/local/bin/eshu-webhook-listener` | Verified provider webhook intake. | `deployment-webhook-listener.yaml` |
 
 The ingester is the only long-running Kubernetes runtime that should mount the
-workspace PVC. Scale API and MCP for request traffic. Scale the resolution
-engine only when queue age rises and workers remain busy. If queue age rises
-with Postgres contention, fix database pressure before adding reducer workers.
+workspace PVC. Stdio MCP mode does not expose the HTTP admin surface.
 
-Stdio MCP mode does not expose `/healthz`, `/readyz`, `/metrics`, or
-`/admin/status`.
+## Scale And Tune
 
-## Resolution Engine Knobs
+- Scale API and MCP for request traffic.
+- Scale resolution-engine workers or lanes only when reducer telemetry shows
+  queue age rising while workers are busy.
+- Fix Postgres contention before adding reducer replicas.
+- Keep `ESHU_REDUCER_CLAIM_DOMAIN(S)` out of global Helm `env` when
+  `resolutionEngine.lanes` is configured; each lane owns its allowlist.
+- Route only provider webhook paths publicly. Keep admin and metrics endpoints
+  internal unless protected by an operator-owned layer.
 
-Important knobs:
+The reducer-specific runtime contract lives in
+[Resolution Engine](../services/resolution-engine.md). Helm lane and env
+values live in [Runtime Values](../deploy/kubernetes/helm-runtime-values.md).
 
-- `ESHU_REDUCER_WORKERS`
-- `ESHU_SHARED_PROJECTION_WORKERS`
-- `ESHU_SHARED_PROJECTION_PARTITION_COUNT`
-- `ESHU_SHARED_PROJECTION_BATCH_LIMIT`
-- `ESHU_SHARED_PROJECTION_POLL_INTERVAL`
-- `ESHU_SHARED_PROJECTION_LEASE_TTL`
-- `ESHU_CODE_CALL_PROJECTION_ACCEPTANCE_SCAN_LIMIT`
-- `ESHU_CODE_CALL_EDGE_BATCH_SIZE`
-
-Helm can deploy domain-specific reducer lanes with `resolutionEngine.lanes`.
-When lanes are set, the chart renders one `Deployment` per lane and passes
-`ESHU_REDUCER_CLAIM_DOMAINS` to restrict queue claims to that lane's allowlist.
-Size replicas, workers, and Postgres pools per lane.
+## Collector Claims
 
 The coordinator ships dark by default:
 
@@ -66,17 +58,12 @@ The coordinator ships dark by default:
 - `workflowCoordinator.claimsEnabled=false`
 - `workflowCoordinator.collectorInstances=[]`
 
-Claim-driven collector deployments require an active coordinator:
-`workflowCoordinator.enabled=true`,
-`workflowCoordinator.deploymentMode=active`,
-`workflowCoordinator.claimsEnabled=true`, and at least one collector instance.
+Claim-driven Terraform-state, AWS cloud, and package-registry collectors require
+an active coordinator with at least one configured collector instance. The Helm
+render fails when that contract is missing.
 
-Only provider webhook paths should be publicly routed. Admin and metrics paths
-should stay internal unless the operator explicitly protects them.
+## Verification
 
-## Local Verification
-
-Use focused `go test` or direct command runs for one service boundary. Use
-Compose when the proof needs the same topology operators run. The current gate
-map lives in [Local Testing](../reference/local-testing.md) and
-[Verification Gates](../reference/local-testing/verification-gates.md).
+Use focused Go tests for one service boundary. Use Compose or Helm rendering
+when the proof needs deployment topology. The current gate map lives in
+[Local Testing](../reference/local-testing.md).

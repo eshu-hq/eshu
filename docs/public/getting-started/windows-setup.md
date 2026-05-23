@@ -1,43 +1,42 @@
 # Windows Setup
 
-Windows users have two practical paths:
+Windows users have two practical paths.
 
 ## Recommended: WSL
 
-Use WSL when you want the smoothest local development workflow.
+Use WSL for the closest Linux/macOS workflow:
 
-Typical flow:
+1. Install WSL with Ubuntu.
+2. Install Go inside WSL.
+3. Build Eshu from the checkout.
+4. Index from the WSL-visible project path.
 
-1. install WSL
-2. open an Ubuntu shell
-3. install Go
-4. build the Eshu CLI from source
-5. index from the WSL-visible project path
+Windows drives are available under `/mnt`, for example:
 
-This keeps Eshu close to the Linux/macOS experience and avoids backend limitations on native Windows.
+```bash
+cd /mnt/c/Users/<you>/src/project
+```
 
-## Alternative: native Windows + Neo4j
+## Alternative: Native Windows With Neo4j
 
-If you do not want WSL, use **Neo4j** as the backend and run Eshu against that external database.
+Native Windows should use an external Neo4j backend.
 
-Recommended checklist:
-
-1. install Go
-2. build the Eshu CLI from source
-3. ensure Neo4j is reachable
-4. run `eshu neo4j setup`
-5. verify with `eshu doctor`
+1. Install Go.
+2. Build the CLI.
+3. Start Neo4j and confirm Bolt is reachable.
+4. Run `eshu neo4j setup`.
+5. Verify with `eshu doctor`.
 
 Build example:
 
 ```powershell
 cd go
-go build -o ..\\eshu.exe .\\cmd\\eshu
+go build -o ..\eshu.exe .\cmd\eshu
 cd ..
 .\eshu.exe --help
 ```
 
-## First commands
+## First Commands
 
 ```powershell
 eshu doctor
@@ -45,40 +44,11 @@ eshu index .
 eshu mcp setup
 ```
 
-If path or shell behavior differs in your environment, put the built binary on
-your PATH or invoke it directly with its full path.
+If `eshu` is not found, add the directory containing `eshu.exe` to `PATH` or run
+the binary by full path.
 
----
+## Verify
 
-## Common Windows Issues
-
-### `'eshu' command not found`
-
-* Restart your terminal after building the CLI
-* Ensure the directory containing `eshu.exe` is in PATH
-* Or run the binary directly from the checkout path
-
-### WSL path confusion
-
-Windows drives can be accessed from WSL using:
-
-```bash
-cd /mnt/c/
-```
-
-### Neo4j connection issues
-
-* Ensure Neo4j is running
-* Check URI format: `bolt://localhost:7687`
-* Double-check username/password
-
----
-
-## Verify Installation
-
-Run:
-
-```bash
+```powershell
 eshu list
 ```
-If no errors are shown, setup is complete.

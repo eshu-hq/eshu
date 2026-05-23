@@ -1,76 +1,63 @@
-# Helm values
+# Helm Values
 
-The chart lives at `deploy/helm/eshu`. Treat `deploy/helm/eshu/values.yaml`,
-`deploy/helm/eshu/values.schema.json`, and `deploy/helm/eshu/templates/` as the
-source of truth.
+Use this page to choose the right values page before editing
+`deploy/helm/eshu`. The chart source of truth is `values.yaml`,
+`values.schema.json`, and `templates/`.
 
-This page is the operator route map. Use it to decide which values file section
-to edit, then open the focused page for the details.
-
-## Pick the right page
+## Page Map
 
 | Need | Read |
 | --- | --- |
-| Install the split-service chart | [Helm Quickstart](helm-quickstart.md) |
-| Configure graph and Postgres storage | [Storage](storage.md) and [Routing and storage values](helm-routing-and-storage-values.md) |
-| Configure schema bootstrap, runtime env, reducer lanes, or repo sync | [Runtime values](helm-runtime-values.md) |
-| Enable Confluence, OCI registry, Terraform-state, AWS cloud, Package Registry, or webhooks | [Collector and webhook values](helm-collector-and-webhook-values.md) |
-| Expose API or MCP over Ingress, Gateway API, or LoadBalancer | [Routing and storage values](helm-routing-and-storage-values.md) |
-| Prepare production settings | [Production Checklist](production-checklist.md) |
+| First split-service install | [Helm Quickstart](helm-quickstart.md) |
+| Postgres, graph backend, PVCs, exposure, NetworkPolicy, observability | [Routing and Storage Values](helm-routing-and-storage-values.md) and [Storage](storage.md) |
+| Schema bootstrap, global env, connection tuning, reducer lanes, repo sync | [Runtime Values](helm-runtime-values.md) |
+| Workflow coordinator, optional collectors, webhook listener | [Collector and Webhook Values](helm-collector-and-webhook-values.md) |
+| Production readiness | [Production Checklist](production-checklist.md) |
 
-## Render before applying
+## Defaults To Review First
 
-Render the chart locally whenever values change:
+| Area | Default |
+| --- | --- |
+| Image | `image.repository=ghcr.io/eshu-hq/eshu`, `image.tag=v0.0.2`, `image.pullPolicy=IfNotPresent`. |
+| Storage | `contentStore.dsn=""`, `env.ESHU_GRAPH_BACKEND=nornicdb`, `neo4j.uri=bolt://neo4j:7687`. |
+| Schema bootstrap | `schemaBootstrap.enabled=true`, `schemaBootstrap.useHelmHooks=true`. |
+| Core runtimes | API, MCP, ingester, and resolution engine enabled; ingester PVC size `100Gi`. |
+| Optional runtimes | Workflow coordinator, webhook listener, and hosted collectors disabled. |
+| Exposure | API Service `ClusterIP`; Ingress and Gateway API disabled. |
+| Observability | Prometheus and ServiceMonitor disabled. |
+| Security | Non-root pods, read-only root filesystem, dropped capabilities, runtime-default seccomp. |
+
+Pin the image tag per rollout. Supply `contentStore.dsn` for real deployments.
+Claim-driven collectors require an active workflow coordinator.
+
+## Render Before Applying
 
 ```bash
 helm template eshu ./deploy/helm/eshu
 helm template eshu ./deploy/helm/eshu -f values.eshu.yaml
-```
-
-Use `helm lint` when Helm is available in the local environment:
-
-```bash
 helm lint ./deploy/helm/eshu
 helm lint ./deploy/helm/eshu -f values.eshu.yaml
 ```
 
-## Values to review first
+## Guardrails
 
-| Area | Defaults to check |
-| --- | --- |
-| Image | `image.repository=ghcr.io/eshu-hq/eshu`, `image.tag=v0.0.2`, `image.pullPolicy=IfNotPresent`. Pin the tag per rollout. |
-| Storage | `contentStore.dsn` is empty and must be supplied for real deployments. `env.ESHU_GRAPH_BACKEND=nornicdb`, `env.DEFAULT_DATABASE=nornic`, `env.NEO4J_DATABASE=nornic`, and `neo4j.uri=bolt://neo4j:7687`. |
-| Schema bootstrap | `schemaBootstrap.enabled=true` and `schemaBootstrap.useHelmHooks=true` render the pre-install/pre-upgrade schema Job. |
-| Core runtimes | `repoSync.enabled=true`, `repoSync.source.mode=githubOrg`, `api.replicas=1`, `mcpServer.enabled=true`, `resolutionEngine.enabled=true`, `resolutionEngine.lanes=[]`, and `ingester.persistence.size=100Gi`. |
-| Optional runtimes | `workflowCoordinator`, all hosted collectors, and `webhookListener` are disabled by default. Active claim-driven collectors require the workflow coordinator. |
-| Exposure and policy | `service.type=ClusterIP`, `exposure.ingress.enabled=false`, `exposure.gateway.enabled=false`, `networkPolicy.enabled=true`, and `observability.prometheus.serviceMonitor.enabled=false`. |
+The chart fails render for combinations that would create idle or unreachable
+workloads:
 
-Each long-running workload has `resources`, `env`, and `connectionTuning`
-blocks. Workload-specific `env` maps are rendered after global `env`, so a pod
-can override a global value or enable a diagnostic setting such as
-`ESHU_PPROF_ADDR` without turning it on everywhere.
+- Ingress and Gateway API exposure cannot both be enabled.
+- `backend: mcp` requires `mcpServer.enabled=true`.
+- `repoSync.auth.method=ssh` cannot be used with
+  `repoSync.source.mode=githubOrg`.
+- Helm-hook schema bootstrap cannot run with chart-managed NornicDB.
+- Claim-driven collectors require active workflow coordination and collector
+  instances.
+- OCI registry, Confluence, Terraform-state, and webhook listener enablement
+  require their own target, credential, or provider values.
 
-## Render-time guardrails
+## Override Pattern
 
-The chart fails during render for invalid combinations that would otherwise
-produce idle or unreachable workloads.
-
-| Guardrail | Source |
-| --- | --- |
-| `exposure.ingress.enabled` and `exposure.gateway.enabled` cannot both be true. | `deploy/helm/eshu/templates/validate.yaml` |
-| `backend: mcp` requires `mcpServer.enabled=true`. | `deploy/helm/eshu/templates/validate.yaml` |
-| `repoSync.auth.method=ssh` cannot be used with `repoSync.source.mode=githubOrg`. | `deploy/helm/eshu/templates/validate.yaml` |
-| `schemaBootstrap.useHelmHooks=true` cannot be combined with `nornicdb.enabled=true`. | `deploy/helm/eshu/templates/job-schema-bootstrap.yaml` |
-| Claim-driven collectors require `workflowCoordinator.enabled=true`, `deploymentMode=active`, and `claimsEnabled=true`. | `deploy/helm/eshu/templates/validate.yaml` |
-| The OCI registry collector requires at least one target when enabled. | `deploy/helm/eshu/templates/validate.yaml` and `values.schema.json` |
-| The webhook listener requires at least one enabled provider route. | `deploy/helm/eshu/templates/validate.yaml` |
-| The Confluence collector requires a base URL, credentials, and exactly one crawl scope. | `deploy/helm/eshu/templates/validate.yaml` |
-
-## Workload override pattern
-
-Global settings belong under `env`, `connectionTuning`, `podLabels`,
-`podAnnotations`, `nodeSelector`, `affinity`, and `tolerations`.
-Workload-specific settings belong under the workload block.
+Use global values for shared defaults and workload values for deliberate
+overrides. Workload `env` renders after global `env`.
 
 ```yaml
 env:
@@ -80,8 +67,6 @@ env:
 
 api:
   replicas: 2
-  env:
-    GOMEMLIMIT: "1536MiB"
   resources:
     requests:
       cpu: 250m
@@ -95,21 +80,12 @@ resolutionEngine:
       maxConnectionPoolSize: "150"
 ```
 
-Enable `ESHU_PPROF_ADDR` only on the workload that owns the slow stage. Keep it
-private through loopback binding, port-forwarding, or an equivalent protected
-network path; do not turn it on globally.
+Enable `ESHU_PPROF_ADDR` only on the workload that owns the slow stage and keep
+the port private.
 
-## Security defaults
+## Related References
 
-The chart defaults to non-root pods, read-only root filesystems, dropped Linux
-capabilities, runtime-default seccomp, and
-`fsGroupChangePolicy: OnRootMismatch`. Use workload-specific ServiceAccounts
-only when a collector needs different cloud permissions, such as AWS IRSA for
-the AWS cloud collector.
-
-## Related references
-
-- [Service runtimes](../../deployment/service-runtimes.md)
-- [Core service runtimes](../../deployment/service-runtimes-core.md)
-- [Collector service runtimes](../../deployment/service-runtimes-collectors.md)
-- [Bootstrap service runtimes](../../deployment/service-runtimes-bootstrap.md)
+- [Service Runtimes](../../deployment/service-runtimes.md)
+- [Core Runtime Services](../../deployment/service-runtimes-core.md)
+- [Collector Runtime Services](../../deployment/service-runtimes-collectors.md)
+- [Bootstrap Runtime Services](../../deployment/service-runtimes-bootstrap.md)

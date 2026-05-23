@@ -3,14 +3,12 @@
 This page documents the current evidence and resolver contract owned by
 `go/internal/relationships`.
 
-## Code Ownership
+## Ownership Contract
 
-| Code | Responsibility |
-| --- | --- |
-| `go/internal/relationships/evidence.go` | routes fact envelopes to evidence extractors |
-| `go/internal/relationships/models.go` | defines evidence kinds, relationship types, assertions, candidates, and resolved relationships |
-| `go/internal/relationships/resolver.go` | deduplicates evidence, groups candidates, applies assertions, filters by confidence, and emits resolved relationships |
-| `go/internal/reducer/cross_repo_resolution.go` | loads facts/catalog/assertions, calls relationship discovery and resolution, and persists relationship rows |
+`go/internal/relationships` owns evidence models, extraction, candidate
+grouping, assertion handling, confidence filtering, and resolved relationship
+output. Reducer-owned cross-repo resolution loads facts, catalog aliases, and
+assertions, calls relationship discovery and resolution, and persists the rows.
 
 `DiscoverEvidence` and `Resolve` do not write graph edges directly. They feed
 reducer-owned persistence and materialization.

@@ -15,10 +15,9 @@ materialization, and shared graph projection.
 
 ## Exported Surface
 
-See `doc.go` and `go doc ./internal/projector`. Main surfaces include
-`Runtime`, `Service`, `ProjectionRunner`, work source/sink/heartbeat ports,
-retry helpers, stage functions, canonical row types, failure classification,
-`EntityTypeLabel`, and `EntityTypeLabelMap`.
+See `doc.go` and `go doc ./internal/projector` for the contract. Keep exported
+stage and port lists in godoc; this README should stay focused on projection
+boundaries, telemetry, and invariants.
 
 ## Telemetry
 

@@ -3,14 +3,11 @@
 Use this path when you are developing Eshu, testing `eshu graph start`, or
 running one workspace with a local Eshu service.
 
-This mode starts embedded Postgres, embedded NornicDB, the ingester, and the
-reducer under one local Eshu service. It does not start the full HTTP API unless
-you run that separately.
+This mode starts embedded Postgres, embedded NornicDB, the ingester, the
+reducer, and the local MCP helper under one local Eshu owner. It does not start
+the full HTTP API unless you run that separately.
 
 ## Full local end-to-end
-
-Use this path from a checkout when you want the local Eshu service to manage the
-graph, Postgres, ingester, and reducer for one workspace:
 
 ```bash
 git clone https://github.com/eshu-hq/eshu.git
@@ -24,8 +21,9 @@ eshu graph start --workspace-root "$PWD"
 
 Leave `eshu graph start` running while you work. It manages the workspace, starts
 embedded Postgres, starts embedded NornicDB inside the `eshu` process, launches
-`eshu-ingester` and `eshu-reducer` from `PATH`, and prints progress in the
-terminal. Stop the local Eshu service with `Ctrl-C`, or from another terminal:
+`eshu-ingester`, `eshu-reducer`, and `eshu-mcp-server` from `PATH`, and prints
+progress in the terminal. Stop the local Eshu service with `Ctrl-C`, or from
+another terminal:
 
 ```bash
 eshu graph stop --workspace-root "$PWD"
@@ -35,17 +33,12 @@ No local NornicDB install is required for this default path. The script builds
 the local `eshu` binary with embedded NornicDB and installs the service binaries
 that the local Eshu service needs to supervise.
 
-## Avoid CLI-only installs for local service mode
+## Use the checkout installer
 
 Do not use `go install .../cmd/eshu@latest` as your first local setup path. That
 command installs only the `eshu` binary. It does not install
 `eshu-ingester`, `eshu-reducer`, `eshu-mcp-server`, `eshu-bootstrap-index`, or
 the other helper binaries that local service mode expects on `PATH`.
-
-Use the checkout installer below when you want `eshu graph start`, local MCP, or
-source-checkout development to work.
-
-## Install the full local binary set
 
 Plain `go install` names binaries after the command directory, so `./cmd/api`
 becomes `api`, not `eshu-api`. Local Eshu service mode expects the
@@ -111,15 +104,6 @@ eshu graph start --workspace-root /path/to/repo
 `eshu install nornicdb --from <source>` is still available for process-mode
 testing and upgrade workflows. Bare `eshu install nornicdb` remains reserved for
 release-backed installs.
-
-## Start the local Eshu service
-
-```bash
-eshu graph start --workspace-root /path/to/repo
-```
-
-This runs in the foreground and prints local progress. Stop it with `Ctrl-C`
-when you are done.
 
 ## Use MCP with the local Eshu service
 

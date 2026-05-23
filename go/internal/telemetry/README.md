@@ -18,9 +18,8 @@ maintainers, not a second inventory.
 ## Exported surface
 
 Use `doc.go` and `go doc ./internal/telemetry` for the godoc-rendered contract.
-The main groups are bootstrap/provider setup, `Instruments`, observable gauge
-registration, frozen registries, attribute helpers, and trace-aware logger
-helpers.
+The stable anchors are provider setup, `Instruments`, observable gauge
+registration, frozen registries, attribute helpers, and trace-aware logging.
 
 ## Dependencies
 

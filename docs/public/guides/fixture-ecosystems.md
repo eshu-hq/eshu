@@ -1,91 +1,57 @@
 # Fixture Ecosystems
 
-Integration tests need realistic multi-repo data — not toy examples with one file and a `main()`. Fixture ecosystems are pre-built repository layouts that simulate real platform topologies: services with IaC, Helm charts with ArgoCD apps, shared infrastructure consumed by multiple workloads.
+Fixture ecosystems are small repository layouts under
+`tests/fixtures/ecosystems/`. They let tests exercise parsers, indexing, graph
+projection, and cross-repo relationship inference without depending on a private
+corpus.
 
-## What's in a fixture ecosystem
+## What They Cover
 
-Each ecosystem is a directory under `tests/fixtures/ecosystems/` containing the file structure of one or more simulated repositories. They are realistic enough to exercise Eshu's parsers, graph construction, and cross-repo relationship inference — and small enough to index in seconds.
+The fixture tree includes:
 
-## Available ecosystems
+- language-comprehensive repos, one per parser family
+- IaC-comprehensive repos for Terraform, Terragrunt, Helm, Kubernetes,
+  Kustomize, ArgoCD, Crossplane, and CloudFormation
+- code-plus-IaC combinations such as Python with Terraform or Crossplane
+- replay fixtures for analytics, governance, quality, semantic, warehouse, and
+  BI paths
+- full-platform layouts such as Ansible/Jenkins automation, Helm/ArgoCD, and
+  shared infrastructure
 
-Eshu ships 43 fixture ecosystems organized into five categories:
+Use [Parser Feature Matrix](../languages/feature-matrix.md) and
+[Parser Support Matrix](../languages/support-maturity.md) for the current
+language inventory instead of duplicating the fixture list here.
 
-**Language-comprehensive** — full parser coverage for a single language:
+## Use Fixtures Locally
 
-`c_comprehensive`, `cpp_comprehensive`, `csharp_comprehensive`,
-`dart_comprehensive`, `elixir_comprehensive`, `go_comprehensive`,
-`groovy_comprehensive`, `haskell_comprehensive`, `java_comprehensive`,
-`javascript_comprehensive`, `json_comprehensive`, `kotlin_comprehensive`,
-`perl_comprehensive`, `php_comprehensive`, `python_comprehensive`,
-`ruby_comprehensive`, `rust_comprehensive`, `scala_comprehensive`,
-`sql_comprehensive`, `swift_comprehensive`, `tsx_comprehensive`,
-`typescript_comprehensive`
-
-**IaC-comprehensive** — deep coverage for a single IaC format:
-
-`terraform_comprehensive`, `terragrunt_comprehensive`, `helm_comprehensive`, `kubernetes_comprehensive`, `kustomize_comprehensive`, `argocd_comprehensive`, `crossplane_comprehensive`, `cloudformation_comprehensive`
-
-**Code + IaC combos** — a service repo paired with its infrastructure:
-
-`code_only_python`, `python_terraform`, `python_crossplane`
-
-**Replay and observed-signal fixtures** — fixture corpora for observed runtime,
-analytics, governance, quality, semantic, warehouse, and BI replay paths:
-
-`analytics_compiled_comprehensive`, `analytics_observed_reconciliation`,
-`bi_replay_comprehensive`, `governance_replay_comprehensive`,
-`quality_replay_comprehensive`, `semantic_replay_comprehensive`,
-`warehouse_replay_comprehensive`
-
-**Full platform** — multi-repo layouts with deployment topology:
-
-`ansible_jenkins_automation`, `helm_argocd_platform`, `shared_infra_platform`
-
-## Using fixtures with docker-compose
-
-The `docker-compose.yaml` at the project root mounts `tests/fixtures/ecosystems/` as the fixture source by default. Start the stack and Eshu indexes every ecosystem:
+Compose mounts `tests/fixtures/ecosystems/` as `/fixtures` by default:
 
 ```bash
-docker compose up -d
+docker compose up --build
 ```
 
-To index a specific ecosystem subset, set `ESHU_FILESYSTEM_HOST_ROOT`:
+To index one subset:
 
 ```bash
 ESHU_FILESYSTEM_HOST_ROOT=./tests/fixtures/ecosystems/python_terraform \
-  docker compose up -d
+  docker compose up --build
 ```
 
-Once indexed, query the graph through the HTTP API or MCP:
+After indexing, query through the HTTP API or MCP.
+
+## Use Fixtures In Tests
 
 ```bash
-# List what got indexed
-curl -s http://localhost:8080/api/v0/repositories | jq '.[].name'
-
-# Query via MCP
-eshu mcp start
+cd go
+go test ./internal/parser ./internal/collector ./internal/relationships -count=1
 ```
 
-## Using fixtures in tests
+Add a new ecosystem only when it proves a real parser, collector, relationship,
+or query contract. Keep fixture READMEs focused on what the fixture proves and
+which files carry the evidence.
 
-Fixture ecosystems back the Go test suite. Tests index a fixture, then query
-the resulting graph to verify parser correctness and relationship inference:
+## Related Docs
 
-```bash
-# Run Go parser and collector tests that exercise fixture ecosystems
-cd go && go test ./internal/parser ./internal/collector ./internal/relationships -count=1
-```
-
-## Adding a new ecosystem
-
-1. Create a directory under `tests/fixtures/ecosystems/` — name it `{language}_{iac}` or `{format}_comprehensive`
-2. Add realistic files: source code, IaC definitions, manifests, `README.md`
-3. Include cross-references if testing relationship inference (e.g., a Terraform module referencing a repo URL)
-4. Index the new directory with `eshu index <path>` to verify parsing
-5. Add integration tests that assert expected graph structure
-
-## Next steps
-
-- [How It Works](../concepts/how-it-works.md) — understand the indexing pipeline these fixtures exercise
-- [CI/CD Integration](ci-cd.md) — run fixture-backed checks in your pipeline
-- [MCP Guide](mcp-guide.md) — query fixture data through your AI assistant
+- [Local Testing](../reference/local-testing.md)
+- [Relationship Mapping](../reference/relationship-mapping.md)
+- [MCP Guide](mcp-guide.md)

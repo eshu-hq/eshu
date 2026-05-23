@@ -1,114 +1,82 @@
 # Bootstrap Runtime Services
 
-This page covers schema bootstrap and one-shot bootstrap indexing. Use
-[Service Runtimes](service-runtimes.md) for the full runtime matrix.
+Use this page for the two bootstrap paths: schema bootstrap and one-shot
+bootstrap indexing. Use [Service Runtimes](service-runtimes.md) for the full
+runtime map.
 
 ## Schema Bootstrap
 
-`eshu-bootstrap-data-plane` applies all Postgres and graph-backend schema DDL
-then exits. It decouples schema migration from data population so API, MCP,
-ingester, workflow coordinator, collectors, and resolution engine can start
-against an empty-but-valid schema.
+`eshu-bootstrap-data-plane` applies Postgres and graph-backend schema DDL, then
+exits. It writes no application data.
 
-The binary owns DDL orchestration only:
+It owns this sequence:
 
-1. Connect to Postgres and apply storage schema through the Postgres bootstrap
-   path.
-2. Connect to the configured graph backend and apply graph constraints and
-   indexes through the strict graph schema path.
-3. Record the graph backend and schema fingerprint in Postgres only after every
-   graph statement succeeds.
-4. Exit with code 0 on success.
+1. Apply Postgres storage schema.
+2. Apply graph constraints and indexes through the configured backend.
+3. Record the graph backend and schema fingerprint only after every graph
+   statement succeeds.
+4. Exit with code `0` on success.
 
-It writes no application data.
+Invalid graph backend values fail startup. Invalid or non-positive graph schema
+statement timeouts fail before DDL runs.
 
-## Compose Contract
+## Deployment Contract
 
-In Compose, `db-migrate` runs
-`/usr/local/bin/eshu-bootstrap-data-plane` after Postgres and the graph backend
-are healthy. API, MCP, ingester, reducer, workflow coordinator, webhook
-listener, and bootstrap-index depend on `db-migrate` with
-`condition: service_completed_successfully`. Use `docker-compose.yaml` for
-NornicDB and `docker-compose.neo4j.yml` for the explicit Neo4j compatibility
-stack.
+Compose runs `db-migrate` with `/usr/local/bin/eshu-bootstrap-data-plane` after
+Postgres and the graph backend are healthy. Steady-state services depend on
+that one-shot service completing successfully.
 
-## Kubernetes Contract
+Helm renders `deploy/helm/eshu/templates/job-schema-bootstrap.yaml`. With
+`schemaBootstrap.useHelmHooks=true`, the Job runs as a pre-install/pre-upgrade
+hook. Do not attach schema verification to every runtime pod; repeated graph
+schema checks can saturate a large existing backend during rolling updates.
 
-The public Helm chart renders schema bootstrap as
-`deploy/helm/eshu/templates/job-schema-bootstrap.yaml`.
+Do not combine Helm-hook schema bootstrap with bundled NornicDB:
 
-The job uses the same release image and runs:
-
-```text
-/usr/local/bin/eshu-bootstrap-data-plane
+```yaml
+schemaBootstrap:
+  useHelmHooks: true
+nornicdb:
+  enabled: true
 ```
 
-Helm hook annotations run it before install and upgrade workloads. Argo CD maps
-those Helm hooks to its pre-sync flow, so GitOps installs also run schema
-bootstrap before workload sync.
+Helm rejects that render because hooks run before the chart-managed NornicDB
+Service and Deployment exist. Deploy NornicDB separately first, or set
+`schemaBootstrap.useHelmHooks=false` and provide ordering through your release
+or GitOps workflow.
 
-Do not attach graph schema bootstrap to every runtime pod. Repeating graph
-schema verification from each workload can saturate a large existing graph
-backend during rolling updates and make the deployment look hung.
-
-## Schema Bootstrap Environment
+## Environment
 
 | Variable | Required | Purpose |
 | --- | --- | --- |
-| `ESHU_POSTGRES_DSN` | yes | Postgres connection string |
-| `ESHU_GRAPH_BACKEND` | no | Graph adapter, `nornicdb` or `neo4j`; default is `nornicdb` |
-| `NEO4J_URI` | yes | Bolt URI for NornicDB or Neo4j |
-| `NEO4J_USERNAME` | yes | Bolt auth username |
-| `NEO4J_PASSWORD` | yes | Bolt auth password |
-| `DEFAULT_DATABASE` | no | Bolt database name, default `nornic` |
-| `ESHU_GRAPH_SCHEMA_STATEMENT_TIMEOUT` | no | Per graph DDL statement deadline, default `2m` |
-| `ESHU_GRAPH_SCHEMA_ADOPT_EXISTING` | no | Adopt a complete existing graph schema by writing the fingerprint marker |
+| `ESHU_POSTGRES_DSN` | yes | Postgres connection string. |
+| `ESHU_GRAPH_BACKEND` | no | `nornicdb` or `neo4j`; default is `nornicdb`. |
+| `NEO4J_URI` | yes | Bolt URI for NornicDB or Neo4j. |
+| `NEO4J_USERNAME` / `NEO4J_PASSWORD` | yes | Bolt client credentials. |
+| `DEFAULT_DATABASE` | no | Bolt database name, default `nornic`. |
+| `ESHU_GRAPH_SCHEMA_STATEMENT_TIMEOUT` | no | Per graph DDL statement deadline, default `2m`. |
+| `ESHU_GRAPH_SCHEMA_ADOPT_EXISTING` | no | Adopt a complete existing graph schema by writing the fingerprint marker. |
 
-Invalid graph backend values fail startup. Invalid or non-positive schema
-statement timeouts fail before any DDL runs.
-
-## Operational Notes
-
-- Postgres and graph DDL use `IF NOT EXISTS` where the backend supports it.
-- The graph schema fingerprint prevents preserved-volume restarts from
-  re-checking every graph constraint and index when the expected schema already
-  applied.
-- Existing-schema adoption is explicit opt-in. It inspects `SHOW CONSTRAINTS`
-  and `SHOW INDEXES`, then fails closed if inspection errors.
-- Graph DDL emits structured per-statement logs with backend, phase, ordinal,
-  total, duration, failure class, and a bounded statement summary.
-- Version probes run before opening Postgres or the graph backend.
+Existing-schema adoption is explicit opt-in. It inspects `SHOW CONSTRAINTS` and
+`SHOW INDEXES`, then fails closed if inspection errors.
 
 ## Bootstrap Index
 
-`eshu-bootstrap-index` performs one-shot initial indexing. It is useful for:
+`eshu-bootstrap-index` performs one-shot initial indexing. Use it to materialize
+an initial repository set, reduce cold-start time on a new environment, validate
+end-to-end indexing, or recover after operator-controlled reset work.
 
-- materializing an initial repository set
-- reducing cold-start time on a brand-new environment
-- validating end-to-end indexing against a known repository set
-- recovering an environment after operator-controlled reset work
+It is packaged for Docker Compose and direct process use. It is not a
+steady-state workload in the public Helm chart, and it does not expose
+`/healthz`, `/readyz`, `/metrics`, or `/admin/status`.
 
-It is packaged in Docker Compose and can also run manually as a direct process.
-It is not a steady-state Kubernetes workload in the public Helm chart.
-
-`bootstrap-index` exports OpenTelemetry when configured, but it does not mount
-the shared runtime `/healthz`, `/readyz`, `/metrics`, or `/admin/status` HTTP
-surface.
-
-Repeated restarts or long-running bootstrap activity are incidents. Use
-incremental ingester, collector, workflow-coordinator, and resolution-engine
-paths for normal freshness.
-
-## Local Full-Stack Flow
-
-The local full-stack order is schema bootstrap, optional bootstrap indexing,
-then steady-state ingester and resolution-engine refresh. Bootstrap indexing
-creates initial facts and graph projection. After that, normal freshness comes
-from incremental ingester, collector, workflow-coordinator, and reducer paths.
+Repeated restarts or long-running bootstrap activity are incidents. Use the
+ingester, workflow coordinator, hosted collectors, and resolution engine for
+normal freshness.
 
 ## Related Pages
 
-- [Docker Compose](../run-locally/docker-compose.md)
-- [Helm Values](../deploy/kubernetes/helm-values.md)
+- [Helm Runtime Values](../deploy/kubernetes/helm-runtime-values.md)
+- [Storage](../deploy/kubernetes/storage.md)
 - [Bootstrap Index Service](../services/bootstrap-index.md)
 - [Telemetry Overview](../reference/telemetry/index.md)
