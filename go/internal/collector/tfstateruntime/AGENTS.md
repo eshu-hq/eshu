@@ -1,38 +1,43 @@
-# tfstateruntime Agent Guidance
+# AGENTS.md - internal/collector/tfstateruntime guidance for LLM assistants
 
-## Read First
+## Read first
 
-1. `README.md` and `doc.go` for runtime scope.
-2. `source.go` and `source_helpers.go` for claim matching, source opening, and
-   generation construction.
-3. `fact_spool.go` and `composite_capture_recorder.go` before changing parser
-   output handling.
-4. `go/internal/collector/terraformstate/README.md` for reader/parser safety.
-5. `go/internal/collector/claimed_service.go` for claim lifecycle,
-   heartbeats, and fencing behavior.
+1. `go/internal/collector/tfstateruntime/README.md` - package purpose, flow, and
+   invariants
+2. `go/internal/collector/tfstateruntime/source.go` - claimed source and default
+   source factory
+3. `go/internal/collector/terraformstate/README.md` - reader/parser safety rules
+4. `go/internal/collector/claimed_service.go` - claim lifecycle, heartbeats, and
+   fencing behavior
 
-## Local Rules
+## Invariants this package enforces
 
-- Never persist, log, or put raw Terraform state bytes in errors, facts, spans,
-  metrics, status, docs, or PR text.
-- Open only exact candidates from `terraformstate.DiscoveryResolver`. Do not
-  guess repo-local `.tfstate` files, S3 prefixes, workspace directories, or
-  unapproved source locators.
-- Keep AWS SDK types out of this package; use reader interfaces such as
-  `terraformstate.S3ObjectClient`.
-- Return a generation only when claim scope ID, generation ID, and source run
-  ID match the state snapshot identity.
-- Copy the current workflow fencing token into every emitted fact.
-- Treat missing or oversized state as warning-only generations; keep transient
-  source-open failures retryable.
-- Keep raw locators, bucket names, local paths, work item IDs, and secrets out
-  of metric labels. Use bounded hashes or warning kinds.
+- Do not persist, log, or put raw Terraform state bytes in errors, facts, spans,
+  metrics, or docs.
+- Only exact candidates from `terraformstate.DiscoveryResolver` may be opened.
+- Do not open local `.tfstate` files from repository content unless the resolver
+  returned an exact, approved Git-local candidate.
+- Keep AWS SDK types out of this package. Use `terraformstate.S3ObjectClient`
+  and put SDK adapters in command or integration wiring.
+- A claimed item must match scope ID, generation ID, and source run ID before a
+  collected generation is returned.
+- Fencing tokens must come from the current workflow claim.
 
-## Change Rules
+## Common changes and how to scope them
 
-- Add backends only after the reader package exposes a safe exact-source type.
-- Wire optional parser recorders through `ClaimedSource` so counters and logs
-  remain testable.
-- Keep cloud SDK adapters in command/integration wiring, not parser code.
-- Do not add storage, graph, reducer, query, or workflow-planning ownership to
-  this runtime adapter.
+- Add a new backend by extending `DefaultSourceFactory` after the reader package
+  exposes a safe exact-source type.
+- Add telemetry around runtime integration here, not in the redaction package.
+- Wire new optional parser-side recorders (such as `CompositeCaptureRecorder`)
+  through `ClaimedSource` so the counter and slog plumbing stay testable.
+- Add cloud-provider SDK behavior in a small adapter that implements the reader
+  interface. Do not leak SDK models into parser code.
+
+## Anti-patterns
+
+- Reading an entire state payload into memory just to derive serial and lineage.
+- Returning a generation for a claimed item that does not match the derived
+  state snapshot identity.
+- Opening prefix-based S3 keys, workspace directories, guessed local files, or
+  unapproved repo-local state candidates.
+- Adding storage, graph, reducer, or query dependencies to this package.

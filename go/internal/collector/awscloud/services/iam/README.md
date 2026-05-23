@@ -12,6 +12,16 @@ This package owns scanner-level IAM fact selection and IAM relationship
 mapping. It does not own AWS SDK pagination, STS credentials, workflow claims,
 fact persistence, graph writes, or reducer admission.
 
+```mermaid
+flowchart LR
+  A["IAM API adapter"] --> B["Client"]
+  B --> C["Scanner.Scan"]
+  C --> D["awscloud.ResourceObservation"]
+  C --> E["awscloud.RelationshipObservation"]
+  D --> F["facts.Envelope"]
+  E --> F
+```
+
 ## Exported surface
 
 See `doc.go` for the godoc contract.
@@ -26,16 +36,18 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-The scanner imports AWS collector boundaries, resource/relationship constants,
-envelope builders, and fact envelope kinds. It depends on a small `Client`
-interface rather than the AWS SDK so tests can use fake clients and runtime
-adapters can own SDK behavior.
+- `internal/collector/awscloud` for boundaries, resource and relationship
+  constants, and envelope builders.
+- `internal/facts` for the emitted fact envelope type.
+
+The package depends on a small `Client` interface rather than the AWS SDK for Go
+v2 so tests can use fake clients and runtime adapters can own SDK behavior.
 
 ## Telemetry
 
-This scanner emits no spans or logs directly. `awsruntime.ClaimedSource`
-records scan duration and emitted resource counts; the runtime adapter records
-IAM API call counts, throttles, and pagination spans.
+This scanner emits no metrics, spans, or logs directly. The runtime adapter that
+implements `Client` must record IAM API call counts, throttles, page latency,
+scan duration, and warnings/failures.
 
 ## Gotchas / invariants
 
@@ -51,5 +63,5 @@ IAM API call counts, throttles, and pagination spans.
 
 ## Related docs
 
-- `docs/public/services/collector-aws-cloud.md`
-- `docs/public/guides/collector-authoring.md`
+- `docs/docs/adrs/2026-04-20-aws-cloud-scanner-collector.md`
+- `docs/docs/guides/collector-authoring.md`

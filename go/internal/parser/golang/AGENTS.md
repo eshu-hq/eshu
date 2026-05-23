@@ -1,46 +1,102 @@
-# AGENTS.md - internal/parser/golang
+# AGENTS.md - internal/parser/golang guidance
 
-## Read First
+## Read first
 
-1. `README.md` and `doc.go`.
-2. `language.go`, `prescan.go`, `call_chain_metadata.go`, and `embedded_sql.go`.
-3. `dead_code_roots.go`, `dead_code_registrations.go`,
-   `dead_code_semantic_roots.go`, `dead_code_semantic_helpers.go`,
-   `dead_code_semantic_flows.go`, and `function_literal_reachability.go`.
-4. `package_interface_prescan.go`, `parent_lookup.go`,
-   `variable_type_index.go`, and `imported_variable_type_index.go`.
-5. Parent tests in `go/internal/parser/go*_test.go` before changing emitted
-   payload shape.
+1. `README.md` - package boundary, exported surface, and invariants
+2. `doc.go` - godoc contract for the Go adapter package
+3. `language.go` and `call_chain_metadata.go` - `Parse`, payload assembly,
+   call metadata, receiver handling, and chained receiver proof
+4. `prescan.go` - `PreScan`, the cheap name-only walk used by the collector
+   import-map prescan
+5. `dead_code_roots.go` - signature roots, import aliases, and root-kind
+   helpers
+6. `dead_code_registrations.go` - net/http and Cobra registration evidence
+7. `dead_code_semantic_roots.go` - top-level semantic root collection
+8. `dead_code_semantic_helpers.go` and `dead_code_semantic_flows.go` -
+   interface, callback, field, and argument flow helpers
+9. `function_literal_reachability.go` - callback and registry literal root
+   boundaries
+10. `package_interface_prescan.go` - imported-interface parameter extraction
+11. `parent_lookup.go` - per-file child-to-parent index used by every helper
+    that walks ancestors; required to keep ancestor traversal amortized O(1)
+12. `variable_type_index.go` and `imported_variable_type_index.go` -
+    per-file, per-scope variable-type lookup indices that replace the
+    per-call full-tree walks the dead-code and package-prescan helpers used
+    to do
+13. `embedded_sql.go` - SQL literal extraction and line-number accounting
+14. `helpers.go` and `types.go` - local helper and shared contract aliases
+15. Parent tests in `go/internal/parser/go*_test.go` before changing emitted
+    payload shape
 
-## Guardrails
+## Invariants this package enforces
 
-- MUST NOT import `internal/parser`; parent wrappers own registry,
-  runtime, path normalization, and option aggregation.
-- MUST preserve deterministic bucket names, fields, ordering, and pre-scan
-  results.
-- MUST keep direct method roots scoped to receiver evidence; same-method-name
-  fallback is not enough.
-- MUST treat function-value references as reachability evidence only when source
-  text proves escape through a bounded call, field, return, callback, or
-  interface contract.
-- MUST bound imported package evidence to qualified package contracts and
-  scoped imported-variable receiver types.
-- MUST keep embedded SQL line numbers tied to the original Go source.
-- MUST keep parent, variable-type, and imported-variable-type indices in use;
-  do not reintroduce per-call full-tree walks.
-- MUST keep branch counting and cyclomatic complexity consistent with the
-  parent parser contract.
-- MUST emit no telemetry directly; parent runtime and collector paths own parse
-  timing and failures.
+- Dependency direction stays one way: parent parser code may import this
+  package, but this package must not import `internal/parser`.
+- `Parse` returns the same bucket names and map fields the parent Go adapter
+  returned before the language-owned move.
+- Bucket ordering is deterministic. Sort output before returning any payload or
+  pre-scan result.
+- Dead-code roots must be evidence-backed. Do not add root kinds from name
+  guesses without syntax, registration, same-file, or same-package proof.
+- `ImportedInterfaceParamMethods` stays file-local. Package grouping belongs in
+  the parent `Engine` wrapper.
+- Embedded SQL line numbers must refer to the original Go source, not a sliced
+  function body.
 
-## Change Scope
+## Common changes and how to scope them
 
-- Add Go payload fields or root kinds with failing parser tests first, then the
-  narrow helper that owns the evidence.
-- Start SQL extraction changes in `embedded_sql_test.go`.
-- Test same-package interface evidence in both the child helper and
-  the parent package pre-scan wrapper.
-- Do not change `.go` registry ownership, `embedded_sql_queries`,
-  `dead_code_root_kinds`, or `function_calls` without downstream facts,
-  content shape, reducer/query impact review, docs, and architecture-owner
-  approval.
+- Add a new Go payload field by writing or updating a parent Go parser test
+  first, then changing `language.go` or the focused helper that owns the
+  evidence.
+- Add a new dead-code root by adding a focused parent dead-code test first,
+  then editing the narrow helper that owns that evidence family.
+- Add SQL API support by writing a focused `embedded_sql_test.go` case first.
+- Change same-package interface evidence by testing both
+  `ImportedInterfaceParamMethods` and the parent package pre-scan wrapper.
+- Keep compatibility wrappers in the parent parser package thin. New Go
+  parsing behavior belongs here unless it is registry, runtime, or content
+  metadata wiring.
+
+## Failure modes and how to debug
+
+- Missing Go functions, structs, interfaces, imports, variables, or calls
+  usually means `language.go` skipped a tree-sitter node kind or changed bucket
+  names. Compare the focused parent `go*_test.go` fixture output.
+- False Go CALLS edges for package-qualified or chained calls usually mean
+  import alias metadata, `chain_receiver_obj_type`, or
+  `chain_receiver_method` drifted from reducer expectations.
+- Missing interface implementation roots usually means
+  `ImportedInterfaceParamMethods` was not passed back through `Options`, or a
+  type-flow helper lost local concrete-type evidence.
+- Missing handler or Cobra roots usually means import alias evidence changed in
+  `dead_code_roots.go` or registration evidence changed in
+  `dead_code_registrations.go`.
+- Wrong embedded SQL rows usually mean the call-site matcher or SQL table
+  matcher in `embedded_sql.go` became too broad or too narrow.
+- Non-deterministic import-map output usually means a helper returned unsorted
+  names or iterated a map without sorting.
+
+## Anti-patterns specific to this package
+
+- Importing the parent parser package to reuse `Engine`, `Options`, payload, or
+  tree helpers.
+- Adding JavaScript, Python, Java, SQL, YAML, JSON, or other language behavior
+  here.
+- Returning partial payloads after a Go parse failure.
+- Treating every composite literal, function value, or selector expression as
+  live code without bounded evidence.
+- Adding telemetry from this package; parse timing belongs to the runtime path
+  that invokes the adapter.
+- Re-adding per-call full-tree walks for variable-type or ancestor lookups in
+  `dead_code_semantic_roots.go`, `package_interface_prescan.go`, or any other
+  helper. Use `goBuildParentLookup`, `goBuildVariableTypeIndex`, or
+  `goBuildImportedVariableTypeIndex` so per-file cost stays linear.
+
+## What NOT to change without an ADR
+
+- Do not change parent registry extension ownership for `.go` files.
+- Do not change the `embedded_sql_queries`, `dead_code_root_kinds`, or
+  `function_calls` payload contracts without updating downstream facts, shape,
+  reducer, and docs in the same branch.
+- Do not move registry lookup, path normalization, or runtime parser allocation
+  into this package.

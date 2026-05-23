@@ -1,18 +1,34 @@
-# AGENTS.md - services/route53
+# AGENTS.md - internal/collector/awscloud/services/route53 guidance
 
-Read `README.md`, `doc.go`, `types.go`, `scanner.go`, `relationships.go`, and
-`awssdk/README.md` before editing this service.
+## Read First
 
-## Mandatory Rules
+1. `README.md` - package purpose, flow, and invariants.
+2. `types.go` - scanner-owned Route 53 records and client contract.
+3. `scanner.go` - fact selection and hosted-zone/record envelope mapping.
+4. `awssdk/README.md` - AWS SDK pagination and response mapping.
 
-- Keep Route 53 AWS access behind `Client`; the scanner package must not import
-  the AWS SDK.
-- Keep Route 53 global and use the configured global region label.
-- Emit reported hosted-zone, record-set, tag, and alias relationship evidence
-  only.
-- Do not infer workload, environment, repository, ownership, deployable-unit, or
-  DNS authority truth beyond directly reported Route 53 records.
-- Do not add domain registration, health-check payload, resolver query log, or
-  mutation behavior here.
-- Keep zone IDs, zone names, record names, record values, tags, raw AWS errors,
-  and page tokens out of metric labels.
+## Invariants
+
+- Do not call AWS APIs from this package. The `awssdk` adapter owns AWS SDK
+  calls and telemetry.
+- Preserve hosted-zone visibility from `HostedZone.Config.PrivateZone`.
+- Preserve alias `DNSName`, alias `HostedZoneID`, and `EvaluateTargetHealth`.
+- Emit DNS records as `aws_dns_record`, not `aws_resource`.
+- Do not infer application ownership, environment, service identity, public
+  exposure, or deployable-unit truth from DNS names or zone names.
+- Keep DNS names, hosted-zone IDs, tags, and record values out of metric labels.
+
+## Common Changes
+
+- Add a new record attribute in `scanner.go` only when it supports DNS-to-cloud
+  joining, freshness, or later correlation.
+- Add new Route 53 routing policy fields in `types.go`, `scanner.go`, and
+  `awssdk/mapper.go` together.
+- Add a focused scanner test before changing which record types are emitted.
+
+## What Not To Change Without An ADR
+
+- Do not add Route 53 write APIs.
+- Do not make the scanner write graph rows directly.
+- Do not broaden collection to all record types without updating issue scope
+  and downstream data-use expectations.

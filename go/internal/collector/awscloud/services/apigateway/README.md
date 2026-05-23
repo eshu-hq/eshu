@@ -16,6 +16,14 @@ It does not call AWS APIs, schedule claims, load credentials, write facts, read
 request or response payloads, or infer workload, environment, repository, or
 deployable-unit truth.
 
+```mermaid
+flowchart LR
+    Runtime[awsruntime target] --> Scanner[apigateway.Scanner]
+    Scanner --> Client[API Gateway client port]
+    Client --> Snapshot[metadata snapshot]
+    Scanner --> Facts[AWS resource and relationship facts]
+```
+
 The scanner emits `aws_apigateway_rest_api`, `aws_apigatewayv2_api`,
 `aws_apigateway_stage`, and `aws_apigateway_domain_name` resources. Policy JSON,
 API keys, authorizer secrets, integration credentials, stage variable values,
@@ -23,9 +31,14 @@ mapping templates, and API payloads are outside the package contract.
 
 ## Exported surface
 
-See `doc.go` and the exported comments in `types.go` and `scanner.go` for the
-godoc contract. Keep the scanner model details in source comments so adapter
-and test changes cannot drift from this README.
+See `doc.go` for the godoc-rendered package contract.
+
+- `Scanner` validates the `apigateway` service boundary and emits fact
+  envelopes.
+- `Client` is the scanner-owned metadata port implemented by the AWS SDK
+  adapter.
+- `Snapshot`, `RESTAPI`, `V2API`, `Stage`, `DomainName`, `Mapping`, and
+  `Integration` are safe control-plane projections used by adapters and tests.
 
 ## Dependencies
 
@@ -38,6 +51,12 @@ and test changes cannot drift from this README.
 The scanner itself emits no new metrics. The AWS SDK adapter records API calls
 with the shared AWS collector API-call events, spans, throttle counters, and
 operation labels.
+
+No-Observability-Change: existing AWS collector API-call metrics, pagination
+spans, throttle counters, `aws_warning` facts, resource and relationship
+emission counters, and `aws_scan_status` rows cover API Gateway metadata
+scanning. Sustained `GetResources` throttling marks the scan partial with
+`failure_class=throttled` while preserving API, stage, and domain observations.
 
 ## Gotchas / invariants
 
@@ -54,19 +73,7 @@ operation labels.
 - Stage variables, policy JSON, API keys, authorizer secrets, integration
   credentials, request templates, and response templates stay out of facts.
 
-## Verification
-
-```bash
-go test ./internal/collector/awscloud/services/apigateway/... -count=1
-go test ./cmd/collector-aws-cloud ./internal/collector/awscloud/... -count=1
-go run ./cmd/eshu docs verify ../go/internal/collector/awscloud/services/apigateway --limit 1000 \
-  --fail-on contradicted,missing_evidence
-```
-
-Run the AWS runtime tests when scan warnings or partial-status behavior changes.
-
 ## Related docs
 
-- `docs/public/services/collector-aws-cloud.md`
-- `docs/public/services/collector-aws-cloud-scanners.md`
-- `docs/public/guides/collector-authoring.md`
+- `docs/docs/adrs/2026-04-20-aws-cloud-scanner-collector.md`
+- `docs/docs/guides/collector-authoring.md`

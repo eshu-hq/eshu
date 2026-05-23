@@ -42,7 +42,7 @@ const (
 var (
 	backtickPattern     = regexp.MustCompile("`([^`]+)`")
 	httpEndpointPattern = regexp.MustCompile(`\b(GET|POST|PUT|PATCH|DELETE)\s+(/[A-Za-z0-9{}_.:/?=&%-]+)`)
-	envVarPattern       = regexp.MustCompile(`\bESHU_[A-Z0-9_]+\b`)
+	envVarPattern       = regexp.MustCompile(`\bESHU_[A-Z0-9_]*[A-Z0-9]\b`)
 )
 
 // CommandTruth describes one supported Eshu CLI command path.

@@ -138,6 +138,30 @@ func TestVerifierKeepsContradictedUnsupportedAndMissingEvidenceSeparate(t *testi
 	}
 }
 
+func TestVerifierIgnoresEnvironmentVariablePrefixExamples(t *testing.T) {
+	t.Parallel()
+
+	verifier := doctruth.NewVerifier(doctruth.VerifierOptions{
+		EnvironmentVariables: []string{"ESHU_WORKFLOW_COORDINATOR_DEPLOYMENT_MODE"},
+	})
+
+	result, err := verifier.Verify(context.Background(), []doctruth.DocumentInput{{
+		Path:       "go/internal/coordinator/README.md",
+		RevisionID: "rev-prefix",
+		Content: "" +
+			"`ESHU_WORKFLOW_COORDINATOR_*` names a variable family, not one variable.\n" +
+			"`ESHU_WORKFLOW_COORDINATOR_DEPLOYMENT_MODE` is one concrete variable.\n",
+	}})
+	if err != nil {
+		t.Fatalf("Verify() error = %v, want nil", err)
+	}
+
+	if got, want := result.Summary.ClaimsChecked, 1; got != want {
+		t.Fatalf("Summary.ClaimsChecked = %d, want %d; findings=%#v", got, want, result.Findings)
+	}
+	assertFindingStatus(t, result.Findings, "environment_variable", "valid")
+}
+
 func TestVerifierBoundsDocumentsAndContentBytes(t *testing.T) {
 	t.Parallel()
 

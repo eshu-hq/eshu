@@ -69,6 +69,6 @@ metric label sets, and status response payloads.
 
 ## Related docs
 
-- `docs/public/reference/local-testing.md` — build commands
+- `docs/docs/reference/local-testing.md` — build commands
 - Dockerfile — release builds inject the version value via `--build-arg`
   passed to `-ldflags`

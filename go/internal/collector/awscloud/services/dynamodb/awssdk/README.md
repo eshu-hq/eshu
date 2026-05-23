@@ -13,6 +13,17 @@ This package owns SDK calls for DynamoDB. It does not own workflow claims,
 credential acquisition, DynamoDB fact selection, graph writes, reducer
 admission, workload ownership, or query behavior.
 
+```mermaid
+flowchart LR
+  A["aws.Config"] --> B["NewClient"]
+  B --> C["Client.Snapshot"]
+  C --> D["ListTables pages"]
+  C --> E["DescribeTable"]
+  C --> F["ListTagsOfResource"]
+  C --> G["DescribeTimeToLive"]
+  C --> H["DescribeContinuousBackups"]
+```
+
 ## Exported surface
 
 See `doc.go` for the godoc contract.
@@ -23,17 +34,24 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-The adapter imports the AWS SDK for Go v2 DynamoDB client, Smithy API errors,
-`internal/collector/awscloud` boundary/status helpers, scanner-owned DynamoDB
-result types, and shared AWS telemetry.
+- `internal/collector/awscloud` for account, region, and service boundary
+  labels.
+- `internal/collector/awscloud/services/dynamodb` for scanner-owned result
+  types.
+- `internal/telemetry` for AWS API call and throttle instruments.
+- AWS SDK for Go v2 `dynamodb` and Smithy error contracts.
 
 ## Telemetry
 
-DynamoDB list pages, point reads, and tag pages record
-`aws.service.pagination.page`, `eshu_dp_aws_api_calls_total`, and
-`eshu_dp_aws_throttle_total`. Metric labels stay bounded to service, account,
-region, operation, and result. Table names, ARNs, tags, index names, KMS key
-IDs, TTL attribute names, and raw AWS error payloads stay out of metric labels.
+DynamoDB list pages, point reads, and tag pages are wrapped with:
+
+- `aws.service.pagination.page`
+- `eshu_dp_aws_api_calls_total`
+- `eshu_dp_aws_throttle_total`
+
+Metric labels stay bounded to service, account, region, operation, and result.
+Table names, ARNs, tags, index names, KMS key IDs, TTL attribute names, and raw
+AWS error payloads stay out of metric labels.
 
 ## Gotchas / invariants
 
@@ -58,5 +76,5 @@ IDs, TTL attribute names, and raw AWS error payloads stay out of metric labels.
 
 ## Related docs
 
-- `docs/public/services/collector-aws-cloud.md`
-- `docs/public/guides/collector-authoring.md`
+- `docs/docs/adrs/2026-04-20-aws-cloud-scanner-collector.md`
+- `docs/docs/guides/collector-authoring.md`

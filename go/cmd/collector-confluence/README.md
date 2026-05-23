@@ -4,9 +4,10 @@
 
 `collector-confluence` reads a bounded Confluence Cloud space, an explicit list
 of spaces, or a page tree and emits source-neutral documentation facts. It is
-the process wrapper for the read-only Confluence collector.
+the first documentation-source collector vertical slice for Eshu's read-only
+evidence boundary.
 
-## Ownership boundary
+## Ownership Boundary
 
 This binary owns process wiring only: Confluence config loading, read-only HTTP
 client construction, `collector.Service` setup, Postgres ingestion, telemetry,
@@ -16,33 +17,77 @@ Section facts store the source-native Confluence storage body in Postgres for
 later diff generation, but the collector still never calls Confluence mutation
 APIs.
 
-## Exported surface
+## Entry Points
 
-This is a `package main` binary. Its public contract is the process entrypoint,
-`--version` / `-v`, bounded Confluence source configuration, shared Postgres
-runtime env, and the hosted `/healthz`, `/readyz`, `/metrics`, and
-`/admin/status` surface.
+- `main` and `run` in `go/cmd/collector-confluence/main.go`
+- `buildCollectorService` in `go/cmd/collector-confluence/service.go`
+- `go run ./cmd/collector-confluence` for local verification
+- `eshu-collector-confluence --version` and `eshu-collector-confluence -v`
+  print the build-time version before runtime setup begins
 
-## Dependencies
+## Configuration
 
-- `internal/collector` for service orchestration and durable fact commits.
-- `internal/collector/confluence` for config, HTTP client, source, and emitted
-  documentation facts.
-- `internal/app`, `internal/runtime`, `internal/storage/postgres`, and
-  `internal/telemetry` for process hosting, persistence, status, and signals.
+The collector requires a Confluence base URL, one bounded scope, read-only
+credentials, and the standard Postgres env contract used by
+`runtime.OpenPostgres`.
+
+Required Confluence values:
+
+- `ESHU_CONFLUENCE_BASE_URL`
+- exactly one of `ESHU_CONFLUENCE_SPACE_ID`, `ESHU_CONFLUENCE_SPACE_IDS`, or
+  `ESHU_CONFLUENCE_ROOT_PAGE_ID`
+- either `ESHU_CONFLUENCE_BEARER_TOKEN` or both `ESHU_CONFLUENCE_EMAIL` and
+  `ESHU_CONFLUENCE_API_TOKEN`
+
+Optional values:
+
+- `ESHU_CONFLUENCE_SPACE_KEY`
+- `ESHU_CONFLUENCE_PAGE_LIMIT`
+- `ESHU_CONFLUENCE_POLL_INTERVAL` (Go duration, defaults to `5m`)
+
+`ESHU_CONFLUENCE_SPACE_IDS` is an explicit comma-separated allowlist of numeric
+space IDs. Leave it blank unless you are using the multi-space mode; blank does
+not discover every visible space.
 
 ## Telemetry
 
-The binary uses the shared hosted runtime. Confluence source metrics and the
-shared collector metrics show HTTP request count/duration, permission gaps,
-document/section/link emission, sync failure class, emitted fact count, and
-committed fact count. Logs include `scope_id`, page count, failure count, and
-freshness hint, but must not include page titles, body content, or excerpts.
+The binary uses the shared hosted runtime with `/healthz`, `/readyz`,
+`/metrics`, and `/admin/status`. The Confluence source logs each completed
+sync with `scope_id`, `page_count`, `failure_count`, and `freshness_hint`.
+Shared collector metrics carry `collector_kind=documentation` and
+`source_system=confluence`. Logs and metrics must not include page titles,
+stored body content, or body excerpts.
 
-## Gotchas / invariants
+| Signal | Type | Labels | What it is for |
+| --- | --- | --- | --- |
+| `collector.observe` | Span | `scope_id`, `source_system`, `collector_kind` when a generation is available | Shows the full Confluence collect and durable commit cycle in one trace. Use it to tell whether time is going to page listing, page body fetch/enrich work, documentation fact construction, or Postgres commit. |
+| `eshu_dp_collector_observe_duration_seconds` | Histogram | `scope_id`, `source_system`, `collector_kind` | Measures end-to-end collect and commit duration for one observed generation. Use it to alert on slow documentation syncs and compare Confluence collection cost with other collector kinds. |
+| `eshu_dp_confluence_http_requests_total` | Counter | `operation`, `result`, `status_class` | Counts bounded Confluence HTTP GET operations without page IDs, titles, URLs, or paths. Use it to separate permission failures, status errors, decode errors, and successful reads. |
+| `eshu_dp_confluence_fetch_duration_seconds` | Histogram | `operation`, `result` | Measures Confluence GET latency by source operation. Use it to tell whether a sync is slow in space listing, page-tree traversal, or page body fetch/enrich work. |
+| `eshu_dp_confluence_permission_denied_pages_total` | Counter | `operation` | Counts pages skipped because the read-only credential could not view them. Use it to diagnose partial syncs. |
+| `eshu_dp_confluence_documents_observed_total` | Counter | `result` | Counts visible current pages converted into documentation document facts. |
+| `eshu_dp_confluence_sections_emitted_total` | Counter | `result` | Counts documentation section facts emitted from Confluence storage bodies. |
+| `eshu_dp_confluence_links_emitted_total` | Counter | `result` | Counts documentation link facts emitted from Confluence storage bodies. |
+| `eshu_dp_confluence_sync_failures_total` | Counter | `failure_class` | Counts failed source syncs by bounded class before the shared commit path can hide the source-stage cause. |
+| `eshu_dp_facts_emitted_total` | Counter | `scope_id`, `source_system`, `collector_kind` | Counts documentation facts emitted by the Confluence generation before commit. Use it to confirm the collector is producing source, document, section, link, and optional documentation-truth facts. |
+| `eshu_dp_generation_fact_count` | Histogram | `scope_id`, `source_system`, `collector_kind` | Records fact volume per generation. Use it to spot unusually large Confluence spaces or unexpectedly small syncs after permission or config changes. |
+| `eshu_dp_facts_committed_total` | Counter | `scope_id`, `source_system`, `collector_kind` | Counts facts durably committed to Postgres after a successful write. Use it with `eshu_dp_facts_emitted_total` to separate collection output from commit failures or Postgres pressure. |
 
-- The collector is read-only. Source code only issues Confluence HTTP `GET`
-  requests.
+## Collector Evidence
+
+Collector Performance Evidence: `cd go && go test ./internal/collector/confluence ./internal/telemetry ./cmd/collector-confluence -count=1` covered the fixture tree with three page IDs, two visible documents, two emitted sections, one emitted link, one permission gap, and the `httptest` HTTP path with two GETs. The focused run completed in 0.836s for `internal/collector/confluence`, 0.416s for `internal/telemetry`, and 1.269s for `cmd/collector-confluence`.
+
+Collector Observability Evidence: source-stage metrics now cover HTTP GET count and duration, permission-denied pages, document/section/link counts, and sync failure class. `TestSourceRecordsBoundedConfluenceMetrics`, `TestSourceRecordsSyncFailureClass`, and `TestHTTPClientRecordsBoundedRequestMetrics` prove the new Confluence metric labels are limited to `operation`, `result`, `status_class`, and `failure_class`.
+
+No-Regression Evidence: `cd go && go test ./internal/collector/confluence ./internal/telemetry ./cmd/collector-confluence -count=1` covered single-space, explicit multi-space, page-tree, permission-gap, stale-page, content, metrics, HTTP client, telemetry contract, and command wiring paths. The run completed in 0.479s for `internal/collector/confluence`, 0.909s for `internal/telemetry`, and 0.841s for `cmd/collector-confluence`.
+
+No-Observability-Change: multi-space mode reuses the existing Confluence HTTP request counters and durations, permission-denied counter, documents/sections/links emitted counters, sync failure counter, shared `collector.observe` span, `eshu_dp_collector_observe_duration_seconds`, `eshu_dp_facts_emitted_total`, `eshu_dp_generation_fact_count`, and `eshu_dp_facts_committed_total`; each emitted generation still has one bounded `scope_id`.
+
+Collector Deployment Evidence: the command keeps the shared hosted runtime surface for `/healthz`, `/readyz`, `/metrics`, and `/admin/status`. Chart rendering and ServiceMonitor coverage remain validated by `scripts/verify_confluence_collector_helm.sh` for the deployed collector command, service, scrape target, singular space ID mode, and explicit `spaceIds` allowlist mode.
+
+## Invariants
+
+- The collector is read-only. It only issues Confluence HTTP `GET` requests.
 - It must emit documentation facts through `collector.Service`; do not write
   facts directly from the command package.
 - Multi-space mode must stay an explicit allowlist. Do not turn a blank
@@ -51,15 +96,8 @@ freshness hint, but must not include page titles, body content, or excerpts.
 - Source metadata must preserve page count, failure count, and sync status so
   operators can distinguish complete and partial generations.
 
-## Focused tests
+## Related Docs
 
-```bash
-cd go
-go test ./cmd/collector-confluence ./internal/collector/confluence -count=1
-```
-
-## Related docs
-
-- `go/internal/collector/confluence/README.md`
-- `docs/public/guides/collector-authoring.md`
-- `docs/public/reference/telemetry/index.md`
+- [Collector authoring](../../../docs/docs/guides/collector-authoring.md)
+- [CLI reference](../../../docs/docs/reference/cli-reference.md)
+- [Telemetry reference](../../../docs/docs/reference/telemetry/index.md)

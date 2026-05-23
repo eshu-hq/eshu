@@ -9,6 +9,15 @@ plus local path inputs. Keeping these derivations in one package prevents
 divergence between the ID used to write graph nodes and the ID recorded in
 durable facts.
 
+## Where this fits
+
+```mermaid
+flowchart LR
+  A["internal/collector\ngit_source.go\ngit_fact_builder.go"] --> B["repositoryidentity.MetadataFor"]
+  B --> C["Metadata.ID\nMetadata.RepoSlug"]
+  C --> D["Postgres facts\nGraph Repository node"]
+```
+
 ## Ownership boundary
 
 `repositoryidentity` owns remote URL normalization, slug extraction, and
@@ -19,9 +28,24 @@ no runtime state.
 
 ## Exported surface
 
-See `doc.go` and the exported comments in `identity.go` for the godoc contract.
-Do not duplicate function-by-function behavior here; identity format invariants
-below are the package-local safety rules.
+- `Metadata` — canonical repository identity value: `ID`, `Name`, `RepoSlug`,
+  `RemoteURL`, `LocalPath`, `HasRemote`.
+- `MetadataFor(name, localPath, remoteURL string) (Metadata, error)` — resolves
+  `localPath` with `filepath.Abs`, normalizes `remoteURL`, derives the slug
+  and ID, and returns a fully populated `Metadata`. Returns an error when
+  `filepath.Abs` fails or when `CanonicalRepositoryID` cannot produce an ID.
+- `NormalizeRemoteURL(remoteURL string) string` — collapses SSH
+  (`git@host:org/repo.git`) and HTTPS (`https://host/org/repo`) forms to
+  lowercase `https://host/org/repo`. Strips trailing `.git` and trailing
+  slashes.
+- `RepoSlugFromRemoteURL(remoteURL string) string` — returns the `org/repo`
+  path from the normalized HTTPS form. Returns empty string when the URL is
+  empty or cannot be parsed.
+- `CanonicalRepositoryID(remoteURL, localPath string) (string, error)` —
+  hashes the normalized remote URL when present, falls back to `localPath`.
+  Returns an error when both are empty. Format: `repository:r_<8-hex-sha1>`.
+
+See `doc.go` for the godoc contract.
 
 ## Dependencies
 
@@ -51,6 +75,6 @@ fact payloads.
 
 ## Related docs
 
-- `docs/public/architecture.md` - pipeline and ownership table
-- `go/internal/collector/README.md` - callers that build `Metadata` during
+- `docs/docs/architecture.md` — pipeline and ownership table
+- `go/internal/collector/README.md` — callers that build `Metadata` during
   repository discovery

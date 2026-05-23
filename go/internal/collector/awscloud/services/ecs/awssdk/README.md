@@ -13,6 +13,21 @@ This package owns SDK calls for ECS. It does not own workflow claims,
 credential acquisition, ECS fact selection, graph writes, reducer admission, or
 query behavior.
 
+```mermaid
+flowchart LR
+  A["awsruntime.DefaultScannerFactory"] --> B["Client"]
+  B --> C["Client.ListClusters"]
+  B --> D["Client.ListServices"]
+  B --> E["Client.DescribeTaskDefinition"]
+  B --> F["Client.ListTaskDefinitions"]
+  B --> G["Client.ListTasks"]
+  C --> H["ecs.Cluster"]
+  D --> I["ecs.Service"]
+  E --> J["ecs.TaskDefinition"]
+  F --> K["task definition ARNs"]
+  G --> L["ecs.Task"]
+```
+
 ## Exported surface
 
 See `doc.go` for the godoc contract.
@@ -23,15 +38,22 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-The adapter imports the AWS SDK for Go v2 ECS client, AWS claim boundaries,
-scanner-owned ECS target types, and shared AWS telemetry.
+- AWS SDK for Go v2 `service/ecs`.
+- `internal/collector/awscloud` for claim boundary labels.
+- `internal/collector/awscloud/services/ecs` for scanner-owned target types.
+- `internal/telemetry` for AWS API counters, throttle counters, and pagination
+  spans.
 
 ## Telemetry
 
-ECS paginator pages and point reads record `aws.service.pagination.page`,
-`eshu_dp_aws_api_calls_total`, and `eshu_dp_aws_throttle_total`. Resource ARNs,
-service names, task definition ARNs, image refs, tags, and secret references
-are never metric labels.
+ECS paginator pages and point reads are wrapped with:
+
+- `aws.service.pagination.page`
+- `eshu_dp_aws_api_calls_total{service="ecs",operation,result}`
+- `eshu_dp_aws_throttle_total{service="ecs"}`
+
+Resource ARNs, service names, task definition ARNs, image refs, tags, and secret
+references are never metric labels.
 
 ## Gotchas / invariants
 
@@ -49,5 +71,5 @@ are never metric labels.
 
 ## Related docs
 
-- `docs/public/services/collector-aws-cloud.md`
-- `docs/public/reference/telemetry/index.md`
+- `docs/docs/adrs/2026-04-20-aws-cloud-scanner-collector.md`
+- `docs/docs/reference/telemetry/index.md`

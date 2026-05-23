@@ -1,36 +1,43 @@
-# collector-confluence Agent Guidance
+# AGENTS.md - cmd/collector-confluence guidance for LLM assistants
 
 ## Read First
 
-1. `README.md` and `doc.go` for command scope.
-2. `service.go` for `buildCollectorService`, Postgres commit wiring, and env
-   handoff.
-3. `main.go` for telemetry bootstrap and hosted status.
-4. `go/internal/collector/confluence/README.md` for source, pagination,
-   permission gaps, metadata, and fact output.
-5. `go/internal/collector/README.md` and `go/internal/runtime/README.md` for
-   shared service and hosting contracts.
+1. `go/cmd/collector-confluence/README.md` - binary purpose, config, and
+   invariants
+2. `go/cmd/collector-confluence/service.go` - `buildCollectorService` and env
+   wiring
+3. `go/internal/collector/confluence/` - Confluence source, config, and HTTP
+   client
+4. `go/internal/collector/README.md` - shared `collector.Service` contract
+5. `go/internal/runtime/README.md` - shared Postgres and hosted runtime setup
 
-## Local Rules
+## Invariants This Package Enforces
 
-- Keep Confluence access read-only. Do not add write/update APIs or mutation
-  credentials.
-- Require exactly one bounded source mode: one space, an explicit space-ID
-  allowlist, or one root page tree. Blank config must not become site-wide
-  crawling.
-- Emit documentation evidence through `collector.Service` and
-  `postgres.NewIngestionStore`; do not write facts directly from command code.
-- Keep the hosted status server and Prometheus handler wired.
-- Pass shared telemetry into the Confluence HTTP client and source so source
-  metrics reach `/metrics`.
-- Keep page titles, body content, excerpts, URLs, paths, and credentials out of
-  metric labels, status details, and docs.
+- **Read-only Confluence access** - the HTTP client must only issue `GET`
+  requests. Eshu gathers evidence; it does not mutate Confluence.
+- **Bounded collection** - startup must require exactly one bounded source:
+  a Confluence space ID, an explicit list of space IDs, or a root page ID.
+- **Shared durable write boundary** - facts must flow through
+  `collector.Service` and `postgres.NewIngestionStore`.
+- **Operator visibility** - keep the hosted status server and Prometheus
+  handler wired into `app.NewHostedWithStatusServer`.
+- **Telemetry wiring** - pass shared `telemetry.Instruments` into both
+  `confluence.NewHTTPClient` and `confluence.Source` so source-stage metrics
+  show up on `/metrics`.
 
-## Change Rules
+## Common Changes And How To Scope Them
 
-- Add config in `internal/collector/confluence`, cover it with config tests,
-  thread it through `buildCollectorService`, and update package docs.
-- Change page collection only with tests for empty spaces, permission gaps,
-  stale revisions, duplicate titles, pagination, and partial syncs.
-- Keep Confluence metric labels bounded to the documented operation, result,
-  status class, and failure class dimensions.
+- **Add a config option** - update `confluence.LoadConfig`, add config tests,
+  thread the value through `buildCollectorService`, and update `README.md`.
+- **Change page collection behavior** - add source tests for empty spaces,
+  permission gaps, stale revisions, and duplicate titles before changing
+  `internal/collector/confluence`.
+- **Change telemetry** - verify emitted collector metrics keep
+  `collector_kind=documentation` and `source_system=confluence`; verify
+  Confluence-specific labels remain bounded in `internal/collector/confluence`.
+
+## Anti-Patterns
+
+- Writing documentation facts directly from `main.go` or `service.go`.
+- Adding Confluence write calls, update APIs, or mutation credentials.
+- Treating permission gaps as complete syncs.

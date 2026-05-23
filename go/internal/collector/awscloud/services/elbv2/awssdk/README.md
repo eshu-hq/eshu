@@ -68,5 +68,5 @@ never metric labels.
 
 ## Related docs
 
-- `docs/public/services/collector-aws-cloud.md`
-- `docs/public/reference/telemetry/index.md`
+- `docs/docs/adrs/2026-04-20-aws-cloud-scanner-collector.md`
+- `docs/docs/reference/telemetry/index.md`

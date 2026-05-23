@@ -1,67 +1,333 @@
-# internal/storage/postgres Agent Instructions
+# AGENTS.md — storage/postgres guidance for LLM assistants
 
-These rules are mandatory for this package. Treat every change here as runtime,
-concurrency, recovery, and operator-observability work.
+## Read first
 
-## Read First
+1. `go/internal/storage/postgres/README.md` — pipeline position, store
+   inventory, queue lifecycle, and operational notes
+2. `go/internal/storage/postgres/db.go` — `ExecQueryer`, `Transaction`,
+   `Beginner`, `SQLDB`, `SQLTx`; understand the interface hierarchy before
+   touching any store
+3. `go/internal/storage/postgres/projector_queue.go` — `ProjectorQueue.Claim`
+   and `Ack`; the four-step atomic ack transaction is the most sensitive path
+   in this package
+4. `go/internal/storage/postgres/projector_queue_sql.go` — projector claim,
+   stale-generation coalescing, duplicate-lease reclaim, and lifecycle SQL
+5. `go/internal/storage/postgres/facts.go` — `upsertFacts`,
+   `deduplicateEnvelopes`, `sanitizeJSONB`; understand the batching and
+   deduplication constraints before changing fact write paths
+6. `go/internal/storage/postgres/status_queries.go` and
+   `go/internal/storage/postgres/status_registry.go` — status aggregate SQL,
+   including fact queue, shared projection domain backlog, and bounded registry
+   collector aggregates
+7. `go/internal/storage/postgres/schema.go` — `BootstrapDefinitions`,
+   `ApplyDefinitions`; DDL ordering and idempotency rules
+8. `go/internal/storage/postgres/aws_pagination_checkpoint.go` — AWS
+   checkpoint fencing and stale-generation expiry
+9. `go/internal/storage/postgres/aws_scan_status.go` and
+   `status_aws_cloud.go` — AWS scanner status persistence and admin status
+   projection
 
-1. `README.md`, `change-guide.md`, and `doc.go`.
-2. `db.go` for database and transaction interfaces.
-3. The owning store files for the path you touch: facts, queues, schema,
-   status, recovery, drift, AWS, content, shared projection, workflow, or
-   webhooks.
-4. `docs/public/reference/local-testing.md` and
-   `docs/public/reference/telemetry/index.md` before runtime-affecting changes.
+## Invariants this package enforces
 
-## Local Rules
+- **Idempotency** — all INSERT paths use `ON CONFLICT DO NOTHING` or
+  `ON CONFLICT DO UPDATE`; schema DDL uses `IF NOT EXISTS`. Do not add
+  non-idempotent INSERTs or CREATE TABLE without IF NOT EXISTS.
+- **Fact deduplication before batching** — `upsertFacts` calls
+  `deduplicateEnvelopes` before each batch to prevent `SQLSTATE 21000` on
+  `ON CONFLICT DO UPDATE` when the same `fact_id` appears twice in one batch
+  (`facts.go:206`).
+- **Freshness de-dupe covers in-flight generations** —
+  `CommitScopeGeneration` must compare the incoming `FreshnessHint` with the
+  newest same-scope `pending` or `active` generation. Restricting the check to
+  `ingestion_scopes.active_generation_id` lets local polling recommit the same
+  snapshot while projection is still in flight, which creates avoidable
+  supersession churn. Do not include `failed` generations in this skip path; a
+  failed first projection must remain retryable by a later snapshot.
+- **JSONB sanitization** — `sanitizeJSONB` removes `\u0000` escape sequences
+  and raw control bytes before every fact INSERT. Skipping this causes Postgres
+  errors on repositories with binary or non-UTF-8 content.
+- **Ack atomicity** — `ProjectorQueue.Ack` wraps four SQL statements in a
+  single transaction (`projector_queue.go:105`). If any step fails, the
+  transaction rolls back. Always pass a `SQLDB` or `InstrumentedDB(SQLDB)` to
+  `NewProjectorQueue`; a bare `ExecQueryer` without `Beginner` will fail.
+- **Lease fencing** — `ProjectorQueue.Heartbeat` and `WorkflowControlStore`
+  claims check `lease_owner` on UPDATE. A zero `RowsAffected` returns
+  `ErrProjectorClaimRejected` or `ErrWorkflowClaimRejected`. Callers must stop
+  processing on these errors and must not retry the ack.
+- **Projector scope ordering** — `ProjectorQueue.Claim` must preserve one
+  active source-local generation per `scope_id`. Keep the oldest-ready-row
+  subquery with `FOR UPDATE SKIP LOCKED`; without it, parallel claimers can skip
+  a locked older row and start a newer generation for the same repository.
+  Expired `claimed` or `running` rows must stay ahead of ordinary pending rows
+  in the claim ordering, or stale leases remain overdue while newer generations
+  drain. Keep the stale duplicate reclaim CTEs in the claim path: they demote
+  expired same-scope siblings to `retrying` when another live or newly claimed
+  sibling owns the scope. Keep the `ProjectorQueue.Claim`
+  stale-generation coalescing path (`projector_queue.go:74`) and the companion
+  CTEs together; they move older same-scope projector rows and pending or
+  failed `scope_generations` to `superseded` so durable snapshot history
+  remains available without reprocessing obsolete local polling generations or
+  reporting superseded terminal failures as current health.
+  Keep the `ProjectorQueue.Heartbeat` supersede check with that claim behavior:
+  live older same-scope generations must return `projector.ErrWorkSuperseded`
+  once a newer generation is visible, or local polling can spend minutes writing
+  graph state that will be immediately obsolete.
+- **NornicDB semantic gate** — `ReducerQueue.Claim` blocks
+  `semantic_entity_materialization` while source-local projection is in-flight
+  when the NornicDB gate parameter is true. Do not remove or bypass this gate
+  without an ADR.
+- **Status domain backlog includes shared projection.** `StatusStore` merges
+  `fact_work_items` backlog with pending `shared_projection_intents` so
+  `/admin/status` remains `progressing` until reducer-owned shared edges are
+  graph-visible. Do not remove that union when editing `status.go`.
+- **Schema ordering** — tables with foreign key constraints must appear after
+  their referenced tables in `bootstrapDefinitions`. Current FK dependencies:
+  `graph_projection_phase_state` → `ingestion_scopes` + `scope_generations`.
+- **AWS checkpoint fencing** — `AWSPaginationCheckpointStore.Save` must keep the
+  `fencing_token <= EXCLUDED.fencing_token` conflict guard. A stale AWS worker
+  must not overwrite page state from a newer claim.
+- **AWS scan-status fencing** — `AWSScanStatusStore` mutations must keep their
+  fencing guards. A stale AWS worker must not overwrite per-tuple status from a
+  newer claim.
+- **AWS runtime drift joins stay bounded** —
+  `PostgresAWSCloudRuntimeDriftEvidenceLoader` must load AWS rows from one
+  `(scope_id, generation_id)` and must join Terraform state through the current
+  AWS ARN allowlist. Do not scan all active Terraform state to discover matches.
+  If backend ownership is missing or ambiguous, suppress unmanaged
+  classification for that state-backed ARN; unknown config is not proof of
+  absent config.
 
-- Writes must be idempotent. Use `ON CONFLICT` for data and `IF NOT EXISTS` for
-  schema DDL.
-- Fact inserts must deduplicate envelopes before batching and sanitize JSONB
-  payloads before insert.
-- `CommitScopeGeneration` must compare freshness against newest same-scope
-  pending or active generation. Failed generations stay retryable.
-- Queue claim, heartbeat, ack, fail, replay, supersession, stale reclaim, and
-  dead-letter behavior must remain retry-safe and lease/fence-aware.
-- `ProjectorQueue.Ack` must keep supersede, activate, scope-pointer update, and
-  work success in one transaction.
-- Stop processing on `ErrProjectorClaimRejected`, `ErrReducerClaimRejected`, or
-  `ErrWorkflowClaimRejected`; the worker no longer owns the claim.
-- Projector claims must preserve same-scope ordering, oldest-ready selection,
-  expired-lease priority, `FOR UPDATE SKIP LOCKED`, stale duplicate reclaim,
-  supersession, and heartbeat semantics.
-- Reducer NornicDB gates are narrow scheduling controls. Do not bypass semantic
-  materialization or graph-drain gates.
-- `/admin/status` must include fact, shared-projection, active-lease, retry, and
-  dead-letter signals so healthy never hides pending graph truth.
-- `BootstrapDefinitions` must stay ordered by foreign-key dependency.
-- Terraform config/state drift strings must stay byte-identical between parser
-  config rows and state flattening. Module-prefix logic uses forward-slash
-  `path`, not `path/filepath`.
-- Content writer concurrency must stay inside the Postgres pool budget.
-- Runtime paths must use existing telemetry wrappers and must not put paths,
-  ARNs, fact IDs, resource names, or payload bodies in metric labels.
+- **AWS runtime drift finding reads stay active and scoped** —
+  `AWSCloudRuntimeDriftFindingStore` reads
+  `reducer_aws_cloud_runtime_drift_finding` rows through
+  `ingestion_scopes.active_generation_id`. It rejects filters without
+  `scope_id` or valid AWS account scope, rejects wildcard-capable account or
+  region values before building the `LIKE` prefix, and caps list reads at 500
+  rows before querying; do not add unbounded fact-table scans for management
+  APIs.
 
-## Change Gates
+## Common changes and how to scope them
 
-- Schema changes require DDL, bootstrap order, mirror tests when applicable,
-  migration/default behavior, and status/recovery/query docs when affected.
-- Queue changes require a written claim-order, transaction-scope, retry,
-  idempotency, stale-lease, supersession, and dead-letter argument before code.
-- New stores use `ExecQueryer`, expose `New*Store`, add idempotent schema when
-  they own tables, register bootstrap definitions, and wire `InstrumentedDB`.
-- Fact kind or column changes require insert/scanner/schema/test updates and
-  storage compatibility review.
-- Drift or AWS changes must stay bounded, fenced, and scoped by existing
-  identity keys.
+- **Add a new Postgres store** → implement against `ExecQueryer`; add a
+  `New*Store(db ExecQueryer)` constructor; add a `*SchemaSQL()` function
+  returning idempotent DDL when the store owns a table; register owned tables in
+  `BootstrapDefinitions` in `schema.go` with the correct position in the slice;
+  wrap with `InstrumentedDB` in `cmd/` wiring for observability.
 
-## Do Not Change Without Architecture-Owner Approval
+- **Change AWS checkpoint persistence** → edit
+  `aws_pagination_checkpoint.go`; keep the primary key scoped to collector
+  instance, account, region, service, resource parent, and operation; keep
+  generation as invalidation state; and keep resource parents and page tokens
+  out of telemetry labels.
 
-- `fact_work_items` schema, lifecycle states, conflict keys, claim ordering, or
-  recovery behavior.
-- `graph_projection_phase_state` schema or phase semantics.
-- ReducerQueue NornicDB gate activation.
-- `BootstrapDefinitions` dependency order.
-- Shared projection intent identity fields.
-- Terraform drift dot-path encoding, locator-hash joins, or prior-config depth.
-- Content writer concurrency caps.
+- **State-attribute decoding or flattening** → edit
+  `tfstate_drift_evidence_state_row.go`. `stateRowFromCollectorPayload`
+  (`tfstate_drift_evidence_state_row.go:29`) decodes the collector payload and
+  calls `flattenStateAttributes` (same file, line 90) to produce the flat
+  dot-path `map[string]string`. The dot-path encoding MUST stay byte-identical
+  to `ctyValueToDriftString` in
+  `go/internal/parser/hcl/terraform_resource_attributes.go`; the classifier's
+  value-equality check in `go/internal/correlation/drift/tfconfigstate/classify.go`
+  fires across both sides. Add a cross-package regression test when changing any
+  encoding rule. Singleton repeated blocks arrive from the state collector as
+  `[]any` of length 1 whose first element is `map[string]any`;
+  `flattenStateAttributes` unwraps the outer array and recurses into the object
+  so paths like `versioning.enabled` align with the parser-emitted form.
+
+- **Parser-entry bridging (config side)** → edit
+  `tfstate_drift_evidence_config_row.go`. `configRowFromParserEntry`
+  maps one `terraform_resources` JSON entry from the HCL parser into a
+  `tfconfigstate.ResourceRow`. The `attributes` field is already flat
+  dot-path from the parser; this function copies it to
+  `ResourceRow.Attributes`. `unknown_attributes` is a JSON array of dot-path
+  strings; it becomes `ResourceRow.UnknownAttributes` so
+  `classifyAttributeDrift` can skip non-literal expressions. The function
+  takes a `modulePrefix string` parameter (issue #169) — empty for
+  root-module resources, `module.<name>[.module.<name>...]` for resources
+  inside a module {} block. The helper stays strictly 1:1; the 1→N
+  projection (one callee resource referenced by multiple module {} blocks)
+  lives in the loader's emission loop, not here, so future readers cannot
+  mistake the row builder for the projection seam.
+  Note: `loadPriorConfigAddresses` (see below) also calls
+  `configRowFromParserEntry` (through `collectPriorConfigAddresses`) with a
+  generation-appropriate prefix map. Current config uses the current map;
+  prior config uses a prior-generation map so module renames do not silently
+  regress `removed_from_config` on module-nested addresses.
+
+- **Module-aware drift joining** → edit
+  `tfstate_drift_evidence_module_prefix.go`. `buildModulePrefixMap` walks
+  `terraform_modules` parser facts (`listModuleCallsForCommitQuery`) and
+  produces a callee-directory to prefix-string slice. The loader applies
+  the map in two places: `emitConfigRowsForEntry` (current generation) and
+  `collectPriorConfigAddresses` (prior generations). Local-source modules
+  resolve to a callee directory with `path.Clean(path.Join(callerDir,
+  source))`; registry, git, archive, and cross-repo sources fall back to
+  `added_in_state` and increment
+  `eshu_dp_drift_unresolved_module_calls_total{reason}` through
+  `loggingUnresolvedRecorder` (a thin wrapper over `*telemetry.Instruments`).
+  Prior-config module rename detection records `reason="module_renamed"` on
+  the same counter once per prior generation and callee path when the prior
+  and current prefix sets differ.
+  Depth bound is `maxModulePrefixDepth = 10`, hard-coded with no env
+  override — see the constant's doc comment. Cycles are broken by the
+  per-expansion `visited` set tracked in `walkModulePrefixChain`.
+
+- **Prior-config walk for `removed_from_config`** → edit
+  `tfstate_drift_evidence_prior_config.go`. `loadPriorConfigAddresses`
+  queries prior repo-snapshot generations bounded by
+  `PostgresDriftEvidenceLoader.PriorConfigDepth` (default 10, set from
+  `ESHU_DRIFT_PRIOR_CONFIG_DEPTH`). It returns the address set that
+  `mergeDriftRows` uses to set `PreviouslyDeclaredInConfig` on state-only
+  addresses. The walk groups rows by prior generation, builds a module-prefix
+  map from each prior generation's `terraform_modules` facts, and then
+  projects prior `terraform_resources` entries with that generation's module
+  names. Current-generation and prior-generation prefix differences emit the
+  `module_renamed` telemetry reason so operators can size rename frequency.
+  When changing depth semantics, also update the `defaultPriorConfigDepth`
+  constant in the same file and the `parsePriorConfigDepth` helper in
+  `go/cmd/reducer/config.go`.
+
+- **Add a new queue domain to ReducerQueue** → add the domain constant in
+  `internal/reducer`; extend the `domain = $2` filter handling in
+  `ReducerQueue.Claim`; add tests for claim, ack, and retry paths.
+
+- **Add a new enqueue-only call site for `ReducerQueue`** → construct the
+  struct directly (`ReducerQueue{db: s.db}`) without `LeaseOwner` or
+  `LeaseDuration`. Both fields remain NULL on insert per
+  `enqueueReducerBatchPrefix`; the enqueue SQL never reads them. The
+  internal `validateEnqueue` runs without lease fields and `validateClaim`
+  adds the lease-owner fence used by `Claim`, `Heartbeat`, `Ack`, and
+  `Fail`. Both delegate the shared db-nil and `ClaimDomain.Validate()`
+  checks to `validateShared`, which stamps the calling side onto the
+  error so wrapped failures self-locate to enqueue vs claim. Do not
+  invent a parallel ReducerQueueEnqueuer port —
+  `projector.ReducerIntentWriter` already provides the narrower
+  consumer-side interface (`internal/projector/runtime.go`).
+
+- **Add a new fact kind or column** → update `upsertFactBatch` column list and
+  `columnsPerFactRow`; update `scanFactEnvelope`; update the schema DDL; add a
+  migration if the column is non-nullable without a default.
+
+- **Add a new graph projection phase** → add the phase constant in
+  `internal/reducer`; batch-upsert it via `GraphProjectionPhaseStateStore`; add
+  a matching readiness lookup path if reducer domains gate on it.
+
+- **Add Postgres telemetry** → wrap the `ExecQueryer` with `InstrumentedDB`;
+  set `StoreName` to a short descriptive label; the metric
+  `eshu_dp_postgres_query_duration_seconds{store=...,operation=...}` is emitted
+  automatically.
+
+## Failure modes and how to debug
+
+- Symptom: claim latency high (`eshu_dp_postgres_query_duration_seconds{store="queue"}`)
+  → check index coverage on `fact_work_items(stage, status, visible_at,
+  claim_until)` and `FOR UPDATE SKIP LOCKED` contention.
+
+- Symptom: multiple `projector` rows are `running` for the same `scope_id` →
+  check the oldest-ready-row guard in `ProjectorQueue.Claim`. Same-scope
+  duplicate running rows can fence pending generations and make local progress
+  look stalled even when processes are alive. If overdue claims stay visible
+  while pending rows continue to move, check that expired-lease priority still
+  precedes `updated_at` ordering and that stale duplicate reclaim still demotes
+  expired siblings to `retrying`.
+
+- Symptom: `ErrProjectorClaimRejected` or `ErrReducerClaimRejected` in logs →
+  lease expired before ack; increase `LeaseDuration` or reduce projection time;
+  check `eshu_dp_projector_stage_duration_seconds` for slow phases.
+
+- Symptom: `dead_letter` items accumulating → check `failure_class` in
+  `fact_work_items`; replay via `RecoveryStore` after root-cause investigation.
+
+- Symptom: `graph_projection_phase_state` rows missing for a scope generation →
+  projector `publish_phases` stage failed; check `GraphProjectionPhaseRepairQueueStore`
+  depth; check projector structured logs for `stage=canonical_write` error fields.
+
+- Symptom: `SQLSTATE 22P05` or `SQLSTATE 22P02` on fact INSERT → non-UTF-8 or
+  binary payload; `sanitizeJSONB` should handle this; check whether the repo
+  emits raw binary in fact payloads.
+
+- Symptom: `SQLSTATE 21000` on fact INSERT → duplicate `fact_id` in a batch;
+  check `deduplicateEnvelopes` is being called; should not happen in normal
+  operation.
+
+## Anti-patterns
+
+- **Do not use `path/filepath` in the drift evidence module helpers.** The
+  `tfstate_drift_evidence_module_prefix.go` helper deals with
+  Postgres-stored forward-slash strings (the parser's `path` field), not
+  live filesystem paths. `path/filepath.Clean` uses OS-specific separators
+  (`\` on Windows) and would silently mis-bucket callee directories on
+  Windows builds while passing every macOS/Linux test. Use `path.Clean`,
+  `path.Dir`, `path.Join` from the standard `path` package. The
+  `TestBuildModulePrefixMapForwardSlashSemanticsRegression` test locks the
+  contract in.
+- **Do not bypass `deduplicateEnvelopes`** when calling `upsertFactBatch`
+  directly. Duplicate `fact_id` values in a single multi-row INSERT trigger
+  `SQLSTATE 21000`.
+- **Do not use raw SQL string building** when adding new stores. Use parameterized
+  queries (`$1`, `$2`, ...) exclusively to prevent injection.
+- **Do not hold long transactions** across graph writes. The projector ack
+  transaction is bounded to four SQL statements; do not add graph or network
+  calls inside it.
+- **Do not add `if backend == "nornicdb"` branches** here. Backend-specific
+  queue gate logic is isolated to `ReducerQueue.Claim`'s parameterized gate
+  (`reducer_queue.go`). New backend gates must go in the same parameterized
+  pattern.
+- **Do not skip `WorkflowControlStore` lease fencing**. Always check the
+  returned error from claim mutations; silently ignoring `ErrWorkflowClaimRejected`
+  causes split-brain workflow state.
+- **Do not raise `contentWriterBatchConcurrencyAutoCap` or
+  `contentWriterBatchConcurrencyCap` without re-running the pool-budget
+  math** (`content_writer_batch.go`). Peak Postgres connection demand is
+  `ESHU_PROJECTOR_WORKERS * batch_concurrency`; the auto cap is set
+  against the 30-conn default pool from `internal/runtime/data_stores.go`.
+  Raising one without raising the other can starve collector, status, and
+  heartbeat paths.
+- **Do not re-introduce per-call `os.Getenv` reads in `ContentWriter`.**
+  The env override is resolved once in `NewContentWriter`; per-call reads
+  let a long-running ingester pick up live env changes the operator never
+  expected to be hot-reloaded.
+- **Do not assert positional `db.execs[i]` order on the entity-batch
+  path.** Entity batches fan out through `runConcurrentBatches` and
+  arrive in non-deterministic order. Assert on the sorted multiset of
+  batch sizes or on the per-batch query shape instead.
+- **Do not diverge the dot-path encoding between `coerceJSONString` /
+  `flattenStateAttributes` (`tfstate_drift_evidence_state_row.go:29`) and
+  `ctyValueToDriftString`
+  (`go/internal/parser/hcl/terraform_resource_attributes.go`).** The
+  classifier's value-equality check in
+  `go/internal/correlation/drift/tfconfigstate/classify.go` compares strings
+  produced by both sides; silent divergence causes false-positive or
+  false-negative `attribute_drift` detection without test failures in either
+  package alone. Add a cross-package test before changing any encoding rule.
+  The same address-space contract governs `loadPriorConfigAddresses`: it
+  calls `configRowFromParserEntry` on prior-generation facts, so the address
+  strings it produces must match what the current-config path produces. A
+  divergence silently misclassifies resources as `added_in_state` instead of
+  `removed_from_config`.
+
+  Multi-element repeated nested blocks (`len(typed) > 1` with a map first
+  element) are truncated to their first element on both sides and emit a
+  debug log so the dropped signal is observable. State side fires at
+  `flattenStateAttributes` (`tfstate_drift_evidence_state_row.go:90`) with
+  `multi_element.source="state_flatten"` and a `multi_element.count`
+  attr. Parser side fires at `walkBlockAttributes`
+  (`go/internal/parser/hcl/terraform_resource_attributes.go:132`) with
+  `multi_element.source="parser_walk"` and no count (recursion sees
+  duplicates one-at-a-time). Keep both sides in lockstep when changing
+  the truncation policy.
+
+## What NOT to change without an ADR
+
+- `fact_work_items` table schema (columns, indexes, conflict keys) — the projector
+  and reducer queue claim queries are tightly coupled to this schema; changes
+  require coordinated migration and claim query updates.
+- `graph_projection_phase_state` schema and phase semantics — reducer edge
+  domains gate on specific phase values; changing phase names or semantics
+  breaks the readiness contract across `internal/reducer`.
+- `ReducerQueue.Claim` NornicDB semantic gate — its presence and activation
+  condition are evidence-backed; see
+  `docs/docs/adrs/2026-04-22-nornicdb-graph-backend-candidate.md`.
+- `BootstrapDefinitions` ordering — FK constraints enforce ordering; reordering
+  without verifying all FK dependencies will break bootstrap in fresh
+  deployments.

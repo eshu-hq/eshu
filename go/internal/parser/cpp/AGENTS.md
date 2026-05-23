@@ -34,4 +34,4 @@
 - Moving registry or engine dispatch into this package.
 - Changing payload keys without updating downstream parser tests.
 - Following transitive include graphs, expanding macros, or resolving build
-  targets inside this parser package without architecture-owner-approved design.
+  targets inside this parser package without an ADR-backed design.

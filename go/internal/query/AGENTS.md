@@ -1,60 +1,211 @@
-# internal/query
+# AGENTS.md — internal/query guidance for LLM assistants
 
-`internal/query` owns public HTTP read contracts, truth envelopes, capability
-gates, OpenAPI fragments, and graph/content query ports. Treat handler changes
-as public wire-contract changes.
+## Read first
 
-## Read First
+1. `go/internal/query/contract.go` — `QueryProfile`, `GraphBackend`,
+   `TruthLevel`, `TruthBasis`, `capabilityMatrix`, `BuildTruthEnvelope`, and the
+   profile-gate helpers; every handler that returns truth metadata must understand
+   this file.
+2. `go/internal/query/handler.go` — `APIRouter`, `APIRouter.Mount`, and the four
+   response-writing helpers (`WriteJSON`, `WriteError`, `WriteSuccess`,
+   `WriteContractError`); these are the shared conventions every handler uses.
+3. `go/internal/query/ports.go` — `GraphQuery` and `ContentStore` interface
+   definitions; understand the contract before touching any handler that reads
+   from the graph or content store.
+4. `go/internal/query/openapi.go` and the `openapi_paths_*.go` files — how the
+   OpenAPI spec is assembled; any new or changed route must update the matching
+   fragment.
+5. `go/internal/telemetry/contract.go` — span name constants
+   (`SpanQueryRelationshipEvidence`, `SpanQueryDeadIaC`,
+   `SpanQueryIaCUnmanagedResources`, `SpanQueryInfraResourceSearch`,
+   `SpanQueryCodeStructuralInventory`, `SpanQueryCodeTopicInvestigation`,
+   `SpanQueryDeadCodeInvestigation`) and log key conventions; check here
+   before adding new telemetry.
 
-1. `go/internal/query/README.md`
-2. `go/internal/query/doc.go`
-3. `go/internal/query/contract.go`
-4. `go/internal/query/handler.go`
-5. `go/internal/query/ports.go`
-6. The matching `openapi_paths_*.go` file for any touched route
-7. `go/internal/telemetry/contract.go` before adding or renaming telemetry
+## Invariants this package enforces
 
-## Package Rules
+- **Capability gate before any read** — handlers call the unexported
+  `capabilityUnsupported` helper before touching `GraphQuery` or `ContentStore`.
+  A nil max-truth means the capability is blocked at the current profile.
+  `capabilityUnsupported` consults the `capabilityMatrix` map in `contract.go:134`
+  which stores `TruthLevelExact` and `TruthLevelDerived` ceiling values per
+  profile. On failure, handlers call `WriteContractError` (`handler.go:40`).
 
-- Use `eshu-mcp-call-rigor` for MCP/API tool contracts and bounded
-  graph-backed read design. Add `cypher-query-rigor` for Cypher or graph query
-  shape changes.
-- Capability-gate before graph, content, or reducer-fact reads. Unsupported
-  capabilities MUST return `WriteContractError`, not partial answers.
-- Every capability passed to `BuildTruthEnvelope` MUST exist in
-  `capabilityMatrix`; unknown capabilities are programmer errors.
-- Handlers MUST depend on `GraphQuery`, `ContentStore`, or query-local read
-  ports. Do not import graph or SQL drivers in handlers.
-- Public success responses MUST go through `WriteSuccess` so HTTP and MCP share
-  the canonical envelope and `application/eshu.envelope+json` negotiation.
-- `ResponseEnvelope`, `TruthEnvelope`, `EnvelopeMIMEType`, route behavior,
-  OpenAPI fragments, public docs, MCP expectations, and tests MUST move
-  together.
-- Adding unauthenticated paths to `publicHTTPPaths` requires explicit security
-  review.
-- Backend-specific Cypher belongs in documented adapter seams, not handlers.
+- **`BuildTruthEnvelope` panics on unknown capability** — every capability string
+  passed to `BuildTruthEnvelope` must exist in `capabilityMatrix`
+  (`contract.go:547`). Add the capability to the map before the handler is
+  callable.
 
-## Query Bounds
+- **Port boundary** — no handler calls `neo4jdriver.DriverWithContext` or
+  `*sql.DB` directly. All graph reads go through `GraphQuery`, content reads go
+  through `ContentStore`, and reducer fact reads go through query-local store
+  ports such as `IaCManagementStore`. Concrete adapters (`Neo4jReader`,
+  `ContentReader`, `PostgresIaCManagementStore`) are the only query types that
+  touch drivers. Enforced structurally: handler structs hold interface fields,
+  not concrete types.
 
-- List-style reads MUST require scope anchors, deterministic ordering, `limit+1`
-  truncation probing, negative-bound rejection, and a `truncated` signal.
-- Package-registry reads MUST require `limit` plus an ownership anchor such as
-  `package_id`, `ecosystem`, `version_id`, or `repository_id`.
-- Entity-map reads MUST resolve one typed start entity before traversal.
-- Dead-code reads MUST deduplicate entity IDs before hydration and preserve
-  language maturity/exactness blockers. JS, JSX, TS, and TSX candidates remain
-  `ambiguous` until corpus precision evidence supports promotion.
-- SQL routine reachability MUST keep the batched graph `EXECUTES` probe for
-  `SqlFunction` candidates.
-- Do not add whole-graph scans or prompt-convenience routes without a bounded
-  contract, telemetry, and performance evidence.
+- **Envelope negotiation is stable** — `WriteSuccess` branches on
+  `acceptsEnvelope(r)` (`handler.go:29`). MCP tool dispatch relies on the
+  `ResponseEnvelope` shape when `Accept: application/eshu.envelope+json` is sent.
+  Do not change the envelope field names or remove the negotiation branch.
 
-## Proof
+- **OpenAPI fragments and handler behavior must agree** — the spec is a
+  concatenation of string literals in `openapi_paths_*.go` files. A handler
+  change that adds a field or changes a route must update the matching fragment
+  in the same PR, or the live spec diverges from actual behavior.
 
-- Run `cd go && go test ./internal/query ./cmd/api -count=1` for handler,
-  OpenAPI, envelope, or capability changes.
-- Run `cd go && go test ./internal/mcp -count=1` when a route is MCP-backed.
-- Run `go run ./cmd/eshu docs verify ../go/internal/query --limit 1400 --fail-on contradicted,missing_evidence`
-  for docs changes in this package.
-- Hot graph-query or unbounded-read risk also requires tracked performance and
-  observability evidence.
+- **Package registry reads stay anchored** — `PackageRegistryHandler` in
+  `package_registry.go` must require `limit` plus a route-specific anchor
+  before graph reads: package lookups use `package_id` or `ecosystem`, version
+  lookups use `package_id`, and dependency lookups use `package_id` or
+  `version_id`. Do not add whole-graph package scans, and do not present
+  package source hints as ownership, publication ownership, or runtime
+  consumption truth.
+
+- **Dead-code scans de-duplicate entity IDs across candidate labels** —
+  `scanDeadCodeCandidates` applies `filterDuplicateDeadCodeRows`
+  (`code_dead_code_scan.go:107`) before hydration. Keep this when adding a
+  candidate label such as SQL functions, or multi-label graph rows can inflate
+  results, content reads, and candidate row counts.
+
+- **Use the dead-code `language` filter for language maturity proof** —
+  `deadCodeCandidateLabelsForLanguage` narrows SQL scans to `SqlFunction`
+  (`code_dead_code_scan.go:72`) so mixed repositories cannot fill the page
+  before SQL routine evidence is evaluated. Perl and other source-language
+  slices also rely on the filter during dogfood so earlier candidate labels do
+  not hide language-specific evidence. Keep this path when adding or dogfooding
+  a language-specific dead-code slice.
+
+- **Keep dead-code investigation conservative for JavaScript/TypeScript** —
+  `handleDeadCodeInvestigation` buckets JavaScript, JSX, TypeScript, and TSX
+  active candidates as `ambiguous` until issue #336 records corpus precision
+  evidence. Do not move those candidates into `cleanup_ready` based only on a
+  missing incoming graph edge.
+
+- **SQL routine reachability uses graph `EXECUTES` probes** —
+  `CodeHandler.filterDeadCodeResultsWithoutIncomingEdges` falls through to
+  `deadCodeResultsWithGraphIncomingEdges` for `SqlFunction` candidates
+  (`code_dead_code_scan.go:128`, `code_dead_code_scan.go:240`) because SQL
+  relationship materialization graph-writes `EXECUTES` edges directly instead
+  of storing completed shared-projection intent rows. Keep the probe batched;
+  reverting to one graph call per SQL routine can make large dead-code pages
+  too expensive, while removing the fallback can report trigger-bound SQL
+  routines as cleanup candidates.
+
+- **`Neo4jReader` opens one session per query** — `Run` and `RunSingle` open and
+  close a session within the call. Do not hold or share sessions across handler
+  calls (`neo4j.go:50`).
+
+## Common changes and how to scope them
+
+- **Add a new HTTP handler** → create a handler struct with `Neo4j GraphQuery`
+  and/or `Content ContentStore` fields, add a `Mount(mux *http.ServeMux)` method
+  with explicit `mux.HandleFunc` calls, add the struct field to `APIRouter`
+  (`handler.go:110`), call `Mount` in `APIRouter.Mount` (`handler.go:125`), wire
+  the concrete adapter in `cmd/api/wiring.go`'s `newRouter`, add a
+  `openapi_paths_*.go` fragment and reference it in `OpenAPISpec()`, update
+  `docs/docs/reference/http-api.md`. Run
+  `go test ./cmd/api ./internal/query -count=1`. Why: missing any step leaves a
+  route reachable but not documented, not gated, or not wired to the right
+  adapter.
+
+- **Add a new capability** → add an entry to `capabilityMatrix` in `contract.go`
+  with per-profile max truth levels; add the capability ID constant near the
+  existing `const` blocks if reused across handlers; call `BuildTruthEnvelope`
+  with the new ID in the handler; update `specs/capability-matrix.v1.yaml` and
+  `docs/docs/reference/http-api.md`. Run `go test ./internal/query -count=1`
+  (the `contract_endpoint_test.go` validates matrix coverage). Why:
+  `BuildTruthEnvelope` panics on unknown capability IDs at handler call time.
+
+- **Change a response shape** → update the handler method, the matching
+  `openapi_paths_*.go` string constant, and `docs/docs/reference/http-api.md` in
+  the same PR. Why: the OpenAPI spec is a static string; it does not reflect from
+  Go structs automatically.
+
+- **Add a new graph query** → write the Cypher in the handler or a helper file
+  named after the domain (`repository_*.go`, `code_*.go`); call
+  `Neo4jReader.Run` or `RunSingle`; use `StringVal`, `BoolVal`, `IntVal` to
+  extract row values; add an OTEL span via `startQueryHandlerSpan` if the query
+  represents a distinct user-visible capability. Why: consistent span attributes
+  (`http.route`, `eshu.capability`) let operators correlate latency metrics to
+  specific capabilities.
+
+- **Change structural inventory** → keep normal prompt flow on
+  `content_entities` through `ContentReader` unless a prompt truly needs graph
+  relationships. The route must keep repo/path/language/type filters, bounded
+  `limit+1` probing, deterministic ordering, truncation metadata, and source
+  handles.
+
+- **Change import dependency investigation** → keep normal import, package,
+  direct Python file-cycle, and cross-module call prompts on
+  `POST /api/v0/code/imports/investigate`. Require at least one repo/file/module
+  scope anchor before expanding `IMPORTS` or `CALLS`, keep deterministic
+  ordering plus `limit+1` truncation probing, reject negative paging bounds, and
+  return exactly one row key for each query type (`dependencies`, `modules`,
+  `cycles`, or `cross_module_calls`) plus source handles for file drill-down.
+
+- **Change call graph metrics** → keep recursive-function and hub-function
+  prompts on `POST /api/v0/code/call-graph/metrics`. Require `repo_id` before
+  expanding `CALLS`, keep deterministic ordering plus `limit+1` truncation
+  probing, reject negative paging bounds, and return canonical `functions` rows
+  with source handles, hub call-degree counts, and recursion evidence.
+
+## Failure modes and how to debug
+
+- Symptom: HTTP 501 with `error.code=unsupported_capability` → likely cause:
+  the current `QueryProfile` does not support the capability → check
+  `truth.profiles.required` in the response; verify the ESHU_QUERY_PROFILE env
+  var in the running API process.
+
+- Symptom: `repository_query.stage_completed` log events show one stage
+  dominating → likely cause: slow graph or Postgres query at that stage → inspect
+  `eshu_dp_neo4j_query_duration_seconds` labeled by the Cypher statement, or
+  `eshu_dp_postgres_query_duration_seconds` for content reads.
+
+- Symptom: span `query.relationship_evidence` shows high latency → likely cause:
+  slow Postgres relationship evidence read model query → check `ContentReader`
+  Postgres span labeled `db.operation=get_relationship_evidence` and the
+  underlying `resolved_relationships` table.
+
+- Symptom: panic in production with `query capability ... missing from capability
+  matrix` → a new handler called `BuildTruthEnvelope` with an unregistered
+  capability → add the missing entry to `capabilityMatrix` in `contract.go:134`
+  and the matching YAML spec.
+
+- Symptom: MCP tool calls receive unexpected payload shape (missing `data`
+  wrapper) → likely cause: handler used `WriteJSON` instead of `WriteSuccess`, or
+  the client is not sending `Accept: application/eshu.envelope+json` → confirm the
+  MCP transport sets the correct `Accept` header; confirm the handler calls
+  `WriteSuccess`.
+
+## Anti-patterns specific to this package
+
+- **Branching on `GraphBackend` in handler code** — backend-specific Cypher
+  differences (NornicDB vs Neo4j) belong in `internal/storage/cypher` adapters,
+  not in handler methods. Exception: `CodeHandler.graphBackend()` routes to
+  NornicDB-specific relationship helpers (`code_relationships_nornicdb.go`) —
+  that is the documented narrow seam.
+
+- **Directly importing `neo4jdriver` in handler files** — handler structs hold
+  `GraphQuery`, not `neo4jdriver.DriverWithContext`. Only `neo4j.go` and
+  `wiring.go` should import the Neo4j driver.
+
+- **Adding public routes to `publicHTTPPaths` without review** — the map in
+  `auth.go:10` bypasses bearer-token auth. Adding a data route here exposes it
+  without authentication.
+
+- **Using `panic` for profile-gate failures** — use `WriteContractError` with
+  `ErrorCodeUnsupportedCapability` and the structured `ErrorProfiles` fields.
+  Panics are reserved for programmer errors like missing capability matrix entries.
+
+## What NOT to change without an ADR
+
+- `capabilityMatrix` entry `RequiredProfile` values — these gate which runtime
+  profiles can answer which queries; changes affect CLI, MCP, and HTTP clients
+  simultaneously; see `docs/docs/reference/http-api.md` and
+  `specs/capability-matrix.v1.yaml`.
+- `ResponseEnvelope` and `TruthEnvelope` field names — these are stable wire
+  contracts used by MCP tool dispatch and CLI `--json` mode; see
+  `docs/docs/reference/http-api.md`.
+- `EnvelopeMIMEType` (`application/eshu.envelope+json`) — changing this MIME type
+  breaks every client that has already adopted envelope negotiation.

@@ -1,27 +1,48 @@
-# AGENTS.md - internal/parser/perl
+# AGENTS.md - internal/parser/perl guidance
 
-## Read First
+## Read first
 
-1. `README.md` and `doc.go`.
-2. `parser.go`.
-3. `parser_test.go` and parent Perl parser tests when behavior crosses the
-   parent wrapper.
+1. README.md - package boundary and legacy payload shape
+2. doc.go - godoc contract for the Perl adapter
+3. parser.go - regex parser and pre-scan behavior
+4. parser_test.go - behavior coverage for payload shape
 
-## Guardrails
+## Invariants this package enforces
 
-- MUST NOT import `internal/parser`; parent wrappers own registry dispatch and
-  repository path handling.
-- MUST preserve package declarations as class rows and keep `Parse`/`PreScan`
-  aligned through the same extraction path.
-- MUST keep output deterministic through shared payload helpers and sorted
-  pre-scan names.
-- MUST mark only bounded Perl roots: public packages, Exporter declarations,
-  script `main`, constructors, special blocks, `AUTOLOAD`, and `DESTROY`.
-- MUST keep special blocks as derived roots, not ordinary callable subroutines.
-- MUST NOT add repository-specific Perl conventions without fixture evidence.
+- Dependency direction stays one way: parent parser code may import this
+  package, but this package must not import internal/parser.
+- Parse preserves package declarations as class rows.
+- Public packages and bounded Exporter declarations emit
+  `dead_code_root_kinds` metadata for the query dead-code policy.
+- Perl special blocks are modeled as derived roots, not ordinary callable
+  subroutines.
+- PreScan derives names from Parse so parent pre-scan and full parse agree.
 
-## Change Scope
+## Common changes and how to scope them
 
-- Add Perl behavior with a failing `parser_test.go` or parent parser test first.
-- Do not change extension ownership, package-row shape, bucket names, or root
-  semantics without downstream shape and query review.
+- Add Perl evidence by writing a focused test in parser_test.go first.
+- Keep registry, Engine dispatch, and content-shape changes outside this
+  package unless the task explicitly includes those files.
+- Use internal/parser/shared helpers for payload buckets and sorting.
+
+## Failure modes and how to debug
+
+- Missing package rows usually mean the package regex no longer accepts
+  namespace separators.
+- Missing call rows usually mean the call regex filtered a line shape that
+  parent parser tests rely on.
+- Dead-code false positives around `main`, `new`, `@EXPORT`, `@EXPORT_OK`,
+  `AUTOLOAD`, `DESTROY`, or special blocks usually mean parser metadata did not
+  survive into the content entity row.
+
+## Anti-patterns specific to this package
+
+- Importing the parent parser package.
+- Changing package rows from classes to a new bucket without downstream shape
+  work.
+- Adding repository-specific Perl conventions without fixture evidence.
+
+## What NOT to change without an ADR
+
+- Do not change Perl extension ownership or registry behavior from this
+  package.

@@ -53,5 +53,5 @@ remain query-reported exactness blockers.
 
 ## Related Docs
 
-- `docs/public/languages/c.md`
-- `docs/public/reference/dead-code-reachability-spec.md`
+- `docs/docs/languages/c.md`
+- `docs/docs/reference/dead-code-reachability-spec.md`

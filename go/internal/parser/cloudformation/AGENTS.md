@@ -34,7 +34,7 @@
 - Wrong condition flags usually mean `evaluateConditionValue` started treating a
   dynamic expression as resolved.
 
-## What Not To Change Without Architecture-Owner Approval
+## What not to change without an ADR
 
 - Do not make CloudFormation parsing scan the repository or read files from this
   package. Callers supply one decoded document at a time.

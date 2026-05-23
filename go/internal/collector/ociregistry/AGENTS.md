@@ -1,38 +1,40 @@
-# ociregistry Agent Guidance
+# AGENTS.md — internal/collector/ociregistry guidance
 
 ## Read First
 
-1. `README.md` and `doc.go` for package scope.
-2. `identity.go` for repository and descriptor identity normalization.
-3. `envelope.go` and `warning.go` for durable fact-envelope construction.
-4. Provider README files before changing provider normalization.
-5. `ociruntime/README.md` for scan orchestration, warning behavior, and
-   telemetry.
-6. `docs/public/guides/collector-authoring.md` for the general collector fact
-   contract.
+1. `README.md` — package purpose, exported surface, and invariants
+2. `identity.go` — repository and descriptor identity normalization
+3. `envelope.go`, `warning.go` — durable fact-envelope construction
+4. Provider package README files under `dockerhub`, `ghcr`, `jfrog`, `ecr`,
+   `harbor`, `gar`, and `acr` before changing provider normalization
+5. `ociruntime/README.md` — runtime scan orchestration and telemetry
+6. `docs/docs/adrs/2026-05-10-oci-container-registry-collector.md` —
+   source-truth boundary and implementation slices
 
-## Local Rules
+## Invariants
 
-- Treat OCI registry metadata as reported evidence only. Do not claim canonical
-  workload, image, package, repository ownership, graph truth, or query truth.
-- Digest identity wins. Tags are mutable observations and must not mint image
-  identity.
-- Keep ECR in this OCI lane; AWS package feeds belong elsewhere.
-- Strip URL credentials and sensitive token query parameters before payload or
-  source-ref emission.
-- Redact unknown OCI annotation values unless architecture-owner approval adds
-  a current allowlist, package tests, and public collector docs.
-- Keep registry hosts, repository paths, tags, digests, URLs, credentials, and
-  private topology out of metrics.
-- Do not interpret SBOM, signature, attestation, or vulnerability meaning here.
+- OCI registry metadata is reported evidence. Do not claim canonical workload,
+  image, package, or repository ownership in this package.
+- Digest identity wins. Tags are mutable and must remain weak observations.
+- ECR belongs here, not in the package-registry collector lane.
+- Strip URL credentials and sensitive token query parameters before adding URLs
+  to payloads or source refs.
+- Redact unknown OCI annotation values unless an ADR defines an allowlist.
+- Do not put registry hosts, repository paths, image tags, digests, URLs, or
+  credentials in metrics.
 
-## Change Rules
+## Common Changes
 
-- Add providers by extending `Provider`, adding endpoint/auth normalization
-  tests in a provider subpackage, and wiring command/runtime code separately.
-- Add fact envelopes only after `internal/facts` exposes the fact kind and
-  schema; keep source confidence explicit.
-- Add live registry calls in `ociruntime` or provider subpackages, not in
+- Add a new provider by extending `Provider`, adding a provider subpackage with
+  endpoint/auth normalization tests, and wiring `cmd/collector-oci-registry`.
+- Add a new fact envelope builder only after `internal/facts` exposes the fact
+  kind and schema version. Keep source confidence explicit.
+- Add live registry calls in `ociruntime` or a provider subpackage, not in
   identity helpers or envelope builders.
-- Do not move package-manager feeds here or materialize graph relationships
-  from collector evidence.
+
+## What Not To Change Without An ADR
+
+- Do not move package-manager feeds into this package.
+- Do not materialize graph nodes or relationships from this package.
+- Do not treat tag names such as `latest` as immutable image identity.
+- Do not interpret SBOM, signature, attestation, or vulnerability meaning here.

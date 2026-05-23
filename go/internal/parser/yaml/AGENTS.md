@@ -1,36 +1,66 @@
-# AGENTS.md - internal/parser/yaml
+# AGENTS.md - internal/parser/yaml guidance
 
-## Read First
+## Read first
 
-1. `README.md` and `doc.go`.
-2. `language.go`, `semantics.go`, `argocd.go`, and `helm.go`.
-3. `../cloudformation/README.md` before changing CloudFormation/SAM routing.
-4. `../shared/README.md` before moving helper contracts across languages.
-5. Parent YAML and Kubernetes parser tests in `go/internal/parser`.
+1. README.md - package boundary, YAML payload behavior, and invariants
+2. doc.go - godoc contract for the YAML helper package
+3. language.go - Parse flow, document decoding, CloudFormation routing, and bucket sorting
+4. semantics.go - Kubernetes, Crossplane, Kustomize, and shared YAML metadata helpers
+5. argocd.go - Argo CD Application and ApplicationSet extraction
+6. helm.go - Helm chart, values, and template-manifest handling
+7. ../cloudformation/README.md - shared CloudFormation/SAM extraction contract
+8. ../shared/README.md - dependency-safe helper contracts for child parser packages
 
-## Guardrails
+## Invariants this package enforces
 
-- MUST NOT import `internal/parser`; parent wrappers own registry,
-  runtime, path resolution, and content metadata inference.
-- MUST preserve existing YAML payload buckets, row fields,
-  document order, and deterministic bucket ordering.
-- MUST keep CloudFormation/SAM extraction shared through
-  `internal/parser/cloudformation`; do not fork template logic in YAML.
-- MUST keep Argo CD positional source fields aligned by source index for repo,
-  path, revision, and root values, including empty positions.
-- MUST keep the existing Helm template manifest skip behavior after source
-  preservation. `Chart.yaml` and values files still emit dedicated buckets.
-- MUST treat `SanitizeTemplating` as parser hygiene only. It must not evaluate Jinja,
-  Helm, Kustomize, or CloudFormation expressions or claim rendered deployment
+- Dependency direction stays one way: parent parser code may import this
+  package, but this package must not import internal/parser.
+- Parse returns the same payload shape and ordering the parent YAML adapter
+  emitted before the package split.
+- The CloudFormation/SAM path stays shared through internal/parser/cloudformation;
+  do not duplicate template extraction in YAML.
+- YAML document order and bucket row order must remain deterministic.
+- Helm template manifests keep the existing skip behavior; Chart.yaml and values
+  files still emit their dedicated buckets.
+- Sanitized templating is only parser hygiene. It must not claim rendered
+  deployment truth.
+
+## Common changes and how to scope them
+
+- Add Kubernetes or Crossplane fields by writing a focused parent YAML parser
+  test first, then updating semantics.go.
+- Add Argo CD behavior in argocd.go and keep Application and ApplicationSet
+  cases separate enough that generator and template evidence remain visible.
+- Add Helm behavior in helm.go and include path-sensitive coverage for chart,
+  values, or template-manifest classification.
+- Keep registry dispatch, engine routing, and content metadata inference in the
+  parent parser package.
+- Keep shared helpers language-neutral. YAML-only helpers belong in this
+  package.
+
+## Failure modes and how to debug
+
+- Missing Kubernetes rows usually mean apiVersion or kind was absent after YAML
+  decoding, or the document was classified as a more specific YAML domain first.
+- Missing CloudFormation rows usually mean intrinsic tag normalization or
+  cloudformation.IsTemplate did not recognize the decoded document shape.
+- Flaky output order usually means a map iteration path was added without
+  sorting before rows are emitted.
+- Missing Helm metadata usually means the path classifier did not identify
+  Chart.yaml, values.yaml, or a chart templates directory.
+
+## Anti-patterns specific to this package
+
+- Importing the parent parser package to reuse engine, registry, or helper
+  types.
+- Evaluating Jinja, Helm, Kustomize, or CloudFormation expressions as runtime
   truth.
+- Emitting unsorted map-derived rows.
+- Adding graph, collector, query, projector, reducer, or storage dependencies.
 
-## Change Scope
+## What NOT to change without an ADR
 
-- Start Kubernetes, Crossplane, Kustomize, Argo CD, Helm, and YAML metadata
-  changes with focused parent parser tests.
-- Keep Application and ApplicationSet evidence distinct enough that generator
-  and template sources remain inspectable.
-- Do not change YAML bucket names or row fields without content shape, fact,
-  query, fixture, and docs updates plus architecture-owner approval.
-- Do not add graph, collector, projector, reducer, query, or storage
-  dependencies here.
+- Do not change YAML payload bucket names or row field names without updating
+  content shape, facts, and downstream query expectations in the same branch.
+- Do not move CloudFormation/SAM extraction out of the shared CloudFormation
+  package unless JSON and YAML callers have a replacement shared contract.

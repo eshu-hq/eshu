@@ -1,19 +1,19 @@
-# AGENTS.md - services/apigateway
+# API Gateway Service Package
 
-Read `README.md`, `doc.go`, `types.go`, `scanner.go`, `relationships.go`, and
-`awssdk/README.md` before editing this service.
+Read these files before editing this package:
 
-## Mandatory Rules
+1. `README.md`
+2. `doc.go`
+3. `types.go`
+4. `scanner.go`
+5. `relationships.go`
+6. `awssdk/README.md`
 
-- Keep API Gateway AWS access behind `Client`; the scanner package must not
-  import the AWS SDK.
-- Keep the boundary `awscloud.ServiceAPIGateway`; REST, HTTP, and WebSocket API
-  Gateway metadata share this service kind.
-- Emit reported metadata evidence only. Do not infer workload, environment,
-  repository, ownership, or deployable-unit truth.
-- Do not persist API keys, authorizer secrets, policy JSON, integration
-  credentials, stage variable values, mapping templates, request or response
-  templates, or payloads.
-- Add relationship evidence only when API Gateway directly reports both sides.
-- Keep API names, ARNs, tags, domains, log destinations, raw AWS errors, and
-  integration URIs out of metric labels.
+Keep the scanner metadata-only. Do not add API execution calls, export calls,
+API key reads, authorizer secret reads, policy JSON persistence, integration
+credential persistence, request or response template persistence, payload
+reads, or mutation APIs.
+
+The scanner boundary must remain `awscloud.ServiceAPIGateway`. REST APIs and v2
+HTTP/WebSocket APIs share this service kind so one claim can describe the full
+regional API Gateway edge surface without collector-owned workload inference.

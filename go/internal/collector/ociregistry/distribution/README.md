@@ -3,7 +3,7 @@
 ## Purpose
 
 `internal/collector/ociregistry/distribution` owns the provider-neutral OCI
-Distribution HTTP calls used by the `oci_registry` runtime. It validates
+Distribution HTTP calls used by the future `oci_registry` runtime. It validates
 registry challenges, requests bearer tokens, lists tags, fetches manifests and
 image indexes, and lists referrers where the registry supports the Referrers
 API.
@@ -44,8 +44,8 @@ This package depends only on the Go standard library and
 
 ## Telemetry
 
-This package emits no metrics, spans, or logs. `ociruntime` wraps client calls
-with OCI registry scan and API-call telemetry.
+This package emits no metrics, spans, or logs. Runtime telemetry wraps the
+client in the future claim-driven collector.
 
 ## Gotchas / invariants
 
@@ -63,4 +63,4 @@ with OCI registry scan and API-call telemetry.
 
 ## Related docs
 
-- `docs/public/reference/collector-reducer-readiness.md`
+- `docs/docs/adrs/2026-05-10-oci-container-registry-collector.md`

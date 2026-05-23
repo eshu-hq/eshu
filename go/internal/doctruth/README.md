@@ -2,53 +2,70 @@
 
 ## Purpose
 
-`doctruth` extracts documentation mentions and checkable claim candidates, then
-verifies explicit claims against caller-supplied truth sources. It powers
-documentation evidence packets and the `eshu docs verify` workflow without
-treating prose as operational truth.
+`doctruth` extracts entity mentions and non-authoritative claim candidates
+from bounded documentation sections. It also verifies explicitly checkable
+documentation claims against caller-supplied truth sources and emits durable
+finding and evidence-packet facts. The package converts documentation collector
+facts or local document inputs into follow-on evidence that an updater can
+review without treating free-form prose as operational truth.
 
 ## Ownership Boundary
 
-The package is deterministic extraction and verification code. It does not call
-Confluence, GitHub, databases, graph stores, LLMs, or the filesystem on its own.
-Callers provide section text, hints, links, command trees, OpenAPI inventories,
-environment-variable inventories, telemetry dependencies, and resolvers for
-paths, images, and Terraform addresses.
+This package owns deterministic extraction and verification only. It does not
+call Confluence, GitHub, databases, graph stores, or LLM APIs. Callers provide
+section text, structured hints, links, known Eshu entities, command trees,
+OpenAPI endpoint inventories, environment-variable inventories, and telemetry
+dependencies. Claim candidates come from structured `ClaimHint` inputs or
+bounded local-document claim extraction; the extractor and verifier only gate
+them on exact deterministic evidence and provenance.
 
-## Exported Surface
+## Flow
 
-See `doc.go` and `go doc ./internal/doctruth` for the contract. Keep verifier
-type lists in godoc; this README should stay focused on what the package may
-and may not treat as truth.
-
-## Telemetry
-
-`observability.go` records bounded verifier counters and durations. Section
-IDs, claim IDs, file paths, and excerpts stay in payloads or logs, not metric
-labels.
-
-## Gotchas / Invariants
-
-- Claim candidates are documentation evidence only; they never override runtime
-  graph or deployment truth.
-- Ambiguous or unmatched subjects suppress candidate emission.
-- Findings use explicit statuses: `valid`, `contradicted`,
-  `missing_evidence`, and `unsupported_claim_type`.
-- Generic examples such as globs, placeholders, home paths, optional config
-  paths, and bare filenames are not local repository truth claims.
-- HTTP template parameter names are normalized; concrete examples can match one
-  path segment per placeholder.
-
-## Focused Tests
-
-```bash
-cd go
-go test ./internal/doctruth -count=1
-go run ./cmd/eshu docs verify ../go/internal/doctruth --limit 1000 \
-  --fail-on contradicted,missing_evidence
+```mermaid
+flowchart LR
+  A["Documentation section input"] --> B["Deterministic mention extraction"]
+  C["Known entity catalog"] --> B
+  B --> D["Exact / ambiguous / unmatched mention facts"]
+  B --> E["Claim hint gating"]
+  E --> F["Claim candidate facts"]
 ```
 
-## Related Docs
+`Verifier` is the active documentation claim checker used by
+`eshu docs verify`. Its first implementation slice checks Markdown-family
+documents for exact `eshu ...` command claims, HTTP endpoint claims, and
+`ESHU_*` environment variable claims. It also checks explicit backticked local
+repository paths, Markdown local-link targets, tagged or digested container
+image references, and Terraform block addresses when the caller supplies
+matching resolvers; the package never walks the filesystem itself. It emits
+`documentation_finding` and `documentation_evidence_packet` fact envelopes with
+explicit statuses: `valid`, `contradicted`, `missing_evidence`, and
+`unsupported_claim_type`.
 
-- `docs/public/reference/local-testing.md`
-- `docs/public/reference/telemetry/index.md`
+## Invariants
+
+- Claim candidates are document evidence only; they never become operational
+  truth in this package.
+- Ambiguous or unmatched subject mentions suppress claim candidate emission.
+- Every emitted claim candidate carries document, revision, section, and excerpt
+  hash provenance.
+- Every verification finding carries document, section, normalized claim,
+  status, permission, and packet identity. A parsed claim is not valid unless
+  it matched a supplied truth source.
+- Unsupported claim families remain `unsupported_claim_type`; they are not
+  silently passed.
+- Metrics use bounded labels only; section IDs and claim IDs belong in logs or
+  payloads, not metric attributes.
+
+## Drift Findings
+
+`DeploymentDriftAnalyzer` compares `service_deployment` claim candidates with
+current deployment truth supplied by the caller. The analyzer does not query the
+graph or documentation source itself. It expects callers to pass exact mention
+payloads, the candidate claim, and the current deployment refs already loaded
+from Eshu truth.
+
+The analyzer returns read-only `service_deployment_drift` findings with explicit
+states: `match`, `conflict`, `ambiguous`, `unsupported`, `stale`, and
+`building`. Documentation claims never override graph truth; stale, building,
+missing, or ambiguous graph truth stays visible in the finding instead of being
+collapsed into a confident conflict.

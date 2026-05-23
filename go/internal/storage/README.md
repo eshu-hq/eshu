@@ -1,9 +1,8 @@
 # Storage
 
 `storage` contains the concrete persistence adapters for Eshu. This directory
-is a navigation root, not a Go package. Each child package owns `README.md`,
-`doc.go`, and scoped `AGENTS.md` so humans and coding agents get the same
-package boundary before editing storage code.
+is a navigation root, not a Go package — each child has its own rich
+`README.md` and `AGENTS.md`.
 
 Postgres stores facts, queue state, content, status, and recovery data.
 The Cypher subpackage defines backend-neutral graph write contracts behind
@@ -29,10 +28,9 @@ flowchart TB
 
 ## Per-package documentation convention
 
-Every Go package directory under `go/internal/storage/` carries `doc.go`,
-`README.md`, and `AGENTS.md`. Open the child READMEs for flow diagrams and
-operational notes; open child `AGENTS.md` files for scoped editing rules,
-read-first docs, and proof gates.
+Every Go package directory under `go/internal/storage/` carries three files:
+`doc.go`, `README.md`, and `AGENTS.md`. Open the child READMEs for full
+flow diagrams and operational notes.
 
 ## Dependencies
 
@@ -47,6 +45,6 @@ shared contract lives in `internal/telemetry`.
 
 ## Related docs
 
-- `docs/public/architecture.md`
-- `docs/public/reference/nornicdb-tuning.md`
-- `docs/public/reference/nornicdb-pitfalls.md`
+- `docs/docs/architecture.md`
+- `docs/docs/reference/nornicdb-tuning.md`
+- `docs/docs/adrs/2026-04-22-nornicdb-graph-backend-candidate.md`

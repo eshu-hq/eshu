@@ -1,19 +1,36 @@
-# AGENTS.md - internal/collector/awscloud/freshness
+# AWS Freshness Trigger Guidance
 
-Read `README.md`, `doc.go`, `types.go`, `eventbridge.go`, `../README.md`, and
-`../../../workflow/README.md` before editing freshness trigger behavior.
+## Read First
 
-## Mandatory Rules
+1. `doc.go` - package contract.
+2. `types.go` - trigger, target, and durable key rules.
+3. `eventbridge.go` - AWS Config/EventBridge normalization rules.
+4. `README.md` - flow, invariants, and telemetry notes.
+5. `../README.md` - AWS collector fact and boundary contract.
+6. `../../../workflow/README.md` - workflow claim lifecycle.
 
-- Treat AWS freshness events as wake-up signals only; they never prove graph,
-  workload, deployment, resource, or freshness truth.
-- Keep every target bounded to one account, one region, and one supported
-  service kind. Do not add wildcard support.
-- Preserve `aws-global` normalization for IAM, Route 53, and CloudFront.
-- Do not add AWS SDK calls, credentialed reads, graph writes, or direct scanner
-  execution here.
-- Do not bypass workflow claims or make freshness triggers authoritative over
-  scheduled scans.
-- Keep resource ARNs, names, IDs, tags, raw events, and raw AWS errors out of
-  metric labels.
-- Add event kinds with tests and bounded telemetry label docs.
+## Invariants
+
+- Treat AWS freshness events as wake-up signals only. They never prove graph,
+  workload, deployment, or resource truth.
+- Keep trigger targets bounded to one account, one region, and one supported
+  service kind.
+- Do not add AWS SDK calls here. Event parsing and credentialed AWS reads live
+  in runtime adapters.
+- Do not put resource ARNs, names, IDs, tags, or raw event payloads in metric
+  labels.
+- Preserve `aws-global` normalization for IAM, Route 53, and CloudFront so
+  global provider events target the same claim boundary as scheduled scans.
+
+## Common Changes
+
+- Add a new event kind by extending `EventKind`, tests in `types_test.go`, and
+  telemetry docs that name the bounded label value.
+- Change coalescing only when the AWS collector claim shape changes; update the
+  Postgres store and coordinator planner in the same PR.
+
+## Do Not
+
+- Do not bypass the workflow claim path.
+- Do not make freshness events authoritative over scheduled scans.
+- Do not introduce wildcard target support.

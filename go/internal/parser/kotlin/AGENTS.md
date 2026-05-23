@@ -1,34 +1,43 @@
-# AGENTS.md - internal/parser/kotlin
+# Kotlin Parser Agent Notes
 
 ## Read First
 
-1. `README.md` and `doc.go`.
-2. `parser.go`, `patterns.go`, `prescan.go`, `scope.go`, and
-   `dead_code_roots.go`.
-3. `receiver_inference.go`, `repository_returns.go`, `smart_cast.go`,
-   `type_reference.go`, `cast_receiver_calls.go`, and
-   `scope_function_helpers.go`.
-4. Parent Kotlin parser tests.
+Read parser.go first, then dead_code_roots.go, patterns.go, helpers.go,
+repository_returns.go, smart_cast.go, type_reference.go,
+receiver_inference.go, cast_receiver_calls.go, scope_function_helpers.go,
+prescan.go, and scope.go. Keep changes scoped to Kotlin unless the caller
+explicitly asks for a cross-language parser contract change.
 
-## Guardrails
+## Invariants
 
-- MUST NOT import `internal/parser`; parent wrappers own registry dispatch,
-  path handling, and Engine signatures.
-- MUST preserve Kotlin payload keys, row fields, receiver metadata,
-  `class_context`, `dead_code_root_kinds`, and deterministic bucket ordering.
-- MUST keep `Parse` and `PreScan` aligned through shared patterns and sorted
-  names.
-- MUST keep return lookup repository-bounded and package-aware. Do not let
-  unrelated sibling packages influence receiver inference.
-- MUST keep roots bounded to parser-backed Kotlin entrypoints, interfaces,
-  overrides, Gradle, Spring, lifecycle, and JUnit callback evidence.
-- MUST NOT add hidden fallbacks for ambiguous return types or whole-repository
-  scans.
+Do not import the parent parser package. Use go/internal/parser/shared for
+`shared.Options`, source reads, base payload construction, bucket appends,
+sorting, and pre-scan name cleanup.
 
-## Change Scope
+`Parse` must preserve the parent engine behavior and payload shape from
+parser.go:12 through parser.go:493. `PreScan` must continue to derive names from
+the shared patterns in patterns.go so collection pre-scan and full parsing
+agree.
 
-- Add Kotlin behavior with a failing parent parser test first.
-- Keep declaration/call extraction in `parser.go`, receiver/return inference in
-  the inference helpers, and root classification in `dead_code_roots.go`.
-- Do not change payload keys or cross-language parser behavior without
-  downstream parser contract validation.
+## Common Changes
+
+Kotlin declaration and call extraction belongs in parser.go. Receiver, return
+type, and chain inference helpers belong in receiver_inference.go, helpers.go,
+or type_reference.go. Dead-code root classification belongs in
+dead_code_roots.go. Package-neighbor return lookup belongs in
+repository_returns.go. Smart-cast and when-subject behavior belongs in
+smart_cast.go.
+
+## Failure Modes
+
+Missing imports usually show up as changed imports or absent function call
+rows. Over-broad return lookup can make unrelated sibling packages influence
+receiver inference. Scope bugs usually change `class_context`,
+`inferred_obj_type`, `dead_code_root_kinds`, or duplicate call rows.
+
+## Anti-Patterns
+
+Do not add parent-package imports, whole-repository scans, hidden fallbacks for
+ambiguous return types, or Kotlin fixes in other language packages. Do not
+change payload keys without focused Kotlin tests and downstream parser contract
+validation.

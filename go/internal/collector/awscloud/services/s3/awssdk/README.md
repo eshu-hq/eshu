@@ -13,6 +13,18 @@ This package owns SDK calls for S3. It does not own workflow claims, credential
 acquisition, S3 fact selection, graph writes, reducer admission, or query
 behavior.
 
+```mermaid
+flowchart LR
+  A["aws.Config"] --> B["NewClient"]
+  B --> C["Client.ListBuckets"]
+  C --> D["ListBuckets"]
+  C --> E["HeadBucket"]
+  C --> F["bucket metadata reads"]
+  D --> G["s3.Bucket"]
+  E --> G
+  F --> G
+```
+
 ## Exported surface
 
 See `doc.go` for the godoc contract.
@@ -22,17 +34,23 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-The adapter imports the AWS SDK for Go v2 S3 client, Smithy API errors,
-`internal/collector/awscloud` boundary/status helpers, scanner-owned S3 result
-types, and shared AWS telemetry.
+- `internal/collector/awscloud` for account, region, and service boundary
+  labels.
+- `internal/collector/awscloud/services/s3` for scanner-owned result types.
+- `internal/telemetry` for AWS API call and throttle instruments.
+- AWS SDK for Go v2 `s3` and Smithy error contracts.
 
 ## Telemetry
 
-S3 list pages and point reads record `aws.service.pagination.page`,
-`eshu_dp_aws_api_calls_total`, and `eshu_dp_aws_throttle_total`. Metric labels
-stay bounded to service, account, region, operation, and result. Bucket ARNs,
-bucket names, tags, object prefixes, KMS key IDs, and raw AWS error payloads
-stay out of metric labels.
+S3 list pages and point reads are wrapped with:
+
+- `aws.service.pagination.page`
+- `eshu_dp_aws_api_calls_total`
+- `eshu_dp_aws_throttle_total`
+
+Metric labels stay bounded to service, account, region, operation, and result.
+Bucket ARNs, bucket names, tags, object prefixes, KMS key IDs, and raw AWS error
+payloads stay out of metric labels.
 
 ## Gotchas / invariants
 
@@ -58,5 +76,5 @@ stay out of metric labels.
 
 ## Related docs
 
-- `docs/public/services/collector-aws-cloud.md`
-- `docs/public/guides/collector-authoring.md`
+- `docs/docs/adrs/2026-04-20-aws-cloud-scanner-collector.md`
+- `docs/docs/guides/collector-authoring.md`

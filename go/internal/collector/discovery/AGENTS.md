@@ -1,54 +1,114 @@
-# AGENTS.md - internal/collector/discovery
+# AGENTS.md — internal/collector/discovery guidance for LLM assistants
 
-Use `README.md` and `doc.go` for the package contract. This file preserves the
-agent-only rules for discovery output shape, ignore semantics, and stats.
+## Read first
 
-## Read First
+1. `go/internal/collector/discovery/README.md` — purpose, exported surface,
+   path invariants, and operational notes
+2. `go/internal/collector/discovery/discovery.go` — `ResolveRepositoryFileSetsWithStats`,
+   `collectSupportedFiles`, `groupFilesByRepository`, and `nearestRepositoryRoot`
+3. `go/internal/collector/discovery/gitignore.go` — `.gitignore` and
+   `.eshuignore` filtering implementations
+4. `go/internal/collector/discovery/path_globs.go` — `PathGlobRule` matching
+   and `IgnoredPathGlobs` / `PreservedPathGlobs` logic
+5. `go/internal/collector/discovery/doc.go` — the package contract
 
-1. `README.md` and `doc.go`.
-2. `discovery.go` for `ResolveRepositoryFileSetsWithStats`,
-   `collectSupportedFiles`, grouping, sorting, and repo-root detection.
-3. `gitignore.go` for `.gitignore` and `.eshuignore` filtering.
-4. `path_globs.go` for ignored and preserved path-glob behavior.
-5. `go/internal/collector/discovery_advisory.go` and
-   `go/internal/collector/git_snapshot_native.go` before surfacing new stats.
+## Invariants this package enforces
 
-## Mandatory Invariants
+- **Absolute output paths** — `RepoRoot` and all `Files` in every `RepoFileSet`
+  are absolute paths after `filepath.Abs` + `filepath.EvalSymlinks` on the scan
+  root. Files come from `filepath.WalkDir` which already produces absolute paths
+  when given an absolute scan root. This invariant is stated in the `RepoFileSet`
+  doc comment at `discovery.go:109-112`.
 
-- `SupportedFileMatcher` is required; a nil matcher returns an error.
-- `RepoFileSet.RepoRoot` and every `RepoFileSet.Files` entry are absolute
-  paths.
-- Output order is deterministic. Keep file and repo-root sorting stable.
-- Discovery is conservative: ambiguous ignore rules include files rather than
-  dropping possible source truth.
-- Root-anchored `.gitignore` and `.eshuignore` patterns stay rooted at the repo
-  root; do not turn `/name` into a suffix match.
-- Symlinks that resolve outside the scan root stay rejected.
-- When no supported files are found, discovery still returns one file set for
-  the scan root with an empty file list.
-- This package stays a leaf. Do not import `internal/collector` or
-  `internal/parser`; caller-supplied `SupportedFileMatcher` is the parser seam.
+- **Sorted output** — `Files` is sorted with `sort.Strings` before gitignore and
+  eshuignore filtering. Downstream stages rely on stable ordering across snapshot
+  runs for the same repository state. Gitignore filtering preserves sort order
+  because it only removes entries; do not re-sort after filtering.
 
-## Change Routing
+- **Conservative gitignore semantics** — ambiguous `.gitignore` rules include
+  the file rather than exclude it. This is intentional; downstream parsers
+  reject what they cannot handle. Do not change this to exclusive-by-default
+  without verifying fixture intent across the full corpus.
 
-- New skip reason: add the `Options`/`DiscoveryStats` field, record it in
-  discovery, update aggregate helpers when needed, surface it through collector
-  advisory/metrics if operator-visible, and add tests.
-- `.gitignore` behavior changes require tests for ambiguous rules and a
-  corpus-level validation pass before making exclusion more aggressive.
-- Path-glob changes need tests for match logic, preserved overrides, and
-  subtree pruning.
-- New stats that should be emitted by telemetry must be wired through
-  `recordDiscoveryMetrics`.
+- **SupportedFileMatcher required** — a nil `SupportedFileMatcher` returns an
+  error immediately. The matcher is the seam for the parser registry; callers
+  must always supply one.
 
-## Do Not Change Without Architecture-Owner Approval
+- **External symlinks skipped** — `isExternalSymlink` rejects symlinks that
+  resolve outside the scan root. This prevents traversal of system paths through
+  symlinked directories inside a repo. Do not remove this check.
 
-- Absolute path output for repo roots and files.
-- Conservative handling for ambiguous ignore rules.
-- The leaf-package boundary and parser matcher seam.
+## Common changes and how to scope them
 
-## Required Proof
+- **Add a new skip reason to Options** → add the field to `Options`, handle it
+  in `collectSupportedFiles`, add the corresponding counter to `DiscoveryStats`,
+  and populate it. Add a test in `discovery_test.go`. Update
+  `collector.LoadDiscoveryOptionsFromEnv` if the new option is env-driven.
 
-- Run `cd go && go test ./internal/collector/discovery -count=1`.
-- Run collector snapshot/advisory tests when stats or advisory output changes.
-- For docs-only edits, run `go run ./cmd/eshu docs verify ../go/internal/collector/discovery --fail-on contradicted,missing_evidence` from `go/`.
+- **Change `.gitignore` parsing behavior** → edit `gitignore.go`; add a test
+  case that exercises the ambiguous rule path. Do not change conservative
+  include semantics without a corpus-level validation pass.
+
+- **Add a new path glob matching feature** → edit `path_globs.go`; add test
+  cases covering the new match logic, a `PreservedPathGlobs` that overrides it,
+  and a subtree prune case.
+
+- **Add a stat or counter to DiscoveryStats** → add the field to `DiscoveryStats`
+  in `discovery.go`, increment it in `collectSupportedFiles`, and update
+  `TotalDirsSkipped()` or `TotalFilesSkipped()` if the counter should be
+  included in the aggregate. Update the discovery advisory report type in
+  `internal/collector/discovery_advisory.go` if the new stat should surface in
+  the advisory output.
+
+## Failure modes and how to debug
+
+- Symptom: `RepoFileSet.Files` is empty for a repo that has source files →
+  likely cause: all files matched an ignored dir, extension, or path glob rule →
+  run `eshu index --discovery-report` on the repo; check the skip breakdown
+  in the advisory output for which rules fired.
+
+- Symptom: discovery returns no `RepoFileSet` for a checked-out repo →
+  likely cause: no `.git` marker found in the directory tree → verify the repo
+  has a `.git` directory at its root; `nearestRepositoryRoot` returns empty
+  string for trees without a `.git` marker, grouping all files under the scan
+  root instead.
+
+- Symptom: gitignore-excluded files appearing in `RepoFileSet.Files` →
+  likely cause: `HonorGitignore` is not set in `Options`, or the rule is
+  ambiguous → check that `HonorGitignore=true` is in the `Options` passed to
+  discovery; review the `.gitignore` rule for ambiguity.
+
+- Symptom: `eshu_dp_discovery_files_skipped_total` counter not incrementing for
+  a new skip reason → likely cause: the new reason is not recorded in the
+  collector snapshotter's `recordDiscoveryMetrics` function
+  → check `git_snapshot_native.go` in `internal/collector` and add the new stat
+  mapping there.
+
+## Anti-patterns specific to this package
+
+- **Returning relative paths in RepoFileSet.Files** — callers depend on
+  absolute paths for `parser.Engine.ParsePath` and for `streamFacts` body
+  re-reads. Relative paths break both callers silently.
+
+- **Sorting after gitignore filtering** — the sort is applied before filtering
+  (`discovery.go:157-163`). Adding a sort after filtering changes the output
+  contract unnecessarily and wastes time.
+
+- **Importing internal/collector or internal/parser** — this package is a leaf
+  below `internal/collector`. It must not import its parent or sibling packages.
+  The `SupportedFileMatcher` function parameter is deliberately the only
+  coupling to the parser registry.
+
+- **Eager `.gitignore` exclusion for ambiguous rules** — the conservative
+  include semantic is a deliberate design choice. Overly aggressive exclusion
+  causes fixture-level mismatch and undercounts indexed files.
+
+## What NOT to change without an ADR
+
+- `RepoFileSet.RepoRoot` and `Files` being absolute paths — changing either to
+  relative paths breaks the collector snapshotter, `streamFacts`,
+  the parser engine parse dispatch, and every downstream consumer that
+  dereferences these paths.
+- Conservative gitignore semantics — changing ambiguous rule behavior from
+  include to exclude requires a corpus-level validation pass to ensure no
+  previously-indexed files disappear.

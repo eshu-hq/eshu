@@ -1,65 +1,160 @@
 # cmd/mcp-server
 
-## Purpose
+`eshu-mcp-server` boots the Eshu MCP tool transport over stdio or HTTP. It wires
+the same query layer used by `eshu-api` and dispatches MCP tool calls through
+`internal/mcp`. In HTTP mode it composes the shared runtime admin surface
+alongside the MCP-specific transport endpoints.
 
-`cmd/mcp-server` builds `eshu-mcp-server`, the MCP transport runtime for Eshu
-tools. It serves MCP over HTTP or stdio, wires the same query/content stores
-used by the HTTP API, and mounts the shared runtime admin surface in HTTP mode.
+## Where this fits in the pipeline
 
-## Ownership boundary
+```mermaid
+flowchart LR
+    Client["MCP client\n(Claude / Cursor)"]
+    Bin["eshu-mcp-server\ncmd/mcp-server"]
+    MCPPkg["internal/mcp\nServer"]
+    QueryMux["internal/query\nAPIRouter"]
+    PG["Postgres\ncontent + status"]
+    Graph["Neo4j / NornicDB\ngraph reads"]
 
-This command owns MCP process startup, transport selection, query router wiring,
-API auth wrapping for mounted `/api/*` routes, pprof opt-in, and shutdown. Tool
-dispatch lives in `internal/mcp`; query semantics live in `internal/query`.
+    Client -->|"JSON-RPC (stdio or HTTP)"| Bin
+    Bin -->|"mcp.NewServer(queryMux)"| MCPPkg
+    MCPPkg -->|"handler.ServeHTTP via httptest"| QueryMux
+    QueryMux --> PG
+    QueryMux --> Graph
+    QueryMux -->|"ResponseEnvelope"| MCPPkg
+    MCPPkg -->|"mcpToolResult"| Client
+```
+
+## Internal flow
+
+```mermaid
+flowchart TB
+    main["main()"]
+    tel["telemetry.NewBootstrap\n+ NewProviders"]
+    wire["wireAPI()"]
+    pg["sql.Open + PingContext\n(Postgres)"]
+    neo4j["internalruntime.OpenNeo4jDriver\n(Neo4j / NornicDB)"]
+    router["newMCPQueryRouter()\nquery.APIRouter"]
+    auth["query.AuthMiddleware\nprotects /api/v0/*"]
+    admin["mountRuntimeSurface()\ninternalruntime.NewStatusAdminMux"]
+    srv["mcp.NewServer(queryMux)"]
+    transport{ESHU_MCP_TRANSPORT}
+    stdio["Server.Run(ctx)\nstdin/stdout"]
+    http["Server.RunHTTP(ctx, addr, adminMux)\n/sse /mcp/message /health /api/"]
+
+    main --> tel
+    main --> wire
+    wire --> pg
+    wire --> neo4j
+    wire --> router
+    router --> auth
+    wire --> admin
+    main --> srv
+    main --> transport
+    transport -->|"stdio"| stdio
+    transport -->|"http (default)"| http
+```
+
+## Lifecycle
+
+1. `main` calls `telemetry.NewBootstrap("mcp-server")` and initialises OTEL
+   providers. On failure it logs with `telemetry.EventAttr` and exits 1.
+2. `wireAPI` opens Postgres via `sql.Open("pgx", pgDSN)` and calls
+   `PingContext`. If `ESHU_QUERY_PROFILE` is not `ProfileLocalLightweight` and
+   `ESHU_DISABLE_NEO4J` is not `true`, it also dials Neo4j via
+   `internalruntime.OpenNeo4jDriver`.
+3. `newMCPQueryRouter` wires the MCP-backed `query` handlers
+   (`RepositoryHandler`, `EntityHandler`, `CodeHandler`, `ContentHandler`,
+   `InfraHandler`, `IaCHandler`, `ImpactHandler`, `EvidenceHandler`,
+   `PackageRegistryHandler`, `CICDHandler`, `SupplyChainHandler`,
+   `StatusHandler`, `CompareHandler`) into a `query.APIRouter` and mounts it.
+4. The mounted handler is wrapped by `query.AuthMiddleware`.
+5. `mountRuntimeSurface` creates a shared admin mux via
+   `internalruntime.NewStatusAdminMux` exposing `/healthz`, `/readyz`,
+   `/metrics`, and `/admin/status`.
+6. `mcp.NewServer` is called with the authed query handler.
+7. Transport selection reads `ESHU_MCP_TRANSPORT`:
+   - `stdio` — `Server.Run` reads newline-delimited JSON-RPC from stdin;
+     no HTTP listener starts.
+   - `http` — `Server.RunHTTP` listens on `ESHU_MCP_ADDR` (default `:8080`).
+8. Shutdown is driven by `signal.NotifyContext` on `SIGINT`/`SIGTERM`.
+   Telemetry providers shut down on a fresh `context.Background()` so
+   in-flight traces are not cut short.
 
 ## Exported surface
 
-The command package exports no API. Its process contract is `--version`/`-v`,
-`ESHU_MCP_TRANSPORT`, `ESHU_MCP_ADDR`, datastore/backend/profile config,
-HTTP routes, stdio mode, and signal-driven shutdown. See `doc.go` for the
-binary summary.
+This package is a binary entry point; it exports no Go identifiers.
+The direct process contract includes `eshu-mcp-server --version` and
+`eshu-mcp-server -v`. Both flags print the build-time version through
+`printMCPServerVersionFlag`, which wraps `buildinfo.PrintVersionFlag`, before
+MCP transport, telemetry, or datastore setup begins.
 
-## Dependencies
+The compile-time interface assertions confirm that `query.Neo4jReader`
+satisfies `query.GraphQuery` and `query.ContentReader` satisfies
+`query.ContentStore` (`wiring.go:22-23`).
 
-The binary wires `internal/mcp`, `internal/query`, `internal/runtime`,
-`internal/storage/postgres`, `internal/app`-style runtime admin helpers, and
-`internal/telemetry`. It reads graph/content/status through ports and
-Postgres-backed adapters.
+## Configuration
+
+| Variable | Default | Notes |
+|---|---|---|
+| `ESHU_MCP_TRANSPORT` | `http` | `http` or `stdio` |
+| `ESHU_MCP_ADDR` | `:8080` | HTTP listen address |
+| `ESHU_POSTGRES_DSN` | — | falls back to `ESHU_CONTENT_STORE_DSN` |
+| `ESHU_GRAPH_BACKEND` | — | parsed by `query.ParseGraphBackend`; defaults to NornicDB |
+| `ESHU_QUERY_PROFILE` | `production` | `loadQueryProfile` defaults to `query.ProfileProduction` |
+| `ESHU_DISABLE_NEO4J` | — | `true` skips Neo4j dial |
+| `DEFAULT_DATABASE` | `neo4j` | Neo4j database name |
+| `ESHU_PPROF_ADDR` | unset (disabled) | Opt-in `net/http/pprof` endpoint via `runtime.NewPprofServer`; port-only inputs bind to `127.0.0.1` |
 
 ## Telemetry
 
-Startup uses `telemetry.NewBootstrap("mcp-server")`, service/component
-`mcp-server`, runtime startup/shutdown/connect events, optional pprof through
-`ESHU_PPROF_ADDR`, and the shared runtime info gauge. Per-request metrics and
-spans are emitted by query handlers and MCP dispatch, not duplicated here.
+`telemetry.NewBootstrap("mcp-server")` names the service. Lifecycle events use
+`telemetry.EventAttr` with keys `runtime.startup.failed`,
+`runtime.shutdown.failed`, `runtime.postgres.connected`, and
+`runtime.neo4j.connected`. The admin mux emits the `eshu_runtime_info` gauge.
+Per-request metrics and spans come from the `internal/query` handlers that
+`internal/mcp` dispatches into — this binary does not emit its own metrics
+or spans beyond the startup/connection events.
+
+## Operational notes
+
+- Validation errors (bad API key, bad profile, bad backend) are returned before
+  any datastore connection. `wireAPI` calls `loadQueryProfile`,
+  `loadGraphBackend`, and `internalruntime.ResolveAPIKey` before opening any
+  connection (`wiring.go:32-41`).
+- `stdio` mode does not start an HTTP listener. The admin surface (`/healthz`,
+  `/readyz`, `/metrics`) is not available in stdio mode.
+- The query API mounted under `/api/` is protected by `query.AuthMiddleware`,
+  not by the MCP transport auth.
+- `loadGraphBackend` with an empty `ESHU_GRAPH_BACKEND` defaults to
+  `query.GraphBackendNornicDB`.
+
+## Extension points
+
+- Add a new query handler: add it to `newMCPQueryRouter` in `wiring.go`,
+  assert it in `wiring_test.go`, and define the matching tool in
+  `internal/mcp/dispatch.go`.
+- Add a new transport mode: add a case to the `switch transport` in `main.go`
+  and implement a corresponding `Server` method in `internal/mcp/server.go`.
 
 ## Gotchas / invariants
 
-- Version probes must exit before telemetry, pprof, datastore, or transport
-  setup.
-- `stdio` mode does not start HTTP routes or the admin surface.
-- `wireAPI` validates API key, query profile, and graph backend before opening
-  stores.
-- `ESHU_POSTGRES_DSN` or `ESHU_CONTENT_STORE_DSN` is required before graph
-  connection setup.
-- Mounted `/api/*` routes use query auth, not MCP transport auth.
-- MCP-exposed route stores such as IaC, package, CI/CD, SBOM, supply-chain, and
-  container-image stores must stay non-nil.
-
-## Focused tests
-
-```bash
-cd go
-go test ./cmd/mcp-server -run 'Test.*Version|Test.*Wiring|Test.*Runtime|Test.*Transport' -count=1
-go test ./cmd/mcp-server ./internal/mcp ./internal/query -count=1
-```
-
-Docs-only edits should also pass the package-doc verifier and `git diff --check`.
+- `wireAPI` requires `ESHU_POSTGRES_DSN` or `ESHU_CONTENT_STORE_DSN` to be
+  non-empty; it returns an error before the Neo4j dial if either is missing
+  (`wiring.go:55-59`).
+- Version probes are pre-startup checks. Keep `printMCPServerVersionFlag` at
+  the top of `main` so MCP clients and containers can inspect the binary safely.
+- `IaCHandler.Reachability` and `IaCHandler.Management` must be non-nil;
+  `newMCPQueryRouter` always sets them to the Postgres-backed adapters
+  (`wiring.go:146`).
+- `CICDHandler.Correlations`, `SupplyChainHandler.SBOMAttachments`, and
+  `SupplyChainHandler.ImpactFindings` must be non-nil because MCP exposes read
+  tools for those routes.
 
 ## Related docs
 
-- `docs/public/deployment/service-runtimes.md`
-- `docs/public/guides/mcp-guide.md`
-- `docs/public/run-locally/docker-compose.md`
-- `go/internal/mcp/README.md`
-- `go/internal/query/README.md`
+- `docs/docs/deployment/service-runtimes.md` — MCP server runtime lane
+- `docs/docs/guides/mcp-guide.md` — client setup and usage
+- `docs/docs/deployment/docker-compose.md` — Compose topology
+- `go/internal/mcp/README.md` — tool dispatch and MCP protocol implementation
+- `go/internal/query/` — HTTP handlers that back every MCP tool call

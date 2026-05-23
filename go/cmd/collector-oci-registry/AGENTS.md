@@ -1,36 +1,39 @@
-# collector-oci-registry Agent Guidance
+# AGENTS.md - cmd/collector-oci-registry guidance for LLM assistants
 
 ## Read First
 
-1. `README.md` and `doc.go` for command scope.
-2. `config.go` and `config_test.go` for target JSON, claim-aware mode, and
-   credential env indirection.
-3. `service.go` for provider client factories, Postgres, and service wiring.
-4. `go/internal/collector/ociregistry/README.md` for fact identity and
-   redaction contracts.
-5. `go/internal/collector/ociregistry/ociruntime/README.md` for scan,
-   warning, claim, and telemetry behavior.
+1. `go/cmd/collector-oci-registry/README.md` - binary purpose, config,
+   telemetry, and invariants
+2. `go/cmd/collector-oci-registry/config.go` - target JSON and credential env
+   indirection
+3. `go/cmd/collector-oci-registry/service.go` - provider client factory and
+   `collector.Service` wiring
+4. `go/internal/collector/ociregistry/` - fact identity and envelope contracts
+5. `go/internal/collector/ociregistry/ociruntime/` - scan orchestration and
+   runtime telemetry
 
-## Local Rules
+## Invariants This Package Enforces
 
-- Keep provider credentials as runtime-only config. Do not log them, place them
-  in metrics, write them into facts, status, docs, or PR text.
-- Emit facts only through `collector.Service` or `collector.ClaimedService` and
+- Provider configs may reference credential env vars, but credentials must not
+  be logged, placed in metrics, or written into facts.
+- Facts must flow through `collector.Service` or `collector.ClaimedService` and
   `postgres.NewIngestionStore`.
-- Keep command code to SDK/client wiring. Fact identity belongs in
-  `ociregistry`; scan behavior belongs in `ociruntime`.
-- Keep `/healthz`, `/readyz`, `/metrics`, and `/admin/status` hosted through
+- The command package owns SDK/client wiring only; fact identity belongs in
+  `ociregistry`, and scan behavior belongs in `ociruntime`.
+- Keep `/healthz`, `/readyz`, `/metrics`, and `/admin/status` wired through
   `app.NewHostedWithStatusServer`.
-- Keep registry host, repository, tag, digest, URL, and credential values out
-  of metric labels.
-- Treat missing Referrers API support as warning evidence, not proof that no
-  artifacts exist.
 
-## Change Rules
+## Common Changes And How To Scope Them
 
-- Add target fields in `config.go`, test them in `config_test.go`, thread them
-  into `ociruntime.TargetConfig`, and update package docs.
-- Add providers by keeping auth and endpoint logic in provider subpackages that
-  return an `ociruntime.RegistryClient`.
-- Add or change metrics through `go/internal/telemetry` plus the telemetry
-  reference docs and focused runtime tests.
+- Add a target JSON field in `config.go`, add a `config_test.go` case, thread
+  it into `ociruntime.TargetConfig`, and update `README.md`.
+- Add a provider by keeping provider-specific auth or endpoint logic in a
+  provider subpackage and returning an `ociruntime.RegistryClient`.
+- Change metrics by updating `go/internal/telemetry`, the telemetry reference
+  docs, and this README in the same PR.
+
+## Anti-Patterns
+
+- Writing facts directly from `main.go` or `service.go`.
+- Adding registry host, repository, tag, or digest values as metric labels.
+- Treating a missing Referrers API as evidence that no artifacts exist.

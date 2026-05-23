@@ -4,42 +4,68 @@
 
 `internal/collector/tfstateruntime` connects the Terraform-state reader stack to
 workflow claims. It does not discover Git backends itself, call cloud SDKs
-directly, or commit facts. It resolves an exact candidate, opens one source,
-reads serial and lineage, parses with the workflow fencing token, and returns a
-`collector.CollectedGeneration` for `collector.ClaimedService`.
+directly, or commit facts. Its job is narrower:
 
-## Ownership boundary
+1. Resolve exact candidates through `terraformstate.DiscoveryResolver`.
+2. Open one exact source through a `SourceFactory`.
+3. Stream the state serial and lineage to build the expected snapshot
+   generation.
+4. Parse the matching state source with the workflow claim fencing token.
+5. Return a `collector.CollectedGeneration` for `collector.ClaimedService`.
 
-The package owns the workflow-claimed adapter around Terraform-state readers.
-Discovery policy, S3 credential routing, workflow claim storage, fact commits,
-and graph projection stay outside this package. Approved Git-local state is
-already exact and policy-checked before the runtime sees it.
+## Runtime Flow
 
-## Exported surface
+```mermaid
+flowchart LR
+  A["ClaimedService"] --> B["tfstateruntime.ClaimedSource"]
+  B --> C["terraformstate.DiscoveryResolver"]
+  C --> D["exact candidates"]
+  B --> E["SourceFactory"]
+  E --> F["StateSource.Open"]
+  F --> G["ReadSnapshotIdentity"]
+  B --> H["terraformstate.Parse"]
+  H --> I["CollectedGeneration"]
+```
 
-See `doc.go` and `go doc ./internal/collector/tfstateruntime` for the godoc
-contract. Callers use `ClaimedSource`, `SourceFactory`, `SourceFactoryFunc`,
-and `DefaultSourceFactory`.
+## Exported Surface
 
-## Dependencies
-
-- `internal/collector` for claimed-source and generation contracts.
-- `internal/collector/terraformstate` for discovery, source, parser, and warning
-  facts.
-- `internal/workflow` for current fencing tokens and work-item shape.
-- `internal/telemetry` for Terraform-state spans and counters.
+- `ClaimedSource` implements `collector.ClaimedSource` for Terraform-state work
+  items.
+- `SourceFactory` opens one resolved candidate as a `terraformstate.StateSource`.
+- `SourceFactoryFunc` adapts a function to `SourceFactory`.
+- `DefaultSourceFactory` opens local files directly and S3 objects through a
+  caller-supplied read-only `terraformstate.S3ObjectClient`.
+- Approved Git-local state candidates are still exact local candidates by the
+  time this package sees them. The resolver has already checked the
+  repo-relative approval policy and the runtime emits a `state_in_vcs` warning
+  when one is parsed.
 
 ## Telemetry
 
 `ClaimedSource` records Terraform-state reader metrics when instruments are
-provided: snapshot observations, source size, parser duration, resource/output/
-module/warning counts, redactions, safe drops, S3 not-modified reads, and
-unknown-composite drops. It also starts Terraform-state source-open and
-parser-stream spans. Raw locators, bucket names, local paths, and work item IDs
-must stay out of metric labels; the composite-capture warning log may carry
-high-cardinality diagnostic fields.
+provided:
 
-## Gotchas / invariants
+- snapshot observations by backend and result
+- source size after the final successful parse
+- streaming parse duration
+- resource fact count by backend
+- output and module fact counts per `safe_locator_hash` and backend
+- warning fact counts per `safe_locator_hash`, backend, and `warning_kind`
+  (including the bypass `state_too_large` and `state_missing` paths)
+- redactions and safe drops by policy reason
+- S3 conditional-read not-modified outcomes
+- `eshu_dp_drift_schema_unknown_composite_total{resource_type,reason}` whenever
+  the parser drops a composite before capture or the streaming nested walker
+  stops mid-capture. The companion `slog.Warn` line carries the
+  high-cardinality `attribute_key`, source path, reason, and diagnostic error
+  per the CLAUDE.md observability contract.
+
+The runtime also uses the Terraform-state span family from
+`go/internal/telemetry`: source open, parser stream, and fact batch handoff. Do
+not add raw source locators, bucket names, local paths, or work item IDs as
+metric labels.
+
+## Invariants
 
 - Raw state bytes stay inside `terraformstate.StateSource` readers and parser
   streams.
@@ -51,21 +77,31 @@ high-cardinality diagnostic fields.
 - S3 access stays behind the existing consumer-side `S3ObjectClient` interface;
   SDK-specific adapters and target-scope credential selection belong outside
   this package.
-- `terraformstate.ErrStateMissing` and oversized state produce warning-only
-  generations, not retryable collect errors. Transient source-open errors stay
-  on the retry path.
 
-## Focused tests
+## Missing Source Handling
 
-```bash
-cd go
-go test ./internal/collector/tfstateruntime -count=1
-go test ./internal/collector/tfstateruntime \
-  -run 'TestClaimedSourceEmitsWarningGenerationFor(MissingS3State|OversizedState)' \
-  -count=1
-```
+When an exact S3 source returns `terraformstate.ErrStateMissing`, the runtime
+emits a warning-only generation instead of returning a retryable collect error.
+This preserves the workflow claim fence, completes the stale candidate with a
+`terraform_state_warning` fact, lets the projector publish zero-row
+Terraform-state canonical phase checkpoints, and keeps transient source-open
+errors on the normal retry path.
 
-## Related docs
+No-Regression Evidence: the missing-source path is covered by
+`go test ./internal/collector/tfstateruntime -run 'TestClaimedSourceEmitsWarningGenerationFor(MissingS3State|OversizedState)' -count=1`.
+It adds no discovery fan-out, parser buffering, worker-count change, graph
+write, or new queue type.
+
+Observability Evidence: the existing Terraform-state source observation metric
+records `result=state_missing`, warning counters record
+`warning_kind=state_missing` with the bounded safe locator hash, and the emitted
+warning fact carries the source type without exposing bucket names or object
+keys.
+The projector-owned `graph_projection_phase_state` rows and workflow
+completeness rows then show whether the warning-only generation reached the
+durable zero-row projection checkpoint.
+
+## Related Docs
 
 - `go/internal/collector/terraformstate/README.md`
 - `go/internal/collector/README.md`

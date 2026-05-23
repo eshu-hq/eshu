@@ -1,65 +1,117 @@
 # internal/reducer/dsl
 
+`reducer/dsl` defines the cross-source DSL evaluation seam and the helpers
+that convert an `EvaluationResult` into durable graph-projection phase rows.
+The package owns the contract; it does not own an evaluator implementation.
+
+## Where this fits in the pipeline
+
+```mermaid
+flowchart LR
+  DSLSubstrate["DSL evaluator\n(future implementation)"] -->|Evaluator.Evaluate| Result["EvaluationResult\n{Publications}"]
+  Result -->|PhaseStates| PhaseRows["GraphProjectionPhaseState rows"]
+  PhaseRows -->|PublishEvaluationResult| Publisher["reducer.GraphProjectionPhasePublisher"]
+  Publisher --> PhaseTable["graph_projection_phase_state\n(Postgres)"]
+  PhaseTable --> DownstreamDomains["deployment_mapping\nworkload_materialization\nedge domains"]
+```
+
 ## Purpose
 
-`internal/reducer/dsl` defines the evaluator seam for cross-source DSL
-substrates and the readiness-publication helpers shared with reducer phase
-publishers.
+Pin two contracts:
+
+1. The accepted DSL reducer scaffold (`RuntimeContract`) — the four components
+   and five readiness checkpoints the DSL substrate is expected to own.
+2. The evaluator seam (`Evaluator`, `DriftEvaluator`), the publication shape
+   (`Publication`, `EvaluationResult`), and the result-to-phase helpers
+   (`PhaseStates`, `PublishEvaluationResult`).
+   `DefaultRuntimeContract` and `RuntimeContractTemplate` return defensive
+   copies so tests and ADR fixtures cannot mutate the package default.
 
 ## Ownership boundary
 
-This package owns the in-process contract: evaluator interfaces, bounded
-canonical views, evaluation results, publication rows, runtime contract
-templates, and conversion to `GraphProjectionPhaseState` rows.
-
-It does not evaluate a DSL, read storage directly, write graph edges, or own
-reducer domain orchestration. Concrete evaluators implement the interfaces here
-and publish through reducer-owned ports.
+- Owns: the scaffold contract, the `Evaluator` and `DriftEvaluator` seams,
+  `Publication` / `EvaluationResult` shapes, and the result-to-phase
+  conversion plus publish helper.
+- Does not own: an evaluator implementation. Concrete DSL substrates land
+  elsewhere.
+- Does not write to the graph. Phase rows are forwarded through
+  `reducer.GraphProjectionPhasePublisher`, wired by the parent reducer.
 
 ## Exported surface
 
-Use `go doc ./internal/reducer/dsl` for the complete exported contract. The
-stable surface is:
+### Scaffold
 
-- `Evaluator` and `DriftEvaluator`.
-- `CanonicalView`, `EvaluationResult`, `Publication`, and `OutputKind`.
-- `RuntimeContract`, `DefaultRuntimeContract`, and `RuntimeContractTemplate`.
-- `PublishEvaluationResult`, which forwards phase states through
-  `reducer.GraphProjectionPhasePublisher`.
+- `PublishedCheckpoint{Keyspace, Phase}` — `contract.go:13`.
+- `RuntimeContract{Components, Checkpoints}` — `contract.go:19`.
+- `RuntimeContract.Validate` — `contract.go:70`.
+- `DefaultRuntimeContract()` — `contract.go:56` — defensive copy.
+- `RuntimeContractTemplate()` — `contract.go:64` — alias for
+  `DefaultRuntimeContract`.
+
+Accepted scaffold: four components (`evaluator`, `drift_evaluator`,
+`deployment_mapping`, `workload_materialization`) and five checkpoints:
+
+| Keyspace | Phase |
+| --- | --- |
+| `terraform_resource_uid` | `cross_source_anchor_ready` |
+| `cloud_resource_uid` | `cross_source_anchor_ready` |
+| `webhook_event_uid` | `cross_source_anchor_ready` |
+| `service_uid` | `deployment_mapping` |
+| `service_uid` | `workload_materialization` |
+
+### Evaluator seam
+
+- `OutputKind` — `evaluator.go:13`; values `OutputKindResolvedRelationship`,
+  `OutputKindDriftObservation`.
+- `Publication{AcceptanceUnitID, Keyspace, Phase, OutputKind}` —
+  `evaluator.go:27`; `Validate` at `evaluator.go:59`.
+- `EvaluationResult{Publications}` — `evaluator.go:36`; `Validate` at
+  `evaluator.go:76`; `PhaseStates` at `evaluator.go:87`.
+- `Evaluator` interface — `evaluator.go:41`.
+- `DriftEvaluator` interface — `evaluator.go:46`.
+- `CanonicalView{ScopeID, GenerationID, CollectorKind}` — `evaluator.go:51`.
+- `PublishEvaluationResult(ctx, publisher, scopeID, generationID, result,
+  observedAt)` — `evaluator.go:155`.
 
 ## Dependencies
 
-- `internal/reducer` supplies the phase-state publisher contract.
-- `internal/status` state values are used indirectly through reducer phase
-  publication.
-
-Keep this package free of storage adapters and graph writers.
+- `go/internal/reducer` — `GraphProjectionKeyspace`, `GraphProjectionPhase`,
+  `GraphProjectionPhaseKey`, `GraphProjectionPhaseState`,
+  `GraphProjectionPhasePublisher`.
 
 ## Telemetry
 
-This package emits no metrics or spans. The reducer domain that invokes an
-evaluator owns runtime telemetry and status publication.
+The package itself does not emit metrics or spans. Callers wrap
+`PublishEvaluationResult` with their own telemetry. Shared instruments are
+in `go/internal/telemetry/instruments.go`.
 
 ## Gotchas / invariants
 
-- `RuntimeContractTemplate` must return defensive copies; callers can inspect
-  the contract but must not mutate package globals.
-- `EvaluationResult.PhaseStates` dedupes duplicate publications. Preserve
-  stable state generation because phase replay depends on it.
-- `PublishEvaluationResult` must reject invalid publications instead of writing
-  ambiguous readiness rows.
-- Keep view inputs bounded. A DSL evaluator must not default to whole-graph
-  scans when a domain-specific scope exists.
-
-## Focused tests
-
-```bash
-go test ./internal/reducer/dsl -count=1
-go doc ./internal/reducer/dsl
-```
+- **`OutputKindResolvedRelationship` feeds `resolved_relationships`** —
+  the row that other reducer domains consume. Per CLAUDE.md "Facts-First
+  Bootstrap Ordering", the bootstrap pipeline reopens `deployment_mapping`
+  work items in Phase 3 after backfill
+  (`bootstrap-index/main.go:273`). Any new domain that consumes
+  `resolved_relationships` must have its own post-Phase-3 reopen; this
+  package does not provide it.
+- **`PhaseStates` deduplicates by `(AcceptanceUnitID, Keyspace, Phase)`** —
+  `evaluator.go:108–126`; identical publications in one `EvaluationResult`
+  produce only one phase row. Deduplication is for replay stability.
+- **`PhaseStates` sorts the output** — `evaluator.go:140–149` by
+  `(AcceptanceUnitID, Keyspace, Phase)`; callers must not assume insertion
+  order.
+- **`cross_source_anchor_ready` is reserved for the DSL layer** —
+  `GraphProjectionPhaseCrossSourceAnchorReady` is defined in
+  `internal/reducer/graph_projection_phase.go`; do not publish this phase
+  from canonical projectors or other reducer handlers.
+- **`PublishEvaluationResult` is a no-op when `publisher` is nil or when
+  the result produces zero phase states** — `evaluator.go:163–168`.
+- **Zero `observedAt` falls back to `time.Now().UTC()`** — `PhaseStates`
+  calls `Validate` at `evaluator.go:87` before normalizing the timestamp.
 
 ## Related docs
 
+- `docs/docs/architecture.md`
 - `go/internal/reducer/README.md`
-- `docs/public/architecture.md`
-- `docs/public/reference/relationship-mapping.md`
+- `go/internal/reducer/aws/README.md`
+- `go/internal/reducer/tfstate/README.md`

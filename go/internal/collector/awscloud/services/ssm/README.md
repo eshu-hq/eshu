@@ -14,11 +14,26 @@ mapping. It does not own AWS SDK pagination, STS credentials, workflow claims,
 fact persistence, graph writes, reducer admission, workload ownership, or query
 behavior.
 
+```mermaid
+flowchart LR
+  A["SSM API adapter"] --> B["Client"]
+  B --> C["Scanner.Scan"]
+  C --> D["aws_resource"]
+  C --> E["aws_relationship"]
+  D --> F["facts.Envelope"]
+  E --> F
+```
+
 ## Exported surface
 
-See `doc.go` and the exported comments in `types.go` and `scanner.go` for the
-godoc contract. Keep the parameter model catalog in source comments so secret
-exclusion rules stay close to the data shape.
+See `doc.go` for the godoc contract.
+
+- `Client` - minimal SSM Parameter Store metadata read surface consumed by
+  `Scanner`.
+- `Scanner` - emits parameter metadata and direct KMS relationship facts for
+  one boundary.
+- `Parameter` - scanner-owned metadata-only parameter representation.
+- `PolicyMetadata` - safe policy shape with type and status only.
 
 ## Dependencies
 
@@ -49,19 +64,37 @@ spans.
 - KMS relationships are reported join evidence only. Correlation belongs in
   reducers.
 
-## Verification
+## Evidence
 
-```bash
-go test ./internal/collector/awscloud/services/ssm/... -count=1
-go test ./cmd/collector-aws-cloud ./internal/collector/awscloud/... -count=1
-go run ./cmd/eshu docs verify ../go/internal/collector/awscloud/services/ssm --limit 1000 \
-  --fail-on contradicted,missing_evidence
-```
+Collector Performance Evidence: `go test ./internal/collector/awscloud/services/ssm/...`
+covers the bounded SSM Parameter Store metadata path: paginated
+DescribeParameters with MaxResults=50 and one ListTagsForResource read per
+parameter name. The collector does not call GetParameter, GetParameters,
+GetParametersByPath, GetParameterHistory, decryption, mutation APIs, or graph
+writes.
 
-Run the AWS runtime tests when scan warnings or partial-status behavior changes.
+No-Regression Evidence: `go test ./cmd/collector-aws-cloud ./internal/collector/awscloud/...`
+covers SSM parameter metadata fact emission, direct KMS relationship emission,
+omission of values/history/descriptions/allowed-patterns/policy JSON, SDK
+pagination, tag reads, runtime registration, command configuration, and the SDK
+adapter's safe metadata mapping.
+
+Collector Observability Evidence: SSM uses the existing AWS collector
+`aws.service.pagination.page` span plus `eshu_dp_aws_api_calls_total`,
+`eshu_dp_aws_throttle_total`, `eshu_dp_aws_resources_emitted_total`,
+`eshu_dp_aws_relationships_emitted_total`, and `aws_scan_status` rows. Metric
+labels stay bounded to service, account, region, operation, result, and status.
+
+No-Observability-Change: the existing AWS collector telemetry contract already
+diagnoses SSM scans through `aws.service.scan`,
+`aws.service.pagination.page`, API/throttle counters, resource/relationship
+counters, and `aws_scan_status`.
+
+Collector Deployment Evidence: SSM runs inside the existing hosted
+`collector-aws-cloud` runtime, so `/healthz`, `/readyz`, `/metrics`, and
+`/admin/status` stay covered by the command wiring and Helm collector runtime.
 
 ## Related docs
 
-- `docs/public/services/collector-aws-cloud.md`
-- `docs/public/services/collector-aws-cloud-scanners.md`
-- `docs/public/guides/collector-authoring.md`
+- `docs/docs/adrs/2026-04-20-aws-cloud-scanner-collector.md`
+- `docs/docs/guides/collector-authoring.md`

@@ -2,70 +2,129 @@
 
 ## Purpose
 
-`internal/collector/confluence` reads Confluence Cloud documentation evidence and
-emits Eshu documentation facts. The package is read-only. It never writes back to
-Confluence and it does not infer source truth without caller-provided extraction
-hints.
+`internal/collector/confluence` reads Confluence Cloud documentation evidence
+and emits source-neutral documentation facts. It is intentionally read-only:
+the package gathers truth for Eshu's data plane and does not update Confluence.
 
-## Ownership boundary
+## Where This Fits In The Pipeline
 
-The package owns Confluence config parsing, read-only HTTP access, page
-normalization, storage-body link extraction, optional documentation-truth fact
-emission, and `collector.ObservedSource` observations. The command package owns
-process wiring and Postgres commits; downstream documentation services own
-diffs, excerpts, and publication workflows.
-
-## Exported surface
-
-See `doc.go` and `go doc ./internal/collector/confluence` for the godoc
-contract. Callers use `Source`, `LoadConfig`, `NewHTTPClient`, `Client`, and
-the Confluence page/config value types. `ErrPermissionDenied` marks 403/404
-page gaps that can become partial-sync evidence.
-
-## Dependencies
-
-- `internal/collector` for source and observation contracts.
-- `internal/doctruth` when callers enable mention and claim-candidate facts.
-- `internal/facts`, `internal/scope`, and `internal/telemetry` for fact,
-  generation, and metric contracts.
-
-## Telemetry
-
-`Source.NextObserved` starts the shared `collector.observe` span only after a
-non-drained poll. Confluence metrics cover bounded HTTP requests and durations,
-permission-denied pages, emitted documents/sections/links, sync failures, and
-shared fact emission/commit counts. Metric labels must stay bounded to
-operation, result, status class, failure class, source system, collector kind,
-and scope ID.
-
-## Gotchas / invariants
-
-- Exactly one bounded scope mode is required: one space, an explicit space-ID
-  allowlist, or one root page tree. Blank multi-space config must not crawl a
-  whole Confluence site.
-- `Source.Next` emits one bounded generation. In multi-space mode each call
-  emits one configured space, and the drained poll resets the cycle.
-- Non-current pages are skipped, duplicate page IDs collapse to the latest
-  visible revision, and empty spaces are valid.
-- 403 and 404 responses map to `ErrPermissionDenied`.
-- Permission gaps in a page tree are partial-sync evidence; other client
-  failures fail the generation because the collector cannot prove source state.
-- Page IDs, titles, URLs, paths, body content, and excerpts do not belong in
-  metric labels.
-
-## Focused tests
-
-Run focused checks after changing this package:
-
-```bash
-cd go
-go test ./internal/collector/confluence ./cmd/collector-confluence -count=1
-go run ./cmd/eshu docs verify ../go/internal/collector/confluence --limit 1000 \
-  --fail-on contradicted,missing_evidence
+```mermaid
+flowchart LR
+  A["cmd/collector-confluence"] --> B["confluence.Source"]
+  B --> C["Confluence Client\nGET only"]
+  B --> D["documentation facts\nsource/document/section/link"]
+  D --> E["collector.Service"]
+  E --> F["Postgres ingestion store"]
 ```
 
-## Related docs
+## Internal Flow
+
+`Source.Next` performs one bounded collection generation. `Source.NextObserved`
+uses the same path and returns `collector.CollectorObservation`, but starts the
+shared `collector.observe` span only after the source has ruled out a drained
+idle poll. The collection path loads either
+a space page list or a root page tree, filters non-current pages, keeps the
+latest visible revision per page ID, computes a stable generation ID from page
+versions, and returns fact envelopes through `collector.FactsFromSlice`.
+When configured with explicit multiple space IDs, each call emits one
+generation for one space; the drained idle poll resets the list so the next
+poll cycle starts from the first configured space again.
+
+For page trees, `ErrPermissionDenied` from a child page is counted as a
+partial-sync failure and collection continues. Other client errors fail the
+generation because the collector cannot prove the source state.
+
+## Exported Surface
+
+- `Source` - implements `collector.Source` and `collector.ObservedSource`
+- `SourceConfig` and `LoadConfig` - env-backed Confluence config loading
+- `Client` - source evidence interface used by `Source`
+- `HTTPClient` and `NewHTTPClient` - Confluence Cloud REST API v2 reader
+- `ErrPermissionDenied` - permission-gap sentinel for page tree collection
+- `Space`, `Page`, `PageVersion`, `PageBody`, `Label`, and `Links` - the
+  source response shape normalized into documentation facts
+
+## Configuration
+
+`LoadConfig` reads:
+
+- `ESHU_CONFLUENCE_BASE_URL`
+- `ESHU_CONFLUENCE_SPACE_ID`
+- `ESHU_CONFLUENCE_SPACE_IDS`
+- `ESHU_CONFLUENCE_SPACE_KEY`
+- `ESHU_CONFLUENCE_ROOT_PAGE_ID`
+- `ESHU_CONFLUENCE_EMAIL`
+- `ESHU_CONFLUENCE_API_TOKEN`
+- `ESHU_CONFLUENCE_BEARER_TOKEN`
+- `ESHU_CONFLUENCE_PAGE_LIMIT`
+- `ESHU_CONFLUENCE_POLL_INTERVAL`
+
+Exactly one bounded scope mode is required: `ESHU_CONFLUENCE_SPACE_ID`,
+`ESHU_CONFLUENCE_SPACE_IDS`, or `ESHU_CONFLUENCE_ROOT_PAGE_ID`.
+`ESHU_CONFLUENCE_SPACE_IDS` is a comma-separated allowlist of numeric space IDs;
+blank does not mean all spaces, and duplicate or empty list entries fail
+startup. Credentials must be read-only and are supplied as either bearer token
+or email plus API token. `ESHU_CONFLUENCE_POLL_INTERVAL` uses Go duration syntax
+and defaults to `5m`, which avoids tight re-reads against large spaces.
+
+## Fact Output
+
+Each generation emits:
+
+- one `documentation_source` fact
+- one `documentation_document` fact per visible current page
+- one `documentation_section` body fact per document
+- one `documentation_link` fact per extracted storage-body link
+- optional `documentation_entity_mention` and `documentation_claim_candidate`
+  facts when a caller supplies a `doctruth.Extractor` and structured claim
+  hints
+
+Document facts preserve canonical URI, revision ID, labels, owner references,
+ACL summary, content hash, source metadata, and document freshness. Section
+facts persist the source-native Confluence storage body in Postgres as
+`content` with `content_format=storage`, so downstream documentation updater
+services can build diffs without asking the collector to write back to
+Confluence. Confluence source and document ACL summaries are marked
+`credential_viewable` and partial when page restrictions are not collected;
+downstream evidence packet producers must still prove
+`viewer_can_read_source=true` before exposing excerpts or body content.
+
+The optional truth extraction seam is deterministic and read-only. The
+Confluence collector does not infer claims from broad prose and does not load an
+entity catalog by itself; callers provide those inputs when the runtime has
+already gathered them from Eshu.
+
+## Operational Notes
+
+- HTTP access is `GET` only and maps 403/404 responses to
+  `ErrPermissionDenied`.
+- Sync logs and metrics report counts, status, failure class, and bounded
+  source operations only. Page IDs, titles, URLs, paths, body content, and
+  excerpts are not emitted as metric labels. The Confluence-specific
+  `eshu_dp_confluence_http_requests_total`,
+  `eshu_dp_confluence_fetch_duration_seconds`,
+  `eshu_dp_confluence_permission_denied_pages_total`,
+  `eshu_dp_confluence_documents_observed_total`,
+  `eshu_dp_confluence_sections_emitted_total`,
+  `eshu_dp_confluence_links_emitted_total`, and
+  `eshu_dp_confluence_sync_failures_total` metrics expose source-stage cost
+  and partial-sync causes. The shared `collector.observe` span and
+  `eshu_dp_collector_observe_duration_seconds` histogram include page
+  collection, fact construction, and durable commit time; the
+  `eshu_dp_facts_emitted_total`, `eshu_dp_generation_fact_count`, and
+  `eshu_dp_facts_committed_total` metrics report documentation fact volume with
+  `source_system=confluence` and `collector_kind=documentation`.
+- Pagination follows Confluence `_links.next` values without duplicating the
+  configured context path, so Atlassian Cloud base URLs that include `/wiki`
+  work with both `/api/v2/...` and `/wiki/api/v2/...` next links.
+- Empty spaces are valid and emit a source fact with `page_count=0`.
+- Duplicate titles are safe because stable document identity uses Confluence
+  page ID, not title.
+- Stale or deleted pages are skipped unless their status is current.
+- Source metadata reports `page_count`, `failure_count`, and `sync_status`.
+
+## Related Docs
 
 - `go/cmd/collector-confluence/README.md`
 - `go/internal/collector/README.md`
-- `docs/public/guides/collector-authoring.md`
+- `docs/docs/guides/collector-authoring.md`

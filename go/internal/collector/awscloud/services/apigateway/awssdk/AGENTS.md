@@ -1,18 +1,21 @@
-# AGENTS.md - services/apigateway/awssdk
+# API Gateway AWS SDK Adapter
 
-Read `README.md`, `doc.go`, `client.go`, `rest.go`, `v2.go`, `mapper.go`,
-`helpers.go`, and `../README.md` before editing this adapter.
+Read these files before editing this package:
 
-## Mandatory Rules
+1. `README.md`
+2. `doc.go`
+3. `client.go`
+4. `rest.go`
+5. `v2.go`
+6. `mapper.go`
+7. `helpers.go`
+8. `../README.md`
 
-- Keep AWS SDK calls in this adapter and map responses into scanner-owned
-  types.
-- Allowed calls are REST `GetRestApis`, `GetStages`, `GetResources`,
-  `GetDomainNames`, `GetBasePathMappings`, and v2 `GetApis`, `GetStages`,
-  `GetIntegrations`, `GetDomainNames`, `GetApiMappings`.
-- Wrap new pages and point reads in `recordAPICall`; keep pagination bounded.
-- Do not add execution, export, API key, authorizer, policy body, credential,
-  payload, template body, or mutation calls without tests and docs proving a
-  metadata-only need.
-- Keep operation labels aligned with AWS SDK names and keep identifiers,
-  payloads, page tokens, raw AWS errors, and secrets out of metric labels.
+Allowed API calls are REST `GetRestApis`, `GetStages`, `GetResources`,
+`GetDomainNames`, `GetBasePathMappings`, and v2 `GetApis`, `GetStages`,
+`GetIntegrations`, `GetDomainNames`, `GetApiMappings`.
+
+Do not add API execution, export, API key, authorizer, policy body,
+credential, payload, template body, or mutation calls without a new issue and
+evidence note. New AWS calls must stay paginated, wrapped in `recordAPICall`,
+and covered by fake-client tests that prove the request shape and safe mapping.

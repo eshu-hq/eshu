@@ -8,7 +8,7 @@ evidence, managed node groups, managed add-ons, IAM role joins, subnet joins,
 and security group joins into `aws_resource` and `aws_relationship` facts.
 
 The package implements the EKS slice from
-`docs/public/services/collector-aws-cloud.md`.
+`docs/docs/adrs/2026-04-20-aws-cloud-scanner-collector.md`.
 
 ## Ownership boundary
 
@@ -66,5 +66,5 @@ API call counters, throttle counters, and pagination spans.
 
 ## Related docs
 
-- `docs/public/services/collector-aws-cloud.md`
-- `docs/public/reference/telemetry/index.md`
+- `docs/docs/adrs/2026-04-20-aws-cloud-scanner-collector.md`
+- `docs/docs/reference/telemetry/index.md`

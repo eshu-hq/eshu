@@ -8,13 +8,21 @@ source mappings, image references, VPC placement, and execution-role evidence
 into `aws_resource` and `aws_relationship` facts.
 
 The package implements the Lambda slice from
-`docs/public/services/collector-aws-cloud.md`.
+`docs/docs/adrs/2026-04-20-aws-cloud-scanner-collector.md`.
 
 ## Ownership boundary
 
 This package owns scanner-owned Lambda models and fact-envelope construction.
 It does not own AWS SDK calls, credentials, throttling, workflow claims, graph
 writes, reducer admission, or query behavior.
+
+```mermaid
+flowchart LR
+  A["lambda.Client"] --> B["Scanner.Scan"]
+  B --> C["Function / Alias / EventSourceMapping"]
+  C --> D["aws_resource facts"]
+  C --> E["aws_relationship facts"]
+```
 
 ## Exported surface
 
@@ -28,24 +36,23 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-The scanner imports AWS collector boundaries, fact envelope builders, fact
-envelope kinds, and `internal/redact` for keyed HMAC-SHA256 function
-environment value markers. It depends on a scanner-owned `Client` port rather
-than the AWS SDK.
+- `internal/collector/awscloud` for AWS boundaries and fact envelopes.
+- `internal/facts` for durable fact envelopes.
+- `internal/redact` for keyed HMAC-SHA256 markers for function environment
+  values before persistence.
 
 ## Telemetry
 
-This scanner emits no metrics directly. The AWS SDK adapter records API calls
-with shared AWS collector events, spans, throttle counters, and operation
-labels.
+This package emits no metrics or spans directly. The `awssdk` adapter emits AWS
+API call counters, throttle counters, and pagination spans.
 
 ## Gotchas / invariants
 
 - Function environment values are always replaced with keyed HMAC-SHA256
   markers before fact emission.
-- The AWS Lambda GetFunction API returns presigned package download URLs. Those
-  URLs must not be persisted; only image URI, resolved image URI, and KMS
-  metadata are safe scanner evidence.
+- The AWS Lambda GetFunction API returns presigned package download URLs. Those URLs must not be
+  persisted; only image URI, resolved image URI, and KMS metadata are safe
+  scanner evidence.
 - Lambda aliases and event-source mappings remain reported AWS evidence. They
   do not prove deployable-unit, workload, or ownership truth until reducer
   correlation admits them.
@@ -56,5 +63,5 @@ labels.
 
 ## Related docs
 
-- `docs/public/services/collector-aws-cloud.md`
-- `docs/public/reference/telemetry/index.md`
+- `docs/docs/adrs/2026-04-20-aws-cloud-scanner-collector.md`
+- `docs/docs/reference/telemetry/index.md`

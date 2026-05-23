@@ -2,75 +2,191 @@
 
 ## Purpose
 
-`cmd/collector-aws-cloud` builds the `eshu-collector-aws-cloud` process. The
-command loads one claim-capable AWS collector instance, opens the shared
-Postgres runtime, wires the claim runner, starts the hosted admin/status server,
-and exits on `SIGINT` or `SIGTERM`.
+`cmd/collector-aws-cloud` runs the claim-aware AWS cloud collector process. It
+loads an AWS collector instance from `ESHU_COLLECTOR_INSTANCES_JSON`, claims
+bounded `(account_id, region, service_kind)` work items, obtains claim-scoped
+AWS credentials, scans the requested AWS service, records scanner-side status,
+and commits reported facts through the shared ingestion store. A commit wrapper
+records whether the fenced fact transaction reached durable storage.
 
 ## Ownership boundary
 
 This command owns process startup, environment parsing, telemetry registration,
-Postgres wiring, and claim runner construction. It does not own AWS service
-scanner behavior, AWS SDK pagination, workflow claim storage, graph writes,
-reducer admission, or workload ownership inference.
+and claim-aware runner wiring. It does not own AWS
+credential acquisition, service scanner selection, SDK pagination, workflow row
+persistence, graph writes, reducer admission, or workload ownership inference.
+
+```mermaid
+flowchart LR
+  A["ESHU_COLLECTOR_INSTANCES_JSON"] --> B["loadRuntimeConfig"]
+  B --> C["collector.ClaimedService"]
+  C --> D["awsruntime.ClaimedSource"]
+  D --> E["awsruntime.SDKCredentialProvider"]
+  D --> F["awsruntime.DefaultScannerFactory"]
+  E --> F
+  F --> H["service awssdk adapters"]
+  H --> G["Postgres ingestion store"]
+```
 
 ## Exported surface
 
-This `package main` binary exposes the process entrypoint, `--version` / `-v`,
-`ESHU_COLLECTOR_INSTANCES_JSON`, AWS collector env, shared Postgres/OTEL/metrics
-env, and `ESHU_PPROF_ADDR`. See `doc.go` and config tests for the exact env
-contract.
+This is a command package. The public contract is the process entrypoint and
+the environment/configuration it accepts:
 
-The selected instance must be enabled, use `collector_kind="aws"`, set
-`claims_enabled=true`, and authorize concrete `(account, region, service_kind)`
-targets through either `central_assume_role` or `local_workload_identity`.
+- `ESHU_COLLECTOR_INSTANCES_JSON` - declarative collector instance list.
+- `ESHU_AWS_COLLECTOR_INSTANCE_ID` - required when more than one AWS collector
+  instance is configured.
+- `ESHU_AWS_COLLECTOR_POLL_INTERVAL` - idle poll interval.
+- `ESHU_AWS_COLLECTOR_CLAIM_LEASE_TTL` - workflow claim lease duration.
+- `ESHU_AWS_COLLECTOR_HEARTBEAT_INTERVAL` - heartbeat cadence; must be less
+  than the lease TTL.
+- `ESHU_AWS_COLLECTOR_OWNER_ID` - optional owner ID override; defaults to
+  `HOSTNAME`, then `collector-aws-cloud`.
+- `ESHU_AWS_REDACTION_KEY` - required when any target scope enables `ecs` or
+  `lambda`. The ECS and Lambda scanners use it to produce deterministic
+  HMAC-SHA256 markers for environment values before persistence.
+
+Instance configuration uses:
+
+```json
+{
+  "target_scopes": [
+    {
+      "account_id": "123456789012",
+      "allowed_regions": ["us-east-1", "aws-global"],
+      "allowed_services": ["iam", "ecr", "ecs", "ec2", "elbv2", "lambda", "eks", "route53", "sqs", "sns", "eventbridge", "s3", "rds", "dynamodb", "cloudwatchlogs", "cloudfront", "apigateway", "secretsmanager", "ssm"],
+      "max_concurrent_claims": 1,
+      "credentials": {
+        "mode": "central_assume_role",
+        "role_arn": "arn:aws:iam::123456789012:role/eshu-readonly",
+        "external_id": "external-1"
+      }
+    }
+  ]
+}
+```
+
+`local_workload_identity` is also valid and uses the local AWS SDK credential
+chain. Static credential fields are rejected during config parsing.
+`central_assume_role` requires an external ID, and the role ARN's account must
+match the target `account_id`. `local_workload_identity` must not set
+`role_arn` or `external_id`.
 
 ## Dependencies
 
-- `internal/app` for the hosted service and status server.
-- `internal/collector` for the claim-aware runner.
-- `internal/collector/awscloud/awsruntime` for claim validation, target
-  authorization, credentials, scanners, checkpoints, and collected generations.
-- `internal/storage/postgres` for workflow claims, ingestion commits, scan
-  status, and status reports.
-- `internal/telemetry` for metrics, traces, logs, and Prometheus wiring.
+- `internal/collector` for the claim-aware collector runner.
+- `internal/collector/awscloud/awsruntime` for claim parsing, credentials,
+  scanner registry, and collected generation construction.
+- `internal/storage/postgres` for workflow claims, ingestion commits, AWS scan
+  status rows, and status reports.
 
 ## Telemetry
 
-The command registers shared data-plane instruments plus AWS claim, scan,
-API-call, throttle, AssumeRole, checkpoint, resource, relationship, and tag
-signals. The hosted runtime mounts `/healthz`, `/readyz`, `/metrics`, and
-`/admin/status`.
+The command registers the shared data-plane telemetry instruments and emits:
+
+- `eshu_dp_aws_api_calls_total`
+- `eshu_dp_aws_throttle_total`
+- `eshu_dp_aws_assumerole_failed_total`
+- `eshu_dp_aws_budget_exhausted_total`
+- `eshu_dp_aws_pagination_checkpoint_events_total`
+- `eshu_dp_aws_claim_concurrency`
+- `eshu_dp_aws_resources_emitted_total`
+- `eshu_dp_aws_relationships_emitted_total`
+- `eshu_dp_aws_tag_observations_emitted_total`
+- `eshu_dp_aws_scan_duration_seconds`
+- `aws.collector.claim.process`
+- `aws.credentials.assume_role`
+- `aws.service.scan`
+- `aws.service.pagination.page`
+
+The claim concurrency gauge is backed by the runtime's per-account limiter.
 
 ## Gotchas / invariants
 
-- Static AWS access-key fields are rejected before any claim can run.
-- `central_assume_role` requires `role_arn` and `external_id`; the role ARN
+- The command never accepts static access-key fields in collector instance
+  configuration.
+- `central_assume_role` must include `role_arn` and `external_id`; the role ARN
   account must match the target `account_id`.
-- `local_workload_identity` must not set `role_arn` or `external_id`.
-- Wildcard regions and services are rejected.
-- ECS and Lambda target scopes require `ESHU_AWS_REDACTION_KEY`; IAM and ECR do
-  not.
+- `local_workload_identity` rejects `role_arn` and `external_id` so local and
+  central credential routing cannot be mixed.
+- Wildcard regions or services are rejected; `allowed_services` must name a
+  shipped AWS scanner family.
+- AWS SDK configuration and service pagination live under `awsruntime` and
+  service `awssdk` adapters; command tests should not mock the full AWS SDK
+  surface.
+- Credential leases are released after scanner construction and service scan.
+- ECS and Lambda targets require `ESHU_AWS_REDACTION_KEY`; IAM and ECR targets
+  do not.
+- ELBv2 targets emit stable routing topology and intentionally exclude target
+  health status.
+- Route 53 targets emit hosted-zone resources and A/AAAA/CNAME/ALIAS DNS record
+  facts. Use a global region label such as `aws-global` when scheduling Route
+  53 claims.
+- EC2 targets emit VPC, subnet, security-group, security-group-rule, and ENI
+  network-topology facts. They intentionally do not emit EC2 instance
+  inventory.
+- Lambda targets emit function, alias, event-source mapping, image URI,
+  execution-role, subnet, and security-group evidence. They intentionally do
+  not fetch function code or persist presigned package download URLs.
+- SQS targets emit queue metadata and reported dead-letter queue relationships.
+  They intentionally do not read messages, mutate queues, or persist queue
+  policy JSON.
+- SNS targets emit topic metadata and ARN-addressable subscription
+  relationships. They intentionally do not publish messages, mutate
+  subscriptions, persist topic policy JSON, persist data-protection-policy JSON,
+  or persist raw email, SMS, HTTP, or HTTPS subscription endpoints.
+- EventBridge targets emit event bus metadata, rule metadata, rule-to-bus
+  relationships, and ARN-addressable target relationships. They intentionally do
+  not put events, mutate rules or targets, persist event bus policy JSON,
+  persist target input payload fields, persist input transformers, persist HTTP
+  target parameters, or persist raw non-ARN target identities.
+- S3 targets emit bucket metadata and reported server-access-log target bucket
+  relationships. They intentionally do not read objects, list object keys,
+  mutate buckets, persist bucket policy JSON, persist ACL grants, persist
+  replication rules, persist lifecycle rules, persist notification
+  configuration, or persist inventory, analytics, or metrics configuration.
+- RDS targets emit DB instance, DB cluster, and DB subnet group metadata plus
+  reported cluster membership, subnet group, security group, KMS key, monitoring
+  role, IAM role, parameter group, and option group relationships. They
+  intentionally do not connect to databases, read snapshots, read log contents,
+  read Performance Insights samples, discover schemas or tables, or mutate RDS
+  resources.
+- DynamoDB targets emit table metadata plus directly reported KMS key
+  relationships. They intentionally do not read items, scan or query tables,
+  read stream records, fetch backup/export payloads, fetch resource policies,
+  run PartiQL, or mutate DynamoDB resources.
+- CloudWatch Logs targets emit log group metadata plus directly reported KMS
+  key relationships. They intentionally do not read log events, log stream
+  payloads, run Insights queries, fetch export payloads, persist resource
+  policies or subscription payloads, or mutate CloudWatch Logs resources.
+- CloudFront targets emit distribution metadata plus directly reported ACM
+  certificate and WAF web ACL relationships. They intentionally do not read
+  objects, origin payloads, distribution config payloads, policy documents,
+  certificate bodies, private keys, origin custom header values, or mutate
+  CloudFront resources.
+- API Gateway targets emit REST, HTTP, WebSocket, stage, custom-domain,
+  mapping, access-log destination, ACM certificate, and ARN-addressable
+  integration metadata. They intentionally do not execute APIs, export APIs,
+  read API keys, read authorizer secrets, persist policy JSON, persist
+  integration credentials, persist stage variable values, persist template
+  bodies, read payloads, or mutate API Gateway resources.
+- Secrets Manager targets emit secret metadata plus directly reported KMS key
+  and rotation Lambda relationships. They intentionally do not read secret
+  values, read version payloads, persist resource policy JSON, persist external
+  rotation partner metadata, persist external rotation role ARNs, or mutate
+  Secrets Manager resources.
+- SSM targets emit Parameter Store metadata plus directly reported KMS key
+  relationships. They intentionally do not read parameter values, read history
+  values, persist raw descriptions, persist raw allowed patterns, persist raw
+  policy JSON, decrypt SecureString content, or mutate SSM resources.
 - The acceptance unit ID must be JSON with `account_id`, `region`, and
   `service_kind`.
-- `/admin/status` separates scanner status from durable commit status. A
-  succeeded scan with failed commit is a persistence problem.
-- Scanner-specific data boundaries belong in the public scanner reference and
-  service package READMEs, not this command README.
-
-## Focused tests
-
-```bash
-cd go
-go test ./cmd/collector-aws-cloud -count=1
-go test ./internal/collector/awscloud/awsruntime \
-  -run 'TestClaimedSourceRecordsEmissionCounters|TestClaimedSourceRecordsScanStatusWithAPICallStats' \
-  -count=1 -v
-```
+- `/admin/status` includes per `(account_id, region, service_kind)` AWS scan
+  status, commit status, API call count, throttle count, and outstanding
+  warning class when the data-plane schema includes `aws_scan_status`.
 
 ## Related docs
 
-- `docs/public/services/collector-aws-cloud.md`
-- `docs/public/services/collector-aws-cloud-security.md`
-- `docs/public/services/collector-aws-cloud-scanners.md`
-- `docs/public/reference/telemetry/index.md`
+- `docs/docs/adrs/2026-04-20-aws-cloud-scanner-collector.md`
+- `docs/docs/guides/collector-authoring.md`
+- `docs/docs/reference/telemetry/index.md`

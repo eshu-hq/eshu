@@ -1,57 +1,166 @@
-# cmd/workflow-coordinator
+# workflow-coordinator
 
 ## Purpose
 
-`cmd/workflow-coordinator` builds `eshu-workflow-coordinator`, the runtime that
-reconciles collector instance state and, when deployment mode is active, reaps
-expired collector claims and recomputes workflow-run completeness.
+`eshu-workflow-coordinator` reconciles the declarative set of collector
+instances against the durable store and, in active mode, reaps expired
+work-item claims, plans supported collector work, and recomputes workflow-run
+state. It exposes the shared admin/status contract during its dark rollout so
+operators can validate the control plane before active mode is enabled.
+Trigger normalization is not part of this binary today; provider-trigger truth
+is still owned by source-specific components.
 
-## Ownership boundary
+## Where this fits in the pipeline
 
-This command owns process startup, deployment-mode wiring, status hosting, and
-coordinator service configuration. It does not normalize triggers, collect
-source data, emit facts, or decide graph truth.
+```mermaid
+flowchart LR
+  CFG["ESHU_COLLECTOR_INSTANCES_JSON\n(declarative config)"] --> SVC["coordinator.Service"]
+  SVC --> WCS["WorkflowControlStore\n(Postgres)"]
+  WCS --> ADM["/healthz /readyz\n/metrics /admin/status"]
+```
+
+The binary does not touch the canonical graph backend and does not call the
+reducer or projector queues directly. Its only durable surface is Postgres via
+`NewWorkflowControlStore`.
+
+## Internal flow
+
+```mermaid
+flowchart TB
+  A["run(ctx)\nboot OTEL + Postgres"] --> B["LoadConfig\nparse ESHU_WORKFLOW_COORDINATOR_* vars"]
+  B --> C["NewMetrics\nregister OTEL instruments"]
+  C --> D["NewWorkflowControlStore\nwrap Postgres connection"]
+  D --> E["coordinator.Service{Config, Store, Metrics, Logger}"]
+  E --> F["NewHostedWithStatusServer\nmount /healthz /readyz /metrics /admin/status"]
+  F --> G["service.Run(ctx)"]
+  G --> H["runReconcile\n(always, every ReconcileInterval)\nplans tfstate + OCI registry in active mode"]
+  G --> I{"DeploymentMode == active?"}
+  I -- yes --> J["runReapExpiredClaims\n(every ReapInterval)"]
+  I -- yes --> K["runWorkflowReconciliation\n(on reconcile tick)"]
+  I -- no / dark --> L["reapTicker is nil\nno reap or run-reconcile loops"]
+```
+
+## Lifecycle
+
+1. `run` calls `NewBootstrap("workflow-coordinator")` and `NewProviders` to
+   bring up OTEL tracing, metrics, and the Prometheus handler.
+2. `OpenPostgres(parent, os.Getenv)` opens the Postgres connection using
+   the standard Postgres environment variables.
+3. `LoadConfig(os.Getenv)` parses all ESHU_WORKFLOW_COORDINATOR_* and
+   ESHU_COLLECTOR_INSTANCES_JSON env vars and validates the resulting `Config`.
+4. `NewMetrics` registers OTEL instruments against the
+   `eshu_dp_workflow_coordinator_` prefix.
+5. `NewWorkflowControlStore` wraps the connection as the `Store`
+   implementation.
+6. `coordinator.Service` is wired with all dependencies, including
+   Terraform-state, OCI registry, package registry, scheduled AWS, and AWS
+   freshness planners, and handed to
+   `NewHostedWithStatusServer`, which mounts the admin surface.
+7. `NotifyContext` installs SIGINT/SIGTERM shutdown; `Service.Run` blocks
+   until the context is cancelled.
+
+## Configuration
+
+All variables are parsed by `LoadConfig`. See `internal/coordinator/config.go`
+for the full list. Key env vars:
+
+- ESHU_WORKFLOW_COORDINATOR_DEPLOYMENT_MODE — `dark` (default) or `active`
+- ESHU_WORKFLOW_COORDINATOR_CLAIMS_ENABLED — must be `true` for active mode;
+  default `false`; also accepted as ESHU_WORKFLOW_COORDINATOR_ENABLE_CLAIMS
+- ESHU_WORKFLOW_COORDINATOR_RECONCILE_INTERVAL — collector-instance reconcile
+  and scheduled-work planning cadence; default `30s`
+- ESHU_WORKFLOW_COORDINATOR_RUN_RECONCILE_INTERVAL — workflow-run status and
+  completeness reconcile cadence; default `30s`
+- ESHU_WORKFLOW_COORDINATOR_REAP_INTERVAL — expired-claim reap cadence
+  (active mode only); default `20s`
+- ESHU_WORKFLOW_COORDINATOR_CLAIM_LEASE_TTL — claim lease TTL; default `60s`
+- ESHU_WORKFLOW_COORDINATOR_HEARTBEAT_INTERVAL — must be strictly less than
+  the lease TTL; default `20s`
+- ESHU_WORKFLOW_COORDINATOR_EXPIRED_CLAIM_LIMIT — max claims reaped per pass;
+  default `100`
+- ESHU_WORKFLOW_COORDINATOR_EXPIRED_CLAIM_REQUEUE_DELAY — visibility delay
+  after reap; default `5s`
+- ESHU_COLLECTOR_INSTANCES_JSON — JSON array of collector instance objects
+
+Compose exposes the optional metrics port `19469`. Helm keeps deployment mode
+`dark` and claims disabled by default.
 
 ## Exported surface
 
-The command package exports no API. Its process contract is version probing,
-environment-driven mode selection, hosted admin routes, pprof opt-in, and
-signal-driven shutdown. See `doc.go` for the binary summary.
+This binary is a thin wiring layer. Its own identifiers are `main` and `run`
+in `main.go`. All coordinator behavior lives in `internal/coordinator` and
+`internal/workflow`.
+
+The direct process contract includes `eshu-workflow-coordinator --version` and
+`eshu-workflow-coordinator -v`. Both flags print the build-time version through
+`buildinfo.PrintVersionFlag` before telemetry or Postgres setup begins.
 
 ## Dependencies
 
-The binary wires `internal/coordinator`, `internal/storage/postgres`,
-`internal/runtime`, `internal/app`, `internal/status`, and `internal/telemetry`.
-Postgres owns workflow state and claim persistence.
+- `internal/coordinator` — `Service`, `LoadConfig`, `NewMetrics`, `Store`;
+  the coordinator loop and config parsing
+- `internal/workflow` — type contracts consumed by `coordinator.Service`
+- `internal/storage/postgres` — `NewWorkflowControlStore`, `NewStatusStore`;
+  Postgres-backed store implementations
+- `internal/app` — `NewHostedWithStatusServer`; hosts the service with the
+  shared admin surface
+- `internal/runtime` — `OpenPostgres`, `WithPrometheusHandler`; Postgres
+  connection and Prometheus handler helpers
+- `internal/telemetry` — `NewBootstrap`, `NewProviders`, `NewLogger`;
+  OTEL bootstrap
 
 ## Telemetry
 
-Startup uses `telemetry.NewBootstrap("workflow-coordinator")`, service/component
-`workflow-coordinator`, default tracer/meter instruments, optional pprof through
-`ESHU_PPROF_ADDR`, and the shared `/healthz`, `/readyz`, `/metrics`, and
-`/admin/status` routes.
+- OTEL setup: `NewBootstrap("workflow-coordinator")` + `NewProviders`
+- Logger scope and component: `workflow-coordinator`
+- Domain metrics from `NewMetrics` (see `internal/coordinator/README.md` for
+  the full metric list)
+- Admin surface: `/healthz`, `/readyz`, `/metrics`, `/admin/status` mounted by
+  `NewHostedWithStatusServer`
+
+## Operational notes
+
+- Deployment mode `dark` is the default. The reconcile loop runs; the reap and
+  run-reconciliation loops do not. Use the admin surface to confirm the binary
+  is live and reconciling before enabling active mode.
+- Version probes are pre-startup checks. Keep `buildinfo.PrintVersionFlag` at
+  the top of `main` so deployment checks do not need database credentials.
+- To enable active mode, set ESHU_WORKFLOW_COORDINATOR_DEPLOYMENT_MODE=active,
+  ESHU_WORKFLOW_COORDINATOR_CLAIMS_ENABLED=true, and supply at least one
+  enabled claim-capable collector instance in ESHU_COLLECTOR_INSTANCES_JSON.
+  `Config.Validate` rejects active mode without these conditions.
+- Active mode plans Terraform-state, OCI registry, package registry, and
+  opt-in scheduled AWS work today. AWS freshness webhooks still create targeted
+  AWS work when provider triggers are present.
+- The binary does not reconcile canonical graph truth. It is a control plane on
+  top of `eshu-reducer` and `eshu-ingester`.
+- Shutdown is signal-driven (SIGINT or SIGTERM). `NewHostedWithStatusServer`
+  drains the hosted service cleanly before exit.
+- `eshu_dp_workflow_coordinator_collector_instance_drift` rising in Prometheus
+  or structured log warnings mean the desired and durable collector-instance
+  sets disagree.
+
+## Extension points
+
+- `Store` — the binary wires `NewWorkflowControlStore`; any type implementing
+  `coordinator.Store` can be substituted in tests or future backends.
+- `Metrics` — `NewMetrics` is the production implementation; a recording stub
+  works for unit testing.
 
 ## Gotchas / invariants
 
-- `--version` and `-v` must exit before telemetry, Postgres, pprof, or HTTP
-  setup.
-- Dark mode should reconcile declarative state without active claim reaping.
-  Active deployment mode gates reaping and completeness loops.
-- Expired claim reaping must preserve workflow store lease/fencing semantics.
-- Completeness summaries are status signals, not graph truth.
-
-## Focused tests
-
-```bash
-cd go
-go test ./cmd/workflow-coordinator -count=1
-go test ./internal/coordinator ./internal/storage/postgres -run 'Test.*Workflow|Test.*Claim|Test.*Reconcile' -count=1
-```
-
-Docs-only edits should also pass the package-doc verifier and `git diff --check`.
+- Active mode without claims enabled and at least one enabled claim-capable
+  collector instance fails `Config.Validate` at startup.
+- Heartbeat interval must be strictly less than claim lease TTL; violated
+  configurations exit with a validation error.
+- The coordinator plans Terraform-state and OCI registry work in active mode,
+  but it still does not permanently own claims. Claim ownership stays with the
+  collectors that heartbeat and complete the claimed work items.
 
 ## Related docs
 
-- `docs/public/deployment/service-runtimes.md`
-- `docs/public/reference/local-testing.md`
-- `go/internal/storage/postgres/README.md`
+- [Service runtimes — Workflow Coordinator](../../../docs/docs/deployment/service-runtimes.md#workflow-coordinator)
+- [Helm deployment](../../../docs/docs/deployment/helm.md)
+- [Docker Compose deployment](../../../docs/docs/deployment/docker-compose.md)
+- `internal/coordinator/README.md`
+- `internal/workflow/README.md`

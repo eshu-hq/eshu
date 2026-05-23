@@ -1,68 +1,160 @@
-# Projector Agent Rules
+# AGENTS.md — internal/projector guidance for LLM assistants
 
-These rules are mandatory for changes under `go/internal/projector`.
+## Read first
 
-## Read First
+1. `go/internal/projector/README.md` — pipeline position, lifecycle, exported
+   surface, and operational notes
+2. `go/internal/projector/service.go` — `Service.Run`, the poll-and-dispatch
+   loop; understand `processWork` before touching concurrency
+3. `go/internal/projector/runtime.go` — `Runtime.Project`; the four write
+   stages and their ordering
+4. `go/internal/projector/canonical.go` and `canonical_builder.go` — the
+   `CanonicalMaterialization` shape and how it is built from facts. Read
+   `tfstate_canonical.go` when touching Terraform-state projection and
+   `oci_registry_canonical.go` when touching OCI registry projection.
+5. `go/internal/telemetry/instruments.go` and `contract.go` — metric and span
+   names before adding new telemetry
 
-1. `go/internal/projector/README.md`
-2. `go/internal/projector/service.go`
-3. `go/internal/projector/runtime.go`
-4. `go/internal/projector/canonical.go`
-5. `go/internal/projector/canonical_builder.go`
-6. Source-family files for the changed fact family.
-7. `go/internal/telemetry/contract.go`
+## Invariants this package enforces
 
-## Invariants
-
-- Projection MUST be idempotent across retries, duplicate claims, and partial
-  graph writes.
-- Canonical graph phases MUST publish before Ack. If publication fails and a
-  repair queue is wired, enqueue repair.
-- `Module` and `Parameter` labels MUST stay out of the generic entity phase
-  because they use different graph keys.
-- File and entity paths MUST stay repo-qualified to avoid cross-repo MERGE
-  collisions.
-- Terraform-state, OCI registry, package-registry, AWS, and service-catalog
-  evidence stay source-local here. Cross-source admission belongs in reducer
-  domains.
-- OCI image identity MUST stay digest-keyed. Tags are weak observations.
-- Package source hints MUST NOT create repository ownership, publication, or
+- **Idempotency** — every write path must converge on the same graph truth on
+  retries. `doc.go` states this as a package invariant; `runtime_retry_test.go`
+  tests it.
+- **Phase publish before ack** — `publishCanonicalGraphPhases` (defined in
+  `runtime.go:181`) must succeed before the work item acks. The publish call
+  itself is at `runtime.go:190`; if it fails and `RepairQueue` is non-nil, a
+  repair row is enqueued.
+- **Module/Parameter exclusion from generic entity phase** — `Module` and
+  `Parameter` labels are skipped in `extractEntities` because they use different
+  graph MERGE keys. Enforced at `canonical_builder.go:227-229`.
+- **Repo-qualified paths** — `FileRow.Path` and `EntityRow.FilePath` are set to
+  `repoPath/relative_path` to avoid cross-repo MERGE collisions. Enforced in
+  `extractFiles` and `extractEntities` via `qualifyPath`.
+- **Terraform-state facts stay source-local** — `tfstate_canonical.go` projects
+  committed Terraform-state facts into canonical resource/module/output rows
+  without cloud joins. Cross-source AWS matching belongs in reducer domains
+  after the Terraform-state readiness checkpoints publish.
+- **OCI digest identity stays source-local** — `oci_registry_canonical.go`
+  projects committed OCI registry facts into digest-keyed image rows. Tags are
+  mutable weak evidence and must not become the canonical image key.
+- **Package identity stays source-local** — `package_registry_canonical.go`
+  projects committed package, package-version, and package-dependency facts into
+  package identity rows and package-native dependency rows. Source hints are
+  provenance only; do not create repository ownership, publication, or
   consumption truth in the projector.
-- AWS runtime drift admission belongs in the reducer; projector may enqueue the
-  reducer intent but MUST NOT join AWS resources to Terraform state or config.
-- Directory chains MUST sort parents before children.
-- Reducer intents MUST keep stable sorted ordering before enqueue.
-- Graph writes MUST go through `CanonicalWriter`; no direct Neo4j or NornicDB
-  driver calls.
-- Superseded work MUST stop without Ack or Fail once a newer same-scope
-  generation exists.
+  `package_source_correlation_intents.go` may enqueue the reducer classifier,
+  but that intent is counter-only until reducer admission grows stronger
+  provenance.
+- **AWS runtime drift stays reducer-owned** —
+  `aws_cloud_runtime_drift_intents.go` may enqueue one reducer intent when an
+  AWS generation contains `aws_resource` facts, but the projector must not join
+  AWS resources to Terraform state or config. ARN matching, backend ownership,
+  and orphan/unmanaged admission belong in `internal/reducer` and
+  `internal/storage/postgres`.
+- **Directory sort order** — `buildDirectoryChain` sorts by `Depth` ascending so
+  parent directories exist before children during graph writes
+  (`canonical_builder.go:191`).
+- **ReducerIntent stable ordering** — `intents` are sorted by `Domain`,
+  `EntityKey`, then `FactID` before enqueue (`runtime.go:382`). Do not remove
+  this sort.
+- **CanonicalWriter interface boundary** — no caller in this package calls a Neo4j
+  or NornicDB driver directly. All canonical writes go through `CanonicalWriter`.
+  Backend-specific logic belongs in `internal/storage/cypher` adapters.
+- **Superseded work stops cleanly** — `Service.processWork` treats
+  `ErrWorkSuperseded` from `ProjectorWorkHeartbeater` as expected cancellation,
+  not a failed projection. The current worker must not ack or fail a generation
+  once Postgres proves a newer same-scope generation replaced it.
 
-## Change Rules
+## Common changes and how to scope them
 
-- New entity type: add it to `entityTypeLabelMap`, add graph schema support,
-  and run projector tests.
-- New projection stage: wire it in `Runtime.Project`, add stage telemetry,
-  add tests, and update telemetry docs if the operator signal changes.
-- Concurrency change: read `service.go`, `service_superseded.go`, shutdown
-  tests, and large-generation semaphore behavior before editing.
-- New reducer intent: add the reducer domain constant, build the intent in the
-  owning helper, test parseability and enqueue behavior.
+- **Add a new entity type** → add to `entityTypeLabelMap` in `canonical.go`,
+  add a schema constraint in the graph schema file, run
+  `go test ./internal/projector -count=1`. Why: `EntityTypeLabel` and
+  `extractEntities` both gate on this map; missing entries silently drop nodes.
 
-## Failure Checks
+- **Add a new projection stage write** → add to `Runtime.Project` in
+  `runtime.go`; add `ProjectorStageDuration` recording with the new stage label
+  in `runtime_stages.go`; add a span if the stage crosses a service boundary;
+  add a test in `runtime_test.go`. Why: all stage telemetry is labeled and must
+  appear in the telemetry contract at `go/internal/telemetry/contract.go`.
 
-- Projection failures: inspect `failure_class` before retry or timeout changes.
-- Slow canonical write: inspect projector stage metrics and Cypher write
-  metrics before changing workers.
-- Queue age growth: inspect worker pool activity and large-repo semaphore wait.
-- Missing phase state: inspect publish errors and repair queue depth.
-- Missing entities: inspect `entityTypeLabelMap`, schema support, and
-  generation entity counts.
+- **Change concurrency behavior** → touch `service.go` `runConcurrent`,
+  `service_superseded.go`, and the large-generation semaphore; run
+  `service_test.go` and `service_shutdown_test.go`; read
+  `docs/docs/reference/telemetry/index.md` for
+  `eshu_dp_large_repo_semaphore_wait_seconds` guidance. Why: worker goroutines
+  share a cancel context; wrong cancellation propagation causes silent dropped
+  work or stale-generation graph writes.
 
-## Forbidden Without Architecture-Owner Approval
+- **Add a new reducer domain intent** → add the domain constant in
+  `internal/reducer`, add intent construction in `buildReducerIntent` or a
+  new `build*ReducerIntent` helper in `runtime.go` or `semantic_entity_intents.go`,
+  add a test in `stage_relationships_test.go` or the semantic intents test files.
+  Why: intent domain values must be parseable by `reducer.ParseDomain`.
 
-- `CanonicalWriter` interface shape.
-- Graph projection phase publication semantics.
-- Entity label names after schema support exists.
-- Backend-specific branches in projector code.
-- `ContentBeforeCanonical` outside local-profile degraded-backend wiring.
-- New entity types without schema constraints and tests.
+## Failure modes and how to debug
+
+- Symptom: `eshu_dp_projections_completed_total{status="failed"}` rising →
+  likely cause: graph backend unavailable or fact validation error → check
+  structured log `failure_class` field; `dependency_unavailable` is retryable,
+  `projection_bug` needs code investigation.
+
+- Symptom: `eshu_dp_projector_stage_duration_seconds{stage="canonical_write"}`
+  elevated → likely cause: graph backend write contention or slow Cypher
+  execution → check `eshu_dp_canonical_write_duration_seconds` and
+  `eshu_dp_neo4j_query_duration_seconds`; inspect `telemetry.SpanCanonicalProjection`
+  traces.
+
+- Symptom: projector queue age (`eshu_dp_queue_oldest_age_seconds`) growing →
+  likely cause: workers cannot keep up → check `eshu_dp_worker_pool_active`,
+  consider raising `Service.Workers`; check `eshu_dp_large_repo_semaphore_wait_seconds`
+  if large repos dominate.
+
+- Symptom: one repository repeatedly shows a newer pending generation behind a
+  live older projector row → likely cause: the running worker has not observed
+  `ErrWorkSuperseded` yet or heartbeats are disabled → check structured logs for
+  `projector work superseded by newer generation` and verify
+  `ProjectorWorkHeartbeater` is wired.
+
+- Symptom: phase state missing in `graph_projection_phase_state` → likely cause:
+  `PhasePublisher.PublishGraphProjectionPhases` failing silently → check
+  `projector runtime stage completed` logs for `stage=canonical_write` error
+  fields; check repair queue depth.
+
+- Symptom: entities missing from graph for a repository → likely cause: unmapped
+  `entity_type` string dropped in `extractEntities` → add the type to
+  `entityTypeLabelMap` and re-project; check `projector runtime stage completed`
+  logs for `entity_count=0` on affected generations.
+
+## Anti-patterns specific to this package
+
+- **Branching on backend brand** — do not add `if backend == "nornicdb"` checks
+  here. Backend dialect belongs in `internal/storage/cypher` adapters behind the
+  `CanonicalWriter` interface.
+
+- **Writing directly to Neo4j/NornicDB drivers** — all graph writes must go
+  through `CanonicalWriter.Write`. Direct driver calls bypass instrumentation,
+  retry policy, and the backend-neutral contract.
+
+- **Setting `ContentBeforeCanonical` outside local-profile wiring** — this flag
+  reverses write order for degraded-backend situations. Setting it in full-stack
+  or production wiring breaks the `canonical_nodes_committed` gate that reducer
+  edge domains depend on.
+
+- **Adding entity types without schema constraints** — every new entry in
+  `entityTypeLabelMap` must have a corresponding Neo4j constraint or index in
+  the graph schema. Entries without schema support produce nodes that violate
+  the conformance matrix.
+
+## What NOT to change without an ADR
+
+- `CanonicalWriter` interface shape — changing the signature breaks every caller
+  and the backend-neutral contract; see
+  `docs/docs/adrs/2026-04-22-nornicdb-graph-backend-candidate.md`.
+- `graph_projection_phase_state` publish semantics — reducer edge domains gate
+  on `canonical_nodes_committed`; removing or deferring the publish breaks
+  shared projection ordering.
+- `entityTypeLabelMap` entries once a label has graph schema constraints — label
+  renames require coordinated graph migration; see
+  `docs/docs/adrs/2026-04-17-neo4j-deadlock-elimination-batch-isolation.md` for
+  write-order constraints.

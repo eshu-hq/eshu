@@ -10,7 +10,7 @@ assistants.**
   <a href="https://github.com/eshu-hq/eshu/actions/workflows/test.yml">
     <img src="https://github.com/eshu-hq/eshu/actions/workflows/test.yml/badge.svg" alt="Tests">
   </a>
-  <a href="docs/">
+  <a href="docs/public/index.md">
     <img src="https://img.shields.io/badge/docs-MkDocs-blue?style=flat-square" alt="Docs">
   </a>
   <img src="https://img.shields.io/badge/MCP-Compatible-green?style=flat-square" alt="MCP Compatible">
@@ -91,11 +91,11 @@ The full documentation is organized by job:
 
 | Path | Purpose |
 | --- | --- |
-| `go/` | Go module for the CLI, API, MCP server, ingester, reducer, collectors, storage, parser, and query code. |
-| `deploy/helm/eshu/` | Public split-service Helm chart. |
-| `deploy/observability/` | Prometheus alert rules and local OpenTelemetry Collector config. |
-| `apps/console/` | Private read-only product console for Eshu graph data. |
-| `docs/public/` | MkDocs source for the public documentation site. |
+| [go/](go/) | Go module for the CLI, API, MCP server, ingester, reducer, collectors, storage, parser, and query code. |
+| [deploy/helm/eshu/](deploy/helm/eshu/) | Public split-service Helm chart. |
+| [deploy/observability/](deploy/observability/) | Prometheus alert rules and local OpenTelemetry Collector config. |
+| [apps/console/](apps/console/) | Private read-only product console for Eshu graph data. |
+| [docs/public/](docs/public/) | MkDocs source for the public documentation site. |
 
 ## Project
 

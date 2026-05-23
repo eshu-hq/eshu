@@ -1,42 +1,57 @@
-# internal/component Agent Instructions
+# AGENTS.md — internal/component guidance for LLM assistants
 
-These rules are mandatory for this package. Root `AGENTS.md` still owns the
-repo-wide proof, performance, concurrency, and skill-routing rules.
+## Read first
 
-## Read First
+1. `go/internal/component/README.md` — package purpose, flow, and invariants
+2. `go/internal/component/manifest.go` — component manifest contract and
+   validation
+3. `go/internal/component/policy.go` — local trust modes and revocation checks
+4. `go/internal/component/registry.go` — installed registry and activation
+   state
+5. `go/cmd/eshu/component.go` — CLI entry points that call this package
+6. `docs/docs/reference/component-package-manager.md` — user-facing behavior
+7. `docs/docs/reference/plugin-trust-model.md` — trust model constraints
 
-1. `README.md` and `doc.go`.
-2. `manifest.go` before changing package metadata.
-3. `policy.go` before changing trust or provenance behavior.
-4. `registry.go` before changing install, activation, disable, or uninstall
-   state.
-5. `docs/public/reference/component-package-manager.md` before changing
-   user-visible component behavior.
+## Invariants this package enforces
 
-## Local Rules
+- **Installed is inert** — installation records a verified manifest and digest
+  only. It must not start collectors, claim work, alter core schema, or mutate
+  evidence.
 
-- Installed does not mean enabled. Enabled does not mean claim-capable.
-- Git remains built in; optional collectors and services must be installed and
-  enabled explicitly.
-- Trust policy fails closed when provenance cannot be verified.
-- Registry writes must stay atomic so partial writes cannot corrupt
-  `registry.json`.
-- Component artifact images must stay digest-pinned.
-- Manifests must declare non-unknown source-confidence values for emitted fact
-  families.
-- Unknown or unsupported package behavior must remain inert at install time.
+- **Activation is explicit** — a component can run only after an enable step
+  creates activation state for a named collector instance.
 
-## Change Gates
+- **Claiming is explicit** — enabled components are not claim-capable unless
+  their activation says so.
 
-- Manifest contract changes require validation tests, CLI-facing docs, and
-  compatibility review.
-- Policy changes require positive and negative tests for trust mode, allowlist,
-  revocation, compatible-core, and provenance behavior.
-- Registry changes require tests for installed/enabled separation, activation
-  conflicts, atomic persistence, and uninstall safety.
+- **Trust fails closed** — rejected, revoked, unsupported, or unavailable
+  provenance checks must block installation.
 
-## Do Not Change Without Owner Review
+- **Registry state is durable** — update `registry.json` atomically and keep
+  manifest copies under the component home so offline verification remains
+  inspectable.
 
-- Manifest field names or persisted registry JSON shape.
-- Digest pinning.
-- The install/enable separation.
+## Common changes and how to scope them
+
+- **Add a manifest field** → update `manifest.go`, add validation tests in
+  `manifest_test.go`, update `docs/docs/reference/component-package-manager.md`,
+  and keep backward compatibility explicit.
+
+- **Add a trust backend** → extend `Policy.Verify` through a narrow seam, add
+  fail-closed tests in `policy_test.go`, and update the plugin trust model docs.
+
+- **Change registry layout** → add migration or compatibility handling before
+  changing paths or JSON shape; update `registry_test.go` with old and new
+  state cases.
+
+- **Add runtime launch behavior** → keep launch code outside this package. This
+  package should only expose install and activation state for the runtime to
+  consume.
+
+## Anti-patterns specific to this package
+
+- Do not treat an installed package as enabled.
+- Do not make strict trust mode pass without a real provenance verifier.
+- Do not silently downgrade revocation or provenance failures to warnings.
+- Do not let packages execute arbitrary code during install.
+- Do not add core database DDL hooks to component manifests.

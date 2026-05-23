@@ -13,6 +13,13 @@ and directly reported ACM certificate and WAF web ACL relationship evidence. It
 does not call AWS APIs, schedule claims, load credentials, write facts, or infer
 workload, environment, repository, or deployable-unit truth.
 
+```mermaid
+flowchart LR
+    Runtime[awsruntime target] --> Scanner[cloudfront.Scanner]
+    Scanner --> Client[CloudFront client port]
+    Scanner --> Facts[AWS resource and relationship facts]
+```
+
 The scanner emits one `aws_cloudfront_distribution` resource per distribution
 reported by the client. Origin custom header values are not part of the package
 contract; only custom header names are retained so operators can see that a
@@ -31,15 +38,19 @@ See `doc.go` for the godoc-rendered package contract.
 
 ## Dependencies
 
-The scanner imports AWS collector boundaries, resource/relationship observation
-contracts, and fact envelope kinds. It depends on a scanner-owned CloudFront
-`Client` port rather than the AWS SDK.
+- `internal/collector/awscloud` for boundaries, service constants, and
+  resource and relationship observation contracts.
+- `internal/facts` for the fact envelope returned by `Scanner`.
 
 ## Telemetry
 
-The scanner emits no metrics directly. The AWS SDK adapter records API calls
-with shared AWS collector events, spans, throttle counters, and operation
-labels.
+The scanner itself emits no new metrics. The AWS SDK adapter records API calls
+with the shared AWS collector API-call events, spans, throttle counters, and
+operation labels.
+
+No-Observability-Change: existing AWS collector API-call metrics, pagination
+spans, throttle counters, and per-service operation labels cover CloudFront
+distribution and tag listing.
 
 ## Gotchas / invariants
 
@@ -54,5 +65,5 @@ labels.
 
 ## Related docs
 
-- `docs/public/services/collector-aws-cloud.md`
-- `docs/public/guides/collector-authoring.md`
+- `docs/docs/adrs/2026-04-20-aws-cloud-scanner-collector.md`
+- `docs/docs/guides/collector-authoring.md`

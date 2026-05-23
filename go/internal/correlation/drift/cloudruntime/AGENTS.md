@@ -1,57 +1,53 @@
-# internal/correlation/drift/cloudruntime Agent Rules
+# AGENTS — cloudruntime
 
-This package is deterministic helper Go for the `aws_cloud_runtime_drift` rule
-pack. It classifies ARN-keyed AWS/Terraform evidence, builds candidates, and
-records bounded admitted-finding metrics. It MUST NOT query Postgres, write
-Cypher, publish graph phases, or decide deployment truth.
+## Read first
 
-## Read First
+1. `doc.go` — package contract.
+2. `classify.go` — exclusive orphan/unmanaged dispatch.
+3. `candidate.go` — ARN-keyed candidate and evidence construction.
+4. `telemetry.go` — bounded metric emission.
+5. `../../rules/aws_cloud_runtime_drift_rules.go` — rule-pack declaration.
+6. `docs/docs/adrs/2026-04-19-multi-source-correlation-dsl-and-collector-readiness.md`
+   — cloud observation joins phase.
 
-MUST read these before editing:
+## Invariants
 
-1. `README.md` and `doc.go`.
-2. `classify.go`, `candidate.go`, `telemetry.go`, and focused tests.
-3. `../../rules/aws_cloud_runtime_drift_rules.go`.
-4. `docs/public/services/collector-aws-cloud.md` and telemetry docs before
-   changing observation or counter contracts.
+- `Classify` returns at most one `FindingKind` per ARN.
+- Cloud-only resources are orphaned before unmanaged can be considered.
+- Unmanaged requires AWS cloud and Terraform state evidence but no current
+  Terraform config evidence.
+- `BuildCandidates` must emit an `EvidenceTypeCloudResourceARN` atom or the
+  rule pack's structural gate rejects the candidate.
+- Raw tag evidence stays in `EvidenceAtom`s only. Do not add tag keys, tag
+  values, ARNs, Terraform addresses, or account IDs as metric labels.
 
-## Local Invariants
+## Common changes
 
-- ARN is the primary join key and `BuildCandidates` MUST sort by ARN.
-- `Classify` is exclusive. Cloud-only is orphaned; cloud plus state with no
-  config is unmanaged; cloud plus state plus config emits no candidate.
-- Unknown and ambiguous findings may be supplied by caller evidence and MUST
-  remain provenance/status signals, not invented deployment truth.
-- Every candidate MUST carry `EvidenceTypeCloudResourceARN`; the rule pack
-  structural gate depends on it.
-- Management status, missing evidence, warning flags, and raw tags are evidence
-  atoms only. Do not put ARN, account ID, address, tag key, or tag value in
-  metric labels.
-- Raw AWS tags MUST NOT be normalized into environment, platform, or service
-  truth in this package.
+- Add a finding kind: update `FindingKind`, `Classify`, `BuildCandidates`
+  evidence, `RecordEvaluation`, tests, telemetry docs, and the active ADR.
+- Change candidate evidence shape: keep `EvidenceTypeCloudResourceARN` aligned
+  with `rules.AWSCloudRuntimeDriftRulePack`.
+- Add reducer wiring: keep loaders and graph publication outside this package.
+  This package should stay a deterministic classifier and candidate builder.
 
-## Change Rules
+## Failure modes
 
-- New finding kind: update classifier/candidate evidence, telemetry summary,
-  tests, rule/docs, and cardinality proof.
-- Candidate evidence changes MUST keep
-  `rules.AWSCloudRuntimeDriftRulePack` selectors aligned.
-- Reducer loader or graph publication wiring belongs outside this package.
-- Metric label changes require telemetry contract updates and operator-facing
-  proof.
+- No orphan/unmanaged counters: check that callers ran `engine.Evaluate` with
+  `rules.AWSCloudRuntimeDriftRulePack()` and then called `RecordEvaluation`.
+- Structural mismatches: check for a missing `aws_cloud_resource_arn` evidence
+  atom.
+- False unmanaged findings: verify the loader joined current Terraform config
+  by ARN before constructing `AddressedRow`.
 
-## Proof
+## Anti-patterns
 
-Run the focused gate for any edit:
+- Do not query Postgres or graph backends from this package.
+- Do not infer environment or service ownership from tag names here. Tags are
+  raw evidence for a later normalization rule.
+- Do not add backend-specific NornicDB or Neo4j branches.
 
-```bash
-cd go
-go test ./internal/correlation/drift/cloudruntime -count=1
-go vet ./internal/correlation/drift/cloudruntime
-go doc ./internal/correlation/drift/cloudruntime
-```
+## What NOT to change without an ADR
 
-Classifier or admission-shape changes require
-`go test ./internal/correlation/... -count=1` and correlation truth proof.
-Docs-only edits also need the package-doc verifier for this directory and
-`git diff --check`.
+- The ARN-primary join contract.
+- The exclusive orphan-before-unmanaged dispatch order.
+- The metric label set for orphan and unmanaged counters.

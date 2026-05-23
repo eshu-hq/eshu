@@ -16,9 +16,7 @@ flowchart LR
   Provider["GitHub, GitLab, or Bitbucket"] --> Verify["signature or token verification"]
   Verify --> Normalize["provider normalizer"]
   Normalize --> Trigger["Trigger decision"]
-  Trigger --> Durable["Postgres webhook trigger store"]
-  Durable --> Selector["collector webhook trigger selector"]
-  Selector --> GitSync["repository sync"]
+  Trigger --> Durable["future durable refresh trigger store"]
 ```
 
 ## Exported Surface
@@ -55,7 +53,8 @@ flowchart LR
 
 ## Operational Notes
 
-The listener and store paths emit webhook request, decision, store-operation,
-and duration telemetry through `go/internal/telemetry`. Metric labels stay
-bounded to provider, event kind, decision, reason, outcome, and stored status.
-Repository names, delivery IDs, and SHAs belong in logs or spans.
+The runtime that calls this package should emit metrics and structured logs
+around verification failures, ignored reasons, accepted triggers, duplicate
+deliveries, and durable handoff failures. Metric labels should use bounded
+values such as provider, event kind, decision, and reason; repository names,
+delivery IDs, and SHAs belong in logs or spans.

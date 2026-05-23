@@ -11,8 +11,8 @@ token endpoint for pulls.
 
 This package owns GHCR repository-name normalization, token acquisition, and
 Distribution client construction. Workflow claims, telemetry, graph writes,
-package-to-source correlation, and query surfaces belong to `ociruntime`,
-reducers, and query packages.
+package-to-source correlation, and query surfaces belong to later runtime and
+reducer slices.
 
 ## Exported surface
 
@@ -30,8 +30,8 @@ reducers, and query packages.
 
 ## Telemetry
 
-This package emits no metrics, spans, or logs. `ociruntime` wraps provider calls
-with OCI registry scan and API-call telemetry.
+This package emits no metrics, spans, or logs. Runtime telemetry wraps provider
+calls in the future OCI registry collector.
 
 ## Gotchas / invariants
 
@@ -42,4 +42,4 @@ with OCI registry scan and API-call telemetry.
 
 ## Related docs
 
-- `docs/public/reference/collector-reducer-readiness.md`
+- `docs/docs/adrs/2026-05-10-oci-container-registry-collector.md`

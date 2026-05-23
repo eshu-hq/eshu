@@ -1,31 +1,101 @@
-# AGENTS.md - cmd/collector-aws-cloud
+# AGENTS.md - cmd/collector-aws-cloud guidance
 
-Read `README.md`, `doc.go`, `config.go`, `service.go`,
-`status_committer.go`, `go/internal/collector/awscloud/awsruntime/README.md`,
-and the public AWS collector docs before editing this command.
+## Read First
 
-## Mandatory Rules
+1. `README.md` - command purpose, configuration, and invariants.
+2. `config.go` - collector instance selection and target-scope parsing.
+3. `service.go` - claim-aware runner and runtime wiring.
+4. `status_committer.go` - commit-side AWS scan status updates after fenced
+   fact persistence.
+5. `go/internal/collector/awscloud/awsruntime/README.md` - claim runtime
+   contract.
+6. Service `awssdk` README files under
+   `go/internal/collector/awscloud/services/` - SDK adapter contracts.
+7. `docs/docs/adrs/2026-04-20-aws-cloud-scanner-collector.md` - security and
+   runtime requirements.
 
-- Keep this package limited to process startup, config validation, hosted
-  runtime wiring, status commit wrapping, and claim-runner construction.
-- Do not move scanner behavior, SDK pagination, workflow storage, graph writes,
-  reducer admission, credentials, or workload inference into this command.
-- Reject static AWS credential fields, wildcard regions, wildcard services, and
-  `allowed_services` not backed by `awsruntime.SupportsServiceKind`.
-- Require `role_arn` plus `external_id` for `central_assume_role`; require the
-  role account to match the target account.
-- Reject `role_arn` and `external_id` for `local_workload_identity`.
-- Require `ESHU_AWS_REDACTION_KEY` when an enabled target includes ECS or
-  Lambda.
-- Keep scanner status from `awsruntime` separate from commit status in
-  `status_committer.go`.
-- Keep credential values, policy JSON, payloads, resource names, ARNs, tags,
-  raw AWS errors, and page tokens out of metric labels and logs.
-- Add config tests before changing env parsing. Add registry, scanner, adapter,
-  docs, and supported-service tests together for new service kinds.
+## Invariants
 
-## Proof
+- Do not accept static AWS credential fields.
+- Require central AssumeRole targets to provide an external ID and an IAM role
+  ARN in the configured `account_id`.
+- Keep local workload identity targets local: do not accept `role_arn` or
+  `external_id` in that mode.
+- Reject wildcard AWS regions or service lists. `allowed_services` must name a
+  scanner family wired into the runtime registry.
+- Require `ESHU_AWS_REDACTION_KEY` when ECS or Lambda is enabled so environment
+  values cannot cross persistence boundaries in plaintext.
+- Keep this command process-only. AWS credentials belong in `awsruntime`; AWS
+  service pagination belongs in service `awssdk` adapters.
+- Keep ELBv2 target health out of stable AWS collector facts; target health is
+  live status, not routing topology.
+- Keep Route 53 DNS names, hosted-zone IDs, and record values out of metric
+  labels.
+- Keep EC2 instance inventory out of the EC2 scanner; ENI attachment target
+  evidence is metadata only.
+- Keep Lambda function code and presigned package download URLs out of facts.
+  Lambda image URIs, aliases, event-source mappings, execution roles, subnets,
+  and security groups are reported join evidence only.
+- Keep SQS message bodies and queue policy JSON out of facts. The command may
+  enable `sqs`, but the SDK adapter owns the safe metadata allowlist.
+- Keep SNS message payloads, topic policy JSON, delivery-policy JSON,
+  data-protection-policy JSON, and raw non-ARN endpoints out of facts. The
+  command may enable `sns`, but the SDK adapter owns safe topic and subscription
+  mapping.
+- Keep EventBridge event payloads, event bus policy JSON, target input payloads,
+  input transformers, HTTP target parameters, and raw non-ARN targets out of
+  facts. The command may enable `eventbridge`, but the SDK adapter owns safe bus,
+  rule, and target mapping.
+- Keep S3 object inventory, object keys, bucket policy JSON, ACL grants,
+  replication rules, lifecycle rules, notification configuration, inventory
+  configuration, analytics configuration, and metrics configuration out of
+  facts. The command may enable `s3`, but the SDK adapter owns safe bucket
+  metadata mapping.
+- Keep DynamoDB item values, table scans, table queries, stream records,
+  backup/export payloads, resource policies, PartiQL output, and mutations out
+  of facts. The command may enable `dynamodb`, but the SDK adapter owns safe
+  table metadata mapping.
+- Keep CloudWatch Logs log events, log stream payloads, Insights query results,
+  export payloads, resource policies, subscription payloads, and mutations out
+  of facts. The command may enable `cloudwatchlogs`, but the SDK adapter owns
+  safe log group metadata mapping.
+- Keep CloudFront object contents, origin payloads, distribution config
+  payloads, policy documents, certificate bodies, private keys, origin custom
+  header values, and mutations out of facts. The command may enable
+  `cloudfront`, but the SDK adapter owns safe metadata mapping.
+- Keep API Gateway execution, exports, API keys, authorizer secrets, policy
+  JSON, integration credentials, stage variable values, template bodies,
+  payloads, and mutations out of facts. The command may enable `apigateway`,
+  but the SDK adapter owns safe REST and v2 metadata mapping.
+- Keep Secrets Manager secret values, version payloads, resource policy JSON,
+  external rotation partner metadata, external rotation role ARNs, and mutations
+  out of facts. The command may enable `secretsmanager`, but the SDK adapter
+  owns safe metadata mapping.
+- Keep SSM parameter values, history values, raw descriptions, raw allowed
+  patterns, raw policy JSON, decrypted content, and mutations out of facts. The
+  command may enable `ssm`, but the SDK adapter owns safe metadata mapping.
+- Do not log credential values, trust policy JSON, resource ARNs, tags, or raw
+  source payloads as metric labels.
+- Preserve the split between scanner-side status in `awsruntime` and
+  commit-side status in `status_committer.go`.
 
-- Run `cd go && go test ./cmd/collector-aws-cloud -count=1` for command edits.
-- Also run `cd go && go test ./internal/collector/awscloud/awsruntime -count=1`
-  when validation, claim runtime, or scanner registry behavior changes.
+## Common Changes
+
+- Add a new AWS service by extending target validation, adding scanner package
+  tests, adding a service `awssdk` adapter, package docs, and branching in
+  `awsruntime.DefaultScannerFactory.Scanner`.
+- Run `scripts/verify-package-docs.sh` whenever the change adds or edits a Go
+  package under this command or `go/internal/collector/awscloud`.
+- Run `scripts/verify-performance-evidence.sh` whenever the change touches
+  claim concurrency, leases, worker fanout, batching, pagination pressure, or
+  downstream graph/materialization cost. The PR must include tracked
+  Performance Evidence and Observability Evidence markers.
+- Add new command configuration with config tests first.
+- Add SDK pagination in the service adapter so spans and AWS API counters stay
+  complete.
+
+## What Not To Change Without An ADR
+
+- Do not bypass workflow claims or claim-aware commits.
+- Do not cache cross-account credentials beyond the claim lease.
+- Do not make this command write graph truth or reducer-owned rows directly.

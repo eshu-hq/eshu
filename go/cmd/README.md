@@ -1,9 +1,8 @@
 # Commands
 
 Each subdirectory builds one Eshu executable. This directory is a navigation
-root, not a Go package. Each child owns its operational contract in `README.md`;
-assistant workflow rules stay in the repository root `AGENTS.md` unless a
-binary needs local rules that do not belong in the public command README.
+root, not a Go package — each child has its own rich `README.md` and
+`AGENTS.md`.
 
 The public CLI command is `eshu`. The service binaries use ESHU-prefixed names
 when installed for local runtime work, such as `eshu-api`, `eshu-mcp-server`,
@@ -34,21 +33,34 @@ exact binary set on `PATH`.
 
 ## Pipeline shape
 
-Long-running binaries either observe source systems and commit facts, drain
-durable work into graph/content state, coordinate claimable collector work, or
-serve bounded read surfaces. One-shot binaries initialize schema or bootstrap an
-empty environment. For the lifecycle of any one binary, open its `README.md`.
+```mermaid
+flowchart LR
+  ingester[ingester] --> postgres[(postgres facts/queue)]
+  projector[projector] -.local profiles.-> postgres
+  postgres --> reducer[reducer]
+  reducer --> graph[(graph backend)]
+  bootstrap[bootstrap-index] -.one-shot.-> ingester
+  bootstrap -.one-shot.-> reducer
+  workflow[workflow-coordinator] --> postgres
+  tfstate[collector-terraform-state] --> postgres
+  aws[collector-aws-cloud] --> postgres
+  webhook[webhook-listener] --> postgres
+  api[api] --> graph
+  api --> postgres
+  mcp[mcp-server] --> api
+```
+
+For the full lifecycle of any one binary, open its `README.md` and
+`AGENTS.md`.
 
 ## Per-package documentation convention
 
-Every Go command directory under `go/cmd/` carries at least two package docs:
+Every Go package directory under `go/cmd/` carries three files:
 
-- `doc.go` - godoc contract.
-- `README.md` - architectural and operational lens with runbook-shape notes.
-
-Many command directories also carry package-local `AGENTS.md` files when the
-binary has scoped workflow rules. Do not delete those files unless the root
-agent guide explicitly replaces the same scope and precedence.
+- `doc.go` — godoc contract.
+- `README.md` — architectural and operational lens with mermaid flow
+  diagrams and runbook-shape operational notes.
+- `AGENTS.md` — guidance for LLM assistants editing the binary.
 
 ## Dependencies
 
@@ -65,6 +77,6 @@ providers.
 
 ## Related docs
 
-- `docs/public/deployment/service-runtimes.md`
-- `docs/public/reference/cli-reference.md`
-- `docs/public/reference/local-testing.md`
+- `docs/docs/deployment/service-runtimes.md`
+- `docs/docs/reference/cli-reference.md`
+- `docs/docs/reference/local-testing.md`

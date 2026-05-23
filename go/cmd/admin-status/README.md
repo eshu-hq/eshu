@@ -52,6 +52,6 @@ error. Use the long-running runtime `/metrics` endpoints for live telemetry.
 
 ## Related docs
 
-- [Service runtimes](../../../docs/public/deployment/service-runtimes.md)
-- [CLI reference](../../../docs/public/reference/cli-reference.md)
-- [Docker Compose deployment](../../../docs/public/run-locally/docker-compose.md)
+- [Service runtimes](../../../docs/docs/deployment/service-runtimes.md)
+- [CLI reference](../../../docs/docs/reference/cli-reference.md)
+- [Docker Compose deployment](../../../docs/docs/deployment/docker-compose.md)

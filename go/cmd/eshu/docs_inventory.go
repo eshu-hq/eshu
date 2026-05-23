@@ -19,7 +19,7 @@ import (
 
 var (
 	errDocsInventoryLimitReached = errors.New("documentation file limit reached")
-	docsEnvVarPattern            = regexp.MustCompile(`\bESHU_[A-Z0-9_]+\b`)
+	docsEnvVarPattern            = regexp.MustCompile(`\bESHU_[A-Z0-9_]*[A-Z0-9]\b`)
 )
 
 func inventoryDocs(opts docsVerifyOptions) (docsInventory, error) {

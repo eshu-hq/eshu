@@ -153,6 +153,7 @@ branch. Regenerate them from
 | Parallel Front Door Parser Collector Docs Compression | Used five subagents plus parent review to compress root/developer/testing docs, repo/deploy READMEs, parser/collector/content scoped agent guidance, and public Terraform/logging/dead-code/E2E references. This pass changed 67 Markdown files with 1,364 insertions and 2,130 deletions while preserving root `AGENTS.md` and correcting Terraform provider schema totals to 21 providers and 6,236 resource types. |
 | Parallel AWS Public And Package Docs Compression | Used five subagents plus parent review to compress AWS collector scoped guidance, parent subsystem agent guidance, mid-size package READMEs, public architecture/reference pages, and language-support pages. This pass changed 95 Markdown files with 1,773 insertions and 3,368 deletions; AWS cloud collector agent guidance fell from 1,746 to 812 lines, selected package READMEs fell from 1,355 to 892 lines, and total scoped-agent content fell to 5,625 lines while root `AGENTS.md` stayed mandatory. |
 | Final Parallel Public And Package Docs Compression | Used four subagents plus parent review to compress operator/reference pages, deployment and Helm docs, language/guide pages, and package-local READMEs. This pass changed 60 Markdown files with 1,429 insertions and 2,762 deletions, removed 1,333 net lines, corrected the Confluence Helm secret example to use `CONFLUENCE_*` variables, and kept root and scoped `AGENTS.md` guidance intact. |
+| Reviewer Correction: Restore Package Docs And Scoped Agents | Restored existing `go/**/README.md` and `go/**/AGENTS.md` files from `origin/main` after reviewer feedback showed package-level Mermaid diagrams, flow maps, invariants, and scoped agent rules had been over-compressed. Public docs remain reorganized; package-local docs now preserve the high-signal guidance agents and maintainers rely on. |
 
 ## Verification Snapshot
 
@@ -162,6 +163,14 @@ Current pass proof:
 
 - Rebase conflict resolution preserved the current 73-tool MCP contract,
   container-image identity read surface, and compressed public/package docs.
+- Reviewer correction restored package-local `README.md` and scoped `AGENTS.md`
+  files from `origin/main`; the Mermaid regression audit found no existing
+  package README with fewer Mermaid or flow markers than `origin/main`.
+- Root `README.md` repository-surface paths are clickable links, and the docs
+  badge points at `docs/public/index.md`.
+- Docs verifier prefix extraction no longer treats wildcard families such as
+  `ESHU_WORKFLOW_COORDINATOR_*` as concrete variables like
+  `ESHU_WORKFLOW_COORDINATOR_`.
 - Focused docs verification passed for `docs/public`, `go/internal`, `go/cmd`,
   and `tests/fixtures`.
 - Focused fixture verification passed for `tests/fixtures` after the templated

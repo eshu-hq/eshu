@@ -68,9 +68,9 @@ invokes `Handler`.
   projector or reducer re-runs the normal write pipeline including graph writes,
   phase-state publication, and content indexing. Domains that consume
   reducer-derived state still depend on the bootstrap-index phase ordering
-  described in `docs/internal/agent-guide.md` after a mass replay.
+  described in `CLAUDE.md` after a mass replay.
 
 ## Related docs
 
-- `docs/public/deployment/service-runtimes.md` — admin recovery entry points
-- `docs/public/architecture.md` — facts-first bootstrap ordering
+- `docs/docs/deployment/service-runtimes.md` — admin recovery entry points
+- `docs/docs/architecture.md` — facts-first bootstrap ordering

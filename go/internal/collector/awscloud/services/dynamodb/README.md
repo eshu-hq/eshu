@@ -2,48 +2,123 @@
 
 ## Purpose
 
-`dynamodb` converts Amazon DynamoDB control-plane table metadata into AWS cloud
-collector facts and direct KMS relationship evidence.
+`internal/collector/awscloud/services/dynamodb` owns the Amazon DynamoDB scanner
+contract for the AWS cloud collector. It converts DynamoDB control-plane table
+metadata into `aws_resource` facts and emits relationship evidence when
+DynamoDB directly reports a server-side encryption KMS key identifier.
 
 ## Ownership boundary
 
-This package owns scanner-level table fact selection, identity mapping, and
-metadata-only attribute shaping. It does not own AWS SDK pagination, credential
-loading, workflow claims, fact persistence, graph writes, reducer admission,
-workload ownership, or query behavior.
+This package owns scanner-level DynamoDB fact selection and identity mapping.
+It does not own AWS SDK pagination, STS credentials, workflow claims, fact
+persistence, graph writes, reducer admission, workload ownership, or query
+behavior.
+
+```mermaid
+flowchart LR
+  A["DynamoDB API adapter"] --> B["Client"]
+  B --> C["Scanner.Scan"]
+  C --> D["aws_resource"]
+  C --> E["aws_relationship"]
+  D --> F["facts.Envelope"]
+  E --> F
+```
 
 ## Exported surface
 
-Use `doc.go` and `go doc ./internal/collector/awscloud/services/dynamodb` for
-the godoc contract. The main surfaces are the scanner, its minimal client
-interface, snapshots, table metadata shape, and nested table attribute models.
+See `doc.go` for the godoc contract.
+
+- `Client` - minimal DynamoDB metadata snapshot surface consumed by `Scanner`.
+- `Snapshot` - table metadata plus non-fatal scan warnings for partial optional
+  metadata coverage.
+- `Scanner` - emits table metadata and direct KMS relationship facts for one
+  boundary.
+- `Table` - scanner-owned metadata-only table representation.
+- `KeySchemaElement`, `AttributeDefinition`, `Throughput`,
+  `OnDemandThroughput`, `SSE`, `TTL`, `ContinuousBackups`, `Stream`,
+  `SecondaryIndex`, and `Replica` - table metadata shapes copied into safe
+  resource attributes.
 
 ## Dependencies
 
-`dynamodb` depends on `internal/collector/awscloud` for boundaries, resource and
-relationship constants, warning observations, and envelope builders. It uses
-`internal/facts` for emitted fact envelopes.
+- `internal/collector/awscloud` for boundaries, resource constants,
+  relationship constants, and envelope builders.
+- `internal/facts` for emitted fact envelope kinds.
+
+The package depends on a small `Client` interface rather than the AWS SDK for Go
+v2 so tests can use fake clients and runtime adapters can own SDK behavior.
 
 ## Telemetry
 
 This scanner emits no spans or logs directly. `awsruntime.ClaimedSource`
-records scan duration and emitted resource counts. The AWS SDK adapter records
-DynamoDB API calls, throttles, and pagination spans.
+records scan duration and emitted resource counts after `Scanner.Scan` returns.
+The `awssdk` adapter records DynamoDB API call counts, throttles, and pagination
+spans.
 
 ## Gotchas / invariants
 
-- The scanner must not read table items, stream records, exports, backup
-  payloads, resource policies, PartiQL output, or mutate DynamoDB resources.
-- Table metadata, tags, TTL, stream settings, capacity, table class, replicas,
-  and backup status are reported control-plane evidence.
-- Sustained throttling on optional TTL reads emits an `aws_warning`, leaves
-  table facts present, and omits TTL metadata for that scan.
-- Tags are raw AWS evidence. Do not infer environment, owner, workload,
-  repository, or deployable-unit truth here.
-- Direct KMS relationships are join evidence only; reducer correlation decides
-  what becomes graph truth.
+- DynamoDB facts are metadata only. The scanner must not read table items,
+  query or scan tables, read stream records, fetch exports, fetch backup
+  payloads, fetch resource policies, run PartiQL, or mutate resources.
+- Attribute definitions, key schema, index definitions, TTL attribute names,
+  stream settings, capacity settings, table class, replicas, tags, and backup
+  status are reported control-plane metadata.
+- Sustained throttling on optional `DescribeTimeToLive` calls emits an
+  `aws_warning` with `warning_kind=throttle_sustained`, leaves table facts
+  present, and omits TTL metadata for the affected scan rather than failing the
+  whole DynamoDB claim.
+- Tags are raw AWS tag evidence. Do not infer environment, owner, workload,
+  repository, or deployable-unit truth from tags in this package.
+- The KMS relationship is reported join evidence only. Correlation belongs in
+  reducers.
+
+## Evidence
+
+Collector Performance Evidence: `go test ./internal/collector/awscloud/services/dynamodb/...`
+covers the bounded DynamoDB metadata path: paginated ListTables with
+Limit=100, one DescribeTable, one paginated ListTagsOfResource, one
+DescribeTimeToLive, and one DescribeContinuousBackups per discovered table;
+no item reads, table scans, table queries, stream record reads, backup payload
+reads, export reads, resource-policy reads, PartiQL calls, mutations, or graph
+writes in the collector.
+
+No-Regression Evidence: `go test ./cmd/collector-aws-cloud ./internal/collector/awscloud/...`
+covers DynamoDB table metadata fact emission, direct KMS relationship emission,
+omission of data-plane fields, SDK pagination, tag reads, runtime registration,
+command configuration, and the SDK adapter's safe metadata mapping.
+
+No-Regression Evidence: `go test ./internal/collector/awscloud/services/dynamodb/... -count=1`
+covers the DynamoDB snapshot contract where `DescribeTimeToLive` throttling
+preserves table resources, omits optional TTL metadata, records API throttle
+counts, emits one `throttle_sustained` warning, and skips follow-up TTL calls
+for the rest of that scan after the first sustained TTL throttle.
+
+No-Regression Evidence: `go test ./internal/collector/awscloud/awsruntime -run TestClaimedSourceMarksThrottleWarningAsPartial -count=1`
+proves the AWS runtime maps `throttle_sustained` warning facts to partial scan
+status.
+
+Collector Observability Evidence: DynamoDB uses the existing AWS collector
+`aws.service.pagination.page` span plus `eshu_dp_aws_api_calls_total`,
+`eshu_dp_aws_throttle_total`, `eshu_dp_aws_resources_emitted_total`,
+`eshu_dp_aws_relationships_emitted_total`, and `aws_scan_status` rows. Metric
+labels stay bounded to service, account, region, operation, result, and status.
+
+Observability Evidence: TTL throttling stays visible through the existing
+`eshu_dp_aws_api_calls_total{operation="DescribeTimeToLive",result="error"}`,
+`eshu_dp_aws_throttle_total`, `aws_warning` fact
+`warning_kind="throttle_sustained"`, and `aws_scan_status` partial status
+signals without adding resource-name or table-name metric labels.
+
+No-Observability-Change: the existing AWS collector telemetry contract already
+diagnoses DynamoDB scans through `aws.service.scan`,
+`aws.service.pagination.page`, API/throttle counters, resource/relationship
+counters, and `aws_scan_status`.
+
+Collector Deployment Evidence: DynamoDB runs inside the existing hosted
+`collector-aws-cloud` runtime, so `/healthz`, `/readyz`, `/metrics`, and
+`/admin/status` stay covered by the command wiring and Helm collector runtime.
 
 ## Related docs
 
-- `docs/public/services/collector-aws-cloud.md`
-- `docs/public/guides/collector-authoring.md`
+- `docs/docs/adrs/2026-04-20-aws-cloud-scanner-collector.md`
+- `docs/docs/guides/collector-authoring.md`

@@ -1,66 +1,178 @@
-# internal/collector/terraformstate
+# Terraform State Collector
 
 ## Purpose
 
-`internal/collector/terraformstate` reads approved Terraform state snapshots
-from local and S3-like sources, parses them in bounded windows, redacts
-sensitive values, resolves provider schema metadata, and emits typed fact
-envelopes.
+`internal/collector/terraformstate` owns the first Terraform-state collection
+primitives. It resolves exact state candidates, opens exact state sources,
+parses state with a streaming JSON decoder, redacts values before they cross the
+parser boundary, and emits Terraform-state fact envelopes.
 
-## Ownership boundary
+This package does not schedule collector runs, write graph rows, persist raw
+state, or call cloud APIs directly. Coordinator claims, reducer projection, and
+AWS SDK wiring belong to integration slices outside the reader stack.
 
-This package owns Terraform-state source identity, discovery resolution,
-state-source readers, parser redaction, composite capture, warning facts, and
-snapshot identity. It does not schedule workflow claims, choose credentials,
-commit facts, write graph rows, or call cloud SDKs outside the source
-interfaces supplied by callers.
+## Current Surface
 
-## Exported surface
+- `StateSource` opens one exact Terraform state stream.
+- `LocalStateSource` reads an operator-approved absolute file path only.
+- `S3StateSource` wraps a caller-supplied read-only object client and sends an
+  exact bucket/key request with optional `If-None-Match` and version metadata.
+- `DiscoveryResolver` turns explicit seeds, Git-observed backend facts, and
+  explicitly approved Git-local state candidates into exact `StateKey`
+  candidates without opening raw state.
+- Graph discovery can be bounded by configured repositories (`local_repos`) or
+  by `backend_filters` that search all indexed active Git facts for exact
+  backend declarations matching fields such as backend kind, bucket, and
+  region.
+- When `local_repos` and `backend_filters` are both configured, discovery
+  treats them as a union: repo-scoped exact candidates remain eligible, filtered
+  global candidates are added with de-duplication, and approved repo-local state
+  candidates are not filtered by S3 backend fields.
+- Git HCL parsing emits `terraform_backends` metadata for Terraform `backend`
+  blocks. The Postgres adapter reads those facts from active Git generations
+  and only returns exact S3 candidates with literal bucket, key, and region
+  values.
+- Git HCL parsing also emits `terragrunt_remote_states` metadata for
+  Terragrunt `remote_state` blocks, including blocks resolved through nested
+  `include` chains. `TerragruntRemoteStateCandidate` translates each row
+  into a `DiscoveryCandidate` carrying the underlying backend kind (`s3` or
+  `local`); discovery never observes `BackendTerragrunt`. Local-backend
+  rows require the repository fact's `local_path` so the resolver can
+  compute a repo-relative `RelativePath` and reject backend paths that
+  resolve outside the repo checkout (`source_terragrunt.go:97`).
+- The Git collector may emit `terraform_state_candidate` facts for repo-local
+  `.tfstate` files. Those facts are metadata only: repo ID, repo-relative path,
+  path hash, size, and warning flags. They do not include raw state bytes or
+  absolute filesystem paths.
+- The Postgres readiness adapter reports graph discovery as ready only when the
+  upstream Git repository fact is tied to an active committed generation.
+- `ParseDiscoveryConfig` maps collector-instance JSON into the typed discovery
+  config used by the resolver.
+- Discovery candidates carry `target_scope_id` when config or approval policy
+  supplies one. The reader stack treats it as routing metadata; source opening
+  code decides which cloud credentials to use.
+- `NewDiscoveryMetrics` registers the candidate counter used during discovery.
+- `Parse` turns one state stream into redacted Terraform-state facts.
+- Parser results include bounded operational stats for resource facts,
+  output facts, module facts, and a warnings-by-kind breakdown alongside
+  redactions by reason. Runtime code records those as metrics; raw values
+  and source locators stay out of labels.
+- `ReadSnapshotIdentity` streams only the top-level serial and lineage fields so
+  runtime code can build the claimed generation identity without retaining raw
+  state bytes.
+- `ParseOptions` carries scope, generation, source, fencing, and redaction
+  context.
+- `internal/collector/tfstateruntime` adapts these primitives to workflow
+  claims: it resolves exact candidates, opens a matching source, parses facts
+  with the claim fencing token, and leaves SDK-specific cloud wiring behind the
+  existing read-only source interfaces.
+- `cmd/collector-terraform-state` supplies the current AWS SDK adapter for
+  read-only S3 access in the claim-driven runtime.
+- `LocatorHash(StateKey)` returns the per-version durable hash that backs
+  `CandidatePlanningID` and the persisted
+  `terraform_state_snapshot.payload->>'locator_hash'` field. It digests
+  `BackendKind`, `Locator`, and `VersionID` so the workflow coordinator can
+  dispatch one work item per S3 object version.
+- `ScopeLocatorHash(BackendKind, Locator)` returns the version-agnostic
+  durable hash used as the join key for the canonical drift resolver. It
+  MUST stay aligned with `scope.NewTerraformStateSnapshotScope`
+  (`go/internal/scope/tfstate.go`); the contract is locked by the
+  cross-package test in
+  `locator_hash_scope_alignment_test.go:31`. The two hash functions are
+  intentionally distinct — see issue #203 for the silent drift-rejection
+  bug that motivated the split.
+- `CompositeCaptureRecorder` is the observability seam the parser uses when it
+  drops a composite before capture or the streaming nested walker stops
+  mid-capture. The collector wires a recorder that increments
+  `eshu_dp_drift_schema_unknown_composite_total{resource_type,reason}` and
+  emits a `slog.Warn` line with the high-cardinality `attribute_key`, source
+  path, reason, and diagnostic error. A nil recorder is allowed for fixtures
+  and early-bootstrap paths. ADR
+  `2026-05-12-tfstate-parser-composite-capture-for-schema-known-paths`
+  owns the contract.
 
-See `doc.go` for the package contract. Key surfaces include state source
-interfaces, local and S3 source configs, `ParseDiscoveryConfig`,
-`DiscoveryResolver`, candidate and snapshot identity helpers, `LocatorHash`,
-`ScopeLocatorHash`, `LoadPackagedSchemaResolver`, parser output types, warning
-fact construction, and local-candidate policy types.
+## Safety Rules
 
-## Dependencies
+- Raw state bytes are only allowed in the source reader and parser window.
+- Full S3 URLs and local paths are not emitted in facts; parser facts use a
+  locator hash in payload and source references.
+- Repo-local state discovered by Git is discover-only by default. The
+  Terraform-state collector opens it only when `local_state_candidates.mode` is
+  `approved_candidates` and the config names an exact repo-relative path. An
+  approval may include `target_scope_id`, but a local read does not require one.
+- Exact local seeds still require operator-approved absolute paths.
+- S3 reads are exact object reads. Prefix-only keys are rejected.
+- S3 `NoSuchKey` responses are treated as a missing exact object, not a
+  transient source-read failure. Runtime adapters may turn that into a
+  `terraform_state_warning` so stale graph-discovered backend declarations do
+  not retry forever while still leaving operator-visible evidence.
+- Repo-scoped graph discovery waits for Git generation readiness before reading
+  Terraform backend facts. Backend-filter discovery reads only active
+  generations and must include at least one explicit filter.
+- Dynamic backend expressions, workspace-prefixed S3 backends, non-S3 backends,
+  and unapproved local paths from Git facts are not discovery candidates.
+- S3 write capability is rejected at source construction.
+- Redaction key material is mandatory before parsing.
+- Unknown provider-schema scalar attributes are redacted. Unknown composite
+  attributes are dropped and observed via
+  `eshu_dp_drift_schema_unknown_composite_total{reason="schema_unknown"}` so
+  operators can detect provider-schema drift.
+- Schema-known composite attributes are captured through a streaming nested
+  walker (`readCompositeValue` in `composite_walker.go`). The walker reuses
+  the existing `json.Decoder`, applies per-leaf classification via
+  `RedactionRules.Classify`, and emits the nested-singleton-array shape the
+  drift loader's flattener expects. The 48 MB peak-heap ceiling enforced by
+  `TestParseStream_PeakMemoryGate_CompositeCapture` holds for a 20k-instance
+  fixture where every instance carries a populated SSE composite.
+- Schema-known composites whose top-level source path is classified as
+  sensitive are skipped before the walker starts. Walker failures are observed
+  with `reason="shape_mismatch"` so operators can distinguish bad state shape
+  from missing provider-schema coverage.
+- `tags` and `tags_all` are emitted as `terraform_state_tag_observation`
+  facts for correlation indexing, but scalar tag keys and values still follow
+  the unknown provider-schema rule and are redacted by default. Non-scalar tag
+  values are dropped and represented by warning facts.
+- DynamoDB lock metadata is read-only and observational. The reader records the
+  digest and a lock ID hash, but consistency decisions still come from the
+  opened state body and durable generation metadata.
 
-The package consumes `internal/facts`, workflow scope identity, telemetry, and
-Terraform provider schema metadata from `internal/terraformschema`. Durable
-claim and fact persistence belongs to storage and collector services.
+## Filtered Discovery Evidence
 
-## Telemetry
+No-Regression Evidence: baseline before this slice was direct Terraform-state
+seeds plus repo-scoped Git backend discovery; backend-filter discovery and the
+remote all-collector Compose entrypoint were not accepted release paths. After
+measurement on 2026-05-21, an isolated remote Compose smoke run built from the
+PR branch against the default NornicDB image resolved one configured S3 state
+object by seed and by backend filter across a 45-repository smoke corpus. The
+Terraform-state collector reached terminal workflow completion with
+`terraform_state_snapshot=1`, `terraform_state_resource=148`,
+`terraform_state_module=148`, `terraform_state_provider_binding=148`,
+`terraform_state_output=33`, `terraform_state_tag_observation=713`, and
+`terraform_state_warning=14`; API and MCP health checks returned healthy. This
+change keeps graph discovery exact-object only, leaves worker counts and graph
+write paths unchanged, and only reduces filtered discovery database round trips
+from two queries per filter to one Terraform query plus one Terragrunt query
+per resolve.
 
-Terraform-state discovery uses `SpanTerraformStateDiscoveryResolve`. Claim-aware
-collection records claim wait and fact-emission spans in `internal/collector`.
-Schema and composite handling expose bounded metrics such as unknown composite
-and resolver-entry counts through the configured instruments.
+Observability Evidence: the remote proof used workflow work-item terminal
+state, Terraform-state fact row counts, API and MCP health endpoints, collector
+structured logs, and NornicDB error-log checks. Existing collector metrics,
+workflow status fields, fact work-item counters, and parser warning facts still
+identify whether discovery, source opening, parsing, fact commit, reducer
+projection, or graph persistence is stuck or failing; this patch does not add a
+new runtime stage or hide failures behind fallback behavior.
 
-## Gotchas / invariants
+No-Regression Evidence: after classifying S3 `NoSuchKey` as a missing exact
+state object, the focused reader and AWS adapter gate passed with
+`go test ./internal/collector/terraformstate -run 'TestS3StateSourceReports(MissingState|NotModified)' -count=1`
+and
+`go test ./cmd/collector-terraform-state -run 'TestSafeS3GetObjectErrorMaps(NoSuchKey|NotModified)|TestSafeS3GetObjectErrorDoesNotLeakLocator' -count=1`.
+The change does not alter discovery cardinality, parser memory behavior,
+worker counts, graph writes, or retry timing for transient AWS failures.
 
-- Raw state bytes must stay inside `StateSource` readers and parser-local
-  buffers. Do not persist or log unredacted state values.
-- `LocatorHash` includes backend kind, locator, and version ID. `ScopeLocatorHash`
-  excludes version ID and must stay aligned with state-snapshot scope IDs.
-- `ErrStateNotModified`, `ErrStateMissing`, and `ErrStateTooLarge` are
-  distinct operational outcomes.
-- Discovery may wait for a Git generation; do not treat that as parser failure.
-- Provider schema gaps should emit warnings or bounded counters, not invent
-  attribute truth.
-
-## Focused tests
-
-```bash
-cd go
-go test ./internal/collector/terraformstate -run 'Test.*Discovery|Test.*Identity|Test.*Parser|Test.*Schema|Test.*Source|Test.*Warning' -count=1
-go test ./internal/collector/terraformstate -count=1
-```
-
-Docs-only edits should also pass the package-doc verifier and `git diff --check`.
-
-## Related docs
-
-- `docs/public/reference/local-testing.md`
-- `docs/public/reference/telemetry/index.md`
-- `go/internal/collector/README.md`
-- `go/internal/terraformschema/README.md`
+Observability Evidence: missing S3 objects preserve the typed
+`ErrStateMissing` cause without logging bucket names, object keys, or full
+locators. The claim runtime records the source-open result and emits a bounded
+`terraform_state_warning` with `warning_kind=state_missing`, so operators can
+separate stale backend declarations from permission errors, parser failures,
+and retryable transport failures.

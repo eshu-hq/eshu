@@ -13,6 +13,14 @@ This package owns SDK calls for CloudWatch Logs. It does not own workflow
 claims, credential acquisition, CloudWatch Logs fact selection, graph writes,
 reducer admission, workload ownership, or query behavior.
 
+```mermaid
+flowchart LR
+  A["aws.Config"] --> B["NewClient"]
+  B --> C["Client.ListLogGroups"]
+  C --> D["DescribeLogGroups pages"]
+  C --> E["ListTagsForResource"]
+```
+
 ## Exported surface
 
 See `doc.go` for the godoc contract.
@@ -22,17 +30,24 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-The adapter imports the AWS SDK for Go v2 CloudWatch Logs client, Smithy API
-errors, AWS boundary/status helpers, scanner-owned CloudWatch Logs result
-types, and shared AWS telemetry.
+- `internal/collector/awscloud` for account, region, and service boundary
+  labels.
+- `internal/collector/awscloud/services/cloudwatchlogs` for scanner-owned
+  result types.
+- `internal/telemetry` for AWS API call and throttle instruments.
+- AWS SDK for Go v2 `cloudwatchlogs` and Smithy error contracts.
 
 ## Telemetry
 
-CloudWatch Logs list pages and tag reads record
-`aws.service.pagination.page`, `eshu_dp_aws_api_calls_total`, and
-`eshu_dp_aws_throttle_total`. Metric labels stay bounded to service, account,
-region, operation, and result. Log group names, ARNs, tags, KMS key IDs, and raw
-AWS error payloads stay out of metric labels.
+CloudWatch Logs list pages and tag reads are wrapped with:
+
+- `aws.service.pagination.page`
+- `eshu_dp_aws_api_calls_total`
+- `eshu_dp_aws_throttle_total`
+
+Metric labels stay bounded to service, account, region, operation, and result.
+Log group names, ARNs, tags, KMS key IDs, and raw AWS error payloads stay out
+of metric labels.
 
 ## Gotchas / invariants
 
@@ -55,5 +70,5 @@ AWS error payloads stay out of metric labels.
 
 ## Related docs
 
-- `docs/public/services/collector-aws-cloud.md`
-- `docs/public/guides/collector-authoring.md`
+- `docs/docs/adrs/2026-04-20-aws-cloud-scanner-collector.md`
+- `docs/docs/guides/collector-authoring.md`

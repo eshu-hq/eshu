@@ -70,4 +70,4 @@ avoiding per-node `NamedChildren` slice allocation in repo-scale Go pre-scans.
 
 ## Related docs
 
-- `docs/public/contributing-language-support.md`
+- `docs/plans/2026-05-09-parser-language-layout.md`

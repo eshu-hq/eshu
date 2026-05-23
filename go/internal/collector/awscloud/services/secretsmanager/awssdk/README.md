@@ -58,4 +58,4 @@ account, region, operation, and result.
 ## Related docs
 
 - `../README.md`
-- `docs/public/services/collector-aws-cloud.md`
+- `docs/docs/adrs/2026-04-20-aws-cloud-scanner-collector.md`

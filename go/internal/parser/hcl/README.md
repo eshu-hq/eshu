@@ -2,54 +2,84 @@
 
 ## Purpose
 
-This package parses Terraform and Terragrunt HCL into the payload buckets used
-by the parent parser engine. It owns HCL syntax handling, Terraform block
-extraction, resource attribute flattening for drift comparison, provider
-lockfile rows, Terragrunt helpers, and Terragrunt `remote_state` evidence from
-bounded include chains.
+This package owns Terraform and Terragrunt HCL parsing for the parser engine.
+It reads HCL source, extracts Terraform blocks, resources, variables, outputs,
+modules, providers, data sources, locals, backends, imports, moved blocks,
+removed blocks, checks, lockfile providers, Terragrunt configs, dependencies,
+inputs, local config asset paths, and Terragrunt `remote_state` blocks
+(including blocks inherited via the include chain), then returns the parser
+payload shape.
 
-## Ownership Boundary
+## Ownership boundary
 
-`internal/parser/hcl` is a language adapter. It does not own parser registry
-dispatch, grammar lifecycle, parse timing, repo path normalization, fact
-emission, or downstream drift decisions. Those stay in `internal/parser`,
-collector code, and reducer/projector packages.
+The package is responsible for HCL syntax parsing and language-specific payload
+rows. The parent `internal/parser` package still owns registry dispatch, engine
+path parsing, repo path normalization, parse timing, and final content metadata
+inference.
 
-## Exported Surface
+## Exported surface
 
-See `doc.go` for the godoc contract. The package exports `Parse`, which reads
-one HCL file and returns deterministic Terraform and Terragrunt payload rows.
+The godoc contract is in `doc.go`. Current export:
+
+- `Parse` reads one HCL file and returns the Terraform/Terragrunt payload
+  buckets used by the parent parser.
+
+## Dependencies
+
+This package imports `internal/parser/shared` for shared parser options, source
+reading, base payload construction, bucket appends, and deterministic bucket
+sorting. It imports `internal/terraformschema` only for Terraform resource type
+classification. It must not import the parent `internal/parser` package.
 
 ## Telemetry
 
-Parent parser instrumentation records file parse duration. This package only
-uses `slog.Default()` for duplicate multi-element nested-block debug records
-with `LogKeyDriftMultiElementPrefix` and `LogKeyDriftMultiElementSource`.
+File parse timing is owned by the parent parser engine through
+`eshu_dp_file_parse_duration_seconds`. The walker emits one debug-level slog
+record per duplicate multi-element repeated nested block at
+`terraform_resource_attributes.go:132` — the
+`drift parser walk truncated multi-element repeated block` message, with the
+frozen log keys `LogKeyDriftMultiElementPrefix` and
+`LogKeyDriftMultiElementSource` (value `"parser_walk"`). The log uses
+`slog.Default()` because the parser has no logger plumbing; operators turn
+debug on to surface dropped first-wins signal when a multi-element allowlist
+entry lands.
 
-## Gotchas / Invariants
+## Gotchas / invariants
 
-- `.terraform.lock.hcl` provider blocks produce lockfile provider rows, not
-  provider configuration rows.
-- Terragrunt include walking is bounded by depth, cycle detection, regular-file
-  checks, and a 1 MiB include-file limit; failures become
-  `terragrunt_include_warnings` rows.
-- Terragrunt `remote_state.source_path` is parser provenance and must not
-  collide with a local backend's `path` attribute.
-- Terraform resource attributes use cty evaluation so heredocs and escaped
-  strings line up with Terraform-state drift evidence.
-- Payload rows are sorted before return so retries and repairs converge.
+`terragrunt.hcl` is treated as Terragrunt. `.terraform.lock.hcl` is treated as
+a provider lockfile, so its `provider` blocks produce `terraform_lock_providers`
+instead of `terraform_providers`. Other HCL files use the Terraform block path.
 
-## Focused Tests
+Terragrunt local config asset extraction is intentionally bounded to static
+string, join, lookup, file, templatefile, and local interpolation shapes already
+covered by HCL-focused parser tests.
 
-```bash
-cd go
-go test ./internal/parser/hcl -count=1
-go run ./cmd/eshu docs verify ../go/internal/parser/hcl --limit 1000 \
-  --fail-on contradicted,missing_evidence
-```
+Terragrunt include-chain walking is bounded by depth, cycle detection, a
+regular-file check (`include_chain.go:96` rejects symlinks, devices, FIFOs),
+and a per-file size cap (`terragruntIncludeMaxFileBytes` at
+`include_chain.go:25`, 1 MiB). Each rejection emits a row in the
+`terragrunt_include_warnings` payload bucket so downstream consumers can
+observe walker failures rather than infer them from missing rows.
 
-## Related Docs
+Terragrunt `remote_state` rows store the parser-side source file path under
+`source_path`, kept distinct from the local backend's `path` attribute so
+neither value silently overwrites the other (`terragrunt_remote_state.go:54`).
+
+Terraform resource attribute extraction (`terraform_resource_attributes.go`)
+uses cty-value evaluation via `hclsyntax.Expression.Value(nil)` rather than
+byte-level source reads to produce the `attributes` and
+`unknown_attributes` fields on each `terraform_resources` row. This correctly handles heredoc strings (which
+evaluate to the unindented body content) and escaped-quote strings (which
+evaluate to the unescaped character). The encoding must stay in lockstep with
+the state-side flattener in `tfstate_drift_evidence_state_row.go` — see
+`literalAttributeValue` and `ctyValueToDriftString` in
+`terraform_resource_attributes.go`.
+
+Payload buckets must stay deterministic. Rows are sorted before `Parse`
+returns so ingestion retries and repair runs converge on the same facts.
+
+## Related docs
 
 - `go/internal/parser/README.md`
-- `docs/public/architecture.md`
-- `docs/public/reference/local-testing.md`
+- `docs/docs/architecture.md`
+- `docs/docs/reference/local-testing.md`

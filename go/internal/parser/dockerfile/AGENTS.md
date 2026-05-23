@@ -1,29 +1,42 @@
-# AGENTS.md - internal/parser/dockerfile
+# AGENTS.md - internal/parser/dockerfile guidance
 
-## Read First
+## Read first
 
-1. `README.md` and `doc.go`.
-2. `metadata.go` and `tokens.go`.
-3. `metadata_test.go` and parent Dockerfile parser tests when wrapper behavior
-   changes.
+1. README.md - package boundary, metadata fields, and invariants
+2. doc.go - godoc contract for the Dockerfile helper package
+3. metadata.go - Dockerfile instruction parsing and payload compatibility map
+4. tokens.go - Dockerfile escape directive detection and command-line token
+   splitting for quoted and escaped metadata values
+5. metadata_test.go - behavior coverage for runtime metadata and map shape
 
-## Guardrails
+## Invariants this package enforces
 
-- MUST NOT import `internal/parser`; parent wrappers own file reading, registry
-  dispatch, and compatibility payload assembly.
-- MUST keep `RuntimeMetadata` typed and `Metadata.Map` compatible with legacy
-  payload consumers.
-- MUST preserve deterministic row ordering because Dockerfile metadata becomes
-  parser fact input.
-- MUST honor Dockerfile token rules for modeled metadata: continuation escape
-  directives, quoted values, legacy `ENV key value`, multi-argument `ARG`,
-  `FROM --platform`, and registry hosts with ports.
-- MUST NOT move query or relationship interpretation into this package.
+- Dependency direction stays one way: parent parser code may import this
+  package, but this package must not import internal/parser.
+- RuntimeMetadata returns typed evidence; Metadata.Map is the compatibility
+  bridge for existing payload consumers.
+- Row ordering must stay deterministic because parser payloads are fact inputs.
 
-## Change Scope
+## Common changes and how to scope them
 
-- Add Dockerfile behavior with a failing `metadata_test.go` or parent parser
-  test first.
-- Keep query-specific runtime story generation and repository-specific
-  conventions out unless fixture evidence and downstream contract changes are
-  included.
+- Add Dockerfile evidence by writing a focused test in metadata_test.go first.
+- Keep file reading and registry dispatch in the parent parser package.
+- Keep query-specific runtime story generation out of this package.
+
+## Failure modes and how to debug
+
+- Missing runtime rows usually mean instruction continuation or key/value token
+  parsing changed.
+- Query regressions usually mean Metadata.Map drifted from the legacy payload
+  shape expected by parser.ExtractDockerfileRuntimeMetadata consumers.
+
+## Anti-patterns specific to this package
+
+- Importing the parent parser package to reuse payload helpers.
+- Returning only map[string]any and losing the typed helper contract.
+- Adding repository-specific Dockerfile conventions without fixture evidence.
+
+## What NOT to change without an ADR
+
+- Do not move query or relationship interpretation into this package. It owns
+  parser evidence only.

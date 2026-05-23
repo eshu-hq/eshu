@@ -10,6 +10,18 @@ This package does not download remote artifacts, start collectors, mutate core
 storage schemas, or write customer documentation. It is the read/write boundary
 for package-manager state only.
 
+## Where this fits in the pipeline
+
+```mermaid
+flowchart TB
+  A["Component manifest"] --> B["LoadManifest"]
+  B --> C["Manifest.Validate"]
+  C --> D["Policy.Verify"]
+  D --> E["Registry.Install"]
+  E --> F["Registry.Enable"]
+  F --> G["Collector instance config"]
+```
+
 The CLI in `go/cmd/eshu` calls this package for `eshu component inspect`,
 `verify`, `install`, `list`, `enable`, `disable`, and `uninstall`.
 
@@ -30,23 +42,21 @@ The CLI in `go/cmd/eshu` calls this package for `eshu component inspect`,
 
 ## Exported surface
 
-See `doc.go` and exported comments in `manifest.go`, `policy.go`, and
-`registry.go` for the godoc contract. Keep field-level manifest and registry
-details in source comments so validation changes stay reviewable beside the
-code.
+- `Manifest`, `Metadata`, `Spec`, `Artifact`, `FactFamily`,
+  `ConsumerContracts`, and `Telemetry` model the component manifest contract.
+  Each `FactFamily` declares supported schema versions and the non-unknown
+  source-confidence values the component emits.
+- `LoadManifest(path)` loads and validates a manifest from disk.
+- `Policy` and `VerificationResult` implement local trust checks.
+- `NewRegistry(home)` creates a file-backed installed component registry.
+- `Registry.Install`, `List`, `Enable`, `Disable`, and `Uninstall` manage local
+  install and activation state.
+- `InstalledComponent` records the manifest, digest, install time, verification
+  metadata, and activations.
+- `Activation` records the collector instance, execution mode, claim behavior,
+  and optional configuration for an enabled package.
 
-## Dependencies
-
-- `internal/facts` for source-confidence constants used by manifests.
-- Standard library filesystem and JSON/YAML helpers for local registry state.
-- `golang.org/x/mod/semver` for compatible-core and package version checks.
-
-## Telemetry
-
-None. Commands that call this package own user-facing output and any future
-runtime instrumentation.
-
-## Gotchas / invariants
+## Invariants
 
 - Git remains built in. Optional collectors and services must be installed and
   enabled explicitly.
@@ -60,15 +70,14 @@ runtime instrumentation.
   output.
 - Unknown or unsupported package behavior must remain inert at install time.
 
-## Verification
+## Tests
+
+Run package tests with:
 
 ```bash
 go test ./internal/component -count=1
-go run ./cmd/eshu docs verify ../go/internal/component --limit 1000 \
-  --fail-on contradicted,missing_evidence
 ```
 
-## Related docs
-
-- `docs/public/reference/component-package-manager.md`
-- `go/cmd/eshu/README.md`
+The package has focused tests for manifest validation, trust policy decisions,
+registry install/list/enable/disable/uninstall behavior, and active uninstall
+protection.

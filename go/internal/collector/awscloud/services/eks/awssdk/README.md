@@ -16,6 +16,18 @@ parent `eks` package owns fact-envelope construction. Credential loading,
 workflow claims, graph writes, reducer admission, and query behavior live
 outside this package.
 
+```mermaid
+flowchart LR
+  A["AWS SDK EKS client"] --> B["awssdk.Client"]
+  C["AWS SDK IAM client"] --> B
+  B --> D["eks.Cluster"]
+  B --> E["eks.Nodegroup"]
+  B --> F["eks.Addon"]
+  D --> G["eks.Scanner"]
+  E --> G
+  F --> G
+```
+
 ## Exported surface
 
 See `doc.go` for the godoc contract.
@@ -25,15 +37,23 @@ See `doc.go` for the godoc contract.
 
 ## Dependencies
 
-The adapter imports AWS SDK for Go v2 EKS and IAM clients, scanner-owned EKS
-records, AWS claim boundaries, and shared AWS telemetry.
+- AWS SDK for Go v2 EKS client and EKS types.
+- AWS SDK for Go v2 IAM client and IAM OIDC provider types.
+- `internal/collector/awscloud` for the claimed boundary.
+- `internal/collector/awscloud/services/eks` for scanner-owned records.
+- `internal/telemetry` for AWS API call counters, throttle counters, and
+  pagination spans.
 
 ## Telemetry
 
-`recordAPICall` emits `aws.service.pagination.page`,
-`eshu_dp_aws_api_calls_total`, and `eshu_dp_aws_throttle_total` for EKS and IAM
-OIDC lookups with bounded service, account, region, operation, and result
-labels.
+`recordAPICall` emits:
+
+- `aws.service.pagination.page` spans with service, account, region, and
+  operation attributes.
+- `eshu_dp_aws_api_calls_total` with service, account, region, operation, and
+  result labels.
+- `eshu_dp_aws_throttle_total` for throttling errors during EKS and IAM OIDC
+  lookups.
 
 ## Gotchas / invariants
 
@@ -52,5 +72,5 @@ labels.
 
 ## Related docs
 
-- `docs/public/services/collector-aws-cloud.md`
-- `docs/public/reference/telemetry/index.md`
+- `docs/docs/adrs/2026-04-20-aws-cloud-scanner-collector.md`
+- `docs/docs/reference/telemetry/index.md`

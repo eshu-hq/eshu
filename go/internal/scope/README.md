@@ -16,12 +16,58 @@ the `IngestionScope` and `ScopeGeneration` value types with their validation
 and transition methods. Postgres rows for scopes and generations live in
 `internal/storage/postgres` and use these types as their in-memory shape.
 
+## Generation lifecycle
+
+```mermaid
+stateDiagram-v2
+  [*] --> pending
+  pending --> active : MarkActive
+  pending --> failed : MarkFailed
+  active --> superseded : MarkSuperseded
+  active --> completed : MarkCompleted
+  active --> failed : MarkFailed
+  superseded --> [*]
+  completed --> [*]
+  failed --> [*]
+```
+
+`GenerationStatusSuperseded`, `GenerationStatusCompleted`, and
+`GenerationStatusFailed` are terminal. `GenerationStatus.IsTerminal` reports
+this. `TransitionTo` enforces the table; forbidden transitions return an error.
+
 ## Exported surface
 
-See `doc.go` and `go doc ./internal/scope` for the godoc contract. Callers use
-the scope, collector, trigger, and generation-status enums; `IngestionScope`;
-`ScopeGeneration`; and Terraform-state helper constructors for stable snapshot
-scope and generation identity.
+**Enums**
+
+- `ScopeKind` — `KindRepository`, `KindAccount`, `KindRegion`, `KindCluster`,
+  `KindStateSnapshot`, `KindEventTrigger`, `KindDocumentationSource`,
+  `KindContainerRegistryRepository`, `KindPackageRegistry`
+- `CollectorKind` — `CollectorGit`, `CollectorAWS`, `CollectorTerraformState`,
+  `CollectorWebhook`, `CollectorDocumentation`, `CollectorOCIRegistry`,
+  `CollectorPackageRegistry`
+- `TriggerKind` — `TriggerKindSnapshot`
+- `GenerationStatus` — `GenerationStatusPending`, `GenerationStatusActive`,
+  `GenerationStatusSuperseded`, `GenerationStatusCompleted`,
+  `GenerationStatusFailed`; methods: `Validate`, `IsTerminal`
+
+**Types**
+
+- `IngestionScope` — source-local scope identity: `ScopeID`, `SourceSystem`,
+  `ScopeKind`, `ParentScopeID`, `CollectorKind`, `PartitionKey`,
+  `ActiveGenerationID`, `PreviousGenerationExists`, `Metadata`. Methods:
+  `Validate`, `HasPriorGeneration`, `MetadataCopy`.
+- `ScopeGeneration` — one observed snapshot: `GenerationID`, `ScopeID`,
+  `ObservedAt`, `IngestedAt`, `Status`, `TriggerKind`, `FreshnessHint`.
+  Methods: `Validate`, `ValidateForScope`, `IsTerminal`, `CanTransitionTo`,
+  `TransitionTo`, `MarkActive`, `MarkCompleted`, `MarkSuperseded`, `MarkFailed`.
+- `NewTerraformStateSnapshotScope` — builds a stable `state_snapshot` scope from
+  backend kind and locator hash. The embedded locator hash is version-agnostic
+  by design and MUST stay aligned with `terraformstate.ScopeLocatorHash`; the
+  drift resolver compares the two byte-for-byte (issue #203).
+- `NewTerraformStateSnapshotGeneration` — builds the pending generation for one
+  Terraform state serial and lineage.
+
+See `doc.go` for the full godoc contract.
 
 ## Dependencies
 
@@ -51,20 +97,9 @@ This package emits no metrics, spans, or logs.
 - Terraform state scope identity stays stable across serials. The scope is
   keyed by backend kind and locator hash; serial and lineage belong to the
   `ScopeGeneration`.
-- The Terraform-state scope hash must match `terraformstate.ScopeLocatorHash`
-  byte-for-byte; the drift resolver join depends on that invariant.
-
-## Focused tests
-
-```bash
-cd go
-go test ./internal/scope -count=1
-go vet ./internal/scope
-go doc ./internal/scope
-```
 
 ## Related docs
 
-- `docs/public/architecture.md` — scope and generation identity in the pipeline
-- `docs/public/deployment/service-runtimes.md` — ingester and projector runtime
+- `docs/docs/architecture.md` — scope and generation identity in the pipeline
+- `docs/docs/deployment/service-runtimes.md` — ingester and projector runtime
   lanes

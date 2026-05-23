@@ -1,45 +1,70 @@
-# cmd/admin-status Agent Rules
+# AGENTS.md — cmd/admin-status guidance for LLM assistants
 
-These rules apply only inside `go/cmd/admin-status/`. Root `AGENTS.md` still
-controls global proof, performance, concurrency, and skill requirements.
+## Read first
 
-## Read First
+1. `go/cmd/admin-status/README.md` — binary purpose, flags, invariants, and
+   gotchas
+2. `go/cmd/admin-status/main.go` — `run` and `renderStatus`; the entire
+   business logic lives here
+3. `go/internal/status/README.md` — `LoadReport`, `RenderText`, `RenderJSON`,
+   and `Reader`; this binary is a thin caller of that package
+4. `go/internal/runtime/README.md` — `OpenPostgres`; the only external dep
+   this binary uses for configuration
 
-- `go/cmd/admin-status/README.md`
-- `go/cmd/admin-status/doc.go`
-- `go/cmd/admin-status/main.go`
-- `go/internal/status/README.md`
-- `go/internal/runtime/README.md`
+## Invariants this package enforces
 
-## Local Invariants
+- **One-shot lifecycle** — the process exits after printing the report; there
+  is no poll loop or long-running goroutine. Any change that adds a background
+  goroutine violates this contract.
+- **Format gate** — unknown `--format` values return `fmt.Errorf("unsupported
+  format %q", ...)` before any output is written. Enforced at
+  `main.go:86`.
+- **No OTEL registration** — the binary intentionally omits OTEL providers and
+  `eshu_dp_*` metrics. Logging goes through the stdlib `log` package. Do not
+  add OTEL bootstrap here; use the long-running runtime `/metrics` endpoints
+  for live telemetry.
+- **Wall-clock report time** — `renderStatus` receives `time.Now().UTC()` as
+  the `now` argument. The report reflects real wall-clock state with no
+  caching layer. Enforced at `main.go:49`.
 
-- MUST keep this binary one-shot: open Postgres, load one report, render it,
-  and exit.
-- MUST keep version probes before Postgres opening.
-- MUST keep report shape owned by `internal/status`; this command only parses
-  flags, opens Postgres, and renders the shared report.
-- MUST keep accepted `--format` values to `text` and `json` unless the CLI
-  contract and tests change together.
-- MUST return `unsupported format` for unknown formats before writing report
-  output.
-- MUST keep this binary without OTEL providers and `eshu_dp_*` metrics; live
-  telemetry belongs to long-running runtimes.
-- MUST keep report time based on `time.Now().UTC()` at call time. There is no
-  cache layer here.
+## Common changes and how to scope them
 
-## Change Gates
+- **Add a new output format** → add a case to the `switch` in `renderStatus`
+  in `main.go`; update the `--format` flag description; add a test in
+  `main_test.go`. Why: the switch is the only format dispatch point; missing
+  cases fall through to the `unsupported format` error.
 
-- New output formats MUST be added only in `renderStatus`, documented in the
-  flag help and CLI reference, and covered by `main_test.go`.
-- New flags MUST be parsed in `renderStatus`; report-shaping behavior belongs
-  in `internal/status` options, not in `main`.
-- Postgres connection behavior MUST continue through `runtimecfg.OpenPostgres`
-  so the binary uses the same runtime DSN contract as other Eshu commands.
+- **Add a new flag** → extend the `flag.FlagSet` in `renderStatus`; thread
+  the value into `statuspkg.LoadReport` or `statuspkg.DefaultOptions` if it
+  affects report scope. Why: `run` delegates fully to `renderStatus`, so flag
+  parsing lives there, not in `main`.
 
-## Focused Verification
+## Failure modes and how to debug
 
-```bash
-cd go
-go test ./cmd/admin-status -count=1
-go doc -cmd ./cmd/admin-status
-```
+- Symptom: binary exits with a Postgres connection error → cause: ESHU_POSTGRES_DSN
+  is missing or wrong → check the env var value and that the Postgres service is
+  running; `run` returns the error from `runtimecfg.OpenPostgres` before
+  calling `renderStatus`.
+
+- Symptom: binary exits with `unsupported format` → cause: `--format` received
+  a value other than `text` or `json` → check how the flag was passed; the
+  string comparison is case-insensitive after `strings.ToLower`.
+
+- Symptom: report shows stale-looking data → cause: the data in Postgres is
+  stale, not this binary; `statuspkg.LoadReport` reads live rows at call
+  time with no cache.
+
+## Anti-patterns specific to this package
+
+- **Adding OTEL providers** — this binary is intentionally a lightweight
+  one-shot CLI. OTEL bootstrap adds startup latency and requires a collector
+  endpoint. Use the long-running runtimes for live telemetry.
+
+- **Logic beyond flag parsing in `main`** — `main` must only call `run`; `run`
+  must only open Postgres and delegate to `renderStatus`. Any report-shaping
+  logic belongs in `internal/status`.
+
+## What NOT to change without an ADR
+
+- The `--format` flag name and accepted values — external scripts and operator
+  runbooks depend on these; see `docs/docs/reference/cli-reference.md`.

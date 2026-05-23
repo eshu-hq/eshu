@@ -1,40 +1,39 @@
-# packageruntime Agent Guidance
+# AGENTS.md — internal/collector/packageregistry/packageruntime guidance
 
 ## Read First
 
-1. `README.md` and `doc.go` for runtime flow and telemetry.
-2. `source.go` for claim-to-fact behavior.
-3. `http_provider.go` for explicit metadata URL fetch boundaries, timeouts,
-   rate-limit classification, and source URI sanitization.
-4. `../runtime_config.go` and `../parser_registry.go` for shared config and
-   parser contracts.
-5. `../README.md` for package-registry evidence boundaries.
+1. `README.md` — runtime purpose, flow, telemetry, and invariants
+2. `source.go` — claim-to-fact runtime path
+3. `http_provider.go` — explicit metadata URL fetch boundary
+4. `../runtime_config.go`, `../parser_registry.go` — shared config and parser
+   contracts
+5. `docs/docs/adrs/2026-05-12-package-registry-collector.md`
 
-## Local Rules
+## Invariants
 
-- Keep the runtime claim-driven. Do not add background enumeration or unbounded
-  registry crawling.
-- Fetch one explicit metadata document per target; do not infer additional feed
-  URLs from provider names.
-- Keep credentials in runtime config and request headers only. Do not copy
-  package names, private feed URLs, versions, artifact paths, credential env
-  names, or credential values into metric labels, logs, facts, docs, or PR text.
-- Preserve `GenerationID`, `CollectorInstanceID`, and workflow fencing token in
-  every emitted fact envelope.
-- Keep advisory and registry-event observations within the same package and
-  version bounds as package, dependency, artifact, and source-hint facts.
-- Treat provider metadata as reported evidence only; reducers own later graph
-  truth.
-- Do not serialize workers to hide duplicate facts or claim conflicts. Fix
-  idempotency, target partitioning, or claim fencing.
+- Keep the runtime claim-driven. Do not add unbounded registry crawling or
+  background enumeration from this package.
+- Do not serialize concurrent collector workers as a fix for duplicate facts or
+  claim conflicts. Fix idempotency, target partitioning, or claim fencing.
+- Do not put package names, private feed URLs, versions, artifact paths, or
+  credential env names in metric labels.
+- Always copy the workflow `GenerationID` and fencing token into emitted fact
+  observations.
+- Keep advisory and registry-event observations inside the same package and
+  version bounds as dependency, artifact, and source-hint observations.
+- Treat metadata as reported evidence only. Reducers own any later graph truth.
 
-## Change Rules
+## Common Changes
 
-- Add provider auth or request shaping behind `MetadataProvider`; keep parser
-  behavior in `internal/collector/packageregistry`.
-- Cover new claim identity, retry, parse, provider error, rate-limit, or
-  redaction behavior with `ClaimedSource.NextClaimed` tests.
-- Add telemetry through `internal/telemetry` before emitting it here, with
-  bounded labels only.
-- Do not bypass `collector.ClaimedService`, write directly to Postgres, add
-  graph writes, or infer source repository ownership here.
+- Add provider-specific auth or request shaping behind `MetadataProvider`; keep
+  parser behavior in `internal/collector/packageregistry`.
+- Add telemetry in `internal/telemetry` before emitting it here.
+- Add a regression test that exercises `ClaimedSource.NextClaimed` for new
+  claim identity, retry, parse, or provider error behavior.
+
+## What Not To Change Without An ADR
+
+- Do not infer source repository ownership from package metadata in this
+  package.
+- Do not bypass `collector.ClaimedService` or write directly to Postgres.
+- Do not add graph writes, reducer correlation, or query-surface behavior here.
