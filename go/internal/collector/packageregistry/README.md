@@ -9,7 +9,7 @@ It turns local package/feed metadata into reported-confidence facts. It does
 not write graph state or decide ownership.
 
 This package implements the first slices of
-`docs/docs/adrs/2026-05-12-package-registry-collector.md`: contract fixtures,
+`docs/public/reference/component-package-manager.md`: contract fixtures,
 stable package identity, bounded runtime target configuration, local metadata
 fixture parsers, parser registration, and reported-confidence fact envelopes
 for package, version, dependency, artifact, source-hint, hosting, and warning
@@ -164,6 +164,6 @@ in `packageruntime` and uses the `eshu_dp_package_registry_*` metric family.
 
 ## Related docs
 
-- `docs/docs/adrs/2026-05-12-package-registry-collector.md`
-- `docs/docs/adrs/2026-05-10-oci-container-registry-collector.md`
-- `docs/docs/guides/collector-authoring.md`
+- `docs/public/reference/component-package-manager.md`
+- `docs/public/deployment/service-runtimes-collectors.md`
+- `docs/public/guides/collector-authoring.md`

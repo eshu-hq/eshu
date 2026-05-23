@@ -289,9 +289,9 @@ reducer convergence.
 
 ## Related docs
 
-- `docs/docs/architecture.md` — pipeline and ownership table
-- `docs/docs/deployment/service-runtimes.md` — local verification runtime lanes
-- `docs/docs/reference/telemetry/index.md` — metric and span reference
-- ADR: `docs/docs/adrs/2026-04-17-neo4j-deadlock-elimination-batch-isolation.md`
-- ADR: `docs/docs/adrs/2026-04-22-nornicdb-graph-backend-candidate.md`
-- ADR: `docs/docs/adrs/2026-04-17-semantic-entity-materialization-bottleneck.md`
+- `docs/public/architecture.md` — pipeline and ownership table
+- `docs/public/deployment/service-runtimes.md` — local verification runtime lanes
+- `docs/public/reference/telemetry/index.md` — metric and span reference
+- ADR: `docs/public/reference/cypher-performance.md`
+- ADR: `docs/public/reference/backend-conformance.md`
+- ADR: `docs/public/reference/cypher-performance.md`

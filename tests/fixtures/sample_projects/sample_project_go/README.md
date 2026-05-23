@@ -1,147 +1,22 @@
-# Go Sample Project
+# Go Sample Fixture
 
-This is a comprehensive Go sample project for testing code analysis and indexing tools. It covers major Go language features and patterns.
+Parser and graph tests use this directory as Go source input. It is test data,
+not an application template.
 
-## Files Overview
+| File | Contract |
+| --- | --- |
+| `basic_functions.go` | functions, returns, closures, recursion, `defer`, `panic`, `recover`, and `init`. |
+| `structs_methods.go` | structs, constructors, receiver methods, embedding, and method chaining. |
+| `interfaces.go` | interface declarations, implementations, assertions, and type switches. |
+| `goroutines_channels.go` | goroutines, channels, `select`, worker pools, mutexes, and wait groups. |
+| `error_handling.go` | custom errors, wrapping, sentinels, `errors.Is`, `errors.As`, and validation. |
+| `generics.go` | generic functions, generic types, constraints, stacks, queues, and caches. |
+| `embedded_composition.go` | embedding, method promotion, interface embedding, and composition. |
+| `advanced_types.go` | custom types, aliases, enum patterns, maps, slices, tags, and function/channel types. |
+| `packages_imports.go` | stdlib imports, aliases, blank imports, and package initialization. |
+| `util/helpers.go` | subpackage helpers for package and import relationship tests. |
+| `go.mod` | Module identity for fixture indexing. |
 
-### 1. `basic_functions.go`
-- Basic function definitions
-- Multiple return values
-- Named returns
-- Variadic functions
-- Higher-order functions
-- Closures
-- Recursion
-- Defer, panic, and recover
-- Init functions
-
-### 2. `structs_methods.go`
-- Struct definitions
-- Value and pointer receivers
-- Constructor functions
-- Embedded structs
-- Method chaining
-- Private and public fields
-
-### 3. `interfaces.go`
-- Interface definitions
-- Interface implementations
-- Interface embedding
-- Type assertions
-- Type switches
-- Empty interfaces
-- Polymorphism
-
-### 4. `goroutines_channels.go`
-- Goroutines
-- Channels (buffered and unbuffered)
-- Select statements
-- Worker pools
-- Mutexes (sync.Mutex, sync.RWMutex)
-- Wait groups
-- Pipeline patterns
-- Fan-out/Fan-in patterns
-- Singleton with sync.Once
-
-### 5. `error_handling.go`
-- Basic error returns
-- Custom error types
-- Error wrapping (Go 1.13+)
-- Sentinel errors
-- Error type assertions
-- errors.Is and errors.As
-- Validation errors
-- Panic to error conversion
-- Deferred error handling
-
-### 6. `generics.go`
-- Generic functions
-- Generic types (Stack, Queue, Cache)
-- Type constraints
-- Generic data structures
-- Map/Filter/Reduce with generics
-- Generic linked lists
-
-### 7. `embedded_composition.go`
-- Struct embedding
-- Method promotion
-- Multiple embedding
-- Interface embedding
-- Composition over inheritance
-- Name conflict resolution
-
-### 8. `advanced_types.go`
-- Custom types
-- Type aliases
-- Enum patterns
-- Maps and nested maps
-- Slices and 2D slices
-- Arrays
-- Struct tags
-- Anonymous structs
-- Function types
-- Channel types
-- Sortable types (sort.Interface)
-- Bit flags
-
-### 9. `packages_imports.go`
-- Standard library imports
-- Aliased imports
-- Blank imports
-- Package initialization (init)
-- Multiple package usage
-- Common stdlib packages: fmt, strings, math, time, os, io, net/http
-
-### 10. `util/helpers.go` (subpackage)
-- Utility types and functions
-- String utilities
-- Math utilities
-- Slice utilities
-- Validators
-- Logger implementation
-- Package-level helper functions
-
-## Features Covered
-
-- ✅ Basic syntax and functions
-- ✅ Structs and methods
-- ✅ Interfaces and polymorphism
-- ✅ Concurrency (goroutines, channels, sync)
-- ✅ Error handling patterns
-- ✅ Generics (Go 1.18+)
-- ✅ Embedding and composition
-- ✅ Advanced types (maps, slices, custom types)
-- ✅ Package organization
-- ✅ Standard library usage
-- ✅ Common patterns and idioms
-
-## Building and Running
-
-```bash
-# Initialize module
-go mod init github.com/example/sample_project_go
-
-# Download dependencies
-go mod tidy
-
-# Run individual files
-go run basic_functions.go
-go run structs_methods.go
-# ... etc
-
-# Build all
-go build ./...
-
-# Run tests (if tests are added)
-go test ./...
-```
-
-## Use Cases
-
-This sample project is designed for:
-- Testing code analysis tools
-- Demonstrating Go best practices
-- Code indexing and graph database population
-- Understanding Go language features
-- Reference implementation for Go patterns
-
+Tests should prove stable package/import relationships, entity identifiers,
+repo-relative source paths, and parser tolerance for concurrency, generics, and
+error-handling syntax.

@@ -36,10 +36,10 @@ module "network" {
 	if err := os.WriteFile(
 		docPath,
 		[]byte(""+
-			"Bucket: `aws_s3_bucket.logs`.\n"+
-			"Policy: `data.aws_iam_policy_document.reader`.\n"+
+			"Bucket: `terraform/aws_s3_bucket.logs`.\n"+
+			"Policy: `terraform/data.aws_iam_policy_document.reader`.\n"+
 			"Module: `terraform/module.network`.\n"+
-			"Queue: `aws_sqs_queue.missing`.\n"),
+			"Queue: `terraform/aws_sqs_queue.missing`.\n"),
 		0o600,
 	); err != nil {
 		t.Fatalf("WriteFile(README.md) error = %v, want nil", err)
@@ -96,7 +96,7 @@ func TestRunDocsVerifyReportsTerraformMissingEvidenceWhenTruthIncomplete(t *test
 		t.Fatalf("WriteFile(main.tf) error = %v, want nil", err)
 	}
 	docPath := filepath.Join(root, "README.md")
-	if err := os.WriteFile(docPath, []byte("Bucket: `aws_s3_bucket.logs`.\n"), 0o600); err != nil {
+	if err := os.WriteFile(docPath, []byte("Bucket: `terraform/aws_s3_bucket.logs`.\n"), 0o600); err != nil {
 		t.Fatalf("WriteFile(README.md) error = %v, want nil", err)
 	}
 

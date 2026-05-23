@@ -7,6 +7,29 @@ pack. It classifies AWS-observed resources against Terraform state and
 Terraform config views by ARN, then builds `model.Candidate` values for the
 correlation engine.
 
+## Drift classification flow
+
+```mermaid
+flowchart LR
+    Cloud["AWS observed resource row"]
+    State["Terraform state row"]
+    Config["Terraform config row"]
+    Classify["Classify by ARN evidence"]
+    Candidate["BuildCandidates model.Candidate"]
+    Engine["correlation engine rule pack"]
+    Telemetry["RecordEvaluation bounded counters"]
+
+    Cloud --> Classify
+    State --> Classify
+    Config --> Classify
+    Classify -->|"orphaned, unmanaged, unknown, or ambiguous"| Candidate
+    Candidate --> Engine
+    Engine --> Telemetry
+```
+
+ARNs and raw tags stay in evidence atoms. Metrics only receive bounded pack and
+rule labels.
+
 ## Ownership boundary
 
 Owns the AWS runtime drift classifier, candidate evidence shape, and telemetry
@@ -56,5 +79,5 @@ only in evidence atoms for later explanation or structured logs.
 ## Related docs
 
 - `go/internal/correlation/rules/README.md`
-- `docs/docs/adrs/2026-04-19-multi-source-correlation-dsl-and-collector-readiness.md`
-- `docs/docs/adrs/2026-04-20-aws-cloud-scanner-collector.md`
+- `docs/public/reference/relationship-mapping.md`
+- `docs/public/services/collector-aws-cloud.md`

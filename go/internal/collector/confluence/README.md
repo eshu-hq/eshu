@@ -127,4 +127,4 @@ already gathered them from Eshu.
 
 - `go/cmd/collector-confluence/README.md`
 - `go/internal/collector/README.md`
-- `docs/docs/guides/collector-authoring.md`
+- `docs/public/guides/collector-authoring.md`

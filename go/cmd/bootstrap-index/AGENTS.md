@@ -68,15 +68,15 @@ or create a new method on `bootstrapCommitter` and wire it after
 All NornicDB knobs are in `nornicdb_wiring.go`. Add or change a constant in the
 `const` block, read the env var via `nornicDBPositiveIntEnv`, and pass the value
 through `bootstrapNornicDBPhaseGroupExecutor`. Update
-`docs/docs/reference/nornicdb-tuning.md` and the active NornicDB ADR in the
+`docs/public/reference/nornicdb-tuning.md` and the active NornicDB ADR in the
 same PR.
 
 ### Change projection worker count behavior
 
 `projectionWorkerCount` (`main.go:426`) reads `ESHU_PROJECTION_WORKERS` and
 defaults to `min(NumCPU, 8)`. If you change the cap or the default, update the
-concurrency reference table in `docs/docs/reference/local-testing.md` and
-`docs/docs/deployment/service-runtimes.md`.
+concurrency reference table in `docs/public/reference/local-testing.md` and
+`docs/public/deployment/service-runtimes.md`.
 
 ## Failure modes
 
@@ -98,7 +98,7 @@ concurrency reference table in `docs/docs/reference/local-testing.md` and
   The comment at `main.go:299` explains why; `MaterializeIaCReachability` must
   also not run before the drain. Any refactor that merges or reorders these
   calls requires re-reading the ADR at
-  `docs/docs/adrs/2026-04-18-bootstrap-relationship-backfill-quadratic-cost.md`.
+  `docs/public/services/bootstrap-index.md`.
 - **Do not add signal handling without also adding a cleanup path for all
   phases.** The binary currently has no signal handlers by design (one-shot).
   If you add `SIGTERM` handling, you must decide what partial-phase state means

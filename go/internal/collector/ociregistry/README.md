@@ -8,7 +8,7 @@ turns repository, tag, descriptor, manifest, index, referrer, and warning
 observations into reported-confidence facts.
 
 This package implements the contract slice from
-`docs/docs/adrs/2026-05-10-oci-container-registry-collector.md`. ECR and JFrog
+`docs/public/deployment/service-runtimes-collectors.md`. ECR and JFrog
 Docker/OCI repositories use this lane. JFrog package feeds use
 `internal/collector/packageregistry`.
 
@@ -126,5 +126,5 @@ The runtime also emits `oci_registry.scan` and `oci_registry.api_call` spans.
 
 ## Related docs
 
-- `docs/docs/adrs/2026-05-10-oci-container-registry-collector.md`
-- `docs/docs/adrs/2026-05-12-package-registry-collector.md`
+- `docs/public/deployment/service-runtimes-collectors.md`
+- `docs/public/reference/component-package-manager.md`

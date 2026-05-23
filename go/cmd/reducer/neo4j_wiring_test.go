@@ -72,7 +72,7 @@ func readNornicDBTuningDoc(t *testing.T) string {
 	if !ok {
 		t.Fatal("runtime.Caller() failed")
 	}
-	docPath := filepath.Join(filepath.Dir(filename), "..", "..", "..", "docs", "docs", "reference", "nornicdb-tuning.md")
+	docPath := filepath.Join(filepath.Dir(filename), "..", "..", "..", "docs", "public", "reference", "nornicdb-tuning.md")
 	contents, err := os.ReadFile(docPath)
 	if err != nil {
 		t.Fatalf("read nornicdb tuning doc: %v", err)

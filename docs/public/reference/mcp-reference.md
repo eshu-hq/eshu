@@ -1,0 +1,89 @@
+# MCP Reference
+
+The MCP server exposes read-only tools over stdio and HTTP/SSE. Tool dispatch
+routes into the same `internal/query` HTTP handlers used by the API, so MCP and
+HTTP share authorization passthrough, truth envelopes, pagination, and backend
+behavior.
+
+The code source of truth is `go/internal/mcp`: `ReadOnlyTools` registers tool
+definitions, `resolveRoute` maps tool names to HTTP routes, and dispatch tests
+prove every registered tool has a route.
+
+For per-tool bounds, required fields, envelopes, and prompt-readiness notes, use
+[MCP Tool Contract Matrix](mcp-tool-contract-matrix.md). This page is the public
+tool index, not a second copy of every schema.
+
+## Call Rules
+
+- Prefer canonical IDs at the tool boundary when the tool supports them.
+- Use repository selectors only as compatibility aliases; portable file answers
+  should use `repo_id + relative_path`.
+- Use story, investigation, or search tools first, then hydrate exact evidence
+  with content or citation tools.
+- Treat `execute_cypher_query` as diagnostics-only. Prefer named tools for user
+  prompts.
+- Inspect the embedded `application/eshu.envelope+json` resource when a tool
+  returns one; human text is only a summary.
+
+## Tool Families
+
+`go/internal/mcp/README.md` records the current registry count. The public tool
+families are:
+
+| Family | Tools |
+| --- | --- |
+| Code search and analysis | `find_code`, `find_symbol`, `inspect_code_inventory`, `investigate_import_dependencies`, `inspect_call_graph_metrics`, `investigate_code_topic`, `investigate_hardcoded_secrets`, `get_code_relationship_story`, `analyze_code_relationships`, `find_dead_code`, `investigate_dead_code`, `calculate_cyclomatic_complexity`, `find_most_complex_functions`, `inspect_code_quality`, `execute_language_query`, `find_function_call_chain` |
+| IaC and cloud management | `find_dead_iac`, `find_unmanaged_resources`, `get_iac_management_status`, `explain_iac_management_status`, `propose_terraform_import_plan`, `list_aws_runtime_drift_findings` |
+| Infrastructure and impact | `get_ecosystem_overview`, `trace_deployment_chain`, `investigate_deployment_config`, `find_blast_radius`, `find_infra_resources`, `investigate_resource`, `analyze_infra_relationships`, `trace_resource_to_code`, `explain_dependency_path`, `find_change_surface`, `investigate_change_surface`, `compare_environments` |
+| Repository and relationship drilldowns | `get_repo_summary`, `get_repo_context`, `get_repo_story`, `get_repository_coverage`, `get_relationship_evidence`, `search_registry_bundles` |
+| Context and stories | `resolve_entity`, `get_entity_context`, `get_workload_context`, `get_workload_story`, `get_service_context`, `get_service_story`, `investigate_service` |
+| Content and citations | `get_file_content`, `get_file_lines`, `get_entity_content`, `build_evidence_citation_packet`, `search_file_content`, `search_entity_content` |
+| Package registry | `list_package_registry_packages`, `list_package_registry_versions`, `list_package_registry_dependencies`, `list_package_registry_correlations` |
+| CI/CD and supply chain | `list_ci_cd_run_correlations`, `list_supply_chain_impact_findings`, `list_sbom_attestation_attachments` |
+| Documentation truth | `list_documentation_findings`, `list_documentation_facts`, `get_documentation_evidence_packet`, `check_documentation_evidence_packet_freshness` |
+| Runtime status | `list_ingesters`, `get_ingester_status`, `get_index_status` |
+| Diagnostics | `execute_cypher_query`, `visualize_graph_query` |
+
+## Content And Repository Identity
+
+Repository-bearing results may include `repo_access` metadata. Remote runtimes
+should treat repository identity as remote-first: use `repo_id`, `repo_slug`,
+and repo-relative paths before assuming a server-local `local_path` is useful
+to the caller.
+
+Content tools use these portable handles:
+
+- file lookup: `repo_id + relative_path`
+- entity lookup: `entity_id`
+- evidence hydration: file or entity handles returned by story, investigation,
+  search, or drilldown tools
+
+Deployed MCP/API runtimes use the PostgreSQL content store for content reads and
+search. Local helper flows may report workspace or graph-cache fallbacks when
+those are the answering backend.
+
+## MCP Result Shape
+
+When the underlying HTTP route returns the canonical Eshu envelope, MCP returns
+a text summary plus a resource content block:
+
+```json
+{
+  "type": "resource",
+  "resource": {
+    "uri": "eshu://tool-result/envelope",
+    "mimeType": "application/eshu.envelope+json",
+    "text": "{\"data\":{},\"truth\":{},\"error\":null}"
+  }
+}
+```
+
+Clients should read the resource block for `truth.level`,
+`truth.capability`, `truth.profile`, `truth.freshness.state`, and `error`.
+
+## Related Docs
+
+- [MCP Tool Contract Matrix](mcp-tool-contract-matrix.md)
+- [MCP Guide](../guides/mcp-guide.md)
+- [HTTP API Reference](http-api.md)
+- [Truth Label Protocol](truth-label-protocol.md)

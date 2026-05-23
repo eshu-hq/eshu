@@ -67,6 +67,6 @@ None. The calling projector stage emits metrics for the reference write path.
 
 ## Related docs
 
-- `docs/docs/architecture.md` — pipeline and ownership table
-- `docs/docs/reference/http-api.md` — service evidence query surface that
+- `docs/public/architecture.md` — pipeline and ownership table
+- `docs/public/reference/http-api.md` — service evidence query surface that
   consumes the extracted references

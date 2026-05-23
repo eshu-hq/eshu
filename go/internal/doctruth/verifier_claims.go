@@ -72,10 +72,11 @@ func classifyClaim(raw string, line int) extractedClaim {
 	if localPath := normalizeLocalPathClaim(text); localPath != "" {
 		return extractedClaim{claimType: ClaimTypeLocalPath, text: text, normalized: localPath, line: line}
 	}
-	if imageRef := NormalizeContainerImageRefClaim(text); imageRef != "" {
+	if imageRef := normalizeInlineContainerImageRefClaim(text); imageRef != "" {
 		return extractedClaim{claimType: ClaimTypeContainerImageRef, text: text, normalized: imageRef, line: line}
 	}
-	if terraformAddress := NormalizeTerraformAddressClaim(text); terraformAddress != "" {
+	if strings.HasPrefix(text, "terraform/") {
+		terraformAddress := NormalizeTerraformAddressClaim(text)
 		return extractedClaim{claimType: ClaimTypeTerraformAddress, text: text, normalized: terraformAddress, line: line}
 	}
 	lower := strings.ToLower(text)

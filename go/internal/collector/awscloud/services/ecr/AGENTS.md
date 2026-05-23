@@ -6,7 +6,7 @@
 2. `types.go` - scanner-owned ECR domain types.
 3. `scanner.go` - repository, lifecycle policy, and image-reference emission.
 4. `../../README.md` - shared AWS cloud observation and envelope contract.
-5. `docs/docs/adrs/2026-04-20-aws-cloud-scanner-collector.md` - ECR slice
+5. `docs/public/services/collector-aws-cloud.md` - ECR slice
    requirements.
 
 ## Invariants

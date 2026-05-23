@@ -1,6 +1,6 @@
 # Java Dead-Code Fixture Intent
 
-Maturity: `derived_candidate_only`.
+Maturity: `derived`.
 
 Expected symbols:
 

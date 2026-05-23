@@ -1,6 +1,7 @@
 package doctruth
 
 import (
+	"regexp"
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
@@ -104,6 +105,7 @@ func endpointKey(method, path string) string {
 	if idx := strings.Index(path, "?"); idx >= 0 {
 		path = path[:idx]
 	}
+	path = canonicalEndpointTemplate(path)
 	return method + " " + path
 }
 
@@ -118,9 +120,49 @@ func normalizeEshuCommand(text string) string {
 		if strings.HasPrefix(field, "-") || field == "." || strings.HasPrefix(field, "/") {
 			break
 		}
+		if isDocumentedArgument(field) {
+			break
+		}
 		parts = append(parts, strings.ToLower(strings.Trim(field, ".,);")))
 	}
 	return commandKey(parts)
+}
+
+func isDocumentedArgument(field string) bool {
+	field = strings.TrimSpace(strings.Trim(field, ".,);"))
+	return (strings.HasPrefix(field, "<") && strings.HasSuffix(field, ">")) ||
+		(strings.HasPrefix(field, "[") && strings.HasSuffix(field, "]"))
+}
+
+func canonicalEndpointTemplate(path string) string {
+	return regexp.MustCompile(`\{[^}/]+\}`).ReplaceAllString(path, "{}")
+}
+
+func newEndpointTemplate(method, path string) endpointTemplate {
+	method = strings.ToUpper(strings.TrimSpace(method))
+	path = strings.TrimRight(strings.TrimSpace(path), ".,);")
+	if method == "" || !strings.Contains(path, "{") {
+		return endpointTemplate{}
+	}
+	if idx := strings.Index(path, "?"); idx >= 0 {
+		path = path[:idx]
+	}
+	pattern := regexp.QuoteMeta(path)
+	pattern = regexp.MustCompile(`\\\{[^}]+\\\}`).ReplaceAllString(pattern, `[^/]+`)
+	return endpointTemplate{method: method, regex: regexp.MustCompile("^" + pattern + "$")}
+}
+
+func (v *Verifier) endpointTemplateMatches(normalized string) bool {
+	method, path, ok := strings.Cut(normalized, " ")
+	if !ok {
+		return false
+	}
+	for _, template := range v.endpointTemplates {
+		if template.method == method && template.regex.MatchString(path) {
+			return true
+		}
+	}
+	return false
 }
 
 func normalizeSnippet(raw string) string {

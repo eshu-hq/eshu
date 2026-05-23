@@ -207,8 +207,8 @@ Kubernetes bootstrap job no longer appears hung after Postgres schema completes.
 
 ## Related docs
 
-- `docs/docs/architecture.md` — ownership table
-- `docs/docs/adrs/2026-04-22-nornicdb-graph-backend-candidate.md` — NornicDB
+- `docs/public/architecture.md` — ownership table
+- `docs/public/reference/backend-conformance.md` — NornicDB
   compatibility dialect evidence
 - `go/internal/storage/cypher/README.md` — canonical write adapters that
   implement `Writer` and use the batch/mutation helpers

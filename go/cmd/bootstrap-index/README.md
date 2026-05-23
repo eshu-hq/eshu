@@ -250,7 +250,7 @@ Failure-class log keys emitted via `telemetry.FailureClassAttr`:
 | `ESHU_NORNICDB_ENTITY_LABEL_BATCH_SIZES` | per-label defaults | Per-label batch size overrides (`Label=size,...`) |
 | `ESHU_PPROF_ADDR` | unset (disabled) | Opt-in `net/http/pprof` endpoint via `runtime.NewPprofServer`; port-only inputs bind to `127.0.0.1` |
 
-Full NornicDB tuning reference: `docs/docs/reference/nornicdb-tuning.md`.
+Full NornicDB tuning reference: `docs/public/reference/nornicdb-tuning.md`.
 
 ## Operational notes
 
@@ -315,9 +315,9 @@ Ordering".
 
 ## Related docs
 
-- [Service Runtimes — Bootstrap Index](../../../docs/docs/deployment/service-runtimes.md#bootstrap-index)
-- [Docker Compose deployment](../../../docs/docs/deployment/docker-compose.md)
-- [Architecture — Bootstrap Index](../../../docs/docs/architecture.md)
-- [Local Testing](../../../docs/docs/reference/local-testing.md)
-- [NornicDB tuning](../../../docs/docs/reference/nornicdb-tuning.md)
-- [ADR: Bootstrap Relationship Backfill Quadratic Cost](../../../docs/docs/adrs/2026-04-18-bootstrap-relationship-backfill-quadratic-cost.md)
+- [Service Runtimes — Bootstrap Index](../../../docs/public/deployment/service-runtimes.md#bootstrap-index)
+- [Docker Compose deployment](../../../docs/public/run-locally/docker-compose.md)
+- [Architecture — Bootstrap Index](../../../docs/public/architecture.md)
+- [Local Testing](../../../docs/public/reference/local-testing.md)
+- [NornicDB tuning](../../../docs/public/reference/nornicdb-tuning.md)
+- [ADR: Bootstrap Relationship Backfill Quadratic Cost](../../../docs/public/services/bootstrap-index.md)

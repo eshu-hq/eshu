@@ -8,7 +8,7 @@
 4. Provider package README files under `dockerhub`, `ghcr`, `jfrog`, `ecr`,
    `harbor`, `gar`, and `acr` before changing provider normalization
 5. `ociruntime/README.md` — runtime scan orchestration and telemetry
-6. `docs/docs/adrs/2026-05-10-oci-container-registry-collector.md` —
+6. `docs/public/deployment/service-runtimes-collectors.md` —
    source-truth boundary and implementation slices
 
 ## Invariants

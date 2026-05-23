@@ -327,7 +327,7 @@
   breaks the readiness contract across `internal/reducer`.
 - `ReducerQueue.Claim` NornicDB semantic gate — its presence and activation
   condition are evidence-backed; see
-  `docs/docs/adrs/2026-04-22-nornicdb-graph-backend-candidate.md`.
+  `docs/public/reference/backend-conformance.md`.
 - `BootstrapDefinitions` ordering — FK constraints enforce ordering; reordering
   without verifying all FK dependencies will break bootstrap in fresh
   deployments.

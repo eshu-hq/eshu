@@ -1,0 +1,82 @@
+# Bootstrap Runtime Services
+
+Use this page for the two bootstrap paths: schema bootstrap and one-shot
+bootstrap indexing. Use [Service Runtimes](service-runtimes.md) for the full
+runtime map.
+
+## Schema Bootstrap
+
+`eshu-bootstrap-data-plane` applies Postgres and graph-backend schema DDL, then
+exits. It writes no application data.
+
+It owns this sequence:
+
+1. Apply Postgres storage schema.
+2. Apply graph constraints and indexes through the configured backend.
+3. Record the graph backend and schema fingerprint only after every graph
+   statement succeeds.
+4. Exit with code `0` on success.
+
+Invalid graph backend values fail startup. Invalid or non-positive graph schema
+statement timeouts fail before DDL runs.
+
+## Deployment Contract
+
+Compose runs `db-migrate` with `/usr/local/bin/eshu-bootstrap-data-plane` after
+Postgres and the graph backend are healthy. Steady-state services depend on
+that one-shot service completing successfully.
+
+Helm renders `deploy/helm/eshu/templates/job-schema-bootstrap.yaml`. With
+`schemaBootstrap.useHelmHooks=true`, the Job runs as a pre-install/pre-upgrade
+hook. Do not attach schema verification to every runtime pod; repeated graph
+schema checks can saturate a large existing backend during rolling updates.
+
+Do not combine Helm-hook schema bootstrap with bundled NornicDB:
+
+```yaml
+schemaBootstrap:
+  useHelmHooks: true
+nornicdb:
+  enabled: true
+```
+
+Helm rejects that render because hooks run before the chart-managed NornicDB
+Service and Deployment exist. Deploy NornicDB separately first, or set
+`schemaBootstrap.useHelmHooks=false` and provide ordering through your release
+or GitOps workflow.
+
+## Environment
+
+| Variable | Required | Purpose |
+| --- | --- | --- |
+| `ESHU_POSTGRES_DSN` | yes | Postgres connection string. |
+| `ESHU_GRAPH_BACKEND` | no | `nornicdb` or `neo4j`; default is `nornicdb`. |
+| `NEO4J_URI` | yes | Bolt URI for NornicDB or Neo4j. |
+| `NEO4J_USERNAME` / `NEO4J_PASSWORD` | yes | Bolt client credentials. |
+| `DEFAULT_DATABASE` | no | Bolt database name, default `nornic`. |
+| `ESHU_GRAPH_SCHEMA_STATEMENT_TIMEOUT` | no | Per graph DDL statement deadline, default `2m`. |
+| `ESHU_GRAPH_SCHEMA_ADOPT_EXISTING` | no | Adopt a complete existing graph schema by writing the fingerprint marker. |
+
+Existing-schema adoption is explicit opt-in. It inspects `SHOW CONSTRAINTS` and
+`SHOW INDEXES`, then fails closed if inspection errors.
+
+## Bootstrap Index
+
+`eshu-bootstrap-index` performs one-shot initial indexing. Use it to materialize
+an initial repository set, reduce cold-start time on a new environment, validate
+end-to-end indexing, or recover after operator-controlled reset work.
+
+It is packaged for Docker Compose and direct process use. It is not a
+steady-state workload in the public Helm chart, and it does not expose
+`/healthz`, `/readyz`, `/metrics`, or `/admin/status`.
+
+Repeated restarts or long-running bootstrap activity are incidents. Use the
+ingester, workflow coordinator, hosted collectors, and resolution engine for
+normal freshness.
+
+## Related Pages
+
+- [Helm Runtime Values](../deploy/kubernetes/helm-runtime-values.md)
+- [Storage](../deploy/kubernetes/storage.md)
+- [Bootstrap Index Service](../services/bootstrap-index.md)
+- [Telemetry Overview](../reference/telemetry/index.md)

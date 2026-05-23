@@ -7,8 +7,8 @@ before touching any file in this directory.
 
 1. `go/internal/reducer/README.md` and `go/internal/reducer/AGENTS.md` —
    all domain logic lives there, not here.
-2. `docs/docs/deployment/service-runtimes.md` — Resolution Engine section.
-3. `docs/docs/reference/nornicdb-tuning.md` — before touching any NornicDB
+2. `docs/public/deployment/service-runtimes.md` — Resolution Engine section.
+3. `docs/public/reference/nornicdb-tuning.md` — before touching any NornicDB
    env var or write path.
 4. `CLAUDE.md` "Facts-First Bootstrap Ordering" and "Correlation Truth
    Gates" — understand Phase 1–4 before changing claim gating or domain
@@ -83,7 +83,7 @@ before touching any file in this directory.
 ### Change NornicDB write knobs
 
 - Only touch `neo4j_wiring.go`.
-- Document the change in `docs/docs/reference/nornicdb-tuning.md` and the
+- Document the change in `docs/public/reference/nornicdb-tuning.md` and the
   active NornicDB ADR in the same PR.
 
 ## Failure modes

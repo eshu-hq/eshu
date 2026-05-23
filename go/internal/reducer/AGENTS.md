@@ -7,9 +7,9 @@ before touching any file in this directory.
 
 1. `CLAUDE.md` **entirely** — especially "Facts-First Bootstrap Ordering",
    "Correlation Truth Gates", "Concurrency Workflow", and "Golden Rules 1–4".
-2. `docs/docs/architecture.md` — service boundaries and data flow.
-3. `docs/docs/deployment/service-runtimes.md` — Resolution Engine section.
-4. `docs/docs/reference/telemetry/index.md` — observability contract.
+2. `docs/public/architecture.md` — service boundaries and data flow.
+3. `docs/public/deployment/service-runtimes.md` — Resolution Engine section.
+4. `docs/public/reference/telemetry/index.md` — observability contract.
 5. `go/internal/projector/README.md` — projector→reducer handoff and phase
    publication model.
 6. `go/cmd/reducer/README.md` — runtime wiring context.

@@ -1,135 +1,46 @@
-# tfstate Drift Compose Proof Corpus
+# tfstate Drift Tier-1 Fixture
 
-Compose-level proof corpus for the Terraform config-vs-state drift handler
-(`DomainConfigStateDrift`). This fixture is the runtime evidence input for
-issue #166 — the follow-up to PR #165 that proves the drift adapters wired
-in production actually fire end-to-end against a real Postgres + reducer.
+Fixture corpus for `scripts/verify_tfstate_drift_compose.sh`.
 
-## Layout
+Tier 1 seeds Postgres with Terraform config and state facts, then reruns
+bootstrap Phase 3.5 so the reducer handles `config_state_drift` work. It
+exercises the drift handler and evidence loader without the Terraform-state
+collector. Tier 2 lives in `../tfstate_drift_tier2/`.
+
+## File Map
 
 | File | Purpose |
 | --- | --- |
-| `seed.sql` | Idempotent SQL that writes the six scenarios into `ingestion_scopes`, `scope_generations`, and `fact_records`. |
-| `expected/added_in_state.json` | Human-readable documentation of the expected counter delta and structured log line for scenario A. The verifier asserts these inline today; the JSON exists for review and future scenarios. |
-| `expected/added_in_config.json` | Same shape for scenario B. |
-| `expected/removed_from_state.json` | Same shape for scenario C. |
-| `expected/ambiguous_owner.json` | Documents the expected zero counter delta and the rejection log for the ambiguous-owner path. |
-| `expected/attribute_drift.json` | Documents the expected counter delta and log keys for scenario E (nested SSE attribute drift). |
-| `expected/removed_from_config.json` | Documents the expected counter delta and log keys for scenario F (prior-config walk end-to-end). |
+| `seed.sql` | Idempotent rows for the six drift scenarios. |
+| `expected/added_in_state.json` | Expected counter/log shape for bucket A. |
+| `expected/added_in_config.json` | Expected counter/log shape for bucket B. |
+| `expected/removed_from_state.json` | Expected counter/log shape for bucket C. |
+| `expected/ambiguous_owner.json` | Zero-counter and rejection-log shape for bucket D. |
+| `expected/attribute_drift.json` | Expected counter/log shape for bucket E. |
+| `expected/removed_from_config.json` | Expected counter/log shape for bucket F. |
 
-## How the corpus drives the drift handler
-
-The seed writes the exact JSON shapes the production queries read:
-
-- `go/internal/storage/postgres/tfstate_backend_canonical.go`
-  reads `fact_records.payload->'parsed_file_data'->'terraform_backends'`.
-- `go/internal/storage/postgres/tfstate_drift_evidence.go`
-  reads `fact_records.payload->'parsed_file_data'->'terraform_resources'`
-  for the config side and `fact_records.fact_kind = 'terraform_state_resource'`
-  for the state side, joined through `fact_records.fact_kind = 'terraform_state_snapshot'`
-  metadata (lineage and serial).
-- `go/internal/storage/postgres/drift_enqueue.go` (Phase 3.5) walks
-  `ingestion_scopes` for every `state_snapshot:*` scope with an active
-  generation and enqueues one `config_state_drift` reducer intent per scope.
-
-Hand-crafted JSON with the same shape is indistinguishable from
-collector- or parser-emitted JSON for query purposes. Drift is not graph-projected
-in v1 (per design doc §10); counters and structured logs are the v1 truth surface.
+The `expected/*.json` files are review aids. The verifier asserts the same
+behavior inline.
 
 ## Scenarios
 
-| Scenario | Backend | Locator hash | Drift kind | Why |
-| --- | --- | --- | --- | --- |
-| `drift-tfstate-added-in-state` | `s3://eshu-drift-a/prod/terraform.tfstate` | `92d2c337…` | `added_in_state` | State carries `aws_s3_bucket.unmanaged`; config has no resource block for it. |
-| `drift-tfstate-added-in-config` | `s3://eshu-drift-b/prod/terraform.tfstate` | `0d25ca7f…` | `added_in_config` | Config declares `aws_s3_bucket.declared`; state has zero `terraform_state_resource` rows. |
-| `drift-tfstate-removed-from-state` | `s3://eshu-drift-c/prod/terraform.tfstate` | `84b08900…` | `removed_from_state` | Prior state generation (serial=1) carried `aws_s3_bucket.was_there`; current generation (serial=2) does not; config still declares the resource. Same lineage so `LineageRotation` does not suppress. |
-| `drift-tfstate-ambiguous-{a,b}` | `s3://eshu-drift-d/prod/terraform.tfstate` | `6815f7e3…` | (rejection) | Two repos both emit `terraform_backends` facts at the same `(s3, 6815f7e3…)`. Resolver returns `ErrAmbiguousBackendOwner`; handler logs WARN with `failure_class="ambiguous_backend_owner"` and emits no counter increments. |
-| `drift-tfstate-attribute-drift` | `s3://eshu-drift-e/prod/terraform.tfstate` | `864eae7a…` | `attribute_drift` | Both config and state declare `aws_s3_bucket.logs`. Config carries `server_side_encryption_configuration.rule.apply_server_side_encryption_by_default.sse_algorithm = AES256`; state carries the same key wrapped in nested singleton arrays resolving to `aws:kms`. The `acl` value matches on both sides to confirm only the SSE path fires. Exercises the deepest nested allowlist path through `flattenStateAttributes` end-to-end. Locator hash `864eae7a3a2ae00d807f7566102a24b8b9910341f9d05f426d0501d5d2ce5cc9`. |
-| `drift-tfstate-removed-from-config` | `s3://eshu-drift-f/prod/terraform.tfstate` | `76073467…` | `removed_from_config` | State carries `aws_iam_policy.legacy`; the current (active) repo generation does not declare it; the prior (superseded) repo generation did. The prior-config walk (`listPriorConfigAddressesQuery`) finds the address in the superseded generation and sets `PreviouslyDeclaredInConfig=true` so the classifier emits `removed_from_config`. This is the only bucket with two repo-snapshot generations. Locator hash `76073467642da3783752710ac2dc36933140be5c4149ec8c66a58c3c280b12e5`. |
+| Scenario | Drift kind | Fixture signal |
+| --- | --- | --- |
+| `drift-tfstate-added-in-state` | `added_in_state` | State has `aws_s3_bucket.unmanaged`; config has no matching block. |
+| `drift-tfstate-added-in-config` | `added_in_config` | Config has `aws_s3_bucket.declared`; state has no resources. |
+| `drift-tfstate-removed-from-state` | `removed_from_state` | Prior state serial 1 has `aws_s3_bucket.was_there`; current serial 2 does not. |
+| `drift-tfstate-ambiguous-{a,b}` | rejection | Two repos claim the same backend, so ownership is ambiguous. |
+| `drift-tfstate-attribute-drift` | `attribute_drift` | Config and state both have `aws_s3_bucket.logs`, but the allowlisted SSE value differs. |
+| `drift-tfstate-removed-from-config` | `removed_from_config` | State still has `aws_iam_policy.legacy`; current config removed it after a prior generation declared it. |
 
-Module-nested addresses are out of scope (#169).
+Expected truth:
 
-## Regenerating locator hashes
-
-The six hashes are precomputed against `terraformstate.ScopeLocatorHash` at `go/internal/collector/terraformstate/identity.go`:
-
-```
-sha256(BackendKind + "\x00" + Locator)
-```
-
-The hash is intentionally version-agnostic. It MUST stay aligned with the
-state-snapshot scope ID built by `scope.NewTerraformStateSnapshotScope`
-(`go/internal/scope/tfstate.go`), which also drops `VersionID` by design.
-The drift resolver compares the two hashes byte-for-byte
-(`go/internal/storage/postgres/tfstate_backend_canonical.go` vs the
-state-side scope hash parsed at
-`go/internal/reducer/terraform_config_state_drift.go`); see issue #203
-for the silent-rejection failure mode that motivated the alignment.
-
-Do NOT use `terraformstate.LocatorHash` to regenerate these values.
-`LocatorHash` and `ScopeLocatorHash` are deliberately distinct hash
-functions with different responsibilities:
-
-- `ScopeLocatorHash(BackendKind, Locator)` digests two fields and is the
-  canonical drift-resolver join key (scope-level, version-agnostic).
-- `LocatorHash(StateKey)` digests `BackendKind`, `Locator`, **and**
-  `VersionID` — including a trailing `\x00` + `VersionID` even when
-  `VersionID` is the empty string — and is the per-candidate identity
-  used by `CandidatePlanningID` and the persisted snapshot fact payload.
-
-The two never agree byte-for-byte for the same backend + locator, even
-when `VersionID == ""`, because `LocatorHash` always appends the trailing
-separator. That separator is exactly what caused issue #203 when the
-canonical resolver path was computing the join key with
-`LocatorHash(StateKey{VersionID: ""})` while the state side was using the
-scope hash. Callers must pick the right hash for their responsibility:
-scope-level joins use `ScopeLocatorHash`, per-version identity uses
-`LocatorHash`.
-
-`Locator = "s3://" + bucket + "/" + key`. To regenerate:
-
-```bash
-cd go && mkdir -p internal/collector/terraformstate/_locator_check && cat > internal/collector/terraformstate/_locator_check/main.go <<'EOF'
-package main
-
-import (
-    "fmt"
-
-    "github.com/eshu-hq/eshu/go/internal/collector/terraformstate"
-)
-
-func main() {
-    locators := []string{
-        "s3://eshu-drift-a/prod/terraform.tfstate",
-        "s3://eshu-drift-b/prod/terraform.tfstate",
-        "s3://eshu-drift-c/prod/terraform.tfstate",
-        "s3://eshu-drift-d/prod/terraform.tfstate",
-        "s3://eshu-drift-e/prod/terraform.tfstate",
-        "s3://eshu-drift-f/prod/terraform.tfstate",
-    }
-    for _, loc := range locators {
-        fmt.Printf("%s %s\n", loc, terraformstate.ScopeLocatorHash(terraformstate.BackendS3, loc))
-    }
-}
-EOF
-go run ./internal/collector/terraformstate/_locator_check/ && rm -rf internal/collector/terraformstate/_locator_check
-```
-
-If `ScopeLocatorHash` is ever renamed or its construction changes, the seed's hashes drift and the verifier will fail with "expected scope `state_snapshot:s3:<hex>` not present." Regenerate above and update `seed.sql` (the six hashes are pinned in its header comment block).
-
-## Running the proof matrix
-
-The seed is consumed by `scripts/verify_tfstate_drift_compose.sh`. That script brings the compose stack up, applies the seed, reruns bootstrap-index so Phase 3.5 picks up the seeded `state_snapshot:*` scopes, waits for the reducer to drain the queued drift intents, scrapes counters from `localhost:${ESHU_RESOLUTION_ENGINE_METRICS_PORT}/metrics`, asserts the per-kind counter deltas and structured-log shape inline, and writes a proof artifact to `docs/superpowers/proofs/<date>-tfstate-drift-compose.md` when invoked with `ESHU_TFSTATE_DRIFT_PROOF_OUT` set. The `expected/*.json` files in this directory are reviewer-facing documentation of what the inline assertions check; they are not parsed by the verifier today.
-
-## Why this corpus does NOT exercise `collector-terraform-state`
-
-The state collector is a separate long-running binary (`eshu-collector-terraform-state`) gated behind `workflow-coordinator` claims. It is not enabled in `docker-compose.yaml`. Standing it up would require:
-
-- adding a new compose service for the collector,
-- enabling `workflow-coordinator` claims (`ESHU_WORKFLOW_COORDINATOR_CLAIMS_ENABLED=true`),
-- supplying `ESHU_COLLECTOR_INSTANCES_JSON` with a `terraform_state` instance that approves a local-state candidate,
-- and a fixture Terraform repo with `terraform { backend "s3" { … } }` plus a fixture `.tfstate` file.
-
-That's a substantial compose-surface change orthogonal to #166's question ("does the drift handler fire correctly under the production reducer?"). #166 reaches the same handler entry points by writing the durable facts the collector would otherwise emit.
-
-The Tier-2 sibling at [`../tfstate_drift_tier2/`](../tfstate_drift_tier2/README.md) (issue #187) does the full E2E proof by adding a minio service, the real `collector-terraform-state` container, and the workflow-coordinator in active mode. It runs alongside Tier-1 with no shared state.
+- Module-nested addresses are outside this corpus.
+- Drift is not graph-projected here; counters and structured logs are the
+  assertion surface.
+- `seed.sql` pins `state_snapshot:s3:<hash>` scope IDs computed with
+  `terraformstate.ScopeLocatorHash(BackendKind, Locator)`. Do not replace them
+  with `terraformstate.LocatorHash`.
+- The verifier applies `seed.sql`, reruns bootstrap-index, waits for
+  `config_state_drift` drain, checks per-kind drift counters, and checks the
+  ambiguous-owner log.

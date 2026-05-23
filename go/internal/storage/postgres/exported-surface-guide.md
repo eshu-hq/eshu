@@ -1,0 +1,278 @@
+# storage/postgres exported surface guide
+
+This guide keeps the package's exported store and helper inventory. Keep
+`README.md` focused on package orientation; update this file when callers gain,
+lose, or materially change a Postgres store, constructor, schema helper, or
+reducer/query adapter.
+
+## Exported surface
+
+**Database interfaces**
+
+- `ExecQueryer` — combined read/write adapter; accepted by all store
+  constructors
+- `Transaction` — `ExecQueryer` + `Commit`/`Rollback`
+- `Beginner` — `Begin(ctx) (Transaction, error)`; implemented by `SQLDB`
+- `SQLDB` — adapts `*sql.DB`; `SQLTx` adapts `*sql.Tx`
+- `InstrumentedDB` — wraps `ExecQueryer` with OTEL spans and
+  `pcg_dp_postgres_query_duration_seconds`
+
+**Fact store**
+
+- `FactStore` / `NewFactStore` — `UpsertFacts`, `LoadFacts`, `ListFacts`,
+  `ListFactsByKind`, `ListFactsByKindAndPayloadValue`,
+  `ListActiveRepositoryFacts`, `CountFacts`
+- `AWSCloudRuntimeDriftFindingStore` /
+  `NewAWSCloudRuntimeDriftFindingStore` — active-generation reads over
+  `reducer_aws_cloud_runtime_drift_finding` facts for the IaC management API;
+  filters must include `scope_id` or a 12-digit `account_id`, optional regions
+  must use AWS region characters only, exact `arn` filters use payload equality,
+  and direct list reads cap at 500 rows.
+  The decoded row preserves optional #124 read-model payload fields such as
+  `management_status`, matched Terraform state/config handles, candidate
+  service/environment labels, dependency paths, warning flags, missing
+  evidence, and recommended action. Older facts without those fields still
+  decode and let the query layer derive the current AWS drift statuses.
+
+**Queue stores**
+
+- `ProjectorQueue` / `NewProjectorQueue` — `Claim`, `Ack`, `Heartbeat`, `Fail`,
+  `Enqueue`; `ErrProjectorClaimRejected`
+- `ReducerQueue` / `NewReducerQueue` — `Claim`, `Ack`, `Fail`, `Enqueue`
+  (batch); `ErrReducerClaimRejected`
+- `QueueObserverStore` / `NewQueueObserverStore` — queue depth, age, and
+  blockage queries for the status surface
+- `AWSScanStatusStore` / `NewAWSScanStatusStore` — per AWS tuple scanner and
+  commit status for `/admin/status`
+- `PostgresAWSCloudRuntimeDriftEvidenceLoader` — bounded AWS resource →
+  active Terraform state → owned Terraform config join for the
+  `aws_cloud_runtime_drift` reducer domain, including explicit unknown and
+  ambiguous owner evidence when coverage or deterministic owner signals are
+  insufficient
+
+**Content stores**
+
+- `ContentStore` / `NewContentStore` — `GetFileContent`, `GetEntityContent`,
+  `SearchFileContent`, `SearchEntityContent`; `FileContentRow`, `EntityContentRow`
+- `ContentWriter` / `NewContentWriter` — writes `content_files` and
+  `content_entities`. Entity-batch upserts fan out through
+  `runConcurrentBatches` in `content_writer_batch.go`; the per-file batch
+  loop stays serial because each file batch is preceded by a per-batch
+  `delete_content_references` whose interleaving the existing tests gate.
+  Auto-default concurrency is `runtime.NumCPU()` clamped to
+  `contentWriterBatchConcurrencyAutoCap` (4); operators can opt up to
+  `contentWriterBatchConcurrencyCap` (8) via
+  `ESHU_CONTENT_WRITER_BATCH_CONCURRENCY`. The env value is resolved once in
+  `NewContentWriter`, so a long-running ingester does not pick up live env
+  changes mid-run; explicit overrides flow through
+  `WithBatchConcurrency(int)`. The `upsert_entities` `logStage` line carries
+  a `batch_concurrency` attribute so operators reading the log can
+  reconcile the new wall-clock value with the per-batch
+  `eshu_dp_postgres_query_duration_seconds` metric.
+
+  Pool budgeting: peak Postgres demand is `ESHU_PROJECTOR_WORKERS *
+  ESHU_CONTENT_WRITER_BATCH_CONCURRENCY` plus connections held by
+  collector, status reads, and heartbeats. The auto cap of 4 reduces
+  pressure relative to the prior unbounded fan-out, but does not on
+  its own guarantee the product stays under the 30-connection default
+  pool (`internal/runtime/data_stores.go`). Hosts with more than 7 CPUs
+  (and the `local_authoritative` + NornicDB ingester wiring, which sets
+  `ESHU_PROJECTOR_WORKERS = runtime.NumCPU()` uncapped) will see
+  `4 * NumCPU` peak demand. When that exceeds the pool, `database/sql`
+  queues new acquires rather than failing — throughput drops while the
+  writer waits for a connection. Operators on high-core hosts, or
+  operators raising the env knob, should raise the Postgres pool
+  ceiling (the ESHU_POSTGRES_MAX_OPEN_CONNS env in
+  `internal/runtime/data_stores.go`) or lower
+  `ESHU_PROJECTOR_WORKERS` so the product stays inside the configured
+  pool.
+
+**Phase state**
+
+- `GraphProjectionPhaseStateStore` / `NewGraphProjectionPhaseStateStore` —
+  batched upsert of phase state rows
+- `GraphProjectionPhaseRepairQueueStore` / `NewGraphProjectionPhaseRepairQueueStore`
+  — repair queue for phase re-publish
+- `NewGraphProjectionReadinessLookup` / `NewGraphProjectionReadinessPrefetch`
+  — implement `reducer.GraphProjectionReadinessLookup`
+
+**Shared projection**
+
+- `SharedIntentStore` / `NewSharedIntentStore` — reads
+  `shared_projection_intents` and writes shared projection intents in bounded
+  multi-row batches (`shared_intents_upsert.go:62`). It also exposes history
+  lookups for prior acceptance-unit completion and current source-run chunk
+  completion.
+- `SharedIntentAcceptanceWriter` / `NewSharedIntentAcceptanceWriter` — writes
+  intent acceptance rows; `NewSharedIntentAcceptanceWriterWithInstruments` adds
+  metrics
+- `CodeCallIntentWriter` / `NewCodeCallIntentWriter` — type alias for
+  `SharedIntentAcceptanceWriter`
+- `SharedProjectionAcceptanceStore` / `NewSharedProjectionAcceptanceStore`
+
+**Status**
+
+- `StatusStore` / `NewStatusStore` — reads scope, generation, queue, blockage,
+  failure, coordinator, registry collector, and domain backlog aggregates.
+  `status_queries.go` merges `fact_work_items` with pending
+  `shared_projection_intents` and active `shared_projection_partition_leases`
+  for domain backlog rows. Lease-only rows stay visible even after the last
+  pending intent is claimed, so `/admin/status` does not report healthy while
+  reducer-owned shared projection work is still becoming graph-visible and does
+  not report stalled while a reducer lease is actively moving that domain.
+  `status_registry.go` derives OCI and package-registry aggregate counts from
+  workflow tables without reading private registry object names. The same store
+  also runs the bounded
+  `terraformStateLastSerialQuery` and `terraformStateRecentWarningsQuery` from
+  `tfstate_status.go` so the admin status response carries one row per
+  Terraform-state safe locator hash plus up to
+  `MaxTerraformStateRecentWarnings` recent warning facts grouped by
+  `warning_kind`.
+
+**AWS pagination checkpoints**
+
+- `AWSPaginationCheckpointStore` / `NewAWSPaginationCheckpointStore` — persists
+  claim-fenced AWS page tokens in `aws_scan_pagination_checkpoints`.
+  `Save` rejects older fencing tokens, `ExpireStale` removes prior-generation
+  rows for one AWS claim boundary, and `Complete` deletes operation state after
+  a terminal page.
+
+**Decision store**
+
+- `DecisionStore` / `NewDecisionStore` — upserts `projection_decisions` and
+  `projection_decision_evidence`; `DecisionFilter` for scoped reads
+
+**Recovery**
+
+- `RecoveryStore` / `NewRecoveryStore` — replays `dead_letter` and `failed`
+  work items to `pending`
+
+**Status**
+
+- `StatusStore` / `NewStatusStore` — scope counts, generation counts, stage
+  counts, queue depth
+- `StatusRequestStore` / `NewStatusRequestStore` — async status request
+  persistence
+
+**Ingestion**
+
+- `IngestionStore` / `NewIngestionStore` — scope and generation upserts
+
+**Relationships**
+
+- `RelationshipStore` / `NewRelationshipStore` — relationship evidence facts
+  and backfill
+- `RepoScopeResolver` — resolves scope IDs from repository identifiers
+
+**Workflow coordination**
+
+- `WorkflowControlStore` / `NewWorkflowControlStore` — claim, heartbeat,
+  release with lease fencing; `ErrWorkflowClaimRejected`, `ClaimSelector`,
+  `ClaimMutation`
+- `WebhookTriggerStore` / `NewWebhookTriggerStore` —
+  `StoreTrigger`, `ClaimQueuedTriggers`, `MarkTriggersHandedOff`,
+  `MarkTriggersFailed`, and `WebhookTriggerSchemaSQL`
+- `AWSFreshnessStore` / `NewAWSFreshnessStore` —
+  coalesced AWS Config/EventBridge freshness triggers with
+  `AWSFreshnessSchemaSQL`; `StatusStore` also reads aggregate freshness trigger
+  counts and oldest queued age for `/admin/status`
+
+**Schema bootstrap**
+
+- `BootstrapDefinitions`, `ApplyBootstrap`,
+  `ApplyBootstrapWithoutContentSearchIndexes`, `EnsureContentSearchIndexes`,
+  `ValidateDefinitions`, `ApplyDefinitions`
+- Per-table DDL helpers: `DecisionSchemaSQL`, `RelationshipSchemaSQL`,
+  `SharedIntentSchemaSQL`, `SharedProjectionAcceptanceSchemaSQL`,
+  `GraphProjectionPhaseStateSchemaSQL`, `GraphProjectionPhaseRepairQueueSchemaSQL`,
+  `WorkflowControlSchemaSQL`, `WorkflowCoordinatorStateSchemaSQL`,
+  `IaCReachabilitySchemaSQL`
+
+**IaC reachability**
+
+- `IaCReachabilityStore` / `NewIaCReachabilityStore` — IaC-to-workload
+  reachability rows; `IaCReachabilityRow`, `IaCReachability`, `IaCFinding`
+
+**Freshness checks** (implement `reducer` interfaces)
+
+- `NewAcceptedGenerationLookup` / `NewAcceptedGenerationPrefetch`
+- `NewGenerationFreshnessCheck` / `NewPriorGenerationCheck`
+
+**Terraform drift adapters** (implement reducer drift ports for chunk #163)
+
+- `PostgresTerraformBackendQuery` (`tfstate_backend_canonical.go:68`) — answers
+  `tfstatebackend.TerraformBackendQuery` from durable parser facts; recomputes
+  each row's locator hash with `terraformstate.ScopeLocatorHash` (the
+  version-agnostic join key) so the join stays aligned with the state-snapshot
+  scope ID built by `scope.NewTerraformStateSnapshotScope`. Using
+  `terraformstate.LocatorHash` here would silently reject every drift candidate
+  (issue #203).
+- `PostgresDriftEvidenceLoader` (`tfstate_drift_evidence.go:56`) — builds the
+  per-address `tfconfigstate.AddressedRow` slice from four logical inputs:
+  config facts, active state facts, prior-generation state facts (skipped when
+  current serial is zero), and prior-config-snapshot addresses. The config and
+  backend queries gate on `jsonb_array_length > 0` so files with empty parser
+  buckets are not decoded. `PriorConfigDepth` (default 10, set from
+  `ESHU_DRIFT_PRIOR_CONFIG_DEPTH`) controls how many prior repo-snapshot
+  generations the prior-config walk covers.
+  As of issue #169 the loader also walks `terraform_modules` parser facts
+  (`buildModulePrefixMap` in
+  `tfstate_drift_evidence_module_prefix.go`) to learn which `.tf` files
+  live under a `module {}` callee directory. Resources whose path matches a
+  callee inherit the canonical
+  `module.<name>[.module.<name>...]` prefix so their config-side address
+  matches the state-side `terraform state list` shape. The prior-config walk
+  builds a prefix map per prior generation before calling
+  `collectPriorConfigAddresses` so module-nested `removed_from_config`
+  detection stays alive even when a module block is renamed across
+  generations. Local-source modules resolve; registry, git, archive, and
+  cross-repo sources fall back to `added_in_state` and increment
+  `eshu_dp_drift_unresolved_module_calls_total{reason}`. Module rename
+  detection increments the same counter with `reason="module_renamed"` once
+  per prior generation and callee path.
+  Row construction is split across four sibling files:
+  - `configRowFromParserEntry` (`tfstate_drift_evidence_config_row.go:22`) —
+    maps one HCL-parser `terraform_resources` JSON entry to a
+    `tfconfigstate.ResourceRow`; copies the flat dot-path `attributes` map and
+    decodes `unknown_attributes` as `ResourceRow.UnknownAttributes`.
+  - `stateRowFromCollectorPayload` (`tfstate_drift_evidence_state_row.go:29`)
+    — decodes the collector's `terraform_state_resource` payload and calls
+    `flattenStateAttributes` (same file, line 90) to produce a flat dot-path
+    `map[string]string`. Singleton repeated blocks (e.g. `versioning`,
+    `server_side_encryption_configuration`) arrive as `[]any` of length 1
+    whose element is `map[string]any`; the flattener unwraps the array and
+    recurses into the object so paths align with the parser's dot-path form.
+    Multi-element repeated blocks (`len(typed) > 1`) hit the same first-wins
+    unwrap and emit a debug-level slog record with
+    `LogKeyDriftMultiElementPrefix`, `LogKeyDriftMultiElementCount`, and
+    `LogKeyDriftMultiElementSource="state_flatten"` so the dropped signal is
+    observable. The dot-path encoding MUST stay byte-identical to
+    `ctyValueToDriftString` in
+    `go/internal/parser/hcl/terraform_resource_attributes.go` so the
+    classifier's value-equality check fires deterministically.
+  - `loadPriorConfigAddresses` (`tfstate_drift_evidence_prior_config.go`)
+    — walks the most recent `PriorConfigDepth` prior repo-snapshot generations
+    for the config scope and returns the union of all declared resource
+    addresses. `mergeDriftRows` sets `PreviouslyDeclaredInConfig=true` on
+    state-only addresses present in this set, activating `removed_from_config`
+    classification as of issue #168. Addresses outside the depth window keep
+    `PreviouslyDeclaredInConfig=false` and surface as `added_in_state`. The
+    walk is bounded by `listPriorConfigAddressesQuery`'s `LIMIT` so cost
+    stays proportional to depth. It builds one prior-generation module-prefix
+    map per generation returned by the bounded walk.
+  - `buildModulePrefixMap` (`tfstate_drift_evidence_module_prefix.go`) —
+    walks `terraform_modules` facts in the same `(scope_id, generation_id)`
+    and returns a callee-directory to module-prefix map keyed by
+    forward-slash paths. Uses `path.Clean` (NOT `path/filepath.Clean`)
+    because the inputs are Postgres-stored strings, not live filesystem
+    paths. Bounds the chain at `maxModulePrefixDepth = 10` (hard-coded
+    const, no env knob) and breaks cycles with a per-expansion visited
+    set. Multiple distinct callers of the same callee produce a slice of
+    prefix strings; the loader's emission loop fans out to one
+    `ResourceRow` per prefix.
+- `IngestionStore.EnqueueConfigStateDriftIntents` (`drift_enqueue.go:61`) —
+  Phase 3.5 trigger that enqueues one `config_state_drift` reducer intent per
+  active `state_snapshot:*` scope after bootstrap Phase 3 finishes. It records
+  `eshu_dp_correlation_drift_intents_enqueued_total` with the number of intents
+  attempted so operators can compare queue trigger volume with downstream drift
+  admission volume.

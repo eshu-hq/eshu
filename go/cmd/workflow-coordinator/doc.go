@@ -10,7 +10,7 @@
 // `/readyz`, `/metrics`, and `/admin/status` admin surface. Deployment mode
 // (dark by default, active when the deployment knobs documented in the
 // runtime contract are set) gates the reap and run-reconciliation loops;
-// trigger normalization and permanent claim ownership are not implemented in
-// this binary today. SIGINT and SIGTERM trigger clean shutdown through the
-// hosted runtime drain.
+// trigger normalization and collector lease ownership remain outside this
+// binary. SIGINT and SIGTERM trigger clean shutdown through the hosted runtime
+// drain.
 package main

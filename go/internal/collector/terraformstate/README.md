@@ -11,6 +11,33 @@ This package does not schedule collector runs, write graph rows, persist raw
 state, or call cloud APIs directly. Coordinator claims, reducer projection, and
 AWS SDK wiring belong to integration slices outside the reader stack.
 
+## Collection flow
+
+```mermaid
+flowchart LR
+    Config["discovery config and explicit seeds"]
+    GitFacts["Git backend and local-state candidate facts"]
+    Resolver["DiscoveryResolver"]
+    Candidate["exact DiscoveryCandidate / StateKey"]
+    Source["LocalStateSource or S3StateSource"]
+    Parser["streaming Parse + redaction rules"]
+    Facts["Terraform-state facts.Envelope values"]
+    Runtime["tfstateruntime claim adapter"]
+    Store["fact store and reducer pipeline"]
+
+    Config --> Resolver
+    GitFacts --> Resolver
+    Resolver --> Candidate
+    Candidate --> Source
+    Runtime --> Source
+    Source -->|"raw state stream stays local"| Parser
+    Parser -->|"redacted facts + warnings"| Facts
+    Facts --> Store
+```
+
+Raw Terraform state is only visible to the source reader and parser. Everything
+leaving this package is a redacted fact, warning, identity, or bounded summary.
+
 ## Current Surface
 
 - `StateSource` opens one exact Terraform state stream.

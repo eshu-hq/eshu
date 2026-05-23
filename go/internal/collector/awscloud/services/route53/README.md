@@ -7,7 +7,7 @@ selection for the AWS cloud collector. It converts hosted zones and selected
 DNS records into `aws_resource` and `aws_dns_record` facts.
 
 The package implements the Route 53 slice from
-`docs/docs/adrs/2026-04-20-aws-cloud-scanner-collector.md`.
+`docs/public/services/collector-aws-cloud.md`.
 
 ## Ownership boundary
 
@@ -64,5 +64,5 @@ API call counters, throttle counters, and pagination spans.
 
 ## Related docs
 
-- `docs/docs/adrs/2026-04-20-aws-cloud-scanner-collector.md`
-- `docs/docs/reference/telemetry/index.md`
+- `docs/public/services/collector-aws-cloud.md`
+- `docs/public/reference/telemetry/index.md`

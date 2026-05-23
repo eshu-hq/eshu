@@ -11,6 +11,26 @@ convention used when an imported package can reach exported methods through an
 escaped interface value and the qualified roots for imported receiver method
 calls.
 
+## Dependency boundary
+
+```mermaid
+flowchart LR
+    Parent["internal/parser dispatcher"]
+    Shared["internal/parser/shared"]
+    Child["language-owned parser packages"]
+    Payload["common payload buckets and options"]
+    Collector["collector materialization"]
+
+    Parent --> Child
+    Shared --> Child
+    Shared --> Payload
+    Child --> Payload
+    Payload --> Collector
+```
+
+Child parser packages may depend on shared helpers. Shared helpers must stay
+language-neutral and must not depend on the parent dispatcher.
+
 ## Ownership boundary
 
 This package owns dependency-safe helper contracts for child parser packages.
@@ -70,4 +90,4 @@ avoiding per-node `NamedChildren` slice allocation in repo-scale Go pre-scans.
 
 ## Related docs
 
-- `docs/plans/2026-05-09-parser-language-layout.md`
+- `docs/public/languages/support-maturity.md`

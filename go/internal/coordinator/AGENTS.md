@@ -99,7 +99,7 @@
   Do not inline `Store.Xxx` calls directly in the `select` loop.
 
 - **Branching on `Store` concrete type** — `Service` accepts any `Store`
-  implementation. Do not add `if _, ok := s.Store.(*postgres.WorkflowControlStore)` 
+  implementation. Do not add `if _, ok := s.Store.(*postgres.WorkflowControlStore)`
   checks; backend dialect belongs in the storage layer.
 
 - **Disabling Config.Validate** — do not skip validation in production wiring.

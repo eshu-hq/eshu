@@ -361,7 +361,7 @@ runtime; all emission happens in the packages that consume `Instruments`.
 
 ## Related docs
 
-- `docs/docs/reference/telemetry/index.md` — operator-facing metric, span, and
+- `docs/public/reference/telemetry/index.md` — operator-facing metric, span, and
   log reference with tuning guidance
-- `docs/docs/architecture.md` — pipeline ownership table
-- `docs/docs/deployment/service-runtimes.md` — how each binary bootstraps OTEL
+- `docs/public/architecture.md` — pipeline ownership table
+- `docs/public/deployment/service-runtimes.md` — how each binary bootstraps OTEL

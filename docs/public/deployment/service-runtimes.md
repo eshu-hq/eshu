@@ -1,0 +1,69 @@
+# Service Runtimes
+
+Use this page when you need the deployment ownership map: which Eshu runtimes
+exist, which service owns a problem, and which focused page has the detail.
+
+For Kubernetes install steps, use
+[Helm Quickstart](../deploy/kubernetes/helm-quickstart.md). For local stack
+choices, use [Docker Compose](../run-locally/docker-compose.md).
+
+## Runtime Map
+
+| Runtime | Owns | Kubernetes shape | Detail |
+| --- | --- | --- | --- |
+| Schema Bootstrap | Postgres and graph schema DDL only. | `Job` | [Bootstrap runtimes](service-runtimes-bootstrap.md) |
+| API | HTTP API, query reads, and admin endpoints. | `Deployment` | [Core runtimes](service-runtimes-core.md) |
+| MCP Server | MCP HTTP/SSE or stdio transport over the query surface. | optional `Deployment` | [Core runtimes](service-runtimes-core.md) |
+| Ingester | Repository sync, workspace PVC, parsing, fact emission. | `StatefulSet` | [Core runtimes](service-runtimes-core.md) |
+| Webhook Listener | Verified Git and AWS freshness trigger intake. | optional `Deployment` | [Core runtimes](service-runtimes-core.md) |
+| Workflow Coordinator | Collector instance reconciliation, claim creation, expired-claim reaping. | optional `Deployment` | [Core runtimes](service-runtimes-core.md) |
+| Resolution Engine | Durable queue drain, projection, retry, replay, and recovery. | `Deployment` | [Resolution engine](../services/resolution-engine.md) |
+| Hosted Collectors | Confluence, OCI registry, Terraform-state, AWS cloud, and package-registry fact intake. | optional `Deployment` | [Collector runtimes](service-runtimes-collectors.md) |
+| Bootstrap Index | One-shot initial indexing. | operator-run helper, not chart steady state | [Bootstrap runtimes](service-runtimes-bootstrap.md) |
+
+The direct service binaries are the release artifacts and support `--version`
+checks. Helm starts API and MCP through the `eshu` CLI wrapper; most other
+workloads use direct `/usr/local/bin/eshu-*` binaries.
+
+Deployment binaries connect to external Bolt-compatible graph endpoints.
+Embedded NornicDB is only the local `eshu graph start` path.
+
+## Health Versus Completeness
+
+Long-running HTTP runtimes expose the shared admin surface:
+
+- `/healthz` for process health
+- `/readyz` for dependency readiness
+- `/metrics` for Prometheus signals
+- `/admin/status` for runtime backlog, generation, and failure state
+
+A green pod is not proof that indexing finished. Use the completeness routes
+before treating a graph as current:
+
+- `GET /api/v0/status/index`
+- `GET /api/v0/index-status`
+- `GET /api/v0/repositories/{repo_id}/coverage`
+
+`bootstrap-index` is one-shot and does not mount the shared HTTP admin surface.
+
+## Operational Defaults
+
+- Keep the workspace PVC on the ingester only.
+- Scale API and MCP for read traffic.
+- Scale the resolution engine only after queue and Postgres telemetry show the
+  reducer is the bottleneck.
+- Keep claim-driven collectors behind an active workflow coordinator.
+- Use `ServiceMonitor` only for long-running Kubernetes runtimes; schema
+  bootstrap and bootstrap-index are excluded.
+- Enable `ESHU_PPROF_ADDR` only on the runtime that owns the slow stage and keep
+  it private.
+
+## Route Map
+
+| Need | Use |
+| --- | --- |
+| Commands, templates, and scaling notes for core services | [Core Runtime Services](service-runtimes-core.md) |
+| Collector control-plane and hosted collector matrix | [Collector Runtime Services](service-runtimes-collectors.md) |
+| Schema bootstrap and bootstrap-index contract | [Bootstrap Runtime Services](service-runtimes-bootstrap.md) |
+| Helm values and render-time guards | [Helm Values](../deploy/kubernetes/helm-values.md) |
+| Metrics, traces, logs, and status signal names | [Telemetry Overview](../reference/telemetry/index.md) |

@@ -7,7 +7,7 @@
 3. `../scanner.go` - scanner-owned S3 fact selection.
 4. `../README.md` - S3 scanner contract.
 5. `../../../README.md` - AWS cloud envelope contract.
-6. `docs/docs/adrs/2026-04-20-aws-cloud-scanner-collector.md` - AWS collector
+6. `docs/public/services/collector-aws-cloud.md` - AWS collector
    service coverage and runtime requirements.
 
 ## Invariants

@@ -1,14 +1,13 @@
-# Testing
+# Testing Eshu
 
-Eshu now validates the Go-owned platform directly. The old
-Python service and pytest runtime suites are no longer part of the normal
-verification path on this branch.
+Eshu validates the Go-owned platform directly. Python appears only in fixtures
+or offline tooling, not as a normal runtime service.
 
 For the exact verification matrix, use
-[docs/docs/reference/local-testing.md](docs/docs/reference/local-testing.md).
+[docs/public/reference/local-testing.md](docs/public/reference/local-testing.md).
 This file is the shorter overview.
 
-## Quick Start
+## Fast Local Check
 
 Fast local pass:
 
@@ -18,72 +17,49 @@ Fast local pass:
 
 ## Layer Breakdown
 
-### Go unit and package tests
+| Layer | What it proves | Where to look |
+| --- | --- | --- |
+| Go package tests | Parser extraction, query handlers, runtime wiring, storage contracts, and domain materialization. | `go/internal/*`, `go/cmd/*` |
+| CLI and service wiring | The public CLI and service binaries build and keep focused contracts. | `go/cmd/README.md` |
+| Deployment assets | Compose, Helm, and minimal manifest shape. | `docs/public/reference/local-testing.md` |
+| Documentation | Public nav, links, and documentation truth claims. | `docs/mkdocs.yml`, `go run ./cmd/eshu docs verify` |
 
-Parser extraction, query handlers, runtime wiring, storage contracts, and
-domain materialization. No external services needed.
+## Common Gates
+
+Use [Local Testing Reference](docs/public/reference/local-testing.md) as the
+source of truth. These are common entry points, not a replacement for that
+matrix.
+
+Go package or command slice:
 
 ```bash
 cd go
-go test ./internal/parser ./internal/query ./internal/runtime ./internal/reducer ./internal/projector -count=1
+go test ./cmd/eshu ./cmd/api ./cmd/mcp-server ./internal/query -count=1
 ```
 
-### CLI and service wiring
-
-The top-level CLI and runtime binaries should build and their focused tests
-should pass.
+Deployment shape:
 
 ```bash
-cd go
-go test ./cmd/eshu ./cmd/api ./cmd/mcp-server ./cmd/bootstrap-index ./cmd/ingester ./cmd/reducer -count=1
-```
-
-### Deployment asset tests
-
-Docker, Helm, and compose-backed runtime shape.
-
-```bash
-cd go
-go test ./cmd/api ./cmd/mcp-server ./cmd/bootstrap-index ./cmd/ingester ./cmd/reducer -count=1
+(cd go && go test ./cmd/api ./cmd/bootstrap-index ./cmd/ingester ./cmd/reducer -count=1)
 helm template eshu ./deploy/helm/eshu
 kubectl kustomize deploy/manifests/minimal
 ```
 
-### Docs smoke tests
+Docs:
 
 ```bash
+(cd go && go run ./cmd/eshu docs verify .. --limit 1400 --fail-on contradicted,missing_evidence)
 uv run --with mkdocs --with mkdocs-material --with pymdown-extensions \
   mkdocs build --strict --clean --config-file docs/mkdocs.yml
+git diff --check
 ```
 
 ## Local Service Stack
 
-The Docker Compose stack mirrors the production lifecycle:
-
-1. Start Neo4j and Postgres
-2. Run bootstrap indexing
-3. Start the Go API service
-4. Start the Go ingester
-5. Start the Go reducer
-
-```bash
-docker compose up --build
-```
-
-If the default ports are in use:
-
-```bash
-NEO4J_HTTP_PORT=17474 \
-NEO4J_BOLT_PORT=17687 \
-ESHU_HTTP_PORT=18080 \
-docker compose up --build
-```
-
-The fixture ecosystems used by the stack live under `tests/fixtures/ecosystems/`.
-
-When you point Compose at host repositories, set `ESHU_FILESYSTEM_HOST_ROOT` to
-an absolute real directory. Do not use symlinks, and do not use macOS `/tmp`
-because Docker resolves it through `/private/tmp`.
+Use [Docker Compose](docs/public/run-locally/docker-compose.md) for the current
+service list, ports, profiles, overlays, and host-repository mount rules. The
+default stack uses NornicDB and Postgres. Use `docker-compose.neo4j.yml` only
+for Neo4j compatibility checks.
 
 ## What We Verify
 
@@ -94,16 +70,6 @@ because Docker resolves it through `/private/tmp`.
 - deployment artifacts for the public chart and minimal manifests
 - compose-backed ingester and reducer flows
 - Terraform provider-schema loading and relationship extraction
-
-## Minimum Always-Run Gates
-
-```bash
-cd go
-go test ./cmd/eshu ./cmd/api ./cmd/mcp-server ./cmd/bootstrap-index ./cmd/ingester ./cmd/reducer -count=1
-go test ./internal/parser ./internal/collector ./internal/collector/discovery ./internal/content/shape -count=1
-go test ./internal/terraformschema ./internal/relationships ./internal/runtime ./internal/status ./internal/storage/postgres -count=1
-git diff --check
-```
 
 ## Current Gaps
 

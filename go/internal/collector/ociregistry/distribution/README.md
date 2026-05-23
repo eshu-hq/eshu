@@ -63,4 +63,4 @@ client in the future claim-driven collector.
 
 ## Related docs
 
-- `docs/docs/adrs/2026-05-10-oci-container-registry-collector.md`
+- `docs/public/deployment/service-runtimes-collectors.md`

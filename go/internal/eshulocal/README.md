@@ -7,8 +7,8 @@ owns workspace-root resolution, the
 `${ESHU_HOME}/local/workspaces/<id>/` directory layout, the `owner.lock` flock
 protocol, the `owner.json` record, VERSION file management, and embedded
 Postgres lifecycle. The layout spec lives in
-`docs/docs/reference/local-data-root-spec.md`; the startup admission order is
-defined in `docs/docs/reference/local-host-lifecycle.md`.
+`docs/public/reference/local-data-root-spec.md`; the startup admission order is
+defined in `docs/public/reference/local-host-lifecycle.md`.
 
 ## Where this fits in the pipeline
 
@@ -182,7 +182,7 @@ None. The startup and reclaim paths do not emit metrics or spans.
 
 ## Related docs
 
-- `docs/docs/reference/local-data-root-spec.md` — layout and VERSION spec
-- `docs/docs/reference/local-host-lifecycle.md` — startup admission order
-- `docs/docs/reference/local-testing.md`
-- `docs/docs/architecture.md` — local profile runtime shapes
+- `docs/public/reference/local-data-root-spec.md` — layout and VERSION spec
+- `docs/public/reference/local-host-lifecycle.md` — startup admission order
+- `docs/public/reference/local-testing.md`
+- `docs/public/architecture.md` — local profile runtime shapes

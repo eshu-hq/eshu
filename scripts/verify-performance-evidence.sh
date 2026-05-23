@@ -114,9 +114,9 @@ is_runtime_config_by_content() {
 is_evidence_file() {
   local path="$1"
   case "$path" in
-    docs/docs/adrs/*.md) return 0 ;;
-    docs/docs/reference/*.md) return 0 ;;
-    docs/docs/reference/**/*.md) return 0 ;;
+    docs/public/adrs/*.md) return 0 ;;
+    docs/public/reference/*.md) return 0 ;;
+    docs/public/reference/**/*.md) return 0 ;;
     go/**/README.md) return 0 ;;
     go/**/AGENTS.md) return 0 ;;
     *) return 1 ;;

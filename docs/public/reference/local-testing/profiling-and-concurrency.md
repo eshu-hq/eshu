@@ -1,0 +1,144 @@
+# Profiling And Concurrency
+
+Use this page for worker-count diagnostics, `ESHU_PPROF_ADDR`, and phase CPU
+capture.
+
+## Concurrency Tuning Reference
+
+Set any variable to `1` to force sequential processing during debugging. Do not
+ship single-worker settings as a fix for a concurrency bug.
+
+| Env var | Default | Service | Controls |
+| --- | --- | --- | --- |
+| `ESHU_PROJECTION_WORKERS` | `min(NumCPU, 8)` | Bootstrap Index | Concurrent bootstrap projection goroutines |
+| `ESHU_SNAPSHOT_WORKERS` | `min(NumCPU, 8)`; local-authoritative owner: `NumCPU` | Ingester / Bootstrap | Concurrent repository snapshot goroutines |
+| `ESHU_PARSE_WORKERS` | `min(NumCPU, 8)`; local-authoritative owner: `NumCPU` | Ingester / Bootstrap | Concurrent file-parse workers inside a repository snapshot |
+| `ESHU_PROJECTOR_WORKERS` | `min(NumCPU, 8)`; NornicDB local-authoritative: `NumCPU` | Ingester | Concurrent source-local projection workers |
+| `ESHU_REDUCER_WORKERS` | NornicDB: `NumCPU`; Neo4j: `min(NumCPU, 4)` | Reducer | Concurrent reducer intent execution goroutines |
+| `ESHU_REDUCER_BATCH_CLAIM_SIZE` | NornicDB: `workers`; Neo4j: `workers * 4` capped at `64` | Reducer | Reducer intents leased per claim cycle |
+| `ESHU_REDUCER_SEMANTIC_ENTITY_CLAIM_LIMIT` | NornicDB: `1`; otherwise disabled | Reducer | Concurrent semantic entity materialization claims after source-local drain |
+| `ESHU_CODE_CALL_PROJECTION_ACCEPTANCE_SCAN_LIMIT` | `250000` | Reducer | Maximum code-call shared intents scanned or loaded for one accepted repo/run before failing safely |
+| `ESHU_SHARED_PROJECTION_WORKERS` | `min(NumCPU,4)` | Reducer | Concurrent shared projection partition goroutines |
+| `ESHU_SHARED_PROJECTION_PARTITION_COUNT` | `8` | Reducer | Partitions per shared projection domain |
+| `ESHU_SHARED_PROJECTION_BATCH_LIMIT` | `100` | Reducer | Intents processed per partition batch |
+| `ESHU_SHARED_PROJECTION_POLL_INTERVAL` | `500ms` | Reducer | Shared projection poll interval; idle cycles back off up to `5s` |
+| `ESHU_SHARED_PROJECTION_LEASE_TTL` | `60s` | Reducer | Partition lease time-to-live |
+
+When changing queue or worker behavior, also prove:
+
+- expired claims can be reclaimed
+- overdue claims surface through status
+- ack failures emit logs and metrics
+- structured logs keep failure class, queue name, and work item identity
+
+## Process Profiling
+
+Each Go runtime binary ships an opt-in `net/http/pprof` endpoint. It is
+disabled by default and gated by `ESHU_PPROF_ADDR`.
+
+```bash
+ESHU_PPROF_ADDR=:6060 eshu-ingester
+
+go tool pprof -seconds=30 http://127.0.0.1:6060/debug/pprof/profile
+go tool pprof http://127.0.0.1:6060/debug/pprof/heap
+curl -sS http://127.0.0.1:6060/debug/pprof/goroutine?debug=2 > goroutines.txt
+```
+
+A bare port like `:6060` is rewritten to `127.0.0.1:6060` so a typo cannot
+silently expose profiling endpoints on a routable interface. Supply an explicit
+host only when you intend broader exposure; pprof reveals goroutine dumps, heap
+snapshots, and CPU profiles and must be treated as credential-grade.
+
+For Helm deployments, use workload-specific `env` maps when only one runtime
+needs a profile:
+
+```yaml
+ingester:
+  env:
+    ESHU_PPROF_ADDR: "127.0.0.1:6060"
+resolutionEngine:
+  env:
+    ESHU_PPROF_ADDR: "127.0.0.1:6061"
+```
+
+## Remote E2E Worker Profiles
+
+For hosted remote E2E performance debugging, keep the base stack unchanged and
+add the pprof overlay only for the run that needs profiles:
+
+```bash
+docker compose --env-file .env.remote-e2e \
+  -f docker-compose.remote-e2e.yaml \
+  -f docker-compose.remote-e2e.pprof.yaml \
+  --profile seed up --build
+```
+
+The overlay sets `ESHU_PPROF_ADDR=0.0.0.0:6060` inside each worker container,
+then publishes that container port on the remote host loopback interface. That
+keeps the profiler private to the test host while still allowing an operator to
+use an SSH tunnel from their laptop.
+
+| Service | Host endpoint |
+| --- | --- |
+| `bootstrap-index` | `127.0.0.1:19660` |
+| `ingester` | `127.0.0.1:19661` |
+| `resolution-engine` | `127.0.0.1:19662` |
+| `workflow-coordinator` | `127.0.0.1:19663` |
+| `collector-terraform-state` | `127.0.0.1:19664` |
+| `collector-oci-registry` | `127.0.0.1:19665` |
+| `collector-package-registry` | `127.0.0.1:19666` |
+| `collector-aws-cloud` | `127.0.0.1:19667` |
+| `collector-confluence` | `127.0.0.1:19668` |
+
+Example captures from the remote host:
+
+```bash
+go tool pprof -seconds=30 http://127.0.0.1:19662/debug/pprof/profile
+curl -sS http://127.0.0.1:19662/debug/pprof/goroutine?debug=2 \
+  > resolution-engine-goroutines.txt
+go tool pprof http://127.0.0.1:19667/debug/pprof/heap
+```
+
+Use this only after logs, metrics, and status identify the runtime that owns the
+cost. Do not add the overlay to normal Compose, Helm, or Kubernetes defaults.
+
+## CPU Capture During A Phase
+
+For perf investigations that need a CPU profile from the ingester, or matched
+profiles from both the ingester and a co-running NornicDB child process,
+`scripts/capture-cpu-profile.sh` takes a run directory, the ingester pprof
+endpoint, and an optional NornicDB pprof endpoint.
+
+```bash
+ESHU_PPROF_ADDR=127.0.0.1:0 \
+NORNICDB_PPROF_ENABLED=true \
+NORNICDB_PPROF_LISTEN=127.0.0.1:19091 \
+eshu graph start --workspace-root /path/to/repo --logs terminal \
+  > /tmp/run-X/run.log 2>&1 &
+
+INGESTER_PPROF=$(rg -o '"pprof server listening","addr":"[^"]+","service_name":"ingester"' \
+  /tmp/run-X/run.log | rg -o '127\.0\.0\.1:[0-9]+' | head -1)
+
+PPROF_CPU_S=20 PPROF_SLEEP_S=5 \
+  scripts/capture-cpu-profile.sh /tmp/run-X "$INGESTER_PPROF" 127.0.0.1:19091
+```
+
+For ingester-only parser profiling, omit the third argument or pass `-` and
+trigger from the stage before the parse window:
+
+```bash
+PPROF_LOG_MARKER='"stage":"pre_scan"' PPROF_CPU_S=30 PPROF_SLEEP_S=0 \
+  scripts/capture-cpu-profile.sh /tmp/run-X "$INGESTER_PPROF" -
+```
+
+Profiles land in `$RUN_DIR/profiles/`:
+
+- `ingester-cpu-${PPROF_CPU_S}s.pb.gz`
+- `nornicdb-cpu-${PPROF_CPU_S}s.pb.gz` when a NornicDB endpoint is provided
+- `nornicdb-{heap,allocs}.pb.gz` plus `*goroutines.txt` snapshots when a
+  NornicDB endpoint is provided
+- `watcher.log`
+
+If the CPU profile is zero bytes, check `watcher.log` for curl exit codes.
+`rc=7` usually means the pprof endpoint went away before curl finished; shorten
+`PPROF_CPU_S` or keep the stack alive longer.

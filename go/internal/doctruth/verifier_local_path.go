@@ -51,15 +51,61 @@ func normalizeLocalPathClaim(raw string) string {
 	if text == "" || strings.HasPrefix(text, "/") {
 		return ""
 	}
+	if strings.HasPrefix(text, "~/") {
+		return ""
+	}
 	cleaned := path.Clean(strings.ReplaceAll(text, "\\", "/"))
 	cleaned = strings.TrimPrefix(cleaned, "./")
 	if cleaned == "." || cleaned == ".." {
+		return ""
+	}
+	if isGenericLocalPathExample(cleaned) {
 		return ""
 	}
 	if !looksLikeRepoPathClaim(cleaned) {
 		return ""
 	}
 	return cleaned
+}
+
+func isGenericLocalPathExample(cleaned string) bool {
+	if strings.ContainsAny(cleaned, "*?[]{}<>") {
+		return true
+	}
+	if !strings.Contains(cleaned, "/") {
+		return true
+	}
+	first, _, _ := strings.Cut(cleaned, "/")
+	if first == ".." {
+		return false
+	}
+	if strings.HasPrefix(first, ".") && first != ".github" {
+		return true
+	}
+	return !isLikelyRepoPathRoot(first)
+}
+
+func isLikelyRepoPathRoot(first string) bool {
+	switch strings.ToLower(first) {
+	case ".github",
+		"apps",
+		"chart",
+		"charts",
+		"deploy",
+		"docs",
+		"examples",
+		"fixtures",
+		"go",
+		"scripts",
+		"specs",
+		"src",
+		"terraform",
+		"testdata",
+		"tests":
+		return true
+	default:
+		return false
+	}
 }
 
 func looksLikeRepoPathClaim(cleaned string) bool {

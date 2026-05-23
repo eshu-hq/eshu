@@ -168,7 +168,7 @@ telemetry, Postgres, or graph setup begins.
 
 Per-label NornicDB tuning knobs (ESHU_NORNICDB_ENTITY_LABEL_BATCH_SIZES,
 ESHU_NORNICDB_ENTITY_LABEL_PHASE_GROUP_STATEMENTS, and the file/function/struct
-batch overrides) are documented in `docs/docs/reference/nornicdb-tuning.md`.
+batch overrides) are documented in `docs/public/reference/nornicdb-tuning.md`.
 
 ## Dependencies
 
@@ -274,10 +274,10 @@ The ingester inherits collector and projector telemetry. Key signals:
 
 ## Related docs
 
-- `docs/docs/architecture.md` — ingester ownership and pipeline
-- `docs/docs/deployment/service-runtimes.md` — StatefulSet shape, metrics port, env vars
-- `docs/docs/reference/local-testing.md` — local verification gates
-- `docs/docs/reference/telemetry/index.md` — metric and span reference
-- `docs/docs/reference/nornicdb-tuning.md` — NornicDB knobs
+- `docs/public/architecture.md` — ingester ownership and pipeline
+- `docs/public/deployment/service-runtimes.md` — StatefulSet shape, metrics port, env vars
+- `docs/public/reference/local-testing.md` — local verification gates
+- `docs/public/reference/telemetry/index.md` — metric and span reference
+- `docs/public/reference/nornicdb-tuning.md` — NornicDB knobs
 - `go/internal/collector/README.md` — collector pipeline detail
 - `go/internal/projector/README.md` — projector pipeline detail

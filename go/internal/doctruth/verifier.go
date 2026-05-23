@@ -42,12 +42,13 @@ const (
 var (
 	backtickPattern     = regexp.MustCompile("`([^`]+)`")
 	httpEndpointPattern = regexp.MustCompile(`\b(GET|POST|PUT|PATCH|DELETE)\s+(/[A-Za-z0-9{}_.:/?=&%-]+)`)
-	envVarPattern       = regexp.MustCompile(`\bESHU_[A-Z0-9_]+\b`)
+	envVarPattern       = regexp.MustCompile(`\bESHU_[A-Z0-9_]*[A-Z0-9]\b`)
 )
 
 // CommandTruth describes one supported Eshu CLI command path.
 type CommandTruth struct {
-	Path []string
+	Path       []string
+	AllowsArgs bool
 }
 
 // HTTPEndpointTruth describes one supported HTTP endpoint.
@@ -133,18 +134,25 @@ type VerificationResult struct {
 
 // Verifier actively checks documentation claims against supplied truth sources.
 type Verifier struct {
-	commands        map[string]struct{}
-	endpoints       map[string]struct{}
-	envVars         map[string]struct{}
-	localPaths      LocalPathResolver
-	containerImages ContainerImageResolver
-	terraform       TerraformAddressResolver
-	maxDocuments    int
-	maxBytes        int
-	scopeID         string
-	generationID    string
-	sourceSystem    string
-	now             func() time.Time
+	commands          map[string]struct{}
+	argCommands       map[string]struct{}
+	endpoints         map[string]struct{}
+	endpointTemplates []endpointTemplate
+	envVars           map[string]struct{}
+	localPaths        LocalPathResolver
+	containerImages   ContainerImageResolver
+	terraform         TerraformAddressResolver
+	maxDocuments      int
+	maxBytes          int
+	scopeID           string
+	generationID      string
+	sourceSystem      string
+	now               func() time.Time
+}
+
+type endpointTemplate struct {
+	method string
+	regex  *regexp.Regexp
 }
 
 // NewVerifier constructs a bounded documentation verifier.
@@ -155,6 +163,7 @@ func NewVerifier(options VerifierOptions) *Verifier {
 	}
 	v := &Verifier{
 		commands:        map[string]struct{}{},
+		argCommands:     map[string]struct{}{},
 		endpoints:       map[string]struct{}{},
 		envVars:         map[string]struct{}{},
 		localPaths:      options.LocalPathResolver,
@@ -177,12 +186,18 @@ func NewVerifier(options VerifierOptions) *Verifier {
 		key := commandKey(command.Path)
 		if key != "" {
 			v.commands[key] = struct{}{}
+			if command.AllowsArgs {
+				v.argCommands[key] = struct{}{}
+			}
 		}
 	}
 	for _, endpoint := range options.HTTPEndpoints {
 		key := endpointKey(endpoint.Method, endpoint.Path)
 		if key != "" {
 			v.endpoints[key] = struct{}{}
+		}
+		if template := newEndpointTemplate(endpoint.Method, endpoint.Path); template.regex != nil {
+			v.endpointTemplates = append(v.endpointTemplates, template)
 		}
 	}
 	for _, envVar := range options.EnvironmentVariables {
@@ -239,14 +254,14 @@ func (v *Verifier) verifyClaim(doc DocumentInput, claim extractedClaim) (Verific
 	truthLevel := string(TruthLevelDerived)
 	switch claim.claimType {
 	case ClaimTypeCLICommand:
-		if _, ok := v.commands[claim.normalized]; ok {
+		if v.commandMatches(claim.normalized) {
 			status = VerificationStatusValid
 			truthLevel = string(TruthLevelExact)
 		} else {
 			status = VerificationStatusContradicted
 		}
 	case ClaimTypeHTTPEndpoint:
-		if _, ok := v.endpoints[claim.normalized]; ok {
+		if _, ok := v.endpoints[claim.normalized]; ok || v.endpointTemplateMatches(claim.normalized) {
 			status = VerificationStatusValid
 			truthLevel = string(TruthLevelExact)
 		} else {
@@ -358,6 +373,18 @@ func (v *Verifier) verifyClaim(doc DocumentInput, claim extractedClaim) (Verific
 		v.envelope(facts.DocumentationFindingFactKind, facts.DocumentationFindingStableID(findingID, version), findingPayload),
 		v.envelope(facts.DocumentationEvidencePacketFactKind, facts.DocumentationEvidencePacketStableID(packetID, version), packetPayload),
 	}
+}
+
+func (v *Verifier) commandMatches(normalized string) bool {
+	if _, ok := v.commands[normalized]; ok {
+		return true
+	}
+	for command := range v.argCommands {
+		if strings.HasPrefix(normalized, command+" ") {
+			return true
+		}
+	}
+	return false
 }
 
 func (v *Verifier) evidencePacketPayload(

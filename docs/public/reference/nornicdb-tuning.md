@@ -1,0 +1,183 @@
+# NornicDB Tuning
+
+Use this page when `ESHU_GRAPH_BACKEND=nornicdb` and a proof exposes a graph
+write timeout, slow phase, or backend compatibility gate. It is the knob map,
+not the install or operations runbook.
+
+Tune from evidence: identify phase, label, row count, grouped statement count,
+timeout shape, and queue state before changing the narrowest matching knob. For
+local start/stop/install commands, use
+[Graph Backend Installation](graph-backend-installation.md) and
+[Graph Backend Operations](graph-backend-operations.md). For query-shape rules,
+use [Cypher Performance Discipline](cypher-performance.md). For the proof behind
+current defaults, use
+[NornicDB Tuning Evidence](nornicdb-tuning-evidence.md).
+
+## First Decision
+
+| Symptom | First place to look | Do not start with |
+| --- | --- | --- |
+| `graph_write_timeout` with phase and label | Canonical or semantic write budget below | Reducer worker count |
+| Queue backlog with workers busy | `/admin/status`, queue age, graph-write durations | Full-corpus rerun |
+| Slow `content writer stage completed` with `upsert_entities` dominating | Content-store tuning below | NornicDB graph knobs |
+| Code-call acceptance cap | Discovery advisory and code-call scan guard | Graph write timeout |
+| NornicDB CPU-bound at startup | Search-index persistence and embeddings below | Restart loops |
+| Tiny row count still slow | Query shape, schema/index presence, NornicDB hot-path eligibility | Lowering broad concurrency |
+
+## Validation Ladder
+
+Do not use the full corpus as the first debugging loop.
+
+1. Re-run only the failing repo with fresh `ESHU_HOME`, rebuilt Eshu binaries,
+   and the exact NornicDB binary under evaluation.
+2. If a graph timeout is the only blocker and the statement is plausibly
+   correct, raise `ESHU_CANONICAL_WRITE_TIMEOUT` only for that
+   correctness-validation lane so later graph/query failures can surface.
+3. Confirm the run drains with `pending=0`, `in_flight=0`, no failed rows, and
+   no dead letters.
+4. Run a medium corpus of representative repos.
+5. Run the full corpus only after focused and medium lanes pass.
+
+A larger timeout can prove correctness. It is not the final performance answer
+until phase timing and write-shape evidence justify the larger budget.
+
+For full-corpus or remote proof, record commit/image, schema/bootstrap state,
+clean-volume state, pprof state, effective environment, terminal queue counts,
+and API/MCP truth checks. Switch to Neo4j only for compatibility verification,
+not to explain an unclassified NornicDB slowdown.
+
+## Canonical Write Budget
+
+These knobs affect source-local canonical graph writes from ingester and
+bootstrap-index.
+
+| Variable | Default | Use |
+| --- | --- | --- |
+| `ESHU_CANONICAL_WRITE_TIMEOUT` | `30s` on NornicDB | Bounds each NornicDB graph execution with a client context deadline and Bolt transaction timeout. Raise only for focused validation or proven cloud latency. |
+| `ESHU_NORNICDB_PHASE_GROUP_STATEMENTS` | `500` | Broad grouped-statement cap for phases without a narrower cap. |
+| `ESHU_NORNICDB_FILE_PHASE_GROUP_STATEMENTS` | `5` | Grouped-statement cap for `phase=files`. |
+| `ESHU_NORNICDB_FILE_BATCH_SIZE` | `100` | Rows per file-upsert statement. |
+| `ESHU_NORNICDB_ENTITY_PHASE_GROUP_STATEMENTS` | `25` | Grouped-statement cap for canonical entity phases before label-specific caps apply. |
+| `ESHU_NORNICDB_ENTITY_BATCH_SIZE` | `100` | Default rows per canonical entity statement before label-specific caps apply. |
+| `ESHU_NORNICDB_ENTITY_LABEL_BATCH_SIZES` | `Function=15,K8sResource=1,Struct=50,Variable=100` | Label-specific row caps for canonical entity writes. |
+| `ESHU_NORNICDB_ENTITY_LABEL_PHASE_GROUP_STATEMENTS` | `Function=5,K8sResource=1,Struct=15,Variable=5` | Label-specific grouped-statement caps. |
+| `ESHU_NORNICDB_ENTITY_PHASE_CONCURRENCY` | `NumCPU`, clamped to `16` | Parallel chunk dispatch for canonical `entities` and `entity_containment` phases. Set to `1` only for a serial comparison. |
+
+Two dimensions matter:
+
+- `*_BATCH_SIZE` controls rows inside one statement.
+- `*_PHASE_GROUP_STATEMENTS` controls how many statements run in one grouped
+  Bolt transaction.
+
+Effective grouped row pressure is roughly:
+
+```text
+label row batch size * label grouped statement cap
+```
+
+For example, `Variable=100` and `Variable=5` means one grouped execution can
+carry about 500 Variable rows. Raising the grouped-statement cap to `25` moves
+that pressure toward 2,500 rows without changing the row-batch knob.
+
+`ESHU_NORNICDB_ENTITY_PHASE_CONCURRENCY` is a separate axis. It controls how
+many grouped transactions run in parallel. Peak Bolt session demand is roughly:
+
+```text
+ESHU_PROJECTOR_WORKERS * ESHU_NORNICDB_ENTITY_PHASE_CONCURRENCY
+```
+
+Pin concurrency lower only when NornicDB shows parallel commit contention.
+
+## Semantic And Shared Reducer Budget
+
+These knobs affect reducer-owned materialization and shared projection.
+
+| Variable | Default | Use |
+| --- | --- | --- |
+| `ESHU_REDUCER_WORKERS` | `NumCPU` on NornicDB | Reducer intent worker count. Lower only when conflict-domain fencing still shows backend saturation or graph write conflicts. |
+| `ESHU_REDUCER_BATCH_CLAIM_SIZE` | worker count on NornicDB | Reducer intents claimed per poll. Keep near worker count so claimed work starts heartbeat-protected execution promptly. |
+| `ESHU_REDUCER_SEMANTIC_ENTITY_CLAIM_LIMIT` | `1` on NornicDB | Concurrent semantic entity claims after the source-local drain gate opens. Raise only in focused proofs. |
+| `ESHU_NORNICDB_SEMANTIC_ENTITY_LABEL_BATCH_SIZES` | `Annotation=5,Function=10,ImplBlock=10,Module=10,TypeAlias=5,TypeAnnotation=50,Variable=10` | Label-specific row caps for semantic entity materialization. |
+| `ESHU_SHARED_PROJECTION_WORKERS` | runtime default is `NumCPU` capped at `4`; Compose defaults to `2`; Helm sets `8` | Shared projection partition workers. Raise only when queue age grows and graph backend health is proven. |
+| `ESHU_CODE_CALL_PROJECTION_ACCEPTANCE_SCAN_LIMIT` | `250000` | Correctness guard for complete accepted repo/run scan before rewriting CALLS edges. |
+
+Semantic materialization is reducer-owned. Tune semantic labels only after
+timeout summaries name the semantic label and row count.
+
+`ESHU_CODE_CALL_PROJECTION_ACCEPTANCE_SCAN_LIMIT` is not a graph-write tuning
+knob. Increase it only when reducer logs name an acceptance-scan cap and a
+discovery advisory proves the volume is authored source that should remain in
+the graph.
+
+## Content-Store Tuning
+
+Content writes are Postgres work, not NornicDB graph work.
+
+| Variable | Default | Use |
+| --- | --- | --- |
+| `ESHU_CONTENT_ENTITY_BATCH_SIZE` | `300`, valid `1..4000` | Rows per Postgres `content_entities` upsert statement. Use only after content writer logs show `upsert_entities` dominates. |
+| `ESHU_LOCAL_AUTHORITATIVE_DEFER_CONTENT_SEARCH_INDEXES` | unset / `false` | Local-authoritative bulk-load knob that defers expensive content trigram search indexes and rebuilds them after clean drain. Do not use as a deployed Postgres schema default. |
+
+If changing `ESHU_CONTENT_ENTITY_BATCH_SIZE` changes statement count but not
+wall time, inspect source-cache size and trigram index maintenance before
+raising the batch again.
+
+## Compatibility And Conformance Switches
+
+| Variable | Default | Use |
+| --- | --- | --- |
+| `ESHU_NORNICDB_CANONICAL_GROUPED_WRITES` | unset / `false` | Conformance-only switch for Neo4j-style grouped canonical writes on NornicDB. Leave unset for normal runs. |
+| `ESHU_NORNICDB_REQUIRE_GROUPED_ROLLBACK` | unset / `false` | Test gate that requires grouped-write rollback conformance. |
+| `ESHU_NORNICDB_BATCHED_ENTITY_CONTAINMENT` | unset / `true` | Cross-file batched entity containment. Set `false` only for measured fallback comparisons against the older file-scoped shape. |
+
+Do not disable batched entity containment because one run is slow. The default
+row-scoped containment shape has repo-scale correctness proof. Fallback
+comparisons must capture statement count, label summaries, retries, dead
+letters, and terminal drain state.
+
+## NornicDB Process Diagnostics
+
+| Variable | Default | Use |
+| --- | --- | --- |
+| `NORNICDB_PPROF_ENABLED` | unset / `false` | Enables NornicDB profiling when Eshu logs no longer identify an Eshu-side batching mistake. |
+| `NORNICDB_PPROF_LISTEN` | `127.0.0.1:9091` | Bind address for pprof. Use `0.0.0.0:9091` only on trusted private test hosts. |
+| `NORNICDB_PERSIST_SEARCH_INDEXES` | `true` in Eshu Compose and Helm | Keeps NornicDB from rebuilding search indexes by scanning the whole graph after normal restarts. |
+| `NORNICDB_EMBEDDING_ENABLED` | `false` in Eshu Compose and Helm | Keeps embedding generation off during Eshu indexing. Enable only for semantic-search experiments after indexing baseline is understood. |
+
+## Hosted Defaults
+
+The Helm chart owns hosted defaults for NornicDB container flags, probes,
+`ESHU_CANONICAL_WRITE_TIMEOUT=120s`, and
+`ESHU_SHARED_PROJECTION_WORKERS=8`. See
+[Helm Runtime Values](../deploy/kubernetes/helm-runtime-values.md) before
+changing chart values and [NornicDB Tuning Evidence](nornicdb-tuning-evidence.md)
+before changing their proof trail.
+
+## Add A New Knob
+
+Add another NornicDB-specific Eshu environment variable only after this proof:
+
+1. Capture a timeout or slow-phase log that names phase, label, row count,
+   grouped statement count, and duration.
+2. Prove whether the failure is statement width, row width, query shape,
+   missing NornicDB functionality, schema/index state, or machine pressure.
+3. Prefer fixing NornicDB when Eshu is missing a Neo4j-equivalent primitive
+   that belongs in the database.
+4. Add the narrowest Eshu adapter seam only when evidence shows an Eshu-side
+   shape or bounded budget is the right fix.
+5. Update this page, [Local Testing](local-testing.md), and affected
+   package-local docs in the same PR.
+
+One-row or very-low-row statements that are still slow usually point to query
+shape, schema/index setup, or backend hot-path eligibility. Confirm those
+before lowering global workers.
+
+## Related Docs
+
+- [NornicDB Tuning Evidence](nornicdb-tuning-evidence.md)
+- [NornicDB Pitfalls](nornicdb-pitfalls.md)
+- [Graph Backend Installation](graph-backend-installation.md)
+- [Graph Backend Operations](graph-backend-operations.md)
+- [Backend Conformance](backend-conformance.md)
+- [Cypher Performance Discipline](cypher-performance.md)
+- [Environment Variables](environment-variables.md)

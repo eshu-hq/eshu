@@ -12,6 +12,7 @@ var (
 	containerImageTokenPattern     = regexp.MustCompile(`[A-Za-z0-9][A-Za-z0-9._:-]*(?:/[A-Za-z0-9][A-Za-z0-9._-]*)*(?::[A-Za-z0-9._-]+|@sha256:[a-fA-F0-9]{64})`)
 	containerImageEnvDefault       = regexp.MustCompile(`\$\{[^:}]+:-([^}]+)\}`)
 	containerImageRepository       = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._:/-]*$`)
+	containerImageTag              = regexp.MustCompile(`^[A-Za-z0-9_][A-Za-z0-9._-]{0,127}$`)
 	containerImageDigest           = regexp.MustCompile(`^[a-fA-F0-9]{64}$`)
 )
 
@@ -126,6 +127,10 @@ func NormalizeContainerImageRefClaim(raw string) string {
 		return ""
 	}
 	repository := text[:tagIndex]
+	tag := text[tagIndex+1:]
+	if !containerImageTag.MatchString(tag) {
+		return ""
+	}
 	if !strings.Contains(repository, "/") && looksLikeHostPortWithoutPath(repository) {
 		return ""
 	}
@@ -135,8 +140,38 @@ func NormalizeContainerImageRefClaim(raw string) string {
 	return text
 }
 
+func normalizeInlineContainerImageRefClaim(raw string) string {
+	ref := NormalizeContainerImageRefClaim(raw)
+	if ref == "" {
+		return ""
+	}
+	repository := ref
+	if digestIndex := strings.Index(repository, "@sha256:"); digestIndex >= 0 {
+		repository = repository[:digestIndex]
+	} else if tagIndex := strings.LastIndex(repository, ":"); tagIndex >= 0 {
+		repository = repository[:tagIndex]
+	}
+	if !strings.Contains(repository, "/") {
+		return ""
+	}
+	if looksLikeFileLineReference(repository) {
+		return ""
+	}
+	return ref
+}
+
 func looksLikeHostPortWithoutPath(repository string) bool {
 	return strings.EqualFold(repository, "localhost") || strings.Contains(repository, ".")
+}
+
+func looksLikeFileLineReference(repository string) bool {
+	parts := strings.Split(repository, "/")
+	last := parts[len(parts)-1]
+	if !strings.Contains(last, ".") {
+		return false
+	}
+	first := parts[0]
+	return !strings.Contains(first, ".") && !strings.Contains(first, ":") && !strings.EqualFold(first, "localhost")
 }
 
 func looksLikeImageRepository(repository string) bool {

@@ -1,48 +1,42 @@
-## Correlation DSL Generic Corpus
+# Correlation DSL Fixture Corpus
 
-This fixture corpus is a generic multi-repository ecosystem for correlation DSL
-and compose-backed verification work.
+This corpus is the owned multi-repository fixture for deployable-unit
+correlation and delivery evidence. Each top-level directory is treated as one
+repository by filesystem source mode, and
+`scripts/verify_correlation_dsl_compose.sh` passes exact repository rules for
+those directory names.
 
-Each top-level directory is treated as one repository by the filesystem source
-mode and the exact repository rules passed by
+| Directory | Fixture role |
+| --- | --- |
+| `service-gha` | Positive service case with GitHub Actions checkout, runtime Dockerfile, and Kubernetes Deployment. |
+| `service-jenkins` | Positive service case with Jenkins and Terraform stack evidence. |
+| `service-jenkins-ansible` | Provenance-only Jenkins-to-Ansible case; it must not materialize as a workload. |
+| `service-compose` | Docker Compose build, port, environment, dependency, and database image evidence. |
+| `deploy-repo` | ArgoCD Application for `service-gha` plus unrelated shared config that stays provenance-only. |
+| `terraform-stack-gha` | Terraform evidence for `service-gha`. |
+| `terraform-stack-jenkins` | Terraform evidence for `service-jenkins`. |
+| `multi-dockerfile-repo` | Runtime Dockerfile plus utility-only `Dockerfile.test`; the utility image must not become a workload. |
+
+The compose verifier owns the end-to-end fixture contract:
 `scripts/verify_correlation_dsl_compose.sh`.
 
-Repositories:
+The product-truth assertion file owns the capability claims:
+`tests/fixtures/product_truth/expected/correlation_dsl.json`.
 
-- `service-gha`
-  - service repo with a workload `Dockerfile`
-  - GitHub Actions workflow that checks out `deploy-repo`
-  - local Kubernetes manifests under `deploy/kubernetes`
-- `service-jenkins`
-  - service repo with a workload `Dockerfile`
-  - `Jenkinsfile` that references `terraform-stack-jenkins`
-- `service-jenkins-ansible`
-  - Jenkins-driven service repo with an Ansible deployment handoff
-  - `Jenkinsfile` invokes `ansible-playbook playbooks/deploy.yml`
-  - inventory, var, and role task files keep the Ansible family detectable
-- `service-compose`
-  - service repo with `docker-compose.yaml`
-  - runtime signals include build context, ports, environment, and `depends_on`
-- `deploy-repo`
-  - admitted service path at `argocd/service-gha/base/application.yaml`
-  - unrelated shared config at `argocd/shared-config/base/configmap.yaml`
-  - the shared config path should remain provenance-only for unrelated services
-- `terraform-stack-gha`
-  - Terraform stack with explicit `service-gha` signals
-- `terraform-stack-jenkins`
-  - Terraform stack with explicit `service-jenkins` signals
-- `multi-dockerfile-repo`
-  - one workload `Dockerfile`
-  - one utility-only `Dockerfile.test`
-  - local Kubernetes manifest for the workload image only
+Focused query tests read this corpus for Docker Compose and
+Jenkins-to-Ansible artifact parsing. Reducer tests reuse the same repository
+names with stubbed facts for deployable-unit admission and secondary-Dockerfile
+rejection.
 
-The current compose verification lane proves:
+## Update Rules
 
-- repository selection stays exact and explicit
-- GitHub Actions, Jenkins, Jenkins plus Ansible, Docker Compose, Dockerfile,
-  ArgoCD, and Terraform artifacts are present in the indexed corpus
-- the corpus contains both likely-admission and likely-rejection cases
-
-Future reducer assertions should extend the compose lane to verify canonical
-admission, rejected utility images, and provenance-only shared-config behavior
-directly from materialized correlation outputs.
+- Keep every top-level directory name stable unless the compose verifier,
+  product-truth registry, and focused tests are updated in the same change.
+- Use `rg --files --hidden tests/fixtures/correlation_dsl` when auditing this
+  corpus so hidden workflow files are included.
+- Preserve at least one positive service case, one provenance-only negative
+  case, and one ambiguous or secondary-evidence case.
+- Do not add broad setup history here. Put only fixture purpose, layout,
+  assertion surface, and update rules in this README.
+- If the compose verifier asserts a fixture file, that file must exist in this
+  corpus before the verifier result can be used as acceptance evidence.

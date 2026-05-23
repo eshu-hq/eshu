@@ -86,7 +86,7 @@ groups:
             1. Check current partition count and batch size in reducer configuration
             2. Review `eshu_dp_shared_projection_cycles_total` rate to verify cycles are completing
             3. Check `eshu_dp_reducer_run_duration_seconds` P99 latency for execution bottlenecks
-            4. Tune shared projection parameters (see docs/docs/reference/telemetry/index.md):
+            4. Tune shared projection parameters (see docs/public/reference/telemetry/index.md):
                - Increase partition count first (less risk, better parallelism)
                - Then increase batch limit if partitions are underutilized
             5. Monitor `eshu_dp_canonical_write_duration_seconds` for Neo4j write bottlenecks
@@ -374,7 +374,7 @@ groups:
             2. Check replica count and pod health for `collector-terraform-state`.
             3. Inspect `/admin/status` for stalled claims: `curl -s http://collector-terraform-state:8080/admin/status?format=json | jq '.collector_instances[] | select(.collector_kind=="terraform_state")'`.
             4. Look for failed claims via `eshu_dp_tfstate_snapshots_observed_total{result!="ok"}` and structured logs with `failure_class`.
-            5. Operator runbook: `docs/docs/services/collector-terraform-state.md`.
+            5. Operator runbook: `docs/public/services/collector-terraform-state.md`.
 
       - alert: EshuTfstateParseLatencyHigh
         expr: histogram_quantile(0.99, rate(eshu_dp_tfstate_parse_duration_seconds_bucket[5m])) > 5
@@ -391,7 +391,7 @@ groups:
             2. Inspect the `tfstate.parser.stream` span attributes in Jaeger to find which scope is slow.
             3. Verify host CPU / memory pressure on the collector pod.
             4. If parse durations are tied to a single state, check `terraform_state_warning` facts for `state_too_large` and consider raising `ESHU_TFSTATE_SOURCE_MAX_BYTES` if the size is legitimate.
-            5. Operator runbook: `docs/docs/services/collector-terraform-state.md`.
+            5. Operator runbook: `docs/public/services/collector-terraform-state.md`.
 
       - alert: EshuTfstateS3ConditionalGetUnused
         expr: |
@@ -414,7 +414,7 @@ groups:
             1. Confirm prior-ETag records are being persisted — discovery should populate `PriorSnapshotMetadataReader` after a successful read.
             2. Run a fresh discovery pass and check the next claim picks up the stored ETag.
             3. If buckets genuinely change every cycle, this alert can be silenced for that scope; otherwise treat it as a cache-miss regression.
-            4. Operator runbook: `docs/docs/services/collector-terraform-state.md`.
+            4. Operator runbook: `docs/public/services/collector-terraform-state.md`.
 
       - alert: EshuTfstateUnknownProviderSchemaSurge
         expr: |
@@ -435,7 +435,7 @@ groups:
             1. Inspect recent `terraform_state_warning` facts for provider/resource names with `warning_kind=unknown_schema` or similar.
             2. Compare against the AWS/GCP/Azure provider schema package; add the new shape to the typed schema once the contract is understood.
             3. Until the schema is added, the conservative path is the correct default — do not disable redaction.
-            4. Operator runbook: `docs/docs/services/collector-terraform-state.md`.
+            4. Operator runbook: `docs/public/services/collector-terraform-state.md`.
 
       - alert: EshuTfstateWarningEmissionSustained
         expr: sum by (warning_kind) (rate(eshu_dp_tfstate_warnings_emitted_total[15m])) > 0.05
@@ -451,4 +451,4 @@ groups:
             1. Check `/admin/status?format=json` and look at `terraform_state.warnings_by_kind` for the affected `safe_locator_hash`.
             2. Read the underlying `terraform_state_warning` facts via the query API to see the `reason` and `source` fields.
             3. If `warning_kind=state_too_large`, raise `ESHU_TFSTATE_SOURCE_MAX_BYTES` only when the size is legitimate.
-            4. Operator runbook: `docs/docs/services/collector-terraform-state.md`.
+            4. Operator runbook: `docs/public/services/collector-terraform-state.md`.

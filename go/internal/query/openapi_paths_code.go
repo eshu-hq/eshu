@@ -78,6 +78,47 @@ const openAPIPathsCode = `
         }
       }
     },
+    "/api/v0/code/bundles": {
+      "post": {
+        "tags": ["code"],
+        "summary": "Search indexed bundle candidates",
+        "description": "Searches indexed repositories as pre-indexed bundle candidates. This route does not upload bundle archives or mutate graph state.",
+        "operationId": "searchCodeBundles",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["query"],
+                "properties": {
+                  "query": {"type": "string", "description": "Bundle search text"},
+                  "limit": {"type": "integer", "description": "Max results (default 10)", "default": 10}
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Bundle candidates",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "bundles": {"type": "array", "items": {"type": "object", "additionalProperties": true}},
+                    "count": {"type": "integer"}
+                  }
+                }
+              }
+            }
+          },
+          "400": {"$ref": "#/components/responses/BadRequest"},
+          "500": {"$ref": "#/components/responses/InternalError"}
+        }
+      }
+    },
     "/api/v0/code/language-query": {
       "post": {
         "tags": ["code"],

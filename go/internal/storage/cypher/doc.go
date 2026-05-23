@@ -37,5 +37,8 @@
 // proven need for that property. OCI registry writes keep manifests, indexes,
 // and descriptors on ContainerImage-family labels keyed by digest-backed uid
 // values; tag observations remain weak mutable evidence and participate in
-// cleanup without becoming canonical image identity.
+// cleanup without becoming canonical image identity. Package-registry writes
+// keep package, version, and package dependency identity keyed by uid; source
+// repository hints remain weak evidence until reducer correlation admits an
+// ownership or publication relationship.
 package cypher

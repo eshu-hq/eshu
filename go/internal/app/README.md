@@ -160,6 +160,6 @@ as a `StatusAdminOption`.
 
 ## Related docs
 
-- `docs/docs/deployment/service-runtimes.md`
+- `docs/public/deployment/service-runtimes.md`
 - `go/internal/runtime/README.md`
-- `docs/docs/reference/local-testing.md`
+- `docs/public/reference/local-testing.md`

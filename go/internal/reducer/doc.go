@@ -1,60 +1,15 @@
-// Package reducer owns cross-domain materialization, queued repair, and
-// shared projection that runs after source-local facts have been committed.
+// Package reducer owns Eshu's cross-domain materialization, shared projection,
+// queued repair, and reducer-owned fact publication.
 //
-// The reducer admits candidates from relationship evidence, projects
-// resolved relationships, materializes code-call and code-reference edges
-// between source entities, including bounded JavaScript-family import,
-// CommonJS property require, module.exports self-alias, imported JavaScript
-// namespace calls before same-file trailing-name fallback, function receiver,
-// constructor, re-export, dynamic import, returned and constructor-argument
-// function-value, Go package-qualified imports including explicit Go aliases,
-// method-return chains with parser-proven receiver types, TypeScript
-// type-reference, Java local
-// receiver, method-reference, literal reflection, ServiceLoader provider,
-// Spring auto-configuration, overload arity, and typed
-// argument/parameter signatures including helper-call return types, Java
-// enhanced-for receiver evidence, and Java enclosing-class and explicit
-// outer-this field receiver contexts, Python constructor, self receiver, class
-// receiver, inherited classmethod, and local receiver evidence, static
-// JavaScript registry dispatch, and package-file-root evidence.
-// SQL relationship materialization emits trigger-to-table TRIGGERS edges and
-// trigger-to-function EXECUTES edges from parser-proven SqlTrigger metadata so
-// trigger-bound SqlFunction routines remain reachable in code dead-code
-// analysis. SQL name helpers index exact names and unqualified trailing
-// aliases, target resolution prefers same-file entities, and ambiguous
-// cross-file names are skipped rather than manufacturing reachability.
-// Code-call rows carry endpoint IDs plus the endpoint entity labels needed by
-// the graph writer to keep canonical CALLS and REFERENCES writes selective, and
-// the reducer drives repair flows for domains that depend on later phases of the
-// bootstrap pipeline. Java reference materialization uses REFERENCES rather
-// than CALLS when source text proves runtime reachability without proving direct
-// invocation. Changes here need careful proof: track raw evidence, admitted
-// candidates, projected rows, graph writes, and query surfaces before changing
-// ordering, admission, retries, or
-// backend-specific behavior. Code-call projection may wait for reducer graph
-// domains to drain in local NornicDB runs, but that gate only controls write
-// scheduling. It can process large accepted repo/run units in chunks, and it
-// must skip retraction after the first current-run chunk so earlier chunk writes
-// remain graph-visible. Reducer code must remain idempotent across retries and
-// replays so repair runs converge on the same truth. Code-call materialization
-// logs stage timings for fact load, extraction, intent build, and intent upsert
-// so repo-scale bottlenecks can be classified before changing query shape or
-// worker counts.
-// Workload materialization inputs reuse the deployable-unit correlation gate
-// before projecting workload rows.
-// Package-registry correlation keeps source-hint ownership and package-version
-// publication as provenance-only facts, while manifest-backed dependency facts
-// are admitted as package consumption truth. Publication correlation indexes
-// source hints by package and version before matching so version-scoped hints
-// do not cross-attach to other releases, and durable publication fact identity
-// includes the source-hint kind, fact ID, and version scope so weak and exact
-// hints with the same URL cannot overwrite each other.
-// Container-image identity joins Git and AWS image references to active OCI
-// digest observations, accepting explicit digests and single tag resolutions
-// while leaving ambiguous, unresolved, and stale tags visible as outcomes.
-// SBOM and attestation attachment writes reducer facts for every attachment
-// status while keeping parse validity, signature verification, and component
-// evidence separate from vulnerability-impact truth; multi-subject
-// attestations remain non-canonical instead of attaching to the first digest in
-// the reported subject list.
+// Reducer handlers admit candidates from committed facts, build canonical graph
+// rows or reducer fact rows, publish graph-readiness phases, and preserve
+// idempotency across retries and replays. They do not call graph drivers
+// directly; canonical graph writes go through storage/cypher, and durable fact
+// writes go through narrow writer interfaces wired by cmd/reducer.
+//
+// Changes in this package must preserve the evidence path from raw facts to
+// admitted candidate, projected row, graph or fact write, and API/MCP query
+// truth. Queue ordering, generation supersession, phase publication, repair
+// flows, shared projection readiness, and truth-emitting domain registration
+// are package-level contracts.
 package reducer

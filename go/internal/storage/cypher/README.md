@@ -463,8 +463,8 @@ retry, failed, and dead-letter state without adding a new metric label.
 
 ## Related docs
 
-- `docs/docs/architecture.md` — pipeline and ownership table
-- `docs/docs/reference/telemetry/index.md` — metric and span reference
-- `docs/docs/adrs/2026-04-22-nornicdb-graph-backend-candidate.md`
-- `docs/docs/adrs/2026-04-17-neo4j-deadlock-elimination-batch-isolation.md`
+- `docs/public/architecture.md` — pipeline and ownership table
+- `docs/public/reference/telemetry/index.md` — metric and span reference
+- `docs/public/reference/backend-conformance.md`
+- `docs/public/reference/cypher-performance.md`
 - `go/internal/projector/README.md` — how `CanonicalNodeWriter` is wired

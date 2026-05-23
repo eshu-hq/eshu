@@ -1,0 +1,66 @@
+# SQL Parser
+
+This page describes the current Go parser and query contract for SQL. For the
+full matrix, see [Parser Feature Matrix](feature-matrix.md) and
+[Parser Support Matrix](support-maturity.md).
+
+## Parser Contract
+
+| Field | Value |
+| --- | --- |
+| Language | `sql` |
+| Parser | `DefaultEngine (sql)` |
+| Entrypoint | `go/internal/parser/sql_language.go` |
+| Fixture repo | `tests/fixtures/ecosystems/sql_comprehensive/` |
+| Main parser tests | `go/internal/parser/engine_sql_test.go`, `go/internal/parser/sql_core_parity_test.go`, `go/internal/parser/sql_parity_test.go` |
+| Runtime validation | Compose-backed fixture verification; see [Local Testing](../reference/local-testing.md) |
+
+## Supported Surfaces
+
+| Surface | Current contract |
+| --- | --- |
+| Schema objects | Tables, columns, views, materialized views, indexes, functions, procedures, triggers, and migration metadata. |
+| Relationships | `HAS_COLUMN`, `REFERENCES_TABLE`, `READS_FROM`, `TRIGGERS_ON`, `EXECUTES`, `INDEXES`, and `MIGRATES` evidence where parsed. |
+| Routine metadata | Bounded Postgres-style function and procedure bodies, including dollar-quoted bodies and `LANGUAGE` metadata. |
+| dbt lineage | Compiled-model lineage for supported select expressions, safe scalar wrappers, and documented unresolved summaries. |
+| Query fallback | SQL content entities can surface through entity resolve/context when materialized content rows exist. |
+
+## Dead-Code Support
+
+SQL dead-code support is `derived`. Stored routines can be returned as
+candidates, and parser-proven trigger-to-function `EXECUTES` edges protect
+trigger-invoked routines.
+
+SQL remains non-exact for cleanup because dynamic SQL, dialect-specific routine
+resolution, and migration-order reachability are unresolved.
+
+## Framework And Library Support
+
+Supported today:
+
+- This parser does not claim application-framework support.
+- Stored routines and parser-proven trigger-to-function `EXECUTES` edges are
+  modeled as derived reachability evidence.
+- dbt compiled-model lineage is supported only for the documented select
+  expression shapes.
+
+Not claimed today:
+
+- Dynamic SQL, dialect-specific routine resolution, migration-order
+  reachability, and broad dbt macro semantics remain outside the exactness
+  boundary.
+
+## Known Limitations
+
+- Procedural SQL beyond the checked Postgres-style routine forms is not a broad
+  language guarantee.
+- Broader DDL mutation normalization beyond checked `ADD COLUMN`, table, index,
+  view, routine, and trigger shapes is bounded.
+- dbt lineage intentionally reports unresolved references, opaque templated
+  expressions, complex macros, and some derived expressions instead of guessing.
+
+## Related Docs
+
+- [Dead Code Language Maturity](../reference/dead-code-language-maturity.md)
+- [Language Query DSL](../reference/language-query-dsl.md)
+- [Local Testing](../reference/local-testing.md)

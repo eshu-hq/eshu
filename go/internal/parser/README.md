@@ -449,8 +449,8 @@ errors are surfaced in `collector snapshot stage completed` logs with
 
 ## Related docs
 
-- `docs/docs/architecture.md` — parser ownership
-- `docs/docs/reference/local-testing.md` — parser test gates
-- `docs/docs/reference/telemetry/index.md` — `eshu_dp_file_parse_duration_seconds`
+- `docs/public/architecture.md` — parser ownership
+- `docs/public/reference/local-testing.md` — parser test gates
+- `docs/public/reference/telemetry/index.md` — `eshu_dp_file_parse_duration_seconds`
 - `go/internal/collector/README.md` — how the collector calls the parser
 - `go/internal/facts/` — fact contract shape for emitted entities

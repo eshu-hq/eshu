@@ -77,6 +77,6 @@ providers.
 
 ## Related docs
 
-- `docs/docs/deployment/service-runtimes.md`
-- `docs/docs/reference/cli-reference.md`
-- `docs/docs/reference/local-testing.md`
+- `docs/public/deployment/service-runtimes.md`
+- `docs/public/reference/cli-reference.md`
+- `docs/public/reference/local-testing.md`

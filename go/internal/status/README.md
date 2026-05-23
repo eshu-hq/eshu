@@ -162,8 +162,8 @@ strings.
 
 - **JSON shapes are operator contract.** Every exported JSON field name is
   consumed by operators and automation. Changes require coordination with the
-  CLI reference doc (`docs/docs/reference/cli-reference.md`) and the HTTP API
-  doc (`docs/docs/reference/http-api.md`).
+  CLI reference doc (`docs/public/reference/cli-reference.md`) and the HTTP API
+  doc (`docs/public/reference/http-api.md`).
 - **`QueueFailureSnapshot` must not appear in metrics.** Its fields (`FailureMessage`,
   `FailureDetails`) can be multi-hundred-character strings from graph backend
   errors. They are bounded to 240 characters in text rendering but are never
@@ -202,7 +202,8 @@ strings.
 
 ## Related docs
 
-- `docs/docs/reference/cli-reference.md` — `eshu status` command output
-- `docs/docs/reference/http-api.md` — `/admin/status` endpoint shape
-- `docs/docs/reference/telemetry/index.md` — health vs completeness signal guidance
-- `docs/docs/architecture.md` — pipeline and ownership table
+- `docs/public/reference/cli-reference.md` — status CLI surfaces such as
+  `eshu index-status` and API-backed admin reads
+- `docs/public/reference/http-api/status-admin.md` — `/admin/status` endpoint shape
+- `docs/public/reference/telemetry/index.md` — health vs completeness signal guidance
+- `docs/public/architecture.md` — pipeline and ownership table

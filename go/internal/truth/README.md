@@ -63,8 +63,8 @@ None. This is a pure value-type package with no runtime I/O.
 
 ## Related docs
 
-- `docs/docs/architecture.md` — ownership table and pipeline overview
-- `docs/docs/reference/http-api.md` — `truth.layer` and `truth.backend`
+- `docs/public/architecture.md` — ownership table and pipeline overview
+- `docs/public/reference/http-api.md` — `truth.layer` and `truth.backend`
   response fields
 - `go/internal/reducer/README.md` — reducer domain registration and
   `Contract` usage

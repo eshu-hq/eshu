@@ -4,22 +4,24 @@ The Go module owns the Eshu runtime: CLI, API, MCP server, ingester, reducer,
 workflow coordinator, local owner mode, storage adapters, parser support, and
 query surfaces.
 
-Use `go test ./...` for broad package validation and `golangci-lint run ./...`
-before merging Go changes. The root README and local runbooks show the install
-paths for users; this directory is for maintainers working on the runtime.
+Use [Local Testing](../docs/public/reference/local-testing.md) for the focused
+gate that matches the surface you touched. The root README and local runbooks
+show install paths for users; this directory is for maintainers working on the
+runtime.
 
 ## Where to read next
 
 This directory is the Go module root. Two children carry the actual code
 and the rich documentation:
 
-- `go/cmd/` — every Eshu binary, with per-binary `README.md` + `AGENTS.md`.
-- `go/internal/` — every internal package, with per-package `README.md` +
-  `AGENTS.md` + `doc.go`.
+- `go/cmd/` — every Eshu binary, with per-binary `README.md`, `doc.go`, and
+  scoped `AGENTS.md`.
+- `go/internal/` — every internal package, with per-package `README.md`,
+  `doc.go`, and scoped `AGENTS.md`.
 
-Open `go/cmd/README.md` for the binary-to-runtime map and the pipeline
-shape diagram, or `go/internal/README.md` for the internal-package layout
-diagram and the where-to-start-by-intent table.
+Open `go/cmd/README.md` for the binary-to-runtime map and
+`go/internal/README.md` for the internal-package layout diagram and the
+where-to-start-by-intent table.
 
 ## Pipeline at a glance
 
@@ -41,10 +43,12 @@ flowchart LR
 
 ## Per-package documentation convention
 
-Every Go package directory under `go/` carries three files: `doc.go`
-(godoc contract), `README.md` (architectural and operational lens with
-mermaid flows), and `AGENTS.md` (LLM-assistant guidance with file:line
-invariants and anti-patterns).
+Every Go package directory under `go/` carries three docs with separate jobs:
+
+- `doc.go` for the godoc contract.
+- `README.md` for the architectural and operational lens humans read.
+- `AGENTS.md` for scoped instructions that Codex and other coding-agent
+  harnesses load while editing that package tree.
 
 The `eshu-folder-doc-keeper` skill at `.agents/skills/` defines the
 writing standards. The drift checker at
@@ -67,6 +71,6 @@ through that contract.
 
 ## Related docs
 
-- `docs/docs/architecture.md`
-- `docs/docs/deployment/service-runtimes.md`
-- `docs/docs/reference/local-testing.md`
+- `docs/public/architecture.md`
+- `docs/public/deployment/service-runtimes.md`
+- `docs/public/reference/local-testing.md`

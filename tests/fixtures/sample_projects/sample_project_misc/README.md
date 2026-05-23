@@ -1,8 +1,10 @@
-# Sample Misc Project
+# Misc Sample Fixture
 
-This is a sample project containing miscellaneous files for testing:
-- `index.html`: Basic HTML file
-- `styles.css`: Simple CSS styling for index.html
-- `tables.html`: A simple table to mock Hacktoberfest contributors.
-- `tables.css`: Corresponding CSS styling for tables.html
-- `README.md`: This file
+Parser and content tests use this directory for non-code web assets.
+
+| File | Contract |
+| --- | --- |
+| `index.html` | Basic HTML document. |
+| `styles.css` | CSS linked from `index.html`. |
+| `tables.html` | HTML table shape. |
+| `tables.css` | CSS linked from `tables.html`. |

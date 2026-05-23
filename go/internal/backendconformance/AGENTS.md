@@ -92,7 +92,7 @@
 - The matrix spec format
   (`specs/backend-conformance.v1.yaml` + the v1 contract): version it
   rather than mutating in place. See
-  `docs/docs/adrs/2026-04-20-embedded-local-backends-implementation-plan.md`
+  `docs/public/reference/graph-backend-operations.md`
   for the chunked rollout plan and the matrix's place in it.
 - The default corpus contents: cases are referenced by tests outside this
   package; renames or removals need a coordinated update of every caller.

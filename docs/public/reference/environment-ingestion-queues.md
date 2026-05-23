@@ -1,0 +1,131 @@
+# Ingestion And Queue Environment
+
+This page covers repository discovery, parsing, projector, reducer, queue,
+graph-write, and NornicDB tuning variables. Change these only with throughput,
+queue, or graph-write evidence.
+
+## Repository Discovery And Parsing
+
+| Variable | Default | Read by | Purpose |
+| --- | --- | --- | --- |
+| `ESHU_REPO_SOURCE_MODE` | `githubOrg` | collector, ingester, bootstrap-index | Repository source mode: `githubOrg`, `explicit`, or `filesystem`. |
+| `ESHU_GITHUB_ORG` | unset | GitHub selector | GitHub organization to discover. |
+| `ESHU_REPOSITORY_RULES_JSON` | unset | collector selector | Exact/regex include rules; exact rules define repos for `explicit` and `filesystem`. |
+| `ESHU_REPOS_DIR` | `/data/repos` | collector | Local clone/cache directory. |
+| `ESHU_REPO_LIMIT` | `4000` | GitHub selector | Maximum repos discovered in one cycle. |
+| `ESHU_CLONE_DEPTH` | `1` | collector | Git clone depth. |
+| `ESHU_GIT_AUTH_METHOD` | `githubApp` | collector | Git auth mode. |
+| `ESHU_GIT_TOKEN`, `GITHUB_TOKEN` | unset | collector | Token auth credential. |
+| `ESHU_GITHUB_APP_ID`, `GITHUB_APP_ID` | unset | collector | GitHub App ID. |
+| `ESHU_GITHUB_APP_INSTALLATION_ID`, `GITHUB_APP_INSTALLATION_ID` | unset | collector | GitHub App installation ID. |
+| `ESHU_GITHUB_APP_PRIVATE_KEY`, `GITHUB_APP_PRIVATE_KEY` | unset | collector | GitHub App private key. |
+| `ESHU_SSH_PRIVATE_KEY_PATH` | unset | collector | SSH key path for SSH clone auth. |
+| `ESHU_SSH_KNOWN_HOSTS_PATH` | unset | collector | Known-hosts path for SSH clone verification. |
+| `ESHU_INCLUDE_ARCHIVED_REPOS` | `false` | GitHub selector | Include archived repos. |
+| `ESHU_FILESYSTEM_ROOT` | unset | filesystem selector | Root path for filesystem source mode. |
+| `ESHU_FILESYSTEM_DIRECT` | `false` | filesystem selector | Treat filesystem root as direct source rather than cloned cache flow. |
+| `ESHU_SNAPSHOT_WORKERS` | `min(NumCPU, 8)`; local-authoritative owner uses `NumCPU` | collector | Concurrent repo snapshot workers. |
+| `ESHU_PARSE_WORKERS` | `min(NumCPU, 8)`; local-authoritative owner uses `NumCPU` | collector snapshotter | Concurrent file parse workers inside each snapshot. |
+| `ESHU_STREAM_BUFFER` | `0` | collector | Generation stream buffer; `0` derives from worker count. |
+| `ESHU_LARGE_REPO_FILE_THRESHOLD` | `1000` | collector | File-count threshold for large-repo semaphore. |
+| `ESHU_LARGE_REPO_MAX_CONCURRENT` | `2` | collector | Concurrent large repo snapshots. |
+| `ESHU_DISCOVERY_REPORT` | unset | `eshu index`, bootstrap-index | Writes per-repo discovery advisory JSON. |
+| `ESHU_DISCOVERY_IGNORED_PATH_GLOBS` | unset | bootstrap-index, collector-git, ingester | Operator ignore overlay. Entries may use `pattern=reason`. |
+| `ESHU_DISCOVERY_PRESERVED_PATH_GLOBS` | unset | bootstrap-index, collector-git, ingester | Preserved globs that override broader ignored ancestors. |
+| `ESHU_BOOTSTRAP_IS_DEPENDENCY` | `false` | collector | Marks bootstrap source as dependency package. |
+| `ESHU_BOOTSTRAP_PACKAGE_NAME` | unset | collector | Dependency package name. |
+| `ESHU_BOOTSTRAP_PACKAGE_LANGUAGE` | unset | collector | Dependency package language. |
+| `SCIP_INDEXER` | `false` | collector snapshotter | Enables SCIP supplement indexing. |
+| `SCIP_LANGUAGES` | unset | collector snapshotter | Comma-separated SCIP language selection. |
+
+## Incremental Refresh
+
+| Variable | Default | Read by | Purpose |
+| --- | --- | --- | --- |
+| `ESHU_WEBHOOK_TRIGGER_HANDOFF_ENABLED` | `false` | ingester webhook-trigger selector | Checks queued webhook refresh triggers before scheduled repository polling. |
+| `ESHU_REPO_SCHEDULED_SYNC_ENABLED` | `true` | ingester | Enables broad scheduled repository selection when no webhook triggers are queued. Startup rejects `false` unless webhook handoff is enabled. |
+| `ESHU_WEBHOOK_TRIGGER_HANDOFF_OWNER` | `ingester` | ingester webhook-trigger selector | Lease owner recorded when claiming queued Git webhook refresh triggers. |
+| `ESHU_WEBHOOK_TRIGGER_CLAIM_LIMIT` | `100` | ingester webhook-trigger selector | Maximum webhook refresh triggers claimed in one selector pass. |
+
+## Projection And Reducer Queues
+
+| Variable | Default | Read by | Purpose |
+| --- | --- | --- | --- |
+| `ESHU_PROJECTOR_WORKERS` | `min(NumCPU, 8)`; NornicDB local-authoritative uses `NumCPU` | ingester projector | Source-local projector worker count. |
+| `ESHU_LARGE_GEN_THRESHOLD` | `10000` facts | ingester projector | Fact-count threshold for large-generation semaphore. |
+| `ESHU_LARGE_GEN_MAX_CONCURRENT` | default `2`; local-authoritative `4` | ingester projector | Concurrent large source-local generations. |
+| `ESHU_PROJECTOR_MAX_ATTEMPTS` | `3` | ingester/projector retry policy | Max projector attempts before terminal failure. |
+| `ESHU_PROJECTOR_RETRY_DELAY` | `30s` | ingester/projector retry policy | Delay between projector retries. |
+| `ESHU_PROJECTOR_RETRY_ONCE_SCOPE_GENERATION` | unset | projector runtime | Test/fault-injection retry hook for one scope generation. |
+| `ESHU_PROJECTION_WORKERS` | `min(NumCPU, 8)` | bootstrap-index | Bootstrap projection worker count. |
+| `ESHU_REDUCER_WORKERS` | Neo4j: `min(NumCPU, 4)`; NornicDB: `NumCPU` | reducer | Reducer intent worker count. |
+| `ESHU_REDUCER_BATCH_CLAIM_SIZE` | Neo4j: `workers*4` capped `4..64`; NornicDB: `workers` | reducer | Number of reducer intents claimed per poll. |
+| `ESHU_REDUCER_EXPECTED_SOURCE_LOCAL_PROJECTORS` | unset; local owner sets discovered repo count | reducer | Gates NornicDB/local-authoritative semantic entity claims until source-local projectors drain. |
+| `ESHU_REDUCER_SEMANTIC_ENTITY_CLAIM_LIMIT` | NornicDB: `1`; otherwise disabled | reducer | Concurrent semantic entity materialization claims after source-local drain. |
+| `ESHU_REDUCER_CLAIM_DOMAIN` | unset | reducer | Restricts main reducer claim loop to one domain. Cannot combine with `ESHU_REDUCER_CLAIM_DOMAINS`. |
+| `ESHU_REDUCER_CLAIM_DOMAINS` | unset | reducer | Comma-separated reducer domain allowlist for domain-specific lanes. |
+| `ESHU_DRIFT_PRIOR_CONFIG_DEPTH` | `10` | reducer drift loader | Prior repo-snapshot generations walked for Terraform resources removed from config. |
+| `ESHU_REDUCER_MAX_ATTEMPTS` | `3` | reducer retry policy | Max reducer attempts before terminal failure. |
+| `ESHU_REDUCER_RETRY_DELAY` | `30s` | reducer retry policy | Delay between reducer retries. |
+
+## Shared Projection And Repair
+
+| Variable | Default | Read by | Purpose |
+| --- | --- | --- | --- |
+| `ESHU_SHARED_PROJECTION_WORKERS` | `1` | reducer shared projection | Partition worker count for shared projection domains. |
+| `ESHU_SHARED_PROJECTION_PARTITION_COUNT` | `8` | reducer shared projection | Partitions per shared domain. |
+| `ESHU_SHARED_PROJECTION_BATCH_LIMIT` | `100` | reducer shared projection | Intents per partition batch. |
+| `ESHU_SHARED_PROJECTION_POLL_INTERVAL` | `5s` | reducer shared projection | Idle poll interval. |
+| `ESHU_SHARED_PROJECTION_LEASE_TTL` | `60s` | reducer shared projection | Partition lease TTL. |
+| `ESHU_CODE_CALL_PROJECTION_POLL_INTERVAL` | `500ms` | reducer code-call sidecar | Idle poll interval for code-call projection. |
+| `ESHU_CODE_CALL_PROJECTION_LEASE_TTL` | `60s` | reducer code-call sidecar | Lease TTL for code-call projection work. |
+| `ESHU_CODE_CALL_PROJECTION_BATCH_LIMIT` | `100` | reducer code-call sidecar | Claim batch size for code-call work. |
+| `ESHU_CODE_CALL_PROJECTION_ACCEPTANCE_SCAN_LIMIT` | `250000` | reducer code-call sidecar | Guard for complete accepted repo/run scan before rewriting `CALLS` edges. |
+| `ESHU_CODE_CALL_PROJECTION_LEASE_OWNER` | `code-call-projection-runner` | reducer code-call sidecar | Lease owner name. |
+| `ESHU_REPO_DEPENDENCY_PROJECTION_POLL_INTERVAL` | `500ms` | reducer repo-dependency sidecar | Idle poll interval. |
+| `ESHU_REPO_DEPENDENCY_PROJECTION_LEASE_TTL` | `60s` | reducer repo-dependency sidecar | Lease TTL. |
+| `ESHU_REPO_DEPENDENCY_PROJECTION_BATCH_LIMIT` | `100` | reducer repo-dependency sidecar | Claim batch size. |
+| `ESHU_REPO_DEPENDENCY_PROJECTION_LEASE_OWNER` | `repo-dependency-projection-runner` | reducer repo-dependency sidecar | Lease owner name. |
+| `ESHU_GRAPH_PROJECTION_REPAIR_POLL_INTERVAL` | `1s` | reducer repairer | Poll interval for graph projection phase repair. |
+| `ESHU_GRAPH_PROJECTION_REPAIR_BATCH_LIMIT` | `100` | reducer repairer | Repair rows per batch. |
+| `ESHU_GRAPH_PROJECTION_REPAIR_RETRY_DELAY` | `1m` | reducer repairer | Delay before retrying repair. |
+
+## Graph Write Shape And NornicDB
+
+For decision rules and evidence requirements, read [NornicDB Tuning](nornicdb-tuning.md).
+
+| Variable | Default | Read by | Purpose |
+| --- | --- | --- | --- |
+| `ESHU_CANONICAL_WRITE_TIMEOUT` | `30s` on NornicDB | ingester, reducer graph writers | Client context and Bolt transaction timeout for NornicDB writes. |
+| `ESHU_NORNICDB_PHASE_GROUP_STATEMENTS` | `500` | graph writer | Broad grouped statement cap for phases without a narrower cap. |
+| `ESHU_NORNICDB_FILE_PHASE_GROUP_STATEMENTS` | `5` | graph writer | Grouped statement cap for `phase=files`. |
+| `ESHU_NORNICDB_FILE_BATCH_SIZE` | `100` | graph writer | Rows per file-upsert statement. |
+| `ESHU_NORNICDB_ENTITY_PHASE_GROUP_STATEMENTS` | `25` | graph writer | Grouped statement cap for canonical entity phases. |
+| `ESHU_NORNICDB_ENTITY_BATCH_SIZE` | `100` | graph writer | Default rows per canonical entity statement. |
+| `ESHU_NORNICDB_ENTITY_LABEL_BATCH_SIZES` | `Function=15,K8sResource=1,Struct=50,Variable=100` | graph writer | Label-specific canonical entity row caps. |
+| `ESHU_NORNICDB_ENTITY_LABEL_PHASE_GROUP_STATEMENTS` | `Function=5,K8sResource=1,Struct=15,Variable=5` | graph writer | Label-specific grouped statement caps. |
+| `ESHU_NORNICDB_ENTITY_PHASE_CONCURRENCY` | `NumCPU` clamped to `16` | graph writer | Worker count for parallel canonical entity-phase chunk dispatch. |
+| `ESHU_NORNICDB_SEMANTIC_ENTITY_LABEL_BATCH_SIZES` | `Annotation=5,Function=10,ImplBlock=10,Module=10,TypeAlias=5,TypeAnnotation=50,Variable=10` | reducer semantic writer | Label-specific semantic entity row caps. |
+| `ESHU_CODE_CALL_EDGE_BATCH_SIZE` | `1000` | reducer code-call edge writer | Rows per code-call edge write statement. |
+| `ESHU_CODE_CALL_EDGE_GROUP_BATCH_SIZE` | `1` | reducer code-call edge writer | Statements per grouped code-call edge execution. |
+| `ESHU_INHERITANCE_EDGE_GROUP_BATCH_SIZE` | `1` | reducer shared edge writer | Grouped statements for inheritance edges. |
+| `ESHU_SQL_RELATIONSHIP_EDGE_GROUP_BATCH_SIZE` | `1` | reducer shared edge writer | Grouped statements for SQL relationship edges. |
+| `ESHU_NORNICDB_CANONICAL_GROUPED_WRITES` | `false` | graph writer | Conformance switch for Neo4j-style grouped writes on NornicDB. |
+| `ESHU_NORNICDB_REQUIRE_GROUPED_ROLLBACK` | `false` | NornicDB tests | Makes grouped rollback conformance mandatory. |
+| `ESHU_NORNICDB_BATCHED_ENTITY_CONTAINMENT` | unset / `true` | graph writer | Cross-file batched entity containment for NornicDB canonical entity writes. |
+| `ESHU_NORNICDB_RUNTIME` | `embedded` | local Eshu service | Local NornicDB runtime: `embedded` or `process`. |
+| `ESHU_NORNICDB_BINARY` | unset | local Eshu service, install, tests | Explicit process-mode NornicDB binary path. |
+| `ESHU_NORNICDB_INSTALL_TIMEOUT` | `30s` | `eshu install nornicdb` | Download timeout for installer sources. |
+
+## NornicDB Process And Container Variables
+
+| Variable | Default | Read by | Purpose |
+| --- | --- | --- | --- |
+| `NORNICDB_ENABLE_PPROF` | `false` | NornicDB process | Enables NornicDB profiling. |
+| `NORNICDB_ADDRESS`, `NORNICDB_BOLT_PORT`, `NORNICDB_HTTP_PORT`, `NORNICDB_DATA_DIR`, `NORNICDB_AUTH`, `NORNICDB_DEFAULT_DATABASE`, `NORNICDB_HEADLESS`, `NORNICDB_MCP_ENABLED` | local Eshu service sets these in process mode | NornicDB process | External NornicDB process configuration. |
+| `NORNICDB_IMAGE` | pinned Compose image | Docker Compose | NornicDB image override. |
+| `NORNICDB_PLATFORM` | unset | Docker Compose | Optional platform override; unset lets Docker choose host architecture. |
+| `NORNICDB_PULL_POLICY` | Compose default or `missing` in tier-2 v25 proof | Docker Compose | Pull policy for local/proof NornicDB image selection. |
+| `NORNICDB_PERSIST_SEARCH_INDEXES` | `true` in Eshu Compose and Helm | NornicDB container | Prevents expensive search-index rebuilds after normal restarts. |
+| `NORNICDB_EMBEDDING_ENABLED` | `false` in Eshu Compose and Helm | NornicDB container | Keeps embedding workers off during Eshu indexing. |
+| `NORNICDB_ASYNC_WRITES_ENABLED`, `NORNICDB_HEIMDALL_ENABLED`, `NORNICDB_QDRANT_GRPC_ENABLED` | `false` in Eshu Compose and Helm | NornicDB container | Keeps optional backend behavior off for the Eshu graph path. |

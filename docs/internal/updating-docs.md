@@ -1,74 +1,73 @@
 # Documentation Update Guide
 
-This is a maintainer-only guide for updating the Eshu docs site.
+This maintainer-only guide defines the required workflow for changing Eshu's
+documentation site.
 
-## Docs structure
+## Surfaces
 
-Eshu currently has **one** public documentation surface:
+| Surface | Purpose |
+| --- | --- |
+| `docs/public/` | Public product, operator, guide, and reference docs. |
+| `docs/internal/` | Maintainer-only cleanup tracking and workflow notes. |
+| `docs/mkdocs.yml` | Public site navigation and build configuration. |
+| `go/**/README.md` | Package-local ownership and maintainer context. |
+| `go/**/AGENTS.md` | Harness-loaded scoped agent rules. |
 
-- `docs/mkdocs.yml` for site configuration and navigation
-- `docs/docs/` for public docs content
-- `docs/internal/` for maintainer-only notes
-- `docs/archive/` for historical material that should not appear in the public site
+Public pages must live under `docs/public/`, use lower-case kebab-case names,
+and be wired into `docs/mkdocs.yml` when they are part of the site.
 
-## Public docs rules
+## Editing Flow
 
-- public markdown files live under `docs/docs/`
-- public filenames use lower-case kebab-case
-- public pages must be wired into `docs/mkdocs.yml`
-- public docs should not reference removed frontend-hosting flows
+1. Read the local docs that own the surface before editing.
+2. Compare claims against code, manifests, scripts, tests, or generated specs.
+3. Remove duplicated or stale prose instead of adding another layer.
+4. Update navigation when public pages are added, moved, or deleted.
+5. Update `docs/internal/docs-change-tally.md` after each cleanup pass.
+6. Run the smallest focused verifier for the touched surface.
+7. Run the broad acceptance gates before commit.
 
-## Editing flow
+Parser docs are owned by `go/internal/parser/registry.go`, parser package code,
+and parser tests. Update `docs/public/languages/`, `feature-matrix.md`, and
+`support-maturity.md` when parser behavior changes.
 
-1. update or add Markdown under `docs/docs/`
-2. update navigation in `docs/mkdocs.yml`
-3. if you changed parser behavior, update the affected language pages and
-   parser matrices so they match the Go implementation
-4. run the docs tests
-5. build the site locally
+## Required Gates
 
-## Parser documentation ownership
-
-The canonical parser implementation now lives in:
-
-- `go/internal/parser/registry.go`
-- `go/internal/parser/*.go`
-- `go/internal/parser/*_test.go`
-
-The public parser pages under `docs/docs/languages/`, plus
-`feature-matrix.md` and `support-maturity.md`, are checked-in documentation for
-that implementation. Update them when the Go parser contract changes.
-
-Common verification:
+Run the focused gate first:
 
 ```bash
-cd "$(git rev-parse --show-toplevel)"
 cd go
-go test ./internal/parser ./internal/collector ./internal/content/shape -count=1
+go run ./cmd/eshu docs verify ../docs/public/<path> \
+  --limit 1400 --fail-on contradicted,missing_evidence
 ```
 
-## Local verification
+For package docs, also run:
 
 ```bash
-cd docs
-mkdocs serve
+scripts/verify-package-docs.sh
 ```
+
+Before calling a docs branch ready, run:
 
 ```bash
-cd "$(git rev-parse --show-toplevel)"
-uv run --with mkdocs --with mkdocs-material --with pymdown-extensions mkdocs build --strict --clean --config-file docs/mkdocs.yml
+cd go
+go run ./cmd/eshu docs verify ../docs/public --limit 1400 \
+  --fail-on contradicted,missing_evidence
+go run ./cmd/eshu docs verify .. --limit 2400 \
+  --fail-on contradicted,missing_evidence
+cd ..
+git diff --check
+cmp -s AGENTS.md CLAUDE.md
+uv run --with mkdocs --with mkdocs-material --with pymdown-extensions \
+  mkdocs build --strict --clean --config-file docs/mkdocs.yml
 ```
 
-## Build
+Unsupported shell-command claim types from the docs verifier are expected for
+some Helm, kubectl, and Terraform examples. Contradicted or missing-evidence
+claims must be fixed.
 
-```bash
-cd "$(git rev-parse --show-toplevel)"
-uv run --with mkdocs --with mkdocs-material --with pymdown-extensions mkdocs build --strict --clean --config-file docs/mkdocs.yml
-```
+## Deployment
 
-## GitHub Pages deployment
-
-The `Deploy Docs` workflow always builds the MkDocs site on `main`. It only
-publishes to GitHub Pages when the repository variable
-`ESHU_GITHUB_PAGES_ENABLED` is set to `true`. Keep that variable unset until the
-repository's Pages settings are configured to publish from GitHub Actions.
+The `Deploy Docs` workflow builds the MkDocs site on `main`. It publishes to
+GitHub Pages only when the repository Pages opt-in variable is enabled. Keep
+that variable disabled until the repository Pages settings publish from GitHub
+Actions.

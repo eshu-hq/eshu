@@ -230,10 +230,10 @@ element and sets `repo_id` rather than `repo_ids`.
 
 ## Related docs
 
-- `docs/docs/guides/mcp-guide.md` — client setup, tool usage, and story-first
+- `docs/public/guides/mcp-guide.md` — client setup, tool usage, and story-first
   orchestration patterns
-- `docs/docs/reference/http-api.md` — underlying HTTP routes that every tool
+- `docs/public/reference/http-api.md` — underlying HTTP routes that every tool
   dispatches into
-- `docs/docs/architecture.md` — service boundary for the MCP runtime
+- `docs/public/architecture.md` — service boundary for the MCP runtime
 - `go/cmd/mcp-server/README.md` — binary wiring, transport selection, and
   admin surface

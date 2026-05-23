@@ -1,55 +1,18 @@
-# C sample project
+# C Sample Fixture
 
-A tiny, dependency-free C project (~10 files) used to exercise Eshu’s indexer.  
-It mirrors the other language samples by showcasing common C patterns: headers/includes, typedefs, enums,
-structs, extern vs static variables, inline functions, function pointer typedefs, macros/conditional compilation, and a Makefile.
+Parser and indexing tests use this directory as C source input. It is fixture
+data, not a supported sample application.
 
-## Layout
+| Path | Contract |
+| --- | --- |
+| `Makefile` | Simple build metadata for discovery tests. |
+| `include/config.h` | Macros and conditional compilation. |
+| `include/platform.h` | Platform-specific declarations. |
+| `include/util.h` | Inline functions and function declarations. |
+| `include/module.h` | Typedefs, enums, and extern declarations. |
+| `include/math/vec.h` | Structs and function declarations. |
+| `src/*.c` | Includes, definitions, calls, and static symbols. |
+| `src/math/vec.c` | Nested source layout. |
 
-tests/sample_project_c/
-
-├─ README.md
-
-├─ Makefile
-
-├─ include/
-
-│ ├─ config.h
-
-│ ├─ platform.h
-
-│ ├─ util.h
-
-│ ├─ module.h
-
-│ └─ math/vec.h
-
-└─ src/
-
-├─ main.c
-
-├─ util.c
-
-├─ module.c
-
-└─ math/vec.c
-
-
-## Quick run
-From this folder:
-```bash
-make
-./eshu_sample
-```
-
-## Expected Output
-
-On macOS/Linux (POSIX):
-```bash
-EshuSample 0.1.0 (posix) r=XX sum=(5,7,9)
-```
-
-On Windows:
-```bash
-EshuSample 0.1.0 (win) r=XX sum=(5,7,9)
-```
+Tests should prove source/header relationships and C symbol extraction without
+requiring a full build or relying on the checked-in `eshu_sample` binary.

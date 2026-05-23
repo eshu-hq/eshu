@@ -187,6 +187,6 @@ The claim concurrency gauge is backed by the runtime's per-account limiter.
 
 ## Related docs
 
-- `docs/docs/adrs/2026-04-20-aws-cloud-scanner-collector.md`
-- `docs/docs/guides/collector-authoring.md`
-- `docs/docs/reference/telemetry/index.md`
+- `docs/public/services/collector-aws-cloud.md`
+- `docs/public/guides/collector-authoring.md`
+- `docs/public/reference/telemetry/index.md`

@@ -4,11 +4,9 @@
 // builder consumed by the reducer handler before
 // engine.Evaluate(rules.TerraformConfigStateDriftRulePack(), ...) is called.
 //
-// Design contract:
-//
-//	docs/superpowers/plans/2026-05-10-tfstate-config-state-drift-design.md
-//
-// Tracking issue: #43 (epic #50).
+// Current proof gates are documented in docs/public/reference/local-testing.md
+// under "Terraform Config-vs-State Drift Compose Proofs". Tracking issue: #43
+// (epic #50).
 //
 // The package lives under go/internal/correlation/drift/ rather than under
 // go/internal/correlation/rules/ to avoid a circular import: rules carries
@@ -45,6 +43,6 @@
 //     traces are deterministic across reducer reruns.
 //
 // Attribute allowlist ownership note: the v1 allowlist is compile-time
-// (attribute_allowlist.go). Promotion to a versioned data file is a
-// follow-up tracked in design doc §9 question Q5.
+// (attribute_allowlist.go). Promotion to a versioned data file requires a new
+// current design note before implementation.
 package tfconfigstate

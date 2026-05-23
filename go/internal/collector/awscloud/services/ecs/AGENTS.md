@@ -7,7 +7,7 @@
 3. `scanner.go` - cluster, service, task-definition, task, and relationship
    emission.
 4. `../../README.md` - shared AWS cloud observation and envelope contract.
-5. `docs/docs/adrs/2026-04-20-aws-cloud-scanner-collector.md` - ECS slice
+5. `docs/public/services/collector-aws-cloud.md` - ECS slice
    requirements.
 
 ## Invariants

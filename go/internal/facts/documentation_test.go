@@ -41,7 +41,7 @@ func TestDocumentationDocumentPayloadIsSourceNeutral(t *testing.T) {
 				DocumentID:        "doc:git:platform-docs:docs/payment.md",
 				ExternalID:        "docs/payment.md",
 				RevisionID:        "7f5a1dd",
-				CanonicalURI:      "git://github.com/example/platform-docs/docs/payment.md",
+				CanonicalURI:      "git://github.com/example/platform-docs/public/payment.md",
 				Title:             "Payment Service Deployment",
 				ParentDocumentID:  "doc:git:platform-docs:docs",
 				DocumentType:      "runbook",

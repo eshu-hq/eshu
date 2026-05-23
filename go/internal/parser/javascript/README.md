@@ -8,6 +8,29 @@ TypeScript, and TSX. It reads source files through a caller-provided
 with tsconfig `resolved_source` evidence, and marks parser-proven dead-code
 roots from package, framework, module-contract, route, and public API evidence.
 
+## JavaScript-family parse flow
+
+```mermaid
+flowchart LR
+    Parent["parent parser Engine"]
+    Factory["ParserFactory"]
+    Source["JavaScript, TypeScript, or TSX source"]
+    Resolver["tsconfig and package.json helpers"]
+    Adapter["javascript.Parse"]
+    Payload["imports, calls, components, routes, roots, declarations"]
+    Collector["collector materialization"]
+
+    Parent --> Factory
+    Factory --> Adapter
+    Source --> Adapter
+    Resolver --> Adapter
+    Adapter --> Payload
+    Payload --> Collector
+```
+
+Repository-bounded tsconfig and package metadata add evidence to the payload.
+They do not give this child package ownership of parent parser dispatch.
+
 ## Ownership boundary
 
 The package is responsible for JavaScript-family tree-sitter traversal,
@@ -82,4 +105,4 @@ generic defaults that reference imported declaration types.
 
 ## Related docs
 
-- docs/plans/2026-05-09-parser-language-layout.md
+- docs/public/languages/support-maturity.md

@@ -59,7 +59,7 @@ export interface CleanupMode {
   readonly findings: readonly string[];
 }
 
-const docsHref = "https://github.com/eshu-hq/eshu/tree/main/docs/docs";
+const docsHref = "https://github.com/eshu-hq/eshu/tree/main/docs/public";
 
 export const siteContent = {
   nav: [

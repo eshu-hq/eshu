@@ -1,0 +1,8 @@
+FROM python:3.12-slim
+
+LABEL org.opencontainers.image.source="example/multi-dockerfile-repo/test"
+
+WORKDIR /test
+COPY server.py /test/server.py
+
+CMD ["python", "-m", "unittest", "discover"]

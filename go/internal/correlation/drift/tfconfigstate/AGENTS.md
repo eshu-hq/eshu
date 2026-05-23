@@ -11,8 +11,8 @@ Guidance for LLM assistants editing this package.
 5. `attribute_allowlist.go` — per-resource-type attribute policy.
 6. `../../rules/terraform_config_state_drift_rules.go` — the rule-pack
    declaration this package supports (do not edit it from here).
-7. `docs/superpowers/plans/2026-05-10-tfstate-config-state-drift-design.md`
-   — design contract (§5 drift kinds, §6 fixtures, §10 deferrals).
+7. `docs/public/reference/relationship-mapping.md` — current relationship and
+   drift-correlation contract.
 
 ## Invariants
 
@@ -85,14 +85,14 @@ Guidance for LLM assistants editing this package.
 - Do NOT add a backend selection branch (no graph-backend env var
   conditional). Drift correlation is backend-neutral.
 
-## What NOT to change without an ADR
+## What NOT to change without architecture-owner approval
 
 - The dispatch order in `Classify`. Rearranging it changes which drift
   kind wins on ambiguous inputs.
 - The closed `DriftKind` enum. Adding a value expands the
   `drift_kind` metric label space and requires a chunk-status row.
-- The single-source attribute allowlist. Promotion to a versioned data
-  file is design doc §9 Q5 — handle it as an explicit follow-up.
+- The single-source attribute allowlist. Promotion to a versioned data file
+  requires architecture-owner approval and updated current docs.
 - The cross-scope candidate pattern. Other rule packs may adopt it after
   this one ships, but the engine and `Candidate.Validate` contract must
   remain unchanged.

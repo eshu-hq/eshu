@@ -7,6 +7,27 @@ It turns Python source and notebook code cells into parser payload buckets for
 functions, classes, modules, variables, imports, calls, annotations, framework
 metadata, ORM table mappings, and dead-code root evidence.
 
+## Python parse flow
+
+```mermaid
+flowchart LR
+    Parent["parent parser Engine"]
+    Source[".py file or notebook code cells"]
+    Config["SAM/serverless config scan"]
+    Parse["python.Parse"]
+    Payload["functions, classes, imports, calls, routes, tables, roots"]
+    Collector["collector materialization"]
+
+    Parent --> Parse
+    Source --> Parse
+    Config --> Parse
+    Parse --> Payload
+    Payload --> Collector
+```
+
+Notebook extraction and config scans produce parser evidence only. Runtime
+ownership, fact storage, and graph writes remain outside this package.
+
 ## Ownership boundary
 
 The package is responsible for Python-specific parsing and evidence shaping.
@@ -74,6 +95,6 @@ VariableScope option to all when a caller needs local assignment payloads too.
 
 ## Related docs
 
-- docs/docs/architecture.md
-- docs/docs/reference/local-testing.md
-- docs/plans/2026-05-09-parser-language-layout.md
+- docs/public/architecture.md
+- docs/public/reference/local-testing.md
+- docs/public/languages/support-maturity.md

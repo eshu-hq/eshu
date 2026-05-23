@@ -41,7 +41,7 @@
   add a `Mount` call in `APIRouter.Mount`, wire the struct in `newRouter`
   (`wiring.go:163`), add an `openapi_paths_*.go` fragment inside `internal/query`
   and reference it in the OpenAPI assembly function, update
-  `docs/docs/reference/http-api.md`, run
+  `docs/public/reference/http-api.md`, run
   `go test ./cmd/api ./internal/query -count=1`. Why: all handler families
   follow the same struct-and-`Mount` pattern; missing a step leaves routes
   unreachable or undocumented.
@@ -59,7 +59,7 @@
 
 - **Add a new environment variable** → read it in `wireAPI` via the `getenv`
   function parameter (not `os.Getenv` directly), update `doc.go` and `README.md`,
-  and add it to `docs/docs/reference/cli-reference.md`. Why: `wireAPI` takes
+  and add it to `docs/public/reference/cli-reference.md`. Why: `wireAPI` takes
   `getenv func(string) string` so tests can inject values without `t.Setenv`.
 
 ## Failure modes and how to debug
@@ -112,8 +112,8 @@
 ## What NOT to change without an ADR
 
 - `ESHU_QUERY_PROFILE` accepted values — part of the public truth-label contract;
-  see `docs/docs/reference/http-api.md` and `go/internal/query/contract.go`.
+  see `docs/public/reference/http-api.md` and `go/internal/query/contract.go`.
 - `ESHU_GRAPH_BACKEND` accepted values — governed by the backend promotion gate;
-  see `docs/docs/adrs/2026-04-22-nornicdb-graph-backend-candidate.md`.
+  see `docs/public/reference/backend-conformance.md`.
 - The `AuthMiddleware` placement relative to `mountRuntimeSurface` — moving this
   changes which routes require auth; that is a security-boundary change.

@@ -54,7 +54,7 @@ type AWSScheduledPlanner interface {
 	PlanAWSScheduledWork(context.Context, AWSScheduledPlanRequest) (workflow.Run, []workflow.WorkItem, error)
 }
 
-// Service is the dark-deployed workflow coordinator runner.
+// Service is the workflow coordinator runner.
 type Service struct {
 	Config                           Config
 	Store                            Store

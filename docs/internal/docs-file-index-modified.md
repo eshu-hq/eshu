@@ -1,0 +1,304 @@
+# Modified Documentation Files
+
+Generated from `git diff --name-status origin/main -- "*.md"` for this documentation cleanup branch.
+
+- `AGENTS.md`
+- `CLAUDE.md`
+- `DEVELOPING.md`
+- `README.md`
+- `TESTING.md`
+- `apps/console/README.md`
+- `deploy/helm/eshu/README.md`
+- `deploy/observability/README.md`
+- `docs/internal/README.md`
+- `docs/internal/docs-inventory.md`
+- `docs/internal/updating-docs.md`
+- `docs/docs/concepts/graph-model.md -> docs/public/concepts/graph-model.md`
+- `docs/docs/concepts/how-it-works.md -> docs/public/concepts/how-it-works.md`
+- `docs/docs/concepts/modes.md -> docs/public/concepts/modes.md`
+- `docs/docs/contributing.md -> docs/public/contributing.md`
+- `docs/docs/deploy/kubernetes/argocd.md -> docs/public/deploy/kubernetes/argocd.md`
+- `docs/docs/deploy/kubernetes/index.md -> docs/public/deploy/kubernetes/index.md`
+- `docs/docs/deploy/kubernetes/manifests.md -> docs/public/deploy/kubernetes/manifests.md`
+- `docs/docs/deploy/kubernetes/prerequisites.md -> docs/public/deploy/kubernetes/prerequisites.md`
+- `docs/docs/deploy/kubernetes/production-checklist.md -> docs/public/deploy/kubernetes/production-checklist.md`
+- `docs/docs/deploy/kubernetes/upgrades-rollbacks.md -> docs/public/deploy/kubernetes/upgrades-rollbacks.md`
+- `docs/docs/extend/index.md -> docs/public/extend/index.md`
+- `docs/docs/guides/ci-cd.md -> docs/public/guides/ci-cd.md`
+- `docs/docs/guides/visualization.md -> docs/public/guides/visualization.md`
+- `docs/docs/languages/argocd.md -> docs/public/languages/argocd.md`
+- `docs/docs/languages/c.md -> docs/public/languages/c.md`
+- `docs/docs/languages/cloudformation.md -> docs/public/languages/cloudformation.md`
+- `docs/docs/languages/cpp.md -> docs/public/languages/cpp.md`
+- `docs/docs/languages/crossplane.md -> docs/public/languages/crossplane.md`
+- `docs/docs/languages/csharp.md -> docs/public/languages/csharp.md`
+- `docs/docs/languages/dart.md -> docs/public/languages/dart.md`
+- `docs/docs/languages/elixir.md -> docs/public/languages/elixir.md`
+- `docs/docs/languages/feature-matrix.md -> docs/public/languages/feature-matrix.md`
+- `docs/docs/languages/go.md -> docs/public/languages/go.md`
+- `docs/docs/languages/groovy.md -> docs/public/languages/groovy.md`
+- `docs/docs/languages/haskell.md -> docs/public/languages/haskell.md`
+- `docs/docs/languages/helm.md -> docs/public/languages/helm.md`
+- `docs/docs/languages/json.md -> docs/public/languages/json.md`
+- `docs/docs/languages/kotlin.md -> docs/public/languages/kotlin.md`
+- `docs/docs/languages/kubernetes.md -> docs/public/languages/kubernetes.md`
+- `docs/docs/languages/kustomize.md -> docs/public/languages/kustomize.md`
+- `docs/docs/languages/php.md -> docs/public/languages/php.md`
+- `docs/docs/languages/ruby.md -> docs/public/languages/ruby.md`
+- `docs/docs/languages/scala.md -> docs/public/languages/scala.md`
+- `docs/docs/languages/swift.md -> docs/public/languages/swift.md`
+- `docs/docs/languages/terraform.md -> docs/public/languages/terraform.md`
+- `docs/docs/languages/terragrunt.md -> docs/public/languages/terragrunt.md`
+- `docs/docs/license.md -> docs/public/license.md`
+- `docs/docs/mcp/index.md -> docs/public/mcp/index.md`
+- `docs/docs/operate/health-checks.md -> docs/public/operate/health-checks.md`
+- `docs/docs/operate/index.md -> docs/public/operate/index.md`
+- `docs/docs/operate/telemetry.md -> docs/public/operate/telemetry.md`
+- `docs/docs/operate/troubleshooting.md -> docs/public/operate/troubleshooting.md`
+- `docs/docs/reference/cloud-validation.md -> docs/public/reference/cloud-validation.md`
+- `docs/docs/reference/component-package-manager.md -> docs/public/reference/component-package-manager.md`
+- `docs/docs/reference/language-query-dsl.md -> docs/public/reference/language-query-dsl.md`
+- `docs/docs/reference/local-host-lifecycle.md -> docs/public/reference/local-host-lifecycle.md`
+- `docs/docs/reference/logging.md -> docs/public/reference/logging.md`
+- `docs/docs/reference/mcp-prompt-surface-audit.md -> docs/public/reference/mcp-prompt-surface-audit.md`
+- `docs/docs/reference/mcp-tool-contract-matrix.md -> docs/public/reference/mcp-tool-contract-matrix.md`
+- `docs/docs/reference/parity-closure-matrix.md -> docs/public/reference/parity-closure-matrix.md`
+- `docs/docs/reference/plugin-trust-model.md -> docs/public/reference/plugin-trust-model.md`
+- `docs/docs/reference/relationship-mapping-observability.md -> docs/public/reference/relationship-mapping-observability.md`
+- `docs/docs/reference/remote-e2e-runtime-state.md -> docs/public/reference/remote-e2e-runtime-state.md`
+- `docs/docs/reference/source-layout.md -> docs/public/reference/source-layout.md`
+- `docs/docs/releases/index.md -> docs/public/releases/index.md`
+- `docs/docs/releases/v0.0.2.md -> docs/public/releases/v0.0.2.md`
+- `docs/docs/run-locally/local-binaries.md -> docs/public/run-locally/local-binaries.md`
+- `docs/docs/run-locally/mcp-local.md -> docs/public/run-locally/mcp-local.md`
+- `docs/docs/understand/index.md -> docs/public/understand/index.md`
+- `docs/docs/use/trace-infrastructure.md -> docs/public/use/trace-infrastructure.md`
+- `go/README.md`
+- `go/cmd/README.md`
+- `go/cmd/admin-status/AGENTS.md`
+- `go/cmd/admin-status/README.md`
+- `go/cmd/api/AGENTS.md`
+- `go/cmd/api/README.md`
+- `go/cmd/bootstrap-data-plane/AGENTS.md`
+- `go/cmd/bootstrap-data-plane/README.md`
+- `go/cmd/bootstrap-index/AGENTS.md`
+- `go/cmd/bootstrap-index/README.md`
+- `go/cmd/collector-aws-cloud/AGENTS.md`
+- `go/cmd/collector-aws-cloud/README.md`
+- `go/cmd/collector-confluence/README.md`
+- `go/cmd/collector-git/AGENTS.md`
+- `go/cmd/collector-git/README.md`
+- `go/cmd/collector-oci-registry/README.md`
+- `go/cmd/collector-package-registry/README.md`
+- `go/cmd/eshu/AGENTS.md`
+- `go/cmd/eshu/README.md`
+- `go/cmd/ingester/AGENTS.md`
+- `go/cmd/ingester/README.md`
+- `go/cmd/mcp-server/AGENTS.md`
+- `go/cmd/mcp-server/README.md`
+- `go/cmd/projector/AGENTS.md`
+- `go/cmd/projector/README.md`
+- `go/cmd/reducer/AGENTS.md`
+- `go/cmd/reducer/README.md`
+- `go/cmd/workflow-coordinator/README.md`
+- `go/internal/README.md`
+- `go/internal/app/README.md`
+- `go/internal/backendconformance/AGENTS.md`
+- `go/internal/backendconformance/README.md`
+- `go/internal/buildinfo/README.md`
+- `go/internal/collector/README.md`
+- `go/internal/collector/awscloud/AGENTS.md`
+- `go/internal/collector/awscloud/README.md`
+- `go/internal/collector/awscloud/awsruntime/AGENTS.md`
+- `go/internal/collector/awscloud/awsruntime/README.md`
+- `go/internal/collector/awscloud/services/apigateway/README.md`
+- `go/internal/collector/awscloud/services/apigateway/awssdk/README.md`
+- `go/internal/collector/awscloud/services/cloudfront/README.md`
+- `go/internal/collector/awscloud/services/cloudfront/awssdk/README.md`
+- `go/internal/collector/awscloud/services/cloudwatchlogs/AGENTS.md`
+- `go/internal/collector/awscloud/services/cloudwatchlogs/README.md`
+- `go/internal/collector/awscloud/services/cloudwatchlogs/awssdk/AGENTS.md`
+- `go/internal/collector/awscloud/services/cloudwatchlogs/awssdk/README.md`
+- `go/internal/collector/awscloud/services/dynamodb/AGENTS.md`
+- `go/internal/collector/awscloud/services/dynamodb/README.md`
+- `go/internal/collector/awscloud/services/dynamodb/awssdk/AGENTS.md`
+- `go/internal/collector/awscloud/services/dynamodb/awssdk/README.md`
+- `go/internal/collector/awscloud/services/ec2/README.md`
+- `go/internal/collector/awscloud/services/ec2/awssdk/README.md`
+- `go/internal/collector/awscloud/services/ecr/AGENTS.md`
+- `go/internal/collector/awscloud/services/ecr/README.md`
+- `go/internal/collector/awscloud/services/ecr/awssdk/AGENTS.md`
+- `go/internal/collector/awscloud/services/ecr/awssdk/README.md`
+- `go/internal/collector/awscloud/services/ecs/AGENTS.md`
+- `go/internal/collector/awscloud/services/ecs/README.md`
+- `go/internal/collector/awscloud/services/ecs/awssdk/AGENTS.md`
+- `go/internal/collector/awscloud/services/ecs/awssdk/README.md`
+- `go/internal/collector/awscloud/services/eks/README.md`
+- `go/internal/collector/awscloud/services/eks/awssdk/README.md`
+- `go/internal/collector/awscloud/services/elbv2/README.md`
+- `go/internal/collector/awscloud/services/elbv2/awssdk/README.md`
+- `go/internal/collector/awscloud/services/eventbridge/AGENTS.md`
+- `go/internal/collector/awscloud/services/eventbridge/README.md`
+- `go/internal/collector/awscloud/services/eventbridge/awssdk/AGENTS.md`
+- `go/internal/collector/awscloud/services/eventbridge/awssdk/README.md`
+- `go/internal/collector/awscloud/services/iam/AGENTS.md`
+- `go/internal/collector/awscloud/services/iam/README.md`
+- `go/internal/collector/awscloud/services/iam/awssdk/AGENTS.md`
+- `go/internal/collector/awscloud/services/iam/awssdk/README.md`
+- `go/internal/collector/awscloud/services/lambda/README.md`
+- `go/internal/collector/awscloud/services/lambda/awssdk/README.md`
+- `go/internal/collector/awscloud/services/rds/AGENTS.md`
+- `go/internal/collector/awscloud/services/rds/README.md`
+- `go/internal/collector/awscloud/services/rds/awssdk/AGENTS.md`
+- `go/internal/collector/awscloud/services/rds/awssdk/README.md`
+- `go/internal/collector/awscloud/services/route53/README.md`
+- `go/internal/collector/awscloud/services/route53/awssdk/README.md`
+- `go/internal/collector/awscloud/services/s3/AGENTS.md`
+- `go/internal/collector/awscloud/services/s3/README.md`
+- `go/internal/collector/awscloud/services/s3/awssdk/AGENTS.md`
+- `go/internal/collector/awscloud/services/s3/awssdk/README.md`
+- `go/internal/collector/awscloud/services/secretsmanager/AGENTS.md`
+- `go/internal/collector/awscloud/services/secretsmanager/README.md`
+- `go/internal/collector/awscloud/services/secretsmanager/awssdk/AGENTS.md`
+- `go/internal/collector/awscloud/services/secretsmanager/awssdk/README.md`
+- `go/internal/collector/awscloud/services/sns/AGENTS.md`
+- `go/internal/collector/awscloud/services/sns/README.md`
+- `go/internal/collector/awscloud/services/sns/awssdk/AGENTS.md`
+- `go/internal/collector/awscloud/services/sns/awssdk/README.md`
+- `go/internal/collector/awscloud/services/sqs/AGENTS.md`
+- `go/internal/collector/awscloud/services/sqs/README.md`
+- `go/internal/collector/awscloud/services/sqs/awssdk/AGENTS.md`
+- `go/internal/collector/awscloud/services/sqs/awssdk/README.md`
+- `go/internal/collector/awscloud/services/ssm/AGENTS.md`
+- `go/internal/collector/awscloud/services/ssm/README.md`
+- `go/internal/collector/awscloud/services/ssm/awssdk/AGENTS.md`
+- `go/internal/collector/awscloud/services/ssm/awssdk/README.md`
+- `go/internal/collector/cicdrun/AGENTS.md`
+- `go/internal/collector/cicdrun/README.md`
+- `go/internal/collector/confluence/README.md`
+- `go/internal/collector/discovery/README.md`
+- `go/internal/collector/ociregistry/AGENTS.md`
+- `go/internal/collector/ociregistry/README.md`
+- `go/internal/collector/ociregistry/distribution/AGENTS.md`
+- `go/internal/collector/ociregistry/distribution/README.md`
+- `go/internal/collector/ociregistry/dockerhub/AGENTS.md`
+- `go/internal/collector/ociregistry/dockerhub/README.md`
+- `go/internal/collector/ociregistry/ecr/AGENTS.md`
+- `go/internal/collector/ociregistry/ecr/README.md`
+- `go/internal/collector/ociregistry/ghcr/AGENTS.md`
+- `go/internal/collector/ociregistry/ghcr/README.md`
+- `go/internal/collector/ociregistry/jfrog/AGENTS.md`
+- `go/internal/collector/ociregistry/jfrog/README.md`
+- `go/internal/collector/packageregistry/AGENTS.md`
+- `go/internal/collector/packageregistry/README.md`
+- `go/internal/collector/packageregistry/packageruntime/AGENTS.md`
+- `go/internal/collector/packageregistry/packageruntime/README.md`
+- `go/internal/collector/terraformstate/README.md`
+- `go/internal/collector/vulnerabilityintelligence/AGENTS.md`
+- `go/internal/collector/vulnerabilityintelligence/README.md`
+- `go/internal/collector/vulnerabilityintelligence/vulnruntime/AGENTS.md`
+- `go/internal/collector/vulnerabilityintelligence/vulnruntime/README.md`
+- `go/internal/component/AGENTS.md`
+- `go/internal/content/README.md`
+- `go/internal/content/shape/README.md`
+- `go/internal/contentrefs/README.md`
+- `go/internal/coordinator/AGENTS.md`
+- `go/internal/coordinator/README.md`
+- `go/internal/correlation/README.md`
+- `go/internal/correlation/admission/README.md`
+- `go/internal/correlation/drift/cloudruntime/AGENTS.md`
+- `go/internal/correlation/drift/cloudruntime/README.md`
+- `go/internal/correlation/drift/tfconfigstate/AGENTS.md`
+- `go/internal/correlation/drift/tfconfigstate/README.md`
+- `go/internal/correlation/engine/README.md`
+- `go/internal/correlation/explain/README.md`
+- `go/internal/correlation/model/README.md`
+- `go/internal/correlation/rules/README.md`
+- `go/internal/eshulocal/AGENTS.md`
+- `go/internal/eshulocal/README.md`
+- `go/internal/facts/README.md`
+- `go/internal/graph/README.md`
+- `go/internal/iacreachability/AGENTS.md`
+- `go/internal/iacreachability/README.md`
+- `go/internal/mcp/AGENTS.md`
+- `go/internal/mcp/README.md`
+- `go/internal/parser/README.md`
+- `go/internal/parser/c/README.md`
+- `go/internal/parser/cloudformation/README.md`
+- `go/internal/parser/dart/README.md`
+- `go/internal/parser/dbtsql/README.md`
+- `go/internal/parser/dockerfile/README.md`
+- `go/internal/parser/elixir/README.md`
+- `go/internal/parser/golang/README.md`
+- `go/internal/parser/groovy/README.md`
+- `go/internal/parser/haskell/README.md`
+- `go/internal/parser/hcl/README.md`
+- `go/internal/parser/java/README.md`
+- `go/internal/parser/javascript/README.md`
+- `go/internal/parser/json/README.md`
+- `go/internal/parser/kotlin/README.md`
+- `go/internal/parser/perl/README.md`
+- `go/internal/parser/php/README.md`
+- `go/internal/parser/python/README.md`
+- `go/internal/parser/ruby/README.md`
+- `go/internal/parser/rust/README.md`
+- `go/internal/parser/shared/README.md`
+- `go/internal/parser/sql/README.md`
+- `go/internal/parser/swift/README.md`
+- `go/internal/parser/yaml/README.md`
+- `go/internal/projector/AGENTS.md`
+- `go/internal/projector/README.md`
+- `go/internal/query/AGENTS.md`
+- `go/internal/query/README.md`
+- `go/internal/queue/README.md`
+- `go/internal/recovery/README.md`
+- `go/internal/reducer/AGENTS.md`
+- `go/internal/reducer/README.md`
+- `go/internal/reducer/aws/README.md`
+- `go/internal/reducer/dsl/README.md`
+- `go/internal/reducer/tags/README.md`
+- `go/internal/reducer/tfstate/README.md`
+- `go/internal/relationships/README.md`
+- `go/internal/relationships/tfstatebackend/AGENTS.md`
+- `go/internal/relationships/tfstatebackend/README.md`
+- `go/internal/repositoryidentity/README.md`
+- `go/internal/runtime/AGENTS.md`
+- `go/internal/runtime/README.md`
+- `go/internal/scope/README.md`
+- `go/internal/status/AGENTS.md`
+- `go/internal/status/README.md`
+- `go/internal/storage/README.md`
+- `go/internal/storage/cypher/AGENTS.md`
+- `go/internal/storage/cypher/README.md`
+- `go/internal/storage/neo4j/AGENTS.md`
+- `go/internal/storage/neo4j/README.md`
+- `go/internal/storage/postgres/AGENTS.md`
+- `go/internal/storage/postgres/README.md`
+- `go/internal/telemetry/AGENTS.md`
+- `go/internal/telemetry/README.md`
+- `go/internal/terraformschema/README.md`
+- `go/internal/truth/README.md`
+- `go/internal/workflow/README.md`
+- `scripts/README.md`
+- `tests/fixtures/correlation_dsl/README.md`
+- `tests/fixtures/deadcode/README.md`
+- `tests/fixtures/deadcode/haskell/README.md`
+- `tests/fixtures/deadcode/java/README.md`
+- `tests/fixtures/deadcode/rust/README.md`
+- `tests/fixtures/product_truth/README.md`
+- `tests/fixtures/product_truth/dead_iac/README.md`
+- `tests/fixtures/sample_projects/sample_project_c/README.md`
+- `tests/fixtures/sample_projects/sample_project_cpp/README.md`
+- `tests/fixtures/sample_projects/sample_project_csharp/README.md`
+- `tests/fixtures/sample_projects/sample_project_go/README.md`
+- `tests/fixtures/sample_projects/sample_project_java/README.md`
+- `tests/fixtures/sample_projects/sample_project_javascript/README.md`
+- `tests/fixtures/sample_projects/sample_project_misc/README.md`
+- `tests/fixtures/sample_projects/sample_project_php/README.md`
+- `tests/fixtures/sample_projects/sample_project_rust/README.md`
+- `tests/fixtures/sample_projects/sample_project_swift/README.md`
+- `tests/fixtures/sample_projects/sample_project_typescript/README.md`
+- `tests/fixtures/templated_iac_corpus/README.md`
+- `tests/fixtures/tfstate_drift/README.md`
+- `tests/fixtures/tfstate_drift_tier2/README.md`
+- `tests/fixtures/tfstate_drift_tier2/v25/README.md`

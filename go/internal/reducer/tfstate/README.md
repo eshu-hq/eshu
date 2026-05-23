@@ -79,7 +79,7 @@ canonical-write stage.
 
 ## Related docs
 
-- `docs/docs/architecture.md`
+- `docs/public/architecture.md`
 - `go/internal/reducer/README.md`
 - `go/internal/reducer/aws/README.md`
 - `go/internal/reducer/dsl/README.md`

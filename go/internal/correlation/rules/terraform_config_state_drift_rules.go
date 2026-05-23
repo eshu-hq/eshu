@@ -1,7 +1,8 @@
 package rules
 
-// Design contract: docs/superpowers/plans/2026-05-10-tfstate-config-state-drift-design.md
-// Tracking issue: #43 (epic #50).
+// Current proof gates are documented in docs/public/reference/local-testing.md
+// under "Terraform Config-vs-State Drift Compose Proofs". Tracking issue: #43
+// (epic #50).
 //
 // The five drift kinds emitted under
 // eshu_dp_correlation_drift_detected_total{drift_kind}:

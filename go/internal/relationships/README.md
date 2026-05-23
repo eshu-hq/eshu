@@ -200,7 +200,7 @@ Extraction outcomes are surfaced by the reducer when admitted and by
 
 ## Related docs
 
-- `docs/docs/architecture.md` — ownership table and pipeline overview
-- `docs/docs/reference/local-testing.md` — verification gates
+- `docs/public/architecture.md` — ownership table and pipeline overview
+- `docs/public/reference/local-testing.md` — verification gates
 - `go/internal/terraformschema/README.md` — provider schema loader details
 - `go/internal/iacreachability/README.md` — complement: reachability analysis

@@ -245,7 +245,7 @@ ESHU_POSTGRES_DSN.
 
 ## Related docs
 
-- [Service runtimes — Resolution Engine](../../../docs/docs/deployment/service-runtimes.md#resolution-engine)
-- [NornicDB tuning](../../../docs/docs/reference/nornicdb-tuning.md)
-- [Telemetry overview](../../../docs/docs/reference/telemetry/index.md)
+- [Service runtimes — Resolution Engine](../../../docs/public/deployment/service-runtimes.md#resolution-engine)
+- [NornicDB tuning](../../../docs/public/reference/nornicdb-tuning.md)
+- [Telemetry overview](../../../docs/public/reference/telemetry/index.md)
 - `go/internal/reducer/README.md`

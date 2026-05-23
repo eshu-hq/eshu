@@ -319,9 +319,9 @@ it.
 
 ## Related docs
 
-- `docs/docs/architecture.md` — collector ownership
-- `docs/docs/deployment/service-runtimes.md` — concurrency tuning env vars
-- `docs/docs/reference/local-testing.md` — local verification gates
-- `docs/docs/reference/telemetry/index.md` — metric and span reference
+- `docs/public/architecture.md` — collector ownership
+- `docs/public/deployment/service-runtimes.md` — concurrency tuning env vars
+- `docs/public/reference/local-testing.md` — local verification gates
+- `docs/public/reference/telemetry/index.md` — metric and span reference
 - `go/internal/collector/discovery/README.md` — file enumeration detail
 - `go/internal/parser/README.md` — language adapter and registry detail

@@ -9,6 +9,6 @@
 // Embedded Postgres startup output is routed to the workspace postgres.log so
 // local foreground progress remains readable.
 // The layout, ID algorithm, and single-service rules are defined by
-// docs/docs/reference/local-data-root-spec.md and
-// docs/docs/reference/local-host-lifecycle.md.
+// docs/public/reference/local-data-root-spec.md and
+// docs/public/reference/local-host-lifecycle.md.
 package eshulocal

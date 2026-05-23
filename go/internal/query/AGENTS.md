@@ -104,7 +104,7 @@
   (`handler.go:110`), call `Mount` in `APIRouter.Mount` (`handler.go:125`), wire
   the concrete adapter in `cmd/api/wiring.go`'s `newRouter`, add a
   `openapi_paths_*.go` fragment and reference it in `OpenAPISpec()`, update
-  `docs/docs/reference/http-api.md`. Run
+  `docs/public/reference/http-api.md`. Run
   `go test ./cmd/api ./internal/query -count=1`. Why: missing any step leaves a
   route reachable but not documented, not gated, or not wired to the right
   adapter.
@@ -113,12 +113,12 @@
   with per-profile max truth levels; add the capability ID constant near the
   existing `const` blocks if reused across handlers; call `BuildTruthEnvelope`
   with the new ID in the handler; update `specs/capability-matrix.v1.yaml` and
-  `docs/docs/reference/http-api.md`. Run `go test ./internal/query -count=1`
+  `docs/public/reference/http-api.md`. Run `go test ./internal/query -count=1`
   (the `contract_endpoint_test.go` validates matrix coverage). Why:
   `BuildTruthEnvelope` panics on unknown capability IDs at handler call time.
 
 - **Change a response shape** → update the handler method, the matching
-  `openapi_paths_*.go` string constant, and `docs/docs/reference/http-api.md` in
+  `openapi_paths_*.go` string constant, and `docs/public/reference/http-api.md` in
   the same PR. Why: the OpenAPI spec is a static string; it does not reflect from
   Go structs automatically.
 
@@ -202,10 +202,10 @@
 
 - `capabilityMatrix` entry `RequiredProfile` values — these gate which runtime
   profiles can answer which queries; changes affect CLI, MCP, and HTTP clients
-  simultaneously; see `docs/docs/reference/http-api.md` and
+  simultaneously; see `docs/public/reference/http-api.md` and
   `specs/capability-matrix.v1.yaml`.
 - `ResponseEnvelope` and `TruthEnvelope` field names — these are stable wire
   contracts used by MCP tool dispatch and CLI `--json` mode; see
-  `docs/docs/reference/http-api.md`.
+  `docs/public/reference/http-api.md`.
 - `EnvelopeMIMEType` (`application/eshu.envelope+json`) — changing this MIME type
   breaks every client that has already adopted envelope negotiation.

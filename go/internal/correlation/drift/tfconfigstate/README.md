@@ -5,10 +5,8 @@ Classifies one resource address against config-side, state-side, and
 prior-state-side views; builds the cross-scope correlation candidate that
 `engine.Evaluate(rules.TerraformConfigStateDriftRulePack(), ...)` admits.
 
-Design contract:
-`docs/superpowers/plans/2026-05-10-tfstate-config-state-drift-design.md`
-
-Tracking issue: #43 (epic #50).
+Current design contract:
+`docs/public/reference/relationship-mapping.md`
 
 ## Pipeline position
 
@@ -78,8 +76,8 @@ flowchart TB
 This package does not emit telemetry directly. The reducer handler that
 consumes its output (`go/internal/reducer/terraform_config_state_drift.go`)
 emits `eshu_dp_correlation_rule_matches_total{pack, rule}` and
-`eshu_dp_correlation_drift_detected_total{pack, rule, drift_kind}` per the
-design doc §7.
+`eshu_dp_correlation_drift_detected_total{pack, rule, drift_kind}`. Keep that
+counter pair aligned with the current relationship-mapping reference.
 
 The two counters carry distinct semantics:
 
@@ -105,8 +103,9 @@ paths) out of label space — those live in `slog` log keys instead.
 - `removed_from_state` requires a prior-state row. If the resolver cannot
   reach the prior generation (Postgres retention or lineage rotation), the
   classifier returns empty — correct behavior, not a bug.
-- The attribute allowlist is the v1 operator-meaningful policy. Promoting
-  it to a versioned data file is design doc §9 Q5.
+- The attribute allowlist is the v1 operator-meaningful policy. Promoting it to
+  a versioned data file requires architecture-owner approval plus updated
+  relationship-mapping and package docs.
 
 ## Extension points
 
@@ -134,5 +133,6 @@ paths) out of label space — those live in `slog` log keys instead.
 
 - Only the seven seed resource types in `attribute_allowlist.go` are
   covered for attribute_drift. Other types fall through silently.
-- No graph projection of drift nodes (deferred per design doc §10).
+- No graph projection of drift nodes until a current relationship-mapping
+  contract and query surface exist.
 - No state-to-cloud ARN joins (blocked by issue #48).

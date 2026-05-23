@@ -9,6 +9,30 @@ identifies the source-local record that produced the fact. These types are the
 contract between collection, queueing, projection, and reducer-owned
 materialization.
 
+## Where this fits
+
+```mermaid
+flowchart LR
+    Sources["collectors, parsers, and docs tooling"]
+    Envelope["facts.Envelope + facts.Ref"]
+    Helpers["fact-kind registries, schema versions, StableID"]
+    Store["Postgres fact store and work queues"]
+    Projector["source-local projector"]
+    Reducer["reducer materialization"]
+    Truth["graph/content read surfaces"]
+
+    Sources -->|"source evidence payloads"| Envelope
+    Helpers -->|"stable IDs and accepted schemas"| Envelope
+    Envelope --> Store
+    Store --> Projector
+    Store --> Reducer
+    Projector --> Truth
+    Reducer --> Truth
+```
+
+The package defines durable evidence shapes. Projectors and reducers decide how
+that evidence becomes graph, content, or query truth.
+
 ## Ownership boundary
 
 Owns the durable fact value types and the stable-ID function. Per the ownership
@@ -219,6 +243,6 @@ and processing lives in `internal/projector` and `internal/storage/postgres`.
 
 ## Related docs
 
-- `docs/docs/architecture.md` — pipeline and ownership table
-- `docs/docs/deployment/service-runtimes.md` — ingester and projector runtime
+- `docs/public/architecture.md` — pipeline and ownership table
+- `docs/public/deployment/service-runtimes.md` — ingester and projector runtime
   lanes

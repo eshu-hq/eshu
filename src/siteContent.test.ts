@@ -8,7 +8,7 @@ describe("siteContent", () => {
     expect(siteContent.hero.primaryCta.label).toBe("View on GitHub");
     expect(siteContent.hero.secondaryCta.label).toBe("Read the docs");
     expect(siteContent.hero.secondaryCta.href).toBe(
-      "https://github.com/eshu-hq/eshu/tree/main/docs/docs"
+      "https://github.com/eshu-hq/eshu/tree/main/docs/public"
     );
     expect(siteContent.terminalCommands).toEqual([
       "eshu scan",
@@ -37,7 +37,7 @@ describe("siteContent", () => {
 
   it("links docs navigation to a deployed external route", () => {
     expect(siteContent.nav.find((item) => item.label === "Docs")?.href).toBe(
-      "https://github.com/eshu-hq/eshu/tree/main/docs/docs"
+      "https://github.com/eshu-hq/eshu/tree/main/docs/public"
     );
     expect(siteContent.surfaces.map((surface) => surface.title)).toEqual([
       "CLI",

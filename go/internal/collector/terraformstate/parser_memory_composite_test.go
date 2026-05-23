@@ -70,7 +70,7 @@ func TestParseStream_PeakMemoryGate_CompositeCapture(t *testing.T) {
 
 // TestParserCapturesLargeScalarLeafUnderBoundedMemory is the Q3 evidence the
 // composite-capture ADR
-// (docs/docs/adrs/2026-05-12-tfstate-parser-composite-capture-for-schema-known-paths.md
+// (docs/public/services/collector-terraform-state.md
 // §Edge Cases, row "A SchemaKnown composite whose value is genuinely large")
 // commits to. It proves the streaming walker (a) captures a 10k-character
 // scalar leaf intact, no truncation and no drop, and (b) keeps the parse's

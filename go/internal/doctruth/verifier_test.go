@@ -56,6 +56,48 @@ func TestVerifierComparesCLIEndpointAndEnvClaims(t *testing.T) {
 	}
 }
 
+func TestVerifierAcceptsDocumentedArgumentsAndEndpointTemplates(t *testing.T) {
+	t.Parallel()
+
+	verifier := doctruth.NewVerifier(doctruth.VerifierOptions{
+		Commands: []doctruth.CommandTruth{
+			{Path: []string{"docs", "verify"}, AllowsArgs: true},
+			{Path: []string{"index"}, AllowsArgs: true},
+			{Path: []string{"find", "name"}, AllowsArgs: true},
+			{Path: []string{"analyze", "calls"}, AllowsArgs: true},
+			{Path: []string{"mcp"}},
+		},
+		HTTPEndpoints: []doctruth.HTTPEndpointTruth{
+			{Method: "GET", Path: "/api/v0/entities/{entity_id}/context"},
+			{Method: "GET", Path: "/api/v0/repositories/{repo_id}/story"},
+		},
+	})
+
+	result, err := verifier.Verify(context.Background(), []doctruth.DocumentInput{{
+		Path:       "docs/reference/http-api.md",
+		RevisionID: "rev-template",
+		Content: "" +
+			"`eshu docs verify [path]` verifies documentation.\n" +
+			"`eshu index <path>` indexes a local checkout.\n" +
+			"`eshu find name handleRelationships` finds one symbol by name.\n" +
+			"`eshu analyze calls handleRelationships --repo eshu` shows direct callees.\n" +
+			"`eshu mcp stdio` is not a shipped command.\n" +
+			"`GET /api/v0/entities/{id}/context` documents the route family.\n" +
+			"`GET /api/v0/entities/workload:payments-api/context` is a valid example.\n" +
+			"`GET /api/v0/repositories/repository:r_ab12cd34/story` is also a valid example.\n",
+	}})
+	if err != nil {
+		t.Fatalf("Verify() error = %v, want nil", err)
+	}
+
+	if got, want := result.Summary.Valid, 7; got != want {
+		t.Fatalf("Summary.Valid = %d, want %d; findings=%#v", got, want, result.Findings)
+	}
+	if got, want := result.Summary.Contradicted, 1; got != want {
+		t.Fatalf("Summary.Contradicted = %d, want %d; findings=%#v", got, want, result.Findings)
+	}
+}
+
 func TestVerifierKeepsContradictedUnsupportedAndMissingEvidenceSeparate(t *testing.T) {
 	t.Parallel()
 
@@ -94,6 +136,30 @@ func TestVerifierKeepsContradictedUnsupportedAndMissingEvidenceSeparate(t *testi
 	if got, want := result.Summary.UnsupportedClaimType, 1; got != want {
 		t.Fatalf("Summary.UnsupportedClaimType = %d, want %d", got, want)
 	}
+}
+
+func TestVerifierIgnoresEnvironmentVariablePrefixExamples(t *testing.T) {
+	t.Parallel()
+
+	verifier := doctruth.NewVerifier(doctruth.VerifierOptions{
+		EnvironmentVariables: []string{"ESHU_WORKFLOW_COORDINATOR_DEPLOYMENT_MODE"},
+	})
+
+	result, err := verifier.Verify(context.Background(), []doctruth.DocumentInput{{
+		Path:       "go/internal/coordinator/README.md",
+		RevisionID: "rev-prefix",
+		Content: "" +
+			"`ESHU_WORKFLOW_COORDINATOR_*` names a variable family, not one variable.\n" +
+			"`ESHU_WORKFLOW_COORDINATOR_DEPLOYMENT_MODE` is one concrete variable.\n",
+	}})
+	if err != nil {
+		t.Fatalf("Verify() error = %v, want nil", err)
+	}
+
+	if got, want := result.Summary.ClaimsChecked, 1; got != want {
+		t.Fatalf("Summary.ClaimsChecked = %d, want %d; findings=%#v", got, want, result.Findings)
+	}
+	assertFindingStatus(t, result.Findings, "environment_variable", "valid")
 }
 
 func TestVerifierBoundsDocumentsAndContentBytes(t *testing.T) {
