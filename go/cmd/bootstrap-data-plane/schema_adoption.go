@@ -15,16 +15,36 @@ import (
 
 const graphSchemaAdoptExistingEnv = "ESHU_GRAPH_SCHEMA_ADOPT_EXISTING"
 
+type graphSchemaAdoptionMode int
+
+const (
+	graphSchemaAdoptionDisabled graphSchemaAdoptionMode = iota
+	graphSchemaAdoptionOpportunistic
+	graphSchemaAdoptionRequired
+)
+
 type graphSchemaInspector interface {
 	GraphSchemaObjectNames(context.Context) (map[string]struct{}, error)
 }
 
-func graphSchemaAdoptionEnabled(getenv func(string) string) bool {
-	switch strings.ToLower(strings.TrimSpace(getenv(graphSchemaAdoptExistingEnv))) {
+// graphSchemaAdoptionModeFromEnv returns the schema adoption policy for a
+// marker-missing run. NornicDB defaults to opportunistic adoption because
+// re-running CREATE CONSTRAINT IF NOT EXISTS against a large retained graph can
+// spend minutes per constraint refreshing unique values.
+func graphSchemaAdoptionModeFromEnv(getenv func(string) string, backend graph.SchemaBackend) graphSchemaAdoptionMode {
+	raw := strings.ToLower(strings.TrimSpace(getenv(graphSchemaAdoptExistingEnv)))
+	switch raw {
 	case "1", "true", "t", "yes", "y", "on":
-		return true
+		return graphSchemaAdoptionRequired
+	case "0", "false", "f", "no", "n", "off":
+		return graphSchemaAdoptionDisabled
+	case "":
+		if backend == graph.SchemaBackendNornicDB {
+			return graphSchemaAdoptionOpportunistic
+		}
+		return graphSchemaAdoptionDisabled
 	default:
-		return false
+		return graphSchemaAdoptionDisabled
 	}
 }
 

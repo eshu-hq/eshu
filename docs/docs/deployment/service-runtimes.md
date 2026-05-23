@@ -550,17 +550,25 @@ and preserved-volume restart behavior before a new image is promoted.
 ## Schema Bootstrap
 
 `eshu-bootstrap-data-plane` applies all Postgres and graph backend schema DDL then
-exits. It uses `CREATE TABLE IF NOT EXISTS` and `CREATE CONSTRAINT IF NOT
-EXISTS` so it is safe to run repeatedly (idempotent).
+exits. It uses idempotent DDL and records a Postgres graph-schema fingerprint
+after graph DDL succeeds. On NornicDB, if that marker is missing but a retained
+graph already has every expected constraint and index, the binary adopts the
+existing schema from `SHOW CONSTRAINTS` and `SHOW INDEXES` instead of re-running
+hundreds of idempotent constraint checks against a large graph.
 
 ### What it does
 
 1. Connects to Postgres and runs `ApplyBootstrap` — creates all tables and
    indexes for facts, scopes, generations, content store, work queue, audit,
    relationships, shared intents, and projection decisions.
-2. Connects to the graph backend and runs schema bootstrap — creates all node constraints,
-   uniqueness indexes, performance indexes, and full-text indexes.
-3. Exits with code 0 on success.
+2. Checks the graph-schema marker. If the backend/fingerprint already exists,
+   graph DDL is skipped.
+3. Connects to the graph backend and, for marker-missing NornicDB retained
+   graphs, adopts the existing schema when all expected names are already
+   visible.
+4. Runs graph schema bootstrap when adoption is incomplete — creates all node
+   constraints, uniqueness indexes, performance indexes, and full-text indexes.
+5. Exits with code 0 on success.
 
 ### Why it exists
 
@@ -653,11 +661,16 @@ backend during rolling updates and makes the deployment look hung.
 | `NEO4J_PASSWORD` | Yes | Bolt auth password |
 | `DEFAULT_DATABASE` | No | Bolt database name, default `nornic` |
 | `ESHU_GRAPH_SCHEMA_STATEMENT_TIMEOUT` | No | Per graph DDL statement deadline, default `2m` |
+| `ESHU_GRAPH_SCHEMA_ADOPT_EXISTING` | No | Existing-schema adoption override; unset adopts complete NornicDB schema automatically when the marker is missing, truthy requires adoption support for either backend, false disables adoption |
 
 ### Operational notes
 
-- **Idempotent**: safe to run for every install or upgrade — all DDL uses
-  `IF NOT EXISTS`.
+- **Idempotent with a durable skip**: safe to run for every install or upgrade;
+  all DDL uses `IF NOT EXISTS`, and successful graph DDL writes a fingerprint
+  marker so preserved-volume restarts skip graph DDL entirely.
+- **NornicDB retained-graph adoption**: marker-missing NornicDB deployments
+  inspect existing constraints and indexes first. If every expected object is
+  present, the job writes the marker and avoids the expensive live DDL pass.
 - **Bounded**: the Helm chart gives the Job an `activeDeadlineSeconds` timeout.
 - **No data dependency**: does not populate any data, only creates empty tables
   and indexes. Data is populated by `bootstrap-index` or `ingester`.

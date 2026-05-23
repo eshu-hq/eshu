@@ -151,15 +151,22 @@ func run(
 		executor: nd.executor,
 		timeout:  statementTimeout,
 	})
-	if graphSchemaAdoptionEnabled(getenv) {
-		adoptionCtx, cancel := context.WithTimeout(ctx, statementTimeout)
-		defer cancel()
-		adopted, err := adoptExistingGraphSchema(adoptionCtx, db, nd.inspector, logger, backend, fingerprint, statementCount)
-		if err != nil {
-			return err
-		}
-		if adopted {
-			return nil
+	adoptionMode := graphSchemaAdoptionModeFromEnv(getenv, backend)
+	if adoptionMode != graphSchemaAdoptionDisabled {
+		if nd.inspector == nil {
+			if adoptionMode == graphSchemaAdoptionRequired {
+				return fmt.Errorf("%s requires graph schema inspection support", graphSchemaAdoptExistingEnv)
+			}
+		} else {
+			adoptionCtx, cancel := context.WithTimeout(ctx, statementTimeout)
+			defer cancel()
+			adopted, err := adoptExistingGraphSchema(adoptionCtx, db, nd.inspector, logger, backend, fingerprint, statementCount)
+			if err != nil {
+				return err
+			}
+			if adopted {
+				return nil
+			}
 		}
 	}
 	if err = applyNeo4jFn(ctx, graphExecutor, logger, backend); err != nil {

@@ -17,7 +17,10 @@
 
 - **Idempotency** — every DDL statement uses `CREATE ... IF NOT EXISTS`; the
   binary is safe to run as a Kubernetes schema-bootstrap Job or Compose
-  `db-migrate` service on every deploy. This is the doc.go contract.
+  `db-migrate` service on every deploy. On NornicDB, marker-missing preserved
+  graphs must adopt the existing schema before DDL because repeated constraint
+  checks can be minutes per statement on large graphs. This is the doc.go
+  contract.
 - **Both stores must succeed** — `run` applies Postgres first (logging with
   `EventAttr`), then graph; if either fails the process exits non-zero. Close
   errors are joined with `errors.Join` rather than swallowed. Enforced at

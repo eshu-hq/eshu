@@ -449,6 +449,21 @@ statement before and after execution and bounds each statement with
 names the exact schema phase and statement instead of showing only
 `bootstrap.postgres.applied` until the Kubernetes active deadline kills the job.
 
+Follow-up Performance Evidence: on 2026-05-23, a hosted EKS validation
+`eshu-schema-bootstrap` Job finished successfully after 3h52m because a retained
+NornicDB graph had complete schema objects but no matching
+`graph_schema_applications` marker. Existing `CREATE CONSTRAINT ... IF NOT
+EXISTS` statements repeatedly spent about 77s-102s refreshing large graph
+constraint state. NornicDB schema adoption now defaults on for marker-missing
+NornicDB runs: `SHOW CONSTRAINTS` and `SHOW INDEXES` verify all expected schema
+object names, then the bootstrap writes the marker and skips the live DDL pass.
+
+Follow-up Observability Evidence: the adoption decision logs
+`bootstrap.graph.adopted` with backend, schema fingerprint, statement count, and
+schema object count, or `bootstrap.graph.adoption_incomplete` with expected,
+actual, missing count, and a bounded missing-object sample before falling back
+to live DDL.
+
 ## Embeddings During Indexing
 
 Eshu's default Compose profile sets `NORNICDB_EMBEDDING_ENABLED=false` even
