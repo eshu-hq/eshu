@@ -51,6 +51,9 @@ Cypher.
 | `visualize_graph_query` | explicit Cypher supplied by caller | visualization URL | no | diagnostics-only browser helper |
 | `search_registry_bundles` | optional query string over repository bundle catalog | `limit` | yes | prompt-ready for bounded catalog lookup |
 | `list_indexed_repositories` | explicit whole-index inventory | `limit` and `offset` | yes | prompt-ready; returns `truncated` for paging |
+| `count_repositories_by_language` | explicit language family | count-only via `limit=0` | yes | prompt-ready; avoids per-repo coverage fan-out |
+| `list_repositories_by_language` | explicit language family | `limit` and `offset` | yes | prompt-ready; returns repository handles and `truncated` |
+| `get_repository_language_inventory` | explicit whole-index language inventory | `limit` and `offset` | yes | prompt-ready; aggregate language buckets only |
 | `get_repository_stats` | repository selector optional; empty selector returns inventory | singleton or inventory | partial | usable, but prefer `list_indexed_repositories` for inventory |
 | `execute_language_query` | language and entity type filters, optional repository selector | `limit` | yes | prompt-ready for bounded language scans |
 | `find_function_call_chain` | start and end names required | `max_depth` | yes | prompt-ready when both endpoints are known |

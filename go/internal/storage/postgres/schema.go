@@ -189,6 +189,8 @@ CREATE INDEX IF NOT EXISTS content_files_template_dialect_idx
     ON content_files (template_dialect);
 CREATE INDEX IF NOT EXISTS content_files_iac_relevant_idx
     ON content_files (iac_relevant);
+CREATE INDEX IF NOT EXISTS content_files_language_repo_idx
+    ON content_files (language, repo_id);
 CREATE INDEX IF NOT EXISTS content_entities_artifact_type_idx
     ON content_entities (artifact_type);
 CREATE INDEX IF NOT EXISTS content_entities_template_dialect_idx

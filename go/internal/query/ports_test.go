@@ -2,6 +2,7 @@ package query
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 )
@@ -36,6 +37,9 @@ type fakePortContentStore struct {
 	documentationFreshnessErr   error
 	entities                    []EntityContent
 	repositories                []RepositoryCatalogEntry
+	languageRepos               []RepositoryLanguageRepository
+	languageCounts              map[string]RepositoryLanguageAggregate
+	languageInventory           []RepositoryLanguageInventoryRow
 	workloadIdentities          []CatalogWorkloadIdentityEntry
 }
 
@@ -130,6 +134,47 @@ func (f fakePortContentStore) ListFrameworkRoutes(context.Context, string) ([]Fr
 
 func (f fakePortContentStore) RepositoryCoverage(context.Context, string) (RepositoryContentCoverage, error) {
 	return f.coverage, nil
+}
+
+func (f fakePortContentStore) CountRepositoriesByLanguage(
+	_ context.Context,
+	languages []string,
+) (RepositoryLanguageAggregate, error) {
+	if f.languageCounts == nil {
+		return RepositoryLanguageAggregate{}, nil
+	}
+	return f.languageCounts[strings.Join(languages, ",")], nil
+}
+
+func (f fakePortContentStore) ListRepositoriesByLanguage(
+	_ context.Context,
+	_ []string,
+	limit int,
+	offset int,
+) ([]RepositoryLanguageRepository, error) {
+	if offset >= len(f.languageRepos) {
+		return nil, nil
+	}
+	rows := f.languageRepos[offset:]
+	if limit > 0 && limit < len(rows) {
+		rows = rows[:limit]
+	}
+	return append([]RepositoryLanguageRepository(nil), rows...), nil
+}
+
+func (f fakePortContentStore) RepositoryLanguageInventory(
+	_ context.Context,
+	limit int,
+	offset int,
+) ([]RepositoryLanguageInventoryRow, error) {
+	if offset >= len(f.languageInventory) {
+		return nil, nil
+	}
+	rows := f.languageInventory[offset:]
+	if limit > 0 && limit < len(rows) {
+		rows = rows[:limit]
+	}
+	return append([]RepositoryLanguageInventoryRow(nil), rows...), nil
 }
 
 func (f fakePortContentStore) repositoryReadModelSummary(context.Context, string) (repositoryReadModelSummary, error) {

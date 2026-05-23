@@ -30,6 +30,8 @@ type RepositoryHandler struct {
 func (h *RepositoryHandler) Mount(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/v0/catalog", h.listCatalog)
 	mux.HandleFunc("GET /api/v0/repositories", h.listRepositories)
+	mux.HandleFunc("GET /api/v0/repositories/by-language", h.listRepositoriesByLanguage)
+	mux.HandleFunc("GET /api/v0/repositories/language-inventory", h.getRepositoryLanguageInventory)
 	mux.HandleFunc("GET /api/v0/repositories/{repo_id}/context", h.getRepositoryContext)
 	mux.HandleFunc("GET /api/v0/repositories/{repo_id}/story", h.getRepositoryStory)
 	mux.HandleFunc("GET /api/v0/repositories/{repo_id}/stats", h.getRepositoryStats)

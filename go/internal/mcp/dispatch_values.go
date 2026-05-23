@@ -23,6 +23,10 @@ func intOr(args map[string]any, key string, def int) int {
 	}
 }
 
+func intString(args map[string]any, key string, def int) string {
+	return strconv.Itoa(intOr(args, key, def))
+}
+
 func boolOr(args map[string]any, key string, def bool) bool {
 	v, ok := args[key].(bool)
 	if !ok {

@@ -7,6 +7,8 @@ ingester status, and indexed bundle candidate search.
 
 - `GET /api/v0/catalog`
 - `GET /api/v0/repositories`
+- `GET /api/v0/repositories/by-language`
+- `GET /api/v0/repositories/language-inventory`
 - `GET /api/v0/repositories/{repo_id}/context`
 - `GET /api/v0/repositories/{repo_id}/story`
 - `GET /api/v0/repositories/{repo_id}/stats`
@@ -18,6 +20,33 @@ path. The server resolves it to the canonical repository ID before querying.
 
 `GET /api/v0/repositories` accepts `limit` and `offset` and returns
 `truncated=true` when more indexed repositories are available.
+
+`GET /api/v0/repositories/by-language?language=typescript&limit=100&offset=0`
+returns `repository_count`, `file_count`, normalized language aliases, and a
+bounded repository page from the Postgres content index. Use `limit=0` when a
+caller only needs the count and does not need repository rows. Language aliases
+currently include:
+
+- `typescript` / `ts` -> `typescript`, `tsx`
+- `javascript` / `js` -> `javascript`, `jsx`
+- `terraform` -> `terraform`, `hcl`, `tfvars`
+
+`GET /api/v0/repositories/language-inventory?limit=100&offset=0` returns
+aggregate repository and file counts for indexed language buckets. This is the
+fast "what languages exist?" surface for MCP and API callers; it avoids fetching
+every repository and then calling repository coverage one by one.
+
+Performance Evidence: ops-qa baseline before this read model required 797
+`get_repository_coverage` fan-out calls for a full language count. A direct
+aggregate over 99,552 `content_files` rows took 94.472 ms before the
+`content_files(language, repo_id)` index, so the new API path keeps language
+inventory server-side and indexed instead of pushing the loop into MCP clients.
+
+Observability Evidence: `ContentReader` wraps the new count, list, and
+inventory queries in existing `postgres.query` spans with `db.operation` set to
+`count_repositories_by_language`, `list_repositories_by_language`, or
+`repository_language_inventory`; responses include `limit`, `offset`, and
+`truncated` so slow or incomplete calls are diagnosable from traces and payloads.
 
 Repository responses should be treated as:
 

@@ -59,6 +59,110 @@ const openAPIPathsRepositories = `
         }
       }
     },
+    "/api/v0/repositories/by-language": {
+      "get": {
+        "tags": ["repositories"],
+        "summary": "List repositories by language",
+        "description": "Returns aggregate counts and a bounded page of repositories that contain files for a language family. Language aliases such as typescript include tsx, javascript includes jsx, and terraform includes hcl and tfvars.",
+        "operationId": "listRepositoriesByLanguage",
+        "parameters": [
+          {"name": "language", "in": "query", "required": true, "schema": {"type": "string"}},
+          {"name": "limit", "in": "query", "schema": {"type": "integer", "default": 100, "minimum": 0, "maximum": 500}},
+          {"name": "offset", "in": "query", "schema": {"type": "integer", "default": 0, "minimum": 0, "maximum": 10000}}
+        ],
+        "responses": {
+          "200": {
+            "description": "Repository language count and page",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "language": {"type": "string"},
+                    "normalized_languages": {"type": "array", "items": {"type": "string"}},
+                    "repository_count": {"type": "integer"},
+                    "file_count": {"type": "integer"},
+                    "last_indexed_at": {"type": "string", "format": "date-time"},
+                    "repositories": {
+                      "type": "array",
+                      "items": {
+                        "allOf": [
+                          {"$ref": "#/components/schemas/Repository"},
+                          {
+                            "type": "object",
+                            "properties": {
+                              "file_count": {"type": "integer"},
+                              "languages": {
+                                "type": "array",
+                                "items": {
+                                  "type": "object",
+                                  "properties": {
+                                    "language": {"type": "string"},
+                                    "file_count": {"type": "integer"}
+                                  }
+                                }
+                              },
+                              "last_indexed_at": {"type": "string", "format": "date-time"}
+                            }
+                          }
+                        ]
+                      }
+                    },
+                    "limit": {"type": "integer"},
+                    "offset": {"type": "integer"},
+                    "truncated": {"type": "boolean"}
+                  }
+                }
+              }
+            }
+          },
+          "400": {"$ref": "#/components/responses/BadRequest"},
+          "503": {"$ref": "#/components/responses/ServiceUnavailable"}
+        }
+      }
+    },
+    "/api/v0/repositories/language-inventory": {
+      "get": {
+        "tags": ["repositories"],
+        "summary": "List repository language inventory",
+        "description": "Returns aggregate repository and file counts for indexed language buckets without fetching per-repository coverage.",
+        "operationId": "getRepositoryLanguageInventory",
+        "parameters": [
+          {"name": "limit", "in": "query", "schema": {"type": "integer", "default": 100, "minimum": 1, "maximum": 500}},
+          {"name": "offset", "in": "query", "schema": {"type": "integer", "default": 0, "minimum": 0, "maximum": 10000}}
+        ],
+        "responses": {
+          "200": {
+            "description": "Language inventory aggregates",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "languages": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "language": {"type": "string"},
+                          "repository_count": {"type": "integer"},
+                          "file_count": {"type": "integer"},
+                          "last_indexed_at": {"type": "string", "format": "date-time"}
+                        }
+                      }
+                    },
+                    "limit": {"type": "integer"},
+                    "offset": {"type": "integer"},
+                    "truncated": {"type": "boolean"}
+                  }
+                }
+              }
+            }
+          },
+          "503": {"$ref": "#/components/responses/ServiceUnavailable"}
+        }
+      }
+    },
     "/api/v0/catalog": {
       "get": {
         "tags": ["catalog"],

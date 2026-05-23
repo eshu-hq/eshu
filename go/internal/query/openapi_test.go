@@ -57,6 +57,8 @@ func TestServeOpenAPI(t *testing.T) {
 	expectedPaths := []string{
 		"/health",
 		"/api/v0/repositories",
+		"/api/v0/repositories/by-language",
+		"/api/v0/repositories/language-inventory",
 		"/api/v0/repositories/{repo_id}/context",
 		"/api/v0/entities/resolve",
 		"/api/v0/evidence/relationships/{resolved_id}",
