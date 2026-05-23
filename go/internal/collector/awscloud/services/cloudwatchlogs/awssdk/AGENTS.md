@@ -33,7 +33,7 @@
 - Update `client.go` API-call telemetry whenever pagination or tag reads
   change.
 
-## What Not To Change Without An ADR
+## What Not To Change Without Architecture-Owner Approval
 
 - Do not add CloudWatch Logs mutation APIs, log event reads, log stream payload
   reads, Insights query calls, export payload reads, resource-policy reads,

@@ -34,7 +34,7 @@
 - Extend topic mapping only for AWS source data that is metadata and does not
   reveal message payloads, policy JSON, or subscriber PII.
 
-## What Not To Change Without An ADR
+## What Not To Change Without Architecture-Owner Approval
 
 - Do not publish, subscribe, unsubscribe, or mutate SNS resources.
 - Do not infer workload, environment, deployment, or ownership truth from topic

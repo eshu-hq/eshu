@@ -26,7 +26,7 @@
   `awssdk/mapper.go` together.
 - Add a focused scanner test before changing which record types are emitted.
 
-## What Not To Change Without An ADR
+## What Not To Change Without Architecture-Owner Approval
 
 - Do not add Route 53 write APIs.
 - Do not make the scanner write graph rows directly.

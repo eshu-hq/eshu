@@ -92,7 +92,7 @@
   helper. Use `goBuildParentLookup`, `goBuildVariableTypeIndex`, or
   `goBuildImportedVariableTypeIndex` so per-file cost stays linear.
 
-## What NOT to change without an ADR
+## What Not To Change Without Architecture-Owner Approval
 
 - Do not change parent registry extension ownership for `.go` files.
 - Do not change the `embedded_sql_queries`, `dead_code_root_kinds`, or

@@ -37,7 +37,7 @@
 - Returning only map[string]any and losing the typed helper contract.
 - Adding repository-specific Jenkins conventions without fixture evidence.
 
-## What NOT to change without an ADR
+## What Not To Change Without Architecture-Owner Approval
 
 - Do not move query or relationship interpretation into this package. It owns
   parser evidence only.

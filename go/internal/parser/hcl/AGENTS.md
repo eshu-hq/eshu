@@ -70,7 +70,7 @@
   and uses `multi_element.source="parser_walk"` to disambiguate from the
   state-flatten path.
 
-## What NOT to change without an ADR
+## What Not To Change Without Architecture-Owner Approval
 
 - Do not reassign HCL file extensions or exact filename routing. That belongs
   to the parent parser registry and changes fact idempotency for existing repos.

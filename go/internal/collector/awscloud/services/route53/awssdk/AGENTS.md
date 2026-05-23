@@ -25,7 +25,7 @@
 - Keep Route 53 pagination in the adapter instead of looping over SDK pages in
   the scanner package.
 
-## What Not To Change Without An ADR
+## What Not To Change Without Architecture-Owner Approval
 
 - Do not add write APIs or source mutations.
 - Do not bypass the `route53.Client` interface by returning AWS SDK types to

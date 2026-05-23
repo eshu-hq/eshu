@@ -33,7 +33,7 @@
   directly and the target identity is not sensitive.
 - Extend SDK pagination in the `awssdk` adapter, not here.
 
-## What Not To Change Without An ADR
+## What Not To Change Without Architecture-Owner Approval
 
 - Do not put events, delete rules, add targets, remove targets, or mutate
   EventBridge resources.

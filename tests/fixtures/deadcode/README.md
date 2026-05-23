@@ -1,12 +1,13 @@
 # Dead-Code Fixture Corpus
 
-Fixture corpus for `code_quality.dead_code` maturity. Parser coverage proves
-syntax extraction; these fixtures prove whether Eshu can avoid cleanup-unsafe
-answers for each language.
+Fixture corpus for `code_quality.dead_code` maturity. Parser fixtures prove
+syntax extraction; this corpus proves whether each language has enough root and
+reachability evidence to avoid cleanup-unsafe answers.
 
 ## Required Cases
 
-Each language directory should name at least one symbol for:
+Each language directory should identify at least one symbol for each case it
+claims:
 
 | Case | Meaning |
 | --- | --- |
@@ -19,39 +20,36 @@ Each language directory should name at least one symbol for:
 | `excluded` | Generated or test-owned code excluded by default. |
 | `ambiguous` | Dynamic case that must keep truth non-exact. |
 
-## Language Inventory
+## Directory Map
 
-| Language | Fixture status | Maturity |
+| Directory | Language | Maturity |
 | --- | --- | --- |
-| C | active | `derived` |
-| C# | active | `derived` |
-| C++ | active | `derived` |
-| Dart | active | `derived` |
-| Elixir | active | `derived` |
-| Go | active | `derived` |
-| Groovy | active | `derived_candidate_only` |
-| Haskell | active | `derived` |
-| Java | active | `derived` |
-| JavaScript | active | `derived` |
-| Kotlin | active | `derived` |
-| Perl | active | `derived` |
-| PHP | active | `derived` |
-| Python | active | `derived` |
-| Ruby | active | `derived` |
-| Rust | active | `derived` |
-| Scala | active | `derived` |
-| Swift | active | `derived` |
-| TSX | active | `derived` |
-| TypeScript | active | `derived` |
+| `c/` | C | `derived` |
+| `csharp/` | C# | `derived` |
+| `cpp/` | C++ | `derived` |
+| `dart/` | Dart | `derived` |
+| `elixir/` | Elixir | `derived` |
+| `go/` | Go | `derived` |
+| `groovy/` | Groovy | `derived_candidate_only` |
+| `haskell/` | Haskell | `derived` |
+| `java/` | Java | `derived` |
+| `javascript/` | JavaScript | `derived` |
+| `kotlin/` | Kotlin | `derived` |
+| `perl/` | Perl | `derived` |
+| `php/` | PHP | `derived` |
+| `python/` | Python | `derived` |
+| `ruby/` | Ruby | `derived` |
+| `rust/` | Rust | `derived` |
+| `scala/` | Scala | `derived` |
+| `swift/` | Swift | `derived` |
+| `tsx/` | TSX | `derived` |
+| `typescript/` | TypeScript | `derived` |
 
-## Where It Is Asserted
+## Assertion Owners
 
-- Parser root metadata is asserted by language-specific tests in
-  `go/internal/parser/*dead_code*_test.go`.
-- API/query maturity and filtering behavior is asserted under
-  `go/internal/query/*dead_code*_test.go`.
-- Backend query-shape readiness is tracked by the dead-code backend
-  conformance corpus.
+- Parser root metadata: `go/internal/parser/*dead_code*_test.go`.
+- API/query maturity and filtering: `go/internal/query/*dead_code*_test.go`.
+- Backend query-shape readiness: the dead-code backend conformance corpus.
 
 Exactness is language-scoped. Promoting one language requires fixture cases,
 parser/root evidence, query tests for unused/reachable/excluded/ambiguous

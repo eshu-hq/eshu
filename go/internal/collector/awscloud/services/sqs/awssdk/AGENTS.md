@@ -31,7 +31,7 @@
 - Extend queue mapping only for AWS source data that is metadata and does not
   reveal message contents or queue policy JSON.
 
-## What Not To Change Without An ADR
+## What Not To Change Without Architecture-Owner Approval
 
 - Do not read, delete, purge, or mutate SQS messages.
 - Do not infer workload, environment, deployment, or ownership truth from queue

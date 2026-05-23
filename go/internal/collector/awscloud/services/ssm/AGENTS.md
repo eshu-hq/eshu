@@ -33,7 +33,7 @@
 - Extend SDK pagination and optional-not-found handling in the `awssdk`
   adapter, not here.
 
-## What Not To Change Without An ADR
+## What Not To Change Without Architecture-Owner Approval
 
 - Do not add value reads, history reads, raw policy persistence, decrypted
   content, mutations, or graph writes.

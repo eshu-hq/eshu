@@ -27,7 +27,7 @@
   together.
 - Add a focused mapper test before changing response mapping.
 
-## What Not To Change Without An ADR
+## What Not To Change Without Architecture-Owner Approval
 
 - Do not add write APIs or source mutations.
 - Do not add live target health facts.

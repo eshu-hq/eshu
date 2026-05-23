@@ -2,9 +2,9 @@
 
 Use this page before changing hot-path Cypher, graph schema, graph-write
 batching, reducer projection, query handlers, materialization jobs, or pinned
-graph backend versions. The short mandate lives in the
-`cypher-query-rigor` project skill; this page is the durable maintainer
-checklist.
+graph backend versions. Maintainer implementation details live in
+`go/internal/storage/cypher/README.md` and the `cypher-query-rigor` project
+skill.
 
 Accuracy comes first. A faster query that returns wrong graph truth is a
 product failure.
@@ -36,7 +36,7 @@ For both backends, prove any unfamiliar query pattern against the pinned binary
 before designing production code around it. Record the backend version or
 NornicDB-New commit in the PR evidence.
 
-## 2. Measure The Same Shape Before And After
+### 2. Measure The Same Shape Before And After
 
 Unmeasured Cypher in a hot path is a regression risk. Capture before/after
 evidence against the same inputs and pinned backend binary.

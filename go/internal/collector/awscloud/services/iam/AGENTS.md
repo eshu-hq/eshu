@@ -27,7 +27,7 @@
   explicit.
 - Extend SDK pagination in the runtime adapter, not here.
 
-## What Not To Change Without An ADR
+## What Not To Change Without Architecture-Owner Approval
 
 - Do not turn IAM trust principals into canonical identity truth here.
 - Do not add graph writes, reducer logic, or query behavior.

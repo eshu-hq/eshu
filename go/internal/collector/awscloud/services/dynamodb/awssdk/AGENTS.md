@@ -33,7 +33,7 @@
 - Update `client.go` API-call telemetry whenever pagination, point reads, or
   tag reads change.
 
-## What Not To Change Without An ADR
+## What Not To Change Without Architecture-Owner Approval
 
 - Do not add DynamoDB mutation APIs, item reads, table scans, queries, stream
   record reads, backup/export payload reads, resource-policy reads, PartiQL

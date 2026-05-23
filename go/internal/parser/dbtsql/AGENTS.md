@@ -34,7 +34,7 @@
 - Flaky tests usually mean an added map iteration path was not sorted or
   normalized.
 
-## What not to change without an ADR
+## What Not To Change Without Architecture-Owner Approval
 
 - Do not add graph, collector, or reducer dependencies.
 - Do not make this package read files or inspect repository state.

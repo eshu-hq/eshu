@@ -34,7 +34,7 @@
 - Add new typed rule-condition fields in `types.go`, `attributes.go`, and
   `awssdk/conditions.go` together.
 
-## What Not To Change Without An ADR
+## What Not To Change Without Architecture-Owner Approval
 
 - Do not add DescribeTargetHealth or live target state to the fact stream.
 - Do not make the scanner write graph rows directly.

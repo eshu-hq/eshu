@@ -103,7 +103,7 @@
   precision. Changing to higher precision changes the wire format of every
   explain response. This is an API contract change.
 
-## What NOT to change without an ADR
+## What Not To Change Without Architecture-Owner Approval
 
 - The section order (header / match-count / rejection-reason / evidence) — API
   consumers and golden tests depend on it.

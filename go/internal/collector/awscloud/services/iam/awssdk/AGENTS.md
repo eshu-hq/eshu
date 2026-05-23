@@ -29,7 +29,7 @@
 - Extend role mapping in `mapRole` when AWS source data needs to become
   scanner-owned evidence.
 
-## What Not To Change Without An ADR
+## What Not To Change Without Architecture-Owner Approval
 
 - Do not infer workload, environment, deployment, or ownership truth from IAM
   names, paths, tags, or policy text.

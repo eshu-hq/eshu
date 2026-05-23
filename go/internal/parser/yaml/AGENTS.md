@@ -58,7 +58,7 @@
 - Emitting unsorted map-derived rows.
 - Adding graph, collector, query, projector, reducer, or storage dependencies.
 
-## What NOT to change without an ADR
+## What Not To Change Without Architecture-Owner Approval
 
 - Do not change YAML payload bucket names or row field names without updating
   content shape, facts, and downstream query expectations in the same branch.

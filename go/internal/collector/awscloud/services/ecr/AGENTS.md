@@ -24,10 +24,10 @@
 - Add a new ECR resource by extending the scanner-owned type, writing a focused
   scanner test first, then mapping it through `awscloud` envelope builders.
 - Add image-reference fields only when the ECR API reports them directly or the
-  mapping is documented in the ADR.
+  mapping is documented in current public docs.
 - Extend SDK pagination in the `awssdk` adapter, not here.
 
-## What Not To Change Without An ADR
+## What Not To Change Without Architecture-Owner Approval
 
 - Do not resolve ECR image references to workloads here; correlation belongs in
   reducers.

@@ -27,7 +27,8 @@
 ## Common changes
 
 - Add a finding kind: update `FindingKind`, `Classify`, `BuildCandidates`
-  evidence, `RecordEvaluation`, tests, telemetry docs, and the active ADR.
+  evidence, `RecordEvaluation`, tests, telemetry docs, current public/package
+  docs, and architecture-owner approval.
 - Change candidate evidence shape: keep `EvidenceTypeCloudResourceARN` aligned
   with `rules.AWSCloudRuntimeDriftRulePack`.
 - Add reducer wiring: keep loaders and graph publication outside this package.
@@ -49,7 +50,7 @@
   raw evidence for a later normalization rule.
 - Do not add backend-specific NornicDB or Neo4j branches.
 
-## What NOT to change without an ADR
+## What Not To Change Without Architecture-Owner Approval
 
 - The ARN-primary join contract.
 - The exclusive orphan-before-unmanaged dispatch order.

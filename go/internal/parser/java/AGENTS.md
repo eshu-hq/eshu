@@ -65,7 +65,7 @@
 - Keeping compatibility wrappers in this package; parent Engine signatures
   remain in `go/internal/parser/java_language.go`.
 
-## What NOT to change without an ADR
+## What Not To Change Without Architecture-Owner Approval
 
 - Do not change the Java payload bucket names or parent Engine method
   signatures.

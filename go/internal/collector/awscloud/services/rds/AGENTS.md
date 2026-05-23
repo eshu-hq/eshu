@@ -36,7 +36,7 @@
 - Extend SDK pagination and optional-not-found handling in the `awssdk` adapter,
   not here.
 
-## What Not To Change Without An ADR
+## What Not To Change Without Architecture-Owner Approval
 
 - Do not connect to RDS engines, read data-plane metadata, read logs, inspect
   snapshots, mutate resources, or add graph writes.

@@ -53,7 +53,7 @@
 - Marking non-Python SAM or serverless handlers as Python dead-code roots.
 - Moving registry dispatch or Engine method signatures into this package.
 
-## What NOT to change without an ADR
+## What Not To Change Without Architecture-Owner Approval
 
 - Do not change parser payload bucket names or wire fields without updating the
   query and docs contract.

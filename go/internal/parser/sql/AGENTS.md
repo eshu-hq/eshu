@@ -52,7 +52,7 @@
 - Moving dbt compiled-model lineage into this package without a separate design;
   that code has its own parent-package compatibility surface today.
 
-## What NOT to change without an ADR
+## What Not To Change Without Architecture-Owner Approval
 
 - Do not change SQL payload bucket names, entity type strings, relationship
   type strings, or migration target fields without updating content shape,

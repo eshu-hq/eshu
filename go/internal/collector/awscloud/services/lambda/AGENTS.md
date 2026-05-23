@@ -30,7 +30,7 @@
 - Extend SDK mapping in `awssdk/client.go`; keep AWS SDK types out of this
   package.
 
-## What Not To Change Without An ADR
+## What Not To Change Without Architecture-Owner Approval
 
 - Do not call AWS APIs from this package.
 - Do not infer source repository, deployment environment, or workload ownership

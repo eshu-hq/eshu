@@ -9,7 +9,7 @@ repo's 500-line limit.
 - Total Markdown files left in the checkout after the current pass: 548
 - Current branch doc status from
   `git diff --name-status origin/main -- '*.md'` after the current pass:
-  104 added, 266 modified, 157 deleted, 77 renamed
+  104 added, 296 modified, 157 deleted, 77 renamed
 - Copied image assets removed from this branch: 43 files under
   `docs/public/images/`. They were reference assets from another project and
   no longer appear in the source-doc reference scan.
@@ -140,6 +140,10 @@ branch. Regenerate them from
 | CLI And MCP Cookbook Duplicate Cleanup | Reduced the CLI reference to a command-family index and trimmed the MCP cookbook to copy-ready workflows while keeping diagnostics-only Cypher guidance. |
 | Product Truth Fixture Contract Compression | Reduced product-truth, dead-IaC, and correlation DSL fixture READMEs to registry, verifier, expected-truth, and stable fixture-role contracts. |
 | Main Rebase Refresh At 4777a92 | Rebasing onto current `origin/main` preserved service-catalog, container-image, package-registry, and compressed public/package docs while refreshing the verification counts after conflict resolution. |
+| Public Reference Operator Compression | Reduced collector/reducer readiness, service workflows, local data-root, and Cypher performance pages by removing copied proof logs and package-local detail while preserving operator gates and current maintainer handoffs. |
+| Fixture Test-Data Compression | Reduced TypeScript, dead-code, and Terraform-state fixture READMEs to fixture intent, stable file maps, and expected truth instead of tutorial or historical prose. |
+| Scoped AGENTS ADR Language Cleanup | Replaced stale package-local ADR gate wording with architecture-owner approval language while preserving mandatory package-specific guardrails. |
+| Generated Index And Inventory Refresh | Regenerated the modified-file index, marked deleted-plan reference repair complete, and refreshed branch-wide changed-doc counts. |
 
 ## Verification Snapshot
 
@@ -161,8 +165,16 @@ Current pass proof:
 - Broad docs verification passed for `docs/public` and the full repository with
   0 contradicted and 0 missing evidence claims. Current public docs verifier
   result: 173 documents, 1170 claims, 11 unsupported shell-command claim
-  types. Current full repository verifier result: 562 documents, 1370 claims,
+  types. Current full repository verifier result: 562 documents, 1365 claims,
   15 unsupported shell-command claim types.
+- Focused public reference verification passed after the operator-reference
+  compression: 74 documents, 907 claims, 0 contradicted, and 0 missing evidence
+  claims.
+- Focused fixture verification passed after the fixture test-data compression:
+  40 documents, 2 claims, 0 contradicted, and 0 missing evidence claims.
+- Focused Go docs verification passed after the scoped `AGENTS.md` ADR-language
+  cleanup: 309 documents, 169 claims, 0 contradicted, and 0 missing evidence
+  claims.
 - Focused service, collector, Terraform-state, reducer, fact, component,
   relationship, tag, and language-query tests passed for the current pass.
 - Focused `.eshuignore` and local data-root verification passed for discovery,
@@ -185,10 +197,9 @@ Current pass proof:
 ## What Is Left
 
 - Continue reviewing docs by topic instead of by single file. Remaining
-  high-value groups are now the long-tail package READMEs, fixture docs that
-  are true test data, generated/reference indexes, and any public pages still
-  duplicating package-local contracts. The larger TypeScript sample fixture
-  README remains test data, not a public documentation target.
+  high-value groups are now the long-tail package READMEs, scoped `AGENTS.md`
+  files that still carry duplicated package-local prose, and any public pages
+  still duplicating package-local contracts.
 - Keep deleting historical planning notes when current public or package-local
   docs already carry the useful invariant.
 - Keep folding durable lessons into current architecture, workflow,

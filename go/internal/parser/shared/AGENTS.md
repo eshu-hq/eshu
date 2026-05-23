@@ -36,9 +36,9 @@
 - Adding a helper because one adapter wants shorter local code.
 - Importing collector, query, projector, reducer, storage, or the parent parser
   package.
-- Moving runtime cache ownership here before there is an ADR-level reason.
+- Moving runtime cache ownership here before there is an architecture-owner-approved reason.
 
-## What NOT to change without an ADR
+## What Not To Change Without Architecture-Owner Approval
 
 - Do not change `BasePayload` bucket names or default bucket types without a
   fact-materialization plan.

@@ -1,23 +1,25 @@
 # TypeScript Sample Fixture
 
-Parser, indexing, relationship, and content tests use this directory as
-TypeScript and TSX source input. It is test data, not a starter template.
+TypeScript and TSX source corpus for parser and indexing tests. This directory
+is test data, not a starter app.
 
-| File | Contract |
+## File Map
+
+| Path | Contract |
 | --- | --- |
-| `src/types-interfaces.ts` | Interfaces, aliases, unions, intersections, conditional types, and utility types. |
-| `src/classes-inheritance.ts` | Classes, access modifiers, inheritance, abstract classes, static members, and overloads. |
-| `src/functions-generics.ts` | Function signatures, overloads, generics, constraints, and higher-order helpers. |
-| `src/async-promises.ts` | Promises, async/await, async iterators, pools, cache, retry, and timeout helpers. |
-| `src/decorators-metadata.ts` | Class, method, property, and parameter decorators plus metadata readers. |
-| `src/modules-namespaces.ts` | Named/default exports, re-exports, namespaces, augmentation, and dynamic imports. |
-| `src/advanced-types.ts` | Mapped types, recursive types, branded types, tuple helpers, and string utilities. |
-| `src/error-validation.ts` | Custom errors, result types, type guards, assertions, and validation schemas. |
-| `src/utilities-helpers.ts` | Utility functions for string, array, object, function, date, number, color, and timing shapes. |
-| `src/index.ts` | Import surface that ties the fixture modules together. |
-| `sample_tsx.tsx` | TSX parser coverage. |
-| `package.json`, `tsconfig.json` | Package identity and strict compiler settings for parser experiments. |
+| `package.json` | Package identity for fixture consumers. |
+| `tsconfig.json` | Strict compiler settings used by parser experiments. |
+| `src/index.ts` | Import surface tying the fixture modules together. |
+| `src/types-interfaces.ts` | Interfaces, aliases, unions, intersections, conditional types. |
+| `src/classes-inheritance.ts` | Classes, inheritance, access modifiers, abstract/static members. |
+| `src/functions-generics.ts` | Function signatures, overloads, generics, constraints. |
+| `src/async-promises.ts` | Promises, async/await, async iterators, retry/timeout helpers. |
+| `src/decorators-metadata.ts` | Class, method, property, and parameter decorators. |
+| `src/modules-namespaces.ts` | Exports, re-exports, namespaces, augmentation, dynamic imports. |
+| `src/advanced-types.ts` | Mapped, recursive, branded, tuple, and template-string types. |
+| `src/error-validation.ts` | Custom errors, result types, guards, assertions, schemas. |
+| `src/utilities-helpers.ts` | Utility functions across common value shapes. |
+| `sample_tsx.tsx` | TSX parser input. |
 
-Tests should prove deterministic parser output, stable entity identifiers,
-import/export discovery, repo-relative paths, and parser tolerance for
-decorator, async, generic, and advanced type syntax.
+Expected truth: fixture consumers should preserve deterministic parser output,
+stable entity identifiers, import/export discovery, and repo-relative paths.

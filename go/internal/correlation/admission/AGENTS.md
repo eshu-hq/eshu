@@ -44,8 +44,9 @@
 
 - **Change matching semantics** (e.g., prefix match) → `matchesRequirement`
   at `admission.go:59` is the dispatch point. Document the new semantics;
-  do not silently change behavior for existing packs. This requires an ADR
-  because it changes the admission contract for all packs.
+  do not silently change behavior for existing packs. This requires
+  architecture-owner approval because it changes the admission contract for all
+  packs.
 
 - **Add a third admission gate** (e.g., maximum evidence count) → add a new
   field to `Outcome`, compute it in `Evaluate`, return it. The engine then
@@ -100,7 +101,7 @@
 - **Mutating the input candidate** — `Evaluate` creates a copy. Do not assign
   to fields on the original `candidate` parameter.
 
-## What NOT to change without an ADR
+## What Not To Change Without Architecture-Owner Approval
 
 - `Outcome` field names once callers use them to append rejection reasons —
   renaming `MeetsConfidence` or `MeetsStructure` requires updating the engine

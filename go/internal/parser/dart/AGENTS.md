@@ -38,6 +38,6 @@
 - Adding tree-sitter state for this simple adapter without a behavior need.
 - Emitting new bucket keys without matching downstream shape work.
 
-## What NOT to change without an ADR
+## What Not To Change Without Architecture-Owner Approval
 
 - Do not change Dart extension ownership or registry behavior from this package.

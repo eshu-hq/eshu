@@ -42,7 +42,7 @@
   work.
 - Adding repository-specific Perl conventions without fixture evidence.
 
-## What NOT to change without an ADR
+## What Not To Change Without Architecture-Owner Approval
 
 - Do not change Perl extension ownership or registry behavior from this
   package.

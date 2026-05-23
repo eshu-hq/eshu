@@ -21,7 +21,7 @@
 - Add Artifactory-specific repository topology mapping here.
 - Add package-feed behavior under `packageregistry`, not here.
 
-## What Not To Change Without An ADR
+## What Not To Change Without Architecture-Owner Approval
 
 - Do not make JFrog metadata canonical workload or package ownership truth.
 - Do not flatten local, remote, and virtual repository topology into one

@@ -29,9 +29,9 @@
 - Add mapping fields only after confirming they are reported by ECS and safe for
   persistence.
 - Keep retry and throttling behavior in the AWS SDK and telemetry wrapper; do
-  not add local retry loops here without an ADR.
+  not add local retry loops here without architecture-owner approval.
 
-## What Not To Change Without An ADR
+## What Not To Change Without Architecture-Owner Approval
 
 - Do not infer workload, environment, deployment, or ownership truth from ECS
   names or tags here.

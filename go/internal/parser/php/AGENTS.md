@@ -44,6 +44,6 @@
 - Treating PHP parsing as full syntax analysis without fixture proof.
 - Emitting new bucket keys without matching downstream shape work.
 
-## What NOT to change without an ADR
+## What Not To Change Without Architecture-Owner Approval
 
 - Do not change PHP extension ownership or registry behavior from this package.

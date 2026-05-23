@@ -38,7 +38,7 @@
 - Add a new throttle code in `isThrottleError` only after AWS or Smithy evidence
   shows the code is retry/throttle-shaped.
 
-## What Not To Change Without An ADR
+## What Not To Change Without Architecture-Owner Approval
 
 - Do not read objects, object versions, bucket policy JSON, ACL grants, lifecycle
   rules, replication rules, notification configuration, or inventory data.

@@ -38,7 +38,7 @@
 - Treating every lower-case Haskell line as a variable outside a where block.
 - Emitting new bucket keys without matching downstream shape work.
 
-## What NOT to change without an ADR
+## What Not To Change Without Architecture-Owner Approval
 
 - Do not change Haskell extension ownership or registry behavior from this
   package.

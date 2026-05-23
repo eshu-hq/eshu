@@ -36,8 +36,8 @@ stale, duplicated, or contradicted by the current code.
 
 | Candidate set | Why it is a candidate | Action before delete |
 | --- | --- | --- |
-| Deleted `docs/superpowers/**` | Historical working plans carried stale planned routes and commands, such as the planned graph neighborhood route and `analyze impact` / `analyze neighborhood` commands. | Repair remaining references to point at current docs or package contracts. |
-| Deleted `docs/plans/**` | These were implementation notes, not user or maintainer guidance. At least one documented an invalid command shape. | Repair remaining references to point at current language, component, or workflow docs. |
+| Deleted `docs/superpowers/**` | Historical working plans carried stale planned routes and commands, such as the planned graph neighborhood route and `analyze impact` / `analyze neighborhood` commands. | Done. Current references point at public docs, package docs, or this inventory. |
+| Deleted `docs/plans/**` | These were implementation notes, not user or maintainer guidance. At least one documented an invalid command shape. | Done. Current references point at public docs, package docs, or this inventory. |
 | Deleted `docs/public/adrs/**` | Public ADRs were long historical implementation logs and were not part of normal docs navigation. They buried the current answer under old proof trails. | Durable lessons were moved into current architecture, workflow, performance, backend, MCP, and collector-readiness docs. Repair any future reference to point at those current docs. |
 | Deleted `docs/internal/2026-04-*` investigation notes | Maintainer-only notes from older workstreams. The current code and public docs now supersede them. | Durable AWS collector, MCP, reducer, and architecture facts live in current reference and package-local docs. |
 | Deleted root `PRODUCT.md` and `DESIGN.md` | These were console-only docs at the repo root. They competed with public product docs and the console app README. | Durable console product and design contracts now live in `apps/console/README.md`. |
@@ -46,12 +46,11 @@ stale, duplicated, or contradicted by the current code.
 ## Review Order
 
 1. Confirm the docs estate and deletion policy in this inventory.
-2. Repair references to deleted `docs/plans/**` and `docs/superpowers/**`.
-3. Keep durable decision-record lessons in current architecture, workflow, performance,
+2. Keep durable decision-record lessons in current architecture, workflow, performance,
    backend, MCP, and collector-readiness docs.
-4. Sweep package-local `README.md`, `AGENTS.md`, and focused change-guide files
+3. Sweep package-local `README.md`, `AGENTS.md`, and focused change-guide files
    by subsystem; keep scoped agent files where they carry package rules.
-5. Update `docs/internal/docs-change-tally.md` after each pass so the PR keeps
+4. Update `docs/internal/docs-change-tally.md` after each pass so the PR keeps
    a running created/modified/deleted record.
 
 ## Verification

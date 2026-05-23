@@ -34,7 +34,7 @@
 - Extend SDK pagination and optional-not-configured handling in the `awssdk`
   adapter, not here.
 
-## What Not To Change Without An ADR
+## What Not To Change Without Architecture-Owner Approval
 
 - Do not read objects, list object versions, list multipart uploads, mutate
   buckets, or mutate bucket configuration.

@@ -23,7 +23,7 @@
 - Add ECR token behavior through fakeable interfaces before touching live tests.
 - Keep decoded ECR tokens out of errors, logs, metrics, and docs.
 
-## What Not To Change Without An ADR
+## What Not To Change Without Architecture-Owner Approval
 
 - Do not use ECR image evidence as package ownership truth.
 - Do not add package feed behavior here; AWS package feeds are CodeArtifact.

@@ -28,7 +28,7 @@
 - Add API calls only when the parent scanner needs stable topology or
   correlation evidence.
 
-## What Not To Change Without An ADR
+## What Not To Change Without Architecture-Owner Approval
 
 - Do not fetch function code contents or logs.
 - Do not persist presigned package URLs.

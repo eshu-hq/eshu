@@ -42,7 +42,7 @@
 - Flaky payload ordering usually means a map iteration path was added without a
   deterministic sort.
 
-## What not to change without an ADR
+## What Not To Change Without Architecture-Owner Approval
 
 - Do not make this package read repository state beyond the single file passed
   to `Parse`.

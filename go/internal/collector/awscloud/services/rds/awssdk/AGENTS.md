@@ -31,7 +31,7 @@
   scanner package README with the metadata-only reason.
 - Update `client.go` API-call telemetry whenever pagination or tag reads change.
 
-## What Not To Change Without An ADR
+## What Not To Change Without Architecture-Owner Approval
 
 - Do not add RDS mutation APIs, snapshot reads, log reads, data-plane calls, or
   graph writes.

@@ -32,7 +32,7 @@
 - Keep IAM OIDC lookup bounded to provider metadata needed for IRSA trust-chain
   joins.
 
-## What Not To Change Without An ADR
+## What Not To Change Without Architecture-Owner Approval
 
 - Do not call Kubernetes APIs from this adapter.
 - Do not infer workload, deployment environment, or ownership from EKS names,

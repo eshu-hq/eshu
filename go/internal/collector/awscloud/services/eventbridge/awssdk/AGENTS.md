@@ -35,7 +35,7 @@
   reveal payload content, headers, query parameters, policy JSON, or secret
   material.
 
-## What Not To Change Without An ADR
+## What Not To Change Without Architecture-Owner Approval
 
 - Do not put events, mutate rules, mutate targets, read archives/replays, or
   inspect connection/API destination secrets.

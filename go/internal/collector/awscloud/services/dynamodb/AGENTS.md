@@ -34,7 +34,7 @@
 - Extend SDK pagination and optional-not-found handling in the `awssdk` adapter,
   not here.
 
-## What Not To Change Without An ADR
+## What Not To Change Without Architecture-Owner Approval
 
 - Do not add DynamoDB data-plane calls, stream record reads, backup/export
   reads, resource-policy persistence, PartiQL calls, mutations, or graph writes.

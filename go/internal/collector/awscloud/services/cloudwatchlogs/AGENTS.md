@@ -34,7 +34,7 @@
 - Extend SDK pagination and optional-not-found handling in the `awssdk` adapter,
   not here.
 
-## What Not To Change Without An ADR
+## What Not To Change Without Architecture-Owner Approval
 
 - Do not add CloudWatch Logs data-plane calls, log stream payload reads,
   Insights query calls, export payload reads, resource-policy persistence,

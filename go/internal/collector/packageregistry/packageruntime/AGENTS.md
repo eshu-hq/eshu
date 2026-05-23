@@ -32,7 +32,7 @@
 - Add a regression test that exercises `ClaimedSource.NextClaimed` for new
   claim identity, retry, parse, or provider error behavior.
 
-## What Not To Change Without An ADR
+## What Not To Change Without Architecture-Owner Approval
 
 - Do not infer source repository ownership from package metadata in this
   package.

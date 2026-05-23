@@ -47,7 +47,7 @@
 - Treating Ruby blocks as fully parsed syntax without fixture proof.
 - Emitting new bucket keys without matching downstream shape work.
 
-## What NOT to change without an ADR
+## What Not To Change Without Architecture-Owner Approval
 
 - Do not change Ruby extension ownership or registry behavior from this
   package.

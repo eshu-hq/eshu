@@ -2,13 +2,12 @@
 
 Fixture corpus for `scripts/verify_tfstate_drift_compose_tier2.sh`.
 
-The Tier-1 sibling at `../tfstate_drift/` seeds Postgres facts directly and
-proves the reducer drift handler. Tier-2 proves the production wire from
-Terraform backend facts through workflow planning, the real
-`collector-terraform-state`, MinIO-hosted state files, Phase 3.5 enqueue, and
-the same `config_state_drift` reducer.
+Tier 1 at `../tfstate_drift/` seeds Postgres facts directly. Tier 2 starts from
+Terraform backend facts, then runs workflow planning, `collector-terraform-state`,
+MinIO-hosted state files, Phase 3.5 enqueue, and the same
+`config_state_drift` reducer.
 
-## Layout
+## File Map
 
 | Path | Purpose |
 | --- | --- |
@@ -23,22 +22,17 @@ the same `config_state_drift` reducer.
 | `state/drift-e.tfstate` | Bucket E state: `aws_s3_bucket.logs` with SSE `aws:kms`. |
 | `minio-init.sh` | Bucket creation plus object upload for the compose overlay. |
 
-## What The Fixture Proves
+## Expected Truth
 
 - Bucket A emits `added_in_state`.
 - Bucket B emits `added_in_config`.
-- Bucket D emits an `ambiguous_backend_owner` warning and no drift counter.
+- Bucket D emits `ambiguous_backend_owner` and no drift counter.
 - Bucket E emits `attribute_drift`.
+- Buckets C (`removed_from_state`) and F (`removed_from_config`) need two
+  collector generations and live in `v25/`.
 
-Buckets C (`removed_from_state`) and F (`removed_from_config`) need two
-collector generations and live in `v25/`.
-
-## Where It Is Asserted
-
-`scripts/verify_tfstate_drift_compose_tier2.sh` starts the compose overlay,
-waits for `config_state_drift` work to drain, checks drift counters, and checks
-the ambiguous-owner log. The script is the assertion source; this README only
-documents which fixture rows feed those checks.
+The verifier starts the compose overlay, waits for `config_state_drift` drain,
+checks drift counters, and checks the ambiguous-owner log.
 
 The `.tfstate` files are hand-written. They must keep the fields read by the
 streaming parser: `version`, `lineage`, `serial`, and

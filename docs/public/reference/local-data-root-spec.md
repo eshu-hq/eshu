@@ -2,7 +2,8 @@
 
 This page defines the on-disk contract for one local Eshu service workspace:
 where files live, how a workspace is identified, which stores are rebuildable,
-and what `owner.json` means.
+and what `owner.json` means. Maintainer implementation details live in
+`go/internal/eshulocal/README.md`.
 
 ## Root location
 
@@ -37,7 +38,7 @@ Workspace root resolution happens in this order:
 workspace root, encoded as lowercase hex. Paths are normalized to `/`, and
 case-insensitive filesystems lowercase the resolved path before hashing.
 
-## Layout
+## Layout Contract
 
 ```text
 ${ESHU_HOME}/local/workspaces/<workspace_id>/
@@ -58,19 +59,13 @@ ${ESHU_HOME}/local/workspaces/<workspace_id>/
     repos/
 ```
 
-`postgres/` belongs to the embedded Postgres runtime. `postgres/data` and
-`postgres/runtime` are runtime state, and `postgres/binaries` holds managed
-embedded Postgres tools. `cache/embedded-postgres` is the embedded Postgres
-package cache.
-
-`graph/nornicdb/` exists only for `local_authoritative`.
-
-`cache/repos/` contains rebuildable filesystem repository selections for the
-local child ingester.
+`postgres/` belongs to the embedded Postgres runtime. `graph/nornicdb/` exists
+only for `local_authoritative`. `cache/repos/` contains rebuildable filesystem
+repository selections for the local child ingester.
 
 ## Rebuildable stores
 
-Before a `local_authoritative` owner starts, Eshu removes:
+Before a `local_authoritative` owner starts, Eshu removes rebuildable state:
 
 - `postgres/data`
 - `postgres/runtime`
@@ -101,7 +96,7 @@ Field groups:
 processes can connect to the workspace-local graph, and it relies on owner-only
 file permissions.
 
-## Startup admission
+## Startup Admission
 
 One local Eshu service owns a workspace root at a time. Startup follows this
 order:
@@ -124,7 +119,7 @@ after holding `owner.lock` and proving the recorded owner is no longer healthy.
 Ownerless live Postgres is stopped only after the lock, PID, socket, and
 Postgres protocol checks agree.
 
-## Local endpoints
+## Local Endpoints
 
 Embedded Postgres uses a short Unix socket directory plus a loopback-only TCP
 port. The TCP port is for readiness checks and local attach flows; it is not a
@@ -133,7 +128,7 @@ public network surface.
 The current `local_authoritative` NornicDB path uses loopback-only TCP ports for
 HTTP health and Bolt. It does not use a graph Unix socket.
 
-## Version gate
+## Version Gate
 
 `VERSION` is the data-root schema marker. The current implementation:
 
@@ -144,7 +139,7 @@ HTTP health and Bolt. It does not use a graph Unix socket.
 
 There is no silent forward or backward compatibility path.
 
-## Security and filesystem limits
+## Security And Filesystem Limits
 
 - Data roots are per-user and are not intended for shared multi-UID access.
 - Owner metadata, credentials, lock files, logs, and runtime directories are

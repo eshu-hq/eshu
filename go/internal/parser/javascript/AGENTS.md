@@ -70,8 +70,8 @@
 - Marking every exported TypeScript symbol live without package or re-export
   evidence.
 
-## What NOT to change without an ADR
+## What Not To Change Without Architecture-Owner Approval
 
 - Do not change `.js`, `.jsx`, `.ts`, `.tsx`, `.mts`, `.cts`, `.mjs`, or `.cjs`
-  registry ownership from the parent parser without an ADR.
+  registry ownership from the parent parser without architecture-owner approval.
 - Do not add backend, collector, reducer, query, or storage dependencies here.

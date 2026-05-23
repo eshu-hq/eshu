@@ -13,7 +13,7 @@
 - Keep the AWS SDK contained in this adapter package.
 - Use ListSecrets only for this slice. Do not add GetSecretValue,
   BatchGetSecretValue, ListSecretVersionIds, GetResourcePolicy, or mutation
-  calls without an ADR and security review.
+  calls without architecture-owner approval and security review.
 - Keep operation labels aligned with AWS SDK operation names.
 - Record every AWS call through `recordAPICall` so status rows and metrics keep
   API call and throttle counts.
@@ -29,7 +29,7 @@
 - Update `README.md` evidence if call shape, telemetry, or security boundary
   changes.
 
-## What Not To Change Without An ADR
+## What Not To Change Without Architecture-Owner Approval
 
 - Do not read secret values, version values, resource policy JSON, or partner
   rotation metadata.
