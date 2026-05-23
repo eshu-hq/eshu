@@ -82,6 +82,20 @@ The package-registry collector is claim-only. It selects an enabled
 | `ESHU_PACKAGE_REGISTRY_HEARTBEAT_INTERVAL` | `20s` | collector-package-registry | Heartbeat interval for active workflow claims. |
 | `ESHU_PACKAGE_REGISTRY_COLLECTOR_OWNER_ID` | host/process-derived | collector-package-registry | Owner label written into workflow claim rows. |
 
+## Vulnerability Intelligence Collector
+
+The vulnerability intelligence collector is claim-only. It selects an enabled
+`vulnerability_intelligence` instance from `ESHU_COLLECTOR_INSTANCES_JSON`.
+Supported source targets are CISA KEV, FIRST EPSS, OSV, and NVD.
+
+| Variable | Default | Read by | Purpose |
+| --- | --- | --- | --- |
+| `ESHU_VULNERABILITY_INTELLIGENCE_COLLECTOR_INSTANCE_ID` | required when more than one enabled vulnerability-intelligence instance exists | collector-vulnerability-intelligence | Selects the claim-capable `vulnerability_intelligence` instance. |
+| `ESHU_VULNERABILITY_INTELLIGENCE_POLL_INTERVAL` | `1s` | collector-vulnerability-intelligence | Delay between empty workflow-claim polls. |
+| `ESHU_VULNERABILITY_INTELLIGENCE_CLAIM_LEASE_TTL` | `60s` | collector-vulnerability-intelligence | Lease TTL used when claiming and refreshing work. |
+| `ESHU_VULNERABILITY_INTELLIGENCE_HEARTBEAT_INTERVAL` | `20s` | collector-vulnerability-intelligence | Heartbeat interval for active workflow claims. Must be less than the claim lease TTL. |
+| `ESHU_VULNERABILITY_INTELLIGENCE_COLLECTOR_OWNER_ID` | host/process-derived | collector-vulnerability-intelligence | Owner label written into workflow claim rows. |
+
 ## Confluence Collector
 
 | Variable | Default | Read by | Purpose |
