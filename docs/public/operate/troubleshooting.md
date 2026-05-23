@@ -19,8 +19,10 @@ repository discovery.
 Process health proves the runtime can serve. It does not prove freshness.
 
 ```bash
-curl -fsS http://localhost:8080/api/v0/index-status
-curl -fsS http://localhost:8080/api/v0/status/index
+curl -fsS -H "Authorization: Bearer $ESHU_API_KEY" \
+  http://localhost:8080/api/v0/index-status
+curl -fsS -H "Authorization: Bearer $ESHU_API_KEY" \
+  http://localhost:8080/api/v0/status/index
 curl -fsS http://localhost:8080/admin/status
 ```
 
@@ -55,3 +57,4 @@ exclude generated, vendored, archive, or copied third-party trees.
 - [Troubleshooting Reference](../reference/troubleshooting.md)
 - [Graph Backend Operations](../reference/graph-backend-operations.md)
 - [NornicDB Tuning](../reference/nornicdb-tuning.md)
+- [Tuning Playbook](tuning-playbook.md)

@@ -35,8 +35,10 @@ repository generation drained through projection and reducer work.
 Check freshness in this order:
 
 ```bash
-curl -fsS http://localhost:8080/api/v0/index-status
-curl -fsS http://localhost:8080/api/v0/status/index
+curl -fsS -H "Authorization: Bearer $ESHU_API_KEY" \
+  http://localhost:8080/api/v0/index-status
+curl -fsS -H "Authorization: Bearer $ESHU_API_KEY" \
+  http://localhost:8080/api/v0/status/index
 curl -fsS http://localhost:8080/admin/status
 ```
 
@@ -59,5 +61,6 @@ inspect the ingester and resolution-engine logs plus
 - [Docker Compose](../run-locally/docker-compose.md)
 - [Graph Backend Operations](graph-backend-operations.md)
 - [NornicDB Tuning](nornicdb-tuning.md)
+- [Tuning Playbook](../operate/tuning-playbook.md)
 - [Local Testing](local-testing.md)
 - [Telemetry Overview](telemetry/index.md)

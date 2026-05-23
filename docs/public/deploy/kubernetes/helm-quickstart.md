@@ -19,6 +19,22 @@ The chart defaults expect:
 - `github-app-credentials` when `repoSync.auth.method=githubApp`
 - optional collector credentials only for collectors you enable
 
+For a direct Kubernetes Secret setup:
+
+```bash
+kubectl -n eshu create secret generic eshu-api-auth \
+  --from-literal=api-key="$ESHU_API_KEY"
+
+kubectl -n eshu create secret generic eshu-neo4j \
+  --from-literal=username="$NORNICDB_USERNAME" \
+  --from-literal=password="$NORNICDB_PASSWORD"
+
+kubectl -n eshu create secret generic github-app-credentials \
+  --from-literal=app-id="$GITHUB_APP_ID" \
+  --from-literal=installation-id="$GITHUB_INSTALLATION_ID" \
+  --from-file=private-key="$GITHUB_APP_PRIVATE_KEY_FILE"
+```
+
 For Confluence email/API-token auth:
 
 ```bash
@@ -52,6 +68,9 @@ repoSync:
 
 For bundled NornicDB, read [Storage](storage.md) first. Helm-hook schema
 bootstrap cannot run before chart-managed NornicDB exists.
+
+For EKS-specific ingress, IRSA, and External Secrets guidance, use
+[Deploy to EKS](../eks/index.md).
 
 ## 4. Render, Then Install
 

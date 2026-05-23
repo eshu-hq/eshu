@@ -1,10 +1,12 @@
 # Eshu
 
-Eshu connects code, infrastructure, workloads, deployment topology, and
-documentation into one queryable graph. Engineers use it when an answer would
-otherwise require opening several repositories and chasing context by hand.
+Eshu connects code, infrastructure, workloads, deployment topology, external
+collector facts, and documentation into one queryable graph. Engineers and AI
+assistants use it when an answer would otherwise require opening several
+repositories, dashboards, Terraform modules, and Helm charts by hand.
 
-[Start Here](start-here.md){ .md-button .md-button--primary }
+[First Successful Run](getting-started/first-successful-run.md){ .md-button .md-button--primary }
+[Start Here](start-here.md){ .md-button }
 [Run Locally](run-locally/index.md){ .md-button }
 [Connect MCP](mcp/index.md){ .md-button }
 [Deploy](deploy/kubernetes/index.md){ .md-button }
@@ -13,21 +15,27 @@ otherwise require opening several repositories and chasing context by hand.
 
 | Job | Best first page |
 | --- | --- |
+| Get one working local run | [First successful run](getting-started/first-successful-run.md) |
 | Try Eshu on a laptop | [Run locally](run-locally/index.md) |
 | Connect an AI assistant | [Connect MCP](mcp/index.md) |
 | Index repositories and ask questions | [Use Eshu](use/index.md) |
 | Deploy a shared service for a team | [Deploy to Kubernetes](deploy/kubernetes/index.md) |
+| Deploy on EKS | [Deploy to EKS](deploy/eks/index.md) |
 | Operate or troubleshoot Eshu | [Operate Eshu](operate/index.md) |
 | Understand the architecture | [Understand Eshu](understand/index.md) |
 | Extend collectors or language support | [Extend Eshu](extend/index.md) |
+| Code with an AI agent | [Code with agents](guides/coding-with-agents.md) |
 
-## What Eshu Helps Answer
+## What Eshu Helps You Do
 
-- "Who calls `process_payment` across all indexed repos?"
-- "What deploys this service into QA and prod?"
-- "Which workloads share this database?"
-- "Trace this cloud resource back to the Terraform that defines it."
-- "What breaks if I change this shared client?"
+| Ability | Example question |
+| --- | --- |
+| Code intelligence | "Who calls `process_payment` across indexed repos?" |
+| Deployment tracing | "What deploys this service into QA and prod?" |
+| Infrastructure ownership | "Trace this cloud resource back to the Terraform that defines it." |
+| Shared dependency discovery | "Which workloads share this database?" |
+| Change-risk analysis | "What breaks if I change this shared client?" |
+| Assistant context | "Use Eshu to explain this service with source and deployment evidence." |
 
 ## First Concepts
 
@@ -43,7 +51,8 @@ when to use Docker Compose and when to use local binaries from a checkout.
 
 ## Read Next
 
-1. [Start Here](start-here.md) to choose a path.
-2. [Run Locally](run-locally/index.md) to start Eshu.
+1. [First Successful Run](getting-started/first-successful-run.md) to start,
+   index, check status, and ask one useful question.
+2. [Start Here](start-here.md) to choose a path.
 3. [Starter Prompts](guides/starter-prompts.md) for high-value questions once
    Eshu has indexed data.

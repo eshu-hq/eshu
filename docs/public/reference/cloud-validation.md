@@ -31,9 +31,12 @@ Do not stop at pod health when the goal is operator confidence in freshness.
 
 ```bash
 eshu index-status --profile qa
-curl -fsS https://eshu.example.com/api/v0/index-status
-curl -fsS https://eshu.example.com/api/v0/status/index
-curl -fsS https://eshu.example.com/api/v0/repositories/repository:r_payments/coverage
+curl -fsS -H "Authorization: Bearer $ESHU_API_KEY" \
+  https://eshu.example.com/api/v0/index-status
+curl -fsS -H "Authorization: Bearer $ESHU_API_KEY" \
+  https://eshu.example.com/api/v0/status/index
+curl -fsS -H "Authorization: Bearer $ESHU_API_KEY" \
+  https://eshu.example.com/api/v0/repositories/repository:r_payments/coverage
 curl -fsS https://eshu-ingester.example.com/admin/status
 curl -fsS -X POST https://eshu-ingester.example.com/admin/refinalize \
   -H 'content-type: application/json' \
@@ -46,7 +49,7 @@ When completeness and health diverge, inspect the live pod logs next:
 
 ```bash
 kubectl logs -n eshu deployment/eshu-api --tail=50
-kubectl logs -n eshu statefulset/eshu-ingester --tail=50
+kubectl logs -n eshu statefulset/eshu --tail=50
 kubectl logs -n eshu deployment/eshu-resolution-engine --tail=50
 ```
 

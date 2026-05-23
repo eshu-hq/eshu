@@ -29,6 +29,7 @@ nav:
   - Home:
     - Overview: index.md
     - Start Here: start-here.md
+    - First Successful Run: getting-started/first-successful-run.md
     - Why Eshu: why-eshu.md
     - Use Cases: use-cases.md
   - Run Locally:
@@ -58,6 +59,7 @@ nav:
     - MCP Cookbook: reference/mcp-cookbook.md
   - Deploy to Kubernetes:
     - Overview: deploy/kubernetes/index.md
+    - Deploy to EKS: deploy/eks/index.md
     - Prerequisites: deploy/kubernetes/prerequisites.md
     - Storage: deploy/kubernetes/storage.md
     - Helm Quickstart: deploy/kubernetes/helm-quickstart.md
@@ -73,6 +75,7 @@ nav:
     - Overview: operate/index.md
     - Health Checks: operate/health-checks.md
     - Telemetry: operate/telemetry.md
+    - Tuning Playbook: operate/tuning-playbook.md
     - Troubleshooting: operate/troubleshooting.md
     - Service Runtimes:
       - Overview: deployment/service-runtimes.md
@@ -218,6 +221,7 @@ nav:
       - Terragrunt: languages/terragrunt.md
   - Project:
     - Contributing: contributing.md
+    - Code With Agents: guides/coding-with-agents.md
     - Release Log:
       - Overview: releases/index.md
       - v0.0.2: releases/v0.0.2.md

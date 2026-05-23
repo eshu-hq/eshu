@@ -35,7 +35,8 @@ curl -fsS http://localhost:8080/healthz
 curl -fsS http://localhost:8080/readyz
 curl -fsS http://localhost:8080/admin/status
 curl -fsS http://localhost:8081/health
-curl -fsS http://localhost:8080/api/v0/index-status
+curl -fsS -H "Authorization: Bearer $ESHU_API_KEY" \
+  http://localhost:8080/api/v0/index-status
 ```
 
 Metrics endpoints are exposed directly by service:
@@ -50,13 +51,16 @@ Metrics endpoints are exposed directly by service:
 ```bash
 kubectl get pods -n eshu
 kubectl get services -n eshu
-kubectl logs -n eshu deployment/eshu --tail=50
-kubectl logs -n eshu statefulset/eshu-ingester --tail=50
+kubectl logs -n eshu deployment/eshu-api --tail=50
+kubectl logs -n eshu statefulset/eshu --tail=50
 kubectl logs -n eshu deployment/eshu-resolution-engine --tail=50
 ```
 
 If API and MCP are healthy but answers are stale, check ingestion, queue drain,
 Postgres, and graph projection next.
+
+For slow indexing, queue backlog, graph write timeouts, or high memory, use the
+[Tuning Playbook](tuning-playbook.md).
 
 ## Graph Backend Data Loss
 
