@@ -201,7 +201,7 @@ func (cr *ContentReader) RepositoryLanguageInventory(
 		       COUNT(*) AS file_count,
 		       MAX(indexed_at) AS last_indexed_at
 		FROM content_files
-		GROUP BY language
+		GROUP BY coalesce(NULLIF(language, ''), 'unknown')
 		ORDER BY repository_count DESC, file_count DESC, language
 		LIMIT $1 OFFSET $2
 	`, limit, offset)

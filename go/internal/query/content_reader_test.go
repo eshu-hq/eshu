@@ -205,7 +205,7 @@ func TestContentReaderCountRepositoriesByLanguageUsesDistinctRepoScope(t *testin
 func TestContentReaderRepositoryLanguageInventoryReturnsAggregateRows(t *testing.T) {
 	t.Parallel()
 
-	db := openContentReaderTestDB(t, []contentReaderQueryResult{
+	db, recorder := openRecordingContentReaderDB(t, []recordingContentReaderQueryResult{
 		{
 			columns: []string{"language", "repository_count", "file_count", "last_indexed_at"},
 			rows: [][]driver.Value{
@@ -228,6 +228,12 @@ func TestContentReaderRepositoryLanguageInventoryReturnsAggregateRows(t *testing
 	}
 	if got, want := rows[0].RepositoryCount, 135; got != want {
 		t.Fatalf("rows[0].RepositoryCount = %d, want %d", got, want)
+	}
+	if got, want := len(recorder.queries), 1; got != want {
+		t.Fatalf("len(recorder.queries) = %d, want %d", got, want)
+	}
+	if !strings.Contains(recorder.queries[0], "GROUP BY coalesce(NULLIF(language, ''), 'unknown')") {
+		t.Fatalf("query = %q, want normalized language grouping", recorder.queries[0])
 	}
 }
 

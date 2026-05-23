@@ -85,7 +85,28 @@ const openAPIPathsRepositories = `
                     "last_indexed_at": {"type": "string", "format": "date-time"},
                     "repositories": {
                       "type": "array",
-                      "items": {"$ref": "#/components/schemas/Repository"}
+                      "items": {
+                        "allOf": [
+                          {"$ref": "#/components/schemas/Repository"},
+                          {
+                            "type": "object",
+                            "properties": {
+                              "file_count": {"type": "integer"},
+                              "languages": {
+                                "type": "array",
+                                "items": {
+                                  "type": "object",
+                                  "properties": {
+                                    "language": {"type": "string"},
+                                    "file_count": {"type": "integer"}
+                                  }
+                                }
+                              },
+                              "last_indexed_at": {"type": "string", "format": "date-time"}
+                            }
+                          }
+                        ]
+                      }
                     },
                     "limit": {"type": "integer"},
                     "offset": {"type": "integer"},
@@ -96,7 +117,7 @@ const openAPIPathsRepositories = `
             }
           },
           "400": {"$ref": "#/components/responses/BadRequest"},
-          "503": {"$ref": "#/components/responses/InternalError"}
+          "503": {"$ref": "#/components/responses/ServiceUnavailable"}
         }
       }
     },
@@ -138,7 +159,7 @@ const openAPIPathsRepositories = `
               }
             }
           },
-          "503": {"$ref": "#/components/responses/InternalError"}
+          "503": {"$ref": "#/components/responses/ServiceUnavailable"}
         }
       }
     },
