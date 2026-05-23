@@ -1,0 +1,39 @@
+go/cmd/bootstrap-data-plane/main.go
+  s_f2f7fbb6f30866::t_71d0b609b79b62 154-169
+go/cmd/bootstrap-data-plane/AGENTS.md
+  s_f2f7fbb6f30866::t_f9beca03640d9c 20-23
+go/cmd/bootstrap-data-plane/README.md
+  s_f2f7fbb6f30866::t_945769b4055e88 115-121
+  s_f2f7fbb6f30866::t_a48a09b8b81621 37-43,49-50,76-82,96,99-103
+docs/docs/reference/nornicdb-tuning.md
+  s_f2f7fbb6f30866::t_785a1c44f708d5 452-454
+  s_f2f7fbb6f30866::t_89528b1929dd5c 455-466
+go/cmd/bootstrap-data-plane/schema_adoption.go
+  s_f2f7fbb6f30866::t_a29c3e2e2b1952 18-25,34-36,38-45,47
+  s_f2f7fbb6f30866::t_d6f85acac46292 30-33
+docs/docs/deploy/kubernetes/helm-values.md
+  s_f2f7fbb6f30866::t_82cb35234765a0 121-127
+  s_f2f7fbb6f30866::t_a4d1c9c6807c49 86-92,118-119
+docs/docs/deployment/service-runtimes.md
+  s_f2f7fbb6f30866::t_3a7da6346d778f 553-557,564-571,664,668-673
+go/cmd/bootstrap-data-plane/graph_schema_adoption_default_test.go
+  s_f2f7fbb6f30866::t_389b6b98a94f9c 1-180
+go/cmd/bootstrap-data-plane/doc.go
+  s_f2f7fbb6f30866::t_db28c80e92ad72 9-18
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.0",
+  "base_commit_sha": "a0e4ea9bb31f647d88674b29b9d7d177aef788c2",
+  "prompts": {},
+  "sessions": {
+    "s_f2f7fbb6f30866": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e360b-90eb-7472-bac7-56d488b65f77",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
