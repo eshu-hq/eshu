@@ -51,7 +51,7 @@ instances.
 | Terraform state | `eshu-collector-terraform-state` is claim-driven. | Terraform-state facts feed graph projection and `config_state_drift`. Drift v1 emits bounded counters and structured logs; graph/read-model promotion remains separate. | Prove live local or S3 state collection, redaction policy version, claim handoff, reducer drain, and management-status reads together. |
 | AWS cloud | `eshu-collector-aws-cloud` is claim-driven. | AWS facts feed cloud-asset and AWS runtime-drift domains. AWS runtime drift writes durable reducer facts and bounded Postgres reads; graph shape remains reducer-owned. | Prove read-only AWS collection, claim-scoped credentials, AWS service coverage, reducer drain, drift reads, and status visibility in the target environment. |
 | AWS freshness | `eshu-webhook-listener` accepts AWS freshness events and stores durable triggers. | Freshness narrows the next AWS collection target. Scheduled scans remain the baseline completeness path. | Prove one live AWS EventBridge or AWS Config sample through webhook intake, trigger handoff, AWS work creation, and final status. |
-| Package registry | `eshu-collector-package-registry` is claim-driven. | Package source correlation classifies source hints without ownership promotion. Package-native dependency and publication facts are safe as provenance/read-model evidence. | Expand ownership and usage correlation only after exact, derived, ambiguous, unresolved, stale, and rejected cases are proven. |
+| Package registry | `eshu-collector-package-registry` is claim-driven. | Package source correlation classifies source hints without ownership promotion and admits manifest-backed package consumption from package identity plus Git dependency evidence. Package-native dependency and publication facts are safe as provenance/read-model evidence. | Expand ownership correlation only after exact, derived, ambiguous, unresolved, stale, and rejected cases are proven. |
 | Vulnerability intelligence | `eshu-collector-vulnerability-intelligence` has source clients for CISA KEV, FIRST EPSS, OSV, and NVD. | Source-truth `vulnerability.*` facts exist. Impact reducers require owned package-manifest, lockfile, repository, image, or SBOM evidence before publishing user-facing impact findings. Exact lockfile versions can prove observed package impact; manifest ranges stay partial evidence. They must not infer reachability from CVSS, EPSS, KEV, product-only CPEs, or package-registry facts alone. | Prove live source collection, API/MCP fact visibility, then package/image/deployment impact joins after upstream collectors are proven together. |
 
 ## Reducer Truth Boundaries
@@ -139,6 +139,52 @@ evidence paths, missing-evidence payloads, `query.supply_chain_impact_findings`
 spans, and API/MCP truth envelopes show whether impact came from an exact owned
 lockfile version, a partial manifest range, an SBOM/image path, or source-only
 vulnerability intelligence.
+
+No-Regression Evidence: the large npm package correction first reproduced the
+20 MiB metadata cap with Vite's full npm packument and then proved npm
+abbreviated packument requests with
+`go test ./internal/collector/packageregistry/packageruntime -run
+TestHTTPMetadataProviderRequestsAbbreviatedNPMPackument -count=1 -v`.
+Follow-up scheduling coverage ran
+`go test ./internal/projector -run
+'TestBuildProjectionQueues(SupplyChainImpactForPackageIdentityEvidence|PackageSourceCorrelationForPackageIdentity)'
+-count=1 -v` and `go test ./internal/reducer -run
+TestSupplyChainImpactHandlerLoadsActiveEvidenceFromPackageIdentity -count=1
+-v`, proving package identity queues both package-source correlation and a
+bounded supply-chain impact recomputation, and that the impact handler performs
+a second bounded CVE lookup after package-scoped evidence discovers affected
+package rows. The touched package gate also ran
+`go test ./internal/collector/packageregistry/packageruntime ./internal/projector
+./internal/reducer ./internal/storage/postgres ./internal/query ./internal/mcp
+-count=1`.
+Remote Compose project `pr577-vite-packument` ran a one-repository fixture with
+`package.json` and `package-lock.json` declaring `vite@5.4.21`, package-registry
+collection for Vite, and OSV vulnerability intelligence for the same version.
+The final queue shape had every row succeeded: `source_local=3`,
+`package_source_correlation=1`, `supply_chain_impact=2`, and the standard Git
+reducer domains all at `succeeded=1`. Fact truth included
+`package_registry.package=1`, `reducer_package_consumption_correlation=2`,
+`vulnerability.cve=1`, `vulnerability.affected_package=1`, and
+`reducer_supply_chain_impact_finding=1`. API
+`GET /api/v0/supply-chain/impact/findings?impact_status=affected_exact&package_id=npm%3A%2F%2Fregistry.npmjs.org%2Fvite&limit=20`
+returned `count=1`, `truncated=false`, `cve_id=CVE-2026-39365`,
+`advisory_id=GHSA-4w7w-66w2-5vf9`, `observed_version=5.4.21`,
+`fixed_version=6.4.2`, `impact_status=affected_exact`, and
+`runtime_reachability=package_manifest`. MCP
+`list_supply_chain_impact_findings` with the same package/status bounds
+returned `Returned 1 result(s).` with truth `level=exact`, profile
+`production`, and freshness `fresh`.
+
+Observability Evidence: no new metric names or labels were needed. Existing
+package-registry request status, fact-emission, and body-size failure logs show
+whether the abbreviated npm request path succeeded or hit the size guard.
+Existing projector intent enqueue metrics expose the extra package identity
+handoffs, and existing supply-chain impact reducer counters, Postgres query
+duration metrics, evidence paths, missing-evidence payloads, API/MCP truth
+envelopes, and structured collector/reducer logs explain the package identity
+to consumption to impact path. The remote proof scanned package-registry,
+vulnerability, projector, and reducer logs for metadata cap, dead-letter, panic,
+fatal, failed, error, and rate-limit signatures and found none.
 
 ## Gated Source Families
 

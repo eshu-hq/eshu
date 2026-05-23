@@ -3,6 +3,7 @@ package packageruntime
 import (
 	"context"
 	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -37,6 +38,51 @@ func TestHTTPMetadataProviderFetchesMetadataWithBearerAuth(t *testing.T) {
 	}
 	if got, want := string(document.Body), `{"name":"team-api","version":"1.2.3"}`; got != want {
 		t.Fatalf("Body = %q, want %q", got, want)
+	}
+}
+
+func TestHTTPMetadataProviderRequestsAbbreviatedNPMPackument(t *testing.T) {
+	t.Parallel()
+
+	accepts := make(chan string, 1)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		accept := r.Header.Get("Accept")
+		accepts <- accept
+		if !strings.Contains(accept, "application/vnd.npm.install-v1+json") {
+			_, _ = io.CopyN(w, repeatedByteReader('x'), int64(maxMetadataDocumentBytes+1))
+			return
+		}
+		_, _ = w.Write([]byte(`{
+			"name": "vite",
+			"versions": {
+				"5.4.21": {
+					"dist": {
+						"tarball": "https://registry.npmjs.org/vite/-/vite-5.4.21.tgz",
+						"shasum": "abc123"
+					}
+				}
+			}
+		}`))
+	}))
+	defer server.Close()
+
+	document, err := HTTPMetadataProvider{Client: server.Client()}.FetchMetadata(context.Background(), TargetConfig{
+		Base: packageregistry.TargetConfig{
+			Provider:  "npmjs",
+			Ecosystem: packageregistry.EcosystemNPM,
+			Registry:  "https://registry.npmjs.org",
+			ScopeID:   "package-registry://npmjs/npm/vite",
+		},
+		MetadataURL: server.URL,
+	})
+	if err != nil {
+		t.Fatalf("FetchMetadata() error = %v, want abbreviated npm metadata success", err)
+	}
+	if got := <-accepts; !strings.Contains(got, "application/vnd.npm.install-v1+json") {
+		t.Fatalf("Accept = %q, want abbreviated npm packument media type", got)
+	}
+	if len(document.Body) > maxMetadataDocumentBytes {
+		t.Fatalf("Body length = %d, want bounded abbreviated metadata", len(document.Body))
 	}
 }
 
@@ -225,4 +271,13 @@ func failureDetails(err error) string {
 		return detailed.FailureDetails()
 	}
 	return ""
+}
+
+type repeatedByteReader byte
+
+func (r repeatedByteReader) Read(p []byte) (int, error) {
+	for i := range p {
+		p[i] = byte(r)
+	}
+	return len(p), nil
 }

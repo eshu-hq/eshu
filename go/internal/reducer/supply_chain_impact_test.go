@@ -19,10 +19,11 @@ const (
 )
 
 type stubSupplyChainImpactFactLoader struct {
-	scopeFacts []facts.Envelope
-	active     []facts.Envelope
-	kindCalls  [][]string
-	filter     SupplyChainImpactFactFilter
+	scopeFacts  []facts.Envelope
+	active      []facts.Envelope
+	activeCalls [][]facts.Envelope
+	kindCalls   [][]string
+	filters     []SupplyChainImpactFactFilter
 }
 
 func (s *stubSupplyChainImpactFactLoader) ListFacts(
@@ -47,7 +48,12 @@ func (s *stubSupplyChainImpactFactLoader) ListActiveSupplyChainImpactFacts(
 	_ context.Context,
 	filter SupplyChainImpactFactFilter,
 ) ([]facts.Envelope, error) {
-	s.filter = filter
+	s.filters = append(s.filters, filter)
+	if len(s.activeCalls) > 0 {
+		active := s.activeCalls[0]
+		s.activeCalls = s.activeCalls[1:]
+		return append([]facts.Envelope(nil), active...), nil
+	}
 	return append([]facts.Envelope(nil), s.active...), nil
 }
 
@@ -177,12 +183,61 @@ func TestSupplyChainImpactHandlerLoadsActiveEvidenceAndWritesFindings(t *testing
 	if got, want := strings.Join(loader.kindCalls[0], ","), strings.Join(supplyChainImpactFactKinds(), ","); got != want {
 		t.Fatalf("ListFactsByKind() kinds = %q, want %q", got, want)
 	}
-	if got, want := strings.Join(loader.filter.PackageIDs, ","), testImpactPackageID; got != want {
+	if got, want := strings.Join(loader.filters[0].PackageIDs, ","), testImpactPackageID; got != want {
 		t.Fatalf("active package IDs = %q, want %q", got, want)
 	}
 	if result.CanonicalWrites != 1 {
 		t.Fatalf("CanonicalWrites = %d, want 1", result.CanonicalWrites)
 	}
+}
+
+func TestSupplyChainImpactHandlerLoadsActiveEvidenceFromPackageIdentity(t *testing.T) {
+	t.Parallel()
+
+	loader := &stubSupplyChainImpactFactLoader{
+		scopeFacts: []facts.Envelope{
+			packageRegistryPackageImpactFact("package-1", testImpactPackageID),
+		},
+		activeCalls: [][]facts.Envelope{
+			{
+				vulnerabilityAffectedPackageFact("affected-1", "CVE-2026-0001", testImpactPackageID, "npm", "example", "1.2.3", "1.3.0"),
+				packageConsumptionFactWithRange("consume-1", testImpactPackageID, testImpactRepositoryID, "1.2.3"),
+			},
+			{
+				vulnerabilityCVEFact("cve-1", "CVE-2026-0001", 9.8),
+			},
+		},
+	}
+	writer := &recordingSupplyChainImpactWriter{}
+	handler := SupplyChainImpactHandler{FactLoader: loader, Writer: writer}
+
+	result, err := handler.Handle(context.Background(), Intent{
+		IntentID:     "intent-impact",
+		ScopeID:      "package-registry:npm:example",
+		GenerationID: "generation-package",
+		SourceSystem: "package_registry",
+		Domain:       DomainSupplyChainImpact,
+		Cause:        "package registry identity observed",
+	})
+	if err != nil {
+		t.Fatalf("Handle() error = %v, want nil", err)
+	}
+	if got, want := strings.Join(loader.filters[0].PackageIDs, ","), testImpactPackageID; got != want {
+		t.Fatalf("active package IDs = %q, want %q", got, want)
+	}
+	if got, want := len(loader.filters), 2; got != want {
+		t.Fatalf("active evidence loads = %d, want %d", got, want)
+	}
+	if got, want := strings.Join(loader.filters[1].CVEIDs, ","), "CVE-2026-0001"; got != want {
+		t.Fatalf("follow-up CVE IDs = %q, want %q", got, want)
+	}
+	if result.CanonicalWrites != 1 {
+		t.Fatalf("CanonicalWrites = %d, want 1", result.CanonicalWrites)
+	}
+	if got, want := len(writer.write.Findings), 1; got != want {
+		t.Fatalf("len(Findings) = %d, want %d", got, want)
+	}
+	assertSupplyChainImpactStatus(t, writer.write.Findings[0], SupplyChainImpactAffectedExact)
 }
 
 func TestSupplyChainImpactFilterUsesRiskSignalCVEIDs(t *testing.T) {
@@ -379,6 +434,19 @@ func packageVersionFact(factID string, packageID string, purl string, version st
 			"package_id": packageID,
 			"purl":       purl,
 			"version":    version,
+		},
+	}
+}
+
+func packageRegistryPackageImpactFact(factID string, packageID string) facts.Envelope {
+	return facts.Envelope{
+		FactID:   factID,
+		FactKind: facts.PackageRegistryPackageFactKind,
+		Payload: map[string]any{
+			"package_id":      packageID,
+			"ecosystem":       "npm",
+			"raw_name":        "example",
+			"normalized_name": "example",
 		},
 	}
 }

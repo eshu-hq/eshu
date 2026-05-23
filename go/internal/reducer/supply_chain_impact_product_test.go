@@ -195,7 +195,7 @@ func TestSupplyChainImpactHandlerLoadsActiveCPEEvidenceForProductFacts(t *testin
 	if err != nil {
 		t.Fatalf("Handle() error = %v, want nil", err)
 	}
-	if got, want := strings.Join(loader.filter.ProductCriteria, ","), testImpactProductCriteria; got != want {
+	if got, want := strings.Join(loader.filters[0].ProductCriteria, ","), testImpactProductCriteria; got != want {
 		t.Fatalf("active product criteria = %q, want %q", got, want)
 	}
 	if result.CanonicalWrites != 1 {

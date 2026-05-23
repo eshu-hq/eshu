@@ -306,18 +306,21 @@ Log phase attributes: `telemetry.PhaseReduction` (main loop),
   facts only from explicit vulnerability, affected package, owned
   package-consumption, SBOM component, attachment, or image identity evidence.
   Exact package-manifest or lockfile dependency versions can prove an observed
-  package version; package-registry version facts are upstream metadata and
-  must not be treated as installed versions. CVSS, EPSS, and KEV stay risk
-  signals; they never prove reachability without package or runtime evidence,
-  and missing deployment evidence remains visible.
+  package version; package-registry identity facts can bound active
+  vulnerability lookups, but package-registry version facts are upstream
+  metadata and must not be treated as installed versions. CVSS, EPSS, and KEV
+  stay risk signals; they never prove reachability without package or runtime
+  evidence, and missing deployment evidence remains visible.
 - **Package ownership is conservative** —
   `PackageSourceCorrelationHandler` writes ownership candidates from registry
   source hints and package-version publication evidence but leaves
   `canonical_writes=0`; manifest dependency facts are the first admitted
   package consumption truth because they combine registry identity with Git
-  source declaration. Publication fact identity includes source-hint kind, fact
-  ID, and version scope so repository and homepage hints with the same URL do
-  not overwrite one another.
+  source declaration. Package identity alone is enough to schedule the
+  correlation pass because popular registry responses may omit source hints.
+  Publication fact identity includes source-hint kind, fact ID, and version
+  scope so repository and homepage hints with the same URL do not overwrite one
+  another.
 - **Service catalog correlation is repository-evidence gated** —
   `ServiceCatalogCorrelationHandler` writes
   `reducer_service_catalog_correlation` facts for explicit repository-id or

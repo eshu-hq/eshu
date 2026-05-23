@@ -27,6 +27,20 @@ func buildPackageSourceCorrelationReducerIntent(
 			SourceSystem: packageSourceCorrelationSourceSystem(envelope),
 		}, true
 	}
+	for _, envelope := range envelopes {
+		if envelope.FactKind != facts.PackageRegistryPackageFactKind {
+			continue
+		}
+		return ReducerIntent{
+			ScopeID:      scopeValue.ScopeID,
+			GenerationID: generation.GenerationID,
+			Domain:       reducer.DomainPackageSourceCorrelation,
+			EntityKey:    "package_source_correlation:" + scopeValue.ScopeID,
+			Reason:       "package registry identity observed",
+			FactID:       envelope.FactID,
+			SourceSystem: packageSourceCorrelationSourceSystem(envelope),
+		}, true
+	}
 	return ReducerIntent{}, false
 }
 

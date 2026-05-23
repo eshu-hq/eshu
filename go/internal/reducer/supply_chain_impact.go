@@ -124,11 +124,18 @@ func (h SupplyChainImpactHandler) Handle(ctx context.Context, intent Intent) (Re
 	if err != nil {
 		return Result{}, fmt.Errorf("load supply chain impact facts: %w", err)
 	}
-	active, err := h.loadActiveSupplyChainImpactFacts(ctx, supplyChainImpactFilter(envelopes))
+	initialFilter := supplyChainImpactFilter(envelopes)
+	active, err := h.loadActiveSupplyChainImpactFacts(ctx, initialFilter)
 	if err != nil {
 		return Result{}, fmt.Errorf("load active supply chain impact facts: %w", err)
 	}
-	envelopes = append(envelopes, active...)
+	envelopes = appendUniqueSupplyChainImpactFacts(envelopes, active...)
+	followUpFilter := supplyChainImpactFollowUpFilter(initialFilter, supplyChainImpactFilter(envelopes))
+	followUp, err := h.loadActiveSupplyChainImpactFacts(ctx, followUpFilter)
+	if err != nil {
+		return Result{}, fmt.Errorf("load active supply chain impact follow-up facts: %w", err)
+	}
+	envelopes = appendUniqueSupplyChainImpactFacts(envelopes, followUp...)
 
 	findings := BuildSupplyChainImpactFindings(envelopes)
 	counts := supplyChainImpactCounts(findings)
@@ -167,6 +174,59 @@ func (h SupplyChainImpactHandler) loadActiveSupplyChainImpactFacts(
 		return nil, classifyFactLoadError(err)
 	}
 	return envelopes, nil
+}
+
+func appendUniqueSupplyChainImpactFacts(envelopes []facts.Envelope, active ...facts.Envelope) []facts.Envelope {
+	if len(active) == 0 {
+		return envelopes
+	}
+	seen := make(map[string]struct{}, len(envelopes)+len(active))
+	for _, envelope := range envelopes {
+		if envelope.FactID == "" {
+			continue
+		}
+		seen[envelope.FactID] = struct{}{}
+	}
+	for _, envelope := range active {
+		if envelope.FactID == "" {
+			envelopes = append(envelopes, envelope)
+			continue
+		}
+		if _, ok := seen[envelope.FactID]; ok {
+			continue
+		}
+		seen[envelope.FactID] = struct{}{}
+		envelopes = append(envelopes, envelope)
+	}
+	return envelopes
+}
+
+func supplyChainImpactFollowUpFilter(
+	initial SupplyChainImpactFactFilter,
+	current SupplyChainImpactFactFilter,
+) SupplyChainImpactFactFilter {
+	return SupplyChainImpactFactFilter{
+		CVEIDs:          missingStringValues(current.CVEIDs, initial.CVEIDs),
+		ProductCriteria: missingStringValues(current.ProductCriteria, initial.ProductCriteria),
+	}
+}
+
+func missingStringValues(current []string, initial []string) []string {
+	if len(current) == 0 {
+		return nil
+	}
+	seen := make(map[string]struct{}, len(initial))
+	for _, value := range initial {
+		seen[value] = struct{}{}
+	}
+	missing := make([]string, 0, len(current))
+	for _, value := range current {
+		if _, ok := seen[value]; ok {
+			continue
+		}
+		missing = append(missing, value)
+	}
+	return missing
 }
 
 func (h SupplyChainImpactHandler) emitCounters(ctx context.Context, counts map[SupplyChainImpactStatus]int) {
@@ -238,6 +298,7 @@ func supplyChainImpactFactKinds() []string {
 		facts.VulnerabilityAffectedProductFactKind,
 		facts.VulnerabilityEPSSScoreFactKind,
 		facts.VulnerabilityKnownExploitedFactKind,
+		facts.PackageRegistryPackageFactKind,
 		facts.SBOMComponentFactKind,
 		sbomAttestationAttachmentFactKind,
 		containerImageIdentityFactKind,
@@ -305,6 +366,8 @@ func supplyChainImpactFilter(envelopes []facts.Envelope) SupplyChainImpactFactFi
 			}
 		case facts.VulnerabilityEPSSScoreFactKind, facts.VulnerabilityKnownExploitedFactKind:
 			cveIDs = append(cveIDs, supplyChainCVEID(envelope.Payload))
+		case facts.PackageRegistryPackageFactKind:
+			packageIDs = append(packageIDs, payloadStr(envelope.Payload, "package_id"))
 		case facts.SBOMComponentFactKind:
 			purls = append(purls, payloadStr(envelope.Payload, "purl"))
 			productCriteria = append(productCriteria, payloadStr(envelope.Payload, "cpe"))
