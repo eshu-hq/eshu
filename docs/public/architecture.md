@@ -23,7 +23,8 @@ Eshu is facts-first:
 1. Intake runtimes observe source systems and commit versioned facts.
 2. Durable queues make projection work claimable, retryable, and recoverable.
 3. The resolution engine materializes graph and read-model truth.
-4. API, MCP, and CLI surfaces read canonical graph/content state.
+4. HTTP API and MCP surfaces read canonical graph/content state; normal CLI
+   reads call the HTTP API instead of opening storage directly.
 
 The main correctness boundary is simple: collectors and webhooks observe source
 truth; the resolution engine decides graph truth. Intake services do not write
@@ -80,21 +81,19 @@ flowchart LR
   API -->|"content, status, read models"| Postgres
   MCP -->|"tool-backed graph reads"| Graph
   MCP -->|"content, status, read models"| Postgres
-  CLI -->|"local and admin commands"| Postgres
+  CLI -->|"normal read commands"| API
+  CLI -->|"local launcher and admin flows"| Postgres
 ```
 
 ## Runtime Boundaries
 
-| Runtime | Owns | Does not own |
-| --- | --- | --- |
-| API | HTTP query routes, OpenAPI, public admin/query endpoints, runtime health and metrics | repository sync, parsing, fact emission, queue draining |
-| MCP Server | MCP HTTP/SSE or stdio transport, tool dispatch over the query surface | repository sync, parsing, fact emission, graph writes |
-| Ingester | repository selection, sync, snapshot lifecycle, parser execution, content shaping, repository fact emission | external cloud/registry collection, canonical graph truth |
-| Webhook Listener | Git and AWS freshness webhook verification plus durable trigger writes | cloning, parsing, fact emission, graph connections |
-| Workflow Coordinator | collector-instance reconciliation, claim creation, expired-claim reaping, completeness summaries | parsing, cloud reads, registry reads, graph truth |
-| Hosted Collectors | source-specific observation and fact emission for Confluence, OCI registry, Terraform state, AWS cloud, and package registries | canonical graph truth, cross-domain materialization |
-| Resolution Engine | durable work claiming, graph/content projection, shared projection, retry/replay/dead-letter handling | source collection, public query serving |
-| Bootstrap Index | one-shot empty-environment or recovery indexing | steady-state freshness |
+The runtime split has three ownership rules:
+
+- Intake runtimes observe bounded source scopes and commit facts.
+- The resolution engine owns canonical graph projection, shared
+  materialization, retry, replay, and repair.
+- API and MCP serve bounded reads from graph, content, status, and read-model
+  stores. Normal CLI read commands call the API surface.
 
 Runtime commands, Compose services, Helm templates, ports, and scrape targets
 live in [Service Runtimes](deployment/service-runtimes.md).
@@ -142,6 +141,7 @@ graph writes into intake services.
 flowchart LR
   User["User or automation"] --> API["HTTP API"]
   MCPClient["MCP client"] --> MCP["MCP Server"]
+  CLI["CLI normal reads"] --> API
   API --> Query["Query handlers"]
   MCP -->|"tool dispatch"| Query
   Query -->|"GraphQuery port"| Graph[("Canonical graph backend")]
@@ -177,13 +177,12 @@ not become the source of stale truth.
 
 Query handlers depend on capability ports, not concrete database drivers.
 `GraphQuery` serves read-only graph traversal. `ContentStore` serves relational
-content and coverage reads. Graph writes go through the
-`go/internal/storage/cypher` executor family: `Executor`, `GroupExecutor`, and
-`PhaseGroupExecutor`.
+content and coverage reads. Graph writes go through the backend-neutral Cypher
+storage layer.
 
 The active graph backend is selected with `ESHU_GRAPH_BACKEND`. Empty values
 default to `nornicdb`; invalid values fail startup. NornicDB is the default
-backend. Neo4j is the official alternative when it passes the shared
+backend. Neo4j is the official compatibility backend when it passes the shared
 Cypher/Bolt contract and conformance evidence.
 
 Backend-specific behavior belongs in narrow seams: schema DDL translation,
@@ -195,8 +194,9 @@ brand.
 
 The same contracts run in local and deployed shapes:
 
-- Local CLI and MCP flows use the `eshu` binary, embedded local services, or
-  Compose when a full stack is required.
+- Normal local CLI reads go through the API surface. The `eshu graph` and
+  related local commands are launcher/admin flows for the local owner process,
+  embedded local services, or Compose-backed stores.
 - Production uses split Kubernetes/Helm runtimes with shared Postgres and a
   configured graph backend.
 

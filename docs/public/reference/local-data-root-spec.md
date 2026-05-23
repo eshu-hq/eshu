@@ -1,11 +1,10 @@
-# Local Eshu Service Data Root Spec
+# Local Eshu Service Data Root
 
-This document defines the on-disk contract for one local Eshu service
-workspace. It covers the stable paths, owner metadata, startup admission, stale
-process recovery, and version gate used before embedded Postgres or the local
-graph backend starts.
+This page defines the on-disk contract for one local Eshu service workspace:
+where files live, how a workspace is identified, which stores are rebuildable,
+and what `owner.json` means.
 
-## Root Location
+## Root location
 
 Default root:
 
@@ -15,29 +14,28 @@ ${ESHU_HOME}/local/workspaces/<workspace_id>/
 
 Default `ESHU_HOME`:
 
-- macOS: `~/Library/Application Support/eshu`
-- Linux: `${XDG_DATA_HOME:-~/.local/share}/eshu`
-- Windows: `%LOCALAPPDATA%\\eshu`, falling back to
-  `%USERPROFILE%\\AppData\\Local\\eshu`
+| Platform | Default |
+| --- | --- |
+| macOS | `~/Library/Application Support/eshu` |
+| Linux | `${XDG_DATA_HOME:-~/.local/share}/eshu` |
+| Windows | `%LOCALAPPDATA%\\eshu`, falling back to `%USERPROFILE%\\AppData\\Local\\eshu` |
 
 The local runtime targets macOS and Linux. Windows layout helpers compile, but
 workspace ownership and embedded Postgres startup return explicit unsupported
 errors.
 
-## Workspace ID
+## Workspace identity
 
-Workspace root resolution happens before hashing:
+Workspace root resolution happens in this order:
 
-1. explicit `--workspace-root`, if provided
+1. explicit `--workspace-root`
 2. nearest ancestor containing `.eshu.yaml`
 3. nearest ancestor containing `.git`
 4. invocation working directory
 
-The `workspace_id` is the first 20 bytes of the SHA-256 hash of the
-symlink-resolved workspace root, encoded as lowercase hex. Path separators are
-normalized to `/`; case-insensitive filesystems lowercase the resolved path
-before hashing. Symlinks that resolve to the same directory therefore converge
-to the same workspace ID.
+`workspace_id` is the first 20 bytes of the SHA-256 hash of the symlink-resolved
+workspace root, encoded as lowercase hex. Paths are normalized to `/`, and
+case-insensitive filesystems lowercase the resolved path before hashing.
 
 ## Layout
 
@@ -60,168 +58,116 @@ ${ESHU_HOME}/local/workspaces/<workspace_id>/
     repos/
 ```
 
-`postgres/` is owned by the embedded Postgres runtime. Its `data/` and
-`runtime/` subdirectories are runtime state, and `binaries/` holds the managed
-embedded Postgres tools. `cache/embedded-postgres/` is the package cache used
-by the embedded Postgres library.
+`postgres/` belongs to the embedded Postgres runtime. `postgres/data` and
+`postgres/runtime` are runtime state, and `postgres/binaries` holds managed
+embedded Postgres tools. `cache/embedded-postgres` is the embedded Postgres
+package cache.
 
-`graph/nornicdb/` exists only for `local_authoritative`. Before a
-local-authoritative owner starts, Eshu removes `postgres/data`,
-`postgres/runtime`, `graph/nornicdb`, and `cache/repos`; those stores are
-rebuilt from the workspace source tree. Clients must not treat local
-authoritative Postgres, graph data files, or repository cache entries as
-durable user data. Graph logs live at `logs/graph-nornicdb.log`, Postgres logs
-live at `logs/postgres.log`, and local graph credentials are recreated inside
-`graph/nornicdb/eshu-credentials.json` after the graph store is reset.
+`graph/nornicdb/` exists only for `local_authoritative`.
 
 `cache/repos/` contains rebuildable filesystem repository selections for the
 local child ingester.
 
-## Owner Record
+## Rebuildable stores
 
-`owner.json` is written atomically with `0600` permissions while the local owner
-is live and is removed during normal owner shutdown. The current record shape
-is:
+Before a `local_authoritative` owner starts, Eshu removes:
 
-| Field | Meaning |
+- `postgres/data`
+- `postgres/runtime`
+- `graph/nornicdb`
+- `cache/repos`
+
+Those stores are rebuilt from the workspace source tree. Do not treat local
+authoritative Postgres data, graph data, or repository cache entries as durable
+user data. Graph credentials are recreated at
+`graph/nornicdb/eshu-credentials.json` after the graph store is reset.
+
+## Owner record
+
+`owner.json` is written atomically with `0600` permissions while a local owner is
+live and is removed during normal shutdown.
+
+Field groups:
+
+| Group | Fields |
 | --- | --- |
-| `pid` | Local Eshu owner process PID. |
-| `started_at` | Owner start timestamp. |
-| `hostname` | Host that wrote the record. |
-| `workspace_id` | Workspace ID for this data root. |
-| `version` | Eshu binary/data-root version used for admission. |
-| `socket_path` | Reserved owner socket path. It exists in the JSON shape but is usually empty today. |
-| `postgres_pid` | Embedded Postgres PID. |
-| `postgres_port` | Loopback TCP port used by embedded Postgres readiness and local attach flows. |
-| `postgres_data_dir` | Absolute path to `postgres/data`. |
-| `postgres_socket_dir` | Short Unix-socket directory, normally under `${TMPDIR}/eshu/<workspace_id>` with fallback to `/tmp`. |
-| `postgres_socket_path` | Workspace-local Postgres Unix socket path. |
-| `profile` | Active query profile: `local_lightweight` or `local_authoritative`. |
-| `graph_backend` | Graph backend for `local_authoritative`; currently `nornicdb`. Omitted for `local_lightweight`. |
-| `graph_address` | Loopback graph bind address, currently `127.0.0.1`. |
-| `graph_pid` | Graph backend PID. Embedded NornicDB records the owner PID; process mode records the child PID. |
-| `graph_bolt_port` | Loopback Bolt port for Neo4j-compatible graph access. |
-| `graph_http_port` | Loopback HTTP health/admin port. |
-| `graph_data_dir` | Absolute graph backend data directory, normally `graph/nornicdb`. |
-| `graph_socket_path` | Reserved for socket-capable graph backends. NornicDB does not populate it today. |
-| `graph_version` | Graph backend version. |
-| `graph_username` | Local graph admin username. |
-| `graph_password` | Per-workspace local graph password copied into `owner.json` for attach processes; this is sensitive. |
+| Owner identity | `pid`, `started_at`, `hostname`, `workspace_id`, `version`, `socket_path` |
+| Postgres runtime | `postgres_pid`, `postgres_port`, `postgres_data_dir`, `postgres_socket_dir`, `postgres_socket_path` |
+| Query profile | `profile` |
+| Graph runtime | `graph_backend`, `graph_address`, `graph_pid`, `graph_bolt_port`, `graph_http_port`, `graph_data_dir`, `graph_socket_path`, `graph_version` |
+| Local graph credentials | `graph_username`, `graph_password` |
 
-## Ownership And Startup Admission
+`graph_password` is sensitive. It is copied into `owner.json` so attach
+processes can connect to the workspace-local graph, and it relies on owner-only
+file permissions.
 
-One local Eshu service owns a workspace root at a time. Startup admission is:
+## Startup admission
+
+One local Eshu service owns a workspace root at a time. Startup follows this
+order:
 
 1. acquire `owner.lock`
 2. validate `VERSION`
 3. validate or reclaim `owner.json`
-4. for `local_authoritative`, reset the rebuildable stores listed in
-   [Layout](#layout)
+4. reset rebuildable stores for `local_authoritative`
 5. start embedded Postgres
-6. start the local graph backend only for `local_authoritative`
-7. write the new `owner.json`
+6. start NornicDB for `local_authoritative`
+7. write `owner.json`
 
 On Unix, `owner.lock` uses non-blocking `flock(LOCK_EX | LOCK_NB)`. If another
-process holds the lock, startup fails instead of waiting. Windows ownership is
-not implemented.
+process holds the lock, startup fails instead of waiting. A second command may
+attach to a healthy owner when that command supports attach semantics, but it
+must not start a competing owner for the same workspace.
 
-A second invocation should attach to a healthy owner when that command supports
-attach semantics, or fail fast with an actionable error. It must not start a
-competing owner for the same workspace.
+Stale owner recovery is lock-first. A new owner can reclaim `owner.json` only
+after holding `owner.lock` and proving the recorded owner is no longer healthy.
+Ownerless live Postgres is stopped only after the lock, PID, socket, and
+Postgres protocol checks agree.
 
-## Stale-Record Recovery
+## Local endpoints
 
-Reclaim assumes the caller already holds `owner.lock`.
-
-If `owner.json` points at a live owner PID or healthy reserved owner socket,
-startup fails with `workspace owner still active`. If the owner looks dead but
-embedded Postgres is still alive by PID or socket, the new process runs
-`pg_ctl stop -m fast` against `postgres_data_dir`, rechecks PID and socket
-health, and only then removes the stale owner record.
-
-If a graph backend still appears healthy, the new owner asks the recorded graph
-runtime to stop and verifies it is no longer healthy before reclaiming. For the
-current NornicDB path, healthy means:
-
-- recorded `graph_pid` is alive
-- recorded `graph_http_port` answers `GET /health`
-- recorded `graph_bolt_port` completes Neo4j Bolt negotiation
-
-If `owner.json` was already removed but `postgres/data/postmaster.pid` remains
-live, startup may stop that ownerless Postgres only after holding
-`owner.lock` and proving PID liveness, Unix-socket health, and Postgres protocol
-readiness from the lock file.
-
-## Local Endpoints
-
-Embedded Postgres uses both a short Unix socket and a loopback-only TCP port.
-The embedded Postgres library performs readiness checks over
-`localhost:<port>`, and local attach flows reuse the recorded loopback endpoint.
-This port is not a public network surface and must bind only to loopback.
+Embedded Postgres uses a short Unix socket directory plus a loopback-only TCP
+port. The TCP port is for readiness checks and local attach flows; it is not a
+public network surface.
 
 The current `local_authoritative` NornicDB path uses loopback-only TCP ports for
-HTTP health and Bolt. It does not use a graph Unix socket today.
+HTTP health and Bolt. It does not use a graph Unix socket.
 
-To avoid Unix `sun_path` limits, Postgres socket paths should live under a
-short runtime directory such as `${TMPDIR}/eshu/<workspace_id>`. If that path is
-too long, the runtime falls back to shorter `/tmp`-based paths and records the
-resolved path in `owner.json`.
+## Version gate
 
-## Version Gate
-
-`VERSION` is the data-root schema/version marker. The current implementation:
+`VERSION` is the data-root schema marker. The current implementation:
 
 - creates `VERSION` for a new empty data root
-- opens normally when the file matches the current binary version
+- opens normally when `VERSION` matches the current binary version
 - refuses a non-empty root that lacks `VERSION`
-- refuses a mismatched version with an explicit incompatible-version error
+- refuses a mismatched version with an incompatible-version error
 
-There is no silent forward or backward compatibility path. A future migration
-must be explicit and should use write-new-then-swap or backup-before-migrate
-semantics so a failure cannot strand the workspace halfway between versions.
+There is no silent forward or backward compatibility path.
 
-## Crash Recovery Expectations
-
-On crash or forced shutdown:
-
-- `local_lightweight` Postgres WAL recovery runs normally on the next start
-- `local_authoritative` rebuilds `postgres/data`, `postgres/runtime`,
-  `graph/nornicdb`, and `cache/repos` from source on the next start
-- stale owner records are recoverable through the lock-first reclaim path
-- ownerless live Postgres is stopped only after lock, PID, socket, and protocol
-  checks agree
-- derived caches under `cache/` may be pruned and rebuilt
-
-## Permissions And Security
+## Security and filesystem limits
 
 - Data roots are per-user and are not intended for shared multi-UID access.
-- A different user should fail with an actionable ownership or permissions
-  error.
-- `owner.json`, `VERSION`, lock files, logs, credentials, and runtime
-  directories are created with owner-only permissions where the runtime writes
-  them.
-- Eshu does not provide encryption at rest by default. Operators who need it
-  should use host-level disk encryption.
-- `graph_password` in `owner.json` is sensitive and relies on the owner-only
-  permissions above.
+- Owner metadata, credentials, lock files, logs, and runtime directories are
+  written with owner-only permissions where the runtime creates them.
+- Eshu does not provide encryption at rest; use host-level disk encryption when
+  required.
+- Use local filesystems with reliable advisory locking. Do not rely on this
+  ownership contract over NFS or SMB unless Eshu adds verified compatibility for
+  that filesystem class.
 
-## Filesystem Limitation
+## Verification
 
-The local runtime targets local filesystems with reliable advisory locking. Do
-not use this data-root contract on non-local filesystems where `flock`
-semantics are not dependable enough for workspace ownership, such as common NFS
-or SMB mounts, unless Eshu gains a verified compatibility story for that
-filesystem class.
+Relevant focused tests:
 
-## Non-Goals
+```bash
+cd go
+go test ./internal/eshulocal -run 'TestResolveWorkspaceRoot|TestBuildLayoutUsesStableWorkspaceIDForSymlinks|TestOwnerRecordRoundTrip|TestPrepareWorkspace|TestValidateOrReclaimOwner|TestEnsureLayoutVersion' -count=1
+go test ./cmd/eshu -run 'TestResetLocalAuthoritativeStatePreservesPostgresBinariesAndLogs|TestRunGraphStartExecsAuthoritativeLocalHost|TestGraphStop|TestRuntimeConfigFromOwnerRecordDefaultsAuthoritativeBackendToNornicDB' -count=1
+```
 
-- shared cross-workspace data roots
-- concurrent multi-writer ownership of one workspace root
-- treating rebuilt local graph data or caches as durable user data
-- hidden destructive reset behavior
+## Related docs
 
-## Related References
-
-- [Local Eshu Service Lifecycle](local-host-lifecycle.md)
-- [Graph Backend Operations](graph-backend-operations.md)
-- [Runtime And Storage Environment](environment-runtime-storage.md)
+- [Local host lifecycle](local-host-lifecycle.md)
+- [Graph backend operations](graph-backend-operations.md)
+- [Runtime and storage environment](environment-runtime-storage.md)
+- [Local binaries](../run-locally/local-binaries.md)

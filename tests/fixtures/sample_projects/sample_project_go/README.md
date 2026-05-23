@@ -1,40 +1,22 @@
-# Go Sample Project
+# Go Sample Fixture
 
-This fixture exercises Go parser, indexing, relationship, and content shape
-behavior. It is test data, not an application template.
+Parser and graph tests use this directory as Go source input. It is test data,
+not an application template.
 
-## Fixture Map
-
-| File | Coverage |
+| File | Contract |
 | --- | --- |
-| `basic_functions.go` | functions, returns, variadics, closures, recursion, `defer`, `panic`, `recover`, `init` |
-| `structs_methods.go` | structs, pointer/value receivers, constructors, embedding, method chaining |
-| `interfaces.go` | interfaces, embedding, implementations, assertions, type switches |
-| `goroutines_channels.go` | goroutines, channels, `select`, worker pools, mutexes, wait groups |
-| `error_handling.go` | custom errors, wrapping, sentinels, `errors.Is`, `errors.As`, validation |
-| `generics.go` | generic functions, generic types, constraints, stacks, queues, caches |
-| `embedded_composition.go` | embedding, method promotion, interface embedding, composition |
-| `advanced_types.go` | custom types, aliases, enum patterns, maps, slices, tags, function/channel types |
-| `packages_imports.go` | stdlib imports, aliases, blank imports, package initialization |
-| `util/helpers.go` | subpackage helpers and package-level utility functions |
-| `go.mod` | Go module identity for fixture indexing |
+| `basic_functions.go` | functions, returns, closures, recursion, `defer`, `panic`, `recover`, and `init`. |
+| `structs_methods.go` | structs, constructors, receiver methods, embedding, and method chaining. |
+| `interfaces.go` | interface declarations, implementations, assertions, and type switches. |
+| `goroutines_channels.go` | goroutines, channels, `select`, worker pools, mutexes, and wait groups. |
+| `error_handling.go` | custom errors, wrapping, sentinels, `errors.Is`, `errors.As`, and validation. |
+| `generics.go` | generic functions, generic types, constraints, stacks, queues, and caches. |
+| `embedded_composition.go` | embedding, method promotion, interface embedding, and composition. |
+| `advanced_types.go` | custom types, aliases, enum patterns, maps, slices, tags, and function/channel types. |
+| `packages_imports.go` | stdlib imports, aliases, blank imports, and package initialization. |
+| `util/helpers.go` | subpackage helpers for package and import relationship tests. |
+| `go.mod` | Module identity for fixture indexing. |
 
-## What Tests Should Prove
-
-- Package and import relationships are stable across root files and the `util`
-  subpackage.
-- Functions, methods, structs, interfaces, and generic declarations materialize
-  with stable identifiers.
-- Concurrency and error-handling syntax does not break parsing or content
-  shaping.
-- Fixture graph/content tests can cite repo-relative source paths.
-
-## Local Fixture Commands
-
-```bash
-go test ./...
-go build ./...
-```
-
-These commands are optional for Eshu repository tests unless a test explicitly
-compiles this fixture.
+Tests should prove stable package/import relationships, entity identifiers,
+repo-relative source paths, and parser tolerance for concurrency, generics, and
+error-handling syntax.

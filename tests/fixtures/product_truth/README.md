@@ -1,31 +1,20 @@
 # Product Truth Fixture Contract
 
-This directory is the registry for feature-level truth gates.
+This directory is the registry for feature-level truth gates. It proves product
+claims with small generic fixtures instead of private repositories or full
+dogfood corpora.
 
-The goal is to keep a small, generic fixture corpus that proves Eshu product
-claims without relying on private repositories or full-corpus dogfood runs.
-Each owned capability must identify:
+| Path | Owns |
+| --- | --- |
+| `manifest.json` | Owned suite IDs, fixture roots, verifier scripts, expected truth files, and capability names. |
+| `expected/*.json` | Assertion contracts for graph, evidence, API, MCP, CLI, or cleanup truth. |
+| `dead_iac/` | Generic dead-IaC corpus for Terraform, Helm, Kustomize, Ansible, and Docker Compose reachability. |
+| `planned/*.json` | Draft gaps only; entries do not become product claims until `manifest.json` marks the suite owned. |
 
-- the fixture roots that exercise it
-- the compose or local verifier that proves it
-- the expected graph, evidence, API, MCP, or CLI truth surface
-- negative and ambiguous cases when the feature can over-admit truth
+Each owned suite must include positive cases, negative cases, and ambiguous
+cases when the feature can over-admit truth.
 
-Large private corpora remain useful for scale and performance. They are not the
-source of truth for feature correctness.
-
-## Files
-
-- `manifest.json` lists owned and planned product-truth suites.
-- `expected/*.json` describes the current expected assertions for existing
-  fixture-backed gates.
-- `dead_iac/` is the owned fixture corpus for the dead-IaC capability, with
-  Terraform, Helm, Kustomize, Ansible, and Docker Compose used, unused, and
-  ambiguous examples.
-- `planned/*.json` describes feature gaps that must become owned suites before
-  Eshu can claim the capability.
-
-Run the fast static contract check with:
+Run the static registry gate with:
 
 ```bash
 ./scripts/verify_product_truth_fixtures.sh

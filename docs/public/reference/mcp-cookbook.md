@@ -1,7 +1,8 @@
 # MCP Cookbook
 
-Use this page for copy-ready MCP calls. For the full schema list, use
-[MCP Reference](mcp-reference.md). For setup, use
+Use this page for copy-ready MCP workflows. For the full tool index, schemas,
+and contract notes, use [MCP Reference](mcp-reference.md) and
+[MCP Tool Contract Matrix](mcp-tool-contract-matrix.md). For setup, use
 [MCP Guide](../guides/mcp-guide.md).
 
 ## Call Rules
@@ -16,9 +17,9 @@ Use this page for copy-ready MCP calls. For the full schema list, use
 - Use `repo_id + relative_path` or `entity_id` for file-shaped drilldowns.
 - Use raw Cypher only for diagnostics. Named tools are the normal prompt path.
 
-## Story And Investigation Calls
+## Explain A Service
 
-### Explain a service
+Start with the story tool when the user wants the current service picture:
 
 **Tool:** `get_service_story`
 
@@ -26,51 +27,53 @@ Use this page for copy-ready MCP calls. For the full schema list, use
 { "workload_id": "payments-api", "environment": "prod" }
 ```
 
-Use `investigate_service` when the prompt needs evidence-first onboarding or a
-scoped investigation:
+Use the investigation tool when the prompt needs evidence-first onboarding or a
+scoped question:
 
 **Tool:** `investigate_service`
 
 ```json
-{ "service_name": "payments-api", "environment": "prod", "intent": "onboarding" }
+{ "service_name": "payments-api", "environment": "prod", "intent": "onboarding", "limit": 25 }
 ```
 
-### Explain a repository
+Follow with citation hydration for files or entities that the story returns:
 
-**Tool:** `get_repo_story`
+**Tool:** `build_evidence_citation_packet`
 
 ```json
-{ "repo_id": "payments" }
+{
+  "handles": [
+    { "repo_id": "payments", "relative_path": "deploy/values-prod.yaml", "reason": "image tag source" }
+  ],
+  "limit": 10
+}
 ```
 
-### Investigate deployment config
+## Answer A Code Question
 
-**Tool:** `investigate_deployment_config`
-
-```json
-{ "service_name": "payments-api", "environment": "prod", "limit": 25 }
-```
-
-Use this for prompts about image tags, values layers, resource limits, rendered
-targets, and read-first deployment files.
-
-## Code Calls
-
-### Find code paths for a behavior
+Start broad enough to avoid guessing at a symbol name, then hydrate exact files
+or lines.
 
 **Tool:** `investigate_code_topic`
 
 ```json
-{ "topic": "repo sync authentication and GitHub App auth resolution", "repo_id": "eshu", "intent": "implementation_map", "limit": 25 }
+{
+  "topic": "repo sync authentication and GitHub App auth resolution",
+  "repo_id": "eshu",
+  "intent": "implementation_map",
+  "limit": 25
+}
 ```
 
-### Find a symbol or exact source
+When the target symbol is known:
 
 **Tool:** `find_symbol`
 
 ```json
 { "symbol": "process_payment", "repo_id": "payments", "match_mode": "exact", "limit": 25 }
 ```
+
+For content-backed drilldown:
 
 **Tool:** `search_file_content`
 
@@ -84,9 +87,11 @@ targets, and read-first deployment files.
 { "repo_id": "payments", "relative_path": "src/server.py", "start_line": 20, "end_line": 40 }
 ```
 
-## Relationship Calls
+## Trace Code Relationships
 
-### Find direct or transitive callers
+Use relationship stories before presenting caller, callee, or import claims.
+Pass `entity_id` instead of `target` when an earlier lookup selected the exact
+function.
 
 **Tool:** `get_code_relationship_story`
 
@@ -94,15 +99,21 @@ targets, and read-first deployment files.
 { "target": "process_payment", "relationship_type": "CALLS", "direction": "incoming", "repo_id": "payments", "limit": 25 }
 ```
 
-Pass `entity_id` instead of `target` when an earlier lookup selected the exact
-function. For bounded transitive callers, add `include_transitive` and
-`max_depth`:
+For bounded transitive callers:
 
 ```json
-{ "target": "process_payment", "relationship_type": "CALLS", "direction": "incoming", "include_transitive": true, "max_depth": 7, "repo_id": "payments", "limit": 50 }
+{
+  "target": "process_payment",
+  "relationship_type": "CALLS",
+  "direction": "incoming",
+  "include_transitive": true,
+  "max_depth": 7,
+  "repo_id": "payments",
+  "limit": 50
+}
 ```
 
-### Find a call chain or import neighborhood
+For a specific chain or import neighborhood:
 
 **Tool:** `find_function_call_chain`
 
@@ -116,53 +127,21 @@ function. For bounded transitive callers, add `include_transitive` and
 { "query_type": "importers", "repo_id": "payments", "target_module": "payments.client", "limit": 25 }
 ```
 
-## Inventory, Quality, And Runtime Calls
+## Investigate Deployment Impact
 
-**Tool:** `inspect_code_inventory`
+Use deployment config for rendered files and values layers, then trace runtime
+relationships or compare environments.
 
-```json
-{ "repo_id": "payments", "language": "python", "inventory_kind": "dataclass", "limit": 50 }
-```
-
-**Tool:** `inspect_call_graph_metrics`
+**Tool:** `investigate_deployment_config`
 
 ```json
-{ "metric_type": "recursive_functions", "repo_id": "payments", "language": "typescript", "limit": 50 }
+{ "service_name": "payments-api", "environment": "prod", "limit": 25 }
 ```
-
-**Tool:** `inspect_code_quality`
-
-```json
-{ "check": "function_length", "repo_id": "payments", "min_lines": 20, "limit": 25 }
-```
-
-**Tool:** `investigate_dead_code`
-
-```json
-{ "repo_id": "payments", "language": "typescript", "limit": 200, "offset": 0 }
-```
-
-**Tool:** `get_index_status`
-
-```json
-{}
-```
-
-Use `list_ingesters` for configured ingesters and `get_ingester_status` for one
-runtime's persisted status.
-
-## Deployment, Impact, And Safety Calls
 
 **Tool:** `trace_deployment_chain`
 
 ```json
 { "service_name": "payments-api", "direct_only": true, "max_depth": 8 }
-```
-
-**Tool:** `investigate_resource`
-
-```json
-{ "query": "payments-prod-db", "resource_type": "database", "environment": "prod", "limit": 25 }
 ```
 
 **Tool:** `compare_environments`
@@ -177,13 +156,16 @@ runtime's persisted status.
 { "service_name": "payments-api", "environment": "prod", "max_depth": 4, "limit": 25 }
 ```
 
+## Safety Checks
+
+Secret and import-plan tools are read-only. Secret findings are redacted; do
+not expect raw secret values in responses.
+
 **Tool:** `investigate_hardcoded_secrets`
 
 ```json
 { "repo_id": "payments", "limit": 25, "include_suppressed": false }
 ```
-
-Results are redacted. Do not expect raw secret values in MCP responses.
 
 **Tool:** `propose_terraform_import_plan`
 
@@ -191,19 +173,18 @@ Results are redacted. Do not expect raw secret values in MCP responses.
 { "account_id": "123456789012", "region": "us-east-1", "limit": 25 }
 ```
 
-This is read-only and refuses ambiguous, stale, sensitive, or insufficiently
-covered findings.
+## Check Runtime Freshness
 
-## Evidence Calls
+Check index status before treating stale or partial answers as complete.
 
-Use citation packets after story, investigation, search, or relationship tools
-return file or entity handles.
-
-**Tool:** `build_evidence_citation_packet`
+**Tool:** `get_index_status`
 
 ```json
-{ "handles": [{ "repo_id": "payments", "relative_path": "deploy/values-prod.yaml", "reason": "image tag source" }], "limit": 10 }
+{}
 ```
+
+Use `list_ingesters` for configured ingesters and `get_ingester_status` for one
+runtime's persisted status.
 
 ## Diagnostic Cypher Queries
 

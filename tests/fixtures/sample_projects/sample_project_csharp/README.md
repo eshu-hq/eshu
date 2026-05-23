@@ -3,24 +3,15 @@
 This fixture exercises the C# parser against a small project with one
 `Example.App` assembly. It is test data, not an example application.
 
-## Fixture Map
-
-| Path | Parser surface |
+| Path | Contract |
 | --- | --- |
-| `src/Example.App/Program.cs` | entry point, object creation, service calls |
-| `src/Example.App/OuterClass.cs` | nested classes |
-| `src/Example.App/Models/*.cs` | classes, enums, records, structs, operators |
-| `src/Example.App/Services/*.cs` | interfaces, implementations, attributes |
-| `src/Example.App/Utils/*.cs` | static helpers, generics, LINQ, file I/O calls |
-| `src/Example.App/Attributes/*.cs` | custom attribute definitions |
+| `src/Example.App/Program.cs` | Entry point, object creation, and service calls. |
+| `src/Example.App/OuterClass.cs` | Nested classes. |
+| `src/Example.App/Models/*.cs` | Classes, enums, records, structs, and operators. |
+| `src/Example.App/Services/*.cs` | Interfaces, implementations, and attributes. |
+| `src/Example.App/Utils/*.cs` | Static helpers, generics, LINQ, and file I/O calls. |
+| `src/Example.App/Attributes/*.cs` | Custom attribute definitions. |
 
-## What Tests Should Prove
-
-- Namespace and type discovery stay stable across classes, interfaces,
-  records, structs, enums, nested classes, and static classes.
-- Method signatures, constructors, properties, and private helpers are
-  discoverable without inventing calls.
-- `using` directives, internal project references, object creation, LINQ calls,
-  and attribute usage produce the expected graph facts.
-- Parser changes preserve fixture intent without depending on a real build or
-  runtime execution.
+Tests should prove stable namespace/type discovery, method signatures,
+constructors, properties, private helpers, `using` directives, project
+references, LINQ calls, and attribute usage without requiring a real build.

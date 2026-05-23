@@ -29,17 +29,17 @@ docker compose up --build
 The default stack uses NornicDB for graph storage and Postgres for relational
 state, facts, queues, status, content, and recovery data.
 
-| Service | Provides | Default host port |
-| --- | --- | --- |
-| `nornicdb` | Graph database for Eshu's code-to-cloud graph. | `7474`, `7687` |
-| `postgres` | Facts, work queues, status, content store, and recovery data. | `15432` |
-| `db-migrate` | One-shot data-plane schema migration for Postgres and the graph backend. | none |
-| `workspace-setup` | One-shot setup for `/data/.eshu`, `/data/repos`, and optional `.eshuignore` input. | none |
-| `bootstrap-index` | One-shot initial repository indexing and first projection pass. | `19467` metrics |
-| `eshu` | HTTP API runtime. The API mounts `/metrics` on the same container listener. | `8080`, `19464` metrics |
-| `mcp-server` | MCP server for assistant and tool clients. MCP mounts `/metrics` on the same container listener. | `8081`, `19468` metrics |
-| `ingester` | Continuous repository sync, discovery, parsing, and fact emission. | `19465` metrics |
-| `resolution-engine` | Reducer queue drain, graph projection, repair flows, and shared materialization. | `19466` metrics |
+| Service | Responsibility |
+| --- | --- |
+| `nornicdb` | Default graph database. |
+| `postgres` | Facts, queues, status, content, recovery, and read-model state. |
+| `db-migrate` | One-shot Postgres and graph schema bootstrap. |
+| `workspace-setup` | One-shot `/data/.eshu`, `/data/repos`, and optional `.eshuignore` setup. |
+| `bootstrap-index` | One-shot initial indexing and first projection pass. |
+| `eshu` | HTTP API runtime on `localhost:8080`. |
+| `mcp-server` | MCP HTTP runtime on `localhost:8081`. |
+| `ingester` | Continuous repository sync, discovery, parsing, and fact emission. |
+| `resolution-engine` | Reducer queue drain, graph projection, repair, and shared materialization. |
 
 The NornicDB service defaults to a pinned multi-arch Docker manifest:
 `timothyswt/nornicdb-cpu-bge:v1.1.0@sha256:65855ca2c9649020f7f9e29d2e0fbedf0bf9601457de233d87160ddbe4b473f0`.
@@ -186,23 +186,5 @@ available at `http://localhost:8081` by default.
 For repository indexing from the host CLI, including the environment variables
 needed to point `eshu scan` or `eshu index` at Compose stores, see
 [Index repositories](../use/index-repositories.md#host-cli-into-compose-stores).
-
-## Local endpoints
-
-| Endpoint | URL or address |
-| --- | --- |
-| API | `http://localhost:8080` |
-| API metrics | `http://localhost:19464/metrics` |
-| MCP server | `http://localhost:8081` |
-| MCP metrics | `http://localhost:19468/metrics` |
-| Postgres | `localhost:15432` |
-| Graph Bolt endpoint | `localhost:7687` |
-| Ingester metrics | `http://localhost:19465/metrics` |
-| Resolution engine metrics | `http://localhost:19466/metrics` |
-| Bootstrap index metrics | `http://localhost:19467/metrics` |
-| Workflow coordinator, when profile enabled | `http://localhost:18082` |
-| Workflow coordinator metrics, when profile enabled | `http://localhost:19469/metrics` |
-| Webhook listener, default stack only and when profile enabled | `http://localhost:18083` |
-| Jaeger, with telemetry overlay | `http://localhost:16686` |
 
 See [Connect MCP locally](mcp-local.md) for MCP client setup.

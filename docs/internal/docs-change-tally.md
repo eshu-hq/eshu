@@ -9,7 +9,7 @@ repo's 500-line limit.
 - Total Markdown files left in the checkout after the current pass: 548
 - Current branch doc status from
   `git diff --name-status origin/main -- '*.md'` after the current pass:
-  104 added, 259 modified, 157 deleted, 77 renamed
+  104 added, 266 modified, 157 deleted, 77 renamed
 - Copied image assets removed from this branch: 43 files under
   `docs/public/images/`. They were reference assets from another project and
   no longer appear in the source-doc reference scan.
@@ -133,6 +133,13 @@ branch. Regenerate them from
 | Templated IaC Fixture Contract Cleanup | Rewrote the templated IaC fixture README as a fixture contract and removed private/local source provenance from the README and manifest metadata. |
 | CLI, Local Data, Ignore, And Correlation Fixture Repair | Corrected `eshu docs verify` CLI flag truth, local data-root reset behavior, `.eshuignore` matching/default-skip behavior, and the correlation DSL secondary-Dockerfile fixture contract. Restored the missing `Dockerfile.test` fixture required by the compose verifier. |
 | Main Rebase Refresh At e6ac80a | Rebasing onto current `origin/main` kept the public docs information architecture, deleted stale `docs/docs` HTTP API history, and preserved the current 73-tool MCP contract plus service-catalog fact family truth in compressed package docs. |
+| Eshuignore And Local Data Root Compression | Reduced `.eshuignore` and local data-root references to current operator contracts, removed long default-skip and recovery catalogs, and added focused code-backed verification commands. |
+| Dead-Code Fixture Maturity Repair | Corrected dead-code fixture maturity docs against the query package maturity map so Haskell, Java, Kotlin, Rust, and Scala are active `derived` fixtures while Groovy remains `derived_candidate_only`. |
+| Sample Fixture Contract Compression | Reduced sample-project READMEs to fixture contracts and removed tutorial/build-command prose that duplicated parser and query test ownership. |
+| Architecture And Compose Duplicate Cleanup | Corrected CLI read-path diagrams, collapsed duplicated runtime-boundary prose, and reduced Compose service and endpoint inventories to concise operator contracts. |
+| CLI And MCP Cookbook Duplicate Cleanup | Reduced the CLI reference to a command-family index and trimmed the MCP cookbook to copy-ready workflows while keeping diagnostics-only Cypher guidance. |
+| Product Truth Fixture Contract Compression | Reduced product-truth, dead-IaC, and correlation DSL fixture READMEs to registry, verifier, expected-truth, and stable fixture-role contracts. |
+| Main Rebase Refresh At 4777a92 | Rebasing onto current `origin/main` preserved service-catalog, container-image, package-registry, and compressed public/package docs while refreshing the verification counts after conflict resolution. |
 
 ## Verification Snapshot
 
@@ -153,11 +160,24 @@ Current pass proof:
   DSL fixture and secondary-Dockerfile rejection contract.
 - Broad docs verification passed for `docs/public` and the full repository with
   0 contradicted and 0 missing evidence claims. Current public docs verifier
-  result: 173 documents, 1238 claims, 11 unsupported shell-command claim
-  types. Current full repository verifier result: 562 documents, 1438 claims,
+  result: 173 documents, 1170 claims, 11 unsupported shell-command claim
+  types. Current full repository verifier result: 562 documents, 1370 claims,
   15 unsupported shell-command claim types.
 - Focused service, collector, Terraform-state, reducer, fact, component,
   relationship, tag, and language-query tests passed for the current pass.
+- Focused `.eshuignore` and local data-root verification passed for discovery,
+  collector selection, `eshulocal`, `cmd/eshu`, and docs verifier gates.
+- Focused dead-code fixture verification passed for the fixture README set and
+  query maturity/root tests, with Groovy preserved as candidate-only.
+- Focused sample-project fixture docs verification passed after compressing the
+  README set to fixture contracts.
+- Focused architecture and Docker Compose docs verification plus runtime Compose
+  tests passed after correcting CLI read-path and service responsibility docs.
+- Focused CLI command registration, MCP contract tests, and per-page docs
+  verification passed after the CLI/MCP cookbook cleanup.
+- Product-truth static registry verification, focused query/IaC reachability
+  tests, and fixture docs verification passed after product-truth and
+  correlation fixture compression.
 - `scripts/verify-package-docs.sh`, `helm lint`, `helm template`, Markdown
   file-size scan, `git diff --check`, `cmp -s AGENTS.md CLAUDE.md`, and strict
   MkDocs build passed.

@@ -1,6 +1,6 @@
 # Haskell Dead-Code Fixture
 
-Maturity: `derived_candidate_only`.
+Maturity: `derived`.
 
 Expected symbols:
 
@@ -15,5 +15,6 @@ Expected symbols:
 | `excluded` | `generatedHaskellStub` |
 | `ambiguous` | `dynamicHaskellDispatch` |
 
-This fixture is candidate-only. It records expected Haskell root classes while
-module exports, typeclasses, and dynamic dispatch remain unproven.
+This fixture records expected Haskell root classes. Exact cleanup-safe truth is
+still blocked by Template Haskell, CPP conditionals, Cabal component selection,
+implicit exports, typeclass dispatch, module reexports, and FFI.
