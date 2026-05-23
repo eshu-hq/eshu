@@ -4,9 +4,10 @@ The Go module owns the Eshu runtime: CLI, API, MCP server, ingester, reducer,
 workflow coordinator, local owner mode, storage adapters, parser support, and
 query surfaces.
 
-Use `go test ./...` for broad package validation and `golangci-lint run ./...`
-before merging Go changes. The root README and local runbooks show the install
-paths for users; this directory is for maintainers working on the runtime.
+Use [Local Testing](../docs/public/reference/local-testing.md) for the focused
+gate that matches the surface you touched. The root README and local runbooks
+show install paths for users; this directory is for maintainers working on the
+runtime.
 
 ## Where to read next
 
@@ -18,27 +19,9 @@ and the rich documentation:
 - `go/internal/` — every internal package, with per-package `README.md`,
   `doc.go`, and scoped `AGENTS.md`.
 
-Open `go/cmd/README.md` for the binary-to-runtime map and the pipeline
-shape diagram, or `go/internal/README.md` for the internal-package layout
-diagram and the where-to-start-by-intent table.
-
-## Pipeline at a glance
-
-```mermaid
-flowchart LR
-  source[git source] --> collector
-  collector --> parser
-  parser --> facts[(facts)]
-  facts --> projector
-  projector --> reducer
-  projector --> cypher
-  reducer --> cypher
-  cypher --> graph[(graph backend)]
-  facts --> postgres[(postgres)]
-  api --> graph
-  api --> postgres
-  mcp[mcp-server] --> api
-```
+Open `go/cmd/README.md` for the binary-to-runtime map, or
+`go/internal/README.md` for the internal-package layout diagram and the
+where-to-start-by-intent table.
 
 ## Per-package documentation convention
 

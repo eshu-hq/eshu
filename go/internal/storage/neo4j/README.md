@@ -64,8 +64,8 @@ When narrowing the adapter boundary:
 
 ## Related docs
 
-- `go/internal/storage/cypher/README.md` — the backend-neutral contract that
-  this package's future adapters will implement
+- `go/internal/storage/cypher/README.md` — the backend-neutral contract for
+  this package's adapter implementations
 - `docs/public/architecture.md` — backend selection and ESHU_GRAPH_BACKEND
 - `docs/public/reference/nornicdb-tuning.md`
 - `docs/public/reference/graph-backend-installation.md`

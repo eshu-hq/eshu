@@ -41,13 +41,14 @@ empty environment. For the lifecycle of any one binary, open its `README.md`.
 
 ## Per-package documentation convention
 
-Every Go package directory under `go/cmd/` carries two required files:
+Every Go command directory under `go/cmd/` carries at least two package docs:
 
 - `doc.go` - godoc contract.
 - `README.md` - architectural and operational lens with runbook-shape notes.
 
-Use a package-local `AGENTS.md` only when command-specific assistant workflow
-rules cannot fit cleanly in the root agent guide or user-facing command README.
+Many command directories also carry package-local `AGENTS.md` files when the
+binary has scoped workflow rules. Do not delete those files unless the root
+agent guide explicitly replaces the same scope and precedence.
 
 ## Dependencies
 

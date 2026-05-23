@@ -1,6 +1,8 @@
 # Terraform Provider Support
 
-Eshu uses a **schema-driven approach** to extract infrastructure relationships from Terraform code. Instead of hand-writing extractors for each resource type, Eshu automatically generates extractors from real Terraform provider schemas.
+Eshu uses Terraform provider schemas to extract infrastructure relationship
+evidence from Terraform code. The runtime does not need one hand-written
+extractor per resource type.
 
 ## Runtime Ownership
 
@@ -26,33 +28,39 @@ transaction: repository facts are read back into a catalog, Terraform fact
 batches are scanned against that catalog, and matching rows are persisted to
 `relationship_evidence_facts` before the projector queue is enqueued.
 
-## Why These Schemas Exist
+## Why The Schemas Exist
 
 Eshu uses the output of `terraform providers schema -json` so it can reason
 about provider resource shapes instead of hard-coding one extractor per
 Terraform resource type.
 
-That gives the runtime three important properties:
+That keeps the runtime generic:
 
-- the schema assets are generated from real provider metadata
-- the runtime loader and extractor registration stay generic
-- the normal runtime path can emit schema-driven Terraform relationship
-  evidence without special-casing one provider family at a time
+- schema assets come from real provider metadata
+- extractor registration is data-driven
+- relationship evidence can cover new resource families without one-off parser
+  rules
 
 If you see packaged provider schemas in the repository, treat them as a
 required Go runtime dependency for Terraform relationship extraction.
 
 ## How It Works
 
-1. **Provider schemas** are generated from official Terraform provider binaries using `terraform providers schema -json`
-2. **Schemas are compressed** to `.json.gz` format with version tags (e.g., `aws-5.100.0.json.gz`)
-3. **Schemas ship inside the Go runtime tree** — no runtime downloads, works in Docker, local development, and deployed runtimes
-4. **Extractors auto-register** at import time for all resource types with name-like attributes
-5. **Zero manual maintenance** — adding providers or updating versions requires no code changes in the generic extractor flow
+1. Generate provider schemas from provider binaries with
+   `terraform providers schema -json`.
+2. Commit compressed `.json.gz` assets with versioned names such as
+   `aws-5.100.0.json.gz`.
+3. Load the packaged schemas from the Go runtime tree or embedded schema
+   bundle.
+4. Register schema-driven extractors for resource types with name-like
+   identity attributes.
+5. Emit relationship evidence through the same reducer-owned relationship flow
+   as hand-written evidence families.
 
-## Supported Providers
+## Packaged Providers
 
-Eshu includes 16 official providers out of the box, covering **6,004 resource types**.
+The checked-in schema bundle currently includes 21 providers covering 6,236
+resource types.
 
 ### Cloud Providers
 
@@ -90,7 +98,7 @@ Eshu includes 16 official providers out of the box, covering **6,004 resource ty
 | RabbitMQ | 1.10.1 | 11 | `cyrilgdn/rabbitmq` |
 | MySQL | 3.0.91 | 10 | `petoju/mysql` |
 
-## What Gets Extracted
+## Extracted Fields
 
 For each Terraform resource, Eshu extracts:
 
@@ -109,32 +117,19 @@ resource "aws_lambda_function" "api_handler" {
 }
 ```
 
-**Extracted:**
-- Identity: `checkout-api`
-- Category: `compute` (lambda → compute)
-- Candidate: Checks if `checkout-api` matches any repository name/alias
-- Confidence: 0.75
+Eshu extracts `checkout-api` as the resource identity, classifies
+`aws_lambda_function` as `compute`, checks the identity against repository
+aliases, and emits schema-driven evidence with confidence `0.75`.
 
 ## Identity Key Inference
 
 Eshu automatically infers which attribute to use as the resource identifier:
 
-1. **Well-known patterns** (in priority order):
-   - `name`
-   - `function_name`
-   - `bucket`
-   - `cluster_name`
-   - `queue_name`
-   - `topic_name`
-   - ... (see current canonical list in `go/internal/terraformschema/categories.go`)
-
-2. **Fallback patterns**:
-   - Any string attribute ending in `_name` (e.g., `db_name`, `role_name`)
-   - Any string attribute ending in `_identifier`
-
-3. **Skip if no match**:
-   - Sub-resources (attachments, policies)
-   - Resources without name-like attributes
+1. Prefer the canonical identity list in `go/internal/terraformschema/schema.go`
+   such as `name`, `function_name`, `bucket`, `cluster_name`, `queue_name`, and
+   `topic_name`.
+2. Fall back to string attributes ending in `_name` or `_identifier`.
+3. Skip resources without a name-like attribute.
 
 ## Service Category Classification
 
@@ -151,7 +146,8 @@ Eshu maps resource types to service categories using the provider prefix + servi
 | `aws_iam_role` | security | `iam` → security |
 | `random_password` | infrastructure | No category mapping (default) |
 
-Categories help group resources in queries and visualizations.
+Categories help group resources in queries and visualizations. The canonical
+mapping lives in `go/internal/terraformschema/categories.go`.
 
 ## Next Steps
 

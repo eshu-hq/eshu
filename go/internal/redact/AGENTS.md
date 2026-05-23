@@ -1,48 +1,35 @@
-# AGENTS.md — internal/redact guidance for LLM assistants
+# internal/redact
 
-## Read first
+## Read First
 
-1. `go/internal/redact/README.md` — package contract and security invariant.
-2. `go/internal/redact/redact.go` — exported API and marker construction.
-3. `go/internal/redact/policy.go` — collector-neutral classification API.
-4. `go/internal/redact/redact_test.go` and `policy_test.go` — deterministic
-   and fail-closed tests.
+1. `go/internal/redact/README.md`
+2. `go/internal/redact/doc.go`
+3. `go/internal/redact/redact.go`
+4. `go/internal/redact/policy.go`
+5. `go/internal/redact/redact_test.go`
+6. `go/internal/redact/policy_test.go`
 
-## Invariants this package enforces
+## Package Rules
 
-- **Fail closed** — empty and unsupported sensitive values must still return a
-  redaction marker.
-- **No raw leakage** — marker strings must not contain raw input, source text,
-  or reason text.
-- **Keyed deterministic evidence** — the same key, raw value, reason, and source
-  must produce the same marker, and changing key, reason, or source must change
-  the marker digest.
-- **Unknown-schema safety** — scalar values under unknown schema coverage are
-  redacted; non-scalar values are dropped.
-- **Uninitialized policy safety** — zero-value or otherwise uninitialized
-  `RuleSet` values fail closed rather than preserving fields.
-- **Unknown shape safety** — unknown `FieldKind` values are dropped rather than
-  preserved.
-- **Collector-neutral** — keep collector-specific key lists, provider schemas,
-  and telemetry counters in callers.
+- Redaction MUST fail closed. Empty, nil, unsupported, malformed, unknown
+  schema, uninitialized policy, and unknown field-kind inputs must not return
+  raw values.
+- Markers MUST stay keyed and deterministic for the same key, raw value, reason,
+  and source. Changing key, reason, or source must change the digest.
+- Marker strings MUST NOT contain raw input, reason text, source text, provider
+  names, or schema paths.
+- `NewKey` MUST reject blank key material and copy caller-provided material.
+  Never hardcode production redaction keys.
+- `Scalar` MUST NOT serialize arbitrary structs, maps, slices, or composite
+  values. Unsupported values hash only a safe type class.
+- `RuleSet` MUST remain collector-neutral. Provider-specific sensitive-key
+  lists, schema bundles, and redaction counters belong in callers.
+- This package MUST NOT emit logs, metrics, spans, facts, or status payloads.
 
-## Common changes and how to scope them
+## Proof
 
-- **Add a scalar encoding** — extend `scalarBytes`, add a table-driven test, and
-  ensure unsupported structs, maps, and slices still avoid serialization.
-- **Add map helpers** — only do this when a concrete collector caller needs it.
-  Keep helper behavior shallow and explicit so callers decide which fields are
-  sensitive.
-- **Add sensitive-key classification behavior** — extend `RuleSet` only when the
-  behavior is provider-neutral. Use caller-supplied versioned key lists; never
-  embed AWS, Terraform, or cloud-provider lists here.
-- **Change marker format** — treat this as a compatibility change. Existing
-  facts may depend on stable marker strings across generations.
-
-## Anti-patterns specific to this package
-
-- Serializing arbitrary structs, maps, or slices in `Scalar`.
-- Adding Terraform, AWS, or provider-specific sensitive-key policy here.
-- Emitting logs, metrics, or spans from this package.
-- Returning raw input on empty, nil, unsupported, or malformed values.
-- Hardcoding production redaction keys in code or tests.
+- Add table-driven tests for every scalar encoding, rule decision, and marker
+  compatibility change.
+- Run `cd go && go test ./internal/redact -count=1` for package changes.
+- Run `go run ./cmd/eshu docs verify ../go/internal/redact --limit 1400 --fail-on contradicted,missing_evidence`
+  for docs changes in this package.

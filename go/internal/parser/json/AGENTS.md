@@ -1,52 +1,31 @@
 # AGENTS.md - internal/parser/json
 
-## Read first
+## Read First
 
-1. `README.md` - package purpose, ownership boundary, and invariants.
-2. `doc.go` - godoc contract for parent parser callers.
-3. `language.go` - `Parse`, `Config`, payload setup, and JSON dispatch.
-4. `ordered_object.go` - order-preserving top-level and nested object helpers.
-5. `dbt_manifest.go` - dbt manifest payload construction.
-6. `data_intelligence.go` and `governance.go` - replay fixture extraction.
-7. Parent wrapper in `../json_language.go`.
+1. `README.md` and `doc.go`.
+2. `language.go`, `ordered_object.go`, `dbt_manifest.go`,
+   `data_intelligence.go`, and `governance.go`.
+3. Parent wrapper `../json_language.go` and JSON/dbt parser tests.
 
-## Invariants this package enforces
+## Guardrails
 
-- Do not import the parent `internal/parser` package. The parent wrapper depends
-  on this package and supplies parent-owned helpers through `Config`.
-- Preserve existing JSON payload bucket names and row fields.
-- Preserve document order for metadata, dependency, script, and TypeScript path
-  rows when ordered JSON or JSONC data is available.
-- Keep CloudFormation extraction delegated to `internal/parser/cloudformation`.
-- Keep dbt SQL lineage parsing in the parent package.
+- MUST NOT import `internal/parser`; parent-owned helpers enter through
+  `Config`.
+- MUST preserve JSON payload bucket names, row fields, document order where the
+  ordered decoder has it, and deterministic fallback ordering where maps lose
+  order.
+- MUST keep JSONC normalization bounded and strict after comments/trailing
+  commas are stripped.
+- MUST delegate CloudFormation/SAM extraction to `internal/parser/cloudformation`.
+- MUST keep dbt SQL lineage parsing parent-owned through `LineageExtractor`.
+- MUST NOT read repository state beyond the single file passed to `Parse`.
 
-## Common changes
+## Change Scope
 
-- New JSON or JSONC document shapes belong in `language.go` only when they are
-  selected by filename or decoded document shape with bounded cost.
-- New dbt manifest fields belong in `dbt_manifest.go` and need focused tests
-  proving payload rows and coverage state.
-- New replay fixture families belong in `data_intelligence.go` unless they are
-  governance-specific, where `governance.go` owns the rows.
-- New parent-owned behavior should be passed through `Config` instead of adding
-  a parent-package import.
-
-## Failure modes
-
-- Missing dependency or script rows usually means ordered-object fallback logic
-  drifted in `orderedJSONSectionKeys`.
-- Missing CloudFormation rows usually means `cloudformation.IsTemplate` did not
-  recognize the decoded document shape.
-- Missing dbt column lineage usually means the parent wrapper did not supply
-  `LineageExtractor` or the manifest lacked compiled model SQL.
-- Flaky payload ordering usually means a map iteration path was added without a
-  deterministic sort.
-
-## What Not To Change Without Architecture-Owner Approval
-
-- Do not make this package read repository state beyond the single file passed
-  to `Parse`.
-- Do not add graph, collector, storage, query, projector, or reducer
-  dependencies.
-- Do not move `dbt_sql_lineage.go` or its parent-exported lineage types into
-  this package.
+- Add JSON/JSONC document support only when selected by bounded filename or
+  decoded-shape evidence.
+- Add dbt manifest fields in `dbt_manifest.go` with tests proving payload rows
+  and coverage state.
+- Add replay fixture rows in the domain file that owns that fixture family.
+- Do not move parent-exported lineage types, graph/query behavior, or storage
+  dependencies into this package.

@@ -1,53 +1,29 @@
-# AGENTS.md - internal/parser/ruby guidance
+# AGENTS.md - internal/parser/ruby
 
-## Read first
+## Read First
 
-1. README.md - package boundary and Ruby context invariants
-2. doc.go - godoc contract for the Ruby adapter
-3. parser.go - declaration, variable, import, and payload behavior
-4. calls.go - method-call and argument normalization helpers
-5. dead_code_roots.go - Ruby parser-backed dead-code root metadata
-6. parser_test.go - behavior coverage for payload shape
+1. `README.md` and `doc.go`.
+2. `parser.go`, `calls.go`, and `dead_code_roots.go`.
+3. `parser_test.go` and parent Ruby parser tests.
 
-## Invariants this package enforces
+## Guardrails
 
-- Dependency direction stays one way: parent parser code may import this
-  package, but this package must not import internal/parser.
-- Parse preserves the legacy Ruby payload shape, including modules,
-  module_inclusions, framework_semantics, and context metadata.
-- Ruby `end` handling must keep function and class `end_line` metadata current
-  because reducer call materialization depends on method containment for
-  receiverless helper calls.
-- PreScan derives names from Parse so parent pre-scan and full parse agree.
-- Dead-code roots are parser evidence only. Rails controller action and callback
-  roots must stay bounded to literal class names, visibility lines, and symbol
-  arguments the line parser has actually seen.
+- MUST NOT import `internal/parser`; parent wrappers own registry dispatch,
+  engine orchestration, repository path handling, and parse telemetry.
+- MUST preserve legacy Ruby payload buckets, context metadata, `end_line`
+  metadata, method suffixes, and deterministic pre-scan output.
+- MUST keep constants in the legacy `variables` bucket unless downstream shape
+  work explicitly introduces a constants bucket.
+- MUST keep dead-code roots source-backed and bounded to visible Ruby evidence:
+  Rails controller actions, literal callbacks, `method_missing`,
+  `respond_to_missing?`, literal dynamic-send symbol targets, and script guards.
+- MUST keep unmodeled Rails/Rake DSL chains as bounded call evidence until
+  tests and dogfood proof justify a root model.
 
-## Common changes and how to scope them
+## Change Scope
 
-- Add Ruby evidence by writing a focused test in parser_test.go first.
-- Keep registry, Engine dispatch, and content-shape changes outside this
-  package unless the task explicitly includes those files.
-- Use internal/parser/shared helpers for payload buckets and sorting.
-- Keep constants in the legacy `variables` bucket unless a downstream shape
-  change explicitly introduces a constants bucket. Keep unmodeled Rails/Rake DSL
-  calls as call evidence until a focused root model and dogfood proof exists.
-
-## Failure modes and how to debug
-
-- Missing context metadata usually means block push/pop behavior changed.
-- Missing call rows usually mean calls.go filtered a DSL or chained-call shape
-  that parent parser tests rely on.
-- Missing Ruby root metadata usually means `dead_code_roots.go` did not see a
-  literal callback symbol, script guard call, or class visibility transition.
-
-## Anti-patterns specific to this package
-
-- Importing the parent parser package.
-- Treating Ruby blocks as fully parsed syntax without fixture proof.
-- Emitting new bucket keys without matching downstream shape work.
-
-## What Not To Change Without Architecture-Owner Approval
-
-- Do not change Ruby extension ownership or registry behavior from this
-  package.
+- Add Ruby behavior with a failing `parser_test.go` or parent parser test first.
+- Keep registry ownership, Engine dispatch, and content-shape work outside this
+  package unless the task explicitly includes those surfaces.
+- Do not change Ruby extension ownership, bucket names, or root semantics
+  without downstream fixture/query impact review.

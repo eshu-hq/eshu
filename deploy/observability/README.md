@@ -45,8 +45,8 @@ Standalone Prometheus deployments load `alerts.yaml` as a normal rule file.
 Kubernetes deployments that use kube-prometheus-stack apply
 `prometheus-rule.yaml`.
 
-The OTEL Collector config is intentionally small: OTLP receiver, batch
-processor, Jaeger trace exporter, Prometheus metric exporter, and separate
+The OTEL Collector config is intentionally small: OTLP receivers, a batch
+processor, Jaeger trace export, Prometheus metric export, and separate
 trace/metric pipelines.
 
 ## Verification

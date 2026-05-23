@@ -29,7 +29,7 @@ Read this before touching `go/internal/reducer/tags`.
 
 ## Common changes
 
-### Add a new canonical keyspace to the scaffold
+### Add a new canonical keyspace to the contract
 
 1. Append to `defaultRuntimeContract.CanonicalKeyspaces` in `contract.go`.
 2. Update `PhaseStates` in `normalizer.go` to produce a row for the new

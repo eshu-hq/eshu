@@ -1,8 +1,5 @@
 # AGENTS.md - internal/parser/hcl
 
-The HCL adapter owns Terraform, provider-lock, and Terragrunt parser evidence.
-Use `README.md` and `doc.go` for the current payload contract.
-
 ## Read First
 
 1. `README.md` and `doc.go`.
@@ -13,29 +10,32 @@ Use `README.md` and `doc.go` for the current payload contract.
 4. Parent tests `../hcl_terraform_test.go`, `../hcl_terragrunt_test.go`, and
    `../hcl_terragrunt_join_additional_test.go`.
 
-## Mandatory Guardrails
+## Guardrails
 
-- This package MUST NOT import `internal/parser`; parent wrappers own registry,
+- MUST NOT import `internal/parser`; parent wrappers own registry,
   runtime, path normalization, and `Engine` signatures.
-- `Parse` must preserve Terraform, provider-lock, and Terragrunt bucket names,
+- MUST preserve Terraform, provider-lock, and Terragrunt bucket names,
   row fields, and deterministic ordering.
-- `terragrunt.hcl` uses the Terragrunt path. `.terraform.lock.hcl` uses the
+- MUST route `terragrunt.hcl` through Terragrunt and `.terraform.lock.hcl` through
   lockfile path. Other HCL files use Terraform block extraction.
-- Terragrunt helper and include-chain extraction is bounded static evidence:
+- MUST keep Terragrunt helper and include-chain extraction as bounded static
+  evidence:
   no broad HCL/Terragrunt expression evaluator, no repository-specific
   conventions, and no symlink/device/FIFO include reads.
-- Resource drift attributes use cty evaluation through `literalAttributeValue`;
+- MUST use cty evaluation through `literalAttributeValue` for resource drift
+  attributes;
   raw byte slicing breaks heredocs and escaped strings.
-- Keep parser `source_path` for Terragrunt remote-state provenance distinct
+- MUST keep parser `source_path` for Terragrunt remote-state provenance distinct
   from backend `path`.
-- The multi-element first-wins debug log in `walkBlockAttributes` is tied to
+- MUST preserve the multi-element first-wins debug log in `walkBlockAttributes`;
+  it is tied to
   the state-side flatten log and frozen `LogKeyDriftMultiElement*` keys. Do not
   remove or rename it without coordinated storage and telemetry changes.
 
 ## Change Scope
 
-- Terraform block changes start with focused parent Terraform tests.
-- Terragrunt expression, include, or remote-state changes start with focused
+- Start Terraform block changes with focused parent Terraform tests.
+- Start Terragrunt expression, include, or remote-state changes with focused
   Terragrunt tests and warning-row coverage for rejection paths.
 - Do not reassign HCL extension or exact-name routing without
   architecture-owner approval; it changes fact idempotency.

@@ -1,8 +1,5 @@
 # AGENTS.md - internal/parser/java
 
-The Java adapter owns Java syntax and metadata evidence. Use `README.md` and
-`doc.go` for the current package contract.
-
 ## Read First
 
 1. `README.md` and `doc.go`.
@@ -13,27 +10,27 @@ The Java adapter owns Java syntax and metadata evidence. Use `README.md` and
 4. `parser_test.go`, `metadata_test.go`, and parent Java tests in
    `go/internal/parser`.
 
-## Mandatory Guardrails
+## Guardrails
 
-- This package MUST NOT import `go/internal/parser`; parent wrappers own
+- MUST NOT import `go/internal/parser`; parent wrappers own
   registry lookup, runtime construction, path normalization, and Engine
   signatures.
-- Callers own the tree-sitter parser and must configure it for Java before
+- MUST let callers own the tree-sitter parser and configure it for Java before
   `Parse` or `PreScan`.
-- Preserve parent payload buckets for Java declarations, imports, variables,
+- MUST preserve parent payload buckets for Java declarations, imports, variables,
   calls, roots, reflection rows, and the `java_metadata` compatibility payload.
-- Local variables emit only when `Options.VariableScope` normalizes to `all`;
+- MUST emit local variables only when `Options.VariableScope` normalizes to `all`;
   module scope remains the default.
-- Reflection, ServiceLoader, Spring, and method-reference evidence must be
+- MUST keep reflection, ServiceLoader, Spring, and method-reference evidence
   static and source-backed. Dynamic strings, comments, naming conventions,
   invalid class names, and duplicate simple receiver names are not graph truth.
-- Ordering follows source line and name through shared bucket sorting.
-- This package emits no runtime telemetry directly.
+- MUST sort by source line and name through shared bucket sorting.
+- MUST emit no runtime telemetry directly.
 
 ## Change Scope
 
-- Public parse behavior starts with parent `Engine.ParsePath` tests.
-- Internal receiver, argument, class-context, and return-type inference starts
+- Start public parse behavior with parent `Engine.ParsePath` tests.
+- Start internal receiver, argument, class-context, and return-type inference
   with child-package tests.
 - Dead-code root changes need positive and negative parser tests so ordinary
   methods do not become roots by name.

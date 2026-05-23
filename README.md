@@ -42,36 +42,6 @@ Ask things like:
 | Understand the architecture | [How Eshu works](docs/public/concepts/how-it-works.md) |
 | Contribute | [Contributing](CONTRIBUTING.md) |
 
-## Quick Start
-
-For the full local stack, use Docker Compose:
-
-```bash
-git clone https://github.com/eshu-hq/eshu.git
-cd eshu
-
-docker compose up --build
-```
-
-Compose starts Postgres, NornicDB, the HTTP API, MCP server, ingester,
-resolution engine, and bootstrap indexer. The API listens on
-`http://localhost:8080`, and the MCP service listens on `http://localhost:8081`.
-
-For the local developer service, install the Eshu runtime binaries from a
-checkout:
-
-```bash
-./scripts/install-local-binaries.sh
-export PATH="$(go env GOPATH)/bin:$PATH"
-
-eshu graph start --workspace-root "$PWD"
-```
-
-The installer does not install a separate NornicDB binary. The default local
-graph backend is embedded into the `eshu` binary. The script builds the other
-Eshu runtime binaries that the local service supervises, such as
-`eshu-ingester`, `eshu-reducer`, and `eshu-mcp-server`.
-
 ## What Eshu Gives You
 
 - **Company-wide AI context:** one MCP endpoint backed by shared indexed truth.
@@ -83,28 +53,6 @@ Eshu runtime binaries that the local service supervises, such as
   checks for production use.
 - **Backend choice:** NornicDB by default, Neo4j when your team already
   operates it.
-
-## How It Works
-
-```mermaid
-flowchart LR
-  A["Git and platform collectors"] --> B["Parse repository snapshots"]
-  B --> C["Postgres fact store"]
-  C --> D["Fact work queue"]
-  D --> E["Resolution engine"]
-  E --> F["Canonical graph projection"]
-  F --> G["Graph backend"]
-  F --> H["Postgres content store"]
-  I["CLI / MCP / HTTP API"] --> G
-  I --> H
-```
-
-The same indexed model is available through:
-
-- CLI commands for local and operator workflows
-- MCP for AI assistants and IDEs
-- HTTP API routes for automation and internal platforms
-- Kubernetes runtimes for continuous team-wide indexing
 
 ## Documentation
 
@@ -138,6 +86,16 @@ The full documentation is organized by job:
 | NornicDB graph backend | Default supported backend |
 | Neo4j graph backend | Supported compatibility backend |
 | Optional collectors | Varies by collector; see [Collector And Reducer Readiness](docs/public/reference/collector-reducer-readiness.md) |
+
+## Repository Surfaces
+
+| Path | Purpose |
+| --- | --- |
+| `go/` | Go module for the CLI, API, MCP server, ingester, reducer, collectors, storage, parser, and query code. |
+| `deploy/helm/eshu/` | Public split-service Helm chart. |
+| `deploy/observability/` | Prometheus alert rules and local OpenTelemetry Collector config. |
+| `apps/console/` | Private read-only product console for Eshu graph data. |
+| `docs/public/` | MkDocs source for the public documentation site. |
 
 ## Project
 

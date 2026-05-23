@@ -61,9 +61,9 @@ current response includes:
 | `http_and_rpc_roots` | HTTP route handlers, RPC handlers, framework controller actions, and equivalent request handlers. |
 | `framework_callback_roots` | Workers, schedulers, lifecycle hooks, interface/trait/protocol callbacks, DI callbacks, tests, and runtime callback registrations. |
 
-The implementation also reports modeled entrypoints, modeled public API roots,
-modeled framework roots, Go semantic roots, and notes describing the current
-derived model.
+The implementation also reports modeled entrypoints, public API roots,
+framework roots, semantic roots, and notes that explain the current derived
+model.
 
 ## Output Contract
 
@@ -132,35 +132,23 @@ Request-level decorator exclusions also set `analysis.user_overrides_applied`.
 
 ## Fixture Contract
 
-Dead-code exactness is language scoped. A language cannot claim exact
-cleanup-safe results until its fixture suite covers:
+Dead-code exactness is language scoped. Parser fixtures prove syntax
+extraction; dead-code fixtures prove cleanup safety. A language cannot claim
+exact results until fixtures cover unused symbols, direct reachability edges,
+entrypoints, public API surfaces, framework/callback roots, semantic dispatch,
+test and generated-code exclusions, and at least one ambiguous dynamic case.
 
-- a truly unused symbol that should be returned
-- a direct call, import, reference, inheritance, or implementation edge that
-  should suppress a candidate
-- an executable entrypoint or initializer
-- an exported or public API surface
-- a framework route, worker, scheduler, annotation, decorator, command, or
-  callback root
-- semantic dispatch such as function values, method values, interfaces, traits,
-  protocols, dynamic imports, or generated registries
-- test and generated-code exclusions
-- an ambiguous dynamic case that prevents exact truth
-- every valid language construct that can affect reachability, or a named
-  exactness blocker explaining why it prevents exact output
-
-The fixture inventory lives at `tests/fixtures/deadcode/README.md`. Parser
-fixtures prove syntax extraction. Dead-code fixtures prove cleanup safety.
+The fixture inventory lives at `tests/fixtures/deadcode/README.md`.
 
 ## Proof Gates
 
-Promoting any language or scope above `derived` requires all of these proofs:
+Promoting any language or scope above `derived` requires:
 
-1. Parser or SCIP evidence for definitions, calls, references, imports, and
-   root metadata.
+1. Parser or SCIP evidence for definitions, calls, references, imports, and root
+   metadata.
 2. Query tests for unused, reachable, excluded, and ambiguous results.
-3. API, MCP, and CLI output proving truth labels, classifications, maturity, and
-   blockers.
+3. API, MCP, and CLI output for truth labels, classifications, maturity, and
+   exactness blockers.
 4. Backend conformance for NornicDB and Neo4j query shapes.
 5. Performance evidence for bounded candidate scans on representative input.
 

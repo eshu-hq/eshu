@@ -15,10 +15,9 @@ artifacts.
 Public docs should live under `docs/public/` and be linked from
 `docs/mkdocs.yml` when they should appear in the site navigation.
 
-Historical plans and proof notes are not a stable documentation surface. Extract
-durable decisions, workflows, diagrams, and performance learnings into
-`docs/public/`, `docs/internal/`, or package-local docs, then delete the stale
-working note.
+Historical plans and proof notes are not stable documentation. Extract durable
+decisions, workflows, diagrams, and performance learnings into `docs/public/`,
+`docs/internal/`, or package-local docs, then delete stale working notes.
 
 Build the public docs with:
 

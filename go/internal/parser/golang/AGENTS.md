@@ -1,9 +1,5 @@
 # AGENTS.md - internal/parser/golang
 
-The Go adapter owns Go syntax evidence only. The README and `doc.go` hold the
-package contract; use this file for local guardrails before changing parser
-behavior.
-
 ## Read First
 
 1. `README.md` and `doc.go`.
@@ -16,30 +12,33 @@ behavior.
 5. Parent tests in `go/internal/parser/go*_test.go` before changing emitted
    payload shape.
 
-## Mandatory Guardrails
+## Guardrails
 
-- This package MUST NOT import `internal/parser`; parent wrappers own registry,
+- MUST NOT import `internal/parser`; parent wrappers own registry,
   runtime, path normalization, and option aggregation.
-- `Parse` and `PreScan` must preserve deterministic bucket names, fields, and
-  ordering. Sort payload rows and pre-scan results before returning.
-- Dead-code roots require bounded Go source evidence: syntax, registration,
-  same-file proof, same-package proof, scoped receiver proof, or qualified
-  package contract evidence. Name-only method matches are not enough.
-- `ImportedInterfaceParamMethods` stays file-local; package grouping belongs in
-  the parent `Engine` wrapper.
-- Embedded SQL line numbers must refer to the original Go source.
-- Do not reintroduce per-call full-tree walks for parent or variable lookup.
-  Use the existing parent, variable-type, and imported-variable-type indices so
-  per-file cost stays linear.
-- This package emits no telemetry directly; parent runtime and collector paths
-  own parse timing and failures.
+- MUST preserve deterministic bucket names, fields, ordering, and pre-scan
+  results.
+- MUST keep direct method roots scoped to receiver evidence; same-method-name
+  fallback is not enough.
+- MUST treat function-value references as reachability evidence only when source
+  text proves escape through a bounded call, field, return, callback, or
+  interface contract.
+- MUST bound imported package evidence to qualified package contracts and
+  scoped imported-variable receiver types.
+- MUST keep embedded SQL line numbers tied to the original Go source.
+- MUST keep parent, variable-type, and imported-variable-type indices in use;
+  do not reintroduce per-call full-tree walks.
+- MUST keep branch counting and cyclomatic complexity consistent with the
+  parent parser contract.
+- MUST emit no telemetry directly; parent runtime and collector paths own parse
+  timing and failures.
 
 ## Change Scope
 
-- New Go payload fields or root kinds need failing parser tests first, then the
+- Add Go payload fields or root kinds with failing parser tests first, then the
   narrow helper that owns the evidence.
-- SQL extraction changes start in `embedded_sql_test.go`.
-- Same-package interface evidence changes must test both the child helper and
+- Start SQL extraction changes in `embedded_sql_test.go`.
+- Test same-package interface evidence in both the child helper and
   the parent package pre-scan wrapper.
 - Do not change `.go` registry ownership, `embedded_sql_queries`,
   `dead_code_root_kinds`, or `function_calls` without downstream facts,

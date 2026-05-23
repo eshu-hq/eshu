@@ -37,7 +37,7 @@ Read this before touching `go/internal/reducer/dsl`.
    post-Phase-3 reopen obligation in this README.
 3. Add a `contract_test.go` or `evaluator_test.go` case.
 
-### Add a new checkpoint to the DSL scaffold
+### Add a new checkpoint to the DSL contract
 
 1. Append to `defaultRuntimeContract.Checkpoints` in `contract.go`.
 2. If the new phase gates a domain that is currently blocked, verify the

@@ -93,57 +93,21 @@ go test ./internal/collector ./internal/collector/awscloud/awsruntime \
   ./internal/storage/postgres -count=1
 ```
 
-## API Gateway Throttle Regression
+## Focused Regression Gates
 
-When changing API Gateway scanner throttling, prove sustained `GetResources`
-throttling records a durable warning instead of failing the whole scan:
+Use package tests for focused collector regressions before spending remote
+runtime time:
 
-```bash
-cd go
-go test ./internal/collector/awscloud/services/apigateway/awssdk \
-  -run 'TestClientSnapshotRecordsWarningWhenRESTResourcesThrottle|TestClientSnapshotReadsRESTAndV2MetadataOnly' \
-  -count=1 -v
+| Change | Focused gate |
+| --- | --- |
+| API Gateway throttle handling | `cd go && go test ./internal/collector/awscloud/... -count=1` |
+| Scheduled AWS planning and Terraform-state readiness | `cd go && go test ./internal/coordinator ./internal/storage/postgres -count=1` |
 
-go test ./internal/collector/awscloud/services/apigateway/awssdk \
-  -run 'TestClientSnapshotDiscardsPartialRESTIntegrationsWhenLaterPageThrottles|TestClientSnapshotDeduplicatesRESTResourceThrottleWarnings' \
-  -count=1 -v
-
-go test ./internal/collector/awscloud/services/apigateway \
-  -run 'TestScannerEmitsThrottleWarningFacts|TestScannerEmitsAPIGatewayMetadataOnlyFactsAndRelationships' \
-  -count=1 -v
-
-go test ./internal/collector/awscloud/awsruntime \
-  -run 'TestClaimedSourceMarksThrottleWarningAsPartial|TestClaimedSourceRecordsScanStatusWithAPICallStats' \
-  -count=1 -v
-
-go test ./internal/collector/awscloud/... -count=1
-```
-
-Expected observability: existing AWS API-call and throttle counters increment,
-`aws_warning` records `warning_kind=throttle_sustained`, and
+Expected throttle observability: AWS API-call and throttle counters increment,
+`aws_warning` records sustained throttling, and
 `aws_scan_status.status=partial` carries `failure_class=throttled`.
 
-## Scheduled Work And Terraform-State Readiness
-
-Scheduled AWS planning and Terraform-state backend discovery:
-
-```bash
-cd go
-go test ./internal/coordinator ./internal/storage/postgres \
-  -run 'TestAWSScheduledWorkPlannerPlansConfiguredTargets|TestServiceRunActiveModeSchedulesAWSWorkWithoutFreshnessTriggers|TestTerraformStateBackendFactReaderReturnsS3Candidates|TestTerraformStateGitReadinessCheckerReportsActiveGeneration' \
-  -count=1
-```
-
-Targeted collector duplicate suppression:
-
-```bash
-cd go
-go test ./internal/coordinator ./internal/storage/postgres \
-  -run 'TestServiceRunActiveModeSkipsAWSWorkWhenPriorScheduledTargetIsOpen|TestServiceRunActiveModeSchedulesAWSWorkWithoutFreshnessTriggers|TestServiceRunActiveModeSchedulesOCIRegistryWork|TestServiceRunActiveModeSchedulesPackageRegistryWork|TestServiceRunActiveModeSkipsAWSFreshnessWhenPriorTargetIsOpen|TestRunAWSFreshnessHandoffUsesDurableInstancesBetweenReconciles|TestRunActiveMaintenanceReconcilesWorkflowRunsBetweenReconciles|TestWorkflowControlStoreGuardedRunSkipsOpenScheduledTarget|TestWorkflowControlStoreGuardedRunCreatesEligibleScheduledTarget' \
-  -count=1
-```
-
-The duplicate-suppression conflict domain is `(collector_kind,
+The duplicate-suppression conflict domain remains `(collector_kind,
 collector_instance_id, scope_id, acceptance_unit_id)`.
 
 ## Terraform-State Warning-Only Generations

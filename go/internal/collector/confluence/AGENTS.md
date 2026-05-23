@@ -1,54 +1,41 @@
-# AGENTS.md - internal/collector/confluence guidance for LLM assistants
+# confluence Agent Guidance
 
 ## Read First
 
-1. `go/internal/collector/confluence/README.md` - package purpose, flow, and
-   invariants
-2. `go/internal/collector/confluence/source.go` - `Source.Next`, generation
-   construction, and fact envelope creation
-3. `go/internal/collector/confluence/source_collect.go` - page collection,
-   enrichment, and partial-sync handling
-4. `go/internal/collector/confluence/client.go` - read-only HTTP client and
-   permission-gap behavior
-5. `go/internal/collector/confluence/config.go` - env config validation
-6. `go/internal/facts/documentation.go` - source-neutral documentation fact
-   schema
+1. `README.md` and `doc.go` for package scope.
+2. `config.go` for bounded source modes.
+3. `client.go` for read-only HTTP behavior, pagination, and permission gaps.
+4. `source_collect.go` for page collection, enrichment, and partial-sync
+   behavior.
+5. `source.go`, `extract.go`, and `source_observed.go` for fact emission,
+   link extraction, claim candidates, and observation telemetry.
+6. `go/internal/facts/documentation.go` for source-neutral documentation facts.
 
-## Invariants This Package Enforces
+## Local Rules
 
-- **Read-only source evidence** - Confluence access must remain `GET` only.
-  Eshu collectors gather truth; write behavior belongs in separate services.
-- **Bounded syncs only** - collection must be scoped to one explicit space ID,
-  an explicit list of space IDs, or one root page ID. Do not introduce
-  unbounded site-wide crawling.
-- **Source-neutral output** - facts must use the documentation schema, not
-  Confluence-specific fact kinds.
-- **Partial-sync visibility** - permission gaps must increment
-  `failure_count` and set `sync_status=partial`.
-- **Bounded source metrics** - Confluence metrics may use `operation`,
-  `result`, `status_class`, and `failure_class` only. Page IDs, titles, URLs,
-  paths, body text, and excerpts stay out of metric labels.
-- **Stable identity** - page identity must be based on Confluence page ID, not
-  title, so duplicate titles remain distinct.
+- Keep Confluence access read-only. HTTP clients must only issue `GET`
+  requests.
+- Require one bounded source: one space, an explicit space-ID allowlist, or one
+  root page tree. Do not add site-wide crawling.
+- Emit source-neutral documentation facts; do not create Confluence-specific
+  fact kinds for data already covered by source, document, section, or link
+  facts.
+- Treat permission gaps as partial-sync evidence with failure counts and
+  `sync_status=partial`; do not fail the whole tree for one inaccessible child.
+- Keep page identity based on Confluence page ID, not title.
+- Keep page IDs, titles, URLs, paths, body text, excerpts, credentials, and
+  claim text out of metric labels.
+- Keep pagination bounded to the configured Confluence base URL and compatible
+  `/wiki` context path handling.
 
-## Common Changes And How To Scope Them
+## Change Rules
 
-- **Add Confluence metadata** - extend `Page` or `Space`, add a fixture or fake
-  test, and map it into documentation payload metadata only when the source
-  returns it.
-- **Change link extraction** - add HTML storage-body tests first. Preserve
-  deterministic `LinkID` ordering.
-- **Change stale-page handling** - update tests for deleted pages and duplicate
-  revisions before changing `latestCurrentPages`.
-- **Change client behavior** - keep HTTP tests proving read-only methods and
+- Add metadata only when the source returns it; cover it with fake or fixture
+  tests before mapping it into documentation payload metadata.
+- Change link extraction with storage-body HTML tests and deterministic
+  `LinkID` ordering.
+- Change stale-page handling with deleted-page and duplicate-revision tests.
+- Change client behavior with tests proving read-only methods and
   permission-gap mapping.
-- **Change telemetry** - update `metrics_test.go`, telemetry docs, and
-  collector evidence markers before changing metric names or labels.
-
-## Anti-Patterns
-
-- Calling Confluence mutation APIs.
-- Creating Confluence-specific fact kinds for data already represented by
-  documentation source, document, section, or link facts.
-- Failing an entire page-tree sync for a single inaccessible child page.
-- Treating empty spaces as errors.
+- Add telemetry through bounded labels and update metric tests plus telemetry
+  docs when names or labels change.

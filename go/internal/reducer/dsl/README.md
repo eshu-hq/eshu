@@ -43,7 +43,7 @@ evaluator owns runtime telemetry and status publication.
 ## Gotchas / invariants
 
 - `RuntimeContractTemplate` must return defensive copies; callers can inspect
-  the scaffold but must not mutate package globals.
+  the contract but must not mutate package globals.
 - `EvaluationResult.PhaseStates` dedupes duplicate publications. Preserve
   stable state generation because phase replay depends on it.
 - `PublishEvaluationResult` must reject invalid publications instead of writing

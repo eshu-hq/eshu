@@ -102,16 +102,8 @@ contract. Screen code must preserve:
 
 Do not flatten truth and freshness into generic loading or error states.
 
-## First Slice
+## Related Docs
 
-PR 1 includes:
-
-- local Eshu API default with explicit demo-mode fallback
-- typed envelope client
-- role-neutral search
-- repository story workspace from the live HTTP API
-- dashboard, catalog, and findings surfaces
-- dead-code as the first finding type
-
-Future slices can add D3 path maps and uiGrid-backed dense tables behind the
-existing `visualization/` and `grid/` component boundaries.
+- `docs/public/reference/http-api.md`
+- `docs/public/reference/truth-label-protocol.md`
+- `docs/public/guides/visualization.md`

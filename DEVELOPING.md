@@ -1,8 +1,8 @@
 # Developing Eshu
 
 This document is for anyone writing code in this repo. It covers how the
-Go-owned parser system works, how to add language or IaC support, and how to
-validate runtime changes honestly.
+current runtime is organized, where to find the deeper runbooks, and how to
+validate changes without copying the public docs into another file.
 
 For general contribution rules, see [CONTRIBUTING.md](CONTRIBUTING.md).
 
@@ -17,20 +17,16 @@ Use these as the primary source of truth while you work:
 
 ## Development Environment
 
+Build and test from the Go module root:
+
 ```bash
 go version
 cd go && go test ./cmd/eshu -count=1
 ```
 
-Pre-PR checks:
-
-```bash
-cd go
-go test ./cmd/eshu ./cmd/api ./cmd/mcp-server ./cmd/bootstrap-index ./cmd/ingester ./cmd/reducer -count=1
-go test ./internal/parser ./internal/collector ./internal/query ./internal/runtime ./internal/reducer ./internal/projector -count=1
-go test ./internal/terraformschema ./internal/relationships ./internal/storage/postgres -count=1
-golangci-lint run ./...
-```
+Use [Local Testing Runbook](docs/public/reference/local-testing.md) for the
+smallest gate that proves the surface you touched. README and docs changes also
+need the MkDocs strict build and `git diff --check`.
 
 ## Go Engineering Rules
 
@@ -45,43 +41,34 @@ This repository follows Google-aligned Go engineering defaults:
 If you change local verification or deployment behavior, update the matching
 runbook in `docs/public/` in the same slice.
 
-## Parser Architecture
+## Package Ownership
 
-Eshu now uses a Go-owned parser platform rooted in `go/internal/parser/`.
+The high-level flow is:
 
-### Registry And Dispatch
+```text
+sync -> discover -> parse -> emit facts -> enqueue work -> reducer -> graph/content projection -> query surface
+```
 
-- `registry.go` owns parser-key and extension dispatch
-- `engine.go` owns per-file parse execution
-- `runtime.go` owns tree-sitter bootstrap and parser construction
-- `scip_support.go` and `scip_parser.go` own SCIP ingestion paths
+Keep changes inside the package that owns the behavior:
 
-The parser engine dispatches by file type and returns a normalized payload that
-feeds collector facts, content shaping, projector stages, and reducer domains.
+- `go/internal/collector/` owns repository collection, discovery, snapshotting,
+  and parser inputs.
+- `go/internal/parser/` owns parser registry, adapters, language behavior, and
+  SCIP support.
+- `go/internal/facts/` owns durable fact models and queue contracts.
+- `go/internal/storage/postgres/` owns facts, queues, status, content, recovery,
+  and decision storage.
+- `go/internal/storage/cypher/` owns backend-neutral graph write contracts.
+- `go/internal/reducer/` owns cross-domain materialization and shared
+  projection.
+- `go/internal/query/` owns HTTP handlers, OpenAPI, and bounded read surfaces.
+- `go/internal/runtime/`, `go/internal/status/`, and `go/internal/telemetry/`
+  own probes, status, retry policy, metrics, spans, and logs.
 
-### Language Families
+Use [Source Layout](docs/public/reference/source-layout.md) and
+package-local `README.md` files for the directory-level map.
 
-The parser platform covers:
-
-- managed OO languages
-- scripting languages
-- systems languages
-- infrastructure formats
-- SQL and data-intelligence formats
-- raw-text fallback where intentional
-
-Representative test coverage lives under:
-
-- `go/internal/parser/engine_test.go`
-- `go/internal/parser/engine_managed_oo_test.go`
-- `go/internal/parser/engine_python_semantics_test.go`
-- `go/internal/parser/engine_javascript_semantics_test.go`
-- `go/internal/parser/engine_systems_test.go`
-- `go/internal/parser/engine_infra_test.go`
-- `go/internal/parser/engine_sql_test.go`
-- `go/internal/parser/json_dbt_test.go`
-
-### IaC And Schema-Driven Parsing
+## Parser And IaC Work
 
 Infrastructure parsing is split deliberately:
 
@@ -95,7 +82,12 @@ Terraform provider schemas are runtime assets, not just generated fixtures. If
 you change how Terraform extraction works, update the packaged schema path and
 the operator docs together.
 
-## Adding A New Parser Capability
+For language support, use
+[Language Support](docs/public/contributing-language-support.md) and the
+language pages under `docs/public/languages/` instead of duplicating the parser
+matrix here.
+
+## Adding A Parser Capability
 
 1. Write or extend a fixture under `tests/fixtures/`.
 2. Add a focused Go test under `go/internal/parser/`.
@@ -134,19 +126,9 @@ Shared runtime concerns live under:
 If a change affects probes, retries, admin/status, or recovery, update both the
 runtime package tests and the operator docs.
 
-## Integration And Compose Proof
+## Integration Proof
 
-Use the compose proof scripts for cross-service validation:
-
-```bash
-./scripts/verify_collector_git_runtime_compose.sh
-./scripts/verify_projector_runtime_compose.sh
-./scripts/verify_reducer_runtime_compose.sh
-./scripts/verify_incremental_refresh_compose.sh
-./scripts/verify_relationship_platform_compose.sh
-./scripts/verify_admin_refinalize_compose.sh
-```
-
-Use `docs/public/reference/local-testing.md` as the source of truth for when each
-proof is required. When mounting host repositories into Compose, use an
+Use [Local Testing Runbook](docs/public/reference/local-testing.md) to choose
+focused package tests, Compose proofs, Helm checks, docs gates, and hot-path
+performance evidence. When mounting host repositories into Compose, use an
 absolute non-symlink path for `ESHU_FILESYSTEM_HOST_ROOT`.

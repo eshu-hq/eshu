@@ -9,7 +9,7 @@ repo's 500-line limit.
 - Total Markdown files left in the checkout after the current pass: 548
 - Current branch doc status from
   `git diff --name-status origin/main -- '*.md'` after the current pass:
-  104 added, 303 modified, 157 deleted, 77 renamed
+  104 added, 317 modified, 157 deleted, 77 renamed
 - Copied image assets removed from this branch: 43 files under
   `docs/public/images/`. They were reference assets from another project and
   no longer appear in the source-doc reference scan.
@@ -19,7 +19,7 @@ repo's 500-line limit.
   and old ADR trees
 - Remaining `AGENTS.md` files: 152 total; root plus scoped package/command
   files remain harness-loaded guidance.
-  Current total scoped-agent content is 7,195 lines, with root `AGENTS.md`
+  Current total scoped-agent content is 6,613 lines, with root `AGENTS.md`
   preserved as mandatory harness guidance.
 
 ## File Indexes
@@ -150,6 +150,7 @@ branch. Regenerate them from
 | Parser Scoped AGENTS Compression | Reduced parser scoped agent guidance from 586 to 365 lines while preserving deterministic output, runtime reuse, package-boundary, payload-shape, SCIP, and proof rules. |
 | Collector Scoped AGENTS Compression | Reduced collector scoped agent guidance from 749 to 492 lines while preserving source-evidence, claim fencing, memory, discovery, telemetry, redaction, and performance proof rules. |
 | Parallel Command Workflow Storage Docs Compression | Used five subagents plus parent review to compress command, workflow, correlation, graph, storage, IaC, public runbook, and package README docs. This pass changed 60 Markdown files with 2,090 insertions and 4,127 deletions while preserving root `AGENTS.md` and package-specific mandatory rules. |
+| Parallel Front Door Parser Collector Docs Compression | Used five subagents plus parent review to compress root/developer/testing docs, repo/deploy READMEs, parser/collector/content scoped agent guidance, and public Terraform/logging/dead-code/E2E references. This pass changed 67 Markdown files with 1,364 insertions and 2,130 deletions while preserving root `AGENTS.md` and correcting Terraform provider schema totals to 21 providers and 6,236 resource types. |
 
 ## Verification Snapshot
 
@@ -174,8 +175,11 @@ Current pass proof:
   types. Current full repository verifier result: 562 documents, 1303 claims,
   15 unsupported shell-command claim types.
 - Current Go docs verifier result after parallel scoped-agent and README
-  compression: 309 documents, 106 claims, 0 contradicted, 0 missing evidence,
+  compression: 309 documents, 103 claims, 0 contradicted, 0 missing evidence,
   and 3 unsupported shell-command claim types.
+- Current full repository docs verifier result after front-door/parser/collector
+  compression: 562 documents, 1298 claims, 0 contradicted, 0 missing evidence,
+  and 15 unsupported shell-command claim types.
 - Current strict docs build passed:
   `uv run --with mkdocs --with mkdocs-material --with pymdown-extensions mkdocs build --strict --clean --config-file docs/mkdocs.yml`.
 - Focused public reference verification passed after the operator-reference
@@ -221,6 +225,12 @@ Current pass proof:
 - Next scoped-agent candidates by line count include content, content/shape,
   collector-git, buildinfo, contentrefs, repositoryidentity, parser SQL, and
   remaining collector/provider leaf packages.
+  The latest pass completed those named candidates; the next candidates by
+  line count are parent subsystem guidance and AWS service leaf guidance:
+  reducer/dsl, storage/cypher, reducer, collector, reducer/tags, projector,
+  vulnerability-intelligence collector, storage/postgres, runtime, AWS cloud,
+  status, reducer/tfstate, parser, reducer/aws, coordinator, workflow,
+  telemetry, and AWS service/SDK leaves.
 - Keep deleting historical planning notes when current public or package-local
   docs already carry the useful invariant.
 - Keep folding durable lessons into current architecture, workflow,

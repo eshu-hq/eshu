@@ -21,6 +21,8 @@ For the operator guide, use the public docs:
 
 ## Render locally
 
+Render locally whenever values or templates change:
+
 ```bash
 helm template eshu ./deploy/helm/eshu
 ```
@@ -56,6 +58,11 @@ helm lint ./deploy/helm/eshu -f values.eshu.yaml
 | `webhookListener` | disabled | Accepts provider webhooks and writes refresh triggers. |
 | `nornicdb` | disabled | Optionally renders a bundled NornicDB graph backend. |
 
+API and MCP pods currently start through the `eshu` CLI wrapper. The other
+long-running workloads use direct `/usr/local/bin/eshu-*` service binaries.
+Keep this README aligned with `templates/` and move operator setup details to
+the public Helm docs.
+
 ## Guardrails
 
 The chart fails fast for combinations that would render broken or idle
@@ -69,28 +76,3 @@ workloads:
 - The Confluence collector requires a base URL, credentials, and exactly one
   crawl scope.
 - Helm-hook schema bootstrap cannot be combined with chart-managed NornicDB.
-
-## Minimal override shape
-
-```yaml
-contentStore:
-  dsn: postgresql://eshu:secret@postgres:5432/eshu
-
-env:
-  ESHU_GRAPH_BACKEND: nornicdb
-  DEFAULT_DATABASE: nornic
-  NEO4J_DATABASE: nornic
-
-neo4j:
-  uri: bolt://nornicdb:7687
-
-schemaBootstrap:
-  enabled: true
-  useHelmHooks: true
-
-repoSync:
-  source:
-    rules:
-      - type: exact
-        value: eshu-hq/eshu
-```

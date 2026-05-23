@@ -4,12 +4,12 @@
 
 `reducer/tags` defines the tag-normalization seam and the helpers that
 publish canonical-cloud readiness rows once normalization completes. The
-package owns the contract, defensive scaffold copies, and validation shape; it
+package owns the contract, defensive copies, and validation shape; it
 does not own a concrete normalizer.
 
 ## Ownership boundary
 
-The package owns the accepted `RuntimeContract` scaffold, the `Normalizer` seam,
+The package owns the accepted `RuntimeContract`, the `Normalizer` seam,
 observation/result value shapes, validation, phase-row conversion, and the
 publish helper. It does not own a concrete normalizer or graph writes; phase
 rows go through `reducer.GraphProjectionPhasePublisher`.
@@ -20,7 +20,7 @@ See `doc.go` and `go doc ./internal/reducer/tags` for the godoc contract.
 Callers depend on `RuntimeContract`, `DefaultRuntimeContract`,
 `RuntimeContractTemplate`, `Normalizer`, `ObservationBatch`, `ObservedResource`,
 `NormalizedResource`, `NormalizationResult`, and `PublishNormalizationResult`.
-The accepted scaffold has one component (`normalizer`) and one canonical
+The accepted contract has one component (`normalizer`) and one canonical
 keyspace (`cloud_resource_uid`).
 
 ## Dependencies

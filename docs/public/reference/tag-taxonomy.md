@@ -14,7 +14,7 @@ pack. The code source of truth is `go/internal/reducer/tags`.
 - `Normalizer`, the interface concrete normalizers implement.
 - `ObservationBatch`, `ObservedResource`, `NormalizedResource`, and
   `NormalizationResult`, the bounded value shapes handed across the seam.
-- `DefaultRuntimeContract`, whose scaffold contains one component
+- `DefaultRuntimeContract`, whose contract contains one component
   (`normalizer`) and one canonical keyspace (`cloud_resource_uid`).
 - `PublishNormalizationResult`, which converts normalized resources into
   `(cloud_resource_uid, canonical_nodes_committed)` readiness rows through

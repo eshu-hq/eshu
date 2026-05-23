@@ -1,49 +1,38 @@
-# AGENTS.md - cmd/collector-terraform-state guidance for LLM assistants
+# collector-terraform-state Agent Guidance
 
-## Read first
+## Read First
 
-1. `README.md` - runtime purpose, config, and local run notes.
-2. `service.go` - claimed service wiring.
-3. `config.go` - environment parsing and collector-instance selection.
-4. `aws_s3.go` - read-only AWS SDK adapter.
-5. `go/internal/collector/tfstateruntime/README.md` - source and claim invariants.
-6. `go/internal/workflow/README.md` - collector-instance and claim lifecycle.
+1. `README.md` and `doc.go` for command scope.
+2. `config.go` and `config_test.go` for collector-instance, credential,
+   redaction, heartbeat, and lease validation.
+3. `service.go` for claimed-service and redaction-rule wiring.
+4. `target_scope_source_factory.go`, `aws_s3.go`, and `aws_dynamodb.go` for
+   approved source and read-only AWS adapters.
+5. `go/internal/collector/tfstateruntime/README.md` and
+   `go/internal/workflow/README.md` for claim, source, and fencing behavior.
 
-## Invariants
+## Local Rules
 
-- This command owns runtime wiring only. Do not move scheduling or claim
-  reconciliation here; that stays in `workflow-coordinator`.
+- Own runtime wiring only. Work-item planning and reconciliation stay in
+  `workflow-coordinator`.
 - Select exactly one enabled, claim-capable `terraform_state` collector
   instance from `ESHU_COLLECTOR_INSTANCES_JSON`.
-- Keep raw Terraform state bytes inside reader/parser streams. Do not log paths,
-  bucket/key pairs, state JSON, or parsed secret values.
-- Use the workflow claim fencing token from `collector.ClaimedService`; do not
-  create a second claim lifecycle in this command.
-- S3 access must stay read-only and must go through `terraformstate.S3ObjectClient`.
-- Redaction key material is required at startup and must never be hardcoded.
-- The versioned `redact.RuleSet` is required at startup. `service.go` MUST set
-  `tfstateruntime.ClaimedSource.RedactionRules` from
-  `config.RedactionRules`; blank `RedactionRules.version` makes the redactor
-  fail closed and silently breaks attribute-level drift detection. See
-  `service_test.go:TestBuildClaimedServiceWiresRedactionRules` for the
-  regression guard.
+- Open only exact configured or approved sources. Do not scan buckets,
+  prefixes, workspaces, or guessed local `.tfstate` files.
+- Keep raw state bytes inside reader/parser streams. Do not log or document
+  bucket/key pairs, local paths, raw state JSON, parsed secrets, or credentials.
+- Keep S3 access read-only behind `terraformstate.S3ObjectClient`; SDK adapters
+  belong in command wiring, not parser/runtime packages.
+- Require redaction key material and a versioned `redact.RuleSet` at startup.
+  `service.go` must wire `tfstateruntime.ClaimedSource.RedactionRules` from
+  config.
+- Use workflow claim fencing from `collector.ClaimedService`; do not create a
+  second claim lifecycle or retry fenced mutations locally.
 
-## Common Changes
+## Change Rules
 
-- Run `scripts/verify-package-docs.sh` whenever the change adds or edits a Go
-  package under this command or `go/internal/collector/terraformstate`.
-- Run `scripts/verify-performance-evidence.sh` whenever the change touches
-  claims, leases, worker fanout, batching, parser volume, S3 pagination, queue
-  pressure, or downstream graph/materialization cost. The PR must include
-  tracked Performance Evidence and Observability Evidence markers or
-  the corresponding no-regression/no-observability-change markers.
-
-## Anti-patterns
-
-- Running Terraform-state collection inside `workflow-coordinator`.
-- Guessing local `.tfstate` files from Git content. Until the #140 approval
-  path exists, repo-local state must be configured as an explicit absolute
-  source.
-- Opening S3 prefixes, workspaces, or non-exact object keys.
-- Swallowing claim errors or retrying fenced mutations locally.
-- Printing raw state locators or secret material in startup errors.
+- Add tests for collector-instance selection, target-scope credential routing,
+  redaction rules, S3 freshness, and claim errors when those paths change.
+- Treat claims, leases, S3 pagination, parser volume, batching, worker fanout,
+  and downstream materialization cost as performance-sensitive.
+- Do not move Terraform-state collection into `workflow-coordinator`.

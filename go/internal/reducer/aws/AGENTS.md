@@ -52,7 +52,7 @@ Read this before touching `go/internal/reducer/aws`.
 - Do not add live projection code to this package. Materialization code belongs
   in a separate handler registered with `internal/reducer.NewDefaultRegistry`.
 - Do not export new types that reference concrete graph backend types
-  (Neo4j, NornicDB). The scaffold should remain backend-agnostic.
+  (Neo4j, NornicDB). The contract must remain backend-agnostic.
 
 ## What MUST NOT change without architecture-owner approval
 

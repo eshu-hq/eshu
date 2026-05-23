@@ -37,7 +37,7 @@ or checkpoint metadata before fixtures accept the contract.
 - `RuntimeContract{Components, Checkpoints}` — `contract.go:19`.
 - `RuntimeContract.Validate` — `contract.go:52`.
 - `DefaultRuntimeContract()` — `contract.go:41` — defensive copy of the
-  accepted scaffold.
+  accepted contract.
 - `RuntimeContractTemplate()` — `contract.go:48` — alias for
   `DefaultRuntimeContract`; used by contract fixtures.
 

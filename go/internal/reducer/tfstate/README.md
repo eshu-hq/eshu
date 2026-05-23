@@ -16,10 +16,10 @@ wait for those checkpoints before consuming Terraform-state-derived rows.
 ## Purpose
 
 Pin the `RuntimeContract` component list and readiness checkpoints for
-Terraform state canonical projection so contract docs, test fixtures, and future
-reducer work share one source of truth. The exported helpers return defensive
-copies, and `RuntimeContract.Validate` rejects blank contract metadata before
-fixtures accept it.
+Terraform state canonical projection so docs, test fixtures, and reducer wiring
+share one source of truth. The exported helpers return defensive copies, and
+`RuntimeContract.Validate` rejects blank contract metadata before fixtures
+accept it.
 
 ## Ownership boundary
 
@@ -35,7 +35,7 @@ See `doc.go` and the exported comments in `contract.go` for the godoc contract.
 The exported surface is intentionally small: a runtime contract value, published
 checkpoint values, validation, and defensive-copy helpers.
 
-The accepted scaffold:
+The accepted contract:
 
 - Components: `resource_projector`, `module_projector`, `output_projector`.
 - Checkpoints:

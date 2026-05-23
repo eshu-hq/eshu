@@ -45,9 +45,11 @@ Common structured dimensions used by the Go data plane include:
 site explicitly attaches
 `telemetry.EventAttr(...)`.
 
-## Event Names That Are Current
+## Event Names
 
-The explicit `event_name` values in the current Go code include:
+`event_name` is sparse by design. Current Go code uses it for runtime startup,
+runtime server lifecycle, datastore connection, bootstrap schema, documentation
+drift/extraction, and query-stage timing events. Examples include:
 
 - `runtime.startup.failed`
 - `runtime.shutdown.failed`
@@ -58,11 +60,18 @@ The explicit `event_name` values in the current Go code include:
 - `runtime.postgres.connected`
 - `bootstrap.schema.started`
 - `bootstrap.postgres.applied`
-- `bootstrap.neo4j.applied`
+- `bootstrap.graph.applied`
+- `documentation.drift.completed`
+- `documentation.extraction.completed`
+- `service_query.stage_started`
+- `service_query.stage_completed`
+- `repository_query.stage_started`
+- `repository_query.stage_completed`
 
 Do not treat examples such as `http.request.completed`,
 `mcp.request.received`, or `index.discovery.completed` as current universal Go
-events. Those are not the current canonical live event families.
+events. Those are test or illustrative values unless a call site explicitly
+emits them.
 
 ## Phase-Scoped Runtime Logs
 
