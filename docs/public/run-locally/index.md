@@ -3,6 +3,11 @@
 Use these docs when you want Eshu running on your laptop. Pick one path first;
 the details live on the linked page.
 
+If this is your first time with Eshu, use
+[First Successful Run](../getting-started/first-successful-run.md) before
+choosing a deeper local mode. It closes the loop from startup to one indexed
+repository and one useful answer.
+
 | Path | Start here when | Runtime shape |
 | --- | --- | --- |
 | [Docker Compose](docker-compose.md) | You are evaluating Eshu, testing the full product stack, or need the HTTP API and MCP services running together. | Containers for Postgres, the graph backend, schema migration, bootstrap indexing, API, MCP server, ingester, and reducer. |

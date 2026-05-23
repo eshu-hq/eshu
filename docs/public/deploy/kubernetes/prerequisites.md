@@ -13,6 +13,9 @@ You need:
   resources
 - Prometheus Operator only if you enable `ServiceMonitor`
 - Gateway API CRDs only if you use `exposure.gateway`
+- AWS Load Balancer Controller only if you use ALB Ingress on EKS
+- External Secrets Operator only if you sync secrets from AWS Secrets Manager or
+  another external secret store
 
 ## Storage services
 
@@ -25,6 +28,8 @@ Eshu expects external storage:
 The chart only creates the ingester workspace PVC by default. It can also
 create a single NornicDB Deployment and PVC when `nornicdb.enabled=true`, but
 Postgres and Neo4j are always external.
+
+For EKS, use [Deploy to EKS](../eks/index.md) after reading this page.
 
 ## Secrets
 

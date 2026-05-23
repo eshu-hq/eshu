@@ -1,7 +1,7 @@
 # Eshu
 
-**A self-hosted code-to-cloud context graph for engineering teams and AI
-assistants.**
+**A self-hosted code-to-cloud context graph that gives engineers and AI
+assistants repo-aware answers with evidence.**
 
 <p align="center">
   <a href="LICENSE">
@@ -20,10 +20,11 @@ assistants.**
 </p>
 
 Eshu indexes source code, infrastructure, deployment config, runtime topology,
-and documentation into one queryable graph. Use it when a question crosses
-repository boundaries and normal code search stops being enough.
+external collector facts, and documentation into one queryable graph. It is the
+shared context layer for questions that normally force an engineer to open five
+repositories, three dashboards, a Helm chart, and a Terraform module.
 
-Ask things like:
+Use Eshu to ask:
 
 - "Who calls this function across all indexed repos?"
 - "What deploys this service to production?"
@@ -31,47 +32,62 @@ Ask things like:
 - "What breaks if I change this Terraform module?"
 - "Show the evidence behind this service-to-infrastructure link."
 
+## What Eshu Can Do
+
+| Ability | What you get |
+| --- | --- |
+| Code intelligence | Find symbols, callers, call chains, imports, dead-code candidates, and repository context across indexed repos. |
+| Code-to-cloud tracing | Connect source repos, container images, Kubernetes workloads, Helm/Kustomize/ArgoCD config, Terraform resources, and cloud observations. |
+| AI assistant context | Serve indexed truth through MCP so Codex, Claude, Cursor, VS Code, and other clients can answer with evidence instead of guessing. |
+| Change-risk analysis | Ask for blast radius, shared dependencies, impacted infrastructure, and direct versus transitive relationships before a change lands. |
+| Operations visibility | Track ingestion, reducer queues, graph writes, health, metrics, traces, logs, and stale-answer symptoms. |
+| Extensibility | Add parsers, collectors, package-registry sources, Terraform providers, and language support with fixture-backed tests. |
+
 ## Pick Your First Path
 
 | I want to... | Start here |
 | --- | --- |
+| Get one successful local run and first answer | [First successful run](docs/public/getting-started/first-successful-run.md) |
 | Try the full API and MCP service stack on my laptop | [Docker Compose](docs/public/run-locally/docker-compose.md) |
 | Develop Eshu or run one local workspace service | [Local binaries](docs/public/run-locally/local-binaries.md) |
 | Connect Codex, Claude, Cursor, or VS Code | [Connect MCP](docs/public/mcp/index.md) |
 | Deploy Eshu as a shared team service | [Kubernetes deployment](docs/public/deploy/kubernetes/index.md) |
+| Deploy on EKS | [EKS deployment](docs/public/deploy/eks/index.md) |
+| Monitor, debug, or tune a deployment | [Operate Eshu](docs/public/operate/index.md) |
+| Code on Eshu with an AI agent | [Code with agents](docs/public/guides/coding-with-agents.md) |
 | Understand the architecture | [How Eshu works](docs/public/concepts/how-it-works.md) |
 | Contribute | [Contributing](CONTRIBUTING.md) |
 
-## What Eshu Gives You
+## Interfaces
 
-- **Company-wide AI context:** one MCP endpoint backed by shared indexed truth.
-- **Code-to-cloud tracing:** follow code, services, workloads, deployments, and
-  cloud resources across repositories.
-- **Blast-radius analysis:** see likely callers, dependencies, and shared
-  infrastructure before a change lands.
-- **Operator visibility:** queues, status, metrics, traces, logs, and health
-  checks for production use.
-- **Backend choice:** NornicDB by default, Neo4j when your team already
-  operates it.
+- **CLI:** local setup, indexing, analysis, and operator commands.
+- **MCP:** assistant-facing tools for Codex, Claude, Cursor, VS Code, and other
+  MCP clients.
+- **HTTP API:** automation and platform integration.
+- **Helm:** split-service Kubernetes deployment for shared team use.
 
 ## Documentation
 
 If you only read three pages first, read these:
 
-1. [Start Here](docs/public/start-here.md)
-2. [Run Locally](docs/public/run-locally/index.md)
+1. [First Successful Run](docs/public/getting-started/first-successful-run.md)
+2. [Start Here](docs/public/start-here.md)
 3. [Connect MCP](docs/public/mcp/index.md)
 
 The full documentation is organized by job:
 
 - [Use Eshu](docs/public/use/index.md): index repositories and ask code or
   infrastructure questions.
+- [Deploy Eshu](docs/public/deploy/kubernetes/index.md): install the shared
+  service with Helm or follow the EKS runbook.
 - [Operate Eshu](docs/public/operate/index.md): health checks, telemetry, and
   troubleshooting.
 - [Understand Eshu](docs/public/understand/index.md): architecture, graph model,
   and runtime modes.
 - [Extend Eshu](docs/public/extend/index.md): collectors, components, language
   support, and plugin contracts.
+- [Code with agents](docs/public/guides/coding-with-agents.md): repo rules,
+  required proof, and the safe workflow for AI-assisted changes.
 - [Reference](docs/public/reference/cli-reference.md): CLI, API, MCP,
   configuration, telemetry, and backend details.
 

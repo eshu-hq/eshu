@@ -14,6 +14,7 @@ queued work.
 | --- | --- |
 | Check process health, readiness, and completeness | [Health Checks](health-checks.md) |
 | Choose metrics, traces, logs, or admin/status | [Telemetry](telemetry.md) |
+| Tune slow indexing, stale answers, graph timeouts, or memory pressure | [Tuning Playbook](tuning-playbook.md) |
 | Work through common symptoms | [Troubleshooting](troubleshooting.md) |
 | Understand service ownership | [Service Runtimes](../deployment/service-runtimes.md) |
 | Prove a local change before handoff | [Local Testing Reference](../reference/local-testing.md) |
