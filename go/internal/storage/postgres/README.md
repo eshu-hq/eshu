@@ -116,6 +116,12 @@ own partial indexes so each advertised API/MCP anchor stays bounded. The
 `fact_records_container_image_identity_digest_idx` index lets the reducer join
 CI artifact digests to active image identity rows without scanning unrelated
 fact payloads.
+Service-catalog correlation reads use
+`fact_records_service_catalog_correlations_entity_idx`,
+`fact_records_service_catalog_correlations_repository_idx`, and
+`fact_records_service_catalog_correlations_owner_idx` so API/MCP filters by
+scope, provider, entity, repository, service, workload, owner, outcome, and
+drift status stay bounded to `reducer_service_catalog_correlation` facts.
 SBOM/attestation attachment reads use
 `fact_records_oci_image_referrer_subject_idx`,
 `fact_records_sbom_attestation_attachments_subject_idx`,

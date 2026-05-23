@@ -66,7 +66,7 @@ fixtures, reducer contracts, telemetry, and binary wiring exist.
 | Kubernetes live | ADR exists; no runtime package or charted workload. | Collector kind/workflow contract, API discovery, fixtures, reducer joins, and a service runbook. |
 | SBOM and attestation | Fact contracts and the first reducer attachment read model exist; hosted collector runtime is not implemented. | Fixture parsers, OCI/referrer integration in a collector runtime, live verification policy, and vulnerability-impact join remain. |
 | CI/CD runs | ADR exists; hosted runtime is not implemented. The first reducer slice writes `reducer_ci_cd_run_correlation` facts from fixture-backed run/artifact/environment evidence and exposes bounded API/MCP reads. The first collector implementation slice adds a GitHub Actions fixture normalizer that emits provider run, job, step, artifact, trigger, environment, and warning facts without hosted polling. | GitLab/Jenkins/Buildkite fixture normalizers, hosted GitHub Actions runtime, credentials/redaction proof, request-budget/status evidence, and live provider proof. |
-| Service catalog | ADR exists and fact-kind contracts plus bounded API/MCP read surface exist for future reducer facts; no hosted runtime or reducer writer exists yet. | Ownership/admission reducer, fixture-backed fact emitter, service-story integration, and hosted runtime proof. |
+| Service catalog | ADR exists, fact-kind contracts exist, and the first reducer writer now publishes `reducer_service_catalog_correlation` facts for exact, derived, ambiguous, unresolved, stale, and rejected repository-link outcomes. API/MCP reads are bounded by scope, entity, repository, service, workload, owner, outcome, and drift status. | Fixture-backed fact emitter, service-story integration, hosted runtime proof, and service/workload admission only after stronger deployment/runtime evidence exists. |
 | Observability | ADR exists; no runtime package or reducer. | OTel/Prometheus/Grafana/Datadog fact fixtures, reducer coverage outcomes, then hosted runtime. |
 | Vulnerability intelligence | ADR exists and is intentionally gated. | Package, OCI, SBOM, AWS, Terraform state, and deployment evidence must be proven before impact reducers. |
 | Incident/change | Research/design issue remains open. | ADR before implementation. |
@@ -229,29 +229,36 @@ surfaces.
    metrics expose the read path.
 
 6. Service catalog correlations.
-   The first service-catalog slice defines the fact-kind contract for catalog
-   entity, ownership, repository link, dependency, API, operational link,
-   scorecard, and warning facts. It also exposes a bounded API/MCP read surface
-   for future `reducer_service_catalog_correlation` rows. This is not a hosted
-   collector or reducer writer yet; catalog declarations stay provenance until
-   a reducer corroborates them with repository, service, workload, runtime, or
-   deployment evidence.
+   The service-catalog slice defines the fact-kind contract for catalog entity,
+   ownership, repository link, dependency, API, operational link, scorecard,
+   and warning facts. The projector enqueues one
+   `service_catalog_correlation` reducer intent per catalog scope/generation,
+   rejecting unsupported schema versions instead of accepting stale collector
+   payloads. `DomainServiceCatalogCorrelation` writes
+   `reducer_service_catalog_correlation` facts for exact repository-id or URL
+   matches, deterministic derived URL matches, ambiguous active matches,
+   unresolved entities, stale tombstoned matches, and rejected name-only links.
+   Catalog names do not create repositories, services, or workloads; they stay
+   provenance until explicit repository evidence exists.
 
-   No-Regression Evidence: focused fact, query, MCP, telemetry, API, and MCP
-   server coverage with
-   `go test ./internal/facts ./internal/query ./internal/mcp ./internal/telemetry ./cmd/api ./cmd/mcp-server -count=1`
-   covers service-catalog fact-kind registry immutability, bounded
-   `GET /api/v0/service-catalog/correlations` filtering, active-generation and
-   tombstone predicates, limit-plus-one pagination, OpenAPI, capability-matrix
-   parity, MCP route mapping, MCP tool registry count, span-name registration,
-   and API/MCP runtime wiring.
+   No-Regression Evidence: focused reducer, projector, storage, telemetry, API,
+   MCP, and reducer command coverage with
+   `go test ./internal/reducer -run 'TestBuildServiceCatalog|TestServiceCatalogCorrelation|TestPostgresServiceCatalog|TestImplementedDefaultDomainDefinitions.*ServiceCatalogCorrelation' -count=1`,
+   `go test ./internal/projector -run 'TestBuildProjection.*ServiceCatalog' -count=1`,
+   `go test ./internal/storage/postgres -run 'TestBootstrapDefinitionsIncludeServiceCatalogCorrelationFactIndexes' -count=1`,
+   `go test ./internal/query ./internal/mcp ./internal/telemetry ./cmd/api ./cmd/mcp-server ./cmd/reducer -count=1`
+   covers positive, negative, ambiguous, stale, rejected, schema-version,
+   index, OpenAPI, MCP, telemetry, API/MCP runtime, and reducer wiring
+   contracts.
 
-   Observability Evidence: `query.service_catalog_correlations` wraps API/MCP
-   reads with stable `http.route` and `eshu.capability` span attributes. The
-   read path uses existing Postgres query-duration instrumentation, and
-   responses expose `count`, `limit`, `truncated`, and `next_cursor` so
-   operators can distinguish empty evidence, page truncation, and slow
-   Postgres reads.
+   Observability Evidence: `eshu_dp_service_catalog_correlations_total`
+   exposes reducer decisions by domain and bounded outcome.
+   `query.service_catalog_correlations` wraps API/MCP reads with stable
+   `http.route` and `eshu.capability` span attributes. The read path uses
+   existing Postgres query-duration instrumentation, indexed fact-record
+   filters, and responses expose `count`, `limit`, `truncated`, and
+   `next_cursor` so operators can distinguish empty evidence, page truncation,
+   and slow Postgres reads.
 
 7. SBOM and attestation attachment.
    `DomainSBOMAttestationAttachment` writes durable reducer facts for SBOM

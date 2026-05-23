@@ -387,6 +387,29 @@ func cicdRunCorrelationDomainDefinition() DomainDefinition {
 	}
 }
 
+// serviceCatalogCorrelationDomainDefinition returns the additive definition for
+// service-catalog correlation. The domain writes durable reducer facts for all
+// outcomes, while catalog names, owners, and declared dependencies remain
+// provenance until repository or stronger runtime evidence corroborates them.
+func serviceCatalogCorrelationDomainDefinition() DomainDefinition {
+	return DomainDefinition{
+		Domain:  DomainServiceCatalogCorrelation,
+		Summary: "correlate service-catalog entities with repository and ownership evidence",
+		Ownership: OwnershipShape{
+			CrossSource:    true,
+			CrossScope:     true,
+			CanonicalWrite: true,
+			CounterEmit:    true,
+		},
+		TruthContract: truth.Contract{
+			CanonicalKind: "service_catalog_correlation",
+			SourceLayers: []truth.Layer{
+				truth.LayerSourceDeclaration,
+			},
+		},
+	}
+}
+
 // sbomAttestationAttachmentDomainDefinition returns the additive definition for
 // SBOM and attestation attachment. The domain writes durable reducer facts for
 // all outcomes, but canonical attachment requires an explicit digest subject.

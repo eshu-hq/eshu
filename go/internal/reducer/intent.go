@@ -58,6 +58,10 @@ const (
 	// DomainCICDRunCorrelation correlates provider CI/CD runs, artifacts, and
 	// environment observations with reducer-owned artifact identity evidence.
 	DomainCICDRunCorrelation Domain = "ci_cd_run_correlation"
+	// DomainServiceCatalogCorrelation correlates service-catalog entity
+	// declarations with repository and ownership evidence without letting
+	// catalog names create workloads.
+	DomainServiceCatalogCorrelation Domain = "service_catalog_correlation"
 	// DomainSBOMAttestationAttachment attaches SBOM and attestation evidence to
 	// image digests only when subject evidence is explicit.
 	DomainSBOMAttestationAttachment Domain = "sbom_attestation_attachment"

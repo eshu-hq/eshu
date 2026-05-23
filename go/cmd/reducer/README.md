@@ -59,9 +59,10 @@ flowchart TB
    `PostgresAWSCloudRuntimeDriftWriter` are wired for issue #39 so
    `aws_resource` reducer intents can publish durable orphan/unmanaged
    findings after the bounded ARN join; the SBOM/attestation attachment
-   writer publishes digest-subject attachment facts; and the supply-chain impact
-   writer publishes reducer-owned vulnerability impact facts without graph
-   writes),
+   writer publishes digest-subject attachment facts; the service-catalog
+   correlation writer publishes repository-evidence-gated catalog correlation
+   facts; and the supply-chain impact writer publishes reducer-owned
+   vulnerability impact facts without graph writes),
    `SharedProjectionRunner`, `CodeCallProjectionRunner`,
    `RepoDependencyProjectionRunner`, `GraphProjectionPhaseRepairer`, and
    the `postgres.NewReducerQueue`.

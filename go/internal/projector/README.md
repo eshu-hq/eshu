@@ -163,6 +163,13 @@ relationships, or Git content-entity image references,
 `container_image_identity` reducer intent for that scope/generation. The
 projector still does not join images to workloads or runtime evidence; the
 reducer owns digest-first admission after source-local projection succeeds.
+Service-catalog facts follow the same schema-gated handoff. When a generation
+contains service-catalog entity, ownership, repository-link, dependency, API,
+operational-link, scorecard, or warning facts,
+`buildServiceCatalogCorrelationReducerIntent` emits one
+`service_catalog_correlation` reducer intent for that scope/generation. The
+projector rejects unsupported service-catalog schema versions during projection
+so stale collector payloads cannot silently reach the reducer.
 
 ## Telemetry
 

@@ -42,3 +42,44 @@ func TestImplementedDefaultDomainDefinitionsIncludesCICDRunCorrelationWhenAdapte
 		t.Fatal("ci_cd_run_correlation not registered after wiring loader+writer")
 	}
 }
+
+func TestImplementedDefaultDomainDefinitionsOmitsServiceCatalogCorrelationWithoutAdapters(t *testing.T) {
+	t.Parallel()
+
+	definitions := implementedDefaultDomainDefinitions(DefaultHandlers{})
+	for _, def := range definitions {
+		if def.Domain == DomainServiceCatalogCorrelation {
+			t.Fatalf("service_catalog_correlation registered without adapters; want omitted to avoid silent intent drops")
+		}
+	}
+}
+
+func TestImplementedDefaultDomainDefinitionsIncludesServiceCatalogCorrelationWhenAdaptersPresent(t *testing.T) {
+	t.Parallel()
+
+	loader := &stubFactLoader{}
+	writer := &recordingServiceCatalogCorrelationWriter{}
+	definitions := implementedDefaultDomainDefinitions(DefaultHandlers{
+		FactLoader:                      loader,
+		ServiceCatalogCorrelationWriter: writer,
+	})
+	found := false
+	for _, def := range definitions {
+		if def.Domain == DomainServiceCatalogCorrelation {
+			found = true
+			handler, ok := def.Handler.(ServiceCatalogCorrelationHandler)
+			if !ok {
+				t.Fatalf("service_catalog_correlation handler type = %T, want ServiceCatalogCorrelationHandler", def.Handler)
+			}
+			if handler.FactLoader != loader {
+				t.Fatal("service_catalog_correlation handler FactLoader was not wired")
+			}
+			if handler.Writer != writer {
+				t.Fatal("service_catalog_correlation handler Writer was not wired")
+			}
+		}
+	}
+	if !found {
+		t.Fatal("service_catalog_correlation not registered after wiring loader+writer")
+	}
+}
