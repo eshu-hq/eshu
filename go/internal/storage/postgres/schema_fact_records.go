@@ -368,9 +368,29 @@ CREATE INDEX IF NOT EXISTS fact_records_vulnerability_affected_package_lookup_id
     WHERE fact_kind = 'vulnerability.affected_package'
       AND is_tombstone = FALSE;
 
+CREATE INDEX IF NOT EXISTS fact_records_vulnerability_affected_product_lookup_idx
+    ON fact_records (
+        (payload->>'cve_id'),
+        (payload->>'criteria'),
+        fact_id ASC,
+        generation_id
+    )
+    WHERE fact_kind = 'vulnerability.affected_product'
+      AND is_tombstone = FALSE;
+
 CREATE INDEX IF NOT EXISTS fact_records_sbom_component_purl_idx
     ON fact_records (
         (payload->>'purl'),
+        (payload->>'document_id'),
+        fact_id ASC,
+        generation_id
+    )
+    WHERE fact_kind = 'sbom.component'
+      AND is_tombstone = FALSE;
+
+CREATE INDEX IF NOT EXISTS fact_records_sbom_component_cpe_idx
+    ON fact_records (
+        (payload->>'cpe'),
         (payload->>'document_id'),
         fact_id ASC,
         generation_id

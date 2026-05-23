@@ -44,6 +44,63 @@ func TestParsePackageJSONPreservesOrderedMetadataAndDependencyRows(t *testing.T)
 	}
 }
 
+func TestParsePackageLockJSONEmitsExactDependencyRows(t *testing.T) {
+	t.Parallel()
+
+	path := writeJSONTestFile(t, "package-lock.json", `{
+  "name": "eshu",
+  "lockfileVersion": 3,
+  "packages": {
+    "": {
+      "dependencies": {
+        "vite": "^5.4.11"
+      }
+    },
+    "node_modules/vite": {
+      "version": "5.4.21"
+    },
+    "node_modules/@esbuild/linux-x64": {
+      "version": "0.21.5",
+      "optional": true
+    },
+    "node_modules/@vitest/mocker": {
+      "version": "2.1.9",
+      "dev": true
+    }
+  }
+}`)
+
+	payload, err := Parse(path, false, shared.Options{}, Config{})
+	if err != nil {
+		t.Fatalf("Parse() error = %v, want nil", err)
+	}
+
+	rows, ok := payload["variables"].([]map[string]any)
+	if !ok {
+		t.Fatalf("variables = %T, want []map[string]any", payload["variables"])
+	}
+	got := dependencyRowsByName(rows)
+	for name, version := range map[string]string{
+		"vite":               "5.4.21",
+		"@esbuild/linux-x64": "0.21.5",
+		"@vitest/mocker":     "2.1.9",
+	} {
+		row, ok := got[name]
+		if !ok {
+			t.Fatalf("dependency row %q missing from %#v", name, rows)
+		}
+		if row["value"] != version {
+			t.Fatalf("%s value = %#v, want %q", name, row["value"], version)
+		}
+		if row["package_manager"] != "npm" || row["config_kind"] != "dependency" {
+			t.Fatalf("%s metadata = %#v, want npm dependency", name, row)
+		}
+		if row["section"] != "package-lock" {
+			t.Fatalf("%s section = %#v, want package-lock", name, row["section"])
+		}
+	}
+}
+
 func TestParseJSONCAcceptsCommentsAndTrailingCommas(t *testing.T) {
 	t.Parallel()
 
@@ -187,6 +244,17 @@ func bucketNames(t *testing.T, payload map[string]any, key string) []string {
 		names = append(names, row["name"].(string))
 	}
 	return names
+}
+
+func dependencyRowsByName(rows []map[string]any) map[string]map[string]any {
+	out := make(map[string]map[string]any, len(rows))
+	for _, row := range rows {
+		name, _ := row["name"].(string)
+		if name != "" {
+			out[name] = row
+		}
+	}
+	return out
 }
 
 func assertRelationshipPresent(t *testing.T, payload map[string]any, relationshipType string, sourceName string, targetName string) {

@@ -36,6 +36,7 @@ JOIN scope_generations AS generation
 WHERE fact.fact_kind IN (
     'vulnerability.cve',
     'vulnerability.affected_package',
+    'vulnerability.affected_product',
     'package_registry.package_version',
     'package_registry.vulnerability_hint',
     'reducer_package_consumption_correlation',
@@ -53,10 +54,12 @@ WHERE fact.fact_kind IN (
       OR fact.payload->>'cve_id' = ANY($3::text[])
       OR fact.payload->>'subject_digest' = ANY($4::text[])
       OR fact.payload->>'digest' = ANY($4::text[])
+      OR fact.payload->>'cpe' = ANY($5::text[])
+      OR fact.payload->>'criteria' = ANY($5::text[])
   )
-  AND ($5 = '' OR fact.fact_id > $5)
+  AND ($6 = '' OR fact.fact_id > $6)
 ORDER BY fact.fact_id ASC
-LIMIT $6
+LIMIT $7
 `
 
 // ListActiveSupplyChainImpactFacts loads active package, SBOM, image, and risk
@@ -72,8 +75,10 @@ func (s FactStore) ListActiveSupplyChainImpactFacts(
 	filter.PURLs = cleanStringFilterValues(filter.PURLs)
 	filter.CVEIDs = cleanStringFilterValues(filter.CVEIDs)
 	filter.SubjectDigests = cleanStringFilterValues(filter.SubjectDigests)
+	filter.ProductCriteria = cleanStringFilterValues(filter.ProductCriteria)
 	if len(filter.PackageIDs) == 0 && len(filter.PURLs) == 0 &&
-		len(filter.CVEIDs) == 0 && len(filter.SubjectDigests) == 0 {
+		len(filter.CVEIDs) == 0 && len(filter.SubjectDigests) == 0 &&
+		len(filter.ProductCriteria) == 0 {
 		return nil, nil
 	}
 
@@ -104,6 +109,7 @@ func (s FactStore) listActiveSupplyChainImpactFactsPage(
 		filter.PURLs,
 		filter.CVEIDs,
 		filter.SubjectDigests,
+		filter.ProductCriteria,
 		cursorFactID,
 		listFactsByKindPageSize,
 	)
@@ -112,7 +118,8 @@ func (s FactStore) listActiveSupplyChainImpactFactsPage(
 	}
 	defer func() { _ = rows.Close() }()
 
-	loaded := make([]facts.Envelope, 0, len(filter.PackageIDs)+len(filter.PURLs)+len(filter.CVEIDs)+len(filter.SubjectDigests))
+	loaded := make([]facts.Envelope, 0,
+		len(filter.PackageIDs)+len(filter.PURLs)+len(filter.CVEIDs)+len(filter.SubjectDigests)+len(filter.ProductCriteria))
 	for rows.Next() {
 		envelope, scanErr := scanFactEnvelope(rows)
 		if scanErr != nil {

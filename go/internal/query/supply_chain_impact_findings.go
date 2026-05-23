@@ -37,6 +37,8 @@ type SupplyChainImpactFindingRow struct {
 	Ecosystem           string
 	PackageName         string
 	PURL                string
+	ProductCriteria     string
+	MatchCriteriaID     string
 	ObservedVersion     string
 	FixedVersion        string
 	ImpactStatus        string
@@ -171,6 +173,8 @@ func decodeSupplyChainImpactFindingRow(
 		Ecosystem:           StringVal(payload, "ecosystem"),
 		PackageName:         StringVal(payload, "package_name"),
 		PURL:                StringVal(payload, "purl"),
+		ProductCriteria:     StringVal(payload, "product_criteria"),
+		MatchCriteriaID:     StringVal(payload, "match_criteria_id"),
 		ObservedVersion:     StringVal(payload, "observed_version"),
 		FixedVersion:        StringVal(payload, "fixed_version"),
 		ImpactStatus:        StringVal(payload, "impact_status"),

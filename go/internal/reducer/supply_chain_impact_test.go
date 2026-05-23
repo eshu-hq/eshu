@@ -76,15 +76,14 @@ func TestBuildSupplyChainImpactFindingsClassifiesEvidencePaths(t *testing.T) {
 		vulnerabilityAffectedPackageFact("affected-1", "CVE-2026-0001", testImpactPackageID, "npm", "example", "1.2.3", "1.3.0"),
 		vulnerabilityEPSSFact("epss-1", "CVE-2026-0001", "0.71", "0.98"),
 		vulnerabilityKEVFact("kev-1", "CVE-2026-0001"),
-		packageVersionFact("version-1", testImpactPackageID, "pkg:npm/example@1.2.3", "1.2.3"),
-		packageConsumptionFact("consume-1", testImpactPackageID, testImpactRepositoryID),
+		packageConsumptionFactWithRange("consume-1", testImpactPackageID, testImpactRepositoryID, "1.2.3"),
 
 		vulnerabilityCVEFact("cve-fixed", "CVE-2026-0002", 9.8),
 		vulnerabilityAffectedPackageFact("affected-fixed", "CVE-2026-0002", "pkg:npm/fixed", "npm", "fixed", "1.2.3", "1.3.0"),
-		packageVersionFact("version-fixed", "pkg:npm/fixed", "pkg:npm/fixed@1.3.0", "1.3.0"),
+		packageConsumptionFactWithRange("consume-fixed", "pkg:npm/fixed", testImpactRepositoryID, "1.3.0"),
 
-		vulnerabilityCVEFact("cve-possible", "CVE-2026-0003", 5.0),
-		vulnerabilityAffectedPackageFact("affected-possible", "CVE-2026-0003", "pkg:npm/other", "npm", "other", "", "2.0.0"),
+		vulnerabilityCVEFact("cve-unanchored", "CVE-2026-0003", 5.0),
+		vulnerabilityAffectedPackageFact("affected-unanchored", "CVE-2026-0003", "pkg:npm/other", "npm", "other", "", "2.0.0"),
 
 		vulnerabilityCVEFact("cve-unknown", "CVE-2026-0004", 7.5),
 	})
@@ -98,8 +97,15 @@ func TestBuildSupplyChainImpactFindingsClassifiesEvidencePaths(t *testing.T) {
 		t.Fatalf("CVE-2026-0001 RuntimeReachability = blank, want package reachability")
 	}
 	assertSupplyChainImpactStatus(t, got["CVE-2026-0002"], SupplyChainImpactNotAffectedKnownFixed)
-	assertSupplyChainImpactStatus(t, got["CVE-2026-0003"], SupplyChainImpactPossiblyAffected)
-	assertSupplyChainImpactStatus(t, got["CVE-2026-0004"], SupplyChainImpactUnknown)
+	if got["CVE-2026-0002"].RepositoryID == "" {
+		t.Fatalf("CVE-2026-0002 RepositoryID = blank, want anchored known-fixed finding")
+	}
+	if _, ok := got["CVE-2026-0003"]; ok {
+		t.Fatalf("CVE-2026-0003 produced an impact finding without owned package, repository, or image evidence: %#v", got["CVE-2026-0003"])
+	}
+	if _, ok := got["CVE-2026-0004"]; ok {
+		t.Fatalf("CVE-2026-0004 produced an impact finding from source-only CVE evidence: %#v", got["CVE-2026-0004"])
+	}
 }
 
 func TestBuildSupplyChainImpactFindingsDerivesImagePathFromSBOMAttachment(t *testing.T) {
@@ -129,8 +135,7 @@ func TestBuildSupplyChainImpactFindingsRequiresAffectedVersionForExactImpact(t *
 	findings := BuildSupplyChainImpactFindings([]facts.Envelope{
 		vulnerabilityCVEFact("cve-1", "CVE-2026-0001", 8.0),
 		vulnerabilityAffectedPackageFact("affected-1", "CVE-2026-0001", testImpactPackageID, "npm", "example", "", "1.3.0"),
-		packageVersionFact("version-1", testImpactPackageID, testImpactPURL, "1.2.3"),
-		packageConsumptionFact("consume-1", testImpactPackageID, testImpactRepositoryID),
+		packageConsumptionFactWithRange("consume-1", testImpactPackageID, testImpactRepositoryID, "1.2.3"),
 	})
 
 	got := supplyChainImpactFindingsByCVE(findings)["CVE-2026-0001"]
@@ -149,8 +154,7 @@ func TestSupplyChainImpactHandlerLoadsActiveEvidenceAndWritesFindings(t *testing
 			vulnerabilityAffectedPackageFact("affected-1", "CVE-2026-0001", testImpactPackageID, "npm", "example", "1.2.3", "1.3.0"),
 		},
 		active: []facts.Envelope{
-			packageVersionFact("version-1", testImpactPackageID, testImpactPURL, "1.2.3"),
-			packageConsumptionFact("consume-1", testImpactPackageID, testImpactRepositoryID),
+			packageConsumptionFactWithRange("consume-1", testImpactPackageID, testImpactRepositoryID, "1.2.3"),
 		},
 	}
 	writer := &recordingSupplyChainImpactWriter{}
@@ -375,20 +379,6 @@ func packageVersionFact(factID string, packageID string, purl string, version st
 			"package_id": packageID,
 			"purl":       purl,
 			"version":    version,
-		},
-	}
-}
-
-func packageConsumptionFact(factID string, packageID string, repositoryID string) facts.Envelope {
-	return facts.Envelope{
-		FactID:   factID,
-		FactKind: packageConsumptionCorrelationFactKind,
-		Payload: map[string]any{
-			"package_id":        packageID,
-			"relationship_kind": "consumption",
-			"repository_id":     repositoryID,
-			"canonical_writes":  1,
-			"evidence_fact_ids": []any{"manifest-1"},
 		},
 	}
 }

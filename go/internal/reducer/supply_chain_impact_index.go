@@ -23,26 +23,30 @@ type supplyChainAffectedPackage struct {
 	name             string
 	purl             string
 	affectedVersions []string
+	affectedRanges   []supplyChainAffectedRange
 	fixedVersions    []string
 }
 
-type supplyChainPackageVersion struct {
-	factID    string
-	packageID string
-	purl      string
-	version   string
+type supplyChainAffectedProduct struct {
+	factID          string
+	cveID           string
+	criteria        string
+	matchCriteriaID string
+	vulnerable      bool
 }
 
 type supplyChainPackageConsumption struct {
-	factID       string
-	packageID    string
-	repositoryID string
+	factID          string
+	packageID       string
+	repositoryID    string
+	dependencyRange string
 }
 
 type supplyChainSBOMComponent struct {
 	factID     string
 	documentID string
 	purl       string
+	cpe        string
 	packageID  string
 	version    string
 }
@@ -71,7 +75,7 @@ type supplyChainRiskSignals struct {
 type supplyChainImpactIndex struct {
 	cves             []supplyChainImpactCVE
 	affectedPackages map[string][]supplyChainAffectedPackage
-	packageVersions  map[string][]supplyChainPackageVersion
+	affectedProducts map[string][]supplyChainAffectedProduct
 	consumption      map[string][]supplyChainPackageConsumption
 	components       []supplyChainSBOMComponent
 	attachments      map[string]supplyChainAttachment
@@ -82,7 +86,7 @@ type supplyChainImpactIndex struct {
 func buildSupplyChainImpactIndex(envelopes []facts.Envelope) supplyChainImpactIndex {
 	index := supplyChainImpactIndex{
 		affectedPackages: map[string][]supplyChainAffectedPackage{},
-		packageVersions:  map[string][]supplyChainPackageVersion{},
+		affectedProducts: map[string][]supplyChainAffectedProduct{},
 		consumption:      map[string][]supplyChainPackageConsumption{},
 		attachments:      map[string]supplyChainAttachment{},
 		images:           map[string]supplyChainImageIdentity{},
@@ -100,10 +104,10 @@ func buildSupplyChainImpactIndex(envelopes []facts.Envelope) supplyChainImpactIn
 			if pkg.cveID != "" {
 				index.affectedPackages[pkg.cveID] = append(index.affectedPackages[pkg.cveID], pkg)
 			}
-		case facts.PackageRegistryPackageVersionFactKind:
-			version := supplyChainPackageVersionFromEnvelope(envelope)
-			if version.packageID != "" {
-				index.packageVersions[version.packageID] = append(index.packageVersions[version.packageID], version)
+		case facts.VulnerabilityAffectedProductFactKind:
+			product := supplyChainAffectedProductFromEnvelope(envelope)
+			if product.cveID != "" && product.criteria != "" && product.vulnerable {
+				index.affectedProducts[product.cveID] = append(index.affectedProducts[product.cveID], product)
 			}
 		case packageConsumptionCorrelationFactKind:
 			consumption := supplyChainConsumptionFromEnvelope(envelope)
@@ -112,7 +116,7 @@ func buildSupplyChainImpactIndex(envelopes []facts.Envelope) supplyChainImpactIn
 			}
 		case facts.SBOMComponentFactKind:
 			component := supplyChainSBOMComponentFromEnvelope(envelope)
-			if component.purl != "" || component.packageID != "" {
+			if component.purl != "" || component.packageID != "" || component.cpe != "" {
 				index.components = append(index.components, component)
 			}
 		case sbomAttestationAttachmentFactKind:
@@ -150,13 +154,15 @@ func classifySupplyChainImpactPackage(
 	index supplyChainImpactIndex,
 ) SupplyChainImpactFinding {
 	finding := baseSupplyChainImpactFinding(cve, pkg, index)
-	version, hasVersion := firstPackageVersion(pkg, index.packageVersions[pkg.packageID])
 	component, attachment, image, hasComponentPath := firstSBOMImpactPath(pkg, index)
-	if hasVersion {
-		finding.PURL = firstNonBlank(version.purl, finding.PURL)
-		finding.ObservedVersion = version.version
-		finding.EvidenceFactIDs = append(finding.EvidenceFactIDs, version.factID)
-		finding.EvidencePath = append(finding.EvidencePath, facts.PackageRegistryPackageVersionFactKind)
+	consumption := firstConsumption(pkg.packageID, index.consumption)
+	if consumption.factID != "" {
+		finding.RepositoryID = consumption.repositoryID
+		finding.EvidenceFactIDs = append(finding.EvidenceFactIDs, consumption.factID)
+		finding.EvidencePath = append(finding.EvidencePath, packageConsumptionCorrelationFactKind)
+		if manifestVersion, ok := exactManifestDependencyVersion(consumption.dependencyRange); ok {
+			finding.ObservedVersion = manifestVersion
+		}
 	}
 	if hasComponentPath {
 		finding.PURL = firstNonBlank(component.purl, finding.PURL)
@@ -168,22 +174,19 @@ func classifySupplyChainImpactPackage(
 			finding.RepositoryID = image.repositoryID
 		}
 	}
+	if consumption.factID != "" && packageVersionAffected(finding.ObservedVersion, pkg) {
+		finding.Status = SupplyChainImpactAffectedExact
+		finding.Confidence = "exact"
+		finding.RuntimeReachability = "package_manifest"
+		finding.CanonicalWrites = 1
+		finding.MissingEvidence = missingImpactEvidence(finding)
+		return finding
+	}
 	if isKnownFixed(finding.ObservedVersion, finding.FixedVersion) {
 		finding.Status = SupplyChainImpactNotAffectedKnownFixed
 		finding.Confidence = "exact"
 		finding.RuntimeReachability = "known_fixed"
 		finding.CanonicalWrites = 1
-		finding.MissingEvidence = missingImpactEvidence(finding)
-		return finding
-	}
-	if consumption := firstConsumption(pkg.packageID, index.consumption); hasVersion && consumption.factID != "" && versionAffected(finding.ObservedVersion, pkg.affectedVersions) {
-		finding.Status = SupplyChainImpactAffectedExact
-		finding.Confidence = "exact"
-		finding.RepositoryID = consumption.repositoryID
-		finding.RuntimeReachability = "package_manifest"
-		finding.CanonicalWrites = 1
-		finding.EvidenceFactIDs = append(finding.EvidenceFactIDs, consumption.factID)
-		finding.EvidencePath = append(finding.EvidencePath, packageConsumptionCorrelationFactKind)
 		finding.MissingEvidence = missingImpactEvidence(finding)
 		return finding
 	}
@@ -203,19 +206,50 @@ func classifySupplyChainImpactPackage(
 	return finding
 }
 
-func unknownSupplyChainImpactFinding(
+func classifySupplyChainImpactProduct(
 	cve supplyChainImpactCVE,
+	product supplyChainAffectedProduct,
+	index supplyChainImpactIndex,
+) SupplyChainImpactFinding {
+	finding := baseSupplyChainImpactProductFinding(cve, product, index)
+	component, attachment, image, hasComponentPath := firstSBOMProductImpactPath(product, index)
+	if hasComponentPath {
+		finding.ObservedVersion = firstNonBlank(component.version, versionFromCPE23Criteria(product.criteria))
+		finding.SubjectDigest = attachment.subjectDigest
+		finding.EvidenceFactIDs = append(finding.EvidenceFactIDs, component.factID, attachment.factID, image.factID)
+		finding.EvidencePath = append(finding.EvidencePath, facts.SBOMComponentFactKind, sbomAttestationAttachmentFactKind, containerImageIdentityFactKind)
+		if image.repositoryID != "" {
+			finding.RepositoryID = image.repositoryID
+		}
+		finding.Status = SupplyChainImpactAffectedDerived
+		finding.Confidence = "derived_product"
+		finding.RuntimeReachability = "image_sbom"
+		finding.CanonicalWrites = 1
+		finding.MissingEvidence = missingImpactEvidence(finding)
+		return finding
+	}
+	finding.ObservedVersion = versionFromCPE23Criteria(product.criteria)
+	finding.Status = SupplyChainImpactPossiblyAffected
+	finding.Confidence = "weak_product"
+	finding.RuntimeReachability = "unknown"
+	finding.CanonicalWrites = 1
+	finding.MissingEvidence = missingImpactEvidence(finding)
+	return finding
+}
+
+func baseSupplyChainImpactProductFinding(
+	cve supplyChainImpactCVE,
+	product supplyChainAffectedProduct,
 	index supplyChainImpactIndex,
 ) SupplyChainImpactFinding {
 	finding := SupplyChainImpactFinding{
 		CVEID:           cve.cveID,
 		AdvisoryID:      firstNonBlank(cve.advisoryID, cve.cveID),
-		Status:          SupplyChainImpactUnknown,
-		Confidence:      "unknown",
+		ProductCriteria: product.criteria,
+		MatchCriteriaID: product.matchCriteriaID,
 		CVSSScore:       cve.cvssScore,
-		MissingEvidence: []string{"affected package evidence missing", "package or SBOM evidence missing", "runtime reachability evidence missing"},
-		EvidencePath:    []string{facts.VulnerabilityCVEFactKind},
-		EvidenceFactIDs: []string{cve.factID},
+		EvidencePath:    []string{facts.VulnerabilityCVEFactKind, facts.VulnerabilityAffectedProductFactKind},
+		EvidenceFactIDs: []string{cve.factID, product.factID},
 	}
 	applyRiskSignals(&finding, index.riskSignals[cve.cveID])
 	return finding

@@ -39,10 +39,11 @@ const (
 // SupplyChainImpactFactFilter bounds active evidence loading for one impact
 // reducer intent.
 type SupplyChainImpactFactFilter struct {
-	PackageIDs     []string
-	PURLs          []string
-	CVEIDs         []string
-	SubjectDigests []string
+	PackageIDs      []string
+	PURLs           []string
+	CVEIDs          []string
+	SubjectDigests  []string
+	ProductCriteria []string
 }
 
 // SupplyChainImpactFinding is one reducer-owned vulnerability impact finding.
@@ -53,6 +54,8 @@ type SupplyChainImpactFinding struct {
 	Ecosystem           string
 	PackageName         string
 	PURL                string
+	ProductCriteria     string
+	MatchCriteriaID     string
 	ObservedVersion     string
 	FixedVersion        string
 	Status              SupplyChainImpactStatus
@@ -185,24 +188,47 @@ func (h SupplyChainImpactHandler) emitCounters(ctx context.Context, counts map[S
 // explicit package, SBOM, image, and repository evidence.
 func BuildSupplyChainImpactFindings(envelopes []facts.Envelope) []SupplyChainImpactFinding {
 	index := buildSupplyChainImpactIndex(envelopes)
-	findings := make([]SupplyChainImpactFinding, 0, len(index.affectedPackages))
+	findings := make([]SupplyChainImpactFinding, 0, len(index.affectedPackages)+len(index.affectedProducts))
 	for _, cve := range index.cves {
 		affected := index.affectedPackages[cve.cveID]
-		if len(affected) == 0 {
-			findings = append(findings, unknownSupplyChainImpactFinding(cve, index))
+		if len(affected) > 0 {
+			for _, pkg := range affected {
+				findings = appendSupplyChainImpactFinding(findings, classifySupplyChainImpactPackage(cve, pkg, index))
+			}
 			continue
 		}
-		for _, pkg := range affected {
-			findings = append(findings, classifySupplyChainImpactPackage(cve, pkg, index))
+		products := index.affectedProducts[cve.cveID]
+		if len(products) > 0 {
+			for _, product := range products {
+				findings = appendSupplyChainImpactFinding(findings, classifySupplyChainImpactProduct(cve, product, index))
+			}
+			continue
 		}
 	}
 	sort.SliceStable(findings, func(i, j int) bool {
 		if findings[i].CVEID != findings[j].CVEID {
 			return findings[i].CVEID < findings[j].CVEID
 		}
-		return findings[i].PackageID < findings[j].PackageID
+		if findings[i].PackageID != findings[j].PackageID {
+			return findings[i].PackageID < findings[j].PackageID
+		}
+		return findings[i].ProductCriteria < findings[j].ProductCriteria
 	})
 	return findings
+}
+
+func appendSupplyChainImpactFinding(
+	findings []SupplyChainImpactFinding,
+	finding SupplyChainImpactFinding,
+) []SupplyChainImpactFinding {
+	if !supplyChainImpactFindingHasOwnedAnchor(finding) {
+		return findings
+	}
+	return append(findings, finding)
+}
+
+func supplyChainImpactFindingHasOwnedAnchor(finding SupplyChainImpactFinding) bool {
+	return strings.TrimSpace(finding.RepositoryID) != "" || strings.TrimSpace(finding.SubjectDigest) != ""
 }
 
 func supplyChainImpactFactKinds() []string {
@@ -212,8 +238,6 @@ func supplyChainImpactFactKinds() []string {
 		facts.VulnerabilityAffectedProductFactKind,
 		facts.VulnerabilityEPSSScoreFactKind,
 		facts.VulnerabilityKnownExploitedFactKind,
-		facts.PackageRegistryPackageVersionFactKind,
-		facts.PackageRegistryVulnerabilityHintFactKind,
 		facts.SBOMComponentFactKind,
 		sbomAttestationAttachmentFactKind,
 		containerImageIdentityFactKind,
@@ -265,7 +289,7 @@ func supplyChainImpactCanonicalWrites(findings []SupplyChainImpactFinding) int {
 }
 
 func supplyChainImpactFilter(envelopes []facts.Envelope) SupplyChainImpactFactFilter {
-	var packageIDs, purls, cveIDs, digests []string
+	var packageIDs, purls, cveIDs, digests, productCriteria []string
 	for _, envelope := range envelopes {
 		switch envelope.FactKind {
 		case facts.VulnerabilityCVEFactKind:
@@ -274,24 +298,32 @@ func supplyChainImpactFilter(envelopes []facts.Envelope) SupplyChainImpactFactFi
 			packageIDs = append(packageIDs, payloadStr(envelope.Payload, "package_id"))
 			purls = append(purls, payloadStr(envelope.Payload, "purl"))
 			cveIDs = append(cveIDs, supplyChainCVEID(envelope.Payload))
+		case facts.VulnerabilityAffectedProductFactKind:
+			cveIDs = append(cveIDs, supplyChainCVEID(envelope.Payload))
+			if payloadBool(envelope.Payload, "vulnerable") {
+				productCriteria = append(productCriteria, payloadStr(envelope.Payload, "criteria"))
+			}
 		case facts.VulnerabilityEPSSScoreFactKind, facts.VulnerabilityKnownExploitedFactKind:
 			cveIDs = append(cveIDs, supplyChainCVEID(envelope.Payload))
 		case facts.SBOMComponentFactKind:
 			purls = append(purls, payloadStr(envelope.Payload, "purl"))
+			productCriteria = append(productCriteria, payloadStr(envelope.Payload, "cpe"))
 		case sbomAttestationAttachmentFactKind:
 			digests = append(digests, payloadStr(envelope.Payload, "subject_digest"))
 		}
 	}
 	return SupplyChainImpactFactFilter{
-		PackageIDs:     uniqueSortedStrings(packageIDs),
-		PURLs:          uniqueSortedStrings(purls),
-		CVEIDs:         uniqueSortedStrings(cveIDs),
-		SubjectDigests: uniqueSortedStrings(digests),
+		PackageIDs:      uniqueSortedStrings(packageIDs),
+		PURLs:           uniqueSortedStrings(purls),
+		CVEIDs:          uniqueSortedStrings(cveIDs),
+		SubjectDigests:  uniqueSortedStrings(digests),
+		ProductCriteria: uniqueSortedStrings(productCriteria),
 	}
 }
 
 func (f SupplyChainImpactFactFilter) empty() bool {
-	return len(f.PackageIDs) == 0 && len(f.PURLs) == 0 && len(f.CVEIDs) == 0 && len(f.SubjectDigests) == 0
+	return len(f.PackageIDs) == 0 && len(f.PURLs) == 0 && len(f.CVEIDs) == 0 &&
+		len(f.SubjectDigests) == 0 && len(f.ProductCriteria) == 0
 }
 
 func supplyChainCVEID(payload map[string]any) string {
