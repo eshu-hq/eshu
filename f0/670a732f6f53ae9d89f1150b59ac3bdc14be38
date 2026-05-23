@@ -1,0 +1,50 @@
+go/internal/reducer/supply_chain_impact_product_test.go
+  s_072c5984f68e14::t_b2c3cb1768ddf3 148
+docs/public/reference/http-api/evidence-and-supply-chain.md
+  s_072c5984f68e14::t_670dedf350bab6 133-138
+go/internal/reducer/supply_chain_impact_lockfile_test.go
+  s_072c5984f68e14::t_9a5f4a56d7cfcf 96-120
+  s_072c5984f68e14::t_dc5b0cc5229ece 1-46,121-162,169-171
+  s_072c5984f68e14::t_655137cf46efcc 47-95,163-168
+go/internal/reducer/supply_chain_impact_index.go
+  s_072c5984f68e14::t_6e2c10fa555601 26,39-42,159,163-165,177-178,180,185-186,188
+go/internal/reducer/supply_chain_impact_match.go
+  s_072c5984f68e14::t_ff29d241536dda 28,45-48
+go/internal/parser/json/language.go
+  s_072c5984f68e14::t_587a192f956985 101-104
+go/internal/reducer/README.md
+  s_072c5984f68e14::t_670dedf350bab6 306-312
+go/internal/reducer/supply_chain_impact_test.go
+  s_072c5984f68e14::t_fb770098bedd6b 79,83,138,157
+go/internal/parser/json/README.md
+  s_072c5984f68e14::t_670dedf350bab6 13-18,53-56
+go/internal/parser/json/parser_test.go
+  s_072c5984f68e14::t_c1c1597746b5c0 47-74,76-103,249-257
+  s_072c5984f68e14::t_4068c065759a7c 75
+docs/public/reference/collector-reducer-readiness.md
+  s_072c5984f68e14::t_670dedf350bab6 55,72,111-121,135-141
+  s_072c5984f68e14::t_41551f41688722 122-134
+go/internal/parser/json/doc.go
+  s_072c5984f68e14::t_670dedf350bab6 5-11
+go/internal/reducer/supply_chain_impact_ranges.go
+  s_072c5984f68e14::t_9a5f4a56d7cfcf 187,197-215
+  s_072c5984f68e14::t_b036fb41cf9bd6 1-186,188-196,216
+go/internal/parser/json/package_lock.go
+  s_072c5984f68e14::t_ac16ce3c254e85 1-99
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.0",
+  "base_commit_sha": "f0670a732f6f53ae9d89f1150b59ac3bdc14be38",
+  "prompts": {},
+  "sessions": {
+    "s_072c5984f68e14": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e4636-8361-7713-a3c6-b30ed9bbfc7b",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
