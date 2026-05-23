@@ -145,8 +145,7 @@ func TestBuildSupplyChainImpactFindingsRanksPackageEvidenceAboveProductEvidence(
 			"1.2.3",
 			"1.3.0",
 		),
-		packageVersionFact("version-1", testImpactPackageID, testImpactPURL, "1.2.3"),
-		packageConsumptionFact("consume-1", testImpactPackageID, testImpactRepositoryID),
+		packageConsumptionFactWithRange("consume-1", testImpactPackageID, testImpactRepositoryID, "1.2.3"),
 	})
 
 	if got, want := len(findings), 1; got != want {

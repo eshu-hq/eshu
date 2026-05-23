@@ -238,8 +238,6 @@ func supplyChainImpactFactKinds() []string {
 		facts.VulnerabilityAffectedProductFactKind,
 		facts.VulnerabilityEPSSScoreFactKind,
 		facts.VulnerabilityKnownExploitedFactKind,
-		facts.PackageRegistryPackageVersionFactKind,
-		facts.PackageRegistryVulnerabilityHintFactKind,
 		facts.SBOMComponentFactKind,
 		sbomAttestationAttachmentFactKind,
 		containerImageIdentityFactKind,

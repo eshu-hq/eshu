@@ -25,6 +25,7 @@ func supplyChainAffectedPackageFromEnvelope(envelope facts.Envelope) supplyChain
 		name:             payloadStr(envelope.Payload, "package_name"),
 		purl:             payloadStr(envelope.Payload, "purl"),
 		affectedVersions: payloadStrings(envelope.Payload, "affected_version", "affected_versions"),
+		affectedRanges:   supplyChainAffectedRangesFromPayload(envelope.Payload),
 		fixedVersions:    payloadStrings(envelope.Payload, "fixed_version", "fixed_versions"),
 	}
 }
@@ -39,20 +40,12 @@ func supplyChainAffectedProductFromEnvelope(envelope facts.Envelope) supplyChain
 	}
 }
 
-func supplyChainPackageVersionFromEnvelope(envelope facts.Envelope) supplyChainPackageVersion {
-	return supplyChainPackageVersion{
-		factID:    envelope.FactID,
-		packageID: payloadStr(envelope.Payload, "package_id"),
-		purl:      payloadStr(envelope.Payload, "purl"),
-		version:   payloadStr(envelope.Payload, "version"),
-	}
-}
-
 func supplyChainConsumptionFromEnvelope(envelope facts.Envelope) supplyChainPackageConsumption {
 	return supplyChainPackageConsumption{
-		factID:       envelope.FactID,
-		packageID:    payloadStr(envelope.Payload, "package_id"),
-		repositoryID: payloadStr(envelope.Payload, "repository_id"),
+		factID:          envelope.FactID,
+		packageID:       payloadStr(envelope.Payload, "package_id"),
+		repositoryID:    payloadStr(envelope.Payload, "repository_id"),
+		dependencyRange: payloadStr(envelope.Payload, "dependency_range"),
 	}
 }
 
@@ -83,19 +76,6 @@ func supplyChainImageIdentityFromEnvelope(envelope facts.Envelope) supplyChainIm
 		digest:       payloadStr(envelope.Payload, "digest"),
 		repositoryID: payloadStr(envelope.Payload, "repository_id"),
 	}
-}
-
-func firstPackageVersion(
-	pkg supplyChainAffectedPackage,
-	versions []supplyChainPackageVersion,
-) (supplyChainPackageVersion, bool) {
-	for _, version := range versions {
-		if pkg.purl != "" && version.purl != "" && pkg.purl != version.purl {
-			continue
-		}
-		return version, true
-	}
-	return supplyChainPackageVersion{}, false
 }
 
 func firstConsumption(

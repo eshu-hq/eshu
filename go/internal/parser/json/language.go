@@ -98,7 +98,10 @@ func Parse(
 		return payload, nil
 	}
 
-	if !shouldSkipJSONEntities(filename) {
+	switch {
+	case filename == "package-lock.json":
+		payload["variables"] = packageLockDependencyVariables(object, languageName)
+	case !shouldSkipJSONEntities(filename):
 		switch {
 		case filename == "package.json":
 			payload["variables"] = dependencyVariables(object, languageName, "dependencies", "npm", topLevelEntries)

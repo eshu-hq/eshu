@@ -76,13 +76,11 @@ func TestBuildSupplyChainImpactFindingsClassifiesEvidencePaths(t *testing.T) {
 		vulnerabilityAffectedPackageFact("affected-1", "CVE-2026-0001", testImpactPackageID, "npm", "example", "1.2.3", "1.3.0"),
 		vulnerabilityEPSSFact("epss-1", "CVE-2026-0001", "0.71", "0.98"),
 		vulnerabilityKEVFact("kev-1", "CVE-2026-0001"),
-		packageVersionFact("version-1", testImpactPackageID, "pkg:npm/example@1.2.3", "1.2.3"),
-		packageConsumptionFact("consume-1", testImpactPackageID, testImpactRepositoryID),
+		packageConsumptionFactWithRange("consume-1", testImpactPackageID, testImpactRepositoryID, "1.2.3"),
 
 		vulnerabilityCVEFact("cve-fixed", "CVE-2026-0002", 9.8),
 		vulnerabilityAffectedPackageFact("affected-fixed", "CVE-2026-0002", "pkg:npm/fixed", "npm", "fixed", "1.2.3", "1.3.0"),
-		packageVersionFact("version-fixed", "pkg:npm/fixed", "pkg:npm/fixed@1.3.0", "1.3.0"),
-		packageConsumptionFact("consume-fixed", "pkg:npm/fixed", testImpactRepositoryID),
+		packageConsumptionFactWithRange("consume-fixed", "pkg:npm/fixed", testImpactRepositoryID, "1.3.0"),
 
 		vulnerabilityCVEFact("cve-unanchored", "CVE-2026-0003", 5.0),
 		vulnerabilityAffectedPackageFact("affected-unanchored", "CVE-2026-0003", "pkg:npm/other", "npm", "other", "", "2.0.0"),
@@ -137,8 +135,7 @@ func TestBuildSupplyChainImpactFindingsRequiresAffectedVersionForExactImpact(t *
 	findings := BuildSupplyChainImpactFindings([]facts.Envelope{
 		vulnerabilityCVEFact("cve-1", "CVE-2026-0001", 8.0),
 		vulnerabilityAffectedPackageFact("affected-1", "CVE-2026-0001", testImpactPackageID, "npm", "example", "", "1.3.0"),
-		packageVersionFact("version-1", testImpactPackageID, testImpactPURL, "1.2.3"),
-		packageConsumptionFact("consume-1", testImpactPackageID, testImpactRepositoryID),
+		packageConsumptionFactWithRange("consume-1", testImpactPackageID, testImpactRepositoryID, "1.2.3"),
 	})
 
 	got := supplyChainImpactFindingsByCVE(findings)["CVE-2026-0001"]
@@ -157,8 +154,7 @@ func TestSupplyChainImpactHandlerLoadsActiveEvidenceAndWritesFindings(t *testing
 			vulnerabilityAffectedPackageFact("affected-1", "CVE-2026-0001", testImpactPackageID, "npm", "example", "1.2.3", "1.3.0"),
 		},
 		active: []facts.Envelope{
-			packageVersionFact("version-1", testImpactPackageID, testImpactPURL, "1.2.3"),
-			packageConsumptionFact("consume-1", testImpactPackageID, testImpactRepositoryID),
+			packageConsumptionFactWithRange("consume-1", testImpactPackageID, testImpactRepositoryID, "1.2.3"),
 		},
 	}
 	writer := &recordingSupplyChainImpactWriter{}

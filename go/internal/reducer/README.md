@@ -303,10 +303,13 @@ Log phase attributes: `telemetry.PhaseReduction` (main loop),
   ambiguous, not as a first-subject match.
 - **Supply-chain impact is evidence-first** —
   `SupplyChainImpactHandler` writes `reducer_supply_chain_impact_finding`
-  facts only from explicit vulnerability, affected package, package-version,
-  SBOM component, attachment, image identity, or package-consumption evidence.
-  CVSS, EPSS, and KEV stay risk signals; they never prove reachability without
-  package or runtime evidence, and missing deployment evidence remains visible.
+  facts only from explicit vulnerability, affected package, owned
+  package-consumption, SBOM component, attachment, or image identity evidence.
+  Exact package-manifest or lockfile dependency versions can prove an observed
+  package version; package-registry version facts are upstream metadata and
+  must not be treated as installed versions. CVSS, EPSS, and KEV stay risk
+  signals; they never prove reachability without package or runtime evidence,
+  and missing deployment evidence remains visible.
 - **Package ownership is conservative** —
   `PackageSourceCorrelationHandler` writes ownership candidates from registry
   source hints and package-version publication evidence but leaves

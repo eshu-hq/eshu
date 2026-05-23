@@ -52,7 +52,7 @@ instances.
 | AWS cloud | `eshu-collector-aws-cloud` is claim-driven. | AWS facts feed cloud-asset and AWS runtime-drift domains. AWS runtime drift writes durable reducer facts and bounded Postgres reads; graph shape remains reducer-owned. | Prove read-only AWS collection, claim-scoped credentials, AWS service coverage, reducer drain, drift reads, and status visibility in the target environment. |
 | AWS freshness | `eshu-webhook-listener` accepts AWS freshness events and stores durable triggers. | Freshness narrows the next AWS collection target. Scheduled scans remain the baseline completeness path. | Prove one live AWS EventBridge or AWS Config sample through webhook intake, trigger handoff, AWS work creation, and final status. |
 | Package registry | `eshu-collector-package-registry` is claim-driven. | Package source correlation classifies source hints without ownership promotion. Package-native dependency and publication facts are safe as provenance/read-model evidence. | Expand ownership and usage correlation only after exact, derived, ambiguous, unresolved, stale, and rejected cases are proven. |
-| Vulnerability intelligence | `eshu-collector-vulnerability-intelligence` has source clients for CISA KEV, FIRST EPSS, OSV, and NVD. | Source-truth `vulnerability.*` facts exist. Impact reducers require owned package-manifest, repository, image, or SBOM evidence before publishing user-facing impact findings. They must not infer reachability from CVSS, EPSS, KEV, product-only CPEs, or package-registry facts alone. | Prove live source collection, API/MCP fact visibility, then package/image/deployment impact joins after upstream collectors are proven together. |
+| Vulnerability intelligence | `eshu-collector-vulnerability-intelligence` has source clients for CISA KEV, FIRST EPSS, OSV, and NVD. | Source-truth `vulnerability.*` facts exist. Impact reducers require owned package-manifest, lockfile, repository, image, or SBOM evidence before publishing user-facing impact findings. Exact lockfile versions can prove observed package impact; manifest ranges stay partial evidence. They must not infer reachability from CVSS, EPSS, KEV, product-only CPEs, or package-registry facts alone. | Prove live source collection, API/MCP fact visibility, then package/image/deployment impact joins after upstream collectors are proven together. |
 
 ## Reducer Truth Boundaries
 
@@ -69,7 +69,7 @@ the collector naming something truth. Current reducer-owned surfaces include:
 | `ci_cd_run_correlation` | Exact CI/CD correlation requires artifact identity evidence, not CI success alone. |
 | `service_catalog_correlation` | Catalog names, owners, and labels remain provenance until explicit repository evidence admits correlation. |
 | `sbom_attestation_attachment` | SBOM and attestation attachment requires explicit subject digest evidence; parse validity and verification trust stay separate. |
-| `supply_chain_impact` | Vulnerability impact findings come from explicit CVE/advisory to package/component to repository/image evidence paths. Source-only vulnerability intelligence is retained as facts but stays out of user-facing impact findings until it joins to owned package-manifest, repository, image, or SBOM evidence. |
+| `supply_chain_impact` | Vulnerability impact findings come from explicit CVE/advisory to package/component to repository/image evidence paths. Source-only vulnerability intelligence is retained as facts but stays out of user-facing impact findings until it joins to owned package-manifest, lockfile, repository, image, or SBOM evidence. Package-registry version facts are source metadata, not installed-version proof. |
 
 Workflow completeness depends on reducer-owned phase publications only for
 collector families that declare required phases. Git and Terraform-state have
@@ -107,6 +107,38 @@ correction. Existing reducer outcome counts, `query.supply_chain_impact_findings
 spans, Postgres query duration metrics, API/MCP truth envelopes, and the
 missing-evidence payload explain whether a finding is anchored to a repository,
 subject digest, package manifest, or image/SBOM path.
+
+No-Regression Evidence: the package-lock observed-version correction first
+proved vulnerable owned packages in the current repository with `npm audit
+--json` (`vite@5.4.21`, `esbuild@0.21.5`, and `ws@8.20.0` reported as
+moderate vulnerabilities) and OSV querybatch (`GHSA-4w7w-66w2-5vf9`,
+`GHSA-67mh-4wv8-2f99`, and `GHSA-58qx-3vcg-4xpx` for those exact versions).
+Regression coverage then ran `go test ./internal/parser/json -run
+'TestParsePackage(JSON|LockJSON)' -count=1`, `go test ./internal/reducer -run
+'TestBuildSupplyChainImpactFindings(UsesOwnedLockfileVersion|LeavesRangeDependencyPossiblyAffected|MarksOwnedFixedVersionKnownFixed)'
+-count=1`, and `go test ./internal/parser/json ./internal/reducer
+./internal/storage/postgres ./internal/query ./internal/mcp
+./internal/collector/vulnerabilityintelligence -count=1`.
+Remote Compose proof `pr573-lockfile-impact` used a one-repository corpus with
+`package-lock.json` declaring `ws@8.20.0`, package-registry collection for
+`ws`, and OSV vulnerability-intelligence collection for the exact npm version.
+Postgres showed the lockfile content entity (`value=8.20.0`,
+`section=package-lock`), admitted package-consumption facts for
+`npm://registry.npmjs.org/ws`, and reducer impact facts. API
+`GET /api/v0/supply-chain/impact/findings?impact_status=affected_exact&package_id=npm%3A%2F%2Fregistry.npmjs.org%2Fws&limit=20`
+returned `count=1`, `truncated=false`, `advisory_id=GHSA-58qx-3vcg-4xpx`,
+`cve_id=CVE-2026-45736`, `observed_version=8.20.0`,
+`fixed_version=8.20.1`, `impact_status=affected_exact`, and
+`runtime_reachability=package_manifest`. MCP `list_supply_chain_impact_findings`
+with the same package/status bounds returned `Returned 1 result(s).` with truth
+`level=exact`, `profile=production`, and `freshness.state=fresh`.
+
+Observability Evidence: no telemetry contract changed for package-lock
+observed-version classification. Existing supply-chain impact reducer counters,
+evidence paths, missing-evidence payloads, `query.supply_chain_impact_findings`
+spans, and API/MCP truth envelopes show whether impact came from an exact owned
+lockfile version, a partial manifest range, an SBOM/image path, or source-only
+vulnerability intelligence.
 
 ## Gated Source Families
 

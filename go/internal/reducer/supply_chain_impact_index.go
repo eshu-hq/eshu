@@ -23,6 +23,7 @@ type supplyChainAffectedPackage struct {
 	name             string
 	purl             string
 	affectedVersions []string
+	affectedRanges   []supplyChainAffectedRange
 	fixedVersions    []string
 }
 
@@ -34,17 +35,11 @@ type supplyChainAffectedProduct struct {
 	vulnerable      bool
 }
 
-type supplyChainPackageVersion struct {
-	factID    string
-	packageID string
-	purl      string
-	version   string
-}
-
 type supplyChainPackageConsumption struct {
-	factID       string
-	packageID    string
-	repositoryID string
+	factID          string
+	packageID       string
+	repositoryID    string
+	dependencyRange string
 }
 
 type supplyChainSBOMComponent struct {
@@ -81,7 +76,6 @@ type supplyChainImpactIndex struct {
 	cves             []supplyChainImpactCVE
 	affectedPackages map[string][]supplyChainAffectedPackage
 	affectedProducts map[string][]supplyChainAffectedProduct
-	packageVersions  map[string][]supplyChainPackageVersion
 	consumption      map[string][]supplyChainPackageConsumption
 	components       []supplyChainSBOMComponent
 	attachments      map[string]supplyChainAttachment
@@ -93,7 +87,6 @@ func buildSupplyChainImpactIndex(envelopes []facts.Envelope) supplyChainImpactIn
 	index := supplyChainImpactIndex{
 		affectedPackages: map[string][]supplyChainAffectedPackage{},
 		affectedProducts: map[string][]supplyChainAffectedProduct{},
-		packageVersions:  map[string][]supplyChainPackageVersion{},
 		consumption:      map[string][]supplyChainPackageConsumption{},
 		attachments:      map[string]supplyChainAttachment{},
 		images:           map[string]supplyChainImageIdentity{},
@@ -115,11 +108,6 @@ func buildSupplyChainImpactIndex(envelopes []facts.Envelope) supplyChainImpactIn
 			product := supplyChainAffectedProductFromEnvelope(envelope)
 			if product.cveID != "" && product.criteria != "" && product.vulnerable {
 				index.affectedProducts[product.cveID] = append(index.affectedProducts[product.cveID], product)
-			}
-		case facts.PackageRegistryPackageVersionFactKind:
-			version := supplyChainPackageVersionFromEnvelope(envelope)
-			if version.packageID != "" {
-				index.packageVersions[version.packageID] = append(index.packageVersions[version.packageID], version)
 			}
 		case packageConsumptionCorrelationFactKind:
 			consumption := supplyChainConsumptionFromEnvelope(envelope)
@@ -166,19 +154,15 @@ func classifySupplyChainImpactPackage(
 	index supplyChainImpactIndex,
 ) SupplyChainImpactFinding {
 	finding := baseSupplyChainImpactFinding(cve, pkg, index)
-	version, hasVersion := firstPackageVersion(pkg, index.packageVersions[pkg.packageID])
 	component, attachment, image, hasComponentPath := firstSBOMImpactPath(pkg, index)
 	consumption := firstConsumption(pkg.packageID, index.consumption)
-	if hasVersion {
-		finding.PURL = firstNonBlank(version.purl, finding.PURL)
-		finding.ObservedVersion = version.version
-		finding.EvidenceFactIDs = append(finding.EvidenceFactIDs, version.factID)
-		finding.EvidencePath = append(finding.EvidencePath, facts.PackageRegistryPackageVersionFactKind)
-	}
-	if hasVersion && consumption.factID != "" {
+	if consumption.factID != "" {
 		finding.RepositoryID = consumption.repositoryID
 		finding.EvidenceFactIDs = append(finding.EvidenceFactIDs, consumption.factID)
 		finding.EvidencePath = append(finding.EvidencePath, packageConsumptionCorrelationFactKind)
+		if manifestVersion, ok := exactManifestDependencyVersion(consumption.dependencyRange); ok {
+			finding.ObservedVersion = manifestVersion
+		}
 	}
 	if hasComponentPath {
 		finding.PURL = firstNonBlank(component.purl, finding.PURL)
@@ -190,18 +174,18 @@ func classifySupplyChainImpactPackage(
 			finding.RepositoryID = image.repositoryID
 		}
 	}
-	if isKnownFixed(finding.ObservedVersion, finding.FixedVersion) {
-		finding.Status = SupplyChainImpactNotAffectedKnownFixed
+	if consumption.factID != "" && packageVersionAffected(finding.ObservedVersion, pkg) {
+		finding.Status = SupplyChainImpactAffectedExact
 		finding.Confidence = "exact"
-		finding.RuntimeReachability = "known_fixed"
+		finding.RuntimeReachability = "package_manifest"
 		finding.CanonicalWrites = 1
 		finding.MissingEvidence = missingImpactEvidence(finding)
 		return finding
 	}
-	if hasVersion && consumption.factID != "" && versionAffected(finding.ObservedVersion, pkg.affectedVersions) {
-		finding.Status = SupplyChainImpactAffectedExact
+	if isKnownFixed(finding.ObservedVersion, finding.FixedVersion) {
+		finding.Status = SupplyChainImpactNotAffectedKnownFixed
 		finding.Confidence = "exact"
-		finding.RuntimeReachability = "package_manifest"
+		finding.RuntimeReachability = "known_fixed"
 		finding.CanonicalWrites = 1
 		finding.MissingEvidence = missingImpactEvidence(finding)
 		return finding

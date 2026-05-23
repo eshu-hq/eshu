@@ -130,9 +130,12 @@ Valid impact statuses are `affected_exact`, `affected_derived`,
 `possibly_affected`, `not_affected_known_fixed`, and `unknown_impact`.
 Rows keep CVSS, EPSS, KEV, fixed-version state, runtime reachability,
 repository/image evidence, and missing evidence separate.
-Product-only CPE facts and package-registry facts without owned repository,
-image, package-manifest, or SBOM evidence remain source intelligence and do not
-appear as impact findings.
+Exact owned lockfile dependency rows can prove the observed package version.
+Manifest ranges remain partial package evidence until a lockfile, SBOM/image,
+or another owned exact-version source narrows the version. Product-only CPE
+facts and package-registry facts without owned repository, image,
+package-manifest, lockfile, or SBOM evidence remain source intelligence and do
+not appear as impact findings.
 
 ## SBOM And Attestation Attachments
 
