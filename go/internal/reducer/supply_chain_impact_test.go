@@ -383,20 +383,6 @@ func packageVersionFact(factID string, packageID string, purl string, version st
 	}
 }
 
-func packageConsumptionFact(factID string, packageID string, repositoryID string) facts.Envelope {
-	return facts.Envelope{
-		FactID:   factID,
-		FactKind: packageConsumptionCorrelationFactKind,
-		Payload: map[string]any{
-			"package_id":        packageID,
-			"relationship_kind": "consumption",
-			"repository_id":     repositoryID,
-			"canonical_writes":  1,
-			"evidence_fact_ids": []any{"manifest-1"},
-		},
-	}
-}
-
 func sbomComponentImpactFact(factID string, documentID string, purl string) facts.Envelope {
 	return facts.Envelope{
 		FactID:   factID,
