@@ -224,7 +224,7 @@ func errorClassName(err error) string {
 	if t == nil {
 		return "nil"
 	}
-	if t.Kind() == reflect.Ptr {
+	if t.Kind() == reflect.Pointer {
 		t = t.Elem()
 	}
 	return t.Name()
@@ -237,7 +237,7 @@ func failureCode(err error) string {
 	if t == nil {
 		return "nil_error"
 	}
-	if t.Kind() == reflect.Ptr {
+	if t.Kind() == reflect.Pointer {
 		t = t.Elem()
 	}
 	// Use package path + name for uniqueness.

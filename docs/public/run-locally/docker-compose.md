@@ -55,9 +55,7 @@ docker compose up --build bootstrap-index
 ```
 
 Eshu Compose sets `NORNICDB_EMBEDDING_ENABLED=false` and
-`NORNICDB_PERSIST_SEARCH_INDEXES=true`. NornicDB does not document a supported
-search/BM25 disable switch for graph-only deployments; do not invent a fake
-`NORNICDB_SEARCH_ENABLED` variable.
+`NORNICDB_PERSIST_SEARCH_INDEXES=true`. NornicDB does not currently document a supported switch that disables search/BM25 services entirely for graph-only deployments; track [orneryd/NornicDB#175](https://github.com/orneryd/NornicDB/issues/175) and do not invent a fake `NORNICDB_SEARCH_ENABLED` variable.
 
 ## Optional Profiles
 

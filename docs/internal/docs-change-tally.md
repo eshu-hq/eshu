@@ -169,6 +169,7 @@ branch. Regenerate them from
 | Python Parser Mermaid Pass | Added a code-grounded Python parser diagram to `go/internal/parser/python/README.md` showing parent engine input, Python/notebook source, SAM/serverless config scans, payload buckets, and collector materialization. |
 | Shared Parser Mermaid Pass | Added a code-grounded shared parser dependency-boundary diagram to `go/internal/parser/shared/README.md` showing the parent dispatcher, shared helpers, language-owned parser packages, payload buckets, and collector materialization. |
 | Language Framework Boundary Pass | Added inline framework and library support boundaries to every public language parser page, clarified the central parser support matrix, and documented the evidence required for community framework-support pull requests. |
+| GHA CI Fix Pass | Fixed the GitHub Actions failures by restoring the Docker Compose NornicDB search/BM25 support note required by `internal/runtime`, replacing a Terraform verifier prefix guard with `strings.TrimPrefix`, and updating projector failure-classification reflection kind checks for current Go vet. |
 
 ## Verification Snapshot
 
@@ -182,6 +183,11 @@ Current pass proof:
 - Strict MkDocs build passed after the framework-boundary pass.
 - Markdown file-size scan and `git diff --check` passed after the
   framework-boundary pass.
+- GHA CI fix verification passed: `golangci-lint run ./...`, `go test ./...`
+  from `go/`, focused `internal/doctruth`, `internal/projector`, and
+  `internal/runtime` tests, strict MkDocs, docs verification for
+  `docs/public/run-locally/docker-compose.md`, `scripts/verify-package-docs.sh`,
+  and `git diff --check`.
 - Rebase conflict resolution preserved the current 73-tool MCP contract,
   container-image identity read surface, and compressed public/package docs.
 - Reviewer correction restored package-local `README.md` and scoped `AGENTS.md`

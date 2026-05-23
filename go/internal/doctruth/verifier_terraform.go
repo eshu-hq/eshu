@@ -46,10 +46,7 @@ func NormalizeTerraformAddressClaim(raw string) string {
 	if strings.HasPrefix(value, "module.") {
 		return value
 	}
-	resourceTypeSource := value
-	if strings.HasPrefix(resourceTypeSource, "data.") {
-		resourceTypeSource = strings.TrimPrefix(resourceTypeSource, "data.")
-	}
+	resourceTypeSource := strings.TrimPrefix(value, "data.")
 	resourceType := resourceTypeSource[:strings.Index(resourceTypeSource, ".")]
 	if !looksLikeTerraformProviderResourceType(resourceType) {
 		return ""
