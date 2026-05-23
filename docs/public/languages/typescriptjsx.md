@@ -29,6 +29,21 @@ framework roots plus TSX component metadata. Runtime-built component names and
 framework behavior that is not represented in source or package metadata remain
 outside the exactness boundary.
 
+## Framework And Library Support
+
+Supported today:
+
+- React component evidence includes PascalCase JSX usage, component wrappers,
+  `React.FC`, `React.FunctionComponent`, `lazy(...)`, fragment shorthand, and
+  component type narrowing metadata.
+- Next.js app and route exports use the JavaScript-family root model.
+
+Not claimed today:
+
+- Runtime-built component names, framework plugin loading, generated route
+  maps, and JSX indirection that is not represented in source remain outside
+  the exactness boundary.
+
 ## Related Docs
 
 - [TypeScript Parser](typescript.md)

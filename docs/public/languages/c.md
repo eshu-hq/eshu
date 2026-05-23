@@ -27,6 +27,20 @@ Canonical implementation: `go/internal/parser/registry.go` plus the entrypoint a
 | Variables (initialized declarations) | `variables-initialized-declarations` | supported | `variables` | `name, line_number` | `node:Variable` | `go/internal/parser/engine_systems_test.go::TestDefaultEngineParsePathC` | Compose-backed fixture verification | - |
 | Macros (`#define`) | `macros-define` | supported | `macros` | `name, line_number` | `node:Macro` | `go/internal/parser/engine_systems_test.go::TestDefaultEngineParsePathC` | Compose-backed fixture verification | - |
 
+## Framework And Library Support
+
+Supported today:
+
+- This parser does not claim framework-level support.
+- Derived root evidence includes `main`, directly included local header
+  declarations, signal handlers, callback arguments, and direct
+  function-pointer initializer targets.
+
+Not claimed today:
+
+- Transitive include graphs, build-target selection, callback registries,
+  dynamic symbol lookup, and external linkage remain exactness blockers.
+
 ## Known Limitations
 - Function pointer declarations are not modeled as callable entities
 - Preprocessor macros with complex expansions are captured by name only

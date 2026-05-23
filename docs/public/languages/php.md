@@ -42,6 +42,21 @@ Canonical implementation:
 - Fully dynamic dispatch and reflection-heavy flows remain outside the
   documented contract.
 
+## Framework And Library Support
+
+Supported today:
+
+- Route-backed controller actions, literal route handlers, Symfony route
+  attributes, and WordPress hook callbacks are modeled as derived roots.
+- Constructors, magic methods, same-file interface methods and implementations,
+  and trait methods are also modeled as live root evidence.
+
+Not claimed today:
+
+- Composer/autoload public surfaces, broader framework route resolution,
+  include/require resolution, reflection-heavy flows, and arbitrary dynamic
+  dispatch remain outside the exactness boundary.
+
 ## Known Limitations
 
 - Trait adaptation semantics beyond the bounded alias and override paths remain

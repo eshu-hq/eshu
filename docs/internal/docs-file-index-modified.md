@@ -104,6 +104,7 @@ Generated from `git diff --name-status origin/main -- "*.md"` for this documenta
 - `go/internal/README.md`
 - `go/internal/app/README.md`
 - `go/internal/backendconformance/AGENTS.md`
+- `go/internal/backendconformance/README.md`
 - `go/internal/buildinfo/README.md`
 - `go/internal/collector/README.md`
 - `go/internal/collector/awscloud/AGENTS.md`
@@ -173,6 +174,7 @@ Generated from `git diff --name-status origin/main -- "*.md"` for this documenta
 - `go/internal/collector/awscloud/services/ssm/awssdk/AGENTS.md`
 - `go/internal/collector/awscloud/services/ssm/awssdk/README.md`
 - `go/internal/collector/cicdrun/AGENTS.md`
+- `go/internal/collector/cicdrun/README.md`
 - `go/internal/collector/confluence/README.md`
 - `go/internal/collector/discovery/README.md`
 - `go/internal/collector/ociregistry/AGENTS.md`
@@ -191,6 +193,7 @@ Generated from `git diff --name-status origin/main -- "*.md"` for this documenta
 - `go/internal/collector/packageregistry/README.md`
 - `go/internal/collector/packageregistry/packageruntime/AGENTS.md`
 - `go/internal/collector/packageregistry/packageruntime/README.md`
+- `go/internal/collector/terraformstate/README.md`
 - `go/internal/collector/vulnerabilityintelligence/AGENTS.md`
 - `go/internal/collector/vulnerabilityintelligence/README.md`
 - `go/internal/collector/vulnerabilityintelligence/vulnruntime/AGENTS.md`

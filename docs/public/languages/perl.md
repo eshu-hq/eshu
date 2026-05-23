@@ -31,6 +31,20 @@ It is not cleanup-safe exact truth. Symbolic references, `AUTOLOAD` target
 resolution, `@ISA`, Moose/Moo metadata, import side effects, runtime `eval`, and
 broad public API surfaces remain blockers.
 
+## Framework And Library Support
+
+Supported today:
+
+- This parser does not claim framework-level support.
+- Exporter declarations, package namespaces, constructors, special blocks,
+  `AUTOLOAD`, `DESTROY`, and script entrypoints are modeled as derived roots.
+
+Not claimed today:
+
+- Moose/Moo metadata, symbolic references, `AUTOLOAD` target resolution,
+  import side effects, runtime `eval`, and broad public API surfaces remain
+  exactness blockers.
+
 ## Related Docs
 
 - [Dead Code Language Maturity](../reference/dead-code-language-maturity.md)

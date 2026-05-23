@@ -29,6 +29,21 @@ Canonical implementation: `go/internal/parser/registry.go` plus the entrypoint a
 | Lambda assignments | `lambda-assignments` | supported | `functions` | `name, line_number` | `node:Function` | `go/internal/parser/engine_systems_test.go::TestDefaultEngineParsePathCPP` | Compose-backed fixture verification | - |
 | Dead-code roots | `dead-code-roots` | derived | `functions.metadata.dead_code_root_kinds` | `cpp.main_function, cpp.public_header_api, cpp.virtual_method, cpp.override_method, cpp.callback_argument_target, cpp.function_pointer_target, cpp.node_addon_entrypoint` | `code_quality.dead_code` root suppression | `go/internal/parser/cpp_dead_code_roots_test.go` | Compose-backed C++ dogfood verification | Entry points, directly included local header declarations, virtual and override methods, direct callback arguments, direct function-pointer initializer targets, and Node native-addon entrypoints are modeled as non-exact roots. |
 
+## Framework And Library Support
+
+Supported today:
+
+- Node native-addon entrypoints are modeled as derived roots.
+- Derived root evidence also includes `main`, directly included local header
+  declarations, virtual and override methods, callback arguments, and direct
+  function-pointer initializer targets.
+
+Not claimed today:
+
+- Macro expansion, conditional compilation, build targets, template
+  instantiation, overload resolution, broad virtual dispatch, callback
+  registries, and dynamic symbol lookup remain exactness blockers.
+
 ## Known Limitations
 - Template specializations are not separately modeled
 - Operator overloads are captured as regular functions without operator context

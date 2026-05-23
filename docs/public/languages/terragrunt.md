@@ -43,6 +43,21 @@ Exact cleanup-safe Terragrunt liveness remains blocked by runtime include
 resolution, dependency graph selection, workspace and variable selection,
 Terraform plan/state availability, and dynamic Terraform block expansion.
 
+## Framework And Library Support
+
+Supported today:
+
+- Terragrunt is infrastructure evidence, not application-framework
+  reachability.
+- Config blocks, includes, dependency blocks, locals, inputs, Terraform module
+  source evidence, and bounded include-chain remote-state evidence are modeled.
+
+Not claimed today:
+
+- `read_terragrunt_config()` evaluation, runtime include resolution, dependency
+  graph selection, workspace and variable selection, and dynamic Terraform block
+  expansion are not modeled as source-code reachability.
+
 ## Known Limitations
 - `read_terragrunt_config()` calls remain opaque expression text.
 - HCL function calls within `locals` are not evaluated; values are captured as raw text.

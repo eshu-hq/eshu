@@ -26,6 +26,21 @@ Canonical implementation: `go/internal/parser/registry.go` plus the entrypoint a
 | Parent context (class/module) | `parent-context-class-module` | supported | `functions` | `name, line_number, class_context` | `property:Function.class_context` | `go/internal/parser/engine_ruby_semantics_test.go::TestDefaultEngineParsePathRubyEmitsFunctionArgsAndContext` | Compose-backed fixture verification | - |
 | Dead-code roots | `dead-code-roots` | derived | `functions.metadata.dead_code_root_kinds` | `name, line_number, dead_code_root_kinds` | `code_quality.dead_code` root suppression | `go/internal/parser/ruby_dead_code_roots_test.go::TestDefaultEngineParsePathRubyEmitsDeadCodeRootKinds`, `go/internal/query/code_dead_code_ruby_roots_test.go::TestHandleDeadCodeExcludesRubyRootKindsFromMetadata` | Compose-backed Ruby dogfood required by issue #93 | Rails controller actions, Rails callback methods, dynamic dispatch hooks, literal method-reference targets, and script entrypoints are modeled as derived roots. |
 
+## Framework And Library Support
+
+Supported today:
+
+- Rails controller actions and Rails callback methods are modeled as derived
+  roots when the parser sees the source shape.
+- Literal method-reference targets, `method_missing`, `respond_to_missing?`,
+  and script guards are protected as runtime root evidence.
+
+Not claimed today:
+
+- Rails route files, autoload/eager-load configuration, ActiveRecord scopes,
+  gem public API surfaces, broad constant resolution, and broader
+  metaprogramming remain outside the exactness boundary.
+
 ## Known Limitations
 - Singleton methods on specific objects are only separated for `def self.name`
   and `class << self`; broader singleton-object targets are not resolved.

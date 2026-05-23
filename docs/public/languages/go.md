@@ -25,6 +25,24 @@ Canonical implementation: `go/internal/parser/registry.go` plus the entrypoint a
 | Generics | `generics` | supported | `functions` | `name, line_number` | `node:Function` | `go/internal/parser/engine_python_semantics_test.go::TestDefaultEngineParsePathGoRichSemanticMetadata` | Compose-backed fixture verification | - |
 | Embedded SQL queries | `embedded-sql-queries` | supported | `embedded_sql_queries` | `function_name, function_line_number, table_name, operation, line_number, api` | `relationship:SQL link hints consumed by sql_links materialization` | `go/internal/parser/go_embedded_sql_test.go::TestDefaultEngineParsePathGoEmbeddedSQLQueries` | Compose-backed fixture verification | - |
 
+## Framework And Library Support
+
+Supported today:
+
+- Standard-library HTTP registrations and signatures are modeled as derived
+  roots.
+- Cobra command registrations and signatures are modeled as derived roots.
+- controller-runtime `Reconcile`, exported package API outside `cmd`,
+  `internal`, and `vendor`, interface implementations, function values,
+  generic constraints, type references, and dependency-injection callbacks are
+  modeled as derived roots.
+
+Not claimed today:
+
+- Broader router frameworks, webhook and worker registrations, reflection,
+  build tags, plugin behavior, and broad public API surfaces remain exactness
+  blockers.
+
 ## Known Limitations
 - Generic type constraints may not be fully captured
 - Channel types not separately tracked

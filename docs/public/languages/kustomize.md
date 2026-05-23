@@ -25,6 +25,20 @@ Canonical implementation: `go/internal/parser/registry.go` plus the entrypoint a
 | Typed deploy-source refs | `typed-deploy-source-refs` | supported | `kustomize_overlays` | `resource_refs, helm_refs, image_refs` | `property:KustomizeOverlay.resource_refs`, `property:KustomizeOverlay.helm_refs`, `property:KustomizeOverlay.image_refs` | `go/internal/parser/engine_yaml_semantics_test.go::TestDefaultEngineParsePathYAMLKustomizeTypedDeployReferences` | Compose-backed fixture verification | Go now materializes non-base `resources`/`components`, `helmCharts`, and `images` into stable typed ref lists for downstream query and evidence promotion. |
 | Typed deploy-source query fallback | `typed-deploy-source-query-fallback` | supported | content-backed relationships | `resource_refs, helm_refs, image_refs` | `relationship:DEPLOYS_FROM` | `go/internal/query/content_relationships_kustomize_deploy_test.go::TestBuildContentRelationshipSetKustomizeOverlayPromotesTypedDeploySources` | `go/internal/query/entity_content_kustomize_deploy_fallback_test.go::TestGetEntityContextFallsBackToKustomizeOverlayTypedDeploySources` | The Go entity-context fallback now surfaces typed Kustomize deploy-source signals for resources, Helm charts, and images without Python ownership. |
 
+## Framework And Library Support
+
+Supported today:
+
+- Kustomize is deployment configuration evidence, not application-framework
+  reachability.
+- Overlays, resources, bases, patches, patch targets, typed deploy-source refs,
+  and query fallback relationships are modeled.
+
+Not claimed today:
+
+- Kustomize build output, component expansion beyond normalized refs, field-level
+  inline patch semantics, and application runtime behavior are not modeled.
+
 ## Known Limitations
 - `components` are folded into normalized `resource_refs`; they are not a
   separate standalone field.

@@ -47,6 +47,21 @@ Exact cleanup-safe Terraform liveness remains blocked by Terraform plan/state
 availability, module reference graph resolution, workspace and variable
 selection, dynamic block expansion, and Terragrunt runtime include resolution.
 
+## Framework And Library Support
+
+Supported today:
+
+- Terraform is infrastructure evidence, not application-framework reachability.
+- Resources, modules, variables, outputs, providers, data sources, `terraform {}`
+  blocks, backends, imports, moved/removed blocks, checks, lockfile providers,
+  and provider-schema-backed relationships are modeled.
+
+Not claimed today:
+
+- Terraform plan/state liveness, module reference graph resolution, workspace
+  and variable selection, dynamic block expansion, and application framework
+  behavior behind managed resources are not modeled as source-code reachability.
+
 ## Known Limitations
 - `count` and `for_each` meta-arguments are captured on resource rows, but are not expanded to model multiple resource instances
 - `dynamic` blocks within resources are not traversed for nested attribute extraction

@@ -63,11 +63,29 @@ Focused coverage lives in
 | --- | --- |
 | Grammar routing | `supported` |
 | Normalization | `supported` |
-| Framework packs | `react-base`, `nextjs-app-router-base`, `express-base`, `hapi-base`, `aws-sdk-base`, `gcp-sdk-base` |
+| Framework and root evidence | React/TSX evidence, Next.js routes/app exports, Express, Koa, Fastify, NestJS, Hapi, AMQP consumers, package/bin/exports, migrations, seeds, AWS/GCP SDK evidence |
 | Query surfacing | `supported` |
 | Real-repo validation | `supported` |
 | End-to-end indexing | `supported` |
 | Dead-code exactness | `derived`, not cleanup-safe exact truth |
+
+## Framework And Library Support
+
+Supported today:
+
+- Next.js app and route exports are modeled as roots when represented in source
+  or package metadata.
+- Express, Koa, Fastify, NestJS, and Hapi handler or plugin patterns have
+  parser-backed root evidence.
+- Node package entrypoints, `bin` targets, package exports, migrations, seeds,
+  AMQP consumers, and bounded AWS/GCP SDK evidence are modeled as live roots.
+
+Not claimed today:
+
+- Runtime plugin loading, dynamic imports, computed property dispatch, and
+  dynamic `require()` targets are not cleanup-safe reachability truth.
+- Framework behavior that only exists in generated files, runtime config, or
+  plugin conventions is not supported unless a parser test names that pattern.
 
 ## Known Limitations
 

@@ -34,6 +34,23 @@ It is not cleanup-safe exact truth. Dynamic imports, monkey-patching, plugin
 discovery, dependency injection, and runtime reflection can keep symbols live
 without a static edge.
 
+## Framework And Library Support
+
+Supported today:
+
+- FastAPI and Flask route decorators are modeled as framework roots.
+- Celery task decorators, Click and Typer command callbacks, and AWS Lambda
+  handler shapes are modeled as entrypoint roots.
+- Dataclasses, properties, dunder protocol methods, `__all__`, package
+  reexports, and bounded public API evidence protect known live API surfaces.
+
+Not claimed today:
+
+- Django URL routing and management-command discovery are not audited roots.
+- SQLAlchemy ORM semantics are not modeled as reachability truth.
+- Plugin discovery, monkey-patching, dependency injection, and runtime
+  reflection remain exactness blockers.
+
 ## Related Docs
 
 - [Dead Code Language Maturity](../reference/dead-code-language-maturity.md)

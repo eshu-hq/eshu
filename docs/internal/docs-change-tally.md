@@ -9,7 +9,7 @@ repo's 500-line limit.
 - Total Markdown files left in the checkout after the current pass: 558
 - Current branch doc status from
   `git diff --name-status origin/main -- '*.md'` after the current pass:
-  127 added, 237 modified, 174 deleted, 60 renamed
+  127 added, 240 modified, 174 deleted, 60 renamed
 - Copied image assets removed from this branch: 43 files under
   `docs/public/images/`. They were reference assets from another project and
   no longer appear in the source-doc reference scan.
@@ -155,6 +155,20 @@ branch. Regenerate them from
 | Final Parallel Public And Package Docs Compression | Used four subagents plus parent review to compress operator/reference pages, deployment and Helm docs, language/guide pages, and package-local READMEs. This pass changed 60 Markdown files with 1,429 insertions and 2,762 deletions, removed 1,333 net lines, corrected the Confluence Helm secret example to use `CONFLUENCE_*` variables, and kept root and scoped `AGENTS.md` guidance intact. |
 | Reviewer Correction: Restore Package Docs And Scoped Agents | Restored existing `go/**/README.md` and `go/**/AGENTS.md` files from `origin/main` after reviewer feedback showed package-level Mermaid diagrams, flow maps, invariants, and scoped agent rules had been over-compressed. Public docs remain reorganized; package-local docs now preserve the high-signal guidance agents and maintainers rely on. |
 | Reviewer Correction: Link Repair And Package Guide Splits | Repaired active package links from deleted `docs/docs`, `docs/plans`, and `docs/superpowers` paths to current public/package docs; restored the Go module pipeline Mermaid diagram; split oversized query, reducer, and Postgres package READMEs into focused package-local guides while preserving diagrams, invariants, telemetry, and proof notes. |
+| Go Internal Recovery Mermaid Pass | Added a code-grounded recovery flow diagram to `go/internal/recovery/README.md` showing validation, `ReplayStore`, Postgres queue mutation, and normal projector/reducer pipeline re-entry. |
+| Go Internal Facts Mermaid Pass | Added a code-grounded facts pipeline diagram to `go/internal/facts/README.md` showing source evidence, `Envelope`/`Ref`, stable IDs, Postgres storage, projector/reducer consumers, and graph/content read surfaces. |
+| Go Internal Backend Conformance Mermaid Pass | Added a code-grounded backend conformance diagram to `go/internal/backendconformance/README.md` showing matrix validation, shared corpora, default tests, live Bolt proof, and profile-gate reporting. |
+| Go Internal Terraform State Mermaid Pass | Added a code-grounded Terraform-state collector diagram to `go/internal/collector/terraformstate/README.md` showing discovery config, Git facts, exact candidates, state sources, streaming redaction, fact envelopes, and runtime handoff. |
+| Go Internal Vulnerability Intelligence Mermaid Pass | Added a code-grounded vulnerability source-to-fact diagram to `go/internal/collector/vulnerabilityintelligence/README.md` showing OSV, KEV, EPSS, NVD clients, normalizers, envelope context, reported facts, and reducer-owned impact correlation. |
+| Go Internal CI/CD Run Mermaid Pass | Added a code-grounded CI/CD fixture-to-fact diagram to `go/internal/collector/cicdrun/README.md` showing GitHub Actions fixtures, fixture context, fact envelopes, warning facts, and reducer-owned deployment correlation. |
+| Go Internal Cloud Runtime Drift Mermaid Pass | Added a code-grounded AWS runtime drift diagram to `go/internal/correlation/drift/cloudruntime/README.md` showing cloud, Terraform state, and Terraform config evidence flowing through classification, candidate building, rule evaluation, and bounded telemetry. |
+| Go Parser Mermaid Pass | Added a code-grounded Go parser diagram to `go/internal/parser/golang/README.md` showing parent engine pre-scan, package-level evidence, `Options`, full parse, payload buckets, and collector materialization. |
+| HCL Parser Mermaid Pass | Added a code-grounded HCL parser diagram to `go/internal/parser/hcl/README.md` showing Terraform/Terragrunt/lockfile input, include-chain walking, schema classification, deterministic payload buckets, and parent parser handoff. |
+| JavaScript Parser Mermaid Pass | Added a code-grounded JavaScript-family parser diagram to `go/internal/parser/javascript/README.md` showing parent engine parser factory, source input, tsconfig/package helpers, payload buckets, and collector materialization. |
+| Rust Parser Mermaid Pass | Added a code-grounded Rust parser diagram to `go/internal/parser/rust/README.md` showing parent engine input, bounded Cargo cfg scanning, module candidate resolution, parser payload buckets, and collector materialization. |
+| Python Parser Mermaid Pass | Added a code-grounded Python parser diagram to `go/internal/parser/python/README.md` showing parent engine input, Python/notebook source, SAM/serverless config scans, payload buckets, and collector materialization. |
+| Shared Parser Mermaid Pass | Added a code-grounded shared parser dependency-boundary diagram to `go/internal/parser/shared/README.md` showing the parent dispatcher, shared helpers, language-owned parser packages, payload buckets, and collector materialization. |
+| Language Framework Boundary Pass | Added inline framework and library support boundaries to every public language parser page, clarified the central parser support matrix, and documented the evidence required for community framework-support pull requests. |
 
 ## Verification Snapshot
 
@@ -162,6 +176,12 @@ Detailed historical verification moved to `docs/internal/docs-verification-snaps
 
 Current pass proof:
 
+- Focused language docs verification passed after the framework-boundary pass:
+  32 documents, 4 unsupported Terraform shell-command claim types, 0
+  contradicted claims, and 0 missing-evidence claims.
+- Strict MkDocs build passed after the framework-boundary pass.
+- Markdown file-size scan and `git diff --check` passed after the
+  framework-boundary pass.
 - Rebase conflict resolution preserved the current 73-tool MCP contract,
   container-image identity read surface, and compressed public/package docs.
 - Reviewer correction restored package-local `README.md` and scoped `AGENTS.md`

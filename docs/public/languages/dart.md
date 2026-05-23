@@ -55,3 +55,18 @@ Dogfood evidence for Issue #98 used isolated Docker Compose project names
 against `flutter/flutter` and `dart-lang/http`. Both runs returned
 `truth.level=derived`, `dead_code_language_maturity.dart=derived`, and the six
 modeled Dart root kinds through `/api/v0/code/dead-code`.
+
+## Framework And Library Support
+
+Supported today:
+
+- Flutter widget `build` methods and `StatefulWidget.createState` methods are
+  modeled as derived roots.
+- Public `lib/` declarations outside `lib/src/`, constructors, named
+  constructors, top-level `main`, and overrides are modeled as live API or
+  runtime evidence.
+
+Not claimed today:
+
+- Flutter route wiring, generated code, mirrors, conditional imports/exports,
+  package export surfaces, and broad dynamic dispatch remain exactness blockers.

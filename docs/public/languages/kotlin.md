@@ -58,3 +58,19 @@ Canonical implementation:
 - Kotlin script and Gradle source-set selection are not resolved as exact
   dead-code scope boundaries. They are named exactness blockers rather than
   hidden assumptions.
+
+## Framework And Library Support
+
+Supported today:
+
+- Spring component and method callbacks, Gradle plugin/task callbacks, JUnit
+  methods, lifecycle callbacks, and secondary constructors are modeled as
+  derived roots.
+- Interfaces, same-file interface implementations, overrides, and top-level
+  `main` are modeled as root evidence.
+
+Not claimed today:
+
+- Reflection, dependency injection, annotation processing, compiler plugins,
+  Gradle source-set selection, multiplatform targets, and dynamic dispatch
+  remain exactness blockers.

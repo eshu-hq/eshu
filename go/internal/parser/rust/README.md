@@ -8,6 +8,30 @@ calls, constants, statics, type aliases, root metadata, attributes, derives, and
 generic parameter metadata, conditional derive evidence, nested field and enum
 variant attributes, and structured where-clause evidence.
 
+## Rust parse flow
+
+```mermaid
+flowchart LR
+    Parent["parent parser Engine"]
+    Source["Rust source"]
+    Parse["rust.Parse"]
+    Cargo["bounded Cargo.toml cfg scanner"]
+    Modules["module candidate resolver"]
+    Payload["items, calls, imports, roots, cfg blockers"]
+    Collector["collector materialization"]
+
+    Parent --> Parse
+    Source --> Parse
+    Cargo --> Parse
+    Parse --> Modules
+    Modules --> Payload
+    Parse --> Payload
+    Payload --> Collector
+```
+
+The adapter records syntactic Rust evidence and bounded module candidates. It
+does not expand macros or solve Cargo features.
+
 ## Ownership Boundary
 
 The package receives a caller-owned tree-sitter parser from the parent parser

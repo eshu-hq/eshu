@@ -30,6 +30,21 @@ Canonical implementation: `go/internal/parser/registry.go` plus the entrypoint a
   `Jenkinsfile` inputs, so the Groovy parser output feeds both the relationship
   map and the read-side controller narrative.
 
+## Framework And Library Support
+
+Supported today:
+
+- Jenkinsfile declarative or scripted pipeline entrypoints are modeled as
+  framework roots.
+- Jenkins shared-library calls, deployment entrypoints, shell command hints,
+  and Ansible playbook hints are captured as controller evidence.
+
+Not claimed today:
+
+- Generic Groovy framework semantics, custom shared-library DSL behavior,
+  dynamic dispatch, closure delegates, and Jenkins runtime loading remain
+  outside the exactness boundary.
+
 ## Known Limitations
 - Generic Groovy source is indexed conservatively; the current parser focuses on Jenkins pipeline metadata rather than broad class and method extraction
 - Jenkins metadata is strongest for Jenkinsfile-style entrypoints and may not detect custom shared-library DSLs that hide deployment semantics behind opaque helper calls

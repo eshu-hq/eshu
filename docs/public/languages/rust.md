@@ -43,3 +43,19 @@ Primary proof:
 - Macro-generated code is not traversed.
 - `cfg` and Cargo feature solving, cross-crate semantic module resolution, and
   broad trait dispatch remain outside the documented exactness boundary.
+
+## Framework And Library Support
+
+Supported today:
+
+- Tokio runtime/test functions and Criterion benchmarks are modeled as derived
+  roots.
+- Cargo entrypoints, tests, exact `pub` API items, direct trait implementation
+  methods, conditional derive evidence, and direct module/import declarations
+  are modeled as root evidence.
+
+Not claimed today:
+
+- Arbitrary macro expansion, `cfg` and Cargo feature solving, cross-crate
+  semantic module resolution, and broad trait dispatch remain outside the
+  exactness boundary.

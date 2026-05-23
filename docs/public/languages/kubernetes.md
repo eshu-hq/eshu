@@ -25,6 +25,20 @@ Canonical implementation: `go/internal/parser/registry.go` plus the entrypoint a
 | Service-to-Deployment heuristic | `service-selects-deployment` | supported | content-backed relationships | `name, namespace, kind` | `relationship:SELECTS` | `go/internal/query/content_relationships_k8s_test.go::TestBuildContentRelationshipSetK8sServiceSelectsDeployment`, `go/internal/query/content_relationships_k8s_test.go::TestBuildContentRelationshipSetK8sDeploymentReceivesIncomingServiceSelects` | `go/internal/query/entity_content_iac_fallback_test.go::TestGetEntityContextFallsBackToKubernetesResourceContentEntity` | Preserves the same-name, same-namespace `Service -> Deployment` heuristic on the current query path. |
 | Multi-document YAML support | `multi-document-yaml-support` | supported | `multi-document-yaml-support` | `name, line_number` | `node:multi-document-yaml-support` | `go/internal/parser/engine_infra_test.go::TestDefaultEngineParsePathYAMLKubernetes` | Compose-backed fixture verification | - |
 
+## Framework And Library Support
+
+Supported today:
+
+- Kubernetes is deployment/runtime configuration evidence, not
+  application-framework reachability.
+- Kubernetes resources, identity fields, labels, same-name Service-to-Deployment
+  relationships, and multi-document YAML are modeled.
+
+Not claimed today:
+
+- Full selector resolution, Pod image extraction, CRD schema semantics, and
+  controller runtime behavior are not modeled as framework support.
+
 ## Known Limitations
 - Container image references within Pod specs are not extracted as separate nodes
 - Real Kubernetes `selector` / `matchLabels` resolution is intentionally out of scope for the documented surface; the Go platform preserves the same-name, same-namespace heuristic instead.

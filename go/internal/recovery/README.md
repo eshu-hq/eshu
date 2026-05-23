@@ -9,6 +9,32 @@ queue. `Handler.Refinalize` re-enqueues projector work for an explicit list of
 scopes so their active generations are projected again without rebuilding the
 graph from scratch.
 
+## Recovery flow
+
+```mermaid
+flowchart LR
+    Admin["Admin/API recovery caller"]
+    Handler["recovery.Handler"]
+    Validate["Validate replay or refinalize filter"]
+    Store["ReplayStore interface"]
+    Postgres["storage/postgres adapter"]
+    Queue["projector or reducer queue"]
+    Pipeline["normal write pipeline"]
+    Graph["graph/content projection"]
+
+    Admin -->|"ReplayFailed or Refinalize"| Handler
+    Handler --> Validate
+    Validate -->|"invalid stage or empty scope list"| Handler
+    Validate -->|"valid request + UTC now"| Store
+    Store --> Postgres
+    Postgres -->|"reset failed work or enqueue scope projections"| Queue
+    Queue --> Pipeline
+    Pipeline --> Graph
+```
+
+Recovery only changes durable work-item state. The projector or reducer still
+owns the follow-up graph and content writes.
+
 ## Ownership boundary
 
 Owns the replay and refinalize value contracts (`ReplayFilter`,

@@ -36,6 +36,23 @@ broad package export surfaces remain blockers.
 TSX uses the same TypeScript-family query path but has separate React wrapper
 coverage.
 
+## Framework And Library Support
+
+Supported today:
+
+- JavaScript-family framework roots apply to TypeScript when the pattern is
+  represented in parseable source or package metadata.
+- Supported roots include Next.js routes, Express, Koa, Fastify, NestJS, Hapi,
+  package entrypoints, package exports, scripts, migrations, and seeds.
+- TypeScript adds interface implementations, module-contract exports, public
+  API exports and reexports, and public API type references.
+
+Not claimed today:
+
+- Decorator/container behavior is not modeled as whole-framework reachability.
+- Dynamic imports, plugin loading, runtime property dispatch, and broad package
+  declaration surfaces remain exactness blockers.
+
 ## Related Docs
 
 - [TypeScript JSX Parser](typescriptjsx.md)

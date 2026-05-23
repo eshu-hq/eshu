@@ -66,6 +66,24 @@ Modeled roots and evidence include:
 | End-to-end indexing | `supported` |
 | Dead-code exactness | `derived`, not cleanup-safe exact truth |
 
+## Framework And Library Support
+
+Supported today:
+
+- Spring component classes, request-mapping methods, bean methods, scheduled
+  methods, event listeners, and configuration properties are modeled as roots.
+- Gradle plugin/task/DSL roots, JUnit tests and lifecycle methods,
+  Jenkins/Stapler extension points, serialization hooks, ServiceLoader
+  providers, and Spring Boot autoconfiguration metadata are modeled roots.
+- Bounded literal reflection and method-reference evidence protect parser-proven
+  references.
+
+Not claimed today:
+
+- Arbitrary string-built reflection, runtime classpath scanning, generated
+  code, broad dependency injection, annotation processors, and container
+  behavior outside checked metadata remain exactness blockers.
+
 ## Known Limitations
 
 - Generic type bounds and wildcards are not captured as structured data beyond

@@ -10,6 +10,29 @@ inputs, local config asset paths, and Terragrunt `remote_state` blocks
 (including blocks inherited via the include chain), then returns the parser
 payload shape.
 
+## HCL parse flow
+
+```mermaid
+flowchart LR
+    File["Terraform, Terragrunt, or lockfile HCL"]
+    Parser["hcl parser adapter"]
+    Include["Terragrunt include-chain walker"]
+    Schema["Terraform schema classification"]
+    Buckets["deterministic payload buckets"]
+    Parent["parent parser Engine"]
+
+    File --> Parser
+    Parser --> Include
+    Parser --> Schema
+    Include --> Buckets
+    Schema --> Buckets
+    Parser --> Buckets
+    Buckets --> Parent
+```
+
+The package emits parser evidence only. Discovery, fact storage, and graph
+projection stay with the parent parser, collector, and reducer paths.
+
 ## Ownership boundary
 
 The package is responsible for HCL syntax parsing and language-specific payload

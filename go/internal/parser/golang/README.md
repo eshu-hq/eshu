@@ -7,6 +7,31 @@ one Go source file into the payload buckets used by collector materialization,
 and it provides the lighter pre-scan contracts that let same-package interface
 evidence flow into later parse calls.
 
+## Parser flow
+
+```mermaid
+flowchart LR
+    Engine["parent parser Engine"]
+    PreScan["Go pre-scan helpers"]
+    PackageEvidence["package-level interface, method, and generic evidence"]
+    Options["golang.Options"]
+    Parse["golang.Parse"]
+    Payload["functions, calls, types, roots, imports, embedded SQL"]
+    Collector["collector materialization"]
+
+    Engine --> PreScan
+    PreScan --> PackageEvidence
+    PackageEvidence --> Options
+    Engine --> Parse
+    Options --> Parse
+    Parse --> Payload
+    Payload --> Collector
+```
+
+Pre-scan stays cheap and file-local. The parent engine combines package-level
+evidence before full parsing so Go dead-code roots remain bounded and
+deterministic.
+
 ## Ownership boundary
 
 This package is responsible for Go tree-sitter parsing, Go payload assembly,

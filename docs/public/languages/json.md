@@ -22,6 +22,19 @@ Canonical implementation: `go/internal/parser/registry.go` plus the entrypoint a
 | Generic JSON metadata only | `generic-json-metadata-only` | partial | `json_metadata` | `top_level_keys` | `property:File` | `go/internal/parser/json_language_test.go::TestDefaultEngineParsePathJSONPreservesDocumentOrderForMetadataAndConfigBuckets` | Compose-backed fixture verification | Arbitrary JSON files stay intentionally quiet to avoid graph noise. |
 | JSON CloudFormation templates | `cloudformation-json-delegation` | supported | `cloudformation_resources` | `name, line_number, file_format` | `node:CloudFormationResource` | `go/internal/parser/cloudformation_support_test.go::TestParseCloudFormationTemplatePersistsFileFormat` | Compose-backed fixture verification | JSON CloudFormation now shares the same parser path as YAML and persists `file_format` on CloudFormation rows. |
 
+## Framework And Library Support
+
+Supported today:
+
+- JSON does not claim framework runtime support.
+- `package.json`, `composer.json`, `tsconfig`, generic JSON metadata, and JSON
+  CloudFormation templates are modeled as configuration evidence.
+
+Not claimed today:
+
+- Arbitrary nested JSON objects, lockfiles, minified assets, and package-manager
+  runtime semantics are not expanded into framework reachability truth.
+
 ## Known Limitations
 - Generic JSON files emit metadata only and do not expand arbitrary nested objects into graph nodes
 - Lockfiles and minified JSON assets are intentionally kept metadata-only to avoid graph noise

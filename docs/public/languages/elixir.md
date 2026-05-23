@@ -45,3 +45,19 @@ one-line function declaration contains dynamic `apply(...)` dispatch.
 Exact cleanup remains blocked by macro expansion, dynamic dispatch, behaviour
 callback resolution, protocol dispatch, Phoenix route resolution, supervision
 tree resolution, Mix environment selection, and broad public API surfaces.
+
+## Framework And Library Support
+
+Supported today:
+
+- Phoenix controller actions and arity-checked LiveView callbacks are modeled
+  as derived roots.
+- Application `start/2`, GenServer and Supervisor callbacks, Mix task `run/1`,
+  protocols, protocol implementations, public macros, public guards, and
+  `@impl` behaviour callbacks are modeled as root evidence.
+
+Not claimed today:
+
+- Phoenix route resolution, supervision tree resolution, macro expansion,
+  protocol dispatch, Mix environment selection, and dynamic dispatch remain
+  exactness blockers.

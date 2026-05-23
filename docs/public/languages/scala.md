@@ -40,3 +40,18 @@ Canonical implementation: `go/internal/parser/registry.go` plus the entrypoint a
   `bcdc682de2250bbd0f2788bc5acc06f6d66ad5a7` and `scala/scala` at
   `25075e9b9b79954a0f99de515618901818822e62`. Both runs returned fresh
   `derived` dead-code API truth after queue drain.
+
+## Framework And Library Support
+
+Supported today:
+
+- Play controller actions, Akka actor `receive`, JUnit methods, ScalaTest
+  suites, and lifecycle callbacks are modeled as derived roots.
+- `main`, objects extending `App`, traits, same-file trait implementations,
+  and overrides are also modeled as root evidence.
+
+Not claimed today:
+
+- Play route files, macros, implicit and given/using resolution, compiler
+  plugin output, sbt source sets, dynamic dispatch, reflection, and broad
+  public API surfaces remain exactness blockers.

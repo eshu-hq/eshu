@@ -21,6 +21,20 @@ Canonical implementation: `go/internal/parser/registry.go` plus the entrypoint a
 | Values files (`values*.yaml`) | `values-files-values-yaml` | supported | `helm_values` | `name, line_number` | `node:HelmValues` | `go/internal/parser/engine_yaml_semantics_test.go::TestDefaultEngineParsePathYAMLKustomizeAndHelm` | Compose-backed fixture verification | - |
 | Values top-level keys | `values-top-level-keys` | supported | `helm_values` | `name, line_number, top_level_keys` | `property:HelmValues.top_level_keys` | `go/internal/parser/engine_yaml_semantics_test.go::TestDefaultEngineParsePathYAMLKustomizeAndHelm` | Compose-backed fixture verification | - |
 
+## Framework And Library Support
+
+Supported today:
+
+- Helm is deployment configuration evidence, not application-framework
+  reachability.
+- `Chart.yaml`, chart dependencies, values files, and top-level values keys are
+  modeled.
+
+Not claimed today:
+
+- Template rendering, `.Values` reference resolution, Helm hooks, hook weights,
+  and post-render Kubernetes resource liveness are not modeled.
+
 ## Known Limitations
 - Helm template files (`.yaml` in `templates/`) are not parsed for resource definitions
 - Values references inside templates (`{{ .Values.key }}`) are not statically resolved

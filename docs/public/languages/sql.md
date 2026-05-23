@@ -34,6 +34,22 @@ trigger-invoked routines.
 SQL remains non-exact for cleanup because dynamic SQL, dialect-specific routine
 resolution, and migration-order reachability are unresolved.
 
+## Framework And Library Support
+
+Supported today:
+
+- This parser does not claim application-framework support.
+- Stored routines and parser-proven trigger-to-function `EXECUTES` edges are
+  modeled as derived reachability evidence.
+- dbt compiled-model lineage is supported only for the documented select
+  expression shapes.
+
+Not claimed today:
+
+- Dynamic SQL, dialect-specific routine resolution, migration-order
+  reachability, and broad dbt macro semantics remain outside the exactness
+  boundary.
+
 ## Known Limitations
 
 - Procedural SQL beyond the checked Postgres-style routine forms is not a broad

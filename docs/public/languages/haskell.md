@@ -38,6 +38,20 @@ compilation, Cabal component resolution, implicit module export surfaces,
 typeclass dispatch, module re-export resolution, and foreign-function interface
 callbacks.
 
+## Framework And Library Support
+
+Supported today:
+
+- This parser does not claim framework-level support.
+- Derived root evidence includes `main`, explicit module exports, typeclass
+  method declarations, and instance methods.
+
+Not claimed today:
+
+- Template Haskell, Cabal component selection, implicit exports, typeclass
+  dispatch, module reexports, and FFI callback reachability remain exactness
+  blockers.
+
 ## Known Limitations
 - Type class instances are not modeled as inheritance relationships
 - Modules without explicit export lists do not automatically root every

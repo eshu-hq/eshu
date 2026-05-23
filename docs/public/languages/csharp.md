@@ -30,6 +30,21 @@ Canonical implementation: `go/internal/parser/registry.go` plus the entrypoint a
 | Inheritance (`base_list`) | `inheritance-base-list` | supported | `classes` | `name, line_number, bases` | `relationship:INHERITS` | `go/internal/parser/engine_managed_oo_test.go::TestDefaultEngineParsePathCSharp` | Compose-backed fixture verification | - |
 | Dead-code roots | `dead-code-roots` | derived | `functions.metadata.dead_code_root_kinds` | `name, line_number, dead_code_root_kinds` | `code_quality.dead_code` root suppression | `go/internal/parser/csharp_dead_code_roots_test.go::TestDefaultEngineParsePathCSharpEmitsDeadCodeRootKinds`, `go/internal/query/code_dead_code_csharp_roots_test.go::TestHandleDeadCodeExcludesCSharpRootKindsFromMetadata` | Compose-backed C# dogfood required by issue #97 | Main methods, constructors, overrides, same-file interface methods and implementations, ASP.NET controller actions, hosted-service callbacks, test methods, and serialization callbacks are modeled as derived roots. |
 
+## Framework And Library Support
+
+Supported today:
+
+- ASP.NET controller actions, hosted-service callbacks, test methods, and
+  serialization callbacks are modeled as derived roots.
+- Main methods, constructors, overrides, and same-file interface methods and
+  implementations are also modeled as root evidence.
+
+Not claimed today:
+
+- Reflection, dependency injection, source generators, partial type merging,
+  project references, dynamic dispatch, and broad public API surfaces remain
+  exactness blockers.
+
 ## Known Limitations
 - Extension methods are not tagged as extensions in the graph
 - Partial class merging across files is not performed

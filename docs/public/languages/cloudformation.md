@@ -27,5 +27,19 @@ Canonical implementation: `go/internal/parser/registry.go` plus the entrypoint a
 | JSON templates | `json-templates` | supported | `cloudformation_resources` | `name, line_number, file_format` | `node:CloudFormationResource` | `go/internal/parser/cloudformation_support_test.go::TestParseCloudFormationTemplatePersistsFileFormat` | Compose-backed fixture verification | JSON-formatted templates now share the same parser path as YAML and persist `file_format` on CloudFormation rows. |
 | Nested stack template URL | `nested-stack-template-url` | supported | `cloudformation_resources` | `name, line_number, resource_type, template_url` | `property:CloudFormationResource.template_url`, `query:entities/{id}/context` | `go/internal/parser/cloudformation_support_test.go::TestParseCloudFormationTemplateCapturesConditionsAndNestedStackMetadata`, `go/internal/parser/engine_yaml_semantics_test.go::TestDefaultEngineParsePathYAMLCloudFormation`, `go/internal/query/entity_content_cloudformation_fallback_test.go::TestGetEntityContextFallsBackToCloudFormationNestedStackResource`, `go/internal/query/entity_content_cloudformation_fallback_test.go::TestGetEntityContextLinksNestedStackTemplateURLToRepoLocalTemplate`, `go/internal/query/entity_content_cloudformation_fallback_test.go::TestGetEntityContextLeavesRemoteNestedStackTemplateURLUnlinked` | Compose-backed fixture verification | Nested `AWS::CloudFormation::Stack` resources now preserve `TemplateURL`, surface it on the Go entity-context path as a synthesized `DEPLOYS_FROM` relationship, and resolve obvious repo-local nested-stack targets without losing the raw URL when no local match exists. |
 
+## Framework And Library Support
+
+Supported today:
+
+- CloudFormation is infrastructure evidence, not application-framework
+  reachability.
+- Resources, parameters, outputs, conditions, nested stacks, and cross-stack
+  imports/exports are modeled as template evidence.
+
+Not claimed today:
+
+- Intrinsic-function evaluation, deployment-time resource liveness, and
+  application framework behavior behind provisioned resources are not modeled.
+
 ## Known Limitations
 - Intrinsic functions (!Ref, !Sub, !GetAtt) stored as string values, not resolved

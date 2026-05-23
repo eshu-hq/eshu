@@ -29,6 +29,20 @@ Canonical implementation: `go/internal/parser/registry.go` plus the entrypoint a
 | Application/ApplicationSet evidence chain on query fallback | `argocd-query-fallback-relationships` | supported | content-backed relationships | `source_repo, source_repos, generator_source_repos, template_source_repos, dest_server` | `relationship:DEPLOYS_FROM`, `relationship:DISCOVERS_CONFIG_IN`, `relationship:RUNS_ON` | `go/internal/query/content_relationships_argocd_test.go::TestBuildContentRelationshipSetArgoCDApplicationPromotesSourceAndDestination`, `go/internal/query/content_relationships_argocd_test.go::TestBuildContentRelationshipSetArgoCDApplicationPromotesMultiSourceRepos`, `go/internal/query/content_relationships_argocd_test.go::TestBuildContentRelationshipSetArgoCDApplicationSetPromotesDiscoveryDeployAndDestination` | `go/internal/query/entity_content_argocd_fallback_test.go::TestGetEntityContextFallsBackToArgoCDApplicationSetContentEntity` | The Go query fallback surfaces the ArgoCD source, discovery, and destination chain on the normal query path. |
 | Deployment trace MCP/API surfacing | `argocd-trace-deployment-chain` | supported | impact query surface | `service_name, story, deployment_overview, deployment_fact_summary, k8s_relationships, controller_overview.entities` | `query:/api/v0/impact/trace-deployment-chain`, `mcp:trace_deployment_chain` | `go/internal/mcp/dispatch_test.go::TestResolveRouteMapsTraceDeploymentChain`, `go/internal/query/impact_trace_deployment_test.go::TestBuildDeploymentTraceResponseSummarizesInstances`, `go/internal/query/impact_trace_deployment_argocd_test.go::TestBuildDeploymentTraceResponseIncludesControllerEntities`, `go/internal/query/openapi_test.go::TestServeOpenAPI` | Compose-backed fixture verification | The documented Go deployment-trace path is now wired behind the MCP tool instead of being docs-only, it exposes synthesized K8s resource-to-image relationship evidence, and `controller_overview` now includes concrete ArgoCD Application/ApplicationSet controller entities recovered from the deployment repos on the normal Go path. |
 
+## Framework And Library Support
+
+Supported today:
+
+- ArgoCD is infrastructure evidence, not application-framework reachability.
+- Applications, ApplicationSets, source repositories, generator/template
+  sources, destinations, and deployment-trace controller evidence are modeled.
+
+Not claimed today:
+
+- Helm-specific source parameters, ApplicationSet plugin parameters,
+  `ignoreDifferences`, custom health checks, and controller runtime behavior
+  are not modeled as framework support.
+
 ## Known Limitations
 - The parser payload, relationship/evidence layer, entity resolve/context fallback, repository stories, and `trace_deployment_chain` MCP/API path together expose the documented ArgoCD source, discovery, destination, and controller surfaces end to end. The remaining limitations below are bounded non-goals for that documented surface.
 - Helm-specific source parameters (`helm.valueFiles`, `helm.parameters`) are not extracted as structured nodes

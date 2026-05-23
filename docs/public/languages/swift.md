@@ -36,3 +36,19 @@ Canonical implementation: `go/internal/parser/registry.go` plus the entrypoint a
   dispatch, property-wrapper generated code, result-builder expansion,
   Objective-C runtime dispatch, and broad public API surfaces are named
   exactness blockers rather than hidden assumptions.
+
+## Framework And Library Support
+
+Supported today:
+
+- SwiftUI app types and `body`, UIKit application delegate callbacks, Vapor
+  route handlers, XCTest methods, and Swift Testing `@Test` functions are
+  modeled as derived roots.
+- `@main` types, top-level `main`, protocol methods and same-file
+  implementations, constructors, and overrides are modeled as root evidence.
+
+Not claimed today:
+
+- Macros, conditional compilation, SwiftPM target resolution, protocol witness
+  resolution, property-wrapper generated code, result builders, Objective-C
+  runtime dispatch, and broad public API surfaces remain exactness blockers.

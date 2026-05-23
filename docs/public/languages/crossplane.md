@@ -23,6 +23,19 @@ Canonical implementation: `go/internal/parser/registry.go` plus the entrypoint a
 | Claims | `claims` | supported | `crossplane_claims` | `name, line_number` | `node:CrossplaneClaim` | `go/internal/parser/engine_yaml_semantics_test.go::TestDefaultEngineParsePathYAMLCrossplaneResources` | Compose-backed fixture verification | - |
 | Claim API version | `claim-api-version` | supported | `crossplane_claims` | `name, line_number, api_version` | `property:Claim.api_version` | `go/internal/parser/engine_yaml_semantics_test.go::TestDefaultEngineParsePathYAMLCrossplaneResources` | Compose-backed fixture verification | - |
 
+## Framework And Library Support
+
+Supported today:
+
+- Crossplane is infrastructure evidence, not application-framework reachability.
+- XRDs, Compositions, composition resource lists, and Claims are modeled as
+  Crossplane configuration evidence.
+
+Not claimed today:
+
+- Composition patch transforms, Composition Function pipeline behavior, managed
+  resource runtime state, and provider-specific semantics are not modeled.
+
 ## Known Limitations
 - Composition patch transforms are not modeled as graph edges
 - XRD validation schema details are not extracted

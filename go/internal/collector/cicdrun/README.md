@@ -9,6 +9,28 @@ reported-confidence fact envelopes that reducers can consume.
 This package intentionally does not implement hosted API polling, credentials,
 log ingestion, graph writes, or deployment truth promotion.
 
+## Fixture-to-fact flow
+
+```mermaid
+flowchart LR
+    Fixture["offline GitHub Actions fixture"]
+    Context["FixtureContext"]
+    Normalize["GitHubActionsFixtureEnvelopes"]
+    Facts["pipeline, run, job, step, artifact, trigger, environment facts"]
+    Warnings["ci.warning facts"]
+    Reducers["reducers correlate deployment truth later"]
+
+    Fixture --> Normalize
+    Context --> Normalize
+    Normalize --> Facts
+    Normalize --> Warnings
+    Facts --> Reducers
+    Warnings --> Reducers
+```
+
+The package reports provider runtime evidence. It does not promote CI success,
+artifacts, or environments to deployment truth.
+
 ## Exported Surface
 
 - `CollectorKind` — durable collector family name: `ci_cd_run`.
