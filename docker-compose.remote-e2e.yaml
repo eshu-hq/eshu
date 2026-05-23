@@ -141,6 +141,19 @@ x-collector-env: &remote_e2e_collector_env
               "visibility": "public",
               "metadata_url": "https://registry.npmjs.org/lodash",
               "document_format": "native"
+            },
+            {
+              "provider": "maven-central",
+              "ecosystem": "maven",
+              "registry": "https://repo.maven.apache.org/maven2",
+              "scope_id": "package-registry://maven/maven-central/org.apache.logging.log4j:log4j-core",
+              "namespace": "org.apache.logging.log4j",
+              "packages": ["log4j-core"],
+              "package_limit": 1,
+              "version_limit": 1,
+              "visibility": "public",
+              "metadata_url": "https://repo.maven.apache.org/maven2/org/apache/logging/log4j/log4j-core/2.14.1/log4j-core-2.14.1.pom",
+              "document_format": "native"
             }
           ]
         }

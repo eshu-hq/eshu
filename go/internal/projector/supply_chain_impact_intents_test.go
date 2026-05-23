@@ -1,0 +1,75 @@
+package projector
+
+import (
+	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/scope"
+)
+
+func TestBuildProjectionQueuesSupplyChainImpactForVulnerabilityEvidence(t *testing.T) {
+	t.Parallel()
+
+	scopeValue := scope.IngestionScope{
+		ScopeID:      "vuln-intel://osv/maven/log4j-core",
+		SourceSystem: "vulnerability_intelligence",
+	}
+	generation := scope.ScopeGeneration{
+		ScopeID:      scopeValue.ScopeID,
+		GenerationID: "generation-1",
+	}
+	projection, err := buildProjection(scopeValue, generation, []facts.Envelope{{
+		FactID:       "fact-cve",
+		ScopeID:      scopeValue.ScopeID,
+		GenerationID: generation.GenerationID,
+		FactKind:     facts.VulnerabilityCVEFactKind,
+		SourceRef: facts.Ref{
+			SourceSystem: "vulnerability_intelligence",
+		},
+	}})
+	if err != nil {
+		t.Fatalf("buildProjection() error = %v, want nil", err)
+	}
+
+	intent := requireSupplyChainImpactIntent(t, projection.reducerIntents)
+	if intent.ScopeID != scopeValue.ScopeID {
+		t.Fatalf("ScopeID = %q, want %q", intent.ScopeID, scopeValue.ScopeID)
+	}
+	if intent.GenerationID != generation.GenerationID {
+		t.Fatalf("GenerationID = %q, want %q", intent.GenerationID, generation.GenerationID)
+	}
+	if intent.FactID != "fact-cve" {
+		t.Fatalf("FactID = %q, want fact-cve", intent.FactID)
+	}
+	if intent.SourceSystem != "vulnerability_intelligence" {
+		t.Fatalf("SourceSystem = %q, want vulnerability_intelligence", intent.SourceSystem)
+	}
+}
+
+func TestBuildSupplyChainImpactReducerIntentSkipsSnapshotOnlyEvidence(t *testing.T) {
+	t.Parallel()
+
+	scopeValue := scope.IngestionScope{ScopeID: "vuln-intel://first/epss"}
+	generation := scope.ScopeGeneration{ScopeID: scopeValue.ScopeID, GenerationID: "generation-1"}
+	_, ok := buildSupplyChainImpactReducerIntent(scopeValue, generation, []facts.Envelope{{
+		FactID:       "snapshot",
+		ScopeID:      scopeValue.ScopeID,
+		GenerationID: generation.GenerationID,
+		FactKind:     facts.VulnerabilitySourceSnapshotFactKind,
+	}})
+	if ok {
+		t.Fatal("buildSupplyChainImpactReducerIntent() ok = true, want false for source snapshot only")
+	}
+}
+
+func requireSupplyChainImpactIntent(t *testing.T, intents []ReducerIntent) ReducerIntent {
+	t.Helper()
+	for _, intent := range intents {
+		if intent.Domain == reducer.DomainSupplyChainImpact {
+			return intent
+		}
+	}
+	t.Fatalf("supply_chain_impact intent missing from %#v", intents)
+	return ReducerIntent{}
+}
