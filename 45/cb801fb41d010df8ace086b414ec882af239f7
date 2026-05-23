@@ -1,0 +1,49 @@
+go/internal/reducer/supply_chain_impact_product_test.go
+  s_072c5984f68e14::t_d37e19b52936fb 1-103,130-211,237-268
+  s_072c5984f68e14::t_6532849f37ef3e 212-236
+  s_072c5984f68e14::t_d47cda535c1e41 104-129
+schema/data-plane/postgres/003_fact_records.sql
+  s_072c5984f68e14::t_4626a911dd1279 368-377,387-390
+go/internal/query/supply_chain.go
+  s_072c5984f68e14::t_1c4b1a6b4675c5 62-63
+go/internal/storage/postgres/schema_fact_records.go
+  s_072c5984f68e14::t_2436c8e03597c2 371-380,390-393
+go/internal/reducer/supply_chain_impact_writer.go
+  s_072c5984f68e14::t_bd56e782d79b5a 84-85,93-100,118-119
+go/internal/reducer/supply_chain_impact_index.go
+  s_072c5984f68e14::t_a3ef40abf3180e 29-36,54,83,95,114-118,131,222-252,271-283
+go/internal/storage/postgres/facts_active_supply_chain_impact.go
+  s_072c5984f68e14::t_59bd037bf997ee 39,57-58,60,62,78,80-81,112,121-122
+go/internal/storage/postgres/facts_active_supply_chain_impact_test.go
+  s_072c5984f68e14::t_8be8f4f41933e9 18,23,25-26,52,54
+  s_072c5984f68e14::t_503a4e453f6a2d 24
+go/internal/query/openapi_paths_supply_chain.go
+  s_072c5984f68e14::t_f48dbb95510339 82-83
+go/internal/query/supply_chain_impact_findings_test.go
+  s_072c5984f68e14::t_7b0472fb407225 90-91,145-149
+go/internal/query/supply_chain_impact_findings.go
+  s_072c5984f68e14::t_289284d6ca3407 40-41,176-177
+docs/docs/adrs/2026-05-15-vulnerability-intelligence-collector.md
+  s_072c5984f68e14::t_b624ab2d4b276c 471-509
+go/internal/reducer/supply_chain_impact.go
+  s_072c5984f68e14::t_0b4e7316d818c2 207
+  s_072c5984f68e14::t_470c235aff606a 46,57-58,191,194-197,200-205,213-216,281,290-292,297,303-307,312-313
+go/internal/reducer/supply_chain_impact_match.go
+  s_072c5984f68e14::t_1b28bf8f8dcfe6 32-41,65,134-154,165-171,258-282
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.0",
+  "base_commit_sha": "45cb801fb41d010df8ace086b414ec882af239f7",
+  "prompts": {},
+  "sessions": {
+    "s_072c5984f68e14": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e4636-8361-7713-a3c6-b30ed9bbfc7b",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
