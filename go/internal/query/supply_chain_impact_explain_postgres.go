@@ -1,0 +1,188 @@
+package query
+
+import (
+	"context"
+	"database/sql"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"strings"
+
+	"github.com/lib/pq"
+)
+
+var (
+	// ErrSupplyChainImpactExplanationNotFound means the bounded explain scope
+	// did not match an active reducer-owned impact finding.
+	ErrSupplyChainImpactExplanationNotFound = errors.New("supply chain impact explanation not found")
+	// ErrSupplyChainImpactExplanationAmbiguous means the bounded explain scope
+	// matched more than one active finding and needs a narrower anchor.
+	ErrSupplyChainImpactExplanationAmbiguous = errors.New("supply chain impact explanation scope is ambiguous")
+)
+
+// ExplainSupplyChainImpact returns exactly one active impact finding plus the
+// evidence fact previews referenced by the finding.
+func (s PostgresSupplyChainImpactFindingStore) ExplainSupplyChainImpact(
+	ctx context.Context,
+	filter SupplyChainImpactExplanationFilter,
+) (SupplyChainImpactExplanationRow, error) {
+	if s.DB == nil {
+		return SupplyChainImpactExplanationRow{}, fmt.Errorf("supply chain impact finding database is required")
+	}
+	filter = trimSupplyChainImpactExplanationFilter(filter)
+	if !filter.hasBoundedScope() {
+		return SupplyChainImpactExplanationRow{}, fmt.Errorf("finding_id or advisory/cve plus package, repository, or subject digest is required")
+	}
+	rows, err := s.DB.QueryContext(
+		ctx,
+		explainSupplyChainImpactFindingQuery,
+		supplyChainImpactFindingFactKind,
+		filter.FindingID,
+		filter.AdvisoryID,
+		filter.CVEID,
+		filter.PackageID,
+		filter.RepositoryID,
+		filter.SubjectDigest,
+	)
+	if err != nil {
+		return SupplyChainImpactExplanationRow{}, fmt.Errorf("explain supply chain impact finding: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	findings := make([]SupplyChainImpactFindingRow, 0, 2)
+	for rows.Next() {
+		var factID string
+		var sourceConfidence string
+		var payloadBytes []byte
+		if err := rows.Scan(&factID, &sourceConfidence, &payloadBytes); err != nil {
+			return SupplyChainImpactExplanationRow{}, fmt.Errorf("explain supply chain impact finding: %w", err)
+		}
+		finding, err := decodeSupplyChainImpactFindingRow(factID, sourceConfidence, payloadBytes)
+		if err != nil {
+			return SupplyChainImpactExplanationRow{}, err
+		}
+		findings = append(findings, finding)
+	}
+	if err := rows.Err(); err != nil {
+		return SupplyChainImpactExplanationRow{}, fmt.Errorf("explain supply chain impact finding: %w", err)
+	}
+	switch len(findings) {
+	case 0:
+		return SupplyChainImpactExplanationRow{}, ErrSupplyChainImpactExplanationNotFound
+	case 1:
+	default:
+		return SupplyChainImpactExplanationRow{}, ErrSupplyChainImpactExplanationAmbiguous
+	}
+	evidence, err := s.loadSupplyChainImpactEvidenceFacts(ctx, findings[0].EvidenceFactIDs)
+	if err != nil {
+		return SupplyChainImpactExplanationRow{}, err
+	}
+	return SupplyChainImpactExplanationRow{
+		Finding:       findings[0],
+		EvidenceFacts: evidence,
+	}, nil
+}
+
+func (s PostgresSupplyChainImpactFindingStore) loadSupplyChainImpactEvidenceFacts(
+	ctx context.Context,
+	factIDs []string,
+) ([]SupplyChainImpactEvidenceFact, error) {
+	factIDs = explanationUniqueStrings(factIDs)
+	if len(factIDs) == 0 {
+		return nil, nil
+	}
+	rows, err := s.DB.QueryContext(
+		ctx,
+		explainSupplyChainImpactEvidenceFactsQuery,
+		pq.Array(factIDs),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("explain supply chain impact evidence facts: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	out := make([]SupplyChainImpactEvidenceFact, 0, len(factIDs))
+	for rows.Next() {
+		var fact SupplyChainImpactEvidenceFact
+		var sourceSystem sql.NullString
+		var sourceConfidence sql.NullString
+		var observedAt sql.NullTime
+		var payloadBytes []byte
+		if err := rows.Scan(
+			&fact.FactID,
+			&fact.FactKind,
+			&sourceSystem,
+			&sourceConfidence,
+			&observedAt,
+			&payloadBytes,
+		); err != nil {
+			return nil, fmt.Errorf("explain supply chain impact evidence facts: %w", err)
+		}
+		if sourceSystem.Valid {
+			fact.SourceSystem = sourceSystem.String
+		}
+		if sourceConfidence.Valid {
+			fact.SourceConfidence = sourceConfidence.String
+		}
+		if observedAt.Valid {
+			fact.ObservedAt = observedAt.Time.UTC()
+		}
+		if err := json.Unmarshal(payloadBytes, &fact.Payload); err != nil {
+			return nil, fmt.Errorf("decode supply chain impact evidence fact %q: %w", fact.FactID, err)
+		}
+		out = append(out, fact)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("explain supply chain impact evidence facts: %w", err)
+	}
+	return out, nil
+}
+
+const explainSupplyChainImpactFindingQuery = `
+SELECT fact.fact_id, fact.source_confidence, fact.payload
+FROM fact_records AS fact
+JOIN ingestion_scopes AS scope
+  ON scope.scope_id = fact.scope_id
+ AND scope.active_generation_id = fact.generation_id
+JOIN scope_generations AS generation
+  ON generation.scope_id = fact.scope_id
+ AND generation.generation_id = fact.generation_id
+WHERE fact.fact_kind = $1
+  AND fact.is_tombstone = FALSE
+  AND generation.status = 'active'
+  AND ($2 = '' OR fact.fact_id = $2)
+  AND ($3 = '' OR fact.payload->>'advisory_id' = $3 OR fact.payload->>'cve_id' = $3)
+  AND ($4 = '' OR fact.payload->>'cve_id' = $4)
+  AND ($5 = '' OR fact.payload->>'package_id' = $5)
+  AND ($6 = '' OR fact.payload->>'repository_id' = $6)
+  AND ($7 = '' OR fact.payload->>'subject_digest' = $7)
+ORDER BY fact.fact_id ASC
+LIMIT 2
+`
+
+const explainSupplyChainImpactEvidenceFactsQuery = `
+SELECT fact.fact_id, fact.fact_kind, fact.source_system, fact.source_confidence, fact.observed_at, fact.payload
+FROM fact_records AS fact
+JOIN ingestion_scopes AS scope
+  ON scope.scope_id = fact.scope_id
+ AND scope.active_generation_id = fact.generation_id
+JOIN scope_generations AS generation
+  ON generation.scope_id = fact.scope_id
+ AND generation.generation_id = fact.generation_id
+WHERE fact.fact_id = ANY($1::text[])
+  AND fact.is_tombstone = FALSE
+  AND generation.status = 'active'
+ORDER BY fact.fact_id ASC
+`
+
+func trimSupplyChainImpactExplanationFilter(
+	filter SupplyChainImpactExplanationFilter,
+) SupplyChainImpactExplanationFilter {
+	filter.FindingID = strings.TrimSpace(filter.FindingID)
+	filter.AdvisoryID = strings.TrimSpace(filter.AdvisoryID)
+	filter.CVEID = strings.TrimSpace(filter.CVEID)
+	filter.PackageID = strings.TrimSpace(filter.PackageID)
+	filter.RepositoryID = strings.TrimSpace(filter.RepositoryID)
+	filter.SubjectDigest = strings.TrimSpace(filter.SubjectDigest)
+	return filter
+}

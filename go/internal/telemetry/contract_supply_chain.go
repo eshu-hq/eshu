@@ -9,6 +9,9 @@ const (
 	// SpanQuerySupplyChainImpactFindings wraps reducer-owned vulnerability
 	// impact finding reads from durable facts.
 	SpanQuerySupplyChainImpactFindings = "query.supply_chain_impact_findings"
+	// SpanQuerySupplyChainImpactExplanation wraps one bounded vulnerability
+	// impact explanation over reducer-owned facts and referenced evidence ids.
+	SpanQuerySupplyChainImpactExplanation = "query.supply_chain_impact_explanation"
 	// SpanQueryContainerImageIdentities wraps reducer-owned image identity
 	// reads from durable facts.
 	SpanQueryContainerImageIdentities = "query.container_image_identities"
@@ -23,6 +26,7 @@ func init() {
 				SpanQueryContainerImageIdentities,
 				SpanQuerySBOMAttestationAttachments,
 				SpanQuerySupplyChainImpactFindings,
+				SpanQuerySupplyChainImpactExplanation,
 			)
 			return
 		}
@@ -35,6 +39,7 @@ func init() {
 				SpanQueryContainerImageIdentities,
 				SpanQuerySBOMAttestationAttachments,
 				SpanQuerySupplyChainImpactFindings,
+				SpanQuerySupplyChainImpactExplanation,
 			)
 			return
 		}
@@ -44,5 +49,6 @@ func init() {
 		SpanQueryContainerImageIdentities,
 		SpanQuerySBOMAttestationAttachments,
 		SpanQuerySupplyChainImpactFindings,
+		SpanQuerySupplyChainImpactExplanation,
 	)
 }

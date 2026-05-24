@@ -46,6 +46,8 @@ func repositoryRoute(toolName string, args map[string]any) (*route, bool) {
 		return containerImageIdentitiesRoute(args), true
 	case "list_supply_chain_impact_findings":
 		return supplyChainImpactFindingsRoute(args), true
+	case "explain_supply_chain_impact":
+		return supplyChainImpactExplanationRoute(args), true
 	case "list_sbom_attestation_attachments":
 		return sbomAttestationAttachmentsRoute(args), true
 	case "get_repo_story":

@@ -81,6 +81,39 @@ func supplyChainTools() []ToolDefinition {
 			},
 		},
 		{
+			Name:        "explain_supply_chain_impact",
+			Description: "Explain one reducer-owned vulnerability finding or bounded advisory/package/repository path with evidence, anchors, remediation, freshness, and missing-evidence reasons.",
+			InputSchema: map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"finding_id": map[string]any{
+						"type":        "string",
+						"description": "Exact reducer-owned finding id. Preferred when known.",
+					},
+					"advisory_id": map[string]any{
+						"type":        "string",
+						"description": "Advisory identifier such as GHSA, OSV, GLAD, vendor advisory, or CVE id.",
+					},
+					"cve_id": map[string]any{
+						"type":        "string",
+						"description": "CVE identifier when advisory_id is not the canonical CVE field.",
+					},
+					"package_id": map[string]any{
+						"type":        "string",
+						"description": "Normalized package identity such as pkg:npm/example.",
+					},
+					"repository_id": map[string]any{
+						"type":        "string",
+						"description": "Repository identifier from package consumption evidence.",
+					},
+					"subject_digest": map[string]any{
+						"type":        "string",
+						"description": "Image or artifact digest from SBOM/runtime evidence.",
+					},
+				},
+			},
+		},
+		{
 			Name:        "list_sbom_attestation_attachments",
 			Description: "List reducer-owned SBOM and attestation attachment evidence by image digest or document identity.",
 			InputSchema: map[string]any{

@@ -23,4 +23,10 @@
 // fields from the Postgres JSON rollup before decoding. It never invents
 // findings or duplicates reducer matching: it counts existing source and
 // reducer facts so the answer is diagnosable without re-querying.
+// The companion explain route accepts one finding id or an advisory/CVE plus
+// package, repository, or image digest scope, then hydrates only the finding's
+// referenced evidence facts. It reports advisory, package/version,
+// dependency-chain, manifest/SBOM/image/workload anchors, freshness, and
+// missing-evidence reasons without adding whole-graph traversal or inventing
+// reachability truth.
 package query

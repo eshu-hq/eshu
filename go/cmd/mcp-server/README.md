@@ -147,9 +147,10 @@ or spans beyond the startup/connection events.
 - `IaCHandler.Reachability` and `IaCHandler.Management` must be non-nil;
   `newMCPQueryRouter` always sets them to the Postgres-backed adapters
   (`wiring.go:146`).
-- `CICDHandler.Correlations`, `SupplyChainHandler.SBOMAttachments`, and
-  `SupplyChainHandler.ImpactFindings` must be non-nil because MCP exposes read
-  tools for those routes.
+- `CICDHandler.Correlations`, `SupplyChainHandler.SBOMAttachments`,
+  `SupplyChainHandler.ImpactFindings`, and
+  `SupplyChainHandler.ImpactExplanations` must be non-nil because MCP exposes
+  read tools for those routes.
 
 ## Related docs
 

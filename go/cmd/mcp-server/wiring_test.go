@@ -84,6 +84,12 @@ func TestNewMCPQueryRouterMountsMCPBackedHandlers(t *testing.T) {
 	if router.SupplyChain.ContainerImageIdentities == nil {
 		t.Fatal("newMCPQueryRouter().SupplyChain.ContainerImageIdentities = nil, want Postgres read model store")
 	}
+	if router.SupplyChain.ImpactFindings == nil {
+		t.Fatal("newMCPQueryRouter().SupplyChain.ImpactFindings = nil, want Postgres read model store")
+	}
+	if router.SupplyChain.ImpactExplanations == nil {
+		t.Fatal("newMCPQueryRouter().SupplyChain.ImpactExplanations = nil, want Postgres explain store")
+	}
 	if router.SupplyChain.Readiness == nil {
 		t.Fatal("newMCPQueryRouter().SupplyChain.Readiness = nil, want Postgres readiness store")
 	}

@@ -126,6 +126,12 @@ func TestNewRouterMountsPostgresBackedHandlers(t *testing.T) {
 	if router.SupplyChain.ContainerImageIdentities == nil {
 		t.Fatal("newRouter().SupplyChain.ContainerImageIdentities = nil, want Postgres read model store")
 	}
+	if router.SupplyChain.ImpactFindings == nil {
+		t.Fatal("newRouter().SupplyChain.ImpactFindings = nil, want Postgres read model store")
+	}
+	if router.SupplyChain.ImpactExplanations == nil {
+		t.Fatal("newRouter().SupplyChain.ImpactExplanations = nil, want Postgres explain store")
+	}
 	if router.SupplyChain.Readiness == nil {
 		t.Fatal("newRouter().SupplyChain.Readiness = nil, want Postgres readiness store")
 	}
