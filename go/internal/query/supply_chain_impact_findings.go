@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"strings"
 )
 
 const supplyChainImpactFindingFactKind = "reducer_supply_chain_impact_finding"
@@ -51,6 +52,9 @@ type SupplyChainImpactFindingRow struct {
 	RuntimeReachability string
 	RepositoryID        string
 	SubjectDigest       string
+	DependencyPath      []string
+	DependencyDepth     int
+	DirectDependency    *bool
 	MissingEvidence     []string
 	EvidencePath        []string
 	EvidenceFactIDs     []string
@@ -187,10 +191,33 @@ func decodeSupplyChainImpactFindingRow(
 		RuntimeReachability: StringVal(payload, "runtime_reachability"),
 		RepositoryID:        StringVal(payload, "repository_id"),
 		SubjectDigest:       StringVal(payload, "subject_digest"),
+		DependencyPath:      StringSliceVal(payload, "dependency_path"),
+		DependencyDepth:     int(floatVal(payload, "dependency_depth")),
+		DirectDependency:    boolPointerVal(payload, "direct_dependency"),
 		MissingEvidence:     StringSliceVal(payload, "missing_evidence"),
 		EvidencePath:        StringSliceVal(payload, "evidence_path"),
 		EvidenceFactIDs:     StringSliceVal(payload, "evidence_fact_ids"),
 		SourceFreshness:     "active",
 		SourceConfidence:    sourceConfidence,
 	}, nil
+}
+
+func boolPointerVal(payload map[string]any, key string) *bool {
+	value, ok := payload[key]
+	if !ok {
+		return nil
+	}
+	switch typed := value.(type) {
+	case bool:
+		return &typed
+	case string:
+		trimmed := strings.TrimSpace(typed)
+		if trimmed == "" {
+			return nil
+		}
+		parsed := strings.EqualFold(trimmed, "true")
+		return &parsed
+	default:
+		return nil
+	}
 }

@@ -69,6 +69,9 @@ type SupplyChainImpactFinding struct {
 	RuntimeReachability string
 	RepositoryID        string
 	SubjectDigest       string
+	DependencyPath      []string
+	DependencyDepth     int
+	DirectDependency    *bool
 	MissingEvidence     []string
 	EvidencePath        []string
 	EvidenceFactIDs     []string

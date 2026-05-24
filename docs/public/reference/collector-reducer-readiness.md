@@ -69,7 +69,7 @@ the collector naming something truth. Current reducer-owned surfaces include:
 | `ci_cd_run_correlation` | Exact CI/CD correlation requires artifact identity evidence, not CI success alone. |
 | `service_catalog_correlation` | Catalog names, owners, and labels remain provenance until explicit repository evidence admits correlation. |
 | `sbom_attestation_attachment` | SBOM and attestation attachment requires explicit subject digest evidence; parse validity and verification trust stay separate. |
-| `supply_chain_impact` | Vulnerability impact findings come from explicit CVE/advisory to package/component to repository/image evidence paths. Source-only vulnerability intelligence is retained as facts but stays out of user-facing impact findings until it joins to owned package-manifest, lockfile, repository, image, or SBOM evidence. Package-registry version facts are source metadata, not installed-version proof. |
+| `supply_chain_impact` | Vulnerability impact findings come from explicit CVE/advisory to package/component to repository/image evidence paths. Source-only vulnerability intelligence is retained as facts but stays out of user-facing impact findings until it joins to owned package-manifest, lockfile, repository, image, or SBOM evidence. Package-lock evidence preserves the dependency path, depth, and direct/transitive flag when npm gives Eshu enough chain data. Package-registry version facts are source metadata, not installed-version proof. |
 
 Workflow completeness depends on reducer-owned phase publications only for
 collector families that declare required phases. Git and Terraform-state have
@@ -139,6 +139,25 @@ evidence paths, missing-evidence payloads, `query.supply_chain_impact_findings`
 spans, and API/MCP truth envelopes show whether impact came from an exact owned
 lockfile version, a partial manifest range, an SBOM/image path, or source-only
 vulnerability intelligence.
+
+No-Regression Evidence: the dependency-chain preservation slice ran
+`go test ./internal/parser/json -run
+'TestParsePackageLockJSON(PreservesDependencyChainRows|EmitsExactDependencyRows)'
+-count=1`, `go test ./internal/reducer -run
+'TestBuildPackageConsumptionDecisionsPreservesLockfileDependencyChain|TestPostgresPackageCorrelationWriterPersistsOwnershipAndConsumptionFacts|TestBuildSupplyChainImpactFindingsExposesDependencyChain'
+-count=1`, and `go test ./internal/query -run
+'TestSupplyChainListImpactFindingsUsesBoundedStore|TestOpenAPISpecIncludesSupplyChainImpactFindings'
+-count=1`. The parser proof covers an npm chain
+`vite -> rollup -> fsevents`; reducer proof carries that path through
+`reducer_package_consumption_correlation`; query proof exposes the path in the
+bounded supply-chain impact API response.
+
+No-Observability-Change: this slice adds explanatory fields to existing parser
+payloads, reducer facts, and bounded API rows without adding a new runtime
+stage, queue, graph write, or metric label. Existing parser tests, supply-chain
+impact counters, evidence paths, reducer fact payloads, query spans, and
+API/MCP truth envelopes remain the diagnostic surface for direct versus
+transitive package impact.
 
 No-Regression Evidence: the large npm package correction first reproduced the
 20 MiB metadata cap with Vite's full npm packument and then proved npm

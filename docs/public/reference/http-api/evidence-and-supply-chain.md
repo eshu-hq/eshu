@@ -131,6 +131,9 @@ Valid impact statuses are `affected_exact`, `affected_derived`,
 Rows keep CVSS, EPSS, KEV, fixed-version state, runtime reachability,
 repository/image evidence, and missing evidence separate.
 Exact owned lockfile dependency rows can prove the observed package version.
+Npm lockfile-backed findings may include `dependency_path`,
+`dependency_depth`, and `direct_dependency` so callers can explain direct versus
+transitive package impact without re-walking the lockfile.
 Manifest ranges remain partial package evidence until a lockfile, SBOM/image,
 or another owned exact-version source narrows the version. Product-only CPE
 facts and package-registry facts without owned repository, image,

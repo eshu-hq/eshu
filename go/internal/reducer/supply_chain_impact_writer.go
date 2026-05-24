@@ -102,7 +102,7 @@ func supplyChainImpactIdentity(write SupplyChainImpactWrite, finding SupplyChain
 }
 
 func supplyChainImpactPayload(write SupplyChainImpactWrite, finding SupplyChainImpactFinding) map[string]any {
-	return map[string]any{
+	payload := map[string]any{
 		"reducer_domain":       string(DomainSupplyChainImpact),
 		"intent_id":            write.IntentID,
 		"scope_id":             write.ScopeID,
@@ -138,6 +138,14 @@ func supplyChainImpactPayload(write SupplyChainImpactWrite, finding SupplyChainI
 			string(truth.LayerObservedResource),
 		},
 	}
+	if len(finding.DependencyPath) > 0 {
+		payload["dependency_path"] = orderedStrings(finding.DependencyPath)
+		payload["dependency_depth"] = finding.DependencyDepth
+	}
+	if finding.DirectDependency != nil {
+		payload["direct_dependency"] = *finding.DirectDependency
+	}
+	return payload
 }
 
 func orderedUniqueStrings(values []string) []string {
@@ -156,6 +164,19 @@ func orderedUniqueStrings(values []string) []string {
 		}
 		seen[trimmed] = struct{}{}
 		out = append(out, trimmed)
+	}
+	return out
+}
+
+func orderedStrings(values []string) []string {
+	if len(values) == 0 {
+		return nil
+	}
+	out := make([]string, 0, len(values))
+	for _, value := range values {
+		if value = strings.TrimSpace(value); value != "" {
+			out = append(out, value)
+		}
 	}
 	return out
 }

@@ -479,6 +479,40 @@ func packageManifestDependencyFact(
 	}
 }
 
+func packageManifestDependencyFactWithMetadata(
+	repositoryID string,
+	repositoryName string,
+	relativePath string,
+	dependencyName string,
+	packageManager string,
+	dependencyRange string,
+	observedAt time.Time,
+	metadata map[string]any,
+) facts.Envelope {
+	metadata["config_kind"] = "dependency"
+	metadata["package_manager"] = packageManager
+	metadata["value"] = dependencyRange
+	if _, ok := metadata["section"]; !ok {
+		metadata["section"] = "dependencies"
+	}
+	return facts.Envelope{
+		FactID:        "manifest-dep:" + repositoryID + ":" + dependencyName,
+		FactKind:      factKindContentEntity,
+		ObservedAt:    observedAt,
+		IsTombstone:   false,
+		SourceRef:     facts.Ref{SourceSystem: "git"},
+		StableFactKey: "content_entity:" + repositoryID + ":" + dependencyName,
+		Payload: map[string]any{
+			"repo_id":         repositoryID,
+			"relative_path":   relativePath,
+			"entity_type":     "Variable",
+			"entity_name":     dependencyName,
+			"entity_metadata": metadata,
+			"repo_name":       repositoryName,
+		},
+	}
+}
+
 func unmarshalPackageCorrelationPayload(t *testing.T, raw any) map[string]any {
 	t.Helper()
 	payloadBytes, ok := raw.([]byte)
@@ -490,6 +524,22 @@ func unmarshalPackageCorrelationPayload(t *testing.T, raw any) map[string]any {
 		t.Fatalf("unmarshal payload: %v", err)
 	}
 	return payload
+}
+
+func packageCorrelationStringSliceFromAny(raw any) []string {
+	values, ok := raw.([]any)
+	if !ok {
+		return nil
+	}
+	out := make([]string, 0, len(values))
+	for _, value := range values {
+		out = append(out, payloadStringAny(map[string]any{"value": value}, "value"))
+	}
+	return out
+}
+
+func boolPtr(value bool) *bool {
+	return &value
 }
 
 func sameStrings(left, right []string) bool {

@@ -2,6 +2,7 @@ package reducer
 
 import (
 	"context"
+	"reflect"
 	"testing"
 	"time"
 
@@ -51,11 +52,60 @@ func TestBuildPackageConsumptionDecisionsMatchesManifestDependencies(t *testing.
 	if got, want := decision.DependencyRange, "^1.2.0"; got != want {
 		t.Fatalf("DependencyRange = %q, want %q", got, want)
 	}
+	if !reflect.DeepEqual(decision.DependencyPath, []string{"@eshu/core-api"}) {
+		t.Fatalf("DependencyPath = %#v, want direct package path", decision.DependencyPath)
+	}
+	if got, want := decision.DependencyDepth, 1; got != want {
+		t.Fatalf("DependencyDepth = %d, want %d", got, want)
+	}
+	if decision.DirectDependency == nil || !*decision.DirectDependency {
+		t.Fatalf("DirectDependency = %#v, want true for manifest dependency", decision.DirectDependency)
+	}
 	if decision.ProvenanceOnly {
 		t.Fatal("ProvenanceOnly = true, want false for manifest-backed consumption truth")
 	}
 	if got, want := decision.CanonicalWrites, 1; got != want {
 		t.Fatalf("CanonicalWrites = %d, want %d", got, want)
+	}
+}
+
+func TestBuildPackageConsumptionDecisionsPreservesLockfileDependencyChain(t *testing.T) {
+	t.Parallel()
+
+	observedAt := time.Date(2026, 5, 24, 10, 0, 0, 0, time.UTC)
+	decisions := BuildPackageConsumptionDecisions([]facts.Envelope{
+		packageRegistryPackageFact("pkg:npm/fsevents", "npm", "fsevents", "", observedAt),
+		packageSourceRepositoryFact("repo-web", "web", "https://github.com/acme/web", false, observedAt),
+		packageManifestDependencyFactWithMetadata(
+			"repo-web",
+			"web",
+			"package-lock.json",
+			"fsevents",
+			"npm",
+			"2.3.3",
+			observedAt,
+			map[string]any{
+				"section":           "package-lock",
+				"lockfile":          true,
+				"dependency_path":   []any{"vite", "rollup", "fsevents"},
+				"dependency_depth":  3,
+				"direct_dependency": false,
+			},
+		),
+	})
+
+	if got, want := len(decisions), 1; got != want {
+		t.Fatalf("len(decisions) = %d, want %d", got, want)
+	}
+	decision := decisions[0]
+	if !reflect.DeepEqual(decision.DependencyPath, []string{"vite", "rollup", "fsevents"}) {
+		t.Fatalf("DependencyPath = %#v, want vite -> rollup -> fsevents", decision.DependencyPath)
+	}
+	if got, want := decision.DependencyDepth, 3; got != want {
+		t.Fatalf("DependencyDepth = %d, want %d", got, want)
+	}
+	if decision.DirectDependency == nil || *decision.DirectDependency {
+		t.Fatalf("DirectDependency = %#v, want false for transitive lockfile dependency", decision.DirectDependency)
 	}
 }
 
@@ -90,18 +140,21 @@ func TestPostgresPackageCorrelationWriterPersistsOwnershipAndConsumptionFacts(t 
 		},
 		ConsumptionDecisions: []PackageConsumptionDecision{
 			{
-				PackageID:       "pkg:npm://registry.example/team-api",
-				Ecosystem:       "npm",
-				PackageName:     "team-api",
-				RepositoryID:    "repo-web",
-				RepositoryName:  "web",
-				RelativePath:    "package.json",
-				ManifestSection: "dependencies",
-				DependencyRange: "^1.2.0",
-				Outcome:         PackageConsumptionManifestDeclared,
-				Reason:          "git manifest dependency matches package registry identity",
-				CanonicalWrites: 1,
-				EvidenceFactIDs: []string{"dep-fact"},
+				PackageID:        "pkg:npm://registry.example/team-api",
+				Ecosystem:        "npm",
+				PackageName:      "team-api",
+				RepositoryID:     "repo-web",
+				RepositoryName:   "web",
+				RelativePath:     "package.json",
+				ManifestSection:  "dependencies",
+				DependencyRange:  "^1.2.0",
+				DependencyPath:   []string{"platform-api", "team-api"},
+				DependencyDepth:  2,
+				DirectDependency: boolPtr(false),
+				Outcome:          PackageConsumptionManifestDeclared,
+				Reason:           "git manifest dependency matches package registry identity",
+				CanonicalWrites:  1,
+				EvidenceFactIDs:  []string{"dep-fact"},
 			},
 		},
 		PublicationDecisions: []PackagePublicationDecision{
@@ -148,6 +201,15 @@ func TestPostgresPackageCorrelationWriterPersistsOwnershipAndConsumptionFacts(t 
 	}
 	if got, want := consumptionPayload["canonical_writes"], float64(1); got != want {
 		t.Fatalf("canonical_writes = %#v, want %#v", got, want)
+	}
+	if got, want := packageCorrelationStringSliceFromAny(consumptionPayload["dependency_path"]), []string{"platform-api", "team-api"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("dependency_path = %#v, want %#v", got, want)
+	}
+	if got, want := consumptionPayload["dependency_depth"], float64(2); got != want {
+		t.Fatalf("dependency_depth = %#v, want %#v", got, want)
+	}
+	if got, want := consumptionPayload["direct_dependency"], false; got != want {
+		t.Fatalf("direct_dependency = %#v, want %#v", got, want)
 	}
 	publicationPayload := unmarshalPackageCorrelationPayload(t, db.execs[2].args[14])
 	if got, want := publicationPayload["correlation_kind"], packagePublicationCorrelationFactKind; got != want {
