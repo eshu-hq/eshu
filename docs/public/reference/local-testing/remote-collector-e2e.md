@@ -1,8 +1,8 @@
 # Remote Collector E2E
 
 Use this gate when changing `docker-compose.remote-e2e.yaml`, hosted collector
-runtime wiring, hosted collector restart recovery, or remote all-collector
-admission.
+runtime wiring, scanner-worker runtime wiring, hosted collector restart
+recovery, or remote all-collector admission.
 
 The proof target is an account-local or VPN-attached host with Docker, a
 readable S3 Terraform state object, and an ECR repository. The Compose project
@@ -47,6 +47,9 @@ Capture:
   relationships, warnings, throttle counts, and failure classes
 - API and MCP `/healthz`
 - collector container health
+- scanner-worker target count, fact count, scan runtime, CPU seconds, memory
+  bytes, retry count, dead-letter count, queue state, and private pprof
+  availability when scanner-worker wiring changes
 - NornicDB logs filtered for `UNWIND MERGE`, SQLSTATE, constraint, panic,
   fatal, and OOM failures
 - queue-zero after reducer projection

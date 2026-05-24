@@ -211,6 +211,16 @@ x-collector-env: &remote_e2e_collector_env
             }
           ]
         }
+      },
+      {
+        "instance_id": "remote-e2e-scanner-worker-source",
+        "collector_kind": "scanner_worker",
+        "mode": "continuous",
+        "enabled": true,
+        "claims_enabled": true,
+        "configuration": {
+          "analyzer": "source_analysis"
+        }
       }
     ]
 
@@ -565,6 +575,39 @@ services:
       ESHU_VULNERABILITY_INTELLIGENCE_CLAIM_LEASE_TTL: ${ESHU_VULNERABILITY_INTELLIGENCE_CLAIM_LEASE_TTL:-60s}
       ESHU_VULNERABILITY_INTELLIGENCE_HEARTBEAT_INTERVAL: ${ESHU_VULNERABILITY_INTELLIGENCE_HEARTBEAT_INTERVAL:-10s}
       NVD_API_KEY: ${ESHU_NVD_API_KEY:-}
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/healthz"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+    depends_on:
+      projector:
+        condition: service_healthy
+      workflow-coordinator:
+        condition: service_healthy
+
+  scanner-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: on-failure
+    command: ["/usr/local/bin/eshu-scanner-worker"]
+    ports:
+      - "${ESHU_SCANNER_WORKER_METRICS_PORT:-19477}:9464"
+    environment:
+      <<: [*remote_e2e_runtime_env, *remote_e2e_collector_env]
+      ESHU_SCANNER_WORKER_INSTANCE_ID: remote-e2e-scanner-worker-source
+      ESHU_SCANNER_WORKER_OWNER_ID: remote-e2e-scanner-worker
+      ESHU_SCANNER_WORKER_ANALYZER: ${ESHU_SCANNER_WORKER_ANALYZER:-source_analysis}
+      ESHU_SCANNER_WORKER_POLL_INTERVAL: ${ESHU_SCANNER_WORKER_POLL_INTERVAL:-2s}
+      ESHU_SCANNER_WORKER_CLAIM_LEASE_TTL: ${ESHU_SCANNER_WORKER_CLAIM_LEASE_TTL:-60s}
+      ESHU_SCANNER_WORKER_HEARTBEAT_INTERVAL: ${ESHU_SCANNER_WORKER_HEARTBEAT_INTERVAL:-10s}
+      ESHU_SCANNER_WORKER_CPU_MILLIS: ${ESHU_SCANNER_WORKER_CPU_MILLIS:-4000}
+      ESHU_SCANNER_WORKER_MEMORY_BYTES: ${ESHU_SCANNER_WORKER_MEMORY_BYTES:-4294967296}
+      ESHU_SCANNER_WORKER_TIMEOUT: ${ESHU_SCANNER_WORKER_TIMEOUT:-10m}
+      ESHU_SCANNER_WORKER_MAX_INPUT_BYTES: ${ESHU_SCANNER_WORKER_MAX_INPUT_BYTES:-2147483648}
+      ESHU_SCANNER_WORKER_MAX_FILES: ${ESHU_SCANNER_WORKER_MAX_FILES:-250000}
+      ESHU_SCANNER_WORKER_MAX_FACTS: ${ESHU_SCANNER_WORKER_MAX_FACTS:-50000}
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://localhost:8080/healthz"]
       interval: 15s

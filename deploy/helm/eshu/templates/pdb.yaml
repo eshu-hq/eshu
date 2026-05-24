@@ -131,6 +131,21 @@ spec:
       {{- include "eshu.packageRegistryCollectorSelectorLabels" . | nindent 6 }}
 ---
 {{- end }}
+{{- if .Values.scannerWorker.enabled }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "eshu.scannerWorkerFullname" . }}
+  labels:
+    {{- include "eshu.labels" . | nindent 4 }}
+    app.kubernetes.io/component: scanner-worker
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      {{- include "eshu.scannerWorkerSelectorLabels" . | nindent 6 }}
+---
+{{- end }}
 {{- if .Values.repoSync.enabled }}
 apiVersion: policy/v1
 kind: PodDisruptionBudget

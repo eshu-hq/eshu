@@ -323,6 +323,23 @@ packageRegistryCollector:
             metadata_url: https://registry.npmjs.org/lodash
 `,
 		},
+		{
+			name: "scanner_worker",
+			values: `
+scannerWorker:
+  enabled: true
+  instanceId: scanner-worker-source
+  analyzer: source_analysis
+  collectorInstances:
+    - instance_id: scanner-worker-source
+      collector_kind: scanner_worker
+      mode: continuous
+      enabled: true
+      claims_enabled: true
+      configuration:
+        analyzer: source_analysis
+`,
+		},
 	}
 
 	for _, tt := range tests {

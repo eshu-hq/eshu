@@ -21,19 +21,21 @@ The implemented deployed collector lane is:
 - claim-driven AWS cloud collection
 - claim-driven package-registry collection
 - remote-E2E-gated vulnerability intelligence collection
+- claim-driven scanner-worker warning facts for isolated analyzer execution
 - webhook listener intake for Git provider events and AWS freshness triggers
 
-The scanner-worker boundary is a contract-only lane. It defines claim input,
-target scope, resource limits, source fact output, retry/dead-letter payloads,
-and telemetry names for future isolated security analyzers, but it is not a
-deployed collector lane and has no chart or Compose runtime yet.
+The scanner-worker lane is deployed as an isolated analyzer boundary. It
+defines claim input, target scope, resource limits, source fact output,
+retry/dead-letter payloads, telemetry names, Compose wiring, and an opt-in Helm
+Deployment. The built-in warning analyzer proves source-fact emission without
+claiming a target is clean.
 
 Do not add chart values for design-only collectors. A Helm knob is an operator
 promise; only chart collectors whose binary, fact contract, configuration, and
 runtime status path exist.
 
 Claim-driven collectors require an active workflow coordinator. The public Helm
-chart rejects Terraform-state, AWS cloud, or package-registry collector
+chart rejects Terraform-state, AWS cloud, package-registry, or scanner-worker
 Deployments unless all of these are true:
 
 - `workflowCoordinator.enabled=true`
@@ -58,6 +60,7 @@ instances.
 | AWS freshness | `eshu-webhook-listener` accepts AWS freshness events and stores durable triggers. | Freshness narrows the next AWS collection target. Scheduled scans remain the baseline completeness path. | Prove one live AWS EventBridge or AWS Config sample through webhook intake, trigger handoff, AWS work creation, and final status. |
 | Package registry | `eshu-collector-package-registry` is claim-driven and can collect configured package targets or coordinator-derived npm targets from active owned dependency facts. | Package source correlation classifies source hints without ownership promotion and admits manifest-backed package consumption from package identity plus Git dependency evidence. Package-native dependency and publication facts are safe as provenance/read-model evidence. | Expand ownership correlation only after exact, derived, ambiguous, unresolved, stale, and rejected cases are proven. |
 | Vulnerability intelligence | `eshu-collector-vulnerability-intelligence` has source clients for CISA KEV, FIRST EPSS, OSV, and NVD. It can collect configured targets or coordinator-derived OSV npm targets for exact owned dependency versions. | Source-truth `vulnerability.*` facts exist. Impact reducers require owned package-manifest, lockfile, repository, image, or SBOM evidence before publishing user-facing impact findings. Exact lockfile versions can prove observed package impact; manifest ranges stay partial evidence and are skipped for exact OSV target derivation. They must not infer reachability from CVSS, EPSS, KEV, product-only CPEs, or package-registry facts alone. | Prove live source collection, API/MCP fact visibility, then package/image/deployment impact joins after upstream collectors are proven together. |
+| Scanner worker | `eshu-scanner-worker` is claim-driven and isolated from reducer lanes. The built-in warning analyzer emits `scanner_worker.warning` source facts until a concrete analyzer is configured. | Scanner workers emit source facts only. Reducers own vulnerability finding admission, priority, readiness, and graph truth. | Prove concrete analyzers with target count, fact count, runtime, CPU, memory, queue state, retry count, dead-letter count, pprof, and reducer/API truth before enabling them by default. |
 
 The broader vulnerability architecture, including target/capability separation,
 readiness states, provider-alert parity, local one-shot scanning, and future

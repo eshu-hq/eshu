@@ -181,9 +181,10 @@ it.
 - `cicdrun` subpackage — fixture-backed CI/CD provider normalization and
   reported-confidence run, job, step, artifact, trigger, environment, and
   warning fact-envelope construction for the `ci_cd_run` collector family
-- `scannerworker` subpackage — scanner-worker boundary contracts for claim
-  input, bounded target scope, resource limits, source-fact output, and
-  retry/dead-letter payloads. It does not implement analyzer execution.
+- `scannerworker` subpackage — scanner-worker claim processing, analyzer port,
+  bounded target scope, resource limits, source-fact output validation, and
+  retry/dead-letter payloads. Concrete heavy analyzers plug in behind this
+  boundary.
 
 ## Dependencies
 

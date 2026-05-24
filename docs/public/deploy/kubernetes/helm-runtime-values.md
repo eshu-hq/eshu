@@ -80,6 +80,40 @@ No-Observability-Change: lanes reuse existing reducer queue and runtime signals:
 `eshu_dp_reducer_queue_wait_seconds`, `eshu_dp_queue_depth`,
 `eshu_dp_queue_oldest_age_seconds`, and `eshu_dp_reducer_executions_total`.
 
+## Scanner Worker
+
+`scannerWorker.enabled=true` renders a separate `eshu-scanner-worker`
+Deployment for CPU-heavy and memory-heavy security analyzers. It selects one
+claim-capable `scanner_worker` collector instance from
+`scannerWorker.collectorInstances`, applies analyzer resource limits, emits
+source facts only, and leaves user-facing vulnerability findings to reducers.
+
+Defaults: disabled, one replica, `instanceId=scanner-worker-source`,
+`analyzer=source_analysis`, `pollInterval=30s`, `claimLeaseTTL=5m`,
+`heartbeatInterval=55s`, `cpuMillis=4000`, `memoryBytes=4294967296`,
+`timeout=10m`, `maxInputBytes=2147483648`, `maxFiles=250000`, and
+`maxFacts=50000`. Kubernetes defaults request `cpu=1`, `memory=2Gi` and limit
+the pod at `cpu=4`, `memory=4Gi`.
+
+The chart rejects scanner-worker rendering unless the workflow coordinator is
+enabled with active claims:
+
+- `workflowCoordinator.enabled=true`
+- `workflowCoordinator.deploymentMode=active`
+- `workflowCoordinator.claimsEnabled=true`
+
+Use separate scanner-worker releases or values overlays when analyzer classes
+need different CPU, memory, timeout, input-size, file-count, or fact-count
+limits. Do not raise reducer resources to host SBOM generation, image
+unpacking, source analysis, OS package extraction, secret scanning, license
+scanning, or misconfiguration analysis.
+
+Observability Evidence: the Deployment exposes `/healthz`, `/readyz`,
+`/metrics`, `/admin/status`, and optional private pprof through
+`ESHU_PPROF_ADDR`. Scanner-worker metrics include queue wait, scan duration,
+target count, result count, retry count, dead-letter count, CPU seconds, memory
+bytes, and source facts emitted.
+
 ## Repository Sync
 
 `repoSync` controls how the ingester discovers repositories.

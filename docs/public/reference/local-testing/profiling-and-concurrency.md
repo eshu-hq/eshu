@@ -33,12 +33,13 @@ When changing queue or worker behavior, also prove:
 
 ## Scanner-Worker Resource Isolation
 
-Scanner workers are not enabled as a hosted runtime yet. The contract exists so
-future CPU-heavy or memory-heavy analyzers can be isolated before they contend
-with reducer drain.
+Scanner workers run as a hosted runtime for claim-driven security analyzer
+work that is too CPU-heavy or memory-heavy for reducer drain. The default
+runtime path emits explicit warning source facts until a concrete analyzer is
+configured.
 
-When a scanner-worker runtime is added, prove these signals before turning it
-on by default:
+Before turning a concrete scanner-worker analyzer on by default, prove these
+signals:
 
 - workflow claim age, lease renewal, retry, and dead-letter behavior;
 - analyzer wall time, CPU seconds, peak memory bytes, target count, and result
@@ -113,6 +114,9 @@ use an SSH tunnel from their laptop.
 | `collector-package-registry` | `127.0.0.1:19666` |
 | `collector-aws-cloud` | `127.0.0.1:19667` |
 | `collector-confluence` | `127.0.0.1:19668` |
+| `projector` | `127.0.0.1:19669` |
+| `collector-vulnerability-intelligence` | `127.0.0.1:19670` |
+| `scanner-worker` | `127.0.0.1:19671` |
 
 Example captures from the remote host:
 

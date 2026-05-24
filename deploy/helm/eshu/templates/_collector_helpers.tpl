@@ -91,3 +91,41 @@
 {{ toYaml . }}
 {{- end }}
 {{- end -}}
+
+{{- define "eshu.renderScannerWorkerEnv" -}}
+- name: ESHU_COLLECTOR_INSTANCES_JSON
+  value: {{ required "scannerWorker.collectorInstances must contain at least one instance when scannerWorker.enabled=true" .Values.scannerWorker.collectorInstances | toJson | quote }}
+- name: ESHU_SCANNER_WORKER_INSTANCE_ID
+  value: {{ .Values.scannerWorker.instanceId | quote }}
+- name: ESHU_SCANNER_WORKER_OWNER_ID
+  valueFrom:
+    fieldRef:
+      fieldPath: metadata.name
+- name: ESHU_SCANNER_WORKER_ANALYZER
+  value: {{ .Values.scannerWorker.analyzer | quote }}
+- name: ESHU_SCANNER_WORKER_POLL_INTERVAL
+  value: {{ .Values.scannerWorker.pollInterval | quote }}
+{{- with .Values.scannerWorker.claimLeaseTTL }}
+- name: ESHU_SCANNER_WORKER_CLAIM_LEASE_TTL
+  value: {{ . | quote }}
+{{- end }}
+{{- with .Values.scannerWorker.heartbeatInterval }}
+- name: ESHU_SCANNER_WORKER_HEARTBEAT_INTERVAL
+  value: {{ . | quote }}
+{{- end }}
+- name: ESHU_SCANNER_WORKER_CPU_MILLIS
+  value: {{ .Values.scannerWorker.cpuMillis | quote }}
+- name: ESHU_SCANNER_WORKER_MEMORY_BYTES
+  value: {{ .Values.scannerWorker.memoryBytes | quote }}
+- name: ESHU_SCANNER_WORKER_TIMEOUT
+  value: {{ .Values.scannerWorker.timeout | quote }}
+- name: ESHU_SCANNER_WORKER_MAX_INPUT_BYTES
+  value: {{ .Values.scannerWorker.maxInputBytes | quote }}
+- name: ESHU_SCANNER_WORKER_MAX_FILES
+  value: {{ .Values.scannerWorker.maxFiles | quote }}
+- name: ESHU_SCANNER_WORKER_MAX_FACTS
+  value: {{ .Values.scannerWorker.maxFacts | quote }}
+{{- with .Values.scannerWorker.extraEnv }}
+{{ toYaml . }}
+{{- end }}
+{{- end -}}
