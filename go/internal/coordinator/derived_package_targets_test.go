@@ -154,3 +154,62 @@ func TestVulnerabilityIntelligenceWorkPlannerDerivesOSVTargetsForExactOwnedVersi
 		t.Fatalf("derived OSV target not marked derived: %#v", requested.Targets[0])
 	}
 }
+
+func TestExactOwnedDependencyVersionAllowsSemverPrereleaseVersions(t *testing.T) {
+	t.Parallel()
+
+	for _, raw := range []string{
+		"1.0.0-next.1",
+		"1.0.0-git.1",
+		"1.0.0+git.sha",
+	} {
+		got, ok := exactOwnedDependencyVersion(raw)
+		if !ok {
+			t.Fatalf("exactOwnedDependencyVersion(%q) ok = false, want true", raw)
+		}
+		if got != raw {
+			t.Fatalf("exactOwnedDependencyVersion(%q) = %q, want %q", raw, got, raw)
+		}
+	}
+
+	if got, ok := exactOwnedDependencyVersion("^1.0.0-next.1"); ok {
+		t.Fatalf("exactOwnedDependencyVersion() = %q, want range rejection", got)
+	}
+	if got, ok := exactOwnedDependencyVersion("git+https://github.com/acme/pkg.git"); ok {
+		t.Fatalf("exactOwnedDependencyVersion() = %q, want git URL rejection", got)
+	}
+	if got, ok := exactOwnedDependencyVersion("git://github.com/acme/pkg.git"); ok {
+		t.Fatalf("exactOwnedDependencyVersion() = %q, want git URL rejection", got)
+	}
+	if got, ok := exactOwnedDependencyVersion("gitlab:acme/pkg"); ok {
+		t.Fatalf("exactOwnedDependencyVersion() = %q, want git URL rejection", got)
+	}
+	if got, ok := exactOwnedDependencyVersion("release-2026-05-24"); ok {
+		t.Fatalf("exactOwnedDependencyVersion() = %q, want non-semver rejection", got)
+	}
+}
+
+func TestPackageRegistryDerivedTargetUsesNormalizedMetadataURL(t *testing.T) {
+	t.Parallel()
+
+	target, ok := npmPackageRegistryTarget(
+		workflow.OwnedPackageDependencyTarget{
+			Ecosystem:   "npm",
+			PackageName: "Vite",
+		},
+		1,
+		200,
+	)
+	if !ok {
+		t.Fatal("npmPackageRegistryTarget() ok = false, want true")
+	}
+	if got, want := target.ScopeID, "npm://registry.npmjs.org/vite"; got != want {
+		t.Fatalf("ScopeID = %q, want %q", got, want)
+	}
+	if got, want := target.SourceURI, "https://registry.npmjs.org/vite"; got != want {
+		t.Fatalf("SourceURI = %q, want normalized metadata URL %q", got, want)
+	}
+	if got, want := target.MetadataURL, "https://registry.npmjs.org/vite"; got != want {
+		t.Fatalf("MetadataURL = %q, want normalized metadata URL %q", got, want)
+	}
+}
