@@ -129,18 +129,37 @@ flowchart LR
 
 ## Chunk 5: Local One-Shot CLI
 
-- [ ] Track implementation in #613.
-- [ ] Design the local vulnerability scan command as an orchestration wrapper
+- [x] Track implementation in #613.
+- [x] Design the local vulnerability scan command as an orchestration wrapper
   over local Eshu services, not a separate truth engine.
-- [ ] Reuse existing local workspace/root resolution and local service attach or
-  startup behavior.
+- [x] Reuse existing local workspace/root resolution.
+- [ ] Add local service attach or startup behavior when no API is already
+  available.
 - [ ] Collect only the selected repository scope and fetch advisory/package
   evidence needed by observed owned packages unless a broader option is set.
-- [ ] Emit JSON and terminal summaries from the same finding/readiness envelope
+- [x] Emit JSON and terminal summaries from the same finding/readiness envelope
   used by API and MCP.
 - [ ] Cache advisory and package metadata locally with freshness markers and a
   fail-closed stale-data policy.
-- [ ] Add focused tests before registering the public command and docs claim.
+- [x] Add focused tests before registering the public command and docs claim.
+
+Status 2026-05-24: the initial `eshu vuln-scan repo [path]` command exists as a
+thin API-backed orchestration wrapper. It runs the existing local scan
+readiness contract, resolves the scanned repository id, fetches bounded
+repository-scoped supply-chain impact findings, emits JSON and terminal
+summaries, and fails closed when target readiness is incomplete.
+
+No-Regression Evidence: `go test ./cmd/eshu -run 'Test(VulnScanRepoCommandIsRegisteredWithBoundedFlags|RunVulnScanRepo)' -count=1`
+proved command registration, local root resolution, scoped repository impact
+querying, JSON output, ready-zero/ready-with-findings states, and fail-closed
+submitted-scan behavior. `go test ./cmd/eshu -count=1` kept the surrounding CLI
+contract green after extracting the reusable scan executor.
+
+No-Observability-Change: the command reuses existing `eshu scan` readiness
+signals, child bootstrap logs, status polling over `/api/v0/status/pipeline`,
+query preflight over `/api/v0/repositories?limit=1`, and the API's
+`query.supply_chain_impact_findings` span for the bounded read. No new runtime
+worker, queue, reducer, or graph write path is introduced in this slice.
 
 ## Chunk 6: SBOM, Image, And Runtime Joins
 

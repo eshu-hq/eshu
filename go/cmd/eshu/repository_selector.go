@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"path/filepath"
 	"slices"
 	"strings"
 
@@ -92,10 +93,24 @@ func resolveRepositorySelector(_ *cobra.Command, client *APIClient, selector str
 }
 
 func repositorySelectorMatches(repo repositorySelectorEntry, selector string) bool {
-	switch selector {
-	case repo.ID, repo.Name, repo.Path, repo.LocalPath, repo.RepoSlug:
-		return true
-	default:
+	for _, candidate := range []string{repo.ID, repo.Name, repo.Path, repo.LocalPath, repo.RepoSlug} {
+		if candidate == selector || repositoryPathSelectorMatches(candidate, selector) {
+			return true
+		}
+	}
+	return false
+}
+
+func repositoryPathSelectorMatches(candidate, selector string) bool {
+	candidate = strings.TrimSpace(candidate)
+	selector = strings.TrimSpace(selector)
+	if candidate == "" || selector == "" {
 		return false
 	}
+	if filepath.Clean(candidate) == filepath.Clean(selector) {
+		return true
+	}
+	candidateReal, candidateErr := filepath.EvalSymlinks(candidate)
+	selectorReal, selectorErr := filepath.EvalSymlinks(selector)
+	return candidateErr == nil && selectorErr == nil && candidateReal == selectorReal
 }

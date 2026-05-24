@@ -92,9 +92,20 @@ func runScan(cmd *cobra.Command, args []string) error {
 		return err
 	}
 	client := apiClientFromCmd(cmd)
+	result, err := executeScan(cmd.Context(), cmd.OutOrStdout(), cmd.ErrOrStderr(), client, opts, !opts.JSON)
+	return finishScan(cmd, opts, result, err)
+}
+
+func executeScan(
+	parentCtx context.Context,
+	stdout io.Writer,
+	stderr io.Writer,
+	client *APIClient,
+	opts scanOptions,
+	announce bool,
+) (scanResult, error) {
 	result := newScanResult(opts, client.BaseURL)
 	startedAt := scanNow()
-	parentCtx := cmd.Context()
 	if parentCtx == nil {
 		parentCtx = context.Background()
 	}
@@ -103,34 +114,34 @@ func runScan(cmd *cobra.Command, args []string) error {
 
 	preflight, err := scanFetchPipelineStatus(client)
 	if err != nil {
-		return finishScan(cmd, opts, result, fmt.Errorf("scan preflight status check: %w", err))
+		return result, fmt.Errorf("scan preflight status check: %w", err)
 	}
 	result.StatusReport = preflight
 	queryProbe, err := scanFetchQueryProbe(client)
 	if err != nil {
-		return finishScan(cmd, opts, result, fmt.Errorf("scan preflight query check: %w", err))
+		return result, fmt.Errorf("scan preflight query check: %w", err)
 	}
 	result.QueryProbe = queryProbe
 
 	binary, err := scanLookPath("eshu-bootstrap-index")
 	if err != nil {
-		return finishScan(cmd, opts, result, fmt.Errorf("eshu-bootstrap-index not found in PATH: %w", err))
+		return result, fmt.Errorf("eshu-bootstrap-index not found in PATH: %w", err)
 	}
 	result.Evidence.BootstrapBinary = binary
 
 	bootstrapStartedAt := scanNow()
-	if !opts.JSON {
-		_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Scanning %s...\n", opts.Target.Root)
+	if announce {
+		_, _ = fmt.Fprintf(stdout, "Scanning %s...\n", opts.Target.Root)
 	}
 	if err := scanRunBootstrap(
 		runCtx,
 		binary,
 		opts.BootstrapArgs(),
 		opts.BootstrapEnv(),
-		cmd.OutOrStdout(),
-		cmd.ErrOrStderr(),
+		stdout,
+		stderr,
 	); err != nil {
-		return finishScan(cmd, opts, result, fmt.Errorf("run bootstrap index: %w", err))
+		return result, fmt.Errorf("run bootstrap index: %w", err)
 	}
 	bootstrapCompletedAt := scanNow()
 	result.Timings.BootstrapCompleteMS = durationMillis(bootstrapCompletedAt.Sub(bootstrapStartedAt))
@@ -138,7 +149,7 @@ func runScan(cmd *cobra.Command, args []string) error {
 	if !opts.Wait {
 		result.Status = "submitted"
 		result.Truth = scanTruth("stale", "partial", opts.Profile, currentGraphBackend())
-		return finishScan(cmd, opts, result, nil)
+		return result, nil
 	}
 
 	readyResult, err := waitForScanReadiness(runCtx, client, opts, result, startedAt, bootstrapCompletedAt)
@@ -147,18 +158,18 @@ func runScan(cmd *cobra.Command, args []string) error {
 			readyResult.Status = "partial"
 			readyResult.Truth = scanTruth("stale", "partial", opts.Profile, currentGraphBackend())
 			readyResult.Warnings = append(readyResult.Warnings, err.Error())
-			return finishScan(cmd, opts, readyResult, nil)
+			return readyResult, nil
 		}
-		return finishScan(cmd, opts, readyResult, err)
+		return readyResult, err
 	}
 	readyResult.Status = "ready"
 	queryProbe, err = scanFetchQueryProbe(client)
 	if err != nil {
-		return finishScan(cmd, opts, readyResult, fmt.Errorf("scan query readiness check: %w", err))
+		return readyResult, fmt.Errorf("scan query readiness check: %w", err)
 	}
 	readyResult.QueryProbe = queryProbe
 	readyResult.Truth = scanTruth("current", "complete", opts.Profile, currentGraphBackend())
-	return finishScan(cmd, opts, readyResult, nil)
+	return readyResult, nil
 }
 
 func newScanResult(opts scanOptions, serviceURL string) scanResult {
