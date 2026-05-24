@@ -1,0 +1,43 @@
+go/cmd/eshu/scan_test.go
+  s_f2f7fbb6f30866::t_9ff61bcc8b77cb 291-325
+docs/public/reference/cli-reference.md
+  s_f2f7fbb6f30866::t_59012654600d65 79-85
+go/cmd/eshu/scan.go
+  s_f2f7fbb6f30866::t_f813c403c8859c 203,323-327
+go/cmd/eshu/README.md
+  s_f2f7fbb6f30866::t_7972b2899e6804 80-85
+go/cmd/eshu/scan_status.go
+  s_f2f7fbb6f30866::t_4e9207db584944 168-169,171-172
+go/cmd/eshu/vuln_scan_local_test.go
+  s_f2f7fbb6f30866::t_25c5c01f2605f9 1-100,104-140,163-326
+  s_f2f7fbb6f30866::t_388147e69cb074 141-162
+  s_f2f7fbb6f30866::t_ef9c3a862f1ceb 327-359
+go/cmd/eshu/vuln_scan.go
+  s_f2f7fbb6f30866::t_a6d6f5881b958a 8,100-104,112-116,290-299
+  s_f2f7fbb6f30866::t_6561524684c6cf 108
+docs/internal/security-intelligence-implementation-plan.md
+  s_f2f7fbb6f30866::t_752d84a323c4a7 136,146-154,157-159,162,170-173,175-176
+  s_f2f7fbb6f30866::t_5a4508e6a6230b 156,160-161,163-168
+docs/public/reference/security-intelligence.md
+  s_f2f7fbb6f30866::t_876dc0842811f2 72-76,476-481
+go/cmd/eshu/vuln_scan_local.go
+  s_f2f7fbb6f30866::t_6a0313a16c1a30 1-54,57-225,230-235,237,240,242-243,248-289
+  s_f2f7fbb6f30866::t_5a1664eef9dff9 55-56
+  s_f2f7fbb6f30866::t_4f17a443befe7d 226-229,236,238-239,241,244-247
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.0",
+  "base_commit_sha": "b3e6290c04ab446a6bbf8ee8112518b2de1a2ff9",
+  "prompts": {},
+  "sessions": {
+    "s_f2f7fbb6f30866": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e360b-90eb-7472-bac7-56d488b65f77",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
