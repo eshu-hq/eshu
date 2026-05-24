@@ -561,6 +561,10 @@ state and Eshu impact state as separate fields:
 - `dismissed` or `fixed` when the provider reports that state.
 - `provider_only` when Eshu has no owned dependency evidence for the alert.
 
+Provider alert reconciliation reads require a repository, provider, package,
+CVE, or GHSA anchor. Provider state and reconciliation status only filter an
+anchored page; they are not standalone scopes.
+
 Eshu should match provider alert counts when it has equivalent owned target
 evidence and advisory data. Eshu may exceed provider alert output when it can
 add code-to-cloud context, image/runtime impact, or additional advisory sources.

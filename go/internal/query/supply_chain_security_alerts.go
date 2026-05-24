@@ -46,7 +46,7 @@ func (h *SupplyChainHandler) listSecurityAlertReconciliations(w http.ResponseWri
 		Limit:                 limit + 1,
 	}
 	if !filter.hasScope() {
-		WriteError(w, http.StatusBadRequest, "repository_id, provider, package_id, cve_id, ghsa_id, provider_state, or reconciliation_status is required")
+		WriteError(w, http.StatusBadRequest, securityAlertReconciliationAnchorRequiredMessage)
 		return
 	}
 	if h.SecurityAlerts == nil {

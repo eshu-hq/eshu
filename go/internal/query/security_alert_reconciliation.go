@@ -4,11 +4,15 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 )
 
-const securityAlertReconciliationFactKind = "reducer_security_alert_reconciliation"
+const (
+	securityAlertReconciliationFactKind              = "reducer_security_alert_reconciliation"
+	securityAlertReconciliationAnchorRequiredMessage = "repository_id, provider, package_id, cve_id, or ghsa_id is required; provider_state and reconciliation_status are filters only"
+)
 
 // SecurityAlertReconciliationStore reads reducer-owned provider alert
 // reconciliation rows.
@@ -20,8 +24,8 @@ type SecurityAlertReconciliationStore interface {
 }
 
 // SecurityAlertReconciliationFilter bounds provider alert reconciliation reads
-// to a repository, provider, package, advisory id, state, or reconciliation
-// status.
+// to a repository, provider, package, or advisory id anchor. Provider state and
+// reconciliation status narrow anchored pages but are not standalone scopes.
 type SecurityAlertReconciliationFilter struct {
 	RepositoryID          string
 	Provider              string
@@ -114,7 +118,7 @@ func (s PostgresSecurityAlertReconciliationStore) ListSecurityAlertReconciliatio
 		return nil, fmt.Errorf("security alert reconciliation database is required")
 	}
 	if !filter.hasScope() {
-		return nil, fmt.Errorf("repository_id, provider, package_id, cve_id, ghsa_id, provider_state, or reconciliation_status is required")
+		return nil, errors.New(securityAlertReconciliationAnchorRequiredMessage)
 	}
 	if filter.Limit <= 0 || filter.Limit > securityAlertReconciliationMaxLimit+1 {
 		return nil, fmt.Errorf("limit must be between 1 and %d for internal pagination", securityAlertReconciliationMaxLimit+1)
@@ -185,8 +189,7 @@ LIMIT $10
 
 func (f SecurityAlertReconciliationFilter) hasScope() bool {
 	return f.RepositoryID != "" || f.Provider != "" || f.PackageID != "" ||
-		f.CVEID != "" || f.GHSAID != "" || f.ProviderState != "" ||
-		f.ReconciliationStatus != ""
+		f.CVEID != "" || f.GHSAID != ""
 }
 
 func decodeSecurityAlertReconciliationRow(

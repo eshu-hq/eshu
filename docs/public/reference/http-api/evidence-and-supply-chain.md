@@ -294,8 +294,10 @@ caller must provide `limit` and at least one bounded anchor:
 - `package_id`
 - `cve_id`
 - `ghsa_id`
-- `provider_state`
-- `reconciliation_status`
+
+`provider_state` and `reconciliation_status` may narrow an anchored request,
+but they are filters only and are rejected when sent without one of the anchors
+above.
 
 Rows keep `provider_alert` and `eshu_impact` as separate objects. Provider
 alert fields preserve reported alert ID/number, state, dependency ecosystem and

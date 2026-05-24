@@ -259,11 +259,29 @@ func matchSecurityAlertConsumption(
 		if alert.ManifestPath == "" || consumption.relativePath == alert.ManifestPath {
 			return consumption, securityAlertConsumption{}
 		}
-		if !alert.updatedAtTime.IsZero() && consumption.observedAt.After(alert.updatedAtTime) {
+		if !alert.updatedAtTime.IsZero() &&
+			consumption.observedAt.After(alert.updatedAtTime) &&
+			securityAlertConsumptionIsNewerStaleCandidate(consumption, stale) {
 			stale = consumption
 		}
 	}
 	return securityAlertConsumption{}, stale
+}
+
+func securityAlertConsumptionIsNewerStaleCandidate(
+	candidate securityAlertConsumption,
+	current securityAlertConsumption,
+) bool {
+	if current.factID == "" {
+		return true
+	}
+	if candidate.observedAt.After(current.observedAt) {
+		return true
+	}
+	if candidate.observedAt.Equal(current.observedAt) {
+		return candidate.factID < current.factID
+	}
+	return false
 }
 
 func matchSecurityAlertImpact(alert providerSecurityAlert, impacts []securityAlertImpact) securityAlertImpact {

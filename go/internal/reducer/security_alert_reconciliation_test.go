@@ -122,6 +122,51 @@ func TestBuildSecurityAlertReconciliationsCoversUnmatchedProviderOnlyStaleDismis
 	}
 }
 
+func TestBuildSecurityAlertReconciliationsSelectsNewestStaleConsumption(t *testing.T) {
+	t.Parallel()
+
+	repoID := "repo://github/eshu-hq/eshu"
+	packageID := "npm://registry.npmjs.org/left-pad"
+	alert := securityAlertEnvelope("alert-stale", repoID, map[string]any{
+		"provider":              "github_dependabot",
+		"provider_alert_number": int64(6),
+		"provider_state":        "open",
+		"package_id":            packageID,
+		"manifest_path":         "old-package-lock.json",
+		"updated_at":            "2026-05-20T00:00:00Z",
+	})
+	newerConsumption := packageConsumptionCorrelationEnvelope(
+		"consume-newer-stale",
+		repoID,
+		packageID,
+		"package-lock.json",
+	)
+	newerConsumption.ObservedAt = time.Date(2026, 5, 24, 12, 0, 0, 0, time.UTC)
+	olderConsumption := packageConsumptionCorrelationEnvelope(
+		"consume-older-stale",
+		repoID,
+		packageID,
+		"frontend/package-lock.json",
+	)
+	olderConsumption.ObservedAt = time.Date(2026, 5, 21, 12, 0, 0, 0, time.UTC)
+
+	decisions := BuildSecurityAlertReconciliations([]facts.Envelope{
+		alert,
+		newerConsumption,
+		olderConsumption,
+	})
+	if got, want := len(decisions), 1; got != want {
+		t.Fatalf("len(decisions) = %d, want %d", got, want)
+	}
+	decision := decisions[0]
+	if got, want := decision.Status, SecurityAlertReconciliationStale; got != want {
+		t.Fatalf("Status = %q, want %q", got, want)
+	}
+	if got, want := decision.DependencyEvidenceID, "consume-newer-stale"; got != want {
+		t.Fatalf("DependencyEvidenceID = %q, want newest stale evidence %q", got, want)
+	}
+}
+
 func securityAlertEnvelope(factID string, repoID string, payload map[string]any) facts.Envelope {
 	payload["repository_id"] = repoID
 	return facts.Envelope{

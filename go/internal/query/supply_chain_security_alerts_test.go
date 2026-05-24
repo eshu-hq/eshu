@@ -2,6 +2,7 @@ package query
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -13,6 +14,12 @@ import (
 type recordingSecurityAlertReconciliationStore struct {
 	rows       []SecurityAlertReconciliationRow
 	lastFilter SecurityAlertReconciliationFilter
+}
+
+type panicSecurityAlertReconciliationDB struct{}
+
+func (panicSecurityAlertReconciliationDB) QueryContext(context.Context, string, ...any) (*sql.Rows, error) {
+	panic("security alert reconciliation query should not execute")
 }
 
 func (s *recordingSecurityAlertReconciliationStore) ListSecurityAlertReconciliations(
@@ -32,6 +39,8 @@ func TestSupplyChainListSecurityAlertReconciliationsRequiresScopeAndLimit(t *tes
 
 	for _, target := range []string{
 		"/api/v0/supply-chain/security-alerts/reconciliations?limit=10",
+		"/api/v0/supply-chain/security-alerts/reconciliations?provider_state=open&limit=10",
+		"/api/v0/supply-chain/security-alerts/reconciliations?reconciliation_status=matched&limit=10",
 		"/api/v0/supply-chain/security-alerts/reconciliations?repository_id=repo://github/eshu-hq/eshu",
 	} {
 		target := target
@@ -43,6 +52,30 @@ func TestSupplyChainListSecurityAlertReconciliationsRequiresScopeAndLimit(t *tes
 			mux.ServeHTTP(w, req)
 			if got, want := w.Code, http.StatusBadRequest; got != want {
 				t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
+			}
+		})
+	}
+}
+
+func TestPostgresSecurityAlertReconciliationRejectsFilterOnlyStateOrStatus(t *testing.T) {
+	t.Parallel()
+
+	store := PostgresSecurityAlertReconciliationStore{DB: panicSecurityAlertReconciliationDB{}}
+	for name, filter := range map[string]SecurityAlertReconciliationFilter{
+		"provider_state":        {ProviderState: "open", Limit: 1},
+		"reconciliation_status": {ReconciliationStatus: "matched", Limit: 1},
+		"state_and_status":      {ProviderState: "open", ReconciliationStatus: "matched", Limit: 1},
+	} {
+		filter := filter
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			_, err := store.ListSecurityAlertReconciliations(context.Background(), filter)
+			if err == nil {
+				t.Fatal("ListSecurityAlertReconciliations error = nil, want unanchored filter error")
+			}
+			if !strings.Contains(err.Error(), "repository_id, provider, package_id, cve_id, or ghsa_id is required") {
+				t.Fatalf("error = %q, want selective anchor requirement", err)
 			}
 		})
 	}
