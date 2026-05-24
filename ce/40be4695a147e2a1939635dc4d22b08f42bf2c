@@ -1,0 +1,23 @@
+go/internal/coordinator/package_dependency_targets.go
+  s_072c5984f68e14::t_c10b34aaa86700 128-132,144-162
+go/internal/coordinator/package_registry_scheduler.go
+  s_072c5984f68e14::t_d4db3101d0367b 192-193
+go/internal/coordinator/package_dependency_target_planning_test.go
+  s_072c5984f68e14::t_fd30a0631b25e7 206-217,223-248
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.0",
+  "base_commit_sha": "ce40be4695a147e2a1939635dc4d22b08f42bf2c",
+  "prompts": {},
+  "sessions": {
+    "s_072c5984f68e14": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e4636-8361-7713-a3c6-b30ed9bbfc7b",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
