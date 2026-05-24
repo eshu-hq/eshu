@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
@@ -109,6 +110,9 @@ func TestSupplyChainExplainImpactFindingIncludesEvidenceChain(t *testing.T) {
 	}
 	if got, want := resp.Version.FixedVersion, "2.0.0"; got != want {
 		t.Fatalf("Version.FixedVersion = %q, want %q", got, want)
+	}
+	if resp.DependencyChain == nil {
+		t.Fatal("DependencyChain = nil, want path")
 	}
 	if got, want := resp.DependencyChain.Path, []string{"api", "left-pad"}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("DependencyChain.Path = %#v, want %#v", got, want)
@@ -449,10 +453,10 @@ func explanationFact(factID, factKind string, payload map[string]any) SupplyChai
 func TestSupplyChainExplainImpactStoreErrorSentinelIdentity(t *testing.T) {
 	t.Parallel()
 
-	if !errors.Is(ErrSupplyChainImpactExplanationNotFound, ErrSupplyChainImpactExplanationNotFound) {
+	if !errors.Is(fmt.Errorf("wrap: %w", ErrSupplyChainImpactExplanationNotFound), ErrSupplyChainImpactExplanationNotFound) {
 		t.Fatal("ErrSupplyChainImpactExplanationNotFound must support errors.Is")
 	}
-	if !errors.Is(ErrSupplyChainImpactExplanationAmbiguous, ErrSupplyChainImpactExplanationAmbiguous) {
+	if !errors.Is(fmt.Errorf("wrap: %w", ErrSupplyChainImpactExplanationAmbiguous), ErrSupplyChainImpactExplanationAmbiguous) {
 		t.Fatal("ErrSupplyChainImpactExplanationAmbiguous must support errors.Is")
 	}
 }

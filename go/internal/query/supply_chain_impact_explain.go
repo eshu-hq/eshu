@@ -54,7 +54,7 @@ type SupplyChainImpactExplanationResult struct {
 	Advisory        SupplyChainImpactAdvisoryExplanation   `json:"advisory"`
 	Component       SupplyChainImpactComponentExplanation  `json:"component"`
 	Version         SupplyChainImpactVersionExplanation    `json:"version"`
-	DependencyChain SupplyChainImpactDependencyChain       `json:"dependency_chain,omitempty"`
+	DependencyChain *SupplyChainImpactDependencyChain      `json:"dependency_chain,omitempty"`
 	Anchors         SupplyChainImpactExplanationAnchors    `json:"anchors"`
 	Evidence        []SupplyChainImpactEvidenceFactSummary `json:"evidence"`
 	Readiness       SupplyChainImpactReadinessEnvelope     `json:"readiness"`
@@ -159,7 +159,8 @@ func BuildSupplyChainImpactExplanation(
 	component := buildSupplyChainComponentExplanation(row)
 	version := buildSupplyChainVersionExplanation(row, advisory, component)
 	anchors := buildSupplyChainExplanationAnchors(row)
-	missing := explanationMissingEvidence(row.Finding, readiness, advisory, component, version, anchors)
+	dependencyChain := buildSupplyChainDependencyChain(row.Finding, row.EvidenceFacts)
+	missing := explanationMissingEvidence(row.Finding, readiness, advisory, component, version, dependencyChain, anchors)
 	return SupplyChainImpactExplanationResult{
 		Outcome:         "finding_explained",
 		Input:           filter,
@@ -167,7 +168,7 @@ func BuildSupplyChainImpactExplanation(
 		Advisory:        advisory,
 		Component:       component,
 		Version:         version,
-		DependencyChain: buildSupplyChainDependencyChain(row.Finding, row.EvidenceFacts),
+		DependencyChain: dependencyChain,
 		Anchors:         anchors,
 		Evidence:        summarizeSupplyChainEvidenceFacts(row.EvidenceFacts),
 		Readiness:       readiness,

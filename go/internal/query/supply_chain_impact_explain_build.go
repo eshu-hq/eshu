@@ -1,6 +1,7 @@
 package query
 
 import (
+	"path"
 	"sort"
 	"strings"
 	"time"
@@ -109,7 +110,7 @@ func buildSupplyChainVersionExplanation(
 func buildSupplyChainDependencyChain(
 	finding SupplyChainImpactFindingRow,
 	facts []SupplyChainImpactEvidenceFact,
-) SupplyChainImpactDependencyChain {
+) *SupplyChainImpactDependencyChain {
 	out := SupplyChainImpactDependencyChain{
 		Path:             append([]string(nil), finding.DependencyPath...),
 		Depth:            finding.DependencyDepth,
@@ -126,7 +127,10 @@ func buildSupplyChainDependencyChain(
 			out.DirectDependency = boolPointerVal(fact.Payload, "direct_dependency")
 		}
 	}
-	return out
+	if !dependencyChainHasEvidence(out) {
+		return nil
+	}
+	return &out
 }
 
 func buildSupplyChainExplanationAnchors(
@@ -141,7 +145,7 @@ func buildSupplyChainExplanationAnchors(
 		out.EvidenceFactIDs = append(out.EvidenceFactIDs, fact.FactID)
 		appendPathAnchors(&out, StringVal(fact.Payload, "relative_path"))
 		appendPathAnchors(&out, StringVal(fact.Payload, "manifest_path"))
-		appendPathAnchors(&out, StringVal(fact.Payload, "lockfile_path"))
+		appendLockfilePathAnchors(&out, StringVal(fact.Payload, "lockfile_path"))
 		appendPathAnchors(&out, StringVal(fact.Payload, "source_path"))
 		appendUniqueString(&out.SBOMDocuments, StringVal(fact.Payload, "document_id"))
 		appendUniqueString(&out.ImageDigests, StringVal(fact.Payload, "digest"))
@@ -191,6 +195,7 @@ func explanationMissingEvidence(
 	advisory SupplyChainImpactAdvisoryExplanation,
 	component SupplyChainImpactComponentExplanation,
 	version SupplyChainImpactVersionExplanation,
+	dependencyChain *SupplyChainImpactDependencyChain,
 	anchors SupplyChainImpactExplanationAnchors,
 ) []string {
 	missing := append([]string(nil), finding.MissingEvidence...)
@@ -204,7 +209,7 @@ func explanationMissingEvidence(
 	if version.FixedVersion == "" {
 		missing = append(missing, "fixed_version")
 	}
-	if len(finding.DependencyPath) == 0 && len(anchors.SBOMDocuments) == 0 {
+	if dependencyChain == nil && len(anchors.SBOMDocuments) == 0 {
 		missing = append(missing, "dependency_chain")
 	}
 	return explanationUniqueStrings(missing)
@@ -256,13 +261,49 @@ func appendPathAnchors(out *SupplyChainImpactExplanationAnchors, path string) {
 		return
 	}
 	appendUniqueString(&out.ManifestPaths, path)
-	lower := strings.ToLower(path)
-	if strings.Contains(lower, "lock") ||
-		strings.HasSuffix(lower, "go.sum") ||
-		strings.HasSuffix(lower, "pnpm-lock.yaml") ||
-		strings.HasSuffix(lower, "yarn.lock") {
+	if isKnownLockfilePath(path) {
 		appendUniqueString(&out.LockfilePaths, path)
 	}
+}
+
+func appendLockfilePathAnchors(out *SupplyChainImpactExplanationAnchors, lockfilePath string) {
+	lockfilePath = strings.TrimSpace(lockfilePath)
+	if lockfilePath == "" {
+		return
+	}
+	appendUniqueString(&out.ManifestPaths, lockfilePath)
+	appendUniqueString(&out.LockfilePaths, lockfilePath)
+}
+
+func dependencyChainHasEvidence(chain SupplyChainImpactDependencyChain) bool {
+	return len(chain.Path) > 0 || chain.Depth > 0 || chain.DirectDependency != nil
+}
+
+func isKnownLockfilePath(candidate string) bool {
+	base := strings.ToLower(path.Base(strings.ReplaceAll(candidate, "\\", "/")))
+	switch base {
+	case "bun.lock",
+		"bun.lockb",
+		"cargo.lock",
+		"composer.lock",
+		"gemfile.lock",
+		"go.sum",
+		"gradle.lockfile",
+		"npm-shrinkwrap.json",
+		"package-lock.json",
+		"packages.lock.json",
+		"paket.lock",
+		"pdm.lock",
+		"pipfile.lock",
+		"pnpm-lock.yaml",
+		"pnpm-lock.yml",
+		"podfile.lock",
+		"poetry.lock",
+		"uv.lock",
+		"yarn.lock":
+		return true
+	}
+	return strings.HasSuffix(base, ".lock")
 }
 
 func cloneBoolPointer(value *bool) *bool {
