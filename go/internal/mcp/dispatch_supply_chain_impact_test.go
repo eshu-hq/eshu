@@ -121,3 +121,89 @@ func TestDispatchToolSupplyChainImpactFindingsReturnsReadinessEnvelope(t *testin
 		t.Fatalf("len(evidence_sources) = %d, want %d", got, want)
 	}
 }
+
+func TestDispatchToolSupplyChainImpactFindingsSurfacesIncompleteCoverageStates(t *testing.T) {
+	t.Parallel()
+
+	// The implementation plan promises MCP tool contract coverage for
+	// zero-findings cases with incomplete coverage — i.e., callers must see
+	// the server's not_configured / evidence_incomplete / target_incomplete
+	// states through the MCP envelope, not just ready_zero_findings.
+	cases := []struct {
+		name           string
+		readinessState string
+		missing        []string
+	}{
+		{
+			name:           "not_configured surfaces missing advisory sources",
+			readinessState: "not_configured",
+			missing:        []string{"advisory_sources"},
+		},
+		{
+			name:           "evidence_incomplete surfaces missing owned packages",
+			readinessState: "evidence_incomplete",
+			missing:        []string{"owned_packages"},
+		},
+		{
+			name:           "target_incomplete surfaces in-flight collection",
+			readinessState: "target_incomplete",
+			missing:        []string{"target_collection_incomplete"},
+		},
+	}
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			mux := http.NewServeMux()
+			mux.HandleFunc("GET /api/v0/supply-chain/impact/findings", func(w http.ResponseWriter, _ *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				_ = json.NewEncoder(w).Encode(map[string]any{
+					"data": map[string]any{
+						"findings":  []any{},
+						"count":     0,
+						"limit":     25,
+						"truncated": false,
+						"readiness": map[string]any{
+							"readiness_state":  tc.readinessState,
+							"target_scope":     map[string]any{"repository_id": "repo://example/api"},
+							"evidence_sources": []map[string]any{},
+							"missing_evidence": tc.missing,
+							"freshness":        "unknown",
+							"counts":           map[string]any{"findings_returned": 0, "findings_truncated": false, "evidence_facts_total": 0},
+						},
+					},
+					"truth": map[string]any{"level": "exact", "capability": "supply_chain.impact_findings.list", "profile": "production", "basis": "semantic_facts", "freshness": map[string]any{"state": "fresh"}},
+					"error": nil,
+				})
+			})
+
+			result, err := dispatchTool(
+				context.Background(),
+				mux,
+				"list_supply_chain_impact_findings",
+				map[string]any{"repository_id": "repo://example/api", "limit": float64(25)},
+				"",
+				slog.New(slog.NewTextHandler(io.Discard, nil)),
+			)
+			if err != nil {
+				t.Fatalf("dispatchTool() error = %v, want nil", err)
+			}
+			if result.Envelope == nil {
+				t.Fatal("envelope = nil, want incomplete-coverage envelope")
+			}
+			data := result.Envelope.Data.(map[string]any)
+			readiness := data["readiness"].(map[string]any)
+			if got := readiness["readiness_state"]; got != tc.readinessState {
+				t.Fatalf("readiness_state = %#v, want %#v", got, tc.readinessState)
+			}
+			missingRaw, ok := readiness["missing_evidence"].([]any)
+			if !ok {
+				t.Fatalf("missing_evidence = %T, want []any", readiness["missing_evidence"])
+			}
+			if len(missingRaw) != len(tc.missing) {
+				t.Fatalf("len(missing_evidence) = %d, want %d", len(missingRaw), len(tc.missing))
+			}
+		})
+	}
+}

@@ -189,12 +189,18 @@ func (h *SupplyChainHandler) listImpactFindings(w http.ResponseWriter, r *http.R
 		SubjectDigest: filter.SubjectDigest,
 		ImpactStatus:  filter.ImpactStatus,
 	}
-	snapshot, err := h.readSupplyChainImpactReadinessSnapshot(r, scope)
-	if err != nil {
-		WriteError(w, http.StatusInternalServerError, err.Error())
-		return
+	snapshot, readinessErr := h.readSupplyChainImpactReadinessSnapshot(r, scope)
+	var readiness SupplyChainImpactReadinessEnvelope
+	if readinessErr != nil {
+		// Readiness lookup failed (transient Postgres error, statement
+		// timeout, etc.). Do not drop the already-fetched findings page:
+		// return the findings with a `readiness_unavailable` envelope so
+		// callers cannot misread zero findings as safe and can retry the
+		// readiness lookup separately.
+		readiness = BuildSupplyChainImpactReadinessUnavailable(scope, results, truncated)
+	} else {
+		readiness = BuildSupplyChainImpactReadiness(scope, results, truncated, snapshot)
 	}
-	readiness := BuildSupplyChainImpactReadiness(scope, results, truncated, snapshot)
 	body := map[string]any{
 		"findings":  results,
 		"count":     len(results),

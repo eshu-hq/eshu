@@ -31,7 +31,7 @@ func (s *recordingSupplyChainImpactReadinessStore) ReadSupplyChainImpactReadines
 		EvidenceSources:    append([]SupplyChainImpactEvidenceFamily(nil), s.snapshot.EvidenceSources...),
 		UnsupportedTargets: append([]string(nil), s.snapshot.UnsupportedTargets...),
 		TargetIncomplete:   s.snapshot.TargetIncomplete,
-		IncompleteReason:   s.snapshot.IncompleteReason,
+		IncompleteReasons:  append([]string(nil), s.snapshot.IncompleteReasons...),
 	}
 	return clone, nil
 }
@@ -143,17 +143,16 @@ func TestBuildSupplyChainImpactReadinessClassifiesReadyWithFindings(t *testing.T
 func TestBuildSupplyChainImpactReadinessClassifiesTargetIncomplete(t *testing.T) {
 	t.Parallel()
 
+	// target_incomplete only fires when scope-relevant advisory evidence is
+	// still missing; an in-flight snapshot for any source can flip the state
+	// only when the scope has no advisory facts yet.
 	envelope := BuildSupplyChainImpactReadiness(
 		SupplyChainImpactTargetScope{RepositoryID: "repo://example/api"},
 		nil,
 		false,
 		SupplyChainImpactReadinessSnapshot{
-			EvidenceSources: []SupplyChainImpactEvidenceFamily{
-				{Family: EvidenceFamilyVulnerabilityAdvisory, FactCount: 2, Freshness: FreshnessLabelFresh},
-				{Family: EvidenceFamilyPackageConsumption, FactCount: 1, Freshness: FreshnessLabelFresh},
-			},
-			TargetIncomplete: true,
-			IncompleteReason: "vulnerability source snapshot in progress",
+			TargetIncomplete:  true,
+			IncompleteReasons: []string{"nvd_paging_in_progress"},
 		},
 	)
 	if envelope.State != ReadinessStateTargetIncomplete {
@@ -161,6 +160,82 @@ func TestBuildSupplyChainImpactReadinessClassifiesTargetIncomplete(t *testing.T)
 	}
 	if !readinessMissingContains(envelope.MissingEvidence, MissingEvidenceTargetCollection) {
 		t.Fatalf("missing_evidence = %#v, want target_collection_incomplete", envelope.MissingEvidence)
+	}
+	if got, want := envelope.IncompleteReasons, []string{"nvd_paging_in_progress"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("incomplete_reasons = %#v, want %#v", got, want)
+	}
+}
+
+func TestBuildSupplyChainImpactReadinessScopeGuardsTargetIncomplete(t *testing.T) {
+	t.Parallel()
+
+	// An in-flight snapshot for an unrelated source must NOT downgrade a
+	// scope whose advisory evidence is already collected. Otherwise normal
+	// staggered ingestion makes ready_zero_findings unreachable.
+	envelope := BuildSupplyChainImpactReadiness(
+		SupplyChainImpactTargetScope{CVEID: "CVE-2026-0001"},
+		nil,
+		false,
+		SupplyChainImpactReadinessSnapshot{
+			EvidenceSources: []SupplyChainImpactEvidenceFamily{
+				{Family: EvidenceFamilyVulnerabilityAdvisory, FactCount: 4, Freshness: FreshnessLabelFresh},
+			},
+			TargetIncomplete:  true,
+			IncompleteReasons: []string{"epss_refresh_in_progress"},
+		},
+	)
+	if envelope.State != ReadinessStateReadyZeroFindings {
+		t.Fatalf("state = %q, want %q", envelope.State, ReadinessStateReadyZeroFindings)
+	}
+	if len(envelope.MissingEvidence) != 0 {
+		t.Fatalf("missing_evidence = %#v, want empty for ready scope", envelope.MissingEvidence)
+	}
+	if len(envelope.IncompleteReasons) != 0 {
+		t.Fatalf("incomplete_reasons = %#v, want empty for ready scope", envelope.IncompleteReasons)
+	}
+}
+
+func TestBuildSupplyChainImpactReadinessClearsMissingOnReadyWithFindings(t *testing.T) {
+	t.Parallel()
+
+	// findings + missing-evidence reasons must not coexist in the envelope:
+	// once the reducer admitted a finding, missing_evidence becomes
+	// internally contradictory and is dropped.
+	envelope := BuildSupplyChainImpactReadiness(
+		SupplyChainImpactTargetScope{RepositoryID: "repo://example/api"},
+		[]SupplyChainImpactFindingResult{
+			{FindingID: "finding-1", ImpactStatus: "affected_exact"},
+		},
+		false,
+		SupplyChainImpactReadinessSnapshot{},
+	)
+	if envelope.State != ReadinessStateReadyWithFindings {
+		t.Fatalf("state = %q, want %q", envelope.State, ReadinessStateReadyWithFindings)
+	}
+	if len(envelope.MissingEvidence) != 0 {
+		t.Fatalf("missing_evidence = %#v, want empty for ready_with_findings", envelope.MissingEvidence)
+	}
+}
+
+func TestBuildSupplyChainImpactReadinessUnavailable(t *testing.T) {
+	t.Parallel()
+
+	envelope := BuildSupplyChainImpactReadinessUnavailable(
+		SupplyChainImpactTargetScope{RepositoryID: "repo://example/api"},
+		[]SupplyChainImpactFindingResult{{FindingID: "finding-1", ImpactStatus: "affected_exact"}},
+		true,
+	)
+	if envelope.State != ReadinessStateReadinessUnavailable {
+		t.Fatalf("state = %q, want %q", envelope.State, ReadinessStateReadinessUnavailable)
+	}
+	if !readinessMissingContains(envelope.MissingEvidence, MissingEvidenceReadinessUnavailable) {
+		t.Fatalf("missing_evidence = %#v, want readiness_unavailable", envelope.MissingEvidence)
+	}
+	if envelope.Counts.FindingsReturned != 1 {
+		t.Fatalf("counts.findings_returned = %d, want 1 (findings page must survive)", envelope.Counts.FindingsReturned)
+	}
+	if !envelope.Counts.FindingsTruncated {
+		t.Fatal("counts.findings_truncated = false, want true (carries the original page truncation)")
 	}
 }
 
@@ -391,23 +466,37 @@ func TestPostgresSupplyChainImpactReadinessQueryShape(t *testing.T) {
 	t.Parallel()
 
 	for _, want := range []string{
-		"fact_kind = ANY($1::text[])",
-		"fact_kind = ANY($2::text[])",
-		"fact_kind = ANY($3::text[])",
-		"fact_kind = ANY($4::text[])",
-		"fact_kind = ANY($5::text[])",
-		"fact_kind = ANY($6::text[])",
-		"fact_kind = ANY($7::text[])",
-		"fact_kind = ANY($8::text[])",
-		"WITH active_facts AS",
+		// Each fact_kind allowlist binding is referenced.
+		"fact.fact_kind = ANY($1::text[])",
+		"fact.fact_kind = ANY($2::text[])",
+		"fact.fact_kind = ANY($3::text[])",
+		"fact.fact_kind = ANY($4::text[])",
+		"fact.fact_kind = ANY($5::text[])",
+		"fact.fact_kind = ANY($6::text[])",
+		"fact.fact_kind = ANY($7::text[])",
+		"fact.fact_kind = ANY($8::text[])",
+		// Active-fact gates are pushed into every per-family CTE.
 		"generation.status = 'active'",
 		"fact.is_tombstone = FALSE",
+		// All 7 evidence families plus the source-snapshot rollup must
+		// appear so a refactor that drops a CTE branch fails loudly.
 		"'vulnerability.advisory' AS family",
+		"'vulnerability.exploitability' AS family",
 		"'package.consumption' AS family",
+		"'package.registry' AS family",
 		"'sbom.component' AS family",
+		"'sbom.attestation' AS family",
 		"'container_image.identity' AS family",
 		"'vulnerability.source_snapshot' AS family",
-		"target_incomplete",
+		// Manifest consumption uses the real content_entity discriminator.
+		"fact.fact_kind = 'content_entity'",
+		"entity_metadata'->>'config_kind' = 'dependency'",
+		"payload->>'repo_id'",
+		// Source-snapshot completion check uses JSONB containment to
+		// avoid boolean-cast errors on non-canonical payload values, and
+		// surfaces all distinct warning messages.
+		`payload @> '{"complete": false}'::jsonb`,
+		"ARRAY_AGG(DISTINCT NULLIF(TRIM(payload->>'warning_message'), ''))",
 	} {
 		if !strings.Contains(listSupplyChainImpactReadinessQuery, want) {
 			t.Fatalf("listSupplyChainImpactReadinessQuery missing %q:\n%s", want, listSupplyChainImpactReadinessQuery)

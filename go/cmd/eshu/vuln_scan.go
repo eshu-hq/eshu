@@ -30,6 +30,7 @@ type vulnScanRepoResult struct {
 	Limit          int                  `json:"limit"`
 	Truncated      bool                 `json:"truncated"`
 	NextCursor     map[string]any       `json:"next_cursor,omitempty"`
+	Readiness      map[string]any       `json:"readiness,omitempty"`
 	Warnings       []string             `json:"warnings,omitempty"`
 	Evidence       vulnScanRepoEvidence `json:"evidence"`
 }
@@ -61,6 +62,7 @@ type vulnScanImpactFindingsData struct {
 	Limit      int              `json:"limit"`
 	Truncated  bool             `json:"truncated"`
 	NextCursor map[string]any   `json:"next_cursor,omitempty"`
+	Readiness  map[string]any   `json:"readiness,omitempty"`
 }
 
 func init() {
@@ -134,7 +136,8 @@ func runVulnScanRepo(cmd *cobra.Command, args []string) error {
 	result.Limit = findings.Data.Limit
 	result.Truncated = findings.Data.Truncated
 	result.NextCursor = findings.Data.NextCursor
-	result.ReadinessState = vulnScanReadinessState(result.Count)
+	result.Readiness = findings.Data.Readiness
+	result.ReadinessState = vulnScanReadinessState(findings.Data.Readiness, result.Count)
 	return finishVulnScanRepo(cmd, opts, result, findings.Truth, nil)
 }
 
@@ -221,7 +224,15 @@ func fetchVulnScanRepoImpactFindings(
 	return envelope, nil
 }
 
-func vulnScanReadinessState(count int) string {
+// vulnScanReadinessState prefers the server-side readiness verdict so the CLI
+// surfaces not_configured, target_incomplete, evidence_incomplete, unsupported,
+// or readiness_unavailable when the server reports them. It only falls back to
+// the count-based heuristic when the server response does not carry a
+// readiness envelope (older API versions).
+func vulnScanReadinessState(readiness map[string]any, count int) string {
+	if state, ok := readiness["readiness_state"].(string); ok && strings.TrimSpace(state) != "" {
+		return strings.TrimSpace(state)
+	}
 	if count > 0 {
 		return "ready_with_findings"
 	}

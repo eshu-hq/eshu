@@ -179,6 +179,59 @@ func TestRunVulnScanRepoReportsReadyZeroFindings(t *testing.T) {
 	}
 }
 
+func TestRunVulnScanRepoSurfacesServerNotConfiguredReadiness(t *testing.T) {
+	// Regression for the CLI ignoring the server's richer readiness states
+	// and reporting `ready_zero_findings` when the server says
+	// `not_configured`. The CLI must surface the server verdict so a
+	// developer with no advisory ingestion is not told their repo is clean.
+	repoPath := t.TempDir()
+	reset := stubScanRuntime(t)
+	defer reset()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/v0/repositories":
+			_, _ = w.Write([]byte(`{"count":1,"repositories":[{"id":"repo-empty","name":"empty","path":"` + repoPath + `","local_path":"` + repoPath + `"}]}`))
+		case "/api/v0/supply-chain/impact/findings":
+			_, _ = w.Write([]byte(`{"data":{"findings":[],"count":0,"limit":50,"truncated":false,"readiness":{"readiness_state":"not_configured","target_scope":{"repository_id":"repo-empty"},"missing_evidence":["advisory_sources","owned_packages"]}},"truth":{"level":"exact","freshness":{"state":"fresh"}},"error":null}`))
+		default:
+			t.Fatalf("unexpected request %s %s", r.Method, r.URL.String())
+		}
+	}))
+	defer server.Close()
+
+	out := &bytes.Buffer{}
+	cmd := newTestVulnScanRepoCommand(t)
+	cmd.SetOut(out)
+	cmd.SetErr(io.Discard)
+	if err := cmd.Flags().Set("service-url", server.URL); err != nil {
+		t.Fatalf("Set(service-url) error = %v, want nil", err)
+	}
+	if err := cmd.Flags().Set("json", "true"); err != nil {
+		t.Fatalf("Set(json) error = %v, want nil", err)
+	}
+
+	if err := runVulnScanRepo(cmd, []string{repoPath}); err != nil {
+		t.Fatalf("runVulnScanRepo() error = %v, want nil", err)
+	}
+
+	var payload map[string]any
+	if err := json.Unmarshal(out.Bytes(), &payload); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v, want nil; output=%s", err, out.String())
+	}
+	data := payload["data"].(map[string]any)
+	if got, want := data["readiness_state"], "not_configured"; got != want {
+		t.Fatalf("data[readiness_state] = %#v, want %#v (server verdict must win over count heuristic)", got, want)
+	}
+	readiness, ok := data["readiness"].(map[string]any)
+	if !ok {
+		t.Fatalf("data[readiness] = %T, want server-side envelope passed through", data["readiness"])
+	}
+	if got, want := readiness["readiness_state"], "not_configured"; got != want {
+		t.Fatalf("data[readiness][readiness_state] = %#v, want %#v", got, want)
+	}
+}
+
 func TestRunVulnScanRepoFailsClosedWhenScanIsNotReady(t *testing.T) {
 	repoPath := t.TempDir()
 	reset := stubScanRuntime(t)
