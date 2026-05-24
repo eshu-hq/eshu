@@ -120,7 +120,6 @@ No-Regression Evidence: focused query, MCP, and telemetry tests cover:
   limit and truncation behavior.
 - Environment comparison story packets, deployment configuration influence, and
   resource-first investigation route contracts.
-- Broader MCP dispatch and query contracts through `go test ./internal/mcp
-  ./internal/query -count=1`.
+- Broader MCP dispatch and query contracts through `go test ./internal/mcp ./internal/query -count=1`.
 
 Observability Evidence: `telemetry.SpanQueryIaCTerraformImportPlan` (`query.iac_terraform_import_plan`) wraps the import-plan candidate HTTP/MCP route with stable `http.route` and `eshu.capability` attributes. `telemetry.SpanQueryDeadCodeInvestigation` (`query.dead_code_investigation`) wraps the dead-code investigation route with the same route and capability attributes. Existing MCP `dispatch tool` debug logs, HTTP response envelopes, query handler errors, graph `neo4j.query` spans, Postgres `postgres.query` spans, service query timing logs, and bounded `coverage.limit`/`coverage.truncated` response fields diagnose whether a prompt call was scoped, complete, or needs a follow-up page.
