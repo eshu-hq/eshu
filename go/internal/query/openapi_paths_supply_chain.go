@@ -84,6 +84,9 @@ const openAPIPathsSupplyChain = `
                           "impact_status": {"type": "string"},
                           "confidence": {"type": "string"},
                           "runtime_reachability": {"type": "string"},
+                          "dependency_path": {"type": "array", "items": {"type": "string"}},
+                          "dependency_depth": {"type": "integer"},
+                          "direct_dependency": {"type": "boolean"},
                           "missing_evidence": {"type": "array", "items": {"type": "string"}}
                         }
                       }

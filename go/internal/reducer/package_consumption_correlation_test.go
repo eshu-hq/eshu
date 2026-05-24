@@ -2,6 +2,7 @@ package reducer
 
 import (
 	"context"
+	"reflect"
 	"testing"
 	"time"
 
@@ -59,6 +60,46 @@ func TestBuildPackageConsumptionDecisionsMatchesManifestDependencies(t *testing.
 	}
 }
 
+func TestBuildPackageConsumptionDecisionsPreservesLockfileDependencyChain(t *testing.T) {
+	t.Parallel()
+
+	observedAt := time.Date(2026, 5, 24, 10, 0, 0, 0, time.UTC)
+	decisions := BuildPackageConsumptionDecisions([]facts.Envelope{
+		packageRegistryPackageFact("pkg:npm/fsevents", "npm", "fsevents", "", observedAt),
+		packageSourceRepositoryFact("repo-web", "web", "https://github.com/acme/web", false, observedAt),
+		packageManifestDependencyFactWithMetadata(
+			"repo-web",
+			"web",
+			"package-lock.json",
+			"fsevents",
+			"npm",
+			"2.3.3",
+			observedAt,
+			map[string]any{
+				"section":           "package-lock",
+				"lockfile":          true,
+				"dependency_path":   []any{"vite", "rollup", "fsevents"},
+				"dependency_depth":  3,
+				"direct_dependency": false,
+			},
+		),
+	})
+
+	if got, want := len(decisions), 1; got != want {
+		t.Fatalf("len(decisions) = %d, want %d", got, want)
+	}
+	decision := decisions[0]
+	if !reflect.DeepEqual(decision.DependencyPath, []string{"vite", "rollup", "fsevents"}) {
+		t.Fatalf("DependencyPath = %#v, want vite -> rollup -> fsevents", decision.DependencyPath)
+	}
+	if got, want := decision.DependencyDepth, 3; got != want {
+		t.Fatalf("DependencyDepth = %d, want %d", got, want)
+	}
+	if decision.DirectDependency {
+		t.Fatal("DirectDependency = true, want false for transitive lockfile dependency")
+	}
+}
+
 func TestPostgresPackageCorrelationWriterPersistsOwnershipAndConsumptionFacts(t *testing.T) {
 	t.Parallel()
 
@@ -98,6 +139,8 @@ func TestPostgresPackageCorrelationWriterPersistsOwnershipAndConsumptionFacts(t 
 				RelativePath:    "package.json",
 				ManifestSection: "dependencies",
 				DependencyRange: "^1.2.0",
+				DependencyPath:  []string{"platform-api", "team-api"},
+				DependencyDepth: 2,
 				Outcome:         PackageConsumptionManifestDeclared,
 				Reason:          "git manifest dependency matches package registry identity",
 				CanonicalWrites: 1,
@@ -148,6 +191,12 @@ func TestPostgresPackageCorrelationWriterPersistsOwnershipAndConsumptionFacts(t 
 	}
 	if got, want := consumptionPayload["canonical_writes"], float64(1); got != want {
 		t.Fatalf("canonical_writes = %#v, want %#v", got, want)
+	}
+	if got, want := packageCorrelationStringSliceFromAny(consumptionPayload["dependency_path"]), []string{"platform-api", "team-api"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("dependency_path = %#v, want %#v", got, want)
+	}
+	if got, want := consumptionPayload["dependency_depth"], float64(2); got != want {
+		t.Fatalf("dependency_depth = %#v, want %#v", got, want)
 	}
 	publicationPayload := unmarshalPackageCorrelationPayload(t, db.execs[2].args[14])
 	if got, want := publicationPayload["correlation_kind"], packagePublicationCorrelationFactKind; got != want {

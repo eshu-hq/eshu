@@ -1,6 +1,7 @@
 package reducer
 
 import (
+	"reflect"
 	"strings"
 	"testing"
 
@@ -41,6 +42,43 @@ func TestBuildSupplyChainImpactFindingsUsesOwnedLockfileVersion(t *testing.T) {
 	}
 	if !strings.Contains(path, packageConsumptionCorrelationFactKind) {
 		t.Fatalf("EvidencePath = %#v, want package consumption evidence", got.EvidencePath)
+	}
+}
+
+func TestBuildSupplyChainImpactFindingsExposesDependencyChain(t *testing.T) {
+	t.Parallel()
+
+	findings := BuildSupplyChainImpactFindings([]facts.Envelope{
+		vulnerabilityCVEFact("cve-fsevents", "CVE-2026-47138", 9.1),
+		vulnerabilityAffectedPackageRangeFact(
+			"affected-fsevents",
+			"CVE-2026-47138",
+			"pkg:npm/fsevents",
+			"npm",
+			"fsevents",
+			"2.3.4",
+		),
+		packageConsumptionFactWithChain(
+			"consume-fsevents",
+			"pkg:npm/fsevents",
+			testImpactRepositoryID,
+			"2.3.3",
+			[]string{"vite", "rollup", "fsevents"},
+			3,
+			false,
+		),
+	})
+
+	got := supplyChainImpactFindingsByCVE(findings)["CVE-2026-47138"]
+	assertSupplyChainImpactStatus(t, got, SupplyChainImpactAffectedExact)
+	if !reflect.DeepEqual(got.DependencyPath, []string{"vite", "rollup", "fsevents"}) {
+		t.Fatalf("DependencyPath = %#v, want vite -> rollup -> fsevents", got.DependencyPath)
+	}
+	if got.DependencyDepth != 3 {
+		t.Fatalf("DependencyDepth = %d, want 3", got.DependencyDepth)
+	}
+	if got.DirectDependency {
+		t.Fatal("DirectDependency = true, want false for transitive lockfile dependency")
 	}
 }
 
@@ -168,4 +206,24 @@ func packageConsumptionFactWithRange(
 			"evidence_fact_ids": []any{"manifest-lock-1"},
 		},
 	}
+}
+
+func packageConsumptionFactWithChain(
+	factID string,
+	packageID string,
+	repositoryID string,
+	dependencyRange string,
+	dependencyPath []string,
+	dependencyDepth int,
+	directDependency bool,
+) facts.Envelope {
+	payloadPath := make([]any, 0, len(dependencyPath))
+	for _, item := range dependencyPath {
+		payloadPath = append(payloadPath, item)
+	}
+	envelope := packageConsumptionFactWithRange(factID, packageID, repositoryID, dependencyRange)
+	envelope.Payload["dependency_path"] = payloadPath
+	envelope.Payload["dependency_depth"] = dependencyDepth
+	envelope.Payload["direct_dependency"] = directDependency
+	return envelope
 }

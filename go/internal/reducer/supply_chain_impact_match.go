@@ -42,10 +42,13 @@ func supplyChainAffectedProductFromEnvelope(envelope facts.Envelope) supplyChain
 
 func supplyChainConsumptionFromEnvelope(envelope facts.Envelope) supplyChainPackageConsumption {
 	return supplyChainPackageConsumption{
-		factID:          envelope.FactID,
-		packageID:       payloadStr(envelope.Payload, "package_id"),
-		repositoryID:    payloadStr(envelope.Payload, "repository_id"),
-		dependencyRange: payloadStr(envelope.Payload, "dependency_range"),
+		factID:           envelope.FactID,
+		packageID:        payloadStr(envelope.Payload, "package_id"),
+		repositoryID:     payloadStr(envelope.Payload, "repository_id"),
+		dependencyRange:  payloadStr(envelope.Payload, "dependency_range"),
+		dependencyPath:   payloadOrderedStrings(envelope.Payload, "dependency_path"),
+		dependencyDepth:  supplyChainInt(envelope.Payload, "dependency_depth"),
+		directDependency: payloadBool(envelope.Payload, "direct_dependency"),
 	}
 }
 
@@ -260,6 +263,15 @@ func payloadBool(payload map[string]any, key string) bool {
 	default:
 		return false
 	}
+}
+
+func supplyChainInt(payload map[string]any, key string) int {
+	value := payloadStr(payload, key)
+	if value == "" {
+		return 0
+	}
+	parsed, _ := strconv.Atoi(value)
+	return parsed
 }
 
 func missingImpactEvidence(finding SupplyChainImpactFinding) []string {

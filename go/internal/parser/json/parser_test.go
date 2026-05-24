@@ -101,6 +101,51 @@ func TestParsePackageLockJSONEmitsExactDependencyRows(t *testing.T) {
 	}
 }
 
+func TestParsePackageLockJSONPreservesDependencyChainRows(t *testing.T) {
+	t.Parallel()
+
+	path := writeJSONTestFile(t, "package-lock.json", `{
+  "name": "eshu",
+  "lockfileVersion": 3,
+  "packages": {
+    "": {
+      "dependencies": {
+        "vite": "^5.4.11"
+      }
+    },
+    "node_modules/vite": {
+      "version": "5.4.21",
+      "dependencies": {
+        "rollup": "^4.30.0"
+      }
+    },
+    "node_modules/rollup": {
+      "version": "4.34.9",
+      "dependencies": {
+        "fsevents": "~2.3.3"
+      }
+    },
+    "node_modules/fsevents": {
+      "version": "2.3.3"
+    }
+  }
+}`)
+
+	payload, err := Parse(path, false, shared.Options{}, Config{})
+	if err != nil {
+		t.Fatalf("Parse() error = %v, want nil", err)
+	}
+
+	rows, ok := payload["variables"].([]map[string]any)
+	if !ok {
+		t.Fatalf("variables = %T, want []map[string]any", payload["variables"])
+	}
+	got := dependencyRowsByName(rows)
+	assertPackageLockChain(t, got["vite"], []string{"vite"}, 1, true)
+	assertPackageLockChain(t, got["rollup"], []string{"vite", "rollup"}, 2, false)
+	assertPackageLockChain(t, got["fsevents"], []string{"vite", "rollup", "fsevents"}, 3, false)
+}
+
 func TestParseJSONCAcceptsCommentsAndTrailingCommas(t *testing.T) {
 	t.Parallel()
 
@@ -255,6 +300,32 @@ func dependencyRowsByName(rows []map[string]any) map[string]map[string]any {
 		}
 	}
 	return out
+}
+
+func assertPackageLockChain(
+	t *testing.T,
+	row map[string]any,
+	wantPath []string,
+	wantDepth int,
+	wantDirect bool,
+) {
+	t.Helper()
+	if row == nil {
+		t.Fatalf("dependency row missing")
+	}
+	gotPath, ok := row["dependency_path"].([]string)
+	if !ok {
+		t.Fatalf("dependency_path = %T %#v, want []string", row["dependency_path"], row["dependency_path"])
+	}
+	if !reflect.DeepEqual(gotPath, wantPath) {
+		t.Fatalf("dependency_path = %#v, want %#v", gotPath, wantPath)
+	}
+	if got := row["dependency_depth"]; got != wantDepth {
+		t.Fatalf("dependency_depth = %#v, want %d", got, wantDepth)
+	}
+	if got := row["direct_dependency"]; got != wantDirect {
+		t.Fatalf("direct_dependency = %#v, want %v", got, wantDirect)
+	}
 }
 
 func assertRelationshipPresent(t *testing.T, payload map[string]any, relationshipType string, sourceName string, targetName string) {

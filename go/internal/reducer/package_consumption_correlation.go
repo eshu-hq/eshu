@@ -2,6 +2,7 @@ package reducer
 
 import (
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
@@ -20,19 +21,22 @@ const (
 // PackageConsumptionDecision records one repo-to-package consumption
 // correlation admitted from source declaration plus registry identity.
 type PackageConsumptionDecision struct {
-	PackageID       string
-	Ecosystem       string
-	PackageName     string
-	RepositoryID    string
-	RepositoryName  string
-	RelativePath    string
-	ManifestSection string
-	DependencyRange string
-	Outcome         PackageConsumptionOutcome
-	Reason          string
-	ProvenanceOnly  bool
-	CanonicalWrites int
-	EvidenceFactIDs []string
+	PackageID        string
+	Ecosystem        string
+	PackageName      string
+	RepositoryID     string
+	RepositoryName   string
+	RelativePath     string
+	ManifestSection  string
+	DependencyRange  string
+	DependencyPath   []string
+	DependencyDepth  int
+	DirectDependency bool
+	Outcome          PackageConsumptionOutcome
+	Reason           string
+	ProvenanceOnly   bool
+	CanonicalWrites  int
+	EvidenceFactIDs  []string
 }
 
 // PackageManifestDependencyFactFilter bounds the active Git dependency facts
@@ -51,14 +55,17 @@ type packageRegistryIdentity struct {
 }
 
 type packageManifestDependency struct {
-	FactID          string
-	RepositoryID    string
-	RepositoryName  string
-	RelativePath    string
-	DependencyName  string
-	PackageManager  string
-	ManifestSection string
-	DependencyRange string
+	FactID           string
+	RepositoryID     string
+	RepositoryName   string
+	RelativePath     string
+	DependencyName   string
+	PackageManager   string
+	ManifestSection  string
+	DependencyRange  string
+	DependencyPath   []string
+	DependencyDepth  int
+	DirectDependency bool
 }
 
 // BuildPackageConsumptionDecisions matches package registry identities to Git
@@ -85,19 +92,22 @@ func BuildPackageConsumptionDecisions(envelopes []facts.Envelope) []PackageConsu
 			continue
 		}
 		decisions = append(decisions, PackageConsumptionDecision{
-			PackageID:       identity.PackageID,
-			Ecosystem:       identity.Ecosystem,
-			PackageName:     dependency.DependencyName,
-			RepositoryID:    dependency.RepositoryID,
-			RepositoryName:  dependency.RepositoryName,
-			RelativePath:    dependency.RelativePath,
-			ManifestSection: dependency.ManifestSection,
-			DependencyRange: dependency.DependencyRange,
-			Outcome:         PackageConsumptionManifestDeclared,
-			Reason:          "git manifest dependency matches package registry identity",
-			ProvenanceOnly:  false,
-			CanonicalWrites: 1,
-			EvidenceFactIDs: []string{dependency.FactID},
+			PackageID:        identity.PackageID,
+			Ecosystem:        identity.Ecosystem,
+			PackageName:      dependency.DependencyName,
+			RepositoryID:     dependency.RepositoryID,
+			RepositoryName:   dependency.RepositoryName,
+			RelativePath:     dependency.RelativePath,
+			ManifestSection:  dependency.ManifestSection,
+			DependencyRange:  dependency.DependencyRange,
+			DependencyPath:   dependency.DependencyPath,
+			DependencyDepth:  dependency.DependencyDepth,
+			DirectDependency: dependency.DirectDependency,
+			Outcome:          PackageConsumptionManifestDeclared,
+			Reason:           "git manifest dependency matches package registry identity",
+			ProvenanceOnly:   false,
+			CanonicalWrites:  1,
+			EvidenceFactIDs:  []string{dependency.FactID},
 		})
 	}
 	sort.SliceStable(decisions, func(i, j int) bool {
@@ -174,14 +184,17 @@ func extractPackageManifestDependencies(envelopes []facts.Envelope) []packageMan
 			continue
 		}
 		dependency := packageManifestDependency{
-			FactID:          envelope.FactID,
-			RepositoryID:    repositoryID,
-			RepositoryName:  packageRepositoryName(repositoryID, repositories, envelope.Payload),
-			RelativePath:    payloadStr(envelope.Payload, "relative_path"),
-			DependencyName:  payloadStr(envelope.Payload, "entity_name"),
-			PackageManager:  strings.ToLower(packageManifestMetadataString(envelope.Payload, "package_manager")),
-			ManifestSection: packageManifestMetadataString(envelope.Payload, "section"),
-			DependencyRange: packageManifestMetadataString(envelope.Payload, "value"),
+			FactID:           envelope.FactID,
+			RepositoryID:     repositoryID,
+			RepositoryName:   packageRepositoryName(repositoryID, repositories, envelope.Payload),
+			RelativePath:     payloadStr(envelope.Payload, "relative_path"),
+			DependencyName:   payloadStr(envelope.Payload, "entity_name"),
+			PackageManager:   strings.ToLower(packageManifestMetadataString(envelope.Payload, "package_manager")),
+			ManifestSection:  packageManifestMetadataString(envelope.Payload, "section"),
+			DependencyRange:  packageManifestMetadataString(envelope.Payload, "value"),
+			DependencyPath:   packageManifestMetadataStrings(envelope.Payload, "dependency_path"),
+			DependencyDepth:  packageManifestMetadataInt(envelope.Payload, "dependency_depth"),
+			DirectDependency: packageManifestMetadataBool(envelope.Payload, "direct_dependency"),
 		}
 		if dependency.DependencyName == "" || dependency.PackageManager == "" {
 			continue
@@ -222,6 +235,62 @@ func packageManifestMetadataString(payload map[string]any, key string) string {
 		return ""
 	}
 	return payloadStr(raw, key)
+}
+
+func packageManifestMetadataStrings(payload map[string]any, key string) []string {
+	values := payloadOrderedStrings(payload, key)
+	if len(values) > 0 {
+		return values
+	}
+	raw, ok := payload["entity_metadata"].(map[string]any)
+	if !ok {
+		return nil
+	}
+	return payloadOrderedStrings(raw, key)
+}
+
+func payloadOrderedStrings(payload map[string]any, key string) []string {
+	raw, ok := payload[key]
+	if !ok {
+		return nil
+	}
+	switch typed := raw.(type) {
+	case []string:
+		out := make([]string, 0, len(typed))
+		for _, value := range typed {
+			if value = strings.TrimSpace(value); value != "" {
+				out = append(out, value)
+			}
+		}
+		return out
+	case []any:
+		out := make([]string, 0, len(typed))
+		for _, value := range typed {
+			text := strings.TrimSpace(payloadString(map[string]any{"value": value}, "value"))
+			if text != "" {
+				out = append(out, text)
+			}
+		}
+		return out
+	case string:
+		if trimmed := strings.TrimSpace(typed); trimmed != "" {
+			return []string{trimmed}
+		}
+	}
+	return nil
+}
+
+func packageManifestMetadataInt(payload map[string]any, key string) int {
+	if value := packageManifestMetadataString(payload, key); value != "" {
+		parsed, _ := strconv.Atoi(value)
+		return parsed
+	}
+	return 0
+}
+
+func packageManifestMetadataBool(payload map[string]any, key string) bool {
+	raw := packageManifestMetadataString(payload, key)
+	return strings.EqualFold(raw, "true")
 }
 
 func packageConsumptionKey(ecosystem, packageName string) string {

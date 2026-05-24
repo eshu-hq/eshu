@@ -129,6 +129,9 @@ func supplyChainImpactPayload(write SupplyChainImpactWrite, finding SupplyChainI
 		"runtime_reachability": finding.RuntimeReachability,
 		"repository_id":        finding.RepositoryID,
 		"subject_digest":       finding.SubjectDigest,
+		"dependency_path":      orderedStrings(finding.DependencyPath),
+		"dependency_depth":     finding.DependencyDepth,
+		"direct_dependency":    finding.DirectDependency,
 		"missing_evidence":     uniqueSortedStrings(finding.MissingEvidence),
 		"evidence_path":        orderedUniqueStrings(finding.EvidencePath),
 		"evidence_fact_ids":    uniqueSortedStrings(finding.EvidenceFactIDs),
@@ -156,6 +159,19 @@ func orderedUniqueStrings(values []string) []string {
 		}
 		seen[trimmed] = struct{}{}
 		out = append(out, trimmed)
+	}
+	return out
+}
+
+func orderedStrings(values []string) []string {
+	if len(values) == 0 {
+		return nil
+	}
+	out := make([]string, 0, len(values))
+	for _, value := range values {
+		if value = strings.TrimSpace(value); value != "" {
+			out = append(out, value)
+		}
 	}
 	return out
 }

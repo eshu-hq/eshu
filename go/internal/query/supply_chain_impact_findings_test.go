@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"strings"
 	"testing"
 )
@@ -96,6 +97,8 @@ func TestSupplyChainListImpactFindingsUsesBoundedStore(t *testing.T) {
 				KnownExploited:      true,
 				RuntimeReachability: "package_manifest",
 				RepositoryID:        "repo://example/api",
+				DependencyPath:      []string{"vite", "rollup", "example"},
+				DependencyDepth:     3,
 				MissingEvidence:     []string{"deployment evidence missing"},
 				EvidencePath:        []string{"vulnerability.cve", "vulnerability.affected_package", "package_registry.package_version"},
 				EvidenceFactIDs:     []string{"cve-1", "affected-1", "version-1"},
@@ -147,6 +150,12 @@ func TestSupplyChainListImpactFindingsUsesBoundedStore(t *testing.T) {
 	}
 	if got, want := resp.Findings[0].MatchCriteriaID, "b5ec4c98-0000-4000-9000-000000000001"; got != want {
 		t.Fatalf("MatchCriteriaID = %q, want %q", got, want)
+	}
+	if got, want := resp.Findings[0].DependencyPath, []string{"vite", "rollup", "example"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("DependencyPath = %#v, want %#v", got, want)
+	}
+	if got, want := resp.Findings[0].DependencyDepth, 3; got != want {
+		t.Fatalf("DependencyDepth = %d, want %d", got, want)
 	}
 	if !resp.Truncated {
 		t.Fatal("truncated = false, want true")
