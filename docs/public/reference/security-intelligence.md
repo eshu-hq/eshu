@@ -92,7 +92,7 @@ Security targets are evidence sources, not findings:
 | --- | --- | --- |
 | Repository dependency facts | manifests, lockfiles, package ids, versions, dependency paths | Reducer joins to advisories and repository ownership. |
 | Package registry metadata | package identity, version metadata, dependency metadata | Reducer treats registry data as source metadata unless owned evidence proves use. |
-| Advisory sources | CVE, GHSA, OSV, CVSS, EPSS, KEV, CWE, affected ranges, fixed versions | Reducer joins advisories to owned packages, images, SBOMs, or workloads. |
+| Advisory sources | CVE, GHSA, OSV, GitLab Advisory Database (Gemnasium), CVSS v2/v3/v4, EPSS, KEV, CWE, affected ranges, fixed versions | Reducer joins advisories to owned packages, images, SBOMs, or workloads. Each source keeps its own fact provenance so reducers can detect cross-source disagreement on range, severity, or fixed version. |
 | Provider-hosted alerts | alert state, affected dependency, advisory identifiers, manifest path | Reducer or verifier compares provider alerts to Eshu evidence without copying private alert data into docs. |
 | SBOM and attestations | document subject, component inventory, verification and parse status | Reducer admits impact only when the subject is tied to an owned image, repository, or workload. |
 | Container images | digest, repository, tags, config, observed runtime references | Reducer keeps digest identity separate from weak or stale tag observations. |
@@ -413,6 +413,48 @@ graph query, queue claim, or reducer write, so the existing
 `eshu_dp_postgres_query_duration_seconds` histogram and the impact-findings
 HTTP/MCP envelope continue to expose latency, error, and truth metadata for
 the bounded readiness read.
+
+## Advisory Source Coverage
+
+Eshu collects advisory source truth from OSV, FIRST EPSS, CISA KEV, NVD CVE
+API 2.0, and the GitLab Advisory Database (Gemnasium). Each source is
+normalized into the shared `vulnerability.*` fact contract with
+`source_confidence=reported` and a source-namespaced stable fact key, so a
+GLAD observation of `CVE-2026-0001` coexists with OSV, GHSA, or NVD
+observations of the same CVE rather than overwriting them. Reducers join
+across sources at admission time and may detect cross-source disagreement on
+range, severity, or fixed version.
+
+The GLAD adapter preserves the source `package_slug`, ecosystem, package
+name, raw and structured `affected_range`, human-readable `affected_versions`
+and `not_impacted` text, multiple `fixed_versions` (including prerelease and
+`+build` branches), CVSS v2/v3/v4 vectors, CWE IDs, URLs, and the source
+advisory UUID. Range evaluation belongs to reducers.
+
+The GLAD slice is parser-only. Cache and freshness lifecycle for advisory
+snapshots is owned by the shared source interface in
+[#603](https://github.com/eshu-hq/eshu/issues/603); the GLAD parser is pure
+so the cache/freshness owner can wire it later without changing the fact
+payload.
+
+No-Regression Evidence: `go test ./internal/collector/vulnerabilityintelligence -run 'TestGitLab|TestParseGitLab|TestNewGitLab' -count=1`
+covers GLAD CVE/affected_package/reference envelope construction, GMS
+identifier fallback, advisory-identifier validation, package_slug validation,
+source-namespaced stable keys against OSV, compact multi-branch range
+parsing, prerelease and `+build` fixed-version preservation, blank/empty
+constraint rejection, unsupported-operator rejection, source snapshot
+generation invariance, GLAD↔OSV fixed-version disagreement,
+GLAD↔NVD CVSS severity disagreement, GLAD↔OSV affected-range
+disagreement, and shared CVE correlation anchors for cross-source joins.
+
+No-Observability-Change: the GLAD adapter emits the existing
+`vulnerability.cve`, `vulnerability.affected_package`,
+`vulnerability.reference`, and `vulnerability.source_snapshot` fact kinds. It
+adds no new metric instrument, span, log key, queue, reducer lane, graph
+write, or runtime worker. Operators continue to use the existing
+`vulnerability.source_snapshot` `source`/`ecosystem`/`response_digest`/
+`complete` fields and the readiness envelope on the supply-chain impact API
+to diagnose coverage.
 
 ## Provider Alert Parity Gate
 

@@ -126,6 +126,41 @@ flowchart LR
   lockfile, image, or SBOM evidence proves use.
 - [ ] Record missing evidence reasons when a source advisory cannot become a
   user-facing impact finding.
+- [x] Track GitLab Advisory Database (Gemnasium) parser progress in
+  [#607](https://github.com/eshu-hq/eshu/issues/607).
+- [x] Add a GitLab/Gemnasium source adapter behind the shared advisory
+  ingestion boundary that preserves `package_slug`, source ecosystem, package
+  name, raw and parsed `affected_range`, human-readable
+  `affected_versions`/`not_impacted`, multiple `fixed_versions` (including
+  prerelease and `+build` branches), CVSS v2/v3/v4 vectors, CWE IDs, URLs,
+  and source advisory UUID. Identifiers are normalized into CVE and GHSA
+  payload anchors while keeping GLAD provenance via source-namespaced stable
+  fact keys.
+- [x] Add range parser tests for compact multi-branch ranges and prerelease
+  fixed versions. Add conflict tests for cases where GLAD, OSV, and NVD
+  disagree on range, severity, or fixed version. Reducers own the resolution;
+  the adapter only preserves the disagreement.
+
+Status 2026-05-24: `GitLabAdvisoryEnvelopes` plus `ParseGitLabAffectedRange`
+land in `go/internal/collector/vulnerabilityintelligence` as a pure parser
+behind the shared advisory ingestion boundary. The slice does not add an HTTP
+client, cache, or freshness lifecycle so it can be wired by the shared source
+interface in [#603](https://github.com/eshu-hq/eshu/issues/603) without
+re-shaping the fact payload. GLAD facts use `source_confidence=reported` and
+`source: "glad"` so they coexist with OSV/NVD/GHSA observations of the same
+CVE.
+
+No-Regression Evidence:
+`go test ./internal/collector/vulnerabilityintelligence -count=1` keeps the
+surrounding OSV/KEV/EPSS/NVD contract green and adds the GLAD coverage
+listed in
+[Security Intelligence — Advisory Source Coverage](../public/reference/security-intelligence.md#advisory-source-coverage).
+
+No-Observability-Change: the GLAD adapter emits existing
+`vulnerability.cve`, `vulnerability.affected_package`,
+`vulnerability.reference`, and `vulnerability.source_snapshot` fact kinds. No
+new metric, span, log key, queue, reducer lane, graph write, or runtime
+worker is introduced.
 
 ## Chunk 5: Local One-Shot CLI
 
