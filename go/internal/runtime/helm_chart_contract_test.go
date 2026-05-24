@@ -323,8 +323,98 @@ vulnerabilityIntelligenceCollector:
 	}
 
 	output := renderHelmChartFailure(t, "-f", valuesPath)
-	if !strings.Contains(output, "vulnerabilityIntelligenceCollector.collectorInstances must contain a vulnerability_intelligence instance matching") {
+	if !strings.Contains(output, "vulnerabilityIntelligenceCollector.collectorInstances must contain an enabled claim-driven vulnerability_intelligence instance matching") {
 		t.Fatalf("helm template error = %q, want local-mismatch requirement", output)
+	}
+}
+
+func TestHelmVulnerabilityIntelligenceCollectorRequiresEnabledClaimedLocalInstance(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		values string
+	}{
+		{
+			name: "disabled_instance",
+			values: `
+workflowCoordinator:
+  enabled: true
+  deploymentMode: active
+  claimsEnabled: true
+  collectorInstances:
+    - instance_id: vulnerability-intelligence-primary
+      collector_kind: vulnerability_intelligence
+      mode: continuous
+      enabled: true
+      claims_enabled: true
+      configuration:
+        targets:
+          - source: cisa_kev
+            scope_id: vuln-intel://cisa/kev
+vulnerabilityIntelligenceCollector:
+  enabled: true
+  instanceId: vulnerability-intelligence-primary
+  collectorInstances:
+    - instance_id: vulnerability-intelligence-primary
+      collector_kind: vulnerability_intelligence
+      mode: continuous
+      enabled: false
+      claims_enabled: true
+      configuration:
+        targets:
+          - source: cisa_kev
+            scope_id: vuln-intel://cisa/kev
+`,
+		},
+		{
+			name: "claims_disabled_instance",
+			values: `
+workflowCoordinator:
+  enabled: true
+  deploymentMode: active
+  claimsEnabled: true
+  collectorInstances:
+    - instance_id: vulnerability-intelligence-primary
+      collector_kind: vulnerability_intelligence
+      mode: continuous
+      enabled: true
+      claims_enabled: true
+      configuration:
+        targets:
+          - source: cisa_kev
+            scope_id: vuln-intel://cisa/kev
+vulnerabilityIntelligenceCollector:
+  enabled: true
+  instanceId: vulnerability-intelligence-primary
+  collectorInstances:
+    - instance_id: vulnerability-intelligence-primary
+      collector_kind: vulnerability_intelligence
+      mode: continuous
+      enabled: true
+      claims_enabled: false
+      configuration:
+        targets:
+          - source: cisa_kev
+            scope_id: vuln-intel://cisa/kev
+`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			valuesPath := filepath.Join(t.TempDir(), "vuln-local-state.yaml")
+			if err := os.WriteFile(valuesPath, []byte(tt.values), 0o600); err != nil {
+				t.Fatalf("write local-state values: %v", err)
+			}
+
+			output := renderHelmChartFailure(t, "-f", valuesPath)
+			if !strings.Contains(output, "vulnerabilityIntelligenceCollector.collectorInstances must contain an enabled claim-driven vulnerability_intelligence instance matching") {
+				t.Fatalf("helm template error = %q, want enabled+claim-driven local match requirement", output)
+			}
+		})
 	}
 }
 

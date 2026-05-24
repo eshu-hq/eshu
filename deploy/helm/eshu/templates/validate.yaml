@@ -63,12 +63,12 @@
 {{- end -}}
 {{- $vulnLocalMatch := false -}}
 {{- range .Values.vulnerabilityIntelligenceCollector.collectorInstances -}}
-{{- if and (eq (default "" .collector_kind) "vulnerability_intelligence") (eq (default "" .instance_id) $.Values.vulnerabilityIntelligenceCollector.instanceId) -}}
+{{- if and (eq (default "" .collector_kind) "vulnerability_intelligence") (eq (default "" .instance_id) $.Values.vulnerabilityIntelligenceCollector.instanceId) (default false .enabled) (default false .claims_enabled) -}}
 {{- $vulnLocalMatch = true -}}
 {{- end -}}
 {{- end -}}
 {{- if not $vulnLocalMatch -}}
-{{- fail "vulnerabilityIntelligenceCollector.collectorInstances must contain a vulnerability_intelligence instance matching vulnerabilityIntelligenceCollector.instanceId" -}}
+{{- fail "vulnerabilityIntelligenceCollector.collectorInstances must contain an enabled claim-driven vulnerability_intelligence instance matching vulnerabilityIntelligenceCollector.instanceId" -}}
 {{- end -}}
 {{- end -}}
 {{- $claimDrivenCollectorsEnabled := or .Values.terraformStateCollector.enabled .Values.awsCloudCollector.enabled .Values.packageRegistryCollector.enabled .Values.scannerWorker.enabled .Values.vulnerabilityIntelligenceCollector.enabled -}}
