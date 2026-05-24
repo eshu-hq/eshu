@@ -20,6 +20,56 @@ import (
 //   - exclude withdrawn advisories from selection while still listing them;
 //   - prefer a vendor advisory over upstream NVD for vendor ecosystems.
 
+func TestSupplyChainCVEGroupRepresentativeUsesSourcePriority(t *testing.T) {
+	t.Parallel()
+
+	group := supplyChainCVEGroup{
+		cveID: "CVE-2026-4242",
+		observations: []supplyChainImpactCVE{
+			{
+				cveID:       "CVE-2026-4242",
+				source:      "osv",
+				advisoryID:  "GHSA-withdrawn",
+				factID:      "fact-001",
+				withdrawnAt: "2026-05-24T10:00:00Z",
+			},
+			{
+				cveID:      "CVE-2026-4242",
+				source:     "nvd",
+				advisoryID: "CVE-2026-4242",
+				factID:     "fact-002",
+			},
+			{
+				cveID:      "CVE-2026-4242",
+				source:     "glad",
+				advisoryID: "GMS-2026-4242",
+				factID:     "fact-003",
+			},
+		},
+	}
+
+	representative := group.representative()
+	if representative.source != "glad" {
+		t.Fatalf("representative source = %q, want glad priority over nvd while skipping withdrawn ghsa", representative.source)
+	}
+	if representative.factID != "fact-003" {
+		t.Fatalf("representative factID = %q, want fact-003", representative.factID)
+	}
+}
+
+func TestAdvisorySourcePriorityDoesNotAllocate(t *testing.T) {
+	t.Parallel()
+
+	allocations := testing.AllocsPerRun(1000, func() {
+		_ = advisorySourcePriority("npm", "ghsa")
+		_ = advisorySourcePriority("rpm", "redhat")
+		_ = advisorySourcePriority("rpm", "nvd")
+	})
+	if allocations != 0 {
+		t.Fatalf("advisorySourcePriority allocations = %v, want 0", allocations)
+	}
+}
+
 func TestSupplyChainImpactPreservesGHSAvsNVDSeveritySources(t *testing.T) {
 	t.Parallel()
 
@@ -336,4 +386,3 @@ func TestSupplyChainImpactPreservesMultipleFixedVersionBranches(t *testing.T) {
 		t.Fatalf("FixedVersion = %q, want 8.6.77", finding.FixedVersion)
 	}
 }
-

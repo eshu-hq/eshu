@@ -143,6 +143,29 @@ func findingHasFixedVersionBranch(finding SupplyChainImpactFinding, version stri
 	return false
 }
 
+func TestSupplyChainCVEGroupRepresentativeSelectsByPriorityAndSkipsWithdrawn(t *testing.T) {
+	t.Parallel()
+
+	nvd := supplyChainImpactCVE{factID: "nvd-cve", cveID: "CVE-2026-7777", source: "nvd", advisoryID: "CVE-2026-7777"}
+	ghsa := supplyChainImpactCVE{factID: "ghsa-cve", cveID: "CVE-2026-7777", source: "osv", advisoryID: "GHSA-test"}
+	withdrawn := supplyChainImpactCVE{factID: "ghsa-withdrawn", cveID: "CVE-2026-7777", source: "osv", advisoryID: "GHSA-withdrawn", withdrawnAt: "2026-05-22T08:00:00Z"}
+
+	got := supplyChainCVEGroup{cveID: "CVE-2026-7777", observations: []supplyChainImpactCVE{nvd, withdrawn, ghsa}}.representative()
+	if got.factID != "ghsa-cve" {
+		t.Fatalf("representative.factID = %q, want ghsa-cve (highest-priority non-withdrawn observation)", got.factID)
+	}
+
+	onlyWithdrawn := supplyChainCVEGroup{cveID: "CVE-2026-7777", observations: []supplyChainImpactCVE{withdrawn}}.representative()
+	if onlyWithdrawn.factID != "ghsa-withdrawn" {
+		t.Fatalf("representative.factID = %q, want ghsa-withdrawn (must return withdrawn row when every observation is withdrawn)", onlyWithdrawn.factID)
+	}
+
+	empty := supplyChainCVEGroup{cveID: "CVE-2026-9999"}.representative()
+	if empty.cveID != "CVE-2026-9999" || empty.factID != "" {
+		t.Fatalf("representative for empty group = %#v, want stub with cveID only", empty)
+	}
+}
+
 func TestPostgresSupplyChainImpactWriterSerializesProvenancePayload(t *testing.T) {
 	t.Parallel()
 

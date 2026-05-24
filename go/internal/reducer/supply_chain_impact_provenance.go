@@ -14,14 +14,36 @@ type supplyChainCVEGroup struct {
 	observations []supplyChainImpactCVE
 }
 
-// representative returns the highest-priority observation for the group so
-// callers that still need a single CVE row (legacy product-only path) get a
-// stable choice without losing the rest of the provenance list.
+// representative returns the highest-priority non-withdrawn observation for
+// the group so callers that still need a single CVE row (legacy product-only
+// path) get a deterministic choice without losing the rest of the provenance
+// list. Group-level callers do not know the package ecosystem, so the
+// language-class priority table supplies the ranking; for the product-only
+// CPE path the only source emitting `affected_product` facts is NVD, which
+// remains the deterministic tail of that ranking. Withdrawn observations
+// are only returned when every observation in the group is withdrawn, so
+// callers still get a row with `WithdrawnAt` set rather than the zero value.
 func (g supplyChainCVEGroup) representative() supplyChainImpactCVE {
 	if len(g.observations) == 0 {
 		return supplyChainImpactCVE{cveID: g.cveID}
 	}
-	return g.observations[0]
+	best := -1
+	bestRank := 0
+	for i, observation := range g.observations {
+		if strings.TrimSpace(observation.withdrawnAt) != "" {
+			continue
+		}
+		rank := advisorySourcePriority("", classifyAdvisorySource(observation.source, observation.advisoryID))
+		if best < 0 || rank < bestRank ||
+			(rank == bestRank && observation.factID < g.observations[best].factID) {
+			best = i
+			bestRank = rank
+		}
+	}
+	if best < 0 {
+		return g.observations[0]
+	}
+	return g.observations[best]
 }
 
 func groupSupplyChainCVEsByID(observations []supplyChainImpactCVE) map[string]supplyChainCVEGroup {
@@ -282,44 +304,53 @@ func classifyAdvisorySource(payloadSource string, advisoryID string) string {
 func advisorySourcePriority(ecosystem string, source string) int {
 	ecosystem = strings.ToLower(strings.TrimSpace(ecosystem))
 	source = strings.ToLower(strings.TrimSpace(source))
-	if rank, ok := vendorPackageClassPriority(ecosystem)[source]; ok {
-		return rank
+	if vendor, ok := vendorForOSPackageClass(ecosystem); ok {
+		return vendorClassPriorityRank(vendor, source)
 	}
-	if rank, ok := languagePackageClassPriority()[source]; ok {
-		return rank
-	}
-	// Unknown source: rank after every known source but before missing
-	// observations so the selector still produces a deterministic answer.
-	return 999
+	return languageClassPriorityRank(source)
 }
 
-func languagePackageClassPriority() map[string]int {
-	return map[string]int{
-		"ghsa":          1,
-		"glad":          2,
-		"osv":           3,
-		"pysec":         3,
-		"osv-go":        3,
-		"rustsec":       3,
-		"osv-malicious": 4,
-		"nvd":           5,
+// languageClassPriorityRank returns the rank for one advisory source under
+// the language ecosystem priority table (npm, pypi, maven, ...). Inlined as a
+// switch so sort comparators do not allocate a fresh map per comparison.
+func languageClassPriorityRank(source string) int {
+	switch source {
+	case "ghsa":
+		return 1
+	case "glad":
+		return 2
+	case "osv", "pysec", "osv-go", "rustsec":
+		return 3
+	case "osv-malicious":
+		return 4
+	case "nvd":
+		return 5
+	default:
+		// Unknown source: rank after every known source but before missing
+		// observations so the selector still produces a deterministic answer.
+		return 999
 	}
 }
 
-func vendorPackageClassPriority(ecosystem string) map[string]int {
-	vendor, ok := vendorForOSPackageClass(ecosystem)
-	if !ok {
-		return nil
+// vendorClassPriorityRank returns the rank for one advisory source under an
+// OS-vendor ecosystem priority table, where the matching vendor advisory
+// outranks GLAD, GHSA, OSV, and NVD because vendor backports change
+// applicability. Inlined as a switch so sort comparators stay allocation-free.
+func vendorClassPriorityRank(vendor string, source string) int {
+	if source == vendor {
+		return 1
 	}
-	// Vendor advisory beats everything else for the matching OS package class.
-	// GLAD often mirrors vendor advisories with extra branch metadata, so it
-	// ranks above NVD. NVD remains the upstream baseline.
-	return map[string]int{
-		vendor: 1,
-		"glad": 2,
-		"ghsa": 3,
-		"osv":  4,
-		"nvd":  5,
+	switch source {
+	case "glad":
+		return 2
+	case "ghsa":
+		return 3
+	case "osv", "pysec", "osv-go", "rustsec":
+		return 4
+	case "nvd":
+		return 5
+	default:
+		return 999
 	}
 }
 
