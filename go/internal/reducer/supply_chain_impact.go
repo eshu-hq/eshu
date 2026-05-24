@@ -71,7 +71,7 @@ type SupplyChainImpactFinding struct {
 	SubjectDigest       string
 	DependencyPath      []string
 	DependencyDepth     int
-	DirectDependency    bool
+	DirectDependency    *bool
 	MissingEvidence     []string
 	EvidencePath        []string
 	EvidenceFactIDs     []string

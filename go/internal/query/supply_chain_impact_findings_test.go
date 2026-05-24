@@ -99,6 +99,7 @@ func TestSupplyChainListImpactFindingsUsesBoundedStore(t *testing.T) {
 				RepositoryID:        "repo://example/api",
 				DependencyPath:      []string{"vite", "rollup", "example"},
 				DependencyDepth:     3,
+				DirectDependency:    boolPtr(false),
 				MissingEvidence:     []string{"deployment evidence missing"},
 				EvidencePath:        []string{"vulnerability.cve", "vulnerability.affected_package", "package_registry.package_version"},
 				EvidenceFactIDs:     []string{"cve-1", "affected-1", "version-1"},
@@ -157,6 +158,9 @@ func TestSupplyChainListImpactFindingsUsesBoundedStore(t *testing.T) {
 	if got, want := resp.Findings[0].DependencyDepth, 3; got != want {
 		t.Fatalf("DependencyDepth = %d, want %d", got, want)
 	}
+	if resp.Findings[0].DirectDependency == nil || *resp.Findings[0].DirectDependency {
+		t.Fatalf("DirectDependency = %#v, want false", resp.Findings[0].DirectDependency)
+	}
 	if !resp.Truncated {
 		t.Fatal("truncated = false, want true")
 	}
@@ -183,4 +187,8 @@ func TestSupplyChainImpactFindingQueryUsesActiveFactReadModel(t *testing.T) {
 			t.Fatalf("listSupplyChainImpactFindingsQuery missing %q:\n%s", want, listSupplyChainImpactFindingsQuery)
 		}
 	}
+}
+
+func boolPtr(value bool) *bool {
+	return &value
 }

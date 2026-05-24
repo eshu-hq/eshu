@@ -538,6 +538,10 @@ func packageCorrelationStringSliceFromAny(raw any) []string {
 	return out
 }
 
+func boolPtr(value bool) *bool {
+	return &value
+}
+
 func sameStrings(left, right []string) bool {
 	if len(left) != len(right) {
 		return false

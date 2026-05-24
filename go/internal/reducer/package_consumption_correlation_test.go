@@ -52,6 +52,15 @@ func TestBuildPackageConsumptionDecisionsMatchesManifestDependencies(t *testing.
 	if got, want := decision.DependencyRange, "^1.2.0"; got != want {
 		t.Fatalf("DependencyRange = %q, want %q", got, want)
 	}
+	if !reflect.DeepEqual(decision.DependencyPath, []string{"@eshu/core-api"}) {
+		t.Fatalf("DependencyPath = %#v, want direct package path", decision.DependencyPath)
+	}
+	if got, want := decision.DependencyDepth, 1; got != want {
+		t.Fatalf("DependencyDepth = %d, want %d", got, want)
+	}
+	if decision.DirectDependency == nil || !*decision.DirectDependency {
+		t.Fatalf("DirectDependency = %#v, want true for manifest dependency", decision.DirectDependency)
+	}
 	if decision.ProvenanceOnly {
 		t.Fatal("ProvenanceOnly = true, want false for manifest-backed consumption truth")
 	}
@@ -95,8 +104,8 @@ func TestBuildPackageConsumptionDecisionsPreservesLockfileDependencyChain(t *tes
 	if got, want := decision.DependencyDepth, 3; got != want {
 		t.Fatalf("DependencyDepth = %d, want %d", got, want)
 	}
-	if decision.DirectDependency {
-		t.Fatal("DirectDependency = true, want false for transitive lockfile dependency")
+	if decision.DirectDependency == nil || *decision.DirectDependency {
+		t.Fatalf("DirectDependency = %#v, want false for transitive lockfile dependency", decision.DirectDependency)
 	}
 }
 
@@ -131,20 +140,21 @@ func TestPostgresPackageCorrelationWriterPersistsOwnershipAndConsumptionFacts(t 
 		},
 		ConsumptionDecisions: []PackageConsumptionDecision{
 			{
-				PackageID:       "pkg:npm://registry.example/team-api",
-				Ecosystem:       "npm",
-				PackageName:     "team-api",
-				RepositoryID:    "repo-web",
-				RepositoryName:  "web",
-				RelativePath:    "package.json",
-				ManifestSection: "dependencies",
-				DependencyRange: "^1.2.0",
-				DependencyPath:  []string{"platform-api", "team-api"},
-				DependencyDepth: 2,
-				Outcome:         PackageConsumptionManifestDeclared,
-				Reason:          "git manifest dependency matches package registry identity",
-				CanonicalWrites: 1,
-				EvidenceFactIDs: []string{"dep-fact"},
+				PackageID:        "pkg:npm://registry.example/team-api",
+				Ecosystem:        "npm",
+				PackageName:      "team-api",
+				RepositoryID:     "repo-web",
+				RepositoryName:   "web",
+				RelativePath:     "package.json",
+				ManifestSection:  "dependencies",
+				DependencyRange:  "^1.2.0",
+				DependencyPath:   []string{"platform-api", "team-api"},
+				DependencyDepth:  2,
+				DirectDependency: boolPtr(false),
+				Outcome:          PackageConsumptionManifestDeclared,
+				Reason:           "git manifest dependency matches package registry identity",
+				CanonicalWrites:  1,
+				EvidenceFactIDs:  []string{"dep-fact"},
 			},
 		},
 		PublicationDecisions: []PackagePublicationDecision{
@@ -197,6 +207,9 @@ func TestPostgresPackageCorrelationWriterPersistsOwnershipAndConsumptionFacts(t 
 	}
 	if got, want := consumptionPayload["dependency_depth"], float64(2); got != want {
 		t.Fatalf("dependency_depth = %#v, want %#v", got, want)
+	}
+	if got, want := consumptionPayload["direct_dependency"], false; got != want {
+		t.Fatalf("direct_dependency = %#v, want %#v", got, want)
 	}
 	publicationPayload := unmarshalPackageCorrelationPayload(t, db.execs[2].args[14])
 	if got, want := publicationPayload["correlation_kind"], packagePublicationCorrelationFactKind; got != want {

@@ -42,7 +42,7 @@ type supplyChainPackageConsumption struct {
 	dependencyRange  string
 	dependencyPath   []string
 	dependencyDepth  int
-	directDependency bool
+	directDependency *bool
 }
 
 type supplyChainSBOMComponent struct {
@@ -163,7 +163,10 @@ func classifySupplyChainImpactPackage(
 		finding.RepositoryID = consumption.repositoryID
 		finding.DependencyPath = append([]string(nil), consumption.dependencyPath...)
 		finding.DependencyDepth = consumption.dependencyDepth
-		finding.DirectDependency = consumption.directDependency
+		if consumption.directDependency != nil {
+			value := *consumption.directDependency
+			finding.DirectDependency = &value
+		}
 		finding.EvidenceFactIDs = append(finding.EvidenceFactIDs, consumption.factID)
 		finding.EvidencePath = append(finding.EvidencePath, packageConsumptionCorrelationFactKind)
 		if manifestVersion, ok := exactManifestDependencyVersion(consumption.dependencyRange); ok {

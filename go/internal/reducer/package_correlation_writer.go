@@ -256,7 +256,7 @@ func packageConsumptionPayload(
 	write PackageCorrelationWrite,
 	decision PackageConsumptionDecision,
 ) map[string]any {
-	return map[string]any{
+	payload := map[string]any{
 		"reducer_domain":    string(DomainPackageSourceCorrelation),
 		"intent_id":         write.IntentID,
 		"scope_id":          write.ScopeID,
@@ -272,9 +272,6 @@ func packageConsumptionPayload(
 		"relative_path":     decision.RelativePath,
 		"manifest_section":  decision.ManifestSection,
 		"dependency_range":  decision.DependencyRange,
-		"dependency_path":   orderedStrings(decision.DependencyPath),
-		"dependency_depth":  decision.DependencyDepth,
-		"direct_dependency": decision.DirectDependency,
 		"outcome":           string(decision.Outcome),
 		"reason":            decision.Reason,
 		"provenance_only":   decision.ProvenanceOnly,
@@ -286,6 +283,14 @@ func packageConsumptionPayload(
 			string(truth.LayerObservedResource),
 		},
 	}
+	if len(decision.DependencyPath) > 0 {
+		payload["dependency_path"] = orderedStrings(decision.DependencyPath)
+		payload["dependency_depth"] = decision.DependencyDepth
+	}
+	if decision.DirectDependency != nil {
+		payload["direct_dependency"] = *decision.DirectDependency
+	}
+	return payload
 }
 
 func packagePublicationFactID(write PackageCorrelationWrite, decision PackagePublicationDecision) string {

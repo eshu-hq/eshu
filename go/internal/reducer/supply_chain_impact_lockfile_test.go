@@ -77,8 +77,8 @@ func TestBuildSupplyChainImpactFindingsExposesDependencyChain(t *testing.T) {
 	if got.DependencyDepth != 3 {
 		t.Fatalf("DependencyDepth = %d, want 3", got.DependencyDepth)
 	}
-	if got.DirectDependency {
-		t.Fatal("DirectDependency = true, want false for transitive lockfile dependency")
+	if got.DirectDependency == nil || *got.DirectDependency {
+		t.Fatalf("DirectDependency = %#v, want false for transitive lockfile dependency", got.DirectDependency)
 	}
 }
 

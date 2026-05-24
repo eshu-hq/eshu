@@ -31,7 +31,7 @@ type PackageConsumptionDecision struct {
 	DependencyRange  string
 	DependencyPath   []string
 	DependencyDepth  int
-	DirectDependency bool
+	DirectDependency *bool
 	Outcome          PackageConsumptionOutcome
 	Reason           string
 	ProvenanceOnly   bool
@@ -65,7 +65,7 @@ type packageManifestDependency struct {
 	DependencyRange  string
 	DependencyPath   []string
 	DependencyDepth  int
-	DirectDependency bool
+	DirectDependency *bool
 }
 
 // BuildPackageConsumptionDecisions matches package registry identities to Git
@@ -199,6 +199,7 @@ func extractPackageManifestDependencies(envelopes []facts.Envelope) []packageMan
 		if dependency.DependencyName == "" || dependency.PackageManager == "" {
 			continue
 		}
+		dependency = normalizePackageManifestDependencyChain(dependency)
 		out = append(out, dependency)
 	}
 	return out
@@ -288,9 +289,32 @@ func packageManifestMetadataInt(payload map[string]any, key string) int {
 	return 0
 }
 
-func packageManifestMetadataBool(payload map[string]any, key string) bool {
+func packageManifestMetadataBool(payload map[string]any, key string) *bool {
 	raw := packageManifestMetadataString(payload, key)
-	return strings.EqualFold(raw, "true")
+	if raw == "" {
+		return nil
+	}
+	value := strings.EqualFold(raw, "true")
+	return &value
+}
+
+func normalizePackageManifestDependencyChain(dependency packageManifestDependency) packageManifestDependency {
+	if len(dependency.DependencyPath) > 0 {
+		if dependency.DependencyDepth == 0 {
+			dependency.DependencyDepth = len(dependency.DependencyPath)
+		}
+		return dependency
+	}
+	if strings.EqualFold(dependency.ManifestSection, "package-lock") {
+		dependency.DependencyDepth = 0
+		dependency.DirectDependency = nil
+		return dependency
+	}
+	dependency.DependencyPath = []string{dependency.DependencyName}
+	dependency.DependencyDepth = 1
+	value := true
+	dependency.DirectDependency = &value
+	return dependency
 }
 
 func packageConsumptionKey(ecosystem, packageName string) string {

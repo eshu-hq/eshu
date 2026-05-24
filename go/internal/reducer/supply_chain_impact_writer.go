@@ -102,7 +102,7 @@ func supplyChainImpactIdentity(write SupplyChainImpactWrite, finding SupplyChain
 }
 
 func supplyChainImpactPayload(write SupplyChainImpactWrite, finding SupplyChainImpactFinding) map[string]any {
-	return map[string]any{
+	payload := map[string]any{
 		"reducer_domain":       string(DomainSupplyChainImpact),
 		"intent_id":            write.IntentID,
 		"scope_id":             write.ScopeID,
@@ -129,9 +129,6 @@ func supplyChainImpactPayload(write SupplyChainImpactWrite, finding SupplyChainI
 		"runtime_reachability": finding.RuntimeReachability,
 		"repository_id":        finding.RepositoryID,
 		"subject_digest":       finding.SubjectDigest,
-		"dependency_path":      orderedStrings(finding.DependencyPath),
-		"dependency_depth":     finding.DependencyDepth,
-		"direct_dependency":    finding.DirectDependency,
 		"missing_evidence":     uniqueSortedStrings(finding.MissingEvidence),
 		"evidence_path":        orderedUniqueStrings(finding.EvidencePath),
 		"evidence_fact_ids":    uniqueSortedStrings(finding.EvidenceFactIDs),
@@ -141,6 +138,14 @@ func supplyChainImpactPayload(write SupplyChainImpactWrite, finding SupplyChainI
 			string(truth.LayerObservedResource),
 		},
 	}
+	if len(finding.DependencyPath) > 0 {
+		payload["dependency_path"] = orderedStrings(finding.DependencyPath)
+		payload["dependency_depth"] = finding.DependencyDepth
+	}
+	if finding.DirectDependency != nil {
+		payload["direct_dependency"] = *finding.DirectDependency
+	}
+	return payload
 }
 
 func orderedUniqueStrings(values []string) []string {

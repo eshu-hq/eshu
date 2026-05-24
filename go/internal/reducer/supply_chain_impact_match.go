@@ -48,7 +48,7 @@ func supplyChainConsumptionFromEnvelope(envelope facts.Envelope) supplyChainPack
 		dependencyRange:  payloadStr(envelope.Payload, "dependency_range"),
 		dependencyPath:   payloadOrderedStrings(envelope.Payload, "dependency_path"),
 		dependencyDepth:  supplyChainInt(envelope.Payload, "dependency_depth"),
-		directDependency: payloadBool(envelope.Payload, "direct_dependency"),
+		directDependency: payloadBoolPointer(envelope.Payload, "direct_dependency"),
 	}
 }
 
@@ -255,13 +255,30 @@ func versionFromCPE23Criteria(criteria string) string {
 }
 
 func payloadBool(payload map[string]any, key string) bool {
+	value, ok := payloadBoolPointerValue(payload, key)
+	return ok && value
+}
+
+func payloadBoolPointer(payload map[string]any, key string) *bool {
+	value, ok := payloadBoolPointerValue(payload, key)
+	if !ok {
+		return nil
+	}
+	return &value
+}
+
+func payloadBoolPointerValue(payload map[string]any, key string) (bool, bool) {
 	switch value := payload[key].(type) {
 	case bool:
-		return value
+		return value, true
 	case string:
-		return strings.EqualFold(strings.TrimSpace(value), "true")
+		trimmed := strings.TrimSpace(value)
+		if trimmed == "" {
+			return false, false
+		}
+		return strings.EqualFold(trimmed, "true"), true
 	default:
-		return false
+		return false, false
 	}
 }
 
