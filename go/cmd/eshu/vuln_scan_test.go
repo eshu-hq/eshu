@@ -87,6 +87,7 @@ func TestRunVulnScanRepoIndexesResolvesRepoAndListsImpactFindings(t *testing.T) 
 	out := &bytes.Buffer{}
 	cmd := newTestVulnScanRepoCommand(t)
 	cmd.SetOut(out)
+	cmd.SetErr(io.Discard)
 	if err := cmd.Flags().Set("service-url", server.URL); err != nil {
 		t.Fatalf("Set(service-url) error = %v, want nil", err)
 	}
@@ -156,6 +157,7 @@ func TestRunVulnScanRepoReportsReadyZeroFindings(t *testing.T) {
 	out := &bytes.Buffer{}
 	cmd := newTestVulnScanRepoCommand(t)
 	cmd.SetOut(out)
+	cmd.SetErr(io.Discard)
 	if err := cmd.Flags().Set("service-url", server.URL); err != nil {
 		t.Fatalf("Set(service-url) error = %v, want nil", err)
 	}
@@ -197,6 +199,7 @@ func TestRunVulnScanRepoFailsClosedWhenScanIsNotReady(t *testing.T) {
 	out := &bytes.Buffer{}
 	cmd := newTestVulnScanRepoCommand(t)
 	cmd.SetOut(out)
+	cmd.SetErr(io.Discard)
 	if err := cmd.Flags().Set("service-url", server.URL); err != nil {
 		t.Fatalf("Set(service-url) error = %v, want nil", err)
 	}
