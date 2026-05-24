@@ -63,6 +63,16 @@ func TestDispatchToolSupplyChainImpactFindingsReturnsReadinessEnvelope(t *testin
 						{"family": "vulnerability.advisory", "fact_count": 5, "freshness": "fresh"},
 						{"family": "package.consumption", "fact_count": 2, "freshness": "fresh"},
 					},
+					"source_snapshots": []map[string]any{
+						{
+							"source":                 "first_epss",
+							"cache_artifact_version": "vulnerability-source-cache.v1",
+							"snapshot_digest":        "sha256:abc",
+							"last_updated_at":        "2026-05-24T12:01:00Z",
+							"freshness":              "fresh",
+							"complete":               true,
+						},
+					},
 					"freshness": "fresh",
 					"counts": map[string]any{
 						"findings_returned":    0,
@@ -119,6 +129,13 @@ func TestDispatchToolSupplyChainImpactFindingsReturnsReadinessEnvelope(t *testin
 	}
 	if got, want := len(sources), 2; got != want {
 		t.Fatalf("len(evidence_sources) = %d, want %d", got, want)
+	}
+	snapshots, ok := readiness["source_snapshots"].([]any)
+	if !ok {
+		t.Fatalf("source_snapshots = %T, want []any", readiness["source_snapshots"])
+	}
+	if got, want := len(snapshots), 1; got != want {
+		t.Fatalf("len(source_snapshots) = %d, want %d", got, want)
 	}
 }
 

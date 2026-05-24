@@ -74,6 +74,12 @@ Most current core families use schema version `1.0.0`.
 source-native content for updater diff generation. Check the fact-family helper
 before emitting rows.
 
+`vulnerability.source_snapshot` may include cache lifecycle metadata such as
+cache artifact version, snapshot digest, cache update time, expiration,
+freshness, and mode. These fields describe source observation state only; they
+do not prove vulnerability impact without reducer-owned package, image, or
+deployment evidence.
+
 ## Promotion Rules
 
 Facts are source evidence, not automatic graph truth.

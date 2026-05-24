@@ -50,6 +50,7 @@ func TestOpenAPISpecIncludesSupplyChainImpactFindings(t *testing.T) {
 		"readiness_state",
 		"target_scope",
 		"evidence_sources",
+		"source_snapshots",
 		"missing_evidence",
 		"incomplete_reasons",
 		"freshness",

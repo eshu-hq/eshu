@@ -165,7 +165,11 @@ target. When `derive_from_owned_packages.enabled=true`, the planner can derive
 OSV npm package-version targets from active owned dependency facts only when
 the dependency carries an exact version. Manifest ranges, aliases, workspace
 references, file/git references, and `latest` remain partial evidence and are
-not promoted into OSV package-version collection targets.
+not promoted into OSV package-version collection targets. The configuration can
+also declare `source_cache` for refresh or offline advisory-source cache
+lifecycle and `fallback_urls` for source mirrors; validation keeps cache modes,
+durations, and mirror URLs bounded before the desired collector instance is
+persisted.
 
 `scanner_worker` work items reserve the workflow boundary for isolated security
 analyzers. A scanner-worker claim copies the active work item, claim ID,

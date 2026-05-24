@@ -40,6 +40,7 @@ type SupplyChainImpactReadinessEnvelope struct {
 	State             SupplyChainImpactReadinessState   `json:"readiness_state"`
 	TargetScope       SupplyChainImpactTargetScope      `json:"target_scope"`
 	EvidenceSources   []SupplyChainImpactEvidenceFamily `json:"evidence_sources"`
+	SourceSnapshots   []SupplyChainImpactSourceSnapshot `json:"source_snapshots,omitempty"`
 	MissingEvidence   []string                          `json:"missing_evidence,omitempty"`
 	IncompleteReasons []string                          `json:"incomplete_reasons,omitempty"`
 	Freshness         string                            `json:"freshness"`
@@ -63,6 +64,20 @@ type SupplyChainImpactEvidenceFamily struct {
 	FactCount        int    `json:"fact_count"`
 	LatestObservedAt string `json:"latest_observed_at,omitempty"`
 	Freshness        string `json:"freshness,omitempty"`
+}
+
+// SupplyChainImpactSourceSnapshot exposes source-cache and observation metadata
+// for vulnerability source snapshots without returning raw advisory payloads.
+type SupplyChainImpactSourceSnapshot struct {
+	Source               string `json:"source"`
+	Ecosystem            string `json:"ecosystem,omitempty"`
+	CacheArtifactVersion string `json:"cache_artifact_version,omitempty"`
+	SnapshotDigest       string `json:"snapshot_digest,omitempty"`
+	LastUpdatedAt        string `json:"last_updated_at,omitempty"`
+	Freshness            string `json:"freshness,omitempty"`
+	Complete             bool   `json:"complete"`
+	WarningCode          string `json:"warning_code,omitempty"`
+	WarningMessage       string `json:"warning_message,omitempty"`
 }
 
 // SupplyChainImpactReadinessCounts surfaces enough numeric coverage to diagnose
@@ -102,6 +117,7 @@ func (q SupplyChainImpactReadinessQuery) hasFactAnchor() bool {
 // this snapshot plus the findings page; the store never invents findings.
 type SupplyChainImpactReadinessSnapshot struct {
 	EvidenceSources   []SupplyChainImpactEvidenceFamily
+	SourceSnapshots   []SupplyChainImpactSourceSnapshot
 	TargetIncomplete  bool
 	IncompleteReasons []string
 }
@@ -195,6 +211,7 @@ func BuildSupplyChainImpactReadiness(
 		State:             state,
 		TargetScope:       scope,
 		EvidenceSources:   sources,
+		SourceSnapshots:   normalizeSourceSnapshots(snapshot.SourceSnapshots),
 		MissingEvidence:   missing,
 		IncompleteReasons: incompleteReasons,
 		Freshness:         aggregateReadinessFreshness(sources),
@@ -388,6 +405,43 @@ func normalizeEvidenceSources(sources []SupplyChainImpactEvidenceFamily) []Suppl
 		return cloned[i].Family < cloned[j].Family
 	})
 	return cloned
+}
+
+func normalizeSourceSnapshots(snapshots []SupplyChainImpactSourceSnapshot) []SupplyChainImpactSourceSnapshot {
+	if len(snapshots) == 0 {
+		return nil
+	}
+	out := make([]SupplyChainImpactSourceSnapshot, 0, len(snapshots))
+	seen := map[string]struct{}{}
+	for _, snapshot := range snapshots {
+		snapshot.Source = strings.TrimSpace(snapshot.Source)
+		if snapshot.Source == "" {
+			continue
+		}
+		snapshot.Ecosystem = strings.TrimSpace(snapshot.Ecosystem)
+		snapshot.CacheArtifactVersion = strings.TrimSpace(snapshot.CacheArtifactVersion)
+		snapshot.SnapshotDigest = strings.TrimSpace(snapshot.SnapshotDigest)
+		snapshot.LastUpdatedAt = strings.TrimSpace(snapshot.LastUpdatedAt)
+		snapshot.Freshness = strings.TrimSpace(snapshot.Freshness)
+		snapshot.WarningCode = strings.TrimSpace(snapshot.WarningCode)
+		snapshot.WarningMessage = strings.TrimSpace(snapshot.WarningMessage)
+		key := snapshot.Source + "\x00" + snapshot.Ecosystem + "\x00" + snapshot.SnapshotDigest
+		if _, ok := seen[key]; ok {
+			continue
+		}
+		seen[key] = struct{}{}
+		out = append(out, snapshot)
+	}
+	sort.SliceStable(out, func(i, j int) bool {
+		if out[i].Source != out[j].Source {
+			return out[i].Source < out[j].Source
+		}
+		if out[i].Ecosystem != out[j].Ecosystem {
+			return out[i].Ecosystem < out[j].Ecosystem
+		}
+		return out[i].SnapshotDigest < out[j].SnapshotDigest
+	})
+	return out
 }
 
 func uniqueSortedReadinessStrings(values []string) []string {

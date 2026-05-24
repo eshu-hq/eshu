@@ -174,7 +174,7 @@ worker is introduced.
   evidence needed by observed owned packages unless a broader option is set.
 - [x] Emit JSON and terminal summaries from the same finding/readiness envelope
   used by API and MCP.
-- [ ] Cache advisory and package metadata locally with freshness markers and a
+- [x] Cache advisory source metadata locally with freshness markers and a
   fail-closed stale-data policy.
 - [x] Add focused tests before registering the public command and docs claim.
 
@@ -209,6 +209,30 @@ preflight over `/api/v0/repositories?limit=1`, and the API's
 `query.supply_chain_impact_findings` span for the bounded read. No new runtime
 worker, queue, reducer, graph write path, metric name, or span name is
 introduced in this slice.
+
+Status 2026-05-24: vulnerability-intelligence source collection supports
+source-cache `refresh` and `offline` modes, configured fallback source mirrors,
+retention cleanup, explicit cached fallback after live source failure, and
+`RefreshOnly` update-only cache refresh for future CLI/admin orchestration.
+Offline replay fails closed when an artifact is missing or stale and rebinds
+cached facts to the current workflow generation and fencing token before commit.
+The readiness envelope exposes source snapshot cache artifact version, digest,
+last update time, freshness, completion state, and bounded warning fields.
+Package metadata cache freshness remains a separate follow-up.
+
+No-Regression Evidence:
+`go test ./internal/collector/vulnerabilityintelligence/vulnruntime -run 'TestCachedSourceProvider|TestHTTPProviderFallsBackToConfiguredSourceMirror' -count=1`
+proved refresh, offline replay, stale/missing fail-closed behavior, explicit
+cached fallback after live source failure, update-only refresh, and source
+mirror fallback. `go test ./cmd/collector-vulnerability-intelligence ./internal/workflow -run 'Test(LoadClaimedRuntimeConfig(SelectsVulnerabilityInstance|ParsesSourceCacheLifecycle)|VulnerabilityIntelligenceCollectorConfiguration(AcceptsBoundedTargets|AcceptsSourceCacheLifecycle|RejectsInvalidSourceCacheLifecycle|RejectsInvalidFallbackURL))' -count=1`
+proved runtime config and workflow validation for cache and mirror settings.
+
+Observability Evidence: cache state is surfaced through
+`vulnerability.source_snapshot` payload fields (`cache_artifact_version`,
+`cache_snapshot_digest`, `cache_updated_at`, `cache_expires_at`,
+`cache_freshness`, and `cache_mode`) and through API/MCP
+`readiness.source_snapshots[]`. No raw advisory payloads, package names, source
+URLs, or credentials are added to metric labels.
 
 ## Chunk 6: SBOM, Image, And Runtime Joins
 

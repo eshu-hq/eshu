@@ -14,8 +14,9 @@
 // seeds, local repo limits, or backend filters. S3 seeds require bucket, key,
 // region, and credentials through target scopes or a legacy AWS role ARN; S3
 // backend filters require the same credential routing before runtime. OCI
-// registry collector instances validate bounded repository targets, and package
+// registry collector instances validate bounded repository targets, package
 // registry collector instances validate bounded package metadata targets and
-// known document formats, so the coordinator can plan claimable work items
-// without opening provider connections.
+// known document formats, and vulnerability intelligence collector instances
+// validate bounded source targets, mirror URLs, source-cache modes, and cache
+// freshness durations before the coordinator plans claimable work items.
 package workflow

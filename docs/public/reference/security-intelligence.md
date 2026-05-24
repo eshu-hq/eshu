@@ -351,6 +351,10 @@ reducer-fact counts so the answer never invents findings:
   Eshu actually has for the caller. `package.registry` is only counted when
   the request anchors on a specific `package_id` (registry data without a
   package anchor is global metadata, not proof of repository consumption).
+- `source_snapshots[]` reports vulnerability source observation/cache metadata:
+  source, ecosystem, cache artifact version, snapshot digest, cache update time,
+  freshness, completion state, and bounded warning fields. Raw advisory bodies,
+  package names, and source URLs are not returned.
 - `missing_evidence[]` names absent required join families using the stable
   identifiers `advisory_sources`, `owned_packages`, `sbom_or_image_evidence`,
   `target_collection_incomplete`, and `readiness_unavailable`. The list is
@@ -417,18 +421,19 @@ through global registry metadata.
 Performance Evidence: focused query tests
 `go test ./internal/query -run 'SupplyChainImpactReadiness' -count=1` exercise
 not-configured, evidence-incomplete, ready-zero-findings, ready-with-findings,
-target-incomplete, and unsupported classifications against a recording store,
-plus the Postgres query shape contract. The readiness Postgres path runs one
-bounded CTE per response with seven anchored counts and a snapshot-completion
-roll-up; it adds one Postgres round trip alongside the existing impact-finding
-read.
+target-incomplete, source-snapshot cache metadata, and the Postgres query shape
+contract. The readiness Postgres path runs one bounded CTE per response with
+seven anchored counts and a source-snapshot roll-up; it adds one Postgres round
+trip alongside the existing impact-finding read.
 
 No-Observability-Change: the readiness path reuses the existing
 `query.supply_chain_impact_findings` span. The handler does not start a new
 graph query, queue claim, or reducer write, so the existing
 `eshu_dp_postgres_query_duration_seconds` histogram and the impact-findings
 HTTP/MCP envelope continue to expose latency, error, and truth metadata for
-the bounded readiness read.
+the bounded readiness read. Source-cache state is observable through
+`vulnerability.source_snapshot` payload fields and the `source_snapshots[]`
+readiness metadata.
 
 ## Advisory Source Coverage
 
@@ -517,6 +522,9 @@ second scanner product:
   fact emitters;
 - fetch only bounded advisory and package metadata required by observed owned
   packages unless the user explicitly asks for broader coverage;
+- support advisory source cache refresh, offline replay, explicit mirror
+  fallback, retention cleanup, and update-only source refresh without treating
+  cached source data as reducer-owned findings;
 - run the same vulnerability impact reducer logic used by hosted Eshu;
 - return the same finding, readiness, freshness, evidence-handle, and
   missing-evidence fields as API and MCP reads;
@@ -534,9 +542,11 @@ The current `eshu vuln-scan repo [path]` implementation covers the command
 registration, local root resolution, local service attach/start when no API is
 configured, scan readiness proof, repository-scoped impact read, JSON envelope,
 concise terminal summary, and fail-closed incomplete target behavior.
-Advisory/package cache freshness and fixture-backed vulnerable/ready-zero
-runtime proof remain implementation gates before this is a complete standalone
-vulnerability scan workflow.
+Advisory source cache lifecycle is implemented for vulnerability-intelligence
+source collection and exposed through readiness metadata. Package metadata
+cache freshness and fixture-backed vulnerable/ready-zero runtime proof remain
+implementation gates before this is a complete standalone vulnerability scan
+workflow.
 
 ## Acceptance Gates
 

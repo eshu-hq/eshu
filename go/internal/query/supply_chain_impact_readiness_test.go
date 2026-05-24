@@ -14,10 +14,10 @@ import (
 )
 
 type recordingSupplyChainImpactReadinessStore struct {
-	snapshot   SupplyChainImpactReadinessSnapshot
-	err        error
-	lastQuery  SupplyChainImpactReadinessQuery
-	calls      int
+	snapshot  SupplyChainImpactReadinessSnapshot
+	err       error
+	lastQuery SupplyChainImpactReadinessQuery
+	calls     int
 }
 
 func (s *recordingSupplyChainImpactReadinessStore) ReadSupplyChainImpactReadiness(
@@ -31,6 +31,7 @@ func (s *recordingSupplyChainImpactReadinessStore) ReadSupplyChainImpactReadines
 	}
 	clone := SupplyChainImpactReadinessSnapshot{
 		EvidenceSources:   append([]SupplyChainImpactEvidenceFamily(nil), s.snapshot.EvidenceSources...),
+		SourceSnapshots:   append([]SupplyChainImpactSourceSnapshot(nil), s.snapshot.SourceSnapshots...),
 		TargetIncomplete:  s.snapshot.TargetIncomplete,
 		IncompleteReasons: append([]string(nil), s.snapshot.IncompleteReasons...),
 	}
@@ -337,6 +338,52 @@ func TestBuildSupplyChainImpactReadinessNormalizesEvidenceSources(t *testing.T) 
 	}
 }
 
+func TestBuildSupplyChainImpactReadinessExposesSourceSnapshotCacheMetadata(t *testing.T) {
+	t.Parallel()
+
+	envelope := BuildSupplyChainImpactReadiness(
+		SupplyChainImpactTargetScope{CVEID: "CVE-2026-0001"},
+		nil,
+		false,
+		SupplyChainImpactReadinessSnapshot{
+			EvidenceSources: []SupplyChainImpactEvidenceFamily{
+				{Family: EvidenceFamilyVulnerabilityAdvisory, FactCount: 1, Freshness: FreshnessLabelFresh},
+			},
+			SourceSnapshots: []SupplyChainImpactSourceSnapshot{
+				{
+					Source:               "first_epss",
+					Ecosystem:            " ",
+					CacheArtifactVersion: "vulnerability-source-cache.v1",
+					SnapshotDigest:       "sha256:abc",
+					LastUpdatedAt:        "2026-05-24T12:01:00Z",
+					Freshness:            FreshnessLabelFresh,
+					Complete:             true,
+				},
+				{Source: " "},
+			},
+		},
+	)
+	if len(envelope.SourceSnapshots) != 1 {
+		t.Fatalf("source_snapshots = %#v, want one normalized snapshot", envelope.SourceSnapshots)
+	}
+	got := envelope.SourceSnapshots[0]
+	if got.Source != "first_epss" {
+		t.Fatalf("source = %q, want first_epss", got.Source)
+	}
+	if got.CacheArtifactVersion != "vulnerability-source-cache.v1" {
+		t.Fatalf("cache_artifact_version = %q", got.CacheArtifactVersion)
+	}
+	if got.SnapshotDigest != "sha256:abc" {
+		t.Fatalf("snapshot_digest = %q", got.SnapshotDigest)
+	}
+	if got.LastUpdatedAt != "2026-05-24T12:01:00Z" {
+		t.Fatalf("last_updated_at = %q", got.LastUpdatedAt)
+	}
+	if got.Freshness != FreshnessLabelFresh {
+		t.Fatalf("freshness = %q", got.Freshness)
+	}
+}
+
 func TestSupplyChainListImpactFindingsAttachesReadinessForZeroFindings(t *testing.T) {
 	t.Parallel()
 
@@ -525,6 +572,11 @@ func TestPostgresSupplyChainImpactReadinessQueryShape(t *testing.T) {
 		// surfaces all distinct warning messages.
 		`payload @> '{"complete": false}'::jsonb`,
 		"ARRAY_AGG(DISTINCT NULLIF(TRIM(payload->>'warning_message'), ''))",
+		"JSONB_STRIP_NULLS(JSONB_BUILD_OBJECT(",
+		"payload->>'cache_artifact_version'",
+		"payload->>'cache_snapshot_digest'",
+		"payload->>'cache_updated_at'",
+		"payload->>'cache_freshness'",
 	} {
 		if !strings.Contains(listSupplyChainImpactReadinessQuery, want) {
 			t.Fatalf("listSupplyChainImpactReadinessQuery missing %q:\n%s", want, listSupplyChainImpactReadinessQuery)

@@ -93,7 +93,9 @@ canonical graph or reducer truth.
 - `SupplyChainImpactReadinessStore` — port for bounded readiness counts
   (`supply_chain_impact_readiness.go`)
 - `PostgresSupplyChainImpactReadinessStore` — Postgres-backed readiness store
-  that runs one bounded CTE per impact-findings response
+  that runs one bounded CTE per impact-findings response and surfaces
+  vulnerability source-cache snapshot metadata while stripping absent optional
+  fields from the JSON rollup
   (`supply_chain_impact_readiness_postgres.go`)
 
 **Handler structs**
