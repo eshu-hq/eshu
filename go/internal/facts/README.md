@@ -165,7 +165,10 @@ Use `VulnerabilityIntelligenceFactKinds` when callers need the full accepted
 set, and `VulnerabilityIntelligenceSchemaVersion` when building
 vulnerability-intelligence envelopes. These facts are source truth only:
 reducers must decide package, image, workload, deployment, and fixed-version
-impact.
+impact. `vulnerability.source_snapshot` may carry advisory source-cache
+metadata such as cache artifact version, snapshot digest, update time,
+expiration, freshness, and cache mode; those fields describe source lifecycle
+only and must not be promoted into impact truth.
 
 Scanner-worker fact kinds use schema version `1.0.0` for the first isolated
 analyzer contract:

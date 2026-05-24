@@ -115,7 +115,10 @@ per-family fact counts and `latest_observed_at` for `vulnerability.advisory`,
 `sbom.component`, `sbom.attestation`, and `container_image.identity`, and
 returns the stable `missing_evidence` reasons `advisory_sources`,
 `owned_packages`, `sbom_or_image_evidence`, `target_collection_incomplete`,
-and `unsupported_target`. `PostgresSupplyChainImpactReadinessStore`
+and `readiness_unavailable`. The envelope also carries
+`source_snapshots[]` with source, ecosystem, cache artifact version, snapshot
+digest, cache update time, freshness, completion state, and bounded warning
+fields from `vulnerability.source_snapshot` facts. `PostgresSupplyChainImpactReadinessStore`
 (`supply_chain_impact_readiness_postgres.go:18`) runs one bounded CTE per
 response with seven anchored counts and a `vulnerability.source_snapshot`
 roll-up. The readiness path never invents findings, never duplicates reducer

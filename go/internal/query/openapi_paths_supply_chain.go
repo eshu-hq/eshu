@@ -123,6 +123,25 @@ const openAPIPathsSupplyChain = `
                             "required": ["family", "fact_count"]
                           }
                         },
+                        "source_snapshots": {
+                          "type": "array",
+                          "description": "Vulnerability source snapshot cache metadata; raw advisory payloads are not returned.",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "source": {"type": "string"},
+                              "ecosystem": {"type": "string"},
+                              "cache_artifact_version": {"type": "string"},
+                              "snapshot_digest": {"type": "string"},
+                              "last_updated_at": {"type": "string"},
+                              "freshness": {"type": "string", "enum": ["fresh", "stale", "unknown"]},
+                              "complete": {"type": "boolean"},
+                              "warning_code": {"type": "string"},
+                              "warning_message": {"type": "string"}
+                            },
+                            "required": ["source", "complete"]
+                          }
+                        },
                         "missing_evidence": {"type": "array", "items": {"type": "string", "enum": ["advisory_sources", "owned_packages", "sbom_or_image_evidence", "target_collection_incomplete", "readiness_unavailable"]}},
                         "incomplete_reasons": {"type": "array", "items": {"type": "string"}, "description": "Collector-emitted reasons explaining why source collection is still in flight; only present when readiness_state is target_incomplete."},
                         "freshness": {"type": "string", "enum": ["fresh", "stale", "unknown"]},

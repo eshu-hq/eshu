@@ -164,6 +164,10 @@ match yet`:
   `package.registry` is only counted when the request anchors on a specific
   `package_id`; repository-only requests cannot satisfy `owned_packages`
   through global registry metadata.
+- `source_snapshots[]` reports vulnerability source cache metadata:
+  `source`, optional `ecosystem`, `cache_artifact_version`, `snapshot_digest`,
+  `last_updated_at`, `freshness`, `complete`, and bounded warning fields. It
+  never returns raw advisory payloads.
 - `missing_evidence[]` names the absent required join families, such as
   `advisory_sources`, `owned_packages`, `sbom_or_image_evidence`,
   `target_collection_incomplete`, or `readiness_unavailable`. Reasons stay
