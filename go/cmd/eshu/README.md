@@ -25,6 +25,9 @@ orchestration. It does not own service runtime internals:
   - indexing: `scan`, `index`, `list`, `stats`, `delete`, `clean`, `query`,
     `watch`, `unwatch`, `watching`, `add-package`, `finalize` plus
     `i`/`ls`/`rm`/`w` aliases (`scan.go`, `basic.go`)
+  - security intelligence: `vuln-scan repo [path]` runs the local scan
+    readiness contract and reads repository-scoped supply-chain impact findings
+    through the API envelope (`vuln_scan.go`)
   - service tracing: `trace service <name>` renders the API service-story
     dossier through a canonical envelope-aware CLI consumer (`trace.go`)
   - documentation truth: `docs verify [path]` verifies local Markdown-family
@@ -71,6 +74,15 @@ launched runtime via the shared `telemetry` package. Errors print to
   Collector-complete and source-local projection-complete timings remain
   explicit `null` values in JSON because the bootstrap child logs those events
   today but does not expose parent-process structured timestamps.
+- `eshu vuln-scan repo [path]` reuses `eshu scan` root resolution, bootstrap,
+  and readiness proof before reading
+  `/api/v0/supply-chain/impact/findings?repository_id=<id>&limit=<n>`.
+  `--repo-id` bypasses repository selector resolution when the caller already
+  knows the exact repository id. The command exits fail-closed when the scan is
+  submitted, partial, failed, or cannot resolve a repository; it does not query
+  findings or print a clean zero-finding state until the target is ready.
+  The command is an API-backed reader and must not open graph or Postgres
+  connections directly.
 - `eshu trace service <name>` is a read-only CLI consumer of
   `/api/v0/services/{service_name}/story`. It asks the API for
   `application/eshu.envelope+json`, passes supported selectors through as

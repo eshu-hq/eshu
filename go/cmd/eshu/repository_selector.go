@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"path/filepath"
 	"slices"
 	"strings"
 
@@ -69,8 +70,9 @@ func resolveRepositorySelector(_ *cobra.Command, client *APIClient, selector str
 
 	matches := make([]string, 0, 1)
 	seen := make(map[string]struct{})
+	matcher := newRepositorySelectorMatcher(selector)
 	for _, repo := range response.Repositories {
-		if !repositorySelectorMatches(repo, selector) {
+		if !matcher.matches(repo) {
 			continue
 		}
 		if _, ok := seen[repo.ID]; ok {
@@ -92,10 +94,57 @@ func resolveRepositorySelector(_ *cobra.Command, client *APIClient, selector str
 }
 
 func repositorySelectorMatches(repo repositorySelectorEntry, selector string) bool {
-	switch selector {
-	case repo.ID, repo.Name, repo.Path, repo.LocalPath, repo.RepoSlug:
-		return true
-	default:
+	return newRepositorySelectorMatcher(selector).matches(repo)
+}
+
+type repositorySelectorMatcher struct {
+	selector        string
+	cleanSelector   string
+	realSelector    string
+	hasRealSelector bool
+}
+
+func newRepositorySelectorMatcher(selector string) repositorySelectorMatcher {
+	selector = strings.TrimSpace(selector)
+	matcher := repositorySelectorMatcher{
+		selector:      selector,
+		cleanSelector: filepath.Clean(selector),
+	}
+	if selector == "" {
+		return matcher
+	}
+	if realSelector, err := filepath.EvalSymlinks(selector); err == nil {
+		matcher.realSelector = realSelector
+		matcher.hasRealSelector = true
+	}
+	return matcher
+}
+
+func (m repositorySelectorMatcher) matches(repo repositorySelectorEntry) bool {
+	if m.selector == "" {
 		return false
 	}
+	if repo.ID == m.selector || repo.Name == m.selector || repo.RepoSlug == m.selector {
+		return true
+	}
+	if repo.Path == m.selector || repo.LocalPath == m.selector {
+		return true
+	}
+	return repositoryPathSelectorMatches(repo.Path, m) ||
+		repositoryPathSelectorMatches(repo.LocalPath, m)
+}
+
+func repositoryPathSelectorMatches(candidate string, matcher repositorySelectorMatcher) bool {
+	candidate = strings.TrimSpace(candidate)
+	if candidate == "" || matcher.selector == "" {
+		return false
+	}
+	if filepath.Clean(candidate) == matcher.cleanSelector {
+		return true
+	}
+	if !matcher.hasRealSelector {
+		return false
+	}
+	candidateReal, err := filepath.EvalSymlinks(candidate)
+	return err == nil && candidateReal == matcher.realSelector
 }

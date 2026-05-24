@@ -40,6 +40,7 @@ plain local source builds without a version override report `dev`.
 | Indexing and workspace management | `eshu scan`, `eshu index`, `eshu watch`, `eshu workspace`, `eshu list`, `eshu stats`, `eshu index-status` | [CLI Indexing](cli-indexing.md) and [Index Repositories](../use/index-repositories.md) |
 | Code search and analysis | `eshu find`, `eshu analyze`, `eshu query` | [CLI Analysis](cli-analysis.md), [Ask Code Questions](../use/code-questions.md), and [Language Query DSL](language-query-dsl.md) |
 | Code-to-cloud tracing | `eshu trace service`, `eshu map` | [Trace Infrastructure](../use/trace-infrastructure.md) and [Relationship Mapping](relationship-mapping.md) |
+| Security intelligence | `eshu vuln-scan repo` | [Security Intelligence](security-intelligence.md) |
 | Admin and status | `eshu admin`, API-backed status reads | [HTTP API Status/Admin](http-api/status-admin.md), [Runtime Admin API](runtime-admin-api.md), and [CLI K.I.S.S.](cli-kiss.md) |
 | Documentation truth | `eshu docs verify` | Local Markdown claim verification plus optional API-backed container-image truth checks. Use command help for flags. |
 | Components | `eshu component` | [Component Package Manager](component-package-manager.md) |

@@ -68,9 +68,12 @@ Security intelligence must work in two modes:
 | Local one-shot scan | Let a developer point the Eshu CLI at one repository and get vulnerability impact results without standing up the hosted control plane. | The CLI starts or attaches to local Eshu services, collects only the requested repository scope, fetches bounded advisory/package evidence, runs the same reducer-owned matching contract, and returns a local evidence envelope. |
 
 The local developer experience should feel like a direct vulnerability scan
-command. The candidate Eshu CLI subcommand shape is `vuln-scan repo`, but docs
-must not publish it as an implemented command until the Cobra command, tests,
-API contract, and local runtime proof exist.
+command. The initial implemented Eshu CLI shape is
+`eshu vuln-scan repo [path]`. It attaches to the configured API, runs the same
+local source indexing and readiness proof as `eshu scan`, resolves the scanned
+repository id, and reads reducer-owned impact findings from the bounded supply
+chain impact API. It must not claim a clean result unless the scan reaches a
+ready state and the impact read succeeds.
 
 The local mode cannot be a separate truth engine. It should reuse the same
 facts, target model, readiness states, matching rules, severity enrichment, and
@@ -206,8 +209,8 @@ The current vulnerability impact route is documented in
 
 ## CLI Contract
 
-The future local vulnerability scan command should be a thin orchestration
-layer, not a second scanner product:
+The local vulnerability scan command is a thin orchestration layer, not a
+second scanner product:
 
 - resolve one repository or workspace root using the same local source rules as
   the existing scan workflow;
@@ -227,6 +230,13 @@ layer, not a second scanner product:
 This keeps the developer experience simple while preserving the accuracy rule:
 the CLI can be convenient, but it must not produce a result that means
 something different from the hosted graph.
+
+The current `eshu vuln-scan repo [path]` implementation covers the command
+registration, local root resolution, scan readiness proof, repository-scoped
+impact read, JSON envelope, concise terminal summary, and fail-closed incomplete
+target behavior. Local service auto-start, advisory/package cache freshness,
+and fixture-backed vulnerable/ready-zero runtime proof remain implementation
+gates before this is a complete standalone vulnerability scan workflow.
 
 ## Acceptance Gates
 
