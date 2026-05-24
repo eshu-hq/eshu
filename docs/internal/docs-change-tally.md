@@ -170,6 +170,7 @@ branch. Regenerate them from
 | Shared Parser Mermaid Pass | Added a code-grounded shared parser dependency-boundary diagram to `go/internal/parser/shared/README.md` showing the parent dispatcher, shared helpers, language-owned parser packages, payload buckets, and collector materialization. |
 | Language Framework Boundary Pass | Added inline framework and library support boundaries to every public language parser page, clarified the central parser support matrix, and documented the evidence required for community framework-support pull requests. |
 | GHA CI Fix Pass | Fixed the GitHub Actions failures by restoring the Docker Compose NornicDB search/BM25 support note required by `internal/runtime`, replacing a Terraform verifier prefix guard with `strings.TrimPrefix`, and updating projector failure-classification reflection kind checks for current Go vet. |
+| Public Roadmap Refresh | Added a public roadmap page, linked it from the project navigation and release index, and corrected the public planning story so `v0.0.3-pre-release-*` is the active artifact train while vulnerability, runtime, collector, API/MCP, and deployment work remain proof-gated. |
 
 ## Verification Snapshot
 
@@ -213,8 +214,10 @@ Current pass proof:
   env families do not enter environment truth while concrete variables still do.
 - Current Go docs verifier result: 319 documents, 459 claims, 454 valid,
   0 contradicted, 0 missing evidence, and 5 unsupported shell-command claims.
-- Current full-repository docs verifier result: 572 documents, 1599 claims,
-  1584 valid, 0 contradicted, 0 missing evidence, and 15 unsupported
+- Current public-docs verifier result: 178 documents, 1149 claims, 1140 valid,
+  0 contradicted, 0 missing evidence, and 9 unsupported shell-command claims.
+- Current full-repository docs verifier result: 577 documents, 1639 claims,
+  1623 valid, 0 contradicted, 0 missing evidence, and 16 unsupported
   shell-command claims.
 - Focused docs verification passed for `docs/public`, `go/internal`, `go/cmd`,
   and `tests/fixtures`.
