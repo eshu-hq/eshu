@@ -12,4 +12,9 @@
 // fencing, and batch-drain hooks explicitly. Raw Terraform-state bytes do not
 // enter normal repository snapshots; only metadata-only state candidates are
 // emitted for the Terraform-state collector path to approve and read.
+//
+// The scannerworker subpackage is a contract package for future isolated
+// security analyzers. It defines claim input, target scope, resource limits,
+// source-fact output, and retry/dead-letter payloads, but it does not implement
+// analyzer execution.
 package collector

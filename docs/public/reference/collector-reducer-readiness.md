@@ -23,6 +23,11 @@ The implemented deployed collector lane is:
 - remote-E2E-gated vulnerability intelligence collection
 - webhook listener intake for Git provider events and AWS freshness triggers
 
+The scanner-worker boundary is a contract-only lane. It defines claim input,
+target scope, resource limits, source fact output, retry/dead-letter payloads,
+and telemetry names for future isolated security analyzers, but it is not a
+deployed collector lane and has no chart or Compose runtime yet.
+
 Do not add chart values for design-only collectors. A Helm knob is an operator
 promise; only chart collectors whose binary, fact contract, configuration, and
 runtime status path exist.
@@ -266,6 +271,7 @@ implemented:
 | --- | --- |
 | Kubernetes live | No hosted collector runtime or charted workload. |
 | SBOM and attestation | Fact contracts and reducer attachment exist; hosted collector wiring is not a deployed lane. |
+| Scanner workers | Claim, source-fact, failure-payload, resource-limit, and telemetry contracts exist; no hosted scanner runtime, Compose service, charted Deployment, or default reducer handoff exists. |
 | CI/CD runs | Fixture normalizer and reducer correlation exist; hosted provider polling is not a deployed lane. |
 | Service catalog, observability, incident/change, secrets/IAM posture, GCP, Azure, multi-cloud | Design or research only for deployed collector readiness. |
 

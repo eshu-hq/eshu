@@ -47,6 +47,10 @@ func TestNewInstrumentsNoError(t *testing.T) {
 	assert.NotNil(t, inst.VulnerabilityIntelligenceObservations, "VulnerabilityIntelligenceObservations counter should be registered")
 	assert.NotNil(t, inst.VulnerabilityIntelligenceFactsEmitted, "VulnerabilityIntelligenceFactsEmitted counter should be registered")
 	assert.NotNil(t, inst.VulnerabilityIntelligenceRateLimited, "VulnerabilityIntelligenceRateLimited counter should be registered")
+	assert.NotNil(t, inst.ScannerWorkerClaims, "ScannerWorkerClaims counter should be registered")
+	assert.NotNil(t, inst.ScannerWorkerRetries, "ScannerWorkerRetries counter should be registered")
+	assert.NotNil(t, inst.ScannerWorkerDeadLetters, "ScannerWorkerDeadLetters counter should be registered")
+	assert.NotNil(t, inst.ScannerWorkerFactsEmitted, "ScannerWorkerFactsEmitted counter should be registered")
 	assert.NotNil(t, inst.PackageSourceCorrelations, "PackageSourceCorrelations counter should be registered")
 	assert.NotNil(t, inst.ContainerImageIdentityDecisions, "ContainerImageIdentityDecisions counter should be registered")
 	assert.NotNil(t, inst.CICDRunCorrelations, "CICDRunCorrelations counter should be registered")
@@ -106,6 +110,12 @@ func TestNewInstrumentsNoError(t *testing.T) {
 	assert.NotNil(t, inst.PackageRegistryObserveDuration, "PackageRegistryObserveDuration histogram should be registered")
 	assert.NotNil(t, inst.PackageRegistryGenerationLag, "PackageRegistryGenerationLag histogram should be registered")
 	assert.NotNil(t, inst.VulnerabilityIntelligenceFetchDuration, "VulnerabilityIntelligenceFetchDuration histogram should be registered")
+	assert.NotNil(t, inst.ScannerWorkerQueueWaitDuration, "ScannerWorkerQueueWaitDuration histogram should be registered")
+	assert.NotNil(t, inst.ScannerWorkerScanDuration, "ScannerWorkerScanDuration histogram should be registered")
+	assert.NotNil(t, inst.ScannerWorkerTargetCount, "ScannerWorkerTargetCount histogram should be registered")
+	assert.NotNil(t, inst.ScannerWorkerResultCount, "ScannerWorkerResultCount histogram should be registered")
+	assert.NotNil(t, inst.ScannerWorkerCPUSeconds, "ScannerWorkerCPUSeconds histogram should be registered")
+	assert.NotNil(t, inst.ScannerWorkerMemoryBytes, "ScannerWorkerMemoryBytes histogram should be registered")
 	assert.NotNil(t, inst.ConfluenceFetchDuration, "ConfluenceFetchDuration histogram should be registered")
 	assert.NotNil(t, inst.WebhookRequestDuration, "WebhookRequestDuration histogram should be registered")
 	assert.NotNil(t, inst.WebhookStoreDuration, "WebhookStoreDuration histogram should be registered")
@@ -155,6 +165,21 @@ func TestAttrHelpers(t *testing.T) {
 			name:     "AttrCollectorKind",
 			attrFunc: func(v string) string { return string(AttrCollectorKind(v).Key) },
 			wantKey:  MetricDimensionCollectorKind,
+		},
+		{
+			name:     "AttrAnalyzer",
+			attrFunc: func(v string) string { return string(AttrAnalyzer(v).Key) },
+			wantKey:  MetricDimensionAnalyzer,
+		},
+		{
+			name:     "AttrTargetKind",
+			attrFunc: func(v string) string { return string(AttrTargetKind(v).Key) },
+			wantKey:  MetricDimensionTargetKind,
+		},
+		{
+			name:     "AttrLimitKind",
+			attrFunc: func(v string) string { return string(AttrLimitKind(v).Key) },
+			wantKey:  MetricDimensionLimitKind,
 		},
 		{
 			name:     "AttrDomain",

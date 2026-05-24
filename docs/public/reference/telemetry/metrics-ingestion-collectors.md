@@ -71,6 +71,29 @@ metric labels.
 Registry hosts, repositories, tags, digests, package names, versions, feed URLs,
 artifact paths, and credentials stay out of labels.
 
+## Scanner-Worker Boundary
+
+Scanner-worker metrics are reserved for future isolated security analyzers.
+They are part of the telemetry contract now so runtime implementations do not
+invent local labels.
+
+| Metric | Key labels | Use |
+| --- | --- | --- |
+| `eshu_dp_scanner_worker_claims_total` | `analyzer`, `target_kind`, `outcome` | Scanner-worker claims started, completed, failed, or skipped. |
+| `eshu_dp_scanner_worker_retries_total` | `analyzer`, `target_kind`, `failure_class` | Retryable scanner-worker failures. |
+| `eshu_dp_scanner_worker_dead_letters_total` | `analyzer`, `target_kind`, `failure_class` | Terminal scanner-worker failures. |
+| `eshu_dp_scanner_worker_facts_emitted_total` | `analyzer`, `target_kind`, `fact_kind` | Source facts emitted by scanner workers. |
+| `eshu_dp_scanner_worker_queue_wait_seconds` | `analyzer`, `target_kind` | Work-item age when claim processing starts. |
+| `eshu_dp_scanner_worker_scan_duration_seconds` | `analyzer`, `target_kind`, `result` | Analyzer execution duration. |
+| `eshu_dp_scanner_worker_target_count` | `analyzer`, `target_kind` | Bounded targets processed by one claim. |
+| `eshu_dp_scanner_worker_result_count` | `analyzer`, `target_kind` | Source results emitted by one claim. |
+| `eshu_dp_scanner_worker_cpu_seconds` | `analyzer`, `target_kind`, `result` | CPU seconds consumed by analyzer execution. |
+| `eshu_dp_scanner_worker_memory_bytes` | `analyzer`, `target_kind`, `result` | Peak scanner-worker memory use. |
+
+Analyzer, target, limit, failure, fact-kind, outcome, and result labels must
+come from bounded enums. Raw repository paths, image names, registry URLs,
+package coordinates, bucket keys, and source locators stay out of labels.
+
 ## AWS Cloud Collector
 
 | Metric | Key labels | Use |

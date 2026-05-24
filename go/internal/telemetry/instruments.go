@@ -77,6 +77,10 @@ type Instruments struct {
 	VulnerabilityIntelligenceObservations     metric.Int64Counter
 	VulnerabilityIntelligenceFactsEmitted     metric.Int64Counter
 	VulnerabilityIntelligenceRateLimited      metric.Int64Counter
+	ScannerWorkerClaims                       metric.Int64Counter
+	ScannerWorkerRetries                      metric.Int64Counter
+	ScannerWorkerDeadLetters                  metric.Int64Counter
+	ScannerWorkerFactsEmitted                 metric.Int64Counter
 	PackageSourceCorrelations                 metric.Int64Counter
 	ContainerImageIdentityDecisions           metric.Int64Counter
 	CICDRunCorrelations                       metric.Int64Counter
@@ -212,6 +216,12 @@ type Instruments struct {
 	PackageRegistryObserveDuration         metric.Float64Histogram
 	PackageRegistryGenerationLag           metric.Float64Histogram
 	VulnerabilityIntelligenceFetchDuration metric.Float64Histogram
+	ScannerWorkerQueueWaitDuration         metric.Float64Histogram
+	ScannerWorkerScanDuration              metric.Float64Histogram
+	ScannerWorkerTargetCount               metric.Int64Histogram
+	ScannerWorkerResultCount               metric.Int64Histogram
+	ScannerWorkerCPUSeconds                metric.Float64Histogram
+	ScannerWorkerMemoryBytes               metric.Int64Histogram
 	ConfluenceFetchDuration                metric.Float64Histogram
 	AWSScanDuration                        metric.Float64Histogram
 	ScopeAssignDuration                    metric.Float64Histogram
@@ -575,6 +585,38 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 		return nil, fmt.Errorf("register VulnerabilityIntelligenceRateLimited counter: %w", err)
 	}
 
+	inst.ScannerWorkerClaims, err = meter.Int64Counter(
+		"eshu_dp_scanner_worker_claims_total",
+		metric.WithDescription("Total scanner-worker workflow claims by analyzer, target kind, and outcome"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register ScannerWorkerClaims counter: %w", err)
+	}
+
+	inst.ScannerWorkerRetries, err = meter.Int64Counter(
+		"eshu_dp_scanner_worker_retries_total",
+		metric.WithDescription("Total scanner-worker retryable failures by analyzer, target kind, and failure class"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register ScannerWorkerRetries counter: %w", err)
+	}
+
+	inst.ScannerWorkerDeadLetters, err = meter.Int64Counter(
+		"eshu_dp_scanner_worker_dead_letters_total",
+		metric.WithDescription("Total scanner-worker terminal failures by analyzer, target kind, and failure class"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register ScannerWorkerDeadLetters counter: %w", err)
+	}
+
+	inst.ScannerWorkerFactsEmitted, err = meter.Int64Counter(
+		"eshu_dp_scanner_worker_facts_emitted_total",
+		metric.WithDescription("Total scanner-worker source facts emitted by analyzer, target kind, and fact kind"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register ScannerWorkerFactsEmitted counter: %w", err)
+	}
+
 	inst.PackageSourceCorrelations, err = meter.Int64Counter(
 		"eshu_dp_package_source_correlations_total",
 		metric.WithDescription("Total package source-correlation decisions by reducer domain and outcome"),
@@ -930,6 +972,69 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register VulnerabilityIntelligenceFetchDuration histogram: %w", err)
+	}
+
+	scannerWorkerWaitBuckets := []float64{0.001, 0.01, 0.1, 1, 5, 10, 30, 60, 300, 900, 1800, 3600, 21600}
+	inst.ScannerWorkerQueueWaitDuration, err = meter.Float64Histogram(
+		"eshu_dp_scanner_worker_queue_wait_seconds",
+		metric.WithDescription("Scanner-worker work item age when claim processing starts"),
+		metric.WithUnit("s"),
+		metric.WithExplicitBucketBoundaries(scannerWorkerWaitBuckets...),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register ScannerWorkerQueueWaitDuration histogram: %w", err)
+	}
+
+	scannerWorkerScanBuckets := []float64{0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60, 120, 300, 600, 1200}
+	inst.ScannerWorkerScanDuration, err = meter.Float64Histogram(
+		"eshu_dp_scanner_worker_scan_duration_seconds",
+		metric.WithDescription("Scanner-worker analyzer execution duration by analyzer, target kind, and result"),
+		metric.WithUnit("s"),
+		metric.WithExplicitBucketBoundaries(scannerWorkerScanBuckets...),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register ScannerWorkerScanDuration histogram: %w", err)
+	}
+
+	scannerWorkerCountBuckets := []float64{1, 10, 100, 1000, 10000, 100000}
+	inst.ScannerWorkerTargetCount, err = meter.Int64Histogram(
+		"eshu_dp_scanner_worker_target_count",
+		metric.WithDescription("Number of bounded targets processed by one scanner-worker claim"),
+		metric.WithExplicitBucketBoundaries(scannerWorkerCountBuckets...),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register ScannerWorkerTargetCount histogram: %w", err)
+	}
+
+	inst.ScannerWorkerResultCount, err = meter.Int64Histogram(
+		"eshu_dp_scanner_worker_result_count",
+		metric.WithDescription("Number of scanner-worker source results emitted by one claim"),
+		metric.WithExplicitBucketBoundaries(scannerWorkerCountBuckets...),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register ScannerWorkerResultCount histogram: %w", err)
+	}
+
+	scannerWorkerCPUBuckets := []float64{0.01, 0.1, 1, 10, 30, 60, 120, 300, 600, 1800}
+	inst.ScannerWorkerCPUSeconds, err = meter.Float64Histogram(
+		"eshu_dp_scanner_worker_cpu_seconds",
+		metric.WithDescription("Scanner-worker CPU seconds consumed by analyzer, target kind, and result"),
+		metric.WithUnit("s"),
+		metric.WithExplicitBucketBoundaries(scannerWorkerCPUBuckets...),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register ScannerWorkerCPUSeconds histogram: %w", err)
+	}
+
+	scannerWorkerMemoryBuckets := []float64{1048576, 16777216, 67108864, 268435456, 1073741824, 2147483648, 4294967296, 8589934592, 17179869184}
+	inst.ScannerWorkerMemoryBytes, err = meter.Int64Histogram(
+		"eshu_dp_scanner_worker_memory_bytes",
+		metric.WithDescription("Scanner-worker peak memory bytes by analyzer, target kind, and result"),
+		metric.WithUnit("By"),
+		metric.WithExplicitBucketBoundaries(scannerWorkerMemoryBuckets...),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register ScannerWorkerMemoryBytes histogram: %w", err)
 	}
 
 	confluenceFetchBuckets := []float64{0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60}
@@ -1682,6 +1787,21 @@ func AttrGenerationID(v string) attribute.KeyValue {
 // AttrCollectorKind returns a collector_kind attribute for metric recording.
 func AttrCollectorKind(v string) attribute.KeyValue {
 	return attribute.String(MetricDimensionCollectorKind, v)
+}
+
+// AttrAnalyzer returns an analyzer attribute for scanner-worker metrics.
+func AttrAnalyzer(v string) attribute.KeyValue {
+	return attribute.String(MetricDimensionAnalyzer, v)
+}
+
+// AttrTargetKind returns a target_kind attribute for scanner-worker metrics.
+func AttrTargetKind(v string) attribute.KeyValue {
+	return attribute.String(MetricDimensionTargetKind, v)
+}
+
+// AttrLimitKind returns a limit_kind attribute for scanner-worker metrics.
+func AttrLimitKind(v string) attribute.KeyValue {
+	return attribute.String(MetricDimensionLimitKind, v)
 }
 
 // AttrDomain returns a domain attribute for metric recording.

@@ -31,6 +31,30 @@ When changing queue or worker behavior, also prove:
 - ack failures emit logs and metrics
 - structured logs keep failure class, queue name, and work item identity
 
+## Scanner-Worker Resource Isolation
+
+Scanner workers are not enabled as a hosted runtime yet. The contract exists so
+future CPU-heavy or memory-heavy analyzers can be isolated before they contend
+with reducer drain.
+
+When a scanner-worker runtime is added, prove these signals before turning it
+on by default:
+
+- workflow claim age, lease renewal, retry, and dead-letter behavior;
+- analyzer wall time, CPU seconds, peak memory bytes, target count, and result
+  count;
+- fact output count and fact kind, with scanner workers emitting source facts
+  only;
+- pprof access on a private address for the worker process;
+- no raw target locators in metric labels, retry payloads, or dead-letter
+  payloads.
+
+Use the resource envelope in
+[Security Intelligence](../security-intelligence.md#resource-and-deployment-guidance)
+as the starting point for Compose and Kubernetes tests. A scanner worker that
+needs higher limits should get a separate pool or Deployment rather than
+raising reducer memory.
+
 ## Process Profiling
 
 Each Go runtime binary ships an opt-in `net/http/pprof` endpoint. It is

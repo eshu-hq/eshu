@@ -208,6 +208,24 @@ func TestCollectorContractForVulnerabilityIntelligenceHasNoOperationalKeyspaces(
 	}
 }
 
+func TestCollectorContractForScannerWorkerHasNoOperationalKeyspaces(t *testing.T) {
+	t.Parallel()
+
+	contract, ok := CollectorContractFor(scope.CollectorScannerWorker)
+	if !ok {
+		t.Fatalf("CollectorContractFor(%q) found = false, want true", scope.CollectorScannerWorker)
+	}
+	if contract.CollectorKind != scope.CollectorScannerWorker {
+		t.Fatalf("CollectorKind = %q, want %q", contract.CollectorKind, scope.CollectorScannerWorker)
+	}
+	if len(contract.CanonicalKeyspaces) != 0 {
+		t.Fatalf("CanonicalKeyspaces = %#v, want empty because scanner workers emit source facts only", contract.CanonicalKeyspaces)
+	}
+	if len(contract.RequiredPhases) != 0 {
+		t.Fatalf("RequiredPhases = %#v, want empty because reducers own scanner-derived truth", contract.RequiredPhases)
+	}
+}
+
 func TestCollectorContractForReturnsClonedSlices(t *testing.T) {
 	t.Parallel()
 

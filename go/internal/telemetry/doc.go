@@ -44,6 +44,11 @@
 // classify each skip's cause via the closed-enum reason label; the
 // high-cardinality companions (attribute_key, source path, error) stay in
 // the LogKeyDriftComposite* log attrs and out of metric labels.
+// Scanner-worker contracts register analyzer, target_kind, and limit_kind
+// dimensions plus claim, analyzer execution, and fact batch spans so isolated
+// security analyzer runtimes can prove queue age, duration, CPU, memory,
+// retry, dead-letter, target count, and result count without inventing local
+// labels.
 // Callers must reuse existing log keys and Attr* helpers before adding new
 // names. High-cardinality values such as file paths, fact identifiers,
 // repository names, delivery IDs, source paths, and attribute keys belong in
