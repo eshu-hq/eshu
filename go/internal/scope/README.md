@@ -41,10 +41,12 @@ this. `TransitionTo` enforces the table; forbidden transitions return an error.
 
 - `ScopeKind` — `KindRepository`, `KindAccount`, `KindRegion`, `KindCluster`,
   `KindStateSnapshot`, `KindEventTrigger`, `KindDocumentationSource`,
-  `KindContainerRegistryRepository`, `KindPackageRegistry`
+  `KindContainerRegistryRepository`, `KindPackageRegistry`,
+  `KindVulnerabilityIntelligence`, `KindScannerWorker`
 - `CollectorKind` — `CollectorGit`, `CollectorAWS`, `CollectorTerraformState`,
   `CollectorWebhook`, `CollectorDocumentation`, `CollectorOCIRegistry`,
-  `CollectorPackageRegistry`
+  `CollectorPackageRegistry`, `CollectorVulnerabilityIntelligence`,
+  `CollectorScannerWorker`
 - `TriggerKind` — `TriggerKindSnapshot`
 - `GenerationStatus` — `GenerationStatusPending`, `GenerationStatusActive`,
   `GenerationStatusSuperseded`, `GenerationStatusCompleted`,
@@ -97,6 +99,10 @@ This package emits no metrics, spans, or logs.
 - Terraform state scope identity stays stable across serials. The scope is
   keyed by backend kind and locator hash; serial and lineage belong to the
   `ScopeGeneration`.
+- Scanner-worker scope identity is a bounded analyzer target. It must not carry
+  raw repository paths, image names, registry URLs, or other private locators in
+  operator-facing retry or dead-letter payloads; use safe locator hashes for
+  those diagnostics.
 
 ## Related docs
 

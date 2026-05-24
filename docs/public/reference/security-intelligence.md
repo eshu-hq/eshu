@@ -155,6 +155,136 @@ Scaling rules:
   retry counts, dead-letter counts, and target cardinality to decide where the
   bottleneck lives.
 
+## Scanner-Worker Boundary
+
+Scanner workers are a claim-driven isolation boundary for CPU-heavy or
+memory-heavy security analysis. They do not replace reducers, and they do not
+publish user-facing findings. They take one bounded claim, run an analyzer
+inside explicit resource limits, and emit source facts back to the normal fact
+store.
+
+Current contract flow:
+
+```mermaid
+flowchart LR
+  coordinator["Workflow coordinator<br/>plans scanner_worker work item"]
+  workflow["workflow.WorkItem + workflow.Claim<br/>claim id and fencing token"]
+  scanner_contract["scannerworker.ClaimInput<br/>target scope + resource limits"]
+  analyzer["isolated analyzer process<br/>CPU and memory bounded"]
+  source_facts["scanner_worker.* source facts<br/>fenced fact envelopes"]
+  fact_store["Postgres fact store"]
+  reducer["reducers<br/>finding admission and priority truth"]
+  reads["API and MCP reads<br/>findings + readiness"]
+  telemetry["OTEL metrics and spans<br/>queue age, duration, CPU, memory"]
+
+  coordinator --> workflow
+  workflow --> scanner_contract
+  scanner_contract --> analyzer
+  analyzer --> source_facts
+  source_facts --> fact_store
+  fact_store --> reducer
+  reducer --> reads
+  scanner_contract --> telemetry
+  analyzer --> telemetry
+```
+
+The claim input contains:
+
+- `work_item_id`, `claim_id`, `fencing_token`, `owner_id`, `attempt`, and claim
+  timestamps copied from workflow state;
+- `analyzer`, which must route to the `scanner_worker` lane;
+- target scope: `target_kind`, `scope_id`, `acceptance_unit_id`,
+  `source_run_id`, `generation_id`, and a safe `locator_hash`;
+- resource limits: CPU millicores, memory bytes, timeout, maximum input bytes,
+  maximum file count, and maximum emitted fact count.
+
+The fact output contains `target_count`, `result_count`, and a list of fenced
+`facts.Envelope` source facts. A scanner worker must emit either a source fact
+or an explicit warning fact for a completed claim. Silent "clean" output is not
+accepted because callers could not distinguish a proven clean target from an
+analyzer that produced no evidence. Reducer-owned fact kinds such as
+`reducer_*_finding` are rejected at the scanner-worker boundary.
+
+Retry and dead-letter payloads carry only bounded diagnostic fields:
+`work_item_id`, `claim_id`, `fencing_token`, `analyzer`, `target_kind`,
+`target_locator_hash`, `failure_class`, disposition, retryability, attempt,
+CPU seconds, and peak memory bytes. They must not include raw repository paths,
+image names, registry URLs, package coordinates, bucket keys, or source
+locators.
+
+Analyzer lane ownership:
+
+| Analyzer profile | Lane | Reason |
+| --- | --- | --- |
+| SBOM generation | `scanner_worker` | Can read large inputs and produce many component facts. |
+| Image unpacking | `scanner_worker` | CPU, disk, and memory pressure must be isolated. |
+| Source analysis | `scanner_worker` | Repository-size dependent CPU and memory cost. |
+| OS package extraction | `scanner_worker` | Image/rootfs extraction belongs outside reducers. |
+| Secret scanning | `scanner_worker` | High-cardinality file scanning with bounded output. |
+| License scanning | `scanner_worker` | Repository-wide scan that should not block reducer drains. |
+| Misconfiguration scanning | `scanner_worker` | Analyzer-specific CPU and memory limits are required. |
+| Vulnerability matching | `reducer` | Reducers own joins across package, advisory, image, workload, and ownership evidence. |
+| Coverage readiness | `reducer` | Readiness is a truth model over collected evidence. |
+| Security priority | `reducer` | Priority needs reducer-owned impact, exploitability, runtime, and ownership context. |
+
+## Resource And Deployment Guidance
+
+This slice defines the contract only. It does not enable a hosted
+scanner-worker Deployment, Docker Compose service, Helm value, or CLI scanner
+runtime. Do not make scanner workers a hosted default until an implementation
+proves queue drain, retries, dead letters, pprof access, CPU, memory, target
+count, result count, and fact output under the same deployment shape operators
+will run.
+
+Starting resource envelopes for a future Kubernetes Deployment:
+
+| Analyzer class | Request | Limit | Contract limits to start with |
+| --- | --- | --- | --- |
+| Repository source analysis, secret, license, or misconfiguration scan | `cpu=1`, `memory=2Gi` | `cpu=4`, `memory=4Gi` | `timeout=10m`, `max_files=250000`, `max_facts=50000` |
+| SBOM generation or OS package extraction | `cpu=1`, `memory=2Gi` | `cpu=4`, `memory=8Gi` | `timeout=10m`, `max_input_bytes=2Gi`, `max_facts=50000` |
+| Image unpacking | `cpu=2`, `memory=4Gi` | `cpu=6`, `memory=12Gi` | `timeout=15m`, `max_input_bytes=4Gi`, `max_facts=50000` |
+
+Use a separate worker pool per analyzer class when those envelopes diverge.
+Do not co-locate scanner workers with reducers until pprof and metrics show the
+analyzer cannot contend with reducer queue drain. In Compose proofs, keep
+pprof bound to host loopback. In Kubernetes, expose pprof only through a
+temporary port-forward or a protected debug path, never through the public
+service.
+
+## Scanner Observability
+
+The telemetry contract reserves these scanner-worker signals before runtime
+implementation:
+
+- counters: `eshu_dp_scanner_worker_claims_total`,
+  `eshu_dp_scanner_worker_retries_total`,
+  `eshu_dp_scanner_worker_dead_letters_total`,
+  `eshu_dp_scanner_worker_facts_emitted_total`;
+- histograms: `eshu_dp_scanner_worker_queue_wait_seconds`,
+  `eshu_dp_scanner_worker_scan_duration_seconds`,
+  `eshu_dp_scanner_worker_target_count`,
+  `eshu_dp_scanner_worker_result_count`,
+  `eshu_dp_scanner_worker_cpu_seconds`,
+  `eshu_dp_scanner_worker_memory_bytes`;
+- spans: `scanner_worker.claim.process`, `scanner_worker.analyze`, and
+  `scanner_worker.fact.emit_batch`;
+- bounded dimensions: `analyzer`, `target_kind`, `limit_kind`,
+  `failure_class`, `fact_kind`, `outcome`, and `result`.
+
+Operators should be able to answer whether the bottleneck is waiting to claim,
+running the analyzer, hitting a resource limit, producing too many facts,
+retrying transiently, or dead-lettering terminally without reading raw target
+names.
+
+No-Regression Evidence: the scanner-worker boundary is contract-only and ran
+`go test ./internal/collector/scannerworker ./internal/facts ./internal/scope ./internal/workflow ./internal/telemetry -run 'Test(AnalyzerProfilesRouteHeavyAnalyzersToScannerWorkers|NewClaimInput|ValidateFactOutput|FailurePayload|ScannerWorkerFactKindRegistry|IngestionScopeValidateAllowsAdditional|CollectorContractForScannerWorker|ScannerWorkerTelemetryContractNames)' -count=1`.
+That proof covers lane routing, workflow claim copying, non-scanner claim
+rejection, silent-clean rejection, reducer fact rejection, fenced source facts,
+privacy-safe dead-letter payloads, scanner source fact kinds, scope and
+collector registration, workflow phase contract shape, and telemetry names.
+It changes no reducer queues, worker counts, graph writes, CLI scanner files,
+NornicDB settings, Compose services, or Helm defaults.
+
 ## Readiness Semantics
 
 Every API or MCP security answer should carry enough readiness context for the

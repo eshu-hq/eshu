@@ -115,6 +115,10 @@ gauge when a shared-acceptance observer is available.
 | `VulnerabilityIntelligenceObservations` | `eshu_dp_vulnerability_intelligence_observations_total` |
 | `VulnerabilityIntelligenceFactsEmitted` | `eshu_dp_vulnerability_intelligence_facts_emitted_total` |
 | `VulnerabilityIntelligenceRateLimited` | `eshu_dp_vulnerability_intelligence_rate_limited_total` |
+| `ScannerWorkerClaims` | `eshu_dp_scanner_worker_claims_total` |
+| `ScannerWorkerRetries` | `eshu_dp_scanner_worker_retries_total` |
+| `ScannerWorkerDeadLetters` | `eshu_dp_scanner_worker_dead_letters_total` |
+| `ScannerWorkerFactsEmitted` | `eshu_dp_scanner_worker_facts_emitted_total` |
 | `PackageSourceCorrelations` | `eshu_dp_package_source_correlations_total` |
 | `ContainerImageIdentityDecisions` | `eshu_dp_container_image_identity_decisions_total` |
 | `CICDRunCorrelations` | `eshu_dp_ci_cd_run_correlations_total` |
@@ -170,6 +174,12 @@ module prefixes across generations.
 | `PackageRegistryObserveDuration` | `eshu_dp_package_registry_observe_duration_seconds` | 0.01–60 s |
 | `PackageRegistryGenerationLag` | `eshu_dp_package_registry_generation_lag_seconds` | 0.01–60 s |
 | `VulnerabilityIntelligenceFetchDuration` | `eshu_dp_vulnerability_intelligence_fetch_duration_seconds` | 0.01–60 s |
+| `ScannerWorkerQueueWaitDuration` | `eshu_dp_scanner_worker_queue_wait_seconds` | 0.001–21600 s |
+| `ScannerWorkerScanDuration` | `eshu_dp_scanner_worker_scan_duration_seconds` | 0.05–1200 s |
+| `ScannerWorkerTargetCount` | `eshu_dp_scanner_worker_target_count` (Int64) | 1–100000 targets |
+| `ScannerWorkerResultCount` | `eshu_dp_scanner_worker_result_count` (Int64) | 1–100000 results |
+| `ScannerWorkerCPUSeconds` | `eshu_dp_scanner_worker_cpu_seconds` | 0.01–1800 s |
+| `ScannerWorkerMemoryBytes` | `eshu_dp_scanner_worker_memory_bytes` (Int64) | 1 MiB–16 GiB |
 | `ConfluenceFetchDuration` | `eshu_dp_confluence_fetch_duration_seconds` | 0.01–60 s |
 | `ScopeAssignDuration` | `eshu_dp_scope_assign_duration_seconds` | default |
 | `FactEmitDuration` | `eshu_dp_fact_emit_duration_seconds` | default |
@@ -242,7 +252,8 @@ Pipeline spans: `SpanCollectorObserve`, `SpanCollectorStream`, `SpanScopeAssign`
 `SpanQueryCallGraphMetrics`, `SpanQueryChangeSurfaceInvestigation`,
 `SpanQueryPackageRegistryPackages`, `SpanQueryPackageRegistryVersions`,
 `SpanQueryPackageRegistryDependencies`,
-`SpanTerraformStateClaimProcess`,
+`SpanScannerWorkerClaimProcess`, `SpanScannerWorkerAnalyze`,
+`SpanScannerWorkerFactEmitBatch`, `SpanTerraformStateClaimProcess`,
 `SpanTerraformStateDiscoveryResolve`, `SpanTerraformStateSourceOpen`,
 `SpanTerraformStateParserStream`, `SpanTerraformStateFactEmitBatch`,
 `SpanTerraformStateCoordinatorDone`, `SpanWebhookHandle`, `SpanWebhookStore`,
@@ -282,6 +293,9 @@ Pipeline phase constants (defined in `logging.go`): `PhaseDiscovery`,
 Attribute helpers — typed constructors for every metric dimension key, for
 example `AttrDomain`, `AttrScopeID`, `AttrWritePhase`; use these rather than
 `attribute.String` literals when recording metrics.
+Scanner-worker labels use `AttrAnalyzer`, `AttrTargetKind`, and
+`AttrLimitKind`; values must come from bounded analyzer, target, and limit
+enums, not paths, package names, registry URLs, or raw locators.
 Webhook listener labels use `AttrProvider`, `AttrEventKind`, `AttrDecision`,
 `AttrStatus`, `AttrOutcome`, and `AttrReason` so provider intake stays on the
 same bounded vocabulary as the rest of the data plane.

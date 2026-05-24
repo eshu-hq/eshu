@@ -7,10 +7,12 @@
 // observed snapshot and tracks the pending -> active ->
 // (superseded | completed | failed) lifecycle through an explicit transition
 // table. Validation rejects unknown statuses, blank identifiers, zero
-// timestamps, and forbidden transitions. Terraform state helpers create stable
-// state-snapshot scopes from backend kind plus locator hash, while generation
-// identity carries state serial and lineage so serial changes do not rewrite
-// the scope boundary. The state-snapshot scope hash MUST agree with
-// terraformstate.ScopeLocatorHash byte-for-byte; the drift resolver join
-// breaks if the two diverge (issue #203).
+// timestamps, and forbidden transitions. Scanner-worker scopes represent
+// bounded security analyzer work and keep resource-heavy scanning separate from
+// reducer-owned truth. Terraform state helpers create stable state-snapshot
+// scopes from backend kind plus locator hash, while generation identity carries
+// state serial and lineage so serial changes do not rewrite the scope boundary.
+// The state-snapshot scope hash MUST agree with terraformstate.ScopeLocatorHash
+// byte-for-byte; the drift resolver join breaks if the two diverge (issue
+// #203).
 package scope

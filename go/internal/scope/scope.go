@@ -30,6 +30,8 @@ const (
 	KindPackageRegistry ScopeKind = "package_registry"
 	// KindVulnerabilityIntelligence represents a vulnerability source scope.
 	KindVulnerabilityIntelligence ScopeKind = "vulnerability_intelligence"
+	// KindScannerWorker represents a bounded security analyzer work scope.
+	KindScannerWorker ScopeKind = "scanner_worker"
 )
 
 // CollectorKind identifies the collector family that owns the scope.
@@ -52,6 +54,8 @@ const (
 	CollectorPackageRegistry CollectorKind = "package_registry"
 	// CollectorVulnerabilityIntelligence represents the vulnerability source collector.
 	CollectorVulnerabilityIntelligence CollectorKind = "vulnerability_intelligence"
+	// CollectorScannerWorker represents isolated security analyzer workers.
+	CollectorScannerWorker CollectorKind = "scanner_worker"
 )
 
 // TriggerKind identifies how a generation was produced.

@@ -167,6 +167,17 @@ vulnerability-intelligence envelopes. These facts are source truth only:
 reducers must decide package, image, workload, deployment, and fixed-version
 impact.
 
+Scanner-worker fact kinds use schema version `1.0.0` for the first isolated
+analyzer contract:
+
+- `scanner_worker.analysis`
+- `scanner_worker.warning`
+
+Use `ScannerWorkerFactKinds` when callers need the accepted scanner-worker
+source fact set, and `ScannerWorkerSchemaVersion` when building source fact
+envelopes. Scanner-worker facts are source evidence only. Reducers must admit
+security findings, coverage, priority, and remediation truth from those facts.
+
 Service catalog fact kinds use schema version `1.0.0` for the first collector
 contract:
 

@@ -115,7 +115,8 @@ Types in this package flow through four phases of the workflow control plane:
   `RequiredPhasesForCollector` — lookup table of required reducer phases per
   collector family; registered entries: `CollectorGit`,
   `CollectorTerraformState`, `CollectorAWS`, `CollectorWebhook`,
-  `CollectorDocumentation`, `CollectorOCIRegistry`
+  `CollectorDocumentation`, `CollectorOCIRegistry`, `CollectorPackageRegistry`,
+  `CollectorVulnerabilityIntelligence`, `CollectorScannerWorker`
 - `PhaseRequirement`, `PhasePublicationKey` — per-phase requirement and
   publication checkpoint key types
 
@@ -165,6 +166,13 @@ OSV npm package-version targets from active owned dependency facts only when
 the dependency carries an exact version. Manifest ranges, aliases, workspace
 references, file/git references, and `latest` remain partial evidence and are
 not promoted into OSV package-version collection targets.
+
+`scanner_worker` work items reserve the workflow boundary for isolated security
+analyzers. A scanner-worker claim copies the active work item, claim ID,
+fencing token, bounded target scope, and resource limits into the analyzer
+input. The collector contract intentionally declares no canonical keyspaces and
+no required reducer phases. Scanner workers commit source facts only; reducers
+own finding admission, prioritization, and graph/read-model truth.
 
 `aws` collector instances are claim-capable. The coordinator plans one bounded
 work item per authorized `(account_id, region, service_kind)` tuple, and the

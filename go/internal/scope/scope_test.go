@@ -82,6 +82,11 @@ func TestIngestionScopeValidateAllowsAdditionalCollectorKinds(t *testing.T) {
 			sourceSystem:  "vulnerability_intelligence",
 			collectorKind: CollectorVulnerabilityIntelligence,
 		},
+		{
+			name:          "scanner_worker",
+			sourceSystem:  "scanner_worker",
+			collectorKind: CollectorScannerWorker,
+		},
 	}
 
 	for _, tt := range tests {
@@ -185,6 +190,14 @@ func TestIngestionScopeValidateAllowsAdditionalScopeKinds(t *testing.T) {
 			scopeKind:     KindVulnerabilityIntelligence,
 			collectorKind: CollectorVulnerabilityIntelligence,
 			partitionKey:  "osv:npm",
+		},
+		{
+			name:          "scanner_worker",
+			sourceSystem:  "scanner_worker",
+			scopeID:       "scanner-worker://repository/repo-123",
+			scopeKind:     KindScannerWorker,
+			collectorKind: CollectorScannerWorker,
+			partitionKey:  "repository",
 		},
 	}
 

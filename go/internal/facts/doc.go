@@ -27,5 +27,8 @@
 // CVE, affected package/product, EPSS, KEV, reference, snapshot, and warning
 // evidence. Service catalog fact kind constants and schema-version helpers live
 // here for provider-native entity, ownership, repository link, dependency, API,
-// operational link, scorecard, and warning evidence.
+// operational link, scorecard, and warning evidence. Scanner-worker fact kind
+// constants and schema-version helpers live here for source facts produced by
+// isolated security analyzers; reducers remain responsible for admitting any
+// user-facing findings from that evidence.
 package facts
