@@ -171,6 +171,7 @@ branch. Regenerate them from
 | Language Framework Boundary Pass | Added inline framework and library support boundaries to every public language parser page, clarified the central parser support matrix, and documented the evidence required for community framework-support pull requests. |
 | GHA CI Fix Pass | Fixed the GitHub Actions failures by restoring the Docker Compose NornicDB search/BM25 support note required by `internal/runtime`, replacing a Terraform verifier prefix guard with `strings.TrimPrefix`, and updating projector failure-classification reflection kind checks for current Go vet. |
 | Public Roadmap Refresh | Added a public roadmap page, linked it from the project navigation and release index, and corrected the public planning story so `v0.0.3-pre-release-*` is the active artifact train while vulnerability, runtime, collector, API/MCP, and deployment work remain proof-gated. |
+| Security Intelligence Architecture Plan | Added the public security-intelligence target/capability contract and internal implementation plan for reducer-owned vulnerability impact, provider-alert parity, local one-shot scanning, readiness, and future scanner-worker boundaries. |
 
 ## Verification Snapshot
 
@@ -178,6 +179,14 @@ Detailed historical verification moved to `docs/internal/docs-verification-snaps
 
 Current pass proof:
 
+- Security intelligence architecture proof passed: focused docs verification for
+  `docs/public/reference/security-intelligence.md` had 1 document, 0 claims,
+  0 contradicted, and 0 missing-evidence claims. Broad public-docs verification
+  had 179 documents, 1149 claims, 0 contradicted, and 0 missing-evidence
+  claims. Full-repository docs verification had 579 documents, 1639 claims,
+  0 contradicted, and 0 missing-evidence claims. `git diff --check`,
+  `cmp -s AGENTS.md CLAUDE.md`, changed-file line counts, and strict MkDocs
+  build passed.
 - Focused language docs verification passed after the framework-boundary pass:
   32 documents, 4 unsupported Terraform shell-command claim types, 0
   contradicted claims, and 0 missing-evidence claims.

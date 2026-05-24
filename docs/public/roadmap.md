@@ -59,6 +59,10 @@ to user-facing impact:
 5. compare results against provider alerts and fixtures before trusting the
    scanner as a release gate.
 
+The target/capability model, local one-shot CLI direction, reducer ownership,
+readiness semantics, and provider-alert parity gate live in
+[Security Intelligence](reference/security-intelligence.md).
+
 Important public tracking issues include:
 
 | Area | Issues |
@@ -66,8 +70,8 @@ Important public tracking issues include:
 | Source ingestion | [#588](https://github.com/eshu-hq/eshu/issues/588), [#597](https://github.com/eshu-hq/eshu/issues/597), [#603](https://github.com/eshu-hq/eshu/issues/603), [#607](https://github.com/eshu-hq/eshu/issues/607) |
 | Advisory model and matching | [#589](https://github.com/eshu-hq/eshu/issues/589), [#590](https://github.com/eshu-hq/eshu/issues/590), [#591](https://github.com/eshu-hq/eshu/issues/591), [#600](https://github.com/eshu-hq/eshu/issues/600), [#601](https://github.com/eshu-hq/eshu/issues/601) |
 | Owned evidence and impact | [#592](https://github.com/eshu-hq/eshu/issues/592), [#598](https://github.com/eshu-hq/eshu/issues/598), [#602](https://github.com/eshu-hq/eshu/issues/602), [#606](https://github.com/eshu-hq/eshu/issues/606) |
-| User-facing output | [#593](https://github.com/eshu-hq/eshu/issues/593), [#594](https://github.com/eshu-hq/eshu/issues/594), [#595](https://github.com/eshu-hq/eshu/issues/595), [#604](https://github.com/eshu-hq/eshu/issues/604), [#605](https://github.com/eshu-hq/eshu/issues/605) |
-| Quality and deployment | [#586](https://github.com/eshu-hq/eshu/issues/586), [#596](https://github.com/eshu-hq/eshu/issues/596), [#599](https://github.com/eshu-hq/eshu/issues/599) |
+| User-facing output | [#593](https://github.com/eshu-hq/eshu/issues/593), [#594](https://github.com/eshu-hq/eshu/issues/594), [#595](https://github.com/eshu-hq/eshu/issues/595), [#604](https://github.com/eshu-hq/eshu/issues/604), [#605](https://github.com/eshu-hq/eshu/issues/605), [#613](https://github.com/eshu-hq/eshu/issues/613) |
+| Quality and deployment | [#586](https://github.com/eshu-hq/eshu/issues/586), [#596](https://github.com/eshu-hq/eshu/issues/596), [#599](https://github.com/eshu-hq/eshu/issues/599), [#614](https://github.com/eshu-hq/eshu/issues/614) |
 
 ### Cloud And Deployment Evidence
 
@@ -93,4 +97,3 @@ trade-off.
   reducers, graph writes, API/MCP reads, deployment, and documentation.
 - A closed issue means the scoped acceptance criteria were met; it does not
   automatically mean the whole feature family is release-ready.
-

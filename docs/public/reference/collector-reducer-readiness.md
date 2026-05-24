@@ -54,6 +54,11 @@ instances.
 | Package registry | `eshu-collector-package-registry` is claim-driven and can collect configured package targets or coordinator-derived npm targets from active owned dependency facts. | Package source correlation classifies source hints without ownership promotion and admits manifest-backed package consumption from package identity plus Git dependency evidence. Package-native dependency and publication facts are safe as provenance/read-model evidence. | Expand ownership correlation only after exact, derived, ambiguous, unresolved, stale, and rejected cases are proven. |
 | Vulnerability intelligence | `eshu-collector-vulnerability-intelligence` has source clients for CISA KEV, FIRST EPSS, OSV, and NVD. It can collect configured targets or coordinator-derived OSV npm targets for exact owned dependency versions. | Source-truth `vulnerability.*` facts exist. Impact reducers require owned package-manifest, lockfile, repository, image, or SBOM evidence before publishing user-facing impact findings. Exact lockfile versions can prove observed package impact; manifest ranges stay partial evidence and are skipped for exact OSV target derivation. They must not infer reachability from CVSS, EPSS, KEV, product-only CPEs, or package-registry facts alone. | Prove live source collection, API/MCP fact visibility, then package/image/deployment impact joins after upstream collectors are proven together. |
 
+The broader vulnerability architecture, including target/capability separation,
+readiness states, provider-alert parity, local one-shot scanning, and future
+scanner-worker boundaries, is documented in
+[Security Intelligence](security-intelligence.md).
+
 ## Reducer Truth Boundaries
 
 Collector readiness depends on the reducer admitting explicit evidence, not on
