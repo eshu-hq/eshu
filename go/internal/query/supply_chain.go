@@ -13,9 +13,11 @@ const (
 	supplyChainImpactFindingsCapability    = "supply_chain.impact_findings.list"
 	supplyChainImpactExplanationCapability = "supply_chain.impact_explanation.read"
 	containerImageIdentitiesCapability     = "supply_chain.container_image_identities.list"
+	securityAlertReconciliationsCapability = "supply_chain.security_alert_reconciliations.list"
 	sbomAttestationAttachmentMaxLimit      = 200
 	supplyChainImpactFindingMaxLimit       = 200
 	containerImageIdentityMaxLimit         = 200
+	securityAlertReconciliationMaxLimit    = 200
 )
 
 // SupplyChainHandler exposes reducer-owned supply-chain read models.
@@ -24,6 +26,7 @@ type SupplyChainHandler struct {
 	ImpactFindings           SupplyChainImpactFindingStore
 	ImpactExplanations       SupplyChainImpactExplanationStore
 	ContainerImageIdentities ContainerImageIdentityStore
+	SecurityAlerts           SecurityAlertReconciliationStore
 	Readiness                SupplyChainImpactReadinessStore
 	Profile                  QueryProfile
 }
@@ -116,6 +119,7 @@ func (h *SupplyChainHandler) Mount(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/v0/supply-chain/impact/findings", h.listImpactFindings)
 	mux.HandleFunc("GET /api/v0/supply-chain/impact/explain", h.explainImpact)
 	mux.HandleFunc("GET /api/v0/supply-chain/container-images/identities", h.listContainerImageIdentities)
+	mux.HandleFunc("GET /api/v0/supply-chain/security-alerts/reconciliations", h.listSecurityAlertReconciliations)
 }
 
 func (h *SupplyChainHandler) profile() QueryProfile {

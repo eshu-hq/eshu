@@ -32,6 +32,31 @@ func TestListActiveSupplyChainImpactFactsQueryIsPackageBoundedAndPaged(t *testin
 	}
 }
 
+func TestListActiveSecurityAlertReconciliationFactsQueryIsScopedAndPaged(t *testing.T) {
+	t.Parallel()
+
+	for _, want := range []string{
+		"scope.active_generation_id = fact.generation_id",
+		"generation.status = 'active'",
+		"fact.is_tombstone = FALSE",
+		"fact.fact_kind IN (",
+		"'reducer_package_consumption_correlation'",
+		"'reducer_supply_chain_impact_finding'",
+		"fact.payload->>'repository_id' = ANY($1::text[])",
+		"fact.payload->>'package_id' = ANY($2::text[])",
+		"fact.payload->'cve_ids' ?| $3::text[]",
+		"fact.payload->'ghsa_ids' ?| $4::text[]",
+		"fact.payload->>'cve_id' = ANY($3::text[])",
+		"fact.payload->>'advisory_id' = ANY($4::text[])",
+		"fact.fact_id > $5",
+		"LIMIT $6",
+	} {
+		if !strings.Contains(listActiveSecurityAlertReconciliationFactsQuery, want) {
+			t.Fatalf("listActiveSecurityAlertReconciliationFactsQuery missing %q:\n%s", want, listActiveSecurityAlertReconciliationFactsQuery)
+		}
+	}
+}
+
 func TestBootstrapDefinitionsIncludeSupplyChainImpactFactIndexes(t *testing.T) {
 	t.Parallel()
 
@@ -70,5 +95,42 @@ func TestBootstrapDefinitionsIncludeSupplyChainImpactFactIndexes(t *testing.T) {
 	}
 	if cveColumn >= 0 && cveColumn < statusColumn {
 		t.Fatalf("status index should lead with impact_status, not cve_id: %s", statusIndexSQL)
+	}
+}
+
+func TestBootstrapDefinitionsIncludeSecurityAlertReconciliationIndexes(t *testing.T) {
+	t.Parallel()
+
+	var facts Definition
+	for _, def := range BootstrapDefinitions() {
+		if def.Name == "fact_records" {
+			facts = def
+			break
+		}
+	}
+	if facts.Name == "" {
+		t.Fatal("fact_records definition missing")
+	}
+	for _, want := range []string{
+		"fact_records_security_alert_repository_lookup_idx",
+		"fact_records_security_alert_cve_ids_idx",
+		"fact_records_security_alert_ghsa_ids_idx",
+		"fact_records_security_alert_reconciliation_lookup_idx",
+		"fact_records_security_alert_reconciliation_provider_idx",
+		"fact_records_security_alert_reconciliation_cve_ids_idx",
+		"fact_records_security_alert_reconciliation_ghsa_ids_idx",
+		"'security_alert.repository_alert'",
+		"'reducer_security_alert_reconciliation'",
+		"(payload->>'repository_id')",
+		"(payload->>'provider')",
+		"(payload->>'package_id')",
+		"(payload->>'provider_state')",
+		"(payload->>'reconciliation_status')",
+		"USING GIN ((payload->'cve_ids'))",
+		"USING GIN ((payload->'ghsa_ids'))",
+	} {
+		if !strings.Contains(facts.SQL, want) {
+			t.Fatalf("Bootstrap SQL missing %q", want)
+		}
 	}
 }

@@ -68,6 +68,7 @@ current families are:
 | CI/CD runs | `ci_cd_run` | `ci.pipeline_definition`, `ci.run`, `ci.job`, `ci.step`, `ci.artifact`, `ci.trigger_edge`, `ci.environment_observation`, `ci.warning` |
 | SBOM and attestations | collector-specific SBOM or attestation source | `sbom.document`, `sbom.component`, `sbom.dependency_relationship`, `sbom.external_reference`, `attestation.statement`, `attestation.slsa_provenance`, `attestation.signature_verification`, `sbom.warning` |
 | Vulnerability intelligence | collector-specific vulnerability source | `vulnerability.source_snapshot`, `vulnerability.cve`, `vulnerability.affected_product`, `vulnerability.affected_package`, `vulnerability.epss_score`, `vulnerability.known_exploited`, `vulnerability.reference`, `vulnerability.warning` |
+| Provider security alerts | `security_alert` | `security_alert.repository_alert` |
 
 Most current core families use schema version `1.0.0`.
 `documentation_section` uses `1.1.0` because section payloads can carry
@@ -79,6 +80,14 @@ cache artifact version, snapshot digest, cache update time, expiration,
 freshness, and mode. These fields describe source observation state only; they
 do not prove vulnerability impact without reducer-owned package, image, or
 deployment evidence.
+
+`security_alert.repository_alert` preserves repository-scoped provider alert
+state, Dependabot alert ID/number, dependency ecosystem/name, manifest path,
+dependency scope, relationship, GHSA/CVE IDs, vulnerable range, patched version,
+severity, CVSS, EPSS, CWE summary, timestamps, and sanitized source URL. It is
+reported provider evidence only. Reducers compare it with owned dependency and
+impact facts through `security_alert_reconciliation`; they do not turn provider
+state into `supply_chain_impact` truth.
 
 ## Promotion Rules
 
@@ -94,9 +103,9 @@ Facts are source evidence, not automatic graph truth.
   manifest, index, descriptor, and referrer facts are stronger identity anchors.
 - Package registry source hints are not repository ownership or publication
   truth until reducer correlation admits them.
-- CI success, environment names, SBOM metadata, and vulnerability feeds remain
-  provenance until consumers correlate them with stronger runtime or repository
-  evidence.
+- CI success, environment names, SBOM metadata, vulnerability feeds, and
+  provider alert state remain provenance until consumers correlate them with
+  stronger runtime, package, image, or repository evidence.
 
 ACL summaries and source-native documentation bodies are sensitive source
 evidence. Do not emit them through logs or metrics. Evidence packet APIs must

@@ -1,8 +1,8 @@
 # HTTP Evidence And Supply-Chain Routes
 
 Use these routes when a client needs evidence packets, documentation truth,
-package identity, CI/CD correlation, SBOM attachment state, or vulnerability
-impact.
+package identity, CI/CD correlation, provider security alert reconciliation,
+SBOM attachment state, or vulnerability impact.
 
 ## Deployment Evidence Pointers
 
@@ -281,6 +281,34 @@ source facts and readiness coverage. See
 [Security Intelligence](../security-intelligence.md) for the target/capability
 model, zero-finding readiness semantics, provider-alert parity gate, and future
 local one-shot scanning direction.
+
+## Provider Security Alert Reconciliation
+
+`GET /api/v0/supply-chain/security-alerts/reconciliations`
+
+Lists reducer-owned reconciliation rows for provider security alerts. The
+caller must provide `limit` and at least one bounded anchor:
+
+- `repository_id`
+- `provider`
+- `package_id`
+- `cve_id`
+- `ghsa_id`
+
+`provider_state` and `reconciliation_status` may narrow an anchored request,
+but they are filters only and are rejected when sent without one of the anchors
+above.
+
+Rows keep `provider_alert` and `eshu_impact` as separate objects. Provider
+alert fields preserve reported alert ID/number, state, dependency ecosystem and
+name, manifest path, dependency scope, relationship, GHSA/CVE IDs, vulnerable
+range, patched version, severity, CVSS, EPSS, CWE, timestamps, and sanitized
+source URL. Eshu impact fields only appear when the reducer matched owned
+impact evidence. Valid reconciliation statuses are `matched`, `unmatched`,
+`stale`, `dismissed`, `fixed`, and `provider_only`.
+
+This route does not turn provider alert state into vulnerability impact truth.
+Use `/api/v0/supply-chain/impact/findings` for reducer-owned impact findings.
 
 ## SBOM And Attestation Attachments
 

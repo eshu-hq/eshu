@@ -15,6 +15,9 @@ const (
 	// SpanQueryContainerImageIdentities wraps reducer-owned image identity
 	// reads from durable facts.
 	SpanQueryContainerImageIdentities = "query.container_image_identities"
+	// SpanQuerySupplyChainSecurityAlerts wraps reducer-owned provider alert
+	// reconciliation reads from durable facts.
+	SpanQuerySupplyChainSecurityAlerts = "query.supply_chain_security_alerts"
 )
 
 func init() {
@@ -24,6 +27,7 @@ func init() {
 				spanNames,
 				idx+1,
 				SpanQueryContainerImageIdentities,
+				SpanQuerySupplyChainSecurityAlerts,
 				SpanQuerySBOMAttestationAttachments,
 				SpanQuerySupplyChainImpactFindings,
 				SpanQuerySupplyChainImpactExplanation,
@@ -37,6 +41,7 @@ func init() {
 				spanNames,
 				idx+1,
 				SpanQueryContainerImageIdentities,
+				SpanQuerySupplyChainSecurityAlerts,
 				SpanQuerySBOMAttestationAttachments,
 				SpanQuerySupplyChainImpactFindings,
 				SpanQuerySupplyChainImpactExplanation,
@@ -47,6 +52,7 @@ func init() {
 	spanNames = append(
 		spanNames,
 		SpanQueryContainerImageIdentities,
+		SpanQuerySupplyChainSecurityAlerts,
 		SpanQuerySBOMAttestationAttachments,
 		SpanQuerySupplyChainImpactFindings,
 		SpanQuerySupplyChainImpactExplanation,

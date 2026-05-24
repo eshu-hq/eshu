@@ -114,6 +114,56 @@ func supplyChainTools() []ToolDefinition {
 			},
 		},
 		{
+			Name:        "list_security_alert_reconciliations",
+			Description: "List reducer-owned provider security alert reconciliations by repository, provider, package, CVE, or GHSA anchor while keeping provider state separate from Eshu impact state.",
+			InputSchema: map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"repository_id": map[string]any{
+						"type":        "string",
+						"description": "Repository identifier from provider alert and owned dependency evidence.",
+					},
+					"provider": map[string]any{
+						"type":        "string",
+						"description": "Provider source such as github_dependabot.",
+					},
+					"package_id": map[string]any{
+						"type":        "string",
+						"description": "Normalized package identity such as npm://registry.npmjs.org/example.",
+					},
+					"cve_id": map[string]any{
+						"type":        "string",
+						"description": "CVE identifier reported by the provider alert.",
+					},
+					"ghsa_id": map[string]any{
+						"type":        "string",
+						"description": "GHSA identifier reported by the provider alert.",
+					},
+					"provider_state": map[string]any{
+						"type":        "string",
+						"description": "Provider-reported alert state filter for an anchored request.",
+						"enum":        []string{"open", "fixed", "dismissed", "auto_dismissed"},
+					},
+					"reconciliation_status": map[string]any{
+						"type":        "string",
+						"description": "Reducer comparison filter for an anchored request.",
+						"enum":        []string{"matched", "unmatched", "stale", "dismissed", "fixed", "provider_only"},
+					},
+					"after_reconciliation_id": map[string]any{
+						"type":        "string",
+						"description": "Reconciliation ID from next_cursor when continuing a truncated page.",
+					},
+					"limit": map[string]any{
+						"type":        "integer",
+						"description": "Maximum reconciliation rows to return.",
+						"default":     50,
+						"minimum":     1,
+						"maximum":     200,
+					},
+				},
+			},
+		},
+		{
 			Name:        "list_sbom_attestation_attachments",
 			Description: "List reducer-owned SBOM and attestation attachment evidence by image digest or document identity.",
 			InputSchema: map[string]any{

@@ -358,6 +358,60 @@ CREATE INDEX IF NOT EXISTS fact_records_supply_chain_impact_package_lookup_idx
     WHERE fact_kind = 'reducer_supply_chain_impact_finding'
       AND is_tombstone = FALSE;
 
+CREATE INDEX IF NOT EXISTS fact_records_security_alert_repository_lookup_idx
+    ON fact_records (
+        (payload->>'repository_id'),
+        (payload->>'provider'),
+        (payload->>'package_id'),
+        (payload->>'provider_state'),
+        fact_id ASC,
+        generation_id
+    )
+    WHERE fact_kind = 'security_alert.repository_alert'
+      AND is_tombstone = FALSE;
+
+CREATE INDEX IF NOT EXISTS fact_records_security_alert_cve_ids_idx
+    ON fact_records USING GIN ((payload->'cve_ids'))
+    WHERE fact_kind = 'security_alert.repository_alert'
+      AND is_tombstone = FALSE;
+
+CREATE INDEX IF NOT EXISTS fact_records_security_alert_ghsa_ids_idx
+    ON fact_records USING GIN ((payload->'ghsa_ids'))
+    WHERE fact_kind = 'security_alert.repository_alert'
+      AND is_tombstone = FALSE;
+
+CREATE INDEX IF NOT EXISTS fact_records_security_alert_reconciliation_lookup_idx
+    ON fact_records (
+        (payload->>'repository_id'),
+        (payload->>'package_id'),
+        (payload->>'reconciliation_status'),
+        fact_id ASC,
+        generation_id
+    )
+    WHERE fact_kind = 'reducer_security_alert_reconciliation'
+      AND is_tombstone = FALSE;
+
+CREATE INDEX IF NOT EXISTS fact_records_security_alert_reconciliation_provider_idx
+    ON fact_records (
+        (payload->>'provider'),
+        (payload->>'provider_state'),
+        (payload->>'reconciliation_status'),
+        fact_id ASC,
+        generation_id
+    )
+    WHERE fact_kind = 'reducer_security_alert_reconciliation'
+      AND is_tombstone = FALSE;
+
+CREATE INDEX IF NOT EXISTS fact_records_security_alert_reconciliation_cve_ids_idx
+    ON fact_records USING GIN ((payload->'cve_ids'))
+    WHERE fact_kind = 'reducer_security_alert_reconciliation'
+      AND is_tombstone = FALSE;
+
+CREATE INDEX IF NOT EXISTS fact_records_security_alert_reconciliation_ghsa_ids_idx
+    ON fact_records USING GIN ((payload->'ghsa_ids'))
+    WHERE fact_kind = 'reducer_security_alert_reconciliation'
+      AND is_tombstone = FALSE;
+
 CREATE INDEX IF NOT EXISTS fact_records_vulnerability_affected_package_lookup_idx
     ON fact_records (
         (payload->>'package_id'),

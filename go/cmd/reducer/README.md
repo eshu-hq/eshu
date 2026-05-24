@@ -61,8 +61,10 @@ flowchart TB
    findings after the bounded ARN join; the SBOM/attestation attachment
    writer publishes digest-subject attachment facts; the service-catalog
    correlation writer publishes repository-evidence-gated catalog correlation
-   facts; and the supply-chain impact writer publishes reducer-owned
-   vulnerability impact facts without graph writes),
+   facts; the supply-chain impact writer publishes reducer-owned
+   vulnerability impact facts without graph writes; and the security-alert
+   reconciliation writer publishes provider-alert comparison facts without
+   promoting provider alert state into impact truth),
    `SharedProjectionRunner`, `CodeCallProjectionRunner`,
    `RepoDependencyProjectionRunner`, `GraphProjectionPhaseRepairer`, and
    the `postgres.NewReducerQueue`.

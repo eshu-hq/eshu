@@ -29,4 +29,11 @@ func init() {
 		ProductionMax:         &truthExact,
 		RequiredProfile:       ProfileLocalAuthoritative,
 	}
+	capabilityMatrix[securityAlertReconciliationsCapability] = capabilitySupport{
+		LocalLightweightMax:   nil,
+		LocalAuthoritativeMax: &truthExact,
+		LocalFullStackMax:     &truthExact,
+		ProductionMax:         &truthExact,
+		RequiredProfile:       ProfileLocalAuthoritative,
+	}
 }

@@ -103,6 +103,11 @@ canonical graph or reducer truth.
 - `PostgresSupplyChainImpactFindingStore` — also implements the explanation
   port by reading exactly one active reducer impact finding and its referenced
   evidence facts (`supply_chain_impact_explain_postgres.go`)
+- `SecurityAlertReconciliationStore` — port for reducer-owned provider alert
+  comparison rows (`security_alert_reconciliation.go`)
+- `PostgresSecurityAlertReconciliationStore` — Postgres-backed security alert
+  reconciliation read model for bounded API/MCP reads
+  (`security_alert_reconciliation.go`)
 
 **Handler structs**
 

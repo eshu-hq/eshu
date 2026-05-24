@@ -121,6 +121,11 @@ advisory/CVE plus package, repository, or subject-digest scope, then hydrates
 only the referenced `evidence_fact_ids` so callers can inspect advisory,
 package/version, dependency-chain, manifest/SBOM/image/workload, freshness,
 and missing-evidence context without a whole-graph explain call.
+The same handler exposes provider security alert reconciliations through a
+separate Postgres read model. Security alert reconciliation reads require a
+repository, provider, package, CVE, or GHSA anchor plus `limit`; provider state
+and reconciliation status only filter anchored pages. Rows keep provider alert
+state under `provider_alert` and Eshu-owned impact state under `eshu_impact`.
 Impact responses also attach a `readiness` envelope built by
 `BuildSupplyChainImpactReadiness` (`supply_chain_impact_readiness.go:121`) so a
 zero-finding result is classified as `not_configured`, `target_incomplete`,

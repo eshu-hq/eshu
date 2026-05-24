@@ -88,7 +88,7 @@ func TestHandleHTTPMessage_ToolsList(t *testing.T) {
 	if !ok {
 		t.Fatal("missing tools array")
 	}
-	assertMCPToolCount(t, tools, 77)
+	assertMCPToolCount(t, tools, 78)
 }
 
 func TestHandleHTTPMessage_Ping(t *testing.T) {

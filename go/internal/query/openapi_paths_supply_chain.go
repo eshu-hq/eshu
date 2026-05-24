@@ -366,42 +366,81 @@ const openAPIPathsSupplyChain = `
         }
       }
     },
-    "/api/v0/supply-chain/sbom-attestations/attachments": {
+    "/api/v0/supply-chain/security-alerts/reconciliations": {
       "get": {
-        "summary": "List SBOM and attestation attachments",
-        "operationId": "listSBOMAttestationAttachments",
+        "summary": "List provider security alert reconciliations",
+        "description": "Requires limit plus repository_id, provider, package_id, cve_id, or ghsa_id. provider_state and reconciliation_status filter anchored pages only.",
+        "operationId": "listSecurityAlertReconciliations",
         "parameters": [
-          {"name": "subject_digest", "in": "query", "schema": {"type": "string"}},
-          {"name": "document_id", "in": "query", "schema": {"type": "string"}},
-          {"name": "document_digest", "in": "query", "schema": {"type": "string"}},
-          {"name": "attachment_status", "in": "query", "schema": {"type": "string", "enum": ["attached_verified", "attached_unverified", "attached_parse_only", "subject_mismatch", "ambiguous_subject", "unknown_subject", "unparseable"]}},
-          {"name": "artifact_kind", "in": "query", "schema": {"type": "string", "enum": ["sbom", "attestation"]}},
-          {"name": "after_attachment_id", "in": "query", "schema": {"type": "string"}},
+          {"name": "repository_id", "in": "query", "schema": {"type": "string"}},
+          {"name": "provider", "in": "query", "schema": {"type": "string"}},
+          {"name": "package_id", "in": "query", "schema": {"type": "string"}},
+          {"name": "cve_id", "in": "query", "schema": {"type": "string"}},
+          {"name": "ghsa_id", "in": "query", "schema": {"type": "string"}},
+          {"name": "provider_state", "in": "query", "schema": {"type": "string", "enum": ["open", "fixed", "dismissed", "auto_dismissed"]}},
+          {"name": "reconciliation_status", "in": "query", "schema": {"type": "string", "enum": ["matched", "unmatched", "stale", "dismissed", "fixed", "provider_only"]}},
+          {"name": "after_reconciliation_id", "in": "query", "schema": {"type": "string"}},
           {"name": "limit", "in": "query", "required": true, "schema": {"type": "integer", "minimum": 1, "maximum": 200}}
         ],
         "responses": {
           "200": {
-            "description": "SBOM and attestation attachment page",
+            "description": "Provider security alert reconciliation page. Provider alert state and Eshu impact state are separate fields.",
             "content": {
               "application/json": {
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "attachments": {
+                    "reconciliations": {
                       "type": "array",
                       "items": {
                         "type": "object",
                         "properties": {
-                          "attachment_id": {"type": "string"},
-                          "subject_digest": {"type": "string"},
-                          "document_id": {"type": "string"},
-                          "document_digest": {"type": "string"},
-                          "attachment_status": {"type": "string"},
-                          "parse_status": {"type": "string"},
-                          "verification_status": {"type": "string"},
-                          "verification_policy": {"type": "string"},
-                          "component_count": {"type": "integer"}
-                        }
+                          "reconciliation_id": {"type": "string"},
+                          "provider_alert": {
+                            "type": "object",
+                            "properties": {
+                              "provider": {"type": "string"},
+                              "provider_alert_id": {"type": "string"},
+                              "provider_alert_number": {"type": "integer"},
+                              "provider_state": {"type": "string"},
+                              "repository_id": {"type": "string"},
+                              "package_id": {"type": "string"},
+                              "ecosystem": {"type": "string"},
+                              "package_name": {"type": "string"},
+                              "manifest_path": {"type": "string"},
+                              "dependency_scope": {"type": "string"},
+                              "relationship": {"type": "string"},
+                              "ghsa_ids": {"type": "array", "items": {"type": "string"}},
+                              "cve_ids": {"type": "array", "items": {"type": "string"}},
+                              "vulnerable_range": {"type": "string"},
+                              "patched_version": {"type": "string"},
+                              "severity": {"type": "string"},
+                              "cvss": {"type": "object"},
+                              "epss": {"type": "object", "additionalProperties": {"type": "string"}},
+                              "cwes": {"type": "array", "items": {"type": "object", "additionalProperties": {"type": "string"}}},
+                              "summary": {"type": "string"},
+                              "source_url": {"type": "string"},
+                              "created_at": {"type": "string"},
+                              "updated_at": {"type": "string"},
+                              "fixed_at": {"type": "string"},
+                              "dismissed_at": {"type": "string"}
+                            }
+                          },
+                          "eshu_impact": {
+                            "type": "object",
+                            "description": "Reducer-owned impact state matched to the alert, when Eshu has admitted owned evidence.",
+                            "properties": {
+                              "impact_status": {"type": "string"},
+                              "finding_id": {"type": "string"}
+                            }
+                          },
+                          "reconciliation_status": {"type": "string"},
+                          "reason": {"type": "string"},
+                          "evidence_fact_ids": {"type": "array", "items": {"type": "string"}},
+                          "source_freshness": {"type": "string"},
+                          "source_confidence": {"type": "string"}
+                        },
+                        "required": ["reconciliation_id", "provider_alert", "eshu_impact", "reconciliation_status"]
                       }
                     },
                     "count": {"type": "integer"},

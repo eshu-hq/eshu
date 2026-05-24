@@ -69,6 +69,10 @@ const (
 	// findings only when vulnerability, package, SBOM, image, or repository
 	// evidence forms an explicit path.
 	DomainSupplyChainImpact Domain = "supply_chain_impact"
+	// DomainSecurityAlertReconciliation compares provider-reported repository
+	// security alerts against Eshu-owned dependency and impact evidence without
+	// promoting provider alerts into impact truth.
+	DomainSecurityAlertReconciliation Domain = "security_alert_reconciliation"
 	// DomainAWSCloudRuntimeDrift publishes admitted AWS runtime-vs-IaC drift
 	// findings as canonical reducer facts. The domain stays graph-neutral until
 	// the drift node and query shape are frozen.

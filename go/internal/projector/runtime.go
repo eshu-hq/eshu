@@ -376,6 +376,9 @@ func buildProjection(scopeValue scope.IngestionScope, generation scope.ScopeGene
 		if err := validateServiceCatalogSchemaVersion(fact); err != nil {
 			return projection{}, err
 		}
+		if err := validateSecurityAlertSchemaVersion(fact); err != nil {
+			return projection{}, err
+		}
 
 		if record, ok := buildContentRecord(fact); ok {
 			contentMaterialization.Records = append(contentMaterialization.Records, record)
@@ -403,6 +406,9 @@ func buildProjection(scopeValue scope.IngestionScope, generation scope.ScopeGene
 		intents = append(intents, intent)
 	}
 	if intent, ok := buildSupplyChainImpactReducerIntent(scopeValue, generation, inputFacts); ok {
+		intents = append(intents, intent)
+	}
+	if intent, ok := buildSecurityAlertReconciliationReducerIntent(scopeValue, generation, inputFacts); ok {
 		intents = append(intents, intent)
 	}
 
