@@ -200,6 +200,13 @@ match yet`:
   `source`, optional `ecosystem`, `cache_artifact_version`, `snapshot_digest`,
   `last_updated_at`, `freshness`, `complete`, and bounded warning fields. It
   never returns raw advisory payloads.
+- `source_states[]` reports durable vulnerability source target state:
+  `last_attempt_at`, `last_success_at`, `next_retry_at`, `last_error_class`,
+  collection window, `freshness_state`, `terminal_status`, `result_count`, and
+  `warning_count`. Freshness states distinguish `not_configured`, `pending`,
+  `fresh`, `stale`, `rate_limited`, `failed`, and `partial`; terminal status
+  distinguishes pending, succeeded, partial, retryable failure, and terminal
+  failure without raw advisory bodies or source URLs.
 - `missing_evidence[]` names the absent required join families, such as
   `advisory_sources`, `owned_packages`, `sbom_or_image_evidence`,
   `target_collection_incomplete`, or `readiness_unavailable`. Reasons stay
@@ -209,7 +216,9 @@ match yet`:
 - `incomplete_reasons[]` lists collector-emitted reasons explaining why
   source collection is still in flight; only populated when
   `readiness_state` is `target_incomplete`.
-- `freshness` aggregates per-family freshness into one label.
+- `freshness` aggregates per-family freshness and source target state into one
+  label. Values are `fresh`, `stale`, `unknown`, `pending`, `rate_limited`,
+  `failed`, or `partial`.
 - `counts` reports `findings_returned`, `findings_truncated`,
   `findings_by_status`, and `evidence_facts_total`. `findings_returned` and
   `findings_by_status` describe the returned page only; combine with

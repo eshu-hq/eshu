@@ -110,6 +110,10 @@ func (s StatusStore) ReadStatusSnapshot(ctx context.Context, asOf time.Time) (st
 	if err != nil {
 		return statuspkg.RawSnapshot{}, err
 	}
+	vulnerabilitySources, err := readVulnerabilitySourceStates(ctx, s.queryer)
+	if err != nil {
+		return statuspkg.RawSnapshot{}, err
+	}
 	terraformStateEvidence, err := readTerraformStateAdminEvidence(
 		ctx,
 		s.queryer,
@@ -137,6 +141,7 @@ func (s StatusStore) ReadStatusSnapshot(ctx context.Context, asOf time.Time) (st
 		RegistryCollectors:           registryCollectors,
 		AWSCloudScans:                awsCloudScans,
 		AWSFreshness:                 awsFreshness,
+		VulnerabilitySources:         vulnerabilitySources,
 		AWSCloudScansTruncated:       awsCloudScansTruncated,
 		AWSCloudScanLimit:            awsCloudScanStatusLimit,
 		TerraformStateLastSerials:    terraformStateEvidence.LastSerials,

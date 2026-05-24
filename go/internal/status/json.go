@@ -23,6 +23,7 @@ func RenderJSON(report Report) ([]byte, error) {
 		RegistryCollectors     []registryCollectorJSON    `json:"registry_collectors,omitempty"`
 		AWSCloudScans          []awsCloudScanJSON         `json:"aws_cloud_scans,omitempty"`
 		AWSFreshness           *awsFreshnessJSON          `json:"aws_freshness,omitempty"`
+		VulnerabilitySources   []vulnerabilitySourceJSON  `json:"vulnerability_sources,omitempty"`
 		AWSCloudScansTruncated bool                       `json:"aws_cloud_scans_truncated,omitempty"`
 		AWSCloudScanLimit      int                        `json:"aws_cloud_scan_limit,omitempty"`
 		ScopeActivity          scopeActivityJSON          `json:"scope_activity"`
@@ -46,6 +47,7 @@ func RenderJSON(report Report) ([]byte, error) {
 		RegistryCollectors:     registryCollectorsJSON(report.RegistryCollectors),
 		AWSCloudScans:          awsCloudScansJSON(report.AWSCloudScans),
 		AWSFreshness:           awsFreshnessJSONFromReport(report.AWSFreshness),
+		VulnerabilitySources:   vulnerabilitySourcesJSON(report.VulnerabilitySources),
 		AWSCloudScansTruncated: report.AWSCloudScansTruncated,
 		AWSCloudScanLimit:      awsCloudScanLimitJSON(report),
 		ScopeActivity:          scopeActivityJSONFromReport(report.ScopeActivity),
@@ -165,6 +167,24 @@ type awsCloudScanJSON struct {
 	LastObservedAt      string `json:"last_observed_at,omitempty"`
 	LastCompletedAt     string `json:"last_completed_at,omitempty"`
 	LastSuccessfulAt    string `json:"last_successful_at,omitempty"`
+	UpdatedAt           string `json:"updated_at,omitempty"`
+}
+
+type vulnerabilitySourceJSON struct {
+	CollectorInstanceID string `json:"collector_instance_id"`
+	ScopeID             string `json:"scope_id"`
+	Source              string `json:"source"`
+	Ecosystem           string `json:"ecosystem,omitempty"`
+	WindowStart         string `json:"window_start,omitempty"`
+	WindowEnd           string `json:"window_end,omitempty"`
+	LastAttemptAt       string `json:"last_attempt_at,omitempty"`
+	LastSuccessAt       string `json:"last_success_at,omitempty"`
+	NextRetryAt         string `json:"next_retry_at,omitempty"`
+	LastErrorClass      string `json:"last_error_class,omitempty"`
+	FreshnessState      string `json:"freshness_state"`
+	TerminalStatus      string `json:"terminal_status"`
+	ResultCount         int    `json:"result_count"`
+	WarningCount        int    `json:"warning_count"`
 	UpdatedAt           string `json:"updated_at,omitempty"`
 }
 
@@ -345,6 +365,30 @@ func awsCloudScansJSON(rows []AWSCloudScanStatus) []awsCloudScanJSON {
 			LastObservedAt:      nullableRFC3339Value(row.LastObservedAt),
 			LastCompletedAt:     nullableRFC3339Value(row.LastCompletedAt),
 			LastSuccessfulAt:    nullableRFC3339Value(row.LastSuccessfulAt),
+			UpdatedAt:           nullableRFC3339Value(row.UpdatedAt),
+		})
+	}
+	return projected
+}
+
+func vulnerabilitySourcesJSON(rows []VulnerabilitySourceState) []vulnerabilitySourceJSON {
+	projected := make([]vulnerabilitySourceJSON, 0, len(rows))
+	for _, row := range rows {
+		projected = append(projected, vulnerabilitySourceJSON{
+			CollectorInstanceID: row.CollectorInstanceID,
+			ScopeID:             row.ScopeID,
+			Source:              row.Source,
+			Ecosystem:           row.Ecosystem,
+			WindowStart:         nullableRFC3339Value(row.WindowStart),
+			WindowEnd:           nullableRFC3339Value(row.WindowEnd),
+			LastAttemptAt:       nullableRFC3339Value(row.LastAttemptAt),
+			LastSuccessAt:       nullableRFC3339Value(row.LastSuccessAt),
+			NextRetryAt:         nullableRFC3339Value(row.NextRetryAt),
+			LastErrorClass:      row.LastErrorClass,
+			FreshnessState:      row.FreshnessState,
+			TerminalStatus:      row.TerminalStatus,
+			ResultCount:         row.ResultCount,
+			WarningCount:        row.WarningCount,
 			UpdatedAt:           nullableRFC3339Value(row.UpdatedAt),
 		})
 	}

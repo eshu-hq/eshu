@@ -84,6 +84,9 @@ See `doc.go` for the godoc contract. Key types and functions:
   warning count, and budget/credential flags
 - `AWSFreshnessSnapshot` — aggregate AWS Config/EventBridge freshness trigger
   status counts and oldest queued age; does not expose resource identifiers
+- `VulnerabilitySourceState` — per vulnerability source target checkpoint,
+  freshness, retry, result count, warning count, and terminal state; does not
+  expose raw advisory payloads, source URLs, package names, or API keys
 - `TerraformStateLocatorSerial` — most recent observed serial per
   Terraform-state scope, keyed by safe locator hash so the report never carries
   raw bucket names, S3 keys, or local paths

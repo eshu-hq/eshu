@@ -218,6 +218,8 @@ func (db *proofDomainDB) QueryContext(_ context.Context, query string, args ...a
 		return newProofRows(nil), nil
 	case query == awsFreshnessOldestQueuedAgeQuery:
 		return newProofRows([][]any{{float64(0)}}), nil
+	case query == vulnerabilitySourceStatusQuery:
+		return newProofRows(nil), nil
 	case strings.Contains(query, "FROM fact_records"):
 		if len(args) != 2 {
 			return nil, fmt.Errorf("list facts args = %d, want 2", len(args))

@@ -41,6 +41,7 @@ type SupplyChainImpactReadinessEnvelope struct {
 	TargetScope       SupplyChainImpactTargetScope      `json:"target_scope"`
 	EvidenceSources   []SupplyChainImpactEvidenceFamily `json:"evidence_sources"`
 	SourceSnapshots   []SupplyChainImpactSourceSnapshot `json:"source_snapshots,omitempty"`
+	SourceStates      []SupplyChainImpactSourceState    `json:"source_states,omitempty"`
 	MissingEvidence   []string                          `json:"missing_evidence,omitempty"`
 	IncompleteReasons []string                          `json:"incomplete_reasons,omitempty"`
 	Freshness         string                            `json:"freshness"`
@@ -118,6 +119,7 @@ func (q SupplyChainImpactReadinessQuery) hasFactAnchor() bool {
 type SupplyChainImpactReadinessSnapshot struct {
 	EvidenceSources   []SupplyChainImpactEvidenceFamily
 	SourceSnapshots   []SupplyChainImpactSourceSnapshot
+	SourceStates      []SupplyChainImpactSourceState
 	TargetIncomplete  bool
 	IncompleteReasons []string
 }
@@ -189,6 +191,12 @@ func BuildSupplyChainImpactReadiness(
 	snapshot SupplyChainImpactReadinessSnapshot,
 ) SupplyChainImpactReadinessEnvelope {
 	sources := normalizeEvidenceSources(snapshot.EvidenceSources)
+	sourceStates := normalizeSourceStates(snapshot.SourceStates)
+	snapshot.SourceStates = sourceStates
+	if sourceStatesIncomplete(sourceStates) {
+		snapshot.TargetIncomplete = true
+		snapshot.IncompleteReasons = append(snapshot.IncompleteReasons, sourceStateIncompleteReasons(sourceStates)...)
+	}
 	counts := SupplyChainImpactReadinessCounts{
 		FindingsReturned:   len(findings),
 		FindingsTruncated:  truncated,
@@ -207,14 +215,17 @@ func BuildSupplyChainImpactReadiness(
 	if state != ReadinessStateTargetIncomplete {
 		incompleteReasons = nil
 	}
+	freshness := aggregateReadinessFreshness(sources)
+	freshness = combineReadinessFreshness(freshness, aggregateSourceStateFreshness(sourceStates))
 	return SupplyChainImpactReadinessEnvelope{
 		State:             state,
 		TargetScope:       scope,
 		EvidenceSources:   sources,
 		SourceSnapshots:   normalizeSourceSnapshots(snapshot.SourceSnapshots),
+		SourceStates:      sourceStates,
 		MissingEvidence:   missing,
 		IncompleteReasons: incompleteReasons,
-		Freshness:         aggregateReadinessFreshness(sources),
+		Freshness:         freshness,
 		Counts:            counts,
 	}
 }
@@ -259,6 +270,7 @@ func classifyReadinessState(
 		return ReadinessStateTargetIncomplete
 	}
 	if advisoryCount == 0 &&
+		len(snapshot.SourceStates) == 0 &&
 		evidenceFactCount(sources, EvidenceFamilyPackageConsumption) == 0 &&
 		evidenceFactCount(sources, EvidenceFamilyPackageRegistry) == 0 &&
 		evidenceFactCount(sources, EvidenceFamilySBOMComponent) == 0 &&
@@ -281,7 +293,8 @@ func classifyMissingEvidence(
 		evidenceFactCount(sources, EvidenceFamilyVulnerabilityAdvisory) == 0 {
 		missing = append(missing, MissingEvidenceTargetCollection)
 	}
-	if evidenceFactCount(sources, EvidenceFamilyVulnerabilityAdvisory) == 0 {
+	if evidenceFactCount(sources, EvidenceFamilyVulnerabilityAdvisory) == 0 &&
+		!sourceStatesHaveFreshSuccess(snapshot.SourceStates) {
 		missing = append(missing, MissingEvidenceAdvisorySources)
 	}
 	// package.registry without a package_id anchor is global metadata, not

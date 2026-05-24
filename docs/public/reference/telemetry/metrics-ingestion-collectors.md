@@ -71,6 +71,22 @@ metric labels.
 Registry hosts, repositories, tags, digests, package names, versions, feed URLs,
 artifact paths, and credentials stay out of labels.
 
+## Vulnerability Intelligence Collector
+
+| Metric | Key labels | Use |
+| --- | --- | --- |
+| `eshu_dp_vulnerability_intelligence_observations_total` | `source`, `status_class` | Source target observations, including success, errors, and rate limits. |
+| `eshu_dp_vulnerability_intelligence_facts_emitted_total` | `source`, `fact_kind` | Source fact volume emitted per bounded target. |
+| `eshu_dp_vulnerability_intelligence_rate_limited_total` | `source` | HTTP 429 pressure across OSV, NVD, EPSS, KEV, or mirrors. |
+| `eshu_dp_vulnerability_intelligence_fetch_duration_seconds` | `source`, `result` | Bounded source fetch duration. |
+
+Source URLs, CVE IDs, package names, versions, API keys, and cache paths stay
+out of metric labels. Durable checkpoint and retry details are exposed through
+status/API fields rather than high-cardinality metrics. Successful checkpoint
+writes also add a `vulnerability_intelligence.source_state_checkpoint` event to
+the source observe span with bounded source, ecosystem, freshness, terminal, and
+failure-class attributes.
+
 ## Scanner-Worker Boundary
 
 Scanner-worker metrics are emitted by the hosted scanner-worker runtime for
