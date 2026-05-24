@@ -3,12 +3,15 @@ package main
 import (
 	"bytes"
 	"context"
+	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -98,6 +101,82 @@ func TestRunVulnScanRepoStartsLocalRuntimeWhenServiceURLUnconfigured(t *testing.
 	}
 	if !closeCalled.Load() {
 		t.Fatal("local runtime close was not called")
+	}
+}
+
+func TestRunVulnScanRepoReportsLocalRuntimeCloseErrorAsWarning(t *testing.T) {
+	t.Setenv("ESHU_HOME", t.TempDir())
+	t.Setenv("ESHU_SERVICE_URL", "")
+
+	repoPath := t.TempDir()
+	if err := os.Mkdir(filepath.Join(repoPath, ".git"), 0o755); err != nil {
+		t.Fatalf("Mkdir(.git) error = %v, want nil", err)
+	}
+	absRepoPath, err := filepath.Abs(repoPath)
+	if err != nil {
+		t.Fatalf("Abs(repoPath) error = %v, want nil", err)
+	}
+	if realPath, err := filepath.EvalSymlinks(absRepoPath); err == nil {
+		absRepoPath = realPath
+	}
+
+	reset := stubScanRuntime(t)
+	defer reset()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/v0/repositories":
+			_, _ = w.Write([]byte(`{"count":1,"repositories":[{"id":"repo-local","name":"local","path":"` + absRepoPath + `","local_path":"` + absRepoPath + `"}]}`))
+		case "/api/v0/supply-chain/impact/findings":
+			_, _ = w.Write([]byte(`{"data":{"findings":[],"count":0,"limit":50,"truncated":false},"truth":{"level":"exact","freshness":{"state":"fresh"}},"error":null}`))
+		default:
+			t.Fatalf("unexpected request %s %s", r.Method, r.URL.String())
+		}
+	}))
+	defer server.Close()
+
+	originalPrepareLocalRuntime := vulnScanPrepareLocalRuntime
+	defer func() { vulnScanPrepareLocalRuntime = originalPrepareLocalRuntime }()
+	vulnScanPrepareLocalRuntime = func(context.Context, string, io.Writer) (vulnScanLocalRuntime, error) {
+		return vulnScanLocalRuntime{
+			Client:       NewAPIClient(server.URL, "", ""),
+			BootstrapEnv: []string{"ESHU_POSTGRES_DSN=owner-dsn"},
+			Close: func() error {
+				return errors.New("cleanup boom")
+			},
+		}, nil
+	}
+
+	out := &bytes.Buffer{}
+	errOut := &bytes.Buffer{}
+	cmd := newTestVulnScanRepoCommand(t)
+	cmd.SetOut(out)
+	cmd.SetErr(errOut)
+	if err := cmd.Flags().Set("json", "true"); err != nil {
+		t.Fatalf("Set(json) error = %v, want nil", err)
+	}
+
+	if err := runVulnScanRepo(cmd, []string{repoPath}); err != nil {
+		t.Fatalf("runVulnScanRepo() error = %v, want nil cleanup warning", err)
+	}
+
+	var payload map[string]any
+	if err := json.Unmarshal(out.Bytes(), &payload); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v, want nil; output=%s", err, out.String())
+	}
+	if payload["error"] != nil {
+		t.Fatalf("payload[error] = %#v, want nil", payload["error"])
+	}
+	data := payload["data"].(map[string]any)
+	warnings, ok := data["warnings"].([]any)
+	if !ok || len(warnings) == 0 {
+		t.Fatalf("data[warnings] = %#v, want cleanup warning", data["warnings"])
+	}
+	if got := warnings[len(warnings)-1].(string); got != "local runtime cleanup failed: cleanup boom" {
+		t.Fatalf("last warning = %q, want cleanup warning", got)
+	}
+	if got := errOut.String(); !strings.Contains(got, "Warning: local runtime cleanup failed: cleanup boom") {
+		t.Fatalf("stderr = %q, want cleanup warning", got)
 	}
 }
 
