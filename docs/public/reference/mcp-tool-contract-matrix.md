@@ -104,6 +104,23 @@ Cypher.
 | `get_ingester_status` | ingester id required | singleton status | yes | prompt-ready for runtime diagnostics |
 | `get_index_status` | optional repository selector | singleton status | yes | prompt-ready for runtime diagnostics |
 
-No-Regression Evidence: Issue #125 covers Terraform import-plan candidates with `go test ./internal/query -run 'TestHandleTerraformImportPlanCandidates|TestOpenAPITerraformImportPlanCandidates|TestServeOpenAPI' -count=1`, `go test ./internal/mcp -run 'TestResolveRouteMapsTerraformImportPlanCandidates|TestReadOnlyTools|TestCodebaseTools|TestEveryRegisteredToolHasDispatchRoute|TestMCPToolContractMatrixCoversReadOnlyTools' -count=1`, and `go test ./internal/telemetry -run TestSpanNames -count=1`; those tests exercise safe S3 and Lambda import blocks, request-derived S3 account/region hints, sensitive-resource refusal, ARN-only `resource_id` handling, OpenAPI response fields, MCP tool definition, route mapping, envelope negotiation, bounded paging, and span-name contract. `go test ./internal/query -run 'TestHandleDeadCodeInvestigation|TestOpenAPI|TestOpenAPIDeadCode' -count=1` and `go test ./internal/mcp -run 'TestResolveRouteMapsInvestigateDeadCode|TestReadOnlyTools|TestCodebaseTools|TestEveryRegisteredToolHasDispatchRoute|TestMCPToolContractMatrixCoversReadOnlyTools' -count=1` exercise the new dead-code investigation HTTP route, OpenAPI entry, MCP tool definition, route mapping, envelope negotiation, bounded paging, and TypeScript ambiguity policy. `go test ./internal/mcp ./internal/query -count=1` exercises the broader MCP dispatch contracts, query envelope negotiation, bounded list behavior, and content-search schema truth for the changed surfaces. Issue #301 additionally covers legacy impact and environment-comparison no-cache bounds with `go test ./internal/query -run 'TestFindBlastRadiusUsesRequestedLimitAndReportsTruncation|TestTraceResourceToCodeUsesRequestedLimitAndReportsTruncation|TestFindChangeSurfaceUsesRequestedLimitAndReportsTruncation|TestCompareEnvironmentsBoundsResourceReadsAndReportsTruncation' -count=1` and `go test ./internal/mcp -run 'TestNoCachePromptToolsAdvertiseBounds|TestNoCachePromptRoutesPassBounds|TestResolveRouteMapsAnalyzeCodeRelationships' -count=1`. Issue #296 covers the environment comparison story packet with `go test ./internal/query -run 'TestCompareEnvironmentsReturnsStoryGradePacket|TestCompareEnvironmentsStoryReportsMissingEvidenceLimitations' -count=1`. Issue #294 covers deployment configuration influence with `go test ./internal/query -run TestBuildDeploymentConfigInfluenceResponseReturnsPromptReadyFiles -count=1` and `go test ./internal/mcp -run 'Test(DeploymentConfigInfluenceToolContract|ResolveRouteMapsDeploymentConfigInfluenceToBoundedBody|ReadOnlyTools|EcosystemTools|EveryRegisteredToolHasDispatchRoute)' -count=1`. Issue #293 covers resource-first investigation with `go test ./internal/query -run 'TestInvestigateResource|TestTraceResourceToCodeUsesRequestedLimitAndReportsTruncation' -count=1` and `go test ./internal/mcp -run 'TestResourceInvestigation|TestResolveRouteMapsResourceInvestigation|TestReadOnlyTools|TestEcosystemTools|TestEveryRegisteredToolHasDispatchRoute' -count=1`.
+## Verification
+
+No-Regression Evidence: focused query, MCP, and telemetry tests cover:
+
+- Terraform import-plan candidates, including safe S3 and Lambda import blocks,
+  request-derived S3 account and region hints, sensitive-resource refusal,
+  ARN-only `resource_id` handling, OpenAPI response fields, MCP tool
+  definitions, route mapping, envelope negotiation, bounded paging, and span
+  names.
+- Dead-code investigation routes, including HTTP route shape, OpenAPI entries,
+  MCP tool definitions, route mapping, envelope negotiation, bounded paging,
+  and TypeScript ambiguity policy.
+- Legacy impact and environment-comparison no-cache bounds, including returned
+  limit and truncation behavior.
+- Environment comparison story packets, deployment configuration influence, and
+  resource-first investigation route contracts.
+- Broader MCP dispatch and query contracts through `go test ./internal/mcp
+  ./internal/query -count=1`.
 
 Observability Evidence: `telemetry.SpanQueryIaCTerraformImportPlan` (`query.iac_terraform_import_plan`) wraps the import-plan candidate HTTP/MCP route with stable `http.route` and `eshu.capability` attributes. `telemetry.SpanQueryDeadCodeInvestigation` (`query.dead_code_investigation`) wraps the dead-code investigation route with the same route and capability attributes. Existing MCP `dispatch tool` debug logs, HTTP response envelopes, query handler errors, graph `neo4j.query` spans, Postgres `postgres.query` spans, service query timing logs, and bounded `coverage.limit`/`coverage.truncated` response fields diagnose whether a prompt call was scoped, complete, or needs a follow-up page.
