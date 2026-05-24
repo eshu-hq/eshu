@@ -40,8 +40,13 @@ func NewPackageEnvelope(observation PackageObservation) (facts.Envelope, error) 
 		"namespace":             normalized.Namespace,
 		"classifier":            normalized.Classifier,
 		"package_id":            normalized.PackageID,
+		"purl":                  normalized.PURL,
+		"bom_ref":               normalized.BOMRef,
+		"package_manager":       normalized.PackageManager,
+		"source_path":           normalized.SourcePath,
+		"source_specific_id":    normalized.SourceSpecificID,
 		"visibility":            string(visibility),
-		"correlation_anchors":   correlationAnchors(normalized.PackageID),
+		"correlation_anchors":   correlationAnchors(normalized.PackageID, normalized.PURL, normalized.BOMRef),
 	}
 
 	return facts.Envelope{

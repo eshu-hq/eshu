@@ -87,13 +87,18 @@ func TestPackageRegistryListPackagesUsesIndexedPackageScopeAndTruncates(t *testi
 	reader := &recordingPackageRegistryGraphReader{
 		runRows: []map[string]any{
 			{
-				"package_id":      "package:npm:@eshu/core-api",
-				"ecosystem":       "npm",
-				"registry":        "npmjs",
-				"namespace":       "@eshu",
-				"normalized_name": "core-api",
-				"visibility":      "private",
-				"version_count":   int64(3),
+				"package_id":         "package:npm:@eshu/core-api",
+				"ecosystem":          "npm",
+				"registry":           "npmjs",
+				"namespace":          "@eshu",
+				"normalized_name":    "core-api",
+				"purl":               "pkg:npm/%40eshu/core-api",
+				"bom_ref":            "pkg:npm/%40eshu/core-api",
+				"package_manager":    "npm",
+				"source_path":        "package.json",
+				"source_specific_id": "npm:@eshu/core-api",
+				"visibility":         "private",
+				"version_count":      int64(3),
 			},
 			{
 				"package_id":      "package:npm:@eshu/core-api-extra",
@@ -121,6 +126,9 @@ func TestPackageRegistryListPackagesUsesIndexedPackageScopeAndTruncates(t *testi
 		"MATCH (p:Package {ecosystem: $ecosystem})",
 		"OPTIONAL MATCH (p)-[:HAS_VERSION]->(v:PackageVersion)",
 		"RETURN p.uid AS package_id",
+		"p.purl AS purl",
+		"p.bom_ref AS bom_ref",
+		"p.package_manager AS package_manager",
 		"count(v) AS version_count",
 		"ORDER BY p.ecosystem, p.normalized_name, p.uid",
 		"LIMIT $limit",
@@ -153,6 +161,21 @@ func TestPackageRegistryListPackagesUsesIndexedPackageScopeAndTruncates(t *testi
 	}
 	if got, want := resp.Packages[0].PackageID, "package:npm:@eshu/core-api"; got != want {
 		t.Fatalf("package_id = %q, want %q", got, want)
+	}
+	if got, want := resp.Packages[0].PURL, "pkg:npm/%40eshu/core-api"; got != want {
+		t.Fatalf("purl = %q, want %q", got, want)
+	}
+	if got, want := resp.Packages[0].BOMRef, "pkg:npm/%40eshu/core-api"; got != want {
+		t.Fatalf("bom_ref = %q, want %q", got, want)
+	}
+	if got, want := resp.Packages[0].PackageManager, "npm"; got != want {
+		t.Fatalf("package_manager = %q, want %q", got, want)
+	}
+	if got, want := resp.Packages[0].SourcePath, "package.json"; got != want {
+		t.Fatalf("source_path = %q, want %q", got, want)
+	}
+	if got, want := resp.Packages[0].SourceSpecificID, "npm:@eshu/core-api"; got != want {
+		t.Fatalf("source_specific_id = %q, want %q", got, want)
 	}
 	if !resp.Truncated {
 		t.Fatal("truncated = false, want true")
@@ -191,13 +214,16 @@ func TestPackageRegistryListVersionsUsesPackageUIDAnchor(t *testing.T) {
 	reader := &recordingPackageRegistryGraphReader{
 		runRows: []map[string]any{
 			{
-				"version_id":    "package:npm:@eshu/core-api@1.0.0",
-				"package_id":    "package:npm:@eshu/core-api",
-				"version":       "1.0.0",
-				"published_at":  time.Date(2026, 5, 1, 0, 0, 0, 0, time.UTC),
-				"is_yanked":     false,
-				"is_unlisted":   false,
-				"is_deprecated": false,
+				"version_id":      "package:npm:@eshu/core-api@1.0.0",
+				"package_id":      "package:npm:@eshu/core-api",
+				"version":         "1.0.0",
+				"purl":            "pkg:npm/%40eshu/core-api@1.0.0",
+				"bom_ref":         "pkg:npm/%40eshu/core-api@1.0.0",
+				"package_manager": "npm",
+				"published_at":    time.Date(2026, 5, 1, 0, 0, 0, 0, time.UTC),
+				"is_yanked":       false,
+				"is_unlisted":     false,
+				"is_deprecated":   false,
 			},
 		},
 	}
@@ -218,6 +244,9 @@ func TestPackageRegistryListVersionsUsesPackageUIDAnchor(t *testing.T) {
 	}
 	for _, fragment := range []string{
 		"MATCH (p:Package {uid: $package_id})-[:HAS_VERSION]->(v:PackageVersion)",
+		"v.purl AS purl",
+		"v.bom_ref AS bom_ref",
+		"v.package_manager AS package_manager",
 		"ORDER BY v.version, v.uid",
 		"LIMIT $limit",
 	} {
@@ -242,6 +271,15 @@ func TestPackageRegistryListVersionsUsesPackageUIDAnchor(t *testing.T) {
 	}
 	if got, want := resp.Versions[0].VersionID, "package:npm:@eshu/core-api@1.0.0"; got != want {
 		t.Fatalf("version_id = %q, want %q", got, want)
+	}
+	if got, want := resp.Versions[0].PURL, "pkg:npm/%40eshu/core-api@1.0.0"; got != want {
+		t.Fatalf("purl = %q, want %q", got, want)
+	}
+	if got, want := resp.Versions[0].BOMRef, "pkg:npm/%40eshu/core-api@1.0.0"; got != want {
+		t.Fatalf("bom_ref = %q, want %q", got, want)
+	}
+	if got, want := resp.Versions[0].PackageManager, "npm"; got != want {
+		t.Fatalf("package_manager = %q, want %q", got, want)
 	}
 	if got, want := resp.Versions[0].PublishedAt, "2026-05-01T00:00:00Z"; got != want {
 		t.Fatalf("published_at = %q, want %q", got, want)
@@ -289,6 +327,9 @@ func TestPackageRegistryListDependenciesUsesPackageOrVersionAnchor(t *testing.T)
 				"dependency_registry":   "npmjs",
 				"dependency_namespace":  "",
 				"dependency_normalized": "left-pad",
+				"dependency_purl":       "pkg:npm/left-pad",
+				"dependency_bom_ref":    "pkg:npm/left-pad",
+				"dependency_manager":    "npm",
 				"dependency_range":      "^1.3.0",
 				"dependency_type":       "runtime",
 				"target_framework":      "node18",
@@ -331,6 +372,9 @@ func TestPackageRegistryListDependenciesUsesPackageOrVersionAnchor(t *testing.T)
 		"d.package_id IS NOT NULL",
 		"d.version_id IS NOT NULL",
 		"target.uid IS NOT NULL",
+		"d.dependency_purl AS dependency_purl",
+		"d.dependency_bom_ref AS dependency_bom_ref",
+		"d.dependency_manager AS dependency_manager",
 		"ORDER BY d.version_id, d.uid",
 		"LIMIT $limit",
 	} {
@@ -360,6 +404,15 @@ func TestPackageRegistryListDependenciesUsesPackageOrVersionAnchor(t *testing.T)
 	}
 	if got, want := first.DependencyType, "runtime"; got != want {
 		t.Fatalf("dependency_type = %q, want %q", got, want)
+	}
+	if got, want := first.DependencyPURL, "pkg:npm/left-pad"; got != want {
+		t.Fatalf("dependency_purl = %q, want %q", got, want)
+	}
+	if got, want := first.DependencyBOMRef, "pkg:npm/left-pad"; got != want {
+		t.Fatalf("dependency_bom_ref = %q, want %q", got, want)
+	}
+	if got, want := first.DependencyManager, "npm"; got != want {
+		t.Fatalf("dependency_manager = %q, want %q", got, want)
 	}
 	if !first.Optional {
 		t.Fatal("optional = false, want true")

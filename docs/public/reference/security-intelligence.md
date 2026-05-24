@@ -90,8 +90,8 @@ Security targets are evidence sources, not findings:
 
 | Target family | Evidence Eshu may collect | Finding ownership |
 | --- | --- | --- |
-| Repository dependency facts | manifests, lockfiles, package ids, versions, dependency paths | Reducer joins to advisories and repository ownership. |
-| Package registry metadata | package identity, version metadata, dependency metadata | Reducer treats registry data as source metadata unless owned evidence proves use. |
+| Repository dependency facts | manifests, lockfiles, normalized package ids, versions, dependency paths | Reducer joins to advisories and repository ownership using normalized identity. |
+| Package registry metadata | package identity, PURL, BOMRef, package manager, version metadata, dependency metadata | Reducer treats registry data as source metadata unless owned evidence proves use. |
 | Advisory sources | CVE, GHSA, OSV, GitLab Advisory Database (Gemnasium), CVSS v2/v3/v4, EPSS, KEV, CWE, affected ranges, fixed versions | Reducer joins advisories to owned packages, images, SBOMs, or workloads. Each source keeps its own fact provenance so reducers can detect cross-source disagreement on range, severity, or fixed version. |
 | Provider-hosted alerts | alert state, affected dependency, advisory identifiers, manifest path | Reducer or verifier compares provider alerts to Eshu evidence without copying private alert data into docs. |
 | SBOM and attestations | document subject, component inventory, verification and parse status | Reducer admits impact only when the subject is tied to an owned image, repository, or workload. |
@@ -447,7 +447,8 @@ across sources at admission time and may detect cross-source disagreement on
 range, severity, or fixed version.
 
 The GLAD adapter preserves the source `package_slug`, ecosystem, package
-name, raw and structured `affected_range`, human-readable `affected_versions`
+name, normalized package ID, PURL, raw and structured `affected_range`,
+human-readable `affected_versions`
 and `not_impacted` text, multiple `fixed_versions` (including prerelease and
 `+build` branches), CVSS v2/v3/v4 vectors, CWE IDs, URLs, and the source
 advisory UUID. Range evaluation belongs to reducers.

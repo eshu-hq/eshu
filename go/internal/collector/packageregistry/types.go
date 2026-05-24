@@ -1,26 +1,38 @@
 package packageregistry
 
-import "time"
+import (
+	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/packageidentity"
+)
 
 // CollectorKind is the durable collector family name for package-registry facts.
 const CollectorKind = "package_registry"
 
 // Ecosystem identifies the package-native contract used to normalize identity.
-type Ecosystem string
+type Ecosystem = packageidentity.Ecosystem
 
 const (
 	// EcosystemNPM identifies npm package metadata.
-	EcosystemNPM Ecosystem = "npm"
+	EcosystemNPM = packageidentity.EcosystemNPM
 	// EcosystemPyPI identifies Python package metadata.
-	EcosystemPyPI Ecosystem = "pypi"
+	EcosystemPyPI = packageidentity.EcosystemPyPI
 	// EcosystemGoModule identifies Go module proxy metadata.
-	EcosystemGoModule Ecosystem = "gomod"
+	EcosystemGoModule = packageidentity.EcosystemGoModule
 	// EcosystemMaven identifies Maven repository metadata.
-	EcosystemMaven Ecosystem = "maven"
+	EcosystemMaven = packageidentity.EcosystemMaven
 	// EcosystemNuGet identifies NuGet V3 feed metadata.
-	EcosystemNuGet Ecosystem = "nuget"
+	EcosystemNuGet = packageidentity.EcosystemNuGet
+	// EcosystemComposer identifies PHP Composer package metadata.
+	EcosystemComposer = packageidentity.EcosystemComposer
+	// EcosystemRubyGems identifies RubyGems package metadata.
+	EcosystemRubyGems = packageidentity.EcosystemRubyGems
+	// EcosystemCargo identifies Rust Cargo crate metadata.
+	EcosystemCargo = packageidentity.EcosystemCargo
+	// EcosystemOS identifies distro package metadata.
+	EcosystemOS = packageidentity.EcosystemOS
 	// EcosystemGeneric identifies provider-specific generic package metadata.
-	EcosystemGeneric Ecosystem = "generic"
+	EcosystemGeneric = packageidentity.EcosystemGeneric
 )
 
 // Visibility describes source-reported package visibility when a registry
@@ -37,25 +49,11 @@ const (
 )
 
 // PackageIdentity is the raw identity tuple observed from a registry or feed.
-type PackageIdentity struct {
-	Ecosystem  Ecosystem
-	Registry   string
-	RawName    string
-	Namespace  string
-	Classifier string
-}
+type PackageIdentity = packageidentity.RawIdentity
 
 // NormalizedPackageIdentity is the feed-aware identity used for stable package
 // fact keys.
-type NormalizedPackageIdentity struct {
-	Ecosystem      Ecosystem
-	Registry       string
-	RawName        string
-	NormalizedName string
-	Namespace      string
-	Classifier     string
-	PackageID      string
-}
+type NormalizedPackageIdentity = packageidentity.Identity
 
 // MetadataParserContext carries the collector boundary fields that fixture
 // metadata parsers copy into emitted observations.

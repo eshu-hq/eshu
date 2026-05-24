@@ -69,6 +69,45 @@ func TestBuildPackageConsumptionDecisionsMatchesManifestDependencies(t *testing.
 	}
 }
 
+func TestBuildPackageConsumptionDecisionsNormalizesManifestPackageIdentity(t *testing.T) {
+	t.Parallel()
+
+	observedAt := time.Date(2026, 5, 24, 11, 0, 0, 0, time.UTC)
+	decisions := BuildPackageConsumptionDecisions([]facts.Envelope{
+		packageRegistryPackageFact(
+			"pypi://pypi.org/simple/friendly-bard",
+			"pypi",
+			"friendly-bard",
+			"",
+			observedAt,
+		),
+		packageSourceRepositoryFact("repo-service", "service", "https://github.com/acme/service", false, observedAt),
+		packageManifestDependencyFact(
+			"repo-service",
+			"service",
+			"requirements.txt",
+			"friendly.bard",
+			"python",
+			"==1.2.3",
+			observedAt,
+		),
+	})
+
+	if got, want := len(decisions), 1; got != want {
+		t.Fatalf("len(decisions) = %d, want %d", got, want)
+	}
+	decision := decisions[0]
+	if got, want := decision.PackageID, "pypi://pypi.org/simple/friendly-bard"; got != want {
+		t.Fatalf("PackageID = %q, want %q", got, want)
+	}
+	if got, want := decision.Ecosystem, "pypi"; got != want {
+		t.Fatalf("Ecosystem = %q, want %q", got, want)
+	}
+	if got, want := decision.PackageName, "friendly.bard"; got != want {
+		t.Fatalf("PackageName = %q, want source manifest spelling %q", got, want)
+	}
+}
+
 func TestBuildPackageConsumptionDecisionsPreservesLockfileDependencyChain(t *testing.T) {
 	t.Parallel()
 

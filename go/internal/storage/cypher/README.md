@@ -123,6 +123,9 @@ point at a resolved digest without making the tag the stable image key.
 Package-registry rows are written as `Package`/`PackageRegistryPackage`,
 `PackageVersion`/`PackageRegistryPackageVersion`, and
 `PackageDependency`/`PackageRegistryPackageDependency` nodes keyed by `uid`.
+Package and package-version nodes carry PURL, BOMRef, package manager, and
+source-debug identity fields; dependency nodes carry the same fields for the
+target package identity.
 This phase emits `HAS_VERSION`, `DECLARES_DEPENDENCY`, and
 `DEPENDS_ON_PACKAGE` for package-native dependency metadata only; source
 repository hints are not promoted to ownership or publication edges until
@@ -145,6 +148,17 @@ Observability Evidence: no new metrics were required. Existing
 failure logs, phase-group chunk summaries, and queue failure payloads expose the
 package-registry phase name, statement label, row count, scope, generation, and
 NornicDB error if duplicate target package writes ever regress.
+
+No-Regression Evidence: `go test ./internal/projector ./internal/storage/cypher -run 'TestBuildCanonicalMaterializationExtractsPackageRegistry|TestCanonicalNodeWriterBuildsPackageRegistryStatements' -count=1`
+proves package-registry identity fields (`purl`, `bom_ref`,
+`package_manager`, and source-debug fields) survive fact-to-row extraction and
+the ordered Cypher row builders without changing package/version/dependency
+phase ordering.
+
+No-Observability-Change: identity fields are additional node properties on
+existing package-registry phase groups. The existing canonical phase spans,
+duration metrics, statement summaries, row counts, and phase failure logs still
+diagnose stuck, slow, or failed package-registry graph writes.
 
 `EdgeWriter.WriteEdges` maps a `reducer.Domain` to a batched UNWIND Cypher
 template and dispatches rows in batches of `BatchSize` (default

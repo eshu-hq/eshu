@@ -67,6 +67,11 @@ func TestPackageObservationBuildsReportedPackageEnvelope(t *testing.T) {
 		"normalized_name":       "friendly-bard",
 		"namespace":             "",
 		"classifier":            "",
+		"purl":                  "pkg:pypi/friendly-bard",
+		"bom_ref":               "pkg:pypi/friendly-bard",
+		"package_manager":       "pypi",
+		"source_path":           "",
+		"source_specific_id":    "",
 		"package_id":            "pypi://pypi.org/simple/friendly-bard",
 		"visibility":            string(VisibilityPublic),
 	}

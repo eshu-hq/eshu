@@ -119,6 +119,12 @@ flowchart LR
 
 - [ ] Normalize CVE, GHSA, OSV, package ecosystem, affected range, fixed version,
   CVSS, EPSS, KEV, CWE, and withdrawn metadata into source facts.
+- [x] Track package identity normalization in
+  [#602](https://github.com/eshu-hq/eshu/issues/602): npm, PyPI, Go, Maven,
+  Composer, RubyGems, Cargo, NuGet, OS, and generic identities now share
+  canonical package ID, PURL, BOMRef, package manager, and source-debug fields
+  across package-registry facts, OSV/GLAD affected-package facts, reducer
+  joins, graph projection, and package-registry API/MCP reads.
 - [ ] Add version-range regression tests for exact lockfile versions, manifest
   ranges, aliases, pre-releases, fixed versions, yanked or withdrawn advisories,
   and unsupported ecosystems.
@@ -209,6 +215,18 @@ observation and fetch metrics, API/MCP truth envelopes, and `/api/v0/index-statu
 explain whether impact came from exact lockfile evidence, a manifest range, an
 image/SBOM path, or source-only advisory intelligence. No package names,
 versions, URLs, delivery IDs, or credential material were added to metric labels.
+
+No-Regression Evidence: `go test ./internal/packageidentity ./internal/collector/packageregistry ./internal/collector/vulnerabilityintelligence ./internal/reducer ./internal/projector ./internal/storage/cypher ./internal/query -count=1`
+proves #602 package identity fields normalize at the collector boundary,
+survive graph projection, keep OSV/GLAD affected-package facts on canonical
+package IDs, join manifest dependencies by normalized ecosystem aliases, and
+return through package-registry API/MCP routes without unbounded query changes.
+
+No-Observability-Change: #602 adds identity fields to existing facts, graph
+nodes, and bounded read responses only. Existing package-registry collector
+fact counters, reducer queue metrics, canonical phase spans, query spans, and
+HTTP truth metadata still identify the running stage, row count, status, and
+failure class.
 
 ## Chunk 5: Local One-Shot CLI
 

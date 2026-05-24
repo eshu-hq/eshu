@@ -20,6 +20,11 @@ type PackageRegistryPackageRow struct {
 	NormalizedName      string
 	Namespace           string
 	Classifier          string
+	PURL                string
+	BOMRef              string
+	PackageManager      string
+	SourcePath          string
+	SourceSpecificID    string
 	Visibility          string
 	SourceFactID        string
 	StableFactKey       string
@@ -40,6 +45,9 @@ type PackageRegistryVersionRow struct {
 	Ecosystem           string
 	Registry            string
 	Version             string
+	PURL                string
+	BOMRef              string
+	PackageManager      string
 	PublishedAt         time.Time
 	IsYanked            bool
 	IsUnlisted          bool
@@ -70,6 +78,9 @@ type PackageRegistryDependencyRow struct {
 	DependencyRegistry   string
 	DependencyNamespace  string
 	DependencyNormalized string
+	DependencyPURL       string
+	DependencyBOMRef     string
+	DependencyManager    string
 	DependencyRange      string
 	DependencyType       string
 	TargetFramework      string
@@ -144,6 +155,11 @@ func packageRegistryPackageRow(envelope facts.Envelope) (PackageRegistryPackageR
 	normalizedName, _ := payloadString(envelope.Payload, "normalized_name")
 	namespace, _ := payloadString(envelope.Payload, "namespace")
 	classifier, _ := payloadString(envelope.Payload, "classifier")
+	purl, _ := payloadString(envelope.Payload, "purl")
+	bomRef, _ := payloadString(envelope.Payload, "bom_ref")
+	packageManager, _ := payloadString(envelope.Payload, "package_manager")
+	sourcePath, _ := payloadString(envelope.Payload, "source_path")
+	sourceSpecificID, _ := payloadString(envelope.Payload, "source_specific_id")
 	visibility, _ := payloadString(envelope.Payload, "visibility")
 	collectorInstanceID, _ := payloadString(envelope.Payload, "collector_instance_id")
 	return PackageRegistryPackageRow{
@@ -154,6 +170,11 @@ func packageRegistryPackageRow(envelope facts.Envelope) (PackageRegistryPackageR
 		NormalizedName:      normalizedName,
 		Namespace:           namespace,
 		Classifier:          classifier,
+		PURL:                purl,
+		BOMRef:              bomRef,
+		PackageManager:      packageManager,
+		SourcePath:          sourcePath,
+		SourceSpecificID:    sourceSpecificID,
 		Visibility:          visibility,
 		SourceFactID:        envelope.FactID,
 		StableFactKey:       envelope.StableFactKey,
@@ -179,6 +200,9 @@ func packageRegistryVersionRow(envelope facts.Envelope) (PackageRegistryVersionR
 	}
 	ecosystem, _ := payloadString(envelope.Payload, "ecosystem")
 	registry, _ := payloadString(envelope.Payload, "registry")
+	purl, _ := payloadString(envelope.Payload, "purl")
+	bomRef, _ := payloadString(envelope.Payload, "bom_ref")
+	packageManager, _ := payloadString(envelope.Payload, "package_manager")
 	collectorInstanceID, _ := payloadString(envelope.Payload, "collector_instance_id")
 	publishedAt := packageRegistryPublishedAtFromPayload(envelope.Payload)
 	return PackageRegistryVersionRow{
@@ -187,6 +211,9 @@ func packageRegistryVersionRow(envelope facts.Envelope) (PackageRegistryVersionR
 		Ecosystem:           ecosystem,
 		Registry:            registry,
 		Version:             version,
+		PURL:                purl,
+		BOMRef:              bomRef,
+		PackageManager:      packageManager,
 		PublishedAt:         publishedAt,
 		IsYanked:            packageRegistryPayloadBool(envelope.Payload, "is_yanked"),
 		IsUnlisted:          packageRegistryPayloadBool(envelope.Payload, "is_unlisted"),
@@ -232,6 +259,9 @@ func packageRegistryDependencyRow(envelope facts.Envelope) (PackageRegistryDepen
 		DependencyRegistry:   packageRegistryPayloadString(envelope.Payload, "dependency_registry"),
 		DependencyNamespace:  packageRegistryPayloadString(envelope.Payload, "dependency_namespace"),
 		DependencyNormalized: packageRegistryPayloadString(envelope.Payload, "dependency_normalized"),
+		DependencyPURL:       packageRegistryPayloadString(envelope.Payload, "dependency_purl"),
+		DependencyBOMRef:     packageRegistryPayloadString(envelope.Payload, "dependency_bom_ref"),
+		DependencyManager:    packageRegistryPayloadString(envelope.Payload, "dependency_manager"),
 		DependencyRange:      packageRegistryPayloadString(envelope.Payload, "dependency_range"),
 		DependencyType:       packageRegistryPayloadString(envelope.Payload, "dependency_type"),
 		TargetFramework:      packageRegistryPayloadString(envelope.Payload, "target_framework"),

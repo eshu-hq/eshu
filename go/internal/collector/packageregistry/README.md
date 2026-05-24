@@ -2,10 +2,11 @@
 
 ## Purpose
 
-`internal/collector/packageregistry` owns package-registry identity
-normalization, bounded target configuration, parser registration, and
+`internal/collector/packageregistry` owns package-registry fact construction,
+bounded target configuration, parser registration, and
 fact-envelope construction for the `package_registry` collector family.
-It turns local package/feed metadata into reported-confidence facts. It does
+It delegates canonical identity normalization to `internal/packageidentity`,
+then turns local package/feed metadata into reported-confidence facts. It does
 not write graph state or decide ownership.
 
 This package implements the first slices of
@@ -58,8 +59,9 @@ See `doc.go` for the godoc contract.
 - `ParsedMetadata` — package, version, dependency, artifact, source-hint,
   vulnerability-hint, registry-event, hosting, and warning observations
   produced from one metadata document.
-- `NormalizePackageIdentity` — ecosystem normalization for npm, PyPI, Go
-  modules, Maven, NuGet, and generic package feeds.
+- `NormalizePackageIdentity` — shared ecosystem normalization for npm, PyPI,
+  Go modules, Maven, Composer, RubyGems, Cargo, NuGet, OS package managers,
+  and generic package feeds.
 - `ParseNPMPackumentMetadata` — parses one npm packument fixture into
   observations.
 - `ParsePyPIProjectMetadata` — parses one PyPI JSON API fixture into
@@ -145,6 +147,9 @@ in `packageruntime` and uses the `eshu_dp_package_registry_*` metric family.
   historical rows when the same package is observed again.
 - Package-registry envelope payloads carry `correlation_anchors` so reducers can
   join reported evidence without re-parsing source-specific payload fields.
+- Package, version, and dependency payloads preserve `purl`, `bom_ref`,
+  `package_manager`, and source-debug identity fields so API/MCP responses can
+  explain the normalized join without dropping source evidence.
 - Version fact IDs use `<package_id>@<version>` so artifact metadata and
   deprecation/yank/unlisted flags stay attached to the package-native version.
 - Dependency fact IDs use normalized source and dependency package identities

@@ -49,6 +49,9 @@ func NewPackageDependencyEnvelope(observation PackageDependencyObservation) (fac
 		"dependency_registry":    dependency.Registry,
 		"dependency_namespace":   dependency.Namespace,
 		"dependency_normalized":  dependency.NormalizedName,
+		"dependency_purl":        dependency.PURL,
+		"dependency_bom_ref":     dependency.BOMRef,
+		"dependency_manager":     dependency.PackageManager,
 		"dependency_range":       strings.TrimSpace(observation.Range),
 		"dependency_type":        dependencyType,
 		"target_framework":       strings.TrimSpace(observation.TargetFramework),
@@ -58,7 +61,7 @@ func NewPackageDependencyEnvelope(observation PackageDependencyObservation) (fac
 		"source_record_package":  pkg.PackageID,
 		"source_record_version":  version,
 		"source_record_dep_kind": dependencyType,
-		"correlation_anchors":    correlationAnchors(pkg.PackageID, versionID, dependency.PackageID),
+		"correlation_anchors":    correlationAnchors(pkg.PackageID, versionID, pkg.PURL, dependency.PackageID, dependency.PURL, dependency.BOMRef),
 	}
 
 	envelope := newEnvelope(envelopeInput{
