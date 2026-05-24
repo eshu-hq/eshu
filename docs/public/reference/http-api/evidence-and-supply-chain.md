@@ -140,6 +140,12 @@ facts and package-registry facts without owned repository, image,
 package-manifest, lockfile, or SBOM evidence remain source intelligence and do
 not appear as impact findings.
 
+The security-intelligence architecture keeps these findings separate from
+source facts and readiness coverage. See
+[Security Intelligence](../security-intelligence.md) for the target/capability
+model, zero-finding readiness semantics, provider-alert parity gate, and future
+local one-shot scanning direction.
+
 ## SBOM And Attestation Attachments
 
 `GET /api/v0/supply-chain/sbom-attestations/attachments`
