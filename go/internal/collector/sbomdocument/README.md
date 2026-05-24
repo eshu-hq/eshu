@@ -74,6 +74,55 @@ artifact.
 - Hash, license, and reference outputs are stably sorted so two
   identical inputs produce byte-identical fact bundles.
 
+### Hot-path evidence
+
+This package is content-flagged as hot-path by the
+`scripts/verify-performance-evidence.sh` gate (it lives under
+`go/internal/collector/`). The markers below are the on-repo evidence
+the gate looks for. Any PR that touches `*_fixture.go`, `envelope.go`,
+or `*_components.go` MUST refresh these numbers.
+
+- Performance Evidence: parser is a pure `O(N)` function over the input
+  byte slice — no graph traffic, no I/O outside `json.Decode`, no queue
+  writes. Output slices are pre-sized from the input shape and stably
+  sorted (hashes, licenses, external references) so two identical
+  inputs produce byte-identical fact bundles. Subject digest is
+  deterministically derived from `metadata.component.hashes`
+  (CycloneDX) or DESCRIBES-target checksums (SPDX); ambiguous or
+  missing subject flips the document to `unknown_subject` /
+  `ambiguous_subject` without changing the parse path cost.
+- Benchmark Evidence: Apple M4 Pro, `go1.22.x`, `go test -bench=.
+  -benchmem -benchtime=2s -run='^$'
+  ./internal/collector/sbomdocument`. Input shape is the bundled
+  `testdata/cyclonedx_image_subject.json` (5 components, 3 dependency
+  edges, 1 external reference, 1 unsupported section) and
+  `testdata/spdx_image_subject.json` (6 packages, 3 relationships, 5
+  external refs). Terminal envelope counts: CycloneDX = 13 envelopes,
+  SPDX = 17 envelopes per call. Numbers:
+  - `BenchmarkCycloneDXFixtureEnvelopes-12   32254   122,464 ns/op   106,161 B/op   1,198 allocs/op`
+  - `BenchmarkSPDXFixtureEnvelopes-12        28003    82,928 ns/op   122,302 B/op   1,398 allocs/op`
+- No-Regression Evidence: this is the first revision of the package
+  (no prior on-repo benchmark for CycloneDX or SPDX fact emission), so
+  the baseline IS the after-measurement above. `go test ./... -count=1`
+  is green at parity with `origin/main` on the rebase point and no
+  existing package's test duration changed materially. Determinism is
+  pinned by `determinism_test.go`, which asserts that reordered license
+  and external-reference inputs project to identical output across both
+  formats — a future change that silently makes the fact bundle
+  producer-order-dependent fails this gate before it can regress
+  downstream replay safety.
+- No-Observability-Change: this package emits no metrics, spans, or
+  logs of its own. Operators read the existing attachment-reducer
+  counters under `telemetry.Instruments.SBOMAttestationAttachments{...}`
+  (`attached_verified`, `attached_parse_only`, `unknown_subject`,
+  `ambiguous_subject`, `unparseable`, `subject_mismatch`) at 3 AM, not
+  parser-internal counters. The parser's `sbom.warning` fact kind is
+  the operator-facing signal for parser-level issues (malformed body,
+  missing/ambiguous subject, duplicate identity, unsupported field,
+  component-missing-identity, unattached-relationship) and is already
+  routed through the existing reducer evidence summary, so no new
+  telemetry plumbing is needed for this change.
+
 ## Adding a new SBOM format
 
 1. Add `<format>_types.go` with the JSON shape struct (anonymous fields
