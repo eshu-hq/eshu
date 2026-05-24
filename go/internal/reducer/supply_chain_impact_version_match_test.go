@@ -135,6 +135,35 @@ func TestBuildSupplyChainImpactFindingsFailsClosedForUnsupportedAndMalformedRang
 	assertContainsString(t, got["CVE-2026-59005"].MissingEvidence, "advisory version range malformed")
 }
 
+func TestBuildSupplyChainImpactFindingsReportsMalformedInstalledVersion(t *testing.T) {
+	t.Parallel()
+
+	findings := BuildSupplyChainImpactFindings([]facts.Envelope{
+		vulnerabilityCVEFact("cve-bad-installed", "CVE-2026-59008", 6.1),
+		vulnerabilityAffectedPackageRangeFact(
+			"affected-bad-installed",
+			"CVE-2026-59008",
+			"pkg:npm/bad-installed",
+			"npm",
+			"bad-installed",
+			"2.0.0",
+		),
+		packageConsumptionFactWithRange(
+			"consume-bad-installed",
+			"pkg:npm/bad-installed",
+			testImpactRepositoryID,
+			"not-a-version",
+		),
+	})
+
+	got := supplyChainImpactFindingsByCVE(findings)["CVE-2026-59008"]
+	assertSupplyChainImpactStatus(t, got, SupplyChainImpactPossiblyAffected)
+	if got.MatchReason != "installed_version_malformed" {
+		t.Fatalf("MatchReason = %q, want installed_version_malformed", got.MatchReason)
+	}
+	assertContainsString(t, got.MissingEvidence, "installed package version malformed")
+}
+
 func TestBuildSupplyChainImpactFindingsKeepsRangeOnlyManifestSeparate(t *testing.T) {
 	t.Parallel()
 
@@ -161,6 +190,30 @@ func TestBuildSupplyChainImpactFindingsKeepsRangeOnlyManifestSeparate(t *testing
 	}
 	if got.MatchReason != "range_only_manifest" {
 		t.Fatalf("MatchReason = %q, want range_only_manifest", got.MatchReason)
+	}
+}
+
+func TestBuildSupplyChainImpactFindingsSupportsGitLabNotEqualRange(t *testing.T) {
+	t.Parallel()
+
+	findings := BuildSupplyChainImpactFindings([]facts.Envelope{
+		vulnerabilityCVEFact("cve-not-equal", "CVE-2026-59009", 7.2),
+		vulnerabilityAffectedPackageRawRangeFact(
+			"affected-not-equal",
+			"CVE-2026-59009",
+			"pkg:npm/not-equal",
+			"npm",
+			"not-equal",
+			"!=1.2.3 <2.0.0",
+			"2.0.0",
+		),
+		packageConsumptionFactWithRange("consume-not-equal", "pkg:npm/not-equal", testImpactRepositoryID, "1.2.4"),
+	})
+
+	got := supplyChainImpactFindingsByCVE(findings)["CVE-2026-59009"]
+	assertSupplyChainImpactStatus(t, got, SupplyChainImpactAffectedExact)
+	if got.MatchReason != "npm_semver_affected_range" {
+		t.Fatalf("MatchReason = %q, want npm_semver_affected_range", got.MatchReason)
 	}
 }
 
@@ -192,6 +245,18 @@ func TestBuildSupplyChainImpactFindingsMatchesSecondVulnerableRange(t *testing.T
 	assertSupplyChainImpactStatus(t, got, SupplyChainImpactAffectedExact)
 	if got.MatchReason != "npm_semver_affected_range" {
 		t.Fatalf("MatchReason = %q, want npm_semver_affected_range", got.MatchReason)
+	}
+}
+
+func TestComparatorRangeContainsExcludesNotEqualVersion(t *testing.T) {
+	t.Parallel()
+
+	got, valid := comparatorRangeContains("!=1.2.3 <2.0.0", "1.2.3", compareOSVSemver)
+	if !valid {
+		t.Fatal("comparatorRangeContains valid = false, want true for supported != operator")
+	}
+	if got {
+		t.Fatal("comparatorRangeContains matched excluded version 1.2.3")
 	}
 }
 
@@ -274,6 +339,29 @@ func vulnerabilityAffectedPackageMalformedRangeFact(
 					},
 				},
 			},
+		},
+	}
+}
+
+func vulnerabilityAffectedPackageRawRangeFact(
+	factID string,
+	cveID string,
+	packageID string,
+	ecosystem string,
+	name string,
+	affectedRange string,
+	fixedVersion string,
+) facts.Envelope {
+	return facts.Envelope{
+		FactID:   factID,
+		FactKind: facts.VulnerabilityAffectedPackageFactKind,
+		Payload: map[string]any{
+			"cve_id":         cveID,
+			"package_id":     packageID,
+			"ecosystem":      ecosystem,
+			"package_name":   name,
+			"affected_range": affectedRange,
+			"fixed_versions": []any{fixedVersion},
 		},
 	}
 }

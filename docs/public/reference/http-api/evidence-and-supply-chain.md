@@ -147,7 +147,7 @@ Version fields intentionally do not collapse into one string:
   reports one.
 - `match_reason`: reducer explanation for the version decision, including
   supported matches, range-only manifests, unsupported ecosystems, and
-  malformed advisory ranges.
+  malformed installed versions or advisory ranges.
 
 Each row also carries a `provenance` block so callers can see which advisory
 source supplied the selected severity, fixed version, and vulnerable range,

@@ -14,11 +14,13 @@ const (
 	supplyChainVersionReasonRangeOnlyManifest      = "range_only_manifest"
 	supplyChainVersionReasonUnsupportedEcosystem   = "unsupported_ecosystem"
 	supplyChainVersionReasonMalformedRange         = "malformed_advisory_range"
+	supplyChainVersionReasonMalformedInstalled     = "installed_version_malformed"
 	supplyChainVersionReasonNoAffectedMatch        = "version_not_in_advisory_range"
 	supplyChainVersionReasonMissingInstalled       = "installed_version_missing"
 
 	supplyChainMissingUnsupportedMatcher = "ecosystem version matcher unsupported"
 	supplyChainMissingMalformedRange     = "advisory version range malformed"
+	supplyChainMissingMalformedInstalled = "installed package version malformed"
 	supplyChainMissingInstalledVersion   = "installed package version missing"
 )
 
@@ -80,7 +82,7 @@ func evaluateNPMSemverMatch(
 	pkgs []supplyChainAffectedPackage,
 ) supplyChainVersionMatchDecision {
 	if !validSupplyChainSemver(observed) {
-		return malformedVersionDecision()
+		return malformedInstalledVersionDecision()
 	}
 	if affected, malformed := npmAffectedByAnyPackage(observed, pkgs); affected {
 		return affectedVersionDecision(supplyChainVersionReasonNPMSemverAffectedRange)
@@ -150,7 +152,7 @@ func evaluateMavenVersionMatch(
 	pkgs []supplyChainAffectedPackage,
 ) supplyChainVersionMatchDecision {
 	if !validMavenVersion(observed) {
-		return malformedVersionDecision()
+		return malformedInstalledVersionDecision()
 	}
 	if affected, malformed := mavenAffectedByAnyPackage(observed, pkgs); affected {
 		return affectedVersionDecision(supplyChainVersionReasonMavenRangeMatch)
@@ -226,13 +228,21 @@ func malformedVersionDecision() supplyChainVersionMatchDecision {
 	return possiblyAffectedDecision(supplyChainVersionReasonMalformedRange, []string{supplyChainMissingMalformedRange})
 }
 
+func malformedInstalledVersionDecision() supplyChainVersionMatchDecision {
+	return possiblyAffectedDecision(
+		supplyChainVersionReasonMalformedInstalled,
+		[]string{supplyChainMissingMalformedInstalled},
+	)
+}
+
 func possiblyAffectedDecision(reason string, missing []string) supplyChainVersionMatchDecision {
 	return supplyChainVersionMatchDecision{
 		Status:          SupplyChainImpactPossiblyAffected,
 		Confidence:      "partial",
 		Reason:          reason,
 		MissingEvidence: missing,
-		FailClosed:      reason == supplyChainVersionReasonMalformedRange,
+		FailClosed: reason == supplyChainVersionReasonMalformedRange ||
+			reason == supplyChainVersionReasonMalformedInstalled,
 	}
 }
 
@@ -305,13 +315,15 @@ func comparatorConstraintContains(token string, observed string, compare version
 		return cmp > 0, true
 	case ">=":
 		return cmp >= 0, true
+	case "!=":
+		return cmp != 0, true
 	default:
 		return false, false
 	}
 }
 
 func splitVersionComparator(token string) (string, string) {
-	for _, operator := range []string{">=", "<=", "==", ">", "<", "="} {
+	for _, operator := range []string{">=", "<=", "==", "!=", ">", "<", "="} {
 		if strings.HasPrefix(token, operator) {
 			return operator, strings.TrimSpace(strings.TrimPrefix(token, operator))
 		}

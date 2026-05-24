@@ -518,8 +518,9 @@ supported matchers are npm semver over OSV-style event ranges and GLAD-style
 comparator ranges, plus Maven version/range ordering for Maven bracket and
 comparator ranges. Findings preserve `observed_version`, `requested_range`,
 `fixed_version`, and `match_reason` as separate fields. Unsupported ecosystems
-and malformed advisory ranges fail closed as `possibly_affected` with explicit
-missing-evidence reasons instead of being treated as affected or safely fixed.
+and malformed installed versions or advisory ranges fail closed as
+`possibly_affected` with explicit missing-evidence reasons instead of being
+treated as affected or safely fixed.
 
 No-Regression Evidence: `go test ./internal/reducer
 ./internal/query ./internal/collector/vulnerabilityintelligence
@@ -544,12 +545,13 @@ to diagnose source coverage.
 No-Regression Evidence: `go test ./internal/reducer ./internal/query
 ./internal/mcp -count=1` covers npm semver affected ranges, Maven vulnerable
 ranges, Maven known-fixed classification, range-only manifests, unsupported
-ecosystem fail-closed behavior, malformed advisory range reasons, impact fact
-serialization, impact read-model decoding, API result shaping, and MCP
-pass-through for the supply-chain impact envelope. The matcher is bounded to
-the active `(cve_id, package_id)` affected-package rows already loaded by the
-impact reducer plus the owned dependency/SBOM evidence for that package; it
-does not scan the public package universe.
+ecosystem fail-closed behavior, GLAD not-equal range matching, malformed
+installed-version and advisory-range reasons, impact fact serialization, impact
+read-model decoding, API result shaping, and MCP pass-through for the
+supply-chain impact envelope. The matcher is bounded to the active
+`(cve_id, package_id)` affected-package rows already loaded by the impact
+reducer plus the owned dependency/SBOM evidence for that package; it does not
+scan the public package universe.
 
 No-Observability-Change: the version-matching boundary reuses the existing
 `SupplyChainImpactFindings` reducer counter, `reducer_supply_chain_impact_finding`
