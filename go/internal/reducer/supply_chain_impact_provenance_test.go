@@ -58,8 +58,6 @@ func TestSupplyChainCVEGroupRepresentativeUsesSourcePriority(t *testing.T) {
 }
 
 func TestAdvisorySourcePriorityDoesNotAllocate(t *testing.T) {
-	t.Parallel()
-
 	allocations := testing.AllocsPerRun(1000, func() {
 		_ = advisorySourcePriority("npm", "ghsa")
 		_ = advisorySourcePriority("rpm", "redhat")
