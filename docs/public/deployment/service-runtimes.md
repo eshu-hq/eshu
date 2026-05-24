@@ -19,6 +19,7 @@ choices, use [Docker Compose](../run-locally/docker-compose.md).
 | Workflow Coordinator | Collector instance reconciliation, claim creation, expired-claim reaping. | optional `Deployment` | [Core runtimes](service-runtimes-core.md) |
 | Resolution Engine | Durable queue drain, projection, retry, replay, and recovery. | `Deployment` | [Resolution engine](../services/resolution-engine.md) |
 | Hosted Collectors | Confluence, OCI registry, Terraform-state, AWS cloud, and package-registry fact intake. | optional `Deployment` | [Collector runtimes](service-runtimes-collectors.md) |
+| Scanner Worker | Claim-driven CPU-heavy and memory-heavy security analyzers that emit source facts only. | optional `Deployment` | [Security Intelligence](../reference/security-intelligence.md#scanner-worker-boundary) |
 | Bootstrap Index | One-shot initial indexing. | operator-run helper, not chart steady state | [Bootstrap runtimes](service-runtimes-bootstrap.md) |
 
 The direct service binaries are the release artifacts and support `--version`
@@ -53,6 +54,10 @@ before treating a graph as current:
 - Scale the resolution engine only after queue and Postgres telemetry show the
   reducer is the bottleneck.
 - Keep claim-driven collectors behind an active workflow coordinator.
+- Keep scanner workers in their own Deployment or Compose service; do not move
+  image unpacking, SBOM generation, source scanning, secret scanning, license
+  scanning, OS package extraction, or misconfiguration analysis into the
+  default reducer lane.
 - Use `ServiceMonitor` only for long-running Kubernetes runtimes; schema
   bootstrap and bootstrap-index are excluded.
 - Enable `ESHU_PPROF_ADDR` only on the runtime that owns the slow stage and keep

@@ -19,7 +19,7 @@ Security intelligence separates **targets** from **capabilities**.
 - A capability is a reducer-owned question over collected evidence, such as
   vulnerability impact, readiness coverage, priority, remediation, or future
   secret/license/misconfiguration analysis.
-- Collectors and future scanner workers emit source facts only. They do not
+- Collectors and scanner workers emit source facts only. They do not
   publish user-facing security truth by themselves.
 - Reducers own admitted findings because reducers can see the cross-source
   evidence chain.
@@ -232,32 +232,47 @@ Analyzer lane ownership:
 
 ## Resource And Deployment Guidance
 
-This slice defines the contract only. It does not enable a hosted
-scanner-worker Deployment, Docker Compose service, Helm value, or CLI scanner
-runtime. Do not make scanner workers a hosted default until an implementation
-proves queue drain, retries, dead letters, pprof access, CPU, memory, target
-count, result count, and fact output under the same deployment shape operators
-will run.
+The hosted `eshu-scanner-worker` runtime isolates scanner-worker claims from
+the default reducer lane. It is available in the remote Compose proof stack and
+as an opt-in Helm `scannerWorker` Deployment, but it is not enabled by default
+in normal Helm installs. The built-in analyzer emits an explicit
+`scanner_worker.warning` source fact when no concrete analyzer is configured;
+that is a proof of claimed scanner-worker execution, not a clean finding.
 
-Starting resource envelopes for a future Kubernetes Deployment:
+Starting Kubernetes resource envelopes:
 
 | Analyzer class | Request | Limit | Contract limits to start with |
 | --- | --- | --- | --- |
-| Repository source analysis, secret, license, or misconfiguration scan | `cpu=1`, `memory=2Gi` | `cpu=4`, `memory=4Gi` | `timeout=10m`, `max_files=250000`, `max_facts=50000` |
-| SBOM generation or OS package extraction | `cpu=1`, `memory=2Gi` | `cpu=4`, `memory=8Gi` | `timeout=10m`, `max_input_bytes=2Gi`, `max_facts=50000` |
-| Image unpacking | `cpu=2`, `memory=4Gi` | `cpu=6`, `memory=12Gi` | `timeout=15m`, `max_input_bytes=4Gi`, `max_facts=50000` |
+| Repository source analysis, secret, license, or misconfiguration scan | `cpu=1`, `memory=2Gi` | `cpu=4`, `memory=4Gi` | `cpu_millis=4000`, `memory_bytes=4294967296`, `timeout=10m`, `max_files=250000`, `max_facts=50000` |
+| SBOM generation or OS package extraction | `cpu=1`, `memory=2Gi` | `cpu=4`, `memory=8Gi` | `cpu_millis=4000`, `memory_bytes=8589934592`, `timeout=10m`, `max_input_bytes=2Gi`, `max_facts=50000` |
+| Image unpacking | `cpu=2`, `memory=4Gi` | `cpu=6`, `memory=12Gi` | `cpu_millis=6000`, `memory_bytes=12884901888`, `timeout=15m`, `max_input_bytes=4Gi`, `max_facts=50000` |
 
 Use a separate worker pool per analyzer class when those envelopes diverge.
-Do not co-locate scanner workers with reducers until pprof and metrics show the
-analyzer cannot contend with reducer queue drain. In Compose proofs, keep
+Do not co-locate scanner workers with reducers until pprof and metrics prove
+the analyzer cannot contend with reducer queue drain. In Compose proofs, keep
 pprof bound to host loopback. In Kubernetes, expose pprof only through a
 temporary port-forward or a protected debug path, never through the public
 service.
 
+Remote Compose starts a dedicated `scanner-worker` service with separate
+resource-limit env vars:
+
+- `ESHU_SCANNER_WORKER_CPU_MILLIS`
+- `ESHU_SCANNER_WORKER_MEMORY_BYTES`
+- `ESHU_SCANNER_WORKER_TIMEOUT`
+- `ESHU_SCANNER_WORKER_MAX_INPUT_BYTES`
+- `ESHU_SCANNER_WORKER_MAX_FILES`
+- `ESHU_SCANNER_WORKER_MAX_FACTS`
+
+Helm renders the same contract from the `scannerWorker` values block. Keep the
+worker disabled unless `workflowCoordinator.enabled=true`,
+`workflowCoordinator.deploymentMode=active`, and
+`workflowCoordinator.claimsEnabled=true`; the chart rejects a scanner-worker
+Deployment without that claim control plane.
+
 ## Scanner Observability
 
-The telemetry contract reserves these scanner-worker signals before runtime
-implementation:
+The hosted scanner-worker service records these signals:
 
 - counters: `eshu_dp_scanner_worker_claims_total`,
   `eshu_dp_scanner_worker_retries_total`,
@@ -279,14 +294,15 @@ running the analyzer, hitting a resource limit, producing too many facts,
 retrying transiently, or dead-lettering terminally without reading raw target
 names.
 
-No-Regression Evidence: the scanner-worker boundary is contract-only and ran
-`go test ./internal/collector/scannerworker ./internal/facts ./internal/scope ./internal/workflow ./internal/telemetry -run 'Test(AnalyzerProfilesRouteHeavyAnalyzersToScannerWorkers|NewClaimInput|ValidateFactOutput|FailurePayload|ScannerWorkerFactKindRegistry|IngestionScopeValidateAllowsAdditional|CollectorContractForScannerWorker|ScannerWorkerTelemetryContractNames)' -count=1`.
-That proof covers lane routing, workflow claim copying, non-scanner claim
-rejection, silent-clean rejection, reducer fact rejection, fenced source facts,
-privacy-safe dead-letter payloads, scanner source fact kinds, scope and
-collector registration, workflow phase contract shape, and telemetry names.
-It changes no reducer queues, worker counts, graph writes, CLI scanner files,
-NornicDB settings, Compose services, or Helm defaults.
+No-Regression Evidence: scanner-worker runtime behavior is covered by
+`go test ./internal/collector/scannerworker ./cmd/scanner-worker ./internal/runtime -run 'Test(Service|DefaultResourceLimits|WarningAnalyzer|LoadRuntimeConfig|ScannerWorkerBinary|RemoteE2EComposeIncludesScannerWorker|HelmClaimDrivenCollectorDeployments)' -count=1`.
+That proof covers successful source fact emission, retryable analyzer failure,
+terminal dead-letter payload detail, silent-clean rejection, resource-limit
+defaults, runtime config selection, binary packaging, Compose service wiring,
+pprof overlay wiring, and Helm rendering. Remote Compose acceptance still must
+record target count, fact count, runtime, memory, CPU, queue state, retry
+count, dead letters, and pprof availability before issue #614 is called fully
+closed.
 
 ## Readiness Semantics
 

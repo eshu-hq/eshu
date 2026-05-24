@@ -99,6 +99,7 @@ func TestRemoteE2EComposeUsesProductionCanonicalWriteTimeout(t *testing.T) {
 		"collector-package-registry",
 		"collector-vulnerability-intelligence",
 		"collector-aws-cloud",
+		"scanner-worker",
 	} {
 		service := requireComposeService(t, doc, serviceName)
 		assertComposeEnv(t, service, "ESHU_CANONICAL_WRITE_TIMEOUT", "${ESHU_CANONICAL_WRITE_TIMEOUT:-120s}")
@@ -126,6 +127,7 @@ func TestRemoteE2EComposeRunsProjectorForHostedCollectorSourceLocalWork(t *testi
 		"collector-package-registry",
 		"collector-vulnerability-intelligence",
 		"collector-aws-cloud",
+		"scanner-worker",
 	} {
 		service := requireComposeService(t, doc, serviceName)
 		assertComposeDependency(t, service, "projector")
@@ -163,6 +165,7 @@ func TestRemoteE2EComposeRestartsRuntimeServicesAfterTransientStoreStartup(t *te
 		"collector-package-registry",
 		"collector-vulnerability-intelligence",
 		"collector-aws-cloud",
+		"scanner-worker",
 	} {
 		service := requireComposeService(t, doc, serviceName)
 		if service.Restart != "on-failure" {
@@ -198,6 +201,7 @@ func TestRemoteE2EWorkerPprofOverlayBindsWorkersToHostLoopback(t *testing.T) {
 		"collector-confluence":                 "19668",
 		"collector-vulnerability-intelligence": "19670",
 		"projector":                            "19669",
+		"scanner-worker":                       "19671",
 	} {
 		service := requireComposeService(t, doc, serviceName)
 		assertComposeEnv(t, service, "ESHU_PPROF_ADDR", "0.0.0.0:6060")
@@ -217,6 +221,7 @@ func TestHostedWorkerCommandsStartPprofServer(t *testing.T) {
 		"go/cmd/collector-terraform-state/main.go",
 		"go/cmd/collector-vulnerability-intelligence/main.go",
 		"go/cmd/projector/main.go",
+		"go/cmd/scanner-worker/main.go",
 		"go/cmd/workflow-coordinator/main.go",
 	} {
 		content := readRepositoryFile(t, "../../..", sourcePath)
@@ -269,6 +274,34 @@ func TestRemoteE2EComposeIncludesVulnerabilityIntelligenceCollector(t *testing.T
 	} {
 		if !strings.Contains(exampleEnv, want) {
 			t.Fatalf(".env.remote-e2e.example missing %q", want)
+		}
+	}
+}
+
+func TestRemoteE2EComposeIncludesScannerWorker(t *testing.T) {
+	t.Parallel()
+
+	doc := readComposeDocument(t, "docker-compose.remote-e2e.yaml")
+	service := requireComposeService(t, doc, "scanner-worker")
+	if fmt.Sprint(service.Command) != "[/usr/local/bin/eshu-scanner-worker]" {
+		t.Fatalf("scanner-worker command = %#v, want eshu-scanner-worker", service.Command)
+	}
+	assertComposeEnv(t, service, "ESHU_SCANNER_WORKER_INSTANCE_ID", "remote-e2e-scanner-worker-source")
+	assertComposeEnv(t, service, "ESHU_SCANNER_WORKER_ANALYZER", "${ESHU_SCANNER_WORKER_ANALYZER:-source_analysis}")
+	assertComposeEnv(t, service, "ESHU_SCANNER_WORKER_POLL_INTERVAL", "${ESHU_SCANNER_WORKER_POLL_INTERVAL:-2s}")
+	assertComposeEnv(t, service, "ESHU_SCANNER_WORKER_MEMORY_BYTES", "${ESHU_SCANNER_WORKER_MEMORY_BYTES:-4294967296}")
+	assertComposePortContains(t, service, "${ESHU_SCANNER_WORKER_METRICS_PORT:-19477}:9464")
+	assertComposeDependency(t, service, "projector")
+	assertComposeDependency(t, service, "workflow-coordinator")
+
+	compose := readRepositoryFile(t, "../../..", "docker-compose.remote-e2e.yaml")
+	for _, want := range []string{
+		`"instance_id": "remote-e2e-scanner-worker-source"`,
+		`"collector_kind": "scanner_worker"`,
+		`"analyzer": "source_analysis"`,
+	} {
+		if !strings.Contains(compose, want) {
+			t.Fatalf("docker-compose.remote-e2e.yaml missing scanner-worker term %q", want)
 		}
 	}
 }
@@ -344,6 +377,7 @@ func remoteE2EWorkerPprofServices() []string {
 		"collector-aws-cloud",
 		"projector",
 		"collector-confluence",
+		"scanner-worker",
 	}
 }
 

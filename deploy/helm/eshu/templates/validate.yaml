@@ -46,7 +46,15 @@
 {{- fail "packageRegistryCollector.collectorInstances must contain at least one instance when packageRegistryCollector.enabled=true" -}}
 {{- end -}}
 {{- end -}}
-{{- $claimDrivenCollectorsEnabled := or .Values.terraformStateCollector.enabled .Values.awsCloudCollector.enabled .Values.packageRegistryCollector.enabled -}}
+{{- if .Values.scannerWorker.enabled -}}
+{{- if not .Values.scannerWorker.instanceId -}}
+{{- fail "scannerWorker.instanceId is required when scannerWorker.enabled=true" -}}
+{{- end -}}
+{{- if not .Values.scannerWorker.collectorInstances -}}
+{{- fail "scannerWorker.collectorInstances must contain at least one instance when scannerWorker.enabled=true" -}}
+{{- end -}}
+{{- end -}}
+{{- $claimDrivenCollectorsEnabled := or .Values.terraformStateCollector.enabled .Values.awsCloudCollector.enabled .Values.packageRegistryCollector.enabled .Values.scannerWorker.enabled -}}
 {{- if and $claimDrivenCollectorsEnabled (not .Values.workflowCoordinator.enabled) -}}
 {{- fail "workflowCoordinator.enabled=true is required when claim-driven collectors are enabled" -}}
 {{- end -}}

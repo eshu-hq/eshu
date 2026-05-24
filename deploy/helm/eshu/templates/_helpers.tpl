@@ -80,6 +80,10 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- printf "%s-package-registry-collector" (include "eshu.fullname" .) | trunc 63 | trimSuffix "-" -}}
 {{- end -}}
 
+{{- define "eshu.scannerWorkerFullname" -}}
+{{- printf "%s-scanner-worker" (include "eshu.fullname" .) | trunc 63 | trimSuffix "-" -}}
+{{- end -}}
+
 {{- define "eshu.apiMetricsServiceName" -}}
 {{- printf "%s-api-metrics" (include "eshu.fullname" .) | trunc 63 | trimSuffix "-" -}}
 {{- end -}}
@@ -126,6 +130,10 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 
 {{- define "eshu.packageRegistryCollectorMetricsServiceName" -}}
 {{- printf "%s-package-registry-collector-metrics" (include "eshu.fullname" .) | trunc 63 | trimSuffix "-" -}}
+{{- end -}}
+
+{{- define "eshu.scannerWorkerMetricsServiceName" -}}
+{{- printf "%s-scanner-worker-metrics" (include "eshu.fullname" .) | trunc 63 | trimSuffix "-" -}}
 {{- end -}}
 
 {{- define "eshu.apiSelectorLabels" -}}
@@ -192,6 +200,11 @@ app.kubernetes.io/component: aws-cloud-collector
 {{- define "eshu.packageRegistryCollectorSelectorLabels" -}}
 {{- include "eshu.selectorLabels" . }}
 app.kubernetes.io/component: package-registry-collector
+{{- end -}}
+
+{{- define "eshu.scannerWorkerSelectorLabels" -}}
+{{- include "eshu.selectorLabels" . }}
+app.kubernetes.io/component: scanner-worker
 {{- end -}}
 
 {{- define "eshu.serviceAccountName" -}}

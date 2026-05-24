@@ -365,6 +365,38 @@ packageRegistryCollector:
       cpu: 1000m
       memory: 2Gi
 
+scannerWorker:
+  enabled: false
+  replicas: 1
+  revisionHistoryLimit: 3
+  instanceId: scanner-worker-source
+  analyzer: source_analysis
+  pollInterval: 30s
+  claimLeaseTTL: 5m
+  heartbeatInterval: 55s
+  cpuMillis: "4000"
+  memoryBytes: "4294967296"
+  timeout: 10m
+  maxInputBytes: "2147483648"
+  maxFiles: "250000"
+  maxFacts: "50000"
+  collectorInstances: []
+  extraEnv: []
+  connectionTuning:
+    postgres:
+      maxOpenConns: ""
+      maxIdleConns: ""
+      connMaxLifetime: ""
+      connMaxIdleTime: ""
+      pingTimeout: ""
+  resources:
+    requests:
+      cpu: "1"
+      memory: 2Gi
+    limits:
+      cpu: "4"
+      memory: 4Gi
+
 exposure:
   ingress:
     enabled: false

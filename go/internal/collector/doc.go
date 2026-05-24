@@ -13,8 +13,8 @@
 // enter normal repository snapshots; only metadata-only state candidates are
 // emitted for the Terraform-state collector path to approve and read.
 //
-// The scannerworker subpackage is a contract package for future isolated
-// security analyzers. It defines claim input, target scope, resource limits,
-// source-fact output, and retry/dead-letter payloads, but it does not implement
-// analyzer execution.
+// The scannerworker subpackage owns the hosted boundary for isolated security
+// analyzers. It defines claim input, target scope, resource limits,
+// source-fact output validation, retry/dead-letter payloads, and the claim loop
+// used by scanner-worker runtimes while reducers keep finding truth ownership.
 package collector

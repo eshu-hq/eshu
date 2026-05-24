@@ -26,6 +26,7 @@ exact binary set on `PATH`.
 | `eshu-collector-confluence` | `collector-confluence/` | Long-running Confluence documentation collector |
 | `eshu-collector-terraform-state` | `collector-terraform-state/` | Long-running Terraform-state collector |
 | `eshu-collector-package-registry` | `collector-package-registry/` | Long-running package-registry collector |
+| `eshu-scanner-worker` | `scanner-worker/` | Long-running isolated security analyzer worker |
 | `eshu-collector-aws-cloud` | `collector-aws-cloud/` | Long-running AWS cloud collector |
 | `eshu-webhook-listener` | `webhook-listener/` | Long-running GitHub/GitLab webhook intake |
 | `eshu-admin-status` | `admin-status/` | Admin/status read helper |
@@ -44,6 +45,7 @@ flowchart LR
   workflow[workflow-coordinator] --> postgres
   tfstate[collector-terraform-state] --> postgres
   aws[collector-aws-cloud] --> postgres
+  scanner[scanner-worker] --> postgres
   webhook[webhook-listener] --> postgres
   api[api] --> graph
   api --> postgres

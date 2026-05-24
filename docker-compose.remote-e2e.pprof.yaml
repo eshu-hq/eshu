@@ -60,6 +60,12 @@ services:
     ports:
       - "127.0.0.1:19670:6060"
 
+  scanner-worker:
+    environment:
+      ESHU_PPROF_ADDR: 0.0.0.0:6060
+    ports:
+      - "127.0.0.1:19671:6060"
+
   collector-aws-cloud:
     environment:
       ESHU_PPROF_ADDR: 0.0.0.0:6060

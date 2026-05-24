@@ -73,9 +73,10 @@ artifact paths, and credentials stay out of labels.
 
 ## Scanner-Worker Boundary
 
-Scanner-worker metrics are reserved for future isolated security analyzers.
-They are part of the telemetry contract now so runtime implementations do not
-invent local labels.
+Scanner-worker metrics are emitted by the hosted scanner-worker runtime for
+isolated security analyzers. The built-in warning analyzer still records these
+signals so operators can prove claim, retry, dead-letter, and fact-output
+behavior before a concrete heavy analyzer is configured.
 
 | Metric | Key labels | Use |
 | --- | --- | --- |

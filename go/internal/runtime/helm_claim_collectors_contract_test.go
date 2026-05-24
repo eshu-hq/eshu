@@ -15,6 +15,7 @@ func TestHelmClaimDrivenCollectorDeployments(t *testing.T) {
 		"eshu-terraform-state-collector",
 		"eshu-aws-cloud-collector",
 		"eshu-package-registry-collector",
+		"eshu-scanner-worker",
 	} {
 		if helmManifestExists(defaultManifests, "Deployment", name) {
 			t.Fatalf("default chart render included %s deployment", name)
@@ -79,6 +80,13 @@ workflowCoordinator:
             document_format: artifactory_package
             username_env: PACKAGE_REGISTRY_USERNAME
             password_env: PACKAGE_REGISTRY_PASSWORD
+    - instance_id: scanner-worker-source
+      collector_kind: scanner_worker
+      mode: continuous
+      enabled: true
+      claims_enabled: true
+      configuration:
+        analyzer: source_analysis
 terraformStateCollector:
   enabled: true
   instanceId: terraform-state-primary
@@ -159,6 +167,28 @@ packageRegistryCollector:
         secretKeyRef:
           name: package-registry-credentials
           key: password
+scannerWorker:
+  enabled: true
+  instanceId: scanner-worker-source
+  analyzer: source_analysis
+  pollInterval: 30s
+  claimLeaseTTL: 5m
+  heartbeatInterval: 55s
+  resources:
+    requests:
+      cpu: "1"
+      memory: 2Gi
+    limits:
+      cpu: "4"
+      memory: 4Gi
+  collectorInstances:
+    - instance_id: scanner-worker-source
+      collector_kind: scanner_worker
+      mode: continuous
+      enabled: true
+      claims_enabled: true
+      configuration:
+        analyzer: source_analysis
 `)
 	if err := os.WriteFile(valuesPath, values, 0o600); err != nil {
 		t.Fatalf("write claim collector values: %v", err)
@@ -183,6 +213,15 @@ packageRegistryCollector:
 		"ESHU_PACKAGE_REGISTRY_POLL_INTERVAL":         "25s",
 		"ESHU_PACKAGE_REGISTRY_CLAIM_LEASE_TTL":       "4m",
 		"ESHU_PACKAGE_REGISTRY_HEARTBEAT_INTERVAL":    "50s",
+	})
+	assertClaimCollector(t, manifests, "scanner-worker", "eshu-scanner-worker", map[string]string{
+		"ESHU_SCANNER_WORKER_INSTANCE_ID":        "scanner-worker-source",
+		"ESHU_SCANNER_WORKER_ANALYZER":           "source_analysis",
+		"ESHU_SCANNER_WORKER_POLL_INTERVAL":      "30s",
+		"ESHU_SCANNER_WORKER_CLAIM_LEASE_TTL":    "5m",
+		"ESHU_SCANNER_WORKER_HEARTBEAT_INTERVAL": "55s",
+		"ESHU_SCANNER_WORKER_CPU_MILLIS":         "4000",
+		"ESHU_SCANNER_WORKER_MEMORY_BYTES":       "4294967296",
 	})
 	assertHelmValueFromEnv(t, manifests, "terraform-state-collector", "ESHU_TFSTATE_REDACTION_KEY")
 	assertHelmValueFromEnv(t, manifests, "aws-cloud-collector", "ESHU_AWS_REDACTION_KEY")

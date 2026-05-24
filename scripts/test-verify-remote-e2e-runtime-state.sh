@@ -144,7 +144,9 @@ workflow-coordinator
 collector-terraform-state
 collector-oci-registry
 collector-package-registry
+collector-vulnerability-intelligence
 collector-aws-cloud
+scanner-worker
 SERVICES
   cat >"${state_dir}/index-status.json" <<'JSON'
 {
@@ -227,6 +229,11 @@ reset_state
 set_all_services_healthy
 set_service_state collector-oci-registry running unhealthy
 expect_fail_with 'collector-oci-registry.*unhealthy'
+
+reset_state
+set_all_services_healthy
+set_service_state scanner-worker created none
+expect_fail_with 'scanner-worker.*created'
 
 reset_state
 set_all_services_healthy
