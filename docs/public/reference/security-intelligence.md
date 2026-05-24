@@ -513,6 +513,14 @@ and reports `outcome: no_finding` with readiness when a bounded scope has no
 finding. It does not infer reachability or deployment truth from provider
 alerts, image tags, workload names, or repository names.
 
+Version and range matching is reducer-owned and ecosystem-aware. The first
+supported matchers are npm semver over OSV-style event ranges and GLAD-style
+comparator ranges, plus Maven version/range ordering for Maven bracket and
+comparator ranges. Findings preserve `observed_version`, `requested_range`,
+`fixed_version`, and `match_reason` as separate fields. Unsupported ecosystems
+and malformed advisory ranges fail closed as `possibly_affected` with explicit
+missing-evidence reasons instead of being treated as affected or safely fixed.
+
 No-Regression Evidence: `go test ./internal/reducer
 ./internal/query ./internal/collector/vulnerabilityintelligence
 -run 'TestSupplyChainImpact(Preserves|VendorAdvisory|FallsBack|Excludes)|TestPostgresSupplyChainImpactWriterSerializesProvenancePayload|TestDecodeSupplyChainImpactFindingRowPreservesProvenance|TestOSVRecordPreservesWithdrawnTimestamp'
@@ -532,6 +540,23 @@ introduced. Operators continue to use the supply-chain impact API truth
 envelope, the existing reducer outcome counters, and the
 `vulnerability.cve` / `vulnerability.affected_package` source-fact payloads
 to diagnose source coverage.
+
+No-Regression Evidence: `go test ./internal/reducer ./internal/query
+./internal/mcp -count=1` covers npm semver affected ranges, Maven vulnerable
+ranges, Maven known-fixed classification, range-only manifests, unsupported
+ecosystem fail-closed behavior, malformed advisory range reasons, impact fact
+serialization, impact read-model decoding, API result shaping, and MCP
+pass-through for the supply-chain impact envelope. The matcher is bounded to
+the active `(cve_id, package_id)` affected-package rows already loaded by the
+impact reducer plus the owned dependency/SBOM evidence for that package; it
+does not scan the public package universe.
+
+No-Observability-Change: the version-matching boundary reuses the existing
+`SupplyChainImpactFindings` reducer counter, `reducer_supply_chain_impact_finding`
+fact kind, impact `EvidencePath`, `missing_evidence`, `match_reason`, and the
+`query.supply_chain_impact_findings` span. Operators diagnose decisions from
+the same impact finding payload and readiness envelope; no new queue,
+collector, graph write, metric instrument, or runtime worker is introduced.
 
 No-Observability-Change: the GLAD adapter emits the existing
 `vulnerability.cve`, `vulnerability.affected_package`,

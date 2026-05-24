@@ -41,7 +41,9 @@ type SupplyChainImpactFindingRow struct {
 	ProductCriteria     string
 	MatchCriteriaID     string
 	ObservedVersion     string
+	RequestedRange      string
 	FixedVersion        string
+	MatchReason         string
 	ImpactStatus        string
 	Confidence          string
 	CVSSScore           float64
@@ -224,7 +226,9 @@ func decodeSupplyChainImpactFindingRow(
 		ProductCriteria:     StringVal(payload, "product_criteria"),
 		MatchCriteriaID:     StringVal(payload, "match_criteria_id"),
 		ObservedVersion:     StringVal(payload, "observed_version"),
+		RequestedRange:      StringVal(payload, "requested_range"),
 		FixedVersion:        StringVal(payload, "fixed_version"),
+		MatchReason:         StringVal(payload, "match_reason"),
 		ImpactStatus:        StringVal(payload, "impact_status"),
 		Confidence:          StringVal(payload, "confidence"),
 		CVSSScore:           floatVal(payload, "cvss_score"),

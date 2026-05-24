@@ -307,10 +307,15 @@ Log phase attributes: `telemetry.PhaseReduction` (main loop),
   facts only from explicit vulnerability, affected package, owned
   package-consumption, SBOM component, attachment, or image identity evidence.
   Exact package-manifest or lockfile dependency versions can prove an observed
-  package version. Npm `package-lock.json` rows also preserve the ordered
-  dependency path, depth, and direct/transitive flag so vulnerability impact can
-  explain whether a finding came from a direct dependency or through an owned
-  transitive chain. Package-registry identity facts can bound active
+  package version. The reducer preserves the exact installed version, the
+  requested manifest range, the selected fixed version, and the match reason as
+  separate finding fields. Version/range evaluation is ecosystem-aware for npm
+  semver and Maven; unsupported ecosystems and malformed advisory ranges fail
+  closed as partial evidence with explicit missing-evidence reasons. Npm
+  `package-lock.json` rows also preserve the ordered dependency path, depth, and
+  direct/transitive flag so vulnerability impact can explain whether a finding
+  came from a direct dependency or through an owned transitive chain.
+  Package-registry identity facts can bound active
   vulnerability lookups, and the active evidence walk expands through package
   IDs, PURLs, CVEs, SBOM document IDs, subject digests, and CPE criteria until
   no new bounded join key appears. Package-registry version facts are upstream

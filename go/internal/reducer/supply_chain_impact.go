@@ -63,7 +63,9 @@ type SupplyChainImpactFinding struct {
 	ProductCriteria      string
 	MatchCriteriaID      string
 	ObservedVersion      string
+	RequestedRange       string
 	FixedVersion         string
+	MatchReason          string
 	Status               SupplyChainImpactStatus
 	Confidence           string
 	CVSSScore            float64
