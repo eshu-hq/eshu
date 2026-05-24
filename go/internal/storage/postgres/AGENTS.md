@@ -47,9 +47,9 @@
   and raw control bytes before every fact INSERT. Skipping this causes Postgres
   errors on repositories with binary or non-UTF-8 content.
 - **Ack atomicity** — `ProjectorQueue.Ack` wraps five SQL statements in a
-  single transaction (`projector_queue.go:105`). If any step fails, the
-  transaction rolls back. Always pass a `SQLDB` or `InstrumentedDB(SQLDB)` to
-  `NewProjectorQueue`; a bare `ExecQueryer` without `Beginner` will fail.
+  single transaction. If any step fails, the transaction rolls back. Always
+  pass a `SQLDB` or `InstrumentedDB(SQLDB)` to `NewProjectorQueue`; a bare
+  `ExecQueryer` without `Beginner` will fail.
 - **Lease fencing** — `ProjectorQueue.Heartbeat` and `WorkflowControlStore`
   claims check `lease_owner` on UPDATE. A zero `RowsAffected` returns
   `ErrProjectorClaimRejected` or `ErrWorkflowClaimRejected`. Callers must stop

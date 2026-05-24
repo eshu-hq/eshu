@@ -258,12 +258,12 @@ WITH superseded_work AS (
         next_attempt_at = NULL,
         updated_at = $1,
         failure_class = 'projector_superseded_by_newer_generation',
-        failure_message = 'projector work superseded by active same-scope generation',
+        failure_message = 'projector work superseded by newer same-scope generation',
         failure_details = jsonb_build_object(
             'scope_id', stale.scope_id,
             'work_item_id', stale.work_item_id,
             'generation_id', stale.generation_id,
-            'active_generation_id', $3
+            'current_generation_id', $3
         )
     FROM scope_generations AS stale_generation,
          scope_generations AS current_generation

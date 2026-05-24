@@ -168,7 +168,7 @@ report them as active health.
 
 Observability Evidence: no new telemetry name was needed. The existing
 instrumented Postgres query spans and
-`pcg_dp_postgres_query_duration_seconds{store="queue"}` metric cover each ack
+`eshu_dp_postgres_query_duration_seconds{store="queue"}` metric cover each ack
 SQL statement, while `/admin/status` fact-work and generation counts expose
 whether obsolete terminal rows still affect service health.
 
