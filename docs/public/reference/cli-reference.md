@@ -76,6 +76,13 @@ Some API-backed commands do not register per-command remote flags yet. Use
 and API-backed commands that rely on config, environment, or the localhost
 default.
 
+`eshu vuln-scan repo [path]` is the local-scan exception to the localhost
+fallback. If no service URL is configured by flag, persisted config, or
+`ESHU_SERVICE_URL`, it starts or attaches to the workspace-local authoritative
+service and launches a short-lived loopback API reader for the scan. Passing
+`--service-url` keeps the command on that explicit API and does not start local
+services.
+
 ## Version Probes
 
 The direct service binaries listed in

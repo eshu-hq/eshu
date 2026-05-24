@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"net/url"
+	"os"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -95,6 +96,22 @@ func runVulnScanRepo(cmd *cobra.Command, args []string) error {
 		return err
 	}
 	client := apiClientFromCmd(cmd)
+	var closeLocalRuntime func() error
+	if !vulnScanHasConfiguredServiceURL(cmd) {
+		localRuntime, err := vulnScanPrepareLocalRuntime(cmd.Context(), opts.Scan.Target.Root, cmd.ErrOrStderr())
+		if err != nil {
+			return err
+		}
+		if localRuntime.Client == nil {
+			if localRuntime.Close != nil {
+				_ = localRuntime.Close()
+			}
+			return fmt.Errorf("local vulnerability scan runtime did not return an API client")
+		}
+		client = localRuntime.Client
+		opts.Scan.RuntimeEnv = localRuntime.BootstrapEnv
+		closeLocalRuntime = localRuntime.Close
+	}
 	result := newVulnScanRepoResult(opts, client.BaseURL)
 	scanStdout := cmd.OutOrStdout()
 	if opts.Scan.JSON {
@@ -106,30 +123,30 @@ func runVulnScanRepo(cmd *cobra.Command, args []string) error {
 	result.Warnings = append(result.Warnings, scanResult.Warnings...)
 	if err != nil {
 		result.ReadinessState = "target_incomplete"
-		return finishVulnScanRepo(cmd, opts, result, scanResult.Truth, err)
+		return finishVulnScanRepoAfterCleanup(cmd, opts, result, scanResult.Truth, err, closeLocalRuntime)
 	}
 	if scanResult.Status != "ready" {
 		result.ReadinessState = "target_incomplete"
 		err := commandExitError{message: "vulnerability scan target is not ready; rerun with --wait=true before reading findings", code: 4}
-		return finishVulnScanRepo(cmd, opts, result, scanResult.Truth, err)
+		return finishVulnScanRepoAfterCleanup(cmd, opts, result, scanResult.Truth, err, closeLocalRuntime)
 	}
 
 	repositoryID, err := resolveVulnScanRepoID(cmd, client, opts)
 	if err != nil {
 		result.ReadinessState = "evidence_incomplete"
-		return finishVulnScanRepo(cmd, opts, result, scanResult.Truth, err)
+		return finishVulnScanRepoAfterCleanup(cmd, opts, result, scanResult.Truth, err, closeLocalRuntime)
 	}
 	result.RepositoryID = repositoryID
 
 	findings, err := fetchVulnScanRepoImpactFindings(client, repositoryID, opts)
 	if err != nil {
 		result.ReadinessState = "evidence_incomplete"
-		return finishVulnScanRepo(cmd, opts, result, scanResult.Truth, err)
+		return finishVulnScanRepoAfterCleanup(cmd, opts, result, scanResult.Truth, err, closeLocalRuntime)
 	}
 	if findings.Error != nil {
 		result.ReadinessState = "evidence_incomplete"
 		err := commandExitError{message: findings.Error.Message, code: 4}
-		return finishVulnScanRepo(cmd, opts, result, findings.Truth, err)
+		return finishVulnScanRepoAfterCleanup(cmd, opts, result, findings.Truth, err, closeLocalRuntime)
 	}
 	result.Findings = findings.Data.Findings
 	result.Count = findings.Data.Count
@@ -138,7 +155,7 @@ func runVulnScanRepo(cmd *cobra.Command, args []string) error {
 	result.NextCursor = findings.Data.NextCursor
 	result.Readiness = findings.Data.Readiness
 	result.ReadinessState = vulnScanReadinessState(findings.Data.Readiness, result.Count)
-	return finishVulnScanRepo(cmd, opts, result, findings.Truth, nil)
+	return finishVulnScanRepoAfterCleanup(cmd, opts, result, findings.Truth, nil, closeLocalRuntime)
 }
 
 func vulnScanRepoOptionsFromCommand(cmd *cobra.Command, args []string) (vulnScanRepoOptions, error) {
@@ -266,6 +283,36 @@ func finishVulnScanRepo(
 		return err
 	}
 	return renderVulnScanRepoSummary(cmd.OutOrStdout(), result)
+}
+
+func finishVulnScanRepoAfterCleanup(
+	cmd *cobra.Command,
+	opts vulnScanRepoOptions,
+	result vulnScanRepoResult,
+	truth map[string]any,
+	err error,
+	cleanup func() error,
+) error {
+	if cleanup != nil {
+		if cleanupErr := cleanup(); cleanupErr != nil {
+			warning := fmt.Sprintf("local runtime cleanup failed: %v", cleanupErr)
+			result.Warnings = append(result.Warnings, warning)
+			_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "Warning: %s\n", warning)
+		}
+	}
+	return finishVulnScanRepo(cmd, opts, result, truth, err)
+}
+
+func vulnScanHasConfiguredServiceURL(cmd *cobra.Command) bool {
+	serviceURL, _ := cmd.Flags().GetString("service-url")
+	if strings.TrimSpace(serviceURL) != "" {
+		return true
+	}
+	profile, _ := cmd.Flags().GetString("profile")
+	if strings.TrimSpace(resolveConfigValue("ESHU_SERVICE_URL", profile)) != "" {
+		return true
+	}
+	return strings.TrimSpace(os.Getenv("ESHU_SERVICE_URL")) != ""
 }
 
 func renderVulnScanRepoSummary(w io.Writer, result vulnScanRepoResult) error {

@@ -165,11 +165,11 @@ func evaluateScanReadiness(status scanPipelineStatus) scanReadinessVerdict {
 	if status.Queue.Outstanding > 0 || status.Queue.Pending > 0 || status.Queue.InFlight > 0 || status.Queue.Retrying > 0 {
 		return scanReadinessVerdict{Reason: "queue still has outstanding work"}
 	}
-	if status.GenerationHistory.Active > 0 || status.GenerationHistory.Pending > 0 {
-		return scanReadinessVerdict{Reason: "generations are still active or pending"}
+	if status.GenerationHistory.Pending > 0 {
+		return scanReadinessVerdict{Reason: "generations are still pending"}
 	}
-	if status.GenerationHistory.Completed == 0 {
-		return scanReadinessVerdict{Reason: "no completed generation observed"}
+	if status.GenerationHistory.Completed == 0 && status.GenerationHistory.Active == 0 {
+		return scanReadinessVerdict{Reason: "no completed or active generation observed"}
 	}
 	if strings.EqualFold(strings.TrimSpace(status.Health.State), "healthy") {
 		return scanReadinessVerdict{Ready: true, Reason: "pipeline healthy and drained"}
