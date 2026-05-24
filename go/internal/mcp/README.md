@@ -59,7 +59,7 @@ flowchart TB
 
 ## Tool groups
 
-`ReadOnlyTools` assembles 77 tools from the tool definition files.
+`ReadOnlyTools` assembles 78 tools from the tool definition files.
 
 | Group | Count | Source file |
 |---|---|---|
@@ -176,7 +176,7 @@ callers.
 | `Server.Run` (`Run`) | `server.go:288` | stdio transport; reads stdin, writes stdout |
 | `Server.RunHTTP` (`RunHTTP`) | `server.go:128` | HTTP+SSE transport; listens on `addr` |
 | `ToolDefinition` | `types.go:4` | `Name`, `Description`, `InputSchema` |
-| `ReadOnlyTools` | `types.go:11` | returns all 77 tool definitions |
+| `ReadOnlyTools` | `types.go:11` | returns all 78 tool definitions |
 
 ## SSE session model
 
