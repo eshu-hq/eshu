@@ -39,10 +39,10 @@
   conflicts only when every statement in the group contains MERGE
   (`allStatementsAreMerge`); mixed groups containing non-MERGE statements
   are NOT retried, preserving idempotency safety. Driver-level
-  `session.ExecuteWrite` retries handle Neo.TransientError.* codes; the
-  Eshu retry loop additionally handles Neo.ClientError.Transaction.
-  TransactionCommitFailed when classified as a commit-time UNIQUE
-  conflict (`retrying_executor.go:52`).
+  `session.ExecuteWrite` retries handle Neo.TransientError.* codes; the Eshu
+  retry loop additionally handles typed driver `ConnectivityError` and
+  Neo.ClientError.Transaction.TransactionCommitFailed when classified as a
+  commit-time UNIQUE conflict (`retrying_executor.go:52`).
 - **OperationCanonicalUpsert vs. OperationUpsertNode** — canonical domain nodes
   use `OperationCanonicalUpsert`; source-local `SourceLocalRecord` writes use
   `OperationUpsertNode`/`OperationDeleteNode`. Do not mix them.
@@ -113,10 +113,12 @@
 
 ## Failure modes and how to debug
 
-- Symptom: `eshu_dp_neo4j_deadlock_retries_total` rising → likely cause:
-  concurrent MERGE on shared nodes (Repository, Directory) → check worker
-  concurrency in projector/reducer; `RetryingExecutor.MaxRetries` is 3 by
-  default; raising it extends recovery time.
+- Symptom: `eshu_dp_neo4j_deadlock_retries_total` rising → likely causes:
+  concurrent MERGE on shared nodes (Repository, Directory), transient driver
+  connectivity failures, or retryable NornicDB commit conflicts → check the
+  paired `neo4j transient error, retrying` logs before changing worker
+  concurrency; `RetryingExecutor.MaxRetries` is 3 by default and raising it
+  extends recovery time.
 
 - Symptom: `eshu_dp_canonical_phase_duration_seconds{phase="retract"}` elevated
   → likely cause: large stale node set or missing index on `repo_id +

@@ -41,7 +41,7 @@ flowchart TB
   C --> J["DecisionStore\nprojection_decisions\nprojection_decision_evidence"]
   C --> K["RecoveryStore\nreplay dead_letter / failed\nwork items"]
   C --> L["WorkflowControlStore\nworkflow coordinator\nclaim lease fencing"]
-  E --> M["Beginner.Begin\natomic ack transaction:\nsupersede → activate → update scope → mark succeeded"]
+  E --> M["Beginner.Begin\natomic ack transaction:\nsupersede active → supersede obsolete terminal → activate → update scope → mark succeeded"]
 ```
 
 ## Lifecycle / workflow
@@ -60,8 +60,9 @@ High-signal invariants for this package:
   `FreshnessHint`.
 - Projector claims preserve one active source-local generation per `scope_id`,
   reclaim expired leases before fresh work, coalesce stale same-scope work, and
-  atomically ack by superseding stale active generation, activating the target
-  generation, updating the scope pointer, and marking work succeeded.
+  atomically ack by superseding stale active generation, superseding older
+  terminal same-scope generations, activating the target generation, updating
+  the scope pointer, and marking work succeeded.
 - Reducer claims share the lease/retry contract and add domain filters plus the
   NornicDB semantic gate for `semantic_entity_materialization` while
   source-local projection is in flight.
@@ -105,11 +106,11 @@ Primary groups:
 
 ## Telemetry
 
-- `pcg_dp_postgres_query_duration_seconds` — histogram per SQL operation,
+- `eshu_dp_postgres_query_duration_seconds` — histogram per SQL operation,
   labeled `operation=read|write` and `store=<StoreName>`; recorded by
   `InstrumentedDB`
 - Spans: `postgres.exec` and `postgres.query` from `InstrumentedDB`; carry
-  `db.system=postgresql`, `db.operation`, and `pcg.store` attributes
+  `db.system=postgresql`, `db.operation`, and `eshu.store` attributes
 - `AWSPaginationCheckpointStore` records AWS checkpoint load, save, resume,
   expiry, and failure events through
   `eshu_dp_aws_pagination_checkpoint_events_total`.
@@ -119,10 +120,10 @@ constructor with `InstrumentedDB{Inner: db, StoreName: "my_store", ...}`.
 
 ## Operational notes
 
-- `pcg_dp_postgres_query_duration_seconds{store="queue", operation="read"}`
+- `eshu_dp_postgres_query_duration_seconds{store="queue", operation="read"}`
   elevated means claim latency is high; check `FOR UPDATE SKIP LOCKED`
   contention and index coverage on `fact_work_items`.
-- `pcg_dp_postgres_query_duration_seconds{store="facts", operation="write"}`
+- `eshu_dp_postgres_query_duration_seconds{store="facts", operation="write"}`
   elevated means fact batch writes are slow; check connection pool and batch
   size (default 500).
 - Dead-letter items accumulate in `fact_work_items` when `attempt_count >=
@@ -148,8 +149,8 @@ constructor with `InstrumentedDB{Inner: db, StoreName: "my_store", ...}`.
 
 ## Gotchas / invariants
 
-- `ProjectorQueue.Ack` runs four SQL statements inside a transaction
-  (`projector_queue.go:105`). Pass a `SQLDB` or an `InstrumentedDB` wrapping
+- `ProjectorQueue.Ack` runs five SQL statements inside a transaction. Pass a
+  `SQLDB` or an `InstrumentedDB` wrapping
   a `SQLDB`; a plain `ExecQueryer` without `Beginner` will cause Ack to fail.
 - `upsertFacts` deduplicates by `fact_id` before batching (`facts.go:206`).
   Skipping deduplication causes `SQLSTATE 21000` on `ON CONFLICT DO UPDATE`

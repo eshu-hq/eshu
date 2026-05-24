@@ -15,7 +15,7 @@ reducer/query adapter.
 - `Beginner` — `Begin(ctx) (Transaction, error)`; implemented by `SQLDB`
 - `SQLDB` — adapts `*sql.DB`; `SQLTx` adapts `*sql.Tx`
 - `InstrumentedDB` — wraps `ExecQueryer` with OTEL spans and
-  `pcg_dp_postgres_query_duration_seconds`
+  `eshu_dp_postgres_query_duration_seconds`
 
 **Fact store**
 

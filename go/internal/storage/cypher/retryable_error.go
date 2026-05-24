@@ -47,6 +47,10 @@ func WrapRetryableNeo4jError(err error) error {
 	if errors.As(err, &txLimit) {
 		return &neo4jRetryableError{inner: err, code: "TransactionExecutionLimit"}
 	}
+	var connectivityErr *neo4jdriver.ConnectivityError
+	if errors.As(err, &connectivityErr) {
+		return &neo4jRetryableError{inner: err, code: "ConnectivityError"}
+	}
 	var neo4jErr *neo4jdriver.Neo4jError
 	if !errors.As(err, &neo4jErr) {
 		return err

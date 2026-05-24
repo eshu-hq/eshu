@@ -155,6 +155,11 @@ func (q ProjectorQueue) Ack(
 			args:  []any{now, work.Scope.ScopeID, work.Generation.GenerationID},
 		},
 		{
+			query: supersedeProjectorObsoleteGenerationsQuery,
+			op:    "supersede obsolete terminal generations",
+			args:  []any{now, work.Scope.ScopeID, work.Generation.GenerationID},
+		},
+		{
 			query: activateProjectorGenerationQuery,
 			op:    "activate target generation",
 			args:  []any{now, work.Scope.ScopeID, work.Generation.GenerationID},

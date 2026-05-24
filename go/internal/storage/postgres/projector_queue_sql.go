@@ -248,6 +248,52 @@ WHERE scope_id = $2
   AND status = 'active'
 `
 
+const supersedeProjectorObsoleteGenerationsQuery = `
+WITH superseded_work AS (
+    UPDATE fact_work_items AS stale
+    SET status = 'superseded',
+        lease_owner = NULL,
+        claim_until = NULL,
+        visible_at = NULL,
+        next_attempt_at = NULL,
+        updated_at = $1,
+        failure_class = 'projector_superseded_by_newer_generation',
+        failure_message = 'projector work superseded by newer same-scope generation',
+        failure_details = jsonb_build_object(
+            'scope_id', stale.scope_id,
+            'work_item_id', stale.work_item_id,
+            'generation_id', stale.generation_id,
+            'current_generation_id', $3
+        )
+    FROM scope_generations AS stale_generation,
+         scope_generations AS current_generation
+    WHERE stale.stage = 'projector'
+      AND stale.scope_id = $2
+      AND stale.generation_id <> $3
+      AND stale.status IN ('pending', 'retrying', 'failed', 'dead_letter')
+      AND stale_generation.scope_id = stale.scope_id
+      AND stale_generation.generation_id = stale.generation_id
+      AND stale_generation.status IN ('pending', 'failed')
+      AND current_generation.scope_id = stale.scope_id
+      AND current_generation.generation_id = $3
+      AND current_generation.status IN ('pending', 'active')
+      AND (
+          stale_generation.ingested_at < current_generation.ingested_at
+          OR (
+              stale_generation.ingested_at = current_generation.ingested_at
+              AND stale_generation.generation_id < current_generation.generation_id
+          )
+      )
+    RETURNING stale.work_item_id, stale.generation_id
+)
+UPDATE scope_generations AS generation
+SET status = 'superseded',
+    superseded_at = $1
+FROM superseded_work
+WHERE generation.generation_id = superseded_work.generation_id
+  AND generation.status IN ('pending', 'failed')
+`
+
 const activateProjectorGenerationQuery = `
 UPDATE scope_generations
 SET status = 'active',

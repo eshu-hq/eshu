@@ -47,7 +47,7 @@ or generation context.
 | --- | --- | --- |
 | `eshu_dp_postgres_query_duration_seconds` | histogram | Postgres query and exec latency from the instrumented wrapper. |
 | `eshu_dp_neo4j_query_duration_seconds` | histogram | Neo4j/NornicDB Bolt query latency from the graph wrapper. |
-| `eshu_dp_neo4j_deadlock_retries_total` | counter | Neo4j transient deadlock retries. |
+| `eshu_dp_neo4j_deadlock_retries_total` | counter | Legacy graph-write retry counter for deadlocks, lock timeouts, driver connectivity failures, and retryable NornicDB commit conflicts. |
 | `eshu_dp_neo4j_batch_size` | histogram | Grouped graph write batch size. |
 | `eshu_dp_neo4j_batches_executed_total` | counter | Grouped graph write batch execution volume. |
 | `eshu_dp_canonical_writes_total` | counter | Canonical graph write batch volume. |
