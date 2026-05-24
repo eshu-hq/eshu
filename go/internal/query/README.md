@@ -90,6 +90,11 @@ canonical graph or reducer truth.
 - `PostgresIaCReachabilityStore` — reducer-materialized IaC cleanup findings
   (`iac_reachability_store.go`)
 - `IaCReachabilityStore` — port for IaC cleanup findings (`iac.go:74`)
+- `SupplyChainImpactReadinessStore` — port for bounded readiness counts
+  (`supply_chain_impact_readiness.go`)
+- `PostgresSupplyChainImpactReadinessStore` — Postgres-backed readiness store
+  that runs one bounded CTE per impact-findings response
+  (`supply_chain_impact_readiness_postgres.go`)
 
 **Handler structs**
 

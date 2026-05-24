@@ -65,7 +65,7 @@ const openAPIPathsSupplyChain = `
         ],
         "responses": {
           "200": {
-            "description": "Supply-chain impact finding page",
+            "description": "Supply-chain impact finding page with readiness coverage",
             "content": {
               "application/json": {
                 "schema": {
@@ -94,7 +94,50 @@ const openAPIPathsSupplyChain = `
                     "count": {"type": "integer"},
                     "limit": {"type": "integer"},
                     "truncated": {"type": "boolean"},
-                    "next_cursor": {"type": "object"}
+                    "next_cursor": {"type": "object"},
+                    "readiness": {
+                      "type": "object",
+                      "description": "Bounded coverage metadata so zero findings can be distinguished from missing target collection or missing required evidence. readiness_unavailable means the readiness lookup itself failed; the findings page is still returned but coverage cannot be classified.",
+                      "properties": {
+                        "readiness_state": {"type": "string", "enum": ["not_configured", "target_incomplete", "evidence_incomplete", "ready_zero_findings", "ready_with_findings", "readiness_unavailable"]},
+                        "target_scope": {
+                          "type": "object",
+                          "properties": {
+                            "cve_id": {"type": "string"},
+                            "package_id": {"type": "string"},
+                            "repository_id": {"type": "string"},
+                            "subject_digest": {"type": "string"},
+                            "impact_status": {"type": "string"}
+                          }
+                        },
+                        "evidence_sources": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "family": {"type": "string", "enum": ["vulnerability.advisory", "vulnerability.exploitability", "package.consumption", "package.registry", "sbom.component", "sbom.attestation", "container_image.identity"]},
+                              "fact_count": {"type": "integer", "minimum": 0},
+                              "latest_observed_at": {"type": "string"},
+                              "freshness": {"type": "string", "enum": ["fresh", "stale", "unknown"]}
+                            },
+                            "required": ["family", "fact_count"]
+                          }
+                        },
+                        "missing_evidence": {"type": "array", "items": {"type": "string", "enum": ["advisory_sources", "owned_packages", "sbom_or_image_evidence", "target_collection_incomplete", "readiness_unavailable"]}},
+                        "incomplete_reasons": {"type": "array", "items": {"type": "string"}, "description": "Collector-emitted reasons explaining why source collection is still in flight; only present when readiness_state is target_incomplete."},
+                        "freshness": {"type": "string", "enum": ["fresh", "stale", "unknown"]},
+                        "counts": {
+                          "type": "object",
+                          "properties": {
+                            "findings_returned": {"type": "integer", "description": "Number of findings in this page; not the total population. Compare with truncated to know if more pages exist."},
+                            "findings_truncated": {"type": "boolean"},
+                            "findings_by_status": {"type": "object", "additionalProperties": {"type": "integer"}, "description": "Counts by impact_status across the returned page only."},
+                            "evidence_facts_total": {"type": "integer"}
+                          }
+                        }
+                      },
+                      "required": ["readiness_state", "target_scope", "evidence_sources", "freshness", "counts"]
+                    }
                   }
                 }
               }

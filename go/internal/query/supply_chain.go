@@ -22,6 +22,7 @@ type SupplyChainHandler struct {
 	SBOMAttachments          SBOMAttestationAttachmentStore
 	ImpactFindings           SupplyChainImpactFindingStore
 	ContainerImageIdentities ContainerImageIdentityStore
+	Readiness                SupplyChainImpactReadinessStore
 	Profile                  QueryProfile
 }
 
@@ -181,11 +182,31 @@ func (h *SupplyChainHandler) listImpactFindings(w http.ResponseWriter, r *http.R
 	for _, row := range rows {
 		results = append(results, SupplyChainImpactFindingResult(row))
 	}
+	scope := SupplyChainImpactTargetScope{
+		CVEID:         filter.CVEID,
+		PackageID:     filter.PackageID,
+		RepositoryID:  filter.RepositoryID,
+		SubjectDigest: filter.SubjectDigest,
+		ImpactStatus:  filter.ImpactStatus,
+	}
+	snapshot, readinessErr := h.readSupplyChainImpactReadinessSnapshot(r, scope)
+	var readiness SupplyChainImpactReadinessEnvelope
+	if readinessErr != nil {
+		// Readiness lookup failed (transient Postgres error, statement
+		// timeout, etc.). Do not drop the already-fetched findings page:
+		// return the findings with a `readiness_unavailable` envelope so
+		// callers cannot misread zero findings as safe and can retry the
+		// readiness lookup separately.
+		readiness = BuildSupplyChainImpactReadinessUnavailable(scope, results, truncated)
+	} else {
+		readiness = BuildSupplyChainImpactReadiness(scope, results, truncated, snapshot)
+	}
 	body := map[string]any{
 		"findings":  results,
 		"count":     len(results),
 		"limit":     limit,
 		"truncated": truncated,
+		"readiness": readiness,
 	}
 	if truncated && len(results) > 0 {
 		body["next_cursor"] = map[string]string{
@@ -196,8 +217,18 @@ func (h *SupplyChainHandler) listImpactFindings(w http.ResponseWriter, r *http.R
 		h.profile(),
 		supplyChainImpactFindingsCapability,
 		TruthBasisSemanticFacts,
-		"resolved from reducer-owned impact facts; CVSS, EPSS, KEV, reachability, and missing evidence remain separate",
+		"resolved from reducer-owned impact facts; CVSS, EPSS, KEV, reachability, missing evidence, and readiness coverage remain separate",
 	))
+}
+
+func (h *SupplyChainHandler) readSupplyChainImpactReadinessSnapshot(
+	r *http.Request,
+	scope SupplyChainImpactTargetScope,
+) (SupplyChainImpactReadinessSnapshot, error) {
+	if h.Readiness == nil {
+		return SupplyChainImpactReadinessSnapshot{}, nil
+	}
+	return h.Readiness.ReadSupplyChainImpactReadiness(r.Context(), SupplyChainImpactReadinessQuery(scope))
 }
 
 func (h *SupplyChainHandler) listContainerImageIdentities(w http.ResponseWriter, r *http.Request) {

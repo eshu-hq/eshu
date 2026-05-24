@@ -14,4 +14,11 @@
 // also preserve language maturity, exactness blockers, modeled roots, and
 // source handles so callers can distinguish cleanup-ready findings from
 // ambiguous or suppressed evidence.
+//
+// Supply-chain impact reads pair the bounded reducer-owned findings page with
+// a readiness envelope so a zero-finding answer can be classified as
+// not_configured, target_incomplete, evidence_incomplete, unsupported,
+// ready_zero_findings, or ready_with_findings. The readiness layer never
+// invents findings or duplicates reducer matching: it counts existing source
+// and reducer facts so the answer is diagnosable without re-querying.
 package query

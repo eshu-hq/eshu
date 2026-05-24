@@ -295,13 +295,121 @@ caller to tell "clean" from "not checked."
 | `not_configured` | No target source is enabled for the requested scope. |
 | `target_incomplete` | Target collection started but did not reach terminal evidence state. |
 | `evidence_incomplete` | Some target evidence exists, but a required join source is missing or stale. |
-| `unsupported` | Eshu observed a target shape it does not yet know how to match. |
 | `ready_zero_findings` | Required target evidence exists and the reducer found no matching impact. |
 | `ready_with_findings` | Required target evidence exists and reducer-owned findings are available. |
+| `readiness_unavailable` | Out-of-band signal returned when the readiness lookup itself fails; the findings page is still returned but coverage cannot be classified. |
+
+An `unsupported` state is reserved for a future reducer that observes target
+evidence Eshu does not yet know how to match. The state is not surfaced by
+the current implementation; it will be added back to the API and MCP contract
+when a real producer emits unsupported-target evidence.
 
 Zero findings without readiness are unsafe. The API and MCP surfaces should
 return coverage, freshness, unsupported target counts, and missing-evidence
 reasons alongside findings.
+
+### Vulnerability Impact Readiness Envelope
+
+`GET /api/v0/supply-chain/impact/findings` and the MCP
+`list_supply_chain_impact_findings` tool both attach a `readiness` envelope to
+every response. The envelope is derived from existing source-fact and
+reducer-fact counts so the answer never invents findings:
+
+- `readiness_state` is one of the five classification states above, plus the
+  out-of-band `readiness_unavailable` when the readiness lookup itself fails.
+- `target_scope` echoes the bounded anchors the caller used (`cve_id`,
+  `package_id`, `repository_id`, `subject_digest`, `impact_status`).
+  `impact_status` alone is not a fact-anchor: the readiness store skips its
+  Postgres scan and returns an empty snapshot for impact_status-only
+  requests, because impact_status is a reducer-finding attribute that does
+  not exist on source facts. The findings page is still returned.
+- `evidence_sources[]` reports per-family fact counts, `latest_observed_at`,
+  and `freshness` (`fresh`, `stale`, or `unknown`) for:
+  `vulnerability.advisory`, `vulnerability.exploitability`,
+  `package.consumption`, `package.registry`, `sbom.component`,
+  `sbom.attestation`, and `container_image.identity`. Families with zero
+  facts in the requested scope are omitted so the payload reflects only what
+  Eshu actually has for the caller. `package.registry` is only counted when
+  the request anchors on a specific `package_id` (registry data without a
+  package anchor is global metadata, not proof of repository consumption).
+- `missing_evidence[]` names absent required join families using the stable
+  identifiers `advisory_sources`, `owned_packages`, `sbom_or_image_evidence`,
+  `target_collection_incomplete`, and `readiness_unavailable`. The list is
+  empty on `ready_*` states so callers cannot see contradictory "ready" +
+  "missing" signals.
+- `incomplete_reasons[]` carries collector-emitted reasons explaining why
+  source collection is still in flight; only populated when
+  `readiness_state` is `target_incomplete`.
+- `freshness` summarizes the worst per-family freshness as one label.
+- `counts` reports `findings_returned`, `findings_truncated`,
+  `findings_by_status`, and `evidence_facts_total`. `findings_returned` and
+  `findings_by_status` describe the returned page only; combine with
+  `truncated` to know whether more pages exist.
+
+Readiness reflects existing facts. It does not poll collectors, dispatch
+reducer work, or change finding ownership. Where evidence is missing the
+envelope says so instead of guessing. `target_incomplete` and `unsupported`
+specifically depend on collector/reducer-emitted source facts; when those
+signals are not present, missing evidence is surfaced through
+`missing_evidence` rather than being inferred from absence.
+
+#### Proven States
+
+The current implementation proves the following:
+
+- `not_configured` when no advisory or owned-evidence facts exist for the
+  scope.
+- `evidence_incomplete` when advisory facts exist but the required join
+  family for the requested anchor is missing.
+- `ready_zero_findings` when advisory and required owned evidence exist and
+  the reducer returned no matching impact.
+- `ready_with_findings` whenever the reducer returned at least one finding.
+  `missing_evidence` is cleared on ready states so the envelope cannot
+  report `ready_with_findings` and `missing advisory_sources` at the same
+  time.
+- `target_incomplete` when a `vulnerability.source_snapshot` fact carries
+  `"complete": false` AND the requested scope has no advisory evidence yet.
+  An in-flight snapshot for an unrelated source does not flip a scope whose
+  advisory evidence is already collected, so cross-source ingestion noise
+  cannot invalidate ready answers. `incomplete_reasons` carries the distinct
+  collector-emitted `warning_message` values that justify the state.
+- `readiness_unavailable` when the readiness lookup itself fails. The
+  findings page is still returned so callers do not lose data, but
+  `missing_evidence` carries `readiness_unavailable` and the state explicitly
+  warns that coverage cannot be classified for this response.
+
+The package.consumption family is sourced from the real
+`reducer_package_consumption_correlation` facts and `content_entity` manifest
+dependency facts (the same `content_entity` + `entity_metadata.config_kind =
+'dependency'` discriminators used by other supply-chain reducers).
+`package.registry` is only counted when the request anchors on a specific
+`package_id`; repository-scoped requests cannot satisfy `owned_packages`
+through global registry metadata.
+
+#### Follow-Up Work
+
+- The `unsupported` readiness state will be reintroduced once a reducer
+  emits observed-but-unmatched target evidence. The field/state was dropped
+  from the current contract to avoid surfacing a verdict the
+  implementation cannot produce.
+- Surface per-collector freshness windows separately when the collector
+  contract carries source-specific staleness thresholds.
+
+Performance Evidence: focused query tests
+`go test ./internal/query -run 'SupplyChainImpactReadiness' -count=1` exercise
+not-configured, evidence-incomplete, ready-zero-findings, ready-with-findings,
+target-incomplete, and unsupported classifications against a recording store,
+plus the Postgres query shape contract. The readiness Postgres path runs one
+bounded CTE per response with seven anchored counts and a snapshot-completion
+roll-up; it adds one Postgres round trip alongside the existing impact-finding
+read.
+
+No-Observability-Change: the readiness path reuses the existing
+`query.supply_chain_impact_findings` span. The handler does not start a new
+graph query, queue claim, or reducer write, so the existing
+`eshu_dp_postgres_query_duration_seconds` histogram and the impact-findings
+HTTP/MCP envelope continue to expose latency, error, and truth metadata for
+the bounded readiness read.
 
 ## Provider Alert Parity Gate
 

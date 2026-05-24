@@ -105,6 +105,23 @@ The same handler exposes supply-chain impact findings through a separate
 Postgres read model. Impact reads require a CVE, package, repository, subject
 digest, or status anchor plus `limit`, and keep CVSS, EPSS, KEV, reachability,
 fixed-version state, and missing evidence as separate fields.
+Impact responses also attach a `readiness` envelope built by
+`BuildSupplyChainImpactReadiness` (`supply_chain_impact_readiness.go:121`) so a
+zero-finding result is classified as `not_configured`, `target_incomplete`,
+`evidence_incomplete`, `unsupported`, `ready_zero_findings`, or
+`ready_with_findings`. The envelope echoes the bounded target scope, lists
+per-family fact counts and `latest_observed_at` for `vulnerability.advisory`,
+`vulnerability.exploitability`, `package.consumption`, `package.registry`,
+`sbom.component`, `sbom.attestation`, and `container_image.identity`, and
+returns the stable `missing_evidence` reasons `advisory_sources`,
+`owned_packages`, `sbom_or_image_evidence`, `target_collection_incomplete`,
+and `unsupported_target`. `PostgresSupplyChainImpactReadinessStore`
+(`supply_chain_impact_readiness_postgres.go:18`) runs one bounded CTE per
+response with seven anchored counts and a `vulnerability.source_snapshot`
+roll-up. The readiness path never invents findings, never duplicates reducer
+matching, and adds one Postgres round trip alongside the existing impact
+read; observability stays on the existing `query.supply_chain_impact_findings`
+span and the `eshu_dp_postgres_query_duration_seconds` histogram.
 
 ## Runtime and investigation read models
 

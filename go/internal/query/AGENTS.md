@@ -62,6 +62,16 @@
   package source hints as ownership, publication ownership, or runtime
   consumption truth.
 
+- **Vulnerability impact responses always carry readiness** —
+  `SupplyChainHandler.listImpactFindings` (`supply_chain.go`) must call
+  `BuildSupplyChainImpactReadiness` and emit the envelope on every response.
+  The readiness layer derives state from existing source-fact and reducer-fact
+  counts only; do not invent findings, do not move reducer matching into the
+  readiness path, and do not collapse the six readiness states into one
+  severity bucket. The `Readiness` store is optional in tests but required in
+  production wiring; a nil store yields `not_configured` so a zero-finding
+  answer is never silently treated as `ready_zero_findings`.
+
 - **Dead-code scans de-duplicate entity IDs across candidate labels** —
   `scanDeadCodeCandidates` applies `filterDuplicateDeadCodeRows`
   (`code_dead_code_scan.go:107`) before hydration. Keep this when adding a

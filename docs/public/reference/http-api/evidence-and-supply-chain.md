@@ -140,6 +140,49 @@ facts and package-registry facts without owned repository, image,
 package-manifest, lockfile, or SBOM evidence remain source intelligence and do
 not appear as impact findings.
 
+The response also includes a `readiness` envelope so a UI, MCP client, or
+operator can tell `nothing matched` from `Eshu did not have the evidence to
+match yet`:
+
+- `readiness_state` is one of `not_configured`, `target_incomplete`,
+  `evidence_incomplete`, `ready_zero_findings`, `ready_with_findings`, or
+  `readiness_unavailable`. The last state is returned when the readiness
+  lookup itself fails; the findings page is preserved but coverage cannot
+  be classified.
+- `target_scope` echoes the bounded anchors the caller used. `impact_status`
+  alone is not a fact-anchor: the readiness store skips its Postgres scan
+  and returns an empty snapshot for impact_status-only requests, because
+  impact_status is a reducer-finding attribute that does not exist on
+  source facts. The findings page is still returned.
+- `evidence_sources[]` reports per-family source-fact counts and
+  `latest_observed_at` for `vulnerability.advisory`,
+  `vulnerability.exploitability`, `package.consumption`, `package.registry`,
+  `sbom.component`, `sbom.attestation`, and `container_image.identity`. Each
+  family carries its own `freshness` of `fresh`, `stale`, or `unknown` relative
+  to a fourteen-day window. Families with zero in-scope facts are omitted so
+  the payload reflects only evidence Eshu actually has for the caller.
+  `package.registry` is only counted when the request anchors on a specific
+  `package_id`; repository-only requests cannot satisfy `owned_packages`
+  through global registry metadata.
+- `missing_evidence[]` names the absent required join families, such as
+  `advisory_sources`, `owned_packages`, `sbom_or_image_evidence`,
+  `target_collection_incomplete`, or `readiness_unavailable`. Reasons stay
+  deduplicated, sorted, and free of package names or advisory bodies; the
+  list is empty on `ready_*` states so callers cannot see contradictory
+  "ready" + "missing" signals.
+- `incomplete_reasons[]` lists collector-emitted reasons explaining why
+  source collection is still in flight; only populated when
+  `readiness_state` is `target_incomplete`.
+- `freshness` aggregates per-family freshness into one label.
+- `counts` reports `findings_returned`, `findings_truncated`,
+  `findings_by_status`, and `evidence_facts_total`. `findings_returned` and
+  `findings_by_status` describe the returned page only; combine with
+  `truncated` to know if more pages exist.
+
+Readiness is computed from existing source and reducer facts only. The
+endpoint never invents findings; it surfaces counts and freshness so a zero
+or partial answer can be interpreted correctly.
+
 The security-intelligence architecture keeps these findings separate from
 source facts and readiness coverage. See
 [Security Intelligence](../security-intelligence.md) for the target/capability
