@@ -163,7 +163,7 @@ func cycloneDXLicenses(licenses []cycloneDXLicense) []map[string]string {
 			out = append(out, entry)
 		}
 	}
-	return out
+	return sortLicenseEntries(out)
 }
 
 func cycloneDXSupplierFields(supplier *cycloneDXSupplier) (string, string) {
@@ -191,7 +191,7 @@ func cycloneDXExternalRefEnvelopes(ctx FixtureContext, docID, componentID string
 		}
 		out = append(out, externalReferenceFact(ctx, docID, componentID, refType, refURL, ""))
 	}
-	return out
+	return sortExternalRefEnvelopes(out)
 }
 
 func cycloneDXDependencyEnvelopes(

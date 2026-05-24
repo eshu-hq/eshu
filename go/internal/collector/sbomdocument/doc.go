@@ -23,7 +23,7 @@
 //   - [facts.SBOMDocumentFactKind] — one per source document with subject
 //     digest, format, spec version, parse status, and counts.
 //   - [facts.SBOMComponentFactKind] — one per projected component or SPDX
-//     package, including the metadata.component or SPDXRef-Document subject.
+//     package, including the metadata.component or SPDXRef-DOCUMENT subject.
 //   - [facts.SBOMExternalReferenceFactKind] — one per CycloneDX external
 //     reference or SPDX external ref locator.
 //   - [facts.SBOMDependencyRelationshipFactKind] — one per resolved

@@ -184,3 +184,33 @@ func sortHashEntries(hashes map[string]string) []map[string]string {
 	}
 	return out
 }
+
+// sortLicenseEntries orders license maps deterministically so two byte-equal
+// SBOMs whose producers reorder license arrays still emit identical fact
+// bundles.
+func sortLicenseEntries(entries []map[string]string) []map[string]string {
+	sort.SliceStable(entries, func(i, j int) bool {
+		return licenseSortKey(entries[i]) < licenseSortKey(entries[j])
+	})
+	return entries
+}
+
+func licenseSortKey(entry map[string]string) string {
+	// Concatenate the projection fields in a fixed order. Each component is
+	// suffixed with a NUL so values like "MIT" + "" can never collide with
+	// "M" + "IT".
+	return entry["id"] + "\x00" + entry["expression"] + "\x00" + entry["name"] + "\x00" + entry["url"]
+}
+
+// sortExternalRefEnvelopes orders external reference envelopes by their
+// stable fact key so the document's fact bundle is byte-identical across
+// producers that reorder externalReferences/externalRefs arrays.
+func sortExternalRefEnvelopes(envelopes []facts.Envelope) []facts.Envelope {
+	sort.SliceStable(envelopes, func(i, j int) bool {
+		if envelopes[i].StableFactKey == envelopes[j].StableFactKey {
+			return envelopes[i].FactID < envelopes[j].FactID
+		}
+		return envelopes[i].StableFactKey < envelopes[j].StableFactKey
+	})
+	return envelopes
+}

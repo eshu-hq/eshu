@@ -192,7 +192,7 @@ func spdxLicenses(pkg spdxPackage) []map[string]string {
 		}
 		out = append(out, map[string]string{"id": trimmed})
 	}
-	return out
+	return sortLicenseEntries(out)
 }
 
 func spdxSupplierParts(raw string) (string, string) {
@@ -218,7 +218,7 @@ func spdxExternalRefEnvelopes(ctx FixtureContext, docID, componentID string, ref
 		}
 		out = append(out, externalReferenceFact(ctx, docID, componentID, refType, "", refLocator))
 	}
-	return out
+	return sortExternalRefEnvelopes(out)
 }
 
 func spdxRelationshipEnvelopes(

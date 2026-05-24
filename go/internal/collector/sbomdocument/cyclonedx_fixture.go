@@ -200,17 +200,38 @@ func cycloneDXMetadataTool(doc cycloneDXDocument) string {
 	case map[string]any:
 		if comps, ok := typed["components"].([]any); ok && len(comps) > 0 {
 			if first, ok := comps[0].(map[string]any); ok {
-				return strings.TrimSpace(fmt.Sprint(first["name"])) + " " + strings.TrimSpace(fmt.Sprint(first["version"]))
+				return joinToolNameVersion(first["name"], first["version"])
 			}
 		}
 	case []any:
 		if len(typed) > 0 {
 			if first, ok := typed[0].(map[string]any); ok {
-				return strings.TrimSpace(fmt.Sprint(first["name"])) + " " + strings.TrimSpace(fmt.Sprint(first["version"]))
+				return joinToolNameVersion(first["name"], first["version"])
 			}
 		}
 	}
 	return ""
+}
+
+// joinToolNameVersion renders a `name version` label while skipping nil or
+// blank parts so missing fields never pollute the document fact with the
+// literal string "<nil>".
+func joinToolNameVersion(name, version any) string {
+	parts := make([]string, 0, 2)
+	if s := optionalScalar(name); s != "" {
+		parts = append(parts, s)
+	}
+	if s := optionalScalar(version); s != "" {
+		parts = append(parts, s)
+	}
+	return strings.Join(parts, " ")
+}
+
+func optionalScalar(value any) string {
+	if value == nil {
+		return ""
+	}
+	return strings.TrimSpace(fmt.Sprint(value))
 }
 
 func cycloneDXDocumentName(doc cycloneDXDocument) string {
