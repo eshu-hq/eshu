@@ -46,6 +46,20 @@ func TestPackageRegistryCollectorConfigurationRejectsUnboundedTargets(t *testing
 	}
 }
 
+func TestPackageRegistryCollectorConfigurationRejectsBlankDerivedEcosystem(t *testing.T) {
+	t.Parallel()
+
+	raw := `{"derive_from_owned_packages":{"enabled":true,"ecosystems":[""]}}`
+
+	err := ValidatePackageRegistryCollectorConfiguration(raw)
+	if err == nil {
+		t.Fatal("ValidatePackageRegistryCollectorConfiguration() error = nil, want blank ecosystem rejection")
+	}
+	if got := err.Error(); !strings.Contains(got, "derive_from_owned_packages.ecosystems[0]: ecosystem must not be blank") {
+		t.Fatalf("ValidatePackageRegistryCollectorConfiguration() error = %q, want blank ecosystem rejection", got)
+	}
+}
+
 func TestPackageRegistryCollectorConfigurationRejectsMissingMetadataURL(t *testing.T) {
 	t.Parallel()
 

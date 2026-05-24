@@ -50,13 +50,13 @@ func (s *WorkflowControlStore) CreateRunWithWorkItemsIfNoOpenTargets(
 	}
 
 	var lastErr error
-	for attempt := 0; attempt <= workflowGuardedRunCreateMaxAttempts; attempt++ {
+	for attempt := 1; attempt <= workflowGuardedRunCreateMaxAttempts; attempt++ {
 		inserted, err := s.createRunWithWorkItemsIfNoOpenTargetsOnce(ctx, run, items)
 		if err == nil {
 			return inserted, nil
 		}
 		lastErr = err
-		if !isRetryableWorkflowReconciliationError(err) || attempt == workflowGuardedRunCreateMaxAttempts {
+		if !isRetryableWorkflowReconciliationError(err) || attempt >= workflowGuardedRunCreateMaxAttempts {
 			break
 		}
 	}

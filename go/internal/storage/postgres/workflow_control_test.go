@@ -262,6 +262,47 @@ func TestWorkflowControlStoreGuardedRunRetriesDeadlockTransaction(t *testing.T) 
 	}
 }
 
+func TestWorkflowControlStoreGuardedRunRetryLimitUsesExactAttemptCount(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, time.May, 21, 12, 0, 0, 0, time.UTC)
+	run := workflow.Run{
+		RunID:              "aws:collector-aws:schedule:continuous-20260521T120000Z",
+		TriggerKind:        workflow.TriggerKindSchedule,
+		Status:             workflow.RunStatusCollectionPending,
+		RequestedScopeSet:  "[]",
+		RequestedCollector: string(scope.CollectorAWS),
+		CreatedAt:          now,
+		UpdatedAt:          now,
+	}
+	item := awsScheduledWorkItem(run.RunID, "lambda", now)
+	txs := make([]*fakeTx, 0, workflowGuardedRunCreateMaxAttempts)
+	for range workflowGuardedRunCreateMaxAttempts {
+		txs = append(txs, &fakeTx{
+			queryResponses: []queueFakeRows{
+				{rows: [][]any{{false}}},
+				{rows: [][]any{{0}}},
+			},
+			execErrors: map[int]error{
+				1: &pgconn.PgError{Code: "40P01", Message: "deadlock detected"},
+			},
+		})
+	}
+	db := &fakeTransactionalDB{txs: txs}
+	store := NewWorkflowControlStore(db)
+
+	inserted, err := store.CreateRunWithWorkItemsIfNoOpenTargets(context.Background(), run, []workflow.WorkItem{item})
+	if err == nil {
+		t.Fatal("CreateRunWithWorkItemsIfNoOpenTargets() error = nil, want final deadlock")
+	}
+	if got, want := inserted, 0; got != want {
+		t.Fatalf("inserted = %d, want %d", got, want)
+	}
+	if got, want := db.beginCalls, workflowGuardedRunCreateMaxAttempts; got != want {
+		t.Fatalf("begin calls = %d, want exact max attempts %d", got, want)
+	}
+}
+
 func TestWorkflowControlStoreGuardedRunComputesEligibleTargetsInOneQuery(t *testing.T) {
 	t.Parallel()
 

@@ -47,7 +47,6 @@ type packageRegistryTargetConfiguration struct {
 	MetadataURL  string   `json:"metadata_url"`
 	Derived      bool     `json:"-"`
 	PackageName  string   `json:"-"`
-	Version      string   `json:"-"`
 }
 
 type packageRegistryDerivationConfiguration struct {
@@ -321,7 +320,6 @@ func npmPackageRegistryTarget(
 		MetadataURL:  metadataURL,
 		Derived:      true,
 		PackageName:  identity.NormalizedName,
-		Version:      strings.TrimSpace(target.Version),
 	}, true
 }
 

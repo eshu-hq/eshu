@@ -68,8 +68,9 @@ func TestPackageRegistryWorkPlannerDerivesNPMTargetsFromOwnedPackageEvidence(t *
 
 	var requested struct {
 		Targets []struct {
-			ScopeID string `json:"scope_id"`
-			Derived bool   `json:"derived"`
+			ScopeID string  `json:"scope_id"`
+			Derived bool    `json:"derived"`
+			Version *string `json:"version"`
 		} `json:"targets"`
 	}
 	if err := json.Unmarshal([]byte(run.RequestedScopeSet), &requested); err != nil {
@@ -81,6 +82,9 @@ func TestPackageRegistryWorkPlannerDerivesNPMTargetsFromOwnedPackageEvidence(t *
 	for _, target := range requested.Targets {
 		if !target.Derived {
 			t.Fatalf("requested target %#v is not marked derived", target)
+		}
+		if target.Version != nil {
+			t.Fatalf("requested package-registry target leaked version metadata: %#v", target)
 		}
 	}
 }

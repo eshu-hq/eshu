@@ -138,8 +138,10 @@ func validatePackageRegistryTargetDerivation(config packageRegistryTargetDerivat
 
 func validatePackageRegistryDerivedEcosystem(raw string) error {
 	switch strings.TrimSpace(raw) {
-	case "", "npm":
+	case "npm":
 		return nil
+	case "":
+		return fmt.Errorf("ecosystem must not be blank")
 	default:
 		return fmt.Errorf("unsupported derived ecosystem %q", strings.TrimSpace(raw))
 	}
