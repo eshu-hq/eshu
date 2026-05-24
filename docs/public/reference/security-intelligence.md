@@ -468,6 +468,59 @@ generation invariance, GLAD↔OSV fixed-version disagreement,
 GLAD↔NVD CVSS severity disagreement, GLAD↔OSV affected-range
 disagreement, and shared CVE correlation anchors for cross-source joins.
 
+## Advisory Provenance
+
+Reducer admission consolidates multi-source advisory observations into one
+finding per `(cve_id, package_id)` anchor while preserving per-source
+provenance. The selected severity, fixed-version, and vulnerable-range source
+are recorded alongside every alternate severity and every source-reported
+fixed-version branch. Withdrawn advisories never win selection but remain
+visible as observations so operators can see why a source was excluded.
+
+Selection rules:
+
+- For OS package classes (`rpm`, `deb`, `apk`, `rhel`, `redhat`, `debian`,
+  `ubuntu`, `alpine`, `amazonlinux`, `suse`, `opensuse`, `wolfi`,
+  `chainguard`, `oracle`, `rocky`), the matching vendor advisory outranks
+  GLAD, GHSA, OSV, and NVD because vendor backports change applicability.
+- For language ecosystems (npm, PyPI, Go, Maven, Crates.io, RubyGems,
+  Composer, Pub, Hex, Swift, NuGet), GHSA outranks GLAD, OSV-via-OSV,
+  PYSEC-via-OSV, RUSTSEC-via-OSV, GO-via-OSV, and NVD.
+- An OSV record whose advisory id begins with `GHSA-`, `PYSEC-`, `GO-`,
+  `RUSTSEC-`, or `MAL-` is classified by that upstream prefix (so a GHSA
+  collected through OSV still ranks as a GHSA observation).
+- If the highest-priority source did not publish a CVSS score, the next
+  source in priority order supplies the selected severity.
+
+The `provenance` block on `GET /api/v0/supply-chain/impact/findings` and the
+MCP `list_supply_chain_impact_findings` tool carries:
+`selected_severity_source`, `selected_severity_score`,
+`selected_severity_vector`, `selected_severity_label`,
+`selected_fixed_version_source`, `selected_range_source`,
+`alternate_severities[]`, `fixed_version_branches[]`, and
+`advisory_sources[]` (with `source`, `advisory_id`, `source_updated_at`, and
+`withdrawn_at`). Raw advisory bodies are not returned.
+
+No-Regression Evidence: `go test ./internal/reducer
+./internal/query ./internal/collector/vulnerabilityintelligence
+-run 'TestSupplyChainImpact(Preserves|VendorAdvisory|FallsBack|Excludes)|TestPostgresSupplyChainImpactWriterSerializesProvenancePayload|TestDecodeSupplyChainImpactFindingRowPreservesProvenance|TestOSVRecordPreservesWithdrawnTimestamp'
+-count=1` proves GHSA-vs-NVD severity provenance preservation, vendor
+advisory override for OS package classes, severity fallback when the
+highest-priority source lacks a CVSS score, withdrawn-advisory exclusion
+with the withdrawal timestamp still surfaced, multiple fixed-version
+branches preserved with originating source, payload serialization, query
+decoding, and OSV `withdrawn_at` capture.
+
+No-Observability-Change: the provenance work reuses the existing
+`query.supply_chain_impact_findings` span, the
+`reducer_supply_chain_impact_finding` fact kind, and the
+`SupplyChainImpactFindings` reducer counter. No new metric instrument,
+span, log key, queue, reducer lane, graph write, or runtime worker is
+introduced. Operators continue to use the supply-chain impact API truth
+envelope, the existing reducer outcome counters, and the
+`vulnerability.cve` / `vulnerability.affected_package` source-fact payloads
+to diagnose source coverage.
+
 No-Observability-Change: the GLAD adapter emits the existing
 `vulnerability.cve`, `vulnerability.affected_package`,
 `vulnerability.reference`, and `vulnerability.source_snapshot` fact kinds. It

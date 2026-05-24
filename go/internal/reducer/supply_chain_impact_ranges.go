@@ -72,6 +72,20 @@ func packageVersionAffected(observed string, pkg supplyChainAffectedPackage) boo
 	return versionAffectedByRanges(observed, pkg.affectedRanges)
 }
 
+// anyPackageVersionAffected reports whether the observed version falls inside
+// any source's affected list or range. Multi-source consolidation means one
+// CVE+package can carry several source-reported windows; the reducer treats
+// the union as the conservative affected set so a vendor advisory's narrower
+// window does not silently override an upstream advisory's wider window.
+func anyPackageVersionAffected(observed string, pkgs []supplyChainAffectedPackage) bool {
+	for _, pkg := range pkgs {
+		if packageVersionAffected(observed, pkg) {
+			return true
+		}
+	}
+	return false
+}
+
 func versionAffectedByRanges(observed string, ranges []supplyChainAffectedRange) bool {
 	for _, affectedRange := range ranges {
 		if !strings.EqualFold(affectedRange.kind, "SEMVER") {

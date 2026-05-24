@@ -316,6 +316,17 @@ Log phase attributes: `telemetry.PhaseReduction` (main loop),
   metadata and must not be treated as installed versions. CVSS, EPSS, and KEV
   stay risk signals; they never prove reachability without package or runtime
   evidence, and missing deployment evidence remains visible.
+- **Advisory provenance is preserved** — multi-source CVE and affected_package
+  observations for the same advisory identity are consolidated into one
+  finding per `(cve_id, package_id)` anchor. `supplyChainImpactProvenance`
+  selects severity, fixed-version, and vulnerable-range using documented
+  per-ecosystem source priority (vendor advisory beats GLAD/GHSA/OSV/NVD for
+  OS package classes; GHSA beats GLAD/OSV/NVD for language ecosystems) and
+  records the selected source, every alternate severity, every source-reported
+  fixed-version branch with originating source, and per-source advisory IDs
+  with update and withdrawal timestamps. Withdrawn advisories are excluded
+  from selection but remain visible as observations so operators can explain
+  why a vendor or upstream record was skipped.
 - **Package ownership is conservative** —
   `PackageSourceCorrelationHandler` writes ownership candidates from registry
   source hints and package-version publication evidence but leaves
@@ -374,6 +385,9 @@ Log phase attributes: `telemetry.PhaseReduction` (main loop),
 
 No-Regression Evidence: `go test ./internal/reducer ./internal/storage/postgres ./cmd/reducer -run 'TestPlatformMaterializationHandlerLocksInfrastructurePlatformIDs|TestNewDefaultRegistryWiresPlatformGraphLocker|TestPlatformGraphLocker|TestPlatformGraphLockerForReducer|TestBuildReducerServiceWiresDefaultRuntimeAndQueue' -count=1` proves deployment_mapping platform writes acquire per-Platform.id locks without lowering worker concurrency and skip lock wiring when transactions are unavailable.
 Observability Evidence: existing reducer queue conflict fields, fact-work retry counters, deployment_mapping completion logs, graph-write retry WARNs, and Postgres query errors expose blocked, retrying, failed, and completed platform materialization work; no new metric label was needed.
+
+No-Regression Evidence: `go test ./internal/reducer -run 'TestSupplyChainCVEGroupRepresentative(UsesSourcePriority|SelectsByPriorityAndSkipsWithdrawn)|TestAdvisorySourcePriorityDoesNotAllocate' -count=1` failed on baseline `4b9128d` because the legacy product representative returned envelope order and `advisorySourcePriority` allocated four times per run; the same command passed after the change on Go 1.26.3. `go test ./internal/reducer -count=1` also passed with pure in-memory fixture envelopes, no graph backend, no reducer queue rows, and the existing provenance tests still producing one consolidated finding per CVE/package anchor.
+No-Observability-Change: the change only makes in-memory advisory-source selection deterministic and allocation-free inside existing reducer admission. It does not add a queue, graph write, Postgres query, runtime knob, or metric label; existing `SpanReducerRun`, `reducer_run_duration_seconds`, `reducer_executions_total`, reducer completion logs, and durable finding payloads remain the operator-visible signals for this path.
 ## Related docs
 
 - `docs/public/architecture.md`

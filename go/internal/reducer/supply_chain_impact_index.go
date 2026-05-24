@@ -9,21 +9,29 @@ import (
 )
 
 type supplyChainImpactCVE struct {
-	factID     string
-	cveID      string
-	advisoryID string
-	cvssScore  float64
+	factID          string
+	cveID           string
+	advisoryID      string
+	source          string
+	cvssScore       float64
+	cvssVector      string
+	severityLabel   string
+	sourceUpdatedAt string
+	withdrawnAt     string
 }
 
 type supplyChainAffectedPackage struct {
 	factID           string
 	cveID            string
+	source           string
+	advisoryID       string
 	packageID        string
 	ecosystem        string
 	name             string
 	purl             string
 	affectedVersions []string
 	affectedRanges   []supplyChainAffectedRange
+	affectedRangeRaw string
 	fixedVersions    []string
 }
 
@@ -152,11 +160,12 @@ func buildSupplyChainImpactIndex(envelopes []facts.Envelope) supplyChainImpactIn
 }
 
 func classifySupplyChainImpactPackage(
-	cve supplyChainImpactCVE,
-	pkg supplyChainAffectedPackage,
+	cves supplyChainCVEGroup,
+	pkgs []supplyChainAffectedPackage,
 	index supplyChainImpactIndex,
 ) SupplyChainImpactFinding {
-	finding := baseSupplyChainImpactFinding(cve, pkg, index)
+	finding := baseSupplyChainImpactFinding(cves, pkgs, index)
+	pkg := representativeAffectedPackage(pkgs)
 	component, attachment, image, hasComponentPath := firstSBOMImpactPath(pkg, index)
 	consumption := firstConsumption(pkg.packageID, index.consumption)
 	if consumption.factID != "" {
@@ -183,7 +192,7 @@ func classifySupplyChainImpactPackage(
 			finding.RepositoryID = image.repositoryID
 		}
 	}
-	if consumption.factID != "" && packageVersionAffected(finding.ObservedVersion, pkg) {
+	if consumption.factID != "" && anyPackageVersionAffected(finding.ObservedVersion, pkgs) {
 		finding.Status = SupplyChainImpactAffectedExact
 		finding.Confidence = "exact"
 		finding.RuntimeReachability = "package_manifest"
@@ -265,28 +274,57 @@ func baseSupplyChainImpactProductFinding(
 }
 
 func baseSupplyChainImpactFinding(
-	cve supplyChainImpactCVE,
-	pkg supplyChainAffectedPackage,
+	cves supplyChainCVEGroup,
+	pkgs []supplyChainAffectedPackage,
 	index supplyChainImpactIndex,
 ) SupplyChainImpactFinding {
-	fixed := ""
-	if len(pkg.fixedVersions) > 0 {
-		fixed = pkg.fixedVersions[0]
-	}
+	pkg := representativeAffectedPackage(pkgs)
+	observations := buildAdvisoryProvenanceObservations(cves.observations, pkgs)
+	provenance := selectAdvisoryProvenance(pkg.ecosystem, observations)
+	advisoryID := provenanceAdvisoryID(provenance, cves)
+
 	finding := SupplyChainImpactFinding{
-		CVEID:           cve.cveID,
-		AdvisoryID:      firstNonBlank(cve.advisoryID, cve.cveID),
-		PackageID:       pkg.packageID,
-		Ecosystem:       pkg.ecosystem,
-		PackageName:     pkg.name,
-		PURL:            pkg.purl,
-		FixedVersion:    fixed,
-		CVSSScore:       cve.cvssScore,
-		EvidencePath:    []string{facts.VulnerabilityCVEFactKind, facts.VulnerabilityAffectedPackageFactKind},
-		EvidenceFactIDs: []string{cve.factID, pkg.factID},
+		CVEID:                cves.cveID,
+		AdvisoryID:           advisoryID,
+		PackageID:            pkg.packageID,
+		Ecosystem:            pkg.ecosystem,
+		PackageName:          pkg.name,
+		PURL:                 pkg.purl,
+		FixedVersion:         provenance.FixedVersion,
+		CVSSScore:            provenance.SeverityScore,
+		SeveritySource:       provenance.SeveritySource,
+		SeverityVector:       provenance.SeverityVector,
+		SeverityLabel:        provenance.SeverityLabel,
+		AlternateSeverities:  provenance.AlternateSeverities,
+		FixedVersionSource:   provenance.FixedVersionSource,
+		FixedVersionBranches: provenance.FixedVersionBranches,
+		RangeSource:          provenance.RangeSource,
+		AdvisorySources:      provenance.AdvisorySources,
+		EvidencePath:         []string{facts.VulnerabilityCVEFactKind, facts.VulnerabilityAffectedPackageFactKind},
+		EvidenceFactIDs:      provenance.EvidenceFactIDs,
 	}
-	applyRiskSignals(&finding, index.riskSignals[cve.cveID])
+	applyRiskSignals(&finding, index.riskSignals[cves.cveID])
 	return finding
+}
+
+// provenanceAdvisoryID picks the advisory identifier surfaced on the finding
+// row. The selected severity source's advisory identifier wins so the row
+// matches the source the operator sees as the primary signal; falling back
+// to the first advisory observation keeps the row populated when no source
+// published a CVSS score.
+func provenanceAdvisoryID(provenance advisoryProvenanceSelection, cves supplyChainCVEGroup) string {
+	if provenance.SeveritySource != "" {
+		for _, advisory := range provenance.AdvisorySources {
+			if advisory.Source == provenance.SeveritySource {
+				return advisory.AdvisoryID
+			}
+		}
+	}
+	if len(provenance.AdvisorySources) > 0 {
+		return provenance.AdvisorySources[0].AdvisoryID
+	}
+	rep := cves.representative()
+	return firstNonBlank(rep.advisoryID, rep.cveID)
 }
 
 func applyRiskSignals(finding *SupplyChainImpactFinding, signals supplyChainRiskSignals) {

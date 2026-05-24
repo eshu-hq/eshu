@@ -52,36 +52,42 @@ type SBOMAttestationAttachmentResult struct {
 
 // SupplyChainImpactFindingResult is one reducer-owned vulnerability impact row
 // returned by the public API.
+//
+// The Provenance block preserves per-source advisory observations so callers
+// can see which advisory source supplied each selected severity, fixed
+// version, and vulnerable range, plus every alternate severity surfaced by
+// other sources. Reducers select using documented per-ecosystem priority.
 type SupplyChainImpactFindingResult struct {
-	FindingID           string   `json:"finding_id"`
-	CVEID               string   `json:"cve_id,omitempty"`
-	AdvisoryID          string   `json:"advisory_id,omitempty"`
-	PackageID           string   `json:"package_id,omitempty"`
-	Ecosystem           string   `json:"ecosystem,omitempty"`
-	PackageName         string   `json:"package_name,omitempty"`
-	PURL                string   `json:"purl,omitempty"`
-	ProductCriteria     string   `json:"product_criteria,omitempty"`
-	MatchCriteriaID     string   `json:"match_criteria_id,omitempty"`
-	ObservedVersion     string   `json:"observed_version,omitempty"`
-	FixedVersion        string   `json:"fixed_version,omitempty"`
-	ImpactStatus        string   `json:"impact_status"`
-	Confidence          string   `json:"confidence,omitempty"`
-	CVSSScore           float64  `json:"cvss_score,omitempty"`
-	EPSSProbability     string   `json:"epss_probability,omitempty"`
-	EPSSPercentile      string   `json:"epss_percentile,omitempty"`
-	KnownExploited      bool     `json:"known_exploited"`
-	PriorityReason      string   `json:"priority_reason,omitempty"`
-	RuntimeReachability string   `json:"runtime_reachability,omitempty"`
-	RepositoryID        string   `json:"repository_id,omitempty"`
-	SubjectDigest       string   `json:"subject_digest,omitempty"`
-	DependencyPath      []string `json:"dependency_path,omitempty"`
-	DependencyDepth     int      `json:"dependency_depth,omitempty"`
-	DirectDependency    *bool    `json:"direct_dependency,omitempty"`
-	MissingEvidence     []string `json:"missing_evidence,omitempty"`
-	EvidencePath        []string `json:"evidence_path,omitempty"`
-	EvidenceFactIDs     []string `json:"evidence_fact_ids,omitempty"`
-	SourceFreshness     string   `json:"source_freshness,omitempty"`
-	SourceConfidence    string   `json:"source_confidence,omitempty"`
+	FindingID           string                       `json:"finding_id"`
+	CVEID               string                       `json:"cve_id,omitempty"`
+	AdvisoryID          string                       `json:"advisory_id,omitempty"`
+	PackageID           string                       `json:"package_id,omitempty"`
+	Ecosystem           string                       `json:"ecosystem,omitempty"`
+	PackageName         string                       `json:"package_name,omitempty"`
+	PURL                string                       `json:"purl,omitempty"`
+	ProductCriteria     string                       `json:"product_criteria,omitempty"`
+	MatchCriteriaID     string                       `json:"match_criteria_id,omitempty"`
+	ObservedVersion     string                       `json:"observed_version,omitempty"`
+	FixedVersion        string                       `json:"fixed_version,omitempty"`
+	ImpactStatus        string                       `json:"impact_status"`
+	Confidence          string                       `json:"confidence,omitempty"`
+	CVSSScore           float64                      `json:"cvss_score,omitempty"`
+	EPSSProbability     string                       `json:"epss_probability,omitempty"`
+	EPSSPercentile      string                       `json:"epss_percentile,omitempty"`
+	KnownExploited      bool                         `json:"known_exploited"`
+	PriorityReason      string                       `json:"priority_reason,omitempty"`
+	RuntimeReachability string                       `json:"runtime_reachability,omitempty"`
+	RepositoryID        string                       `json:"repository_id,omitempty"`
+	SubjectDigest       string                       `json:"subject_digest,omitempty"`
+	DependencyPath      []string                     `json:"dependency_path,omitempty"`
+	DependencyDepth     int                          `json:"dependency_depth,omitempty"`
+	DirectDependency    *bool                        `json:"direct_dependency,omitempty"`
+	MissingEvidence     []string                     `json:"missing_evidence,omitempty"`
+	EvidencePath        []string                     `json:"evidence_path,omitempty"`
+	EvidenceFactIDs     []string                     `json:"evidence_fact_ids,omitempty"`
+	SourceFreshness     string                       `json:"source_freshness,omitempty"`
+	SourceConfidence    string                       `json:"source_confidence,omitempty"`
+	Provenance          *SupplyChainImpactProvenance `json:"provenance,omitempty"`
 }
 
 // ContainerImageIdentityResult is one reducer-owned container image identity
