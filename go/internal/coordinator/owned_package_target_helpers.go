@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+
+	"golang.org/x/mod/semver"
 )
 
 func derivationEcosystems(values []string, defaults []string) map[string]struct{} {
@@ -79,6 +81,13 @@ func exactOwnedDependencyVersion(raw string) (string, bool) {
 		strings.Contains(lower, "x.") {
 		return "", false
 	}
+	semverVersion := version
+	if !strings.HasPrefix(semverVersion, "v") {
+		semverVersion = "v" + semverVersion
+	}
+	if !semver.IsValid(semverVersion) {
+		return "", false
+	}
 	return version, true
 }
 
@@ -86,7 +95,9 @@ func nonVersionOwnedDependencyPrefix(lower string) bool {
 	for _, prefix := range []string{
 		"file:",
 		"git+",
+		"git://",
 		"github:",
+		"gitlab:",
 		"http:",
 		"https:",
 		"link:",
