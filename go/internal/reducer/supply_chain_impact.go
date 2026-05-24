@@ -48,34 +48,47 @@ type SupplyChainImpactFactFilter struct {
 }
 
 // SupplyChainImpactFinding is one reducer-owned vulnerability impact finding.
+//
+// Severity, fixed-version, and vulnerable-range fields carry per-source
+// provenance so admission preserves which advisory source supplied each
+// selected value and what alternates other sources reported. Reducers select
+// one value per field using documented ecosystem-aware source priority.
 type SupplyChainImpactFinding struct {
-	CVEID               string
-	AdvisoryID          string
-	PackageID           string
-	Ecosystem           string
-	PackageName         string
-	PURL                string
-	ProductCriteria     string
-	MatchCriteriaID     string
-	ObservedVersion     string
-	FixedVersion        string
-	Status              SupplyChainImpactStatus
-	Confidence          string
-	CVSSScore           float64
-	EPSSProbability     string
-	EPSSPercentile      string
-	KnownExploited      bool
-	PriorityReason      string
-	RuntimeReachability string
-	RepositoryID        string
-	SubjectDigest       string
-	DependencyPath      []string
-	DependencyDepth     int
-	DirectDependency    *bool
-	MissingEvidence     []string
-	EvidencePath        []string
-	EvidenceFactIDs     []string
-	CanonicalWrites     int
+	CVEID                string
+	AdvisoryID           string
+	PackageID            string
+	Ecosystem            string
+	PackageName          string
+	PURL                 string
+	ProductCriteria      string
+	MatchCriteriaID      string
+	ObservedVersion      string
+	FixedVersion         string
+	Status               SupplyChainImpactStatus
+	Confidence           string
+	CVSSScore            float64
+	SeveritySource       string
+	SeverityVector       string
+	SeverityLabel        string
+	AlternateSeverities  []AlternateSeverity
+	FixedVersionSource   string
+	FixedVersionBranches []FixedVersionBranch
+	RangeSource          string
+	AdvisorySources      []AdvisorySourceObservation
+	EPSSProbability      string
+	EPSSPercentile       string
+	KnownExploited       bool
+	PriorityReason       string
+	RuntimeReachability  string
+	RepositoryID         string
+	SubjectDigest        string
+	DependencyPath       []string
+	DependencyDepth      int
+	DirectDependency     *bool
+	MissingEvidence      []string
+	EvidencePath         []string
+	EvidenceFactIDs      []string
+	CanonicalWrites      int
 }
 
 // SupplyChainImpactWrite carries findings for durable publication.
@@ -292,21 +305,30 @@ func (h SupplyChainImpactHandler) emitCounters(ctx context.Context, counts map[S
 
 // BuildSupplyChainImpactFindings classifies vulnerability source facts against
 // explicit package, SBOM, image, and repository evidence.
+//
+// Multi-source CVE and affected_package observations for the same advisory
+// identity are consolidated into one finding so callers see a single row per
+// (cve_id, package_id) anchor with full per-source provenance, instead of one
+// row per advisory source overwriting the others at the writer.
 func BuildSupplyChainImpactFindings(envelopes []facts.Envelope) []SupplyChainImpactFinding {
 	index := buildSupplyChainImpactIndex(envelopes)
+	cveGroups := groupSupplyChainCVEsByID(index.cves)
 	findings := make([]SupplyChainImpactFinding, 0, len(index.affectedPackages)+len(index.affectedProducts))
-	for _, cve := range index.cves {
-		affected := index.affectedPackages[cve.cveID]
+	for _, cveID := range sortedCVEKeys(cveGroups) {
+		group := cveGroups[cveID]
+		affected := index.affectedPackages[cveID]
 		if len(affected) > 0 {
-			for _, pkg := range affected {
-				findings = appendSupplyChainImpactFinding(findings, classifySupplyChainImpactPackage(cve, pkg, index))
+			pkgGroups := groupSupplyChainAffectedByPackage(affected)
+			for _, packageID := range sortedPackageKeys(pkgGroups) {
+				pkgs := pkgGroups[packageID]
+				findings = appendSupplyChainImpactFinding(findings, classifySupplyChainImpactPackage(group, pkgs, index))
 			}
 			continue
 		}
-		products := index.affectedProducts[cve.cveID]
+		products := index.affectedProducts[cveID]
 		if len(products) > 0 {
 			for _, product := range products {
-				findings = appendSupplyChainImpactFinding(findings, classifySupplyChainImpactProduct(cve, product, index))
+				findings = appendSupplyChainImpactFinding(findings, classifySupplyChainImpactProduct(group.representative(), product, index))
 			}
 			continue
 		}

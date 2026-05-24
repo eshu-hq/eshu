@@ -87,7 +87,59 @@ const openAPIPathsSupplyChain = `
                           "dependency_path": {"type": "array", "items": {"type": "string"}},
                           "dependency_depth": {"type": "integer"},
                           "direct_dependency": {"type": "boolean"},
-                          "missing_evidence": {"type": "array", "items": {"type": "string"}}
+                          "missing_evidence": {"type": "array", "items": {"type": "string"}},
+                          "provenance": {
+                            "type": "object",
+                            "description": "Per-source advisory provenance. Reducers preserve every source observation behind a finding so callers see which advisory source supplied the selected severity, fixed version, and vulnerable range plus alternates other sources reported. Selection uses documented per-ecosystem priority (vendor advisory for OS package classes, GHSA/GLAD/OSV/NVD for language ecosystems).",
+                            "properties": {
+                              "selected_severity_source": {"type": "string", "description": "Advisory source whose severity was selected."},
+                              "selected_severity_score": {"type": "number"},
+                              "selected_severity_vector": {"type": "string"},
+                              "selected_severity_label": {"type": "string"},
+                              "selected_fixed_version_source": {"type": "string", "description": "Advisory source whose fixed-version branch was selected."},
+                              "selected_range_source": {"type": "string", "description": "Advisory source whose vulnerable-range expression was selected."},
+                              "alternate_severities": {
+                                "type": "array",
+                                "description": "Severities reported by other sources that were not selected.",
+                                "items": {
+                                  "type": "object",
+                                  "properties": {
+                                    "source": {"type": "string"},
+                                    "score": {"type": "number"},
+                                    "vector": {"type": "string"},
+                                    "label": {"type": "string"}
+                                  },
+                                  "required": ["source"]
+                                }
+                              },
+                              "fixed_version_branches": {
+                                "type": "array",
+                                "description": "Every source-reported fixed-version branch, with the originating advisory source preserved.",
+                                "items": {
+                                  "type": "object",
+                                  "properties": {
+                                    "version": {"type": "string"},
+                                    "source": {"type": "string"}
+                                  },
+                                  "required": ["version", "source"]
+                                }
+                              },
+                              "advisory_sources": {
+                                "type": "array",
+                                "description": "Every advisory source observation, including source-reported update timestamp and withdrawal timestamp.",
+                                "items": {
+                                  "type": "object",
+                                  "properties": {
+                                    "source": {"type": "string"},
+                                    "advisory_id": {"type": "string"},
+                                    "source_updated_at": {"type": "string"},
+                                    "withdrawn_at": {"type": "string"}
+                                  },
+                                  "required": ["source"]
+                                }
+                              }
+                            }
+                          }
                         }
                       }
                     },

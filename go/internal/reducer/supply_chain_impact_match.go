@@ -9,10 +9,15 @@ import (
 
 func supplyChainCVEFromEnvelope(envelope facts.Envelope) supplyChainImpactCVE {
 	return supplyChainImpactCVE{
-		factID:     envelope.FactID,
-		cveID:      supplyChainCVEID(envelope.Payload),
-		advisoryID: payloadStr(envelope.Payload, "advisory_id"),
-		cvssScore:  supplyChainFloat(envelope.Payload, "cvss_score"),
+		factID:          envelope.FactID,
+		cveID:           supplyChainCVEID(envelope.Payload),
+		advisoryID:      payloadStr(envelope.Payload, "advisory_id"),
+		source:          payloadStr(envelope.Payload, "source"),
+		cvssScore:       supplyChainFloat(envelope.Payload, "cvss_score"),
+		cvssVector:      payloadStr(envelope.Payload, "cvss_vector"),
+		severityLabel:   payloadStr(envelope.Payload, "severity_label"),
+		sourceUpdatedAt: payloadStr(envelope.Payload, "modified_at"),
+		withdrawnAt:     payloadStr(envelope.Payload, "withdrawn_at"),
 	}
 }
 
@@ -20,12 +25,15 @@ func supplyChainAffectedPackageFromEnvelope(envelope facts.Envelope) supplyChain
 	return supplyChainAffectedPackage{
 		factID:           envelope.FactID,
 		cveID:            supplyChainCVEID(envelope.Payload),
+		source:           payloadStr(envelope.Payload, "source"),
+		advisoryID:       payloadStr(envelope.Payload, "advisory_id"),
 		packageID:        payloadStr(envelope.Payload, "package_id"),
 		ecosystem:        strings.ToLower(payloadStr(envelope.Payload, "ecosystem")),
 		name:             payloadStr(envelope.Payload, "package_name"),
 		purl:             payloadStr(envelope.Payload, "purl"),
 		affectedVersions: payloadStrings(envelope.Payload, "affected_version", "affected_versions"),
 		affectedRanges:   supplyChainAffectedRangesFromPayload(envelope.Payload),
+		affectedRangeRaw: payloadStr(envelope.Payload, "affected_range"),
 		fixedVersions:    payloadStrings(envelope.Payload, "fixed_version", "fixed_versions"),
 	}
 }

@@ -316,6 +316,17 @@ Log phase attributes: `telemetry.PhaseReduction` (main loop),
   metadata and must not be treated as installed versions. CVSS, EPSS, and KEV
   stay risk signals; they never prove reachability without package or runtime
   evidence, and missing deployment evidence remains visible.
+- **Advisory provenance is preserved** — multi-source CVE and affected_package
+  observations for the same advisory identity are consolidated into one
+  finding per `(cve_id, package_id)` anchor. `supplyChainImpactProvenance`
+  selects severity, fixed-version, and vulnerable-range using documented
+  per-ecosystem source priority (vendor advisory beats GLAD/GHSA/OSV/NVD for
+  OS package classes; GHSA beats GLAD/OSV/NVD for language ecosystems) and
+  records the selected source, every alternate severity, every source-reported
+  fixed-version branch with originating source, and per-source advisory IDs
+  with update and withdrawal timestamps. Withdrawn advisories are excluded
+  from selection but remain visible as observations so operators can explain
+  why a vendor or upstream record was skipped.
 - **Package ownership is conservative** —
   `PackageSourceCorrelationHandler` writes ownership candidates from registry
   source hints and package-version publication evidence but leaves

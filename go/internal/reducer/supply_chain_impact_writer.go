@@ -145,7 +145,102 @@ func supplyChainImpactPayload(write SupplyChainImpactWrite, finding SupplyChainI
 	if finding.DirectDependency != nil {
 		payload["direct_dependency"] = *finding.DirectDependency
 	}
+	provenance := supplyChainImpactProvenancePayload(finding)
+	if len(provenance) > 0 {
+		payload["provenance"] = provenance
+	}
 	return payload
+}
+
+func supplyChainImpactProvenancePayload(finding SupplyChainImpactFinding) map[string]any {
+	out := map[string]any{}
+	if finding.SeveritySource != "" {
+		out["selected_severity_source"] = finding.SeveritySource
+	}
+	if finding.SeverityVector != "" {
+		out["selected_severity_vector"] = finding.SeverityVector
+	}
+	if finding.SeverityLabel != "" {
+		out["selected_severity_label"] = finding.SeverityLabel
+	}
+	if finding.CVSSScore != 0 {
+		out["selected_severity_score"] = finding.CVSSScore
+	}
+	if finding.FixedVersionSource != "" {
+		out["selected_fixed_version_source"] = finding.FixedVersionSource
+	}
+	if finding.RangeSource != "" {
+		out["selected_range_source"] = finding.RangeSource
+	}
+	if alternates := serializeAlternateSeverities(finding.AlternateSeverities); len(alternates) > 0 {
+		out["alternate_severities"] = alternates
+	}
+	if branches := serializeFixedVersionBranches(finding.FixedVersionBranches); len(branches) > 0 {
+		out["fixed_version_branches"] = branches
+	}
+	if advisories := serializeAdvisorySources(finding.AdvisorySources); len(advisories) > 0 {
+		out["advisory_sources"] = advisories
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+func serializeAlternateSeverities(values []AlternateSeverity) []map[string]any {
+	if len(values) == 0 {
+		return nil
+	}
+	out := make([]map[string]any, 0, len(values))
+	for _, value := range values {
+		row := map[string]any{"source": value.Source}
+		if value.Score != 0 {
+			row["score"] = value.Score
+		}
+		if value.Vector != "" {
+			row["vector"] = value.Vector
+		}
+		if value.Label != "" {
+			row["label"] = value.Label
+		}
+		out = append(out, row)
+	}
+	return out
+}
+
+func serializeFixedVersionBranches(values []FixedVersionBranch) []map[string]any {
+	if len(values) == 0 {
+		return nil
+	}
+	out := make([]map[string]any, 0, len(values))
+	for _, value := range values {
+		out = append(out, map[string]any{
+			"version": value.Version,
+			"source":  value.Source,
+		})
+	}
+	return out
+}
+
+func serializeAdvisorySources(values []AdvisorySourceObservation) []map[string]any {
+	if len(values) == 0 {
+		return nil
+	}
+	out := make([]map[string]any, 0, len(values))
+	for _, value := range values {
+		row := map[string]any{"source": value.Source}
+		if value.AdvisoryID != "" {
+			row["advisory_id"] = value.AdvisoryID
+		}
+		if value.SourceUpdatedAt != "" {
+			row["source_updated_at"] = value.SourceUpdatedAt
+		}
+		if value.WithdrawnAt != "" {
+			row["withdrawn_at"] = value.WithdrawnAt
+		}
+		out = append(out, row)
+	}
+	return out
 }
 
 func orderedUniqueStrings(values []string) []string {

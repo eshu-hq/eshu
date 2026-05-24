@@ -140,6 +140,12 @@ flowchart LR
   fixed versions. Add conflict tests for cases where GLAD, OSV, and NVD
   disagree on range, severity, or fixed version. Reducers own the resolution;
   the adapter only preserves the disagreement.
+- [x] Preserve advisory provenance in reducer admission (#601): consolidate
+  multi-source CVE and affected_package observations per
+  `(cve_id, package_id)`, select severity, fixed-version, and vulnerable-range
+  using documented per-ecosystem source priority, keep alternate severities
+  and per-source fixed-version branches, surface withdrawal timestamps, and
+  expose the provenance block through the supply-chain impact API and MCP.
 
 Status 2026-05-24: `GitLabAdvisoryEnvelopes` plus `ParseGitLabAffectedRange`
 land in `go/internal/collector/vulnerabilityintelligence` as a pure parser

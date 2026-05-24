@@ -60,6 +60,50 @@ type SupplyChainImpactFindingRow struct {
 	EvidenceFactIDs     []string
 	SourceFreshness     string
 	SourceConfidence    string
+	Provenance          *SupplyChainImpactProvenance
+}
+
+// SupplyChainImpactProvenance preserves per-source advisory provenance for one
+// supply-chain impact finding. Reducers select one severity and one
+// fixed-version using documented ecosystem-aware priority while keeping every
+// other source observation as an alternate so callers can explain selection
+// and detect vendor/upstream disagreement.
+type SupplyChainImpactProvenance struct {
+	SelectedSeveritySource     string                          `json:"selected_severity_source,omitempty"`
+	SelectedSeverityScore      float64                         `json:"selected_severity_score,omitempty"`
+	SelectedSeverityVector     string                          `json:"selected_severity_vector,omitempty"`
+	SelectedSeverityLabel      string                          `json:"selected_severity_label,omitempty"`
+	SelectedFixedVersionSource string                          `json:"selected_fixed_version_source,omitempty"`
+	SelectedRangeSource        string                          `json:"selected_range_source,omitempty"`
+	AlternateSeverities        []SupplyChainAlternateSeverity  `json:"alternate_severities,omitempty"`
+	FixedVersionBranches       []SupplyChainFixedVersionBranch `json:"fixed_version_branches,omitempty"`
+	AdvisorySources            []SupplyChainAdvisorySource     `json:"advisory_sources,omitempty"`
+}
+
+// SupplyChainAlternateSeverity is one non-selected source severity preserved
+// for explainability.
+type SupplyChainAlternateSeverity struct {
+	Source string  `json:"source"`
+	Score  float64 `json:"score,omitempty"`
+	Vector string  `json:"vector,omitempty"`
+	Label  string  `json:"label,omitempty"`
+}
+
+// SupplyChainFixedVersionBranch is one source-attributed fixed-version branch
+// for one impact finding.
+type SupplyChainFixedVersionBranch struct {
+	Version string `json:"version"`
+	Source  string `json:"source"`
+}
+
+// SupplyChainAdvisorySource is one source-attributed advisory observation
+// behind a finding, including when the source last updated it and when it
+// was withdrawn.
+type SupplyChainAdvisorySource struct {
+	Source          string `json:"source"`
+	AdvisoryID      string `json:"advisory_id,omitempty"`
+	SourceUpdatedAt string `json:"source_updated_at,omitempty"`
+	WithdrawnAt     string `json:"withdrawn_at,omitempty"`
 }
 
 type supplyChainImpactFindingQueryer interface {
@@ -199,7 +243,112 @@ func decodeSupplyChainImpactFindingRow(
 		EvidenceFactIDs:     StringSliceVal(payload, "evidence_fact_ids"),
 		SourceFreshness:     "active",
 		SourceConfidence:    sourceConfidence,
+		Provenance:          decodeSupplyChainImpactProvenance(payload),
 	}, nil
+}
+
+func decodeSupplyChainImpactProvenance(payload map[string]any) *SupplyChainImpactProvenance {
+	raw, ok := payload["provenance"].(map[string]any)
+	if !ok || len(raw) == 0 {
+		return nil
+	}
+	provenance := SupplyChainImpactProvenance{
+		SelectedSeveritySource:     StringVal(raw, "selected_severity_source"),
+		SelectedSeverityScore:      floatVal(raw, "selected_severity_score"),
+		SelectedSeverityVector:     StringVal(raw, "selected_severity_vector"),
+		SelectedSeverityLabel:      StringVal(raw, "selected_severity_label"),
+		SelectedFixedVersionSource: StringVal(raw, "selected_fixed_version_source"),
+		SelectedRangeSource:        StringVal(raw, "selected_range_source"),
+	}
+	provenance.AlternateSeverities = decodeAlternateSeverities(raw["alternate_severities"])
+	provenance.FixedVersionBranches = decodeFixedVersionBranches(raw["fixed_version_branches"])
+	provenance.AdvisorySources = decodeAdvisorySources(raw["advisory_sources"])
+	if provenance.isEmpty() {
+		return nil
+	}
+	return &provenance
+}
+
+func (p SupplyChainImpactProvenance) isEmpty() bool {
+	return p.SelectedSeveritySource == "" &&
+		p.SelectedSeverityScore == 0 &&
+		p.SelectedSeverityVector == "" &&
+		p.SelectedSeverityLabel == "" &&
+		p.SelectedFixedVersionSource == "" &&
+		p.SelectedRangeSource == "" &&
+		len(p.AlternateSeverities) == 0 &&
+		len(p.FixedVersionBranches) == 0 &&
+		len(p.AdvisorySources) == 0
+}
+
+func decodeAlternateSeverities(raw any) []SupplyChainAlternateSeverity {
+	items, ok := raw.([]any)
+	if !ok || len(items) == 0 {
+		return nil
+	}
+	out := make([]SupplyChainAlternateSeverity, 0, len(items))
+	for _, item := range items {
+		row, ok := item.(map[string]any)
+		if !ok {
+			continue
+		}
+		out = append(out, SupplyChainAlternateSeverity{
+			Source: StringVal(row, "source"),
+			Score:  floatVal(row, "score"),
+			Vector: StringVal(row, "vector"),
+			Label:  StringVal(row, "label"),
+		})
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+func decodeFixedVersionBranches(raw any) []SupplyChainFixedVersionBranch {
+	items, ok := raw.([]any)
+	if !ok || len(items) == 0 {
+		return nil
+	}
+	out := make([]SupplyChainFixedVersionBranch, 0, len(items))
+	for _, item := range items {
+		row, ok := item.(map[string]any)
+		if !ok {
+			continue
+		}
+		out = append(out, SupplyChainFixedVersionBranch{
+			Version: StringVal(row, "version"),
+			Source:  StringVal(row, "source"),
+		})
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+func decodeAdvisorySources(raw any) []SupplyChainAdvisorySource {
+	items, ok := raw.([]any)
+	if !ok || len(items) == 0 {
+		return nil
+	}
+	out := make([]SupplyChainAdvisorySource, 0, len(items))
+	for _, item := range items {
+		row, ok := item.(map[string]any)
+		if !ok {
+			continue
+		}
+		out = append(out, SupplyChainAdvisorySource{
+			Source:          StringVal(row, "source"),
+			AdvisoryID:      StringVal(row, "advisory_id"),
+			SourceUpdatedAt: StringVal(row, "source_updated_at"),
+			WithdrawnAt:     StringVal(row, "withdrawn_at"),
+		})
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
 }
 
 func boolPointerVal(payload map[string]any, key string) *bool {

@@ -192,3 +192,69 @@ func TestSupplyChainImpactFindingQueryUsesActiveFactReadModel(t *testing.T) {
 func boolPtr(value bool) *bool {
 	return &value
 }
+
+func TestDecodeSupplyChainImpactFindingRowPreservesProvenance(t *testing.T) {
+	t.Parallel()
+
+	payload := []byte(`{
+            "cve_id": "CVE-2026-7777",
+            "advisory_id": "GHSA-test-1",
+            "package_id": "npm://registry.npmjs.org/parse-server",
+            "impact_status": "affected_exact",
+            "cvss_score": 9.8,
+            "fixed_version": "8.6.77",
+            "provenance": {
+                "selected_severity_source": "ghsa",
+                "selected_severity_score": 9.8,
+                "selected_severity_vector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H",
+                "selected_severity_label": "CRITICAL",
+                "selected_fixed_version_source": "ghsa",
+                "selected_range_source": "ghsa",
+                "alternate_severities": [
+                    {"source": "nvd", "score": 5.5, "vector": "CVSS:3.1/AV:N/AC:L/PR:L/UI:R/S:U/C:L/I:L/A:N", "label": "MEDIUM"}
+                ],
+                "fixed_version_branches": [
+                    {"version": "8.6.77", "source": "ghsa"},
+                    {"version": "9.9.1-alpha.1", "source": "glad"}
+                ],
+                "advisory_sources": [
+                    {"source": "ghsa", "advisory_id": "GHSA-test-1", "source_updated_at": "2026-05-20T12:00:00Z"},
+                    {"source": "nvd", "advisory_id": "CVE-2026-7777", "source_updated_at": "2026-05-18T09:00:00Z"},
+                    {"source": "glad", "advisory_id": "GMS-2026-99", "source_updated_at": "2026-05-24T08:00:00Z", "withdrawn_at": "2026-05-24T10:00:00Z"}
+                ]
+            }
+        }`)
+
+	row, err := decodeSupplyChainImpactFindingRow("finding-1", "inferred", payload)
+	if err != nil {
+		t.Fatalf("decodeSupplyChainImpactFindingRow() error = %v", err)
+	}
+	if row.Provenance == nil {
+		t.Fatal("Provenance = nil, want decoded provenance block")
+	}
+	provenance := *row.Provenance
+	if provenance.SelectedSeveritySource != "ghsa" {
+		t.Fatalf("SelectedSeveritySource = %q, want ghsa", provenance.SelectedSeveritySource)
+	}
+	if provenance.SelectedFixedVersionSource != "ghsa" {
+		t.Fatalf("SelectedFixedVersionSource = %q, want ghsa", provenance.SelectedFixedVersionSource)
+	}
+	if len(provenance.AlternateSeverities) != 1 || provenance.AlternateSeverities[0].Source != "nvd" {
+		t.Fatalf("AlternateSeverities = %#v, want one nvd entry", provenance.AlternateSeverities)
+	}
+	if len(provenance.FixedVersionBranches) != 2 {
+		t.Fatalf("FixedVersionBranches = %#v, want 2 branches", provenance.FixedVersionBranches)
+	}
+	if len(provenance.AdvisorySources) != 3 {
+		t.Fatalf("AdvisorySources = %#v, want 3 sources", provenance.AdvisorySources)
+	}
+	withdrawnFound := false
+	for _, source := range provenance.AdvisorySources {
+		if source.Source == "glad" && source.WithdrawnAt == "2026-05-24T10:00:00Z" {
+			withdrawnFound = true
+		}
+	}
+	if !withdrawnFound {
+		t.Fatalf("AdvisorySources missing withdrawn glad row: %#v", provenance.AdvisorySources)
+	}
+}

@@ -130,6 +130,33 @@ Valid impact statuses are `affected_exact`, `affected_derived`,
 `possibly_affected`, `not_affected_known_fixed`, and `unknown_impact`.
 Rows keep CVSS, EPSS, KEV, fixed-version state, runtime reachability,
 repository/image evidence, and missing evidence separate.
+
+Each row also carries a `provenance` block so callers can see which advisory
+source supplied the selected severity, fixed version, and vulnerable range,
+plus alternate severities reported by other sources for the same advisory:
+
+- `provenance.selected_severity_source`, `selected_severity_score`,
+  `selected_severity_vector`, `selected_severity_label`: the chosen source's
+  severity attribution.
+- `provenance.selected_fixed_version_source`,
+  `provenance.selected_range_source`: which source supplied the selected
+  fixed version and the selected vulnerable-range expression.
+- `provenance.alternate_severities[]`: severities other sources reported for
+  the same advisory that were not selected.
+- `provenance.fixed_version_branches[]`: every source-reported fixed-version
+  branch with the originating source preserved, including prerelease branches
+  one source publishes and another does not.
+- `provenance.advisory_sources[]`: every contributing source observation,
+  including `source`, `advisory_id`, `source_updated_at`, and `withdrawn_at`
+  so callers can explain selection and detect withdrawn records that were
+  excluded from selection. Withdrawn observations remain visible.
+
+Selection uses documented per-ecosystem priority: vendor advisories (Red Hat,
+Debian, Ubuntu, Alpine, SUSE, Wolfi, Chainguard, Amazon Linux, Oracle Linux)
+outrank generic GLAD/GHSA/OSV/NVD records for the matching OS package class;
+GHSA outranks GLAD, OSV, and NVD for language ecosystems (npm, PyPI, Go,
+Maven, etc.). If the selected source did not publish a severity, the reducer
+falls back to the next-best source instead of emitting a zero severity.
 Exact owned lockfile dependency rows can prove the observed package version.
 Npm lockfile-backed findings may include `dependency_path`,
 `dependency_depth`, and `direct_dependency` so callers can explain direct versus
