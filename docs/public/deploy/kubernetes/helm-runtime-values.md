@@ -114,6 +114,42 @@ Observability Evidence: the Deployment exposes `/healthz`, `/readyz`,
 target count, result count, retry count, dead-letter count, CPU seconds, memory
 bytes, and source facts emitted.
 
+## Vulnerability Intelligence Collector
+
+`vulnerabilityIntelligenceCollector.enabled=true` renders a separate
+`eshu-vulnerability-intelligence-collector` Deployment that claims
+`vulnerability_intelligence` work from the workflow coordinator and fetches
+bounded vulnerability source snapshots (CISA KEV, FIRST EPSS, NVD windows, OSV
+package-version queries, GitLab Gemnasium, GHSA) or derived owned-package
+targets.
+
+Defaults: disabled, one replica, `instanceId=vulnerability-intelligence-primary`,
+`pollInterval=2s`, empty `claimLeaseTTL`/`heartbeatInterval` (binary defaults
+apply), and Kubernetes defaults requesting `cpu=250m`, `memory=512Mi` and
+limiting the pod at `cpu=1000m`, `memory=2Gi`.
+
+The chart rejects vulnerability-intelligence rendering unless:
+
+- `workflowCoordinator.enabled=true`, `deploymentMode=active`, and
+  `claimsEnabled=true`.
+- `vulnerabilityIntelligenceCollector.collectorInstances` contains a
+  `vulnerability_intelligence` instance whose `instance_id` matches
+  `vulnerabilityIntelligenceCollector.instanceId`.
+- `workflowCoordinator.collectorInstances` contains an enabled,
+  claim-driven `vulnerability_intelligence` instance.
+
+Source targets are bounded by design: only explicit CVE IDs, source-level
+snapshots (CISA KEV, FIRST EPSS), OSV package-version queries, NVD modified
+windows, or derived owned-package targets are accepted. Credentials such as
+NVD API keys are referenced by `api_key_env` in the instance configuration and
+provided to the pod through `vulnerabilityIntelligenceCollector.extraEnv`
+Secret references; never embed tokens in chart values.
+
+Observability Evidence: the Deployment exposes `/healthz`, `/readyz`,
+`/metrics`, and `/admin/status`. Collector metrics include queue wait, fetch
+duration, retries, advisory source freshness, dead letters, and emitted
+`vulnerability.*` facts.
+
 ## Repository Sync
 
 `repoSync` controls how the ingester discovers repositories.

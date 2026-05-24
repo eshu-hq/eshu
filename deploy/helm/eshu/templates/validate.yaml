@@ -54,7 +54,24 @@
 {{- fail "scannerWorker.collectorInstances must contain at least one instance when scannerWorker.enabled=true" -}}
 {{- end -}}
 {{- end -}}
-{{- $claimDrivenCollectorsEnabled := or .Values.terraformStateCollector.enabled .Values.awsCloudCollector.enabled .Values.packageRegistryCollector.enabled .Values.scannerWorker.enabled -}}
+{{- if .Values.vulnerabilityIntelligenceCollector.enabled -}}
+{{- if not .Values.vulnerabilityIntelligenceCollector.instanceId -}}
+{{- fail "vulnerabilityIntelligenceCollector.instanceId is required when vulnerabilityIntelligenceCollector.enabled=true" -}}
+{{- end -}}
+{{- if not .Values.vulnerabilityIntelligenceCollector.collectorInstances -}}
+{{- fail "vulnerabilityIntelligenceCollector.collectorInstances must contain at least one instance when vulnerabilityIntelligenceCollector.enabled=true" -}}
+{{- end -}}
+{{- $vulnLocalMatch := false -}}
+{{- range .Values.vulnerabilityIntelligenceCollector.collectorInstances -}}
+{{- if and (eq (default "" .collector_kind) "vulnerability_intelligence") (eq (default "" .instance_id) $.Values.vulnerabilityIntelligenceCollector.instanceId) (default false .enabled) (default false .claims_enabled) -}}
+{{- $vulnLocalMatch = true -}}
+{{- end -}}
+{{- end -}}
+{{- if not $vulnLocalMatch -}}
+{{- fail "vulnerabilityIntelligenceCollector.collectorInstances must contain an enabled claim-driven vulnerability_intelligence instance matching vulnerabilityIntelligenceCollector.instanceId" -}}
+{{- end -}}
+{{- end -}}
+{{- $claimDrivenCollectorsEnabled := or .Values.terraformStateCollector.enabled .Values.awsCloudCollector.enabled .Values.packageRegistryCollector.enabled .Values.scannerWorker.enabled .Values.vulnerabilityIntelligenceCollector.enabled -}}
 {{- if and $claimDrivenCollectorsEnabled (not .Values.workflowCoordinator.enabled) -}}
 {{- fail "workflowCoordinator.enabled=true is required when claim-driven collectors are enabled" -}}
 {{- end -}}
@@ -72,6 +89,17 @@
 {{- end -}}
 {{- if and .Values.workflowCoordinator.enabled .Values.workflowCoordinator.claimsEnabled (not .Values.workflowCoordinator.collectorInstances) -}}
 {{- fail "workflowCoordinator.collectorInstances must contain at least one instance when workflowCoordinator.claimsEnabled=true" -}}
+{{- end -}}
+{{- if .Values.vulnerabilityIntelligenceCollector.enabled -}}
+{{- $vulnCoordinatorMatch := false -}}
+{{- range .Values.workflowCoordinator.collectorInstances -}}
+{{- if and (eq (default "" .collector_kind) "vulnerability_intelligence") (default false .claims_enabled) (default false .enabled) -}}
+{{- $vulnCoordinatorMatch = true -}}
+{{- end -}}
+{{- end -}}
+{{- if not $vulnCoordinatorMatch -}}
+{{- fail "workflowCoordinator.collectorInstances must contain an enabled claim-driven vulnerability_intelligence instance when vulnerabilityIntelligenceCollector.enabled=true" -}}
+{{- end -}}
 {{- end -}}
 {{- if .Values.webhookListener.enabled -}}
 {{- if and (not .Values.webhookListener.github.enabled) (not .Values.webhookListener.gitlab.enabled) (not .Values.webhookListener.bitbucket.enabled) (not .Values.webhookListener.awsFreshness.enabled) -}}

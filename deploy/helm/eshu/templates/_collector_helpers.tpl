@@ -92,6 +92,30 @@
 {{- end }}
 {{- end -}}
 
+{{- define "eshu.renderVulnerabilityIntelligenceCollectorEnv" -}}
+- name: ESHU_COLLECTOR_INSTANCES_JSON
+  value: {{ required "vulnerabilityIntelligenceCollector.collectorInstances must contain at least one instance when vulnerabilityIntelligenceCollector.enabled=true" .Values.vulnerabilityIntelligenceCollector.collectorInstances | toJson | quote }}
+- name: ESHU_VULNERABILITY_INTELLIGENCE_COLLECTOR_INSTANCE_ID
+  value: {{ .Values.vulnerabilityIntelligenceCollector.instanceId | quote }}
+- name: ESHU_VULNERABILITY_INTELLIGENCE_COLLECTOR_OWNER_ID
+  valueFrom:
+    fieldRef:
+      fieldPath: metadata.name
+- name: ESHU_VULNERABILITY_INTELLIGENCE_POLL_INTERVAL
+  value: {{ .Values.vulnerabilityIntelligenceCollector.pollInterval | quote }}
+{{- with .Values.vulnerabilityIntelligenceCollector.claimLeaseTTL }}
+- name: ESHU_VULNERABILITY_INTELLIGENCE_CLAIM_LEASE_TTL
+  value: {{ . | quote }}
+{{- end }}
+{{- with .Values.vulnerabilityIntelligenceCollector.heartbeatInterval }}
+- name: ESHU_VULNERABILITY_INTELLIGENCE_HEARTBEAT_INTERVAL
+  value: {{ . | quote }}
+{{- end }}
+{{- with .Values.vulnerabilityIntelligenceCollector.extraEnv }}
+{{ toYaml . }}
+{{- end }}
+{{- end -}}
+
 {{- define "eshu.renderScannerWorkerEnv" -}}
 - name: ESHU_COLLECTOR_INSTANCES_JSON
   value: {{ required "scannerWorker.collectorInstances must contain at least one instance when scannerWorker.enabled=true" .Values.scannerWorker.collectorInstances | toJson | quote }}

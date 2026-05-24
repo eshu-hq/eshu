@@ -84,6 +84,10 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- printf "%s-scanner-worker" (include "eshu.fullname" .) | trunc 63 | trimSuffix "-" -}}
 {{- end -}}
 
+{{- define "eshu.vulnerabilityIntelligenceCollectorFullname" -}}
+{{- printf "%s-vulnerability-intelligence-collector" (include "eshu.fullname" .) | trunc 63 | trimSuffix "-" -}}
+{{- end -}}
+
 {{- define "eshu.apiMetricsServiceName" -}}
 {{- printf "%s-api-metrics" (include "eshu.fullname" .) | trunc 63 | trimSuffix "-" -}}
 {{- end -}}
@@ -134,6 +138,10 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 
 {{- define "eshu.scannerWorkerMetricsServiceName" -}}
 {{- printf "%s-scanner-worker-metrics" (include "eshu.fullname" .) | trunc 63 | trimSuffix "-" -}}
+{{- end -}}
+
+{{- define "eshu.vulnerabilityIntelligenceCollectorMetricsServiceName" -}}
+{{- printf "%s-vulnerability-intelligence-collector-metrics" (include "eshu.fullname" .) | trunc 63 | trimSuffix "-" -}}
 {{- end -}}
 
 {{- define "eshu.apiSelectorLabels" -}}
@@ -205,6 +213,11 @@ app.kubernetes.io/component: package-registry-collector
 {{- define "eshu.scannerWorkerSelectorLabels" -}}
 {{- include "eshu.selectorLabels" . }}
 app.kubernetes.io/component: scanner-worker
+{{- end -}}
+
+{{- define "eshu.vulnerabilityIntelligenceCollectorSelectorLabels" -}}
+{{- include "eshu.selectorLabels" . }}
+app.kubernetes.io/component: vulnerability-intelligence-collector
 {{- end -}}
 
 {{- define "eshu.serviceAccountName" -}}
