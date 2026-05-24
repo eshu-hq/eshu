@@ -51,13 +51,16 @@ func TestOpenAPISpecIncludesSupplyChainImpactFindings(t *testing.T) {
 		"target_scope",
 		"evidence_sources",
 		"missing_evidence",
-		"unsupported_targets",
+		"incomplete_reasons",
 		"freshness",
 		"counts",
 	} {
 		if _, ok := readinessProps[key]; !ok {
 			t.Fatalf("readiness.properties missing %q field", key)
 		}
+	}
+	if _, ok := readinessProps["unsupported_targets"]; ok {
+		t.Fatalf("readiness.properties must not include unsupported_targets; field was dropped pending a real producer")
 	}
 }
 

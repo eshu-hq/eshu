@@ -37,12 +37,22 @@ func NewPostgresSupplyChainImpactReadinessStore(
 
 // ReadSupplyChainImpactReadiness returns one snapshot of evidence-family
 // counts, latest observation, and freshness for the bounded readiness query.
+//
+// The store requires a fact-anchored scope (CVE, package, repository, or
+// subject digest). An impact_status-only scope returns an empty snapshot
+// without scanning fact_records, because impact_status is a reducer-finding
+// attribute that does not exist on source facts; running an unanchored scan
+// across the active fact set would be expensive without producing
+// scope-relevant coverage.
 func (s PostgresSupplyChainImpactReadinessStore) ReadSupplyChainImpactReadiness(
 	ctx context.Context,
 	query SupplyChainImpactReadinessQuery,
 ) (SupplyChainImpactReadinessSnapshot, error) {
 	if s.DB == nil {
 		return SupplyChainImpactReadinessSnapshot{}, fmt.Errorf("supply chain impact readiness database is required")
+	}
+	if !query.hasFactAnchor() {
+		return SupplyChainImpactReadinessSnapshot{}, nil
 	}
 	window := s.FreshnessWindow
 	if window <= 0 {
@@ -343,7 +353,10 @@ package_registry AS (
         NULL::boolean AS target_incomplete,
         NULL::text[] AS incomplete_reasons
     FROM package_registry_active
-    WHERE ($10 = '' OR payload->>'package_id' = $10)
+    -- package_registry is global metadata; only count it when the caller
+    -- asked about a specific package_id so a repo-only scope does not get
+    -- a global count that suppresses missing owned-package signals.
+    WHERE $10 <> '' AND payload->>'package_id' = $10
 ),
 sbom_component AS (
     SELECT
@@ -353,7 +366,7 @@ sbom_component AS (
         NULL::boolean AS target_incomplete,
         NULL::text[] AS incomplete_reasons
     FROM sbom_component_active
-    WHERE ($12 = '' OR payload->>'subject_digest' = $12)
+    WHERE $12 <> '' AND payload->>'subject_digest' = $12
 ),
 sbom_attestation AS (
     SELECT
@@ -363,7 +376,7 @@ sbom_attestation AS (
         NULL::boolean AS target_incomplete,
         NULL::text[] AS incomplete_reasons
     FROM sbom_attestation_active
-    WHERE ($12 = '' OR payload->>'subject_digest' = $12)
+    WHERE $12 <> '' AND payload->>'subject_digest' = $12
 ),
 container_image_identity AS (
     SELECT
@@ -373,7 +386,7 @@ container_image_identity AS (
         NULL::boolean AS target_incomplete,
         NULL::text[] AS incomplete_reasons
     FROM container_image_identity_active
-    WHERE ($12 = '' OR payload->>'digest' = $12)
+    WHERE $12 <> '' AND payload->>'digest' = $12
 ),
 vulnerability_source_snapshot AS (
     SELECT

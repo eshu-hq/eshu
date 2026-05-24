@@ -165,9 +165,14 @@ caller to tell "clean" from "not checked."
 | `not_configured` | No target source is enabled for the requested scope. |
 | `target_incomplete` | Target collection started but did not reach terminal evidence state. |
 | `evidence_incomplete` | Some target evidence exists, but a required join source is missing or stale. |
-| `unsupported` | Eshu observed a target shape it does not yet know how to match. |
 | `ready_zero_findings` | Required target evidence exists and the reducer found no matching impact. |
 | `ready_with_findings` | Required target evidence exists and reducer-owned findings are available. |
+| `readiness_unavailable` | Out-of-band signal returned when the readiness lookup itself fails; the findings page is still returned but coverage cannot be classified. |
+
+An `unsupported` state is reserved for a future reducer that observes target
+evidence Eshu does not yet know how to match. The state is not surfaced by
+the current implementation; it will be added back to the API and MCP contract
+when a real producer emits unsupported-target evidence.
 
 Zero findings without readiness are unsafe. The API and MCP surfaces should
 return coverage, freshness, unsupported target counts, and missing-evidence
@@ -180,24 +185,28 @@ reasons alongside findings.
 every response. The envelope is derived from existing source-fact and
 reducer-fact counts so the answer never invents findings:
 
-- `readiness_state` is one of the six classification states above, plus the
+- `readiness_state` is one of the five classification states above, plus the
   out-of-band `readiness_unavailable` when the readiness lookup itself fails.
 - `target_scope` echoes the bounded anchors the caller used (`cve_id`,
   `package_id`, `repository_id`, `subject_digest`, `impact_status`).
+  `impact_status` alone is not a fact-anchor: the readiness store skips its
+  Postgres scan and returns an empty snapshot for impact_status-only
+  requests, because impact_status is a reducer-finding attribute that does
+  not exist on source facts. The findings page is still returned.
 - `evidence_sources[]` reports per-family fact counts, `latest_observed_at`,
   and `freshness` (`fresh`, `stale`, or `unknown`) for:
   `vulnerability.advisory`, `vulnerability.exploitability`,
   `package.consumption`, `package.registry`, `sbom.component`,
   `sbom.attestation`, and `container_image.identity`. Families with zero
   facts in the requested scope are omitted so the payload reflects only what
-  Eshu actually has for the caller.
+  Eshu actually has for the caller. `package.registry` is only counted when
+  the request anchors on a specific `package_id` (registry data without a
+  package anchor is global metadata, not proof of repository consumption).
 - `missing_evidence[]` names absent required join families using the stable
   identifiers `advisory_sources`, `owned_packages`, `sbom_or_image_evidence`,
-  `target_collection_incomplete`, `unsupported_target`, and
-  `readiness_unavailable`. The list is empty on `ready_*` states so callers
-  cannot see contradictory "ready" + "missing" signals.
-- `unsupported_targets[]` carries reducer-reported unsupported target
-  identifiers when a family was observed but Eshu cannot yet match it.
+  `target_collection_incomplete`, and `readiness_unavailable`. The list is
+  empty on `ready_*` states so callers cannot see contradictory "ready" +
+  "missing" signals.
 - `incomplete_reasons[]` carries collector-emitted reasons explaining why
   source collection is still in flight; only populated when
   `readiness_state` is `target_incomplete`.
@@ -243,13 +252,16 @@ The package.consumption family is sourced from the real
 `reducer_package_consumption_correlation` facts and `content_entity` manifest
 dependency facts (the same `content_entity` + `entity_metadata.config_kind =
 'dependency'` discriminators used by other supply-chain reducers).
+`package.registry` is only counted when the request anchors on a specific
+`package_id`; repository-scoped requests cannot satisfy `owned_packages`
+through global registry metadata.
 
 #### Follow-Up Work
 
-- `unsupported` is reachable only when a future reducer populates
-  `unsupported_targets` from observed-but-unmatched target evidence; the
-  field shape is wired through API and MCP so the state can light up without
-  another contract change.
+- The `unsupported` readiness state will be reintroduced once a reducer
+  emits observed-but-unmatched target evidence. The field/state was dropped
+  from the current contract to avoid surfacing a verdict the
+  implementation cannot produce.
 - Surface per-collector freshness windows separately when the collector
   contract carries source-specific staleness thresholds.
 

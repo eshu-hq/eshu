@@ -2,7 +2,9 @@ package query
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
@@ -28,10 +30,9 @@ func (s *recordingSupplyChainImpactReadinessStore) ReadSupplyChainImpactReadines
 		return SupplyChainImpactReadinessSnapshot{}, s.err
 	}
 	clone := SupplyChainImpactReadinessSnapshot{
-		EvidenceSources:    append([]SupplyChainImpactEvidenceFamily(nil), s.snapshot.EvidenceSources...),
-		UnsupportedTargets: append([]string(nil), s.snapshot.UnsupportedTargets...),
-		TargetIncomplete:   s.snapshot.TargetIncomplete,
-		IncompleteReasons:  append([]string(nil), s.snapshot.IncompleteReasons...),
+		EvidenceSources:   append([]SupplyChainImpactEvidenceFamily(nil), s.snapshot.EvidenceSources...),
+		TargetIncomplete:  s.snapshot.TargetIncomplete,
+		IncompleteReasons: append([]string(nil), s.snapshot.IncompleteReasons...),
 	}
 	return clone, nil
 }
@@ -239,28 +240,55 @@ func TestBuildSupplyChainImpactReadinessUnavailable(t *testing.T) {
 	}
 }
 
-func TestBuildSupplyChainImpactReadinessClassifiesUnsupported(t *testing.T) {
+func TestBuildSupplyChainImpactReadinessRejectsRepoOnlyRegistryAsOwnedPackages(t *testing.T) {
 	t.Parallel()
 
+	// package.registry data without a package_id anchor is global metadata,
+	// not proof that the requested repository consumes packages. A
+	// repository-anchored request with only registry evidence must still
+	// surface MissingEvidenceOwnedPackages so the reviewer-flagged
+	// "registry count suppresses missing owned packages" path stays closed.
 	envelope := BuildSupplyChainImpactReadiness(
-		SupplyChainImpactTargetScope{SubjectDigest: "sha256:abc"},
+		SupplyChainImpactTargetScope{RepositoryID: "repo://example/api"},
 		nil,
 		false,
 		SupplyChainImpactReadinessSnapshot{
 			EvidenceSources: []SupplyChainImpactEvidenceFamily{
-				{Family: EvidenceFamilyContainerImageIdentity, FactCount: 1, Freshness: FreshnessLabelFresh},
+				{Family: EvidenceFamilyVulnerabilityAdvisory, FactCount: 4, Freshness: FreshnessLabelFresh},
+				{Family: EvidenceFamilyPackageRegistry, FactCount: 12, Freshness: FreshnessLabelFresh},
 			},
-			UnsupportedTargets: []string{"oci-runtime-unsupported"},
 		},
 	)
-	if envelope.State != ReadinessStateUnsupported {
-		t.Fatalf("state = %q, want %q", envelope.State, ReadinessStateUnsupported)
+	if envelope.State != ReadinessStateEvidenceIncomplete {
+		t.Fatalf("state = %q, want %q", envelope.State, ReadinessStateEvidenceIncomplete)
 	}
-	if !readinessMissingContains(envelope.MissingEvidence, MissingEvidenceUnsupportedTarget) {
-		t.Fatalf("missing_evidence = %#v, want unsupported_target", envelope.MissingEvidence)
+	if !readinessMissingContains(envelope.MissingEvidence, MissingEvidenceOwnedPackages) {
+		t.Fatalf("missing_evidence = %#v, want owned_packages (registry alone cannot prove repo consumption)", envelope.MissingEvidence)
 	}
-	if got, want := envelope.UnsupportedTargets, []string{"oci-runtime-unsupported"}; !reflect.DeepEqual(got, want) {
-		t.Fatalf("unsupported_targets = %#v, want %#v", got, want)
+}
+
+func TestBuildSupplyChainImpactReadinessAcceptsRegistryForPackageAnchor(t *testing.T) {
+	t.Parallel()
+
+	// When the caller anchors on a specific package_id, registry evidence
+	// for that package IS owned-package proof; the reviewer fix must not
+	// over-correct away the normal package-anchor flow.
+	envelope := BuildSupplyChainImpactReadiness(
+		SupplyChainImpactTargetScope{PackageID: "pkg:npm/example"},
+		nil,
+		false,
+		SupplyChainImpactReadinessSnapshot{
+			EvidenceSources: []SupplyChainImpactEvidenceFamily{
+				{Family: EvidenceFamilyVulnerabilityAdvisory, FactCount: 4, Freshness: FreshnessLabelFresh},
+				{Family: EvidenceFamilyPackageRegistry, FactCount: 1, Freshness: FreshnessLabelFresh},
+			},
+		},
+	)
+	if envelope.State != ReadinessStateReadyZeroFindings {
+		t.Fatalf("state = %q, want %q", envelope.State, ReadinessStateReadyZeroFindings)
+	}
+	if readinessMissingContains(envelope.MissingEvidence, MissingEvidenceOwnedPackages) {
+		t.Fatalf("missing_evidence = %#v, must not include owned_packages for package-anchored scope", envelope.MissingEvidence)
 	}
 }
 
@@ -502,6 +530,72 @@ func TestPostgresSupplyChainImpactReadinessQueryShape(t *testing.T) {
 			t.Fatalf("listSupplyChainImpactReadinessQuery missing %q:\n%s", want, listSupplyChainImpactReadinessQuery)
 		}
 	}
+}
+
+type rejectingSupplyChainImpactReadinessQueryer struct{ called int }
+
+func (r *rejectingSupplyChainImpactReadinessQueryer) QueryContext(
+	_ context.Context,
+	_ string,
+	_ ...any,
+) (*sql.Rows, error) {
+	r.called++
+	return nil, fmt.Errorf("Postgres must not be queried for impact_status-only readiness")
+}
+
+func TestPostgresSupplyChainImpactReadinessSkipsImpactStatusOnlyScope(t *testing.T) {
+	t.Parallel()
+
+	// Regression for the reviewer thread on impact_status-only requests.
+	// impact_status is a reducer-finding attribute that does not appear on
+	// source facts; an unanchored readiness scan over the active fact set
+	// would be expensive and would report unrelated counts as evidence.
+	// The store must short-circuit BEFORE issuing the SQL.
+	db := &rejectingSupplyChainImpactReadinessQueryer{}
+	store := NewPostgresSupplyChainImpactReadinessStore(db)
+	snapshot, err := store.ReadSupplyChainImpactReadiness(
+		context.Background(),
+		SupplyChainImpactReadinessQuery{ImpactStatus: "affected_exact"},
+	)
+	if err != nil {
+		t.Fatalf("ReadSupplyChainImpactReadiness() error = %v, want nil", err)
+	}
+	if db.called != 0 {
+		t.Fatalf("QueryContext invocations = %d, want 0 for impact_status-only scope", db.called)
+	}
+	if len(snapshot.EvidenceSources) != 0 || snapshot.TargetIncomplete {
+		t.Fatalf("snapshot = %#v, want empty for impact_status-only scope", snapshot)
+	}
+}
+
+func TestPostgresSupplyChainImpactReadinessScansForFactAnchoredScope(t *testing.T) {
+	t.Parallel()
+
+	// Companion regression: when the scope DOES carry a fact-anchor
+	// (cve_id / package_id / repository_id / subject_digest), the store
+	// must still issue the SQL so the short-circuit above is narrow.
+	db := &countingSupplyChainImpactReadinessQueryer{}
+	store := NewPostgresSupplyChainImpactReadinessStore(db)
+	_, _ = store.ReadSupplyChainImpactReadiness(
+		context.Background(),
+		SupplyChainImpactReadinessQuery{CVEID: "CVE-2026-0001", ImpactStatus: "affected_exact"},
+	)
+	if db.called != 1 {
+		t.Fatalf("QueryContext invocations = %d, want 1 for fact-anchored scope", db.called)
+	}
+}
+
+type countingSupplyChainImpactReadinessQueryer struct{ called int }
+
+func (c *countingSupplyChainImpactReadinessQueryer) QueryContext(
+	_ context.Context,
+	_ string,
+	_ ...any,
+) (*sql.Rows, error) {
+	c.called++
+	// Returning a nil rows + error short-circuits the store call but proves
+	// the SQL was issued for the anchored scope.
+	return nil, fmt.Errorf("counting only")
 }
 
 func TestSupplyChainListImpactFindingsReadinessWithoutStore(t *testing.T) {

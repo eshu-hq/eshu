@@ -20,9 +20,6 @@ const (
 	// ReadinessStateEvidenceIncomplete means some target evidence exists but a
 	// required join family is missing for the requested scope.
 	ReadinessStateEvidenceIncomplete SupplyChainImpactReadinessState = "evidence_incomplete"
-	// ReadinessStateUnsupported means observed target evidence belongs to a
-	// family Eshu does not yet support for vulnerability matching.
-	ReadinessStateUnsupported SupplyChainImpactReadinessState = "unsupported"
 	// ReadinessStateReadyZeroFindings means required evidence is present, the
 	// reducer ran, and no impact finding matched the scope.
 	ReadinessStateReadyZeroFindings SupplyChainImpactReadinessState = "ready_zero_findings"
@@ -40,14 +37,13 @@ const (
 // vulnerability impact response so a UI, MCP client, or operator can tell
 // "nothing matched" from "Eshu has not collected the evidence yet."
 type SupplyChainImpactReadinessEnvelope struct {
-	State              SupplyChainImpactReadinessState   `json:"readiness_state"`
-	TargetScope        SupplyChainImpactTargetScope      `json:"target_scope"`
-	EvidenceSources    []SupplyChainImpactEvidenceFamily `json:"evidence_sources"`
-	MissingEvidence    []string                          `json:"missing_evidence,omitempty"`
-	UnsupportedTargets []string                          `json:"unsupported_targets,omitempty"`
-	IncompleteReasons  []string                          `json:"incomplete_reasons,omitempty"`
-	Freshness          string                            `json:"freshness"`
-	Counts             SupplyChainImpactReadinessCounts  `json:"counts"`
+	State             SupplyChainImpactReadinessState   `json:"readiness_state"`
+	TargetScope       SupplyChainImpactTargetScope      `json:"target_scope"`
+	EvidenceSources   []SupplyChainImpactEvidenceFamily `json:"evidence_sources"`
+	MissingEvidence   []string                          `json:"missing_evidence,omitempty"`
+	IncompleteReasons []string                          `json:"incomplete_reasons,omitempty"`
+	Freshness         string                            `json:"freshness"`
+	Counts            SupplyChainImpactReadinessCounts  `json:"counts"`
 }
 
 // SupplyChainImpactTargetScope echoes the bounded anchors the caller used so
@@ -91,14 +87,23 @@ type SupplyChainImpactReadinessQuery struct {
 	ImpactStatus  string
 }
 
+// hasFactAnchor reports whether the query carries an anchor that source facts
+// can be filtered by. impact_status is a reducer-finding attribute that does
+// not appear on source facts, so an impact_status-only query has no anchor.
+func (q SupplyChainImpactReadinessQuery) hasFactAnchor() bool {
+	return strings.TrimSpace(q.CVEID) != "" ||
+		strings.TrimSpace(q.PackageID) != "" ||
+		strings.TrimSpace(q.RepositoryID) != "" ||
+		strings.TrimSpace(q.SubjectDigest) != ""
+}
+
 // SupplyChainImpactReadinessSnapshot is the source-only evidence summary the
 // readiness store returns. The handler classifies the readiness state from
 // this snapshot plus the findings page; the store never invents findings.
 type SupplyChainImpactReadinessSnapshot struct {
-	EvidenceSources    []SupplyChainImpactEvidenceFamily
-	UnsupportedTargets []string
-	TargetIncomplete   bool
-	IncompleteReasons  []string
+	EvidenceSources   []SupplyChainImpactEvidenceFamily
+	TargetIncomplete  bool
+	IncompleteReasons []string
 }
 
 // SupplyChainImpactReadinessStore reads bounded source-fact counts so the
@@ -153,9 +158,6 @@ const (
 	// MissingEvidenceTargetCollection signals an ingestion target reported
 	// partial collection for the scope.
 	MissingEvidenceTargetCollection = "target_collection_incomplete"
-	// MissingEvidenceUnsupportedTarget signals observed evidence belongs to an
-	// unsupported target family.
-	MissingEvidenceUnsupportedTarget = "unsupported_target"
 	// MissingEvidenceReadinessUnavailable signals the readiness lookup itself
 	// failed; coverage cannot be classified for this response.
 	MissingEvidenceReadinessUnavailable = "readiness_unavailable"
@@ -190,14 +192,13 @@ func BuildSupplyChainImpactReadiness(
 		incompleteReasons = nil
 	}
 	return SupplyChainImpactReadinessEnvelope{
-		State:              state,
-		TargetScope:        scope,
-		EvidenceSources:    sources,
-		MissingEvidence:    missing,
-		UnsupportedTargets: uniqueSortedReadinessStrings(snapshot.UnsupportedTargets),
-		IncompleteReasons:  incompleteReasons,
-		Freshness:          aggregateReadinessFreshness(sources),
-		Counts:             counts,
+		State:             state,
+		TargetScope:       scope,
+		EvidenceSources:   sources,
+		MissingEvidence:   missing,
+		IncompleteReasons: incompleteReasons,
+		Freshness:         aggregateReadinessFreshness(sources),
+		Counts:            counts,
 	}
 }
 
@@ -247,9 +248,6 @@ func classifyReadinessState(
 		evidenceFactCount(sources, EvidenceFamilyContainerImageIdentity) == 0 {
 		return ReadinessStateNotConfigured
 	}
-	if readinessMissingContains(missing, MissingEvidenceUnsupportedTarget) && advisoryCount == 0 {
-		return ReadinessStateUnsupported
-	}
 	if len(missing) > 0 {
 		return ReadinessStateEvidenceIncomplete
 	}
@@ -269,19 +267,26 @@ func classifyMissingEvidence(
 	if evidenceFactCount(sources, EvidenceFamilyVulnerabilityAdvisory) == 0 {
 		missing = append(missing, MissingEvidenceAdvisorySources)
 	}
-	if scopeRequiresOwnedPackages(scope) &&
-		evidenceFactCount(sources, EvidenceFamilyPackageConsumption) == 0 &&
-		evidenceFactCount(sources, EvidenceFamilyPackageRegistry) == 0 {
-		missing = append(missing, MissingEvidenceOwnedPackages)
+	// package.registry without a package_id anchor is global metadata, not
+	// proof of consumption for the requested repository. Repo-only scopes
+	// must demonstrate ownership through package.consumption (manifest or
+	// reducer correlation); registry counts only satisfy owned_packages when
+	// the request is anchored on a specific package.
+	if scopeRequiresOwnedPackages(scope) {
+		consumption := evidenceFactCount(sources, EvidenceFamilyPackageConsumption)
+		registry := evidenceFactCount(sources, EvidenceFamilyPackageRegistry)
+		switch {
+		case consumption == 0 && scope.PackageID == "":
+			missing = append(missing, MissingEvidenceOwnedPackages)
+		case consumption == 0 && registry == 0:
+			missing = append(missing, MissingEvidenceOwnedPackages)
+		}
 	}
 	if scopeRequiresImageEvidence(scope) &&
 		evidenceFactCount(sources, EvidenceFamilyContainerImageIdentity) == 0 &&
 		evidenceFactCount(sources, EvidenceFamilySBOMComponent) == 0 &&
 		evidenceFactCount(sources, EvidenceFamilySBOMAttestation) == 0 {
 		missing = append(missing, MissingEvidenceSBOMOrImage)
-	}
-	if len(snapshot.UnsupportedTargets) > 0 {
-		missing = append(missing, MissingEvidenceUnsupportedTarget)
 	}
 	return uniqueSortedReadinessStrings(missing)
 }
