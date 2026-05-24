@@ -158,6 +158,40 @@ func TestClaimedServiceContinuesAfterRetryableCollectFailure(t *testing.T) {
 	}
 }
 
+func TestClaimedServiceTerminalFailsClassifiedCollectFailure(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	now := time.Date(2026, time.May, 24, 17, 30, 0, 0, time.UTC)
+	item := testClaimedWorkItem(now)
+	claim := testWorkflowClaim(item.WorkItemID, now)
+	store := &stubClaimStore{
+		item:  item,
+		claim: claim,
+		found: true,
+		terminalFail: func(context.Context, workflow.ClaimMutation) error {
+			cancel()
+			return nil
+		},
+	}
+	source := &stubClaimedSource{err: terminalCollectFailure{err: errors.New("nvd request returned status 404")}}
+	service := testClaimedService(now, claim, scope.CollectorGit, store, source, &stubClaimedCommitter{})
+
+	if err := service.Run(ctx); err != nil {
+		t.Fatalf("Run() error = %v, want nil after terminal collect failure is recorded", err)
+	}
+	if got, want := store.terminalFailCalls, 1; got != want {
+		t.Fatalf("terminal fail calls = %d, want %d", got, want)
+	}
+	if got := store.retryableFailCalls; got != 0 {
+		t.Fatalf("retryable fail calls = %d, want 0", got)
+	}
+	if got := store.lastTerminalFail.FailureClass; got != "non_retryable" {
+		t.Fatalf("FailureClass = %q, want non_retryable", got)
+	}
+}
+
 func TestClaimedServiceRejectsGenericCommitter(t *testing.T) {
 	t.Parallel()
 
@@ -335,6 +369,7 @@ type stubClaimStore struct {
 	heartbeat          func(context.Context, workflow.ClaimMutation) error
 	release            func(context.Context, workflow.ClaimMutation) error
 	retryableFail      func(context.Context, workflow.ClaimMutation) error
+	terminalFail       func(context.Context, workflow.ClaimMutation) error
 }
 
 func (s *stubClaimStore) ClaimNextEligible(
@@ -380,9 +415,12 @@ func (s *stubClaimStore) FailClaimRetryable(ctx context.Context, mutation workfl
 	return nil
 }
 
-func (s *stubClaimStore) FailClaimTerminal(_ context.Context, mutation workflow.ClaimMutation) error {
+func (s *stubClaimStore) FailClaimTerminal(ctx context.Context, mutation workflow.ClaimMutation) error {
 	s.terminalFailCalls++
 	s.lastTerminalFail = mutation
+	if s.terminalFail != nil {
+		return s.terminalFail(ctx, mutation)
+	}
 	return nil
 }
 

@@ -176,6 +176,10 @@ reducer/query adapter.
   coalesced AWS Config/EventBridge freshness triggers with
   `AWSFreshnessSchemaSQL`; `StatusStore` also reads aggregate freshness trigger
   counts and oldest queued age for `/admin/status`
+- `VulnerabilitySourceStateStore` / `NewVulnerabilitySourceStateStore` —
+  durable OSV/NVD/KEV/EPSS source freshness, checkpoint, retry, and terminal
+  state with `VulnerabilitySourceStateSchemaSQL`; `StatusStore` reads the
+  bounded source-state rows for `/admin/status`
 
 **Schema bootstrap**
 
@@ -186,7 +190,7 @@ reducer/query adapter.
   `SharedIntentSchemaSQL`, `SharedProjectionAcceptanceSchemaSQL`,
   `GraphProjectionPhaseStateSchemaSQL`, `GraphProjectionPhaseRepairQueueSchemaSQL`,
   `WorkflowControlSchemaSQL`, `WorkflowCoordinatorStateSchemaSQL`,
-  `IaCReachabilitySchemaSQL`
+  `IaCReachabilitySchemaSQL`, `VulnerabilitySourceStateSchemaSQL`
 
 **IaC reachability**
 

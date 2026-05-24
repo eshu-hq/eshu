@@ -100,6 +100,7 @@ type RawSnapshot struct {
 	RegistryCollectors    []RegistryCollectorSnapshot
 	AWSCloudScans         []AWSCloudScanStatus
 	AWSFreshness          AWSFreshnessSnapshot
+	VulnerabilitySources  []VulnerabilitySourceState
 	// AWSCloudScansTruncated reports that the reader returned the configured
 	// row cap instead of every AWS scan tuple.
 	AWSCloudScansTruncated bool
@@ -164,6 +165,7 @@ type Report struct {
 	RegistryCollectors     []RegistryCollectorSnapshot
 	AWSCloudScans          []AWSCloudScanStatus
 	AWSFreshness           AWSFreshnessSnapshot
+	VulnerabilitySources   []VulnerabilitySourceState
 	AWSCloudScansTruncated bool
 	AWSCloudScanLimit      int
 	// TerraformState carries the operator-facing tfstate admin status section
@@ -245,6 +247,7 @@ func BuildReport(raw RawSnapshot, opts Options) Report {
 		RegistryCollectors:     cloneRegistryCollectorSnapshots(raw.RegistryCollectors),
 		AWSCloudScans:          cloneAWSCloudScanStatuses(raw.AWSCloudScans),
 		AWSFreshness:           cloneAWSFreshnessSnapshot(raw.AWSFreshness),
+		VulnerabilitySources:   cloneVulnerabilitySourceStates(raw.VulnerabilitySources),
 		AWSCloudScansTruncated: raw.AWSCloudScansTruncated,
 		AWSCloudScanLimit:      raw.AWSCloudScanLimit,
 		TerraformState: TerraformStateReport{
@@ -305,6 +308,7 @@ func RenderText(report Report) string {
 	lines = append(lines, renderRegistryCollectorLines(report.RegistryCollectors)...)
 	lines = append(lines, renderAWSCloudScanLines(report.AWSCloudScans)...)
 	lines = append(lines, renderAWSFreshnessLines(report.AWSFreshness)...)
+	lines = append(lines, renderVulnerabilitySourceLines(report.VulnerabilitySources)...)
 	if report.AWSCloudScansTruncated {
 		lines = append(lines, fmt.Sprintf("AWS cloud scans truncated: limit=%d", report.AWSCloudScanLimit))
 	}

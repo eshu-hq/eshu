@@ -187,8 +187,8 @@ func TestStatusStoreReadRawSnapshot(t *testing.T) {
 		t.Fatalf("ReadRawSnapshot().Coordinator = %#v, want nil", got.Coordinator)
 	}
 
-	if len(queryer.queries) != 21 {
-		t.Fatalf("QueryContext() call count = %d, want 21", len(queryer.queries))
+	if len(queryer.queries) != 22 {
+		t.Fatalf("QueryContext() call count = %d, want 22", len(queryer.queries))
 	}
 	for _, want := range []string{
 		"FROM ingestion_scopes",
@@ -389,6 +389,9 @@ func (q *fakeQueryer) QueryContext(_ context.Context, query string, _ ...any) (R
 		}
 		if query == awsFreshnessOldestQueuedAgeQuery {
 			return &fakeRows{rows: [][]any{{float64(0)}}}, nil
+		}
+		if query == vulnerabilitySourceStatusQuery {
+			return &fakeRows{}, nil
 		}
 		if query == producerActivityQuery {
 			return &fakeRows{rows: [][]any{{false, nil}}}, nil

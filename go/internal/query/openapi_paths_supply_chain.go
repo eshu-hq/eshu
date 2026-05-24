@@ -194,6 +194,36 @@ const openAPIPathsSupplyChain = `
                             "required": ["source", "complete"]
                           }
                         },
+                        "source_states": {
+                          "type": "array",
+                          "description": "Durable source freshness, checkpoint, retry, and terminal status per bounded vulnerability source target.",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "collector_instance_id": {"type": "string"},
+                              "scope_id": {"type": "string"},
+                              "source": {"type": "string"},
+                              "ecosystem": {"type": "string"},
+                              "collection_window": {
+                                "type": "object",
+                                "properties": {
+                                  "start": {"type": "string"},
+                                  "end": {"type": "string"}
+                                }
+                              },
+                              "last_attempt_at": {"type": "string"},
+                              "last_success_at": {"type": "string"},
+                              "next_retry_at": {"type": "string"},
+                              "last_error_class": {"type": "string"},
+                              "freshness_state": {"type": "string", "enum": ["not_configured", "pending", "fresh", "stale", "rate_limited", "failed", "partial"]},
+                              "terminal_status": {"type": "string", "enum": ["pending", "succeeded", "partial", "failed_retryable", "failed_terminal"]},
+                              "result_count": {"type": "integer"},
+                              "warning_count": {"type": "integer"},
+                              "updated_at": {"type": "string"}
+                            },
+                            "required": ["scope_id", "source", "freshness_state", "terminal_status", "result_count", "warning_count"]
+                          }
+                        },
                         "missing_evidence": {"type": "array", "items": {"type": "string", "enum": ["advisory_sources", "owned_packages", "sbom_or_image_evidence", "target_collection_incomplete", "readiness_unavailable"]}},
                         "incomplete_reasons": {"type": "array", "items": {"type": "string"}, "description": "Collector-emitted reasons explaining why source collection is still in flight; only present when readiness_state is target_incomplete."},
                         "freshness": {"type": "string", "enum": ["fresh", "stale", "unknown"]},

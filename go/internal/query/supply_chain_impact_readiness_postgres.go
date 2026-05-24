@@ -3,7 +3,6 @@ package query
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"fmt"
 	"time"
 
@@ -86,6 +85,7 @@ func (s PostgresSupplyChainImpactReadinessStore) ReadSupplyChainImpactReadiness(
 	var targetIncomplete bool
 	var incompleteReasons []string
 	var sourceSnapshots []SupplyChainImpactSourceSnapshot
+	var sourceStates []SupplyChainImpactSourceState
 
 	for rows.Next() {
 		var family string
@@ -94,7 +94,8 @@ func (s PostgresSupplyChainImpactReadinessStore) ReadSupplyChainImpactReadiness(
 		var incompleteFlag sql.NullBool
 		var reasons pq.StringArray
 		var sourceSnapshotsJSON sql.NullString
-		if err := rows.Scan(&family, &factCount, &latest, &incompleteFlag, &reasons, &sourceSnapshotsJSON); err != nil {
+		var sourceStatesJSON sql.NullString
+		if err := rows.Scan(&family, &factCount, &latest, &incompleteFlag, &reasons, &sourceSnapshotsJSON, &sourceStatesJSON); err != nil {
 			return SupplyChainImpactReadinessSnapshot{}, fmt.Errorf("scan supply chain impact readiness row: %w", err)
 		}
 		if family == sourceSnapshotFamilyMarker {
@@ -107,6 +108,18 @@ func (s PostgresSupplyChainImpactReadinessStore) ReadSupplyChainImpactReadiness(
 				return SupplyChainImpactReadinessSnapshot{}, err
 			}
 			sourceSnapshots = append(sourceSnapshots, decodedSnapshots...)
+			continue
+		}
+		if family == sourceStateFamilyMarker {
+			if incompleteFlag.Valid && incompleteFlag.Bool {
+				targetIncomplete = true
+				incompleteReasons = append(incompleteReasons, reasons...)
+			}
+			decodedStates, err := decodeSourceStates(sourceStatesJSON)
+			if err != nil {
+				return SupplyChainImpactReadinessSnapshot{}, err
+			}
+			sourceStates = append(sourceStates, decodedStates...)
 			continue
 		}
 		existing, ok := families[family]
@@ -149,59 +162,11 @@ func (s PostgresSupplyChainImpactReadinessStore) ReadSupplyChainImpactReadiness(
 	return SupplyChainImpactReadinessSnapshot{
 		EvidenceSources:   sources,
 		SourceSnapshots:   sourceSnapshots,
+		SourceStates:      sourceStates,
 		TargetIncomplete:  targetIncomplete,
 		IncompleteReasons: uniqueSortedReadinessStrings(incompleteReasons),
 	}, nil
 }
-
-func decodeSourceSnapshots(raw sql.NullString) ([]SupplyChainImpactSourceSnapshot, error) {
-	if !raw.Valid || raw.String == "" {
-		return nil, nil
-	}
-	var snapshots []SupplyChainImpactSourceSnapshot
-	if err := json.Unmarshal([]byte(raw.String), &snapshots); err != nil {
-		return nil, fmt.Errorf("decode vulnerability source snapshot metadata: %w", err)
-	}
-	return snapshots, nil
-}
-
-const sourceSnapshotFamilyMarker = "vulnerability.source_snapshot"
-
-// supplyChainImpactReadinessFamilies orders the evidence-family identifiers
-// emitted by the readiness store. Iteration order is fixed so JSON output and
-// regression tests stay deterministic regardless of map walk order.
-var supplyChainImpactReadinessFamilies = []string{
-	EvidenceFamilyContainerImageIdentity,
-	EvidenceFamilyPackageConsumption,
-	EvidenceFamilyPackageRegistry,
-	EvidenceFamilySBOMAttestation,
-	EvidenceFamilySBOMComponent,
-	EvidenceFamilyVulnerabilityAdvisory,
-	EvidenceFamilyVulnerabilityExploitability,
-}
-
-var (
-	vulnerabilityAdvisoryFactKinds = []string{
-		"vulnerability.cve",
-		"vulnerability.affected_package",
-		"vulnerability.affected_product",
-	}
-	vulnerabilityExploitabilityFactKinds = []string{
-		"vulnerability.epss_score",
-		"vulnerability.known_exploited",
-	}
-	packageConsumptionCorrelationFactKinds = []string{
-		"reducer_package_consumption_correlation",
-	}
-	packageRegistryFactKinds = []string{
-		"package_registry.package",
-		"package_registry.package_version",
-	}
-	sbomComponentFactKinds               = []string{"sbom.component"}
-	sbomAttestationFactKinds             = []string{"reducer_sbom_attestation_attachment"}
-	containerImageIdentityFactKinds      = []string{"reducer_container_image_identity"}
-	vulnerabilitySourceSnapshotFactKinds = []string{"vulnerability.source_snapshot"}
-)
 
 const listSupplyChainImpactReadinessQuery = `
 WITH advisory_active AS (
@@ -331,7 +296,8 @@ vulnerability_advisory AS (
         MAX(observed_at) AS latest_observed_at,
         NULL::boolean AS target_incomplete,
         NULL::text[] AS incomplete_reasons,
-        NULL::text AS source_snapshots_json
+        NULL::text AS source_snapshots_json,
+        NULL::text AS source_states_json
     FROM advisory_active
     WHERE ($9 = '' OR payload->>'cve_id' = $9)
 ),
@@ -342,7 +308,8 @@ vulnerability_exploitability AS (
         MAX(observed_at) AS latest_observed_at,
         NULL::boolean AS target_incomplete,
         NULL::text[] AS incomplete_reasons,
-        NULL::text AS source_snapshots_json
+        NULL::text AS source_snapshots_json,
+        NULL::text AS source_states_json
     FROM exploitability_active
     WHERE ($9 = '' OR payload->>'cve_id' = $9)
 ),
@@ -353,7 +320,8 @@ package_consumption_correlation AS (
         MAX(observed_at) AS latest_observed_at,
         NULL::boolean AS target_incomplete,
         NULL::text[] AS incomplete_reasons,
-        NULL::text AS source_snapshots_json
+        NULL::text AS source_snapshots_json,
+        NULL::text AS source_states_json
     FROM package_consumption_correlation_active
     WHERE ($11 = '' OR payload->>'repository_id' = $11)
       AND ($10 = '' OR payload->>'package_id' = $10)
@@ -365,7 +333,8 @@ package_manifest_dependency AS (
         MAX(observed_at) AS latest_observed_at,
         NULL::boolean AS target_incomplete,
         NULL::text[] AS incomplete_reasons,
-        NULL::text AS source_snapshots_json
+        NULL::text AS source_snapshots_json,
+        NULL::text AS source_states_json
     FROM package_manifest_active
     WHERE ($11 = '' OR payload->>'repo_id' = $11)
 ),
@@ -376,7 +345,8 @@ package_registry AS (
         MAX(observed_at) AS latest_observed_at,
         NULL::boolean AS target_incomplete,
         NULL::text[] AS incomplete_reasons,
-        NULL::text AS source_snapshots_json
+        NULL::text AS source_snapshots_json,
+        NULL::text AS source_states_json
     FROM package_registry_active
     -- package_registry is global metadata; only count it when the caller
     -- asked about a specific package_id so a repo-only scope does not get
@@ -390,7 +360,8 @@ sbom_component AS (
         MAX(observed_at) AS latest_observed_at,
         NULL::boolean AS target_incomplete,
         NULL::text[] AS incomplete_reasons,
-        NULL::text AS source_snapshots_json
+        NULL::text AS source_snapshots_json,
+        NULL::text AS source_states_json
     FROM sbom_component_active
     WHERE $12 <> '' AND payload->>'subject_digest' = $12
 ),
@@ -401,7 +372,8 @@ sbom_attestation AS (
         MAX(observed_at) AS latest_observed_at,
         NULL::boolean AS target_incomplete,
         NULL::text[] AS incomplete_reasons,
-        NULL::text AS source_snapshots_json
+        NULL::text AS source_snapshots_json,
+        NULL::text AS source_states_json
     FROM sbom_attestation_active
     WHERE $12 <> '' AND payload->>'subject_digest' = $12
 ),
@@ -412,7 +384,8 @@ container_image_identity AS (
         MAX(observed_at) AS latest_observed_at,
         NULL::boolean AS target_incomplete,
         NULL::text[] AS incomplete_reasons,
-        NULL::text AS source_snapshots_json
+        NULL::text AS source_snapshots_json,
+        NULL::text AS source_states_json
     FROM container_image_identity_active
     WHERE $12 <> '' AND payload->>'digest' = $12
 ),
@@ -440,16 +413,54 @@ vulnerability_source_snapshot AS (
                 'warning_message', payload->>'warning_message'
             ))) FILTER (WHERE payload IS NOT NULL),
             '[]'::jsonb
-        )::text AS source_snapshots_json
+        )::text AS source_snapshots_json,
+        NULL::text AS source_states_json
     FROM vulnerability_source_snapshot_active
+),
+vulnerability_source_state AS (
+    SELECT
+        'vulnerability.source_state' AS family,
+        0::int AS fact_count,
+        MAX(updated_at) AS latest_observed_at,
+        BOOL_OR(freshness_state IN ('pending', 'stale', 'rate_limited', 'failed', 'partial')) AS target_incomplete,
+        ARRAY_REMOVE(
+            ARRAY_AGG(DISTINCT source || ':' || freshness_state)
+                FILTER (WHERE freshness_state IN ('pending', 'stale', 'rate_limited', 'failed', 'partial')),
+            NULL
+        ) AS incomplete_reasons,
+        NULL::text AS source_snapshots_json,
+        COALESCE(
+            JSONB_AGG(DISTINCT JSONB_STRIP_NULLS(JSONB_BUILD_OBJECT(
+                'collector_instance_id', collector_instance_id,
+                'scope_id', scope_id,
+                'source', source,
+                'ecosystem', ecosystem,
+                'collection_window', JSONB_STRIP_NULLS(JSONB_BUILD_OBJECT(
+                    'start', TO_CHAR(window_start AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"'),
+                    'end', TO_CHAR(window_end AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"')
+                )),
+                'last_attempt_at', TO_CHAR(last_attempt_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"'),
+                'last_success_at', TO_CHAR(last_success_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"'),
+                'next_retry_at', TO_CHAR(next_retry_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"'),
+                'last_error_class', last_error_class,
+                'freshness_state', freshness_state,
+                'terminal_status', terminal_status,
+                'result_count', result_count,
+                'warning_count', warning_count,
+                'updated_at', TO_CHAR(updated_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"')
+            ))) FILTER (WHERE scope_id IS NOT NULL),
+            '[]'::jsonb
+        )::text AS source_states_json
+    FROM vulnerability_source_states
 )
-SELECT family, fact_count, latest_observed_at, target_incomplete, incomplete_reasons, source_snapshots_json FROM vulnerability_advisory
-UNION ALL SELECT family, fact_count, latest_observed_at, target_incomplete, incomplete_reasons, source_snapshots_json FROM vulnerability_exploitability
-UNION ALL SELECT family, fact_count, latest_observed_at, target_incomplete, incomplete_reasons, source_snapshots_json FROM package_consumption_correlation
-UNION ALL SELECT family, fact_count, latest_observed_at, target_incomplete, incomplete_reasons, source_snapshots_json FROM package_manifest_dependency
-UNION ALL SELECT family, fact_count, latest_observed_at, target_incomplete, incomplete_reasons, source_snapshots_json FROM package_registry
-UNION ALL SELECT family, fact_count, latest_observed_at, target_incomplete, incomplete_reasons, source_snapshots_json FROM sbom_component
-UNION ALL SELECT family, fact_count, latest_observed_at, target_incomplete, incomplete_reasons, source_snapshots_json FROM sbom_attestation
-UNION ALL SELECT family, fact_count, latest_observed_at, target_incomplete, incomplete_reasons, source_snapshots_json FROM container_image_identity
-UNION ALL SELECT family, fact_count, latest_observed_at, target_incomplete, incomplete_reasons, source_snapshots_json FROM vulnerability_source_snapshot
+SELECT family, fact_count, latest_observed_at, target_incomplete, incomplete_reasons, source_snapshots_json, source_states_json FROM vulnerability_advisory
+UNION ALL SELECT family, fact_count, latest_observed_at, target_incomplete, incomplete_reasons, source_snapshots_json, source_states_json FROM vulnerability_exploitability
+UNION ALL SELECT family, fact_count, latest_observed_at, target_incomplete, incomplete_reasons, source_snapshots_json, source_states_json FROM package_consumption_correlation
+UNION ALL SELECT family, fact_count, latest_observed_at, target_incomplete, incomplete_reasons, source_snapshots_json, source_states_json FROM package_manifest_dependency
+UNION ALL SELECT family, fact_count, latest_observed_at, target_incomplete, incomplete_reasons, source_snapshots_json, source_states_json FROM package_registry
+UNION ALL SELECT family, fact_count, latest_observed_at, target_incomplete, incomplete_reasons, source_snapshots_json, source_states_json FROM sbom_component
+UNION ALL SELECT family, fact_count, latest_observed_at, target_incomplete, incomplete_reasons, source_snapshots_json, source_states_json FROM sbom_attestation
+UNION ALL SELECT family, fact_count, latest_observed_at, target_incomplete, incomplete_reasons, source_snapshots_json, source_states_json FROM container_image_identity
+UNION ALL SELECT family, fact_count, latest_observed_at, target_incomplete, incomplete_reasons, source_snapshots_json, source_states_json FROM vulnerability_source_snapshot
+UNION ALL SELECT family, fact_count, latest_observed_at, target_incomplete, incomplete_reasons, source_snapshots_json, source_states_json FROM vulnerability_source_state
 `

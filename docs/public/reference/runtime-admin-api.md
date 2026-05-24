@@ -75,6 +75,7 @@ The JSON report is rendered by `go/internal/status.RenderJSON` and may include:
 - `registry_collectors`
 - `aws_cloud_scans`
 - `aws_freshness`
+- `vulnerability_sources`
 - `aws_cloud_scans_truncated`
 - `aws_cloud_scan_limit`
 - `scope_activity`
@@ -90,6 +91,12 @@ The JSON report is rendered by `go/internal/status.RenderJSON` and may include:
 Queue and domain age fields include both human-readable duration strings and
 seconds values, such as `oldest_outstanding_age_seconds` and
 `oldest_age_seconds`.
+
+`vulnerability_sources` lists durable OSV, NVD, KEV, EPSS, or derived source
+target state when the vulnerability intelligence collector has attempted a
+target. Each row carries last attempt/success timestamps, next retry, last
+error class, freshness state, terminal status, result count, warning count, and
+the bounded collection window.
 
 ## Recovery Routes
 

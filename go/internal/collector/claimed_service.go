@@ -27,6 +27,7 @@ type ClaimControlStore interface {
 }
 
 var errRetryableClaimRecorded = errors.New("retryable claim failure recorded")
+var errTerminalClaimRecorded = errors.New("terminal claim failure recorded")
 
 // ClaimedSource resolves one already-claimed work item into a collected
 // generation that can be committed through the normal collector path.
@@ -84,7 +85,7 @@ func (s ClaimedService) Run(ctx context.Context) error {
 		}
 
 		if err := s.processClaimed(ctx, item, claim); err != nil {
-			if errors.Is(err, errRetryableClaimRecorded) {
+			if errors.Is(err, errRetryableClaimRecorded) || errors.Is(err, errTerminalClaimRecorded) {
 				continue
 			}
 			return err
@@ -151,6 +152,9 @@ func (s ClaimedService) processClaimed(ctx context.Context, item workflow.WorkIt
 
 	collected, ok, err := s.Source.NextClaimed(ctx, item)
 	if err != nil {
+		if isTerminalFailure(err) {
+			return s.failTerminal(ctx, mutation, "collect_failure", err)
+		}
 		return s.failRetryable(ctx, mutation, "collect_failure", err)
 	}
 	if !ok {
@@ -326,6 +330,20 @@ func (s ClaimedService) failRetryable(
 	return errors.Join(errRetryableClaimRecorded, fmt.Errorf("%s: %w", failureClass, err))
 }
 
+func (s ClaimedService) failTerminal(
+	ctx context.Context,
+	mutation workflow.ClaimMutation,
+	failureClass string,
+	err error,
+) error {
+	failureClass = classifiedFailureClass(err, failureClass)
+	failed := withFailure(mutation, failureClass, err)
+	if failErr := s.ControlStore.FailClaimTerminal(ctx, failed); failErr != nil {
+		return fmt.Errorf("terminal-fail claimed %s work item: %w", s.claimedKindLabel(), failErr)
+	}
+	return errors.Join(errTerminalClaimRecorded, fmt.Errorf("%s: %w", failureClass, err))
+}
+
 func (s ClaimedService) claimedKindLabel() string {
 	return string(s.CollectorKind)
 }
@@ -398,6 +416,10 @@ type classifiedFailure interface {
 	FailureClass() string
 }
 
+type terminalFailure interface {
+	TerminalFailure() bool
+}
+
 func classifiedFailureClass(err error, fallback string) string {
 	var classified classifiedFailure
 	if errors.As(err, &classified) {
@@ -406,6 +428,11 @@ func classifiedFailureClass(err error, fallback string) string {
 		}
 	}
 	return fallback
+}
+
+func isTerminalFailure(err error) bool {
+	var terminal terminalFailure
+	return errors.As(err, &terminal) && terminal.TerminalFailure()
 }
 
 func drainHeartbeatError(errc <-chan error) error {
