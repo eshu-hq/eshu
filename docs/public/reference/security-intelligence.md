@@ -301,8 +301,8 @@ terminal dead-letter payload detail, silent-clean rejection, resource-limit
 defaults, runtime config selection, binary packaging, Compose service wiring,
 pprof overlay wiring, and Helm rendering. Remote Compose acceptance still must
 record target count, fact count, runtime, memory, CPU, queue state, retry
-count, dead letters, and pprof availability before issue #614 is called fully
-closed.
+count, dead letters, and pprof availability before concrete analyzer rollout is
+accepted.
 
 ## Readiness Semantics
 
@@ -452,7 +452,7 @@ and `not_impacted` text, multiple `fixed_versions` (including prerelease and
 `+build` branches), CVSS v2/v3/v4 vectors, CWE IDs, URLs, and the source
 advisory UUID. Range evaluation belongs to reducers.
 
-The GLAD slice is parser-only. Cache and freshness lifecycle for advisory
+The GLAD adapter is parser-only. Cache and freshness lifecycle for advisory
 snapshots is owned by the shared source interface in
 [#603](https://github.com/eshu-hq/eshu/issues/603); the GLAD parser is pure
 so the cache/freshness owner can wire it later without changing the fact

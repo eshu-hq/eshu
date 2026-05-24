@@ -162,6 +162,48 @@ No-Observability-Change: the GLAD adapter emits existing
 new metric, span, log key, queue, reducer lane, graph write, or runtime
 worker is introduced.
 
+Status 2026-05-24: supply-chain impact matching now keeps source-only advisory
+intelligence out of user-facing findings until reducer evidence joins it to an
+owned package manifest, lockfile, repository, image, or SBOM anchor. Exact
+package-lock versions carry dependency path, depth, and direct/transitive
+metadata through package-consumption and impact facts. Package-registry
+collection uses abbreviated npm packuments for large metadata bodies, and
+coordinator-derived package and OSV targets stay bounded to exact owned npm
+versions.
+
+No-Regression Evidence:
+
+- `go test ./internal/reducer -run 'TestBuildSupplyChainImpactFindings(SkipsProductOnlyEvidenceWithoutOwnedSBOM|ClassifiesEvidencePaths|SkipsNonVulnerableNVDProductCriteria|DerivesProductImpactFromSBOMCPE|RequiresAffectedVersionForExactImpact)' -count=1`
+- `go test ./internal/parser/json -run 'TestParsePackage(JSON|LockJSON)' -count=1`
+- `go test ./internal/reducer -run 'TestBuildSupplyChainImpactFindings(UsesOwnedLockfileVersion|LeavesRangeDependencyPossiblyAffected|MarksOwnedFixedVersionKnownFixed)' -count=1`
+- `go test ./internal/parser/json -run 'TestParsePackageLockJSON(PreservesDependencyChainRows|EmitsExactDependencyRows)' -count=1`
+- `go test ./internal/reducer -run 'TestBuildPackageConsumptionDecisionsPreservesLockfileDependencyChain|TestPostgresPackageCorrelationWriterPersistsOwnershipAndConsumptionFacts|TestBuildSupplyChainImpactFindingsExposesDependencyChain' -count=1`
+- `go test ./internal/collector/packageregistry/packageruntime -run TestHTTPMetadataProviderRequestsAbbreviatedNPMPackument -count=1 -v`
+- `go test ./internal/coordinator ./internal/workflow ./internal/storage/postgres ./internal/collector/packageregistry/packageruntime ./internal/collector/vulnerabilityintelligence/vulnruntime ./cmd/workflow-coordinator ./cmd/collector-package-registry ./cmd/collector-vulnerability-intelligence -count=1`
+
+Remote proof `pr573-anchored-impact-20260523T162055Z` completed a 45-repository
+smoke corpus with `435/435` queue rows succeeded, zero pending, retrying,
+failed, or dead-letter rows, and no unanchored supply-chain impact findings.
+Remote proof `pr573-lockfile-impact` proved exact `ws@8.20.0` lockfile impact
+truth through package-registry and OSV collection. Remote proof
+`pr577-vite-packument` proved the abbreviated npm packument path for
+`vite@5.4.21` with succeeded source-local, package-source-correlation, and
+supply-chain-impact work. Remote hosted E2E run
+`vulnerability-targets-20260524T050624Z` reached queue-zero with `9150/9150`
+fact work items succeeded, then continued active hosted collector scheduling
+with `9513` succeeded work items, `4` outstanding active collector items,
+`214` package-registry packages, `21,420` package versions, `129` CVEs,
+`201` affected packages, and `56` supply-chain impact facts.
+
+Observability Evidence: existing supply-chain impact reducer counters, evidence
+paths, missing-evidence payloads, `query.supply_chain_impact_findings` spans,
+Postgres query duration metrics, workflow work-item status/failure columns,
+package-registry request and fact-emission metrics, vulnerability-intelligence
+observation and fetch metrics, API/MCP truth envelopes, and `/api/v0/index-status`
+explain whether impact came from exact lockfile evidence, a manifest range, an
+image/SBOM path, or source-only advisory intelligence. No package names,
+versions, URLs, delivery IDs, or credential material were added to metric labels.
+
 ## Chunk 5: Local One-Shot CLI
 
 - [x] Track implementation in #613.
