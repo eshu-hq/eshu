@@ -307,7 +307,9 @@ Log phase attributes: `telemetry.PhaseReduction` (main loop),
   package-consumption, SBOM component, attachment, or image identity evidence.
   Exact package-manifest or lockfile dependency versions can prove an observed
   package version; package-registry identity facts can bound active
-  vulnerability lookups, but package-registry version facts are upstream
+  vulnerability lookups, and the active evidence walk expands through package
+  IDs, PURLs, CVEs, SBOM document IDs, subject digests, and CPE criteria until
+  no new bounded join key appears. Package-registry version facts are upstream
   metadata and must not be treated as installed versions. CVSS, EPSS, and KEV
   stay risk signals; they never prove reachability without package or runtime
   evidence, and missing deployment evidence remains visible.

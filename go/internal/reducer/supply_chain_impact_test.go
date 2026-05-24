@@ -19,11 +19,12 @@ const (
 )
 
 type stubSupplyChainImpactFactLoader struct {
-	scopeFacts  []facts.Envelope
-	active      []facts.Envelope
-	activeCalls [][]facts.Envelope
-	kindCalls   [][]string
-	filters     []SupplyChainImpactFactFilter
+	scopeFacts      []facts.Envelope
+	active          []facts.Envelope
+	activeCalls     [][]facts.Envelope
+	activeForFilter func(SupplyChainImpactFactFilter) []facts.Envelope
+	kindCalls       [][]string
+	filters         []SupplyChainImpactFactFilter
 }
 
 func (s *stubSupplyChainImpactFactLoader) ListFacts(
@@ -49,6 +50,9 @@ func (s *stubSupplyChainImpactFactLoader) ListActiveSupplyChainImpactFacts(
 	filter SupplyChainImpactFactFilter,
 ) ([]facts.Envelope, error) {
 	s.filters = append(s.filters, filter)
+	if s.activeForFilter != nil {
+		return append([]facts.Envelope(nil), s.activeForFilter(filter)...), nil
+	}
 	if len(s.activeCalls) > 0 {
 		active := s.activeCalls[0]
 		s.activeCalls = s.activeCalls[1:]
