@@ -1,0 +1,114 @@
+{
+  "spdxVersion": "SPDX-2.3",
+  "dataLicense": "CC0-1.0",
+  "SPDXID": "SPDXRef-DOCUMENT",
+  "name": "registry.example.com/library/example-1.2.3",
+  "documentNamespace": "https://example.com/spdx/example-1.2.3-7d83",
+  "creationInfo": {
+    "created": "2026-05-15T12:00:00Z",
+    "creators": ["Tool: syft-1.20.0", "Organization: Example Inc."]
+  },
+  "packages": [
+    {
+      "SPDXID": "SPDXRef-Image",
+      "name": "registry.example.com/library/example",
+      "versionInfo": "1.2.3",
+      "primaryPackagePurpose": "CONTAINER",
+      "supplier": "Organization: Example Inc.",
+      "checksums": [
+        {"algorithm": "SHA256", "checksumValue": "1111111111111111111111111111111111111111111111111111111111111111"}
+      ],
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:oci/example@sha256:1111111111111111111111111111111111111111111111111111111111111111"
+        }
+      ],
+      "licenseDeclared": "NOASSERTION",
+      "licenseConcluded": "NOASSERTION"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-lodash",
+      "name": "lodash",
+      "versionInfo": "4.17.21",
+      "supplier": "Organization: OpenJS Foundation",
+      "downloadLocation": "https://registry.npmjs.org/lodash/-/lodash-4.17.21.tgz",
+      "licenseDeclared": "MIT",
+      "licenseConcluded": "MIT",
+      "checksums": [
+        {"algorithm": "SHA256", "checksumValue": "deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef"}
+      ],
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:npm/lodash@4.17.21"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-lodash-dup",
+      "name": "lodash",
+      "versionInfo": "4.17.21",
+      "licenseDeclared": "MIT",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:npm/lodash@4.17.21"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-requests",
+      "name": "requests",
+      "versionInfo": "2.31.0",
+      "licenseDeclared": "Apache-2.0",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:pypi/requests@2.31.0"
+        },
+        {
+          "referenceCategory": "SECURITY",
+          "referenceType": "cpe23Type",
+          "referenceLocator": "cpe:2.3:a:python-requests:requests:2.31.0:*:*:*:*:*:*:*"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-Package-alpine",
+      "name": "alpine",
+      "versionInfo": "3.19",
+      "primaryPackagePurpose": "OPERATING-SYSTEM"
+    },
+    {
+      "SPDXID": "SPDXRef-Package-noident",
+      "versionInfo": "0.0.0"
+    }
+  ],
+  "relationships": [
+    {
+      "spdxElementId": "SPDXRef-DOCUMENT",
+      "relationshipType": "DESCRIBES",
+      "relatedSpdxElement": "SPDXRef-Image"
+    },
+    {
+      "spdxElementId": "SPDXRef-Image",
+      "relationshipType": "CONTAINS",
+      "relatedSpdxElement": "SPDXRef-Package-lodash"
+    },
+    {
+      "spdxElementId": "SPDXRef-Image",
+      "relationshipType": "CONTAINS",
+      "relatedSpdxElement": "SPDXRef-Package-requests"
+    },
+    {
+      "spdxElementId": "SPDXRef-Package-lodash",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-Package-requests"
+    }
+  ]
+}

@@ -1,0 +1,25 @@
+{
+  "spdxVersion": "SPDX-2.3",
+  "dataLicense": "CC0-1.0",
+  "SPDXID": "SPDXRef-DOCUMENT",
+  "name": "lonely-document",
+  "documentNamespace": "https://example.com/spdx/lonely-document-9999",
+  "creationInfo": {
+    "created": "2026-04-01T00:00:00Z",
+    "creators": ["Tool: syft-1.20.0"]
+  },
+  "packages": [
+    {
+      "SPDXID": "SPDXRef-Package-leftpad",
+      "name": "leftpad",
+      "versionInfo": "1.0.0",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceType": "purl",
+          "referenceLocator": "pkg:npm/leftpad@1.0.0"
+        }
+      ]
+    }
+  ]
+}
