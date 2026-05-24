@@ -502,6 +502,17 @@ MCP `list_supply_chain_impact_findings` tool carries:
 `advisory_sources[]` (with `source`, `advisory_id`, `source_updated_at`, and
 `withdrawn_at`). Raw advisory bodies are not returned.
 
+`GET /api/v0/supply-chain/impact/explain` and the MCP
+`explain_supply_chain_impact` tool use the same reducer-owned finding facts
+but return one explanation at a time. Callers must provide `finding_id` or an
+advisory/CVE plus package, repository, or image digest anchor. The route
+hydrates only the finding's `evidence_fact_ids`, returns advisory/source,
+component/version, vulnerable-range, fixed-version, dependency-chain,
+manifest/SBOM/image/workload/provider-alert anchors when those facts exist,
+and reports `outcome: no_finding` with readiness when a bounded scope has no
+finding. It does not infer reachability or deployment truth from provider
+alerts, image tags, workload names, or repository names.
+
 No-Regression Evidence: `go test ./internal/reducer
 ./internal/query ./internal/collector/vulnerabilityintelligence
 -run 'TestSupplyChainImpact(Preserves|VendorAdvisory|FallsBack|Excludes)|TestPostgresSupplyChainImpactWriterSerializesProvenancePayload|TestDecodeSupplyChainImpactFindingRowPreservesProvenance|TestOSVRecordPreservesWithdrawnTimestamp'

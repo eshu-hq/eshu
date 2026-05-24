@@ -9,18 +9,20 @@ import (
 )
 
 const (
-	sbomAttestationAttachmentsCapability = "supply_chain.sbom_attestation_attachments.list"
-	supplyChainImpactFindingsCapability  = "supply_chain.impact_findings.list"
-	containerImageIdentitiesCapability   = "supply_chain.container_image_identities.list"
-	sbomAttestationAttachmentMaxLimit    = 200
-	supplyChainImpactFindingMaxLimit     = 200
-	containerImageIdentityMaxLimit       = 200
+	sbomAttestationAttachmentsCapability   = "supply_chain.sbom_attestation_attachments.list"
+	supplyChainImpactFindingsCapability    = "supply_chain.impact_findings.list"
+	supplyChainImpactExplanationCapability = "supply_chain.impact_explanation.read"
+	containerImageIdentitiesCapability     = "supply_chain.container_image_identities.list"
+	sbomAttestationAttachmentMaxLimit      = 200
+	supplyChainImpactFindingMaxLimit       = 200
+	containerImageIdentityMaxLimit         = 200
 )
 
 // SupplyChainHandler exposes reducer-owned supply-chain read models.
 type SupplyChainHandler struct {
 	SBOMAttachments          SBOMAttestationAttachmentStore
 	ImpactFindings           SupplyChainImpactFindingStore
+	ImpactExplanations       SupplyChainImpactExplanationStore
 	ContainerImageIdentities ContainerImageIdentityStore
 	Readiness                SupplyChainImpactReadinessStore
 	Profile                  QueryProfile
@@ -112,6 +114,7 @@ type ContainerImageIdentityResult struct {
 func (h *SupplyChainHandler) Mount(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/v0/supply-chain/sbom-attestations/attachments", h.listSBOMAttachments)
 	mux.HandleFunc("GET /api/v0/supply-chain/impact/findings", h.listImpactFindings)
+	mux.HandleFunc("GET /api/v0/supply-chain/impact/explain", h.explainImpact)
 	mux.HandleFunc("GET /api/v0/supply-chain/container-images/identities", h.listContainerImageIdentities)
 }
 

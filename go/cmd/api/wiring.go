@@ -231,6 +231,7 @@ func newRouter(
 		SupplyChain: &query.SupplyChainHandler{
 			SBOMAttachments:          query.NewPostgresSBOMAttestationAttachmentStore(db),
 			ImpactFindings:           query.NewPostgresSupplyChainImpactFindingStore(db),
+			ImpactExplanations:       query.NewPostgresSupplyChainImpactFindingStore(db),
 			ContainerImageIdentities: query.NewPostgresContainerImageIdentityStore(db),
 			Readiness:                query.NewPostgresSupplyChainImpactReadinessStore(db),
 			Profile:                  queryProfile,

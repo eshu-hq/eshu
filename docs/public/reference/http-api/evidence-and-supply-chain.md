@@ -219,6 +219,54 @@ Readiness is computed from existing source and reducer facts only. The
 endpoint never invents findings; it surfaces counts and freshness so a zero
 or partial answer can be interpreted correctly.
 
+`GET /api/v0/supply-chain/impact/explain`
+
+Explains one reducer-owned vulnerability impact finding or one bounded
+advisory/package/repository path. The caller must provide either:
+
+- `finding_id`; or
+- `advisory_id` or `cve_id` plus at least one of `package_id`,
+  `repository_id`, or `subject_digest`.
+
+The route never performs a whole-graph explain. It reads one active
+`reducer_supply_chain_impact_finding` fact and hydrates only the
+`evidence_fact_ids` referenced by that finding. If a composite scope matches
+more than one finding, the route returns `409` and asks for a narrower anchor.
+If the scope is bounded but no finding exists, it returns `outcome:
+no_finding` with readiness and missing-evidence reasons instead of implying
+the target is safe.
+
+The explanation payload separates:
+
+- `advisory`: CVE/advisory identifiers, source rows, references, selected
+  severity/fixed-version/range source, and source-reported vulnerable range
+  when the referenced evidence facts contain it.
+- `component` and `version`: package/component identity, PURL, manifest range,
+  observed version, vulnerable range, fixed version, and whether version
+  evidence is `exact`, `range_only`, or `missing`.
+- `dependency_chain`: direct/transitive path, depth, and direct-dependency
+  status when manifest, lockfile, or SBOM evidence provides it.
+- `anchors`: repository, manifest/lockfile paths, SBOM document ids, image
+  digests, workload ids, provider-alert handles, and evidence fact ids when
+  present. Workload, image, and provider-alert anchors remain evidence only;
+  the route does not infer reachability or deployment truth from names, tags,
+  or provider alerts.
+- `freshness`: latest referenced evidence observation and evidence fact count.
+- `missing_evidence`: reducer/readiness reasons plus explanation-level gaps
+  such as missing observed version, vulnerable range, fixed version, or
+  dependency chain.
+
+No-Regression Evidence: `go test ./internal/query -run
+'TestSupplyChainExplain|TestBuildSupplyChainImpactExplanation' -count=1`
+proves bounded input rejection, exact finding explanation, range-only version
+evidence, provider-only alert handling, SBOM/image anchors, ambiguous-scope
+rejection, and no-evidence readiness response.
+
+Observability Evidence: the explain route adds the
+`query.supply_chain_impact_explanation` request span and reuses the existing
+Postgres query instrumentation and readiness envelope. It adds no graph query,
+queue, reducer lane, worker, or metric instrument.
+
 The security-intelligence architecture keeps these findings separate from
 source facts and readiness coverage. See
 [Security Intelligence](../security-intelligence.md) for the target/capability

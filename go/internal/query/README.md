@@ -97,6 +97,12 @@ canonical graph or reducer truth.
   vulnerability source-cache snapshot metadata while stripping absent optional
   fields from the JSON rollup
   (`supply_chain_impact_readiness_postgres.go`)
+- `SupplyChainImpactExplanationStore` — port for one-finding supply-chain
+  impact explanations that hydrate only referenced evidence fact IDs
+  (`supply_chain_impact_explain.go`)
+- `PostgresSupplyChainImpactFindingStore` — also implements the explanation
+  port by reading exactly one active reducer impact finding and its referenced
+  evidence facts (`supply_chain_impact_explain_postgres.go`)
 
 **Handler structs**
 
@@ -134,6 +140,8 @@ canonical graph or reducer truth.
   hydrate at most 50 citations per call (`evidence.go`, `evidence_citation.go`)
 - `DocumentationHandler` — collected documentation facts, documentation truth
   findings, and evidence packets (`documentation.go`, `documentation_facts.go`)
+- `SupplyChainHandler` — SBOM attachment, image identity, impact finding, and
+  one-finding impact explanation routes (`supply_chain.go`)
 - `StatusHandler` — pipeline and ingester status routes (`status.go:14`)
 - `CompareHandler` — environment comparison (`compare.go:12`) with the
   story-packet helpers in `compare_story.go`
@@ -239,6 +247,9 @@ wired in `cmd/api/wiring.go`, not here.
   candidate generation; `telemetry.SpanQueryAWSRuntimeDriftFindings`
   (`query.aws_runtime_drift_findings`) on active AWS runtime drift finding
   reads;
+  `telemetry.SpanQuerySupplyChainImpactExplanation`
+  (`query.supply_chain_impact_explanation`) on one-finding vulnerability
+  explanations;
   `telemetry.SpanQueryInfraResourceSearch`
   (`query.infra_resource_search`) on infrastructure search (`infra.go`).
   Per-query spans `neo4j.query` and `postgres.query` on every graph and content

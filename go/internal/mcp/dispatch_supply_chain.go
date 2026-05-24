@@ -25,6 +25,17 @@ func supplyChainImpactFindingsRoute(args map[string]any) *route {
 	}}
 }
 
+func supplyChainImpactExplanationRoute(args map[string]any) *route {
+	return &route{method: "GET", path: "/api/v0/supply-chain/impact/explain", query: map[string]string{
+		"advisory_id":    str(args, "advisory_id"),
+		"cve_id":         str(args, "cve_id"),
+		"finding_id":     str(args, "finding_id"),
+		"package_id":     str(args, "package_id"),
+		"repository_id":  str(args, "repository_id"),
+		"subject_digest": str(args, "subject_digest"),
+	}}
+}
+
 func sbomAttestationAttachmentsRoute(args map[string]any) *route {
 	return &route{method: "GET", path: "/api/v0/supply-chain/sbom-attestations/attachments", query: map[string]string{
 		"after_attachment_id": str(args, "after_attachment_id"),

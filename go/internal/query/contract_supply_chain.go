@@ -15,6 +15,13 @@ func init() {
 		ProductionMax:         &truthExact,
 		RequiredProfile:       ProfileLocalAuthoritative,
 	}
+	capabilityMatrix[supplyChainImpactExplanationCapability] = capabilitySupport{
+		LocalLightweightMax:   nil,
+		LocalAuthoritativeMax: &truthExact,
+		LocalFullStackMax:     &truthExact,
+		ProductionMax:         &truthExact,
+		RequiredProfile:       ProfileLocalAuthoritative,
+	}
 	capabilityMatrix[containerImageIdentitiesCapability] = capabilitySupport{
 		LocalLightweightMax:   nil,
 		LocalAuthoritativeMax: &truthExact,

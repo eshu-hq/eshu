@@ -217,6 +217,125 @@ const openAPIPathsSupplyChain = `
         }
       }
     },
+    "/api/v0/supply-chain/impact/explain": {
+      "get": {
+        "summary": "Explain one supply-chain impact finding",
+        "operationId": "explainSupplyChainImpact",
+        "parameters": [
+          {"name": "finding_id", "in": "query", "schema": {"type": "string"}},
+          {"name": "advisory_id", "in": "query", "schema": {"type": "string"}},
+          {"name": "cve_id", "in": "query", "schema": {"type": "string"}},
+          {"name": "package_id", "in": "query", "schema": {"type": "string"}},
+          {"name": "repository_id", "in": "query", "schema": {"type": "string"}},
+          {"name": "subject_digest", "in": "query", "schema": {"type": "string"}}
+        ],
+        "responses": {
+          "200": {
+            "description": "Bounded finding explanation or no-evidence response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "outcome": {"type": "string", "enum": ["finding_explained", "no_finding"]},
+                    "input": {"type": "object"},
+                    "finding": {"type": "object"},
+                    "advisory": {
+                      "type": "object",
+                      "properties": {
+                        "cve_id": {"type": "string"},
+                        "advisory_id": {"type": "string"},
+                        "vulnerable_range": {"type": "string"},
+                        "range_source": {"type": "string"},
+                        "selected_severity_source": {"type": "string"},
+                        "selected_fixed_version_source": {"type": "string"},
+                        "sources": {"type": "array", "items": {"type": "object"}},
+                        "references": {"type": "array", "items": {"type": "string"}}
+                      }
+                    },
+                    "component": {
+                      "type": "object",
+                      "properties": {
+                        "package_id": {"type": "string"},
+                        "ecosystem": {"type": "string"},
+                        "package_name": {"type": "string"},
+                        "purl": {"type": "string"},
+                        "product_criteria": {"type": "string"},
+                        "match_criteria_id": {"type": "string"},
+                        "observed_version": {"type": "string"},
+                        "manifest_range": {"type": "string"}
+                      }
+                    },
+                    "version": {
+                      "type": "object",
+                      "properties": {
+                        "observed_version": {"type": "string"},
+                        "manifest_range": {"type": "string"},
+                        "vulnerable_range": {"type": "string"},
+                        "fixed_version": {"type": "string"},
+                        "version_evidence": {"type": "string", "enum": ["exact", "range_only", "missing"]}
+                      },
+                      "required": ["version_evidence"]
+                    },
+                    "dependency_chain": {
+                      "type": "object",
+                      "properties": {
+                        "path": {"type": "array", "items": {"type": "string"}},
+                        "depth": {"type": "integer"},
+                        "direct_dependency": {"type": "boolean"}
+                      }
+                    },
+                    "anchors": {
+                      "type": "object",
+                      "properties": {
+                        "repository_id": {"type": "string"},
+                        "subject_digest": {"type": "string"},
+                        "manifest_paths": {"type": "array", "items": {"type": "string"}},
+                        "lockfile_paths": {"type": "array", "items": {"type": "string"}},
+                        "sbom_documents": {"type": "array", "items": {"type": "string"}},
+                        "image_digests": {"type": "array", "items": {"type": "string"}},
+                        "workloads": {"type": "array", "items": {"type": "string"}},
+                        "provider_alerts": {"type": "array", "items": {"type": "object"}},
+                        "evidence_fact_ids": {"type": "array", "items": {"type": "string"}}
+                      }
+                    },
+                    "evidence": {
+                      "type": "array",
+                      "description": "Compact previews of the bounded evidence fact ids referenced by the finding; raw advisory and provider payloads are not returned.",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "fact_id": {"type": "string"},
+                          "fact_kind": {"type": "string"},
+                          "source_system": {"type": "string"},
+                          "source_confidence": {"type": "string"},
+                          "observed_at": {"type": "string"}
+                        },
+                        "required": ["fact_id", "fact_kind"]
+                      }
+                    },
+                    "readiness": {"type": "object"},
+                    "missing_evidence": {"type": "array", "items": {"type": "string"}},
+                    "freshness": {
+                      "type": "object",
+                      "properties": {
+                        "state": {"type": "string", "enum": ["fresh", "stale", "unknown"]},
+                        "latest_observed_at": {"type": "string"},
+                        "evidence_fact_count": {"type": "integer"}
+                      },
+                      "required": ["state", "evidence_fact_count"]
+                    }
+                  },
+                  "required": ["outcome", "input", "advisory", "component", "version", "anchors", "evidence", "readiness", "freshness"]
+                }
+              }
+            }
+          },
+          "400": {"description": "Unbounded input"},
+          "409": {"description": "Scope matched more than one finding"}
+        }
+      }
+    },
     "/api/v0/supply-chain/sbom-attestations/attachments": {
       "get": {
         "summary": "List SBOM and attestation attachments",
