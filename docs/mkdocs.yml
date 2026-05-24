@@ -220,6 +220,7 @@ nav:
       - Terraform: languages/terraform.md
       - Terragrunt: languages/terragrunt.md
   - Project:
+    - Roadmap: roadmap.md
     - Contributing: contributing.md
     - Code With Agents: guides/coding-with-agents.md
     - Release Log:
