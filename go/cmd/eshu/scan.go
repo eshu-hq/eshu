@@ -200,6 +200,7 @@ type scanOptions struct {
 	ReposDir        string
 	Profile         string
 	Target          scanTarget
+	RuntimeEnv      []string
 }
 
 type scanTarget struct {
@@ -319,7 +320,11 @@ func (o scanOptions) BootstrapEnv() []string {
 	if strings.TrimSpace(o.DiscoveryReport) != "" {
 		overrides["ESHU_DISCOVERY_REPORT"] = o.DiscoveryReport
 	}
-	return mergeEnvironment(eshuEnviron(), overrides)
+	base := eshuEnviron()
+	if len(o.RuntimeEnv) > 0 {
+		base = append([]string(nil), o.RuntimeEnv...)
+	}
+	return mergeEnvironment(base, overrides)
 }
 
 func finishScan(cmd *cobra.Command, opts scanOptions, result scanResult, err error) error {

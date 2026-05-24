@@ -77,6 +77,12 @@ launched runtime via the shared `telemetry` package. Errors print to
 - `eshu vuln-scan repo [path]` reuses `eshu scan` root resolution, bootstrap,
   and readiness proof before reading
   `/api/v0/supply-chain/impact/findings?repository_id=<id>&limit=<n>`.
+  If a service URL is configured by flag, persisted config, or environment, the
+  command uses that API. Without a configured service URL, it starts or attaches
+  to the workspace-local authoritative owner, launches a short-lived loopback
+  `eshu-api` process with that owner's Postgres and graph env, and passes the
+  same owner env to `eshu-bootstrap-index` so writes and reads use the same
+  local stores.
   `--repo-id` bypasses repository selector resolution when the caller already
   knows the exact repository id. The command exits fail-closed when the scan is
   submitted, partial, failed, or cannot resolve a repository; it does not query

@@ -1,9 +1,11 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"net/url"
+	"os"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -89,12 +91,29 @@ func addVulnScanRepoFlags(cmd *cobra.Command) {
 	cmd.Flags().String("repo-id", "", "Exact repository id to query after local scan readiness")
 }
 
-func runVulnScanRepo(cmd *cobra.Command, args []string) error {
+func runVulnScanRepo(cmd *cobra.Command, args []string) (retErr error) {
 	opts, err := vulnScanRepoOptionsFromCommand(cmd, args)
 	if err != nil {
 		return err
 	}
 	client := apiClientFromCmd(cmd)
+	if !vulnScanHasConfiguredServiceURL(cmd) {
+		localRuntime, err := vulnScanPrepareLocalRuntime(cmd.Context(), opts.Scan.Target.Root, cmd.ErrOrStderr())
+		if err != nil {
+			return err
+		}
+		defer func() {
+			if localRuntime.Close == nil {
+				return
+			}
+			retErr = errors.Join(retErr, localRuntime.Close())
+		}()
+		if localRuntime.Client == nil {
+			return fmt.Errorf("local vulnerability scan runtime did not return an API client")
+		}
+		client = localRuntime.Client
+		opts.Scan.RuntimeEnv = localRuntime.BootstrapEnv
+	}
 	result := newVulnScanRepoResult(opts, client.BaseURL)
 	scanStdout := cmd.OutOrStdout()
 	if opts.Scan.JSON {
@@ -266,6 +285,18 @@ func finishVulnScanRepo(
 		return err
 	}
 	return renderVulnScanRepoSummary(cmd.OutOrStdout(), result)
+}
+
+func vulnScanHasConfiguredServiceURL(cmd *cobra.Command) bool {
+	serviceURL, _ := cmd.Flags().GetString("service-url")
+	if strings.TrimSpace(serviceURL) != "" {
+		return true
+	}
+	profile, _ := cmd.Flags().GetString("profile")
+	if strings.TrimSpace(resolveConfigValue("ESHU_SERVICE_URL", profile)) != "" {
+		return true
+	}
+	return strings.TrimSpace(os.Getenv("ESHU_SERVICE_URL")) != ""
 }
 
 func renderVulnScanRepoSummary(w io.Writer, result vulnScanRepoResult) error {

@@ -69,8 +69,11 @@ Security intelligence must work in two modes:
 
 The local developer experience should feel like a direct vulnerability scan
 command. The initial implemented Eshu CLI shape is
-`eshu vuln-scan repo [path]`. It attaches to the configured API, runs the same
-local source indexing and readiness proof as `eshu scan`, resolves the scanned
+`eshu vuln-scan repo [path]`. It uses an explicitly configured API when
+`--service-url`, config, or `ESHU_SERVICE_URL` names one. Without a configured
+API, it starts or attaches to the workspace-local authoritative service, launches
+a short-lived loopback API reader attached to the same owner, runs the same local
+source indexing and readiness proof as `eshu scan`, resolves the scanned
 repository id, and reads reducer-owned impact findings from the bounded supply
 chain impact API. It must not claim a clean result unless the scan reaches a
 ready state and the impact read succeeds.
@@ -470,11 +473,12 @@ the CLI can be convenient, but it must not produce a result that means
 something different from the hosted graph.
 
 The current `eshu vuln-scan repo [path]` implementation covers the command
-registration, local root resolution, scan readiness proof, repository-scoped
-impact read, JSON envelope, concise terminal summary, and fail-closed incomplete
-target behavior. Local service auto-start, advisory/package cache freshness,
-and fixture-backed vulnerable/ready-zero runtime proof remain implementation
-gates before this is a complete standalone vulnerability scan workflow.
+registration, local root resolution, local service attach/start when no API is
+configured, scan readiness proof, repository-scoped impact read, JSON envelope,
+concise terminal summary, and fail-closed incomplete target behavior.
+Advisory/package cache freshness and fixture-backed vulnerable/ready-zero
+runtime proof remain implementation gates before this is a complete standalone
+vulnerability scan workflow.
 
 ## Acceptance Gates
 

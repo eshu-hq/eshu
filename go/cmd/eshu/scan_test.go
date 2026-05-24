@@ -288,6 +288,41 @@ func TestWaitForScanReadinessStopsOnContextCancellation(t *testing.T) {
 	}
 }
 
+func TestEvaluateScanReadinessTreatsActiveGenerationAsCurrentWhenDrained(t *testing.T) {
+	status := scanPipelineStatus{
+		Health: scanHealth{State: "healthy"},
+		Queue:  scanQueue{Succeeded: 9},
+		GenerationHistory: scanGenerationHistory{
+			Active: 1,
+		},
+	}
+
+	verdict := evaluateScanReadiness(status)
+
+	if !verdict.Ready {
+		t.Fatalf("verdict.Ready = false, want true; reason=%q", verdict.Reason)
+	}
+}
+
+func TestEvaluateScanReadinessWaitsForPendingGeneration(t *testing.T) {
+	status := scanPipelineStatus{
+		Health: scanHealth{State: "healthy"},
+		Queue:  scanQueue{Succeeded: 9},
+		GenerationHistory: scanGenerationHistory{
+			Pending: 1,
+		},
+	}
+
+	verdict := evaluateScanReadiness(status)
+
+	if verdict.Ready {
+		t.Fatal("verdict.Ready = true, want false while a generation is still pending")
+	}
+	if verdict.Terminal {
+		t.Fatal("verdict.Terminal = true, want retryable pending-generation verdict")
+	}
+}
+
 func TestRunScanAllowPartialPrintsHumanWarning(t *testing.T) {
 	reset := stubScanRuntime(t)
 	defer reset()

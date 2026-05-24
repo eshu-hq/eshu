@@ -133,7 +133,7 @@ flowchart LR
 - [x] Design the local vulnerability scan command as an orchestration wrapper
   over local Eshu services, not a separate truth engine.
 - [x] Reuse existing local workspace/root resolution.
-- [ ] Add local service attach or startup behavior when no API is already
+- [x] Add local service attach or startup behavior when no API is already
   available.
 - [ ] Collect only the selected repository scope and fetch advisory/package
   evidence needed by observed owned packages unless a broader option is set.
@@ -143,23 +143,37 @@ flowchart LR
   fail-closed stale-data policy.
 - [x] Add focused tests before registering the public command and docs claim.
 
-Status 2026-05-24: the initial `eshu vuln-scan repo [path]` command exists as a
-thin API-backed orchestration wrapper. It runs the existing local scan
-readiness contract, resolves the scanned repository id, fetches bounded
-repository-scoped supply-chain impact findings, emits JSON and terminal
-summaries, and fails closed when target readiness is incomplete.
+Status 2026-05-24: `eshu vuln-scan repo [path]` exists as a thin orchestration
+wrapper over the same local and hosted read paths. When a service URL is
+configured, it uses that API. When no API is configured, it starts or attaches to
+the workspace-local authoritative owner, launches a short-lived loopback API
+reader attached to that owner, passes the owner-derived Postgres and graph env
+to `eshu-bootstrap-index`, runs the existing local scan readiness contract,
+resolves the scanned repository id, fetches bounded repository-scoped
+supply-chain impact findings, emits JSON and terminal summaries, and fails
+closed when target readiness is incomplete.
 
-No-Regression Evidence: `go test ./cmd/eshu -run 'Test(VulnScanRepoCommandIsRegisteredWithBoundedFlags|RunVulnScanRepo)' -count=1`
-proved command registration, local root resolution, scoped repository impact
-querying, JSON output, ready-zero/ready-with-findings states, and fail-closed
-submitted-scan behavior. `go test ./cmd/eshu -count=1` kept the surrounding CLI
-contract green after extracting the reusable scan executor.
+No-Regression Evidence: `go test ./cmd/eshu -run 'Test(PrepareVulnScanLocalRuntime(AttachesExistingAuthoritativeOwner|StartsOwnerWhenMissing)|RunVulnScanRepo(StartsLocalRuntimeWhenServiceURLUnconfigured|UsesConfiguredServiceURLWithoutLocalRuntime|IndexesResolvesRepoAndListsImpactFindings|ReportsReadyZeroFindings|FailsClosedWhenScanIsNotReady)|EvaluateScanReadiness(TreatsActiveGenerationAsCurrentWhenDrained|WaitsForPendingGeneration))' -count=1`
+proved local owner attach, local owner startup, loopback API env wiring,
+owner-derived bootstrap env, explicit service URL preservation, scoped
+repository impact querying, JSON output, ready-zero/ready-with-findings states,
+active authoritative generation readiness, pending generation waiting, and
+fail-closed submitted-scan behavior. `go test ./cmd/eshu -count=1` keeps the
+surrounding CLI contract green after the local runtime attach/start seam.
 
-No-Observability-Change: the command reuses existing `eshu scan` readiness
-signals, child bootstrap logs, status polling over `/api/v0/status/pipeline`,
-query preflight over `/api/v0/repositories?limit=1`, and the API's
+Performance Evidence: isolated fresh-repository proof with the Go fixture
+started a local authoritative owner, ran `eshu-bootstrap-index`, drained the
+pipeline, and returned `ready_zero_findings` in 5294 ms total
+(`bootstrap_complete_ms=1232`, `readiness_wait_ms=4044`, queue
+`succeeded=9`, dead letters `0`).
+
+No-Observability-Change: the command reuses existing local owner logs, child
+service logs under the workspace log directory, `eshu scan` readiness signals,
+child bootstrap logs, status polling over `/api/v0/status/pipeline`, query
+preflight over `/api/v0/repositories?limit=1`, and the API's
 `query.supply_chain_impact_findings` span for the bounded read. No new runtime
-worker, queue, reducer, or graph write path is introduced in this slice.
+worker, queue, reducer, graph write path, metric name, or span name is
+introduced in this slice.
 
 ## Chunk 6: SBOM, Image, And Runtime Joins
 
