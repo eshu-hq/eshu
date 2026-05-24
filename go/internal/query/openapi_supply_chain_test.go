@@ -35,6 +35,30 @@ func TestOpenAPISpecIncludesSupplyChainImpactFindings(t *testing.T) {
 	if got, want := get["operationId"], "listSupplyChainImpactFindings"; got != want {
 		t.Fatalf("operationId = %#v, want %#v", got, want)
 	}
+	responses := mustMapField(t, get, "responses")
+	twoHundred := mustMapField(t, responses, "200")
+	content := mustMapField(t, twoHundred, "content")
+	appJSON := mustMapField(t, content, "application/json")
+	schema := mustMapField(t, appJSON, "schema")
+	properties := mustMapField(t, schema, "properties")
+	readiness, ok := properties["readiness"].(map[string]any)
+	if !ok {
+		t.Fatalf("properties[readiness] = %T, want map describing readiness envelope", properties["readiness"])
+	}
+	readinessProps := mustMapField(t, readiness, "properties")
+	for _, key := range []string{
+		"readiness_state",
+		"target_scope",
+		"evidence_sources",
+		"missing_evidence",
+		"unsupported_targets",
+		"freshness",
+		"counts",
+	} {
+		if _, ok := readinessProps[key]; !ok {
+			t.Fatalf("readiness.properties missing %q field", key)
+		}
+	}
 }
 
 func TestOpenAPISpecIncludesContainerImageIdentities(t *testing.T) {

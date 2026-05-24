@@ -185,11 +185,31 @@ worker, queue, reducer, or graph write path is introduced in this slice.
 
 ## Chunk 8: API, MCP, And Release Gates
 
-- [ ] Add readiness metadata to vulnerability impact API and MCP reads.
-- [ ] Keep list calls scoped, limit-bound, timeout-bound, ordered, and explicitly
+- [x] Add readiness metadata to vulnerability impact API and MCP reads.
+- [x] Keep list calls scoped, limit-bound, timeout-bound, ordered, and explicitly
   truncated.
-- [ ] Add MCP tool contract tests for zero findings with incomplete coverage and
+- [x] Add MCP tool contract tests for zero findings with incomplete coverage and
   ready zero findings.
 - [ ] Run remote clean-volume and preserved-volume proof before any image cut.
 - [ ] Run Kubernetes proof with pprof, logs, queue telemetry, no dead letters,
   and resource snapshots before declaring release readiness.
+
+Status 2026-05-24: `GET /api/v0/supply-chain/impact/findings` and the MCP
+`list_supply_chain_impact_findings` tool now attach a `readiness` envelope to
+every response. The envelope distinguishes `not_configured`,
+`target_incomplete`, `evidence_incomplete`, `unsupported`,
+`ready_zero_findings`, and `ready_with_findings` using existing source-fact and
+reducer-fact counts only. No collector or reducer ownership boundaries were
+changed.
+
+No-Regression Evidence:
+`go test ./internal/query ./internal/mcp ./cmd/api -count=1` proves the
+classification function, the API handler envelope payload, the OpenAPI schema,
+the Postgres readiness query shape, the MCP dispatch envelope pass-through,
+and the wiring contract.
+
+No-Observability-Change: the readiness path reuses the existing
+`query.supply_chain_impact_findings` span and the truth envelope contract; no
+new collector, queue consumer, reducer lane, or graph write was introduced.
+See [Security Intelligence](../public/reference/security-intelligence.md#vulnerability-impact-readiness-envelope)
+for the envelope contract and proven states.

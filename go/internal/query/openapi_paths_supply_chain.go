@@ -65,7 +65,7 @@ const openAPIPathsSupplyChain = `
         ],
         "responses": {
           "200": {
-            "description": "Supply-chain impact finding page",
+            "description": "Supply-chain impact finding page with readiness coverage",
             "content": {
               "application/json": {
                 "schema": {
@@ -94,7 +94,48 @@ const openAPIPathsSupplyChain = `
                     "count": {"type": "integer"},
                     "limit": {"type": "integer"},
                     "truncated": {"type": "boolean"},
-                    "next_cursor": {"type": "object"}
+                    "next_cursor": {"type": "object"},
+                    "readiness": {
+                      "type": "object",
+                      "description": "Bounded coverage metadata so zero findings can be distinguished from missing target collection or missing required evidence.",
+                      "properties": {
+                        "readiness_state": {"type": "string", "enum": ["not_configured", "target_incomplete", "evidence_incomplete", "unsupported", "ready_zero_findings", "ready_with_findings"]},
+                        "target_scope": {
+                          "type": "object",
+                          "properties": {
+                            "cve_id": {"type": "string"},
+                            "package_id": {"type": "string"},
+                            "repository_id": {"type": "string"},
+                            "subject_digest": {"type": "string"},
+                            "impact_status": {"type": "string"}
+                          }
+                        },
+                        "evidence_sources": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "family": {"type": "string"},
+                              "fact_count": {"type": "integer"},
+                              "latest_observed_at": {"type": "string"},
+                              "freshness": {"type": "string", "enum": ["fresh", "stale", "unknown"]}
+                            }
+                          }
+                        },
+                        "missing_evidence": {"type": "array", "items": {"type": "string"}},
+                        "unsupported_targets": {"type": "array", "items": {"type": "string"}},
+                        "freshness": {"type": "string", "enum": ["fresh", "stale", "unknown"]},
+                        "counts": {
+                          "type": "object",
+                          "properties": {
+                            "findings_returned": {"type": "integer"},
+                            "findings_truncated": {"type": "boolean"},
+                            "findings_by_status": {"type": "object", "additionalProperties": {"type": "integer"}},
+                            "evidence_facts_total": {"type": "integer"}
+                          }
+                        }
+                      }
+                    }
                   }
                 }
               }

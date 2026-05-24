@@ -173,6 +173,76 @@ Zero findings without readiness are unsafe. The API and MCP surfaces should
 return coverage, freshness, unsupported target counts, and missing-evidence
 reasons alongside findings.
 
+### Vulnerability Impact Readiness Envelope
+
+`GET /api/v0/supply-chain/impact/findings` and the MCP
+`list_supply_chain_impact_findings` tool both attach a `readiness` envelope to
+every response. The envelope is derived from existing source-fact and
+reducer-fact counts so the answer never invents findings:
+
+- `readiness_state` is one of the six states above.
+- `target_scope` echoes the bounded anchors the caller used (`cve_id`,
+  `package_id`, `repository_id`, `subject_digest`, `impact_status`).
+- `evidence_sources[]` reports per-family fact counts, `latest_observed_at`,
+  and `freshness` (`fresh`, `stale`, or `unknown`) for:
+  `vulnerability.advisory`, `vulnerability.exploitability`,
+  `package.consumption`, `package.registry`, `sbom.component`,
+  `sbom.attestation`, and `container_image.identity`.
+- `missing_evidence[]` names absent required join families using the stable
+  identifiers `advisory_sources`, `owned_packages`, `sbom_or_image_evidence`,
+  `target_collection_incomplete`, and `unsupported_target`.
+- `unsupported_targets[]` carries reducer-reported unsupported target
+  identifiers when a family was observed but Eshu cannot yet match it.
+- `freshness` summarizes the worst per-family freshness as one label.
+- `counts` reports `findings_returned`, `findings_truncated`,
+  `findings_by_status`, and `evidence_facts_total` so the answer is
+  diagnosable without re-querying.
+
+Readiness reflects existing facts. It does not poll collectors, dispatch
+reducer work, or change finding ownership. Where evidence is missing the
+envelope says so instead of guessing. `target_incomplete` and `unsupported`
+specifically depend on collector/reducer-emitted source facts; when those
+signals are not present, missing evidence is surfaced through
+`missing_evidence` rather than being inferred from absence.
+
+#### Proven States
+
+The current implementation proves the following:
+
+- `not_configured` when no advisory or owned-evidence facts exist for the scope.
+- `evidence_incomplete` when advisory facts exist but the required join
+  family for the requested anchor is missing.
+- `ready_zero_findings` when advisory and required owned evidence exist and
+  the reducer returned no matching impact.
+- `ready_with_findings` whenever the reducer returned at least one finding.
+- `target_incomplete` when a `vulnerability.source_snapshot` fact reports
+  `in_progress`, `partial`, or `incomplete` completion state.
+- `unsupported` when the readiness store reports an unsupported target
+  identifier and no advisory family was observed.
+
+#### Follow-Up Work
+
+- Expand `unsupported_targets` to ecosystem-level identifiers as additional
+  unsupported-evidence collectors land.
+- Surface per-collector freshness windows separately when the collector
+  contract carries source-specific staleness thresholds.
+
+Performance Evidence: focused query tests
+`go test ./internal/query -run 'SupplyChainImpactReadiness' -count=1` exercise
+not-configured, evidence-incomplete, ready-zero-findings, ready-with-findings,
+target-incomplete, and unsupported classifications against a recording store,
+plus the Postgres query shape contract. The readiness Postgres path runs one
+bounded CTE per response with seven anchored counts and a snapshot-completion
+roll-up; it adds one Postgres round trip alongside the existing impact-finding
+read.
+
+No-Observability-Change: the readiness path reuses the existing
+`query.supply_chain_impact_findings` span. The handler does not start a new
+graph query, queue claim, or reducer write, so the existing
+`eshu_dp_postgres_query_duration_seconds` histogram and the impact-findings
+HTTP/MCP envelope continue to expose latency, error, and truth metadata for
+the bounded readiness read.
+
 ## Provider Alert Parity Gate
 
 Provider-hosted alert parity is a validation gate, not a source of public test

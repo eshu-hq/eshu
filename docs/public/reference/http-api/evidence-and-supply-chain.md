@@ -140,6 +140,35 @@ facts and package-registry facts without owned repository, image,
 package-manifest, lockfile, or SBOM evidence remain source intelligence and do
 not appear as impact findings.
 
+The response also includes a `readiness` envelope so a UI, MCP client, or
+operator can tell `nothing matched` from `Eshu did not have the evidence to
+match yet`:
+
+- `readiness_state` is one of `not_configured`, `target_incomplete`,
+  `evidence_incomplete`, `unsupported`, `ready_zero_findings`, or
+  `ready_with_findings`.
+- `target_scope` echoes the bounded anchors the caller used.
+- `evidence_sources[]` reports per-family source-fact counts and
+  `latest_observed_at` for `vulnerability.advisory`,
+  `vulnerability.exploitability`, `package.consumption`, `package.registry`,
+  `sbom.component`, `sbom.attestation`, and `container_image.identity`. Each
+  family carries its own `freshness` of `fresh`, `stale`, or `unknown` relative
+  to a fourteen-day window.
+- `missing_evidence[]` names the absent required join families, such as
+  `advisory_sources`, `owned_packages`, `sbom_or_image_evidence`,
+  `target_collection_incomplete`, or `unsupported_target`. Reasons stay
+  deduplicated, sorted, and free of package names or advisory bodies.
+- `unsupported_targets[]` carries reducer-reported unsupported target
+  identifiers when a family was observed but Eshu cannot yet match it.
+- `freshness` aggregates per-family freshness into one label.
+- `counts` reports `findings_returned`, `findings_truncated`,
+  `findings_by_status`, and `evidence_facts_total` so the answer is
+  diagnosable without re-querying.
+
+Readiness is computed from existing source and reducer facts only. The
+endpoint never invents findings; it surfaces counts and freshness so a zero
+or partial answer can be interpreted correctly.
+
 The security-intelligence architecture keeps these findings separate from
 source facts and readiness coverage. See
 [Security Intelligence](../security-intelligence.md) for the target/capability
