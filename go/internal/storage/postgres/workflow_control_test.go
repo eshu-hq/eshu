@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgconn"
+
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
@@ -207,6 +209,56 @@ func TestWorkflowControlStoreGuardedRunCreatesEligibleScheduledTarget(t *testing
 	}
 	if !db.committed {
 		t.Fatal("guarded schedule did not commit transaction")
+	}
+}
+
+func TestWorkflowControlStoreGuardedRunRetriesDeadlockTransaction(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, time.May, 21, 12, 0, 0, 0, time.UTC)
+	run := workflow.Run{
+		RunID:              "aws:collector-aws:schedule:continuous-20260521T120000Z",
+		TriggerKind:        workflow.TriggerKindSchedule,
+		Status:             workflow.RunStatusCollectionPending,
+		RequestedScopeSet:  "[]",
+		RequestedCollector: string(scope.CollectorAWS),
+		CreatedAt:          now,
+		UpdatedAt:          now,
+	}
+	item := awsScheduledWorkItem(run.RunID, "lambda", now)
+	firstTx := &fakeTx{
+		queryResponses: []queueFakeRows{
+			{rows: [][]any{{false}}},
+			{rows: [][]any{{0}}},
+		},
+		execErrors: map[int]error{
+			1: &pgconn.PgError{Code: "40P01", Message: "deadlock detected"},
+		},
+	}
+	secondTx := &fakeTx{
+		queryResponses: []queueFakeRows{
+			{rows: [][]any{{false}}},
+			{rows: [][]any{{0}}},
+		},
+	}
+	db := &fakeTransactionalDB{txs: []*fakeTx{firstTx, secondTx}}
+	store := NewWorkflowControlStore(db)
+
+	inserted, err := store.CreateRunWithWorkItemsIfNoOpenTargets(context.Background(), run, []workflow.WorkItem{item})
+	if err != nil {
+		t.Fatalf("CreateRunWithWorkItemsIfNoOpenTargets() error = %v, want retry success", err)
+	}
+	if got, want := inserted, 1; got != want {
+		t.Fatalf("inserted = %d, want %d", got, want)
+	}
+	if got, want := db.beginCalls, 2; got != want {
+		t.Fatalf("begin calls = %d, want %d", got, want)
+	}
+	if !firstTx.rolledBack {
+		t.Fatal("first transaction rolledBack = false, want true after deadlock")
+	}
+	if !secondTx.committed {
+		t.Fatal("second transaction committed = false, want true")
 	}
 }
 

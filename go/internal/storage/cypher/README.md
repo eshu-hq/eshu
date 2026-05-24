@@ -127,9 +127,24 @@ This phase emits `HAS_VERSION`, `DECLARES_DEPENDENCY`, and
 `DEPENDS_ON_PACKAGE` for package-native dependency metadata only; source
 repository hints are not promoted to ownership or publication edges until
 reducer correlation supplies corroborating evidence. NornicDB phase-group
-execution commits package, version, and dependency writes in separate ordered
-phase groups because version and dependency statements `MATCH` identities
-created by earlier package-registry statements.
+execution commits package, version, dependency target package, and dependency
+writes in separate ordered phase groups because later statements `MATCH`
+identities created by earlier package-registry statements. Dependency target
+packages are deduplicated before the `UNWIND MERGE` batch so repeated
+dependency rows for the same package cannot attempt the same `Package.uid`
+create more than once in a NornicDB transaction.
+
+No-Regression Evidence: `go test ./internal/storage/cypher -run
+'TestCanonicalNodeWriterBuildsPackageRegistryStatements|TestCanonicalNodeWriterSeparatesPackageRegistryPhaseGroups|TestCanonicalNodeWriterDeduplicatesPackageRegistryDependencyTargets'
+-count=1` proves package-registry canonical writes keep package, version,
+dependency-target, and dependency phases ordered and deduplicate dependency
+target package upserts before the dependency edge batch.
+
+Observability Evidence: no new metrics were required. Existing
+`canonical.phase` spans, `eshu_dp_canonical_phase_duration_seconds`, phase
+failure logs, phase-group chunk summaries, and queue failure payloads expose the
+package-registry phase name, statement label, row count, scope, generation, and
+NornicDB error if duplicate target package writes ever regress.
 
 `EdgeWriter.WriteEdges` maps a `reducer.Domain` to a batched UNWIND Cypher
 template and dispatches rows in batches of `BatchSize` (default
@@ -383,9 +398,14 @@ retry, failed, and dead-letter state without adding a new metric label.
 
   No-Regression Evidence: `go test ./internal/projector ./internal/storage/cypher -count=1`
   on 2026-05-22 covered package-registry phase ordering with 1 package, 1
-  version, and 1 dependency row. The change preserves the same Cypher templates
-  and only splits NornicDB phase-group commits so dependent `MATCH` statements
-  see prior identities.
+  version, and 1 dependency row. `go test ./internal/storage/cypher -run
+  'TestCanonicalNodeWriterBuildsPackageRegistryStatements|TestCanonicalNodeWriterSeparatesPackageRegistryPhaseGroups|TestCanonicalNodeWriterDeduplicatesPackageRegistryDependencyTargets'
+  -count=1` covers the dependency-target package split and duplicate target
+  rows. The change preserves the same Cypher templates and only splits NornicDB
+  phase-group commits so dependent `MATCH` statements see prior identities.
+  Remote full-corpus run `vulnerability-targets-20260524T050624Z` proved the
+  split plus projector retry wrapper survived repeated NornicDB package
+  unique-conflict retries without a dead-letter.
 
   Observability Evidence: `CanonicalNodeWriter` phase logs now expose
   `phase=package_registry_packages`, `phase=package_registry_versions`, and

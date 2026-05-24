@@ -22,7 +22,9 @@ import (
 )
 
 const (
-	projectorConnectionTimeout = 10 * time.Second
+	projectorConnectionTimeout           = 10 * time.Second
+	defaultNornicDBCanonicalWriteTimeout = 30 * time.Second
+	canonicalWriteTimeoutEnv             = "ESHU_CANONICAL_WRITE_TIMEOUT"
 )
 
 func buildProjectorService(
@@ -130,6 +132,10 @@ func openProjectorCanonicalWriter(
 	tracer trace.Tracer,
 	instruments *telemetry.Instruments,
 ) (projector.CanonicalWriter, io.Closer, error) {
+	graphBackend, err := runtimecfg.LoadGraphBackend(getenv)
+	if err != nil {
+		return nil, nil, err
+	}
 	driver, cfg, err := runtimecfg.OpenNeo4jDriver(parent, getenv)
 	if err != nil {
 		return nil, nil, err
@@ -140,15 +146,51 @@ func openProjectorCanonicalWriter(
 		DatabaseName: cfg.DatabaseName,
 	}
 
+	return sourcecypher.NewCanonicalNodeWriter(
+			projectorCanonicalExecutorForGraphBackend(rawExecutor, graphBackend, getenv, tracer, instruments),
+			neo4jBatchSize(getenv),
+			instruments,
+		).WithTracer(tracer),
+		projectorNeo4jDriverCloser{Driver: driver},
+		nil
+}
+
+func projectorCanonicalExecutorForGraphBackend(
+	rawExecutor sourcecypher.Executor,
+	graphBackend runtimecfg.GraphBackend,
+	getenv func(string) string,
+	tracer trace.Tracer,
+	instruments *telemetry.Instruments,
+) sourcecypher.Executor {
 	instrumentedExecutor := &sourcecypher.InstrumentedExecutor{
-		Inner:       rawExecutor,
+		Inner: &sourcecypher.RetryingExecutor{
+			Inner:       rawExecutor,
+			MaxRetries:  3,
+			Instruments: instruments,
+		},
 		Tracer:      tracer,
 		Instruments: instruments,
 	}
+	if graphBackend == runtimecfg.GraphBackendNornicDB {
+		return sourcecypher.TimeoutExecutor{
+			Inner:       instrumentedExecutor,
+			Timeout:     projectorNornicDBCanonicalWriteTimeout(getenv),
+			TimeoutHint: canonicalWriteTimeoutEnv,
+		}
+	}
+	return instrumentedExecutor
+}
 
-	return sourcecypher.NewCanonicalNodeWriter(instrumentedExecutor, neo4jBatchSize(getenv), instruments).WithTracer(tracer),
-		projectorNeo4jDriverCloser{Driver: driver},
-		nil
+func projectorNornicDBCanonicalWriteTimeout(getenv func(string) string) time.Duration {
+	raw := strings.TrimSpace(getenv(canonicalWriteTimeoutEnv))
+	if raw == "" {
+		return defaultNornicDBCanonicalWriteTimeout
+	}
+	parsed, err := time.ParseDuration(raw)
+	if err != nil || parsed <= 0 {
+		return defaultNornicDBCanonicalWriteTimeout
+	}
+	return parsed
 }
 
 type projectorNeo4jExecutor struct {

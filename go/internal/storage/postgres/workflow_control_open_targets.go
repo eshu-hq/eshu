@@ -21,6 +21,8 @@ SELECT EXISTS (
 
 const workflowAdvisoryTargetLockQuery = `SELECT pg_advisory_xact_lock($1)`
 
+const workflowGuardedRunCreateMaxAttempts = 3
+
 // CreateRunWithWorkItemsIfNoOpenTargets creates a scheduled run only for work
 // whose collector target is not already represented by a non-terminal run or
 // the same deterministic schedule run.
@@ -47,6 +49,25 @@ func (s *WorkflowControlStore) CreateRunWithWorkItemsIfNoOpenTargets(
 		return 0, nil
 	}
 
+	var lastErr error
+	for attempt := 0; attempt <= workflowGuardedRunCreateMaxAttempts; attempt++ {
+		inserted, err := s.createRunWithWorkItemsIfNoOpenTargetsOnce(ctx, run, items)
+		if err == nil {
+			return inserted, nil
+		}
+		lastErr = err
+		if !isRetryableWorkflowReconciliationError(err) || attempt == workflowGuardedRunCreateMaxAttempts {
+			break
+		}
+	}
+	return 0, lastErr
+}
+
+func (s *WorkflowControlStore) createRunWithWorkItemsIfNoOpenTargetsOnce(
+	ctx context.Context,
+	run workflow.Run,
+	items []workflow.WorkItem,
+) (int, error) {
 	tx, err := s.beginner.Begin(ctx)
 	if err != nil {
 		return 0, fmt.Errorf("create guarded workflow run: begin transaction: %w", err)

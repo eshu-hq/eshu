@@ -93,6 +93,12 @@ func run(parent context.Context) error {
 	if err := awsFreshnessStore.EnsureSchema(parent); err != nil {
 		return err
 	}
+	ownedPackageTargetsDB := &postgres.InstrumentedDB{
+		Inner:       postgres.SQLDB{DB: db},
+		Tracer:      providers.TracerProvider.Tracer(telemetry.DefaultSignalName),
+		Instruments: instruments,
+		StoreName:   "owned_package_targets",
+	}
 	serviceRunner := coordinator.Service{
 		Config: cfg,
 		Store:  store,
@@ -103,6 +109,7 @@ func run(parent context.Context) error {
 		OCIRegistryPlanner:               coordinator.OCIRegistryWorkPlanner{},
 		PackageRegistryPlanner:           coordinator.PackageRegistryWorkPlanner{},
 		VulnerabilityIntelligencePlanner: coordinator.VulnerabilityIntelligenceWorkPlanner{},
+		OwnedPackageTargetReader:         postgres.NewFactStore(ownedPackageTargetsDB),
 		AWSScheduledPlanner:              coordinator.AWSScheduledWorkPlanner{},
 		AWSFreshnessTriggers:             awsFreshnessStore,
 		AWSFreshnessPlanner:              coordinator.AWSFreshnessWorkPlanner{},

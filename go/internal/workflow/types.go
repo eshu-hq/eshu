@@ -179,6 +179,23 @@ type WorkItem struct {
 	UpdatedAt           time.Time
 }
 
+// OwnedPackageDependencyTarget is one active dependency declaration that can
+// bound package-registry or vulnerability-intelligence collector planning.
+type OwnedPackageDependencyTarget struct {
+	Ecosystem    string
+	PackageName  string
+	Version      string
+	Lockfile     bool
+	RepositoryID string
+	FactID       string
+}
+
+// OwnedPackageDependencyTargetFilter bounds active dependency target reads.
+type OwnedPackageDependencyTargetFilter struct {
+	Ecosystems []string
+	Limit      int
+}
+
 // Validate checks that the work item has durable identity and lifecycle shape.
 func (w WorkItem) Validate() error {
 	if err := validateIdentifier("work_item_id", w.WorkItemID); err != nil {

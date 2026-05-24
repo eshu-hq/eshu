@@ -68,17 +68,17 @@ func TestRemoteE2EComposeExercisesTerraformStateBackendFilterDiscovery(t *testin
 	}
 }
 
-func TestRemoteE2EComposeUsesStableWorkflowReconcileWindow(t *testing.T) {
+func TestRemoteE2EComposeUsesResponsiveWorkflowReconcileWindow(t *testing.T) {
 	t.Parallel()
 
 	compose := readRepositoryFile(t, "../../..", "docker-compose.remote-e2e.yaml")
-	if !strings.Contains(compose, "ESHU_WORKFLOW_COORDINATOR_RECONCILE_INTERVAL:-1h") {
-		t.Fatal("remote E2E Compose should default workflow reconcile to 1h so verification can finish before the next continuous wave")
+	if !strings.Contains(compose, "ESHU_WORKFLOW_COORDINATOR_RECONCILE_INTERVAL:-30s") {
+		t.Fatal("remote E2E Compose should default workflow reconcile to 30s so derived collector targets are planned after Git facts land")
 	}
 
 	exampleEnv := readRepositoryFile(t, "../../..", ".env.remote-e2e.example")
-	if !strings.Contains(exampleEnv, "ESHU_WORKFLOW_COORDINATOR_RECONCILE_INTERVAL=1h") {
-		t.Fatal(".env.remote-e2e.example should document the stable reconcile window")
+	if !strings.Contains(exampleEnv, "ESHU_WORKFLOW_COORDINATOR_RECONCILE_INTERVAL=30s") {
+		t.Fatal(".env.remote-e2e.example should document the responsive reconcile window")
 	}
 }
 

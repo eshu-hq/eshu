@@ -100,8 +100,17 @@ fall back to defaults rather than failing; malformed values fail fast.
   repository targets without opening registry connections. Each target becomes
   one claimable work item keyed by the normalized registry repository scope.
 - `PackageRegistryWorkPlanner` — plans package-registry collection runs from
-  configured package/feed targets without opening registry connections. Each
-  target becomes one claimable work item keyed by its configured `scope_id`.
+  configured package/feed targets and optional active owned package evidence
+  without opening registry connections. Each configured or derived target
+  becomes one claimable work item keyed by its normalized `scope_id`.
+- `VulnerabilityIntelligenceWorkPlanner` — plans vulnerability-intelligence
+  collection runs from configured source targets and optional active owned
+  package evidence. Derived OSV targets are limited to exact owned dependency
+  versions; manifest ranges remain partial evidence and are skipped for exact
+  source collection.
+- `OwnedPackageTargetReader` — optional active-mode dependency target reader
+  used by `Service` when package-registry or vulnerability-intelligence
+  instances enable `derive_from_owned_packages`.
 - `AWSScheduledWorkPlanner` — plans scheduled AWS collection runs from the
   configured target scopes without requiring a separate provider webhook when
   the AWS collector configuration sets `scheduled_scan_enabled=true`. Each
@@ -175,8 +184,31 @@ warning (`collector_instance_drift_detected`, fields
 - `last_reaped_claims` spiking above `ExpiredClaimLimit` is not possible; that
   limit caps each reap pass. Repeated spikes at the limit indicate collectors
   are not completing claims within the lease TTL.
+- Derived package and vulnerability target planning is visible in
+  `workflow_runs.requested_scope_set`. Package-registry derived entries include
+  `derived=true` and `package_name`; vulnerability derived entries include
+  `source`, `ecosystem`, `package_name`, and exact `version`. If a derivation
+  enabled instance plans no work, first check the owned dependency fact query,
+  then confirm the dependency evidence is active and exact enough for the
+  collector family.
 
 ## Extension points
+
+No-Regression Evidence: owned package target derivation is covered by
+`go test ./internal/coordinator -run 'Test(PackageRegistryWorkPlannerDerivesNPMTargetsFromOwnedPackageEvidence|VulnerabilityIntelligenceWorkPlannerDerivesOSVTargetsForExactOwnedVersions|ServiceRunActiveModePassesOwnedPackageEvidenceTo(PackageRegistry|Vulnerability)Planner)' -count=1`.
+The package-wide proof ran as part of
+`go test ./internal/coordinator ./internal/workflow ./internal/storage/postgres ./internal/collector/packageregistry/packageruntime ./internal/collector/vulnerabilityintelligence/vulnruntime ./cmd/workflow-coordinator ./cmd/collector-package-registry ./cmd/collector-vulnerability-intelligence -count=1`.
+This is a planning-only change: it adds bounded target rows from active owned
+dependency evidence, keeps range dependencies out of exact OSV collection, and
+does not change claim leases, worker counts, queue concurrency, reducer graph
+writes, or NornicDB settings.
+
+Observability Evidence: existing coordinator reconcile counters and duration
+histograms, `workflow_runs.requested_scope_set`, `workflow_work_items` status
+and failure columns, collector claim status, and `/api/v0/index-status` show
+whether derived targets were planned, claimed, completed, retried, or failed.
+No metric labels gained package names, versions, feed URLs, or credential
+material.
 
 - `Store` — substitute any implementation satisfying the four-method interface
   for testing or future backends.

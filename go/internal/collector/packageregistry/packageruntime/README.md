@@ -25,6 +25,8 @@ flowchart LR
 
 - `SourceConfig` validates collector instance ID, bounded targets, provider,
   and optional telemetry handles.
+- `DerivedTargetConfig` enables bounded npm target resolution from coordinator
+  scope IDs derived from active owned package evidence.
 - `TargetConfig` stores parsed target identity plus runtime-only endpoint,
   document format, and credential material.
 - `MetadataProvider` fetches one bounded metadata document for a target.
@@ -55,7 +57,9 @@ must stay out of metrics.
 
 - A claimed source only collects the configured `scope_id` from the workflow
   item. Unknown scope IDs fail the claim instead of falling back to another
-  target.
+  target. When derived targets are enabled, the only implicit target shape is a
+  normalized public npm package scope such as
+  `npm://registry.npmjs.org/vite`.
 - `document_format` defaults to `native`. `artifactory_package` is allowed only
   as a wrapper around package-native metadata and uses the same parser registry
   as native metadata; Artifactory repository topology remains hosting evidence.
@@ -75,6 +79,9 @@ must stay out of metrics.
   shape. The body-size cap still applies to the returned document; the request
   shape prevents normal npm package identity and version evidence from needing
   an unbounded full packument.
+- Derived npm targets use the same abbreviated packument path, `package_limit`,
+  and `version_limit` as configured npm targets. The runtime still collects one
+  claimed scope at a time and does not enumerate the npm registry.
 
 ## Evidence
 
@@ -87,6 +94,10 @@ Collector Observability Evidence: truncated package metadata emits a durable `pa
 No-Observability-Change: no new metrics or labels were added. Existing package-registry duration, request status-class, facts-emitted, rate-limit, generation-lag, parse-failure, health, readiness, metrics, and admin-status signals already cover npm abbreviated-packument success and the body-size failure path without package names, feed URLs, versions, or artifact paths in metric labels.
 
 Collector Deployment Evidence: `helm lint deploy/helm/eshu` and `go test ./internal/runtime -run 'TestHelmClaimDrivenCollectorsRequireWorkflowCoordinator|TestHelmWorkflowCoordinatorActiveModeForClaimDrivenCollectors|TestHelmPodSecurityContextUsesOnRootMismatch' -count=1 -v` prove the chart renders active workflow-coordinator claim scheduling for hosted collectors and keeps the package-registry collector Deployment on the existing metrics Service and ServiceMonitor path.
+
+No-Regression Evidence: `go test ./internal/collector/packageregistry/packageruntime -run 'TestClaimedSource(ResolvesDerivedNPMTarget|RejectsDerivedTargetWhenDisabled)' -count=1` proves the runtime resolves only enabled, normalized npm derived scopes and rejects unknown scopes when derivation is disabled. The broader touched-package proof ran `go test ./internal/coordinator ./internal/workflow ./internal/storage/postgres ./internal/collector/packageregistry/packageruntime ./internal/collector/vulnerabilityintelligence/vulnruntime ./cmd/workflow-coordinator ./cmd/collector-package-registry ./cmd/collector-vulnerability-intelligence -count=1`.
+
+No-Observability-Change: derived npm targets use the existing package-registry observe duration, request status-class, facts-emitted, rate-limit, generation-lag, parse-failure, health, readiness, metrics, and admin-status signals. No new metric labels were added, and package names, versions, metadata URLs, and credential material stay out of labels.
 
 ## Related Docs
 

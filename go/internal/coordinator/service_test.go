@@ -31,6 +31,23 @@ type fakeStore struct {
 	runReconcileHook     func(int)
 }
 
+type fakeOwnedPackageTargetReader struct {
+	requests []workflow.OwnedPackageDependencyTargetFilter
+	targets  []workflow.OwnedPackageDependencyTarget
+	err      error
+}
+
+func (f *fakeOwnedPackageTargetReader) ListOwnedPackageDependencyTargets(
+	_ context.Context,
+	filter workflow.OwnedPackageDependencyTargetFilter,
+) ([]workflow.OwnedPackageDependencyTarget, error) {
+	f.requests = append(f.requests, filter)
+	if f.err != nil {
+		return nil, f.err
+	}
+	return append([]workflow.OwnedPackageDependencyTarget(nil), f.targets...), nil
+}
+
 func (f *fakeStore) ReconcileCollectorInstances(_ context.Context, observedAt time.Time, desired []workflow.DesiredCollectorInstance) error {
 	f.observed = append(f.observed, observedAt)
 	f.desired = append(f.desired, desired)

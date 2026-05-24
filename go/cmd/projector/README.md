@@ -28,7 +28,7 @@ flowchart LR
 flowchart TB
   A["main()"] --> B["telemetry.NewBootstrap\ntelemetry.NewProviders"]
   B --> C["runtime.OpenPostgres"]
-  C --> D["openProjectorCanonicalWriter\nOpenNeo4jDriver\nInstrumentedExecutor\nCanonicalNodeWriter"]
+  C --> D["openProjectorCanonicalWriter\nOpenNeo4jDriver\nRetryingExecutor\nInstrumentedExecutor\nCanonicalNodeWriter"]
   D --> E["buildProjectorService\nbuildProjectorRuntime"]
   E --> F["app.NewHostedWithStatusServer"]
   F --> G["service.Run\n(signal context)"]
@@ -41,7 +41,11 @@ flowchart TB
 `telemetry.NewProviders`, then calls `run`. Inside `run`, Postgres is opened
 via `runtimecfg.OpenPostgres` and the canonical graph writer is opened via
 `openProjectorCanonicalWriter` — this creates a Neo4j session executor wrapped
-in `sourcecypher.InstrumentedExecutor` and returns a
+in `sourcecypher.RetryingExecutor` and `sourcecypher.InstrumentedExecutor`. For
+NornicDB, the same path is also bounded by `sourcecypher.TimeoutExecutor` using
+`ESHU_CANONICAL_WRITE_TIMEOUT` so the standalone projector matches the
+retryable graph-write contract used by bootstrap and ingester. The function
+returns a
 `sourcecypher.CanonicalNodeWriter`. `buildProjectorService` wires a
 `postgres.ProjectorQueue` as `WorkSource`, `WorkSink`, and `Heartbeater`, a
 `postgres.FactStore` for fact loading, and `buildProjectorRuntime` for
@@ -69,7 +73,8 @@ See `doc.go` for the package comment.
   shared admin surface
 - `internal/runtime` — `runtimecfg.OpenPostgres`, `runtimecfg.OpenNeo4jDriver`,
   `runtimecfg.LoadRetryPolicyConfig`; standard config and connection helpers
-- `internal/storage/cypher` — `sourcecypher.InstrumentedExecutor`,
+- `internal/storage/cypher` — `sourcecypher.RetryingExecutor`,
+  `sourcecypher.InstrumentedExecutor`, `sourcecypher.TimeoutExecutor`,
   `sourcecypher.CanonicalNodeWriter`; backend-neutral graph write surface
 - `internal/storage/postgres` — `postgres.ProjectorQueue`, `postgres.FactStore`,
   `postgres.NewContentWriter`, `postgres.NewGraphProjectionPhaseStateStore`,
@@ -87,6 +92,8 @@ See `doc.go` for the package comment.
 OTEL setup uses `telemetry.NewBootstrap("projector")` and `telemetry.NewProviders`.
 The Prometheus exporter is always active; OTLP export activates when the
 OTEL endpoint env var is set. The canonical writer is wrapped with
+`sourcecypher.RetryingExecutor` so retryable NornicDB MERGE unique conflicts
+are absorbed inside the graph-write layer, then with
 `sourcecypher.InstrumentedExecutor` to emit `eshu_dp_neo4j_query_duration_seconds`
 spans per Cypher statement. The shared admin surface exposes `/metrics` alongside
 `eshu_runtime_*` gauges. Logger scope and component are both `projector`.
@@ -109,6 +116,10 @@ package's telemetry section.
   writer groups per write round. The default (0) defers to the writer's built-in
   default. Raising this without watching `eshu_dp_canonical_write_duration_seconds`
   can hit Neo4j transaction size limits.
+- `ESHU_CANONICAL_WRITE_TIMEOUT` bounds NornicDB canonical graph writes in the
+  standalone projector. Empty or invalid values use the built-in `30s` default.
+  Retryable MERGE unique conflicts are handled before a queue failure is
+  recorded; persistent failures still surface through projector queue metadata.
 - The projector lease duration for queue claims is one minute
   (`postgres.NewProjectorQueue(database, "projector", time.Minute)`). The
   service heartbeats each claimed row before lease expiry so large source-local
@@ -143,7 +154,18 @@ package's telemetry section.
   existing projector queue items and writes graph/content output. Empty queues
   produce no errors; the binary polls indefinitely.
 
-No-Regression Evidence: `go test ./cmd/projector -run 'TestBuildProjectorService(HeartbeatsLongRunningClaims|UsesWorkerCountFromEnv|WiresRetryPolicyFromEnv)' -count=1` covers standalone projector lease renewal, worker tuning, and retry-policy wiring. Remote E2E Compose now starts this runtime after bootstrap indexing so hosted collector `source_local/projector` rows have an always-on claimer.
+No-Regression Evidence: `go test ./cmd/projector -run
+'TestBuildProjectorService(HeartbeatsLongRunningClaims|UsesWorkerCountFromEnv|WiresRetryPolicyFromEnv)'
+-count=1` covers standalone projector lease renewal, worker tuning, and
+retry-policy wiring. `go test ./cmd/projector -run
+'TestProjectorCanonicalExecutor' -count=1` proves NornicDB graph writes use the
+retrying executor and canonical-write timeout wrapper while Neo4j keeps the
+plain grouped executor path. Remote E2E Compose now starts this runtime after
+bootstrap indexing so hosted collector `source_local/projector` rows have an
+always-on claimer. Clean full-corpus run
+`vulnerability-targets-20260524T050624Z` observed NornicDB package
+unique-conflict retries from the standalone projector and still reached
+queue-zero with no dead-letter rows.
 
 Observability Evidence: the standalone projector now wires the same projector spans, metrics, structured logs, runtime memory gauge, `/metrics`, `/admin/status`, and optional pprof startup log used by hosted data-plane workers.
 
