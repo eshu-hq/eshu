@@ -93,6 +93,9 @@ func TestNewMCPQueryRouterMountsMCPBackedHandlers(t *testing.T) {
 	if router.SupplyChain.Readiness == nil {
 		t.Fatal("newMCPQueryRouter().SupplyChain.Readiness = nil, want Postgres readiness store")
 	}
+	if router.SupplyChain.SecurityAlerts == nil {
+		t.Fatal("newMCPQueryRouter().SupplyChain.SecurityAlerts = nil, want Postgres security alert reconciliation store")
+	}
 	if router.CICD == nil {
 		t.Fatal("newMCPQueryRouter().CICD = nil, want CI/CD run correlation route mounted")
 	}

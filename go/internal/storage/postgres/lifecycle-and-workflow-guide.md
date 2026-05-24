@@ -110,6 +110,18 @@ loader uses `fact_records_vulnerability_affected_package_lookup_idx` and
 image-identity indexes above, so impact correlation stays bounded by the CVE,
 package ID, PURL, SBOM document ID, or digest discovered in the triggering
 intent.
+Provider security alert reads use
+`fact_records_security_alert_repository_lookup_idx`,
+`fact_records_security_alert_cve_ids_idx`,
+`fact_records_security_alert_ghsa_ids_idx`,
+`fact_records_security_alert_reconciliation_lookup_idx`,
+`fact_records_security_alert_reconciliation_provider_idx`,
+`fact_records_security_alert_reconciliation_cve_ids_idx`, and
+`fact_records_security_alert_reconciliation_ghsa_ids_idx` so source provider
+alerts and reducer reconciliation rows stay bounded by repository, provider,
+package, alert state, reconciliation status, CVE, or GHSA. The reducer evidence
+loader pages only active package-consumption and impact facts for identifiers
+seen in the triggering provider alert intent.
 
 `sanitizeJSONB` strips `\u0000` escape sequences and raw control bytes
 (`0x00–0x1F` except tab/newline/CR) from payloads before INSERT to prevent

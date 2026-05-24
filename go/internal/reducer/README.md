@@ -72,6 +72,7 @@ canonical-write or bounded counter-emission requirements.
 | `DomainServiceCatalogCorrelation` | Correlate service-catalog entities with explicit repository links and ownership evidence without inventing workloads |
 | `DomainSBOMAttestationAttachment` | Attach SBOM and attestation documents to image digests only when subject evidence is explicit |
 | `DomainSupplyChainImpact` | Publish vulnerability impact findings only when explicit vulnerability, package, SBOM, image, or repository evidence exists |
+| `DomainSecurityAlertReconciliation` | Compare provider repository security alerts with Eshu-owned dependency and impact evidence without treating provider state as impact truth |
 
 ## Intent lifecycle
 
@@ -327,6 +328,14 @@ Log phase attributes: `telemetry.PhaseReduction` (main loop),
   with update and withdrawal timestamps. Withdrawn advisories are excluded
   from selection but remain visible as observations so operators can explain
   why a vendor or upstream record was skipped.
+- **Provider alert reconciliation is comparison-only** —
+  `SecurityAlertReconciliationHandler` writes
+  `reducer_security_alert_reconciliation` facts from
+  `security_alert.repository_alert`, package-consumption correlation, and
+  supply-chain impact facts. It preserves provider alert state and Eshu impact
+  state in separate payload fields, classifies rows as matched, unmatched,
+  stale, dismissed, fixed, or provider-only, and does not emit
+  `reducer_supply_chain_impact_finding` facts.
 - **Package ownership is conservative** —
   `PackageSourceCorrelationHandler` writes ownership candidates from registry
   source hints and package-version publication evidence but leaves

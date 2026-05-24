@@ -93,7 +93,7 @@ Security targets are evidence sources, not findings:
 | Repository dependency facts | manifests, lockfiles, normalized package ids, versions, dependency paths | Reducer joins to advisories and repository ownership using normalized identity. |
 | Package registry metadata | package identity, PURL, BOMRef, package manager, version metadata, dependency metadata | Reducer treats registry data as source metadata unless owned evidence proves use. |
 | Advisory sources | CVE, GHSA, OSV, GitLab Advisory Database (Gemnasium), CVSS v2/v3/v4, EPSS, KEV, CWE, affected ranges, fixed versions | Reducer joins advisories to owned packages, images, SBOMs, or workloads. Each source keeps its own fact provenance so reducers can detect cross-source disagreement on range, severity, or fixed version. |
-| Provider-hosted alerts | alert state, affected dependency, advisory identifiers, manifest path | Reducer or verifier compares provider alerts to Eshu evidence without copying private alert data into docs. |
+| Provider-hosted alerts | alert state, alert ID/number, affected dependency, dependency scope/relationship, advisory identifiers, vulnerable range, patched version, severity, CVSS, EPSS, CWE, manifest path, timestamps, sanitized source URL | Reducer compares provider alerts to Eshu-owned dependency and impact evidence without treating provider state as canonical impact truth or copying private alert data into docs. |
 | SBOM and attestations | document subject, component inventory, verification and parse status | Reducer admits impact only when the subject is tied to an owned image, repository, or workload. |
 | Container images | digest, repository, tags, config, observed runtime references | Reducer keeps digest identity separate from weak or stale tag observations. |
 | Workloads and cloud/runtime state | deployment targets, images in use, service and environment evidence | Reducer connects package/image impact to deployed context only through explicit evidence. |
@@ -548,6 +548,19 @@ Provider-hosted alert parity is a validation gate, not a source of public test
 data. For supported hosts, private validation may compare Eshu findings against
 provider alerts for the same repositories and package ecosystems.
 
+`security_alert.repository_alert` facts preserve repository-scoped provider
+alert state from synthetic GitHub Dependabot fixtures. The
+`security_alert_reconciliation` reducer writes comparison rows with provider
+state and Eshu impact state as separate fields:
+
+- `matched` when the alert joins to owned dependency evidence and an Eshu
+  impact finding for the same package/advisory.
+- `unmatched` when the dependency is owned but no Eshu impact finding exists.
+- `stale` when newer owned dependency evidence no longer matches the alert's
+  manifest path.
+- `dismissed` or `fixed` when the provider reports that state.
+- `provider_only` when Eshu has no owned dependency evidence for the alert.
+
 Eshu should match provider alert counts when it has equivalent owned target
 evidence and advisory data. Eshu may exceed provider alert output when it can
 add code-to-cloud context, image/runtime impact, or additional advisory sources.
@@ -568,6 +581,7 @@ Security reads must be bounded, explainable, and scoped:
 - require at least one anchor such as repository, package, image digest,
   advisory id, service, workload, environment, or status;
 - keep findings separate from readiness and source facts;
+- keep provider alert state separate from Eshu impact state;
 - return evidence handles and missing-evidence reasons instead of raw full
   source payloads;
 - expose exact, derived, possible, known-fixed, unknown, and unsupported states

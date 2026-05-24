@@ -60,6 +60,7 @@ func TestReadOnlyTools(t *testing.T) {
 		"list_container_image_identities",
 		"list_supply_chain_impact_findings",
 		"explain_supply_chain_impact",
+		"list_security_alert_reconciliations",
 		"list_sbom_attestation_attachments",
 		"resolve_entity",
 		"get_file_content",

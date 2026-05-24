@@ -329,6 +329,9 @@ func buildReducerService(
 		SupplyChainImpactWriter: reducer.PostgresSupplyChainImpactWriter{
 			DB: database,
 		},
+		SecurityAlertReconciliationWriter: reducer.PostgresSecurityAlertReconciliationWriter{
+			DB: database,
+		},
 		PackageCorrelationWriter: reducer.PostgresPackageCorrelationWriter{
 			DB: database,
 		},

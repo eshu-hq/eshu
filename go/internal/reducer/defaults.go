@@ -118,6 +118,10 @@ type DefaultHandlers struct {
 	// explicit package, SBOM, image, and repository evidence paths.
 	SupplyChainImpactWriter SupplyChainImpactWriter
 
+	// SecurityAlertReconciliationWriter persists provider alert comparison
+	// state without promoting provider alerts into impact truth.
+	SecurityAlertReconciliationWriter SecurityAlertReconciliationWriter
+
 	// PackageCorrelationWriter persists package ownership candidates and
 	// manifest-backed consumption decisions for package-registry evidence.
 	PackageCorrelationWriter PackageCorrelationWriter
@@ -298,6 +302,15 @@ func implementedDefaultDomainDefinitions(handlers DefaultHandlers) []DomainDefin
 			Instruments: handlers.Instruments,
 		}
 		definitions = append(definitions, impact)
+	}
+	if handlers.FactLoader != nil && handlers.SecurityAlertReconciliationWriter != nil {
+		securityAlerts := securityAlertReconciliationDomainDefinition()
+		securityAlerts.Handler = SecurityAlertReconciliationHandler{
+			FactLoader:  handlers.FactLoader,
+			Writer:      handlers.SecurityAlertReconciliationWriter,
+			Instruments: handlers.Instruments,
+		}
+		definitions = append(definitions, securityAlerts)
 	}
 	if handlers.AWSCloudRuntimeDriftEvidenceLoader != nil &&
 		handlers.AWSCloudRuntimeDriftWriter != nil {

@@ -170,6 +170,19 @@ metadata such as cache artifact version, snapshot digest, update time,
 expiration, freshness, and cache mode; those fields describe source lifecycle
 only and must not be promoted into impact truth.
 
+Provider security alert fact kinds use schema version `1.0.0` for the first
+collector contract:
+
+- `security_alert.repository_alert`
+
+Use `SecurityAlertFactKinds` when callers need the accepted provider alert
+source fact set, and `SecurityAlertSchemaVersion` when building provider alert
+envelopes. These facts preserve provider-reported repository alert state,
+dependency coordinates, advisory IDs, severity, timestamps, and source URLs.
+They are source evidence only: reducers must reconcile them with Eshu-owned
+package consumption and vulnerability impact facts before any user-facing
+impact state is reported.
+
 Scanner-worker fact kinds use schema version `1.0.0` for the first isolated
 analyzer contract:
 

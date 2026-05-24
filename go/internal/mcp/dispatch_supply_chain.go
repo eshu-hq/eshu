@@ -36,6 +36,20 @@ func supplyChainImpactExplanationRoute(args map[string]any) *route {
 	}}
 }
 
+func securityAlertReconciliationsRoute(args map[string]any) *route {
+	return &route{method: "GET", path: "/api/v0/supply-chain/security-alerts/reconciliations", query: map[string]string{
+		"after_reconciliation_id": str(args, "after_reconciliation_id"),
+		"cve_id":                  str(args, "cve_id"),
+		"ghsa_id":                 str(args, "ghsa_id"),
+		"limit":                   strconv.Itoa(intOr(args, "limit", 50)),
+		"package_id":              str(args, "package_id"),
+		"provider":                str(args, "provider"),
+		"provider_state":          str(args, "provider_state"),
+		"reconciliation_status":   str(args, "reconciliation_status"),
+		"repository_id":           str(args, "repository_id"),
+	}}
+}
+
 func sbomAttestationAttachmentsRoute(args map[string]any) *route {
 	return &route{method: "GET", path: "/api/v0/supply-chain/sbom-attestations/attachments", query: map[string]string{
 		"after_attachment_id": str(args, "after_attachment_id"),
