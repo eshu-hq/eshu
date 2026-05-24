@@ -1,6 +1,9 @@
 # Security Intelligence Implementation Plan
 
-> **For agentic workers:** REQUIRED: Use superpowers:subagent-driven-development (if subagents available) or superpowers:executing-plans to implement this plan. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** Implement this plan one chunk at a time. Use
+> separate workers for independent chunks when available, keep each step tracked
+> with checkbox (`- [ ]`) syntax, and record the verification evidence before
+> marking a chunk complete.
 
 **Goal:** Build Eshu security intelligence so vulnerability impact answers are
 at least as complete as supported provider-hosted alerts when equivalent target

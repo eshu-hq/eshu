@@ -54,8 +54,9 @@ flowchart LR
   reducers --> reads
 ```
 
-The first security capability is vulnerability impact. Future capabilities can
-reuse the same target and readiness model without changing collector ownership.
+The first security capability is `supply_chain_impact`, Eshu's existing
+vulnerability impact finding surface. Future capabilities can reuse the same
+target and readiness model without changing collector ownership.
 
 ## Execution Modes
 
@@ -67,9 +68,9 @@ Security intelligence must work in two modes:
 | Local one-shot scan | Let a developer point the Eshu CLI at one repository and get vulnerability impact results without standing up the hosted control plane. | The CLI starts or attaches to local Eshu services, collects only the requested repository scope, fetches bounded advisory/package evidence, runs the same reducer-owned matching contract, and returns a local evidence envelope. |
 
 The local developer experience should feel like a direct vulnerability scan
-command. The candidate user-facing shape is eshu vuln-scan repo, but docs must
-not publish it as an implemented command until the Cobra command, tests, API
-contract, and local runtime proof exist.
+command. The candidate Eshu CLI subcommand shape is `vuln-scan repo`, but docs
+must not publish it as an implemented command until the Cobra command, tests,
+API contract, and local runtime proof exist.
 
 The local mode cannot be a separate truth engine. It should reuse the same
 facts, target model, readiness states, matching rules, severity enrichment, and
@@ -95,8 +96,9 @@ Security targets are evidence sources, not findings:
 
 Capabilities run over targets:
 
-- `vulnerability_impact`: determine affected, possibly affected,
-  known-fixed, unknown, and missing-evidence states.
+- `supply_chain_impact`: determine affected, possibly affected, known-fixed,
+  unknown, and missing-evidence states for vulnerability impact findings. This
+  is the capability behind the current supply-chain impact API and MCP reads.
 - `coverage_readiness`: explain which target families were collected,
   skipped, stale, unsupported, or incomplete.
 - `priority`: combine severity, exploitability, known exploitation, runtime
