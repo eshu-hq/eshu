@@ -417,6 +417,32 @@ vulnerability_source_snapshot AS (
         NULL::text AS source_states_json
     FROM vulnerability_source_snapshot_active
 ),
+vulnerability_source_state_candidates AS (
+    SELECT
+        collector_instance_id,
+        scope_id,
+        source,
+        ecosystem,
+        window_start,
+        window_end,
+        last_attempt_at,
+        last_success_at,
+        next_retry_at,
+        last_error_class,
+        freshness_state,
+        terminal_status,
+        result_count,
+        warning_count,
+        updated_at
+    FROM vulnerability_source_states
+    WHERE scope_id IN ($9, $10, $11, $12)
+       OR scope_id NOT LIKE 'vuln-intel://osv/%/%?version=%'
+    ORDER BY CASE WHEN scope_id IN ($9, $10, $11, $12) THEN 0 ELSE 1 END,
+        updated_at DESC,
+        source ASC,
+        scope_id ASC
+    LIMIT 200
+),
 vulnerability_source_state AS (
     SELECT
         'vulnerability.source_state' AS family,
@@ -451,7 +477,7 @@ vulnerability_source_state AS (
             ))) FILTER (WHERE scope_id IS NOT NULL),
             '[]'::jsonb
         )::text AS source_states_json
-    FROM vulnerability_source_states
+    FROM vulnerability_source_state_candidates
 )
 SELECT family, fact_count, latest_observed_at, target_incomplete, incomplete_reasons, source_snapshots_json, source_states_json FROM vulnerability_advisory
 UNION ALL SELECT family, fact_count, latest_observed_at, target_incomplete, incomplete_reasons, source_snapshots_json, source_states_json FROM vulnerability_exploitability

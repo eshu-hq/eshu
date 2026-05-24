@@ -226,7 +226,7 @@ const openAPIPathsSupplyChain = `
                         },
                         "missing_evidence": {"type": "array", "items": {"type": "string", "enum": ["advisory_sources", "owned_packages", "sbom_or_image_evidence", "target_collection_incomplete", "readiness_unavailable"]}},
                         "incomplete_reasons": {"type": "array", "items": {"type": "string"}, "description": "Collector-emitted reasons explaining why source collection is still in flight; only present when readiness_state is target_incomplete."},
-                        "freshness": {"type": "string", "enum": ["fresh", "stale", "unknown"]},
+                        "freshness": {"type": "string", "enum": ["fresh", "stale", "unknown", "pending", "rate_limited", "failed", "partial"]},
                         "counts": {
                           "type": "object",
                           "properties": {

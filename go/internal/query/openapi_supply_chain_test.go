@@ -64,6 +64,13 @@ func TestOpenAPISpecIncludesSupplyChainImpactFindings(t *testing.T) {
 	if _, ok := readinessProps["unsupported_targets"]; ok {
 		t.Fatalf("readiness.properties must not include unsupported_targets; field was dropped pending a real producer")
 	}
+	freshness := mustMapField(t, readinessProps, "freshness")
+	enum := mustStringSliceField(t, freshness, "enum")
+	for _, want := range []string{"fresh", "stale", "unknown", "pending", "rate_limited", "failed", "partial"} {
+		if !containsOpenAPIEnumString(enum, want) {
+			t.Fatalf("readiness.freshness enum = %#v, want %q", enum, want)
+		}
+	}
 }
 
 func TestOpenAPISpecIncludesContainerImageIdentities(t *testing.T) {
@@ -80,4 +87,30 @@ func TestOpenAPISpecIncludesContainerImageIdentities(t *testing.T) {
 	if got, want := get["operationId"], "listContainerImageIdentities"; got != want {
 		t.Fatalf("operationId = %#v, want %#v", got, want)
 	}
+}
+
+func mustStringSliceField(t *testing.T, m map[string]any, key string) []string {
+	t.Helper()
+	values, ok := m[key].([]any)
+	if !ok {
+		t.Fatalf("%s = %T, want []any", key, m[key])
+	}
+	out := make([]string, 0, len(values))
+	for _, value := range values {
+		text, ok := value.(string)
+		if !ok {
+			t.Fatalf("%s element = %T, want string", key, value)
+		}
+		out = append(out, text)
+	}
+	return out
+}
+
+func containsOpenAPIEnumString(values []string, want string) bool {
+	for _, value := range values {
+		if value == want {
+			return true
+		}
+	}
+	return false
 }

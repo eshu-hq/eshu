@@ -217,7 +217,8 @@ match yet`:
   source collection is still in flight; only populated when
   `readiness_state` is `target_incomplete`.
 - `freshness` aggregates per-family freshness and source target state into one
-  label.
+  label. Values are `fresh`, `stale`, `unknown`, `pending`, `rate_limited`,
+  `failed`, or `partial`.
 - `counts` reports `findings_returned`, `findings_truncated`,
   `findings_by_status`, and `evidence_facts_total`. `findings_returned` and
   `findings_by_status` describe the returned page only; combine with
