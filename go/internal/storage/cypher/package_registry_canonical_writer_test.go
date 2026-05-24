@@ -25,6 +25,11 @@ func TestCanonicalNodeWriterBuildsPackageRegistryStatements(t *testing.T) {
 			NormalizedName:      "@scope/pkg",
 			Namespace:           "scope",
 			Classifier:          "library",
+			PURL:                "pkg:npm/%40scope/pkg",
+			BOMRef:              "pkg:npm/%40scope/pkg",
+			PackageManager:      "npm",
+			SourcePath:          "package.json",
+			SourceSpecificID:    "npm:@scope/pkg",
 			Visibility:          "public",
 			SourceFactID:        "package-registry-package-1",
 			StableFactKey:       "package://npm/registry.npmjs.org/@scope/pkg",
@@ -41,6 +46,9 @@ func TestCanonicalNodeWriterBuildsPackageRegistryStatements(t *testing.T) {
 			Ecosystem:           "npm",
 			Registry:            "https://registry.npmjs.org",
 			Version:             "1.2.3",
+			PURL:                "pkg:npm/%40scope/pkg@1.2.3",
+			BOMRef:              "pkg:npm/%40scope/pkg@1.2.3",
+			PackageManager:      "npm",
 			PublishedAt:         time.Date(2026, time.May, 13, 13, 0, 0, 0, time.UTC),
 			ArtifactURLs:        []string{"https://registry.npmjs.org/@scope/pkg/-/pkg-1.2.3.tgz"},
 			Checksums:           map[string]string{"sha512": "sha512-test"},
@@ -62,6 +70,9 @@ func TestCanonicalNodeWriterBuildsPackageRegistryStatements(t *testing.T) {
 			DependencyEcosystem:  "npm",
 			DependencyRegistry:   "https://registry.npmjs.org",
 			DependencyNormalized: "left-pad",
+			DependencyPURL:       "pkg:npm/left-pad",
+			DependencyBOMRef:     "pkg:npm/left-pad",
+			DependencyManager:    "npm",
 			DependencyRange:      "^1.3.0",
 			DependencyType:       "runtime",
 			TargetFramework:      "node18",
@@ -96,6 +107,21 @@ func TestCanonicalNodeWriterBuildsPackageRegistryStatements(t *testing.T) {
 	if got, want := pkg.Parameters[StatementMetadataPhaseKey], canonicalPhasePackageRegistryPackages; got != want {
 		t.Fatalf("package phase = %#v, want %#v", got, want)
 	}
+	packageRows := pkg.Parameters["rows"].([]map[string]any)
+	if got, want := packageRows[0]["purl"], "pkg:npm/%40scope/pkg"; got != want {
+		t.Fatalf("package row purl = %#v, want %#v", got, want)
+	}
+	for _, fragment := range []string{
+		"p.purl = row.purl",
+		"p.bom_ref = row.bom_ref",
+		"p.package_manager = row.package_manager",
+		"p.source_path = row.source_path",
+		"p.source_specific_id = row.source_specific_id",
+	} {
+		if !strings.Contains(pkg.Cypher, fragment) {
+			t.Fatalf("package Cypher = %q, want fragment %q", pkg.Cypher, fragment)
+		}
+	}
 
 	version := statements[1]
 	if !strings.Contains(version.Cypher, "MATCH (p:Package {uid: row.package_id})") {
@@ -110,6 +136,19 @@ func TestCanonicalNodeWriterBuildsPackageRegistryStatements(t *testing.T) {
 	if strings.Contains(version.Cypher, "SourceHint") || strings.Contains(version.Cypher, "Repository") {
 		t.Fatalf("version Cypher = %q, must not promote source hints to ownership", version.Cypher)
 	}
+	versionRows := version.Parameters["rows"].([]map[string]any)
+	if got, want := versionRows[0]["purl"], "pkg:npm/%40scope/pkg@1.2.3"; got != want {
+		t.Fatalf("version row purl = %#v, want %#v", got, want)
+	}
+	for _, fragment := range []string{
+		"v.purl = row.purl",
+		"v.bom_ref = row.bom_ref",
+		"v.package_manager = row.package_manager",
+	} {
+		if !strings.Contains(version.Cypher, fragment) {
+			t.Fatalf("version Cypher = %q, want fragment %q", version.Cypher, fragment)
+		}
+	}
 
 	dependencyTargets := statements[2]
 	if !strings.Contains(dependencyTargets.Cypher, "MERGE (target:Package:PackageRegistryPackage {uid: row.dependency_package_id})") {
@@ -117,6 +156,10 @@ func TestCanonicalNodeWriterBuildsPackageRegistryStatements(t *testing.T) {
 	}
 	if strings.Contains(dependencyTargets.Cypher, "\nSET target.") {
 		t.Fatalf("dependency target Cypher = %q, must not overwrite observed target package properties", dependencyTargets.Cypher)
+	}
+	targetRows := dependencyTargets.Parameters["rows"].([]map[string]any)
+	if got, want := targetRows[0]["dependency_purl"], "pkg:npm/left-pad"; got != want {
+		t.Fatalf("dependency target row purl = %#v, want %#v", got, want)
 	}
 
 	dependency := statements[3]
@@ -126,6 +169,9 @@ func TestCanonicalNodeWriterBuildsPackageRegistryStatements(t *testing.T) {
 		"MERGE (v)-[declares:DECLARES_DEPENDENCY]->(d)",
 		"MERGE (d)-[depends:DEPENDS_ON_PACKAGE]->(target)",
 		"dependency_type = row.dependency_type",
+		"dependency_purl = row.dependency_purl",
+		"dependency_bom_ref = row.dependency_bom_ref",
+		"dependency_manager = row.dependency_manager",
 		"target_framework = row.target_framework",
 		"marker = row.marker",
 	} {

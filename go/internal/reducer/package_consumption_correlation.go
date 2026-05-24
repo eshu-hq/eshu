@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/packageidentity"
 )
 
 // PackageConsumptionOutcome names the reducer decision for a repository
@@ -77,17 +78,15 @@ func BuildPackageConsumptionDecisions(envelopes []facts.Envelope) []PackageConsu
 	identityByKey := make(map[string]packageRegistryIdentity)
 	for _, identity := range identities {
 		for _, name := range identity.Names {
-			key := packageConsumptionKey(identity.Ecosystem, name)
-			if key == "" {
-				continue
+			for _, key := range packageConsumptionKeys(identity.Ecosystem, name) {
+				identityByKey[key] = identity
 			}
-			identityByKey[key] = identity
 		}
 	}
 
 	decisions := make([]PackageConsumptionDecision, 0)
 	for _, dependency := range dependencies {
-		identity, ok := identityByKey[packageConsumptionKey(dependency.PackageManager, dependency.DependencyName)]
+		identity, ok := packageConsumptionIdentityForDependency(identityByKey, dependency)
 		if !ok {
 			continue
 		}
@@ -317,13 +316,87 @@ func normalizePackageManifestDependencyChain(dependency packageManifestDependenc
 	return dependency
 }
 
-func packageConsumptionKey(ecosystem, packageName string) string {
-	ecosystem = strings.ToLower(strings.TrimSpace(ecosystem))
-	packageName = strings.ToLower(strings.TrimSpace(packageName))
-	if ecosystem == "" || packageName == "" {
-		return ""
+func packageConsumptionIdentityForDependency(
+	identityByKey map[string]packageRegistryIdentity,
+	dependency packageManifestDependency,
+) (packageRegistryIdentity, bool) {
+	for _, key := range packageConsumptionKeys(dependency.PackageManager, dependency.DependencyName) {
+		identity, ok := identityByKey[key]
+		if ok {
+			return identity, true
+		}
 	}
-	return ecosystem + "\x00" + packageName
+	return packageRegistryIdentity{}, false
+}
+
+func packageConsumptionKeys(ecosystem string, packageNames ...string) []string {
+	normalizedEcosystem := packageidentity.NormalizeEcosystem(packageidentity.Ecosystem(ecosystem))
+	if normalizedEcosystem == "" {
+		return nil
+	}
+	keys := make([]string, 0, len(packageNames))
+	for _, packageName := range packageNames {
+		for _, candidate := range packageConsumptionNameCandidates(normalizedEcosystem, packageName) {
+			keys = append(keys, string(normalizedEcosystem)+"\x00"+candidate)
+		}
+	}
+	return uniqueSortedStrings(keys)
+}
+
+func packageConsumptionNameCandidates(
+	ecosystem packageidentity.Ecosystem,
+	packageName string,
+) []string {
+	packageName = strings.TrimSpace(packageName)
+	if packageName == "" {
+		return nil
+	}
+	normalizedName, ok := packageConsumptionNormalizedName(ecosystem, packageName)
+	candidates := make([]string, 0, 2)
+	if ok {
+		candidates = append(candidates, normalizedName)
+	}
+	candidates = append(candidates, strings.ToLower(packageName))
+	return uniqueSortedStrings(candidates)
+}
+
+func packageConsumptionNormalizedName(
+	ecosystem packageidentity.Ecosystem,
+	packageName string,
+) (string, bool) {
+	rawName, namespace := packageConsumptionRawNameAndNamespace(ecosystem, packageName)
+	identity, err := packageidentity.Normalize(packageidentity.RawIdentity{
+		Ecosystem:      ecosystem,
+		Registry:       "manifest.local",
+		RawName:        rawName,
+		Namespace:      namespace,
+		PackageManager: string(ecosystem),
+	})
+	if err != nil {
+		return "", false
+	}
+	if namespace != "" {
+		return strings.TrimRight(namespace, "/") + "/" + strings.TrimLeft(identity.NormalizedName, "/"), true
+	}
+	return identity.NormalizedName, true
+}
+
+func packageConsumptionRawNameAndNamespace(
+	ecosystem packageidentity.Ecosystem,
+	packageName string,
+) (string, string) {
+	packageName = strings.TrimSpace(packageName)
+	if ecosystem != packageidentity.EcosystemMaven {
+		return packageName, ""
+	}
+	namespace, name, ok := strings.Cut(packageName, ":")
+	if !ok {
+		namespace, name, ok = strings.Cut(packageName, "/")
+	}
+	if !ok {
+		return packageName, ""
+	}
+	return strings.TrimSpace(name), strings.TrimSpace(namespace)
 }
 
 func packageManifestDependencyFilter(envelopes []facts.Envelope) PackageManifestDependencyFactFilter {

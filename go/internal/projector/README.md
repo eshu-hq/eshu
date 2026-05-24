@@ -145,7 +145,10 @@ driver directly.
 Package-registry facts are projected only for stable ecosystem identity and
 package-native dependency truth: `PackageRegistryPackageRow`,
 `PackageRegistryVersionRow`, and `PackageRegistryDependencyRow` create package,
-version, and dependency nodes. `package_registry.source_hint` remains
+version, and dependency nodes. Those rows preserve package ID, PURL, BOMRef,
+package manager, and source-debug fields so reducers and read surfaces can
+explain identity joins without re-parsing collector payloads.
+`package_registry.source_hint` remains
 provenance-only until reducer correlation proves ownership, publication, or
 consumption.
 When a generation contains package identity or source hints,

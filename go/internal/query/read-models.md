@@ -48,6 +48,10 @@ ecosystem, or version anchor, dependency lookup requires `package_id` or
 dependency truth only; correlation routes expose reducer-owned ownership
 candidates, provenance-only publication evidence, and admitted manifest-backed
 consumption without letting package source hints become ownership truth.
+Package, version, and dependency reads return normalized identity fields
+(`purl`, `bom_ref`, package manager, and source-debug fields) from already
+materialized graph properties; they do not add whole-graph scans or source
+payload re-parsing.
 Package dependency reads start from `PackageDependency.package_id` or
 `PackageDependency.version_id` before traversing to target packages, so sparse
 packages with many versions but no dependency rows return an empty bounded page
@@ -80,6 +84,13 @@ truth envelope metadata, and response `count/limit/truncated` fields. Empty
 dependency data is distinguishable from a slow or failed graph path by the
 successful HTTP status, exact truth envelope, and `count=0,truncated=false`
 payload.
+No-Regression Evidence: `go test ./internal/query -run 'TestPackageRegistryList(PackagesUsesIndexedPackageScopeAndTruncates|VersionsUsesPackageUIDAnchor|DependenciesUsesPackageOrVersionAnchor)' -count=1`
+proves package-registry reads return the new identity fields from bounded
+package, version, and dependency query shapes.
+No-Observability-Change: the read handlers use the same request spans,
+GraphQuery spans, HTTP status/error path, truth envelope, limit, count, and
+truncated fields; added identity properties do not create new worker lanes,
+queues, or graph traversal paths.
 `CICDHandler` (`ci_cd.go:16`) reads reducer-owned CI/CD run correlation facts
 from Postgres. It requires an explicit scope, repository, commit, provider-run,
 artifact-digest, or environment anchor plus `limit`, and it keeps CI success,

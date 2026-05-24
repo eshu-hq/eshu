@@ -34,6 +34,21 @@ func TestBuildCanonicalMaterializationExtractsPackageRegistryRows(t *testing.T) 
 	if got, want := pkg.Visibility, "public"; got != want {
 		t.Fatalf("package Visibility = %q, want %q", got, want)
 	}
+	if got, want := pkg.PURL, "pkg:npm/%40scope/pkg"; got != want {
+		t.Fatalf("package PURL = %q, want %q", got, want)
+	}
+	if got, want := pkg.BOMRef, "pkg:npm/%40scope/pkg"; got != want {
+		t.Fatalf("package BOMRef = %q, want %q", got, want)
+	}
+	if got, want := pkg.PackageManager, "npm"; got != want {
+		t.Fatalf("package PackageManager = %q, want %q", got, want)
+	}
+	if got, want := pkg.SourcePath, "package.json"; got != want {
+		t.Fatalf("package SourcePath = %q, want %q", got, want)
+	}
+	if got, want := pkg.SourceSpecificID, "npm:@scope/pkg"; got != want {
+		t.Fatalf("package SourceSpecificID = %q, want %q", got, want)
+	}
 
 	if got, want := len(result.PackageRegistryVersions), 1; got != want {
 		t.Fatalf("len(PackageRegistryVersions) = %d, want %d", got, want)
@@ -47,6 +62,15 @@ func TestBuildCanonicalMaterializationExtractsPackageRegistryRows(t *testing.T) 
 	}
 	if got, want := version.Version, "1.2.3"; got != want {
 		t.Fatalf("version Version = %q, want %q", got, want)
+	}
+	if got, want := version.PURL, "pkg:npm/%40scope/pkg@1.2.3"; got != want {
+		t.Fatalf("version PURL = %q, want %q", got, want)
+	}
+	if got, want := version.BOMRef, "pkg:npm/%40scope/pkg@1.2.3"; got != want {
+		t.Fatalf("version BOMRef = %q, want %q", got, want)
+	}
+	if got, want := version.PackageManager, "npm"; got != want {
+		t.Fatalf("version PackageManager = %q, want %q", got, want)
 	}
 	if !version.PublishedAt.Equal(packageRegistryPublishedAt()) {
 		t.Fatalf("version PublishedAt = %s, want %s", version.PublishedAt, packageRegistryPublishedAt())
@@ -74,6 +98,15 @@ func TestBuildCanonicalMaterializationExtractsPackageRegistryDependencies(t *tes
 	}
 	if got, want := dependency.DependencyPackageID, "package://npm/registry.npmjs.org/left-pad"; got != want {
 		t.Fatalf("dependency DependencyPackageID = %q, want %q", got, want)
+	}
+	if got, want := dependency.DependencyPURL, "pkg:npm/left-pad"; got != want {
+		t.Fatalf("dependency DependencyPURL = %q, want %q", got, want)
+	}
+	if got, want := dependency.DependencyBOMRef, "pkg:npm/left-pad"; got != want {
+		t.Fatalf("dependency DependencyBOMRef = %q, want %q", got, want)
+	}
+	if got, want := dependency.DependencyManager, "npm"; got != want {
+		t.Fatalf("dependency DependencyManager = %q, want %q", got, want)
 	}
 	if got, want := dependency.DependencyType, "runtime"; got != want {
 		t.Fatalf("dependency DependencyType = %q, want %q", got, want)
@@ -191,6 +224,11 @@ func packageRegistryFacts() []facts.Envelope {
 				"namespace":             "scope",
 				"classifier":            "library",
 				"package_id":            packageRegistryPackageID(),
+				"purl":                  "pkg:npm/%40scope/pkg",
+				"bom_ref":               "pkg:npm/%40scope/pkg",
+				"package_manager":       "npm",
+				"source_path":           "package.json",
+				"source_specific_id":    "npm:@scope/pkg",
 				"visibility":            "public",
 				"correlation_anchors": []any{
 					packageRegistryPackageID(),
@@ -220,6 +258,9 @@ func packageRegistryFacts() []facts.Envelope {
 				"package_id":            packageRegistryPackageID(),
 				"version_id":            packageRegistryVersionID(),
 				"version":               "1.2.3",
+				"purl":                  "pkg:npm/%40scope/pkg@1.2.3",
+				"bom_ref":               "pkg:npm/%40scope/pkg@1.2.3",
+				"package_manager":       "npm",
 				"published_at":          packageRegistryPublishedAt().Format(time.RFC3339),
 				"is_yanked":             false,
 				"is_unlisted":           false,
@@ -295,6 +336,9 @@ func packageRegistryDependencyFact() facts.Envelope {
 			"dependency_registry":   "https://registry.npmjs.org",
 			"dependency_namespace":  "",
 			"dependency_normalized": "left-pad",
+			"dependency_purl":       "pkg:npm/left-pad",
+			"dependency_bom_ref":    "pkg:npm/left-pad",
+			"dependency_manager":    "npm",
 			"dependency_range":      "^1.3.0",
 			"dependency_type":       "runtime",
 			"target_framework":      "node18",

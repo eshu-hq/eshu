@@ -74,6 +74,11 @@ updater check whether a saved packet is stale before publishing a diff.
 Package registry routes expose identity materialized from package registry
 facts. They do not claim repository ownership, publication ownership, or
 runtime consumption truth unless reducer correlation admits that relationship.
+Package and version responses include the normalized package identity plus
+source-explanation fields: `purl`, `bom_ref`, `package_manager`,
+`source_path`, and `source_specific_id` when the collector source supplies
+them. Dependency responses expose the same identity shape for dependency
+targets as `dependency_purl`, `dependency_bom_ref`, and `dependency_manager`.
 
 - `GET /api/v0/package-registry/packages`
 - `GET /api/v0/package-registry/versions`

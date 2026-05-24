@@ -36,6 +36,11 @@ type PackageRegistryPackageResult struct {
 	Registry         string `json:"registry,omitempty"`
 	Namespace        string `json:"namespace,omitempty"`
 	NormalizedName   string `json:"normalized_name,omitempty"`
+	PURL             string `json:"purl,omitempty"`
+	BOMRef           string `json:"bom_ref,omitempty"`
+	PackageManager   string `json:"package_manager,omitempty"`
+	SourcePath       string `json:"source_path,omitempty"`
+	SourceSpecificID string `json:"source_specific_id,omitempty"`
 	Visibility       string `json:"visibility,omitempty"`
 	SourceConfidence string `json:"source_confidence,omitempty"`
 	VersionCount     int    `json:"version_count"`
@@ -44,14 +49,17 @@ type PackageRegistryPackageResult struct {
 // PackageRegistryVersionResult is one package version identity materialized
 // from registry facts.
 type PackageRegistryVersionResult struct {
-	VersionID    string `json:"version_id"`
-	PackageID    string `json:"package_id"`
-	Version      string `json:"version,omitempty"`
-	PublishedAt  string `json:"published_at,omitempty"`
-	IsYanked     bool   `json:"is_yanked"`
-	IsUnlisted   bool   `json:"is_unlisted"`
-	IsDeprecated bool   `json:"is_deprecated"`
-	IsRetracted  bool   `json:"is_retracted"`
+	VersionID      string `json:"version_id"`
+	PackageID      string `json:"package_id"`
+	Version        string `json:"version,omitempty"`
+	PURL           string `json:"purl,omitempty"`
+	BOMRef         string `json:"bom_ref,omitempty"`
+	PackageManager string `json:"package_manager,omitempty"`
+	PublishedAt    string `json:"published_at,omitempty"`
+	IsYanked       bool   `json:"is_yanked"`
+	IsUnlisted     bool   `json:"is_unlisted"`
+	IsDeprecated   bool   `json:"is_deprecated"`
+	IsRetracted    bool   `json:"is_retracted"`
 }
 
 // PackageRegistryDependencyResult is one package-native dependency edge
@@ -66,6 +74,9 @@ type PackageRegistryDependencyResult struct {
 	DependencyRegistry   string   `json:"dependency_registry,omitempty"`
 	DependencyNamespace  string   `json:"dependency_namespace,omitempty"`
 	DependencyNormalized string   `json:"dependency_normalized,omitempty"`
+	DependencyPURL       string   `json:"dependency_purl,omitempty"`
+	DependencyBOMRef     string   `json:"dependency_bom_ref,omitempty"`
+	DependencyManager    string   `json:"dependency_manager,omitempty"`
 	DependencyRange      string   `json:"dependency_range,omitempty"`
 	DependencyType       string   `json:"dependency_type,omitempty"`
 	TargetFramework      string   `json:"target_framework,omitempty"`
@@ -152,6 +163,11 @@ func (h *PackageRegistryHandler) listPackages(w http.ResponseWriter, r *http.Req
 			Registry:         StringVal(row, "registry"),
 			Namespace:        StringVal(row, "namespace"),
 			NormalizedName:   StringVal(row, "normalized_name"),
+			PURL:             StringVal(row, "purl"),
+			BOMRef:           StringVal(row, "bom_ref"),
+			PackageManager:   StringVal(row, "package_manager"),
+			SourcePath:       StringVal(row, "source_path"),
+			SourceSpecificID: StringVal(row, "source_specific_id"),
 			Visibility:       StringVal(row, "visibility"),
 			SourceConfidence: StringVal(row, "source_confidence"),
 			VersionCount:     IntVal(row, "version_count"),
@@ -220,14 +236,17 @@ func (h *PackageRegistryHandler) listVersions(w http.ResponseWriter, r *http.Req
 	results := make([]PackageRegistryVersionResult, 0, len(rows))
 	for _, row := range rows {
 		results = append(results, PackageRegistryVersionResult{
-			VersionID:    StringVal(row, "version_id"),
-			PackageID:    StringVal(row, "package_id"),
-			Version:      StringVal(row, "version"),
-			PublishedAt:  packageRegistryTimestampVal(row, "published_at"),
-			IsYanked:     BoolVal(row, "is_yanked"),
-			IsUnlisted:   BoolVal(row, "is_unlisted"),
-			IsDeprecated: BoolVal(row, "is_deprecated"),
-			IsRetracted:  BoolVal(row, "is_retracted"),
+			VersionID:      StringVal(row, "version_id"),
+			PackageID:      StringVal(row, "package_id"),
+			Version:        StringVal(row, "version"),
+			PURL:           StringVal(row, "purl"),
+			BOMRef:         StringVal(row, "bom_ref"),
+			PackageManager: StringVal(row, "package_manager"),
+			PublishedAt:    packageRegistryTimestampVal(row, "published_at"),
+			IsYanked:       BoolVal(row, "is_yanked"),
+			IsUnlisted:     BoolVal(row, "is_unlisted"),
+			IsDeprecated:   BoolVal(row, "is_deprecated"),
+			IsRetracted:    BoolVal(row, "is_retracted"),
 		})
 	}
 	WriteSuccess(w, r, http.StatusOK, map[string]any{
@@ -315,6 +334,9 @@ func (h *PackageRegistryHandler) listDependencies(w http.ResponseWriter, r *http
 			DependencyRegistry:   StringVal(row, "dependency_registry"),
 			DependencyNamespace:  StringVal(row, "dependency_namespace"),
 			DependencyNormalized: StringVal(row, "dependency_normalized"),
+			DependencyPURL:       StringVal(row, "dependency_purl"),
+			DependencyBOMRef:     StringVal(row, "dependency_bom_ref"),
+			DependencyManager:    StringVal(row, "dependency_manager"),
 			DependencyRange:      StringVal(row, "dependency_range"),
 			DependencyType:       StringVal(row, "dependency_type"),
 			TargetFramework:      StringVal(row, "target_framework"),
@@ -399,103 +421,4 @@ func requiredPackageRegistryLimit(w http.ResponseWriter, r *http.Request) (int, 
 		return 0, false
 	}
 	return limit, true
-}
-
-func packageRegistryPackagesCypher(packageID, ecosystem, name string, limit int) (string, map[string]any) {
-	params := map[string]any{"limit": limit}
-	var match string
-	switch {
-	case packageID != "":
-		match = "MATCH (p:Package {uid: $package_id})"
-		params["package_id"] = packageID
-	case name != "":
-		match = "MATCH (p:Package {ecosystem: $ecosystem, normalized_name: $name})"
-		params["ecosystem"] = ecosystem
-		params["name"] = name
-	default:
-		match = "MATCH (p:Package {ecosystem: $ecosystem})"
-		params["ecosystem"] = ecosystem
-	}
-	return match + `
-OPTIONAL MATCH (p)-[:HAS_VERSION]->(v:PackageVersion)
-RETURN p.uid AS package_id,
-       p.ecosystem AS ecosystem,
-       p.registry AS registry,
-       p.namespace AS namespace,
-       p.normalized_name AS normalized_name,
-       p.visibility AS visibility,
-       p.source_confidence AS source_confidence,
-       count(v) AS version_count
-ORDER BY p.ecosystem, p.normalized_name, p.uid
-LIMIT $limit`, params
-}
-
-func packageRegistryVersionsCypher() string {
-	return `MATCH (p:Package {uid: $package_id})-[:HAS_VERSION]->(v:PackageVersion)
-RETURN v.uid AS version_id,
-       v.package_id AS package_id,
-       v.version AS version,
-       v.published_at AS published_at,
-       coalesce(v.is_yanked, false) AS is_yanked,
-       coalesce(v.is_unlisted, false) AS is_unlisted,
-       coalesce(v.is_deprecated, false) AS is_deprecated,
-       coalesce(v.is_retracted, false) AS is_retracted
-ORDER BY v.version, v.uid
-LIMIT $limit`
-}
-
-func packageRegistryDependenciesCypher(
-	packageID,
-	versionID,
-	afterVersionID,
-	afterDependencyID string,
-	limit int,
-) (string, map[string]any) {
-	params := map[string]any{
-		"after_dependency_id": afterDependencyID,
-		"after_version_id":    afterVersionID,
-		"limit":               limit,
-		"package_id":          packageID,
-		"version_id":          versionID,
-	}
-	var match string
-	switch {
-	case versionID != "":
-		match = `MATCH (d:PackageDependency)
-WHERE d.version_id = $version_id`
-	default:
-		match = `MATCH (d:PackageDependency)
-WHERE d.package_id = $package_id`
-	}
-	return match + `
-WITH d
-MATCH (d)-[:DEPENDS_ON_PACKAGE]->(target:Package)
-WHERE d.uid IS NOT NULL AND d.uid <> ''
-  AND d.package_id IS NOT NULL AND d.package_id <> ''
-  AND d.version_id IS NOT NULL AND d.version_id <> ''
-  AND target.uid IS NOT NULL AND target.uid <> ''
-  AND ($package_id = '' OR d.package_id = $package_id)
-  AND ($version_id = '' OR d.version_id = $version_id)
-  AND ($after_version_id = '' OR d.version_id > $after_version_id OR (d.version_id = $after_version_id AND d.uid > $after_dependency_id))
-RETURN d.uid AS dependency_id,
-       d.package_id AS source_package_id,
-       d.version_id AS source_version_id,
-       d.version AS version,
-       target.uid AS dependency_package_id,
-       d.dependency_ecosystem AS dependency_ecosystem,
-       d.dependency_registry AS dependency_registry,
-       d.dependency_namespace AS dependency_namespace,
-       d.dependency_normalized AS dependency_normalized,
-       d.dependency_range AS dependency_range,
-       d.dependency_type AS dependency_type,
-       d.target_framework AS target_framework,
-       d.marker AS marker,
-       coalesce(d.optional, false) AS optional,
-       coalesce(d.excluded, false) AS excluded,
-       d.source_confidence AS source_confidence,
-       d.collector_kind AS collector_kind,
-       d.collector_instance_id AS collector_instance_id,
-       d.correlation_anchors AS correlation_anchors
-ORDER BY d.version_id, d.uid
-LIMIT $limit`, params
 }

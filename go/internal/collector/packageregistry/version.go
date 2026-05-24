@@ -11,13 +11,15 @@ import (
 // NewPackageVersionEnvelope builds the durable package version fact for one
 // registry observation.
 func NewPackageVersionEnvelope(observation PackageVersionObservation) (facts.Envelope, error) {
-	normalized, err := NormalizePackageIdentity(observation.Package)
-	if err != nil {
-		return facts.Envelope{}, err
-	}
 	version := strings.TrimSpace(observation.Version)
 	if version == "" {
 		return facts.Envelope{}, fmt.Errorf("package version must not be blank")
+	}
+	identity := observation.Package
+	identity.Version = version
+	normalized, err := NormalizePackageIdentity(identity)
+	if err != nil {
+		return facts.Envelope{}, err
 	}
 	if observation.ScopeID == "" {
 		return facts.Envelope{}, fmt.Errorf("package version observation scope_id must not be blank")
@@ -41,13 +43,16 @@ func NewPackageVersionEnvelope(observation PackageVersionObservation) (facts.Env
 		"package_id":            normalized.PackageID,
 		"version_id":            versionID,
 		"version":               version,
+		"purl":                  normalized.PURL,
+		"bom_ref":               normalized.BOMRef,
+		"package_manager":       normalized.PackageManager,
 		"is_yanked":             observation.Yanked,
 		"is_unlisted":           observation.Unlisted,
 		"is_deprecated":         observation.Deprecated,
 		"is_retracted":          observation.Retracted,
 		"artifact_urls":         cloneStrings(observation.ArtifactURLs),
 		"checksums":             cloneStringMap(observation.Checksums),
-		"correlation_anchors":   correlationAnchors(normalized.PackageID, versionID),
+		"correlation_anchors":   correlationAnchors(normalized.PackageID, versionID, normalized.PURL, normalized.BOMRef),
 	}
 	if !observation.PublishedAt.IsZero() {
 		payload["published_at"] = observation.PublishedAt.UTC().Format(time.RFC3339)

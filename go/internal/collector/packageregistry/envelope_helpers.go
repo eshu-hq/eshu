@@ -86,13 +86,14 @@ func validateObservationBoundary(scopeID, generationID, collectorInstanceID, nou
 }
 
 func packageVersionID(identity PackageIdentity, version, noun string) (NormalizedPackageIdentity, string, string, error) {
-	normalized, err := NormalizePackageIdentity(identity)
-	if err != nil {
-		return NormalizedPackageIdentity{}, "", "", err
-	}
 	trimmedVersion := strings.TrimSpace(version)
 	if trimmedVersion == "" {
 		return NormalizedPackageIdentity{}, "", "", fmt.Errorf("%s version must not be blank", noun)
+	}
+	identity.Version = trimmedVersion
+	normalized, err := NormalizePackageIdentity(identity)
+	if err != nil {
+		return NormalizedPackageIdentity{}, "", "", err
 	}
 	return normalized, trimmedVersion, normalized.PackageID + "@" + trimmedVersion, nil
 }
@@ -101,11 +102,12 @@ func optionalPackageVersionID(
 	identity PackageIdentity,
 	version string,
 ) (NormalizedPackageIdentity, string, string, error) {
+	trimmedVersion := strings.TrimSpace(version)
+	identity.Version = trimmedVersion
 	normalized, err := NormalizePackageIdentity(identity)
 	if err != nil {
 		return NormalizedPackageIdentity{}, "", "", err
 	}
-	trimmedVersion := strings.TrimSpace(version)
 	versionID := ""
 	if trimmedVersion != "" {
 		versionID = normalized.PackageID + "@" + trimmedVersion
