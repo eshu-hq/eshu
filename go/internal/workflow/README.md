@@ -153,8 +153,18 @@ one bounded work item per configured package/feed target, and the
 configured metadata endpoint before parsing package-native evidence. Targets
 may opt into `document_format=artifactory_package` when the response is a
 JFrog wrapper around native metadata; unknown document formats are rejected
-before planning. Package registry instances are fact-only until reducer
-correlation and graph projection contracts land.
+before planning. Targets may also opt into `derive_from_owned_packages` for
+bounded npm package metadata planning from active owned Git dependency facts.
+Package registry instances are fact-only until reducer correlation and graph
+projection contracts land.
+
+`vulnerability_intelligence` collector instances are claim-capable. The
+coordinator plans one bounded work item per configured vulnerability source
+target. When `derive_from_owned_packages.enabled=true`, the planner can derive
+OSV npm package-version targets from active owned dependency facts only when
+the dependency carries an exact version. Manifest ranges, aliases, workspace
+references, file/git references, and `latest` remain partial evidence and are
+not promoted into OSV package-version collection targets.
 
 `aws` collector instances are claim-capable. The coordinator plans one bounded
 work item per authorized `(account_id, region, service_kind)` tuple, and the
@@ -237,6 +247,26 @@ Observability Evidence: no new metrics were required. Existing
 `eshu_dp_aws_tag_observations_emitted_total`, AWS runtime-drift reducer logs,
 and `/api/v0/index-status` separate collector completion, fact emission, scan
 health, drift read-model publication, and future graph-readiness gaps.
+
+No-Regression Evidence: the owned package target derivation contract is covered
+by `go test ./internal/coordinator ./internal/workflow ./internal/storage/postgres ./internal/collector/packageregistry/packageruntime ./internal/collector/vulnerabilityintelligence/vulnruntime ./cmd/workflow-coordinator ./cmd/collector-package-registry ./cmd/collector-vulnerability-intelligence -count=1`.
+The test set proves package-registry planning derives unique npm metadata
+targets from active owned package evidence, vulnerability planning derives OSV
+targets only for exact owned npm versions, range and alias dependencies stay
+out of exact vulnerability collection, the coordinator passes active owned
+dependency rows to both planners, and both hosted collector commands parse the
+new derivation config. Planning remains bounded by
+`derive_from_owned_packages.target_limit` with a default cap of 100 derived
+targets and does not change worker counts, claim leases, graph writes, reducer
+queues, or NornicDB settings.
+
+Observability Evidence: no new metrics were required. Existing workflow run
+rows, work-item rows, `requested_scope_set` payloads, coordinator reconcile
+metrics, collector claim status, package-registry request/fact/rate-limit
+metrics, vulnerability-intelligence observation/fetch/fact metrics, and
+`/api/v0/index-status` expose planned, skipped, rate-limited, failed, completed,
+and stuck target states without putting package names, versions, feed URLs, or
+credential material in metric labels.
 
 ## Extension points
 

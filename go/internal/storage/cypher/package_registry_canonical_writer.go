@@ -9,9 +9,10 @@ import (
 )
 
 const (
-	canonicalPhasePackageRegistryPackages     = "package_registry_packages"
-	canonicalPhasePackageRegistryVersions     = "package_registry_versions"
-	canonicalPhasePackageRegistryDependencies = "package_registry_dependencies"
+	canonicalPhasePackageRegistryPackages          = "package_registry_packages"
+	canonicalPhasePackageRegistryVersions          = "package_registry_versions"
+	canonicalPhasePackageRegistryDependencyTargets = "package_registry_dependency_targets"
+	canonicalPhasePackageRegistryDependencies      = "package_registry_dependencies"
 )
 
 const canonicalPackageRegistryPackageUpsertCypher = `UNWIND $rows AS row
@@ -68,8 +69,7 @@ MERGE (p)-[rel:HAS_VERSION]->(v)
 SET rel.generation_id = row.generation_id,
     rel.evidence_source = 'projector/package_registry'`
 
-const canonicalPackageRegistryDependencyUpsertCypher = `UNWIND $rows AS row
-MATCH (v:PackageVersion {uid: row.version_id})
+const canonicalPackageRegistryDependencyTargetUpsertCypher = `UNWIND $rows AS row
 MERGE (target:Package:PackageRegistryPackage {uid: row.dependency_package_id})
 ON CREATE SET target.id = row.dependency_package_id,
     target.name = row.dependency_normalized,
@@ -79,7 +79,11 @@ ON CREATE SET target.id = row.dependency_package_id,
     target.normalized_name = row.dependency_normalized,
     target.scope_id = row.scope_id,
     target.generation_id = row.generation_id,
-    target.evidence_source = 'projector/package_registry'
+    target.evidence_source = 'projector/package_registry'`
+
+const canonicalPackageRegistryDependencyUpsertCypher = `UNWIND $rows AS row
+MATCH (v:PackageVersion {uid: row.version_id})
+MATCH (target:Package {uid: row.dependency_package_id})
 MERGE (d:PackageDependency:PackageRegistryPackageDependency {uid: row.uid})
 SET d.id = row.uid,
     d.package_id = row.package_id,
@@ -118,6 +122,7 @@ func (w *CanonicalNodeWriter) buildPackageRegistryStatements(mat projector.Canon
 	var statements []Statement
 	statements = append(statements, w.buildPackageRegistryPackageStatements(mat)...)
 	statements = append(statements, w.buildPackageRegistryVersionStatements(mat)...)
+	statements = append(statements, w.buildPackageRegistryDependencyPackageStatements(mat)...)
 	statements = append(statements, w.buildPackageRegistryDependencyStatements(mat)...)
 	return statements
 }
@@ -151,6 +156,19 @@ func (w *CanonicalNodeWriter) buildPackageRegistryDependencyStatements(mat proje
 		w.batchSize,
 		"PackageRegistryPackageDependency",
 		canonicalPhasePackageRegistryDependencies,
+		mat,
+	)
+}
+
+func (w *CanonicalNodeWriter) buildPackageRegistryDependencyPackageStatements(
+	mat projector.CanonicalMaterialization,
+) []Statement {
+	return packageRegistryBatchedStatements(
+		canonicalPackageRegistryDependencyTargetUpsertCypher,
+		packageRegistryDependencyTargetPackageRows(mat),
+		w.batchSize,
+		"PackageRegistryDependencyPackage",
+		canonicalPhasePackageRegistryDependencyTargets,
 		mat,
 	)
 }
@@ -267,6 +285,37 @@ func packageRegistryDependencyRows(mat projector.CanonicalMaterialization) []map
 			"scope_id":              mat.ScopeID,
 			"generation_id":         mat.GenerationID,
 		})
+	}
+	return rows
+}
+
+func packageRegistryDependencyTargetPackageRows(mat projector.CanonicalMaterialization) []map[string]any {
+	seen := make(map[string]map[string]any, len(mat.PackageRegistryDependencies))
+	for _, row := range mat.PackageRegistryDependencies {
+		if row.DependencyPackageID == "" {
+			continue
+		}
+		if _, ok := seen[row.DependencyPackageID]; ok {
+			continue
+		}
+		seen[row.DependencyPackageID] = map[string]any{
+			"dependency_package_id": row.DependencyPackageID,
+			"dependency_ecosystem":  row.DependencyEcosystem,
+			"dependency_registry":   row.DependencyRegistry,
+			"dependency_namespace":  row.DependencyNamespace,
+			"dependency_normalized": row.DependencyNormalized,
+			"scope_id":              mat.ScopeID,
+			"generation_id":         mat.GenerationID,
+		}
+	}
+	keys := make([]string, 0, len(seen))
+	for key := range seen {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	rows := make([]map[string]any, 0, len(keys))
+	for _, key := range keys {
+		rows = append(rows, seen[key])
 	}
 	return rows
 }

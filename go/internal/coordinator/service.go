@@ -49,6 +49,15 @@ type VulnerabilityIntelligencePlanner interface {
 	PlanVulnerabilityIntelligenceWork(context.Context, VulnerabilityIntelligencePlanRequest) (workflow.Run, []workflow.WorkItem, error)
 }
 
+// OwnedPackageTargetReader loads active dependency evidence that can bound
+// derived package-registry and vulnerability-intelligence work.
+type OwnedPackageTargetReader interface {
+	ListOwnedPackageDependencyTargets(
+		context.Context,
+		workflow.OwnedPackageDependencyTargetFilter,
+	) ([]workflow.OwnedPackageDependencyTarget, error)
+}
+
 // AWSScheduledPlanner plans scheduled AWS collector work from configuration.
 type AWSScheduledPlanner interface {
 	PlanAWSScheduledWork(context.Context, AWSScheduledPlanRequest) (workflow.Run, []workflow.WorkItem, error)
@@ -64,6 +73,7 @@ type Service struct {
 	OCIRegistryPlanner               OCIRegistryPlanner
 	PackageRegistryPlanner           PackageRegistryPlanner
 	VulnerabilityIntelligencePlanner VulnerabilityIntelligencePlanner
+	OwnedPackageTargetReader         OwnedPackageTargetReader
 	AWSScheduledPlanner              AWSScheduledPlanner
 	AWSFreshnessTriggers             AWSFreshnessTriggerStore
 	AWSFreshnessPlanner              AWSFreshnessPlanner
@@ -287,10 +297,15 @@ func (s Service) schedulePackageRegistryWork(
 		if s.PackageRegistryPlanner == nil {
 			return fmt.Errorf("package registry planner is required for active package_registry collectors")
 		}
+		ownedTargets, err := s.packageRegistryOwnedTargets(ctx, instance)
+		if err != nil {
+			return fmt.Errorf("load package registry derived targets for %q: %w", instance.InstanceID, err)
+		}
 		run, items, err := s.PackageRegistryPlanner.PlanPackageRegistryWork(ctx, PackageRegistryPlanRequest{
-			Instance:   instance,
-			ObservedAt: observedAt,
-			PlanKey:    s.packageRegistryPlanKey(instance, observedAt),
+			Instance:            instance,
+			ObservedAt:          observedAt,
+			PlanKey:             s.packageRegistryPlanKey(instance, observedAt),
+			OwnedPackageTargets: ownedTargets,
 		})
 		if err != nil {
 			return fmt.Errorf("plan package registry work for %q: %w", instance.InstanceID, err)
@@ -303,6 +318,26 @@ func (s Service) schedulePackageRegistryWork(
 		}
 	}
 	return nil
+}
+
+func (s Service) packageRegistryOwnedTargets(
+	ctx context.Context,
+	instance workflow.CollectorInstance,
+) ([]workflow.OwnedPackageDependencyTarget, error) {
+	derivation, err := packageRegistryDerivationFromConfig(instance.Configuration)
+	if err != nil {
+		return nil, err
+	}
+	if !derivation.Enabled {
+		return nil, nil
+	}
+	if s.OwnedPackageTargetReader == nil {
+		return nil, fmt.Errorf("owned package target reader is required for derived package registry targets")
+	}
+	return s.OwnedPackageTargetReader.ListOwnedPackageDependencyTargets(ctx, workflow.OwnedPackageDependencyTargetFilter{
+		Ecosystems: sortedStringSetValues(derivationEcosystems(derivation.Ecosystems, []string{"npm"})),
+		Limit:      derivationLimit(derivation.TargetLimit, maxDerivedPackageTargets),
+	})
 }
 
 func shouldSchedulePackageRegistry(instance workflow.CollectorInstance) bool {
@@ -341,10 +376,15 @@ func (s Service) scheduleVulnerabilityIntelligenceWork(
 		if s.VulnerabilityIntelligencePlanner == nil {
 			return fmt.Errorf("vulnerability intelligence planner is required for active vulnerability_intelligence collectors")
 		}
+		ownedTargets, err := s.vulnerabilityOwnedTargets(ctx, instance)
+		if err != nil {
+			return fmt.Errorf("load vulnerability intelligence derived targets for %q: %w", instance.InstanceID, err)
+		}
 		run, items, err := s.VulnerabilityIntelligencePlanner.PlanVulnerabilityIntelligenceWork(ctx, VulnerabilityIntelligencePlanRequest{
-			Instance:   instance,
-			ObservedAt: observedAt,
-			PlanKey:    s.vulnerabilityIntelligencePlanKey(instance, observedAt),
+			Instance:            instance,
+			ObservedAt:          observedAt,
+			PlanKey:             s.vulnerabilityIntelligencePlanKey(instance, observedAt),
+			OwnedPackageTargets: ownedTargets,
 		})
 		if err != nil {
 			return fmt.Errorf("plan vulnerability intelligence work for %q: %w", instance.InstanceID, err)
@@ -357,6 +397,26 @@ func (s Service) scheduleVulnerabilityIntelligenceWork(
 		}
 	}
 	return nil
+}
+
+func (s Service) vulnerabilityOwnedTargets(
+	ctx context.Context,
+	instance workflow.CollectorInstance,
+) ([]workflow.OwnedPackageDependencyTarget, error) {
+	derivation, err := vulnerabilityDerivationFromConfig(instance.Configuration)
+	if err != nil {
+		return nil, err
+	}
+	if !derivation.Enabled {
+		return nil, nil
+	}
+	if s.OwnedPackageTargetReader == nil {
+		return nil, fmt.Errorf("owned package target reader is required for derived vulnerability targets")
+	}
+	return s.OwnedPackageTargetReader.ListOwnedPackageDependencyTargets(ctx, workflow.OwnedPackageDependencyTargetFilter{
+		Ecosystems: sortedStringSetValues(derivationEcosystems(derivation.Ecosystems, []string{"npm"})),
+		Limit:      derivationLimit(derivation.TargetLimit, maxDerivedVulnerabilityTargets),
+	})
 }
 
 func shouldScheduleVulnerabilityIntelligence(instance workflow.CollectorInstance) bool {

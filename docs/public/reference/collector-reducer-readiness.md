@@ -51,8 +51,8 @@ instances.
 | Terraform state | `eshu-collector-terraform-state` is claim-driven. | Terraform-state facts feed graph projection and `config_state_drift`. Drift v1 emits bounded counters and structured logs; graph/read-model promotion remains separate. | Prove live local or S3 state collection, redaction policy version, claim handoff, reducer drain, and management-status reads together. |
 | AWS cloud | `eshu-collector-aws-cloud` is claim-driven. | AWS facts feed cloud-asset and AWS runtime-drift domains. AWS runtime drift writes durable reducer facts and bounded Postgres reads; graph shape remains reducer-owned. | Prove read-only AWS collection, claim-scoped credentials, AWS service coverage, reducer drain, drift reads, and status visibility in the target environment. |
 | AWS freshness | `eshu-webhook-listener` accepts AWS freshness events and stores durable triggers. | Freshness narrows the next AWS collection target. Scheduled scans remain the baseline completeness path. | Prove one live AWS EventBridge or AWS Config sample through webhook intake, trigger handoff, AWS work creation, and final status. |
-| Package registry | `eshu-collector-package-registry` is claim-driven. | Package source correlation classifies source hints without ownership promotion and admits manifest-backed package consumption from package identity plus Git dependency evidence. Package-native dependency and publication facts are safe as provenance/read-model evidence. | Expand ownership correlation only after exact, derived, ambiguous, unresolved, stale, and rejected cases are proven. |
-| Vulnerability intelligence | `eshu-collector-vulnerability-intelligence` has source clients for CISA KEV, FIRST EPSS, OSV, and NVD. | Source-truth `vulnerability.*` facts exist. Impact reducers require owned package-manifest, lockfile, repository, image, or SBOM evidence before publishing user-facing impact findings. Exact lockfile versions can prove observed package impact; manifest ranges stay partial evidence. They must not infer reachability from CVSS, EPSS, KEV, product-only CPEs, or package-registry facts alone. | Prove live source collection, API/MCP fact visibility, then package/image/deployment impact joins after upstream collectors are proven together. |
+| Package registry | `eshu-collector-package-registry` is claim-driven and can collect configured package targets or coordinator-derived npm targets from active owned dependency facts. | Package source correlation classifies source hints without ownership promotion and admits manifest-backed package consumption from package identity plus Git dependency evidence. Package-native dependency and publication facts are safe as provenance/read-model evidence. | Expand ownership correlation only after exact, derived, ambiguous, unresolved, stale, and rejected cases are proven. |
+| Vulnerability intelligence | `eshu-collector-vulnerability-intelligence` has source clients for CISA KEV, FIRST EPSS, OSV, and NVD. It can collect configured targets or coordinator-derived OSV npm targets for exact owned dependency versions. | Source-truth `vulnerability.*` facts exist. Impact reducers require owned package-manifest, lockfile, repository, image, or SBOM evidence before publishing user-facing impact findings. Exact lockfile versions can prove observed package impact; manifest ranges stay partial evidence and are skipped for exact OSV target derivation. They must not infer reachability from CVSS, EPSS, KEV, product-only CPEs, or package-registry facts alone. | Prove live source collection, API/MCP fact visibility, then package/image/deployment impact joins after upstream collectors are proven together. |
 
 ## Reducer Truth Boundaries
 
@@ -185,6 +185,52 @@ envelopes, and structured collector/reducer logs explain the package identity
 to consumption to impact path. The remote proof scanned package-registry,
 vulnerability, projector, and reducer logs for metadata cap, dead-letter, panic,
 fatal, failed, error, and rate-limit signatures and found none.
+
+No-Regression Evidence: the #576 owned-package target derivation slice ran
+`go test ./internal/coordinator ./internal/workflow ./internal/storage/postgres ./internal/collector/packageregistry/packageruntime ./internal/collector/vulnerabilityintelligence/vulnruntime ./cmd/workflow-coordinator ./cmd/collector-package-registry ./cmd/collector-vulnerability-intelligence -count=1`.
+The proof covers package-registry target derivation from active npm dependency
+facts, OSV target derivation from exact npm versions only, range and alias skip
+behavior, active-generation Postgres target lookup, coordinator handoff to both
+planners, hosted command config parsing, and runtime claim resolution for
+derived package-registry and OSV scopes. The planning stage is bounded by
+`derive_from_owned_packages.target_limit` with default cap 100 and does not
+change reducer queues, worker counts, claim lease semantics, or NornicDB
+settings. Package-registry canonical graph writes also ran
+`go test ./internal/storage/cypher -run
+'TestCanonicalNodeWriterBuildsPackageRegistryStatements|TestCanonicalNodeWriterSeparatesPackageRegistryPhaseGroups|TestCanonicalNodeWriterDeduplicatesPackageRegistryDependencyTargets'
+-count=1`, proving dependency target packages are deduplicated before the
+dependency edge batch so repeated dependency rows do not re-create the same
+`Package.uid` inside one NornicDB transaction.
+
+No-Regression Evidence: remote hosted E2E run
+`vulnerability-targets-20260524T050624Z` used a clean-volume full-corpus
+Compose stack with pprof enabled and source-built images from this branch.
+Bootstrap collected and projected `896/896` Git scopes in `1099.9s`, with
+`2,335,172` content entities and no container restarts. The standalone
+projector retried NornicDB package-identity unique conflicts instead of
+dead-lettering them, and the run reached queue-zero at `05:34 UTC` with
+`9150/9150` fact work items succeeded. The active hosted collector stack then
+continued scheduling follow-up AWS, OCI, Terraform-state, package-registry, and
+vulnerability-intelligence work while it was left running; the later
+`05:38 UTC` snapshot had `9513` succeeded work items, `4` outstanding active
+collector items, `214` package-registry packages, `21,420` package versions,
+`129` CVEs, `201` affected packages, and `56` supply-chain impact facts. Active
+read-model truth at that point contained `6` `not_affected_known_fixed` impact
+findings; API
+`GET /api/v0/supply-chain/impact/findings?impact_status=not_affected_known_fixed&limit=10`
+returned `count=6`, `truncated=false`, and MCP
+`list_supply_chain_impact_findings` returned `Returned 6 result(s).` with truth
+`level=exact`, profile `production`, and freshness `fresh`.
+
+Observability Evidence: no new telemetry names or labels were added for #576.
+Existing workflow `requested_scope_set` payloads show `derived=true` target
+rows, workflow work-item status/failure columns show planned, claimed,
+completed, retried, and failed targets, coordinator reconcile metrics expose
+planning failures, package-registry metrics expose request, fact-emission, and
+rate-limit outcomes, vulnerability-intelligence metrics expose observation,
+fetch, fact-emission, and rate-limit outcomes, and `/api/v0/index-status`
+surfaces stuck or terminal workflow state. Package names, versions, URLs, and
+credential material remain out of metric labels.
 
 ## Gated Source Families
 

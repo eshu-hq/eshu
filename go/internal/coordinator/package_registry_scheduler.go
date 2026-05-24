@@ -4,10 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"sort"
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/collector/packageregistry"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
@@ -16,9 +18,10 @@ import (
 // PackageRegistryPlanRequest carries one package-registry collector planning
 // request.
 type PackageRegistryPlanRequest struct {
-	Instance   workflow.CollectorInstance
-	ObservedAt time.Time
-	PlanKey    string
+	Instance            workflow.CollectorInstance
+	ObservedAt          time.Time
+	PlanKey             string
+	OwnedPackageTargets []workflow.OwnedPackageDependencyTarget
 }
 
 // PackageRegistryWorkPlanner plans workflow rows for configured
@@ -26,7 +29,8 @@ type PackageRegistryPlanRequest struct {
 type PackageRegistryWorkPlanner struct{}
 
 type packageRegistryRuntimeConfiguration struct {
-	Targets []packageRegistryTargetConfiguration `json:"targets"`
+	Targets                 []packageRegistryTargetConfiguration   `json:"targets"`
+	DeriveFromOwnedPackages packageRegistryDerivationConfiguration `json:"derive_from_owned_packages"`
 }
 
 type packageRegistryTargetConfiguration struct {
@@ -41,6 +45,16 @@ type packageRegistryTargetConfiguration struct {
 	Visibility   string   `json:"visibility"`
 	SourceURI    string   `json:"source_uri"`
 	MetadataURL  string   `json:"metadata_url"`
+	Derived      bool     `json:"-"`
+	PackageName  string   `json:"-"`
+}
+
+type packageRegistryDerivationConfiguration struct {
+	Enabled      bool     `json:"enabled"`
+	Ecosystems   []string `json:"ecosystems"`
+	TargetLimit  int      `json:"target_limit"`
+	PackageLimit int      `json:"package_limit"`
+	VersionLimit int      `json:"version_limit"`
 }
 
 // PlanPackageRegistryWork returns one run and one work item per configured
@@ -59,6 +73,7 @@ func (p PackageRegistryWorkPlanner) PlanPackageRegistryWork(
 	if err := validateUniquePackageRegistryTargets(targets); err != nil {
 		return workflow.Run{}, nil, err
 	}
+	targets = appendPackageRegistryDerivedTargets(targets, decodedPackageRegistryDerivation(targets, request))
 
 	observedAt := request.ObservedAt.UTC()
 	run := workflow.Run{
@@ -125,6 +140,17 @@ func parsePackageRegistryRuntimeTargets(raw string) ([]packageRegistryTargetConf
 	return targets, nil
 }
 
+func decodedPackageRegistryDerivation(
+	configured []packageRegistryTargetConfiguration,
+	request PackageRegistryPlanRequest,
+) []packageRegistryTargetConfiguration {
+	var decoded packageRegistryRuntimeConfiguration
+	if err := json.Unmarshal([]byte(request.Instance.Configuration), &decoded); err != nil {
+		return nil
+	}
+	return derivePackageRegistryTargets(configured, decoded.DeriveFromOwnedPackages, request.OwnedPackageTargets)
+}
+
 func validateUniquePackageRegistryTargets(targets []packageRegistryTargetConfiguration) error {
 	seen := make(map[string]struct{}, len(targets))
 	for _, target := range targets {
@@ -162,6 +188,8 @@ func packageRegistryRequestedScopeSet(
 		ScopeID   string `json:"scope_id"`
 		Ecosystem string `json:"ecosystem"`
 		Provider  string `json:"provider"`
+		Package   string `json:"package_name,omitempty"`
+		Derived   bool   `json:"derived,omitempty"`
 	}
 	payload := struct {
 		CollectorInstanceID string            `json:"collector_instance_id"`
@@ -175,6 +203,8 @@ func packageRegistryRequestedScopeSet(
 			ScopeID:   strings.TrimSpace(target.ScopeID),
 			Ecosystem: strings.TrimSpace(target.Ecosystem),
 			Provider:  strings.TrimSpace(target.Provider),
+			Package:   strings.TrimSpace(target.PackageName),
+			Derived:   target.Derived,
 		})
 	}
 	sort.Slice(payload.Targets, func(i, j int) bool {
@@ -185,6 +215,112 @@ func packageRegistryRequestedScopeSet(
 		return "{}"
 	}
 	return string(encoded)
+}
+
+func appendPackageRegistryDerivedTargets(
+	configured []packageRegistryTargetConfiguration,
+	derived []packageRegistryTargetConfiguration,
+) []packageRegistryTargetConfiguration {
+	if len(derived) == 0 {
+		return configured
+	}
+	seen := make(map[string]struct{}, len(configured)+len(derived))
+	for _, target := range configured {
+		seen[strings.TrimSpace(target.ScopeID)] = struct{}{}
+	}
+	for _, target := range derived {
+		if _, ok := seen[strings.TrimSpace(target.ScopeID)]; ok {
+			continue
+		}
+		seen[strings.TrimSpace(target.ScopeID)] = struct{}{}
+		configured = append(configured, target)
+	}
+	sort.SliceStable(configured, func(i, j int) bool {
+		return configured[i].ScopeID < configured[j].ScopeID
+	})
+	return configured
+}
+
+func derivePackageRegistryTargets(
+	configured []packageRegistryTargetConfiguration,
+	derivation packageRegistryDerivationConfiguration,
+	owned []workflow.OwnedPackageDependencyTarget,
+) []packageRegistryTargetConfiguration {
+	if !derivation.Enabled {
+		return nil
+	}
+	limit := derivation.TargetLimit
+	if limit <= 0 {
+		limit = maxDerivedPackageTargets
+	}
+	packageLimit := derivation.PackageLimit
+	if packageLimit <= 0 {
+		packageLimit = 1
+	}
+	versionLimit := derivation.VersionLimit
+	if versionLimit <= 0 {
+		versionLimit = 200
+	}
+	ecosystems := derivationEcosystems(derivation.Ecosystems, []string{"npm"})
+	seen := make(map[string]struct{}, len(configured)+len(owned))
+	for _, target := range configured {
+		seen[strings.TrimSpace(target.ScopeID)] = struct{}{}
+	}
+	out := make([]packageRegistryTargetConfiguration, 0, minInt(limit, len(owned)))
+	for _, target := range owned {
+		if len(out) >= limit {
+			break
+		}
+		if !stringSetContains(ecosystems, target.Ecosystem) {
+			continue
+		}
+		derived, ok := npmPackageRegistryTarget(target, packageLimit, versionLimit)
+		if !ok {
+			continue
+		}
+		if _, exists := seen[derived.ScopeID]; exists {
+			continue
+		}
+		seen[derived.ScopeID] = struct{}{}
+		out = append(out, derived)
+	}
+	sort.SliceStable(out, func(i, j int) bool {
+		return out[i].ScopeID < out[j].ScopeID
+	})
+	return out
+}
+
+const maxDerivedPackageTargets = 100
+
+func npmPackageRegistryTarget(
+	target workflow.OwnedPackageDependencyTarget,
+	packageLimit int,
+	versionLimit int,
+) (packageRegistryTargetConfiguration, bool) {
+	identity, err := packageregistry.NormalizePackageIdentity(packageregistry.PackageIdentity{
+		Ecosystem: packageregistry.EcosystemNPM,
+		Registry:  "https://registry.npmjs.org",
+		RawName:   strings.TrimSpace(target.PackageName),
+	})
+	if err != nil {
+		return packageRegistryTargetConfiguration{}, false
+	}
+	metadataURL := "https://registry.npmjs.org/" + url.PathEscape(identity.NormalizedName)
+	return packageRegistryTargetConfiguration{
+		Provider:     "npm",
+		Ecosystem:    string(packageregistry.EcosystemNPM),
+		Registry:     "https://registry.npmjs.org",
+		ScopeID:      identity.PackageID,
+		Namespace:    identity.Namespace,
+		Packages:     []string{identity.NormalizedName},
+		PackageLimit: packageLimit,
+		VersionLimit: versionLimit,
+		Visibility:   string(packageregistry.VisibilityUnknown),
+		SourceURI:    metadataURL,
+		MetadataURL:  metadataURL,
+		Derived:      true,
+		PackageName:  identity.NormalizedName,
+	}, true
 }
 
 func packageRegistryWorkItem(

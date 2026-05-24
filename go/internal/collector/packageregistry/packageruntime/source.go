@@ -45,10 +45,20 @@ type MetadataDocument struct {
 type SourceConfig struct {
 	CollectorInstanceID string
 	Targets             []TargetConfig
+	DerivedTargets      DerivedTargetConfig
 	Provider            MetadataProvider
 	Now                 func() time.Time
 	Tracer              trace.Tracer
 	Instruments         *telemetry.Instruments
+}
+
+// DerivedTargetConfig enables bounded public package target resolution from a
+// workflow scope ID derived by the coordinator.
+type DerivedTargetConfig struct {
+	Enabled      bool
+	Ecosystems   []packageregistry.Ecosystem
+	PackageLimit int
+	VersionLimit int
 }
 
 // TargetConfig couples shared package-registry identity with runtime-only
@@ -66,6 +76,7 @@ type TargetConfig struct {
 type ClaimedSource struct {
 	collectorInstanceID string
 	targets             map[string]TargetConfig
+	derivedTargets      DerivedTargetConfig
 	provider            MetadataProvider
 	parserRegistry      packageregistry.MetadataParserRegistry
 	now                 func() time.Time
@@ -83,35 +94,47 @@ func NewClaimedSource(config SourceConfig) (*ClaimedSource, error) {
 	for _, target := range config.Targets {
 		baseTargets = append(baseTargets, target.Base)
 	}
-	validated, err := packageregistry.RuntimeConfig{
-		CollectorInstanceID: config.CollectorInstanceID,
-		Targets:             baseTargets,
-	}.Validate()
-	if err != nil {
-		return nil, err
+	collectorInstanceID := strings.TrimSpace(config.CollectorInstanceID)
+	if collectorInstanceID == "" {
+		return nil, fmt.Errorf("collector instance ID is required")
 	}
-	targets := make(map[string]TargetConfig, len(validated.Targets))
-	for i, base := range validated.Targets {
-		target := config.Targets[i]
-		target.Base = base
-		target.MetadataURL = strings.TrimRight(strings.TrimSpace(target.MetadataURL), "/")
-		documentFormat, err := normalizeDocumentFormat(target.DocumentFormat)
+	targets := make(map[string]TargetConfig, len(config.Targets))
+	if len(config.Targets) > 0 {
+		validated, err := packageregistry.RuntimeConfig{
+			CollectorInstanceID: config.CollectorInstanceID,
+			Targets:             baseTargets,
+		}.Validate()
 		if err != nil {
-			return nil, fmt.Errorf("target %d: %w", i, err)
+			return nil, err
 		}
-		target.DocumentFormat = documentFormat
-		if _, exists := targets[base.ScopeID]; exists {
-			return nil, fmt.Errorf("duplicate package registry target scope_id %q", base.ScopeID)
+		collectorInstanceID = validated.CollectorInstanceID
+		for i, base := range validated.Targets {
+			target := config.Targets[i]
+			target.Base = base
+			target.MetadataURL = strings.TrimRight(strings.TrimSpace(target.MetadataURL), "/")
+			documentFormat, err := normalizeDocumentFormat(target.DocumentFormat)
+			if err != nil {
+				return nil, fmt.Errorf("target %d: %w", i, err)
+			}
+			target.DocumentFormat = documentFormat
+			if _, exists := targets[base.ScopeID]; exists {
+				return nil, fmt.Errorf("duplicate package registry target scope_id %q", base.ScopeID)
+			}
+			targets[base.ScopeID] = target
 		}
-		targets[base.ScopeID] = target
+	}
+	derivedTargets := normalizeDerivedTargetConfig(config.DerivedTargets)
+	if len(targets) == 0 && !derivedTargets.Enabled {
+		return nil, fmt.Errorf("at least one package-registry target is required")
 	}
 	now := config.Now
 	if now == nil {
 		now = time.Now
 	}
 	return &ClaimedSource{
-		collectorInstanceID: validated.CollectorInstanceID,
+		collectorInstanceID: collectorInstanceID,
 		targets:             targets,
+		derivedTargets:      derivedTargets,
 		provider:            config.Provider,
 		parserRegistry:      packageregistry.DefaultMetadataParserRegistry(),
 		now:                 now,
@@ -143,7 +166,11 @@ func (s *ClaimedSource) NextClaimed(
 	}
 	target, ok := s.targets[strings.TrimSpace(item.ScopeID)]
 	if !ok {
-		return collector.CollectedGeneration{}, false, fmt.Errorf("package registry target scope_id %q is not configured", item.ScopeID)
+		var err error
+		target, err = s.derivedTargetForScope(strings.TrimSpace(item.ScopeID))
+		if err != nil {
+			return collector.CollectedGeneration{}, false, err
+		}
 	}
 	startedAt := time.Now()
 	observeCtx, span := s.startObserve(ctx, target)

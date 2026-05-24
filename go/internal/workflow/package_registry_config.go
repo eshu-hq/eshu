@@ -13,7 +13,8 @@ const (
 )
 
 type packageRegistryCollectorConfiguration struct {
-	Targets []packageRegistryTargetConfiguration `json:"targets"`
+	Targets                 []packageRegistryTargetConfiguration         `json:"targets"`
+	DeriveFromOwnedPackages packageRegistryTargetDerivationConfiguration `json:"derive_from_owned_packages"`
 }
 
 type packageRegistryTargetConfiguration struct {
@@ -31,6 +32,14 @@ type packageRegistryTargetConfiguration struct {
 	DocumentFormat string   `json:"document_format"`
 }
 
+type packageRegistryTargetDerivationConfiguration struct {
+	Enabled      bool     `json:"enabled"`
+	Ecosystems   []string `json:"ecosystems"`
+	TargetLimit  int      `json:"target_limit"`
+	PackageLimit int      `json:"package_limit"`
+	VersionLimit int      `json:"version_limit"`
+}
+
 // ValidatePackageRegistryCollectorConfiguration checks the claim-planned
 // package-registry target list without resolving private credentials or
 // connecting to a registry feed.
@@ -39,13 +48,16 @@ func ValidatePackageRegistryCollectorConfiguration(raw string) error {
 	if err := json.Unmarshal([]byte(normalizeJSONDocument(raw)), &decoded); err != nil {
 		return fmt.Errorf("decode package registry collector configuration: %w", err)
 	}
-	if len(decoded.Targets) == 0 {
+	if len(decoded.Targets) == 0 && !decoded.DeriveFromOwnedPackages.Enabled {
 		return fmt.Errorf("package registry collector configuration requires targets")
 	}
 	for i, target := range decoded.Targets {
 		if err := validatePackageRegistryTargetConfiguration(target); err != nil {
 			return fmt.Errorf("targets[%d]: %w", i, err)
 		}
+	}
+	if err := validatePackageRegistryTargetDerivation(decoded.DeriveFromOwnedPackages); err != nil {
+		return err
 	}
 	return nil
 }
@@ -100,6 +112,38 @@ func validatePackageRegistryDocumentFormat(raw string) error {
 		return nil
 	default:
 		return fmt.Errorf("unsupported document_format %q", strings.TrimSpace(raw))
+	}
+}
+
+func validatePackageRegistryTargetDerivation(config packageRegistryTargetDerivationConfiguration) error {
+	if !config.Enabled {
+		return nil
+	}
+	for i, ecosystem := range config.Ecosystems {
+		if err := validatePackageRegistryDerivedEcosystem(ecosystem); err != nil {
+			return fmt.Errorf("derive_from_owned_packages.ecosystems[%d]: %w", i, err)
+		}
+	}
+	if config.TargetLimit < 0 || config.TargetLimit > maxPackageRegistryPackageLimit {
+		return fmt.Errorf("derive_from_owned_packages.target_limit must be between 0 and %d", maxPackageRegistryPackageLimit)
+	}
+	if config.PackageLimit < 0 || config.PackageLimit > maxPackageRegistryPackageLimit {
+		return fmt.Errorf("derive_from_owned_packages.package_limit must be between 0 and %d", maxPackageRegistryPackageLimit)
+	}
+	if config.VersionLimit < 0 || config.VersionLimit > maxPackageRegistryVersionLimit {
+		return fmt.Errorf("derive_from_owned_packages.version_limit must be between 0 and %d", maxPackageRegistryVersionLimit)
+	}
+	return nil
+}
+
+func validatePackageRegistryDerivedEcosystem(raw string) error {
+	switch strings.TrimSpace(raw) {
+	case "npm":
+		return nil
+	case "":
+		return fmt.Errorf("ecosystem must not be blank")
+	default:
+		return fmt.Errorf("unsupported derived ecosystem %q", strings.TrimSpace(raw))
 	}
 }
 

@@ -63,6 +63,14 @@ private-registry package URL. The runtime asks npm-compatible registries for
 the abbreviated install metadata document and keeps the 20 MiB response cap in
 force.
 
+`configuration.derive_from_owned_packages.enabled=true` lets the active
+workflow coordinator derive additional npm package metadata targets from active
+owned Git dependency facts. The command accepts derived scopes from workflow
+claims only when derivation is enabled; it does not crawl registries or create
+new targets by itself. Current derived scope support is npm only. Optional
+`ecosystems`, `package_limit`, and `version_limit` fields bound the derived
+target shape.
+
 ## Telemetry
 
 The binary exposes the shared hosted runtime with `/healthz`, `/readyz`,

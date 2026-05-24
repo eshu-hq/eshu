@@ -20,11 +20,12 @@
 - **Queue lease match** — both `projectorQueue` and `reducerQueue` use the same
   one-minute lease duration. Changing one without the other risks re-claim
   races. Enforced at `runtime_wiring.go:31-32`.
-- **Instrumented executor wraps raw executor** — the Neo4j executor returned by
-  `openProjectorCanonicalWriter` is always wrapped with
-  `sourcecypher.InstrumentedExecutor` before being passed to the canonical node
-  writer. Raw executor must not be exposed directly. Enforced at
-  `runtime_wiring.go:96-102`.
+- **Retrying/instrumented executor wraps raw executor** — the Neo4j executor
+  returned by `openProjectorCanonicalWriter` is always wrapped with
+  `sourcecypher.RetryingExecutor` and `sourcecypher.InstrumentedExecutor`
+  before being passed to the canonical node writer. NornicDB also gets the
+  canonical write timeout wrapper. Raw executor must not be exposed directly.
+  Enforced in `runtime_wiring.go`.
 - **SIGINT/SIGTERM triggers clean shutdown** — `signal.NotifyContext` is the
   only mechanism for stopping `service.Run`; do not add `os.Exit` calls or
   explicit goroutine kills outside this path.

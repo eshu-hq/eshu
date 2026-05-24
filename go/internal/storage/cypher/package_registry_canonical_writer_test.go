@@ -82,7 +82,7 @@ func TestCanonicalNodeWriterBuildsPackageRegistryStatements(t *testing.T) {
 	}
 
 	statements := writer.buildPackageRegistryStatements(mat)
-	if got, want := len(statements), 3; got != want {
+	if got, want := len(statements), 4; got != want {
 		t.Fatalf("buildPackageRegistryStatements() count = %d, want %d", got, want)
 	}
 
@@ -111,12 +111,17 @@ func TestCanonicalNodeWriterBuildsPackageRegistryStatements(t *testing.T) {
 		t.Fatalf("version Cypher = %q, must not promote source hints to ownership", version.Cypher)
 	}
 
-	dependency := statements[2]
+	dependencyTargets := statements[2]
+	if !strings.Contains(dependencyTargets.Cypher, "MERGE (target:Package:PackageRegistryPackage {uid: row.dependency_package_id})") {
+		t.Fatalf("dependency target Cypher = %q, want target Package uid merge", dependencyTargets.Cypher)
+	}
+	if strings.Contains(dependencyTargets.Cypher, "\nSET target.") {
+		t.Fatalf("dependency target Cypher = %q, must not overwrite observed target package properties", dependencyTargets.Cypher)
+	}
+
+	dependency := statements[3]
 	for _, fragment := range []string{
-		"ON CREATE SET target.id = row.dependency_package_id",
-		"target.scope_id = row.scope_id",
-		"target.generation_id = row.generation_id",
-		"target.evidence_source = 'projector/package_registry'",
+		"MATCH (target:Package {uid: row.dependency_package_id})",
 		"MERGE (d:PackageDependency:PackageRegistryPackageDependency {uid: row.uid})",
 		"MERGE (v)-[declares:DECLARES_DEPENDENCY]->(d)",
 		"MERGE (d)-[depends:DEPENDS_ON_PACKAGE]->(target)",
@@ -189,14 +194,65 @@ func TestCanonicalNodeWriterSeparatesPackageRegistryPhaseGroups(t *testing.T) {
 
 	packageGroup := packageRegistryPhaseGroupIndex(t, exec.phaseGroups, "PackageRegistryPackage")
 	versionGroup := packageRegistryPhaseGroupIndex(t, exec.phaseGroups, "PackageRegistryPackageVersion")
+	dependencyPackageGroup := packageRegistryPhaseGroupIndex(t, exec.phaseGroups, "PackageRegistryDependencyPackage")
 	dependencyGroup := packageRegistryPhaseGroupIndex(t, exec.phaseGroups, "PackageRegistryPackageDependency")
-	if packageGroup >= versionGroup || versionGroup >= dependencyGroup {
+	if packageGroup >= versionGroup || versionGroup >= dependencyPackageGroup || dependencyPackageGroup >= dependencyGroup {
 		t.Fatalf(
-			"package registry phase groups = package:%d version:%d dependency:%d, want package before version before dependency",
+			"package registry phase groups = package:%d version:%d dependency_package:%d dependency:%d, want package before version before dependency targets before dependency",
 			packageGroup,
 			versionGroup,
+			dependencyPackageGroup,
 			dependencyGroup,
 		)
+	}
+}
+
+func TestCanonicalNodeWriterDeduplicatesPackageRegistryDependencyTargets(t *testing.T) {
+	t.Parallel()
+
+	writer := NewCanonicalNodeWriter(&recordingExecutor{}, 500, nil)
+	statements := writer.buildPackageRegistryDependencyPackageStatements(projector.CanonicalMaterialization{
+		ScopeID:      "package-registry-scope-1",
+		GenerationID: "package-registry-generation-1",
+		PackageRegistryDependencies: []projector.PackageRegistryDependencyRow{
+			{
+				UID:                  "dependency-1",
+				DependencyPackageID:  "npm://registry.npmjs.org/graphql16",
+				DependencyEcosystem:  "npm",
+				DependencyRegistry:   "https://registry.npmjs.org",
+				DependencyNormalized: "graphql",
+				SourceFactID:         "fact-1",
+				StableFactKey:        "fact-1",
+				SourceSystem:         "package_registry",
+				SourceConfidence:     facts.SourceConfidenceReported,
+				CollectorKind:        "package_registry",
+			},
+			{
+				UID:                  "dependency-2",
+				DependencyPackageID:  "npm://registry.npmjs.org/graphql16",
+				DependencyEcosystem:  "npm",
+				DependencyRegistry:   "https://registry.npmjs.org",
+				DependencyNormalized: "graphql",
+				SourceFactID:         "fact-2",
+				StableFactKey:        "fact-2",
+				SourceSystem:         "package_registry",
+				SourceConfidence:     facts.SourceConfidenceReported,
+				CollectorKind:        "package_registry",
+			},
+		},
+	})
+	if got, want := len(statements), 1; got != want {
+		t.Fatalf("buildPackageRegistryDependencyPackageStatements() count = %d, want %d", got, want)
+	}
+	rows, ok := statements[0].Parameters["rows"].([]map[string]any)
+	if !ok {
+		t.Fatalf("rows parameter type = %T, want []map[string]any", statements[0].Parameters["rows"])
+	}
+	if got, want := len(rows), 1; got != want {
+		t.Fatalf("dependency target rows = %d, want %d", got, want)
+	}
+	if got, want := rows[0]["dependency_package_id"], "npm://registry.npmjs.org/graphql16"; got != want {
+		t.Fatalf("dependency target uid = %#v, want %#v", got, want)
 	}
 }
 

@@ -55,7 +55,11 @@ correlation reads one row per active repository scope, not every fact row.
 `ListActivePackageManifestDependencyFacts` uses
 `fact_records_active_package_dependency_entity_idx` to load only active Git
 manifest dependency entities for the ecosystem/name set in the current
-package-registry reducer intent. Package correlation reads use
+package-registry reducer intent. `ListOwnedPackageDependencyTargets` uses the
+same active-generation dependency predicate with a small ecosystem allowlist
+and hard result cap so the workflow coordinator can derive package-registry and
+vulnerability-intelligence targets without scanning stale generations or the
+full fact table. Package correlation reads use
 `fact_records_package_correlations_v2_lookup_idx` for package-scoped reads and
 `fact_records_package_correlations_v2_repository_lookup_idx` for
 repository-scoped reads across ownership, publication, and consumption rows so
@@ -239,6 +243,18 @@ target suppression remains visible through workflow work-item rows,
 workflow-run state, workflow completeness rows, and coordinator structured logs
 with `reason=target_already_planned`, `planned_work_items`,
 `enqueued_work_items`, `skipped_work_items`, and `trigger_kind`.
+
+No-Regression Evidence: `go test ./internal/storage/postgres -run TestListOwnedPackageDependencyTargetsQueryIsActiveAndBounded -count=1` proves owned dependency target planning uses active Git dependency facts, the existing package dependency predicate, an ecosystem allowlist, and a bounded `LIMIT`. The broader touched-package proof ran `go test ./internal/coordinator ./internal/workflow ./internal/storage/postgres ./internal/collector/packageregistry/packageruntime ./internal/collector/vulnerabilityintelligence/vulnruntime ./cmd/workflow-coordinator ./cmd/collector-package-registry ./cmd/collector-vulnerability-intelligence -count=1`.
+
+No-Regression Evidence: `go test ./internal/storage/postgres -run 'TestWorkflowControlStoreGuardedRunRetriesDeadlockTransaction|TestWorkflowControlStoreGuardedRunCreatesEligibleScheduledTarget' -count=1` proves guarded workflow run admission retries Postgres `40P01` deadlock failures without duplicating target work, while preserving the normal eligible-target insert path.
+
+Observability Evidence: no new telemetry names were needed. Existing workflow coordinator `reconcile_total` / `reconcile_duration_seconds` outcomes, workflow run/work-item status rows, guarded-run error wrapping, and container restart counters expose whether planning is retrying, failing, or progressing after a database serialization/deadlock race.
+
+Observability Evidence: no new storage metric was needed. The owned-target read
+uses the existing instrumented Postgres query duration metric through the
+workflow-coordinator wiring, while derived target outcomes remain visible in
+workflow run scope payloads, workflow work-item statuses, collector claim
+status, collector metrics, and `/api/v0/index-status`.
 
 ### AWS scan status
 

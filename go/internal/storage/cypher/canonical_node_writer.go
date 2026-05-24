@@ -322,6 +322,7 @@ func (w *CanonicalNodeWriter) buildPhases(mat projector.CanonicalMaterialization
 		{name: canonicalPhaseOCIRegistry, statements: w.buildOCIRegistryStatements(mat)},
 		{name: canonicalPhasePackageRegistryPackages, statements: w.buildPackageRegistryPackageStatements(mat)},
 		{name: canonicalPhasePackageRegistryVersions, statements: w.buildPackageRegistryVersionStatements(mat)},
+		{name: canonicalPhasePackageRegistryDependencyTargets, statements: w.buildPackageRegistryDependencyPackageStatements(mat)},
 		{name: canonicalPhasePackageRegistryDependencies, statements: w.buildPackageRegistryDependencyStatements(mat)},
 		{name: "modules", statements: w.buildModuleStatements(mat)},
 		{name: "structural_edges", statements: w.buildStructuralEdgeStatements(mat)},

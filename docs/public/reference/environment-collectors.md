@@ -73,6 +73,10 @@ variables instead of storing credentials in facts or status.
 
 The package-registry collector is claim-only. It selects an enabled
 `package_registry` instance from `ESHU_COLLECTOR_INSTANCES_JSON`.
+Collector configuration may define explicit `targets` or enable
+`derive_from_owned_packages` so the coordinator derives bounded npm metadata
+targets from active owned Git dependency facts. Derived collection is currently
+npm only and still uses workflow claims.
 
 | Variable | Default | Read by | Purpose |
 | --- | --- | --- | --- |
@@ -87,6 +91,11 @@ The package-registry collector is claim-only. It selects an enabled
 The vulnerability intelligence collector is claim-only. It selects an enabled
 `vulnerability_intelligence` instance from `ESHU_COLLECTOR_INSTANCES_JSON`.
 Supported source targets are CISA KEV, FIRST EPSS, OSV, and NVD.
+Collector configuration may define explicit `targets` or enable
+`derive_from_owned_packages` so the coordinator derives bounded OSV npm
+package-version targets from active owned dependency facts with exact versions.
+Manifest ranges and aliases remain partial evidence and are skipped for exact
+OSV collection.
 
 | Variable | Default | Read by | Purpose |
 | --- | --- | --- | --- |

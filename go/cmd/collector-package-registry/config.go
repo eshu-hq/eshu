@@ -49,7 +49,15 @@ type claimedRuntimeConfig struct {
 }
 
 type packageRegistryRuntimeConfiguration struct {
-	Targets []targetJSON `json:"targets"`
+	Targets                 []targetJSON              `json:"targets"`
+	DeriveFromOwnedPackages derivedPackageTargetsJSON `json:"derive_from_owned_packages"`
+}
+
+type derivedPackageTargetsJSON struct {
+	Enabled      bool     `json:"enabled"`
+	Ecosystems   []string `json:"ecosystems"`
+	PackageLimit int      `json:"package_limit"`
+	VersionLimit int      `json:"version_limit"`
 }
 
 func loadClaimedRuntimeConfig(getenv func(string) string) (claimedRuntimeConfig, error) {
@@ -156,8 +164,25 @@ func parsePackageRegistryRuntimeConfiguration(
 	return packageruntime.SourceConfig{
 		CollectorInstanceID: instance.InstanceID,
 		Targets:             targets,
+		DerivedTargets:      mapDerivedTargets(decoded.DeriveFromOwnedPackages),
 		Provider:            packageruntime.HTTPMetadataProvider{},
 	}, nil
+}
+
+func mapDerivedTargets(config derivedPackageTargetsJSON) packageruntime.DerivedTargetConfig {
+	if !config.Enabled {
+		return packageruntime.DerivedTargetConfig{}
+	}
+	ecosystems := make([]packageregistry.Ecosystem, 0, len(config.Ecosystems))
+	for _, ecosystem := range config.Ecosystems {
+		ecosystems = append(ecosystems, packageregistry.Ecosystem(strings.TrimSpace(ecosystem)))
+	}
+	return packageruntime.DerivedTargetConfig{
+		Enabled:      true,
+		Ecosystems:   ecosystems,
+		PackageLimit: config.PackageLimit,
+		VersionLimit: config.VersionLimit,
+	}
 }
 
 func mapTarget(target targetJSON, getenv func(string) string) (packageruntime.TargetConfig, error) {

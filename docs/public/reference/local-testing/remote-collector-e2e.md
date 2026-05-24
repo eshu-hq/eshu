@@ -110,6 +110,12 @@ Expected throttle observability: AWS API-call and throttle counters increment,
 The duplicate-suppression conflict domain remains `(collector_kind,
 collector_instance_id, scope_id, acceptance_unit_id)`.
 
+The remote Compose coordinator uses a 30-second reconcile interval. Keep that
+short enough for derived package-registry and vulnerability-intelligence
+targets to be planned after Git/bootstrap dependency facts become active; the
+guarded work admission path suppresses already-open targets instead of relying
+on a long interval.
+
 ## Terraform-State Warning-Only Generations
 
 Missing exact S3 Terraform state objects are warning-only generations when the

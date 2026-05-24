@@ -102,6 +102,71 @@ func TestServiceRunActiveModeSchedulesPackageRegistryWork(t *testing.T) {
 	}
 }
 
+func TestServiceRunActiveModePassesOwnedPackageEvidenceToPackageRegistryPlanner(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, time.May, 23, 22, 0, 0, 0, time.UTC)
+	planner := &fakePackageRegistryPlanner{
+		run: workflow.Run{
+			RunID:              "package_registry:collector-package-registry:schedule:continuous-20260523T220000Z",
+			TriggerKind:        workflow.TriggerKindSchedule,
+			Status:             workflow.RunStatusCollectionPending,
+			RequestedScopeSet:  "{}",
+			RequestedCollector: string(scope.CollectorPackageRegistry),
+			CreatedAt:          now,
+			UpdatedAt:          now,
+		},
+	}
+	targetReader := &fakeOwnedPackageTargetReader{targets: []workflow.OwnedPackageDependencyTarget{{
+		Ecosystem:    "npm",
+		PackageName:  "vite",
+		Version:      "^5.4.11",
+		RepositoryID: "repo-eshu",
+	}}}
+	instance := testServicePackageRegistryInstance(now)
+	instance.Configuration = `{"derive_from_owned_packages":{"enabled":true,"ecosystems":["npm"],"target_limit":10}}`
+	service := Service{
+		Config: Config{
+			DeploymentMode:           deploymentModeActive,
+			ClaimsEnabled:            true,
+			ReconcileInterval:        time.Hour,
+			ReapInterval:             time.Hour,
+			ClaimLeaseTTL:            time.Minute,
+			HeartbeatInterval:        20 * time.Second,
+			ExpiredClaimLimit:        10,
+			ExpiredClaimRequeueDelay: 5 * time.Second,
+			CollectorInstances: []workflow.DesiredCollectorInstance{{
+				InstanceID:    "collector-package-registry",
+				CollectorKind: scope.CollectorPackageRegistry,
+				Mode:          workflow.CollectorModeContinuous,
+				Enabled:       true,
+				ClaimsEnabled: true,
+				Configuration: instance.Configuration,
+			}},
+		},
+		Store:                    &fakeStore{instances: []workflow.CollectorInstance{instance}},
+		PackageRegistryPlanner:   planner,
+		OwnedPackageTargetReader: targetReader,
+		Clock:                    func() time.Time { return now },
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	if err := service.Run(ctx); err != nil {
+		t.Fatalf("Run() error = %v, want nil", err)
+	}
+	if got, want := len(targetReader.requests), 1; got != want {
+		t.Fatalf("target reader requests = %d, want %d", got, want)
+	}
+	if got, want := targetReader.requests[0].Ecosystems, []string{"npm"}; len(got) != len(want) || got[0] != want[0] {
+		t.Fatalf("target reader ecosystems = %#v, want %#v", got, want)
+	}
+	if got, want := len(planner.requests[0].OwnedPackageTargets), 1; got != want {
+		t.Fatalf("planner owned targets = %d, want %d", got, want)
+	}
+}
+
 func testServicePackageRegistryInstance(observedAt time.Time) workflow.CollectorInstance {
 	return workflow.CollectorInstance{
 		InstanceID:     "collector-package-registry",

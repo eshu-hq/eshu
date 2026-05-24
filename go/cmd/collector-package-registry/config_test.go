@@ -51,6 +51,37 @@ func TestLoadClaimedRuntimeConfigSelectsPackageRegistryInstance(t *testing.T) {
 	}
 }
 
+func TestLoadClaimedRuntimeConfigParsesDerivedPackageTargets(t *testing.T) {
+	t.Parallel()
+
+	env := map[string]string{
+		envCollectorInstances: `[{
+			"instance_id":"collector-package-registry",
+			"collector_kind":"package_registry",
+			"mode":"continuous",
+			"enabled":true,
+			"claims_enabled":true,
+			"configuration":{"derive_from_owned_packages":{
+				"enabled":true,
+				"ecosystems":["npm"],
+				"package_limit":1,
+				"version_limit":50
+			}}
+		}]`,
+	}
+
+	config, err := loadClaimedRuntimeConfig(func(key string) string { return env[key] })
+	if err != nil {
+		t.Fatalf("loadClaimedRuntimeConfig() error = %v, want nil", err)
+	}
+	if !config.Source.DerivedTargets.Enabled {
+		t.Fatal("DerivedTargets.Enabled = false, want true")
+	}
+	if got, want := config.Source.DerivedTargets.VersionLimit, 50; got != want {
+		t.Fatalf("DerivedTargets.VersionLimit = %d, want %d", got, want)
+	}
+}
+
 func TestLoadClaimedRuntimeConfigRejectsClaimsDisabledInstance(t *testing.T) {
 	t.Parallel()
 
