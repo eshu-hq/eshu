@@ -8,7 +8,7 @@
    `Beginner`, `SQLDB`, `SQLTx`; understand the interface hierarchy before
    touching any store
 3. `go/internal/storage/postgres/projector_queue.go` — `ProjectorQueue.Claim`
-   and `Ack`; the four-step atomic ack transaction is the most sensitive path
+   and `Ack`; the five-step atomic ack transaction is the most sensitive path
    in this package
 4. `go/internal/storage/postgres/projector_queue_sql.go` — projector claim,
    stale-generation coalescing, duplicate-lease reclaim, and lifecycle SQL
@@ -46,7 +46,7 @@
 - **JSONB sanitization** — `sanitizeJSONB` removes `\u0000` escape sequences
   and raw control bytes before every fact INSERT. Skipping this causes Postgres
   errors on repositories with binary or non-UTF-8 content.
-- **Ack atomicity** — `ProjectorQueue.Ack` wraps four SQL statements in a
+- **Ack atomicity** — `ProjectorQueue.Ack` wraps five SQL statements in a
   single transaction (`projector_queue.go:105`). If any step fails, the
   transaction rolls back. Always pass a `SQLDB` or `InstrumentedDB(SQLDB)` to
   `NewProjectorQueue`; a bare `ExecQueryer` without `Beginner` will fail.
@@ -267,7 +267,7 @@
 - **Do not use raw SQL string building** when adding new stores. Use parameterized
   queries (`$1`, `$2`, ...) exclusively to prevent injection.
 - **Do not hold long transactions** across graph writes. The projector ack
-  transaction is bounded to four SQL statements; do not add graph or network
+  transaction is bounded to five SQL statements; do not add graph or network
   calls inside it.
 - **Do not add `if backend == "nornicdb"` branches** here. Backend-specific
   queue gate logic is isolated to `ReducerQueue.Claim`'s parameterized gate

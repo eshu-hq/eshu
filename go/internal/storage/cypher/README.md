@@ -166,10 +166,23 @@ The executor chain is composed in `cmd/` wiring. A typical production chain
 wraps a concrete driver executor with `TimeoutExecutor` → `RetryingExecutor` →
 `InstrumentedExecutor`.
 
-`RetryingExecutor` detects transient Neo4j errors (deadlock, lock timeout) and
-NornicDB MERGE unique conflicts and retries with exponential backoff and jitter.
-It does not retry the group path because `session.ExecuteWrite` already handles
-that internally.
+`RetryingExecutor` detects transient Neo4j errors (deadlock, lock timeout,
+driver `ConnectivityError`) and NornicDB MERGE unique conflicts and retries
+with exponential backoff and jitter. The same loop covers `Execute` and
+`ExecuteGroup`; group retries stay limited to driver-level transient failures
+or all-MERGE NornicDB commit conflicts so re-execution remains idempotent.
+
+No-Regression Evidence: `go test ./internal/storage/cypher -run
+'TestRetryingExecutor(RetriesDriverConnectivityError|ConnectivityErrorExhaustionRemainsQueueRetryable)|TestWrapRetryableNeo4jError'
+-count=1` proves typed Neo4j driver connectivity failures retry locally and
+remain reducer-queue retryable after the local retry budget is exhausted.
+
+Observability Evidence: no new metric name was needed. Existing
+`neo4j transient error, retrying` structured logs,
+`eshu_dp_neo4j_deadlock_retries_total{write_phase}`, graph query spans, and
+queue `failure_class` rows expose retry attempts, operation labels, exhausted
+retry errors, and dead-letter prevention. The counter name is legacy and now
+tracks this package's broader transient graph-write retry class.
 
 ## Exported surface
 
@@ -264,8 +277,10 @@ adapter seam.
   `operation`, `write_phase`, and `node_type` labels when metadata is present
 - `eshu_dp_neo4j_batches_executed_total` — counter labeled by `operation` plus
   bounded statement metadata when available
-- `eshu_dp_neo4j_deadlock_retries_total` — counter in `RetryingExecutor` labeled
-  by `write_phase`
+- `eshu_dp_neo4j_deadlock_retries_total` — legacy counter in
+  `RetryingExecutor` labeled by `write_phase`; counts transient graph-write
+  retries, including deadlocks, lock timeouts, driver connectivity errors, and
+  retryable NornicDB commit conflicts
 - `eshu_dp_canonical_atomic_writes_total` / `eshu_dp_canonical_atomic_fallbacks_total`
   — whether `CanonicalNodeWriter` used the group or sequential path
 - `eshu_dp_canonical_phase_duration_seconds` — labeled by phase name
@@ -284,8 +299,11 @@ adapter seam.
   Postgres bootstrap schema, but it does not apply graph indexes or constraints;
   runs that skip the data-plane schema step are setup diagnostics, not backend
   acceptance evidence.
-- `eshu_dp_neo4j_deadlock_retries_total` rising signals concurrent MERGE
-  contention on shared nodes (Repository, Directory, Module); check worker
+- `eshu_dp_neo4j_deadlock_retries_total` rising signals transient graph-write
+  retry pressure. Check structured retry logs first: deadlocks or NornicDB
+  unique conflicts usually point at concurrent MERGE contention on shared nodes
+  (Repository, Directory, Module), while driver `ConnectivityError` points at
+  backend reachability, pool pressure, restart, or network churn. Check worker
   concurrency before raising `RetryingExecutor.MaxRetries`.
 - `eshu_dp_canonical_atomic_fallbacks_total` > 0 means the executor does not
   implement `GroupExecutor`; write ordering relies on sequential phase execution

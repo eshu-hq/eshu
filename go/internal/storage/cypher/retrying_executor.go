@@ -2,12 +2,14 @@ package cypher
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"math/rand/v2"
 	"strings"
 	"time"
 
+	neo4jdriver "github.com/neo4j/neo4j-go-driver/v5/neo4j"
 	"go.opentelemetry.io/otel/metric"
 
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
@@ -141,12 +143,20 @@ func isTransientNeo4jError(err error) bool {
 	if err == nil {
 		return false
 	}
+	if isNeo4jConnectivityError(err) {
+		return true
+	}
 	msg := err.Error()
 	return strings.Contains(msg, "TransientError") ||
 		strings.Contains(msg, "DeadlockDetected") ||
 		strings.Contains(msg, "LockClient") ||
 		strings.Contains(msg, "lock acquisition") ||
 		isNornicDBWriteConflict(msg)
+}
+
+func isNeo4jConnectivityError(err error) bool {
+	var connectivityErr *neo4jdriver.ConnectivityError
+	return errors.As(err, &connectivityErr)
 }
 
 // isRetryableGraphWriteError classifies bounded graph-write retries using both

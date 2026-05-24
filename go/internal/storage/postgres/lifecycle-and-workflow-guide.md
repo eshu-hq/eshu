@@ -151,11 +151,26 @@ so stale leases are reclaimed before fresh work makes the status surface look
 permanently overdue. Claim also demotes expired same-scope duplicate in-flight
 rows back to `retrying` when a live sibling or a newly claimed sibling owns the
 scope, which repairs queue state left by older owner crashes or claim races
-without breaking the one-active-generation invariant. `Ack` runs a four-step atomic
-transaction: supersede stale active generation → activate target generation →
-update scope pointer → mark work succeeded. If `projector.IsRetryable(cause)`
-returns true and `attempt_count < MaxAttempts`, `Fail` transitions to
-`retrying` instead of `dead_letter`.
+without breaking the one-active-generation invariant. `Ack` runs a five-step
+atomic transaction: supersede stale active generation → supersede older
+terminal same-scope generations → activate target generation → update scope
+pointer → mark work succeeded. This keeps obsolete failed or dead-letter
+projector rows out of current health after a newer source-local generation has
+successfully become active. If `projector.IsRetryable(cause)` returns true and
+`attempt_count < MaxAttempts`, `Fail` transitions to `retrying` instead of
+`dead_letter`.
+
+No-Regression Evidence: `go test ./internal/storage/postgres -run
+'TestProjectorQueueAck(SupersedesObsoleteTerminalGenerations|PromotesGenerationAndSupersedesPriorActive)'
+-count=1` proves the ack transaction still promotes the current generation and
+now coalesces older terminal same-scope projector failures before status can
+report them as active health.
+
+Observability Evidence: no new telemetry name was needed. The existing
+instrumented Postgres query spans and
+`pcg_dp_postgres_query_duration_seconds{store="queue"}` metric cover each ack
+SQL statement, while `/admin/status` fact-work and generation counts expose
+whether obsolete terminal rows still affect service health.
 
 ### Reducer queue
 

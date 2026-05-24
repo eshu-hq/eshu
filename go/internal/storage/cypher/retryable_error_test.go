@@ -103,6 +103,16 @@ func TestWrapRetryableNeo4jError(t *testing.T) {
 			wantMessage:    "TransactionExecutionLimit",
 			skipNeo4jCheck: true,
 		},
+		{
+			name: "wrapped ConnectivityError is retryable",
+			err: fmt.Errorf("write deployment mapping: %w", &neo4jdriver.ConnectivityError{
+				Inner: errors.New("dial tcp 172.20.9.185:7687: connect: connection refused"),
+			}),
+			wantRetryable:  true,
+			wantWrapped:    true,
+			wantMessage:    "ConnectivityError",
+			skipNeo4jCheck: true,
+		},
 	}
 
 	for _, tt := range tests {
