@@ -57,6 +57,12 @@ Each selected instance's `configuration.targets` array supports:
 Credentials are resolved from the named environment variables at runtime and
 are not copied into facts, logs, metrics, or docs.
 
+For `ecosystem: npm`, `metadata_url` should point at the package packument
+endpoint, for example `https://registry.npmjs.org/vite` or the equivalent
+private-registry package URL. The runtime asks npm-compatible registries for
+the abbreviated install metadata document and keeps the 20 MiB response cap in
+force.
+
 ## Telemetry
 
 The binary exposes the shared hosted runtime with `/healthz`, `/readyz`,

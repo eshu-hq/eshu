@@ -148,9 +148,13 @@ package-native dependency truth: `PackageRegistryPackageRow`,
 version, and dependency nodes. `package_registry.source_hint` remains
 provenance-only until reducer correlation proves ownership, publication, or
 consumption.
-When a generation contains source hints, `buildPackageSourceCorrelationReducerIntent`
-emits one `package_source_correlation` reducer intent for the scope so the
-reducer can classify all hints against active repository facts once.
+When a generation contains package identity or source hints,
+`buildPackageSourceCorrelationReducerIntent` emits one
+`package_source_correlation` reducer intent for the scope so the reducer can
+classify hints and manifest-backed package consumption against active Git facts
+once. Package identity also triggers `supply_chain_impact` so vulnerability
+impact can be recomputed when package evidence arrives after vulnerability
+intelligence.
 AWS cloud facts follow the same source-local rule. The projector does not join
 AWS resources to Terraform state; when a generation contains one or more
 `aws_resource` facts, `buildAWSCloudRuntimeDriftReducerIntent` emits one

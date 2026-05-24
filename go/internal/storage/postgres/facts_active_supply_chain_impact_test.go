@@ -22,8 +22,9 @@ func TestListActiveSupplyChainImpactFactsQueryIsPackageBoundedAndPaged(t *testin
 		"fact.payload->>'subject_digest' = ANY($4::text[])",
 		"fact.payload->>'cpe' = ANY($5::text[])",
 		"fact.payload->>'criteria' = ANY($5::text[])",
-		"fact.fact_id > $6",
-		"LIMIT $7",
+		"fact.payload->>'document_id' = ANY($6::text[])",
+		"fact.fact_id > $7",
+		"LIMIT $8",
 	} {
 		if !strings.Contains(listActiveSupplyChainImpactFactsQuery, want) {
 			t.Fatalf("listActiveSupplyChainImpactFactsQuery missing %q:\n%s", want, listActiveSupplyChainImpactFactsQuery)

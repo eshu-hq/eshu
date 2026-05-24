@@ -30,6 +30,10 @@ flowchart LR
 - `MetadataProvider` fetches one bounded metadata document for a target.
 - `HTTPMetadataProvider` performs the first production metadata fetch path
   using an explicit `metadata_url`.
+  For npm targets, it requests npm's abbreviated packument media type
+  (`application/vnd.npm.install-v1+json`) with JSON fallback so popular
+  packages do not require downloading full metadata documents that contain
+  readmes and other install-irrelevant fields.
 - `ClaimedSource` implements `collector.ClaimedSource`.
 
 ## Telemetry
@@ -67,14 +71,20 @@ must stay out of metrics.
   facts, logs, metric labels, or docs.
 - `HTTPMetadataProvider` accepts one explicit metadata URL per target; it does
   not crawl feeds or enumerate registries.
+- npm packument targets use the npm registry's abbreviated metadata request
+  shape. The body-size cap still applies to the returned document; the request
+  shape prevents normal npm package identity and version evidence from needing
+  an unbounded full packument.
 
 ## Evidence
 
 Collector Performance Evidence: `go test ./internal/collector/packageregistry/packageruntime -run 'TestBoundedParsedMetadataTruncatesVersionsAndEmitsWarning|TestClaimedSourceTruncatesMetadataOverVersionLimit|TestClaimedSourceParsesMetadataIntoPackageRegistryFacts|TestClaimedSourceSanitizesSourceURIBeforeFactEmission' -count=1 -v` proves over-limit package metadata stays bounded without retrying the whole collector claim. The bounding pass remains linear over parsed observations, emits no more than `version_limit` version facts per package, and drops dependent observations for truncated versions before envelope construction.
 
+No-Regression Evidence: `go test ./internal/collector/packageregistry/packageruntime -run TestHTTPMetadataProviderRequestsAbbreviatedNPMPackument -count=1 -v` proves npm targets request abbreviated packuments before the body-size guard runs. On 2026-05-23, `curl -fsSL -H 'Accept: application/vnd.npm.install-v1+json; q=1.0, application/json; q=0.8, */*' https://registry.npmjs.org/vite -o /tmp/eshu-vite-abbreviated-packument.json && wc -c /tmp/eshu-vite-abbreviated-packument.json` returned 2,249,718 bytes, while the previous generic JSON accept shape returned 38,843,326 bytes for the same public package.
+
 Collector Observability Evidence: truncated package metadata emits a durable `package_registry.warning` fact with `warning_code=version_limit_truncated`, and the existing `eshu_dp_package_registry_facts_emitted_total` counter reports it through the bounded `fact_kind=package_registry.warning` label. `/admin/status` continues to expose package-registry collector completion, retryable failure, and terminal failure counts without adding package names, feed URLs, versions, or artifact paths to metric labels.
 
-No-Observability-Change: no new metrics or labels were added. Existing package-registry duration, request, facts-emitted, rate-limit, generation-lag, parse-failure, health, readiness, metrics, and admin-status signals already cover this bounded truncation path.
+No-Observability-Change: no new metrics or labels were added. Existing package-registry duration, request status-class, facts-emitted, rate-limit, generation-lag, parse-failure, health, readiness, metrics, and admin-status signals already cover npm abbreviated-packument success and the body-size failure path without package names, feed URLs, versions, or artifact paths in metric labels.
 
 Collector Deployment Evidence: `helm lint deploy/helm/eshu` and `go test ./internal/runtime -run 'TestHelmClaimDrivenCollectorsRequireWorkflowCoordinator|TestHelmWorkflowCoordinatorActiveModeForClaimDrivenCollectors|TestHelmPodSecurityContextUsesOnRootMismatch' -count=1 -v` prove the chart renders active workflow-coordinator claim scheduling for hosted collectors and keeps the package-registry collector Deployment on the existing metrics Service and ServiceMonitor path.
 

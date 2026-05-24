@@ -22,7 +22,7 @@ func buildSupplyChainImpactReducerIntent(
 			GenerationID: generation.GenerationID,
 			Domain:       reducer.DomainSupplyChainImpact,
 			EntityKey:    "supply_chain_impact:" + scopeValue.ScopeID,
-			Reason:       "supply-chain vulnerability evidence observed",
+			Reason:       supplyChainImpactReason(envelope),
 			FactID:       envelope.FactID,
 			SourceSystem: supplyChainImpactSourceSystem(envelope),
 		}, true
@@ -35,11 +35,19 @@ func supplyChainImpactTriggerFact(envelope facts.Envelope) bool {
 	case facts.VulnerabilityCVEFactKind,
 		facts.VulnerabilityAffectedPackageFactKind,
 		facts.VulnerabilityEPSSScoreFactKind,
-		facts.VulnerabilityKnownExploitedFactKind:
+		facts.VulnerabilityKnownExploitedFactKind,
+		facts.PackageRegistryPackageFactKind:
 		return true
 	default:
 		return false
 	}
+}
+
+func supplyChainImpactReason(envelope facts.Envelope) string {
+	if envelope.FactKind == facts.PackageRegistryPackageFactKind {
+		return "package registry identity observed"
+	}
+	return "supply-chain vulnerability evidence observed"
 }
 
 func supplyChainImpactSourceSystem(envelope facts.Envelope) string {

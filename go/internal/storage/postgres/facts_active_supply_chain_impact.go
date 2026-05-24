@@ -56,10 +56,11 @@ WHERE fact.fact_kind IN (
       OR fact.payload->>'digest' = ANY($4::text[])
       OR fact.payload->>'cpe' = ANY($5::text[])
       OR fact.payload->>'criteria' = ANY($5::text[])
+      OR fact.payload->>'document_id' = ANY($6::text[])
   )
-  AND ($6 = '' OR fact.fact_id > $6)
+  AND ($7 = '' OR fact.fact_id > $7)
 ORDER BY fact.fact_id ASC
-LIMIT $7
+LIMIT $8
 `
 
 // ListActiveSupplyChainImpactFacts loads active package, SBOM, image, and risk
@@ -75,10 +76,11 @@ func (s FactStore) ListActiveSupplyChainImpactFacts(
 	filter.PURLs = cleanStringFilterValues(filter.PURLs)
 	filter.CVEIDs = cleanStringFilterValues(filter.CVEIDs)
 	filter.SubjectDigests = cleanStringFilterValues(filter.SubjectDigests)
+	filter.DocumentIDs = cleanStringFilterValues(filter.DocumentIDs)
 	filter.ProductCriteria = cleanStringFilterValues(filter.ProductCriteria)
 	if len(filter.PackageIDs) == 0 && len(filter.PURLs) == 0 &&
 		len(filter.CVEIDs) == 0 && len(filter.SubjectDigests) == 0 &&
-		len(filter.ProductCriteria) == 0 {
+		len(filter.DocumentIDs) == 0 && len(filter.ProductCriteria) == 0 {
 		return nil, nil
 	}
 
@@ -110,6 +112,7 @@ func (s FactStore) listActiveSupplyChainImpactFactsPage(
 		filter.CVEIDs,
 		filter.SubjectDigests,
 		filter.ProductCriteria,
+		filter.DocumentIDs,
 		cursorFactID,
 		listFactsByKindPageSize,
 	)
@@ -119,7 +122,8 @@ func (s FactStore) listActiveSupplyChainImpactFactsPage(
 	defer func() { _ = rows.Close() }()
 
 	loaded := make([]facts.Envelope, 0,
-		len(filter.PackageIDs)+len(filter.PURLs)+len(filter.CVEIDs)+len(filter.SubjectDigests)+len(filter.ProductCriteria))
+		len(filter.PackageIDs)+len(filter.PURLs)+len(filter.CVEIDs)+len(filter.SubjectDigests)+
+			len(filter.DocumentIDs)+len(filter.ProductCriteria))
 	for rows.Next() {
 		envelope, scanErr := scanFactEnvelope(rows)
 		if scanErr != nil {

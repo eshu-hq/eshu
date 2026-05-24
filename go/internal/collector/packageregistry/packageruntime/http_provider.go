@@ -16,6 +16,7 @@ import (
 const (
 	maxMetadataDocumentBytes    = 20 << 20
 	defaultMetadataFetchTimeout = 30 * time.Second
+	npmMetadataAcceptHeader     = "application/vnd.npm.install-v1+json; q=1.0, application/json; q=0.8, */*;q=0.1"
 	jsonMetadataAcceptHeader    = "application/json, application/xml;q=0.5, text/xml;q=0.4, */*;q=0.1"
 	xmlMetadataAcceptHeader     = "application/xml, text/xml;q=0.9, application/json;q=0.5, */*;q=0.1"
 )
@@ -96,6 +97,8 @@ func (p HTTPMetadataProvider) httpClient() *http.Client {
 
 func metadataAcceptHeader(ecosystem packageregistry.Ecosystem) string {
 	switch ecosystem {
+	case packageregistry.EcosystemNPM:
+		return npmMetadataAcceptHeader
 	case packageregistry.EcosystemMaven, packageregistry.EcosystemNuGet:
 		return xmlMetadataAcceptHeader
 	default:
