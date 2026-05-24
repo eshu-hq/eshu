@@ -1,0 +1,35 @@
+docs/internal/security-intelligence-implementation-plan.md
+  s_f2f7fbb6f30866::t_da928e3253a045 1-128,130-153,155-173
+  s_f2f7fbb6f30866::t_51fdefb88fd26e 129,154
+docs/mkdocs.yml
+  s_f2f7fbb6f30866::t_341a7573591e8e 141
+docs/public/reference/http-api/evidence-and-supply-chain.md
+  s_f2f7fbb6f30866::t_8edcdf3db31f3a 143-148
+docs/public/roadmap.md
+  s_f2f7fbb6f30866::t_a6c76fc44ff43e 73-74
+  s_f2f7fbb6f30866::t_45cac8ee5dd9b1 62-65
+docs/public/reference/collector-reducer-readiness.md
+  s_f2f7fbb6f30866::t_02f78c29b02dab 57-61
+docs/public/reference/security-intelligence.md
+  s_f2f7fbb6f30866::t_69f185009c0664 1-59,80-122,124-132,135-203,228-243
+  s_f2f7fbb6f30866::t_364ddff70ab29e 60-79,123,133-134,204-227
+docs/internal/docs-change-tally.md
+  s_f2f7fbb6f30866::t_b94d5480ecdcd5 174
+  s_f2f7fbb6f30866::t_62247759583fe0 182-189
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.0",
+  "base_commit_sha": "38ddb7a03304e9777f35e79349464dd6b0fc9589",
+  "prompts": {},
+  "sessions": {
+    "s_f2f7fbb6f30866": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e360b-90eb-7472-bac7-56d488b65f77",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
