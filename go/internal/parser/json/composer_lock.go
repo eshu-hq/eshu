@@ -53,18 +53,28 @@ func composerLockSectionRows(
 }
 
 func composerLockSortedEntries(raw []any) []map[string]any {
-	entries := make([]map[string]any, 0, len(raw))
+	type indexedEntry struct {
+		entry   map[string]any
+		sortKey string
+	}
+	indexed := make([]indexedEntry, 0, len(raw))
 	for _, item := range raw {
 		entry, ok := item.(map[string]any)
 		if !ok {
 			continue
 		}
-		entries = append(entries, entry)
+		indexed = append(indexed, indexedEntry{
+			entry:   entry,
+			sortKey: strings.ToLower(composerLockEntryName(entry)),
+		})
 	}
-	sort.SliceStable(entries, func(i, j int) bool {
-		return strings.ToLower(composerLockEntryName(entries[i])) <
-			strings.ToLower(composerLockEntryName(entries[j]))
+	sort.SliceStable(indexed, func(i, j int) bool {
+		return indexed[i].sortKey < indexed[j].sortKey
 	})
+	entries := make([]map[string]any, len(indexed))
+	for i, item := range indexed {
+		entries[i] = item.entry
+	}
 	return entries
 }
 
