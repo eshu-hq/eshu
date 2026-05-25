@@ -2,7 +2,6 @@ package query
 
 import (
 	"context"
-	"sort"
 	"strings"
 )
 
@@ -31,21 +30,28 @@ const (
 	// classified. Callers must not interpret zero findings as safe in this
 	// state.
 	ReadinessStateReadinessUnavailable SupplyChainImpactReadinessState = "readiness_unavailable"
+	// ReadinessStateUnsupported means Eshu observed real target evidence
+	// (owned dependency in an unsupported ecosystem, package-manager file
+	// flagged with an unsupported lockfile feature, malformed/unsupported
+	// SBOM, or unsupported image manifest) the matcher cannot resolve into a
+	// finding. Callers must not interpret this as clean or affected.
+	ReadinessStateUnsupported SupplyChainImpactReadinessState = "unsupported"
 )
 
 // SupplyChainImpactReadinessEnvelope is the readiness payload attached to a
 // vulnerability impact response so a UI, MCP client, or operator can tell
 // "nothing matched" from "Eshu has not collected the evidence yet."
 type SupplyChainImpactReadinessEnvelope struct {
-	State             SupplyChainImpactReadinessState   `json:"readiness_state"`
-	TargetScope       SupplyChainImpactTargetScope      `json:"target_scope"`
-	EvidenceSources   []SupplyChainImpactEvidenceFamily `json:"evidence_sources"`
-	SourceSnapshots   []SupplyChainImpactSourceSnapshot `json:"source_snapshots,omitempty"`
-	SourceStates      []SupplyChainImpactSourceState    `json:"source_states,omitempty"`
-	MissingEvidence   []string                          `json:"missing_evidence,omitempty"`
-	IncompleteReasons []string                          `json:"incomplete_reasons,omitempty"`
-	Freshness         string                            `json:"freshness"`
-	Counts            SupplyChainImpactReadinessCounts  `json:"counts"`
+	State              SupplyChainImpactReadinessState      `json:"readiness_state"`
+	TargetScope        SupplyChainImpactTargetScope         `json:"target_scope"`
+	EvidenceSources    []SupplyChainImpactEvidenceFamily    `json:"evidence_sources"`
+	SourceSnapshots    []SupplyChainImpactSourceSnapshot    `json:"source_snapshots,omitempty"`
+	SourceStates       []SupplyChainImpactSourceState       `json:"source_states,omitempty"`
+	UnsupportedTargets []SupplyChainImpactUnsupportedTarget `json:"unsupported_targets,omitempty"`
+	MissingEvidence    []string                             `json:"missing_evidence,omitempty"`
+	IncompleteReasons  []string                             `json:"incomplete_reasons,omitempty"`
+	Freshness          string                               `json:"freshness"`
+	Counts             SupplyChainImpactReadinessCounts     `json:"counts"`
 }
 
 // SupplyChainImpactTargetScope echoes the bounded anchors the caller used so
@@ -117,11 +123,12 @@ func (q SupplyChainImpactReadinessQuery) hasFactAnchor() bool {
 // readiness store returns. The handler classifies the readiness state from
 // this snapshot plus the findings page; the store never invents findings.
 type SupplyChainImpactReadinessSnapshot struct {
-	EvidenceSources   []SupplyChainImpactEvidenceFamily
-	SourceSnapshots   []SupplyChainImpactSourceSnapshot
-	SourceStates      []SupplyChainImpactSourceState
-	TargetIncomplete  bool
-	IncompleteReasons []string
+	EvidenceSources    []SupplyChainImpactEvidenceFamily
+	SourceSnapshots    []SupplyChainImpactSourceSnapshot
+	SourceStates       []SupplyChainImpactSourceState
+	UnsupportedTargets []SupplyChainImpactUnsupportedTarget
+	TargetIncomplete   bool
+	IncompleteReasons  []string
 }
 
 // SupplyChainImpactReadinessStore reads bounded source-fact counts so the
@@ -197,6 +204,8 @@ func BuildSupplyChainImpactReadiness(
 		snapshot.TargetIncomplete = true
 		snapshot.IncompleteReasons = append(snapshot.IncompleteReasons, sourceStateIncompleteReasons(sourceStates)...)
 	}
+	unsupportedTargets := normalizeUnsupportedTargets(snapshot.UnsupportedTargets)
+	snapshot.UnsupportedTargets = unsupportedTargets
 	counts := SupplyChainImpactReadinessCounts{
 		FindingsReturned:   len(findings),
 		FindingsTruncated:  truncated,
@@ -208,7 +217,8 @@ func BuildSupplyChainImpactReadiness(
 	if isReadyState(state) {
 		// A ready answer is internally consistent: clear missing-evidence
 		// reasons so clients do not see "ready_with_findings" alongside
-		// "missing advisory sources".
+		// "missing advisory sources". Unsupported targets stay because
+		// they are coverage-gap evidence, not a finding contradiction.
 		missing = nil
 	}
 	incompleteReasons := uniqueSortedReadinessStrings(snapshot.IncompleteReasons)
@@ -218,15 +228,16 @@ func BuildSupplyChainImpactReadiness(
 	freshness := aggregateReadinessFreshness(sources)
 	freshness = combineReadinessFreshness(freshness, aggregateSourceStateFreshness(sourceStates))
 	return SupplyChainImpactReadinessEnvelope{
-		State:             state,
-		TargetScope:       scope,
-		EvidenceSources:   sources,
-		SourceSnapshots:   normalizeSourceSnapshots(snapshot.SourceSnapshots),
-		SourceStates:      sourceStates,
-		MissingEvidence:   missing,
-		IncompleteReasons: incompleteReasons,
-		Freshness:         freshness,
-		Counts:            counts,
+		State:              state,
+		TargetScope:        scope,
+		EvidenceSources:    sources,
+		SourceSnapshots:    normalizeSourceSnapshots(snapshot.SourceSnapshots),
+		SourceStates:       sourceStates,
+		UnsupportedTargets: unsupportedTargets,
+		MissingEvidence:    missing,
+		IncompleteReasons:  incompleteReasons,
+		Freshness:          freshness,
+		Counts:             counts,
 	}
 }
 
@@ -277,6 +288,14 @@ func classifyReadinessState(
 		evidenceFactCount(sources, EvidenceFamilyContainerImageIdentity) == 0 {
 		return ReadinessStateNotConfigured
 	}
+	// Unsupported target evidence outranks evidence_incomplete: when Eshu
+	// observed real target evidence the matcher cannot resolve, the answer
+	// is not "we are missing data" but "we have data we cannot match." The
+	// state stays unsupported only when no finding admitted the scope and
+	// no advisory/owned mix produced a clean ready_zero answer.
+	if len(snapshot.UnsupportedTargets) > 0 {
+		return ReadinessStateUnsupported
+	}
 	if len(missing) > 0 {
 		return ReadinessStateEvidenceIncomplete
 	}
@@ -317,6 +336,9 @@ func classifyMissingEvidence(
 		evidenceFactCount(sources, EvidenceFamilySBOMComponent) == 0 &&
 		evidenceFactCount(sources, EvidenceFamilySBOMAttestation) == 0 {
 		missing = append(missing, MissingEvidenceSBOMOrImage)
+	}
+	if len(snapshot.UnsupportedTargets) > 0 {
+		missing = append(missing, MissingEvidenceUnsupportedTargets)
 	}
 	return uniqueSortedReadinessStrings(missing)
 }
@@ -383,106 +405,4 @@ func aggregateReadinessFreshness(sources []SupplyChainImpactEvidenceFamily) stri
 		}
 	}
 	return state
-}
-
-// allowedEvidenceFamilies is the closed set of family identifiers the
-// envelope is allowed to surface. Anything emitted by the readiness store
-// outside this set is dropped to prevent silent contract drift between the
-// SQL family literals and the Go classifier.
-var allowedEvidenceFamilies = map[string]struct{}{
-	EvidenceFamilyVulnerabilityAdvisory:       {},
-	EvidenceFamilyVulnerabilityExploitability: {},
-	EvidenceFamilyPackageConsumption:          {},
-	EvidenceFamilyPackageRegistry:             {},
-	EvidenceFamilySBOMComponent:               {},
-	EvidenceFamilySBOMAttestation:             {},
-	EvidenceFamilyContainerImageIdentity:      {},
-}
-
-func normalizeEvidenceSources(sources []SupplyChainImpactEvidenceFamily) []SupplyChainImpactEvidenceFamily {
-	if len(sources) == 0 {
-		return []SupplyChainImpactEvidenceFamily{}
-	}
-	cloned := make([]SupplyChainImpactEvidenceFamily, 0, len(sources))
-	for _, family := range sources {
-		name := strings.TrimSpace(family.Family)
-		if name == "" {
-			continue
-		}
-		if _, ok := allowedEvidenceFamilies[name]; !ok {
-			continue
-		}
-		cloned = append(cloned, family)
-	}
-	sort.SliceStable(cloned, func(i, j int) bool {
-		return cloned[i].Family < cloned[j].Family
-	})
-	return cloned
-}
-
-func normalizeSourceSnapshots(snapshots []SupplyChainImpactSourceSnapshot) []SupplyChainImpactSourceSnapshot {
-	if len(snapshots) == 0 {
-		return nil
-	}
-	out := make([]SupplyChainImpactSourceSnapshot, 0, len(snapshots))
-	seen := map[string]struct{}{}
-	for _, snapshot := range snapshots {
-		snapshot.Source = strings.TrimSpace(snapshot.Source)
-		if snapshot.Source == "" {
-			continue
-		}
-		snapshot.Ecosystem = strings.TrimSpace(snapshot.Ecosystem)
-		snapshot.CacheArtifactVersion = strings.TrimSpace(snapshot.CacheArtifactVersion)
-		snapshot.SnapshotDigest = strings.TrimSpace(snapshot.SnapshotDigest)
-		snapshot.LastUpdatedAt = strings.TrimSpace(snapshot.LastUpdatedAt)
-		snapshot.Freshness = strings.TrimSpace(snapshot.Freshness)
-		snapshot.WarningCode = strings.TrimSpace(snapshot.WarningCode)
-		snapshot.WarningMessage = strings.TrimSpace(snapshot.WarningMessage)
-		key := snapshot.Source + "\x00" + snapshot.Ecosystem + "\x00" + snapshot.SnapshotDigest
-		if _, ok := seen[key]; ok {
-			continue
-		}
-		seen[key] = struct{}{}
-		out = append(out, snapshot)
-	}
-	sort.SliceStable(out, func(i, j int) bool {
-		if out[i].Source != out[j].Source {
-			return out[i].Source < out[j].Source
-		}
-		if out[i].Ecosystem != out[j].Ecosystem {
-			return out[i].Ecosystem < out[j].Ecosystem
-		}
-		return out[i].SnapshotDigest < out[j].SnapshotDigest
-	})
-	return out
-}
-
-func uniqueSortedReadinessStrings(values []string) []string {
-	if len(values) == 0 {
-		return nil
-	}
-	seen := make(map[string]struct{}, len(values))
-	unique := make([]string, 0, len(values))
-	for _, value := range values {
-		trimmed := strings.TrimSpace(value)
-		if trimmed == "" {
-			continue
-		}
-		if _, ok := seen[trimmed]; ok {
-			continue
-		}
-		seen[trimmed] = struct{}{}
-		unique = append(unique, trimmed)
-	}
-	sort.Strings(unique)
-	return unique
-}
-
-func readinessMissingContains(values []string, target string) bool {
-	for _, value := range values {
-		if value == target {
-			return true
-		}
-	}
-	return false
 }

@@ -353,10 +353,14 @@ operator can tell `nothing matched` from `Eshu did not have the evidence to
 match yet`:
 
 - `readiness_state` is one of `not_configured`, `target_incomplete`,
-  `evidence_incomplete`, `ready_zero_findings`, `ready_with_findings`, or
-  `readiness_unavailable`. The last state is returned when the readiness
-  lookup itself fails; the findings page is preserved but coverage cannot
-  be classified.
+  `evidence_incomplete`, `ready_zero_findings`, `ready_with_findings`,
+  `readiness_unavailable`, or `unsupported`. `readiness_unavailable` is
+  returned when the readiness lookup itself fails; the findings page is
+  preserved but coverage cannot be classified. `unsupported` is returned
+  when Eshu observed real target evidence the matcher cannot resolve
+  (dependency in an unsupported ecosystem, lockfile with an unsupported
+  feature, malformed/unsupported SBOM document, or unsupported image
+  target). Callers MUST NOT interpret `unsupported` as clean or affected.
 - `target_scope` echoes the bounded anchors the caller used. `impact_status`
   alone is not a fact-anchor: the readiness store skips its Postgres scan
   and returns an empty snapshot for impact_status-only requests, because
@@ -385,10 +389,18 @@ match yet`:
   failure without raw advisory bodies or source URLs.
 - `missing_evidence[]` names the absent required join families, such as
   `advisory_sources`, `owned_packages`, `sbom_or_image_evidence`,
-  `target_collection_incomplete`, or `readiness_unavailable`. Reasons stay
-  deduplicated, sorted, and free of package names or advisory bodies; the
-  list is empty on `ready_*` states so callers cannot see contradictory
-  "ready" + "missing" signals.
+  `target_collection_incomplete`, `readiness_unavailable`, or
+  `unsupported_targets`. Reasons stay deduplicated, sorted, and free of
+  package names or advisory bodies; the list is empty on `ready_*` states
+  so callers cannot see contradictory "ready" + "missing" signals.
+- `unsupported_targets[]` lists observed coverage-gap evidence Eshu cannot
+  match. Each entry carries `target_kind` (`ecosystem`,
+  `package_manager_file`, `sbom_target`, or `image_target`), a stable
+  `reason` code, a bounded `count`, and optional `ecosystem`,
+  `lockfile_flavor`, or `feature_token` fields describing why the target
+  is unsupported. The list is surfaced additively alongside `ready_*`
+  states when only some observed targets are unsupported, and as the
+  dominant signal when `readiness_state=unsupported`.
 - `incomplete_reasons[]` lists collector-emitted reasons explaining why
   source collection is still in flight; only populated when
   `readiness_state` is `target_incomplete`.

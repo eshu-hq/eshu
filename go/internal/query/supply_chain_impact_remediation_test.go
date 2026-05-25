@@ -163,14 +163,13 @@ func remediationExplanationRow() SupplyChainImpactExplanationRow {
 				"source":         "ghsa",
 			}),
 			explanationFact("consume-rem", "reducer_package_consumption_correlation", map[string]any{
-				"repository_id":    "repo://example/api",
-				"relative_path":    "package-lock.json",
-				"dependency_range": "^1.2.0",
-				"dependency_path":  []any{"example"},
-				"dependency_depth": float64(1),
+				"repository_id":     "repo://example/api",
+				"relative_path":     "package-lock.json",
+				"dependency_range":  "^1.2.0",
+				"dependency_path":   []any{"example"},
+				"dependency_depth":  float64(1),
 				"direct_dependency": true,
 			}),
 		},
 	}
 }
-

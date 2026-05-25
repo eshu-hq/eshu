@@ -8,6 +8,7 @@ import (
 
 const sourceSnapshotFamilyMarker = "vulnerability.source_snapshot"
 const sourceStateFamilyMarker = "vulnerability.source_state"
+const unsupportedTargetFamilyMarker = "vulnerability.unsupported_target"
 
 func decodeSourceSnapshots(raw sql.NullString) ([]SupplyChainImpactSourceSnapshot, error) {
 	if !raw.Valid || raw.String == "" {
@@ -29,4 +30,15 @@ func decodeSourceStates(raw sql.NullString) ([]SupplyChainImpactSourceState, err
 		return nil, fmt.Errorf("decode vulnerability source state metadata: %w", err)
 	}
 	return states, nil
+}
+
+func decodeUnsupportedTargets(raw sql.NullString) ([]SupplyChainImpactUnsupportedTarget, error) {
+	if !raw.Valid || raw.String == "" {
+		return nil, nil
+	}
+	var targets []SupplyChainImpactUnsupportedTarget
+	if err := json.Unmarshal([]byte(raw.String), &targets); err != nil {
+		return nil, fmt.Errorf("decode vulnerability unsupported target metadata: %w", err)
+	}
+	return targets, nil
 }

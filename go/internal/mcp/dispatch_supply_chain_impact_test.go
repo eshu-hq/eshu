@@ -170,6 +170,11 @@ func TestDispatchToolSupplyChainImpactFindingsSurfacesIncompleteCoverageStates(t
 			readinessState: "target_incomplete",
 			missing:        []string{"target_collection_incomplete"},
 		},
+		{
+			name:           "unsupported surfaces observed target coverage gap",
+			readinessState: "unsupported",
+			missing:        []string{"unsupported_targets"},
+		},
 	}
 	for _, tc := range cases {
 		tc := tc
