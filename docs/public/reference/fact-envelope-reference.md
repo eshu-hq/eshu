@@ -67,7 +67,7 @@ current families are:
 | Package registry | `package_registry` | `package_registry.package`, `package_registry.package_version`, `package_registry.package_dependency`, `package_registry.package_artifact`, `package_registry.source_hint`, `package_registry.vulnerability_hint`, `package_registry.registry_event`, `package_registry.repository_hosting`, `package_registry.warning` |
 | CI/CD runs | `ci_cd_run` | `ci.pipeline_definition`, `ci.run`, `ci.job`, `ci.step`, `ci.artifact`, `ci.trigger_edge`, `ci.environment_observation`, `ci.warning` |
 | SBOM and attestations | collector-specific SBOM or attestation source | `sbom.document`, `sbom.component`, `sbom.dependency_relationship`, `sbom.external_reference`, `attestation.statement`, `attestation.slsa_provenance`, `attestation.signature_verification`, `sbom.warning` |
-| Vulnerability intelligence | collector-specific vulnerability source | `vulnerability.source_snapshot`, `vulnerability.cve`, `vulnerability.affected_product`, `vulnerability.affected_package`, `vulnerability.epss_score`, `vulnerability.known_exploited`, `vulnerability.reference`, `vulnerability.warning` |
+| Vulnerability intelligence | collector-specific vulnerability source | `vulnerability.source_snapshot`, `vulnerability.cve`, `vulnerability.affected_product`, `vulnerability.affected_package`, `vulnerability.os_package`, `vulnerability.epss_score`, `vulnerability.known_exploited`, `vulnerability.reference`, `vulnerability.warning` |
 | Provider security alerts | `security_alert` | `security_alert.repository_alert` |
 
 Most current core families use schema version `1.0.0`.
@@ -80,6 +80,21 @@ cache artifact version, snapshot digest, cache update time, expiration,
 freshness, and mode. These fields describe source observation state only; they
 do not prove vulnerability impact without reducer-owned package, image, or
 deployment evidence.
+
+`vulnerability.os_package` carries one installed OS package observation from
+an Alpine apk or Debian dpkg snapshot. The payload preserves distro,
+distro version, package manager, name, epoch, upstream version, distro
+release (including Alpine `-rN` and Debian `~debNuM` / `+debNuM` backport
+suffixes), arch, source package, source version, repository URL,
+repository class (`vendor`, `third_party`, `unknown`), vendor advisory source
+(`alpine`, `debian`, or empty), and the verbatim `installed_version_raw`.
+The `fixed_version_source` field is left empty by the collector; reducers
+populate it after joining a matching vendor advisory. Reducers MUST NOT
+compare `installed_version_raw` against an upstream OSV/NVD advisory's
+fixed version: vendor backports (for example
+`openssl 3.0.11-1~deb12u2`) often patch the upstream fix without changing
+the upstream version number, and using upstream evidence would produce
+false positives against the vendor-published build.
 
 `security_alert.repository_alert` preserves repository-scoped provider alert
 state, Dependabot alert ID/number, dependency ecosystem/name, manifest path,
