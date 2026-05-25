@@ -74,8 +74,8 @@ absence of evidence look like absence of risk. Guard tests:
 | maven | pom.xml | manifest | covered | ✓ | — | ✓ | ✓ | ✓ | — | `go/internal/parser/maven/parser.go` | `<dependencies>` and `<dependencyManagement>` emit content_entity rows with `groupId:artifactId` identity. Local `<properties>` resolve at parse time; parent-POM references and unsatisfied `${property}` references stay marked `partial`/`unresolved`. |
 | npm | package.json | manifest | covered | ✓ | — | ✓ | ✓ | ✓ | — | `go/internal/parser/json/language.go` (`dependencyVariables`, npm) | `dependencies` and `devDependencies` emit content_entity rows; optional and peer scopes are not yet split. |
 | npm | package-lock.json | lockfile | covered | ✓ | ✓ | — | ✓ | — | ✓ | `go/internal/parser/json/package_lock.go` | Lockfile v3 and v1 emit exact-version rows with `dependency_path`/`dependency_depth` and `direct_dependency`. |
-| npm | pnpm-lock.yaml | lockfile | gap | — | — | — | — | — | — | `go/internal/parser/yaml/language.go` does not branch on pnpm-lock.yaml | pnpm lockfiles are not yet parsed. |
-| npm | yarn.lock | lockfile | gap | — | — | — | — | — | — | no parser registered in `go/internal/parser/registry.go` | Yarn classic and Berry lockfiles are not yet parsed. |
+| npm | pnpm-lock.yaml | lockfile | covered | ✓ | ✓ | — | ✓ | ✓ | ✓ | `go/internal/parser/nodelockfile/pnpm.go` | pnpm v6+ lockfiles emit exact-version rows with `package_manager: npm` plus `package_manager_flavor: pnpm`, `dependency_path`/`dependency_depth`, `direct_dependency`, and runtime vs dev scope split; workspace, file, link, and portal entries stay out of remote evidence. |
+| npm | yarn.lock | lockfile | covered | ✓ | ✓ | — | — | — | ✓ | `go/internal/parser/nodelockfile/yarn_classic.go` and `yarn_berry.go` | Yarn classic v1 and Yarn Berry lockfiles emit exact-version rows with `package_manager: npm` plus `package_manager_flavor: yarn`, `dependency_path`/`dependency_depth`, `direct_dependency`, and `lockfile_resolution_protocol` for non-npm protocols; workspace/file/link/portal entries stay out of remote evidence. |
 | nuget | *.csproj | manifest | covered | ✓ | — | ✓ | ✓ | ✓ | — | `go/internal/parser/nuget_project_language.go` | PackageReference rows preserve requested versions, resolved MSBuild properties, unresolved-property partial evidence, and PrivateAssets dev/test signals. |
 | nuget | packages.lock.json | lockfile | covered | ✓ | ✓ | — | ✓ | — | ✓ | `go/internal/parser/json/nuget_lock.go` | NuGet lockfiles emit exact resolved versions and direct/transitive dependency paths when the lockfile proves them. |
 | pypi | Pipfile | manifest | covered | ✓ | — | ✓ | ✓ | ✓ | — | `go/internal/parser/pythondep/pipfile.go` | `[packages]` and `[dev-packages]` emit content_entity rows; inline `{git=…}`, `{path=…}`, `{url=…}` entries surface as `vcs_dependency`, `path_dependency`, or `url_dependency`. |
@@ -129,19 +129,21 @@ absence of evidence look like absence of risk. Guard tests:
 
 ## Performance Evidence
 
-No-Regression Evidence: baseline coverage before the PyPI, JVM, NuGet, and
-Go module slices was the existing in-memory npm, Composer, and RubyGems
-parser/reducer path; after this change, `go test ./internal/parser/json
-./internal/parser ./internal/parser/gomod ./internal/parser/maven
-./internal/parser/gradle ./internal/parser/pythondep ./internal/reducer
--count=1` and `go test ./...` pass on Go 1.26 darwin/arm64. Input shape is
-fixture-only manifests and lockfiles (`package.json`, `package-lock.json`,
-`composer.json`, `composer.lock`, `Gemfile`, `Gemfile.lock`, `.csproj`,
+No-Regression Evidence: baseline coverage before this slice was the
+existing in-memory npm, Composer, RubyGems, NuGet, Go module, JVM, and
+PyPI parser/reducer path; after the rebased change, `go test
+./internal/parser/json ./internal/parser/nodelockfile
+./internal/parser/gomod ./internal/parser/maven ./internal/parser/gradle
+./internal/parser/pythondep ./internal/parser ./internal/reducer -count=1`
+and `go test ./...` pass on Go 1.26.3 darwin/arm64. Input shape is
+fixture-only manifests and lockfiles (`package.json`,
+`package-lock.json`, `yarn.lock`, `pnpm-lock.yaml`, `composer.json`,
+`composer.lock`, `Gemfile`, `Gemfile.lock`, `.csproj`,
 `packages.lock.json`, `go.mod`, `go.sum`, `pom.xml`, `build.gradle`,
 `build.gradle.kts`, `requirements.txt`, `pyproject.toml`, `Pipfile`,
-`Pipfile.lock`, and `poetry.lock`). Terminal runtime counts stay bounded to
-parser dependency rows and reducer decisions asserted in tests: no queue
-rows, graph rows, or Postgres rows are written by these paths.
+`Pipfile.lock`, and `poetry.lock`). Terminal runtime counts stay bounded
+to parser dependency rows and reducer decisions asserted in tests: no
+queue rows, graph rows, or Postgres rows are written by these paths.
 
 `go test ./internal/parser -run 'TestParseNuGetProject|TestDependencyCoverage' -count=1`
 proves PackageReference extraction, MSBuild property handling, malformed
@@ -156,22 +158,27 @@ they add no concurrency surface to the ingest pipeline. `go test
 ./internal/parser/json -run
 'TestDependencyCoverage|TestParseComposerLock|TestParseComposerManifestAndLockfile|TestParseNuGet|TestParsePipfileLock'
 -count=1` runs the matrix invariants plus the covered/gap parser fixtures
-(npm, Composer, RubyGems, NuGet, Maven, Gradle, and Pipfile.lock); it is a
-pure in-memory fixture path and adds no Cypher, queue, or storage work.
-`go test ./internal/parser/gomod ./internal/parser/pythondep -run '.'
--count=1` covers go.mod require/indirect/replace/exclude rows, the go.sum
+(npm, Composer, RubyGems, NuGet, Maven, Gradle, and Pipfile.lock); it is
+a pure in-memory fixture path and adds no Cypher, queue, or storage
+work. `go test ./internal/parser/nodelockfile -count=1` runs the Yarn
+classic, Yarn Berry, and pnpm-lock.yaml fixtures (direct, transitive,
+scoped, workspace/local, malformed, unsupported-protocol, and
+multi-version-per-name) in the same single-digit-second range. `go test
+./internal/parser/gomod ./internal/parser/pythondep -run '.' -count=1`
+covers go.mod require/indirect/replace/exclude rows, the go.sum
 checksum-only ambiguity contract, the scanner-error / malformed-state
 safeguard for go.sum, and the new PyPI parser fixtures (pins, ranges,
-extras, markers, dev/runtime scope, VCS, path, URL, editable, malformed).
-`go test ./internal/reducer -run
-'TestBuildPackageConsumptionDecisions(Rejects|Matches|Normalizes|Preserves|Admits|Keeps|.*Ruby|MatchesNuGet|PreservesNuGet|.*JVM|.*Maven|.*Gradle|AdmitsPyPI)'
+extras, markers, dev/runtime scope, VCS, path, URL, editable,
+malformed). `go test ./internal/reducer -run
+'TestBuildPackageConsumptionDecisions(Rejects|Matches|Normalizes|Preserves|Admits|Accepts|Keeps|.*Ruby|MatchesNuGet|PreservesNuGet|.*JVM|.*Maven|.*Gradle|AdmitsPyPI)'
 -count=1` exercises positive consumption admission (Composer lockfile
-evidence, RubyGems Bundler lockfile admission, NuGet lockfile and project
-signals, the Go module require/indirect case, Maven/Gradle manifest
-coordinates, and the new PyPI manifest admission case), git/path
-ambiguity rejection, and the safety-rule negatives (go.sum checksum-only
-ambiguity, replace/exclude non-admission, malformed go.mod, PyPI VCS
-provenance non-admission) without touching Postgres or the graph backend.
+evidence, RubyGems Bundler lockfile admission, NuGet lockfile and
+project signals, yarn and pnpm flavors, the Go module require/indirect
+case, Maven/Gradle manifest coordinates, and the new PyPI manifest
+admission case), git/path ambiguity rejection, and the safety-rule
+negatives (go.sum checksum-only ambiguity, replace/exclude
+non-admission, malformed go.mod, PyPI VCS provenance non-admission)
+without touching Postgres or the graph backend.
 
 No-Regression Evidence: Cargo coverage is guarded by
 `go test ./internal/parser -run 'TestCargoDependencyCoverageMatrixMarksCargoFilesCovered|TestDefaultEngineParsePathCargo' -count=1`,

@@ -341,6 +341,8 @@ func (e *Engine) parseDefinition(
 		return e.parseJavaScriptLike(repoRoot, resolvedPath, "typescript", "typescript", isDependency, options)
 	case "raw_text":
 		return parseRawText(resolvedPath, isDependency), nil
+	case "node_lockfile":
+		return e.parseNodeLockfile(resolvedPath, isDependency, options)
 	case "yaml":
 		return e.parseYAML(resolvedPath, isDependency, options)
 	default:

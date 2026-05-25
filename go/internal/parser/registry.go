@@ -367,6 +367,11 @@ func defaultDefinitions() []Definition {
 			Extensions: []string{".cts", ".mts", ".ts"},
 		},
 		{
+			ParserKey:  "node_lockfile",
+			Language:   "node_lockfile",
+			ExactNames: []string{"yarn.lock", "pnpm-lock.yaml", "pnpm-lock.yml"},
+		},
+		{
 			ParserKey:  "yaml",
 			Language:   "yaml",
 			Extensions: []string{".yaml", ".yml"},

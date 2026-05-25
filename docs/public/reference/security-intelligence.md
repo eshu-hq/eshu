@@ -481,37 +481,44 @@ contract.
 
 For the supply-chain impact reducer, the practical implications are:
 
-- npm `package.json` and `package-lock.json`, PHP Composer `composer.json`
-  and `composer.lock`, Ruby Bundler `Gemfile` and `Gemfile.lock`, NuGet
+- npm `package.json` and `package-lock.json`, Yarn classic and Yarn Berry
+  `yarn.lock`, pnpm `pnpm-lock.yaml` (v6+), PHP Composer `composer.json`
+  and `composer.lock`, Ruby Bundler `Gemfile` / `Gemfile.lock`, NuGet
   `.csproj` PackageReference and `packages.lock.json`, Rust Cargo
   `Cargo.toml` and `Cargo.lock`, Go `go.mod`, Maven `pom.xml`, Gradle
   `build.gradle` / `build.gradle.kts`, and PyPI `requirements.txt` /
   `pyproject.toml` / `Pipfile` / `Pipfile.lock` / `poetry.lock` produce
   repository consumption decisions when joined to package-registry
-  identity. Composer lockfile rows carry exact installed versions and a
-  `lockfile: true` flag, so the reducer reports `direct_dependency: null`
-  rather than guessing directness when no manifest range was also observed.
-  Bundler git/path sources are preserved as ambiguous source evidence and
-  are not admitted as public RubyGems registry consumption. NuGet lockfile
-  rows carry exact resolved versions plus dependency path/directness when
-  the lockfile proves the chain, while `.csproj` rows preserve requested
-  versions, MSBuild property partial evidence, and PrivateAssets dev/test
-  signals. Go `go.sum` remains checksum-only evidence and does not by
-  itself prove the currently selected module version, so the consumption
-  reducer treats it as missing evidence until paired with a `go.mod`
-  require. JVM coverage now emits `groupId:artifactId` dependency rows from
-  Maven and Gradle manifests so impact reads no longer fall back to
-  registry-side evidence alone. PyPI identity is normalized via PEP 503 so
-  requirements that use mixed case, underscores, or dots still join with
-  PyPI advisory ecosystems.
+  identity. Yarn and pnpm lockfile rows keep the canonical npm ecosystem
+  (`package_manager: "npm"`) so the consumption reducer and the
+  owned-package SQL filter both match them as npm evidence, and they
+  surface the actual package manager tool as `package_manager_flavor:
+  "yarn"` or `"pnpm"` for operators and readiness reads. Composer
+  lockfile rows carry exact installed versions and a `lockfile: true`
+  flag, so the reducer reports `direct_dependency: null` rather than
+  guessing directness when no manifest range was also observed. Bundler
+  git/path sources are preserved as ambiguous source evidence and are
+  not admitted as public RubyGems registry consumption. NuGet lockfile
+  rows carry exact resolved versions plus dependency path/directness
+  when the lockfile proves the chain, while `.csproj` rows preserve
+  requested versions, MSBuild property partial evidence, and
+  PrivateAssets dev/test signals. Go `go.sum` remains checksum-only
+  evidence and does not by itself prove the currently selected module
+  version, so the consumption reducer treats it as missing evidence
+  until paired with a `go.mod` require. JVM coverage emits
+  `groupId:artifactId` dependency rows from Maven and Gradle manifests
+  so impact reads no longer fall back to registry-side evidence alone.
+  PyPI identity is normalized via PEP 503 so requirements that use mixed
+  case, underscores, or dots still join with PyPI advisory ecosystems.
 - Cargo manifests preserve direct dependency ranges, dev/build/runtime
   scope, workspace-inherited dependency rows, target-specific dependency
   sections, and renamed package identity. Cargo lockfiles preserve exact
   crate versions and dependency paths only when the lockfile root graph
   proves reachability.
-- Yarn/pnpm sources have no repository-side dependency parser yet, so
-  their impact reads must surface
-  the missing-evidence reason instead of returning `ready_zero_findings`.
+- Files that remain in the gap state (such as `go.sum`) have no
+  repository-side dependency parser yet, so their impact reads must
+  surface the missing-evidence reason instead of returning
+  `ready_zero_findings`.
 - VCS, path, URL, and editable dependency entries (including pip
   `-e ./path`, `git+...` URLs, Poetry `{ path = ... }` / `{ git = ... }`,
   and Pipenv `{git=...}`) surface with a non-`dependency` `config_kind`
