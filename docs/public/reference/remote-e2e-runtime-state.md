@@ -44,7 +44,10 @@ It also requires these hosted collector services:
 - `collector-terraform-state`
 - `collector-oci-registry`
 - `collector-package-registry`
+- `collector-sbom-attestation`
+- `collector-vulnerability-intelligence`
 - `collector-aws-cloud`
+- `scanner-worker`
 
 Each service must have a container, be `running`, and either have no Docker
 healthcheck or report `healthy`. The verifier then calls

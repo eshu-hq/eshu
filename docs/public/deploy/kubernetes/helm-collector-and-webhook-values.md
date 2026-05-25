@@ -15,6 +15,7 @@ intake. Runtime ownership lives in
 | `terraformStateCollector` | Terraform-state collector | workflow claims | disabled |
 | `awsCloudCollector` | AWS cloud collector | workflow claims | disabled |
 | `packageRegistryCollector` | Package-registry collector | workflow claims | disabled |
+| `sbomAttestationCollector` | SBOM-attestation collector | workflow claims | disabled |
 | `vulnerabilityIntelligenceCollector` | Vulnerability-intelligence collector | workflow claims | disabled |
 
 Direct collectors render from their own enabled block and required target
@@ -22,8 +23,8 @@ values. Claim-driven collectors also require active workflow coordination.
 
 ## Claim-Driven Contract
 
-Terraform-state, AWS cloud, package-registry, and vulnerability-intelligence
-collectors require:
+Terraform-state, AWS cloud, package-registry, SBOM-attestation, and
+vulnerability-intelligence collectors require:
 
 - `workflowCoordinator.enabled=true`
 - `workflowCoordinator.deploymentMode=active`
@@ -45,6 +46,7 @@ keep the selected `instanceId` aligned with that list.
 | Terraform state | `instanceId`, `collectorInstances`, redaction Secret, redaction key key, `redaction.rulesetVersion` | Redaction env is mandatory. See [Terraform State Collector](../../services/collector-terraform-state.md). |
 | AWS cloud | `instanceId`, `collectorInstances` | Use `serviceAccount.*` for IRSA. Redaction Secret is optional in Helm but required by the binary when ECS or Lambda scans are enabled. See [AWS Cloud Collector](../../services/collector-aws-cloud.md). |
 | Package registry | `instanceId`, `collectorInstances` | Claim-driven package metadata fetch. |
+| SBOM attestation | `instanceId`, `collectorInstances` with a `sbom_attestation` instance matching `instanceId`, `workflowCoordinator.collectorInstances` with an enabled claim-driven `sbom_attestation` instance | Fetches configured HTTP(S) SBOM documents or OCI referrer blobs and emits typed source facts. Attachment, subject mismatch, parse warnings, and verification status are reducer/read-surface concerns. |
 | Vulnerability intelligence | `instanceId`, `collectorInstances` with a `vulnerability_intelligence` instance matching `instanceId`, `workflowCoordinator.collectorInstances` with an enabled claim-driven `vulnerability_intelligence` instance | Bounded source targets only (explicit CVE IDs, source snapshots, OSV package-version queries, NVD windows, or derived owned-package targets). API keys are referenced from `extraEnv` Secret refs via `api_key_env` and never embedded in values. |
 
 All optional collectors support `replicas`, `revisionHistoryLimit`, `resources`,
@@ -70,12 +72,11 @@ needs its Secret name. Webhook ingress renders only enabled provider paths as
 Rendering fails for inactive workflow coordination with claim-driven collectors,
 empty collector instance lists, missing Confluence or Terraform-state required
 values, OCI registry with no targets, webhook listener with no provider, and
-enabled webhook providers without Secret names. For the vulnerability
-intelligence collector, rendering additionally fails when
-`vulnerabilityIntelligenceCollector.collectorInstances` does not contain a
-`vulnerability_intelligence` instance matching `instanceId`, or when
-`workflowCoordinator.collectorInstances` does not contain an enabled
-claim-driven `vulnerability_intelligence` instance.
+enabled webhook providers without Secret names. For SBOM-attestation and
+vulnerability-intelligence collectors, rendering additionally fails when
+the collector-local instance list does not contain a matching enabled
+claim-driven instance or when `workflowCoordinator.collectorInstances` does not
+contain an enabled claim-driven instance for that collector kind.
 
 ## Related Docs
 

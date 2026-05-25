@@ -178,6 +178,10 @@ it.
   `package_registry` collector family
 - `ociregistry` subpackage — OCI registry identity, provider adapters,
   runtime scan orchestration, and reported-confidence container image facts
+- `sbomruntime` subpackage — claim-aware hosted SBOM and attestation runtime
+  that fetches configured documents or OCI referrer artifact blobs, delegates
+  SBOM parsing to `sbomdocument`, and emits in-toto attestation facts without
+  making reducer attachment truth decisions
 - `cicdrun` subpackage — fixture-backed CI/CD provider normalization and
   reported-confidence run, job, step, artifact, trigger, environment, and
   warning fact-envelope construction for the `ci_cd_run` collector family

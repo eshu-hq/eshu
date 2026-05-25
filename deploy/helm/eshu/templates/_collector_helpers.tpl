@@ -92,6 +92,30 @@
 {{- end }}
 {{- end -}}
 
+{{- define "eshu.renderSBOMAttestationCollectorEnv" -}}
+- name: ESHU_COLLECTOR_INSTANCES_JSON
+  value: {{ required "sbomAttestationCollector.collectorInstances must contain at least one instance when sbomAttestationCollector.enabled=true" .Values.sbomAttestationCollector.collectorInstances | toJson | quote }}
+- name: ESHU_SBOM_ATTESTATION_COLLECTOR_INSTANCE_ID
+  value: {{ .Values.sbomAttestationCollector.instanceId | quote }}
+- name: ESHU_SBOM_ATTESTATION_COLLECTOR_OWNER_ID
+  valueFrom:
+    fieldRef:
+      fieldPath: metadata.name
+- name: ESHU_SBOM_ATTESTATION_POLL_INTERVAL
+  value: {{ .Values.sbomAttestationCollector.pollInterval | quote }}
+{{- with .Values.sbomAttestationCollector.claimLeaseTTL }}
+- name: ESHU_SBOM_ATTESTATION_CLAIM_LEASE_TTL
+  value: {{ . | quote }}
+{{- end }}
+{{- with .Values.sbomAttestationCollector.heartbeatInterval }}
+- name: ESHU_SBOM_ATTESTATION_HEARTBEAT_INTERVAL
+  value: {{ . | quote }}
+{{- end }}
+{{- with .Values.sbomAttestationCollector.extraEnv }}
+{{ toYaml . }}
+{{- end }}
+{{- end -}}
+
 {{- define "eshu.renderVulnerabilityIntelligenceCollectorEnv" -}}
 - name: ESHU_COLLECTOR_INSTANCES_JSON
   value: {{ required "vulnerabilityIntelligenceCollector.collectorInstances must contain at least one instance when vulnerabilityIntelligenceCollector.enabled=true" .Values.vulnerabilityIntelligenceCollector.collectorInstances | toJson | quote }}

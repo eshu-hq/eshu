@@ -94,7 +94,7 @@ Security targets are evidence sources, not findings:
 | Package registry metadata | package identity, PURL, BOMRef, package manager, version metadata, dependency metadata | Reducer treats registry data as source metadata unless owned evidence proves use. |
 | Advisory sources | CVE, GHSA, OSV, GitLab Advisory Database (Gemnasium), CVSS v2/v3/v4, EPSS, KEV, CWE, affected ranges, fixed versions | Reducer joins advisories to owned packages, images, SBOMs, or workloads. Each source keeps its own fact provenance so reducers can detect cross-source disagreement on range, severity, or fixed version. |
 | Provider-hosted alerts | alert state, alert ID/number, affected dependency, dependency scope/relationship, advisory identifiers, vulnerable range, patched version, severity, CVSS, EPSS, CWE, manifest path, timestamps, sanitized source URL | Reducer compares provider alerts to Eshu-owned dependency and impact evidence without treating provider state as canonical impact truth or copying private alert data into docs. |
-| SBOM and attestations | document subject, component inventory, verification and parse status | Reducer admits impact only when the subject is tied to an owned image, repository, or workload. |
+| SBOM and attestations | document subject digest, component inventory, statement subject, verification status, and parse status | Reducer admits impact only when the subject digest is tied to an owned image, repository, or workload; parse validity and signature verification remain separate evidence. |
 | Container images | digest, repository, tags, config, observed runtime references | Reducer keeps digest identity separate from weak or stale tag observations. |
 | Workloads and cloud/runtime state | deployment targets, images in use, service and environment evidence | Reducer connects package/image impact to deployed context only through explicit evidence. |
 
@@ -258,6 +258,34 @@ the analyzer cannot contend with reducer queue drain. In Compose proofs, keep
 pprof bound to host loopback. In Kubernetes, expose pprof only through a
 temporary port-forward or a protected debug path, never through the public
 service.
+
+## Hosted SBOM And Attestation Runtime
+
+The hosted `eshu-collector-sbom-attestation` runtime is for existing SBOMs and
+attestations. It does not generate SBOMs and it does not make the OCI registry
+collector parse referrer payloads. The OCI registry collector may discover
+image and referrer identity; the SBOM-attestation runtime fetches configured
+document URLs or OCI referrer blobs, parses CycloneDX, SPDX, and in-toto
+documents, and emits typed source facts.
+
+Workflow configuration uses `collector_kind=sbom_attestation` with explicit
+`targets`. Each target must provide a stable `scope_id`, source type, artifact
+kind, document format, and subject digest. Configured-source targets use a
+bounded `document_url`; OCI-referrer targets use registry, repository, subject
+digest, and referrer digest fields.
+
+Reducer attachment remains separate from collection:
+
+- `sbom.document`, `sbom.component`, `attestation.statement`, and
+  `attestation.signature_verification` are source facts.
+- `sbom.warning` records malformed or partially parsed input without pretending
+  the document was clean.
+- `reducer_sbom_attestation_attachment` decides subject match, mismatch,
+  unknown subject, ambiguous subject, parse-only, unparseable, verified, and
+  unverified outcomes.
+- API and MCP readback use `list_sbom_attestation_attachments`; callers should
+  rely on attachment status, not raw collector success, before treating SBOM
+  evidence as impact-ready.
 
 Remote Compose starts a dedicated `scanner-worker` service with separate
 resource-limit env vars:

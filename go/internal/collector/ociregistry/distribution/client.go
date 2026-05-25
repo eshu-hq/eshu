@@ -44,6 +44,14 @@ type ManifestResponse struct {
 	SizeBytes int64
 }
 
+// BlobResponse is the raw blob response plus registry-reported media type.
+type BlobResponse struct {
+	Body      []byte
+	Digest    string
+	MediaType string
+	SizeBytes int64
+}
+
 // ReferrersResponse is the descriptor list returned by the Referrers API.
 type ReferrersResponse struct {
 	Referrers []ociregistry.Descriptor
@@ -119,6 +127,10 @@ func (c *Client) GetManifest(ctx context.Context, repository, reference string) 
 		"Accept": strings.Join([]string{
 			ociregistry.MediaTypeOCIImageManifest,
 			ociregistry.MediaTypeOCIImageIndex,
+			"application/vnd.oci.artifact.manifest.v1+json",
+			"application/vnd.cyclonedx+json",
+			"application/spdx+json",
+			"application/vnd.in-toto+json",
 			"application/vnd.docker.distribution.manifest.v2+json",
 			"application/vnd.docker.distribution.manifest.list.v2+json",
 		}, ", "),
@@ -137,6 +149,29 @@ func (c *Client) GetManifest(ctx context.Context, repository, reference string) 
 	return ManifestResponse{
 		Body:      body,
 		Digest:    resp.Header.Get("Docker-Content-Digest"),
+		MediaType: resp.Header.Get("Content-Type"),
+		SizeBytes: int64(len(body)),
+	}, nil
+}
+
+// GetBlob returns a content blob by digest reference.
+func (c *Client) GetBlob(ctx context.Context, repository, digest string) (BlobResponse, error) {
+	endpoint := "/v2/" + repositoryPath(repository) + "/blobs/" + url.PathEscape(strings.TrimSpace(digest))
+	resp, err := c.do(ctx, "get_blob", http.MethodGet, endpoint, map[string]string{"Accept": "*/*"})
+	if err != nil {
+		return BlobResponse{}, err
+	}
+	defer closeBody(resp.Body)
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return BlobResponse{}, statusError("get_blob", resp.StatusCode)
+	}
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return BlobResponse{}, fmt.Errorf("read OCI blob body: %w", err)
+	}
+	return BlobResponse{
+		Body:      body,
+		Digest:    strings.TrimSpace(digest),
 		MediaType: resp.Header.Get("Content-Type"),
 		SizeBytes: int64(len(body)),
 	}, nil

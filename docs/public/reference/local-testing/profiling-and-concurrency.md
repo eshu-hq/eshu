@@ -117,6 +117,7 @@ use an SSH tunnel from their laptop.
 | `projector` | `127.0.0.1:19669` |
 | `collector-vulnerability-intelligence` | `127.0.0.1:19670` |
 | `scanner-worker` | `127.0.0.1:19671` |
+| `collector-sbom-attestation` | `127.0.0.1:19672` |
 
 Example captures from the remote host:
 

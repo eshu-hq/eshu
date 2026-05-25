@@ -560,6 +560,33 @@
         }
       ]
     },
+    "sbomAttestationCollector": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "replicas": { "type": "integer", "minimum": 0 },
+        "revisionHistoryLimit": { "type": "integer", "minimum": 0 },
+        "instanceId": { "type": "string" },
+        "pollInterval": { "type": "string" },
+        "claimLeaseTTL": { "type": "string" },
+        "heartbeatInterval": { "type": "string" },
+        "collectorInstances": { "$ref": "#/definitions/collectorInstances" },
+        "extraEnv": { "$ref": "#/definitions/secretEnv" },
+        "connectionTuning": { "$ref": "#/definitions/connectionTuning" },
+        "resources": { "type": "object" }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "enabled": { "const": true } } },
+          "then": {
+            "properties": {
+              "collectorInstances": { "minItems": 1 },
+              "instanceId": { "minLength": 1 }
+            }
+          }
+        }
+      ]
+    },
     "scannerWorker": {
       "type": "object",
       "properties": {

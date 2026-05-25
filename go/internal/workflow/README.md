@@ -241,6 +241,14 @@ stores the resolved phase tuple under the same claim fence. It changes no
 worker counts, claim ordering, scan cardinality, graph writes, or NornicDB
 settings.
 
+`sbom_attestation` collector instances are claim-capable. The coordinator plans
+one bounded work item per configured SBOM or attestation source target. The
+runtime fetches configured HTTP(S) documents or OCI referrer artifact blobs,
+emits `sbom.*` and `attestation.*` source facts, and leaves reducer attachment
+truth to the SBOM attestation attachment reducer. Parser-emitted SBOM documents
+remain unverified unless separate attestation or signature verification facts
+support a promotion.
+
 Observability Evidence: no new metrics were required. Existing workflow-run
 status, workflow completeness rows, workflow work-item identity columns,
 claim-fence mutation errors, `/api/v0/index-status`, and the remote runtime

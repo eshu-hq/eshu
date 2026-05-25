@@ -46,6 +46,23 @@
 {{- fail "packageRegistryCollector.collectorInstances must contain at least one instance when packageRegistryCollector.enabled=true" -}}
 {{- end -}}
 {{- end -}}
+{{- if .Values.sbomAttestationCollector.enabled -}}
+{{- if not .Values.sbomAttestationCollector.instanceId -}}
+{{- fail "sbomAttestationCollector.instanceId is required when sbomAttestationCollector.enabled=true" -}}
+{{- end -}}
+{{- if not .Values.sbomAttestationCollector.collectorInstances -}}
+{{- fail "sbomAttestationCollector.collectorInstances must contain at least one instance when sbomAttestationCollector.enabled=true" -}}
+{{- end -}}
+{{- $sbomLocalMatch := false -}}
+{{- range .Values.sbomAttestationCollector.collectorInstances -}}
+{{- if and (eq (default "" .collector_kind) "sbom_attestation") (eq (default "" .instance_id) $.Values.sbomAttestationCollector.instanceId) (default false .enabled) (default false .claims_enabled) -}}
+{{- $sbomLocalMatch = true -}}
+{{- end -}}
+{{- end -}}
+{{- if not $sbomLocalMatch -}}
+{{- fail "sbomAttestationCollector.collectorInstances must contain an enabled claim-driven sbom_attestation instance matching sbomAttestationCollector.instanceId" -}}
+{{- end -}}
+{{- end -}}
 {{- if .Values.scannerWorker.enabled -}}
 {{- if not .Values.scannerWorker.instanceId -}}
 {{- fail "scannerWorker.instanceId is required when scannerWorker.enabled=true" -}}
@@ -71,7 +88,7 @@
 {{- fail "vulnerabilityIntelligenceCollector.collectorInstances must contain an enabled claim-driven vulnerability_intelligence instance matching vulnerabilityIntelligenceCollector.instanceId" -}}
 {{- end -}}
 {{- end -}}
-{{- $claimDrivenCollectorsEnabled := or .Values.terraformStateCollector.enabled .Values.awsCloudCollector.enabled .Values.packageRegistryCollector.enabled .Values.scannerWorker.enabled .Values.vulnerabilityIntelligenceCollector.enabled -}}
+{{- $claimDrivenCollectorsEnabled := or .Values.terraformStateCollector.enabled .Values.awsCloudCollector.enabled .Values.packageRegistryCollector.enabled .Values.sbomAttestationCollector.enabled .Values.scannerWorker.enabled .Values.vulnerabilityIntelligenceCollector.enabled -}}
 {{- if and $claimDrivenCollectorsEnabled (not .Values.workflowCoordinator.enabled) -}}
 {{- fail "workflowCoordinator.enabled=true is required when claim-driven collectors are enabled" -}}
 {{- end -}}
@@ -99,6 +116,17 @@
 {{- end -}}
 {{- if not $vulnCoordinatorMatch -}}
 {{- fail "workflowCoordinator.collectorInstances must contain an enabled claim-driven vulnerability_intelligence instance when vulnerabilityIntelligenceCollector.enabled=true" -}}
+{{- end -}}
+{{- end -}}
+{{- if .Values.sbomAttestationCollector.enabled -}}
+{{- $sbomCoordinatorMatch := false -}}
+{{- range .Values.workflowCoordinator.collectorInstances -}}
+{{- if and (eq (default "" .collector_kind) "sbom_attestation") (default false .claims_enabled) (default false .enabled) -}}
+{{- $sbomCoordinatorMatch = true -}}
+{{- end -}}
+{{- end -}}
+{{- if not $sbomCoordinatorMatch -}}
+{{- fail "workflowCoordinator.collectorInstances must contain an enabled claim-driven sbom_attestation instance when sbomAttestationCollector.enabled=true" -}}
 {{- end -}}
 {{- end -}}
 {{- if .Values.webhookListener.enabled -}}

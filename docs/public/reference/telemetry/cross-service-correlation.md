@@ -26,6 +26,7 @@ Go entrypoints call `telemetry.NewBootstrap(...)` with these current
 | Confluence Collector | `collector-confluence` |
 | OCI Registry Collector | `collector-oci-registry` |
 | Package Registry Collector | `collector-package-registry` |
+| SBOM Attestation Collector | `collector-sbom-attestation` |
 | Terraform-State Collector | `collector-terraform-state` |
 | Workflow Coordinator | `workflow-coordinator` |
 
