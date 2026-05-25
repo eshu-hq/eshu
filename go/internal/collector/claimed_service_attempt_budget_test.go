@@ -56,8 +56,8 @@ func TestClaimedServiceFailsTerminalWhenAttemptBudgetExhausted(t *testing.T) {
 	if got, want := store.lastTerminalFail.FailureClass, "attempt_budget_exhausted"; got != want {
 		t.Fatalf("FailureClass = %q, want %q", got, want)
 	}
-	if got := store.lastTerminalFail.FailureMessage; !strings.Contains(got, "attempt 5") || !strings.Contains(got, "budget 3") {
-		t.Fatalf("FailureMessage = %q, want attempt/budget detail", got)
+	if got := store.lastTerminalFail.FailureMessage; !strings.Contains(got, "attempt 5") || !strings.Contains(got, "budget 3") || !strings.Contains(got, "exhausted") {
+		t.Fatalf("FailureMessage = %q, want attempt/budget/exhausted detail", got)
 	}
 }
 

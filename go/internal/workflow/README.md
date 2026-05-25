@@ -198,7 +198,7 @@ publisher are implemented and wired.
 - `DefaultClaimMaxAttempts()` — 10 (bounded retry budget per work item;
   `collector.ClaimedService.MaxAttempts` escalates to terminal once a work
   item's AttemptCount reaches this value, with class
-  `attempt_budget_exhausted`. Existed before this guard the runtime could
+  `attempt_budget_exhausted`. Before this guard existed, the runtime could
   drive `workflow_claims.failed_retryable` into the millions on a single
   permanent retryable failure — see issue #612.)
 

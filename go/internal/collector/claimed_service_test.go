@@ -86,6 +86,50 @@ func TestClaimedServiceReleasesWhenClaimHasNoGeneration(t *testing.T) {
 	}
 }
 
+// TestClaimedServiceTerminalFailsClassifiedCommitFailure pins the
+// symmetric-with-NextClaimed terminal classification on the commit path. A
+// commit-side stale-fence (issue #612) returns a terminal-classified error
+// so the runner routes the claim through FailClaimTerminal with that class,
+// not FailClaimRetryable.
+func TestClaimedServiceTerminalFailsClassifiedCommitFailure(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	now := time.Date(2026, time.May, 25, 16, 0, 0, 0, time.UTC)
+	item := testClaimedWorkItem(now)
+	claim := testWorkflowClaim(item.WorkItemID, now)
+	store := &stubClaimStore{
+		item:  item,
+		claim: claim,
+		found: true,
+		terminalFail: func(context.Context, workflow.ClaimMutation) error {
+			cancel()
+			return nil
+		},
+	}
+	source := &stubClaimedSource{collected: FactsFromSlice(testScope(), testGeneration(now), testFacts(now)), ok: true}
+	committer := &stubClaimedCommitter{
+		claimedCommit: func(context.Context, workflow.ClaimMutation, scope.IngestionScope, scope.ScopeGeneration, <-chan facts.Envelope) error {
+			return terminalCollectFailure{err: errors.New("commit stale fence")}
+		},
+	}
+	service := testClaimedService(now, claim, scope.CollectorGit, store, source, committer)
+
+	if err := service.Run(ctx); err != nil {
+		t.Fatalf("Run() error = %v, want nil after terminal commit failure", err)
+	}
+	if got, want := store.terminalFailCalls, 1; got != want {
+		t.Fatalf("terminal fail calls = %d, want %d", got, want)
+	}
+	if got, want := store.retryableFailCalls, 0; got != want {
+		t.Fatalf("retryable fail calls = %d, want %d", got, want)
+	}
+	if got := store.lastTerminalFail.FailureClass; got != "non_retryable" {
+		t.Fatalf("FailureClass = %q, want non_retryable", got)
+	}
+}
+
 func TestClaimedServiceFailsClaimWhenCommitFails(t *testing.T) {
 	t.Parallel()
 

@@ -212,6 +212,13 @@ func (s ClaimedService) processClaimed(ctx context.Context, item workflow.WorkIt
 	commitMutation := mutation
 	commitMutation.ObservedAt = s.now()
 	if err := s.commitCollected(ctx, commitMutation, collected); err != nil {
+		// Mirror the NextClaimed path: a commit-side terminal classification
+		// (for example awsruntime stale-fence on CommitAWSScan) must route to
+		// FailClaimTerminal so the same orphaned-row loop issue #612 was
+		// opened to break cannot resurface through the commit path.
+		if isTerminalFailure(err) {
+			return s.failTerminal(ctx, mutation, "commit_failure", err)
+		}
 		if s.attemptBudgetExhausted(item) {
 			return s.failTerminal(ctx, mutation, FailureClassAttemptBudgetExhausted, s.budgetExhaustedError(ctx, item, err))
 		}
@@ -350,7 +357,7 @@ func (s ClaimedService) attemptBudgetExhausted(item workflow.WorkItem) bool {
 func (s ClaimedService) budgetExhaustedError(ctx context.Context, item workflow.WorkItem, cause error) error {
 	s.recordAttemptBudgetExhausted(ctx, item)
 	return fmt.Errorf(
-		"%s work item attempt %d exceeded retry budget %d: %w",
+		"%s work item attempt %d exhausted retry budget %d: %w",
 		s.claimedKindLabel(),
 		item.AttemptCount,
 		s.MaxAttempts,

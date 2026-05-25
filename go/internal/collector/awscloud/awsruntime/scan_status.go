@@ -19,6 +19,17 @@ import (
 // network-class collector failures.
 const FailureClassStaleFence = "stale_fence"
 
+// ScanStatusPhaseStart, ScanStatusPhaseObserve, and ScanStatusPhaseCommit are
+// the closed set of values for the `operation` attribute on
+// eshu_dp_aws_scan_status_stale_fence_total. Producers MUST use these
+// constants so the metric's documented label cardinality stays in lockstep
+// with the operations actually emitted.
+const (
+	ScanStatusPhaseStart   = "start"
+	ScanStatusPhaseObserve = "observe"
+	ScanStatusPhaseCommit  = "commit"
+)
+
 // scanStatusStaleFenceError marks a status-store rejection as terminal so the
 // ClaimedService runner stops looping the claim through the retryable queue.
 // Issue #612: an orphaned aws_scan_status row used to block every future
@@ -36,6 +47,47 @@ func (e scanStatusStaleFenceError) FailureClass() string { return FailureClassSt
 
 func (e scanStatusStaleFenceError) TerminalFailure() bool { return true }
 
+// ClassifyScanStatusStaleFence inspects err for awscloud.ErrScanStatusStaleFence
+// and, when found, records eshu_dp_aws_scan_status_stale_fence_total and
+// returns a typed terminal failure so the ClaimedService runner routes the
+// claim to FailClaimTerminal. err is returned unchanged when it is nil or not
+// a stale-fence rejection. Callers MUST pass one of ScanStatusPhaseStart,
+// ScanStatusPhaseObserve, or ScanStatusPhaseCommit as phase so the metric's
+// operation label stays bounded.
+func ClassifyScanStatusStaleFence(
+	ctx context.Context,
+	err error,
+	instruments *telemetry.Instruments,
+	boundary awscloud.Boundary,
+	phase string,
+) error {
+	if err == nil {
+		return nil
+	}
+	if !errors.Is(err, awscloud.ErrScanStatusStaleFence) {
+		return err
+	}
+	recordScanStatusStaleFence(ctx, instruments, boundary, phase)
+	return scanStatusStaleFenceError{err: err}
+}
+
+func recordScanStatusStaleFence(
+	ctx context.Context,
+	instruments *telemetry.Instruments,
+	boundary awscloud.Boundary,
+	phase string,
+) {
+	if instruments == nil || instruments.AWSScanStatusStaleFence == nil {
+		return
+	}
+	instruments.AWSScanStatusStaleFence.Add(ctx, 1, metric.WithAttributes(
+		telemetry.AttrService(boundary.ServiceKind),
+		telemetry.AttrAccount(boundary.AccountID),
+		telemetry.AttrRegion(boundary.Region),
+		telemetry.AttrOperation(phase),
+	))
+}
+
 func (s ClaimedSource) startScanStatus(ctx context.Context, boundary awscloud.Boundary) error {
 	if s.ScanStatus == nil {
 		return nil
@@ -44,26 +96,15 @@ func (s ClaimedSource) startScanStatus(ctx context.Context, boundary awscloud.Bo
 		Boundary:  boundary,
 		StartedAt: s.now(),
 	}); err != nil {
-		wrapped := fmt.Errorf("start AWS scan status: %w", err)
-		if errors.Is(err, awscloud.ErrScanStatusStaleFence) {
-			s.recordScanStatusStaleFence(ctx, boundary, "start")
-			return scanStatusStaleFenceError{err: wrapped}
-		}
-		return wrapped
+		return ClassifyScanStatusStaleFence(
+			ctx,
+			fmt.Errorf("start AWS scan status: %w", err),
+			s.Instruments,
+			boundary,
+			ScanStatusPhaseStart,
+		)
 	}
 	return nil
-}
-
-func (s ClaimedSource) recordScanStatusStaleFence(ctx context.Context, boundary awscloud.Boundary, phase string) {
-	if s.Instruments == nil || s.Instruments.AWSScanStatusStaleFence == nil {
-		return
-	}
-	s.Instruments.AWSScanStatusStaleFence.Add(ctx, 1, metric.WithAttributes(
-		telemetry.AttrService(boundary.ServiceKind),
-		telemetry.AttrAccount(boundary.AccountID),
-		telemetry.AttrRegion(boundary.Region),
-		telemetry.AttrOperation(phase),
-	))
 }
 
 func (s ClaimedSource) observeScanStatus(
@@ -116,12 +157,13 @@ func (s ClaimedSource) observeScanStatus(
 		CredentialFailed:    factStats.CredentialFailed,
 		ObservedAt:          s.now(),
 	}); err != nil {
-		wrapped := fmt.Errorf("observe AWS scan status: %w", err)
-		if errors.Is(err, awscloud.ErrScanStatusStaleFence) {
-			s.recordScanStatusStaleFence(ctx, boundary, "observe")
-			return scanStatusStaleFenceError{err: wrapped}
-		}
-		return wrapped
+		return ClassifyScanStatusStaleFence(
+			ctx,
+			fmt.Errorf("observe AWS scan status: %w", err),
+			s.Instruments,
+			boundary,
+			ScanStatusPhaseObserve,
+		)
 	}
 	return nil
 }

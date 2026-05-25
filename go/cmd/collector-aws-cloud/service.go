@@ -42,7 +42,7 @@ func buildClaimedService(
 	checkpoints := postgres.NewAWSPaginationCheckpointStore(database)
 	checkpoints.Instruments = instruments
 	scanStatus := postgres.NewAWSScanStatusStore(database)
-	commitStatus := newAWSStatusCommitter(committer, scanStatus, config.Instance.InstanceID, time.Now)
+	commitStatus := newAWSStatusCommitter(committer, scanStatus, config.Instance.InstanceID, time.Now, instruments)
 	return collector.ClaimedService{
 		ControlStore: postgres.NewWorkflowControlStore(database),
 		Source: awsruntime.ClaimedSource{
