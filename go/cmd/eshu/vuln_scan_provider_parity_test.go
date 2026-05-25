@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/vulnerabilityparity"
+	"github.com/eshu-hq/eshu/go/internal/vulnerabilityparityproof"
 	"github.com/spf13/cobra"
 )
 
@@ -122,6 +123,25 @@ func TestRunVulnScanProviderParityOutputsAggregateOnlyJSON(t *testing.T) {
 		if strings.Contains(out.String(), forbidden) {
 			t.Fatalf("provider parity output leaked %q: %s", forbidden, out.String())
 		}
+	}
+}
+
+func TestRenderProviderParitySummaryReportsMismatchRowCount(t *testing.T) {
+	data := map[string]any{
+		"repositories_checked": 1,
+		"provider_alert_count": 4,
+		"eshu_finding_count":   3,
+		"mismatch_classes": []vulnerabilityparityproof.ClassCount{
+			{Class: string(vulnerabilityparity.ClassEshuOnly), Count: 1},
+			{Class: string(vulnerabilityparity.ClassProviderOnly), Count: 2},
+		},
+	}
+	out := &bytes.Buffer{}
+	if err := renderProviderParitySummary(out, data); err != nil {
+		t.Fatalf("renderProviderParitySummary returned error: %v", err)
+	}
+	if got, want := out.String(), "Provider parity: repositories=1 provider_alerts=4 eshu_findings=3 mismatches=3\n"; got != want {
+		t.Fatalf("summary = %q, want %q", got, want)
 	}
 }
 

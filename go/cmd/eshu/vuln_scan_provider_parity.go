@@ -210,9 +210,21 @@ func renderProviderParitySummary(w io.Writer, data map[string]any) error {
 		data["repositories_checked"],
 		data["provider_alert_count"],
 		data["eshu_finding_count"],
-		len(data["mismatch_classes"].([]vulnerabilityparityproof.ClassCount)),
+		providerParityMismatchCount(data["mismatch_classes"]),
 	)
 	return err
+}
+
+func providerParityMismatchCount(raw any) int {
+	classes, ok := raw.([]vulnerabilityparityproof.ClassCount)
+	if !ok {
+		return 0
+	}
+	total := 0
+	for _, class := range classes {
+		total += class.Count
+	}
+	return total
 }
 
 type providerParityEshuSource struct {
