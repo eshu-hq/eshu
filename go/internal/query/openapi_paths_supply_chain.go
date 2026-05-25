@@ -229,7 +229,7 @@ const openAPIPathsSupplyChain = `
                       "type": "object",
                       "description": "Bounded coverage metadata so zero findings can be distinguished from missing target collection or missing required evidence. readiness_unavailable means the readiness lookup itself failed; the findings page is still returned but coverage cannot be classified.",
                       "properties": {
-                        "readiness_state": {"type": "string", "enum": ["not_configured", "target_incomplete", "evidence_incomplete", "ready_zero_findings", "ready_with_findings", "readiness_unavailable"]},
+                        "readiness_state": {"type": "string", "enum": ["not_configured", "target_incomplete", "evidence_incomplete", "ready_zero_findings", "ready_with_findings", "readiness_unavailable", "unsupported"], "description": "Coverage classification for the bounded vulnerability impact answer. unsupported fires when Eshu observed real target evidence the matcher cannot resolve (unsupported ecosystem, package-manager file with unsupported lockfile feature, malformed/unsupported SBOM document, or unsupported image target)."},
                         "target_scope": {
                           "type": "object",
                           "properties": {
@@ -302,7 +302,23 @@ const openAPIPathsSupplyChain = `
                             "required": ["scope_id", "source", "freshness_state", "terminal_status", "result_count", "warning_count"]
                           }
                         },
-                        "missing_evidence": {"type": "array", "items": {"type": "string", "enum": ["advisory_sources", "owned_packages", "sbom_or_image_evidence", "target_collection_incomplete", "readiness_unavailable"]}},
+                        "unsupported_targets": {
+                          "type": "array",
+                          "description": "Observed vulnerability target evidence the matcher cannot resolve. Each entry is bounded coverage-gap evidence; counts MUST NOT be interpreted as clean or affected results. Surfaced alongside readiness_state=unsupported when no finding can be admitted for the scope, and additively for ready states when only some targets are unsupported.",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "target_kind": {"type": "string", "enum": ["ecosystem", "package_manager_file", "sbom_target", "image_target"], "description": "Family of unsupported target observed: dependency in an unsupported ecosystem, package-manager file with an unsupported lockfile feature, malformed/unsupported SBOM document tied to the requested subject digest, or container image target without a supported analyzer."},
+                              "reason": {"type": "string", "description": "Stable reason code explaining why the target is unsupported (e.g., unsupported_ecosystem, lockfile_unsupported_feature, unsupported_field, malformed_document)."},
+                              "count": {"type": "integer", "minimum": 1},
+                              "ecosystem": {"type": "string"},
+                              "lockfile_flavor": {"type": "string"},
+                              "feature_token": {"type": "string"}
+                            },
+                            "required": ["target_kind", "reason", "count"]
+                          }
+                        },
+                        "missing_evidence": {"type": "array", "items": {"type": "string", "enum": ["advisory_sources", "owned_packages", "sbom_or_image_evidence", "target_collection_incomplete", "readiness_unavailable", "unsupported_targets"]}},
                         "incomplete_reasons": {"type": "array", "items": {"type": "string"}, "description": "Collector-emitted reasons explaining why source collection is still in flight; only present when readiness_state is target_incomplete."},
                         "freshness": {"type": "string", "enum": ["fresh", "stale", "unknown", "pending", "rate_limited", "failed", "partial"]},
                         "counts": {

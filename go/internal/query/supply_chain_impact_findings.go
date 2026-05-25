@@ -45,18 +45,18 @@ type SupplyChainImpactFindingFilter struct {
 // SupplyChainImpactFindingRow is one durable impact finding decoded from
 // reducer-owned facts.
 type SupplyChainImpactFindingRow struct {
-	FindingID             string
-	CVEID                 string
-	AdvisoryID            string
-	PackageID             string
-	Ecosystem             string
-	PackageName           string
-	PURL                  string
-	ProductCriteria       string
-	MatchCriteriaID       string
-	ObservedVersion       string
-	RequestedRange        string
-	FixedVersion          string
+	FindingID       string
+	CVEID           string
+	AdvisoryID      string
+	PackageID       string
+	Ecosystem       string
+	PackageName     string
+	PURL            string
+	ProductCriteria string
+	MatchCriteriaID string
+	ObservedVersion string
+	RequestedRange  string
+	FixedVersion    string
 	// VulnerableRange is the source-reported affected range expression
 	// copied from the advisory the reducer's provenance selector picked.
 	// Persisted on the canonical finding payload so list responses expose

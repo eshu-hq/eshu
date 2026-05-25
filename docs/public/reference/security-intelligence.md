@@ -377,11 +377,12 @@ caller to tell "clean" from "not checked."
 | `ready_zero_findings` | Required target evidence exists and the reducer found no matching impact. |
 | `ready_with_findings` | Required target evidence exists and reducer-owned findings are available. |
 | `readiness_unavailable` | Out-of-band signal returned when the readiness lookup itself fails; the findings page is still returned but coverage cannot be classified. |
+| `unsupported` | Eshu observed real target evidence the matcher cannot resolve — an owned dependency in an unsupported ecosystem, a package-manager file with an unsupported lockfile feature, a malformed/unsupported SBOM document, or an image target without a supported analyzer. Callers MUST NOT interpret this as clean or affected. |
 
-An `unsupported` state is reserved for a future reducer that observes target
-evidence Eshu does not yet know how to match. The state is not surfaced by
-the current implementation; it will be added back to the API and MCP contract
-when a real producer emits unsupported-target evidence.
+`unsupported` only fires when bounded unsupported-target evidence exists for
+the requested scope. When evidence is missing rather than unsupported, the
+state stays `evidence_incomplete` and `missing_evidence` carries the
+specific gap; the two states never collapse together.
 
 Zero findings without readiness are unsafe. The API and MCP surfaces should
 return coverage, freshness, unsupported target counts, and missing-evidence
@@ -394,8 +395,9 @@ reasons alongside findings.
 every response. The envelope is derived from existing source-fact and
 reducer-fact counts so the answer never invents findings:
 
-- `readiness_state` is one of the five classification states above, plus the
-  out-of-band `readiness_unavailable` when the readiness lookup itself fails.
+- `readiness_state` is one of the five core classification states above, plus
+  the out-of-band `readiness_unavailable` when the readiness lookup itself
+  fails, and `unsupported` when bounded unsupported-target evidence exists.
 - `target_scope` echoes the bounded anchors the caller used (`cve_id`,
   `package_id`, `repository_id`, `subject_digest`, `impact_status`).
   `impact_status` alone is not a fact-anchor: the readiness store skips its
@@ -417,9 +419,17 @@ reducer-fact counts so the answer never invents findings:
   package names, and source URLs are not returned.
 - `missing_evidence[]` names absent required join families using the stable
   identifiers `advisory_sources`, `owned_packages`, `sbom_or_image_evidence`,
-  `target_collection_incomplete`, and `readiness_unavailable`. The list is
-  empty on `ready_*` states so callers cannot see contradictory "ready" +
-  "missing" signals.
+  `target_collection_incomplete`, `readiness_unavailable`, and
+  `unsupported_targets`. The list is empty on `ready_*` states so callers
+  cannot see contradictory "ready" + "missing" signals.
+- `unsupported_targets[]` is bounded coverage-gap evidence: each entry names
+  the unsupported `target_kind` (`ecosystem`, `package_manager_file`,
+  `sbom_target`, or `image_target`), a stable `reason` code, and a `count`
+  for the bounded scope. Optional `ecosystem`, `lockfile_flavor`, and
+  `feature_token` fields explain why the matcher cannot resolve the target.
+  The list is surfaced whenever Eshu observes such evidence — additively
+  when findings exist, or as the dominant signal alongside
+  `readiness_state=unsupported` when no finding could be admitted.
 - `incomplete_reasons[]` carries collector-emitted reasons explaining why
   source collection is still in flight; only populated when
   `readiness_state` is `target_incomplete`.
@@ -460,6 +470,22 @@ The current implementation proves the following:
   findings page is still returned so callers do not lose data, but
   `missing_evidence` carries `readiness_unavailable` and the state explicitly
   warns that coverage cannot be classified for this response.
+- `unsupported` when the bounded readiness scope has observed unsupported
+  target evidence the matcher cannot resolve. Evidence is read directly from
+  existing facts: `content_entity` dependency rows whose
+  `entity_metadata.package_manager` is outside the supported matcher set
+  (`npm`, `nuget`, `maven`, `cargo`) become `target_kind=ecosystem` rows;
+  `content_entity` dependency rows carrying
+  `entity_metadata.lockfile_unsupported_feature` become
+  `target_kind=package_manager_file` rows with the offending feature token;
+  `sbom.warning` facts whose `reason` is `unsupported_field` or
+  `malformed_document` join through the SBOM document subject digest and
+  become `target_kind=sbom_target` rows. `image_target` is reserved for
+  future image-analyzer evidence. `unsupported` outranks
+  `evidence_incomplete` so callers can tell "we observed something we
+  cannot match" from "we never collected this." When findings exist, the
+  state stays `ready_with_findings` and `unsupported_targets[]` is surfaced
+  additively so operators still see the coverage gap.
 
 The package.consumption family is sourced from the real
 `reducer_package_consumption_correlation` facts and `content_entity` manifest
@@ -471,20 +497,26 @@ through global registry metadata.
 
 #### Follow-Up Work
 
-- The `unsupported` readiness state will be reintroduced once a reducer
-  emits observed-but-unmatched target evidence. The field/state was dropped
-  from the current contract to avoid surfacing a verdict the
-  implementation cannot produce.
+- Extend `target_kind=image_target` with a concrete producer once the
+  image-scanner worker emits unsupported-manifest evidence. The
+  contract for that family is already wired through the envelope and
+  OpenAPI; only the SQL aggregation arm is empty today.
 - Surface per-collector freshness windows separately when the collector
   contract carries source-specific staleness thresholds.
 
 Performance Evidence: focused query tests
 `go test ./internal/query -run 'SupplyChainImpactReadiness' -count=1` exercise
 not-configured, evidence-incomplete, ready-zero-findings, ready-with-findings,
-target-incomplete, source-snapshot cache metadata, and the Postgres query shape
+target-incomplete, source-snapshot cache metadata, unsupported ecosystem,
+unsupported package-manager file, unsupported SBOM/image target, the
+missing-evidence vs unsupported boundary, and the Postgres query shape
 contract. The readiness Postgres path runs one bounded CTE per response with
-seven anchored counts and a source-snapshot roll-up; it adds one Postgres round
-trip alongside the existing impact-finding read.
+seven anchored evidence-family counts, a source-snapshot roll-up, a
+source-state roll-up, and an unsupported-target aggregation that joins
+`content_entity` dependency rows and `sbom.warning` facts through the SBOM
+document subject digest. The aggregation reuses existing source facts and
+adds no new round trip beyond the single readiness query already issued
+alongside the impact-finding read.
 
 No-Observability-Change: the readiness path reuses the existing
 `query.supply_chain_impact_findings` span. The handler does not start a new
@@ -493,7 +525,12 @@ graph query, queue claim, or reducer write, so the existing
 HTTP/MCP envelope continue to expose latency, error, and truth metadata for
 the bounded readiness read. Source-cache state is observable through
 `vulnerability.source_snapshot` payload fields and the `source_snapshots[]`
-readiness metadata.
+readiness metadata. The unsupported-target rollup adds no new metric
+instrument, span, log key, queue, reducer lane, graph write, or runtime
+worker; operators diagnose coverage gaps through the existing
+`unsupported_targets[]` envelope payload and the
+`vulnerability.unsupported_target` aggregation marker emitted by the
+readiness store.
 
 ## Repository Dependency Coverage
 

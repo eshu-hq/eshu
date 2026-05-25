@@ -57,6 +57,27 @@ func TestPostgresSupplyChainImpactReadinessQueryShape(t *testing.T) {
 		"ORDER BY CASE WHEN scope_id IN ($9, $10, $11, $12) THEN 0 ELSE 1 END",
 		"LIMIT 200",
 		"FROM vulnerability_source_state_candidates",
+		// The unsupported target aggregation must surface the closed set of
+		// kinds, scope filtering by repo_id/subject_digest, and the explicit
+		// reason codes so an unrelated refactor cannot silently drop one
+		// producer arm.
+		"'vulnerability.unsupported_target' AS family",
+		"'ecosystem' AS target_kind",
+		"'package_manager_file' AS target_kind",
+		"'sbom_target' AS target_kind",
+		"NOT IN\n          ('npm', 'nuget', 'maven', 'cargo')",
+		"entity_metadata'->>'lockfile_unsupported_feature'",
+		"warn.payload->>'reason' IN ('unsupported_field', 'malformed_document')",
+		"doc.payload->>'subject_digest' = $12",
+		// Anchor guards: ecosystem and package_manager_file rows only count
+		// when the request carries an explicit repository_id, and sbom_target
+		// rows only count when the request carries an explicit
+		// subject_digest. Without these gates a cve_id-only or
+		// subject_digest-only scope would scan all owned dependency rows
+		// globally and a repository_id-only scope would pick up SBOM
+		// warnings from unrelated images.
+		"WHERE $11 <> ''\n      AND payload->>'repo_id' = $11",
+		"WHERE $12 <> ''\n      AND doc.payload->>'subject_digest' = $12",
 	} {
 		if !strings.Contains(listSupplyChainImpactReadinessQuery, want) {
 			t.Fatalf("listSupplyChainImpactReadinessQuery missing %q:\n%s", want, listSupplyChainImpactReadinessQuery)

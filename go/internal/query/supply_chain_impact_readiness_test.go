@@ -306,6 +306,299 @@ func TestBuildSupplyChainImpactReadinessNormalizesEvidenceSources(t *testing.T) 
 	}
 }
 
+func TestBuildSupplyChainImpactReadinessClassifiesUnsupportedEcosystem(t *testing.T) {
+	t.Parallel()
+
+	// Eshu observed an owned dependency in an ecosystem the matcher cannot
+	// resolve (no advisory matched and no finding emitted). Readiness must
+	// surface this as unsupported, not as ready_zero_findings, so callers
+	// cannot mistake "we cannot match this" for "clean".
+	envelope := BuildSupplyChainImpactReadiness(
+		SupplyChainImpactTargetScope{RepositoryID: "repo://example/api"},
+		nil,
+		false,
+		SupplyChainImpactReadinessSnapshot{
+			EvidenceSources: []SupplyChainImpactEvidenceFamily{
+				{Family: EvidenceFamilyVulnerabilityAdvisory, FactCount: 4, Freshness: FreshnessLabelFresh},
+				{Family: EvidenceFamilyPackageConsumption, FactCount: 3, Freshness: FreshnessLabelFresh},
+			},
+			UnsupportedTargets: []SupplyChainImpactUnsupportedTarget{
+				{TargetKind: UnsupportedTargetKindEcosystem, Reason: "unsupported_ecosystem", Ecosystem: "pypi", Count: 3},
+			},
+		},
+	)
+	if envelope.State != ReadinessStateUnsupported {
+		t.Fatalf("state = %q, want %q", envelope.State, ReadinessStateUnsupported)
+	}
+	if !readinessMissingContains(envelope.MissingEvidence, MissingEvidenceUnsupportedTargets) {
+		t.Fatalf("missing_evidence = %#v, want unsupported_targets", envelope.MissingEvidence)
+	}
+	if len(envelope.UnsupportedTargets) != 1 ||
+		envelope.UnsupportedTargets[0].TargetKind != UnsupportedTargetKindEcosystem ||
+		envelope.UnsupportedTargets[0].Count != 3 {
+		t.Fatalf("unsupported_targets = %#v, want one ecosystem entry with count=3", envelope.UnsupportedTargets)
+	}
+}
+
+func TestBuildSupplyChainImpactReadinessClassifiesUnsupportedPackageManagerFile(t *testing.T) {
+	t.Parallel()
+
+	// Eshu parsed a package-manager file but recorded an unsupported lockfile
+	// feature; readiness must surface the observation as unsupported instead
+	// of admitting clean evidence.
+	envelope := BuildSupplyChainImpactReadiness(
+		SupplyChainImpactTargetScope{RepositoryID: "repo://example/api"},
+		nil,
+		false,
+		SupplyChainImpactReadinessSnapshot{
+			EvidenceSources: []SupplyChainImpactEvidenceFamily{
+				{Family: EvidenceFamilyVulnerabilityAdvisory, FactCount: 2, Freshness: FreshnessLabelFresh},
+				{Family: EvidenceFamilyPackageConsumption, FactCount: 1, Freshness: FreshnessLabelFresh},
+			},
+			UnsupportedTargets: []SupplyChainImpactUnsupportedTarget{
+				{
+					TargetKind:     UnsupportedTargetKindPackageManagerFile,
+					Reason:         "lockfile_unsupported_feature",
+					LockfileFlavor: "yarn",
+					FeatureToken:   "patch",
+					Count:          1,
+				},
+			},
+		},
+	)
+	if envelope.State != ReadinessStateUnsupported {
+		t.Fatalf("state = %q, want %q", envelope.State, ReadinessStateUnsupported)
+	}
+	if len(envelope.UnsupportedTargets) != 1 ||
+		envelope.UnsupportedTargets[0].TargetKind != UnsupportedTargetKindPackageManagerFile ||
+		envelope.UnsupportedTargets[0].FeatureToken != "patch" {
+		t.Fatalf("unsupported_targets = %#v, want one package_manager_file entry with feature=patch", envelope.UnsupportedTargets)
+	}
+}
+
+func TestBuildSupplyChainImpactReadinessClassifiesUnsupportedSBOMTarget(t *testing.T) {
+	t.Parallel()
+
+	// An SBOM document was observed but the parser flagged unsupported_field
+	// or malformed_document; readiness must surface that the subject digest
+	// has unsupported target evidence so callers do not mistake "nothing
+	// matched" for "no SBOM evidence".
+	envelope := BuildSupplyChainImpactReadiness(
+		SupplyChainImpactTargetScope{SubjectDigest: "sha256:deadbeef"},
+		nil,
+		false,
+		SupplyChainImpactReadinessSnapshot{
+			EvidenceSources: []SupplyChainImpactEvidenceFamily{
+				{Family: EvidenceFamilyVulnerabilityAdvisory, FactCount: 1, Freshness: FreshnessLabelFresh},
+				{Family: EvidenceFamilyContainerImageIdentity, FactCount: 1, Freshness: FreshnessLabelFresh},
+			},
+			UnsupportedTargets: []SupplyChainImpactUnsupportedTarget{
+				{TargetKind: UnsupportedTargetKindSBOMTarget, Reason: "unsupported_field", Count: 2},
+			},
+		},
+	)
+	if envelope.State != ReadinessStateUnsupported {
+		t.Fatalf("state = %q, want %q", envelope.State, ReadinessStateUnsupported)
+	}
+	if len(envelope.UnsupportedTargets) != 1 ||
+		envelope.UnsupportedTargets[0].TargetKind != UnsupportedTargetKindSBOMTarget {
+		t.Fatalf("unsupported_targets = %#v, want one sbom_target entry", envelope.UnsupportedTargets)
+	}
+}
+
+func TestBuildSupplyChainImpactReadinessClassifiesUnsupportedImageTarget(t *testing.T) {
+	t.Parallel()
+
+	// A container image was observed but no supported analyzer matched the
+	// image content; readiness must surface unsupported instead of admitting
+	// the image as covered.
+	envelope := BuildSupplyChainImpactReadiness(
+		SupplyChainImpactTargetScope{SubjectDigest: "sha256:cafefade"},
+		nil,
+		false,
+		SupplyChainImpactReadinessSnapshot{
+			EvidenceSources: []SupplyChainImpactEvidenceFamily{
+				{Family: EvidenceFamilyVulnerabilityAdvisory, FactCount: 1, Freshness: FreshnessLabelFresh},
+				{Family: EvidenceFamilyContainerImageIdentity, FactCount: 1, Freshness: FreshnessLabelFresh},
+			},
+			UnsupportedTargets: []SupplyChainImpactUnsupportedTarget{
+				{TargetKind: UnsupportedTargetKindImageTarget, Reason: "image_analyzer_unsupported", Count: 1},
+			},
+		},
+	)
+	if envelope.State != ReadinessStateUnsupported {
+		t.Fatalf("state = %q, want %q", envelope.State, ReadinessStateUnsupported)
+	}
+	if len(envelope.UnsupportedTargets) != 1 ||
+		envelope.UnsupportedTargets[0].TargetKind != UnsupportedTargetKindImageTarget {
+		t.Fatalf("unsupported_targets = %#v, want one image_target entry", envelope.UnsupportedTargets)
+	}
+}
+
+func TestBuildSupplyChainImpactReadinessUnsupportedOutranksReadyZeroFindings(t *testing.T) {
+	t.Parallel()
+
+	// Accuracy guard from the Copilot review thread: even when a scope has
+	// matchable advisory + owned-package evidence and the reducer admitted
+	// zero findings (a clean ready_zero_findings shape on the matchable
+	// side), the presence of observed unsupported target evidence MUST
+	// outrank ready_zero_findings. Otherwise callers would see
+	// "ready_zero_findings" while there is real coverage Eshu cannot match,
+	// which is exactly the "clean" misread the unsupported state is
+	// supposed to prevent.
+	envelope := BuildSupplyChainImpactReadiness(
+		SupplyChainImpactTargetScope{RepositoryID: "repo://example/api"},
+		nil,
+		false,
+		SupplyChainImpactReadinessSnapshot{
+			EvidenceSources: []SupplyChainImpactEvidenceFamily{
+				{Family: EvidenceFamilyVulnerabilityAdvisory, FactCount: 4, Freshness: FreshnessLabelFresh},
+				{Family: EvidenceFamilyPackageConsumption, FactCount: 3, Freshness: FreshnessLabelFresh},
+			},
+			UnsupportedTargets: []SupplyChainImpactUnsupportedTarget{
+				{TargetKind: UnsupportedTargetKindEcosystem, Reason: "unsupported_ecosystem", Ecosystem: "pypi", Count: 2},
+			},
+		},
+	)
+	if envelope.State != ReadinessStateUnsupported {
+		t.Fatalf("state = %q, want %q (unsupported must outrank ready_zero_findings when observed coverage gap exists)", envelope.State, ReadinessStateUnsupported)
+	}
+	if !readinessMissingContains(envelope.MissingEvidence, MissingEvidenceUnsupportedTargets) {
+		t.Fatalf("missing_evidence = %#v, want unsupported_targets", envelope.MissingEvidence)
+	}
+}
+
+func TestBuildSupplyChainImpactReadinessUnsupportedDropsEntriesWithoutReason(t *testing.T) {
+	t.Parallel()
+
+	// Companion guard for the Copilot OpenAPI review: every surfaced
+	// unsupported_target row MUST carry a stable reason code because the
+	// schema requires it. Producer rows with a blank reason are dropped
+	// during normalization so the envelope cannot publish a contract
+	// violation, and a scope with only-blank-reason entries falls back to
+	// the non-unsupported classification.
+	envelope := BuildSupplyChainImpactReadiness(
+		SupplyChainImpactTargetScope{RepositoryID: "repo://example/api"},
+		nil,
+		false,
+		SupplyChainImpactReadinessSnapshot{
+			EvidenceSources: []SupplyChainImpactEvidenceFamily{
+				{Family: EvidenceFamilyVulnerabilityAdvisory, FactCount: 4, Freshness: FreshnessLabelFresh},
+				{Family: EvidenceFamilyPackageConsumption, FactCount: 1, Freshness: FreshnessLabelFresh},
+			},
+			UnsupportedTargets: []SupplyChainImpactUnsupportedTarget{
+				{TargetKind: UnsupportedTargetKindSBOMTarget, Reason: "  ", Count: 1},
+			},
+		},
+	)
+	if len(envelope.UnsupportedTargets) != 0 {
+		t.Fatalf("unsupported_targets = %#v, want empty (blank reasons must be dropped)", envelope.UnsupportedTargets)
+	}
+	if envelope.State == ReadinessStateUnsupported {
+		t.Fatalf("state = %q, must not be unsupported when no normalized targets remain", envelope.State)
+	}
+}
+
+func TestBuildSupplyChainImpactReadinessUnsupportedDoesNotCollapseMissingEvidence(t *testing.T) {
+	t.Parallel()
+
+	// A scope with normal missing-evidence (no owned-package facts, no
+	// unsupported observations) must remain evidence_incomplete with
+	// missing_evidence=owned_packages. It MUST NOT slide into unsupported,
+	// otherwise callers cannot tell "we never collected this" from "we
+	// observed something but cannot match it".
+	envelope := BuildSupplyChainImpactReadiness(
+		SupplyChainImpactTargetScope{RepositoryID: "repo://example/api"},
+		nil,
+		false,
+		SupplyChainImpactReadinessSnapshot{
+			EvidenceSources: []SupplyChainImpactEvidenceFamily{
+				{Family: EvidenceFamilyVulnerabilityAdvisory, FactCount: 4, Freshness: FreshnessLabelFresh},
+			},
+		},
+	)
+	if envelope.State != ReadinessStateEvidenceIncomplete {
+		t.Fatalf("state = %q, want %q (missing-evidence must not be unsupported)", envelope.State, ReadinessStateEvidenceIncomplete)
+	}
+	if !readinessMissingContains(envelope.MissingEvidence, MissingEvidenceOwnedPackages) {
+		t.Fatalf("missing_evidence = %#v, want owned_packages", envelope.MissingEvidence)
+	}
+	if readinessMissingContains(envelope.MissingEvidence, MissingEvidenceUnsupportedTargets) {
+		t.Fatalf("missing_evidence = %#v, must NOT carry unsupported_targets without unsupported evidence", envelope.MissingEvidence)
+	}
+	if len(envelope.UnsupportedTargets) != 0 {
+		t.Fatalf("unsupported_targets = %#v, want empty when no unsupported producer fired", envelope.UnsupportedTargets)
+	}
+}
+
+func TestBuildSupplyChainImpactReadinessUnsupportedSurfacesAlongsideFindings(t *testing.T) {
+	t.Parallel()
+
+	// Unsupported target evidence is additive: when findings exist, the state
+	// stays ready_with_findings (the reducer did decide) but unsupported
+	// target counts remain visible so operators can see hidden coverage gaps
+	// without being told the result is clean for unsupported families.
+	envelope := BuildSupplyChainImpactReadiness(
+		SupplyChainImpactTargetScope{RepositoryID: "repo://example/api"},
+		[]SupplyChainImpactFindingResult{
+			{FindingID: "finding-1", ImpactStatus: "affected_exact"},
+		},
+		false,
+		SupplyChainImpactReadinessSnapshot{
+			EvidenceSources: []SupplyChainImpactEvidenceFamily{
+				{Family: EvidenceFamilyVulnerabilityAdvisory, FactCount: 4, Freshness: FreshnessLabelFresh},
+				{Family: EvidenceFamilyPackageConsumption, FactCount: 1, Freshness: FreshnessLabelFresh},
+			},
+			UnsupportedTargets: []SupplyChainImpactUnsupportedTarget{
+				{TargetKind: UnsupportedTargetKindEcosystem, Reason: "unsupported_ecosystem", Ecosystem: "pypi", Count: 2},
+			},
+		},
+	)
+	if envelope.State != ReadinessStateReadyWithFindings {
+		t.Fatalf("state = %q, want %q", envelope.State, ReadinessStateReadyWithFindings)
+	}
+	if len(envelope.UnsupportedTargets) != 1 {
+		t.Fatalf("unsupported_targets = %#v, want one entry surfaced even with findings", envelope.UnsupportedTargets)
+	}
+	if len(envelope.MissingEvidence) != 0 {
+		t.Fatalf("missing_evidence = %#v, want empty on ready_with_findings", envelope.MissingEvidence)
+	}
+}
+
+func TestBuildSupplyChainImpactReadinessUnsupportedNormalizesAndSortsTargets(t *testing.T) {
+	t.Parallel()
+
+	envelope := BuildSupplyChainImpactReadiness(
+		SupplyChainImpactTargetScope{RepositoryID: "repo://example/api"},
+		nil,
+		false,
+		SupplyChainImpactReadinessSnapshot{
+			EvidenceSources: []SupplyChainImpactEvidenceFamily{
+				{Family: EvidenceFamilyVulnerabilityAdvisory, FactCount: 4, Freshness: FreshnessLabelFresh},
+				{Family: EvidenceFamilyPackageConsumption, FactCount: 1, Freshness: FreshnessLabelFresh},
+			},
+			UnsupportedTargets: []SupplyChainImpactUnsupportedTarget{
+				{TargetKind: UnsupportedTargetKindSBOMTarget, Reason: "unsupported_field", Count: 2},
+				{TargetKind: " "},
+				{TargetKind: UnsupportedTargetKindEcosystem, Reason: "unsupported_ecosystem", Ecosystem: "pypi", Count: 1},
+				{TargetKind: UnsupportedTargetKindEcosystem, Reason: "unsupported_ecosystem", Ecosystem: "pypi", Count: 1},
+			},
+		},
+	)
+	if got := len(envelope.UnsupportedTargets); got != 2 {
+		t.Fatalf("unsupported_targets count = %d, want 2 (blank dropped, duplicates merged)", got)
+	}
+	// Deterministic order: ecosystem before sbom_target by target_kind.
+	if envelope.UnsupportedTargets[0].TargetKind != UnsupportedTargetKindEcosystem ||
+		envelope.UnsupportedTargets[1].TargetKind != UnsupportedTargetKindSBOMTarget {
+		t.Fatalf("unsupported_targets order = %#v, want ecosystem then sbom_target", envelope.UnsupportedTargets)
+	}
+	// Duplicates collapse with counts summed.
+	if got := envelope.UnsupportedTargets[0].Count; got != 2 {
+		t.Fatalf("ecosystem count = %d, want 2 (duplicate dedup sums)", got)
+	}
+}
+
 func TestBuildSupplyChainImpactReadinessExposesSourceSnapshotCacheMetadata(t *testing.T) {
 	t.Parallel()
 

@@ -78,6 +78,7 @@ func TestOpenAPISpecIncludesSupplyChainImpactFindings(t *testing.T) {
 		"evidence_sources",
 		"source_snapshots",
 		"source_states",
+		"unsupported_targets",
 		"missing_evidence",
 		"incomplete_reasons",
 		"freshness",
@@ -87,8 +88,37 @@ func TestOpenAPISpecIncludesSupplyChainImpactFindings(t *testing.T) {
 			t.Fatalf("readiness.properties missing %q field", key)
 		}
 	}
-	if _, ok := readinessProps["unsupported_targets"]; ok {
-		t.Fatalf("readiness.properties must not include unsupported_targets; field was dropped pending a real producer")
+	readinessState := mustMapField(t, readinessProps, "readiness_state")
+	stateEnum := mustStringSliceField(t, readinessState, "enum")
+	if !containsOpenAPIEnumString(stateEnum, "unsupported") {
+		t.Fatalf("readiness_state enum = %#v, want %q so unsupported observed-target evidence is surfaced", stateEnum, "unsupported")
+	}
+	unsupportedTargets := mustMapField(t, readinessProps, "unsupported_targets")
+	unsupportedTargetsItems := mustMapField(t, unsupportedTargets, "items")
+	unsupportedTargetsItemProps := mustMapField(t, unsupportedTargetsItems, "properties")
+	for _, key := range []string{"target_kind", "reason", "count"} {
+		if _, ok := unsupportedTargetsItemProps[key]; !ok {
+			t.Fatalf("unsupported_targets items.properties missing %q", key)
+		}
+	}
+	unsupportedTargetsRequired := mustStringSliceField(t, unsupportedTargetsItems, "required")
+	for _, key := range []string{"target_kind", "reason", "count"} {
+		if !containsOpenAPIEnumString(unsupportedTargetsRequired, key) {
+			t.Fatalf("unsupported_targets items.required = %#v, want %q (envelope normalization drops blank-reason rows)", unsupportedTargetsRequired, key)
+		}
+	}
+	targetKindSchema := mustMapField(t, unsupportedTargetsItemProps, "target_kind")
+	targetKindEnum := mustStringSliceField(t, targetKindSchema, "enum")
+	for _, want := range []string{"ecosystem", "package_manager_file", "sbom_target", "image_target"} {
+		if !containsOpenAPIEnumString(targetKindEnum, want) {
+			t.Fatalf("unsupported_targets.target_kind enum = %#v, want %q", targetKindEnum, want)
+		}
+	}
+	missingEvidence := mustMapField(t, readinessProps, "missing_evidence")
+	missingEvidenceItems := mustMapField(t, missingEvidence, "items")
+	missingEvidenceEnum := mustStringSliceField(t, missingEvidenceItems, "enum")
+	if !containsOpenAPIEnumString(missingEvidenceEnum, "unsupported_targets") {
+		t.Fatalf("missing_evidence enum = %#v, want %q so the unsupported state can carry one stable identifier", missingEvidenceEnum, "unsupported_targets")
 	}
 	freshness := mustMapField(t, readinessProps, "freshness")
 	enum := mustStringSliceField(t, freshness, "enum")
