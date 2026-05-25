@@ -3,8 +3,9 @@
 ## Purpose
 
 `scannerworker` defines the contract and claim loop for isolated security
-analyzer workers. It is the hosted scanner-worker boundary, not a concrete
-SBOM, image, secret, license, or misconfiguration analyzer.
+analyzer workers. Concrete analyzers plug in behind the `Analyzer` port; this
+package stays responsible for the shared claim, output, failure, and telemetry
+boundary.
 
 ## Ownership boundary
 
@@ -13,9 +14,10 @@ target scope, resource limits, source-fact output validation, retry or
 dead-letter payload shape, and the workflow claim loop used by
 `cmd/scanner-worker`.
 
-Reducers remain truth owners. Scanner workers may emit `scanner_worker.*`
-source facts, including explicit warning facts, but they must not emit reducer
-finding facts or graph projection phases.
+Reducers remain truth owners. Scanner workers may emit source fact families such
+as `scanner_worker.*`, `sbom.*`, `attestation.*`, `vulnerability.os_package`,
+and `vulnerability.warning`, but they must not emit reducer finding facts or
+graph projection phases.
 
 ## Exported surface
 
@@ -71,6 +73,9 @@ result count, CPU seconds, and memory bytes. It starts
 ## Gotchas / invariants
 
 - Scanner workers emit source facts only. Reducer finding facts are rejected.
+- Concrete analyzers may preserve their parser-owned `collector_kind` and
+  `source_ref.source_system` as long as both are nonblank, match each other,
+  and the fact kind is on the scanner-worker source allowlist.
 - Completed scanner claims must emit at least one source fact or warning; silent
   clean output is not accepted.
 - Retry and dead-letter payloads carry safe locator hashes and bounded failure
@@ -84,12 +89,12 @@ result count, CPU seconds, and memory bytes. It starts
 
 ## Evidence
 
-Collector Performance Evidence: `go test ./internal/collector/scannerworker ./cmd/scanner-worker ./internal/runtime ./internal/telemetry ./internal/workflow ./internal/scope -count=1`
-covered claim processing, source-fact output, retry/dead-letter handling, and
-deployment render contracts without adding concrete analyzer CPU or memory
-work. Concrete analyzer adapters still need target count, fact count, runtime,
-CPU, memory, queue state, retry count, dead-letter count, and pprof evidence
-before they become defaults.
+Collector Performance Evidence: `go test ./internal/collector/scannerworker ./internal/collector/ospackagevulnerability/osruntime ./cmd/scanner-worker ./internal/runtime ./internal/telemetry ./internal/workflow ./internal/scope -count=1`
+covers claim processing, source-fact output, OS package analyzer apk/dpkg
+parsing, retry/dead-letter handling, and deployment render contracts. Concrete
+analyzer rollout still needs target count, fact count, runtime, CPU, memory,
+queue state, retry count, dead-letter count, and pprof evidence from the target
+environment before it becomes a default.
 
 Collector Observability Evidence: `Service` records
 `eshu_dp_scanner_worker_claims_total`,

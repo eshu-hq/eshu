@@ -21,14 +21,20 @@ The implemented deployed collector lanes are:
 - claim-driven AWS cloud collection
 - claim-driven package-registry collection
 - remote-E2E-gated vulnerability intelligence collection
-- claim-driven scanner-worker warning facts for isolated analyzer execution
+- claim-driven scanner-worker warning facts, bounded SBOM generation, and
+  configured OS package rootfs extraction for isolated analyzer execution
 - webhook listener intake for Git provider events and AWS freshness triggers
 
 The scanner-worker lane is deployed as an isolated analyzer boundary. It
 defines claim input, target scope, resource limits, source fact output,
 retry/dead-letter payloads, telemetry names, Compose wiring, and an opt-in Helm
 Deployment. The built-in warning analyzer proves source-fact emission without
-claiming a target is clean.
+claiming a target is clean. The bounded `sbom_generation` analyzer emits
+CycloneDX-compatible SBOM source facts when a runtime-owned source is wired and
+otherwise emits an explicit warning. The `os_package_extraction` analyzer
+parses configured, already-extracted Alpine or Debian rootfs metadata into
+`vulnerability.os_package` and `vulnerability.warning` source facts without
+matching advisories or publishing findings.
 
 Do not add chart values for design-only collectors. A Helm knob is an operator
 promise; only chart collectors whose binary, fact contract, configuration, and
@@ -63,7 +69,7 @@ instances.
 | SBOM and attestations | `eshu-collector-sbom-attestation` is claim-driven and can collect configured CycloneDX/SPDX SBOMs, in-toto statements, or OCI referrer documents without parsing inside the OCI registry collector. | Typed `sbom.*` and `attestation.*` facts feed `sbom_attestation_attachment`. Reducer attachment requires explicit subject digest evidence; parse warnings, verification status, and source document identity stay separate from attachment truth. API and MCP reads surface reducer attachment decisions through `list_sbom_attestation_attachments`. | Prove live or fixture document collection, source-URI redaction, parse-warning surfacing, reducer drain, API/MCP attachment reads, and subject-digest match/mismatch behavior in the target environment. |
 | Vulnerability intelligence | `eshu-collector-vulnerability-intelligence` has source clients for CISA KEV, FIRST EPSS, OSV, and NVD. It can collect configured targets, configured mirror/fallback endpoints, cached/offline source artifacts, or coordinator-derived OSV npm targets for exact owned dependency versions. | Source-truth `vulnerability.*` facts exist. Source-cache metadata is carried on `vulnerability.source_snapshot`; durable target freshness/checkpoint/retry state is carried in `vulnerability_source_states` and surfaced through status/API/MCP readiness. Neither is a finding. Impact reducers require owned package-manifest, lockfile, repository, image, or SBOM evidence before publishing user-facing impact findings. Exact lockfile versions can prove observed package impact; manifest ranges stay partial evidence and are skipped for exact OSV target derivation. They must not infer reachability from CVSS, EPSS, KEV, product-only CPEs, cache freshness, or package-registry facts alone. | Prove live or offline source collection, source snapshot freshness/API/MCP visibility, source-state retry/freshness visibility, then package/image/deployment impact joins after upstream collectors are proven together. |
 | Provider security alerts | `security_alert` currently has synthetic GitHub Dependabot fixture normalization and a bounded allowlisted request client shape, not a hosted collector lane. | `security_alert.repository_alert` facts preserve provider alert state as source truth. `security_alert_reconciliation` reducer facts compare provider alerts with owned dependency and supply-chain impact evidence while keeping provider state separate from Eshu impact truth. | Prove hosted collection credentials, allowlists, rate limits, redaction, claim handoff, fact counts, reducer drain, API/MCP reads, and private-data handling before enabling live provider alert collection. |
-| Scanner worker | `eshu-scanner-worker` is claim-driven and isolated from reducer lanes. The built-in warning analyzer emits `scanner_worker.warning` source facts until a concrete analyzer is configured. The bounded `sbom_generation` analyzer (`internal/collector/scannerworker/sbomgenerator`) emits CycloneDX-compatible `sbom.document`, `sbom.component`, and `sbom.warning` source facts for repository targets and falls back to `scanner_worker.warning` with `reason="sbom_generator_source_not_configured"` until a runtime-owned source is wired. | Scanner workers emit source facts only. Reducers own vulnerability finding admission, priority, readiness, and graph truth. Scanner-generated SBOM documents flow through `sbom_attestation_attachment` exactly like collector-fetched SBOM documents; they cannot bypass attachment truth. | Prove concrete analyzers with target count, fact count, runtime, CPU, memory, queue state, retry count, dead-letter count, pprof, and reducer/API truth before enabling them by default. Bounded SBOM generation must additionally prove reducer attachment admission and the safe `unknown_subject` fallback when no subject digest is derivable. |
+| Scanner worker | `eshu-scanner-worker` is claim-driven and isolated from reducer lanes. The built-in warning analyzer emits `scanner_worker.warning` source facts until a concrete analyzer is configured. The bounded `sbom_generation` analyzer (`internal/collector/scannerworker/sbomgenerator`) emits CycloneDX-compatible `sbom.document`, `sbom.component`, and `sbom.warning` source facts for repository targets and falls back to `scanner_worker.warning` with `reason="sbom_generator_source_not_configured"` until a runtime-owned source is wired. The `os_package_extraction` analyzer parses configured Alpine or Debian rootfs targets into OS package source facts. | Scanner workers emit source facts only. Reducers own vulnerability finding admission, priority, readiness, and graph truth. Scanner-generated SBOM documents flow through `sbom_attestation_attachment` exactly like collector-fetched SBOM documents; they cannot bypass attachment truth. OS package extraction does not match advisories or publish findings. | Prove concrete analyzers with target count, fact count, runtime, CPU, memory, queue state, retry count, dead-letter count, pprof, and reducer/API truth before enabling them by default. Bounded SBOM generation must additionally prove reducer attachment admission and the safe `unknown_subject` fallback when no subject digest is derivable. |
 
 The broader vulnerability architecture, including target/capability separation,
 readiness states, provider-alert parity, local one-shot scanning, and
@@ -103,7 +109,7 @@ implemented:
 | Source family | Current state |
 | --- | --- |
 | Kubernetes live | No hosted collector runtime or charted workload. |
-| Concrete scanner analyzers | The `eshu-scanner-worker` runtime, warning analyzer, Compose service, and opt-in Helm Deployment exist. Concrete analyzers beyond the warning analyzer remain gated until target count, fact count, runtime, CPU, memory, queue state, retry count, dead-letter count, pprof, and reducer/API truth are proven. |
+| Concrete scanner analyzers | The `eshu-scanner-worker` runtime, warning analyzer, bounded `sbom_generation` fallback, `os_package_extraction` rootfs parser, Compose service, and opt-in Helm Deployment exist. Concrete analyzers are not enabled by default until target count, fact count, runtime, CPU, memory, queue state, retry count, dead-letter count, pprof, and reducer/API truth are proven in the target environment. |
 | CI/CD runs | Fixture normalizer and reducer correlation exist; hosted provider polling is not a deployed lane. |
 | Service catalog, observability, incident/change, secrets/IAM posture, GCP, Azure, multi-cloud | Design or research only for deployed collector readiness. |
 

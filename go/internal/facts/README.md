@@ -156,10 +156,13 @@ collector contract:
 - `vulnerability.cve`
 - `vulnerability.affected_product`
 - `vulnerability.affected_package`
+- `vulnerability.os_package`
 - `vulnerability.epss_score`
 - `vulnerability.known_exploited`
 - `vulnerability.reference`
 - `vulnerability.warning`
+- `vulnerability.go_module_evidence`
+- `vulnerability.go_call_reachability`
 
 Use `VulnerabilityIntelligenceFactKinds` when callers need the full accepted
 set, and `VulnerabilityIntelligenceSchemaVersion` when building
@@ -168,7 +171,10 @@ reducers must decide package, image, workload, deployment, and fixed-version
 impact. `vulnerability.source_snapshot` may carry advisory source-cache
 metadata such as cache artifact version, snapshot digest, update time,
 expiration, freshness, and cache mode; those fields describe source lifecycle
-only and must not be promoted into impact truth.
+only and must not be promoted into impact truth. `vulnerability.os_package`
+preserves installed Alpine apk or Debian dpkg package evidence for reducer-owned
+vendor-advisory matching; collectors and scanner workers leave
+`fixed_version_source` empty until a reducer joins matching advisory evidence.
 
 Provider security alert fact kinds use schema version `1.0.0` for the first
 collector contract:

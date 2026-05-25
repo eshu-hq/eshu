@@ -207,8 +207,13 @@ func (s Service) analyze(ctx context.Context, input ClaimInput) (AnalyzerResult,
 		ctx, span = s.Tracer.Start(ctx, telemetry.SpanScannerWorkerAnalyze)
 		defer span.End()
 	}
+	analyzeCtx, cancel := context.WithTimeout(ctx, input.Limits.Timeout)
+	defer cancel()
 	start := s.now()
-	result, err := s.Analyzer.Analyze(ctx, input)
+	result, err := s.Analyzer.Analyze(analyzeCtx, input)
+	if errors.Is(analyzeCtx.Err(), context.DeadlineExceeded) || errors.Is(err, context.DeadlineExceeded) {
+		err = NewRetryableAnalyzerFailure(FailureClassTimeout, result.Usage, context.DeadlineExceeded)
+	}
 	duration := s.now().Sub(start).Seconds()
 	if duration < 0 {
 		duration = 0

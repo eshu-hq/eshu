@@ -13,7 +13,7 @@ flowchart LR
   workflow["workflow work item"] --> claim["scanner-worker claim"]
   claim --> input["scannerworker.ClaimInput"]
   input --> analyzer["bounded analyzer"]
-  analyzer --> facts["scanner_worker.* source facts"]
+  analyzer --> facts["scanner source facts\nscanner_worker.* / vulnerability.os_package"]
   facts --> postgres["Postgres fact store"]
   postgres --> reducers["reducers admit findings"]
 ```
@@ -27,15 +27,39 @@ flowchart LR
 - Applies analyzer defaults, optional instance `resource_limits`, then
   `ESHU_SCANNER_WORKER_*` resource overrides.
 - Emits source facts only and rejects silent clean output before committing.
+- Runs the concrete `os_package_extraction` analyzer when configured with
+  `os_package_targets`; this parser consumes already-extracted Alpine or Debian
+  rootfs metadata and emits `vulnerability.os_package` /
+  `vulnerability.warning` facts.
 - Records retry and dead-letter payloads with locator hashes and bounded
   failure classes.
 - Exposes `/healthz`, `/readyz`, `/metrics`, `/admin/status`, and optional
   private pprof through `ESHU_PPROF_ADDR`.
 
-The current built-in analyzer emits an explicit `scanner_worker.warning` source
-fact (`reason=analyzer_not_configured`). Concrete SBOM, image, secret, license,
-OS package, source, and misconfiguration analyzers must plug into this boundary
-instead of running in reducer lanes.
+The fallback analyzer emits an explicit `scanner_worker.warning` source fact
+(`reason=analyzer_not_configured`). Concrete SBOM, image, secret, license,
+source, and misconfiguration analyzers must plug into this boundary instead of
+running in reducer lanes.
+
+`os_package_extraction` targets are configured inside the selected
+`scanner_worker` collector instance:
+
+```json
+{
+  "analyzer": "os_package_extraction",
+  "os_package_targets": [
+    {
+      "scope_id": "image://registry.example/team/app@sha256:...",
+      "rootfs_path": "/var/lib/eshu/scanner/rootfs/...",
+      "source_uri": "oci://registry.example/team/app@sha256:...",
+      "source_record_id": "sha256:..."
+    }
+  ]
+}
+```
+
+The rootfs path is runtime-local configuration. It must not appear in retry,
+dead-letter, metric, log, or public documentation payloads.
 
 ## Environment
 
@@ -56,7 +80,7 @@ instead of running in reducer lanes.
 ## Evidence
 
 No-Regression Evidence: scanner-worker runtime behavior is covered by
-`go test ./internal/collector/scannerworker ./cmd/scanner-worker -count=1`.
+`go test ./internal/collector/scannerworker ./internal/collector/ospackagevulnerability/osruntime ./cmd/scanner-worker -count=1`.
 
 Observability Evidence: the runtime records scanner-worker claim, retry,
 dead-letter, facts-emitted, queue-wait, scan-duration, target-count,

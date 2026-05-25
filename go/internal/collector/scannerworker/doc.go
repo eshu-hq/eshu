@@ -3,8 +3,8 @@
 //
 // The package owns the narrow boundary that lets workflow-owned work items
 // carry bounded target scope and resource limits into isolated CPU and memory
-// heavy security analyzers. Scanner workers emit source facts only; reducers
-// remain the truth owners for finding admission, prioritization, and graph
-// projection. Hosted workers must either commit source evidence or record a
-// bounded retry or dead-letter payload.
+// heavy security analyzers. Scanner workers emit allowlisted source fact
+// families only; reducers remain the truth owners for finding admission,
+// prioritization, and graph projection. Hosted workers must either commit
+// source evidence or record a bounded retry or dead-letter payload.
 package scannerworker

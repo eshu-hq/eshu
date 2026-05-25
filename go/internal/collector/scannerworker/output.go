@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
-	"github.com/eshu-hq/eshu/go/internal/scope"
 )
 
 // ValidateFactOutput validates scanner-worker output before fact commit.
@@ -55,8 +54,8 @@ func validateSourceFact(input ClaimInput, fact facts.Envelope) error {
 	if fact.GenerationID != input.GenerationID {
 		return fmt.Errorf("generation_id %q does not match claim generation_id", fact.GenerationID)
 	}
-	if fact.CollectorKind != string(scope.CollectorScannerWorker) {
-		return fmt.Errorf("collector_kind must be %q", scope.CollectorScannerWorker)
+	if strings.TrimSpace(fact.CollectorKind) == "" {
+		return fmt.Errorf("collector_kind must not be blank")
 	}
 	if fact.FencingToken != input.FencingToken {
 		return fmt.Errorf("fencing_token %d does not match claim fencing_token %d", fact.FencingToken, input.FencingToken)
@@ -83,8 +82,8 @@ func validateSourceFact(input ClaimInput, fact facts.Envelope) error {
 	if strings.TrimSpace(fact.SourceRef.SourceSystem) == "" {
 		return fmt.Errorf("source_ref.source_system must not be blank")
 	}
-	if fact.SourceRef.SourceSystem != string(scope.CollectorScannerWorker) {
-		return fmt.Errorf("source_ref.source_system must be %q", scope.CollectorScannerWorker)
+	if fact.SourceRef.SourceSystem != fact.CollectorKind {
+		return fmt.Errorf("source_ref.source_system %q does not match collector_kind %q", fact.SourceRef.SourceSystem, fact.CollectorKind)
 	}
 	if strings.TrimSpace(fact.SourceRef.ScopeID) == "" {
 		return fmt.Errorf("source_ref.scope_id must not be blank")
@@ -108,14 +107,26 @@ func sourceFactKindAllowed(factKind string) bool {
 	if slices.Contains(facts.ScannerWorkerFactKinds(), factKind) {
 		return true
 	}
-	return slices.Contains(facts.SBOMAttestationFactKinds(), factKind)
+	if slices.Contains(facts.SBOMAttestationFactKinds(), factKind) {
+		return true
+	}
+	return factKind == facts.VulnerabilityOSPackageFactKind ||
+		factKind == facts.VulnerabilityWarningFactKind
 }
 
 func sourceFactSchemaVersion(factKind string) (string, bool) {
 	if version, ok := facts.ScannerWorkerSchemaVersion(factKind); ok {
 		return version, true
 	}
-	return facts.SBOMAttestationSchemaVersion(factKind)
+	if version, ok := facts.SBOMAttestationSchemaVersion(factKind); ok {
+		return version, true
+	}
+	switch factKind {
+	case facts.VulnerabilityOSPackageFactKind, facts.VulnerabilityWarningFactKind:
+		return facts.VulnerabilityIntelligenceSchemaVersion(factKind)
+	default:
+		return "", false
+	}
 }
 
 func reducerOwnedFactKind(factKind string) bool {
