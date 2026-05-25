@@ -214,6 +214,7 @@ run_phase_state() {
        --argjson remote_e2e_services "${remote_services_json}" \
        --argjson scanner_worker_limits "${scanner_limits_json}" \
        '.state = {
+            status: "pass",
             git_commit: $git_commit,
             git_branch: $git_branch,
             helm_chart_version: $helm_chart_version,
@@ -240,7 +241,7 @@ record_failure() {
 
 run_phase_focused() {
     if [ "${ESHU_RELEASE_GATE_SKIP_GO_TESTS:-0}" = "1" ]; then
-        jq '.focused = {skipped: true, reason: "ESHU_RELEASE_GATE_SKIP_GO_TESTS=1"}' \
+        jq '.focused = {status: "skipped", skipped: true, reason: "ESHU_RELEASE_GATE_SKIP_GO_TESTS=1"}' \
             "${out_json}.tmp" >"${out_json}.tmp.new"
         mv "${out_json}.tmp.new" "${out_json}.tmp"
         return 0
@@ -268,26 +269,42 @@ run_phase_focused() {
 }
 
 run_phase_fixtures() {
-    if [ "${ESHU_RELEASE_GATE_SKIP_GO_TESTS:-0}" = "1" ]; then
-        jq '.fixtures = {skipped: true, reason: "ESHU_RELEASE_GATE_SKIP_GO_TESTS=1"}' \
+    local log="${out_dir}/fixtures.log"
+    local fixture_script="${repo_root}/scripts/verify_vulnerability_parity_fixtures.sh"
+    local go_ok=0 shell_ok=0
+
+    # Fail closed before running anything when the shell verifier is absent,
+    # so we never report the fixture gate as green while the privacy/sanity
+    # checks documented in vulnerability-parity-gate.md were skipped.
+    if [ ! -x "${fixture_script}" ]; then
+        printf 'verify_vulnerability_parity_fixtures.sh missing or not executable at %s\n' "${fixture_script}" \
+            >"${log}"
+        record_failure fixtures "verify_vulnerability_parity_fixtures.sh missing or not executable at ${fixture_script}"
+        jq --arg log "${log}" '.fixtures = {status: "fail", log: $log}' \
             "${out_json}.tmp" >"${out_json}.tmp.new"
         mv "${out_json}.tmp.new" "${out_json}.tmp"
         return 0
     fi
-    local log="${out_dir}/fixtures.log"
-    local fixture_script="${repo_root}/scripts/verify_vulnerability_parity_fixtures.sh"
-    local go_ok=0 shell_ok=0
-    if (cd "${repo_root}/go" && go test ./internal/vulnerabilityparity -count=1) >"${log}" 2>&1; then
+
+    if [ "${ESHU_RELEASE_GATE_SKIP_GO_TESTS:-0}" = "1" ]; then
+        # The test harness sets this to keep the Go gate inert while still
+        # exercising the shell-verifier branch.
+        if [ "${ESHU_RELEASE_GATE_FORCE_FIXTURES_GO_OK:-0}" = "1" ]; then
+            go_ok=1
+        else
+            jq '.fixtures = {status: "skipped", skipped: true, reason: "ESHU_RELEASE_GATE_SKIP_GO_TESTS=1"}' \
+                "${out_json}.tmp" >"${out_json}.tmp.new"
+            mv "${out_json}.tmp.new" "${out_json}.tmp"
+            return 0
+        fi
+    elif (cd "${repo_root}/go" && go test ./internal/vulnerabilityparity -count=1) >"${log}" 2>&1; then
         go_ok=1
     fi
-    if [ -x "${fixture_script}" ]; then
-        if "${fixture_script}" >>"${log}" 2>&1; then
-            shell_ok=1
-        fi
-    else
-        printf 'verify_vulnerability_parity_fixtures.sh not executable; skipping shell gate\n' >>"${log}"
+
+    if "${fixture_script}" >>"${log}" 2>&1; then
         shell_ok=1
     fi
+
     if [ "${go_ok}" -eq 1 ] && [ "${shell_ok}" -eq 1 ]; then
         jq --arg log "${log}" '.fixtures = {status: "pass", log: $log}' \
             "${out_json}.tmp" >"${out_json}.tmp.new"
@@ -324,7 +341,7 @@ run_phase_provider() {
     totals="$(jq -c '.totals // {}' <<<"${raw}")"
     [ "${totals}" = "{}" ] && die "provider-compare must include a non-empty .totals object"
     jq --arg id "${cmp_id}" --argjson totals "${totals}" \
-        '.provider = {comparison_id: $id, totals: $totals}' \
+        '.provider = {status: "pass", comparison_id: $id, totals: $totals}' \
         "${out_json}.tmp" >"${out_json}.tmp.new"
     mv "${out_json}.tmp.new" "${out_json}.tmp"
 }

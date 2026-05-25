@@ -82,6 +82,16 @@ YAML
         printf 'CREATE TABLE t_%s (id int);\n' "${i}" >"${dir}/schema/data-plane/postgres/${i}_table.sql"
     done
 
+    # Stub the parity verifier so the fixtures phase has something to call. The
+    # real verifier needs the fixtures tree; for the synthesized repo we just
+    # need an executable that exits 0.
+    mkdir -p "${dir}/scripts"
+    cat >"${dir}/scripts/verify_vulnerability_parity_fixtures.sh" <<'STUB'
+#!/usr/bin/env bash
+exit 0
+STUB
+    chmod +x "${dir}/scripts/verify_vulnerability_parity_fixtures.sh"
+
     if [ "${with_private}" -eq 1 ]; then
         printf '%s\n' '{"aggregate_class":"matched","count":12,"package_name":"private-pkg-name","alert_url":"https://github.com/myorg/myrepo/security/dependabot/1"}' >"${dir}/private-compare.json"
     fi
@@ -299,5 +309,61 @@ expect_fail "${repo10}" \
 ev10="$(evidence_json "${repo10}")"
 jq -e '.runtime.pprof_status == "not_reachable"' "${ev10}" >/dev/null \
     || { printf 'pprof probe did not run against --pprof-base-url in case10\n' >&2; exit 1; }
+
+# --- Test 11: api_base_url is normalized so a trailing /api/v0 does not
+# double-prefix the documented supply-chain endpoints.
+repo11="$(init_fake_repo case11 --scanner-worker)"
+mkdir -p "${repo11}/scripts"
+cat >"${repo11}/scripts/verify_remote_e2e_runtime_state.sh" <<'SH'
+#!/usr/bin/env bash
+exit 0
+SH
+chmod +x "${repo11}/scripts/verify_remote_e2e_runtime_state.sh"
+ESHU_RELEASE_GATE_SKIP_GO_TESTS=1 \
+    "${gate}" \
+    --out-dir "${repo11}/_evidence" \
+    --phases state,runtime \
+    --api-base-url "http://127.0.0.1:1/api/v0" \
+    >"${repo11}/_gate.out" 2>"${repo11}/_gate.err" \
+    && { printf 'expected gate to fail in case11 (endpoints unreachable)\n' >&2; exit 1; } \
+    || true
+ev11="$(evidence_json "${repo11}")"
+jq -e '.runtime.api_base_url == "http://127.0.0.1:1"' "${ev11}" >/dev/null \
+    || { printf 'api_base_url not normalized in case11\n' >&2; exit 1; }
+jq -e '.runtime.readback | keys | all(. | test("^/api/v0/[^/]+(/[^/]+)*(\\?.+)?$"))' "${ev11}" >/dev/null \
+    || { printf 'endpoint keys not anchored at /api/v0/ in case11\n' >&2; exit 1; }
+# The endpoints list itself must not double-prefix /api/v0/api/v0/.
+jq -e '.runtime.readback | keys | all(. | test("^/api/v0/api/v0") | not)' "${ev11}" >/dev/null \
+    || { printf 'endpoint key double-prefixed /api/v0/api/v0 in case11\n' >&2; exit 1; }
+
+# --- Test 12: fixtures phase fails closed when the shell verifier is missing.
+repo12="$(init_fake_repo case12 --scanner-worker)"
+# init_fake_repo seeds a no-op parity verifier; remove it so we exercise the
+# missing-shell-verifier branch.
+rm "${repo12}/scripts/verify_vulnerability_parity_fixtures.sh"
+ESHU_RELEASE_GATE_REPO_ROOT="${repo12}" \
+    ESHU_RELEASE_GATE_SKIP_GO_TESTS=1 \
+    ESHU_RELEASE_GATE_FORCE_FIXTURES_GO_OK=1 \
+    "${gate}" \
+    --out-dir "${repo12}/_evidence" \
+    --phases state,fixtures \
+    >"${repo12}/_gate.out" 2>"${repo12}/_gate.err" \
+    && { printf 'expected gate to fail when verify_vulnerability_parity_fixtures.sh is missing in case12\n' >&2; exit 1; } \
+    || true
+ev12="$(evidence_json "${repo12}")"
+jq -e '.fixtures.status == "fail"' "${ev12}" >/dev/null \
+    || { printf 'fixtures phase did not fail when verifier missing in case12\n' >&2; exit 1; }
+jq -e '.failures | map(select(.phase == "fixtures" and (.message | test("verify_vulnerability_parity_fixtures.sh")))) | length > 0' "${ev12}" >/dev/null \
+    || { printf 'missing fixtures verifier did not record a failure in case12\n' >&2; exit 1; }
+
+# --- Test 13: every enabled phase emits a status field so the runbook claim
+# is mechanically verifiable.
+repo13="$(init_fake_repo case13 --scanner-worker)"
+expect_pass "${repo13}" --image-tag-candidate v0.0.3-test
+ev13="$(evidence_json "${repo13}")"
+for ph in state focused fixtures; do
+    jq -e --arg ph "${ph}" '.[$ph].status | IN("pass","fail","skipped")' "${ev13}" >/dev/null \
+        || { printf 'phase %s missing status field in case13\n' "${ph}" >&2; exit 1; }
+done
 
 printf 'security-intelligence release gate tests passed\n'

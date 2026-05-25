@@ -140,8 +140,34 @@ flag to mark `pprof_status: unchecked` rather than probe the API URL.
    captures pod, top, and Helm values snapshots; operators capture pprof and
    logs through a port-forward (never through the public service).
 8. **Review `evidence.md` and `evidence.json` together.** The gate is green
-   only when every enabled phase has `status: pass` (or `skipped: true`
-   with an explicit reason) and `pass: true` at the top level.
+   only when `evidence.json` has `pass: true` at the top level and every
+   enabled phase has `status` set to `pass` or `skipped`. Phases that fail
+   (or that were enabled but produced an incomplete capture) record
+   `status: fail` and an entry under `.failures[]`.
+
+## Evidence schema
+
+`evidence.json` carries `schema_version: 1`, `generated_at`, `repo_root`,
+`phases[]` (the list operators requested), `pass` (overall boolean), and
+`failures[]` (per-phase failure messages). Each requested phase populates a
+top-level key with at least `status` set to `pass`, `fail`, or `skipped`. The
+runtime phase also surfaces `api_base_url` (the normalized value the gate
+actually used; see below), `endpoints_failed`, and per-endpoint readback rows
+keyed by the documented `/api/v0/...` paths.
+
+The `--api-base-url` value is normalized: a trailing `/` or `/api/v0` is
+stripped so the same env value that `verify_remote_e2e_runtime_state.sh`
+expects (`ESHU_REMOTE_E2E_API_BASE_URL`, often `…/api/v0`) does not
+double-prefix the harness's hard-coded endpoint paths. Pass the base API URL
+in either shape; `evidence.json.runtime.api_base_url` records what the gate
+actually called.
+
+The harness reads HTTP routes only. The MCP tools (`list_supply_chain_*`,
+`list_advisory_evidence`, `explain_supply_chain_impact`,
+`list_sbom_attestation_attachments`) read the same reducer-owned facts as
+the HTTP routes the harness probes. When MCP-specific transcript evidence is
+required, operators drive `eshu mcp` or their MCP client separately and
+attach the transcript to the same evidence directory.
 
 ## Privacy boundary
 
@@ -150,8 +176,8 @@ The harness intentionally records only public-safe data. In particular:
 - Provider comparison inputs are aggregate-only. Package names, advisory URLs,
   repository names, installation ids, and credential prefixes are rejected
   before they reach the evidence document.
-- API and MCP readback uses `limit=1` so response bodies stay small and
-  diagnostic, not a dump of customer findings.
+- API readback uses `limit=1` so response bodies stay small and diagnostic,
+  not a dump of customer findings.
 - Operator-local artefacts (private corpora paths, AWS account ids, GitHub
   installation ids) are not echoed by the gate; they live in the operator's
   own env file.

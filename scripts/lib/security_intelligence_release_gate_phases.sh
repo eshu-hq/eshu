@@ -16,8 +16,20 @@ curl_readback() {
     fi
 }
 
+# Normalize api_base_url so a value that already ends with "/api/v0" (the
+# shape verify_remote_e2e_runtime_state.sh expects from
+# ESHU_REMOTE_E2E_API_BASE_URL) does not double-prefix our hard-coded
+# /api/v0/... endpoint paths.
+normalize_api_base_url() {
+    local raw="$1"
+    raw="${raw%/}"
+    raw="${raw%/api/v0}"
+    printf '%s' "${raw}"
+}
+
 run_phase_runtime() {
     [ -n "${api_base_url}" ] || die "runtime phase requires --api-base-url"
+    api_base_url="$(normalize_api_base_url "${api_base_url}")"
     local runtime_script="${repo_root}/scripts/verify_remote_e2e_runtime_state.sh"
     local readback_dir="${out_dir}/runtime-readback"
     mkdir -p "${readback_dir}"
@@ -86,15 +98,24 @@ run_phase_runtime() {
         fi
     fi
 
+    local phase_status="pass"
+    if [ "${runtime_ok}" -eq 0 ] || [ "${ep_failed}" -gt 0 ]; then
+        phase_status="fail"
+    fi
+
     jq --argjson readback "${readback_json}" \
+       --arg api_base_url "${api_base_url}" \
        --arg pprof "${pprof_status}" \
        --arg pprof_url "${pprof_url}" \
        --arg docker_stats_file "${docker_stats_file}" \
        --arg runtime_log "${readback_dir}/verify_remote_e2e_runtime_state.log" \
+       --arg phase_status "${phase_status}" \
        --argjson endpoints_checked "${ep_count}" \
        --argjson endpoints_failed "${ep_failed}" \
        --argjson runtime_state_ok "${runtime_ok}" \
        '.runtime = {
+            status: $phase_status,
+            api_base_url: $api_base_url,
             runtime_state_ok: ($runtime_state_ok == 1),
             runtime_state_log: $runtime_log,
             endpoints_checked: $endpoints_checked,
@@ -137,16 +158,22 @@ run_phase_k8s() {
     if [ -s "${k8s_dir}/pods.json" ]; then
         pod_count="$(jq '.items | length' "${k8s_dir}/pods.json" 2>/dev/null || echo 0)"
     fi
+    local phase_status="pass"
+    if [ "${pods_ok}" -eq 0 ] || [ "${top_ok}" -eq 0 ] || [ "${helm_ok}" -eq 0 ]; then
+        phase_status="fail"
+    fi
     jq --arg ns "${k8s_namespace}" \
        --arg release "${helm_release}" \
        --arg pods_file "${k8s_dir}/pods.json" \
        --arg top_file "${k8s_dir}/top-pods.txt" \
        --arg values_file "${k8s_dir}/helm-values.yaml" \
+       --arg phase_status "${phase_status}" \
        --argjson pod_count "${pod_count}" \
        --argjson pods_ok "${pods_ok}" \
        --argjson top_ok "${top_ok}" \
        --argjson helm_ok "${helm_ok}" \
        '.k8s = {
+            status: $phase_status,
             namespace: $ns,
             helm_release: $release,
             pod_count: $pod_count,
