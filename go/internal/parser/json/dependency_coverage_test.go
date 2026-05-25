@@ -4,6 +4,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/parser/ruby"
 	"github.com/eshu-hq/eshu/go/internal/parser/shared"
 )
 
@@ -68,6 +69,8 @@ func TestDependencyCoverageMatrixIsStableAndExhaustive(t *testing.T) {
 		"npm|package-lock.json",
 		"composer|composer.json",
 		"composer|composer.lock",
+		"rubygems|gemfile",
+		"rubygems|gemfile.lock",
 	}
 	for _, key := range requiredCovered {
 		ecosystem, file, _ := strings.Cut(key, "|")
@@ -95,8 +98,6 @@ func TestDependencyCoverageMatrixIsStableAndExhaustive(t *testing.T) {
 		"build.gradle.kts",
 		"*.csproj",
 		"packages.lock.json",
-		"gemfile",
-		"gemfile.lock",
 		"cargo.toml",
 		"cargo.lock",
 	}
@@ -125,6 +126,7 @@ func TestDependencyCoverageCoveredFilesEmitDependencyRows(t *testing.T) {
 		expectedSection       string
 		expectScopeSplit      bool
 		expectedDevDependency string
+		transitiveBody        string
 	}{
 		"package.json": {
 			body: `{
@@ -150,6 +152,14 @@ func TestDependencyCoverageCoveredFilesEmitDependencyRows(t *testing.T) {
 			expectedDependencies: map[string]string{"lodash": "4.17.21"},
 			expectedPackageMgr:   "npm",
 			expectedSection:      "package-lock",
+			transitiveBody: `{
+  "lockfileVersion": 3,
+  "packages": {
+    "": {"dependencies": {"vite": "^5.0.0"}},
+    "node_modules/vite": {"version": "5.0.0", "dependencies": {"rollup": "^4.0.0"}},
+    "node_modules/rollup": {"version": "4.0.0"}
+  }
+}`,
 		},
 		"composer.json": {
 			body: `{
@@ -178,6 +188,44 @@ func TestDependencyCoverageCoveredFilesEmitDependencyRows(t *testing.T) {
 			expectScopeSplit:      true,
 			expectedDevDependency: "phpunit/phpunit",
 		},
+		"gemfile": {
+			body: `source "https://rubygems.org"
+gem "rails", "~> 7.1"
+group :development, :test do
+  gem "rspec-rails", "~> 6.1"
+end
+`,
+			expectedDependencies:  map[string]string{"rails": "~> 7.1", "rspec-rails": "~> 6.1"},
+			expectedPackageMgr:    "rubygems",
+			expectedSection:       "default",
+			expectScopeSplit:      true,
+			expectedDevDependency: "rspec-rails",
+		},
+		"gemfile.lock": {
+			body: `GEM
+  remote: https://rubygems.org/
+  specs:
+    rails (7.1.3)
+      rack (>= 2.2.4)
+    rack (2.2.8)
+
+DEPENDENCIES
+  rails (~> 7.1)
+`,
+			expectedDependencies: map[string]string{"rails": "7.1.3", "rack": "2.2.8"},
+			expectedPackageMgr:   "rubygems",
+			expectedSection:      "gemfile.lock",
+			transitiveBody: `GEM
+  remote: https://rubygems.org/
+  specs:
+    rails (7.1.3)
+      rack (>= 2.2.4)
+    rack (2.2.8)
+
+DEPENDENCIES
+  rails (~> 7.1)
+`,
+		},
 	}
 
 	for _, entry := range DependencyCoverage() {
@@ -189,7 +237,7 @@ func TestDependencyCoverageCoveredFilesEmitDependencyRows(t *testing.T) {
 			t.Fatalf("covered entry %s has no fixture; add one to lock in the parser contract", entry.FilePattern)
 		}
 		path := writeJSONTestFile(t, entry.FilePattern, fixture.body)
-		payload, err := Parse(path, false, shared.Options{}, Config{})
+		payload, err := parseDependencyCoverageFixture(path, entry.FilePattern)
 		if err != nil {
 			t.Fatalf("%s: Parse() error = %v", entry.FilePattern, err)
 		}
@@ -238,15 +286,8 @@ func TestDependencyCoverageCoveredFilesEmitDependencyRows(t *testing.T) {
 				// package-lock fixture above has a single direct dep so
 				// chain length is one. Re-run a fixture with a transitive
 				// edge so the matrix claim is provable.
-				transitive := writeJSONTestFile(t, entry.FilePattern, `{
-  "lockfileVersion": 3,
-  "packages": {
-    "": {"dependencies": {"vite": "^5.0.0"}},
-    "node_modules/vite": {"version": "5.0.0", "dependencies": {"rollup": "^4.0.0"}},
-    "node_modules/rollup": {"version": "4.0.0"}
-  }
-}`)
-				rerun, err := Parse(transitive, false, shared.Options{}, Config{})
+				transitive := writeJSONTestFile(t, entry.FilePattern, fixture.transitiveBody)
+				rerun, err := parseDependencyCoverageFixture(transitive, entry.FilePattern)
 				if err != nil {
 					t.Fatalf("%s: transitive Parse error = %v", entry.FilePattern, err)
 				}
@@ -297,5 +338,14 @@ func TestDependencyCoverageGapsDoNotEmitDependencyRows(t *testing.T) {
 				t.Fatalf("%s: gap file emitted dependency row %#v; missing evidence would be treated as affected", file, row)
 			}
 		}
+	}
+}
+
+func parseDependencyCoverageFixture(path string, filePattern string) (map[string]any, error) {
+	switch strings.ToLower(filePattern) {
+	case "gemfile", "gemfile.lock":
+		return ruby.Parse(path, false, shared.Options{})
+	default:
+		return Parse(path, false, shared.Options{}, Config{})
 	}
 }

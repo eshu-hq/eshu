@@ -482,12 +482,15 @@ contract.
 For the supply-chain impact reducer, the practical implications are:
 
 - npm `package.json` and `package-lock.json`, plus PHP Composer
-  `composer.json` and `composer.lock`, produce repository consumption
-  decisions when joined to package-registry identity. Composer lockfile
-  rows carry the exact installed version and a `lockfile: true` flag, so
-  the reducer reports `direct_dependency: null` rather than guessing
-  directness when no manifest range was also observed.
-- Maven, Go, PyPI, NuGet, Ruby, Rust, Gradle, and Yarn/pnpm sources have no
+  `composer.json` and `composer.lock`, and Ruby Bundler `Gemfile` /
+  `Gemfile.lock` produce repository consumption decisions when joined to
+  package-registry identity. Composer lockfile rows carry exact installed
+  versions and a `lockfile: true` flag, so the reducer reports
+  `direct_dependency: null` rather than guessing directness when no manifest
+  range was also observed. Bundler git/path sources are preserved as
+  ambiguous source evidence and are not admitted as public RubyGems registry
+  consumption.
+- Maven, Go, PyPI, NuGet, Rust, Gradle, and Yarn/pnpm sources have no
   repository-side dependency parser yet, so their impact reads must surface
   the missing-evidence reason instead of returning `ready_zero_findings`.
 - When a parser graduates a file from gap to covered, the matrix MUST be

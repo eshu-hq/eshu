@@ -38,6 +38,9 @@ func Parse(path string, isDependency bool, options shared.Options) (map[string]a
 	if err != nil {
 		return nil, err
 	}
+	if payload, ok := parseBundlerPayload(path, source, isDependency); ok {
+		return payload, nil
+	}
 
 	payload := shared.BasePayload(path, "ruby", isDependency)
 	payload["modules"] = []map[string]any{}

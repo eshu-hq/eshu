@@ -5,13 +5,15 @@
 This package owns the line-oriented Ruby parser adapter used by the parent
 parser engine. It extracts module and class declarations, method signatures,
 require/load imports, module inclusions, local and instance variables, bounded
-method-call evidence, and parser-backed dead-code root metadata.
+method-call evidence, parser-backed dead-code root metadata, and Bundler
+dependency evidence from `Gemfile` and `Gemfile.lock`.
 
 ## Ownership boundary
 
-The package is responsible for Ruby source scanning and payload bucket
-population. The parent parser package still owns registry dispatch, engine
-orchestration, repo path handling, and parse telemetry.
+The package is responsible for Ruby source scanning, Bundler manifest/lockfile
+scanning, and payload bucket population. The parent parser package still owns
+registry dispatch, engine orchestration, repo path handling, and parse
+telemetry.
 
 ## Exported surface
 
@@ -47,6 +49,18 @@ literal `method` / `send` / `public_send` symbol targets, and script guard calls
 are marked as derived dead-code roots. Other Rails-style DSL chains are captured
 as bounded call evidence only. `def self.name` and `class << self` are covered,
 while `def ClassName.name` is not part of the current contract.
+
+Bundler parsing is intentionally static. Literal `gem` calls in `Gemfile`
+emit `variables` rows with `config_kind=dependency`,
+`package_manager=rubygems`, version requirement text, group scope, and
+git/path source metadata. Dynamic gem names or dynamic version expressions are
+skipped instead of resolved. `Gemfile.lock` rows emit exact versions from
+`specs:` sections and set `dependency_path`, `dependency_depth`, and
+`direct_dependency` only when the lockfile `DEPENDENCIES` section plus
+indented `specs:` edges prove the direct or transitive chain. Git and path
+Bundler sources preserve `source_type`, `source_path`, and
+`source_ambiguous=true` so reducers do not treat forked or local gems as
+public RubyGems registry consumption.
 
 ## Related docs
 

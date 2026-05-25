@@ -223,6 +223,9 @@ Swift, Dart, Ruby, Perl, Haskell, SQL, and HCL/Terraform adapters. Those
 packages own parse and pre-scan behavior behind thin parent wrappers. Shared
 payload, tree-sitter, and value helpers live in the shared parser helper
 subpackage so child packages do not import the parent dispatcher.
+The Ruby package also owns Bundler `Gemfile` and `Gemfile.lock` dependency
+evidence so RubyGems manifest and lockfile rows use the same parser payload
+path as `.rb` source files.
 
 **SCIP path**: when SCIP_INDEXER=true, the collector snapshotter detects the
 dominant SCIP-capable language via `DetectSCIPProjectLanguage`, runs the
@@ -298,7 +301,7 @@ JavaScript, Rust, Java, C, C++).
 | PHP | `php` | `.php` | — |
 | Python | `python` | `.ipynb`, `.py`, `.pyw` | yes |
 | Raw text | `raw_text` | `.cnf`, `.cfg`, `.conf`, `.j2`, `.jinja`, `.jinja2`, `.tpl`, `.tftpl` | — |
-| Ruby | `ruby` | `.rb` | — |
+| Ruby | `ruby` | `.rb`, `Gemfile`, `Gemfile.lock` | — |
 | Rust | `rust` | `.rs` | yes |
 | Scala | `scala` | `.sc`, `.scala` | yes |
 | SQL | `sql` | `.sql` | — |
