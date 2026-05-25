@@ -174,7 +174,7 @@ func BuildSupplyChainImpactExplanation(
 	anchors := buildSupplyChainExplanationAnchors(row)
 	dependencyChain := buildSupplyChainDependencyChain(row.Finding, row.EvidenceFacts)
 	missing := explanationMissingEvidence(row.Finding, readiness, advisory, component, version, dependencyChain, anchors)
-	impactPath := buildSupplyChainImpactPath(row, missing)
+	impactPath := buildSupplyChainImpactPath(row, supplyChainImpactPathMissingEvidence(row.Finding.MissingEvidence))
 	return SupplyChainImpactExplanationResult{
 		Outcome:         "finding_explained",
 		Input:           filter,

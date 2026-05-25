@@ -553,6 +553,29 @@ and malformed installed versions or advisory ranges fail closed as
 `possibly_affected` with explicit missing-evidence reasons instead of being
 treated as affected or safely fixed.
 
+No-Regression Evidence: after rebasing PR #638 onto `origin/main`
+`1afcc154`, focused red tests reproduced the review gaps where
+`package_manifest` findings reported missing image/SBOM evidence and
+`impact_path` included explanation-only gaps such as `fixed_version`. After
+the fix, `go test ./internal/reducer -run
+'TestBuildSupplyChainImpactFindingsUsesOwnedLockfileVersion' -count=1` and
+`go test ./internal/query -run
+'TestBuildSupplyChainImpactExplanationReturnsRuntimePathAndMissingHops'
+-count=1` passed on Go 1.26.3 darwin/arm64. The input shapes are in-memory
+fixtures: one advisory/affected-package/package-consumption path for the
+package-manifest guard, and one finding plus two runtime evidence facts for
+the explain path. No graph backend, reducer queue rows, or scanner worker rows
+are involved, and `go test ./internal/reducer ./internal/query
+./internal/storage/postgres ./internal/mcp -count=1` plus `go test ./...`
+passed after the rebase.
+
+No-Observability-Change: the review fix only changes missing-evidence
+classification and API response shaping. Operators continue to diagnose the
+path with the existing `reducer_supply_chain_impact_finding` payload,
+`EvidencePath`, `missing_evidence`, `runtime_reachability`,
+`query.supply_chain_impact_findings`, `query.supply_chain_impact_explanation`,
+and Postgres query instrumentation.
+
 No-Regression Evidence: `go test ./internal/reducer
 ./internal/query ./internal/collector/vulnerabilityintelligence
 -run 'TestSupplyChainImpact(Preserves|VendorAdvisory|FallsBack|Excludes)|TestPostgresSupplyChainImpactWriterSerializesProvenancePayload|TestDecodeSupplyChainImpactFindingRowPreservesProvenance|TestOSVRecordPreservesWithdrawnTimestamp'

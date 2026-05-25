@@ -296,7 +296,8 @@ func missingImpactEvidence(finding SupplyChainImpactFinding) []string {
 	if finding.RepositoryID == "" {
 		missing = append(missing, "repository dependency evidence missing")
 	}
-	if finding.SubjectDigest == "" && finding.RuntimeReachability != "known_fixed" {
+	if finding.SubjectDigest == "" && finding.RuntimeReachability != "known_fixed" &&
+		finding.RuntimeReachability != "package_manifest" {
 		missing = append(missing, "image or SBOM attachment evidence missing")
 	}
 	if finding.RuntimeReachability != "known_fixed" && len(finding.Environments) == 0 {

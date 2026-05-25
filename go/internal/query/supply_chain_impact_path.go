@@ -1,5 +1,7 @@
 package query
 
+import "strings"
+
 func buildSupplyChainImpactPath(
 	row SupplyChainImpactExplanationRow,
 	missing []string,
@@ -33,4 +35,36 @@ func evidenceFactIDsForHop(hop string, row SupplyChainImpactExplanationRow) []st
 		}
 	}
 	return explanationUniqueStrings(factIDs)
+}
+
+func supplyChainImpactPathMissingEvidence(missing []string) []string {
+	var out []string
+	for _, reason := range missing {
+		if supplyChainImpactPathMissingReason(reason) {
+			out = append(out, reason)
+		}
+	}
+	return explanationUniqueStrings(out)
+}
+
+func supplyChainImpactPathMissingReason(reason string) bool {
+	switch reason {
+	case "package version evidence missing",
+		"repository dependency evidence missing",
+		"image or SBOM attachment evidence missing",
+		"deployment exposure evidence missing",
+		"workload evidence missing",
+		"service evidence missing":
+		return true
+	}
+	for _, prefix := range []string{
+		"image identity evidence ",
+		"deployment evidence ",
+		"service catalog evidence ",
+	} {
+		if strings.HasPrefix(reason, prefix) {
+			return true
+		}
+	}
+	return false
 }

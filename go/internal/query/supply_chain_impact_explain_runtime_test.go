@@ -58,13 +58,28 @@ func TestBuildSupplyChainImpactExplanationReturnsRuntimePathAndMissingHops(t *te
 	if err := json.Unmarshal(raw, &payload); err != nil {
 		t.Fatalf("json.Unmarshal() error = %v", err)
 	}
-	if _, ok := payload["impact_path"].([]any); !ok {
+	impactPath, ok := payload["impact_path"].([]any)
+	if !ok {
 		t.Fatalf("impact_path = %#v, want structured path", payload["impact_path"])
 	}
+	assertImpactPathExcludesHop(t, impactPath, "fixed_version")
 	anchors := payload["anchors"].(map[string]any)
 	assertJSONListContains(t, anchors["services"], "service:example-api")
 	assertJSONListContains(t, anchors["environments"], "prod")
 	assertJSONListContains(t, payload["missing_evidence"], "fixed_version")
+}
+
+func assertImpactPathExcludesHop(t *testing.T, raw []any, unwanted string) {
+	t.Helper()
+	for _, entry := range raw {
+		hop, ok := entry.(map[string]any)
+		if !ok {
+			t.Fatalf("impact_path entry = %T, want object", entry)
+		}
+		if hop["hop"] == unwanted {
+			t.Fatalf("impact_path unexpectedly includes %q: %#v", unwanted, raw)
+		}
+	}
 }
 
 func assertJSONListContains(t *testing.T, raw any, want string) {
