@@ -27,7 +27,8 @@
 // direct ranges, dev/build/runtime scope, target-specific sections,
 // workspace-inherited dependencies, and renamed package identity; lockfiles
 // preserve exact crate versions and dependency paths only when the lock graph
-// proves reachability from a workspace root package. The parent parser engine may
+// proves reachability from a workspace root package, including source-qualified
+// edge resolution when Cargo names a parenthesized source. The parent parser engine may
 // probe repo-bounded module candidates and attach bounded
 // module_resolution_status metadata when parsing a concrete repo path. Existing
 // files outside the repo root are not treated as resolved modules. Item

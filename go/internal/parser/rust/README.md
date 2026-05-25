@@ -117,7 +117,8 @@ dependency parsing is separate: `Cargo.toml` emits direct dependency rows for
 normal, dev, build, target-specific, workspace-inherited, and renamed package
 dependencies, while `Cargo.lock` emits exact resolved crate versions. Lockfile
 dependency paths are emitted only when a source-empty root package proves the
-reachable chain and each dependency edge resolves uniquely. Unsupported or
+reachable chain and each dependency edge resolves uniquely by name, version, and
+source when Cargo provides a parenthesized source qualifier. Unsupported or
 ambiguous Cargo dependency shapes are skipped instead of guessed.
 `ResolveModuleRowFileCandidates` does not probe the filesystem; it returns
 Rust's candidate paths for direct module declarations, honors explicit

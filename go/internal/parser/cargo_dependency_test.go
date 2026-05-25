@@ -137,6 +137,71 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 	}
 }
 
+func TestDefaultEngineParsePathCargoLockUsesSourceQualifiedDependencies(t *testing.T) {
+	t.Parallel()
+
+	repoRoot := t.TempDir()
+	lockfile := filepath.Join(repoRoot, "Cargo.lock")
+	writeTestFile(t, lockfile, `
+version = 3
+
+[[package]]
+name = "api"
+version = "0.1.0"
+dependencies = [
+ "shared 1.0.0 (git+https://example.test/shared)",
+]
+
+[[package]]
+name = "shared"
+version = "1.0.0"
+source = "git+https://example.test/shared"
+dependencies = [
+ "git_leaf",
+]
+
+[[package]]
+name = "shared"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+dependencies = [
+ "registry_leaf",
+]
+
+[[package]]
+name = "git_leaf"
+version = "0.1.0"
+source = "git+https://example.test/shared"
+
+[[package]]
+name = "registry_leaf"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+`)
+
+	engine, err := DefaultEngine()
+	if err != nil {
+		t.Fatalf("DefaultEngine() error = %v, want nil", err)
+	}
+	payload, err := engine.ParsePath(repoRoot, lockfile, false, Options{})
+	if err != nil {
+		t.Fatalf("ParsePath(Cargo.lock) error = %v, want nil", err)
+	}
+
+	gitShared := cargoDependencyRowByNameAndSource(t, payload, "shared", "git+https://example.test/shared")
+	assertCargoDependencyChain(t, gitShared, []string{"shared"}, 1, true)
+	registryShared := cargoDependencyRowByNameAndSource(t, payload, "shared", "registry+https://github.com/rust-lang/crates.io-index")
+	if _, ok := registryShared["dependency_path"]; ok {
+		t.Fatalf("registry shared dependency_path = %#v, want no path when root requested git source", registryShared["dependency_path"])
+	}
+	gitLeaf := cargoDependencyRowByNameAndSource(t, payload, "git_leaf", "git+https://example.test/shared")
+	assertCargoDependencyChain(t, gitLeaf, []string{"shared", "git_leaf"}, 2, false)
+	registryLeaf := cargoDependencyRowByNameAndSource(t, payload, "registry_leaf", "registry+https://github.com/rust-lang/crates.io-index")
+	if _, ok := registryLeaf["dependency_path"]; ok {
+		t.Fatalf("registry_leaf dependency_path = %#v, want no path without source-qualified reachability proof", registryLeaf["dependency_path"])
+	}
+}
+
 func TestDefaultEngineParsePathCargoRejectsMalformedDependencyFiles(t *testing.T) {
 	t.Parallel()
 
@@ -218,6 +283,25 @@ func cargoDependencyRowsByName(t *testing.T, payload map[string]any) map[string]
 		}
 	}
 	return out
+}
+
+func cargoDependencyRowByNameAndSource(t *testing.T, payload map[string]any, name string, source string) map[string]any {
+	t.Helper()
+
+	rows, ok := payload["variables"].([]map[string]any)
+	if !ok {
+		t.Fatalf("variables = %T, want []map[string]any", payload["variables"])
+	}
+	for _, row := range rows {
+		if row["config_kind"] == "dependency" &&
+			row["package_manager"] == "cargo" &&
+			row["name"] == name &&
+			row["package_source"] == source {
+			return row
+		}
+	}
+	t.Fatalf("dependency row name=%q source=%q missing in %#v", name, source, rows)
+	return nil
 }
 
 func assertCargoDependencyRow(
