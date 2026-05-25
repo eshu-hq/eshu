@@ -170,6 +170,7 @@ func classifySupplyChainImpactPackage(
 	consumption := firstConsumption(pkg.packageID, index.consumption)
 	if consumption.factID != "" {
 		finding.RepositoryID = consumption.repositoryID
+		finding.RequestedRange = strings.TrimSpace(consumption.dependencyRange)
 		finding.DependencyPath = append([]string(nil), consumption.dependencyPath...)
 		finding.DependencyDepth = consumption.dependencyDepth
 		if consumption.directDependency != nil {
@@ -192,36 +193,62 @@ func classifySupplyChainImpactPackage(
 			finding.RepositoryID = image.repositoryID
 		}
 	}
-	if consumption.factID != "" && anyPackageVersionAffected(finding.ObservedVersion, pkgs) {
-		finding.Status = SupplyChainImpactAffectedExact
-		finding.Confidence = "exact"
-		finding.RuntimeReachability = "package_manifest"
-		finding.CanonicalWrites = 1
-		finding.MissingEvidence = missingImpactEvidence(finding)
+	versionDecision := evaluateSupplyChainVersionMatch(
+		finding.Ecosystem,
+		finding.ObservedVersion,
+		finding.RequestedRange,
+		finding.FixedVersion,
+		pkgs,
+	)
+	if consumption.factID != "" && versionDecision.Status == SupplyChainImpactAffectedExact {
+		applySupplyChainVersionDecision(&finding, versionDecision)
 		return finding
 	}
-	if isKnownFixed(finding.ObservedVersion, finding.FixedVersion) {
-		finding.Status = SupplyChainImpactNotAffectedKnownFixed
-		finding.Confidence = "exact"
-		finding.RuntimeReachability = "known_fixed"
-		finding.CanonicalWrites = 1
-		finding.MissingEvidence = missingImpactEvidence(finding)
+	if versionDecision.Status == SupplyChainImpactNotAffectedKnownFixed {
+		applySupplyChainVersionDecision(&finding, versionDecision)
+		return finding
+	}
+	if versionDecision.FailClosed {
+		applySupplyChainVersionDecision(&finding, versionDecision)
 		return finding
 	}
 	if hasComponentPath {
 		finding.Status = SupplyChainImpactAffectedDerived
 		finding.Confidence = "derived"
+		finding.MatchReason = "sbom_component_path"
 		finding.RuntimeReachability = "image_sbom"
 		finding.CanonicalWrites = 1
-		finding.MissingEvidence = missingImpactEvidence(finding)
+		finding.MissingEvidence = combinedMissingImpactEvidence(finding, versionDecision.MissingEvidence)
 		return finding
 	}
 	finding.Status = SupplyChainImpactPossiblyAffected
 	finding.Confidence = "partial"
+	finding.MatchReason = versionDecision.Reason
 	finding.RuntimeReachability = "unknown"
 	finding.CanonicalWrites = 1
-	finding.MissingEvidence = missingImpactEvidence(finding)
+	finding.MissingEvidence = combinedMissingImpactEvidence(finding, versionDecision.MissingEvidence)
 	return finding
+}
+
+func applySupplyChainVersionDecision(
+	finding *SupplyChainImpactFinding,
+	decision supplyChainVersionMatchDecision,
+) {
+	finding.Status = decision.Status
+	finding.Confidence = decision.Confidence
+	finding.MatchReason = decision.Reason
+	finding.RuntimeReachability = decision.RuntimeReachability
+	if finding.RuntimeReachability == "" {
+		finding.RuntimeReachability = "unknown"
+	}
+	finding.CanonicalWrites = 1
+	finding.MissingEvidence = combinedMissingImpactEvidence(*finding, decision.MissingEvidence)
+}
+
+func combinedMissingImpactEvidence(finding SupplyChainImpactFinding, extra []string) []string {
+	missing := missingImpactEvidence(finding)
+	missing = append(missing, extra...)
+	return uniqueSortedStrings(missing)
 }
 
 func classifySupplyChainImpactProduct(

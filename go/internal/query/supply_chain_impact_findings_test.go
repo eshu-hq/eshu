@@ -202,6 +202,8 @@ func TestDecodeSupplyChainImpactFindingRowPreservesProvenance(t *testing.T) {
             "package_id": "npm://registry.npmjs.org/parse-server",
             "impact_status": "affected_exact",
             "cvss_score": 9.8,
+            "requested_range": "^8.6.0",
+            "match_reason": "npm_semver_affected_range",
             "fixed_version": "8.6.77",
             "provenance": {
                 "selected_severity_source": "ghsa",
@@ -231,6 +233,12 @@ func TestDecodeSupplyChainImpactFindingRowPreservesProvenance(t *testing.T) {
 	}
 	if row.Provenance == nil {
 		t.Fatal("Provenance = nil, want decoded provenance block")
+	}
+	if row.RequestedRange != "^8.6.0" {
+		t.Fatalf("RequestedRange = %q, want ^8.6.0", row.RequestedRange)
+	}
+	if row.MatchReason != "npm_semver_affected_range" {
+		t.Fatalf("MatchReason = %q, want npm_semver_affected_range", row.MatchReason)
 	}
 	provenance := *row.Provenance
 	if provenance.SelectedSeveritySource != "ghsa" {

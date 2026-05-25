@@ -306,7 +306,9 @@ func TestPostgresSupplyChainImpactWriterPersistsSignalsWithoutPriorityCollapse(t
 				PackageID:           testImpactPackageID,
 				PURL:                testImpactPURL,
 				ObservedVersion:     "1.2.3",
+				RequestedRange:      "^1.2.0",
 				FixedVersion:        "1.3.0",
+				MatchReason:         "npm_semver_affected_range",
 				Status:              SupplyChainImpactAffectedExact,
 				Confidence:          "exact",
 				CVSSScore:           9.8,
@@ -329,6 +331,12 @@ func TestPostgresSupplyChainImpactWriterPersistsSignalsWithoutPriorityCollapse(t
 	payload := unmarshalSupplyChainImpactPayload(t, db.execs[0].args[14])
 	if got, want := payload["impact_status"], string(SupplyChainImpactAffectedExact); got != want {
 		t.Fatalf("impact_status = %#v, want %#v", got, want)
+	}
+	if got, want := payload["requested_range"], "^1.2.0"; got != want {
+		t.Fatalf("requested_range = %#v, want %#v", got, want)
+	}
+	if got, want := payload["match_reason"], "npm_semver_affected_range"; got != want {
+		t.Fatalf("match_reason = %#v, want %#v", got, want)
 	}
 	if _, exists := payload["priority"]; exists {
 		t.Fatalf("payload must keep risk signals separate instead of emitting opaque priority: %#v", payload)

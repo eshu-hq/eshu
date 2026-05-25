@@ -73,7 +73,9 @@ type SupplyChainImpactFindingResult struct {
 	ProductCriteria     string                       `json:"product_criteria,omitempty"`
 	MatchCriteriaID     string                       `json:"match_criteria_id,omitempty"`
 	ObservedVersion     string                       `json:"observed_version,omitempty"`
+	RequestedRange      string                       `json:"requested_range,omitempty"`
 	FixedVersion        string                       `json:"fixed_version,omitempty"`
+	MatchReason         string                       `json:"match_reason,omitempty"`
 	ImpactStatus        string                       `json:"impact_status"`
 	Confidence          string                       `json:"confidence,omitempty"`
 	CVSSScore           float64                      `json:"cvss_score,omitempty"`

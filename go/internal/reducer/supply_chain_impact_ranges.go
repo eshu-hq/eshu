@@ -65,70 +65,42 @@ func supplyChainAffectedRangeEvents(raw any) []supplyChainAffectedRangeEvent {
 	return events
 }
 
-func packageVersionAffected(observed string, pkg supplyChainAffectedPackage) bool {
-	if versionAffected(observed, pkg.affectedVersions) {
-		return true
-	}
-	return versionAffectedByRanges(observed, pkg.affectedRanges)
-}
-
-// anyPackageVersionAffected reports whether the observed version falls inside
-// any source's affected list or range. Multi-source consolidation means one
-// CVE+package can carry several source-reported windows; the reducer treats
-// the union as the conservative affected set so a vendor advisory's narrower
-// window does not silently override an upstream advisory's wider window.
-func anyPackageVersionAffected(observed string, pkgs []supplyChainAffectedPackage) bool {
-	for _, pkg := range pkgs {
-		if packageVersionAffected(observed, pkg) {
-			return true
-		}
-	}
-	return false
-}
-
-func versionAffectedByRanges(observed string, ranges []supplyChainAffectedRange) bool {
-	for _, affectedRange := range ranges {
-		if !strings.EqualFold(affectedRange.kind, "SEMVER") {
-			continue
-		}
-		if semverRangeContains(affectedRange, observed) {
-			return true
-		}
-	}
-	return false
-}
-
-func semverRangeContains(affectedRange supplyChainAffectedRange, observed string) bool {
-	if !semverBeforeLimits(observed, affectedRange.events) {
-		return false
+func semverRangeContainsDecision(
+	affectedRange supplyChainAffectedRange,
+	observed string,
+) (bool, bool) {
+	if ok, valid := semverBeforeLimitsDecision(observed, affectedRange.events); !valid {
+		return false, false
+	} else if !ok {
+		return false, true
 	}
 	vulnerable := false
 	for _, event := range affectedRange.events {
 		switch {
 		case event.introduced != "":
 			if ok, valid := semverAtLeast(observed, event.introduced); !valid {
-				return false
+				return false, false
 			} else if ok {
 				vulnerable = true
 			}
 		case event.fixed != "":
 			if ok, valid := semverAtLeast(observed, event.fixed); !valid {
-				return false
+				return false, false
 			} else if ok {
 				vulnerable = false
 			}
 		case event.lastAffected != "":
 			if ok, valid := semverGreaterThan(observed, event.lastAffected); !valid {
-				return false
+				return false, false
 			} else if ok {
 				vulnerable = false
 			}
 		}
 	}
-	return vulnerable
+	return vulnerable, true
 }
 
-func semverBeforeLimits(observed string, events []supplyChainAffectedRangeEvent) bool {
+func semverBeforeLimitsDecision(observed string, events []supplyChainAffectedRangeEvent) (bool, bool) {
 	hasLimit := false
 	for _, event := range events {
 		limit := strings.TrimSpace(event.limit)
@@ -137,15 +109,15 @@ func semverBeforeLimits(observed string, events []supplyChainAffectedRangeEvent)
 		}
 		hasLimit = true
 		if limit == "*" {
-			return true
+			return true, true
 		}
 		if ok, valid := semverLessThan(observed, limit); !valid {
-			return false
+			return false, false
 		} else if ok {
-			return true
+			return true, true
 		}
 	}
-	return !hasLimit
+	return !hasLimit, true
 }
 
 func semverAtLeast(left string, right string) (bool, bool) {

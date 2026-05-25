@@ -133,8 +133,21 @@ Lists reducer-owned vulnerability impact findings. The caller must provide
 
 Valid impact statuses are `affected_exact`, `affected_derived`,
 `possibly_affected`, `not_affected_known_fixed`, and `unknown_impact`.
-Rows keep CVSS, EPSS, KEV, fixed-version state, runtime reachability,
-repository/image evidence, and missing evidence separate.
+Rows keep CVSS, EPSS, KEV, installed-version state, requested manifest range,
+fixed-version state, match reason, runtime reachability, repository/image
+evidence, and missing evidence separate.
+
+Version fields intentionally do not collapse into one string:
+
+- `observed_version`: exact installed version from lockfile, manifest, SBOM, or
+  image evidence when known.
+- `requested_range`: original manifest/requested dependency value, including
+  range-only values such as npm caret ranges.
+- `fixed_version`: source-selected fixed version when advisory evidence
+  reports one.
+- `match_reason`: reducer explanation for the version decision, including
+  supported matches, range-only manifests, unsupported ecosystems, and
+  malformed installed versions or advisory ranges.
 
 Each row also carries a `provenance` block so callers can see which advisory
 source supplied the selected severity, fixed version, and vulnerable range,
