@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/parser/shared"
@@ -265,6 +266,39 @@ golang.org/x/sys v0.10.0 h1:SqB5JfTtaUKvLLOZpd3KO6tjg2Ws9Vc4VYx7g2OdN90=
 		if kind != "module" && kind != "gomod" {
 			t.Fatalf("checksum_kind = %q, want \"module\" or \"gomod\"", kind)
 		}
+	}
+}
+
+// TestParseGoSumSurfacesScannerErrorAsMalformedState guards against the
+// silent-truncation failure mode Copilot called out: bufio.Scanner can hit
+// an error (for example, a line longer than its buffer) and stop scanning
+// without panicking. If we ignored scanner.Err() the payload would still
+// claim state=parsed and a partial set of rows, masking missing-evidence
+// risk. This test forces a scanner.ErrTooLong by writing a single line that
+// exceeds the 1 MiB scan buffer and asserts the state envelope flips to
+// malformed with a populated parse_error.
+func TestParseGoSumSurfacesScannerErrorAsMalformedState(t *testing.T) {
+	t.Parallel()
+
+	// One line longer than the scanner's 1 MiB max-token buffer.
+	hugeHash := strings.Repeat("a", 2*1024*1024)
+	body := "golang.org/x/text v0.3.7 h1:" + hugeHash + "\n"
+
+	path := writeGoTestFile(t, "go.sum", body)
+	payload, err := Parse(path, false, shared.Options{})
+	if err != nil {
+		t.Fatalf("Parse() error = %v, want nil; malformed go.sum must not break the parse pipeline", err)
+	}
+
+	state, _ := payload["gomod_state"].(map[string]any)
+	if state == nil {
+		t.Fatalf("payload[gomod_state] missing; truncated go.sum must surface a state envelope")
+	}
+	if got, want := state["state"], "malformed"; got != want {
+		t.Fatalf("gomod_state.state = %#v, want %q; scanner errors must flip state to malformed so readiness treats the file as missing/ambiguous", got, want)
+	}
+	if parseError, _ := state["parse_error"].(string); parseError == "" {
+		t.Fatalf("gomod_state.parse_error empty; scanner.Err() must be preserved for diagnosis")
 	}
 }
 

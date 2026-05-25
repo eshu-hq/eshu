@@ -197,10 +197,10 @@ func DependencyCoverage() []DependencyCoverageEntry {
 			FileKind:                "manifest",
 			Status:                  DependencyCoverageCovered,
 			CapturesPackageIdentity: true,
-			CapturesExactVersion:    true,
+			CapturesVersionRange:    true,
 			CapturesScope:           true,
 			SourceReference:         "go/internal/parser/gomod/parser.go (Parse for go.mod)",
-			Notes:                   "require/indirect/replace/exclude directives emit content_entity rows. Require lines carry the source-truth version plus replacement-aware resolved_module_path/resolved_version; replace/exclude rows use distinct config_kind values so they never get admitted as consumption. Go has no dev/runtime split, and module-graph chains beyond direct/indirect are not stored in go.mod.",
+			Notes:                   "require/indirect/replace/exclude directives emit content_entity rows. go.mod is a manifest, not a lockfile: require versions are the MVS minimum-version requirement (and the version the resolver would select when no transitive dep forces a higher one), not a resolver-locked exact installed version, so the matrix tracks them as CapturesVersionRange. Replacement targets surface as resolved_module_path/resolved_version on each require row; replace/exclude rows use distinct config_kind values so they never get admitted as consumption. Go has no dev/runtime split, and module-graph chains beyond direct/indirect are not stored in go.mod.",
 		},
 		{
 			Ecosystem:       "go",

@@ -20,21 +20,32 @@ func parseGoSum(path string, isDependency bool, options shared.Options) (map[str
 		payload["source"] = string(source)
 	}
 
-	rows := goSumChecksumRows(source)
+	rows, scanErr := goSumChecksumRows(source)
 	sortGoSumRows(rows)
 	payload["variables"] = rows
 
-	payload["gomod_state"] = map[string]any{
+	state := map[string]any{
 		"state":           "parsed",
 		"checksum_count":  len(rows),
 		"ambiguous_entry": "go.sum records every version any tool has verified, not the currently selected version",
 	}
+	if scanErr != nil {
+		// A scanner error (for example, a single go.sum line that exceeds
+		// the buffer) silently truncates the file unless we surface it. The
+		// rows already collected stay on the payload for forensic value but
+		// the state envelope flips to malformed so the readiness layer
+		// treats this as missing/ambiguous evidence, never as a complete
+		// parse.
+		state["state"] = "malformed"
+		state["parse_error"] = scanErr.Error()
+	}
+	payload["gomod_state"] = state
 	return payload, nil
 }
 
-func goSumChecksumRows(source []byte) []map[string]any {
+func goSumChecksumRows(source []byte) ([]map[string]any, error) {
 	if len(source) == 0 {
-		return []map[string]any{}
+		return []map[string]any{}, nil
 	}
 	scanner := bufio.NewScanner(bytes.NewReader(source))
 	scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024)
@@ -48,7 +59,7 @@ func goSumChecksumRows(source []byte) []map[string]any {
 		}
 		rows = append(rows, row)
 	}
-	return rows
+	return rows, scanner.Err()
 }
 
 func goSumLineRow(line string, lineNumber int) (map[string]any, bool) {

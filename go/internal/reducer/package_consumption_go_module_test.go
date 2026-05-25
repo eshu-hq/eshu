@@ -1,6 +1,8 @@
 package reducer
 
 import (
+	"os"
+	"path/filepath"
 	"reflect"
 	"testing"
 	"time"
@@ -8,8 +10,6 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	gomodparser "github.com/eshu-hq/eshu/go/internal/parser/gomod"
 	"github.com/eshu-hq/eshu/go/internal/parser/shared"
-	"os"
-	"path/filepath"
 )
 
 // TestBuildPackageConsumptionDecisionsAdmitsParsedGoModRequire wires the
