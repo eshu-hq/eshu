@@ -77,6 +77,38 @@ func TestPostgresAdvisoryEvidenceStoreReportsPaginationLimit(t *testing.T) {
 	}
 }
 
+func TestNormalizeAdvisoryEvidenceFilterCanonicalizesIdentityInputs(t *testing.T) {
+	t.Parallel()
+
+	got := normalizeAdvisoryEvidenceFilter(AdvisoryEvidenceFilter{
+		CVEID:            " cve-2026-0001 ",
+		AdvisoryID:       " gHsA-aaaa-bbbb-cccc ",
+		PackageID:        " pkg:npm/example ",
+		Source:           " NVD ",
+		AfterAdvisoryKey: " osv-2026-0001 ",
+		Limit:            10,
+	})
+
+	if got.CVEID != "CVE-2026-0001" {
+		t.Fatalf("CVEID = %q, want canonical CVE", got.CVEID)
+	}
+	if got.AdvisoryID != "GHSA-aaaa-bbbb-cccc" {
+		t.Fatalf("AdvisoryID = %q, want canonical GHSA prefix", got.AdvisoryID)
+	}
+	if got.AfterAdvisoryKey != "OSV-2026-0001" {
+		t.Fatalf("AfterAdvisoryKey = %q, want canonical OSV prefix", got.AfterAdvisoryKey)
+	}
+	if got.PackageID != "pkg:npm/example" {
+		t.Fatalf("PackageID = %q, want trimmed package id", got.PackageID)
+	}
+	if got.Source != "nvd" {
+		t.Fatalf("Source = %q, want lowercase source", got.Source)
+	}
+	if got.Limit != 10 {
+		t.Fatalf("Limit = %d, want preserved limit", got.Limit)
+	}
+}
+
 func TestSupplyChainListAdvisoryEvidenceUsesBoundedStore(t *testing.T) {
 	t.Parallel()
 
@@ -144,6 +176,40 @@ func TestSupplyChainListAdvisoryEvidenceUsesBoundedStore(t *testing.T) {
 	}
 	if got, want := resp.NextCursor["after_advisory_key"], "CVE-2026-0001"; got != want {
 		t.Fatalf("next_cursor.after_advisory_key = %q, want %q", got, want)
+	}
+}
+
+func TestPageAdvisoryEvidenceRowsNormalizesCursor(t *testing.T) {
+	t.Parallel()
+
+	rows := []AdvisoryEvidenceRow{
+		{AdvisoryKey: "CVE-2026-0001"},
+		{AdvisoryKey: "GHSA-aaaa-bbbb-cccc"},
+		{AdvisoryKey: "OSV-2026-0001"},
+	}
+
+	got := pageAdvisoryEvidenceRows(rows, AdvisoryEvidenceFilter{
+		AfterAdvisoryKey: "ghsa-AAAA-bbbb-cccc",
+		Limit:            1,
+	})
+	if len(got) != 1 || got[0].AdvisoryKey != "OSV-2026-0001" {
+		t.Fatalf("page after mixed-case GHSA = %#v, want OSV row", got)
+	}
+
+	got = pageAdvisoryEvidenceRows(rows, AdvisoryEvidenceFilter{
+		AfterAdvisoryKey: "cve-2026-0001",
+		Limit:            1,
+	})
+	if len(got) != 1 || got[0].AdvisoryKey != "GHSA-aaaa-bbbb-cccc" {
+		t.Fatalf("page after lowercase CVE = %#v, want GHSA row", got)
+	}
+}
+
+func TestAdvisoryEvidenceFactCapacityUsesQueryLimit(t *testing.T) {
+	t.Parallel()
+
+	if got, want := advisoryEvidenceFactCapacity(), advisoryEvidenceMaxFactRows; got != want {
+		t.Fatalf("advisoryEvidenceFactCapacity() = %d, want %d", got, want)
 	}
 }
 
@@ -283,10 +349,11 @@ func TestAdvisoryEvidenceQueryUsesActiveSourceFactReadModel(t *testing.T) {
 		"scope.active_generation_id = fact.generation_id",
 		"fact.is_tombstone = FALSE",
 		"generation.status = 'active'",
-		"payload->>'cve_id' = $2",
-		"payload->>'advisory_id' = $3",
+		"UPPER(payload->>'cve_id') = UPPER($2)",
+		"UPPER(payload->>'advisory_id') = UPPER($3)",
 		"payload->>'package_id' = $4",
-		"payload->>'source' = $5",
+		"LOWER(payload->>'source') = LOWER($5)",
+		"jsonb_array_elements_text",
 		"payload->'correlation_anchors'",
 	} {
 		if !strings.Contains(listAdvisoryEvidenceQuery, want) {

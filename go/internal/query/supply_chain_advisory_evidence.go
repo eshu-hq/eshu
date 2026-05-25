@@ -194,6 +194,7 @@ func (s PostgresAdvisoryEvidenceStore) ListAdvisoryEvidence(
 	ctx context.Context,
 	filter AdvisoryEvidenceFilter,
 ) ([]AdvisoryEvidenceRow, error) {
+	filter = normalizeAdvisoryEvidenceFilter(filter)
 	if s.DB == nil {
 		return nil, fmt.Errorf("advisory evidence database is required")
 	}
@@ -218,7 +219,7 @@ func (s PostgresAdvisoryEvidenceStore) ListAdvisoryEvidence(
 	}
 	defer func() { _ = rows.Close() }()
 
-	facts := make([]advisoryEvidenceFactRow, 0, filter.Limit)
+	facts := make([]advisoryEvidenceFactRow, 0, advisoryEvidenceFactCapacity())
 	for rows.Next() {
 		var factID string
 		var factKind string
@@ -250,6 +251,23 @@ func (f AdvisoryEvidenceFilter) hasScope() bool {
 	return f.CVEID != "" || f.AdvisoryID != "" || f.PackageID != ""
 }
 
+func normalizeAdvisoryEvidenceFilter(filter AdvisoryEvidenceFilter) AdvisoryEvidenceFilter {
+	filter.CVEID = normalizeAdvisoryLookupID(filter.CVEID)
+	filter.AdvisoryID = normalizeAdvisoryLookupID(filter.AdvisoryID)
+	filter.PackageID = strings.TrimSpace(filter.PackageID)
+	filter.Source = strings.ToLower(strings.TrimSpace(filter.Source))
+	filter.AfterAdvisoryKey = normalizeAdvisoryLookupID(filter.AfterAdvisoryKey)
+	return filter
+}
+
+func normalizeAdvisoryLookupID(value string) string {
+	return normalizeAdvisoryDisplayID(strings.TrimSpace(value))
+}
+
+func advisoryEvidenceFactCapacity() int {
+	return advisoryEvidenceMaxFactRows
+}
+
 func formatNullTime(value sql.NullTime) string {
 	if !value.Valid {
 		return ""
@@ -259,9 +277,9 @@ func formatNullTime(value sql.NullTime) string {
 
 func pageAdvisoryEvidenceRows(rows []AdvisoryEvidenceRow, filter AdvisoryEvidenceFilter) []AdvisoryEvidenceRow {
 	start := 0
-	if after := strings.TrimSpace(filter.AfterAdvisoryKey); after != "" {
+	if after := normalizeAdvisoryLookupID(filter.AfterAdvisoryKey); after != "" {
 		for idx, row := range rows {
-			if row.AdvisoryKey == after {
+			if advisoryEvidenceKeyEqual(row.AdvisoryKey, after) {
 				start = idx + 1
 				break
 			}
@@ -275,6 +293,10 @@ func pageAdvisoryEvidenceRows(rows []AdvisoryEvidenceRow, filter AdvisoryEvidenc
 		end = len(rows)
 	}
 	return append([]AdvisoryEvidenceRow(nil), rows[start:end]...)
+}
+
+func advisoryEvidenceKeyEqual(left string, right string) bool {
+	return strings.EqualFold(normalizeAdvisoryLookupID(left), normalizeAdvisoryLookupID(right))
 }
 
 func (h *SupplyChainHandler) listAdvisoryEvidence(w http.ResponseWriter, r *http.Request) {
@@ -303,14 +325,14 @@ func (h *SupplyChainHandler) listAdvisoryEvidence(w http.ResponseWriter, r *http
 	if !ok {
 		return
 	}
-	filter := AdvisoryEvidenceFilter{
+	filter := normalizeAdvisoryEvidenceFilter(AdvisoryEvidenceFilter{
 		CVEID:            QueryParam(r, "cve_id"),
 		AdvisoryID:       QueryParam(r, "advisory_id"),
 		PackageID:        QueryParam(r, "package_id"),
 		Source:           QueryParam(r, "source"),
 		AfterAdvisoryKey: QueryParam(r, "after_advisory_key"),
 		Limit:            limit + 1,
-	}
+	})
 	if !filter.hasScope() {
 		WriteError(w, http.StatusBadRequest, "cve_id, advisory_id, or package_id is required")
 		return
@@ -394,8 +416,32 @@ WITH active AS (
 seed AS (
     SELECT *
     FROM active
-    WHERE ($2 = '' OR payload->>'cve_id' = $2 OR payload->'aliases' ? $2 OR payload->'correlation_anchors' ? $2)
-      AND ($3 = '' OR payload->>'advisory_id' = $3 OR payload->>'cve_id' = $3 OR payload->>'ghsa_id' = $3 OR payload->'aliases' ? $3 OR payload->'correlation_anchors' ? $3)
+    WHERE ($2 = ''
+           OR UPPER(payload->>'cve_id') = UPPER($2)
+           OR EXISTS (
+               SELECT 1
+               FROM jsonb_array_elements_text(CASE WHEN jsonb_typeof(payload->'aliases') = 'array' THEN payload->'aliases' ELSE '[]'::jsonb END) AS alias(value)
+               WHERE UPPER(alias.value) = UPPER($2)
+           )
+           OR EXISTS (
+               SELECT 1
+               FROM jsonb_array_elements_text(CASE WHEN jsonb_typeof(payload->'correlation_anchors') = 'array' THEN payload->'correlation_anchors' ELSE '[]'::jsonb END) AS anchor(value)
+               WHERE UPPER(anchor.value) = UPPER($2)
+           ))
+      AND ($3 = ''
+           OR UPPER(payload->>'advisory_id') = UPPER($3)
+           OR UPPER(payload->>'cve_id') = UPPER($3)
+           OR UPPER(payload->>'ghsa_id') = UPPER($3)
+           OR EXISTS (
+               SELECT 1
+               FROM jsonb_array_elements_text(CASE WHEN jsonb_typeof(payload->'aliases') = 'array' THEN payload->'aliases' ELSE '[]'::jsonb END) AS alias(value)
+               WHERE UPPER(alias.value) = UPPER($3)
+           )
+           OR EXISTS (
+               SELECT 1
+               FROM jsonb_array_elements_text(CASE WHEN jsonb_typeof(payload->'correlation_anchors') = 'array' THEN payload->'correlation_anchors' ELSE '[]'::jsonb END) AS anchor(value)
+               WHERE UPPER(anchor.value) = UPPER($3)
+           ))
       AND ($4 = '' OR payload->>'package_id' = $4 OR payload->>'purl' = $4)
 ),
 seed_keys AS (
@@ -411,15 +457,23 @@ seed_keys AS (
 )
 SELECT fact_id, fact_kind, source_confidence, observed_at, payload
 FROM active
-WHERE ($5 = '' OR payload->>'source' = $5)
+WHERE ($5 = '' OR LOWER(payload->>'source') = LOWER($5))
   AND EXISTS (
       SELECT 1
       FROM seed_keys
-      WHERE payload->>'cve_id' = key_value
-         OR payload->>'advisory_id' = key_value
-         OR payload->>'ghsa_id' = key_value
-         OR payload->'aliases' ? key_value
-         OR payload->'correlation_anchors' ? key_value
+      WHERE UPPER(payload->>'cve_id') = UPPER(key_value)
+         OR UPPER(payload->>'advisory_id') = UPPER(key_value)
+         OR UPPER(payload->>'ghsa_id') = UPPER(key_value)
+         OR EXISTS (
+             SELECT 1
+             FROM jsonb_array_elements_text(CASE WHEN jsonb_typeof(payload->'aliases') = 'array' THEN payload->'aliases' ELSE '[]'::jsonb END) AS alias(value)
+             WHERE UPPER(alias.value) = UPPER(key_value)
+         )
+         OR EXISTS (
+             SELECT 1
+             FROM jsonb_array_elements_text(CASE WHEN jsonb_typeof(payload->'correlation_anchors') = 'array' THEN payload->'correlation_anchors' ELSE '[]'::jsonb END) AS anchor(value)
+             WHERE UPPER(anchor.value) = UPPER(key_value)
+         )
          OR payload->>'package_id' = $4
   )
 ORDER BY COALESCE(NULLIF(payload->>'cve_id', ''), NULLIF(payload->>'advisory_id', ''), NULLIF(payload->>'ghsa_id', ''), fact_id), fact_kind, fact_id
