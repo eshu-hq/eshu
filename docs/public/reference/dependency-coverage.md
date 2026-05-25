@@ -75,8 +75,8 @@ absence of evidence look like absence of risk. Guard tests:
 | pypi | poetry.lock | lockfile | gap | — | — | — | — | — | — | no TOML parser registered in `go/internal/parser/registry.go` | Poetry lockfile is TOML and not yet parsed. |
 | pypi | pyproject.toml | manifest | gap | — | — | — | — | — | — | no TOML parser registered in `go/internal/parser/registry.go` | PEP 621 / Poetry / Hatch manifests are not yet parsed. |
 | pypi | requirements.txt | manifest | gap | — | — | — | — | — | — | no raw-text dependency parser branches on requirements\*.txt | pip-style requirement files are not yet parsed. |
-| rubygems | Gemfile | manifest | gap | — | — | — | — | — | — | `go/internal/parser/ruby_language.go` has no Gemfile branch | Gemfile DSL is not yet parsed. |
-| rubygems | Gemfile.lock | lockfile | gap | — | — | — | — | — | — | no parser registered in `go/internal/parser/registry.go` | Bundler lockfile is not yet parsed. |
+| rubygems | Gemfile | manifest | covered | ✓ | — | ✓ | ✓ | ✓ | — | `go/internal/parser/ruby/bundler_gemfile.go` | Literal `gem` declarations emit RubyGems rows with group scope and git/path source metadata; dynamic Ruby is skipped. |
+| rubygems | Gemfile.lock | lockfile | covered | ✓ | ✓ | — | ✓ | — | ✓ | `go/internal/parser/ruby/bundler_lockfile.go` | Bundler lockfiles emit exact versions and dependency chains only when `DEPENDENCIES` and `specs:` indentation prove them. |
 
 ## Implications For The Reducer And Readiness Envelope
 
@@ -100,12 +100,13 @@ absence of evidence look like absence of risk. Guard tests:
 
 `go test ./internal/parser/json -run 'TestDependencyCoverage|TestParseComposerLock|TestParseComposerManifestAndLockfile' -count=1`
 runs the matrix invariants plus the covered/gap parser fixtures and the
-Composer lockfile fixtures in well under one second on a developer
-laptop; it is a pure in-memory fixture path and adds no Cypher, queue,
-or storage work. `go test ./internal/reducer -run
-'TestBuildPackageConsumptionDecisions(Rejects|Matches|Normalizes|Preserves|Admits|Keeps)'
--count=1` exercises both the positive consumption admission path
-(including the new Composer lockfile evidence) and the safety-rule
+Composer and RubyGems fixtures in well under one second on a developer
+laptop; it is a pure in-memory fixture path and adds no Cypher, queue, or
+storage work. `go test ./internal/reducer -run
+'TestBuildPackageConsumptionDecisions(Rejects|Matches|Normalizes|Preserves|Admits|Keeps|.*Ruby)'
+-count=1` exercises positive consumption admission, Composer lockfile
+evidence, RubyGems Bundler lockfile admission, git/path ambiguity rejection,
+and the safety-rule
 negatives without touching Postgres or the graph backend.
 
 No-Observability-Change: this change is parser fixture work and reducer

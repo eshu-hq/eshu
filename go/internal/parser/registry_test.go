@@ -139,6 +139,36 @@ func TestDefaultRegistryLookupByExtensionAndPath(t *testing.T) {
 			t.Fatalf("Language = %q, want %q", definition.Language, "json")
 		}
 	})
+
+	t.Run("bundler gemfile basename", func(t *testing.T) {
+		t.Parallel()
+
+		definition, ok := registry.LookupByPath(filepath.Join("ruby", "Gemfile"))
+		if !ok {
+			t.Fatalf("expected Gemfile to resolve")
+		}
+		if definition.ParserKey != "ruby" {
+			t.Fatalf("ParserKey = %q, want ruby", definition.ParserKey)
+		}
+		if definition.Language != "ruby" {
+			t.Fatalf("Language = %q, want ruby", definition.Language)
+		}
+	})
+
+	t.Run("bundler lockfile basename", func(t *testing.T) {
+		t.Parallel()
+
+		definition, ok := registry.LookupByPath(filepath.Join("ruby", "Gemfile.lock"))
+		if !ok {
+			t.Fatalf("expected Gemfile.lock to resolve")
+		}
+		if definition.ParserKey != "ruby" {
+			t.Fatalf("ParserKey = %q, want ruby", definition.ParserKey)
+		}
+		if definition.Language != "ruby" {
+			t.Fatalf("Language = %q, want ruby", definition.Language)
+		}
+	})
 }
 
 func TestRegistryOrderingAndImmutability(t *testing.T) {

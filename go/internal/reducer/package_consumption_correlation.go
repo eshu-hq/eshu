@@ -68,6 +68,7 @@ type packageManifestDependency struct {
 	DependencyDepth  int
 	DirectDependency *bool
 	Lockfile         bool
+	SourceAmbiguous  bool
 }
 
 // BuildPackageConsumptionDecisions matches package registry identities to Git
@@ -196,8 +197,12 @@ func extractPackageManifestDependencies(envelopes []facts.Envelope) []packageMan
 			DependencyDepth:  packageManifestMetadataInt(envelope.Payload, "dependency_depth"),
 			DirectDependency: packageManifestMetadataBool(envelope.Payload, "direct_dependency"),
 			Lockfile:         packageManifestMetadataBoolValue(envelope.Payload, "lockfile"),
+			SourceAmbiguous:  packageManifestMetadataBoolValue(envelope.Payload, "source_ambiguous"),
 		}
 		if dependency.DependencyName == "" || dependency.PackageManager == "" {
+			continue
+		}
+		if dependency.SourceAmbiguous {
 			continue
 		}
 		dependency = normalizePackageManifestDependencyChain(dependency)
@@ -302,8 +307,8 @@ func packageManifestMetadataBool(payload map[string]any, key string) *bool {
 // packageManifestMetadataBoolValue returns the metadata boolean for `key`
 // as a plain bool, defaulting to false when the field is missing. It is
 // used for flags whose absence and false value carry the same meaning,
-// such as `lockfile`, where only the true case changes downstream
-// behavior.
+// such as `lockfile` and `source_ambiguous`, where only the true case changes
+// downstream behavior.
 func packageManifestMetadataBoolValue(payload map[string]any, key string) bool {
 	value := packageManifestMetadataBool(payload, key)
 	return value != nil && *value
@@ -316,7 +321,7 @@ func normalizePackageManifestDependencyChain(dependency packageManifestDependenc
 		}
 		return dependency
 	}
-	if dependency.Lockfile || strings.EqualFold(dependency.ManifestSection, "package-lock") {
+	if packageManifestDependencyNeedsProvenChain(dependency) {
 		dependency.DependencyDepth = 0
 		dependency.DirectDependency = nil
 		return dependency
@@ -326,6 +331,18 @@ func normalizePackageManifestDependencyChain(dependency packageManifestDependenc
 	value := true
 	dependency.DirectDependency = &value
 	return dependency
+}
+
+func packageManifestDependencyNeedsProvenChain(dependency packageManifestDependency) bool {
+	if dependency.Lockfile {
+		return true
+	}
+	if strings.EqualFold(dependency.ManifestSection, "package-lock") ||
+		strings.EqualFold(dependency.ManifestSection, "gemfile.lock") {
+		return true
+	}
+	return packageidentity.NormalizeEcosystem(packageidentity.Ecosystem(dependency.PackageManager)) ==
+		packageidentity.EcosystemRubyGems
 }
 
 func packageConsumptionIdentityForDependency(

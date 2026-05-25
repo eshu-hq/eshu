@@ -298,6 +298,7 @@ func defaultDefinitions() []Definition {
 			ParserKey:  "ruby",
 			Language:   "ruby",
 			Extensions: []string{".rb"},
+			ExactNames: []string{"Gemfile", "Gemfile.lock"},
 		},
 		{
 			ParserKey:  "rust",
