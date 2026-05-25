@@ -118,6 +118,7 @@ use an SSH tunnel from their laptop.
 | `collector-vulnerability-intelligence` | `127.0.0.1:19670` |
 | `scanner-worker` | `127.0.0.1:19671` |
 | `collector-sbom-attestation` | `127.0.0.1:19672` |
+| `collector-security-alerts` | `127.0.0.1:19673` |
 
 Example captures from the remote host:
 

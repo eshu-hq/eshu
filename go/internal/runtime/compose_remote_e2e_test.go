@@ -98,6 +98,7 @@ func TestRemoteE2EComposeUsesProductionCanonicalWriteTimeout(t *testing.T) {
 		"collector-oci-registry",
 		"collector-package-registry",
 		"collector-sbom-attestation",
+		"collector-security-alerts",
 		"collector-vulnerability-intelligence",
 		"collector-aws-cloud",
 		"scanner-worker",
@@ -127,6 +128,7 @@ func TestRemoteE2EComposeRunsProjectorForHostedCollectorSourceLocalWork(t *testi
 		"collector-oci-registry",
 		"collector-package-registry",
 		"collector-sbom-attestation",
+		"collector-security-alerts",
 		"collector-vulnerability-intelligence",
 		"collector-aws-cloud",
 		"scanner-worker",
@@ -206,6 +208,7 @@ func TestRemoteE2EWorkerPprofOverlayBindsWorkersToHostLoopback(t *testing.T) {
 		"projector":                            "19669",
 		"scanner-worker":                       "19671",
 		"collector-sbom-attestation":           "19672",
+		"collector-security-alerts":            "19673",
 	} {
 		service := requireComposeService(t, doc, serviceName)
 		assertComposeEnv(t, service, "ESHU_PPROF_ADDR", "0.0.0.0:6060")
@@ -223,6 +226,7 @@ func TestHostedWorkerCommandsStartPprofServer(t *testing.T) {
 		"go/cmd/collector-oci-registry/main.go",
 		"go/cmd/collector-package-registry/main.go",
 		"go/cmd/collector-sbom-attestation/main.go",
+		"go/cmd/collector-security-alerts/main.go",
 		"go/cmd/collector-terraform-state/main.go",
 		"go/cmd/collector-vulnerability-intelligence/main.go",
 		"go/cmd/projector/main.go",
@@ -237,6 +241,46 @@ func TestHostedWorkerCommandsStartPprofServer(t *testing.T) {
 			if !strings.Contains(content, want) {
 				t.Fatalf("%s missing pprof startup term %q", sourcePath, want)
 			}
+		}
+	}
+}
+
+func TestRemoteE2EComposeIncludesSecurityAlertCollector(t *testing.T) {
+	t.Parallel()
+
+	doc := readComposeDocument(t, "docker-compose.remote-e2e.yaml")
+	service := requireComposeService(t, doc, "collector-security-alerts")
+	if fmt.Sprint(service.Command) != "[/usr/local/bin/eshu-collector-security-alerts]" {
+		t.Fatalf("collector command = %#v, want eshu-collector-security-alerts", service.Command)
+	}
+	assertComposeEnv(t, service, "ESHU_SECURITY_ALERT_COLLECTOR_INSTANCE_ID", "remote-e2e-security-alert")
+	assertComposeEnv(t, service, "ESHU_SECURITY_ALERT_COLLECTOR_OWNER_ID", "remote-e2e-security-alert-worker")
+	assertComposeEnv(t, service, "ESHU_SECURITY_ALERT_POLL_INTERVAL", "${ESHU_SECURITY_ALERT_POLL_INTERVAL:-2s}")
+	assertComposeEnv(t, service, "GITHUB_TOKEN", "${ESHU_SECURITY_ALERT_GITHUB_TOKEN:?set ESHU_SECURITY_ALERT_GITHUB_TOKEN}")
+	assertComposePortContains(t, service, "${ESHU_COLLECTOR_SECURITY_ALERTS_METRICS_PORT:-19479}:9464")
+	assertComposeDependency(t, service, "projector")
+	assertComposeDependency(t, service, "workflow-coordinator")
+
+	compose := readRepositoryFile(t, "../../..", "docker-compose.remote-e2e.yaml")
+	for _, want := range []string{
+		`"instance_id": "remote-e2e-security-alert"`,
+		`"collector_kind": "security_alert"`,
+		`"provider": "github_dependabot"`,
+		`"token_env": "GITHUB_TOKEN"`,
+		`"allowed_repositories": ["${ESHU_SECURITY_ALERT_REPOSITORY:?set ESHU_SECURITY_ALERT_REPOSITORY}"]`,
+	} {
+		if !strings.Contains(compose, want) {
+			t.Fatalf("docker-compose.remote-e2e.yaml missing security-alert collector term %q", want)
+		}
+	}
+
+	exampleEnv := readRepositoryFile(t, "../../..", ".env.remote-e2e.example")
+	for _, want := range []string{
+		"ESHU_SECURITY_ALERT_REPOSITORY=owner/repository",
+		"ESHU_SECURITY_ALERT_GITHUB_TOKEN=replace-with-read-only-token",
+	} {
+		if !strings.Contains(exampleEnv, want) {
+			t.Fatalf(".env.remote-e2e.example missing %q", want)
 		}
 	}
 }
@@ -419,6 +463,7 @@ func remoteE2EWorkerPprofServices() []string {
 		"collector-oci-registry",
 		"collector-package-registry",
 		"collector-sbom-attestation",
+		"collector-security-alerts",
 		"collector-vulnerability-intelligence",
 		"collector-aws-cloud",
 		"projector",

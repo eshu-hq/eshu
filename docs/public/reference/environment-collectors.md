@@ -109,6 +109,28 @@ attachment status.
 | `ESHU_SBOM_ATTESTATION_HEARTBEAT_INTERVAL` | `20s` | collector-sbom-attestation | Heartbeat interval for active workflow claims. Must be less than the claim lease TTL. |
 | `ESHU_SBOM_ATTESTATION_COLLECTOR_OWNER_ID` | host/process-derived | collector-sbom-attestation | Owner label written into workflow claim rows. |
 
+## Security Alert Collector
+
+The security-alert collector is claim-only. It selects an enabled
+`security_alert` instance from `ESHU_COLLECTOR_INSTANCES_JSON`. Provider
+targets currently support GitHub Dependabot repository alerts and must include
+`token_env`, `repository`, and `allowed_repositories`. The runtime resolves the
+credential from the named environment variable and emits only
+`security_alert.repository_alert` facts. Optional `api_base_url` overrides must
+use HTTPS because the runtime sends the bearer token to that endpoint.
+
+| Variable | Default | Read by | Purpose |
+| --- | --- | --- | --- |
+| `ESHU_SECURITY_ALERT_COLLECTOR_INSTANCE_ID` | required when more than one enabled security-alert instance exists | collector-security-alerts | Selects the claim-capable `security_alert` instance. |
+| `ESHU_SECURITY_ALERT_POLL_INTERVAL` | `1s` | collector-security-alerts | Delay between empty workflow-claim polls. |
+| `ESHU_SECURITY_ALERT_CLAIM_LEASE_TTL` | `60s` | collector-security-alerts | Lease TTL used when claiming and refreshing work. |
+| `ESHU_SECURITY_ALERT_HEARTBEAT_INTERVAL` | `20s` | collector-security-alerts | Heartbeat interval for active workflow claims. Must be less than the claim lease TTL. |
+| `ESHU_SECURITY_ALERT_COLLECTOR_OWNER_ID` | host/process-derived | collector-security-alerts | Owner label written into workflow claim rows. |
+
+Provider tokens must come from private environment variables referenced by
+`token_env`; do not commit token values, private repository names, alert URLs,
+or copied provider payloads to public values files or docs.
+
 ## Vulnerability Intelligence Collector
 
 The vulnerability intelligence collector is claim-only. It selects an enabled

@@ -55,6 +55,12 @@ type SBOMAttestationPlanner interface {
 	PlanSBOMAttestationWork(context.Context, SBOMAttestationPlanRequest) (workflow.Run, []workflow.WorkItem, error)
 }
 
+// SecurityAlertPlanner plans provider security-alert workflow rows from
+// collector instance configuration.
+type SecurityAlertPlanner interface {
+	PlanSecurityAlertWork(context.Context, SecurityAlertPlanRequest) (workflow.Run, []workflow.WorkItem, error)
+}
+
 // OwnedPackageTargetReader loads active dependency evidence that can bound
 // derived package-registry and vulnerability-intelligence work.
 type OwnedPackageTargetReader interface {
@@ -80,6 +86,7 @@ type Service struct {
 	PackageRegistryPlanner           PackageRegistryPlanner
 	VulnerabilityIntelligencePlanner VulnerabilityIntelligencePlanner
 	SBOMAttestationPlanner           SBOMAttestationPlanner
+	SecurityAlertPlanner             SecurityAlertPlanner
 	OwnedPackageTargetReader         OwnedPackageTargetReader
 	AWSScheduledPlanner              AWSScheduledPlanner
 	AWSFreshnessTriggers             AWSFreshnessTriggerStore
@@ -230,6 +237,15 @@ func (s Service) runReconcile(ctx context.Context) error {
 		return err
 	}
 	if err := s.scheduleSBOMAttestationWork(ctx, observedAt, instances); err != nil {
+		s.recordReconcile(ctx, ReconcileObservation{
+			Outcome:      reconcileOutcomeReconcileError,
+			Duration:     time.Since(startedAt),
+			DesiredCount: desiredCount,
+			DurableCount: durableCount,
+		})
+		return err
+	}
+	if err := s.scheduleSecurityAlertWork(ctx, observedAt, instances); err != nil {
 		s.recordReconcile(ctx, ReconcileObservation{
 			Outcome:      reconcileOutcomeReconcileError,
 			Duration:     time.Since(startedAt),

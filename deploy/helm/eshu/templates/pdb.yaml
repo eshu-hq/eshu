@@ -146,6 +146,21 @@ spec:
       {{- include "eshu.sbomAttestationCollectorSelectorLabels" . | nindent 6 }}
 ---
 {{- end }}
+{{- if .Values.securityAlertCollector.enabled }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "eshu.securityAlertCollectorFullname" . }}
+  labels:
+    {{- include "eshu.labels" . | nindent 4 }}
+    app.kubernetes.io/component: security-alert-collector
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      {{- include "eshu.securityAlertCollectorSelectorLabels" . | nindent 6 }}
+---
+{{- end }}
 {{- if .Values.scannerWorker.enabled }}
 apiVersion: policy/v1
 kind: PodDisruptionBudget

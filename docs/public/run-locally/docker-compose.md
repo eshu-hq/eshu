@@ -157,9 +157,9 @@ the single-generation proof.
 
 Use `docker-compose.remote-e2e.yaml` on a VPN-attached or account-local test
 machine for the default runtime plus claim-driven Terraform state, OCI
-registry, package registry, vulnerability intelligence, scanner-worker, AWS
-cloud, and optional Confluence collectors. It is standalone and defaults the
-Compose project to `eshu-remote-e2e`.
+registry, package registry, provider security alerts, vulnerability
+intelligence, scanner-worker, AWS cloud, and optional Confluence collectors. It
+is standalone and defaults the Compose project to `eshu-remote-e2e`.
 
 For the service list, proof commands, AWS credential requirements, pprof ports,
 and acceptance evidence, see

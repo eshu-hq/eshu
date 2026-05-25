@@ -27,6 +27,7 @@ exact binary set on `PATH`.
 | `eshu-collector-terraform-state` | `collector-terraform-state/` | Long-running Terraform-state collector |
 | `eshu-collector-package-registry` | `collector-package-registry/` | Long-running package-registry collector |
 | `eshu-collector-sbom-attestation` | `collector-sbom-attestation/` | Long-running hosted SBOM and attestation collector |
+| `eshu-collector-security-alerts` | `collector-security-alerts/` | Long-running hosted provider security-alert collector |
 | `eshu-scanner-worker` | `scanner-worker/` | Long-running isolated security analyzer worker |
 | `eshu-collector-aws-cloud` | `collector-aws-cloud/` | Long-running AWS cloud collector |
 | `eshu-webhook-listener` | `webhook-listener/` | Long-running GitHub/GitLab webhook intake |
@@ -46,6 +47,7 @@ flowchart LR
   workflow[workflow-coordinator] --> postgres
   tfstate[collector-terraform-state] --> postgres
   sbom[collector-sbom-attestation] --> postgres
+  alerts[collector-security-alerts] --> postgres
   aws[collector-aws-cloud] --> postgres
   scanner[scanner-worker] --> postgres
   webhook[webhook-listener] --> postgres

@@ -87,6 +87,20 @@ writes also add a `vulnerability_intelligence.source_state_checkpoint` event to
 the source observe span with bounded source, ecosystem, freshness, terminal, and
 failure-class attributes.
 
+## Security Alert Collector
+
+| Metric | Key labels | Use |
+| --- | --- | --- |
+| `eshu_dp_security_alert_provider_requests_total` | `provider`, `status_class` | Hosted provider alert request attempts, including retryable and terminal failures. |
+| `eshu_dp_security_alert_facts_emitted_total` | `provider`, `fact_kind` | Repository-alert source facts emitted per claimed target. |
+| `eshu_dp_security_alert_rate_limited_total` | `provider` | GitHub rate-limit pressure surfaced to workflow retry handling. |
+| `eshu_dp_security_alert_fetch_duration_seconds` | `provider`, `status_class` | Bounded provider fetch duration for one claimed target. |
+
+Repository names, package names, alert URLs, token environment names, token
+values, and provider response bodies stay out of metric labels. Use
+`/admin/status`, workflow failures, and traces to connect a bounded failure
+class to a specific private target in the operator environment.
+
 ## Scanner-Worker Boundary
 
 Scanner-worker metrics are emitted by the hosted scanner-worker runtime for

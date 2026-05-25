@@ -16,7 +16,9 @@
 // backend filters require the same credential routing before runtime. OCI
 // registry collector instances validate bounded repository targets, package
 // registry collector instances validate bounded package metadata targets and
-// known document formats, and vulnerability intelligence collector instances
+// known document formats, vulnerability intelligence collector instances
 // validate bounded source targets, mirror URLs, source-cache modes, and cache
-// freshness durations before the coordinator plans claimable work items.
+// freshness durations, and security-alert collector instances validate
+// repository allowlists plus HTTPS credentialed API base URLs before the
+// coordinator plans claimable work items.
 package workflow

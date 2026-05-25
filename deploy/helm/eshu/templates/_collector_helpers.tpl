@@ -116,6 +116,30 @@
 {{- end }}
 {{- end -}}
 
+{{- define "eshu.renderSecurityAlertCollectorEnv" -}}
+- name: ESHU_COLLECTOR_INSTANCES_JSON
+  value: {{ required "securityAlertCollector.collectorInstances must contain at least one instance when securityAlertCollector.enabled=true" .Values.securityAlertCollector.collectorInstances | toJson | quote }}
+- name: ESHU_SECURITY_ALERT_COLLECTOR_INSTANCE_ID
+  value: {{ .Values.securityAlertCollector.instanceId | quote }}
+- name: ESHU_SECURITY_ALERT_COLLECTOR_OWNER_ID
+  valueFrom:
+    fieldRef:
+      fieldPath: metadata.name
+- name: ESHU_SECURITY_ALERT_POLL_INTERVAL
+  value: {{ .Values.securityAlertCollector.pollInterval | quote }}
+{{- with .Values.securityAlertCollector.claimLeaseTTL }}
+- name: ESHU_SECURITY_ALERT_CLAIM_LEASE_TTL
+  value: {{ . | quote }}
+{{- end }}
+{{- with .Values.securityAlertCollector.heartbeatInterval }}
+- name: ESHU_SECURITY_ALERT_HEARTBEAT_INTERVAL
+  value: {{ . | quote }}
+{{- end }}
+{{- with .Values.securityAlertCollector.extraEnv }}
+{{ toYaml . }}
+{{- end }}
+{{- end -}}
+
 {{- define "eshu.renderVulnerabilityIntelligenceCollectorEnv" -}}
 - name: ESHU_COLLECTOR_INSTANCES_JSON
   value: {{ required "vulnerabilityIntelligenceCollector.collectorInstances must contain at least one instance when vulnerabilityIntelligenceCollector.enabled=true" .Values.vulnerabilityIntelligenceCollector.collectorInstances | toJson | quote }}

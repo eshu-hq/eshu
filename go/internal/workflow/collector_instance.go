@@ -61,6 +61,11 @@ func (d DesiredCollectorInstance) Validate() error {
 			return err
 		}
 	}
+	if d.CollectorKind == scope.CollectorSecurityAlert {
+		if err := ValidateSecurityAlertCollectorConfiguration(d.Configuration); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
@@ -112,6 +117,11 @@ func (i CollectorInstance) Validate() error {
 	}
 	if i.CollectorKind == scope.CollectorSBOMAttestation {
 		if err := ValidateSBOMAttestationCollectorConfiguration(i.Configuration); err != nil {
+			return err
+		}
+	}
+	if i.CollectorKind == scope.CollectorSecurityAlert {
+		if err := ValidateSecurityAlertCollectorConfiguration(i.Configuration); err != nil {
 			return err
 		}
 	}

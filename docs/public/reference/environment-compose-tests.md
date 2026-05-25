@@ -91,6 +91,7 @@ These variables are read by `scripts/sync_local_compose_mcp.sh`.
 | `ESHU_COLLECTOR_PACKAGE_REGISTRY_METRICS_PORT` | `19472` in remote E2E | Package-registry collector host metrics port. |
 | `ESHU_COLLECTOR_AWS_CLOUD_METRICS_PORT` | `19473` in remote E2E | AWS cloud collector host metrics port. |
 | `ESHU_COLLECTOR_CONFLUENCE_METRICS_PORT` | `19474` in remote E2E | Confluence collector host metrics port. |
+| `ESHU_COLLECTOR_SECURITY_ALERTS_METRICS_PORT` | `19479` in remote E2E | Security-alert collector host metrics port. |
 | `ESHU_COLLECTOR_GIT_METRICS_PORT` | verifier-selected | Git collector runtime verifier metrics port. |
 | `ESHU_COLLECTOR_TFSTATE_GEN1_METRICS_PORT`, `ESHU_COLLECTOR_TFSTATE_GEN2_METRICS_PORT` | verifier-selected | Terraform-state v25 tier-2 proof metrics ports. |
 

@@ -116,7 +116,8 @@ Types in this package flow through four phases of the workflow control plane:
   collector family; registered entries: `CollectorGit`,
   `CollectorTerraformState`, `CollectorAWS`, `CollectorWebhook`,
   `CollectorDocumentation`, `CollectorOCIRegistry`, `CollectorPackageRegistry`,
-  `CollectorVulnerabilityIntelligence`, `CollectorScannerWorker`
+  `CollectorVulnerabilityIntelligence`, `CollectorSBOMAttestation`,
+  `CollectorSecurityAlert`, `CollectorScannerWorker`
 - `PhaseRequirement`, `PhasePublicationKey` — per-phase requirement and
   publication checkpoint key types
 
@@ -254,6 +255,13 @@ emits `sbom.*` and `attestation.*` source facts, and leaves reducer attachment
 truth to the SBOM attestation attachment reducer. Parser-emitted SBOM documents
 remain unverified unless separate attestation or signature verification facts
 support a promotion.
+
+`security_alert` collector instances are claim-capable. The coordinator plans
+one bounded work item per configured GitHub Dependabot repository-alert target.
+Targets must name a credential environment variable and an explicit repository
+allowlist. Optional `api_base_url` values must use HTTPS because the collector
+sends the bearer token to that endpoint; `source_uri` remains a source-document
+identifier and may point at HTTP fixtures.
 
 Observability Evidence: no new metrics were required. Existing workflow-run
 status, workflow completeness rows, workflow work-item identity columns,

@@ -66,6 +66,12 @@ services:
     ports:
       - "127.0.0.1:19672:6060"
 
+  collector-security-alerts:
+    environment:
+      ESHU_PPROF_ADDR: 0.0.0.0:6060
+    ports:
+      - "127.0.0.1:19673:6060"
+
   scanner-worker:
     environment:
       ESHU_PPROF_ADDR: 0.0.0.0:6060

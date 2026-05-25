@@ -32,6 +32,8 @@ const (
 	KindVulnerabilityIntelligence ScopeKind = "vulnerability_intelligence"
 	// KindSBOMAttestation represents a hosted SBOM or attestation document scope.
 	KindSBOMAttestation ScopeKind = "sbom_attestation"
+	// KindSecurityAlert represents a hosted provider repository-alert scope.
+	KindSecurityAlert ScopeKind = "security_alert"
 	// KindScannerWorker represents a bounded security analyzer work scope.
 	KindScannerWorker ScopeKind = "scanner_worker"
 )
@@ -58,6 +60,8 @@ const (
 	CollectorVulnerabilityIntelligence CollectorKind = "vulnerability_intelligence"
 	// CollectorSBOMAttestation represents the hosted SBOM and attestation collector.
 	CollectorSBOMAttestation CollectorKind = "sbom_attestation"
+	// CollectorSecurityAlert represents hosted provider security-alert collectors.
+	CollectorSecurityAlert CollectorKind = "security_alert"
 	// CollectorScannerWorker represents isolated security analyzer workers.
 	CollectorScannerWorker CollectorKind = "scanner_worker"
 )

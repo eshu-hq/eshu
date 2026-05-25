@@ -8,21 +8,23 @@ provider alert payloads into reported-confidence source facts that reducers can
 compare against Eshu-owned package consumption and vulnerability impact
 evidence.
 
-This package intentionally does not implement workflow claims, database
-commits, graph writes, hosted polling, or canonical impact admission.
+This package intentionally does not implement database commits, graph writes,
+or canonical impact admission. The claim-driven hosted runtime lives in
+`go/internal/collector/securityalerts/alertruntime` and uses this package only
+to request provider alerts and build source facts.
 
 ## Fixture-to-fact flow
 
 ```mermaid
 flowchart LR
-    Fixture["synthetic Dependabot alert fixture"]
+    Provider["GitHub Dependabot alert"]
     Context["EnvelopeContext"]
     Normalize["NewGitHubDependabotAlertEnvelope"]
     Fact["security_alert.repository_alert fact"]
     Reducer["security_alert_reconciliation reducer"]
     Impact["supply-chain impact truth stays reducer-owned"]
 
-    Fixture --> Normalize
+    Provider --> Normalize
     Context --> Normalize
     Normalize --> Fact
     Fact --> Reducer
@@ -61,33 +63,25 @@ the provider alert.
 
 ## Telemetry
 
-This package emits no metrics, spans, or logs. The current slice is a
-deterministic normalizer plus a request-shape client; hosted runtime telemetry
-belongs in a later collector runtime that owns credentials, rate limits,
-claiming, fact commits, health/readiness, and status.
+This package emits no metrics, spans, or logs by itself. Runtime telemetry is
+owned by `alertruntime` and the `collector-security-alerts` binary: provider
+request totals, provider fetch duration, provider rate-limit counts,
+repository-alert fact counts, `security_alert.observe`, and
+`security_alert.fetch`.
 
-Collector Performance Evidence: the current slice performs deterministic
-single-alert normalization and one bounded Dependabot request page capped by
-`RepositoryAlertLimit`; there is no claim loop, queue drain, graph write, or
-batch worker in this package. The focused `go test ./internal/collector/securityalerts -run TestGitHubDependabot -count=1`
-proof covers the bounded fixture and request-guard paths.
+Collector Performance Evidence: request work is bounded by explicit
+repository allowlists, `RepositoryAlertLimit`, and runtime `max_pages`. The
+focused `go test ./internal/collector/securityalerts -run TestGitHubDependabot -count=1`
+proof covers bounded pagination, request guards, rate-limit metadata, and
+redaction.
 
-Collector Observability Evidence: live collection is not enabled here. The
-future hosted runtime must add provider request duration/status, rate-limit,
-facts-emitted, partial-generation, redaction, health/readiness, and admin-status
-signals before polling is allowed.
+Collector Observability Evidence: the hosted runtime exposes the shared
+`/healthz`, `/readyz`, `/metrics`, and `/admin/status` surface through
+`collector.ClaimedService`.
 
-Collector Deployment Evidence: no service, Helm value, ServiceMonitor, workflow
-claim, or deployed collector image is introduced by this package. Deployment
-work remains gated on a later hosted collector slice with credential and
-allowlist configuration.
-
-No-Regression Evidence: `go test ./internal/collector/securityalerts -run TestGitHubDependabot -count=1`
-proves Dependabot fixtures preserve provider alert fields, sanitize token-bearing
-URLs, and refuse missing-token or non-allowlisted repository requests before
-HTTP.
-
-No-Observability-Change: this package does not mount a hosted runtime or start a
-worker. Later live collection must add provider request counts, rate-limit
-signals, redaction proof, fact-emission counts, partial-generation warnings, and
-status before polling is enabled.
+Collector Deployment Evidence: the `collector-security-alerts` binary,
+remote-E2E Compose service, pprof overlay, Helm Deployment, metrics Service,
+ServiceMonitor, NetworkPolicy, and PDB are rendered from the hosted runtime
+configuration. Credentials are resolved from pod environment variables named
+by `token_env`; token values are not stored in collector-instance JSON, facts,
+metric labels, or status errors.
