@@ -333,6 +333,16 @@ Log phase attributes: `telemetry.PhaseReduction` (main loop),
   with update and withdrawal timestamps. Withdrawn advisories are excluded
   from selection but remain visible as observations so operators can explain
   why a vendor or upstream record was skipped.
+- **Detection profile is recorded** — every owned-anchor finding is tagged
+  with `DetectionProfile` (`precise` or `comprehensive`) before the writer
+  persists the row. Precise requires an exact installed-version anchor
+  (lockfile, manifest with pinned version, or SBOM component with an
+  explicit version) plus an ecosystem-aware exact match. Comprehensive
+  covers range-only manifests, SBOM/CPE-derived image paths without an
+  exact version, malformed advisory ranges, unsupported ecosystems, and
+  missing observed versions. The tier is persisted alongside the truth
+  labels (status, confidence, runtime_reachability) and missing-evidence
+  reasons; readers (API, MCP, parity gate) decide which tier they want.
 - **Provider alert reconciliation is comparison-only** —
   `SecurityAlertReconciliationHandler` writes
   `reducer_security_alert_reconciliation` facts from

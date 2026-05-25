@@ -66,6 +66,12 @@ func supplyChainTools() []ToolDefinition {
 						"description": "Optional reducer impact status filter.",
 						"enum":        []string{"affected_exact", "affected_derived", "possibly_affected", "not_affected_known_fixed", "unknown_impact"},
 					},
+					"profile": map[string]any{
+						"type":        "string",
+						"description": "Detection profile filter. precise (default) returns only findings backed by an exact installed-version anchor; comprehensive also returns range-only, SBOM/CPE-derived, malformed, unsupported-ecosystem, and missing-version rows.",
+						"enum":        []string{"precise", "comprehensive"},
+						"default":     "precise",
+					},
 					"after_finding_id": map[string]any{
 						"type":        "string",
 						"description": "Finding ID from next_cursor when continuing a truncated page.",

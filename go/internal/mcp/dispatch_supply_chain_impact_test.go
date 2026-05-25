@@ -16,6 +16,7 @@ func TestResolveRouteMapsSupplyChainImpactFindingsToBoundedQuery(t *testing.T) {
 		"after_finding_id": "finding-1",
 		"cve_id":           "CVE-2026-0001",
 		"impact_status":    "affected_exact",
+		"profile":          "comprehensive",
 		"limit":            float64(25),
 	})
 	if err != nil {
@@ -35,6 +36,9 @@ func TestResolveRouteMapsSupplyChainImpactFindingsToBoundedQuery(t *testing.T) {
 	}
 	if got, want := route.query["limit"], "25"; got != want {
 		t.Fatalf("route.query[limit] = %#v, want %#v", got, want)
+	}
+	if got, want := route.query["profile"], "comprehensive"; got != want {
+		t.Fatalf("route.query[profile] = %#v, want %#v", got, want)
 	}
 }
 

@@ -60,6 +60,7 @@ const openAPIPathsSupplyChain = `
           {"name": "repository_id", "in": "query", "schema": {"type": "string"}},
           {"name": "subject_digest", "in": "query", "schema": {"type": "string"}},
           {"name": "impact_status", "in": "query", "schema": {"type": "string", "enum": ["affected_exact", "affected_derived", "possibly_affected", "not_affected_known_fixed", "unknown_impact"]}},
+          {"name": "profile", "in": "query", "schema": {"type": "string", "enum": ["precise", "comprehensive"], "default": "precise"}, "description": "Detection profile selector. precise (default) returns only findings backed by exact installed-version anchors. comprehensive also returns range-only manifest, SBOM/CPE-derived, malformed range, unsupported ecosystem, and missing-version rows. Each row keeps its truth labels (impact_status, confidence, runtime_reachability) and missing-evidence reasons."},
           {"name": "after_finding_id", "in": "query", "schema": {"type": "string"}},
           {"name": "limit", "in": "query", "required": true, "schema": {"type": "integer", "minimum": 1, "maximum": 200}}
         ],
@@ -85,6 +86,7 @@ const openAPIPathsSupplyChain = `
                           "requested_range": {"type": "string", "description": "Original manifest/requested dependency range preserved separately from the installed version."},
                           "fixed_version": {"type": "string", "description": "Source-selected fixed version when advisory evidence reports one."},
                           "match_reason": {"type": "string", "description": "Reducer reason for the version/range decision, including unsupported or malformed evidence states."},
+                          "detection_profile": {"type": "string", "enum": ["precise", "comprehensive"], "description": "Evidence tier the row meets. precise requires an exact installed-version anchor and ecosystem-aware match. comprehensive covers SBOM/CPE-derived, range-only, malformed, unsupported, or missing-version rows that still have an owned anchor."},
                           "impact_status": {"type": "string"},
                           "confidence": {"type": "string"},
                           "runtime_reachability": {"type": "string"},
@@ -151,6 +153,7 @@ const openAPIPathsSupplyChain = `
                     "limit": {"type": "integer"},
                     "truncated": {"type": "boolean"},
                     "next_cursor": {"type": "object"},
+                    "detection_profile": {"type": "string", "enum": ["precise", "comprehensive"], "description": "Echo of the detection profile the caller requested; precise is returned when no profile parameter was supplied."},
                     "readiness": {
                       "type": "object",
                       "description": "Bounded coverage metadata so zero findings can be distinguished from missing target collection or missing required evidence. readiness_unavailable means the readiness lookup itself failed; the findings page is still returned but coverage cannot be classified.",

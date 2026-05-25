@@ -105,6 +105,11 @@ Capabilities run over targets:
 - `supply_chain_impact`: determine affected, possibly affected, known-fixed,
   unknown, and missing-evidence states for vulnerability impact findings. This
   is the capability behind the current supply-chain impact API and MCP reads.
+  Findings are emitted with a `detection_profile` tag so callers can ask for
+  `precise` (default — exact installed-version anchor) or `comprehensive`
+  (also returns range-only, SBOM/CPE-derived, malformed, unsupported, and
+  missing-version rows) without mixing truth tiers. Comprehensive rows keep
+  their truth labels and missing-evidence reasons explicit.
 - `coverage_readiness`: explain which target families were collected,
   skipped, stale, unsupported, or incomplete.
 - `priority`: combine severity, exploitability, known exploitation, runtime

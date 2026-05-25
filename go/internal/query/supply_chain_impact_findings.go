@@ -17,15 +17,16 @@ type SupplyChainImpactFindingStore interface {
 }
 
 // SupplyChainImpactFindingFilter bounds impact reads to a concrete CVE,
-// package, repository, image digest, or status.
+// package, repository, image digest, status, or detection profile.
 type SupplyChainImpactFindingFilter struct {
-	CVEID          string
-	PackageID      string
-	RepositoryID   string
-	SubjectDigest  string
-	ImpactStatus   string
-	AfterFindingID string
-	Limit          int
+	CVEID            string
+	PackageID        string
+	RepositoryID     string
+	SubjectDigest    string
+	ImpactStatus     string
+	DetectionProfile string
+	AfterFindingID   string
+	Limit            int
 }
 
 // SupplyChainImpactFindingRow is one durable impact finding decoded from
@@ -63,6 +64,12 @@ type SupplyChainImpactFindingRow struct {
 	SourceFreshness     string
 	SourceConfidence    string
 	Provenance          *SupplyChainImpactProvenance
+	// DetectionProfile records which evidence tier produced the row:
+	// precise for exact installed-version anchors, comprehensive for
+	// range-only, SBOM-derived, CPE-derived, malformed,
+	// unsupported-ecosystem, or missing-version evidence. Older rows
+	// written before profile tagging may return blank.
+	DetectionProfile string
 }
 
 // SupplyChainImpactProvenance preserves per-source advisory provenance for one
@@ -151,6 +158,7 @@ func (s PostgresSupplyChainImpactFindingStore) ListSupplyChainImpactFindings(
 		filter.RepositoryID,
 		filter.SubjectDigest,
 		filter.ImpactStatus,
+		filter.DetectionProfile,
 		filter.AfterFindingID,
 		filter.Limit,
 	)
@@ -196,9 +204,32 @@ WHERE fact.fact_kind = $1
   AND ($4 = '' OR fact.payload->>'repository_id' = $4)
   AND ($5 = '' OR fact.payload->>'subject_digest' = $5)
   AND ($6 = '' OR fact.payload->>'impact_status' = $6)
-  AND ($7 = '' OR fact.fact_id > $7)
+  AND (
+        $7 = ''
+        OR fact.payload->>'detection_profile' = $7
+        OR (
+              $7 = 'comprehensive'
+              AND COALESCE(fact.payload->>'detection_profile', '') = ''
+           )
+        OR (
+              $7 = 'precise'
+              AND COALESCE(fact.payload->>'detection_profile', '') = ''
+              AND fact.payload->>'impact_status' IN (
+                    'affected_exact',
+                    'not_affected_known_fixed'
+                  )
+              AND COALESCE(fact.payload->>'observed_version', '') <> ''
+              AND fact.payload->>'match_reason' IN (
+                    'npm_semver_affected_range',
+                    'npm_semver_known_fixed',
+                    'maven_range_match',
+                    'maven_known_fixed'
+                  )
+           )
+      )
+  AND ($8 = '' OR fact.fact_id > $8)
 ORDER BY fact.fact_id ASC
-LIMIT $8
+LIMIT $9
 `
 
 func (f SupplyChainImpactFindingFilter) hasScope() bool {
@@ -215,7 +246,7 @@ func decodeSupplyChainImpactFindingRow(
 	if err := json.Unmarshal(payloadBytes, &payload); err != nil {
 		return SupplyChainImpactFindingRow{}, fmt.Errorf("decode supply chain impact finding: %w", err)
 	}
-	return SupplyChainImpactFindingRow{
+	row := SupplyChainImpactFindingRow{
 		FindingID:           factID,
 		CVEID:               StringVal(payload, "cve_id"),
 		AdvisoryID:          StringVal(payload, "advisory_id"),
@@ -248,7 +279,39 @@ func decodeSupplyChainImpactFindingRow(
 		SourceFreshness:     "active",
 		SourceConfidence:    sourceConfidence,
 		Provenance:          decodeSupplyChainImpactProvenance(payload),
-	}, nil
+		DetectionProfile:    StringVal(payload, "detection_profile"),
+	}
+	if row.DetectionProfile == "" {
+		row.DetectionProfile = inferLegacyDetectionProfile(row.ImpactStatus, row.ObservedVersion, row.MatchReason)
+	}
+	return row, nil
+}
+
+// inferLegacyDetectionProfile classifies pre-profile findings (written
+// before the reducer tagged detection_profile) using the same rule the
+// reducer applies live. Rolling-upgrade scenarios — query service updated
+// before the reducer reruns — would otherwise return zero precise rows
+// for findings whose payload qualifies. Range-only, derived,
+// product-only, malformed, unsupported, and missing-version rows still
+// land in comprehensive.
+func inferLegacyDetectionProfile(impactStatus string, observedVersion string, matchReason string) string {
+	switch impactStatus {
+	case "affected_exact", "not_affected_known_fixed":
+	default:
+		return SupplyChainImpactProfileComprehensive
+	}
+	if strings.TrimSpace(observedVersion) == "" {
+		return SupplyChainImpactProfileComprehensive
+	}
+	switch matchReason {
+	case "npm_semver_affected_range",
+		"npm_semver_known_fixed",
+		"maven_range_match",
+		"maven_known_fixed":
+		return SupplyChainImpactProfilePrecise
+	default:
+		return SupplyChainImpactProfileComprehensive
+	}
 }
 
 func decodeSupplyChainImpactProvenance(payload map[string]any) *SupplyChainImpactProvenance {
