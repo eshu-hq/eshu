@@ -148,7 +148,7 @@ or spans beyond the startup/connection events.
   `newMCPQueryRouter` always sets them to the Postgres-backed adapters
   (`wiring.go:146`).
 - `CICDHandler.Correlations`, `SupplyChainHandler.SBOMAttachments`,
-  `SupplyChainHandler.ImpactFindings`,
+  `SupplyChainHandler.AdvisoryEvidence`, `SupplyChainHandler.ImpactFindings`,
   `SupplyChainHandler.ImpactExplanations`, and
   `SupplyChainHandler.SecurityAlerts` must be non-nil because MCP exposes read
   tools for those routes.

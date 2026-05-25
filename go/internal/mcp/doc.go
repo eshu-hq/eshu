@@ -15,9 +15,10 @@
 // tools_call_graph_metrics.go, and tools_security.go.
 // Package-registry and supply-chain tools follow the same rule and keep their
 // route builders in dedicated dispatch files, so bounded package, version,
-// dependency, correlation, vulnerability finding, explanation, SBOM, and
-// attestation attachment requests stay thin; supply-chain schemas preserve
-// ambiguous-subject outcomes instead of hiding non-canonical evidence.
+// dependency, correlation, source-only advisory evidence, vulnerability
+// finding, explanation, SBOM, and attestation attachment requests stay thin;
+// supply-chain schemas preserve ambiguous-subject outcomes instead of hiding
+// non-canonical evidence.
 // Any change that alters request or response shape must update
 // the MCP guide, the HTTP API reference where the route is shared, and the
 // handler tests in the same change.

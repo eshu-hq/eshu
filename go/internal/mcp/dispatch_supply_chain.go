@@ -26,6 +26,17 @@ func supplyChainImpactFindingsRoute(args map[string]any) *route {
 	}}
 }
 
+func advisoryEvidenceRoute(args map[string]any) *route {
+	return &route{method: "GET", path: "/api/v0/supply-chain/advisories/evidence", query: map[string]string{
+		"advisory_id":        str(args, "advisory_id"),
+		"after_advisory_key": str(args, "after_advisory_key"),
+		"cve_id":             str(args, "cve_id"),
+		"limit":              strconv.Itoa(intOr(args, "limit", 50)),
+		"package_id":         str(args, "package_id"),
+		"source":             str(args, "source"),
+	}}
+}
+
 func supplyChainImpactExplanationRoute(args map[string]any) *route {
 	return &route{method: "GET", path: "/api/v0/supply-chain/impact/explain", query: map[string]string{
 		"advisory_id":    str(args, "advisory_id"),

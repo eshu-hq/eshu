@@ -559,6 +559,15 @@ MCP `list_supply_chain_impact_findings` tool carries:
 `advisory_sources[]` (with `source`, `advisory_id`, `source_updated_at`, and
 `withdrawn_at`). Raw advisory bodies are not returned.
 
+Source-only advisory evidence is exposed separately through
+`GET /api/v0/supply-chain/advisories/evidence` and the MCP
+`list_advisory_evidence` tool. That route groups active GHSA, CVE/NVD, OSV,
+GitLab Advisory Database, FIRST EPSS, CISA KEV, CWE, affected-package,
+affected-product/CPE, range, fixed-version, withdrawn, reference, and
+source-disagreement evidence under one canonical advisory identity without
+publishing a supply-chain impact finding or implying repository, image,
+workload, deployment, or reachability impact.
+
 `GET /api/v0/supply-chain/impact/explain` and the MCP
 `explain_supply_chain_impact` tool use the same reducer-owned finding facts
 but return one explanation at a time. Callers must provide `finding_id` or an

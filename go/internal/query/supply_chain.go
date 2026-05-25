@@ -32,6 +32,7 @@ const (
 // SupplyChainHandler exposes reducer-owned supply-chain read models.
 type SupplyChainHandler struct {
 	SBOMAttachments          SBOMAttestationAttachmentStore
+	AdvisoryEvidence         AdvisoryEvidenceStore
 	ImpactFindings           SupplyChainImpactFindingStore
 	ImpactExplanations       SupplyChainImpactExplanationStore
 	ContainerImageIdentities ContainerImageIdentityStore
@@ -134,6 +135,7 @@ type ContainerImageIdentityResult struct {
 // Mount registers supply-chain query routes.
 func (h *SupplyChainHandler) Mount(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/v0/supply-chain/sbom-attestations/attachments", h.listSBOMAttachments)
+	mux.HandleFunc("GET /api/v0/supply-chain/advisories/evidence", h.listAdvisoryEvidence)
 	mux.HandleFunc("GET /api/v0/supply-chain/impact/findings", h.listImpactFindings)
 	mux.HandleFunc("GET /api/v0/supply-chain/impact/explain", h.explainImpact)
 	mux.HandleFunc("GET /api/v0/supply-chain/container-images/identities", h.listContainerImageIdentities)

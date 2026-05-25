@@ -117,7 +117,7 @@ flowchart LR
 
 ## Chunk 4: Advisory And Package Matching
 
-- [ ] Normalize CVE, GHSA, OSV, package ecosystem, affected range, fixed version,
+- [x] Normalize CVE, GHSA, OSV, package ecosystem, affected range, fixed version,
   CVSS, EPSS, KEV, CWE, and withdrawn metadata into source facts.
 - [x] Track package identity normalization in
   [#602](https://github.com/eshu-hq/eshu/issues/602): npm, PyPI, Go, Maven,
@@ -152,6 +152,13 @@ flowchart LR
   using documented per-ecosystem source priority, keep alternate severities
   and per-source fixed-version branches, surface withdrawal timestamps, and
   expose the provenance block through the supply-chain impact API and MCP.
+- [x] Expose source-only advisory evidence without implying impact (#589):
+  `GET /api/v0/supply-chain/advisories/evidence` and MCP
+  `list_advisory_evidence` group active GHSA/CVE/NVD, OSV, GLAD, EPSS, KEV,
+  CWE, reference, affected package range/fixed-version, affected product/CPE,
+  withdrawn, and source-disagreement evidence under a canonical advisory
+  identity. The route requires a CVE, advisory, or package anchor plus `limit`
+  and does not publish reducer impact truth.
 
 Status 2026-05-24: `GitLabAdvisoryEnvelopes` plus `ParseGitLabAffectedRange`
 land in `go/internal/collector/vulnerabilityintelligence` as a pure parser

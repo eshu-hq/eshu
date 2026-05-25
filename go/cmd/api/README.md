@@ -51,7 +51,9 @@ and the graph driver on normal shutdown.
 driver via `openQueryGraph` (skipped when `ESHU_QUERY_PROFILE=local_lightweight`),
 opens and pings Postgres, then calls `newRouter` to build the `query.APIRouter`
 with all handler structs wired to the concrete `query.Neo4jReader` and
-`query.ContentReader` adapters.
+`query.ContentReader` adapters. The supply-chain handler also wires
+`AdvisoryEvidence` to `query.NewPostgresAdvisoryEvidenceStore` so source-only
+advisory evidence is available through the API without requiring graph access.
 
 `mountRuntimeSurface` calls `internalruntime.NewStatusAdminMux` to compose
 `/healthz`, `/readyz`, `/admin/status`, and `/metrics` alongside the API routes.
