@@ -435,6 +435,30 @@ the bounded readiness read. Source-cache state is observable through
 `vulnerability.source_snapshot` payload fields and the `source_snapshots[]`
 readiness metadata.
 
+## Repository Dependency Coverage
+
+Vulnerability impact requires repository dependency evidence. The full coverage
+matrix of which package-manager manifests and lockfiles produce
+`content_entity` dependency facts today, which are still gaps, and the
+safety rule that missing evidence is neither safe nor affected, lives in
+[Dependency And Lockfile Coverage](dependency-coverage.md). That page is
+generated from `go/internal/parser/json/dependency_coverage.go`; the matrix
+test guards stop a parser change from drifting away from the documented
+contract.
+
+For the supply-chain impact reducer, the practical implications are:
+
+- npm `package.json` and `package-lock.json`, plus PHP Composer
+  `composer.json`, produce repository consumption decisions when joined to
+  package-registry identity.
+- Maven, Go, PyPI, NuGet, Ruby, Rust, Gradle, and Yarn/pnpm sources have no
+  repository-side dependency parser yet, so their impact reads must surface
+  the missing-evidence reason instead of returning `ready_zero_findings`.
+- When a parser graduates a file from gap to covered, the matrix MUST be
+  updated in the same PR, the covered-fixture guard MUST grow a row, and a
+  reducer test MUST prove the new evidence path can produce a consumption
+  decision.
+
 ## Advisory Source Coverage
 
 Eshu collects advisory source truth from OSV, FIRST EPSS, CISA KEV, NVD CVE
