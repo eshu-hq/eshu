@@ -108,12 +108,33 @@ flowchart LR
   anchors, package identity, state, freshness, and provenance.
 - [ ] Keep provider alerts separate from Eshu impact findings until reducer
   matching admits owned evidence.
-- [ ] Build a private validation command or script that compares aggregate
+- [x] Build a private validation command or script that compares aggregate
   provider alert counts to Eshu findings without writing private data to the
   repo.
-- [ ] Classify mismatches as target collection, advisory ingestion, version
+- [x] Classify mismatches as target collection, advisory ingestion, version
   matching, unsupported ecosystem, provider-only behavior, or reducer bug.
-- [ ] Add fixtures using synthetic provider-alert payloads only.
+- [x] Add fixtures using synthetic provider-alert payloads only.
+
+Status 2026-05-25: `eshu vuln-scan provider-parity` reads an
+operator-local allowlist, reads a local generic provider alert summary file or
+fetches GitHub Dependabot alert summaries with a token from a local environment
+variable, maps alerts into `vulnerabilityparity.ProviderAlert`, and compares
+them to repository-scoped Eshu supply-chain impact findings from the API. The
+rendered result is aggregate-only: class counts, nonzero mismatch classes,
+repository count, provider alert count, Eshu finding count, truncation, and
+privacy metadata. It does not render repository names, repository ids, package
+names, package ids, advisory ids, CVE ids, alert URLs, tokens, provider
+payloads, or Eshu finding rows.
+
+No-Regression Evidence:
+`go test ./internal/vulnerabilityparity ./internal/vulnerabilityparityproof ./cmd/eshu -run 'TestClassifyReducerBugCandidateWhenProviderAndEvidenceArePresent|TestClassifyProviderOnly|TestFixtureManifestLoads|TestCompareProviderParityAggregatesWithoutSensitiveRows|TestCompareProviderParitySanitizesSourceErrors|TestDecodeGitHubDependabotAlertsMapsGenericProviderAlerts|TestVulnScanProviderParityCommandIsRegisteredWithPrivateSafeFlags|TestRunVulnScanProviderParityOutputsAggregateOnlyJSON' -count=1`
+passed on the focused synthetic parity and CLI proof cases.
+
+No-Observability-Change: the provider parity proof adds an operator-local CLI
+reader and a pure aggregate comparison helper. It adds no hosted runtime,
+collector, reducer lane, queue, graph write, metric instrument, span, or log
+key. The Eshu findings read continues through the existing
+`/api/v0/supply-chain/impact/findings` API path and its current API telemetry.
 
 ## Chunk 4: Advisory And Package Matching
 
