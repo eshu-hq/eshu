@@ -6,23 +6,30 @@ import (
 	"net/url"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/spf13/cobra"
 )
 
 const vulnScanImpactFindingsEndpoint = "/api/v0/supply-chain/impact/findings"
 
+// vulnScanNow is overridable so tests can pin wall-clock time without racing
+// the live scanner clock. Production callers use time.Now.
+var vulnScanNow = time.Now
+
 type vulnScanRepoOptions struct {
 	Scan         scanOptions
 	Limit        int
 	ImpactStatus string
 	RepoID       string
+	Broad        bool
 }
 
 type vulnScanRepoResult struct {
 	Command        string               `json:"command"`
 	Status         string               `json:"status"`
 	ReadinessState string               `json:"readiness_state"`
+	ScopeMode      string               `json:"scope_mode"`
 	Target         scanTarget           `json:"target"`
 	RepositoryID   string               `json:"repository_id,omitempty"`
 	Scan           scanResult           `json:"scan"`
@@ -32,6 +39,8 @@ type vulnScanRepoResult struct {
 	Truncated      bool                 `json:"truncated"`
 	NextCursor     map[string]any       `json:"next_cursor,omitempty"`
 	Readiness      map[string]any       `json:"readiness,omitempty"`
+	ScopePlan      *vulnScanScopePlan   `json:"scope_plan,omitempty"`
+	Performance    *vulnScanPerformance `json:"scan_performance,omitempty"`
 	Warnings       []string             `json:"warnings,omitempty"`
 	Evidence       vulnScanRepoEvidence `json:"evidence"`
 }
@@ -88,9 +97,15 @@ func addVulnScanRepoFlags(cmd *cobra.Command) {
 	cmd.Flags().Int("limit", 50, "Maximum vulnerability impact findings to return")
 	cmd.Flags().String("impact-status", "", "Filter impact findings by reducer-owned impact status")
 	cmd.Flags().String("repo-id", "", "Exact repository id to query after local scan readiness")
+	cmd.Flags().Bool(
+		"broad",
+		false,
+		"Skip the scoped fail-closed guards and accept advisory/package coverage beyond observed dependencies",
+	)
 }
 
 func runVulnScanRepo(cmd *cobra.Command, args []string) error {
+	startedAt := vulnScanNow()
 	opts, err := vulnScanRepoOptionsFromCommand(cmd, args)
 	if err != nil {
 		return err
@@ -123,10 +138,12 @@ func runVulnScanRepo(cmd *cobra.Command, args []string) error {
 	result.Warnings = append(result.Warnings, scanResult.Warnings...)
 	if err != nil {
 		result.ReadinessState = "target_incomplete"
+		recordVulnScanPerformance(&result, startedAt, opts.Scan.Target.Root)
 		return finishVulnScanRepoAfterCleanup(cmd, opts, result, scanResult.Truth, err, closeLocalRuntime)
 	}
 	if scanResult.Status != "ready" {
 		result.ReadinessState = "target_incomplete"
+		recordVulnScanPerformance(&result, startedAt, opts.Scan.Target.Root)
 		err := commandExitError{message: "vulnerability scan target is not ready; rerun with --wait=true before reading findings", code: 4}
 		return finishVulnScanRepoAfterCleanup(cmd, opts, result, scanResult.Truth, err, closeLocalRuntime)
 	}
@@ -134,6 +151,7 @@ func runVulnScanRepo(cmd *cobra.Command, args []string) error {
 	repositoryID, err := resolveVulnScanRepoID(cmd, client, opts)
 	if err != nil {
 		result.ReadinessState = "evidence_incomplete"
+		recordVulnScanPerformance(&result, startedAt, opts.Scan.Target.Root)
 		return finishVulnScanRepoAfterCleanup(cmd, opts, result, scanResult.Truth, err, closeLocalRuntime)
 	}
 	result.RepositoryID = repositoryID
@@ -141,10 +159,12 @@ func runVulnScanRepo(cmd *cobra.Command, args []string) error {
 	findings, err := fetchVulnScanRepoImpactFindings(client, repositoryID, opts)
 	if err != nil {
 		result.ReadinessState = "evidence_incomplete"
+		recordVulnScanPerformance(&result, startedAt, opts.Scan.Target.Root)
 		return finishVulnScanRepoAfterCleanup(cmd, opts, result, scanResult.Truth, err, closeLocalRuntime)
 	}
 	if findings.Error != nil {
 		result.ReadinessState = "evidence_incomplete"
+		recordVulnScanPerformance(&result, startedAt, opts.Scan.Target.Root)
 		err := commandExitError{message: findings.Error.Message, code: 4}
 		return finishVulnScanRepoAfterCleanup(cmd, opts, result, findings.Truth, err, closeLocalRuntime)
 	}
@@ -155,7 +175,59 @@ func runVulnScanRepo(cmd *cobra.Command, args []string) error {
 	result.NextCursor = findings.Data.NextCursor
 	result.Readiness = findings.Data.Readiness
 	result.ReadinessState = vulnScanReadinessState(findings.Data.Readiness, result.Count)
-	return finishVulnScanRepoAfterCleanup(cmd, opts, result, findings.Truth, nil, closeLocalRuntime)
+
+	scopeErr := applyVulnScanScope(&result)
+	recordVulnScanPerformance(&result, startedAt, opts.Scan.Target.Root)
+	return finishVulnScanRepoAfterCleanup(cmd, opts, result, findings.Truth, scopeErr, closeLocalRuntime)
+}
+
+// applyVulnScanScope builds the scope plan from the readiness envelope, runs
+// the scoped fail-closed guards when scope mode is scoped, and surfaces the
+// broad-mode note when the operator opted into wider coverage. It returns the
+// fail-closed error (nil when scoped guards pass or in broad mode) so the
+// caller can short-circuit the success path while still emitting the JSON
+// envelope with the scope plan attached.
+func applyVulnScanScope(result *vulnScanRepoResult) error {
+	plan := buildVulnScanScopePlan(result.ScopeMode, result.Readiness)
+	state, missing, failErr := applyScopedGuards(&plan, result.ReadinessState)
+	if plan.StopThreshold == "" {
+		plan.StopThreshold = state
+	}
+	result.ScopePlan = &plan
+
+	if plan.Mode == vulnScanScopeModeBroad {
+		result.Warnings = append(result.Warnings,
+			"broad mode skipped scoped fail-closed guards; advisory and package coverage may exceed observed dependencies",
+		)
+		return nil
+	}
+	if failErr == nil {
+		return nil
+	}
+	result.ReadinessState = state
+	if len(missing) > 0 {
+		result.Warnings = append(result.Warnings,
+			fmt.Sprintf("scoped fail-closed: %s", strings.Join(missing, ", ")),
+		)
+	}
+	return failErr
+}
+
+// recordVulnScanPerformance stamps the scan_performance block onto the result
+// at the very end of the run so wall-time covers the full orchestrated flow
+// (bootstrap, readiness wait, findings read, scope guards) rather than a
+// single stage. The function is safe to call multiple times — the most recent
+// call wins.
+func recordVulnScanPerformance(result *vulnScanRepoResult, startedAt time.Time, repoRoot string) {
+	plan := vulnScanScopePlan{Mode: result.ScopeMode, StopThreshold: result.ReadinessState}
+	if result.ScopePlan != nil {
+		plan = *result.ScopePlan
+		if plan.StopThreshold == "" {
+			plan.StopThreshold = result.ReadinessState
+		}
+	}
+	perf := captureVulnScanPerformance(startedAt, vulnScanNow(), plan, repoRoot)
+	result.Performance = &perf
 }
 
 func vulnScanRepoOptionsFromCommand(cmd *cobra.Command, args []string) (vulnScanRepoOptions, error) {
@@ -181,11 +253,16 @@ func vulnScanRepoOptionsFromCommand(cmd *cobra.Command, args []string) (vulnScan
 	if err != nil {
 		return vulnScanRepoOptions{}, err
 	}
+	broad, err := cmd.Flags().GetBool("broad")
+	if err != nil {
+		return vulnScanRepoOptions{}, err
+	}
 	return vulnScanRepoOptions{
 		Scan:         scanOpts,
 		Limit:        limit,
 		ImpactStatus: strings.TrimSpace(impactStatus),
 		RepoID:       strings.TrimSpace(repoID),
+		Broad:        broad,
 	}, nil
 }
 
@@ -194,6 +271,7 @@ func newVulnScanRepoResult(opts vulnScanRepoOptions, serviceURL string) vulnScan
 		Command:        "vuln-scan repo",
 		Status:         "failed",
 		ReadinessState: "target_incomplete",
+		ScopeMode:      resolveScopeMode(opts.Broad),
 		Target:         opts.Scan.Target,
 		Findings:       []map[string]any{},
 		Limit:          opts.Limit,
@@ -316,7 +394,11 @@ func vulnScanHasConfiguredServiceURL(cmd *cobra.Command) bool {
 }
 
 func renderVulnScanRepoSummary(w io.Writer, result vulnScanRepoResult) error {
-	if _, err := fmt.Fprintf(w, "Vulnerability scan: %s\n", result.ReadinessState); err != nil {
+	mode := result.ScopeMode
+	if mode == "" {
+		mode = vulnScanScopeModeScoped
+	}
+	if _, err := fmt.Fprintf(w, "Vulnerability scan (%s): %s\n", mode, result.ReadinessState); err != nil {
 		return err
 	}
 	if _, err := fmt.Fprintf(w, "Repository: %s\n", result.RepositoryID); err != nil {
@@ -330,6 +412,33 @@ func renderVulnScanRepoSummary(w io.Writer, result vulnScanRepoResult) error {
 			return err
 		}
 	}
-	_, err := fmt.Fprintln(w)
-	return err
+	if _, err := fmt.Fprintln(w); err != nil {
+		return err
+	}
+	if plan := result.ScopePlan; plan != nil {
+		if _, err := fmt.Fprintf(
+			w,
+			"Scope: observed_dependency_facts=%d advisory_facts=%d package_registry_facts=%d freshness=%s\n",
+			plan.ObservedDependencyFacts, plan.AdvisoryFacts, plan.PackageRegistryFacts, defaultString(plan.Freshness, "unknown"),
+		); err != nil {
+			return err
+		}
+	}
+	if perf := result.Performance; perf != nil {
+		if _, err := fmt.Fprintf(
+			w,
+			"Performance: wall_time_ms=%d repo_files=%d repo_bytes=%d stop=%s\n",
+			perf.WallTimeMS, perf.RepositoryFileCount, perf.RepositorySizeBytes, perf.StopThreshold,
+		); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func defaultString(value, fallback string) string {
+	if strings.TrimSpace(value) == "" {
+		return fallback
+	}
+	return value
 }

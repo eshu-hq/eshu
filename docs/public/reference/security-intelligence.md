@@ -830,6 +830,91 @@ cache freshness and fixture-backed vulnerable/ready-zero runtime proof remain
 implementation gates before this is a complete standalone vulnerability scan
 workflow.
 
+The command runs in scoped mode by default. The CLI derives its scope plan
+from the readiness envelope of `GET /api/v0/supply-chain/impact/findings` for
+the scanned repository. Scoped mode adds one CLI-side fail-closed guard on
+top of the server's classification: when the envelope's aggregate
+`freshness` is `stale` and the server still returned a `ready_*` state,
+scoped mode downgrades to `evidence_incomplete` and records
+`advisory_cache_stale` so the operator never gets a clean answer backed by
+stale source data. Per-source entries in `readiness.source_snapshots[]` are
+surfaced in `scope_plan.source_snapshots` for operator visibility only,
+because the readiness store currently aggregates source snapshots globally
+(see the `vulnerability_source_snapshot` CTE in
+`go/internal/query/supply_chain_impact_readiness_postgres.go`) rather than
+filtering by the requested scope; gating scoped fail-closed on those entries
+would let an unrelated stale ecosystem (for example a PyPI snapshot) flip an
+otherwise-ready npm-only repo scan.
+
+The scope plan exposes:
+
+- `observed_dependency_facts` — `evidence_sources[package.consumption].fact_count`
+- `advisory_facts` — `evidence_sources[vulnerability.advisory].fact_count`
+- `package_registry_facts` — `evidence_sources[package.registry].fact_count`;
+  the readiness store only emits this count when the request anchors on a
+  specific `package_id`, so `vuln-scan repo` (which anchors on
+  `repository_id`) reports `0` here.
+- `freshness` — `readiness.freshness` (worst-of per-family aggregate).
+- `stop_threshold` — the readiness state the CLI returned to the operator
+  (server verdict, or the scoped downgrade when applicable).
+- `source_snapshots` — diagnostic-only per-source cache state from the
+  readiness envelope (not gated on).
+
+The `*_facts` fields are counts of source facts as reported by
+`evidence_sources[].fact_count`, not counts of unique packages or advisory
+sources. A single dependency or advisory observation can contribute multiple
+facts.
+
+Operators who explicitly want broader advisory or package coverage can pass
+`--broad`. In broad mode the CLI surfaces `data.scope_mode = "broad"`, sets
+`data.scope_plan.mode = "broad"`, records a warning that scoped fail-closed
+guards were skipped, and returns the server's readiness verdict unchanged.
+Broad mode never converts a stale cache into a clean answer: the envelope
+freshness and source-snapshot diagnostics stay visible in the JSON envelope
+and the terminal summary still prints `Scope: ... freshness=stale`.
+
+Local performance evidence is attached as `data.scan_performance` on every
+run: `started_at`, `completed_at`, `wall_time_ms`, `repository_size_bytes`,
+`repository_file_count`, `observed_dependency_facts`, `advisory_facts`,
+`package_registry_facts`, `cache_freshness`, `scope_mode`, and
+`stop_threshold`. Operators can compare scoped and broad runs of the same
+repository to see how much advisory coverage the scoped guard trimmed and
+where the scan stopped.
+
+No-Regression Evidence: `go test ./cmd/eshu -run
+'TestVulnScanRepoCommandRegistersBroadFlag|TestRunVulnScanRepoDefaultScopedModeAttachesScopePlanAndPerformance|TestRunVulnScanRepoScopedModeFailsClosedOnStaleAdvisoryCache|TestRunVulnScanRepoScopedModeIgnoresGlobalStaleSnapshotsWhenEnvelopeFresh|TestRunVulnScanRepoScopedModePassesThroughServerTargetIncomplete|TestRunVulnScanRepoBroadModeSkipsScopeGuards|TestRunVulnScanRepoScopedModeSurfacesEvidenceIncompleteWhenNoOwnedDeps'
+-count=1` proves the `--broad` flag registration, default scoped scope-plan
+and scan-performance attachment with `package_registry_facts == 0` for a
+repo-only scope, the envelope-freshness fail-closed guard, the
+no-regression that an unrelated globally-stale source snapshot does not
+flip a fresh repo-only scan, server `target_incomplete` pass-through,
+broad-mode pass-through with the scoped guard explicitly skipped, and
+scoped pass-through when the server already classifies the response as
+`evidence_incomplete`. The full `go test ./cmd/eshu -count=1` suite
+continues to pass with the updated findings-stub responses that mirror the
+production readiness envelope.
+
+No-Observability-Change: the scope plan, performance block, and
+`--broad` flag are CLI-only orchestration over the existing
+`/api/v0/supply-chain/impact/findings` readiness envelope and the existing
+`query.supply_chain_impact_findings` span. No new HTTP route, MCP tool,
+metric instrument, span, queue, reducer lane, graph write, or scanner worker
+is introduced.
+
+Performance Evidence: the focused CLI tests above run under 0.5s on Go
+1.26.3 darwin/arm64 with the local authoritative-owner stubs and synthetic
+readiness envelopes (`package.consumption.fact_count=4`,
+`vulnerability.advisory.fact_count=120`, one fresh `osv/npm` source
+snapshot). The scoped fail-closed path is exercised against an envelope
+whose aggregate `freshness=stale`; the CLI downgrades to
+`evidence_incomplete`, records `advisory_cache_stale` in
+`scope_plan.missing_evidence`, and exits non-zero. Repository size, file
+count, and wall-clock time on the live `eshu vuln-scan repo` workflow are
+exposed through `data.scan_performance` for operators to record
+per-environment ceilings; the focused tests pin wall-time only as a
+non-negative integer because the stubbed scan clock advances one second per
+call.
+
 ## Acceptance Gates
 
 Security intelligence work is ready only when all applicable gates pass:

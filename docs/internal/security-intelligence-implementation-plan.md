@@ -265,7 +265,7 @@ failure class.
 - [x] Reuse existing local workspace/root resolution.
 - [x] Add local service attach or startup behavior when no API is already
   available.
-- [ ] Collect only the selected repository scope and fetch advisory/package
+- [x] Collect only the selected repository scope and fetch advisory/package
   evidence needed by observed owned packages unless a broader option is set.
 - [x] Emit JSON and terminal summaries from the same finding/readiness envelope
   used by API and MCP.
@@ -282,6 +282,55 @@ to `eshu-bootstrap-index`, runs the existing local scan readiness contract,
 resolves the scanned repository id, fetches bounded repository-scoped
 supply-chain impact findings, emits JSON and terminal summaries, and fails
 closed when target readiness is incomplete.
+
+Status 2026-05-25: scoped target derivation and an explicit `--broad`
+override are wired into the CLI. The default scoped mode derives
+observed-dependency facts, advisory facts, package-registry facts,
+source-snapshot diagnostics, envelope-aggregate freshness, and a stop
+threshold from the readiness envelope returned by
+`/api/v0/supply-chain/impact/findings`, and surfaces them as
+`data.scope_plan`. The CLI applies one additional fail-closed guard on top
+of the server's classification: when the envelope's aggregate `freshness`
+is `stale` and the server still returned a `ready_*` state, scoped mode
+downgrades to `evidence_incomplete` and records `advisory_cache_stale`.
+Per-source entries in `readiness.source_snapshots[]` are surfaced for
+operator visibility only, because the readiness store currently aggregates
+those entries globally (see the `vulnerability_source_snapshot` CTE in
+`go/internal/query/supply_chain_impact_readiness_postgres.go`) rather than
+filtering by the requested scope. Field names (`observed_dependency_facts`,
+`advisory_facts`, `package_registry_facts`) reflect the
+`evidence_sources[].fact_count` semantics — counts of source facts, not
+unique packages or advisory sources. `package_registry_facts` is typically
+`0` for `vuln-scan repo` because the readiness store only counts registry
+metadata when the request anchors on a specific `package_id`. `--broad`
+skips the scoped guard, sets `data.scope_mode = "broad"`, attaches a
+warning that the wider mode skipped the scoped checks, and returns the
+server's verdict unchanged. `data.scan_performance` records started_at,
+completed_at, wall_time_ms, repository_size_bytes, repository_file_count,
+observed_dependency_facts, advisory_facts, package_registry_facts,
+cache_freshness, scope_mode, and stop_threshold on every run.
+
+No-Regression Evidence: `go test ./cmd/eshu -run
+'TestVulnScanRepoCommandRegistersBroadFlag|TestRunVulnScanRepoDefaultScopedModeAttachesScopePlanAndPerformance|TestRunVulnScanRepoScopedModeFailsClosedOnStaleAdvisoryCache|TestRunVulnScanRepoScopedModeIgnoresGlobalStaleSnapshotsWhenEnvelopeFresh|TestRunVulnScanRepoScopedModePassesThroughServerTargetIncomplete|TestRunVulnScanRepoBroadModeSkipsScopeGuards|TestRunVulnScanRepoScopedModeSurfacesEvidenceIncompleteWhenNoOwnedDeps'
+-count=1` covers the contract: --broad flag registration, scoped scope
+plan and performance attachment with `package_registry_facts == 0` for the
+repo-only scope, envelope-freshness fail-closed when the server returned
+ready_*, the no-regression that an unrelated globally-stale source
+snapshot does not flip a fresh repo-only scan, server `target_incomplete`
+pass-through, broad-mode pass-through with the explicit skipped-guard
+warning, and pass-through when the server already classifies the response
+as `evidence_incomplete`. The surrounding `go test ./cmd/eshu -count=1`
+suite continues to pass after the findings-stub responses in existing
+tests were updated to include the production readiness envelope shape.
+
+Performance Evidence: the focused tests above run under 0.5s on Go 1.26.3
+darwin/arm64 with the local authoritative-owner stubs and synthetic
+readiness envelopes. The scope plan and `data.scan_performance` are computed
+without additional HTTP, queue, or graph work; the only added measurement is
+a bounded `filepath.WalkDir` over the scanned repository root to record
+`repository_size_bytes` and `repository_file_count`, with read errors
+treated as missing footprint rather than fatal so a transient filesystem
+issue cannot block the report.
 
 No-Regression Evidence: `go test ./cmd/eshu -run 'Test(PrepareVulnScanLocalRuntime(AttachesExistingAuthoritativeOwner|StartsOwnerWhenMissing)|RunVulnScanRepo(StartsLocalRuntimeWhenServiceURLUnconfigured|UsesConfiguredServiceURLWithoutLocalRuntime|IndexesResolvesRepoAndListsImpactFindings|ReportsReadyZeroFindings|FailsClosedWhenScanIsNotReady)|EvaluateScanReadiness(TreatsActiveGenerationAsCurrentWhenDrained|WaitsForPendingGeneration))' -count=1`
 proved local owner attach, local owner startup, loopback API env wiring,
