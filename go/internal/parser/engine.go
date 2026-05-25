@@ -309,6 +309,10 @@ func (e *Engine) parseDefinition(
 		return e.parsePHP(resolvedPath, isDependency, options)
 	case "python":
 		return e.parsePython(repoRoot, resolvedPath, isDependency, options)
+	case "python_requirements":
+		return parsePythonRequirements(resolvedPath, isDependency)
+	case "python_toml":
+		return parsePythonTOML(resolvedPath, isDependency)
 	case "ruby":
 		return e.parseRuby(resolvedPath, isDependency, options)
 	case "rust":

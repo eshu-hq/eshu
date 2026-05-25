@@ -46,8 +46,8 @@ absence of evidence look like absence of risk. Guard tests:
   `TestDependencyCoverageCoveredFilesEmitDependencyRowsThroughEngine` in
   `go/internal/parser/dependency_coverage_engine_test.go` (which dispatches
   through the real parser engine and therefore exercises every adapter —
-  JSON, gomod, ruby, nuget_project, rust/cargo, etc.). JSON-owned entries
-  additionally carry per-package fixtures in
+  JSON, gomod, ruby, nuget_project, rust/cargo, pythondep, etc.).
+  JSON-owned entries additionally carry per-package fixtures in
   `TestDependencyCoverageCoveredJSONFilesEmitDependencyRows` in
   `go/internal/parser/json/dependency_coverage_test.go`.
 - **Status `gap`** means the file is not yet parsed into a dependency row;
@@ -78,11 +78,11 @@ absence of evidence look like absence of risk. Guard tests:
 | npm | yarn.lock | lockfile | gap | — | — | — | — | — | — | no parser registered in `go/internal/parser/registry.go` | Yarn classic and Berry lockfiles are not yet parsed. |
 | nuget | *.csproj | manifest | covered | ✓ | — | ✓ | ✓ | ✓ | — | `go/internal/parser/nuget_project_language.go` | PackageReference rows preserve requested versions, resolved MSBuild properties, unresolved-property partial evidence, and PrivateAssets dev/test signals. |
 | nuget | packages.lock.json | lockfile | covered | ✓ | ✓ | — | ✓ | — | ✓ | `go/internal/parser/json/nuget_lock.go` | NuGet lockfiles emit exact resolved versions and direct/transitive dependency paths when the lockfile proves them. |
-| pypi | Pipfile | manifest | gap | — | — | — | — | — | — | no TOML parser registered in `go/internal/parser/registry.go` | Pipenv manifest is not yet parsed. |
-| pypi | Pipfile.lock | lockfile | gap | — | — | — | — | — | — | `go/internal/parser/json/language.go` does not branch on Pipfile.lock | Pipenv lockfile is JSON but not yet branched into dependency rows. |
-| pypi | poetry.lock | lockfile | gap | — | — | — | — | — | — | no TOML parser registered in `go/internal/parser/registry.go` | Poetry lockfile is TOML and not yet parsed. |
-| pypi | pyproject.toml | manifest | gap | — | — | — | — | — | — | no TOML parser registered in `go/internal/parser/registry.go` | PEP 621 / Poetry / Hatch manifests are not yet parsed. |
-| pypi | requirements.txt | manifest | gap | — | — | — | — | — | — | no raw-text dependency parser branches on requirements\*.txt | pip-style requirement files are not yet parsed. |
+| pypi | Pipfile | manifest | covered | ✓ | — | ✓ | ✓ | ✓ | — | `go/internal/parser/pythondep/pipfile.go` | `[packages]` and `[dev-packages]` emit content_entity rows; inline `{git=…}`, `{path=…}`, `{url=…}` entries surface as `vcs_dependency`, `path_dependency`, or `url_dependency`. |
+| pypi | Pipfile.lock | lockfile | covered | ✓ | ✓ | — | ✓ | ✓ | — | `go/internal/parser/json/pipfile_lock.go` | `default` and `develop` sections emit exact-version rows (leading `==` stripped). Entries with `git`/`path`/`file` source keys surface as vcs/path/url provenance. |
+| pypi | poetry.lock | lockfile | covered | ✓ | ✓ | — | ✓ | ✓ | — | `go/internal/parser/pythondep/poetry_lock.go` | Each `[[package]]` array entry emits one exact-version row; attached `[package.source]` `type=git|directory|url` swaps the row to vcs/path/url so registry-version semantics are not invented. |
+| pypi | pyproject.toml | manifest | covered | ✓ | — | ✓ | ✓ | ✓ | — | `go/internal/parser/pythondep/pyproject.go` | PEP 621 `[project] dependencies`, `[project.optional-dependencies]`, `[tool.poetry.dependencies]`, `[tool.poetry.dev-dependencies]`, `[tool.poetry.group.*.dependencies]`, and `[tool.hatch.envs.*.dependencies]` all emit content_entity rows. VCS/path/url forms surface with non-`dependency` `config_kind`. |
+| pypi | requirements.txt | manifest | covered | ✓ | — | ✓ | ✓ | ✓ | — | `go/internal/parser/pythondep/requirements.go` | pip requirements files (`requirements.txt`, `requirements-*.txt`, `requirements_*.txt`) emit rows with extras, environment markers, and a `dev_dependency` flag derived from dev/test filename suffixes. VCS/path/URL/editable/malformed entries surface as separate `config_kind` values. |
 | rubygems | Gemfile | manifest | covered | ✓ | — | ✓ | ✓ | ✓ | — | `go/internal/parser/ruby/bundler_gemfile.go` | Literal `gem` declarations emit RubyGems rows with group scope and git/path source metadata; dynamic Ruby is skipped. |
 | rubygems | Gemfile.lock | lockfile | covered | ✓ | ✓ | — | ✓ | — | ✓ | `go/internal/parser/ruby/bundler_lockfile.go` | Bundler lockfiles emit exact versions and dependency chains only when `DEPENDENCIES` and `specs:` indentation prove them. |
 
@@ -129,44 +129,49 @@ absence of evidence look like absence of risk. Guard tests:
 
 ## Performance Evidence
 
-No-Regression Evidence: baseline coverage before the JVM, NuGet, and Go
-module slices was the existing in-memory npm, Composer, and RubyGems
-parser/reducer path; after the rebased change, `go test
-./internal/parser/json ./internal/parser ./internal/parser/gomod
-./internal/parser/maven ./internal/parser/gradle ./internal/reducer
--count=1` and `go test ./...` pass on Go 1.26.3 darwin/arm64. Input shape
-is fixture-only manifests and lockfiles (`package.json`,
-`package-lock.json`, `composer.json`, `composer.lock`, `Gemfile`,
-`Gemfile.lock`, `.csproj`, `packages.lock.json`, `go.mod`, `go.sum`,
-`pom.xml`, `build.gradle`, and `build.gradle.kts`). Terminal runtime
-counts stay bounded to parser dependency rows and reducer decisions
-asserted in tests: no queue rows, graph rows, or Postgres rows are
-written by these paths.
+No-Regression Evidence: baseline coverage before the PyPI, JVM, NuGet, and
+Go module slices was the existing in-memory npm, Composer, and RubyGems
+parser/reducer path; after this change, `go test ./internal/parser/json
+./internal/parser ./internal/parser/gomod ./internal/parser/maven
+./internal/parser/gradle ./internal/parser/pythondep ./internal/reducer
+-count=1` and `go test ./...` pass on Go 1.26 darwin/arm64. Input shape is
+fixture-only manifests and lockfiles (`package.json`, `package-lock.json`,
+`composer.json`, `composer.lock`, `Gemfile`, `Gemfile.lock`, `.csproj`,
+`packages.lock.json`, `go.mod`, `go.sum`, `pom.xml`, `build.gradle`,
+`build.gradle.kts`, `requirements.txt`, `pyproject.toml`, `Pipfile`,
+`Pipfile.lock`, and `poetry.lock`). Terminal runtime counts stay bounded to
+parser dependency rows and reducer decisions asserted in tests: no queue
+rows, graph rows, or Postgres rows are written by these paths.
 
 `go test ./internal/parser -run 'TestParseNuGetProject|TestDependencyCoverage' -count=1`
 proves PackageReference extraction, MSBuild property handling, malformed
 XML rejection, and the engine-level matrix gate (every covered entry —
-including pom.xml, build.gradle, and build.gradle.kts — parses through
-the real engine into dependency rows). `go test ./internal/parser/maven
--count=1` and `go test ./internal/parser/gradle -count=1` exercise the
-JVM parser fixtures in isolation; both packages allocate per-call only —
-no shared state, locks, or worker pools — so they add no concurrency
-surface to the ingest pipeline. `go test ./internal/parser/json -run
-'TestDependencyCoverage|TestParseComposerLock|TestParseComposerManifestAndLockfile|TestParseNuGet'
+including pom.xml, build.gradle, build.gradle.kts, and the PyPI
+requirements/pyproject/Pipfile/Pipfile.lock/poetry.lock fixtures — parses
+through the real engine into dependency rows). `go test
+./internal/parser/maven -count=1` and `go test ./internal/parser/gradle
+-count=1` exercise the JVM parser fixtures in isolation; both packages
+allocate per-call only — no shared state, locks, or worker pools — so
+they add no concurrency surface to the ingest pipeline. `go test
+./internal/parser/json -run
+'TestDependencyCoverage|TestParseComposerLock|TestParseComposerManifestAndLockfile|TestParseNuGet|TestParsePipfileLock'
 -count=1` runs the matrix invariants plus the covered/gap parser fixtures
-(npm, Composer, RubyGems, NuGet, Maven, and Gradle); it is a pure
-in-memory fixture path and adds no Cypher, queue, or storage work.
-`go test ./internal/parser/gomod -run '.' -count=1` covers go.mod
-require/indirect/replace/exclude rows, the go.sum checksum-only ambiguity
-contract, and the scanner-error / malformed-state safeguard for go.sum.
+(npm, Composer, RubyGems, NuGet, Maven, Gradle, and Pipfile.lock); it is a
+pure in-memory fixture path and adds no Cypher, queue, or storage work.
+`go test ./internal/parser/gomod ./internal/parser/pythondep -run '.'
+-count=1` covers go.mod require/indirect/replace/exclude rows, the go.sum
+checksum-only ambiguity contract, the scanner-error / malformed-state
+safeguard for go.sum, and the new PyPI parser fixtures (pins, ranges,
+extras, markers, dev/runtime scope, VCS, path, URL, editable, malformed).
 `go test ./internal/reducer -run
-'TestBuildPackageConsumptionDecisions(Rejects|Matches|Normalizes|Preserves|Admits|Keeps|.*Ruby|MatchesNuGet|PreservesNuGet|.*JVM|.*Maven|.*Gradle)'
+'TestBuildPackageConsumptionDecisions(Rejects|Matches|Normalizes|Preserves|Admits|Keeps|.*Ruby|MatchesNuGet|PreservesNuGet|.*JVM|.*Maven|.*Gradle|AdmitsPyPI)'
 -count=1` exercises positive consumption admission (Composer lockfile
 evidence, RubyGems Bundler lockfile admission, NuGet lockfile and project
-signals, the Go module require/indirect case, and Maven/Gradle manifest
-coordinates), git/path ambiguity rejection, and the safety-rule
-negatives (go.sum checksum-only ambiguity, replace/exclude non-admission,
-malformed go.mod) without touching Postgres or the graph backend.
+signals, the Go module require/indirect case, Maven/Gradle manifest
+coordinates, and the new PyPI manifest admission case), git/path
+ambiguity rejection, and the safety-rule negatives (go.sum checksum-only
+ambiguity, replace/exclude non-admission, malformed go.mod, PyPI VCS
+provenance non-admission) without touching Postgres or the graph backend.
 
 No-Regression Evidence: Cargo coverage is guarded by
 `go test ./internal/parser -run 'TestCargoDependencyCoverageMatrixMarksCargoFilesCovered|TestDefaultEngineParsePathCargo' -count=1`,
