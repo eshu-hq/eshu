@@ -315,6 +315,8 @@ func (e *Engine) parseDefinition(
 		return e.parseRust(repoRoot, resolvedPath, isDependency, options)
 	case "go":
 		return e.parseGo(resolvedPath, isDependency, options)
+	case "gomod":
+		return e.parseGoModule(resolvedPath, isDependency, options)
 	case "hcl":
 		return e.parseHCL(resolvedPath, isDependency, options)
 	case "groovy":

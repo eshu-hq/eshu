@@ -125,6 +125,33 @@ func TestDefaultRegistryLookupByExtensionAndPath(t *testing.T) {
 		}
 	})
 
+	t.Run("go.mod exact name", func(t *testing.T) {
+		t.Parallel()
+
+		definition, ok := registry.LookupByPath(filepath.Join("repo", "go.mod"))
+		if !ok {
+			t.Fatalf("expected go.mod to resolve")
+		}
+		if definition.ParserKey != "gomod" {
+			t.Fatalf("ParserKey = %q, want %q", definition.ParserKey, "gomod")
+		}
+		if definition.Language != "gomod" {
+			t.Fatalf("Language = %q, want %q so go-source per-file parsing stays distinct from per-module manifest parsing", definition.Language, "gomod")
+		}
+	})
+
+	t.Run("go.sum exact name", func(t *testing.T) {
+		t.Parallel()
+
+		definition, ok := registry.LookupByPath(filepath.Join("repo", "go.sum"))
+		if !ok {
+			t.Fatalf("expected go.sum to resolve")
+		}
+		if definition.ParserKey != "gomod" {
+			t.Fatalf("ParserKey = %q, want %q", definition.ParserKey, "gomod")
+		}
+	})
+
 	t.Run("jsonc extension", func(t *testing.T) {
 		t.Parallel()
 

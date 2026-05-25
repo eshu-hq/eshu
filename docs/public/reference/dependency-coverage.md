@@ -32,18 +32,24 @@ absence of evidence look like absence of risk. Guard tests:
   and that a `content_entity` row with the wrong `config_kind` is also
   rejected.
 - `go test ./internal/parser/json -run 'TestDependencyCoverageGapsDoNotEmitDependencyRows'`
-  proves that parsing a gap file does not smuggle a fake dependency row into
-  the fact store.
+  proves that parsing a JSON-format gap file does not smuggle a fake
+  dependency row into the fact store.
+- `go test ./internal/parser -run 'TestDependencyCoverageGoSumDoesNotEmitConsumptionRows'`
+  proves the gomod parser keeps go.sum as checksum-only evidence: parsing it
+  through the engine MUST NOT produce `config_kind=dependency` rows.
 
 ## How To Read The Matrix
 
 - **Status `covered`** means the file pattern is parsed end-to-end into a
   `content_entity` dependency row by the parser entrypoint listed in
-  `Source`. JSON-owned entries are locked in by
-  `TestDependencyCoverageCoveredFilesEmitDependencyRows` in
-  `go/internal/parser/json/dependency_coverage_test.go`; exact-name entries
-  implemented by another parent parser path, such as Cargo, carry package-level
-  parser fixtures instead.
+  `Source`, locked in by
+  `TestDependencyCoverageCoveredFilesEmitDependencyRowsThroughEngine` in
+  `go/internal/parser/dependency_coverage_engine_test.go` (which dispatches
+  through the real parser engine and therefore exercises every adapter —
+  JSON, gomod, ruby, nuget_project, rust/cargo, etc.). JSON-owned entries
+  additionally carry per-package fixtures in
+  `TestDependencyCoverageCoveredJSONFilesEmitDependencyRows` in
+  `go/internal/parser/json/dependency_coverage_test.go`.
 - **Status `gap`** means the file is not yet parsed into a dependency row;
   the reducer cannot use it as repository evidence; readiness must report
   the missing family. The matrix still names the file so the gap is visible
@@ -61,8 +67,8 @@ absence of evidence look like absence of risk. Guard tests:
 | cargo | Cargo.toml | manifest | covered | ✓ | — | ✓ | ✓ | ✓ | — | `go/internal/parser/rust/cargo_dependencies.go` | Cargo manifests emit dependency rows for direct, dev, build, target-specific, workspace-inherited, and renamed package dependencies; transitive chains require Cargo.lock. |
 | composer | composer.json | manifest | covered | ✓ | — | ✓ | ✓ | ✓ | — | `go/internal/parser/json/language.go` (`dependencyVariables`, composer) | `require` and `require-dev` sections emit content_entity rows. |
 | composer | composer.lock | lockfile | covered | ✓ | ✓ | — | ✓ | ✓ | — | `go/internal/parser/json/composer_lock.go` | `packages` and `packages-dev` arrays emit exact-version rows with a `lockfile` flag so the reducer can join manifest ranges to installed PHP versions without dropping the dev/runtime split; transitive chain is not yet derived. |
-| go | go.mod | manifest | gap | — | — | — | — | — | — | `go/internal/parser/go_package_interface_prescan.go` reads go.mod for package interface only | go.mod is read for package-interface prescan but does not emit content_entity dependency facts. |
-| go | go.sum | lockfile | gap | — | — | — | — | — | — | no parser registered in `go/internal/parser/registry.go` | Module checksum file is not parsed; exact-version evidence for Go repos is missing. |
+| go | go.mod | manifest | covered | ✓ | — | ✓ | ✓ | — | — | `go/internal/parser/gomod/parser.go` (`Parse` for go.mod) | `require`/indirect/`replace`/`exclude` directives emit content_entity rows. go.mod is a manifest, not a lockfile: require versions are the MVS minimum-version requirement (and the version the resolver would select when no transitive dep forces a higher one), not a resolver-locked exact installed version, so the matrix tracks them under `Range`. Replacement targets surface as `resolved_module_path`/`resolved_version` on each require row; `replace` and `exclude` rows use distinct `config_kind` values so they never get admitted as consumption. Go has no dev/runtime split, and module-graph chains beyond direct/indirect are not stored in go.mod. |
+| go | go.sum | lockfile | gap | — | — | — | — | — | — | `go/internal/parser/gomod/parser.go` emits checksum-only rows (`config_kind=dependency_checksum`, `ambiguous=true`) | go.sum records every module version any tool has ever verified, not the currently selected version, so checksum-only ambiguity prevents claiming exact observed installed evidence. The gomod parser emits `dependency_checksum` rows for audit corroboration but the consumption reducer treats go.sum as missing evidence until paired with a go.mod require. |
 | gradle | build.gradle | build | gap | — | — | — | — | — | — | `go/internal/parser/registry.go` registers groovy by extension but does not extract dependency blocks | Groovy build scripts are parsed for syntax only. |
 | gradle | build.gradle.kts | build | gap | — | — | — | — | — | — | `go/internal/parser/registry.go` registers kotlin by extension but does not extract dependency blocks | Kotlin DSL build scripts are parsed for syntax only. |
 | maven | pom.xml | manifest | gap | — | — | — | — | — | — | no XML parser registered in `go/internal/parser/registry.go` | Maven POMs are not yet parsed; Maven impact relies on registry-side evidence only. |
@@ -93,43 +99,60 @@ absence of evidence look like absence of risk. Guard tests:
   and dev/build/runtime scope. Cargo `Cargo.lock` rows preserve exact resolved
   crate versions and dependency paths only when the lockfile root graph proves
   the transitive relationship.
+- Go repositories now emit owned-package evidence from `go.mod`. Require,
+  indirect-require, replace, and exclude directives become content_entity
+  rows; the consumption reducer admits only the require/indirect rows
+  (`config_kind=dependency`) and leaves replace/exclude rows as
+  audit-only evidence. `go.sum` stays a gap because it records every
+  module version any tool has verified rather than the currently selected
+  version, so checksum-only ambiguity must remain explicit until paired
+  with a go.mod require.
 - Gap files turn into evidence-incomplete readiness states. The MCP and
   HTTP supply-chain reads must keep distinguishing
   `evidence_incomplete` from `ready_zero_findings` so callers cannot
-  mistake a Go-only or Maven-only repo for "no vulnerabilities."
+  mistake a Maven-only or NuGet-only repo for "no vulnerabilities."
 - When a new parser graduates a gap into a covered entry, the PR MUST
   update the matrix, add a covered-fixture entry to
-  `TestDependencyCoverageCoveredFilesEmitDependencyRows` or an equivalent
-  parent-parser fixture when the implementation cannot live in the JSON
-  package, and add (or extend) a reducer test proving the new evidence path
-  produces a consumption decision.
+  `TestDependencyCoverageCoveredFilesEmitDependencyRowsThroughEngine` in
+  `go/internal/parser/dependency_coverage_engine_test.go` (and, when the
+  adapter lives in the JSON package, to
+  `TestDependencyCoverageCoveredJSONFilesEmitDependencyRows`), and add
+  (or extend) a reducer test proving the new evidence path produces a
+  consumption decision.
 
 ## Performance Evidence
 
-No-Regression Evidence: baseline coverage before the NuGet slice was the
-existing in-memory npm, Composer, and RubyGems parser/reducer path; after the
-rebased change, `go test ./internal/parser/json ./internal/parser
-./internal/reducer -count=1` and `go test ./...` pass on Go 1.26.3
-darwin/arm64. Input shape is fixture-only manifests and lockfiles
-(`package.json`, `package-lock.json`, `composer.json`, `composer.lock`,
-`Gemfile`, `Gemfile.lock`, `.csproj`, and `packages.lock.json`). Terminal
-runtime counts stay bounded to parser dependency rows and reducer decisions
-asserted in tests: no queue rows, graph rows, or Postgres rows are written by
-these paths.
+No-Regression Evidence: baseline coverage before the NuGet and Go module
+slices was the existing in-memory npm, Composer, and RubyGems parser/reducer
+path; after the rebased change, `go test ./internal/parser/json
+./internal/parser ./internal/parser/gomod ./internal/reducer -count=1` and
+`go test ./...` pass on Go 1.26.3 darwin/arm64. Input shape is fixture-only
+manifests and lockfiles (`package.json`, `package-lock.json`,
+`composer.json`, `composer.lock`, `Gemfile`, `Gemfile.lock`, `.csproj`,
+`packages.lock.json`, `go.mod`, and `go.sum`). Terminal runtime counts stay
+bounded to parser dependency rows and reducer decisions asserted in tests:
+no queue rows, graph rows, or Postgres rows are written by these paths.
 
-`go test ./internal/parser -run 'TestParseNuGetProject' -count=1` proves
-PackageReference extraction, MSBuild property handling, and malformed XML
-rejection. `go test ./internal/parser/json -run
+`go test ./internal/parser -run 'TestParseNuGetProject|TestDependencyCoverage' -count=1`
+proves PackageReference extraction, MSBuild property handling, malformed XML
+rejection, and the engine-level matrix gate (every covered entry parses
+through the real engine into dependency rows). `go test
+./internal/parser/json -run
 'TestDependencyCoverage|TestParseComposerLock|TestParseComposerManifestAndLockfile|TestParseNuGet'
 -count=1` runs the matrix invariants plus the covered/gap parser fixtures,
 including Composer, RubyGems, and NuGet lockfile fixtures; it is a pure
-in-memory fixture path and adds no Cypher, queue, or storage work. `go test
-./internal/reducer -run
+in-memory fixture path and adds no Cypher, queue, or storage work.
+`go test ./internal/parser/gomod -run '.' -count=1` covers go.mod
+require/indirect/replace/exclude rows, the go.sum checksum-only ambiguity
+contract, and the scanner-error / malformed-state safeguard for go.sum.
+`go test ./internal/reducer -run
 'TestBuildPackageConsumptionDecisions(Rejects|Matches|Normalizes|Preserves|Admits|Keeps|.*Ruby|MatchesNuGet|PreservesNuGet)'
--count=1` exercises positive consumption admission, Composer lockfile
+-count=1` exercises positive consumption admission (Composer lockfile
 evidence, RubyGems Bundler lockfile admission, NuGet lockfile and project
-signals, git/path ambiguity rejection, and the safety-rule negatives without
-touching Postgres or the graph backend.
+signals, and the Go module require/indirect case), git/path ambiguity
+rejection, and the safety-rule negatives (go.sum checksum-only ambiguity,
+replace/exclude non-admission, malformed go.mod) without touching Postgres
+or the graph backend.
 
 No-Regression Evidence: Cargo coverage is guarded by
 `go test ./internal/parser -run 'TestCargoDependencyCoverageMatrixMarksCargoFilesCovered|TestDefaultEngineParsePathCargo' -count=1`,
