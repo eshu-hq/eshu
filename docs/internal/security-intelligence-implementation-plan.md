@@ -454,6 +454,15 @@ payload or explanation `impact_path` without a graph query or scanner worker.
 - [ ] Run remote clean-volume and preserved-volume proof before any image cut.
 - [ ] Run Kubernetes proof with pprof, logs, queue telemetry, no dead letters,
   and resource snapshots before declaring release readiness.
+- [x] Land the release-gate runbook + harness that records commit, image tag
+  candidate, NornicDB pin, schema state, fixture parity, focused
+  security-intelligence tests, remote Compose runtime state, API/MCP readback,
+  and Kubernetes snapshots in a single evidence document
+  ([#657](https://github.com/eshu-hq/eshu/issues/657)). The runbook lives at
+  [Security Intelligence Release Gate](../public/reference/security-intelligence-release-gate.md);
+  the harness lives at `scripts/security_intelligence_release_gate.sh` and its
+  offline phases are covered by
+  `scripts/test-security_intelligence_release_gate.sh`.
 
 Status 2026-05-24: `GET /api/v0/supply-chain/impact/findings` and the MCP
 `list_supply_chain_impact_findings` tool now attach a `readiness` envelope to

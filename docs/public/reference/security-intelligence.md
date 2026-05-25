@@ -967,3 +967,15 @@ Security intelligence work is ready only when all applicable gates pass:
   retries, and no dead letters;
 - performance evidence records target count, fact count, queue timing,
   reducer-domain timing, memory, CPU, and stop thresholds.
+
+The final release-cut gate that ties these proofs together is described in
+[Security Intelligence Release Gate](security-intelligence-release-gate.md).
+The harness at `scripts/security_intelligence_release_gate.sh` aggregates the
+required evidence (commit, image tag candidate, NornicDB pin, schema state,
+fixture parity, focused security-intelligence tests, remote Compose runtime
+state, the documented supply-chain HTTP API readback, and Kubernetes/EKS
+snapshots) into a single evidence document before any image cut is accepted.
+The MCP tools listed above share the same reducer-owned facts as the HTTP API,
+so the harness reads the HTTP routes that back them. Operators who want
+explicit MCP-side proof drive `eshu mcp` or their MCP client separately and
+attach the transcript to the same evidence directory.

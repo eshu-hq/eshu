@@ -103,6 +103,7 @@ nav:
     - Collector Authoring: guides/collector-authoring.md
     - Collector And Reducer Readiness: reference/collector-reducer-readiness.md
     - Vulnerability Parity Gate: reference/vulnerability-parity-gate.md
+    - Security Intelligence Release Gate: reference/security-intelligence-release-gate.md
     - Component Package Manager: reference/component-package-manager.md
     - Fact Envelope Reference: reference/fact-envelope-reference.md
     - Fact Schema Versioning: reference/fact-schema-versioning.md
