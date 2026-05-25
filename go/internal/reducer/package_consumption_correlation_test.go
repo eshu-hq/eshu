@@ -108,6 +108,62 @@ func TestBuildPackageConsumptionDecisionsNormalizesManifestPackageIdentity(t *te
 	}
 }
 
+func TestBuildPackageConsumptionDecisionsRejectsRegistryEvidenceWithoutManifest(t *testing.T) {
+	t.Parallel()
+
+	observedAt := time.Date(2026, 5, 24, 9, 0, 0, 0, time.UTC)
+	decisions := BuildPackageConsumptionDecisions([]facts.Envelope{
+		packageRegistryPackageFact(
+			"pkg:maven://repo.maven.apache.org/maven2/org.apache.logging.log4j:log4j-core",
+			"maven",
+			"log4j-core",
+			"org.apache.logging.log4j",
+			observedAt,
+		),
+		packageSourceRepositoryFact("repo-maven", "maven-app", "https://github.com/acme/maven-app", false, observedAt),
+	})
+
+	if len(decisions) != 0 {
+		t.Fatalf("BuildPackageConsumptionDecisions admitted consumption without a manifest dependency fact: %#v", decisions)
+	}
+}
+
+func TestBuildPackageConsumptionDecisionsRejectsGapEcosystemEvidence(t *testing.T) {
+	t.Parallel()
+
+	observedAt := time.Date(2026, 5, 24, 9, 30, 0, 0, time.UTC)
+
+	gapManifest := facts.Envelope{
+		FactID:        "manifest-dep:repo-rust:serde",
+		FactKind:      factKindContentEntity,
+		ObservedAt:    observedAt,
+		IsTombstone:   false,
+		SourceRef:     facts.Ref{SourceSystem: "git"},
+		StableFactKey: "content_entity:repo-rust:serde",
+		Payload: map[string]any{
+			"repo_id":       "repo-rust",
+			"relative_path": "Cargo.toml",
+			"entity_type":   "Variable",
+			"entity_name":   "serde",
+			"entity_metadata": map[string]any{
+				"section":     "dependencies",
+				"value":       "1.0.0",
+				"config_kind": "rust_table",
+			},
+		},
+	}
+
+	decisions := BuildPackageConsumptionDecisions([]facts.Envelope{
+		packageRegistryPackageFact("pkg:cargo://crates.io/serde", "cargo", "serde", "", observedAt),
+		packageSourceRepositoryFact("repo-rust", "rust-app", "https://github.com/acme/rust-app", false, observedAt),
+		gapManifest,
+	})
+
+	if len(decisions) != 0 {
+		t.Fatalf("BuildPackageConsumptionDecisions admitted consumption from a non-dependency content_entity fact: %#v", decisions)
+	}
+}
+
 func TestBuildPackageConsumptionDecisionsPreservesLockfileDependencyChain(t *testing.T) {
 	t.Parallel()
 

@@ -27,6 +27,14 @@ The godoc contract is in `doc.go`. Current exports are:
 - `ColumnLineage` and `CompiledModelLineage` mirror the parent lineage result
   shape at this package boundary.
 - `Parse` returns one JSON parser payload for a file path.
+- `DependencyCoverageStatus`, `DependencyCoverageEntry`, and
+  `DependencyCoverage` publish the repository dependency parser coverage
+  matrix that feeds the supply-chain impact reducer. `DependencyCoverageByFile`
+  looks up a single entry by lowercase filename. The matrix is the in-code
+  source of truth behind
+  [`docs/public/reference/dependency-coverage.md`](../../../../docs/public/reference/dependency-coverage.md);
+  guard tests in `dependency_coverage_test.go` keep it aligned with what
+  `Parse` actually emits.
 
 ## Dependencies
 
@@ -66,3 +74,5 @@ JSON dependency rows do not mix with infrastructure payload rows.
 ## Related docs
 
 - `docs/public/languages/support-maturity.md`
+- `docs/public/reference/dependency-coverage.md`
+- `docs/public/reference/security-intelligence.md`
