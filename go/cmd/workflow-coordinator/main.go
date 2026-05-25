@@ -110,6 +110,7 @@ func run(parent context.Context) error {
 		PackageRegistryPlanner:           coordinator.PackageRegistryWorkPlanner{},
 		VulnerabilityIntelligencePlanner: coordinator.VulnerabilityIntelligenceWorkPlanner{},
 		SBOMAttestationPlanner:           coordinator.SBOMAttestationWorkPlanner{},
+		SecurityAlertPlanner:             coordinator.SecurityAlertWorkPlanner{},
 		OwnedPackageTargetReader:         postgres.NewFactStore(ownedPackageTargetsDB),
 		AWSScheduledPlanner:              coordinator.AWSScheduledWorkPlanner{},
 		AWSFreshnessTriggers:             awsFreshnessStore,

@@ -126,6 +126,11 @@ var collectorContracts = map[scope.CollectorKind]CollectorContract{
 		CanonicalKeyspaces: nil,
 		RequiredPhases:     nil,
 	},
+	scope.CollectorSecurityAlert: {
+		CollectorKind:      scope.CollectorSecurityAlert,
+		CanonicalKeyspaces: nil,
+		RequiredPhases:     nil,
+	},
 	scope.CollectorScannerWorker: {
 		CollectorKind:      scope.CollectorScannerWorker,
 		CanonicalKeyspaces: nil,

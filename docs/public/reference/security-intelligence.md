@@ -268,23 +268,6 @@ image and referrer identity; the SBOM-attestation runtime fetches configured
 document URLs or OCI referrer blobs, parses CycloneDX, SPDX, and in-toto
 documents, and emits typed source facts.
 
-Bounded SBOM generation lives behind the scanner-worker boundary
-(`internal/collector/scannerworker/sbomgenerator`). The hosted
-`eshu-scanner-worker` binary selects the `sbom_generation` analyzer through
-the existing `ESHU_SCANNER_WORKER_ANALYZER` configuration and falls back to
-`scanner_worker.warning` with `reason="sbom_generator_source_not_configured"`
-until a runtime-owned `sbomgenerator.Source` is wired. The analyzer emits
-`sbom.document`, `sbom.component`, and `sbom.warning` facts with
-`collector_kind=scanner_worker`, schema version `1.0.0`, and
-`parse_status=generated`. It enforces `max_files`, `max_input_bytes`, and
-`max_facts` from `scannerworker.ResourceLimits` and translates unsupported
-target, source unavailability, and resource-limit breaches into the bounded
-`scanner_worker` failure vocabulary. The reducer-owned
-`sbom_attestation_attachment` path is still the only producer of attached,
-attached_parse_only, ambiguous_subject, unknown_subject, subject_mismatch,
-unparseable, and verified/unverified truth; scanner workers never
-short-circuit attachment.
-
 Workflow configuration uses `collector_kind=sbom_attestation` with explicit
 `targets`. Each target must provide a stable `scope_id`, source type, artifact
 kind, document format, and subject digest. Configured-source targets use a
@@ -346,23 +329,12 @@ names.
 
 No-Regression Evidence: scanner-worker runtime behavior is covered by
 `go test ./internal/collector/scannerworker ./cmd/scanner-worker ./internal/runtime -run 'Test(Service|DefaultResourceLimits|WarningAnalyzer|LoadRuntimeConfig|ScannerWorkerBinary|RemoteE2EComposeIncludesScannerWorker|HelmClaimDrivenCollectorDeployments)' -count=1`.
-That proof covers successful source fact emission, retryable analyzer failure,
-terminal dead-letter payload detail, silent-clean rejection, resource-limit
-defaults, runtime config selection, binary packaging, Compose service wiring,
-pprof overlay wiring, and Helm rendering. Bounded SBOM generation adds
-`go test ./internal/collector/scannerworker/sbomgenerator ./internal/reducer -run 'TestAnalyzer|TestScannerWorkerGeneratedSBOMFactsAdmittedByReducerAttachment' -count=1`,
-which proves successful CycloneDX-compatible source-fact emission,
-missing-subject warning emission, malformed subject digest classification,
-component identity skipping, silent-clean rejection, file/input/fact limit
-enforcement, unsupported target classification, retryable source
-unavailability, terminal analyzer failure with privacy-safe payloads, and
-reducer-owned attachment admission of scanner-generated documents (parse-only
-when a subject digest is present, unknown_subject otherwise). Remote Compose
-acceptance still must record target count, fact count, runtime, memory, CPU,
-queue state, retry count, dead letters, and pprof availability before
-concrete analyzer rollout is accepted; the
-`scanner_worker.warning(reason=sbom_generator_source_not_configured)` fallback
-keeps the hosted runtime safe until a real `sbomgenerator.Source` ships.
+That proof covers source fact emission, retryable analyzer failure, terminal
+dead-letter payloads, silent-clean rejection, resource-limit defaults, runtime
+config, binary packaging, Compose pprof wiring, and Helm rendering. Remote
+Compose acceptance still records target and fact counts, runtime, memory, CPU,
+queue state, retries, dead letters, and pprof availability before analyzer
+rollout.
 
 ## Readiness Semantics
 
@@ -379,14 +351,12 @@ caller to tell "clean" from "not checked."
 | `readiness_unavailable` | Out-of-band signal returned when the readiness lookup itself fails; the findings page is still returned but coverage cannot be classified. |
 | `unsupported` | Eshu observed real target evidence the matcher cannot resolve — an owned dependency in an unsupported ecosystem, a package-manager file with an unsupported lockfile feature, a malformed/unsupported SBOM document, or an image target without a supported analyzer. Callers MUST NOT interpret this as clean or affected. |
 
-`unsupported` only fires when bounded unsupported-target evidence exists for
-the requested scope. When evidence is missing rather than unsupported, the
-state stays `evidence_incomplete` and `missing_evidence` carries the
-specific gap; the two states never collapse together.
-
-Zero findings without readiness are unsafe. The API and MCP surfaces should
-return coverage, freshness, unsupported target counts, and missing-evidence
-reasons alongside findings.
+`unsupported` only fires when bounded unsupported-target evidence exists for the
+requested scope. Missing evidence stays `evidence_incomplete`, with the gap in
+`missing_evidence`; the two states never collapse together. Zero findings
+without readiness are unsafe, so API and MCP responses return coverage,
+freshness, unsupported target counts, and missing-evidence reasons alongside
+findings.
 
 ### Vulnerability Impact Readiness Envelope
 
@@ -439,12 +409,10 @@ reducer-fact counts so the answer never invents findings:
   `findings_by_status` describe the returned page only; combine with
   `truncated` to know whether more pages exist.
 
-Readiness reflects existing facts. It does not poll collectors, dispatch
-reducer work, or change finding ownership. Where evidence is missing the
-envelope says so instead of guessing. `target_incomplete` and `unsupported`
-specifically depend on collector/reducer-emitted source facts; when those
-signals are not present, missing evidence is surfaced through
-`missing_evidence` rather than being inferred from absence.
+Readiness reflects existing facts. It does not poll collectors, dispatch reducer
+work, or change finding ownership. `target_incomplete` and `unsupported` depend
+on collector or reducer source facts; absent signals become `missing_evidence`,
+not inferred target state.
 
 #### Proven States
 
@@ -497,485 +465,35 @@ through global registry metadata.
 
 #### Follow-Up Work
 
-- Extend `target_kind=image_target` with a concrete producer once the
-  image-scanner worker emits unsupported-manifest evidence. The
-  contract for that family is already wired through the envelope and
-  OpenAPI; only the SQL aggregation arm is empty today.
-- Surface per-collector freshness windows separately when the collector
-  contract carries source-specific staleness thresholds.
+- Extend `target_kind=image_target` once the image-scanner worker emits
+  unsupported-manifest evidence; the envelope and OpenAPI contract already
+  reserve it, and only the SQL aggregation arm is empty today.
+- Surface per-collector freshness windows when the collector contract carries
+  source-specific staleness thresholds.
 
 Performance Evidence: focused query tests
 `go test ./internal/query -run 'SupplyChainImpactReadiness' -count=1` exercise
-not-configured, evidence-incomplete, ready-zero-findings, ready-with-findings,
-target-incomplete, source-snapshot cache metadata, unsupported ecosystem,
-unsupported package-manager file, unsupported SBOM/image target, the
-missing-evidence vs unsupported boundary, and the Postgres query shape
-contract. The readiness Postgres path runs one bounded CTE per response with
-seven anchored evidence-family counts, a source-snapshot roll-up, a
-source-state roll-up, and an unsupported-target aggregation that joins
-`content_entity` dependency rows and `sbom.warning` facts through the SBOM
-document subject digest. The aggregation reuses existing source facts and
-adds no new round trip beyond the single readiness query already issued
-alongside the impact-finding read.
+the readiness states, source-snapshot cache metadata, unsupported target kinds,
+the missing-evidence versus unsupported boundary, and the Postgres query shape.
+The readiness path runs one bounded CTE per response with seven anchored
+evidence-family counts, source roll-ups, and unsupported-target aggregation over
+existing `content_entity` and `sbom.warning` facts; it adds no round trip beyond
+the readiness query already issued with the impact-finding read.
 
-No-Observability-Change: the readiness path reuses the existing
-`query.supply_chain_impact_findings` span. The handler does not start a new
-graph query, queue claim, or reducer write, so the existing
-`eshu_dp_postgres_query_duration_seconds` histogram and the impact-findings
-HTTP/MCP envelope continue to expose latency, error, and truth metadata for
-the bounded readiness read. Source-cache state is observable through
-`vulnerability.source_snapshot` payload fields and the `source_snapshots[]`
-readiness metadata. The unsupported-target rollup adds no new metric
-instrument, span, log key, queue, reducer lane, graph write, or runtime
-worker; operators diagnose coverage gaps through the existing
-`unsupported_targets[]` envelope payload and the
-`vulnerability.unsupported_target` aggregation marker emitted by the
-readiness store.
+No-Observability-Change: the readiness path reuses
+`query.supply_chain_impact_findings`, `eshu_dp_postgres_query_duration_seconds`,
+the impact-findings HTTP/MCP envelope, `vulnerability.source_snapshot` payloads,
+and `source_snapshots[]` readiness metadata. The unsupported-target rollup adds
+no metric, span, log key, queue, reducer lane, graph write, or runtime worker;
+operators diagnose gaps through `unsupported_targets[]` and the
+`vulnerability.unsupported_target` aggregation marker.
 
-## Repository Dependency Coverage
+## Source Coverage And Read Contracts
 
-Vulnerability impact requires repository dependency evidence. The full coverage
-matrix of which package-manager manifests and lockfiles produce
-`content_entity` dependency facts today, which are still gaps, and the
-safety rule that missing evidence is neither safe nor affected, lives in
-[Dependency And Lockfile Coverage](dependency-coverage.md). That page is
-generated from `go/internal/parser/json/dependency_coverage.go`; the matrix
-test guards stop a parser change from drifting away from the documented
-contract.
+Dependency coverage, advisory-source provenance, provider-alert parity, API/MCP
+read contracts, CLI behavior, and acceptance gates live in
+[Security Intelligence Source Coverage](security-intelligence-source-coverage.md).
 
-For the supply-chain impact reducer, the practical implications are:
-
-- npm `package.json` and `package-lock.json`, Yarn classic and Yarn Berry
-  `yarn.lock`, pnpm `pnpm-lock.yaml` (v6+), PHP Composer `composer.json`
-  and `composer.lock`, Ruby Bundler `Gemfile` / `Gemfile.lock`, NuGet
-  `.csproj` PackageReference and `packages.lock.json`, Rust Cargo
-  `Cargo.toml` and `Cargo.lock`, Go `go.mod`, Maven `pom.xml`, Gradle
-  `build.gradle` / `build.gradle.kts`, and PyPI `requirements.txt` /
-  `pyproject.toml` / `Pipfile` / `Pipfile.lock` / `poetry.lock` produce
-  repository consumption decisions when joined to package-registry
-  identity. Yarn and pnpm lockfile rows keep the canonical npm ecosystem
-  (`package_manager: "npm"`) so the consumption reducer and the
-  owned-package SQL filter both match them as npm evidence, and they
-  surface the actual package manager tool as `package_manager_flavor:
-  "yarn"` or `"pnpm"` for operators and readiness reads. Composer
-  lockfile rows carry exact installed versions and a `lockfile: true`
-  flag, so the reducer reports `direct_dependency: null` rather than
-  guessing directness when no manifest range was also observed. Bundler
-  git/path sources are preserved as ambiguous source evidence and are
-  not admitted as public RubyGems registry consumption. NuGet lockfile
-  rows carry exact resolved versions plus dependency path/directness
-  when the lockfile proves the chain, while `.csproj` rows preserve
-  requested versions, MSBuild property partial evidence, and
-  PrivateAssets dev/test signals. Go `go.sum` remains checksum-only
-  evidence and does not by itself prove the currently selected module
-  version, so the consumption reducer treats it as missing evidence
-  until paired with a `go.mod` require. JVM coverage emits
-  `groupId:artifactId` dependency rows from Maven and Gradle manifests
-  so impact reads no longer fall back to registry-side evidence alone.
-  PyPI identity is normalized via PEP 503 so requirements that use mixed
-  case, underscores, or dots still join with PyPI advisory ecosystems.
-- Cargo manifests preserve direct dependency ranges, dev/build/runtime
-  scope, workspace-inherited dependency rows, target-specific dependency
-  sections, and renamed package identity. Cargo lockfiles preserve exact
-  crate versions and dependency paths only when the lockfile root graph
-  proves reachability.
-- Files that remain in the gap state (such as `go.sum`) have no
-  repository-side dependency parser yet, so their impact reads must
-  surface the missing-evidence reason instead of returning
-  `ready_zero_findings`.
-- VCS, path, URL, and editable dependency entries (including pip
-  `-e ./path`, `git+...` URLs, Poetry `{ path = ... }` / `{ git = ... }`,
-  and Pipenv `{git=...}`) surface with a non-`dependency` `config_kind`
-  (`vcs_dependency`, `path_dependency`, `url_dependency`,
-  `editable_dependency`) so the reducer cannot mis-admit unresolved
-  provenance as a PyPI registry version.
-- When a parser graduates a file from gap to covered, the matrix MUST be
-  updated in the same PR, the covered-fixture guard MUST grow a row, and a
-  reducer test MUST prove the new evidence path can produce a consumption
-  decision.
-
-No-Regression Evidence: Cargo dependency coverage is guarded by
-`go test ./internal/parser -run 'TestCargoDependencyCoverageMatrixMarksCargoFilesCovered|TestDefaultEngineParsePathCargo' -count=1`,
-`go test ./internal/parser/json -run 'TestDependencyCoverageMatrixIsStableAndExhaustive|TestDependencyCoverageCoveredFilesEmitDependencyRows' -count=1`,
-and `go test ./internal/reducer -run 'TestBuildPackageConsumptionDecisions(MatchesCargoRenamedPackage|KeepsCargoLockfileWithoutProofUnchained)|TestBuildSupplyChainImpactFindings(UsesCargoLockfileVersion|MarksCargoLockfileVersionKnownFixed)' -count=1`.
-The fixtures prove parser evidence, coverage-matrix truth, renamed Cargo
-package correlation, unproven lockfile-chain suppression, and exact
-lockfile-version impact matching without graph, queue, or hosted runtime work.
-
-No-Observability-Change: Cargo coverage reuses existing parser payloads,
-`content_entity` dependency facts, package-consumption correlation facts,
-`reducer_supply_chain_impact_finding`, `match_reason`, and the existing
-`query.supply_chain_impact_findings` read span. It adds no metric instrument,
-span, log key, queue, reducer lane, graph write, scanner worker, or runtime
-configuration knob.
-
-## Advisory Source Coverage
-
-Eshu collects advisory source truth from OSV, FIRST EPSS, CISA KEV, NVD CVE
-API 2.0, and the GitLab Advisory Database (Gemnasium). Each source is
-normalized into the shared `vulnerability.*` fact contract with
-`source_confidence=reported` and a source-namespaced stable fact key, so a
-GLAD observation of `CVE-2026-0001` coexists with OSV, GHSA, or NVD
-observations of the same CVE rather than overwriting them. Reducers join
-across sources at admission time and may detect cross-source disagreement on
-range, severity, or fixed version.
-
-The GLAD adapter preserves the source `package_slug`, ecosystem, package
-name, normalized package ID, PURL, raw and structured `affected_range`,
-human-readable `affected_versions`
-and `not_impacted` text, multiple `fixed_versions` (including prerelease and
-`+build` branches), CVSS v2/v3/v4 vectors, CWE IDs, URLs, and the source
-advisory UUID. Range evaluation belongs to reducers.
-
-The GLAD adapter is parser-only. Cache and freshness lifecycle for advisory
-snapshots is owned by the shared source interface in
-[#603](https://github.com/eshu-hq/eshu/issues/603); the GLAD parser is pure
-so the cache/freshness owner can wire it later without changing the fact
-payload.
-
-No-Regression Evidence: `go test ./internal/collector/vulnerabilityintelligence -run 'TestGitLab|TestParseGitLab|TestNewGitLab' -count=1`
-covers GLAD CVE/affected_package/reference envelope construction, GMS
-identifier fallback, advisory-identifier validation, package_slug validation,
-source-namespaced stable keys against OSV, compact multi-branch range
-parsing, prerelease and `+build` fixed-version preservation, blank/empty
-constraint rejection, unsupported-operator rejection, source snapshot
-generation invariance, GLAD↔OSV fixed-version disagreement,
-GLAD↔NVD CVSS severity disagreement, GLAD↔OSV affected-range
-disagreement, and shared CVE correlation anchors for cross-source joins.
-
-## Advisory Provenance
-
-Reducer admission consolidates multi-source advisory observations into one
-finding per `(cve_id, package_id)` anchor while preserving per-source
-provenance. The selected severity, fixed-version, and vulnerable-range source
-are recorded alongside every alternate severity and every source-reported
-fixed-version branch. Withdrawn advisories never win selection but remain
-visible as observations so operators can see why a source was excluded.
-
-Selection rules:
-
-- For OS package classes (`rpm`, `deb`, `apk`, `rhel`, `redhat`, `debian`,
-  `ubuntu`, `alpine`, `amazonlinux`, `suse`, `opensuse`, `wolfi`,
-  `chainguard`, `oracle`, `rocky`), the matching vendor advisory outranks
-  GLAD, GHSA, OSV, and NVD because vendor backports change applicability.
-- For language ecosystems (npm, PyPI, Go, Maven, Crates.io, RubyGems,
-  Composer, Pub, Hex, Swift, NuGet), GHSA outranks GLAD, OSV-via-OSV,
-  PYSEC-via-OSV, RUSTSEC-via-OSV, GO-via-OSV, and NVD.
-- An OSV record whose advisory id begins with `GHSA-`, `PYSEC-`, `GO-`,
-  `RUSTSEC-`, or `MAL-` is classified by that upstream prefix (so a GHSA
-  collected through OSV still ranks as a GHSA observation).
-- If the highest-priority source did not publish a CVSS score, the next
-  source in priority order supplies the selected severity.
-
-The `provenance` block on `GET /api/v0/supply-chain/impact/findings` and the
-MCP `list_supply_chain_impact_findings` tool carries:
-`selected_severity_source`, `selected_severity_score`,
-`selected_severity_vector`, `selected_severity_label`,
-`selected_fixed_version_source`, `selected_range_source`,
-`alternate_severities[]`, `fixed_version_branches[]`, and
-`advisory_sources[]` (with `source`, `advisory_id`, `source_updated_at`, and
-`withdrawn_at`). Raw advisory bodies are not returned.
-
-Source-only advisory evidence is exposed separately through
-`GET /api/v0/supply-chain/advisories/evidence` and the MCP
-`list_advisory_evidence` tool. That route groups active GHSA, CVE/NVD, OSV,
-GitLab Advisory Database, FIRST EPSS, CISA KEV, CWE, affected-package,
-affected-product/CPE, range, fixed-version, withdrawn, reference, and
-source-disagreement evidence under one canonical advisory identity without
-publishing a supply-chain impact finding or implying repository, image,
-workload, deployment, or reachability impact.
-
-`GET /api/v0/supply-chain/impact/explain` and the MCP
-`explain_supply_chain_impact` tool use the same reducer-owned finding facts
-but return one explanation at a time. Callers must provide `finding_id` or an
-advisory/CVE plus package, repository, or image digest anchor. The route
-hydrates only the finding's `evidence_fact_ids`, returns advisory/source,
-component/version, vulnerable-range, fixed-version, dependency-chain,
-manifest/SBOM/image/workload/service/environment/provider-alert anchors when
-those facts exist, includes an `impact_path` with present and missing hops, and
-reports `outcome: no_finding` with readiness when a bounded scope has no
-finding. It does not infer reachability or deployment truth from provider
-alerts, image tags, workload names, service names, environment names, or
-repository names.
-
-Version and range matching is reducer-owned and ecosystem-aware. The supported
-matchers are npm and Cargo semver over OSV-style event ranges and GLAD-style
-comparator ranges, NuGet semantic versions from exact lockfile or pinned
-manifest evidence, plus Maven version/range ordering for Maven bracket and
-comparator ranges. Findings preserve `observed_version`, `requested_range`,
-`fixed_version`, and `match_reason` as separate fields. Unsupported ecosystems
-and malformed installed versions or advisory ranges fail closed as
-`possibly_affected` with explicit missing-evidence reasons instead of being
-treated as affected or safely fixed.
-
-No-Regression Evidence: after rebasing PR #638 onto `origin/main`
-`1afcc154`, focused red tests reproduced the review gaps where
-`package_manifest` findings reported missing image/SBOM evidence and
-`impact_path` included explanation-only gaps such as `fixed_version`. After
-the fix, `go test ./internal/reducer -run
-'TestBuildSupplyChainImpactFindingsUsesOwnedLockfileVersion' -count=1` and
-`go test ./internal/query -run
-'TestBuildSupplyChainImpactExplanationReturnsRuntimePathAndMissingHops'
--count=1` passed on Go 1.26.3 darwin/arm64. The input shapes are in-memory
-fixtures: one advisory/affected-package/package-consumption path for the
-package-manifest guard, and one finding plus two runtime evidence facts for
-the explain path. No graph backend, reducer queue rows, or scanner worker rows
-are involved, and `go test ./internal/reducer ./internal/query
-./internal/storage/postgres ./internal/mcp -count=1` plus `go test ./...`
-passed after the rebase.
-
-No-Observability-Change: the review fix only changes missing-evidence
-classification and API response shaping. Operators continue to diagnose the
-path with the existing `reducer_supply_chain_impact_finding` payload,
-`EvidencePath`, `missing_evidence`, `runtime_reachability`,
-`query.supply_chain_impact_findings`, `query.supply_chain_impact_explanation`,
-and Postgres query instrumentation.
-
-No-Regression Evidence: `go test ./internal/reducer
-./internal/query ./internal/collector/vulnerabilityintelligence
--run 'TestSupplyChainImpact(Preserves|VendorAdvisory|FallsBack|Excludes)|TestPostgresSupplyChainImpactWriterSerializesProvenancePayload|TestDecodeSupplyChainImpactFindingRowPreservesProvenance|TestOSVRecordPreservesWithdrawnTimestamp'
--count=1` proves GHSA-vs-NVD severity provenance preservation, vendor
-advisory override for OS package classes, severity fallback when the
-highest-priority source lacks a CVSS score, withdrawn-advisory exclusion
-with the withdrawal timestamp still surfaced, multiple fixed-version
-branches preserved with originating source, payload serialization, query
-decoding, and OSV `withdrawn_at` capture.
-
-No-Observability-Change: the provenance work reuses the existing
-`query.supply_chain_impact_findings` span, the
-`reducer_supply_chain_impact_finding` fact kind, and the
-`SupplyChainImpactFindings` reducer counter. No new metric instrument,
-span, log key, queue, reducer lane, graph write, or runtime worker is
-introduced. Operators continue to use the supply-chain impact API truth
-envelope, the existing reducer outcome counters, and the
-`vulnerability.cve` / `vulnerability.affected_package` source-fact payloads
-to diagnose source coverage.
-
-No-Regression Evidence: `go test ./internal/reducer ./internal/query
-./internal/mcp -count=1` covers npm semver affected ranges, Maven vulnerable
-ranges, Maven known-fixed classification, range-only manifests, unsupported
-ecosystem fail-closed behavior, GLAD not-equal range matching, malformed
-installed-version and advisory-range reasons, impact fact serialization, impact
-read-model decoding, API result shaping, and MCP pass-through for the
-supply-chain impact envelope. The matcher is bounded to the active
-`(cve_id, package_id)` affected-package rows already loaded by the impact
-reducer plus the owned dependency/SBOM evidence for that package; it does not
-scan the public package universe.
-
-No-Observability-Change: the version-matching boundary reuses the existing
-`SupplyChainImpactFindings` reducer counter, `reducer_supply_chain_impact_finding`
-fact kind, impact `EvidencePath`, `missing_evidence`, `match_reason`, and the
-`query.supply_chain_impact_findings` span. Operators diagnose decisions from
-the same impact finding payload and readiness envelope; no new queue,
-collector, graph write, metric instrument, or runtime worker is introduced.
-
-No-Observability-Change: the GLAD adapter emits the existing
-`vulnerability.cve`, `vulnerability.affected_package`,
-`vulnerability.reference`, and `vulnerability.source_snapshot` fact kinds. It
-adds no new metric instrument, span, log key, queue, reducer lane, graph
-write, or runtime worker. Operators continue to use the existing
-`vulnerability.source_snapshot` `source`/`ecosystem`/`response_digest`/
-`complete` fields and the readiness envelope on the supply-chain impact API
-to diagnose coverage.
-
-## Provider Alert Parity Gate
-
-Provider-hosted alert parity is a validation gate, not a source of public test
-data. For supported hosts, private validation may compare Eshu findings against
-provider alerts for the same repositories and package ecosystems.
-
-`security_alert.repository_alert` facts preserve repository-scoped provider
-alert state from synthetic GitHub Dependabot fixtures. The
-`security_alert_reconciliation` reducer writes comparison rows with provider
-state and Eshu impact state as separate fields:
-
-- `matched` when the alert joins to owned dependency evidence and an Eshu
-  impact finding for the same package/advisory.
-- `unmatched` when the dependency is owned but no Eshu impact finding exists.
-- `stale` when newer owned dependency evidence no longer matches the alert's
-  manifest path.
-- `dismissed` or `fixed` when the provider reports that state.
-- `provider_only` when Eshu has no owned dependency evidence for the alert.
-
-Provider alert reconciliation reads require a repository, provider, package,
-CVE, or GHSA anchor. Provider state and reconciliation status only filter an
-anchored page; they are not standalone scopes.
-
-Eshu should match provider alert counts when it has equivalent owned target
-evidence and advisory data. Eshu may exceed provider alert output when it can
-add code-to-cloud context, image/runtime impact, or additional advisory sources.
-Any mismatch must classify whether the cause is missing target collection,
-missing advisory ingestion, version-range matching, unsupported ecosystem,
-provider-only behavior, or an Eshu reducer bug.
-
-Validation logs may record aggregate counts and mismatch classes. They must not
-commit private repository names, package names, alert URLs, or copied provider
-payloads to the public repo.
-
-## API And MCP Contract
-
-Security reads must be bounded, explainable, and scoped:
-
-- require `limit`, timeout, deterministic ordering, and `truncated` signals for
-  list responses;
-- require at least one anchor such as repository, package, image digest,
-  advisory id, service, workload, environment, or status;
-- keep findings separate from readiness and source facts;
-- keep provider alert state separate from Eshu impact state;
-- return evidence handles and missing-evidence reasons instead of raw full
-  source payloads;
-- expose exact, derived, possible, known-fixed, unknown, and unsupported states
-  without collapsing them into one severity bucket.
-
-The current vulnerability impact route is documented in
-[HTTP Evidence And Supply-Chain Routes](http-api/evidence-and-supply-chain.md).
-
-## CLI Contract
-
-The local vulnerability scan command is a thin orchestration layer, not a
-second scanner product:
-
-- resolve one repository or workspace root using the same local source rules as
-  the existing scan workflow;
-- collect manifest, lockfile, package, and repository evidence through normal
-  fact emitters;
-- fetch only bounded advisory and package metadata required by observed owned
-  packages unless the user explicitly asks for broader coverage;
-- support advisory source cache refresh, offline replay, explicit mirror
-  fallback, retention cleanup, and update-only source refresh without treating
-  cached source data as reducer-owned findings;
-- run the same vulnerability impact reducer logic used by hosted Eshu;
-- return the same finding, readiness, freshness, evidence-handle, and
-  missing-evidence fields as API and MCP reads;
-- provide machine-readable JSON and a concise terminal summary;
-- cache advisory and package metadata locally with freshness markers so repeat
-  developer runs are fast without silently using stale truth;
-- fail closed when required evidence cannot be collected, and show whether the
-  result is incomplete instead of printing a clean report.
-
-This keeps the developer experience simple while preserving the accuracy rule:
-the CLI can be convenient, but it must not produce a result that means
-something different from the hosted graph.
-
-The current `eshu vuln-scan repo [path]` implementation covers the command
-registration, local root resolution, local service attach/start when no API is
-configured, scan readiness proof, repository-scoped impact read, JSON envelope,
-concise terminal summary, and fail-closed incomplete target behavior.
-Advisory source cache lifecycle is implemented for vulnerability-intelligence
-source collection and exposed through readiness metadata. Package metadata
-cache freshness and fixture-backed vulnerable/ready-zero runtime proof remain
-implementation gates before this is a complete standalone vulnerability scan
-workflow.
-
-The command runs in scoped mode by default. The CLI derives its scope plan
-from the readiness envelope of `GET /api/v0/supply-chain/impact/findings` for
-the scanned repository. Scoped mode adds one CLI-side fail-closed guard on
-top of the server's classification: when the envelope's aggregate
-`freshness` is `stale` and the server still returned a `ready_*` state,
-scoped mode downgrades to `evidence_incomplete` and records
-`advisory_cache_stale` so the operator never gets a clean answer backed by
-stale source data. Per-source entries in `readiness.source_snapshots[]` are
-surfaced in `scope_plan.source_snapshots` for operator visibility only,
-because the readiness store currently aggregates source snapshots globally
-(see the `vulnerability_source_snapshot` CTE in
-`go/internal/query/supply_chain_impact_readiness_postgres.go`) rather than
-filtering by the requested scope; gating scoped fail-closed on those entries
-would let an unrelated stale ecosystem (for example a PyPI snapshot) flip an
-otherwise-ready npm-only repo scan.
-
-The scope plan exposes:
-
-- `observed_dependency_facts` — `evidence_sources[package.consumption].fact_count`
-- `advisory_facts` — `evidence_sources[vulnerability.advisory].fact_count`
-- `package_registry_facts` — `evidence_sources[package.registry].fact_count`;
-  the readiness store only emits this count when the request anchors on a
-  specific `package_id`, so `vuln-scan repo` (which anchors on
-  `repository_id`) reports `0` here.
-- `freshness` — `readiness.freshness` (worst-of per-family aggregate).
-- `stop_threshold` — the readiness state the CLI returned to the operator
-  (server verdict, or the scoped downgrade when applicable).
-- `source_snapshots` — diagnostic-only per-source cache state from the
-  readiness envelope (not gated on).
-
-The `*_facts` fields are counts of source facts as reported by
-`evidence_sources[].fact_count`, not counts of unique packages or advisory
-sources. A single dependency or advisory observation can contribute multiple
-facts.
-
-Operators who explicitly want broader advisory or package coverage can pass
-`--broad`. In broad mode the CLI surfaces `data.scope_mode = "broad"`, sets
-`data.scope_plan.mode = "broad"`, records a warning that scoped fail-closed
-guards were skipped, and returns the server's readiness verdict unchanged.
-Broad mode never converts a stale cache into a clean answer: the envelope
-freshness and source-snapshot diagnostics stay visible in the JSON envelope
-and the terminal summary still prints `Scope: ... freshness=stale`.
-
-Local performance evidence is attached as `data.scan_performance` on every
-run: `started_at`, `completed_at`, `wall_time_ms`, `repository_size_bytes`,
-`repository_file_count`, `observed_dependency_facts`, `advisory_facts`,
-`package_registry_facts`, `cache_freshness`, `scope_mode`, and
-`stop_threshold`. Operators can compare scoped and broad runs of the same
-repository to see how much advisory coverage the scoped guard trimmed and
-where the scan stopped.
-
-No-Regression Evidence: `go test ./cmd/eshu -run
-'TestVulnScanRepoCommandRegistersBroadFlag|TestRunVulnScanRepoDefaultScopedModeAttachesScopePlanAndPerformance|TestRunVulnScanRepoScopedModeFailsClosedOnStaleAdvisoryCache|TestRunVulnScanRepoScopedModeIgnoresGlobalStaleSnapshotsWhenEnvelopeFresh|TestRunVulnScanRepoScopedModePassesThroughServerTargetIncomplete|TestRunVulnScanRepoBroadModeSkipsScopeGuards|TestRunVulnScanRepoScopedModeSurfacesEvidenceIncompleteWhenNoOwnedDeps'
--count=1` proves the `--broad` flag registration, default scoped scope-plan
-and scan-performance attachment with `package_registry_facts == 0` for a
-repo-only scope, the envelope-freshness fail-closed guard, the
-no-regression that an unrelated globally-stale source snapshot does not
-flip a fresh repo-only scan, server `target_incomplete` pass-through,
-broad-mode pass-through with the scoped guard explicitly skipped, and
-scoped pass-through when the server already classifies the response as
-`evidence_incomplete`. The full `go test ./cmd/eshu -count=1` suite
-continues to pass with the updated findings-stub responses that mirror the
-production readiness envelope.
-
-No-Observability-Change: the scope plan, performance block, and
-`--broad` flag are CLI-only orchestration over the existing
-`/api/v0/supply-chain/impact/findings` readiness envelope and the existing
-`query.supply_chain_impact_findings` span. No new HTTP route, MCP tool,
-metric instrument, span, queue, reducer lane, graph write, or scanner worker
-is introduced.
-
-Performance Evidence: the focused CLI tests above run under 0.5s on Go
-1.26.3 darwin/arm64 with the local authoritative-owner stubs and synthetic
-readiness envelopes (`package.consumption.fact_count=4`,
-`vulnerability.advisory.fact_count=120`, one fresh `osv/npm` source
-snapshot). The scoped fail-closed path is exercised against an envelope
-whose aggregate `freshness=stale`; the CLI downgrades to
-`evidence_incomplete`, records `advisory_cache_stale` in
-`scope_plan.missing_evidence`, and exits non-zero. Repository size, file
-count, and wall-clock time on the live `eshu vuln-scan repo` workflow are
-exposed through `data.scan_performance` for operators to record
-per-environment ceilings; the focused tests pin wall-time only as a
-non-negative integer because the stubbed scan clock advances one second per
-call.
-
-## Acceptance Gates
-
-Security intelligence work is ready only when all applicable gates pass:
-
-- source facts are collected with provenance and freshness;
-- reducer findings require owned evidence anchors;
-- readiness distinguishes zero findings from missing coverage;
-- API and MCP calls are scoped, bounded, and observable;
-- private provider-alert comparison matches or explains mismatches without
-  committing private data;
-- remote Compose proves clean-volume and preserved-volume behavior;
-- Kubernetes rollout proves resource settings, pprof access, logs, queue drain,
-  retries, and no dead letters;
-- performance evidence records target count, fact count, queue timing,
-  reducer-domain timing, memory, CPU, and stop thresholds.
-
-The final release-cut gate that ties these proofs together is described in
-[Security Intelligence Release Gate](security-intelligence-release-gate.md).
-The harness at `scripts/security_intelligence_release_gate.sh` aggregates the
-required evidence (commit, image tag candidate, NornicDB pin, schema state,
-fixture parity, focused security-intelligence tests, remote Compose runtime
-state, the documented supply-chain HTTP API readback, and Kubernetes/EKS
-snapshots) into a single evidence document before any image cut is accepted.
-The MCP tools listed above share the same reducer-owned facts as the HTTP API,
-so the harness reads the HTTP routes that back them. Operators who want
-explicit MCP-side proof drive `eshu mcp` or their MCP client separately and
-attach the transcript to the same evidence directory.
+Keep this page focused on architecture, runtime boundaries, scanner isolation,
+and readiness semantics. Use the source-coverage page for parser evidence,
+advisory source contracts, provider security-alert collection, and read surfaces.

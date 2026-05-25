@@ -18,7 +18,7 @@ choices, use [Docker Compose](../run-locally/docker-compose.md).
 | Webhook Listener | Verified Git and AWS freshness trigger intake. | optional `Deployment` | [Core runtimes](service-runtimes-core.md) |
 | Workflow Coordinator | Collector instance reconciliation, claim creation, expired-claim reaping. | optional `Deployment` | [Core runtimes](service-runtimes-core.md) |
 | Resolution Engine | Durable queue drain, projection, retry, replay, and recovery. | `Deployment` | [Resolution engine](../services/resolution-engine.md) |
-| Hosted Collectors | Confluence, OCI registry, Terraform-state, AWS cloud, package-registry, SBOM, and attestation fact intake. | optional `Deployment` | [Collector runtimes](service-runtimes-collectors.md) |
+| Hosted Collectors | Confluence, OCI registry, Terraform-state, AWS cloud, package-registry, SBOM, attestation, and provider security-alert fact intake. | optional `Deployment` | [Collector runtimes](service-runtimes-collectors.md) |
 | Scanner Worker | Claim-driven CPU-heavy and memory-heavy security analyzers that emit source facts only. | optional `Deployment` | [Security Intelligence](../reference/security-intelligence.md#scanner-worker-boundary) |
 | Bootstrap Index | One-shot initial indexing. | operator-run helper, not chart steady state | [Bootstrap runtimes](service-runtimes-bootstrap.md) |
 

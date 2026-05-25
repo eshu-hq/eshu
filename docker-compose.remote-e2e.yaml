@@ -232,6 +232,27 @@ x-collector-env: &remote_e2e_collector_env
         }
       },
       {
+        "instance_id": "remote-e2e-security-alert",
+        "collector_kind": "security_alert",
+        "mode": "continuous",
+        "enabled": true,
+        "claims_enabled": true,
+        "configuration": {
+          "targets": [
+            {
+              "provider": "github_dependabot",
+              "scope_id": "security-alert:github:${ESHU_SECURITY_ALERT_REPOSITORY:?set ESHU_SECURITY_ALERT_REPOSITORY}",
+              "repository": "${ESHU_SECURITY_ALERT_REPOSITORY:?set ESHU_SECURITY_ALERT_REPOSITORY}",
+              "token_env": "GITHUB_TOKEN",
+              "allowed_repositories": ["${ESHU_SECURITY_ALERT_REPOSITORY:?set ESHU_SECURITY_ALERT_REPOSITORY}"],
+              "repository_alert_limit": 25,
+              "max_pages": 2,
+              "source_uri": "https://github.com/${ESHU_SECURITY_ALERT_REPOSITORY:?set ESHU_SECURITY_ALERT_REPOSITORY}/security/dependabot"
+            }
+          ]
+        }
+      },
+      {
         "instance_id": "remote-e2e-scanner-worker-source",
         "collector_kind": "scanner_worker",
         "mode": "continuous",
@@ -644,6 +665,33 @@ services:
       workflow-coordinator:
         condition: service_healthy
       sbom-attestation-fixture:
+        condition: service_healthy
+
+  collector-security-alerts:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: on-failure
+    command: ["/usr/local/bin/eshu-collector-security-alerts"]
+    ports:
+      - "${ESHU_COLLECTOR_SECURITY_ALERTS_METRICS_PORT:-19479}:9464"
+    environment:
+      <<: [*remote_e2e_runtime_env, *remote_e2e_collector_env]
+      ESHU_SECURITY_ALERT_COLLECTOR_INSTANCE_ID: remote-e2e-security-alert
+      ESHU_SECURITY_ALERT_COLLECTOR_OWNER_ID: remote-e2e-security-alert-worker
+      ESHU_SECURITY_ALERT_POLL_INTERVAL: ${ESHU_SECURITY_ALERT_POLL_INTERVAL:-2s}
+      ESHU_SECURITY_ALERT_CLAIM_LEASE_TTL: ${ESHU_SECURITY_ALERT_CLAIM_LEASE_TTL:-60s}
+      ESHU_SECURITY_ALERT_HEARTBEAT_INTERVAL: ${ESHU_SECURITY_ALERT_HEARTBEAT_INTERVAL:-10s}
+      GITHUB_TOKEN: ${ESHU_SECURITY_ALERT_GITHUB_TOKEN:?set ESHU_SECURITY_ALERT_GITHUB_TOKEN}
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/healthz"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+    depends_on:
+      projector:
+        condition: service_healthy
+      workflow-coordinator:
         condition: service_healthy
 
   scanner-worker:

@@ -4,8 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -14,6 +16,26 @@ const (
 	defaultGitHubAPIBaseURL        = "https://api.github.com"
 	defaultGitHubDependabotVersion = "2022-11-28"
 	defaultRepositoryAlertLimit    = 100
+	defaultRepositoryAlertMaxPages = 1
+	maxGitHubErrorBodyBytes        = 4096
+)
+
+const (
+	// GitHubDependabotFailureAuthDenied classifies missing or forbidden
+	// credentials as terminal until operators rotate or grant credentials.
+	GitHubDependabotFailureAuthDenied = "auth_denied"
+	// GitHubDependabotFailureNotFound classifies missing repositories or
+	// disabled Dependabot surfaces as terminal for the current target.
+	GitHubDependabotFailureNotFound = "not_found"
+	// GitHubDependabotFailureRateLimited classifies GitHub primary or
+	// secondary rate-limit responses as retryable.
+	GitHubDependabotFailureRateLimited = "rate_limited"
+	// GitHubDependabotFailureRetryable classifies transient transport or 5xx
+	// provider failures as retryable.
+	GitHubDependabotFailureRetryable = "retryable"
+	// GitHubDependabotFailureTerminal classifies malformed requests and other
+	// bounded non-retryable provider failures.
+	GitHubDependabotFailureTerminal = "terminal"
 )
 
 // GitHubDependabotClientConfig configures the bounded GitHub Dependabot alert
@@ -33,6 +55,83 @@ type GitHubDependabotClient struct {
 	allowedRepositories map[string]struct{}
 	repositoryLimit     int
 	httpClient          *http.Client
+}
+
+// GitHubRateLimitInfo captures bounded GitHub rate-limit retry metadata.
+type GitHubRateLimitInfo struct {
+	Remaining      int
+	RemainingKnown bool
+	Reset          time.Time
+	RetryAfter     time.Duration
+}
+
+// GitHubDependabotAlertResult is one bounded repository alert fetch result.
+type GitHubDependabotAlertResult struct {
+	Alerts       []GitHubDependabotAlert
+	PagesFetched int
+	Truncated    bool
+	ObservedAt   time.Time
+	RateLimit    GitHubRateLimitInfo
+}
+
+// GitHubDependabotError is a bounded provider error. It deliberately omits
+// repositories, tokens, URLs, and raw response bodies from Error().
+type GitHubDependabotError struct {
+	StatusCode int
+	Message    string
+	RateLimit  GitHubRateLimitInfo
+	Cause      error
+}
+
+// Error returns a bounded provider failure message safe for logs and status.
+func (e GitHubDependabotError) Error() string {
+	message := strings.TrimSpace(e.Message)
+	if message == "" {
+		message = "github dependabot request failed"
+	}
+	if e.StatusCode != 0 {
+		return fmt.Sprintf("%s: status %d", message, e.StatusCode)
+	}
+	return message
+}
+
+// Unwrap returns the underlying provider or transport cause when present.
+func (e GitHubDependabotError) Unwrap() error {
+	return e.Cause
+}
+
+// FailureClass returns the bounded workflow retry class for this provider
+// failure.
+func (e GitHubDependabotError) FailureClass() string {
+	switch {
+	case e.StatusCode == http.StatusUnauthorized || e.StatusCode == http.StatusForbidden:
+		if e.RateLimit.RetryAfter != 0 ||
+			(e.RateLimit.RemainingKnown && e.RateLimit.Remaining == 0) {
+			return GitHubDependabotFailureRateLimited
+		}
+		return GitHubDependabotFailureAuthDenied
+	case e.StatusCode == http.StatusTooManyRequests:
+		return GitHubDependabotFailureRateLimited
+	case e.StatusCode == http.StatusNotFound:
+		return GitHubDependabotFailureNotFound
+	case e.StatusCode >= http.StatusInternalServerError:
+		return GitHubDependabotFailureRetryable
+	case e.StatusCode != 0:
+		return GitHubDependabotFailureTerminal
+	default:
+		return GitHubDependabotFailureRetryable
+	}
+}
+
+// TerminalFailure reports whether the failure should stop retrying the current
+// work item until configuration changes.
+func (e GitHubDependabotError) TerminalFailure() bool {
+	switch e.FailureClass() {
+	case GitHubDependabotFailureAuthDenied, GitHubDependabotFailureNotFound, GitHubDependabotFailureTerminal:
+		return true
+	default:
+		return false
+	}
 }
 
 // NewGitHubDependabotClient builds a GitHub Dependabot alert client. It does
@@ -72,23 +171,75 @@ func (c GitHubDependabotClient) ListRepositoryAlerts(
 	ctx context.Context,
 	repository string,
 ) ([]GitHubDependabotAlert, error) {
-	if c.token == "" {
-		return nil, fmt.Errorf("github dependabot token is required")
-	}
-	repository = normalizeRepositoryFullName(repository)
-	if repository == "" {
-		return nil, fmt.Errorf("github dependabot repository scope must not be blank")
-	}
-	if _, ok := c.allowedRepositories[repository]; !ok {
-		return nil, fmt.Errorf("github dependabot repository %q is not allowlisted", repository)
-	}
-	endpoint, err := c.repositoryAlertsURL(repository)
+	result, err := c.ListRepositoryAlertsPages(ctx, repository, defaultRepositoryAlertMaxPages)
 	if err != nil {
 		return nil, err
 	}
+	return result.Alerts, nil
+}
+
+// ListRepositoryAlertsPages returns bounded Dependabot alert pages for an
+// explicitly allowlisted repository.
+func (c GitHubDependabotClient) ListRepositoryAlertsPages(
+	ctx context.Context,
+	repository string,
+	maxPages int,
+) (GitHubDependabotAlertResult, error) {
+	if c.token == "" {
+		return GitHubDependabotAlertResult{}, GitHubDependabotError{
+			Message: "github dependabot token is required",
+		}
+	}
+	repository = normalizeRepositoryFullName(repository)
+	if repository == "" {
+		return GitHubDependabotAlertResult{}, GitHubDependabotError{
+			Message: "github dependabot repository scope must not be blank",
+		}
+	}
+	if _, ok := c.allowedRepositories[repository]; !ok {
+		return GitHubDependabotAlertResult{}, GitHubDependabotError{
+			Message: "github dependabot repository is not allowlisted",
+		}
+	}
+	if maxPages <= 0 {
+		maxPages = defaultRepositoryAlertMaxPages
+	}
+	var out GitHubDependabotAlertResult
+	for page := 1; page <= maxPages; page++ {
+		alerts, rateLimit, next, err := c.listRepositoryAlertsPage(ctx, repository, page)
+		out.RateLimit = rateLimit
+		if err != nil {
+			return GitHubDependabotAlertResult{}, err
+		}
+		out.Alerts = append(out.Alerts, alerts...)
+		out.PagesFetched++
+		if !next {
+			break
+		}
+		if page == maxPages {
+			out.Truncated = true
+		}
+	}
+	if len(out.Alerts) > c.repositoryLimit*maxPages {
+		out.Alerts = out.Alerts[:c.repositoryLimit*maxPages]
+		out.Truncated = true
+	}
+	out.ObservedAt = time.Now().UTC()
+	return out, nil
+}
+
+func (c GitHubDependabotClient) listRepositoryAlertsPage(
+	ctx context.Context,
+	repository string,
+	page int,
+) ([]GitHubDependabotAlert, GitHubRateLimitInfo, bool, error) {
+	endpoint, err := c.repositoryAlertsURL(repository, page)
+	if err != nil {
+		return nil, GitHubRateLimitInfo{}, false, err
+	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {
-		return nil, fmt.Errorf("build github dependabot request: %w", err)
+		return nil, GitHubRateLimitInfo{}, false, fmt.Errorf("build github dependabot request: %w", err)
 	}
 	req.Header.Set("Accept", "application/vnd.github+json")
 	req.Header.Set("Authorization", "Bearer "+c.token)
@@ -96,23 +247,32 @@ func (c GitHubDependabotClient) ListRepositoryAlerts(
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("fetch github dependabot alerts: %w", err)
+		return nil, GitHubRateLimitInfo{}, false, GitHubDependabotError{
+			Message: "fetch github dependabot alerts",
+			Cause:   err,
+		}
 	}
 	defer func() { _ = resp.Body.Close() }()
+	rateLimit := parseGitHubRateLimit(resp.Header)
 	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
-		return nil, fmt.Errorf("fetch github dependabot alerts: status %d", resp.StatusCode)
+		_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, maxGitHubErrorBodyBytes))
+		return nil, rateLimit, false, GitHubDependabotError{
+			StatusCode: resp.StatusCode,
+			Message:    "fetch github dependabot alerts",
+			RateLimit:  rateLimit,
+		}
 	}
 	var alerts []GitHubDependabotAlert
 	if err := json.NewDecoder(resp.Body).Decode(&alerts); err != nil {
-		return nil, fmt.Errorf("decode github dependabot alerts: %w", err)
+		return nil, rateLimit, false, fmt.Errorf("decode github dependabot alerts: %w", err)
 	}
 	if len(alerts) > c.repositoryLimit {
 		alerts = alerts[:c.repositoryLimit]
 	}
-	return alerts, nil
+	return alerts, rateLimit, hasNextLink(resp.Header.Get("Link")), nil
 }
 
-func (c GitHubDependabotClient) repositoryAlertsURL(repository string) (string, error) {
+func (c GitHubDependabotClient) repositoryAlertsURL(repository string, page int) (string, error) {
 	owner, repo, ok := strings.Cut(repository, "/")
 	if !ok || owner == "" || repo == "" {
 		return "", fmt.Errorf("github dependabot repository must be owner/name")
@@ -125,6 +285,7 @@ func (c GitHubDependabotClient) repositoryAlertsURL(repository string) (string, 
 		url.PathEscape(owner) + "/" + url.PathEscape(repo) + "/dependabot/alerts"
 	query := parsed.Query()
 	query.Set("per_page", fmt.Sprint(c.repositoryLimit))
+	query.Set("page", fmt.Sprint(page))
 	parsed.RawQuery = query.Encode()
 	return parsed.String(), nil
 }
@@ -140,4 +301,28 @@ func normalizeRepositoryFullName(repository string) string {
 		return ""
 	}
 	return owner + "/" + repo
+}
+
+func parseGitHubRateLimit(header http.Header) GitHubRateLimitInfo {
+	info := GitHubRateLimitInfo{}
+	if remaining, err := strconv.Atoi(strings.TrimSpace(header.Get("X-RateLimit-Remaining"))); err == nil {
+		info.Remaining = remaining
+		info.RemainingKnown = true
+	}
+	if reset, err := strconv.ParseInt(strings.TrimSpace(header.Get("X-RateLimit-Reset")), 10, 64); err == nil && reset > 0 {
+		info.Reset = time.Unix(reset, 0).UTC()
+	}
+	if retryAfter, err := strconv.Atoi(strings.TrimSpace(header.Get("Retry-After"))); err == nil && retryAfter > 0 {
+		info.RetryAfter = time.Duration(retryAfter) * time.Second
+	}
+	return info
+}
+
+func hasNextLink(raw string) bool {
+	for _, link := range strings.Split(raw, ",") {
+		if strings.Contains(link, `rel="next"`) {
+			return true
+		}
+	}
+	return false
 }

@@ -5,9 +5,10 @@ runtime wiring, scanner-worker runtime wiring, hosted collector restart
 recovery, or remote all-collector admission.
 
 The proof target is an account-local or VPN-attached host with Docker, a
-readable S3 Terraform state object, and an ECR repository. The Compose project
-name defaults to `eshu-remote-e2e`, isolating NornicDB, Postgres, and Eshu data
-volumes from the default local Compose project.
+readable S3 Terraform state object, an ECR repository, and an allowlisted GitHub
+repository whose Dependabot alerts can be read by a private token. The Compose
+project name defaults to `eshu-remote-e2e`, isolating NornicDB, Postgres, and
+Eshu data volumes from the default local Compose project.
 
 ## Render The Stack
 
@@ -35,6 +36,10 @@ scripts/verify_remote_e2e_runtime_state.sh
 Use `ESHU_REMOTE_E2E_COMPOSE_FILES` for temporary Compose overrides and
 `ESHU_REMOTE_E2E_ENV_FILE` for a private env file.
 
+For provider security-alert proof, keep `ESHU_SECURITY_ALERT_REPOSITORY` and
+`ESHU_SECURITY_ALERT_GITHUB_TOKEN` in that private env file. Public examples use
+generic placeholders only.
+
 ## Acceptance Evidence
 
 Capture:
@@ -50,6 +55,10 @@ Capture:
 - scanner-worker target count, fact count, scan runtime, CPU seconds, memory
   bytes, retry count, dead-letter count, queue state, and private pprof
   availability when scanner-worker wiring changes
+- security-alert claim handoff, provider request count, rate-limit or
+  success-class metrics, emitted `security_alert.repository_alert` fact count,
+  reducer drain, API/MCP security-alert reconciliation reads, and redaction
+  proof for repository names, alert URLs, package names, and tokens
 - NornicDB logs filtered for `UNWIND MERGE`, SQLSTATE, constraint, panic,
   fatal, and OOM failures
 - queue-zero after reducer projection

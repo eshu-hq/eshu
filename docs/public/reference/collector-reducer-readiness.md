@@ -20,6 +20,7 @@ The implemented deployed collector lanes are:
 - claim-driven Terraform-state collection
 - claim-driven AWS cloud collection
 - claim-driven package-registry collection
+- claim-driven provider security-alert collection
 - remote-E2E-gated vulnerability intelligence collection
 - claim-driven scanner-worker warning facts, bounded SBOM generation, and
   configured OS package rootfs extraction for isolated analyzer execution
@@ -42,8 +43,8 @@ runtime status path exist.
 
 Claim-driven collectors require an active workflow coordinator. The public Helm
 chart rejects Terraform-state, AWS cloud, package-registry, SBOM-attestation,
-scanner-worker, or vulnerability-intelligence Deployments unless all of these
-are true:
+provider security-alert, scanner-worker, or vulnerability-intelligence
+Deployments unless all of these are true:
 
 - `workflowCoordinator.enabled=true`
 - `workflowCoordinator.deploymentMode=active`
@@ -68,7 +69,7 @@ instances.
 | Package registry | `eshu-collector-package-registry` is claim-driven and can collect configured package targets or coordinator-derived npm targets from active owned dependency facts. | Package source correlation classifies source hints without ownership promotion and admits manifest-backed package consumption from package identity plus Git dependency evidence. Package-native dependency and publication facts are safe as provenance/read-model evidence. | Expand ownership correlation only after exact, derived, ambiguous, unresolved, stale, and rejected cases are proven. |
 | SBOM and attestations | `eshu-collector-sbom-attestation` is claim-driven and can collect configured CycloneDX/SPDX SBOMs, in-toto statements, or OCI referrer documents without parsing inside the OCI registry collector. | Typed `sbom.*` and `attestation.*` facts feed `sbom_attestation_attachment`. Reducer attachment requires explicit subject digest evidence; parse warnings, verification status, and source document identity stay separate from attachment truth. API and MCP reads surface reducer attachment decisions through `list_sbom_attestation_attachments`. | Prove live or fixture document collection, source-URI redaction, parse-warning surfacing, reducer drain, API/MCP attachment reads, and subject-digest match/mismatch behavior in the target environment. |
 | Vulnerability intelligence | `eshu-collector-vulnerability-intelligence` has source clients for CISA KEV, FIRST EPSS, OSV, and NVD. It can collect configured targets, configured mirror/fallback endpoints, cached/offline source artifacts, or coordinator-derived OSV npm targets for exact owned dependency versions. | Source-truth `vulnerability.*` facts exist. Source-cache metadata is carried on `vulnerability.source_snapshot`; durable target freshness/checkpoint/retry state is carried in `vulnerability_source_states` and surfaced through status/API/MCP readiness. Neither is a finding. Impact reducers require owned package-manifest, lockfile, repository, image, or SBOM evidence before publishing user-facing impact findings. Exact lockfile versions can prove observed package impact; manifest ranges stay partial evidence and are skipped for exact OSV target derivation. They must not infer reachability from CVSS, EPSS, KEV, product-only CPEs, cache freshness, or package-registry facts alone. | Prove live or offline source collection, source snapshot freshness/API/MCP visibility, source-state retry/freshness visibility, then package/image/deployment impact joins after upstream collectors are proven together. |
-| Provider security alerts | `security_alert` currently has synthetic GitHub Dependabot fixture normalization and a bounded allowlisted request client shape, not a hosted collector lane. | `security_alert.repository_alert` facts preserve provider alert state as source truth. `security_alert_reconciliation` reducer facts compare provider alerts with owned dependency and supply-chain impact evidence while keeping provider state separate from Eshu impact truth. | Prove hosted collection credentials, allowlists, rate limits, redaction, claim handoff, fact counts, reducer drain, API/MCP reads, and private-data handling before enabling live provider alert collection. |
+| Provider security alerts | `eshu-collector-security-alerts` is claim-driven for GitHub Dependabot repository alerts. It requires explicit credentials through `token_env`, repository allowlists, bounded `repository_alert_limit`, and bounded `max_pages` before issuing provider requests. | `security_alert.repository_alert` facts preserve provider alert state as source truth. `security_alert_reconciliation` reducer facts compare provider alerts with owned dependency and supply-chain impact evidence while keeping provider state separate from Eshu impact truth. | Prove the configured GitHub repository allowlist, credential environment, rate-limit behavior, redaction, claim handoff, fact counts, reducer drain, API/MCP reads, and private-data handling in the target environment. |
 | Scanner worker | `eshu-scanner-worker` is claim-driven and isolated from reducer lanes. The built-in warning analyzer emits `scanner_worker.warning` source facts until a concrete analyzer is configured. The bounded `sbom_generation` analyzer (`internal/collector/scannerworker/sbomgenerator`) emits CycloneDX-compatible `sbom.document`, `sbom.component`, and `sbom.warning` source facts for repository targets and falls back to `scanner_worker.warning` with `reason="sbom_generator_source_not_configured"` until a runtime-owned source is wired. The `os_package_extraction` analyzer parses configured Alpine or Debian rootfs targets into OS package source facts. | Scanner workers emit source facts only. Reducers own vulnerability finding admission, priority, readiness, and graph truth. Scanner-generated SBOM documents flow through `sbom_attestation_attachment` exactly like collector-fetched SBOM documents; they cannot bypass attachment truth. OS package extraction does not match advisories or publish findings. | Prove concrete analyzers with target count, fact count, runtime, CPU, memory, queue state, retry count, dead-letter count, pprof, and reducer/API truth before enabling them by default. Bounded SBOM generation must additionally prove reducer attachment admission and the safe `unknown_subject` fallback when no subject digest is derivable. |
 
 The broader vulnerability architecture, including target/capability separation,
@@ -97,8 +98,8 @@ the collector naming something truth. Current reducer-owned surfaces include:
 Workflow completeness depends on reducer-owned phase publications only for
 collector families that declare required phases. Git and Terraform-state have
 required graph projection phases. AWS, OCI registry, package registry,
-SBOM-attestation, and documentation currently publish fact-backed or read-model
-truth without required workflow phase gates.
+SBOM-attestation, provider security alerts, and documentation currently publish
+fact-backed or read-model truth without required workflow phase gates.
 
 ## Gated Source Families
 

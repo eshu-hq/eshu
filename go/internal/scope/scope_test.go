@@ -83,6 +83,11 @@ func TestIngestionScopeValidateAllowsAdditionalCollectorKinds(t *testing.T) {
 			collectorKind: CollectorVulnerabilityIntelligence,
 		},
 		{
+			name:          "security_alert",
+			sourceSystem:  "security_alert",
+			collectorKind: CollectorSecurityAlert,
+		},
+		{
 			name:          "scanner_worker",
 			sourceSystem:  "scanner_worker",
 			collectorKind: CollectorScannerWorker,
@@ -190,6 +195,14 @@ func TestIngestionScopeValidateAllowsAdditionalScopeKinds(t *testing.T) {
 			scopeKind:     KindVulnerabilityIntelligence,
 			collectorKind: CollectorVulnerabilityIntelligence,
 			partitionKey:  "osv:npm",
+		},
+		{
+			name:          "security_alert",
+			sourceSystem:  "security_alert",
+			scopeID:       "security-alert:github:example-org/example-repo",
+			scopeKind:     KindSecurityAlert,
+			collectorKind: CollectorSecurityAlert,
+			partitionKey:  "github_dependabot",
 		},
 		{
 			name:          "scanner_worker",

@@ -115,6 +115,9 @@ gauge when a shared-acceptance observer is available.
 | `VulnerabilityIntelligenceObservations` | `eshu_dp_vulnerability_intelligence_observations_total` |
 | `VulnerabilityIntelligenceFactsEmitted` | `eshu_dp_vulnerability_intelligence_facts_emitted_total` |
 | `VulnerabilityIntelligenceRateLimited` | `eshu_dp_vulnerability_intelligence_rate_limited_total` |
+| `SecurityAlertProviderRequests` | `eshu_dp_security_alert_provider_requests_total` |
+| `SecurityAlertFactsEmitted` | `eshu_dp_security_alert_facts_emitted_total` |
+| `SecurityAlertRateLimited` | `eshu_dp_security_alert_rate_limited_total` |
 | `ScannerWorkerClaims` | `eshu_dp_scanner_worker_claims_total` |
 | `ScannerWorkerRetries` | `eshu_dp_scanner_worker_retries_total` |
 | `ScannerWorkerDeadLetters` | `eshu_dp_scanner_worker_dead_letters_total` |
@@ -177,6 +180,7 @@ module prefixes across generations.
 | `PackageRegistryObserveDuration` | `eshu_dp_package_registry_observe_duration_seconds` | 0.01–60 s |
 | `PackageRegistryGenerationLag` | `eshu_dp_package_registry_generation_lag_seconds` | 0.01–60 s |
 | `VulnerabilityIntelligenceFetchDuration` | `eshu_dp_vulnerability_intelligence_fetch_duration_seconds` | 0.01–60 s |
+| `SecurityAlertFetchDuration` | `eshu_dp_security_alert_fetch_duration_seconds` | 0.01–60 s |
 | `ScannerWorkerQueueWaitDuration` | `eshu_dp_scanner_worker_queue_wait_seconds` | 0.001–21600 s |
 | `ScannerWorkerScanDuration` | `eshu_dp_scanner_worker_scan_duration_seconds` | 0.05–1200 s |
 | `ScannerWorkerTargetCount` | `eshu_dp_scanner_worker_target_count` (Int64) | 1–100000 targets |

@@ -77,6 +77,9 @@ type Instruments struct {
 	VulnerabilityIntelligenceObservations     metric.Int64Counter
 	VulnerabilityIntelligenceFactsEmitted     metric.Int64Counter
 	VulnerabilityIntelligenceRateLimited      metric.Int64Counter
+	SecurityAlertProviderRequests             metric.Int64Counter
+	SecurityAlertFactsEmitted                 metric.Int64Counter
+	SecurityAlertRateLimited                  metric.Int64Counter
 	ScannerWorkerClaims                       metric.Int64Counter
 	ScannerWorkerRetries                      metric.Int64Counter
 	ScannerWorkerDeadLetters                  metric.Int64Counter
@@ -109,21 +112,21 @@ type Instruments struct {
 	// ecosystem support to graduate from unknown without re-running the
 	// reducer.
 	SupplyChainRemediationDecisions metric.Int64Counter
-	ConfluenceHTTPRequests                    metric.Int64Counter
-	ConfluencePermissionDeniedPages           metric.Int64Counter
-	ConfluenceDocumentsObserved               metric.Int64Counter
-	ConfluenceSectionsEmitted                 metric.Int64Counter
-	ConfluenceLinksEmitted                    metric.Int64Counter
-	ConfluenceSyncFailures                    metric.Int64Counter
-	AWSAPICalls                               metric.Int64Counter
-	AWSThrottles                              metric.Int64Counter
-	AWSAssumeRoleFailed                       metric.Int64Counter
-	AWSBudgetExhausted                        metric.Int64Counter
-	AWSCheckpointEvents                       metric.Int64Counter
-	AWSResourcesEmitted                       metric.Int64Counter
-	AWSRelationshipsEmitted                   metric.Int64Counter
-	AWSTagObservationsEmitted                 metric.Int64Counter
-	AWSFreshnessEvents                        metric.Int64Counter
+	ConfluenceHTTPRequests          metric.Int64Counter
+	ConfluencePermissionDeniedPages metric.Int64Counter
+	ConfluenceDocumentsObserved     metric.Int64Counter
+	ConfluenceSectionsEmitted       metric.Int64Counter
+	ConfluenceLinksEmitted          metric.Int64Counter
+	ConfluenceSyncFailures          metric.Int64Counter
+	AWSAPICalls                     metric.Int64Counter
+	AWSThrottles                    metric.Int64Counter
+	AWSAssumeRoleFailed             metric.Int64Counter
+	AWSBudgetExhausted              metric.Int64Counter
+	AWSCheckpointEvents             metric.Int64Counter
+	AWSResourcesEmitted             metric.Int64Counter
+	AWSRelationshipsEmitted         metric.Int64Counter
+	AWSTagObservationsEmitted       metric.Int64Counter
+	AWSFreshnessEvents              metric.Int64Counter
 	// AWSScanStatusStaleFence counts AWS scan-status rejections caused by a
 	// stale fencing token, labeled by service, account, region, and the
 	// operation (start, observe, commit) that was rejected. Operators read
@@ -254,6 +257,7 @@ type Instruments struct {
 	PackageRegistryObserveDuration         metric.Float64Histogram
 	PackageRegistryGenerationLag           metric.Float64Histogram
 	VulnerabilityIntelligenceFetchDuration metric.Float64Histogram
+	SecurityAlertFetchDuration             metric.Float64Histogram
 	ScannerWorkerQueueWaitDuration         metric.Float64Histogram
 	ScannerWorkerScanDuration              metric.Float64Histogram
 	ScannerWorkerTargetCount               metric.Int64Histogram
@@ -621,6 +625,30 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register VulnerabilityIntelligenceRateLimited counter: %w", err)
+	}
+
+	inst.SecurityAlertProviderRequests, err = meter.Int64Counter(
+		"eshu_dp_security_alert_provider_requests_total",
+		metric.WithDescription("Total provider security-alert requests by provider and status class"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register SecurityAlertProviderRequests counter: %w", err)
+	}
+
+	inst.SecurityAlertFactsEmitted, err = meter.Int64Counter(
+		"eshu_dp_security_alert_facts_emitted_total",
+		metric.WithDescription("Total provider security-alert source facts emitted by provider and fact kind"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register SecurityAlertFactsEmitted counter: %w", err)
+	}
+
+	inst.SecurityAlertRateLimited, err = meter.Int64Counter(
+		"eshu_dp_security_alert_rate_limited_total",
+		metric.WithDescription("Total provider security-alert requests that ended rate limited by provider"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register SecurityAlertRateLimited counter: %w", err)
 	}
 
 	inst.ScannerWorkerClaims, err = meter.Int64Counter(
@@ -1042,6 +1070,17 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register VulnerabilityIntelligenceFetchDuration histogram: %w", err)
+	}
+
+	securityAlertBuckets := []float64{0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60}
+	inst.SecurityAlertFetchDuration, err = meter.Float64Histogram(
+		"eshu_dp_security_alert_fetch_duration_seconds",
+		metric.WithDescription("Hosted provider security-alert fetch duration by provider and status class"),
+		metric.WithUnit("s"),
+		metric.WithExplicitBucketBoundaries(securityAlertBuckets...),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register SecurityAlertFetchDuration histogram: %w", err)
 	}
 
 	scannerWorkerWaitBuckets := []float64{0.001, 0.01, 0.1, 1, 5, 10, 30, 60, 300, 900, 1800, 3600, 21600}

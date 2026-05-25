@@ -17,7 +17,8 @@ The public Helm chart supports two collector styles:
   one enabled instance, claim durable work, and commit facts.
 
 Claim-driven Terraform-state, AWS cloud, package-registry, SBOM-attestation,
-scanner-worker, and vulnerability-intelligence Deployments require:
+provider security-alert, scanner-worker, and vulnerability-intelligence
+Deployments require:
 
 - `workflowCoordinator.enabled=true`
 - `workflowCoordinator.deploymentMode=active`
@@ -36,6 +37,7 @@ The chart fails at render time when those prerequisites are missing.
 | AWS Cloud Collector | `aws` | workflow claims for account, region, and service slices | `/usr/local/bin/eshu-collector-aws-cloud` | `deploy/helm/eshu/templates/deployment-aws-cloud-collector.yaml` |
 | Package Registry Collector | `package_registry` | workflow claims for configured or derived package metadata targets | `/usr/local/bin/eshu-collector-package-registry` | `deploy/helm/eshu/templates/deployment-package-registry-collector.yaml` |
 | SBOM Attestation Collector | `sbom_attestation` | workflow claims for configured SBOM document URLs or OCI referrer documents | `/usr/local/bin/eshu-collector-sbom-attestation` | `deploy/helm/eshu/templates/deployment-sbom-attestation-collector.yaml` |
+| Security Alert Collector | `security_alert` | workflow claims for configured GitHub Dependabot repository-alert targets | `/usr/local/bin/eshu-collector-security-alerts` | `deploy/helm/eshu/templates/deployment-security-alert-collector.yaml` |
 | Scanner Worker | `scanner_worker` | workflow claims for CPU-heavy or memory-heavy security analyzer targets | `/usr/local/bin/eshu-scanner-worker` | `deploy/helm/eshu/templates/deployment-scanner-worker.yaml` |
 | Vulnerability Intelligence Collector | `vulnerability_intelligence` | workflow claims for bounded vulnerability source targets (CISA KEV, FIRST EPSS, NVD windows, OSV queries, GitLab Gemnasium, GHSA) or derived owned-package targets | `/usr/local/bin/eshu-collector-vulnerability-intelligence` | `deploy/helm/eshu/templates/deployment-vulnerability-intelligence-collector.yaml` |
 
@@ -52,6 +54,7 @@ All hosted collector runtimes expose `/healthz`, `/readyz`, `/metrics`, and
 | AWS Cloud | Claim-driven. Selects one enabled `aws` instance, claims account/region/service work, obtains claim-scoped credentials, and commits reported AWS facts for IAM, ECR, ECS, ELBv2, Route 53, EC2 networking, Lambda, EKS, SQS, SNS, EventBridge, S3, RDS, DynamoDB, CloudWatch Logs, CloudFront, Secrets Manager, and SSM Parameter Store. |
 | Package Registry | Claim-driven. Selects one enabled `package_registry` instance, fetches the explicit `metadata_url` or a coordinator-derived npm packument target from owned dependency evidence, and commits package, version, dependency, artifact, and source-hint facts for npm, PyPI, Go module, Maven, NuGet, and generic metadata shapes. |
 | SBOM Attestation | Claim-driven. Selects one enabled `sbom_attestation` instance, fetches configured CycloneDX/SPDX SBOMs or in-toto attestations from HTTP(S) document URLs or OCI referrer blobs, and commits typed `sbom.*` and `attestation.*` facts. It redacts source URIs, preserves parse warnings as source facts, and keeps signature verification status separate from subject attachment truth. |
+| Security Alert | Claim-driven. Selects one enabled `security_alert` instance, resolves the target `token_env` from the pod environment, refuses non-allowlisted repositories, requires HTTPS for any `api_base_url` override, fetches bounded GitHub Dependabot alert pages, and commits only `security_alert.repository_alert` facts. Provider state remains source evidence; reducers own reconciliation and impact truth. |
 | Scanner Worker | Claim-driven. Selects one enabled `scanner_worker` instance, applies analyzer resource limits, emits source facts only, and records retry or dead-letter state without producing reducer-owned findings. The fallback analyzer emits `scanner_worker.warning`; the concrete `os_package_extraction` analyzer parses configured, already-extracted Alpine or Debian rootfs targets into `vulnerability.os_package` and `vulnerability.warning` facts. |
 | Vulnerability Intelligence | Claim-driven. Selects one enabled `vulnerability_intelligence` instance, fetches bounded source targets (explicit CVE IDs, source snapshots, OSV package-version queries, NVD modified windows, GitLab Gemnasium, GHSA) or coordinator-derived owned-package targets, and commits `vulnerability.*` facts. API keys are referenced from the pod environment through the target's `api_key_env` and never persisted into facts, logs, metric labels, or chart values. |
 
@@ -59,6 +62,11 @@ Keep titles, bodies, URLs, package names, feed URLs, credential values, cloud
 resource identifiers, and other high-cardinality source data out of metric
 labels. Put those values in logs or trace attributes when they are needed for
 diagnosis.
+
+For provider security alerts, do not put repository names, package names, alert
+URLs, or credential values in metric labels or status errors. Keep public
+examples generic and pass live credentials through a private environment file
+or Kubernetes Secret.
 
 Use the focused service runbooks for target, permission, redaction, dashboard,
 and failure detail:
@@ -80,5 +88,6 @@ The collector metrics services live under:
 - `deploy/helm/eshu/templates/service-aws-cloud-collector-metrics.yaml`
 - `deploy/helm/eshu/templates/service-package-registry-collector-metrics.yaml`
 - `deploy/helm/eshu/templates/service-sbom-attestation-collector-metrics.yaml`
+- `deploy/helm/eshu/templates/service-security-alert-collector-metrics.yaml`
 - `deploy/helm/eshu/templates/service-scanner-worker-metrics.yaml`
 - `deploy/helm/eshu/templates/service-vulnerability-intelligence-collector-metrics.yaml`
