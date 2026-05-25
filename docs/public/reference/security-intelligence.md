@@ -482,8 +482,11 @@ contract.
 For the supply-chain impact reducer, the practical implications are:
 
 - npm `package.json` and `package-lock.json`, plus PHP Composer
-  `composer.json`, produce repository consumption decisions when joined to
-  package-registry identity.
+  `composer.json` and `composer.lock`, produce repository consumption
+  decisions when joined to package-registry identity. Composer lockfile
+  rows carry the exact installed version and a `lockfile: true` flag, so
+  the reducer reports `direct_dependency: null` rather than guessing
+  directness when no manifest range was also observed.
 - Maven, Go, PyPI, NuGet, Ruby, Rust, Gradle, and Yarn/pnpm sources have no
   repository-side dependency parser yet, so their impact reads must surface
   the missing-evidence reason instead of returning `ready_zero_findings`.

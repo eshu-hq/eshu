@@ -10,9 +10,10 @@ rows consumed by collector and projection code.
 ## Ownership boundary
 
 This package owns JSON decoding, JSON-specific ordered-object handling,
-package-manager manifest rows, npm `package-lock.json` exact dependency rows,
-TypeScript config rows, dbt manifest payload construction, and
-data-intelligence replay fixture extraction. The replay code is split across
+package-manager manifest rows, npm `package-lock.json` and Composer
+`composer.lock` exact dependency rows, TypeScript config rows, dbt
+manifest payload construction, and data-intelligence replay fixture
+extraction. The replay code is split across
 domain files so no single helper becomes a catch-all parser. This package does
 not own parser dispatch, repository discovery, fact persistence, graph
 projection, YAML decoding, or dbt SQL lineage parsing.
@@ -62,6 +63,15 @@ trims.
 repository. `package.json` dependency rows can still contain ranges such as
 `^5.4.11`; callers that need observed package versions must prefer lockfile
 rows and keep manifest ranges as partial evidence.
+
+`composer.lock` rows likewise represent exact PHP package versions
+installed by Composer. The parser emits one row per package in the
+`packages` (runtime) and `packages-dev` (dev) arrays, preserves the
+`vendor/name` identity, sets `package_manager: "composer"` and
+`lockfile: true`, and does not yet derive a transitive dependency chain.
+Composer manifest ranges from `composer.json` stay in their own
+`require`/`require-dev` rows so downstream code can present both the
+declared range and the installed version as joined evidence.
 
 dbt SQL lineage stays parent-owned. Do not import `internal/parser` from this
 package; add only narrow callback fields to `Config` when parent-owned behavior

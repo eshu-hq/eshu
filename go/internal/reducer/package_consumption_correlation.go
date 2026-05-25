@@ -67,6 +67,7 @@ type packageManifestDependency struct {
 	DependencyPath   []string
 	DependencyDepth  int
 	DirectDependency *bool
+	Lockfile         bool
 }
 
 // BuildPackageConsumptionDecisions matches package registry identities to Git
@@ -194,6 +195,7 @@ func extractPackageManifestDependencies(envelopes []facts.Envelope) []packageMan
 			DependencyPath:   packageManifestMetadataStrings(envelope.Payload, "dependency_path"),
 			DependencyDepth:  packageManifestMetadataInt(envelope.Payload, "dependency_depth"),
 			DirectDependency: packageManifestMetadataBool(envelope.Payload, "direct_dependency"),
+			Lockfile:         packageManifestMetadataBoolValue(envelope.Payload, "lockfile"),
 		}
 		if dependency.DependencyName == "" || dependency.PackageManager == "" {
 			continue
@@ -297,6 +299,16 @@ func packageManifestMetadataBool(payload map[string]any, key string) *bool {
 	return &value
 }
 
+// packageManifestMetadataBoolValue returns the metadata boolean for `key`
+// as a plain bool, defaulting to false when the field is missing. It is
+// used for flags whose absence and false value carry the same meaning,
+// such as `lockfile`, where only the true case changes downstream
+// behavior.
+func packageManifestMetadataBoolValue(payload map[string]any, key string) bool {
+	value := packageManifestMetadataBool(payload, key)
+	return value != nil && *value
+}
+
 func normalizePackageManifestDependencyChain(dependency packageManifestDependency) packageManifestDependency {
 	if len(dependency.DependencyPath) > 0 {
 		if dependency.DependencyDepth == 0 {
@@ -304,7 +316,7 @@ func normalizePackageManifestDependencyChain(dependency packageManifestDependenc
 		}
 		return dependency
 	}
-	if strings.EqualFold(dependency.ManifestSection, "package-lock") {
+	if dependency.Lockfile || strings.EqualFold(dependency.ManifestSection, "package-lock") {
 		dependency.DependencyDepth = 0
 		dependency.DirectDependency = nil
 		return dependency
