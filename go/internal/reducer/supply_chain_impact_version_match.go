@@ -11,6 +11,8 @@ const (
 	supplyChainVersionReasonNPMSemverKnownFixed      = "npm_semver_known_fixed"
 	supplyChainVersionReasonNuGetSemverAffectedRange = "nuget_semver_affected_range"
 	supplyChainVersionReasonNuGetSemverKnownFixed    = "nuget_semver_known_fixed"
+	supplyChainVersionReasonCargoSemverAffectedRange = "cargo_semver_affected_range"
+	supplyChainVersionReasonCargoSemverKnownFixed    = "cargo_semver_known_fixed"
 	supplyChainVersionReasonMavenRangeMatch          = "maven_range_match"
 	supplyChainVersionReasonMavenKnownFixed          = "maven_known_fixed"
 	supplyChainVersionReasonRangeOnlyManifest        = "range_only_manifest"
@@ -63,6 +65,8 @@ func evaluateSupplyChainVersionMatch(
 		return evaluateNPMSemverMatch(observed, fixedVersion, pkgs)
 	case string(packageidentity.EcosystemNuGet):
 		return evaluateNuGetSemverMatch(observed, fixedVersion, pkgs)
+	case string(packageidentity.EcosystemCargo):
+		return evaluateCargoSemverMatch(observed, fixedVersion, pkgs)
 	case string(packageidentity.EcosystemMaven):
 		return evaluateMavenVersionMatch(observed, fixedVersion, pkgs)
 	default:
@@ -218,6 +222,21 @@ func nugetAffectedByPackage(observed string, pkg supplyChainAffectedPackage) (bo
 		}
 	}
 	return false, valid
+}
+
+func evaluateCargoSemverMatch(
+	observed string,
+	fixedVersion string,
+	pkgs []supplyChainAffectedPackage,
+) supplyChainVersionMatchDecision {
+	decision := evaluateNPMSemverMatch(observed, fixedVersion, pkgs)
+	switch decision.Reason {
+	case supplyChainVersionReasonNPMSemverAffectedRange:
+		decision.Reason = supplyChainVersionReasonCargoSemverAffectedRange
+	case supplyChainVersionReasonNPMSemverKnownFixed:
+		decision.Reason = supplyChainVersionReasonCargoSemverKnownFixed
+	}
+	return decision
 }
 
 func evaluateMavenVersionMatch(

@@ -199,13 +199,13 @@ func TestBuildSupplyChainImpactFindingsFailsClosedForUnsupportedAndMalformedRang
 		vulnerabilityAffectedPackageFact(
 			"affected-unsupported",
 			"CVE-2026-59004",
-			"pkg:cargo/example",
-			"cargo",
+			"pkg:pypi/example",
+			"pypi",
 			"example",
 			"1.0.0",
 			"1.1.0",
 		),
-		packageConsumptionFactWithRange("consume-unsupported", "pkg:cargo/example", testImpactRepositoryID, "2.0.0"),
+		packageConsumptionFactWithRange("consume-unsupported", "pkg:pypi/example", testImpactRepositoryID, "2.0.0"),
 
 		vulnerabilityCVEFact("cve-malformed", "CVE-2026-59005", 6.1),
 		vulnerabilityAffectedPackageMalformedRangeFact(

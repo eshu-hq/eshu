@@ -83,6 +83,86 @@ func TestBuildSupplyChainImpactFindingsExposesDependencyChain(t *testing.T) {
 	}
 }
 
+func TestBuildSupplyChainImpactFindingsUsesCargoLockfileVersion(t *testing.T) {
+	t.Parallel()
+
+	findings := BuildSupplyChainImpactFindings([]facts.Envelope{
+		vulnerabilityCVEFact("cve-serde-json", "CVE-2026-64900", 8.4),
+		vulnerabilityAffectedPackageRangeFact(
+			"affected-serde-json",
+			"CVE-2026-64900",
+			"pkg:cargo/serde_json",
+			"cargo",
+			"serde_json",
+			"1.0.120",
+		),
+		packageConsumptionFactWithChain(
+			"consume-serde-json",
+			"pkg:cargo/serde_json",
+			testImpactRepositoryID,
+			"1.0.116",
+			[]string{"serde_json"},
+			1,
+			true,
+		),
+	})
+
+	got := supplyChainImpactFindingsByCVE(findings)["CVE-2026-64900"]
+	assertSupplyChainImpactStatus(t, got, SupplyChainImpactAffectedExact)
+	if got.ObservedVersion != "1.0.116" {
+		t.Fatalf("ObservedVersion = %q, want Cargo.lock version 1.0.116", got.ObservedVersion)
+	}
+	if got.RuntimeReachability != "package_manifest" {
+		t.Fatalf("RuntimeReachability = %q, want package_manifest", got.RuntimeReachability)
+	}
+	if got.MatchReason != "cargo_semver_affected_range" {
+		t.Fatalf("MatchReason = %q, want cargo_semver_affected_range", got.MatchReason)
+	}
+	if got.DetectionProfile != DetectionProfilePrecise {
+		t.Fatalf("DetectionProfile = %q, want precise for exact Cargo lockfile match", got.DetectionProfile)
+	}
+	if !reflect.DeepEqual(got.DependencyPath, []string{"serde_json"}) {
+		t.Fatalf("DependencyPath = %#v, want direct Cargo lockfile path", got.DependencyPath)
+	}
+}
+
+func TestBuildSupplyChainImpactFindingsMarksCargoLockfileVersionKnownFixed(t *testing.T) {
+	t.Parallel()
+
+	findings := BuildSupplyChainImpactFindings([]facts.Envelope{
+		vulnerabilityCVEFact("cve-fixed-serde-json", "CVE-2026-64901", 6.7),
+		vulnerabilityAffectedPackageRangeFact(
+			"affected-fixed-serde-json",
+			"CVE-2026-64901",
+			"pkg:cargo/serde_json",
+			"cargo",
+			"serde_json",
+			"1.0.120",
+		),
+		packageConsumptionFactWithChain(
+			"consume-fixed-serde-json",
+			"pkg:cargo/serde_json",
+			testImpactRepositoryID,
+			"1.0.120",
+			[]string{"serde_json"},
+			1,
+			true,
+		),
+	})
+
+	got := supplyChainImpactFindingsByCVE(findings)["CVE-2026-64901"]
+	assertSupplyChainImpactStatus(t, got, SupplyChainImpactNotAffectedKnownFixed)
+	if got.MatchReason != "cargo_semver_known_fixed" {
+		t.Fatalf("MatchReason = %q, want cargo_semver_known_fixed", got.MatchReason)
+	}
+	if got.DetectionProfile != DetectionProfilePrecise {
+		t.Fatalf("DetectionProfile = %q, want precise for exact Cargo known-fixed match", got.DetectionProfile)
+	}
+	if got.RuntimeReachability != "known_fixed" {
+		t.Fatalf("RuntimeReachability = %q, want known_fixed", got.RuntimeReachability)
+	}
+}
+
 func TestBuildSupplyChainImpactFindingsLeavesRangeDependencyPossiblyAffected(t *testing.T) {
 	t.Parallel()
 

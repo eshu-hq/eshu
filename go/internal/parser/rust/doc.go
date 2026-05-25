@@ -19,10 +19,16 @@
 // candidates stay relative to the current file directory instead of probing the
 // filesystem, except explicit path attributes, which replace the candidate list
 // with the declared path; ResolveModuleRowFileCandidates exposes the same
-// candidate calculation without filesystem probing. A bounded Cargo.toml helper
-// scans package names, workspace members, feature names, default feature
-// members, and target cfg dependency sections for later cfg resolution work,
-// while ignoring dynamic TOML instead of guessing. The parent parser engine may
+// candidate calculation without filesystem probing. Bounded Cargo helpers scan
+// package names, workspace members, feature names, default feature members, and
+// target cfg dependency sections for later cfg resolution work, while ignoring
+// dynamic TOML instead of guessing. The same package parses Cargo.toml and
+// Cargo.lock exact-name inputs into dependency evidence rows: manifests preserve
+// direct ranges, dev/build/runtime scope, target-specific sections,
+// workspace-inherited dependencies, and renamed package identity; lockfiles
+// preserve exact crate versions and dependency paths only when the lock graph
+// proves reachability from a workspace root package, including source-qualified
+// edge resolution when Cargo names a parenthesized source. The parent parser engine may
 // probe repo-bounded module candidates and attach bounded
 // module_resolution_status metadata when parsing a concrete repo path. Existing
 // files outside the repo root are not treated as resolved modules. Item
@@ -35,5 +41,6 @@
 // payload path so parent parser pre-scan and full parse agree. The package
 // preserves raw attributes and generic clauses as evidence without inferring
 // reachability from arbitrary macro expansion, derives, conditional attributes,
-// Cargo feature selection, or cfg evaluation.
+// Cargo feature selection, manifest-to-lockfile feature resolution, or cfg
+// evaluation.
 package rust

@@ -39,6 +39,7 @@ require (
 	github.com/mattn/go-isatty v0.0.21
 	github.com/neo4j/neo4j-go-driver/v5 v5.28.4
 	github.com/orneryd/nornicdb v1.0.45
+	github.com/pelletier/go-toml/v2 v2.3.1
 	github.com/prometheus/client_golang v1.20.5
 	github.com/scip-code/scip/bindings/go/scip v0.7.0
 	github.com/spf13/cobra v1.10.2

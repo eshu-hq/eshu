@@ -56,6 +56,8 @@ func classifySupplyChainImpactDetectionProfile(finding SupplyChainImpactFinding)
 		supplyChainVersionReasonNPMSemverKnownFixed,
 		supplyChainVersionReasonNuGetSemverAffectedRange,
 		supplyChainVersionReasonNuGetSemverKnownFixed,
+		supplyChainVersionReasonCargoSemverAffectedRange,
+		supplyChainVersionReasonCargoSemverKnownFixed,
 		supplyChainVersionReasonMavenRangeMatch,
 		supplyChainVersionReasonMavenKnownFixed:
 		return DetectionProfilePrecise

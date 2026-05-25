@@ -14,6 +14,10 @@ func (e *Engine) parseRust(
 	isDependency bool,
 	options Options,
 ) (map[string]any, error) {
+	if rustparser.IsCargoDependencyFile(path) {
+		return rustparser.ParseCargoDependencyFile(repoRoot, path, isDependency)
+	}
+
 	parser, err := e.runtime.Parser("rust")
 	if err != nil {
 		return nil, err

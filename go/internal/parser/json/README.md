@@ -12,8 +12,9 @@ rows consumed by collector and projection code.
 This package owns JSON decoding, JSON-specific ordered-object handling,
 package-manager manifest rows, npm `package-lock.json` and Composer
 `composer.lock` exact dependency rows, NuGet `packages.lock.json` exact
-dependency rows, TypeScript config rows, dbt manifest payload construction,
-and data-intelligence replay fixture extraction. The replay code is split across
+dependency rows, the repository-wide dependency coverage matrix, TypeScript
+config rows, dbt manifest payload construction, and data-intelligence replay
+fixture extraction. The replay code is split across
 domain files so no single helper becomes a catch-all parser. This package does
 not own parser dispatch, repository discovery, fact persistence, graph
 projection, YAML decoding, or dbt SQL lineage parsing.
@@ -34,8 +35,9 @@ The godoc contract is in `doc.go`. Current exports are:
   looks up a single entry by lowercase filename. The matrix is the in-code
   source of truth behind
   [`docs/public/reference/dependency-coverage.md`](../../../../docs/public/reference/dependency-coverage.md);
-  guard tests in `dependency_coverage_test.go` keep it aligned with what
-  `Parse` actually emits.
+  guard tests in `dependency_coverage_test.go` keep JSON-owned entries aligned
+  with what `Parse` actually emits, while parent-parser fixtures cover
+  non-JSON exact-name entries listed in the same matrix.
 
 ## Dependencies
 
@@ -63,6 +65,9 @@ trims.
 exact versions installed by the owning repository. Manifest dependency rows can
 still contain ranges such as `^5.4.11`; callers that need observed package
 versions must prefer lockfile rows and keep manifest ranges as partial evidence.
+The dependency coverage matrix also names non-JSON ecosystems, such as Cargo,
+because the public coverage table needs one sorted source of truth even when
+parser execution is owned by another package.
 
 `composer.lock` rows likewise represent exact PHP package versions
 installed by Composer. The parser emits one row per package in the
