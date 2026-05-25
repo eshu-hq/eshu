@@ -61,6 +61,48 @@ func TestLoadRuntimeConfigRejectsReducerOwnedAnalyzer(t *testing.T) {
 	}
 }
 
+func TestLoadRuntimeConfigSelectsSBOMGenerationAnalyzer(t *testing.T) {
+	t.Parallel()
+
+	env := map[string]string{
+		envCollectorInstances: `[{
+			"instance_id":"scanner-worker-sbom",
+			"collector_kind":"scanner_worker",
+			"mode":"continuous",
+			"enabled":true,
+			"claims_enabled":true,
+			"configuration":{"analyzer":"sbom_generation"}
+		}]`,
+	}
+
+	config, err := loadRuntimeConfig(func(key string) string { return env[key] })
+	if err != nil {
+		t.Fatalf("loadRuntimeConfig() error = %v, want nil", err)
+	}
+	if got, want := config.Analyzer, scannerworker.AnalyzerSBOMGeneration; got != want {
+		t.Fatalf("Analyzer = %q, want %q", got, want)
+	}
+	if got, want := config.Limits.MemoryBytes, int64(8<<30); got != want {
+		t.Fatalf("MemoryBytes = %d, want %d (sbom_generation default)", got, want)
+	}
+	if got, want := config.Limits.MaxFacts, 50000; got != want {
+		t.Fatalf("MaxFacts = %d, want %d (sbom_generation default)", got, want)
+	}
+}
+
+func TestSelectAnalyzerUsesSBOMGenerationFallbackWarning(t *testing.T) {
+	t.Parallel()
+
+	analyzer := selectAnalyzer(scannerworker.AnalyzerSBOMGeneration)
+	warning, ok := analyzer.(scannerworker.WarningAnalyzer)
+	if !ok {
+		t.Fatalf("selectAnalyzer(sbom_generation) = %T, want WarningAnalyzer until concrete source ships", analyzer)
+	}
+	if got, want := warning.Reason, "sbom_generator_source_not_configured"; got != want {
+		t.Fatalf("WarningAnalyzer.Reason = %q, want %q", got, want)
+	}
+}
+
 func TestLoadRuntimeConfigParsesResourceOverrides(t *testing.T) {
 	t.Parallel()
 

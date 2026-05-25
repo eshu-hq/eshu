@@ -268,6 +268,23 @@ image and referrer identity; the SBOM-attestation runtime fetches configured
 document URLs or OCI referrer blobs, parses CycloneDX, SPDX, and in-toto
 documents, and emits typed source facts.
 
+Bounded SBOM generation lives behind the scanner-worker boundary
+(`internal/collector/scannerworker/sbomgenerator`). The hosted
+`eshu-scanner-worker` binary selects the `sbom_generation` analyzer through
+the existing `ESHU_SCANNER_WORKER_ANALYZER` configuration and falls back to
+`scanner_worker.warning` with `reason="sbom_generator_source_not_configured"`
+until a runtime-owned `sbomgenerator.Source` is wired. The analyzer emits
+`sbom.document`, `sbom.component`, and `sbom.warning` facts with
+`collector_kind=scanner_worker`, schema version `1.0.0`, and
+`parse_status=generated`. It enforces `max_files`, `max_input_bytes`, and
+`max_facts` from `scannerworker.ResourceLimits` and translates unsupported
+target, source unavailability, and resource-limit breaches into the bounded
+`scanner_worker` failure vocabulary. The reducer-owned
+`sbom_attestation_attachment` path is still the only producer of attached,
+attached_parse_only, ambiguous_subject, unknown_subject, subject_mismatch,
+unparseable, and verified/unverified truth; scanner workers never
+short-circuit attachment.
+
 Workflow configuration uses `collector_kind=sbom_attestation` with explicit
 `targets`. Each target must provide a stable `scope_id`, source type, artifact
 kind, document format, and subject digest. Configured-source targets use a
@@ -332,10 +349,20 @@ No-Regression Evidence: scanner-worker runtime behavior is covered by
 That proof covers successful source fact emission, retryable analyzer failure,
 terminal dead-letter payload detail, silent-clean rejection, resource-limit
 defaults, runtime config selection, binary packaging, Compose service wiring,
-pprof overlay wiring, and Helm rendering. Remote Compose acceptance still must
-record target count, fact count, runtime, memory, CPU, queue state, retry
-count, dead letters, and pprof availability before concrete analyzer rollout is
-accepted.
+pprof overlay wiring, and Helm rendering. Bounded SBOM generation adds
+`go test ./internal/collector/scannerworker/sbomgenerator ./internal/reducer -run 'TestAnalyzer|TestScannerWorkerGeneratedSBOMFactsAdmittedByReducerAttachment' -count=1`,
+which proves successful CycloneDX-compatible source-fact emission,
+missing-subject warning emission, malformed subject digest classification,
+component identity skipping, silent-clean rejection, file/input/fact limit
+enforcement, unsupported target classification, retryable source
+unavailability, terminal analyzer failure with privacy-safe payloads, and
+reducer-owned attachment admission of scanner-generated documents (parse-only
+when a subject digest is present, unknown_subject otherwise). Remote Compose
+acceptance still must record target count, fact count, runtime, memory, CPU,
+queue state, retry count, dead letters, and pprof availability before
+concrete analyzer rollout is accepted; the
+`scanner_worker.warning(reason=sbom_generator_source_not_configured)` fallback
+keeps the hosted runtime safe until a real `sbomgenerator.Source` ships.
 
 ## Readiness Semantics
 

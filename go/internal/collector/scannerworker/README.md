@@ -43,6 +43,14 @@ finding facts or graph projection phases.
 - `WarningAnalyzer` — safe built-in analyzer used when no concrete scanner is
   configured; it emits `scanner_worker.warning`.
 
+Concrete scanner-worker analyzers live in sub-packages of this package; the
+first one is `sbomgenerator` (see `sbomgenerator/README.md`), which emits
+bounded CycloneDX-compatible `sbom.document`, `sbom.component`, and
+`sbom.warning` source facts for repository targets. The hosted
+`eshu-scanner-worker` binary keeps `WarningAnalyzer` as the fallback when no
+runtime-owned `sbomgenerator.Source` is configured, so claims still commit
+explicit warning facts instead of pretending the target was scanned clean.
+
 ## Dependencies
 
 - `internal/facts` — source fact envelope and scanner/SBOM fact registries.

@@ -225,7 +225,7 @@ func (s Service) recordAnalyzerFailure(
 ) error {
 	var analyzerErr AnalyzerFailure
 	if errors.As(err, &analyzerErr) {
-		return s.recordFailure(ctx, mutation, input, analyzerErr.disposition(), analyzerErr.failureClass(), analyzerErr.resourceUsage())
+		return s.recordFailure(ctx, mutation, input, analyzerErr.Disposition(), analyzerErr.FailureClass(), analyzerErr.ResourceUsage())
 	}
 	return s.recordFailure(ctx, mutation, input, FailureDeadLetter, FailureClassAnalyzerFailed, ResourceUsage{})
 }

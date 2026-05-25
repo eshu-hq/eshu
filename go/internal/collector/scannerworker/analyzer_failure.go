@@ -48,17 +48,25 @@ func (f AnalyzerFailure) Error() string {
 	return fmt.Sprintf("terminal scanner analyzer failure: %s", f.class)
 }
 
-func (f AnalyzerFailure) failureClass() FailureClass {
+// FailureClass returns the bounded failure class this analyzer reported.
+func (f AnalyzerFailure) FailureClass() FailureClass {
 	return f.class
 }
 
-func (f AnalyzerFailure) disposition() FailureDisposition {
+// Disposition returns the workflow disposition (retryable or dead-letter).
+func (f AnalyzerFailure) Disposition() FailureDisposition {
 	if f.retryable {
 		return FailureRetryable
 	}
 	return FailureDeadLetter
 }
 
-func (f AnalyzerFailure) resourceUsage() ResourceUsage {
+// Retryable reports whether the analyzer failure should be retried by workflow.
+func (f AnalyzerFailure) Retryable() bool {
+	return f.retryable
+}
+
+// ResourceUsage returns the measured CPU/memory usage at the time of failure.
+func (f AnalyzerFailure) ResourceUsage() ResourceUsage {
 	return f.usage
 }
