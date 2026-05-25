@@ -90,9 +90,10 @@ failure-class attributes.
 ## Scanner-Worker Boundary
 
 Scanner-worker metrics are emitted by the hosted scanner-worker runtime for
-isolated security analyzers. The built-in warning analyzer still records these
-signals so operators can prove claim, retry, dead-letter, and fact-output
-behavior before a concrete heavy analyzer is configured.
+isolated security analyzers. The fallback warning analyzer and the concrete
+`os_package_extraction` rootfs analyzer both record these signals so operators
+can prove claim, retry, dead-letter, resource, and fact-output behavior before
+a concrete heavy analyzer is enabled by default.
 
 | Metric | Key labels | Use |
 | --- | --- | --- |

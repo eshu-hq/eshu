@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/collector/ospackagevulnerability/osruntime"
 	"github.com/eshu-hq/eshu/go/internal/collector/scannerworker"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
@@ -36,11 +37,13 @@ type runtimeConfig struct {
 	HeartbeatInterval time.Duration
 	Analyzer          scannerworker.AnalyzerKind
 	Limits            scannerworker.ResourceLimits
+	OSPackageTargets  []osruntime.TargetConfig
 }
 
 type scannerInstanceConfig struct {
-	Analyzer       string             `json:"analyzer"`
-	ResourceLimits resourceLimitsJSON `json:"resource_limits"`
+	Analyzer         string                   `json:"analyzer"`
+	ResourceLimits   resourceLimitsJSON       `json:"resource_limits"`
+	OSPackageTargets []osruntime.TargetConfig `json:"os_package_targets"`
 }
 
 type resourceLimitsJSON struct {
@@ -104,6 +107,7 @@ func loadRuntimeConfig(getenv func(string) string) (runtimeConfig, error) {
 		HeartbeatInterval: heartbeatInterval,
 		Analyzer:          analyzer,
 		Limits:            limits,
+		OSPackageTargets:  decoded.OSPackageTargets,
 	}, nil
 }
 

@@ -77,7 +77,7 @@ func TestServiceRecordsRetryableAnalyzerFailure(t *testing.T) {
 		err: NewRetryableAnalyzerFailure(
 			FailureClassSourceUnavailable,
 			ResourceUsage{CPUSeconds: 1.25, PeakMemoryBytes: 128 << 20},
-			errors.New("temporary source outage at /Users/private/repo"),
+			errors.New("temporary source outage at raw fixture source locator"),
 		),
 	}
 	service := testScannerService(store, committer, analyzer)
@@ -95,8 +95,40 @@ func TestServiceRecordsRetryableAnalyzerFailure(t *testing.T) {
 		t.Fatalf("FailureMessage = %q, want retryable payload", store.retryMutation.FailureMessage)
 	}
 	if strings.Contains(store.retryMutation.FailureMessage, item.ScopeID) ||
-		strings.Contains(store.retryMutation.FailureMessage, "/Users/private/repo") {
-		t.Fatalf("FailureMessage leaked private target detail: %q", store.retryMutation.FailureMessage)
+		strings.Contains(store.retryMutation.FailureMessage, "raw fixture source locator") {
+		t.Fatalf("FailureMessage leaked raw target detail: %q", store.retryMutation.FailureMessage)
+	}
+	if committer.called || store.completed || store.terminal {
+		t.Fatalf("called=%v completed=%v terminal=%v, want no commit/complete/dead-letter", committer.called, store.completed, store.terminal)
+	}
+}
+
+func TestServiceRecordsRetryableTimeoutFailure(t *testing.T) {
+	t.Parallel()
+
+	item := testScannerWorkItem()
+	claim := testScannerClaim(item)
+	store := &recordingClaimStore{}
+	committer := &recordingClaimCommitter{}
+	analyzer := &contextBlockingAnalyzer{
+		usage: ResourceUsage{CPUSeconds: 3.5, PeakMemoryBytes: 512 << 20},
+	}
+	service := testScannerService(store, committer, &recordingAnalyzer{})
+	service.Analyzer = analyzer
+	service.ResourceLimits = testResourceLimits()
+	service.ResourceLimits.Timeout = time.Nanosecond
+
+	if err := service.processClaimed(context.Background(), item, claim); err != nil {
+		t.Fatalf("processClaimed() error = %v, want nil after timeout retry record", err)
+	}
+	if !store.retryable {
+		t.Fatal("retryable = false, want true")
+	}
+	if store.retryMutation.FailureClass != string(FailureClassTimeout) {
+		t.Fatalf("FailureClass = %q, want %q", store.retryMutation.FailureClass, FailureClassTimeout)
+	}
+	if !strings.Contains(store.retryMutation.FailureMessage, `"failure_class":"timeout"`) {
+		t.Fatalf("FailureMessage = %q, want timeout payload", store.retryMutation.FailureMessage)
 	}
 	if committer.called || store.completed || store.terminal {
 		t.Fatalf("called=%v completed=%v terminal=%v, want no commit/complete/dead-letter", committer.called, store.completed, store.terminal)
@@ -343,6 +375,17 @@ type recordingAnalyzer struct {
 func (a *recordingAnalyzer) Analyze(_ context.Context, input ClaimInput) (AnalyzerResult, error) {
 	a.inputs = append(a.inputs, input)
 	return a.result, a.err
+}
+
+type contextBlockingAnalyzer struct {
+	usage  ResourceUsage
+	inputs []ClaimInput
+}
+
+func (a *contextBlockingAnalyzer) Analyze(ctx context.Context, input ClaimInput) (AnalyzerResult, error) {
+	a.inputs = append(a.inputs, input)
+	<-ctx.Done()
+	return AnalyzerResult{Usage: a.usage}, ctx.Err()
 }
 
 type recordingClaimCommitter struct {

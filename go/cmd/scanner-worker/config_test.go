@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/collector/ospackagevulnerability/osruntime"
 	"github.com/eshu-hq/eshu/go/internal/collector/scannerworker"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 )
@@ -90,13 +91,16 @@ func TestLoadRuntimeConfigSelectsSBOMGenerationAnalyzer(t *testing.T) {
 	}
 }
 
-func TestSelectAnalyzerUsesSBOMGenerationFallbackWarning(t *testing.T) {
+func TestBuildAnalyzerUsesSBOMGenerationFallbackWarning(t *testing.T) {
 	t.Parallel()
 
-	analyzer := selectAnalyzer(scannerworker.AnalyzerSBOMGeneration)
+	analyzer, err := buildAnalyzer(runtimeConfig{Analyzer: scannerworker.AnalyzerSBOMGeneration})
+	if err != nil {
+		t.Fatalf("buildAnalyzer(sbom_generation) error = %v, want nil", err)
+	}
 	warning, ok := analyzer.(scannerworker.WarningAnalyzer)
 	if !ok {
-		t.Fatalf("selectAnalyzer(sbom_generation) = %T, want WarningAnalyzer until concrete source ships", analyzer)
+		t.Fatalf("buildAnalyzer(sbom_generation) = %T, want WarningAnalyzer until concrete source ships", analyzer)
 	}
 	if got, want := warning.Reason, "sbom_generator_source_not_configured"; got != want {
 		t.Fatalf("WarningAnalyzer.Reason = %q, want %q", got, want)
@@ -135,5 +139,44 @@ func TestLoadRuntimeConfigParsesResourceOverrides(t *testing.T) {
 	}
 	if config.Limits.MaxFiles != 300000 || config.Limits.MaxFacts != 60000 {
 		t.Fatalf("Limits = %#v, want overridden cardinality", config.Limits)
+	}
+}
+
+func TestLoadRuntimeConfigParsesOSPackageTargets(t *testing.T) {
+	t.Parallel()
+
+	env := map[string]string{
+		envCollectorInstances: `[{
+			"instance_id":"scanner-worker-os",
+			"collector_kind":"scanner_worker",
+			"mode":"continuous",
+			"enabled":true,
+			"claims_enabled":true,
+			"configuration":{
+				"analyzer":"os_package_extraction",
+				"os_package_targets":[{
+					"scope_id":"image://registry.example/team/app@sha256:deadbeef",
+					"rootfs_path":"/var/lib/eshu/scanner/rootfs/deadbeef",
+					"source_uri":"oci://registry.example/team/app@sha256:deadbeef",
+					"source_record_id":"sha256:deadbeef",
+					"distro":"alpine",
+					"distro_version":"3.19.1"
+				}]
+			}
+		}]`,
+	}
+
+	config, err := loadRuntimeConfig(func(key string) string { return env[key] })
+	if err != nil {
+		t.Fatalf("loadRuntimeConfig() error = %v, want nil", err)
+	}
+	if got, want := config.Analyzer, scannerworker.AnalyzerOSPackageExtraction; got != want {
+		t.Fatalf("Analyzer = %q, want %q", got, want)
+	}
+	if got, want := len(config.OSPackageTargets), 1; got != want {
+		t.Fatalf("OSPackageTargets len = %d, want %d", got, want)
+	}
+	if got, want := config.OSPackageTargets[0].Distro, osruntime.DistroAlpine; got != want {
+		t.Fatalf("Distro = %q, want %q", got, want)
 	}
 }
