@@ -290,6 +290,24 @@ func packageConsumptionPayload(
 	if decision.DirectDependency != nil {
 		payload["direct_dependency"] = *decision.DirectDependency
 	}
+	if strings.TrimSpace(decision.DependencyScope) != "" {
+		payload["dependency_scope"] = strings.TrimSpace(decision.DependencyScope)
+	}
+	if strings.TrimSpace(decision.PrivateAssets) != "" {
+		payload["private_assets"] = strings.TrimSpace(decision.PrivateAssets)
+	}
+	if strings.TrimSpace(decision.IncludeAssets) != "" {
+		payload["include_assets"] = strings.TrimSpace(decision.IncludeAssets)
+	}
+	if strings.TrimSpace(decision.ExcludeAssets) != "" {
+		payload["exclude_assets"] = strings.TrimSpace(decision.ExcludeAssets)
+	}
+	if decision.DevelopmentOnly {
+		payload["development_dependency"] = true
+	}
+	if decision.TestDependency {
+		payload["test_dependency"] = true
+	}
 	return payload
 }
 

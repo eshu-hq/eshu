@@ -68,8 +68,8 @@ absence of evidence look like absence of risk. Guard tests:
 | npm | package-lock.json | lockfile | covered | ✓ | ✓ | — | ✓ | — | ✓ | `go/internal/parser/json/package_lock.go` | Lockfile v3 and v1 emit exact-version rows with `dependency_path`/`dependency_depth` and `direct_dependency`. |
 | npm | pnpm-lock.yaml | lockfile | gap | — | — | — | — | — | — | `go/internal/parser/yaml/language.go` does not branch on pnpm-lock.yaml | pnpm lockfiles are not yet parsed. |
 | npm | yarn.lock | lockfile | gap | — | — | — | — | — | — | no parser registered in `go/internal/parser/registry.go` | Yarn classic and Berry lockfiles are not yet parsed. |
-| nuget | *.csproj | manifest | gap | — | — | — | — | — | — | no XML parser registered in `go/internal/parser/registry.go` | C# project files are not parsed. |
-| nuget | packages.lock.json | lockfile | gap | — | — | — | — | — | — | `go/internal/parser/json/language.go` does not branch on packages.lock.json | NuGet central-lockfile JSON is not yet parsed into dependency rows. |
+| nuget | *.csproj | manifest | covered | ✓ | — | ✓ | ✓ | ✓ | — | `go/internal/parser/nuget_project_language.go` | PackageReference rows preserve requested versions, resolved MSBuild properties, unresolved-property partial evidence, and PrivateAssets dev/test signals. |
+| nuget | packages.lock.json | lockfile | covered | ✓ | ✓ | — | ✓ | — | ✓ | `go/internal/parser/json/nuget_lock.go` | NuGet lockfiles emit exact resolved versions and direct/transitive dependency paths when the lockfile proves them. |
 | pypi | Pipfile | manifest | gap | — | — | — | — | — | — | no TOML parser registered in `go/internal/parser/registry.go` | Pipenv manifest is not yet parsed. |
 | pypi | Pipfile.lock | lockfile | gap | — | — | — | — | — | — | `go/internal/parser/json/language.go` does not branch on Pipfile.lock | Pipenv lockfile is JSON but not yet branched into dependency rows. |
 | pypi | poetry.lock | lockfile | gap | — | — | — | — | — | — | no TOML parser registered in `go/internal/parser/registry.go` | Poetry lockfile is TOML and not yet parsed. |
@@ -98,16 +98,30 @@ absence of evidence look like absence of risk. Guard tests:
 
 ## Performance Evidence
 
-`go test ./internal/parser/json -run 'TestDependencyCoverage|TestParseComposerLock|TestParseComposerManifestAndLockfile' -count=1`
-runs the matrix invariants plus the covered/gap parser fixtures and the
-Composer and RubyGems fixtures in well under one second on a developer
-laptop; it is a pure in-memory fixture path and adds no Cypher, queue, or
-storage work. `go test ./internal/reducer -run
-'TestBuildPackageConsumptionDecisions(Rejects|Matches|Normalizes|Preserves|Admits|Keeps|.*Ruby)'
+No-Regression Evidence: baseline coverage before the NuGet slice was the
+existing in-memory npm, Composer, and RubyGems parser/reducer path; after the
+rebased change, `go test ./internal/parser/json ./internal/parser
+./internal/reducer -count=1` and `go test ./...` pass on Go 1.26.3
+darwin/arm64. Input shape is fixture-only manifests and lockfiles
+(`package.json`, `package-lock.json`, `composer.json`, `composer.lock`,
+`Gemfile`, `Gemfile.lock`, `.csproj`, and `packages.lock.json`). Terminal
+runtime counts stay bounded to parser dependency rows and reducer decisions
+asserted in tests: no queue rows, graph rows, or Postgres rows are written by
+these paths.
+
+`go test ./internal/parser -run 'TestParseNuGetProject' -count=1` proves
+PackageReference extraction, MSBuild property handling, and malformed XML
+rejection. `go test ./internal/parser/json -run
+'TestDependencyCoverage|TestParseComposerLock|TestParseComposerManifestAndLockfile|TestParseNuGet'
+-count=1` runs the matrix invariants plus the covered/gap parser fixtures,
+including Composer, RubyGems, and NuGet lockfile fixtures; it is a pure
+in-memory fixture path and adds no Cypher, queue, or storage work. `go test
+./internal/reducer -run
+'TestBuildPackageConsumptionDecisions(Rejects|Matches|Normalizes|Preserves|Admits|Keeps|.*Ruby|MatchesNuGet|PreservesNuGet)'
 -count=1` exercises positive consumption admission, Composer lockfile
-evidence, RubyGems Bundler lockfile admission, git/path ambiguity rejection,
-and the safety-rule
-negatives without touching Postgres or the graph backend.
+evidence, RubyGems Bundler lockfile admission, NuGet lockfile and project
+signals, git/path ambiguity rejection, and the safety-rule negatives without
+touching Postgres or the graph backend.
 
 No-Observability-Change: this change is parser fixture work and reducer
 truth assertions. It introduces no new metric instrument, span, log key,

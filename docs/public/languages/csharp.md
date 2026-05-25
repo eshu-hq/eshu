@@ -38,12 +38,19 @@ Supported today:
   serialization callbacks are modeled as derived roots.
 - Main methods, constructors, overrides, and same-file interface methods and
   implementations are also modeled as root evidence.
+- `.csproj` PackageReference entries are parsed by the separate
+  `nuget_project` parser path into repository dependency evidence. Requested
+  versions, resolved MSBuild property versions, unresolved-property partial
+  evidence, and PrivateAssets dev/test signals are preserved for the
+  supply-chain impact reducer.
 
 Not claimed today:
 
 - Reflection, dependency injection, source generators, partial type merging,
   project references, dynamic dispatch, and broad public API surfaces remain
-  exactness blockers.
+  exactness blockers for code reachability. NuGet project-reference package
+  identity is skipped unless it is represented as PackageReference package
+  evidence.
 
 ## Known Limitations
 - Extension methods are not tagged as extensions in the graph

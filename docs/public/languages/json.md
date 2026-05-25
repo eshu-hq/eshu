@@ -37,5 +37,5 @@ Not claimed today:
 
 ## Known Limitations
 - Generic JSON files emit metadata only and do not expand arbitrary nested objects into graph nodes
-- npm `package-lock.json` and Composer `composer.lock` are parsed into exact-version dependency rows; the per-ecosystem coverage map for supply-chain impact lives in [Dependency And Lockfile Coverage](../reference/dependency-coverage.md). Other JSON lockfiles such as `Pipfile.lock` and `packages.lock.json` are explicit gaps today
+- npm `package-lock.json`, Composer `composer.lock`, and NuGet `packages.lock.json` are parsed into exact-version dependency rows; the per-ecosystem coverage map for supply-chain impact lives in [Dependency And Lockfile Coverage](../reference/dependency-coverage.md). Other JSON lockfiles such as `Pipfile.lock` are explicit gaps today
 - Minified JSON assets are intentionally kept metadata-only to avoid graph noise

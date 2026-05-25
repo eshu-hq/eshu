@@ -142,6 +142,8 @@ func TestExactManifestDependencyVersionRejectsNonVersionSpecifiers(t *testing.T)
 		"8.x",
 		"latest",
 		"workspace:^8.20.0",
+		"$(PackageVersion)",
+		"[13.0.3]",
 		"file:../ws",
 		"npm:ws@8.20.0",
 		"github:websockets/ws",

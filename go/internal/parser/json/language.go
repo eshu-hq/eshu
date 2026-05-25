@@ -99,6 +99,8 @@ func Parse(
 	}
 
 	switch {
+	case filename == "packages.lock.json":
+		payload["variables"] = nugetPackagesLockDependencyVariables(object, languageName)
 	case filename == "package-lock.json":
 		payload["variables"] = packageLockDependencyVariables(object, languageName)
 	case filename == "composer.lock":

@@ -69,6 +69,8 @@ func TestDependencyCoverageMatrixIsStableAndExhaustive(t *testing.T) {
 		"npm|package-lock.json",
 		"composer|composer.json",
 		"composer|composer.lock",
+		"nuget|*.csproj",
+		"nuget|packages.lock.json",
 		"rubygems|gemfile",
 		"rubygems|gemfile.lock",
 	}
@@ -81,6 +83,11 @@ func TestDependencyCoverageMatrixIsStableAndExhaustive(t *testing.T) {
 		if entry.Status != DependencyCoverageCovered {
 			t.Fatalf("entry %q must remain Covered to preserve existing reducer truth (got %q)", key, entry.Status)
 		}
+	}
+	if entry, ok := DependencyCoverageByFile("worker.csproj"); !ok ||
+		entry.Ecosystem != "nuget" ||
+		entry.Status != DependencyCoverageCovered {
+		t.Fatalf("worker.csproj wildcard lookup = %#v, %v; want covered NuGet project entry", entry, ok)
 	}
 
 	requiredGaps := []string{
@@ -96,8 +103,6 @@ func TestDependencyCoverageMatrixIsStableAndExhaustive(t *testing.T) {
 		"pom.xml",
 		"build.gradle",
 		"build.gradle.kts",
-		"*.csproj",
-		"packages.lock.json",
 		"cargo.toml",
 		"cargo.lock",
 	}
@@ -226,10 +231,50 @@ DEPENDENCIES
   rails (~> 7.1)
 `,
 		},
+		"packages.lock.json": {
+			body: `{
+  "version": 1,
+  "dependencies": {
+    "net8.0": {
+      "Newtonsoft.Json": {
+        "type": "Direct",
+        "requested": "[13.0.3, )",
+        "resolved": "13.0.3"
+      }
+    }
+  }
+}`,
+			expectedDependencies: map[string]string{"Newtonsoft.Json": "13.0.3"},
+			expectedPackageMgr:   "nuget",
+			expectedSection:      "packages.lock.json:net8.0",
+			transitiveBody: `{
+  "version": 1,
+  "dependencies": {
+    "net8.0": {
+      "Newtonsoft.Json": {
+        "type": "Direct",
+        "requested": "[13.0.3, )",
+        "resolved": "13.0.3",
+        "dependencies": {
+          "System.Text.Encodings.Web": "[8.0.0, )"
+        }
+      },
+      "System.Text.Encodings.Web": {
+        "type": "Transitive",
+        "resolved": "8.0.0"
+      }
+    }
+  }
+}`,
+		},
 	}
 
 	for _, entry := range DependencyCoverage() {
 		if entry.Status != DependencyCoverageCovered {
+			continue
+		}
+		if strings.Contains(entry.FilePattern, "*") {
+			// Non-JSON wildcard manifests are covered by parser package tests.
 			continue
 		}
 		fixture, ok := fixtures[entry.FilePattern]
@@ -277,15 +322,15 @@ DEPENDENCIES
 		if entry.CapturesDependencyChain {
 			anyChain := false
 			for _, row := range rows {
-				if path, ok := row["dependency_path"].([]string); ok && len(path) > 0 {
+				if path, ok := row["dependency_path"].([]string); ok && len(path) > 1 {
 					anyChain = true
 					break
 				}
 			}
-			if !anyChain && len(fixture.expectedDependencies) > 0 {
-				// package-lock fixture above has a single direct dep so
-				// chain length is one. Re-run a fixture with a transitive
-				// edge so the matrix claim is provable.
+			if !anyChain && fixture.transitiveBody != "" {
+				// Direct lockfile fixtures can produce path length one.
+				// Re-run a fixture with a transitive edge so the matrix
+				// chain-capture claim is provable.
 				transitive := writeJSONTestFile(t, entry.FilePattern, fixture.transitiveBody)
 				rerun, err := parseDependencyCoverageFixture(transitive, entry.FilePattern)
 				if err != nil {
@@ -315,8 +360,7 @@ func TestDependencyCoverageGapsDoNotEmitDependencyRows(t *testing.T) {
 	t.Parallel()
 
 	jsonGapFixtures := map[string]string{
-		"pipfile.lock":       `{"_meta":{},"default":{"requests":{"version":"==2.31.0"}}}`,
-		"packages.lock.json": `{"version":1,"dependencies":{"net6.0":{"Newtonsoft.Json":{"resolved":"13.0.3"}}}}`,
+		"pipfile.lock": `{"_meta":{},"default":{"requests":{"version":"==2.31.0"}}}`,
 	}
 
 	for file, body := range jsonGapFixtures {

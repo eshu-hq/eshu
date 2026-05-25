@@ -483,14 +483,18 @@ For the supply-chain impact reducer, the practical implications are:
 
 - npm `package.json` and `package-lock.json`, plus PHP Composer
   `composer.json` and `composer.lock`, and Ruby Bundler `Gemfile` /
-  `Gemfile.lock` produce repository consumption decisions when joined to
-  package-registry identity. Composer lockfile rows carry exact installed
+  `Gemfile.lock`, plus NuGet `.csproj` PackageReference and
+  `packages.lock.json`, produce repository consumption decisions when joined
+  to package-registry identity. Composer lockfile rows carry exact installed
   versions and a `lockfile: true` flag, so the reducer reports
   `direct_dependency: null` rather than guessing directness when no manifest
   range was also observed. Bundler git/path sources are preserved as
   ambiguous source evidence and are not admitted as public RubyGems registry
-  consumption.
-- Maven, Go, PyPI, NuGet, Rust, Gradle, and Yarn/pnpm sources have no
+  consumption. NuGet lockfile rows carry exact resolved versions plus
+  dependency path/directness when the lockfile proves the chain, while
+  `.csproj` rows preserve requested versions, MSBuild property partial
+  evidence, and PrivateAssets dev/test signals.
+- Maven, Go, PyPI, Rust, Gradle, and Yarn/pnpm sources have no
   repository-side dependency parser yet, so their impact reads must surface
   the missing-evidence reason instead of returning `ready_zero_findings`.
 - When a parser graduates a file from gap to covered, the matrix MUST be
@@ -589,7 +593,8 @@ repository names.
 
 Version and range matching is reducer-owned and ecosystem-aware. The first
 supported matchers are npm semver over OSV-style event ranges and GLAD-style
-comparator ranges, plus Maven version/range ordering for Maven bracket and
+comparator ranges, NuGet semantic versions from exact lockfile or pinned
+manifest evidence, plus Maven version/range ordering for Maven bracket and
 comparator ranges. Findings preserve `observed_version`, `requested_range`,
 `fixed_version`, and `match_reason` as separate fields. Unsupported ecosystems
 and malformed installed versions or advisory ranges fail closed as

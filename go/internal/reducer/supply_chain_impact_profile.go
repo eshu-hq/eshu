@@ -54,6 +54,8 @@ func classifySupplyChainImpactDetectionProfile(finding SupplyChainImpactFinding)
 	switch finding.MatchReason {
 	case supplyChainVersionReasonNPMSemverAffectedRange,
 		supplyChainVersionReasonNPMSemverKnownFixed,
+		supplyChainVersionReasonNuGetSemverAffectedRange,
+		supplyChainVersionReasonNuGetSemverKnownFixed,
 		supplyChainVersionReasonMavenRangeMatch,
 		supplyChainVersionReasonMavenKnownFixed:
 		return DetectionProfilePrecise

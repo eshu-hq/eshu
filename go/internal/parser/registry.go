@@ -270,6 +270,11 @@ func defaultDefinitions() []Definition {
 			Extensions: []string{".json", ".jsonc"},
 		},
 		{
+			ParserKey:  "nuget_project",
+			Language:   "nuget_project",
+			Extensions: []string{".csproj"},
+		},
+		{
 			ParserKey:  "kotlin",
 			Language:   "kotlin",
 			Extensions: []string{".kt"},

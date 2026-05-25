@@ -268,7 +268,7 @@ GHSA outranks GLAD, OSV, and NVD for language ecosystems (npm, PyPI, Go,
 Maven, etc.). If the selected source did not publish a severity, the reducer
 falls back to the next-best source instead of emitting a zero severity.
 Exact owned lockfile dependency rows can prove the observed package version.
-Npm lockfile-backed findings may include `dependency_path`,
+Npm and NuGet lockfile-backed findings may include `dependency_path`,
 `dependency_depth`, and `direct_dependency` so callers can explain direct versus
 transitive package impact without re-walking the lockfile.
 Manifest ranges remain partial package evidence until a lockfile, SBOM/image,
