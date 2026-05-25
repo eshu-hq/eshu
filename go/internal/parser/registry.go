@@ -236,6 +236,11 @@ func defaultDefinitions() []Definition {
 			Extensions: []string{".go"},
 		},
 		{
+			ParserKey:  "gomod",
+			Language:   "gomod",
+			ExactNames: []string{"go.mod", "go.sum"},
+		},
+		{
 			ParserKey:  "groovy",
 			Language:   "groovy",
 			Extensions: []string{".groovy"},
@@ -268,6 +273,7 @@ func defaultDefinitions() []Definition {
 			ParserKey:  "json",
 			Language:   "json",
 			Extensions: []string{".json", ".jsonc"},
+			ExactNames: []string{"composer.lock"},
 		},
 		{
 			ParserKey:  "nuget_project",

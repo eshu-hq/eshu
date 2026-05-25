@@ -292,6 +292,7 @@ JavaScript, Rust, Java, C, C++).
 | Dockerfile | `__dockerfile__` | `Dockerfile`, `Dockerfile.*` | — |
 | Elixir | `elixir` | `.ex`, `.exs` | — |
 | Go | `go` | `.go` | yes |
+| Go modules | `gomod` | `go.mod`, `go.sum` (exact filenames) | — |
 | Groovy/Jenkinsfile | `groovy`, `__jenkinsfile__` | `.groovy`, `Jenkinsfile` | — |
 | Haskell | `haskell` | `.hs` | — |
 | HCL/Terraform | `hcl` | `.hcl`, `.tf`, `.tfvars`, `.tfvars.json` | — |

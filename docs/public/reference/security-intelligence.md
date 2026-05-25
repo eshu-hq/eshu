@@ -483,22 +483,25 @@ For the supply-chain impact reducer, the practical implications are:
 
 - npm `package.json` and `package-lock.json`, PHP Composer `composer.json` and
   `composer.lock`, Ruby Bundler `Gemfile` and `Gemfile.lock`, NuGet `.csproj`
-  PackageReference and `packages.lock.json`, and Rust Cargo `Cargo.toml` and
-  `Cargo.lock` produce repository consumption decisions when joined to
-  package-registry identity. Composer lockfile rows carry exact installed
-  versions and a `lockfile: true` flag, so the reducer reports
+  PackageReference and `packages.lock.json`, Rust Cargo `Cargo.toml` and
+  `Cargo.lock`, and Go `go.mod` produce repository consumption decisions when
+  joined to package-registry identity. Composer lockfile rows carry exact
+  installed versions and a `lockfile: true` flag, so the reducer reports
   `direct_dependency: null` rather than guessing directness when no manifest
   range was also observed. Bundler git/path sources are preserved as ambiguous
   source evidence and are not admitted as public RubyGems registry consumption.
   NuGet lockfile rows carry exact resolved versions plus dependency
   path/directness when the lockfile proves the chain, while `.csproj` rows
   preserve requested versions, MSBuild property partial evidence, and
-  PrivateAssets dev/test signals.
+  PrivateAssets dev/test signals. Go `go.sum` remains checksum-only evidence
+  and does not by itself prove the currently selected module version, so the
+  consumption reducer treats it as missing evidence until paired with a
+  `go.mod` require.
 - Cargo manifests preserve direct dependency ranges, dev/build/runtime scope,
   workspace-inherited dependency rows, target-specific dependency sections, and
   renamed package identity. Cargo lockfiles preserve exact crate versions and
   dependency paths only when the lockfile root graph proves reachability.
-- Maven, Go, PyPI, Gradle, and Yarn/pnpm sources have no
+- Maven, PyPI, Gradle, and Yarn/pnpm sources have no
   repository-side dependency parser yet, so their impact reads must surface
   the missing-evidence reason instead of returning `ready_zero_findings`.
 - When a parser graduates a file from gap to covered, the matrix MUST be
