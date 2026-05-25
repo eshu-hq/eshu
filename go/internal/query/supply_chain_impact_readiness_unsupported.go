@@ -87,6 +87,14 @@ func normalizeUnsupportedTargets(targets []SupplyChainImpactUnsupportedTarget) [
 			LockfileFlavor: strings.TrimSpace(target.LockfileFlavor),
 			FeatureToken:   strings.TrimSpace(target.FeatureToken),
 		}
+		// Reason is part of the API contract: every surfaced entry must
+		// carry a stable reason code so callers can interpret the
+		// target_kind without guessing. Drop rows whose producer did not
+		// supply a reason instead of publishing an envelope that
+		// contradicts the OpenAPI schema.
+		if entry.Reason == "" {
+			continue
+		}
 		if entry.Count <= 0 {
 			entry.Count = 1
 		}

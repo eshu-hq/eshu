@@ -435,6 +435,70 @@ func TestBuildSupplyChainImpactReadinessClassifiesUnsupportedImageTarget(t *test
 	}
 }
 
+func TestBuildSupplyChainImpactReadinessUnsupportedOutranksReadyZeroFindings(t *testing.T) {
+	t.Parallel()
+
+	// Accuracy guard from the Copilot review thread: even when a scope has
+	// matchable advisory + owned-package evidence and the reducer admitted
+	// zero findings (a clean ready_zero_findings shape on the matchable
+	// side), the presence of observed unsupported target evidence MUST
+	// outrank ready_zero_findings. Otherwise callers would see
+	// "ready_zero_findings" while there is real coverage Eshu cannot match,
+	// which is exactly the "clean" misread the unsupported state is
+	// supposed to prevent.
+	envelope := BuildSupplyChainImpactReadiness(
+		SupplyChainImpactTargetScope{RepositoryID: "repo://example/api"},
+		nil,
+		false,
+		SupplyChainImpactReadinessSnapshot{
+			EvidenceSources: []SupplyChainImpactEvidenceFamily{
+				{Family: EvidenceFamilyVulnerabilityAdvisory, FactCount: 4, Freshness: FreshnessLabelFresh},
+				{Family: EvidenceFamilyPackageConsumption, FactCount: 3, Freshness: FreshnessLabelFresh},
+			},
+			UnsupportedTargets: []SupplyChainImpactUnsupportedTarget{
+				{TargetKind: UnsupportedTargetKindEcosystem, Reason: "unsupported_ecosystem", Ecosystem: "pypi", Count: 2},
+			},
+		},
+	)
+	if envelope.State != ReadinessStateUnsupported {
+		t.Fatalf("state = %q, want %q (unsupported must outrank ready_zero_findings when observed coverage gap exists)", envelope.State, ReadinessStateUnsupported)
+	}
+	if !readinessMissingContains(envelope.MissingEvidence, MissingEvidenceUnsupportedTargets) {
+		t.Fatalf("missing_evidence = %#v, want unsupported_targets", envelope.MissingEvidence)
+	}
+}
+
+func TestBuildSupplyChainImpactReadinessUnsupportedDropsEntriesWithoutReason(t *testing.T) {
+	t.Parallel()
+
+	// Companion guard for the Copilot OpenAPI review: every surfaced
+	// unsupported_target row MUST carry a stable reason code because the
+	// schema requires it. Producer rows with a blank reason are dropped
+	// during normalization so the envelope cannot publish a contract
+	// violation, and a scope with only-blank-reason entries falls back to
+	// the non-unsupported classification.
+	envelope := BuildSupplyChainImpactReadiness(
+		SupplyChainImpactTargetScope{RepositoryID: "repo://example/api"},
+		nil,
+		false,
+		SupplyChainImpactReadinessSnapshot{
+			EvidenceSources: []SupplyChainImpactEvidenceFamily{
+				{Family: EvidenceFamilyVulnerabilityAdvisory, FactCount: 4, Freshness: FreshnessLabelFresh},
+				{Family: EvidenceFamilyPackageConsumption, FactCount: 1, Freshness: FreshnessLabelFresh},
+			},
+			UnsupportedTargets: []SupplyChainImpactUnsupportedTarget{
+				{TargetKind: UnsupportedTargetKindSBOMTarget, Reason: "  ", Count: 1},
+			},
+		},
+	)
+	if len(envelope.UnsupportedTargets) != 0 {
+		t.Fatalf("unsupported_targets = %#v, want empty (blank reasons must be dropped)", envelope.UnsupportedTargets)
+	}
+	if envelope.State == ReadinessStateUnsupported {
+		t.Fatalf("state = %q, must not be unsupported when no normalized targets remain", envelope.State)
+	}
+}
+
 func TestBuildSupplyChainImpactReadinessUnsupportedDoesNotCollapseMissingEvidence(t *testing.T) {
 	t.Parallel()
 

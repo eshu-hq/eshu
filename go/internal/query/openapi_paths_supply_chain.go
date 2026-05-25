@@ -315,7 +315,7 @@ const openAPIPathsSupplyChain = `
                               "lockfile_flavor": {"type": "string"},
                               "feature_token": {"type": "string"}
                             },
-                            "required": ["target_kind", "count"]
+                            "required": ["target_kind", "reason", "count"]
                           }
                         },
                         "missing_evidence": {"type": "array", "items": {"type": "string", "enum": ["advisory_sources", "owned_packages", "sbom_or_image_evidence", "target_collection_incomplete", "readiness_unavailable", "unsupported_targets"]}},

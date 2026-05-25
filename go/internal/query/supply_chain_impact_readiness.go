@@ -288,11 +288,16 @@ func classifyReadinessState(
 		evidenceFactCount(sources, EvidenceFamilyContainerImageIdentity) == 0 {
 		return ReadinessStateNotConfigured
 	}
-	// Unsupported target evidence outranks evidence_incomplete: when Eshu
-	// observed real target evidence the matcher cannot resolve, the answer
-	// is not "we are missing data" but "we have data we cannot match." The
-	// state stays unsupported only when no finding admitted the scope and
-	// no advisory/owned mix produced a clean ready_zero answer.
+	// Unsupported target evidence outranks both evidence_incomplete AND
+	// ready_zero_findings: when Eshu observed real target evidence the
+	// matcher cannot resolve, the answer is not "we are missing data" or
+	// "we ran cleanly" but "we have data we cannot match." Surfacing
+	// ready_zero_findings here would let callers read the response as
+	// clean while a real coverage gap exists. Findings still outrank
+	// unsupported (handled by the early ready_with_findings return above)
+	// because an admitted finding is the reducer's positive verdict;
+	// unsupported_targets[] is then surfaced additively so the gap is
+	// still visible.
 	if len(snapshot.UnsupportedTargets) > 0 {
 		return ReadinessStateUnsupported
 	}

@@ -101,6 +101,12 @@ func TestOpenAPISpecIncludesSupplyChainImpactFindings(t *testing.T) {
 			t.Fatalf("unsupported_targets items.properties missing %q", key)
 		}
 	}
+	unsupportedTargetsRequired := mustStringSliceField(t, unsupportedTargetsItems, "required")
+	for _, key := range []string{"target_kind", "reason", "count"} {
+		if !containsOpenAPIEnumString(unsupportedTargetsRequired, key) {
+			t.Fatalf("unsupported_targets items.required = %#v, want %q (envelope normalization drops blank-reason rows)", unsupportedTargetsRequired, key)
+		}
+	}
 	targetKindSchema := mustMapField(t, unsupportedTargetsItemProps, "target_kind")
 	targetKindEnum := mustStringSliceField(t, targetKindSchema, "enum")
 	for _, want := range []string{"ecosystem", "package_manager_file", "sbom_target", "image_target"} {
