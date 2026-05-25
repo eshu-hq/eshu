@@ -2,6 +2,7 @@ package awsruntime
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -12,6 +13,29 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
+// FailureClassStaleFence labels classified AWS scan-status stale-fence
+// failures on metrics and workflow_claims rows. Operators read this label to
+// separate stale-fence terminal failures from credential, throttle, and
+// network-class collector failures.
+const FailureClassStaleFence = "stale_fence"
+
+// scanStatusStaleFenceError marks a status-store rejection as terminal so the
+// ClaimedService runner stops looping the claim through the retryable queue.
+// Issue #612: an orphaned aws_scan_status row used to block every future
+// generation for the same per-target slot, and the retry loop drove
+// workflow_claims.failed_retryable into the millions on ops-qa.
+type scanStatusStaleFenceError struct {
+	err error
+}
+
+func (e scanStatusStaleFenceError) Error() string { return e.err.Error() }
+
+func (e scanStatusStaleFenceError) Unwrap() error { return e.err }
+
+func (e scanStatusStaleFenceError) FailureClass() string { return FailureClassStaleFence }
+
+func (e scanStatusStaleFenceError) TerminalFailure() bool { return true }
+
 func (s ClaimedSource) startScanStatus(ctx context.Context, boundary awscloud.Boundary) error {
 	if s.ScanStatus == nil {
 		return nil
@@ -20,9 +44,26 @@ func (s ClaimedSource) startScanStatus(ctx context.Context, boundary awscloud.Bo
 		Boundary:  boundary,
 		StartedAt: s.now(),
 	}); err != nil {
-		return fmt.Errorf("start AWS scan status: %w", err)
+		wrapped := fmt.Errorf("start AWS scan status: %w", err)
+		if errors.Is(err, awscloud.ErrScanStatusStaleFence) {
+			s.recordScanStatusStaleFence(ctx, boundary, "start")
+			return scanStatusStaleFenceError{err: wrapped}
+		}
+		return wrapped
 	}
 	return nil
+}
+
+func (s ClaimedSource) recordScanStatusStaleFence(ctx context.Context, boundary awscloud.Boundary, phase string) {
+	if s.Instruments == nil || s.Instruments.AWSScanStatusStaleFence == nil {
+		return
+	}
+	s.Instruments.AWSScanStatusStaleFence.Add(ctx, 1, metric.WithAttributes(
+		telemetry.AttrService(boundary.ServiceKind),
+		telemetry.AttrAccount(boundary.AccountID),
+		telemetry.AttrRegion(boundary.Region),
+		telemetry.AttrOperation(phase),
+	))
 }
 
 func (s ClaimedSource) observeScanStatus(
@@ -75,7 +116,12 @@ func (s ClaimedSource) observeScanStatus(
 		CredentialFailed:    factStats.CredentialFailed,
 		ObservedAt:          s.now(),
 	}); err != nil {
-		return fmt.Errorf("observe AWS scan status: %w", err)
+		wrapped := fmt.Errorf("observe AWS scan status: %w", err)
+		if errors.Is(err, awscloud.ErrScanStatusStaleFence) {
+			s.recordScanStatusStaleFence(ctx, boundary, "observe")
+			return scanStatusStaleFenceError{err: wrapped}
+		}
+		return wrapped
 	}
 	return nil
 }

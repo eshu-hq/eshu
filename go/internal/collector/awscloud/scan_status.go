@@ -1,10 +1,18 @@
 package awscloud
 
 import (
+	"errors"
 	"regexp"
 	"strings"
 	"time"
 )
+
+// ErrScanStatusStaleFence reports that an AWS scan status start/observe/commit
+// row affected zero rows because a newer (generation_id, fencing_token) pair
+// already owns the per-target slot. Storage adapters return this sentinel so
+// the AWS claimed source can classify it as terminal and stop the orphaned-row
+// retry loop described in issue #612.
+var ErrScanStatusStaleFence = errors.New("AWS scan status mutation rejected by stale fence")
 
 const (
 	// MaxScanStatusMessageLength bounds persisted operator-facing AWS scan

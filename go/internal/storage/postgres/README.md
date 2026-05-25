@@ -178,7 +178,20 @@ constructor with `InstrumentedDB{Inner: db, StoreName: "my_store", ...}`.
   fenced writes; callers must stop processing when this error is returned.
 - `AWSScanStatusStore` mutations must keep their fencing guards. A stale AWS
   worker must not overwrite per-tuple scanner or commit state from a newer
-  claim.
+  claim. ObserveAWSScan and CommitAWSScan stay pinned to the exact
+  `(generation_id, fencing_token)` so stale collectors cannot clobber a newer
+  owner. StartAWSScan accepts a cross-generation overwrite when the prior
+  row is terminal OR the new `last_started_at` is strictly newer than the
+  stored value (or the row has none), which lets a fresh workflow generation
+  reclaim the per-target slot after an orphaned `running`/`pending` row was
+  left by a collector that died mid-flight. Without this widening one
+  orphaned row blocks every future generation and the workflow runtime spins
+  stale-fence retries — see issue #612.
+- `AWSScanStatusStore` returns `awscloud.ErrScanStatusStaleFence` when a
+  mutation affects zero rows; callers wrap and route the failed claim to
+  terminal (the AWS claimed runtime does this via
+  `awsruntime.FailureClassStaleFence`) instead of looping it on the
+  retryable queue.
 - `WebhookTriggerStore` treats webhook payloads as trigger evidence only. The
   Git collector must still fetch the repository before freshness becomes true.
 - `AWSFreshnessStore` treats AWS Config and EventBridge events as trigger

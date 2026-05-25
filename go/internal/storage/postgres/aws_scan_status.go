@@ -133,9 +133,24 @@ WHERE (
         AND aws_scan_status.fencing_token <= EXCLUDED.fencing_token
    )
    OR (
+        -- Cross-generation handoff:
+        --   - Terminal prior scan is the common steady-state path.
+        --   - The chronology guard (last_started_at IS NULL OR <) lets a new
+        --     workflow generation reclaim the per-target slot when the prior
+        --     generation's collector died between StartAWSScan and
+        --     ObserveAWSScan and left an orphaned 'running'/'pending' row.
+        --     Without this widening the row blocks every future generation
+        --     and the collector spins stale-fence retries forever (issue #612).
+        --   - ObserveAWSScan/CommitAWSScan still pin to the exact
+        --     (generation_id, fencing_token) so any stale collector that
+        --     somehow wakes up cannot clobber the new owner's row.
         aws_scan_status.generation_id <> EXCLUDED.generation_id
-        AND aws_scan_status.status IN ('succeeded', 'partial', 'failed', 'credential_failed')
-        AND aws_scan_status.commit_status IN ('committed', 'failed')
+        AND (
+            (aws_scan_status.status IN ('succeeded', 'partial', 'failed', 'credential_failed')
+             AND aws_scan_status.commit_status IN ('committed', 'failed'))
+            OR aws_scan_status.last_started_at IS NULL
+            OR aws_scan_status.last_started_at < EXCLUDED.last_started_at
+        )
    )
 `
 
@@ -348,7 +363,7 @@ func validateAWSScanStatusMutation(result sql.Result) error {
 		return fmt.Errorf("read AWS scan status mutation result: %w", err)
 	}
 	if rowsAffected == 0 {
-		return fmt.Errorf("AWS scan status mutation rejected by stale fence")
+		return awscloud.ErrScanStatusStaleFence
 	}
 	return nil
 }
