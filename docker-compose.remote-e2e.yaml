@@ -314,13 +314,17 @@ services:
       - /bin/sh /usr/local/bin/remote-e2e-corpus-preflight.sh
 
   sbom-attestation-fixture:
-    image: alpine:3.21
+    image: python:3.13-alpine
     restart: on-failure
     volumes:
       - ./go/internal/collector/sbomdocument/testdata:/fixtures:ro
-    command: ["httpd", "-f", "-p", "8080", "-h", "/fixtures"]
+    command: ["python", "-m", "http.server", "8080", "--directory", "/fixtures"]
     healthcheck:
-      test: ["CMD", "wget", "-q", "-O", "-", "http://localhost:8080/cyclonedx_image_subject.json"]
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://localhost:8080/cyclonedx_image_subject.json', timeout=5).read(1)"
       interval: 15s
       timeout: 5s
       retries: 10

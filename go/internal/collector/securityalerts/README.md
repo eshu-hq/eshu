@@ -58,6 +58,10 @@ the provider alert.
   are emitted.
 - The GitHub client requires a token and explicit repository allowlist before
   it sends an HTTP request.
+- The GitHub Dependabot repository-alert client follows provider `rel=next`
+  cursor links and never sends a legacy `page` query parameter; cross-host next
+  links are ignored so bearer tokens are not forwarded outside the configured
+  provider host.
 - Provider alerts are never emitted as `reducer_supply_chain_impact_finding`
   facts. Reducers reconcile provider state with Eshu-owned evidence.
 
@@ -72,8 +76,8 @@ repository-alert fact counts, `security_alert.observe`, and
 Collector Performance Evidence: request work is bounded by explicit
 repository allowlists, `RepositoryAlertLimit`, and runtime `max_pages`. The
 focused `go test ./internal/collector/securityalerts -run TestGitHubDependabot -count=1`
-proof covers bounded pagination, request guards, rate-limit metadata, and
-redaction.
+proof covers cursor pagination, request guards, cross-host next-link rejection,
+rate-limit metadata, and redaction.
 
 Collector Observability Evidence: the hosted runtime exposes the shared
 `/healthz`, `/readyz`, `/metrics`, and `/admin/status` surface through

@@ -176,6 +176,11 @@ constructor with `InstrumentedDB{Inner: db, StoreName: "my_store", ...}`.
   `semantic_entity_materialization` storms on NornicDB label indexes.
 - `WorkflowControlStore` claim mutations use `ErrWorkflowClaimRejected` for
   fenced writes; callers must stop processing when this error is returned.
+- `WorkflowControlStore.FailClaimTerminal` uses a dense seven-argument SQL
+  mutation because terminal failures do not requeue and therefore do not need a
+  `visible_at` placeholder. Do not leave skipped parameter numbers in workflow
+  claim SQL; Postgres must infer every prepared-statement parameter type before
+  it can persist the terminal failure.
 - `AWSScanStatusStore` mutations must keep their fencing guards. A stale AWS
   worker must not overwrite per-tuple scanner or commit state from a newer
   claim. ObserveAWSScan and CommitAWSScan stay pinned to the exact
@@ -200,6 +205,18 @@ constructor with `InstrumentedDB{Inner: db, StoreName: "my_store", ...}`.
 - Schema definitions in `bootstrapDefinitions` are applied in slice order.
   Tables with foreign key constraints on other tables must appear after their
   dependencies.
+
+No-Regression Evidence: workflow terminal failure mutation coverage includes
+`go test ./internal/storage/postgres -run TestWorkflowControlStoreFailClaimTerminalUsesDensePostgresParameters -count=1`
+and a remote Postgres integration run of
+`TestWorkflowControlStoreIntegrationFailClaimTerminalRecordsFailureWithoutParameterHole`.
+The change preserves claim fencing, retryable requeue `visible_at`, claim
+ordering, worker counts, and workflow status semantics.
+
+No-Observability-Change: existing `workflow_work_items.last_failure_class`,
+`workflow_claims.failure_class`, fenced mutation errors, collector logs, and
+`/api/v0/index-status` continue to expose terminal workflow failures and active
+claim counts; no new telemetry dimension was required.
 
 ## Related docs
 
