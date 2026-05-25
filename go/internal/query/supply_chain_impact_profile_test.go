@@ -136,10 +136,77 @@ func TestSupplyChainImpactFindingQueryUsesDetectionProfileFilter(t *testing.T) {
 	for _, want := range []string{
 		"fact.payload->>'detection_profile' = $7",
 		"$7 = 'comprehensive'",
+		"$7 = 'precise'",
+		"npm_semver_affected_range",
+		"maven_known_fixed",
 	} {
 		if !strings.Contains(listSupplyChainImpactFindingsQuery, want) {
 			t.Fatalf("listSupplyChainImpactFindingsQuery missing %q:\n%s", want, listSupplyChainImpactFindingsQuery)
 		}
+	}
+}
+
+func TestDecodeSupplyChainImpactFindingRowBackfillsLegacyPreciseProfile(t *testing.T) {
+	t.Parallel()
+
+	payload := []byte(`{
+            "cve_id": "CVE-2026-9001",
+            "impact_status": "affected_exact",
+            "match_reason": "npm_semver_affected_range",
+            "observed_version": "1.2.3"
+        }`)
+
+	row, err := decodeSupplyChainImpactFindingRow("finding-legacy-precise", "inferred", payload)
+	if err != nil {
+		t.Fatalf("decodeSupplyChainImpactFindingRow() error = %v", err)
+	}
+	if got, want := row.DetectionProfile, SupplyChainImpactProfilePrecise; got != want {
+		t.Fatalf("DetectionProfile = %q, want %q for legacy fact qualifying as precise", got, want)
+	}
+}
+
+func TestDecodeSupplyChainImpactFindingRowBackfillsLegacyComprehensiveProfile(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name    string
+		payload []byte
+	}{
+		{
+			name: "range_only_manifest",
+			payload: []byte(`{
+                "impact_status": "possibly_affected",
+                "match_reason": "range_only_manifest"
+            }`),
+		},
+		{
+			name: "missing_observed_version",
+			payload: []byte(`{
+                "impact_status": "affected_exact",
+                "match_reason": "npm_semver_affected_range"
+            }`),
+		},
+		{
+			name: "unsupported_ecosystem",
+			payload: []byte(`{
+                "impact_status": "possibly_affected",
+                "match_reason": "unsupported_ecosystem",
+                "observed_version": "1.0.0"
+            }`),
+		},
+	}
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			row, err := decodeSupplyChainImpactFindingRow("finding-legacy-"+tc.name, "inferred", tc.payload)
+			if err != nil {
+				t.Fatalf("decodeSupplyChainImpactFindingRow() error = %v", err)
+			}
+			if got, want := row.DetectionProfile, SupplyChainImpactProfileComprehensive; got != want {
+				t.Fatalf("DetectionProfile = %q, want %q", got, want)
+			}
+		})
 	}
 }
 
