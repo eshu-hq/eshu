@@ -15,6 +15,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
+	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
 
 var fallbackClaimSequence uint64
@@ -47,6 +48,7 @@ func buildClaimedService(
 		PollInterval:        config.PollInterval,
 		ClaimLeaseTTL:       config.ClaimLeaseTTL,
 		HeartbeatInterval:   config.HeartbeatInterval,
+		MaxAttempts:         workflow.DefaultClaimMaxAttempts(),
 		Clock:               time.Now,
 		Tracer:              tracer,
 		Instruments:         instruments,

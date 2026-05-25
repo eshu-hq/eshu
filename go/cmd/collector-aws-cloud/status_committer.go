@@ -9,8 +9,10 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/awsruntime"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/scope"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
 
@@ -23,6 +25,7 @@ type awsStatusCommitter struct {
 	statusStore         awsScanCommitStatusStore
 	collectorInstanceID string
 	clock               func() time.Time
+	instruments         *telemetry.Instruments
 }
 
 func newAWSStatusCommitter(
@@ -30,12 +33,14 @@ func newAWSStatusCommitter(
 	statusStore awsScanCommitStatusStore,
 	collectorInstanceID string,
 	clock func() time.Time,
+	instruments *telemetry.Instruments,
 ) awsStatusCommitter {
 	return awsStatusCommitter{
 		inner:               inner,
 		statusStore:         statusStore,
 		collectorInstanceID: collectorInstanceID,
 		clock:               clock,
+		instruments:         instruments,
 	}
 }
 
@@ -115,6 +120,20 @@ func (c awsStatusCommitter) recordCommitOutcome(
 		FailureMessage: failureMessage,
 		CompletedAt:    c.now(),
 	})
+	// Route a commit-side stale-fence rejection through the same terminal
+	// classifier the awsruntime start/observe paths use. Without this, an
+	// orphaned aws_scan_status row that was reaped by a newer claim's
+	// StartAWSScan but observed by this committer would land back on
+	// failed_retryable and re-enter the same loop issue #612 was opened
+	// to break. Increments eshu_dp_aws_scan_status_stale_fence_total
+	// {operation="commit"} as a side effect.
+	statusErr = awsruntime.ClassifyScanStatusStaleFence(
+		ctx,
+		statusErr,
+		c.instruments,
+		boundary,
+		awsruntime.ScanStatusPhaseCommit,
+	)
 	if commitErr != nil {
 		return errors.Join(commitErr, statusErr)
 	}

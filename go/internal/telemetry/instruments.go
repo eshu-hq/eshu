@@ -124,6 +124,22 @@ type Instruments struct {
 	AWSRelationshipsEmitted                   metric.Int64Counter
 	AWSTagObservationsEmitted                 metric.Int64Counter
 	AWSFreshnessEvents                        metric.Int64Counter
+	// AWSScanStatusStaleFence counts AWS scan-status rejections caused by a
+	// stale fencing token, labeled by service, account, region, and the
+	// operation (start, observe, commit) that was rejected. Operators read
+	// this to separate the orphaned-row symptom in issue #612 from credential,
+	// throttle, and network-class failures. A non-zero rate after the
+	// orphan-handoff SQL widening means a stale collector instance is still
+	// alive after its lease was reaped and is being correctly fenced out.
+	AWSScanStatusStaleFence metric.Int64Counter
+	// WorkflowClaimAttemptBudgetExhausted counts retryable workflow claim
+	// failures that the bounded retry guard escalated to terminal because the
+	// work item AttemptCount reached ClaimedService.MaxAttempts. Labeled by
+	// collector_kind and source_system so the operator can attribute runaway
+	// loops to the right collector. Pair with workflow_claims state counts to
+	// see that runtime backpressure is working and failed_retryable rows are
+	// no longer unbounded (issue #612).
+	WorkflowClaimAttemptBudgetExhausted metric.Int64Counter
 	// CorrelationRuleMatches counts rule-match outcomes recorded by
 	// engine.Evaluate.Results[i].MatchCounts, labeled by pack and rule.
 	// The engine populates MatchCounts for RuleKindMatch rules only
@@ -821,6 +837,22 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register AWSFreshnessEvents counter: %w", err)
+	}
+
+	inst.AWSScanStatusStaleFence, err = meter.Int64Counter(
+		"eshu_dp_aws_scan_status_stale_fence_total",
+		metric.WithDescription("Total AWS scan-status mutations rejected by stale fence, labeled by service, account, region, and operation (start, observe, commit)"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register AWSScanStatusStaleFence counter: %w", err)
+	}
+
+	inst.WorkflowClaimAttemptBudgetExhausted, err = meter.Int64Counter(
+		"eshu_dp_workflow_claim_attempt_budget_exhausted_total",
+		metric.WithDescription("Total workflow claim failures escalated to terminal because the work item AttemptCount reached the configured retry budget, labeled by collector_kind and source_system"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register WorkflowClaimAttemptBudgetExhausted counter: %w", err)
 	}
 
 	inst.CorrelationRuleMatches, err = meter.Int64Counter(

@@ -75,6 +75,12 @@ See `doc.go` for the godoc contract.
   before a single durable scan-status update.
 - `ScanStatusStart`, `ScanStatusObservation`, and `ScanStatusCommit` -
   scanner-side and commit-side status records for admin visibility.
+- `ErrScanStatusStaleFence` - sentinel error returned by storage adapters when
+  an AWS scan-status mutation is rejected by row count. Runtime classifiers
+  use `errors.Is(err, awscloud.ErrScanStatusStaleFence)` to route the failed
+  claim to terminal so an orphaned `aws_scan_status` row cannot block every
+  future generation for the same `(collector_instance_id, account_id, region,
+  service_kind)` tuple (issue #612).
 - `RedactionPolicyVersion` - AWS launch sensitive-key/provider policy version
   attached to redacted fact values.
 - `RedactString` - shared AWS scalar redaction helper backed by

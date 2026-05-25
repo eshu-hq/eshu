@@ -164,7 +164,15 @@ it.
   registry runtimes to classify auth denied, not found, rate limited,
   retryable, canceled, and terminal registry failures
 - `ClaimedService` — wraps `Service` with a `ClaimControlStore` for
-  workflow-coordinator-gated collection
+  workflow-coordinator-gated collection; `MaxAttempts` bounds per-work-item
+  retries so a recurring retryable failure escalates to terminal with class
+  `attempt_budget_exhausted` (issue #612 safety net). Leave `MaxAttempts` at
+  zero to preserve legacy unbounded behavior.
+- `FailureClassAttemptBudgetExhausted` — exported failure-class label that
+  `ClaimedService` writes to `workflow_claims.failure_class` and
+  `workflow_work_items.last_failure_class` when the retry budget escalates a
+  claim. Operators read this label to attribute terminal failures to the
+  bounded-retry guard versus other terminal-classified causes.
 - `FactsFromSlice` — test helper: builds a `CollectedGeneration` from a
   pre-built `[]facts.Envelope` slice
 - `terraformstate` subpackage — exact Terraform-state source readers and
@@ -282,6 +290,26 @@ it.
   Git content persistence or parse state as normal repository content.
 - Terraform-state claim processing records `eshu_dp_tfstate_claim_wait_seconds`
   and uses `tfstate.collector.claim.process` around the claimed work boundary.
+- `ClaimedService.MaxAttempts` is the bounded retry budget per work item. When
+  the work item AttemptCount reaches this value, the next retryable failure
+  escalates to `FailClaimTerminal` with class
+  `FailureClassAttemptBudgetExhausted` (`attempt_budget_exhausted`). The guard
+  prevents permanent retryable failures (orphaned stale fence, IAM gap,
+  unsupported target) from driving `workflow_claims.failed_retryable` into the
+  millions, as ops-qa saw before this guard landed (issue #612). Wire the
+  per-collector cmd to `workflow.DefaultClaimMaxAttempts()` unless a
+  deployment-specific override is required.
+- No-Regression Evidence: `ClaimedService.MaxAttempts == 0` keeps the legacy
+  unbounded behavior so callers that have not been wired keep the existing
+  retryable path. Focused test
+  `TestClaimedServiceAttemptBudgetIgnoredWhenUnset` pins this.
+- Observability Evidence: `ClaimedService` emits
+  `eshu_dp_workflow_claim_attempt_budget_exhausted_total` (labels
+  `collector_kind`, `source_system`) when the guard fires and AWS-runtime
+  emits `eshu_dp_aws_scan_status_stale_fence_total` (labels `service`,
+  `account`, `region`, `operation`) on status-store stale-fence rejection.
+  Pair both counters with `workflow_claims` and `workflow_work_items` state
+  counts to confirm the runaway-loop block is in place.
 - `AfterBatchDrained` is a batch boundary hook, not a timer callback. Use it for
   work that should follow committed collection, and keep idle-poll behavior in
   `Source.Next` or the coordinator layer.

@@ -35,8 +35,22 @@ type ClaimedSource interface {
 	NextClaimed(context.Context, workflow.WorkItem) (CollectedGeneration, bool, error)
 }
 
+// FailureClassAttemptBudgetExhausted labels claims that the bounded retry
+// guard routed to FailClaimTerminal after the work item's prior AttemptCount
+// reached the configured MaxAttempts. The guard exists so a recurring
+// retryable failure (stale fence, unauthorized API, blocked network) cannot
+// drive workflow_claims.failed_retryable into the millions — the runtime
+// shape seen in issue #612 before this guard landed.
+const FailureClassAttemptBudgetExhausted = "attempt_budget_exhausted"
+
 // ClaimedService runs a collector through durable workflow claims. It is an
 // opt-in runner and does not replace the existing unclaimed ingester path.
+//
+// MaxAttempts is the bounded retry budget for one work item. When greater
+// than zero, a retryable failure on a claim whose work item AttemptCount has
+// already reached MaxAttempts is escalated to FailClaimTerminal with class
+// FailureClassAttemptBudgetExhausted. MaxAttempts == 0 preserves the legacy
+// unbounded behavior for callers that have not yet wired a budget.
 type ClaimedService struct {
 	ControlStore        ClaimControlStore
 	Source              ClaimedSource
@@ -48,6 +62,7 @@ type ClaimedService struct {
 	PollInterval        time.Duration
 	ClaimLeaseTTL       time.Duration
 	HeartbeatInterval   time.Duration
+	MaxAttempts         int
 	Clock               func() time.Time
 	Tracer              trace.Tracer
 	Instruments         *telemetry.Instruments
@@ -155,6 +170,9 @@ func (s ClaimedService) processClaimed(ctx context.Context, item workflow.WorkIt
 		if isTerminalFailure(err) {
 			return s.failTerminal(ctx, mutation, "collect_failure", err)
 		}
+		if s.attemptBudgetExhausted(item) {
+			return s.failTerminal(ctx, mutation, FailureClassAttemptBudgetExhausted, s.budgetExhaustedError(ctx, item, err))
+		}
 		return s.failRetryable(ctx, mutation, "collect_failure", err)
 	}
 	if !ok {
@@ -194,6 +212,16 @@ func (s ClaimedService) processClaimed(ctx context.Context, item workflow.WorkIt
 	commitMutation := mutation
 	commitMutation.ObservedAt = s.now()
 	if err := s.commitCollected(ctx, commitMutation, collected); err != nil {
+		// Mirror the NextClaimed path: a commit-side terminal classification
+		// (for example awsruntime stale-fence on CommitAWSScan) must route to
+		// FailClaimTerminal so the same orphaned-row loop issue #612 was
+		// opened to break cannot resurface through the commit path.
+		if isTerminalFailure(err) {
+			return s.failTerminal(ctx, mutation, "commit_failure", err)
+		}
+		if s.attemptBudgetExhausted(item) {
+			return s.failTerminal(ctx, mutation, FailureClassAttemptBudgetExhausted, s.budgetExhaustedError(ctx, item, err))
+		}
 		return s.failRetryable(ctx, mutation, "commit_failure", err)
 	}
 	completeMutation, err := s.resolvedCompletionMutation(mutation, collected)
@@ -311,6 +339,40 @@ func (s ClaimedService) startHeartbeatLoop(ctx context.Context, mutation workflo
 		}
 	}()
 	return errc
+}
+
+// attemptBudgetExhausted reports whether the current claim's work item has
+// already consumed its configured retry budget. MaxAttempts == 0 disables the
+// guard so legacy callers that have not yet wired a bounded retry policy
+// keep their unbounded behavior; the AWS, terraform-state, and scanner
+// runners that suffered the runaway loop in issue #612 explicitly set a
+// positive budget.
+func (s ClaimedService) attemptBudgetExhausted(item workflow.WorkItem) bool {
+	if s.MaxAttempts <= 0 {
+		return false
+	}
+	return item.AttemptCount >= s.MaxAttempts
+}
+
+func (s ClaimedService) budgetExhaustedError(ctx context.Context, item workflow.WorkItem, cause error) error {
+	s.recordAttemptBudgetExhausted(ctx, item)
+	return fmt.Errorf(
+		"%s work item attempt %d exhausted retry budget %d: %w",
+		s.claimedKindLabel(),
+		item.AttemptCount,
+		s.MaxAttempts,
+		cause,
+	)
+}
+
+func (s ClaimedService) recordAttemptBudgetExhausted(ctx context.Context, item workflow.WorkItem) {
+	if s.Instruments == nil || s.Instruments.WorkflowClaimAttemptBudgetExhausted == nil {
+		return
+	}
+	s.Instruments.WorkflowClaimAttemptBudgetExhausted.Add(ctx, 1, metric.WithAttributes(
+		telemetry.AttrCollectorKind(string(s.CollectorKind)),
+		telemetry.AttrSourceSystem(item.SourceSystem),
+	))
 }
 
 func (s ClaimedService) failRetryable(

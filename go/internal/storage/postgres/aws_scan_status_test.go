@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"regexp"
 	"strconv"
 	"strings"
@@ -76,6 +77,88 @@ func TestAWSScanStatusStoreAllowsNewGenerationAfterTerminalPriorScan(t *testing.
 		if !strings.Contains(query, want) {
 			t.Fatalf("StartAWSScan() query missing restart-safe generation handoff %q:\n%s", want, query)
 		}
+	}
+}
+
+// TestAWSScanStatusStoreAllowsNewGenerationOverOrphanedRunningRow proves that
+// a new workflow generation can claim the per-target slot when the previous
+// generation's row was left in a non-terminal state (e.g. the collector died
+// between StartAWSScan and ObserveAWSScan). Without this widening, a single
+// orphaned 'running'/'pending' row blocks every future generation for that
+// (instance, account, region, service_kind) tuple and the collector spins
+// stale-fence retries forever — the symptom called out in issue #612.
+func TestAWSScanStatusStoreAllowsNewGenerationOverOrphanedRunningRow(t *testing.T) {
+	t.Parallel()
+
+	query := startAWSScanStatusQuery
+	if !strings.Contains(query, "aws_scan_status.last_started_at < EXCLUDED.last_started_at") {
+		t.Fatalf("StartAWSScan() query missing orphan handoff guard 'aws_scan_status.last_started_at < EXCLUDED.last_started_at':\n%s", query)
+	}
+	if !strings.Contains(query, "aws_scan_status.last_started_at IS NULL") {
+		t.Fatalf("StartAWSScan() query missing first-write orphan guard 'aws_scan_status.last_started_at IS NULL':\n%s", query)
+	}
+}
+
+// TestAWSScanStatusStoreReturnsTypedStaleFenceError pins the typed error
+// returned when a status mutation is rejected by row count. Issue #612: the
+// awsruntime classifier must be able to detect this with errors.Is so it can
+// route the failed claim to terminal instead of looping it back through the
+// retryable queue.
+func TestAWSScanStatusStoreReturnsTypedStaleFenceError(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name string
+		do   func(t *testing.T, store AWSScanStatusStore, boundary awscloud.Boundary, now time.Time) error
+	}{
+		{
+			name: "start",
+			do: func(_ *testing.T, store AWSScanStatusStore, boundary awscloud.Boundary, now time.Time) error {
+				return store.StartAWSScan(context.Background(), awscloud.ScanStatusStart{
+					Boundary:  boundary,
+					StartedAt: now,
+				})
+			},
+		},
+		{
+			name: "observe",
+			do: func(_ *testing.T, store AWSScanStatusStore, boundary awscloud.Boundary, now time.Time) error {
+				return store.ObserveAWSScan(context.Background(), awscloud.ScanStatusObservation{
+					Boundary:   boundary,
+					Status:     awscloud.ScanStatusFailed,
+					ObservedAt: now,
+				})
+			},
+		},
+		{
+			name: "commit",
+			do: func(_ *testing.T, store AWSScanStatusStore, boundary awscloud.Boundary, now time.Time) error {
+				return store.CommitAWSScan(context.Background(), awscloud.ScanStatusCommit{
+					Boundary:     boundary,
+					CommitStatus: awscloud.ScanCommitFailed,
+					CompletedAt:  now,
+				})
+			},
+		},
+	}
+
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			db := &awsScanStatusTestDB{execResults: []sql.Result{awsCheckpointRowsResult{rowsAffected: 0}}}
+			store := NewAWSScanStatusStore(db)
+			now := time.Date(2026, 5, 24, 17, 0, 0, 0, time.UTC)
+
+			err := tc.do(t, store, awsScanStatusBoundary(now), now)
+			if err == nil {
+				t.Fatalf("%s returned nil, want stale fence error", tc.name)
+			}
+			if !errors.Is(err, awscloud.ErrScanStatusStaleFence) {
+				t.Fatalf("%s err = %v, want errors.Is awscloud.ErrScanStatusStaleFence", tc.name, err)
+			}
+		})
 	}
 }
 

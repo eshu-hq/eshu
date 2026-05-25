@@ -16,6 +16,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
+	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
 
 var fallbackClaimSequence uint64
@@ -41,7 +42,7 @@ func buildClaimedService(
 	checkpoints := postgres.NewAWSPaginationCheckpointStore(database)
 	checkpoints.Instruments = instruments
 	scanStatus := postgres.NewAWSScanStatusStore(database)
-	commitStatus := newAWSStatusCommitter(committer, scanStatus, config.Instance.InstanceID, time.Now)
+	commitStatus := newAWSStatusCommitter(committer, scanStatus, config.Instance.InstanceID, time.Now, instruments)
 	return collector.ClaimedService{
 		ControlStore: postgres.NewWorkflowControlStore(database),
 		Source: awsruntime.ClaimedSource{
@@ -67,6 +68,7 @@ func buildClaimedService(
 		PollInterval:        config.PollInterval,
 		ClaimLeaseTTL:       config.ClaimLeaseTTL,
 		HeartbeatInterval:   config.HeartbeatInterval,
+		MaxAttempts:         workflow.DefaultClaimMaxAttempts(),
 		Clock:               time.Now,
 		Tracer:              tracer,
 		Instruments:         instruments,
