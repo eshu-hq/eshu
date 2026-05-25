@@ -196,6 +196,47 @@ func TestDefaultRegistryLookupByExtensionAndPath(t *testing.T) {
 			t.Fatalf("Language = %q, want ruby", definition.Language)
 		}
 	})
+
+	t.Run("yarn lockfile basename", func(t *testing.T) {
+		t.Parallel()
+
+		definition, ok := registry.LookupByPath(filepath.Join("apps", "web", "yarn.lock"))
+		if !ok {
+			t.Fatalf("expected yarn.lock to resolve")
+		}
+		if definition.ParserKey != "node_lockfile" {
+			t.Fatalf("ParserKey = %q, want %q", definition.ParserKey, "node_lockfile")
+		}
+		if definition.Language != "node_lockfile" {
+			t.Fatalf("Language = %q, want %q", definition.Language, "node_lockfile")
+		}
+	})
+
+	t.Run("pnpm lockfile basename takes priority over .yaml extension", func(t *testing.T) {
+		t.Parallel()
+
+		// .yaml extension would otherwise route to the YAML parser; the
+		// exact-name registration for pnpm-lock.yaml must win.
+		definition, ok := registry.LookupByPath(filepath.Join("apps", "web", "pnpm-lock.yaml"))
+		if !ok {
+			t.Fatalf("expected pnpm-lock.yaml to resolve")
+		}
+		if definition.ParserKey != "node_lockfile" {
+			t.Fatalf("ParserKey = %q, want %q (yaml extension should not win for pnpm-lock.yaml)", definition.ParserKey, "node_lockfile")
+		}
+	})
+
+	t.Run("pnpm lockfile yml alias", func(t *testing.T) {
+		t.Parallel()
+
+		definition, ok := registry.LookupByPath(filepath.Join("apps", "web", "pnpm-lock.yml"))
+		if !ok {
+			t.Fatalf("expected pnpm-lock.yml to resolve")
+		}
+		if definition.ParserKey != "node_lockfile" {
+			t.Fatalf("ParserKey = %q, want %q", definition.ParserKey, "node_lockfile")
+		}
+	})
 }
 
 func TestRegistryOrderingAndImmutability(t *testing.T) {

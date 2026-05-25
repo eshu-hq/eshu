@@ -6,6 +6,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/parser/gradle"
 	"github.com/eshu-hq/eshu/go/internal/parser/maven"
+	"github.com/eshu-hq/eshu/go/internal/parser/nodelockfile"
 	"github.com/eshu-hq/eshu/go/internal/parser/ruby"
 	"github.com/eshu-hq/eshu/go/internal/parser/shared"
 )
@@ -104,8 +105,6 @@ func TestDependencyCoverageMatrixIsStableAndExhaustive(t *testing.T) {
 	}
 
 	requiredGaps := []string{
-		"yarn.lock",
-		"pnpm-lock.yaml",
 		"go.sum",
 	}
 	for _, file := range requiredGaps {
@@ -355,6 +354,58 @@ dependencies {
 			expectScopeSplit:      true,
 			expectedDevDependency: "pytest",
 		},
+		"yarn.lock": {
+			parser: parseNodeLockfileFixture,
+			body: `# yarn lockfile v1
+
+lodash@^4.17.21:
+  version "4.17.21"
+  resolved "https://registry.yarnpkg.com/lodash/-/lodash-4.17.21.tgz"
+
+vite@^5.0.0:
+  version "5.0.0"
+  dependencies:
+    rollup "^4.0.0"
+
+rollup@^4.0.0:
+  version "4.0.0"
+`,
+			expectedDependencies: map[string]string{"lodash": "4.17.21", "vite": "5.0.0", "rollup": "4.0.0"},
+			expectedPackageMgr:   "npm",
+			expectedSection:      "yarn.lock",
+		},
+		"pnpm-lock.yaml": {
+			parser: parseNodeLockfileFixture,
+			body: `lockfileVersion: '6.0'
+
+importers:
+  .:
+    dependencies:
+      lodash:
+        specifier: ^4.17.21
+        version: 4.17.21
+    devDependencies:
+      vitest:
+        specifier: ^2.0.0
+        version: 2.0.0
+
+packages:
+
+  /lodash@4.17.21:
+    resolution: {integrity: sha512-AbCdEf==}
+  /vitest@2.0.0:
+    resolution: {integrity: sha512-Vit==}
+    dependencies:
+      vite: 5.0.0
+  /vite@5.0.0:
+    resolution: {integrity: sha512-V==}
+`,
+			expectedDependencies:  map[string]string{"lodash": "4.17.21", "vitest": "2.0.0", "vite": "5.0.0"},
+			expectedPackageMgr:    "npm",
+			expectedSection:       "runtime",
+			expectScopeSplit:      true,
+			expectedDevDependency: "vitest",
+		},
 	}
 
 	// Files covered by parsers in sibling packages (pythondep TOML/text
@@ -494,6 +545,17 @@ func parseRubyFixture(t *testing.T, filename, body string) (map[string]any, erro
 	path := writeJSONTestFile(t, filename, body)
 	return ruby.Parse(path, false, shared.Options{})
 }
+
+// parseNodeLockfileFixture routes yarn.lock and pnpm-lock.yaml fixtures
+// through the nodelockfile parser. The JSON package cannot import the
+// parent parser without an import cycle, so each ecosystem gets a focused
+// helper that calls its adapter directly.
+func parseNodeLockfileFixture(t *testing.T, filename, body string) (map[string]any, error) {
+	t.Helper()
+	path := writeJSONTestFile(t, filename, body)
+	return nodelockfile.Parse(path, false, shared.Options{})
+}
+
 
 // TestDependencyCoverageGapsDoNotEmitDependencyRows enforces the safety rule
 // from issue #571: until a real parser exists, gap files MUST NOT smuggle

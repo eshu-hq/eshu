@@ -281,6 +281,37 @@ dependencies {
 			expectedPackageMgr: "pypi",
 			filenameOverride:   "Pipfile.lock",
 		},
+		"yarn.lock": {
+			body: `# yarn lockfile v1
+
+lodash@^4.17.21:
+  version "4.17.21"
+  resolved "https://registry.yarnpkg.com/lodash/-/lodash-4.17.21.tgz"
+`,
+			expectedDependencies: map[string]string{"lodash": "4.17.21"},
+			// Yarn (and pnpm) rows keep the canonical npm ecosystem so
+			// reducer SQL filters match them as npm evidence; the actual
+			// package manager flavor lives in package_manager_flavor.
+			expectedPackageMgr: "npm",
+		},
+		"pnpm-lock.yaml": {
+			body: `lockfileVersion: '6.0'
+
+importers:
+  .:
+    dependencies:
+      lodash:
+        specifier: ^4.17.21
+        version: 4.17.21
+
+packages:
+
+  /lodash@4.17.21:
+    resolution: {integrity: sha512-AbCdEf==}
+`,
+			expectedDependencies: map[string]string{"lodash": "4.17.21"},
+			expectedPackageMgr:   "npm",
+		},
 	}
 
 	engine, err := DefaultEngine()
