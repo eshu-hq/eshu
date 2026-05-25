@@ -54,8 +54,12 @@ func validateSourceFact(input ClaimInput, fact facts.Envelope) error {
 	if fact.GenerationID != input.GenerationID {
 		return fmt.Errorf("generation_id %q does not match claim generation_id", fact.GenerationID)
 	}
-	if strings.TrimSpace(fact.CollectorKind) == "" {
+	collectorKind := strings.TrimSpace(fact.CollectorKind)
+	if collectorKind == "" {
 		return fmt.Errorf("collector_kind must not be blank")
+	}
+	if fact.CollectorKind != collectorKind {
+		return fmt.Errorf("collector_kind must be normalized")
 	}
 	if fact.FencingToken != input.FencingToken {
 		return fmt.Errorf("fencing_token %d does not match claim fencing_token %d", fact.FencingToken, input.FencingToken)
@@ -79,8 +83,12 @@ func validateSourceFact(input ClaimInput, fact facts.Envelope) error {
 	if fact.SchemaVersion != expectedSchema {
 		return fmt.Errorf("schema_version %q does not match expected %q", fact.SchemaVersion, expectedSchema)
 	}
-	if strings.TrimSpace(fact.SourceRef.SourceSystem) == "" {
+	sourceSystem := strings.TrimSpace(fact.SourceRef.SourceSystem)
+	if sourceSystem == "" {
 		return fmt.Errorf("source_ref.source_system must not be blank")
+	}
+	if fact.SourceRef.SourceSystem != sourceSystem {
+		return fmt.Errorf("source_ref.source_system must be normalized")
 	}
 	if fact.SourceRef.SourceSystem != fact.CollectorKind {
 		return fmt.Errorf("source_ref.source_system %q does not match collector_kind %q", fact.SourceRef.SourceSystem, fact.CollectorKind)
