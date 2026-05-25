@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "eshu",
+          "informationUri": "https://eshu.dev"
+        }
+      },
+      "invocations": [
+        {
+          "executionSuccessful": true,
+          "startTimeUtc": "2026-05-24T12:00:00Z",
+          "endTimeUtc": "2026-05-24T12:00:00Z"
+        }
+      ],
+      "results": [],
+      "properties": {
+        "eshu.scope": "repository:repo-empty",
+        "eshu.generatedAt": "2026-05-24T12:00:00Z",
+        "eshu.formatVersion": "2.1.0"
+      }
+    }
+  ]
+}

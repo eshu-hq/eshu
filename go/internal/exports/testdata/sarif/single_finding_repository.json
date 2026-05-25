@@ -1,0 +1,105 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "eshu",
+          "version": "0.0.3-pre-release",
+          "informationUri": "https://eshu.dev",
+          "rules": [
+            {
+              "id": "GHSA-aaaa-bbbb-cccc",
+              "name": "lodash",
+              "shortDescription": {
+                "text": "Prototype pollution in lodash"
+              },
+              "fullDescription": {
+                "text": "Lodash versions before 4.17.21 allow prototype pollution via the merge helper."
+              },
+              "helpUri": "https://github.com/advisories/GHSA-aaaa-bbbb-cccc",
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "properties": {
+                "eshu.severity": "high",
+                "eshu.cvssScore": 7.4,
+                "eshu.cvssVector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:L/A:L",
+                "eshu.epssProbability": "0.12345",
+                "eshu.ecosystem": "npm",
+                "eshu.purl": "pkg:npm/lodash@4.17.20",
+                "eshu.advisorySources": [
+                  {
+                    "source": "ghsa",
+                    "advisoryId": "GHSA-aaaa-bbbb-cccc",
+                    "url": "https://github.com/advisories/GHSA-aaaa-bbbb-cccc"
+                  },
+                  {
+                    "source": "nvd",
+                    "advisoryId": "CVE-2024-1234"
+                  }
+                ],
+                "tags": [
+                  "ecosystem:npm",
+                  "security",
+                  "vulnerability"
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "invocations": [
+        {
+          "executionSuccessful": true,
+          "startTimeUtc": "2026-05-24T12:00:00Z",
+          "endTimeUtc": "2026-05-24T12:00:00Z"
+        }
+      ],
+      "results": [
+        {
+          "ruleId": "GHSA-aaaa-bbbb-cccc",
+          "ruleIndex": 0,
+          "level": "error",
+          "message": {
+            "text": "GHSA-aaaa-bbbb-cccc in lodash@4.17.20; fixed in 4.17.21 — Prototype pollution in lodash"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "package.json"
+                },
+                "region": {
+                  "startLine": 12,
+                  "endLine": 12
+                }
+              }
+            }
+          ],
+          "partialFingerprints": {
+            "eshu/advisoryId/v1": "GHSA-aaaa-bbbb-cccc",
+            "eshu/cveId/v1": "CVE-2024-1234",
+            "eshu/findingId/v1": "fnd-001",
+            "eshu/observedVersion/v1": "4.17.20",
+            "eshu/packageId/v1": "pkg-npm-lodash"
+          },
+          "properties": {
+            "eshu.findingId": "fnd-001",
+            "eshu.packageId": "pkg-npm-lodash",
+            "eshu.packageName": "lodash",
+            "eshu.observedVersion": "4.17.20",
+            "eshu.fixedVersion": "4.17.21",
+            "eshu.repositoryId": "repo-main"
+          }
+        }
+      ],
+      "properties": {
+        "eshu.scope": "repository:repo-main",
+        "eshu.generatedAt": "2026-05-24T12:00:00Z",
+        "eshu.formatVersion": "2.1.0"
+      }
+    }
+  ]
+}

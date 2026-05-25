@@ -1,0 +1,69 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "eshu",
+          "informationUri": "https://eshu.dev",
+          "rules": [
+            {
+              "id": "GHSA-img-1",
+              "name": "openssl",
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "properties": {
+                "eshu.severity": "high",
+                "eshu.ecosystem": "Debian",
+                "eshu.purl": "pkg:deb/debian/openssl@1.1.1k-1+deb11u3",
+                "tags": [
+                  "ecosystem:Debian",
+                  "security",
+                  "vulnerability"
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "invocations": [
+        {
+          "executionSuccessful": true,
+          "startTimeUtc": "2026-05-24T12:00:00Z",
+          "endTimeUtc": "2026-05-24T12:00:00Z"
+        }
+      ],
+      "results": [
+        {
+          "ruleId": "GHSA-img-1",
+          "ruleIndex": 0,
+          "level": "error",
+          "message": {
+            "text": "GHSA-img-1 in openssl@1.1.1k-1+deb11u3; fixed in 1.1.1n-0+deb11u3"
+          },
+          "partialFingerprints": {
+            "eshu/advisoryId/v1": "GHSA-img-1",
+            "eshu/findingId/v1": "fnd-img-1",
+            "eshu/observedVersion/v1": "1.1.1k-1+deb11u3",
+            "eshu/packageId/v1": "pkg-deb-openssl"
+          },
+          "properties": {
+            "eshu.findingId": "fnd-img-1",
+            "eshu.packageId": "pkg-deb-openssl",
+            "eshu.packageName": "openssl",
+            "eshu.observedVersion": "1.1.1k-1+deb11u3",
+            "eshu.fixedVersion": "1.1.1n-0+deb11u3",
+            "eshu.subjectDigest": "sha256:beefbeefbeefbeefbeefbeefbeefbeefbeefbeefbeefbeefbeefbeefbeefbeef"
+          }
+        }
+      ],
+      "properties": {
+        "eshu.scope": "image_digest:sha256:beefbeefbeefbeefbeefbeefbeefbeefbeefbeefbeefbeefbeefbeefbeefbeef",
+        "eshu.generatedAt": "2026-05-24T12:00:00Z",
+        "eshu.formatVersion": "2.1.0"
+      }
+    }
+  ]
+}

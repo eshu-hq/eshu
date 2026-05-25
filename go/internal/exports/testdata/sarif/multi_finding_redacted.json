@@ -1,0 +1,160 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "eshu",
+          "version": "0.0.3-pre-release",
+          "informationUri": "https://eshu.dev",
+          "rules": [
+            {
+              "id": "GHSA-1111-1111-1111",
+              "name": "github.com/valyala/fasthttp",
+              "defaultConfiguration": {
+                "level": "warning"
+              },
+              "properties": {
+                "eshu.severity": "medium",
+                "eshu.cvssScore": 5.3,
+                "eshu.ecosystem": "Go",
+                "eshu.purl": "pkg:golang/github.com/valyala/fasthttp@1.50.0",
+                "tags": [
+                  "ecosystem:Go",
+                  "security",
+                  "vulnerability"
+                ]
+              }
+            },
+            {
+              "id": "GHSA-2222-2222-2222",
+              "name": "requests",
+              "shortDescription": {
+                "text": "Header injection in requests"
+              },
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "properties": {
+                "eshu.severity": "critical",
+                "eshu.cvssScore": 9.1,
+                "eshu.knownExploited": true,
+                "eshu.ecosystem": "PyPI",
+                "eshu.purl": "pkg:pypi/requests@2.30.0",
+                "eshu.advisorySources": [
+                  {
+                    "source": "ghsa",
+                    "advisoryId": "GHSA-2222-2222-2222"
+                  },
+                  {
+                    "source": "osv",
+                    "advisoryId": "PYSEC-2024-1"
+                  }
+                ],
+                "tags": [
+                  "ecosystem:PyPI",
+                  "kev",
+                  "security",
+                  "vulnerability"
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "invocations": [
+        {
+          "executionSuccessful": true,
+          "startTimeUtc": "2026-05-24T12:00:00Z",
+          "endTimeUtc": "2026-05-24T12:00:00Z"
+        }
+      ],
+      "results": [
+        {
+          "ruleId": "GHSA-1111-1111-1111",
+          "ruleIndex": 0,
+          "level": "warning",
+          "message": {
+            "text": "GHSA-1111-1111-1111 in github.com/valyala/fasthttp@1.50.0; fixed in 1.52.0"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "redacted-path"
+                }
+              }
+            }
+          ],
+          "partialFingerprints": {
+            "eshu/advisoryId/v1": "GHSA-1111-1111-1111",
+            "eshu/findingId/v1": "fnd-100",
+            "eshu/observedVersion/v1": "1.50.0",
+            "eshu/packageId/v1": "pkg-golang-fasthttp"
+          },
+          "properties": {
+            "eshu.findingId": "fnd-100",
+            "eshu.packageId": "pkg-golang-fasthttp",
+            "eshu.packageName": "github.com/valyala/fasthttp",
+            "eshu.observedVersion": "1.50.0",
+            "eshu.fixedVersion": "1.52.0",
+            "eshu.repositoryId": "repo-main"
+          }
+        },
+        {
+          "ruleId": "GHSA-2222-2222-2222",
+          "ruleIndex": 1,
+          "level": "error",
+          "message": {
+            "text": "GHSA-2222-2222-2222 in requests@2.30.0; fixed in 2.31.0 — Header injection in requests"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "services/api/requirements.txt"
+                },
+                "region": {
+                  "startLine": 4
+                }
+              }
+            },
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "services/api/requirements.txt"
+                },
+                "region": {
+                  "startLine": 8
+                }
+              }
+            }
+          ],
+          "partialFingerprints": {
+            "eshu/advisoryId/v1": "GHSA-2222-2222-2222",
+            "eshu/cveId/v1": "CVE-2024-2222",
+            "eshu/findingId/v1": "fnd-200",
+            "eshu/observedVersion/v1": "2.30.0",
+            "eshu/packageId/v1": "pkg-pypi-requests"
+          },
+          "properties": {
+            "eshu.findingId": "fnd-200",
+            "eshu.packageId": "pkg-pypi-requests",
+            "eshu.packageName": "requests",
+            "eshu.observedVersion": "2.30.0",
+            "eshu.fixedVersion": "2.31.0",
+            "eshu.repositoryId": "repo-main"
+          }
+        }
+      ],
+      "properties": {
+        "eshu.scope": "repository:repo-main",
+        "eshu.generatedAt": "2026-05-24T12:00:00Z",
+        "eshu.droppedFindings": 1,
+        "eshu.redactedPaths": 1,
+        "eshu.formatVersion": "2.1.0"
+      }
+    }
+  ]
+}
