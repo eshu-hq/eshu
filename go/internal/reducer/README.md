@@ -76,7 +76,7 @@ canonical-write or bounded counter-emission requirements.
 
 ## Intent lifecycle
 
-`Intent` (declared in `intent.go:117`) carries the durable queue contract.
+`Intent` (declared in `intent.go:138`) carries the durable queue contract.
 States: `pending` → `claimed` → `running` → `succeeded` / `failed`.
 
 - `IntentStatusPending`, `IntentStatusClaimed`, `IntentStatusRunning`,
@@ -220,7 +220,7 @@ In-memory runtime types used by focused reducer tests:
 Domain and intent helpers:
 
 - `ParseDomain(raw)` — `domain.go:24`.
-- `IsRetryable(err)` — `intent.go:106`.
+- `IsRetryable(err)` — `intent.go:127`.
 - `GraphProjectionPhaseRepairsFromStates` — `graph_projection_phase_repair.go:45`.
 - `ExtractOverlayEnvironments` — `projection.go:207`.
 - `InferWorkloadKind`, `InferWorkloadClassification` — `projection.go:152, 169`.

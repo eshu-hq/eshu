@@ -151,12 +151,24 @@ Lists reducer-owned vulnerability impact findings. The caller must provide
 - `repository_id`
 - `subject_digest`
 - `impact_status`
+- `priority_bucket`
+- `min_priority_score`
 
 Valid impact statuses are `affected_exact`, `affected_derived`,
 `possibly_affected`, `not_affected_known_fixed`, and `unknown_impact`.
+Valid priority buckets are `critical`, `high`, `medium`, `low`, and
+`informational`. `min_priority_score` accepts `0` through `100`. `sort` accepts
+`finding_id`, `priority`, `priority_score_desc`, or `priority_score_asc`; the
+priority sorts page by `(priority_score, finding_id)` so cursor paging does not
+drop lower-priority rows.
+
 Rows keep CVSS, EPSS, KEV, installed-version state, requested manifest range,
 fixed-version state, match reason, runtime reachability, repository/image
-evidence, workload/service/environment anchors, and missing evidence separate.
+evidence, workload/service/environment anchors, priority metadata, and missing
+evidence separate. Priority is an explainable triage score only. A `critical`
+or `high` priority bucket never turns missing version, package, SBOM, image,
+deployment, or workload evidence into `affected_exact` or `affected_derived`
+truth.
 
 ### Detection Profiles
 
@@ -192,6 +204,19 @@ Version fields intentionally do not collapse into one string:
 - `match_reason`: reducer explanation for the version decision, including
   supported matches, range-only manifests, unsupported ecosystems, and
   malformed installed versions or advisory ranges.
+
+Priority fields intentionally describe urgency without changing impact truth:
+
+- `priority_score`: reducer score from 0 through 100.
+- `priority_bucket`: `critical`, `high`, `medium`, `low`, or
+  `informational`.
+- `priority_reason_codes`: stable machine-readable reason codes for the
+  signals that contributed to the score.
+- `priority_contributions[]`: signed contribution rows with `reason_code`,
+  `input`, `value`, and `contribution`. Inputs can include CVSS v3/v4, EPSS,
+  CISA KEV, advisory age, dependency scope, direct/transitive relationship,
+  exact/range-only/missing version evidence, SBOM/image evidence, deployed
+  workload evidence, owned repository evidence, and fixed-version availability.
 
 Each row also carries a `provenance` block so callers can see which advisory
 source supplied the selected severity, fixed version, and vulnerable range,
@@ -236,6 +261,21 @@ explicit deployment or service-catalog facts. Ambiguous images, stale deployment
 evidence, missing workload links, or missing service/environment links stay in
 `missing_evidence[]` instead of being inferred from repository, tag, workload,
 or service names.
+
+No-Regression Evidence: `go test ./internal/reducer ./internal/query
+./internal/mcp ./internal/storage/postgres -run
+'TestSupplyChainImpactPriority|TestSupplyChainListImpactFindingsFiltersAndSortsByPriority|TestSupplyChainListImpactFindingsRejectsInvalidPriorityFilters|TestDecodeSupplyChainImpactFindingRowPreservesPriority|TestSupplyChainImpactFindingQuerySupportsPriorityFiltersAndSort|TestResolveRouteMapsSupplyChainImpactPriorityFilters|TestSupplyChainImpactToolSchemaAdvertisesPriorityFilters|TestBootstrapDefinitionsIncludeSupplyChainImpactFactIndexes'
+-count=1` covers score contribution explainability, truth-preserving missing
+evidence behavior, API/MCP priority filters and sorts, query shape, and the
+priority lookup index. The sorted read remains bounded by active reducer impact
+facts and pages by `(priority_score, finding_id)`.
+
+No-Observability-Change: priority scoring reuses the existing
+`SupplyChainImpactFindings` reducer counter,
+`reducer_supply_chain_impact_finding` fact kind, impact evidence fields,
+readiness envelope, and `query.supply_chain_impact_findings` request span. No
+new graph write, queue, worker, metric instrument, or runtime deployment knob is
+introduced.
 
 The response also includes a `readiness` envelope so a UI, MCP client, or
 operator can tell `nothing matched` from `Eshu did not have the evidence to

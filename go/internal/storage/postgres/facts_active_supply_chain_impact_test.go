@@ -79,6 +79,7 @@ func TestBootstrapDefinitionsIncludeSupplyChainImpactFactIndexes(t *testing.T) {
 		"fact_records_supply_chain_impact_lookup_idx",
 		"fact_records_supply_chain_impact_status_lookup_idx",
 		"fact_records_supply_chain_impact_package_lookup_idx",
+		"fact_records_supply_chain_impact_priority_lookup_idx",
 		"fact_records_vulnerability_affected_package_lookup_idx",
 		"fact_records_vulnerability_affected_product_lookup_idx",
 		"fact_records_sbom_component_purl_idx",

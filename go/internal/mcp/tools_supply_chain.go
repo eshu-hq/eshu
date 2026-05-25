@@ -72,6 +72,23 @@ func supplyChainTools() []ToolDefinition {
 						"enum":        []string{"precise", "comprehensive"},
 						"default":     "precise",
 					},
+					"priority_bucket": map[string]any{
+						"type":        "string",
+						"description": "Optional reducer triage priority filter. Priority explains urgency and does not change impact truth.",
+						"enum":        []string{"critical", "high", "medium", "low", "informational"},
+					},
+					"min_priority_score": map[string]any{
+						"type":        "integer",
+						"description": "Minimum reducer priority score from 0 through 100.",
+						"default":     0,
+						"minimum":     0,
+						"maximum":     100,
+					},
+					"sort": map[string]any{
+						"type":        "string",
+						"description": "Optional result ordering. Priority sorts are secondary triage views over reducer-owned impact facts.",
+						"enum":        []string{"finding_id", "priority", "priority_score_desc", "priority_score_asc"},
+					},
 					"after_finding_id": map[string]any{
 						"type":        "string",
 						"description": "Finding ID from next_cursor when continuing a truncated page.",

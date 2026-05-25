@@ -16,6 +16,7 @@ type supplyChainImpactCVE struct {
 	cvssScore       float64
 	cvssVector      string
 	severityLabel   string
+	publishedAt     string
 	sourceUpdatedAt string
 	withdrawnAt     string
 }
@@ -51,6 +52,7 @@ type supplyChainPackageConsumption struct {
 	dependencyPath   []string
 	dependencyDepth  int
 	directDependency *bool
+	dependencyScope  string
 }
 
 type supplyChainSBOMComponent struct {
@@ -205,6 +207,7 @@ func classifySupplyChainImpactPackage(
 	if consumption.factID != "" {
 		finding.RepositoryID = consumption.repositoryID
 		finding.RequestedRange = strings.TrimSpace(consumption.dependencyRange)
+		finding.DependencyScope = strings.TrimSpace(consumption.dependencyScope)
 		finding.DependencyPath = append([]string(nil), consumption.dependencyPath...)
 		finding.DependencyDepth = consumption.dependencyDepth
 		if consumption.directDependency != nil {
@@ -327,13 +330,15 @@ func baseSupplyChainImpactProductFinding(
 	index supplyChainImpactIndex,
 ) SupplyChainImpactFinding {
 	finding := SupplyChainImpactFinding{
-		CVEID:           cve.cveID,
-		AdvisoryID:      firstNonBlank(cve.advisoryID, cve.cveID),
-		ProductCriteria: product.criteria,
-		MatchCriteriaID: product.matchCriteriaID,
-		CVSSScore:       cve.cvssScore,
-		EvidencePath:    []string{facts.VulnerabilityCVEFactKind, facts.VulnerabilityAffectedProductFactKind},
-		EvidenceFactIDs: []string{cve.factID, product.factID},
+		CVEID:               cve.cveID,
+		AdvisoryID:          firstNonBlank(cve.advisoryID, cve.cveID),
+		ProductCriteria:     product.criteria,
+		MatchCriteriaID:     product.matchCriteriaID,
+		CVSSScore:           cve.cvssScore,
+		AdvisoryPublishedAt: cve.publishedAt,
+		AdvisoryUpdatedAt:   cve.sourceUpdatedAt,
+		EvidencePath:        []string{facts.VulnerabilityCVEFactKind, facts.VulnerabilityAffectedProductFactKind},
+		EvidenceFactIDs:     []string{cve.factID, product.factID},
 	}
 	applyRiskSignals(&finding, index.riskSignals[cve.cveID])
 	return finding
@@ -361,6 +366,8 @@ func baseSupplyChainImpactFinding(
 		SeveritySource:       provenance.SeveritySource,
 		SeverityVector:       provenance.SeverityVector,
 		SeverityLabel:        provenance.SeverityLabel,
+		AdvisoryPublishedAt:  cves.representative().publishedAt,
+		AdvisoryUpdatedAt:    cves.representative().sourceUpdatedAt,
 		AlternateSeverities:  provenance.AlternateSeverities,
 		FixedVersionSource:   provenance.FixedVersionSource,
 		FixedVersionBranches: provenance.FixedVersionBranches,

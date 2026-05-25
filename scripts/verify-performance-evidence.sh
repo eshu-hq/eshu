@@ -24,15 +24,16 @@ if [ -z "$base" ]; then
 fi
 
 changed_files=()
-if git -C "$repo_root" diff --name-only "$base"...HEAD >/tmp/eshu-performance-evidence-files 2>/dev/null; then
+changed_files_path="$(mktemp "${TMPDIR:-/tmp}/eshu-performance-evidence-files.XXXXXX")"
+if git -C "$repo_root" diff --name-only "$base"...HEAD >"$changed_files_path" 2>/dev/null; then
   :
 else
-  git -C "$repo_root" diff --name-only "$base" HEAD >/tmp/eshu-performance-evidence-files
+  git -C "$repo_root" diff --name-only "$base" HEAD >"$changed_files_path"
 fi
 while IFS= read -r file; do
   [ -n "$file" ] && changed_files+=("$file")
-done </tmp/eshu-performance-evidence-files
-rm -f /tmp/eshu-performance-evidence-files
+done <"$changed_files_path"
+rm -f "$changed_files_path"
 
 is_go_runtime_file() {
   local path="$1"
@@ -126,21 +127,23 @@ is_evidence_file() {
 hot_files=()
 evidence_files=()
 
-for file in "${changed_files[@]}"; do
-  if is_evidence_file "$file"; then
-    evidence_files+=("$repo_root/$file")
-  fi
+if [ "${#changed_files[@]}" -gt 0 ]; then
+  for file in "${changed_files[@]}"; do
+    if is_evidence_file "$file"; then
+      evidence_files+=("$repo_root/$file")
+    fi
 
-  if is_go_runtime_file "$file" \
-    && { is_hot_path_by_location "$file" || is_hot_path_by_content "$file"; }; then
-    hot_files+=("$file")
-    continue
-  fi
+    if is_go_runtime_file "$file" \
+      && { is_hot_path_by_location "$file" || is_hot_path_by_content "$file"; }; then
+      hot_files+=("$file")
+      continue
+    fi
 
-  if is_runtime_config_file "$file" && is_runtime_config_by_content "$file"; then
-    hot_files+=("$file")
-  fi
-done
+    if is_runtime_config_file "$file" && is_runtime_config_by_content "$file"; then
+      hot_files+=("$file")
+    fi
+  done
+fi
 
 if [ "${#hot_files[@]}" -eq 0 ]; then
   printf 'verify-performance-evidence: no hot Cypher/concurrency/runtime files changed\n'

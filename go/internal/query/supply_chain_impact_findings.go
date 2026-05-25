@@ -16,8 +16,9 @@ type SupplyChainImpactFindingStore interface {
 	ListSupplyChainImpactFindings(context.Context, SupplyChainImpactFindingFilter) ([]SupplyChainImpactFindingRow, error)
 }
 
-// SupplyChainImpactFindingFilter bounds impact reads to a concrete CVE,
-// package, repository, image digest, status, or detection profile.
+// SupplyChainImpactFindingFilter bounds impact reads to concrete evidence,
+// impact truth, or triage priority. DetectionProfile only narrows an already
+// scoped read.
 type SupplyChainImpactFindingFilter struct {
 	CVEID            string
 	PackageID        string
@@ -25,6 +26,9 @@ type SupplyChainImpactFindingFilter struct {
 	SubjectDigest    string
 	ImpactStatus     string
 	DetectionProfile string
+	PriorityBucket   string
+	MinPriorityScore int
+	Sort             string
 	AfterFindingID   string
 	Limit            int
 }
@@ -32,42 +36,49 @@ type SupplyChainImpactFindingFilter struct {
 // SupplyChainImpactFindingRow is one durable impact finding decoded from
 // reducer-owned facts.
 type SupplyChainImpactFindingRow struct {
-	FindingID           string
-	CVEID               string
-	AdvisoryID          string
-	PackageID           string
-	Ecosystem           string
-	PackageName         string
-	PURL                string
-	ProductCriteria     string
-	MatchCriteriaID     string
-	ObservedVersion     string
-	RequestedRange      string
-	FixedVersion        string
-	MatchReason         string
-	ImpactStatus        string
-	Confidence          string
-	CVSSScore           float64
-	EPSSProbability     string
-	EPSSPercentile      string
-	KnownExploited      bool
-	PriorityReason      string
-	RuntimeReachability string
-	RepositoryID        string
-	SubjectDigest       string
-	ImageRef            string
-	WorkloadIDs         []string
-	ServiceIDs          []string
-	Environments        []string
-	DependencyPath      []string
-	DependencyDepth     int
-	DirectDependency    *bool
-	MissingEvidence     []string
-	EvidencePath        []string
-	EvidenceFactIDs     []string
-	SourceFreshness     string
-	SourceConfidence    string
-	Provenance          *SupplyChainImpactProvenance
+	FindingID             string
+	CVEID                 string
+	AdvisoryID            string
+	PackageID             string
+	Ecosystem             string
+	PackageName           string
+	PURL                  string
+	ProductCriteria       string
+	MatchCriteriaID       string
+	ObservedVersion       string
+	RequestedRange        string
+	FixedVersion          string
+	MatchReason           string
+	ImpactStatus          string
+	Confidence            string
+	CVSSScore             float64
+	AdvisoryPublishedAt   string
+	AdvisoryUpdatedAt     string
+	EPSSProbability       string
+	EPSSPercentile        string
+	KnownExploited        bool
+	PriorityReason        string
+	PriorityScore         int
+	PriorityBucket        string
+	PriorityReasonCodes   []string
+	PriorityContributions []SupplyChainImpactPriorityContribution
+	RuntimeReachability   string
+	RepositoryID          string
+	SubjectDigest         string
+	ImageRef              string
+	DependencyScope       string
+	WorkloadIDs           []string
+	ServiceIDs            []string
+	Environments          []string
+	DependencyPath        []string
+	DependencyDepth       int
+	DirectDependency      *bool
+	MissingEvidence       []string
+	EvidencePath          []string
+	EvidenceFactIDs       []string
+	SourceFreshness       string
+	SourceConfidence      string
+	Provenance            *SupplyChainImpactProvenance
 	// DetectionProfile records which evidence tier produced the row:
 	// precise for exact installed-version anchors, comprehensive for
 	// range-only, SBOM-derived, CPE-derived, malformed,
@@ -147,7 +158,7 @@ func (s PostgresSupplyChainImpactFindingStore) ListSupplyChainImpactFindings(
 		return nil, fmt.Errorf("supply chain impact finding database is required")
 	}
 	if !filter.hasScope() {
-		return nil, fmt.Errorf("cve_id, package_id, repository_id, subject_digest, or impact_status is required")
+		return nil, fmt.Errorf("cve_id, package_id, repository_id, subject_digest, impact_status, priority_bucket, or min_priority_score is required")
 	}
 	if filter.Limit <= 0 || filter.Limit > supplyChainImpactFindingMaxLimit+1 {
 		return nil, fmt.Errorf("limit must be between 1 and %d for internal pagination", supplyChainImpactFindingMaxLimit+1)
@@ -163,7 +174,10 @@ func (s PostgresSupplyChainImpactFindingStore) ListSupplyChainImpactFindings(
 		filter.SubjectDigest,
 		filter.ImpactStatus,
 		filter.DetectionProfile,
+		filter.PriorityBucket,
+		filter.MinPriorityScore,
 		filter.AfterFindingID,
+		normalizeSupplyChainImpactSort(filter.Sort),
 		filter.Limit,
 	)
 	if err != nil {
@@ -192,7 +206,11 @@ func (s PostgresSupplyChainImpactFindingStore) ListSupplyChainImpactFindings(
 }
 
 const listSupplyChainImpactFindingsQuery = `
-SELECT fact.fact_id, fact.source_confidence, fact.payload
+WITH scoped_facts AS (
+SELECT fact.fact_id,
+       fact.source_confidence,
+       fact.payload,
+       COALESCE(NULLIF(fact.payload->>'priority_score', '')::int, 0) AS priority_score
 FROM fact_records AS fact
 JOIN ingestion_scopes AS scope
   ON scope.scope_id = fact.scope_id
@@ -231,14 +249,44 @@ WHERE fact.fact_kind = $1
                   )
            )
       )
-  AND ($8 = '' OR fact.fact_id > $8)
-ORDER BY fact.fact_id ASC
-LIMIT $9
+  AND ($8 = '' OR fact.payload->>'priority_bucket' = $8)
+  AND ($9 = 0 OR COALESCE(NULLIF(fact.payload->>'priority_score', '')::int, 0) >= $9)
+)
+SELECT fact_id, source_confidence, payload
+FROM scoped_facts
+WHERE $10 = ''
+   OR ($11 = 'finding_id' AND fact_id > $10)
+   OR (
+      $11 = 'priority_score_desc'
+      AND (
+        priority_score < COALESCE((SELECT cursor.priority_score FROM scoped_facts AS cursor WHERE cursor.fact_id = $10), -1)
+        OR (
+          priority_score = COALESCE((SELECT cursor.priority_score FROM scoped_facts AS cursor WHERE cursor.fact_id = $10), -1)
+          AND fact_id > $10
+        )
+      )
+   )
+   OR (
+      $11 = 'priority_score_asc'
+      AND (
+        priority_score > COALESCE((SELECT cursor.priority_score FROM scoped_facts AS cursor WHERE cursor.fact_id = $10), 101)
+        OR (
+          priority_score = COALESCE((SELECT cursor.priority_score FROM scoped_facts AS cursor WHERE cursor.fact_id = $10), 101)
+          AND fact_id > $10
+        )
+      )
+   )
+ORDER BY
+  CASE WHEN $11 = 'priority_score_desc' THEN priority_score END DESC,
+  CASE WHEN $11 = 'priority_score_asc' THEN priority_score END ASC,
+  fact_id ASC
+LIMIT $12
 `
 
 func (f SupplyChainImpactFindingFilter) hasScope() bool {
 	return f.CVEID != "" || f.PackageID != "" || f.RepositoryID != "" ||
-		f.SubjectDigest != "" || f.ImpactStatus != ""
+		f.SubjectDigest != "" || f.ImpactStatus != "" || f.PriorityBucket != "" ||
+		f.MinPriorityScore > 0
 }
 
 func decodeSupplyChainImpactFindingRow(
@@ -267,14 +315,23 @@ func decodeSupplyChainImpactFindingRow(
 		ImpactStatus:        StringVal(payload, "impact_status"),
 		Confidence:          StringVal(payload, "confidence"),
 		CVSSScore:           floatVal(payload, "cvss_score"),
+		AdvisoryPublishedAt: StringVal(payload, "advisory_published_at"),
+		AdvisoryUpdatedAt:   StringVal(payload, "advisory_updated_at"),
 		EPSSProbability:     StringVal(payload, "epss_probability"),
 		EPSSPercentile:      StringVal(payload, "epss_percentile"),
 		KnownExploited:      BoolVal(payload, "known_exploited"),
 		PriorityReason:      StringVal(payload, "priority_reason"),
+		PriorityScore:       int(floatVal(payload, "priority_score")),
+		PriorityBucket:      StringVal(payload, "priority_bucket"),
+		PriorityReasonCodes: StringSliceVal(payload, "priority_reason_codes"),
+		PriorityContributions: decodeSupplyChainImpactPriorityContributions(
+			payload["priority_contributions"],
+		),
 		RuntimeReachability: StringVal(payload, "runtime_reachability"),
 		RepositoryID:        StringVal(payload, "repository_id"),
 		SubjectDigest:       StringVal(payload, "subject_digest"),
 		ImageRef:            StringVal(payload, "image_ref"),
+		DependencyScope:     StringVal(payload, "dependency_scope"),
 		WorkloadIDs:         StringSliceVal(payload, "workload_ids"),
 		ServiceIDs:          StringSliceVal(payload, "service_ids"),
 		Environments:        StringSliceVal(payload, "environments"),
@@ -424,24 +481,4 @@ func decodeAdvisorySources(raw any) []SupplyChainAdvisorySource {
 		return nil
 	}
 	return out
-}
-
-func boolPointerVal(payload map[string]any, key string) *bool {
-	value, ok := payload[key]
-	if !ok {
-		return nil
-	}
-	switch typed := value.(type) {
-	case bool:
-		return &typed
-	case string:
-		trimmed := strings.TrimSpace(typed)
-		if trimmed == "" {
-			return nil
-		}
-		parsed := strings.EqualFold(trimmed, "true")
-		return &parsed
-	default:
-		return nil
-	}
 }
