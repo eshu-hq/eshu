@@ -102,6 +102,14 @@ func supplyChainImpactFilter(envelopes []facts.Envelope) SupplyChainImpactFactFi
 			}
 		case facts.VulnerabilityEPSSScoreFactKind, facts.VulnerabilityKnownExploitedFactKind:
 			cveIDs = append(cveIDs, supplyChainCVEID(envelope.Payload))
+		case facts.VulnerabilitySuppressionFactKind:
+			if scope := payloadMap(envelope.Payload, "scope"); scope != nil {
+				cveIDs = append(cveIDs, payloadStr(scope, "cve_id"))
+				packageIDs = append(packageIDs, payloadStr(scope, "package_id"))
+				purls = append(purls, payloadStr(scope, "purl"))
+				digests = append(digests, payloadStr(scope, "subject_digest"))
+				repositoryIDs = append(repositoryIDs, payloadStr(scope, "repository_id"))
+			}
 		case facts.PackageRegistryPackageFactKind:
 			packageIDs = append(packageIDs, payloadStr(envelope.Payload, "package_id"))
 		case packageConsumptionCorrelationFactKind:

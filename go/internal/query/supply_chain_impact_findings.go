@@ -17,20 +17,29 @@ type SupplyChainImpactFindingStore interface {
 }
 
 // SupplyChainImpactFindingFilter bounds impact reads to concrete evidence,
-// impact truth, or triage priority. DetectionProfile only narrows an already
-// scoped read.
+// impact truth, triage priority, or VEX/operator suppression state.
+// DetectionProfile only narrows an already scoped read. SuppressionState
+// filters by the reducer suppression decision (active, not_affected,
+// accepted_risk, false_positive, ignored, expired, provider_dismissed,
+// scope_mismatch); IncludeSuppressed admits findings whose suppression
+// state hides them from the default view (not_affected, accepted_risk,
+// false_positive, ignored). Expired, provider_dismissed, and
+// scope_mismatch findings remain visible regardless because they keep
+// operator audit signal.
 type SupplyChainImpactFindingFilter struct {
-	CVEID            string
-	PackageID        string
-	RepositoryID     string
-	SubjectDigest    string
-	ImpactStatus     string
-	DetectionProfile string
-	PriorityBucket   string
-	MinPriorityScore int
-	Sort             string
-	AfterFindingID   string
-	Limit            int
+	CVEID             string
+	PackageID         string
+	RepositoryID      string
+	SubjectDigest     string
+	ImpactStatus      string
+	DetectionProfile  string
+	PriorityBucket    string
+	MinPriorityScore  int
+	Sort              string
+	SuppressionState  string
+	IncludeSuppressed bool
+	AfterFindingID    string
+	Limit             int
 }
 
 // SupplyChainImpactFindingRow is one durable impact finding decoded from
@@ -79,12 +88,34 @@ type SupplyChainImpactFindingRow struct {
 	SourceFreshness       string
 	SourceConfidence      string
 	Provenance            *SupplyChainImpactProvenance
+	// Suppression carries the reducer VEX/operator-policy decision; it is
+	// always populated (state=active when no suppression matched) so callers
+	// can audit suppression provenance even when the finding is hidden from
+	// the default view.
+	Suppression *SupplyChainSuppressionDecisionRow
 	// DetectionProfile records which evidence tier produced the row:
 	// precise for exact installed-version anchors, comprehensive for
 	// range-only, SBOM-derived, CPE-derived, malformed,
 	// unsupported-ecosystem, or missing-version evidence. Older rows
 	// written before profile tagging may return blank.
 	DetectionProfile string
+}
+
+// SupplyChainSuppressionDecisionRow is the API-shaped suppression decision
+// attached to one impact finding. The reducer produces an "active" row when
+// no suppression matched.
+type SupplyChainSuppressionDecisionRow struct {
+	State          string `json:"state"`
+	SuppressionID  string `json:"suppression_id,omitempty"`
+	Source         string `json:"source,omitempty"`
+	Justification  string `json:"justification,omitempty"`
+	Author         string `json:"author,omitempty"`
+	AuthoredAt     string `json:"authored_at,omitempty"`
+	ExpiresAt      string `json:"expires_at,omitempty"`
+	Reason         string `json:"reason,omitempty"`
+	EvidenceRef    string `json:"evidence_ref,omitempty"`
+	VEXDocumentID  string `json:"vex_document_id,omitempty"`
+	VEXStatementID string `json:"vex_statement_id,omitempty"`
 }
 
 // SupplyChainImpactProvenance preserves per-source advisory provenance for one
@@ -179,6 +210,8 @@ func (s PostgresSupplyChainImpactFindingStore) ListSupplyChainImpactFindings(
 		filter.AfterFindingID,
 		normalizeSupplyChainImpactSort(filter.Sort),
 		filter.Limit,
+		filter.SuppressionState,
+		filter.IncludeSuppressed,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("list supply chain impact findings: %w", err)
@@ -251,6 +284,8 @@ WHERE fact.fact_kind = $1
       )
   AND ($8 = '' OR fact.payload->>'priority_bucket' = $8)
   AND ($9 = 0 OR COALESCE(NULLIF(fact.payload->>'priority_score', '')::int, 0) >= $9)
+  AND ($13 = '' OR COALESCE(NULLIF(fact.payload->>'suppression_state', ''), 'active') = $13)
+  AND ($14::boolean OR COALESCE(NULLIF(fact.payload->>'suppression_state', ''), 'active') NOT IN ('not_affected','accepted_risk','false_positive','ignored'))
 )
 SELECT fact_id, source_confidence, payload
 FROM scoped_facts
@@ -345,6 +380,7 @@ func decodeSupplyChainImpactFindingRow(
 		SourceConfidence:    sourceConfidence,
 		Provenance:          decodeSupplyChainImpactProvenance(payload),
 		DetectionProfile:    StringVal(payload, "detection_profile"),
+		Suppression:         decodeSupplyChainSuppressionDecision(payload),
 	}
 	if row.DetectionProfile == "" {
 		row.DetectionProfile = inferLegacyDetectionProfile(row.ImpactStatus, row.ObservedVersion, row.MatchReason)
@@ -377,6 +413,37 @@ func inferLegacyDetectionProfile(impactStatus string, observedVersion string, ma
 	default:
 		return SupplyChainImpactProfileComprehensive
 	}
+}
+
+func decodeSupplyChainSuppressionDecision(payload map[string]any) *SupplyChainSuppressionDecisionRow {
+	raw, ok := payload["suppression"].(map[string]any)
+	if !ok || len(raw) == 0 {
+		state := StringVal(payload, "suppression_state")
+		if state == "" {
+			return nil
+		}
+		return &SupplyChainSuppressionDecisionRow{State: state}
+	}
+	row := SupplyChainSuppressionDecisionRow{
+		State:          StringVal(raw, "state"),
+		SuppressionID:  StringVal(raw, "suppression_id"),
+		Source:         StringVal(raw, "source"),
+		Justification:  StringVal(raw, "justification"),
+		Author:         StringVal(raw, "author"),
+		AuthoredAt:     StringVal(raw, "authored_at"),
+		ExpiresAt:      StringVal(raw, "expires_at"),
+		Reason:         StringVal(raw, "reason"),
+		EvidenceRef:    StringVal(raw, "evidence_ref"),
+		VEXDocumentID:  StringVal(raw, "vex_document_id"),
+		VEXStatementID: StringVal(raw, "vex_statement_id"),
+	}
+	if row.State == "" {
+		row.State = StringVal(payload, "suppression_state")
+	}
+	if row.State == "" {
+		return nil
+	}
+	return &row
 }
 
 func decodeSupplyChainImpactProvenance(payload map[string]any) *SupplyChainImpactProvenance {

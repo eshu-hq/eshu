@@ -194,6 +194,23 @@ package or SBOM evidence remain in
 `/api/v0/supply-chain/security-alerts/reconciliations`; they are not
 promoted into either profile of the impact findings list.
 
+### Suppression Filtering
+
+`suppression_state` filters by the reducer's VEX/operator-policy decision.
+Valid suppression states are `active`, `not_affected`, `accepted_risk`,
+`false_positive`, `ignored`, `expired`, `provider_dismissed`, and
+`scope_mismatch`. Operator-asserted hidden states (`not_affected`,
+`accepted_risk`, `false_positive`, `ignored`) require
+`include_suppressed=true` to be returned; `expired`, `provider_dismissed`,
+and `scope_mismatch` stay visible by default because they preserve audit
+signal. Every finding row carries a `suppression` block (always populated,
+`state=active` when nothing matched) with the source (`vex_statement`,
+`eshu_policy`, or `provider_dismissal`), justification, author, timestamps,
+reason, evidence reference, and any VEX document/statement IDs so callers
+can explain why a finding is hidden or why a related suppression did not
+apply. Provider dismissals are evidence: the reducer surfaces them as
+`provider_dismissed` without removing the finding from the default view.
+
 Version fields intentionally do not collapse into one string:
 
 - `observed_version`: exact installed version from lockfile, manifest, SBOM, or

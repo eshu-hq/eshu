@@ -52,6 +52,14 @@
 // security analyzer runtimes can prove queue age, duration, CPU, memory,
 // retry, dead-letter, target count, and result count without inventing local
 // labels.
+// The supply-chain reducer registers SupplyChainSuppressionDecisions
+// (eshu_dp_supply_chain_suppression_decisions_total), labeled by reducer
+// domain and outcome state (active, not_affected, accepted_risk,
+// false_positive, ignored, expired, provider_dismissed, scope_mismatch),
+// so operators can detect VEX/operator-policy suppression drift without
+// re-running the reducer; provider-dismissed and scope-mismatch counts
+// stay separated from operator-asserted hides because they keep audit
+// signal rather than hiding findings.
 // Callers must reuse existing log keys and Attr* helpers before adding new
 // names. High-cardinality values such as file paths, fact identifiers,
 // repository names, delivery IDs, source paths, and attribute keys belong in

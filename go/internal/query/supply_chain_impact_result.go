@@ -49,6 +49,11 @@ type SupplyChainImpactFindingResult struct {
 	SourceFreshness       string                                  `json:"source_freshness,omitempty"`
 	SourceConfidence      string                                  `json:"source_confidence,omitempty"`
 	Provenance            *SupplyChainImpactProvenance            `json:"provenance,omitempty"`
+	// Suppression carries the reducer VEX/operator-policy decision attached
+	// to this finding. The reducer always populates a decision (state=active
+	// when nothing matched) so callers can audit suppression provenance even
+	// when the finding is hidden from the default view.
+	Suppression *SupplyChainSuppressionDecisionRow `json:"suppression,omitempty"`
 	// DetectionProfile names whether the row meets the precise exact-version
 	// bar or only the broader comprehensive owned-anchor profile.
 	DetectionProfile string `json:"detection_profile,omitempty"`

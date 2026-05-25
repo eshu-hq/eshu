@@ -341,6 +341,22 @@ Log phase attributes: `telemetry.PhaseReduction` (main loop),
   govulncheck-compatible JSON evidence and records the rule
   (`symbol`/`import`/`not_called`/`module`/`unknown`) used to choose the
   level so API/MCP can explain the decision.
+- **Suppression evidence is first-class** —
+  `SupplyChainImpactHandler` evaluates `vulnerability.suppression` facts
+  against each finding via `EvaluateSupplyChainSuppression`. The decision is
+  always populated (`state=active` when nothing matched) and persisted on the
+  finding payload, including the source (`vex_statement`, `eshu_policy`,
+  `provider_dismissal`), justification, author, timestamps, reason, evidence
+  reference, and optional VEX document/statement IDs. Suppressions apply only
+  when every populated scope key (`cve_id`, `advisory_id`, `package_id`,
+  `purl`, `repository_id`, `subject_digest`, `evidence_path`) matches the
+  finding identity; mismatched scope yields the `scope_mismatch` state so the
+  finding stays visible and operators can audit drift. Expired suppressions
+  surface as `expired` rather than hidden. Provider dismissals are evidence:
+  the reducer surfaces them as `provider_dismissed` and never auto-excludes
+  the finding from the default API view. The handler emits
+  `eshu_dp_supply_chain_suppression_decisions_total` per state so operators
+  can detect VEX/policy drift without re-running the reducer.
 - **Advisory provenance is preserved** — multi-source CVE and affected_package
   observations for the same advisory identity are consolidated into one
   finding per `(cve_id, package_id)` anchor. `supplyChainImpactProvenance`

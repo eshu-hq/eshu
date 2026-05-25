@@ -35,6 +35,20 @@ func boolOr(args map[string]any, key string, def bool) bool {
 	return v
 }
 
+// boolStr returns the bool arg encoded as the string "true" or "false" when
+// the caller set it; otherwise the empty string so the upstream route can
+// leave the query parameter unset and rely on the API's default.
+func boolStr(args map[string]any, key string) string {
+	raw, ok := args[key]
+	if !ok || raw == nil {
+		return ""
+	}
+	if v, ok := raw.(bool); ok {
+		return strconv.FormatBool(v)
+	}
+	return ""
+}
+
 func resolveEntityBody(args map[string]any) map[string]any {
 	body := map[string]any{"limit": intOr(args, "limit", 10)}
 

@@ -135,18 +135,29 @@ func (h *SupplyChainHandler) listImpactFindings(w http.ResponseWriter, r *http.R
 		WriteError(w, http.StatusBadRequest, err.Error())
 		return
 	}
+	suppressionState := QueryParam(r, "suppression_state")
+	if suppressionState != "" && !isSupportedSupplyChainSuppressionState(suppressionState) {
+		WriteError(w, http.StatusBadRequest, "suppression_state must be one of active, not_affected, accepted_risk, false_positive, ignored, expired, provider_dismissed, scope_mismatch")
+		return
+	}
+	includeSuppressed, ok := parseSupplyChainImpactIncludeSuppressed(w, r)
+	if !ok {
+		return
+	}
 	filter := SupplyChainImpactFindingFilter{
-		CVEID:            QueryParam(r, "cve_id"),
-		PackageID:        QueryParam(r, "package_id"),
-		RepositoryID:     QueryParam(r, "repository_id"),
-		SubjectDigest:    QueryParam(r, "subject_digest"),
-		ImpactStatus:     QueryParam(r, "impact_status"),
-		DetectionProfile: filterProfile(profile),
-		PriorityBucket:   priorityBucket,
-		MinPriorityScore: minPriorityScore,
-		Sort:             sort,
-		AfterFindingID:   QueryParam(r, "after_finding_id"),
-		Limit:            limit + 1,
+		CVEID:             QueryParam(r, "cve_id"),
+		PackageID:         QueryParam(r, "package_id"),
+		RepositoryID:      QueryParam(r, "repository_id"),
+		SubjectDigest:     QueryParam(r, "subject_digest"),
+		ImpactStatus:      QueryParam(r, "impact_status"),
+		DetectionProfile:  filterProfile(profile),
+		PriorityBucket:    priorityBucket,
+		MinPriorityScore:  minPriorityScore,
+		Sort:              sort,
+		SuppressionState:  suppressionState,
+		IncludeSuppressed: includeSuppressed,
+		AfterFindingID:    QueryParam(r, "after_finding_id"),
+		Limit:             limit + 1,
 	}
 	if !filter.hasScope() {
 		WriteError(w, http.StatusBadRequest, "cve_id, package_id, repository_id, subject_digest, impact_status, priority_bucket, or min_priority_score > 0 is required")
@@ -480,5 +491,42 @@ func isSupportedContainerImageIdentityOutcome(outcome string) bool {
 		return true
 	default:
 		return false
+	}
+}
+
+// isSupportedSupplyChainSuppressionState reports whether the value names a
+// known reducer suppression state.
+func isSupportedSupplyChainSuppressionState(state string) bool {
+	switch state {
+	case "active",
+		"not_affected",
+		"accepted_risk",
+		"false_positive",
+		"ignored",
+		"expired",
+		"provider_dismissed",
+		"scope_mismatch":
+		return true
+	default:
+		return false
+	}
+}
+
+// parseSupplyChainImpactIncludeSuppressed parses the optional
+// include_suppressed boolean. Default false, so callers see only findings the
+// reducer considers actionable. Anything other than true/false returns 400.
+func parseSupplyChainImpactIncludeSuppressed(w http.ResponseWriter, r *http.Request) (bool, bool) {
+	raw := QueryParam(r, "include_suppressed")
+	if raw == "" {
+		return false, true
+	}
+	switch raw {
+	case "true":
+		return true, true
+	case "false":
+		return false, true
+	default:
+		WriteError(w, http.StatusBadRequest, "include_suppressed must be true or false")
+		return false, false
 	}
 }
