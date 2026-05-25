@@ -111,6 +111,22 @@ Analyzer, target, limit, failure, fact-kind, outcome, and result labels must
 come from bounded enums. Raw repository paths, image names, registry URLs,
 package coordinates, bucket keys, and source locators stay out of labels.
 
+The bounded `sbom_generation` analyzer
+(`internal/collector/scannerworker/sbomgenerator`) reuses these signals
+without introducing new metric instruments, spans, log keys, or queues. Its
+emitted `sbom.document`, `sbom.component`, and `sbom.warning` source facts
+appear on `eshu_dp_scanner_worker_facts_emitted_total` with
+`analyzer="sbom_generation"` and `fact_kind` set to the SBOM/attestation
+schema kind. Resource-limit breaches surface on
+`eshu_dp_scanner_worker_dead_letters_total` with
+`failure_class` in `{file_limit_exceeded, input_limit_exceeded,
+fact_limit_exceeded, unsupported_target, analyzer_failed}`; retryable source
+unavailability surfaces on `eshu_dp_scanner_worker_retries_total` with
+`failure_class="source_unavailable"`. CPU, memory, and timeout enforcement
+remain runtime concerns observable through
+`eshu_dp_scanner_worker_cpu_seconds`, `eshu_dp_scanner_worker_memory_bytes`,
+and the host pprof endpoint on `eshu-scanner-worker`.
+
 ## AWS Cloud Collector
 
 | Metric | Key labels | Use |

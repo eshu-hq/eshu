@@ -1,0 +1,155 @@
+package reducer_test
+
+import (
+	"context"
+	"testing"
+	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/collector/scannerworker"
+	"github.com/eshu-hq/eshu/go/internal/collector/scannerworker/sbomgenerator"
+	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/reducer"
+	"github.com/eshu-hq/eshu/go/internal/scope"
+	"github.com/eshu-hq/eshu/go/internal/workflow"
+)
+
+const generatorSubjectDigest = "sha256:abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789"
+
+// TestScannerWorkerGeneratedSBOMFactsAdmittedByReducerAttachment proves that
+// the bounded sbomgenerator analyzer's source facts flow only through the
+// existing reducer-owned attachment path. The reducer classifies the
+// generator's document as attached_parse_only when a subject digest is
+// present (no signature verification evidence yet) and as unknown_subject
+// when the analyzer could not derive one. Scanner workers must never short-
+// circuit attachment truth on their own.
+func TestScannerWorkerGeneratedSBOMFactsAdmittedByReducerAttachment(t *testing.T) {
+	t.Parallel()
+
+	withSubject := runSBOMGenerator(t, sbomgenerator.Inventory{
+		SubjectDigest: generatorSubjectDigest,
+		Components: []sbomgenerator.Component{
+			{PURL: "pkg:npm/foo@1.2.3", Name: "foo", Version: "1.2.3", Type: "library"},
+			{PURL: "pkg:npm/bar@2.0.0", Name: "bar", Version: "2.0.0", Type: "library"},
+		},
+	})
+	decisionsWithSubject := reducer.BuildSBOMAttestationAttachmentDecisions(withSubject)
+	if got, want := len(decisionsWithSubject), 1; got != want {
+		t.Fatalf("decisions = %d, want %d for one generator document", got, want)
+	}
+	withSubjectDecision := decisionsWithSubject[0]
+	if got, want := withSubjectDecision.AttachmentStatus, reducer.SBOMAttachmentAttachedParseOnly; got != want {
+		t.Fatalf("AttachmentStatus = %q, want %q (subject digest present, no verification evidence)", got, want)
+	}
+	if got, want := withSubjectDecision.SubjectDigest, generatorSubjectDigest; got != want {
+		t.Fatalf("SubjectDigest = %q, want %q", got, want)
+	}
+	if withSubjectDecision.CanonicalWrites != 1 {
+		t.Fatalf("CanonicalWrites = %d, want 1 for attached parse-only", withSubjectDecision.CanonicalWrites)
+	}
+	if got, want := withSubjectDecision.ComponentCount, 2; got != want {
+		t.Fatalf("ComponentCount = %d, want %d generated components attached", got, want)
+	}
+	if got, want := withSubjectDecision.Format, sbomgenerator.Format; got != want {
+		t.Fatalf("Format = %q, want %q (analyzer output stays CycloneDX-compatible)", got, want)
+	}
+
+	missingSubject := runSBOMGenerator(t, sbomgenerator.Inventory{
+		Components: []sbomgenerator.Component{
+			{PURL: "pkg:pypi/baz@9.9.9", Name: "baz", Version: "9.9.9", Type: "library"},
+		},
+	})
+	decisionsMissingSubject := reducer.BuildSBOMAttestationAttachmentDecisions(missingSubject)
+	if got, want := len(decisionsMissingSubject), 1; got != want {
+		t.Fatalf("missing-subject decisions = %d, want %d", got, want)
+	}
+	missingDecision := decisionsMissingSubject[0]
+	if got, want := missingDecision.AttachmentStatus, reducer.SBOMAttachmentUnknownSubject; got != want {
+		t.Fatalf("missing-subject AttachmentStatus = %q, want %q", got, want)
+	}
+	if missingDecision.CanonicalWrites != 0 {
+		t.Fatalf("CanonicalWrites = %d, want 0 for unknown-subject", missingDecision.CanonicalWrites)
+	}
+	if len(missingDecision.WarningSummaries) == 0 {
+		t.Fatal("WarningSummaries empty, want missing_subject warning surfaced through reducer attachment")
+	}
+}
+
+func runSBOMGenerator(t *testing.T, inventory sbomgenerator.Inventory) []facts.Envelope {
+	t.Helper()
+
+	now := time.Date(2026, 5, 24, 12, 0, 0, 0, time.UTC)
+	item := workflow.WorkItem{
+		WorkItemID:          "scanner-worker:collector-scanner:work-1",
+		RunID:               "scanner-worker:run-1",
+		CollectorKind:       scope.CollectorScannerWorker,
+		CollectorInstanceID: "collector-scanner",
+		SourceSystem:        string(scope.CollectorScannerWorker),
+		ScopeID:             "scanner-worker://repository/repo-private-name",
+		AcceptanceUnitID:    "repository:repo-123",
+		SourceRunID:         "scanner-worker:generation-1",
+		GenerationID:        "scanner-worker:generation-1",
+		FairnessKey:         "scanner_worker:collector-scanner:repository",
+		Status:              workflow.WorkItemStatusClaimed,
+		AttemptCount:        1,
+		CurrentClaimID:      "claim-1",
+		CurrentFencingToken: 7,
+		CurrentOwnerID:      "scanner-worker-1",
+		LeaseExpiresAt:      now.Add(time.Minute),
+		VisibleAt:           now.Add(-time.Minute),
+		LastClaimedAt:       now,
+		CreatedAt:           now.Add(-time.Hour),
+		UpdatedAt:           now,
+	}
+	claim := workflow.Claim{
+		ClaimID:        item.CurrentClaimID,
+		WorkItemID:     item.WorkItemID,
+		FencingToken:   item.CurrentFencingToken,
+		OwnerID:        item.CurrentOwnerID,
+		Status:         workflow.ClaimStatusActive,
+		ClaimedAt:      now,
+		HeartbeatAt:    now,
+		LeaseExpiresAt: now.Add(time.Minute),
+		CreatedAt:      now,
+		UpdatedAt:      now,
+	}
+	target := scannerworker.TargetScope{
+		Kind:             scannerworker.TargetRepository,
+		ScopeID:          item.ScopeID,
+		AcceptanceUnitID: item.AcceptanceUnitID,
+		SourceRunID:      item.SourceRunID,
+		GenerationID:     item.GenerationID,
+		LocatorHash:      "sha256:6b1f0b588fce9b40d6f56e4b5d6f3ef9d76c3ee6f2c2b66f7f4b3b6fb2c5c111",
+	}
+	limits := scannerworker.ResourceLimits{
+		CPUMillis:     2000,
+		MemoryBytes:   1 << 30,
+		Timeout:       10 * time.Minute,
+		MaxInputBytes: 2 << 30,
+		MaxFiles:      250000,
+		MaxFacts:      50000,
+	}
+	input, err := scannerworker.NewClaimInput(item, claim, scannerworker.AnalyzerSBOMGeneration, target, limits)
+	if err != nil {
+		t.Fatalf("NewClaimInput() error = %v, want nil", err)
+	}
+	analyzer := sbomgenerator.Analyzer{
+		Source: &fixedSBOMSource{inventory: inventory},
+		Now:    func() time.Time { return now },
+	}
+	result, err := analyzer.Analyze(context.Background(), input)
+	if err != nil {
+		t.Fatalf("Analyze() error = %v, want nil", err)
+	}
+	if err := scannerworker.ValidateFactOutput(input, result.Output); err != nil {
+		t.Fatalf("ValidateFactOutput() error = %v, want nil", err)
+	}
+	return result.Output.Facts
+}
+
+type fixedSBOMSource struct {
+	inventory sbomgenerator.Inventory
+}
+
+func (s *fixedSBOMSource) Collect(_ context.Context, _ scannerworker.ClaimInput) (sbomgenerator.Inventory, error) {
+	return s.inventory, nil
+}

@@ -34,7 +34,7 @@ func buildService(
 	return scannerworker.Service{
 		ControlStore:        postgres.NewWorkflowControlStore(database),
 		Committer:           committer,
-		Analyzer:            scannerworker.WarningAnalyzer{Reason: "analyzer_not_configured"},
+		Analyzer:            selectAnalyzer(config.Analyzer),
 		AnalyzerKind:        config.Analyzer,
 		CollectorInstanceID: config.Instance.InstanceID,
 		OwnerID:             config.OwnerID,
@@ -48,6 +48,21 @@ func buildService(
 		Instruments:         instruments,
 		Logger:              logger,
 	}, nil
+}
+
+// selectAnalyzer returns the analyzer implementation for one configured
+// analyzer kind. The hosted runtime keeps the WarningAnalyzer fallback for
+// analyzer kinds whose concrete Source has not been wired yet, so a claim is
+// still committed with an explicit warning fact instead of pretending the
+// target was scanned clean. The sbom_generation lane keeps the same fallback
+// until a concrete sbomgenerator.Source ships; the warning carries a
+// generator-specific reason so operators can distinguish missing-source from
+// other analyzer-not-configured cases.
+func selectAnalyzer(kind scannerworker.AnalyzerKind) scannerworker.Analyzer {
+	if kind == scannerworker.AnalyzerSBOMGeneration {
+		return scannerworker.WarningAnalyzer{Reason: "sbom_generator_source_not_configured"}
+	}
+	return scannerworker.WarningAnalyzer{Reason: "analyzer_not_configured"}
 }
 
 func newClaimID() string {
