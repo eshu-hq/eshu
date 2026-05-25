@@ -61,7 +61,9 @@ to user-facing impact:
 
 The target/capability model, local one-shot CLI direction, reducer ownership,
 readiness semantics, and provider-alert parity gate live in
-[Security Intelligence](reference/security-intelligence.md).
+[Security Intelligence](reference/security-intelligence.md). The final proof
+ladder before cutting the next prerelease image with this work lives in
+[Security Intelligence Release Gate](reference/security-intelligence-release-gate.md).
 
 Important public tracking issues include:
 

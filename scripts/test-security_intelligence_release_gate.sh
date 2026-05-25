@@ -1,0 +1,220 @@
+#!/usr/bin/env bash
+# Test harness for scripts/security_intelligence_release_gate.sh.
+#
+# Exercises the offline phases (state, focused, fixtures, provider) against a
+# synthesized repo so the harness itself is verified without standing up the
+# remote Compose stack or a Kubernetes cluster.
+
+set -euo pipefail
+
+repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+gate="${repo_root}/scripts/security_intelligence_release_gate.sh"
+
+if [ ! -x "${gate}" ]; then
+    printf 'gate script missing or not executable: %s\n' "${gate}" >&2
+    exit 1
+fi
+
+tmp_root="$(mktemp -d)"
+trap 'rm -rf "${tmp_root}" 2>/dev/null || true' EXIT
+
+# init_fake_repo $name [--scanner-worker] [--with-private]
+init_fake_repo() {
+    local name="$1"
+    shift
+    local with_scanner=0
+    local with_private=0
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            --scanner-worker) with_scanner=1 ;;
+            --with-private) with_private=1 ;;
+        esac
+        shift
+    done
+
+    local dir="${tmp_root}/${name}"
+    mkdir -p "${dir}/deploy/helm/eshu" "${dir}/schema/data-plane/postgres" "${dir}/docs"
+    git -C "${dir}" init -q
+    git -C "${dir}" config user.email "test@example.invalid"
+    git -C "${dir}" config user.name "Eshu Release Gate Test"
+
+    cat >"${dir}/deploy/helm/eshu/Chart.yaml" <<'YAML'
+apiVersion: v2
+name: eshu
+description: test fixture
+type: application
+version: 0.0.3-pre-release-9
+appVersion: "v0.0.3-pre-release-9"
+YAML
+
+    cat >"${dir}/docker-compose.yaml" <<'YAML'
+services:
+  nornicdb:
+    image: ${NORNICDB_IMAGE:-timothyswt/nornicdb-cpu-bge:v9.9.9@sha256:abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789}
+YAML
+
+    if [ "${with_scanner}" -eq 1 ]; then
+        cat >"${dir}/docker-compose.remote-e2e.yaml" <<'YAML'
+services:
+  eshu:
+  mcp-server:
+  ingester:
+  resolution-engine:
+  workflow-coordinator:
+  collector-terraform-state:
+  collector-oci-registry:
+  collector-package-registry:
+  collector-sbom-attestation:
+  collector-vulnerability-intelligence:
+  collector-aws-cloud:
+  scanner-worker:
+    environment:
+      ESHU_SCANNER_WORKER_CPU_MILLIS: 4000
+      ESHU_SCANNER_WORKER_MEMORY_BYTES: 4294967296
+      ESHU_SCANNER_WORKER_TIMEOUT: 10m
+      ESHU_SCANNER_WORKER_MAX_INPUT_BYTES: 2147483648
+      ESHU_SCANNER_WORKER_MAX_FILES: 250000
+      ESHU_SCANNER_WORKER_MAX_FACTS: 50000
+YAML
+    fi
+
+    for i in 001 002 003 004; do
+        printf 'CREATE TABLE t_%s (id int);\n' "${i}" >"${dir}/schema/data-plane/postgres/${i}_table.sql"
+    done
+
+    if [ "${with_private}" -eq 1 ]; then
+        printf '%s\n' '{"aggregate_class":"matched","count":12,"package_name":"private-pkg-name","alert_url":"https://github.com/myorg/myrepo/security/dependabot/1"}' >"${dir}/private-compare.json"
+    fi
+
+    git -C "${dir}" add -A
+    git -C "${dir}" commit -q -m initial
+
+    printf '%s\n' "${dir}"
+}
+
+run_gate() {
+    local dir="$1"
+    shift
+    local out_dir="${dir}/_evidence"
+    ESHU_RELEASE_GATE_REPO_ROOT="${dir}" \
+        ESHU_RELEASE_GATE_SKIP_GO_TESTS=1 \
+        "${gate}" --out-dir "${out_dir}" "$@" >"${dir}/_gate.out" 2>"${dir}/_gate.err"
+}
+
+expect_pass() {
+    local dir="$1"
+    shift
+    if ! run_gate "${dir}" "$@"; then
+        printf 'expected gate to pass in %s\n' "${dir}" >&2
+        printf '%s\n' '--- stderr ---' >&2
+        sed -n '1,200p' "${dir}/_gate.err" >&2
+        printf '%s\n' '--- stdout ---' >&2
+        sed -n '1,200p' "${dir}/_gate.out" >&2
+        exit 1
+    fi
+}
+
+expect_fail() {
+    local dir="$1"
+    shift
+    if run_gate "${dir}" "$@"; then
+        printf 'expected gate to fail in %s\n' "${dir}" >&2
+        printf '%s\n' '--- stderr ---' >&2
+        sed -n '1,200p' "${dir}/_gate.err" >&2
+        printf '%s\n' '--- stdout ---' >&2
+        sed -n '1,200p' "${dir}/_gate.out" >&2
+        exit 1
+    fi
+}
+
+evidence_json() {
+    local dir="$1"
+    printf '%s/_evidence/evidence.json' "${dir}"
+}
+
+# --- Test 1: offline default phases produce a complete state envelope.
+repo1="$(init_fake_repo case1 --scanner-worker)"
+expect_pass "${repo1}" --image-tag-candidate "v0.0.3-pre-release-9"
+state_file="$(evidence_json "${repo1}")"
+[ -s "${state_file}" ] || { printf 'evidence.json was empty in case1\n' >&2; exit 1; }
+jq -e '.phases | index("state")' "${state_file}" >/dev/null \
+    || { printf 'state phase missing in case1 evidence\n' >&2; exit 1; }
+jq -e '.state.git_commit and (.state.git_commit|length>=40)' "${state_file}" >/dev/null \
+    || { printf 'state.git_commit missing or short\n' >&2; exit 1; }
+jq -e '.state.helm_chart_version == "0.0.3-pre-release-9"' "${state_file}" >/dev/null \
+    || { printf 'state.helm_chart_version mismatch\n' >&2; exit 1; }
+jq -e '.state.helm_app_version == "v0.0.3-pre-release-9"' "${state_file}" >/dev/null \
+    || { printf 'state.helm_app_version mismatch\n' >&2; exit 1; }
+jq -e '.state.image_tag_candidate == "v0.0.3-pre-release-9"' "${state_file}" >/dev/null \
+    || { printf 'state.image_tag_candidate missing\n' >&2; exit 1; }
+jq -e '.state.nornicdb_image | test("timothyswt/nornicdb-cpu-bge:v9\\.9\\.9@sha256:[0-9a-f]{64}$")' "${state_file}" >/dev/null \
+    || { printf 'state.nornicdb_image not captured\n' >&2; exit 1; }
+jq -e '.state.nornicdb_digest | test("^sha256:[0-9a-f]{64}$")' "${state_file}" >/dev/null \
+    || { printf 'state.nornicdb_digest missing\n' >&2; exit 1; }
+jq -e '.state.schema_migration_count == 4' "${state_file}" >/dev/null \
+    || { printf 'state.schema_migration_count wrong\n' >&2; exit 1; }
+jq -e '.state.schema_latest_migration == "004_table.sql"' "${state_file}" >/dev/null \
+    || { printf 'state.schema_latest_migration wrong\n' >&2; exit 1; }
+jq -e '.state.remote_e2e_services | index("scanner-worker")' "${state_file}" >/dev/null \
+    || { printf 'state.remote_e2e_services missing scanner-worker\n' >&2; exit 1; }
+jq -e '.state.remote_e2e_services | index("collector-vulnerability-intelligence")' "${state_file}" >/dev/null \
+    || { printf 'state.remote_e2e_services missing vulnerability-intelligence\n' >&2; exit 1; }
+jq -e '.state.scanner_worker_limits.ESHU_SCANNER_WORKER_MAX_FACTS == "50000"' "${state_file}" >/dev/null \
+    || { printf 'state.scanner_worker_limits not captured\n' >&2; exit 1; }
+jq -e '.pass == true' "${state_file}" >/dev/null \
+    || { printf 'evidence.pass was not true on offline run\n' >&2; exit 1; }
+[ -s "${repo1}/_evidence/evidence.md" ] || { printf 'evidence.md missing in case1\n' >&2; exit 1; }
+grep -q "Security Intelligence Release Gate" "${repo1}/_evidence/evidence.md" \
+    || { printf 'evidence.md missing title in case1\n' >&2; exit 1; }
+grep -q "v0.0.3-pre-release-9" "${repo1}/_evidence/evidence.md" \
+    || { printf 'evidence.md missing image tag candidate in case1\n' >&2; exit 1; }
+
+# --- Test 2: unknown phase fails fast with a clear message.
+repo2="$(init_fake_repo case2 --scanner-worker)"
+expect_fail "${repo2}" --phases bogus
+grep -q 'unknown phase: bogus' "${repo2}/_gate.err" \
+    || { printf 'expected unknown-phase error in case2\n' >&2; exit 1; }
+
+# --- Test 3: provider phase refuses to record private data.
+repo3="$(init_fake_repo case3 --scanner-worker --with-private)"
+expect_fail "${repo3}" \
+    --phases state,provider \
+    --provider-compare "${repo3}/private-compare.json"
+grep -q "private data" "${repo3}/_gate.err" \
+    || { printf 'expected private-data rejection in case3\n' >&2; exit 1; }
+
+# --- Test 4: provider phase accepts a bounded aggregate-only payload.
+repo4="$(init_fake_repo case4 --scanner-worker)"
+cat >"${repo4}/aggregate-compare.json" <<'JSON'
+{"comparison_id":"synthetic-aggregate","provider":"generic","totals":{"matched":12,"provider_only":3,"eshu_only":1,"fixed_dismissed_mismatch":0,"missing_dependency_evidence":0,"missing_advisory_evidence":0,"missing_sbom_image_evidence":0,"unsupported_ecosystem":0}}
+JSON
+expect_pass "${repo4}" \
+    --phases state,provider \
+    --provider-compare "${repo4}/aggregate-compare.json"
+prov_file="$(evidence_json "${repo4}")"
+jq -e '.provider.totals.matched == 12' "${prov_file}" >/dev/null \
+    || { printf 'provider.totals.matched not captured\n' >&2; exit 1; }
+jq -e '.provider.totals.provider_only == 3' "${prov_file}" >/dev/null \
+    || { printf 'provider.totals.provider_only not captured\n' >&2; exit 1; }
+jq -e '.provider.comparison_id == "synthetic-aggregate"' "${prov_file}" >/dev/null \
+    || { printf 'provider.comparison_id not captured\n' >&2; exit 1; }
+jq -e '.provider | has("package_name") | not' "${prov_file}" >/dev/null \
+    || { printf 'provider envelope leaked package_name\n' >&2; exit 1; }
+
+# --- Test 5: missing Chart.yaml fails the state phase.
+repo5="$(init_fake_repo case5 --scanner-worker)"
+rm "${repo5}/deploy/helm/eshu/Chart.yaml"
+git -C "${repo5}" add -A
+git -C "${repo5}" commit -q -m "drop chart"
+expect_fail "${repo5}" --phases state
+grep -q "Chart.yaml" "${repo5}/_gate.err" \
+    || { printf 'expected Chart.yaml error in case5\n' >&2; exit 1; }
+
+# --- Test 6: runtime/k8s phases noop without endpoints/namespace but state
+# still passes when explicitly requested as additional phases.
+repo6="$(init_fake_repo case6 --scanner-worker)"
+expect_fail "${repo6}" --phases state,runtime
+grep -q "runtime phase requires" "${repo6}/_gate.err" \
+    || { printf 'expected runtime requirement message in case6\n' >&2; exit 1; }
+
+printf 'security-intelligence release gate tests passed\n'
