@@ -58,7 +58,7 @@ absence of evidence look like absence of risk. Guard tests:
 | cargo | Cargo.lock | lockfile | gap | — | — | — | — | — | — | no TOML parser registered in `go/internal/parser/registry.go` | Cargo lockfile is TOML and not yet parsed. |
 | cargo | Cargo.toml | manifest | gap | — | — | — | — | — | — | `go/internal/parser/rust/cargo_cfg.go` parses cfg signals only | Cargo manifests are only scanned for cfg/feature signals; dependency tables are not yet emitted as content_entity facts. |
 | composer | composer.json | manifest | covered | ✓ | — | ✓ | ✓ | ✓ | — | `go/internal/parser/json/language.go` (`dependencyVariables`, composer) | `require` and `require-dev` sections emit content_entity rows. |
-| composer | composer.lock | lockfile | gap | — | — | — | — | — | — | `go/internal/parser/json/language.go` `shouldSkipJSONEntities` returns true for composer.lock | Composer lockfile is intentionally skipped by the JSON parser today; exact installed PHP versions are not available. |
+| composer | composer.lock | lockfile | covered | ✓ | ✓ | — | ✓ | ✓ | — | `go/internal/parser/json/composer_lock.go` | `packages` and `packages-dev` arrays emit exact-version rows with a `lockfile` flag so the reducer can join manifest ranges to installed PHP versions without dropping the dev/runtime split; transitive chain is not yet derived. |
 | go | go.mod | manifest | gap | — | — | — | — | — | — | `go/internal/parser/go_package_interface_prescan.go` reads go.mod for package interface only | go.mod is read for package-interface prescan but does not emit content_entity dependency facts. |
 | go | go.sum | lockfile | gap | — | — | — | — | — | — | no parser registered in `go/internal/parser/registry.go` | Module checksum file is not parsed; exact-version evidence for Go repos is missing. |
 | gradle | build.gradle | build | gap | — | — | — | — | — | — | `go/internal/parser/registry.go` registers groovy by extension but does not extract dependency blocks | Groovy build scripts are parsed for syntax only. |
@@ -98,13 +98,15 @@ absence of evidence look like absence of risk. Guard tests:
 
 ## Performance Evidence
 
-`go test ./internal/parser/json -run 'TestDependencyCoverage' -count=1` runs
-the matrix invariants plus the covered/gap parser fixtures in under one
-second on a developer laptop; it is a pure in-memory fixture path and adds
-no Cypher, queue, or storage work. `go test ./internal/reducer -run
-'TestBuildPackageConsumptionDecisions(Rejects|Matches|Normalizes|Preserves)'
--count=1` exercises both the positive consumption admission path and the
-safety-rule negatives without touching Postgres or the graph backend.
+`go test ./internal/parser/json -run 'TestDependencyCoverage|TestParseComposerLock|TestParseComposerManifestAndLockfile' -count=1`
+runs the matrix invariants plus the covered/gap parser fixtures and the
+Composer lockfile fixtures in well under one second on a developer
+laptop; it is a pure in-memory fixture path and adds no Cypher, queue,
+or storage work. `go test ./internal/reducer -run
+'TestBuildPackageConsumptionDecisions(Rejects|Matches|Normalizes|Preserves|Admits|Keeps)'
+-count=1` exercises both the positive consumption admission path
+(including the new Composer lockfile evidence) and the safety-rule
+negatives without touching Postgres or the graph backend.
 
 No-Observability-Change: this change is parser fixture work and reducer
 truth assertions. It introduces no new metric instrument, span, log key,
@@ -112,4 +114,8 @@ queue, reducer lane, graph write, or runtime worker. Operators continue to
 diagnose dependency-evidence coverage through the existing
 supply-chain impact readiness envelope (`missing_evidence` family
 `owned_packages`, `package.consumption` evidence-source count) and the
-existing `reducer_supply_chain_impact_finding` fact payload.
+existing `reducer_supply_chain_impact_finding` fact payload. Composer
+lockfile rows carry the same `lockfile: true` metadata bit used by the
+npm `package-lock.json` parser, so the reducer treats lockfile
+directness uniformly: when no explicit dependency chain is present, the
+decision surfaces `direct_dependency: null` rather than guessing.

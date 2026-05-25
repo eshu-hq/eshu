@@ -67,6 +67,7 @@ func TestDependencyCoverageMatrixIsStableAndExhaustive(t *testing.T) {
 		"npm|package.json",
 		"npm|package-lock.json",
 		"composer|composer.json",
+		"composer|composer.lock",
 	}
 	for _, key := range requiredCovered {
 		ecosystem, file, _ := strings.Cut(key, "|")
@@ -82,7 +83,6 @@ func TestDependencyCoverageMatrixIsStableAndExhaustive(t *testing.T) {
 	requiredGaps := []string{
 		"yarn.lock",
 		"pnpm-lock.yaml",
-		"composer.lock",
 		"pyproject.toml",
 		"requirements.txt",
 		"pipfile",
@@ -160,6 +160,21 @@ func TestDependencyCoverageCoveredFilesEmitDependencyRows(t *testing.T) {
 			expectedDependencies:  map[string]string{"monolog/monolog": "^2.0", "phpunit/phpunit": "^9.0"},
 			expectedPackageMgr:    "composer",
 			expectedSection:       "require",
+			expectScopeSplit:      true,
+			expectedDevDependency: "phpunit/phpunit",
+		},
+		"composer.lock": {
+			body: `{
+  "packages": [
+    {"name": "monolog/monolog", "version": "2.9.1"}
+  ],
+  "packages-dev": [
+    {"name": "phpunit/phpunit", "version": "9.6.13"}
+  ]
+}`,
+			expectedDependencies:  map[string]string{"monolog/monolog": "2.9.1", "phpunit/phpunit": "9.6.13"},
+			expectedPackageMgr:    "composer",
+			expectedSection:       "packages",
 			expectScopeSplit:      true,
 			expectedDevDependency: "phpunit/phpunit",
 		},
@@ -259,9 +274,8 @@ func TestDependencyCoverageGapsDoNotEmitDependencyRows(t *testing.T) {
 	t.Parallel()
 
 	jsonGapFixtures := map[string]string{
-		"composer.lock":       `{"_readme":["sample"],"packages":[{"name":"acme/pkg","version":"1.0.0"}]}`,
-		"pipfile.lock":        `{"_meta":{},"default":{"requests":{"version":"==2.31.0"}}}`,
-		"packages.lock.json":  `{"version":1,"dependencies":{"net6.0":{"Newtonsoft.Json":{"resolved":"13.0.3"}}}}`,
+		"pipfile.lock":       `{"_meta":{},"default":{"requests":{"version":"==2.31.0"}}}`,
+		"packages.lock.json": `{"version":1,"dependencies":{"net6.0":{"Newtonsoft.Json":{"resolved":"13.0.3"}}}}`,
 	}
 
 	for file, body := range jsonGapFixtures {

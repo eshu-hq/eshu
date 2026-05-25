@@ -101,6 +101,8 @@ func Parse(
 	switch {
 	case filename == "package-lock.json":
 		payload["variables"] = packageLockDependencyVariables(object, languageName)
+	case filename == "composer.lock":
+		payload["variables"] = composerLockDependencyVariables(object, languageName)
 	case !shouldSkipJSONEntities(filename):
 		switch {
 		case filename == "package.json":
@@ -177,6 +179,10 @@ func normalizeJSONSource(source []byte, filename string) string {
 	return normalized
 }
 
+// shouldSkipJSONEntities keeps package-lock.json and composer.lock listed
+// so the generic dependencyVariables/tsconfigVariables branches do not
+// attempt to parse them; both files are routed to their own lockfile-aware
+// emitter via the switch in Parse before this guard is consulted.
 func shouldSkipJSONEntities(filename string) bool {
 	switch filename {
 	case "package-lock.json", "composer.lock":
