@@ -124,6 +124,8 @@ gauge when a shared-acceptance observer is available.
 | `CICDRunCorrelations` | `eshu_dp_ci_cd_run_correlations_total` |
 | `ServiceCatalogCorrelations` | `eshu_dp_service_catalog_correlations_total` |
 | `SBOMAttestationAttachments` | `eshu_dp_sbom_attestation_attachments_total` |
+| `SupplyChainImpactFindings` | `eshu_dp_supply_chain_impact_findings_total` |
+| `SupplyChainSuppressionDecisions` | `eshu_dp_supply_chain_suppression_decisions_total` (per-finding VEX/operator-policy suppression outcomes, labels: `domain`, `outcome` in active/not_affected/accepted_risk/false_positive/ignored/expired/provider_dismissed/scope_mismatch) |
 | `ConfluenceHTTPRequests` | `eshu_dp_confluence_http_requests_total` |
 | `ConfluencePermissionDeniedPages` | `eshu_dp_confluence_permission_denied_pages_total` |
 | `ConfluenceDocumentsObserved` | `eshu_dp_confluence_documents_observed_total` |

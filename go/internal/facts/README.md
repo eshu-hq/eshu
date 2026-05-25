@@ -183,6 +183,26 @@ They are source evidence only: reducers must reconcile them with Eshu-owned
 package consumption and vulnerability impact facts before any user-facing
 impact state is reported.
 
+Vulnerability suppression fact kinds use schema version `1.0.0` for the
+first VEX and operator-policy contract:
+
+- `vulnerability.suppression`
+
+Use `VulnerabilitySuppressionFactKinds` when callers need the accepted set
+and `VulnerabilitySuppressionSchemaVersion` when building suppression
+envelopes. Suppression facts are first-class evidence: every record carries
+the source (`vex_statement`, `eshu_policy`, or `provider_dismissal`), a
+VEX-style justification (`not_affected`, `accepted_risk`,
+`false_positive`, `ignored`, or `provider_dismissed`), an author, an
+authored timestamp, an optional expiration, a free-text reason, a bounded
+scope (`cve_id`, `advisory_id`, `package_id`, `purl`, `repository_id`,
+`subject_digest`, `evidence_path`), and an `evidence_ref` pointing at the
+originating fact or document. Provider dismissals stay evidence: the
+reducer surfaces them as `provider_dismissed` and never auto-hides the
+finding. The reducer applies operator suppressions only when scope matches
+the finding identity and evidence path; expired suppressions and
+scope-mismatched suppressions remain visible so operators can audit drift.
+
 Scanner-worker fact kinds use schema version `1.0.0` for the first isolated
 analyzer contract:
 

@@ -103,7 +103,7 @@ Representative tool-to-route mappings from `resolveRoute` (`dispatch.go:173`):
 | `list_package_registry_correlations` | GET | `/api/v0/package-registry/correlations` |
 | `list_ci_cd_run_correlations` | GET | `/api/v0/ci-cd/run-correlations` |
 | `list_service_catalog_correlations` | GET | `/api/v0/service-catalog/correlations` |
-| `list_supply_chain_impact_findings` | GET | `/api/v0/supply-chain/impact/findings` |
+| `list_supply_chain_impact_findings` | GET | `/api/v0/supply-chain/impact/findings` (accepts `include_suppressed` and `suppression_state` filters; each row carries a `suppression` block with state, source, justification, author, timestamps, reason, and VEX provenance) |
 | `list_advisory_evidence` | GET | `/api/v0/supply-chain/advisories/evidence` |
 | `explain_supply_chain_impact` | GET | `/api/v0/supply-chain/impact/explain` |
 | `list_security_alert_reconciliations` | GET | `/api/v0/supply-chain/security-alerts/reconciliations` |

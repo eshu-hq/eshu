@@ -37,6 +37,7 @@ WHERE fact.fact_kind IN (
     'vulnerability.cve',
     'vulnerability.affected_package',
     'vulnerability.affected_product',
+    'vulnerability.suppression',
     'package_registry.package_version',
     'package_registry.vulnerability_hint',
     'reducer_package_consumption_correlation',
@@ -52,9 +53,13 @@ WHERE fact.fact_kind IN (
   AND generation.status = 'active'
   AND (
       fact.payload->>'package_id' = ANY($1::text[])
+      OR fact.payload->'scope'->>'package_id' = ANY($1::text[])
       OR fact.payload->>'purl' = ANY($2::text[])
+      OR fact.payload->'scope'->>'purl' = ANY($2::text[])
       OR fact.payload->>'cve_id' = ANY($3::text[])
+      OR fact.payload->'scope'->>'cve_id' = ANY($3::text[])
       OR fact.payload->>'subject_digest' = ANY($4::text[])
+      OR fact.payload->'scope'->>'subject_digest' = ANY($4::text[])
       OR fact.payload->>'digest' = ANY($4::text[])
       OR fact.payload->>'artifact_digest' = ANY($4::text[])
       OR fact.payload->>'cpe' = ANY($5::text[])

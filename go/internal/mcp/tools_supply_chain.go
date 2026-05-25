@@ -41,7 +41,7 @@ func supplyChainTools() []ToolDefinition {
 		},
 		{
 			Name:        "list_supply_chain_impact_findings",
-			Description: "List reducer-owned vulnerability impact findings by CVE, package, repository, image digest, or impact status.",
+			Description: "List reducer-owned vulnerability impact findings by CVE, package, repository, image digest, or impact status. Suppression decisions (VEX, operator-policy, provider dismissal evidence) are attached to each row; set include_suppressed=true to surface findings hidden by operator suppression and use suppression_state to filter by a specific decision.",
 			InputSchema: map[string]any{
 				"type": "object",
 				"properties": map[string]any{
@@ -88,6 +88,16 @@ func supplyChainTools() []ToolDefinition {
 						"type":        "string",
 						"description": "Optional result ordering. Priority sorts are secondary triage views over reducer-owned impact facts.",
 						"enum":        []string{"finding_id", "priority", "priority_score_desc", "priority_score_asc"},
+					},
+					"suppression_state": map[string]any{
+						"type":        "string",
+						"description": "Optional reducer suppression-state filter. Operator-asserted suppressions (not_affected, accepted_risk, false_positive, ignored) require include_suppressed=true to appear.",
+						"enum":        []string{"active", "not_affected", "accepted_risk", "false_positive", "ignored", "expired", "provider_dismissed", "scope_mismatch"},
+					},
+					"include_suppressed": map[string]any{
+						"type":        "boolean",
+						"description": "Include findings hidden by operator-asserted VEX or policy suppression (not_affected, accepted_risk, false_positive, ignored). Expired, provider-dismissed, and scope-mismatched findings are visible regardless because they keep audit signal.",
+						"default":     false,
 					},
 					"after_finding_id": map[string]any{
 						"type":        "string",

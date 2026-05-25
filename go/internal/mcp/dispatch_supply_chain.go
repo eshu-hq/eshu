@@ -14,7 +14,7 @@ func containerImageIdentitiesRoute(args map[string]any) *route {
 }
 
 func supplyChainImpactFindingsRoute(args map[string]any) *route {
-	return &route{method: "GET", path: "/api/v0/supply-chain/impact/findings", query: map[string]string{
+	query := map[string]string{
 		"after_finding_id":   str(args, "after_finding_id"),
 		"cve_id":             str(args, "cve_id"),
 		"impact_status":      str(args, "impact_status"),
@@ -26,7 +26,16 @@ func supplyChainImpactFindingsRoute(args map[string]any) *route {
 		"repository_id":      str(args, "repository_id"),
 		"sort":               str(args, "sort"),
 		"subject_digest":     str(args, "subject_digest"),
-	}}
+		"suppression_state":  str(args, "suppression_state"),
+	}
+	// include_suppressed is omitted when the caller did not set it so the
+	// query string stays free of the empty key; the API parser accepts a
+	// missing value as the documented default (false) and only rejects
+	// non-true/false strings.
+	if encoded := boolStr(args, "include_suppressed"); encoded != "" {
+		query["include_suppressed"] = encoded
+	}
+	return &route{method: "GET", path: "/api/v0/supply-chain/impact/findings", query: query}
 }
 
 func advisoryEvidenceRoute(args map[string]any) *route {

@@ -6,6 +6,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"go.opentelemetry.io/otel/metric"
 
@@ -109,6 +110,12 @@ type SupplyChainImpactFinding struct {
 	// SBOM-derived, product-derived, malformed, unsupported-ecosystem, or
 	// missing-version evidence. Always set before the writer persists the row.
 	DetectionProfile DetectionProfile
+	// Suppression carries the VEX or operator-policy decision evaluated for
+	// this finding. State is always populated; it is "active" when no
+	// suppression applies. The writer persists the decision on the finding
+	// payload so API and MCP callers can include or exclude suppressed
+	// findings and explain the rationale.
+	Suppression SupplyChainSuppressionDecision
 }
 
 // SupplyChainImpactWrite carries findings for durable publication.
@@ -143,6 +150,9 @@ type SupplyChainImpactHandler struct {
 	FactLoader  FactLoader
 	Writer      SupplyChainImpactWriter
 	Instruments *telemetry.Instruments
+	// Now lets tests pin the evaluation clock used for suppression
+	// expiration checks. Defaults to time.Now() in UTC.
+	Now func() time.Time
 }
 
 // Handle executes one supply-chain impact reducer intent.
@@ -167,7 +177,13 @@ func (h SupplyChainImpactHandler) Handle(ctx context.Context, intent Intent) (Re
 	}
 
 	findings := BuildSupplyChainImpactFindings(envelopes)
+	suppressions := BuildVulnerabilitySuppressions(envelopes)
+	now := h.evaluationNow()
+	for i := range findings {
+		findings[i].Suppression = EvaluateSupplyChainSuppression(findings[i], suppressions, now)
+	}
 	counts := supplyChainImpactCounts(findings)
+	suppressionCounts := supplyChainSuppressionCounts(findings)
 	writeResult, err := h.Writer.WriteSupplyChainImpactFindings(ctx, SupplyChainImpactWrite{
 		IntentID:     intent.IntentID,
 		ScopeID:      intent.ScopeID,
@@ -179,15 +195,22 @@ func (h SupplyChainImpactHandler) Handle(ctx context.Context, intent Intent) (Re
 	if err != nil {
 		return Result{}, fmt.Errorf("write supply chain impact findings: %w", err)
 	}
-	h.emitCounters(ctx, counts)
+	h.emitCounters(ctx, counts, suppressionCounts)
 
 	return Result{
 		IntentID:        intent.IntentID,
 		Domain:          DomainSupplyChainImpact,
 		Status:          ResultStatusSucceeded,
-		EvidenceSummary: supplyChainImpactSummary(len(findings), counts, writeResult.CanonicalWrites),
+		EvidenceSummary: supplyChainImpactSummary(len(findings), counts, suppressionCounts, writeResult.CanonicalWrites),
 		CanonicalWrites: writeResult.CanonicalWrites,
 	}, nil
+}
+
+func (h SupplyChainImpactHandler) evaluationNow() time.Time {
+	if h.Now != nil {
+		return h.Now().UTC()
+	}
+	return time.Now().UTC()
 }
 
 func (h SupplyChainImpactHandler) loadActiveSupplyChainImpactFacts(
@@ -231,7 +254,11 @@ func (h SupplyChainImpactHandler) loadActiveSupplyChainImpactFactsUntilStable(
 	return envelopes, nil
 }
 
-func (h SupplyChainImpactHandler) emitCounters(ctx context.Context, counts map[SupplyChainImpactStatus]int) {
+func (h SupplyChainImpactHandler) emitCounters(
+	ctx context.Context,
+	counts map[SupplyChainImpactStatus]int,
+	suppressionCounts map[SupplyChainSuppressionState]int,
+) {
 	if h.Instruments == nil {
 		return
 	}
@@ -242,6 +269,18 @@ func (h SupplyChainImpactHandler) emitCounters(ctx context.Context, counts map[S
 		h.Instruments.SupplyChainImpactFindings.Add(ctx, int64(counts[status]), metric.WithAttributes(
 			telemetry.AttrDomain(string(DomainSupplyChainImpact)),
 			telemetry.AttrOutcome(string(status)),
+		))
+	}
+	if h.Instruments.SupplyChainSuppressionDecisions == nil {
+		return
+	}
+	for _, state := range SupplyChainSuppressionStates() {
+		if suppressionCounts[state] == 0 {
+			continue
+		}
+		h.Instruments.SupplyChainSuppressionDecisions.Add(ctx, int64(suppressionCounts[state]), metric.WithAttributes(
+			telemetry.AttrDomain(string(DomainSupplyChainImpact)),
+			telemetry.AttrOutcome(string(state)),
 		))
 	}
 }
@@ -311,6 +350,7 @@ func supplyChainImpactFactKinds() []string {
 		facts.VulnerabilityAffectedProductFactKind,
 		facts.VulnerabilityEPSSScoreFactKind,
 		facts.VulnerabilityKnownExploitedFactKind,
+		facts.VulnerabilitySuppressionFactKind,
 		facts.PackageRegistryPackageFactKind,
 		facts.SBOMComponentFactKind,
 		sbomAttestationAttachmentFactKind,
@@ -339,19 +379,43 @@ func supplyChainImpactCounts(findings []SupplyChainImpactFinding) map[SupplyChai
 	return counts
 }
 
+func supplyChainSuppressionCounts(findings []SupplyChainImpactFinding) map[SupplyChainSuppressionState]int {
+	counts := make(map[SupplyChainSuppressionState]int, len(SupplyChainSuppressionStates()))
+	for _, finding := range findings {
+		state := finding.Suppression.State
+		if state == "" {
+			state = SupplyChainSuppressionStateActive
+		}
+		counts[state]++
+	}
+	return counts
+}
+
 func supplyChainImpactSummary(
 	evaluated int,
 	counts map[SupplyChainImpactStatus]int,
+	suppressionCounts map[SupplyChainSuppressionState]int,
 	canonicalWrites int,
 ) string {
 	return fmt.Sprintf(
-		"supply chain impact evaluated=%d affected_exact=%d affected_derived=%d possibly_affected=%d not_affected_known_fixed=%d unknown_impact=%d canonical_writes=%d",
+		"supply chain impact evaluated=%d affected_exact=%d affected_derived=%d possibly_affected=%d not_affected_known_fixed=%d unknown_impact=%d "+
+			"suppression_active=%d suppression_not_affected=%d suppression_accepted_risk=%d suppression_false_positive=%d "+
+			"suppression_ignored=%d suppression_expired=%d suppression_provider_dismissed=%d suppression_scope_mismatch=%d "+
+			"canonical_writes=%d",
 		evaluated,
 		counts[SupplyChainImpactAffectedExact],
 		counts[SupplyChainImpactAffectedDerived],
 		counts[SupplyChainImpactPossiblyAffected],
 		counts[SupplyChainImpactNotAffectedKnownFixed],
 		counts[SupplyChainImpactUnknown],
+		suppressionCounts[SupplyChainSuppressionStateActive],
+		suppressionCounts[SupplyChainSuppressionStateNotAffected],
+		suppressionCounts[SupplyChainSuppressionStateAcceptedRisk],
+		suppressionCounts[SupplyChainSuppressionStateFalsePositive],
+		suppressionCounts[SupplyChainSuppressionStateIgnored],
+		suppressionCounts[SupplyChainSuppressionStateExpired],
+		suppressionCounts[SupplyChainSuppressionStateProviderDismissed],
+		suppressionCounts[SupplyChainSuppressionStateScopeMismatch],
 		canonicalWrites,
 	)
 }

@@ -34,4 +34,13 @@
 // dependency-chain, manifest/SBOM/image/workload anchors, freshness, and
 // missing-evidence reasons without adding whole-graph traversal or inventing
 // reachability truth.
+//
+// Supply-chain impact rows also carry a reducer suppression decision that
+// captures the VEX or operator-policy state (active, not_affected,
+// accepted_risk, false_positive, ignored, expired, provider_dismissed,
+// scope_mismatch) plus source, justification, author, timestamps, reason,
+// evidence reference, and VEX document/statement IDs. The listing route
+// accepts include_suppressed and suppression_state filters so callers can
+// include or exclude operator-suppressed findings and explain why; provider
+// dismissals stay evidence, not automatic suppressions.
 package query

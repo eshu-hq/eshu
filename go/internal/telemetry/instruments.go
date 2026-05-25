@@ -87,6 +87,14 @@ type Instruments struct {
 	ServiceCatalogCorrelations                metric.Int64Counter
 	SBOMAttestationAttachments                metric.Int64Counter
 	SupplyChainImpactFindings                 metric.Int64Counter
+	// SupplyChainSuppressionDecisions counts reducer suppression-state
+	// outcomes per supply-chain impact finding. Labels: domain
+	// (supply_chain_impact) and outcome (one of active, not_affected,
+	// accepted_risk, false_positive, ignored, expired, provider_dismissed,
+	// scope_mismatch). Lets operators detect drift between VEX/operator
+	// suppression intent and finding identity at 3 AM without re-running the
+	// reducer.
+	SupplyChainSuppressionDecisions metric.Int64Counter
 	ConfluenceHTTPRequests                    metric.Int64Counter
 	ConfluencePermissionDeniedPages           metric.Int64Counter
 	ConfluenceDocumentsObserved               metric.Int64Counter
@@ -663,6 +671,14 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register SupplyChainImpactFindings counter: %w", err)
+	}
+
+	inst.SupplyChainSuppressionDecisions, err = meter.Int64Counter(
+		"eshu_dp_supply_chain_suppression_decisions_total",
+		metric.WithDescription("Total VEX/operator-policy suppression decisions per supply-chain impact finding by reducer domain and outcome state"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register SupplyChainSuppressionDecisions counter: %w", err)
 	}
 
 	inst.ConfluenceHTTPRequests, err = meter.Int64Counter(

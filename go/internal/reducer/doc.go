@@ -11,5 +11,8 @@
 // admitted candidate, projected row, graph or fact write, and API/MCP query
 // truth. Queue ordering, generation supersession, phase publication, repair
 // flows, shared projection readiness, and truth-emitting domain registration
-// are package-level contracts.
+// are package-level contracts. SupplyChainImpactHandler also evaluates
+// vulnerability.suppression facts and writes the resulting VEX or operator
+// policy decision onto every impact finding; provider dismissals stay
+// evidence and never auto-hide findings.
 package reducer

@@ -64,6 +64,8 @@ const openAPIPathsSupplyChain = `
           {"name": "priority_bucket", "in": "query", "schema": {"type": "string", "enum": ["critical", "high", "medium", "low", "informational"]}, "description": "Reducer triage priority filter; does not change impact truth."},
           {"name": "min_priority_score", "in": "query", "schema": {"type": "integer", "minimum": 0, "maximum": 100}, "description": "Minimum reducer priority score. Zero is the default no-op value and does not bound a request by itself."},
           {"name": "sort", "in": "query", "schema": {"type": "string", "enum": ["finding_id", "priority", "priority_score_desc", "priority_score_asc"]}},
+          {"name": "suppression_state", "in": "query", "description": "Filter by reducer suppression decision. Operator-asserted hidden states (not_affected, accepted_risk, false_positive, ignored) require include_suppressed=true to be returned.", "schema": {"type": "string", "enum": ["active", "not_affected", "accepted_risk", "false_positive", "ignored", "expired", "provider_dismissed", "scope_mismatch"]}},
+          {"name": "include_suppressed", "in": "query", "description": "Include findings hidden by operator-asserted suppression. Expired, provider-dismissed, and scope-mismatched findings stay visible regardless because they preserve operator audit signal.", "schema": {"type": "boolean", "default": false}},
           {"name": "after_finding_id", "in": "query", "schema": {"type": "string"}},
           {"name": "limit", "in": "query", "required": true, "schema": {"type": "integer", "minimum": 1, "maximum": 200}}
         ],
@@ -116,6 +118,24 @@ const openAPIPathsSupplyChain = `
                           "missing_evidence": {"type": "array", "items": {"type": "string"}},
                           "evidence_path": {"type": "array", "items": {"type": "string"}},
                           "evidence_fact_ids": {"type": "array", "items": {"type": "string"}},
+                          "suppression": {
+                            "type": "object",
+                            "description": "Reducer VEX/operator-policy suppression decision for this finding. Always populated; state=active means no suppression matched. Operator suppressions (not_affected, accepted_risk, false_positive, ignored) hide the finding from the default view; expired, provider_dismissed, and scope_mismatch states keep the finding visible while preserving suppression provenance.",
+                            "properties": {
+                              "state": {"type": "string", "enum": ["active", "not_affected", "accepted_risk", "false_positive", "ignored", "expired", "provider_dismissed", "scope_mismatch"]},
+                              "suppression_id": {"type": "string"},
+                              "source": {"type": "string", "enum": ["vex_statement", "eshu_policy", "provider_dismissal"]},
+                              "justification": {"type": "string", "enum": ["not_affected", "accepted_risk", "false_positive", "ignored", "provider_dismissed"]},
+                              "author": {"type": "string"},
+                              "authored_at": {"type": "string"},
+                              "expires_at": {"type": "string"},
+                              "reason": {"type": "string"},
+                              "evidence_ref": {"type": "string", "description": "Pointer to the originating evidence (fact ID, VEX URL, provider alert)."},
+                              "vex_document_id": {"type": "string"},
+                              "vex_statement_id": {"type": "string"}
+                            },
+                            "required": ["state"]
+                          },
                           "provenance": {
                             "type": "object",
                             "description": "Per-source advisory provenance. Reducers preserve every source observation behind a finding so callers see which advisory source supplied the selected severity, fixed version, and vulnerable range plus alternates other sources reported. Selection uses documented per-ecosystem priority (vendor advisory for OS package classes, GHSA/GLAD/OSV/NVD for language ecosystems).",
