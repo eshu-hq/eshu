@@ -1,6 +1,7 @@
 package reducer
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -130,11 +131,13 @@ func TestEvaluateSupplyChainSuppressionExpiredKeepsFindingVisible(t *testing.T) 
 		RepositoryID: "repo://acme/api",
 	}
 	suppression := vulnerabilitySuppression{
-		SuppressionID: "suppression-expired",
-		Source:        facts.VulnerabilitySuppressionSourcePolicy,
-		Justification: facts.VulnerabilitySuppressionJustificationIgnored,
-		AuthoredAt:    time.Date(2026, 5, 1, 0, 0, 0, 0, time.UTC),
-		ExpiresAt:     time.Date(2026, 5, 14, 0, 0, 0, 0, time.UTC),
+		SuppressionID:    "suppression-expired",
+		Source:           facts.VulnerabilitySuppressionSourcePolicy,
+		Justification:    facts.VulnerabilitySuppressionJustificationIgnored,
+		AuthoredAt:       time.Date(2026, 5, 1, 0, 0, 0, 0, time.UTC),
+		ExpiresAt:        time.Date(2026, 5, 14, 0, 0, 0, 0, time.UTC),
+		ExpiresAtRaw:     "2026-05-14T00:00:00Z",
+		ExpiresAtPresent: true,
 		Scope: vulnerabilitySuppressionScope{
 			CVEID:        "CVE-2026-0030",
 			PackageID:    "pkg:npm/example",
@@ -255,11 +258,13 @@ func TestEvaluateSupplyChainSuppressionPrefersActiveOperatorOverExpired(t *testi
 		RepositoryID: "repo://acme/api",
 	}
 	expired := vulnerabilitySuppression{
-		SuppressionID: "suppression-expired",
-		Source:        facts.VulnerabilitySuppressionSourcePolicy,
-		Justification: facts.VulnerabilitySuppressionJustificationIgnored,
-		AuthoredAt:    time.Date(2026, 5, 1, 0, 0, 0, 0, time.UTC),
-		ExpiresAt:     time.Date(2026, 5, 10, 0, 0, 0, 0, time.UTC),
+		SuppressionID:    "suppression-expired",
+		Source:           facts.VulnerabilitySuppressionSourcePolicy,
+		Justification:    facts.VulnerabilitySuppressionJustificationIgnored,
+		AuthoredAt:       time.Date(2026, 5, 1, 0, 0, 0, 0, time.UTC),
+		ExpiresAt:        time.Date(2026, 5, 10, 0, 0, 0, 0, time.UTC),
+		ExpiresAtRaw:     "2026-05-10T00:00:00Z",
+		ExpiresAtPresent: true,
 		Scope: vulnerabilitySuppressionScope{
 			CVEID:        "CVE-2026-0070",
 			PackageID:    "pkg:npm/example",
@@ -284,6 +289,108 @@ func TestEvaluateSupplyChainSuppressionPrefersActiveOperatorOverExpired(t *testi
 	}
 	if decision.SuppressionID != "suppression-active" {
 		t.Fatalf("SuppressionID = %q, want suppression-active", decision.SuppressionID)
+	}
+}
+
+func TestEvaluateSupplyChainSuppressionEmptyScopeNeverHidesFindings(t *testing.T) {
+	t.Parallel()
+
+	finding := SupplyChainImpactFinding{
+		CVEID:        "CVE-2026-0080",
+		PackageID:    "pkg:npm/example",
+		RepositoryID: "repo://acme/api",
+	}
+	emptyScope := vulnerabilitySuppression{
+		SuppressionID: "suppression-empty-scope",
+		Source:        facts.VulnerabilitySuppressionSourcePolicy,
+		Justification: facts.VulnerabilitySuppressionJustificationNotAffected,
+		AuthoredAt:    time.Date(2026, 5, 10, 0, 0, 0, 0, time.UTC),
+		// Scope deliberately empty: a producer omitted scope entirely or
+		// shipped a malformed fact. The reducer MUST NOT silently apply
+		// this as a wildcard suppression.
+	}
+
+	decision := EvaluateSupplyChainSuppression(finding, []vulnerabilitySuppression{emptyScope}, time.Date(2026, 5, 24, 0, 0, 0, 0, time.UTC))
+	if decision.State != SupplyChainSuppressionStateScopeMismatch {
+		t.Fatalf("State = %q, want %q so empty-scope suppression cannot accidentally hide every finding", decision.State, SupplyChainSuppressionStateScopeMismatch)
+	}
+	if decision.SuppressionID != "suppression-empty-scope" {
+		t.Fatalf("SuppressionID = %q, want suppression-empty-scope preserved for audit", decision.SuppressionID)
+	}
+	if decision.Reason == "" {
+		t.Fatalf("Reason = empty, want explicit empty-scope explanation")
+	}
+}
+
+func TestEvaluateSupplyChainSuppressionInvalidExpiresAtNeverExtendsSuppression(t *testing.T) {
+	t.Parallel()
+
+	finding := SupplyChainImpactFinding{
+		CVEID:        "CVE-2026-0090",
+		PackageID:    "pkg:npm/example",
+		RepositoryID: "repo://acme/api",
+	}
+	// Suppression that would otherwise apply, but ships an unparseable
+	// expires_at value. The reducer MUST NOT treat the bad timestamp as
+	// "no expiration" and let the suppression apply indefinitely.
+	suppression := vulnerabilitySuppression{
+		SuppressionID:        "suppression-invalid-expiry",
+		Source:               facts.VulnerabilitySuppressionSourcePolicy,
+		Justification:        facts.VulnerabilitySuppressionJustificationIgnored,
+		AuthoredAt:           time.Date(2026, 5, 10, 0, 0, 0, 0, time.UTC),
+		ExpiresAtRaw:         "2026-13-40T99:99:99Z",
+		ExpiresAtPresent:     true,
+		ExpiresAtParseFailed: true,
+		Scope: vulnerabilitySuppressionScope{
+			CVEID:        "CVE-2026-0090",
+			PackageID:    "pkg:npm/example",
+			RepositoryID: "repo://acme/api",
+		},
+	}
+
+	decision := EvaluateSupplyChainSuppression(finding, []vulnerabilitySuppression{suppression}, time.Date(2026, 5, 24, 0, 0, 0, 0, time.UTC))
+	if decision.State != SupplyChainSuppressionStateExpired {
+		t.Fatalf("State = %q, want %q for invalid expires_at", decision.State, SupplyChainSuppressionStateExpired)
+	}
+	if decision.SuppressionID != "suppression-invalid-expiry" {
+		t.Fatalf("SuppressionID = %q, want suppression-invalid-expiry preserved", decision.SuppressionID)
+	}
+	if !strings.Contains(decision.Reason, "invalid") {
+		t.Fatalf("Reason = %q, want mention of invalid expires_at", decision.Reason)
+	}
+}
+
+func TestEvaluateSupplyChainSuppressionScopeMismatchReasonIncludesAllAnchors(t *testing.T) {
+	t.Parallel()
+
+	finding := SupplyChainImpactFinding{
+		CVEID:        "CVE-2026-0100",
+		AdvisoryID:   "GHSA-aaaa-bbbb-cccc",
+		PackageID:    "pkg:npm/example",
+		PURL:         "pkg:npm/example@1.2.3",
+		RepositoryID: "repo://acme/api",
+	}
+	suppression := vulnerabilitySuppression{
+		SuppressionID: "suppression-mismatch-all",
+		Source:        facts.VulnerabilitySuppressionSourcePolicy,
+		Justification: facts.VulnerabilitySuppressionJustificationNotAffected,
+		AuthoredAt:    time.Date(2026, 5, 10, 0, 0, 0, 0, time.UTC),
+		Scope: vulnerabilitySuppressionScope{
+			CVEID:      "CVE-2026-0100",
+			AdvisoryID: "GHSA-zzzz-yyyy-xxxx", // mismatch
+			PURL:       "pkg:npm/example@9.9.9", // mismatch
+		},
+	}
+
+	decision := EvaluateSupplyChainSuppression(finding, []vulnerabilitySuppression{suppression}, time.Date(2026, 5, 24, 0, 0, 0, 0, time.UTC))
+	if decision.State != SupplyChainSuppressionStateScopeMismatch {
+		t.Fatalf("State = %q, want %q", decision.State, SupplyChainSuppressionStateScopeMismatch)
+	}
+	if !strings.Contains(decision.Reason, "advisory_id") {
+		t.Fatalf("Reason = %q, want advisory_id diff for auditability", decision.Reason)
+	}
+	if !strings.Contains(decision.Reason, "purl") {
+		t.Fatalf("Reason = %q, want purl diff for auditability", decision.Reason)
 	}
 }
 

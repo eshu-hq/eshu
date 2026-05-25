@@ -37,6 +37,27 @@ func TestListActiveSupplyChainImpactFactsQueryIsPackageBoundedAndPaged(t *testin
 	}
 }
 
+func TestListActiveSupplyChainImpactFactsQueryIncludesVulnerabilitySuppression(t *testing.T) {
+	t.Parallel()
+
+	// vulnerability.suppression facts must be expandable through the same
+	// bounded active-evidence walk as the rest of the supply-chain impact
+	// kinds; otherwise suppressions outside the initially loaded
+	// scope/generation never reach the reducer and operator-authored
+	// suppressions silently miss findings.
+	for _, want := range []string{
+		"'vulnerability.suppression'",
+		"fact.payload->'scope'->>'package_id' = ANY($1::text[])",
+		"fact.payload->'scope'->>'purl' = ANY($2::text[])",
+		"fact.payload->'scope'->>'cve_id' = ANY($3::text[])",
+		"fact.payload->'scope'->>'subject_digest' = ANY($4::text[])",
+	} {
+		if !strings.Contains(listActiveSupplyChainImpactFactsQuery, want) {
+			t.Fatalf("listActiveSupplyChainImpactFactsQuery missing %q:\n%s", want, listActiveSupplyChainImpactFactsQuery)
+		}
+	}
+}
+
 func TestListActiveSecurityAlertReconciliationFactsQueryIsScopedAndPaged(t *testing.T) {
 	t.Parallel()
 

@@ -101,18 +101,31 @@ type vulnerabilitySuppressionScope struct {
 
 // vulnerabilitySuppression is a decoded VEX or operator-policy suppression
 // fact ready for reducer evaluation.
+//
+// ExpiresAtRaw, ExpiresAtPresent, and ExpiresAtParseFailed together let the
+// evaluator distinguish three cases that must NOT collapse into one:
+//
+//   - missing expiration: ExpiresAtPresent=false → suppression is timeless
+//   - valid expiration:   ExpiresAtPresent=true, ExpiresAtParseFailed=false →
+//     compare ExpiresAt against the evaluation clock
+//   - invalid expiration: ExpiresAtPresent=true, ExpiresAtParseFailed=true →
+//     treat as already-expired so a malformed timestamp can never silently
+//     extend the suppression's life. The raw value is preserved for audit.
 type vulnerabilitySuppression struct {
-	SuppressionID  string
-	Source         string
-	Justification  string
-	Author         string
-	AuthoredAt     time.Time
-	ExpiresAt      time.Time
-	Reason         string
-	Scope          vulnerabilitySuppressionScope
-	EvidenceRef    string
-	VEXDocumentID  string
-	VEXStatementID string
+	SuppressionID        string
+	Source               string
+	Justification        string
+	Author               string
+	AuthoredAt           time.Time
+	ExpiresAt            time.Time
+	ExpiresAtRaw         string
+	ExpiresAtPresent     bool
+	ExpiresAtParseFailed bool
+	Reason               string
+	Scope                vulnerabilitySuppressionScope
+	EvidenceRef          string
+	VEXDocumentID        string
+	VEXStatementID       string
 }
 
 // SupplyChainSuppressionDecision is the reducer's per-finding suppression
@@ -168,7 +181,7 @@ func EvaluateSupplyChainSuppression(
 			scopeMismatched = append(scopeMismatched, s)
 			continue
 		}
-		if !s.ExpiresAt.IsZero() && !now.Before(s.ExpiresAt) {
+		if suppressionIsExpired(s, now) {
 			expiredMatches = append(expiredMatches, s)
 			continue
 		}
@@ -186,7 +199,7 @@ func EvaluateSupplyChainSuppression(
 		return decisionFromProviderSuppression(*pick)
 	}
 	if pick := pickPreferredSuppression(expiredMatches); pick != nil {
-		return decisionFromExpiredSuppression(*pick, now)
+		return decisionFromExpiredSuppression(*pick)
 	}
 	if pick := pickPreferredSuppression(scopeMismatched); pick != nil {
 		return decisionFromScopeMismatch(finding, *pick)
@@ -196,10 +209,10 @@ func EvaluateSupplyChainSuppression(
 
 // suppressionAdjacent reports whether a suppression names at least one anchor
 // the finding also has, so we can tell "could this suppression apply to this
-// finding's identity at all?" from "applies but scope did not line up." A
-// suppression with no anchors at all (empty scope) is treated as adjacent so
-// callers can express ecosystem-wide policies; scope_match is then the only
-// remaining gate.
+// finding's identity at all?" from "applies but scope did not line up." An
+// empty scope is still treated as adjacent so the suppression is preserved on
+// every finding decision for audit, but suppressionScopeMatchesFinding
+// rejects empty scope so it never silently hides a finding.
 func suppressionAdjacent(finding SupplyChainImpactFinding, s vulnerabilitySuppression) bool {
 	if suppressionScopeIsEmpty(s.Scope) {
 		return true
@@ -226,9 +239,16 @@ func suppressionAdjacent(finding SupplyChainImpactFinding, s vulnerabilitySuppre
 }
 
 // suppressionScopeMatchesFinding returns true only when every populated scope
-// key matches the finding. Empty scope keys act as wildcards. Evidence path
-// entries must all appear in the finding's evidence path.
+// key matches the finding. Empty scope keys act as wildcards within an
+// otherwise-bounded scope, but a scope that names nothing at all is treated
+// as a mismatch so a malformed or missing scope payload can never silently
+// hide every finding (the suppression still surfaces as scope_mismatch for
+// audit). Evidence path entries must all appear in the finding's evidence
+// path.
 func suppressionScopeMatchesFinding(finding SupplyChainImpactFinding, s vulnerabilitySuppression) bool {
+	if suppressionScopeIsEmpty(s.Scope) {
+		return false
+	}
 	if !scopeAnchorMatches(s.Scope.CVEID, finding.CVEID) {
 		return false
 	}
@@ -349,11 +369,7 @@ func decisionFromProviderSuppression(s vulnerabilitySuppression) SupplyChainSupp
 	}
 }
 
-func decisionFromExpiredSuppression(s vulnerabilitySuppression, now time.Time) SupplyChainSuppressionDecision {
-	reason := s.Reason
-	if reason == "" {
-		reason = fmt.Sprintf("suppression %s expired at %s", s.SuppressionID, s.ExpiresAt.UTC().Format(time.RFC3339))
-	}
+func decisionFromExpiredSuppression(s vulnerabilitySuppression) SupplyChainSuppressionDecision {
 	return SupplyChainSuppressionDecision{
 		State:          SupplyChainSuppressionStateExpired,
 		SuppressionID:  s.SuppressionID,
@@ -362,11 +378,42 @@ func decisionFromExpiredSuppression(s vulnerabilitySuppression, now time.Time) S
 		Author:         s.Author,
 		AuthoredAt:     s.AuthoredAt,
 		ExpiresAt:      s.ExpiresAt,
-		Reason:         reason,
+		Reason:         suppressionExpiredReason(s),
 		EvidenceRef:    s.EvidenceRef,
 		VEXDocumentID:  s.VEXDocumentID,
 		VEXStatementID: s.VEXStatementID,
 	}
+}
+
+// suppressionIsExpired reports whether a suppression should be treated as
+// expired by the evaluator. An unparseable expires_at MUST be expired so a
+// malformed timestamp cannot extend a suppression's life. A missing
+// expires_at means the suppression is timeless and never expires.
+func suppressionIsExpired(s vulnerabilitySuppression, now time.Time) bool {
+	if !s.ExpiresAtPresent {
+		return false
+	}
+	if s.ExpiresAtParseFailed {
+		return true
+	}
+	if s.ExpiresAt.IsZero() {
+		return false
+	}
+	return !now.Before(s.ExpiresAt)
+}
+
+func suppressionExpiredReason(s vulnerabilitySuppression) string {
+	if s.ExpiresAtParseFailed {
+		raw := s.ExpiresAtRaw
+		if strings.TrimSpace(raw) == "" {
+			raw = "<unparseable>"
+		}
+		return fmt.Sprintf("suppression %s has invalid expires_at %q; treated as expired so a bad timestamp cannot extend the suppression", s.SuppressionID, raw)
+	}
+	if s.Reason != "" {
+		return s.Reason
+	}
+	return fmt.Sprintf("suppression %s expired at %s", s.SuppressionID, s.ExpiresAt.UTC().Format(time.RFC3339))
 }
 
 func decisionFromScopeMismatch(finding SupplyChainImpactFinding, s vulnerabilitySuppression) SupplyChainSuppressionDecision {
@@ -411,12 +458,24 @@ func suppressionReasonOrDefault(s vulnerabilitySuppression, state SupplyChainSup
 }
 
 func suppressionScopeMismatchReason(finding SupplyChainImpactFinding, s vulnerabilitySuppression) string {
+	if suppressionScopeIsEmpty(s.Scope) {
+		return fmt.Sprintf(
+			"suppression %s scope mismatch: empty scope; an applied scope MUST specify at least one of cve_id, advisory_id, package_id, purl, repository_id, subject_digest, or evidence_path so a malformed fact cannot hide every finding",
+			s.SuppressionID,
+		)
+	}
 	var diffs []string
 	if s.Scope.CVEID != "" && !strings.EqualFold(s.Scope.CVEID, finding.CVEID) {
 		diffs = append(diffs, fmt.Sprintf("cve_id=%q vs finding %q", s.Scope.CVEID, finding.CVEID))
 	}
+	if s.Scope.AdvisoryID != "" && !strings.EqualFold(s.Scope.AdvisoryID, finding.AdvisoryID) {
+		diffs = append(diffs, fmt.Sprintf("advisory_id=%q vs finding %q", s.Scope.AdvisoryID, finding.AdvisoryID))
+	}
 	if s.Scope.PackageID != "" && !strings.EqualFold(s.Scope.PackageID, finding.PackageID) {
 		diffs = append(diffs, fmt.Sprintf("package_id=%q vs finding %q", s.Scope.PackageID, finding.PackageID))
+	}
+	if s.Scope.PURL != "" && !strings.EqualFold(s.Scope.PURL, finding.PURL) {
+		diffs = append(diffs, fmt.Sprintf("purl=%q vs finding %q", s.Scope.PURL, finding.PURL))
 	}
 	if s.Scope.RepositoryID != "" && !strings.EqualFold(s.Scope.RepositoryID, finding.RepositoryID) {
 		diffs = append(diffs, fmt.Sprintf("repository_id=%q vs finding %q", s.Scope.RepositoryID, finding.RepositoryID))
@@ -469,18 +528,24 @@ func decodeVulnerabilitySuppression(envelope facts.Envelope) vulnerabilitySuppre
 		suppressionID = envelope.FactID
 	}
 	scope := decodeVulnerabilitySuppressionScope(payloadMap(payload, "scope"))
+	authoredAt, _, _ := parseSuppressionTime(payloadStr(payload, "authored_at"))
+	expiresRaw := strings.TrimSpace(payloadStr(payload, "expires_at"))
+	expiresAt, expiresPresent, expiresValid := parseSuppressionTime(expiresRaw)
 	return vulnerabilitySuppression{
-		SuppressionID:  suppressionID,
-		Source:         strings.TrimSpace(payloadStr(payload, "source")),
-		Justification:  strings.TrimSpace(payloadStr(payload, "justification")),
-		Author:         strings.TrimSpace(payloadStr(payload, "author")),
-		AuthoredAt:     parseSuppressionTime(payloadStr(payload, "authored_at")),
-		ExpiresAt:      parseSuppressionTime(payloadStr(payload, "expires_at")),
-		Reason:         strings.TrimSpace(payloadStr(payload, "reason")),
-		Scope:          scope,
-		EvidenceRef:    strings.TrimSpace(payloadStr(payload, "evidence_ref")),
-		VEXDocumentID:  strings.TrimSpace(payloadStr(payload, "vex_document_id")),
-		VEXStatementID: strings.TrimSpace(payloadStr(payload, "vex_statement_id")),
+		SuppressionID:        suppressionID,
+		Source:               strings.TrimSpace(payloadStr(payload, "source")),
+		Justification:        strings.TrimSpace(payloadStr(payload, "justification")),
+		Author:               strings.TrimSpace(payloadStr(payload, "author")),
+		AuthoredAt:           authoredAt,
+		ExpiresAt:            expiresAt,
+		ExpiresAtRaw:         expiresRaw,
+		ExpiresAtPresent:     expiresPresent,
+		ExpiresAtParseFailed: expiresPresent && !expiresValid,
+		Reason:               strings.TrimSpace(payloadStr(payload, "reason")),
+		Scope:                scope,
+		EvidenceRef:          strings.TrimSpace(payloadStr(payload, "evidence_ref")),
+		VEXDocumentID:        strings.TrimSpace(payloadStr(payload, "vex_document_id")),
+		VEXStatementID:       strings.TrimSpace(payloadStr(payload, "vex_statement_id")),
 	}
 }
 
@@ -522,14 +587,19 @@ func suppressionPayloadStringSlice(payload map[string]any, key string) []string 
 	return values
 }
 
-func parseSuppressionTime(raw string) time.Time {
+// parseSuppressionTime parses an RFC3339 timestamp from a fact payload and
+// reports both whether the value was present and whether it parsed cleanly.
+// Callers MUST distinguish "missing" from "invalid": treating an invalid
+// timestamp as "no expiration" would silently extend a suppression past its
+// intended end.
+func parseSuppressionTime(raw string) (parsed time.Time, present, valid bool) {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {
-		return time.Time{}
+		return time.Time{}, false, false
 	}
-	parsed, err := time.Parse(time.RFC3339, raw)
+	t, err := time.Parse(time.RFC3339, raw)
 	if err != nil {
-		return time.Time{}
+		return time.Time{}, true, false
 	}
-	return parsed.UTC()
+	return t.UTC(), true, true
 }

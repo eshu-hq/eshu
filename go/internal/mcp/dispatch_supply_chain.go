@@ -28,9 +28,10 @@ func supplyChainImpactFindingsRoute(args map[string]any) *route {
 		"subject_digest":     str(args, "subject_digest"),
 		"suppression_state":  str(args, "suppression_state"),
 	}
-	// include_suppressed is omitted when the caller did not set it so the API
-	// applies its documented default (false). Sending an empty value would
-	// otherwise be rejected by the parser.
+	// include_suppressed is omitted when the caller did not set it so the
+	// query string stays free of the empty key; the API parser accepts a
+	// missing value as the documented default (false) and only rejects
+	// non-true/false strings.
 	if encoded := boolStr(args, "include_suppressed"); encoded != "" {
 		query["include_suppressed"] = encoded
 	}
