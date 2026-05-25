@@ -79,8 +79,8 @@ comparison input looks like private data.
 | `state` | Captures commit, branch, Helm chart and app version, image tag candidate, NornicDB image and digest, schema migration count and latest file, configured remote E2E services, and scanner-worker resource-limit env vars. | None. Always offline. |
 | `focused` | Runs `go test` over `./internal/vulnerabilityparity`, `./internal/reducer`, `./internal/query`, `./internal/mcp`, `./internal/collector/vulnerabilityintelligence`, `./internal/collector/scannerworker`, `./cmd/scanner-worker`. | Go toolchain. |
 | `fixtures` | Runs `go test ./internal/vulnerabilityparity` and `scripts/verify_vulnerability_parity_fixtures.sh`. | Go toolchain plus `jq` (already required by the verifier). |
-| `runtime` | Wraps `scripts/verify_remote_e2e_runtime_state.sh`, calls the documented supply-chain endpoints with `limit=1`, captures `docker stats --no-stream` for the running services, and probes `/debug/pprof/`. | A running remote Compose stack. `--api-base-url` is required; `--api-key` is required when the stack uses an explicit bearer token. |
-| `k8s` | Captures `kubectl get pods -o json`, `kubectl top pods`, and `helm get values` for the target release. | `--k8s-namespace`, `kubectl`, and optionally `helm`. |
+| `runtime` | Wraps `scripts/verify_remote_e2e_runtime_state.sh`, calls the documented supply-chain endpoints with `limit=1`, captures `docker stats --no-stream` for the running services, and optionally probes pprof when `--pprof-base-url` is provided (pprof rides a separate listener on its own host port; without an explicit URL the gate records `pprof_status: unchecked`). Any endpoint readback error, a missing verifier script, or a verifier non-zero exit fails the phase. | A running remote Compose stack. `--api-base-url` is required; `--api-key` is required when the stack uses an explicit bearer token. |
+| `k8s` | Captures `kubectl get pods -o json`, `kubectl top pods`, and `helm get values` for the target release. Any of those commands failing (auth, missing namespace, no metrics-server, missing helm) is recorded as a phase failure so the gate cannot report green without resource snapshots. | `--k8s-namespace`, `kubectl`, and `helm` (`helm` is required because rendered values are the documented resource snapshot). |
 | `provider` | Records an operator-supplied aggregate-only parity comparison JSON. The harness rejects anything that contains package names, alert URLs, repository names, installation ids, or known token prefixes (`ghp_`, `github_pat_`, `glpat-`). | A JSON file containing `comparison_id` and a non-empty `totals` map of classification class to count. |
 
 ### Selecting phases
@@ -94,16 +94,22 @@ scripts/security_intelligence_release_gate.sh \
   --phases state,focused,fixtures,runtime \
   --api-base-url "$REMOTE_API_BASE_URL" \
   --api-key "$REMOTE_API_KEY" \
+  --pprof-base-url "$REMOTE_PPROF_BASE_URL" \
   --image-tag-candidate v0.0.3-pre-release-9
 
 # everything
 scripts/security_intelligence_release_gate.sh --phases all \
   --api-base-url "$REMOTE_API_BASE_URL" \
   --api-key "$REMOTE_API_KEY" \
+  --pprof-base-url "$REMOTE_PPROF_BASE_URL" \
   --k8s-namespace eshu \
   --provider-compare ~/eshu/operator-only/parity-aggregate.json \
   --image-tag-candidate v0.0.3-pre-release-9
 ```
+
+`$REMOTE_PPROF_BASE_URL` is the base of the separate pprof listener
+(`ESHU_PPROF_ADDR`, typically a different host port than the API). Omit the
+flag to mark `pprof_status: unchecked` rather than probe the API URL.
 
 ## Sequence operators follow
 

@@ -217,4 +217,87 @@ expect_fail "${repo6}" --phases state,runtime
 grep -q "runtime phase requires" "${repo6}/_gate.err" \
     || { printf 'expected runtime requirement message in case6\n' >&2; exit 1; }
 
+# --- Test 7: runtime phase fails closed when endpoints error and writes
+# readback under runtime-readback/. pprof stays "unchecked" by default.
+repo7="$(init_fake_repo case7 --scanner-worker)"
+mkdir -p "${repo7}/scripts"
+cat >"${repo7}/scripts/verify_remote_e2e_runtime_state.sh" <<'SH'
+#!/usr/bin/env bash
+exit 0
+SH
+chmod +x "${repo7}/scripts/verify_remote_e2e_runtime_state.sh"
+expect_fail "${repo7}" \
+    --phases state,runtime \
+    --api-base-url "http://127.0.0.1:1"
+ev7="$(evidence_json "${repo7}")"
+jq -e '.pass == false' "${ev7}" >/dev/null \
+    || { printf 'runtime phase did not fail closed on unreachable endpoints in case7\n' >&2; exit 1; }
+jq -e '.runtime.runtime_state_ok == true' "${ev7}" >/dev/null \
+    || { printf 'runtime_state_ok wrong in case7 (fake verifier returned 0)\n' >&2; exit 1; }
+jq -e '.failures | map(select(.phase == "runtime")) | length > 0' "${ev7}" >/dev/null \
+    || { printf 'runtime failure not recorded in case7 despite endpoint errors\n' >&2; exit 1; }
+jq -e '.runtime.endpoints_failed > 0' "${ev7}" >/dev/null \
+    || { printf 'runtime.endpoints_failed not surfaced in case7\n' >&2; exit 1; }
+[ -d "${repo7}/_evidence/runtime-readback" ] \
+    || { printf 'runtime-readback/ directory missing in case7\n' >&2; exit 1; }
+ls "${repo7}/_evidence/runtime-readback/" | grep -q '_api_v0_index-status.json' \
+    || { printf 'expected index-status readback file under runtime-readback/ in case7\n' >&2; exit 1; }
+# No body files should leak outside runtime-readback/ (path-separator bug).
+leaked="$(ls "${repo7}/_evidence/" 2>/dev/null | grep -c '^runtime-readback_' || true)"
+if [ "${leaked}" != "0" ]; then
+    printf 'readback files leaked outside runtime-readback/ (count=%s) in case7\n' "${leaked}" >&2
+    exit 1
+fi
+jq -e '.runtime.pprof_status == "unchecked"' "${ev7}" >/dev/null \
+    || { printf 'pprof default not "unchecked" when --pprof-base-url is absent in case7\n' >&2; exit 1; }
+
+# --- Test 8: missing verify_remote_e2e_runtime_state.sh is recorded as a runtime failure.
+repo8="$(init_fake_repo case8 --scanner-worker)"
+# Intentionally do not create scripts/verify_remote_e2e_runtime_state.sh
+expect_fail "${repo8}" \
+    --phases state,runtime \
+    --api-base-url "http://127.0.0.1:1"
+ev8="$(evidence_json "${repo8}")"
+jq -e '.runtime.runtime_state_ok == false' "${ev8}" >/dev/null \
+    || { printf 'missing verifier did not flip runtime_state_ok in case8\n' >&2; exit 1; }
+jq -e '.failures | map(select(.phase == "runtime" and (.message | test("verify_remote_e2e_runtime_state.sh")))) | length > 0' "${ev8}" >/dev/null \
+    || { printf 'missing verifier did not record a runtime failure in case8\n' >&2; exit 1; }
+
+# --- Test 9: k8s phase records a failure when kubectl exits non-zero.
+repo9="$(init_fake_repo case9 --scanner-worker)"
+mkdir -p "${repo9}/_bin"
+cat >"${repo9}/_bin/kubectl" <<'SH'
+#!/usr/bin/env bash
+echo "kubectl-test: simulated failure" >&2
+exit 1
+SH
+chmod +x "${repo9}/_bin/kubectl"
+saved_path="${PATH}"
+PATH="${repo9}/_bin:${PATH}" \
+    expect_fail "${repo9}" \
+        --phases state,k8s \
+        --k8s-namespace eshu
+PATH="${saved_path}"
+ev9="$(evidence_json "${repo9}")"
+jq -e '.failures | map(select(.phase == "k8s")) | length > 0' "${ev9}" >/dev/null \
+    || { printf 'k8s failure not recorded in case9 when kubectl fails\n' >&2; exit 1; }
+jq -e '.pass == false' "${ev9}" >/dev/null \
+    || { printf 'gate did not fail closed on kubectl failure in case9\n' >&2; exit 1; }
+
+# --- Test 10: pprof-base-url is probed when provided.
+repo10="$(init_fake_repo case10 --scanner-worker)"
+mkdir -p "${repo10}/scripts"
+cat >"${repo10}/scripts/verify_remote_e2e_runtime_state.sh" <<'SH'
+#!/usr/bin/env bash
+exit 0
+SH
+chmod +x "${repo10}/scripts/verify_remote_e2e_runtime_state.sh"
+expect_fail "${repo10}" \
+    --phases state,runtime \
+    --api-base-url "http://127.0.0.1:1" \
+    --pprof-base-url "http://127.0.0.1:1"
+ev10="$(evidence_json "${repo10}")"
+jq -e '.runtime.pprof_status == "not_reachable"' "${ev10}" >/dev/null \
+    || { printf 'pprof probe did not run against --pprof-base-url in case10\n' >&2; exit 1; }
+
 printf 'security-intelligence release gate tests passed\n'

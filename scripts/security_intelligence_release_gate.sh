@@ -16,6 +16,7 @@ api_base_url="${ESHU_RELEASE_GATE_API_BASE_URL:-}"
 api_key="${ESHU_RELEASE_GATE_API_KEY:-}"
 k8s_namespace="${ESHU_RELEASE_GATE_K8S_NAMESPACE:-}"
 helm_release="${ESHU_RELEASE_GATE_HELM_RELEASE:-eshu}"
+pprof_base_url="${ESHU_RELEASE_GATE_PPROF_BASE_URL:-}"
 
 repo_root="${ESHU_RELEASE_GATE_REPO_ROOT:-}"
 if [ -z "${repo_root}" ]; then
@@ -39,6 +40,9 @@ Options:
   --provider-compare <file>     Aggregate-only provider parity JSON (provider phase).
   --api-base-url <url>          Base URL for runtime phase API readback.
   --api-key <token>             Bearer token for runtime phase API readback.
+  --pprof-base-url <url>        Base URL for the runtime phase pprof probe.
+                                Pprof is exposed via a separate listener; without
+                                this, pprof_status is recorded as "unchecked".
   --k8s-namespace <name>        Namespace for k8s phase snapshots.
   --helm-release <name>         Helm release name (default: ${helm_release}).
   -h, --help                    Show this help and exit.
@@ -61,6 +65,7 @@ while [ $# -gt 0 ]; do
         --provider-compare) provider_compare="$2"; shift 2 ;;
         --api-base-url) api_base_url="$2"; shift 2 ;;
         --api-key) api_key="$2"; shift 2 ;;
+        --pprof-base-url) pprof_base_url="$2"; shift 2 ;;
         --k8s-namespace) k8s_namespace="$2"; shift 2 ;;
         --helm-release) helm_release="$2"; shift 2 ;;
         -h|--help) usage; exit 0 ;;
@@ -294,120 +299,11 @@ run_phase_fixtures() {
     mv "${out_json}.tmp.new" "${out_json}.tmp"
 }
 
-curl_readback() {
-    local path="$1"
-    if [ -n "${api_key}" ]; then
-        curl -fsS -m 15 -H "Authorization: Bearer ${api_key}" "${api_base_url}${path}"
-    else
-        curl -fsS -m 15 "${api_base_url}${path}"
-    fi
-}
-
-run_phase_runtime() {
-    [ -n "${api_base_url}" ] || die "runtime phase requires --api-base-url"
-    local runtime_script="${repo_root}/scripts/verify_remote_e2e_runtime_state.sh"
-    local readback_dir="${out_dir}/runtime-readback"
-    mkdir -p "${readback_dir}"
-
-    local runtime_ok=1
-    if [ -x "${runtime_script}" ]; then
-        if ! "${runtime_script}" >"${readback_dir}/verify_remote_e2e_runtime_state.log" 2>&1; then
-            runtime_ok=0
-            record_failure runtime "verify_remote_e2e_runtime_state.sh failed"
-        fi
-    else
-        printf 'verify_remote_e2e_runtime_state.sh not executable\n' \
-            >"${readback_dir}/verify_remote_e2e_runtime_state.log"
-    fi
-
-    local endpoints=(
-        "/api/v0/index-status"
-        "/api/v0/supply-chain/advisories/evidence?limit=1"
-        "/api/v0/supply-chain/impact/findings?limit=1"
-        "/api/v0/supply-chain/security-alerts/reconciliations?limit=1"
-        "/api/v0/supply-chain/sbom-attestations/attachments?limit=1"
-        "/api/v0/supply-chain/container-images/identities?limit=1"
-    )
-    local readback_json="{}"
-    local ep_count=0
-    for ep in "${endpoints[@]}"; do
-        local safe_name
-        safe_name="$(printf '%s' "${ep}" | tr '/?=&' '____')"
-        local body_file="${readback_dir}${safe_name}.json"
-        local status="unknown"
-        if curl_readback "${ep}" >"${body_file}" 2>"${body_file}.err"; then
-            status="ok"
-        else
-            status="error"
-        fi
-        readback_json="$(jq --arg path "${ep}" --arg status "${status}" --arg body "${body_file}" \
-            '. + {($path): {status: $status, body: $body}}' <<<"${readback_json}")"
-        ep_count=$((ep_count + 1))
-    done
-
-    local docker_stats_file="${readback_dir}/docker-stats.json"
-    if command -v docker >/dev/null 2>&1; then
-        docker stats --no-stream --format \
-            '{"name":"{{.Name}}","cpu":"{{.CPUPerc}}","mem":"{{.MemUsage}}","net":"{{.NetIO}}","block":"{{.BlockIO}}"}' \
-            >"${docker_stats_file}" 2>/dev/null || true
-    fi
-
-    local pprof_status="unchecked"
-    if command -v curl >/dev/null 2>&1; then
-        if curl -fsS -m 5 "${api_base_url}/debug/pprof/" >/dev/null 2>&1; then
-            pprof_status="reachable"
-        else
-            pprof_status="not_reachable"
-        fi
-    fi
-
-    jq --argjson readback "${readback_json}" \
-       --arg pprof "${pprof_status}" \
-       --arg docker_stats_file "${docker_stats_file}" \
-       --arg runtime_log "${readback_dir}/verify_remote_e2e_runtime_state.log" \
-       --argjson endpoints_checked "${ep_count}" \
-       --argjson runtime_state_ok "${runtime_ok}" \
-       '.runtime = {
-            runtime_state_ok: ($runtime_state_ok == 1),
-            runtime_state_log: $runtime_log,
-            endpoints_checked: $endpoints_checked,
-            readback: $readback,
-            pprof_status: $pprof,
-            docker_stats_file: $docker_stats_file
-       }' "${out_json}.tmp" >"${out_json}.tmp.new"
-    mv "${out_json}.tmp.new" "${out_json}.tmp"
-}
-
-run_phase_k8s() {
-    [ -n "${k8s_namespace}" ] || die "k8s phase requires --k8s-namespace"
-    command -v kubectl >/dev/null 2>&1 || die "kubectl is required for k8s phase"
-    local k8s_dir="${out_dir}/k8s"
-    mkdir -p "${k8s_dir}"
-    kubectl -n "${k8s_namespace}" get pods -o json >"${k8s_dir}/pods.json" 2>"${k8s_dir}/pods.err" || true
-    kubectl -n "${k8s_namespace}" top pods --no-headers >"${k8s_dir}/top-pods.txt" 2>"${k8s_dir}/top-pods.err" || true
-    if command -v helm >/dev/null 2>&1; then
-        helm get values "${helm_release}" -n "${k8s_namespace}" >"${k8s_dir}/helm-values.yaml" 2>"${k8s_dir}/helm-values.err" || true
-    fi
-    local pod_count="0"
-    if [ -s "${k8s_dir}/pods.json" ]; then
-        pod_count="$(jq '.items | length' "${k8s_dir}/pods.json" 2>/dev/null || echo 0)"
-    fi
-    jq --arg ns "${k8s_namespace}" \
-       --arg release "${helm_release}" \
-       --arg pods_file "${k8s_dir}/pods.json" \
-       --arg top_file "${k8s_dir}/top-pods.txt" \
-       --arg values_file "${k8s_dir}/helm-values.yaml" \
-       --argjson pod_count "${pod_count}" \
-       '.k8s = {
-            namespace: $ns,
-            helm_release: $release,
-            pod_count: $pod_count,
-            pods_file: $pods_file,
-            top_pods_file: $top_file,
-            helm_values_file: $values_file
-       }' "${out_json}.tmp" >"${out_json}.tmp.new"
-    mv "${out_json}.tmp.new" "${out_json}.tmp"
-}
+# Runtime + k8s phases live in the shared lib so this main script stays under
+# the repo file-size rule. They depend on globals declared above plus die() and
+# record_failure().
+# shellcheck source=lib/security_intelligence_release_gate_phases.sh
+source "$(dirname "$0")/lib/security_intelligence_release_gate_phases.sh"
 
 run_phase_provider() {
     [ -n "${provider_compare}" ] || die "provider phase requires --provider-compare"
