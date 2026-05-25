@@ -278,7 +278,7 @@ func defaultDefinitions() []Definition {
 			ParserKey:  "json",
 			Language:   "json",
 			Extensions: []string{".json", ".jsonc"},
-			ExactNames: []string{"composer.lock"},
+			ExactNames: []string{"composer.lock", "Pipfile.lock"},
 		},
 		{
 			ParserKey:  "nuget_project",
@@ -309,6 +309,20 @@ func defaultDefinitions() []Definition {
 			ParserKey:  "python",
 			Language:   "python",
 			Extensions: []string{".ipynb", ".py", ".pyw"},
+		},
+		{
+			ParserKey:  "python_requirements",
+			Language:   "python_requirements",
+			ExactNames: []string{"requirements.txt"},
+			PrefixNames: []string{
+				"requirements-",
+				"requirements_",
+			},
+		},
+		{
+			ParserKey:  "python_toml",
+			Language:   "python_toml",
+			ExactNames: []string{"pyproject.toml", "Pipfile", "poetry.lock"},
 		},
 		{
 			ParserKey:  "raw_text",

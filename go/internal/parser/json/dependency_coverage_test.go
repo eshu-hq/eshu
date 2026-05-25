@@ -81,6 +81,11 @@ func TestDependencyCoverageMatrixIsStableAndExhaustive(t *testing.T) {
 		"maven|pom.xml",
 		"gradle|build.gradle",
 		"gradle|build.gradle.kts",
+		"pypi|requirements.txt",
+		"pypi|pyproject.toml",
+		"pypi|pipfile",
+		"pypi|pipfile.lock",
+		"pypi|poetry.lock",
 	}
 	for _, key := range requiredCovered {
 		ecosystem, file, _ := strings.Cut(key, "|")
@@ -101,11 +106,6 @@ func TestDependencyCoverageMatrixIsStableAndExhaustive(t *testing.T) {
 	requiredGaps := []string{
 		"yarn.lock",
 		"pnpm-lock.yaml",
-		"pyproject.toml",
-		"requirements.txt",
-		"pipfile",
-		"pipfile.lock",
-		"poetry.lock",
 		"go.sum",
 	}
 	for _, file := range requiredGaps {
@@ -342,6 +342,33 @@ dependencies {
 			expectScopeSplit:      true,
 			expectedDevDependency: "junit:junit",
 		},
+		"pipfile.lock": {
+			parser: parseJSONFixture,
+			body: `{
+  "_meta": {"sources": [{"name": "pypi"}]},
+  "default": {"requests": {"version": "==2.31.0"}},
+  "develop": {"pytest": {"version": "==7.4.4"}}
+}`,
+			expectedDependencies:  map[string]string{"requests": "2.31.0", "pytest": "7.4.4"},
+			expectedPackageMgr:    "pypi",
+			expectedSection:       "default",
+			expectScopeSplit:      true,
+			expectedDevDependency: "pytest",
+		},
+	}
+
+	// Files covered by parsers in sibling packages (pythondep TOML/text
+	// parsers) cannot be exercised through json.Parse. They are validated by
+	// their own package-level tests; the matrix invariant
+	// TestDependencyCoverageMatrix guarantees they remain in the matrix, and
+	// the engine matrix test in
+	// go/internal/parser/dependency_coverage_engine_test.go dispatches them
+	// through the registry the collector uses.
+	nonJSONCovered := map[string]bool{
+		"requirements.txt": true,
+		"pyproject.toml":   true,
+		"pipfile":          true,
+		"poetry.lock":      true,
 	}
 
 	for _, entry := range DependencyCoverage() {
@@ -352,6 +379,9 @@ dependencies {
 			// Non-JSON and wildcard entries are covered by parent-parser tests.
 			// The JSON package owns the matrix but cannot import the parent
 			// parser without creating an import cycle.
+			continue
+		}
+		if nonJSONCovered[entry.FilePattern] {
 			continue
 		}
 		fixture, ok := fixtures[entry.FilePattern]
@@ -473,9 +503,12 @@ func parseRubyFixture(t *testing.T, filename, body string) (map[string]any, erro
 func TestDependencyCoverageGapsDoNotEmitDependencyRows(t *testing.T) {
 	t.Parallel()
 
-	jsonGapFixtures := map[string]string{
-		"pipfile.lock": `{"_meta":{},"default":{"requests":{"version":"==2.31.0"}}}`,
-	}
+	// All JSON-shaped dependency files (composer.lock, packages.lock.json,
+	// Pipfile.lock) now have lockfile-aware parsers that emit dependency
+	// rows, so this map is intentionally empty. Whenever a JSON gap entry is
+	// added to the coverage matrix, add a fixture here so this guard proves
+	// the gap parser does not smuggle dependency rows into the fact store.
+	jsonGapFixtures := map[string]string{}
 
 	for file, body := range jsonGapFixtures {
 		entry, ok := DependencyCoverageByFile(file)

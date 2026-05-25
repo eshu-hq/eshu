@@ -17,8 +17,9 @@ import (
 // This is the parent-level companion to
 // TestDependencyCoverageCoveredJSONFilesEmitDependencyRows in
 // internal/parser/json: the JSON test stays focused on JSON-format covered
-// entries and this test covers gomod and any future non-JSON covered
-// adapters. Every Covered matrix entry MUST have a fixture here.
+// entries and this test covers gomod, pythondep, cargo, ruby, nuget and any
+// future non-JSON covered adapters. Every Covered matrix entry MUST have a
+// fixture here.
 func TestDependencyCoverageCoveredFilesEmitDependencyRowsThroughEngine(t *testing.T) {
 	t.Parallel()
 
@@ -215,6 +216,70 @@ dependencies {
 }`,
 			expectedDependencies: map[string]string{"org.springframework:spring-core": "5.3.20"},
 			expectedPackageMgr:   "gradle",
+		},
+		"requirements.txt": {
+			body: "requests==2.31.0\n" +
+				"Django>=4.2,<5.0\n",
+			expectedDependencies: map[string]string{
+				"requests": "==2.31.0",
+				"Django":   ">=4.2,<5.0",
+			},
+			expectedPackageMgr: "pypi",
+		},
+		"pyproject.toml": {
+			body: "[project]\n" +
+				"name = \"demo\"\n" +
+				"dependencies = [\"requests>=2.0\", \"numpy[mkl]~=1.26\"]\n" +
+				"\n" +
+				"[tool.poetry.group.dev.dependencies]\n" +
+				"pytest = \"^7\"\n",
+			expectedDependencies: map[string]string{
+				"requests": ">=2.0",
+				"numpy":    "~=1.26",
+				"pytest":   "^7",
+			},
+			expectedPackageMgr: "pypi",
+		},
+		"pipfile": {
+			body: "[packages]\n" +
+				"requests = \"==2.31.0\"\n" +
+				"\n" +
+				"[dev-packages]\n" +
+				"pytest = \">=7.0\"\n",
+			expectedDependencies: map[string]string{
+				"requests": "==2.31.0",
+				"pytest":   ">=7.0",
+			},
+			expectedPackageMgr: "pypi",
+			filenameOverride:   "Pipfile",
+		},
+		"poetry.lock": {
+			body: "[[package]]\n" +
+				"name = \"requests\"\n" +
+				"version = \"2.31.0\"\n" +
+				"\n" +
+				"[[package]]\n" +
+				"name = \"pytest\"\n" +
+				"version = \"7.4.4\"\n" +
+				"category = \"dev\"\n",
+			expectedDependencies: map[string]string{
+				"requests": "2.31.0",
+				"pytest":   "7.4.4",
+			},
+			expectedPackageMgr: "pypi",
+		},
+		"pipfile.lock": {
+			body: `{
+  "_meta": {"sources": [{"name": "pypi"}]},
+  "default": {"requests": {"version": "==2.31.0"}},
+  "develop": {"pytest": {"version": "==7.4.4"}}
+}`,
+			expectedDependencies: map[string]string{
+				"requests": "2.31.0",
+				"pytest":   "7.4.4",
+			},
+			expectedPackageMgr: "pypi",
+			filenameOverride:   "Pipfile.lock",
 		},
 	}
 
