@@ -11,9 +11,9 @@ rows consumed by collector and projection code.
 
 This package owns JSON decoding, JSON-specific ordered-object handling,
 package-manager manifest rows, npm `package-lock.json` and Composer
-`composer.lock` exact dependency rows, TypeScript config rows, dbt
-manifest payload construction, and data-intelligence replay fixture
-extraction. The replay code is split across
+`composer.lock` exact dependency rows, NuGet `packages.lock.json` exact
+dependency rows, TypeScript config rows, dbt manifest payload construction,
+and data-intelligence replay fixture extraction. The replay code is split across
 domain files so no single helper becomes a catch-all parser. This package does
 not own parser dispatch, repository discovery, fact persistence, graph
 projection, YAML decoding, or dbt SQL lineage parsing.
@@ -59,10 +59,10 @@ files and TypeScript config files before decoding. Trailing-comma removal uses
 bounded byte lookahead so large config files do not pay repeated substring
 trims.
 
-`package-lock.json` rows represent exact npm versions installed by the owning
-repository. `package.json` dependency rows can still contain ranges such as
-`^5.4.11`; callers that need observed package versions must prefer lockfile
-rows and keep manifest ranges as partial evidence.
+`package-lock.json`, `composer.lock`, and `packages.lock.json` rows represent
+exact versions installed by the owning repository. Manifest dependency rows can
+still contain ranges such as `^5.4.11`; callers that need observed package
+versions must prefer lockfile rows and keep manifest ranges as partial evidence.
 
 `composer.lock` rows likewise represent exact PHP package versions
 installed by Composer. The parser emits one row per package in the

@@ -92,6 +92,74 @@ func TestBuildSupplyChainImpactFindingsExplainsMavenRangeAndFixedVersion(t *test
 	}
 }
 
+func TestBuildSupplyChainImpactFindingsExplainsNuGetLockfileExactVersion(t *testing.T) {
+	t.Parallel()
+
+	findings := BuildSupplyChainImpactFindings([]facts.Envelope{
+		vulnerabilityCVEFact("cve-nuget", "CVE-2026-59010", 8.1),
+		vulnerabilityAffectedPackageRangeFact(
+			"affected-nuget",
+			"CVE-2026-59010",
+			"pkg:nuget/newtonsoft.json",
+			"nuget",
+			"Newtonsoft.Json",
+			"13.0.4",
+		),
+		packageConsumptionFactWithChain(
+			"consume-nuget",
+			"pkg:nuget/newtonsoft.json",
+			testImpactRepositoryID,
+			"13.0.3",
+			[]string{"Newtonsoft.Json"},
+			1,
+			true,
+		),
+	})
+
+	got := supplyChainImpactFindingsByCVE(findings)["CVE-2026-59010"]
+	assertSupplyChainImpactStatus(t, got, SupplyChainImpactAffectedExact)
+	if got.ObservedVersion != "13.0.3" {
+		t.Fatalf("ObservedVersion = %q, want exact NuGet lockfile version", got.ObservedVersion)
+	}
+	if got.MatchReason != "nuget_semver_affected_range" {
+		t.Fatalf("MatchReason = %q, want nuget_semver_affected_range", got.MatchReason)
+	}
+	if got.DetectionProfile != DetectionProfilePrecise {
+		t.Fatalf("DetectionProfile = %q, want precise for exact NuGet lockfile match", got.DetectionProfile)
+	}
+}
+
+func TestEvaluateNuGetSemverMatchAcceptsShortLockfileVersion(t *testing.T) {
+	t.Parallel()
+
+	decision := evaluateSupplyChainVersionMatch(
+		"nuget",
+		"13.0",
+		"",
+		"",
+		[]supplyChainAffectedPackage{
+			{
+				affectedRanges: []supplyChainAffectedRange{
+					{
+						kind: "SEMVER",
+						events: []supplyChainAffectedRangeEvent{
+							{introduced: "0"},
+							{fixed: "13.0.1"},
+						},
+					},
+				},
+			},
+		},
+	)
+
+	if decision.Status != SupplyChainImpactAffectedExact {
+		t.Fatalf("Status = %q, want affected exact for normalized short NuGet version", decision.Status)
+	}
+	if decision.Reason != supplyChainVersionReasonNuGetSemverAffectedRange {
+		t.Fatalf("Reason = %q, want %q", decision.Reason, supplyChainVersionReasonNuGetSemverAffectedRange)
+	}
+}
+
 func TestBuildSupplyChainImpactFindingsFailsClosedForUnsupportedAndMalformedRanges(t *testing.T) {
 	t.Parallel()
 

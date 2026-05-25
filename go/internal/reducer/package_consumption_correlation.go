@@ -30,6 +30,12 @@ type PackageConsumptionDecision struct {
 	RelativePath     string
 	ManifestSection  string
 	DependencyRange  string
+	DependencyScope  string
+	PrivateAssets    string
+	IncludeAssets    string
+	ExcludeAssets    string
+	DevelopmentOnly  bool
+	TestDependency   bool
 	DependencyPath   []string
 	DependencyDepth  int
 	DirectDependency *bool
@@ -64,6 +70,12 @@ type packageManifestDependency struct {
 	PackageManager   string
 	ManifestSection  string
 	DependencyRange  string
+	DependencyScope  string
+	PrivateAssets    string
+	IncludeAssets    string
+	ExcludeAssets    string
+	DevelopmentOnly  bool
+	TestDependency   bool
 	DependencyPath   []string
 	DependencyDepth  int
 	DirectDependency *bool
@@ -101,6 +113,12 @@ func BuildPackageConsumptionDecisions(envelopes []facts.Envelope) []PackageConsu
 			RelativePath:     dependency.RelativePath,
 			ManifestSection:  dependency.ManifestSection,
 			DependencyRange:  dependency.DependencyRange,
+			DependencyScope:  dependency.DependencyScope,
+			PrivateAssets:    dependency.PrivateAssets,
+			IncludeAssets:    dependency.IncludeAssets,
+			ExcludeAssets:    dependency.ExcludeAssets,
+			DevelopmentOnly:  dependency.DevelopmentOnly,
+			TestDependency:   dependency.TestDependency,
 			DependencyPath:   dependency.DependencyPath,
 			DependencyDepth:  dependency.DependencyDepth,
 			DirectDependency: dependency.DirectDependency,
@@ -193,6 +211,12 @@ func extractPackageManifestDependencies(envelopes []facts.Envelope) []packageMan
 			PackageManager:   strings.ToLower(packageManifestMetadataString(envelope.Payload, "package_manager")),
 			ManifestSection:  packageManifestMetadataString(envelope.Payload, "section"),
 			DependencyRange:  packageManifestMetadataString(envelope.Payload, "value"),
+			DependencyScope:  packageManifestMetadataString(envelope.Payload, "dependency_scope"),
+			PrivateAssets:    packageManifestMetadataString(envelope.Payload, "private_assets"),
+			IncludeAssets:    packageManifestMetadataString(envelope.Payload, "include_assets"),
+			ExcludeAssets:    packageManifestMetadataString(envelope.Payload, "exclude_assets"),
+			DevelopmentOnly:  packageManifestMetadataBoolValue(envelope.Payload, "development_dependency"),
+			TestDependency:   packageManifestMetadataBoolValue(envelope.Payload, "test_dependency"),
 			DependencyPath:   packageManifestMetadataStrings(envelope.Payload, "dependency_path"),
 			DependencyDepth:  packageManifestMetadataInt(envelope.Payload, "dependency_depth"),
 			DirectDependency: packageManifestMetadataBool(envelope.Payload, "direct_dependency"),

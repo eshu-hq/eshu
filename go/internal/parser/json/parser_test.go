@@ -146,6 +146,76 @@ func TestParsePackageLockJSONPreservesDependencyChainRows(t *testing.T) {
 	assertPackageLockChain(t, got["fsevents"], []string{"vite", "rollup", "fsevents"}, 3, false)
 }
 
+func TestParseNuGetPackagesLockJSONEmitsExactDependencyRows(t *testing.T) {
+	t.Parallel()
+
+	path := writeJSONTestFile(t, "packages.lock.json", `{
+  "version": 1,
+  "dependencies": {
+    "net8.0": {
+      "Newtonsoft.Json": {
+        "type": "Direct",
+        "requested": "[13.0.3, )",
+        "resolved": "13.0.3",
+        "dependencies": {
+          "System.Text.Encodings.Web": "[8.0.0, )"
+        }
+      },
+      "System.Text.Encodings.Web": {
+        "type": "Transitive",
+        "resolved": "8.0.0"
+      }
+    }
+  }
+}`)
+
+	payload, err := Parse(path, false, shared.Options{}, Config{})
+	if err != nil {
+		t.Fatalf("Parse() error = %v, want nil", err)
+	}
+
+	rows, ok := payload["variables"].([]map[string]any)
+	if !ok {
+		t.Fatalf("variables = %T, want []map[string]any", payload["variables"])
+	}
+	got := dependencyRowsByName(rows)
+	direct := got["Newtonsoft.Json"]
+	if direct == nil {
+		t.Fatalf("Newtonsoft.Json row missing from %#v", rows)
+	}
+	if direct["value"] != "13.0.3" {
+		t.Fatalf("Newtonsoft.Json value = %#v, want exact resolved version", direct["value"])
+	}
+	if direct["requested_range"] != "[13.0.3, )" {
+		t.Fatalf("Newtonsoft.Json requested_range = %#v, want [13.0.3, )", direct["requested_range"])
+	}
+	if direct["package_manager"] != "nuget" || direct["config_kind"] != "dependency" || direct["lockfile"] != true {
+		t.Fatalf("Newtonsoft.Json metadata = %#v, want NuGet lockfile dependency", direct)
+	}
+	if direct["target_framework"] != "net8.0" {
+		t.Fatalf("Newtonsoft.Json target_framework = %#v, want net8.0", direct["target_framework"])
+	}
+	assertPackageLockChain(t, direct, []string{"Newtonsoft.Json"}, 1, true)
+
+	transitive := got["System.Text.Encodings.Web"]
+	if transitive == nil {
+		t.Fatalf("System.Text.Encodings.Web row missing from %#v", rows)
+	}
+	if transitive["value"] != "8.0.0" {
+		t.Fatalf("System.Text.Encodings.Web value = %#v, want exact resolved version", transitive["value"])
+	}
+	assertPackageLockChain(t, transitive, []string{"Newtonsoft.Json", "System.Text.Encodings.Web"}, 2, false)
+}
+
+func TestParseNuGetPackagesLockJSONRejectsMalformedJSON(t *testing.T) {
+	t.Parallel()
+
+	path := writeJSONTestFile(t, "packages.lock.json", `{"version":1,"dependencies":`)
+	if _, err := Parse(path, false, shared.Options{}, Config{}); err == nil {
+		t.Fatal("Parse() error = nil, want malformed JSON error")
+	}
+}
+
 func TestParseJSONCAcceptsCommentsAndTrailingCommas(t *testing.T) {
 	t.Parallel()
 

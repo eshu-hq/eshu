@@ -232,20 +232,28 @@ func DependencyCoverage() []DependencyCoverageEntry {
 			Notes:           "Kotlin DSL build scripts are parsed for syntax only; dependency blocks are not yet extracted.",
 		},
 		{
-			Ecosystem:       "nuget",
-			FilePattern:     "*.csproj",
-			FileKind:        "manifest",
-			Status:          DependencyCoverageGap,
-			SourceReference: "no XML parser registered in go/internal/parser/registry.go",
-			Notes:           "C# project files are not parsed; .NET vulnerability impact relies on registry-side evidence only.",
+			Ecosystem:               "nuget",
+			FilePattern:             "*.csproj",
+			FileKind:                "manifest",
+			Status:                  DependencyCoverageCovered,
+			CapturesPackageIdentity: true,
+			CapturesVersionRange:    true,
+			CapturesScope:           true,
+			CapturesDevRuntimeSplit: true,
+			SourceReference:         "go/internal/parser/nuget_project_language.go",
+			Notes:                   "PackageReference rows preserve requested versions, resolved MSBuild properties, unresolved-property partial evidence, and PrivateAssets dev/test signals.",
 		},
 		{
-			Ecosystem:       "nuget",
-			FilePattern:     "packages.lock.json",
-			FileKind:        "lockfile",
-			Status:          DependencyCoverageGap,
-			SourceReference: "go/internal/parser/json/language.go does not branch on packages.lock.json",
-			Notes:           "NuGet central-lockfile JSON is not yet parsed into dependency rows.",
+			Ecosystem:               "nuget",
+			FilePattern:             "packages.lock.json",
+			FileKind:                "lockfile",
+			Status:                  DependencyCoverageCovered,
+			CapturesPackageIdentity: true,
+			CapturesExactVersion:    true,
+			CapturesScope:           true,
+			CapturesDependencyChain: true,
+			SourceReference:         "go/internal/parser/json/nuget_lock.go",
+			Notes:                   "NuGet lockfiles emit exact resolved versions and direct/transitive dependency paths when the lockfile proves them.",
 		},
 		{
 			Ecosystem:               "rubygems",
@@ -304,17 +312,27 @@ func DependencyCoverage() []DependencyCoverageEntry {
 // DependencyCoverageByFile returns the coverage entry for a lowercase
 // filename, allowing collector and reducer code paths to assert that a
 // specific manifest is covered before claiming repository dependency
-// evidence. The lookup is case-insensitive and does not match wildcard
-// `*.csproj` style patterns.
+// evidence. The lookup is case-insensitive and matches suffix wildcard
+// patterns such as `*.csproj` used for project manifests.
 func DependencyCoverageByFile(filename string) (DependencyCoverageEntry, bool) {
 	target := strings.ToLower(strings.TrimSpace(filename))
 	if target == "" {
 		return DependencyCoverageEntry{}, false
 	}
 	for _, entry := range DependencyCoverage() {
-		if entry.FilePattern == target {
+		if dependencyCoveragePatternMatches(entry.FilePattern, target) {
 			return entry, true
 		}
 	}
 	return DependencyCoverageEntry{}, false
+}
+
+func dependencyCoveragePatternMatches(pattern string, target string) bool {
+	if pattern == target {
+		return true
+	}
+	if strings.HasPrefix(pattern, "*.") {
+		return strings.HasSuffix(target, strings.TrimPrefix(pattern, "*"))
+	}
+	return false
 }

@@ -1,22 +1,27 @@
 package reducer
 
 import (
+	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/packageidentity"
+	"golang.org/x/mod/semver"
 )
 
 const (
-	supplyChainVersionReasonNPMSemverAffectedRange = "npm_semver_affected_range"
-	supplyChainVersionReasonNPMSemverKnownFixed    = "npm_semver_known_fixed"
-	supplyChainVersionReasonMavenRangeMatch        = "maven_range_match"
-	supplyChainVersionReasonMavenKnownFixed        = "maven_known_fixed"
-	supplyChainVersionReasonRangeOnlyManifest      = "range_only_manifest"
-	supplyChainVersionReasonUnsupportedEcosystem   = "unsupported_ecosystem"
-	supplyChainVersionReasonMalformedRange         = "malformed_advisory_range"
-	supplyChainVersionReasonMalformedInstalled     = "installed_version_malformed"
-	supplyChainVersionReasonNoAffectedMatch        = "version_not_in_advisory_range"
-	supplyChainVersionReasonMissingInstalled       = "installed_version_missing"
+	supplyChainVersionReasonNPMSemverAffectedRange   = "npm_semver_affected_range"
+	supplyChainVersionReasonNPMSemverKnownFixed      = "npm_semver_known_fixed"
+	supplyChainVersionReasonNuGetSemverAffectedRange = "nuget_semver_affected_range"
+	supplyChainVersionReasonNuGetSemverKnownFixed    = "nuget_semver_known_fixed"
+	supplyChainVersionReasonMavenRangeMatch          = "maven_range_match"
+	supplyChainVersionReasonMavenKnownFixed          = "maven_known_fixed"
+	supplyChainVersionReasonRangeOnlyManifest        = "range_only_manifest"
+	supplyChainVersionReasonUnsupportedEcosystem     = "unsupported_ecosystem"
+	supplyChainVersionReasonMalformedRange           = "malformed_advisory_range"
+	supplyChainVersionReasonMalformedInstalled       = "installed_version_malformed"
+	supplyChainVersionReasonNoAffectedMatch          = "version_not_in_advisory_range"
+	supplyChainVersionReasonMissingInstalled         = "installed_version_missing"
 
 	supplyChainMissingUnsupportedMatcher = "ecosystem version matcher unsupported"
 	supplyChainMissingMalformedRange     = "advisory version range malformed"
@@ -59,6 +64,8 @@ func evaluateSupplyChainVersionMatch(
 	switch normalizedSupplyChainVersionEcosystem(ecosystem) {
 	case string(packageidentity.EcosystemNPM):
 		return evaluateNPMSemverMatch(observed, fixedVersion, pkgs)
+	case string(packageidentity.EcosystemNuGet):
+		return evaluateNuGetSemverMatch(observed, fixedVersion, pkgs)
 	case string(packageidentity.EcosystemMaven):
 		return evaluateMavenVersionMatch(observed, fixedVersion, pkgs)
 	default:
@@ -138,6 +145,76 @@ func npmAffectedByPackage(observed string, pkg supplyChainAffectedPackage) (bool
 	}
 	if raw := strings.TrimSpace(pkg.affectedRangeRaw); raw != "" {
 		if affected, ok := comparatorRangeContains(raw, observed, compareOSVSemver); affected {
+			return true, true
+		} else if !ok {
+			valid = false
+		}
+	}
+	return false, valid
+}
+
+func evaluateNuGetSemverMatch(
+	observed string,
+	fixedVersion string,
+	pkgs []supplyChainAffectedPackage,
+) supplyChainVersionMatchDecision {
+	if !validNuGetVersion(observed) {
+		return malformedInstalledVersionDecision()
+	}
+	if affected, malformed := nugetAffectedByAnyPackage(observed, pkgs); affected {
+		return affectedVersionDecision(supplyChainVersionReasonNuGetSemverAffectedRange)
+	} else if malformed {
+		return malformedVersionDecision()
+	}
+	if fixedVersion != "" {
+		cmp, valid := compareNuGetVersion(observed, fixedVersion)
+		if !valid {
+			return malformedVersionDecision()
+		}
+		if cmp >= 0 {
+			return knownFixedDecision(supplyChainVersionReasonNuGetSemverKnownFixed)
+		}
+	}
+	return possiblyAffectedDecision(supplyChainVersionReasonNoAffectedMatch, nil)
+}
+
+func nugetAffectedByAnyPackage(observed string, pkgs []supplyChainAffectedPackage) (bool, bool) {
+	malformed := false
+	for _, pkg := range pkgs {
+		if affected, valid := nugetAffectedByPackage(observed, pkg); affected {
+			return true, false
+		} else if !valid {
+			malformed = true
+		}
+	}
+	return false, malformed
+}
+
+func nugetAffectedByPackage(observed string, pkg supplyChainAffectedPackage) (bool, bool) {
+	valid := true
+	for _, candidate := range pkg.affectedVersions {
+		candidate = strings.TrimSpace(candidate)
+		if candidate == "" {
+			continue
+		}
+		if cmp, ok := compareNuGetVersion(observed, candidate); ok && cmp == 0 {
+			return true, true
+		} else if !ok {
+			valid = false
+		}
+	}
+	for _, affectedRange := range pkg.affectedRanges {
+		if !strings.EqualFold(affectedRange.kind, "SEMVER") {
+			continue
+		}
+		if affected, ok := nugetSemverRangeContainsDecision(affectedRange, observed); affected {
+			return true, true
+		} else if !ok {
+			valid = false
+		}
+	}
+	if raw := strings.TrimSpace(pkg.affectedRangeRaw); raw != "" {
+		if affected, ok := comparatorRangeContains(raw, observed, compareNuGetVersion); affected {
 			return true, true
 		} else if !ok {
 			valid = false
@@ -254,6 +331,64 @@ func semverEqual(left string, right string) (bool, bool) {
 func validSupplyChainSemver(raw string) bool {
 	_, ok := normalizeOSVSemver(raw)
 	return ok
+}
+
+func validNuGetVersion(raw string) bool {
+	_, ok := normalizeNuGetVersion(raw)
+	return ok
+}
+
+func compareNuGetVersion(left string, right string) (int, bool) {
+	leftNormalized, ok := normalizeNuGetVersion(left)
+	if !ok {
+		return 0, false
+	}
+	rightNormalized, ok := normalizeNuGetVersion(right)
+	if !ok {
+		return 0, false
+	}
+	return semver.Compare(leftNormalized, rightNormalized), true
+}
+
+func normalizeNuGetVersion(raw string) (string, bool) {
+	value := strings.ToLower(strings.TrimSpace(raw))
+	if value == "" {
+		return "", false
+	}
+	value = strings.TrimPrefix(value, "v")
+	value, _, _ = strings.Cut(value, "+")
+	mainVersion, prerelease, hasPrerelease := strings.Cut(value, "-")
+	segments := strings.Split(mainVersion, ".")
+	if len(segments) == 0 || len(segments) > 4 {
+		return "", false
+	}
+	parsed := []int{0, 0, 0}
+	for index, segment := range segments {
+		if segment == "" {
+			return "", false
+		}
+		number, err := strconv.Atoi(segment)
+		if err != nil || number < 0 {
+			return "", false
+		}
+		if index == 3 {
+			if number != 0 {
+				return "", false
+			}
+			continue
+		}
+		parsed[index] = number
+	}
+	if hasPrerelease {
+		prerelease = "-" + strings.TrimSpace(prerelease)
+	} else {
+		prerelease = ""
+	}
+	normalized := fmt.Sprintf("v%d.%d.%d%s", parsed[0], parsed[1], parsed[2], prerelease)
+	if !semver.IsValid(normalized) {
+		return "", false
+	}
+	return normalized, true
 }
 
 type versionCompareFunc func(string, string) (int, bool)

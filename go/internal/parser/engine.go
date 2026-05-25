@@ -218,6 +218,8 @@ func (e *Engine) preScanOnePath(resolvedRepoRoot string, rawPath string) (preSca
 		names = nil
 	case "kotlin":
 		names, err = e.preScanKotlin(resolvedRepoRoot, resolvedPath)
+	case "nuget_project":
+		names = nil
 	case "perl":
 		names, err = e.preScanPerl(resolvedPath)
 	case "php":
@@ -299,6 +301,8 @@ func (e *Engine) parseDefinition(
 		return parseJavaMetadata(resolvedPath, isDependency)
 	case "kotlin":
 		return e.parseKotlin(repoRoot, resolvedPath, isDependency, options)
+	case "nuget_project":
+		return parseNuGetProject(resolvedPath, isDependency, options)
 	case "perl":
 		return e.parsePerl(resolvedPath, isDependency, options)
 	case "php":
