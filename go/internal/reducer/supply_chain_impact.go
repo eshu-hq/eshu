@@ -91,6 +91,12 @@ type SupplyChainImpactFinding struct {
 	EvidencePath         []string
 	EvidenceFactIDs      []string
 	CanonicalWrites      int
+	// DetectionProfile records which tier this finding meets: precise for
+	// exact installed-version anchors, comprehensive for range-only,
+	// SBOM-derived, product-derived, malformed, unsupported-ecosystem, or
+	// missing-version evidence. Always set by BuildSupplyChainImpactFindings
+	// before the writer persists the finding.
+	DetectionProfile DetectionProfile
 }
 
 // SupplyChainImpactWrite carries findings for durable publication.
@@ -354,6 +360,7 @@ func appendSupplyChainImpactFinding(
 	if !supplyChainImpactFindingHasOwnedAnchor(finding) {
 		return findings
 	}
+	finding.DetectionProfile = classifySupplyChainImpactDetectionProfile(finding)
 	return append(findings, finding)
 }
 

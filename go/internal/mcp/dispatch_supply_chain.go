@@ -20,6 +20,7 @@ func supplyChainImpactFindingsRoute(args map[string]any) *route {
 		"impact_status":    str(args, "impact_status"),
 		"limit":            strconv.Itoa(intOr(args, "limit", 50)),
 		"package_id":       str(args, "package_id"),
+		"profile":          str(args, "profile"),
 		"repository_id":    str(args, "repository_id"),
 		"subject_digest":   str(args, "subject_digest"),
 	}}

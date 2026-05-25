@@ -137,6 +137,29 @@ Rows keep CVSS, EPSS, KEV, installed-version state, requested manifest range,
 fixed-version state, match reason, runtime reachability, repository/image
 evidence, and missing evidence separate.
 
+### Detection Profiles
+
+Callers can ask for two detection profiles via `?profile=`:
+
+- `precise` (default): returns only findings backed by an exact installed
+  version anchor (lockfile, manifest with pinned version, or SBOM component
+  with an explicit version) resolved by an ecosystem-aware matcher. This is
+  Eshu's low-noise default.
+- `comprehensive`: also returns findings whose evidence stops short of
+  precise — range-only manifest ranges, CPE/SBOM-derived image paths
+  without an exact version, malformed advisory ranges, unsupported
+  ecosystems, and missing observed versions. Comprehensive rows keep their
+  `impact_status`, `confidence`, `match_reason`, and `missing_evidence` so
+  callers see exactly why the precise bar was not met.
+
+Each row carries `detection_profile` (`precise` or `comprehensive`) so a
+UI or MCP client can compose the two profiles without re-running the query.
+The response body echoes the requested profile in the top-level
+`detection_profile` field. Provider-only security alerts without owned
+package or SBOM evidence remain in
+`/api/v0/supply-chain/security-alerts/reconciliations`; they are not
+promoted into either profile of the impact findings list.
+
 Version fields intentionally do not collapse into one string:
 
 - `observed_version`: exact installed version from lockfile, manifest, SBOM, or

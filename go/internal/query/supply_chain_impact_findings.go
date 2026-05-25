@@ -17,15 +17,16 @@ type SupplyChainImpactFindingStore interface {
 }
 
 // SupplyChainImpactFindingFilter bounds impact reads to a concrete CVE,
-// package, repository, image digest, or status.
+// package, repository, image digest, status, or detection profile.
 type SupplyChainImpactFindingFilter struct {
-	CVEID          string
-	PackageID      string
-	RepositoryID   string
-	SubjectDigest  string
-	ImpactStatus   string
-	AfterFindingID string
-	Limit          int
+	CVEID            string
+	PackageID        string
+	RepositoryID     string
+	SubjectDigest    string
+	ImpactStatus     string
+	DetectionProfile string
+	AfterFindingID   string
+	Limit            int
 }
 
 // SupplyChainImpactFindingRow is one durable impact finding decoded from
@@ -63,6 +64,12 @@ type SupplyChainImpactFindingRow struct {
 	SourceFreshness     string
 	SourceConfidence    string
 	Provenance          *SupplyChainImpactProvenance
+	// DetectionProfile records which evidence tier produced the row:
+	// precise for exact installed-version anchors, comprehensive for
+	// range-only, SBOM-derived, CPE-derived, malformed,
+	// unsupported-ecosystem, or missing-version evidence. Older rows
+	// written before profile tagging may return blank.
+	DetectionProfile string
 }
 
 // SupplyChainImpactProvenance preserves per-source advisory provenance for one
@@ -151,6 +158,7 @@ func (s PostgresSupplyChainImpactFindingStore) ListSupplyChainImpactFindings(
 		filter.RepositoryID,
 		filter.SubjectDigest,
 		filter.ImpactStatus,
+		filter.DetectionProfile,
 		filter.AfterFindingID,
 		filter.Limit,
 	)
@@ -196,9 +204,14 @@ WHERE fact.fact_kind = $1
   AND ($4 = '' OR fact.payload->>'repository_id' = $4)
   AND ($5 = '' OR fact.payload->>'subject_digest' = $5)
   AND ($6 = '' OR fact.payload->>'impact_status' = $6)
-  AND ($7 = '' OR fact.fact_id > $7)
+  AND (
+        $7 = ''
+        OR fact.payload->>'detection_profile' = $7
+        OR ($7 = 'comprehensive' AND COALESCE(fact.payload->>'detection_profile', '') = '')
+      )
+  AND ($8 = '' OR fact.fact_id > $8)
 ORDER BY fact.fact_id ASC
-LIMIT $8
+LIMIT $9
 `
 
 func (f SupplyChainImpactFindingFilter) hasScope() bool {
@@ -248,6 +261,7 @@ func decodeSupplyChainImpactFindingRow(
 		SourceFreshness:     "active",
 		SourceConfidence:    sourceConfidence,
 		Provenance:          decodeSupplyChainImpactProvenance(payload),
+		DetectionProfile:    StringVal(payload, "detection_profile"),
 	}, nil
 }
 

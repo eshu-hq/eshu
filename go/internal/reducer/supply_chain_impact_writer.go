@@ -128,6 +128,7 @@ func supplyChainImpactPayload(write SupplyChainImpactWrite, finding SupplyChainI
 		"epss_percentile":      finding.EPSSPercentile,
 		"known_exploited":      finding.KnownExploited,
 		"priority_reason":      finding.PriorityReason,
+		"detection_profile":    string(finding.DetectionProfile),
 		"runtime_reachability": finding.RuntimeReachability,
 		"repository_id":        finding.RepositoryID,
 		"subject_digest":       finding.SubjectDigest,

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
@@ -18,6 +19,14 @@ const (
 	supplyChainImpactFindingMaxLimit       = 200
 	containerImageIdentityMaxLimit         = 200
 	securityAlertReconciliationMaxLimit    = 200
+
+	// SupplyChainImpactProfilePrecise selects exact installed-version
+	// anchored findings only.
+	SupplyChainImpactProfilePrecise = "precise"
+	// SupplyChainImpactProfileComprehensive selects every owned-anchor
+	// finding including range-only manifest, SBOM/CPE-derived,
+	// unsupported ecosystem, malformed range, and missing-version rows.
+	SupplyChainImpactProfileComprehensive = "comprehensive"
 )
 
 // SupplyChainHandler exposes reducer-owned supply-chain read models.
@@ -95,6 +104,13 @@ type SupplyChainImpactFindingResult struct {
 	SourceFreshness     string                       `json:"source_freshness,omitempty"`
 	SourceConfidence    string                       `json:"source_confidence,omitempty"`
 	Provenance          *SupplyChainImpactProvenance `json:"provenance,omitempty"`
+	// DetectionProfile names the evidence tier the row meets. `precise`
+	// rows have an exact installed-version anchor and an ecosystem-aware
+	// version match. `comprehensive` rows have an owned anchor (SBOM,
+	// image, CPE-derived, range-only manifest, malformed range,
+	// unsupported ecosystem, or missing observed version) but did not
+	// meet the precise bar.
+	DetectionProfile string `json:"detection_profile,omitempty"`
 }
 
 // ContainerImageIdentityResult is one reducer-owned container image identity
@@ -157,14 +173,19 @@ func (h *SupplyChainHandler) listImpactFindings(w http.ResponseWriter, r *http.R
 	if !ok {
 		return
 	}
+	profile, ok := requestedSupplyChainImpactProfile(w, r)
+	if !ok {
+		return
+	}
 	filter := SupplyChainImpactFindingFilter{
-		CVEID:          QueryParam(r, "cve_id"),
-		PackageID:      QueryParam(r, "package_id"),
-		RepositoryID:   QueryParam(r, "repository_id"),
-		SubjectDigest:  QueryParam(r, "subject_digest"),
-		ImpactStatus:   QueryParam(r, "impact_status"),
-		AfterFindingID: QueryParam(r, "after_finding_id"),
-		Limit:          limit + 1,
+		CVEID:            QueryParam(r, "cve_id"),
+		PackageID:        QueryParam(r, "package_id"),
+		RepositoryID:     QueryParam(r, "repository_id"),
+		SubjectDigest:    QueryParam(r, "subject_digest"),
+		ImpactStatus:     QueryParam(r, "impact_status"),
+		DetectionProfile: filterProfile(profile),
+		AfterFindingID:   QueryParam(r, "after_finding_id"),
+		Limit:            limit + 1,
 	}
 	if !filter.hasScope() {
 		WriteError(w, http.StatusBadRequest, "cve_id, package_id, repository_id, subject_digest, or impact_status is required")
@@ -217,11 +238,12 @@ func (h *SupplyChainHandler) listImpactFindings(w http.ResponseWriter, r *http.R
 		readiness = BuildSupplyChainImpactReadiness(scope, results, truncated, snapshot)
 	}
 	body := map[string]any{
-		"findings":  results,
-		"count":     len(results),
-		"limit":     limit,
-		"truncated": truncated,
-		"readiness": readiness,
+		"findings":          results,
+		"count":             len(results),
+		"limit":             limit,
+		"truncated":         truncated,
+		"detection_profile": profile,
+		"readiness":         readiness,
 	}
 	if truncated && len(results) > 0 {
 		body["next_cursor"] = map[string]string{
@@ -431,6 +453,36 @@ func requiredSBOMAttestationAttachmentLimit(w http.ResponseWriter, r *http.Reque
 		return 0, false
 	}
 	return limit, true
+}
+
+// requestedSupplyChainImpactProfile reads the `profile` query parameter,
+// rejects unknown values with a 400, and defaults to precise. `precise`
+// returns only findings with an exact installed-version anchor.
+// `comprehensive` returns every owned-anchor finding, including range-only,
+// SBOM/CPE-derived, malformed, unsupported-ecosystem, and missing-version
+// rows.
+func requestedSupplyChainImpactProfile(w http.ResponseWriter, r *http.Request) (string, bool) {
+	raw := strings.TrimSpace(QueryParam(r, "profile"))
+	if raw == "" {
+		return SupplyChainImpactProfilePrecise, true
+	}
+	switch raw {
+	case SupplyChainImpactProfilePrecise, SupplyChainImpactProfileComprehensive:
+		return raw, true
+	default:
+		WriteError(w, http.StatusBadRequest, "profile must be precise or comprehensive")
+		return "", false
+	}
+}
+
+// filterProfile maps the requested API profile to the on-row filter value.
+// `comprehensive` matches every row, so the filter remains blank to avoid
+// adding an unneeded predicate.
+func filterProfile(profile string) string {
+	if profile == SupplyChainImpactProfilePrecise {
+		return SupplyChainImpactProfilePrecise
+	}
+	return ""
 }
 
 func requiredSupplyChainImpactFindingLimit(w http.ResponseWriter, r *http.Request) (int, bool) {
