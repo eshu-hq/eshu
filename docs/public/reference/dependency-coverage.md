@@ -98,6 +98,17 @@ absence of evidence look like absence of risk. Guard tests:
 
 ## Performance Evidence
 
+No-Regression Evidence: baseline coverage before the NuGet slice was the
+existing in-memory npm, Composer, and RubyGems parser/reducer path; after the
+rebased change, `go test ./internal/parser/json ./internal/parser
+./internal/reducer -count=1` and `go test ./...` pass on Go 1.26.3
+darwin/arm64. Input shape is fixture-only manifests and lockfiles
+(`package.json`, `package-lock.json`, `composer.json`, `composer.lock`,
+`Gemfile`, `Gemfile.lock`, `.csproj`, and `packages.lock.json`). Terminal
+runtime counts stay bounded to parser dependency rows and reducer decisions
+asserted in tests: no queue rows, graph rows, or Postgres rows are written by
+these paths.
+
 `go test ./internal/parser -run 'TestParseNuGetProject' -count=1` proves
 PackageReference extraction, MSBuild property handling, and malformed XML
 rejection. `go test ./internal/parser/json -run

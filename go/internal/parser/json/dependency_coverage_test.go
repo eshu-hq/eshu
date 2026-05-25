@@ -322,15 +322,15 @@ DEPENDENCIES
 		if entry.CapturesDependencyChain {
 			anyChain := false
 			for _, row := range rows {
-				if path, ok := row["dependency_path"].([]string); ok && len(path) > 0 {
+				if path, ok := row["dependency_path"].([]string); ok && len(path) > 1 {
 					anyChain = true
 					break
 				}
 			}
-			if !anyChain && len(fixture.expectedDependencies) > 0 {
-				// package-lock fixture above has a single direct dep so
-				// chain length is one. Re-run a fixture with a transitive
-				// edge so the matrix claim is provable.
+			if !anyChain && fixture.transitiveBody != "" {
+				// Direct lockfile fixtures can produce path length one.
+				// Re-run a fixture with a transitive edge so the matrix
+				// chain-capture claim is provable.
 				transitive := writeJSONTestFile(t, entry.FilePattern, fixture.transitiveBody)
 				rerun, err := parseDependencyCoverageFixture(transitive, entry.FilePattern)
 				if err != nil {

@@ -1,5 +1,139 @@
 package reducer
 
+import (
+	"strconv"
+	"strings"
+)
+
+type nugetVersionParts struct {
+	numeric    [4]int
+	prerelease []string
+}
+
+func validNuGetVersion(raw string) bool {
+	_, ok := parseNuGetVersion(raw)
+	return ok
+}
+
+func compareNuGetVersion(left string, right string) (int, bool) {
+	leftVersion, ok := parseNuGetVersion(left)
+	if !ok {
+		return 0, false
+	}
+	rightVersion, ok := parseNuGetVersion(right)
+	if !ok {
+		return 0, false
+	}
+	return compareNuGetVersionParts(leftVersion, rightVersion), true
+}
+
+func parseNuGetVersion(raw string) (nugetVersionParts, bool) {
+	value := strings.ToLower(strings.TrimSpace(raw))
+	if value == "" {
+		return nugetVersionParts{}, false
+	}
+	value = strings.TrimPrefix(value, "v")
+	value, _, _ = strings.Cut(value, "+")
+	mainVersion, prerelease, hasPrerelease := strings.Cut(value, "-")
+	segments := strings.Split(mainVersion, ".")
+	if len(segments) == 0 || len(segments) > 4 {
+		return nugetVersionParts{}, false
+	}
+
+	version := nugetVersionParts{}
+	for index, segment := range segments {
+		if segment == "" {
+			return nugetVersionParts{}, false
+		}
+		number, err := strconv.Atoi(segment)
+		if err != nil || number < 0 {
+			return nugetVersionParts{}, false
+		}
+		version.numeric[index] = number
+	}
+	if hasPrerelease {
+		prerelease = strings.TrimSpace(prerelease)
+		if prerelease == "" {
+			return nugetVersionParts{}, false
+		}
+		version.prerelease = strings.Split(prerelease, ".")
+		for _, identifier := range version.prerelease {
+			if strings.TrimSpace(identifier) == "" {
+				return nugetVersionParts{}, false
+			}
+		}
+	}
+	return version, true
+}
+
+func compareNuGetVersionParts(left nugetVersionParts, right nugetVersionParts) int {
+	for index, leftNumber := range left.numeric {
+		if leftNumber < right.numeric[index] {
+			return -1
+		}
+		if leftNumber > right.numeric[index] {
+			return 1
+		}
+	}
+	return compareNuGetPrerelease(left.prerelease, right.prerelease)
+}
+
+func compareNuGetPrerelease(left []string, right []string) int {
+	if len(left) == 0 && len(right) == 0 {
+		return 0
+	}
+	if len(left) == 0 {
+		return 1
+	}
+	if len(right) == 0 {
+		return -1
+	}
+	for index, leftIdentifier := range left {
+		if index >= len(right) {
+			return 1
+		}
+		rightIdentifier := right[index]
+		if leftNumber, leftIsNumber := nugetPrereleaseNumber(leftIdentifier); leftIsNumber {
+			rightNumber, rightIsNumber := nugetPrereleaseNumber(rightIdentifier)
+			if rightIsNumber {
+				if leftNumber < rightNumber {
+					return -1
+				}
+				if leftNumber > rightNumber {
+					return 1
+				}
+				continue
+			}
+			return -1
+		} else if _, rightIsNumber := nugetPrereleaseNumber(rightIdentifier); rightIsNumber {
+			return 1
+		}
+		if cmp := strings.Compare(leftIdentifier, rightIdentifier); cmp != 0 {
+			return cmp
+		}
+	}
+	if len(left) < len(right) {
+		return -1
+	}
+	return 0
+}
+
+func nugetPrereleaseNumber(value string) (int, bool) {
+	if value == "" {
+		return 0, false
+	}
+	for _, char := range value {
+		if char < '0' || char > '9' {
+			return 0, false
+		}
+	}
+	number, err := strconv.Atoi(value)
+	if err != nil || number < 0 {
+		return 0, false
+	}
+	return number, true
+}
+
 func nugetSemverRangeContainsDecision(
 	affectedRange supplyChainAffectedRange,
 	observed string,

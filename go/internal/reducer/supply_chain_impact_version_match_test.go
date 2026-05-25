@@ -160,6 +160,37 @@ func TestEvaluateNuGetSemverMatchAcceptsShortLockfileVersion(t *testing.T) {
 	}
 }
 
+func TestEvaluateNuGetSemverMatchAcceptsFourSegmentRevision(t *testing.T) {
+	t.Parallel()
+
+	decision := evaluateSupplyChainVersionMatch(
+		"nuget",
+		"1.2.3.4",
+		"",
+		"",
+		[]supplyChainAffectedPackage{
+			{
+				affectedRanges: []supplyChainAffectedRange{
+					{
+						kind: "SEMVER",
+						events: []supplyChainAffectedRangeEvent{
+							{introduced: "1.2.3.3"},
+							{fixed: "1.2.3.5"},
+						},
+					},
+				},
+			},
+		},
+	)
+
+	if decision.Status != SupplyChainImpactAffectedExact {
+		t.Fatalf("Status = %q, want affected exact for NuGet revision version", decision.Status)
+	}
+	if decision.Reason != supplyChainVersionReasonNuGetSemverAffectedRange {
+		t.Fatalf("Reason = %q, want %q", decision.Reason, supplyChainVersionReasonNuGetSemverAffectedRange)
+	}
+}
+
 func TestBuildSupplyChainImpactFindingsFailsClosedForUnsupportedAndMalformedRanges(t *testing.T) {
 	t.Parallel()
 

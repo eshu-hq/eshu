@@ -1,12 +1,9 @@
 package reducer
 
 import (
-	"fmt"
-	"strconv"
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/packageidentity"
-	"golang.org/x/mod/semver"
 )
 
 const (
@@ -331,64 +328,6 @@ func semverEqual(left string, right string) (bool, bool) {
 func validSupplyChainSemver(raw string) bool {
 	_, ok := normalizeOSVSemver(raw)
 	return ok
-}
-
-func validNuGetVersion(raw string) bool {
-	_, ok := normalizeNuGetVersion(raw)
-	return ok
-}
-
-func compareNuGetVersion(left string, right string) (int, bool) {
-	leftNormalized, ok := normalizeNuGetVersion(left)
-	if !ok {
-		return 0, false
-	}
-	rightNormalized, ok := normalizeNuGetVersion(right)
-	if !ok {
-		return 0, false
-	}
-	return semver.Compare(leftNormalized, rightNormalized), true
-}
-
-func normalizeNuGetVersion(raw string) (string, bool) {
-	value := strings.ToLower(strings.TrimSpace(raw))
-	if value == "" {
-		return "", false
-	}
-	value = strings.TrimPrefix(value, "v")
-	value, _, _ = strings.Cut(value, "+")
-	mainVersion, prerelease, hasPrerelease := strings.Cut(value, "-")
-	segments := strings.Split(mainVersion, ".")
-	if len(segments) == 0 || len(segments) > 4 {
-		return "", false
-	}
-	parsed := []int{0, 0, 0}
-	for index, segment := range segments {
-		if segment == "" {
-			return "", false
-		}
-		number, err := strconv.Atoi(segment)
-		if err != nil || number < 0 {
-			return "", false
-		}
-		if index == 3 {
-			if number != 0 {
-				return "", false
-			}
-			continue
-		}
-		parsed[index] = number
-	}
-	if hasPrerelease {
-		prerelease = "-" + strings.TrimSpace(prerelease)
-	} else {
-		prerelease = ""
-	}
-	normalized := fmt.Sprintf("v%d.%d.%d%s", parsed[0], parsed[1], parsed[2], prerelease)
-	if !semver.IsValid(normalized) {
-		return "", false
-	}
-	return normalized, true
 }
 
 type versionCompareFunc func(string, string) (int, bool)

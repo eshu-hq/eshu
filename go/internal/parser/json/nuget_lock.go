@@ -124,12 +124,9 @@ func nugetLockWalkDependencyChains(
 		if existing, ok := chains[childName]; !ok || len(childChain) < len(existing) {
 			chains[childName] = childChain
 		}
-		nextSeen := make(map[string]struct{}, len(seen)+1)
-		for seenName := range seen {
-			nextSeen[seenName] = struct{}{}
-		}
-		nextSeen[childName] = struct{}{}
-		nugetLockWalkDependencyChains(childName, childChain, dependencies, chains, nextSeen)
+		seen[childName] = struct{}{}
+		nugetLockWalkDependencyChains(childName, childChain, dependencies, chains, seen)
+		delete(seen, childName)
 	}
 }
 
