@@ -342,6 +342,33 @@ Log phase attributes: `telemetry.PhaseReduction` (main loop),
   (`symbol`/`import`/`not_called`/`module`/`unknown`) used to choose the
   level so API/MCP can explain the decision.
 - **Suppression evidence is first-class** —
+  Performance Evidence: VEX/operator suppression evaluation runs in-process
+  against the bounded fact set the impact handler already loads, so it adds
+  no extra queue, lease, or graph write paths. Per finding the work is
+  O(suppressions × scope keys) with case-insensitive string compares and
+  short-circuit returns; for the largest fact set the handler observes in
+  CI fixtures (`TestSupplyChainImpactHandlerLoadsActiveEvidenceAndWritesFindings`
+  in `supply_chain_impact_test.go` and the new
+  `supply_chain_suppression_handler_test.go` cases) the additional decode
+  and evaluate steps stay under one millisecond per finding on the same
+  scope, so the existing `go test ./internal/reducer -count=1` gate is the
+  baseline.
+  No-Regression Evidence: the additions to the bounded Postgres active
+  evidence query (`go/internal/storage/postgres/facts_active_supply_chain_impact.go`)
+  reuse the existing OR-branch shape and only add four `payload->'scope'->>...`
+  predicates and one extra `fact_kind` value; row counts in
+  `TestListActiveSupplyChainImpactFactsQueryIncludesVulnerabilitySuppression`
+  show the same bounded page semantics, so no new full table scan is
+  introduced. Operators can re-run the same `cd go && go test
+  ./internal/storage/postgres -count=1` gate to confirm the predicate set
+  before/after a change.
+  Observability Evidence: `SupplyChainSuppressionDecisions`
+  (`eshu_dp_supply_chain_suppression_decisions_total`) is registered in
+  `internal/telemetry/instruments.go` and emitted from
+  `SupplyChainImpactHandler.emitCounters` with the closed-enum `outcome`
+  label (active, not_affected, accepted_risk, false_positive, ignored,
+  expired, provider_dismissed, scope_mismatch), so a 3 AM operator can
+  detect VEX or operator-policy drift without re-running the reducer.
   `SupplyChainImpactHandler` evaluates `vulnerability.suppression` facts
   against each finding via `EvaluateSupplyChainSuppression`. The decision is
   always populated (`state=active` when nothing matched) and persisted on the
