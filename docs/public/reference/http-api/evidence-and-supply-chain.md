@@ -120,6 +120,27 @@ become deployment truth by themselves.
 
 ## Vulnerability Impact
 
+`GET /api/v0/supply-chain/advisories/evidence`
+
+Lists source-only advisory evidence. The caller must provide `limit` and at
+least one bounded anchor:
+
+- `cve_id`
+- `advisory_id`
+- `package_id`
+
+The optional `source` filter narrows an already anchored request. Rows group
+GHSA, CVE/NVD, OSV, GitLab Advisory Database, FIRST EPSS, CISA KEV, CWE,
+reference, affected-package, affected-product/CPE, withdrawn, affected-range,
+and fixed-version evidence under one canonical advisory identity. They also
+surface `source_disagreements[]` for severity, withdrawn status, affected
+ranges, and fixed versions without selecting a winner.
+
+This route reads active `vulnerability.*` source facts only. It does not emit
+or imply reducer-owned package, repository, image, workload, deployment, or
+reachability impact. Use the impact routes below when you need admitted impact
+truth.
+
 `GET /api/v0/supply-chain/impact/findings`
 
 Lists reducer-owned vulnerability impact findings. The caller must provide

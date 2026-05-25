@@ -15,8 +15,13 @@
 // source handles so callers can distinguish cleanup-ready findings from
 // ambiguous or suppressed evidence.
 //
-// Supply-chain impact reads pair the bounded reducer-owned findings page with
-// a readiness envelope so a zero-finding answer can be classified as
+// Supply-chain reads expose source-only advisory evidence separately from
+// reducer-owned impact findings. Advisory evidence groups active
+// vulnerability source facts under canonical GHSA/CVE/OSV/NVD identities while
+// preserving CVSS, EPSS, KEV, CWE, range, fixed-version, withdrawn, and
+// disagreement provenance without implying repository, image, workload, or
+// deployment impact. Impact reads pair the bounded reducer-owned findings page
+// with a readiness envelope so a zero-finding answer can be classified as
 // not_configured, target_incomplete, evidence_incomplete, ready_zero_findings,
 // or ready_with_findings. The readiness layer also exposes bounded
 // source-snapshot cache metadata for advisory sources, stripping absent optional

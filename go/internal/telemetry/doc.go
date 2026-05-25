@@ -27,7 +27,8 @@
 // hydration route that turns explicit content handles into bounded source and
 // documentation proof. SpanQuerySBOMAttestationAttachments names the
 // digest/document-anchored SBOM and attestation attachment read path.
-// SpanQuerySupplyChainImpactExplanation names the bounded vulnerability
+// SpanQueryAdvisoryEvidence names the source-only advisory evidence read path,
+// and SpanQuerySupplyChainImpactExplanation names the bounded vulnerability
 // finding/advisory explanation route. Pipeline stage, graph-backend, and
 // failure-class names
 // stay centralized here so runtime packages can report comparable events

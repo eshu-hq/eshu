@@ -97,6 +97,12 @@ canonical graph or reducer truth.
   vulnerability source-cache snapshot metadata while stripping absent optional
   fields from the JSON rollup
   (`supply_chain_impact_readiness_postgres.go`)
+- `AdvisoryEvidenceStore` — port for source-only vulnerability advisory
+  evidence grouped by canonical CVE/GHSA/OSV/NVD identity without implying
+  impact (`supply_chain_advisory_evidence.go`)
+- `PostgresAdvisoryEvidenceStore` — Postgres-backed source fact read model
+  for `GET /api/v0/supply-chain/advisories/evidence`
+  (`supply_chain_advisory_evidence.go`)
 - `SupplyChainImpactExplanationStore` — port for one-finding supply-chain
   impact explanations that hydrate only referenced evidence fact IDs
   (`supply_chain_impact_explain.go`)
@@ -150,8 +156,9 @@ canonical graph or reducer truth.
   hydrate at most 50 citations per call (`evidence.go`, `evidence_citation.go`)
 - `DocumentationHandler` — collected documentation facts, documentation truth
   findings, and evidence packets (`documentation.go`, `documentation_facts.go`)
-- `SupplyChainHandler` — SBOM attachment, image identity, impact finding, and
-  one-finding impact explanation routes (`supply_chain.go`)
+- `SupplyChainHandler` — SBOM attachment, image identity, source-only advisory
+  evidence, impact finding, and one-finding impact explanation routes
+  (`supply_chain.go`)
 - `StatusHandler` — pipeline and ingester status routes (`status.go:14`)
 - `CompareHandler` — environment comparison (`compare.go:12`) with the
   story-packet helpers in `compare_story.go`
@@ -305,7 +312,7 @@ wired in `cmd/api/wiring.go`, not here.
   analysis must list Node package, CommonJS default export, CommonJS mixin,
   Next.js, Node migration, Hapi-style, TypeScript public API, TypeScript
   module-contract, and TypeScript interface implementation roots, plus Java
-  main, constructor, override, Ant `Task` setter, Gradle plugin `apply`, task
+  main, constructor, override, Ant Task setter, Gradle plugin `apply`, task
   action/property, and public Gradle DSL roots when query policy suppresses
   those candidates, plus Swift parser-backed roots when query policy suppresses
   those candidates; the analysis notes name the same Java and C root families.
