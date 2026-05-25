@@ -89,6 +89,19 @@ launched runtime via the shared `telemetry` package. Errors print to
   findings or print a clean zero-finding state until the target is ready.
   The command is an API-backed reader and must not open graph or Postgres
   connections directly.
+  The default scope mode is `scoped`: the CLI derives observed packages,
+  advisory sources, package-registry coverage, per-source cache state, and
+  worst freshness from the readiness envelope and downgrades the readiness
+  state when any required advisory source snapshot is stale (->
+  `evidence_incomplete`) or incomplete (-> `target_incomplete`). `--broad`
+  skips those scoped guards, records a warning that the wider mode bypassed
+  them, and surfaces `data.scope_mode = "broad"` so operators can tell the
+  modes apart in JSON output. Every run attaches a
+  `data.scan_performance` block with started_at, completed_at, wall_time_ms,
+  repository_size_bytes, repository_file_count, observed_packages,
+  advisory_sources, package_registry_packages, cache_freshness, scope_mode,
+  and stop_threshold so the local one-shot scan ships its own performance
+  evidence without a separate measurement step.
 - `eshu trace service <name>` is a read-only CLI consumer of
   `/api/v0/services/{service_name}/story`. It asks the API for
   `application/eshu.envelope+json`, passes supported selectors through as

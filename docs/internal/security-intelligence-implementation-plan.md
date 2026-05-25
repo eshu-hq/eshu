@@ -265,7 +265,7 @@ failure class.
 - [x] Reuse existing local workspace/root resolution.
 - [x] Add local service attach or startup behavior when no API is already
   available.
-- [ ] Collect only the selected repository scope and fetch advisory/package
+- [x] Collect only the selected repository scope and fetch advisory/package
   evidence needed by observed owned packages unless a broader option is set.
 - [x] Emit JSON and terminal summaries from the same finding/readiness envelope
   used by API and MCP.
@@ -282,6 +282,42 @@ to `eshu-bootstrap-index`, runs the existing local scan readiness contract,
 resolves the scanned repository id, fetches bounded repository-scoped
 supply-chain impact findings, emits JSON and terminal summaries, and fails
 closed when target readiness is incomplete.
+
+Status 2026-05-25: scoped target derivation and an explicit `--broad`
+override are wired into the CLI. The default scoped mode derives observed
+packages, advisory sources, package-registry coverage, per-source cache state,
+worst freshness, and a stop threshold from the readiness envelope returned by
+`/api/v0/supply-chain/impact/findings`, surfaces them as `data.scope_plan`,
+and applies two additional CLI-side fail-closed guards: any required source
+snapshot with `freshness == "stale"` downgrades the answer to
+`evidence_incomplete`, and any required source snapshot with `complete:
+false` downgrades the answer to `target_incomplete`. `--broad` skips those
+guards, sets `data.scope_mode = "broad"`, attaches a warning that the wider
+mode skipped the scoped checks, and returns the server's verdict unchanged.
+`data.scan_performance` records started_at, completed_at, wall_time_ms,
+repository_size_bytes, repository_file_count, observed_packages,
+advisory_sources, package_registry_packages, cache_freshness, scope_mode, and
+stop_threshold on every run.
+
+No-Regression Evidence: `go test ./cmd/eshu -run
+'TestVulnScanRepoCommandRegistersBroadFlag|TestRunVulnScanRepoDefaultScopedModeAttachesScopePlanAndPerformance|TestRunVulnScanRepoScopedModeFailsClosedOnStaleAdvisoryCache|TestRunVulnScanRepoScopedModeFailsClosedOnIncompleteAdvisoryCache|TestRunVulnScanRepoBroadModeSkipsScopeGuards|TestRunVulnScanRepoScopedModeSurfacesEvidenceIncompleteWhenNoOwnedDeps'
+-count=1` covers the new contract: --broad flag registration, scoped scope
+plan and performance attachment, scoped fail-closed for stale advisory
+cache, scoped fail-closed for incomplete advisory snapshot, broad-mode
+pass-through with explicit skipped-guard warning, and pass-through when the
+server already classifies the response as `evidence_incomplete`. The
+surrounding `go test ./cmd/eshu -count=1` suite continues to pass after the
+findings-stub responses in existing tests were updated to include the
+production readiness envelope shape.
+
+Performance Evidence: the focused tests above run under 0.5s on Go 1.26.3
+darwin/arm64 with the local authoritative-owner stubs and synthetic
+readiness envelopes. The scope plan and `data.scan_performance` are computed
+without additional HTTP, queue, or graph work; the only added measurement is
+a bounded `filepath.WalkDir` over the scanned repository root to record
+`repository_size_bytes` and `repository_file_count`, with read errors
+treated as missing footprint rather than fatal so a transient filesystem
+issue cannot block the report.
 
 No-Regression Evidence: `go test ./cmd/eshu -run 'Test(PrepareVulnScanLocalRuntime(AttachesExistingAuthoritativeOwner|StartsOwnerWhenMissing)|RunVulnScanRepo(StartsLocalRuntimeWhenServiceURLUnconfigured|UsesConfiguredServiceURLWithoutLocalRuntime|IndexesResolvesRepoAndListsImpactFindings|ReportsReadyZeroFindings|FailsClosedWhenScanIsNotReady)|EvaluateScanReadiness(TreatsActiveGenerationAsCurrentWhenDrained|WaitsForPendingGeneration))' -count=1`
 proved local owner attach, local owner startup, loopback API env wiring,

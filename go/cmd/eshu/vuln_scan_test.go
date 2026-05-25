@@ -77,7 +77,7 @@ func TestRunVulnScanRepoIndexesResolvesRepoAndListsImpactFindings(t *testing.T) 
 			_, _ = w.Write([]byte(`{"count":1,"repositories":[{"id":"repo-local","name":"local","path":"` + absRepoPath + `","local_path":"` + absRepoPath + `","repo_slug":"","has_remote":false}]}`))
 		case "/api/v0/supply-chain/impact/findings":
 			gotImpactQuery = r.URL.RawQuery
-			_, _ = w.Write([]byte(`{"data":{"findings":[{"finding_id":"finding-1","cve_id":"CVE-2026-0001","package_id":"npm://registry.npmjs.org/ws","impact_status":"affected_exact","repository_id":"repo-local"}],"count":1,"limit":25,"truncated":false},"truth":{"level":"exact","freshness":{"state":"fresh"}},"error":null}`))
+			_, _ = w.Write([]byte(`{"data":{"findings":[{"finding_id":"finding-1","cve_id":"CVE-2026-0001","package_id":"npm://registry.npmjs.org/ws","impact_status":"affected_exact","repository_id":"repo-local"}],"count":1,"limit":25,"truncated":false,"readiness":{"readiness_state":"ready_with_findings","target_scope":{"repository_id":"repo-local"},"evidence_sources":[{"family":"package.consumption","fact_count":2,"freshness":"fresh"},{"family":"vulnerability.advisory","fact_count":80,"freshness":"fresh"}],"source_snapshots":[{"source":"osv","ecosystem":"npm","freshness":"fresh","complete":true}],"freshness":"fresh","counts":{"findings_returned":1,"evidence_facts_total":82}}},"truth":{"level":"exact","freshness":{"state":"fresh"}},"error":null}`))
 		default:
 			t.Fatalf("unexpected request %s %s", r.Method, r.URL.String())
 		}
@@ -147,7 +147,7 @@ func TestRunVulnScanRepoReportsReadyZeroFindings(t *testing.T) {
 		case "/api/v0/repositories":
 			_, _ = w.Write([]byte(`{"count":1,"repositories":[{"id":"repo-empty","name":"empty","path":"` + repoPath + `","local_path":"` + repoPath + `"}]}`))
 		case "/api/v0/supply-chain/impact/findings":
-			_, _ = w.Write([]byte(`{"data":{"findings":[],"count":0,"limit":50,"truncated":false},"truth":{"level":"exact","freshness":{"state":"fresh"}},"error":null}`))
+			_, _ = w.Write([]byte(`{"data":{"findings":[],"count":0,"limit":50,"truncated":false,"readiness":{"readiness_state":"ready_zero_findings","target_scope":{"repository_id":"repo-empty"},"evidence_sources":[{"family":"package.consumption","fact_count":1,"freshness":"fresh"},{"family":"vulnerability.advisory","fact_count":20,"freshness":"fresh"}],"source_snapshots":[{"source":"osv","ecosystem":"npm","freshness":"fresh","complete":true}],"freshness":"fresh","counts":{"findings_returned":0,"evidence_facts_total":21}}},"truth":{"level":"exact","freshness":{"state":"fresh"}},"error":null}`))
 		default:
 			t.Fatalf("unexpected request %s %s", r.Method, r.URL.String())
 		}
@@ -291,3 +291,6 @@ func newTestVulnScanRepoCommand(t *testing.T) *cobra.Command {
 	addRemoteFlags(cmd)
 	return cmd
 }
+
+// Scoped/broad/perf tests live in vuln_scan_scope_test.go so each file stays
+// under the 500-line cap mandated by AGENTS.md.

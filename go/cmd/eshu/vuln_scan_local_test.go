@@ -55,7 +55,7 @@ func TestRunVulnScanRepoStartsLocalRuntimeWhenServiceURLUnconfigured(t *testing.
 		case "/api/v0/repositories":
 			_, _ = w.Write([]byte(`{"count":1,"repositories":[{"id":"repo-local","name":"local","path":"` + absRepoPath + `","local_path":"` + absRepoPath + `"}]}`))
 		case "/api/v0/supply-chain/impact/findings":
-			_, _ = w.Write([]byte(`{"data":{"findings":[],"count":0,"limit":50,"truncated":false},"truth":{"level":"exact","freshness":{"state":"fresh"}},"error":null}`))
+			_, _ = w.Write([]byte(`{"data":{"findings":[],"count":0,"limit":50,"truncated":false,"readiness":{"readiness_state":"ready_zero_findings","target_scope":{"repository_id":"repo-local"},"evidence_sources":[{"family":"package.consumption","fact_count":1,"freshness":"fresh"},{"family":"vulnerability.advisory","fact_count":20,"freshness":"fresh"}],"source_snapshots":[{"source":"osv","ecosystem":"npm","freshness":"fresh","complete":true}],"freshness":"fresh","counts":{"findings_returned":0,"evidence_facts_total":21}}},"truth":{"level":"exact","freshness":{"state":"fresh"}},"error":null}`))
 		default:
 			t.Fatalf("unexpected request %s %s", r.Method, r.URL.String())
 		}
@@ -128,7 +128,7 @@ func TestRunVulnScanRepoReportsLocalRuntimeCloseErrorAsWarning(t *testing.T) {
 		case "/api/v0/repositories":
 			_, _ = w.Write([]byte(`{"count":1,"repositories":[{"id":"repo-local","name":"local","path":"` + absRepoPath + `","local_path":"` + absRepoPath + `"}]}`))
 		case "/api/v0/supply-chain/impact/findings":
-			_, _ = w.Write([]byte(`{"data":{"findings":[],"count":0,"limit":50,"truncated":false},"truth":{"level":"exact","freshness":{"state":"fresh"}},"error":null}`))
+			_, _ = w.Write([]byte(`{"data":{"findings":[],"count":0,"limit":50,"truncated":false,"readiness":{"readiness_state":"ready_zero_findings","target_scope":{"repository_id":"repo-local"},"evidence_sources":[{"family":"package.consumption","fact_count":1,"freshness":"fresh"},{"family":"vulnerability.advisory","fact_count":20,"freshness":"fresh"}],"source_snapshots":[{"source":"osv","ecosystem":"npm","freshness":"fresh","complete":true}],"freshness":"fresh","counts":{"findings_returned":0,"evidence_facts_total":21}}},"truth":{"level":"exact","freshness":{"state":"fresh"}},"error":null}`))
 		default:
 			t.Fatalf("unexpected request %s %s", r.Method, r.URL.String())
 		}
@@ -191,7 +191,7 @@ func TestRunVulnScanRepoUsesConfiguredServiceURLWithoutLocalRuntime(t *testing.T
 		case "/api/v0/repositories":
 			_, _ = w.Write([]byte(`{"count":1,"repositories":[{"id":"repo-local","name":"local","path":"` + repoPath + `","local_path":"` + repoPath + `"}]}`))
 		case "/api/v0/supply-chain/impact/findings":
-			_, _ = w.Write([]byte(`{"data":{"findings":[],"count":0,"limit":50,"truncated":false},"truth":{"level":"exact","freshness":{"state":"fresh"}},"error":null}`))
+			_, _ = w.Write([]byte(`{"data":{"findings":[],"count":0,"limit":50,"truncated":false,"readiness":{"readiness_state":"ready_zero_findings","target_scope":{"repository_id":"repo-local"},"evidence_sources":[{"family":"package.consumption","fact_count":1,"freshness":"fresh"},{"family":"vulnerability.advisory","fact_count":20,"freshness":"fresh"}],"source_snapshots":[{"source":"osv","ecosystem":"npm","freshness":"fresh","complete":true}],"freshness":"fresh","counts":{"findings_returned":0,"evidence_facts_total":21}}},"truth":{"level":"exact","freshness":{"state":"fresh"}},"error":null}`))
 		default:
 			t.Fatalf("unexpected request %s %s", r.Method, r.URL.String())
 		}

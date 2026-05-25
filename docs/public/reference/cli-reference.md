@@ -83,6 +83,17 @@ service and launches a short-lived loopback API reader for the scan. Passing
 `--service-url` keeps the command on that explicit API and does not start local
 services.
 
+The command runs in scoped mode by default: targets are derived from the
+observed dependency evidence in the selected repository, and the CLI fails
+closed when advisory or package-registry evidence required by those observed
+packages is missing, stale, or incomplete. Pass `--broad` to skip the scoped
+guards and accept advisory/package coverage beyond observed dependencies; the
+JSON envelope reports the active mode under `data.scope_mode` and the bounded
+plan under `data.scope_plan` regardless of mode. Local performance evidence
+(wall-time, repository size, observed package count, advisory source count,
+cache freshness, and the readiness state the scan stopped at) is attached as
+`data.scan_performance`.
+
 ## Version Probes
 
 The direct service binaries listed in

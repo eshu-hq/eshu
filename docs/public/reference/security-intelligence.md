@@ -803,6 +803,69 @@ cache freshness and fixture-backed vulnerable/ready-zero runtime proof remain
 implementation gates before this is a complete standalone vulnerability scan
 workflow.
 
+The command runs in scoped mode by default. The CLI derives its scope plan
+from the readiness envelope of `GET /api/v0/supply-chain/impact/findings` for
+the scanned repository, so the local one-shot scan only depends on advisory,
+package-registry, and package-consumption evidence already attributed to the
+repository's observed dependencies. Scoped mode adds two CLI-side fail-closed
+guards on top of the server's classification: a stale required source snapshot
+(any `source_snapshots[].freshness == "stale"`) is downgraded to
+`evidence_incomplete`, and an incomplete required source snapshot
+(`complete: false`) is downgraded to `target_incomplete`. The scope plan,
+including observed package count, advisory source count, package-registry
+count, per-source cache state, the worst freshness, and the
+fail-closed stop threshold, is attached to the JSON envelope as
+`data.scope_plan`.
+
+Operators who explicitly want broader advisory or package coverage can pass
+`--broad`. In broad mode the CLI surfaces `data.scope_mode = "broad"`, sets
+`data.scope_plan.mode = "broad"`, records a warning that scoped fail-closed
+guards were skipped, and returns the server's readiness verdict unchanged.
+Broad mode never converts a stale cache into a clean answer: the underlying
+`source_snapshots[].freshness` and `readiness.freshness` fields stay visible
+in the JSON envelope and the terminal summary still prints `Scope:
+... freshness=stale`.
+
+Local performance evidence is attached as `data.scan_performance` on every
+run: `started_at`, `completed_at`, `wall_time_ms`, `repository_size_bytes`,
+`repository_file_count`, `observed_packages`, `advisory_sources`,
+`package_registry_packages`, `cache_freshness`, `scope_mode`, and
+`stop_threshold`. Operators can compare scoped and broad runs of the same
+repository to see how much advisory/package coverage the scoped guards
+trimmed and where the scan stopped.
+
+No-Regression Evidence: `go test ./cmd/eshu -run
+'TestVulnScanRepoCommandRegistersBroadFlag|TestRunVulnScanRepoDefaultScopedModeAttachesScopePlanAndPerformance|TestRunVulnScanRepoScopedModeFailsClosedOnStaleAdvisoryCache|TestRunVulnScanRepoScopedModeFailsClosedOnIncompleteAdvisoryCache|TestRunVulnScanRepoBroadModeSkipsScopeGuards|TestRunVulnScanRepoScopedModeSurfacesEvidenceIncompleteWhenNoOwnedDeps'
+-count=1` proves the `--broad` flag registration, default scoped scope-plan
+and scan-performance attachment, scoped fail-closed for stale advisory cache,
+scoped fail-closed for incomplete advisory snapshot, broad-mode pass-through
+with the scoped guards explicitly skipped, and scoped pass-through when the
+server already classifies the response as `evidence_incomplete`. The full
+`go test ./cmd/eshu -count=1` suite continues to pass with the updated
+findings-stub responses that mirror the production readiness envelope.
+
+No-Observability-Change: the scope plan, performance block, and
+`--broad` flag are CLI-only orchestration over the existing
+`/api/v0/supply-chain/impact/findings` readiness envelope and the existing
+`query.supply_chain_impact_findings` span. No new HTTP route, MCP tool,
+metric instrument, span, queue, reducer lane, graph write, or scanner worker
+is introduced.
+
+Performance Evidence: the table-driven CLI tests above run under 0.5s on the
+focused-test harness on Go 1.26.3 darwin/arm64 with the local
+authoritative-owner stubs and synthetic readiness envelopes that include
+`package.consumption=4`, `vulnerability.advisory=120`,
+`package.registry=2`, and one fresh `osv/npm` source snapshot. The
+scoped fail-closed path was exercised against synthetic readiness envelopes
+with `vulnerability.advisory.freshness=stale` and
+`source_snapshots[].complete=false`; in both cases scope_plan.stop_threshold
+reflects the downgraded readiness state and the CLI exit code is non-zero.
+Repository size, file count, and wall-clock time on the live `eshu vuln-scan
+repo` workflow are exposed through `data.scan_performance` for operators to
+record per-environment ceilings; the focused tests pin the wall-time only as
+a non-negative integer because the stubbed scan clock advances one second
+per call.
+
 ## Acceptance Gates
 
 Security intelligence work is ready only when all applicable gates pass:
