@@ -423,7 +423,11 @@ errors are surfaced in `collector snapshot stage completed` logs with
   web methods. Rust dead-code roots cover Cargo-shaped `main` functions,
   `build.rs` build scripts, `#[test]`, `#[tokio::test]`, and `#[tokio::main]`
   functions, exact `pub` items, benchmark functions, and methods inside direct
-  trait impl blocks. Rust module rows also carry bounded
+  trait impl blocks. Rust exact-name dispatch also parses `Cargo.toml` and
+  `Cargo.lock` into dependency rows for supply-chain evidence: manifests
+  preserve ranges, scopes, workspace inheritance, target sections, and renamed
+  packages; lockfiles preserve exact crate versions and only emit dependency
+  paths when the lock graph proves reachability. Rust module rows also carry bounded
   `module_resolution_status` metadata when `Engine.ParsePath` can probe direct
   current-file candidates inside the repo root; existing files outside that
   root are not reported as resolved modules. Java call

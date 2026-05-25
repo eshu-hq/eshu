@@ -39,9 +39,11 @@ absence of evidence look like absence of risk. Guard tests:
 
 - **Status `covered`** means the file pattern is parsed end-to-end into a
   `content_entity` dependency row by the parser entrypoint listed in
-  `Source`, locked in by
+  `Source`. JSON-owned entries are locked in by
   `TestDependencyCoverageCoveredFilesEmitDependencyRows` in
-  `go/internal/parser/json/dependency_coverage_test.go`.
+  `go/internal/parser/json/dependency_coverage_test.go`; exact-name entries
+  implemented by another parent parser path, such as Cargo, carry package-level
+  parser fixtures instead.
 - **Status `gap`** means the file is not yet parsed into a dependency row;
   the reducer cannot use it as repository evidence; readiness must report
   the missing family. The matrix still names the file so the gap is visible
@@ -55,8 +57,8 @@ absence of evidence look like absence of risk. Guard tests:
 
 | Ecosystem | File | Kind | Status | Identity | Exact | Range | Scope | Dev/Runtime | Chain | Source | Notes |
 |-----------|------|------|--------|----------|-------|-------|-------|-------------|-------|--------|-------|
-| cargo | Cargo.lock | lockfile | gap | — | — | — | — | — | — | no TOML parser registered in `go/internal/parser/registry.go` | Cargo lockfile is TOML and not yet parsed. |
-| cargo | Cargo.toml | manifest | gap | — | — | — | — | — | — | `go/internal/parser/rust/cargo_cfg.go` parses cfg signals only | Cargo manifests are only scanned for cfg/feature signals; dependency tables are not yet emitted as content_entity facts. |
+| cargo | Cargo.lock | lockfile | covered | ✓ | ✓ | — | ✓ | — | ✓ | `go/internal/parser/rust/cargo_dependencies.go` | Cargo lockfiles emit exact crate versions and dependency paths only when the lock graph proves a package is reachable from a workspace root. |
+| cargo | Cargo.toml | manifest | covered | ✓ | — | ✓ | ✓ | ✓ | — | `go/internal/parser/rust/cargo_dependencies.go` | Cargo manifests emit dependency rows for direct, dev, build, target-specific, workspace-inherited, and renamed package dependencies; transitive chains require Cargo.lock. |
 | composer | composer.json | manifest | covered | ✓ | — | ✓ | ✓ | ✓ | — | `go/internal/parser/json/language.go` (`dependencyVariables`, composer) | `require` and `require-dev` sections emit content_entity rows. |
 | composer | composer.lock | lockfile | covered | ✓ | ✓ | — | ✓ | ✓ | — | `go/internal/parser/json/composer_lock.go` | `packages` and `packages-dev` arrays emit exact-version rows with a `lockfile` flag so the reducer can join manifest ranges to installed PHP versions without dropping the dev/runtime split; transitive chain is not yet derived. |
 | go | go.mod | manifest | gap | — | — | — | — | — | — | `go/internal/parser/go_package_interface_prescan.go` reads go.mod for package interface only | go.mod is read for package-interface prescan but does not emit content_entity dependency facts. |
@@ -86,15 +88,21 @@ absence of evidence look like absence of risk. Guard tests:
   evidence plus Maven registry identity to validate the log4j-core impact
   story end-to-end. Maven impact still relies on registry-side evidence
   alone until `pom.xml` is parsed.
+- Cargo `Cargo.toml` rows preserve manifest package names, renamed package
+  identity, workspace-inherited dependency ranges, target-specific sections,
+  and dev/build/runtime scope. Cargo `Cargo.lock` rows preserve exact resolved
+  crate versions and dependency paths only when the lockfile root graph proves
+  the transitive relationship.
 - Gap files turn into evidence-incomplete readiness states. The MCP and
   HTTP supply-chain reads must keep distinguishing
   `evidence_incomplete` from `ready_zero_findings` so callers cannot
   mistake a Go-only or Maven-only repo for "no vulnerabilities."
 - When a new parser graduates a gap into a covered entry, the PR MUST
   update the matrix, add a covered-fixture entry to
-  `TestDependencyCoverageCoveredFilesEmitDependencyRows`, and add (or
-  extend) a reducer test proving the new evidence path produces a
-  consumption decision.
+  `TestDependencyCoverageCoveredFilesEmitDependencyRows` or an equivalent
+  parent-parser fixture when the implementation cannot live in the JSON
+  package, and add (or extend) a reducer test proving the new evidence path
+  produces a consumption decision.
 
 ## Performance Evidence
 
@@ -122,6 +130,13 @@ in-memory fixture path and adds no Cypher, queue, or storage work. `go test
 evidence, RubyGems Bundler lockfile admission, NuGet lockfile and project
 signals, git/path ambiguity rejection, and the safety-rule negatives without
 touching Postgres or the graph backend.
+
+No-Regression Evidence: Cargo coverage is guarded by
+`go test ./internal/parser -run 'TestCargoDependencyCoverageMatrixMarksCargoFilesCovered|TestDefaultEngineParsePathCargo' -count=1`,
+`go test ./internal/parser/json -run 'TestDependencyCoverageMatrixIsStableAndExhaustive|TestDependencyCoverageCoveredFilesEmitDependencyRows' -count=1`,
+and `go test ./internal/reducer -run 'TestBuildPackageConsumptionDecisions(MatchesCargoRenamedPackage|KeepsCargoLockfileWithoutProofUnchained)|TestBuildSupplyChainImpactFindings(UsesCargoLockfileVersion|MarksCargoLockfileVersionKnownFixed)' -count=1`.
+These are in-memory parser and reducer fixtures; they do not claim queue,
+graph-backend, or hosted-runtime performance.
 
 No-Observability-Change: this change is parser fixture work and reducer
 truth assertions. It introduces no new metric instrument, span, log key,

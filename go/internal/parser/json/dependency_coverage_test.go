@@ -73,6 +73,8 @@ func TestDependencyCoverageMatrixIsStableAndExhaustive(t *testing.T) {
 		"nuget|packages.lock.json",
 		"rubygems|gemfile",
 		"rubygems|gemfile.lock",
+		"cargo|cargo.toml",
+		"cargo|cargo.lock",
 	}
 	for _, key := range requiredCovered {
 		ecosystem, file, _ := strings.Cut(key, "|")
@@ -103,8 +105,6 @@ func TestDependencyCoverageMatrixIsStableAndExhaustive(t *testing.T) {
 		"pom.xml",
 		"build.gradle",
 		"build.gradle.kts",
-		"cargo.toml",
-		"cargo.lock",
 	}
 	for _, file := range requiredGaps {
 		entry, ok := DependencyCoverageByFile(file)
@@ -273,8 +273,10 @@ DEPENDENCIES
 		if entry.Status != DependencyCoverageCovered {
 			continue
 		}
-		if strings.Contains(entry.FilePattern, "*") {
-			// Non-JSON wildcard manifests are covered by parser package tests.
+		if strings.Contains(entry.FilePattern, "*") || entry.Ecosystem == "cargo" {
+			// Non-JSON and wildcard entries are covered by parent-parser tests.
+			// The JSON package owns the matrix but cannot import the parent
+			// parser without creating an import cycle.
 			continue
 		}
 		fixture, ok := fixtures[entry.FilePattern]

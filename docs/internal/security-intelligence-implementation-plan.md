@@ -223,6 +223,28 @@ explain whether impact came from exact lockfile evidence, a manifest range, an
 image/SBOM path, or source-only advisory intelligence. No package names,
 versions, URLs, delivery IDs, or credential material were added to metric labels.
 
+Status 2026-05-25: Cargo dependency coverage now parses `Cargo.toml` and
+`Cargo.lock` through the Rust parser exact-name path. Manifest rows preserve
+direct dependency ranges, dev/build/runtime scope, target-specific dependency
+sections, workspace-inherited dependency rows, and renamed package identity.
+Lockfile rows preserve exact crate versions and emit dependency path/depth
+metadata only when the lockfile root graph proves reachability. Cargo exact
+versions participate in the reducer-owned semver matcher with Cargo-specific
+match reasons instead of falling through the unsupported-ecosystem path.
+
+No-Regression Evidence:
+
+- `go test ./internal/parser -run 'TestCargoDependencyCoverageMatrixMarksCargoFilesCovered|TestDefaultEngineParsePathCargo' -count=1`
+- `go test ./internal/parser/json -run 'TestDependencyCoverageMatrixIsStableAndExhaustive|TestDependencyCoverageCoveredFilesEmitDependencyRows' -count=1`
+- `go test ./internal/reducer -run 'TestBuildPackageConsumptionDecisions(MatchesCargoRenamedPackage|KeepsCargoLockfileWithoutProofUnchained)|TestBuildSupplyChainImpactFindings(UsesCargoLockfileVersion|MarksCargoLockfileVersionKnownFixed)' -count=1`
+
+No-Observability-Change: Cargo coverage reuses existing parser payloads,
+`content_entity` dependency rows, package-consumption facts,
+`reducer_supply_chain_impact_finding`, `match_reason`, and the existing
+`query.supply_chain_impact_findings` read span. It adds no metric instrument,
+span, log key, queue, reducer lane, graph write, scanner worker, or runtime
+configuration knob.
+
 No-Regression Evidence: `go test ./internal/packageidentity ./internal/collector/packageregistry ./internal/collector/vulnerabilityintelligence ./internal/reducer ./internal/projector ./internal/storage/cypher ./internal/query -count=1`
 proves #602 package identity fields normalize at the collector boundary,
 survive graph projection, keep OSV/GLAD affected-package facts on canonical

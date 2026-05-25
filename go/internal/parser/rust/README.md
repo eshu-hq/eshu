@@ -6,7 +6,8 @@ This package owns Rust-specific tree-sitter payload extraction for functions,
 types, modules, traits, impl blocks, imports, macro definitions and invocations,
 calls, constants, statics, type aliases, root metadata, attributes, derives, and
 generic parameter metadata, conditional derive evidence, nested field and enum
-variant attributes, and structured where-clause evidence.
+variant attributes, structured where-clause evidence, and Cargo dependency
+evidence for `Cargo.toml` and `Cargo.lock`.
 
 ## Rust parse flow
 
@@ -15,7 +16,8 @@ flowchart LR
     Parent["parent parser Engine"]
     Source["Rust source"]
     Parse["rust.Parse"]
-    Cargo["bounded Cargo.toml cfg scanner"]
+    Cargo["bounded Cargo.toml cfg and dependency scanners"]
+    Lockfile["Cargo.lock dependency evidence"]
     Modules["module candidate resolver"]
     Payload["items, calls, imports, roots, cfg blockers"]
     Collector["collector materialization"]
@@ -23,14 +25,17 @@ flowchart LR
     Parent --> Parse
     Source --> Parse
     Cargo --> Parse
+    Lockfile --> Parse
     Parse --> Modules
     Modules --> Payload
     Parse --> Payload
     Payload --> Collector
 ```
 
-The adapter records syntactic Rust evidence and bounded module candidates. It
-does not expand macros or solve Cargo features.
+The adapter records syntactic Rust evidence, bounded module candidates, direct
+Cargo manifest dependency rows, and exact lockfile dependency rows. It does not
+expand macros, solve Cargo features, or infer transitive dependency paths unless
+`Cargo.lock` proves the path from a workspace root package.
 
 ## Ownership Boundary
 
@@ -42,9 +47,11 @@ method signatures.
 ## Exported Surface
 
 The package exposes `Parse` for full payload extraction, `PreScan` for
-dependency symbol discovery, and `ResolveModuleRowFileCandidates` with
-`ModuleResolution` for filesystem candidate calculation from parser-emitted
-module rows. `doc.go` carries the godoc contract for callers.
+dependency symbol discovery, `IsCargoDependencyFile` and
+`ParseCargoDependencyFile` for parent exact-name dispatch of Cargo dependency
+files, and `ResolveModuleRowFileCandidates` with `ModuleResolution` for
+filesystem candidate calculation from parser-emitted module rows. `doc.go`
+carries the godoc contract for callers.
 
 ## Dependencies
 
@@ -105,19 +112,26 @@ macro-origin module and import rows carry
 
 `parseCargoCfgManifest` is an intentionally bounded Cargo.toml scanner for the
 signals future cfg resolution needs: package name, workspace members, feature
-names, default feature members, and target cfg dependency sections. It ignores
-dynamic or unsupported TOML instead of guessing. `ResolveModuleRowFileCandidates`
-does not probe the filesystem; it returns Rust's candidate paths for direct
-module declarations, honors explicit `#[path = "..."]` rows, and leaves
-macro-origin rows blocked. The parent parser engine uses that helper during
-ParsePath to annotate module rows with repo-bounded
+names, default feature members, and target cfg dependency sections. Cargo
+dependency parsing is separate: `Cargo.toml` emits direct dependency rows for
+normal, dev, build, target-specific, workspace-inherited, and renamed package
+dependencies, while `Cargo.lock` emits exact resolved crate versions. Lockfile
+dependency paths are emitted only when a source-empty root package proves the
+reachable chain and each dependency edge resolves uniquely. Unsupported or
+ambiguous Cargo dependency shapes are skipped instead of guessed.
+`ResolveModuleRowFileCandidates` does not probe the filesystem; it returns
+Rust's candidate paths for direct module declarations, honors explicit
+`#[path = "..."]` rows, and leaves macro-origin rows blocked. The parent parser
+engine uses that helper during ParsePath to annotate module rows with
+repo-bounded
 `resolved_path_candidates`, `resolved_path`, and `module_resolution_status`
 when the current repo root is available. Existing files outside the repo root do
 not become resolved module evidence.
 
 Arbitrary macro expansion, Cargo feature selection, cfg evaluation, workspace
-feature solving, and cross-crate semantic module resolution are still not
-modeled. Add package-local tests before widening either claim.
+feature solving, manifest-to-lockfile feature resolution, and cross-crate
+semantic module resolution are still not modeled. Add package-local tests before
+widening either claim.
 
 ## Related Docs
 

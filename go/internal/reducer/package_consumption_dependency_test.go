@@ -274,3 +274,82 @@ func TestBuildPackageConsumptionDecisionsPreservesNuGetProjectSignals(t *testing
 		t.Fatalf("DevelopmentOnly/TestDependency = %v/%v, want true/true", decision.DevelopmentOnly, decision.TestDependency)
 	}
 }
+
+func TestBuildPackageConsumptionDecisionsKeepsCargoLockfileWithoutProofUnchained(t *testing.T) {
+	t.Parallel()
+
+	observedAt := time.Date(2026, 5, 25, 11, 0, 0, 0, time.UTC)
+	decisions := BuildPackageConsumptionDecisions([]facts.Envelope{
+		packageRegistryPackageFact("cargo://crates.io/ambiguous", "cargo", "ambiguous", "", observedAt),
+		packageSourceRepositoryFact("repo-rust", "rust-api", "https://github.com/example/rust-api", false, observedAt),
+		packageManifestDependencyFactWithMetadata(
+			"repo-rust",
+			"rust-api",
+			"Cargo.lock",
+			"ambiguous",
+			"cargo",
+			"0.1.0",
+			observedAt,
+			map[string]any{
+				"section":  "cargo-lock",
+				"lockfile": true,
+			},
+		),
+	})
+
+	if got, want := len(decisions), 1; got != want {
+		t.Fatalf("len(decisions) = %d, want %d", got, want)
+	}
+	decision := decisions[0]
+	if len(decision.DependencyPath) != 0 {
+		t.Fatalf("DependencyPath = %#v, want empty without Cargo.lock reachability proof", decision.DependencyPath)
+	}
+	if decision.DependencyDepth != 0 {
+		t.Fatalf("DependencyDepth = %d, want 0 without Cargo.lock reachability proof", decision.DependencyDepth)
+	}
+	if decision.DirectDependency != nil {
+		t.Fatalf("DirectDependency = %#v, want nil without Cargo.lock reachability proof", decision.DirectDependency)
+	}
+}
+
+func TestBuildPackageConsumptionDecisionsMatchesCargoRenamedPackage(t *testing.T) {
+	t.Parallel()
+
+	observedAt := time.Date(2026, 5, 25, 10, 0, 0, 0, time.UTC)
+	decisions := BuildPackageConsumptionDecisions([]facts.Envelope{
+		packageRegistryPackageFact("cargo://crates.io/serde_json", "cargo", "serde_json", "", observedAt),
+		packageSourceRepositoryFact("repo-rust", "rust-api", "https://github.com/example/rust-api", false, observedAt),
+		packageManifestDependencyFactWithMetadata(
+			"repo-rust",
+			"rust-api",
+			"Cargo.toml",
+			"serde_json",
+			"cargo",
+			"1.0",
+			observedAt,
+			map[string]any{
+				"section":          "dependencies",
+				"dependency_scope": "runtime",
+				"dependency_alias": "json",
+				"manifest_name":    "json",
+			},
+		),
+	})
+
+	if got, want := len(decisions), 1; got != want {
+		t.Fatalf("len(decisions) = %d, want %d", got, want)
+	}
+	decision := decisions[0]
+	if got, want := decision.PackageID, "cargo://crates.io/serde_json"; got != want {
+		t.Fatalf("PackageID = %q, want %q", got, want)
+	}
+	if got, want := decision.Ecosystem, "cargo"; got != want {
+		t.Fatalf("Ecosystem = %q, want %q", got, want)
+	}
+	if got, want := decision.PackageName, "serde_json"; got != want {
+		t.Fatalf("PackageName = %q, want canonical Cargo package identity %q", got, want)
+	}
+	if got, want := decision.DependencyRange, "1.0"; got != want {
+		t.Fatalf("DependencyRange = %q, want %q", got, want)
+	}
+}

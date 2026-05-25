@@ -309,6 +309,7 @@ func defaultDefinitions() []Definition {
 			ParserKey:  "rust",
 			Language:   "rust",
 			Extensions: []string{".rs"},
+			ExactNames: []string{"Cargo.toml", "Cargo.lock"},
 		},
 		{
 			ParserKey:  "scala",

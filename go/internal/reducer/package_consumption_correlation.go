@@ -361,8 +361,8 @@ func packageManifestDependencyNeedsProvenChain(dependency packageManifestDepende
 	if dependency.Lockfile {
 		return true
 	}
-	if strings.EqualFold(dependency.ManifestSection, "package-lock") ||
-		strings.EqualFold(dependency.ManifestSection, "gemfile.lock") {
+	switch strings.ToLower(strings.TrimSpace(dependency.ManifestSection)) {
+	case "package-lock", "gemfile.lock", "cargo-lock":
 		return true
 	}
 	return packageidentity.NormalizeEcosystem(packageidentity.Ecosystem(dependency.PackageManager)) ==

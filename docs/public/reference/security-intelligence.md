@@ -481,26 +481,45 @@ contract.
 
 For the supply-chain impact reducer, the practical implications are:
 
-- npm `package.json` and `package-lock.json`, plus PHP Composer
-  `composer.json` and `composer.lock`, and Ruby Bundler `Gemfile` /
-  `Gemfile.lock`, plus NuGet `.csproj` PackageReference and
-  `packages.lock.json`, produce repository consumption decisions when joined
-  to package-registry identity. Composer lockfile rows carry exact installed
+- npm `package.json` and `package-lock.json`, PHP Composer `composer.json` and
+  `composer.lock`, Ruby Bundler `Gemfile` and `Gemfile.lock`, NuGet `.csproj`
+  PackageReference and `packages.lock.json`, and Rust Cargo `Cargo.toml` and
+  `Cargo.lock` produce repository consumption decisions when joined to
+  package-registry identity. Composer lockfile rows carry exact installed
   versions and a `lockfile: true` flag, so the reducer reports
   `direct_dependency: null` rather than guessing directness when no manifest
-  range was also observed. Bundler git/path sources are preserved as
-  ambiguous source evidence and are not admitted as public RubyGems registry
-  consumption. NuGet lockfile rows carry exact resolved versions plus
-  dependency path/directness when the lockfile proves the chain, while
-  `.csproj` rows preserve requested versions, MSBuild property partial
-  evidence, and PrivateAssets dev/test signals.
-- Maven, Go, PyPI, Rust, Gradle, and Yarn/pnpm sources have no
+  range was also observed. Bundler git/path sources are preserved as ambiguous
+  source evidence and are not admitted as public RubyGems registry consumption.
+  NuGet lockfile rows carry exact resolved versions plus dependency
+  path/directness when the lockfile proves the chain, while `.csproj` rows
+  preserve requested versions, MSBuild property partial evidence, and
+  PrivateAssets dev/test signals.
+- Cargo manifests preserve direct dependency ranges, dev/build/runtime scope,
+  workspace-inherited dependency rows, target-specific dependency sections, and
+  renamed package identity. Cargo lockfiles preserve exact crate versions and
+  dependency paths only when the lockfile root graph proves reachability.
+- Maven, Go, PyPI, Gradle, and Yarn/pnpm sources have no
   repository-side dependency parser yet, so their impact reads must surface
   the missing-evidence reason instead of returning `ready_zero_findings`.
 - When a parser graduates a file from gap to covered, the matrix MUST be
   updated in the same PR, the covered-fixture guard MUST grow a row, and a
   reducer test MUST prove the new evidence path can produce a consumption
   decision.
+
+No-Regression Evidence: Cargo dependency coverage is guarded by
+`go test ./internal/parser -run 'TestCargoDependencyCoverageMatrixMarksCargoFilesCovered|TestDefaultEngineParsePathCargo' -count=1`,
+`go test ./internal/parser/json -run 'TestDependencyCoverageMatrixIsStableAndExhaustive|TestDependencyCoverageCoveredFilesEmitDependencyRows' -count=1`,
+and `go test ./internal/reducer -run 'TestBuildPackageConsumptionDecisions(MatchesCargoRenamedPackage|KeepsCargoLockfileWithoutProofUnchained)|TestBuildSupplyChainImpactFindings(UsesCargoLockfileVersion|MarksCargoLockfileVersionKnownFixed)' -count=1`.
+The fixtures prove parser evidence, coverage-matrix truth, renamed Cargo
+package correlation, unproven lockfile-chain suppression, and exact
+lockfile-version impact matching without graph, queue, or hosted runtime work.
+
+No-Observability-Change: Cargo coverage reuses existing parser payloads,
+`content_entity` dependency facts, package-consumption correlation facts,
+`reducer_supply_chain_impact_finding`, `match_reason`, and the existing
+`query.supply_chain_impact_findings` read span. It adds no metric instrument,
+span, log key, queue, reducer lane, graph write, scanner worker, or runtime
+configuration knob.
 
 ## Advisory Source Coverage
 
@@ -591,8 +610,8 @@ finding. It does not infer reachability or deployment truth from provider
 alerts, image tags, workload names, service names, environment names, or
 repository names.
 
-Version and range matching is reducer-owned and ecosystem-aware. The first
-supported matchers are npm semver over OSV-style event ranges and GLAD-style
+Version and range matching is reducer-owned and ecosystem-aware. The supported
+matchers are npm and Cargo semver over OSV-style event ranges and GLAD-style
 comparator ranges, NuGet semantic versions from exact lockfile or pinned
 manifest evidence, plus Maven version/range ordering for Maven bracket and
 comparator ranges. Findings preserve `observed_version`, `requested_range`,
