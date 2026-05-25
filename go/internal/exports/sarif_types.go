@@ -1,0 +1,132 @@
+package exports
+
+// SARIF v2.1.0 wire types.
+//
+// These are intentionally narrow: only the SARIF fields the Eshu writer
+// actually emits today are modeled. Add a field here when you start
+// populating it in sarif.go and remove it when it leaves the output. The
+// `omitempty` strategy keeps the JSON shape stable; adding a new field with
+// a zero value will not move existing golden fixtures.
+
+type sarifLog struct {
+	Schema  string     `json:"$schema"`
+	Version string     `json:"version"`
+	Runs    []sarifRun `json:"runs"`
+}
+
+type sarifRun struct {
+	Tool        sarifTool         `json:"tool"`
+	Invocations []sarifInvocation `json:"invocations,omitempty"`
+	Results     []sarifResult     `json:"results"`
+	Properties  *sarifProperties  `json:"properties,omitempty"`
+}
+
+type sarifTool struct {
+	Driver sarifDriver `json:"driver"`
+}
+
+type sarifDriver struct {
+	Name           string      `json:"name"`
+	Version        string      `json:"version,omitempty"`
+	InformationURI string      `json:"informationUri,omitempty"`
+	Rules          []sarifRule `json:"rules,omitempty"`
+}
+
+type sarifRule struct {
+	ID                   string              `json:"id"`
+	Name                 string              `json:"name,omitempty"`
+	ShortDescription     *sarifMessage       `json:"shortDescription,omitempty"`
+	FullDescription      *sarifMessage       `json:"fullDescription,omitempty"`
+	HelpURI              string              `json:"helpUri,omitempty"`
+	DefaultConfiguration *sarifConfiguration `json:"defaultConfiguration,omitempty"`
+	Properties           *sarifRuleProps     `json:"properties,omitempty"`
+}
+
+type sarifConfiguration struct {
+	Level string `json:"level,omitempty"`
+}
+
+type sarifMessage struct {
+	Text string `json:"text"`
+}
+
+type sarifResult struct {
+	RuleID              string            `json:"ruleId"`
+	RuleIndex           int               `json:"ruleIndex"`
+	Level               string            `json:"level,omitempty"`
+	Message             sarifMessage      `json:"message"`
+	Locations           []sarifLocation   `json:"locations,omitempty"`
+	PartialFingerprints map[string]string `json:"partialFingerprints,omitempty"`
+	Properties          *sarifResultProps `json:"properties,omitempty"`
+}
+
+type sarifLocation struct {
+	PhysicalLocation sarifPhysicalLocation `json:"physicalLocation"`
+}
+
+type sarifPhysicalLocation struct {
+	ArtifactLocation sarifArtifactLocation `json:"artifactLocation"`
+	Region           *sarifRegion          `json:"region,omitempty"`
+}
+
+type sarifArtifactLocation struct {
+	URI string `json:"uri"`
+}
+
+type sarifRegion struct {
+	StartLine int `json:"startLine,omitempty"`
+	EndLine   int `json:"endLine,omitempty"`
+}
+
+type sarifInvocation struct {
+	ExecutionSuccessful bool   `json:"executionSuccessful"`
+	StartTimeUTC        string `json:"startTimeUtc,omitempty"`
+	EndTimeUTC          string `json:"endTimeUtc,omitempty"`
+}
+
+// sarifProperties carries Eshu-vendor properties on a SARIF run. Every key
+// is prefixed with `eshu.` so it does not collide with SARIF reserved
+// property names.
+type sarifProperties struct {
+	Scope            string `json:"eshu.scope"`
+	GeneratedAt      string `json:"eshu.generatedAt,omitempty"`
+	TruncatedScope   bool   `json:"eshu.truncatedScope,omitempty"`
+	DroppedFindings  int    `json:"eshu.droppedFindings,omitempty"`
+	RedactedPaths    int    `json:"eshu.redactedPaths,omitempty"`
+	FormatVersion    string `json:"eshu.formatVersion"`
+	SnapshotEvidence string `json:"eshu.snapshotEvidence,omitempty"`
+}
+
+// sarifRuleProps carries vendor-prefixed advisory metadata on a SARIF rule.
+type sarifRuleProps struct {
+	Severity        string                  `json:"eshu.severity,omitempty"`
+	CVSSScore       float64                 `json:"eshu.cvssScore,omitempty"`
+	CVSSVector      string                  `json:"eshu.cvssVector,omitempty"`
+	EPSSProbability string                  `json:"eshu.epssProbability,omitempty"`
+	KnownExploited  bool                    `json:"eshu.knownExploited,omitempty"`
+	Ecosystem       string                  `json:"eshu.ecosystem,omitempty"`
+	PURL            string                  `json:"eshu.purl,omitempty"`
+	AdvisorySources []sarifAdvisorySourceJS `json:"eshu.advisorySources,omitempty"`
+	Tags            []string                `json:"tags,omitempty"`
+}
+
+// sarifAdvisorySourceJS is the wire shape for one [AdvisorySource]. Field
+// names are identical to [AdvisorySource] so [AdvisorySource] is convertible
+// to this type without copying field-by-field.
+type sarifAdvisorySourceJS struct {
+	Source     string `json:"source"`
+	AdvisoryID string `json:"advisoryId,omitempty"`
+	URL        string `json:"url,omitempty"`
+}
+
+// sarifResultProps carries vendor-prefixed evidence metadata on a SARIF
+// result.
+type sarifResultProps struct {
+	FindingID       string `json:"eshu.findingId"`
+	PackageID       string `json:"eshu.packageId,omitempty"`
+	PackageName     string `json:"eshu.packageName,omitempty"`
+	ObservedVersion string `json:"eshu.observedVersion,omitempty"`
+	FixedVersion    string `json:"eshu.fixedVersion,omitempty"`
+	RepositoryID    string `json:"eshu.repositoryId,omitempty"`
+	SubjectDigest   string `json:"eshu.subjectDigest,omitempty"`
+}
