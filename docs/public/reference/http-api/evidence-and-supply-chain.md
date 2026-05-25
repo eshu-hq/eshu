@@ -152,12 +152,13 @@ Lists reducer-owned vulnerability impact findings. The caller must provide
 - `subject_digest`
 - `impact_status`
 - `priority_bucket`
-- `min_priority_score`
+- `min_priority_score` greater than `0`
 
 Valid impact statuses are `affected_exact`, `affected_derived`,
 `possibly_affected`, `not_affected_known_fixed`, and `unknown_impact`.
 Valid priority buckets are `critical`, `high`, `medium`, `low`, and
-`informational`. `min_priority_score` accepts `0` through `100`. `sort` accepts
+`informational`. `min_priority_score` accepts `0` through `100`; `0` is the
+default no-op value and does not count as a bounded anchor by itself. `sort` accepts
 `finding_id`, `priority`, `priority_score_desc`, or `priority_score_asc`; the
 priority sorts page by `(priority_score, finding_id)` so cursor paging does not
 drop lower-priority rows.

@@ -149,7 +149,7 @@ func (h *SupplyChainHandler) listImpactFindings(w http.ResponseWriter, r *http.R
 		Limit:            limit + 1,
 	}
 	if !filter.hasScope() {
-		WriteError(w, http.StatusBadRequest, "cve_id, package_id, repository_id, subject_digest, impact_status, priority_bucket, or min_priority_score is required")
+		WriteError(w, http.StatusBadRequest, "cve_id, package_id, repository_id, subject_digest, impact_status, priority_bucket, or min_priority_score > 0 is required")
 		return
 	}
 	if h.ImpactFindings == nil {

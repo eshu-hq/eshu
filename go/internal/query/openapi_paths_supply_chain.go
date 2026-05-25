@@ -62,7 +62,7 @@ const openAPIPathsSupplyChain = `
           {"name": "impact_status", "in": "query", "schema": {"type": "string", "enum": ["affected_exact", "affected_derived", "possibly_affected", "not_affected_known_fixed", "unknown_impact"]}},
           {"name": "profile", "in": "query", "schema": {"type": "string", "enum": ["precise", "comprehensive"], "default": "precise"}, "description": "Detection profile selector. precise (default) returns only findings backed by exact installed-version anchors. comprehensive also returns range-only manifest, SBOM/CPE-derived, malformed range, unsupported ecosystem, and missing-version rows. Each row keeps its truth labels (impact_status, confidence, runtime_reachability) and missing-evidence reasons."},
           {"name": "priority_bucket", "in": "query", "schema": {"type": "string", "enum": ["critical", "high", "medium", "low", "informational"]}, "description": "Reducer triage priority filter; does not change impact truth."},
-          {"name": "min_priority_score", "in": "query", "schema": {"type": "integer", "minimum": 0, "maximum": 100}},
+          {"name": "min_priority_score", "in": "query", "schema": {"type": "integer", "minimum": 0, "maximum": 100}, "description": "Minimum reducer priority score. Zero is the default no-op value and does not bound a request by itself."},
           {"name": "sort", "in": "query", "schema": {"type": "string", "enum": ["finding_id", "priority", "priority_score_desc", "priority_score_asc"]}},
           {"name": "after_finding_id", "in": "query", "schema": {"type": "string"}},
           {"name": "limit", "in": "query", "required": true, "schema": {"type": "integer", "minimum": 1, "maximum": 200}}

@@ -158,7 +158,7 @@ func (s PostgresSupplyChainImpactFindingStore) ListSupplyChainImpactFindings(
 		return nil, fmt.Errorf("supply chain impact finding database is required")
 	}
 	if !filter.hasScope() {
-		return nil, fmt.Errorf("cve_id, package_id, repository_id, subject_digest, impact_status, priority_bucket, or min_priority_score is required")
+		return nil, fmt.Errorf("cve_id, package_id, repository_id, subject_digest, impact_status, priority_bucket, or min_priority_score > 0 is required")
 	}
 	if filter.Limit <= 0 || filter.Limit > supplyChainImpactFindingMaxLimit+1 {
 		return nil, fmt.Errorf("limit must be between 1 and %d for internal pagination", supplyChainImpactFindingMaxLimit+1)

@@ -93,6 +93,28 @@ func TestSupplyChainListImpactFindingsRejectsInvalidPriorityFilters(t *testing.T
 	}
 }
 
+func TestSupplyChainListImpactFindingsRejectsZeroMinPriorityAsOnlyScope(t *testing.T) {
+	t.Parallel()
+
+	handler := &SupplyChainHandler{ImpactFindings: &recordingSupplyChainImpactFindingStore{}}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"/api/v0/supply-chain/impact/findings?limit=10&min_priority_score=0",
+		nil,
+	)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+	if got, want := w.Code, http.StatusBadRequest; got != want {
+		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
+	}
+	if !strings.Contains(w.Body.String(), "min_priority_score > 0") {
+		t.Fatalf("body = %q, want min_priority_score > 0 scope guidance", w.Body.String())
+	}
+}
+
 func TestDecodeSupplyChainImpactFindingRowPreservesPriority(t *testing.T) {
 	t.Parallel()
 

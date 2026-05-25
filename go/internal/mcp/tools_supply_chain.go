@@ -79,7 +79,7 @@ func supplyChainTools() []ToolDefinition {
 					},
 					"min_priority_score": map[string]any{
 						"type":        "integer",
-						"description": "Minimum reducer priority score from 0 through 100.",
+						"description": "Minimum reducer priority score from 0 through 100. Zero is the default no-op value and does not bound a request by itself.",
 						"default":     0,
 						"minimum":     0,
 						"maximum":     100,
