@@ -125,7 +125,16 @@ canonical graph or reducer truth.
   not-affected, accepted-risk, false-positive, ignored, expired,
   provider-dismissed, and scope-mismatched findings without losing the
   authoring source, justification, author, timestamps, evidence reference, or
-  VEX document/statement IDs.
+  VEX document/statement IDs. Every row also carries a `Remediation` block
+  (issue #595) with the installed version, vulnerable range, first patched
+  version, every published fixed-version branch, manifest range,
+  manifest_allows_fix tri-state, direct/transitive designation,
+  parent_package required for transitive upgrades, ecosystem, an
+  exact|partial|unknown confidence label, and a closed reason enum so API
+  and MCP callers can explain the advisory-only safe-upgrade path without
+  re-reading raw advisory or lockfile facts. Older rows that predate
+  remediation computation expose a nil `Remediation`; callers must treat
+  that as "no remediation computed yet," not "no fix available."
 
 **Handler structs**
 

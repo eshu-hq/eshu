@@ -116,6 +116,11 @@ type SupplyChainImpactFinding struct {
 	// payload so API and MCP callers can include or exclude suppressed
 	// findings and explain the rationale.
 	Suppression SupplyChainSuppressionDecision
+	// Remediation is the advisory-only safe-upgrade recommendation Eshu
+	// computes for this finding (issue #595). The reducer never auto-opens
+	// pull requests; this block exists so API and MCP callers can explain
+	// the upgrade path without re-reading raw advisory or lockfile facts.
+	Remediation SupplyChainImpactRemediation
 }
 
 // SupplyChainImpactWrite carries findings for durable publication.
@@ -184,6 +189,7 @@ func (h SupplyChainImpactHandler) Handle(ctx context.Context, intent Intent) (Re
 	}
 	counts := supplyChainImpactCounts(findings)
 	suppressionCounts := supplyChainSuppressionCounts(findings)
+	remediationCounts := supplyChainRemediationCounts(findings)
 	writeResult, err := h.Writer.WriteSupplyChainImpactFindings(ctx, SupplyChainImpactWrite{
 		IntentID:     intent.IntentID,
 		ScopeID:      intent.ScopeID,
@@ -195,7 +201,7 @@ func (h SupplyChainImpactHandler) Handle(ctx context.Context, intent Intent) (Re
 	if err != nil {
 		return Result{}, fmt.Errorf("write supply chain impact findings: %w", err)
 	}
-	h.emitCounters(ctx, counts, suppressionCounts)
+	h.emitCounters(ctx, counts, suppressionCounts, remediationCounts)
 
 	return Result{
 		IntentID:        intent.IntentID,
@@ -258,6 +264,7 @@ func (h SupplyChainImpactHandler) emitCounters(
 	ctx context.Context,
 	counts map[SupplyChainImpactStatus]int,
 	suppressionCounts map[SupplyChainSuppressionState]int,
+	remediationCounts map[supplyChainRemediationKey]int,
 ) {
 	if h.Instruments == nil {
 		return
@@ -271,18 +278,52 @@ func (h SupplyChainImpactHandler) emitCounters(
 			telemetry.AttrOutcome(string(status)),
 		))
 	}
-	if h.Instruments.SupplyChainSuppressionDecisions == nil {
-		return
+	if h.Instruments.SupplyChainSuppressionDecisions != nil {
+		for _, state := range SupplyChainSuppressionStates() {
+			if suppressionCounts[state] == 0 {
+				continue
+			}
+			h.Instruments.SupplyChainSuppressionDecisions.Add(ctx, int64(suppressionCounts[state]), metric.WithAttributes(
+				telemetry.AttrDomain(string(DomainSupplyChainImpact)),
+				telemetry.AttrOutcome(string(state)),
+			))
+		}
 	}
-	for _, state := range SupplyChainSuppressionStates() {
-		if suppressionCounts[state] == 0 {
+	if h.Instruments.SupplyChainRemediationDecisions != nil {
+		for key, count := range remediationCounts {
+			if count == 0 {
+				continue
+			}
+			h.Instruments.SupplyChainRemediationDecisions.Add(ctx, int64(count), metric.WithAttributes(
+				telemetry.AttrDomain(string(DomainSupplyChainImpact)),
+				telemetry.AttrOutcome(key.confidence),
+				telemetry.AttrReason(key.reason),
+			))
+		}
+	}
+}
+
+// supplyChainRemediationKey bounds the remediation counter cardinality to
+// the closed product of (confidence, reason) labels.
+type supplyChainRemediationKey struct {
+	confidence string
+	reason     string
+}
+
+func supplyChainRemediationCounts(findings []SupplyChainImpactFinding) map[supplyChainRemediationKey]int {
+	out := make(map[supplyChainRemediationKey]int)
+	for _, finding := range findings {
+		confidence := strings.TrimSpace(finding.Remediation.Confidence)
+		reason := strings.TrimSpace(finding.Remediation.Reason)
+		if confidence == "" && reason == "" {
 			continue
 		}
-		h.Instruments.SupplyChainSuppressionDecisions.Add(ctx, int64(suppressionCounts[state]), metric.WithAttributes(
-			telemetry.AttrDomain(string(DomainSupplyChainImpact)),
-			telemetry.AttrOutcome(string(state)),
-		))
+		if confidence == "" {
+			confidence = SupplyChainRemediationConfidenceUnknown
+		}
+		out[supplyChainRemediationKey{confidence: confidence, reason: reason}]++
 	}
+	return out
 }
 
 // BuildSupplyChainImpactFindings classifies vulnerability source facts against
@@ -336,6 +377,7 @@ func appendSupplyChainImpactFinding(
 	}
 	finding.DetectionProfile = classifySupplyChainImpactDetectionProfile(finding)
 	finding = withSupplyChainImpactPriority(finding)
+	finding.Remediation = BuildSupplyChainImpactRemediation(finding)
 	return append(findings, finding)
 }
 

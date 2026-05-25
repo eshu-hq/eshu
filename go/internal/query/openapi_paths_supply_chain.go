@@ -136,6 +136,34 @@ const openAPIPathsSupplyChain = `
                             },
                             "required": ["state"]
                           },
+                          "remediation": {
+                            "type": "object",
+                            "description": "Advisory-only safe-upgrade recommendation for this finding (issue #595). The reducer never auto-opens pull requests. confidence is one of exact, partial, or unknown; reason is a closed enum that names the recommended action; manifest_allows_fix labels whether the manifest range already admits the first patched version. Older rows that predate remediation computation omit this block.",
+                            "properties": {
+                              "ecosystem": {"type": "string"},
+                              "current_version": {"type": "string"},
+                              "vulnerable_range": {"type": "string"},
+                              "first_patched_version": {"type": "string"},
+                              "patched_version_branches": {
+                                "type": "array",
+                                "items": {
+                                  "type": "object",
+                                  "properties": {
+                                    "version": {"type": "string"},
+                                    "source": {"type": "string"}
+                                  },
+                                  "required": ["version", "source"]
+                                }
+                              },
+                              "manifest_range": {"type": "string"},
+                              "manifest_allows_fix": {"type": "string", "enum": ["allowed", "blocked", "unknown"]},
+                              "direct": {"type": "boolean"},
+                              "parent_package": {"type": "string"},
+                              "confidence": {"type": "string", "enum": ["exact", "partial", "unknown"]},
+                              "reason": {"type": "string", "enum": ["direct_upgrade_allowed", "direct_range_blocked", "transitive_parent_upgrade_required", "no_patched_version", "multiple_patched_branches", "package_manager_unsupported", "manifest_range_missing", "manifest_range_malformed", "installed_version_missing", "installed_version_malformed"]},
+                              "missing_evidence": {"type": "array", "items": {"type": "string"}}
+                            }
+                          },
                           "provenance": {
                             "type": "object",
                             "description": "Per-source advisory provenance. Reducers preserve every source observation behind a finding so callers see which advisory source supplied the selected severity, fixed version, and vulnerable range plus alternates other sources reported. Selection uses documented per-ecosystem priority (vendor advisory for OS package classes, GHSA/GLAD/OSV/NVD for language ecosystems).",
@@ -420,6 +448,34 @@ const openAPIPathsSupplyChain = `
                         "evidence_fact_count": {"type": "integer"}
                       },
                       "required": ["state", "evidence_fact_count"]
+                    },
+                    "remediation": {
+                      "type": "object",
+                      "description": "Advisory-only safe-upgrade recommendation for this finding (issue #595). Mirrors the remediation block on the finding row and enriches it with vulnerable_range, manifest_range, observed_version, and dependency direct/transitive evidence pulled from the referenced source facts. The reducer never auto-opens pull requests; this block is strictly advisory.",
+                      "properties": {
+                        "ecosystem": {"type": "string"},
+                        "current_version": {"type": "string"},
+                        "vulnerable_range": {"type": "string"},
+                        "first_patched_version": {"type": "string"},
+                        "patched_version_branches": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "version": {"type": "string"},
+                              "source": {"type": "string"}
+                            },
+                            "required": ["version", "source"]
+                          }
+                        },
+                        "manifest_range": {"type": "string"},
+                        "manifest_allows_fix": {"type": "string", "enum": ["allowed", "blocked", "unknown"]},
+                        "direct": {"type": "boolean"},
+                        "parent_package": {"type": "string"},
+                        "confidence": {"type": "string", "enum": ["exact", "partial", "unknown"]},
+                        "reason": {"type": "string", "enum": ["direct_upgrade_allowed", "direct_range_blocked", "transitive_parent_upgrade_required", "no_patched_version", "multiple_patched_branches", "package_manager_unsupported", "manifest_range_missing", "manifest_range_malformed", "installed_version_missing", "installed_version_malformed"]},
+                        "missing_evidence": {"type": "array", "items": {"type": "string"}}
+                      }
                     }
                   },
                   "required": ["outcome", "input", "advisory", "component", "version", "anchors", "evidence", "readiness", "freshness"]

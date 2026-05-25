@@ -61,6 +61,11 @@ type SupplyChainImpactExplanationResult struct {
 	Readiness       SupplyChainImpactReadinessEnvelope     `json:"readiness"`
 	MissingEvidence []string                               `json:"missing_evidence,omitempty"`
 	Freshness       SupplyChainImpactExplanationFreshness  `json:"freshness"`
+	// Remediation is the reducer-owned advisory-only safe-upgrade
+	// recommendation enriched with vulnerable-range evidence from the
+	// referenced advisory facts (issue #595). Nil when the finding is too
+	// old to carry remediation metadata.
+	Remediation *SupplyChainImpactRemediation `json:"remediation,omitempty"`
 }
 
 // SupplyChainImpactAdvisoryExplanation summarizes advisory evidence selected
@@ -175,6 +180,7 @@ func BuildSupplyChainImpactExplanation(
 	dependencyChain := buildSupplyChainDependencyChain(row.Finding, row.EvidenceFacts)
 	missing := explanationMissingEvidence(row.Finding, readiness, advisory, component, version, dependencyChain, anchors)
 	impactPath := buildSupplyChainImpactPath(row, supplyChainImpactPathMissingEvidence(row.Finding.MissingEvidence))
+	remediation := buildSupplyChainRemediationExplanation(row, advisory, version, component, dependencyChain)
 	return SupplyChainImpactExplanationResult{
 		Outcome:         "finding_explained",
 		Input:           filter,
@@ -189,6 +195,7 @@ func BuildSupplyChainImpactExplanation(
 		Readiness:       readiness,
 		MissingEvidence: missing,
 		Freshness:       supplyChainExplanationFreshness(row.EvidenceFacts, readiness.Freshness),
+		Remediation:     remediation,
 	}
 }
 

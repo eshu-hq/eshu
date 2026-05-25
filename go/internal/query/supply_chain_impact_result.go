@@ -57,6 +57,10 @@ type SupplyChainImpactFindingResult struct {
 	// DetectionProfile names whether the row meets the precise exact-version
 	// bar or only the broader comprehensive owned-anchor profile.
 	DetectionProfile string `json:"detection_profile,omitempty"`
+	// Remediation is the reducer-owned advisory-only safe-upgrade
+	// recommendation for this finding (issue #595). Older rows that predate
+	// remediation computation omit this block.
+	Remediation *SupplyChainImpactRemediation `json:"remediation,omitempty"`
 }
 
 // SupplyChainImpactPriorityContribution explains one reducer priority input.

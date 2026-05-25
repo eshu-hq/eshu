@@ -99,6 +99,82 @@ func TestOpenAPISpecIncludesSupplyChainImpactFindings(t *testing.T) {
 	}
 }
 
+func TestOpenAPISpecIncludesSupplyChainImpactRemediation(t *testing.T) {
+	t.Parallel()
+
+	var spec map[string]any
+	if err := json.Unmarshal([]byte(OpenAPISpec()), &spec); err != nil {
+		t.Fatalf("json.Unmarshal(OpenAPISpec()) error = %v, want nil", err)
+	}
+
+	paths := mustMapField(t, spec, "paths")
+	findingsPath := mustMapField(t, paths, "/api/v0/supply-chain/impact/findings")
+	findingsGet := mustMapField(t, findingsPath, "get")
+	findingsResponses := mustMapField(t, findingsGet, "responses")
+	findingsTwoHundred := mustMapField(t, findingsResponses, "200")
+	findingsContent := mustMapField(t, findingsTwoHundred, "content")
+	findingsAppJSON := mustMapField(t, findingsContent, "application/json")
+	findingsSchema := mustMapField(t, findingsAppJSON, "schema")
+	findingsProps := mustMapField(t, findingsSchema, "properties")
+	findings := mustMapField(t, findingsProps, "findings")
+	findingsItems := mustMapField(t, findings, "items")
+	findingsItemProps := mustMapField(t, findingsItems, "properties")
+	remediation := mustMapField(t, findingsItemProps, "remediation")
+	remediationProps := mustMapField(t, remediation, "properties")
+	for _, key := range []string{
+		"ecosystem",
+		"current_version",
+		"vulnerable_range",
+		"first_patched_version",
+		"patched_version_branches",
+		"manifest_range",
+		"manifest_allows_fix",
+		"direct",
+		"parent_package",
+		"confidence",
+		"reason",
+		"missing_evidence",
+	} {
+		if _, ok := remediationProps[key]; !ok {
+			t.Fatalf("findings remediation.properties missing %q", key)
+		}
+	}
+	reasonEnum := mustStringSliceField(t, mustMapField(t, remediationProps, "reason"), "enum")
+	for _, want := range []string{
+		"direct_upgrade_allowed",
+		"direct_range_blocked",
+		"transitive_parent_upgrade_required",
+		"no_patched_version",
+		"multiple_patched_branches",
+		"package_manager_unsupported",
+	} {
+		if !containsOpenAPIEnumString(reasonEnum, want) {
+			t.Fatalf("findings remediation.reason enum = %#v, want %q", reasonEnum, want)
+		}
+	}
+
+	explainPath := mustMapField(t, paths, "/api/v0/supply-chain/impact/explain")
+	explainGet := mustMapField(t, explainPath, "get")
+	explainResponses := mustMapField(t, explainGet, "responses")
+	explainTwoHundred := mustMapField(t, explainResponses, "200")
+	explainContent := mustMapField(t, explainTwoHundred, "content")
+	explainAppJSON := mustMapField(t, explainContent, "application/json")
+	explainSchema := mustMapField(t, explainAppJSON, "schema")
+	explainProps := mustMapField(t, explainSchema, "properties")
+	explainRemediation := mustMapField(t, explainProps, "remediation")
+	explainRemediationProps := mustMapField(t, explainRemediation, "properties")
+	for _, key := range []string{
+		"confidence",
+		"reason",
+		"manifest_allows_fix",
+		"first_patched_version",
+	} {
+		if _, ok := explainRemediationProps[key]; !ok {
+			t.Fatalf("explain remediation.properties missing %q", key)
+		}
+	}
+}
+
 func TestOpenAPISpecIncludesSupplyChainImpactExplain(t *testing.T) {
 	t.Parallel()
 
