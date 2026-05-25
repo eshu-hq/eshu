@@ -125,7 +125,7 @@ func parseBundlerLockfile(source string) (map[string]bundlerLockSpec, map[string
 }
 
 func isBundlerLockSectionHeader(rawLine string, trimmed string) bool {
-	return rawLine == trimmed && strings.ToUpper(trimmed) == trimmed
+	return strings.TrimRight(rawLine, "\r") == trimmed && strings.ToUpper(trimmed) == trimmed
 }
 
 func bundlerLockSourceType(section string) string {

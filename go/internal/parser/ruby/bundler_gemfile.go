@@ -44,7 +44,7 @@ func parseBundlerGemfilePayload(path string, source []byte, isDependency bool) m
 			appendBundlerDependency(payload, row)
 			continue
 		}
-		if strings.HasSuffix(trimmed, " do") {
+		if rubyStartsOpaqueBlock(trimmed) {
 			contexts = append(contexts, bundlerGemfileContext{})
 		}
 	}

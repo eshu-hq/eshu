@@ -142,6 +142,44 @@ DEPENDENCIES
 	assertRubyDependencyBool(t, rows["local_component"], "direct_dependency", true)
 }
 
+func TestParseGemfileLockAcceptsCRLFSectionHeaders(t *testing.T) {
+	t.Parallel()
+
+	path := writeSource(t, "Gemfile.lock", "GEM\r\n  remote: https://rubygems.org/\r\n  specs:\r\n    rails (7.1.3)\r\n\r\nDEPENDENCIES\r\n  rails (~> 7.1)\r\n")
+
+	payload, err := Parse(path, false, shared.Options{})
+	if err != nil {
+		t.Fatalf("Parse() error = %v, want nil", err)
+	}
+
+	rows := rubyDependencyRowsByName(t, payload)
+	assertRubyDependencyString(t, rows["rails"], "value", "7.1.3")
+	assertRubyDependencyPath(t, rows["rails"], []string{"rails"})
+	assertRubyDependencyBool(t, rows["rails"], "direct_dependency", true)
+}
+
+func TestParseGemfileKeepsScopeAcrossNonBundlerBlocks(t *testing.T) {
+	t.Parallel()
+
+	path := writeSource(t, "Gemfile", `group :development do
+  ["rspec-rails"].each do |name|
+    puts name
+  end
+  gem "rubocop", "~> 1.75"
+end
+`)
+
+	payload, err := Parse(path, false, shared.Options{})
+	if err != nil {
+		t.Fatalf("Parse() error = %v, want nil", err)
+	}
+
+	rows := rubyDependencyRowsByName(t, payload)
+	assertRubyDependencyString(t, rows["rubocop"], "section", "development")
+	assertRubyDependencyString(t, rows["rubocop"], "dependency_scope", "development")
+	assertRubyDependencyBool(t, rows["rubocop"], "development_dependency", true)
+}
+
 func TestParseBundlerMalformedFilesDoNotEmitDependencies(t *testing.T) {
 	t.Parallel()
 
