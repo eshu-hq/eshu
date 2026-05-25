@@ -202,12 +202,12 @@ func (s *WorkflowControlStore) FailClaimRetryable(ctx context.Context, mutation 
 	if mutation.VisibleAt.IsZero() {
 		mutation.VisibleAt = mutation.ObservedAt
 	}
-	return s.execTerminalClaimMutation(ctx, mutation, failWorkflowClaimRetryableQuery)
+	return s.execTerminalClaimMutation(ctx, mutation, failWorkflowClaimRetryableQuery, true)
 }
 
 // FailClaimTerminal marks the current epoch terminal without requeueing.
 func (s *WorkflowControlStore) FailClaimTerminal(ctx context.Context, mutation workflow.ClaimMutation) error {
-	return s.execTerminalClaimMutation(ctx, mutation, failWorkflowClaimTerminalQuery)
+	return s.execTerminalClaimMutation(ctx, mutation, failWorkflowClaimTerminalQuery, false)
 }
 
 // ReapExpiredClaims expires stale active claims atomically and requeues their work.

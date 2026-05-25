@@ -325,6 +325,38 @@ func TestRemoteE2EComposeIncludesSBOMAttestationCollector(t *testing.T) {
 	}
 }
 
+func TestRemoteE2EComposeSBOMFixtureUsesPortableHTTPServer(t *testing.T) {
+	t.Parallel()
+
+	doc := readComposeDocument(t, "docker-compose.remote-e2e.yaml")
+	service := requireComposeService(t, doc, "sbom-attestation-fixture")
+	if service.Image != "python:3.13-alpine" {
+		t.Fatalf("sbom-attestation-fixture image = %q, want python:3.13-alpine", service.Image)
+	}
+
+	command := fmt.Sprint(service.Command)
+	for _, want := range []string{"python", "http.server", "8080", "/fixtures"} {
+		if !strings.Contains(command, want) {
+			t.Fatalf("sbom-attestation-fixture command missing %q in %s", want, command)
+		}
+	}
+	for _, forbidden := range []string{"httpd", "wget"} {
+		if strings.Contains(command, forbidden) {
+			t.Fatalf("sbom-attestation-fixture command must not depend on %q: %s", forbidden, command)
+		}
+	}
+
+	healthcheck := fmt.Sprint(service.Healthcheck["test"])
+	for _, want := range []string{"CMD", "python", "urllib.request", "cyclonedx_image_subject.json"} {
+		if !strings.Contains(healthcheck, want) {
+			t.Fatalf("sbom-attestation-fixture healthcheck missing %q in %s", want, healthcheck)
+		}
+	}
+	if strings.Contains(healthcheck, "wget") || strings.Contains(healthcheck, "httpd") {
+		t.Fatalf("sbom-attestation-fixture healthcheck depends on unavailable applets: %s", healthcheck)
+	}
+}
+
 func TestRemoteE2EComposeIncludesVulnerabilityIntelligenceCollector(t *testing.T) {
 	t.Parallel()
 

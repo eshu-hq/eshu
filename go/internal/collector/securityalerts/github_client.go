@@ -205,15 +205,17 @@ func (c GitHubDependabotClient) ListRepositoryAlertsPages(
 		maxPages = defaultRepositoryAlertMaxPages
 	}
 	var out GitHubDependabotAlertResult
+	nextURL := ""
 	for page := 1; page <= maxPages; page++ {
-		alerts, rateLimit, next, err := c.listRepositoryAlertsPage(ctx, repository, page)
+		alerts, rateLimit, next, err := c.listRepositoryAlertsPage(ctx, repository, nextURL)
 		out.RateLimit = rateLimit
 		if err != nil {
 			return GitHubDependabotAlertResult{}, err
 		}
 		out.Alerts = append(out.Alerts, alerts...)
 		out.PagesFetched++
-		if !next {
+		nextURL = next
+		if nextURL == "" {
 			break
 		}
 		if page == maxPages {
@@ -231,15 +233,19 @@ func (c GitHubDependabotClient) ListRepositoryAlertsPages(
 func (c GitHubDependabotClient) listRepositoryAlertsPage(
 	ctx context.Context,
 	repository string,
-	page int,
-) ([]GitHubDependabotAlert, GitHubRateLimitInfo, bool, error) {
-	endpoint, err := c.repositoryAlertsURL(repository, page)
-	if err != nil {
-		return nil, GitHubRateLimitInfo{}, false, err
+	nextURL string,
+) ([]GitHubDependabotAlert, GitHubRateLimitInfo, string, error) {
+	endpoint := strings.TrimSpace(nextURL)
+	if endpoint == "" {
+		var err error
+		endpoint, err = c.repositoryAlertsURL(repository)
+		if err != nil {
+			return nil, GitHubRateLimitInfo{}, "", err
+		}
 	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {
-		return nil, GitHubRateLimitInfo{}, false, fmt.Errorf("build github dependabot request: %w", err)
+		return nil, GitHubRateLimitInfo{}, "", fmt.Errorf("build github dependabot request: %w", err)
 	}
 	req.Header.Set("Accept", "application/vnd.github+json")
 	req.Header.Set("Authorization", "Bearer "+c.token)
@@ -247,7 +253,7 @@ func (c GitHubDependabotClient) listRepositoryAlertsPage(
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		return nil, GitHubRateLimitInfo{}, false, GitHubDependabotError{
+		return nil, GitHubRateLimitInfo{}, "", GitHubDependabotError{
 			Message: "fetch github dependabot alerts",
 			Cause:   err,
 		}
@@ -256,7 +262,7 @@ func (c GitHubDependabotClient) listRepositoryAlertsPage(
 	rateLimit := parseGitHubRateLimit(resp.Header)
 	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
 		_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, maxGitHubErrorBodyBytes))
-		return nil, rateLimit, false, GitHubDependabotError{
+		return nil, rateLimit, "", GitHubDependabotError{
 			StatusCode: resp.StatusCode,
 			Message:    "fetch github dependabot alerts",
 			RateLimit:  rateLimit,
@@ -264,15 +270,15 @@ func (c GitHubDependabotClient) listRepositoryAlertsPage(
 	}
 	var alerts []GitHubDependabotAlert
 	if err := json.NewDecoder(resp.Body).Decode(&alerts); err != nil {
-		return nil, rateLimit, false, fmt.Errorf("decode github dependabot alerts: %w", err)
+		return nil, rateLimit, "", fmt.Errorf("decode github dependabot alerts: %w", err)
 	}
 	if len(alerts) > c.repositoryLimit {
 		alerts = alerts[:c.repositoryLimit]
 	}
-	return alerts, rateLimit, hasNextLink(resp.Header.Get("Link")), nil
+	return alerts, rateLimit, nextDependabotAlertsURL(endpoint, resp.Header.Get("Link")), nil
 }
 
-func (c GitHubDependabotClient) repositoryAlertsURL(repository string, page int) (string, error) {
+func (c GitHubDependabotClient) repositoryAlertsURL(repository string) (string, error) {
 	owner, repo, ok := strings.Cut(repository, "/")
 	if !ok || owner == "" || repo == "" {
 		return "", fmt.Errorf("github dependabot repository must be owner/name")
@@ -285,7 +291,6 @@ func (c GitHubDependabotClient) repositoryAlertsURL(repository string, page int)
 		url.PathEscape(owner) + "/" + url.PathEscape(repo) + "/dependabot/alerts"
 	query := parsed.Query()
 	query.Set("per_page", fmt.Sprint(c.repositoryLimit))
-	query.Set("page", fmt.Sprint(page))
 	parsed.RawQuery = query.Encode()
 	return parsed.String(), nil
 }
@@ -318,11 +323,25 @@ func parseGitHubRateLimit(header http.Header) GitHubRateLimitInfo {
 	return info
 }
 
-func hasNextLink(raw string) bool {
-	for _, link := range strings.Split(raw, ",") {
-		if strings.Contains(link, `rel="next"`) {
-			return true
-		}
+func nextDependabotAlertsURL(currentEndpoint string, raw string) string {
+	current, err := url.Parse(currentEndpoint)
+	if err != nil {
+		return ""
 	}
-	return false
+	for _, link := range strings.Split(raw, ",") {
+		if !strings.Contains(link, `rel="next"`) {
+			continue
+		}
+		start := strings.Index(link, "<")
+		end := strings.Index(link, ">")
+		if start < 0 || end <= start {
+			continue
+		}
+		next, err := url.Parse(strings.TrimSpace(link[start+1 : end]))
+		if err != nil || next.Scheme != current.Scheme || next.Host != current.Host {
+			continue
+		}
+		return next.String()
+	}
+	return ""
 }

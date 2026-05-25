@@ -9,19 +9,27 @@ import (
 	"time"
 )
 
-func TestGitHubDependabotClientPaginatesWithinConfiguredBound(t *testing.T) {
+func TestGitHubDependabotClientPaginatesWithCursorLinksWithinConfiguredBound(t *testing.T) {
 	t.Parallel()
 
-	var pages []string
+	var cursors []string
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		pages = append(pages, r.URL.Query().Get("page"))
 		if got, want := r.URL.Query().Get("per_page"), "1"; got != want {
 			t.Fatalf("per_page = %q, want %q", got, want)
 		}
-		if r.URL.Query().Get("page") == "1" {
-			w.Header().Set("Link", `<`+serverURL(t, r)+`?per_page=1&page=2>; rel="next"`)
+		if got := r.URL.Query().Get("page"); got != "" {
+			t.Fatalf("page = %q, want empty because Dependabot alerts use cursor pagination", got)
 		}
-		_ = json.NewEncoder(w).Encode([]GitHubDependabotAlert{{Number: len(pages), State: "open"}})
+		cursors = append(cursors, r.URL.Query().Get("after"))
+		switch r.URL.Query().Get("after") {
+		case "":
+			w.Header().Set("Link", `<`+serverURL(t, r)+`?per_page=1&after=cursor-2>; rel="next"`)
+		case "cursor-2":
+			w.Header().Set("Link", `<`+serverURL(t, r)+`?per_page=1&after=cursor-3>; rel="next"`)
+		default:
+			t.Fatalf("unexpected cursor %q", r.URL.Query().Get("after"))
+		}
+		_ = json.NewEncoder(w).Encode([]GitHubDependabotAlert{{Number: len(cursors), State: "open"}})
 	}))
 	defer server.Close()
 
@@ -31,21 +39,21 @@ func TestGitHubDependabotClientPaginatesWithinConfiguredBound(t *testing.T) {
 		AllowedRepositories:  []string{"example-org/example-repo"},
 		RepositoryAlertLimit: 1,
 	})
-	result, err := client.ListRepositoryAlertsPages(t.Context(), "example-org/example-repo", 1)
+	result, err := client.ListRepositoryAlertsPages(t.Context(), "example-org/example-repo", 2)
 	if err != nil {
 		t.Fatalf("ListRepositoryAlertsPages() error = %v, want nil", err)
 	}
-	if got, want := len(result.Alerts), 1; got != want {
+	if got, want := len(result.Alerts), 2; got != want {
 		t.Fatalf("len(Alerts) = %d, want %d", got, want)
 	}
-	if got, want := result.PagesFetched, 1; got != want {
+	if got, want := result.PagesFetched, 2; got != want {
 		t.Fatalf("PagesFetched = %d, want %d", got, want)
 	}
 	if !result.Truncated {
 		t.Fatal("Truncated = false, want true when a next page remains after max_pages")
 	}
-	if got, want := pages, []string{"1"}; !stringSlicesEqual(got, want) {
-		t.Fatalf("pages = %#v, want %#v", got, want)
+	if got, want := cursors, []string{"", "cursor-2"}; !stringSlicesEqual(got, want) {
+		t.Fatalf("cursors = %#v, want %#v", got, want)
 	}
 }
 
@@ -88,6 +96,38 @@ func TestGitHubDependabotClientReturnsRateLimitFailureMetadata(t *testing.T) {
 	}
 	if failure.Error() == "" || failure.Message == "" {
 		t.Fatalf("GitHubDependabotError = %#v, want bounded message", failure)
+	}
+}
+
+func TestGitHubDependabotClientDoesNotForwardTokenToCrossHostNextLink(t *testing.T) {
+	t.Parallel()
+
+	requests := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		requests++
+		w.Header().Set("Link", `<http://127.0.0.1:1/dependabot/alerts?after=exfiltrate>; rel="next"`)
+		_ = json.NewEncoder(w).Encode([]GitHubDependabotAlert{{Number: 1, State: "open"}})
+	}))
+	defer server.Close()
+
+	client := NewGitHubDependabotClient(GitHubDependabotClientConfig{
+		BaseURL:              server.URL,
+		Token:                "token-value",
+		AllowedRepositories:  []string{"example-org/example-repo"},
+		RepositoryAlertLimit: 1,
+	})
+	result, err := client.ListRepositoryAlertsPages(t.Context(), "example-org/example-repo", 2)
+	if err != nil {
+		t.Fatalf("ListRepositoryAlertsPages() error = %v, want nil", err)
+	}
+	if got, want := requests, 1; got != want {
+		t.Fatalf("requests = %d, want %d", got, want)
+	}
+	if got, want := result.PagesFetched, 1; got != want {
+		t.Fatalf("PagesFetched = %d, want %d", got, want)
+	}
+	if result.Truncated {
+		t.Fatal("Truncated = true, want false when cross-host next link is ignored")
 	}
 }
 

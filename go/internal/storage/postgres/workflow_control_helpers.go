@@ -133,6 +133,7 @@ func (s *WorkflowControlStore) execTerminalClaimMutation(
 	ctx context.Context,
 	mutation workflow.ClaimMutation,
 	query string,
+	includeVisibleAt bool,
 ) error {
 	if mutation.VisibleAt.IsZero() {
 		mutation.VisibleAt = mutation.ObservedAt
@@ -143,16 +144,18 @@ func (s *WorkflowControlStore) execTerminalClaimMutation(
 	if err := validateClaimMutation(mutation); err != nil {
 		return err
 	}
-	args := []any{
-		mutation.ObservedAt.UTC(),
-		mutation.VisibleAt.UTC(),
+	args := []any{mutation.ObservedAt.UTC()}
+	if includeVisibleAt {
+		args = append(args, mutation.VisibleAt.UTC())
+	}
+	args = append(args,
 		mutation.FencingToken,
 		mutation.OwnerID,
 		mutation.ClaimID,
 		mutation.WorkItemID,
 		mutation.FailureClass,
 		mutation.FailureMessage,
-	}
+	)
 	result, err := s.db.ExecContext(ctx, query, args...)
 	if err != nil {
 		return fmt.Errorf("mutate terminal workflow claim: %w", err)
