@@ -198,9 +198,34 @@ func TestSARIFExporter_GoldenFixtures(t *testing.T) {
 			if err != nil {
 				t.Fatalf("read golden %s: %v", goldenPath, err)
 			}
-			assertJSONEqual(t, want, buf.Bytes())
+			assertBytesEqual(t, want, buf.Bytes())
 			assertScopeNotLeaked(t, buf.Bytes(), tc.snapshot.Scope)
 		})
+	}
+}
+
+func TestSARIFExporter_FormattingContract(t *testing.T) {
+	t.Parallel()
+	snapshot := Snapshot{
+		Scope:       Scope{Kind: ScopeKindRepository, RepositoryID: "repo-main"},
+		GeneratedAt: time.Date(2026, 5, 24, 12, 0, 0, 0, time.UTC),
+		Findings: []Finding{
+			{FindingID: "fnd-a", AdvisoryID: "GHSA-a", PackageName: "p", Severity: SeverityHigh, RepositoryID: "repo-main"},
+		},
+	}
+	var buf bytes.Buffer
+	if err := NewSARIFExporter().Export(&buf, snapshot, Options{}); err != nil {
+		t.Fatalf("Export() error: %v", err)
+	}
+	body := buf.Bytes()
+	if len(body) == 0 || body[len(body)-1] != '\n' {
+		t.Fatalf("output does not end with a single trailing newline (encoding/json.Encoder.Encode behavior)")
+	}
+	if len(body) >= 2 && body[len(body)-2] == '\n' {
+		t.Fatalf("output ends with more than one trailing newline; want exactly one")
+	}
+	if !strings.Contains(string(body), "\n  \"version\":") {
+		t.Fatalf("output missing two-space indent on top-level keys; got:\n%s", body)
 	}
 }
 
@@ -348,26 +373,28 @@ func (p prefixRedactor) RedactPath(path string) string {
 	return "redacted-path"
 }
 
-func assertJSONEqual(t *testing.T, want, got []byte) {
+// assertBytesEqual compares raw bytes so the formatting contract (indent
+// width, trailing newline, escape behavior) is part of what the golden
+// fixture locks. If the JSON values are semantically equal the diff would
+// be invisible to a canonicalizing comparator, so we surface the byte-level
+// mismatch directly and let the operator regenerate the fixture with
+// `-update-golden` if the change is intentional.
+func assertBytesEqual(t *testing.T, want, got []byte) {
 	t.Helper()
+	if bytes.Equal(want, got) {
+		return
+	}
+	// Sanity-check both sides parse as JSON so an unmarshal failure does
+	// not get hidden behind a byte-diff message.
 	var wantValue, gotValue any
 	if err := json.Unmarshal(want, &wantValue); err != nil {
-		t.Fatalf("unmarshal want: %v\n%s", err, want)
+		t.Fatalf("golden does not parse as JSON: %v\n%s", err, want)
 	}
 	if err := json.Unmarshal(got, &gotValue); err != nil {
-		t.Fatalf("unmarshal got: %v\n%s", err, got)
+		t.Fatalf("exporter output does not parse as JSON: %v\n%s", err, got)
 	}
-	wantBytes, err := json.MarshalIndent(wantValue, "", "  ")
-	if err != nil {
-		t.Fatalf("re-marshal want: %v", err)
-	}
-	gotBytes, err := json.MarshalIndent(gotValue, "", "  ")
-	if err != nil {
-		t.Fatalf("re-marshal got: %v", err)
-	}
-	if string(wantBytes) != string(gotBytes) {
-		t.Fatalf("SARIF output diverges from golden:\nwant:\n%s\ngot:\n%s", wantBytes, gotBytes)
-	}
+	t.Fatalf("SARIF output diverges from golden (byte mismatch — regenerate with -update-golden if intentional):\nwant (%d bytes):\n%s\ngot (%d bytes):\n%s",
+		len(want), want, len(got), got)
 }
 
 func assertScopeNotLeaked(t *testing.T, raw []byte, scope Scope) {

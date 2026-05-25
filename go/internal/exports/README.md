@@ -80,7 +80,12 @@ The writer surface is byte-stable across:
 - Goroutine interleaving (exporters are stateless; no shared state).
 - Time (only `snapshot.GeneratedAt` is serialized; the writer never reads
   wall-clock time).
+- Formatting (two-space indent and a single trailing newline produced by
+  `encoding/json.Encoder.Encode`).
 
+The golden fixture tests compare with `bytes.Equal` against the on-disk
+fixture so a formatting change (indentation, key escaping, trailing
+newline) fails the test even if the JSON value is semantically identical.
 `TestSARIFExporter_IsDeterministic` runs the writer twice and asserts
 `bytes.Equal`. Add the same test shape for each new format.
 

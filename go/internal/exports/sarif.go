@@ -31,8 +31,10 @@ func (SARIFExporter) Format() Format { return FormatSARIF }
 // Export renders snapshot as SARIF and writes it to w.
 //
 // The output is pretty-printed with a fixed two-space indent so golden
-// fixtures stay readable in diffs. JSON encoding does not write a trailing
-// newline; callers that need one add it.
+// fixtures stay readable in diffs, and ends with a single trailing newline
+// produced by [encoding/json.Encoder.Encode]; callers do not need to add
+// one. Both the indentation and the trailing newline are part of the wire
+// contract that golden fixtures lock in `testdata/sarif/`.
 func (e SARIFExporter) Export(w io.Writer, snapshot Snapshot, opts Options) error {
 	if err := snapshot.Scope.Validate(); err != nil {
 		return fmt.Errorf("sarif export: %w", err)
