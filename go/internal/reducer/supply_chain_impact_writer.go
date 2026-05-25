@@ -120,6 +120,7 @@ func supplyChainImpactPayload(write SupplyChainImpactWrite, finding SupplyChainI
 		"observed_version":       finding.ObservedVersion,
 		"requested_range":        finding.RequestedRange,
 		"fixed_version":          finding.FixedVersion,
+		"vulnerable_range":       finding.VulnerableRange,
 		"match_reason":           finding.MatchReason,
 		"impact_status":          string(finding.Status),
 		"confidence":             finding.Confidence,

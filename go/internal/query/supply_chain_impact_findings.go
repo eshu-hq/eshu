@@ -57,6 +57,12 @@ type SupplyChainImpactFindingRow struct {
 	ObservedVersion       string
 	RequestedRange        string
 	FixedVersion          string
+	// VulnerableRange is the source-reported affected range expression
+	// copied from the advisory the reducer's provenance selector picked.
+	// Persisted on the canonical finding payload so list responses expose
+	// the same value as the explain route. Older rows that predate the
+	// reducer capturing the range may return blank.
+	VulnerableRange       string
 	MatchReason           string
 	ImpactStatus          string
 	Confidence            string
@@ -351,6 +357,7 @@ func decodeSupplyChainImpactFindingRow(
 		ObservedVersion:     StringVal(payload, "observed_version"),
 		RequestedRange:      StringVal(payload, "requested_range"),
 		FixedVersion:        StringVal(payload, "fixed_version"),
+		VulnerableRange:     StringVal(payload, "vulnerable_range"),
 		MatchReason:         StringVal(payload, "match_reason"),
 		ImpactStatus:        StringVal(payload, "impact_status"),
 		Confidence:          StringVal(payload, "confidence"),

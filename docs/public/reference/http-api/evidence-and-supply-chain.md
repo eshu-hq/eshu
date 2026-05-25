@@ -219,6 +219,11 @@ Version fields intentionally do not collapse into one string:
   range-only values such as npm caret ranges.
 - `fixed_version`: source-selected fixed version when advisory evidence
   reports one.
+- `vulnerable_range`: source-reported affected range expression copied from
+  the advisory the reducer's provenance selector picked. Persisted on the
+  canonical finding payload so the findings list, the explain route, and
+  the MCP tools all expose the same expression. Older rows written before
+  remediation computation may omit this value.
 - `match_reason`: reducer explanation for the version decision, including
   supported matches, range-only manifests, unsupported ecosystems, and
   malformed installed versions or advisory ranges.

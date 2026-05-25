@@ -41,7 +41,7 @@ func supplyChainTools() []ToolDefinition {
 		},
 		{
 			Name:        "list_supply_chain_impact_findings",
-			Description: "List reducer-owned vulnerability impact findings by CVE, package, repository, image digest, or impact status. Each row carries an advisory-only remediation block (issue #595) with the current version, source-reported vulnerable range, first patched version, whether the manifest range allows that fix, direct vs transitive designation, parent package that blocks a transitive fix, and an exact/partial/unknown confidence. Suppression decisions (VEX, operator-policy, provider dismissal evidence) are attached to each row; set include_suppressed=true to surface findings hidden by operator suppression and use suppression_state to filter by a specific decision.",
+			Description: "List reducer-owned vulnerability impact findings by CVE, package, repository, image digest, or impact status. Each row carries `vulnerable_range` copied from the advisory the reducer's provenance selector picked and an advisory-only remediation block (issue #595) with the current version, vulnerable range, first patched version, whether the manifest range allows that fix, direct vs transitive designation, parent package that blocks a transitive fix, and an exact/partial/unknown confidence (including first-class installed_version_missing and installed_version_malformed reasons). Suppression decisions (VEX, operator-policy, provider dismissal evidence) are attached to each row; set include_suppressed=true to surface findings hidden by operator suppression and use suppression_state to filter by a specific decision.",
 			InputSchema: map[string]any{
 				"type": "object",
 				"properties": map[string]any{

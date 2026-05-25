@@ -90,6 +90,7 @@ const openAPIPathsSupplyChain = `
                           "observed_version": {"type": "string", "description": "Exact installed version from lockfile, manifest, SBOM, or image evidence when known."},
                           "requested_range": {"type": "string", "description": "Original manifest/requested dependency range preserved separately from the installed version."},
                           "fixed_version": {"type": "string", "description": "Source-selected fixed version when advisory evidence reports one."},
+                          "vulnerable_range": {"type": "string", "description": "Source-reported affected range expression copied from the advisory the reducer's provenance selector picked. Persisted on the canonical finding payload so list responses expose the same expression as the explain route. Older rows may omit this value."},
                           "match_reason": {"type": "string", "description": "Reducer reason for the version/range decision, including unsupported or malformed evidence states."},
                           "detection_profile": {"type": "string", "enum": ["precise", "comprehensive"], "description": "Evidence tier the row meets. precise requires an exact installed-version anchor and ecosystem-aware match. comprehensive covers SBOM/CPE-derived, range-only, malformed, unsupported, or missing-version rows that still have an owned anchor."},
                           "impact_status": {"type": "string"},

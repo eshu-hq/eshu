@@ -68,6 +68,12 @@ type SupplyChainImpactFinding struct {
 	ObservedVersion       string
 	RequestedRange        string
 	FixedVersion          string
+	// VulnerableRange is the source-reported affected range expression for
+	// the advisory the provenance selector picked. The reducer persists the
+	// expression on the canonical finding payload so list-route callers see
+	// the same vulnerable range as the explain route without re-loading raw
+	// advisory facts.
+	VulnerableRange       string
 	MatchReason           string
 	Status                SupplyChainImpactStatus
 	Confidence            string

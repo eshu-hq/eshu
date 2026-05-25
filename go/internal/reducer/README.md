@@ -398,12 +398,24 @@ Log phase attributes: `telemetry.PhaseReduction` (main loop),
   `transitive_parent_upgrade_required`, `no_patched_version`,
   `multiple_patched_branches`, `package_manager_unsupported`,
   `manifest_range_missing`, `manifest_range_malformed`,
-  `installed_version_missing`, `installed_version_malformed`). The reducer
-  expands npm caret and tilde manifest ranges before delegating to the
-  existing comparator engine so the answer stays npm-correct; ecosystems
-  other than npm currently report `package_manager_unsupported` rather
-  than guessing. Eshu never auto-opens a pull request from this block;
-  remediation is strictly advisory.
+  `installed_version_missing`, `installed_version_malformed`).
+  `installed_version_missing` fires when the advisory publishes more than
+  one fixed-version branch and Eshu has no parseable installed version
+  to anchor the branch selector — without that anchor the lowest fix
+  across all branches could be a downgrade or unnecessary cross-major
+  bump, so the reducer blanks the recommendation rather than committing
+  to either branch. `installed_version_malformed` fires whenever the
+  observed version is non-empty but fails npm-semver normalization.
+  The reducer expands npm caret and tilde manifest ranges before
+  delegating to the existing comparator engine so the answer stays
+  npm-correct; ecosystems other than npm currently report
+  `package_manager_unsupported` rather than guessing. The reducer also
+  captures `VulnerableRange` from the same provenance observation that
+  supplies `RangeSource`, persists it on the canonical finding payload
+  (top-level `vulnerable_range` and inside the `remediation` block), and
+  decodes it through the read model so list-route callers see the same
+  vulnerable range as the explain route. Eshu never auto-opens a pull
+  request from this block; remediation is strictly advisory.
 
   Performance Evidence: remediation runs in-process over the bounded
   per-finding inputs the impact handler already owns (observed version,

@@ -213,9 +213,13 @@ func TestBuildSupplyChainImpactFindingsRemediationNoPatchedVersion(t *testing.T)
 
 // TestBuildSupplyChainImpactFindingsRemediationMultiplePatchedBranches proves
 // that when an advisory publishes fixed-version branches across multiple
-// majors, the remediation keeps the lowest patched version that satisfies the
-// observed major and downgrades confidence to partial so callers see the
-// branch ambiguity rather than silently committing to a single major bump.
+// majors and the lockfile pins an exact installed version, the remediation
+// keeps the lowest patched version that satisfies the observed major and
+// downgrades confidence to partial so callers see the branch ambiguity
+// rather than silently committing to a single major bump. The exact
+// installed version comes from the lockfile-anchored consumption fact;
+// missing installed versions follow the installed_version_missing reason
+// (covered by a separate test).
 func TestBuildSupplyChainImpactFindingsRemediationMultiplePatchedBranches(t *testing.T) {
 	t.Parallel()
 
@@ -248,7 +252,7 @@ func TestBuildSupplyChainImpactFindingsRemediationMultiplePatchedBranches(t *tes
 			"consume-multi",
 			"pkg:npm/example",
 			testImpactRepositoryID,
-			"^1.2.0",
+			"1.2.3",
 			[]string{"example"},
 			1,
 			true,
@@ -314,6 +318,167 @@ func TestBuildSupplyChainImpactFindingsRemediationPackageManagerUnsupported(t *t
 	}
 	if !containsRemediationMissingEvidence(remediation, "ecosystem_remediation_unsupported") {
 		t.Fatalf("MissingEvidence = %#v, want ecosystem_remediation_unsupported", remediation.MissingEvidence)
+	}
+}
+
+// TestBuildSupplyChainImpactFindingsRemediationInstalledVersionMissing proves
+// that an npm finding whose advisory publishes patches across more than one
+// major and whose package consumption evidence carries only a manifest range
+// (no exact installed version) is classified as installed_version_missing
+// with confidence=unknown and a blank FirstPatchedVersion instead of silently
+// selecting the lowest fix across all majors and reporting confidence=exact
+// or partial. Without an installed-version anchor the multi-branch selector
+// could otherwise recommend a downgrade or unnecessary major bump.
+func TestBuildSupplyChainImpactFindingsRemediationInstalledVersionMissing(t *testing.T) {
+	t.Parallel()
+
+	findings := BuildSupplyChainImpactFindings([]facts.Envelope{
+		vulnerabilityCVEFact("cve-missing-installed-ghsa", "CVE-2026-90008", 7.0),
+		multiSourceAffectedPackageFact(
+			"affected-missing-installed-ghsa",
+			"CVE-2026-90008",
+			"pkg:npm/example",
+			"npm",
+			"example",
+			"ghsa",
+			"GHSA-missing-1",
+			[]string{"1.3.5"},
+			"<1.3.5",
+		),
+		vulnerabilityCVEFact("cve-missing-installed-osv", "CVE-2026-90008", 7.0),
+		multiSourceAffectedPackageFact(
+			"affected-missing-installed-osv",
+			"CVE-2026-90008",
+			"pkg:npm/example",
+			"npm",
+			"example",
+			"osv",
+			"GHSA-missing-2",
+			[]string{"2.0.0"},
+			"<2.0.0",
+		),
+		packageConsumptionFactWithChain(
+			"consume-missing-installed",
+			"pkg:npm/example",
+			testImpactRepositoryID,
+			"^1.2.0",
+			[]string{"example"},
+			1,
+			true,
+		),
+	})
+
+	finding := supplyChainImpactFindingsByCVE(findings)["CVE-2026-90008"]
+	if finding.ObservedVersion != "" {
+		t.Fatalf("ObservedVersion = %q, want empty for range-only manifest fixture", finding.ObservedVersion)
+	}
+	remediation := finding.Remediation
+	if remediation.Reason != "installed_version_missing" {
+		t.Fatalf("Reason = %q, want installed_version_missing", remediation.Reason)
+	}
+	if remediation.Confidence != "unknown" {
+		t.Fatalf("Confidence = %q, want unknown when multiple patched branches exist without an installed version", remediation.Confidence)
+	}
+	if remediation.FirstPatchedVersion != "" {
+		t.Fatalf("FirstPatchedVersion = %q, want empty when Eshu cannot anchor the branch selector to an installed major", remediation.FirstPatchedVersion)
+	}
+	if remediation.ManifestAllowsFix != "unknown" {
+		t.Fatalf("ManifestAllowsFix = %q, want unknown when observed version is missing", remediation.ManifestAllowsFix)
+	}
+	if !containsRemediationMissingEvidence(remediation, "observed_version_missing") {
+		t.Fatalf("MissingEvidence = %#v, want observed_version_missing", remediation.MissingEvidence)
+	}
+}
+
+// TestBuildSupplyChainImpactFindingsRemediationInstalledVersionMalformed proves
+// that an npm finding whose observed version cannot be parsed by Eshu's npm
+// semver normalizer is classified as installed_version_malformed with
+// confidence=unknown instead of falling through to the comparator engine and
+// emitting a misleading "direct_upgrade_allowed" recommendation.
+func TestBuildSupplyChainImpactFindingsRemediationInstalledVersionMalformed(t *testing.T) {
+	t.Parallel()
+
+	remediation := BuildSupplyChainImpactRemediation(SupplyChainImpactFinding{
+		Ecosystem:        "npm",
+		ObservedVersion:  "not-a-version",
+		RequestedRange:   "^1.2.0",
+		FixedVersion:     "1.3.0",
+		DependencyPath:   []string{"example"},
+		DependencyDepth:  1,
+		DirectDependency: boolPtr(true),
+		FixedVersionBranches: []FixedVersionBranch{
+			{Version: "1.3.0", Source: "ghsa"},
+		},
+	})
+
+	if remediation.Reason != "installed_version_malformed" {
+		t.Fatalf("Reason = %q, want installed_version_malformed", remediation.Reason)
+	}
+	if remediation.Confidence != "unknown" {
+		t.Fatalf("Confidence = %q, want unknown when observed version is malformed", remediation.Confidence)
+	}
+	if remediation.ManifestAllowsFix != "unknown" {
+		t.Fatalf("ManifestAllowsFix = %q, want unknown when observed version is malformed", remediation.ManifestAllowsFix)
+	}
+	if !containsRemediationMissingEvidence(remediation, "installed_version_malformed") {
+		t.Fatalf("MissingEvidence = %#v, want installed_version_malformed", remediation.MissingEvidence)
+	}
+}
+
+// TestBuildSupplyChainImpactFindingsRemediationPersistsVulnerableRange proves
+// that the reducer captures the source-reported vulnerable range on the
+// finding payload so list-route callers see vulnerable_range, not only the
+// explain route. Co-pilot flagged that the docs and OpenAPI advertise this
+// field on every finding row even though the original reducer build never
+// persisted it.
+func TestBuildSupplyChainImpactFindingsRemediationPersistsVulnerableRange(t *testing.T) {
+	t.Parallel()
+
+	findings := BuildSupplyChainImpactFindings([]facts.Envelope{
+		vulnerabilityCVEFact("cve-vr", "CVE-2026-90009", 7.5),
+		multiSourceAffectedPackageFact(
+			"affected-vr",
+			"CVE-2026-90009",
+			"pkg:npm/example",
+			"npm",
+			"example",
+			"ghsa",
+			"GHSA-vr-1",
+			[]string{"1.3.0"},
+			"<1.3.0",
+		),
+		packageConsumptionFactWithChain(
+			"consume-vr",
+			"pkg:npm/example",
+			testImpactRepositoryID,
+			"^1.2.0",
+			[]string{"example"},
+			1,
+			true,
+		),
+	})
+
+	finding := supplyChainImpactFindingsByCVE(findings)["CVE-2026-90009"]
+	if finding.VulnerableRange != "<1.3.0" {
+		t.Fatalf("Finding.VulnerableRange = %q, want <1.3.0 captured from advisory provenance", finding.VulnerableRange)
+	}
+	if finding.Remediation.VulnerableRange != "<1.3.0" {
+		t.Fatalf("Remediation.VulnerableRange = %q, want <1.3.0 mirrored from finding", finding.Remediation.VulnerableRange)
+	}
+	payload := supplyChainImpactPayload(SupplyChainImpactWrite{
+		ScopeID:      "scope-vr",
+		GenerationID: "gen-vr",
+		SourceSystem: "reducer",
+	}, finding)
+	if got, want := payload["vulnerable_range"], "<1.3.0"; got != want {
+		t.Fatalf("payload[vulnerable_range] = %#v, want %q", got, want)
+	}
+	remediation, ok := payload["remediation"].(map[string]any)
+	if !ok {
+		t.Fatalf("payload[remediation] = %#v, want map", payload["remediation"])
+	}
+	if got, want := remediation["vulnerable_range"], "<1.3.0"; got != want {
+		t.Fatalf("payload[remediation].vulnerable_range = %#v, want %q", got, want)
 	}
 }
 

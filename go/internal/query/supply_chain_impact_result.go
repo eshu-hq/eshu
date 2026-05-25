@@ -18,6 +18,7 @@ type SupplyChainImpactFindingResult struct {
 	ObservedVersion       string                                  `json:"observed_version,omitempty"`
 	RequestedRange        string                                  `json:"requested_range,omitempty"`
 	FixedVersion          string                                  `json:"fixed_version,omitempty"`
+	VulnerableRange       string                                  `json:"vulnerable_range,omitempty"`
 	MatchReason           string                                  `json:"match_reason,omitempty"`
 	ImpactStatus          string                                  `json:"impact_status"`
 	Confidence            string                                  `json:"confidence,omitempty"`

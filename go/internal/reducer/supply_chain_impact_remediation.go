@@ -132,6 +132,7 @@ func BuildSupplyChainImpactRemediation(finding SupplyChainImpactFinding) SupplyC
 	remediation := SupplyChainImpactRemediation{
 		Ecosystem:              ecosystem,
 		CurrentVersion:         strings.TrimSpace(finding.ObservedVersion),
+		VulnerableRange:        strings.TrimSpace(finding.VulnerableRange),
 		ManifestRange:          strings.TrimSpace(finding.RequestedRange),
 		ManifestAllowsFix:      SupplyChainRemediationManifestUnknown,
 		Direct:                 cloneBool(finding.DirectDependency),
@@ -143,26 +144,56 @@ func BuildSupplyChainImpactRemediation(finding SupplyChainImpactFinding) SupplyC
 	if !isSupportedRemediationEcosystem(ecosystem) {
 		remediation.Reason = SupplyChainRemediationReasonPackageManagerUnsupported
 		remediation.MissingEvidence = append(remediation.MissingEvidence, SupplyChainRemediationMissingEcosystemUnsupported)
-		return remediation
+		return finalizeRemediation(remediation)
 	}
 
-	// The finding itself does not carry the raw vulnerable-range expression
-	// (it lives in the source affected_package payload). Leave it blank
-	// here; the explain build path enriches it from evidence facts so the
-	// reducer write path never has to re-load advisory payloads.
+	// A malformed observed version is a first-class remediation outcome.
+	// Without a parseable installed version, comparator decisions and
+	// branch-selection logic both lose their anchor, so the reducer
+	// refuses to commit to an upgrade path.
+	if remediation.CurrentVersion != "" && !validSupplyChainSemver(remediation.CurrentVersion) {
+		remediation.Reason = SupplyChainRemediationReasonInstalledVersionMalformed
+		remediation.MissingEvidence = append(remediation.MissingEvidence, SupplyChainRemediationMissingInstalledVersionMalformed)
+		patched, branchCount, _ := selectFirstPatchedVersion("", finding.FixedVersion, finding.FixedVersionBranches)
+		if branchCount == 1 {
+			remediation.FirstPatchedVersion = patched
+		}
+		return finalizeRemediation(remediation)
+	}
+
 	patched, branchCount, _ := selectFirstPatchedVersion(remediation.CurrentVersion, finding.FixedVersion, finding.FixedVersionBranches)
 	remediation.FirstPatchedVersion = patched
 
 	if patched == "" {
 		remediation.Reason = SupplyChainRemediationReasonNoPatchedVersion
 		remediation.MissingEvidence = append(remediation.MissingEvidence, SupplyChainRemediationMissingFixedVersion)
-		return remediation
+		return finalizeRemediation(remediation)
+	}
+
+	// Missing installed version is fatal only when the advisory publishes
+	// more than one fixed-version branch. Without an installed version,
+	// Eshu cannot anchor the branch selector by major, so the recommended
+	// upgrade could be a downgrade or unnecessary cross-major bump.
+	// Single-branch advisories stay actionable because there is only one
+	// fix to choose from.
+	if remediation.CurrentVersion == "" && branchCount > 1 {
+		remediation.Reason = SupplyChainRemediationReasonInstalledVersionMissing
+		remediation.MissingEvidence = append(remediation.MissingEvidence, SupplyChainRemediationMissingObservedVersion)
+		// Blank the selected branch — Eshu cannot defend the choice.
+		remediation.FirstPatchedVersion = ""
+		return finalizeRemediation(remediation)
 	}
 
 	allowance, allowanceMissing := evaluateNPMManifestAllowsFix(remediation.ManifestRange, patched)
 	remediation.ManifestAllowsFix = allowance
 	if allowanceMissing != "" {
 		remediation.MissingEvidence = append(remediation.MissingEvidence, allowanceMissing)
+	}
+	if remediation.CurrentVersion == "" {
+		// Single-branch case where Eshu still recommends the patched
+		// version. Record the missing observed version so callers see
+		// the soft signal without changing the recommendation.
+		remediation.MissingEvidence = append(remediation.MissingEvidence, SupplyChainRemediationMissingObservedVersion)
 	}
 
 	direct := finding.DirectDependency != nil && *finding.DirectDependency
@@ -191,11 +222,10 @@ func BuildSupplyChainImpactRemediation(finding SupplyChainImpactFinding) SupplyC
 		remediation.Confidence = SupplyChainRemediationConfidencePartial
 	}
 
-	if remediation.CurrentVersion == "" {
-		if !containsRemediationCode(remediation.MissingEvidence, SupplyChainRemediationMissingObservedVersion) {
-			remediation.MissingEvidence = append(remediation.MissingEvidence, SupplyChainRemediationMissingObservedVersion)
-		}
-	}
+	return finalizeRemediation(remediation)
+}
+
+func finalizeRemediation(remediation SupplyChainImpactRemediation) SupplyChainImpactRemediation {
 	remediation.MissingEvidence = uniqueSortedStrings(remediation.MissingEvidence)
 	return remediation
 }
@@ -227,16 +257,6 @@ func cloneFixedVersionBranches(values []FixedVersionBranch) []FixedVersionBranch
 	out := make([]FixedVersionBranch, len(values))
 	copy(out, values)
 	return out
-}
-
-func containsRemediationCode(values []string, want string) bool {
-	want = strings.TrimSpace(want)
-	for _, value := range values {
-		if strings.TrimSpace(value) == want {
-			return true
-		}
-	}
-	return false
 }
 
 // selectFirstPatchedVersion picks the lowest source-reported fixed version

@@ -372,6 +372,7 @@ func baseSupplyChainImpactFinding(
 		FixedVersionSource:   provenance.FixedVersionSource,
 		FixedVersionBranches: provenance.FixedVersionBranches,
 		RangeSource:          provenance.RangeSource,
+		VulnerableRange:      provenance.VulnerableRange,
 		AdvisorySources:      provenance.AdvisorySources,
 		EvidencePath:         []string{facts.VulnerabilityCVEFactKind, facts.VulnerabilityAffectedPackageFactKind},
 		EvidenceFactIDs:      provenance.EvidenceFactIDs,
