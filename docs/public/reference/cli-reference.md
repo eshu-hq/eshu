@@ -83,16 +83,25 @@ service and launches a short-lived loopback API reader for the scan. Passing
 `--service-url` keeps the command on that explicit API and does not start local
 services.
 
-The command runs in scoped mode by default: targets are derived from the
-observed dependency evidence in the selected repository, and the CLI fails
-closed when advisory or package-registry evidence required by those observed
-packages is missing, stale, or incomplete. Pass `--broad` to skip the scoped
-guards and accept advisory/package coverage beyond observed dependencies; the
-JSON envelope reports the active mode under `data.scope_mode` and the bounded
-plan under `data.scope_plan` regardless of mode. Local performance evidence
-(wall-time, repository size, observed package count, advisory source count,
-cache freshness, and the readiness state the scan stopped at) is attached as
-`data.scan_performance`.
+The command runs in scoped mode by default: the scope plan is derived from
+the readiness envelope of `/api/v0/supply-chain/impact/findings` for the
+selected repository, and the CLI downgrades a `ready_*` verdict to
+`evidence_incomplete` (`advisory_cache_stale`) when the envelope's aggregate
+`freshness` is `stale`. Per-source entries in `readiness.source_snapshots[]`
+are surfaced for operator visibility only; they are aggregated globally by
+the server and not used to gate scoped fail-closed behavior. Pass `--broad`
+to skip that guard and accept advisory/package coverage beyond observed
+dependencies; the JSON envelope reports the active mode under
+`data.scope_mode` and the bounded plan under `data.scope_plan` regardless of
+mode. Local performance evidence is attached as `data.scan_performance`
+with wall-time, repository size/file count, observed-dependency fact count,
+advisory fact count, package-registry fact count, cache freshness, scope
+mode, and the readiness state the scan stopped at. The
+`*_facts` fields are counts of source facts (the same
+`evidence_sources[].fact_count` the server reports), not unique packages or
+advisory sources. `package_registry_facts` is typically `0` for `vuln-scan
+repo` because the readiness store only counts registry metadata when the
+request is anchored on a specific `package_id`.
 
 ## Version Probes
 

@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"sort"
 	"strings"
 	"time"
 )
@@ -22,41 +21,42 @@ const (
 )
 
 const (
-	// vulnScanMissingObservedDeps marks the scope plan when the readiness
-	// envelope reports zero package.consumption evidence for the requested
-	// repository.
-	vulnScanMissingObservedDeps = "no_observed_dependencies"
-	// vulnScanMissingAdvisoryEvidence marks the scope plan when no advisory
-	// facts are present for the scope.
-	vulnScanMissingAdvisoryEvidence = "advisory_evidence_missing"
-	// vulnScanMissingAdvisoryCacheStale marks the scope plan when any required
-	// advisory source snapshot is stale.
+	// vulnScanMissingAdvisoryCacheStale marks the scope plan when the readiness
+	// envelope's aggregate freshness signal is `stale`. The envelope freshness
+	// is the only freshness signal aggregated from repo-anchored evidence
+	// families today; per-snapshot entries in `source_snapshots[]` are reported
+	// without scope filtering, so the CLI does not gate on them.
 	vulnScanMissingAdvisoryCacheStale = "advisory_cache_stale"
-	// vulnScanMissingAdvisorySnapshotIncomplete marks the scope plan when any
-	// required advisory source snapshot is still in-flight (complete=false).
-	vulnScanMissingAdvisorySnapshotIncomplete = "advisory_snapshot_incomplete"
 )
 
 // vulnScanScopePlan describes how the local vulnerability scan derived its
-// target scope (observed packages, advisory sources, package-registry
-// metadata) and which evidence gates the CLI applied before declaring a ready
-// result. The plan is built from the readiness envelope so the local CLI
-// never invents truth the server did not already report.
+// target scope (observed dependency facts, advisory facts, package-registry
+// facts) and which evidence gates the CLI applied before declaring a ready
+// result. The plan is built from the readiness envelope returned by
+// `/api/v0/supply-chain/impact/findings` so the local CLI never invents truth
+// the server did not already report.
+//
+// Fact counts come from `evidence_sources[].fact_count` and reflect the raw
+// number of source facts the readiness query observed, not the number of
+// unique packages or advisory sources. `PackageRegistryFacts` is typically 0
+// for repository-only scopes because the server only counts registry metadata
+// when the caller anchors on a specific `package_id`.
 type vulnScanScopePlan struct {
-	Mode              string                     `json:"mode"`
-	ObservedPackages  int                        `json:"observed_packages"`
-	AdvisorySources   int                        `json:"advisory_sources"`
-	PackageRegistry   int                        `json:"package_registry"`
-	Freshness         string                     `json:"freshness,omitempty"`
-	StopThreshold     string                     `json:"stop_threshold"`
-	MissingEvidence   []string                   `json:"missing_evidence,omitempty"`
-	IncompleteReasons []string                   `json:"incomplete_reasons,omitempty"`
-	SourceSnapshots   []vulnScanSourceCacheState `json:"source_snapshots,omitempty"`
+	Mode                    string                     `json:"mode"`
+	ObservedDependencyFacts int                        `json:"observed_dependency_facts"`
+	AdvisoryFacts           int                        `json:"advisory_facts"`
+	PackageRegistryFacts    int                        `json:"package_registry_facts"`
+	Freshness               string                     `json:"freshness,omitempty"`
+	StopThreshold           string                     `json:"stop_threshold"`
+	MissingEvidence         []string                   `json:"missing_evidence,omitempty"`
+	IncompleteReasons       []string                   `json:"incomplete_reasons,omitempty"`
+	SourceSnapshots         []vulnScanSourceCacheState `json:"source_snapshots,omitempty"`
 }
 
 // vulnScanSourceCacheState records the per-source cache health surfaced by the
-// readiness envelope so operators can tell which advisory snapshot triggered a
-// scoped fail-closed verdict.
+// readiness envelope. The CLI presents this list for operator visibility only;
+// the entries are aggregated globally by the server today and therefore do
+// not gate scoped fail-closed behavior.
 type vulnScanSourceCacheState struct {
 	Source               string `json:"source"`
 	Ecosystem            string `json:"ecosystem,omitempty"`
@@ -68,18 +68,19 @@ type vulnScanSourceCacheState struct {
 }
 
 // vulnScanPerformance records local one-shot scan performance evidence so the
-// CLI output proves the bounded contract: repository size, observed package
-// count, advisory source count, wall-clock time, cache freshness, and the
-// readiness state the scan stopped at.
+// CLI output proves the bounded contract: repository size, observed
+// dependency-fact count, advisory-fact count, wall-clock time, cache
+// freshness, and the readiness state the scan stopped at. Fact counts mirror
+// the same `evidence_sources[].fact_count` semantics as the scope plan.
 type vulnScanPerformance struct {
 	StartedAt               string `json:"started_at"`
 	CompletedAt             string `json:"completed_at"`
 	WallTimeMS              int64  `json:"wall_time_ms"`
 	RepositorySizeBytes     int64  `json:"repository_size_bytes"`
 	RepositoryFileCount     int    `json:"repository_file_count"`
-	ObservedPackages        int    `json:"observed_packages"`
-	AdvisorySources         int    `json:"advisory_sources"`
-	PackageRegistryPackages int    `json:"package_registry_packages"`
+	ObservedDependencyFacts int    `json:"observed_dependency_facts"`
+	AdvisoryFacts           int    `json:"advisory_facts"`
+	PackageRegistryFacts    int    `json:"package_registry_facts"`
 	CacheFreshness          string `json:"cache_freshness,omitempty"`
 	ScopeMode               string `json:"scope_mode"`
 	StopThreshold           string `json:"stop_threshold"`
@@ -97,11 +98,11 @@ func buildVulnScanScopePlan(mode string, readiness map[string]any) vulnScanScope
 	for family, count := range readinessFactCountsByFamily(readiness) {
 		switch family {
 		case "package.consumption":
-			plan.ObservedPackages = count
+			plan.ObservedDependencyFacts = count
 		case "vulnerability.advisory":
-			plan.AdvisorySources = count
+			plan.AdvisoryFacts = count
 		case "package.registry":
-			plan.PackageRegistry = count
+			plan.PackageRegistryFacts = count
 		}
 	}
 	if freshness, ok := readiness["freshness"].(string); ok {
@@ -185,77 +186,52 @@ func readinessSourceSnapshots(readiness map[string]any) []vulnScanSourceCacheSta
 }
 
 // applyScopedGuards inspects the scope plan and decides whether scoped mode
-// should override the server-provided readiness state. It returns the
-// (possibly adjusted) readiness state, an explicit fail-closed error when one
-// is required, and the missing-evidence reasons that justified the override.
+// should override the server-provided readiness state.
 //
-// Guards only fire when the server returned a ready_* state. Non-ready server
-// verdicts (not_configured, target_incomplete, evidence_incomplete,
-// readiness_unavailable) already preserve fail-closed semantics; the CLI
-// passes those through unmodified.
+// Only one CLI-side guard fires today: when the server returned a `ready_*`
+// state but the envelope's aggregate `freshness` is `stale`, scoped mode
+// downgrades to `evidence_incomplete` and records `advisory_cache_stale` so
+// the operator never gets a clean answer backed by stale source data. The
+// envelope freshness is the only freshness signal the server aggregates from
+// repo-anchored evidence families today; per-source entries in
+// `readiness.source_snapshots[]` are reported without scope filtering and
+// would taint repo-scoped runs with unrelated global staleness, so the CLI
+// does not gate on them.
 //
-// Broad mode short-circuits the guards but still records the stop threshold so
+// Non-ready server verdicts (`not_configured`, `target_incomplete`,
+// `evidence_incomplete`, `readiness_unavailable`) already preserve
+// fail-closed semantics; the CLI passes them through unmodified rather than
+// shadow the server's missing-evidence reasons.
+//
+// Broad mode short-circuits the guard but still records the stop threshold so
 // the JSON envelope is honest about the wider mode.
 func applyScopedGuards(
 	plan *vulnScanScopePlan,
 	readinessState string,
-) (newState string, missing []string, snapshotIncomplete bool, failErr error) {
+) (newState string, missing []string, failErr error) {
 	if plan == nil {
-		return readinessState, nil, false, nil
+		return readinessState, nil, nil
 	}
 	if plan.Mode == vulnScanScopeModeBroad {
 		plan.StopThreshold = readinessState
-		return readinessState, nil, false, nil
+		return readinessState, nil, nil
 	}
 	plan.StopThreshold = readinessState
 	if !isReadyReadinessState(readinessState) {
-		// Non-ready server verdicts already preserve fail-closed semantics; do
-		// not re-classify or add CLI-side missing-evidence reasons that would
-		// shadow the server's reasons.
-		return readinessState, nil, false, nil
+		return readinessState, nil, nil
 	}
-	state := readinessState
-	missingSet := map[string]struct{}{}
-
-	if plan.ObservedPackages == 0 {
-		state = "evidence_incomplete"
-		missingSet[vulnScanMissingObservedDeps] = struct{}{}
+	if !strings.EqualFold(plan.Freshness, "stale") {
+		return readinessState, nil, nil
 	}
-	if plan.AdvisorySources == 0 {
-		state = "evidence_incomplete"
-		missingSet[vulnScanMissingAdvisoryEvidence] = struct{}{}
-	}
-	for _, snapshot := range plan.SourceSnapshots {
-		if !snapshot.Complete {
-			state = "target_incomplete"
-			missingSet[vulnScanMissingAdvisorySnapshotIncomplete] = struct{}{}
-			snapshotIncomplete = true
-			continue
-		}
-		if strings.EqualFold(snapshot.Freshness, "stale") {
-			if state != "target_incomplete" {
-				state = "evidence_incomplete"
-			}
-			missingSet[vulnScanMissingAdvisoryCacheStale] = struct{}{}
-		}
-	}
-
-	if len(missingSet) == 0 {
-		plan.StopThreshold = state
-		return state, nil, snapshotIncomplete, nil
-	}
-	missing = make([]string, 0, len(missingSet))
-	for reason := range missingSet {
-		missing = append(missing, reason)
-	}
-	sort.Strings(missing)
+	state := "evidence_incomplete"
+	missing = []string{vulnScanMissingAdvisoryCacheStale}
 	plan.MissingEvidence = missing
 	plan.StopThreshold = state
 	failErr = commandExitError{
 		message: fmt.Sprintf("scoped vuln-scan fail-closed: %s", strings.Join(missing, ", ")),
 		code:    4,
 	}
-	return state, missing, snapshotIncomplete, failErr
+	return state, missing, failErr
 }
 
 // isReadyReadinessState reports whether a readiness state classifies the
@@ -301,9 +277,9 @@ func captureVulnScanPerformance(
 		WallTimeMS:              completedAt.Sub(startedAt).Milliseconds(),
 		RepositorySizeBytes:     bytes,
 		RepositoryFileCount:     count,
-		ObservedPackages:        plan.ObservedPackages,
-		AdvisorySources:         plan.AdvisorySources,
-		PackageRegistryPackages: plan.PackageRegistry,
+		ObservedDependencyFacts: plan.ObservedDependencyFacts,
+		AdvisoryFacts:           plan.AdvisoryFacts,
+		PackageRegistryFacts:    plan.PackageRegistryFacts,
 		CacheFreshness:          freshness,
 		ScopeMode:               plan.Mode,
 		StopThreshold:           plan.StopThreshold,

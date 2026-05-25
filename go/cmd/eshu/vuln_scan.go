@@ -189,7 +189,7 @@ func runVulnScanRepo(cmd *cobra.Command, args []string) error {
 // envelope with the scope plan attached.
 func applyVulnScanScope(result *vulnScanRepoResult) error {
 	plan := buildVulnScanScopePlan(result.ScopeMode, result.Readiness)
-	state, missing, snapshotIncomplete, failErr := applyScopedGuards(&plan, result.ReadinessState)
+	state, missing, failErr := applyScopedGuards(&plan, result.ReadinessState)
 	if plan.StopThreshold == "" {
 		plan.StopThreshold = state
 	}
@@ -209,13 +209,6 @@ func applyVulnScanScope(result *vulnScanRepoResult) error {
 		result.Warnings = append(result.Warnings,
 			fmt.Sprintf("scoped fail-closed: %s", strings.Join(missing, ", ")),
 		)
-	}
-	if snapshotIncomplete {
-		// Snapshot incompleteness is reported as target_incomplete because the
-		// underlying advisory ingestion has not finished; the operator should
-		// rerun once the snapshot becomes complete.
-		result.ReadinessState = "target_incomplete"
-		plan.StopThreshold = "target_incomplete"
 	}
 	return failErr
 }
@@ -425,8 +418,8 @@ func renderVulnScanRepoSummary(w io.Writer, result vulnScanRepoResult) error {
 	if plan := result.ScopePlan; plan != nil {
 		if _, err := fmt.Fprintf(
 			w,
-			"Scope: observed_packages=%d advisory_sources=%d package_registry=%d freshness=%s\n",
-			plan.ObservedPackages, plan.AdvisorySources, plan.PackageRegistry, defaultString(plan.Freshness, "unknown"),
+			"Scope: observed_dependency_facts=%d advisory_facts=%d package_registry_facts=%d freshness=%s\n",
+			plan.ObservedDependencyFacts, plan.AdvisoryFacts, plan.PackageRegistryFacts, defaultString(plan.Freshness, "unknown"),
 		); err != nil {
 			return err
 		}
