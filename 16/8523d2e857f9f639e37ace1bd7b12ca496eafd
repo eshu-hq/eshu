@@ -1,0 +1,31 @@
+go/internal/reducer/supply_chain_impact_match.go
+  s_f2f7fbb6f30866::t_c29f5e650f0f53 86-114,133-134,145-149,152,154,160-161,172-176,179-198,297,303,306-310
+  s_f2f7fbb6f30866::t_987f3f3630ed60 299-300
+go/internal/reducer/supply_chain_impact_lockfile_test.go
+  s_f2f7fbb6f30866::t_afabfa2aef0539 39
+go/internal/query/supply_chain_impact_explain_runtime_test.go
+  s_f2f7fbb6f30866::t_802f117cdc8e38 1-60,63-64,66-69,85-97,62,73,78,81-84
+  s_f2f7fbb6f30866::t_bf9df965d0f2c3 61,65,72,74-77,79-80
+go/internal/query/supply_chain_impact_explain.go
+  s_f2f7fbb6f30866::t_a977a0ec797c3e 59,119,121-122,127-135,187
+  s_f2f7fbb6f30866::t_987f3f3630ed60 177
+go/internal/query/supply_chain_impact_path.go
+  s_f2f7fbb6f30866::t_44624112989083 1-2,5-37
+  s_f2f7fbb6f30866::t_987f3f3630ed60 3-4,39-70
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.0",
+  "base_commit_sha": "168523d2e857f9f639e37ace1bd7b12ca496eafd",
+  "prompts": {},
+  "sessions": {
+    "s_f2f7fbb6f30866": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e360b-90eb-7472-bac7-56d488b65f77",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
