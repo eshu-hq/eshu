@@ -69,9 +69,9 @@ absence of evidence look like absence of risk. Guard tests:
 | composer | composer.lock | lockfile | covered | ✓ | ✓ | — | ✓ | ✓ | — | `go/internal/parser/json/composer_lock.go` | `packages` and `packages-dev` arrays emit exact-version rows with a `lockfile` flag so the reducer can join manifest ranges to installed PHP versions without dropping the dev/runtime split; transitive chain is not yet derived. |
 | go | go.mod | manifest | covered | ✓ | — | ✓ | ✓ | — | — | `go/internal/parser/gomod/parser.go` (`Parse` for go.mod) | `require`/indirect/`replace`/`exclude` directives emit content_entity rows. go.mod is a manifest, not a lockfile: require versions are the MVS minimum-version requirement (and the version the resolver would select when no transitive dep forces a higher one), not a resolver-locked exact installed version, so the matrix tracks them under `Range`. Replacement targets surface as `resolved_module_path`/`resolved_version` on each require row; `replace` and `exclude` rows use distinct `config_kind` values so they never get admitted as consumption. Go has no dev/runtime split, and module-graph chains beyond direct/indirect are not stored in go.mod. |
 | go | go.sum | lockfile | gap | — | — | — | — | — | — | `go/internal/parser/gomod/parser.go` emits checksum-only rows (`config_kind=dependency_checksum`, `ambiguous=true`) | go.sum records every module version any tool has ever verified, not the currently selected version, so checksum-only ambiguity prevents claiming exact observed installed evidence. The gomod parser emits `dependency_checksum` rows for audit corroboration but the consumption reducer treats go.sum as missing evidence until paired with a go.mod require. |
-| gradle | build.gradle | build | gap | — | — | — | — | — | — | `go/internal/parser/registry.go` registers groovy by extension but does not extract dependency blocks | Groovy build scripts are parsed for syntax only. |
-| gradle | build.gradle.kts | build | gap | — | — | — | — | — | — | `go/internal/parser/registry.go` registers kotlin by extension but does not extract dependency blocks | Kotlin DSL build scripts are parsed for syntax only. |
-| maven | pom.xml | manifest | gap | — | — | — | — | — | — | no XML parser registered in `go/internal/parser/registry.go` | Maven POMs are not yet parsed; Maven impact relies on registry-side evidence only. |
+| gradle | build.gradle | build | covered | ✓ | — | ✓ | ✓ | ✓ | — | `go/internal/parser/gradle/parser.go` | Groovy DSL `dependencies` blocks (implementation, api, runtimeOnly, compileOnly, testImplementation, platform/enforcedPlatform, buildscript) emit content_entity rows. `project()/files()/fileTree()` are skipped; unresolved `${var}` interpolations stay marked `unresolved`. |
+| gradle | build.gradle.kts | build | covered | ✓ | — | ✓ | ✓ | ✓ | — | `go/internal/parser/gradle/parser.go` | Kotlin DSL `dependencies` blocks emit content_entity rows mirroring the Groovy parser; configuration closures (e.g., `version { strictly(...) }`) without a top-level coordinate version stay `partial`. |
+| maven | pom.xml | manifest | covered | ✓ | — | ✓ | ✓ | ✓ | — | `go/internal/parser/maven/parser.go` | `<dependencies>` and `<dependencyManagement>` emit content_entity rows with `groupId:artifactId` identity. Local `<properties>` resolve at parse time; parent-POM references and unsatisfied `${property}` references stay marked `partial`/`unresolved`. |
 | npm | package.json | manifest | covered | ✓ | — | ✓ | ✓ | ✓ | — | `go/internal/parser/json/language.go` (`dependencyVariables`, npm) | `dependencies` and `devDependencies` emit content_entity rows; optional and peer scopes are not yet split. |
 | npm | package-lock.json | lockfile | covered | ✓ | ✓ | — | ✓ | — | ✓ | `go/internal/parser/json/package_lock.go` | Lockfile v3 and v1 emit exact-version rows with `dependency_path`/`dependency_depth` and `direct_dependency`. |
 | npm | pnpm-lock.yaml | lockfile | gap | — | — | — | — | — | — | `go/internal/parser/yaml/language.go` does not branch on pnpm-lock.yaml | pnpm lockfiles are not yet parsed. |
@@ -92,8 +92,15 @@ absence of evidence look like absence of risk. Guard tests:
   package-registry identity matches. PR
   [#565](https://github.com/eshu-hq/eshu/pull/565) used npm/package.json
   evidence plus Maven registry identity to validate the log4j-core impact
-  story end-to-end. Maven impact still relies on registry-side evidence
-  alone until `pom.xml` is parsed.
+  story end-to-end.
+- Maven `pom.xml` and Gradle `build.gradle` / `build.gradle.kts` emit
+  repository-side dependency facts with `groupId:artifactId` identity that
+  the reducer joins to Maven package-registry identities, so JVM impact
+  reads no longer depend on registry-side evidence alone. Versions resolved
+  from local `<properties>` or Groovy `def`/`val`/`ext` blocks are reported
+  as `resolved`; values that need parent POMs, Gradle source-set
+  evaluation, or version catalogs stay `partial`/`unresolved` and keep the
+  raw declaration in `value` so callers can spot the gap.
 - Cargo `Cargo.toml` rows preserve manifest package names, renamed package
   identity, workspace-inherited dependency ranges, target-specific sections,
   and dev/build/runtime scope. Cargo `Cargo.lock` rows preserve exact resolved
@@ -122,37 +129,44 @@ absence of evidence look like absence of risk. Guard tests:
 
 ## Performance Evidence
 
-No-Regression Evidence: baseline coverage before the NuGet and Go module
-slices was the existing in-memory npm, Composer, and RubyGems parser/reducer
-path; after the rebased change, `go test ./internal/parser/json
-./internal/parser ./internal/parser/gomod ./internal/reducer -count=1` and
-`go test ./...` pass on Go 1.26.3 darwin/arm64. Input shape is fixture-only
-manifests and lockfiles (`package.json`, `package-lock.json`,
-`composer.json`, `composer.lock`, `Gemfile`, `Gemfile.lock`, `.csproj`,
-`packages.lock.json`, `go.mod`, and `go.sum`). Terminal runtime counts stay
-bounded to parser dependency rows and reducer decisions asserted in tests:
-no queue rows, graph rows, or Postgres rows are written by these paths.
+No-Regression Evidence: baseline coverage before the JVM, NuGet, and Go
+module slices was the existing in-memory npm, Composer, and RubyGems
+parser/reducer path; after the rebased change, `go test
+./internal/parser/json ./internal/parser ./internal/parser/gomod
+./internal/parser/maven ./internal/parser/gradle ./internal/reducer
+-count=1` and `go test ./...` pass on Go 1.26.3 darwin/arm64. Input shape
+is fixture-only manifests and lockfiles (`package.json`,
+`package-lock.json`, `composer.json`, `composer.lock`, `Gemfile`,
+`Gemfile.lock`, `.csproj`, `packages.lock.json`, `go.mod`, `go.sum`,
+`pom.xml`, `build.gradle`, and `build.gradle.kts`). Terminal runtime
+counts stay bounded to parser dependency rows and reducer decisions
+asserted in tests: no queue rows, graph rows, or Postgres rows are
+written by these paths.
 
 `go test ./internal/parser -run 'TestParseNuGetProject|TestDependencyCoverage' -count=1`
-proves PackageReference extraction, MSBuild property handling, malformed XML
-rejection, and the engine-level matrix gate (every covered entry parses
-through the real engine into dependency rows). `go test
-./internal/parser/json -run
+proves PackageReference extraction, MSBuild property handling, malformed
+XML rejection, and the engine-level matrix gate (every covered entry —
+including pom.xml, build.gradle, and build.gradle.kts — parses through
+the real engine into dependency rows). `go test ./internal/parser/maven
+-count=1` and `go test ./internal/parser/gradle -count=1` exercise the
+JVM parser fixtures in isolation; both packages allocate per-call only —
+no shared state, locks, or worker pools — so they add no concurrency
+surface to the ingest pipeline. `go test ./internal/parser/json -run
 'TestDependencyCoverage|TestParseComposerLock|TestParseComposerManifestAndLockfile|TestParseNuGet'
--count=1` runs the matrix invariants plus the covered/gap parser fixtures,
-including Composer, RubyGems, and NuGet lockfile fixtures; it is a pure
+-count=1` runs the matrix invariants plus the covered/gap parser fixtures
+(npm, Composer, RubyGems, NuGet, Maven, and Gradle); it is a pure
 in-memory fixture path and adds no Cypher, queue, or storage work.
 `go test ./internal/parser/gomod -run '.' -count=1` covers go.mod
 require/indirect/replace/exclude rows, the go.sum checksum-only ambiguity
 contract, and the scanner-error / malformed-state safeguard for go.sum.
 `go test ./internal/reducer -run
-'TestBuildPackageConsumptionDecisions(Rejects|Matches|Normalizes|Preserves|Admits|Keeps|.*Ruby|MatchesNuGet|PreservesNuGet)'
+'TestBuildPackageConsumptionDecisions(Rejects|Matches|Normalizes|Preserves|Admits|Keeps|.*Ruby|MatchesNuGet|PreservesNuGet|.*JVM|.*Maven|.*Gradle)'
 -count=1` exercises positive consumption admission (Composer lockfile
 evidence, RubyGems Bundler lockfile admission, NuGet lockfile and project
-signals, and the Go module require/indirect case), git/path ambiguity
-rejection, and the safety-rule negatives (go.sum checksum-only ambiguity,
-replace/exclude non-admission, malformed go.mod) without touching Postgres
-or the graph backend.
+signals, the Go module require/indirect case, and Maven/Gradle manifest
+coordinates), git/path ambiguity rejection, and the safety-rule
+negatives (go.sum checksum-only ambiguity, replace/exclude non-admission,
+malformed go.mod) without touching Postgres or the graph backend.
 
 No-Regression Evidence: Cargo coverage is guarded by
 `go test ./internal/parser -run 'TestCargoDependencyCoverageMatrixMarksCargoFilesCovered|TestDefaultEngineParsePathCargo' -count=1`,
@@ -171,4 +185,7 @@ existing `reducer_supply_chain_impact_finding` fact payload. Composer
 lockfile rows carry the same `lockfile: true` metadata bit used by the
 npm `package-lock.json` parser, so the reducer treats lockfile
 directness uniformly: when no explicit dependency chain is present, the
-decision surfaces `direct_dependency: null` rather than guessing.
+decision surfaces `direct_dependency: null` rather than guessing. Maven
+and Gradle dependency rows flow through the same `content_entity` ingest
+path as npm/Composer/RubyGems rows and reuse the existing parser-stage
+histograms.

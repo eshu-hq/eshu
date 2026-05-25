@@ -319,8 +319,12 @@ func (e *Engine) parseDefinition(
 		return e.parseGoModule(resolvedPath, isDependency, options)
 	case "hcl":
 		return e.parseHCL(resolvedPath, isDependency, options)
+	case "gradle":
+		return e.parseGradle(resolvedPath, isDependency, options)
 	case "groovy":
 		return e.parseGroovy(resolvedPath, isDependency, options)
+	case "maven":
+		return e.parseMaven(resolvedPath, isDependency, options)
 	case "scala":
 		return e.parseScala(resolvedPath, isDependency, options)
 	case "sql":

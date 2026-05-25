@@ -4,6 +4,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/eshu-hq/eshu/go/internal/parser/gradle"
+	"github.com/eshu-hq/eshu/go/internal/parser/maven"
 	"github.com/eshu-hq/eshu/go/internal/parser/ruby"
 	"github.com/eshu-hq/eshu/go/internal/parser/shared"
 )
@@ -76,6 +78,9 @@ func TestDependencyCoverageMatrixIsStableAndExhaustive(t *testing.T) {
 		"rubygems|gemfile.lock",
 		"cargo|cargo.toml",
 		"cargo|cargo.lock",
+		"maven|pom.xml",
+		"gradle|build.gradle",
+		"gradle|build.gradle.kts",
 	}
 	for _, key := range requiredCovered {
 		ecosystem, file, _ := strings.Cut(key, "|")
@@ -102,9 +107,6 @@ func TestDependencyCoverageMatrixIsStableAndExhaustive(t *testing.T) {
 		"pipfile.lock",
 		"poetry.lock",
 		"go.sum",
-		"pom.xml",
-		"build.gradle",
-		"build.gradle.kts",
 	}
 	for _, file := range requiredGaps {
 		entry, ok := DependencyCoverageByFile(file)
@@ -126,16 +128,9 @@ func TestDependencyCoverageMatrixIsStableAndExhaustive(t *testing.T) {
 func TestDependencyCoverageCoveredJSONFilesEmitDependencyRows(t *testing.T) {
 	t.Parallel()
 
-	fixtures := map[string]struct {
-		body                  string
-		expectedDependencies  map[string]string
-		expectedPackageMgr    string
-		expectedSection       string
-		expectScopeSplit      bool
-		expectedDevDependency string
-		transitiveBody        string
-	}{
+	fixtures := map[string]coveredFixture{
 		"package.json": {
+			parser: parseJSONFixture,
 			body: `{
   "name": "demo",
   "dependencies": {"lodash": "^4.17.21"},
@@ -148,6 +143,7 @@ func TestDependencyCoverageCoveredJSONFilesEmitDependencyRows(t *testing.T) {
 			expectedDevDependency: "vitest",
 		},
 		"package-lock.json": {
+			parser: parseJSONFixture,
 			body: `{
   "name": "demo",
   "lockfileVersion": 3,
@@ -169,6 +165,7 @@ func TestDependencyCoverageCoveredJSONFilesEmitDependencyRows(t *testing.T) {
 }`,
 		},
 		"composer.json": {
+			parser: parseJSONFixture,
 			body: `{
   "name": "demo/app",
   "require": {"monolog/monolog": "^2.0"},
@@ -181,6 +178,7 @@ func TestDependencyCoverageCoveredJSONFilesEmitDependencyRows(t *testing.T) {
 			expectedDevDependency: "phpunit/phpunit",
 		},
 		"composer.lock": {
+			parser: parseJSONFixture,
 			body: `{
   "packages": [
     {"name": "monolog/monolog", "version": "2.9.1"}
@@ -196,6 +194,7 @@ func TestDependencyCoverageCoveredJSONFilesEmitDependencyRows(t *testing.T) {
 			expectedDevDependency: "phpunit/phpunit",
 		},
 		"gemfile": {
+			parser: parseRubyFixture,
 			body: `source "https://rubygems.org"
 gem "rails", "~> 7.1"
 group :development, :test do
@@ -209,6 +208,7 @@ end
 			expectedDevDependency: "rspec-rails",
 		},
 		"gemfile.lock": {
+			parser: parseRubyFixture,
 			body: `GEM
   remote: https://rubygems.org/
   specs:
@@ -234,6 +234,7 @@ DEPENDENCIES
 `,
 		},
 		"packages.lock.json": {
+			parser: parseJSONFixture,
 			body: `{
   "version": 1,
   "dependencies": {
@@ -269,6 +270,78 @@ DEPENDENCIES
   }
 }`,
 		},
+		"pom.xml": {
+			parser: parseMavenFixture,
+			body: `<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0">
+  <modelVersion>4.0.0</modelVersion>
+  <groupId>com.example</groupId>
+  <artifactId>demo</artifactId>
+  <version>1.0.0</version>
+  <properties>
+    <spring.version>5.3.20</spring.version>
+  </properties>
+  <dependencies>
+    <dependency>
+      <groupId>org.springframework</groupId>
+      <artifactId>spring-core</artifactId>
+      <version>${spring.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>junit</groupId>
+      <artifactId>junit</artifactId>
+      <version>4.13.2</version>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+</project>`,
+			expectedDependencies: map[string]string{
+				"org.springframework:spring-core": "5.3.20",
+				"junit:junit":                     "4.13.2",
+			},
+			expectedPackageMgr:    "maven",
+			expectedSection:       "dependencies",
+			expectScopeSplit:      true,
+			expectedDevDependency: "junit:junit",
+		},
+		"build.gradle": {
+			parser: parseGradleFixture,
+			body: `plugins {
+    id 'java'
+}
+
+dependencies {
+    implementation 'org.springframework:spring-core:5.3.20'
+    testImplementation 'junit:junit:4.13.2'
+}`,
+			expectedDependencies: map[string]string{
+				"org.springframework:spring-core": "5.3.20",
+				"junit:junit":                     "4.13.2",
+			},
+			expectedPackageMgr:    "gradle",
+			expectedSection:       "implementation",
+			expectScopeSplit:      true,
+			expectedDevDependency: "junit:junit",
+		},
+		"build.gradle.kts": {
+			parser: parseGradleFixture,
+			body: `plugins {
+    java
+}
+
+dependencies {
+    implementation("org.springframework:spring-core:5.3.20")
+    testImplementation("junit:junit:4.13.2")
+}`,
+			expectedDependencies: map[string]string{
+				"org.springframework:spring-core": "5.3.20",
+				"junit:junit":                     "4.13.2",
+			},
+			expectedPackageMgr:    "gradle",
+			expectedSection:       "implementation",
+			expectScopeSplit:      true,
+			expectedDevDependency: "junit:junit",
+		},
 	}
 
 	for _, entry := range DependencyCoverage() {
@@ -288,8 +361,7 @@ DEPENDENCIES
 			// JSON-ownership boundary.
 			continue
 		}
-		path := writeJSONTestFile(t, entry.FilePattern, fixture.body)
-		payload, err := parseDependencyCoverageFixture(path, entry.FilePattern)
+		payload, err := fixture.parser(t, entry.FilePattern, fixture.body)
 		if err != nil {
 			t.Fatalf("%s: Parse() error = %v", entry.FilePattern, err)
 		}
@@ -334,12 +406,12 @@ DEPENDENCIES
 					break
 				}
 			}
-			if !anyChain && fixture.transitiveBody != "" {
-				// Direct lockfile fixtures can produce path length one.
-				// Re-run a fixture with a transitive edge so the matrix
-				// chain-capture claim is provable.
-				transitive := writeJSONTestFile(t, entry.FilePattern, fixture.transitiveBody)
-				rerun, err := parseDependencyCoverageFixture(transitive, entry.FilePattern)
+			if !anyChain && len(fixture.expectedDependencies) > 0 && fixture.transitiveBody != "" {
+				// The base fixture for this covered entry may have only a
+				// single direct dep so chain length is one. Re-run with a
+				// fixture carrying a transitive edge so the matrix claim is
+				// provable.
+				rerun, err := fixture.parser(t, entry.FilePattern, fixture.transitiveBody)
 				if err != nil {
 					t.Fatalf("%s: transitive Parse error = %v", entry.FilePattern, err)
 				}
@@ -356,6 +428,41 @@ DEPENDENCIES
 			}
 		}
 	}
+}
+
+type coveredFixture struct {
+	parser                func(*testing.T, string, string) (map[string]any, error)
+	body                  string
+	expectedDependencies  map[string]string
+	expectedPackageMgr    string
+	expectedSection       string
+	expectScopeSplit      bool
+	expectedDevDependency string
+	transitiveBody        string
+}
+
+func parseJSONFixture(t *testing.T, filename, body string) (map[string]any, error) {
+	t.Helper()
+	path := writeJSONTestFile(t, filename, body)
+	return Parse(path, false, shared.Options{}, Config{})
+}
+
+func parseMavenFixture(t *testing.T, filename, body string) (map[string]any, error) {
+	t.Helper()
+	path := writeJSONTestFile(t, filename, body)
+	return maven.Parse(path, false, shared.Options{})
+}
+
+func parseGradleFixture(t *testing.T, filename, body string) (map[string]any, error) {
+	t.Helper()
+	path := writeJSONTestFile(t, filename, body)
+	return gradle.Parse(path, false, shared.Options{})
+}
+
+func parseRubyFixture(t *testing.T, filename, body string) (map[string]any, error) {
+	t.Helper()
+	path := writeJSONTestFile(t, filename, body)
+	return ruby.Parse(path, false, shared.Options{})
 }
 
 // TestDependencyCoverageGapsDoNotEmitDependencyRows enforces the safety rule
@@ -389,14 +496,5 @@ func TestDependencyCoverageGapsDoNotEmitDependencyRows(t *testing.T) {
 				t.Fatalf("%s: gap file emitted dependency row %#v; missing evidence would be treated as affected", file, row)
 			}
 		}
-	}
-}
-
-func parseDependencyCoverageFixture(path string, filePattern string) (map[string]any, error) {
-	switch strings.ToLower(filePattern) {
-	case "gemfile", "gemfile.lock":
-		return ruby.Parse(path, false, shared.Options{})
-	default:
-		return Parse(path, false, shared.Options{}, Config{})
 	}
 }

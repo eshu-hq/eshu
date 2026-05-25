@@ -265,6 +265,11 @@ func defaultDefinitions() []Definition {
 			Language:  "java_metadata",
 		},
 		{
+			ParserKey:  "gradle",
+			Language:   "gradle",
+			ExactNames: []string{"build.gradle", "build.gradle.kts"},
+		},
+		{
 			ParserKey:  "javascript",
 			Language:   "javascript",
 			Extensions: []string{".cjs", ".js", ".jsx", ".mjs"},
@@ -284,6 +289,11 @@ func defaultDefinitions() []Definition {
 			ParserKey:  "kotlin",
 			Language:   "kotlin",
 			Extensions: []string{".kt"},
+		},
+		{
+			ParserKey:  "maven",
+			Language:   "maven",
+			ExactNames: []string{"pom.xml"},
 		},
 		{
 			ParserKey:  "perl",
