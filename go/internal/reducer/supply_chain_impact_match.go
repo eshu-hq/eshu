@@ -16,6 +16,7 @@ func supplyChainCVEFromEnvelope(envelope facts.Envelope) supplyChainImpactCVE {
 		cvssScore:       supplyChainFloat(envelope.Payload, "cvss_score"),
 		cvssVector:      payloadStr(envelope.Payload, "cvss_vector"),
 		severityLabel:   payloadStr(envelope.Payload, "severity_label"),
+		publishedAt:     payloadStr(envelope.Payload, "published_at"),
 		sourceUpdatedAt: payloadStr(envelope.Payload, "modified_at"),
 		withdrawnAt:     payloadStr(envelope.Payload, "withdrawn_at"),
 	}
@@ -57,6 +58,7 @@ func supplyChainConsumptionFromEnvelope(envelope facts.Envelope) supplyChainPack
 		dependencyPath:   payloadOrderedStrings(envelope.Payload, "dependency_path"),
 		dependencyDepth:  supplyChainInt(envelope.Payload, "dependency_depth"),
 		directDependency: payloadBoolPointer(envelope.Payload, "direct_dependency"),
+		dependencyScope:  supplyChainDependencyScope(envelope.Payload),
 	}
 }
 
@@ -113,6 +115,13 @@ func supplyChainServiceContextFromEnvelope(envelope facts.Envelope) supplyChainS
 		driftStatus:    payloadStr(envelope.Payload, "drift_status"),
 		provenanceOnly: payloadBool(envelope.Payload, "provenance_only"),
 	}
+}
+
+func supplyChainDependencyScope(payload map[string]any) string {
+	if scope := payloadStr(payload, "dependency_scope"); scope != "" {
+		return scope
+	}
+	return payloadStr(payload, "manifest_section")
 }
 
 func firstConsumption(

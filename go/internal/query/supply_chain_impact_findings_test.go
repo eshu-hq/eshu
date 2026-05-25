@@ -78,6 +78,23 @@ func TestPostgresSupplyChainImpactFindingStoreReportsPaginationLimit(t *testing.
 	}
 }
 
+func TestPostgresSupplyChainImpactFindingStoreRequiresPositivePriorityScope(t *testing.T) {
+	t.Parallel()
+
+	store := NewPostgresSupplyChainImpactFindingStore(unusedSupplyChainImpactFindingQueryer{})
+
+	_, err := store.ListSupplyChainImpactFindings(context.Background(), SupplyChainImpactFindingFilter{
+		MinPriorityScore: 0,
+		Limit:            10,
+	})
+	if err == nil {
+		t.Fatal("ListSupplyChainImpactFindings() error = nil, want scope error")
+	}
+	if !strings.Contains(err.Error(), "min_priority_score > 0") {
+		t.Fatalf("error = %q, want min_priority_score > 0 scope guidance", err.Error())
+	}
+}
+
 func TestSupplyChainListImpactFindingsUsesBoundedStore(t *testing.T) {
 	t.Parallel()
 

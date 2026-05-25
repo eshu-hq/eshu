@@ -56,52 +56,58 @@ type SupplyChainImpactFactFilter struct {
 // selected value and what alternates other sources reported. Reducers select
 // one value per field using documented ecosystem-aware source priority.
 type SupplyChainImpactFinding struct {
-	CVEID                string
-	AdvisoryID           string
-	PackageID            string
-	Ecosystem            string
-	PackageName          string
-	PURL                 string
-	ProductCriteria      string
-	MatchCriteriaID      string
-	ObservedVersion      string
-	RequestedRange       string
-	FixedVersion         string
-	MatchReason          string
-	Status               SupplyChainImpactStatus
-	Confidence           string
-	CVSSScore            float64
-	SeveritySource       string
-	SeverityVector       string
-	SeverityLabel        string
-	AlternateSeverities  []AlternateSeverity
-	FixedVersionSource   string
-	FixedVersionBranches []FixedVersionBranch
-	RangeSource          string
-	AdvisorySources      []AdvisorySourceObservation
-	EPSSProbability      string
-	EPSSPercentile       string
-	KnownExploited       bool
-	PriorityReason       string
-	RuntimeReachability  string
-	RepositoryID         string
-	SubjectDigest        string
-	ImageRef             string
-	WorkloadIDs          []string
-	ServiceIDs           []string
-	Environments         []string
-	DependencyPath       []string
-	DependencyDepth      int
-	DirectDependency     *bool
-	MissingEvidence      []string
-	EvidencePath         []string
-	EvidenceFactIDs      []string
-	CanonicalWrites      int
+	CVEID                 string
+	AdvisoryID            string
+	PackageID             string
+	Ecosystem             string
+	PackageName           string
+	PURL                  string
+	ProductCriteria       string
+	MatchCriteriaID       string
+	ObservedVersion       string
+	RequestedRange        string
+	FixedVersion          string
+	MatchReason           string
+	Status                SupplyChainImpactStatus
+	Confidence            string
+	CVSSScore             float64
+	SeveritySource        string
+	SeverityVector        string
+	SeverityLabel         string
+	AdvisoryPublishedAt   string
+	AdvisoryUpdatedAt     string
+	AlternateSeverities   []AlternateSeverity
+	FixedVersionSource    string
+	FixedVersionBranches  []FixedVersionBranch
+	RangeSource           string
+	AdvisorySources       []AdvisorySourceObservation
+	EPSSProbability       string
+	EPSSPercentile        string
+	KnownExploited        bool
+	PriorityReason        string
+	PriorityScore         int
+	PriorityBucket        string
+	PriorityReasonCodes   []string
+	PriorityContributions []SupplyChainImpactPriorityContribution
+	RuntimeReachability   string
+	RepositoryID          string
+	SubjectDigest         string
+	ImageRef              string
+	DependencyScope       string
+	WorkloadIDs           []string
+	ServiceIDs            []string
+	Environments          []string
+	DependencyPath        []string
+	DependencyDepth       int
+	DirectDependency      *bool
+	MissingEvidence       []string
+	EvidencePath          []string
+	EvidenceFactIDs       []string
+	CanonicalWrites       int
 	// DetectionProfile records which tier this finding meets: precise for
 	// exact installed-version anchors, comprehensive for range-only,
 	// SBOM-derived, product-derived, malformed, unsupported-ecosystem, or
-	// missing-version evidence. Always set by BuildSupplyChainImpactFindings
-	// before the writer persists the finding.
+	// missing-version evidence. Always set before the writer persists the row.
 	DetectionProfile DetectionProfile
 }
 
@@ -290,6 +296,7 @@ func appendSupplyChainImpactFinding(
 		return findings
 	}
 	finding.DetectionProfile = classifySupplyChainImpactDetectionProfile(finding)
+	finding = withSupplyChainImpactPriority(finding)
 	return append(findings, finding)
 }
 

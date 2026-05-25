@@ -367,6 +367,16 @@ CREATE INDEX IF NOT EXISTS fact_records_supply_chain_impact_package_lookup_idx
     WHERE fact_kind = 'reducer_supply_chain_impact_finding'
       AND is_tombstone = FALSE;
 
+CREATE INDEX IF NOT EXISTS fact_records_supply_chain_impact_priority_lookup_idx
+    ON fact_records (
+        (payload->>'priority_bucket'),
+        (COALESCE(NULLIF(payload->>'priority_score', '')::int, 0)),
+        fact_id ASC,
+        generation_id
+    )
+    WHERE fact_kind = 'reducer_supply_chain_impact_finding'
+      AND is_tombstone = FALSE;
+
 CREATE INDEX IF NOT EXISTS fact_records_security_alert_repository_lookup_idx
     ON fact_records (
         (payload->>'repository_id'),

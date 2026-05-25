@@ -103,43 +103,50 @@ func supplyChainImpactIdentity(write SupplyChainImpactWrite, finding SupplyChain
 
 func supplyChainImpactPayload(write SupplyChainImpactWrite, finding SupplyChainImpactFinding) map[string]any {
 	payload := map[string]any{
-		"reducer_domain":       string(DomainSupplyChainImpact),
-		"intent_id":            write.IntentID,
-		"scope_id":             write.ScopeID,
-		"generation_id":        write.GenerationID,
-		"source_system":        write.SourceSystem,
-		"cause":                write.Cause,
-		"cve_id":               finding.CVEID,
-		"advisory_id":          finding.AdvisoryID,
-		"package_id":           finding.PackageID,
-		"ecosystem":            finding.Ecosystem,
-		"package_name":         finding.PackageName,
-		"purl":                 finding.PURL,
-		"product_criteria":     finding.ProductCriteria,
-		"match_criteria_id":    finding.MatchCriteriaID,
-		"observed_version":     finding.ObservedVersion,
-		"requested_range":      finding.RequestedRange,
-		"fixed_version":        finding.FixedVersion,
-		"match_reason":         finding.MatchReason,
-		"impact_status":        string(finding.Status),
-		"confidence":           finding.Confidence,
-		"cvss_score":           finding.CVSSScore,
-		"epss_probability":     finding.EPSSProbability,
-		"epss_percentile":      finding.EPSSPercentile,
-		"known_exploited":      finding.KnownExploited,
-		"priority_reason":      finding.PriorityReason,
-		"detection_profile":    string(finding.DetectionProfile),
-		"runtime_reachability": finding.RuntimeReachability,
-		"repository_id":        finding.RepositoryID,
-		"subject_digest":       finding.SubjectDigest,
-		"image_ref":            finding.ImageRef,
-		"workload_ids":         uniqueSortedStrings(finding.WorkloadIDs),
-		"service_ids":          uniqueSortedStrings(finding.ServiceIDs),
-		"environments":         uniqueSortedStrings(finding.Environments),
-		"missing_evidence":     uniqueSortedStrings(finding.MissingEvidence),
-		"evidence_path":        orderedUniqueStrings(finding.EvidencePath),
-		"evidence_fact_ids":    uniqueSortedStrings(finding.EvidenceFactIDs),
-		"canonical_writes":     finding.CanonicalWrites,
+		"reducer_domain":         string(DomainSupplyChainImpact),
+		"intent_id":              write.IntentID,
+		"scope_id":               write.ScopeID,
+		"generation_id":          write.GenerationID,
+		"source_system":          write.SourceSystem,
+		"cause":                  write.Cause,
+		"cve_id":                 finding.CVEID,
+		"advisory_id":            finding.AdvisoryID,
+		"package_id":             finding.PackageID,
+		"ecosystem":              finding.Ecosystem,
+		"package_name":           finding.PackageName,
+		"purl":                   finding.PURL,
+		"product_criteria":       finding.ProductCriteria,
+		"match_criteria_id":      finding.MatchCriteriaID,
+		"observed_version":       finding.ObservedVersion,
+		"requested_range":        finding.RequestedRange,
+		"fixed_version":          finding.FixedVersion,
+		"match_reason":           finding.MatchReason,
+		"impact_status":          string(finding.Status),
+		"confidence":             finding.Confidence,
+		"cvss_score":             finding.CVSSScore,
+		"advisory_published_at":  finding.AdvisoryPublishedAt,
+		"advisory_updated_at":    finding.AdvisoryUpdatedAt,
+		"epss_probability":       finding.EPSSProbability,
+		"epss_percentile":        finding.EPSSPercentile,
+		"known_exploited":        finding.KnownExploited,
+		"priority_reason":        finding.PriorityReason,
+		"priority_score":         finding.PriorityScore,
+		"priority_bucket":        finding.PriorityBucket,
+		"priority_reason_codes":  uniqueSortedStrings(finding.PriorityReasonCodes),
+		"priority_contributions": serializePriorityContributions(finding.PriorityContributions),
+		"runtime_reachability":   finding.RuntimeReachability,
+		"repository_id":          finding.RepositoryID,
+		"subject_digest":         finding.SubjectDigest,
+		"image_ref":              finding.ImageRef,
+		"dependency_scope":       finding.DependencyScope,
+		"workload_ids":           uniqueSortedStrings(finding.WorkloadIDs),
+		"service_ids":            uniqueSortedStrings(finding.ServiceIDs),
+		"environments":           uniqueSortedStrings(finding.Environments),
+		"detection_profile":      string(finding.DetectionProfile),
+		"missing_evidence":       uniqueSortedStrings(finding.MissingEvidence),
+		"evidence_path":          orderedUniqueStrings(finding.EvidencePath),
+		"evidence_fact_ids":      uniqueSortedStrings(finding.EvidenceFactIDs),
+		"canonical_writes":       finding.CanonicalWrites,
 		"source_layers": []string{
 			string(truth.LayerSourceDeclaration),
 			string(truth.LayerObservedResource),
@@ -157,6 +164,31 @@ func supplyChainImpactPayload(write SupplyChainImpactWrite, finding SupplyChainI
 		payload["provenance"] = provenance
 	}
 	return payload
+}
+
+func serializePriorityContributions(values []SupplyChainImpactPriorityContribution) []map[string]any {
+	if len(values) == 0 {
+		return nil
+	}
+	out := make([]map[string]any, 0, len(values))
+	for _, value := range values {
+		if value.ReasonCode == "" {
+			continue
+		}
+		row := map[string]any{
+			"reason_code":  value.ReasonCode,
+			"input":        value.Input,
+			"contribution": value.Contribution,
+		}
+		if value.Value != "" {
+			row["value"] = value.Value
+		}
+		out = append(out, row)
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
 }
 
 func supplyChainImpactProvenancePayload(finding SupplyChainImpactFinding) map[string]any {

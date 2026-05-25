@@ -35,12 +35,38 @@ func TestOpenAPISpecIncludesSupplyChainImpactFindings(t *testing.T) {
 	if got, want := get["operationId"], "listSupplyChainImpactFindings"; got != want {
 		t.Fatalf("operationId = %#v, want %#v", got, want)
 	}
+	parameters, ok := get["parameters"].([]any)
+	if !ok {
+		t.Fatalf("parameters = %T, want []any", get["parameters"])
+	}
+	parameterNames := map[string]bool{}
+	for _, parameter := range parameters {
+		parameterMap, ok := parameter.(map[string]any)
+		if !ok {
+			t.Fatalf("parameter = %T, want map[string]any", parameter)
+		}
+		name, _ := parameterMap["name"].(string)
+		parameterNames[name] = true
+	}
+	for _, want := range []string{"priority_bucket", "min_priority_score", "sort"} {
+		if !parameterNames[want] {
+			t.Fatalf("parameters missing %q", want)
+		}
+	}
 	responses := mustMapField(t, get, "responses")
 	twoHundred := mustMapField(t, responses, "200")
 	content := mustMapField(t, twoHundred, "content")
 	appJSON := mustMapField(t, content, "application/json")
 	schema := mustMapField(t, appJSON, "schema")
 	properties := mustMapField(t, schema, "properties")
+	findings := mustMapField(t, properties, "findings")
+	items := mustMapField(t, findings, "items")
+	itemProperties := mustMapField(t, items, "properties")
+	for _, want := range []string{"priority_score", "priority_bucket", "priority_reason_codes", "priority_contributions"} {
+		if _, ok := itemProperties[want]; !ok {
+			t.Fatalf("finding schema missing %q", want)
+		}
+	}
 	readiness, ok := properties["readiness"].(map[string]any)
 	if !ok {
 		t.Fatalf("properties[readiness] = %T, want map describing readiness envelope", properties["readiness"])
