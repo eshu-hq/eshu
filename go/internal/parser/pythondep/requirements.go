@@ -171,7 +171,7 @@ func parseRequirementLine(content string, raw string, section string, dev bool, 
 		populateURLRow(&builder, content, editable)
 		return builder
 	case looksLikePathRequirement(content, editable):
-		populatePathRow(&builder, content)
+		populatePathRow(&builder, content, editable)
 		return builder
 	}
 
@@ -249,11 +249,15 @@ func populateURLRow(builder *rowBuilder, content string, editable bool) {
 	}
 }
 
-func populatePathRow(builder *rowBuilder, content string) {
+func populatePathRow(builder *rowBuilder, content string, editable bool) {
 	builder.SourceKind = "path"
 	builder.Value = content
 	builder.Name = filepath.Base(strings.TrimRight(content, "/"))
-	builder.ConfigKind = configKindEditable
+	if editable {
+		builder.ConfigKind = configKindEditable
+	} else {
+		builder.ConfigKind = configKindPath
+	}
 	if builder.Name == "" || builder.Name == "." || builder.Name == ".." {
 		builder.Name = content
 	}

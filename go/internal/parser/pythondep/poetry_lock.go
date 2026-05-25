@@ -92,9 +92,18 @@ func applyPoetrySourceSubtable(builder *rowBuilder, section *tomlSection) {
 	if value, ok := section.Values["url"]; ok && value.IsString {
 		url = value.StringValue
 	}
+	// Prefer resolved_reference (commit SHA) over reference (branch/tag) so
+	// downstream consumers get the most specific provenance the lockfile
+	// proved. Poetry writes both keys when it can resolve the requested
+	// reference to a commit.
 	var reference string
-	if value, ok := section.Values["reference"]; ok && value.IsString {
+	if value, ok := section.Values["resolved_reference"]; ok && value.IsString && value.StringValue != "" {
 		reference = value.StringValue
+	}
+	if reference == "" {
+		if value, ok := section.Values["reference"]; ok && value.IsString {
+			reference = value.StringValue
+		}
 	}
 	switch kind {
 	case "git":

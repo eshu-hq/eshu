@@ -159,6 +159,35 @@ func TestParseRequirementsRecordsDevScopeFromFilename(t *testing.T) {
 	}
 }
 
+// TestParseRequirementsKeepsPlainPathRequirementsAsPathNotEditable proves
+// that a non-editable path requirement like `./libs/foo` reaches the row
+// contract as `path_dependency`, not `editable_dependency`. Mixing the two
+// would erase the distinction between an installed-from-disk dep and one
+// that gets relinked through pip's `-e` editable install flow.
+func TestParseRequirementsKeepsPlainPathRequirementsAsPathNotEditable(t *testing.T) {
+	t.Parallel()
+
+	path := writeTempFile(t, "requirements.txt", "./libs/foo\n")
+	payload, err := ParseRequirements(path)
+	if err != nil {
+		t.Fatalf("ParseRequirements error = %v", err)
+	}
+	rows := variableRows(t, payload)
+	if len(rows) != 1 {
+		t.Fatalf("len(rows) = %d, want 1", len(rows))
+	}
+	row := rows[0]
+	if got, want := row["config_kind"], "path_dependency"; got != want {
+		t.Fatalf("config_kind = %#v, want %q (plain `./libs/foo` is a non-editable path requirement)", got, want)
+	}
+	if got, want := row["source_kind"], "path"; got != want {
+		t.Fatalf("source_kind = %#v, want %q", got, want)
+	}
+	if got, want := row["value"], "./libs/foo"; got != want {
+		t.Fatalf("value = %#v, want %q", got, want)
+	}
+}
+
 // TestParseRequirementsHandlesEmptyFileWithoutPanicOrFakeRows guards the
 // safety rule that an empty/whitespace-only requirements file must not produce
 // dependency rows. Empty manifest evidence is not the same as "no

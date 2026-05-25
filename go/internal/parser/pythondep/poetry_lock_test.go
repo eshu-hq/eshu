@@ -90,6 +90,12 @@ url = "../local-pkg"
 	if got, want := internal["source_kind"], "vcs"; got != want {
 		t.Fatalf("internal-tool source_kind = %#v, want vcs", got)
 	}
+	// resolved_reference (commit SHA) MUST win over the human-readable
+	// reference. Otherwise downstream consumers lose the precise commit
+	// pinned by the lockfile.
+	if got, want := internal["source_ref"], "deadbeef"; got != want {
+		t.Fatalf("internal-tool source_ref = %#v, want resolved_reference %q (not branch %q)", got, want, "main")
+	}
 
 	local, ok := byName["local-pkg"]
 	if !ok {
