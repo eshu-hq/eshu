@@ -78,7 +78,10 @@ CI/CD run correlation reads use
 `fact_records_ci_cd_run_correlations_lookup_idx` and
 `fact_records_ci_cd_run_correlations_run_lookup_idx` for repository/run scoped
 reducer facts. Commit, artifact-digest, and environment-only reads have their
-own partial indexes so each advertised API/MCP anchor stays bounded. The
+own partial indexes; image-reference follow-up reads use
+`fact_records_ci_cd_run_correlations_image_ref_idx` so supply-chain impact can
+connect SBOM/image evidence to runtime facts without scanning unrelated CI/CD
+payloads. Each advertised API/MCP anchor stays bounded. The
 `fact_records_container_image_identity_digest_idx` index lets the reducer join
 CI artifact digests to active image identity rows without scanning unrelated
 fact payloads.

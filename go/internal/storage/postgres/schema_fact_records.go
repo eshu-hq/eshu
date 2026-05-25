@@ -176,6 +176,15 @@ CREATE INDEX IF NOT EXISTS fact_records_ci_cd_run_correlations_artifact_lookup_i
     WHERE fact_kind = 'reducer_ci_cd_run_correlation'
       AND is_tombstone = FALSE;
 
+CREATE INDEX IF NOT EXISTS fact_records_ci_cd_run_correlations_image_ref_idx
+    ON fact_records (
+        (payload->>'image_ref'),
+        fact_id ASC,
+        generation_id
+    )
+    WHERE fact_kind = 'reducer_ci_cd_run_correlation'
+      AND is_tombstone = FALSE;
+
 CREATE INDEX IF NOT EXISTS fact_records_ci_cd_run_correlations_environment_lookup_idx
     ON fact_records (
         (payload->>'environment'),

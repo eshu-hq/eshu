@@ -309,13 +309,36 @@ URLs, or credentials are added to metric labels.
 
 ## Chunk 6: SBOM, Image, And Runtime Joins
 
-- [ ] Join SBOM components to repository, image digest, service, workload, and
+- [x] Join SBOM components to repository, image digest, service, workload, and
   environment evidence only through explicit subject or deployment evidence.
-- [ ] Keep tag-only image observations diagnostic until digest identity is proven.
-- [ ] Add image/runtime impact states without collapsing package-only and
+- [x] Keep tag-only image observations diagnostic until digest identity is proven.
+- [x] Add image/runtime impact states without collapsing package-only and
   runtime-reachable findings.
 - [ ] Reserve CPU/RAM-heavy SBOM or image extraction for claim-driven scanner
   workers with separate resource limits.
+
+Status 2026-05-25: supply-chain impact reduction now carries repository,
+image, workload, service, and environment anchors only through reducer-owned
+package consumption, SBOM attachment, container-image identity, CI/CD
+correlation, and service-catalog correlation facts. Ambiguous image identity,
+stale deployment evidence, missing workload evidence, and missing
+service/environment evidence stay in `missing_evidence`. The explain API/MCP
+payload includes `impact_path` so callers see both present and missing hops.
+
+No-Regression Evidence:
+`go test ./internal/reducer ./internal/query ./internal/storage/postgres -count=1`
+proves repo-only, image-only, workload-attached, environment-attached,
+ambiguous image, stale deployment, and missing-evidence impact paths; API
+explain shaping; active evidence loading; and bounded Postgres query/index
+contracts.
+
+Observability Evidence: the path reuses the
+`SupplyChainImpactFindings` reducer counter,
+`reducer_supply_chain_impact_finding` fact payload, `EvidencePath`,
+`missing_evidence`, `runtime_reachability`, `query.supply_chain_impact_findings`
+span, `query.supply_chain_impact_explanation` span, and Postgres query
+instrumentation. Operators can diagnose which hop is absent from the finding
+payload or explanation `impact_path` without a graph query or scanner worker.
 
 ## Chunk 7: Scanner Worker Boundary
 

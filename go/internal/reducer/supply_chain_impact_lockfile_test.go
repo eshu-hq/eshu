@@ -36,6 +36,7 @@ func TestBuildSupplyChainImpactFindingsUsesOwnedLockfileVersion(t *testing.T) {
 	if got.RuntimeReachability != "package_manifest" {
 		t.Fatalf("RuntimeReachability = %q, want package_manifest", got.RuntimeReachability)
 	}
+	assertNotContainsString(t, got.MissingEvidence, "image or SBOM attachment evidence missing")
 	path := strings.Join(got.EvidencePath, " -> ")
 	if strings.Contains(path, facts.PackageRegistryPackageVersionFactKind) {
 		t.Fatalf("EvidencePath = %#v, must not treat registry versions as installed versions", got.EvidencePath)

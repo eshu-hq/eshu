@@ -139,6 +139,10 @@ func buildSupplyChainExplanationAnchors(
 	out := SupplyChainImpactExplanationAnchors{
 		RepositoryID:    row.Finding.RepositoryID,
 		SubjectDigest:   row.Finding.SubjectDigest,
+		ImageRefs:       compactStrings([]string{row.Finding.ImageRef}),
+		Workloads:       append([]string(nil), row.Finding.WorkloadIDs...),
+		Services:        append([]string(nil), row.Finding.ServiceIDs...),
+		Environments:    append([]string(nil), row.Finding.Environments...),
 		EvidenceFactIDs: append([]string(nil), row.Finding.EvidenceFactIDs...),
 	}
 	for _, fact := range row.EvidenceFacts {
@@ -150,7 +154,10 @@ func buildSupplyChainExplanationAnchors(
 		appendUniqueString(&out.SBOMDocuments, StringVal(fact.Payload, "document_id"))
 		appendUniqueString(&out.ImageDigests, StringVal(fact.Payload, "digest"))
 		appendUniqueString(&out.ImageDigests, StringVal(fact.Payload, "subject_digest"))
+		appendUniqueString(&out.ImageRefs, StringVal(fact.Payload, "image_ref"))
 		appendUniqueString(&out.Workloads, StringVal(fact.Payload, "workload_id"))
+		appendUniqueString(&out.Services, StringVal(fact.Payload, "service_id"))
+		appendUniqueString(&out.Environments, StringVal(fact.Payload, "environment"))
 		if out.RepositoryID == "" {
 			out.RepositoryID = StringVal(fact.Payload, "repository_id")
 		}
@@ -166,7 +173,10 @@ func buildSupplyChainExplanationAnchors(
 	out.LockfilePaths = explanationUniqueStrings(out.LockfilePaths)
 	out.SBOMDocuments = explanationUniqueStrings(out.SBOMDocuments)
 	out.ImageDigests = explanationUniqueStrings(out.ImageDigests)
+	out.ImageRefs = explanationUniqueStrings(out.ImageRefs)
 	out.Workloads = explanationUniqueStrings(out.Workloads)
+	out.Services = explanationUniqueStrings(out.Services)
+	out.Environments = explanationUniqueStrings(out.Environments)
 	return out
 }
 

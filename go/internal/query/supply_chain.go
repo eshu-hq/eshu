@@ -96,6 +96,10 @@ type SupplyChainImpactFindingResult struct {
 	RuntimeReachability string                       `json:"runtime_reachability,omitempty"`
 	RepositoryID        string                       `json:"repository_id,omitempty"`
 	SubjectDigest       string                       `json:"subject_digest,omitempty"`
+	ImageRef            string                       `json:"image_ref,omitempty"`
+	WorkloadIDs         []string                     `json:"workload_ids,omitempty"`
+	ServiceIDs          []string                     `json:"service_ids,omitempty"`
+	Environments        []string                     `json:"environments,omitempty"`
 	DependencyPath      []string                     `json:"dependency_path,omitempty"`
 	DependencyDepth     int                          `json:"dependency_depth,omitempty"`
 	DirectDependency    *bool                        `json:"direct_dependency,omitempty"`

@@ -90,10 +90,18 @@ const openAPIPathsSupplyChain = `
                           "impact_status": {"type": "string"},
                           "confidence": {"type": "string"},
                           "runtime_reachability": {"type": "string"},
+                          "repository_id": {"type": "string"},
+                          "subject_digest": {"type": "string"},
+                          "image_ref": {"type": "string"},
+                          "workload_ids": {"type": "array", "items": {"type": "string"}},
+                          "service_ids": {"type": "array", "items": {"type": "string"}},
+                          "environments": {"type": "array", "items": {"type": "string"}},
                           "dependency_path": {"type": "array", "items": {"type": "string"}},
                           "dependency_depth": {"type": "integer"},
                           "direct_dependency": {"type": "boolean"},
                           "missing_evidence": {"type": "array", "items": {"type": "string"}},
+                          "evidence_path": {"type": "array", "items": {"type": "string"}},
+                          "evidence_fact_ids": {"type": "array", "items": {"type": "string"}},
                           "provenance": {
                             "type": "object",
                             "description": "Per-source advisory provenance. Reducers preserve every source observation behind a finding so callers see which advisory source supplied the selected severity, fixed version, and vulnerable range plus alternates other sources reported. Selection uses documented per-ecosystem priority (vendor advisory for OS package classes, GHSA/GLAD/OSV/NVD for language ecosystems).",
@@ -331,9 +339,26 @@ const openAPIPathsSupplyChain = `
                         "lockfile_paths": {"type": "array", "items": {"type": "string"}},
                         "sbom_documents": {"type": "array", "items": {"type": "string"}},
                         "image_digests": {"type": "array", "items": {"type": "string"}},
+                        "image_refs": {"type": "array", "items": {"type": "string"}},
                         "workloads": {"type": "array", "items": {"type": "string"}},
+                        "services": {"type": "array", "items": {"type": "string"}},
+                        "environments": {"type": "array", "items": {"type": "string"}},
                         "provider_alerts": {"type": "array", "items": {"type": "object"}},
                         "evidence_fact_ids": {"type": "array", "items": {"type": "string"}}
+                      }
+                    },
+                    "impact_path": {
+                      "type": "array",
+                      "description": "Reducer-owned present and missing hops from advisory/package evidence to repository, image, workload, service, and environment evidence. Missing hops remain explicit and are not inferred from names or tags.",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "hop": {"type": "string"},
+                          "status": {"type": "string", "enum": ["present", "missing_evidence"]},
+                          "evidence_fact_ids": {"type": "array", "items": {"type": "string"}},
+                          "missing_evidence": {"type": "array", "items": {"type": "string"}}
+                        },
+                        "required": ["hop", "status"]
                       }
                     },
                     "evidence": {

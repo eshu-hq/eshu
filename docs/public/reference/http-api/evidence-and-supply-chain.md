@@ -156,7 +156,7 @@ Valid impact statuses are `affected_exact`, `affected_derived`,
 `possibly_affected`, `not_affected_known_fixed`, and `unknown_impact`.
 Rows keep CVSS, EPSS, KEV, installed-version state, requested manifest range,
 fixed-version state, match reason, runtime reachability, repository/image
-evidence, and missing evidence separate.
+evidence, workload/service/environment anchors, and missing evidence separate.
 
 ### Detection Profiles
 
@@ -228,6 +228,14 @@ or another owned exact-version source narrows the version. Product-only CPE
 facts and package-registry facts without owned repository, image,
 package-manifest, lockfile, or SBOM evidence remain source intelligence and do
 not appear as impact findings.
+
+Runtime context is evidence-only. Findings may include `repository_id`,
+`subject_digest`, `image_ref`, `workload_ids[]`, `service_ids[]`, and
+`environments[]` only when reducer-owned package/SBOM/image evidence joins to
+explicit deployment or service-catalog facts. Ambiguous images, stale deployment
+evidence, missing workload links, or missing service/environment links stay in
+`missing_evidence[]` instead of being inferred from repository, tag, workload,
+or service names.
 
 The response also includes a `readiness` envelope so a UI, MCP client, or
 operator can tell `nothing matched` from `Eshu did not have the evidence to
@@ -313,10 +321,15 @@ The explanation payload separates:
 - `dependency_chain`: direct/transitive path, depth, and direct-dependency
   status when manifest, lockfile, or SBOM evidence provides it.
 - `anchors`: repository, manifest/lockfile paths, SBOM document ids, image
-  digests, workload ids, provider-alert handles, and evidence fact ids when
-  present. Workload, image, and provider-alert anchors remain evidence only;
-  the route does not infer reachability or deployment truth from names, tags,
-  or provider alerts.
+  digests, image refs, workload ids, service ids, environments,
+  provider-alert handles, and evidence fact ids when present. Workload, image,
+  service, environment, and provider-alert anchors remain evidence only; the
+  route does not infer reachability or deployment truth from names, tags, or
+  provider alerts.
+- `impact_path`: ordered present and missing hops from advisory/package
+  evidence through repository dependency, SBOM/image digest, deployment,
+  workload, service, and environment evidence. Missing hops include the
+  reducer-owned reason and remain visible to API and MCP callers.
 - `freshness`: latest referenced evidence observation and evidence fact count.
 - `missing_evidence`: reducer/readiness reasons plus explanation-level gaps
   such as missing observed version, vulnerable range, fixed version, or
