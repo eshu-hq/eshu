@@ -88,7 +88,16 @@ func init() {
 	}
 	addVulnScanRepoFlags(repoCmd)
 	addRemoteFlags(repoCmd)
+	providerParityCmd := &cobra.Command{
+		Use:   "provider-parity",
+		Short: "Compare provider alerts to Eshu findings with aggregate-only output",
+		Args:  cobra.NoArgs,
+		RunE:  runVulnScanProviderParity,
+	}
+	addVulnScanProviderParityFlags(providerParityCmd)
+	addRemoteFlags(providerParityCmd)
 	vulnScanCmd.AddCommand(repoCmd)
+	vulnScanCmd.AddCommand(providerParityCmd)
 	rootCmd.AddCommand(vulnScanCmd)
 }
 

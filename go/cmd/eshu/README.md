@@ -27,7 +27,9 @@ orchestration. It does not own service runtime internals:
     `i`/`ls`/`rm`/`w` aliases (`scan.go`, `basic.go`)
   - security intelligence: `vuln-scan repo [path]` runs the local scan
     readiness contract and reads repository-scoped supply-chain impact findings
-    through the API envelope (`vuln_scan.go`)
+    through the API envelope; `vuln-scan provider-parity` compares
+    operator-local provider alert summaries to Eshu findings with
+    aggregate-only output (`vuln_scan.go`, `vuln_scan_provider_parity.go`)
   - service tracing: `trace service <name>` renders the API service-story
     dossier through a canonical envelope-aware CLI consumer (`trace.go`)
   - documentation truth: `docs verify [path]` verifies local Markdown-family
@@ -110,6 +112,14 @@ launched runtime via the shared `telemetry` package. Errors print to
   advisory_facts, package_registry_facts, cache_freshness, scope_mode, and
   stop_threshold so the local one-shot scan ships its own performance
   evidence without a separate measurement step.
+- `eshu vuln-scan provider-parity` is the private-safe provider alert proof
+  wrapper. It reads an operator-local allowlist file, optionally reads a local
+  generic provider summary file, or fetches GitHub Dependabot alert summaries
+  using a token from the named environment variable. It calls only the bounded
+  Eshu supply-chain impact API and returns aggregate class counts. The command
+  must not print repository names, repository ids, package names, package ids,
+  advisory ids, CVE ids, alert URLs, tokens, provider payloads, or Eshu finding
+  rows.
 - `eshu trace service <name>` is a read-only CLI consumer of
   `/api/v0/services/{service_name}/story`. It asks the API for
   `application/eshu.envelope+json`, passes supported selectors through as
