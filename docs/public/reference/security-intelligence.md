@@ -537,10 +537,12 @@ but return one explanation at a time. Callers must provide `finding_id` or an
 advisory/CVE plus package, repository, or image digest anchor. The route
 hydrates only the finding's `evidence_fact_ids`, returns advisory/source,
 component/version, vulnerable-range, fixed-version, dependency-chain,
-manifest/SBOM/image/workload/provider-alert anchors when those facts exist,
-and reports `outcome: no_finding` with readiness when a bounded scope has no
+manifest/SBOM/image/workload/service/environment/provider-alert anchors when
+those facts exist, includes an `impact_path` with present and missing hops, and
+reports `outcome: no_finding` with readiness when a bounded scope has no
 finding. It does not infer reachability or deployment truth from provider
-alerts, image tags, workload names, or repository names.
+alerts, image tags, workload names, service names, environment names, or
+repository names.
 
 Version and range matching is reducer-owned and ecosystem-aware. The first
 supported matchers are npm semver over OSV-style event ranges and GLAD-style

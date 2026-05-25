@@ -56,6 +56,7 @@ type SupplyChainImpactExplanationResult struct {
 	Version         SupplyChainImpactVersionExplanation    `json:"version"`
 	DependencyChain *SupplyChainImpactDependencyChain      `json:"dependency_chain,omitempty"`
 	Anchors         SupplyChainImpactExplanationAnchors    `json:"anchors"`
+	ImpactPath      []SupplyChainImpactPathHop             `json:"impact_path,omitempty"`
 	Evidence        []SupplyChainImpactEvidenceFactSummary `json:"evidence"`
 	Readiness       SupplyChainImpactReadinessEnvelope     `json:"readiness"`
 	MissingEvidence []string                               `json:"missing_evidence,omitempty"`
@@ -115,9 +116,21 @@ type SupplyChainImpactExplanationAnchors struct {
 	LockfilePaths   []string                         `json:"lockfile_paths,omitempty"`
 	SBOMDocuments   []string                         `json:"sbom_documents,omitempty"`
 	ImageDigests    []string                         `json:"image_digests,omitempty"`
+	ImageRefs       []string                         `json:"image_refs,omitempty"`
 	Workloads       []string                         `json:"workloads,omitempty"`
+	Services        []string                         `json:"services,omitempty"`
+	Environments    []string                         `json:"environments,omitempty"`
 	ProviderAlerts  []SupplyChainProviderAlertAnchor `json:"provider_alerts,omitempty"`
 	EvidenceFactIDs []string                         `json:"evidence_fact_ids,omitempty"`
+}
+
+// SupplyChainImpactPathHop reports one present or missing hop in the
+// reducer-owned vulnerability impact path.
+type SupplyChainImpactPathHop struct {
+	Hop             string   `json:"hop"`
+	Status          string   `json:"status"`
+	EvidenceFactIDs []string `json:"evidence_fact_ids,omitempty"`
+	MissingEvidence []string `json:"missing_evidence,omitempty"`
 }
 
 // SupplyChainProviderAlertAnchor preserves provider alert evidence without
@@ -161,6 +174,7 @@ func BuildSupplyChainImpactExplanation(
 	anchors := buildSupplyChainExplanationAnchors(row)
 	dependencyChain := buildSupplyChainDependencyChain(row.Finding, row.EvidenceFacts)
 	missing := explanationMissingEvidence(row.Finding, readiness, advisory, component, version, dependencyChain, anchors)
+	impactPath := buildSupplyChainImpactPath(row, missing)
 	return SupplyChainImpactExplanationResult{
 		Outcome:         "finding_explained",
 		Input:           filter,
@@ -170,6 +184,7 @@ func BuildSupplyChainImpactExplanation(
 		Version:         version,
 		DependencyChain: dependencyChain,
 		Anchors:         anchors,
+		ImpactPath:      impactPath,
 		Evidence:        summarizeSupplyChainEvidenceFacts(row.EvidenceFacts),
 		Readiness:       readiness,
 		MissingEvidence: missing,

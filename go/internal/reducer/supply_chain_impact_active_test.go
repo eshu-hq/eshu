@@ -64,7 +64,7 @@ func TestSupplyChainImpactHandlerExpandsActiveEvidenceUntilSBOMImagePathIsLoaded
 		t.Fatalf("Handle() error = %v, want nil", err)
 	}
 
-	if got, want := len(loader.filters), 4; got != want {
+	if got, want := len(loader.filters), 5; got != want {
 		t.Fatalf("active evidence loads = %d, want %d: %#v", got, want, loader.filters)
 	}
 	if got, want := strings.Join(loader.filters[1].PURLs, ","), testImpactPURL; got != want {
@@ -75,6 +75,9 @@ func TestSupplyChainImpactHandlerExpandsActiveEvidenceUntilSBOMImagePathIsLoaded
 	}
 	if got, want := strings.Join(loader.filters[3].SubjectDigests, ","), testImpactSubjectDigest; got != want {
 		t.Fatalf("follow-up subject digests = %q, want %q", got, want)
+	}
+	if got, want := strings.Join(loader.filters[4].RepositoryIDs, ","), testImpactRepositoryID; got != want {
+		t.Fatalf("follow-up repository IDs = %q, want %q", got, want)
 	}
 	if result.CanonicalWrites != 1 {
 		t.Fatalf("CanonicalWrites = %d, want 1", result.CanonicalWrites)

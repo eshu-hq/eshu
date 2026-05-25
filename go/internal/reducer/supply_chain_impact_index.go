@@ -70,9 +70,31 @@ type supplyChainAttachment struct {
 }
 
 type supplyChainImageIdentity struct {
-	factID       string
-	digest       string
-	repositoryID string
+	factID          string
+	digest          string
+	imageRef        string
+	repositoryID    string
+	outcome         string
+	canonicalWrites int
+}
+
+type supplyChainDeploymentContext struct {
+	factID         string
+	artifactDigest string
+	imageRef       string
+	repositoryID   string
+	environment    string
+	outcome        string
+}
+
+type supplyChainServiceContext struct {
+	factID         string
+	repositoryID   string
+	serviceID      string
+	workloadID     string
+	outcome        string
+	driftStatus    string
+	provenanceOnly bool
 }
 
 type supplyChainRiskSignals struct {
@@ -91,6 +113,8 @@ type supplyChainImpactIndex struct {
 	components       []supplyChainSBOMComponent
 	attachments      map[string]supplyChainAttachment
 	images           map[string]supplyChainImageIdentity
+	deployments      []supplyChainDeploymentContext
+	services         []supplyChainServiceContext
 	riskSignals      map[string]supplyChainRiskSignals
 }
 
@@ -140,6 +164,16 @@ func buildSupplyChainImpactIndex(envelopes []facts.Envelope) supplyChainImpactIn
 			if image.digest != "" {
 				index.images[image.digest] = image
 			}
+		case cicdRunCorrelationFactKind:
+			deployment := supplyChainDeploymentContextFromEnvelope(envelope)
+			if deployment.factID != "" {
+				index.deployments = append(index.deployments, deployment)
+			}
+		case serviceCatalogCorrelationFactKind:
+			service := supplyChainServiceContextFromEnvelope(envelope)
+			if service.repositoryID != "" {
+				index.services = append(index.services, service)
+			}
 		case facts.VulnerabilityEPSSScoreFactKind:
 			signals := index.riskSignals[supplyChainCVEID(envelope.Payload)]
 			signals.epssFactID = envelope.FactID
@@ -166,7 +200,7 @@ func classifySupplyChainImpactPackage(
 ) SupplyChainImpactFinding {
 	finding := baseSupplyChainImpactFinding(cves, pkgs, index)
 	pkg := representativeAffectedPackage(pkgs)
-	component, attachment, image, hasComponentPath := firstSBOMImpactPath(pkg, index)
+	component, attachment, image, hasComponentPath, imagePathMissing := firstSBOMImpactPath(pkg, index)
 	consumption := firstConsumption(pkg.packageID, index.consumption)
 	if consumption.factID != "" {
 		finding.RepositoryID = consumption.repositoryID
@@ -187,6 +221,7 @@ func classifySupplyChainImpactPackage(
 		finding.PURL = firstNonBlank(component.purl, finding.PURL)
 		finding.ObservedVersion = firstNonBlank(component.version, finding.ObservedVersion)
 		finding.SubjectDigest = attachment.subjectDigest
+		finding.ImageRef = image.imageRef
 		finding.EvidenceFactIDs = append(finding.EvidenceFactIDs, component.factID, attachment.factID, image.factID)
 		finding.EvidencePath = append(finding.EvidencePath, facts.SBOMComponentFactKind, sbomAttestationAttachmentFactKind, containerImageIdentityFactKind)
 		if image.repositoryID != "" {
@@ -202,14 +237,17 @@ func classifySupplyChainImpactPackage(
 	)
 	if consumption.factID != "" && versionDecision.Status == SupplyChainImpactAffectedExact {
 		applySupplyChainVersionDecision(&finding, versionDecision)
+		finalizeSupplyChainImpactFinding(&finding, index, versionDecision.MissingEvidence, imagePathMissing)
 		return finding
 	}
 	if versionDecision.Status == SupplyChainImpactNotAffectedKnownFixed {
 		applySupplyChainVersionDecision(&finding, versionDecision)
+		finalizeSupplyChainImpactFinding(&finding, index, versionDecision.MissingEvidence, imagePathMissing)
 		return finding
 	}
 	if versionDecision.FailClosed {
 		applySupplyChainVersionDecision(&finding, versionDecision)
+		finalizeSupplyChainImpactFinding(&finding, index, versionDecision.MissingEvidence, imagePathMissing)
 		return finding
 	}
 	if hasComponentPath {
@@ -218,7 +256,7 @@ func classifySupplyChainImpactPackage(
 		finding.MatchReason = "sbom_component_path"
 		finding.RuntimeReachability = "image_sbom"
 		finding.CanonicalWrites = 1
-		finding.MissingEvidence = combinedMissingImpactEvidence(finding, versionDecision.MissingEvidence)
+		finalizeSupplyChainImpactFinding(&finding, index, versionDecision.MissingEvidence)
 		return finding
 	}
 	finding.Status = SupplyChainImpactPossiblyAffected
@@ -226,7 +264,7 @@ func classifySupplyChainImpactPackage(
 	finding.MatchReason = versionDecision.Reason
 	finding.RuntimeReachability = "unknown"
 	finding.CanonicalWrites = 1
-	finding.MissingEvidence = combinedMissingImpactEvidence(finding, versionDecision.MissingEvidence)
+	finalizeSupplyChainImpactFinding(&finding, index, versionDecision.MissingEvidence, imagePathMissing)
 	return finding
 }
 
@@ -257,10 +295,11 @@ func classifySupplyChainImpactProduct(
 	index supplyChainImpactIndex,
 ) SupplyChainImpactFinding {
 	finding := baseSupplyChainImpactProductFinding(cve, product, index)
-	component, attachment, image, hasComponentPath := firstSBOMProductImpactPath(product, index)
+	component, attachment, image, hasComponentPath, imagePathMissing := firstSBOMProductImpactPath(product, index)
 	if hasComponentPath {
 		finding.ObservedVersion = firstNonBlank(component.version, versionFromCPE23Criteria(product.criteria))
 		finding.SubjectDigest = attachment.subjectDigest
+		finding.ImageRef = image.imageRef
 		finding.EvidenceFactIDs = append(finding.EvidenceFactIDs, component.factID, attachment.factID, image.factID)
 		finding.EvidencePath = append(finding.EvidencePath, facts.SBOMComponentFactKind, sbomAttestationAttachmentFactKind, containerImageIdentityFactKind)
 		if image.repositoryID != "" {
@@ -270,7 +309,7 @@ func classifySupplyChainImpactProduct(
 		finding.Confidence = "derived_product"
 		finding.RuntimeReachability = "image_sbom"
 		finding.CanonicalWrites = 1
-		finding.MissingEvidence = missingImpactEvidence(finding)
+		finalizeSupplyChainImpactFinding(&finding, index, imagePathMissing)
 		return finding
 	}
 	finding.ObservedVersion = versionFromCPE23Criteria(product.criteria)
@@ -278,7 +317,7 @@ func classifySupplyChainImpactProduct(
 	finding.Confidence = "weak_product"
 	finding.RuntimeReachability = "unknown"
 	finding.CanonicalWrites = 1
-	finding.MissingEvidence = missingImpactEvidence(finding)
+	finalizeSupplyChainImpactFinding(&finding, index, imagePathMissing)
 	return finding
 }
 

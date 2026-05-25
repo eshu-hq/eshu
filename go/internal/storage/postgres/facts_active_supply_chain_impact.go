@@ -43,6 +43,8 @@ WHERE fact.fact_kind IN (
     'sbom.component',
     'reducer_sbom_attestation_attachment',
     'reducer_container_image_identity',
+    'reducer_ci_cd_run_correlation',
+    'reducer_service_catalog_correlation',
     'vulnerability.epss_score',
     'vulnerability.known_exploited'
 )
@@ -54,13 +56,16 @@ WHERE fact.fact_kind IN (
       OR fact.payload->>'cve_id' = ANY($3::text[])
       OR fact.payload->>'subject_digest' = ANY($4::text[])
       OR fact.payload->>'digest' = ANY($4::text[])
+      OR fact.payload->>'artifact_digest' = ANY($4::text[])
       OR fact.payload->>'cpe' = ANY($5::text[])
       OR fact.payload->>'criteria' = ANY($5::text[])
       OR fact.payload->>'document_id' = ANY($6::text[])
+      OR fact.payload->>'repository_id' = ANY($7::text[])
+      OR fact.payload->>'image_ref' = ANY($8::text[])
   )
-  AND ($7 = '' OR fact.fact_id > $7)
+  AND ($9 = '' OR fact.fact_id > $9)
 ORDER BY fact.fact_id ASC
-LIMIT $8
+LIMIT $10
 `
 
 // ListActiveSupplyChainImpactFacts loads active package, SBOM, image, and risk
@@ -78,9 +83,12 @@ func (s FactStore) ListActiveSupplyChainImpactFacts(
 	filter.SubjectDigests = cleanStringFilterValues(filter.SubjectDigests)
 	filter.DocumentIDs = cleanStringFilterValues(filter.DocumentIDs)
 	filter.ProductCriteria = cleanStringFilterValues(filter.ProductCriteria)
+	filter.RepositoryIDs = cleanStringFilterValues(filter.RepositoryIDs)
+	filter.ImageRefs = cleanStringFilterValues(filter.ImageRefs)
 	if len(filter.PackageIDs) == 0 && len(filter.PURLs) == 0 &&
 		len(filter.CVEIDs) == 0 && len(filter.SubjectDigests) == 0 &&
-		len(filter.DocumentIDs) == 0 && len(filter.ProductCriteria) == 0 {
+		len(filter.DocumentIDs) == 0 && len(filter.ProductCriteria) == 0 &&
+		len(filter.RepositoryIDs) == 0 && len(filter.ImageRefs) == 0 {
 		return nil, nil
 	}
 
@@ -113,6 +121,8 @@ func (s FactStore) listActiveSupplyChainImpactFactsPage(
 		filter.SubjectDigests,
 		filter.ProductCriteria,
 		filter.DocumentIDs,
+		filter.RepositoryIDs,
+		filter.ImageRefs,
 		cursorFactID,
 		listFactsByKindPageSize,
 	)

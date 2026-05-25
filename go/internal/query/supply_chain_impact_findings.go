@@ -55,6 +55,10 @@ type SupplyChainImpactFindingRow struct {
 	RuntimeReachability string
 	RepositoryID        string
 	SubjectDigest       string
+	ImageRef            string
+	WorkloadIDs         []string
+	ServiceIDs          []string
+	Environments        []string
 	DependencyPath      []string
 	DependencyDepth     int
 	DirectDependency    *bool
@@ -270,6 +274,10 @@ func decodeSupplyChainImpactFindingRow(
 		RuntimeReachability: StringVal(payload, "runtime_reachability"),
 		RepositoryID:        StringVal(payload, "repository_id"),
 		SubjectDigest:       StringVal(payload, "subject_digest"),
+		ImageRef:            StringVal(payload, "image_ref"),
+		WorkloadIDs:         StringSliceVal(payload, "workload_ids"),
+		ServiceIDs:          StringSliceVal(payload, "service_ids"),
+		Environments:        StringSliceVal(payload, "environments"),
 		DependencyPath:      StringSliceVal(payload, "dependency_path"),
 		DependencyDepth:     int(floatVal(payload, "dependency_depth")),
 		DirectDependency:    boolPointerVal(payload, "direct_dependency"),

@@ -83,9 +83,35 @@ func supplyChainAttachmentFromEnvelope(envelope facts.Envelope) supplyChainAttac
 
 func supplyChainImageIdentityFromEnvelope(envelope facts.Envelope) supplyChainImageIdentity {
 	return supplyChainImageIdentity{
-		factID:       envelope.FactID,
-		digest:       payloadStr(envelope.Payload, "digest"),
-		repositoryID: payloadStr(envelope.Payload, "repository_id"),
+		factID:          envelope.FactID,
+		digest:          payloadStr(envelope.Payload, "digest"),
+		imageRef:        payloadStr(envelope.Payload, "image_ref"),
+		repositoryID:    payloadStr(envelope.Payload, "repository_id"),
+		outcome:         payloadStr(envelope.Payload, "outcome"),
+		canonicalWrites: supplyChainInt(envelope.Payload, "canonical_writes"),
+	}
+}
+
+func supplyChainDeploymentContextFromEnvelope(envelope facts.Envelope) supplyChainDeploymentContext {
+	return supplyChainDeploymentContext{
+		factID:         envelope.FactID,
+		artifactDigest: payloadStr(envelope.Payload, "artifact_digest"),
+		imageRef:       payloadStr(envelope.Payload, "image_ref"),
+		repositoryID:   payloadStr(envelope.Payload, "repository_id"),
+		environment:    payloadStr(envelope.Payload, "environment"),
+		outcome:        payloadStr(envelope.Payload, "outcome"),
+	}
+}
+
+func supplyChainServiceContextFromEnvelope(envelope facts.Envelope) supplyChainServiceContext {
+	return supplyChainServiceContext{
+		factID:         envelope.FactID,
+		repositoryID:   payloadStr(envelope.Payload, "repository_id"),
+		serviceID:      payloadStr(envelope.Payload, "service_id"),
+		workloadID:     payloadStr(envelope.Payload, "workload_id"),
+		outcome:        payloadStr(envelope.Payload, "outcome"),
+		driftStatus:    payloadStr(envelope.Payload, "drift_status"),
+		provenanceOnly: payloadBool(envelope.Payload, "provenance_only"),
 	}
 }
 
@@ -104,7 +130,8 @@ func firstConsumption(
 func firstSBOMImpactPath(
 	pkg supplyChainAffectedPackage,
 	index supplyChainImpactIndex,
-) (supplyChainSBOMComponent, supplyChainAttachment, supplyChainImageIdentity, bool) {
+) (supplyChainSBOMComponent, supplyChainAttachment, supplyChainImageIdentity, bool, []string) {
+	var missing []string
 	for _, component := range index.components {
 		if !componentMatchesAffectedPackage(component, pkg) {
 			continue
@@ -115,17 +142,23 @@ func firstSBOMImpactPath(
 		}
 		image := index.images[attachment.subjectDigest]
 		if image.digest == "" {
+			missing = append(missing, "image identity evidence missing")
 			continue
 		}
-		return component, attachment, image, true
+		if reason := unusableSupplyChainImageIdentityReason(image); reason != "" {
+			missing = append(missing, reason)
+			continue
+		}
+		return component, attachment, image, true, nil
 	}
-	return supplyChainSBOMComponent{}, supplyChainAttachment{}, supplyChainImageIdentity{}, false
+	return supplyChainSBOMComponent{}, supplyChainAttachment{}, supplyChainImageIdentity{}, false, uniqueSortedStrings(missing)
 }
 
 func firstSBOMProductImpactPath(
 	product supplyChainAffectedProduct,
 	index supplyChainImpactIndex,
-) (supplyChainSBOMComponent, supplyChainAttachment, supplyChainImageIdentity, bool) {
+) (supplyChainSBOMComponent, supplyChainAttachment, supplyChainImageIdentity, bool, []string) {
+	var missing []string
 	for _, component := range index.components {
 		if !componentMatchesAffectedProduct(component, product) {
 			continue
@@ -136,11 +169,34 @@ func firstSBOMProductImpactPath(
 		}
 		image := index.images[attachment.subjectDigest]
 		if image.digest == "" {
+			missing = append(missing, "image identity evidence missing")
 			continue
 		}
-		return component, attachment, image, true
+		if reason := unusableSupplyChainImageIdentityReason(image); reason != "" {
+			missing = append(missing, reason)
+			continue
+		}
+		return component, attachment, image, true, nil
 	}
-	return supplyChainSBOMComponent{}, supplyChainAttachment{}, supplyChainImageIdentity{}, false
+	return supplyChainSBOMComponent{}, supplyChainAttachment{}, supplyChainImageIdentity{}, false, uniqueSortedStrings(missing)
+}
+
+func unusableSupplyChainImageIdentityReason(image supplyChainImageIdentity) string {
+	switch image.outcome {
+	case "", string(ContainerImageIdentityExactDigest), string(ContainerImageIdentityTagResolved):
+		if image.outcome == "" || image.canonicalWrites > 0 {
+			return ""
+		}
+		return "image identity evidence missing"
+	case string(ContainerImageIdentityAmbiguousTag):
+		return "image identity evidence ambiguous"
+	case string(ContainerImageIdentityStaleTag):
+		return "image identity evidence stale"
+	case string(ContainerImageIdentityUnresolved):
+		return "image identity evidence unresolved"
+	default:
+		return "image identity evidence unsupported"
+	}
 }
 
 func componentMatchesAffectedPackage(component supplyChainSBOMComponent, pkg supplyChainAffectedPackage) bool {
@@ -238,13 +294,19 @@ func missingImpactEvidence(finding SupplyChainImpactFinding) []string {
 		missing = append(missing, "package version evidence missing")
 	}
 	if finding.RepositoryID == "" {
-		missing = append(missing, "repository or workload evidence missing")
+		missing = append(missing, "repository dependency evidence missing")
 	}
-	if finding.SubjectDigest == "" && finding.RuntimeReachability != "package_manifest" {
+	if finding.SubjectDigest == "" && finding.RuntimeReachability != "known_fixed" {
 		missing = append(missing, "image or SBOM attachment evidence missing")
 	}
-	if finding.RuntimeReachability != "known_fixed" {
+	if finding.RuntimeReachability != "known_fixed" && len(finding.Environments) == 0 {
 		missing = append(missing, "deployment exposure evidence missing")
+	}
+	if finding.RuntimeReachability != "known_fixed" && len(finding.WorkloadIDs) == 0 {
+		missing = append(missing, "workload evidence missing")
+	}
+	if finding.RuntimeReachability != "known_fixed" && len(finding.ServiceIDs) == 0 {
+		missing = append(missing, "service evidence missing")
 	}
 	return uniqueSortedStrings(missing)
 }

@@ -16,15 +16,20 @@ func TestListActiveSupplyChainImpactFactsQueryIsPackageBoundedAndPaged(t *testin
 		"'vulnerability.cve'",
 		"'vulnerability.affected_package'",
 		"'vulnerability.affected_product'",
+		"'reducer_ci_cd_run_correlation'",
+		"'reducer_service_catalog_correlation'",
 		"fact.payload->>'package_id' = ANY($1::text[])",
 		"fact.payload->>'purl' = ANY($2::text[])",
 		"fact.payload->>'cve_id' = ANY($3::text[])",
 		"fact.payload->>'subject_digest' = ANY($4::text[])",
+		"fact.payload->>'artifact_digest' = ANY($4::text[])",
 		"fact.payload->>'cpe' = ANY($5::text[])",
 		"fact.payload->>'criteria' = ANY($5::text[])",
 		"fact.payload->>'document_id' = ANY($6::text[])",
-		"fact.fact_id > $7",
-		"LIMIT $8",
+		"fact.payload->>'repository_id' = ANY($7::text[])",
+		"fact.payload->>'image_ref' = ANY($8::text[])",
+		"fact.fact_id > $9",
+		"LIMIT $10",
 	} {
 		if !strings.Contains(listActiveSupplyChainImpactFactsQuery, want) {
 			t.Fatalf("listActiveSupplyChainImpactFactsQuery missing %q:\n%s", want, listActiveSupplyChainImpactFactsQuery)
@@ -78,6 +83,7 @@ func TestBootstrapDefinitionsIncludeSupplyChainImpactFactIndexes(t *testing.T) {
 		"fact_records_vulnerability_affected_product_lookup_idx",
 		"fact_records_sbom_component_purl_idx",
 		"fact_records_sbom_component_cpe_idx",
+		"fact_records_ci_cd_run_correlations_image_ref_idx",
 	} {
 		if !strings.Contains(facts.SQL, want) {
 			t.Fatalf("Bootstrap SQL missing %q", want)
