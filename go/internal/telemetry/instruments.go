@@ -95,6 +95,20 @@ type Instruments struct {
 	// suppression intent and finding identity at 3 AM without re-running the
 	// reducer.
 	SupplyChainSuppressionDecisions metric.Int64Counter
+	// SupplyChainRemediationDecisions counts reducer-owned advisory-only
+	// safe-upgrade decisions per supply-chain impact finding (issue #595).
+	// Labels: domain (supply_chain_impact), outcome (confidence label
+	// exact, partial, or unknown), and reason (closed enum:
+	// direct_upgrade_allowed, direct_range_blocked,
+	// transitive_parent_upgrade_required, no_patched_version,
+	// multiple_patched_branches, package_manager_unsupported,
+	// manifest_range_missing, manifest_range_malformed,
+	// installed_version_missing, installed_version_malformed).
+	// Operators read this to see how often Eshu can compute an exact
+	// upgrade path versus how many findings need parent-dependency or
+	// ecosystem support to graduate from unknown without re-running the
+	// reducer.
+	SupplyChainRemediationDecisions metric.Int64Counter
 	ConfluenceHTTPRequests                    metric.Int64Counter
 	ConfluencePermissionDeniedPages           metric.Int64Counter
 	ConfluenceDocumentsObserved               metric.Int64Counter
@@ -679,6 +693,14 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register SupplyChainSuppressionDecisions counter: %w", err)
+	}
+
+	inst.SupplyChainRemediationDecisions, err = meter.Int64Counter(
+		"eshu_dp_supply_chain_remediation_decisions_total",
+		metric.WithDescription("Total advisory-only safe-upgrade decisions per supply-chain impact finding by reducer domain, confidence outcome, and reason"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register SupplyChainRemediationDecisions counter: %w", err)
 	}
 
 	inst.ConfluenceHTTPRequests, err = meter.Int64Counter(

@@ -90,6 +90,7 @@ const openAPIPathsSupplyChain = `
                           "observed_version": {"type": "string", "description": "Exact installed version from lockfile, manifest, SBOM, or image evidence when known."},
                           "requested_range": {"type": "string", "description": "Original manifest/requested dependency range preserved separately from the installed version."},
                           "fixed_version": {"type": "string", "description": "Source-selected fixed version when advisory evidence reports one."},
+                          "vulnerable_range": {"type": "string", "description": "Source-reported affected range expression copied from the advisory the reducer's provenance selector picked. Persisted on the canonical finding payload so list responses expose the same expression as the explain route. Older rows may omit this value."},
                           "match_reason": {"type": "string", "description": "Reducer reason for the version/range decision, including unsupported or malformed evidence states."},
                           "detection_profile": {"type": "string", "enum": ["precise", "comprehensive"], "description": "Evidence tier the row meets. precise requires an exact installed-version anchor and ecosystem-aware match. comprehensive covers SBOM/CPE-derived, range-only, malformed, unsupported, or missing-version rows that still have an owned anchor."},
                           "impact_status": {"type": "string"},
@@ -135,6 +136,34 @@ const openAPIPathsSupplyChain = `
                               "vex_statement_id": {"type": "string"}
                             },
                             "required": ["state"]
+                          },
+                          "remediation": {
+                            "type": "object",
+                            "description": "Advisory-only safe-upgrade recommendation for this finding (issue #595). The reducer never auto-opens pull requests. confidence is one of exact, partial, or unknown; reason is a closed enum that names the recommended action; manifest_allows_fix labels whether the manifest range already admits the first patched version. Older rows that predate remediation computation omit this block.",
+                            "properties": {
+                              "ecosystem": {"type": "string"},
+                              "current_version": {"type": "string"},
+                              "vulnerable_range": {"type": "string"},
+                              "first_patched_version": {"type": "string"},
+                              "patched_version_branches": {
+                                "type": "array",
+                                "items": {
+                                  "type": "object",
+                                  "properties": {
+                                    "version": {"type": "string"},
+                                    "source": {"type": "string"}
+                                  },
+                                  "required": ["version", "source"]
+                                }
+                              },
+                              "manifest_range": {"type": "string"},
+                              "manifest_allows_fix": {"type": "string", "enum": ["allowed", "blocked", "unknown"]},
+                              "direct": {"type": "boolean"},
+                              "parent_package": {"type": "string"},
+                              "confidence": {"type": "string", "enum": ["exact", "partial", "unknown"]},
+                              "reason": {"type": "string", "enum": ["direct_upgrade_allowed", "direct_range_blocked", "transitive_parent_upgrade_required", "no_patched_version", "multiple_patched_branches", "package_manager_unsupported", "manifest_range_missing", "manifest_range_malformed", "installed_version_missing", "installed_version_malformed"]},
+                              "missing_evidence": {"type": "array", "items": {"type": "string"}}
+                            }
                           },
                           "provenance": {
                             "type": "object",
@@ -420,6 +449,34 @@ const openAPIPathsSupplyChain = `
                         "evidence_fact_count": {"type": "integer"}
                       },
                       "required": ["state", "evidence_fact_count"]
+                    },
+                    "remediation": {
+                      "type": "object",
+                      "description": "Advisory-only safe-upgrade recommendation for this finding (issue #595). Mirrors the remediation block on the finding row and enriches it with vulnerable_range, manifest_range, observed_version, and dependency direct/transitive evidence pulled from the referenced source facts. The reducer never auto-opens pull requests; this block is strictly advisory.",
+                      "properties": {
+                        "ecosystem": {"type": "string"},
+                        "current_version": {"type": "string"},
+                        "vulnerable_range": {"type": "string"},
+                        "first_patched_version": {"type": "string"},
+                        "patched_version_branches": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "version": {"type": "string"},
+                              "source": {"type": "string"}
+                            },
+                            "required": ["version", "source"]
+                          }
+                        },
+                        "manifest_range": {"type": "string"},
+                        "manifest_allows_fix": {"type": "string", "enum": ["allowed", "blocked", "unknown"]},
+                        "direct": {"type": "boolean"},
+                        "parent_package": {"type": "string"},
+                        "confidence": {"type": "string", "enum": ["exact", "partial", "unknown"]},
+                        "reason": {"type": "string", "enum": ["direct_upgrade_allowed", "direct_range_blocked", "transitive_parent_upgrade_required", "no_patched_version", "multiple_patched_branches", "package_manager_unsupported", "manifest_range_missing", "manifest_range_malformed", "installed_version_missing", "installed_version_malformed"]},
+                        "missing_evidence": {"type": "array", "items": {"type": "string"}}
+                      }
                     }
                   },
                   "required": ["outcome", "input", "advisory", "component", "version", "anchors", "evidence", "readiness", "freshness"]

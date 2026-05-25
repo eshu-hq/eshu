@@ -18,6 +18,7 @@ type SupplyChainImpactFindingResult struct {
 	ObservedVersion       string                                  `json:"observed_version,omitempty"`
 	RequestedRange        string                                  `json:"requested_range,omitempty"`
 	FixedVersion          string                                  `json:"fixed_version,omitempty"`
+	VulnerableRange       string                                  `json:"vulnerable_range,omitempty"`
 	MatchReason           string                                  `json:"match_reason,omitempty"`
 	ImpactStatus          string                                  `json:"impact_status"`
 	Confidence            string                                  `json:"confidence,omitempty"`
@@ -57,6 +58,10 @@ type SupplyChainImpactFindingResult struct {
 	// DetectionProfile names whether the row meets the precise exact-version
 	// bar or only the broader comprehensive owned-anchor profile.
 	DetectionProfile string `json:"detection_profile,omitempty"`
+	// Remediation is the reducer-owned advisory-only safe-upgrade
+	// recommendation for this finding (issue #595). Older rows that predate
+	// remediation computation omit this block.
+	Remediation *SupplyChainImpactRemediation `json:"remediation,omitempty"`
 }
 
 // SupplyChainImpactPriorityContribution explains one reducer priority input.

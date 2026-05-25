@@ -384,6 +384,62 @@ Log phase attributes: `telemetry.PhaseReduction` (main loop),
   the finding from the default API view. The handler emits
   `eshu_dp_supply_chain_suppression_decisions_total` per state so operators
   can detect VEX/policy drift without re-running the reducer.
+- **Safe-upgrade remediation is advisory-only** —
+  `SupplyChainImpactHandler` attaches a `Remediation` block to every finding
+  via `BuildSupplyChainImpactRemediation` (issue #595). The block records the
+  installed version, source-reported vulnerable range, first patched
+  version, every published fixed-version branch, the manifest range
+  preserved from package consumption evidence, a tri-state
+  manifest_allows_fix decision (`allowed`, `blocked`, `unknown`), the
+  direct/transitive designation, the parent package the caller would need
+  to upgrade for transitive findings, the ecosystem the recommendation was
+  computed for, an `exact|partial|unknown` confidence label, and a closed
+  reason enum (`direct_upgrade_allowed`, `direct_range_blocked`,
+  `transitive_parent_upgrade_required`, `no_patched_version`,
+  `multiple_patched_branches`, `package_manager_unsupported`,
+  `manifest_range_missing`, `manifest_range_malformed`,
+  `installed_version_missing`, `installed_version_malformed`).
+  `installed_version_missing` fires when the advisory publishes more than
+  one fixed-version branch and Eshu has no parseable installed version
+  to anchor the branch selector — without that anchor the lowest fix
+  across all branches could be a downgrade or unnecessary cross-major
+  bump, so the reducer blanks the recommendation rather than committing
+  to either branch. `installed_version_malformed` fires whenever the
+  observed version is non-empty but fails npm-semver normalization.
+  The reducer expands npm caret and tilde manifest ranges before
+  delegating to the existing comparator engine so the answer stays
+  npm-correct; ecosystems other than npm currently report
+  `package_manager_unsupported` rather than guessing. The reducer also
+  captures `VulnerableRange` from the same provenance observation that
+  supplies `RangeSource`, persists it on the canonical finding payload
+  (top-level `vulnerable_range` and inside the `remediation` block), and
+  decodes it through the read model so list-route callers see the same
+  vulnerable range as the explain route. Eshu never auto-opens a pull
+  request from this block; remediation is strictly advisory.
+
+  Performance Evidence: remediation runs in-process over the bounded
+  per-finding inputs the impact handler already owns (observed version,
+  requested range, fixed versions, dependency chain). Per finding the work
+  is O(branches) string compares plus one caret/tilde expansion of the
+  manifest range, which the existing comparator engine evaluates without
+  any extra fact load, queue claim, lease, or canonical write. The reducer
+  handler test suite (`go test ./internal/reducer -count=1`) is the
+  baseline; the new `supply_chain_impact_remediation_test.go` cases each
+  finish in microseconds on the developer fixture set.
+  No-Regression Evidence: `BuildSupplyChainImpactRemediation` is the only
+  per-finding addition to `appendSupplyChainImpactFinding`; no Postgres,
+  Cypher, queue, or lease path changed. The bounded `findings` slice is
+  not re-sorted or re-traversed, so the existing handler throughput and
+  the `cd go && go test ./internal/reducer -count=1` gate stay green.
+  Observability Evidence: `SupplyChainRemediationDecisions`
+  (`eshu_dp_supply_chain_remediation_decisions_total`) is registered in
+  `internal/telemetry/instruments.go` and emitted from
+  `SupplyChainImpactHandler.emitCounters` with the closed-enum
+  `outcome` label (confidence: `exact`, `partial`, `unknown`) and
+  `reason` label (closed remediation-reason enum). A 3 AM operator can
+  watch how often Eshu produces exact upgrade paths versus how many
+  findings still need ecosystem support to graduate from `unknown`
+  without re-running the reducer.
 - **Advisory provenance is preserved** — multi-source CVE and affected_package
   observations for the same advisory identity are consolidated into one
   finding per `(cve_id, package_id)` anchor. `supplyChainImpactProvenance`

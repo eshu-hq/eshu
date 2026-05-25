@@ -57,6 +57,12 @@ type SupplyChainImpactFindingRow struct {
 	ObservedVersion       string
 	RequestedRange        string
 	FixedVersion          string
+	// VulnerableRange is the source-reported affected range expression
+	// copied from the advisory the reducer's provenance selector picked.
+	// Persisted on the canonical finding payload so list responses expose
+	// the same value as the explain route. Older rows that predate the
+	// reducer capturing the range may return blank.
+	VulnerableRange       string
 	MatchReason           string
 	ImpactStatus          string
 	Confidence            string
@@ -99,6 +105,11 @@ type SupplyChainImpactFindingRow struct {
 	// unsupported-ecosystem, or missing-version evidence. Older rows
 	// written before profile tagging may return blank.
 	DetectionProfile string
+	// Remediation is the reducer-owned advisory-only safe-upgrade
+	// recommendation for this finding. Older rows written before #595
+	// landed will leave this nil; callers must treat that as "no
+	// remediation computed" rather than "no fix available".
+	Remediation *SupplyChainImpactRemediation
 }
 
 // SupplyChainSuppressionDecisionRow is the API-shaped suppression decision
@@ -346,6 +357,7 @@ func decodeSupplyChainImpactFindingRow(
 		ObservedVersion:     StringVal(payload, "observed_version"),
 		RequestedRange:      StringVal(payload, "requested_range"),
 		FixedVersion:        StringVal(payload, "fixed_version"),
+		VulnerableRange:     StringVal(payload, "vulnerable_range"),
 		MatchReason:         StringVal(payload, "match_reason"),
 		ImpactStatus:        StringVal(payload, "impact_status"),
 		Confidence:          StringVal(payload, "confidence"),
@@ -381,6 +393,7 @@ func decodeSupplyChainImpactFindingRow(
 		Provenance:          decodeSupplyChainImpactProvenance(payload),
 		DetectionProfile:    StringVal(payload, "detection_profile"),
 		Suppression:         decodeSupplyChainSuppressionDecision(payload),
+		Remediation:         decodeSupplyChainImpactRemediation(payload),
 	}
 	if row.DetectionProfile == "" {
 		row.DetectionProfile = inferLegacyDetectionProfile(row.ImpactStatus, row.ObservedVersion, row.MatchReason)

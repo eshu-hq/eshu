@@ -120,6 +120,7 @@ func supplyChainImpactPayload(write SupplyChainImpactWrite, finding SupplyChainI
 		"observed_version":       finding.ObservedVersion,
 		"requested_range":        finding.RequestedRange,
 		"fixed_version":          finding.FixedVersion,
+		"vulnerable_range":       finding.VulnerableRange,
 		"match_reason":           finding.MatchReason,
 		"impact_status":          string(finding.Status),
 		"confidence":             finding.Confidence,
@@ -169,7 +170,56 @@ func supplyChainImpactPayload(write SupplyChainImpactWrite, finding SupplyChainI
 		// Postgres read model can filter on it without parsing nested JSON.
 		payload["suppression_state"] = string(supplyChainImpactSuppressionState(finding.Suppression))
 	}
+	if remediation := supplyChainImpactRemediationPayload(finding.Remediation); remediation != nil {
+		payload["remediation"] = remediation
+	}
 	return payload
+}
+
+// supplyChainImpactRemediationPayload serializes the advisory-only safe
+// upgrade explanation onto the canonical finding payload. Reason and
+// confidence are always present so the Postgres read model can filter on
+// them without parsing nested JSON.
+func supplyChainImpactRemediationPayload(r SupplyChainImpactRemediation) map[string]any {
+	if r.Reason == "" && r.Confidence == "" && r.FirstPatchedVersion == "" &&
+		r.ManifestRange == "" && r.CurrentVersion == "" && r.VulnerableRange == "" &&
+		len(r.PatchedVersionBranches) == 0 && len(r.MissingEvidence) == 0 &&
+		r.ParentPackage == "" && r.Ecosystem == "" && r.Direct == nil {
+		return nil
+	}
+	out := map[string]any{
+		"reason":              r.Reason,
+		"confidence":          r.Confidence,
+		"manifest_allows_fix": r.ManifestAllowsFix,
+	}
+	if r.Ecosystem != "" {
+		out["ecosystem"] = r.Ecosystem
+	}
+	if r.CurrentVersion != "" {
+		out["current_version"] = r.CurrentVersion
+	}
+	if r.VulnerableRange != "" {
+		out["vulnerable_range"] = r.VulnerableRange
+	}
+	if r.FirstPatchedVersion != "" {
+		out["first_patched_version"] = r.FirstPatchedVersion
+	}
+	if r.ManifestRange != "" {
+		out["manifest_range"] = r.ManifestRange
+	}
+	if r.Direct != nil {
+		out["direct"] = *r.Direct
+	}
+	if r.ParentPackage != "" {
+		out["parent_package"] = r.ParentPackage
+	}
+	if branches := serializeFixedVersionBranches(r.PatchedVersionBranches); len(branches) > 0 {
+		out["patched_version_branches"] = branches
+	}
+	if len(r.MissingEvidence) > 0 {
+		out["missing_evidence"] = uniqueSortedStrings(r.MissingEvidence)
+	}
+	return out
 }
 
 func serializePriorityContributions(values []SupplyChainImpactPriorityContribution) []map[string]any {

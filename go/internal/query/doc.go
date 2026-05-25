@@ -43,4 +43,19 @@
 // accepts include_suppressed and suppression_state filters so callers can
 // include or exclude operator-suppressed findings and explain why; provider
 // dismissals stay evidence, not automatic suppressions.
+//
+// Each supply-chain impact row and explain payload also carries an
+// advisory-only Remediation block (issue #595) with the installed version,
+// vulnerable range, first patched version, every published fixed-version
+// branch, the manifest range, a manifest_allows_fix tri-state, the
+// direct/transitive designation, a parent_package needed for transitive
+// upgrades, the ecosystem the recommendation applies to, an
+// exact|partial|unknown confidence label, and a closed reason enum
+// (direct_upgrade_allowed, direct_range_blocked,
+// transitive_parent_upgrade_required, no_patched_version,
+// multiple_patched_branches, package_manager_unsupported,
+// manifest_range_missing, manifest_range_malformed,
+// installed_version_missing, installed_version_malformed). Eshu does not
+// open pull requests from this block; it is strictly advisory so callers
+// can decide whether and how to upgrade.
 package query

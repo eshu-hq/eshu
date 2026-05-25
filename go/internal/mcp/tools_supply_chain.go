@@ -41,7 +41,7 @@ func supplyChainTools() []ToolDefinition {
 		},
 		{
 			Name:        "list_supply_chain_impact_findings",
-			Description: "List reducer-owned vulnerability impact findings by CVE, package, repository, image digest, or impact status. Suppression decisions (VEX, operator-policy, provider dismissal evidence) are attached to each row; set include_suppressed=true to surface findings hidden by operator suppression and use suppression_state to filter by a specific decision.",
+			Description: "List reducer-owned vulnerability impact findings by CVE, package, repository, image digest, or impact status. Each row carries `vulnerable_range` copied from the advisory the reducer's provenance selector picked and an advisory-only remediation block (issue #595) with the current version, vulnerable range, first patched version, whether the manifest range allows that fix, direct vs transitive designation, parent package that blocks a transitive fix, and an exact/partial/unknown confidence (including first-class installed_version_missing and installed_version_malformed reasons). Suppression decisions (VEX, operator-policy, provider dismissal evidence) are attached to each row; set include_suppressed=true to surface findings hidden by operator suppression and use suppression_state to filter by a specific decision.",
 			InputSchema: map[string]any{
 				"type": "object",
 				"properties": map[string]any{
@@ -151,7 +151,7 @@ func supplyChainTools() []ToolDefinition {
 		},
 		{
 			Name:        "explain_supply_chain_impact",
-			Description: "Explain one reducer-owned vulnerability finding or bounded advisory/package/repository path with evidence, anchors, remediation, freshness, and missing-evidence reasons.",
+			Description: "Explain one reducer-owned vulnerability finding or bounded advisory/package/repository path with evidence, anchors, remediation, freshness, and missing-evidence reasons. The remediation block reports current observed version, vulnerable range, first patched version, whether the manifest range admits that fix, direct/transitive designation, parent package needed for a transitive upgrade, and an exact/partial/unknown confidence. Remediation is strictly advisory; Eshu does not auto-open pull requests.",
 			InputSchema: map[string]any{
 				"type": "object",
 				"properties": map[string]any{

@@ -219,6 +219,11 @@ Version fields intentionally do not collapse into one string:
   range-only values such as npm caret ranges.
 - `fixed_version`: source-selected fixed version when advisory evidence
   reports one.
+- `vulnerable_range`: source-reported affected range expression copied from
+  the advisory the reducer's provenance selector picked. Persisted on the
+  canonical finding payload so the findings list, the explain route, and
+  the MCP tools all expose the same expression. Older rows written before
+  remediation computation may omit this value.
 - `match_reason`: reducer explanation for the version decision, including
   supported matches, range-only manifests, unsupported ecosystems, and
   malformed installed versions or advisory ranges.
@@ -279,6 +284,54 @@ explicit deployment or service-catalog facts. Ambiguous images, stale deployment
 evidence, missing workload links, or missing service/environment links stay in
 `missing_evidence[]` instead of being inferred from repository, tag, workload,
 or service names.
+
+### Remediation (Safe Upgrade)
+
+Each finding row and the explain payload also carry a `remediation` block
+that explains the advisory-only safe-upgrade path Eshu can compute for that
+finding. Today the reducer computes npm remediation from package-lock
+evidence; other ecosystems report `package_manager_unsupported` rather than
+guessing. Eshu never auto-opens pull requests from this block.
+
+- `ecosystem`: ecosystem the recommendation was computed for.
+- `current_version`: installed version that matched the impact finding.
+- `vulnerable_range`: source-reported affected range expression.
+- `first_patched_version`: lowest source-reported fix Eshu can defend,
+  preferring branches inside the observed major so callers are not pushed
+  into a needless major bump.
+- `patched_version_branches[]`: every source-attributed fixed-version
+  branch (version + source) so callers see multi-branch advisories
+  explicitly.
+- `manifest_range`: original manifest/requested range preserved from
+  package consumption evidence.
+- `manifest_allows_fix`: one of `allowed`, `blocked`, or `unknown`. The
+  reducer expands npm caret and tilde notation before checking whether
+  the manifest range admits the first patched version. Transitive
+  findings stay `unknown` because the user does not own the parent
+  package's manifest.
+- `direct`: `true` for direct dependencies, `false` for transitive, mirrors
+  the lockfile-derived `direct_dependency` flag on the finding.
+- `parent_package`: parent package the caller would need to upgrade for a
+  transitive finding. Blank for direct dependencies or chains without an
+  identifiable parent.
+- `confidence`: `exact`, `partial`, or `unknown`. Exact means every required
+  input was present and unambiguous; partial means the recommendation is
+  actionable but at least one input (transitive parent path, multiple
+  patched branches, malformed range) is ambiguous; unknown means Eshu
+  cannot recommend a safe upgrade yet (no patched version, missing
+  observed version, ecosystem not yet supported).
+- `reason`: stable closed enum
+  (`direct_upgrade_allowed`, `direct_range_blocked`,
+  `transitive_parent_upgrade_required`, `no_patched_version`,
+  `multiple_patched_branches`, `package_manager_unsupported`,
+  `manifest_range_missing`, `manifest_range_malformed`,
+  `installed_version_missing`, `installed_version_malformed`).
+- `missing_evidence[]`: structured reasons the recommendation could not be
+  computed exactly so callers can surface remediable gaps.
+
+Older finding facts written before remediation computation landed expose a
+missing `remediation` block; callers must treat that as "no remediation
+computed yet," not "no fix available."
 
 No-Regression Evidence: `go test ./internal/reducer ./internal/query
 ./internal/mcp ./internal/storage/postgres -run

@@ -254,6 +254,10 @@ type advisoryProvenanceSelection struct {
 	FixedVersion         string
 	FixedVersionBranches []FixedVersionBranch
 	RangeSource          string
+	// VulnerableRange is the raw vulnerable-range expression Eshu copied
+	// from the selected source observation so list-route callers see the
+	// same expression as the explain route.
+	VulnerableRange      string
 	AdvisorySources      []AdvisorySourceObservation
 	EvidenceFactIDs      []string
 }
@@ -423,6 +427,7 @@ func selectAdvisoryProvenance(
 		}
 		if selection.RangeSource == "" && strings.TrimSpace(observation.AffectedRange) != "" {
 			selection.RangeSource = observation.Source
+			selection.VulnerableRange = strings.TrimSpace(observation.AffectedRange)
 		}
 	}
 

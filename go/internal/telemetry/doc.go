@@ -59,7 +59,18 @@
 // so operators can detect VEX/operator-policy suppression drift without
 // re-running the reducer; provider-dismissed and scope-mismatch counts
 // stay separated from operator-asserted hides because they keep audit
-// signal rather than hiding findings.
+// signal rather than hiding findings. The same reducer registers
+// SupplyChainRemediationDecisions
+// (eshu_dp_supply_chain_remediation_decisions_total), labeled by reducer
+// domain, outcome (confidence: exact, partial, unknown), and reason (closed
+// remediation-reason enum: direct_upgrade_allowed, direct_range_blocked,
+// transitive_parent_upgrade_required, no_patched_version,
+// multiple_patched_branches, package_manager_unsupported,
+// manifest_range_missing, manifest_range_malformed,
+// installed_version_missing, installed_version_malformed) so operators can
+// see how often Eshu produces an exact advisory-only safe-upgrade path
+// versus how many findings still need additional ecosystem support to
+// graduate from unknown.
 // Callers must reuse existing log keys and Attr* helpers before adding new
 // names. High-cardinality values such as file paths, fact identifiers,
 // repository names, delivery IDs, source paths, and attribute keys belong in
