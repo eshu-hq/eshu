@@ -42,8 +42,8 @@
 ## Failure modes and how to debug
 
 - Missing dependency rows usually mean the `dependencies { }` block was not
-  detected at parse time. Re-check `blockHeaderPattern` and
-  `collectBlocks`.
+  detected at parse time. Re-check `blockHeaderAtCursor` and
+  `collectBlocks` in `blocks.go`.
 - Spurious `unresolved` states often mean the interpolation references a
   Gradle-managed property (e.g. `project.version`) the parser cannot prove
   from the file alone. Leave it unresolved rather than guessing.

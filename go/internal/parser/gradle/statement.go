@@ -266,8 +266,14 @@ func buildRow(
 	}
 	scope := configurationScope(configuration)
 	if wrapperKind != "" {
+		// Section keeps the wrapper distinction (`:platform` vs
+		// `:enforcedPlatform`) so callers can see which form was declared,
+		// but the scope vocabulary stays `platform` for both. This matches
+		// the documented scope set in README.md / doc.go and keeps
+		// downstream impact-priority logic from treating
+		// `enforcedPlatform` as an unknown scope.
 		section = section + ":" + wrapperKind
-		scope = wrapperKind
+		scope = "platform"
 	}
 
 	resolutionState := "resolved"

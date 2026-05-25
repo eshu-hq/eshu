@@ -116,6 +116,12 @@ func TestParseMarksPlatformBomWithDistinctSection(t *testing.T) {
 	if got, want := enforced["section"], "implementation:enforcedPlatform"; got != want {
 		t.Fatalf("enforcedPlatform section = %#v, want %q", got, want)
 	}
+	// enforcedPlatform must collapse to the documented `platform` scope so
+	// downstream impact-priority logic does not see an unknown scope value.
+	// The section already preserves the enforced-vs-plain distinction.
+	if got, want := enforced["dependency_scope"], "platform"; got != want {
+		t.Fatalf("enforcedPlatform dependency_scope = %#v, want %q (must normalize to documented scope)", got, want)
+	}
 }
 
 func TestParseGroovyMapFormDeclarations(t *testing.T) {

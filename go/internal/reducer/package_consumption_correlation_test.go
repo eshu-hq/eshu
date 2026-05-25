@@ -473,15 +473,16 @@ func TestBuildPackageConsumptionDecisionsMatchesGradleManifestCoordinates(t *tes
 	}
 }
 
-func TestBuildPackageConsumptionDecisionsRejectsUnresolvedJVMDependencyEvidence(t *testing.T) {
+func TestBuildPackageConsumptionDecisionsAdmitsUnresolvedJVMDependencyEvidence(t *testing.T) {
 	t.Parallel()
 
 	observedAt := time.Date(2026, 5, 24, 15, 0, 0, 0, time.UTC)
 	// A pom.xml dependency whose version came in as an unresolved property
 	// reference still emits a content_entity fact (the dependency is real,
 	// only its version is unknown). The reducer must still admit the
-	// consumption decision so impact callers see the dependency exists, but
-	// the missing version is surfaced through the manifest payload metadata.
+	// consumption decision so impact callers see the dependency exists, and
+	// the raw `${property}` literal stays in `DependencyRange` so callers
+	// can spot the gap.
 	decisions := BuildPackageConsumptionDecisions([]facts.Envelope{
 		packageRegistryPackageFact(
 			"pkg:maven://repo.maven.apache.org/maven2/org.springframework:spring-core",
