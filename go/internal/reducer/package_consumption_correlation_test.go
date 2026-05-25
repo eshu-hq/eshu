@@ -371,3 +371,150 @@ func TestPackagePublicationIdentityIncludesSourceHintIdentity(t *testing.T) {
 		t.Fatalf("source_hint_fact_id = %#v, want %#v", got, want)
 	}
 }
+
+func TestBuildPackageConsumptionDecisionsMatchesMavenManifestCoordinates(t *testing.T) {
+	t.Parallel()
+
+	observedAt := time.Date(2026, 5, 24, 13, 0, 0, 0, time.UTC)
+	decisions := BuildPackageConsumptionDecisions([]facts.Envelope{
+		packageRegistryPackageFact(
+			"pkg:maven://repo.maven.apache.org/maven2/org.apache.logging.log4j:log4j-core",
+			"maven",
+			"log4j-core",
+			"org.apache.logging.log4j",
+			observedAt,
+		),
+		packageSourceRepositoryFact("repo-maven", "maven-app", "https://github.com/acme/maven-app", false, observedAt),
+		packageManifestDependencyFactWithMetadata(
+			"repo-maven",
+			"maven-app",
+			"pom.xml",
+			"org.apache.logging.log4j:log4j-core",
+			"maven",
+			"2.17.1",
+			observedAt,
+			map[string]any{
+				"section":                     "dependencies",
+				"dependency_scope":            "compile",
+				"dependency_resolution_state": "resolved",
+				"direct_dependency":           true,
+				"dependency_path_kind":        "manifest",
+			},
+		),
+	})
+
+	if got, want := len(decisions), 1; got != want {
+		t.Fatalf("len(decisions) = %d, want %d", got, want)
+	}
+	decision := decisions[0]
+	if got, want := decision.PackageID, "pkg:maven://repo.maven.apache.org/maven2/org.apache.logging.log4j:log4j-core"; got != want {
+		t.Fatalf("PackageID = %q, want %q", got, want)
+	}
+	if got, want := decision.Ecosystem, "maven"; got != want {
+		t.Fatalf("Ecosystem = %q, want %q", got, want)
+	}
+	if got, want := decision.PackageName, "org.apache.logging.log4j:log4j-core"; got != want {
+		t.Fatalf("PackageName = %q, want manifest coordinate %q", got, want)
+	}
+	if got, want := decision.DependencyRange, "2.17.1"; got != want {
+		t.Fatalf("DependencyRange = %q, want %q", got, want)
+	}
+	if got, want := decision.RelativePath, "pom.xml"; got != want {
+		t.Fatalf("RelativePath = %q, want %q", got, want)
+	}
+	if decision.DirectDependency == nil || !*decision.DirectDependency {
+		t.Fatalf("DirectDependency = %#v, want true for Maven manifest dependency", decision.DirectDependency)
+	}
+}
+
+func TestBuildPackageConsumptionDecisionsMatchesGradleManifestCoordinates(t *testing.T) {
+	t.Parallel()
+
+	observedAt := time.Date(2026, 5, 24, 14, 0, 0, 0, time.UTC)
+	decisions := BuildPackageConsumptionDecisions([]facts.Envelope{
+		packageRegistryPackageFact(
+			"pkg:maven://repo.maven.apache.org/maven2/com.fasterxml.jackson.core:jackson-databind",
+			"maven",
+			"jackson-databind",
+			"com.fasterxml.jackson.core",
+			observedAt,
+		),
+		packageSourceRepositoryFact("repo-gradle", "gradle-app", "https://github.com/acme/gradle-app", false, observedAt),
+		packageManifestDependencyFactWithMetadata(
+			"repo-gradle",
+			"gradle-app",
+			"build.gradle.kts",
+			"com.fasterxml.jackson.core:jackson-databind",
+			"gradle",
+			"2.15.3",
+			observedAt,
+			map[string]any{
+				"section":                     "implementation",
+				"dependency_scope":            "compile",
+				"dependency_resolution_state": "resolved",
+				"direct_dependency":           true,
+				"dependency_path_kind":        "manifest",
+			},
+		),
+	})
+
+	if got, want := len(decisions), 1; got != want {
+		t.Fatalf("len(decisions) = %d, want %d", got, want)
+	}
+	decision := decisions[0]
+	if got, want := decision.Ecosystem, "maven"; got != want {
+		t.Fatalf("Ecosystem = %q, want %q (gradle normalizes to maven)", got, want)
+	}
+	if got, want := decision.PackageName, "com.fasterxml.jackson.core:jackson-databind"; got != want {
+		t.Fatalf("PackageName = %q, want %q", got, want)
+	}
+	if got, want := decision.ManifestSection, "implementation"; got != want {
+		t.Fatalf("ManifestSection = %q, want %q", got, want)
+	}
+}
+
+func TestBuildPackageConsumptionDecisionsAdmitsUnresolvedJVMDependencyEvidence(t *testing.T) {
+	t.Parallel()
+
+	observedAt := time.Date(2026, 5, 24, 15, 0, 0, 0, time.UTC)
+	// A pom.xml dependency whose version came in as an unresolved property
+	// reference still emits a content_entity fact (the dependency is real,
+	// only its version is unknown). The reducer must still admit the
+	// consumption decision so impact callers see the dependency exists, and
+	// the raw `${property}` literal stays in `DependencyRange` so callers
+	// can spot the gap.
+	decisions := BuildPackageConsumptionDecisions([]facts.Envelope{
+		packageRegistryPackageFact(
+			"pkg:maven://repo.maven.apache.org/maven2/org.springframework:spring-core",
+			"maven",
+			"spring-core",
+			"org.springframework",
+			observedAt,
+		),
+		packageSourceRepositoryFact("repo-maven", "maven-app", "https://github.com/acme/maven-app", false, observedAt),
+		packageManifestDependencyFactWithMetadata(
+			"repo-maven",
+			"maven-app",
+			"pom.xml",
+			"org.springframework:spring-core",
+			"maven",
+			"${spring.version}",
+			observedAt,
+			map[string]any{
+				"section":                     "dependencies",
+				"dependency_scope":            "compile",
+				"dependency_resolution_state": "unresolved",
+				"direct_dependency":           true,
+				"dependency_path_kind":        "manifest",
+				"dependency_unresolved_keys":  []any{"spring.version"},
+			},
+		),
+	})
+
+	if got, want := len(decisions), 1; got != want {
+		t.Fatalf("len(decisions) = %d, want %d (unresolved-version dep still proves consumption identity)", got, want)
+	}
+	if got, want := decisions[0].DependencyRange, "${spring.version}"; got != want {
+		t.Fatalf("DependencyRange = %q, want raw unresolved literal %q so callers can spot the gap", got, want)
+	}
+}

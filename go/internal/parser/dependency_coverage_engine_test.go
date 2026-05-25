@@ -180,6 +180,42 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 			expectedDependencies: map[string]string{"tokio": "1.37.0"},
 			expectedPackageMgr:   "cargo",
 		},
+		"pom.xml": {
+			body: `<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0">
+  <modelVersion>4.0.0</modelVersion>
+  <groupId>com.example</groupId>
+  <artifactId>demo</artifactId>
+  <version>1.0.0</version>
+  <dependencies>
+    <dependency>
+      <groupId>org.springframework</groupId>
+      <artifactId>spring-core</artifactId>
+      <version>5.3.20</version>
+    </dependency>
+  </dependencies>
+</project>`,
+			expectedDependencies: map[string]string{"org.springframework:spring-core": "5.3.20"},
+			expectedPackageMgr:   "maven",
+		},
+		"build.gradle": {
+			body: `plugins { id 'java' }
+
+dependencies {
+    implementation 'org.springframework:spring-core:5.3.20'
+}`,
+			expectedDependencies: map[string]string{"org.springframework:spring-core": "5.3.20"},
+			expectedPackageMgr:   "gradle",
+		},
+		"build.gradle.kts": {
+			body: `plugins { java }
+
+dependencies {
+    implementation("org.springframework:spring-core:5.3.20")
+}`,
+			expectedDependencies: map[string]string{"org.springframework:spring-core": "5.3.20"},
+			expectedPackageMgr:   "gradle",
+		},
 	}
 
 	engine, err := DefaultEngine()
