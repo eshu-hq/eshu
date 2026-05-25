@@ -10,7 +10,10 @@ import (
 // with `version`, `resolution`, `dependencies`, etc. The descriptor encodes
 // the resolution protocol (npm:, workspace:, patch:, file:, link:, exec:,
 // portal:), which we surface so vulnerability impact stays honest about
-// what it understands.
+// what it understands. The dependency graph is keyed by composite
+// "name@version" so two locators that pin the same package name to
+// different versions (a common Berry pattern) do not silently overwrite
+// each other.
 func parseYarnBerryLockfile(source []byte, payload map[string]any) []map[string]any {
 	blocks := splitYarnBerryBlocks(string(source))
 	if len(blocks) == 0 {
@@ -19,22 +22,35 @@ func parseYarnBerryLockfile(source []byte, payload map[string]any) []map[string]
 	}
 
 	type pkg struct {
+		instanceKey string
 		name        string
 		version     string
 		protocol    string
 		unsupported string
+		deps        map[string]string
 		lineNumber  int
 	}
 
 	packages := make([]pkg, 0, len(blocks))
-	depsByName := make(map[string]map[string]string)
+	// descriptorToKey maps every Berry locator string ("name@npm:^1.0.0")
+	// to the instance key it resolves to. Berry headers can contain a
+	// comma-separated locator list when multiple ranges share one
+	// resolution; we index every locator so a parent block's
+	// "dependencies: { name: range }" edge can be resolved back to the
+	// specific (name, version) instance.
+	descriptorToKey := make(map[string]string)
+	nameByInstance := make(map[string]string)
 
 	for _, block := range blocks {
-		descriptor := strings.Trim(strings.TrimSuffix(strings.TrimSpace(block.headerLine), ":"), `"`)
-		if descriptor == "" || descriptor == "__metadata" {
+		descriptors := parseYarnBerryDescriptorLine(block.headerLine)
+		if len(descriptors) == 0 {
 			continue
 		}
-		name, protocol := splitBerryDescriptor(descriptor)
+		if len(descriptors) == 1 && descriptors[0] == "__metadata" {
+			continue
+		}
+		// All descriptors in one block share the same name and resolution.
+		name, protocol := splitBerryDescriptor(descriptors[0])
 		if name == "" {
 			continue
 		}
@@ -45,8 +61,8 @@ func parseYarnBerryLockfile(source []byte, payload map[string]any) []map[string]
 		if protocol == "" {
 			protocol = resolutionProtocol(resolution)
 		}
-		// Workspace/file/link/portal/exec entries do not prove a remote
-		// package identity, so they must not be emitted as registry deps.
+		// Workspace/file/link/portal entries do not prove a remote package
+		// identity, so they must not be emitted as registry deps.
 		if isLocalProtocol(protocol) {
 			continue
 		}
@@ -54,15 +70,19 @@ func parseYarnBerryLockfile(source []byte, payload map[string]any) []map[string]
 		if !isSupportedRemoteProtocol(protocol) {
 			unsupported = protocol
 		}
+		instanceKey := yarnInstanceKey(name, version)
 		packages = append(packages, pkg{
+			instanceKey: instanceKey,
 			name:        name,
 			version:     version,
 			protocol:    protocol,
 			unsupported: unsupported,
+			deps:        deps,
 			lineNumber:  block.lineNumber,
 		})
-		if _, exists := depsByName[name]; !exists {
-			depsByName[name] = deps
+		nameByInstance[instanceKey] = name
+		for _, descriptor := range descriptors {
+			descriptorToKey[descriptor] = instanceKey
 		}
 	}
 
@@ -71,19 +91,30 @@ func parseYarnBerryLockfile(source []byte, payload map[string]any) []map[string]
 		return []map[string]any{}
 	}
 
-	names := make([]string, 0, len(packages))
+	// Build per-instance dependency adjacency by resolving each
+	// "name@range" child to a Berry locator that matches a known instance.
+	depAdjacency := make(map[string][]string, len(packages))
 	for _, p := range packages {
-		names = append(names, p.name)
+		depAdjacency[p.instanceKey] = yarnBerryChildKeys(p.deps, descriptorToKey)
 	}
-	chains := walkLockfileDependencyChains(names, depsByName)
+
+	instanceKeys := make([]string, 0, len(packages))
+	for _, p := range packages {
+		instanceKeys = append(instanceKeys, p.instanceKey)
+	}
+	chains := walkYarnInstanceChains(instanceKeys, depAdjacency, nameByInstance)
 
 	sort.Slice(packages, func(i, j int) bool {
-		return packages[i].name < packages[j].name
+		if packages[i].name != packages[j].name {
+			return packages[i].name < packages[j].name
+		}
+		return packages[i].version < packages[j].version
 	})
 
 	rows := make([]map[string]any, 0, len(packages))
 	for index, p := range packages {
-		row := dependencyRow(p.name, p.version, "yarn.lock", "yarn", "yarn-berry", index+1, chains[p.name])
+		chain := chains[p.instanceKey]
+		row := dependencyRow(p.name, p.version, "yarn.lock", "yarn", "yarn-berry", index+1, chain)
 		if p.protocol != "" {
 			row["lockfile_resolution_protocol"] = p.protocol
 		}
@@ -93,6 +124,45 @@ func parseYarnBerryLockfile(source []byte, payload map[string]any) []map[string]
 		rows = append(rows, row)
 	}
 	return rows
+}
+
+// yarnBerryChildKeys resolves a parent's "child name -> child range" deps to
+// the matching instance keys by checking the known Berry protocols in
+// priority order. Children whose descriptor matches no known locator are
+// dropped so chain reconstruction does not invent edges to a phantom
+// instance.
+func yarnBerryChildKeys(deps map[string]string, descriptorToKey map[string]string) []string {
+	if len(deps) == 0 {
+		return nil
+	}
+	out := make([]string, 0, len(deps))
+	seen := make(map[string]struct{}, len(deps))
+	for _, name := range sortedKeysString(deps) {
+		rng := deps[name]
+		key := yarnBerryResolveChildKey(name, rng, descriptorToKey)
+		if key == "" {
+			continue
+		}
+		if _, ok := seen[key]; ok {
+			continue
+		}
+		seen[key] = struct{}{}
+		out = append(out, key)
+	}
+	return out
+}
+
+func yarnBerryResolveChildKey(name, rng string, descriptorToKey map[string]string) string {
+	// Try common Berry protocols in priority order; npm:: is by far the
+	// most common edge protocol but we also see virtual: and patch: in
+	// real-world lockfiles.
+	for _, protocol := range []string{"npm:", "patch:", "virtual:", ""} {
+		descriptor := name + "@" + protocol + rng
+		if key, ok := descriptorToKey[descriptor]; ok {
+			return key
+		}
+	}
+	return ""
 }
 
 // splitYarnBerryBlocks splits a yarn berry lockfile into header/body blocks.
@@ -124,6 +194,26 @@ func splitYarnBerryBlocks(source string) []yarnBlock {
 		blocks = append(blocks, *current)
 	}
 	return blocks
+}
+
+// parseYarnBerryDescriptorLine splits a Berry header line into its locator
+// strings. Berry locators are normally quoted and may appear in a
+// comma-separated list when multiple ranges share one resolution
+// (e.g. `"lodash@npm:^4.0.0, lodash@npm:^4.17.0":`).
+func parseYarnBerryDescriptorLine(header string) []string {
+	header = strings.TrimSuffix(strings.TrimSpace(header), ":")
+	if header == "" {
+		return nil
+	}
+	parts := splitOutsideQuotes(header, ',')
+	out := make([]string, 0, len(parts))
+	for _, part := range parts {
+		descriptor := strings.Trim(strings.TrimSpace(part), `"`)
+		if descriptor != "" {
+			out = append(out, descriptor)
+		}
+	}
+	return out
 }
 
 // splitBerryDescriptor returns the package name and resolution protocol parsed

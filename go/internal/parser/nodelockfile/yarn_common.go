@@ -11,59 +11,90 @@ type yarnBlock struct {
 	lineNumber int
 }
 
-// walkLockfileDependencyChains builds a chain map keyed by package name from
-// the universe of names and the per-package dependency edges. Packages whose
-// name does not appear as a dependency of any other package are treated as
-// importer-equivalent roots (yarn lockfiles do not carry a separate importer
-// table the way pnpm does).
-func walkLockfileDependencyChains(names []string, depsByName map[string]map[string]string) map[string][]string {
-	dependencyAdj := make(map[string][]string, len(depsByName))
-	for name, deps := range depsByName {
-		dependencyAdj[name] = append(dependencyAdj[name], sortedKeys(deps)...)
-	}
-	hasIncoming := make(map[string]bool, len(names))
-	for _, deps := range dependencyAdj {
-		for _, dep := range deps {
-			hasIncoming[dep] = true
+// walkYarnInstanceChains builds a chain map keyed by composite instance key
+// ("name@version") from the universe of yarn instance keys and the
+// per-instance dependency edges (already resolved to child instance keys).
+// Instances with no incoming edges from any other instance are treated as
+// importer-equivalent roots (yarn lockfiles do not carry a separate
+// importer table the way pnpm does). The resulting chain is a slice of
+// package names so callers can hand it to dependencyRow as the public
+// `dependency_path` value.
+func walkYarnInstanceChains(
+	instanceKeys []string,
+	adj map[string][]string,
+	nameByInstance map[string]string,
+) map[string][]string {
+	hasIncoming := make(map[string]bool, len(instanceKeys))
+	for _, children := range adj {
+		for _, child := range children {
+			hasIncoming[child] = true
 		}
 	}
 	roots := make([]string, 0)
-	seen := make(map[string]struct{}, len(names))
-	for _, name := range names {
-		if _, ok := seen[name]; ok {
+	seen := make(map[string]struct{}, len(instanceKeys))
+	for _, key := range instanceKeys {
+		if _, ok := seen[key]; ok {
 			continue
 		}
-		seen[name] = struct{}{}
-		if !hasIncoming[name] {
-			roots = append(roots, name)
+		seen[key] = struct{}{}
+		if !hasIncoming[key] {
+			roots = append(roots, key)
 		}
 	}
 	sort.Strings(roots)
 	chains := make(map[string][]string)
 	for _, root := range roots {
-		walkChain(root, []string{root}, dependencyAdj, chains)
+		rootName := nameByInstance[root]
+		if rootName == "" {
+			continue
+		}
+		walkChainByInstance(root, []string{rootName}, adj, nameByInstance, chains)
 	}
-	for _, name := range names {
-		if _, ok := chains[name]; !ok {
-			chains[name] = []string{name}
+	for _, key := range instanceKeys {
+		if _, ok := chains[key]; !ok {
+			if name := nameByInstance[key]; name != "" {
+				chains[key] = []string{name}
+			}
 		}
 	}
 	return chains
 }
 
-// walkChain performs a bounded BFS-by-name to record the shortest dependency
-// path from a root to every reachable node. Cycles are detected by chain
-// membership; we never grow a chain past a node already in it.
-func walkChain(node string, chain []string, adj map[string][]string, out map[string][]string) {
-	if existing, ok := out[node]; ok && len(existing) <= len(chain) {
+// yarnInstanceKey builds the composite key used to index yarn package
+// instances. Using a name+version key prevents multiple installed versions
+// of the same package from overwriting each other in adjacency maps and
+// chain reconstruction.
+func yarnInstanceKey(name, version string) string {
+	return strings.TrimSpace(name) + "@" + strings.TrimSpace(version)
+}
+
+// walkChainByInstance walks an instance-keyed dependency graph and writes
+// the resulting chain (as a slice of package names, in walk order) for each
+// reachable instance into out. The adjacency map and out map are both keyed
+// by composite instance keys (e.g. "lodash@4.17.21") so different versions
+// of the same package do not collapse together; nameByInstance is the
+// instance-key → display-name table used to translate the chain back to the
+// public name-only form callers expect.
+func walkChainByInstance(
+	nodeKey string,
+	chain []string,
+	adj map[string][]string,
+	nameByInstance map[string]string,
+	out map[string][]string,
+) {
+	if existing, ok := out[nodeKey]; ok && len(existing) <= len(chain) {
 		return
 	}
-	out[node] = append([]string(nil), chain...)
-	for _, child := range adj[node] {
-		if containsString(chain, child) {
+	out[nodeKey] = append([]string(nil), chain...)
+	for _, childKey := range adj[nodeKey] {
+		childName := nameByInstance[childKey]
+		if childName == "" {
 			continue
 		}
-		walkChain(child, append(append([]string(nil), chain...), child), adj, out)
+		if containsString(chain, childName) {
+			continue
+		}
+		walkChainByInstance(childKey, append(append([]string(nil), chain...), childName), adj, nameByInstance, out)
 	}
 }
 
@@ -166,13 +197,4 @@ func isSupportedRemoteProtocol(protocol string) bool {
 		return true
 	}
 	return false
-}
-
-func sortedKeys(values map[string]string) []string {
-	keys := make([]string, 0, len(values))
-	for key := range values {
-		keys = append(keys, key)
-	}
-	sort.Strings(keys)
-	return keys
 }

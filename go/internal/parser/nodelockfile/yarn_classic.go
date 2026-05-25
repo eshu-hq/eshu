@@ -16,7 +16,10 @@ import (
 //
 // Top-level blocks start at column 0; property lines are indented two spaces.
 // We collect all resolved packages, then walk the importer-side dependencies
-// graph from the root descriptors to produce dependency_path chains.
+// graph from the root descriptors to produce dependency_path chains. The
+// dependency graph is keyed by composite "name@version" so multiple installed
+// versions of the same package name stay independent (yarn lockfiles often
+// pin different ranges of the same dependency to different versions).
 func parseYarnClassicLockfile(source []byte, payload map[string]any) []map[string]any {
 	blocks := splitYarnClassicBlocks(string(source))
 	if len(blocks) == 0 {
@@ -25,13 +28,21 @@ func parseYarnClassicLockfile(source []byte, payload map[string]any) []map[strin
 	}
 
 	type pkg struct {
-		name       string
-		version    string
-		lineNumber int
+		instanceKey string
+		name        string
+		version     string
+		deps        map[string]string
+		lineNumber  int
 	}
 
 	packages := make([]pkg, 0, len(blocks))
-	depsByName := make(map[string]map[string]string)
+	// descriptorToKey maps every header descriptor ("name@^1.0.0") to the
+	// instance key its block resolved to. The same instance commonly answers
+	// to several descriptors (e.g. "lodash@^4.0.0", "lodash@^4.17.0"). We
+	// use this index to resolve a parent block's dependency references back
+	// to a specific (name, version) instance.
+	descriptorToKey := make(map[string]string)
+	nameByInstance := make(map[string]string)
 
 	for _, block := range blocks {
 		descriptors := parseYarnClassicDescriptorLine(block.headerLine)
@@ -46,8 +57,18 @@ func parseYarnClassicLockfile(source []byte, payload map[string]any) []map[strin
 		if version == "" {
 			continue
 		}
-		packages = append(packages, pkg{name: name, version: version, lineNumber: block.lineNumber})
-		depsByName[name] = deps
+		instanceKey := yarnInstanceKey(name, version)
+		packages = append(packages, pkg{
+			instanceKey: instanceKey,
+			name:        name,
+			version:     version,
+			deps:        deps,
+			lineNumber:  block.lineNumber,
+		})
+		nameByInstance[instanceKey] = name
+		for _, descriptor := range descriptors {
+			descriptorToKey[descriptor] = instanceKey
+		}
 	}
 
 	if len(packages) == 0 {
@@ -55,22 +76,54 @@ func parseYarnClassicLockfile(source []byte, payload map[string]any) []map[strin
 		return []map[string]any{}
 	}
 
-	names := make([]string, 0, len(packages))
+	// Build per-instance dependency adjacency by resolving each "name@range"
+	// child descriptor to an instance key.
+	depAdjacency := make(map[string][]string, len(packages))
 	for _, p := range packages {
-		names = append(names, p.name)
+		depAdjacency[p.instanceKey] = yarnClassicChildKeys(p.deps, descriptorToKey)
 	}
-	chains := walkLockfileDependencyChains(names, depsByName)
+
+	instanceKeys := make([]string, 0, len(packages))
+	for _, p := range packages {
+		instanceKeys = append(instanceKeys, p.instanceKey)
+	}
+	chains := walkYarnInstanceChains(instanceKeys, depAdjacency, nameByInstance)
 
 	sort.Slice(packages, func(i, j int) bool {
-		return packages[i].name < packages[j].name
+		if packages[i].name != packages[j].name {
+			return packages[i].name < packages[j].name
+		}
+		return packages[i].version < packages[j].version
 	})
 
 	rows := make([]map[string]any, 0, len(packages))
 	for index, p := range packages {
-		row := dependencyRow(p.name, p.version, "yarn.lock", "yarn", "yarn-classic", index+1, chains[p.name])
+		chain := chains[p.instanceKey]
+		row := dependencyRow(p.name, p.version, "yarn.lock", "yarn", "yarn-classic", index+1, chain)
 		rows = append(rows, row)
 	}
 	return rows
+}
+
+// yarnClassicChildKeys resolves a parent's "child name -> child range" deps
+// to the matching instance keys. If a child descriptor does not map to a
+// known instance, it is dropped so chain reconstruction does not invent
+// edges.
+func yarnClassicChildKeys(deps map[string]string, descriptorToKey map[string]string) []string {
+	if len(deps) == 0 {
+		return nil
+	}
+	out := make([]string, 0, len(deps))
+	for _, name := range sortedKeysString(deps) {
+		rng := deps[name]
+		descriptor := name + "@" + rng
+		key, ok := descriptorToKey[descriptor]
+		if !ok {
+			continue
+		}
+		out = append(out, key)
+	}
+	return out
 }
 
 // splitYarnClassicBlocks splits a yarn classic lockfile into header/body

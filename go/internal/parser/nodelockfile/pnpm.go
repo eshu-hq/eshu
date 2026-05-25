@@ -8,11 +8,18 @@ import (
 )
 
 // parsePnpmLockfile parses pnpm-lock.yaml (v6+) into dependency rows. The
-// lockfile is YAML; we use a strict YAML decode to avoid hand-rolling another
-// format reader. v9+ moves transitive details into a separate snapshots
-// section but the per-package `packages:` map still carries the version
-// portion of the key and the dependencies block, which is what we need for
-// chain evidence.
+// lockfile is YAML; we decode it with yaml.v3 into a generic document tree.
+// We do not require unknown-field strictness because pnpm has rolled new
+// top-level fields (settings, snapshots, time, etc.) across point releases
+// and we tolerate them by reading only the keys we understand. v9+ moves
+// transitive details into a separate snapshots section but the per-package
+// `packages:` map still carries the resolved version in the key and a
+// dependencies block, which is what we need for chain evidence.
+//
+// Multiple installed versions of the same name (e.g. lodash@4.x consumed by
+// one importer and lodash@3.x consumed by another) are recorded as separate
+// rows. All internal maps are keyed by "name@version" so different versions
+// do not silently overwrite each other in the dependency graph.
 func parsePnpmLockfile(source []byte, payload map[string]any) []map[string]any {
 	var document map[string]any
 	if err := yamlv3.Unmarshal(source, &document); err != nil {
@@ -28,81 +35,73 @@ func parsePnpmLockfile(source []byte, payload map[string]any) []map[string]any {
 	packages := parsePnpmPackages(document)
 	snapshots := parsePnpmSnapshots(document)
 
-	directScopeByName := make(map[string]string, len(imports))
+	// directScopeByKey records runtime/dev/optional/peer scope for the
+	// resolved package instance an importer points at. Local protocols
+	// (workspace:, link:, file:, portal:) never become remote rows.
+	directScopeByKey := make(map[string]string, len(imports))
 	for _, dep := range imports {
 		if isLocalSpecifier(dep.specifier) || isLocalVersion(dep.version) {
-			// Workspace/file/link specifiers must not become remote rows.
 			continue
 		}
 		// Prefer runtime scope over dev when the same package shows up twice.
-		if existing := directScopeByName[dep.name]; existing == "runtime" {
+		key := pnpmInstanceKey(dep.name, dep.version)
+		if existing := directScopeByKey[key]; existing == "runtime" {
 			continue
 		}
-		directScopeByName[dep.name] = dep.scope
+		directScopeByKey[key] = dep.scope
 	}
 
-	type pkg struct {
-		name       string
-		version    string
-		scope      string
-		direct     bool
-		lineNumber int
-	}
-
+	// Build the adjacency map by composite (name, version) key so two
+	// instances of the same name resolve their dependencies independently.
 	depAdjacency := make(map[string][]string, len(packages))
-	versions := make(map[string]string, len(packages))
-	for name, pkgInfo := range packages {
-		versions[name] = pkgInfo.version
-		depAdjacency[name] = sortedKeys(pkgInfo.deps)
+	for key, pkg := range packages {
+		depAdjacency[key] = pnpmChildKeysForDeps(pkg.deps, packages)
 	}
-	for name, snapDeps := range snapshots {
-		if _, ok := depAdjacency[name]; !ok && len(snapDeps) > 0 {
-			depAdjacency[name] = sortedKeys(snapDeps)
+	for key, snapDeps := range snapshots {
+		if existing := depAdjacency[key]; len(existing) == 0 && len(snapDeps) > 0 {
+			depAdjacency[key] = pnpmChildKeysForDeps(snapDeps, packages)
 		}
 	}
 
-	roots := make([]string, 0, len(directScopeByName))
-	for name := range directScopeByName {
-		if _, ok := packages[name]; ok {
-			roots = append(roots, name)
+	// Roots are the importer-declared instance keys that resolve to a real
+	// package entry. Chain reconstruction starts from these.
+	roots := make([]string, 0, len(directScopeByKey))
+	for key := range directScopeByKey {
+		if _, ok := packages[key]; ok {
+			roots = append(roots, key)
 		}
 	}
 	sort.Strings(roots)
 
+	nameByInstance := make(map[string]string, len(packages))
+	for key, pkg := range packages {
+		nameByInstance[key] = pkg.name
+	}
+
 	chains := make(map[string][]string)
 	for _, root := range roots {
-		walkChain(root, []string{root}, depAdjacency, chains)
+		rootName := packages[root].name
+		walkChainByInstance(root, []string{rootName}, depAdjacency, nameByInstance, chains)
 	}
 
-	out := make([]pkg, 0, len(packages))
-	for name, pkgInfo := range packages {
+	keys := make([]string, 0, len(packages))
+	for key := range packages {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+
+	rows := make([]map[string]any, 0, len(keys))
+	for index, key := range keys {
+		pkg := packages[key]
 		scope := "pnpm-package"
-		direct := false
-		if directScope, ok := directScopeByName[name]; ok {
+		if directScope, ok := directScopeByKey[key]; ok {
 			scope = directScope
-			direct = true
 		}
-		out = append(out, pkg{
-			name:       name,
-			version:    pkgInfo.version,
-			scope:      scope,
-			direct:     direct,
-			lineNumber: pkgInfo.lineNumber,
-		})
-		_ = versions
-	}
-
-	sort.Slice(out, func(i, j int) bool {
-		return out[i].name < out[j].name
-	})
-
-	rows := make([]map[string]any, 0, len(out))
-	for index, p := range out {
-		chain := chains[p.name]
+		chain := chains[key]
 		if len(chain) == 0 {
-			chain = []string{p.name}
+			chain = []string{pkg.name}
 		}
-		row := dependencyRow(p.name, p.version, p.scope, "pnpm", "pnpm", index+1, chain)
+		row := dependencyRow(pkg.name, pkg.version, scope, "pnpm", "pnpm", index+1, chain)
 		rows = append(rows, row)
 	}
 	return rows
@@ -144,11 +143,11 @@ func parsePnpmImporters(document map[string]any) []pnpmDirectDependency {
 				dep := pnpmDirectDependency{name: name, scope: scope.label}
 				switch typed := block[name].(type) {
 				case string:
-					dep.version = typed
+					dep.version = stripPnpmPeerSuffix(typed)
 					dep.specifier = typed
 				case map[string]any:
 					dep.specifier = stringField(typed, "specifier")
-					dep.version = stringField(typed, "version")
+					dep.version = stripPnpmPeerSuffix(stringField(typed, "version"))
 				}
 				out = append(out, dep)
 			}
@@ -158,15 +157,17 @@ func parsePnpmImporters(document map[string]any) []pnpmDirectDependency {
 }
 
 type pnpmPackage struct {
-	version    string
-	deps       map[string]string
-	lineNumber int
+	name    string
+	version string
+	deps    map[string]string
 }
 
 // parsePnpmPackages collects every entry from the `packages:` section. The
 // keys look like `/name@version`, `/@scope/name@version`, or for v9+
 // `name@version`. Suffixes after the version like `(peer@1)` are part of the
-// key but not part of the installed version - we strip them.
+// key but not part of the installed version - we strip them. Returned map is
+// keyed by composite "name@version" so multiple resolved versions of the
+// same package name stay independent.
 func parsePnpmPackages(document map[string]any) map[string]pnpmPackage {
 	out := make(map[string]pnpmPackage)
 	packages, ok := document["packages"].(map[string]any)
@@ -180,8 +181,8 @@ func parsePnpmPackages(document map[string]any) map[string]pnpmPackage {
 		}
 		entry, _ := value.(map[string]any)
 		deps := readPnpmDependencies(entry)
-		// Last write wins; pnpm keys are unique anyway.
-		out[name] = pnpmPackage{
+		out[pnpmInstanceKey(name, version)] = pnpmPackage{
+			name:    name,
 			version: version,
 			deps:    deps,
 		}
@@ -190,8 +191,9 @@ func parsePnpmPackages(document map[string]any) map[string]pnpmPackage {
 }
 
 // parsePnpmSnapshots covers pnpm v9 where transitive dependency edges moved
-// into the `snapshots:` section. We just borrow the dependencies map keyed by
-// the same name@version key shape.
+// into the `snapshots:` section. The map is keyed by composite
+// "name@version" so transitive edges for one version of a package never
+// overwrite another.
 func parsePnpmSnapshots(document map[string]any) map[string]map[string]string {
 	out := make(map[string]map[string]string)
 	snapshots, ok := document["snapshots"].(map[string]any)
@@ -199,13 +201,13 @@ func parsePnpmSnapshots(document map[string]any) map[string]map[string]string {
 		return out
 	}
 	for key, value := range snapshots {
-		name, _ := parsePnpmPackageKey(key)
-		if name == "" {
+		name, version := parsePnpmPackageKey(key)
+		if name == "" || version == "" {
 			continue
 		}
 		entry, _ := value.(map[string]any)
 		if deps := readPnpmDependencies(entry); len(deps) > 0 {
-			out[name] = deps
+			out[pnpmInstanceKey(name, version)] = deps
 		}
 	}
 	return out
@@ -250,10 +252,7 @@ func readPnpmDependencies(entry map[string]any) map[string]string {
 		}
 		for name, value := range block {
 			version, _ := value.(string)
-			version = strings.TrimSpace(version)
-			if idx := strings.IndexByte(version, '('); idx > 0 {
-				version = version[:idx]
-			}
+			version = stripPnpmPeerSuffix(strings.TrimSpace(version))
 			out[strings.TrimSpace(name)] = version
 		}
 	}
@@ -275,6 +274,51 @@ func sortedMapKeys(values map[string]any) []string {
 	}
 	sort.Strings(keys)
 	return keys
+}
+
+// pnpmInstanceKey builds the composite key used to index pnpm package
+// instances. Using a name+version key prevents multiple installed versions
+// of the same package from overwriting each other in adjacency maps.
+func pnpmInstanceKey(name, version string) string {
+	return strings.TrimSpace(name) + "@" + strings.TrimSpace(version)
+}
+
+// pnpmChildKeysForDeps resolves a package's dependency block (name -> child
+// version) into the set of child instance keys that exist in the packages
+// table. Children whose version does not match a recorded package are
+// dropped from the chain instead of being silently coerced.
+func pnpmChildKeysForDeps(deps map[string]string, packages map[string]pnpmPackage) []string {
+	if len(deps) == 0 {
+		return nil
+	}
+	out := make([]string, 0, len(deps))
+	for _, name := range sortedKeysString(deps) {
+		version := deps[name]
+		key := pnpmInstanceKey(name, version)
+		if _, ok := packages[key]; ok {
+			out = append(out, key)
+		}
+	}
+	return out
+}
+
+func sortedKeysString(values map[string]string) []string {
+	keys := make([]string, 0, len(values))
+	for key := range values {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	return keys
+}
+
+// stripPnpmPeerSuffix removes the parenthesized peer-suffix pnpm adds to
+// version strings like "2.0.0(@types/node@20.5.0)".
+func stripPnpmPeerSuffix(value string) string {
+	value = strings.TrimSpace(value)
+	if idx := strings.IndexByte(value, '('); idx > 0 {
+		return strings.TrimSpace(value[:idx])
+	}
+	return value
 }
 
 // isLocalSpecifier covers the importer specifier protocols pnpm uses to point

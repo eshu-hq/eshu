@@ -5,11 +5,17 @@
 1. `README.md` - package purpose, ownership boundary, row contract.
 2. `doc.go` - godoc contract for parent parser callers.
 3. `parser.go` - `Parse`, lockfile flavor detection, shared row builder.
-4. `yarn.go` - Yarn classic v1 and Yarn Berry block parsing.
-5. `pnpm.go` - pnpm-lock.yaml v6+ importer and package decoding.
-6. `parser_test.go` - fixture coverage for direct, transitive, scoped,
-   workspace/local, malformed, and unsupported-protocol cases.
-7. Parent wrapper in `../node_lockfile_language.go`.
+4. `yarn_classic.go` - Yarn 1.x block parsing and descriptor resolution.
+5. `yarn_berry.go` - Yarn Berry (v2+) locator parsing and descriptor
+   resolution.
+6. `yarn_common.go` - shared block/descriptor helpers and the composite
+   instance-key chain walker used by both Yarn flavors.
+7. `pnpm.go` - pnpm-lock.yaml v6+ importer and package decoding.
+8. `parser_test.go`, `yarn_test.go`, `pnpm_test.go`, and
+   `multi_version_test.go` - fixture coverage for direct, transitive,
+   scoped, workspace/local, malformed, unsupported-protocol, and
+   multi-version-per-name cases.
+9. Parent wrapper in `../node_lockfile_language.go`.
 
 ## Invariants this package enforces
 

@@ -111,13 +111,14 @@ func TestBuildPackageConsumptionDecisionsAdmitsPnpmLockEvidence(t *testing.T) {
 	}
 }
 
-// TestBuildPackageConsumptionDecisionsRejectsUnsupportedYarnBerryProtocol
-// proves the safety rule for unsupported Yarn Berry protocols (patch:,
-// exec:, etc): if the lockfile flagged the row as unsupported, we still
-// admit the underlying npm-identity row as evidence; the unsupported flag is
-// preserved on the fact for downstream readiness, not used to suppress the
-// decision. This documents the intentional behavior so a future reviewer
-// does not silently change it.
+// TestBuildPackageConsumptionDecisionsAcceptsYarnBerryUnsupportedFlagButPreservesEvidence
+// documents the intentional accept-and-flag behavior for unsupported Yarn
+// Berry protocols (patch:, exec:, etc). If the lockfile flagged the row as
+// unsupported, we still admit the underlying npm-identity row as a
+// consumption decision; the unsupported flag rides along on the fact for
+// downstream readiness, it is not used to suppress the decision. A future
+// reviewer should not silently change this contract; if suppression becomes
+// the desired behavior, the test name and assertions must flip too.
 func TestBuildPackageConsumptionDecisionsAcceptsYarnBerryUnsupportedFlagButPreservesEvidence(t *testing.T) {
 	t.Parallel()
 
