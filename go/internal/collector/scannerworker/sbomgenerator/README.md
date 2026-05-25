@@ -69,10 +69,17 @@ unparseable, or subject-mismatched.
   `subject_digest` is cleared; the reducer then classifies the document as
   `unknown_subject`. The analyzer never invents subject identity.
 - Component facts deduplicate on `purl`-or-`name@version` canonical
-  identity. Duplicates surface as `component_missing_identity` warnings
-  with the duplicate identity hint.
+  identity (lowercased, whitespace-trimmed). Components that differ only in
+  PURL casing, `bom_ref`, or extra metadata collapse to one emitted fact
+  and the duplicates surface as `component_missing_identity` warnings with
+  the canonical identity hint. The component fact ID is derived from the
+  same canonical identity, so two equivalent inputs always produce
+  identical fact IDs across runs.
 - Resource-limit breaches dead-letter; they do not silently truncate the
-  output. The analyzer fails before emitting any partial fact bundle.
+  output. The analyzer rejects oversized inventories *before* allocating
+  any envelopes by comparing the inventory's worst-case fact count
+  (`1 + len(components) + 2`) against `MaxFacts`. The analyzer fails
+  before emitting any partial fact bundle.
 - Generic `Source` errors map to terminal `analyzer_failed` and the wrapped
   cause is discarded. This keeps repository paths, image names, registry
   URLs, and package coordinates out of retry/dead-letter payloads.

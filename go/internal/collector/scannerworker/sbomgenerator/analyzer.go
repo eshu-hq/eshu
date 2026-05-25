@@ -127,6 +127,21 @@ func (a Analyzer) Analyze(ctx context.Context, input scannerworker.ClaimInput) (
 		)
 	}
 
+	// Pre-check the upper bound on emitted facts so an oversized inventory
+	// dead-letters before allocating per-component envelopes. Each input
+	// component contributes at most one fact (either an sbom.component or a
+	// component_missing_identity warning), plus up to one subject warning and
+	// one no_components_found warning on top of the always-emitted document
+	// fact.
+	maxPossibleFacts := 1 + len(inventory.Components) + 2
+	if maxPossibleFacts > input.Limits.MaxFacts {
+		return scannerworker.AnalyzerResult{}, scannerworker.NewTerminalAnalyzerFailure(
+			scannerworker.FailureClassFactLimitExceeded,
+			scannerworker.ResourceUsage{},
+			fmt.Errorf("sbomgenerator: inventory would emit up to %d facts above max_facts %d", maxPossibleFacts, input.Limits.MaxFacts),
+		)
+	}
+
 	envelopes, factCount, componentCount, err := a.buildFacts(input, inventory)
 	if err != nil {
 		return scannerworker.AnalyzerResult{}, err
@@ -135,7 +150,7 @@ func (a Analyzer) Analyze(ctx context.Context, input scannerworker.ClaimInput) (
 		return scannerworker.AnalyzerResult{}, scannerworker.NewTerminalAnalyzerFailure(
 			scannerworker.FailureClassFactLimitExceeded,
 			scannerworker.ResourceUsage{},
-			fmt.Errorf("sbomgenerator: would emit %d facts above max_facts %d", factCount, input.Limits.MaxFacts),
+			fmt.Errorf("sbomgenerator: emitted %d facts above max_facts %d", factCount, input.Limits.MaxFacts),
 		)
 	}
 
@@ -194,7 +209,7 @@ func (a Analyzer) buildFacts(input scannerworker.ClaimInput, inventory Inventory
 
 	componentFacts := make([]facts.Envelope, 0, len(inventory.Components))
 	warningFacts := make([]facts.Envelope, 0)
-	usedKeys := make(map[string]struct{}, len(inventory.Components))
+	usedIdentities := make(map[string]struct{}, len(inventory.Components))
 	emittedComponents := 0
 
 	for idx, comp := range inventory.Components {
@@ -203,7 +218,7 @@ func (a Analyzer) buildFacts(input scannerworker.ClaimInput, inventory Inventory
 			warningFacts = append(warningFacts, newWarningFact(input, observedAt, documentID, WarningReasonComponentMissingIdentity, fmt.Sprintf("component[%d] missing purl and name+version identity", idx)))
 			continue
 		}
-		fact, ok := newComponentFact(input, observedAt, documentID, comp, identity, usedKeys)
+		fact, ok := newComponentFact(input, observedAt, documentID, comp, identity, usedIdentities)
 		if !ok {
 			warningFacts = append(warningFacts, newWarningFact(input, observedAt, documentID, WarningReasonComponentMissingIdentity, fmt.Sprintf("component[%d] duplicates already-emitted identity %q", idx, identity)))
 			continue

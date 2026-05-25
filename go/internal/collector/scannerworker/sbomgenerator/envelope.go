@@ -61,19 +61,24 @@ func newComponentFact(
 	documentID string,
 	comp Component,
 	identity string,
-	usedKeys map[string]struct{},
+	usedIdentities map[string]struct{},
 ) (facts.Envelope, bool) {
-	componentID := newComponentID(documentID, comp, identity)
+	// Dedup on the canonical identity (lowercased purl or name@version) so
+	// inventories that report the same package under different casing or with
+	// extra metadata still collapse to one emitted component fact. The
+	// componentID and stable key are derived from the same canonical identity
+	// so two equivalent inputs always produce identical fact IDs.
+	if _, exists := usedIdentities[identity]; exists {
+		return facts.Envelope{}, false
+	}
+	usedIdentities[identity] = struct{}{}
+	componentID := newComponentID(documentID, identity)
 	stableKey := facts.StableID(facts.SBOMComponentFactKind, map[string]any{
 		"component_id":  componentID,
 		"document_id":   documentID,
 		"generation_id": input.GenerationID,
 		"scope_id":      input.Target.ScopeID,
 	})
-	if _, exists := usedKeys[stableKey]; exists {
-		return facts.Envelope{}, false
-	}
-	usedKeys[stableKey] = struct{}{}
 	purl := strings.TrimSpace(comp.PURL)
 	bomRef := strings.TrimSpace(comp.BomRef)
 	name := strings.TrimSpace(comp.Name)
@@ -164,13 +169,10 @@ func newDocumentID(input scannerworker.ClaimInput, subjectDigest string, observe
 	})
 }
 
-func newComponentID(documentID string, comp Component, identity string) string {
+func newComponentID(documentID string, identity string) string {
 	return facts.StableID("SBOMComponent", map[string]any{
 		"document_id": documentID,
 		"identity":    identity,
-		"name":        strings.TrimSpace(comp.Name),
-		"purl":        strings.TrimSpace(comp.PURL),
-		"version":     strings.TrimSpace(comp.Version),
 	})
 }
 

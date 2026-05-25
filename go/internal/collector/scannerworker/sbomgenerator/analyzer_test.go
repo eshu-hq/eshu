@@ -256,6 +256,45 @@ func TestAnalyzerDeadLettersOnGenericSourceError(t *testing.T) {
 	}
 }
 
+func TestAnalyzerDeduplicatesComponentsByCanonicalIdentity(t *testing.T) {
+	t.Parallel()
+
+	input := testClaimInput(t)
+	source := &stubSource{
+		inventory: Inventory{
+			SubjectDigest: "sha256:11111111111111111111111111111111111111111111111111111111111111aa",
+			Components: []Component{
+				{PURL: "pkg:npm/foo@1.2.3", Name: "Foo", Version: "1.2.3"},
+				// Same canonical PURL with different casing and a different
+				// bom_ref must collapse to one emitted component fact and
+				// surface a component_missing_identity duplicate warning.
+				{PURL: "PKG:NPM/foo@1.2.3", Name: "foo", Version: "1.2.3", BomRef: "alt"},
+				// Same canonical name+version identity expressed without a PURL
+				// must also collapse against an already-emitted PURL entry that
+				// resolves to the same canonical identity bucket.
+				{Name: "bar", Version: "9.9.9"},
+				{Name: "BAR", Version: "9.9.9"},
+			},
+		},
+	}
+	analyzer := Analyzer{Source: source, Now: testClock}
+
+	result, err := analyzer.Analyze(context.Background(), input)
+	if err != nil {
+		t.Fatalf("Analyze() error = %v, want nil", err)
+	}
+	counts := countFactKinds(result.Output.Facts)
+	if counts[facts.SBOMComponentFactKind] != 2 {
+		t.Fatalf("component facts = %d, want 2 (canonical dedup collapsed casing duplicates)", counts[facts.SBOMComponentFactKind])
+	}
+	if got := warningReasons(result.Output.Facts); !containsString(got, "component_missing_identity") {
+		t.Fatalf("warnings = %v, want component_missing_identity duplicate warning", got)
+	}
+	if err := scannerworker.ValidateFactOutput(input, result.Output); err != nil {
+		t.Fatalf("ValidateFactOutput() error = %v, want nil", err)
+	}
+}
+
 func TestAnalyzerRejectsMalformedSubjectDigest(t *testing.T) {
 	t.Parallel()
 
@@ -306,6 +345,15 @@ func hasWarningReason(envelopes []facts.Envelope, reason string) bool {
 			continue
 		}
 		if got, _ := env.Payload["reason"].(string); got == reason {
+			return true
+		}
+	}
+	return false
+}
+
+func containsString(values []string, want string) bool {
+	for _, value := range values {
+		if value == want {
 			return true
 		}
 	}
