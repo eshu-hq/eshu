@@ -86,6 +86,29 @@ npm only and still uses workflow claims.
 | `ESHU_PACKAGE_REGISTRY_HEARTBEAT_INTERVAL` | `20s` | collector-package-registry | Heartbeat interval for active workflow claims. |
 | `ESHU_PACKAGE_REGISTRY_COLLECTOR_OWNER_ID` | host/process-derived | collector-package-registry | Owner label written into workflow claim rows. |
 
+## SBOM Attestation Collector
+
+The SBOM attestation collector is claim-only. It selects an enabled
+`sbom_attestation` instance from `ESHU_COLLECTOR_INSTANCES_JSON`. Collector
+configuration defines explicit `targets` with `source_type=configured_source`
+for HTTP(S) document URLs or `source_type=oci_referrer` for registry referrer
+documents. Supported document formats are CycloneDX, SPDX, and in-toto
+statements.
+
+Collectors emit typed source facts only. Reducer-owned
+`reducer_sbom_attestation_attachment` facts decide whether a document subject
+is attached, mismatched, unverified, parse-only, unknown, ambiguous, or
+unparseable. Signature verification status remains separate from subject
+attachment status.
+
+| Variable | Default | Read by | Purpose |
+| --- | --- | --- | --- |
+| `ESHU_SBOM_ATTESTATION_COLLECTOR_INSTANCE_ID` | required when more than one enabled SBOM-attestation instance exists | collector-sbom-attestation | Selects the claim-capable `sbom_attestation` instance. |
+| `ESHU_SBOM_ATTESTATION_POLL_INTERVAL` | `1s` | collector-sbom-attestation | Delay between empty workflow-claim polls. |
+| `ESHU_SBOM_ATTESTATION_CLAIM_LEASE_TTL` | `60s` | collector-sbom-attestation | Lease TTL used when claiming and refreshing work. |
+| `ESHU_SBOM_ATTESTATION_HEARTBEAT_INTERVAL` | `20s` | collector-sbom-attestation | Heartbeat interval for active workflow claims. Must be less than the claim lease TTL. |
+| `ESHU_SBOM_ATTESTATION_COLLECTOR_OWNER_ID` | host/process-derived | collector-sbom-attestation | Owner label written into workflow claim rows. |
+
 ## Vulnerability Intelligence Collector
 
 The vulnerability intelligence collector is claim-only. It selects an enabled

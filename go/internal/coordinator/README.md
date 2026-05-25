@@ -108,6 +108,9 @@ fall back to defaults rather than failing; malformed values fail fast.
   package evidence. Derived OSV targets are limited to exact owned dependency
   versions; manifest ranges remain partial evidence and are skipped for exact
   source collection.
+- `SBOMAttestationWorkPlanner` — plans hosted SBOM and attestation collection
+  runs from configured document or OCI-referrer targets. Each target becomes one
+  claimable work item keyed by `scope_id`.
 - `OwnedPackageTargetReader` — optional active-mode dependency target reader
   used by `Service` when package-registry or vulnerability-intelligence
   instances enable `derive_from_owned_packages`.
@@ -224,7 +227,7 @@ material.
 - AWS freshness planning rejects targets that are not present in the collector
   instance `target_scopes`; provider events cannot widen configured AWS access.
 - Scheduled workflow creation for Terraform-state, OCI registry,
-  package-registry, AWS scheduled scans, and AWS freshness uses
+  package-registry, hosted SBOM/attestation, AWS scheduled scans, and AWS freshness uses
   `(collector_kind, collector_instance_id, scope_id, acceptance_unit_id)` as the
   durable open-target key. If a non-terminal run already owns the same target,
   the coordinator skips duplicate work instead of creating another run.

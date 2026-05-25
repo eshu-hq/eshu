@@ -15,6 +15,7 @@ func TestHelmClaimDrivenCollectorDeployments(t *testing.T) {
 		"eshu-terraform-state-collector",
 		"eshu-aws-cloud-collector",
 		"eshu-package-registry-collector",
+		"eshu-sbom-attestation-collector",
 		"eshu-scanner-worker",
 	} {
 		if helmManifestExists(defaultManifests, "Deployment", name) {
@@ -80,6 +81,19 @@ workflowCoordinator:
             document_format: artifactory_package
             username_env: PACKAGE_REGISTRY_USERNAME
             password_env: PACKAGE_REGISTRY_PASSWORD
+    - instance_id: sbom-attestation-primary
+      collector_kind: sbom_attestation
+      mode: continuous
+      enabled: true
+      claims_enabled: true
+      configuration:
+        targets:
+          - scope_id: sbom://configured/team-api
+            source_type: configured_source
+            artifact_kind: sbom
+            document_format: cyclonedx
+            document_url: https://sbom.example.test/team-api.cdx.json
+            subject_digest: sha256:1111111111111111111111111111111111111111111111111111111111111111
     - instance_id: scanner-worker-source
       collector_kind: scanner_worker
       mode: continuous
@@ -167,6 +181,26 @@ packageRegistryCollector:
         secretKeyRef:
           name: package-registry-credentials
           key: password
+sbomAttestationCollector:
+  enabled: true
+  instanceId: sbom-attestation-primary
+  pollInterval: 35s
+  claimLeaseTTL: 6m
+  heartbeatInterval: 1m
+  collectorInstances:
+    - instance_id: sbom-attestation-primary
+      collector_kind: sbom_attestation
+      mode: continuous
+      enabled: true
+      claims_enabled: true
+      configuration:
+        targets:
+          - scope_id: sbom://configured/team-api
+            source_type: configured_source
+            artifact_kind: sbom
+            document_format: cyclonedx
+            document_url: https://sbom.example.test/team-api.cdx.json
+            subject_digest: sha256:1111111111111111111111111111111111111111111111111111111111111111
 scannerWorker:
   enabled: true
   instanceId: scanner-worker-source
@@ -213,6 +247,12 @@ scannerWorker:
 		"ESHU_PACKAGE_REGISTRY_POLL_INTERVAL":         "25s",
 		"ESHU_PACKAGE_REGISTRY_CLAIM_LEASE_TTL":       "4m",
 		"ESHU_PACKAGE_REGISTRY_HEARTBEAT_INTERVAL":    "50s",
+	})
+	assertClaimCollector(t, manifests, "sbom-attestation-collector", "eshu-collector-sbom-attestation", map[string]string{
+		"ESHU_SBOM_ATTESTATION_COLLECTOR_INSTANCE_ID": "sbom-attestation-primary",
+		"ESHU_SBOM_ATTESTATION_POLL_INTERVAL":         "35s",
+		"ESHU_SBOM_ATTESTATION_CLAIM_LEASE_TTL":       "6m",
+		"ESHU_SBOM_ATTESTATION_HEARTBEAT_INTERVAL":    "1m",
 	})
 	assertClaimCollector(t, manifests, "scanner-worker", "eshu-scanner-worker", map[string]string{
 		"ESHU_SCANNER_WORKER_INSTANCE_ID":        "scanner-worker-source",

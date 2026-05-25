@@ -60,6 +60,12 @@ services:
     ports:
       - "127.0.0.1:19670:6060"
 
+  collector-sbom-attestation:
+    environment:
+      ESHU_PPROF_ADDR: 0.0.0.0:6060
+    ports:
+      - "127.0.0.1:19672:6060"
+
   scanner-worker:
     environment:
       ESHU_PPROF_ADDR: 0.0.0.0:6060

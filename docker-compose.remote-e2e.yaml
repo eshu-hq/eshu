@@ -213,6 +213,25 @@ x-collector-env: &remote_e2e_collector_env
         }
       },
       {
+        "instance_id": "remote-e2e-sbom-attestation",
+        "collector_kind": "sbom_attestation",
+        "mode": "continuous",
+        "enabled": true,
+        "claims_enabled": true,
+        "configuration": {
+          "targets": [
+            {
+              "scope_id": "sbom://remote-e2e/team-api",
+              "source_type": "configured_source",
+              "artifact_kind": "sbom",
+              "document_format": "cyclonedx",
+              "document_url": "${ESHU_SBOM_ATTESTATION_DOCUMENT_URL:-http://sbom-attestation-fixture:8080/cyclonedx_image_subject.json}",
+              "subject_digest": "${ESHU_SBOM_ATTESTATION_E2E_SUBJECT_DIGEST:-sha256:1111111111111111111111111111111111111111111111111111111111111111}"
+            }
+          ]
+        }
+      },
+      {
         "instance_id": "remote-e2e-scanner-worker-source",
         "collector_kind": "scanner_worker",
         "mode": "continuous",
@@ -272,6 +291,19 @@ services:
     entrypoint: ["/bin/sh", "-c"]
     command:
       - /bin/sh /usr/local/bin/remote-e2e-corpus-preflight.sh
+
+  sbom-attestation-fixture:
+    image: alpine:3.21
+    restart: on-failure
+    volumes:
+      - ./go/internal/collector/sbomdocument/testdata:/fixtures:ro
+    command: ["httpd", "-f", "-p", "8080", "-h", "/fixtures"]
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "-", "http://localhost:8080/cyclonedx_image_subject.json"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+
   db-migrate:
     extends:
       file: docker-compose.yaml
@@ -584,6 +616,34 @@ services:
       projector:
         condition: service_healthy
       workflow-coordinator:
+        condition: service_healthy
+
+  collector-sbom-attestation:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: on-failure
+    command: ["/usr/local/bin/eshu-collector-sbom-attestation"]
+    ports:
+      - "${ESHU_COLLECTOR_SBOM_ATTESTATION_METRICS_PORT:-19478}:9464"
+    environment:
+      <<: [*remote_e2e_runtime_env, *remote_e2e_collector_env]
+      ESHU_SBOM_ATTESTATION_COLLECTOR_INSTANCE_ID: remote-e2e-sbom-attestation
+      ESHU_SBOM_ATTESTATION_COLLECTOR_OWNER_ID: remote-e2e-sbom-attestation-worker
+      ESHU_SBOM_ATTESTATION_POLL_INTERVAL: ${ESHU_SBOM_ATTESTATION_POLL_INTERVAL:-2s}
+      ESHU_SBOM_ATTESTATION_CLAIM_LEASE_TTL: ${ESHU_SBOM_ATTESTATION_CLAIM_LEASE_TTL:-60s}
+      ESHU_SBOM_ATTESTATION_HEARTBEAT_INTERVAL: ${ESHU_SBOM_ATTESTATION_HEARTBEAT_INTERVAL:-10s}
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/healthz"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+    depends_on:
+      projector:
+        condition: service_healthy
+      workflow-coordinator:
+        condition: service_healthy
+      sbom-attestation-fixture:
         condition: service_healthy
 
   scanner-worker:

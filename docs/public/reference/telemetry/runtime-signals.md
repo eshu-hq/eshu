@@ -45,6 +45,7 @@ long-lived services.
 | Workflow Coordinator | `eshu_runtime_coordinator_*` status gauges plus `eshu_dp_workflow_coordinator_*` reconcile and reap metrics. |
 | AWS Cloud Collector | AWS API, throttle, budget, checkpoint, freshness, emitted-resource, and `aws.service.pagination.page` signals. |
 | Package Registry Collector | Request, rate-limit, parse-failure, emitted-fact, observation-lag, and failure-class signals. |
+| SBOM Attestation Collector | Claim status, fetch failure class, parse warnings, emitted fact counts, redacted source URI, and reducer attachment status. |
 | Confluence Collector | Request, fetch-duration, permission-denied, document, section, link, and sync-failure metrics. |
 | Resolution Engine | Reducer queue wait, run duration, shared projection wait, shared processing, graph/storage spans, and `/admin/status` conflict-domain state. |
 

@@ -109,6 +109,7 @@ func run(parent context.Context) error {
 		OCIRegistryPlanner:               coordinator.OCIRegistryWorkPlanner{},
 		PackageRegistryPlanner:           coordinator.PackageRegistryWorkPlanner{},
 		VulnerabilityIntelligencePlanner: coordinator.VulnerabilityIntelligenceWorkPlanner{},
+		SBOMAttestationPlanner:           coordinator.SBOMAttestationWorkPlanner{},
 		OwnedPackageTargetReader:         postgres.NewFactStore(ownedPackageTargetsDB),
 		AWSScheduledPlanner:              coordinator.AWSScheduledWorkPlanner{},
 		AWSFreshnessTriggers:             awsFreshnessStore,

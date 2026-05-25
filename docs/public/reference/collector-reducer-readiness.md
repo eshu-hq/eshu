@@ -35,8 +35,9 @@ promise; only chart collectors whose binary, fact contract, configuration, and
 runtime status path exist.
 
 Claim-driven collectors require an active workflow coordinator. The public Helm
-chart rejects Terraform-state, AWS cloud, package-registry, or scanner-worker
-Deployments unless all of these are true:
+chart rejects Terraform-state, AWS cloud, package-registry, SBOM-attestation,
+scanner-worker, or vulnerability-intelligence Deployments unless all of these
+are true:
 
 - `workflowCoordinator.enabled=true`
 - `workflowCoordinator.deploymentMode=active`
@@ -59,6 +60,7 @@ instances.
 | AWS cloud | `eshu-collector-aws-cloud` is claim-driven. | AWS facts feed cloud-asset and AWS runtime-drift domains. AWS runtime drift writes durable reducer facts and bounded Postgres reads; graph shape remains reducer-owned. | Prove read-only AWS collection, claim-scoped credentials, AWS service coverage, reducer drain, drift reads, and status visibility in the target environment. |
 | AWS freshness | The shared `eshu-webhook-listener` runtime handles Git provider webhooks and AWS EventBridge/AWS Config freshness deliveries. AWS deliveries persist durable wake-up triggers in Postgres; the listener does not collect AWS facts or write graph truth. | The workflow coordinator coalesces accepted freshness triggers into normal AWS collector claims. Scheduled scans remain the baseline completeness path. | Prove one live AWS EventBridge or AWS Config sample through webhook intake, trigger handoff, AWS work creation, and final status. |
 | Package registry | `eshu-collector-package-registry` is claim-driven and can collect configured package targets or coordinator-derived npm targets from active owned dependency facts. | Package source correlation classifies source hints without ownership promotion and admits manifest-backed package consumption from package identity plus Git dependency evidence. Package-native dependency and publication facts are safe as provenance/read-model evidence. | Expand ownership correlation only after exact, derived, ambiguous, unresolved, stale, and rejected cases are proven. |
+| SBOM and attestations | `eshu-collector-sbom-attestation` is claim-driven and can collect configured CycloneDX/SPDX SBOMs, in-toto statements, or OCI referrer documents without parsing inside the OCI registry collector. | Typed `sbom.*` and `attestation.*` facts feed `sbom_attestation_attachment`. Reducer attachment requires explicit subject digest evidence; parse warnings, verification status, and source document identity stay separate from attachment truth. API and MCP reads surface reducer attachment decisions through `list_sbom_attestation_attachments`. | Prove live or fixture document collection, source-URI redaction, parse-warning surfacing, reducer drain, API/MCP attachment reads, and subject-digest match/mismatch behavior in the target environment. |
 | Vulnerability intelligence | `eshu-collector-vulnerability-intelligence` has source clients for CISA KEV, FIRST EPSS, OSV, and NVD. It can collect configured targets, configured mirror/fallback endpoints, cached/offline source artifacts, or coordinator-derived OSV npm targets for exact owned dependency versions. | Source-truth `vulnerability.*` facts exist. Source-cache metadata is carried on `vulnerability.source_snapshot`; durable target freshness/checkpoint/retry state is carried in `vulnerability_source_states` and surfaced through status/API/MCP readiness. Neither is a finding. Impact reducers require owned package-manifest, lockfile, repository, image, or SBOM evidence before publishing user-facing impact findings. Exact lockfile versions can prove observed package impact; manifest ranges stay partial evidence and are skipped for exact OSV target derivation. They must not infer reachability from CVSS, EPSS, KEV, product-only CPEs, cache freshness, or package-registry facts alone. | Prove live or offline source collection, source snapshot freshness/API/MCP visibility, source-state retry/freshness visibility, then package/image/deployment impact joins after upstream collectors are proven together. |
 | Provider security alerts | `security_alert` currently has synthetic GitHub Dependabot fixture normalization and a bounded allowlisted request client shape, not a hosted collector lane. | `security_alert.repository_alert` facts preserve provider alert state as source truth. `security_alert_reconciliation` reducer facts compare provider alerts with owned dependency and supply-chain impact evidence while keeping provider state separate from Eshu impact truth. | Prove hosted collection credentials, allowlists, rate limits, redaction, claim handoff, fact counts, reducer drain, API/MCP reads, and private-data handling before enabling live provider alert collection. |
 | Scanner worker | `eshu-scanner-worker` is claim-driven and isolated from reducer lanes. The built-in warning analyzer emits `scanner_worker.warning` source facts until a concrete analyzer is configured. | Scanner workers emit source facts only. Reducers own vulnerability finding admission, priority, readiness, and graph truth. | Prove concrete analyzers with target count, fact count, runtime, CPU, memory, queue state, retry count, dead-letter count, pprof, and reducer/API truth before enabling them by default. |
@@ -88,9 +90,9 @@ the collector naming something truth. Current reducer-owned surfaces include:
 
 Workflow completeness depends on reducer-owned phase publications only for
 collector families that declare required phases. Git and Terraform-state have
-required graph projection phases. AWS, OCI registry, package registry, and
-documentation currently publish fact-backed or read-model truth without
-required workflow phase gates.
+required graph projection phases. AWS, OCI registry, package registry,
+SBOM-attestation, and documentation currently publish fact-backed or read-model
+truth without required workflow phase gates.
 
 ## Gated Source Families
 
@@ -101,7 +103,6 @@ implemented:
 | Source family | Current state |
 | --- | --- |
 | Kubernetes live | No hosted collector runtime or charted workload. |
-| SBOM and attestation | Fact contracts and reducer attachment exist; hosted collector wiring is not a deployed lane. |
 | Concrete scanner analyzers | The `eshu-scanner-worker` runtime, warning analyzer, Compose service, and opt-in Helm Deployment exist. Concrete analyzers beyond the warning analyzer remain gated until target count, fact count, runtime, CPU, memory, queue state, retry count, dead-letter count, pprof, and reducer/API truth are proven. |
 | CI/CD runs | Fixture normalizer and reducer correlation exist; hosted provider polling is not a deployed lane. |
 | Service catalog, observability, incident/change, secrets/IAM posture, GCP, Azure, multi-cloud | Design or research only for deployed collector readiness. |

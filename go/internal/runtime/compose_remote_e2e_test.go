@@ -97,6 +97,7 @@ func TestRemoteE2EComposeUsesProductionCanonicalWriteTimeout(t *testing.T) {
 		"collector-terraform-state",
 		"collector-oci-registry",
 		"collector-package-registry",
+		"collector-sbom-attestation",
 		"collector-vulnerability-intelligence",
 		"collector-aws-cloud",
 		"scanner-worker",
@@ -125,6 +126,7 @@ func TestRemoteE2EComposeRunsProjectorForHostedCollectorSourceLocalWork(t *testi
 		"collector-terraform-state",
 		"collector-oci-registry",
 		"collector-package-registry",
+		"collector-sbom-attestation",
 		"collector-vulnerability-intelligence",
 		"collector-aws-cloud",
 		"scanner-worker",
@@ -163,6 +165,7 @@ func TestRemoteE2EComposeRestartsRuntimeServicesAfterTransientStoreStartup(t *te
 		"collector-terraform-state",
 		"collector-oci-registry",
 		"collector-package-registry",
+		"collector-sbom-attestation",
 		"collector-vulnerability-intelligence",
 		"collector-aws-cloud",
 		"scanner-worker",
@@ -202,6 +205,7 @@ func TestRemoteE2EWorkerPprofOverlayBindsWorkersToHostLoopback(t *testing.T) {
 		"collector-vulnerability-intelligence": "19670",
 		"projector":                            "19669",
 		"scanner-worker":                       "19671",
+		"collector-sbom-attestation":           "19672",
 	} {
 		service := requireComposeService(t, doc, serviceName)
 		assertComposeEnv(t, service, "ESHU_PPROF_ADDR", "0.0.0.0:6060")
@@ -218,6 +222,7 @@ func TestHostedWorkerCommandsStartPprofServer(t *testing.T) {
 		"go/cmd/collector-git/main.go",
 		"go/cmd/collector-oci-registry/main.go",
 		"go/cmd/collector-package-registry/main.go",
+		"go/cmd/collector-sbom-attestation/main.go",
 		"go/cmd/collector-terraform-state/main.go",
 		"go/cmd/collector-vulnerability-intelligence/main.go",
 		"go/cmd/projector/main.go",
@@ -232,6 +237,46 @@ func TestHostedWorkerCommandsStartPprofServer(t *testing.T) {
 			if !strings.Contains(content, want) {
 				t.Fatalf("%s missing pprof startup term %q", sourcePath, want)
 			}
+		}
+	}
+}
+
+func TestRemoteE2EComposeIncludesSBOMAttestationCollector(t *testing.T) {
+	t.Parallel()
+
+	doc := readComposeDocument(t, "docker-compose.remote-e2e.yaml")
+	service := requireComposeService(t, doc, "collector-sbom-attestation")
+	if fmt.Sprint(service.Command) != "[/usr/local/bin/eshu-collector-sbom-attestation]" {
+		t.Fatalf("collector command = %#v, want eshu-collector-sbom-attestation", service.Command)
+	}
+	assertComposeEnv(t, service, "ESHU_SBOM_ATTESTATION_COLLECTOR_INSTANCE_ID", "remote-e2e-sbom-attestation")
+	assertComposeEnv(t, service, "ESHU_SBOM_ATTESTATION_COLLECTOR_OWNER_ID", "remote-e2e-sbom-attestation-worker")
+	assertComposeEnv(t, service, "ESHU_SBOM_ATTESTATION_POLL_INTERVAL", "${ESHU_SBOM_ATTESTATION_POLL_INTERVAL:-2s}")
+	assertComposePortContains(t, service, "${ESHU_COLLECTOR_SBOM_ATTESTATION_METRICS_PORT:-19478}:9464")
+	assertComposeDependency(t, service, "projector")
+	assertComposeDependency(t, service, "workflow-coordinator")
+
+	compose := readRepositoryFile(t, "../../..", "docker-compose.remote-e2e.yaml")
+	for _, want := range []string{
+		`"instance_id": "remote-e2e-sbom-attestation"`,
+		`"collector_kind": "sbom_attestation"`,
+		`"source_type": "configured_source"`,
+		`"artifact_kind": "sbom"`,
+		`"document_format": "cyclonedx"`,
+		`"subject_digest": "${ESHU_SBOM_ATTESTATION_E2E_SUBJECT_DIGEST:-sha256:1111111111111111111111111111111111111111111111111111111111111111}"`,
+	} {
+		if !strings.Contains(compose, want) {
+			t.Fatalf("docker-compose.remote-e2e.yaml missing SBOM attestation collector term %q", want)
+		}
+	}
+
+	exampleEnv := readRepositoryFile(t, "../../..", ".env.remote-e2e.example")
+	for _, want := range []string{
+		"ESHU_SBOM_ATTESTATION_E2E_SUBJECT_DIGEST=sha256:1111111111111111111111111111111111111111111111111111111111111111",
+		"ESHU_SBOM_ATTESTATION_DOCUMENT_URL=http://sbom-attestation-fixture:8080/cyclonedx_image_subject.json",
+	} {
+		if !strings.Contains(exampleEnv, want) {
+			t.Fatalf(".env.remote-e2e.example missing %q", want)
 		}
 	}
 }
@@ -373,6 +418,7 @@ func remoteE2EWorkerPprofServices() []string {
 		"collector-terraform-state",
 		"collector-oci-registry",
 		"collector-package-registry",
+		"collector-sbom-attestation",
 		"collector-vulnerability-intelligence",
 		"collector-aws-cloud",
 		"projector",

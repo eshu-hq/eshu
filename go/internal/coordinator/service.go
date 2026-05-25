@@ -49,6 +49,12 @@ type VulnerabilityIntelligencePlanner interface {
 	PlanVulnerabilityIntelligenceWork(context.Context, VulnerabilityIntelligencePlanRequest) (workflow.Run, []workflow.WorkItem, error)
 }
 
+// SBOMAttestationPlanner plans hosted SBOM/attestation workflow rows from
+// collector instance configuration.
+type SBOMAttestationPlanner interface {
+	PlanSBOMAttestationWork(context.Context, SBOMAttestationPlanRequest) (workflow.Run, []workflow.WorkItem, error)
+}
+
 // OwnedPackageTargetReader loads active dependency evidence that can bound
 // derived package-registry and vulnerability-intelligence work.
 type OwnedPackageTargetReader interface {
@@ -73,6 +79,7 @@ type Service struct {
 	OCIRegistryPlanner               OCIRegistryPlanner
 	PackageRegistryPlanner           PackageRegistryPlanner
 	VulnerabilityIntelligencePlanner VulnerabilityIntelligencePlanner
+	SBOMAttestationPlanner           SBOMAttestationPlanner
 	OwnedPackageTargetReader         OwnedPackageTargetReader
 	AWSScheduledPlanner              AWSScheduledPlanner
 	AWSFreshnessTriggers             AWSFreshnessTriggerStore
@@ -214,6 +221,15 @@ func (s Service) runReconcile(ctx context.Context) error {
 		return err
 	}
 	if err := s.scheduleVulnerabilityIntelligenceWork(ctx, observedAt, instances); err != nil {
+		s.recordReconcile(ctx, ReconcileObservation{
+			Outcome:      reconcileOutcomeReconcileError,
+			Duration:     time.Since(startedAt),
+			DesiredCount: desiredCount,
+			DurableCount: durableCount,
+		})
+		return err
+	}
+	if err := s.scheduleSBOMAttestationWork(ctx, observedAt, instances); err != nil {
 		s.recordReconcile(ctx, ReconcileObservation{
 			Outcome:      reconcileOutcomeReconcileError,
 			Duration:     time.Since(startedAt),

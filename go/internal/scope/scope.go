@@ -30,6 +30,8 @@ const (
 	KindPackageRegistry ScopeKind = "package_registry"
 	// KindVulnerabilityIntelligence represents a vulnerability source scope.
 	KindVulnerabilityIntelligence ScopeKind = "vulnerability_intelligence"
+	// KindSBOMAttestation represents a hosted SBOM or attestation document scope.
+	KindSBOMAttestation ScopeKind = "sbom_attestation"
 	// KindScannerWorker represents a bounded security analyzer work scope.
 	KindScannerWorker ScopeKind = "scanner_worker"
 )
@@ -54,6 +56,8 @@ const (
 	CollectorPackageRegistry CollectorKind = "package_registry"
 	// CollectorVulnerabilityIntelligence represents the vulnerability source collector.
 	CollectorVulnerabilityIntelligence CollectorKind = "vulnerability_intelligence"
+	// CollectorSBOMAttestation represents the hosted SBOM and attestation collector.
+	CollectorSBOMAttestation CollectorKind = "sbom_attestation"
 	// CollectorScannerWorker represents isolated security analyzer workers.
 	CollectorScannerWorker CollectorKind = "scanner_worker"
 )
