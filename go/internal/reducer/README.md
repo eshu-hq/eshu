@@ -322,6 +322,25 @@ Log phase attributes: `telemetry.PhaseReduction` (main loop),
   metadata and must not be treated as installed versions. CVSS, EPSS, and KEV
   stay risk signals; they never prove reachability without package or runtime
   evidence, and missing deployment evidence remains visible.
+- **Go-vulnerability reachability is classified, not invented** —
+  `ClassifyGoVulnerabilityReachability` joins `vulnerability.go_module_evidence`
+  facts (parsed from repository `go.mod` and `go.sum`), Go ecosystem
+  `vulnerability.affected_package` facts, and `vulnerability.go_call_reachability`
+  facts (parsed from govulncheck JSON output) into one finding per
+  (advisory, module, repository) tuple with one of five reachability levels:
+  `symbol_reachable`, `package_import_reachable`, `not_called`, `module_only`,
+  or `unknown`. Before emitting, the classifier compares the module's
+  effective version (replacement when a `replace` directive applied, declared
+  `required_version` otherwise) against the advisory's SEMVER ranges and
+  fixed versions; safe (post-fix) findings are dropped, advisories with
+  missing or unparseable range data are kept with an explicit
+  "advisory affected-range evidence missing" note, and findings backed by
+  govulncheck evidence bypass the filter because govulncheck already proved
+  the binary actually used the vulnerable code. The reducer does not re-run
+  govulncheck or re-derive the call-graph; it preserves the
+  govulncheck-compatible JSON evidence and records the rule
+  (`symbol`/`import`/`not_called`/`module`/`unknown`) used to choose the
+  level so API/MCP can explain the decision.
 - **Advisory provenance is preserved** — multi-source CVE and affected_package
   observations for the same advisory identity are consolidated into one
   finding per `(cve_id, package_id)` anchor. `supplyChainImpactProvenance`
