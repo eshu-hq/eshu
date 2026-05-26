@@ -159,8 +159,9 @@ func newMCPQueryRouter(
 			Profile: queryProfile,
 		},
 		Documentation: &query.DocumentationHandler{
-			Content: contentReader,
-			Profile: queryProfile,
+			Content:    contentReader,
+			Aggregates: query.NewPostgresDocumentationFindingAggregateStore(db),
+			Profile:    queryProfile,
 		},
 		PackageRegistry: &query.PackageRegistryHandler{
 			Neo4j:        neo4jReader,

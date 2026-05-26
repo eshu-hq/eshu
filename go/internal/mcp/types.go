@@ -26,6 +26,7 @@ func ReadOnlyTools() []ToolDefinition {
 	tools = append(tools, contextTools()...)
 	tools = append(tools, contentTools()...)
 	tools = append(tools, documentationTools()...)
+	tools = append(tools, documentationFindingAggregateTools()...)
 	tools = append(tools, runtimeTools()...)
 	return tools
 }

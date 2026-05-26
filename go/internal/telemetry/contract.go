@@ -165,6 +165,11 @@ const (
 	SpanQueryDocumentationFacts           = "query.documentation_facts"
 	SpanQueryDocumentationEvidencePacket  = "query.documentation_evidence_packet"
 	SpanQueryDocumentationPacketFreshness = "query.documentation_packet_freshness"
+	// SpanQueryDocumentationAggregate wraps cheap-summary count and inventory
+	// aggregates over reducer-owned documentation findings. Replaces the
+	// page-and-iterate caller pattern for ecosystem-level questions like
+	// "how many findings per status?".
+	SpanQueryDocumentationAggregate = "query.documentation_aggregate"
 	SpanQueryDeadIaC                      = "query.dead_iac"
 	SpanQueryIaCUnmanagedResources        = "query.iac_unmanaged_resources"
 	SpanQueryIaCManagementStatus          = "query.iac_management_status"

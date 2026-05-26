@@ -74,6 +74,7 @@ var spanNames = []string{
 	SpanQueryDocumentationFacts,
 	SpanQueryDocumentationEvidencePacket,
 	SpanQueryDocumentationPacketFreshness,
+	SpanQueryDocumentationAggregate,
 	SpanQueryDeadIaC,
 	SpanQueryIaCUnmanagedResources,
 	SpanQueryIaCManagementStatus,

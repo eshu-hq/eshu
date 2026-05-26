@@ -9,6 +9,10 @@ func documentationRoute(toolName string, args map[string]any) (*route, bool) {
 	switch toolName {
 	case "list_documentation_findings":
 		return &route{method: "GET", path: "/api/v0/documentation/findings", query: documentationFindingsQuery(args)}, true
+	case "count_documentation_findings":
+		return documentationFindingAggregateCountRoute(args), true
+	case "get_documentation_finding_inventory":
+		return documentationFindingAggregateInventoryRoute(args), true
 	case "list_documentation_facts":
 		return &route{method: "GET", path: "/api/v0/documentation/facts", query: documentationFactsQuery(args)}, true
 	case "get_documentation_evidence_packet":
