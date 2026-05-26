@@ -9,10 +9,11 @@
 // requires claims enabled with at least one claim-capable collector instance.
 //
 // TerraformStateWorkPlanner plans Terraform-state collection runs from resolved
-// discovery candidates. OCIRegistryWorkPlanner and PackageRegistryWorkPlanner
-// each plan one bounded work item per configured target without opening
-// provider connections. AWSScheduledWorkPlanner and AWSFreshnessWorkPlanner
-// plan ordinary AWS collector work from configured schedules or webhook
-// freshness triggers. Planners produce workflow rows only; claim ownership and
-// fact emission stay with the collector runtimes.
+// discovery candidates. OCIRegistryWorkPlanner, PackageRegistryWorkPlanner, and
+// VulnerabilityIntelligenceWorkPlanner each plan bounded work items without
+// opening provider connections; package and vulnerability planners preserve
+// direct and owned target priority ahead of broad fanout. AWSScheduledWorkPlanner
+// and AWSFreshnessWorkPlanner plan ordinary AWS collector work from configured
+// schedules or webhook freshness triggers. Planners produce workflow rows only;
+// claim ownership and fact emission stay with the collector runtimes.
 package coordinator

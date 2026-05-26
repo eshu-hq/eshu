@@ -47,6 +47,7 @@ type packageRegistryTargetConfiguration struct {
 	MetadataURL  string   `json:"metadata_url"`
 	Derived      bool     `json:"-"`
 	PackageName  string   `json:"-"`
+	TargetClass  string   `json:"-"`
 }
 
 type packageRegistryDerivationConfiguration struct {
@@ -86,8 +87,8 @@ func (p PackageRegistryWorkPlanner) PlanPackageRegistryWork(
 		UpdatedAt:          observedAt,
 	}
 	items := make([]workflow.WorkItem, 0, len(targets))
-	for _, target := range targets {
-		item, err := packageRegistryWorkItem(request.Instance, target, run.RunID, request.PlanKey, observedAt)
+	for ordinal, target := range targets {
+		item, err := packageRegistryWorkItem(request.Instance, target, run.RunID, request.PlanKey, observedAt, ordinal)
 		if err != nil {
 			return workflow.Run{}, nil, err
 		}
@@ -135,6 +136,7 @@ func parsePackageRegistryRuntimeTargets(raw string) ([]packageRegistryTargetConf
 		target.Namespace = strings.TrimSpace(target.Namespace)
 		target.SourceURI = strings.TrimSpace(target.SourceURI)
 		target.MetadataURL = strings.TrimRight(strings.TrimSpace(target.MetadataURL), "/")
+		target.TargetClass = packageRegistryConfiguredTargetClass(target)
 		targets = append(targets, target)
 	}
 	return targets, nil
@@ -190,6 +192,7 @@ func packageRegistryRequestedScopeSet(
 		Provider  string `json:"provider"`
 		Package   string `json:"package_name,omitempty"`
 		Derived   bool   `json:"derived,omitempty"`
+		Class     string `json:"target_class,omitempty"`
 	}
 	payload := struct {
 		CollectorInstanceID string            `json:"collector_instance_id"`
@@ -205,11 +208,9 @@ func packageRegistryRequestedScopeSet(
 			Provider:  strings.TrimSpace(target.Provider),
 			Package:   strings.TrimSpace(target.PackageName),
 			Derived:   target.Derived,
+			Class:     packageRegistryTargetClass(target),
 		})
 	}
-	sort.Slice(payload.Targets, func(i, j int) bool {
-		return payload.Targets[i].ScopeID < payload.Targets[j].ScopeID
-	})
 	encoded, err := json.Marshal(payload)
 	if err != nil {
 		return "{}"
@@ -236,7 +237,8 @@ func appendPackageRegistryDerivedTargets(
 		configured = append(configured, target)
 	}
 	sort.SliceStable(configured, func(i, j int) bool {
-		return configured[i].ScopeID < configured[j].ScopeID
+		return targetClassRank(packageRegistryTargetClass(configured[i])) <
+			targetClassRank(packageRegistryTargetClass(configured[j]))
 	})
 	return configured
 }
@@ -287,9 +289,6 @@ func derivePackageRegistryTargets(
 		seen[derived.ScopeID] = struct{}{}
 		out = append(out, derived)
 	}
-	sort.SliceStable(out, func(i, j int) bool {
-		return out[i].ScopeID < out[j].ScopeID
-	})
 	return out
 }
 
@@ -326,6 +325,7 @@ func npmPackageRegistryTarget(
 		MetadataURL:  metadataURL,
 		Derived:      true,
 		PackageName:  identity.NormalizedName,
+		TargetClass:  packageRegistryTargetClassOwnedPackage,
 	}, true
 }
 
@@ -335,8 +335,10 @@ func packageRegistryWorkItem(
 	runID string,
 	planKey string,
 	observedAt time.Time,
+	ordinal int,
 ) (workflow.WorkItem, error) {
 	scopeID := strings.TrimSpace(target.ScopeID)
+	createdAt := targetCreatedAt(observedAt, ordinal)
 	generationID := "package_registry:" + facts.StableID("PackageRegistryWorkflowGeneration", map[string]any{
 		"instance_id": strings.TrimSpace(instance.InstanceID),
 		"plan_key":    strings.TrimSpace(planKey),
@@ -352,10 +354,10 @@ func packageRegistryWorkItem(
 		AcceptanceUnitID:    scopeID,
 		SourceRunID:         generationID,
 		GenerationID:        generationID,
-		FairnessKey:         fmt.Sprintf("%s:%s:%s", scope.CollectorPackageRegistry, strings.TrimSpace(instance.InstanceID), strings.TrimSpace(target.Ecosystem)),
+		FairnessKey:         fmt.Sprintf("%s:%s:%s:%s", scope.CollectorPackageRegistry, strings.TrimSpace(instance.InstanceID), packageRegistryTargetClass(target), strings.TrimSpace(target.Ecosystem)),
 		Status:              workflow.WorkItemStatusPending,
-		CreatedAt:           observedAt.UTC(),
-		UpdatedAt:           observedAt.UTC(),
+		CreatedAt:           createdAt,
+		UpdatedAt:           createdAt,
 	}
 	if err := item.Validate(); err != nil {
 		return workflow.WorkItem{}, err
