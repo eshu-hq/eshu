@@ -215,11 +215,15 @@ var schemaPerformanceIndexes = []string{
 	"CREATE INDEX tf_resource_type IF NOT EXISTS FOR (r:TerraformResource) ON (r.resource_type)",
 	// Indexes that back the infrastructure resource aggregate (#690)
 	// grouped-count hot path on the TerraformResource label (the largest
-	// infra label in typical deployments). Other labels can pick up
-	// matching indexes in follow-ups as their volume warrants; operators
-	// with non-Terraform workloads should currently narrow the aggregate
-	// with `category=k8s` (or similar) plus a kind / resource_service
-	// filter to stay on a hot path.
+	// infra label in typical deployments). Aggregates filtered by
+	// `category=terraform` plus any of `provider` / `environment` /
+	// `resource_service` / `resource_category` are eligible for these
+	// indexes. The only matching indexed property on the other infra
+	// labels today is `k8s_kind` on K8sResource (declared above), so
+	// `category=k8s` + `kind=<value>` is the other supported hot path.
+	// Aggregates over Argo CD, Crossplane, Helm, or CloudFormation
+	// labels currently fall back to a label-set scan; matching indexes
+	// can ship in follow-ups as their volume warrants.
 	"CREATE INDEX tf_resource_provider IF NOT EXISTS FOR (r:TerraformResource) ON (r.provider)",
 	"CREATE INDEX tf_resource_environment IF NOT EXISTS FOR (r:TerraformResource) ON (r.environment)",
 	"CREATE INDEX tf_resource_service IF NOT EXISTS FOR (r:TerraformResource) ON (r.resource_service)",

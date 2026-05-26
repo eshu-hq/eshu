@@ -494,14 +494,19 @@ The indexes the hot path depends on ship in the same PR
 (`go/internal/graph/schema.go`): `tf_resource_provider`,
 `tf_resource_environment`, `tf_resource_service`, `tf_resource_category` on
 the `TerraformResource` label, which is the dominant infra fact source.
-Operators with non-Terraform-heavy workloads must filter with a
-single-category scope (e.g., `category=k8s`) until matching indexes ship on
-the other infra labels; the aggregate routes still answer, but the planner
-falls back to a full label scan. A `PROFILE` proof against the pinned
-NornicDB binary is the operator gate for promoting the routes once
-`eshu-bootstrap-data-plane` re-runs the schema apply step — the in-process
-tests guard the Cypher shape, but only `PROFILE` proves the planner picks
-the new TerraformResource indexes.
+Property predicates use direct equality (`n.provider = $provider`) rather
+than `coalesce(n.provider, '') = $provider`; coalesce around an indexed
+property would block planner index selection (Copilot fix #702). The
+`TestInfraResourceAggregateWhereClauseUsesDirectEqualityForIndexedProps`
+test guards this — a future refactor that reintroduces coalesce in the
+WHERE clause fails the suite. K8sResource exposes `k8s_kind`, so
+`category=k8s` + `kind=<value>` is the other supported hot path today.
+Aggregates over Argo CD, Crossplane, Helm, or CloudFormation labels still
+answer but fall back to a label-set scan until matching indexes ship. A
+`PROFILE` proof against the pinned NornicDB binary is the operator gate
+for promoting the routes once `eshu-bootstrap-data-plane` re-runs the
+schema apply step — the in-process tests guard the Cypher shape, but only
+`PROFILE` proves the planner picks the new TerraformResource indexes.
 
 Observability Evidence: the aggregate routes add the
 `query.infra_resource_aggregate` request span registered in

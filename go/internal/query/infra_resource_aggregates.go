@@ -252,25 +252,34 @@ func (s GraphInfraResourceAggregateStore) InfraResourceInventory(
 // optional indexed-property filters. Filter values flow through bound
 // parameters; only the label list is interpolated, and it comes from the
 // closed `allInfraLabels` / `infraCategoryLabels` enums (no user input).
+//
+// Property predicates use direct equality (`n.provider = $provider`) rather
+// than `coalesce(n.provider, '') = $provider`. The clauses only render when
+// the caller passed a non-empty filter value, so the coalesce-wrapped form
+// is semantically equivalent to direct equality (Cypher equality is
+// null-rejecting). Direct equality keeps the predicate eligible for the
+// `tf_resource_provider` / `tf_resource_environment` / `tf_resource_service`
+// / `tf_resource_category` indexes on TerraformResource; the coalesce
+// wrapper would block planner index selection.
 func infraResourceAggregateWhereClause(labels []string, filter InfraResourceAggregateFilter) string {
 	clauses := []string{infraLabelPredicate(labels)}
 	if filter.Kind != "" {
-		clauses = append(clauses, "(n.kind = $kind OR coalesce(n.resource_type, n.data_type, '') = $kind)")
+		clauses = append(clauses, "(n.kind = $kind OR n.resource_type = $kind OR n.data_type = $kind)")
 	}
 	if filter.ResourceType != "" {
-		clauses = append(clauses, "coalesce(n.resource_type, n.data_type, '') = $resource_type")
+		clauses = append(clauses, "(n.resource_type = $resource_type OR n.data_type = $resource_type)")
 	}
 	if filter.Provider != "" {
-		clauses = append(clauses, "coalesce(n.provider, '') = $provider")
+		clauses = append(clauses, "n.provider = $provider")
 	}
 	if filter.Environment != "" {
-		clauses = append(clauses, "coalesce(n.environment, '') = $environment")
+		clauses = append(clauses, "n.environment = $environment")
 	}
 	if filter.ResourceService != "" {
-		clauses = append(clauses, "coalesce(n.resource_service, '') = $resource_service")
+		clauses = append(clauses, "n.resource_service = $resource_service")
 	}
 	if filter.ResourceCategory != "" {
-		clauses = append(clauses, "coalesce(n.resource_category, '') = $resource_category")
+		clauses = append(clauses, "n.resource_category = $resource_category")
 	}
 	return "WHERE " + strings.Join(clauses, " AND ")
 }
