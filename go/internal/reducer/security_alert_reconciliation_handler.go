@@ -3,10 +3,13 @@ package reducer
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
+
+const packageSecurityAlertReconciliationMaxAttempts = 3
 
 // SecurityAlertReconciliationFactFilter bounds active evidence loading for one
 // provider-alert reconciliation intent.
@@ -52,7 +55,7 @@ func (h SecurityAlertReconciliationHandler) Handle(ctx context.Context, intent I
 		h.FactLoader,
 		intent.ScopeID,
 		intent.GenerationID,
-		[]string{facts.SecurityAlertRepositoryAlertFactKind},
+		securityAlertReconciliationTriggerKinds(),
 	)
 	if err != nil {
 		return Result{}, fmt.Errorf("load security alert facts: %w", err)
@@ -62,8 +65,14 @@ func (h SecurityAlertReconciliationHandler) Handle(ctx context.Context, intent I
 		return Result{}, fmt.Errorf("load active security alert reconciliation evidence: %w", err)
 	}
 	envelopes = append(envelopes, active...)
+	envelopes = dedupeSecurityAlertReconciliationEnvelopes(envelopes)
 
 	decisions := BuildSecurityAlertReconciliations(envelopes)
+	if shouldDeferPackageSecurityAlertReconciliation(intent, decisions) {
+		return Result{}, retryableSecurityAlertReconciliationEvidenceError{
+			packageID: firstUnmatchedPackageWithDependency(decisions),
+		}
+	}
 	writeResult, err := h.Writer.WriteSecurityAlertReconciliations(ctx, SecurityAlertReconciliationWrite{
 		IntentID:     intent.IntentID,
 		ScopeID:      intent.ScopeID,
@@ -85,6 +94,13 @@ func (h SecurityAlertReconciliationHandler) Handle(ctx context.Context, intent I
 	}, nil
 }
 
+func securityAlertReconciliationTriggerKinds() []string {
+	return []string{
+		facts.SecurityAlertRepositoryAlertFactKind,
+		facts.PackageRegistryPackageFactKind,
+	}
+}
+
 func (h SecurityAlertReconciliationHandler) loadActiveEvidence(
 	ctx context.Context,
 	filter SecurityAlertReconciliationFactFilter,
@@ -103,13 +119,18 @@ func (h SecurityAlertReconciliationHandler) loadActiveEvidence(
 func securityAlertReconciliationFilter(envelopes []facts.Envelope) SecurityAlertReconciliationFactFilter {
 	var repositoryIDs, packageIDs, cveIDs, ghsaIDs []string
 	for _, envelope := range envelopes {
-		if envelope.FactKind != facts.SecurityAlertRepositoryAlertFactKind {
-			continue
+		switch envelope.FactKind {
+		case facts.SecurityAlertRepositoryAlertFactKind:
+			repositoryIDs = append(repositoryIDs, payloadStr(envelope.Payload, "repository_id"))
+			packageIDs = append(packageIDs, payloadStr(envelope.Payload, "package_id"))
+			cveIDs = append(cveIDs, payloadStrings(envelope.Payload, "cve_id", "cve_ids")...)
+			ghsaIDs = append(ghsaIDs, payloadStrings(envelope.Payload, "ghsa_id", "ghsa_ids")...)
+		case facts.PackageRegistryPackageFactKind:
+			packageIDs = append(packageIDs, firstNonBlank(
+				payloadStr(envelope.Payload, "package_id"),
+				envelope.ScopeID,
+			))
 		}
-		repositoryIDs = append(repositoryIDs, payloadStr(envelope.Payload, "repository_id"))
-		packageIDs = append(packageIDs, payloadStr(envelope.Payload, "package_id"))
-		cveIDs = append(cveIDs, payloadStrings(envelope.Payload, "cve_id", "cve_ids")...)
-		ghsaIDs = append(ghsaIDs, payloadStrings(envelope.Payload, "ghsa_id", "ghsa_ids")...)
 	}
 	return SecurityAlertReconciliationFactFilter{
 		RepositoryIDs: uniqueSortedStrings(repositoryIDs),
@@ -117,6 +138,82 @@ func securityAlertReconciliationFilter(envelopes []facts.Envelope) SecurityAlert
 		CVEIDs:        uniqueSortedStrings(cveIDs),
 		GHSAIDs:       uniqueSortedStrings(ghsaIDs),
 	}
+}
+
+func dedupeSecurityAlertReconciliationEnvelopes(envelopes []facts.Envelope) []facts.Envelope {
+	if len(envelopes) < 2 {
+		return envelopes
+	}
+	seen := make(map[string]struct{}, len(envelopes))
+	out := make([]facts.Envelope, 0, len(envelopes))
+	for _, envelope := range envelopes {
+		key := strings.TrimSpace(envelope.FactID)
+		if key == "" {
+			key = strings.Join([]string{
+				envelope.ScopeID,
+				envelope.GenerationID,
+				envelope.FactKind,
+			}, "\x00")
+		}
+		if _, ok := seen[key]; ok {
+			continue
+		}
+		seen[key] = struct{}{}
+		out = append(out, envelope)
+	}
+	return out
+}
+
+func shouldDeferPackageSecurityAlertReconciliation(
+	intent Intent,
+	decisions []SecurityAlertReconciliationDecision,
+) bool {
+	if intent.AttemptCount >= packageSecurityAlertReconciliationMaxAttempts ||
+		!packageTriggeredSecurityAlertReconciliation(intent) {
+		return false
+	}
+	for _, decision := range decisions {
+		if decision.Status == SecurityAlertReconciliationUnmatched &&
+			strings.TrimSpace(decision.DependencyEvidenceID) != "" &&
+			strings.TrimSpace(decision.ImpactEvidenceID) == "" {
+			return true
+		}
+	}
+	return false
+}
+
+func packageTriggeredSecurityAlertReconciliation(intent Intent) bool {
+	return strings.EqualFold(strings.TrimSpace(intent.SourceSystem), "package_registry") ||
+		strings.EqualFold(strings.TrimSpace(intent.Cause), "package registry identity observed")
+}
+
+func firstUnmatchedPackageWithDependency(decisions []SecurityAlertReconciliationDecision) string {
+	for _, decision := range decisions {
+		if decision.Status == SecurityAlertReconciliationUnmatched &&
+			strings.TrimSpace(decision.DependencyEvidenceID) != "" {
+			return strings.TrimSpace(decision.PackageID)
+		}
+	}
+	return ""
+}
+
+type retryableSecurityAlertReconciliationEvidenceError struct {
+	packageID string
+}
+
+func (e retryableSecurityAlertReconciliationEvidenceError) Error() string {
+	if strings.TrimSpace(e.packageID) == "" {
+		return "security alert reconciliation waiting for package impact evidence"
+	}
+	return fmt.Sprintf("security alert reconciliation waiting for package impact evidence: %s", e.packageID)
+}
+
+func (retryableSecurityAlertReconciliationEvidenceError) Retryable() bool {
+	return true
+}
+
+func (retryableSecurityAlertReconciliationEvidenceError) FailureClass() string {
+	return "security_alert_reconciliation_waiting_for_impact"
 }
 
 func (f SecurityAlertReconciliationFactFilter) empty() bool {

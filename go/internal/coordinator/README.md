@@ -107,7 +107,9 @@ fall back to defaults rather than failing; malformed values fail fast.
   collection runs from configured source targets and optional active owned
   package evidence. Derived OSV targets are limited to exact owned dependency
   versions; manifest ranges remain partial evidence and are skipped for exact
-  source collection.
+  source collection. Exact package-version queries are batched across packages
+  within one ecosystem while keeping scope IDs below indexed workflow tuple
+  limits.
 - `SBOMAttestationWorkPlanner` — plans hosted SBOM and attestation collection
   runs from configured document or OCI-referrer targets. Each target becomes one
   claimable work item keyed by `scope_id`.
@@ -190,10 +192,13 @@ warning (`collector_instance_drift_detected`, fields
 - Derived package and vulnerability target planning is visible in
   `workflow_runs.requested_scope_set`. Package-registry derived entries include
   `derived=true` and `package_name`; vulnerability derived entries include
-  `source`, `ecosystem`, `package_name`, and exact `version`. If a derivation
-  enabled instance plans no work, first check the owned dependency fact query,
-  then confirm the dependency evidence is active and exact enough for the
-  collector family.
+  `source`, `ecosystem`, and either exact `package_name`/`version`, bounded
+  `versions`, or bounded `queries` for OSV querybatch work. If a derivation enabled instance plans no
+  work, first check the owned dependency fact query, then confirm the dependency
+  evidence is active and exact enough for the collector family. Bounded reads
+  rotate by reconcile bucket, so a target limit below full-corpus size should
+  advance through later package identities instead of repeating the same first
+  sorted page.
 
 ## Extension points
 
@@ -211,7 +216,8 @@ histograms, `workflow_runs.requested_scope_set`, `workflow_work_items` status
 and failure columns, collector claim status, and `/api/v0/index-status` show
 whether derived targets were planned, claimed, completed, retried, or failed.
 No metric labels gained package names, versions, feed URLs, or credential
-material.
+material. Rotated target selection remains visible through the bounded
+`requested_scope_set` rows without adding new metric labels.
 
 - `Store` — substitute any implementation satisfying the four-method interface
   for testing or future backends.

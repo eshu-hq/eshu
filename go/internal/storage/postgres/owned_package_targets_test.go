@@ -8,6 +8,7 @@ import (
 func TestListOwnedPackageDependencyTargetsQueryIsActiveAndBounded(t *testing.T) {
 	t.Parallel()
 
+	query := listOwnedPackageDependencyTargetsQuery(true)
 	for _, want := range []string{
 		"scope.active_generation_id = fact.generation_id",
 		"generation.status = 'active'",
@@ -18,11 +19,48 @@ func TestListOwnedPackageDependencyTargetsQueryIsActiveAndBounded(t *testing.T) 
 		"fact.payload->'entity_metadata'->>'package_manager' = ANY($1::text[])",
 		"COALESCE((fact.payload->'entity_metadata'->>'lockfile') = 'true', FALSE) AS lockfile",
 		"SELECT DISTINCT ON (ecosystem, package_name, version)",
-		"ORDER BY ecosystem ASC, package_name ASC, version ASC, lockfile DESC, fact_id ASC",
+		"ROW_NUMBER() OVER",
+		"ORDER BY rotated_rank ASC, target_rank ASC",
 		"LIMIT $2",
 	} {
-		if !strings.Contains(listOwnedPackageDependencyTargetsQuery, want) {
-			t.Fatalf("listOwnedPackageDependencyTargetsQuery missing %q:\n%s", want, listOwnedPackageDependencyTargetsQuery)
+		if !strings.Contains(query, want) {
+			t.Fatalf("listOwnedPackageDependencyTargetsQuery missing %q:\n%s", want, query)
 		}
+	}
+}
+
+func TestListOwnedPackageDependencyTargetsQueryCanUsePackageLevelIdentity(t *testing.T) {
+	t.Parallel()
+
+	query := listOwnedPackageDependencyTargetsQuery(false)
+	if !strings.Contains(query, "SELECT DISTINCT ON (ecosystem, package_name)") {
+		t.Fatalf("package-level target query should distinct by package identity:\n%s", query)
+	}
+	if strings.Contains(query, "SELECT DISTINCT ON (ecosystem, package_name, version)") {
+		t.Fatalf("package-level target query should not spend package-registry budget on per-version rows:\n%s", query)
+	}
+}
+
+func TestOwnedPackageDependencyTargetLimitSupportsFullCorpusBudgets(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name string
+		raw  int
+		want int
+	}{
+		{name: "default", raw: 0, want: 100},
+		{name: "historical cap no longer downshifts", raw: 1000, want: 1000},
+		{name: "max", raw: 5000, want: 5000},
+		{name: "over max clamps", raw: 5001, want: 5000},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			if got := ownedPackageDependencyTargetLimit(tc.raw); got != tc.want {
+				t.Fatalf("ownedPackageDependencyTargetLimit(%d) = %d, want %d", tc.raw, got, tc.want)
+			}
+		})
 	}
 }

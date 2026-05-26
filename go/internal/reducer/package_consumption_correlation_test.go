@@ -69,6 +69,48 @@ func TestBuildPackageConsumptionDecisionsMatchesManifestDependencies(t *testing.
 	}
 }
 
+func TestBuildPackageConsumptionDecisionsDerivesRepositoryNameFromScopeBackedRepositoryFact(t *testing.T) {
+	t.Parallel()
+
+	observedAt := time.Date(2026, 5, 26, 10, 0, 0, 0, time.UTC)
+	repository := packageSourceRepositoryFact(
+		"repository:r_api",
+		"api",
+		"https://github.com/acme/api",
+		false,
+		observedAt,
+	)
+	repository.ScopeID = "git-repository-scope:repository:r_api"
+	delete(repository.Payload, "graph_id")
+
+	decisions := BuildPackageConsumptionDecisions([]facts.Envelope{
+		packageRegistryPackageFact(
+			"npm://registry.npmjs.org/fast-uri",
+			"npm",
+			"fast-uri",
+			"",
+			observedAt,
+		),
+		repository,
+		packageManifestDependencyFact(
+			"repository:r_api",
+			"",
+			"package-lock.json",
+			"fast-uri",
+			"npm",
+			"3.0.3",
+			observedAt,
+		),
+	})
+
+	if got, want := len(decisions), 1; got != want {
+		t.Fatalf("len(decisions) = %d, want %d", got, want)
+	}
+	if got, want := decisions[0].RepositoryName, "api"; got != want {
+		t.Fatalf("RepositoryName = %q, want scope-backed repository name %q", got, want)
+	}
+}
+
 func TestBuildPackageConsumptionDecisionsNormalizesManifestPackageIdentity(t *testing.T) {
 	t.Parallel()
 

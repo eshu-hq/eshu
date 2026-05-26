@@ -118,6 +118,8 @@ func extractPackageSourceRepositories(envelopes []facts.Envelope) []packageSourc
 		repositoryID := firstPackageSourceURL(
 			payloadStr(envelope.Payload, "graph_id"),
 			payloadStr(envelope.Payload, "repo_id"),
+			payloadStr(envelope.Payload, "repository_id"),
+			packageSourceRepositoryIDFromScope(envelope.ScopeID),
 		)
 		if repositoryID == "" {
 			continue
@@ -133,6 +135,11 @@ func extractPackageSourceRepositories(envelopes []facts.Envelope) []packageSourc
 		return repositories[i].RepositoryID < repositories[j].RepositoryID
 	})
 	return repositories
+}
+
+func packageSourceRepositoryIDFromScope(scopeID string) string {
+	const prefix = "git-repository-scope:"
+	return strings.TrimSpace(strings.TrimPrefix(scopeID, prefix))
 }
 
 func classifyPackageSourceHint(

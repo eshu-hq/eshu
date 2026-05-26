@@ -52,6 +52,7 @@ func supplyChainAffectedProductFromEnvelope(envelope facts.Envelope) supplyChain
 func supplyChainConsumptionFromEnvelope(envelope facts.Envelope) supplyChainPackageConsumption {
 	return supplyChainPackageConsumption{
 		factID:           envelope.FactID,
+		evidenceKind:     packageConsumptionCorrelationFactKind,
 		packageID:        payloadStr(envelope.Payload, "package_id"),
 		repositoryID:     payloadStr(envelope.Payload, "repository_id"),
 		dependencyRange:  payloadStr(envelope.Payload, "dependency_range"),

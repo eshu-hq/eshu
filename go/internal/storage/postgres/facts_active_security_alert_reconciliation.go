@@ -34,6 +34,7 @@ JOIN scope_generations AS generation
   ON generation.scope_id = fact.scope_id
  AND generation.generation_id = fact.generation_id
 WHERE fact.fact_kind IN (
+    'security_alert.repository_alert',
     'reducer_package_consumption_correlation',
     'reducer_supply_chain_impact_finding'
 )

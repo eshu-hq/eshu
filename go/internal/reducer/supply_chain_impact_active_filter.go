@@ -110,11 +110,20 @@ func supplyChainImpactFilter(envelopes []facts.Envelope) SupplyChainImpactFactFi
 				digests = append(digests, payloadStr(scope, "subject_digest"))
 				repositoryIDs = append(repositoryIDs, payloadStr(scope, "repository_id"))
 			}
+		case facts.SecurityAlertRepositoryAlertFactKind:
+			packageIDs = append(packageIDs, payloadStr(envelope.Payload, "package_id"))
+			cveIDs = append(cveIDs, payloadStrings(envelope.Payload, "cve_id", "cve_ids")...)
+			repositoryIDs = append(repositoryIDs, payloadStr(envelope.Payload, "repository_id"))
 		case facts.PackageRegistryPackageFactKind:
 			packageIDs = append(packageIDs, payloadStr(envelope.Payload, "package_id"))
 		case packageConsumptionCorrelationFactKind:
 			packageIDs = append(packageIDs, payloadStr(envelope.Payload, "package_id"))
 			repositoryIDs = append(repositoryIDs, payloadStr(envelope.Payload, "repository_id"))
+		case factKindContentEntity:
+			dependencies := extractPackageManifestDependencies([]facts.Envelope{envelope})
+			for _, dependency := range dependencies {
+				repositoryIDs = append(repositoryIDs, dependency.RepositoryID)
+			}
 		case facts.SBOMComponentFactKind:
 			purls = append(purls, payloadStr(envelope.Payload, "purl"))
 			documentIDs = append(documentIDs, payloadStr(envelope.Payload, "document_id"))

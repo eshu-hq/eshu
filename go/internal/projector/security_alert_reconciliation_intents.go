@@ -15,7 +15,7 @@ func buildSecurityAlertReconciliationReducerIntent(
 	envelopes []facts.Envelope,
 ) (ReducerIntent, bool) {
 	for _, envelope := range envelopes {
-		if envelope.FactKind != facts.SecurityAlertRepositoryAlertFactKind {
+		if !securityAlertReconciliationTriggerFact(envelope) {
 			continue
 		}
 		return ReducerIntent{
@@ -23,12 +23,29 @@ func buildSecurityAlertReconciliationReducerIntent(
 			GenerationID: generation.GenerationID,
 			Domain:       reducer.DomainSecurityAlertReconciliation,
 			EntityKey:    "security_alert_reconciliation:" + scopeValue.ScopeID,
-			Reason:       "provider security alert evidence observed",
+			Reason:       securityAlertReconciliationReason(envelope),
 			FactID:       envelope.FactID,
 			SourceSystem: securityAlertSourceSystem(envelope),
 		}, true
 	}
 	return ReducerIntent{}, false
+}
+
+func securityAlertReconciliationTriggerFact(envelope facts.Envelope) bool {
+	switch envelope.FactKind {
+	case facts.SecurityAlertRepositoryAlertFactKind,
+		facts.PackageRegistryPackageFactKind:
+		return true
+	default:
+		return false
+	}
+}
+
+func securityAlertReconciliationReason(envelope facts.Envelope) string {
+	if envelope.FactKind == facts.PackageRegistryPackageFactKind {
+		return "package registry identity observed"
+	}
+	return "provider security alert evidence observed"
 }
 
 func validateSecurityAlertSchemaVersion(envelope facts.Envelope) error {

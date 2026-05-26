@@ -8,8 +8,9 @@ import (
 )
 
 const (
-	maxPackageRegistryPackageLimit = 100
-	maxPackageRegistryVersionLimit = 200
+	maxPackageRegistryPackageLimit       = 100
+	maxPackageRegistryVersionLimit       = 200
+	maxPackageRegistryDerivedTargetLimit = 5000
 )
 
 type packageRegistryCollectorConfiguration struct {
@@ -124,8 +125,8 @@ func validatePackageRegistryTargetDerivation(config packageRegistryTargetDerivat
 			return fmt.Errorf("derive_from_owned_packages.ecosystems[%d]: %w", i, err)
 		}
 	}
-	if config.TargetLimit < 0 || config.TargetLimit > maxPackageRegistryPackageLimit {
-		return fmt.Errorf("derive_from_owned_packages.target_limit must be between 0 and %d", maxPackageRegistryPackageLimit)
+	if config.TargetLimit < 0 || config.TargetLimit > maxPackageRegistryDerivedTargetLimit {
+		return fmt.Errorf("derive_from_owned_packages.target_limit must be between 0 and %d", maxPackageRegistryDerivedTargetLimit)
 	}
 	if config.PackageLimit < 0 || config.PackageLimit > maxPackageRegistryPackageLimit {
 		return fmt.Errorf("derive_from_owned_packages.package_limit must be between 0 and %d", maxPackageRegistryPackageLimit)

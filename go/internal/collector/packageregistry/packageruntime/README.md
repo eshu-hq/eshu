@@ -79,9 +79,13 @@ must stay out of metrics.
   shape. The body-size cap still applies to the returned document; the request
   shape prevents normal npm package identity and version evidence from needing
   an unbounded full packument.
-- Derived npm targets use the same abbreviated packument path, `package_limit`,
-  and `version_limit` as configured npm targets. The runtime still collects one
-  claimed scope at a time and does not enumerate the npm registry.
+- Derived npm targets use the same abbreviated packument path and configured
+  `package_limit` / `version_limit` contract as npm targets. When the derived
+  `version_limit` is omitted, it defaults to one registry version so full-corpus
+  vulnerability enrichment records package identity without projecting every
+  registry version and dependency edge for heavily reused packages. The runtime
+  still collects one claimed scope at a time and does not enumerate the npm
+  registry.
 
 ## Evidence
 

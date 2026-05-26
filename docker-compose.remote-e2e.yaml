@@ -132,9 +132,9 @@ x-collector-env: &remote_e2e_collector_env
           "derive_from_owned_packages": {
             "enabled": true,
             "ecosystems": ["npm"],
-            "target_limit": 25,
+            "target_limit": 5000,
             "package_limit": 1,
-            "version_limit": 200
+            "version_limit": 1
           },
           "targets": [
             {
@@ -176,7 +176,7 @@ x-collector-env: &remote_e2e_collector_env
             "enabled": true,
             "sources": ["osv"],
             "ecosystems": ["npm"],
-            "target_limit": 25
+            "target_limit": 5000
           },
           "targets": [
             {
@@ -439,6 +439,8 @@ services:
       remote-e2e-corpus-preflight:
         condition: service_completed_successfully
       db-migrate:
+        condition: service_completed_successfully
+      bootstrap-index:
         condition: service_completed_successfully
 
   webhook-listener:

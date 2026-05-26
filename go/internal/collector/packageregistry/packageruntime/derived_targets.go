@@ -35,7 +35,7 @@ func normalizeDerivedTargetConfig(config DerivedTargetConfig) DerivedTargetConfi
 	}
 	versionLimit := config.VersionLimit
 	if versionLimit <= 0 {
-		versionLimit = 200
+		versionLimit = 1
 	}
 	return DerivedTargetConfig{
 		Enabled:      len(ecosystems) > 0,

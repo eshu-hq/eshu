@@ -126,7 +126,15 @@ The remote Compose coordinator uses a 30-second reconcile interval. Keep that
 short enough for derived package-registry and vulnerability-intelligence
 targets to be planned after Git/bootstrap dependency facts become active; the
 guarded work admission path suppresses already-open targets instead of relying
-on a long interval.
+on a long interval. The workflow coordinator starts after the bootstrap-index
+container completes so its initial active-mode reconcile can see active
+dependency facts and enqueue derived package/vulnerability work without waiting
+for a later hourly refresh. Derived target reads rotate by reconcile bucket, so a
+bounded full-corpus run should show package-registry package identities and OSV
+package-version targets advancing beyond the first sorted page. OSV targets may
+carry multiple exact package-version queries in a single storage-safe querybatch
+claim; that is expected and keeps full-corpus vulnerability collection inside
+the remote E2E runtime budget.
 
 ## Terraform-State Warning-Only Generations
 

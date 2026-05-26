@@ -76,7 +76,15 @@ The package-registry collector is claim-only. It selects an enabled
 Collector configuration may define explicit `targets` or enable
 `derive_from_owned_packages` so the coordinator derives bounded npm metadata
 targets from active owned Git dependency facts. Derived collection is currently
-npm only and still uses workflow claims.
+npm only and still uses workflow claims. The default derived target limit is
+100; full-corpus deployments can raise `derive_from_owned_packages.target_limit`
+up to 5000. Package-registry derivation uses one target per package identity,
+not one target per observed version. When `derive_from_owned_packages.version_limit`
+is omitted, derived npm targets default to one version so full-corpus
+vulnerability enrichment records package identity without projecting every
+registry version and dependency edge for heavily reused packages. Explicit
+package-registry targets can still request higher version limits for targeted
+registry metadata exploration.
 
 | Variable | Default | Read by | Purpose |
 | --- | --- | --- | --- |
@@ -140,7 +148,9 @@ Collector configuration may define explicit `targets` or enable
 `derive_from_owned_packages` so the coordinator derives bounded OSV npm
 package-version targets from active owned dependency facts with exact versions.
 Manifest ranges and aliases remain partial evidence and are skipped for exact
-OSV collection.
+OSV collection. The default derived target limit is 100; full-corpus
+deployments can raise `derive_from_owned_packages.target_limit` up to 5000.
+The single OSV target query payload remains capped separately at 100 queries.
 
 Inside `ESHU_COLLECTOR_INSTANCES_JSON`, vulnerability targets may set
 `fallback_urls` for source mirrors. The instance configuration may also set

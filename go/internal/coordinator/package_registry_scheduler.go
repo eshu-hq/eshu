@@ -251,6 +251,9 @@ func derivePackageRegistryTargets(
 	}
 	limit := derivation.TargetLimit
 	if limit <= 0 {
+		limit = defaultDerivedPackageTargets
+	}
+	if limit > maxDerivedPackageTargets {
 		limit = maxDerivedPackageTargets
 	}
 	packageLimit := derivation.PackageLimit
@@ -290,7 +293,10 @@ func derivePackageRegistryTargets(
 	return out
 }
 
-const maxDerivedPackageTargets = 100
+const (
+	defaultDerivedPackageTargets = 100
+	maxDerivedPackageTargets     = 5000
+)
 
 func npmPackageRegistryTarget(
 	target workflow.OwnedPackageDependencyTarget,

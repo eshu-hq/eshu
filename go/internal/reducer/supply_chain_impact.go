@@ -57,17 +57,17 @@ type SupplyChainImpactFactFilter struct {
 // selected value and what alternates other sources reported. Reducers select
 // one value per field using documented ecosystem-aware source priority.
 type SupplyChainImpactFinding struct {
-	CVEID                 string
-	AdvisoryID            string
-	PackageID             string
-	Ecosystem             string
-	PackageName           string
-	PURL                  string
-	ProductCriteria       string
-	MatchCriteriaID       string
-	ObservedVersion       string
-	RequestedRange        string
-	FixedVersion          string
+	CVEID           string
+	AdvisoryID      string
+	PackageID       string
+	Ecosystem       string
+	PackageName     string
+	PURL            string
+	ProductCriteria string
+	MatchCriteriaID string
+	ObservedVersion string
+	RequestedRange  string
+	FixedVersion    string
 	// VulnerableRange is the source-reported affected range expression for
 	// the advisory the provenance selector picked. The reducer persists the
 	// expression on the canonical finding payload so list-route callers see
@@ -182,9 +182,17 @@ func (h SupplyChainImpactHandler) Handle(ctx context.Context, intent Intent) (Re
 	if err != nil {
 		return Result{}, fmt.Errorf("load supply chain impact facts: %w", err)
 	}
+	manifestDependencies, err := h.loadActivePackageManifestDependencyFacts(ctx, envelopes)
+	if err != nil {
+		return Result{}, fmt.Errorf("load active package manifest dependency facts: %w", err)
+	}
+	envelopes = append(envelopes, manifestDependencies...)
 	envelopes, err = h.loadActiveSupplyChainImpactFactsUntilStable(ctx, envelopes)
 	if err != nil {
 		return Result{}, fmt.Errorf("load active supply chain impact facts: %w", err)
+	}
+	if supplyChainImpactUsesSecurityAlertScope(intent, envelopes) {
+		envelopes = scopeSupplyChainImpactEvidenceToSecurityAlerts(envelopes)
 	}
 
 	findings := BuildSupplyChainImpactFindings(envelopes)
@@ -362,6 +370,7 @@ func BuildSupplyChainImpactFindings(envelopes []facts.Envelope) []SupplyChainImp
 			continue
 		}
 	}
+	findings = appendSecurityAlertImpactFindings(findings, envelopes)
 	sort.SliceStable(findings, func(i, j int) bool {
 		if findings[i].CVEID != findings[j].CVEID {
 			return findings[i].CVEID < findings[j].CVEID
@@ -399,6 +408,7 @@ func supplyChainImpactFactKinds() []string {
 		facts.VulnerabilityEPSSScoreFactKind,
 		facts.VulnerabilityKnownExploitedFactKind,
 		facts.VulnerabilitySuppressionFactKind,
+		facts.SecurityAlertRepositoryAlertFactKind,
 		facts.PackageRegistryPackageFactKind,
 		facts.SBOMComponentFactKind,
 		sbomAttestationAttachmentFactKind,

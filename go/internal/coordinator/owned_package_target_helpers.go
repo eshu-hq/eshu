@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"time"
 
 	"golang.org/x/mod/semver"
 )
@@ -48,6 +49,17 @@ func derivationLimit(raw int, fallback int) int {
 		return raw
 	}
 	return fallback
+}
+
+func derivedTargetRotationOffset(observedAt time.Time, interval time.Duration, limit int) int64 {
+	if observedAt.IsZero() || limit <= 0 {
+		return 0
+	}
+	if interval <= 0 {
+		interval = defaultReconcileInterval
+	}
+	bucket := observedAt.UTC().UnixNano() / int64(interval)
+	return bucket * int64(limit)
 }
 
 func packageRegistryDerivationFromConfig(raw string) (packageRegistryDerivationConfiguration, error) {

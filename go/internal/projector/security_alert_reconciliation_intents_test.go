@@ -54,20 +54,63 @@ func TestBuildProjectionQueuesSecurityAlertReconciliationForProviderAlert(t *tes
 	}
 }
 
-func TestBuildProjectionDoesNotQueueSupplyChainImpactForProviderAlertOnly(t *testing.T) {
+func TestBuildProjectionQueuesSupplyChainImpactForProviderAlert(t *testing.T) {
 	t.Parallel()
 
 	scopeValue := scope.IngestionScope{ScopeID: "repo://github/eshu-hq/eshu"}
 	generation := scope.ScopeGeneration{ScopeID: scopeValue.ScopeID, GenerationID: "generation-1"}
-	_, ok := buildSupplyChainImpactReducerIntent(scopeValue, generation, []facts.Envelope{{
+	intent, ok := buildSupplyChainImpactReducerIntent(scopeValue, generation, []facts.Envelope{{
 		FactID:        "alert-1",
 		ScopeID:       scopeValue.ScopeID,
 		GenerationID:  generation.GenerationID,
 		FactKind:      facts.SecurityAlertRepositoryAlertFactKind,
 		SchemaVersion: facts.SecurityAlertSchemaVersionV1,
 	}})
-	if ok {
-		t.Fatal("buildSupplyChainImpactReducerIntent() ok = true, want false for provider alert only")
+	if !ok {
+		t.Fatal("buildSupplyChainImpactReducerIntent() ok = false, want true for provider alert")
+	}
+	if got, want := intent.Reason, "provider security alert evidence observed"; got != want {
+		t.Fatalf("Reason = %q, want %q", got, want)
+	}
+}
+
+func TestBuildProjectionQueuesSecurityAlertReconciliationForPackageRegistryPackage(t *testing.T) {
+	t.Parallel()
+
+	scopeValue := scope.IngestionScope{
+		ScopeID:      "npm://registry.npmjs.org/serialize-javascript",
+		SourceSystem: "package_registry",
+	}
+	generation := scope.ScopeGeneration{
+		ScopeID:      scopeValue.ScopeID,
+		GenerationID: "package-generation-1",
+	}
+	projection, err := buildProjection(scopeValue, generation, []facts.Envelope{{
+		FactID:        "package-1",
+		ScopeID:       scopeValue.ScopeID,
+		GenerationID:  generation.GenerationID,
+		FactKind:      facts.PackageRegistryPackageFactKind,
+		SchemaVersion: facts.PackageRegistryPackageSchemaVersion,
+		SourceRef: facts.Ref{
+			SourceSystem: "package_registry",
+		},
+		Payload: map[string]any{
+			"package_id": "npm://registry.npmjs.org/serialize-javascript",
+		},
+	}})
+	if err != nil {
+		t.Fatalf("buildProjection() error = %v, want nil", err)
+	}
+
+	intent := requireSecurityAlertReconciliationIntent(t, projection.reducerIntents)
+	if got, want := intent.ScopeID, scopeValue.ScopeID; got != want {
+		t.Fatalf("ScopeID = %q, want %q", got, want)
+	}
+	if got, want := intent.FactID, "package-1"; got != want {
+		t.Fatalf("FactID = %q, want package identity fact", got)
+	}
+	if got, want := intent.Reason, "package registry identity observed"; got != want {
+		t.Fatalf("Reason = %q, want %q", got, want)
 	}
 }
 

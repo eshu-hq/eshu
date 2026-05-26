@@ -157,6 +157,14 @@ may opt into `document_format=artifactory_package` when the response is a
 JFrog wrapper around native metadata; unknown document formats are rejected
 before planning. Targets may also opt into `derive_from_owned_packages` for
 bounded npm package metadata planning from active owned Git dependency facts.
+Package-registry derivation selects package identities, not package-version
+rows, so one heavily reused package cannot consume the whole planning budget.
+Derived npm package-registry targets are identity-first by default: when
+`version_limit` is omitted, the runtime keeps one registry version for the
+package identity and leaves exact installed-version truth to source dependency
+facts and vulnerability-intelligence OSV query batches. Explicit
+package-registry targets can still set a higher `version_limit` when the goal is
+targeted registry version/dependency inspection.
 Package registry instances are fact-only until reducer correlation and graph
 projection contracts land.
 
@@ -166,11 +174,15 @@ target. When `derive_from_owned_packages.enabled=true`, the planner can derive
 OSV npm package-version targets from active owned dependency facts only when
 the dependency carries an exact version. Manifest ranges, aliases, workspace
 references, file/git references, and `latest` remain partial evidence and are
-not promoted into OSV package-version collection targets. The configuration can
-also declare `source_cache` for refresh or offline advisory-source cache
+not promoted into OSV package-version collection targets. Exact package-version
+queries are grouped into bounded OSV querybatch work items, preserving
+installed-version truth without issuing one claim per package version. The configuration
+can also declare `source_cache` for refresh or offline advisory-source cache
 lifecycle and `fallback_urls` for source mirrors; validation keeps cache modes,
 durations, and mirror URLs bounded before the desired collector instance is
-persisted.
+persisted. Derived package and vulnerability target reads rotate their bounded
+slice on each coordinator reconcile bucket, so a target limit smaller than the
+full corpus does not repeatedly schedule only the first sorted page.
 
 `scanner_worker` work items reserve the workflow boundary for isolated security
 analyzers. A scanner-worker claim copies the active work item, claim ID,
@@ -290,9 +302,14 @@ targets only for exact owned npm versions, range and alias dependencies stay
 out of exact vulnerability collection, the coordinator passes active owned
 dependency rows to both planners, and both hosted collector commands parse the
 new derivation config. Planning remains bounded by
-`derive_from_owned_packages.target_limit` with a default cap of 100 derived
-targets and does not change worker counts, claim leases, graph writes, reducer
-queues, or NornicDB settings.
+`derive_from_owned_packages.target_limit`; the default remains 100 derived
+targets, and operators can explicitly raise the cap up to 5000 for full-corpus
+proofs. Package-registry derivation reads package-level npm identities and
+defaults omitted derived npm `version_limit` values to one registry version,
+vulnerability derivation reads exact package-version identities and batches them
+into storage-safe OSV querybatch work items, and the
+coordinator rotates each bounded read by reconcile bucket. This does not change
+worker counts, claim leases, graph writes, reducer queues, or NornicDB settings.
 
 Observability Evidence: no new metrics were required. Existing workflow run
 rows, work-item rows, `requested_scope_set` payloads, coordinator reconcile
