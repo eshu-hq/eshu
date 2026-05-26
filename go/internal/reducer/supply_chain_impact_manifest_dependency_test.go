@@ -134,3 +134,39 @@ func TestSupplyChainImpactHandlerUsesManifestDependencyBeforeRegistryCorrelation
 		t.Fatalf("EvidencePath = %#v, want content_entity source dependency evidence", finding.EvidencePath)
 	}
 }
+
+func BenchmarkAddManifestDependencySupplyChainConsumption(b *testing.B) {
+	observedAt := time.Date(2026, 5, 26, 8, 30, 0, 0, time.UTC)
+	affectedPackages := make(map[string][]supplyChainAffectedPackage, 1)
+	envelopes := make([]facts.Envelope, 0, 200)
+	for i := 0; i < 200; i++ {
+		packageName := "package-" + strings.Repeat("x", i%8) + string(rune('a'+i%26))
+		packageID := "npm://registry.npmjs.org/" + packageName
+		affectedPackages["CVE-2026-0001"] = append(affectedPackages["CVE-2026-0001"], supplyChainAffectedPackage{
+			factID:    "affected-" + packageName,
+			cveID:     "CVE-2026-0001",
+			packageID: packageID,
+			ecosystem: "npm",
+			name:      packageName,
+		})
+		envelopes = append(envelopes, packageManifestDependencyFactWithMetadata(
+			testImpactRepositoryID,
+			"api",
+			"package-lock.json",
+			packageName,
+			"npm",
+			"1.0.0",
+			observedAt,
+			map[string]any{"lockfile": true},
+		))
+	}
+
+	b.ReportAllocs()
+	for b.Loop() {
+		index := &supplyChainImpactIndex{
+			affectedPackages: affectedPackages,
+			consumption:      map[string][]supplyChainPackageConsumption{},
+		}
+		addManifestDependencySupplyChainConsumption(index, envelopes)
+	}
+}

@@ -219,6 +219,8 @@ No metric labels gained package names, versions, feed URLs, or credential
 material. Rotated target selection remains visible through the bounded
 `requested_scope_set` rows without adding new metric labels.
 
+Performance Evidence: `go test ./internal/coordinator -run '^$' -bench BenchmarkVulnerabilityDerivedQueryChunks -benchmem -count=3` on darwin/arm64 dropped derived OSV chunk planning from about `8.9 MB/op` and `48k allocs/op` to about `194 KB/op` and `2.3k allocs/op`. The planner now grows chunks in place and tracks encoded scope length incrementally instead of rebuilding candidate slices and scope IDs on every query.
+
 - `Store` — substitute any implementation satisfying the four-method interface
   for testing or future backends.
 - `Metrics` — `NewMetrics` is the OTEL implementation; a nil or recording stub

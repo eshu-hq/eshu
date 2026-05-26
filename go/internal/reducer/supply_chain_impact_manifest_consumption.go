@@ -15,41 +15,68 @@ func addManifestDependencySupplyChainConsumption(
 	if len(dependencies) == 0 {
 		return
 	}
+	affectedPackages := manifestAffectedPackageMatches(index.affectedPackages)
+	if len(affectedPackages) == 0 {
+		return
+	}
 	for _, dependency := range dependencies {
-		for _, pkg := range allAffectedPackages(index.affectedPackages) {
-			if !manifestDependencyMatchesAffectedPackage(dependency, pkg) {
+		dependencyKeys := stringSet(packageConsumptionKeys(dependency.PackageManager, dependency.DependencyName))
+		if len(dependencyKeys) == 0 {
+			continue
+		}
+		for _, affected := range affectedPackages {
+			if !manifestDependencyMatchesAffectedPackage(dependencyKeys, affected.keys) {
 				continue
 			}
-			index.consumption[pkg.packageID] = append(
-				index.consumption[pkg.packageID],
-				supplyChainConsumptionFromManifestDependency(dependency, pkg),
+			index.consumption[affected.pkg.packageID] = append(
+				index.consumption[affected.pkg.packageID],
+				supplyChainConsumptionFromManifestDependency(dependency, affected.pkg),
 			)
 		}
 	}
 }
 
-func allAffectedPackages(groups map[string][]supplyChainAffectedPackage) []supplyChainAffectedPackage {
-	out := make([]supplyChainAffectedPackage, 0)
+type manifestAffectedPackageMatch struct {
+	pkg  supplyChainAffectedPackage
+	keys []string
+}
+
+func manifestAffectedPackageMatches(groups map[string][]supplyChainAffectedPackage) []manifestAffectedPackageMatch {
+	out := make([]manifestAffectedPackageMatch, 0)
 	for _, pkgs := range groups {
-		out = append(out, pkgs...)
+		for _, pkg := range pkgs {
+			keys := affectedPackageConsumptionKeys(pkg)
+			if len(keys) == 0 {
+				continue
+			}
+			out = append(out, manifestAffectedPackageMatch{
+				pkg:  pkg,
+				keys: keys,
+			})
+		}
 	}
 	return out
 }
 
-func manifestDependencyMatchesAffectedPackage(
-	dependency packageManifestDependency,
-	pkg supplyChainAffectedPackage,
-) bool {
+func affectedPackageConsumptionKeys(pkg supplyChainAffectedPackage) []string {
 	ecosystem := packageidentity.NormalizeEcosystem(packageidentity.Ecosystem(pkg.ecosystem))
 	if ecosystem == "" {
-		return false
+		return nil
 	}
-	dependencyKeys := stringSet(packageConsumptionKeys(dependency.PackageManager, dependency.DependencyName))
+	keys := make([]string, 0)
 	for _, name := range supplyChainAffectedPackageNameCandidates(pkg) {
-		for _, key := range packageConsumptionKeys(string(ecosystem), name) {
-			if _, ok := dependencyKeys[key]; ok {
-				return true
-			}
+		keys = append(keys, packageConsumptionKeys(string(ecosystem), name)...)
+	}
+	return keys
+}
+
+func manifestDependencyMatchesAffectedPackage(
+	dependencyKeys map[string]struct{},
+	affectedPackageKeys []string,
+) bool {
+	for _, key := range affectedPackageKeys {
+		if _, ok := dependencyKeys[key]; ok {
+			return true
 		}
 	}
 	return false
