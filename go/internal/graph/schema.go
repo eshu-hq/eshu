@@ -224,6 +224,13 @@ var schemaPerformanceIndexes = []string{
 	"CREATE INDEX container_image_tag_observation_ref IF NOT EXISTS FOR (t:ContainerImageTagObservation) ON (t.image_ref)",
 	"CREATE INDEX package_ecosystem IF NOT EXISTS FOR (p:Package) ON (p.ecosystem)",
 	"CREATE INDEX package_normalized_name IF NOT EXISTS FOR (p:Package) ON (p.normalized_name)",
+	// Indexes that back the package-registry aggregate (#689) grouped count
+	// hot path. Without these, `MATCH (p:Package) WHERE p.<prop> = $v` falls
+	// back to a label scan and the cookbook Area-5 hot path is forfeited.
+	"CREATE INDEX package_registry IF NOT EXISTS FOR (p:Package) ON (p.registry)",
+	"CREATE INDEX package_namespace IF NOT EXISTS FOR (p:Package) ON (p.namespace)",
+	"CREATE INDEX package_package_manager IF NOT EXISTS FOR (p:Package) ON (p.package_manager)",
+	"CREATE INDEX package_visibility IF NOT EXISTS FOR (p:Package) ON (p.visibility)",
 	"CREATE INDEX package_version_package_id IF NOT EXISTS FOR (v:PackageVersion) ON (v.package_id)",
 	"CREATE INDEX package_dependency_package_id IF NOT EXISTS FOR (d:PackageDependency) ON (d.package_id)",
 	"CREATE INDEX package_dependency_version_id IF NOT EXISTS FOR (d:PackageDependency) ON (d.version_id)",

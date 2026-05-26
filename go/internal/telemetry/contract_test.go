@@ -114,6 +114,7 @@ func TestSpanNames(t *testing.T) {
 		"query.package_registry_versions",
 		"query.package_registry_dependencies",
 		"query.package_registry_correlations",
+		"query.package_registry_aggregate",
 		"query.ci_cd_run_correlations",
 		"query.service_catalog_correlations",
 		"query.container_image_identities",

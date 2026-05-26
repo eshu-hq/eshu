@@ -294,6 +294,52 @@ attributes. They re-use the existing `eshu_dp_postgres_query_duration_seconds`
 histogram and add no new graph query, queue, reducer lane, worker, or metric
 instrument.
 
+`PackageRegistryHandler` (`package_registry.go`) exposes cheap-summary
+aggregates over the graph (:Package) corpus through a separate graph-backed
+aggregate read model (`package_registry_aggregates.go`). This is the first
+**graph-backed** aggregate (previous aggregates ride on Postgres
+`fact_records`); the Reader uses the `GraphQuery` port — the same interface
+the existing list handler reads — so handler tests can inject an in-memory
+stub. `CountPackageRegistryPackages` answers total + per-ecosystem questions
+over an optional ecosystem / registry / namespace / package_manager /
+visibility scope; `PackageRegistryPackageInventory` returns a paginated
+grouped count along one of those five dimensions. The aggregate replaces
+the page-and-iterate caller workflow for ecosystem-level questions exposed
+by `list_package_registry_packages`.
+
+Hot-path eligibility relies on a label-property anchor against an indexed
+property, per the NornicDB-New hot-path cookbook Area 5 (grouped count) and
+`PatternOutgoingCountAgg`. The existing `package_ecosystem` and
+`package_normalized_name` indexes are joined in this PR by four new indexes
+on `(:Package).registry`, `(:Package).namespace`, `(:Package).package_manager`,
+and `(:Package).visibility` (`go/internal/graph/schema.go`). Operators
+applying this PR must re-run `eshu-bootstrap-data-plane` so the new indexes
+exist before the aggregate routes resolve in production; the routes return
+correct counts without the indexes but fall back to a label scan instead of
+the cookbook hot path.
+
+No-Regression Evidence: `go test ./internal/query -run
+'TestPackageRegistryAggregate|TestPackageRegistryInventoryGroupExpression|TestNextPackageRegistryAggregateOffset|TestGraphPackageRegistryAggregateStore'
+-count=1` proves: 503 envelope when the store is missing, totals envelope
+shape with the per-ecosystem rollup, grouped inventory shape, truncation
+marker plus `next_offset` on overflow, rejection of unknown grouping
+dimensions, unknown visibility, oversized limits, negative offsets, and
+oversized offsets, null `next_offset` at the offset ceiling, the
+closed-enum dimension map, AND that the production Reader emits Cypher
+with the cookbook hot-path shape (label-property anchor `MATCH (p:Package)`
+plus indexed-property predicate plus `ORDER BY bucket_count DESC` plus
+parameter-bound limit). A `PROFILE` proof against the pinned NornicDB
+binary is the operator gate for this PR: the in-process tests prove the
+Cypher shape stays hot-path-eligible, but the operator running
+`eshu-bootstrap-data-plane` must capture `PROFILE` output for the four new
+indexes before promoting the routes in production.
+
+Observability Evidence: the aggregate routes add the
+`query.package_registry_aggregate` request span (registered in
+`go/internal/telemetry/contract_package_registry.go`) with route and
+capability attributes. They re-use the existing query-handler tracing and
+the `neo4j.query` graph span; no new metric instrument is added.
+
 ## Runtime and investigation read models
 
 Both backends instrument every query with an OTEL span (`neo4j.query`,
