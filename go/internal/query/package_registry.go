@@ -24,6 +24,7 @@ const (
 type PackageRegistryHandler struct {
 	Neo4j        GraphQuery
 	Correlations PackageRegistryCorrelationStore
+	Aggregates   PackageRegistryAggregateStore
 	Profile      QueryProfile
 }
 
@@ -95,6 +96,7 @@ func (h *PackageRegistryHandler) Mount(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/v0/package-registry/versions", h.listVersions)
 	mux.HandleFunc("GET /api/v0/package-registry/dependencies", h.listDependencies)
 	mux.HandleFunc("GET /api/v0/package-registry/correlations", h.listCorrelations)
+	h.packageRegistryAggregateRoutes(mux)
 }
 
 func (h *PackageRegistryHandler) profile() QueryProfile {

@@ -14,6 +14,7 @@ func ReadOnlyTools() []ToolDefinition {
 	tools = append(tools, repositoryLanguageTools()...)
 	tools = append(tools, ecosystemTools()...)
 	tools = append(tools, packageRegistryTools()...)
+	tools = append(tools, packageRegistryAggregateTools()...)
 	tools = append(tools, cicdTools()...)
 	tools = append(tools, cicdRunCorrelationAggregateTools()...)
 	tools = append(tools, serviceCatalogTools()...)

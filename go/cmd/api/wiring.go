@@ -218,6 +218,7 @@ func newRouter(
 		PackageRegistry: &query.PackageRegistryHandler{
 			Neo4j:        neo4jReader,
 			Correlations: query.NewPostgresPackageRegistryCorrelationStore(db),
+			Aggregates:   query.NewGraphPackageRegistryAggregateStore(neo4jReader),
 			Profile:      queryProfile,
 		},
 		CICD: &query.CICDHandler{

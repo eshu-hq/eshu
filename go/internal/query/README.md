@@ -429,3 +429,37 @@ dialect differences belong in `internal/storage/cypher` adapters behind the
 - `docs/public/reference/http-api.md` for the public HTTP and envelope contract.
 - `docs/public/reference/dead-code-reachability-spec.md` for the dead-code
   language maturity contract.
+
+## Package registry aggregate hot-path evidence (#689)
+
+The graph-backed package-registry aggregate (`package_registry_aggregates.go`,
+`package_registry_aggregates_handler.go`) is the first aggregate in this
+package that emits Cypher rather than SQL, so `scripts/verify-performance-evidence.sh`
+flags the file via its hot-path-by-content check. The Cypher follows the
+NornicDB-New hot-path query cookbook Area 5 "Grouped Count" and
+`PatternOutgoingCountAgg` shapes verbatim: `MATCH (p:Package) WHERE
+p.<indexed_prop> = $value RETURN coalesce(p.<group>, 'unknown') AS bucket,
+count(p) AS bucket_count ORDER BY bucket_count DESC SKIP $offset LIMIT $limit`.
+
+No-Regression Evidence: `go test ./internal/query -run
+'TestPackageRegistryAggregate|TestPackageRegistryInventoryGroupExpression|TestNextPackageRegistryAggregateOffset|TestGraphPackageRegistryAggregateStore'
+-count=1` proves the production Reader emits Cypher with the cookbook
+hot-path shape — `MATCH (p:Package)` label-property anchor,
+indexed-property predicate, deterministic ordering, parameter-bound limit,
+and a closed-enum dimension map so the substituted group expression stays
+parameter-safe. The indexes the hot path depends on
+(`go/internal/graph/schema.go`: `package_registry`, `package_namespace`,
+`package_package_manager`, `package_visibility`) ship in the same PR; the
+long-standing `package_ecosystem` index covers the default grouping.
+Operators applying this PR must re-run `eshu-bootstrap-data-plane` so the
+four new indexes exist before the aggregate routes resolve in production. A
+`PROFILE` proof against the pinned NornicDB binary is the operator gate for
+promoting the routes — the in-process tests guard the Cypher shape, but
+`PROFILE` is the only definitive evidence that the planner picks the indexed
+seek; capture it after `eshu-bootstrap-data-plane` completes.
+
+Observability Evidence: the aggregate routes add the
+`query.package_registry_aggregate` request span registered in
+`go/internal/telemetry/contract_package_registry.go` with route and
+capability attributes. They re-use the existing `Neo4jReader.Run` tracing
+and the `neo4j.query` graph span; no new metric instrument is added.

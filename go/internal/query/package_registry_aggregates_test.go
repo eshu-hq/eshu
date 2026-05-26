@@ -1,0 +1,626 @@
+package query
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"testing"
+)
+
+// stubPackageRegistryAggregateStore lets handler tests assert on the filter +
+// dimension that reaches the Reader without standing up NornicDB. The
+// production Reader (GraphPackageRegistryAggregateStore) is exercised
+// separately via stubGraphQuery to confirm the Cypher and parameter shape.
+type stubPackageRegistryAggregateStore struct {
+	count         PackageRegistryAggregateCount
+	countErr      error
+	inventory     []PackageRegistryInventoryRow
+	inventoryErr  error
+	lastFilter    PackageRegistryAggregateFilter
+	lastDimension PackageRegistryInventoryDimension
+	lastLimit     int
+	lastOffset    int
+	countCalls    int
+	invCalls      int
+}
+
+func (s *stubPackageRegistryAggregateStore) CountPackageRegistryPackages(
+	_ context.Context,
+	filter PackageRegistryAggregateFilter,
+) (PackageRegistryAggregateCount, error) {
+	s.countCalls++
+	s.lastFilter = filter
+	if s.countErr != nil {
+		return PackageRegistryAggregateCount{}, s.countErr
+	}
+	return s.count, nil
+}
+
+func (s *stubPackageRegistryAggregateStore) PackageRegistryPackageInventory(
+	_ context.Context,
+	filter PackageRegistryAggregateFilter,
+	dim PackageRegistryInventoryDimension,
+	limit int,
+	offset int,
+) ([]PackageRegistryInventoryRow, error) {
+	s.invCalls++
+	s.lastFilter = filter
+	s.lastDimension = dim
+	s.lastLimit = limit
+	s.lastOffset = offset
+	if s.inventoryErr != nil {
+		return nil, s.inventoryErr
+	}
+	return append([]PackageRegistryInventoryRow(nil), s.inventory...), nil
+}
+
+// stubGraphQuery records the Cypher + params sent to the graph and returns
+// canned rows per query. This is the unit-test substitute for Neo4jReader.
+type stubGraphQuery struct {
+	responses map[string][]map[string]any
+	calls     []struct {
+		Cypher string
+		Params map[string]any
+	}
+	err error
+}
+
+func (s *stubGraphQuery) Run(_ context.Context, cypher string, params map[string]any) ([]map[string]any, error) {
+	s.calls = append(s.calls, struct {
+		Cypher string
+		Params map[string]any
+	}{Cypher: cypher, Params: params})
+	if s.err != nil {
+		return nil, s.err
+	}
+	for k, rows := range s.responses {
+		if strings.Contains(cypher, k) {
+			return rows, nil
+		}
+	}
+	return nil, nil
+}
+
+func (s *stubGraphQuery) RunSingle(_ context.Context, _ string, _ map[string]any) (map[string]any, error) {
+	return nil, errors.New("RunSingle not used by package-registry aggregates")
+}
+
+func TestPackageRegistryAggregateRoutesReturn503WhenStoreMissing(t *testing.T) {
+	t.Parallel()
+
+	handler := &PackageRegistryHandler{}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	for _, target := range []string{
+		"/api/v0/package-registry/packages/count",
+		"/api/v0/package-registry/packages/inventory",
+	} {
+		t.Run(target, func(t *testing.T) {
+			t.Parallel()
+			req := httptest.NewRequest(http.MethodGet, target, nil)
+			w := httptest.NewRecorder()
+			mux.ServeHTTP(w, req)
+			if got, want := w.Code, http.StatusServiceUnavailable; got != want {
+				t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
+			}
+		})
+	}
+}
+
+func TestPackageRegistryAggregateCountReturnsRollup(t *testing.T) {
+	t.Parallel()
+
+	store := &stubPackageRegistryAggregateStore{
+		count: PackageRegistryAggregateCount{
+			TotalPackages: 42,
+			ByEcosystem:   map[string]int{"npm": 20, "pypi": 15, "maven": 7},
+		},
+	}
+	handler := &PackageRegistryHandler{Aggregates: store}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v0/package-registry/packages/count?ecosystem=npm", nil)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if got, want := w.Code, http.StatusOK; got != want {
+		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
+	}
+	if store.countCalls != 1 {
+		t.Fatalf("Count called %d times, want 1", store.countCalls)
+	}
+	if got, want := store.lastFilter.Ecosystem, "npm"; got != want {
+		t.Fatalf("Ecosystem = %q, want %q", got, want)
+	}
+	var body struct {
+		TotalPackages int            `json:"total_packages"`
+		ByEcosystem   map[string]int `json:"by_ecosystem"`
+		Scope         map[string]any `json:"scope"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+		t.Fatalf("decode: %v; body = %s", err, w.Body.String())
+	}
+	if body.TotalPackages != 42 {
+		t.Fatalf("total_packages = %d, want 42; body = %s", body.TotalPackages, w.Body.String())
+	}
+	if body.ByEcosystem["npm"] != 20 {
+		t.Fatalf("by_ecosystem[npm] = %d, want 20", body.ByEcosystem["npm"])
+	}
+	if body.Scope["ecosystem"] != "npm" {
+		t.Fatalf("scope.ecosystem = %v, want npm", body.Scope["ecosystem"])
+	}
+}
+
+func TestPackageRegistryAggregateInventoryReturnsBuckets(t *testing.T) {
+	t.Parallel()
+
+	store := &stubPackageRegistryAggregateStore{
+		inventory: []PackageRegistryInventoryRow{
+			{Dimension: PackageRegistryInventoryByEcosystem, Value: "npm", Count: 50},
+			{Dimension: PackageRegistryInventoryByEcosystem, Value: "pypi", Count: 30},
+		},
+	}
+	handler := &PackageRegistryHandler{Aggregates: store}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v0/package-registry/packages/inventory?group_by=ecosystem&limit=10", nil)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if got, want := w.Code, http.StatusOK; got != want {
+		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
+	}
+	if store.lastDimension != PackageRegistryInventoryByEcosystem {
+		t.Fatalf("dimension = %q, want ecosystem", store.lastDimension)
+	}
+	if store.lastLimit != 11 {
+		t.Fatalf("internal limit = %d, want 11 (caller limit + 1)", store.lastLimit)
+	}
+	var body struct {
+		Count     int    `json:"count"`
+		GroupBy   string `json:"group_by"`
+		Truncated bool   `json:"truncated"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+		t.Fatalf("decode: %v; body = %s", err, w.Body.String())
+	}
+	if body.Count != 2 {
+		t.Fatalf("count = %d, want 2", body.Count)
+	}
+	if body.GroupBy != "ecosystem" {
+		t.Fatalf("group_by = %q, want ecosystem", body.GroupBy)
+	}
+	if body.Truncated {
+		t.Fatalf("truncated = true, want false (only 2 buckets, limit 10)")
+	}
+}
+
+func TestPackageRegistryAggregateInventoryReportsTruncated(t *testing.T) {
+	t.Parallel()
+
+	rows := make([]PackageRegistryInventoryRow, 6)
+	for i := range rows {
+		rows[i] = PackageRegistryInventoryRow{
+			Dimension: PackageRegistryInventoryByRegistry,
+			Value:     "registry",
+			Count:     i,
+		}
+	}
+	store := &stubPackageRegistryAggregateStore{inventory: rows}
+	handler := &PackageRegistryHandler{Aggregates: store}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v0/package-registry/packages/inventory?group_by=registry&limit=5", nil)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if got, want := w.Code, http.StatusOK; got != want {
+		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
+	}
+	var body struct {
+		Count      int  `json:"count"`
+		Truncated  bool `json:"truncated"`
+		NextOffset int  `json:"next_offset"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+		t.Fatalf("decode: %v; body = %s", err, w.Body.String())
+	}
+	if body.Count != 5 {
+		t.Fatalf("count = %d, want 5 (page trim)", body.Count)
+	}
+	if !body.Truncated {
+		t.Fatalf("truncated = false, want true")
+	}
+	if body.NextOffset != 5 {
+		t.Fatalf("next_offset = %d, want 5", body.NextOffset)
+	}
+}
+
+func TestPackageRegistryAggregateRejectsOutOfContractVisibility(t *testing.T) {
+	t.Parallel()
+
+	store := &stubPackageRegistryAggregateStore{}
+	handler := &PackageRegistryHandler{Aggregates: store}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	// `internal` and `restricted` are typos; the closed enum is
+	// public / private / unknown — the same value space the package-registry
+	// collector emits in `parseVisibility`. Both aggregate endpoints must
+	// surface out-of-contract values as a 400 to avoid silent zero counts.
+	for _, target := range []string{
+		"/api/v0/package-registry/packages/count?visibility=internal",
+		"/api/v0/package-registry/packages/inventory?visibility=internal",
+		"/api/v0/package-registry/packages/count?visibility=restricted",
+		"/api/v0/package-registry/packages/inventory?visibility=restricted",
+	} {
+		t.Run(target, func(t *testing.T) {
+			t.Parallel()
+			req := httptest.NewRequest(http.MethodGet, target, nil)
+			w := httptest.NewRecorder()
+			mux.ServeHTTP(w, req)
+			if got, want := w.Code, http.StatusBadRequest; got != want {
+				t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
+			}
+		})
+	}
+	if store.countCalls != 0 || store.invCalls != 0 {
+		t.Fatalf("store called for out-of-contract visibility (countCalls=%d invCalls=%d)",
+			store.countCalls, store.invCalls)
+	}
+}
+
+func TestPackageRegistryAggregateAcceptsContractVisibilityValues(t *testing.T) {
+	t.Parallel()
+
+	// `unknown` is a first-class ingestion value (parseVisibility defaults
+	// to it for missing or unrecognized inputs), so callers must be able to
+	// filter aggregates to that slice. The validator and the OpenAPI /
+	// MCP-tool enums must keep all three in scope.
+	for _, value := range []string{"public", "private", "unknown"} {
+		value := value
+		t.Run(value, func(t *testing.T) {
+			t.Parallel()
+			store := &stubPackageRegistryAggregateStore{}
+			handler := &PackageRegistryHandler{Aggregates: store}
+			mux := http.NewServeMux()
+			handler.Mount(mux)
+
+			req := httptest.NewRequest(http.MethodGet,
+				"/api/v0/package-registry/packages/count?visibility="+value, nil)
+			w := httptest.NewRecorder()
+			mux.ServeHTTP(w, req)
+			if got, want := w.Code, http.StatusOK; got != want {
+				t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
+			}
+			if store.lastFilter.Visibility != value {
+				t.Fatalf("filter.Visibility = %q, want %q", store.lastFilter.Visibility, value)
+			}
+		})
+	}
+}
+
+func TestPackageRegistryAggregateInventoryRejectsUnknownDimension(t *testing.T) {
+	t.Parallel()
+
+	store := &stubPackageRegistryAggregateStore{}
+	handler := &PackageRegistryHandler{Aggregates: store}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v0/package-registry/packages/inventory?group_by=normalized_name", nil)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if got, want := w.Code, http.StatusBadRequest; got != want {
+		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
+	}
+	if store.invCalls != 0 {
+		t.Fatalf("store called for unknown dimension")
+	}
+}
+
+func TestPackageRegistryAggregateInventoryRejectsOversizedLimit(t *testing.T) {
+	t.Parallel()
+
+	handler := &PackageRegistryHandler{Aggregates: &stubPackageRegistryAggregateStore{}}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v0/package-registry/packages/inventory?limit=9999", nil)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+	if got, want := w.Code, http.StatusBadRequest; got != want {
+		t.Fatalf("status = %d, want %d", got, want)
+	}
+}
+
+func TestPackageRegistryAggregateInventoryRejectsNegativeOffset(t *testing.T) {
+	t.Parallel()
+
+	handler := &PackageRegistryHandler{Aggregates: &stubPackageRegistryAggregateStore{}}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v0/package-registry/packages/inventory?offset=-1", nil)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+	if got, want := w.Code, http.StatusBadRequest; got != want {
+		t.Fatalf("status = %d, want %d", got, want)
+	}
+}
+
+func TestPackageRegistryAggregateInventoryRejectsOversizedOffset(t *testing.T) {
+	t.Parallel()
+
+	handler := &PackageRegistryHandler{Aggregates: &stubPackageRegistryAggregateStore{}}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v0/package-registry/packages/inventory?offset=10001", nil)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+	if got, want := w.Code, http.StatusBadRequest; got != want {
+		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
+	}
+}
+
+func TestPackageRegistryAggregateInventoryNullsNextOffsetAtCeiling(t *testing.T) {
+	t.Parallel()
+
+	rows := make([]PackageRegistryInventoryRow, 6)
+	for i := range rows {
+		rows[i] = PackageRegistryInventoryRow{
+			Dimension: PackageRegistryInventoryByEcosystem,
+			Value:     "npm",
+			Count:     i,
+		}
+	}
+	store := &stubPackageRegistryAggregateStore{inventory: rows}
+	handler := &PackageRegistryHandler{Aggregates: store}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v0/package-registry/packages/inventory?group_by=ecosystem&limit=5&offset=10000", nil)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if got, want := w.Code, http.StatusOK; got != want {
+		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
+	}
+	var body struct {
+		Truncated  bool `json:"truncated"`
+		NextOffset *int `json:"next_offset"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+		t.Fatalf("decode: %v; body = %s", err, w.Body.String())
+	}
+	if !body.Truncated {
+		t.Fatalf("truncated = false, want true")
+	}
+	if body.NextOffset != nil {
+		t.Fatalf("next_offset = %d, want null when offset+limit exceeds documented max", *body.NextOffset)
+	}
+}
+
+func TestNextPackageRegistryAggregateOffsetBound(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name      string
+		offset    int
+		limit     int
+		truncated bool
+		want      any
+	}{
+		{"not truncated returns nil", 0, 100, false, nil},
+		{"normal next offset", 200, 100, true, 300},
+		{"exactly at ceiling boundary returns ceiling", 9900, 100, true, 10000},
+		{"would exceed ceiling returns nil", 9950, 100, true, nil},
+	}
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			got := nextPackageRegistryAggregateOffset(tc.offset, tc.limit, tc.truncated)
+			if got != tc.want {
+				t.Fatalf("nextPackageRegistryAggregateOffset(%d, %d, %v) = %v, want %v",
+					tc.offset, tc.limit, tc.truncated, got, tc.want)
+			}
+		})
+	}
+}
+
+func TestPackageRegistryInventoryGroupExpressionEnumIsClosed(t *testing.T) {
+	t.Parallel()
+
+	cases := []PackageRegistryInventoryDimension{
+		PackageRegistryInventoryByEcosystem,
+		PackageRegistryInventoryByRegistry,
+		PackageRegistryInventoryByNamespace,
+		PackageRegistryInventoryByPackageManager,
+		PackageRegistryInventoryByVisibility,
+	}
+	for _, dim := range cases {
+		if _, err := packageRegistryInventoryGroupExpression(dim); err != nil {
+			t.Fatalf("dimension %q must be supported: %v", dim, err)
+		}
+	}
+	if _, err := packageRegistryInventoryGroupExpression("normalized_name"); err == nil {
+		t.Fatal("packageRegistryInventoryGroupExpression must reject unknown dimensions to keep Cypher substitution safe")
+	}
+}
+
+// TestGraphPackageRegistryAggregateStoreCountShapeIsHotPathEligible asserts on
+// the actual Cypher emitted by the production Reader. The fixture exercise
+// proves the WHERE clause uses parameter-bound predicates against indexed
+// properties (cookbook Area-5 / PatternOutgoingCountAgg shape). A full
+// PROFILE proof against the pinned NornicDB binary is the operator gate
+// (see PR description) — this test is the in-process shape guard so a future
+// refactor can't silently drop the hot-path-friendly anchor predicates.
+func TestGraphPackageRegistryAggregateStoreCountShapeIsHotPathEligible(t *testing.T) {
+	t.Parallel()
+
+	graph := &stubGraphQuery{
+		responses: map[string][]map[string]any{
+			// The rollup query uses a CASE expression on `p.ecosystem` so
+			// empty-string properties surface as `unknown` alongside NULLs.
+			"count(p) AS total":             {{"total": int64(7)}},
+			"WHEN p.ecosystem IS NULL OR p": {{"bucket": "npm", "bucket_count": int64(5)}, {"bucket": "pypi", "bucket_count": int64(2)}},
+		},
+	}
+	store := NewGraphPackageRegistryAggregateStore(graph)
+	count, err := store.CountPackageRegistryPackages(context.Background(), PackageRegistryAggregateFilter{Ecosystem: "npm"})
+	if err != nil {
+		t.Fatalf("Count: %v", err)
+	}
+	if count.TotalPackages != 7 {
+		t.Fatalf("TotalPackages = %d, want 7", count.TotalPackages)
+	}
+	if count.ByEcosystem["npm"] != 5 {
+		t.Fatalf("ByEcosystem[npm] = %d, want 5", count.ByEcosystem["npm"])
+	}
+
+	if len(graph.calls) < 1 {
+		t.Fatal("graph.Run never called")
+	}
+	first := graph.calls[0]
+	if !strings.Contains(first.Cypher, "MATCH (p:Package)") {
+		t.Fatalf("count Cypher missing `MATCH (p:Package)` label-property anchor: %s", first.Cypher)
+	}
+	if !strings.Contains(first.Cypher, "p.ecosystem = $ecosystem") {
+		t.Fatalf("count Cypher missing indexed `p.ecosystem` anchor predicate (hot-path requirement): %s", first.Cypher)
+	}
+	if got, want := first.Params["ecosystem"], "npm"; got != want {
+		t.Fatalf("ecosystem param = %v, want %q", got, want)
+	}
+}
+
+func TestGraphPackageRegistryAggregateStoreInventoryShapeIsHotPathEligible(t *testing.T) {
+	t.Parallel()
+
+	graph := &stubGraphQuery{
+		responses: map[string][]map[string]any{
+			"SKIP $offset": {{"bucket": "registry.example", "bucket_count": int64(3)}},
+		},
+	}
+	store := NewGraphPackageRegistryAggregateStore(graph)
+	rows, err := store.PackageRegistryPackageInventory(
+		context.Background(),
+		PackageRegistryAggregateFilter{Ecosystem: "npm"},
+		PackageRegistryInventoryByRegistry,
+		11,
+		0,
+	)
+	if err != nil {
+		t.Fatalf("PackageRegistryPackageInventory: %v", err)
+	}
+	if len(rows) != 1 || rows[0].Value != "registry.example" || rows[0].Count != 3 {
+		t.Fatalf("rows = %+v, want one bucket {registry.example, 3}", rows)
+	}
+
+	if len(graph.calls) != 1 {
+		t.Fatalf("graph.Run called %d times, want 1", len(graph.calls))
+	}
+	cypher := graph.calls[0].Cypher
+	if !strings.Contains(cypher, "MATCH (p:Package)") {
+		t.Fatalf("inventory Cypher missing label-property anchor: %s", cypher)
+	}
+	if !strings.Contains(cypher, "p.registry") {
+		t.Fatalf("inventory Cypher did not group by the requested dimension `p.registry`: %s", cypher)
+	}
+	if !strings.Contains(cypher, "ORDER BY bucket_count DESC") {
+		t.Fatalf("inventory Cypher missing deterministic ordering: %s", cypher)
+	}
+	if got, want := graph.calls[0].Params["limit"], 11; got != want {
+		t.Fatalf("limit param = %v, want %v", got, want)
+	}
+}
+
+func TestGraphPackageRegistryAggregateStoreNormalizesEmptyStringBuckets(t *testing.T) {
+	t.Parallel()
+
+	// Package-registry facts commonly leave optional fields like `namespace`
+	// as the empty string for ecosystems without a namespace concept (npm
+	// unscoped packages, pypi, etc). A plain `coalesce(p.namespace,
+	// 'unknown')` would only collapse NULLs and emit `""` as a bucket; the
+	// CASE expression must instead map both NULL and empty-string to
+	// `unknown` so callers never see an empty bucket key.
+	for _, kind := range []struct {
+		name           string
+		dimension      PackageRegistryInventoryDimension
+		propertyMatch  string
+	}{
+		{"namespace", PackageRegistryInventoryByNamespace, "p.namespace"},
+		{"ecosystem", PackageRegistryInventoryByEcosystem, "p.ecosystem"},
+		{"registry", PackageRegistryInventoryByRegistry, "p.registry"},
+		{"package_manager", PackageRegistryInventoryByPackageManager, "p.package_manager"},
+		{"visibility", PackageRegistryInventoryByVisibility, "p.visibility"},
+	} {
+		kind := kind
+		t.Run(kind.name, func(t *testing.T) {
+			t.Parallel()
+			graph := &stubGraphQuery{}
+			store := NewGraphPackageRegistryAggregateStore(graph)
+			_, err := store.PackageRegistryPackageInventory(
+				context.Background(),
+				PackageRegistryAggregateFilter{},
+				kind.dimension,
+				11,
+				0,
+			)
+			if err != nil {
+				t.Fatalf("inventory(%s): %v", kind.name, err)
+			}
+			if len(graph.calls) != 1 {
+				t.Fatalf("graph.Run called %d times, want 1", len(graph.calls))
+			}
+			cypher := graph.calls[0].Cypher
+			// Both the NULL branch and the empty-string branch must reference
+			// the same dimension property so the substituted bucket key is
+			// `unknown` whenever the field is absent or blank.
+			nullClause := "WHEN " + kind.propertyMatch + " IS NULL"
+			emptyClause := "OR " + kind.propertyMatch + " = ''"
+			elseClause := "ELSE " + kind.propertyMatch
+			if !strings.Contains(cypher, nullClause) {
+				t.Fatalf("missing NULL branch for %s: %s", kind.propertyMatch, cypher)
+			}
+			if !strings.Contains(cypher, emptyClause) {
+				t.Fatalf("missing empty-string branch for %s (plain coalesce would emit \"\" as a bucket key): %s", kind.propertyMatch, cypher)
+			}
+			if !strings.Contains(cypher, elseClause) {
+				t.Fatalf("missing ELSE branch for %s: %s", kind.propertyMatch, cypher)
+			}
+			if !strings.Contains(cypher, "THEN 'unknown'") {
+				t.Fatalf("missing THEN 'unknown' for %s: %s", kind.propertyMatch, cypher)
+			}
+		})
+	}
+}
+
+func TestGraphPackageRegistryAggregateStoreRejectsUnsafeDimension(t *testing.T) {
+	t.Parallel()
+
+	graph := &stubGraphQuery{}
+	store := NewGraphPackageRegistryAggregateStore(graph)
+	_, err := store.PackageRegistryPackageInventory(
+		context.Background(),
+		PackageRegistryAggregateFilter{},
+		PackageRegistryInventoryDimension("normalized_name"),
+		100,
+		0,
+	)
+	if err == nil {
+		t.Fatal("expected error for unknown dimension; got nil")
+	}
+	if len(graph.calls) != 0 {
+		t.Fatal("graph queried for unknown dimension; substitution must be guarded before any graph call")
+	}
+}

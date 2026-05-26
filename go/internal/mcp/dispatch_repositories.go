@@ -32,6 +32,10 @@ func repositoryRoute(toolName string, args map[string]any) (*route, bool) {
 		return &route{method: "GET", path: "/api/v0/evidence/relationships/" + url.PathEscape(str(args, "resolved_id"))}, true
 	case "list_package_registry_packages":
 		return packageRegistryPackagesRoute(args), true
+	case "count_package_registry_packages":
+		return packageRegistryAggregateCountRoute(args), true
+	case "get_package_registry_package_inventory":
+		return packageRegistryAggregateInventoryRoute(args), true
 	case "list_package_registry_versions":
 		return packageRegistryVersionsRoute(args), true
 	case "list_package_registry_dependencies":
