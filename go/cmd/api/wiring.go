@@ -222,6 +222,7 @@ func newRouter(
 		},
 		CICD: &query.CICDHandler{
 			Correlations: query.NewPostgresCICDRunCorrelationStore(db),
+			Aggregates:   query.NewPostgresCICDRunCorrelationAggregateStore(db),
 			Profile:      queryProfile,
 		},
 		ServiceCatalog: &query.ServiceCatalogHandler{

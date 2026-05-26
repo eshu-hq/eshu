@@ -40,6 +40,10 @@ func repositoryRoute(toolName string, args map[string]any) (*route, bool) {
 		return packageRegistryCorrelationsRoute(args), true
 	case "list_ci_cd_run_correlations":
 		return cicdRunCorrelationsRoute(args), true
+	case "count_ci_cd_run_correlations":
+		return cicdRunCorrelationAggregateCountRoute(args), true
+	case "get_ci_cd_run_correlation_inventory":
+		return cicdRunCorrelationAggregateInventoryRoute(args), true
 	case "list_service_catalog_correlations":
 		return serviceCatalogCorrelationsRoute(args), true
 	case "list_container_image_identities":

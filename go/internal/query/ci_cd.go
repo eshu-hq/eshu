@@ -16,6 +16,7 @@ const (
 // CICDHandler exposes reducer-owned CI/CD run correlation reads.
 type CICDHandler struct {
 	Correlations CICDRunCorrelationStore
+	Aggregates   CICDRunCorrelationAggregateStore
 	Profile      QueryProfile
 }
 
@@ -42,6 +43,7 @@ type CICDRunCorrelationResult struct {
 // Mount registers CI/CD query routes.
 func (h *CICDHandler) Mount(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/v0/ci-cd/run-correlations", h.listRunCorrelations)
+	h.cicdRunCorrelationAggregateRoutes(mux)
 }
 
 func (h *CICDHandler) profile() QueryProfile {
