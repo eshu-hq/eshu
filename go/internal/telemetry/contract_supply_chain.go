@@ -30,6 +30,11 @@ const (
 	// reconciliations. Replaces the page-and-iterate caller pattern for
 	// ecosystem-level questions about provider alerts vs Eshu impact state.
 	SpanQuerySecurityAlertReconciliationAggregate = "query.security_alert_reconciliation_aggregate"
+	// SpanQueryContainerImageIdentityAggregate wraps cheap-summary count and
+	// inventory aggregates over reducer-owned container image identities.
+	// Replaces the page-and-iterate caller pattern for ecosystem-level
+	// questions like "how many images resolved by exact digest vs tag?".
+	SpanQueryContainerImageIdentityAggregate = "query.container_image_identity_aggregate"
 )
 
 func init() {
@@ -46,6 +51,7 @@ func init() {
 				SpanQuerySupplyChainImpactExplanation,
 				SpanQuerySupplyChainImpactAggregate,
 				SpanQuerySecurityAlertReconciliationAggregate,
+				SpanQueryContainerImageIdentityAggregate,
 			)
 			return
 		}
@@ -63,6 +69,7 @@ func init() {
 				SpanQuerySupplyChainImpactExplanation,
 				SpanQuerySupplyChainImpactAggregate,
 				SpanQuerySecurityAlertReconciliationAggregate,
+				SpanQueryContainerImageIdentityAggregate,
 			)
 			return
 		}
@@ -77,5 +84,6 @@ func init() {
 		SpanQuerySupplyChainImpactExplanation,
 		SpanQuerySupplyChainImpactAggregate,
 		SpanQuerySecurityAlertReconciliationAggregate,
+		SpanQueryContainerImageIdentityAggregate,
 	)
 }
