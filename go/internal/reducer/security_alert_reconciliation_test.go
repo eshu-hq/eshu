@@ -1,6 +1,7 @@
 package reducer
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -164,6 +165,161 @@ func TestBuildSecurityAlertReconciliationsSelectsNewestStaleConsumption(t *testi
 	}
 	if got, want := decision.DependencyEvidenceID, "consume-newer-stale"; got != want {
 		t.Fatalf("DependencyEvidenceID = %q, want newest stale evidence %q", got, want)
+	}
+}
+
+func TestBuildSecurityAlertReconciliationsResolvesProviderAlertRepositoryScope(t *testing.T) {
+	t.Parallel()
+
+	providerRepoID := "security-alert:github:acme/api"
+	canonicalRepoID := "repository:r_api"
+	packageID := "npm://registry.npmjs.org/fast-uri"
+	alert := securityAlertEnvelope("alert-provider-repo", providerRepoID, map[string]any{
+		"provider":              "github_dependabot",
+		"provider_alert_number": int64(7),
+		"provider_state":        "open",
+		"package_id":            packageID,
+		"manifest_path":         "packages/client/package-lock.json",
+		"cve_ids":               []string{"CVE-2026-47139"},
+		"ghsa_ids":              []string{"GHSA-provider-0002"},
+	})
+	consumption := packageConsumptionCorrelationEnvelope(
+		"consume-provider-repo",
+		canonicalRepoID,
+		packageID,
+		"packages/client/package-lock.json",
+	)
+	consumption.Payload["repository_name"] = "api"
+	impact := supplyChainImpactFindingEnvelope(
+		"impact-provider-repo",
+		canonicalRepoID,
+		packageID,
+		"CVE-2026-47139",
+		"affected_exact",
+	)
+
+	decisions := BuildSecurityAlertReconciliations([]facts.Envelope{alert, consumption, impact})
+
+	if got, want := len(decisions), 1; got != want {
+		t.Fatalf("len(decisions) = %d, want %d", got, want)
+	}
+	decision := decisions[0]
+	if got, want := decision.Status, SecurityAlertReconciliationMatched; got != want {
+		t.Fatalf("Status = %q, want %q", got, want)
+	}
+	if got, want := decision.RepositoryID, canonicalRepoID; got != want {
+		t.Fatalf("RepositoryID = %q, want canonical repository id %q", got, want)
+	}
+	if got, want := decision.ProviderRepositoryID, providerRepoID; got != want {
+		t.Fatalf("ProviderRepositoryID = %q, want provider repository id %q", got, want)
+	}
+}
+
+func TestSecurityAlertReconciliationWriterUsesProviderAlertScopeForPackageTriggeredRepair(t *testing.T) {
+	t.Parallel()
+
+	write := SecurityAlertReconciliationWrite{
+		ScopeID:      "npm://registry.npmjs.org/serialize-javascript",
+		GenerationID: "package-generation-1",
+	}
+	decision := SecurityAlertReconciliationDecision{
+		Provider:                  "github_dependabot",
+		ProviderAlertNumber:       12,
+		ProviderAlertFactID:       "alert-12",
+		RepositoryID:              "repository:r_api",
+		ProviderRepositoryID:      "security-alert:github:acme/api",
+		ProviderAlertScopeID:      "security-alert:github:acme/api",
+		ProviderAlertGenerationID: "security-alert-generation-1",
+	}
+
+	identity := securityAlertReconciliationIdentity(write, decision)
+	if got, want := identity["scope_id"], "security-alert:github:acme/api"; got != want {
+		t.Fatalf("identity scope_id = %q, want provider alert scope %q", got, want)
+	}
+	if got, want := identity["generation_id"], "security-alert-generation-1"; got != want {
+		t.Fatalf("identity generation_id = %q, want provider alert generation %q", got, want)
+	}
+
+	payload := securityAlertReconciliationPayload(write, decision)
+	if got, want := payload["scope_id"], "security-alert:github:acme/api"; got != want {
+		t.Fatalf("payload scope_id = %q, want provider alert scope %q", got, want)
+	}
+	if got, want := payload["generation_id"], "security-alert-generation-1"; got != want {
+		t.Fatalf("payload generation_id = %q, want provider alert generation %q", got, want)
+	}
+}
+
+func TestSecurityAlertReconciliationDefersPackageTriggeredUnmatchedEvidence(t *testing.T) {
+	t.Parallel()
+
+	intent := Intent{
+		SourceSystem: "package_registry",
+		Cause:        "package registry identity observed",
+		AttemptCount: 1,
+	}
+	decisions := []SecurityAlertReconciliationDecision{{
+		Status:               SecurityAlertReconciliationUnmatched,
+		DependencyEvidenceID: "consume-1",
+	}}
+	if !shouldDeferPackageSecurityAlertReconciliation(intent, decisions) {
+		t.Fatal("shouldDeferPackageSecurityAlertReconciliation() = false, want true")
+	}
+
+	intent.AttemptCount = 3
+	if shouldDeferPackageSecurityAlertReconciliation(intent, decisions) {
+		t.Fatal("shouldDeferPackageSecurityAlertReconciliation() = true after bounded attempts, want false")
+	}
+
+	intent.AttemptCount = 1
+	intent.SourceSystem = "security_alert"
+	intent.Cause = "provider security alert evidence observed"
+	if shouldDeferPackageSecurityAlertReconciliation(intent, decisions) {
+		t.Fatal("shouldDeferPackageSecurityAlertReconciliation() = true for provider-triggered reconciliation, want false")
+	}
+}
+
+func TestBuildSecurityAlertReconciliationsFailsClosedForAmbiguousProviderRepositoryScope(t *testing.T) {
+	t.Parallel()
+
+	providerRepoID := "security-alert:github:acme/api"
+	packageID := "npm://registry.npmjs.org/fast-uri"
+	alert := securityAlertEnvelope("alert-provider-ambiguous", providerRepoID, map[string]any{
+		"provider":              "github_dependabot",
+		"provider_alert_number": int64(8),
+		"provider_state":        "open",
+		"package_id":            packageID,
+		"manifest_path":         "packages/client/package-lock.json",
+		"cve_ids":               []string{"CVE-2026-47139"},
+	})
+	firstConsumption := packageConsumptionCorrelationEnvelope(
+		"consume-provider-ambiguous-1",
+		"repository:r_api_1",
+		packageID,
+		"packages/client/package-lock.json",
+	)
+	firstConsumption.Payload["repository_name"] = "api"
+	secondConsumption := packageConsumptionCorrelationEnvelope(
+		"consume-provider-ambiguous-2",
+		"repository:r_api_2",
+		packageID,
+		"packages/client/package-lock.json",
+	)
+	secondConsumption.Payload["repository_name"] = "api"
+
+	decisions := BuildSecurityAlertReconciliations([]facts.Envelope{alert, firstConsumption, secondConsumption})
+
+	if got, want := len(decisions), 1; got != want {
+		t.Fatalf("len(decisions) = %d, want %d", got, want)
+	}
+	decision := decisions[0]
+	if got, want := decision.Status, SecurityAlertReconciliationProviderOnly; got != want {
+		t.Fatalf("Status = %q, want %q", got, want)
+	}
+	if !strings.Contains(decision.Reason, "ambiguous") {
+		t.Fatalf("Reason = %q, want ambiguous evidence reason", decision.Reason)
+	}
+	if got, want := decision.RepositoryID, providerRepoID; got != want {
+		t.Fatalf("RepositoryID = %q, want unresolved provider repository id %q", got, want)
 	}
 }
 

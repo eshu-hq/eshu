@@ -72,7 +72,7 @@ canonical-write or bounded counter-emission requirements.
 | `DomainServiceCatalogCorrelation` | Correlate service-catalog entities with explicit repository links and ownership evidence without inventing workloads |
 | `DomainSBOMAttestationAttachment` | Attach SBOM and attestation documents to image digests only when subject evidence is explicit |
 | `DomainSupplyChainImpact` | Publish vulnerability impact findings only when explicit vulnerability, package, SBOM, image, or repository evidence exists |
-| `DomainSecurityAlertReconciliation` | Compare provider repository security alerts with Eshu-owned dependency and impact evidence without treating provider state as impact truth |
+| `DomainSecurityAlertReconciliation` | Compare provider repository security alerts with Eshu-owned dependency and impact evidence, including alert-seeded impact rows only when owned dependency evidence matches |
 
 ## Intent lifecycle
 
@@ -315,13 +315,16 @@ Log phase attributes: `telemetry.PhaseReduction` (main loop),
   `package-lock.json` rows also preserve the ordered dependency path, depth, and
   direct/transitive flag so vulnerability impact can explain whether a finding
   came from a direct dependency or through an owned transitive chain.
-  Package-registry identity facts can bound active
-  vulnerability lookups, and the active evidence walk expands through package
-  IDs, PURLs, CVEs, SBOM document IDs, subject digests, and CPE criteria until
-  no new bounded join key appears. Package-registry version facts are upstream
-  metadata and must not be treated as installed versions. CVSS, EPSS, and KEV
-  stay risk signals; they never prove reachability without package or runtime
-  evidence, and missing deployment evidence remains visible.
+  Vulnerability-scoped impact runs also load active manifest dependency facts
+  by advisory ecosystem and package name, so exact source dependency evidence
+  can publish repository impact before package-registry enrichment catches up.
+  Package-registry identity facts can still bound active vulnerability lookups,
+  and the active evidence walk expands through package IDs, PURLs, CVEs, SBOM
+  document IDs, subject digests, repository IDs, and CPE criteria until no new
+  bounded join key appears. Package-registry version facts are upstream metadata
+  and must not be treated as installed versions. CVSS, EPSS, and KEV stay risk
+  signals; they never prove reachability without package or runtime evidence,
+  and missing deployment evidence remains visible.
 - **Go-vulnerability reachability is classified, not invented** —
   `ClassifyGoVulnerabilityReachability` joins `vulnerability.go_module_evidence`
   facts (parsed from repository `go.mod` and `go.sum`), Go ecosystem
@@ -461,14 +464,27 @@ Log phase attributes: `telemetry.PhaseReduction` (main loop),
   missing observed versions. The tier is persisted alongside the truth
   labels (status, confidence, runtime_reachability) and missing-evidence
   reasons; readers (API, MCP, parity gate) decide which tier they want.
-- **Provider alert reconciliation is comparison-only** —
+- **Provider alerts are dependency-gated before impact admission** —
+  `SupplyChainImpactHandler` can seed a `reducer_supply_chain_impact_finding`
+  from an open `security_alert.repository_alert` only when active owned
+  dependency evidence matches the same repository, package identity, and
+  manifest path. Provider-scoped repository IDs are preserved separately as
+  provider evidence and resolve to canonical Eshu `repository_id` values only
+  when owned dependency evidence proves one unambiguous repository match. The
+  finding preserves provider advisory IDs, vulnerable range, patched version,
+  severity, dependency path, manifest scope, and missing-evidence reasons.
+  Provider-only, stale, ambiguous, dismissed, and fixed alerts do not become
+  impact rows.
+- **Provider alert reconciliation stays explicit** —
   `SecurityAlertReconciliationHandler` writes
   `reducer_security_alert_reconciliation` facts from
   `security_alert.repository_alert`, package-consumption correlation, and
   supply-chain impact facts. It preserves provider alert state and Eshu impact
-  state in separate payload fields, classifies rows as matched, unmatched,
-  stale, dismissed, fixed, or provider-only, and does not emit
-  `reducer_supply_chain_impact_finding` facts.
+  state in separate payload fields, keeps raw `provider_repository_id`
+  separate from canonical `repository_id`, classifies rows as matched,
+  unmatched, stale, dismissed, fixed, or provider-only, and explains when a
+  provider alert was not admitted into impact truth because owned dependency
+  evidence was missing, stale, or ambiguous.
 - **Package ownership is conservative** —
   `PackageSourceCorrelationHandler` writes ownership candidates from registry
   source hints and package-version publication evidence but leaves
@@ -530,6 +546,14 @@ Observability Evidence: existing reducer queue conflict fields, fact-work retry 
 
 No-Regression Evidence: `go test ./internal/reducer -run 'TestSupplyChainCVEGroupRepresentative(UsesSourcePriority|SelectsByPriorityAndSkipsWithdrawn)|TestAdvisorySourcePriorityDoesNotAllocate' -count=1` failed on baseline `4b9128d` because the legacy product representative returned envelope order and `advisorySourcePriority` allocated four times per run; the same command passed after the change on Go 1.26.3. `go test ./internal/reducer -count=1` also passed with pure in-memory fixture envelopes, no graph backend, no reducer queue rows, and the existing provenance tests still producing one consolidated finding per CVE/package anchor.
 No-Observability-Change: the change only makes in-memory advisory-source selection deterministic and allocation-free inside existing reducer admission. It does not add a queue, graph write, Postgres query, runtime knob, or metric label; existing `SpanReducerRun`, `reducer_run_duration_seconds`, `reducer_executions_total`, reducer completion logs, and durable finding payloads remain the operator-visible signals for this path.
+
+No-Regression Evidence: `go test ./internal/reducer -run TestSupplyChainImpactHandlerUsesManifestDependencyBeforeRegistryCorrelation -count=1` failed before the impact handler loaded active manifest dependencies, then passed after the reducer consumed advisory-bounded npm lockfile evidence directly. `go test ./internal/reducer ./internal/storage/postgres ./internal/coordinator ./internal/workflow ./cmd/workflow-coordinator ./cmd/collector-package-registry ./cmd/collector-vulnerability-intelligence -count=1` also passed, proving the manifest-dependency read path remains bounded by the existing active dependency index and does not require package-registry completion before exact repository impact.
+No-Observability-Change: this uses the existing `ListActivePackageManifestDependencyFacts` Postgres read, reducer run span, reducer duration metric, reducer execution counter, durable evidence path, finding payload, and package-registry/vulnerability collector status rows. No new metric label or graph write path was added.
+
+Performance Evidence: `go test ./internal/reducer -run '^$' -bench BenchmarkAddManifestDependencySupplyChainConsumption -benchmem -count=3` on darwin/arm64 dropped manifest dependency matching from about `52.2 MB/op` and `922k allocs/op` to about `610 KB/op` and `7.3k allocs/op` after affected package match keys were flattened once per reducer execution and dependency keys were built once per manifest dependency.
+
+No-Regression Evidence: `go test ./internal/reducer -run 'TestBuildSecurityAlertReconciliations(FailsClosedForAmbiguousProviderRepositoryScope|ResolvesProviderAlertRepositoryScope)|TestBuildSupplyChainImpactFindings(SkipsAmbiguousProviderRepositoryScope|ResolvesProviderAlertRepositoryScope)' -count=1` failed before provider-alert repository scopes were resolved against canonical owned dependency evidence, then passed after raw provider repository IDs were preserved separately and ambiguous repository-name matches failed closed.
+No-Observability-Change: this is an in-memory reducer admission and payload-shape correction over facts already loaded through `ListActiveSupplyChainImpactFacts`; existing reducer run spans, reducer duration metrics, reducer execution counters, durable `reducer_security_alert_reconciliation` payloads, and `reducer_supply_chain_impact_finding` evidence paths remain the operator-visible signals.
 ## Related docs
 
 - `docs/public/architecture.md`

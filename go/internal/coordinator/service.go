@@ -329,7 +329,7 @@ func (s Service) schedulePackageRegistryWork(
 		if s.PackageRegistryPlanner == nil {
 			return fmt.Errorf("package registry planner is required for active package_registry collectors")
 		}
-		ownedTargets, err := s.packageRegistryOwnedTargets(ctx, instance)
+		ownedTargets, err := s.packageRegistryOwnedTargets(ctx, instance, observedAt)
 		if err != nil {
 			return fmt.Errorf("load package registry derived targets for %q: %w", instance.InstanceID, err)
 		}
@@ -355,6 +355,7 @@ func (s Service) schedulePackageRegistryWork(
 func (s Service) packageRegistryOwnedTargets(
 	ctx context.Context,
 	instance workflow.CollectorInstance,
+	observedAt time.Time,
 ) ([]workflow.OwnedPackageDependencyTarget, error) {
 	derivation, err := packageRegistryDerivationFromConfig(instance.Configuration)
 	if err != nil {
@@ -366,9 +367,11 @@ func (s Service) packageRegistryOwnedTargets(
 	if s.OwnedPackageTargetReader == nil {
 		return nil, fmt.Errorf("owned package target reader is required for derived package registry targets")
 	}
+	limit := derivationLimit(derivation.TargetLimit, defaultDerivedPackageTargets)
 	return s.OwnedPackageTargetReader.ListOwnedPackageDependencyTargets(ctx, workflow.OwnedPackageDependencyTargetFilter{
-		Ecosystems: sortedStringSetValues(derivationEcosystems(derivation.Ecosystems, []string{"npm"})),
-		Limit:      derivationLimit(derivation.TargetLimit, maxDerivedPackageTargets),
+		Ecosystems:     sortedStringSetValues(derivationEcosystems(derivation.Ecosystems, []string{"npm"})),
+		Limit:          limit,
+		RotationOffset: derivedTargetRotationOffset(observedAt, s.Config.ReconcileInterval, limit),
 	})
 }
 
@@ -408,7 +411,7 @@ func (s Service) scheduleVulnerabilityIntelligenceWork(
 		if s.VulnerabilityIntelligencePlanner == nil {
 			return fmt.Errorf("vulnerability intelligence planner is required for active vulnerability_intelligence collectors")
 		}
-		ownedTargets, err := s.vulnerabilityOwnedTargets(ctx, instance)
+		ownedTargets, err := s.vulnerabilityOwnedTargets(ctx, instance, observedAt)
 		if err != nil {
 			return fmt.Errorf("load vulnerability intelligence derived targets for %q: %w", instance.InstanceID, err)
 		}
@@ -434,6 +437,7 @@ func (s Service) scheduleVulnerabilityIntelligenceWork(
 func (s Service) vulnerabilityOwnedTargets(
 	ctx context.Context,
 	instance workflow.CollectorInstance,
+	observedAt time.Time,
 ) ([]workflow.OwnedPackageDependencyTarget, error) {
 	derivation, err := vulnerabilityDerivationFromConfig(instance.Configuration)
 	if err != nil {
@@ -445,9 +449,12 @@ func (s Service) vulnerabilityOwnedTargets(
 	if s.OwnedPackageTargetReader == nil {
 		return nil, fmt.Errorf("owned package target reader is required for derived vulnerability targets")
 	}
+	limit := derivationLimit(derivation.TargetLimit, defaultDerivedVulnerabilityTargets)
 	return s.OwnedPackageTargetReader.ListOwnedPackageDependencyTargets(ctx, workflow.OwnedPackageDependencyTargetFilter{
-		Ecosystems: sortedStringSetValues(derivationEcosystems(derivation.Ecosystems, []string{"npm"})),
-		Limit:      derivationLimit(derivation.TargetLimit, maxDerivedVulnerabilityTargets),
+		Ecosystems:      sortedStringSetValues(derivationEcosystems(derivation.Ecosystems, []string{"npm"})),
+		Limit:           limit,
+		VersionSpecific: true,
+		RotationOffset:  derivedTargetRotationOffset(observedAt, s.Config.ReconcileInterval, limit),
 	})
 }
 

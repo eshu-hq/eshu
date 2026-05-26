@@ -171,6 +171,24 @@ constructor with `InstrumentedDB{Inner: db, StoreName: "my_store", ...}`.
   `source_run_id` so new accepted runs can detect prior graph state;
   `HasCompletedAcceptanceUnitSourceRunDomainIntents` includes `source_run_id`
   so chunked code-call projection can skip only same-run retractions.
+- `ListOwnedPackageDependencyTargets` serves workflow-coordinator derivation.
+  Package-registry callers use package-level identities so repeated versions of
+  one package cannot starve later packages. Vulnerability-intelligence callers
+  use package-version identities. The rotation offset lets bounded full-corpus
+  runs advance past the first sorted page without changing worker counts or
+  query scope.
+- `ListActivePackageManifestDependencyFacts` serves both package-source
+  correlation and supply-chain impact. The query stays indexed on active Git
+  dependency entities by `(package_manager, entity_name)`, so vulnerability
+  impact can load repository lockfile evidence for one advisory package without
+  waiting for package-registry enrichment to finish.
+- `ListActiveSupplyChainImpactFacts` includes provider security alerts in the
+  same package/repository-bounded read used for vulnerability, package, SBOM,
+  image, and service evidence. This lets alert-seeded impact admission reuse
+  active owned dependency evidence without scanning all repository alerts.
+  Reducer reconciliation keeps provider-scoped repository IDs separate from
+  canonical `repository_id` values, so Postgres fact payloads should preserve
+  both when the source uses a provider-owned repository namespace.
 - The NornicDB semantic gate in `ReducerQueue.Claim` is gated on a boolean
   parameter and must not be removed without an ADR; it prevents
   `semantic_entity_materialization` storms on NornicDB label indexes.
@@ -217,6 +235,19 @@ No-Observability-Change: existing `workflow_work_items.last_failure_class`,
 `workflow_claims.failure_class`, fenced mutation errors, collector logs, and
 `/api/v0/index-status` continue to expose terminal workflow failures and active
 claim counts; no new telemetry dimension was required.
+
+No-Regression Evidence: owned dependency target selection is covered by
+`go test ./internal/storage/postgres -run 'TestListOwnedPackageDependencyTargetsQuery|TestOwnedPackageDependencyTargetLimit' -count=1`.
+The query remains scoped to active Git dependency facts, adds package-level
+selection for package-registry derivation, keeps package-version selection for
+vulnerability derivation, and rotates bounded reads by caller-provided offset.
+
+No-Observability-Change: existing Postgres query-duration telemetry,
+workflow-run `requested_scope_set`, workflow work-item status rows, collector
+claim status, and `/api/v0/index-status` expose whether derived targets were
+planned, repeated, completed, retried, or failed. The target reader adds no new
+metric labels and does not include package names or versions in telemetry
+labels.
 
 ## Related docs
 

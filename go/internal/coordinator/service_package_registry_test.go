@@ -124,7 +124,7 @@ func TestServiceRunActiveModePassesOwnedPackageEvidenceToPackageRegistryPlanner(
 		RepositoryID: "repo-eshu",
 	}}}
 	instance := testServicePackageRegistryInstance(now)
-	instance.Configuration = `{"derive_from_owned_packages":{"enabled":true,"ecosystems":["npm"],"target_limit":10}}`
+	instance.Configuration = `{"derive_from_owned_packages":{"enabled":true,"ecosystems":["npm"],"target_limit":125}}`
 	service := Service{
 		Config: Config{
 			DeploymentMode:           deploymentModeActive,
@@ -161,6 +161,15 @@ func TestServiceRunActiveModePassesOwnedPackageEvidenceToPackageRegistryPlanner(
 	}
 	if got, want := targetReader.requests[0].Ecosystems, []string{"npm"}; len(got) != len(want) || got[0] != want[0] {
 		t.Fatalf("target reader ecosystems = %#v, want %#v", got, want)
+	}
+	if got, want := targetReader.requests[0].Limit, 125; got != want {
+		t.Fatalf("target reader limit = %d, want %d", got, want)
+	}
+	if targetReader.requests[0].VersionSpecific {
+		t.Fatalf("package-registry target reader requested version-specific rows")
+	}
+	if got, want := targetReader.requests[0].RotationOffset, derivedTargetRotationOffset(now, time.Hour, 125); got != want {
+		t.Fatalf("target reader rotation offset = %d, want %d", got, want)
 	}
 	if got, want := len(planner.requests[0].OwnedPackageTargets), 1; got != want {
 		t.Fatalf("planner owned targets = %d, want %d", got, want)

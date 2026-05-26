@@ -192,8 +192,10 @@ type OwnedPackageDependencyTarget struct {
 
 // OwnedPackageDependencyTargetFilter bounds active dependency target reads.
 type OwnedPackageDependencyTargetFilter struct {
-	Ecosystems []string
-	Limit      int
+	Ecosystems      []string
+	Limit           int
+	VersionSpecific bool
+	RotationOffset  int64
 }
 
 // Validate checks that the work item has durable identity and lifecycle shape.

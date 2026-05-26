@@ -59,6 +59,8 @@ func (w PostgresSecurityAlertReconciliationWriter) WriteSecurityAlertReconciliat
 	}
 	now := reducerWriterNow(w.Now)
 	for _, decision := range write.Decisions {
+		scopeID := securityAlertReconciliationWriteScopeID(write, decision)
+		generationID := securityAlertReconciliationWriteGenerationID(write, decision)
 		payload := securityAlertReconciliationPayload(write, decision)
 		payloadJSON, err := json.Marshal(payload)
 		if err != nil {
@@ -68,8 +70,8 @@ func (w PostgresSecurityAlertReconciliationWriter) WriteSecurityAlertReconciliat
 			ctx,
 			canonicalReducerFactInsertQuery,
 			securityAlertReconciliationFactID(write, decision),
-			write.ScopeID,
-			write.GenerationID,
+			scopeID,
+			generationID,
 			securityAlertReconciliationFactKind,
 			securityAlertReconciliationStableFactKey(write, decision),
 			reducerFactCollectorKind(write.SourceSystem),
@@ -124,13 +126,16 @@ func securityAlertReconciliationIdentity(
 	write SecurityAlertReconciliationWrite,
 	decision SecurityAlertReconciliationDecision,
 ) map[string]any {
+	scopeID := securityAlertReconciliationWriteScopeID(write, decision)
+	generationID := securityAlertReconciliationWriteGenerationID(write, decision)
 	return map[string]any{
-		"generation_id":          strings.TrimSpace(write.GenerationID),
+		"generation_id":          generationID,
 		"provider":               strings.TrimSpace(decision.Provider),
 		"provider_alert_number":  decision.ProviderAlertNumber,
 		"provider_alert_fact_id": strings.TrimSpace(decision.ProviderAlertFactID),
 		"repository_id":          strings.TrimSpace(decision.RepositoryID),
-		"scope_id":               strings.TrimSpace(write.ScopeID),
+		"provider_repository_id": strings.TrimSpace(decision.ProviderRepositoryID),
+		"scope_id":               scopeID,
 	}
 }
 
@@ -138,11 +143,13 @@ func securityAlertReconciliationPayload(
 	write SecurityAlertReconciliationWrite,
 	decision SecurityAlertReconciliationDecision,
 ) map[string]any {
+	scopeID := securityAlertReconciliationWriteScopeID(write, decision)
+	generationID := securityAlertReconciliationWriteGenerationID(write, decision)
 	return map[string]any{
 		"reducer_domain":         string(DomainSecurityAlertReconciliation),
 		"intent_id":              write.IntentID,
-		"scope_id":               write.ScopeID,
-		"generation_id":          write.GenerationID,
+		"scope_id":               scopeID,
+		"generation_id":          generationID,
 		"source_system":          write.SourceSystem,
 		"cause":                  write.Cause,
 		"provider":               decision.Provider,
@@ -151,6 +158,8 @@ func securityAlertReconciliationPayload(
 		"provider_alert_fact_id": decision.ProviderAlertFactID,
 		"provider_state":         decision.ProviderState,
 		"repository_id":          decision.RepositoryID,
+		"provider_repository_id": decision.ProviderRepositoryID,
+		"repository_name":        decision.RepositoryName,
 		"package_id":             decision.PackageID,
 		"ecosystem":              decision.Ecosystem,
 		"package_name":           decision.PackageName,
@@ -185,4 +194,24 @@ func securityAlertReconciliationPayload(
 			string(truth.LayerObservedResource),
 		},
 	}
+}
+
+func securityAlertReconciliationWriteScopeID(
+	write SecurityAlertReconciliationWrite,
+	decision SecurityAlertReconciliationDecision,
+) string {
+	if scopeID := strings.TrimSpace(decision.ProviderAlertScopeID); scopeID != "" {
+		return scopeID
+	}
+	return strings.TrimSpace(write.ScopeID)
+}
+
+func securityAlertReconciliationWriteGenerationID(
+	write SecurityAlertReconciliationWrite,
+	decision SecurityAlertReconciliationDecision,
+) string {
+	if generationID := strings.TrimSpace(decision.ProviderAlertGenerationID); generationID != "" {
+		return generationID
+	}
+	return strings.TrimSpace(write.GenerationID)
 }

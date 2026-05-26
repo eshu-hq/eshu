@@ -1,9 +1,7 @@
 package reducer
 
 import (
-	"fmt"
 	"sort"
-	"strconv"
 	"strings"
 	"time"
 
@@ -38,40 +36,44 @@ const (
 // SecurityAlertReconciliationDecision is one reducer-owned comparison between
 // a provider-reported repository alert and Eshu-owned evidence.
 type SecurityAlertReconciliationDecision struct {
-	ProviderAlertFactID  string
-	Provider             string
-	ProviderAlertID      string
-	ProviderAlertNumber  int64
-	ProviderState        string
-	RepositoryID         string
-	PackageID            string
-	Ecosystem            string
-	PackageName          string
-	ManifestPath         string
-	DependencyScope      string
-	Relationship         string
-	GHSAIDs              []string
-	CVEIDs               []string
-	VulnerableRange      string
-	PatchedVersion       string
-	Severity             string
-	CVSS                 map[string]any
-	EPSS                 map[string]string
-	CWEs                 []map[string]string
-	Summary              string
-	SourceURL            string
-	CreatedAt            string
-	UpdatedAt            string
-	FixedAt              string
-	DismissedAt          string
-	Status               SecurityAlertReconciliationStatus
-	EshuImpactStatus     string
-	EshuImpactFindingID  string
-	Reason               string
-	CanonicalWrites      int
-	EvidenceFactIDs      []string
-	DependencyEvidenceID string
-	ImpactEvidenceID     string
+	ProviderAlertFactID       string
+	ProviderAlertScopeID      string
+	ProviderAlertGenerationID string
+	Provider                  string
+	ProviderAlertID           string
+	ProviderAlertNumber       int64
+	ProviderState             string
+	RepositoryID              string
+	ProviderRepositoryID      string
+	RepositoryName            string
+	PackageID                 string
+	Ecosystem                 string
+	PackageName               string
+	ManifestPath              string
+	DependencyScope           string
+	Relationship              string
+	GHSAIDs                   []string
+	CVEIDs                    []string
+	VulnerableRange           string
+	PatchedVersion            string
+	Severity                  string
+	CVSS                      map[string]any
+	EPSS                      map[string]string
+	CWEs                      []map[string]string
+	Summary                   string
+	SourceURL                 string
+	CreatedAt                 string
+	UpdatedAt                 string
+	FixedAt                   string
+	DismissedAt               string
+	Status                    SecurityAlertReconciliationStatus
+	EshuImpactStatus          string
+	EshuImpactFindingID       string
+	Reason                    string
+	CanonicalWrites           int
+	EvidenceFactIDs           []string
+	DependencyEvidenceID      string
+	ImpactEvidenceID          string
 }
 
 type providerSecurityAlert struct {
@@ -80,11 +82,17 @@ type providerSecurityAlert struct {
 }
 
 type securityAlertConsumption struct {
-	factID       string
-	repositoryID string
-	packageID    string
-	relativePath string
-	observedAt   time.Time
+	factID           string
+	repositoryID     string
+	repositoryName   string
+	packageID        string
+	relativePath     string
+	observedAt       time.Time
+	dependencyRange  string
+	dependencyPath   []string
+	dependencyDepth  int
+	directDependency *bool
+	dependencyScope  string
 }
 
 type securityAlertImpact struct {
@@ -126,37 +134,45 @@ func extractProviderSecurityAlerts(envelopes []facts.Envelope) []providerSecurit
 		if envelope.FactKind != facts.SecurityAlertRepositoryAlertFactKind {
 			continue
 		}
+		providerRepositoryID := payloadStr(envelope.Payload, "repository_id")
 		updatedAt := payloadStr(envelope.Payload, "updated_at")
 		alerts = append(alerts, providerSecurityAlert{
 			SecurityAlertReconciliationDecision: SecurityAlertReconciliationDecision{
-				ProviderAlertFactID: envelope.FactID,
-				Provider:            payloadStr(envelope.Payload, "provider"),
-				ProviderAlertID:     payloadStr(envelope.Payload, "provider_alert_id"),
-				ProviderAlertNumber: securityAlertInt64(envelope.Payload, "provider_alert_number"),
-				ProviderState:       strings.ToLower(payloadStr(envelope.Payload, "provider_state")),
-				RepositoryID:        payloadStr(envelope.Payload, "repository_id"),
-				PackageID:           payloadStr(envelope.Payload, "package_id"),
-				Ecosystem:           payloadStr(envelope.Payload, "ecosystem"),
-				PackageName:         payloadStr(envelope.Payload, "package_name"),
-				ManifestPath:        payloadStr(envelope.Payload, "manifest_path"),
-				DependencyScope:     payloadStr(envelope.Payload, "dependency_scope"),
-				Relationship:        payloadStr(envelope.Payload, "relationship"),
-				GHSAIDs:             payloadStrings(envelope.Payload, "ghsa_id", "ghsa_ids"),
-				CVEIDs:              payloadStrings(envelope.Payload, "cve_id", "cve_ids"),
-				VulnerableRange:     payloadStr(envelope.Payload, "vulnerable_range"),
-				PatchedVersion:      payloadStr(envelope.Payload, "patched_version"),
-				Severity:            payloadStr(envelope.Payload, "severity"),
-				CVSS:                securityAlertMap(envelope.Payload, "cvss"),
-				EPSS:                securityAlertStringMap(envelope.Payload, "epss"),
-				CWEs:                securityAlertStringMapSlice(envelope.Payload, "cwes"),
-				Summary:             payloadStr(envelope.Payload, "summary"),
-				SourceURL:           payloadStr(envelope.Payload, "source_url"),
-				CreatedAt:           payloadStr(envelope.Payload, "created_at"),
-				UpdatedAt:           updatedAt,
-				FixedAt:             payloadStr(envelope.Payload, "fixed_at"),
-				DismissedAt:         payloadStr(envelope.Payload, "dismissed_at"),
-				CanonicalWrites:     0,
-				EvidenceFactIDs:     compactStringSlice(envelope.FactID),
+				ProviderAlertFactID:       envelope.FactID,
+				ProviderAlertScopeID:      envelope.ScopeID,
+				ProviderAlertGenerationID: envelope.GenerationID,
+				Provider:                  payloadStr(envelope.Payload, "provider"),
+				ProviderAlertID:           payloadStr(envelope.Payload, "provider_alert_id"),
+				ProviderAlertNumber:       securityAlertInt64(envelope.Payload, "provider_alert_number"),
+				ProviderState:             strings.ToLower(payloadStr(envelope.Payload, "provider_state")),
+				RepositoryID:              providerRepositoryID,
+				ProviderRepositoryID:      providerRepositoryID,
+				RepositoryName: firstNonBlank(
+					payloadStr(envelope.Payload, "repository_name"),
+					securityAlertRepositoryNameFromID(providerRepositoryID),
+				),
+				PackageID:       payloadStr(envelope.Payload, "package_id"),
+				Ecosystem:       payloadStr(envelope.Payload, "ecosystem"),
+				PackageName:     payloadStr(envelope.Payload, "package_name"),
+				ManifestPath:    payloadStr(envelope.Payload, "manifest_path"),
+				DependencyScope: payloadStr(envelope.Payload, "dependency_scope"),
+				Relationship:    payloadStr(envelope.Payload, "relationship"),
+				GHSAIDs:         payloadStrings(envelope.Payload, "ghsa_id", "ghsa_ids"),
+				CVEIDs:          payloadStrings(envelope.Payload, "cve_id", "cve_ids"),
+				VulnerableRange: payloadStr(envelope.Payload, "vulnerable_range"),
+				PatchedVersion:  payloadStr(envelope.Payload, "patched_version"),
+				Severity:        payloadStr(envelope.Payload, "severity"),
+				CVSS:            securityAlertMap(envelope.Payload, "cvss"),
+				EPSS:            securityAlertStringMap(envelope.Payload, "epss"),
+				CWEs:            securityAlertStringMapSlice(envelope.Payload, "cwes"),
+				Summary:         payloadStr(envelope.Payload, "summary"),
+				SourceURL:       payloadStr(envelope.Payload, "source_url"),
+				CreatedAt:       payloadStr(envelope.Payload, "created_at"),
+				UpdatedAt:       updatedAt,
+				FixedAt:         payloadStr(envelope.Payload, "fixed_at"),
+				DismissedAt:     payloadStr(envelope.Payload, "dismissed_at"),
+				CanonicalWrites: 0,
+				EvidenceFactIDs: compactStringSlice(envelope.FactID),
 			},
 			updatedAtTime: parseSecurityAlertTime(updatedAt),
 		})
@@ -171,11 +187,17 @@ func extractSecurityAlertConsumptions(envelopes []facts.Envelope) []securityAler
 			continue
 		}
 		consumptions = append(consumptions, securityAlertConsumption{
-			factID:       envelope.FactID,
-			repositoryID: payloadStr(envelope.Payload, "repository_id"),
-			packageID:    payloadStr(envelope.Payload, "package_id"),
-			relativePath: payloadStr(envelope.Payload, "relative_path"),
-			observedAt:   envelope.ObservedAt,
+			factID:           envelope.FactID,
+			repositoryID:     payloadStr(envelope.Payload, "repository_id"),
+			repositoryName:   payloadStr(envelope.Payload, "repository_name"),
+			packageID:        payloadStr(envelope.Payload, "package_id"),
+			relativePath:     payloadStr(envelope.Payload, "relative_path"),
+			observedAt:       envelope.ObservedAt,
+			dependencyRange:  payloadStr(envelope.Payload, "dependency_range"),
+			dependencyPath:   payloadOrderedStrings(envelope.Payload, "dependency_path"),
+			dependencyDepth:  supplyChainInt(envelope.Payload, "dependency_depth"),
+			directDependency: payloadBoolPointer(envelope.Payload, "direct_dependency"),
+			dependencyScope:  supplyChainDependencyScope(envelope.Payload),
 		})
 	}
 	return consumptions
@@ -216,9 +238,16 @@ func classifyProviderSecurityAlert(
 		return decision
 	}
 
-	exactConsumption, staleConsumption := matchSecurityAlertConsumption(alert, consumptions)
+	exactConsumption, staleConsumption, ambiguousConsumption := matchSecurityAlertConsumption(alert, consumptions)
 	if exactConsumption.factID == "" {
+		if ambiguousConsumption {
+			decision.Status = SecurityAlertReconciliationProviderOnly
+			decision.Reason = "provider alert repository scope is ambiguous across owned dependency evidence"
+			return decision
+		}
 		if staleConsumption.factID != "" {
+			decision.RepositoryID = staleConsumption.repositoryID
+			decision.RepositoryName = firstNonBlank(staleConsumption.repositoryName, decision.RepositoryName)
 			decision.Status = SecurityAlertReconciliationStale
 			decision.DependencyEvidenceID = staleConsumption.factID
 			decision.EvidenceFactIDs = uniqueSortedStrings(append(decision.EvidenceFactIDs, staleConsumption.factID))
@@ -229,9 +258,12 @@ func classifyProviderSecurityAlert(
 		decision.Reason = "provider alert has no matching owned dependency evidence"
 		return decision
 	}
+	decision.RepositoryID = exactConsumption.repositoryID
+	decision.RepositoryName = firstNonBlank(exactConsumption.repositoryName, decision.RepositoryName)
 	decision.DependencyEvidenceID = exactConsumption.factID
 	decision.EvidenceFactIDs = uniqueSortedStrings(append(decision.EvidenceFactIDs, exactConsumption.factID))
 
+	alert.RepositoryID = exactConsumption.repositoryID
 	impact := matchSecurityAlertImpact(alert, impacts)
 	if impact.factID == "" {
 		decision.Status = SecurityAlertReconciliationUnmatched
@@ -250,22 +282,54 @@ func classifyProviderSecurityAlert(
 func matchSecurityAlertConsumption(
 	alert providerSecurityAlert,
 	consumptions []securityAlertConsumption,
-) (securityAlertConsumption, securityAlertConsumption) {
-	var stale securityAlertConsumption
+) (securityAlertConsumption, securityAlertConsumption, bool) {
+	var exactCandidates []securityAlertConsumption
+	var staleCandidates []securityAlertConsumption
 	for _, consumption := range consumptions {
-		if consumption.repositoryID != alert.RepositoryID || consumption.packageID != alert.PackageID {
+		if !securityAlertRepositoryScopeMatches(alert, consumption) || consumption.packageID != alert.PackageID {
 			continue
 		}
 		if alert.ManifestPath == "" || consumption.relativePath == alert.ManifestPath {
-			return consumption, securityAlertConsumption{}
+			exactCandidates = append(exactCandidates, consumption)
+			continue
 		}
-		if !alert.updatedAtTime.IsZero() &&
-			consumption.observedAt.After(alert.updatedAtTime) &&
-			securityAlertConsumptionIsNewerStaleCandidate(consumption, stale) {
-			stale = consumption
+		if !alert.updatedAtTime.IsZero() && consumption.observedAt.After(alert.updatedAtTime) {
+			staleCandidates = append(staleCandidates, consumption)
 		}
 	}
-	return securityAlertConsumption{}, stale
+	exact, exactAmbiguous := selectSecurityAlertConsumption(exactCandidates)
+	stale, staleAmbiguous := selectSecurityAlertConsumption(staleCandidates)
+	return exact, stale, exactAmbiguous || (exact.factID == "" && staleAmbiguous)
+}
+
+func securityAlertRepositoryScopeMatches(
+	alert providerSecurityAlert,
+	consumption securityAlertConsumption,
+) bool {
+	alertRepositoryID := strings.TrimSpace(alert.RepositoryID)
+	consumptionRepositoryID := strings.TrimSpace(consumption.repositoryID)
+	if alertRepositoryID != "" && consumptionRepositoryID != "" && alertRepositoryID == consumptionRepositoryID {
+		return true
+	}
+	alertRepositoryName := normalizeSecurityAlertRepositoryName(alert.RepositoryName)
+	consumptionRepositoryName := normalizeSecurityAlertRepositoryName(consumption.repositoryName)
+	return alertRepositoryName != "" && alertRepositoryName == consumptionRepositoryName
+}
+
+func selectSecurityAlertConsumption(candidates []securityAlertConsumption) (securityAlertConsumption, bool) {
+	if len(candidates) == 0 {
+		return securityAlertConsumption{}, false
+	}
+	selected := candidates[0]
+	for _, candidate := range candidates[1:] {
+		if candidate.repositoryID != selected.repositoryID {
+			return securityAlertConsumption{}, true
+		}
+		if securityAlertConsumptionIsNewerStaleCandidate(candidate, selected) {
+			selected = candidate
+		}
+	}
+	return selected, false
 }
 
 func securityAlertConsumptionIsNewerStaleCandidate(
@@ -282,6 +346,21 @@ func securityAlertConsumptionIsNewerStaleCandidate(
 		return candidate.factID < current.factID
 	}
 	return false
+}
+
+func normalizeSecurityAlertRepositoryName(value string) string {
+	return strings.ToLower(strings.TrimSpace(value))
+}
+
+func securityAlertRepositoryNameFromID(repositoryID string) string {
+	trimmed := strings.TrimSpace(repositoryID)
+	if trimmed == "" {
+		return ""
+	}
+	if slash := strings.LastIndex(trimmed, "/"); slash >= 0 && slash+1 < len(trimmed) {
+		return strings.TrimSpace(trimmed[slash+1:])
+	}
+	return ""
 }
 
 func matchSecurityAlertImpact(alert providerSecurityAlert, impacts []securityAlertImpact) securityAlertImpact {
@@ -308,122 +387,4 @@ func securityAlertIDMatches(values []string, want string) bool {
 		}
 	}
 	return false
-}
-
-func parseSecurityAlertTime(raw string) time.Time {
-	if raw == "" {
-		return time.Time{}
-	}
-	parsed, err := time.Parse(time.RFC3339, raw)
-	if err != nil {
-		return time.Time{}
-	}
-	return parsed
-}
-
-func securityAlertInt64(payload map[string]any, key string) int64 {
-	raw := strings.TrimSpace(fmt.Sprint(payload[key]))
-	if raw == "" || raw == "<nil>" {
-		return 0
-	}
-	value, _ := strconv.ParseInt(raw, 10, 64)
-	return value
-}
-
-func securityAlertMap(payload map[string]any, key string) map[string]any {
-	raw, ok := payload[key].(map[string]any)
-	if !ok || len(raw) == 0 {
-		return nil
-	}
-	out := make(map[string]any, len(raw))
-	for key, value := range raw {
-		if strings.TrimSpace(key) == "" || value == nil {
-			continue
-		}
-		out[key] = value
-	}
-	if len(out) == 0 {
-		return nil
-	}
-	return out
-}
-
-func securityAlertStringMap(payload map[string]any, key string) map[string]string {
-	raw, ok := payload[key].(map[string]string)
-	if ok {
-		return cloneSecurityAlertStringMap(raw)
-	}
-	anyMap, ok := payload[key].(map[string]any)
-	if !ok || len(anyMap) == 0 {
-		return nil
-	}
-	out := make(map[string]string, len(anyMap))
-	for key, value := range anyMap {
-		text := strings.TrimSpace(fmt.Sprint(value))
-		if strings.TrimSpace(key) != "" && text != "" && text != "<nil>" {
-			out[key] = text
-		}
-	}
-	if len(out) == 0 {
-		return nil
-	}
-	return out
-}
-
-func cloneSecurityAlertStringMap(in map[string]string) map[string]string {
-	if len(in) == 0 {
-		return nil
-	}
-	out := make(map[string]string, len(in))
-	for key, value := range in {
-		key = strings.TrimSpace(key)
-		value = strings.TrimSpace(value)
-		if key != "" && value != "" {
-			out[key] = value
-		}
-	}
-	if len(out) == 0 {
-		return nil
-	}
-	return out
-}
-
-func securityAlertStringMapSlice(payload map[string]any, key string) []map[string]string {
-	switch raw := payload[key].(type) {
-	case []map[string]string:
-		out := make([]map[string]string, 0, len(raw))
-		for _, item := range raw {
-			if cloned := cloneSecurityAlertStringMap(item); len(cloned) > 0 {
-				out = append(out, cloned)
-			}
-		}
-		if len(out) == 0 {
-			return nil
-		}
-		return out
-	case []any:
-		out := make([]map[string]string, 0, len(raw))
-		for _, item := range raw {
-			row, ok := item.(map[string]any)
-			if !ok {
-				continue
-			}
-			converted := make(map[string]string, len(row))
-			for key, value := range row {
-				text := strings.TrimSpace(fmt.Sprint(value))
-				if strings.TrimSpace(key) != "" && text != "" && text != "<nil>" {
-					converted[key] = text
-				}
-			}
-			if len(converted) > 0 {
-				out = append(out, converted)
-			}
-		}
-		if len(out) == 0 {
-			return nil
-		}
-		return out
-	default:
-		return nil
-	}
 }

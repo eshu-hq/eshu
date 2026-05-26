@@ -16,6 +16,7 @@ func TestListActiveSupplyChainImpactFactsQueryIsPackageBoundedAndPaged(t *testin
 		"'vulnerability.cve'",
 		"'vulnerability.affected_package'",
 		"'vulnerability.affected_product'",
+		"'security_alert.repository_alert'",
 		"'reducer_ci_cd_run_correlation'",
 		"'reducer_service_catalog_correlation'",
 		"fact.payload->>'package_id' = ANY($1::text[])",
@@ -58,6 +59,25 @@ func TestListActiveSupplyChainImpactFactsQueryIncludesVulnerabilitySuppression(t
 	}
 }
 
+func TestListActiveSupplyChainImpactFactsQueryBoundsRepositoryFollowUp(t *testing.T) {
+	t.Parallel()
+
+	for _, want := range []string{
+		"OR (\n          fact.fact_kind IN (",
+		"'vulnerability.suppression',\n              'reducer_container_image_identity'",
+		"'reducer_ci_cd_run_correlation',\n              'reducer_service_catalog_correlation'",
+		"fact.payload->>'repository_id' = ANY($7::text[])",
+		"fact.payload->'scope'->>'repository_id' = ANY($7::text[])",
+	} {
+		if !strings.Contains(listActiveSupplyChainImpactFactsQuery, want) {
+			t.Fatalf("listActiveSupplyChainImpactFactsQuery missing %q:\n%s", want, listActiveSupplyChainImpactFactsQuery)
+		}
+	}
+	if strings.Contains(listActiveSupplyChainImpactFactsQuery, "OR fact.payload->>'repository_id' = ANY($7::text[])") {
+		t.Fatalf("repository_id follow-up must be fact-kind gated:\n%s", listActiveSupplyChainImpactFactsQuery)
+	}
+}
+
 func TestListActiveSecurityAlertReconciliationFactsQueryIsScopedAndPaged(t *testing.T) {
 	t.Parallel()
 
@@ -66,6 +86,7 @@ func TestListActiveSecurityAlertReconciliationFactsQueryIsScopedAndPaged(t *test
 		"generation.status = 'active'",
 		"fact.is_tombstone = FALSE",
 		"fact.fact_kind IN (",
+		"'security_alert.repository_alert'",
 		"'reducer_package_consumption_correlation'",
 		"'reducer_supply_chain_impact_finding'",
 		"fact.payload->>'repository_id' = ANY($1::text[])",

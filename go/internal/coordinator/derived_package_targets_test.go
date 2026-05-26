@@ -3,6 +3,9 @@ package coordinator
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"net/url"
+	"strings"
 	"testing"
 	"time"
 
@@ -89,6 +92,56 @@ func TestPackageRegistryWorkPlannerDerivesNPMTargetsFromOwnedPackageEvidence(t *
 	}
 }
 
+func TestPackageRegistryWorkPlannerHonorsFullCorpusDerivedTargetLimit(t *testing.T) {
+	t.Parallel()
+
+	observedAt := time.Date(2026, time.May, 26, 13, 0, 0, 0, time.UTC)
+	instance := workflow.CollectorInstance{
+		InstanceID:     "collector-package-registry",
+		CollectorKind:  scope.CollectorPackageRegistry,
+		Mode:           workflow.CollectorModeContinuous,
+		Enabled:        true,
+		ClaimsEnabled:  true,
+		Configuration:  `{"derive_from_owned_packages":{"enabled":true,"ecosystems":["npm"],"target_limit":125,"version_limit":50}}`,
+		LastObservedAt: observedAt,
+		CreatedAt:      observedAt,
+		UpdatedAt:      observedAt,
+	}
+	owned := make([]workflow.OwnedPackageDependencyTarget, 0, 125)
+	for i := 0; i < 124; i++ {
+		owned = append(owned, workflow.OwnedPackageDependencyTarget{
+			Ecosystem:    "npm",
+			PackageName:  fmt.Sprintf("pkg-%03d", i),
+			Version:      "1.0.0",
+			Lockfile:     true,
+			RepositoryID: "repo-large",
+		})
+	}
+	owned = append(owned, workflow.OwnedPackageDependencyTarget{
+		Ecosystem:    "npm",
+		PackageName:  "zz-after-one-hundred",
+		Version:      "1.0.0",
+		Lockfile:     true,
+		RepositoryID: "repo-large",
+	})
+
+	_, items, err := PackageRegistryWorkPlanner{}.PlanPackageRegistryWork(context.Background(), PackageRegistryPlanRequest{
+		Instance:            instance,
+		ObservedAt:          observedAt,
+		PlanKey:             "continuous-20260526T130000Z",
+		OwnedPackageTargets: owned,
+	})
+	if err != nil {
+		t.Fatalf("PlanPackageRegistryWork() error = %v, want nil", err)
+	}
+	if got, want := len(items), 125; got != want {
+		t.Fatalf("len(items) = %d, want %d", got, want)
+	}
+	if !workItemsContainScope(items, "npm://registry.npmjs.org/zz-after-one-hundred") {
+		t.Fatalf("derived package-registry targets did not include package after the historical 100-target cap")
+	}
+}
+
 func TestVulnerabilityIntelligenceWorkPlannerDerivesOSVTargetsForExactOwnedVersions(t *testing.T) {
 	t.Parallel()
 
@@ -155,6 +208,121 @@ func TestVulnerabilityIntelligenceWorkPlannerDerivesOSVTargetsForExactOwnedVersi
 	}
 }
 
+func TestVulnerabilityIntelligenceWorkPlannerHonorsFullCorpusDerivedTargetLimit(t *testing.T) {
+	t.Parallel()
+
+	observedAt := time.Date(2026, time.May, 26, 13, 15, 0, 0, time.UTC)
+	instance := workflow.CollectorInstance{
+		InstanceID:     "collector-vulnerability-intelligence",
+		CollectorKind:  scope.CollectorVulnerabilityIntelligence,
+		Mode:           workflow.CollectorModeContinuous,
+		Enabled:        true,
+		ClaimsEnabled:  true,
+		Configuration:  `{"derive_from_owned_packages":{"enabled":true,"sources":["osv"],"ecosystems":["npm"],"target_limit":125}}`,
+		LastObservedAt: observedAt,
+		CreatedAt:      observedAt,
+		UpdatedAt:      observedAt,
+	}
+	owned := make([]workflow.OwnedPackageDependencyTarget, 0, 125)
+	for i := 0; i < 124; i++ {
+		owned = append(owned, workflow.OwnedPackageDependencyTarget{
+			Ecosystem:    "npm",
+			PackageName:  fmt.Sprintf("pkg-%03d", i),
+			Version:      fmt.Sprintf("1.0.%d", i),
+			Lockfile:     true,
+			RepositoryID: "repo-large",
+		})
+	}
+	owned = append(owned, workflow.OwnedPackageDependencyTarget{
+		Ecosystem:    "npm",
+		PackageName:  "zz-after-one-hundred",
+		Version:      "1.0.124",
+		Lockfile:     true,
+		RepositoryID: "repo-large",
+	})
+
+	_, items, err := VulnerabilityIntelligenceWorkPlanner{}.PlanVulnerabilityIntelligenceWork(context.Background(), VulnerabilityIntelligencePlanRequest{
+		Instance:            instance,
+		ObservedAt:          observedAt,
+		PlanKey:             "continuous-20260526T131500Z",
+		OwnedPackageTargets: owned,
+	})
+	if err != nil {
+		t.Fatalf("PlanVulnerabilityIntelligenceWork() error = %v, want nil", err)
+	}
+	if got, notWant := len(items), 125; got >= notWant {
+		t.Fatalf("len(items) = %d, want fewer than %d storage-safe OSV batches", got, notWant)
+	}
+	if !workItemsContainDerivedOSVQuery(items, "zz-after-one-hundred", "1.0.124") {
+		t.Fatalf("derived vulnerability targets did not include exact version after the historical 100-target cap")
+	}
+}
+
+func TestVulnerabilityIntelligenceWorkPlannerBatchesDerivedVersionsByPackage(t *testing.T) {
+	t.Parallel()
+
+	observedAt := time.Date(2026, time.May, 26, 14, 0, 0, 0, time.UTC)
+	instance := workflow.CollectorInstance{
+		InstanceID:     "collector-vulnerability-intelligence",
+		CollectorKind:  scope.CollectorVulnerabilityIntelligence,
+		Mode:           workflow.CollectorModeContinuous,
+		Enabled:        true,
+		ClaimsEnabled:  true,
+		Configuration:  `{"derive_from_owned_packages":{"enabled":true,"sources":["osv"],"ecosystems":["npm"],"target_limit":125}}`,
+		LastObservedAt: observedAt,
+		CreatedAt:      observedAt,
+		UpdatedAt:      observedAt,
+	}
+	owned := make([]workflow.OwnedPackageDependencyTarget, 0, 125)
+	for i := 0; i < 125; i++ {
+		owned = append(owned, workflow.OwnedPackageDependencyTarget{
+			Ecosystem:    "npm",
+			PackageName:  "shared-package",
+			Version:      fmt.Sprintf("1.0.%d", i),
+			Lockfile:     true,
+			RepositoryID: "repo-large",
+		})
+	}
+
+	run, items, err := VulnerabilityIntelligenceWorkPlanner{}.PlanVulnerabilityIntelligenceWork(context.Background(), VulnerabilityIntelligencePlanRequest{
+		Instance:            instance,
+		ObservedAt:          observedAt,
+		PlanKey:             "continuous-20260526T140000Z",
+		OwnedPackageTargets: owned,
+	})
+	if err != nil {
+		t.Fatalf("PlanVulnerabilityIntelligenceWork() error = %v", err)
+	}
+	if got, notWant := len(items), 125; got >= notWant {
+		t.Fatalf("len(items) = %d, want fewer than %d storage-safe OSV batches", got, notWant)
+	}
+	if !workItemsContainDerivedOSVQuery(items, "shared-package", "1.0.124") {
+		t.Fatalf("derived vulnerability batches did not include the last selected package-version query")
+	}
+
+	var requested struct {
+		Targets []struct {
+			ScopeID  string   `json:"scope_id"`
+			Derived  bool     `json:"derived"`
+			Versions []string `json:"versions"`
+		} `json:"targets"`
+	}
+	if err := json.Unmarshal([]byte(run.RequestedScopeSet), &requested); err != nil {
+		t.Fatalf("RequestedScopeSet JSON = %q: %v", run.RequestedScopeSet, err)
+	}
+	if got, want := len(requested.Targets), 2; got != want {
+		t.Fatalf("len(RequestedScopeSet.targets) = %d, want %d", got, want)
+	}
+	for _, target := range requested.Targets {
+		if !target.Derived {
+			t.Fatalf("requested target %#v is not marked derived", target)
+		}
+		if len(target.Versions) == 0 || len(target.Versions) > maxDerivedVulnerabilityQueriesPerTarget {
+			t.Fatalf("requested target versions = %d, want 1..%d: %#v", len(target.Versions), maxDerivedVulnerabilityQueriesPerTarget, target)
+		}
+	}
+}
+
 func TestExactOwnedDependencyVersionAllowsSemverPrereleaseVersions(t *testing.T) {
 	t.Parallel()
 
@@ -187,6 +355,46 @@ func TestExactOwnedDependencyVersionAllowsSemverPrereleaseVersions(t *testing.T)
 	if got, ok := exactOwnedDependencyVersion("release-2026-05-24"); ok {
 		t.Fatalf("exactOwnedDependencyVersion() = %q, want non-semver rejection", got)
 	}
+}
+
+func workItemsContainScope(items []workflow.WorkItem, scopeID string) bool {
+	for _, item := range items {
+		if item.ScopeID == scopeID {
+			return true
+		}
+	}
+	return false
+}
+
+func workItemsContainDerivedOSVQuery(items []workflow.WorkItem, packageName string, version string) bool {
+	for _, item := range items {
+		parsed, err := url.Parse(item.ScopeID)
+		if err != nil || parsed.Scheme != "vuln-intel" || parsed.Host != "osv" {
+			continue
+		}
+		if parsed.EscapedPath() != "/npm/_batch" {
+			if parsed.EscapedPath() == "/npm/"+url.PathEscape(packageName) {
+				for _, gotVersion := range parsed.Query()["version"] {
+					if gotVersion == version {
+						return true
+					}
+				}
+			}
+			continue
+		}
+		for _, value := range parsed.Query()["query"] {
+			separator := strings.LastIndex(value, "@")
+			if separator <= 0 || separator == len(value)-1 {
+				continue
+			}
+			gotPackage := value[:separator]
+			gotVersion := value[separator+1:]
+			if gotPackage == packageName && gotVersion == version {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func TestPackageRegistryDerivedTargetUsesNormalizedMetadataURL(t *testing.T) {

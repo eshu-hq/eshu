@@ -8,7 +8,19 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
 
-const listOwnedPackageDependencyTargetsQuery = `
+const (
+	defaultOwnedPackageDependencyTargetLimit = 100
+	maxOwnedPackageDependencyTargetLimit     = 5000
+)
+
+func listOwnedPackageDependencyTargetsQuery(versionSpecific bool) string {
+	distinctColumns := "ecosystem, package_name"
+	distinctOrder := "ecosystem ASC, package_name ASC, lockfile DESC, version ASC, fact_id ASC"
+	if versionSpecific {
+		distinctColumns = "ecosystem, package_name, version"
+		distinctOrder = "ecosystem ASC, package_name ASC, version ASC, lockfile DESC, fact_id ASC"
+	}
+	return fmt.Sprintf(`
 WITH active_dependencies AS (
   SELECT
     LOWER(fact.payload->'entity_metadata'->>'package_manager') AS ecosystem,
@@ -31,18 +43,56 @@ WHERE fact.fact_kind = 'content_entity'
   AND fact.payload->'entity_metadata'->>'config_kind' = 'dependency'
   AND fact.payload->'entity_metadata'->>'package_manager' = ANY($1::text[])
   AND generation.status = 'active'
-)
-SELECT DISTINCT ON (ecosystem, package_name, version)
+),
+distinct_targets AS (
+  SELECT DISTINCT ON (%s)
     ecosystem,
     package_name,
     version,
     lockfile,
     repository_id,
     fact_id
-FROM active_dependencies
-ORDER BY ecosystem ASC, package_name ASC, version ASC, lockfile DESC, fact_id ASC
+  FROM active_dependencies
+  ORDER BY %s
+),
+numbered_targets AS (
+  SELECT
+    ecosystem,
+    package_name,
+    version,
+    lockfile,
+    repository_id,
+    fact_id,
+    ROW_NUMBER() OVER (
+      ORDER BY ecosystem ASC, package_name ASC, version ASC, lockfile DESC, fact_id ASC
+    ) - 1 AS target_rank,
+    COUNT(*) OVER () AS total_targets
+  FROM distinct_targets
+),
+rotated_targets AS (
+  SELECT
+    ecosystem,
+    package_name,
+    version,
+    lockfile,
+    repository_id,
+    fact_id,
+    target_rank,
+    MOD(target_rank - MOD($3::bigint, total_targets) + total_targets, total_targets) AS rotated_rank
+  FROM numbered_targets
+)
+SELECT
+    ecosystem,
+    package_name,
+    version,
+    lockfile,
+    repository_id,
+    fact_id
+FROM rotated_targets
+ORDER BY rotated_rank ASC, target_rank ASC
 LIMIT $2
-`
+`, distinctColumns, distinctOrder)
+}
 
 // ListOwnedPackageDependencyTargets loads active Git dependency declarations
 // that can bound package-registry and vulnerability-intelligence target
@@ -58,12 +108,15 @@ func (s FactStore) ListOwnedPackageDependencyTargets(
 	if len(ecosystems) == 0 {
 		return nil, nil
 	}
-	limit := filter.Limit
-	if limit <= 0 || limit > 500 {
-		limit = 100
-	}
+	limit := ownedPackageDependencyTargetLimit(filter.Limit)
 
-	rows, err := s.db.QueryContext(ctx, listOwnedPackageDependencyTargetsQuery, ecosystems, limit)
+	rows, err := s.db.QueryContext(
+		ctx,
+		listOwnedPackageDependencyTargetsQuery(filter.VersionSpecific),
+		ecosystems,
+		limit,
+		filter.RotationOffset,
+	)
 	if err != nil {
 		return nil, fmt.Errorf("list owned package dependency targets: %w", err)
 	}
@@ -94,4 +147,14 @@ func (s FactStore) ListOwnedPackageDependencyTargets(
 		return nil, fmt.Errorf("list owned package dependency targets: %w", err)
 	}
 	return targets, nil
+}
+
+func ownedPackageDependencyTargetLimit(raw int) int {
+	if raw <= 0 {
+		return defaultOwnedPackageDependencyTargetLimit
+	}
+	if raw > maxOwnedPackageDependencyTargetLimit {
+		return maxOwnedPackageDependencyTargetLimit
+	}
+	return raw
 }

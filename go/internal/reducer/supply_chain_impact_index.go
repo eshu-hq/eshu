@@ -46,6 +46,7 @@ type supplyChainAffectedProduct struct {
 
 type supplyChainPackageConsumption struct {
 	factID           string
+	evidenceKind     string
 	packageID        string
 	repositoryID     string
 	dependencyRange  string
@@ -189,6 +190,7 @@ func buildSupplyChainImpactIndex(envelopes []facts.Envelope) supplyChainImpactIn
 			index.riskSignals[supplyChainCVEID(envelope.Payload)] = signals
 		}
 	}
+	addManifestDependencySupplyChainConsumption(&index, envelopes)
 	sort.SliceStable(index.cves, func(i, j int) bool {
 		return index.cves[i].cveID < index.cves[j].cveID
 	})
@@ -215,7 +217,7 @@ func classifySupplyChainImpactPackage(
 			finding.DirectDependency = &value
 		}
 		finding.EvidenceFactIDs = append(finding.EvidenceFactIDs, consumption.factID)
-		finding.EvidencePath = append(finding.EvidencePath, packageConsumptionCorrelationFactKind)
+		finding.EvidencePath = append(finding.EvidencePath, firstNonBlank(consumption.evidenceKind, packageConsumptionCorrelationFactKind))
 		if manifestVersion, ok := exactManifestDependencyVersion(consumption.dependencyRange); ok {
 			finding.ObservedVersion = manifestVersion
 		}

@@ -60,6 +60,30 @@ func TestPackageRegistryCollectorConfigurationRejectsBlankDerivedEcosystem(t *te
 	}
 }
 
+func TestPackageRegistryCollectorConfigurationAcceptsFullCorpusDerivedTargetLimit(t *testing.T) {
+	t.Parallel()
+
+	raw := `{"derive_from_owned_packages":{"enabled":true,"ecosystems":["npm"],"target_limit":1000,"package_limit":1,"version_limit":200}}`
+
+	if err := ValidatePackageRegistryCollectorConfiguration(raw); err != nil {
+		t.Fatalf("ValidatePackageRegistryCollectorConfiguration() error = %v, want nil", err)
+	}
+}
+
+func TestPackageRegistryCollectorConfigurationRejectsOverwideDerivedTargetLimit(t *testing.T) {
+	t.Parallel()
+
+	raw := `{"derive_from_owned_packages":{"enabled":true,"ecosystems":["npm"],"target_limit":5001}}`
+
+	err := ValidatePackageRegistryCollectorConfiguration(raw)
+	if err == nil {
+		t.Fatal("ValidatePackageRegistryCollectorConfiguration() error = nil, want derived target limit rejection")
+	}
+	if got := err.Error(); !strings.Contains(got, "derive_from_owned_packages.target_limit must be between 0 and 5000") {
+		t.Fatalf("ValidatePackageRegistryCollectorConfiguration() error = %q, want derived target limit rejection", got)
+	}
+}
+
 func TestPackageRegistryCollectorConfigurationRejectsMissingMetadataURL(t *testing.T) {
 	t.Parallel()
 

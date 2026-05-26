@@ -38,6 +38,7 @@ WHERE fact.fact_kind IN (
     'vulnerability.affected_package',
     'vulnerability.affected_product',
     'vulnerability.suppression',
+    'security_alert.repository_alert',
     'package_registry.package_version',
     'package_registry.vulnerability_hint',
     'reducer_package_consumption_correlation',
@@ -65,7 +66,18 @@ WHERE fact.fact_kind IN (
       OR fact.payload->>'cpe' = ANY($5::text[])
       OR fact.payload->>'criteria' = ANY($5::text[])
       OR fact.payload->>'document_id' = ANY($6::text[])
-      OR fact.payload->>'repository_id' = ANY($7::text[])
+      OR (
+          fact.fact_kind IN (
+              'vulnerability.suppression',
+              'reducer_container_image_identity',
+              'reducer_ci_cd_run_correlation',
+              'reducer_service_catalog_correlation'
+          )
+          AND (
+              fact.payload->>'repository_id' = ANY($7::text[])
+              OR fact.payload->'scope'->>'repository_id' = ANY($7::text[])
+          )
+      )
       OR fact.payload->>'image_ref' = ANY($8::text[])
   )
   AND ($9 = '' OR fact.fact_id > $9)

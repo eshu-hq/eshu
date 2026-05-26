@@ -36,6 +36,7 @@ func supplyChainImpactTriggerFact(envelope facts.Envelope) bool {
 		facts.VulnerabilityAffectedPackageFactKind,
 		facts.VulnerabilityEPSSScoreFactKind,
 		facts.VulnerabilityKnownExploitedFactKind,
+		facts.SecurityAlertRepositoryAlertFactKind,
 		facts.PackageRegistryPackageFactKind:
 		return true
 	default:
@@ -44,6 +45,9 @@ func supplyChainImpactTriggerFact(envelope facts.Envelope) bool {
 }
 
 func supplyChainImpactReason(envelope facts.Envelope) string {
+	if envelope.FactKind == facts.SecurityAlertRepositoryAlertFactKind {
+		return "provider security alert evidence observed"
+	}
 	if envelope.FactKind == facts.PackageRegistryPackageFactKind {
 		return "package registry identity observed"
 	}
