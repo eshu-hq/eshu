@@ -192,8 +192,9 @@ func newRouter(
 			Profile: queryProfile,
 		},
 		Infra: &query.InfraHandler{
-			Neo4j:   neo4jReader,
-			Profile: queryProfile,
+			Neo4j:      neo4jReader,
+			Aggregates: query.NewGraphInfraResourceAggregateStore(neo4jReader),
+			Profile:    queryProfile,
 		},
 		IaC: &query.IaCHandler{
 			Content:      contentReader,

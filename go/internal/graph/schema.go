@@ -213,6 +213,21 @@ var schemaPerformanceIndexes = []string{
 	"CREATE INDEX k8s_kind IF NOT EXISTS FOR (k:K8sResource) ON (k.kind)",
 	"CREATE INDEX k8s_namespace IF NOT EXISTS FOR (k:K8sResource) ON (k.namespace)",
 	"CREATE INDEX tf_resource_type IF NOT EXISTS FOR (r:TerraformResource) ON (r.resource_type)",
+	// Indexes that back the infrastructure resource aggregate (#690)
+	// grouped-count hot path on the TerraformResource label (the largest
+	// infra label in typical deployments). Aggregates filtered by
+	// `category=terraform` plus any of `provider` / `environment` /
+	// `resource_service` / `resource_category` are eligible for these
+	// indexes. The only matching indexed property on the other infra
+	// labels today is `k8s_kind` on K8sResource (declared above), so
+	// `category=k8s` + `kind=<value>` is the other supported hot path.
+	// Aggregates over Argo CD, Crossplane, Helm, or CloudFormation
+	// labels currently fall back to a label-set scan; matching indexes
+	// can ship in follow-ups as their volume warrants.
+	"CREATE INDEX tf_resource_provider IF NOT EXISTS FOR (r:TerraformResource) ON (r.provider)",
+	"CREATE INDEX tf_resource_environment IF NOT EXISTS FOR (r:TerraformResource) ON (r.environment)",
+	"CREATE INDEX tf_resource_service IF NOT EXISTS FOR (r:TerraformResource) ON (r.resource_service)",
+	"CREATE INDEX tf_resource_category IF NOT EXISTS FOR (r:TerraformResource) ON (r.resource_category)",
 	"CREATE INDEX workload_name IF NOT EXISTS FOR (w:Workload) ON (w.name)",
 	"CREATE INDEX workload_repo_id IF NOT EXISTS FOR (w:Workload) ON (w.repo_id)",
 	"CREATE INDEX workload_instance_environment IF NOT EXISTS FOR (i:WorkloadInstance) ON (i.environment)",

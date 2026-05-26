@@ -177,6 +177,11 @@ const (
 	SpanQueryIaCTerraformImportPlan       = "query.iac_terraform_import_plan"
 	SpanQueryAWSRuntimeDriftFindings      = "query.aws_runtime_drift_findings"
 	SpanQueryInfraResourceSearch          = "query.infra_resource_search"
+	// SpanQueryInfraResourceAggregate wraps cheap-summary count and inventory
+	// aggregates over the authoritative infrastructure graph. Replaces the
+	// page-and-iterate caller pattern for ecosystem-level questions like
+	// "how many resources per provider?".
+	SpanQueryInfraResourceAggregate = "query.infra_resource_aggregate"
 	SpanQueryCodeStructuralInventory      = "query.code_structural_inventory"
 	SpanQueryCodeTopicInvestigation       = "query.code_topic_investigation"
 	SpanQueryDeadCodeInvestigation        = "query.dead_code_investigation"

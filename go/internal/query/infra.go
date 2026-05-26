@@ -12,8 +12,9 @@ const infraSearchMaxLimit = 200
 // InfraHandler serves HTTP endpoints for querying infrastructure resources
 // and relationships from the Neo4j canonical graph.
 type InfraHandler struct {
-	Neo4j   GraphQuery
-	Profile QueryProfile
+	Neo4j      GraphQuery
+	Aggregates InfraResourceAggregateStore
+	Profile    QueryProfile
 }
 
 var infraCategoryLabels = map[string][]string{
@@ -89,6 +90,7 @@ func (h *InfraHandler) Mount(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/v0/infra/resources/search", h.searchResources)
 	mux.HandleFunc("POST /api/v0/infra/relationships", h.getRelationships)
 	mux.HandleFunc("GET /api/v0/ecosystem/overview", h.getEcosystemOverview)
+	h.infraResourceAggregateRoutes(mux)
 }
 
 func (h *InfraHandler) profile() QueryProfile {
