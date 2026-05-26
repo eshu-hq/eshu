@@ -197,6 +197,39 @@ attributes. They re-use the existing `eshu_dp_postgres_query_duration_seconds`
 histogram and add no new graph query, queue, reducer lane, worker, or metric
 instrument.
 
+The same handler exposes cheap-summary aggregates over the reducer-owned
+provider security alert reconciliations through a separate Postgres aggregate
+read model (`security_alert_reconciliation_aggregates.go`).
+`CountSecurityAlertReconciliations` answers total / per-reconciliation-status /
+per-provider / per-provider-state questions over an optional repository,
+provider, package, CVE, GHSA, provider-state, or reconciliation-status scope.
+`SecurityAlertReconciliationInventory` returns a paginated grouped count along
+one of the dimensions `reconciliation_status`, `provider`, `provider_state`,
+`repository_id`, or `package_id`. The aggregate replaces the page-and-iterate
+caller workflow for ecosystem-level questions exposed by
+`list_security_alert_reconciliations`. It re-uses the existing partial indexes
+on `fact_records` for `reducer_security_alert_reconciliation`
+(repository_id + package_id + reconciliation_status; provider + provider_state
++ reconciliation_status; cve_ids GIN; ghsa_ids GIN); no new schema or graph
+migration is needed.
+
+No-Regression Evidence: `go test ./internal/query -run
+'TestSecurityAlertReconciliationAggregate|TestSecurityAlertReconciliationInventoryGroupExpression|TestNextSecurityAlertReconciliationAggregateOffset'
+-count=1` proves: 503 envelope when the store is missing, totals envelope shape
+with the three rollup maps, grouped inventory shape, truncation marker plus
+`next_offset` on overflow, rejection of unknown grouping dimensions, oversized
+limits, negative offsets, and oversized offsets, null `next_offset` when the
+next page would exceed the documented offset bound, and that the
+dimension-to-SQL-expression map is a closed enum (so SQL substitution stays
+parameter-safe).
+
+Observability Evidence: the aggregate routes add the
+`query.security_alert_reconciliation_aggregate` request span (registered in
+`go/internal/telemetry/contract_supply_chain.go`) with route and capability
+attributes. They re-use the existing `eshu_dp_postgres_query_duration_seconds`
+histogram and add no new graph query, queue, reducer lane, worker, or metric
+instrument.
+
 ## Runtime and investigation read models
 
 Both backends instrument every query with an OTEL span (`neo4j.query`,

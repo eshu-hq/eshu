@@ -25,6 +25,11 @@ const (
 	// inventory aggregates over reducer-owned impact findings. Replaces the
 	// page-and-iterate caller pattern for ecosystem-level totals questions.
 	SpanQuerySupplyChainImpactAggregate = "query.supply_chain_impact_aggregate"
+	// SpanQuerySecurityAlertReconciliationAggregate wraps cheap-summary count
+	// and inventory aggregates over reducer-owned provider alert
+	// reconciliations. Replaces the page-and-iterate caller pattern for
+	// ecosystem-level questions about provider alerts vs Eshu impact state.
+	SpanQuerySecurityAlertReconciliationAggregate = "query.security_alert_reconciliation_aggregate"
 )
 
 func init() {
@@ -40,6 +45,7 @@ func init() {
 				SpanQuerySupplyChainImpactFindings,
 				SpanQuerySupplyChainImpactExplanation,
 				SpanQuerySupplyChainImpactAggregate,
+				SpanQuerySecurityAlertReconciliationAggregate,
 			)
 			return
 		}
@@ -56,6 +62,7 @@ func init() {
 				SpanQuerySupplyChainImpactFindings,
 				SpanQuerySupplyChainImpactExplanation,
 				SpanQuerySupplyChainImpactAggregate,
+				SpanQuerySecurityAlertReconciliationAggregate,
 			)
 			return
 		}
@@ -69,5 +76,6 @@ func init() {
 		SpanQuerySupplyChainImpactFindings,
 		SpanQuerySupplyChainImpactExplanation,
 		SpanQuerySupplyChainImpactAggregate,
+		SpanQuerySecurityAlertReconciliationAggregate,
 	)
 }
