@@ -29,8 +29,16 @@ remote collector E2E stack. It does not start containers. Run it after the
 remote Compose stack is up to prove the API, MCP server, ingester,
 resolution engine, workflow coordinator, hosted collectors, and checkpointed
 queue completion are all healthy before treating the run as deployable proof.
-Use `ESHU_REMOTE_E2E_COMPOSE_FILES` as a colon-separated Compose file list and
-`ESHU_REMOTE_E2E_ENV_FILE` when the stack uses a private env file.
+It also prints aggregate package, advisory, impact, security-alert, SBOM, and
+image identity counts. Use `ESHU_REMOTE_E2E_COMPOSE_FILES` as a colon-separated
+Compose file list and `ESHU_REMOTE_E2E_ENV_FILE` when the stack uses a private
+env file.
+
+`remote-e2e-corpus-preflight.sh` is the one-shot corpus guard used by
+`docker-compose.remote-e2e.yaml`. Smoke mode is fixture-friendly, representative
+mode is the 20-50 repository inner-loop gate, and full mode is the release
+gate. `test-remote-e2e-corpus-preflight.sh` covers those bounds without
+requiring Docker.
 
 `verify-performance-evidence.sh` is the CI tripwire for hot-path runtime
 changes. It inspects the actual PR diff, including brand-new collector

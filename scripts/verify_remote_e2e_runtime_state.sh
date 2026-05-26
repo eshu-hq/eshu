@@ -12,6 +12,8 @@ API_KEY="${ESHU_REMOTE_E2E_API_KEY:-}"
 CORE_SERVICES="${ESHU_REMOTE_E2E_REQUIRED_SERVICES:-eshu mcp-server ingester projector resolution-engine workflow-coordinator}"
 COLLECTOR_SERVICES="${ESHU_REMOTE_E2E_COLLECTOR_SERVICES:-collector-terraform-state collector-oci-registry collector-package-registry collector-sbom-attestation collector-security-alerts collector-vulnerability-intelligence collector-aws-cloud scanner-worker}"
 EXTRA_SERVICES="${ESHU_REMOTE_E2E_EXTRA_SERVICES:-}"
+CORPUS_MODE="${ESHU_REMOTE_E2E_CORPUS_MODE:-smoke}"
+ADVISORY_EVIDENCE_CVE_ID="${ESHU_REMOTE_E2E_ADVISORY_EVIDENCE_CVE_ID:-${ESHU_VULNERABILITY_E2E_CVE_ID:-CVE-2021-44228}}"
 TMP_DIR="$(mktemp -d)"
 INDEX_STATUS_FILE="${TMP_DIR}/index-status.json"
 COMPOSE_CMD=()
@@ -112,6 +114,45 @@ api_get() {
 	curl "${curl_args[@]}" >"${output_file}"
 }
 
+require_non_negative_integer() {
+	local name="$1"
+	local value="$2"
+	if [[ -z "${value}" ]]; then
+		return 0
+	fi
+	if [[ ! "${value}" =~ ^[0-9]+$ ]]; then
+		echo "${name} must be a non-negative integer, got ${value}" >&2
+		return 1
+	fi
+}
+
+representative_default_min() {
+	local value="$1"
+	if [[ -n "${value}" ]]; then
+		printf '%s' "${value}"
+	elif [[ "${CORPUS_MODE}" == "representative" ]]; then
+		printf '1'
+	else
+		printf '0'
+	fi
+}
+
+json_int() {
+	local file="$1"
+	local filter="$2"
+	jq -r "${filter} // 0" "${file}"
+}
+
+require_min_count() {
+	local label="$1"
+	local value="$2"
+	local minimum="$3"
+	if (( value < minimum )); then
+		echo "remote E2E aggregate proof count ${label}=${value} below required minimum ${minimum}" >&2
+		return 1
+	fi
+}
+
 verify_queue_completion() {
 	echo "Checking checkpointed index completion..."
 	if ! api_get "/index-status" "${INDEX_STATUS_FILE}"; then
@@ -128,6 +169,9 @@ verify_queue_completion() {
 		((.queue.failed // 0) == 0) and
 		((.queue.dead_letter // 0) == 0)
 	' "${INDEX_STATUS_FILE}" >/dev/null; then
+		jq -r '
+			"remote E2E terminal queue state: outstanding=\(.queue.outstanding // 0) in_flight=\(.queue.in_flight // 0) pending=\(.queue.pending // 0) retrying=\(.queue.retrying // 0) failed=\(.queue.failed // 0) dead_letter=\(.queue.dead_letter // 0)"
+		' "${INDEX_STATUS_FILE}"
 		echo "remote E2E queue completion verified"
 		return 0
 	fi
@@ -135,6 +179,64 @@ verify_queue_completion() {
 	echo "remote E2E queue completion not reached" >&2
 	cat "${INDEX_STATUS_FILE}" >&2
 	return 1
+}
+
+verify_aggregate_counts() {
+	echo "Checking aggregate proof counts..."
+
+	local package_min advisory_min impact_min security_alert_min sbom_min image_min
+	package_min="$(representative_default_min "${ESHU_REMOTE_E2E_MIN_PACKAGE_COUNT:-}")"
+	advisory_min="$(representative_default_min "${ESHU_REMOTE_E2E_MIN_ADVISORY_EVIDENCE_COUNT:-}")"
+	impact_min="$(representative_default_min "${ESHU_REMOTE_E2E_MIN_IMPACT_FINDING_COUNT:-}")"
+	security_alert_min="$(representative_default_min "${ESHU_REMOTE_E2E_MIN_SECURITY_ALERT_RECONCILIATION_COUNT:-}")"
+	sbom_min="$(representative_default_min "${ESHU_REMOTE_E2E_MIN_SBOM_ATTACHMENT_COUNT:-}")"
+	image_min="$(representative_default_min "${ESHU_REMOTE_E2E_MIN_CONTAINER_IMAGE_IDENTITY_COUNT:-}")"
+
+	require_non_negative_integer ESHU_REMOTE_E2E_MIN_PACKAGE_COUNT "${package_min}"
+	require_non_negative_integer ESHU_REMOTE_E2E_MIN_ADVISORY_EVIDENCE_COUNT "${advisory_min}"
+	require_non_negative_integer ESHU_REMOTE_E2E_MIN_IMPACT_FINDING_COUNT "${impact_min}"
+	require_non_negative_integer ESHU_REMOTE_E2E_MIN_SECURITY_ALERT_RECONCILIATION_COUNT "${security_alert_min}"
+	require_non_negative_integer ESHU_REMOTE_E2E_MIN_SBOM_ATTACHMENT_COUNT "${sbom_min}"
+	require_non_negative_integer ESHU_REMOTE_E2E_MIN_CONTAINER_IMAGE_IDENTITY_COUNT "${image_min}"
+
+	local package_file="${TMP_DIR}/package-count.json"
+	local advisory_file="${TMP_DIR}/advisory-evidence.json"
+	local impact_file="${TMP_DIR}/impact-count.json"
+	local security_alert_file="${TMP_DIR}/security-alert-count.json"
+	local sbom_file="${TMP_DIR}/sbom-count.json"
+	local image_file="${TMP_DIR}/container-image-count.json"
+
+	api_get "/package-registry/packages/count" "${package_file}"
+	api_get "/supply-chain/advisories/evidence?cve_id=${ADVISORY_EVIDENCE_CVE_ID}&limit=1" "${advisory_file}"
+	api_get "/supply-chain/impact/findings/count" "${impact_file}"
+	api_get "/supply-chain/security-alerts/reconciliations/count" "${security_alert_file}"
+	api_get "/supply-chain/sbom-attestations/attachments/count" "${sbom_file}"
+	api_get "/supply-chain/container-images/identities/count" "${image_file}"
+
+	local package_count advisory_count impact_count affected_count security_alert_count sbom_count image_count
+	package_count="$(json_int "${package_file}" '.total_packages')"
+	advisory_count="$(json_int "${advisory_file}" '.count')"
+	impact_count="$(json_int "${impact_file}" '.total_findings')"
+	affected_count="$(json_int "${impact_file}" '.affected_findings')"
+	security_alert_count="$(json_int "${security_alert_file}" '.total_reconciliations')"
+	sbom_count="$(json_int "${sbom_file}" '.total_attachments')"
+	image_count="$(json_int "${image_file}" '.total_identities')"
+
+	require_min_count package_registry_packages "${package_count}" "${package_min}"
+	require_min_count advisory_evidence "${advisory_count}" "${advisory_min}"
+	require_min_count impact_findings "${impact_count}" "${impact_min}"
+	require_min_count security_alert_reconciliations "${security_alert_count}" "${security_alert_min}"
+	require_min_count sbom_attachments "${sbom_count}" "${sbom_min}"
+	require_min_count container_image_identities "${image_count}" "${image_min}"
+
+	printf 'remote E2E aggregate proof counts: package_registry_packages=%s advisory_evidence=%s impact_findings=%s affected_findings=%s security_alert_reconciliations=%s sbom_attachments=%s container_image_identities=%s\n' \
+		"${package_count}" \
+		"${advisory_count}" \
+		"${impact_count}" \
+		"${affected_count}" \
+		"${security_alert_count}" \
+		"${sbom_count}" \
+		"${image_count}"
 }
 
 verify_workflow_completion() {
@@ -178,6 +280,7 @@ main() {
 	resolve_api_key
 	verify_queue_completion
 	verify_workflow_completion
+	verify_aggregate_counts
 }
 
 main "$@"
