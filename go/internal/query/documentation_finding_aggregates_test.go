@@ -3,6 +3,7 @@ package query
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -365,6 +366,46 @@ func TestDocumentationFindingInventoryGroupExpressionEnumIsClosed(t *testing.T) 
 	}
 	if _, err := documentationFindingInventoryGroupExpression("document_id"); err == nil {
 		t.Fatal("documentationFindingInventoryGroupExpression must reject unknown dimensions to keep SQL substitution safe")
+	}
+}
+
+// TestDocumentationFindingAggregateBackendErrorsDoNotLeakDetails proves the
+// aggregate routes match the rest of the documentation handler family on
+// backend failure: stable internal-error envelope, no raw Postgres / query
+// string in the body. Carrying over `err.Error()` would (a) drift from the
+// existing documentation error contract and (b) expose the database query
+// shape to callers.
+func TestDocumentationFindingAggregateBackendErrorsDoNotLeakDetails(t *testing.T) {
+	t.Parallel()
+
+	leaky := errors.New("pq: relation \"fact_records_secret\" does not exist (SQLSTATE 42P01)")
+	for _, target := range []string{
+		"/api/v0/documentation/findings/count",
+		"/api/v0/documentation/findings/inventory?group_by=status",
+	} {
+		target := target
+		t.Run(target, func(t *testing.T) {
+			t.Parallel()
+			store := &stubDocumentationFindingAggregateStore{
+				countErr:     leaky,
+				inventoryErr: leaky,
+			}
+			handler := &DocumentationHandler{Aggregates: store}
+			mux := http.NewServeMux()
+			handler.Mount(mux)
+
+			req := httptest.NewRequest(http.MethodGet, target, nil)
+			w := httptest.NewRecorder()
+			mux.ServeHTTP(w, req)
+
+			if got, want := w.Code, http.StatusInternalServerError; got != want {
+				t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
+			}
+			body := w.Body.String()
+			if strings.Contains(body, "pq:") || strings.Contains(body, "SQLSTATE") || strings.Contains(body, "fact_records_secret") {
+				t.Fatalf("response leaks raw Postgres/query details: %s", body)
+			}
+		})
 	}
 }
 

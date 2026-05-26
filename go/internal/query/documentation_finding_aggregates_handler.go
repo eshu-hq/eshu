@@ -45,7 +45,12 @@ func (h *DocumentationHandler) countDocumentationFindings(w http.ResponseWriter,
 	filter := documentationFindingAggregateFilterFromRequest(r)
 	count, err := h.Aggregates.CountDocumentationFindings(r.Context(), filter)
 	if err != nil {
-		WriteError(w, http.StatusInternalServerError, err.Error())
+		// Match the rest of the documentation handler family: surface a
+		// stable internal-error envelope instead of the raw Postgres/query
+		// string. Leaking the underlying error string would (a) drift from
+		// the existing documentation error contract and (b) expose the
+		// database query shape to unauthenticated callers.
+		writeDocumentationInternalError(w, r)
 		return
 	}
 	WriteSuccess(w, r, http.StatusOK, map[string]any{
@@ -108,7 +113,10 @@ func (h *DocumentationHandler) documentationFindingInventory(w http.ResponseWrit
 
 	rows, err := h.Aggregates.DocumentationFindingInventory(r.Context(), filter, dimension, limit+1, offset)
 	if err != nil {
-		WriteError(w, http.StatusInternalServerError, err.Error())
+		// Match the rest of the documentation handler family: stable
+		// internal-error envelope, no raw Postgres/query string in the
+		// response body.
+		writeDocumentationInternalError(w, r)
 		return
 	}
 	truncated := len(rows) > limit
