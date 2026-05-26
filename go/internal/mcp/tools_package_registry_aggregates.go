@@ -31,7 +31,7 @@ func packageRegistryAggregateTools() []ToolDefinition {
 					"visibility": map[string]any{
 						"type":        "string",
 						"description": "Optional visibility filter applied before counting.",
-						"enum":        []string{"public", "private", "internal"},
+						"enum":        []string{"public", "private", "unknown"},
 					},
 				},
 			},
@@ -55,7 +55,7 @@ func packageRegistryAggregateTools() []ToolDefinition {
 					"visibility": map[string]any{
 						"type":        "string",
 						"description": "Optional visibility filter applied before grouping.",
-						"enum":        []string{"public", "private", "internal"},
+						"enum":        []string{"public", "private", "unknown"},
 					},
 					"limit": map[string]any{
 						"type":        "integer",

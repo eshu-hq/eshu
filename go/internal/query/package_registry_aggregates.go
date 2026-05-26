@@ -124,6 +124,12 @@ WHERE ($ecosystem = '' OR p.ecosystem = $ecosystem)
 RETURN count(p) AS total
 `
 
+// Bucket normalization uses a CASE expression instead of a plain coalesce so
+// that empty-string properties (commonly seen on optional fields like
+// `namespace` for ecosystems without a namespace concept) map to `unknown`
+// alongside genuine NULLs. A plain `coalesce(p.<prop>, 'unknown')` would
+// emit `""` as a bucket key because Cypher coalesce only collapses NULLs,
+// not empty strings.
 const packageRegistryAggregateByEcosystemQuery = `
 MATCH (p:Package)
 WHERE ($ecosystem = '' OR p.ecosystem = $ecosystem)
@@ -131,7 +137,8 @@ WHERE ($ecosystem = '' OR p.ecosystem = $ecosystem)
   AND ($namespace = '' OR p.namespace = $namespace)
   AND ($package_manager = '' OR p.package_manager = $package_manager)
   AND ($visibility = '' OR p.visibility = $visibility)
-RETURN coalesce(p.ecosystem, 'unknown') AS bucket, count(p) AS bucket_count
+RETURN CASE WHEN p.ecosystem IS NULL OR p.ecosystem = '' THEN 'unknown' ELSE p.ecosystem END AS bucket,
+       count(p) AS bucket_count
 ORDER BY bucket_count DESC, bucket
 `
 
@@ -142,7 +149,8 @@ WHERE ($ecosystem = '' OR p.ecosystem = $ecosystem)
   AND ($namespace = '' OR p.namespace = $namespace)
   AND ($package_manager = '' OR p.package_manager = $package_manager)
   AND ($visibility = '' OR p.visibility = $visibility)
-RETURN coalesce(%s, 'unknown') AS bucket, count(p) AS bucket_count
+RETURN CASE WHEN %s IS NULL OR %s = '' THEN 'unknown' ELSE %s END AS bucket,
+       count(p) AS bucket_count
 ORDER BY bucket_count DESC, bucket
 SKIP $offset
 LIMIT $limit
@@ -221,7 +229,11 @@ func (s GraphPackageRegistryAggregateStore) PackageRegistryPackageInventory(
 	if offset < 0 {
 		offset = 0
 	}
-	cypher := fmt.Sprintf(packageRegistryInventoryQueryTemplate, groupExpr)
+	// The template repeats the dimension property three times in the CASE
+	// expression (NULL check, empty-string check, ELSE branch) so a single
+	// validated `groupExpr` populates all three slots; substitution stays
+	// safe because the closed enum is the only caller of this Sprintf.
+	cypher := fmt.Sprintf(packageRegistryInventoryQueryTemplate, groupExpr, groupExpr, groupExpr)
 	params := packageRegistryAggregateParams(filter)
 	params["limit"] = limit
 	params["offset"] = offset

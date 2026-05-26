@@ -201,19 +201,21 @@ func isSupportedPackageRegistryInventoryDimension(d PackageRegistryInventoryDime
 	}
 }
 
-// validatePackageRegistryAggregateVisibility rejects unknown visibility
-// filters with a 400 so a typo does not silently return zero counts. The
-// (:Package).visibility property uses a small closed enum (public / private
-// / internal); other values are out-of-contract — typos surface here.
+// validatePackageRegistryAggregateVisibility rejects out-of-contract
+// visibility filters with a 400 so a typo does not silently return zero
+// counts. The closed enum matches the ingestion contract emitted by
+// `parseVisibility` in `go/internal/collector/packageregistry/`: a missing
+// or unrecognized value normalizes to `unknown`, so the aggregate must
+// accept `unknown` to let callers filter to the unresolved slice.
 func validatePackageRegistryAggregateVisibility(w http.ResponseWriter, filter PackageRegistryAggregateFilter) bool {
 	if filter.Visibility == "" {
 		return true
 	}
 	switch filter.Visibility {
-	case "public", "private", "internal":
+	case "public", "private", "unknown":
 		return true
 	default:
-		WriteError(w, http.StatusBadRequest, "visibility must be one of public, private, internal")
+		WriteError(w, http.StatusBadRequest, "visibility must be one of public, private, unknown")
 		return false
 	}
 }

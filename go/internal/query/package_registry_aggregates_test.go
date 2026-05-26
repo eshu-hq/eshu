@@ -243,7 +243,7 @@ func TestPackageRegistryAggregateInventoryReportsTruncated(t *testing.T) {
 	}
 }
 
-func TestPackageRegistryAggregateRejectsUnknownVisibility(t *testing.T) {
+func TestPackageRegistryAggregateRejectsOutOfContractVisibility(t *testing.T) {
 	t.Parallel()
 
 	store := &stubPackageRegistryAggregateStore{}
@@ -251,11 +251,13 @@ func TestPackageRegistryAggregateRejectsUnknownVisibility(t *testing.T) {
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 
-	// `restricted` is a typo; the closed enum is public / private /
-	// internal. Both aggregate endpoints must surface that as a 400 to
-	// avoid silent zero counts (mirrors the CI/CD outcome-enum guard from
-	// #694).
+	// `internal` and `restricted` are typos; the closed enum is
+	// public / private / unknown — the same value space the package-registry
+	// collector emits in `parseVisibility`. Both aggregate endpoints must
+	// surface out-of-contract values as a 400 to avoid silent zero counts.
 	for _, target := range []string{
+		"/api/v0/package-registry/packages/count?visibility=internal",
+		"/api/v0/package-registry/packages/inventory?visibility=internal",
 		"/api/v0/package-registry/packages/count?visibility=restricted",
 		"/api/v0/package-registry/packages/inventory?visibility=restricted",
 	} {
@@ -270,8 +272,38 @@ func TestPackageRegistryAggregateRejectsUnknownVisibility(t *testing.T) {
 		})
 	}
 	if store.countCalls != 0 || store.invCalls != 0 {
-		t.Fatalf("store called for unknown visibility (countCalls=%d invCalls=%d)",
+		t.Fatalf("store called for out-of-contract visibility (countCalls=%d invCalls=%d)",
 			store.countCalls, store.invCalls)
+	}
+}
+
+func TestPackageRegistryAggregateAcceptsContractVisibilityValues(t *testing.T) {
+	t.Parallel()
+
+	// `unknown` is a first-class ingestion value (parseVisibility defaults
+	// to it for missing or unrecognized inputs), so callers must be able to
+	// filter aggregates to that slice. The validator and the OpenAPI /
+	// MCP-tool enums must keep all three in scope.
+	for _, value := range []string{"public", "private", "unknown"} {
+		value := value
+		t.Run(value, func(t *testing.T) {
+			t.Parallel()
+			store := &stubPackageRegistryAggregateStore{}
+			handler := &PackageRegistryHandler{Aggregates: store}
+			mux := http.NewServeMux()
+			handler.Mount(mux)
+
+			req := httptest.NewRequest(http.MethodGet,
+				"/api/v0/package-registry/packages/count?visibility="+value, nil)
+			w := httptest.NewRecorder()
+			mux.ServeHTTP(w, req)
+			if got, want := w.Code, http.StatusOK; got != want {
+				t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
+			}
+			if store.lastFilter.Visibility != value {
+				t.Fatalf("filter.Visibility = %q, want %q", store.lastFilter.Visibility, value)
+			}
+		})
 	}
 }
 
@@ -438,8 +470,10 @@ func TestGraphPackageRegistryAggregateStoreCountShapeIsHotPathEligible(t *testin
 
 	graph := &stubGraphQuery{
 		responses: map[string][]map[string]any{
-			"count(p) AS total":                 {{"total": int64(7)}},
-			"coalesce(p.ecosystem, 'unknown')":  {{"bucket": "npm", "bucket_count": int64(5)}, {"bucket": "pypi", "bucket_count": int64(2)}},
+			// The rollup query uses a CASE expression on `p.ecosystem` so
+			// empty-string properties surface as `unknown` alongside NULLs.
+			"count(p) AS total":             {{"total": int64(7)}},
+			"WHEN p.ecosystem IS NULL OR p": {{"bucket": "npm", "bucket_count": int64(5)}, {"bucket": "pypi", "bucket_count": int64(2)}},
 		},
 	}
 	store := NewGraphPackageRegistryAggregateStore(graph)
@@ -507,6 +541,67 @@ func TestGraphPackageRegistryAggregateStoreInventoryShapeIsHotPathEligible(t *te
 	}
 	if got, want := graph.calls[0].Params["limit"], 11; got != want {
 		t.Fatalf("limit param = %v, want %v", got, want)
+	}
+}
+
+func TestGraphPackageRegistryAggregateStoreNormalizesEmptyStringBuckets(t *testing.T) {
+	t.Parallel()
+
+	// Package-registry facts commonly leave optional fields like `namespace`
+	// as the empty string for ecosystems without a namespace concept (npm
+	// unscoped packages, pypi, etc). A plain `coalesce(p.namespace,
+	// 'unknown')` would only collapse NULLs and emit `""` as a bucket; the
+	// CASE expression must instead map both NULL and empty-string to
+	// `unknown` so callers never see an empty bucket key.
+	for _, kind := range []struct {
+		name           string
+		dimension      PackageRegistryInventoryDimension
+		propertyMatch  string
+	}{
+		{"namespace", PackageRegistryInventoryByNamespace, "p.namespace"},
+		{"ecosystem", PackageRegistryInventoryByEcosystem, "p.ecosystem"},
+		{"registry", PackageRegistryInventoryByRegistry, "p.registry"},
+		{"package_manager", PackageRegistryInventoryByPackageManager, "p.package_manager"},
+		{"visibility", PackageRegistryInventoryByVisibility, "p.visibility"},
+	} {
+		kind := kind
+		t.Run(kind.name, func(t *testing.T) {
+			t.Parallel()
+			graph := &stubGraphQuery{}
+			store := NewGraphPackageRegistryAggregateStore(graph)
+			_, err := store.PackageRegistryPackageInventory(
+				context.Background(),
+				PackageRegistryAggregateFilter{},
+				kind.dimension,
+				11,
+				0,
+			)
+			if err != nil {
+				t.Fatalf("inventory(%s): %v", kind.name, err)
+			}
+			if len(graph.calls) != 1 {
+				t.Fatalf("graph.Run called %d times, want 1", len(graph.calls))
+			}
+			cypher := graph.calls[0].Cypher
+			// Both the NULL branch and the empty-string branch must reference
+			// the same dimension property so the substituted bucket key is
+			// `unknown` whenever the field is absent or blank.
+			nullClause := "WHEN " + kind.propertyMatch + " IS NULL"
+			emptyClause := "OR " + kind.propertyMatch + " = ''"
+			elseClause := "ELSE " + kind.propertyMatch
+			if !strings.Contains(cypher, nullClause) {
+				t.Fatalf("missing NULL branch for %s: %s", kind.propertyMatch, cypher)
+			}
+			if !strings.Contains(cypher, emptyClause) {
+				t.Fatalf("missing empty-string branch for %s (plain coalesce would emit \"\" as a bucket key): %s", kind.propertyMatch, cypher)
+			}
+			if !strings.Contains(cypher, elseClause) {
+				t.Fatalf("missing ELSE branch for %s: %s", kind.propertyMatch, cypher)
+			}
+			if !strings.Contains(cypher, "THEN 'unknown'") {
+				t.Fatalf("missing THEN 'unknown' for %s: %s", kind.propertyMatch, cypher)
+			}
+		})
 	}
 }
 

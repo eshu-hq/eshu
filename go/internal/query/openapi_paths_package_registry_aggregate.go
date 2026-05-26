@@ -10,7 +10,7 @@ const openAPIPathsPackageRegistryAggregate = `
           {"name": "registry", "in": "query", "schema": {"type": "string"}},
           {"name": "namespace", "in": "query", "schema": {"type": "string"}},
           {"name": "package_manager", "in": "query", "schema": {"type": "string"}},
-          {"name": "visibility", "in": "query", "schema": {"type": "string", "enum": ["public", "private", "internal"]}}
+          {"name": "visibility", "in": "query", "schema": {"type": "string", "enum": ["public", "private", "unknown"]}}
         ],
         "responses": {
           "200": {
@@ -41,7 +41,7 @@ const openAPIPathsPackageRegistryAggregate = `
           {"name": "registry", "in": "query", "schema": {"type": "string"}},
           {"name": "namespace", "in": "query", "schema": {"type": "string"}},
           {"name": "package_manager", "in": "query", "schema": {"type": "string"}},
-          {"name": "visibility", "in": "query", "schema": {"type": "string", "enum": ["public", "private", "internal"]}},
+          {"name": "visibility", "in": "query", "schema": {"type": "string", "enum": ["public", "private", "unknown"]}},
           {"name": "limit", "in": "query", "schema": {"type": "integer", "minimum": 1, "maximum": 500, "default": 100}},
           {"name": "offset", "in": "query", "schema": {"type": "integer", "minimum": 0, "maximum": 10000, "default": 0}}
         ],
