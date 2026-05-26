@@ -3,7 +3,6 @@ package packageruntime
 import (
 	"errors"
 	"strings"
-	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/collector"
 	"github.com/eshu-hq/eshu/go/internal/collector/packageregistry"
@@ -17,12 +16,8 @@ const warningCodeMetadataNotFound = "metadata_not_found"
 func (s *ClaimedSource) missingMetadataWarningGeneration(
 	item workflow.WorkItem,
 	target TargetConfig,
-	startedAt time.Time,
 ) (collector.CollectedGeneration, error) {
-	observedAt := startedAt.UTC()
-	if observedAt.IsZero() {
-		observedAt = s.now().UTC()
-	}
+	observedAt := s.now().UTC()
 	warning := packageregistry.WarningObservation{
 		WarningKey:          warningCodeMetadataNotFound,
 		WarningCode:         warningCodeMetadataNotFound,

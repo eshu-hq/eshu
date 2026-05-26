@@ -181,7 +181,7 @@ func (s *ClaimedSource) NextClaimed(
 	document, err := s.fetchMetadata(observeCtx, target)
 	if err != nil {
 		if derivedTarget && isRegistryNotFound(err) {
-			collected, warningErr := s.missingMetadataWarningGeneration(item, target, startedAt)
+			collected, warningErr := s.missingMetadataWarningGeneration(item, target)
 			if warningErr == nil {
 				s.recordObserve(observeCtx, target, "not_found", startedAt)
 				return collected, true, nil

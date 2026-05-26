@@ -15,6 +15,7 @@ import (
 func TestClaimedSourceCompletesDerivedNotFoundAsWarning(t *testing.T) {
 	t.Parallel()
 
+	observedAt := time.Date(2026, time.May, 26, 21, 30, 0, 0, time.UTC)
 	source, err := NewClaimedSource(SourceConfig{
 		CollectorInstanceID: "collector-package-registry",
 		DerivedTargets: DerivedTargetConfig{
@@ -25,7 +26,7 @@ func TestClaimedSourceCompletesDerivedNotFoundAsWarning(t *testing.T) {
 			err: collector.RegistryHTTPFailure("npm", "npm", "fetch_metadata", 404, nil),
 		},
 		Now: func() time.Time {
-			return time.Date(2026, time.May, 26, 21, 30, 0, 0, time.UTC)
+			return observedAt
 		},
 	})
 	if err != nil {
@@ -42,6 +43,12 @@ func TestClaimedSourceCompletesDerivedNotFoundAsWarning(t *testing.T) {
 	if !ok {
 		t.Fatal("NextClaimed() ok = false, want completed warning generation")
 	}
+	if !collected.Generation.ObservedAt.Equal(observedAt) {
+		t.Fatalf("generation ObservedAt = %s, want %s", collected.Generation.ObservedAt, observedAt)
+	}
+	if !collected.Generation.IngestedAt.Equal(observedAt) {
+		t.Fatalf("generation IngestedAt = %s, want %s", collected.Generation.IngestedAt, observedAt)
+	}
 
 	var warnings int
 	for envelope := range collected.Facts {
@@ -49,6 +56,9 @@ func TestClaimedSourceCompletesDerivedNotFoundAsWarning(t *testing.T) {
 			t.Fatalf("FactKind = %q, want only warning evidence", envelope.FactKind)
 		}
 		warnings++
+		if !envelope.ObservedAt.Equal(observedAt) {
+			t.Fatalf("warning ObservedAt = %s, want %s", envelope.ObservedAt, observedAt)
+		}
 		if got, want := envelope.Payload["warning_code"], warningCodeMetadataNotFound; got != want {
 			t.Fatalf("warning_code = %#v, want %q", got, want)
 		}
