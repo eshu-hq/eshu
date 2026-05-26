@@ -259,6 +259,41 @@ attributes. They re-use the existing `eshu_dp_postgres_query_duration_seconds`
 histogram and add no new graph query, queue, reducer lane, worker, or metric
 instrument.
 
+`CICDHandler` (`ci_cd.go`) also exposes cheap-summary aggregates over the
+reducer-owned CI/CD run correlations through a separate Postgres aggregate
+read model (`ci_cd_run_correlation_aggregates.go`). `CountCICDRunCorrelations`
+answers total / per-outcome / per-environment / per-provider questions over
+an optional scope, repository, commit, provider, artifact digest,
+environment, or outcome scope. `CICDRunCorrelationInventory` returns a
+paginated grouped count along one of the dimensions `outcome`, `environment`,
+`repository_id`, or `provider`. The aggregate replaces the page-and-iterate
+caller workflow for ecosystem-level questions like "how many runs ended in
+each outcome per environment?" exposed by `list_ci_cd_run_correlations`. It
+re-uses the existing partial indexes on `fact_records` for
+`reducer_ci_cd_run_correlation` (repository_id + commit_sha + artifact_digest
++ environment + outcome, plus provider, environment, artifact_digest); no
+new schema or graph migration is needed. The aggregate handler validates the
+`outcome` filter against the same enum the list endpoint advertises in
+`openapi_paths_cicd.go` (`exact`, `derived`, `ambiguous`, `unresolved`,
+`rejected`), so typos surface as 400 instead of silently returning zero
+counts.
+
+No-Regression Evidence: `go test ./internal/query -run
+'TestCICDRunCorrelationAggregate|TestCICDRunCorrelationInventoryGroupExpression|TestNextCICDRunCorrelationAggregateOffset'
+-count=1` proves: 503 envelope when the store is missing, totals envelope
+shape with three rollup maps, grouped inventory shape, truncation marker
+plus `next_offset` on overflow, rejection of unknown grouping dimensions,
+unknown outcomes, oversized limits, negative offsets, and oversized offsets,
+null `next_offset` at the offset ceiling, and that the
+dimension-to-SQL-expression map is a closed enum.
+
+Observability Evidence: the aggregate routes add the
+`query.ci_cd_run_correlation_aggregate` request span (registered in
+`go/internal/telemetry/contract_cicd.go`) with route and capability
+attributes. They re-use the existing `eshu_dp_postgres_query_duration_seconds`
+histogram and add no new graph query, queue, reducer lane, worker, or metric
+instrument.
+
 ## Runtime and investigation read models
 
 Both backends instrument every query with an OTEL span (`neo4j.query`,

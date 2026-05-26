@@ -8,4 +8,11 @@ func init() {
 		ProductionMax:         &truthExact,
 		RequiredProfile:       ProfileLocalAuthoritative,
 	}
+	capabilityMatrix[cicdRunCorrelationAggregateCapability] = capabilitySupport{
+		LocalLightweightMax:   nil,
+		LocalAuthoritativeMax: &truthExact,
+		LocalFullStackMax:     &truthExact,
+		ProductionMax:         &truthExact,
+		RequiredProfile:       ProfileLocalAuthoritative,
+	}
 }
