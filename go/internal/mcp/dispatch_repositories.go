@@ -44,6 +44,10 @@ func repositoryRoute(toolName string, args map[string]any) (*route, bool) {
 		return serviceCatalogCorrelationsRoute(args), true
 	case "list_container_image_identities":
 		return containerImageIdentitiesRoute(args), true
+	case "count_container_image_identities":
+		return containerImageIdentityAggregateCountRoute(args), true
+	case "get_container_image_identity_inventory":
+		return containerImageIdentityAggregateInventoryRoute(args), true
 	case "list_advisory_evidence":
 		return advisoryEvidenceRoute(args), true
 	case "list_supply_chain_impact_findings":

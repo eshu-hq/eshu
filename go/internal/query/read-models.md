@@ -230,6 +230,35 @@ attributes. They re-use the existing `eshu_dp_postgres_query_duration_seconds`
 histogram and add no new graph query, queue, reducer lane, worker, or metric
 instrument.
 
+The same handler exposes cheap-summary aggregates over the reducer-owned
+container image identities through a separate Postgres aggregate read model
+(`container_image_identity_aggregates.go`). `CountContainerImageIdentities`
+answers total / per-outcome / per-identity-strength questions over an
+optional digest, image_ref, repository_id, or outcome scope.
+`ContainerImageIdentityInventory` returns a paginated grouped count along one
+of the dimensions `outcome`, `identity_strength`, or `repository_id`. The
+aggregate replaces the page-and-iterate caller workflow for ecosystem-level
+questions like "how many images resolved by exact digest vs tag?" exposed by
+`list_container_image_identities`. It re-uses the existing partial indexes on
+`fact_records` for `reducer_container_image_identity` (digest, image_ref,
+repository_id, outcome); no new schema or graph migration is needed.
+
+No-Regression Evidence: `go test ./internal/query -run
+'TestContainerImageIdentityAggregate|TestContainerImageIdentityInventoryGroupExpression|TestNextContainerImageIdentityAggregateOffset'
+-count=1` proves: 503 envelope when the store is missing, totals envelope shape
+with the two rollup maps, grouped inventory shape, truncation marker plus
+`next_offset` on overflow, rejection of unknown grouping dimensions, oversized
+limits, negative offsets, and oversized offsets, null `next_offset` when the
+next page would exceed the documented offset bound, and that the
+dimension-to-SQL-expression map is a closed enum.
+
+Observability Evidence: the aggregate routes add the
+`query.container_image_identity_aggregate` request span (registered in
+`go/internal/telemetry/contract_supply_chain.go`) with route and capability
+attributes. They re-use the existing `eshu_dp_postgres_query_duration_seconds`
+histogram and add no new graph query, queue, reducer lane, worker, or metric
+instrument.
+
 ## Runtime and investigation read models
 
 Both backends instrument every query with an OTEL span (`neo4j.query`,

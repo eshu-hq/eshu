@@ -235,6 +235,7 @@ func newRouter(
 			ImpactAggregates:         query.NewPostgresSupplyChainImpactAggregateStore(db),
 			ImpactExplanations:       query.NewPostgresSupplyChainImpactFindingStore(db),
 			ContainerImageIdentities: query.NewPostgresContainerImageIdentityStore(db),
+			ContainerImageAggregates: query.NewPostgresContainerImageIdentityAggregateStore(db),
 			SecurityAlerts:           query.NewPostgresSecurityAlertReconciliationStore(db),
 			SecurityAlertAggregates:  query.NewPostgresSecurityAlertReconciliationAggregateStore(db),
 			Readiness:                query.NewPostgresSupplyChainImpactReadinessStore(db),

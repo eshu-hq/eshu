@@ -70,6 +70,7 @@ func OpenAPISpec() string {
 			openAPIPathsSupplyChain+
 			openAPIPathsSupplyChainImpactAggregate+
 			openAPIPathsSecurityAlertAggregate+
+			openAPIPathsContainerImageIdentityAggregate+
 			openAPIPathsSupplyChainAdvisoryEvidence+
 			openAPIPathsSupplyChainSBOMAttestations+
 			openAPIPathsStatusAndCompare+

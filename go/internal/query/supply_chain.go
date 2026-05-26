@@ -37,6 +37,7 @@ type SupplyChainHandler struct {
 	ImpactAggregates         SupplyChainImpactAggregateStore
 	ImpactExplanations       SupplyChainImpactExplanationStore
 	ContainerImageIdentities ContainerImageIdentityStore
+	ContainerImageAggregates ContainerImageIdentityAggregateStore
 	SecurityAlerts           SecurityAlertReconciliationStore
 	SecurityAlertAggregates  SecurityAlertReconciliationAggregateStore
 	Readiness                SupplyChainImpactReadinessStore
@@ -95,6 +96,7 @@ func (h *SupplyChainHandler) Mount(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/v0/supply-chain/security-alerts/reconciliations", h.listSecurityAlertReconciliations)
 	h.supplyChainImpactAggregateRoutes(mux)
 	h.securityAlertReconciliationAggregateRoutes(mux)
+	h.containerImageIdentityAggregateRoutes(mux)
 }
 
 func (h *SupplyChainHandler) profile() QueryProfile {
