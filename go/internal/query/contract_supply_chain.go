@@ -64,4 +64,11 @@ func init() {
 		ProductionMax:         &truthExact,
 		RequiredProfile:       ProfileLocalAuthoritative,
 	}
+	capabilityMatrix[sbomAttestationAttachmentAggregateCapability] = capabilitySupport{
+		LocalLightweightMax:   nil,
+		LocalAuthoritativeMax: &truthExact,
+		LocalFullStackMax:     &truthExact,
+		ProductionMax:         &truthExact,
+		RequiredProfile:       ProfileLocalAuthoritative,
+	}
 }

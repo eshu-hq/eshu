@@ -32,6 +32,7 @@ const (
 // SupplyChainHandler exposes reducer-owned supply-chain read models.
 type SupplyChainHandler struct {
 	SBOMAttachments          SBOMAttestationAttachmentStore
+	SBOMAttachmentAggregates SBOMAttestationAttachmentAggregateStore
 	AdvisoryEvidence         AdvisoryEvidenceStore
 	ImpactFindings           SupplyChainImpactFindingStore
 	ImpactAggregates         SupplyChainImpactAggregateStore
@@ -97,6 +98,7 @@ func (h *SupplyChainHandler) Mount(mux *http.ServeMux) {
 	h.supplyChainImpactAggregateRoutes(mux)
 	h.securityAlertReconciliationAggregateRoutes(mux)
 	h.containerImageIdentityAggregateRoutes(mux)
+	h.sbomAttestationAttachmentAggregateRoutes(mux)
 }
 
 func (h *SupplyChainHandler) profile() QueryProfile {

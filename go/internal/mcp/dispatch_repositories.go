@@ -74,6 +74,10 @@ func repositoryRoute(toolName string, args map[string]any) (*route, bool) {
 		return securityAlertReconciliationAggregateInventoryRoute(args), true
 	case "list_sbom_attestation_attachments":
 		return sbomAttestationAttachmentsRoute(args), true
+	case "count_sbom_attestation_attachments":
+		return sbomAttestationAttachmentAggregateCountRoute(args), true
+	case "get_sbom_attestation_attachment_inventory":
+		return sbomAttestationAttachmentAggregateInventoryRoute(args), true
 	case "get_repo_story":
 		return &route{method: "GET", path: "/api/v0/repositories/" + url.PathEscape(str(args, "repo_id")) + "/story"}, true
 	case "get_repo_summary":

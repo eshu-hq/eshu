@@ -35,6 +35,12 @@ const (
 	// Replaces the page-and-iterate caller pattern for ecosystem-level
 	// questions like "how many images resolved by exact digest vs tag?".
 	SpanQueryContainerImageIdentityAggregate = "query.container_image_identity_aggregate"
+	// SpanQuerySBOMAttestationAttachmentAggregate wraps cheap-summary count
+	// and inventory aggregates over reducer-owned SBOM and attestation
+	// attachments. Replaces the page-and-iterate caller pattern for
+	// ecosystem-level questions like "how many attestations are verified vs
+	// unverified?".
+	SpanQuerySBOMAttestationAttachmentAggregate = "query.sbom_attestation_attachment_aggregate"
 )
 
 func init() {
@@ -52,6 +58,7 @@ func init() {
 				SpanQuerySupplyChainImpactAggregate,
 				SpanQuerySecurityAlertReconciliationAggregate,
 				SpanQueryContainerImageIdentityAggregate,
+				SpanQuerySBOMAttestationAttachmentAggregate,
 			)
 			return
 		}
@@ -70,6 +77,7 @@ func init() {
 				SpanQuerySupplyChainImpactAggregate,
 				SpanQuerySecurityAlertReconciliationAggregate,
 				SpanQueryContainerImageIdentityAggregate,
+				SpanQuerySBOMAttestationAttachmentAggregate,
 			)
 			return
 		}
@@ -85,5 +93,6 @@ func init() {
 		SpanQuerySupplyChainImpactAggregate,
 		SpanQuerySecurityAlertReconciliationAggregate,
 		SpanQueryContainerImageIdentityAggregate,
+		SpanQuerySBOMAttestationAttachmentAggregate,
 	)
 }

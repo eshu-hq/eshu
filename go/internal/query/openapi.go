@@ -75,6 +75,7 @@ func OpenAPISpec() string {
 			openAPIPathsContainerImageIdentityAggregate+
 			openAPIPathsSupplyChainAdvisoryEvidence+
 			openAPIPathsSupplyChainSBOMAttestations+
+			openAPIPathsSBOMAttestationAttachmentAggregate+
 			openAPIPathsStatusAndCompare+
 			openAPIComponents,
 		"__ESHU_VERSION__",
