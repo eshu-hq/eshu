@@ -86,6 +86,10 @@ must stay out of metrics.
   registry version and dependency edge for heavily reused packages. The runtime
   still collects one claimed scope at a time and does not enumerate the npm
   registry.
+- A 404 for a derived npm target is missing evidence, not a failed collection
+  run. The runtime completes the claim with a `package_registry.warning` fact
+  using `warning_code=metadata_not_found`. Explicitly configured targets keep
+  their existing `registry_not_found` failure behavior.
 
 ## Evidence
 
@@ -100,6 +104,8 @@ No-Observability-Change: no new metrics or labels were added. Existing package-r
 Collector Deployment Evidence: `helm lint deploy/helm/eshu` and `go test ./internal/runtime -run 'TestHelmClaimDrivenCollectorsRequireWorkflowCoordinator|TestHelmWorkflowCoordinatorActiveModeForClaimDrivenCollectors|TestHelmPodSecurityContextUsesOnRootMismatch' -count=1 -v` prove the chart renders active workflow-coordinator claim scheduling for hosted collectors and keeps the package-registry collector Deployment on the existing metrics Service and ServiceMonitor path.
 
 No-Regression Evidence: `go test ./internal/collector/packageregistry/packageruntime -run 'TestClaimedSource(ResolvesDerivedNPMTarget|RejectsDerivedTargetWhenDisabled)' -count=1` proves the runtime resolves only enabled, normalized npm derived scopes and rejects unknown scopes when derivation is disabled. The broader touched-package proof ran `go test ./internal/coordinator ./internal/workflow ./internal/storage/postgres ./internal/collector/packageregistry/packageruntime ./internal/collector/vulnerabilityintelligence/vulnruntime ./cmd/workflow-coordinator ./cmd/collector-package-registry ./cmd/collector-vulnerability-intelligence -count=1`.
+
+No-Regression Evidence: `go test ./internal/collector/packageregistry/packageruntime -run 'TestClaimedSourceCompletesDerivedNotFoundAsWarning|TestClaimedSourceKeepsConfiguredNotFoundAsError' -count=1` proves derived npm registry 404s complete as warning evidence while explicitly configured targets still surface `registry_not_found` as a collector failure.
 
 No-Observability-Change: derived npm targets use the existing package-registry observe duration, request status-class, facts-emitted, rate-limit, generation-lag, parse-failure, health, readiness, metrics, and admin-status signals. No new metric labels were added, and package names, versions, metadata URLs, and credential material stay out of labels.
 

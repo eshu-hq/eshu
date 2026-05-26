@@ -21,6 +21,9 @@
 // Package-registry identity emits package source-correlation and supply-chain
 // impact reducer intents so manifest-backed consumption and vulnerability
 // findings can catch up when package evidence arrives after source intelligence.
+// SBOM and attestation documents emit sbom_attestation_attachment reducer
+// intents; source-local components enrich the reducer decision but do not attach
+// themselves to images in the projector.
 // EntityTypeLabel keeps parser/content entity labels, including Terraform
 // backend/import/refactor/check and lockfile-provider labels, aligned with graph
 // schema support.

@@ -205,6 +205,54 @@ func TestPageAdvisoryEvidenceRowsNormalizesCursor(t *testing.T) {
 	}
 }
 
+func TestPageAdvisoryEvidenceRowsKeepsCVEAnchorScoped(t *testing.T) {
+	t.Parallel()
+
+	rows := []AdvisoryEvidenceRow{
+		{AdvisoryKey: "CVE-2026-0002", CanonicalID: "CVE-2026-0002", CVEIDs: []string{"CVE-2026-0002"}},
+		{AdvisoryKey: "CVE-2026-0001", CanonicalID: "CVE-2026-0001", CVEIDs: []string{"CVE-2026-0001"}},
+		{AdvisoryKey: "CVE-2026-0003", CanonicalID: "CVE-2026-0003", CVEIDs: []string{"CVE-2026-0003"}},
+	}
+
+	got := pageAdvisoryEvidenceRows(rows, AdvisoryEvidenceFilter{CVEID: "CVE-2026-0001", Limit: 10})
+	if len(got) != 1 || got[0].CanonicalID != "CVE-2026-0001" {
+		t.Fatalf("CVE-scoped page = %#v, want only CVE-2026-0001", got)
+	}
+}
+
+func TestPageAdvisoryEvidenceRowsKeepsPackageAnchorBroad(t *testing.T) {
+	t.Parallel()
+
+	rows := []AdvisoryEvidenceRow{
+		{
+			AdvisoryKey: "CVE-2026-0001",
+			CanonicalID: "CVE-2026-0001",
+			AffectedPackages: []AdvisoryAffectedPackage{
+				{PackageID: "pkg:npm/example"},
+			},
+		},
+		{
+			AdvisoryKey: "CVE-2026-0002",
+			CanonicalID: "CVE-2026-0002",
+			AffectedPackages: []AdvisoryAffectedPackage{
+				{PackageID: "pkg:npm/example"},
+			},
+		},
+		{
+			AdvisoryKey: "CVE-2026-0003",
+			CanonicalID: "CVE-2026-0003",
+			AffectedPackages: []AdvisoryAffectedPackage{
+				{PackageID: "pkg:npm/other"},
+			},
+		},
+	}
+
+	got := pageAdvisoryEvidenceRows(rows, AdvisoryEvidenceFilter{PackageID: "pkg:npm/example", Limit: 10})
+	if len(got) != 2 {
+		t.Fatalf("package-scoped page length = %d, want 2: %#v", len(got), got)
+	}
+}
+
 func TestAdvisoryEvidenceFactCapacityUsesQueryLimit(t *testing.T) {
 	t.Parallel()
 
