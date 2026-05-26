@@ -82,6 +82,7 @@ var spanNames = []string{
 	SpanQueryIaCTerraformImportPlan,
 	SpanQueryAWSRuntimeDriftFindings,
 	SpanQueryInfraResourceSearch,
+	SpanQueryInfraResourceAggregate,
 	SpanQueryCodeTopicInvestigation,
 	SpanQueryHardcodedSecretInvestigation,
 	SpanQueryDeadCodeInvestigation,

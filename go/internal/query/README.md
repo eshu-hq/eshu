@@ -463,3 +463,48 @@ Observability Evidence: the aggregate routes add the
 `go/internal/telemetry/contract_package_registry.go` with route and
 capability attributes. They re-use the existing `Neo4jReader.Run` tracing
 and the `neo4j.query` graph span; no new metric instrument is added.
+
+## Infra resource aggregate hot-path evidence (#690)
+
+The graph-backed infrastructure resource aggregate
+(`infra_resource_aggregates.go`, `infra_resource_aggregates_handler.go`)
+emits the same Area 5 "Grouped Count" Cypher shape as the package-registry
+aggregate, narrowed across the existing infra label families instead of the
+single `Package` label. The handler resolves a single optional `category`
+input (`k8s`, `terraform`, `argocd`, `crossplane`, `helm`) to a closed label
+set via `resolveInfraLabels`, then emits `MATCH (n) WHERE n:<Label1> OR
+n:<Label2> ... [AND n.<indexed_prop> = $value] RETURN <bucket_expr> AS
+bucket, count(n) AS bucket_count ORDER BY bucket_count DESC SKIP $offset
+LIMIT $limit`. Bucket normalization uses the `CASE WHEN n.x IS NULL OR
+n.x = '' THEN 'unknown' ELSE n.x END` form so empty-string properties land
+in the `unknown` bucket alongside true NULLs (mirrors #695 Copilot fix).
+
+No-Regression Evidence: `go test ./internal/query -run
+'TestInfraResourceAggregate|TestInfraResourceInventoryGroup|TestGraphInfraResourceAggregate|TestNextInfraResourceAggregateOffsetBound'
+-count=1` proves the production Reader emits the cookbook hot-path shape
+across the resolved label set, deterministic `ORDER BY bucket_count DESC`,
+parameter-bound `SKIP`/`LIMIT`, and a closed-enum dimension map so the
+substituted group expression stays parameter-safe. The
+`TestGraphInfraResourceAggregateCountShapeNarrowsToCategoryLabels` test
+guards the label narrowing: `category=terraform` produces Cypher matching
+`TerraformResource` but not `K8sResource`, and `category` omitted produces
+the full label union.
+
+The indexes the hot path depends on ship in the same PR
+(`go/internal/graph/schema.go`): `tf_resource_provider`,
+`tf_resource_environment`, `tf_resource_service`, `tf_resource_category` on
+the `TerraformResource` label, which is the dominant infra fact source.
+Operators with non-Terraform-heavy workloads must filter with a
+single-category scope (e.g., `category=k8s`) until matching indexes ship on
+the other infra labels; the aggregate routes still answer, but the planner
+falls back to a full label scan. A `PROFILE` proof against the pinned
+NornicDB binary is the operator gate for promoting the routes once
+`eshu-bootstrap-data-plane` re-runs the schema apply step — the in-process
+tests guard the Cypher shape, but only `PROFILE` proves the planner picks
+the new TerraformResource indexes.
+
+Observability Evidence: the aggregate routes add the
+`query.infra_resource_aggregate` request span registered in
+`go/internal/telemetry/contract.go` with route and capability attributes.
+They re-use the existing `Neo4jReader.Run` tracing and the `neo4j.query`
+graph span; no new metric instrument is added.

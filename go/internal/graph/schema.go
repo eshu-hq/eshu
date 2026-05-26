@@ -213,6 +213,17 @@ var schemaPerformanceIndexes = []string{
 	"CREATE INDEX k8s_kind IF NOT EXISTS FOR (k:K8sResource) ON (k.kind)",
 	"CREATE INDEX k8s_namespace IF NOT EXISTS FOR (k:K8sResource) ON (k.namespace)",
 	"CREATE INDEX tf_resource_type IF NOT EXISTS FOR (r:TerraformResource) ON (r.resource_type)",
+	// Indexes that back the infrastructure resource aggregate (#690)
+	// grouped-count hot path on the TerraformResource label (the largest
+	// infra label in typical deployments). Other labels can pick up
+	// matching indexes in follow-ups as their volume warrants; operators
+	// with non-Terraform workloads should currently narrow the aggregate
+	// with `category=k8s` (or similar) plus a kind / resource_service
+	// filter to stay on a hot path.
+	"CREATE INDEX tf_resource_provider IF NOT EXISTS FOR (r:TerraformResource) ON (r.provider)",
+	"CREATE INDEX tf_resource_environment IF NOT EXISTS FOR (r:TerraformResource) ON (r.environment)",
+	"CREATE INDEX tf_resource_service IF NOT EXISTS FOR (r:TerraformResource) ON (r.resource_service)",
+	"CREATE INDEX tf_resource_category IF NOT EXISTS FOR (r:TerraformResource) ON (r.resource_category)",
 	"CREATE INDEX workload_name IF NOT EXISTS FOR (w:Workload) ON (w.name)",
 	"CREATE INDEX workload_repo_id IF NOT EXISTS FOR (w:Workload) ON (w.repo_id)",
 	"CREATE INDEX workload_instance_environment IF NOT EXISTS FOR (i:WorkloadInstance) ON (i.environment)",
