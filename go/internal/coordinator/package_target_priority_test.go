@@ -124,6 +124,18 @@ func TestVulnerabilityIntelligenceWorkPlannerPreservesOwnedPriorityAcrossBatches
 	assertVulnerabilityTargetClass(t, run.RequestedScopeSet, items[0].ScopeID, vulnerabilityTargetClassOwnedPackage)
 }
 
+func TestTargetCreatedAtSpacingSurvivesPostgresTimestampPrecision(t *testing.T) {
+	t.Parallel()
+
+	observedAt := time.Date(2026, time.May, 26, 18, 15, 0, 0, time.UTC)
+	first := targetCreatedAt(observedAt, 0).Truncate(time.Microsecond)
+	second := targetCreatedAt(observedAt, 1).Truncate(time.Microsecond)
+	if !first.Before(second) {
+		t.Fatalf("targetCreatedAt spacing collapses at Postgres precision: first=%s second=%s",
+			first.Format(time.RFC3339Nano), second.Format(time.RFC3339Nano))
+	}
+}
+
 func packageRegistryPriorityInstance(observedAt time.Time, configuration string) workflow.CollectorInstance {
 	return workflow.CollectorInstance{
 		InstanceID:     "collector-package-registry",

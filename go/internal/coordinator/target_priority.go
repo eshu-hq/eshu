@@ -35,7 +35,9 @@ func targetCreatedAt(observedAt time.Time, ordinal int) time.Time {
 	if ordinal < 0 {
 		ordinal = 0
 	}
-	return observedAt.UTC().Add(time.Duration(ordinal) * time.Nanosecond)
+	// Postgres TIMESTAMPTZ stores microseconds, so priority spacing must
+	// survive that precision before FIFO falls back to work_item_id.
+	return observedAt.UTC().Add(time.Duration(ordinal) * time.Microsecond)
 }
 
 func packageRegistryConfiguredTargetClass(target packageRegistryTargetConfiguration) string {
