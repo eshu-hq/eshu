@@ -1,0 +1,190 @@
+go/internal/workflow/package_registry_config.go
+  s_f2f7fbb6f30866::t_c3a8c0e0d739a7 11-13,128-129
+go/internal/reducer/supply_chain_impact_manifest_dependency.go
+  s_f2f7fbb6f30866::t_d9e7d98d3ea9ef 1-39,41-42,47-60,87-101,103-105,109-131
+  s_f2f7fbb6f30866::t_884db9aa25622a 40,43-46,61-86
+  s_f2f7fbb6f30866::t_3f5dbc6bebb240 102,106-108
+go/internal/reducer/security_alert_reconciliation_handler.go
+  s_f2f7fbb6f30866::t_8197e029f041c0 6,12-13,58,68,71-75,97-103,122-132,143-216
+go/internal/storage/postgres/README.md
+  s_f2f7fbb6f30866::t_7a2c8b2b58fcba 180-184
+  s_f2f7fbb6f30866::t_f7906a6ec3122d 185-188
+  s_f2f7fbb6f30866::t_e2b22a39f6da85 174-179,239-250
+  s_f2f7fbb6f30866::t_bd858416663035 189-191
+go/internal/reducer/supply_chain_impact_security_alert.go
+  s_f2f7fbb6f30866::t_b76ee555e7d843 34,41-43,74,115-119,121
+  s_f2f7fbb6f30866::t_9c3022a0714273 37-38
+  s_f2f7fbb6f30866::t_e08228783af0ac 110,161-187
+  s_f2f7fbb6f30866::t_a9981b9eb186c5 1-33,35-36,39-40,44-73,75-109,111-114,120,122-160,188
+go/internal/storage/postgres/owned_package_targets_test.go
+  s_f2f7fbb6f30866::t_b4152ac61006e8 11,22-23,26-27,31-64
+go/internal/projector/security_alert_reconciliation_intents.go
+  s_f2f7fbb6f30866::t_2c64696ac54996 18,26,34-48
+go/internal/storage/postgres/facts_active_supply_chain_impact_test.go
+  s_f2f7fbb6f30866::t_04c08b40adda89 19
+  s_f2f7fbb6f30866::t_318b016cf44768 89
+  s_f2f7fbb6f30866::t_0bdcc4f18a2c8b 62-65,69-80
+  s_f2f7fbb6f30866::t_6954e1c900ae94 66-68
+go/internal/reducer/supply_chain_impact_active_filter.go
+  s_f2f7fbb6f30866::t_9ad7fcb7c7a78a 113-116
+  s_f2f7fbb6f30866::t_2c4b36bdd44059 122-126
+go/internal/reducer/supply_chain_impact_index.go
+  s_f2f7fbb6f30866::t_0fead4cea8eba6 49
+  s_f2f7fbb6f30866::t_543ba591bcdae5 220
+  s_f2f7fbb6f30866::t_7a54241c558db0 193
+go/internal/projector/security_alert_reconciliation_intents_test.go
+  s_f2f7fbb6f30866::t_811e4becf817a4 57,62,69-73
+  s_f2f7fbb6f30866::t_6494169fe0cb03 77-113
+go/internal/reducer/supply_chain_impact.go
+  s_f2f7fbb6f30866::t_ef38f1bf9ab44a 185-189
+  s_f2f7fbb6f30866::t_57e22204e3ef74 194-196
+  s_f2f7fbb6f30866::t_30de12bca7b360 60-70,373,411
+go/internal/storage/postgres/owned_package_targets.go
+  s_f2f7fbb6f30866::t_dec48abc09ed0d 11-23,46-82,84,91-92,94-95,111,113-119,151-159
+go/internal/reducer/package_consumption_correlation_test.go
+  s_f2f7fbb6f30866::t_2ef605eea1b601 72-113
+go/internal/coordinator/service_vulnerability_intelligence_test.go
+  s_f2f7fbb6f30866::t_b4152ac61006e8 125,160-167
+go/internal/reducer/package_source_correlation.go
+  s_f2f7fbb6f30866::t_ee444e177d80b5 121-122,140-142
+go/internal/projector/supply_chain_impact_intents.go
+  s_f2f7fbb6f30866::t_4757b2b5cad995 39,48-50
+docs/public/reference/collector-reducer-readiness.md
+  s_f2f7fbb6f30866::t_3b9792b4134816 69
+  s_f2f7fbb6f30866::t_d3be3139f4b013 71
+  s_f2f7fbb6f30866::t_95f87af1fe3825 72,96
+go/internal/coordinator/owned_package_target_helpers.go
+  s_f2f7fbb6f30866::t_d448ad5e76dd83 8,54-62
+go/internal/workflow/package_registry_config_test.go
+  s_f2f7fbb6f30866::t_916090cf83cadf 63-86
+go/internal/collector/packageregistry/packageruntime/derived_targets.go
+  s_f2f7fbb6f30866::t_2abbca4706d02a 38
+docs/public/reference/local-testing/remote-collector-e2e.md
+  s_f2f7fbb6f30866::t_c914e8231f39e2 134
+  s_f2f7fbb6f30866::t_b51aa9b4c0c2b7 135-137
+  s_f2f7fbb6f30866::t_c7b2aaa396dfb3 129-132
+  s_f2f7fbb6f30866::t_3b9792b4134816 133
+go/internal/reducer/supply_chain_impact_match.go
+  s_f2f7fbb6f30866::t_a71e262482b164 55
+go/internal/reducer/supply_chain_impact_manifest_consumption.go
+  s_f2f7fbb6f30866::t_8cd5a6e9f07160 1-2,5,10-11,13,91
+  s_f2f7fbb6f30866::t_be14495d109242 3-4,6-9,12,14-90
+go/internal/coordinator/package_registry_scheduler.go
+  s_f2f7fbb6f30866::t_d448ad5e76dd83 296-299
+  s_f2f7fbb6f30866::t_720c93769bf6bf 254-256
+go/internal/collector/packageregistry/packageruntime/derived_targets_test.go
+  s_f2f7fbb6f30866::t_503253dfa8f491 1-136
+go/internal/workflow/types.go
+  s_f2f7fbb6f30866::t_c3a8c0e0d739a7 195-198
+docs/public/reference/environment-collectors.md
+  s_f2f7fbb6f30866::t_3b9792b4134816 79-81,151-153
+  s_f2f7fbb6f30866::t_2abbca4706d02a 82-87
+go/internal/reducer/supply_chain_impact_manifest_dependency_test.go
+  s_f2f7fbb6f30866::t_e9c799facf117f 1-136
+go/internal/workflow/vulnerability_intelligence_config_test.go
+  s_f2f7fbb6f30866::t_916090cf83cadf 4-5,157-209
+go/internal/coordinator/service_package_registry_test.go
+  s_f2f7fbb6f30866::t_b4152ac61006e8 127,165-172
+go/internal/reducer/security_alert_reconciliation_writer.go
+  s_f2f7fbb6f30866::t_426bc777067083 129-130,132,138,146-147,151-152,198-216
+  s_f2f7fbb6f30866::t_c417e7b0108654 137,161-162
+  s_f2f7fbb6f30866::t_d8c6fd7a94d940 62-63,73-74
+go/internal/storage/postgres/facts_active_security_alert_reconciliation.go
+  s_f2f7fbb6f30866::t_ce58a7eefae082 37
+go/internal/reducer/security_alert_reconciliation_payload.go
+  s_f2f7fbb6f30866::t_eca68b0c08a6bf 1-126
+go/internal/storage/postgres/facts_active_supply_chain_impact.go
+  s_f2f7fbb6f30866::t_391cdc571e8ca0 69-80
+  s_f2f7fbb6f30866::t_669567fb1bd174 41
+go/internal/coordinator/README.md
+  s_f2f7fbb6f30866::t_3b9792b4134816 219-220
+  s_f2f7fbb6f30866::t_b51aa9b4c0c2b7 110-112
+  s_f2f7fbb6f30866::t_58e1501da456d9 195-196
+  s_f2f7fbb6f30866::t_3c89704423a355 197-201
+go/internal/collector/vulnerabilityintelligence/vulnruntime/source_derived.go
+  s_f2f7fbb6f30866::t_56d4739c9583dd 52-54,56,75-88,103-130
+  s_f2f7fbb6f30866::t_e2d24ffbca1b3f 1-51,55,57-74,89-102,131-151
+go/internal/coordinator/vulnerability_intelligence_batch_test.go
+  s_f2f7fbb6f30866::t_0b7a9d8038bfc2 49-50,63-67
+  s_f2f7fbb6f30866::t_f04809da59befa 1-48,51-62,68-70
+  s_f2f7fbb6f30866::t_e416a465417689 71-115
+go/internal/reducer/supply_chain_impact_test.go
+  s_f2f7fbb6f30866::t_b96447a13eb3ef 256-296
+  s_f2f7fbb6f30866::t_dbf0e1fd7ed399 158-211
+  s_f2f7fbb6f30866::t_f2b6781b550bac 212-255
+  s_f2f7fbb6f30866::t_b13264e6c97fdb 337-401
+go/internal/coordinator/derived_package_targets_test.go
+  s_f2f7fbb6f30866::t_c3e2724c6c5b77 386-387,390-391
+  s_f2f7fbb6f30866::t_916090cf83cadf 6,95-144,211-252,255,257-258,360-363,395-397
+  s_f2f7fbb6f30866::t_02fc4404b7c787 8,256,364-385,388-389,392-394
+  s_f2f7fbb6f30866::t_22035983dc5b52 7
+  s_f2f7fbb6f30866::t_ba18d009f283a1 253-254,296-297,299-300,320-321
+  s_f2f7fbb6f30866::t_03a297d085c43e 261-295,298,301-319,322-325
+go/internal/collector/vulnerabilityintelligence/vulnruntime/source_derived_batch_test.go
+  s_f2f7fbb6f30866::t_170a84d1fe5dc4 1-12,125-186
+  s_f2f7fbb6f30866::t_6ad1d5b4c75ed2 13-124
+go/internal/coordinator/vulnerability_intelligence_scheduler.go
+  s_f2f7fbb6f30866::t_7213ce9b2570da 206
+  s_f2f7fbb6f30866::t_ee1b376917fede 46,189,207,265-268,270,282-283,286-289,291,296,299-304,306-307,311-314,345,349-359,414-428
+  s_f2f7fbb6f30866::t_bcb5ef379c4862 280-281,290,297-298,305,315,335,337-340,342,360
+  s_f2f7fbb6f30866::t_d448ad5e76dd83 324,329
+  s_f2f7fbb6f30866::t_720c93769bf6bf 255-257
+  s_f2f7fbb6f30866::t_f4f5a0f83a8234 36-41,43,308-310,328,362-413
+  s_f2f7fbb6f30866::t_3583c2acdb554b 42,47-49,183-188,190,292-293,325-327
+go/internal/reducer/README.md
+  s_f2f7fbb6f30866::t_d7d961523067c1 549-551
+  s_f2f7fbb6f30866::t_5796b1501c728c 471-477,483-487,552-554
+  s_f2f7fbb6f30866::t_15ba1839f124b7 318-327
+  s_f2f7fbb6f30866::t_351a1f67ca87b5 75,467-470,478
+go/internal/workflow/vulnerability_intelligence_config.go
+  s_f2f7fbb6f30866::t_c3a8c0e0d739a7 14-16,249-250
+docker-compose.remote-e2e.yaml
+  s_f2f7fbb6f30866::t_7570aa9ba5ce95 135,179
+  s_f2f7fbb6f30866::t_2abbca4706d02a 137
+  s_f2f7fbb6f30866::t_729096f6798360 443-444
+go/internal/workflow/README.md
+  s_f2f7fbb6f30866::t_58e1501da456d9 177-179
+  s_f2f7fbb6f30866::t_2abbca4706d02a 162-167,307-308
+  s_f2f7fbb6f30866::t_fbe7c97028fd67 180
+  s_f2f7fbb6f30866::t_3b9792b4134816 160-161,183-185,305-306,311-312
+  s_f2f7fbb6f30866::t_b51aa9b4c0c2b7 309-310
+go/internal/collector/vulnerabilityintelligence/vulnruntime/README.md
+  s_f2f7fbb6f30866::t_58e1501da456d9 63-64,98
+  s_f2f7fbb6f30866::t_b51aa9b4c0c2b7 65-66
+  s_f2f7fbb6f30866::t_c057463ee49ec3 62
+go/internal/reducer/security_alert_reconciliation.go
+  s_f2f7fbb6f30866::t_3a79fd0b89e4cd 39-40,42-76,141-142,144-149
+  s_f2f7fbb6f30866::t_13cfdd64881a78 154-175,241,243-247,285,296,300-302,319,321,326,332
+  s_f2f7fbb6f30866::t_cd74a25b9ec1a0 85-86,88-95,190-191,193-200
+  s_f2f7fbb6f30866::t_318da0bbe043ed 87,137,150-153,192,249-250,261-262,266,286-287,289,293-294,297,303-318,320,322-325,328-330,351-363
+  s_f2f7fbb6f30866::t_ecd5353e7941ee 41,143
+go/internal/reducer/security_alert_reconciliation_test.go
+  s_f2f7fbb6f30866::t_acbe286af562ca 171-214,323-325
+  s_f2f7fbb6f30866::t_a8af67b08f7af5 218-280
+  s_f2f7fbb6f30866::t_fba5d4ab57bc2a 4,215-217,281-322
+go/internal/reducer/supply_chain_impact_security_alert_scope.go
+  s_f2f7fbb6f30866::t_a93dde8a7f4d77 1-144
+go/cmd/collector-vulnerability-intelligence/README.md
+  s_f2f7fbb6f30866::t_58e1501da456d9 33
+  s_f2f7fbb6f30866::t_76c107d4964e43 34-35
+go/internal/coordinator/service.go
+  s_f2f7fbb6f30866::t_d448ad5e76dd83 332,358,370,372-374,414,440,452,454-457
+go/internal/collector/packageregistry/packageruntime/README.md
+  s_f2f7fbb6f30866::t_2abbca4706d02a 82-88
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "a5e648bc542dda8f44963bc37d7509102a88521d",
+  "prompts": {},
+  "sessions": {
+    "s_f2f7fbb6f30866": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e360b-90eb-7472-bac7-56d488b65f77",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
