@@ -126,6 +126,7 @@ func TestSpanNames(t *testing.T) {
 		"security_alert.fetch",
 		"query.supply_chain_impact_findings",
 		"query.supply_chain_impact_explanation",
+		"query.supply_chain_impact_aggregate",
 		"scanner_worker.claim.process",
 		"scanner_worker.analyze",
 		"scanner_worker.fact.emit_batch",

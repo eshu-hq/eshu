@@ -21,6 +21,10 @@ const (
 	// SpanQuerySupplyChainSecurityAlerts wraps reducer-owned provider alert
 	// reconciliation reads from durable facts.
 	SpanQuerySupplyChainSecurityAlerts = "query.supply_chain_security_alerts"
+	// SpanQuerySupplyChainImpactAggregate wraps cheap-summary count and
+	// inventory aggregates over reducer-owned impact findings. Replaces the
+	// page-and-iterate caller pattern for ecosystem-level totals questions.
+	SpanQuerySupplyChainImpactAggregate = "query.supply_chain_impact_aggregate"
 )
 
 func init() {
@@ -35,6 +39,7 @@ func init() {
 				SpanQueryAdvisoryEvidence,
 				SpanQuerySupplyChainImpactFindings,
 				SpanQuerySupplyChainImpactExplanation,
+				SpanQuerySupplyChainImpactAggregate,
 			)
 			return
 		}
@@ -50,6 +55,7 @@ func init() {
 				SpanQueryAdvisoryEvidence,
 				SpanQuerySupplyChainImpactFindings,
 				SpanQuerySupplyChainImpactExplanation,
+				SpanQuerySupplyChainImpactAggregate,
 			)
 			return
 		}
@@ -62,5 +68,6 @@ func init() {
 		SpanQueryAdvisoryEvidence,
 		SpanQuerySupplyChainImpactFindings,
 		SpanQuerySupplyChainImpactExplanation,
+		SpanQuerySupplyChainImpactAggregate,
 	)
 }

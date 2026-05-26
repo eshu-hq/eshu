@@ -167,6 +167,36 @@ Observability Evidence: the advisory evidence route adds the
 uses the active Postgres fact read model only; it adds no graph query, queue,
 reducer lane, worker, or metric instrument.
 
+The same handler exposes cheap-summary aggregates over the reducer-owned impact
+findings through a separate Postgres aggregate read model
+(`supply_chain_impact_aggregates.go`). `CountSupplyChainImpactFindings` answers
+total / affected / not_affected / per-priority / per-severity questions over an
+optional CVE, package, repository, subject-digest, or impact-status scope.
+`SupplyChainImpactInventory` returns a paginated grouped count along one of the
+dimensions `impact_status`, `priority_bucket`, `severity` (bucketed from CVSS
+score), or `repository_id`. The aggregate path is the cheap-summary call shape
+that replaces the page-and-iterate caller workflow for ecosystem-level totals
+questions exposed by `list_supply_chain_impact_findings`. It re-uses the
+existing partial indexes on `fact_records` for
+`reducer_supply_chain_impact_finding` (status, priority bucket, CVE,
+package + repository + subject digest); no new schema or graph migration is
+needed.
+
+No-Regression Evidence: `go test ./internal/query -run
+'TestSupplyChainImpactAggregate|TestSupplyChainImpactInventoryGroupExpression'
+-count=1` proves: 503 envelope when the store is missing, totals envelope shape,
+grouped inventory shape, truncation marker + `next_offset` on overflow,
+rejection of unknown grouping dimensions, oversized limits, and negative offsets,
+and that the dimension-to-SQL-expression map is a closed enum (so SQL
+substitution stays parameter-safe).
+
+Observability Evidence: the aggregate routes add the
+`query.supply_chain_impact_aggregate` request span (registered in
+`go/internal/telemetry/contract_supply_chain.go`) with route and capability
+attributes. They re-use the existing `eshu_dp_postgres_query_duration_seconds`
+histogram and add no new graph query, queue, reducer lane, worker, or metric
+instrument.
+
 ## Runtime and investigation read models
 
 Both backends instrument every query with an OTEL span (`neo4j.query`,
