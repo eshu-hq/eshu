@@ -77,7 +77,18 @@ to smoke mode:
 ```text
 ESHU_REMOTE_E2E_CORPUS_MODE=smoke
 ESHU_REMOTE_E2E_MIN_REPOSITORY_COUNT=0
+ESHU_REMOTE_E2E_MAX_REPOSITORY_COUNT=
 ```
+
+Use `ESHU_REMOTE_E2E_CORPUS_MODE=representative` for fast hosted E2E loops.
+Representative mode is for a cloned 20-50 repository corpus that intentionally
+covers source parsing, package and vulnerability evidence, SBOM/image evidence,
+workload/service/environment correlation, and API/MCP readback without paying
+the full-corpus runtime cost on every change. By default, representative mode
+requires at least 20 and at most 50 candidate repository roots and at least one
+Git repository root. Override `ESHU_REMOTE_E2E_MIN_REPOSITORY_COUNT` or
+`ESHU_REMOTE_E2E_MAX_REPOSITORY_COUNT` only when the corpus design is recorded
+with the run evidence.
 
 Full-corpus mode rejects the default fixture root unless
 `ESHU_REMOTE_E2E_MIN_REPOSITORY_COUNT` or
@@ -87,6 +98,43 @@ The preflight emits `host_root`, `mounted_root`, `mode`,
 `candidate_repository_roots`, and `git_repository_roots`, letting release gates
 distinguish fixture smokes, wrong-root full-corpus attempts, malformed
 thresholds, and real full-corpus runs before Eshu writes facts or graph rows.
+
+## Representative Acceptance
+
+After a representative run reaches queue zero, run:
+
+```bash
+ESHU_REMOTE_E2E_CORPUS_MODE=representative \
+  scripts/verify_remote_e2e_runtime_state.sh
+```
+
+The verifier checks service health, terminal queue state, workflow terminal
+state, and aggregate proof counters. In representative mode the package,
+advisory-evidence, impact-finding, security-alert reconciliation, SBOM
+attachment, and container-image identity counters default to minimum `1`. Use
+these env vars only to make the recorded corpus contract more explicit:
+
+```text
+ESHU_REMOTE_E2E_MIN_PACKAGE_COUNT=
+ESHU_REMOTE_E2E_MIN_ADVISORY_EVIDENCE_COUNT=
+ESHU_REMOTE_E2E_MIN_IMPACT_FINDING_COUNT=
+ESHU_REMOTE_E2E_MIN_SECURITY_ALERT_RECONCILIATION_COUNT=
+ESHU_REMOTE_E2E_MIN_SBOM_ATTACHMENT_COUNT=
+ESHU_REMOTE_E2E_MIN_CONTAINER_IMAGE_IDENTITY_COUNT=
+```
+
+The output is aggregate-only. Do not paste repository names, package names,
+alert URLs, tokens, hostnames, or machine paths into public issues, docs, or PR
+evidence.
+
+No-Regression Evidence: `scripts/test-remote-e2e-corpus-preflight.sh` and
+`scripts/test-verify-remote-e2e-runtime-state.sh` cover representative corpus
+bounds, unknown modes, terminal queue state, and aggregate counter thresholds.
+
+Observability Evidence: `scripts/verify_remote_e2e_runtime_state.sh` reports
+terminal queue counts including `dead_letter` plus aggregate package,
+advisory-evidence, impact-finding, security-alert reconciliation, SBOM
+attachment, and container-image identity counters.
 
 ## Restart Recovery
 

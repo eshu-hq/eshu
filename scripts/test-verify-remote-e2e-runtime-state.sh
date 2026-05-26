@@ -119,14 +119,36 @@ cat >"${fake_bin}/curl" <<'SH'
 set -euo pipefail
 
 state_dir="${ESHU_REMOTE_E2E_TEST_STATE:?set ESHU_REMOTE_E2E_TEST_STATE}"
-if [[ "$*" != *"/api/v0/index-status"* ]]; then
-  echo "unexpected curl target: $*" >&2
-  exit 2
-fi
 if [[ -f "${state_dir}/curl-fails" ]]; then
   exit 7
 fi
-cat "${state_dir}/index-status.json"
+case "$*" in
+  *"/api/v0/index-status"*)
+    cat "${state_dir}/index-status.json"
+    ;;
+  *"/api/v0/package-registry/packages/count"*)
+    cat "${state_dir}/package-count.json"
+    ;;
+  *"/api/v0/supply-chain/advisories/evidence"*)
+    cat "${state_dir}/advisory-evidence.json"
+    ;;
+  *"/api/v0/supply-chain/impact/findings/count"*)
+    cat "${state_dir}/impact-count.json"
+    ;;
+  *"/api/v0/supply-chain/security-alerts/reconciliations/count"*)
+    cat "${state_dir}/security-alert-count.json"
+    ;;
+  *"/api/v0/supply-chain/sbom-attestations/attachments/count"*)
+    cat "${state_dir}/sbom-count.json"
+    ;;
+  *"/api/v0/supply-chain/container-images/identities/count"*)
+    cat "${state_dir}/container-image-count.json"
+    ;;
+  *)
+    echo "unexpected curl target: $*" >&2
+    exit 2
+    ;;
+esac
 SH
 chmod +x "${fake_bin}/curl"
 
@@ -145,6 +167,7 @@ collector-terraform-state
 collector-oci-registry
 collector-package-registry
 collector-sbom-attestation
+collector-security-alerts
 collector-vulnerability-intelligence
 collector-aws-cloud
 scanner-worker
@@ -167,6 +190,24 @@ SERVICES
     "completeness_counts": []
   }
 }
+JSON
+  cat >"${state_dir}/package-count.json" <<'JSON'
+{"total_packages": 3}
+JSON
+  cat >"${state_dir}/advisory-evidence.json" <<'JSON'
+{"count": 1, "truncated": false}
+JSON
+  cat >"${state_dir}/impact-count.json" <<'JSON'
+{"total_findings": 2, "affected_findings": 2}
+JSON
+  cat >"${state_dir}/security-alert-count.json" <<'JSON'
+{"total_reconciliations": 1}
+JSON
+  cat >"${state_dir}/sbom-count.json" <<'JSON'
+{"total_attachments": 1}
+JSON
+  cat >"${state_dir}/container-image-count.json" <<'JSON'
+{"total_identities": 1}
 JSON
 }
 
@@ -287,5 +328,19 @@ expect_fail_with 'workflow completion'
 reset_state
 set_all_services_healthy
 expect_pass
+if ! rg -q 'remote E2E aggregate proof counts: package_registry_packages=3 advisory_evidence=1 impact_findings=2 affected_findings=2 security_alert_reconciliations=1 sbom_attachments=1 container_image_identities=1' /tmp/eshu-remote-e2e-runtime.out; then
+  printf 'expected aggregate proof counts in verifier output\n' >&2
+  sed -n '1,220p' /tmp/eshu-remote-e2e-runtime.out >&2
+  exit 1
+fi
+
+reset_state
+set_all_services_healthy
+cat >"${state_dir}/package-count.json" <<'JSON'
+{"total_packages": 0}
+JSON
+export ESHU_REMOTE_E2E_CORPUS_MODE=representative
+expect_fail_with 'package_registry_packages=0 below required minimum 1'
+unset ESHU_REMOTE_E2E_CORPUS_MODE
 
 printf 'verify-remote-e2e-runtime-state tests passed\n'

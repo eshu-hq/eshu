@@ -65,9 +65,16 @@ These variables are read by `scripts/sync_local_compose_mcp.sh`.
 | Variable | Default | Purpose |
 | --- | --- | --- |
 | `ESHU_REMOTE_E2E_PROJECT_NAME` | `eshu-remote-e2e` | Compose project name for remote E2E. |
-| `ESHU_REMOTE_E2E_CORPUS_MODE` | `smoke` in Compose and `.env.remote-e2e.example` | Declares smoke/fixture or full-corpus release-gate mode. |
+| `ESHU_REMOTE_E2E_CORPUS_MODE` | `smoke` in Compose and `.env.remote-e2e.example` | Declares `smoke`, `representative`, or `full` corpus mode. |
 | `ESHU_REMOTE_E2E_MIN_REPOSITORY_COUNT` | `0` in Compose | Minimum candidate repository-root count accepted by corpus preflight. |
+| `ESHU_REMOTE_E2E_MAX_REPOSITORY_COUNT` | unset | Maximum candidate repository-root count accepted by corpus preflight. Representative mode defaults this to `50` when unset. |
 | `ESHU_REMOTE_E2E_EXPECTED_REPOSITORY_COUNT` | unset | Exact candidate repository-root count accepted by corpus preflight. |
+| `ESHU_REMOTE_E2E_MIN_PACKAGE_COUNT` | `1` in representative mode, otherwise `0` | Minimum package-registry aggregate count accepted by the remote runtime verifier. |
+| `ESHU_REMOTE_E2E_MIN_ADVISORY_EVIDENCE_COUNT` | `1` in representative mode, otherwise `0` | Minimum scoped advisory-evidence count accepted by the remote runtime verifier. |
+| `ESHU_REMOTE_E2E_MIN_IMPACT_FINDING_COUNT` | `1` in representative mode, otherwise `0` | Minimum supply-chain impact finding count accepted by the remote runtime verifier. |
+| `ESHU_REMOTE_E2E_MIN_SECURITY_ALERT_RECONCILIATION_COUNT` | `1` in representative mode, otherwise `0` | Minimum security-alert reconciliation count accepted by the remote runtime verifier. |
+| `ESHU_REMOTE_E2E_MIN_SBOM_ATTACHMENT_COUNT` | `1` in representative mode, otherwise `0` | Minimum SBOM attachment aggregate count accepted by the remote runtime verifier. |
+| `ESHU_REMOTE_E2E_MIN_CONTAINER_IMAGE_IDENTITY_COUNT` | `1` in representative mode, otherwise `0` | Minimum container-image identity aggregate count accepted by the remote runtime verifier. |
 | `ESHU_REMOTE_E2E_ENV_FILE` | unset | Optional Compose env file passed to `docker compose --env-file`. |
 | `ESHU_REMOTE_E2E_COMPOSE_FILES` | `docker-compose.remote-e2e.yaml` | Colon-separated Compose file list for `scripts/verify_remote_e2e_runtime_state.sh`. |
 | `ESHU_REMOTE_E2E_REQUIRED_SERVICES` | core runtime service list | Core services that must be running and healthy. |
