@@ -340,6 +340,43 @@ Observability Evidence: the aggregate routes add the
 capability attributes. They re-use the existing query-handler tracing and
 the `neo4j.query` graph span; no new metric instrument is added.
 
+`SupplyChainHandler` (`supply_chain.go`) also exposes cheap-summary
+aggregates over the reducer-owned SBOM and attestation attachments through a
+separate Postgres aggregate read model
+(`sbom_attestation_attachment_aggregates.go`).
+`CountSBOMAttestationAttachments` answers total + per-attachment-status +
+per-artifact-kind questions over an optional subject_digest, document_id,
+document_digest, attachment_status, or artifact_kind scope.
+`SBOMAttestationAttachmentInventory` returns a paginated grouped count along
+one of the dimensions `attachment_status`, `artifact_kind`, or
+`subject_digest`. The aggregate replaces the page-and-iterate caller
+workflow for ecosystem-level questions like "how many attestations are
+verified vs unverified?" exposed by `list_sbom_attestation_attachments`. It
+re-uses the existing partial indexes on `fact_records` for
+`reducer_sbom_attestation_attachment` (subject_digest + attachment_status,
+document_id, document_digest, attachment_status + artifact_kind); no new
+schema or graph migration is needed. The handler validates the
+`attachment_status` and `artifact_kind` filters against the same closed
+enums the list endpoint advertises in `openapi_paths_supply_chain_sbom.go`,
+so typos surface as 400 instead of silently returning zero counts.
+
+No-Regression Evidence: `go test ./internal/query -run
+'TestSBOMAttestationAttachmentAggregate|TestSBOMAttestationAttachmentInventoryGroupExpression|TestNextSBOMAttestationAttachmentAggregateOffset'
+-count=1` proves: 503 envelope when the store is missing, totals envelope
+shape with the two rollup maps, grouped inventory shape, truncation marker
+plus `next_offset` on overflow, rejection of out-of-contract
+attachment_status / artifact_kind values, unknown grouping dimensions,
+oversized limits, negative offsets, and oversized offsets, null
+`next_offset` at the offset ceiling, and that the
+dimension-to-SQL-expression map is a closed enum.
+
+Observability Evidence: the aggregate routes add the
+`query.sbom_attestation_attachment_aggregate` request span (registered in
+`go/internal/telemetry/contract_supply_chain.go`) with route and capability
+attributes. They re-use the existing `eshu_dp_postgres_query_duration_seconds`
+histogram and add no new graph query, queue, reducer lane, worker, or
+metric instrument.
+
 ## Runtime and investigation read models
 
 Both backends instrument every query with an OTEL span (`neo4j.query`,
