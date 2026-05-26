@@ -183,6 +183,7 @@ func newMCPQueryRouter(
 			ImpactExplanations:       query.NewPostgresSupplyChainImpactFindingStore(db),
 			ContainerImageIdentities: query.NewPostgresContainerImageIdentityStore(db),
 			SecurityAlerts:           query.NewPostgresSecurityAlertReconciliationStore(db),
+			SecurityAlertAggregates:  query.NewPostgresSecurityAlertReconciliationAggregateStore(db),
 			Readiness:                query.NewPostgresSupplyChainImpactReadinessStore(db),
 			Profile:                  queryProfile,
 		},

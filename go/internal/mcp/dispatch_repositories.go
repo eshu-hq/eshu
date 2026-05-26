@@ -56,6 +56,10 @@ func repositoryRoute(toolName string, args map[string]any) (*route, bool) {
 		return supplyChainImpactExplanationRoute(args), true
 	case "list_security_alert_reconciliations":
 		return securityAlertReconciliationsRoute(args), true
+	case "count_security_alert_reconciliations":
+		return securityAlertReconciliationAggregateCountRoute(args), true
+	case "get_security_alert_reconciliation_inventory":
+		return securityAlertReconciliationAggregateInventoryRoute(args), true
 	case "list_sbom_attestation_attachments":
 		return sbomAttestationAttachmentsRoute(args), true
 	case "get_repo_story":
