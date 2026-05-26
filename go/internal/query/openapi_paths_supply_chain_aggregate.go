@@ -23,7 +23,8 @@ const openAPIPathsSupplyChainImpactAggregate = `
                     "total_findings": {"type": "integer"},
                     "affected_findings": {"type": "integer"},
                     "affected_exact": {"type": "integer"},
-                    "affected_range": {"type": "integer"},
+                    "affected_derived": {"type": "integer"},
+                    "possibly_affected": {"type": "integer"},
                     "not_affected": {"type": "integer"},
                     "by_priority_bucket": {"type": "object", "additionalProperties": {"type": "integer"}},
                     "by_severity": {"type": "object", "additionalProperties": {"type": "integer"}},
@@ -74,7 +75,7 @@ const openAPIPathsSupplyChainImpactAggregate = `
                     "offset": {"type": "integer"},
                     "group_by": {"type": "string"},
                     "truncated": {"type": "boolean"},
-                    "next_offset": {"type": "integer"},
+                    "next_offset": {"type": ["integer", "null"], "description": "Next offset to request when truncated is true; null when the page is complete or when the next offset would exceed the documented maximum (10000)."},
                     "scope": {"type": "object"}
                   }
                 }

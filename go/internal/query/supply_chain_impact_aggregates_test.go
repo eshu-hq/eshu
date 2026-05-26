@@ -82,7 +82,8 @@ func TestSupplyChainImpactAggregateCountReturnsTotals(t *testing.T) {
 			TotalFindings:    7,
 			AffectedFindings: 4,
 			AffectedExact:    3,
-			AffectedRange:    1,
+			AffectedDerived:  1,
+			PossiblyAffected: 0,
 			NotAffected:      3,
 			ByPriorityBucket: map[string]int{"critical": 2, "high": 5},
 			BySeverity:       map[string]int{"critical": 2, "high": 4, "medium": 1},
@@ -108,6 +109,9 @@ func TestSupplyChainImpactAggregateCountReturnsTotals(t *testing.T) {
 	var body struct {
 		TotalFindings    int            `json:"total_findings"`
 		AffectedFindings int            `json:"affected_findings"`
+		AffectedExact    int            `json:"affected_exact"`
+		AffectedDerived  int            `json:"affected_derived"`
+		PossiblyAffected int            `json:"possibly_affected"`
 		NotAffected      int            `json:"not_affected"`
 		ByPriorityBucket map[string]int `json:"by_priority_bucket"`
 		BySeverity       map[string]int `json:"by_severity"`
@@ -121,6 +125,15 @@ func TestSupplyChainImpactAggregateCountReturnsTotals(t *testing.T) {
 	}
 	if body.AffectedFindings != 4 {
 		t.Fatalf("affected_findings = %d, want 4", body.AffectedFindings)
+	}
+	if body.AffectedExact != 3 {
+		t.Fatalf("affected_exact = %d, want 3", body.AffectedExact)
+	}
+	if body.AffectedDerived != 1 {
+		t.Fatalf("affected_derived = %d, want 1", body.AffectedDerived)
+	}
+	if body.PossiblyAffected != 0 {
+		t.Fatalf("possibly_affected = %d, want 0", body.PossiblyAffected)
 	}
 	if body.ByPriorityBucket["high"] != 5 {
 		t.Fatalf("by_priority_bucket[high] = %d, want 5", body.ByPriorityBucket["high"])
@@ -139,7 +152,7 @@ func TestSupplyChainImpactAggregateInventoryReturnsBuckets(t *testing.T) {
 	store := &stubSupplyChainImpactAggregateStore{
 		inventory: []SupplyChainImpactInventoryRow{
 			{Dimension: SupplyChainImpactInventoryByImpactStatus, Value: "affected_exact", Count: 12},
-			{Dimension: SupplyChainImpactInventoryByImpactStatus, Value: "affected_range", Count: 3},
+			{Dimension: SupplyChainImpactInventoryByImpactStatus, Value: "affected_derived", Count: 3},
 			{Dimension: SupplyChainImpactInventoryByImpactStatus, Value: "not_affected_known_fixed", Count: 1},
 		},
 	}
@@ -269,6 +282,91 @@ func TestSupplyChainImpactAggregateInventoryRejectsNegativeOffset(t *testing.T) 
 	mux.ServeHTTP(w, req)
 	if got, want := w.Code, http.StatusBadRequest; got != want {
 		t.Fatalf("status = %d, want %d", got, want)
+	}
+}
+
+func TestSupplyChainImpactAggregateInventoryRejectsOversizedOffset(t *testing.T) {
+	t.Parallel()
+
+	handler := &SupplyChainHandler{ImpactAggregates: &stubSupplyChainImpactAggregateStore{}}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v0/supply-chain/impact/inventory?offset=10001", nil)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+	if got, want := w.Code, http.StatusBadRequest; got != want {
+		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
+	}
+}
+
+func TestSupplyChainImpactAggregateInventoryNullsNextOffsetAtOffsetCeiling(t *testing.T) {
+	t.Parallel()
+
+	rows := make([]SupplyChainImpactInventoryRow, 6)
+	for i := range rows {
+		rows[i] = SupplyChainImpactInventoryRow{
+			Dimension: SupplyChainImpactInventoryByRepository,
+			Value:     "repo",
+			Count:     i,
+		}
+	}
+	store := &stubSupplyChainImpactAggregateStore{inventory: rows}
+	handler := &SupplyChainHandler{ImpactAggregates: store}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	// offset=10000, limit=5 → truncated=true but offset+limit=10005 > max(10000).
+	// The handler must serialize next_offset as JSON null instead of a value
+	// callers cannot re-request without violating the documented offset bound.
+	req := httptest.NewRequest(http.MethodGet, "/api/v0/supply-chain/impact/inventory?group_by=repository_id&limit=5&offset=10000", nil)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if got, want := w.Code, http.StatusOK; got != want {
+		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
+	}
+	var body struct {
+		Truncated  bool `json:"truncated"`
+		NextOffset *int `json:"next_offset"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+		t.Fatalf("decode: %v; body = %s", err, w.Body.String())
+	}
+	if !body.Truncated {
+		t.Fatalf("truncated = false, want true")
+	}
+	if body.NextOffset != nil {
+		t.Fatalf("next_offset = %d, want null when offset+limit exceeds documented max", *body.NextOffset)
+	}
+}
+
+func TestNextSupplyChainImpactAggregateOffsetBound(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name      string
+		offset    int
+		limit     int
+		truncated bool
+		want      any
+	}{
+		{"not truncated returns nil", 0, 100, false, nil},
+		{"normal next offset", 200, 100, true, 300},
+		{"exactly at ceiling boundary returns ceiling", 9900, 100, true, 10000},
+		{"would exceed ceiling returns nil", 9950, 100, true, nil},
+		{"already past ceiling returns nil", 10001, 100, true, nil},
+	}
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			got := nextSupplyChainImpactAggregateOffset(tc.offset, tc.limit, tc.truncated)
+			if got != tc.want {
+				t.Fatalf("nextSupplyChainImpactAggregateOffset(%d, %d, %v) = %v, want %v",
+					tc.offset, tc.limit, tc.truncated, got, tc.want)
+			}
+		})
 	}
 }
 

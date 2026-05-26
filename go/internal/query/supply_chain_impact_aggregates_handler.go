@@ -69,12 +69,13 @@ func (h *SupplyChainHandler) countImpactFindings(w http.ResponseWriter, r *http.
 	WriteSuccess(w, r, http.StatusOK, map[string]any{
 		"total_findings":     count.TotalFindings,
 		"affected_findings":  count.AffectedFindings,
-		"affected_exact":    count.AffectedExact,
-		"affected_range":    count.AffectedRange,
-		"not_affected":      count.NotAffected,
+		"affected_exact":     count.AffectedExact,
+		"affected_derived":   count.AffectedDerived,
+		"possibly_affected":  count.PossiblyAffected,
+		"not_affected":       count.NotAffected,
 		"by_priority_bucket": count.ByPriorityBucket,
-		"by_severity":       count.BySeverity,
-		"scope":             supplyChainImpactAggregateScope(filter),
+		"by_severity":        count.BySeverity,
+		"scope":              supplyChainImpactAggregateScope(filter),
 	}, BuildTruthEnvelope(
 		h.profile(),
 		supplyChainImpactAggregateCapability,
@@ -153,16 +154,14 @@ func (h *SupplyChainHandler) impactInventory(w http.ResponseWriter, r *http.Requ
 		rows = rows[:limit]
 	}
 	body := map[string]any{
-		"buckets":   rows,
-		"count":     len(rows),
-		"limit":     limit,
-		"offset":    offset,
-		"group_by":  string(dimension),
-		"truncated": truncated,
-		"scope":     supplyChainImpactAggregateScope(filter),
-	}
-	if truncated {
-		body["next_offset"] = offset + limit
+		"buckets":     rows,
+		"count":       len(rows),
+		"limit":       limit,
+		"offset":      offset,
+		"group_by":    string(dimension),
+		"truncated":   truncated,
+		"next_offset": nextSupplyChainImpactAggregateOffset(offset, limit, truncated),
+		"scope":       supplyChainImpactAggregateScope(filter),
 	}
 	WriteSuccess(w, r, http.StatusOK, body, BuildTruthEnvelope(
 		h.profile(),
@@ -207,6 +206,11 @@ func isSupportedSupplyChainImpactDimension(d SupplyChainImpactInventoryDimension
 const (
 	supplyChainImpactAggregateDefaultLimit = 100
 	supplyChainImpactAggregateMinLimit     = 1
+	// supplyChainImpactAggregateMaxOffset matches the OpenAPI offset bound and
+	// keeps Postgres OFFSET scans bounded; the page-and-iterate pattern this
+	// aggregate replaces would have to fall back to the list endpoint past this
+	// point.
+	supplyChainImpactAggregateMaxOffset = 10000
 )
 
 func parseSupplyChainImpactAggregateLimit(w http.ResponseWriter, r *http.Request) (int, bool) {
@@ -240,5 +244,24 @@ func parseSupplyChainImpactAggregateOffset(w http.ResponseWriter, r *http.Reques
 		WriteError(w, http.StatusBadRequest, "offset must be a non-negative integer")
 		return 0, false
 	}
+	if parsed > supplyChainImpactAggregateMaxOffset {
+		WriteError(w, http.StatusBadRequest, "offset exceeds maximum")
+		return 0, false
+	}
 	return parsed, true
+}
+
+// nextSupplyChainImpactAggregateOffset returns the next offset when a truncated
+// page can be continued without exceeding the documented offset bound, and nil
+// otherwise. Callers serialize the nil as JSON null so generated clients see a
+// clean end-of-stream marker instead of an out-of-contract integer.
+func nextSupplyChainImpactAggregateOffset(offset, limit int, truncated bool) any {
+	if !truncated {
+		return nil
+	}
+	next := offset + limit
+	if next > supplyChainImpactAggregateMaxOffset {
+		return nil
+	}
+	return next
 }

@@ -48,15 +48,19 @@ type SupplyChainImpactAggregateFilter struct {
 }
 
 // SupplyChainImpactAggregateCount is the cheap-summary totals envelope used by
-// the count handler.
+// the count handler. AffectedExact and AffectedDerived correspond to the
+// reducer-owned impact_status values 'affected_exact' and 'affected_derived';
+// PossiblyAffected covers 'possibly_affected'. NotAffected counts every
+// impact_status value with the 'not_affected' prefix.
 type SupplyChainImpactAggregateCount struct {
-	TotalFindings    int
-	AffectedFindings int
-	NotAffected      int
-	AffectedExact    int
-	AffectedRange    int
-	ByPriorityBucket map[string]int
-	BySeverity       map[string]int
+	TotalFindings     int
+	AffectedFindings  int
+	NotAffected       int
+	AffectedExact     int
+	AffectedDerived   int
+	PossiblyAffected  int
+	ByPriorityBucket  map[string]int
+	BySeverity        map[string]int
 }
 
 // SupplyChainImpactInventoryRow is one grouped bucket returned by the
@@ -107,9 +111,10 @@ WITH scoped_facts AS (
 )
 SELECT
 	COUNT(*) AS total,
-	SUM(CASE WHEN payload->>'impact_status' LIKE 'affected%' THEN 1 ELSE 0 END) AS affected,
+	SUM(CASE WHEN payload->>'impact_status' IN ('affected_exact', 'affected_derived', 'possibly_affected') THEN 1 ELSE 0 END) AS affected,
 	SUM(CASE WHEN payload->>'impact_status' = 'affected_exact' THEN 1 ELSE 0 END) AS affected_exact,
-	SUM(CASE WHEN payload->>'impact_status' = 'affected_range' THEN 1 ELSE 0 END) AS affected_range,
+	SUM(CASE WHEN payload->>'impact_status' = 'affected_derived' THEN 1 ELSE 0 END) AS affected_derived,
+	SUM(CASE WHEN payload->>'impact_status' = 'possibly_affected' THEN 1 ELSE 0 END) AS possibly_affected,
 	SUM(CASE WHEN payload->>'impact_status' LIKE 'not_affected%' THEN 1 ELSE 0 END) AS not_affected
 FROM scoped_facts;
 `
@@ -186,8 +191,8 @@ func (s PostgresSupplyChainImpactAggregateStore) CountSupplyChainImpactFindings(
 		filter.SubjectDigest,
 		filter.ImpactStatus,
 	)
-	var total, affected, affectedExact, affectedRange, notAffected sql.NullInt64
-	if err := row.Scan(&total, &affected, &affectedExact, &affectedRange, &notAffected); err != nil {
+	var total, affected, affectedExact, affectedDerived, possiblyAffected, notAffected sql.NullInt64
+	if err := row.Scan(&total, &affected, &affectedExact, &affectedDerived, &possiblyAffected, &notAffected); err != nil {
 		return SupplyChainImpactAggregateCount{}, fmt.Errorf("count supply chain impact findings: %w", err)
 	}
 
@@ -195,7 +200,8 @@ func (s PostgresSupplyChainImpactAggregateStore) CountSupplyChainImpactFindings(
 		TotalFindings:    int(total.Int64),
 		AffectedFindings: int(affected.Int64),
 		AffectedExact:    int(affectedExact.Int64),
-		AffectedRange:    int(affectedRange.Int64),
+		AffectedDerived:  int(affectedDerived.Int64),
+		PossiblyAffected: int(possiblyAffected.Int64),
 		NotAffected:      int(notAffected.Int64),
 		ByPriorityBucket: map[string]int{},
 		BySeverity:       map[string]int{},
@@ -307,8 +313,11 @@ func (s PostgresSupplyChainImpactAggregateStore) SupplyChainImpactInventory(
 	if err != nil {
 		return nil, err
 	}
-	if limit <= 0 || limit > SupplyChainImpactAggregateMaxLimit {
-		return nil, fmt.Errorf("limit must be between 1 and %d", SupplyChainImpactAggregateMaxLimit)
+	// The handler asks for one extra row to detect truncation, so the store
+	// accepts up to MaxLimit+1 for that internal pagination probe (mirrors
+	// PostgresSupplyChainImpactFindingStore.ListSupplyChainImpactFindings).
+	if limit <= 0 || limit > SupplyChainImpactAggregateMaxLimit+1 {
+		return nil, fmt.Errorf("limit must be between 1 and %d for internal pagination", SupplyChainImpactAggregateMaxLimit+1)
 	}
 	if offset < 0 {
 		offset = 0
