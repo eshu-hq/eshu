@@ -44,7 +44,7 @@ func TestPackageRegistryWorkPlannerPlansOneWorkItemPerTarget(t *testing.T) {
 	if got, want := item.ScopeID, "package-registry://jfrog/generic/team-api"; got != want {
 		t.Fatalf("ScopeID = %q, want %q", got, want)
 	}
-	if got, want := item.FairnessKey, "package_registry:collector-package-registry:generic"; got != want {
+	if got, want := item.FairnessKey, "package_registry:collector-package-registry:configured_direct:generic"; got != want {
 		t.Fatalf("FairnessKey = %q, want %q", got, want)
 	}
 	if item.GenerationID == "" || item.GenerationID != item.SourceRunID {

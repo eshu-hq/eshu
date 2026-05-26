@@ -190,15 +190,18 @@ warning (`collector_instance_drift_detected`, fields
   limit caps each reap pass. Repeated spikes at the limit indicate collectors
   are not completing claims within the lease TTL.
 - Derived package and vulnerability target planning is visible in
-  `workflow_runs.requested_scope_set`. Package-registry derived entries include
-  `derived=true` and `package_name`; vulnerability derived entries include
-  `source`, `ecosystem`, and either exact `package_name`/`version`, bounded
-  `versions`, or bounded `queries` for OSV querybatch work. If a derivation enabled instance plans no
-  work, first check the owned dependency fact query, then confirm the dependency
-  evidence is active and exact enough for the collector family. Bounded reads
-  rotate by reconcile bucket, so a target limit below full-corpus size should
-  advance through later package identities instead of repeating the same first
-  sorted page.
+  `workflow_runs.requested_scope_set`. Planned entries include a
+  `target_class`: `configured_direct` for explicit package or advisory scopes,
+  `owned_package` for targets derived from active owned dependency evidence, and
+  `broad` for broad package-registry scans. Package-registry derived entries
+  include `derived=true` and `package_name`; vulnerability derived entries
+  include `source`, `ecosystem`, and either exact `package_name`/`version`,
+  bounded `versions`, or bounded `queries` for OSV querybatch work. If a
+  derivation-enabled instance plans no work, first check the owned dependency
+  fact query, then confirm the dependency evidence is active and exact enough
+  for the collector family. Bounded reads rotate by reconcile bucket, and the
+  planner preserves that reader order so direct and owned targets do not sit
+  behind unrelated broad fanout.
 
 ## Extension points
 
@@ -214,10 +217,12 @@ writes, or NornicDB settings.
 Observability Evidence: existing coordinator reconcile counters and duration
 histograms, `workflow_runs.requested_scope_set`, `workflow_work_items` status
 and failure columns, collector claim status, and `/api/v0/index-status` show
-whether derived targets were planned, claimed, completed, retried, or failed.
-No metric labels gained package names, versions, feed URLs, or credential
-material. Rotated target selection remains visible through the bounded
-`requested_scope_set` rows without adding new metric labels.
+whether targets were planned, claimed, completed, retried, or failed. Package
+registry and vulnerability work items also carry `target_class` in
+`fairness_key`, so operators can separate direct, owned, and broad target
+progress without adding package names, versions, feed URLs, or credential
+material to metric labels. Rotated target selection remains visible through the
+bounded `requested_scope_set` rows.
 
 Performance Evidence: `go test ./internal/coordinator -run '^$' -bench BenchmarkVulnerabilityDerivedQueryChunks -benchmem -count=3` on darwin/arm64 dropped derived OSV chunk planning from about `8.9 MB/op` and `48k allocs/op` to about `194 KB/op` and `2.3k allocs/op`. The planner now grows chunks in place and tracks encoded scope length incrementally instead of rebuilding candidate slices and scope IDs on every query.
 

@@ -62,10 +62,10 @@ func TestPackageRegistryWorkPlannerDerivesNPMTargetsFromOwnedPackageEvidence(t *
 	if got, want := len(items), 2; got != want {
 		t.Fatalf("len(items) = %d, want %d", got, want)
 	}
-	if got, want := items[0].ScopeID, "npm://registry.npmjs.org/@scope/widget"; got != want {
+	if got, want := items[0].ScopeID, "npm://registry.npmjs.org/vite"; got != want {
 		t.Fatalf("items[0].ScopeID = %q, want %q", got, want)
 	}
-	if got, want := items[1].ScopeID, "npm://registry.npmjs.org/vite"; got != want {
+	if got, want := items[1].ScopeID, "npm://registry.npmjs.org/@scope/widget"; got != want {
 		t.Fatalf("items[1].ScopeID = %q, want %q", got, want)
 	}
 
