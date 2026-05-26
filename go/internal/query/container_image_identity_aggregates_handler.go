@@ -54,6 +54,9 @@ func (h *SupplyChainHandler) countContainerImageIdentities(w http.ResponseWriter
 	}
 
 	filter := containerImageIdentityAggregateFilterFromRequest(r)
+	if !validateContainerImageIdentityAggregateOutcome(w, filter) {
+		return
+	}
 	count, err := h.ContainerImageAggregates.CountContainerImageIdentities(r.Context(), filter)
 	if err != nil {
 		WriteError(w, http.StatusInternalServerError, err.Error())
@@ -125,6 +128,9 @@ func (h *SupplyChainHandler) containerImageIdentityInventory(w http.ResponseWrit
 		return
 	}
 	filter := containerImageIdentityAggregateFilterFromRequest(r)
+	if !validateContainerImageIdentityAggregateOutcome(w, filter) {
+		return
+	}
 
 	rows, err := h.ContainerImageAggregates.ContainerImageIdentityInventory(r.Context(), filter, dimension, limit+1, offset)
 	if err != nil {
@@ -177,6 +183,19 @@ func containerImageIdentityAggregateScope(filter ContainerImageIdentityAggregate
 		out["outcome"] = filter.Outcome
 	}
 	return out
+}
+
+// validateContainerImageIdentityAggregateOutcome rejects unknown outcome
+// filters with a 400 so a typo like `outcome=exact-digest` does not silently
+// return zero counts. Mirrors the same guard on the list endpoint
+// (supply_chain.go), which enumerates only `exact_digest` and `tag_resolved`
+// — the same values advertised in OpenAPI for these aggregate routes.
+func validateContainerImageIdentityAggregateOutcome(w http.ResponseWriter, filter ContainerImageIdentityAggregateFilter) bool {
+	if filter.Outcome == "" || isSupportedContainerImageIdentityOutcome(filter.Outcome) {
+		return true
+	}
+	WriteError(w, http.StatusBadRequest, "outcome must be exact_digest or tag_resolved")
+	return false
 }
 
 func isSupportedContainerImageIdentityDimension(d ContainerImageIdentityInventoryDimension) bool {

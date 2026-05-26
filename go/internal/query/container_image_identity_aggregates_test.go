@@ -262,6 +262,38 @@ func TestContainerImageIdentityAggregateInventoryRejectsNegativeOffset(t *testin
 	}
 }
 
+func TestContainerImageIdentityAggregateRejectsUnknownOutcome(t *testing.T) {
+	t.Parallel()
+
+	store := &stubContainerImageIdentityAggregateStore{}
+	handler := &SupplyChainHandler{ContainerImageAggregates: store}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	// `exact-digest` (hyphen) is a typo — the OpenAPI enum and the list
+	// endpoint accept only `exact_digest` / `tag_resolved`. Both aggregate
+	// endpoints must surface that as a 400, not silently return zero
+	// counts, so a caller bug is visible.
+	for _, target := range []string{
+		"/api/v0/supply-chain/container-images/identities/count?outcome=exact-digest",
+		"/api/v0/supply-chain/container-images/identities/inventory?outcome=exact-digest",
+	} {
+		t.Run(target, func(t *testing.T) {
+			t.Parallel()
+			req := httptest.NewRequest(http.MethodGet, target, nil)
+			w := httptest.NewRecorder()
+			mux.ServeHTTP(w, req)
+			if got, want := w.Code, http.StatusBadRequest; got != want {
+				t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
+			}
+		})
+	}
+	if store.countCalls != 0 || store.invCalls != 0 {
+		t.Fatalf("store called for unknown outcome (countCalls=%d invCalls=%d)",
+			store.countCalls, store.invCalls)
+	}
+}
+
 func TestContainerImageIdentityAggregateInventoryRejectsOversizedOffset(t *testing.T) {
 	t.Parallel()
 
