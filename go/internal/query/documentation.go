@@ -21,8 +21,9 @@ const (
 
 // DocumentationHandler exposes documentation truth findings and evidence packets.
 type DocumentationHandler struct {
-	Content ContentStore
-	Profile QueryProfile
+	Content    ContentStore
+	Aggregates DocumentationFindingAggregateStore
+	Profile    QueryProfile
 }
 
 type documentationFindingFilter struct {
@@ -76,6 +77,7 @@ func (h *DocumentationHandler) Mount(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/v0/documentation/facts", h.listFacts)
 	mux.HandleFunc("GET /api/v0/documentation/findings/{finding_id}/evidence-packet", h.getEvidencePacket)
 	mux.HandleFunc("GET /api/v0/documentation/evidence-packets/{packet_id}/freshness", h.getPacketFreshness)
+	h.documentationFindingAggregateRoutes(mux)
 }
 
 func (h *DocumentationHandler) profile() QueryProfile {

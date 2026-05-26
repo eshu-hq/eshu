@@ -377,6 +377,48 @@ attributes. They re-use the existing `eshu_dp_postgres_query_duration_seconds`
 histogram and add no new graph query, queue, reducer lane, worker, or
 metric instrument.
 
+`DocumentationHandler` (`documentation.go`) also exposes cheap-summary
+aggregates over durable documentation finding facts through a separate
+Postgres aggregate read model (`documentation_finding_aggregates.go`). The
+aggregate scopes to `fact_kind = 'documentation_finding'` and inherits the
+same permission predicates the list endpoint uses
+(`viewer_can_read_source = true`, `source_acl_evaluated <> false`,
+`permission_decision <> denied`); skipping them would (a) miss the
+permission-gated partial index in
+`go/internal/storage/postgres/schema_fact_records.go` and (b) leak counts
+from documents the caller cannot read. `CountDocumentationFindings`
+answers total + per-status + per-truth-level + per-freshness-state
+questions over an optional scope, finding_type, source_id, document_id,
+status, truth_level, or freshness_state scope.
+`DocumentationFindingInventory` returns a paginated grouped count along
+one of the dimensions `status`, `truth_level`, `freshness_state`,
+`finding_type`, or `source_id`. The aggregate replaces the
+page-and-iterate caller workflow for ecosystem-level questions exposed by
+`list_documentation_findings`. No schema migration is needed; the
+existing partial index already covers all five grouping dimensions.
+
+The `/documentation/facts` surface — which fans out across multiple raw
+collected `fact_kind` values — is intentionally out of scope for this PR;
+its caller pain is on filtered retrieval rather than ecosystem totals.
+
+No-Regression Evidence: `go test ./internal/query -run
+'TestDocumentationFindingAggregate|TestDocumentationFindingInventoryGroupExpression|TestNextDocumentationFindingAggregateOffset|TestDocumentationFindingAggregateSQLIncludesPermissionPredicates'
+-count=1` proves: 503 envelope when the store is missing, totals envelope
+shape with the three rollup maps, grouped inventory shape, truncation
+marker plus `next_offset` on overflow, rejection of unknown grouping
+dimensions, oversized limits, negative offsets, and oversized offsets,
+null `next_offset` at the offset ceiling, the closed-enum dimension map,
+AND that all three production SQL templates (total, group, inventory)
+contain the three permission predicate substrings so a future refactor
+cannot accidentally drop the access gate.
+
+Observability Evidence: the aggregate routes add the
+`query.documentation_aggregate` request span (registered in
+`go/internal/telemetry/contract.go`) with route and capability
+attributes. They re-use the existing `eshu_dp_postgres_query_duration_seconds`
+histogram and add no new graph query, queue, reducer lane, worker, or
+metric instrument.
+
 ## Runtime and investigation read models
 
 Both backends instrument every query with an OTEL span (`neo4j.query`,
