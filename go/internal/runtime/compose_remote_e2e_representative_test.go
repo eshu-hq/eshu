@@ -17,12 +17,27 @@ func TestRemoteE2EComposeWiresRepresentativeCorpusBounds(t *testing.T) {
 	for _, want := range []string{
 		"ESHU_REMOTE_E2E_CORPUS_MODE=smoke",
 		"ESHU_REMOTE_E2E_MAX_REPOSITORY_COUNT=",
+		"ESHU_REMOTE_E2E_ADVISORY_EVIDENCE_CVE_ID=",
 		"ESHU_REMOTE_E2E_MIN_PACKAGE_COUNT=",
 		"ESHU_REMOTE_E2E_MIN_ADVISORY_EVIDENCE_COUNT=",
 		"ESHU_REMOTE_E2E_MIN_SECURITY_ALERT_RECONCILIATION_COUNT=",
 	} {
 		if !strings.Contains(exampleEnv, want) {
 			t.Fatalf(".env.remote-e2e.example missing %q", want)
+		}
+	}
+}
+
+func TestRemoteE2EDocsDocumentAdvisoryEvidenceSelector(t *testing.T) {
+	t.Parallel()
+
+	for _, path := range []string{
+		"docs/public/reference/environment-compose-tests.md",
+		"docs/public/reference/local-testing/remote-collector-e2e.md",
+	} {
+		content := readRepositoryFile(t, "../../..", path)
+		if !strings.Contains(content, "ESHU_REMOTE_E2E_ADVISORY_EVIDENCE_CVE_ID") {
+			t.Fatalf("%s missing ESHU_REMOTE_E2E_ADVISORY_EVIDENCE_CVE_ID", path)
 		}
 	}
 }

@@ -69,6 +69,7 @@ These variables are read by `scripts/sync_local_compose_mcp.sh`.
 | `ESHU_REMOTE_E2E_MIN_REPOSITORY_COUNT` | `0` in Compose | Minimum candidate repository-root count accepted by corpus preflight. |
 | `ESHU_REMOTE_E2E_MAX_REPOSITORY_COUNT` | unset | Maximum candidate repository-root count accepted by corpus preflight. Representative mode defaults this to `50` when unset. |
 | `ESHU_REMOTE_E2E_EXPECTED_REPOSITORY_COUNT` | unset | Exact candidate repository-root count accepted by corpus preflight. |
+| `ESHU_REMOTE_E2E_ADVISORY_EVIDENCE_CVE_ID` | `ESHU_VULNERABILITY_E2E_CVE_ID`, then `CVE-2021-44228` | CVE ID used by the remote runtime verifier's advisory-evidence probe. |
 | `ESHU_REMOTE_E2E_MIN_PACKAGE_COUNT` | `1` in representative mode, otherwise `0` | Minimum package-registry aggregate count accepted by the remote runtime verifier. |
 | `ESHU_REMOTE_E2E_MIN_ADVISORY_EVIDENCE_COUNT` | `1` in representative mode, otherwise `0` | Minimum scoped advisory-evidence count accepted by the remote runtime verifier. |
 | `ESHU_REMOTE_E2E_MIN_IMPACT_FINDING_COUNT` | `1` in representative mode, otherwise `0` | Minimum supply-chain impact finding count accepted by the remote runtime verifier. |

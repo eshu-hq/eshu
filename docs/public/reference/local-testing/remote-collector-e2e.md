@@ -111,10 +111,14 @@ ESHU_REMOTE_E2E_CORPUS_MODE=representative \
 The verifier checks service health, terminal queue state, workflow terminal
 state, and aggregate proof counters. In representative mode the package,
 advisory-evidence, impact-finding, security-alert reconciliation, SBOM
-attachment, and container-image identity counters default to minimum `1`. Use
-these env vars only to make the recorded corpus contract more explicit:
+attachment, and container-image identity counters default to minimum `1`. The
+advisory-evidence probe is scoped by `ESHU_REMOTE_E2E_ADVISORY_EVIDENCE_CVE_ID`;
+when unset, it falls back to `ESHU_VULNERABILITY_E2E_CVE_ID`, then
+`CVE-2021-44228`. Use these env vars only to make the recorded corpus contract
+more explicit:
 
 ```text
+ESHU_REMOTE_E2E_ADVISORY_EVIDENCE_CVE_ID=
 ESHU_REMOTE_E2E_MIN_PACKAGE_COUNT=
 ESHU_REMOTE_E2E_MIN_ADVISORY_EVIDENCE_COUNT=
 ESHU_REMOTE_E2E_MIN_IMPACT_FINDING_COUNT=
