@@ -17,6 +17,7 @@ func ReadOnlyTools() []ToolDefinition {
 	tools = append(tools, cicdTools()...)
 	tools = append(tools, serviceCatalogTools()...)
 	tools = append(tools, supplyChainTools()...)
+	tools = append(tools, supplyChainImpactAggregateTools()...)
 	tools = append(tools, contextTools()...)
 	tools = append(tools, contentTools()...)
 	tools = append(tools, documentationTools()...)
