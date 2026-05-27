@@ -73,6 +73,9 @@ See `doc.go` for the godoc contract.
   table, crawler, job, trigger, workflow, and connection metadata scans.
 - `ServiceMSK` - MSK service-kind value for regional Amazon Managed Streaming
   for Apache Kafka metadata scans.
+- `ServiceAccessAnalyzer` - IAM Access Analyzer service-kind value for regional
+  analyzer, archive-rule, aggregate finding-count, and unused-access summary
+  metadata scans.
 - `Boundary` - account, region, service, generation, collector instance, and
   fencing token shared by one claimed AWS scan.
 - `ResourceObservation` - one AWS resource ready for envelope emission.
@@ -260,6 +263,11 @@ request.
   role and Kafka cluster ARNs, replication target compression, and replication
   topic and consumer-group include/exclude pattern counts are reported evidence
   only.
+- Access Analyzer facts are metadata only. External finding bodies, archive-rule
+  filter criteria, policy-generation output, and per-action unused-access
+  details stay outside the AWS collector fact contract. Analyzer metadata,
+  archive-rule names, aggregate finding counts, analyzer relationships, and
+  per-resource unused-access last-accessed summaries are reported evidence only.
 
 ## Related docs
 

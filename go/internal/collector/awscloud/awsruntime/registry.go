@@ -7,6 +7,8 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	accessanalyzerservice "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/accessanalyzer"
+	accessanalyzerawssdk "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/accessanalyzer/awssdk"
 	apigatewayservice "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/apigateway"
 	apigatewayawssdk "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/apigateway/awssdk"
 	athenaservice "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/athena"
@@ -97,6 +99,7 @@ var supportedServiceKinds = []string{
 	awscloud.ServiceElastiCache,
 	awscloud.ServiceMSK,
 	awscloud.ServiceStepFunctions,
+	awscloud.ServiceAccessAnalyzer,
 	awscloud.ServiceIAM,
 	awscloud.ServiceLambda,
 	awscloud.ServiceSecurityHub,
@@ -230,6 +233,10 @@ func (f DefaultScannerFactory) Scanner(
 	case awscloud.ServiceStepFunctions:
 		return stepfunctionsservice.Scanner{
 			Client: stepfunctionsawssdk.NewClient(configLease.AWSConfig(), boundary, f.Tracer, f.Instruments),
+		}, nil
+	case awscloud.ServiceAccessAnalyzer:
+		return accessanalyzerservice.Scanner{
+			Client: accessanalyzerawssdk.NewClient(configLease.AWSConfig(), boundary, f.Tracer, f.Instruments),
 		}, nil
 	case awscloud.ServiceIAM:
 		return iamservice.Scanner{

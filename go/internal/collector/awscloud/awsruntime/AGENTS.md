@@ -99,6 +99,10 @@
   persistence through the runtime registry. The state machine definition
   surface is restricted to state names, state types, transitions, and Task
   Resource ARNs.
+- Keep Access Analyzer scans metadata-only. Do not wire external finding-body
+  persistence, archive-rule filter persistence, policy-generation output,
+  per-action unused-access detail persistence, `GetFinding`, or mutation APIs
+  through the runtime registry.
 
 ## Common Changes
 

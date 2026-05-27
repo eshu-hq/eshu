@@ -108,6 +108,11 @@
   the state machine definition out of facts. The command may enable
   `stepfunctions`, but the SDK adapter owns the safe state-graph and ARN-only
   reference projection.
+- Keep IAM Access Analyzer external finding bodies, archive-rule filter
+  criteria, policy-generation output, and per-action unused-access details out
+  of facts. The command may enable `accessanalyzer`, but the SDK adapter owns
+  safe analyzer, archive-rule, aggregate-count, and unused-access summary
+  metadata mapping.
 - Do not log credential values, trust policy JSON, resource ARNs, tags, or raw
   source payloads as metric labels.
 - Preserve the split between scanner-side status in `awsruntime` and
