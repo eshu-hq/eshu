@@ -90,9 +90,13 @@ func NewPostgresSupplyChainImpactAggregateStore(
 	return PostgresSupplyChainImpactAggregateStore{DB: db}
 }
 
-const supplyChainImpactAggregateCountQuery = `
+const supplyChainImpactAggregateCanonicalFactsCTE = `
 WITH scoped_facts AS (
-	SELECT fact.payload
+	SELECT fact.fact_id,
+	       fact.payload,
+	       COALESCE(NULLIF(fact.payload->>'priority_score', '')::int, 0) AS priority_score,
+	       ` + supplyChainImpactPayloadFindingIDPresentSQL + ` AS has_payload_finding_id,
+	       ` + supplyChainImpactCanonicalFindingKeySQL + ` AS canonical_key
 	FROM fact_records AS fact
 	JOIN ingestion_scopes AS scope
 	  ON scope.scope_id = fact.scope_id
@@ -108,7 +112,23 @@ WITH scoped_facts AS (
 	  AND ($3 = '' OR fact.payload->>'repository_id' = $3)
 	  AND ($4 = '' OR fact.payload->>'subject_digest' = $4)
 	  AND ($5 = '' OR fact.payload->>'impact_status' = $5)
+),
+ranked_facts AS (
+	SELECT *,
+	       ROW_NUMBER() OVER (
+	         PARTITION BY canonical_key
+	         ORDER BY priority_score DESC, has_payload_finding_id DESC, fact_id ASC
+	       ) AS canonical_rank
+	FROM scoped_facts
+),
+canonical_facts AS (
+	SELECT payload
+	FROM ranked_facts
+	WHERE canonical_rank = 1
 )
+`
+
+const supplyChainImpactAggregateCountQuery = supplyChainImpactAggregateCanonicalFactsCTE + `
 SELECT
 	COUNT(*) AS total,
 	SUM(CASE WHEN payload->>'impact_status' IN ('affected_exact', 'affected_derived', 'possibly_affected') THEN 1 ELSE 0 END) AS affected,
@@ -116,59 +136,28 @@ SELECT
 	SUM(CASE WHEN payload->>'impact_status' = 'affected_derived' THEN 1 ELSE 0 END) AS affected_derived,
 	SUM(CASE WHEN payload->>'impact_status' = 'possibly_affected' THEN 1 ELSE 0 END) AS possibly_affected,
 	SUM(CASE WHEN payload->>'impact_status' LIKE 'not_affected%' THEN 1 ELSE 0 END) AS not_affected
-FROM scoped_facts;
+FROM canonical_facts;
 `
 
-const supplyChainImpactAggregatePriorityCountQuery = `
+const supplyChainImpactAggregatePriorityCountQuery = supplyChainImpactAggregateCanonicalFactsCTE + `
 SELECT
 	COALESCE(NULLIF(fact.payload->>'priority_bucket', ''), 'unknown') AS bucket,
 	COUNT(*) AS bucket_count
-FROM fact_records AS fact
-JOIN ingestion_scopes AS scope
-  ON scope.scope_id = fact.scope_id
- AND scope.active_generation_id = fact.generation_id
-JOIN scope_generations AS generation
-  ON generation.scope_id = fact.scope_id
- AND generation.generation_id = fact.generation_id
-WHERE fact.fact_kind = 'reducer_supply_chain_impact_finding'
-  AND fact.is_tombstone = FALSE
-  AND generation.status = 'active'
-  AND ($1 = '' OR fact.payload->>'cve_id' = $1)
-  AND ($2 = '' OR fact.payload->>'package_id' = $2)
-  AND ($3 = '' OR fact.payload->>'repository_id' = $3)
-  AND ($4 = '' OR fact.payload->>'subject_digest' = $4)
-  AND ($5 = '' OR fact.payload->>'impact_status' = $5)
+FROM canonical_facts AS fact
 GROUP BY bucket;
 `
 
-const supplyChainImpactAggregateSeverityCountQuery = `
+const supplyChainImpactAggregateSeverityCountQuery = supplyChainImpactAggregateCanonicalFactsCTE + `
 SELECT
 	CASE
-		WHEN COALESCE(NULLIF(payload->>'cvss_score', '')::numeric, 0) >= 9.0 THEN 'critical'
-		WHEN COALESCE(NULLIF(payload->>'cvss_score', '')::numeric, 0) >= 7.0 THEN 'high'
-		WHEN COALESCE(NULLIF(payload->>'cvss_score', '')::numeric, 0) >= 4.0 THEN 'medium'
-		WHEN COALESCE(NULLIF(payload->>'cvss_score', '')::numeric, 0) > 0.0  THEN 'low'
+		WHEN COALESCE(NULLIF(fact.payload->>'cvss_score', '')::numeric, 0) >= 9.0 THEN 'critical'
+		WHEN COALESCE(NULLIF(fact.payload->>'cvss_score', '')::numeric, 0) >= 7.0 THEN 'high'
+		WHEN COALESCE(NULLIF(fact.payload->>'cvss_score', '')::numeric, 0) >= 4.0 THEN 'medium'
+		WHEN COALESCE(NULLIF(fact.payload->>'cvss_score', '')::numeric, 0) > 0.0  THEN 'low'
 		ELSE 'none'
 	END AS bucket,
 	COUNT(*) AS bucket_count
-FROM (
-	SELECT fact.payload
-	FROM fact_records AS fact
-	JOIN ingestion_scopes AS scope
-	  ON scope.scope_id = fact.scope_id
-	 AND scope.active_generation_id = fact.generation_id
-	JOIN scope_generations AS generation
-	  ON generation.scope_id = fact.scope_id
-	 AND generation.generation_id = fact.generation_id
-	WHERE fact.fact_kind = 'reducer_supply_chain_impact_finding'
-	  AND fact.is_tombstone = FALSE
-	  AND generation.status = 'active'
-	  AND ($1 = '' OR fact.payload->>'cve_id' = $1)
-	  AND ($2 = '' OR fact.payload->>'package_id' = $2)
-	  AND ($3 = '' OR fact.payload->>'repository_id' = $3)
-	  AND ($4 = '' OR fact.payload->>'subject_digest' = $4)
-	  AND ($5 = '' OR fact.payload->>'impact_status' = $5)
-) AS scoped
+FROM canonical_facts AS fact
 GROUP BY bucket;
 `
 
@@ -274,23 +263,9 @@ func (s PostgresSupplyChainImpactAggregateStore) fillSeverityBuckets(
 	return rows.Err()
 }
 
-const supplyChainImpactInventoryQueryTemplate = `
+const supplyChainImpactInventoryQueryTemplate = supplyChainImpactAggregateCanonicalFactsCTE + `
 SELECT %s AS bucket, COUNT(*) AS bucket_count
-FROM fact_records AS fact
-JOIN ingestion_scopes AS scope
-  ON scope.scope_id = fact.scope_id
- AND scope.active_generation_id = fact.generation_id
-JOIN scope_generations AS generation
-  ON generation.scope_id = fact.scope_id
- AND generation.generation_id = fact.generation_id
-WHERE fact.fact_kind = 'reducer_supply_chain_impact_finding'
-  AND fact.is_tombstone = FALSE
-  AND generation.status = 'active'
-  AND ($1 = '' OR fact.payload->>'cve_id' = $1)
-  AND ($2 = '' OR fact.payload->>'package_id' = $2)
-  AND ($3 = '' OR fact.payload->>'repository_id' = $3)
-  AND ($4 = '' OR fact.payload->>'subject_digest' = $4)
-  AND ($5 = '' OR fact.payload->>'impact_status' = $5)
+FROM canonical_facts AS fact
 GROUP BY bucket
 ORDER BY bucket_count DESC, bucket
 LIMIT $6 OFFSET $7;

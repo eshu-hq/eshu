@@ -488,6 +488,45 @@ func TestSupplyChainImpactStableFactKeyIncludesRepository(t *testing.T) {
 	}
 }
 
+func TestSupplyChainImpactStableFactKeyIgnoresSourceScopeGeneration(t *testing.T) {
+	t.Parallel()
+
+	finding := SupplyChainImpactFinding{
+		CVEID:            "CVE-2026-0001",
+		PackageID:        testImpactPackageID,
+		ObservedVersion:  "1.2.3",
+		RequestedRange:   "^1.2.0",
+		Status:           SupplyChainImpactAffectedExact,
+		RepositoryID:     testImpactRepositoryID,
+		SubjectDigest:    testImpactSubjectDigest,
+		FixedVersion:     "1.3.0",
+		MatchReason:      "npm_semver_affected_range",
+		Remediation:      SupplyChainImpactRemediation{FirstPatchedVersion: "1.3.0"},
+		EvidenceFactIDs:  []string{"cve-1", "affected-1", "consume-1"},
+		EvidencePath:     []string{facts.VulnerabilityCVEFactKind, facts.VulnerabilityAffectedPackageFactKind},
+		DetectionProfile: DetectionProfilePrecise,
+	}
+	writes := []SupplyChainImpactWrite{
+		{ScopeID: "vuln-intel://osv/npm/example", GenerationID: "generation-vulnerability-1"},
+		{ScopeID: "vuln-intel://osv/npm/example", GenerationID: "generation-vulnerability-2"},
+		{ScopeID: "package-registry:npm:example", GenerationID: "generation-package-1"},
+	}
+	wantKey := supplyChainImpactStableFactKey(writes[0], finding)
+	wantFindingID := supplyChainImpactFindingID(finding)
+	for _, write := range writes {
+		gotKey := supplyChainImpactStableFactKey(write, finding)
+		if gotKey != wantKey {
+			t.Fatalf("stable fact key differs by source scope/generation: got=%q want=%q for %#v", gotKey, wantKey, write)
+		}
+		if gotID := supplyChainImpactFindingID(finding); gotID != wantFindingID {
+			t.Fatalf("finding id differs by source scope/generation: got=%q want=%q", gotID, wantFindingID)
+		}
+		if strings.Contains(gotKey, "generation-") || strings.Contains(gotKey, "vuln-intel://") || strings.Contains(gotKey, "package-registry:") {
+			t.Fatalf("stable fact key = %q, want canonical logical identity without source scope/generation", gotKey)
+		}
+	}
+}
+
 func TestPostgresSupplyChainImpactWriterPersistsSignalsWithoutPriorityCollapse(t *testing.T) {
 	t.Parallel()
 
