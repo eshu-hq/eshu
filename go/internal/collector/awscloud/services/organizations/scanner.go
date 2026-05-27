@@ -226,11 +226,11 @@ func (s Scanner) delegatedAdminObservation(
 	adminID := delegatedAdminID(admin)
 	return awscloud.ResourceObservation{
 		Boundary:     boundary,
-		ARN:          strings.TrimSpace(admin.AccountARN),
 		ResourceID:   adminID,
 		ResourceType: awscloud.ResourceTypeOrganizationsDelegatedAdministrator,
 		Name:         strings.TrimSpace(admin.ServicePrincipal),
 		Attributes: map[string]any{
+			"account_arn":           strings.TrimSpace(admin.AccountARN),
 			"account_email":         awscloud.RedactString(admin.AccountEmail, "aws_organizations_delegated_administrator.email", s.RedactionKey),
 			"account_id":            strings.TrimSpace(admin.AccountID),
 			"account_name":          awscloud.RedactString(admin.AccountName, "aws_organizations_delegated_administrator.name", s.RedactionKey),
@@ -337,7 +337,6 @@ func delegatedAdminRelationship(
 		Boundary:         boundary,
 		RelationshipType: awscloud.RelationshipOrganizationsDelegatedAdminForAccount,
 		SourceResourceID: adminID,
-		SourceARN:        strings.TrimSpace(admin.AccountARN),
 		TargetResourceID: accountID,
 		TargetARN:        strings.TrimSpace(admin.AccountARN),
 		TargetType:       awscloud.ResourceTypeOrganizationsAccount,

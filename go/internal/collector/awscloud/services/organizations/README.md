@@ -80,25 +80,29 @@ adapter records Organizations API call counts, throttles, and pagination spans.
 
 ## Evidence
 
-Collector Performance Evidence: `go test ./internal/collector/awscloud/services/organizations/...`
-covers the bounded Organizations metadata path: DescribeOrganization, root/OU
-and account traversal, tag listing, policy summary and target listing, and
-delegated-administrator service listing. The scanner emits no graph writes and
-does not call policy body or mutation APIs.
+Performance Evidence: `go test ./internal/collector/awscloud/services/organizations/... -count=1`
+passed on 2026-05-27 after rebasing onto `origin/main` commit `73a9fa27`.
+The fixture input is one in-memory Organizations snapshot with one root, nested
+OU/account placement, policy summaries and target bindings, delegated
+administrators, tags, and an org-aware skip warning; it has no Postgres queue
+rows and no graph backend. The scanner emits in-memory fact envelopes only, so
+there is no added graph write, worker claim fanout, lease contention, or reducer
+queue pressure in this package.
 
 No-Regression Evidence: `go test ./cmd/collector-aws-cloud ./internal/collector/awscloud/...`
 covers Organizations metadata fact emission, policy body redaction, account
 email/name redaction, org-aware skipped warning behavior, runtime registration,
 command configuration, and the SDK adapter's safe metadata mapping.
 
-Collector Observability Evidence: Organizations uses the existing AWS collector
+Observability Evidence: Organizations uses the existing AWS collector
 `aws.service.scan` and `aws.service.pagination.page` spans plus
 `eshu_dp_aws_api_calls_total`, `eshu_dp_aws_throttle_total`,
 `eshu_dp_aws_resources_emitted_total`,
 `eshu_dp_aws_relationships_emitted_total`,
-`eshu_dp_aws_org_access_skipped_total`, and `aws_scan_status` rows. Metric
-labels stay bounded to service, account, region, operation, result, resource
-type, and skip reason.
+`eshu_dp_aws_org_access_skipped_total`, and `aws_scan_status` rows to show
+successful metadata emission, AWS API/throttle volume, partial org-aware skips,
+and skipped credentials. Metric labels stay bounded to service, account,
+region, operation, result, resource type, and skip reason.
 
 Collector Deployment Evidence: Organizations runs inside the existing hosted
 `collector-aws-cloud` runtime, so `/healthz`, `/readyz`, `/metrics`, and

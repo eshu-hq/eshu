@@ -96,12 +96,16 @@ func TestScannerEmitsOrganizationsMetadataOnlyFactsAndRelationships(t *testing.T
 	assertResourceType(t, envelopes, awscloud.ResourceTypeOrganizationsOrganizationalUnit)
 	account := assertResourceType(t, envelopes, awscloud.ResourceTypeOrganizationsAccount)
 	assertResourceType(t, envelopes, awscloud.ResourceTypeOrganizationsPolicy)
-	assertResourceType(t, envelopes, awscloud.ResourceTypeOrganizationsDelegatedAdministrator)
+	delegatedAdmin := assertResourceType(t, envelopes, awscloud.ResourceTypeOrganizationsDelegatedAdministrator)
 	assertRelationshipType(t, envelopes, awscloud.RelationshipOrganizationsAccountInOU)
 	assertRelationshipType(t, envelopes, awscloud.RelationshipOrganizationsOUInOU)
 	assertRelationshipType(t, envelopes, awscloud.RelationshipOrganizationsAccountInRoot)
 	assertRelationshipType(t, envelopes, awscloud.RelationshipOrganizationsPolicyTargetsResource)
-	assertRelationshipType(t, envelopes, awscloud.RelationshipOrganizationsDelegatedAdminForAccount)
+	delegatedAdminRelationship := assertRelationshipType(
+		t,
+		envelopes,
+		awscloud.RelationshipOrganizationsDelegatedAdminForAccount,
+	)
 
 	accountAttrs := attributesOf(t, account)
 	for _, field := range []string{"email", "name"} {
@@ -116,6 +120,21 @@ func TestScannerEmitsOrganizationsMetadataOnlyFactsAndRelationships(t *testing.T
 		if strings.Contains(marker, "owner@example.com") || strings.Contains(marker, "payments-prod") {
 			t.Fatalf("account %s marker leaked raw account data: %q", field, marker)
 		}
+	}
+
+	accountARN := "arn:aws:organizations::123456789012:account/o-exampleorgid/111122223333"
+	if got := delegatedAdmin.Payload["arn"]; got != "" {
+		t.Fatalf("delegated admin arn = %#v, want empty; binding must not reuse account ARN", got)
+	}
+	delegatedAttrs := attributesOf(t, delegatedAdmin)
+	if got := delegatedAttrs["account_arn"]; got != accountARN {
+		t.Fatalf("delegated admin account_arn = %#v, want %q", got, accountARN)
+	}
+	if got := delegatedAdminRelationship.Payload["source_arn"]; got != "" {
+		t.Fatalf("delegated admin relationship source_arn = %#v, want empty binding source ARN", got)
+	}
+	if got := delegatedAdminRelationship.Payload["target_arn"]; got != accountARN {
+		t.Fatalf("delegated admin relationship target_arn = %#v, want account ARN", got)
 	}
 
 	for _, envelope := range envelopes {
@@ -212,17 +231,18 @@ func assertResourceType(t *testing.T, envelopes []facts.Envelope, resourceType s
 	return facts.Envelope{}
 }
 
-func assertRelationshipType(t *testing.T, envelopes []facts.Envelope, relationshipType string) {
+func assertRelationshipType(t *testing.T, envelopes []facts.Envelope, relationshipType string) facts.Envelope {
 	t.Helper()
 	for _, envelope := range envelopes {
 		if envelope.FactKind != facts.AWSRelationshipFactKind {
 			continue
 		}
 		if got, _ := envelope.Payload["relationship_type"].(string); got == relationshipType {
-			return
+			return envelope
 		}
 	}
 	t.Fatalf("missing relationship_type %q in %#v", relationshipType, envelopes)
+	return facts.Envelope{}
 }
 
 func attributesOf(t *testing.T, envelope facts.Envelope) map[string]any {
