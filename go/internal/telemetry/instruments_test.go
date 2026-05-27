@@ -81,6 +81,7 @@ func TestNewInstrumentsNoError(t *testing.T) {
 	assert.NotNil(t, inst.AWSRelationshipsEmitted, "AWSRelationshipsEmitted counter should be registered")
 	assert.NotNil(t, inst.AWSTagObservationsEmitted, "AWSTagObservationsEmitted counter should be registered")
 	assert.NotNil(t, inst.AWSFreshnessEvents, "AWSFreshnessEvents counter should be registered")
+	assert.NotNil(t, inst.AWSOrgAccessSkipped, "AWSOrgAccessSkipped counter should be registered")
 	assert.NotNil(t, inst.AWSScanStatusStaleFence, "AWSScanStatusStaleFence counter should be registered")
 	assert.NotNil(t, inst.WorkflowClaimAttemptBudgetExhausted, "WorkflowClaimAttemptBudgetExhausted counter should be registered")
 

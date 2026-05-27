@@ -103,6 +103,11 @@
   persistence, archive-rule filter persistence, policy-generation output,
   per-action unused-access detail persistence, GetFinding, or mutation APIs
   through the runtime registry.
+- Keep Organizations scans metadata-only. Do not wire policy body reads,
+  account lifecycle mutations, policy mutations, delegated-admin mutations, or
+  service-access mutations through the runtime registry. Organizations API
+  calls must use the `us-east-1` control-plane endpoint and report org-aware
+  credential skips through bounded warnings/status/metrics.
 
 ## Common Changes
 

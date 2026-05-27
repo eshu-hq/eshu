@@ -50,8 +50,8 @@ See `doc.go` for the godoc contract.
 - `SDKCredentialProvider` - production credential provider using workload
   identity or STS AssumeRole.
 - `DefaultScannerFactory` - production service registry for AWS scanners. ECS,
-  Lambda, and Security Hub scanners receive the command-provided redaction key
-  for sensitive-derived fields.
+  Lambda, Security Hub, and Organizations scanners receive the
+  command-provided redaction key for sensitive-derived fields.
 - `SupportedServiceKinds` and `SupportsServiceKind` - production registry
   service-kind introspection used by command-side target-scope validation so
   startup checks cannot drift from scanner availability.
@@ -82,6 +82,7 @@ See `doc.go` for the godoc contract.
   `internal/collector/awscloud/services/eks`,
   `internal/collector/awscloud/services/elbv2`,
   `internal/collector/awscloud/services/lambda`,
+  `internal/collector/awscloud/services/organizations`,
   `internal/collector/awscloud/services/rds`,
   `internal/collector/awscloud/services/route53`,
   `internal/collector/awscloud/services/secretsmanager`,
@@ -114,6 +115,7 @@ pagination spans. The command registers the instruments:
 - `eshu_dp_aws_resources_emitted_total`
 - `eshu_dp_aws_relationships_emitted_total`
 - `eshu_dp_aws_tag_observations_emitted_total`
+- `eshu_dp_aws_org_access_skipped_total`
 - `eshu_dp_aws_scan_duration_seconds`
 - `aws.collector.claim.process`
 - `aws.credentials.assume_role`
@@ -133,9 +135,10 @@ pagination spans. The command registers the instruments:
 - `DefaultScannerFactory` is the only production registry for service scanners;
   add full-scan services there and update `supportedServiceKinds` instead of
   branching in the command.
-- ECS, Lambda, and Security Hub service scans require a non-empty redaction key
-  because environment values and Security Hub action target descriptions are
-  treated as sensitive even when names look harmless.
+- ECS, Lambda, Security Hub, and Organizations service scans require a
+  non-empty redaction key because environment values, Security Hub action target
+  descriptions, and Organizations account email/name values are treated as
+  sensitive even when source labels look harmless.
 - EC2 service scans collect network topology only. They do not emit EC2
   instance inventory facts.
 - Target scopes default to one active claim per account when
@@ -230,6 +233,15 @@ pagination spans. The command registers the instruments:
   to external finding-body persistence, archive-rule filter persistence,
   policy-generation output, per-action unused-access detail persistence,
   GetFinding, or mutation APIs.
+- Organizations scanners must stay metadata-only. The runtime registry wires
+  the Organizations SDK adapter, forces API calls to the `us-east-1` control
+  plane, and requires management-account or delegated-administrator
+  credentials. It must not broaden the service contract to policy body reads,
+  account lifecycle mutations, policy mutations, service-access mutations, or
+  delegated-admin mutations. Non-org-aware credentials must surface an
+  `organizations_org_access_skipped` warning and
+  `eshu_dp_aws_org_access_skipped_total` rather than failed or fabricated
+  organization truth.
 - This package does not decide retryability for AWS service errors. The caller
   owns claim failure and retry policy through `collector.ClaimedService`.
 

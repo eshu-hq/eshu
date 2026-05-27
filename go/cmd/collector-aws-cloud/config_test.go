@@ -310,6 +310,110 @@ func TestLoadRuntimeConfigDoesNotRequireRedactionKeyForAccessAnalyzer(t *testing
 	}
 }
 
+func TestLoadRuntimeConfigRequiresRedactionKeyForOrganizations(t *testing.T) {
+	getenv := mapEnv(map[string]string{
+		"ESHU_COLLECTOR_INSTANCES_JSON": `[{
+			"instance_id":"collector-aws-1",
+			"collector_kind":"aws",
+			"mode":"continuous",
+			"enabled":true,
+			"claims_enabled":true,
+			"configuration":{
+				"target_scopes":[{
+					"account_id":"123456789012",
+					"allowed_regions":["us-east-1"],
+					"allowed_services":["organizations"],
+					"credentials":{
+						"mode":"local_workload_identity"
+					}
+				}]
+			}
+		}]`,
+		"ESHU_AWS_COLLECTOR_INSTANCE_ID": "collector-aws-1",
+	})
+
+	_, err := loadRuntimeConfig(getenv)
+	if err == nil {
+		t.Fatalf("loadRuntimeConfig() error = nil, want missing redaction key rejection")
+	}
+	if !strings.Contains(err.Error(), "ESHU_AWS_REDACTION_KEY") {
+		t.Fatalf("loadRuntimeConfig() error = %v, want ESHU_AWS_REDACTION_KEY", err)
+	}
+}
+
+func TestLoadRuntimeConfigMapsOrganizationsWithRedactionKey(t *testing.T) {
+	getenv := mapEnv(map[string]string{
+		"ESHU_COLLECTOR_INSTANCES_JSON": `[{
+			"instance_id":"collector-aws-1",
+			"collector_kind":"aws",
+			"mode":"continuous",
+			"enabled":true,
+			"claims_enabled":true,
+			"configuration":{
+				"target_scopes":[{
+					"account_id":"123456789012",
+					"allowed_regions":["us-east-1"],
+					"allowed_services":["organizations"],
+					"credentials":{
+						"mode":"central_assume_role",
+						"role_arn":"arn:aws:iam::123456789012:role/eshu-organizations-readonly",
+						"external_id":"external-1"
+					}
+				}]
+			}
+		}]`,
+		"ESHU_AWS_COLLECTOR_INSTANCE_ID": "collector-aws-1",
+		"ESHU_AWS_REDACTION_KEY":         "aws-redaction-key",
+	})
+
+	config, err := loadRuntimeConfig(getenv)
+	if err != nil {
+		t.Fatalf("loadRuntimeConfig() error = %v", err)
+	}
+	target := config.AWS.Targets[0]
+	if got, want := target.AllowedServices[0], awscloud.ServiceOrganizations; got != want {
+		t.Fatalf("AllowedServices[0] = %q, want %q", got, want)
+	}
+	if got, want := target.AllowedRegions[0], "us-east-1"; got != want {
+		t.Fatalf("AllowedRegions[0] = %q, want %q", got, want)
+	}
+	if config.AWSRedactionKey.IsZero() {
+		t.Fatalf("AWSRedactionKey is zero, want configured key")
+	}
+}
+
+func TestLoadRuntimeConfigRejectsOrganizationsOutsideUSEast1(t *testing.T) {
+	getenv := mapEnv(map[string]string{
+		"ESHU_COLLECTOR_INSTANCES_JSON": `[{
+			"instance_id":"collector-aws-1",
+			"collector_kind":"aws",
+			"mode":"continuous",
+			"enabled":true,
+			"claims_enabled":true,
+			"configuration":{
+				"target_scopes":[{
+					"account_id":"123456789012",
+					"allowed_regions":["us-west-2"],
+					"allowed_services":["organizations"],
+					"credentials":{
+						"mode":"local_workload_identity"
+					}
+				}]
+			}
+		}]`,
+		"ESHU_AWS_COLLECTOR_INSTANCE_ID": "collector-aws-1",
+		"ESHU_AWS_REDACTION_KEY":         "aws-redaction-key",
+	})
+
+	_, err := loadRuntimeConfig(getenv)
+	if err == nil {
+		t.Fatalf("loadRuntimeConfig() error = nil, want Organizations region rejection")
+	}
+	if !strings.Contains(err.Error(), "organizations scans require allowed_regions [\"us-east-1\"]") {
+		t.Fatalf("loadRuntimeConfig() error = %v, want Organizations us-east-1 rejection", err)
+	}
+}
+
 func TestLoadRuntimeConfigDoesNotRequireRedactionKeyForS3(t *testing.T) {
 	getenv := mapEnv(map[string]string{
 		"ESHU_COLLECTOR_INSTANCES_JSON": `[{

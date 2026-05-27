@@ -155,6 +155,7 @@ and the host pprof endpoint on `eshu-scanner-worker`.
 | `eshu_dp_aws_relationships_emitted_total` | `service`, `account`, `region` | AWS relationship fact volume. |
 | `eshu_dp_aws_tag_observations_emitted_total` | `service`, `account`, `region` | Tag observation fact volume. |
 | `eshu_dp_aws_freshness_events_total` | `kind`, `action` | AWS Config/EventBridge freshness intake and handoff. |
+| `eshu_dp_aws_org_access_skipped_total` | `service`, `account`, `region`, `reason` | Organizations scans skipped because credentials were not org-aware. |
 | `eshu_dp_aws_scan_duration_seconds` | `service`, `account`, `region`, `result` | One service claim before durable commit. |
 | `eshu_dp_aws_claim_concurrency` | `account` | Active AWS claims by account. |
 

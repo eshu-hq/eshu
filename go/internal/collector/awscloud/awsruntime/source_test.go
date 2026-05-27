@@ -305,6 +305,81 @@ func TestClaimedSourceRecordsScanStatusWithAPICallStats(t *testing.T) {
 	}
 }
 
+func TestClaimedSourceMarksOrganizationsOrgAccessSkipAsPartial(t *testing.T) {
+	now := time.Date(2026, 5, 27, 13, 0, 0, 0, time.UTC)
+	item := awsWorkItem(now)
+	item.WorkItemID = "aws:collector-1:run-1:123456789012:us-east-1:organizations"
+	item.ScopeID = "aws:123456789012:us-east-1:organizations"
+	item.AcceptanceUnitID = `{"account_id":"123456789012","region":"us-east-1","service_kind":"organizations"}`
+	item.SourceRunID = "aws-generation-organizations-1"
+	item.GenerationID = item.SourceRunID
+
+	reader := sdkmetric.NewManualReader()
+	meterProvider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader))
+	instruments, err := telemetry.NewInstruments(meterProvider.Meter("test"))
+	if err != nil {
+		t.Fatalf("NewInstruments() error = %v", err)
+	}
+	statusStore := &stubScanStatusStore{}
+	source := ClaimedSource{
+		Config: Config{
+			CollectorInstanceID: item.CollectorInstanceID,
+			Targets: []TargetScope{{
+				AccountID:       "123456789012",
+				AllowedRegions:  []string{"us-east-1"},
+				AllowedServices: []string{awscloud.ServiceOrganizations},
+				Credentials: CredentialConfig{
+					Mode: CredentialModeLocalWorkloadIdentity,
+				},
+			}},
+		},
+		Credentials: &stubCredentialProvider{lease: &stubCredentialLease{}},
+		Scanners: &stubScannerFactory{scanner: stubScanner{envelopes: []facts.Envelope{{
+			FactKind: facts.AWSWarningFactKind,
+			Payload: map[string]any{
+				"warning_kind": awscloud.WarningOrganizationsOrgAccessSkipped,
+				"attributes": map[string]any{
+					"skip_reason": "org_access_denied",
+				},
+			},
+		}}}},
+		Clock:       func() time.Time { return now },
+		Instruments: instruments,
+		ScanStatus:  statusStore,
+	}
+
+	_, ok, err := source.NextClaimed(context.Background(), item)
+	if err != nil {
+		t.Fatalf("NextClaimed() error = %v, want nil", err)
+	}
+	if !ok {
+		t.Fatalf("NextClaimed() ok = false, want true")
+	}
+	if len(statusStore.observations) != 1 {
+		t.Fatalf("ObserveAWSScan calls = %d, want 1", len(statusStore.observations))
+	}
+	observation := statusStore.observations[0]
+	if observation.Status != awscloud.ScanStatusPartial {
+		t.Fatalf("status = %q, want partial", observation.Status)
+	}
+	if observation.FailureClass != "org_access_skipped" {
+		t.Fatalf("failure class = %q, want org_access_skipped", observation.FailureClass)
+	}
+
+	var rm metricdata.ResourceMetrics
+	if err := reader.Collect(context.Background(), &rm); err != nil {
+		t.Fatalf("Collect() error = %v", err)
+	}
+	if got := awsRuntimeCounterValue(t, rm, "eshu_dp_aws_org_access_skipped_total", map[string]string{
+		telemetry.MetricDimensionService: awscloud.ServiceOrganizations,
+		telemetry.MetricDimensionAccount: "123456789012",
+		telemetry.MetricDimensionRegion:  "us-east-1",
+		telemetry.MetricDimensionReason:  "org_access_denied",
+	}); got != 1 {
+		t.Fatalf("org access skipped counter = %d, want 1", got)
+	}
+}
+
 func awsWorkItem(now time.Time) workflow.WorkItem {
 	return workflow.WorkItem{
 		WorkItemID:          "aws:collector-1:run-1:123456789012:us-east-1:iam",

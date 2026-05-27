@@ -127,6 +127,7 @@ type Instruments struct {
 	AWSRelationshipsEmitted         metric.Int64Counter
 	AWSTagObservationsEmitted       metric.Int64Counter
 	AWSFreshnessEvents              metric.Int64Counter
+	AWSOrgAccessSkipped             metric.Int64Counter
 	// AWSScanStatusStaleFence counts AWS scan-status rejections caused by a
 	// stale fencing token, labeled by service, account, region, and the
 	// operation (start, observe, commit) that was rejected. Operators read
@@ -865,6 +866,14 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register AWSFreshnessEvents counter: %w", err)
+	}
+
+	inst.AWSOrgAccessSkipped, err = meter.Int64Counter(
+		"eshu_dp_aws_org_access_skipped_total",
+		metric.WithDescription("Total AWS Organizations scans skipped because credentials were not org-aware, labeled by service, account, region, and reason"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register AWSOrgAccessSkipped counter: %w", err)
 	}
 
 	inst.AWSScanStatusStaleFence, err = meter.Int64Counter(

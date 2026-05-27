@@ -211,6 +211,49 @@ func TestDefaultScannerFactoryBuildsAccessAnalyzerScanner(t *testing.T) {
 	}
 }
 
+func TestDefaultScannerFactoryBuildsOrganizationsScanner(t *testing.T) {
+	key, err := redact.NewKey([]byte("aws-redaction-key"))
+	if err != nil {
+		t.Fatalf("NewKey() error = %v", err)
+	}
+	factory := DefaultScannerFactory{RedactionKey: key}
+	lease := staticAWSConfigLease{config: aws.Config{Region: "us-west-2"}}
+	scanner, err := factory.Scanner(context.Background(), Target{
+		AccountID:   "123456789012",
+		Region:      "us-east-1",
+		ServiceKind: awscloud.ServiceOrganizations,
+	}, awscloud.Boundary{
+		AccountID:   "123456789012",
+		Region:      "us-east-1",
+		ServiceKind: awscloud.ServiceOrganizations,
+	}, lease)
+	if err != nil {
+		t.Fatalf("Scanner() error = %v", err)
+	}
+	if scanner == nil {
+		t.Fatalf("Scanner() = nil, want Organizations scanner")
+	}
+}
+
+func TestDefaultScannerFactoryRequiresRedactionKeyForOrganizations(t *testing.T) {
+	factory := DefaultScannerFactory{}
+	_, err := factory.Scanner(context.Background(), Target{
+		AccountID:   "123456789012",
+		Region:      "us-east-1",
+		ServiceKind: awscloud.ServiceOrganizations,
+	}, awscloud.Boundary{
+		AccountID:   "123456789012",
+		Region:      "us-east-1",
+		ServiceKind: awscloud.ServiceOrganizations,
+	}, staticAWSConfigLease{config: aws.Config{Region: "us-east-1"}})
+	if err == nil {
+		t.Fatalf("Scanner() error = nil, want missing Organizations redaction key")
+	}
+	if !strings.Contains(err.Error(), "redaction key") {
+		t.Fatalf("Scanner() error = %q, want redaction key", err)
+	}
+}
+
 func TestDefaultScannerFactoryBuildsS3Scanner(t *testing.T) {
 	factory := DefaultScannerFactory{}
 	lease := staticAWSConfigLease{config: aws.Config{Region: "us-east-1"}}

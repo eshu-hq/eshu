@@ -35,10 +35,13 @@ It does not mutate AWS resources, read protected payloads, or write graph truth.
 | `msk` | MSK cluster, broker configuration, and replicator metadata with subnet, security-group, KMS-key, IAM-role, and configuration relationships; no broker `server.properties` bodies, broker logs, bootstrap broker endpoints, SCRAM secrets, or Kafka topic data. |
 | `stepfunctions` | State machine and activity metadata, execution-role relationships, and ARN-only Task-target relationships; no execution payloads, history events, task tokens, or definition literals. |
 | `accessanalyzer` | Analyzer metadata, archive-rule names, aggregate finding counts, relationships, and unused-access summaries. |
+| `organizations` | Organization root, OUs, accounts, policy summaries, policy target bindings, and delegated administrators. |
 
 IAM, Route 53, and CloudFront are global-style families. Use a concrete global
 region label such as `aws-global` so claims keep the
-`(account_id, region, service_kind)` shape.
+`(account_id, region, service_kind)` shape. Organizations uses the `us-east-1`
+control-plane endpoint and requires management-account or
+delegated-administrator credentials.
 
 ## Data Boundaries
 
@@ -70,6 +73,12 @@ workflow status. Security Hub finding bodies, resource IDs from findings,
 resource details, remediation text, product fields, user-defined fields, note
 text, network/process details, and insight filter expressions remain outside
 the collector contract.
+
+Organizations policy attachment metadata is in scope: policy ID, policy name,
+policy type, and target binding. Policy document bodies, statements,
+conditions, action lists, and guardrail text are out of scope by default.
+Account email and account name values must pass through the shared AWS
+redaction path before persistence.
 
 It also does not call AWS mutation APIs. If a scanner needs a new API family,
 update the owning service package README with source APIs, forbidden data

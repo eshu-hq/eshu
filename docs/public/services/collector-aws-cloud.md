@@ -28,8 +28,8 @@ infer service ownership.
 2. Configure one enabled `aws` collector instance with `claims_enabled=true`.
 3. Use exact target scopes: 12-digit account, concrete regions, concrete
    service kinds, per-account concurrency, and one credential mode.
-4. Mount `ESHU_AWS_REDACTION_KEY` when any target scope enables ECS, Lambda, or
-   Security Hub.
+4. Mount `ESHU_AWS_REDACTION_KEY` when any target scope enables ECS, Lambda,
+   Security Hub, or Organizations.
 5. Check `/healthz`, `/readyz`, `/metrics`, and `/admin/status?format=json`.
 6. Confirm scanner status and commit status before debugging reducer or query
    results.
@@ -60,6 +60,9 @@ Start with collector status before changing scanner logic:
 - `commit_status` says whether the fenced fact transaction reached Postgres.
 - `api_call_count`, `throttle_count`, `budget_exhausted`, and
   `credential_failed` identify pressure, budget, and credential failures.
+- `organizations_org_access_skipped` warnings identify Organizations claims
+  where the assumed role or workload identity was not usable from the
+  management account or a delegated administrator.
 - Resource, relationship, and tag-observation counts show emitted fact volume.
 
 `status=succeeded` with `commit_status=failed` means AWS collection worked and
@@ -79,6 +82,7 @@ Dashboard starting points:
 - API pressure: `eshu_dp_aws_api_calls_total`,
   `eshu_dp_aws_throttle_total`, `eshu_dp_aws_assumerole_failed_total`
 - pagination: `eshu_dp_aws_pagination_checkpoint_events_total`
+- org credential boundary: `eshu_dp_aws_org_access_skipped_total`
 - emitted facts: `eshu_dp_aws_resources_emitted_total`,
   `eshu_dp_aws_relationships_emitted_total`,
   `eshu_dp_aws_tag_observations_emitted_total`

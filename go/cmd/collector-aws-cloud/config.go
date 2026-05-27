@@ -178,6 +178,9 @@ func mapTargetScope(target awsTargetScopeConfiguration) (awsruntime.TargetScope,
 	if err != nil {
 		return awsruntime.TargetScope{}, err
 	}
+	if err := validateServiceRegionCompatibility(allowedServices, allowedRegions); err != nil {
+		return awsruntime.TargetScope{}, err
+	}
 	if target.MaxConcurrentClaims < 0 {
 		return awsruntime.TargetScope{}, fmt.Errorf("max_concurrent_claims must be zero or positive")
 	}
@@ -277,6 +280,18 @@ func validateAllowedServices(values []string) ([]string, error) {
 	return services, nil
 }
 
+func validateServiceRegionCompatibility(services []string, regions []string) error {
+	for _, service := range services {
+		if strings.TrimSpace(service) != awscloud.ServiceOrganizations {
+			continue
+		}
+		if len(regions) != 1 || strings.TrimSpace(regions[0]) != "us-east-1" {
+			return fmt.Errorf(`organizations scans require allowed_regions ["us-east-1"]`)
+		}
+	}
+	return nil
+}
+
 // accountIDFromIAMRoleARN extracts the account segment from a role ARN and
 // rejects non-role ARNs so target scopes cannot point at a different account.
 func accountIDFromIAMRoleARN(roleARN string) (string, error) {
@@ -315,7 +330,7 @@ func loadAWSRedactionKeyIfNeeded(
 	}
 	value := strings.TrimSpace(getenv("ESHU_AWS_REDACTION_KEY"))
 	if value == "" {
-		return redact.Key{}, fmt.Errorf("ESHU_AWS_REDACTION_KEY is required when ecs, lambda, or securityhub service scans are enabled")
+		return redact.Key{}, fmt.Errorf("ESHU_AWS_REDACTION_KEY is required when ecs, lambda, securityhub, or organizations service scans are enabled")
 	}
 	key, err := redact.NewKey([]byte(value))
 	if err != nil {
@@ -328,7 +343,7 @@ func awsConfigNeedsRedactionKey(config awsruntime.Config) bool {
 	for _, target := range config.Targets {
 		for _, service := range target.AllowedServices {
 			switch strings.TrimSpace(service) {
-			case awscloud.ServiceECS, awscloud.ServiceLambda, awscloud.ServiceSecurityHub:
+			case awscloud.ServiceECS, awscloud.ServiceLambda, awscloud.ServiceSecurityHub, awscloud.ServiceOrganizations:
 				return true
 			}
 		}
