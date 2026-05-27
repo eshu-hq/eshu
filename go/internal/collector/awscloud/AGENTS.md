@@ -3,18 +3,26 @@
 ## Read First
 
 1. `README.md` - package purpose, exported surface, and invariants.
-2. `types.go` - collector, service, resource, relationship, and observation
-   contracts.
-3. `apicall.go` and `scan_status.go` - bounded API-call accounting and
+2. `types.go` - `CollectorKind` and the shared observation contracts
+   (`Boundary`, `ResourceObservation`, `RelationshipObservation`,
+   `ImageReferenceObservation`, `DNSRecordObservation`, `DNSAliasTarget`,
+   `DNSRoutingPolicy`, `DNSGeoLocation`, `WarningObservation`).
+3. `constants_<service>.go` (one file per AWS service slice, plus
+   `constants_common.go` for cross-service targets like `ResourceTypeAWSAccount`
+   and `guardduty_types.go` for the GuardDuty slice) - service, resource type,
+   and relationship constants. New service constants MUST land in their own
+   `constants_<service>.go` sibling, not back in `types.go`, so the 500-line
+   cap stays satisfied.
+4. `apicall.go` and `scan_status.go` - bounded API-call accounting and
    durable scan-status contracts.
-4. `redaction.go` - AWS launch sensitive-key/provider policy and shared
+5. `redaction.go` - AWS launch sensitive-key/provider policy and shared
    redaction payload helper.
-5. `envelope.go` - durable fact-envelope construction and validation.
-6. Service package docs under `services/` before changing scanner-specific
+6. `envelope.go` - durable fact-envelope construction and validation.
+7. Service package docs under `services/` before changing scanner-specific
    behavior.
-7. `docs/public/services/collector-aws-cloud.md` - AWS collector
+8. `docs/public/services/collector-aws-cloud.md` - AWS collector
    source-truth, claim, and credential contract.
-8. `docs/public/guides/collector-authoring.md` - general collector fact
+9. `docs/public/guides/collector-authoring.md` - general collector fact
    contract.
 
 ## Invariants
@@ -131,9 +139,13 @@
 
 ## Common Changes
 
-- Add a new AWS service by adding service constants here, a service package
-  under `services/`, scanner tests, a service `awssdk` adapter, package docs,
-  and a branch in `awsruntime.DefaultScannerFactory`.
+- Add a new AWS service by creating a new `constants_<service>.go` sibling
+  (one file holds the `Service<X>`, `ResourceType<X>...`, and
+  `Relationship<X>...` constants for that slice), a service package under
+  `services/`, scanner tests, a service `awssdk` adapter, package docs, and a
+  branch in `awsruntime.DefaultScannerFactory`. Do not grow `types.go` with
+  new service-specific constants; it stays at the shared observation
+  contracts only.
 - For that new service package, include `doc.go`, `README.md`, and `AGENTS.md`
   before merge and run `scripts/verify-package-docs.sh`.
 - If the service adds pagination fanout, claim concurrency, batch sizing,
