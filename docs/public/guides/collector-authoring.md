@@ -65,6 +65,28 @@ runtime proof exist.
 Avoid answer shaping, direct graph mutation, post-commit repair hooks, or one-off
 API fixes in collector code. Those belong downstream.
 
+## AWS Scanner Registration
+
+AWS service scanners under `go/internal/collector/awscloud/services/<svc>/`
+self-register with the runtime through a sibling `runtimebind/` sub-package.
+A new scanner adds:
+
+- `services/<svc>/runtimebind/bind.go` calling `awsruntime.Register` from
+  `init()`.
+- `services/<svc>/runtimebind/` package docs (`doc.go`, `README.md`,
+  `AGENTS.md`) and a `bind_test.go` that asserts the binding resolves via
+  `awsruntime.LookupBuilder`.
+- One underscore-import line appended to
+  `go/internal/collector/awscloud/awsruntime/bindings/bindings.go`. That file
+  is marked `merge=union` in `.gitattributes` so parallel scanner PRs do not
+  collide.
+- One new entry in the want-list inside
+  `awsruntime/registry_supported_services_test.go` so a missing binding
+  surfaces as a test failure.
+
+No file in `awsruntime/` itself changes for a new scanner. The runtime
+already has zero compile-time dependency on individual service packages.
+
 ## Verification
 
 Use [Local Testing](../reference/local-testing.md) for the full gate map. Common

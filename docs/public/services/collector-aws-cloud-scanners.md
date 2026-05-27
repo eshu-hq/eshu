@@ -1,7 +1,12 @@
 # AWS Collector Scanner Coverage
 
 Use this page for the AWS `service_kind` values backed by production scanner
-adapters in `go/internal/collector/awscloud/awsruntime/registry.go`.
+adapters. Each scanner self-registers from
+`go/internal/collector/awscloud/services/<svc>/runtimebind/init()`. The
+collector-aws-cloud command pulls every binding through
+`go/internal/collector/awscloud/awsruntime/bindings/bindings.go`, and the
+runtime entry point `awsruntime.DefaultScannerFactory.Scanner` dispatches
+through the resulting registry.
 
 The collector is metadata-only. It emits reported facts for reducer admission.
 It does not mutate AWS resources, read protected payloads, or write graph truth.
