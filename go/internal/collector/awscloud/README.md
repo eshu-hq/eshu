@@ -69,6 +69,8 @@ See `doc.go` for the godoc contract.
   control-plane scans. Covers both provisioned Redshift and Redshift Serverless;
   provisioned and Serverless surfaces are distinguished through the emitted
   `resource_type`, not the service kind.
+- `ServiceGlue` - Glue service-kind value for regional Data Catalog database,
+  table, crawler, job, trigger, workflow, and connection metadata scans.
 - `Boundary` - account, region, service, generation, collector instance, and
   fencing token shared by one claimed AWS scan.
 - `ResourceObservation` - one AWS resource ready for envelope emission.
@@ -228,6 +230,17 @@ request.
   outside the AWS collector fact contract. Hub configuration, enabled standards,
   controls, member accounts, action targets, insight summaries, and aggregate
   finding counts are reported evidence only.
+- Glue facts are metadata only. Job script bodies, job default-argument values,
+  secret-shaped argument keys, connection passwords, connection JDBC credential
+  URLs, connection property values, table column statistics with sample values,
+  classifier custom patterns, workflow graph payloads, workflow run state, and
+  mutations stay outside the AWS collector fact contract. Database, table,
+  crawler, job, trigger, workflow, and connection metadata plus reported
+  table-in-database, table-to-S3-location, crawler-to-database,
+  crawler-to-IAM-role, job-to-IAM-role, and trigger-to-job relationships are
+  reported evidence only. The Glue SDK adapter calls `GetConnections` with
+  `HidePassword=true` and `GetWorkflow` with `IncludeGraph=false` so passwords
+  and graph payloads never leave AWS.
 
 ## Related docs
 

@@ -91,6 +91,16 @@
   metadata plus workgroup-to-S3-result-bucket, workgroup-to-KMS-key,
   prepared-statement-to-workgroup, and named-query-to-workgroup relationship
   evidence are reported metadata only.
+- Keep Glue job script bodies, job default-argument values, secret-shaped
+  argument keys, connection passwords, connection JDBC credential URLs,
+  connection property values, table column statistics with sample values,
+  classifier custom patterns, workflow graph payloads, workflow run state, and
+  mutations out of facts. Database, table, crawler, job, trigger, workflow,
+  and connection metadata plus reported table-in-database,
+  table-to-S3-location, crawler-to-database, crawler-to-IAM-role,
+  job-to-IAM-role, and trigger-to-job relationships are reported metadata
+  only. The Glue SDK adapter must call `GetConnections` with
+  `HidePassword=true` and `GetWorkflow` with `IncludeGraph=false`.
 - Keep ELBv2 target health out of facts; it is live/noisy state, not stable
   topology truth.
 - Keep EC2 instance inventory out of the EC2 scanner; ENI attachment target

@@ -29,6 +29,8 @@ import (
 	elbv2awssdk "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/elbv2/awssdk"
 	eventbridgeservice "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/eventbridge"
 	eventbridgeawssdk "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/eventbridge/awssdk"
+	glueservice "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/glue"
+	glueawssdk "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/glue/awssdk"
 	iamservice "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/iam"
 	iamawssdk "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/iam/awssdk"
 	lambdaservice "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/lambda"
@@ -85,6 +87,7 @@ var supportedServiceKinds = []string{
 	awscloud.ServiceSecretsManager,
 	awscloud.ServiceSSM,
 	awscloud.ServiceAthena,
+	awscloud.ServiceGlue,
 	awscloud.ServiceIAM,
 	awscloud.ServiceLambda,
 	awscloud.ServiceSecurityHub,
@@ -202,6 +205,10 @@ func (f DefaultScannerFactory) Scanner(
 	case awscloud.ServiceAthena:
 		return athenaservice.Scanner{
 			Client: athenaawssdk.NewClient(configLease.AWSConfig(), boundary, f.Tracer, f.Instruments),
+		}, nil
+	case awscloud.ServiceGlue:
+		return glueservice.Scanner{
+			Client: glueawssdk.NewClient(configLease.AWSConfig(), boundary, f.Tracer, f.Instruments),
 		}, nil
 	case awscloud.ServiceIAM:
 		return iamservice.Scanner{

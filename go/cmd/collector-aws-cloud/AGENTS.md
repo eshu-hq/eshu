@@ -84,6 +84,14 @@
   product fields, user-defined fields, network/process details, insight
   filters, and mutations out of facts. The command may enable `securityhub`,
   but the SDK adapter owns safe metadata and aggregate-count mapping.
+- Keep Glue job script bodies, job default-argument values, secret-shaped
+  argument keys, connection passwords, connection JDBC credential URLs,
+  connection property values, table column statistics with sample values,
+  classifier custom patterns, workflow graph payloads, and mutations out of
+  facts. The command may enable `glue`, but the SDK adapter owns safe
+  database, table, crawler, job, trigger, workflow, and connection mapping
+  and must call `GetConnections` with `HidePassword=true` and `GetWorkflow`
+  with `IncludeGraph=false`.
 - Do not log credential values, trust policy JSON, resource ARNs, tags, or raw
   source payloads as metric labels.
 - Preserve the split between scanner-side status in `awsruntime` and
