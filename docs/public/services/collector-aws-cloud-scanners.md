@@ -33,6 +33,7 @@ It does not mutate AWS resources, read protected payloads, or write graph truth.
 | `glue` | Data Catalog database, table, crawler, job, trigger, workflow, and connection metadata plus table-in-database, table-to-S3-location, crawler-to-database, crawler-to-IAM-role, job-to-IAM-role, and trigger-to-job relationships. No script bodies, default-argument values, connection passwords, JDBC credential URLs, workflow graphs, table column sample statistics, or classifier custom patterns. |
 | `elasticache` | Cache clusters, replication groups, parameter and subnet groups, users, user groups, and snapshot metadata (name/source/status only); cluster-to-VPC, cluster-to-subnet, cluster-to-KMS, replication-group-to-cluster, and user-group-to-user relationships. No AUTH tokens, user passwords, user access strings, cache contents, or snapshot data. |
 | `msk` | MSK cluster, broker configuration, and replicator metadata with subnet, security-group, KMS-key, IAM-role, and configuration relationships; no broker `server.properties` bodies, broker logs, bootstrap broker endpoints, SCRAM secrets, or Kafka topic data. |
+| `stepfunctions` | State machine and activity metadata, execution-role relationships, and ARN-only Task-target relationships; no execution payloads, history events, task tokens, or definition literals. |
 
 IAM, Route 53, and CloudFront are global-style families. Use a concrete global
 region label such as `aws-global` so claims keep the
@@ -54,8 +55,13 @@ passwords or JDBC credential URLs, Glue workflow graph payloads, Glue table
 column statistics with sample values, Glue classifier custom patterns, MSK
 Kafka topic or message data, MSK broker logs, MSK broker `server.properties`
 bodies, MSK configuration revision bodies, MSK bootstrap broker endpoints, MSK
-SCRAM secret material, or IAM/resource policy JSON unless a service package
-explicitly documents a sanitized metadata-only exception.
+SCRAM secret material, Step Functions execution input or output, Step
+Functions execution history events, Step Functions activity task tokens, or
+IAM/resource policy JSON unless a service package explicitly documents a
+sanitized metadata-only exception. Step Functions state machine definitions
+are persisted only as state names, state types, structural transitions, and
+Task Resource ARNs; Parameters, ResultPath, ResultSelector, InputPath,
+OutputPath, and Result literal contents are excluded.
 
 Security Hub finding aggregate counts are metadata-only when grouped by bounded
 posture fields such as severity, standard, control, compliance status, and

@@ -85,6 +85,9 @@ const (
 	// ServiceMSK identifies the regional Amazon Managed Streaming for Apache
 	// Kafka metadata-only scan slice.
 	ServiceMSK = "msk"
+	// ServiceStepFunctions identifies the regional AWS Step Functions metadata
+	// scan slice.
+	ServiceStepFunctions = "stepfunctions"
 )
 
 const (
@@ -299,6 +302,12 @@ const (
 	// ResourceTypeMSKReplicator identifies an MSK Replicator metadata
 	// resource.
 	ResourceTypeMSKReplicator = "aws_msk_replicator"
+	// ResourceTypeStepFunctionsStateMachine identifies a Step Functions state
+	// machine metadata resource.
+	ResourceTypeStepFunctionsStateMachine = "aws_stepfunctions_state_machine"
+	// ResourceTypeStepFunctionsActivity identifies a Step Functions activity
+	// metadata resource.
+	ResourceTypeStepFunctionsActivity = "aws_stepfunctions_activity"
 )
 
 const (
@@ -602,6 +611,13 @@ const (
 	// RelationshipMSKReplicatorUsesIAMRole records an MSK Replicator's
 	// reported service-execution IAM role dependency.
 	RelationshipMSKReplicatorUsesIAMRole = "msk_replicator_uses_iam_role"
+	// RelationshipStepFunctionsStateMachineUsesIAMRole records a state
+	// machine's reported execution-role dependency.
+	RelationshipStepFunctionsStateMachineUsesIAMRole = "stepfunctions_state_machine_uses_iam_role"
+	// RelationshipStepFunctionsStateMachineReferencesResource records evidence
+	// that a state machine definition references an ARN-addressable resource as
+	// a Task target.
+	RelationshipStepFunctionsStateMachineReferencesResource = "stepfunctions_state_machine_references_resource"
 )
 
 // Boundary carries the durable scope-generation and claim identity shared by

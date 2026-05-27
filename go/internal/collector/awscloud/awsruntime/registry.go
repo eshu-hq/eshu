@@ -57,6 +57,8 @@ import (
 	sqsawssdk "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/sqs/awssdk"
 	ssmservice "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/ssm"
 	ssmawssdk "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/ssm/awssdk"
+	stepfunctionsservice "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/stepfunctions"
+	stepfunctionsawssdk "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/stepfunctions/awssdk"
 	"github.com/eshu-hq/eshu/go/internal/redact"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
@@ -94,6 +96,7 @@ var supportedServiceKinds = []string{
 	awscloud.ServiceGlue,
 	awscloud.ServiceElastiCache,
 	awscloud.ServiceMSK,
+	awscloud.ServiceStepFunctions,
 	awscloud.ServiceIAM,
 	awscloud.ServiceLambda,
 	awscloud.ServiceSecurityHub,
@@ -223,6 +226,10 @@ func (f DefaultScannerFactory) Scanner(
 	case awscloud.ServiceMSK:
 		return mskservice.Scanner{
 			Client: mskawssdk.NewClient(configLease.AWSConfig(), boundary, f.Tracer, f.Instruments),
+		}, nil
+	case awscloud.ServiceStepFunctions:
+		return stepfunctionsservice.Scanner{
+			Client: stepfunctionsawssdk.NewClient(configLease.AWSConfig(), boundary, f.Tracer, f.Instruments),
 		}, nil
 	case awscloud.ServiceIAM:
 		return iamservice.Scanner{

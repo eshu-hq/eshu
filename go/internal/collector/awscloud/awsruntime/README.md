@@ -89,7 +89,8 @@ See `doc.go` for the godoc contract.
   `internal/collector/awscloud/services/sqs`,
   `internal/collector/awscloud/services/sns`,
   `internal/collector/awscloud/services/ssm`,
-  `internal/collector/awscloud/services/athena`, and
+  `internal/collector/awscloud/services/athena`,
+  `internal/collector/awscloud/services/stepfunctions`, and
   `internal/collector/awscloud/services/s3` plus their `awssdk` adapters for
   production service scanners.
 - `internal/facts` for warning fact types.
@@ -214,6 +215,15 @@ pagination spans. The command registers the instruments:
   values, classifier custom-pattern reads, workflow graph payload reads, or
   workflow run state reads. The SDK adapter must call `GetConnections` with
   `HidePassword=true` and `GetWorkflow` with `IncludeGraph=false`.
+- Step Functions scanners must stay metadata-only. The runtime registry wires
+  the Step Functions SDK adapter, but it must not broaden the service contract
+  to StartExecution, StopExecution, CreateStateMachine, UpdateStateMachine,
+  DeleteStateMachine, SendTaskSuccess, SendTaskFailure, or any other mutation
+  or execution-payload API. It must not persist execution input, execution
+  output, execution history events, activity task tokens, or literal
+  Parameters/ResultPath/ResultSelector/InputPath/OutputPath/Result contents
+  from a state machine definition; only state names, state types, transitions,
+  and Task Resource ARNs are persisted.
 - This package does not decide retryability for AWS service errors. The caller
   owns claim failure and retry policy through `collector.ClaimedService`.
 
