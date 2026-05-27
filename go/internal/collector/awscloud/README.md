@@ -241,6 +241,13 @@ request.
   reported evidence only. The Glue SDK adapter calls `GetConnections` with
   `HidePassword=true` and `GetWorkflow` with `IncludeGraph=false` so passwords
   and graph payloads never leave AWS.
+- ElastiCache facts are metadata only. AUTH tokens, user passwords, user
+  access strings, cache keys, cache values, snapshot data, and mutations stay
+  outside the AWS collector fact contract. Cache cluster, replication group,
+  parameter group, subnet group, user, user group metadata, snapshot
+  name/source/status, and directly reported VPC, subnet, KMS,
+  replication-group-cluster, and user-group-user relationships are reported
+  evidence only.
 
 ## Related docs
 

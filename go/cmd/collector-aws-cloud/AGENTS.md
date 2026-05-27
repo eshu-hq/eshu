@@ -92,6 +92,11 @@
   database, table, crawler, job, trigger, workflow, and connection mapping
   and must call `GetConnections` with `HidePassword=true` and `GetWorkflow`
   with `IncludeGraph=false`.
+- Keep ElastiCache AUTH tokens, user passwords, user access strings, cache
+  keys, cache values, snapshot data, and mutations out of facts. The command
+  may enable `elasticache`, but the SDK adapter owns safe cache cluster,
+  replication group, parameter group, subnet group, user, user group, and
+  snapshot (name/source/status only) mapping.
 - Do not log credential values, trust policy JSON, resource ARNs, tags, or raw
   source payloads as metric labels.
 - Preserve the split between scanner-side status in `awsruntime` and

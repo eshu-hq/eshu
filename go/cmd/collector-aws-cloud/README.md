@@ -54,7 +54,7 @@ Instance configuration uses:
     {
       "account_id": "123456789012",
       "allowed_regions": ["us-east-1", "aws-global"],
-      "allowed_services": ["iam", "ecr", "ecs", "ec2", "elbv2", "lambda", "eks", "route53", "sqs", "sns", "eventbridge", "s3", "rds", "redshift", "dynamodb", "cloudwatchlogs", "cloudfront", "apigateway", "secretsmanager", "ssm", "athena", "securityhub", "glue"],
+      "allowed_services": ["iam", "ecr", "ecs", "ec2", "elbv2", "lambda", "eks", "route53", "sqs", "sns", "eventbridge", "s3", "rds", "redshift", "dynamodb", "cloudwatchlogs", "cloudfront", "apigateway", "secretsmanager", "ssm", "athena", "securityhub", "glue", "elasticache"],
       "max_concurrent_claims": 1,
       "credentials": {
         "mode": "central_assume_role",
@@ -215,6 +215,13 @@ The claim concurrency gauge is backed by the runtime's per-account limiter.
   adapter calls `GetWorkflow` with `IncludeGraph=false`), persist table
   column statistics with sample values, or persist classifier custom
   patterns.
+- ElastiCache targets emit cache cluster, replication group, parameter group,
+  subnet group, user, and user group metadata, snapshot metadata
+  (name/source/status only), and directly reported cluster-to-VPC,
+  cluster-to-subnet, cluster-to-KMS, replication-group-to-cluster, and
+  user-group-to-user relationships. They intentionally do not read cache keys
+  or values, persist AUTH token values, persist user passwords, persist user
+  access strings, persist snapshot data, or mutate ElastiCache resources.
 - The acceptance unit ID must be JSON with `account_id`, `region`, and
   `service_kind`.
 - `/admin/status` includes per `(account_id, region, service_kind)` AWS scan

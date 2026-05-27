@@ -25,6 +25,8 @@ import (
 	ecsawssdk "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/ecs/awssdk"
 	eksservice "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/eks"
 	eksawssdk "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/eks/awssdk"
+	elasticacheservice "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/elasticache"
+	elasticacheawssdk "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/elasticache/awssdk"
 	elbv2service "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/elbv2"
 	elbv2awssdk "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/elbv2/awssdk"
 	eventbridgeservice "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/eventbridge"
@@ -88,6 +90,7 @@ var supportedServiceKinds = []string{
 	awscloud.ServiceSSM,
 	awscloud.ServiceAthena,
 	awscloud.ServiceGlue,
+	awscloud.ServiceElastiCache,
 	awscloud.ServiceIAM,
 	awscloud.ServiceLambda,
 	awscloud.ServiceSecurityHub,
@@ -209,6 +212,10 @@ func (f DefaultScannerFactory) Scanner(
 	case awscloud.ServiceGlue:
 		return glueservice.Scanner{
 			Client: glueawssdk.NewClient(configLease.AWSConfig(), boundary, f.Tracer, f.Instruments),
+		}, nil
+	case awscloud.ServiceElastiCache:
+		return elasticacheservice.Scanner{
+			Client: elasticacheawssdk.NewClient(configLease.AWSConfig(), boundary, f.Tracer, f.Instruments),
 		}, nil
 	case awscloud.ServiceIAM:
 		return iamservice.Scanner{
