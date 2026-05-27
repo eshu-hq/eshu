@@ -33,6 +33,7 @@ func TestBindingsRegistersEverySupportedServiceKind(t *testing.T) {
 		awscloud.ServiceGlue,
 		awscloud.ServiceGuardDuty,
 		awscloud.ServiceIAM,
+		awscloud.ServiceKMS,
 		awscloud.ServiceLambda,
 		awscloud.ServiceMSK,
 		awscloud.ServiceOrganizations,

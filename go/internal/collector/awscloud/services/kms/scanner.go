@@ -1,0 +1,292 @@
+package kms
+
+import (
+	"context"
+	"fmt"
+	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/facts"
+)
+
+// Scanner emits AWS KMS metadata facts for one claimed account and region.
+// It never invokes cryptographic operations and never persists key policy
+// Statement bodies, grant encryption contexts, or key material.
+type Scanner struct {
+	Client Client
+}
+
+// Scan observes KMS keys, aliases, and grants through the configured client.
+func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.Envelope, error) {
+	if s.Client == nil {
+		return nil, fmt.Errorf("kms scanner client is required")
+	}
+	switch strings.TrimSpace(boundary.ServiceKind) {
+	case "":
+		boundary.ServiceKind = awscloud.ServiceKMS
+	case awscloud.ServiceKMS:
+	default:
+		return nil, fmt.Errorf("kms scanner received service_kind %q", boundary.ServiceKind)
+	}
+
+	keys, err := s.Client.ListKeys(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("list KMS keys: %w", err)
+	}
+	var envelopes []facts.Envelope
+	for _, key := range keys {
+		keyEnvelopes, err := keyEnvelopes(boundary, key)
+		if err != nil {
+			return nil, err
+		}
+		envelopes = append(envelopes, keyEnvelopes...)
+	}
+	return envelopes, nil
+}
+
+func keyEnvelopes(boundary awscloud.Boundary, key Key) ([]facts.Envelope, error) {
+	resource, err := awscloud.NewResourceEnvelope(keyObservation(boundary, key))
+	if err != nil {
+		return nil, err
+	}
+	envelopes := []facts.Envelope{resource}
+	for _, alias := range key.Aliases {
+		envelopes, err = appendResourceAndRelationship(
+			envelopes,
+			aliasObservation(boundary, alias),
+			aliasRelationship(boundary, key, alias),
+		)
+		if err != nil {
+			return nil, err
+		}
+	}
+	for _, grant := range key.Grants {
+		envelopes, err = appendResourceAndRelationship(
+			envelopes,
+			grantObservation(boundary, key, grant),
+			grantOnKeyRelationship(boundary, key, grant),
+		)
+		if err != nil {
+			return nil, err
+		}
+		if granteeRel, ok := grantGranteeRelationship(boundary, key, grant); ok {
+			envelope, err := awscloud.NewRelationshipEnvelope(granteeRel)
+			if err != nil {
+				return nil, err
+			}
+			envelopes = append(envelopes, envelope)
+		}
+	}
+	return envelopes, nil
+}
+
+func appendResourceAndRelationship(
+	envelopes []facts.Envelope,
+	resource awscloud.ResourceObservation,
+	relationship awscloud.RelationshipObservation,
+) ([]facts.Envelope, error) {
+	resourceEnvelope, err := awscloud.NewResourceEnvelope(resource)
+	if err != nil {
+		return nil, err
+	}
+	relationshipEnvelope, err := awscloud.NewRelationshipEnvelope(relationship)
+	if err != nil {
+		return nil, err
+	}
+	return append(envelopes, resourceEnvelope, relationshipEnvelope), nil
+}
+
+func keyObservation(boundary awscloud.Boundary, key Key) awscloud.ResourceObservation {
+	keyARN := strings.TrimSpace(key.ARN)
+	keyID := strings.TrimSpace(key.ID)
+	attributes := map[string]any{
+		"key_manager":              strings.TrimSpace(key.KeyManager),
+		"key_usage":                strings.TrimSpace(key.KeyUsage),
+		"key_spec":                 strings.TrimSpace(key.KeySpec),
+		"customer_master_key_spec": strings.TrimSpace(key.CustomerMasterKeySpec),
+		"key_state":                strings.TrimSpace(key.KeyState),
+		"origin":                   strings.TrimSpace(key.Origin),
+		"description":              strings.TrimSpace(key.Description),
+		"creation_date":            strings.TrimSpace(key.CreationDate),
+		"deletion_date":            strings.TrimSpace(key.DeletionDate),
+		"enabled":                  key.Enabled,
+		"multi_region":             key.MultiRegion,
+		"multi_region_key_type":    strings.TrimSpace(key.MultiRegionKeyType),
+		"primary_key_arn":          strings.TrimSpace(key.PrimaryKeyARN),
+		"encryption_algorithms":    cloneStrings(key.EncryptionAlgorithms),
+		"signing_algorithms":       cloneStrings(key.SigningAlgorithms),
+		"mac_algorithms":           cloneStrings(key.MACAlgorithms),
+		"key_agreement_algorithms": cloneStrings(key.KeyAgreementAlgorithms),
+		"policy_revision_names":    cloneStrings(key.PolicyRevisionNames),
+		"alias_count":              len(key.Aliases),
+		"grant_count":              len(key.Grants),
+		"rotation_status_known":    key.RotationStatusKnown,
+	}
+	if key.RotationStatusKnown {
+		attributes["rotation_enabled"] = key.RotationEnabled
+	}
+	return awscloud.ResourceObservation{
+		Boundary:           boundary,
+		ARN:                keyARN,
+		ResourceID:         firstNonEmpty(keyID, keyARN),
+		ResourceType:       awscloud.ResourceTypeKMSKey,
+		Name:               firstNonEmpty(keyID, keyARN),
+		State:              strings.TrimSpace(key.KeyState),
+		Tags:               cloneStringMap(key.Tags),
+		Attributes:         attributes,
+		CorrelationAnchors: []string{keyARN, keyID},
+		SourceRecordID:     firstNonEmpty(keyARN, keyID),
+	}
+}
+
+func aliasObservation(boundary awscloud.Boundary, alias Alias) awscloud.ResourceObservation {
+	aliasARN := strings.TrimSpace(alias.ARN)
+	aliasName := strings.TrimSpace(alias.Name)
+	return awscloud.ResourceObservation{
+		Boundary:     boundary,
+		ARN:          aliasARN,
+		ResourceID:   firstNonEmpty(aliasARN, aliasName),
+		ResourceType: awscloud.ResourceTypeKMSAlias,
+		Name:         aliasName,
+		Attributes: map[string]any{
+			"alias_name":    aliasName,
+			"target_key_id": strings.TrimSpace(alias.TargetKeyID),
+			"last_updated":  strings.TrimSpace(alias.LastUpdated),
+		},
+		CorrelationAnchors: []string{aliasARN, aliasName},
+		SourceRecordID:     firstNonEmpty(aliasARN, aliasName),
+	}
+}
+
+func grantObservation(boundary awscloud.Boundary, key Key, grant Grant) awscloud.ResourceObservation {
+	grantID := strings.TrimSpace(grant.ID)
+	keyID := strings.TrimSpace(key.ID)
+	resourceID := grantResourceID(keyID, grantID)
+	return awscloud.ResourceObservation{
+		Boundary:     boundary,
+		ResourceID:   resourceID,
+		ResourceType: awscloud.ResourceTypeKMSGrant,
+		Name:         firstNonEmpty(strings.TrimSpace(grant.Name), grantID),
+		Attributes: map[string]any{
+			"grant_id":           grantID,
+			"grant_name":         strings.TrimSpace(grant.Name),
+			"key_id":             keyID,
+			"creation_date":      strings.TrimSpace(grant.CreationDate),
+			"grantee_principal":  strings.TrimSpace(grant.GranteePrincipal),
+			"retiring_principal": strings.TrimSpace(grant.RetiringPrincipal),
+			"issuing_account":    strings.TrimSpace(grant.IssuingAccount),
+			"operations":         cloneStrings(grant.Operations),
+		},
+		CorrelationAnchors: []string{grantID, resourceID},
+		SourceRecordID:     resourceID,
+	}
+}
+
+func aliasRelationship(boundary awscloud.Boundary, key Key, alias Alias) awscloud.RelationshipObservation {
+	aliasARN := strings.TrimSpace(alias.ARN)
+	aliasName := strings.TrimSpace(alias.Name)
+	keyARN := strings.TrimSpace(key.ARN)
+	keyID := strings.TrimSpace(key.ID)
+	return awscloud.RelationshipObservation{
+		Boundary:         boundary,
+		RelationshipType: awscloud.RelationshipKMSAliasTargetsKey,
+		SourceResourceID: firstNonEmpty(aliasARN, aliasName),
+		SourceARN:        aliasARN,
+		TargetResourceID: firstNonEmpty(keyID, keyARN),
+		TargetARN:        keyARN,
+		TargetType:       awscloud.ResourceTypeKMSKey,
+		Attributes: map[string]any{
+			"alias_name": aliasName,
+		},
+		SourceRecordID: firstNonEmpty(aliasARN, aliasName) + "->" + firstNonEmpty(keyID, keyARN),
+	}
+}
+
+func grantOnKeyRelationship(boundary awscloud.Boundary, key Key, grant Grant) awscloud.RelationshipObservation {
+	grantID := strings.TrimSpace(grant.ID)
+	keyID := strings.TrimSpace(key.ID)
+	keyARN := strings.TrimSpace(key.ARN)
+	resourceID := grantResourceID(keyID, grantID)
+	return awscloud.RelationshipObservation{
+		Boundary:         boundary,
+		RelationshipType: awscloud.RelationshipKMSGrantOnKey,
+		SourceResourceID: resourceID,
+		TargetResourceID: firstNonEmpty(keyID, keyARN),
+		TargetARN:        keyARN,
+		TargetType:       awscloud.ResourceTypeKMSKey,
+		Attributes: map[string]any{
+			"grant_id": grantID,
+		},
+		SourceRecordID: resourceID + "->" + firstNonEmpty(keyID, keyARN),
+	}
+}
+
+func grantGranteeRelationship(boundary awscloud.Boundary, key Key, grant Grant) (awscloud.RelationshipObservation, bool) {
+	grantee := strings.TrimSpace(grant.GranteePrincipal)
+	if grantee == "" {
+		return awscloud.RelationshipObservation{}, false
+	}
+	grantID := strings.TrimSpace(grant.ID)
+	keyID := strings.TrimSpace(key.ID)
+	resourceID := grantResourceID(keyID, grantID)
+	return awscloud.RelationshipObservation{
+		Boundary:         boundary,
+		RelationshipType: awscloud.RelationshipKMSGrantForGrantee,
+		SourceResourceID: resourceID,
+		TargetResourceID: grantee,
+		TargetARN:        grantee,
+		TargetType:       awscloud.ResourceTypeIAMPrincipal,
+		Attributes: map[string]any{
+			"grant_id":           grantID,
+			"retiring_principal": strings.TrimSpace(grant.RetiringPrincipal),
+		},
+		SourceRecordID: resourceID + "->" + grantee,
+	}, true
+}
+
+func grantResourceID(keyID string, grantID string) string {
+	return strings.Join([]string{strings.TrimSpace(keyID), "grant", strings.TrimSpace(grantID)}, "/")
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, value := range values {
+		if trimmed := strings.TrimSpace(value); trimmed != "" {
+			return trimmed
+		}
+	}
+	return ""
+}
+
+func cloneStrings(input []string) []string {
+	if len(input) == 0 {
+		return nil
+	}
+	output := make([]string, 0, len(input))
+	for _, value := range input {
+		if trimmed := strings.TrimSpace(value); trimmed != "" {
+			output = append(output, trimmed)
+		}
+	}
+	if len(output) == 0 {
+		return nil
+	}
+	return output
+}
+
+func cloneStringMap(input map[string]string) map[string]string {
+	if len(input) == 0 {
+		return nil
+	}
+	output := make(map[string]string, len(input))
+	for key, value := range input {
+		trimmed := strings.TrimSpace(key)
+		if trimmed == "" {
+			continue
+		}
+		output[trimmed] = value
+	}
+	if len(output) == 0 {
+		return nil
+	}
+	return output
+}

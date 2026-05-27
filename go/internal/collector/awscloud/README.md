@@ -81,6 +81,10 @@ See `doc.go` for the godoc contract.
 - `ServiceAccessAnalyzer` - IAM Access Analyzer service-kind value for regional
   analyzer, archive-rule, aggregate finding-count, and unused-access summary
   metadata scans.
+- `ServiceKMS` - KMS service-kind value for regional Key Management Service
+  metadata scans of customer master keys, aliases, and grants. The scanner
+  invokes no cryptographic operation and persists no key policy Statement
+  bodies, grant encryption contexts, or key material.
 - `Boundary` - account, region, service, generation, collector instance, and
   fencing token shared by one claimed AWS scan.
 - `ResourceObservation` - one AWS resource ready for envelope emission.

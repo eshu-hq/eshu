@@ -271,6 +271,19 @@ new blank import in each binary that calls `awsruntime.SupportsServiceKind`
   to external finding-body persistence, archive-rule filter persistence,
   policy-generation output, per-action unused-access detail persistence,
   GetFinding, or mutation APIs.
+- KMS scanners must stay metadata-only. The runtime registry wires the KMS SDK
+  adapter, but it must not broaden the service contract to any cryptographic
+  operation (Encrypt, Decrypt, GenerateDataKey, GenerateDataKeyPair,
+  GenerateDataKeyPairWithoutPlaintext, GenerateDataKeyWithoutPlaintext, Sign,
+  Verify, ReEncrypt, GenerateMac, VerifyMac, DeriveSharedSecret, GetPublicKey,
+  GenerateRandom) or key lifecycle mutation (CreateKey, ScheduleKeyDeletion,
+  CancelKeyDeletion, EnableKey, DisableKey, EnableKeyRotation,
+  DisableKeyRotation, PutKeyPolicy, CreateGrant, RevokeGrant, RetireGrant,
+  ReplicateKey, ImportKeyMaterial, DeleteImportedKeyMaterial,
+  UpdateKeyDescription, CreateAlias, UpdateAlias, DeleteAlias, TagResource,
+  UntagResource, RotateKeyOnDemand, UpdatePrimaryRegion). It must not call
+  GetKeyPolicy or persist key policy Statement bodies, grant encryption
+  contexts, or key material.
 - Organizations scanners must stay metadata-only. The runtime registry wires
   the Organizations SDK adapter, forces API calls to the `us-east-1` control
   plane, and requires management-account or delegated-administrator

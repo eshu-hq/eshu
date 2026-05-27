@@ -70,6 +70,7 @@ func TestSupportedServiceKindsCoversEveryAWSService(t *testing.T) {
 		awscloud.ServiceGlue:            true,
 		awscloud.ServiceGuardDuty:       true,
 		awscloud.ServiceIAM:             true,
+		awscloud.ServiceKMS:             true,
 		awscloud.ServiceLambda:          true,
 		awscloud.ServiceMSK:             true,
 		awscloud.ServiceOrganizations:   true,
