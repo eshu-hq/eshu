@@ -238,6 +238,7 @@ var configResourceTypeServices = map[string]string{
 	"AWS::RDS::DBSubnetGroup":                   awscloud.ServiceRDS,
 	"AWS::Redshift::Cluster":                    awscloud.ServiceRedshift,
 	"AWS::Redshift::ClusterParameterGroup":      awscloud.ServiceRedshift,
+	"AWS::Redshift::ClusterSnapshot":            awscloud.ServiceRedshift,
 	"AWS::Redshift::ClusterSubnetGroup":         awscloud.ServiceRedshift,
 	"AWS::RedshiftServerless::Namespace":        awscloud.ServiceRedshift,
 	"AWS::RedshiftServerless::Workgroup":        awscloud.ServiceRedshift,
