@@ -41,6 +41,8 @@ import (
 	lambdaawssdk "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/lambda/awssdk"
 	mskservice "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/msk"
 	mskawssdk "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/msk/awssdk"
+	organizationsservice "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/organizations"
+	organizationsawssdk "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/organizations/awssdk"
 	rdsservice "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/rds"
 	rdsawssdk "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/rds/awssdk"
 	redshiftservice "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/redshift"
@@ -72,7 +74,8 @@ type DefaultScannerFactory struct {
 	Instruments *telemetry.Instruments
 	Checkpoints CheckpointStore
 	// RedactionKey produces deterministic markers for sensitive metadata fields.
-	// It is required when building ECS, Lambda, or Security Hub scanners.
+	// It is required when building ECS, Lambda, Security Hub, or Organizations
+	// scanners.
 	RedactionKey redact.Key
 }
 
@@ -86,6 +89,7 @@ var supportedServiceKinds = []string{
 	awscloud.ServiceSQS,
 	awscloud.ServiceSNS,
 	awscloud.ServiceEventBridge,
+	awscloud.ServiceOrganizations,
 	awscloud.ServiceS3,
 	awscloud.ServiceRDS,
 	awscloud.ServiceDynamoDB,
@@ -181,6 +185,14 @@ func (f DefaultScannerFactory) Scanner(
 	case awscloud.ServiceEventBridge:
 		return eventbridgeservice.Scanner{
 			Client: eventbridgeawssdk.NewClient(configLease.AWSConfig(), boundary, f.Tracer, f.Instruments),
+		}, nil
+	case awscloud.ServiceOrganizations:
+		if f.RedactionKey.IsZero() {
+			return nil, fmt.Errorf("organizations scanner redaction key is required")
+		}
+		return organizationsservice.Scanner{
+			Client:       organizationsawssdk.NewClient(configLease.AWSConfig(), boundary, f.Tracer, f.Instruments),
+			RedactionKey: f.RedactionKey,
 		}, nil
 	case awscloud.ServiceS3:
 		return s3service.Scanner{

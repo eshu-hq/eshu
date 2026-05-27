@@ -54,6 +54,10 @@ const (
 	// WarningAssumeRoleFailed marks a scan that could not acquire target
 	// account credentials.
 	WarningAssumeRoleFailed = "assumerole_failed"
+	// WarningOrganizationsOrgAccessSkipped marks an Organizations scan skipped
+	// because the caller was not using management or delegated-admin
+	// credentials.
+	WarningOrganizationsOrgAccessSkipped = "organizations_org_access_skipped"
 )
 
 var (

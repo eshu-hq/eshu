@@ -9,7 +9,7 @@ redaction. The overview lives in [AWS Cloud Collector](collector-aws-cloud.md).
 | --- | --- |
 | `ESHU_POSTGRES_DSN` or split Postgres DSNs | Shared Postgres runtime loader. |
 | `ESHU_COLLECTOR_INSTANCES_JSON` | Desired collector instances. Must include one enabled `aws` instance with `claims_enabled=true`. |
-| `ESHU_AWS_REDACTION_KEY` | Required when any target scope enables ECS, Lambda, or Security Hub. |
+| `ESHU_AWS_REDACTION_KEY` | Required when any target scope enables ECS, Lambda, Security Hub, or Organizations. |
 
 Optional knobs: `ESHU_AWS_COLLECTOR_INSTANCE_ID`,
 `ESHU_AWS_COLLECTOR_OWNER_ID`, `ESHU_AWS_COLLECTOR_POLL_INTERVAL`,
@@ -48,10 +48,11 @@ mutation APIs or data-plane reads for secret values, SSM parameter values, SQS
 messages, DynamoDB items, log events, API execution payloads, S3 object
 contents, database contents, or Lambda packages.
 
-ECS, Lambda, and Security Hub scans require `ESHU_AWS_REDACTION_KEY` before
-startup because sensitive-derived fields are redacted before persistence. The
-key produces deterministic HMAC markers; it is not stored in facts. Security
-Hub action target descriptions pass through the shared redaction helper.
+ECS, Lambda, Security Hub, and Organizations scans require
+`ESHU_AWS_REDACTION_KEY` before startup because sensitive-derived fields are
+redacted before persistence. The key produces deterministic HMAC markers; it is
+not stored in facts. Security Hub action target descriptions and Organizations
+account email/name values pass through the shared redaction helper.
 
 Security Hub finding bodies and insight filters are not persisted. Finding
 aggregate counts grouped by severity, standard, control, compliance status, and
@@ -64,6 +65,11 @@ Do not grant Security Hub mutation APIs to the collector role:
 `UpdateInsight`, `EnableSecurityHub`, `DisableSecurityHub`, `EnableStandards`,
 `DisableStandards`, `CreateActionTarget`, `DeleteActionTarget`,
 `UpdateActionTarget`, `BatchEnableStandards`, or `BatchDisableStandards`.
+
+Organizations scopes must run with management-account or delegated-administrator
+credentials and `allowed_regions=["us-east-1"]`. Non-org-aware credentials emit
+bounded org-access-skipped warning/status/metric evidence instead of partial
+organization facts.
 
 Do not persist credential material, bearer tokens, session tokens, presigned
 query parameters, secret values, policy JSON payload bodies, queue messages, log

@@ -43,8 +43,9 @@ the environment/configuration it accepts:
 - `ESHU_AWS_COLLECTOR_OWNER_ID` - optional owner ID override; defaults to
   `HOSTNAME`, then `collector-aws-cloud`.
 - `ESHU_AWS_REDACTION_KEY` - required when any target scope enables `ecs`,
-  `lambda`, or `securityhub`. Those scanners use it to produce deterministic
-  HMAC-SHA256 markers for sensitive-derived fields before persistence.
+  `lambda`, `securityhub`, or `organizations`. Those scanners use it to
+  produce deterministic HMAC-SHA256 markers for sensitive-derived fields before
+  persistence.
 
 Instance configuration uses:
 
@@ -54,7 +55,7 @@ Instance configuration uses:
     {
       "account_id": "123456789012",
       "allowed_regions": ["us-east-1", "aws-global"],
-      "allowed_services": ["iam", "ecr", "ecs", "ec2", "elbv2", "lambda", "eks", "route53", "sqs", "sns", "eventbridge", "s3", "rds", "redshift", "dynamodb", "cloudwatchlogs", "cloudfront", "apigateway", "secretsmanager", "ssm", "athena", "securityhub", "glue", "elasticache", "msk", "stepfunctions", "accessanalyzer"],
+      "allowed_services": ["iam", "ecr", "ecs", "ec2", "elbv2", "lambda", "eks", "route53", "sqs", "sns", "eventbridge", "s3", "rds", "redshift", "dynamodb", "cloudwatchlogs", "cloudfront", "apigateway", "secretsmanager", "ssm", "athena", "securityhub", "glue", "elasticache", "msk", "stepfunctions", "accessanalyzer", "organizations"],
       "max_concurrent_claims": 1,
       "credentials": {
         "mode": "central_assume_role",
@@ -93,6 +94,7 @@ The command registers the shared data-plane telemetry instruments and emits:
 - `eshu_dp_aws_resources_emitted_total`
 - `eshu_dp_aws_relationships_emitted_total`
 - `eshu_dp_aws_tag_observations_emitted_total`
+- `eshu_dp_aws_org_access_skipped_total`
 - `eshu_dp_aws_scan_duration_seconds`
 - `aws.collector.claim.process`
 - `aws.credentials.assume_role`
@@ -115,8 +117,8 @@ The claim concurrency gauge is backed by the runtime's per-account limiter.
   service `awssdk` adapters; command tests should not mock the full AWS SDK
   surface.
 - Credential leases are released after scanner construction and service scan.
-- ECS, Lambda, and Security Hub targets require `ESHU_AWS_REDACTION_KEY`; IAM
-  and ECR targets do not.
+- ECS, Lambda, Security Hub, and Organizations targets require
+  `ESHU_AWS_REDACTION_KEY`; IAM and ECR targets do not.
 - ELBv2 targets emit stable routing topology and intentionally exclude target
   health status.
 - Route 53 targets emit hosted-zone resources and A/AAAA/CNAME/ALIAS DNS record
@@ -237,6 +239,12 @@ The claim concurrency gauge is backed by the runtime's per-account limiter.
   external finding bodies, archive-rule filter criteria, policy-generation
   output, per-action unused-access details, or mutate Access Analyzer
   resources.
+- Organizations targets emit organization root, OU, account, policy-summary,
+  policy-target, and delegated-administrator metadata. They intentionally do not
+  read policy document bodies, mutate accounts, mutate policies, mutate
+  delegated administrators, or change service access. Organizations API calls
+  use the `us-east-1` control-plane endpoint, and non-org-aware credentials emit
+  an org-access-skipped warning/status/metric instead of partial facts.
 - The acceptance unit ID must be JSON with `account_id`, `region`, and
   `service_kind`.
 - `/admin/status` includes per `(account_id, region, service_kind)` AWS scan

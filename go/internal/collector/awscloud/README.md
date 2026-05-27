@@ -61,6 +61,9 @@ See `doc.go` for the godoc contract.
   secret metadata scans.
 - `ServiceSSM` - SSM service-kind value for regional Parameter Store metadata
   scans.
+- `ServiceOrganizations` - AWS Organizations service-kind value for
+  organization, OU, account, policy-summary, target-binding, and
+  delegated-administrator metadata scans.
 - `ServiceAthena` - Athena service-kind value for regional workgroup, data
   catalog, prepared-statement, and named-query metadata scans.
 - `ServiceSecurityHub` - Security Hub service-kind value for regional security
@@ -268,6 +271,14 @@ request.
   details stay outside the AWS collector fact contract. Analyzer metadata,
   archive-rule names, aggregate finding counts, analyzer relationships, and
   per-resource unused-access last-accessed summaries are reported evidence only.
+- Organizations facts are metadata only. Organization roots, OUs, accounts,
+  policy summaries, policy target bindings, and delegated administrators are in
+  scope. Policy document bodies, statements, conditions, action lists, account
+  lifecycle mutations, policy mutations, delegated-admin mutations, and service
+  access mutations stay outside the AWS collector fact contract. Account email
+  and account name values must pass through `RedactString` before persistence.
+  Non-org-aware credentials emit an `organizations_org_access_skipped` warning
+  instead of fabricating partial organization truth.
 
 ## Related docs
 

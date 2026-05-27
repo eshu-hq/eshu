@@ -10,14 +10,14 @@
 // the shared collector and reducer paths persist and materialize them. Those
 // scanners must keep metadata-only services out of data-plane reads, secret
 // values, policy persistence, payload capture, query result rows, named-query
-// SQL bodies, prepared-statement query bodies, query history strings,
+// SQL bodies, prepared-statement query bodies, query history strings, and
 // finding-body persistence, payload capture, and
-// mutation APIs. ECS and Lambda environment values must be redacted through
-// this package before callers build envelopes. Glue scans are limited to Data
-// Catalog database, table, crawler, job, trigger, workflow, and connection
-// metadata plus ARN-addressable IAM-role and S3-location relationships; job
-// script bodies, default-argument values, connection passwords, JDBC
-// credential URLs, connection property values, table column statistics with
-// sample values, classifier custom patterns, and workflow graph payloads
-// stay outside the contract.
+// mutation APIs. ECS and Lambda environment values plus Organizations account
+// email/name values must be redacted through this package before callers build
+// envelopes. Glue scans are limited to Data Catalog database, table, crawler,
+// job, trigger, workflow, and connection metadata plus ARN-addressable IAM-role
+// and S3-location relationships; job script bodies, default-argument values,
+// connection passwords, JDBC credential URLs, connection property values, table
+// column statistics with sample values, classifier custom patterns, and
+// workflow graph payloads stay outside the contract.
 package awscloud

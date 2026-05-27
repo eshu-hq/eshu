@@ -130,6 +130,9 @@ func (s ClaimedSource) observeScanStatus(
 	} else if factStats.Throttled {
 		statusValue = awscloud.ScanStatusPartial
 		failureClass = "throttled"
+	} else if factStats.OrgAccessSkipped {
+		statusValue = awscloud.ScanStatusPartial
+		failureClass = "org_access_skipped"
 	} else if scanErr != nil {
 		statusValue = awscloud.ScanStatusFailed
 		failureClass = awsScanFailureClass(apiStats)
@@ -140,6 +143,14 @@ func (s ClaimedSource) observeScanStatus(
 			telemetry.AttrService(boundary.ServiceKind),
 			telemetry.AttrAccount(boundary.AccountID),
 			telemetry.AttrRegion(boundary.Region),
+		))
+	}
+	if factStats.OrgAccessSkipped && s.Instruments != nil && s.Instruments.AWSOrgAccessSkipped != nil {
+		s.Instruments.AWSOrgAccessSkipped.Add(ctx, 1, metric.WithAttributes(
+			telemetry.AttrService(boundary.ServiceKind),
+			telemetry.AttrAccount(boundary.AccountID),
+			telemetry.AttrRegion(boundary.Region),
+			telemetry.AttrReason(firstNonEmpty(factStats.OrgAccessSkipReason, "unknown")),
 		))
 	}
 	if err := s.ScanStatus.ObserveAWSScan(ctx, awscloud.ScanStatusObservation{
@@ -176,6 +187,8 @@ type awsEnvelopeStats struct {
 	BudgetExhausted     bool
 	CredentialFailed    bool
 	Throttled           bool
+	OrgAccessSkipped    bool
+	OrgAccessSkipReason string
 }
 
 func awsFactStats(envelopes []facts.Envelope) awsEnvelopeStats {
@@ -198,10 +211,31 @@ func awsFactStats(envelopes []facts.Envelope) awsEnvelopeStats {
 				stats.CredentialFailed = true
 			case awscloud.WarningThrottleSustained:
 				stats.Throttled = true
+			case awscloud.WarningOrganizationsOrgAccessSkipped:
+				stats.OrgAccessSkipped = true
+				stats.OrgAccessSkipReason = warningSkipReason(envelope)
 			}
 		}
 	}
 	return stats
+}
+
+func warningSkipReason(envelope facts.Envelope) string {
+	attributes, ok := envelope.Payload["attributes"].(map[string]any)
+	if !ok {
+		return ""
+	}
+	reason, _ := attributes["skip_reason"].(string)
+	return strings.TrimSpace(reason)
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, value := range values {
+		if trimmed := strings.TrimSpace(value); trimmed != "" {
+			return trimmed
+		}
+	}
+	return ""
 }
 
 func awsScanFailureClass(stats awscloud.APICallStats) string {
