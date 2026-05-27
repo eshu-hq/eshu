@@ -65,6 +65,9 @@ func (s Scanner) resourceObservations(
 ) []awscloud.ResourceObservation {
 	observations := []awscloud.ResourceObservation{hubObservation(boundary, snapshot.Hub)}
 	for _, member := range snapshot.Members {
+		if strings.TrimSpace(member.AccountID) == "" {
+			continue
+		}
 		observations = append(observations, memberObservation(boundary, member))
 	}
 	for _, standard := range snapshot.Standards {
@@ -179,33 +182,37 @@ func (s Scanner) actionTargetObservation(
 	target ActionTarget,
 ) awscloud.ResourceObservation {
 	actionARN := strings.TrimSpace(target.ARN)
+	name := strings.TrimSpace(target.Name)
+	resourceID := firstNonEmpty(actionARN, "securityhub_action:"+name)
 	return awscloud.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          actionARN,
-		ResourceID:   firstNonEmpty(actionARN, "securityhub_action:"+target.Name),
+		ResourceID:   resourceID,
 		ResourceType: awscloud.ResourceTypeSecurityHubActionTarget,
-		Name:         strings.TrimSpace(target.Name),
+		Name:         name,
 		Attributes: map[string]any{
 			"description": s.redactedDescription(target),
 		},
-		CorrelationAnchors: []string{actionARN, target.Name},
-		SourceRecordID:     firstNonEmpty(actionARN, "securityhub_action:"+target.Name),
+		CorrelationAnchors: []string{actionARN, name},
+		SourceRecordID:     resourceID,
 	}
 }
 
 func insightObservation(boundary awscloud.Boundary, insight Insight) awscloud.ResourceObservation {
 	insightARN := strings.TrimSpace(insight.ARN)
+	name := strings.TrimSpace(insight.Name)
+	resourceID := firstNonEmpty(insightARN, "securityhub_insight:"+name)
 	return awscloud.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          insightARN,
-		ResourceID:   firstNonEmpty(insightARN, "securityhub_insight:"+insight.Name),
+		ResourceID:   resourceID,
 		ResourceType: awscloud.ResourceTypeSecurityHubInsight,
-		Name:         strings.TrimSpace(insight.Name),
+		Name:         name,
 		Attributes: map[string]any{
 			"group_by_attribute": strings.TrimSpace(insight.GroupByAttribute),
 		},
-		CorrelationAnchors: []string{insightARN, insight.Name},
-		SourceRecordID:     firstNonEmpty(insightARN, "securityhub_insight:"+insight.Name),
+		CorrelationAnchors: []string{insightARN, name},
+		SourceRecordID:     resourceID,
 	}
 }
 
@@ -285,7 +292,8 @@ func relationshipObservations(
 		}
 	}
 	for _, insight := range snapshot.Insights {
-		insightID := firstNonEmpty(insight.ARN, "securityhub_insight:"+insight.Name)
+		insightName := strings.TrimSpace(insight.Name)
+		insightID := firstNonEmpty(insight.ARN, "securityhub_insight:"+insightName)
 		if !groupsByControl(insight.GroupByAttribute) {
 			continue
 		}
