@@ -37,6 +37,8 @@ import (
 	iamawssdk "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/iam/awssdk"
 	lambdaservice "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/lambda"
 	lambdaawssdk "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/lambda/awssdk"
+	mskservice "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/msk"
+	mskawssdk "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/msk/awssdk"
 	rdsservice "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/rds"
 	rdsawssdk "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/rds/awssdk"
 	redshiftservice "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/redshift"
@@ -91,6 +93,7 @@ var supportedServiceKinds = []string{
 	awscloud.ServiceAthena,
 	awscloud.ServiceGlue,
 	awscloud.ServiceElastiCache,
+	awscloud.ServiceMSK,
 	awscloud.ServiceIAM,
 	awscloud.ServiceLambda,
 	awscloud.ServiceSecurityHub,
@@ -216,6 +219,10 @@ func (f DefaultScannerFactory) Scanner(
 	case awscloud.ServiceElastiCache:
 		return elasticacheservice.Scanner{
 			Client: elasticacheawssdk.NewClient(configLease.AWSConfig(), boundary, f.Tracer, f.Instruments),
+		}, nil
+	case awscloud.ServiceMSK:
+		return mskservice.Scanner{
+			Client: mskawssdk.NewClient(configLease.AWSConfig(), boundary, f.Tracer, f.Instruments),
 		}, nil
 	case awscloud.ServiceIAM:
 		return iamservice.Scanner{
