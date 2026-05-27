@@ -50,6 +50,32 @@ The gate is intentionally:
 | Kubernetes / EKS proof with pprof, logs, queue telemetry, and resource snapshots before declaring release readiness | `k8s` phase plus [Deploy To EKS](../deploy/eks/index.md) |
 | Exact commit, image tag candidate, NornicDB tag/commit, clean-volume state, schema/bootstrap state, and pass/fail evidence | `state` phase, always offline |
 
+### Supply-chain impact path proof
+
+Supply-chain impact findings must keep repository, workload, deployment, and
+service hops separate. Repository dependency evidence can attach a workload
+only when reducer-owned `reducer_workload_identity` facts exist for the same
+repository scope. Deployment/environment hops still require CI/CD or runtime
+evidence, and service ids still require service-catalog correlation evidence.
+Missing service catalog data remains explicit `service evidence missing`
+rather than a guessed service id.
+
+No-Regression Evidence: issue #680 keeps the active fact walk bounded by the
+existing repository follow-up filter. The only new active kind is
+`reducer_workload_identity`, loaded through repository-scope predicates
+(`scope_id`, `payload.scope_id`, `scope.source_key`, `scope.payload.repo_id`,
+and `scope.payload.id`) inside the same fact-kind-gated branch as the existing
+runtime correlation facts. Focused tests cover repository-only, workload-only,
+deployment-plus-workload, service-attached, and stale/missing service evidence
+without adding graph reads or queue claims to the impact handler.
+
+Observability Evidence: no new telemetry series are required. The existing
+`SupplyChainImpactHandler` counters, persisted `evidence_path`,
+`evidence_fact_ids`, `workload_ids`, `service_ids`, `environments`, and
+`missing_evidence` fields expose whether the reducer attached workload
+identity, deployment evidence, service-catalog evidence, or left a hop
+missing for API/MCP callers and release-gate readback.
+
 ## Harness
 
 The harness lives at `scripts/security_intelligence_release_gate.sh`. It runs

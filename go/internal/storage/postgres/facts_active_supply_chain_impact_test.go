@@ -19,6 +19,7 @@ func TestListActiveSupplyChainImpactFactsQueryIsPackageBoundedAndPaged(t *testin
 		"'security_alert.repository_alert'",
 		"'reducer_ci_cd_run_correlation'",
 		"'reducer_service_catalog_correlation'",
+		"'reducer_workload_identity'",
 		"fact.payload->>'package_id' = ANY($1::text[])",
 		"fact.payload->>'purl' = ANY($2::text[])",
 		"fact.payload->>'cve_id' = ANY($3::text[])",
@@ -66,8 +67,14 @@ func TestListActiveSupplyChainImpactFactsQueryBoundsRepositoryFollowUp(t *testin
 		"OR (\n          fact.fact_kind IN (",
 		"'vulnerability.suppression',\n              'reducer_container_image_identity'",
 		"'reducer_ci_cd_run_correlation',\n              'reducer_service_catalog_correlation'",
+		"'reducer_workload_identity'",
 		"fact.payload->>'repository_id' = ANY($7::text[])",
 		"fact.payload->'scope'->>'repository_id' = ANY($7::text[])",
+		"fact.scope_id = ANY($7::text[])",
+		"fact.payload->>'scope_id' = ANY($7::text[])",
+		"scope.source_key = ANY($7::text[])",
+		"scope.payload->>'repo_id' = ANY($7::text[])",
+		"scope.payload->>'id' = ANY($7::text[])",
 	} {
 		if !strings.Contains(listActiveSupplyChainImpactFactsQuery, want) {
 			t.Fatalf("listActiveSupplyChainImpactFactsQuery missing %q:\n%s", want, listActiveSupplyChainImpactFactsQuery)

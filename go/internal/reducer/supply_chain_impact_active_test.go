@@ -93,3 +93,50 @@ func TestSupplyChainImpactHandlerExpandsActiveEvidenceUntilSBOMImagePathIsLoaded
 		t.Fatalf("RepositoryID = %q, want %q", writer.write.Findings[0].RepositoryID, testImpactRepositoryID)
 	}
 }
+
+func TestSupplyChainImpactHandlerLoadsActiveWorkloadIdentityForRepositoryFinding(t *testing.T) {
+	t.Parallel()
+
+	loader := &stubSupplyChainImpactFactLoader{
+		scopeFacts: []facts.Envelope{
+			vulnerabilityCVEFact("cve-1", "CVE-2026-0680", 9.1),
+			vulnerabilityAffectedPackageFact("affected-1", "CVE-2026-0680", testImpactPackageID, "npm", "example", "1.2.3", "1.3.0"),
+			packageConsumptionFactWithRange("consume-1", testImpactPackageID, testImpactRepositoryID, "1.2.3"),
+		},
+		activeForFilter: func(filter SupplyChainImpactFactFilter) []facts.Envelope {
+			if strings.Join(filter.RepositoryIDs, ",") != testImpactRepositoryID {
+				return nil
+			}
+			return []facts.Envelope{
+				workloadIdentityImpactFact("workload-1", testImpactRepositoryID, testImpactWorkloadID),
+			}
+		},
+	}
+	writer := &recordingSupplyChainImpactWriter{}
+	handler := SupplyChainImpactHandler{FactLoader: loader, Writer: writer}
+
+	_, err := handler.Handle(context.Background(), Intent{
+		IntentID:     "intent-impact",
+		ScopeID:      testImpactRepositoryID,
+		GenerationID: "generation-repo",
+		SourceSystem: "git",
+		Domain:       DomainSupplyChainImpact,
+		Cause:        "repository dependency observed",
+	})
+	if err != nil {
+		t.Fatalf("Handle() error = %v, want nil", err)
+	}
+
+	if got, want := len(writer.write.Findings), 1; got != want {
+		t.Fatalf("len(Findings) = %d, want %d", got, want)
+	}
+	got := writer.write.Findings[0]
+	assertSupplyChainImpactStatus(t, got, SupplyChainImpactAffectedExact)
+	assertContainsString(t, got.WorkloadIDs, testImpactWorkloadID)
+	assertContainsString(t, got.EvidenceFactIDs, "workload-1")
+	assertNotContainsString(t, got.MissingEvidence, "workload evidence missing")
+	assertContainsString(t, got.MissingEvidence, "service evidence missing")
+	if len(got.ServiceIDs) != 0 {
+		t.Fatalf("ServiceIDs = %#v, want no service identity without service catalog evidence", got.ServiceIDs)
+	}
+}

@@ -67,6 +67,98 @@ func TestBuildSupplyChainImpactFindingsConnectsRuntimeEvidencePath(t *testing.T)
 	assertNotContainsString(t, got.MissingEvidence, "service evidence missing")
 }
 
+func TestBuildSupplyChainImpactFindingsKeepsRepositoryOnlyRuntimeHopsMissing(t *testing.T) {
+	t.Parallel()
+
+	findings := BuildSupplyChainImpactFindings([]facts.Envelope{
+		vulnerabilityCVEFact("cve-1", "CVE-2026-0682", 8.8),
+		vulnerabilityAffectedPackageFact("affected-1", "CVE-2026-0682", testImpactPackageID, "npm", "example", "1.2.3", "1.3.0"),
+		packageConsumptionFactWithRange("consume-1", testImpactPackageID, testImpactRepositoryID, "1.2.3"),
+	})
+
+	got := supplyChainImpactFindingsByCVE(findings)["CVE-2026-0682"]
+	assertSupplyChainImpactStatus(t, got, SupplyChainImpactAffectedExact)
+	if got.RepositoryID != testImpactRepositoryID {
+		t.Fatalf("RepositoryID = %q, want %q", got.RepositoryID, testImpactRepositoryID)
+	}
+	if len(got.WorkloadIDs) != 0 {
+		t.Fatalf("WorkloadIDs = %#v, want no workload without workload evidence", got.WorkloadIDs)
+	}
+	if len(got.ServiceIDs) != 0 {
+		t.Fatalf("ServiceIDs = %#v, want no service without service evidence", got.ServiceIDs)
+	}
+	assertContainsString(t, got.MissingEvidence, "deployment exposure evidence missing")
+	assertContainsString(t, got.MissingEvidence, "workload evidence missing")
+	assertContainsString(t, got.MissingEvidence, "service evidence missing")
+}
+
+func TestBuildSupplyChainImpactFindingsAttachesWorkloadIdentityWithoutServiceCatalog(t *testing.T) {
+	t.Parallel()
+
+	findings := BuildSupplyChainImpactFindings([]facts.Envelope{
+		vulnerabilityCVEFact("cve-1", "CVE-2026-0680", 9.1),
+		vulnerabilityAffectedPackageFact("affected-1", "CVE-2026-0680", testImpactPackageID, "npm", "example", "1.2.3", "1.3.0"),
+		packageConsumptionFactWithRange("consume-1", testImpactPackageID, testImpactRepositoryID, "1.2.3"),
+		workloadIdentityImpactFact("workload-1", testImpactRepositoryID, testImpactWorkloadID),
+	})
+
+	got := supplyChainImpactFindingsByCVE(findings)["CVE-2026-0680"]
+	assertSupplyChainImpactStatus(t, got, SupplyChainImpactAffectedExact)
+	assertContainsString(t, got.WorkloadIDs, testImpactWorkloadID)
+	assertContainsString(t, got.EvidencePath, workloadIdentityFactKind)
+	assertContainsString(t, got.EvidenceFactIDs, "workload-1")
+	assertNotContainsString(t, got.MissingEvidence, "workload evidence missing")
+	assertContainsString(t, got.MissingEvidence, "deployment exposure evidence missing")
+	assertContainsString(t, got.MissingEvidence, "service evidence missing")
+	if len(got.ServiceIDs) != 0 {
+		t.Fatalf("ServiceIDs = %#v, want no fabricated service identity", got.ServiceIDs)
+	}
+}
+
+func TestBuildSupplyChainImpactFindingsAttachesDeploymentAndWorkloadWithoutServiceCatalog(t *testing.T) {
+	t.Parallel()
+
+	findings := BuildSupplyChainImpactFindings([]facts.Envelope{
+		vulnerabilityCVEFact("cve-1", "CVE-2026-0681", 9.1),
+		vulnerabilityAffectedPackageFact("affected-1", "CVE-2026-0681", testImpactPackageID, "npm", "example", "1.2.3", "1.3.0"),
+		packageConsumptionFactWithChain("consume-1", testImpactPackageID, testImpactRepositoryID, "1.2.3", []string{"api", "example"}, 2, false),
+		sbomComponentImpactFact("component-1", "doc-1", testImpactPURL),
+		sbomAttachmentImpactFact("attachment-1", "doc-1", testImpactSubjectDigest),
+		containerImageIdentityImpactFactWithOutcome(
+			"image-1",
+			testImpactSubjectDigest,
+			testImpactRepositoryID,
+			"registry.example/api@"+testImpactSubjectDigest,
+			string(ContainerImageIdentityExactDigest),
+		),
+		cicdRunCorrelationImpactFact(
+			"deploy-1",
+			testImpactSubjectDigest,
+			"registry.example/api@"+testImpactSubjectDigest,
+			testImpactRepositoryID,
+			testImpactEnv,
+			string(CICDRunCorrelationExact),
+		),
+		workloadIdentityImpactFact("workload-1", testImpactRepositoryID, testImpactWorkloadID),
+	})
+
+	got := supplyChainImpactFindingsByCVE(findings)["CVE-2026-0681"]
+	assertSupplyChainImpactStatus(t, got, SupplyChainImpactAffectedExact)
+	if got.RuntimeReachability != "deployed_image" {
+		t.Fatalf("RuntimeReachability = %q, want deployed_image", got.RuntimeReachability)
+	}
+	assertContainsString(t, got.WorkloadIDs, testImpactWorkloadID)
+	assertContainsString(t, got.Environments, testImpactEnv)
+	assertContainsString(t, got.EvidencePath, workloadIdentityFactKind)
+	assertContainsString(t, got.EvidencePath, cicdRunCorrelationFactKind)
+	assertNotContainsString(t, got.MissingEvidence, "deployment exposure evidence missing")
+	assertNotContainsString(t, got.MissingEvidence, "workload evidence missing")
+	assertContainsString(t, got.MissingEvidence, "service evidence missing")
+	if len(got.ServiceIDs) != 0 {
+		t.Fatalf("ServiceIDs = %#v, want no fabricated service identity", got.ServiceIDs)
+	}
+}
+
 func TestBuildSupplyChainImpactFindingsKeepsImageOnlyRuntimeHopsMissing(t *testing.T) {
 	t.Parallel()
 
@@ -196,6 +288,18 @@ func serviceCatalogCorrelationImpactFact(
 			"drift_status":      driftStatus,
 			"provenance_only":   provenanceOnly,
 			"evidence_fact_ids": []any{strings.TrimPrefix(factID, "catalog-")},
+		},
+	}
+}
+
+func workloadIdentityImpactFact(factID string, repositoryID string, workloadID string) facts.Envelope {
+	return facts.Envelope{
+		FactID:   factID,
+		FactKind: workloadIdentityFactKind,
+		ScopeID:  repositoryID,
+		Payload: map[string]any{
+			"scope_id":    repositoryID,
+			"entity_keys": []any{workloadID},
 		},
 	}
 }

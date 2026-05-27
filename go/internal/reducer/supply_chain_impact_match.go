@@ -106,6 +106,41 @@ func supplyChainDeploymentContextFromEnvelope(envelope facts.Envelope) supplyCha
 	}
 }
 
+func supplyChainWorkloadContextsFromEnvelope(envelope facts.Envelope) []supplyChainWorkloadContext {
+	repositoryID := firstNonBlank(
+		payloadStr(envelope.Payload, "repository_id"),
+		payloadStr(envelope.Payload, "repo_id"),
+		payloadStr(envelope.Payload, "scope_id"),
+		envelope.ScopeID,
+	)
+	workloadIDs := supplyChainWorkloadIDsFromPayload(envelope.Payload)
+	if repositoryID == "" || len(workloadIDs) == 0 {
+		return nil
+	}
+	out := make([]supplyChainWorkloadContext, 0, len(workloadIDs))
+	for _, workloadID := range workloadIDs {
+		out = append(out, supplyChainWorkloadContext{
+			factID:       envelope.FactID,
+			repositoryID: repositoryID,
+			workloadID:   workloadID,
+		})
+	}
+	return out
+}
+
+func supplyChainWorkloadIDsFromPayload(payload map[string]any) []string {
+	var workloadIDs []string
+	if workloadID := payloadStr(payload, "workload_id"); workloadID != "" {
+		workloadIDs = append(workloadIDs, workloadID)
+	}
+	for _, entityKey := range payloadOrderedStrings(payload, "entity_keys") {
+		if strings.HasPrefix(entityKey, "workload:") {
+			workloadIDs = append(workloadIDs, entityKey)
+		}
+	}
+	return uniqueSortedStrings(workloadIDs)
+}
+
 func supplyChainServiceContextFromEnvelope(envelope facts.Envelope) supplyChainServiceContext {
 	return supplyChainServiceContext{
 		factID:         envelope.FactID,

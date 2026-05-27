@@ -415,6 +415,7 @@ func supplyChainImpactFactKinds() []string {
 		containerImageIdentityFactKind,
 		packageConsumptionCorrelationFactKind,
 		cicdRunCorrelationFactKind,
+		workloadIdentityFactKind,
 		serviceCatalogCorrelationFactKind,
 	}
 }

@@ -46,6 +46,8 @@ ON CONFLICT (fact_id) DO UPDATE SET
     payload = EXCLUDED.payload
 `
 
+const workloadIdentityFactKind = "reducer_workload_identity"
+
 type workloadIdentityExecer interface {
 	ExecContext(context.Context, string, ...any) (sql.Result, error)
 }
@@ -79,7 +81,7 @@ func (w PostgresWorkloadIdentityWriter) WriteWorkloadIdentity(
 		write.IntentID,
 		write.ScopeID,
 		write.GenerationID,
-		"reducer_workload_identity",
+		workloadIdentityFactKind,
 		workloadIdentityStableFactKey(write),
 		reducerFactCollectorKind(write.SourceSystem),
 		facts.SourceConfidenceInferred,
