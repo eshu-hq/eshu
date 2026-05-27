@@ -11,6 +11,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/apigateway v1.39.3
 	github.com/aws/aws-sdk-go-v2/service/apigatewayv2 v1.34.3
 	github.com/aws/aws-sdk-go-v2/service/athena v1.57.6
+	github.com/aws/aws-sdk-go-v2/service/backup v1.57.0
 	github.com/aws/aws-sdk-go-v2/service/cloudfront v1.64.0
 	github.com/aws/aws-sdk-go-v2/service/cloudtrail v1.55.11
 	github.com/aws/aws-sdk-go-v2/service/cloudwatch v1.57.0
