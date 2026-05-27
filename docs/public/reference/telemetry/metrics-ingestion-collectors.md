@@ -160,9 +160,9 @@ and the host pprof endpoint on `eshu-scanner-worker`.
 | `eshu_dp_aws_claim_concurrency` | `account` | Active AWS claims by account. |
 
 ARNs, resource names, tags, policy JSON, image digests, lifecycle policies,
-Security Hub finding IDs, Security Hub insight filters, and Access Analyzer
-finding bodies stay out of metric labels. Access Analyzer finding aggregate
-buckets are counted through
+Security Hub finding IDs, Security Hub insight filters, Access Analyzer finding
+bodies, GuardDuty finding types, and GuardDuty list locations stay out of
+metric labels. Access Analyzer finding aggregate buckets are counted through
 `eshu_dp_aws_resources_emitted_total{service="accessanalyzer"}` with bounded
 `resource_type=aws_accessanalyzer_finding_count`.
 

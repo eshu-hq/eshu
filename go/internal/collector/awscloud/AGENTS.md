@@ -50,6 +50,10 @@
   input fields, target transformers, HTTP target parameters, and raw non-ARN
   targets out of facts. ARN target endpoints may be reported relationship
   evidence.
+- Keep GuardDuty finding bodies, filter criteria expressions, threat intel set
+  list contents, IP set list contents, and mutation APIs out of facts.
+  Aggregate finding counts by severity and finding type are allowed; full
+  finding details are not.
 - Keep S3 object inventory, object keys, bucket policy JSON, ACL grants,
   replication rules, lifecycle rules, notification configuration, inventory
   configuration, analytics configuration, and metrics configuration out of

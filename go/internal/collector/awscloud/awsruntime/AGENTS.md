@@ -52,6 +52,10 @@
   mutations, event bus policy persistence, target input payload persistence,
   input-transformer persistence, HTTP-parameter persistence, or raw non-ARN
   target persistence through the runtime registry.
+- Keep GuardDuty scans metadata-only. Do not wire finding-body reads, filter
+  criteria reads, threat intel/IP list content fetches, invitation/member
+  mutations, publishing destination mutations, set mutations, or finding
+  feedback mutations through the runtime registry.
 - Keep S3 scans metadata-only. Do not wire object inventory, object keys, bucket
   policy JSON, ACL grants, replication, lifecycle, notification, inventory,
   analytics, metrics, or mutation APIs through the runtime registry.

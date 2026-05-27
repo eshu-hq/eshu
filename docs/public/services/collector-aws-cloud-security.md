@@ -46,7 +46,8 @@ Keep permissions read-only and service-scoped. Grant only metadata `List*`,
 `Describe*`, and safe `Get*` calls required by enabled scanners. Do not grant
 mutation APIs or data-plane reads for secret values, SSM parameter values, SQS
 messages, DynamoDB items, log events, API execution payloads, S3 object
-contents, database contents, or Lambda packages.
+contents, database contents, Lambda packages, GuardDuty finding bodies,
+GuardDuty filter criteria, or GuardDuty threat intel/IP list contents.
 
 ECS, Lambda, Security Hub, and Organizations scans require
 `ESHU_AWS_REDACTION_KEY` before startup because sensitive-derived fields are
@@ -73,7 +74,8 @@ organization facts.
 
 Do not persist credential material, bearer tokens, session tokens, presigned
 query parameters, secret values, policy JSON payload bodies, queue messages, log
-events, database rows, object contents, Lambda package contents, or raw AWS
+events, database rows, object contents, Lambda package contents, GuardDuty
+finding bodies, GuardDuty filter criteria, GuardDuty list contents, or raw AWS
 error payloads in facts or metric labels.
 
 ## Helm Notes

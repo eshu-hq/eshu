@@ -46,6 +46,8 @@ See `doc.go` for the godoc contract.
 - `ServiceSNS` - SNS service-kind value for regional topic metadata scans.
 - `ServiceEventBridge` - EventBridge service-kind value for regional event bus
   and rule metadata scans.
+- `ServiceGuardDuty` - GuardDuty service-kind value for regional detector and
+  security-intelligence metadata scans.
 - `ServiceS3` - S3 service-kind value for regional bucket metadata scans.
 - `ServiceRDS` - RDS service-kind value for regional database metadata scans.
 - `ServiceDynamoDB` - DynamoDB service-kind value for regional table metadata
@@ -169,6 +171,11 @@ request.
   policy JSON, target payload fields, target input transformers, HTTP target
   parameters, and raw non-ARN targets stay outside the AWS collector fact
   contract. ARN target endpoints may emit reported relationship evidence.
+- GuardDuty facts are metadata only. Finding bodies, filter criteria
+  expressions, threat intel set list contents, IP set list contents, and
+  GuardDuty mutations stay outside the AWS collector fact contract. Detectors,
+  member accounts, filter names, publishing destinations, set summaries, and
+  aggregate finding counts may emit reported evidence.
 - S3 bucket facts are metadata only. Object inventory, bucket policy JSON, ACL
   grants, replication rules, lifecycle rules, notification configuration,
   inventory configuration, analytics configuration, and metrics configuration

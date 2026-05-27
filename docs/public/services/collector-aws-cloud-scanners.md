@@ -21,6 +21,7 @@ It does not mutate AWS resources, read protected payloads, or write graph truth.
 | `eks` | Clusters, node groups, add-ons, OIDC providers, IAM roles, network join evidence. |
 | `route53` | Hosted zones and A, AAAA, CNAME, ALIAS DNS record facts. |
 | `sqs`, `sns`, `eventbridge` | Queue/topic/bus metadata and ARN-addressable relationships. |
+| `guardduty` | Detectors, member accounts, filter names, publishing destinations, threat intel/IP set metadata, and aggregate finding counts. |
 | `s3` | Bucket metadata and server-access-log target bucket relationships. |
 | `rds` | DB instances, clusters, subnet groups, and reported security/KMS/role/group relationships. |
 | `redshift` | Provisioned clusters, cluster parameter groups, cluster subnet groups, cluster snapshot metadata, scheduled action metadata, Serverless namespaces, Serverless workgroups, and reported VPC/subnet/security-group/KMS/IAM/snapshot/scheduled-action/namespace-workgroup relationships. Provisioned and Serverless share `service_kind=redshift`; resource types distinguish the two surfaces. |
@@ -66,6 +67,8 @@ sanitized metadata-only exception. Step Functions state machine definitions
 are persisted only as state names, state types, structural transitions, and
 Task Resource ARNs; Parameters, ResultPath, ResultSelector, InputPath,
 OutputPath, and Result literal contents are excluded.
+GuardDuty finding bodies, GuardDuty filter criteria, GuardDuty threat intel set
+list contents, and GuardDuty IP set list contents are also out of scope.
 
 Security Hub finding aggregate counts are metadata-only when grouped by bounded
 posture fields such as severity, standard, control, compliance status, and
