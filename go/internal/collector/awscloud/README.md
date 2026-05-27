@@ -71,6 +71,8 @@ See `doc.go` for the godoc contract.
   `resource_type`, not the service kind.
 - `ServiceGlue` - Glue service-kind value for regional Data Catalog database,
   table, crawler, job, trigger, workflow, and connection metadata scans.
+- `ServiceMSK` - MSK service-kind value for regional Amazon Managed Streaming
+  for Apache Kafka metadata scans.
 - `Boundary` - account, region, service, generation, collector instance, and
   fencing token shared by one claimed AWS scan.
 - `ResourceObservation` - one AWS resource ready for envelope emission.
@@ -248,6 +250,16 @@ request.
   name/source/status, and directly reported VPC, subnet, KMS,
   replication-group-cluster, and user-group-user relationships are reported
   evidence only.
+- MSK facts are metadata only. Broker `server.properties` bodies, configuration
+  revision bodies, broker log contents, bootstrap broker endpoints, SCRAM
+  secret material, cluster resource policy JSON, Kafka topic data, Kafka
+  message contents, and mutations stay outside the AWS collector fact contract.
+  Cluster, configuration, and replicator metadata, tags, broker placement
+  identifiers, encryption settings, client-authentication enablement flags,
+  configuration identity and revision summary, replicator service-execution
+  role and Kafka cluster ARNs, replication target compression, and replication
+  topic and consumer-group include/exclude pattern counts are reported evidence
+  only.
 
 ## Related docs
 

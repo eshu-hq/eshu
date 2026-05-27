@@ -97,6 +97,11 @@
   may enable `elasticache`, but the SDK adapter owns safe cache cluster,
   replication group, parameter group, subnet group, user, user group, and
   snapshot (name/source/status only) mapping.
+- Keep MSK broker `server.properties` bodies, configuration revision bodies,
+  broker log contents, bootstrap broker endpoints, SCRAM secret material,
+  cluster resource policy JSON, Kafka topic data, Kafka message contents, and
+  mutations out of facts. The command may enable `msk`, but the SDK adapter
+  owns safe cluster, configuration, and replicator mapping.
 - Do not log credential values, trust policy JSON, resource ARNs, tags, or raw
   source payloads as metric labels.
 - Preserve the split between scanner-side status in `awsruntime` and

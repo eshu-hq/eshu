@@ -419,6 +419,26 @@ func TestDefaultScannerFactoryBuildsLambdaScanner(t *testing.T) {
 	}
 }
 
+func TestDefaultScannerFactoryBuildsMSKScanner(t *testing.T) {
+	factory := DefaultScannerFactory{}
+	lease := staticAWSConfigLease{config: aws.Config{Region: "us-east-1"}}
+	scanner, err := factory.Scanner(context.Background(), Target{
+		AccountID:   "123456789012",
+		Region:      "us-east-1",
+		ServiceKind: awscloud.ServiceMSK,
+	}, awscloud.Boundary{
+		AccountID:   "123456789012",
+		Region:      "us-east-1",
+		ServiceKind: awscloud.ServiceMSK,
+	}, lease)
+	if err != nil {
+		t.Fatalf("Scanner() error = %v", err)
+	}
+	if scanner == nil {
+		t.Fatalf("Scanner() = nil, want MSK scanner")
+	}
+}
+
 func TestDefaultScannerFactoryRequiresRedactionKeyForECS(t *testing.T) {
 	factory := DefaultScannerFactory{}
 	_, err := factory.Scanner(context.Background(), Target{
