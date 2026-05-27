@@ -145,15 +145,33 @@ var safeAWSARNResourcePrefixes = map[string]map[string]struct{}{
 }
 
 func terraformAddressResourceType(identity string) string {
-	before, _, ok := strings.Cut(identity, ".")
-	if !ok {
+	segments := strings.Split(strings.TrimSpace(identity), ".")
+	if len(segments) < 2 {
 		return ""
 	}
-	before = strings.TrimSpace(before)
-	if !strings.HasPrefix(before, "aws_") {
+	resourceTypeIndex := 0
+	for resourceTypeIndex+1 < len(segments) && strings.TrimSpace(segments[resourceTypeIndex]) == "module" {
+		if terraformModuleAddressSegment(segments[resourceTypeIndex+1]) == "" {
+			return ""
+		}
+		resourceTypeIndex += 2
+	}
+	if resourceTypeIndex >= len(segments)-1 {
 		return ""
 	}
-	return normalizeTerraformAddressType(before)
+	resourceType := strings.TrimSpace(segments[resourceTypeIndex])
+	if !strings.HasPrefix(resourceType, "aws_") {
+		return ""
+	}
+	return normalizeTerraformAddressType(resourceType)
+}
+
+func terraformModuleAddressSegment(segment string) string {
+	segment = strings.TrimSpace(segment)
+	if before, _, ok := strings.Cut(segment, "["); ok {
+		segment = before
+	}
+	return strings.TrimSpace(segment)
 }
 
 func normalizeTerraformAddressType(value string) string {
