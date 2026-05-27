@@ -80,9 +80,10 @@ adapter records Athena API call counts, throttles, and pagination spans.
 - Query result rows, query execution result location object contents, query
   execution history, and per-query metadata stay outside the scanner contract.
 - Workgroup result-bucket relationships are emitted only when the workgroup
-  `OutputLocation` resolves to an `arn:aws:s3:::bucket` ARN. The bucket name
-  alone is reported metadata; the relationship payload never includes a result
-  object key or prefix.
+  `OutputLocation` resolves to an `arn:aws:s3:::bucket` ARN. The bucket ARN is
+  the only result-location evidence on the edge: the relationship attributes
+  intentionally omit the raw `OutputLocation` URI so the object key or prefix
+  cannot enter the payload.
 - Workgroup KMS relationships are emitted whenever the workgroup reports a KMS
   key identifier; `target_arn` is populated only when the identifier is
   ARN-shaped.

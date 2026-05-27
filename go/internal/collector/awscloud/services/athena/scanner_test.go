@@ -201,8 +201,21 @@ func TestScannerEmitsAthenaMetadataOnlyFactsAndRelationships(t *testing.T) {
 	if got, want := resultBucketRelationship.Payload["target_arn"], resultBucketARN; got != want {
 		t.Fatalf("result bucket target_arn = %#v, want %q", got, want)
 	}
-	resultAttrs := attributesOf(t, resultBucketRelationship)
-	assertAttribute(t, resultAttrs, "output_location", "s3://athena-results-orders/queries/")
+	resultAttrs, _ := resultBucketRelationship.Payload["attributes"].(map[string]any)
+	for _, forbidden := range []string{
+		"output_location",
+		"object_key",
+		"prefix",
+		"object_prefix",
+		"result_location",
+	} {
+		if _, exists := resultAttrs[forbidden]; exists {
+			t.Fatalf(
+				"%s attribute persisted on result-bucket relationship; payload must stay bucket-only",
+				forbidden,
+			)
+		}
+	}
 
 	kmsRelationship := relationshipByType(t, envelopes, awscloud.RelationshipAthenaWorkGroupUsesKMSKey)
 	if got, want := kmsRelationship.Payload["target_resource_id"], kmsARN; got != want {

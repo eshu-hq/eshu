@@ -25,9 +25,10 @@ func workGroupResultBucketRelationship(
 		TargetResourceID: bucketARN,
 		TargetARN:        bucketARN,
 		TargetType:       awscloud.ResourceTypeS3Bucket,
-		Attributes: map[string]any{
-			"output_location": strings.TrimSpace(workGroup.OutputLocation),
-		},
+		// Attributes intentionally omits the workgroup OutputLocation URI to
+		// keep the relationship payload bucket-only; including the raw URI
+		// would leak the result-object prefix and violate the package
+		// invariant in README.md / AGENTS.md.
 		SourceRecordID: sourceID + "->" + awscloud.RelationshipAthenaWorkGroupUsesResultBucket + ":" + bucketARN,
 	}
 }
