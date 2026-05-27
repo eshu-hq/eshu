@@ -74,6 +74,12 @@
 - Keep SSM parameter values, history values, raw descriptions, raw allowed
   patterns, raw policy JSON, decrypted content, and mutations out of facts. The
   command may enable `ssm`, but the SDK adapter owns safe metadata mapping.
+- Keep Athena StartQueryExecution, StopQueryExecution, query result rows,
+  query execution result location object contents, named-query SQL bodies,
+  prepared-statement query bodies, query history strings, and mutations out of
+  facts. The command may enable `athena`, but the SDK adapter owns safe
+  workgroup, data catalog, prepared-statement, and named-query metadata
+  mapping with the SQL-body fields explicitly discarded.
 - Do not log credential values, trust policy JSON, resource ARNs, tags, or raw
   source payloads as metric labels.
 - Preserve the split between scanner-side status in `awsruntime` and

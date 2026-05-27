@@ -27,6 +27,7 @@ It does not mutate AWS resources, read protected payloads, or write graph truth.
 | `cloudfront` | Distribution metadata plus ACM certificate and WAF web ACL relationships. |
 | `apigateway` | REST, HTTP, WebSocket, stage, custom-domain, mapping, access-log, ACM, and integration metadata. |
 | `secretsmanager`, `ssm` | Secret or parameter metadata with KMS relationships; no secret/parameter values. |
+| `athena` | Workgroup, data catalog, prepared-statement, and named-query metadata plus workgroup-to-S3-result-bucket, workgroup-to-KMS-key, prepared-statement-to-workgroup, and named-query-to-workgroup relationships. No SQL bodies, query results, query result location object contents, or query history strings. |
 
 IAM, Route 53, and CloudFront are global-style families. Use a concrete global
 region label such as `aws-global` so claims keep the
@@ -38,8 +39,10 @@ The collector does not read S3 object contents, SQS messages, DynamoDB table
 data, RDS database contents, CloudWatch log events, Secrets Manager secret
 values, SSM parameter values, API Gateway execution payloads, Lambda code
 packages, CloudFront origin payloads, private keys, raw SNS endpoints, raw
-EventBridge target inputs, or IAM/resource policy JSON unless a service package
-explicitly documents a sanitized metadata-only exception.
+EventBridge target inputs, Athena query result rows, Athena named-query SQL
+bodies, Athena prepared-statement query bodies, Athena query history strings,
+or IAM/resource policy JSON unless a service package explicitly documents a
+sanitized metadata-only exception.
 
 It also does not call AWS mutation APIs. If a scanner needs a new API family,
 update the owning service package README with source APIs, forbidden data

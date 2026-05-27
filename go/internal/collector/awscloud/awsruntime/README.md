@@ -86,7 +86,8 @@ See `doc.go` for the godoc contract.
   `internal/collector/awscloud/services/secretsmanager`,
   `internal/collector/awscloud/services/sqs`,
   `internal/collector/awscloud/services/sns`,
-  `internal/collector/awscloud/services/ssm`, and
+  `internal/collector/awscloud/services/ssm`,
+  `internal/collector/awscloud/services/athena`, and
   `internal/collector/awscloud/services/s3` plus their `awssdk` adapters for
   production service scanners.
 - `internal/facts` for warning fact types.
@@ -197,6 +198,11 @@ pagination spans. The command registers the instruments:
   adapter, but it must not broaden the service contract to parameter value
   reads, history value reads, raw description persistence, raw allowed-pattern
   persistence, raw policy JSON persistence, decryption, or mutation APIs.
+- Athena scanners must stay metadata-only. The runtime registry wires the
+  Athena SDK adapter, but it must not broaden the service contract to
+  StartQueryExecution, StopQueryExecution, GetQueryResults, GetQueryExecution,
+  ListQueryExecutions, named-query SQL body reads, prepared-statement query
+  body reads, query history persistence, or mutation APIs.
 - This package does not decide retryability for AWS service errors. The caller
   owns claim failure and retry policy through `collector.ClaimedService`.
 

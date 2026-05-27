@@ -9,6 +9,8 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 	apigatewayservice "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/apigateway"
 	apigatewayawssdk "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/apigateway/awssdk"
+	athenaservice "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/athena"
+	athenaawssdk "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/athena/awssdk"
 	cloudfrontservice "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/cloudfront"
 	cloudfrontawssdk "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/cloudfront/awssdk"
 	cloudwatchlogsservice "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/cloudwatchlogs"
@@ -78,6 +80,7 @@ var supportedServiceKinds = []string{
 	awscloud.ServiceAPIGateway,
 	awscloud.ServiceSecretsManager,
 	awscloud.ServiceSSM,
+	awscloud.ServiceAthena,
 	awscloud.ServiceIAM,
 	awscloud.ServiceLambda,
 }
@@ -189,6 +192,10 @@ func (f DefaultScannerFactory) Scanner(
 	case awscloud.ServiceSSM:
 		return ssmservice.Scanner{
 			Client: ssmawssdk.NewClient(configLease.AWSConfig(), boundary, f.Tracer, f.Instruments),
+		}, nil
+	case awscloud.ServiceAthena:
+		return athenaservice.Scanner{
+			Client: athenaawssdk.NewClient(configLease.AWSConfig(), boundary, f.Tracer, f.Instruments),
 		}, nil
 	case awscloud.ServiceIAM:
 		return iamservice.Scanner{

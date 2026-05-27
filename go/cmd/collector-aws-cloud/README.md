@@ -54,7 +54,7 @@ Instance configuration uses:
     {
       "account_id": "123456789012",
       "allowed_regions": ["us-east-1", "aws-global"],
-      "allowed_services": ["iam", "ecr", "ecs", "ec2", "elbv2", "lambda", "eks", "route53", "sqs", "sns", "eventbridge", "s3", "rds", "dynamodb", "cloudwatchlogs", "cloudfront", "apigateway", "secretsmanager", "ssm"],
+      "allowed_services": ["iam", "ecr", "ecs", "ec2", "elbv2", "lambda", "eks", "route53", "sqs", "sns", "eventbridge", "s3", "rds", "dynamodb", "cloudwatchlogs", "cloudfront", "apigateway", "secretsmanager", "ssm", "athena"],
       "max_concurrent_claims": 1,
       "credentials": {
         "mode": "central_assume_role",
@@ -179,6 +179,14 @@ The claim concurrency gauge is backed by the runtime's per-account limiter.
   relationships. They intentionally do not read parameter values, read history
   values, persist raw descriptions, persist raw allowed patterns, persist raw
   policy JSON, decrypt SecureString content, or mutate SSM resources.
+- Athena targets emit workgroup, data catalog, prepared-statement, and
+  named-query metadata plus workgroup-to-S3-result-bucket,
+  workgroup-to-KMS-key, prepared-statement-to-workgroup, and
+  named-query-to-workgroup relationships when AWS reports the matching
+  identities. They intentionally do not start, stop, or mutate queries, do not
+  read query result rows, do not read query result location object contents,
+  do not persist named-query SQL bodies, do not persist prepared-statement
+  query bodies, and do not persist query history strings.
 - The acceptance unit ID must be JSON with `account_id`, `region`, and
   `service_kind`.
 - `/admin/status` includes per `(account_id, region, service_kind)` AWS scan

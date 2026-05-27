@@ -84,6 +84,13 @@
   patterns, raw policy JSON, decrypted content, and mutations out of facts.
   Parameter metadata, tags, safe policy type/status metadata, and KMS key
   dependencies are reported metadata only.
+- Keep Athena StartQueryExecution, StopQueryExecution, query result rows,
+  query execution result location object contents, named-query SQL bodies,
+  prepared-statement query bodies, query history strings, and mutation APIs
+  out of facts. Workgroup, data catalog, prepared-statement, and named-query
+  metadata plus workgroup-to-S3-result-bucket, workgroup-to-KMS-key,
+  prepared-statement-to-workgroup, and named-query-to-workgroup relationship
+  evidence are reported metadata only.
 - Keep ELBv2 target health out of facts; it is live/noisy state, not stable
   topology truth.
 - Keep EC2 instance inventory out of the EC2 scanner; ENI attachment target
