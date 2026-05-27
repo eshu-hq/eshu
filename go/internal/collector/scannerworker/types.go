@@ -17,6 +17,12 @@ type TargetKind string
 const (
 	// TargetRepository scopes scanner work to one repository generation.
 	TargetRepository TargetKind = "repository"
+	// TargetImage scopes scanner work to one container image digest or image
+	// artifact whose subject identity is carried by the analyzer source.
+	TargetImage TargetKind = "image"
+	// TargetArtifact scopes scanner work to one build, release, or package
+	// artifact whose subject identity is carried by the analyzer source.
+	TargetArtifact TargetKind = "artifact"
 )
 
 // TargetScope is the durable, bounded scanner target identity copied from a
@@ -75,7 +81,7 @@ func (target TargetScope) validateFor(item workflow.WorkItem) error {
 	if strings.TrimSpace(string(target.Kind)) == "" {
 		return fmt.Errorf("target kind must not be blank")
 	}
-	if target.Kind != TargetRepository {
+	if !isAllowedTargetKind(target.Kind) {
 		return fmt.Errorf("unsupported target kind %q", target.Kind)
 	}
 	if strings.TrimSpace(target.ScopeID) == "" {
@@ -109,6 +115,15 @@ func (target TargetScope) validateFor(item workflow.WorkItem) error {
 		return fmt.Errorf("target generation_id %q does not match work item generation_id %q", target.GenerationID, item.GenerationID)
 	}
 	return nil
+}
+
+func isAllowedTargetKind(kind TargetKind) bool {
+	switch kind {
+	case TargetRepository, TargetImage, TargetArtifact:
+		return true
+	default:
+		return false
+	}
 }
 
 func validateSafeLocatorHash(value string) error {

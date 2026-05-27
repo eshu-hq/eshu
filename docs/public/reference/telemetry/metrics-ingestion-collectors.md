@@ -132,7 +132,9 @@ without introducing new metric instruments, spans, log keys, or queues. Its
 emitted `sbom.document`, `sbom.component`, and `sbom.warning` source facts
 appear on `eshu_dp_scanner_worker_facts_emitted_total` with
 `analyzer="sbom_generation"` and `fact_kind` set to the SBOM/attestation
-schema kind. Resource-limit breaches surface on
+schema kind. The bounded `target_kind` label is `repository`, `image`, or
+`artifact` according to the claimed scanner-worker target. Resource-limit
+breaches surface on
 `eshu_dp_scanner_worker_dead_letters_total` with
 `failure_class` in `{file_limit_exceeded, input_limit_exceeded,
 fact_limit_exceeded, unsupported_target, analyzer_failed}`; retryable source

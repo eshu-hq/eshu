@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/workflow"
@@ -52,18 +53,43 @@ func DefaultResourceLimits(analyzer AnalyzerKind) (ResourceLimits, error) {
 }
 
 // TargetScopeFromWorkItem derives a privacy-safe scanner target from a
-// workflow work item. Raw scope IDs stay out of retry and dead-letter payloads.
+// workflow work item. Repository is the legacy default; image and artifact are
+// inferred from scanner-worker, source URI, or acceptance-unit prefixes. Raw
+// scope IDs stay out of retry and dead-letter payloads.
 func TargetScopeFromWorkItem(item workflow.WorkItem) (TargetScope, error) {
 	if err := item.Validate(); err != nil {
 		return TargetScope{}, err
 	}
 	digest := sha256.Sum256([]byte(item.ScopeID))
 	return TargetScope{
-		Kind:             TargetRepository,
+		Kind:             targetKindFromWorkItem(item),
 		ScopeID:          item.ScopeID,
 		AcceptanceUnitID: item.AcceptanceUnitID,
 		SourceRunID:      item.SourceRunID,
 		GenerationID:     item.GenerationID,
 		LocatorHash:      safeLocatorHashPrefix + hex.EncodeToString(digest[:]),
 	}, nil
+}
+
+func targetKindFromWorkItem(item workflow.WorkItem) TargetKind {
+	for _, value := range []string{item.ScopeID, item.AcceptanceUnitID} {
+		if kind, ok := targetKindFromIdentity(value); ok {
+			return kind
+		}
+	}
+	return TargetRepository
+}
+
+func targetKindFromIdentity(value string) (TargetKind, bool) {
+	trimmed := strings.TrimSpace(strings.ToLower(value))
+	switch {
+	case strings.HasPrefix(trimmed, "scanner-worker://repository/"), strings.HasPrefix(trimmed, "repository:"):
+		return TargetRepository, true
+	case strings.HasPrefix(trimmed, "scanner-worker://image/"), strings.HasPrefix(trimmed, "image:"):
+		return TargetImage, true
+	case strings.HasPrefix(trimmed, "scanner-worker://artifact/"), strings.HasPrefix(trimmed, "artifact:"):
+		return TargetArtifact, true
+	default:
+		return "", false
+	}
 }
