@@ -74,7 +74,7 @@ metric labels.
   `budget_exhausted` warning for the partial unused-access summaries.
 - Supported analyzers without an ARN do not trigger child reads. Child facts
   depend on the analyzer ARN for source-stable identities.
-- The adapter must not call `GetFinding`, policy-generation APIs, archive-rule
+- The adapter must not call GetFinding, policy-generation APIs, archive-rule
   mutation APIs, finding mutation APIs, analyzer mutation APIs, or resource-scan
   mutation APIs.
 - SDK adapters translate AWS records into scanner-owned types; scanner tests

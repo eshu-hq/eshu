@@ -22,7 +22,7 @@
   timestamps.
 - Do not persist external finding bodies, archive-rule filter criteria,
   policy-generation output, or unused-action breakdowns.
-- Do not call `GetFinding` for external finding bodies.
+- Do not call GetFinding for external finding bodies.
 - Do not call mutation APIs such as CreateAnalyzer, DeleteAnalyzer,
   CreateArchiveRule, DeleteArchiveRule, UpdateArchiveRule, StartResourceScan,
   ApplyArchiveRule, UpdateFindings, CancelPolicyGeneration, or

@@ -210,9 +210,9 @@ The claim concurrency gauge is backed by the runtime's per-account limiter.
   not run jobs, start crawlers, mutate Data Catalog state, read job script
   bodies, persist job default-argument values, persist secret-shaped
   argument keys, persist connection passwords (the adapter calls
-  `GetConnections` with `HidePassword=true`), persist connection property
+  GetConnections with HidePassword=true), persist connection property
   values, persist JDBC credential URLs, persist workflow graph payloads (the
-  adapter calls `GetWorkflow` with `IncludeGraph=false`), persist table
+  adapter calls GetWorkflow with IncludeGraph=false), persist table
   column statistics with sample values, or persist classifier custom
   patterns.
 - ElastiCache targets emit cache cluster, replication group, parameter group,

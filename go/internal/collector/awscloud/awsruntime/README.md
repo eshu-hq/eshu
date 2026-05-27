@@ -214,8 +214,8 @@ pagination spans. The command registers the instruments:
   persistence, connection password reads, JDBC credential URL persistence,
   connection property value persistence, table column statistics with sample
   values, classifier custom-pattern reads, workflow graph payload reads, or
-  workflow run state reads. The SDK adapter must call `GetConnections` with
-  `HidePassword=true` and `GetWorkflow` with `IncludeGraph=false`.
+  workflow run state reads. The SDK adapter must call GetConnections with
+  HidePassword=true and GetWorkflow with IncludeGraph=false.
 - Step Functions scanners must stay metadata-only. The runtime registry wires
   the Step Functions SDK adapter, but it must not broaden the service contract
   to StartExecution, StopExecution, CreateStateMachine, UpdateStateMachine,
@@ -229,7 +229,7 @@ pagination spans. The command registers the instruments:
   the Access Analyzer SDK adapter, but it must not broaden the service contract
   to external finding-body persistence, archive-rule filter persistence,
   policy-generation output, per-action unused-access detail persistence,
-  `GetFinding`, or mutation APIs.
+  GetFinding, or mutation APIs.
 - This package does not decide retryability for AWS service errors. The caller
   owns claim failure and retry policy through `collector.ClaimedService`.
 

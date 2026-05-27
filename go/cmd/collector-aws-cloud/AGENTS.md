@@ -90,8 +90,8 @@
   classifier custom patterns, workflow graph payloads, and mutations out of
   facts. The command may enable `glue`, but the SDK adapter owns safe
   database, table, crawler, job, trigger, workflow, and connection mapping
-  and must call `GetConnections` with `HidePassword=true` and `GetWorkflow`
-  with `IncludeGraph=false`.
+  and must call GetConnections with HidePassword=true and GetWorkflow with
+  IncludeGraph=false.
 - Keep ElastiCache AUTH tokens, user passwords, user access strings, cache
   keys, cache values, snapshot data, and mutations out of facts. The command
   may enable `elasticache`, but the SDK adapter owns safe cache cluster,

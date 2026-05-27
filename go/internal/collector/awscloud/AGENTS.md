@@ -99,14 +99,14 @@
   and connection metadata plus reported table-in-database,
   table-to-S3-location, crawler-to-database, crawler-to-IAM-role,
   job-to-IAM-role, and trigger-to-job relationships are reported metadata
-  only. The Glue SDK adapter must call `GetConnections` with
-  `HidePassword=true` and `GetWorkflow` with `IncludeGraph=false`.
+  only. The Glue SDK adapter must call GetConnections with HidePassword=true
+  and GetWorkflow with IncludeGraph=false.
 - Keep ElastiCache AUTH tokens, user passwords, user access strings, cache
   keys, cache values, snapshot data, and mutations out of facts. Cache cluster,
   replication group, parameter group, subnet group, user, and user group
   metadata, snapshot name/source/status, and reported VPC, subnet, KMS,
   replication-group-cluster, and user-group-user edges are reported metadata
-  only. Drop `User.Passwords` and `User.AccessString` at the adapter boundary.
+  only. Drop User.Passwords and User.AccessString at the adapter boundary.
 - Keep IAM Access Analyzer external finding bodies, archive-rule filter
   criteria, policy-generation output, and per-action unused-access details out
   of facts. Analyzer metadata, archive-rule names, aggregate finding counts,
