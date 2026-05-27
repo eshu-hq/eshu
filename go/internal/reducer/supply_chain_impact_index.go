@@ -90,6 +90,12 @@ type supplyChainDeploymentContext struct {
 	outcome        string
 }
 
+type supplyChainWorkloadContext struct {
+	factID       string
+	repositoryID string
+	workloadID   string
+}
+
 type supplyChainServiceContext struct {
 	factID         string
 	repositoryID   string
@@ -117,6 +123,7 @@ type supplyChainImpactIndex struct {
 	attachments      map[string]supplyChainAttachment
 	images           map[string]supplyChainImageIdentity
 	deployments      []supplyChainDeploymentContext
+	workloads        []supplyChainWorkloadContext
 	services         []supplyChainServiceContext
 	riskSignals      map[string]supplyChainRiskSignals
 }
@@ -172,6 +179,8 @@ func buildSupplyChainImpactIndex(envelopes []facts.Envelope) supplyChainImpactIn
 			if deployment.factID != "" {
 				index.deployments = append(index.deployments, deployment)
 			}
+		case workloadIdentityFactKind:
+			index.workloads = append(index.workloads, supplyChainWorkloadContextsFromEnvelope(envelope)...)
 		case serviceCatalogCorrelationFactKind:
 			service := supplyChainServiceContextFromEnvelope(envelope)
 			if service.repositoryID != "" {

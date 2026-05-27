@@ -33,6 +33,12 @@ func applySupplyChainRuntimeContext(
 			finding.RepositoryID = deployment.repositoryID
 		}
 	}
+	workloads := matchingSupplyChainWorkloads(*finding, index.workloads)
+	for _, workload := range workloads {
+		finding.EvidenceFactIDs = append(finding.EvidenceFactIDs, workload.factID)
+		finding.EvidencePath = append(finding.EvidencePath, workloadIdentityFactKind)
+		finding.WorkloadIDs = append(finding.WorkloadIDs, workload.workloadID)
+	}
 	services, serviceMissing := matchingSupplyChainServices(*finding, index.services)
 	missing = append(missing, serviceMissing...)
 	for _, service := range services {
@@ -93,6 +99,24 @@ func supplyChainDeploymentMatchesFinding(
 		return true
 	}
 	return false
+}
+
+func matchingSupplyChainWorkloads(
+	finding SupplyChainImpactFinding,
+	workloads []supplyChainWorkloadContext,
+) []supplyChainWorkloadContext {
+	repositoryID := strings.TrimSpace(finding.RepositoryID)
+	if repositoryID == "" {
+		return nil
+	}
+	matches := make([]supplyChainWorkloadContext, 0, len(workloads))
+	for _, workload := range workloads {
+		if workload.repositoryID != repositoryID || workload.workloadID == "" {
+			continue
+		}
+		matches = append(matches, workload)
+	}
+	return matches
 }
 
 func matchingSupplyChainServices(

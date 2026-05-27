@@ -139,6 +139,13 @@ func supplyChainImpactFilter(envelopes []facts.Envelope) SupplyChainImpactFactFi
 			digests = append(digests, payloadStr(envelope.Payload, "artifact_digest"))
 			repositoryIDs = append(repositoryIDs, payloadStr(envelope.Payload, "repository_id"))
 			imageRefs = append(imageRefs, payloadStr(envelope.Payload, "image_ref"))
+		case workloadIdentityFactKind:
+			repositoryIDs = append(repositoryIDs, firstNonBlank(
+				payloadStr(envelope.Payload, "repository_id"),
+				payloadStr(envelope.Payload, "repo_id"),
+				payloadStr(envelope.Payload, "scope_id"),
+				envelope.ScopeID,
+			))
 		case serviceCatalogCorrelationFactKind:
 			repositoryIDs = append(repositoryIDs, payloadStr(envelope.Payload, "repository_id"))
 		}
