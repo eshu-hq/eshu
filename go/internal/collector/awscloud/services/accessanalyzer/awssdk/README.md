@@ -69,7 +69,11 @@ metric labels.
   discards action, principal, condition, resource, and source fields.
 - `ListFindingsV2` and `GetFindingV2` are used for unused-access summaries.
   The adapter keeps the per-resource last-accessed timestamp and discards
-  per-action unused-access details.
+  per-action unused-access details. `GetFindingV2` detail reads are bounded per
+  analyzer; after the cap, aggregate counts continue and the adapter returns a
+  `budget_exhausted` warning for the partial unused-access summaries.
+- Supported analyzers without an ARN do not trigger child reads. Child facts
+  depend on the analyzer ARN for source-stable identities.
 - The adapter must not call `GetFinding`, policy-generation APIs, archive-rule
   mutation APIs, finding mutation APIs, analyzer mutation APIs, or resource-scan
   mutation APIs.

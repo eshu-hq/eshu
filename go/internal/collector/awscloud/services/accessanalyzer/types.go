@@ -3,6 +3,8 @@ package accessanalyzer
 import (
 	"context"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 )
 
 // Client lists Access Analyzer metadata for one claimed account and region.
@@ -23,6 +25,7 @@ type Analyzer struct {
 	ArchiveRules           []ArchiveRule
 	FindingCounts          []FindingCount
 	UnusedAccessSummaries  []UnusedAccessSummary
+	Warnings               []awscloud.WarningObservation
 }
 
 // ArchiveRule is safe archive-rule metadata. Filter criteria are intentionally

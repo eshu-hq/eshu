@@ -114,6 +114,60 @@ func TestScannerRejectsMismatchedServiceKind(t *testing.T) {
 	}
 }
 
+func TestScannerSkipsAnalyzerChildrenWhenAnalyzerARNMissing(t *testing.T) {
+	client := fakeClient{analyzers: []Analyzer{{
+		Name:   "missing-arn",
+		Type:   "ACCOUNT",
+		Status: "ACTIVE",
+		ArchiveRules: []ArchiveRule{{
+			Name: "archive-rule-without-analyzer",
+		}},
+		FindingCounts: []FindingCount{{
+			Status:       "ACTIVE",
+			ResourceType: "AWS::S3::Bucket",
+			Count:        1,
+		}},
+		UnusedAccessSummaries: []UnusedAccessSummary{{
+			FindingID:    "unused-1",
+			ResourceID:   "arn:aws:iam::123456789012:role/stale-admin",
+			ResourceType: "AWS::IAM::Role",
+			Status:       "ACTIVE",
+		}},
+	}}}
+
+	envelopes, err := (Scanner{Client: client}).Scan(context.Background(), testBoundary())
+	if err != nil {
+		t.Fatalf("Scan() error = %v, want nil", err)
+	}
+
+	assertResourceCount(t, envelopes, awscloud.ResourceTypeAccessAnalyzerAnalyzer, 1)
+	assertResourceCount(t, envelopes, awscloud.ResourceTypeAccessAnalyzerArchiveRule, 0)
+	assertResourceCount(t, envelopes, awscloud.ResourceTypeAccessAnalyzerFindingCount, 0)
+	assertResourceCount(t, envelopes, awscloud.ResourceTypeAccessAnalyzerUnusedAccessSummary, 0)
+	assertNoResourceIDPrefix(t, envelopes, "/")
+}
+
+func TestScannerEmitsWarnings(t *testing.T) {
+	client := fakeClient{analyzers: []Analyzer{{
+		ARN:    "arn:aws:access-analyzer:us-east-1:123456789012:analyzer/unused",
+		Name:   "unused",
+		Type:   "ACCOUNT_UNUSED_ACCESS",
+		Status: "ACTIVE",
+		Warnings: []awscloud.WarningObservation{{
+			WarningKind: awscloud.WarningBudgetExhausted,
+			ErrorClass:  "unused_access_detail_budget_exhausted",
+			Message:     "unused access detail reads exceeded the bounded Access Analyzer detail-read budget",
+		}},
+	}}}
+
+	envelopes, err := (Scanner{Client: client}).Scan(context.Background(), testBoundary())
+	if err != nil {
+		t.Fatalf("Scan() error = %v, want nil", err)
+	}
+
+	assertWarningKind(t, envelopes, awscloud.WarningBudgetExhausted)
+}
+
 func TestScannerMapsSupportedAnalyzerScopesAndAnalysisTypes(t *testing.T) {
 	tests := []struct {
 		name             string
@@ -222,6 +276,32 @@ func assertRelationshipType(t *testing.T, envelopes []facts.Envelope, relationsh
 		}
 	}
 	t.Fatalf("missing relationship_type %q in %#v", relationshipType, envelopes)
+}
+
+func assertWarningKind(t *testing.T, envelopes []facts.Envelope, warningKind string) {
+	t.Helper()
+	for _, envelope := range envelopes {
+		if envelope.FactKind != facts.AWSWarningFactKind {
+			continue
+		}
+		if got, _ := envelope.Payload["warning_kind"].(string); got == warningKind {
+			return
+		}
+	}
+	t.Fatalf("missing warning_kind %q in %#v", warningKind, envelopes)
+}
+
+func assertNoResourceIDPrefix(t *testing.T, envelopes []facts.Envelope, prefix string) {
+	t.Helper()
+	for _, envelope := range envelopes {
+		if envelope.FactKind != facts.AWSResourceFactKind {
+			continue
+		}
+		resourceID, _ := envelope.Payload["resource_id"].(string)
+		if len(resourceID) >= len(prefix) && resourceID[:len(prefix)] == prefix {
+			t.Fatalf("resource_id %q has forbidden prefix %q", resourceID, prefix)
+		}
+	}
 }
 
 func resourceByTypeAndID(t *testing.T, envelopes []facts.Envelope, resourceType string, resourceID string) facts.Envelope {

@@ -2,6 +2,7 @@ package awssdk
 
 import (
 	"context"
+	"strconv"
 	"testing"
 	"time"
 
@@ -132,6 +133,46 @@ func TestClientListAnalyzersRedactsFindingBodiesArchiveFiltersAndUnusedActions(t
 	}
 }
 
+func TestClientCapsUnusedFindingDetailReads(t *testing.T) {
+	unusedARN := "arn:aws:access-analyzer:us-east-1:123456789012:analyzer/org-unused"
+	api := &fakeAccessAnalyzerAPI{
+		analyzerPages: []*awsaccessanalyzer.ListAnalyzersOutput{{
+			Analyzers: []awsaccessanalyzertypes.AnalyzerSummary{{
+				Arn:    aws.String(unusedARN),
+				Name:   aws.String("org-unused"),
+				Type:   awsaccessanalyzertypes.TypeOrganizationUnusedAccess,
+				Status: awsaccessanalyzertypes.AnalyzerStatusActive,
+			}},
+		}},
+		findingV2Pages: []*awsaccessanalyzer.ListFindingsV2Output{{
+			Findings: unusedFindingSummaries(maxUnusedAccessDetailReads + 1),
+		}},
+		getFindingV2Pages: unusedFindingDetails(maxUnusedAccessDetailReads + 1),
+	}
+	adapter := &Client{
+		client:   api,
+		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceAccessAnalyzer},
+	}
+
+	analyzers, err := adapter.ListAnalyzers(context.Background())
+	if err != nil {
+		t.Fatalf("ListAnalyzers() error = %v, want nil", err)
+	}
+	if got, want := api.getFindingV2Calls, maxUnusedAccessDetailReads; got != want {
+		t.Fatalf("GetFindingV2 calls = %d, want bounded %d", got, want)
+	}
+	if got, want := len(analyzers[0].UnusedAccessSummaries), maxUnusedAccessDetailReads; got != want {
+		t.Fatalf("len(UnusedAccessSummaries) = %d, want %d", got, want)
+	}
+	if got, want := len(analyzers[0].Warnings), 1; got != want {
+		t.Fatalf("len(Warnings) = %d, want %d", got, want)
+	}
+	warning := analyzers[0].Warnings[0]
+	if warning.WarningKind != awscloud.WarningBudgetExhausted {
+		t.Fatalf("WarningKind = %q, want %q", warning.WarningKind, awscloud.WarningBudgetExhausted)
+	}
+}
+
 func equalFindingCounts(got []accessanalyzerservice.FindingCount, want []accessanalyzerservice.FindingCount) bool {
 	if len(got) != len(want) {
 		return false
@@ -142,6 +183,39 @@ func equalFindingCounts(got []accessanalyzerservice.FindingCount, want []accessa
 		}
 	}
 	return true
+}
+
+func unusedFindingSummaries(count int) []awsaccessanalyzertypes.FindingSummaryV2 {
+	findings := make([]awsaccessanalyzertypes.FindingSummaryV2, 0, count)
+	for index := 0; index < count; index++ {
+		suffix := strconv.Itoa(index)
+		findings = append(findings, awsaccessanalyzertypes.FindingSummaryV2{
+			Id:                   aws.String("unused-" + suffix),
+			FindingType:          awsaccessanalyzertypes.FindingTypeUnusedPermission,
+			Status:               awsaccessanalyzertypes.FindingStatusActive,
+			Resource:             aws.String("arn:aws:iam::123456789012:role/stale-admin-" + suffix),
+			ResourceOwnerAccount: aws.String("123456789012"),
+			ResourceType:         awsaccessanalyzertypes.ResourceTypeAwsIamRole,
+		})
+	}
+	return findings
+}
+
+func unusedFindingDetails(count int) []*awsaccessanalyzer.GetFindingV2Output {
+	details := make([]*awsaccessanalyzer.GetFindingV2Output, 0, count)
+	for index := 0; index < count; index++ {
+		details = append(details, &awsaccessanalyzer.GetFindingV2Output{
+			Id: aws.String("unused-" + strconv.Itoa(index)),
+			FindingDetails: []awsaccessanalyzertypes.FindingDetails{
+				&awsaccessanalyzertypes.FindingDetailsMemberUnusedIamRoleDetails{
+					Value: awsaccessanalyzertypes.UnusedIamRoleDetails{
+						LastAccessed: aws.Time(time.Date(2026, 4, 1, 9, 0, 0, 0, time.UTC)),
+					},
+				},
+			},
+		})
+	}
+	return details
 }
 
 type fakeAccessAnalyzerAPI struct {

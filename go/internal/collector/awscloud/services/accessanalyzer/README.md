@@ -58,13 +58,19 @@ pagination spans.
   delete, archive, scan, or generate policies in AWS.
 - Analyzer resources carry raw AWS analyzer type, derived scope, derived
   analysis type, status, tags, and last-resource-analyzed timestamps.
+- Child resources that depend on analyzer identity require a non-empty analyzer
+  ARN. If AWS returns a supported analyzer without an ARN, the scanner emits the
+  analyzer resource and skips archive-rule, finding-count, unused-access, and
+  child relationship facts rather than creating slash-prefixed synthetic IDs.
 - Archive-rule resources carry rule name and analyzer ARN only. Filter criteria
   are not represented because they encode security-team triage rules.
 - Finding-count resources are aggregate buckets by finding status and resource
   type. They do not carry principal, action, condition, resource-policy, source,
   or finding-body details.
 - Unused-access summary resources carry one per-resource last-accessed
-  timestamp. Per-action unused-access details stay out of facts.
+  timestamp. Per-action unused-access details stay out of facts. Detail reads
+  are bounded; when the adapter hits the detail-read budget, the scanner emits a
+  `budget_exhausted` warning and keeps aggregate finding counts complete.
 - Organization-scope analyzers emit analyzer-to-account relationship evidence
   only when the analyzer ARN contains a parseable AWS account ID.
 - Tags are raw AWS tag evidence. Do not infer environment, owner, workload, or
@@ -74,10 +80,10 @@ pagination spans.
 
 Collector Performance Evidence: `go test ./internal/collector/awscloud/services/accessanalyzer/... -count=1`
 covers one ListAnalyzers stream, ListArchiveRules reads, ListFindings aggregate
-counting for external-access analyzers, ListFindingsV2 plus GetFindingV2
-unused-access summary reads, no GetFinding external finding-body reads, no
-policy-generation reads, no mutation APIs, and no graph writes in the
-collector.
+counting for external-access analyzers, ListFindingsV2 plus bounded
+GetFindingV2 unused-access summary reads, no malformed child IDs when analyzer
+ARNs are absent, no GetFinding external finding-body reads, no policy-generation
+reads, no mutation APIs, and no graph writes in the collector.
 
 No-Regression Evidence: `go test ./cmd/collector-aws-cloud ./internal/collector/awscloud/... -count=1`
 covers Access Analyzer resource fact emission, archive-rule filter omission,

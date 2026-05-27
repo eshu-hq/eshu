@@ -19,6 +19,8 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
+const maxUnusedAccessDetailReads = 100
+
 type apiClient interface {
 	ListAnalyzers(context.Context, *awsaccessanalyzer.ListAnalyzersInput, ...func(*awsaccessanalyzer.Options)) (*awsaccessanalyzer.ListAnalyzersOutput, error)
 	ListArchiveRules(context.Context, *awsaccessanalyzer.ListArchiveRulesInput, ...func(*awsaccessanalyzer.Options)) (*awsaccessanalyzer.ListArchiveRulesOutput, error)
@@ -102,18 +104,22 @@ func (c *Client) analyzerMetadata(
 	if !isSupportedAnalyzerType(analyzer.Type) {
 		return analyzer, nil
 	}
+	if strings.TrimSpace(analyzer.ARN) == "" {
+		return analyzer, nil
+	}
 	archiveRules, err := c.listArchiveRules(ctx, analyzer)
 	if err != nil {
 		return accessanalyzerservice.Analyzer{}, err
 	}
 	analyzer.ArchiveRules = archiveRules
 	if isUnusedAnalyzerType(analyzer.Type) {
-		counts, summaries, err := c.listUnusedFindings(ctx, analyzer)
+		counts, summaries, warnings, err := c.listUnusedFindings(ctx, analyzer)
 		if err != nil {
 			return accessanalyzerservice.Analyzer{}, err
 		}
 		analyzer.FindingCounts = counts
 		analyzer.UnusedAccessSummaries = summaries
+		analyzer.Warnings = warnings
 		return analyzer, nil
 	}
 	counts, err := c.listExternalFindingCounts(ctx, analyzer.ARN)
@@ -199,10 +205,13 @@ func (c *Client) listExternalFindingCounts(
 func (c *Client) listUnusedFindings(
 	ctx context.Context,
 	analyzer accessanalyzerservice.Analyzer,
-) ([]accessanalyzerservice.FindingCount, []accessanalyzerservice.UnusedAccessSummary, error) {
+) ([]accessanalyzerservice.FindingCount, []accessanalyzerservice.UnusedAccessSummary, []awscloud.WarningObservation, error) {
 	counts := map[findingBucket]int64{}
 	var summaries []accessanalyzerservice.UnusedAccessSummary
+	var warnings []awscloud.WarningObservation
 	var nextToken *string
+	detailReads := 0
+	detailBudgetExceeded := false
 	for {
 		var page *awsaccessanalyzer.ListFindingsV2Output
 		err := c.recordAPICall(ctx, "ListFindingsV2", func(callCtx context.Context) error {
@@ -214,16 +223,24 @@ func (c *Client) listUnusedFindings(
 			return err
 		})
 		if err != nil {
-			return nil, nil, err
+			return nil, nil, nil, err
 		}
 		if page == nil {
-			return findingCounts(counts), summaries, nil
+			return findingCounts(counts), summaries, warnings, nil
 		}
 		for _, finding := range page.Findings {
 			incrementFindingCount(counts, string(finding.Status), string(finding.ResourceType))
+			if detailReads >= maxUnusedAccessDetailReads {
+				if !detailBudgetExceeded {
+					warnings = append(warnings, unusedAccessDetailBudgetWarning(c.boundary, analyzer.ARN))
+					detailBudgetExceeded = true
+				}
+				continue
+			}
+			detailReads++
 			summary, err := c.unusedAccessSummary(ctx, analyzer.ARN, finding)
 			if err != nil {
-				return nil, nil, err
+				return nil, nil, nil, err
 			}
 			if summary.ResourceID != "" {
 				summaries = append(summaries, summary)
@@ -231,8 +248,21 @@ func (c *Client) listUnusedFindings(
 		}
 		nextToken = page.NextToken
 		if aws.ToString(nextToken) == "" {
-			return findingCounts(counts), summaries, nil
+			return findingCounts(counts), summaries, warnings, nil
 		}
+	}
+}
+
+func unusedAccessDetailBudgetWarning(boundary awscloud.Boundary, analyzerARN string) awscloud.WarningObservation {
+	return awscloud.WarningObservation{
+		Boundary:       boundary,
+		WarningKind:    awscloud.WarningBudgetExhausted,
+		ErrorClass:     "unused_access_detail_budget_exhausted",
+		Message:        "unused access detail reads exceeded the bounded Access Analyzer detail-read budget",
+		SourceRecordID: strings.TrimSpace(analyzerARN) + "#unused-access-detail-budget",
+		Attributes: map[string]any{
+			"detail_read_limit": int64(maxUnusedAccessDetailReads),
+		},
 	}
 }
 

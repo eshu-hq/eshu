@@ -55,7 +55,23 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 			envelopes = append(envelopes, envelope)
 		}
 
+		for _, warning := range analyzer.Warnings {
+			warning.Boundary = boundary
+			envelope, err := awscloud.NewWarningEnvelope(warning)
+			if err != nil {
+				return nil, err
+			}
+			envelopes = append(envelopes, envelope)
+		}
+
+		if strings.TrimSpace(analyzer.ARN) == "" {
+			continue
+		}
+
 		for _, rule := range analyzer.ArchiveRules {
+			if archiveRuleID(analyzer, rule) == "" {
+				continue
+			}
 			ruleResource, err := awscloud.NewResourceEnvelope(archiveRuleObservation(boundary, analyzer, rule))
 			if err != nil {
 				return nil, err
@@ -73,6 +89,9 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		}
 
 		for _, count := range analyzer.FindingCounts {
+			if findingCountID(analyzer, count) == "" {
+				continue
+			}
 			countResource, err := awscloud.NewResourceEnvelope(findingCountObservation(boundary, analyzer, count))
 			if err != nil {
 				return nil, err
@@ -81,6 +100,9 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		}
 
 		for _, summary := range analyzer.UnusedAccessSummaries {
+			if unusedAccessSummaryID(analyzer, summary) == "" {
+				continue
+			}
 			summaryResource, err := awscloud.NewResourceEnvelope(unusedAccessSummaryObservation(boundary, analyzer, summary))
 			if err != nil {
 				return nil, err
@@ -140,8 +162,7 @@ func findingCountObservation(
 	analyzer Analyzer,
 	count FindingCount,
 ) awscloud.ResourceObservation {
-	resourceID := strings.TrimSpace(analyzer.ARN) + "/finding-count/" +
-		strings.TrimSpace(count.Status) + "/" + strings.TrimSpace(count.ResourceType)
+	resourceID := findingCountID(analyzer, count)
 	return awscloud.ResourceObservation{
 		Boundary:     boundary,
 		ResourceID:   resourceID,
@@ -243,16 +264,39 @@ func analyzerArchiveRuleRelationship(
 }
 
 func archiveRuleID(analyzer Analyzer, rule ArchiveRule) string {
-	return strings.TrimRight(strings.TrimSpace(firstNonEmpty(rule.AnalyzerARN, analyzer.ARN)), "/") +
-		"/archive-rule/" + strings.TrimSpace(rule.Name)
+	base := strings.TrimRight(strings.TrimSpace(firstNonEmpty(rule.AnalyzerARN, analyzer.ARN)), "/")
+	name := strings.TrimSpace(rule.Name)
+	if base == "" || name == "" {
+		return ""
+	}
+	return base + "/archive-rule/" + name
+}
+
+func findingCountID(analyzer Analyzer, count FindingCount) string {
+	analyzerARN := strings.TrimRight(strings.TrimSpace(analyzer.ARN), "/")
+	status := strings.TrimSpace(count.Status)
+	resourceType := strings.TrimSpace(count.ResourceType)
+	if analyzerARN == "" || status == "" || resourceType == "" {
+		return ""
+	}
+	return analyzerARN + "/finding-count/" + status + "/" + resourceType
 }
 
 func unusedAccessSummaryID(analyzer Analyzer, summary UnusedAccessSummary) string {
+	analyzerARN := strings.TrimRight(strings.TrimSpace(analyzer.ARN), "/")
 	suffix := strings.TrimSpace(summary.FindingID)
 	if suffix == "" {
-		suffix = strings.TrimSpace(summary.FindingType) + "/" + strings.TrimSpace(summary.ResourceID)
+		findingType := strings.TrimSpace(summary.FindingType)
+		resourceID := strings.TrimSpace(summary.ResourceID)
+		if findingType == "" || resourceID == "" {
+			return ""
+		}
+		suffix = findingType + "/" + resourceID
 	}
-	return strings.TrimRight(strings.TrimSpace(analyzer.ARN), "/") + "/unused-access/" + suffix
+	if analyzerARN == "" || suffix == "" {
+		return ""
+	}
+	return analyzerARN + "/unused-access/" + suffix
 }
 
 func isSupportedAnalyzerType(value string) bool {
