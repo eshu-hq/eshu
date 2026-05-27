@@ -79,6 +79,7 @@ See `doc.go` for the godoc contract.
   `internal/collector/awscloud/services/dynamodb`,
   `internal/collector/awscloud/services/eventbridge`,
   `internal/collector/awscloud/services/glue`,
+  `internal/collector/awscloud/services/guardduty`,
   `internal/collector/awscloud/services/eks`,
   `internal/collector/awscloud/services/elbv2`,
   `internal/collector/awscloud/services/lambda`,
@@ -170,6 +171,11 @@ pagination spans. The command registers the instruments:
   PutEvents, rule/target mutations, event bus policy persistence, target input
   payload persistence, input-transformer persistence, HTTP-parameter
   persistence, or raw non-ARN target persistence.
+- GuardDuty scanners must stay metadata-only. The runtime registry wires the
+  GuardDuty SDK adapter, but it must not broaden the service contract to
+  finding-body reads, filter criteria reads, threat intel/IP list content
+  fetches, invitation/member mutations, publishing destination mutations, set
+  mutations, or finding feedback mutations.
 - S3 scanners must stay metadata-only. The runtime registry wires the S3 SDK
   adapter, but it must not broaden the service contract to object inventory,
   bucket policy persistence, ACL grant persistence, replication persistence,

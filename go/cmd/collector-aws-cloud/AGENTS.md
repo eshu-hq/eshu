@@ -47,6 +47,11 @@
   input transformers, HTTP target parameters, and raw non-ARN targets out of
   facts. The command may enable `eventbridge`, but the SDK adapter owns safe bus,
   rule, and target mapping.
+- Keep GuardDuty finding bodies, filter criteria expressions, threat intel set
+  list contents, IP set list contents, and mutation APIs out of facts. The
+  command may enable `guardduty`, but the SDK adapter owns safe detector,
+  member, filter-name, publishing destination, set metadata, and aggregate
+  finding-count reads.
 - Keep S3 object inventory, object keys, bucket policy JSON, ACL grants,
   replication rules, lifecycle rules, notification configuration, inventory
   configuration, analytics configuration, and metrics configuration out of

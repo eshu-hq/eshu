@@ -9,5 +9,6 @@
 //
 // Service scanners own AWS source observation and reducers own canonical graph
 // truth. SupportedServiceKinds and SupportsServiceKind expose the production
-// scanner registry to command-side startup validation.
+// scanner registry, including metadata-only families such as GuardDuty, to
+// command-side startup validation.
 package awsruntime

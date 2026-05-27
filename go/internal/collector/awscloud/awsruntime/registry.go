@@ -35,6 +35,8 @@ import (
 	eventbridgeawssdk "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/eventbridge/awssdk"
 	glueservice "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/glue"
 	glueawssdk "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/glue/awssdk"
+	guarddutyservice "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/guardduty"
+	guarddutyawssdk "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/guardduty/awssdk"
 	iamservice "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/iam"
 	iamawssdk "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/iam/awssdk"
 	lambdaservice "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/lambda"
@@ -90,6 +92,7 @@ var supportedServiceKinds = []string{
 	awscloud.ServiceSNS,
 	awscloud.ServiceEventBridge,
 	awscloud.ServiceOrganizations,
+	awscloud.ServiceGuardDuty,
 	awscloud.ServiceS3,
 	awscloud.ServiceRDS,
 	awscloud.ServiceDynamoDB,
@@ -193,6 +196,10 @@ func (f DefaultScannerFactory) Scanner(
 		return organizationsservice.Scanner{
 			Client:       organizationsawssdk.NewClient(configLease.AWSConfig(), boundary, f.Tracer, f.Instruments),
 			RedactionKey: f.RedactionKey,
+		}, nil
+	case awscloud.ServiceGuardDuty:
+		return guarddutyservice.Scanner{
+			Client: guarddutyawssdk.NewClient(configLease.AWSConfig(), boundary, f.Tracer, f.Instruments),
 		}, nil
 	case awscloud.ServiceS3:
 		return s3service.Scanner{

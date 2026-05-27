@@ -114,6 +114,8 @@ github.com/aws/aws-sdk-go-v2/service/eventbridge v1.45.25 h1:9PZbyFSCN/E0TnqXqnv
 github.com/aws/aws-sdk-go-v2/service/eventbridge v1.45.25/go.mod h1:ZJ1LBykgykfLqmsP2pBUesSd24sL6SebSEeXzzJ2hhE=
 github.com/aws/aws-sdk-go-v2/service/glue v1.142.0 h1:ztxbPEsd9yyuf2A41ZwtCXtI61t7ocnQ7vUdziFiFUc=
 github.com/aws/aws-sdk-go-v2/service/glue v1.142.0/go.mod h1:FZCvt95CcJWRkZNRcmMW1uQkpDHmyUSkZfz3awyZgqg=
+github.com/aws/aws-sdk-go-v2/service/guardduty v1.78.0 h1:G+ZbdL3onjVLfReu4piSAdE/Q9GOH89oNEXekFM+LUk=
+github.com/aws/aws-sdk-go-v2/service/guardduty v1.78.0/go.mod h1:kCpMuo4vLtzUaugNCZGCkVtdehl2YvoSd73Jmiuh1M0=
 github.com/aws/aws-sdk-go-v2/service/iam v1.36.3 h1:dV9iimLEHKYAz2qTi+tGAD9QCnAG2pLD7HUEHB7m4mI=
 github.com/aws/aws-sdk-go-v2/service/iam v1.36.3/go.mod h1:HSvujsK8xeEHMIB18oMXjSfqaN9cVqpo/MtHJIksQRk=
 github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.13.9 h1:FLudkZLt5ci0ozzgkVo8BJGwvqNaZbTWb3UcucAateA=
