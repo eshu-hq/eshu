@@ -20,7 +20,9 @@ infer service ownership.
 | Kubernetes shape | optional `Deployment` |
 | Command package | `go/cmd/collector-aws-cloud/` |
 | Runtime package | `go/internal/collector/awscloud/awsruntime/` |
+| Scanner bindings aggregator | `go/internal/collector/awscloud/awsruntime/bindings/` |
 | Service package root | `go/internal/collector/awscloud/services/` |
+| Per-service binding | `go/internal/collector/awscloud/services/<svc>/runtimebind/` |
 
 ## Operator Path
 

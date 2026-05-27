@@ -1,4 +1,4 @@
-package awsruntime
+package awsruntime_test
 
 import (
 	"context"
@@ -8,13 +8,19 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/awsruntime"
+	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/awsruntime/bindings"
 	"github.com/eshu-hq/eshu/go/internal/redact"
 )
 
+// TestDefaultScannerFactoryBuildsIAMScanner is the sanity check that a basic
+// plain-builder service resolves through the registry-backed factory. The
+// exhaustive per-service coverage lives in
+// registry_supported_services_test.go and in each service's runtimebind tests.
 func TestDefaultScannerFactoryBuildsIAMScanner(t *testing.T) {
-	factory := DefaultScannerFactory{}
+	factory := awsruntime.DefaultScannerFactory{}
 	lease := staticAWSConfigLease{config: aws.Config{Region: "us-east-1"}}
-	scanner, err := factory.Scanner(context.Background(), Target{
+	scanner, err := factory.Scanner(context.Background(), awsruntime.Target{
 		AccountID:   "123456789012",
 		Region:      "us-east-1",
 		ServiceKind: awscloud.ServiceIAM,
@@ -31,500 +37,11 @@ func TestDefaultScannerFactoryBuildsIAMScanner(t *testing.T) {
 	}
 }
 
-func TestDefaultScannerFactoryBuildsECRScanner(t *testing.T) {
-	factory := DefaultScannerFactory{}
-	lease := staticAWSConfigLease{config: aws.Config{Region: "us-east-1"}}
-	scanner, err := factory.Scanner(context.Background(), Target{
-		AccountID:   "123456789012",
-		Region:      "us-east-1",
-		ServiceKind: awscloud.ServiceECR,
-	}, awscloud.Boundary{
-		AccountID:   "123456789012",
-		Region:      "us-east-1",
-		ServiceKind: awscloud.ServiceECR,
-	}, lease)
-	if err != nil {
-		t.Fatalf("Scanner() error = %v", err)
-	}
-	if scanner == nil {
-		t.Fatalf("Scanner() = nil, want ECR scanner")
-	}
-}
-
-func TestDefaultScannerFactoryBuildsEC2Scanner(t *testing.T) {
-	factory := DefaultScannerFactory{}
-	lease := staticAWSConfigLease{config: aws.Config{Region: "us-east-1"}}
-	scanner, err := factory.Scanner(context.Background(), Target{
-		AccountID:   "123456789012",
-		Region:      "us-east-1",
-		ServiceKind: awscloud.ServiceEC2,
-	}, awscloud.Boundary{
-		AccountID:   "123456789012",
-		Region:      "us-east-1",
-		ServiceKind: awscloud.ServiceEC2,
-	}, lease)
-	if err != nil {
-		t.Fatalf("Scanner() error = %v", err)
-	}
-	if scanner == nil {
-		t.Fatalf("Scanner() = nil, want EC2 scanner")
-	}
-}
-
-func TestDefaultScannerFactoryBuildsEKSScanner(t *testing.T) {
-	factory := DefaultScannerFactory{}
-	lease := staticAWSConfigLease{config: aws.Config{Region: "us-east-1"}}
-	scanner, err := factory.Scanner(context.Background(), Target{
-		AccountID:   "123456789012",
-		Region:      "us-east-1",
-		ServiceKind: awscloud.ServiceEKS,
-	}, awscloud.Boundary{
-		AccountID:   "123456789012",
-		Region:      "us-east-1",
-		ServiceKind: awscloud.ServiceEKS,
-	}, lease)
-	if err != nil {
-		t.Fatalf("Scanner() error = %v", err)
-	}
-	if scanner == nil {
-		t.Fatalf("Scanner() = nil, want EKS scanner")
-	}
-}
-
-func TestDefaultScannerFactoryBuildsSQSScanner(t *testing.T) {
-	factory := DefaultScannerFactory{}
-	lease := staticAWSConfigLease{config: aws.Config{Region: "us-east-1"}}
-	scanner, err := factory.Scanner(context.Background(), Target{
-		AccountID:   "123456789012",
-		Region:      "us-east-1",
-		ServiceKind: awscloud.ServiceSQS,
-	}, awscloud.Boundary{
-		AccountID:   "123456789012",
-		Region:      "us-east-1",
-		ServiceKind: awscloud.ServiceSQS,
-	}, lease)
-	if err != nil {
-		t.Fatalf("Scanner() error = %v", err)
-	}
-	if scanner == nil {
-		t.Fatalf("Scanner() = nil, want SQS scanner")
-	}
-}
-
-func TestDefaultScannerFactoryBuildsSNSScanner(t *testing.T) {
-	factory := DefaultScannerFactory{}
-	lease := staticAWSConfigLease{config: aws.Config{Region: "us-east-1"}}
-	scanner, err := factory.Scanner(context.Background(), Target{
-		AccountID:   "123456789012",
-		Region:      "us-east-1",
-		ServiceKind: awscloud.ServiceSNS,
-	}, awscloud.Boundary{
-		AccountID:   "123456789012",
-		Region:      "us-east-1",
-		ServiceKind: awscloud.ServiceSNS,
-	}, lease)
-	if err != nil {
-		t.Fatalf("Scanner() error = %v", err)
-	}
-	if scanner == nil {
-		t.Fatalf("Scanner() = nil, want SNS scanner")
-	}
-}
-
-func TestDefaultScannerFactoryBuildsEventBridgeScanner(t *testing.T) {
-	factory := DefaultScannerFactory{}
-	lease := staticAWSConfigLease{config: aws.Config{Region: "us-east-1"}}
-	scanner, err := factory.Scanner(context.Background(), Target{
-		AccountID:   "123456789012",
-		Region:      "us-east-1",
-		ServiceKind: awscloud.ServiceEventBridge,
-	}, awscloud.Boundary{
-		AccountID:   "123456789012",
-		Region:      "us-east-1",
-		ServiceKind: awscloud.ServiceEventBridge,
-	}, lease)
-	if err != nil {
-		t.Fatalf("Scanner() error = %v", err)
-	}
-	if scanner == nil {
-		t.Fatalf("Scanner() = nil, want EventBridge scanner")
-	}
-}
-
-func TestDefaultScannerFactoryBuildsGlueScanner(t *testing.T) {
-	factory := DefaultScannerFactory{}
-	lease := staticAWSConfigLease{config: aws.Config{Region: "us-east-1"}}
-	scanner, err := factory.Scanner(context.Background(), Target{
-		AccountID:   "123456789012",
-		Region:      "us-east-1",
-		ServiceKind: awscloud.ServiceGlue,
-	}, awscloud.Boundary{
-		AccountID:   "123456789012",
-		Region:      "us-east-1",
-		ServiceKind: awscloud.ServiceGlue,
-	}, lease)
-	if err != nil {
-		t.Fatalf("Scanner() error = %v", err)
-	}
-	if scanner == nil {
-		t.Fatalf("Scanner() = nil, want Glue scanner")
-	}
-}
-
-func TestDefaultScannerFactoryBuildsStepFunctionsScanner(t *testing.T) {
-	factory := DefaultScannerFactory{}
-	lease := staticAWSConfigLease{config: aws.Config{Region: "us-east-1"}}
-	scanner, err := factory.Scanner(context.Background(), Target{
-		AccountID:   "123456789012",
-		Region:      "us-east-1",
-		ServiceKind: awscloud.ServiceStepFunctions,
-	}, awscloud.Boundary{
-		AccountID:   "123456789012",
-		Region:      "us-east-1",
-		ServiceKind: awscloud.ServiceStepFunctions,
-	}, lease)
-	if err != nil {
-		t.Fatalf("Scanner() error = %v", err)
-	}
-	if scanner == nil {
-		t.Fatalf("Scanner() = nil, want Step Functions scanner")
-	}
-}
-
-func TestDefaultScannerFactoryBuildsAccessAnalyzerScanner(t *testing.T) {
-	factory := DefaultScannerFactory{}
-	lease := staticAWSConfigLease{config: aws.Config{Region: "us-east-1"}}
-	scanner, err := factory.Scanner(context.Background(), Target{
-		AccountID:   "123456789012",
-		Region:      "us-east-1",
-		ServiceKind: awscloud.ServiceAccessAnalyzer,
-	}, awscloud.Boundary{
-		AccountID:   "123456789012",
-		Region:      "us-east-1",
-		ServiceKind: awscloud.ServiceAccessAnalyzer,
-	}, lease)
-	if err != nil {
-		t.Fatalf("Scanner() error = %v", err)
-	}
-	if scanner == nil {
-		t.Fatalf("Scanner() = nil, want Access Analyzer scanner")
-	}
-}
-
-func TestDefaultScannerFactoryBuildsOrganizationsScanner(t *testing.T) {
-	key, err := redact.NewKey([]byte("aws-redaction-key"))
-	if err != nil {
-		t.Fatalf("NewKey() error = %v", err)
-	}
-	factory := DefaultScannerFactory{RedactionKey: key}
-	lease := staticAWSConfigLease{config: aws.Config{Region: "us-west-2"}}
-	scanner, err := factory.Scanner(context.Background(), Target{
-		AccountID:   "123456789012",
-		Region:      "us-east-1",
-		ServiceKind: awscloud.ServiceOrganizations,
-	}, awscloud.Boundary{
-		AccountID:   "123456789012",
-		Region:      "us-east-1",
-		ServiceKind: awscloud.ServiceOrganizations,
-	}, lease)
-	if err != nil {
-		t.Fatalf("Scanner() error = %v", err)
-	}
-	if scanner == nil {
-		t.Fatalf("Scanner() = nil, want Organizations scanner")
-	}
-}
-
-func TestDefaultScannerFactoryRequiresRedactionKeyForOrganizations(t *testing.T) {
-	factory := DefaultScannerFactory{}
-	_, err := factory.Scanner(context.Background(), Target{
-		AccountID:   "123456789012",
-		Region:      "us-east-1",
-		ServiceKind: awscloud.ServiceOrganizations,
-	}, awscloud.Boundary{
-		AccountID:   "123456789012",
-		Region:      "us-east-1",
-		ServiceKind: awscloud.ServiceOrganizations,
-	}, staticAWSConfigLease{config: aws.Config{Region: "us-east-1"}})
-	if err == nil {
-		t.Fatalf("Scanner() error = nil, want missing Organizations redaction key")
-	}
-	if !strings.Contains(err.Error(), "redaction key") {
-		t.Fatalf("Scanner() error = %q, want redaction key", err)
-	}
-}
-
-func TestDefaultScannerFactoryBuildsS3Scanner(t *testing.T) {
-	factory := DefaultScannerFactory{}
-	lease := staticAWSConfigLease{config: aws.Config{Region: "us-east-1"}}
-	scanner, err := factory.Scanner(context.Background(), Target{
-		AccountID:   "123456789012",
-		Region:      "us-east-1",
-		ServiceKind: awscloud.ServiceS3,
-	}, awscloud.Boundary{
-		AccountID:   "123456789012",
-		Region:      "us-east-1",
-		ServiceKind: awscloud.ServiceS3,
-	}, lease)
-	if err != nil {
-		t.Fatalf("Scanner() error = %v", err)
-	}
-	if scanner == nil {
-		t.Fatalf("Scanner() = nil, want S3 scanner")
-	}
-}
-
-func TestDefaultScannerFactoryBuildsRDSScanner(t *testing.T) {
-	factory := DefaultScannerFactory{}
-	lease := staticAWSConfigLease{config: aws.Config{Region: "us-east-1"}}
-	scanner, err := factory.Scanner(context.Background(), Target{
-		AccountID:   "123456789012",
-		Region:      "us-east-1",
-		ServiceKind: awscloud.ServiceRDS,
-	}, awscloud.Boundary{
-		AccountID:   "123456789012",
-		Region:      "us-east-1",
-		ServiceKind: awscloud.ServiceRDS,
-	}, lease)
-	if err != nil {
-		t.Fatalf("Scanner() error = %v", err)
-	}
-	if scanner == nil {
-		t.Fatalf("Scanner() = nil, want RDS scanner")
-	}
-}
-
-func TestDefaultScannerFactoryBuildsDynamoDBScanner(t *testing.T) {
-	factory := DefaultScannerFactory{}
-	lease := staticAWSConfigLease{config: aws.Config{Region: "us-east-1"}}
-	scanner, err := factory.Scanner(context.Background(), Target{
-		AccountID:   "123456789012",
-		Region:      "us-east-1",
-		ServiceKind: awscloud.ServiceDynamoDB,
-	}, awscloud.Boundary{
-		AccountID:   "123456789012",
-		Region:      "us-east-1",
-		ServiceKind: awscloud.ServiceDynamoDB,
-	}, lease)
-	if err != nil {
-		t.Fatalf("Scanner() error = %v", err)
-	}
-	if scanner == nil {
-		t.Fatalf("Scanner() = nil, want DynamoDB scanner")
-	}
-}
-
-func TestDefaultScannerFactoryBuildsCloudWatchLogsScanner(t *testing.T) {
-	factory := DefaultScannerFactory{}
-	lease := staticAWSConfigLease{config: aws.Config{Region: "us-east-1"}}
-	scanner, err := factory.Scanner(context.Background(), Target{
-		AccountID:   "123456789012",
-		Region:      "us-east-1",
-		ServiceKind: awscloud.ServiceCloudWatchLogs,
-	}, awscloud.Boundary{
-		AccountID:   "123456789012",
-		Region:      "us-east-1",
-		ServiceKind: awscloud.ServiceCloudWatchLogs,
-	}, lease)
-	if err != nil {
-		t.Fatalf("Scanner() error = %v", err)
-	}
-	if scanner == nil {
-		t.Fatalf("Scanner() = nil, want CloudWatch Logs scanner")
-	}
-}
-
-func TestDefaultScannerFactoryBuildsCloudFrontScanner(t *testing.T) {
-	factory := DefaultScannerFactory{}
-	lease := staticAWSConfigLease{config: aws.Config{Region: "us-east-1"}}
-	scanner, err := factory.Scanner(context.Background(), Target{
-		AccountID:   "123456789012",
-		Region:      "aws-global",
-		ServiceKind: awscloud.ServiceCloudFront,
-	}, awscloud.Boundary{
-		AccountID:   "123456789012",
-		Region:      "aws-global",
-		ServiceKind: awscloud.ServiceCloudFront,
-	}, lease)
-	if err != nil {
-		t.Fatalf("Scanner() error = %v", err)
-	}
-	if scanner == nil {
-		t.Fatalf("Scanner() = nil, want CloudFront scanner")
-	}
-}
-
-func TestDefaultScannerFactoryBuildsAPIGatewayScanner(t *testing.T) {
-	factory := DefaultScannerFactory{}
-	lease := staticAWSConfigLease{config: aws.Config{Region: "us-east-1"}}
-	scanner, err := factory.Scanner(context.Background(), Target{
-		AccountID:   "123456789012",
-		Region:      "us-east-1",
-		ServiceKind: awscloud.ServiceAPIGateway,
-	}, awscloud.Boundary{
-		AccountID:   "123456789012",
-		Region:      "us-east-1",
-		ServiceKind: awscloud.ServiceAPIGateway,
-	}, lease)
-	if err != nil {
-		t.Fatalf("Scanner() error = %v", err)
-	}
-	if scanner == nil {
-		t.Fatalf("Scanner() = nil, want API Gateway scanner")
-	}
-}
-
-func TestDefaultScannerFactoryBuildsAthenaScanner(t *testing.T) {
-	factory := DefaultScannerFactory{}
-	lease := staticAWSConfigLease{config: aws.Config{Region: "us-east-1"}}
-	scanner, err := factory.Scanner(context.Background(), Target{
-		AccountID:   "123456789012",
-		Region:      "us-east-1",
-		ServiceKind: awscloud.ServiceAthena,
-	}, awscloud.Boundary{
-		AccountID:   "123456789012",
-		Region:      "us-east-1",
-		ServiceKind: awscloud.ServiceAthena,
-	}, lease)
-	if err != nil {
-		t.Fatalf("Scanner() error = %v", err)
-	}
-	if scanner == nil {
-		t.Fatalf("Scanner() = nil, want Athena scanner")
-	}
-}
-
-func TestDefaultScannerFactoryBuildsSecretsManagerScanner(t *testing.T) {
-	factory := DefaultScannerFactory{}
-	lease := staticAWSConfigLease{config: aws.Config{Region: "us-east-1"}}
-	scanner, err := factory.Scanner(context.Background(), Target{
-		AccountID:   "123456789012",
-		Region:      "us-east-1",
-		ServiceKind: awscloud.ServiceSecretsManager,
-	}, awscloud.Boundary{
-		AccountID:   "123456789012",
-		Region:      "us-east-1",
-		ServiceKind: awscloud.ServiceSecretsManager,
-	}, lease)
-	if err != nil {
-		t.Fatalf("Scanner() error = %v", err)
-	}
-	if scanner == nil {
-		t.Fatalf("Scanner() = nil, want Secrets Manager scanner")
-	}
-}
-
-func TestDefaultScannerFactoryBuildsELBv2Scanner(t *testing.T) {
-	factory := DefaultScannerFactory{}
-	lease := staticAWSConfigLease{config: aws.Config{Region: "us-east-1"}}
-	scanner, err := factory.Scanner(context.Background(), Target{
-		AccountID:   "123456789012",
-		Region:      "us-east-1",
-		ServiceKind: awscloud.ServiceELBv2,
-	}, awscloud.Boundary{
-		AccountID:   "123456789012",
-		Region:      "us-east-1",
-		ServiceKind: awscloud.ServiceELBv2,
-	}, lease)
-	if err != nil {
-		t.Fatalf("Scanner() error = %v", err)
-	}
-	if scanner == nil {
-		t.Fatalf("Scanner() = nil, want ELBv2 scanner")
-	}
-}
-
-func TestDefaultScannerFactoryBuildsRoute53Scanner(t *testing.T) {
-	factory := DefaultScannerFactory{}
-	lease := staticAWSConfigLease{config: aws.Config{Region: "us-east-1"}}
-	scanner, err := factory.Scanner(context.Background(), Target{
-		AccountID:   "123456789012",
-		Region:      "aws-global",
-		ServiceKind: awscloud.ServiceRoute53,
-	}, awscloud.Boundary{
-		AccountID:   "123456789012",
-		Region:      "aws-global",
-		ServiceKind: awscloud.ServiceRoute53,
-	}, lease)
-	if err != nil {
-		t.Fatalf("Scanner() error = %v", err)
-	}
-	if scanner == nil {
-		t.Fatalf("Scanner() = nil, want Route53 scanner")
-	}
-}
-
-func TestDefaultScannerFactoryBuildsECSScanner(t *testing.T) {
-	key, err := redact.NewKey([]byte("aws-redaction-key"))
-	if err != nil {
-		t.Fatalf("NewKey() error = %v", err)
-	}
-	factory := DefaultScannerFactory{RedactionKey: key}
-	lease := staticAWSConfigLease{config: aws.Config{Region: "us-east-1"}}
-	scanner, err := factory.Scanner(context.Background(), Target{
-		AccountID:   "123456789012",
-		Region:      "us-east-1",
-		ServiceKind: awscloud.ServiceECS,
-	}, awscloud.Boundary{
-		AccountID:   "123456789012",
-		Region:      "us-east-1",
-		ServiceKind: awscloud.ServiceECS,
-	}, lease)
-	if err != nil {
-		t.Fatalf("Scanner() error = %v", err)
-	}
-	if scanner == nil {
-		t.Fatalf("Scanner() = nil, want ECS scanner")
-	}
-}
-
-func TestDefaultScannerFactoryBuildsLambdaScanner(t *testing.T) {
-	key, err := redact.NewKey([]byte("aws-redaction-key"))
-	if err != nil {
-		t.Fatalf("NewKey() error = %v", err)
-	}
-	factory := DefaultScannerFactory{RedactionKey: key}
-	lease := staticAWSConfigLease{config: aws.Config{Region: "us-east-1"}}
-	scanner, err := factory.Scanner(context.Background(), Target{
-		AccountID:   "123456789012",
-		Region:      "us-east-1",
-		ServiceKind: awscloud.ServiceLambda,
-	}, awscloud.Boundary{
-		AccountID:   "123456789012",
-		Region:      "us-east-1",
-		ServiceKind: awscloud.ServiceLambda,
-	}, lease)
-	if err != nil {
-		t.Fatalf("Scanner() error = %v", err)
-	}
-	if scanner == nil {
-		t.Fatalf("Scanner() = nil, want Lambda scanner")
-	}
-}
-
-func TestDefaultScannerFactoryBuildsMSKScanner(t *testing.T) {
-	factory := DefaultScannerFactory{}
-	lease := staticAWSConfigLease{config: aws.Config{Region: "us-east-1"}}
-	scanner, err := factory.Scanner(context.Background(), Target{
-		AccountID:   "123456789012",
-		Region:      "us-east-1",
-		ServiceKind: awscloud.ServiceMSK,
-	}, awscloud.Boundary{
-		AccountID:   "123456789012",
-		Region:      "us-east-1",
-		ServiceKind: awscloud.ServiceMSK,
-	}, lease)
-	if err != nil {
-		t.Fatalf("Scanner() error = %v", err)
-	}
-	if scanner == nil {
-		t.Fatalf("Scanner() = nil, want MSK scanner")
-	}
-}
-
+// TestDefaultScannerFactoryRequiresRedactionKeyForECS guards the ECS builder
+// redaction-key precondition through the runtime entry point.
 func TestDefaultScannerFactoryRequiresRedactionKeyForECS(t *testing.T) {
-	factory := DefaultScannerFactory{}
-	_, err := factory.Scanner(context.Background(), Target{
+	factory := awsruntime.DefaultScannerFactory{}
+	_, err := factory.Scanner(context.Background(), awsruntime.Target{
 		AccountID:   "123456789012",
 		Region:      "us-east-1",
 		ServiceKind: awscloud.ServiceECS,
@@ -541,9 +58,11 @@ func TestDefaultScannerFactoryRequiresRedactionKeyForECS(t *testing.T) {
 	}
 }
 
+// TestDefaultScannerFactoryRequiresRedactionKeyForLambda guards the Lambda
+// builder redaction-key precondition through the runtime entry point.
 func TestDefaultScannerFactoryRequiresRedactionKeyForLambda(t *testing.T) {
-	factory := DefaultScannerFactory{}
-	_, err := factory.Scanner(context.Background(), Target{
+	factory := awsruntime.DefaultScannerFactory{}
+	_, err := factory.Scanner(context.Background(), awsruntime.Target{
 		AccountID:   "123456789012",
 		Region:      "us-east-1",
 		ServiceKind: awscloud.ServiceLambda,
@@ -560,9 +79,78 @@ func TestDefaultScannerFactoryRequiresRedactionKeyForLambda(t *testing.T) {
 	}
 }
 
+// TestDefaultScannerFactoryRequiresRedactionKeyForOrganizations guards the
+// Organizations builder redaction-key precondition.
+func TestDefaultScannerFactoryRequiresRedactionKeyForOrganizations(t *testing.T) {
+	factory := awsruntime.DefaultScannerFactory{}
+	_, err := factory.Scanner(context.Background(), awsruntime.Target{
+		AccountID:   "123456789012",
+		Region:      "us-east-1",
+		ServiceKind: awscloud.ServiceOrganizations,
+	}, awscloud.Boundary{
+		AccountID:   "123456789012",
+		Region:      "us-east-1",
+		ServiceKind: awscloud.ServiceOrganizations,
+	}, staticAWSConfigLease{config: aws.Config{Region: "us-east-1"}})
+	if err == nil {
+		t.Fatalf("Scanner() error = nil, want missing Organizations redaction key")
+	}
+	if !strings.Contains(err.Error(), "redaction key") {
+		t.Fatalf("Scanner() error = %q, want redaction key", err)
+	}
+}
+
+// TestDefaultScannerFactoryRequiresRedactionKeyForSecurityHub guards the
+// SecurityHub builder redaction-key precondition.
+func TestDefaultScannerFactoryRequiresRedactionKeyForSecurityHub(t *testing.T) {
+	factory := awsruntime.DefaultScannerFactory{}
+	_, err := factory.Scanner(context.Background(), awsruntime.Target{
+		AccountID:   "123456789012",
+		Region:      "us-east-1",
+		ServiceKind: awscloud.ServiceSecurityHub,
+	}, awscloud.Boundary{
+		AccountID:   "123456789012",
+		Region:      "us-east-1",
+		ServiceKind: awscloud.ServiceSecurityHub,
+	}, staticAWSConfigLease{config: aws.Config{Region: "us-east-1"}})
+	if err == nil {
+		t.Fatalf("Scanner() error = nil, want missing Security Hub redaction key")
+	}
+	if !strings.Contains(err.Error(), "redaction key") {
+		t.Fatalf("Scanner() error = %q, want redaction key", err)
+	}
+}
+
+// TestDefaultScannerFactoryBuildsECSWithRedactionKey covers the positive
+// redaction-key path through the runtime entry point.
+func TestDefaultScannerFactoryBuildsECSWithRedactionKey(t *testing.T) {
+	key, err := redact.NewKey([]byte("aws-redaction-key"))
+	if err != nil {
+		t.Fatalf("NewKey() error = %v", err)
+	}
+	factory := awsruntime.DefaultScannerFactory{RedactionKey: key}
+	scanner, err := factory.Scanner(context.Background(), awsruntime.Target{
+		AccountID:   "123456789012",
+		Region:      "us-east-1",
+		ServiceKind: awscloud.ServiceECS,
+	}, awscloud.Boundary{
+		AccountID:   "123456789012",
+		Region:      "us-east-1",
+		ServiceKind: awscloud.ServiceECS,
+	}, staticAWSConfigLease{config: aws.Config{Region: "us-east-1"}})
+	if err != nil {
+		t.Fatalf("Scanner() error = %v", err)
+	}
+	if scanner == nil {
+		t.Fatalf("Scanner() = nil, want ECS scanner")
+	}
+}
+
+// TestDefaultScannerFactoryRejectsUnsupportedService confirms the registry
+// miss case still surfaces the documented error.
 func TestDefaultScannerFactoryRejectsUnsupportedService(t *testing.T) {
-	factory := DefaultScannerFactory{}
-	_, err := factory.Scanner(context.Background(), Target{
+	factory := awsruntime.DefaultScannerFactory{}
+	_, err := factory.Scanner(context.Background(), awsruntime.Target{
 		AccountID:   "123456789012",
 		Region:      "us-east-1",
 		ServiceKind: "unknown-service",
@@ -579,9 +167,12 @@ func TestDefaultScannerFactoryRejectsUnsupportedService(t *testing.T) {
 	}
 }
 
+// TestDefaultScannerFactoryRequiresAWSConfigLease confirms the lease type
+// guard runs before registry lookup, so a wrong lease type cannot reach a
+// builder.
 func TestDefaultScannerFactoryRequiresAWSConfigLease(t *testing.T) {
-	factory := DefaultScannerFactory{}
-	_, err := factory.Scanner(context.Background(), Target{
+	factory := awsruntime.DefaultScannerFactory{}
+	_, err := factory.Scanner(context.Background(), awsruntime.Target{
 		AccountID:   "123456789012",
 		Region:      "us-east-1",
 		ServiceKind: awscloud.ServiceIAM,
@@ -596,22 +187,4 @@ func TestDefaultScannerFactoryRequiresAWSConfigLease(t *testing.T) {
 	if !strings.Contains(err.Error(), "unsupported AWS credential lease") {
 		t.Fatalf("Scanner() error = %q, want unsupported lease", err)
 	}
-}
-
-type staticAWSConfigLease struct {
-	config aws.Config
-}
-
-func (l staticAWSConfigLease) AWSConfig() aws.Config {
-	return l.config
-}
-
-func (l staticAWSConfigLease) Release() error {
-	return nil
-}
-
-type releaseOnlyLease struct{}
-
-func (l releaseOnlyLease) Release() error {
-	return nil
 }

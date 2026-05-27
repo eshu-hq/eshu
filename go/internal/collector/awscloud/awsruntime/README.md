@@ -49,10 +49,17 @@ See `doc.go` for the godoc contract.
   adapters.
 - `SDKCredentialProvider` - production credential provider using workload
   identity or STS AssumeRole.
-- `DefaultScannerFactory` - production service registry for AWS scanners. ECS,
-  Lambda, Security Hub, and Organizations scanners receive the
-  command-provided redaction key for sensitive-derived fields.
-- `SupportedServiceKinds` and `SupportsServiceKind` - production registry
+- `DefaultScannerFactory` - production scanner dispatcher. It holds the
+  runtime-wide tracer, instruments, checkpoint store, and redaction key and
+  dispatches every claim through the init-time scanner registry. It has no
+  compile-time dependency on individual service packages.
+- `Register`, `LookupBuilder`, `RegisteredServiceKinds` - the scanner
+  registry primitive. Service `runtimebind` sub-packages call `Register` from
+  `init()` so new scanners stay pure-additive.
+- `ScannerDeps`, `ScannerRegistration`, `ScannerBuilder` - the registry
+  contract. Builders consume `ScannerDeps`; bindings install
+  `ScannerRegistration` records.
+- `SupportedServiceKinds` and `SupportsServiceKind` - registry-backed
   service-kind introspection used by command-side target-scope validation so
   startup checks cannot drift from scanner availability.
 - `ScannerFactory` - creates a service scanner for one target and lease.
@@ -69,37 +76,19 @@ See `doc.go` for the godoc contract.
 - `internal/collector/awscloud` for claim boundaries and warning envelopes.
 - `internal/collector/awscloud/checkpoint` for durable pagination checkpoint
   scope and store contracts.
-- `internal/collector/awscloud/services/apigateway`,
-  `internal/collector/awscloud/services/iam`,
-  `internal/collector/awscloud/services/ecr`,
-  `internal/collector/awscloud/services/ec2`,
-  `internal/collector/awscloud/services/ecs`,
-  `internal/collector/awscloud/services/cloudwatchlogs`,
-  `internal/collector/awscloud/services/cloudfront`,
-  `internal/collector/awscloud/services/dynamodb`,
-  `internal/collector/awscloud/services/eventbridge`,
-  `internal/collector/awscloud/services/glue`,
-  `internal/collector/awscloud/services/guardduty`,
-  `internal/collector/awscloud/services/eks`,
-  `internal/collector/awscloud/services/elbv2`,
-  `internal/collector/awscloud/services/lambda`,
-  `internal/collector/awscloud/services/organizations`,
-  `internal/collector/awscloud/services/rds`,
-  `internal/collector/awscloud/services/route53`,
-  `internal/collector/awscloud/services/secretsmanager`,
-  `internal/collector/awscloud/services/securityhub`,
-  `internal/collector/awscloud/services/sqs`,
-  `internal/collector/awscloud/services/sns`,
-  `internal/collector/awscloud/services/ssm`,
-  `internal/collector/awscloud/services/athena`,
-  `internal/collector/awscloud/services/stepfunctions`,
-  `internal/collector/awscloud/services/s3`, and
-  `internal/collector/awscloud/services/accessanalyzer` plus their `awssdk`
-  adapters for production service scanners.
 - `internal/facts` for warning fact types.
+- `internal/redact` for the runtime-shared redaction key carried in
+  `ScannerDeps`.
 - `internal/scope` for AWS scope and collector identity.
+- `internal/telemetry` for shared instruments carried in `ScannerDeps`.
 - `internal/workflow` for durable work item claims.
 - AWS SDK for Go v2 `config`, `sts`, and credential cache support.
+
+This package no longer imports individual `services/<svc>` or `awssdk`
+packages directly. Each scanner registers itself from
+`services/<svc>/runtimebind/init()`, and the command pulls every binding
+through `awsruntime/bindings`. That keeps adding a new AWS scanner additive:
+no file in this package changes.
 
 ## Telemetry
 
@@ -122,6 +111,49 @@ pagination spans. The command registers the instruments:
 - `aws.credentials.assume_role`
 - `aws.service.scan`
 - `aws.service.pagination.page`
+
+## Refactor Evidence (Scanner Registry Self-Registration)
+
+The init-time scanner registry refactor (#762) replaces the central switch
+in `registry.go` with `Register`/`LookupBuilder` plus per-service
+`runtimebind` packages. Plumbing only; no per-claim path changes.
+
+Collector Performance Evidence: `cd go && go test
+./internal/collector/awscloud/... -count=1 -race` covers every scanner
+builder through `awsruntime.DefaultScannerFactory.Scanner`. The path the
+runtime now executes for each claim is one `awsruntime.LookupBuilder`
+call — a `sync.RWMutex.RLock` around a single map read — followed by the
+same builder call the legacy switch executed. The RLock is uncontended in
+production because every `Register` call completes during `init()` before
+`main` runs; after process start the registry is effectively read-only,
+so RLock acquisition is a handful of atomic operations per claim with no
+writer to wait on (nanosecond-scale). No new I/O is introduced. `go test
+./internal/collector/awscloud/awsruntime -count=1 -race -run
+TestConcurrentRegister` proves the registry stays race-free even under 32
+concurrent Register calls, which is well beyond the production pattern.
+
+Collector Observability Evidence: every per-service telemetry instrument
+listed above keeps emitting from the same SDK adapters. The runtimebind
+init wires the same `awssdk.NewClient`/`awssdk.NewClientWithCheckpoints`
+constructors, so `eshu_dp_aws_api_calls_total`,
+`eshu_dp_aws_pagination_checkpoint_events_total`,
+`eshu_dp_aws_resources_emitted_total`,
+`aws.service.scan`, and `aws.service.pagination.page` retain identical
+labels, cardinality, and span shape.
+
+No-Observability-Change: the awscloud runtime telemetry contract is
+untouched. Init-time registration emits no metrics, spans, or logs of
+its own. Failure modes are programmer errors (duplicate registration,
+empty service_kind, nil builder) and surface as process-start panics, which
+operators already see in `runtime.startup.failed` log records.
+
+Collector Deployment Evidence: the refactor changes no Docker Compose
+service, Helm chart, ConfigMap, environment variable, port, or readiness
+gate. The `collector-aws-cloud` binary keeps the same `/healthz`,
+`/readyz`, `/metrics`, and `/admin/status` surfaces and the same
+ServiceMonitor configuration. The only deployment-visible change is one
+new blank import in each binary that calls `awsruntime.SupportsServiceKind`
+(collector-aws-cloud, workflow-coordinator, webhook-listener).
 
 ## Gotchas / invariants
 

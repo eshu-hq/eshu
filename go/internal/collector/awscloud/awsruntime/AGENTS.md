@@ -117,12 +117,24 @@
 
 - Add a new credential mode by extending `CredentialMode`, writing focused
   claim tests, and implementing the provider here.
-- Add a new service scanner by adding a service constant in `awscloud`, scanner
-  package tests, a service `awssdk` adapter, package docs, and a
-  `DefaultScannerFactory.Scanner` branch. Also add the service to
-  `supportedServiceKinds`; command-side target-scope validation uses
-  `SupportsServiceKind` so startup acceptance stays aligned with the production
-  registry.
+- Add a new service scanner. Production registration is now init-time and the
+  awsruntime package has zero compile-time dependency on individual service
+  packages. The new-scanner workflow is:
+  1. Add the service constant in `awscloud` (e.g. `ServiceFoo = "foo"`).
+  2. Build the scanner package under `services/<svc>/` (scanner.go, tests,
+     `awssdk/` adapter, doc.go, README.md, AGENTS.md).
+  3. Add `services/<svc>/runtimebind/` containing `bind.go`, `doc.go`,
+     `README.md`, `AGENTS.md`, and `bind_test.go`. The `bind.go` calls
+     `awsruntime.Register` from `init()`; the test asserts the binding
+     resolves via `awsruntime.LookupBuilder`.
+  4. Append one underscore-import line to
+     `awsruntime/bindings/bindings.go`. That file is marked `merge=union` in
+     `.gitattributes` so parallel scanner PRs do not conflict.
+  5. Add the service to the want-list in
+     `awsruntime/registry_supported_services_test.go` so a missing binding
+     surfaces at test time.
+  Command-side target-scope validation continues to use `SupportsServiceKind`,
+  which delegates to the registry.
 - Change claim shape only with coordinator, workflow, and ADR updates in the
   same PR.
 
