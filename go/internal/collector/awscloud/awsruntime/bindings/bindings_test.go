@@ -20,6 +20,7 @@ func TestBindingsRegistersEverySupportedServiceKind(t *testing.T) {
 		awscloud.ServiceAPIGateway,
 		awscloud.ServiceAthena,
 		awscloud.ServiceCloudFront,
+		awscloud.ServiceCloudTrail,
 		awscloud.ServiceCloudWatchLogs,
 		awscloud.ServiceDynamoDB,
 		awscloud.ServiceEC2,
