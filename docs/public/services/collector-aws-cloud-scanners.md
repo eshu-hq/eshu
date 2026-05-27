@@ -32,6 +32,7 @@ It does not mutate AWS resources, read protected payloads, or write graph truth.
 | `redshift` | Provisioned clusters, cluster parameter groups, cluster subnet groups, cluster snapshot metadata, scheduled action metadata, Serverless namespaces, Serverless workgroups, and reported VPC/subnet/security-group/KMS/IAM/snapshot/scheduled-action/namespace-workgroup relationships. Provisioned and Serverless share `service_kind=redshift`; resource types distinguish the two surfaces. |
 | `dynamodb`, `cloudwatchlogs` | Table or log-group metadata and KMS relationships. |
 | `cloudfront` | Distribution metadata plus ACM certificate and WAF web ACL relationships. |
+| `acm` | Public ACM certificate metadata (ARN, domain name, SANs, status, type, issuer, validity, key and signature algorithms) and certificate-to-using-resource relationships derived from ACM-reported in-use-by ARNs (ELB v2, CloudFront, API Gateway, AppSync, App Runner, and other ARN-shaped targets). No certificate body PEM, no private key material, no `GetCertificate` calls, no `ExportCertificate` calls; ACM Private CA is out of scope. |
 | `apigateway` | REST, HTTP, WebSocket, stage, custom-domain, mapping, access-log, ACM, and integration metadata. |
 | `secretsmanager`, `ssm` | Secret or parameter metadata with KMS relationships; no secret/parameter values. |
 | `athena` | Workgroup, data catalog, prepared-statement, and named-query metadata plus workgroup-to-S3-result-bucket, workgroup-to-KMS-key, prepared-statement-to-workgroup, and named-query-to-workgroup relationships. No SQL bodies, query results, query result location object contents, or query history strings. |
@@ -74,6 +75,10 @@ Task Resource ARNs; Parameters, ResultPath, ResultSelector, InputPath,
 OutputPath, and Result literal contents are excluded.
 GuardDuty finding bodies, GuardDuty filter criteria, GuardDuty threat intel set
 list contents, and GuardDuty IP set list contents are also out of scope.
+
+ACM certificate body PEM and ACM-issued private key material are out of scope.
+The ACM scanner never calls `GetCertificate` or `ExportCertificate`, and ACM
+Private CA (acm-pca) APIs are not exercised.
 
 Security Hub finding aggregate counts are metadata-only when grouped by bounded
 posture fields such as severity, standard, control, compliance status, and
