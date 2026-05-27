@@ -112,6 +112,46 @@ pagination spans. The command registers the instruments:
 - `aws.service.scan`
 - `aws.service.pagination.page`
 
+## Refactor Evidence (Scanner Registry Self-Registration)
+
+The init-time scanner registry refactor (#762) replaces the central switch
+in `registry.go` with `Register`/`LookupBuilder` plus per-service
+`runtimebind` packages. Plumbing only; no per-claim path changes.
+
+Collector Performance Evidence: `cd go && go test
+./internal/collector/awscloud/... -count=1 -race` covers every scanner
+builder through `awsruntime.DefaultScannerFactory.Scanner`. The path the
+runtime now executes for each claim is one map lookup
+(`awsruntime.LookupBuilder`, microsecond-scale) plus the same builder call
+the legacy switch executed. No new I/O, no new lock-protected critical
+section in the hot path. `go test ./internal/collector/awscloud/awsruntime
+-count=1 -race -run TestConcurrentRegister` proves the registry is
+race-free under 32 concurrent Register calls; production registrations
+happen only at process start so the read-side lookup never contends.
+
+Collector Observability Evidence: every per-service telemetry instrument
+listed above keeps emitting from the same SDK adapters. The runtimebind
+init wires the same `awssdk.NewClient`/`awssdk.NewClientWithCheckpoints`
+constructors, so `eshu_dp_aws_api_calls_total`,
+`eshu_dp_aws_pagination_checkpoint_events_total`,
+`eshu_dp_aws_resources_emitted_total`,
+`aws.service.scan`, and `aws.service.pagination.page` retain identical
+labels, cardinality, and span shape.
+
+No-Observability-Change: the awscloud runtime telemetry contract is
+untouched. Init-time registration emits no metrics, spans, or logs of
+its own. Failure modes are programmer errors (duplicate registration,
+empty service_kind, nil builder) and surface as process-start panics, which
+operators already see in `runtime.startup.failed` log records.
+
+Collector Deployment Evidence: the refactor changes no Docker Compose
+service, Helm chart, ConfigMap, environment variable, port, or readiness
+gate. The `collector-aws-cloud` binary keeps the same `/healthz`,
+`/readyz`, `/metrics`, and `/admin/status` surfaces and the same
+ServiceMonitor configuration. The only deployment-visible change is one
+new blank import in each binary that calls `awsruntime.SupportsServiceKind`
+(collector-aws-cloud, workflow-coordinator, webhook-listener).
+
 ## Gotchas / invariants
 
 - `AcceptanceUnitID` is JSON with `account_id`, `region`, and `service_kind`.
