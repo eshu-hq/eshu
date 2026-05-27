@@ -54,7 +54,7 @@ Instance configuration uses:
     {
       "account_id": "123456789012",
       "allowed_regions": ["us-east-1", "aws-global"],
-      "allowed_services": ["iam", "ecr", "ecs", "ec2", "elbv2", "lambda", "eks", "route53", "sqs", "sns", "eventbridge", "s3", "rds", "dynamodb", "cloudwatchlogs", "cloudfront", "apigateway", "secretsmanager", "ssm", "athena", "securityhub"],
+      "allowed_services": ["iam", "ecr", "ecs", "ec2", "elbv2", "lambda", "eks", "route53", "sqs", "sns", "eventbridge", "s3", "rds", "redshift", "dynamodb", "cloudwatchlogs", "cloudfront", "apigateway", "secretsmanager", "ssm", "athena", "securityhub"],
       "max_concurrent_claims": 1,
       "credentials": {
         "mode": "central_assume_role",
@@ -151,6 +151,16 @@ The claim concurrency gauge is backed by the runtime's per-account limiter.
   intentionally do not connect to databases, read snapshots, read log contents,
   read Performance Insights samples, discover schemas or tables, or mutate RDS
   resources.
+- Redshift targets emit provisioned cluster, cluster parameter group, cluster
+  subnet group, cluster snapshot, scheduled action, Serverless namespace, and
+  Serverless workgroup metadata plus reported VPC, subnet group, security
+  group, KMS key, IAM role, parameter group, snapshot source cluster,
+  scheduled action target cluster, and namespace-to-workgroup relationships.
+  They intentionally do not open warehouse connections, run queries, read
+  table or row data, read snapshot contents, persist master user passwords,
+  master user names, admin passwords, admin user names, master password
+  secret ARNs, target-action JSON payloads, or mutate Redshift / Redshift
+  Serverless resources.
 - DynamoDB targets emit table metadata plus directly reported KMS key
   relationships. They intentionally do not read items, scan or query tables,
   read stream records, fetch backup/export payloads, fetch resource policies,

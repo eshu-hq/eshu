@@ -65,6 +65,10 @@ See `doc.go` for the godoc contract.
   catalog, prepared-statement, and named-query metadata scans.
 - `ServiceSecurityHub` - Security Hub service-kind value for regional security
   posture metadata scans.
+- `ServiceRedshift` - Redshift service-kind value for regional Redshift
+  control-plane scans. Covers both provisioned Redshift and Redshift Serverless;
+  provisioned and Serverless surfaces are distinguished through the emitted
+  `resource_type`, not the service kind.
 - `Boundary` - account, region, service, generation, collector instance, and
   fencing token shared by one claimed AWS scan.
 - `ResourceObservation` - one AWS resource ready for envelope emission.

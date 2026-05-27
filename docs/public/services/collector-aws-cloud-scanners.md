@@ -23,6 +23,7 @@ It does not mutate AWS resources, read protected payloads, or write graph truth.
 | `sqs`, `sns`, `eventbridge` | Queue/topic/bus metadata and ARN-addressable relationships. |
 | `s3` | Bucket metadata and server-access-log target bucket relationships. |
 | `rds` | DB instances, clusters, subnet groups, and reported security/KMS/role/group relationships. |
+| `redshift` | Provisioned clusters, cluster parameter groups, cluster subnet groups, cluster snapshot metadata, scheduled action metadata, Serverless namespaces, Serverless workgroups, and reported VPC/subnet/security-group/KMS/IAM/snapshot/scheduled-action/namespace-workgroup relationships. Provisioned and Serverless share `service_kind=redshift`; resource types distinguish the two surfaces. |
 | `dynamodb`, `cloudwatchlogs` | Table or log-group metadata and KMS relationships. |
 | `cloudfront` | Distribution metadata plus ACM certificate and WAF web ACL relationships. |
 | `apigateway` | REST, HTTP, WebSocket, stage, custom-domain, mapping, access-log, ACM, and integration metadata. |
@@ -37,12 +38,14 @@ region label such as `aws-global` so claims keep the
 ## Data Boundaries
 
 The collector does not read S3 object contents, SQS messages, DynamoDB table
-data, RDS database contents, CloudWatch log events, Secrets Manager secret
-values, SSM parameter values, API Gateway execution payloads, Lambda code
-packages, CloudFront origin payloads, private keys, raw SNS endpoints, raw
-EventBridge target inputs, Athena query result rows, Athena named-query SQL
-bodies, Athena prepared-statement query bodies, Athena query history strings,
-or IAM/resource policy JSON unless a service package explicitly documents a
+data, RDS database contents, Redshift warehouse queries, Redshift table data,
+Redshift snapshot contents, Redshift master user passwords or admin passwords,
+CloudWatch log events, Secrets Manager secret values, SSM parameter values,
+API Gateway execution payloads, Lambda code packages, CloudFront origin
+payloads, private keys, raw SNS endpoints, raw EventBridge target inputs,
+Athena query result rows, Athena named-query SQL bodies, Athena
+prepared-statement query bodies, Athena query history strings, or
+IAM/resource policy JSON unless a service package explicitly documents a
 sanitized metadata-only exception.
 
 Security Hub finding aggregate counts are metadata-only when grouped by bounded

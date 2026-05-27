@@ -35,6 +35,8 @@ import (
 	lambdaawssdk "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/lambda/awssdk"
 	rdsservice "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/rds"
 	rdsawssdk "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/rds/awssdk"
+	redshiftservice "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/redshift"
+	redshiftawssdk "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/redshift/awssdk"
 	route53service "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/route53"
 	route53awssdk "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/route53/awssdk"
 	s3service "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/s3"
@@ -86,6 +88,7 @@ var supportedServiceKinds = []string{
 	awscloud.ServiceIAM,
 	awscloud.ServiceLambda,
 	awscloud.ServiceSecurityHub,
+	awscloud.ServiceRedshift,
 }
 
 // SupportedServiceKinds returns the service_kind values backed by production
@@ -219,6 +222,10 @@ func (f DefaultScannerFactory) Scanner(
 		return securityhubservice.Scanner{
 			Client:       securityhubawssdk.NewClient(configLease.AWSConfig(), boundary, f.Tracer, f.Instruments),
 			RedactionKey: f.RedactionKey,
+		}, nil
+	case awscloud.ServiceRedshift:
+		return redshiftservice.Scanner{
+			Client: redshiftawssdk.NewClient(configLease.AWSConfig(), boundary, f.Tracer, f.Instruments),
 		}, nil
 	default:
 		return nil, fmt.Errorf("unsupported AWS service_kind %q", target.ServiceKind)
