@@ -31,6 +31,7 @@ It does not mutate AWS resources, read protected payloads, or write graph truth.
 | `athena` | Workgroup, data catalog, prepared-statement, and named-query metadata plus workgroup-to-S3-result-bucket, workgroup-to-KMS-key, prepared-statement-to-workgroup, and named-query-to-workgroup relationships. No SQL bodies, query results, query result location object contents, or query history strings. |
 | `securityhub` | Hub configuration, enabled standards, controls, member accounts, action targets, insight summaries, and aggregate finding counts; no finding bodies or insight filters. |
 | `glue` | Data Catalog database, table, crawler, job, trigger, workflow, and connection metadata plus table-in-database, table-to-S3-location, crawler-to-database, crawler-to-IAM-role, job-to-IAM-role, and trigger-to-job relationships. No script bodies, default-argument values, connection passwords, JDBC credential URLs, workflow graphs, table column sample statistics, or classifier custom patterns. |
+| `elasticache` | Cache clusters, replication groups, parameter and subnet groups, users, user groups, and snapshot metadata (name/source/status only); cluster-to-VPC, cluster-to-subnet, cluster-to-KMS, replication-group-to-cluster, and user-group-to-user relationships. No AUTH tokens, user passwords, user access strings, cache contents, or snapshot data. |
 
 IAM, Route 53, and CloudFront are global-style families. Use a concrete global
 region label such as `aws-global` so claims keep the
@@ -41,14 +42,15 @@ region label such as `aws-global` so claims keep the
 The collector does not read S3 object contents, SQS messages, DynamoDB table
 data, RDS database contents, Redshift warehouse queries, Redshift table data,
 Redshift snapshot contents, Redshift master user passwords or admin passwords,
-CloudWatch log events, Secrets Manager secret values, SSM parameter values,
-API Gateway execution payloads, Lambda code packages, CloudFront origin
-payloads, private keys, raw SNS endpoints, raw EventBridge target inputs,
-Athena query result rows, Athena named-query SQL bodies, Athena
-prepared-statement query bodies, Athena query history strings, Glue job
-script bodies, Glue default-argument values, Glue connection passwords or
-JDBC credential URLs, Glue workflow graph payloads, Glue table column
-statistics with sample values, Glue classifier custom patterns, or
+ElastiCache cache keys, cache values, AUTH tokens, user passwords, user access
+strings, or snapshot data, CloudWatch log events, Secrets Manager secret
+values, SSM parameter values, API Gateway execution payloads, Lambda code
+packages, CloudFront origin payloads, private keys, raw SNS endpoints, raw
+EventBridge target inputs, Athena query result rows, Athena named-query SQL
+bodies, Athena prepared-statement query bodies, Athena query history strings,
+Glue job script bodies, Glue default-argument values, Glue connection
+passwords or JDBC credential URLs, Glue workflow graph payloads, Glue table
+column statistics with sample values, Glue classifier custom patterns, or
 IAM/resource policy JSON unless a service package explicitly documents a
 sanitized metadata-only exception.
 
