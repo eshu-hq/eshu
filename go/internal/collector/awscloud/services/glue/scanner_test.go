@@ -207,11 +207,24 @@ func TestScannerEmitsGlueMetadataResourcesAndRelationships(t *testing.T) {
 	}
 
 	tableS3 := relationshipByType(t, envelopes, awscloud.RelationshipGlueTableStoredAtS3Location)
-	if got, want := tableS3.Payload["target_resource_id"], "s3://analytics-warehouse/orders/"; got != want {
+	if got, want := tableS3.Payload["target_resource_id"], "arn:aws:s3:::analytics-warehouse"; got != want {
 		t.Fatalf("table->s3 target_resource_id = %#v, want %q", got, want)
+	}
+	if got, want := tableS3.Payload["target_arn"], "arn:aws:s3:::analytics-warehouse"; got != want {
+		t.Fatalf("table->s3 target_arn = %#v, want %q", got, want)
 	}
 	if got, want := tableS3.Payload["target_type"], awscloud.ResourceTypeS3Bucket; got != want {
 		t.Fatalf("table->s3 target_type = %#v, want %q", got, want)
+	}
+	tableS3Attributes := attributesOf(t, tableS3)
+	if got, want := tableS3Attributes["storage_location"], "s3://analytics-warehouse/orders/"; got != want {
+		t.Fatalf("table->s3 storage_location attribute = %#v, want %q", got, want)
+	}
+	if got, want := tableS3Attributes["bucket"], "analytics-warehouse"; got != want {
+		t.Fatalf("table->s3 bucket attribute = %#v, want %q", got, want)
+	}
+	if got, want := tableS3Attributes["object_key_prefix"], "orders/"; got != want {
+		t.Fatalf("table->s3 object_key_prefix attribute = %#v, want %q", got, want)
 	}
 
 	crawlerDB := relationshipByType(t, envelopes, awscloud.RelationshipGlueCrawlerTargetsDatabase)
@@ -263,6 +276,55 @@ func TestScannerOmitsTableS3RelationshipWhenLocationIsNotS3(t *testing.T) {
 	}
 	if got := countRelationships(envelopes, awscloud.RelationshipGlueTableStoredAtS3Location); got != 0 {
 		t.Fatalf("table->s3 relationship count = %d, want 0 for non-s3 storage location", got)
+	}
+}
+
+func TestScannerTableS3RelationshipTargetsBucketARNWithoutObjectKeyPrefix(t *testing.T) {
+	client := fakeClient{databases: []Database{{
+		Name: "analytics",
+		Tables: []Table{{
+			Name:            "no-prefix-table",
+			DatabaseName:    "analytics",
+			StorageLocation: "s3://lakehouse",
+		}},
+	}}}
+
+	envelopes, err := (Scanner{Client: client}).Scan(context.Background(), testBoundary())
+	if err != nil {
+		t.Fatalf("Scan() error = %v, want nil", err)
+	}
+	tableS3 := relationshipByType(t, envelopes, awscloud.RelationshipGlueTableStoredAtS3Location)
+	if got, want := tableS3.Payload["target_resource_id"], "arn:aws:s3:::lakehouse"; got != want {
+		t.Fatalf("table->s3 target_resource_id = %#v, want %q", got, want)
+	}
+	if got, want := tableS3.Payload["target_arn"], "arn:aws:s3:::lakehouse"; got != want {
+		t.Fatalf("table->s3 target_arn = %#v, want %q", got, want)
+	}
+	attributes := attributesOf(t, tableS3)
+	if _, exists := attributes["object_key_prefix"]; exists {
+		t.Fatalf("table->s3 attributes leaked object_key_prefix for bucket-root location")
+	}
+	if got, want := attributes["bucket"], "lakehouse"; got != want {
+		t.Fatalf("table->s3 bucket attribute = %#v, want %q", got, want)
+	}
+}
+
+func TestScannerOmitsTableS3RelationshipWhenLocationHasNoBucket(t *testing.T) {
+	client := fakeClient{databases: []Database{{
+		Name: "analytics",
+		Tables: []Table{{
+			Name:            "no-bucket",
+			DatabaseName:    "analytics",
+			StorageLocation: "s3:///orphan/",
+		}},
+	}}}
+
+	envelopes, err := (Scanner{Client: client}).Scan(context.Background(), testBoundary())
+	if err != nil {
+		t.Fatalf("Scan() error = %v, want nil", err)
+	}
+	if got := countRelationships(envelopes, awscloud.RelationshipGlueTableStoredAtS3Location); got != 0 {
+		t.Fatalf("table->s3 relationship count = %d, want 0 for bucketless s3:// uri", got)
 	}
 }
 

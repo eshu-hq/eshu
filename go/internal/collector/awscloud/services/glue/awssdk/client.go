@@ -3,6 +3,7 @@ package awssdk
 import (
 	"context"
 	"errors"
+	"sort"
 	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -504,6 +505,11 @@ func columnNames(columns []awsgluetypes.Column) []string {
 	return names
 }
 
+// mapKeys returns the trimmed, lexicographically sorted set of non-empty keys
+// in input. Sorting is required because Go map iteration order is randomized,
+// which would otherwise make `default_argument_keys`, workflow default keys,
+// and connection `property_keys` fact payloads vary across scans for identical
+// Glue state.
 func mapKeys(input map[string]string) []string {
 	if len(input) == 0 {
 		return nil
@@ -517,6 +523,7 @@ func mapKeys(input map[string]string) []string {
 	if len(keys) == 0 {
 		return nil
 	}
+	sort.Strings(keys)
 	return keys
 }
 

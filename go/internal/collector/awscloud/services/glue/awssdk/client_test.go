@@ -278,6 +278,103 @@ func TestClientListCrawlersMapsTargetCountsAndScheduleWithoutTargetPayloads(t *t
 	}
 }
 
+func TestClientMapDerivedKeysAreSortedDeterministically(t *testing.T) {
+	// Go map iteration is randomized; the adapter must sort the keys it
+	// forwards from job default-arguments, workflow default-run-properties,
+	// and connection-property maps so fact payloads stay byte-identical
+	// across rescans of the same Glue state.
+	client := &fakeGlueAPI{
+		jobPages: []*awsglue.GetJobsOutput{{
+			Jobs: []awsgluetypes.Job{{
+				Name: aws.String("orders-etl"),
+				DefaultArguments: map[string]string{
+					"--zeta":     "z",
+					"--alpha":    "a",
+					"--mike":     "m",
+					"--bravo":    "b",
+					"--lima":     "l",
+					"--charlie":  "c",
+					"--november": "n",
+				},
+				NonOverridableArguments: map[string]string{
+					"--zulu":  "z",
+					"--alpha": "a",
+					"--lima":  "l",
+				},
+			}},
+		}},
+		workflowNamePages: []*awsglue.ListWorkflowsOutput{{
+			Workflows: []string{"orders-pipeline"},
+		}},
+		workflowDescribe: map[string]*awsglue.GetWorkflowOutput{
+			"orders-pipeline": {
+				Workflow: &awsgluetypes.Workflow{
+					Name: aws.String("orders-pipeline"),
+					DefaultRunProperties: map[string]string{
+						"zone":   "us-east-1a",
+						"region": "us-east-1",
+						"tenant": "acme",
+						"squad":  "data",
+						"env":    "prod",
+					},
+				},
+			},
+		},
+		connectionPages: []*awsglue.GetConnectionsOutput{{
+			ConnectionList: []awsgluetypes.Connection{{
+				Name: aws.String("warehouse"),
+				ConnectionProperties: map[string]string{
+					"USERNAME":            "u",
+					"JDBC_CONNECTION_URL": "j",
+					"PORT":                "5432",
+					"HOST":                "db",
+					"KAFKA_SSL_ENABLED":   "true",
+				},
+			}},
+		}},
+	}
+	adapter := &Client{client: client, boundary: testBoundary()}
+
+	jobs, err := adapter.ListJobs(context.Background())
+	if err != nil {
+		t.Fatalf("ListJobs() error = %v, want nil", err)
+	}
+	if got, want := jobs[0].DefaultArgKeys, []string{"--alpha", "--bravo", "--charlie", "--lima", "--mike", "--november", "--zeta"}; !sliceEqual(got, want) {
+		t.Fatalf("DefaultArgKeys = %#v, want sorted %#v", got, want)
+	}
+	if got, want := jobs[0].NonOverridableArgKeys, []string{"--alpha", "--lima", "--zulu"}; !sliceEqual(got, want) {
+		t.Fatalf("NonOverridableArgKeys = %#v, want sorted %#v", got, want)
+	}
+
+	workflows, err := adapter.ListWorkflows(context.Background())
+	if err != nil {
+		t.Fatalf("ListWorkflows() error = %v, want nil", err)
+	}
+	if got, want := workflows[0].DefaultRunKeys, []string{"env", "region", "squad", "tenant", "zone"}; !sliceEqual(got, want) {
+		t.Fatalf("DefaultRunKeys = %#v, want sorted %#v", got, want)
+	}
+
+	connections, err := adapter.ListConnections(context.Background())
+	if err != nil {
+		t.Fatalf("ListConnections() error = %v, want nil", err)
+	}
+	if got, want := connections[0].PropertyKeys, []string{"HOST", "JDBC_CONNECTION_URL", "KAFKA_SSL_ENABLED", "PORT", "USERNAME"}; !sliceEqual(got, want) {
+		t.Fatalf("PropertyKeys = %#v, want sorted %#v", got, want)
+	}
+}
+
+func sliceEqual(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
+}
+
 func testBoundary() awscloud.Boundary {
 	return awscloud.Boundary{
 		AccountID:           "123456789012",

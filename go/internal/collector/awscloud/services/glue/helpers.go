@@ -109,7 +109,3 @@ func cloneStringSlice(input []string) []string {
 func isARN(value string) bool {
 	return strings.HasPrefix(strings.TrimSpace(value), "arn:")
 }
-
-func isS3URI(value string) bool {
-	return strings.HasPrefix(strings.TrimSpace(value), "s3://")
-}
