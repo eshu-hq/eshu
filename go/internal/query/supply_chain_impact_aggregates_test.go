@@ -173,6 +173,12 @@ func TestSupplyChainImpactAggregateQueriesCountCanonicalFindings(t *testing.T) {
 		if !strings.Contains(query, "canonical_facts") {
 			t.Fatalf("%s aggregate query missing canonical_facts CTE:\n%s", name, query)
 		}
+		if !strings.Contains(query, "has_payload_finding_id") {
+			t.Fatalf("%s aggregate query missing payload finding-id row preference:\n%s", name, query)
+		}
+		if !strings.Contains(query, "ORDER BY priority_score DESC, has_payload_finding_id DESC, fact_id ASC") {
+			t.Fatalf("%s aggregate query missing deterministic canonical row ranking:\n%s", name, query)
+		}
 	}
 }
 

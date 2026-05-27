@@ -64,9 +64,27 @@ func TestSupplyChainExplainImpactQueryUsesCanonicalFindingRows(t *testing.T) {
 		"canonical_facts AS",
 		"PARTITION BY canonical_key",
 		"payload->>'finding_id'",
+		"has_payload_finding_id",
 	} {
 		if !strings.Contains(explainSupplyChainImpactFindingQuery, want) {
 			t.Fatalf("explainSupplyChainImpactFindingQuery missing canonical dedupe marker %q:\n%s", want, explainSupplyChainImpactFindingQuery)
+		}
+	}
+}
+
+func TestSupplyChainExplainImpactQueryKeepsRollingUpgradeFindingIDStable(t *testing.T) {
+	t.Parallel()
+
+	if strings.Contains(explainSupplyChainImpactFindingQuery, "COALESCE(NULLIF(fact.payload->>'finding_id', ''), fact.fact_id) AS finding_id") {
+		t.Fatalf("explain query must not expose raw fact_id as legacy finding_id fallback:\n%s", explainSupplyChainImpactFindingQuery)
+	}
+	for _, want := range []string{
+		"NULLIF(fact.payload->>'finding_id', '')",
+		") AS finding_id",
+		"ORDER BY priority_score DESC, has_payload_finding_id DESC, fact_id ASC",
+	} {
+		if !strings.Contains(explainSupplyChainImpactFindingQuery, want) {
+			t.Fatalf("explain query missing rolling-upgrade canonical finding marker %q:\n%s", want, explainSupplyChainImpactFindingQuery)
 		}
 	}
 }

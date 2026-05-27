@@ -141,10 +141,11 @@ func (s PostgresSupplyChainImpactFindingStore) loadSupplyChainImpactEvidenceFact
 const explainSupplyChainImpactFindingQuery = `
 WITH raw_facts AS (
 SELECT fact.fact_id,
-       COALESCE(NULLIF(fact.payload->>'finding_id', ''), fact.fact_id) AS finding_id,
+       ` + supplyChainImpactPublicFindingIDSQL + ` AS finding_id,
        fact.source_confidence,
        fact.payload,
        COALESCE(NULLIF(fact.payload->>'priority_score', '')::int, 0) AS priority_score,
+       ` + supplyChainImpactPayloadFindingIDPresentSQL + ` AS has_payload_finding_id,
        ` + supplyChainImpactCanonicalFindingKeySQL + ` AS canonical_key
 FROM fact_records AS fact
 JOIN ingestion_scopes AS scope
@@ -174,7 +175,7 @@ ranked_facts AS (
 SELECT *,
        ROW_NUMBER() OVER (
          PARTITION BY canonical_key
-         ORDER BY priority_score DESC, fact_id ASC
+         ORDER BY priority_score DESC, has_payload_finding_id DESC, fact_id ASC
        ) AS canonical_rank
 FROM scoped_facts
 ),
