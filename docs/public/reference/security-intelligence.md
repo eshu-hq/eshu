@@ -224,7 +224,7 @@ Analyzer lane ownership:
 
 | Analyzer profile | Lane | Reason |
 | --- | --- | --- |
-| SBOM generation | `scanner_worker` | Can read large inputs and produce many component facts. |
+| SBOM generation | `scanner_worker` | Can read repository, image, or artifact inputs and produce many component facts. |
 | Image unpacking | `scanner_worker` | CPU, disk, and memory pressure must be isolated. |
 | Source analysis | `scanner_worker` | Repository-size dependent CPU and memory cost. |
 | OS package extraction | `scanner_worker` | Image/rootfs extraction belongs outside reducers. |

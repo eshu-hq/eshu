@@ -1,5 +1,6 @@
 // Package sbomgenerator implements the bounded scanner-worker analyzer that
-// produces CycloneDX-compatible SBOM source facts from a repository target.
+// produces CycloneDX-compatible SBOM source facts from a repository, image, or
+// artifact target.
 //
 // The analyzer is a scanner-worker boundary citizen: it consumes one
 // claim-bounded Inventory from a runtime-owned Source, enforces

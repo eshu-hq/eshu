@@ -13,7 +13,7 @@ flowchart LR
   workflow["workflow work item"] --> claim["scanner-worker claim"]
   claim --> input["scannerworker.ClaimInput"]
   input --> analyzer["bounded analyzer"]
-  analyzer --> facts["scanner source facts\nscanner_worker.* / vulnerability.os_package"]
+  analyzer --> facts["scanner source facts\nscanner_worker.* / sbom.* / vulnerability.os_package"]
   facts --> postgres["Postgres fact store"]
   postgres --> reducers["reducers admit findings"]
 ```
@@ -37,9 +37,11 @@ flowchart LR
   private pprof through `ESHU_PPROF_ADDR`.
 
 The fallback analyzer emits an explicit `scanner_worker.warning` source fact
-(`reason=analyzer_not_configured`). Concrete SBOM, image, secret, license,
-source, and misconfiguration analyzers must plug into this boundary instead of
-running in reducer lanes.
+(`reason=analyzer_not_configured`). The `sbom_generation` contract accepts
+repository, image, or artifact work items when the runtime source has enough
+subject evidence, and it still emits source facts only. Concrete SBOM, image,
+secret, license, source, and misconfiguration analyzers must plug into this
+boundary instead of running in reducer lanes.
 
 `os_package_extraction` targets are configured inside the selected
 `scanner_worker` collector instance:
@@ -80,7 +82,7 @@ dead-letter, metric, log, or public documentation payloads.
 ## Evidence
 
 No-Regression Evidence: scanner-worker runtime behavior is covered by
-`go test ./internal/collector/scannerworker ./internal/collector/ospackagevulnerability/osruntime ./cmd/scanner-worker -count=1`.
+`go test ./internal/collector/scannerworker ./internal/collector/scannerworker/sbomgenerator ./internal/collector/ospackagevulnerability/osruntime ./cmd/scanner-worker -count=1`.
 
 Observability Evidence: the runtime records scanner-worker claim, retry,
 dead-letter, facts-emitted, queue-wait, scan-duration, target-count,

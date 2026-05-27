@@ -3,8 +3,9 @@
 ## Purpose
 
 `sbomgenerator` is the bounded scanner-worker analyzer that generates
-CycloneDX-compatible SBOM source facts from a repository target. It runs
-inside the scanner-worker boundary defined by
+CycloneDX-compatible SBOM source facts from a repository, image, or artifact
+target when the runtime source has enough subject evidence. It runs inside the
+scanner-worker boundary defined by
 `internal/collector/scannerworker` and never publishes user-facing security
 findings: every emitted fact is a source fact or warning that the existing
 `sbom_attestation_attachment` reducer is responsible for admitting.
@@ -14,7 +15,8 @@ This package does not replace the hosted `sbom-attestation` collector
 already-published CycloneDX, SPDX, and in-toto documents from configured URLs
 and OCI referrers. `sbomgenerator` builds new SBOM evidence when no such
 document exists, and it stays on the scanner-worker lane so repository
-indexing and reducer drains keep their CPU and memory headroom.
+indexing, image or artifact analysis, and reducer drains keep their CPU and
+memory headroom.
 
 ## Ownership boundary
 
@@ -95,11 +97,11 @@ unparseable, or subject-mismatched.
 ## Evidence
 
 Coverage Evidence: `go test ./internal/collector/scannerworker/sbomgenerator -count=1`
-exercises successful generation, malformed subject digest, missing subject
-warning, component identity skipping, silent clean rejection, file/input/fact
-limit enforcement, unsupported target classification, retryable source
-unavailability, and terminal analyzer failure with privacy-safe error
-strings.
+exercises successful generation, repository/image/artifact target support,
+malformed subject digest, missing subject warning, component identity skipping,
+silent clean rejection, file/input/fact limit enforcement, unsupported target
+classification, retryable source unavailability, and terminal analyzer failure
+with privacy-safe error strings.
 
 Reducer Path Evidence:
 `go test ./internal/reducer -run 'TestScannerWorkerGeneratedSBOMFactsAdmittedByReducerAttachment' -count=1`
