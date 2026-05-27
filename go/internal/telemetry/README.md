@@ -280,7 +280,9 @@ Log keys (all frozen in `contract.go`): `LogKeyScopeID`, `LogKeyScopeKind`,
 `LogKeyDomain`, `LogKeyPartitionKey`, `LogKeyRequestID`, `LogKeyFailureClass`,
 `LogKeyRefreshSkipped`, `LogKeyPipelinePhase`, `LogKeyAcceptanceScopeID`,
 `LogKeyAcceptanceUnitID`, `LogKeyAcceptanceSourceRunID`,
-`LogKeyAcceptanceGenerationID`, `LogKeyAcceptanceStaleCount`.
+`LogKeyAcceptanceGenerationID`, `LogKeyAcceptanceStaleCount`,
+`LogKeyResourceFingerprint`, `LogKeyResourceIdentityKind`, and
+`LogKeyResourceType`.
 
 Drift-specific log keys (also frozen in `contract.go`):
 `LogKeyDriftPriorConfigDepth`, `LogKeyDriftPriorConfigAddresses`,
@@ -303,6 +305,10 @@ Pipeline phase constants (defined in `logging.go`): `PhaseDiscovery`,
 Attribute helpers — typed constructors for every metric dimension key, for
 example `AttrDomain`, `AttrScopeID`, `AttrWritePhase`; use these rather than
 `attribute.String` literals when recording metrics.
+`SafeResourceLogIdentity` and `SafeResourceLogAttrs` turn raw cloud or
+infrastructure identifiers into deterministic fingerprints plus bounded
+identity-kind and resource-type fields. Use them when logs need to correlate a
+resource without exposing ARNs, Terraform addresses, or secret-shaped names.
 Scanner-worker labels use `AttrAnalyzer`, `AttrTargetKind`, and
 `AttrLimitKind`; values must come from bounded analyzer, target, and limit
 enums, not paths, package names, registry URLs, or raw locators.

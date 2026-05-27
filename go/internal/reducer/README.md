@@ -271,8 +271,11 @@ Key metrics (all prefixed `eshu_dp_`):
 - `correlation_rule_matches_total`, `correlation_orphan_detected_total`, and
   `correlation_unmanaged_detected_total` — AWS runtime drift rule execution and
   admitted orphan/unmanaged findings. Unknown and ambiguous findings are exposed
-  in reducer summaries, admitted-finding logs, and durable fact evidence. ARNs
-  stay in structured logs and fact evidence, not metric labels.
+  in reducer summaries, admitted-finding logs, and durable fact evidence.
+  Admitted-finding logs use `resource.fingerprint`,
+  `resource.identity_kind`, and `resource.type` rather than raw ARNs; exact
+  ARNs stay in durable fact evidence and controlled read paths, not metric
+  labels.
 
 Log phase attributes: `telemetry.PhaseReduction` (main loop),
 `telemetry.PhaseShared` (shared projection and repair runner).

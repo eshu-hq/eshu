@@ -88,5 +88,7 @@ every key.
 - Child storage spans may omit the high-level scope. Check the parent span and
   logs for `scope_id`, `generation_id`, `domain`, or `partition_key`.
 - Always filter by `service_name` when searching by a shared key.
-- Logs carry high-cardinality details such as paths, resource identifiers,
-  delivery IDs, and exact errors. Do not move those values into metric labels.
+- Logs carry high-cardinality details such as paths, safe resource
+  fingerprints, delivery IDs, and exact errors. Do not move those values into
+  metric labels, and do not log raw cloud resource identifiers when a
+  fingerprint can correlate the event.

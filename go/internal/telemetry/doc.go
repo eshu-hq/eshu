@@ -75,4 +75,7 @@
 // names. High-cardinality values such as file paths, fact identifiers,
 // repository names, delivery IDs, source paths, and attribute keys belong in
 // spans or logs, never in metric labels, so dashboards and alerts stay bounded.
+// Resource identifiers that may carry sensitive names use SafeResourceLogAttrs
+// before they enter logs, which preserves correlation through a deterministic
+// fingerprint and bounded type fields without copying the raw identifier.
 package telemetry

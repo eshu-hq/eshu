@@ -38,9 +38,11 @@ Use this route map instead of reading every telemetry page front to back.
    before restarting services or forcing a broader re-index.
 
 Metrics should stay bounded and dashboard-safe. Repository paths, file paths,
-state locators, page IDs, package names, delivery IDs, commit SHAs, work-item
-IDs, and raw cloud resource identifiers belong in logs or trace attributes, not
-metric labels.
+state locators, page IDs, package names, delivery IDs, commit SHAs, and
+work-item IDs belong in logs or trace attributes, not metric labels. Cloud and
+infrastructure resource identifiers that can contain sensitive names should use
+safe log fields such as `resource.fingerprint`, `resource.identity_kind`, and
+`resource.type` instead of raw values.
 
 ## Health Versus Completeness
 

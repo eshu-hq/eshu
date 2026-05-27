@@ -53,11 +53,14 @@ code.
 | `domain`, `partition_key`, `failure_class`, `refresh_skipped`, `pipeline_phase` | Triage reducer, projection, shared-work, retry, and skip behavior. |
 | `request_id` plus emitted `trace_id` and `span_id` | Correlate request logs with traces. |
 | `acceptance.*` | Debug shared-acceptance decisions. |
+| `resource.fingerprint`, `resource.identity_kind`, `resource.type` | Correlate cloud or infrastructure resources without exposing raw ARNs, Terraform addresses, or secret-shaped names. |
 | `depth`, `prior_config_addresses`, `state_only_addresses`, `addresses_promoted_to_removed_from_config`, `multi_element.*`, `resource_type`, `attribute_key`, `path`, `error` | Debug Terraform-state drift and composite-capture behavior. |
 
 High-cardinality values such as file paths, repository paths, package names,
 state locators, image digests, delivery IDs, and raw cloud resource identifiers
-belong in logs or traces, not metric labels.
+must not become metric labels. For cloud/runtime resource logs, use
+`resource.fingerprint`, `resource.identity_kind`, and `resource.type` instead
+of the raw identifier.
 
 ## Pipeline Phases
 

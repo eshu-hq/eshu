@@ -1,7 +1,9 @@
 package postgres
 
 import (
+	"bytes"
 	"context"
+	"log/slog"
 	"strings"
 	"testing"
 
@@ -263,6 +265,48 @@ func TestPostgresAWSCloudRuntimeDriftEvidenceLoaderSkipsStateJoinWithoutAWSRows(
 	}
 	if got, want := len(db.queries), 1; got != want {
 		t.Fatalf("query count = %d, want %d", got, want)
+	}
+}
+
+func TestPostgresAWSCloudRuntimeDriftEvidenceLoaderRedactsDecodeFailureResourceLogs(t *testing.T) {
+	t.Parallel()
+
+	rawARN := "arn:aws:lambda:us-east-1:123456789012:function:prod-payments-secret-sync"
+	var logs bytes.Buffer
+	db := &fakeExecQueryer{
+		queryResponses: []queueFakeRows{{rows: [][]any{
+			{rawARN, []byte(`{"arn":`)},
+		}}},
+	}
+	loader := PostgresAWSCloudRuntimeDriftEvidenceLoader{
+		DB:     db,
+		Logger: slog.New(slog.NewJSONHandler(&logs, &slog.HandlerOptions{Level: slog.LevelWarn})),
+	}
+
+	rows, err := loader.LoadAWSCloudRuntimeDriftEvidence(context.Background(), "aws:scope", "aws-gen")
+	if err != nil {
+		t.Fatalf("LoadAWSCloudRuntimeDriftEvidence() error = %v, want nil", err)
+	}
+	if len(rows) != 0 {
+		t.Fatalf("len(rows) = %d, want 0 after decode skip", len(rows))
+	}
+	logText := logs.String()
+	for _, leaked := range []string{rawARN, "prod-payments-secret-sync", `"resource.identity":`} {
+		if strings.Contains(logText, leaked) {
+			t.Fatalf("decode failure log leaked %q:\n%s", leaked, logText)
+		}
+	}
+	for _, want := range []string{
+		"resource.fingerprint",
+		"resource.identity_kind",
+		"aws_arn",
+		"resource.type",
+		"lambda:function",
+		"aws_resource_payload_decode",
+	} {
+		if !strings.Contains(logText, want) {
+			t.Fatalf("decode failure log missing %q:\n%s", want, logText)
+		}
 	}
 }
 

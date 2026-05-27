@@ -1,9 +1,11 @@
 package reducer
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"slices"
 	"strings"
 	"testing"
@@ -213,6 +215,61 @@ func TestAWSCloudRuntimeDriftHandlerDoesNotEmitFindingsBeforeDurableWrite(t *tes
 	}
 }
 
+func TestAWSCloudRuntimeDriftHandlerRedactsAdmittedFindingResourceLogs(t *testing.T) {
+	t.Parallel()
+
+	rawARN := "arn:aws:lambda:us-east-1:123456789012:function:prod-payments-secret-sync"
+	var logs bytes.Buffer
+	logger := slog.New(slog.NewJSONHandler(&logs, &slog.HandlerOptions{Level: slog.LevelInfo}))
+	loader := &stubAWSCloudRuntimeDriftEvidenceLoader{
+		rows: []cloudruntime.AddressedRow{{
+			ARN:          rawARN,
+			ResourceType: "aws_lambda_function",
+			Cloud: &cloudruntime.ResourceRow{
+				ARN:          rawARN,
+				ResourceID:   "prod-payments-secret-sync",
+				ResourceType: "aws_lambda_function",
+				ScopeID:      "aws:123456789012:us-east-1",
+			},
+		}},
+	}
+	handler := AWSCloudRuntimeDriftHandler{
+		EvidenceLoader: loader,
+		Writer:         &stubAWSCloudRuntimeDriftFindingWriter{},
+		Logger:         logger,
+	}
+
+	_, err := handler.Handle(context.Background(), Intent{
+		IntentID:        "intent-aws-drift",
+		ScopeID:         "aws:123456789012:us-east-1",
+		GenerationID:    "generation-aws",
+		SourceSystem:    "aws",
+		Domain:          DomainAWSCloudRuntimeDrift,
+		Cause:           "aws runtime facts observed",
+		RelatedScopeIDs: []string{"aws:123456789012:us-east-1"},
+	})
+	if err != nil {
+		t.Fatalf("Handle() error = %v, want nil", err)
+	}
+	logText := logs.String()
+	for _, leaked := range []string{rawARN, "prod-payments-secret-sync", "drift.arn"} {
+		if strings.Contains(logText, leaked) {
+			t.Fatalf("admitted finding log leaked %q:\n%s", leaked, logText)
+		}
+	}
+	for _, want := range []string{
+		"resource.fingerprint",
+		"resource.identity_kind",
+		"aws_arn",
+		"resource.type",
+		"lambda:function",
+	} {
+		if !strings.Contains(logText, want) {
+			t.Fatalf("admitted finding log missing %q:\n%s", want, logText)
+		}
+	}
+}
+
 func TestAWSCloudRuntimeDriftHandlerRequiresAdapters(t *testing.T) {
 	t.Parallel()
 
@@ -368,6 +425,9 @@ func TestPostgresAWSCloudRuntimeDriftWriterPersistsOneFactPerFinding(t *testing.
 	}
 	if got, want := payload["finding_kind"], string(cloudruntime.FindingKindOrphanedCloudResource); got != want {
 		t.Fatalf("payload finding_kind = %#v, want %q", got, want)
+	}
+	if got, want := payload["arn"], "arn:aws:lambda:us-east-1:123456789012:function:orphan"; got != want {
+		t.Fatalf("payload arn = %#v, want exact source ARN %q", got, want)
 	}
 	if got, want := payload["canonical_id"], result.CanonicalIDs[0]; got != want {
 		t.Fatalf("payload canonical_id = %#v, want %q", got, want)

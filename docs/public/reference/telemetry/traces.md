@@ -47,8 +47,8 @@ Legacy names such as `eshu.http.*`, `eshu.mcp.*`, `eshu.query.*`,
 
 Keep high-cardinality or sensitive values out of span attributes. Raw bucket
 names, object keys, local paths, delivery IDs, commit SHAs, full state
-locators, package versions, and cloud resource identifiers belong in logs or
-hashed identifiers, not dashboard labels.
+locators, package versions, and cloud resource identifiers belong in controlled
+evidence or safe hashed identifiers, not dashboard labels.
 
 ## Useful Attributes
 

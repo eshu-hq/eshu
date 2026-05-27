@@ -87,7 +87,9 @@
 // publication path; it rejects unscoped filters, keeps reads on the
 // active generation, validates account and region values before building the
 // account-scope LIKE predicate, and caps direct list pages at 500 rows so
-// internal callers cannot bypass the query API's bounds.
+// internal callers cannot bypass the query API's bounds. Decode-failure logs
+// for this path use telemetry safe-resource fields so operator logs can
+// correlate the row without exposing raw cloud resource identifiers.
 // SBOM/attestation attachment readers use the same active-generation keyset
 // page shape, with referrer-subject, subject-digest, document, document-digest,
 // and status indexes so MCP/API reads stay digest-first and bounded.

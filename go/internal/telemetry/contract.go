@@ -169,44 +169,44 @@ const (
 	// aggregates over reducer-owned documentation findings. Replaces the
 	// page-and-iterate caller pattern for ecosystem-level questions like
 	// "how many findings per status?".
-	SpanQueryDocumentationAggregate = "query.documentation_aggregate"
-	SpanQueryDeadIaC                      = "query.dead_iac"
-	SpanQueryIaCUnmanagedResources        = "query.iac_unmanaged_resources"
-	SpanQueryIaCManagementStatus          = "query.iac_management_status"
-	SpanQueryIaCManagementExplanation     = "query.iac_management_explanation"
-	SpanQueryIaCTerraformImportPlan       = "query.iac_terraform_import_plan"
-	SpanQueryAWSRuntimeDriftFindings      = "query.aws_runtime_drift_findings"
-	SpanQueryInfraResourceSearch          = "query.infra_resource_search"
+	SpanQueryDocumentationAggregate   = "query.documentation_aggregate"
+	SpanQueryDeadIaC                  = "query.dead_iac"
+	SpanQueryIaCUnmanagedResources    = "query.iac_unmanaged_resources"
+	SpanQueryIaCManagementStatus      = "query.iac_management_status"
+	SpanQueryIaCManagementExplanation = "query.iac_management_explanation"
+	SpanQueryIaCTerraformImportPlan   = "query.iac_terraform_import_plan"
+	SpanQueryAWSRuntimeDriftFindings  = "query.aws_runtime_drift_findings"
+	SpanQueryInfraResourceSearch      = "query.infra_resource_search"
 	// SpanQueryInfraResourceAggregate wraps cheap-summary count and inventory
 	// aggregates over the authoritative infrastructure graph. Replaces the
 	// page-and-iterate caller pattern for ecosystem-level questions like
 	// "how many resources per provider?".
-	SpanQueryInfraResourceAggregate = "query.infra_resource_aggregate"
-	SpanQueryCodeStructuralInventory      = "query.code_structural_inventory"
-	SpanQueryCodeTopicInvestigation       = "query.code_topic_investigation"
-	SpanQueryDeadCodeInvestigation        = "query.dead_code_investigation"
-	SpanQueryChangeSurfaceInvestigation   = "query.change_surface_investigation"
-	SpanQueryEntityMap                    = "query.entity_map"
-	SpanQueryResourceInvestigation        = "query.resource_investigation"
-	SpanQueryPackageRegistryPackages      = "query.package_registry_packages"
-	SpanQueryPackageRegistryVersions      = "query.package_registry_versions"
-	SpanQueryPackageRegistryDependencies  = "query.package_registry_dependencies"
-	SpanTerraformStateClaimProcess        = "tfstate.collector.claim.process"
-	SpanTerraformStateDiscoveryResolve    = "tfstate.discovery.resolve"
-	SpanTerraformStateSourceOpen          = "tfstate.source.open"
-	SpanTerraformStateParserStream        = "tfstate.parser.stream"
-	SpanTerraformStateFactEmitBatch       = "tfstate.fact.emit_batch"
-	SpanTerraformStateCoordinatorDone     = "tfstate.coordinator.complete"
-	SpanWebhookHandle                     = "webhook.handle"
-	SpanWebhookStore                      = "webhook.store"
-	SpanOCIRegistryScan                   = "oci_registry.scan"
-	SpanOCIRegistryAPICall                = "oci_registry.api_call"
-	SpanPackageRegistryObserve            = "package_registry.observe"
-	SpanPackageRegistryFetch              = "package_registry.fetch"
-	SpanAWSCollectorClaimProcess          = "aws.collector.claim.process"
-	SpanAWSCredentialsAssumeRole          = "aws.credentials.assume_role"
-	SpanAWSServiceScan                    = "aws.service.scan"
-	SpanAWSServicePaginationPage          = "aws.service.pagination.page"
+	SpanQueryInfraResourceAggregate      = "query.infra_resource_aggregate"
+	SpanQueryCodeStructuralInventory     = "query.code_structural_inventory"
+	SpanQueryCodeTopicInvestigation      = "query.code_topic_investigation"
+	SpanQueryDeadCodeInvestigation       = "query.dead_code_investigation"
+	SpanQueryChangeSurfaceInvestigation  = "query.change_surface_investigation"
+	SpanQueryEntityMap                   = "query.entity_map"
+	SpanQueryResourceInvestigation       = "query.resource_investigation"
+	SpanQueryPackageRegistryPackages     = "query.package_registry_packages"
+	SpanQueryPackageRegistryVersions     = "query.package_registry_versions"
+	SpanQueryPackageRegistryDependencies = "query.package_registry_dependencies"
+	SpanTerraformStateClaimProcess       = "tfstate.collector.claim.process"
+	SpanTerraformStateDiscoveryResolve   = "tfstate.discovery.resolve"
+	SpanTerraformStateSourceOpen         = "tfstate.source.open"
+	SpanTerraformStateParserStream       = "tfstate.parser.stream"
+	SpanTerraformStateFactEmitBatch      = "tfstate.fact.emit_batch"
+	SpanTerraformStateCoordinatorDone    = "tfstate.coordinator.complete"
+	SpanWebhookHandle                    = "webhook.handle"
+	SpanWebhookStore                     = "webhook.store"
+	SpanOCIRegistryScan                  = "oci_registry.scan"
+	SpanOCIRegistryAPICall               = "oci_registry.api_call"
+	SpanPackageRegistryObserve           = "package_registry.observe"
+	SpanPackageRegistryFetch             = "package_registry.fetch"
+	SpanAWSCollectorClaimProcess         = "aws.collector.claim.process"
+	SpanAWSCredentialsAssumeRole         = "aws.credentials.assume_role"
+	SpanAWSServiceScan                   = "aws.service.scan"
+	SpanAWSServicePaginationPage         = "aws.service.pagination.page"
 
 	// Dependency service spans — track external call performance.
 	SpanPostgresExec  = "postgres.exec"
@@ -233,6 +233,18 @@ const (
 	LogKeyAcceptanceSourceRunID  = "acceptance.source_run_id"
 	LogKeyAcceptanceGenerationID = "acceptance.generation_id"
 	LogKeyAcceptanceStaleCount   = "acceptance.stale_count"
+	// LogKeyResourceFingerprint carries a deterministic hash of a raw cloud
+	// or infrastructure resource identifier. Use it when an operator needs to
+	// correlate logs without exposing ARNs, state addresses, or secret-shaped
+	// resource names.
+	LogKeyResourceFingerprint = "resource.fingerprint"
+	// LogKeyResourceIdentityKind tells operators which identity shape produced
+	// LogKeyResourceFingerprint. Closed values are emitted by
+	// SafeResourceLogIdentity.
+	LogKeyResourceIdentityKind = "resource.identity_kind"
+	// LogKeyResourceType is a bounded resource family derived from a safe
+	// prefix such as an AWS ARN resource prefix or Terraform resource type.
+	LogKeyResourceType = "resource.type"
 
 	// LogKeyDriftPriorConfigDepth is the effective prior-config-walk depth
 	// bound applied when scanning prior repo-snapshot generations for
