@@ -227,6 +227,13 @@ var configResourceTypeServices = map[string]string{
 	"AWS::ElasticLoadBalancingV2::TargetGroup":  awscloud.ServiceELBv2,
 	"AWS::Events::EventBus":                     awscloud.ServiceEventBridge,
 	"AWS::Events::Rule":                         awscloud.ServiceEventBridge,
+	"AWS::Glue::Connection":                     awscloud.ServiceGlue,
+	"AWS::Glue::Crawler":                        awscloud.ServiceGlue,
+	"AWS::Glue::Database":                       awscloud.ServiceGlue,
+	"AWS::Glue::Job":                            awscloud.ServiceGlue,
+	"AWS::Glue::Table":                          awscloud.ServiceGlue,
+	"AWS::Glue::Trigger":                        awscloud.ServiceGlue,
+	"AWS::Glue::Workflow":                       awscloud.ServiceGlue,
 	"AWS::IAM::InstanceProfile":                 awscloud.ServiceIAM,
 	"AWS::IAM::ManagedPolicy":                   awscloud.ServiceIAM,
 	"AWS::IAM::Policy":                          awscloud.ServiceIAM,
@@ -262,6 +269,7 @@ var cloudTrailSourceServices = map[string]string{
 	"eks.amazonaws.com":                  awscloud.ServiceEKS,
 	"elasticloadbalancing.amazonaws.com": awscloud.ServiceELBv2,
 	"events.amazonaws.com":               awscloud.ServiceEventBridge,
+	"glue.amazonaws.com":                 awscloud.ServiceGlue,
 	"iam.amazonaws.com":                  awscloud.ServiceIAM,
 	"lambda.amazonaws.com":               awscloud.ServiceLambda,
 	"logs.amazonaws.com":                 awscloud.ServiceCloudWatchLogs,
@@ -300,6 +308,7 @@ var cloudTrailResourceIDKeys = map[string][]string{
 	awscloud.ServiceSecretsManager: {"secretId"},
 	awscloud.ServiceSecurityHub:    {"hubArn", "standardsSubscriptionArn", "standardsControlArn", "insightArn", "actionTargetArn", "accountId"},
 	awscloud.ServiceSSM:            {"name"},
+	awscloud.ServiceGlue:           {"databaseName", "tableName", "crawlerName", "jobName", "triggerName", "workflowName", "connectionName"},
 }
 
 var genericCloudTrailResourceIDKeys = []string{"resourceId", "resourceName", "id", "name"}

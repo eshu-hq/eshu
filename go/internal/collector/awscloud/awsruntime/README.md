@@ -78,6 +78,7 @@ See `doc.go` for the godoc contract.
   `internal/collector/awscloud/services/cloudfront`,
   `internal/collector/awscloud/services/dynamodb`,
   `internal/collector/awscloud/services/eventbridge`,
+  `internal/collector/awscloud/services/glue`,
   `internal/collector/awscloud/services/eks`,
   `internal/collector/awscloud/services/elbv2`,
   `internal/collector/awscloud/services/lambda`,
@@ -204,6 +205,15 @@ pagination spans. The command registers the instruments:
   StartQueryExecution, StopQueryExecution, GetQueryResults, GetQueryExecution,
   ListQueryExecutions, named-query SQL body reads, prepared-statement query
   body reads, query history persistence, or mutation APIs.
+- Glue scanners must stay metadata-only. The runtime registry wires the Glue
+  SDK adapter, but it must not broaden the service contract to StartCrawler,
+  StartJobRun, BatchStopJobRun, Create*/Update*/Delete* APIs, job script body
+  reads, job default-argument value persistence, secret-shaped argument key
+  persistence, connection password reads, JDBC credential URL persistence,
+  connection property value persistence, table column statistics with sample
+  values, classifier custom-pattern reads, workflow graph payload reads, or
+  workflow run state reads. The SDK adapter must call `GetConnections` with
+  `HidePassword=true` and `GetWorkflow` with `IncludeGraph=false`.
 - This package does not decide retryability for AWS service errors. The caller
   owns claim failure and retry policy through `collector.ClaimedService`.
 

@@ -82,6 +82,15 @@
   StopQueryExecution, GetQueryResults, GetQueryExecution, ListQueryExecutions,
   named-query SQL body reads, prepared-statement query body reads, query
   history persistence, or mutation APIs through the runtime registry.
+- Keep Glue scans metadata-only. Do not wire StartCrawler, StartJobRun,
+  BatchStopJobRun, Create*/Update*/Delete* APIs, job script body reads, job
+  default-argument value persistence, secret-shaped argument key
+  persistence, connection password reads, JDBC credential URL persistence,
+  connection property value persistence, table column statistics with sample
+  values, classifier custom-pattern reads, workflow graph payload reads,
+  workflow run state reads, or any other mutation or sensitive-payload API
+  through the runtime registry. The SDK adapter must call `GetConnections`
+  with `HidePassword=true` and `GetWorkflow` with `IncludeGraph=false`.
 
 ## Common Changes
 

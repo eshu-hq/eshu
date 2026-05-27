@@ -54,7 +54,7 @@ Instance configuration uses:
     {
       "account_id": "123456789012",
       "allowed_regions": ["us-east-1", "aws-global"],
-      "allowed_services": ["iam", "ecr", "ecs", "ec2", "elbv2", "lambda", "eks", "route53", "sqs", "sns", "eventbridge", "s3", "rds", "redshift", "dynamodb", "cloudwatchlogs", "cloudfront", "apigateway", "secretsmanager", "ssm", "athena", "securityhub"],
+      "allowed_services": ["iam", "ecr", "ecs", "ec2", "elbv2", "lambda", "eks", "route53", "sqs", "sns", "eventbridge", "s3", "rds", "redshift", "dynamodb", "cloudwatchlogs", "cloudfront", "apigateway", "secretsmanager", "ssm", "athena", "securityhub", "glue"],
       "max_concurrent_claims": 1,
       "credentials": {
         "mode": "central_assume_role",
@@ -203,6 +203,18 @@ The claim concurrency gauge is backed by the runtime's per-account limiter.
   resource details, remediation text, notes, product fields, user-defined
   fields, network/process details, insight filters, or mutate Security Hub
   resources.
+- Glue targets emit Data Catalog database, table, crawler, job, trigger,
+  workflow, and connection metadata plus reported table-in-database,
+  table-to-S3-location, crawler-to-database, crawler-to-IAM-role,
+  job-to-IAM-role, and trigger-to-job relationships. They intentionally do
+  not run jobs, start crawlers, mutate Data Catalog state, read job script
+  bodies, persist job default-argument values, persist secret-shaped
+  argument keys, persist connection passwords (the adapter calls
+  `GetConnections` with `HidePassword=true`), persist connection property
+  values, persist JDBC credential URLs, persist workflow graph payloads (the
+  adapter calls `GetWorkflow` with `IncludeGraph=false`), persist table
+  column statistics with sample values, or persist classifier custom
+  patterns.
 - The acceptance unit ID must be JSON with `account_id`, `region`, and
   `service_kind`.
 - `/admin/status` includes per `(account_id, region, service_kind)` AWS scan
