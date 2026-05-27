@@ -78,6 +78,10 @@
   reads, raw description persistence, raw allowed-pattern persistence, raw
   policy JSON persistence, decryption, or mutation APIs through the runtime
   registry.
+- Keep Athena scans metadata-only. Do not wire StartQueryExecution,
+  StopQueryExecution, GetQueryResults, GetQueryExecution, ListQueryExecutions,
+  named-query SQL body reads, prepared-statement query body reads, query
+  history persistence, or mutation APIs through the runtime registry.
 
 ## Common Changes
 

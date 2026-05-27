@@ -61,6 +61,8 @@ See `doc.go` for the godoc contract.
   secret metadata scans.
 - `ServiceSSM` - SSM service-kind value for regional Parameter Store metadata
   scans.
+- `ServiceAthena` - Athena service-kind value for regional workgroup, data
+  catalog, prepared-statement, and named-query metadata scans.
 - `Boundary` - account, region, service, generation, collector instance, and
   fencing token shared by one claimed AWS scan.
 - `ResourceObservation` - one AWS resource ready for envelope emission.
@@ -205,6 +207,15 @@ request.
   mutations stay outside the AWS collector fact contract. Parameter metadata,
   tags, safe policy type/status metadata, and KMS key dependencies are reported
   evidence only.
+- Athena facts are metadata only. StartQueryExecution, StopQueryExecution,
+  query result rows, query execution result location object contents,
+  named-query SQL bodies, prepared-statement query bodies, query history
+  strings, and mutation APIs stay outside the AWS collector fact contract.
+  Workgroup, data catalog, prepared-statement, and named-query identities,
+  workgroup-to-S3-result-bucket relationships when AWS reports an
+  ARN-shaped bucket, workgroup-to-KMS-key relationships, and
+  prepared-statement / named-query workgroup membership relationships are
+  reported evidence only.
 
 ## Related docs
 
