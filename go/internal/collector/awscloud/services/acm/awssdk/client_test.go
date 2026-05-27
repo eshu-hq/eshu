@@ -29,27 +29,6 @@ func TestAPIClientInterfaceExcludesGetCertificateAndExportCertificate(t *testing
 	}
 }
 
-// TestFakeACMAPIInjectingForbiddenMethodsCannotSatisfyInterface acts as a
-// second layer of defense: a fake that has GetCertificate or ExportCertificate
-// must STILL not be assignable to the apiClient interface unless those methods
-// were added to the interface itself. If someone widens the interface, this
-// test plus the previous one fail together.
-func TestFakeACMAPIInjectingForbiddenMethodsCannotSatisfyInterface(t *testing.T) {
-	apiClientType := reflect.TypeOf((*apiClient)(nil)).Elem()
-	fakeType := reflect.TypeOf(&forbiddenMethodsFakeACMAPI{})
-	if fakeType.Implements(apiClientType) {
-		// The fake implements the metadata-only methods. If the interface
-		// gained GetCertificate or ExportCertificate, the fake would still
-		// satisfy it (since the fake has both methods) and we want this guard
-		// to fail loudly.
-		for _, name := range []string{"GetCertificate", "ExportCertificate"} {
-			if _, ok := apiClientType.MethodByName(name); ok {
-				t.Fatalf("apiClient widened to include %q; ACM scanner forbids this API", name)
-			}
-		}
-	}
-}
-
 func TestClientListCertificatesReadsOnlyDescribeAndTagsAndOmitsCertificateBody(t *testing.T) {
 	notBefore := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 	notAfter := time.Date(2027, 1, 1, 0, 0, 0, 0, time.UTC)
@@ -270,53 +249,6 @@ func (f *fakeACMAPI) ListTagsForCertificate(
 	f.listTagsCalls++
 	arn := aws.ToString(input.CertificateArn)
 	return &awsacm.ListTagsForCertificateOutput{Tags: f.tags[arn]}, nil
-}
-
-// forbiddenMethodsFakeACMAPI is a sentinel used only by the security tests.
-// It has the metadata-only methods PLUS GetCertificate and ExportCertificate.
-// If the apiClient interface ever widens to include either method, this fake
-// would still satisfy the interface and the reflection-based guard above
-// notices the widening.
-type forbiddenMethodsFakeACMAPI struct{}
-
-func (forbiddenMethodsFakeACMAPI) ListCertificates(
-	_ context.Context,
-	_ *awsacm.ListCertificatesInput,
-	_ ...func(*awsacm.Options),
-) (*awsacm.ListCertificatesOutput, error) {
-	return &awsacm.ListCertificatesOutput{}, nil
-}
-
-func (forbiddenMethodsFakeACMAPI) DescribeCertificate(
-	_ context.Context,
-	_ *awsacm.DescribeCertificateInput,
-	_ ...func(*awsacm.Options),
-) (*awsacm.DescribeCertificateOutput, error) {
-	return &awsacm.DescribeCertificateOutput{}, nil
-}
-
-func (forbiddenMethodsFakeACMAPI) ListTagsForCertificate(
-	_ context.Context,
-	_ *awsacm.ListTagsForCertificateInput,
-	_ ...func(*awsacm.Options),
-) (*awsacm.ListTagsForCertificateOutput, error) {
-	return &awsacm.ListTagsForCertificateOutput{}, nil
-}
-
-func (forbiddenMethodsFakeACMAPI) GetCertificate(
-	_ context.Context,
-	_ *awsacm.GetCertificateInput,
-	_ ...func(*awsacm.Options),
-) (*awsacm.GetCertificateOutput, error) {
-	return &awsacm.GetCertificateOutput{}, nil
-}
-
-func (forbiddenMethodsFakeACMAPI) ExportCertificate(
-	_ context.Context,
-	_ *awsacm.ExportCertificateInput,
-	_ ...func(*awsacm.Options),
-) (*awsacm.ExportCertificateOutput, error) {
-	return &awsacm.ExportCertificateOutput{}, nil
 }
 
 func equalStrings(left, right []string) bool {

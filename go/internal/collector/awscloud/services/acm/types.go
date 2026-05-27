@@ -31,9 +31,10 @@ type Certificate struct {
 	DomainName string
 	// SubjectAlternativeNames carries the SAN list reported by ACM.
 	SubjectAlternativeNames []string
-	// Status reports the ACM certificate lifecycle status (issued,
-	// pending_validation, expired, validation_timed_out, revoked, failed,
-	// inactive). The scanner records the value verbatim from AWS.
+	// Status reports the ACM certificate lifecycle status. ACM returns these
+	// as uppercase enum values: ISSUED, PENDING_VALIDATION, EXPIRED,
+	// VALIDATION_TIMED_OUT, REVOKED, FAILED, INACTIVE. The scanner records
+	// the value verbatim from AWS.
 	Status string
 	// Type reports the ACM-managed type (AMAZON_ISSUED, IMPORTED,
 	// PRIVATE). PRIVATE here means the certificate was issued by ACM PCA but
