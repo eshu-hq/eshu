@@ -186,14 +186,15 @@ func (h AWSCloudRuntimeDriftHandler) logAdmittedFindings(
 		return
 	}
 	for _, candidate := range candidates {
-		h.Logger.LogAttrs(ctx, slog.LevelInfo, "aws cloud runtime drift finding admitted",
+		attrs := []slog.Attr{
 			slog.String(telemetry.LogKeyDomain, string(intent.Domain)),
 			slog.String(telemetry.LogKeyScopeID, intent.ScopeID),
 			slog.String(telemetry.LogKeyGenerationID, intent.GenerationID),
 			slog.String("drift.pack", rules.AWSCloudRuntimeDriftPackName),
 			slog.String("drift.kind", awsCloudRuntimeFindingKind(candidate)),
-			slog.String("drift.arn", candidate.CorrelationKey),
-		)
+		}
+		attrs = append(attrs, telemetry.SafeResourceLogAttrs(candidate.CorrelationKey)...)
+		h.Logger.LogAttrs(ctx, slog.LevelInfo, "aws cloud runtime drift finding admitted", attrs...)
 	}
 }
 

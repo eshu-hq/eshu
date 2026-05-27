@@ -433,10 +433,11 @@ func (l PostgresAWSCloudRuntimeDriftEvidenceLoader) logDecodeFailure(
 	if l.Logger == nil {
 		return
 	}
-	l.Logger.LogAttrs(ctx, slog.LevelWarn, "aws runtime drift evidence loader skipped resource",
+	attrs := []slog.Attr{
 		slog.String(telemetry.LogKeyScopeID, scopeID),
 		slog.String(telemetry.LogKeyGenerationID, generationID),
-		slog.String("resource.identity", identity),
 		slog.String(telemetry.LogKeyFailureClass, failureClass),
-	)
+	}
+	attrs = append(attrs, telemetry.SafeResourceLogAttrs(identity)...)
+	l.Logger.LogAttrs(ctx, slog.LevelWarn, "aws runtime drift evidence loader skipped resource", attrs...)
 }

@@ -114,6 +114,10 @@ Primary groups:
 - `AWSPaginationCheckpointStore` records AWS checkpoint load, save, resume,
   expiry, and failure events through
   `eshu_dp_aws_pagination_checkpoint_events_total`.
+- `PostgresAWSCloudRuntimeDriftEvidenceLoader` logs malformed AWS runtime
+  resource rows with `resource.fingerprint`, `resource.identity_kind`, and
+  `resource.type`; it does not put raw ARNs, Terraform addresses, or
+  secret-shaped resource names in operator logs.
 
 To add instrumentation to a store, wrap the `ExecQueryer` passed to its
 constructor with `InstrumentedDB{Inner: db, StoreName: "my_store", ...}`.
