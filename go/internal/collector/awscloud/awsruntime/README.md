@@ -121,13 +121,16 @@ in `registry.go` with `Register`/`LookupBuilder` plus per-service
 Collector Performance Evidence: `cd go && go test
 ./internal/collector/awscloud/... -count=1 -race` covers every scanner
 builder through `awsruntime.DefaultScannerFactory.Scanner`. The path the
-runtime now executes for each claim is one map lookup
-(`awsruntime.LookupBuilder`, microsecond-scale) plus the same builder call
-the legacy switch executed. No new I/O, no new lock-protected critical
-section in the hot path. `go test ./internal/collector/awscloud/awsruntime
--count=1 -race -run TestConcurrentRegister` proves the registry is
-race-free under 32 concurrent Register calls; production registrations
-happen only at process start so the read-side lookup never contends.
+runtime now executes for each claim is one `awsruntime.LookupBuilder`
+call — a `sync.RWMutex.RLock` around a single map read — followed by the
+same builder call the legacy switch executed. The RLock is uncontended in
+production because every `Register` call completes during `init()` before
+`main` runs; after process start the registry is effectively read-only,
+so RLock acquisition is a handful of atomic operations per claim with no
+writer to wait on (nanosecond-scale). No new I/O is introduced. `go test
+./internal/collector/awscloud/awsruntime -count=1 -race -run
+TestConcurrentRegister` proves the registry stays race-free even under 32
+concurrent Register calls, which is well beyond the production pattern.
 
 Collector Observability Evidence: every per-service telemetry instrument
 listed above keeps emitting from the same SDK adapters. The runtimebind
