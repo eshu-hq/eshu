@@ -158,8 +158,9 @@ and the host pprof endpoint on `eshu-scanner-worker`.
 | `eshu_dp_aws_scan_duration_seconds` | `service`, `account`, `region`, `result` | One service claim before durable commit. |
 | `eshu_dp_aws_claim_concurrency` | `account` | Active AWS claims by account. |
 
-ARNs, resource names, tags, policy JSON, image digests, and lifecycle policies
-stay out of metric labels.
+ARNs, resource names, tags, policy JSON, image digests, lifecycle policies,
+Security Hub finding IDs, and Security Hub insight filters stay out of metric
+labels.
 
 ## Confluence Collector
 

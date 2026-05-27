@@ -49,7 +49,7 @@ collector instance has `claims_enabled: true`.
 | `ESHU_AWS_COLLECTOR_POLL_INTERVAL` | `1s` | collector-aws-cloud | Delay between empty claim polls. |
 | `ESHU_AWS_COLLECTOR_CLAIM_LEASE_TTL` | workflow default | collector-aws-cloud | Lease TTL used when claiming and refreshing work. |
 | `ESHU_AWS_COLLECTOR_HEARTBEAT_INTERVAL` | workflow default | collector-aws-cloud | Heartbeat interval for active workflow claims. |
-| `ESHU_AWS_REDACTION_KEY` | unset | collector-aws-cloud | Deployment-scoped key for ECS task-definition and Lambda environment redaction markers. Required when a target scope enables `ecs` or `lambda`. |
+| `ESHU_AWS_REDACTION_KEY` | unset | collector-aws-cloud | Deployment-scoped key for ECS task-definition, Lambda environment, and Security Hub action-target redaction markers. Required when a target scope enables `ecs`, `lambda`, or `securityhub`. |
 
 ## OCI Registry Collector
 

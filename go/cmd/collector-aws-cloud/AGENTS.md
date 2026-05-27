@@ -23,8 +23,8 @@
   `external_id` in that mode.
 - Reject wildcard AWS regions or service lists. `allowed_services` must name a
   scanner family wired into the runtime registry.
-- Require `ESHU_AWS_REDACTION_KEY` when ECS or Lambda is enabled so environment
-  values cannot cross persistence boundaries in plaintext.
+- Require `ESHU_AWS_REDACTION_KEY` when ECS, Lambda, or Security Hub is enabled
+  so sensitive-derived fields cannot cross persistence boundaries in plaintext.
 - Keep this command process-only. AWS credentials belong in `awsruntime`; AWS
   service pagination belongs in service `awssdk` adapters.
 - Keep ELBv2 target health out of stable AWS collector facts; target health is
@@ -80,6 +80,10 @@
   facts. The command may enable `athena`, but the SDK adapter owns safe
   workgroup, data catalog, prepared-statement, and named-query metadata
   mapping with the SQL-body fields explicitly discarded.
+- Keep Security Hub finding bodies, resource details, remediation text, notes,
+  product fields, user-defined fields, network/process details, insight
+  filters, and mutations out of facts. The command may enable `securityhub`,
+  but the SDK adapter owns safe metadata and aggregate-count mapping.
 - Do not log credential values, trust policy JSON, resource ARNs, tags, or raw
   source payloads as metric labels.
 - Preserve the split between scanner-side status in `awsruntime` and

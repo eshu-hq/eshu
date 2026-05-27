@@ -36,6 +36,9 @@ const (
 	// ServiceEventBridge identifies the regional Amazon EventBridge metadata
 	// scan slice.
 	ServiceEventBridge = "eventbridge"
+	// ServiceSecurityHub identifies the regional AWS Security Hub metadata
+	// posture scan slice.
+	ServiceSecurityHub = "securityhub"
 	// ServiceS3 identifies the regional Amazon Simple Storage Service bucket
 	// metadata scan slice.
 	ServiceS3 = "s3"
@@ -136,6 +139,26 @@ const (
 	// ResourceTypeEventBridgeRule identifies an EventBridge rule metadata
 	// resource.
 	ResourceTypeEventBridgeRule = "aws_eventbridge_rule"
+	// ResourceTypeSecurityHubHub identifies a Security Hub hub configuration.
+	ResourceTypeSecurityHubHub = "aws_securityhub_hub"
+	// ResourceTypeSecurityHubStandard identifies an enabled Security Hub
+	// standards subscription.
+	ResourceTypeSecurityHubStandard = "aws_securityhub_standard"
+	// ResourceTypeSecurityHubControl identifies a Security Hub standards
+	// control.
+	ResourceTypeSecurityHubControl = "aws_securityhub_control"
+	// ResourceTypeSecurityHubMemberAccount identifies a Security Hub member
+	// account reported by an administrator account.
+	ResourceTypeSecurityHubMemberAccount = "aws_securityhub_member_account"
+	// ResourceTypeSecurityHubActionTarget identifies a custom Security Hub
+	// action target.
+	ResourceTypeSecurityHubActionTarget = "aws_securityhub_action_target"
+	// ResourceTypeSecurityHubInsight identifies a custom Security Hub insight
+	// summary.
+	ResourceTypeSecurityHubInsight = "aws_securityhub_insight"
+	// ResourceTypeSecurityHubFindingAggregate identifies an aggregate Security
+	// Hub finding posture bucket.
+	ResourceTypeSecurityHubFindingAggregate = "aws_securityhub_finding_aggregate"
 	// ResourceTypeS3Bucket identifies an S3 bucket metadata resource.
 	ResourceTypeS3Bucket = "aws_s3_bucket"
 	// ResourceTypeRDSDBInstance identifies an RDS DB instance metadata
@@ -289,6 +312,15 @@ const (
 	// RelationshipEventBridgeRuleTargetsResource records EventBridge rule target
 	// evidence when the target is ARN-addressable.
 	RelationshipEventBridgeRuleTargetsResource = "eventbridge_rule_targets_resource"
+	// RelationshipSecurityHubHubHasMember records Security Hub administrator
+	// membership evidence.
+	RelationshipSecurityHubHubHasMember = "securityhub_hub_has_member"
+	// RelationshipSecurityHubStandardHasControl records Security Hub standard
+	// control membership.
+	RelationshipSecurityHubStandardHasControl = "securityhub_standard_has_control"
+	// RelationshipSecurityHubInsightGroupsControl records a custom insight that
+	// groups by Security Hub control id.
+	RelationshipSecurityHubInsightGroupsControl = "securityhub_insight_groups_control"
 	// RelationshipS3BucketLogsToBucket records S3 server-access-log delivery
 	// metadata from a source bucket to its target bucket.
 	RelationshipS3BucketLogsToBucket = "s3_bucket_logs_to_bucket"

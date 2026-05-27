@@ -9,7 +9,7 @@ redaction. The overview lives in [AWS Cloud Collector](collector-aws-cloud.md).
 | --- | --- |
 | `ESHU_POSTGRES_DSN` or split Postgres DSNs | Shared Postgres runtime loader. |
 | `ESHU_COLLECTOR_INSTANCES_JSON` | Desired collector instances. Must include one enabled `aws` instance with `claims_enabled=true`. |
-| `ESHU_AWS_REDACTION_KEY` | Required when any target scope enables ECS or Lambda. |
+| `ESHU_AWS_REDACTION_KEY` | Required when any target scope enables ECS, Lambda, or Security Hub. |
 
 Optional knobs: `ESHU_AWS_COLLECTOR_INSTANCE_ID`,
 `ESHU_AWS_COLLECTOR_OWNER_ID`, `ESHU_AWS_COLLECTOR_POLL_INTERVAL`,
@@ -48,9 +48,22 @@ mutation APIs or data-plane reads for secret values, SSM parameter values, SQS
 messages, DynamoDB items, log events, API execution payloads, S3 object
 contents, database contents, or Lambda packages.
 
-ECS and Lambda scans require `ESHU_AWS_REDACTION_KEY` before startup because
-environment values are redacted before persistence. The key produces
-deterministic HMAC markers; it is not stored in facts.
+ECS, Lambda, and Security Hub scans require `ESHU_AWS_REDACTION_KEY` before
+startup because sensitive-derived fields are redacted before persistence. The
+key produces deterministic HMAC markers; it is not stored in facts. Security
+Hub action target descriptions pass through the shared redaction helper.
+
+Security Hub finding bodies and insight filters are not persisted. Finding
+aggregate counts grouped by severity, standard, control, compliance status, and
+workflow status are in scope. Finding resource identifiers, resource details,
+remediation text, product fields, user-defined fields, note text, network
+details, and process details are out of scope.
+
+Do not grant Security Hub mutation APIs to the collector role:
+`BatchUpdateFindings`, `BatchImportFindings`, `CreateInsight`, `DeleteInsight`,
+`UpdateInsight`, `EnableSecurityHub`, `DisableSecurityHub`, `EnableStandards`,
+`DisableStandards`, `CreateActionTarget`, `DeleteActionTarget`,
+`UpdateActionTarget`, `BatchEnableStandards`, or `BatchDisableStandards`.
 
 Do not persist credential material, bearer tokens, session tokens, presigned
 query parameters, secret values, policy JSON payload bodies, queue messages, log

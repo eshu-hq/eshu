@@ -63,6 +63,8 @@ See `doc.go` for the godoc contract.
   scans.
 - `ServiceAthena` - Athena service-kind value for regional workgroup, data
   catalog, prepared-statement, and named-query metadata scans.
+- `ServiceSecurityHub` - Security Hub service-kind value for regional security
+  posture metadata scans.
 - `Boundary` - account, region, service, generation, collector instance, and
   fencing token shared by one claimed AWS scan.
 - `ResourceObservation` - one AWS resource ready for envelope emission.
@@ -216,6 +218,12 @@ request.
   ARN-shaped bucket, workgroup-to-KMS-key relationships, and
   prepared-statement / named-query workgroup membership relationships are
   reported evidence only.
+- Security Hub facts are metadata only. Finding bodies, finding resource IDs,
+  resource details, remediation text, notes, product fields, user-defined
+  fields, network details, process details, insight filters, and mutations stay
+  outside the AWS collector fact contract. Hub configuration, enabled standards,
+  controls, member accounts, action targets, insight summaries, and aggregate
+  finding counts are reported evidence only.
 
 ## Related docs
 

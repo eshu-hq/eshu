@@ -103,6 +103,41 @@ func TestNormalizeEventBridgeCloudTrailAPITargetsServiceTuple(t *testing.T) {
 	}
 }
 
+func TestNormalizeEventBridgeCloudTrailAPITargetsSecurityHub(t *testing.T) {
+	t.Parallel()
+
+	payload := []byte(`{
+		"version": "0",
+		"id": "cloudtrail-securityhub-1",
+		"detail-type": "AWS API Call via CloudTrail",
+		"source": "aws.securityhub",
+		"account": "123456789012",
+		"region": "us-east-1",
+		"time": "2026-05-27T11:12:13Z",
+		"detail": {
+			"eventSource": "securityhub.amazonaws.com",
+			"eventName": "DescribeStandardsControls",
+			"requestParameters": {
+				"standardsSubscriptionArn": "arn:aws:securityhub:us-east-1:123456789012:subscription/aws-foundational-security-best-practices/v/1.0.0"
+			}
+		}
+	}`)
+
+	trigger, err := NormalizeEventBridge(payload)
+	if err != nil {
+		t.Fatalf("NormalizeEventBridge() error = %v, want nil", err)
+	}
+	if trigger.ServiceKind != awscloud.ServiceSecurityHub {
+		t.Fatalf("ServiceKind = %q, want %q", trigger.ServiceKind, awscloud.ServiceSecurityHub)
+	}
+	if trigger.Region != "us-east-1" {
+		t.Fatalf("Region = %q, want us-east-1", trigger.Region)
+	}
+	if trigger.ResourceID != "arn:aws:securityhub:us-east-1:123456789012:subscription/aws-foundational-security-best-practices/v/1.0.0" {
+		t.Fatalf("ResourceID = %q, want Security Hub standards subscription ARN", trigger.ResourceID)
+	}
+}
+
 func TestNormalizeEventBridgeRejectsUnsupportedService(t *testing.T) {
 	t.Parallel()
 
