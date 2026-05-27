@@ -90,9 +90,10 @@ See `doc.go` for the godoc contract.
   `internal/collector/awscloud/services/sns`,
   `internal/collector/awscloud/services/ssm`,
   `internal/collector/awscloud/services/athena`,
-  `internal/collector/awscloud/services/stepfunctions`, and
-  `internal/collector/awscloud/services/s3` plus their `awssdk` adapters for
-  production service scanners.
+  `internal/collector/awscloud/services/stepfunctions`,
+  `internal/collector/awscloud/services/s3`, and
+  `internal/collector/awscloud/services/accessanalyzer` plus their `awssdk`
+  adapters for production service scanners.
 - `internal/facts` for warning fact types.
 - `internal/scope` for AWS scope and collector identity.
 - `internal/workflow` for durable work item claims.
@@ -213,8 +214,8 @@ pagination spans. The command registers the instruments:
   persistence, connection password reads, JDBC credential URL persistence,
   connection property value persistence, table column statistics with sample
   values, classifier custom-pattern reads, workflow graph payload reads, or
-  workflow run state reads. The SDK adapter must call `GetConnections` with
-  `HidePassword=true` and `GetWorkflow` with `IncludeGraph=false`.
+  workflow run state reads. The SDK adapter must call GetConnections with
+  HidePassword=true and GetWorkflow with IncludeGraph=false.
 - Step Functions scanners must stay metadata-only. The runtime registry wires
   the Step Functions SDK adapter, but it must not broaden the service contract
   to StartExecution, StopExecution, CreateStateMachine, UpdateStateMachine,
@@ -224,6 +225,11 @@ pagination spans. The command registers the instruments:
   Parameters/ResultPath/ResultSelector/InputPath/OutputPath/Result contents
   from a state machine definition; only state names, state types, transitions,
   and Task Resource ARNs are persisted.
+- Access Analyzer scanners must stay metadata-only. The runtime registry wires
+  the Access Analyzer SDK adapter, but it must not broaden the service contract
+  to external finding-body persistence, archive-rule filter persistence,
+  policy-generation output, per-action unused-access detail persistence,
+  GetFinding, or mutation APIs.
 - This package does not decide retryability for AWS service errors. The caller
   owns claim failure and retry policy through `collector.ClaimedService`.
 

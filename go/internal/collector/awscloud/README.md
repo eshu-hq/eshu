@@ -73,6 +73,9 @@ See `doc.go` for the godoc contract.
   table, crawler, job, trigger, workflow, and connection metadata scans.
 - `ServiceMSK` - MSK service-kind value for regional Amazon Managed Streaming
   for Apache Kafka metadata scans.
+- `ServiceAccessAnalyzer` - IAM Access Analyzer service-kind value for regional
+  analyzer, archive-rule, aggregate finding-count, and unused-access summary
+  metadata scans.
 - `Boundary` - account, region, service, generation, collector instance, and
   fencing token shared by one claimed AWS scan.
 - `ResourceObservation` - one AWS resource ready for envelope emission.
@@ -178,7 +181,7 @@ request.
   mutations stay outside the AWS collector fact contract. Table metadata, tags,
   indexes, TTL status, backup status, stream settings, replicas, and directly
   reported KMS key relationships are reported evidence only. Sustained
-  throttling on optional `DescribeTimeToLive` calls emits an `aws_warning` with
+  throttling on optional DescribeTimeToLive calls emits an `aws_warning` with
   `warning_kind=throttle_sustained`, leaves table resources present, and omits
   TTL metadata for that partial scan rather than failing the whole DynamoDB
   claim.
@@ -240,8 +243,8 @@ request.
   crawler, job, trigger, workflow, and connection metadata plus reported
   table-in-database, table-to-S3-location, crawler-to-database,
   crawler-to-IAM-role, job-to-IAM-role, and trigger-to-job relationships are
-  reported evidence only. The Glue SDK adapter calls `GetConnections` with
-  `HidePassword=true` and `GetWorkflow` with `IncludeGraph=false` so passwords
+  reported evidence only. The Glue SDK adapter calls GetConnections with
+  HidePassword=true and GetWorkflow with IncludeGraph=false so passwords
   and graph payloads never leave AWS.
 - ElastiCache facts are metadata only. AUTH tokens, user passwords, user
   access strings, cache keys, cache values, snapshot data, and mutations stay
@@ -260,6 +263,11 @@ request.
   role and Kafka cluster ARNs, replication target compression, and replication
   topic and consumer-group include/exclude pattern counts are reported evidence
   only.
+- Access Analyzer facts are metadata only. External finding bodies, archive-rule
+  filter criteria, policy-generation output, and per-action unused-access
+  details stay outside the AWS collector fact contract. Analyzer metadata,
+  archive-rule names, aggregate finding counts, analyzer relationships, and
+  per-resource unused-access last-accessed summaries are reported evidence only.
 
 ## Related docs
 

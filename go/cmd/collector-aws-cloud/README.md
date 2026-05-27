@@ -54,7 +54,7 @@ Instance configuration uses:
     {
       "account_id": "123456789012",
       "allowed_regions": ["us-east-1", "aws-global"],
-      "allowed_services": ["iam", "ecr", "ecs", "ec2", "elbv2", "lambda", "eks", "route53", "sqs", "sns", "eventbridge", "s3", "rds", "redshift", "dynamodb", "cloudwatchlogs", "cloudfront", "apigateway", "secretsmanager", "ssm", "athena", "securityhub", "glue", "elasticache", "msk", "stepfunctions"],
+      "allowed_services": ["iam", "ecr", "ecs", "ec2", "elbv2", "lambda", "eks", "route53", "sqs", "sns", "eventbridge", "s3", "rds", "redshift", "dynamodb", "cloudwatchlogs", "cloudfront", "apigateway", "secretsmanager", "ssm", "athena", "securityhub", "glue", "elasticache", "msk", "stepfunctions", "accessanalyzer"],
       "max_concurrent_claims": 1,
       "credentials": {
         "mode": "central_assume_role",
@@ -210,9 +210,9 @@ The claim concurrency gauge is backed by the runtime's per-account limiter.
   not run jobs, start crawlers, mutate Data Catalog state, read job script
   bodies, persist job default-argument values, persist secret-shaped
   argument keys, persist connection passwords (the adapter calls
-  `GetConnections` with `HidePassword=true`), persist connection property
+  GetConnections with HidePassword=true), persist connection property
   values, persist JDBC credential URLs, persist workflow graph payloads (the
-  adapter calls `GetWorkflow` with `IncludeGraph=false`), persist table
+  adapter calls GetWorkflow with IncludeGraph=false), persist table
   column statistics with sample values, or persist classifier custom
   patterns.
 - ElastiCache targets emit cache cluster, replication group, parameter group,
@@ -231,6 +231,12 @@ The claim concurrency gauge is backed by the runtime's per-account limiter.
   Parameters/ResultPath/ResultSelector/InputPath/OutputPath/Result contents from
   the state machine definition; only state names, state types, transitions, and
   Task Resource ARNs are persisted.
+- Access Analyzer targets emit analyzer metadata, archive-rule names,
+  aggregate finding counts, analyzer relationships, and per-resource
+  unused-access last-accessed summaries. They intentionally do not persist
+  external finding bodies, archive-rule filter criteria, policy-generation
+  output, per-action unused-access details, or mutate Access Analyzer
+  resources.
 - The acceptance unit ID must be JSON with `account_id`, `region`, and
   `service_kind`.
 - `/admin/status` includes per `(account_id, region, service_kind)` AWS scan

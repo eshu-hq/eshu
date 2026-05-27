@@ -34,6 +34,7 @@ It does not mutate AWS resources, read protected payloads, or write graph truth.
 | `elasticache` | Cache clusters, replication groups, parameter and subnet groups, users, user groups, and snapshot metadata (name/source/status only); cluster-to-VPC, cluster-to-subnet, cluster-to-KMS, replication-group-to-cluster, and user-group-to-user relationships. No AUTH tokens, user passwords, user access strings, cache contents, or snapshot data. |
 | `msk` | MSK cluster, broker configuration, and replicator metadata with subnet, security-group, KMS-key, IAM-role, and configuration relationships; no broker `server.properties` bodies, broker logs, bootstrap broker endpoints, SCRAM secrets, or Kafka topic data. |
 | `stepfunctions` | State machine and activity metadata, execution-role relationships, and ARN-only Task-target relationships; no execution payloads, history events, task tokens, or definition literals. |
+| `accessanalyzer` | Analyzer metadata, archive-rule names, aggregate finding counts, relationships, and unused-access summaries. |
 
 IAM, Route 53, and CloudFront are global-style families. Use a concrete global
 region label such as `aws-global` so claims keep the
@@ -73,6 +74,12 @@ the collector contract.
 It also does not call AWS mutation APIs. If a scanner needs a new API family,
 update the owning service package README with source APIs, forbidden data
 classes, emitted evidence, and verification.
+
+Access Analyzer has an extra security boundary: external finding bodies,
+archive-rule filter criteria, policy-generation results, and per-action
+unused-access details are not persisted. The scanner keeps aggregate finding
+counts by status and resource type, plus per-resource unused-access
+last-accessed timestamps.
 
 ## Evidence And Telemetry
 

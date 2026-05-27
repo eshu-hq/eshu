@@ -89,8 +89,8 @@
   connection property value persistence, table column statistics with sample
   values, classifier custom-pattern reads, workflow graph payload reads,
   workflow run state reads, or any other mutation or sensitive-payload API
-  through the runtime registry. The SDK adapter must call `GetConnections`
-  with `HidePassword=true` and `GetWorkflow` with `IncludeGraph=false`.
+  through the runtime registry. The SDK adapter must call GetConnections with
+  HidePassword=true and GetWorkflow with IncludeGraph=false.
 - Keep Step Functions scans metadata-only. Do not wire StartExecution,
   StopExecution, CreateStateMachine, UpdateStateMachine, DeleteStateMachine,
   SendTaskSuccess, SendTaskFailure, execution input/output persistence,
@@ -99,6 +99,10 @@
   persistence through the runtime registry. The state machine definition
   surface is restricted to state names, state types, transitions, and Task
   Resource ARNs.
+- Keep Access Analyzer scans metadata-only. Do not wire external finding-body
+  persistence, archive-rule filter persistence, policy-generation output,
+  per-action unused-access detail persistence, GetFinding, or mutation APIs
+  through the runtime registry.
 
 ## Common Changes
 
