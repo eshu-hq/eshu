@@ -14,37 +14,33 @@ func clusterRelationships(boundary awscloud.Boundary, cluster CacheCluster) []aw
 	var relationships []awscloud.RelationshipObservation
 	clusterARN := strings.TrimSpace(cluster.ARN)
 	if vpcID := strings.TrimSpace(cluster.VPCID); vpcID != "" {
-		vpcARN := vpcARNFor(boundary, vpcID)
 		relationships = append(relationships, awscloud.RelationshipObservation{
 			Boundary:         boundary,
 			RelationshipType: awscloud.RelationshipElastiCacheClusterInVPC,
 			SourceResourceID: sourceID,
 			SourceARN:        clusterARN,
-			TargetResourceID: vpcARN,
-			TargetARN:        vpcARN,
+			TargetResourceID: vpcID,
 			TargetType:       awscloud.ResourceTypeEC2VPC,
 			Attributes: map[string]any{
-				"vpc_id":                 vpcID,
+				"vpc_id":                  vpcID,
 				"cache_subnet_group_name": strings.TrimSpace(cluster.SubnetGroupName),
 			},
-			SourceRecordID: sourceID + "->" + vpcARN,
+			SourceRecordID: relationshipRecordID(sourceID, awscloud.RelationshipElastiCacheClusterInVPC, vpcID),
 		})
 	}
 	for _, subnetID := range cloneStrings(cluster.SubnetIDs) {
-		subnetARN := subnetARNFor(boundary, subnetID)
 		relationships = append(relationships, awscloud.RelationshipObservation{
 			Boundary:         boundary,
 			RelationshipType: awscloud.RelationshipElastiCacheClusterInSubnet,
 			SourceResourceID: sourceID,
 			SourceARN:        clusterARN,
-			TargetResourceID: subnetARN,
-			TargetARN:        subnetARN,
+			TargetResourceID: subnetID,
 			TargetType:       awscloud.ResourceTypeEC2Subnet,
 			Attributes: map[string]any{
 				"subnet_id":               subnetID,
 				"cache_subnet_group_name": strings.TrimSpace(cluster.SubnetGroupName),
 			},
-			SourceRecordID: sourceID + "->" + subnetARN,
+			SourceRecordID: relationshipRecordID(sourceID, awscloud.RelationshipElastiCacheClusterInSubnet, subnetID),
 		})
 	}
 	if kmsKey := strings.TrimSpace(cluster.KMSKeyID); kmsKey != "" {
@@ -60,7 +56,7 @@ func clusterRelationships(boundary awscloud.Boundary, cluster CacheCluster) []aw
 			TargetResourceID: kmsKey,
 			TargetARN:        targetARN,
 			TargetType:       "aws_kms_key",
-			SourceRecordID:   sourceID + "->" + kmsKey,
+			SourceRecordID:   relationshipRecordID(sourceID, awscloud.RelationshipElastiCacheClusterUsesKMSKey, kmsKey),
 		})
 	}
 	return relationships
@@ -81,11 +77,9 @@ func replicationGroupRelationships(
 		identity, ok := clusterIdentities[memberID]
 		targetID := memberID
 		targetARN := ""
-		if ok {
-			if identity.arn != "" {
-				targetID = identity.arn
-				targetARN = identity.arn
-			}
+		if ok && identity.arn != "" {
+			targetID = identity.arn
+			targetARN = identity.arn
 		}
 		relationships = append(relationships, awscloud.RelationshipObservation{
 			Boundary:         boundary,
@@ -98,7 +92,7 @@ func replicationGroupRelationships(
 			Attributes: map[string]any{
 				"cache_cluster_id": memberID,
 			},
-			SourceRecordID: sourceID + "->" + memberID,
+			SourceRecordID: relationshipRecordID(sourceID, awscloud.RelationshipElastiCacheReplicationGroupHasCluster, targetID),
 		})
 	}
 	return relationships
@@ -134,7 +128,7 @@ func userGroupRelationships(
 			Attributes: map[string]any{
 				"user_id": userID,
 			},
-			SourceRecordID: sourceID + "->" + userID,
+			SourceRecordID: relationshipRecordID(sourceID, awscloud.RelationshipElastiCacheUserGroupHasUser, targetID),
 		})
 	}
 	return relationships
@@ -172,24 +166,12 @@ func userIdentityMap(users []User) map[string]userIdentity {
 	return identities
 }
 
-func vpcARNFor(boundary awscloud.Boundary, vpcID string) string {
-	vpcID = strings.TrimSpace(vpcID)
-	if vpcID == "" {
-		return ""
-	}
-	if isARN(vpcID) {
-		return vpcID
-	}
-	return "arn:aws:ec2:" + boundary.Region + ":" + boundary.AccountID + ":vpc/" + vpcID
-}
-
-func subnetARNFor(boundary awscloud.Boundary, subnetID string) string {
-	subnetID = strings.TrimSpace(subnetID)
-	if subnetID == "" {
-		return ""
-	}
-	if isARN(subnetID) {
-		return subnetID
-	}
-	return "arn:aws:ec2:" + boundary.Region + ":" + boundary.AccountID + ":subnet/" + subnetID
+// relationshipRecordID encodes the relationship type into the durable
+// SourceRecordID alongside the source and final target identity, matching the
+// shape used by the RDS scanner. Including the relationship type keeps each
+// relationship envelope's source ref distinct when a source has multiple edges
+// to the same target and stays stable when the final target identity is
+// upgraded from a raw cluster/user ID to the cluster/user ARN.
+func relationshipRecordID(sourceID, relationshipType, targetID string) string {
+	return strings.TrimSpace(sourceID) + "->" + strings.TrimSpace(relationshipType) + ":" + strings.TrimSpace(targetID)
 }
