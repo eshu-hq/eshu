@@ -72,6 +72,7 @@ func TestListActiveSupplyChainImpactFactsQueryBoundsRepositoryFollowUp(t *testin
 		"fact.payload->'scope'->>'repository_id' = ANY($7::text[])",
 		"fact.scope_id = ANY($7::text[])",
 		"fact.payload->>'scope_id' = ANY($7::text[])",
+		"scope.source_key = ANY($7::text[])",
 		"scope.payload->>'repo_id' = ANY($7::text[])",
 		"scope.payload->>'id' = ANY($7::text[])",
 	} {
