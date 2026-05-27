@@ -32,6 +32,7 @@ It does not mutate AWS resources, read protected payloads, or write graph truth.
 | `rds` | DB instances, clusters, subnet groups, and reported security/KMS/role/group relationships. |
 | `redshift` | Provisioned clusters, cluster parameter groups, cluster subnet groups, cluster snapshot metadata, scheduled action metadata, Serverless namespaces, Serverless workgroups, and reported VPC/subnet/security-group/KMS/IAM/snapshot/scheduled-action/namespace-workgroup relationships. Provisioned and Serverless share `service_kind=redshift`; resource types distinguish the two surfaces. |
 | `dynamodb`, `cloudwatchlogs` | Table or log-group metadata and KMS relationships. |
+| `cloudwatch` | Metric alarms, composite alarms, dashboards (name + last modified only), Contributor Insights rules (name + state only), and metric streams with alarm-to-SNS-topic, composite-alarm-to-child-alarm, metric-stream-to-Firehose, and alarm-to-metric (dimension summary) relationships. No dashboard body JSON, no Contributor Insights rule definitions, no metric data points. Customer-tag-named alarm dimensions are routed through the shared redact library. |
 | `cloudfront` | Distribution metadata plus ACM certificate and WAF web ACL relationships. |
 | `acm` | Public ACM certificate metadata (ARN, domain name, SANs, status, type, issuer, validity, key and signature algorithms) and certificate-to-using-resource relationships derived from ACM-reported in-use-by ARNs (ELB v2, CloudFront, API Gateway, AppSync, App Runner, and other ARN-shaped targets). No certificate body PEM, no private key material, no `GetCertificate` calls, no `ExportCertificate` calls; ACM Private CA is out of scope. |
 | `cloudtrail` | Trail (multi-region and per-region), Lake event data store, channel, and Lake dashboard configuration metadata with trail-to-S3-bucket, trail-to-CloudWatch-Logs, trail-to-KMS-key, trail-to-SNS-topic, and event-data-store-to-KMS-key relationships. Event selectors are summarized as counts only; CloudTrail event payloads, Lake query strings, Lake query results, and dashboard widget query SQL are never read or persisted. |
@@ -59,7 +60,9 @@ The collector does not read S3 object contents, SQS messages, DynamoDB table
 data, RDS database contents, Redshift warehouse queries, Redshift table data,
 Redshift snapshot contents, Redshift master user passwords or admin passwords,
 ElastiCache cache keys, cache values, AUTH tokens, user passwords, user access
-strings, or snapshot data, CloudWatch log events, Secrets Manager secret
+strings, or snapshot data, CloudWatch log events, CloudWatch metric data
+points, CloudWatch dashboard body JSON, CloudWatch Contributor Insights rule
+definitions, Secrets Manager secret
 values, SSM parameter values, API Gateway execution payloads, Lambda code
 packages, CloudFront origin payloads, private keys, raw SNS endpoints, raw
 EventBridge target inputs, Athena query result rows, Athena named-query SQL
