@@ -82,6 +82,7 @@ func TestSupportedServiceKindsCoversEveryAWSService(t *testing.T) {
 		awscloud.ServiceSecretsManager:  true,
 		awscloud.ServiceSecurityHub:     true,
 		awscloud.ServiceStepFunctions:   true,
+		awscloud.ServiceVPC:             true,
 	}
 	have := map[string]bool{}
 	for _, kind := range awsruntime.SupportedServiceKinds() {
