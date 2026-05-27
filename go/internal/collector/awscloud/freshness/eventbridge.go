@@ -239,6 +239,7 @@ var configResourceTypeServices = map[string]string{
 	"AWS::Route53::HostedZone":                  awscloud.ServiceRoute53,
 	"AWS::S3::Bucket":                           awscloud.ServiceS3,
 	"AWS::SecretsManager::Secret":               awscloud.ServiceSecretsManager,
+	"AWS::SecurityHub::Hub":                     awscloud.ServiceSecurityHub,
 	"AWS::SNS::Topic":                           awscloud.ServiceSNS,
 	"AWS::SQS::Queue":                           awscloud.ServiceSQS,
 	"AWS::SSM::Parameter":                       awscloud.ServiceSSM,
@@ -262,6 +263,7 @@ var cloudTrailSourceServices = map[string]string{
 	"route53.amazonaws.com":              awscloud.ServiceRoute53,
 	"s3.amazonaws.com":                   awscloud.ServiceS3,
 	"secretsmanager.amazonaws.com":       awscloud.ServiceSecretsManager,
+	"securityhub.amazonaws.com":          awscloud.ServiceSecurityHub,
 	"sns.amazonaws.com":                  awscloud.ServiceSNS,
 	"sqs.amazonaws.com":                  awscloud.ServiceSQS,
 	"ssm.amazonaws.com":                  awscloud.ServiceSSM,
@@ -277,6 +279,7 @@ var cloudTrailResourceIDKeys = map[string][]string{
 	awscloud.ServiceRDS:            {"dBInstanceIdentifier", "dBClusterIdentifier", "dBSubnetGroupName"},
 	awscloud.ServiceS3:             {"bucketName"},
 	awscloud.ServiceSecretsManager: {"secretId"},
+	awscloud.ServiceSecurityHub:    {"hubArn", "standardsSubscriptionArn", "standardsControlArn", "insightArn", "actionTargetArn", "accountId"},
 	awscloud.ServiceSSM:            {"name"},
 }
 

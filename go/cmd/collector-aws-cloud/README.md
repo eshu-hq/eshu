@@ -42,9 +42,9 @@ the environment/configuration it accepts:
   than the lease TTL.
 - `ESHU_AWS_COLLECTOR_OWNER_ID` - optional owner ID override; defaults to
   `HOSTNAME`, then `collector-aws-cloud`.
-- `ESHU_AWS_REDACTION_KEY` - required when any target scope enables `ecs` or
-  `lambda`. The ECS and Lambda scanners use it to produce deterministic
-  HMAC-SHA256 markers for environment values before persistence.
+- `ESHU_AWS_REDACTION_KEY` - required when any target scope enables `ecs`,
+  `lambda`, or `securityhub`. Those scanners use it to produce deterministic
+  HMAC-SHA256 markers for sensitive-derived fields before persistence.
 
 Instance configuration uses:
 
@@ -54,7 +54,7 @@ Instance configuration uses:
     {
       "account_id": "123456789012",
       "allowed_regions": ["us-east-1", "aws-global"],
-      "allowed_services": ["iam", "ecr", "ecs", "ec2", "elbv2", "lambda", "eks", "route53", "sqs", "sns", "eventbridge", "s3", "rds", "dynamodb", "cloudwatchlogs", "cloudfront", "apigateway", "secretsmanager", "ssm", "athena"],
+      "allowed_services": ["iam", "ecr", "ecs", "ec2", "elbv2", "lambda", "eks", "route53", "sqs", "sns", "eventbridge", "s3", "rds", "dynamodb", "cloudwatchlogs", "cloudfront", "apigateway", "secretsmanager", "ssm", "athena", "securityhub"],
       "max_concurrent_claims": 1,
       "credentials": {
         "mode": "central_assume_role",
@@ -115,8 +115,8 @@ The claim concurrency gauge is backed by the runtime's per-account limiter.
   service `awssdk` adapters; command tests should not mock the full AWS SDK
   surface.
 - Credential leases are released after scanner construction and service scan.
-- ECS and Lambda targets require `ESHU_AWS_REDACTION_KEY`; IAM and ECR targets
-  do not.
+- ECS, Lambda, and Security Hub targets require `ESHU_AWS_REDACTION_KEY`; IAM
+  and ECR targets do not.
 - ELBv2 targets emit stable routing topology and intentionally exclude target
   health status.
 - Route 53 targets emit hosted-zone resources and A/AAAA/CNAME/ALIAS DNS record
@@ -187,6 +187,12 @@ The claim concurrency gauge is backed by the runtime's per-account limiter.
   read query result rows, do not read query result location object contents,
   do not persist named-query SQL bodies, do not persist prepared-statement
   query bodies, and do not persist query history strings.
+- Security Hub targets emit hub configuration, enabled standards, controls,
+  member accounts, custom action targets, insight summaries, and aggregate
+  finding-count facts. They intentionally do not persist finding bodies,
+  resource details, remediation text, notes, product fields, user-defined
+  fields, network/process details, insight filters, or mutate Security Hub
+  resources.
 - The acceptance unit ID must be JSON with `account_id`, `region`, and
   `service_kind`.
 - `/admin/status` includes per `(account_id, region, service_kind)` AWS scan

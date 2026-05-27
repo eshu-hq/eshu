@@ -41,6 +41,8 @@ import (
 	s3awssdk "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/s3/awssdk"
 	secretsmanagerservice "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/secretsmanager"
 	secretsmanagerawssdk "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/secretsmanager/awssdk"
+	securityhubservice "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/securityhub"
+	securityhubawssdk "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/securityhub/awssdk"
 	snsservice "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/sns"
 	snsawssdk "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/sns/awssdk"
 	sqsservice "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/sqs"
@@ -57,8 +59,8 @@ type DefaultScannerFactory struct {
 	Tracer      trace.Tracer
 	Instruments *telemetry.Instruments
 	Checkpoints CheckpointStore
-	// RedactionKey produces ECS task-definition environment value markers.
-	// It is required only when building ECS scanners.
+	// RedactionKey produces deterministic markers for sensitive metadata fields.
+	// It is required when building ECS, Lambda, or Security Hub scanners.
 	RedactionKey redact.Key
 }
 
@@ -83,6 +85,7 @@ var supportedServiceKinds = []string{
 	awscloud.ServiceAthena,
 	awscloud.ServiceIAM,
 	awscloud.ServiceLambda,
+	awscloud.ServiceSecurityHub,
 }
 
 // SupportedServiceKinds returns the service_kind values backed by production
@@ -207,6 +210,14 @@ func (f DefaultScannerFactory) Scanner(
 		}
 		return lambdaservice.Scanner{
 			Client:       lambdaawssdk.NewClient(configLease.AWSConfig(), boundary, f.Tracer, f.Instruments),
+			RedactionKey: f.RedactionKey,
+		}, nil
+	case awscloud.ServiceSecurityHub:
+		if f.RedactionKey.IsZero() {
+			return nil, fmt.Errorf("securityhub scanner redaction key is required")
+		}
+		return securityhubservice.Scanner{
+			Client:       securityhubawssdk.NewClient(configLease.AWSConfig(), boundary, f.Tracer, f.Instruments),
 			RedactionKey: f.RedactionKey,
 		}, nil
 	default:

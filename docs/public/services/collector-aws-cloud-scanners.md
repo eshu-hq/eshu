@@ -28,6 +28,7 @@ It does not mutate AWS resources, read protected payloads, or write graph truth.
 | `apigateway` | REST, HTTP, WebSocket, stage, custom-domain, mapping, access-log, ACM, and integration metadata. |
 | `secretsmanager`, `ssm` | Secret or parameter metadata with KMS relationships; no secret/parameter values. |
 | `athena` | Workgroup, data catalog, prepared-statement, and named-query metadata plus workgroup-to-S3-result-bucket, workgroup-to-KMS-key, prepared-statement-to-workgroup, and named-query-to-workgroup relationships. No SQL bodies, query results, query result location object contents, or query history strings. |
+| `securityhub` | Hub configuration, enabled standards, controls, member accounts, action targets, insight summaries, and aggregate finding counts; no finding bodies or insight filters. |
 
 IAM, Route 53, and CloudFront are global-style families. Use a concrete global
 region label such as `aws-global` so claims keep the
@@ -43,6 +44,13 @@ EventBridge target inputs, Athena query result rows, Athena named-query SQL
 bodies, Athena prepared-statement query bodies, Athena query history strings,
 or IAM/resource policy JSON unless a service package explicitly documents a
 sanitized metadata-only exception.
+
+Security Hub finding aggregate counts are metadata-only when grouped by bounded
+posture fields such as severity, standard, control, compliance status, and
+workflow status. Security Hub finding bodies, resource IDs from findings,
+resource details, remediation text, product fields, user-defined fields, note
+text, network/process details, and insight filter expressions remain outside
+the collector contract.
 
 It also does not call AWS mutation APIs. If a scanner needs a new API family,
 update the owning service package README with source APIs, forbidden data

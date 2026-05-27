@@ -49,9 +49,9 @@ See `doc.go` for the godoc contract.
   adapters.
 - `SDKCredentialProvider` - production credential provider using workload
   identity or STS AssumeRole.
-- `DefaultScannerFactory` - production service registry for AWS scanners. ECS
-  and Lambda scanners receive the command-provided redaction key for
-  environment values.
+- `DefaultScannerFactory` - production service registry for AWS scanners. ECS,
+  Lambda, and Security Hub scanners receive the command-provided redaction key
+  for sensitive-derived fields.
 - `SupportedServiceKinds` and `SupportsServiceKind` - production registry
   service-kind introspection used by command-side target-scope validation so
   startup checks cannot drift from scanner availability.
@@ -84,6 +84,7 @@ See `doc.go` for the godoc contract.
   `internal/collector/awscloud/services/rds`,
   `internal/collector/awscloud/services/route53`,
   `internal/collector/awscloud/services/secretsmanager`,
+  `internal/collector/awscloud/services/securityhub`,
   `internal/collector/awscloud/services/sqs`,
   `internal/collector/awscloud/services/sns`,
   `internal/collector/awscloud/services/ssm`,
@@ -129,9 +130,9 @@ pagination spans. The command registers the instruments:
 - `DefaultScannerFactory` is the only production registry for service scanners;
   add full-scan services there and update `supportedServiceKinds` instead of
   branching in the command.
-- ECS and Lambda service scans require a non-empty redaction key because
-  environment values are treated as sensitive even when the variable name looks
-  harmless.
+- ECS, Lambda, and Security Hub service scans require a non-empty redaction key
+  because environment values and Security Hub action target descriptions are
+  treated as sensitive even when names look harmless.
 - EC2 service scans collect network topology only. They do not emit EC2
   instance inventory facts.
 - Target scopes default to one active claim per account when
