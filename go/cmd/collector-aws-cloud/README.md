@@ -54,7 +54,7 @@ Instance configuration uses:
     {
       "account_id": "123456789012",
       "allowed_regions": ["us-east-1", "aws-global"],
-      "allowed_services": ["iam", "ecr", "ecs", "ec2", "elbv2", "lambda", "eks", "route53", "sqs", "sns", "eventbridge", "s3", "rds", "redshift", "dynamodb", "cloudwatchlogs", "cloudfront", "apigateway", "secretsmanager", "ssm", "athena", "securityhub", "glue", "elasticache", "msk"],
+      "allowed_services": ["iam", "ecr", "ecs", "ec2", "elbv2", "lambda", "eks", "route53", "sqs", "sns", "eventbridge", "s3", "rds", "redshift", "dynamodb", "cloudwatchlogs", "cloudfront", "apigateway", "secretsmanager", "ssm", "athena", "securityhub", "glue", "elasticache", "msk", "stepfunctions"],
       "max_concurrent_claims": 1,
       "credentials": {
         "mode": "central_assume_role",
@@ -222,6 +222,15 @@ The claim concurrency gauge is backed by the runtime's per-account limiter.
   user-group-to-user relationships. They intentionally do not read cache keys
   or values, persist AUTH token values, persist user passwords, persist user
   access strings, persist snapshot data, or mutate ElastiCache resources.
+- Step Functions targets emit state machine metadata, activity metadata,
+  state-machine-to-IAM-role relationships, and state-machine-to-referenced-resource
+  relationships for ARN-shaped Task targets. They intentionally do not start,
+  stop, send to, create, update, or delete Step Functions resources, and they
+  intentionally do not persist execution input, execution output, execution
+  history events, activity task tokens, or literal
+  Parameters/ResultPath/ResultSelector/InputPath/OutputPath/Result contents from
+  the state machine definition; only state names, state types, transitions, and
+  Task Resource ARNs are persisted.
 - The acceptance unit ID must be JSON with `account_id`, `region`, and
   `service_kind`.
 - `/admin/status` includes per `(account_id, region, service_kind)` AWS scan

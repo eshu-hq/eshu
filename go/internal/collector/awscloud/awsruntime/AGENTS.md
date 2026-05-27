@@ -91,6 +91,14 @@
   workflow run state reads, or any other mutation or sensitive-payload API
   through the runtime registry. The SDK adapter must call `GetConnections`
   with `HidePassword=true` and `GetWorkflow` with `IncludeGraph=false`.
+- Keep Step Functions scans metadata-only. Do not wire StartExecution,
+  StopExecution, CreateStateMachine, UpdateStateMachine, DeleteStateMachine,
+  SendTaskSuccess, SendTaskFailure, execution input/output persistence,
+  execution history event persistence, activity task token persistence, or
+  literal Parameters/ResultPath/ResultSelector/InputPath/OutputPath/Result
+  persistence through the runtime registry. The state machine definition
+  surface is restricted to state names, state types, transitions, and Task
+  Resource ARNs.
 
 ## Common Changes
 
