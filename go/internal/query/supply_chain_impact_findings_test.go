@@ -206,6 +206,21 @@ func TestSupplyChainImpactFindingQueryUsesActiveFactReadModel(t *testing.T) {
 	}
 }
 
+func TestSupplyChainImpactFindingQueryUsesCanonicalFindingRows(t *testing.T) {
+	t.Parallel()
+
+	for _, want := range []string{
+		"canonical_key",
+		"canonical_facts AS",
+		"PARTITION BY canonical_key",
+		"payload->>'finding_id'",
+	} {
+		if !strings.Contains(listSupplyChainImpactFindingsQuery, want) {
+			t.Fatalf("listSupplyChainImpactFindingsQuery missing canonical dedupe marker %q:\n%s", want, listSupplyChainImpactFindingsQuery)
+		}
+	}
+}
+
 func boolPtr(value bool) *bool {
 	return &value
 }

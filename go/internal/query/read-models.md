@@ -197,6 +197,10 @@ attributes. They re-use the existing `eshu_dp_postgres_query_duration_seconds`
 histogram and add no new graph query, queue, reducer lane, worker, or metric
 instrument.
 
+No-Regression Evidence: `go test ./internal/query -run 'TestSupplyChainImpactFindingQueryUsesCanonicalFindingRows|TestSupplyChainImpactAggregateQueriesCountCanonicalFindings|TestSupplyChainExplainImpactQueryUsesCanonicalFindingRows|TestSupplyChainImpactAggregatePriorityQueryQualifiesPayload' -count=1` proves list, count, inventory, and explain reads collapse active reducer rows to canonical logical findings before paging, grouping, or ambiguity checks. The canonical key is derived from reducer `finding_id` when present and from stable payload identity fields during rolling upgrades, so source-scope and generation-specific rows do not inflate user-facing vulnerability counts.
+
+No-Observability-Change: canonical impact-finding dedupe stays inside the existing bounded Postgres read models. It adds no route, graph query, queue, worker, runtime knob, metric instrument, or metric label; operators still diagnose list, count, inventory, and explain latency through the existing query spans and Postgres query duration metrics.
+
 The same handler exposes cheap-summary aggregates over the reducer-owned
 provider security alert reconciliations through a separate Postgres aggregate
 read model (`security_alert_reconciliation_aggregates.go`).

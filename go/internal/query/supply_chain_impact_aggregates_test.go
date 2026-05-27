@@ -158,6 +158,24 @@ func TestSupplyChainImpactAggregatePriorityQueryQualifiesPayload(t *testing.T) {
 	}
 }
 
+func TestSupplyChainImpactAggregateQueriesCountCanonicalFindings(t *testing.T) {
+	t.Parallel()
+
+	for name, query := range map[string]string{
+		"totals":    supplyChainImpactAggregateCountQuery,
+		"priority":  supplyChainImpactAggregatePriorityCountQuery,
+		"severity":  supplyChainImpactAggregateSeverityCountQuery,
+		"inventory": supplyChainImpactInventoryQueryTemplate,
+	} {
+		if !strings.Contains(query, "canonical_key") {
+			t.Fatalf("%s aggregate query missing canonical_key dedupe:\n%s", name, query)
+		}
+		if !strings.Contains(query, "canonical_facts") {
+			t.Fatalf("%s aggregate query missing canonical_facts CTE:\n%s", name, query)
+		}
+	}
+}
+
 func TestSupplyChainImpactAggregateInventoryReturnsBuckets(t *testing.T) {
 	t.Parallel()
 

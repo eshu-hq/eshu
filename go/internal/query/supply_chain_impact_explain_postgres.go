@@ -139,7 +139,13 @@ func (s PostgresSupplyChainImpactFindingStore) loadSupplyChainImpactEvidenceFact
 }
 
 const explainSupplyChainImpactFindingQuery = `
-SELECT fact.fact_id, fact.source_confidence, fact.payload
+WITH raw_facts AS (
+SELECT fact.fact_id,
+       COALESCE(NULLIF(fact.payload->>'finding_id', ''), fact.fact_id) AS finding_id,
+       fact.source_confidence,
+       fact.payload,
+       COALESCE(NULLIF(fact.payload->>'priority_score', '')::int, 0) AS priority_score,
+       ` + supplyChainImpactCanonicalFindingKeySQL + ` AS canonical_key
 FROM fact_records AS fact
 JOIN ingestion_scopes AS scope
   ON scope.scope_id = fact.scope_id
@@ -150,13 +156,36 @@ JOIN scope_generations AS generation
 WHERE fact.fact_kind = $1
   AND fact.is_tombstone = FALSE
   AND generation.status = 'active'
-  AND ($2 = '' OR fact.fact_id = $2)
   AND ($3 = '' OR fact.payload->>'advisory_id' = $3 OR fact.payload->>'cve_id' = $3)
   AND ($4 = '' OR fact.payload->>'cve_id' = $4)
   AND ($5 = '' OR fact.payload->>'package_id' = $5)
   AND ($6 = '' OR fact.payload->>'repository_id' = $6)
   AND ($7 = '' OR fact.payload->>'subject_digest' = $7)
-ORDER BY fact.fact_id ASC
+),
+scoped_facts AS (
+SELECT *
+FROM raw_facts
+WHERE $2 = ''
+   OR fact_id = $2
+   OR finding_id = $2
+   OR canonical_key = $2
+),
+ranked_facts AS (
+SELECT *,
+       ROW_NUMBER() OVER (
+         PARTITION BY canonical_key
+         ORDER BY priority_score DESC, fact_id ASC
+       ) AS canonical_rank
+FROM scoped_facts
+),
+canonical_facts AS (
+SELECT finding_id, source_confidence, payload
+FROM ranked_facts
+WHERE canonical_rank = 1
+)
+SELECT finding_id, source_confidence, payload
+FROM canonical_facts
+ORDER BY finding_id ASC
 LIMIT 2
 `
 

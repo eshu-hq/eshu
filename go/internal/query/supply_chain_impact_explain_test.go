@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 )
@@ -52,6 +53,21 @@ func TestSupplyChainExplainImpactRequiresBoundedInput(t *testing.T) {
 				t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
 			}
 		})
+	}
+}
+
+func TestSupplyChainExplainImpactQueryUsesCanonicalFindingRows(t *testing.T) {
+	t.Parallel()
+
+	for _, want := range []string{
+		"canonical_key",
+		"canonical_facts AS",
+		"PARTITION BY canonical_key",
+		"payload->>'finding_id'",
+	} {
+		if !strings.Contains(explainSupplyChainImpactFindingQuery, want) {
+			t.Fatalf("explainSupplyChainImpactFindingQuery missing canonical dedupe marker %q:\n%s", want, explainSupplyChainImpactFindingQuery)
+		}
 	}
 }
 
