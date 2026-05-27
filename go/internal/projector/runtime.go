@@ -402,6 +402,9 @@ func buildProjection(scopeValue scope.IngestionScope, generation scope.ScopeGene
 	if intent, ok := buildContainerImageIdentityReducerIntent(scopeValue, generation, inputFacts); ok {
 		intents = append(intents, intent)
 	}
+	if intent, ok := buildSBOMAttestationAttachmentReducerIntent(scopeValue, generation, inputFacts); ok {
+		intents = append(intents, intent)
+	}
 	if intent, ok := buildServiceCatalogCorrelationReducerIntent(scopeValue, generation, inputFacts); ok {
 		intents = append(intents, intent)
 	}

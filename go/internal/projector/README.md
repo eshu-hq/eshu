@@ -170,6 +170,12 @@ relationships, or Git content-entity image references,
 `container_image_identity` reducer intent for that scope/generation. The
 projector still does not join images to workloads or runtime evidence; the
 reducer owns digest-first admission after source-local projection succeeds.
+SBOM and attestation documents use the same reducer-owned boundary. When a
+generation contains an `sbom.document` or `attestation.statement` fact,
+`buildSBOMAttestationAttachmentReducerIntent` emits one
+`sbom_attestation_attachment` reducer intent for that scope/generation. The
+projector does not attach components to images; the reducer owns subject-digest
+admission after source-local document projection succeeds.
 Service-catalog facts follow the same schema-gated handoff. When a generation
 contains service-catalog entity, ownership, repository-link, dependency, API,
 operational-link, scorecard, or warning facts,
@@ -267,6 +273,10 @@ backend-specific adapters.
   graph schema. OCI registry generations now enqueue one
   `DomainContainerImageIdentity` follow-up intent so active Git/AWS image
   references can be joined against the active OCI digest catalog.
+- SBOM component-only generations do not enqueue
+  `DomainSBOMAttestationAttachment`. A document or attestation statement is the
+  subject anchor; components, dependency edges, external references, and
+  warnings only enrich reducer decisions once the document-scoped intent exists.
 - File paths in `EntityRow.FilePath` and `FileRow.Path` are repo-qualified
   (`repoPath/relative_path`) to prevent cross-repository MERGE collisions in the
   graph (`canonical_builder.go:112`).
@@ -293,6 +303,17 @@ No-Observability-Change: existing projector `build_projection` stage logs,
 `/api/v0/index-status`, and queue terminal counters expose whether warning-only
 Terraform-state work reached the durable zero-row checkpoint or remains in
 reducer convergence.
+
+No-Regression Evidence: SBOM attachment intent routing is covered by
+`go test ./internal/projector -run 'TestBuildProjectionQueuesSBOMAttestationAttachment|TestBuildSBOMAttestationAttachmentReducerIntentSkipsComponentOnlyEvidence' -count=1`.
+It adds at most one reducer intent per SBOM or attestation scope generation and
+does not change graph write cardinality, worker counts, claim ordering, batch
+size, retry timing, or backend settings.
+
+No-Observability-Change: existing projector `intent_enqueue` stage logs,
+`eshu_dp_reducer_intents_enqueued_total`, reducer domain counters,
+`fact_work_items` terminal state, and `/admin/status` expose whether SBOM
+attachment work was queued, drained, retried, or dead-lettered.
 
 ## Related docs
 

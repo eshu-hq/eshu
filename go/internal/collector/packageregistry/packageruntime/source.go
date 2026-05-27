@@ -165,12 +165,14 @@ func (s *ClaimedSource) NextClaimed(
 		return collector.CollectedGeneration{}, false, fmt.Errorf("package registry work item generation_id is required")
 	}
 	target, ok := s.targets[strings.TrimSpace(item.ScopeID)]
+	derivedTarget := false
 	if !ok {
 		var err error
 		target, err = s.derivedTargetForScope(strings.TrimSpace(item.ScopeID))
 		if err != nil {
 			return collector.CollectedGeneration{}, false, err
 		}
+		derivedTarget = true
 	}
 	startedAt := time.Now()
 	observeCtx, span := s.startObserve(ctx, target)
@@ -178,6 +180,14 @@ func (s *ClaimedSource) NextClaimed(
 
 	document, err := s.fetchMetadata(observeCtx, target)
 	if err != nil {
+		if derivedTarget && isRegistryNotFound(err) {
+			collected, warningErr := s.missingMetadataWarningGeneration(item, target)
+			if warningErr == nil {
+				s.recordObserve(observeCtx, target, "not_found", startedAt)
+				return collected, true, nil
+			}
+			err = errors.Join(err, warningErr)
+		}
 		s.recordObserve(observeCtx, target, "error", startedAt)
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 )
 
@@ -143,6 +144,17 @@ func TestSupplyChainImpactAggregateCountReturnsTotals(t *testing.T) {
 	}
 	if body.Scope["repository_id"] != "repo-A" {
 		t.Fatalf("scope.repository_id = %v, want repo-A", body.Scope["repository_id"])
+	}
+}
+
+func TestSupplyChainImpactAggregatePriorityQueryQualifiesPayload(t *testing.T) {
+	t.Parallel()
+
+	if strings.Contains(supplyChainImpactAggregatePriorityCountQuery, "NULLIF(payload->>'priority_bucket'") {
+		t.Fatalf("priority aggregate query must qualify payload references:\n%s", supplyChainImpactAggregatePriorityCountQuery)
+	}
+	if !strings.Contains(supplyChainImpactAggregatePriorityCountQuery, "NULLIF(fact.payload->>'priority_bucket'") {
+		t.Fatalf("priority aggregate query missing qualified priority payload reference:\n%s", supplyChainImpactAggregatePriorityCountQuery)
 	}
 }
 

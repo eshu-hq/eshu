@@ -53,14 +53,14 @@ type SupplyChainImpactAggregateFilter struct {
 // PossiblyAffected covers 'possibly_affected'. NotAffected counts every
 // impact_status value with the 'not_affected' prefix.
 type SupplyChainImpactAggregateCount struct {
-	TotalFindings     int
-	AffectedFindings  int
-	NotAffected       int
-	AffectedExact     int
-	AffectedDerived   int
-	PossiblyAffected  int
-	ByPriorityBucket  map[string]int
-	BySeverity        map[string]int
+	TotalFindings    int
+	AffectedFindings int
+	NotAffected      int
+	AffectedExact    int
+	AffectedDerived  int
+	PossiblyAffected int
+	ByPriorityBucket map[string]int
+	BySeverity       map[string]int
 }
 
 // SupplyChainImpactInventoryRow is one grouped bucket returned by the
@@ -121,7 +121,7 @@ FROM scoped_facts;
 
 const supplyChainImpactAggregatePriorityCountQuery = `
 SELECT
-	COALESCE(NULLIF(payload->>'priority_bucket', ''), 'unknown') AS bucket,
+	COALESCE(NULLIF(fact.payload->>'priority_bucket', ''), 'unknown') AS bucket,
 	COUNT(*) AS bucket_count
 FROM fact_records AS fact
 JOIN ingestion_scopes AS scope

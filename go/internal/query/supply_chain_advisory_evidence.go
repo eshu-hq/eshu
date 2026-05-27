@@ -276,6 +276,7 @@ func formatNullTime(value sql.NullTime) string {
 }
 
 func pageAdvisoryEvidenceRows(rows []AdvisoryEvidenceRow, filter AdvisoryEvidenceFilter) []AdvisoryEvidenceRow {
+	rows = filterAdvisoryEvidenceRows(rows, filter)
 	start := 0
 	if after := normalizeAdvisoryLookupID(filter.AfterAdvisoryKey); after != "" {
 		for idx, row := range rows {
@@ -293,6 +294,119 @@ func pageAdvisoryEvidenceRows(rows []AdvisoryEvidenceRow, filter AdvisoryEvidenc
 		end = len(rows)
 	}
 	return append([]AdvisoryEvidenceRow(nil), rows[start:end]...)
+}
+
+func filterAdvisoryEvidenceRows(rows []AdvisoryEvidenceRow, filter AdvisoryEvidenceFilter) []AdvisoryEvidenceRow {
+	if filter.CVEID == "" && filter.AdvisoryID == "" && filter.PackageID == "" {
+		return rows
+	}
+	filter = normalizeAdvisoryEvidenceFilter(filter)
+	out := make([]AdvisoryEvidenceRow, 0, len(rows))
+	for _, row := range rows {
+		if advisoryEvidenceRowMatchesFilter(row, filter) {
+			out = append(out, row)
+		}
+	}
+	return out
+}
+
+func advisoryEvidenceRowMatchesFilter(row AdvisoryEvidenceRow, filter AdvisoryEvidenceFilter) bool {
+	if filter.CVEID != "" && !advisoryEvidenceRowMatchesCVE(row, filter.CVEID) {
+		return false
+	}
+	if filter.AdvisoryID != "" && !advisoryEvidenceRowMatchesAdvisory(row, filter.AdvisoryID) {
+		return false
+	}
+	if filter.PackageID != "" && !advisoryEvidenceRowMatchesPackage(row, filter.PackageID) {
+		return false
+	}
+	return true
+}
+
+func advisoryEvidenceRowMatchesCVE(row AdvisoryEvidenceRow, cveID string) bool {
+	target := normalizeCVEID(cveID)
+	if strings.EqualFold(normalizeCVEID(row.CanonicalID), target) ||
+		strings.EqualFold(normalizeCVEID(row.AdvisoryKey), target) {
+		return true
+	}
+	for _, value := range row.CVEIDs {
+		if strings.EqualFold(normalizeCVEID(value), target) {
+			return true
+		}
+	}
+	return false
+}
+
+func advisoryEvidenceRowMatchesAdvisory(row AdvisoryEvidenceRow, advisoryID string) bool {
+	target := normalizeAdvisoryLookupID(advisoryID)
+	if advisoryEvidenceKeyEqual(row.AdvisoryKey, target) ||
+		advisoryEvidenceKeyEqual(row.CanonicalID, target) ||
+		advisoryEvidenceStringSliceMatches(row.CVEIDs, target) ||
+		advisoryEvidenceStringSliceMatches(row.GHSAIDs, target) ||
+		advisoryEvidenceStringSliceMatches(row.OSVIDs, target) ||
+		advisoryEvidenceStringSliceMatches(row.SourceIDs, target) {
+		return true
+	}
+	for _, source := range row.Sources {
+		if advisoryEvidenceAnyIDMatches(target, source.AdvisoryID, source.CVEID, source.GHSAID) ||
+			advisoryEvidenceStringSliceMatches(source.Aliases, target) {
+			return true
+		}
+	}
+	for _, pkg := range row.AffectedPackages {
+		if advisoryEvidenceAnyIDMatches(target, pkg.AdvisoryID, pkg.CVEID, pkg.GHSAID) {
+			return true
+		}
+	}
+	for _, product := range row.AffectedProducts {
+		if advisoryEvidenceAnyIDMatches(target, product.CVEID) {
+			return true
+		}
+	}
+	for _, epss := range row.EPSS {
+		if advisoryEvidenceAnyIDMatches(target, epss.CVEID) {
+			return true
+		}
+	}
+	for _, kev := range row.KEV {
+		if advisoryEvidenceAnyIDMatches(target, kev.CVEID) {
+			return true
+		}
+	}
+	for _, ref := range row.References {
+		if advisoryEvidenceAnyIDMatches(target, ref.AdvisoryID, ref.CVEID) {
+			return true
+		}
+	}
+	return false
+}
+
+func advisoryEvidenceRowMatchesPackage(row AdvisoryEvidenceRow, packageID string) bool {
+	target := strings.TrimSpace(packageID)
+	for _, pkg := range row.AffectedPackages {
+		if strings.TrimSpace(pkg.PackageID) == target || strings.TrimSpace(pkg.PURL) == target {
+			return true
+		}
+	}
+	return false
+}
+
+func advisoryEvidenceAnyIDMatches(target string, values ...string) bool {
+	for _, value := range values {
+		if advisoryEvidenceKeyEqual(value, target) {
+			return true
+		}
+	}
+	return false
+}
+
+func advisoryEvidenceStringSliceMatches(values []string, target string) bool {
+	for _, value := range values {
+		if advisoryEvidenceKeyEqual(value, target) {
+			return true
+		}
+	}
+	return false
 }
 
 func advisoryEvidenceKeyEqual(left string, right string) bool {
