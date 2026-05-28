@@ -248,16 +248,32 @@ func TestScannerEmitsDeploymentGroupRelationships(t *testing.T) {
 	if len(ecs) != 1 {
 		t.Fatalf("group->ECS relationships = %d, want 1", len(ecs))
 	}
-	if ecs[0]["target_resource_id"] != "checkout-cluster/checkout-svc" {
-		t.Fatalf("group->ECS target_resource_id = %v", ecs[0]["target_resource_id"])
+	// The ECS scanner emits its service resource_id as the service ARN, so the
+	// CodeDeploy edge must target that same ARN to join the ECS service node.
+	const wantECSARN = "arn:aws:ecs:us-east-1:123456789012:service/checkout-cluster/checkout-svc"
+	if ecs[0]["target_resource_id"] != wantECSARN {
+		t.Fatalf("group->ECS target_resource_id = %v, want %v", ecs[0]["target_resource_id"], wantECSARN)
+	}
+	if ecs[0]["target_arn"] != wantECSARN {
+		t.Fatalf("group->ECS target_arn = %v, want %v", ecs[0]["target_arn"], wantECSARN)
+	}
+	ecsAttrs := ecs[0]["attributes"].(map[string]any)
+	if ecsAttrs["cluster_name"] != "checkout-cluster" || ecsAttrs["service_name"] != "checkout-svc" {
+		t.Fatalf("group->ECS attributes = %#v, want cluster/service names preserved", ecsAttrs)
 	}
 
 	lambda := relationshipsByType(t, envelopes, awscloud.RelationshipCodeDeployDeploymentGroupTargetsLambdaFunction)
 	if len(lambda) != 1 {
 		t.Fatalf("group->Lambda relationships = %d, want 1", len(lambda))
 	}
-	if lambda[0]["target_resource_id"] != "checkout-canary" {
-		t.Fatalf("group->Lambda target_resource_id = %v", lambda[0]["target_resource_id"])
+	// The Lambda scanner emits its function resource_id as the function ARN, so
+	// the CodeDeploy edge must target that same ARN to join the function node.
+	const wantLambdaARN = "arn:aws:lambda:us-east-1:123456789012:function:checkout-canary"
+	if lambda[0]["target_resource_id"] != wantLambdaARN {
+		t.Fatalf("group->Lambda target_resource_id = %v, want %v", lambda[0]["target_resource_id"], wantLambdaARN)
+	}
+	if lambda[0]["target_arn"] != wantLambdaARN {
+		t.Fatalf("group->Lambda target_arn = %v, want %v", lambda[0]["target_arn"], wantLambdaARN)
 	}
 
 	sns := relationshipsByType(t, envelopes, awscloud.RelationshipCodeDeployDeploymentGroupNotifiesSNSTopic)

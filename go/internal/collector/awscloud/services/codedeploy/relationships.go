@@ -116,13 +116,18 @@ func ecsServiceRelationships(
 		if cluster == "" || name == "" {
 			continue
 		}
-		target := cluster + "/" + name
+		serviceARN := ecsServiceARN(boundary, cluster, name)
+		// Join against the ECS service node, whose resource_id is the service
+		// ARN. Fall back to the cluster/service pair only when the ARN cannot
+		// be built so the edge still carries a stable record id.
+		target := firstNonEmpty(serviceARN, cluster+"/"+name)
 		observations = append(observations, awscloud.RelationshipObservation{
 			Boundary:         boundary,
 			RelationshipType: awscloud.RelationshipCodeDeployDeploymentGroupTargetsECSService,
 			SourceResourceID: groupID,
 			SourceARN:        groupARN,
 			TargetResourceID: target,
+			TargetARN:        serviceARN,
 			TargetType:       awscloud.ResourceTypeECSService,
 			Attributes: map[string]any{
 				"cluster_name": cluster,
@@ -145,12 +150,18 @@ func lambdaFunctionRelationships(
 		if name == "" {
 			continue
 		}
+		functionARN := lambdaFunctionARN(boundary, name)
+		// Join against the Lambda function node, whose resource_id is the
+		// function ARN. Fall back to the bare name only when the ARN cannot be
+		// built.
+		target := firstNonEmpty(functionARN, name)
 		observations = append(observations, awscloud.RelationshipObservation{
 			Boundary:         boundary,
 			RelationshipType: awscloud.RelationshipCodeDeployDeploymentGroupTargetsLambdaFunction,
 			SourceResourceID: groupID,
 			SourceARN:        groupARN,
-			TargetResourceID: name,
+			TargetResourceID: target,
+			TargetARN:        functionARN,
 			TargetType:       awscloud.ResourceTypeLambdaFunction,
 			SourceRecordID:   groupID + "#lambda#" + name,
 		})

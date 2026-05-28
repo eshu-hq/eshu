@@ -2,6 +2,7 @@ package awssdk
 
 import (
 	"context"
+	"fmt"
 	"reflect"
 	"strings"
 	"testing"
@@ -174,6 +175,34 @@ func TestClientListDeploymentGroupsRedactsOnPremisesTagValues(t *testing.T) {
 	}
 	if marker == "john.doe@example.com" {
 		t.Fatalf("on-prem tag value leaked raw value")
+	}
+}
+
+func TestClientListDeploymentGroupsChunksBatchGetByAWSLimit(t *testing.T) {
+	const total = awsBatchGetDeploymentGroupsLimit + 5
+	names := make([]string, 0, total)
+	info := make(map[string]cdtypes.DeploymentGroupInfo, total)
+	for i := 0; i < total; i++ {
+		name := fmt.Sprintf("group-%03d", i)
+		names = append(names, name)
+		info[name] = cdtypes.DeploymentGroupInfo{
+			DeploymentGroupName: aws.String(name),
+			ApplicationName:     aws.String("checkout"),
+			ComputePlatform:     cdtypes.ComputePlatformServer,
+		}
+	}
+	api := &fakeCodeDeployAPI{
+		deploymentGroupsByApp: map[string][]string{"checkout": names},
+		deploymentGroupInfo:   info,
+	}
+	client := newTestClient(api, testKey(t))
+
+	groups, err := client.ListDeploymentGroups(context.Background(), "checkout")
+	if err != nil {
+		t.Fatalf("ListDeploymentGroups() error = %v", err)
+	}
+	if len(groups) != total {
+		t.Fatalf("groups = %d, want %d (BatchGet must chunk by the AWS 100-name cap)", len(groups), total)
 	}
 }
 

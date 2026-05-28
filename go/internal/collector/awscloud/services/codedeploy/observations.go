@@ -43,6 +43,33 @@ func deploymentConfigARN(boundary awscloud.Boundary, name string) string {
 		boundary.Region, boundary.AccountID, name)
 }
 
+// ecsServiceARN builds the canonical Amazon ECS service ARN for a CodeDeploy
+// ECS deployment target. CodeDeploy reports the target as a cluster/service
+// name pair, but the ECS scanner emits its service resource_id as this ARN, so
+// the relationship must target the same ARN to join the ECS service node.
+func ecsServiceARN(boundary awscloud.Boundary, cluster, service string) string {
+	cluster = strings.TrimSpace(cluster)
+	service = strings.TrimSpace(service)
+	if cluster == "" || service == "" {
+		return ""
+	}
+	return fmt.Sprintf("arn:aws:ecs:%s:%s:service/%s/%s",
+		boundary.Region, boundary.AccountID, cluster, service)
+}
+
+// lambdaFunctionARN builds the canonical AWS Lambda function ARN for a
+// CodeDeploy Lambda deployment target. CodeDeploy names the target by function
+// name, but the Lambda scanner emits its function resource_id as this ARN, so
+// the relationship must target the same ARN to join the function node.
+func lambdaFunctionARN(boundary awscloud.Boundary, name string) string {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return ""
+	}
+	return fmt.Sprintf("arn:aws:lambda:%s:%s:function:%s",
+		boundary.Region, boundary.AccountID, name)
+}
+
 // deploymentARN builds the canonical CodeDeploy deployment ARN from the
 // deployment ID.
 func deploymentARN(boundary awscloud.Boundary, id string) string {

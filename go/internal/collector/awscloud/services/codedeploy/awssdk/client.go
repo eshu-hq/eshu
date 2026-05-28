@@ -27,6 +27,12 @@ const recentDeploymentLimit = 25
 // batchApplicationLimit caps BatchGetApplications input per the AWS contract.
 const batchApplicationLimit = 100
 
+// batchDeploymentGroupLimit caps BatchGetDeploymentGroups input per the AWS
+// contract, which accepts at most 100 deployment group names per call. The
+// adapter chunks larger applications so a deployment-group-heavy application
+// does not fail the whole scan.
+const batchDeploymentGroupLimit = 100
+
 // apiClient is the metadata-only CodeDeploy SDK surface the adapter consumes.
 // It intentionally omits every mutation API, deployment/instance data-plane
 // API, and revision-body API. The reflection guard test asserts the omission.
@@ -151,31 +157,37 @@ func (c *Client) ListDeploymentGroups(ctx context.Context, applicationName strin
 	if len(names) == 0 {
 		return nil, nil
 	}
-	var output *awscodedeploy.BatchGetDeploymentGroupsOutput
-	err = c.recordAPICall(ctx, "BatchGetDeploymentGroups", func(callCtx context.Context) error {
-		var callErr error
-		output, callErr = c.client.BatchGetDeploymentGroups(callCtx, &awscodedeploy.BatchGetDeploymentGroupsInput{
-			ApplicationName:      aws.String(applicationName),
-			DeploymentGroupNames: names,
+	groups := make([]cdservice.DeploymentGroup, 0, len(names))
+	for start := 0; start < len(names); start += batchDeploymentGroupLimit {
+		end := start + batchDeploymentGroupLimit
+		if end > len(names) {
+			end = len(names)
+		}
+		var output *awscodedeploy.BatchGetDeploymentGroupsOutput
+		err = c.recordAPICall(ctx, "BatchGetDeploymentGroups", func(callCtx context.Context) error {
+			var callErr error
+			output, callErr = c.client.BatchGetDeploymentGroups(callCtx, &awscodedeploy.BatchGetDeploymentGroupsInput{
+				ApplicationName:      aws.String(applicationName),
+				DeploymentGroupNames: names[start:end],
+			})
+			return callErr
 		})
-		return callErr
-	})
-	if err != nil {
-		return nil, err
-	}
-	if output == nil {
-		return nil, nil
-	}
-	groups := make([]cdservice.DeploymentGroup, 0, len(output.DeploymentGroupsInfo))
-	for _, info := range output.DeploymentGroupsInfo {
-		group := mapDeploymentGroup(info, c.redactionKey)
-		arn := deploymentGroupARN(c.boundary, group.ApplicationName, group.Name)
-		tags, err := c.listTags(ctx, arn)
 		if err != nil {
 			return nil, err
 		}
-		group.Tags = tags
-		groups = append(groups, group)
+		if output == nil {
+			continue
+		}
+		for _, info := range output.DeploymentGroupsInfo {
+			group := mapDeploymentGroup(info, c.redactionKey)
+			arn := deploymentGroupARN(c.boundary, group.ApplicationName, group.Name)
+			tags, err := c.listTags(ctx, arn)
+			if err != nil {
+				return nil, err
+			}
+			group.Tags = tags
+			groups = append(groups, group)
+		}
 	}
 	return groups, nil
 }

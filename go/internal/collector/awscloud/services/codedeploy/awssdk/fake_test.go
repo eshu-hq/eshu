@@ -2,6 +2,7 @@ package awssdk
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	awscodedeploy "github.com/aws/aws-sdk-go-v2/service/codedeploy"
@@ -10,6 +11,12 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/codedeploy"
 	"github.com/eshu-hq/eshu/go/internal/redact"
 )
+
+// awsBatchGetDeploymentGroupsLimit mirrors the AWS contract: a single
+// BatchGetDeploymentGroups call accepts at most 100 deployment group names. The
+// fake rejects oversized input the same way the live API does so the adapter's
+// chunking is exercised under test.
+const awsBatchGetDeploymentGroupsLimit = 100
 
 var testTime = time.Date(2026, time.May, 1, 0, 0, 0, 0, time.UTC)
 
@@ -80,6 +87,12 @@ func (f *fakeCodeDeployAPI) BatchGetDeploymentGroups(
 	input *awscodedeploy.BatchGetDeploymentGroupsInput,
 	_ ...func(*awscodedeploy.Options),
 ) (*awscodedeploy.BatchGetDeploymentGroupsOutput, error) {
+	if len(input.DeploymentGroupNames) > awsBatchGetDeploymentGroupsLimit {
+		return nil, fmt.Errorf(
+			"BatchGetDeploymentGroups accepts at most %d names, got %d",
+			awsBatchGetDeploymentGroupsLimit, len(input.DeploymentGroupNames),
+		)
+	}
 	var infos []cdtypes.DeploymentGroupInfo
 	for _, name := range input.DeploymentGroupNames {
 		if info, ok := f.deploymentGroupInfo[name]; ok {
