@@ -60,7 +60,7 @@ type Plan struct {
 
 // PlanRule is the safe rule-level projection of a backup plan. It carries the
 // rule name, the schedule expression, the target vault name, and the
-	// completion/start-window minutes only. Lifecycle policy values, copy
+// completion/start-window minutes only. Lifecycle policy values, copy
 // actions, and recovery point tags stay outside the projection.
 type PlanRule struct {
 	Name                    string
@@ -75,14 +75,14 @@ type PlanRule struct {
 // Conditions reflect tag-filter assignment metadata; the scanner records key
 // and operator only and never the matched resource tags themselves.
 type Selection struct {
-	ID                string
-	Name              string
-	PlanID            string
-	IAMRoleARN        string
-	Resources         []string
-	NotResources      []string
-	TagConditions     []TagCondition
-	CreationDate      time.Time
+	ID            string
+	Name          string
+	PlanID        string
+	IAMRoleARN    string
+	Resources     []string
+	NotResources  []string
+	TagConditions []TagCondition
+	CreationDate  time.Time
 }
 
 // TagCondition is the metadata-only scanner view of an AWS Backup selection
@@ -101,20 +101,20 @@ type TagCondition struct {
 // (which can carry source-resource configuration values) must NEVER be read
 // or stored.
 type RecoveryPoint struct {
-	ARN                    string
-	VaultName              string
-	VaultARN               string
-	SourceResourceARN      string
-	SourceResourceType     string
-	Status                 string
-	StatusMessage          string
-	EncryptionKeyARN       string
-	IsEncrypted            bool
-	CreationDate           time.Time
-	CompletionDate         time.Time
-	CalculatedDeleteAt     time.Time
-	BackupSizeInBytes      *int64
-	StorageClass           string
+	ARN                string
+	VaultName          string
+	VaultARN           string
+	SourceResourceARN  string
+	SourceResourceType string
+	Status             string
+	StatusMessage      string
+	EncryptionKeyARN   string
+	IsEncrypted        bool
+	CreationDate       time.Time
+	CompletionDate     time.Time
+	CalculatedDeleteAt time.Time
+	BackupSizeInBytes  *int64
+	StorageClass       string
 }
 
 // ReportPlan is the metadata-only scanner view of one AWS Backup report plan.
@@ -122,15 +122,15 @@ type RecoveryPoint struct {
 // and S3 destination metadata are captured.
 type ReportPlan struct {
 	ARN                         string
-	Name                         string
-	DeploymentStatus             string
-	ReportTemplate               string
-	Formats                      []string
-	S3BucketName                 string
-	S3KeyPrefix                  string
-	CreationTime                 time.Time
-	LastAttemptedExecutionTime   time.Time
-	LastSuccessfulExecutionTime  time.Time
+	Name                        string
+	DeploymentStatus            string
+	ReportTemplate              string
+	Formats                     []string
+	S3BucketName                string
+	S3KeyPrefix                 string
+	CreationTime                time.Time
+	LastAttemptedExecutionTime  time.Time
+	LastSuccessfulExecutionTime time.Time
 }
 
 // RestoreTestingPlan is the metadata-only scanner view of one AWS Backup
@@ -164,8 +164,8 @@ type Framework struct {
 // are recorded; control input parameter values stay out because they may
 // carry compliance-sensitive scope data.
 type FrameworkControl struct {
-	Name                  string
-	ScopeComplianceTypes  []string
-	ScopeTagKeys          []string
+	Name                   string
+	ScopeComplianceTypes   []string
+	ScopeTagKeys           []string
 	ScopeResourceTypeCount int
 }
