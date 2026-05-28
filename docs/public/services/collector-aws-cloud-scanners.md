@@ -22,6 +22,7 @@ It does not mutate AWS resources, read protected payloads, or write graph truth.
 | `ecs` | Clusters, services, tasks, relationships, redacted task definitions. |
 | `ec2` | VPC, subnet, security group, security-group rule, ENI topology. The EC2 scanner owns the ENI surface and may carry instance target evidence on ENI attachments, but does not emit `aws_ec2_instance` resources; VPC network-fabric resources live in the `vpc` scanner. |
 | `vpc` | Route tables, internet gateways, NAT gateways, network ACLs, VPC peering connections, VPC endpoints (gateway and interface), Elastic IPs, DHCP option sets, customer gateways, virtual private gateways, and site-to-site VPN connections plus relationships back to EC2-owned VPCs, subnets, ENIs, and instances. No VPN tunnel pre-shared keys or `CustomerGatewayConfiguration` XML bodies. |
+| `transitgateway` | Transit gateways, transit gateway route tables, attachments (VPC, VPN, Direct Connect gateway, peering, Connect), peering attachments, multicast domains, and policy tables. Relationships: attachment-to-VPC/VPN-connection/Direct-Connect-gateway/peer, route-table-to-attachment, attachment-to-transit-gateway, route-table/multicast-domain/policy-table-to-transit-gateway, and peering-to-remote-transit-gateway. Cross-account peer transit gateway IDs, owner accounts, and Regions are surfaced as AWS reports them and flagged `cross_account` for downstream org-context joins; the scanner never resolves the remote account identity. No transit gateway routes, multicast group memberships, or policy table rule bodies. |
 | `elbv2` | Load balancers, listeners, listener rules, target groups, routing relationships. |
 | `lambda` | Functions, aliases, event-source mappings, image URIs, execution roles, network joins, redacted environment values. |
 | `eks` | Clusters, node groups, add-ons, OIDC providers, IAM roles, network join evidence. |
@@ -88,6 +89,16 @@ CloudTrail audit event payloads, Lake query strings, Lake query result rows,
 event selector bodies, and dashboard widget query SQL stay outside the
 collector contract; the CloudTrail scanner emits trail and Lake configuration
 only, summarizing selectors as bounded counts.
+
+Transit gateway routes, transit gateway multicast group memberships, and
+transit gateway policy table rule bodies are out of scope. The Transit Gateway
+scanner reads transit gateway, route table, attachment, peering attachment,
+multicast domain, and policy table identity, ownership, state, and bounded
+option metadata only; it never calls `SearchTransitGatewayRoutes` or
+`GetTransitGatewayPolicyTableEntries`, and never mutates transit gateway
+resources or changes route-table association or propagation. Cross-account peer
+transit gateway identities are surfaced exactly as AWS reports them and flagged
+for org-context resolution; the scanner does not resolve the remote account.
 
 ACM certificate body PEM and ACM-issued private key material are out of scope.
 The ACM scanner never calls `GetCertificate` or `ExportCertificate`, and ACM
