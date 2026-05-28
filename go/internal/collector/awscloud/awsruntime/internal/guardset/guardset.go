@@ -1,11 +1,13 @@
 package guardset
 
 import (
+	"errors"
 	"fmt"
 	"go/ast"
 	goparser "go/parser"
 	"go/token"
 	"os"
+	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
@@ -56,9 +58,16 @@ func RuntimebindServiceDirs(servicesDir string) ([]string, error) {
 		if !entry.IsDir() {
 			continue
 		}
-		bindDir := servicesDir + string(os.PathSeparator) + entry.Name() + string(os.PathSeparator) + runtimebindLeaf
+		bindDir := filepath.Join(servicesDir, entry.Name(), runtimebindLeaf)
 		info, statErr := os.Stat(bindDir)
-		if statErr != nil || !info.IsDir() {
+		if errors.Is(statErr, os.ErrNotExist) {
+			// Service directory without a runtimebind package; skip it.
+			continue
+		}
+		if statErr != nil {
+			return nil, fmt.Errorf("stat runtimebind dir %q: %w", bindDir, statErr)
+		}
+		if !info.IsDir() {
 			continue
 		}
 		services = append(services, entry.Name())
@@ -78,6 +87,12 @@ func BindingsImportServices(bindingsFile string) ([]string, error) {
 	}
 	seen := map[string]struct{}{}
 	for _, spec := range file.Imports {
+		// Only blank imports (_ "...") trigger the init side effects that
+		// register scanners; named or default imports do not contribute to
+		// the bindings set, so the helper matches its documented contract.
+		if spec.Name == nil || spec.Name.Name != "_" {
+			continue
+		}
 		path, unquoteErr := importPath(spec)
 		if unquoteErr != nil {
 			return nil, unquoteErr
