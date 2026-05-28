@@ -23,9 +23,11 @@ const listPageSize int32 = 25
 // appsyncAPI is the AppSync read surface the adapter uses. It deliberately omits
 // EvaluateMappingTemplate, EvaluateCode, GetIntrospectionSchema,
 // StartSchemaCreation, GetDataSourceIntrospection, and every Create/Update/Delete
-// operation. The list operations carry no template, code, or key-value body in
-// their responses; GetSchemaCreationStatus returns only a status string. A
-// reflection test asserts the forbidden methods stay absent from this interface.
+// operation. ListResolvers and ListFunctions responses do include mapping-template
+// and code fields, but the mapper deliberately never reads or copies them, so no
+// template, code, or key-value body reaches a fact; GetSchemaCreationStatus returns
+// only a status string. A reflection test asserts the forbidden methods stay absent
+// from this interface, and a mapping test asserts those body fields are not persisted.
 type appsyncAPI interface {
 	ListGraphqlApis(context.Context, *awsappsync.ListGraphqlApisInput, ...func(*awsappsync.Options)) (*awsappsync.ListGraphqlApisOutput, error)
 	ListDataSources(context.Context, *awsappsync.ListDataSourcesInput, ...func(*awsappsync.Options)) (*awsappsync.ListDataSourcesOutput, error)
