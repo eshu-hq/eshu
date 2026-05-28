@@ -30,6 +30,7 @@ import (
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/elasticache/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/elbv2/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/eventbridge/runtimebind"
+	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/fsx/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/glue/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/guardduty/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/iam/runtimebind"

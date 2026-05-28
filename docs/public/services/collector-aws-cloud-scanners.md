@@ -36,6 +36,7 @@ It does not mutate AWS resources, read protected payloads, or write graph truth.
 | `redshift` | Provisioned clusters, cluster parameter groups, cluster subnet groups, cluster snapshot metadata, scheduled action metadata, Serverless namespaces, Serverless workgroups, and reported VPC/subnet/security-group/KMS/IAM/snapshot/scheduled-action/namespace-workgroup relationships. Provisioned and Serverless share `service_kind=redshift`; resource types distinguish the two surfaces. |
 | `dynamodb`, `cloudwatchlogs` | Table or log-group metadata and KMS relationships. |
 | `efs` | File system metadata (performance mode, throughput mode, encryption status, lifecycle policy transition summary), access points, mount targets, and replication configurations with mount-target-to-subnet, mount-target-to-security-group, file-system-to-KMS-key, access-point-to-file-system, and replication-to-target-file-system relationships. No NFS file system policy bodies and no file contents. |
+| `fsx` | File system metadata across all flavors (Windows File Server, Lustre, NetApp ONTAP, OpenZFS) including file system type, deployment type, storage type, storage and throughput capacity, lifecycle, and AWS Managed Microsoft AD directory ID; backups (type, lifecycle, size, source file system, KMS key); volume snapshots; NetApp ONTAP storage virtual machines; and NetApp ONTAP and OpenZFS volumes. Relationships: file-system-to-VPC, file-system-to-subnet, file-system-to-KMS-key, file-system-to-AD-directory, backup-to-file-system, SVM-to-file-system, SVM-to-AD-directory, volume-to-SVM, and volume-to-file-system. No Active Directory self-managed credentials (Windows/ONTAP self-managed AD password, service-account user name, administrators group, DNS server IPs, or domain-join secret ARN), no ONTAP fsxadmin password, no SVM admin password, and no file contents. |
 | `cloudwatch` | Metric alarms, composite alarms, dashboards (name + last modified only), Contributor Insights rules (name + state only), and metric streams with alarm-to-SNS-topic, composite-alarm-to-child-alarm, metric-stream-to-Firehose, and alarm-to-metric (dimension summary) relationships. No dashboard body JSON, no Contributor Insights rule definitions, no metric data points. Customer-tag-named alarm dimensions are routed through the shared redact library. |
 | `cloudfront` | Distribution metadata plus ACM certificate and WAF web ACL relationships. |
 | `wafv2` | Web ACL, customer rule group, IP set (id, name, IP version, address count only), and regex pattern set (id, name, pattern count only) metadata for both the REGIONAL and global CLOUDFRONT scope, plus managed rule set references (vendor + name). Relationships: web-ACL-to-protected-resource (ALB, API Gateway stage, AppSync, App Runner service, Cognito user pool, Amplify, Verified Access), web-ACL-to-rule-group, web-ACL-to-IP-set, and web-ACL-to-regex-pattern-set. CloudFront associations are recorded by the `cloudfront` scanner. No IP set address lists, regex pattern bodies, or rule `Statement` bodies (`AndStatement`/`OrStatement`/`NotStatement`/`ByteMatchStatement` search strings) are read or persisted. WAF Classic (v1) is out of scope by construction; the scanner imports only the WAFv2 SDK. |
@@ -74,7 +75,11 @@ CloudFront web ACLs.
 ## Data Boundaries
 
 The collector does not read S3 object contents, SQS messages, DynamoDB table
-data, EFS file contents or NFS file system policy bodies, RDS database
+data, EFS file contents or NFS file system policy bodies, FSx file contents,
+FSx Active Directory self-managed credentials (the Windows and ONTAP
+self-managed AD password, service-account user name, administrators group, DNS
+server IPs, and domain-join secret ARN), FSx ONTAP fsxadmin passwords, FSx
+storage virtual machine admin passwords, RDS database
 contents, DocumentDB database document contents, DocumentDB collections,
 DocumentDB indexes, DocumentDB cluster parameter values, DocumentDB master
 user passwords or secrets, DocumentDB snapshot
