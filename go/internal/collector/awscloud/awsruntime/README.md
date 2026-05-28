@@ -155,6 +155,35 @@ ServiceMonitor configuration. The only deployment-visible change is one
 new blank import in each binary that calls `awsruntime.SupportsServiceKind`
 (collector-aws-cloud, workflow-coordinator, webhook-listener).
 
+## Refactor Evidence (Derived Supported-Service Guard)
+
+The supported-service guard refactor (#785) replaces the two hardcoded
+want-lists in `registry_supported_services_test.go` and
+`bindings/bindings_test.go` with a derived check. The expected scanner set is
+computed at test time from the `services/<svc>/runtimebind/` directories on
+disk and the runtimebind blank imports parsed from `bindings.go` (see
+`internal/guardset`). Adding a scanner now touches zero want-lists; it appends
+one `merge=union` line to `bindings.go` and adds its own files.
+
+No-Regression Evidence: this is a test-only and docs-only change. No
+non-test runtime file changed. The production scanner registry, the
+`DefaultScannerFactory` dispatch path, and the per-claim `LookupBuilder` read
+are byte-for-byte unchanged from the #762 self-registration refactor. The
+guard's value is preserved and proven: `go test
+./internal/collector/awscloud/awsruntime/... -count=1 -race` passes, and the
+`Diff` helper has a unit-tested negative case ("dir present but not imported")
+in `internal/guardset/guardset_test.go`. Manually removing one blank import
+from `bindings.go` makes both guard tests fail with
+`services/<svc>/runtimebind/ exists but bindings.go does not blank-import it`
+and `len(SupportedServiceKinds()) = N-1, want N`, then passes again once the
+import is restored.
+
+No-Observability-Change: the awscloud runtime telemetry contract is untouched.
+The change adds only test-support code and documentation; it emits no metrics,
+spans, or logs and alters no existing signal. The instruments listed under
+Telemetry above keep their identical names, labels, cardinality, and span
+shape.
+
 ## Gotchas / invariants
 
 - `AcceptanceUnitID` is JSON with `account_id`, `region`, and `service_kind`.
