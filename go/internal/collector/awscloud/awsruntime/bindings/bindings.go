@@ -18,6 +18,7 @@ import (
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/cloudtrail/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/cloudwatch/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/cloudwatchlogs/runtimebind"
+	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/codebuild/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/codedeploy/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/cognito/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/docdb/runtimebind"
