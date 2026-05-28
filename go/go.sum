@@ -100,6 +100,10 @@ github.com/aws/aws-sdk-go-v2/service/athena v1.57.6 h1:QPDxHlfHmozXUj9rmUyxQiOLV
 github.com/aws/aws-sdk-go-v2/service/athena v1.57.6/go.mod h1:3QLTFWWkK+tGp4LD0ClX5Ib75MWE5H66vBat1N9f8Os=
 github.com/aws/aws-sdk-go-v2/service/backup v1.57.0 h1:MK5y/qUq8I4OD7JEF1LDjkmLTfAonyiE+6N6i4asdwk=
 github.com/aws/aws-sdk-go-v2/service/backup v1.57.0/go.mod h1:uMh3ZDoLKhXldYL1qcBYy1HsNQfKgL/w8iF2onOyoKY=
+github.com/aws/aws-sdk-go-v2/service/bedrock v1.62.0 h1:W+9SC9IbSJfB8uIVvYrE4+AR5Id47q6uma7zKcpoHMc=
+github.com/aws/aws-sdk-go-v2/service/bedrock v1.62.0/go.mod h1:s8wtBVt3pTWX6N4QvrYzOehkoUsVzkiGRdZuA4utdVQ=
+github.com/aws/aws-sdk-go-v2/service/bedrockagent v1.54.1 h1:jc+0xbKgIthQDrAb8KVr5uJdItkany+WIEb3dnkJiHQ=
+github.com/aws/aws-sdk-go-v2/service/bedrockagent v1.54.1/go.mod h1:mHMqUmNCieOVD/XOD6Xmlqof1ptZnF/TsRMTy/Jr8CY=
 github.com/aws/aws-sdk-go-v2/service/cloudformation v1.55.0 h1:Pf3hi7g1jDoD31qetA/HuY94jga2pH4W5W3+5uVaxKY=
 github.com/aws/aws-sdk-go-v2/service/cloudformation v1.55.0/go.mod h1:WEfYjobS0jTq12V8UgB+wfHcq/tTV4mZXIc+a8OjL2A=
 github.com/aws/aws-sdk-go-v2/service/cloudfront v1.64.0 h1:a6XmNe8cAvfrXVKwjXzWl9HHtuyE/n4kBroNm2mSOyo=
