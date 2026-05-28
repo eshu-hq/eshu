@@ -171,7 +171,7 @@ The same handler exposes cheap-summary aggregates over the reducer-owned impact
 findings through a separate Postgres aggregate read model
 (`supply_chain_impact_aggregates.go`). `CountSupplyChainImpactFindings` answers
 total / affected / not_affected / per-priority / per-severity questions over an
-optional CVE, package, repository, subject-digest, or impact-status scope.
+optional CVE, package, repository id or selector, subject-digest, or impact-status scope.
 `SupplyChainImpactInventory` returns a paginated grouped count along one of the
 dimensions `impact_status`, `priority_bucket`, `severity` (bucketed from CVSS
 score), or `repository_id`. The aggregate path is the cheap-summary call shape
@@ -183,7 +183,7 @@ package + repository + subject digest); no new schema or graph migration is
 needed.
 
 No-Regression Evidence: `go test ./internal/query -run
-'TestSupplyChainImpactAggregate|TestSupplyChainImpactInventoryGroupExpression'
+'TestSupplyChainImpactAggregate|TestSupplyChainImpactInventoryGroupExpression|TestSupplyChainImpactAggregateRoutesResolveRepositorySelectors'
 -count=1` proves: 503 envelope when the store is missing, totals envelope shape,
 grouped inventory shape, truncation marker + `next_offset` on overflow,
 rejection of unknown grouping dimensions, oversized limits, and negative offsets,
@@ -205,7 +205,7 @@ The same handler exposes cheap-summary aggregates over the reducer-owned
 provider security alert reconciliations through a separate Postgres aggregate
 read model (`security_alert_reconciliation_aggregates.go`).
 `CountSecurityAlertReconciliations` answers total / per-reconciliation-status /
-per-provider / per-provider-state questions over an optional repository,
+per-provider / per-provider-state questions over an optional repository id or selector,
 provider, package, CVE, GHSA, provider-state, or reconciliation-status scope.
 `SecurityAlertReconciliationInventory` returns a paginated grouped count along
 one of the dimensions `reconciliation_status`, `provider`, `provider_state`,
@@ -218,7 +218,7 @@ on `fact_records` for `reducer_security_alert_reconciliation`
 migration is needed.
 
 No-Regression Evidence: `go test ./internal/query -run
-'TestSecurityAlertReconciliationAggregate|TestSecurityAlertReconciliationInventoryGroupExpression|TestNextSecurityAlertReconciliationAggregateOffset'
+'TestSecurityAlertReconciliationAggregate|TestSecurityAlertReconciliationInventoryGroupExpression|TestNextSecurityAlertReconciliationAggregateOffset|TestSupplyChainSecurityAlertAggregateRoutesResolveRepositorySelectors'
 -count=1` proves: 503 envelope when the store is missing, totals envelope shape
 with the three rollup maps, grouped inventory shape, truncation marker plus
 `next_offset` on overflow, rejection of unknown grouping dimensions, oversized

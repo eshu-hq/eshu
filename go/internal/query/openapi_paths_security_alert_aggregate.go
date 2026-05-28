@@ -6,7 +6,7 @@ const openAPIPathsSecurityAlertAggregate = `
         "summary": "Count provider security alert reconciliations without paging the list endpoint",
         "operationId": "countSecurityAlertReconciliations",
         "parameters": [
-          {"name": "repository_id", "in": "query", "schema": {"type": "string"}},
+          {"name": "repository_id", "in": "query", "description": "Canonical repository id or human repository selector (name, repo slug, indexed path, local path, or remote URL). Unknown or ambiguous selectors return a selector error instead of an empty aggregate.", "schema": {"type": "string"}},
           {"name": "provider", "in": "query", "schema": {"type": "string"}},
           {"name": "package_id", "in": "query", "schema": {"type": "string"}},
           {"name": "cve_id", "in": "query", "schema": {"type": "string"}},
@@ -41,7 +41,7 @@ const openAPIPathsSecurityAlertAggregate = `
         "operationId": "getSecurityAlertReconciliationInventory",
         "parameters": [
           {"name": "group_by", "in": "query", "schema": {"type": "string", "enum": ["reconciliation_status", "provider", "provider_state", "repository_id", "package_id"], "default": "reconciliation_status"}},
-          {"name": "repository_id", "in": "query", "schema": {"type": "string"}},
+          {"name": "repository_id", "in": "query", "description": "Canonical repository id or human repository selector (name, repo slug, indexed path, local path, or remote URL). Unknown or ambiguous selectors return a selector error instead of an empty aggregate.", "schema": {"type": "string"}},
           {"name": "provider", "in": "query", "schema": {"type": "string"}},
           {"name": "package_id", "in": "query", "schema": {"type": "string"}},
           {"name": "cve_id", "in": "query", "schema": {"type": "string"}},

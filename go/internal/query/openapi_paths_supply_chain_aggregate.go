@@ -8,7 +8,7 @@ const openAPIPathsSupplyChainImpactAggregate = `
         "parameters": [
           {"name": "cve_id", "in": "query", "schema": {"type": "string"}},
           {"name": "package_id", "in": "query", "schema": {"type": "string"}},
-          {"name": "repository_id", "in": "query", "schema": {"type": "string"}},
+          {"name": "repository_id", "in": "query", "description": "Canonical repository id or human repository selector (name, repo slug, indexed path, local path, or remote URL). Unknown or ambiguous selectors return a selector error instead of an empty aggregate.", "schema": {"type": "string"}},
           {"name": "subject_digest", "in": "query", "schema": {"type": "string"}},
           {"name": "impact_status", "in": "query", "schema": {"type": "string", "enum": ["affected_exact", "affected_derived", "possibly_affected", "not_affected_known_fixed", "unknown_impact"]}}
         ],
@@ -45,7 +45,7 @@ const openAPIPathsSupplyChainImpactAggregate = `
           {"name": "group_by", "in": "query", "schema": {"type": "string", "enum": ["impact_status", "priority_bucket", "severity", "repository_id"], "default": "impact_status"}},
           {"name": "cve_id", "in": "query", "schema": {"type": "string"}},
           {"name": "package_id", "in": "query", "schema": {"type": "string"}},
-          {"name": "repository_id", "in": "query", "schema": {"type": "string"}},
+          {"name": "repository_id", "in": "query", "description": "Canonical repository id or human repository selector (name, repo slug, indexed path, local path, or remote URL). Unknown or ambiguous selectors return a selector error instead of an empty aggregate.", "schema": {"type": "string"}},
           {"name": "subject_digest", "in": "query", "schema": {"type": "string"}},
           {"name": "impact_status", "in": "query", "schema": {"type": "string", "enum": ["affected_exact", "affected_derived", "possibly_affected", "not_affected_known_fixed", "unknown_impact"]}},
           {"name": "limit", "in": "query", "schema": {"type": "integer", "minimum": 1, "maximum": 500, "default": 100}},

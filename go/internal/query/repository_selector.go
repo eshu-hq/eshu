@@ -52,7 +52,12 @@ func resolveRepositorySelectorExact(ctx context.Context, graph GraphQuery, conte
 	if graph != nil {
 		rows, err := graph.Run(ctx, `
 			MATCH (r:Repository)
-			WHERE r.id = $repo_selector OR r.name = $repo_selector
+			WHERE r.id = $repo_selector
+			   OR r.name = $repo_selector
+			   OR r.path = $repo_selector
+			   OR r.local_path = $repo_selector
+			   OR r.remote_url = $repo_selector
+			   OR r.repo_slug = $repo_selector
 			RETURN r.id as id
 			ORDER BY r.id
 		`, map[string]any{"repo_selector": selector})
@@ -63,7 +68,12 @@ func resolveRepositorySelectorExact(ctx context.Context, graph GraphQuery, conte
 		case 0:
 			row, err := graph.RunSingle(ctx, `
 				MATCH (r:Repository)
-				WHERE r.id = $repo_selector OR r.name = $repo_selector
+				WHERE r.id = $repo_selector
+				   OR r.name = $repo_selector
+				   OR r.path = $repo_selector
+				   OR r.local_path = $repo_selector
+				   OR r.remote_url = $repo_selector
+				   OR r.repo_slug = $repo_selector
 				RETURN r.id as id
 			`, map[string]any{"repo_selector": selector})
 			if err != nil {
@@ -97,7 +107,9 @@ func isRepositorySelectorNotFound(err error) bool {
 }
 
 func looksCanonicalRepositoryID(selector string) bool {
-	return strings.HasPrefix(selector, "repo-") || strings.HasPrefix(selector, "repository:")
+	return strings.HasPrefix(selector, "repo://") ||
+		strings.HasPrefix(selector, "repo-") ||
+		strings.HasPrefix(selector, "repository:")
 }
 
 func resolveRepositoryCatalogMatches(entries []RepositoryCatalogEntry, selector string) []string {

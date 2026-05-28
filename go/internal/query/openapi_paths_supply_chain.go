@@ -57,7 +57,7 @@ const openAPIPathsSupplyChain = `
         "parameters": [
           {"name": "cve_id", "in": "query", "schema": {"type": "string"}},
           {"name": "package_id", "in": "query", "schema": {"type": "string"}},
-          {"name": "repository_id", "in": "query", "schema": {"type": "string"}},
+          {"name": "repository_id", "in": "query", "description": "Canonical repository id or human repository selector (name, repo slug, indexed path, local path, or remote URL). Unknown or ambiguous selectors return a selector error instead of an empty page.", "schema": {"type": "string"}},
           {"name": "subject_digest", "in": "query", "schema": {"type": "string"}},
           {"name": "impact_status", "in": "query", "schema": {"type": "string", "enum": ["affected_exact", "affected_derived", "possibly_affected", "not_affected_known_fixed", "unknown_impact"]}},
           {"name": "profile", "in": "query", "schema": {"type": "string", "enum": ["precise", "comprehensive"], "default": "precise"}, "description": "Detection profile selector. precise (default) returns only findings backed by exact installed-version anchors. comprehensive also returns range-only manifest, SBOM/CPE-derived, malformed range, unsupported ecosystem, and missing-version rows. Each row keeps its truth labels (impact_status, confidence, runtime_reachability) and missing-evidence reasons."},
@@ -511,7 +511,7 @@ const openAPIPathsSupplyChain = `
         "description": "Requires limit plus repository_id, provider, package_id, cve_id, or ghsa_id. provider_state and reconciliation_status filter anchored pages only.",
         "operationId": "listSecurityAlertReconciliations",
         "parameters": [
-          {"name": "repository_id", "in": "query", "schema": {"type": "string"}},
+          {"name": "repository_id", "in": "query", "description": "Canonical repository id or human repository selector (name, repo slug, indexed path, local path, or remote URL). Unknown or ambiguous selectors return a selector error instead of an empty page.", "schema": {"type": "string"}},
           {"name": "provider", "in": "query", "schema": {"type": "string"}},
           {"name": "package_id", "in": "query", "schema": {"type": "string"}},
           {"name": "cve_id", "in": "query", "schema": {"type": "string"}},

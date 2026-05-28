@@ -23,7 +23,7 @@ func supplyChainImpactAggregateTools() []ToolDefinition {
 					},
 					"repository_id": map[string]any{
 						"type":        "string",
-						"description": "Optional repository identifier from package consumption evidence.",
+						"description": "Optional canonical repository id or human repository selector: name, repo slug, indexed path, local path, or remote URL.",
 					},
 					"subject_digest": map[string]any{
 						"type":        "string",
@@ -59,7 +59,7 @@ func supplyChainImpactAggregateTools() []ToolDefinition {
 					},
 					"repository_id": map[string]any{
 						"type":        "string",
-						"description": "Optional repository identifier.",
+						"description": "Optional canonical repository id or human repository selector: name, repo slug, indexed path, local path, or remote URL.",
 					},
 					"subject_digest": map[string]any{
 						"type":        "string",
