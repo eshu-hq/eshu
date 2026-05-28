@@ -14,6 +14,7 @@ import (
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/athena/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/cloudfront/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/cloudtrail/runtimebind"
+	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/cloudwatch/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/cloudwatchlogs/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/dynamodb/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/ec2/runtimebind"
