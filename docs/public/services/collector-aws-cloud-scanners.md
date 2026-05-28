@@ -33,6 +33,7 @@ It does not mutate AWS resources, read protected payloads, or write graph truth.
 | `s3` | Bucket metadata and server-access-log target bucket relationships. |
 | `rds` | DB instances, clusters, subnet groups, and reported security/KMS/role/group relationships. |
 | `docdb` | DocumentDB DB clusters, cluster instances, cluster parameter groups (name + family + parameter count only - NOT parameter values), cluster snapshot metadata, subnet groups, global clusters, and event subscription metadata with cluster-to-VPC, cluster-to-subnet-group, cluster-to-KMS-key, instance-to-cluster, and global-cluster-to-cluster relationships. No master user passwords, master user secrets, database document contents, collections, indexes, cluster parameter values, or snapshot contents. |
+| `neptune` | Both Neptune (provisioned) and Neptune Analytics share `service_kind=neptune`; resource types distinguish the two surfaces. Neptune (provisioned): DB clusters, cluster instances, cluster parameter groups (name + family only - NOT parameter values), cluster snapshot metadata, subnet groups, and global clusters. Neptune Analytics: graphs (name, status, vector-search embedding dimension, provisioning shape) and graph snapshot metadata. Relationships: cluster-to-VPC (derived from the subnet group VPC), cluster-to-subnet-group, cluster-to-KMS-key, cluster-to-IAM-role, instance-to-cluster, global-cluster-to-cluster, and graph-to-KMS-key. No master user passwords, master user secrets, cluster parameter values, graph vertex or edge contents, `ExecuteQuery` results, or snapshot contents. The Neptune Analytics graph data-plane (ExecuteQuery/CancelQuery/GetQuery/ListQueries) is unreachable from the scanner by interface construction. |
 | `redshift` | Provisioned clusters, cluster parameter groups, cluster subnet groups, cluster snapshot metadata, scheduled action metadata, Serverless namespaces, Serverless workgroups, and reported VPC/subnet/security-group/KMS/IAM/snapshot/scheduled-action/namespace-workgroup relationships. Provisioned and Serverless share `service_kind=redshift`; resource types distinguish the two surfaces. |
 | `dynamodb`, `cloudwatchlogs` | Table or log-group metadata and KMS relationships. |
 | `efs` | File system metadata (performance mode, throughput mode, encryption status, lifecycle policy transition summary), access points, mount targets, and replication configurations with mount-target-to-subnet, mount-target-to-security-group, file-system-to-KMS-key, access-point-to-file-system, and replication-to-target-file-system relationships. No NFS file system policy bodies and no file contents. |
@@ -78,7 +79,9 @@ data, EFS file contents or NFS file system policy bodies, RDS database
 contents, DocumentDB database document contents, DocumentDB collections,
 DocumentDB indexes, DocumentDB cluster parameter values, DocumentDB master
 user passwords or secrets, DocumentDB snapshot
-contents, Redshift warehouse queries, Redshift table data,
+contents, Neptune master user passwords or secrets, Neptune cluster parameter
+values, Neptune snapshot contents, Neptune Analytics graph vertex or edge
+contents, Neptune Analytics `ExecuteQuery` results, Redshift warehouse queries, Redshift table data,
 Redshift snapshot contents, Redshift master user passwords or admin passwords,
 ElastiCache cache keys, cache values, AUTH tokens, user passwords, user access
 strings, or snapshot data, CloudWatch log events, CloudWatch metric data
