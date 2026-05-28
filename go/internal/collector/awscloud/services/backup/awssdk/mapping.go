@@ -142,7 +142,7 @@ func mergeTagConditions(
 	var out []backupservice.TagCondition
 	for _, cond := range listOfTags {
 		out = append(out, backupservice.TagCondition{
-			Operator: "StringEquals",
+			Operator: conditionTypeOperator(cond.ConditionType),
 			Key:      strings.TrimSpace(aws.ToString(cond.ConditionKey)),
 			Value:    strings.TrimSpace(aws.ToString(cond.ConditionValue)),
 		})
@@ -157,6 +157,30 @@ func mergeTagConditions(
 		return nil
 	}
 	return out
+}
+
+// conditionTypeOperator maps an AWS Backup ListOfTags ConditionType enum to
+// the camelCase operator vocabulary the scanner persists, keeping ListOfTags
+// operators aligned with the Conditions-block operators in mergeTagConditions.
+// AWS reports the type as a required enum; an empty value defaults to
+// StringEquals (the only operator ListOfTags historically supported), while an
+// unrecognized value is preserved verbatim so a future enum expansion is
+// recorded faithfully rather than mislabeled as equality.
+func conditionTypeOperator(ct awsbackuptypes.ConditionType) string {
+	switch ct {
+	case awsbackuptypes.ConditionType("STRINGEQUALS"):
+		return "StringEquals"
+	case awsbackuptypes.ConditionType("STRINGNOTEQUALS"):
+		return "StringNotEquals"
+	case awsbackuptypes.ConditionType("STRINGLIKE"):
+		return "StringLike"
+	case awsbackuptypes.ConditionType("STRINGNOTLIKE"):
+		return "StringNotLike"
+	case awsbackuptypes.ConditionType(""):
+		return "StringEquals"
+	default:
+		return string(ct)
+	}
 }
 
 func mapConditionParameters(
