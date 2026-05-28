@@ -131,26 +131,26 @@ func trailObservation(boundary awscloud.Boundary, trail Trail) awscloud.Resource
 		State:        loggingState(trail.LoggingEnabled),
 		Tags:         cloneStringMap(trail.Tags),
 		Attributes: map[string]any{
-			"home_region":                        strings.TrimSpace(trail.HomeRegion),
-			"s3_bucket_name":                     strings.TrimSpace(trail.S3BucketName),
-			"s3_key_prefix":                      strings.TrimSpace(trail.S3KeyPrefix),
-			"sns_topic_arn":                      strings.TrimSpace(trail.SNSTopicARN),
-			"cloudwatch_logs_log_group_arn":      strings.TrimSpace(trail.CloudWatchLogsLogGroupARN),
-			"cloudwatch_logs_role_arn":           strings.TrimSpace(trail.CloudWatchLogsRoleARN),
-			"kms_key_id":                         strings.TrimSpace(trail.KMSKeyID),
-			"include_global_service_events":      trail.IncludeGlobalServiceEvents,
-			"is_multi_region_trail":              trail.IsMultiRegionTrail,
-			"is_organization_trail":              trail.IsOrganizationTrail,
-			"log_file_validation_enabled":        trail.LogFileValidationEnabled,
-			"has_custom_event_selectors":         trail.HasCustomEventSelectors,
-			"has_insight_selectors":              trail.HasInsightSelectors,
-			"logging_enabled":                    trail.LoggingEnabled,
-			"latest_delivery_error":              strings.TrimSpace(trail.LatestDeliveryError),
-			"latest_notification_error":          strings.TrimSpace(trail.LatestNotificationError),
-			"event_selector_count":               trail.EventSelectorSummary.EventSelectorCount,
-			"advanced_event_selector_count":      trail.EventSelectorSummary.AdvancedEventSelectorCount,
+			"home_region":                         strings.TrimSpace(trail.HomeRegion),
+			"s3_bucket_name":                      strings.TrimSpace(trail.S3BucketName),
+			"s3_key_prefix":                       strings.TrimSpace(trail.S3KeyPrefix),
+			"sns_topic_arn":                       strings.TrimSpace(trail.SNSTopicARN),
+			"cloudwatch_logs_log_group_arn":       strings.TrimSpace(trail.CloudWatchLogsLogGroupARN),
+			"cloudwatch_logs_role_arn":            strings.TrimSpace(trail.CloudWatchLogsRoleARN),
+			"kms_key_id":                          strings.TrimSpace(trail.KMSKeyID),
+			"include_global_service_events":       trail.IncludeGlobalServiceEvents,
+			"is_multi_region_trail":               trail.IsMultiRegionTrail,
+			"is_organization_trail":               trail.IsOrganizationTrail,
+			"log_file_validation_enabled":         trail.LogFileValidationEnabled,
+			"has_custom_event_selectors":          trail.HasCustomEventSelectors,
+			"has_insight_selectors":               trail.HasInsightSelectors,
+			"logging_enabled":                     trail.LoggingEnabled,
+			"latest_delivery_error":               strings.TrimSpace(trail.LatestDeliveryError),
+			"latest_notification_error":           strings.TrimSpace(trail.LatestNotificationError),
+			"event_selector_count":                trail.EventSelectorSummary.EventSelectorCount,
+			"advanced_event_selector_count":       trail.EventSelectorSummary.AdvancedEventSelectorCount,
 			"event_selector_resource_type_counts": cloneIntMap(trail.EventSelectorSummary.ResourceTypeCounts),
-			"insight_selectors":                  cloneStrings(trail.InsightSelectors),
+			"insight_selectors":                   cloneStrings(trail.InsightSelectors),
 		},
 		CorrelationAnchors: []string{trailARN, trail.Name},
 		SourceRecordID:     firstNonEmpty(trailARN, trail.Name),
@@ -168,15 +168,15 @@ func eventDataStoreObservation(boundary awscloud.Boundary, store EventDataStore)
 		State:        strings.TrimSpace(store.Status),
 		Tags:         cloneStringMap(store.Tags),
 		Attributes: map[string]any{
-			"retention_period":                store.RetentionPeriod,
-			"multi_region_enabled":            store.MultiRegionEnabled,
-			"organization_enabled":            store.OrganizationEnabled,
-			"termination_protection_enabled":  store.TerminationProtectionEnabled,
-			"billing_mode":                    strings.TrimSpace(store.BillingMode),
-			"kms_key_id":                      strings.TrimSpace(store.KMSKeyID),
-			"created_timestamp":               strings.TrimSpace(store.CreatedTimestamp),
-			"updated_timestamp":               strings.TrimSpace(store.UpdatedTimestamp),
-			"advanced_event_selector_count":   store.AdvancedEventSelectorCount,
+			"retention_period":               store.RetentionPeriod,
+			"multi_region_enabled":           store.MultiRegionEnabled,
+			"organization_enabled":           store.OrganizationEnabled,
+			"termination_protection_enabled": store.TerminationProtectionEnabled,
+			"billing_mode":                   strings.TrimSpace(store.BillingMode),
+			"kms_key_id":                     strings.TrimSpace(store.KMSKeyID),
+			"created_timestamp":              strings.TrimSpace(store.CreatedTimestamp),
+			"updated_timestamp":              strings.TrimSpace(store.UpdatedTimestamp),
+			"advanced_event_selector_count":  store.AdvancedEventSelectorCount,
 		},
 		CorrelationAnchors: []string{storeARN, store.Name},
 		SourceRecordID:     firstNonEmpty(storeARN, store.Name),
@@ -276,7 +276,8 @@ func trailRelationships(boundary awscloud.Boundary, trail Trail) []awscloud.Rela
 			SourceResourceID: sourceID,
 			SourceARN:        trailARN,
 			TargetResourceID: kms,
-			TargetARN:        kms,
+			TargetARN:        kmsTargetARN(kms),
+			TargetType:       resourceTypeKMSKey,
 			SourceRecordID:   trailARN + "->kms:" + kms,
 		})
 	}
@@ -298,9 +299,27 @@ func eventDataStoreKMSRelationship(
 		SourceResourceID: storeARN,
 		SourceARN:        storeARN,
 		TargetResourceID: kms,
-		TargetARN:        kms,
+		TargetARN:        kmsTargetARN(kms),
+		TargetType:       resourceTypeKMSKey,
 		SourceRecordID:   storeARN + "->kms:" + kms,
 	}, true
+}
+
+// resourceTypeKMSKey is the relationship target type CloudTrail emits for KMS
+// key references, matching the convention shared by every other awscloud
+// service scanner that points at a KMS key.
+const resourceTypeKMSKey = "aws_kms_key"
+
+// kmsTargetARN returns key as the relationship TargetARN only when it is an
+// ARN-shaped value. CloudTrail's KmsKeyId may be a bare key id or an alias
+// (e.g. "alias/foo"), neither of which is an ARN; returning "" for those keeps
+// non-ARN identifiers out of target_arn while TargetResourceID still carries
+// the raw value. The caller is responsible for trimming whitespace.
+func kmsTargetARN(key string) string {
+	if strings.HasPrefix(key, "arn:") {
+		return key
+	}
+	return ""
 }
 
 func loggingState(enabled bool) string {

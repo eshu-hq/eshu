@@ -94,9 +94,9 @@ func TestScannerEmitsTrailEventStoreChannelAndDashboardMetadata(t *testing.T) {
 				EventSelectorCount:         2,
 				AdvancedEventSelectorCount: 1,
 				ResourceTypeCounts: map[string]int{
-					"AWS::S3::Object":         1,
-					"AWS::Lambda::Function":   1,
-					"AWS::DynamoDB::Table":    1,
+					"AWS::S3::Object":       1,
+					"AWS::Lambda::Function": 1,
+					"AWS::DynamoDB::Table":  1,
 				},
 			},
 			InsightSelectors: []string{"ApiCallRateInsight", "ApiErrorRateInsight"},

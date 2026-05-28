@@ -33,26 +33,26 @@ type Client interface {
 // require a mutation or event-extraction API to populate.
 type Trail struct {
 	ARN                        string
-	Name                        string
-	HomeRegion                  string
-	S3BucketName                string
-	S3KeyPrefix                 string
-	SNSTopicARN                 string
-	CloudWatchLogsLogGroupARN   string
-	CloudWatchLogsRoleARN       string
-	KMSKeyID                    string
-	IncludeGlobalServiceEvents  bool
-	IsMultiRegionTrail          bool
-	IsOrganizationTrail         bool
-	LogFileValidationEnabled    bool
-	HasCustomEventSelectors     bool
-	HasInsightSelectors         bool
-	LoggingEnabled              bool
-	LatestDeliveryError         string
-	LatestNotificationError     string
-	EventSelectorSummary        EventSelectorSummary
-	InsightSelectors            []string
-	Tags                        map[string]string
+	Name                       string
+	HomeRegion                 string
+	S3BucketName               string
+	S3KeyPrefix                string
+	SNSTopicARN                string
+	CloudWatchLogsLogGroupARN  string
+	CloudWatchLogsRoleARN      string
+	KMSKeyID                   string
+	IncludeGlobalServiceEvents bool
+	IsMultiRegionTrail         bool
+	IsOrganizationTrail        bool
+	LogFileValidationEnabled   bool
+	HasCustomEventSelectors    bool
+	HasInsightSelectors        bool
+	LoggingEnabled             bool
+	LatestDeliveryError        string
+	LatestNotificationError    string
+	EventSelectorSummary       EventSelectorSummary
+	InsightSelectors           []string
+	Tags                       map[string]string
 }
 
 // EventSelectorSummary holds bounded counts derived from a trail's event
@@ -70,29 +70,29 @@ type EventSelectorSummary struct {
 // rows are out of scope; only identity, retention, and selector-count summary
 // are persisted.
 type EventDataStore struct {
-	ARN                            string
-	Name                           string
-	Status                         string
-	RetentionPeriod                int32
-	MultiRegionEnabled             bool
-	OrganizationEnabled            bool
-	TerminationProtectionEnabled   bool
-	BillingMode                    string
-	KMSKeyID                       string
-	CreatedTimestamp               string
-	UpdatedTimestamp               string
-	AdvancedEventSelectorCount     int
-	Tags                           map[string]string
+	ARN                          string
+	Name                         string
+	Status                       string
+	RetentionPeriod              int32
+	MultiRegionEnabled           bool
+	OrganizationEnabled          bool
+	TerminationProtectionEnabled bool
+	BillingMode                  string
+	KMSKeyID                     string
+	CreatedTimestamp             string
+	UpdatedTimestamp             string
+	AdvancedEventSelectorCount   int
+	Tags                         map[string]string
 }
 
 // Channel is the scanner-owned representation of one CloudTrail channel.
 type Channel struct {
-	ARN              string
-	Name             string
-	Source           string
-	DestinationType  string
-	DestinationARN   string
-	Tags             map[string]string
+	ARN             string
+	Name            string
+	Source          string
+	DestinationType string
+	DestinationARN  string
+	Tags            map[string]string
 }
 
 // Dashboard is the scanner-owned representation of one CloudTrail Lake
