@@ -287,6 +287,39 @@ request.
   Non-org-aware credentials emit an `organizations_org_access_skipped` warning
   instead of fabricating partial organization truth.
 
+## Refactor Evidence (types.go Constants Split)
+
+The PR that splits the per-service `Service<X>`, `ResourceType<X>...`, and
+`Relationship<X>...` constants out of `awscloud/types.go` into one
+`constants_<service>.go` sibling per AWS service is a pure file-organization
+refactor. It moves identifier declarations across files inside the same Go
+package; values are byte-identical, type signatures are unchanged, and the
+exported API surface (`awscloud.ServiceXxx`, `awscloud.ResourceTypeXxx...`,
+`awscloud.RelationshipXxx...`) keeps the same identifiers and string values.
+`types.go` continues to own the shared observation contracts (`Boundary`,
+`ResourceObservation`, `RelationshipObservation`, `ImageReferenceObservation`,
+`DNSRecordObservation`, `DNSAliasTarget`, `DNSRoutingPolicy`,
+`DNSGeoLocation`, `WarningObservation`) plus `CollectorKind`, which is why
+it stays under the 500-line cap after the split.
+
+No-Regression Evidence: `cd go && go test ./internal/collector/awscloud/... -count=1 -race`
+covers every existing scanner builder and the per-service constants used as
+fact-envelope identifiers, telemetry label values, and graph-resource-type
+strings. Tests pass without any test-source change because constant
+identifiers and string values are preserved across the move. `golangci-lint
+run ./internal/collector/awscloud/... ./cmd/collector-aws-cloud/...` reports
+zero issues after the split, confirming the package still type-checks with
+no orphaned imports or unused identifiers.
+
+No-Observability-Change: AWS collector metrics use the per-service constants
+as the `service` label value (`eshu_dp_aws_resources_emitted_total{service=...}`,
+`eshu_dp_aws_api_calls_total{service=...}`,
+`eshu_dp_aws_pagination_checkpoint_events_total{service=...}`,
+`aws.service.scan` span attributes, status keys). Because every
+`Service<X>` constant keeps its identifier and string value, label
+cardinality, span shape, and status keys are byte-identical before and
+after the split.
+
 ## Related docs
 
 - `docs/public/services/collector-aws-cloud.md`
