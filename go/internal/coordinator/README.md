@@ -201,7 +201,13 @@ warning (`collector_instance_drift_detected`, fields
   fact query, then confirm the dependency evidence is active and exact enough
   for the collector family. Bounded reads rotate by reconcile bucket, and the
   planner preserves that reader order so direct and owned targets do not sit
-  behind unrelated broad fanout.
+  behind unrelated broad fanout. Derived reads include one bounded lookahead
+  target beyond the planning budget. If that lookahead proves the owned-package
+  derivation budget is exhausted, `requested_scope_set.skipped_targets` records
+  aggregate `derived_target_budget_exhausted` evidence with selected and
+  observed skipped counts, the configured limit, collector kind, target class,
+  and bounded ecosystem/source labels. It does not include package names,
+  versions, repository paths, or advisory payloads.
 
 ## Extension points
 
@@ -214,6 +220,12 @@ dependency evidence, keeps range dependencies out of exact OSV collection, and
 does not change claim leases, worker counts, queue concurrency, reducer graph
 writes, or NornicDB settings.
 
+No-Regression Evidence: `go test ./internal/coordinator -run 'Test(ServiceRunActiveModeSurfaces(PackageRegistry|Vulnerability)DerivedBudgetExhaustion|PackageRegistryWorkPlannerReportsDerivedTargetBudgetExhaustion|VulnerabilityIntelligenceWorkPlannerReportsDerivedQueryBudgetExhaustion)' -count=1`
+proves representative proof budgets cap package-registry targets and OSV
+package-version query selection while the active service path reads one bounded
+lookahead and surfaces aggregate skipped-target counts in
+`workflow_runs.requested_scope_set`.
+
 Observability Evidence: existing coordinator reconcile counters and duration
 histograms, `workflow_runs.requested_scope_set`, `workflow_work_items` status
 and failure columns, collector claim status, and `/api/v0/index-status` show
@@ -221,8 +233,9 @@ whether targets were planned, claimed, completed, retried, or failed. Package
 registry and vulnerability work items also carry `target_class` in
 `fairness_key`, so operators can separate direct, owned, and broad target
 progress without adding package names, versions, feed URLs, or credential
-material to metric labels. Rotated target selection remains visible through the
-bounded `requested_scope_set` rows.
+material to metric labels. Rotated target selection and budget-exhausted
+skipped target counts remain visible through the bounded
+`requested_scope_set` rows.
 
 Performance Evidence: `go test ./internal/coordinator -run '^$' -bench BenchmarkVulnerabilityDerivedQueryChunks -benchmem -count=3` on darwin/arm64 dropped derived OSV chunk planning from about `8.9 MB/op` and `48k allocs/op` to about `194 KB/op` and `2.3k allocs/op`. The planner now grows chunks in place and tracks encoded scope length incrementally instead of rebuilding candidate slices and scope IDs on every query.
 

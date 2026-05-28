@@ -58,6 +58,11 @@ type packageRegistryDerivationConfiguration struct {
 	VersionLimit int      `json:"version_limit"`
 }
 
+type packageRegistryDerivationResult struct {
+	Targets        []packageRegistryTargetConfiguration
+	SkippedTargets []derivedTargetSkipEvidence
+}
+
 // PlanPackageRegistryWork returns one run and one work item per configured
 // package-registry target.
 func (p PackageRegistryWorkPlanner) PlanPackageRegistryWork(
@@ -74,14 +79,15 @@ func (p PackageRegistryWorkPlanner) PlanPackageRegistryWork(
 	if err := validateUniquePackageRegistryTargets(targets); err != nil {
 		return workflow.Run{}, nil, err
 	}
-	targets = appendPackageRegistryDerivedTargets(targets, decodedPackageRegistryDerivation(targets, request))
+	derivation := decodedPackageRegistryDerivation(targets, request)
+	targets = appendPackageRegistryDerivedTargets(targets, derivation.Targets)
 
 	observedAt := request.ObservedAt.UTC()
 	run := workflow.Run{
 		RunID:              packageRegistryRunID(request.Instance, request.PlanKey),
 		TriggerKind:        packageRegistryTriggerKind(request.Instance),
 		Status:             workflow.RunStatusCollectionPending,
-		RequestedScopeSet:  packageRegistryRequestedScopeSet(request.Instance, targets),
+		RequestedScopeSet:  packageRegistryRequestedScopeSet(request.Instance, targets, derivation.SkippedTargets),
 		RequestedCollector: string(scope.CollectorPackageRegistry),
 		CreatedAt:          observedAt,
 		UpdatedAt:          observedAt,
@@ -145,10 +151,10 @@ func parsePackageRegistryRuntimeTargets(raw string) ([]packageRegistryTargetConf
 func decodedPackageRegistryDerivation(
 	configured []packageRegistryTargetConfiguration,
 	request PackageRegistryPlanRequest,
-) []packageRegistryTargetConfiguration {
+) packageRegistryDerivationResult {
 	var decoded packageRegistryRuntimeConfiguration
 	if err := json.Unmarshal([]byte(request.Instance.Configuration), &decoded); err != nil {
-		return nil
+		return packageRegistryDerivationResult{}
 	}
 	return derivePackageRegistryTargets(configured, decoded.DeriveFromOwnedPackages, request.OwnedPackageTargets)
 }
@@ -185,6 +191,7 @@ func packageRegistryTriggerKind(instance workflow.CollectorInstance) workflow.Tr
 func packageRegistryRequestedScopeSet(
 	instance workflow.CollectorInstance,
 	targets []packageRegistryTargetConfiguration,
+	skippedTargets []derivedTargetSkipEvidence,
 ) string {
 	type requestedTarget struct {
 		ScopeID   string `json:"scope_id"`
@@ -195,11 +202,13 @@ func packageRegistryRequestedScopeSet(
 		Class     string `json:"target_class,omitempty"`
 	}
 	payload := struct {
-		CollectorInstanceID string            `json:"collector_instance_id"`
-		Targets             []requestedTarget `json:"targets"`
+		CollectorInstanceID string                      `json:"collector_instance_id"`
+		Targets             []requestedTarget           `json:"targets"`
+		SkippedTargets      []derivedTargetSkipEvidence `json:"skipped_targets,omitempty"`
 	}{
 		CollectorInstanceID: strings.TrimSpace(instance.InstanceID),
 		Targets:             make([]requestedTarget, 0, len(targets)),
+		SkippedTargets:      skippedTargets,
 	}
 	for _, target := range targets {
 		payload.Targets = append(payload.Targets, requestedTarget{
@@ -247,17 +256,11 @@ func derivePackageRegistryTargets(
 	configured []packageRegistryTargetConfiguration,
 	derivation packageRegistryDerivationConfiguration,
 	owned []workflow.OwnedPackageDependencyTarget,
-) []packageRegistryTargetConfiguration {
+) packageRegistryDerivationResult {
 	if !derivation.Enabled {
-		return nil
+		return packageRegistryDerivationResult{}
 	}
-	limit := derivation.TargetLimit
-	if limit <= 0 {
-		limit = defaultDerivedPackageTargets
-	}
-	if limit > maxDerivedPackageTargets {
-		limit = maxDerivedPackageTargets
-	}
+	limit := packageRegistryDerivedTargetLimit(derivation.TargetLimit)
 	packageLimit := derivation.PackageLimit
 	if packageLimit <= 0 {
 		packageLimit = 1
@@ -272,10 +275,8 @@ func derivePackageRegistryTargets(
 		seen[strings.TrimSpace(target.ScopeID)] = struct{}{}
 	}
 	out := make([]packageRegistryTargetConfiguration, 0, minInt(limit, len(owned)))
+	skipped := 0
 	for _, target := range owned {
-		if len(out) >= limit {
-			break
-		}
 		if !stringSetContains(ecosystems, target.Ecosystem) {
 			continue
 		}
@@ -287,15 +288,37 @@ func derivePackageRegistryTargets(
 			continue
 		}
 		seen[derived.ScopeID] = struct{}{}
+		if len(out) >= limit {
+			skipped++
+			continue
+		}
 		out = append(out, derived)
 	}
-	return out
+	return packageRegistryDerivationResult{
+		Targets: out,
+		SkippedTargets: derivedTargetBudgetSkipEvidence(
+			string(scope.CollectorPackageRegistry),
+			limit,
+			len(out),
+			skipped,
+			sortedStringSetValues(ecosystems),
+			nil,
+		),
+	}
 }
 
 const (
 	defaultDerivedPackageTargets = 100
 	maxDerivedPackageTargets     = 5000
 )
+
+func packageRegistryDerivedTargetLimit(raw int) int {
+	limit := derivationLimit(raw, defaultDerivedPackageTargets)
+	if limit > maxDerivedPackageTargets {
+		return maxDerivedPackageTargets
+	}
+	return limit
+}
 
 func npmPackageRegistryTarget(
 	target workflow.OwnedPackageDependencyTarget,

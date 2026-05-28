@@ -367,11 +367,11 @@ func (s Service) packageRegistryOwnedTargets(
 	if s.OwnedPackageTargetReader == nil {
 		return nil, fmt.Errorf("owned package target reader is required for derived package registry targets")
 	}
-	limit := derivationLimit(derivation.TargetLimit, defaultDerivedPackageTargets)
+	targetLimit := packageRegistryDerivedTargetLimit(derivation.TargetLimit)
 	return s.OwnedPackageTargetReader.ListOwnedPackageDependencyTargets(ctx, workflow.OwnedPackageDependencyTargetFilter{
 		Ecosystems:     sortedStringSetValues(derivationEcosystems(derivation.Ecosystems, []string{"npm"})),
-		Limit:          limit,
-		RotationOffset: derivedTargetRotationOffset(observedAt, s.Config.ReconcileInterval, limit),
+		Limit:          derivedTargetReadLimit(targetLimit),
+		RotationOffset: derivedTargetRotationOffset(observedAt, s.Config.ReconcileInterval, targetLimit),
 	})
 }
 
@@ -449,12 +449,12 @@ func (s Service) vulnerabilityOwnedTargets(
 	if s.OwnedPackageTargetReader == nil {
 		return nil, fmt.Errorf("owned package target reader is required for derived vulnerability targets")
 	}
-	limit := derivationLimit(derivation.TargetLimit, defaultDerivedVulnerabilityTargets)
+	targetLimit := vulnerabilityDerivedTargetLimit(derivation.TargetLimit)
 	return s.OwnedPackageTargetReader.ListOwnedPackageDependencyTargets(ctx, workflow.OwnedPackageDependencyTargetFilter{
 		Ecosystems:      sortedStringSetValues(derivationEcosystems(derivation.Ecosystems, []string{"npm"})),
-		Limit:           limit,
+		Limit:           derivedTargetReadLimit(targetLimit),
 		VersionSpecific: true,
-		RotationOffset:  derivedTargetRotationOffset(observedAt, s.Config.ReconcileInterval, limit),
+		RotationOffset:  derivedTargetRotationOffset(observedAt, s.Config.ReconcileInterval, targetLimit),
 	})
 }
 

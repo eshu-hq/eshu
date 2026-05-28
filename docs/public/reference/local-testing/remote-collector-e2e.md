@@ -99,6 +99,26 @@ The preflight emits `host_root`, `mounted_root`, `mode`,
 distinguish fixture smokes, wrong-root full-corpus attempts, malformed
 thresholds, and real full-corpus runs before Eshu writes facts or graph rows.
 
+Remote E2E also defaults package-registry and OSV owned-package derivation to
+`ESHU_REMOTE_E2E_DERIVED_TARGET_LIMIT=100`. Keep that budget for
+representative proofs so a 20-50 repository corpus does not admit
+full-corpus-style package/advisory fanout. Raise the limit explicitly only when
+the run evidence records a full-corpus package/advisory proof goal.
+
+The representative vulnerability proof command is:
+
+```bash
+export ESHU_REMOTE_E2E_ENV_FILE=path/to/private-remote-e2e.env
+export ESHU_REMOTE_E2E_CORPUS_MODE=representative
+export ESHU_REMOTE_E2E_DERIVED_TARGET_LIMIT=100
+export ESHU_REMOTE_E2E_MIN_REPOSITORY_COUNT=20
+export ESHU_REMOTE_E2E_MAX_REPOSITORY_COUNT=50
+export ESHU_REMOTE_E2E_PROJECT_NAME=eshu-remote-e2e-representative
+
+docker compose --env-file "${ESHU_REMOTE_E2E_ENV_FILE}" \
+  -f docker-compose.remote-e2e.yaml up --build
+```
+
 ## Representative Acceptance
 
 After a representative run reaches queue zero, run:
@@ -119,6 +139,7 @@ more explicit:
 
 ```text
 ESHU_REMOTE_E2E_ADVISORY_EVIDENCE_CVE_ID=
+ESHU_REMOTE_E2E_DERIVED_TARGET_LIMIT=100
 ESHU_REMOTE_E2E_MIN_PACKAGE_COUNT=
 ESHU_REMOTE_E2E_MIN_ADVISORY_EVIDENCE_COUNT=
 ESHU_REMOTE_E2E_MIN_IMPACT_FINDING_COUNT=

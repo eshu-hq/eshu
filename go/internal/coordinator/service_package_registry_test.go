@@ -162,7 +162,7 @@ func TestServiceRunActiveModePassesOwnedPackageEvidenceToPackageRegistryPlanner(
 	if got, want := targetReader.requests[0].Ecosystems, []string{"npm"}; len(got) != len(want) || got[0] != want[0] {
 		t.Fatalf("target reader ecosystems = %#v, want %#v", got, want)
 	}
-	if got, want := targetReader.requests[0].Limit, 125; got != want {
+	if got, want := targetReader.requests[0].Limit, 126; got != want {
 		t.Fatalf("target reader limit = %d, want %d", got, want)
 	}
 	if targetReader.requests[0].VersionSpecific {

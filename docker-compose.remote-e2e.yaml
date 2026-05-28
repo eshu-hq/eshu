@@ -132,7 +132,7 @@ x-collector-env: &remote_e2e_collector_env
           "derive_from_owned_packages": {
             "enabled": true,
             "ecosystems": ["npm"],
-            "target_limit": 5000,
+            "target_limit": ${ESHU_REMOTE_E2E_DERIVED_TARGET_LIMIT:-100},
             "package_limit": 1,
             "version_limit": 1
           },
@@ -176,7 +176,7 @@ x-collector-env: &remote_e2e_collector_env
             "enabled": true,
             "sources": ["osv"],
             "ecosystems": ["npm"],
-            "target_limit": 5000
+            "target_limit": ${ESHU_REMOTE_E2E_DERIVED_TARGET_LIMIT:-100}
           },
           "targets": [
             {
