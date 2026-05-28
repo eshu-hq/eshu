@@ -28,8 +28,11 @@ const (
 	// persisted.
 	ResourceTypeEMRSecurityConfiguration = "aws_emr_security_configuration"
 	// ResourceTypeEMRServerlessApplication identifies an EMR Serverless
-	// application metadata resource.
-	ResourceTypeEMRServerlessApplication = "aws_emrserverless_application"
+	// application metadata resource. The wire string uses the
+	// "<service>_serverless_<kind>" shape shared with Redshift Serverless
+	// (aws_redshift_serverless_namespace) rather than the AWS service id
+	// "emrserverless".
+	ResourceTypeEMRServerlessApplication = "aws_emr_serverless_application"
 	// ResourceTypeEMRStudio identifies an EMR Studio metadata resource.
 	ResourceTypeEMRStudio = "aws_emr_studio"
 	// ResourceTypeEMRStudioSessionMapping identifies an EMR Studio
@@ -70,13 +73,13 @@ const (
 	// an EMR Serverless application's network configuration. The
 	// application-to-VPC join is derived from subnet membership downstream; the
 	// EMR Serverless API does not report a VPC id directly.
-	RelationshipEMRServerlessApplicationUsesSubnet = "emrserverless_application_uses_subnet"
+	RelationshipEMRServerlessApplicationUsesSubnet = "emr_serverless_application_uses_subnet"
 	// RelationshipEMRServerlessApplicationUsesSecurityGroup records an EC2
 	// security group in an EMR Serverless application's network configuration.
-	RelationshipEMRServerlessApplicationUsesSecurityGroup = "emrserverless_application_uses_security_group"
+	RelationshipEMRServerlessApplicationUsesSecurityGroup = "emr_serverless_application_uses_security_group"
 	// RelationshipEMRServerlessApplicationUsesKMSKey records the KMS key an EMR
 	// Serverless application uses for disk encryption.
-	RelationshipEMRServerlessApplicationUsesKMSKey = "emrserverless_application_uses_kms_key"
+	RelationshipEMRServerlessApplicationUsesKMSKey = "emr_serverless_application_uses_kms_key"
 	// RelationshipEMRStudioInVPC records the VPC an EMR Studio is attached to.
 	RelationshipEMRStudioInVPC = "emr_studio_in_vpc"
 	// RelationshipEMRStudioUsesSubnet records an EC2 subnet an EMR Studio is

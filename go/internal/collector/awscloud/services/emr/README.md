@@ -57,7 +57,7 @@ See `doc.go` for the godoc contract.
 | `aws_emr_instance_group` | scoped under cluster |
 | `aws_emr_instance_fleet` | scoped under cluster |
 | `aws_emr_security_configuration` | name only |
-| `aws_emrserverless_application` | resource_id is application ARN |
+| `aws_emr_serverless_application` | resource_id is application ARN |
 | `aws_emr_studio` | resource_id is studio ARN |
 | `aws_emr_studio_session_mapping` | scoped under studio |
 
@@ -71,9 +71,9 @@ See `doc.go` for the godoc contract.
 | `emr_cluster_uses_kms_key` | `aws_kms_key` | key id or ARN (target_arn for ARN) |
 | `emr_cluster_has_instance_group` | `aws_emr_instance_group` | scoped group id |
 | `emr_cluster_has_instance_fleet` | `aws_emr_instance_fleet` | scoped fleet id |
-| `emrserverless_application_uses_subnet` | `aws_ec2_subnet` | bare subnet id |
-| `emrserverless_application_uses_security_group` | `aws_ec2_security_group` | bare sg id |
-| `emrserverless_application_uses_kms_key` | `aws_kms_key` | key ARN |
+| `emr_serverless_application_uses_subnet` | `aws_ec2_subnet` | bare subnet id |
+| `emr_serverless_application_uses_security_group` | `aws_ec2_security_group` | bare sg id |
+| `emr_serverless_application_uses_kms_key` | `aws_kms_key` | key ARN |
 | `emr_studio_in_vpc` | `aws_ec2_vpc` | bare vpc id |
 | `emr_studio_uses_subnet` | `aws_ec2_subnet` | bare subnet id |
 | `emr_studio_uses_security_group` | `aws_ec2_security_group` | bare sg id |
