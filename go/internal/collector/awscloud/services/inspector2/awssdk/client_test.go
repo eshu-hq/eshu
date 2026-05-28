@@ -174,3 +174,32 @@ func TestClientReadsMetadataAndDropsFilterCriteria(t *testing.T) {
 		}
 	}
 }
+
+// TestAccountStatusSurfacesFailedAccount proves the adapter does not swallow a
+// per-account failure. BatchGetAccountStatus can return HTTP success while
+// placing the requested account in FailedAccounts (for example ACCESS_DENIED or
+// BLOCKED_BY_ORGANIZATION_POLICY). Reporting an empty status in that case would
+// be wrong truth, so the adapter must return an error carrying the AWS code.
+func TestAccountStatusSurfacesFailedAccount(t *testing.T) {
+	api := &fakeInspector2API{
+		accountStatus: &awsinspector2.BatchGetAccountStatusOutput{
+			FailedAccounts: []i2types.FailedAccount{{
+				AccountId:    aws.String("123456789012"),
+				ErrorCode:    i2types.ErrorCodeAccessDenied,
+				ErrorMessage: aws.String("not authorized to view Inspector status"),
+			}},
+		},
+	}
+	adapter := &Client{
+		client:   api,
+		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceInspector2},
+	}
+
+	_, err := adapter.AccountStatus(context.Background())
+	if err == nil {
+		t.Fatalf("AccountStatus() error = nil, want failed-account error")
+	}
+	if !strings.Contains(err.Error(), "ACCESS_DENIED") {
+		t.Fatalf("AccountStatus() error = %v, want AWS error code ACCESS_DENIED", err)
+	}
+}

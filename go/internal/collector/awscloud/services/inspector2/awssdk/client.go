@@ -2,6 +2,7 @@ package awssdk
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"time"
 
@@ -65,10 +66,41 @@ func (c *Client) AccountStatus(ctx context.Context) (inspector2service.AccountSt
 	if err != nil {
 		return inspector2service.AccountStatus{}, err
 	}
-	if output == nil || len(output.Accounts) == 0 {
+	if output == nil {
+		return inspector2service.AccountStatus{AccountID: c.boundary.AccountID}, nil
+	}
+	if len(output.Accounts) == 0 {
+		// BatchGetAccountStatus can return HTTP success while reporting the
+		// requested account as failed (for example ACCESS_DENIED or
+		// BLOCKED_BY_ORGANIZATION_POLICY). Surface that as an error rather than
+		// emitting a misleading empty-status account record.
+		if failure, ok := failedAccountFor(output.FailedAccounts, c.boundary.AccountID); ok {
+			return inspector2service.AccountStatus{}, fmt.Errorf(
+				"inspector v2 BatchGetAccountStatus reported account %s as failed (%s): %s",
+				c.boundary.AccountID,
+				failure.ErrorCode,
+				aws.ToString(failure.ErrorMessage),
+			)
+		}
 		return inspector2service.AccountStatus{AccountID: c.boundary.AccountID}, nil
 	}
 	return mapAccountState(output.Accounts[0]), nil
+}
+
+// failedAccountFor returns the failure record for the requested account, if the
+// SDK reported one. When the request carries a single account id, AWS may still
+// return a failure without echoing the id, so a lone failure is attributed to
+// the requested account.
+func failedAccountFor(failures []i2types.FailedAccount, accountID string) (i2types.FailedAccount, bool) {
+	for _, failure := range failures {
+		if aws.ToString(failure.AccountId) == accountID {
+			return failure, true
+		}
+	}
+	if len(failures) == 1 {
+		return failures[0], true
+	}
+	return i2types.FailedAccount{}, false
 }
 
 // ListMembers returns the Inspector v2 member accounts visible to the claimed
