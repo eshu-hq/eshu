@@ -334,7 +334,7 @@ func loadAWSRedactionKeyIfNeeded(
 	}
 	value := strings.TrimSpace(getenv("ESHU_AWS_REDACTION_KEY"))
 	if value == "" {
-		return redact.Key{}, fmt.Errorf("ESHU_AWS_REDACTION_KEY is required when cloudformation, cloudwatch, codebuild, codedeploy, cognito, ecs, lambda, organizations, securityhub, or ssoadmin service scans are enabled")
+		return redact.Key{}, fmt.Errorf("ESHU_AWS_REDACTION_KEY is required when cloudformation, cloudwatch, codebuild, codedeploy, codepipeline, cognito, ecs, lambda, organizations, securityhub, or ssoadmin service scans are enabled")
 	}
 	key, err := redact.NewKey([]byte(value))
 	if err != nil {
@@ -351,6 +351,7 @@ func awsConfigNeedsRedactionKey(config awsruntime.Config) bool {
 				awscloud.ServiceCloudWatch,
 				awscloud.ServiceCodeBuild,
 				awscloud.ServiceCodeDeploy,
+				awscloud.ServiceCodePipeline,
 				awscloud.ServiceCognito,
 				awscloud.ServiceECS,
 				awscloud.ServiceLambda,
