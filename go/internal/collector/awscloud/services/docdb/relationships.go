@@ -43,7 +43,7 @@ func clusterRelationships(
 				sourceARN,
 				vpcID,
 				"",
-				"aws_vpc",
+				awscloud.ResourceTypeEC2VPC,
 				map[string]any{"db_subnet_group_name": subnetGroupName},
 			))
 		}
@@ -64,6 +64,7 @@ func instanceRelationships(
 	boundary awscloud.Boundary,
 	instance ClusterInstance,
 	clusterIDs map[string]string,
+	memberships map[string]clusterMembership,
 ) []awscloud.RelationshipObservation {
 	sourceID := firstNonEmpty(instance.ARN, instance.ResourceID, instance.Identifier)
 	sourceARN := strings.TrimSpace(instance.ARN)
@@ -72,6 +73,7 @@ func instanceRelationships(
 	if targetID == "" {
 		return nil
 	}
+	membership := memberships[strings.TrimSpace(instance.Identifier)]
 	return []awscloud.RelationshipObservation{relationship(
 		boundary,
 		awscloud.RelationshipDocDBInstanceMemberOfCluster,
@@ -82,7 +84,7 @@ func instanceRelationships(
 		awscloud.ResourceTypeDocDBCluster,
 		map[string]any{
 			"cluster_identifier": clusterIdentifier,
-			"is_writer":          true,
+			"is_writer":          membership.isWriter,
 		},
 	)}
 }
@@ -166,6 +168,32 @@ func arnIfARN(value string) string {
 		return value
 	}
 	return ""
+}
+
+// clusterMembership records an instance's resolved cluster-writer role as
+// reported by the owning cluster's member list. DocumentDB clusters report one
+// writer (primary) and N readers (replicas), so the membership edge must carry
+// each instance's true role rather than assuming every member is a writer.
+type clusterMembership struct {
+	isWriter bool
+}
+
+// clusterMembershipMap maps an instance identifier to its writer role using the
+// cluster-reported member list. Instances absent from any member list resolve
+// to the zero value (is_writer=false), which is the safe default for a reader
+// or not-yet-promoted instance.
+func clusterMembershipMap(clusters []DBCluster) map[string]clusterMembership {
+	memberships := make(map[string]clusterMembership)
+	for _, cluster := range clusters {
+		for _, member := range cluster.Members {
+			identifier := strings.TrimSpace(member.DBInstanceIdentifier)
+			if identifier == "" {
+				continue
+			}
+			memberships[identifier] = clusterMembership{isWriter: member.IsWriter}
+		}
+	}
+	return memberships
 }
 
 func clusterIdentityMap(clusters []DBCluster) map[string]string {

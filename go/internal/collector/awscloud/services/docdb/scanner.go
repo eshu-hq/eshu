@@ -63,13 +63,14 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 
 	subnets := subnetGroupIdentityMap(subnetGroups)
 	clusterIDs := clusterIdentityMap(clusters)
+	memberships := clusterMembershipMap(clusters)
 
 	var envelopes []facts.Envelope
 	envelopes, err = appendClusters(envelopes, boundary, clusters, subnets)
 	if err != nil {
 		return nil, err
 	}
-	envelopes, err = appendInstances(envelopes, boundary, instances, clusterIDs)
+	envelopes, err = appendInstances(envelopes, boundary, instances, clusterIDs, memberships)
 	if err != nil {
 		return nil, err
 	}
@@ -112,6 +113,7 @@ func appendInstances(
 	boundary awscloud.Boundary,
 	instances []ClusterInstance,
 	clusterIDs map[string]string,
+	memberships map[string]clusterMembership,
 ) ([]facts.Envelope, error) {
 	for _, instance := range instances {
 		resource, err := awscloud.NewResourceEnvelope(instanceObservation(boundary, instance))
@@ -119,7 +121,7 @@ func appendInstances(
 			return nil, err
 		}
 		envelopes = append(envelopes, resource)
-		for _, relationship := range instanceRelationships(boundary, instance, clusterIDs) {
+		for _, relationship := range instanceRelationships(boundary, instance, clusterIDs, memberships) {
 			envelope, err := awscloud.NewRelationshipEnvelope(relationship)
 			if err != nil {
 				return nil, err

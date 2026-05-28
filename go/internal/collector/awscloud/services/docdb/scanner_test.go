@@ -187,6 +187,96 @@ func TestScannerEmitsDocDBMetadataOnlyFactsAndRelationships(t *testing.T) {
 	assertAttribute(t, attributesOf(t, globalRel), "is_writer", true)
 }
 
+// TestScannerClusterInVPCEdgeTargetsEC2VPCType proves the cluster-to-VPC
+// relationship labels its target with the canonical EC2 VPC resource type
+// (aws_ec2_vpc), which is the type the EC2/VPC scanner emits for the VPC node.
+// A bare "aws_vpc" label points the edge at a resource type that does not
+// exist in the graph, so the placement edge does not agree with the VPC node
+// it describes.
+func TestScannerClusterInVPCEdgeTargetsEC2VPCType(t *testing.T) {
+	client := fakeClient{
+		clusters: []DBCluster{{
+			ARN:               "arn:aws:rds:us-east-1:123456789012:cluster:orders-docdb",
+			Identifier:        "orders-docdb",
+			DBSubnetGroupName: "orders-docdb-subnets",
+		}},
+		subnetGroups: []SubnetGroup{{
+			ARN:   "arn:aws:rds:us-east-1:123456789012:subgrp:orders-docdb-subnets",
+			Name:  "orders-docdb-subnets",
+			VPCID: "vpc-123",
+		}},
+	}
+
+	envelopes, err := (Scanner{Client: client}).Scan(context.Background(), testBoundary())
+	if err != nil {
+		t.Fatalf("Scan() error = %v, want nil", err)
+	}
+	rel := relationshipByType(t, envelopes, awscloud.RelationshipDocDBClusterInVPC)
+	if got, want := rel.Payload["target_resource_id"], "vpc-123"; got != want {
+		t.Fatalf("cluster-in-vpc target_resource_id = %#v, want %q", got, want)
+	}
+	if got, want := rel.Payload["target_type"], awscloud.ResourceTypeEC2VPC; got != want {
+		t.Fatalf("cluster-in-vpc target_type = %#v, want %q", got, want)
+	}
+}
+
+// TestScannerInstanceMembershipReflectsClusterWriterRole proves the
+// instance-to-cluster relationship carries each instance's true writer role,
+// derived from the cluster's reported member list, instead of a hardcoded
+// value. A DocumentDB cluster has exactly one writer and N readers, so reader
+// instances must emit is_writer=false; mislabeling readers as writers is wrong
+// graph truth.
+func TestScannerInstanceMembershipReflectsClusterWriterRole(t *testing.T) {
+	const clusterARN = "arn:aws:rds:us-east-1:123456789012:cluster:orders-docdb"
+	const writerARN = "arn:aws:rds:us-east-1:123456789012:db:orders-docdb-1"
+	const readerARN = "arn:aws:rds:us-east-1:123456789012:db:orders-docdb-2"
+
+	client := fakeClient{
+		clusters: []DBCluster{{
+			ARN:        clusterARN,
+			Identifier: "orders-docdb",
+			Members: []ClusterMember{
+				{DBInstanceIdentifier: "orders-docdb-1", IsWriter: true},
+				{DBInstanceIdentifier: "orders-docdb-2", IsWriter: false},
+			},
+		}},
+		instances: []ClusterInstance{
+			{
+				ARN:               writerARN,
+				Identifier:        "orders-docdb-1",
+				ClusterIdentifier: "orders-docdb",
+			},
+			{
+				ARN:               readerARN,
+				Identifier:        "orders-docdb-2",
+				ClusterIdentifier: "orders-docdb",
+			},
+		},
+	}
+
+	envelopes, err := (Scanner{Client: client}).Scan(context.Background(), testBoundary())
+	if err != nil {
+		t.Fatalf("Scan() error = %v, want nil", err)
+	}
+
+	writers := map[string]bool{}
+	for _, envelope := range envelopes {
+		if got, _ := envelope.Payload["relationship_type"].(string); got != awscloud.RelationshipDocDBInstanceMemberOfCluster {
+			continue
+		}
+		sourceID, _ := envelope.Payload["source_resource_id"].(string)
+		attributes, _ := envelope.Payload["attributes"].(map[string]any)
+		isWriter, _ := attributes["is_writer"].(bool)
+		writers[sourceID] = isWriter
+	}
+	if got, want := writers[writerARN], true; got != want {
+		t.Fatalf("writer instance is_writer = %v, want %v", got, want)
+	}
+	if got, want := writers[readerARN], false; got != want {
+		t.Fatalf("reader instance is_writer = %v, want %v", got, want)
+	}
+}
+
 // TestScannerNeverPersistsMasterUserPasswordAnchors guards the issue #736
 // security requirement: even when the SDK shape carries master usernames, the
 // scanner must not surface password, secret, or document-content fields in any
