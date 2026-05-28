@@ -53,6 +53,7 @@ It does not mutate AWS resources, read protected payloads, or write graph truth.
 | `kms` | Customer master keys, aliases, and grants with alias-to-key, grant-to-key, and grant-to-grantee-principal relationships. The scanner never calls cryptographic operations (Encrypt, Decrypt, GenerateDataKey, Sign, Verify, ReEncrypt, GenerateMac, VerifyMac, GenerateDataKeyPair, GenerateDataKeyWithoutPlaintext, DeriveSharedSecret, GetPublicKey) or key lifecycle mutations (CreateKey, ScheduleKeyDeletion, EnableKey, DisableKey, EnableKeyRotation, DisableKeyRotation, PutKeyPolicy, CreateGrant, RevokeGrant, RetireGrant, ReplicateKey, ImportKeyMaterial, DeleteImportedKeyMaterial). Key policy Statement bodies, grant encryption contexts, and key material stay outside the scan slice. |
 | `organizations` | Organization root, OUs, accounts, policy summaries, policy target bindings, and delegated administrators. |
 | `ssoadmin` | IAM Identity Center instances, permission sets (name, description, session duration, relay state), account assignments (principal type/id, permission set, account), application instances, trusted token issuers, and group/user principals resolved from the connected identity store. Relationships cover assignment-to-permission-set, assignment-to-account, assignment-to-principal, permission-set-to-managed-policy (ARN ref), and permission-set-to-customer-managed-policy (name ref). No permission set inline policy bodies, permissions boundary bodies, customer-managed policy bodies, or application access-scope group filters. Principal display names are redacted; only the identity store display name is read. |
+| `sagemaker` | Notebook instances, models, endpoints, endpoint configs, training jobs, processing jobs, transform jobs, hyperparameter tuning jobs, projects, pipelines, feature groups (metadata only), Studio domains, user profiles, apps, and inference components, with model-to-S3-artifact, model-to-container-image-URI, model-to-IAM-role, endpoint-to-endpoint-config, endpoint-config-to-model, training-job-to-IAM-role, notebook-to-subnet, domain-to-VPC, and user-profile-to-domain relationships. Metadata only: the scanner never invokes endpoints (InvokeEndpoint / InvokeEndpointAsync) and never persists hyperparameter values, training/processing/transform input or output data references, notebook lifecycle-config script bodies, container environment maps, or pipeline definition bodies. |
 
 IAM, Route 53, and CloudFront are global-style families. Use a concrete global
 region label such as `aws-global` so claims keep the
@@ -160,6 +161,16 @@ archive-rule filter criteria, policy-generation results, and per-action
 unused-access details are not persisted. The scanner keeps aggregate finding
 counts by status and resource type, plus per-resource unused-access
 last-accessed timestamps.
+
+SageMaker is a metadata-only control-plane scan. The scanner never invokes
+endpoints (it never calls InvokeEndpoint or InvokeEndpointAsync, which live in
+the separate `sagemakerruntime` API the collector does not link) and never
+calls a mutation API. It never persists hyperparameter values (training or
+tuning), training/processing/transform input or output data references,
+notebook lifecycle-config script bodies, container environment maps, or
+pipeline definition bodies. These exclusions are enforced by omission from the
+scanner-owned types and by a reflection gate over the SDK adapter that fails
+the build if a forbidden method ever becomes reachable.
 
 ## Evidence And Telemetry
 

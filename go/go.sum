@@ -162,6 +162,8 @@ github.com/aws/aws-sdk-go-v2/service/route53 v1.36.0 h1:7wh6KdJnej4T7sE/xfnZf5T+
 github.com/aws/aws-sdk-go-v2/service/route53 v1.36.0/go.mod h1:F9El48+5Tf+TkYJB/6M9H7oqXw9Mr9eVetwJ6SUql7g=
 github.com/aws/aws-sdk-go-v2/service/s3 v1.80.1 h1:xYEAf/6QHiTZDccKnPMbsMwlau13GsDsTgdue3wmHGw=
 github.com/aws/aws-sdk-go-v2/service/s3 v1.80.1/go.mod h1:qbn305Je/IofWBJ4bJz/Q7pDEtnnoInw/dGt71v6rHE=
+github.com/aws/aws-sdk-go-v2/service/sagemaker v1.249.0 h1:n8V311ky0gvDeiO6d+srI/6Ai/vmGVIdWWax+rp9dXA=
+github.com/aws/aws-sdk-go-v2/service/sagemaker v1.249.0/go.mod h1:CWbiQe1BkvmBlSfdI8DOoNaqoehc2+JWnylOfmR7aKU=
 github.com/aws/aws-sdk-go-v2/service/secretsmanager v1.41.7 h1:JUGKqUnJHbXpS8uyuICP/zpQ+vXUIXW2zTEqjMLCqrY=
 github.com/aws/aws-sdk-go-v2/service/secretsmanager v1.41.7/go.mod h1:l/cqI7ujYqBuTR6Ll13d9/gG/uUdlVzJ1UDltEEBTOo=
 github.com/aws/aws-sdk-go-v2/service/securityhub v1.71.0 h1:cWBwwMRfARTheeY+g3ykiyoQdR48Hb8S6qVCysB87/I=

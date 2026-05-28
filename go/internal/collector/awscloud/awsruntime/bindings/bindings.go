@@ -39,6 +39,7 @@ import (
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/redshift/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/route53/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/s3/runtimebind"
+	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/sagemaker/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/secretsmanager/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/securityhub/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/sns/runtimebind"
