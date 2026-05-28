@@ -44,24 +44,58 @@ func TestScannerEmitsResourcesAndRelationshipsMetadataOnly(t *testing.T) {
 	}
 }
 
-func TestScannerNeverPersistsSensitivePayloads(t *testing.T) {
+// TestScannerEmitsOnlyAllowlistedAttributeKeys is a structural redaction gate
+// over the scanner-owned fixture: it proves no emitted resource carries an
+// attribute key that names a forbidden IP surface (agent instructions/prompts,
+// guardrail topic/content policy bodies, action-group API/function schema
+// bodies, knowledge base document content/chunks, or custom-model
+// hyperparameters/training data). Unlike a sentinel substring scan over this
+// fixture, this assertion is not vacuous: the scanner-owned types cannot carry
+// the sentinel *values*, but they could regress to carry a forbidden attribute
+// *key*, and that regression is exactly what this catches. The companion
+// end-to-end proof that injected SDK payloads never reach facts lives in the
+// awssdk package (TestScannerNeverEmitsSDKSentinelsEndToEnd), where the real
+// adapter reads SDK output that actually holds the IP.
+func TestScannerEmitsOnlyAllowlistedAttributeKeys(t *testing.T) {
 	envelopes := scanFixture(t, richClient())
 
+	forbiddenKeyTokens := []string{
+		"instruction",    // agent system prompt
+		"prompt",         // prompt-override template body
+		"policy",         // guardrail topic/content policy body
+		"topic",          // guardrail topic policy
+		"filter",         // guardrail content filter body
+		"apischema",      // action-group API schema body
+		"functionschema", // action-group function schema body
+		"schema_body",    // any inline schema body
+		"document",       // knowledge base ingested document content
+		"chunk",          // knowledge base ingested chunks
+		"hyperparameter", // custom-model hyperparameter values
+		"training_data",  // custom-model training input data
+	}
+
+	checkedResources := 0
 	for _, envelope := range envelopes {
-		flat := strings.ToLower(flatten(envelope.Payload))
-		for _, banned := range []string{
-			"you-are-a-helpful-secret-agent-prompt", // agent Instruction (system prompt)
-			"prompt-override-template-body",         // PromptOverrideConfiguration body
-			"deny-topic-policy-body",                // guardrail topic policy body
-			"deny-content-filter-body",              // guardrail content policy body
-			"customer-ip-action-api-schema",         // action-group API schema body
-			"ingested-document-secret-chunk",        // knowledge base document content
-			"s3://training/custom-model/input",      // custom-model training input data
-		} {
-			if strings.Contains(flat, banned) {
-				t.Fatalf("emitted fact %q contains forbidden payload %q: %s", envelope.FactKind, banned, flat)
+		if envelope.FactKind != facts.AWSResourceFactKind {
+			continue
+		}
+		attributes, ok := envelope.Payload["attributes"].(map[string]any)
+		if !ok {
+			continue
+		}
+		checkedResources++
+		for key := range attributes {
+			lower := strings.ToLower(key)
+			for _, token := range forbiddenKeyTokens {
+				if strings.Contains(lower, token) {
+					t.Fatalf("resource %v emitted forbidden attribute key %q (token %q); the high-redaction contract forbids attributes that could carry agent prompts, guardrail policies, KB content, action-group schemas, or training data",
+						envelope.Payload["resource_type"], key, token)
+				}
 			}
 		}
+	}
+	if checkedResources == 0 {
+		t.Fatalf("no resource envelopes inspected; the fixture must emit resources for this gate to be meaningful")
 	}
 }
 

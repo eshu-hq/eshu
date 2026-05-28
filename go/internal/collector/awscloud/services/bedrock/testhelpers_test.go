@@ -2,9 +2,6 @@ package bedrock
 
 import (
 	"context"
-	"fmt"
-	"sort"
-	"strings"
 )
 
 // fakeClient is a static Bedrock Client double. Each List returns its seeded
@@ -126,54 +123,5 @@ func richClient() *fakeClient {
 				{ID: "DS-WEB", Name: "web", Type: "WEB", URL: "https://docs.example.com"},
 			},
 		}},
-	}
-}
-
-// flatten renders an emitted payload as a stable lowercase-ready string so a
-// sensitive-payload test can scan every value for forbidden substrings.
-func flatten(value any) string {
-	var builder strings.Builder
-	flattenInto(&builder, value)
-	return builder.String()
-}
-
-func flattenInto(builder *strings.Builder, value any) {
-	switch typed := value.(type) {
-	case map[string]any:
-		keys := make([]string, 0, len(typed))
-		for key := range typed {
-			keys = append(keys, key)
-		}
-		sort.Strings(keys)
-		for _, key := range keys {
-			builder.WriteString(key)
-			builder.WriteByte('=')
-			flattenInto(builder, typed[key])
-			builder.WriteByte(';')
-		}
-	case map[string]string:
-		keys := make([]string, 0, len(typed))
-		for key := range typed {
-			keys = append(keys, key)
-		}
-		sort.Strings(keys)
-		for _, key := range keys {
-			builder.WriteString(key)
-			builder.WriteByte('=')
-			builder.WriteString(typed[key])
-			builder.WriteByte(';')
-		}
-	case []any:
-		for _, item := range typed {
-			flattenInto(builder, item)
-			builder.WriteByte(',')
-		}
-	case []string:
-		for _, item := range typed {
-			builder.WriteString(item)
-			builder.WriteByte(',')
-		}
-	default:
-		fmt.Fprintf(builder, "%v", typed)
 	}
 }

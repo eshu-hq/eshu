@@ -4,6 +4,9 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
 // TestScannerTypesHaveNoForbiddenPayloadField is the high-redaction acceptance
@@ -58,32 +61,53 @@ func TestScannerTypesHaveNoForbiddenPayloadField(t *testing.T) {
 	}
 }
 
-// TestPopulatedSensitiveValuesNeverReachFacts feeds populated sensitive sentinel
-// values into the fixture and proves that, after a full scan, none of them
-// appears in any emitted fact. The values land only on fields the scanner does
-// persist (description, name); the forbidden values have no field, so the test
-// proves the contract end to end rather than only at the type level.
-func TestPopulatedSensitiveValuesNeverReachFacts(t *testing.T) {
+// TestAgentAndGuardrailEmitNoForbiddenAttributeKeys is the structural redaction
+// gate for the two highest-IP resources at the scanner-owned fixture layer. The
+// scanner-owned Agent and Guardrail types deliberately have no field for the
+// agent instruction/prompt-override or the guardrail topic/content policy
+// bodies, so a value-substring scan over this fixture would be vacuous: the
+// sentinel values are never present in the inputs and therefore prove nothing.
+// This gate is instead assertive against a real regression class: it fails if
+// any emitted agent or guardrail attribute key ever names one of those IP
+// surfaces, which is what a future edit that started persisting prompts or
+// policy bodies would produce.
+//
+// The genuinely end-to-end proof — populated SDK payloads (Instruction,
+// PromptOverrideConfiguration, ApiSchema, FunctionSchema, HyperParameters,
+// TrainingDataConfig) injected at the SDK layer the adapter reads, asserted
+// absent from emitted facts — lives in the awssdk package as
+// TestScannerNeverEmitsSDKSentinelsEndToEnd, because only the SDK output types
+// have a field to carry those values in the first place.
+func TestAgentAndGuardrailEmitNoForbiddenAttributeKeys(t *testing.T) {
 	client := richClient()
-	// Stuff sensitive-looking content into the fields the scanner DOES persist
-	// to confirm those fields are not where IP lives, and prove the forbidden
-	// values cannot be emitted because there is nowhere to put them.
+	// Populate the descriptions the scanner DOES persist so the gate runs
+	// against a realistic, fully-populated agent and guardrail.
 	client.agents[0].Description = "handles orders"
 	client.guardrails[0].Description = "blocks unsafe content"
 
+	forbiddenKeyTokens := []string{
+		"instruction", // agent system prompt
+		"prompt",      // prompt-override template body
+		"policy",      // guardrail topic/content policy body
+		"topic",       // guardrail topic policy
+		"filter",      // guardrail content filter body
+	}
+
 	envelopes := scanFixture(t, client)
-	for _, envelope := range envelopes {
-		flat := strings.ToLower(flatten(envelope.Payload))
-		for _, banned := range []string{
-			"you-are-a-helpful-secret-agent-prompt",
-			"prompt-override-template-body",
-			"deny-topic-policy-body",
-			"deny-content-filter-body",
-			"customer-ip-action-api-schema",
-			"ingested-document-secret-chunk",
-		} {
-			if strings.Contains(flat, banned) {
-				t.Fatalf("forbidden value %q reached emitted fact %q", banned, envelope.FactKind)
+	agent := resourceByType(t, envelopes, awscloud.ResourceTypeBedrockAgent)
+	guardrail := resourceByType(t, envelopes, awscloud.ResourceTypeBedrockGuardrail)
+	for _, envelope := range []facts.Envelope{agent, guardrail} {
+		attributes, ok := envelope.Payload["attributes"].(map[string]any)
+		if !ok {
+			t.Fatalf("resource %v has no attributes map", envelope.Payload["resource_type"])
+		}
+		for key := range attributes {
+			lower := strings.ToLower(key)
+			for _, token := range forbiddenKeyTokens {
+				if strings.Contains(lower, token) {
+					t.Fatalf("resource %v emitted forbidden attribute key %q (token %q); agent prompts and guardrail policy bodies are IP and must not be persisted",
+						envelope.Payload["resource_type"], key, token)
+				}
 			}
 		}
 	}
