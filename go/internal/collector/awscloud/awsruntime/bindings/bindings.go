@@ -20,6 +20,7 @@ import (
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/cloudwatchlogs/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/codedeploy/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/cognito/runtimebind"
+	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/config/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/docdb/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/dynamodb/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/ec2/runtimebind"

@@ -60,6 +60,7 @@ It does not mutate AWS resources, read protected payloads, or write graph truth.
 | `organizations` | Organization root, OUs, accounts, policy summaries, policy target bindings, and delegated administrators. |
 | `ssoadmin` | IAM Identity Center instances, permission sets (name, description, session duration, relay state), account assignments (principal type/id, permission set, account), application instances, trusted token issuers, and group/user principals resolved from the connected identity store. Relationships cover assignment-to-permission-set, assignment-to-account, assignment-to-principal, permission-set-to-managed-policy (ARN ref), and permission-set-to-customer-managed-policy (name ref). No permission set inline policy bodies, permissions boundary bodies, customer-managed policy bodies, or application access-scope group filters. Principal display names are redacted; only the identity store display name is read. |
 | `sagemaker` | Notebook instances, models, endpoints, endpoint configs, training jobs, processing jobs, transform jobs, hyperparameter tuning jobs, projects, pipelines, feature groups (metadata only), Studio domains, user profiles, apps, and inference components, with model-to-S3-artifact, model-to-container-image-URI, model-to-IAM-role, endpoint-to-endpoint-config, endpoint-config-to-model, training-job-to-IAM-role, notebook-to-subnet, domain-to-VPC, and user-profile-to-domain relationships. Metadata only: the scanner never invokes endpoints (InvokeEndpoint / InvokeEndpointAsync) and never persists hyperparameter values, training/processing/transform input or output data references, notebook lifecycle-config script bodies, container environment maps, or pipeline definition bodies. |
+| `config` | AWS Config configuration recorders (recorded resource-type scope, recording strategy - never recorded configuration item bodies), delivery channels (S3 bucket, optional SNS topic, snapshot delivery interval), config rules (name, ARN, owner: AWS managed / CUSTOM_LAMBDA / CUSTOM_POLICY, managed-rule source identifier or custom-Lambda function ARN, and resource-type scope carried as a rule attribute), conformance packs (name, deployment status, member-rule count), configuration aggregators (source accounts and regions, or organization role), and retention configurations. Relationships: conformance-pack-to-rule (targets the `aws_config_rule` node by rule name), custom-rule-to-Lambda-function (targets the `aws_lambda_function` ARN), and aggregator-to-source-account (targets the `aws_account` root ARN with the partition derived from the aggregator ARN, never a hardcoded `arn:aws:`). The rule resource-type scope is a rule attribute, not an edge to a synthetic resource-type node. Metadata only: the scanner never calls GetResourceConfigHistory, GetComplianceDetailsByConfigRule, GetDiscoveredResourceCounts, or BatchGetResourceConfig, never persists recorded configuration item bodies (full resource snapshots), and never fetches custom-rule Lambda code (GetCustomRulePolicy). Aggregate per-rule compliance is used only to derive the conformance pack member-rule set and count. |
 
 IAM, Route 53, and CloudFront are global-style families. Use a concrete global
 region label such as `aws-global` so claims keep the
@@ -121,6 +122,20 @@ CloudTrail audit event payloads, Lake query strings, Lake query result rows,
 event selector bodies, and dashboard widget query SQL stay outside the
 collector contract; the CloudTrail scanner emits trail and Lake configuration
 only, summarizing selectors as bounded counts.
+AWS Config recorded configuration item bodies (full resource snapshots),
+per-resource compliance evaluation result bodies, and custom-rule Lambda code
+are out of scope. The Config scanner emits configuration recorder, delivery
+channel, config rule, conformance pack, configuration aggregator, and retention
+configuration metadata only; it never calls `GetResourceConfigHistory`,
+`BatchGetResourceConfig`, `GetDiscoveredResourceCounts`,
+`GetComplianceDetailsByConfigRule`, `GetComplianceDetailsByResource`,
+`GetCustomRulePolicy`, or any `Put`/`Delete`/`Start`/`Stop` mutation.
+Aggregate per-rule compliance from `DescribeConformancePackCompliance` is read
+only to derive the conformance pack member-rule set and count. The config rule
+resource-type scope is carried as a rule attribute; it is not emitted as an edge
+to a synthetic resource-type node. Synthesized account root ARNs for the
+aggregator-to-source-account edge derive the partition from the aggregator ARN,
+so GovCloud and China edges stay correct.
 
 Transit gateway routes, transit gateway multicast group memberships, and
 transit gateway policy table rule bodies are out of scope. The Transit Gateway
