@@ -97,67 +97,151 @@ func NewPostgresSecurityAlertReconciliationAggregateStore(
 }
 
 const securityAlertReconciliationAggregateTotalQuery = `
+WITH security_alert_current AS (
+  SELECT
+      fact.payload,
+      ROW_NUMBER() OVER (
+        PARTITION BY
+          COALESCE(NULLIF(fact.payload->>'provider', ''), 'unknown'),
+          COALESCE(NULLIF(fact.payload->>'provider_alert_id', ''), NULLIF(fact.payload->>'provider_alert_number', ''), 'unknown'),
+          COALESCE(NULLIF(fact.payload->>'provider_repository_id', ''), NULLIF(fact.payload->>'scope_id', ''), NULLIF(fact.payload->>'repository_id', ''), 'unknown'),
+          COALESCE(NULLIF(fact.payload->>'package_id', ''), 'unknown'),
+          COALESCE(NULLIF(fact.payload->'cve_ids', 'null'::jsonb), '[]'::jsonb),
+          COALESCE(NULLIF(fact.payload->'ghsa_ids', 'null'::jsonb), '[]'::jsonb)
+        ORDER BY
+          fact.observed_at DESC,
+          fact.ingested_at DESC,
+          CASE fact.payload->>'reconciliation_status'
+            WHEN 'stale' THEN 50
+            WHEN 'matched' THEN 40
+            WHEN 'unmatched' THEN 30
+            WHEN 'fixed' THEN 20
+            WHEN 'dismissed' THEN 20
+            WHEN 'provider_only' THEN 0
+            ELSE 10
+          END DESC,
+          fact.fact_id DESC
+      ) AS security_alert_current_rank
+  FROM fact_records AS fact
+  JOIN ingestion_scopes AS scope
+    ON scope.scope_id = fact.scope_id
+   AND scope.active_generation_id = fact.generation_id
+  JOIN scope_generations AS generation
+    ON generation.scope_id = fact.scope_id
+   AND generation.generation_id = fact.generation_id
+  WHERE fact.fact_kind = 'reducer_security_alert_reconciliation'
+    AND fact.is_tombstone = FALSE
+    AND generation.status = 'active'
+    AND ($1 = '' OR fact.payload->>'repository_id' = $1)
+    AND ($2 = '' OR fact.payload->>'provider' = $2)
+    AND ($3 = '' OR fact.payload->>'package_id' = $3)
+    AND ($4 = '' OR fact.payload->'cve_ids' ? $4)
+    AND ($5 = '' OR fact.payload->'ghsa_ids' ? $5)
+)
 SELECT COUNT(*) AS total
-FROM fact_records AS fact
-JOIN ingestion_scopes AS scope
-  ON scope.scope_id = fact.scope_id
- AND scope.active_generation_id = fact.generation_id
-JOIN scope_generations AS generation
-  ON generation.scope_id = fact.scope_id
- AND generation.generation_id = fact.generation_id
-WHERE fact.fact_kind = 'reducer_security_alert_reconciliation'
-  AND fact.is_tombstone = FALSE
-  AND generation.status = 'active'
-  AND ($1 = '' OR fact.payload->>'repository_id' = $1)
-  AND ($2 = '' OR fact.payload->>'provider' = $2)
-  AND ($3 = '' OR fact.payload->>'package_id' = $3)
-  AND ($4 = '' OR fact.payload->'cve_ids' ? $4)
-  AND ($5 = '' OR fact.payload->'ghsa_ids' ? $5)
-  AND ($6 = '' OR fact.payload->>'provider_state' = $6)
-  AND ($7 = '' OR fact.payload->>'reconciliation_status' = $7);
+FROM security_alert_current AS current_fact
+WHERE current_fact.security_alert_current_rank = 1
+  AND ($6 = '' OR current_fact.payload->>'provider_state' = $6)
+  AND ($7 = '' OR current_fact.payload->>'reconciliation_status' = $7);
 `
 
 const securityAlertReconciliationAggregateGroupQueryTemplate = `
+WITH security_alert_current AS (
+  SELECT
+      fact.payload,
+      ROW_NUMBER() OVER (
+        PARTITION BY
+          COALESCE(NULLIF(fact.payload->>'provider', ''), 'unknown'),
+          COALESCE(NULLIF(fact.payload->>'provider_alert_id', ''), NULLIF(fact.payload->>'provider_alert_number', ''), 'unknown'),
+          COALESCE(NULLIF(fact.payload->>'provider_repository_id', ''), NULLIF(fact.payload->>'scope_id', ''), NULLIF(fact.payload->>'repository_id', ''), 'unknown'),
+          COALESCE(NULLIF(fact.payload->>'package_id', ''), 'unknown'),
+          COALESCE(NULLIF(fact.payload->'cve_ids', 'null'::jsonb), '[]'::jsonb),
+          COALESCE(NULLIF(fact.payload->'ghsa_ids', 'null'::jsonb), '[]'::jsonb)
+        ORDER BY
+          fact.observed_at DESC,
+          fact.ingested_at DESC,
+          CASE fact.payload->>'reconciliation_status'
+            WHEN 'stale' THEN 50
+            WHEN 'matched' THEN 40
+            WHEN 'unmatched' THEN 30
+            WHEN 'fixed' THEN 20
+            WHEN 'dismissed' THEN 20
+            WHEN 'provider_only' THEN 0
+            ELSE 10
+          END DESC,
+          fact.fact_id DESC
+      ) AS security_alert_current_rank
+  FROM fact_records AS fact
+  JOIN ingestion_scopes AS scope
+    ON scope.scope_id = fact.scope_id
+   AND scope.active_generation_id = fact.generation_id
+  JOIN scope_generations AS generation
+    ON generation.scope_id = fact.scope_id
+   AND generation.generation_id = fact.generation_id
+  WHERE fact.fact_kind = 'reducer_security_alert_reconciliation'
+    AND fact.is_tombstone = FALSE
+    AND generation.status = 'active'
+    AND ($1 = '' OR fact.payload->>'repository_id' = $1)
+    AND ($2 = '' OR fact.payload->>'provider' = $2)
+    AND ($3 = '' OR fact.payload->>'package_id' = $3)
+    AND ($4 = '' OR fact.payload->'cve_ids' ? $4)
+    AND ($5 = '' OR fact.payload->'ghsa_ids' ? $5)
+)
 SELECT %s AS bucket, COUNT(*) AS bucket_count
-FROM fact_records AS fact
-JOIN ingestion_scopes AS scope
-  ON scope.scope_id = fact.scope_id
- AND scope.active_generation_id = fact.generation_id
-JOIN scope_generations AS generation
-  ON generation.scope_id = fact.scope_id
- AND generation.generation_id = fact.generation_id
-WHERE fact.fact_kind = 'reducer_security_alert_reconciliation'
-  AND fact.is_tombstone = FALSE
-  AND generation.status = 'active'
-  AND ($1 = '' OR fact.payload->>'repository_id' = $1)
-  AND ($2 = '' OR fact.payload->>'provider' = $2)
-  AND ($3 = '' OR fact.payload->>'package_id' = $3)
-  AND ($4 = '' OR fact.payload->'cve_ids' ? $4)
-  AND ($5 = '' OR fact.payload->'ghsa_ids' ? $5)
-  AND ($6 = '' OR fact.payload->>'provider_state' = $6)
-  AND ($7 = '' OR fact.payload->>'reconciliation_status' = $7)
+FROM security_alert_current AS current_fact
+WHERE current_fact.security_alert_current_rank = 1
+  AND ($6 = '' OR current_fact.payload->>'provider_state' = $6)
+  AND ($7 = '' OR current_fact.payload->>'reconciliation_status' = $7)
 GROUP BY bucket;
 `
 
 const securityAlertReconciliationInventoryQueryTemplate = `
+WITH security_alert_current AS (
+  SELECT
+      fact.payload,
+      ROW_NUMBER() OVER (
+        PARTITION BY
+          COALESCE(NULLIF(fact.payload->>'provider', ''), 'unknown'),
+          COALESCE(NULLIF(fact.payload->>'provider_alert_id', ''), NULLIF(fact.payload->>'provider_alert_number', ''), 'unknown'),
+          COALESCE(NULLIF(fact.payload->>'provider_repository_id', ''), NULLIF(fact.payload->>'scope_id', ''), NULLIF(fact.payload->>'repository_id', ''), 'unknown'),
+          COALESCE(NULLIF(fact.payload->>'package_id', ''), 'unknown'),
+          COALESCE(NULLIF(fact.payload->'cve_ids', 'null'::jsonb), '[]'::jsonb),
+          COALESCE(NULLIF(fact.payload->'ghsa_ids', 'null'::jsonb), '[]'::jsonb)
+        ORDER BY
+          fact.observed_at DESC,
+          fact.ingested_at DESC,
+          CASE fact.payload->>'reconciliation_status'
+            WHEN 'stale' THEN 50
+            WHEN 'matched' THEN 40
+            WHEN 'unmatched' THEN 30
+            WHEN 'fixed' THEN 20
+            WHEN 'dismissed' THEN 20
+            WHEN 'provider_only' THEN 0
+            ELSE 10
+          END DESC,
+          fact.fact_id DESC
+      ) AS security_alert_current_rank
+  FROM fact_records AS fact
+  JOIN ingestion_scopes AS scope
+    ON scope.scope_id = fact.scope_id
+   AND scope.active_generation_id = fact.generation_id
+  JOIN scope_generations AS generation
+    ON generation.scope_id = fact.scope_id
+   AND generation.generation_id = fact.generation_id
+  WHERE fact.fact_kind = 'reducer_security_alert_reconciliation'
+    AND fact.is_tombstone = FALSE
+    AND generation.status = 'active'
+    AND ($1 = '' OR fact.payload->>'repository_id' = $1)
+    AND ($2 = '' OR fact.payload->>'provider' = $2)
+    AND ($3 = '' OR fact.payload->>'package_id' = $3)
+    AND ($4 = '' OR fact.payload->'cve_ids' ? $4)
+    AND ($5 = '' OR fact.payload->'ghsa_ids' ? $5)
+)
 SELECT %s AS bucket, COUNT(*) AS bucket_count
-FROM fact_records AS fact
-JOIN ingestion_scopes AS scope
-  ON scope.scope_id = fact.scope_id
- AND scope.active_generation_id = fact.generation_id
-JOIN scope_generations AS generation
-  ON generation.scope_id = fact.scope_id
- AND generation.generation_id = fact.generation_id
-WHERE fact.fact_kind = 'reducer_security_alert_reconciliation'
-  AND fact.is_tombstone = FALSE
-  AND generation.status = 'active'
-  AND ($1 = '' OR fact.payload->>'repository_id' = $1)
-  AND ($2 = '' OR fact.payload->>'provider' = $2)
-  AND ($3 = '' OR fact.payload->>'package_id' = $3)
-  AND ($4 = '' OR fact.payload->'cve_ids' ? $4)
-  AND ($5 = '' OR fact.payload->'ghsa_ids' ? $5)
-  AND ($6 = '' OR fact.payload->>'provider_state' = $6)
-  AND ($7 = '' OR fact.payload->>'reconciliation_status' = $7)
+FROM security_alert_current AS current_fact
+WHERE current_fact.security_alert_current_rank = 1
+  AND ($6 = '' OR current_fact.payload->>'provider_state' = $6)
+  AND ($7 = '' OR current_fact.payload->>'reconciliation_status' = $7)
 GROUP BY bucket
 ORDER BY bucket_count DESC, bucket
 LIMIT $8 OFFSET $9;
@@ -195,13 +279,13 @@ func (s PostgresSecurityAlertReconciliationAggregateStore) CountSecurityAlertRec
 		ByProvider:             map[string]int{},
 		ByProviderState:        map[string]int{},
 	}
-	if err := s.fillBuckets(ctx, args, "COALESCE(NULLIF(fact.payload->>'reconciliation_status', ''), 'unknown')", out.ByReconciliationStatus); err != nil {
+	if err := s.fillBuckets(ctx, args, "COALESCE(NULLIF(current_fact.payload->>'reconciliation_status', ''), 'unknown')", out.ByReconciliationStatus); err != nil {
 		return SecurityAlertReconciliationAggregateCount{}, err
 	}
-	if err := s.fillBuckets(ctx, args, "COALESCE(NULLIF(fact.payload->>'provider', ''), 'unknown')", out.ByProvider); err != nil {
+	if err := s.fillBuckets(ctx, args, "COALESCE(NULLIF(current_fact.payload->>'provider', ''), 'unknown')", out.ByProvider); err != nil {
 		return SecurityAlertReconciliationAggregateCount{}, err
 	}
-	if err := s.fillBuckets(ctx, args, "COALESCE(NULLIF(fact.payload->>'provider_state', ''), 'unknown')", out.ByProviderState); err != nil {
+	if err := s.fillBuckets(ctx, args, "COALESCE(NULLIF(current_fact.payload->>'provider_state', ''), 'unknown')", out.ByProviderState); err != nil {
 		return SecurityAlertReconciliationAggregateCount{}, err
 	}
 	return out, nil
@@ -301,15 +385,15 @@ func securityAlertReconciliationInventoryGroupExpression(
 ) (string, error) {
 	switch dimension {
 	case SecurityAlertReconciliationInventoryByStatus:
-		return "COALESCE(NULLIF(fact.payload->>'reconciliation_status', ''), 'unknown')", nil
+		return "COALESCE(NULLIF(current_fact.payload->>'reconciliation_status', ''), 'unknown')", nil
 	case SecurityAlertReconciliationInventoryByProvider:
-		return "COALESCE(NULLIF(fact.payload->>'provider', ''), 'unknown')", nil
+		return "COALESCE(NULLIF(current_fact.payload->>'provider', ''), 'unknown')", nil
 	case SecurityAlertReconciliationInventoryByProviderState:
-		return "COALESCE(NULLIF(fact.payload->>'provider_state', ''), 'unknown')", nil
+		return "COALESCE(NULLIF(current_fact.payload->>'provider_state', ''), 'unknown')", nil
 	case SecurityAlertReconciliationInventoryByRepository:
-		return "COALESCE(NULLIF(fact.payload->>'repository_id', ''), 'unknown')", nil
+		return "COALESCE(NULLIF(current_fact.payload->>'repository_id', ''), 'unknown')", nil
 	case SecurityAlertReconciliationInventoryByPackage:
-		return "COALESCE(NULLIF(fact.payload->>'package_id', ''), 'unknown')", nil
+		return "COALESCE(NULLIF(current_fact.payload->>'package_id', ''), 'unknown')", nil
 	default:
 		return "", fmt.Errorf("unsupported security alert reconciliation inventory dimension: %q", dimension)
 	}

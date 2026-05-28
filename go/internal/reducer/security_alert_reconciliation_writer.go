@@ -113,13 +113,7 @@ func securityAlertReconciliationStableFactKey(
 	decision SecurityAlertReconciliationDecision,
 ) string {
 	identity := securityAlertReconciliationIdentity(write, decision)
-	return strings.Join([]string{
-		"security_alert_reconciliation",
-		strings.TrimSpace(fmt.Sprint(identity["scope_id"])),
-		strings.TrimSpace(fmt.Sprint(identity["generation_id"])),
-		strings.TrimSpace(fmt.Sprint(identity["provider"])),
-		strings.TrimSpace(fmt.Sprint(identity["provider_alert_number"])),
-	}, ":")
+	return "security_alert_reconciliation:" + facts.StableID(securityAlertReconciliationFactKind, identity)
 }
 
 func securityAlertReconciliationIdentity(
@@ -129,13 +123,19 @@ func securityAlertReconciliationIdentity(
 	scopeID := securityAlertReconciliationWriteScopeID(write, decision)
 	generationID := securityAlertReconciliationWriteGenerationID(write, decision)
 	return map[string]any{
-		"generation_id":          generationID,
-		"provider":               strings.TrimSpace(decision.Provider),
-		"provider_alert_number":  decision.ProviderAlertNumber,
-		"provider_alert_fact_id": strings.TrimSpace(decision.ProviderAlertFactID),
-		"repository_id":          strings.TrimSpace(decision.RepositoryID),
-		"provider_repository_id": strings.TrimSpace(decision.ProviderRepositoryID),
-		"scope_id":               scopeID,
+		"generation_id":         generationID,
+		"provider":              strings.TrimSpace(decision.Provider),
+		"provider_alert_id":     firstNonBlank(decision.ProviderAlertID, fmt.Sprint(decision.ProviderAlertNumber)),
+		"provider_alert_number": decision.ProviderAlertNumber,
+		"provider_repository_id": firstNonBlank(
+			decision.ProviderRepositoryID,
+			decision.ProviderAlertScopeID,
+			scopeID,
+		),
+		"scope_id":   scopeID,
+		"package_id": strings.TrimSpace(decision.PackageID),
+		"cve_ids":    uniqueSortedStrings(decision.CVEIDs),
+		"ghsa_ids":   uniqueSortedStrings(decision.GHSAIDs),
 	}
 }
 
