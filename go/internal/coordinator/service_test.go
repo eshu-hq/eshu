@@ -45,7 +45,11 @@ func (f *fakeOwnedPackageTargetReader) ListOwnedPackageDependencyTargets(
 	if f.err != nil {
 		return nil, f.err
 	}
-	return append([]workflow.OwnedPackageDependencyTarget(nil), f.targets...), nil
+	targets := append([]workflow.OwnedPackageDependencyTarget(nil), f.targets...)
+	if filter.Limit > 0 && len(targets) > filter.Limit {
+		targets = targets[:filter.Limit]
+	}
+	return targets, nil
 }
 
 func (f *fakeStore) ReconcileCollectorInstances(_ context.Context, observedAt time.Time, desired []workflow.DesiredCollectorInstance) error {

@@ -10,6 +10,8 @@ import (
 	"golang.org/x/mod/semver"
 )
 
+const derivedTargetBudgetExhaustionLookahead = 1
+
 func derivationEcosystems(values []string, defaults []string) map[string]struct{} {
 	return stringSet(values, defaults)
 }
@@ -60,6 +62,13 @@ func derivedTargetRotationOffset(observedAt time.Time, interval time.Duration, l
 	}
 	bucket := observedAt.UTC().UnixNano() / int64(interval)
 	return bucket * int64(limit)
+}
+
+func derivedTargetReadLimit(targetLimit int) int {
+	if targetLimit <= 0 {
+		return targetLimit
+	}
+	return targetLimit + derivedTargetBudgetExhaustionLookahead
 }
 
 func packageRegistryDerivationFromConfig(raw string) (packageRegistryDerivationConfiguration, error) {

@@ -87,6 +87,9 @@ func TestVulnerabilityIntelligenceWorkPlannerReportsDerivedQueryBudgetExhaustion
 	if err := json.Unmarshal([]byte(run.RequestedScopeSet), &requested); err != nil {
 		t.Fatalf("RequestedScopeSet JSON = %q: %v", run.RequestedScopeSet, err)
 	}
+	if got := len(requested.Targets); got == 0 {
+		t.Fatalf("RequestedScopeSet targets = 0, want at least one OSV query batch: %s", run.RequestedScopeSet)
+	}
 	if got, want := len(requested.Targets[0].Queries), 2; got != want {
 		t.Fatalf("len(RequestedScopeSet.targets[0].queries) = %d, want selected query budget %d", got, want)
 	}

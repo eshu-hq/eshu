@@ -201,12 +201,13 @@ warning (`collector_instance_drift_detected`, fields
   fact query, then confirm the dependency evidence is active and exact enough
   for the collector family. Bounded reads rotate by reconcile bucket, and the
   planner preserves that reader order so direct and owned targets do not sit
-  behind unrelated broad fanout. If the owned-package derivation budget is
-  exhausted, `requested_scope_set.skipped_targets` records aggregate
-  `derived_target_budget_exhausted` evidence with selected and skipped counts,
-  the configured limit, collector kind, target class, and bounded
-  ecosystem/source labels. It does not include package names, versions,
-  repository paths, or advisory payloads.
+  behind unrelated broad fanout. Derived reads include one bounded lookahead
+  target beyond the planning budget. If that lookahead proves the owned-package
+  derivation budget is exhausted, `requested_scope_set.skipped_targets` records
+  aggregate `derived_target_budget_exhausted` evidence with selected and
+  observed skipped counts, the configured limit, collector kind, target class,
+  and bounded ecosystem/source labels. It does not include package names,
+  versions, repository paths, or advisory payloads.
 
 ## Extension points
 
@@ -219,10 +220,11 @@ dependency evidence, keeps range dependencies out of exact OSV collection, and
 does not change claim leases, worker counts, queue concurrency, reducer graph
 writes, or NornicDB settings.
 
-No-Regression Evidence: `go test ./internal/coordinator -run 'Test(PackageRegistryWorkPlannerReportsDerivedTargetBudgetExhaustion|VulnerabilityIntelligenceWorkPlannerReportsDerivedQueryBudgetExhaustion)' -count=1`
+No-Regression Evidence: `go test ./internal/coordinator -run 'Test(ServiceRunActiveModeSurfaces(PackageRegistry|Vulnerability)DerivedBudgetExhaustion|PackageRegistryWorkPlannerReportsDerivedTargetBudgetExhaustion|VulnerabilityIntelligenceWorkPlannerReportsDerivedQueryBudgetExhaustion)' -count=1`
 proves representative proof budgets cap package-registry targets and OSV
-package-version query selection while surfacing aggregate skipped-target counts
-in `workflow_runs.requested_scope_set`.
+package-version query selection while the active service path reads one bounded
+lookahead and surfaces aggregate skipped-target counts in
+`workflow_runs.requested_scope_set`.
 
 Observability Evidence: existing coordinator reconcile counters and duration
 histograms, `workflow_runs.requested_scope_set`, `workflow_work_items` status
