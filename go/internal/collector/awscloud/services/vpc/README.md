@@ -38,9 +38,12 @@ A focused test in `scanner_test.go`
 (`TestVPCResourceTypesDisjointFromEC2`) pins the boundary so a regression
 fails fast.
 
-This boundary is intentional: the EC2 scanner already covers the
-instance/ENI surface, and adding a second emitter for the same `resource_id`
-would create duplicate facts with non-deterministic correlation behavior.
+This boundary is intentional: the EC2 scanner already owns the ENI surface as
+`aws_resource` facts (instances are out of scope there too and appear only as
+ENI-attachment target evidence, never as `aws_ec2_instance` resources), so the
+VPC scanner references those identities as relationship targets rather than
+re-emitting them. Adding a second emitter for the same `resource_id` would
+create duplicate facts with non-deterministic correlation behavior.
 
 ```mermaid
 flowchart LR
