@@ -12,6 +12,7 @@ import (
 func TestScannerEmitsBrokerMetadataOnlyWithRelationships(t *testing.T) {
 	brokerARN := "arn:aws:mq:us-east-1:123456789012:broker:orders:b-1111"
 	kmsARN := "arn:aws:kms:us-east-1:123456789012:key/22222222-3333-4444-5555-666666666666"
+	configARN := "arn:aws:mq:us-east-1:123456789012:configuration:c-2222"
 	client := fakeClient{brokers: []Broker{{
 		ARN:                     brokerARN,
 		ID:                      "b-1111",
@@ -38,6 +39,10 @@ func TestScannerEmitsBrokerMetadataOnlyWithRelationships(t *testing.T) {
 			AuditLogGroup:   "/aws/amazonmq/broker/b-1111/audit",
 		},
 		Usernames: []string{"admin", "publisher"},
+	}}, configurations: []Configuration{{
+		ARN:  configARN,
+		ID:   "c-2222",
+		Name: "orders-config",
 	}}}
 
 	envelopes, err := (Scanner{Client: client}).Scan(context.Background(), testBoundary())
@@ -82,6 +87,13 @@ func TestScannerEmitsBrokerMetadataOnlyWithRelationships(t *testing.T) {
 	assertRelationship(t, envelopes, awscloud.RelationshipMQBrokerUsesKMSKey)
 	assertRelationship(t, envelopes, awscloud.RelationshipMQBrokerUsesConfiguration)
 	assertRelationship(t, envelopes, awscloud.RelationshipMQBrokerLogsToCloudWatchLogGroup)
+
+	// The configuration and log group edges must target the ARN form the
+	// owning scanners use as their resource ResourceID, or the edges will not
+	// join in the reducer.
+	assertRelationshipTargetARN(t, envelopes, awscloud.RelationshipMQBrokerUsesConfiguration, configARN)
+	assertRelationshipTargetARN(t, envelopes, awscloud.RelationshipMQBrokerLogsToCloudWatchLogGroup,
+		"arn:aws:logs:us-east-1:123456789012:log-group:/aws/amazonmq/broker/b-1111/general")
 }
 
 func TestScannerEmitsConfigurationIdentityNotBody(t *testing.T) {

@@ -40,6 +40,7 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 	if err != nil {
 		return nil, fmt.Errorf("list MQ configurations: %w", err)
 	}
+	configurationARNs := configurationARNByID(configurations)
 
 	var envelopes []facts.Envelope
 	for _, broker := range brokers {
@@ -48,7 +49,7 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 			return nil, err
 		}
 		envelopes = append(envelopes, resource)
-		for _, observation := range brokerRelationships(boundary, broker) {
+		for _, observation := range brokerRelationships(boundary, broker, configurationARNs) {
 			relationship, err := awscloud.NewRelationshipEnvelope(observation)
 			if err != nil {
 				return nil, err

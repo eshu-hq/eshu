@@ -80,8 +80,18 @@ pagination spans. Resource counts surface through
   brokers by subnet rather than VPC, so `RelationshipMQBrokerInVPC` is reserved
   for evidence sources that report the VPC identity directly and is not emitted
   from broker subnet placement here.
-- Broker-to-CloudWatch-log-group relationships target the CloudWatch Logs log
-  group names reported for general and audit logs. Log contents are never read.
+- Broker-to-CloudWatch-log-group relationships synthesize the non-wildcard log
+  group ARN (`arn:aws:logs:<region>:<account>:log-group:<name>`) from the
+  boundary account and region plus the general and audit log group names, so the
+  edge joins the CloudWatch Logs scanner resource, whose ResourceID is that ARN.
+  Log contents are never read.
+- Broker-to-configuration relationships resolve the broker-reported
+  configuration ID to its ARN using the ID-to-ARN map built from
+  `ListConfigurations`, because the `aws_mq_configuration` resource publishes its
+  ARN as the ResourceID. When the referenced configuration is absent from
+  `ListConfigurations` (for example a shared or cross-account configuration), the
+  edge falls back to targeting the configuration ID, which the resource carries
+  as a correlation anchor, rather than being dropped.
 - Tags are raw AWS tag evidence. Do not infer environment, owner, workload, or
   deployable-unit truth from tags in this package.
 

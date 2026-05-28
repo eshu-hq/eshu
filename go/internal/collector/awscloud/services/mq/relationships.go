@@ -1,12 +1,17 @@
 package mq
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 )
 
-func brokerRelationships(boundary awscloud.Boundary, broker Broker) []awscloud.RelationshipObservation {
+// brokerRelationships builds the relationship observations for one broker.
+// configurationARNs maps a broker-reported configuration ID to the ARN of the
+// emitted aws_mq_configuration resource so the broker→configuration edge joins
+// on the same identity the configuration scanner publishes as its ResourceID.
+func brokerRelationships(boundary awscloud.Boundary, broker Broker, configurationARNs map[string]string) []awscloud.RelationshipObservation {
 	brokerID := firstNonEmpty(broker.ARN, broker.ID, broker.Name)
 	if brokerID == "" {
 		return nil
@@ -49,12 +54,25 @@ func brokerRelationships(boundary awscloud.Boundary, broker Broker) []awscloud.R
 	}
 	if broker.Configuration != nil {
 		if configID := strings.TrimSpace(broker.Configuration.ID); configID != "" {
+			// The aws_mq_configuration resource is emitted with ResourceID set
+			// to its ARN, so the edge must target the ARN to join. When the
+			// referenced configuration is absent from ListConfigurations (for
+			// example a shared or cross-account configuration), fall back to the
+			// broker-reported ID, which the configuration resource carries as a
+			// correlation anchor, rather than dropping the edge.
+			configTarget := configID
+			configTargetARN := ""
+			if arn := strings.TrimSpace(configurationARNs[configID]); arn != "" {
+				configTarget = arn
+				configTargetARN = arn
+			}
 			observations = append(observations, awscloud.RelationshipObservation{
 				Boundary:         boundary,
 				RelationshipType: awscloud.RelationshipMQBrokerUsesConfiguration,
 				SourceResourceID: brokerID,
 				SourceARN:        brokerARN,
-				TargetResourceID: configID,
+				TargetResourceID: configTarget,
+				TargetARN:        configTargetARN,
 				TargetType:       awscloud.ResourceTypeMQConfiguration,
 				Attributes: map[string]any{
 					"revision": broker.Configuration.Revision,
@@ -64,12 +82,18 @@ func brokerRelationships(boundary awscloud.Boundary, broker Broker) []awscloud.R
 		}
 	}
 	for _, logGroup := range brokerLogGroups(broker.Logs) {
+		// The cloudwatchlogs scanner emits each log group with ResourceID set to
+		// its non-wildcard ARN, so synthesize the matching ARN from the boundary
+		// account and region and target it in both fields, otherwise the edge
+		// cannot join the log group resource.
+		logGroupARN := cloudWatchLogGroupARN(boundary, logGroup.name)
 		observations = append(observations, awscloud.RelationshipObservation{
 			Boundary:         boundary,
 			RelationshipType: awscloud.RelationshipMQBrokerLogsToCloudWatchLogGroup,
 			SourceResourceID: brokerID,
 			SourceARN:        brokerARN,
-			TargetResourceID: logGroup.name,
+			TargetResourceID: logGroupARN,
+			TargetARN:        logGroupARN,
 			TargetType:       awscloud.ResourceTypeCloudWatchLogsLogGroup,
 			Attributes: map[string]any{
 				"log_kind": logGroup.kind,
@@ -78,6 +102,21 @@ func brokerRelationships(boundary awscloud.Boundary, broker Broker) []awscloud.R
 		})
 	}
 	return observations
+}
+
+// cloudWatchLogGroupARN synthesizes the non-wildcard CloudWatch Logs log group
+// ARN the cloudwatchlogs scanner publishes as its resource ResourceID, so a
+// broker logging edge joins on the same identity. Amazon MQ reports broker log
+// destinations as bare log group names; the ARN form is
+// arn:aws:logs:<region>:<account>:log-group:<name>.
+func cloudWatchLogGroupARN(boundary awscloud.Boundary, name string) string {
+	region := strings.TrimSpace(boundary.Region)
+	account := strings.TrimSpace(boundary.AccountID)
+	name = strings.TrimSpace(name)
+	if region == "" || account == "" || name == "" {
+		return name
+	}
+	return fmt.Sprintf("arn:aws:logs:%s:%s:log-group:%s", region, account, name)
 }
 
 type brokerLogGroup struct {
