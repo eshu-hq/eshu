@@ -53,6 +53,7 @@ func TestSupportedServiceKindsBuildScanners(t *testing.T) {
 func TestSupportedServiceKindsCoversEveryAWSService(t *testing.T) {
 	want := map[string]bool{
 		awscloud.ServiceAccessAnalyzer:  true,
+		awscloud.ServiceACM:             true,
 		awscloud.ServiceAPIGateway:      true,
 		awscloud.ServiceAthena:          true,
 		awscloud.ServiceCloudFront:      true,

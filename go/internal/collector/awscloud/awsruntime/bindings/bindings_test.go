@@ -16,6 +16,7 @@ import (
 func TestBindingsRegistersEverySupportedServiceKind(t *testing.T) {
 	want := []string{
 		awscloud.ServiceAccessAnalyzer,
+		awscloud.ServiceACM,
 		awscloud.ServiceAPIGateway,
 		awscloud.ServiceAthena,
 		awscloud.ServiceCloudFront,
