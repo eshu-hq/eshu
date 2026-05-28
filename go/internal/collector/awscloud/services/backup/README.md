@@ -84,6 +84,32 @@ and pagination spans.
   condition itself is a tag-filter pattern, not because the scanner reads
   tag values from any resource it does not own.
 
+## Performance and Observability Evidence
+
+This scanner adds read-only AWS Backup List/Describe calls on the per-claim
+scan path; it introduces no new Cypher, graph writes, reducer admission,
+queue pressure, lease, batching, or concurrency knob. Each claim runs the
+bounded paginated Backup read surface (vaults, plans, selections, recovery
+point metadata, report plans, restore testing plans, frameworks) once and
+emits typed source facts; the reducer continues to own canonical graph
+writes downstream.
+
+No-Regression Evidence: `cd go && go test ./internal/collector/awscloud/services/backup/... -count=1 -race`
+and `go test ./internal/collector/awscloud/awsruntime/... -count=1 -race`
+cover the scanner, the SDK adapter, and registry resolution. `golangci-lint
+run ./internal/collector/awscloud/... ./cmd/collector-aws-cloud/...` reports
+zero issues. The scan surface is bounded by the AWS account's Backup
+inventory and uses the shared paginator, so worst-case fan-out matches the
+existing Phase 2 metadata scanners already inside the repo-scale performance
+contract.
+
+No-Observability-Change: facts ride the existing
+`eshu_dp_aws_resources_emitted_total{service="backup"}` counter and SDK calls
+record through `awscloud.RecordAPICall` into the runtime's `AWSAPICalls` /
+`AWSThrottles` instruments and the `aws.service.scan` span. No new metric,
+span, or status field is introduced; label cardinality is bounded by the
+`service` value and resource-type attribute.
+
 ## Related docs
 
 - `docs/public/services/collector-aws-cloud.md`
