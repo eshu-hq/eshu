@@ -12,8 +12,10 @@
 // discovery candidates. OCIRegistryWorkPlanner, PackageRegistryWorkPlanner, and
 // VulnerabilityIntelligenceWorkPlanner each plan bounded work items without
 // opening provider connections; package and vulnerability planners preserve
-// direct and owned target priority ahead of broad fanout. AWSScheduledWorkPlanner
-// and AWSFreshnessWorkPlanner plan ordinary AWS collector work from configured
-// schedules or webhook freshness triggers. Planners produce workflow rows only;
-// claim ownership and fact emission stay with the collector runtimes.
+// direct and owned target priority ahead of broad fanout and report aggregate
+// skipped-target evidence when an owned-package derivation budget is exhausted.
+// AWSScheduledWorkPlanner and AWSFreshnessWorkPlanner plan ordinary AWS
+// collector work from configured schedules or webhook freshness triggers.
+// Planners produce workflow rows only; claim ownership and fact emission stay
+// with the collector runtimes.
 package coordinator
