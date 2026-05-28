@@ -30,6 +30,7 @@ It does not mutate AWS resources, read protected payloads, or write graph truth.
 | `sqs`, `sns`, `eventbridge` | Queue/topic/bus metadata and ARN-addressable relationships. |
 | `guardduty` | Detectors, member accounts, filter names, publishing destinations, threat intel/IP set metadata, and aggregate finding counts. |
 | `inspector2` | Account scan status, enabled scan features (EC2, ECR, Lambda, Lambda code) carried as account attributes, member accounts (org-admin view), findings filter non-criteria identity (name, action, owner ID), and CIS scan configuration metadata with member-to-administrator and CIS-configuration-to-target-account relationships. No finding details, no filter criteria expressions, no CIS scan results. |
+| `macie2` | Highest-redaction scanner in the collector. Macie account session status (enabled/paused, finding publishing frequency, service-linked role ARN), member accounts (org-admin view, email-free), classification job metadata (id, name, type, status, and an aggregate bucket-criteria summary of `target_bucket_count` + `target_account_count` + `uses_bucket_criteria` — never the bucket list or criteria expressions), allow list identities (id, name only), custom data identifier identities (id, name only), findings filter identities (id, name, action only), and aggregate finding counts by severity carried on the session resource. Relationship: member-to-administrator (targets the administrator account's Macie session). Never persists sensitive-data findings (the PII detection results), custom data identifier regex bodies (they are the PII patterns), allow list contents, findings filter criteria, or classification-job bucket criteria. The scanner never calls `GetSensitiveDataOccurrences`, `GetSensitiveDataOccurrencesAvailability`, `GetFindings`, `ListFindings`, `GetCustomDataIdentifier`, `GetAllowList`, `GetFindingsFilter`, `DescribeClassificationJob`, or `DescribeBuckets`; the accepted SDK surface excludes them by construction, proven by a reflective guard test on the SDK adapter `apiClient` interface and struct-reflection tests on the scanner-owned types. |
 | `s3` | Bucket metadata and server-access-log target bucket relationships. |
 | `rds` | DB instances, clusters, subnet groups, and reported security/KMS/role/group relationships. |
 | `docdb` | DocumentDB DB clusters, cluster instances, cluster parameter groups (name + family + parameter count only - NOT parameter values), cluster snapshot metadata, subnet groups, global clusters, and event subscription metadata with cluster-to-VPC, cluster-to-subnet-group, cluster-to-KMS-key, instance-to-cluster, and global-cluster-to-cluster relationships. No master user passwords, master user secrets, database document contents, collections, indexes, cluster parameter values, or snapshot contents. |
@@ -112,6 +113,27 @@ and CIS scan results are out of scope; the Inspector v2 scanner emits account
 status, enabled scan features, member accounts, filter names, and CIS scan
 configuration metadata only, and makes no finding-listing or finding-aggregation
 call.
+
+Amazon Macie is the highest-redaction scanner in the collector because Macie's
+product is detecting personally identifiable information. Macie sensitive-data
+findings (the PII detection results themselves), custom data identifier regular
+expression bodies (which are themselves descriptions of the sensitive data the
+customer is detecting), allow list contents, findings filter criteria, and
+classification-job bucket-criteria expressions and explicit bucket lists are out
+of scope. The Macie scanner never calls `GetSensitiveDataOccurrences`,
+`GetSensitiveDataOccurrencesAvailability`, `GetFindings`, `ListFindings`,
+`GetCustomDataIdentifier`, `BatchGetCustomDataIdentifiers`,
+`TestCustomDataIdentifier`, `GetAllowList`, `GetFindingsFilter`,
+`DescribeClassificationJob`, `DescribeBuckets`, or any mutation API; the
+accepted SDK surface excludes them by construction, proven by a reflective guard
+test on the SDK adapter `apiClient` interface and by struct-reflection tests on
+the scanner-owned types, which carry identity and counts only and have no field
+able to hold a regex body, list contents, finding detail, or criteria. The
+scanner emits the Macie session status, member accounts (email-free),
+classification-job metadata with an aggregate bucket-criteria summary count,
+allow list and custom data identifier identities, findings filter identities,
+and aggregate finding counts by severity only. Member email addresses are
+personal contact data and are never read.
 CloudTrail audit event payloads, Lake query strings, Lake query result rows,
 event selector bodies, and dashboard widget query SQL stay outside the
 collector contract; the CloudTrail scanner emits trail and Lake configuration
