@@ -52,12 +52,13 @@ It does not mutate AWS resources, read protected payloads, or write graph truth.
 | `accessanalyzer` | Analyzer metadata, archive-rule names, aggregate finding counts, relationships, and unused-access summaries. |
 | `kms` | Customer master keys, aliases, and grants with alias-to-key, grant-to-key, and grant-to-grantee-principal relationships. The scanner never calls cryptographic operations (Encrypt, Decrypt, GenerateDataKey, Sign, Verify, ReEncrypt, GenerateMac, VerifyMac, GenerateDataKeyPair, GenerateDataKeyWithoutPlaintext, DeriveSharedSecret, GetPublicKey) or key lifecycle mutations (CreateKey, ScheduleKeyDeletion, EnableKey, DisableKey, EnableKeyRotation, DisableKeyRotation, PutKeyPolicy, CreateGrant, RevokeGrant, RetireGrant, ReplicateKey, ImportKeyMaterial, DeleteImportedKeyMaterial). Key policy Statement bodies, grant encryption contexts, and key material stay outside the scan slice. |
 | `organizations` | Organization root, OUs, accounts, policy summaries, policy target bindings, and delegated administrators. |
+| `ssoadmin` | IAM Identity Center instances, permission sets (name, description, session duration, relay state), account assignments (principal type/id, permission set, account), application instances, trusted token issuers, and group/user principals resolved from the connected identity store. Relationships cover assignment-to-permission-set, assignment-to-account, assignment-to-principal, permission-set-to-managed-policy (ARN ref), and permission-set-to-customer-managed-policy (name ref). No permission set inline policy bodies, permissions boundary bodies, customer-managed policy bodies, or application access-scope group filters. Principal display names are redacted; only the identity store display name is read. |
 
 IAM, Route 53, and CloudFront are global-style families. Use a concrete global
 region label such as `aws-global` so claims keep the
-`(account_id, region, service_kind)` shape. Organizations uses the `us-east-1`
-control-plane endpoint and requires management-account or
-delegated-administrator credentials.
+`(account_id, region, service_kind)` shape. Organizations and Identity Center
+(`ssoadmin`) use the `us-east-1` control-plane endpoint and require
+management-account or delegated-administrator credentials.
 
 ## Data Boundaries
 
@@ -135,6 +136,20 @@ policy type, and target binding. Policy document bodies, statements,
 conditions, action lists, and guardrail text are out of scope by default.
 Account email and account name values must pass through the shared AWS
 redaction path before persistence.
+
+IAM Identity Center (`ssoadmin`) permission set metadata is in scope: name,
+description, session duration, relay state, and managed-policy ARN or
+customer-managed-policy name references. Permission set inline policy bodies
+(`GetInlinePolicyForPermissionSet`) and permissions boundary bodies
+(`GetPermissionsBoundaryForPermissionSet`) are out of scope by default; they
+encode the org least-privilege model and live in IAM. Customer-managed policy
+bodies are never read; only the attachment name and path are persisted.
+Application instance access-scope attributes (`GetApplicationAccessScope`,
+`ListApplicationAccessScopes`) are out of scope because they can carry
+sensitive group filters. Principal display names resolved from the connected
+identity store pass through the shared AWS redaction path; only the identity
+store display name is read, never addresses, emails, phone numbers, structured
+name, or group memberships.
 
 It also does not call AWS mutation APIs. If a scanner needs a new API family,
 update the owning service package README with source APIs, forbidden data

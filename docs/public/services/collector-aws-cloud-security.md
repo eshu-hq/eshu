@@ -9,7 +9,7 @@ redaction. The overview lives in [AWS Cloud Collector](collector-aws-cloud.md).
 | --- | --- |
 | `ESHU_POSTGRES_DSN` or split Postgres DSNs | Shared Postgres runtime loader. |
 | `ESHU_COLLECTOR_INSTANCES_JSON` | Desired collector instances. Must include one enabled `aws` instance with `claims_enabled=true`. |
-| `ESHU_AWS_REDACTION_KEY` | Required when any target scope enables CloudWatch, ECS, Lambda, Security Hub, or Organizations. CloudWatch alarm metric dimension values can be customer-tag-named and are redacted before persistence. |
+| `ESHU_AWS_REDACTION_KEY` | Required when any target scope enables CloudWatch, ECS, Lambda, Security Hub, Organizations, or IAM Identity Center (`ssoadmin`). CloudWatch alarm metric dimension values can be customer-tag-named and Identity Center principal display names are redacted before persistence. |
 
 Optional knobs: `ESHU_AWS_COLLECTOR_INSTANCE_ID`,
 `ESHU_AWS_COLLECTOR_OWNER_ID`, `ESHU_AWS_COLLECTOR_POLL_INTERVAL`,
@@ -49,13 +49,30 @@ messages, DynamoDB items, log events, API execution payloads, S3 object
 contents, database contents, Lambda packages, GuardDuty finding bodies,
 GuardDuty filter criteria, or GuardDuty threat intel/IP list contents.
 
-CloudWatch, ECS, Lambda, Security Hub, and Organizations scans require
-`ESHU_AWS_REDACTION_KEY` before startup because sensitive-derived fields are
-redacted before persistence. The key produces deterministic HMAC markers; it is
-not stored in facts. Security Hub action target descriptions and Organizations
-account email/name values pass through the shared redaction helper, and
-CloudWatch alarm metric dimension values whose names look like customer tags
-pass through the same helper.
+CloudWatch, ECS, Lambda, Security Hub, Organizations, and IAM Identity Center
+(`ssoadmin`) scans require `ESHU_AWS_REDACTION_KEY` before startup because
+sensitive-derived fields are redacted before persistence. The key produces
+deterministic HMAC markers; it is not stored in facts. Security Hub action
+target descriptions and Organizations account email/name values pass through the
+shared redaction helper, CloudWatch alarm metric dimension values whose names
+look like customer tags pass through the same helper, and Identity Center
+principal display names resolved from the identity store pass through the same
+helper.
+
+IAM Identity Center permission set inline policy bodies
+(`GetInlinePolicyForPermissionSet`), permissions boundary bodies
+(`GetPermissionsBoundaryForPermissionSet`), customer-managed policy bodies, and
+application access-scope attributes (`GetApplicationAccessScope`,
+`ListApplicationAccessScopes`) are not read or persisted. Do not grant Identity
+Center mutation APIs to the collector role: `CreatePermissionSet`,
+`UpdatePermissionSet`, `DeletePermissionSet`, `PutInlinePolicyToPermissionSet`,
+`DeleteInlinePolicyFromPermissionSet`, `PutPermissionsBoundaryToPermissionSet`,
+`DeletePermissionsBoundaryFromPermissionSet`, `AttachManagedPolicyToPermissionSet`,
+`DetachManagedPolicyFromPermissionSet`,
+`AttachCustomerManagedPolicyReferenceToPermissionSet`,
+`DetachCustomerManagedPolicyReferenceFromPermissionSet`,
+`CreateAccountAssignment`, `DeleteAccountAssignment`, `CreateApplication`,
+`UpdateApplication`, `DeleteApplication`, or `ProvisionPermissionSet`.
 
 Security Hub finding bodies and insight filters are not persisted. Finding
 aggregate counts grouped by severity, standard, control, compliance status, and

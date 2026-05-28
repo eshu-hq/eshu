@@ -29,6 +29,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/glue v1.142.0
 	github.com/aws/aws-sdk-go-v2/service/guardduty v1.78.0
 	github.com/aws/aws-sdk-go-v2/service/iam v1.36.3
+	github.com/aws/aws-sdk-go-v2/service/identitystore v1.37.1
 	github.com/aws/aws-sdk-go-v2/service/kafka v1.52.0
 	github.com/aws/aws-sdk-go-v2/service/kms v1.52.0
 	github.com/aws/aws-sdk-go-v2/service/lambda v1.90.1
@@ -45,6 +46,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/sns v1.39.17
 	github.com/aws/aws-sdk-go-v2/service/sqs v1.42.27
 	github.com/aws/aws-sdk-go-v2/service/ssm v1.68.6
+	github.com/aws/aws-sdk-go-v2/service/ssoadmin v1.39.1
 	github.com/aws/aws-sdk-go-v2/service/sts v1.33.20
 	github.com/aws/smithy-go v1.25.1
 	github.com/charmbracelet/bubbles v1.0.0
