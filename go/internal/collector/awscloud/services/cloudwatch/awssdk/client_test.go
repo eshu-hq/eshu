@@ -210,13 +210,12 @@ func TestClientListsCallsOnlySafeAPIs(t *testing.T) {
 		t.Fatalf("streams = %#v, want firehose %q", streams, firehoseARN)
 	}
 
-	// Forbidden API call recorder: every fake method increments fake.calls.
-	// Even though forbidden methods are not in the apiClient interface, the
-	// fake declares them via separate counters so a future regression that
-	// widens the interface and calls one will fail this test.
-	if fake.forbiddenCalls > 0 {
-		t.Fatalf("adapter invoked %d forbidden CloudWatch APIs", fake.forbiddenCalls)
-	}
+	// Runtime allow-list check. The fake records every dispatched method in
+	// fake.calls and only implements the six allowed apiClient methods, so a
+	// forbidden name can never appear here unless the interface is widened.
+	// The compile-time guarantee that no forbidden method is even reachable
+	// lives in TestApiClientInterfaceExcludesForbiddenMethods; this loop is a
+	// belt-and-suspenders runtime assertion over the calls this scan made.
 	for _, forbidden := range forbiddenAPIs {
 		if slices.Contains(fake.calls, forbidden) {
 			t.Fatalf("forbidden CloudWatch call %q recorded: calls=%v", forbidden, fake.calls)
@@ -254,10 +253,6 @@ type fakeCloudWatchAPI struct {
 	getMetricStreamOutput     *awscw.GetMetricStreamOutput
 	tags                      []awscwtypes.Tag
 	calls                     []string
-
-	// forbiddenCalls increments only if a future interface widening allows
-	// the adapter to dispatch into one of the forbidden method stubs below.
-	forbiddenCalls int
 }
 
 func (f *fakeCloudWatchAPI) DescribeAlarms(

@@ -42,10 +42,12 @@ the environment/configuration it accepts:
   than the lease TTL.
 - `ESHU_AWS_COLLECTOR_OWNER_ID` - optional owner ID override; defaults to
   `HOSTNAME`, then `collector-aws-cloud`.
-- `ESHU_AWS_REDACTION_KEY` - required when any target scope enables `ecs`,
-  `lambda`, `securityhub`, or `organizations`. Those scanners use it to
-  produce deterministic HMAC-SHA256 markers for sensitive-derived fields before
-  persistence.
+- `ESHU_AWS_REDACTION_KEY` - required when any target scope enables
+  `cloudwatch`, `ecs`, `lambda`, `securityhub`, or `organizations`. Those
+  scanners use it to produce deterministic HMAC-SHA256 markers for
+  sensitive-derived fields before persistence. CloudWatch needs it because
+  alarm metric dimension values whose names look like customer tags route
+  through the shared redact library.
 
 Instance configuration uses:
 
@@ -55,7 +57,7 @@ Instance configuration uses:
     {
       "account_id": "123456789012",
       "allowed_regions": ["us-east-1", "aws-global"],
-      "allowed_services": ["iam", "ecr", "ecs", "ec2", "elbv2", "lambda", "eks", "route53", "sqs", "sns", "eventbridge", "guardduty", "s3", "rds", "redshift", "dynamodb", "cloudwatchlogs", "cloudfront", "apigateway", "secretsmanager", "ssm", "athena", "securityhub", "glue", "elasticache", "msk", "stepfunctions", "accessanalyzer", "organizations"],
+      "allowed_services": ["iam", "ecr", "ecs", "ec2", "elbv2", "lambda", "eks", "route53", "sqs", "sns", "eventbridge", "guardduty", "s3", "rds", "redshift", "dynamodb", "cloudwatch", "cloudwatchlogs", "cloudfront", "apigateway", "secretsmanager", "ssm", "athena", "securityhub", "glue", "elasticache", "msk", "stepfunctions", "accessanalyzer", "organizations"],
       "max_concurrent_claims": 1,
       "credentials": {
         "mode": "central_assume_role",
@@ -117,8 +119,10 @@ The claim concurrency gauge is backed by the runtime's per-account limiter.
   service `awssdk` adapters; command tests should not mock the full AWS SDK
   surface.
 - Credential leases are released after scanner construction and service scan.
-- ECS, Lambda, Security Hub, and Organizations targets require
-  `ESHU_AWS_REDACTION_KEY`; IAM and ECR targets do not.
+- CloudWatch, ECS, Lambda, Security Hub, and Organizations targets require
+  `ESHU_AWS_REDACTION_KEY`; IAM and ECR targets do not. CloudWatch needs the
+  key because alarm metric dimension values can be customer-tag-named and are
+  redacted before persistence.
 - ELBv2 targets emit stable routing topology and intentionally exclude target
   health status.
 - Route 53 targets emit hosted-zone resources and A/AAAA/CNAME/ALIAS DNS record

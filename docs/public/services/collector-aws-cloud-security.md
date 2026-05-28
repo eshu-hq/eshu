@@ -9,7 +9,7 @@ redaction. The overview lives in [AWS Cloud Collector](collector-aws-cloud.md).
 | --- | --- |
 | `ESHU_POSTGRES_DSN` or split Postgres DSNs | Shared Postgres runtime loader. |
 | `ESHU_COLLECTOR_INSTANCES_JSON` | Desired collector instances. Must include one enabled `aws` instance with `claims_enabled=true`. |
-| `ESHU_AWS_REDACTION_KEY` | Required when any target scope enables ECS, Lambda, Security Hub, or Organizations. |
+| `ESHU_AWS_REDACTION_KEY` | Required when any target scope enables CloudWatch, ECS, Lambda, Security Hub, or Organizations. CloudWatch alarm metric dimension values can be customer-tag-named and are redacted before persistence. |
 
 Optional knobs: `ESHU_AWS_COLLECTOR_INSTANCE_ID`,
 `ESHU_AWS_COLLECTOR_OWNER_ID`, `ESHU_AWS_COLLECTOR_POLL_INTERVAL`,
@@ -49,11 +49,13 @@ messages, DynamoDB items, log events, API execution payloads, S3 object
 contents, database contents, Lambda packages, GuardDuty finding bodies,
 GuardDuty filter criteria, or GuardDuty threat intel/IP list contents.
 
-ECS, Lambda, Security Hub, and Organizations scans require
+CloudWatch, ECS, Lambda, Security Hub, and Organizations scans require
 `ESHU_AWS_REDACTION_KEY` before startup because sensitive-derived fields are
 redacted before persistence. The key produces deterministic HMAC markers; it is
 not stored in facts. Security Hub action target descriptions and Organizations
-account email/name values pass through the shared redaction helper.
+account email/name values pass through the shared redaction helper, and
+CloudWatch alarm metric dimension values whose names look like customer tags
+pass through the same helper.
 
 Security Hub finding bodies and insight filters are not persisted. Finding
 aggregate counts grouped by severity, standard, control, compliance status, and
