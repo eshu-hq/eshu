@@ -44,6 +44,7 @@ It does not mutate AWS resources, read protected payloads, or write graph truth.
 | `msk` | MSK cluster, broker configuration, and replicator metadata with subnet, security-group, KMS-key, IAM-role, and configuration relationships; no broker `server.properties` bodies, broker logs, bootstrap broker endpoints, SCRAM secrets, or Kafka topic data. |
 | `stepfunctions` | State machine and activity metadata, execution-role relationships, and ARN-only Task-target relationships; no execution payloads, history events, task tokens, or definition literals. |
 | `accessanalyzer` | Analyzer metadata, archive-rule names, aggregate finding counts, relationships, and unused-access summaries. |
+| `kms` | Customer master keys, aliases, and grants with alias-to-key, grant-to-key, and grant-to-grantee-principal relationships. The scanner never calls cryptographic operations (Encrypt, Decrypt, GenerateDataKey, Sign, Verify, ReEncrypt, GenerateMac, VerifyMac, GenerateDataKeyPair, GenerateDataKeyWithoutPlaintext, DeriveSharedSecret, GetPublicKey) or key lifecycle mutations (CreateKey, ScheduleKeyDeletion, EnableKey, DisableKey, EnableKeyRotation, DisableKeyRotation, PutKeyPolicy, CreateGrant, RevokeGrant, RetireGrant, ReplicateKey, ImportKeyMaterial, DeleteImportedKeyMaterial). Key policy Statement bodies, grant encryption contexts, and key material stay outside the scan slice. |
 | `organizations` | Organization root, OUs, accounts, policy summaries, policy target bindings, and delegated administrators. |
 
 IAM, Route 53, and CloudFront are global-style families. Use a concrete global
@@ -85,6 +86,16 @@ only, summarizing selectors as bounded counts.
 ACM certificate body PEM and ACM-issued private key material are out of scope.
 The ACM scanner never calls `GetCertificate` or `ExportCertificate`, and ACM
 Private CA (acm-pca) APIs are not exercised.
+
+KMS key policy Statement bodies, KMS grant encryption contexts, KMS key
+material, and the output of any KMS cryptographic operation are out of scope.
+The KMS scanner reaches the control plane only through List- and
+Describe-class APIs; it never calls Encrypt, Decrypt, GenerateDataKey,
+GenerateDataKeyPair, GenerateDataKeyPairWithoutPlaintext,
+GenerateDataKeyWithoutPlaintext, Sign, Verify, ReEncrypt, GenerateMac,
+VerifyMac, DeriveSharedSecret, GetPublicKey, GenerateRandom, or any key
+lifecycle mutation. Only the bounded list of policy revision names from
+ListKeyPolicies is persisted; the scanner does not call GetKeyPolicy.
 
 Security Hub finding aggregate counts are metadata-only when grouped by bounded
 posture fields such as severity, standard, control, compliance status, and
