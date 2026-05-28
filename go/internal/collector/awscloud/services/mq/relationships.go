@@ -81,12 +81,13 @@ func brokerRelationships(boundary awscloud.Boundary, broker Broker, configuratio
 			})
 		}
 	}
+	partition := arnPartition(brokerARN)
 	for _, logGroup := range brokerLogGroups(broker.Logs) {
 		// The cloudwatchlogs scanner emits each log group with ResourceID set to
-		// its non-wildcard ARN, so synthesize the matching ARN from the boundary
-		// account and region and target it in both fields, otherwise the edge
-		// cannot join the log group resource.
-		logGroupARN := cloudWatchLogGroupARN(boundary, logGroup.name)
+		// its non-wildcard ARN, so synthesize the matching ARN from the broker
+		// partition and the boundary account and region and target it in both
+		// fields, otherwise the edge cannot join the log group resource.
+		logGroupARN := cloudWatchLogGroupARN(partition, boundary, logGroup.name)
 		observations = append(observations, awscloud.RelationshipObservation{
 			Boundary:         boundary,
 			RelationshipType: awscloud.RelationshipMQBrokerLogsToCloudWatchLogGroup,
@@ -108,15 +109,28 @@ func brokerRelationships(boundary awscloud.Boundary, broker Broker, configuratio
 // ARN the cloudwatchlogs scanner publishes as its resource ResourceID, so a
 // broker logging edge joins on the same identity. Amazon MQ reports broker log
 // destinations as bare log group names; the ARN form is
-// arn:aws:logs:<region>:<account>:log-group:<name>.
-func cloudWatchLogGroupARN(boundary awscloud.Boundary, name string) string {
+// arn:<partition>:logs:<region>:<account>:log-group:<name>. The partition is
+// taken from the broker ARN so the edge joins in the aws-us-gov and aws-cn
+// partitions, not only the commercial aws partition.
+func cloudWatchLogGroupARN(partition string, boundary awscloud.Boundary, name string) string {
 	region := strings.TrimSpace(boundary.Region)
 	account := strings.TrimSpace(boundary.AccountID)
 	name = strings.TrimSpace(name)
 	if region == "" || account == "" || name == "" {
 		return name
 	}
-	return fmt.Sprintf("arn:aws:logs:%s:%s:log-group:%s", region, account, name)
+	return fmt.Sprintf("arn:%s:logs:%s:%s:log-group:%s", partition, region, account, name)
+}
+
+// arnPartition returns the partition segment of an AWS ARN, defaulting to the
+// commercial "aws" partition when value is empty or not a parseable ARN. The
+// ARN layout is arn:<partition>:<service>:<region>:<account>:<resource>.
+func arnPartition(value string) string {
+	parts := strings.Split(strings.TrimSpace(value), ":")
+	if len(parts) < 2 || parts[0] != "arn" || parts[1] == "" {
+		return "aws"
+	}
+	return parts[1]
 }
 
 type brokerLogGroup struct {

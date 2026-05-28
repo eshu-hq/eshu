@@ -81,10 +81,12 @@ pagination spans. Resource counts surface through
   for evidence sources that report the VPC identity directly and is not emitted
   from broker subnet placement here.
 - Broker-to-CloudWatch-log-group relationships synthesize the non-wildcard log
-  group ARN (`arn:aws:logs:<region>:<account>:log-group:<name>`) from the
-  boundary account and region plus the general and audit log group names, so the
-  edge joins the CloudWatch Logs scanner resource, whose ResourceID is that ARN.
-  Log contents are never read.
+  group ARN (`arn:<partition>:logs:<region>:<account>:log-group:<name>`) from the
+  broker ARN partition plus the boundary account and region and the general and
+  audit log group names, so the edge joins the CloudWatch Logs scanner resource,
+  whose ResourceID is that ARN. The partition is taken from the broker ARN so the
+  edge also joins in the `aws-us-gov` and `aws-cn` partitions. Log contents are
+  never read.
 - Broker-to-configuration relationships resolve the broker-reported
   configuration ID to its ARN using the ID-to-ARN map built from
   `ListConfigurations`, because the `aws_mq_configuration` resource publishes its

@@ -93,6 +93,36 @@ func TestBrokerConfigurationRelationshipFallsBackToIDWhenARNUnknown(t *testing.T
 	}
 }
 
+// TestBrokerLogsRelationshipTargetsLogGroupARNInNonAWSPartition proves the
+// synthesized CloudWatch Logs ARN carries the broker's own partition. The
+// cloudwatchlogs scanner emits the log group ResourceID using the real ARN
+// (for example arn:aws-us-gov:logs:... in GovCloud), so hard-coding arn:aws:
+// would make the broker logging edge never join the log group resource in the
+// aws-us-gov and aws-cn partitions.
+func TestBrokerLogsRelationshipTargetsLogGroupARNInNonAWSPartition(t *testing.T) {
+	boundary := testBoundary()
+	broker := Broker{
+		ARN:  "arn:aws-us-gov:mq:us-gov-west-1:123456789012:broker:orders:b-1111",
+		ID:   "b-1111",
+		Name: "orders",
+		Logs: Logs{
+			GeneralEnabled:  true,
+			GeneralLogGroup: "/aws/amazonmq/broker/b-1111/general",
+		},
+	}
+
+	want := "arn:aws-us-gov:logs:us-east-1:123456789012:log-group:/aws/amazonmq/broker/b-1111/general"
+
+	observations := brokerRelationships(boundary, broker, nil)
+	general := logRelationshipByKind(t, observations, "general")
+	if got := general.TargetResourceID; got != want {
+		t.Fatalf("general TargetResourceID = %q, want %q", got, want)
+	}
+	if got := general.TargetARN; got != want {
+		t.Fatalf("general TargetARN = %q, want %q", got, want)
+	}
+}
+
 func logRelationshipByKind(t *testing.T, observations []awscloud.RelationshipObservation, kind string) awscloud.RelationshipObservation {
 	t.Helper()
 	for _, observation := range observations {
