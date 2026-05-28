@@ -67,14 +67,34 @@ func ClassifyStackOutput(key string, value string, redactionKey redact.Key) (red
 	}
 }
 
-// keyTokenIsSensitive reports whether any case/separator sub-token of a
-// CloudFormation output key matches the shared AWS sensitive-key policy. It
-// catches compound identifiers like "DatabasePassword" or "ServiceApiKey" that
-// the exact-match classifier preserves.
+// keyTokenIsSensitive reports whether any contiguous run of case/separator
+// sub-tokens of a CloudFormation output key matches the shared AWS sensitive-key
+// policy. It checks every contiguous token window (joined with "_"), not only
+// single tokens, so compound policy entries are caught even when the output key
+// wraps them with extra words. Examples it must redact:
+//
+//   - "DatabasePassword" via the single token "password"
+//   - "ApiKeyValue" via the window "api_key"
+//   - "DatabaseConnectionString" via the window "connection_string"
+//   - "ServiceAccessKeyId" via the window "access_key_id"
+//
+// Single-token matching alone missed the multi-word policy entries (api_key,
+// connection_string, access_key_id, ...) because no single token equals them.
+// A non-secret key such as "KeyName" or "RoleArn" still has no matching window
+// and stays preserved.
 func keyTokenIsSensitive(key string) bool {
-	for _, token := range splitIdentifierTokens(key) {
-		if _, ok := awsSensitiveKeySet[token]; ok {
-			return true
+	tokens := splitIdentifierTokens(key)
+	var window strings.Builder
+	for start := range tokens {
+		window.Reset()
+		for index := start; index < len(tokens); index++ {
+			if index > start {
+				window.WriteByte('_')
+			}
+			window.WriteString(tokens[index])
+			if _, ok := awsSensitiveKeySet[window.String()]; ok {
+				return true
+			}
 		}
 	}
 	return false

@@ -57,6 +57,21 @@ func TestClassifyStackOutputPreservesNonSecretKeysAndRedactsSecrets(t *testing.T
 		{name: "compound secret redacted", key: "MyServiceSecret", value: "topsecret", wantRedact: true, wantNoLeak: "topsecret"},
 		{name: "compound token redacted", key: "ApiTokenValue", value: "abc123", wantRedact: true, wantNoLeak: "abc123"},
 		{name: "snake_case connection string redacted", key: "connection_string", value: "postgres://u:p@h/d", wantRedact: true, wantNoLeak: "postgres://"},
+		// Compound keys that wrap a multi-word sensitive key with extra
+		// prefix/suffix words must still redact. Single-token matching missed
+		// these because the policy entry (api_key, connection_string) is itself
+		// a multi-word key that no single token equals.
+		{name: "compound api key value redacted", key: "ApiKeyValue", value: "ak-leak-me", wantRedact: true, wantNoLeak: "ak-leak-me"},
+		{name: "wrapped connection string redacted", key: "DatabaseConnectionString", value: "postgres://u:p@h/d", wantRedact: true, wantNoLeak: "postgres://"},
+		{name: "prefixed connection string redacted", key: "PrimaryConnectionString", value: "amqps://u:p@h", wantRedact: true, wantNoLeak: "amqps://"},
+		{name: "wrapped access key id redacted", key: "ServiceAccessKeyId", value: "AKIA-leak", wantRedact: true, wantNoLeak: "AKIA-leak"},
+		// Keys that merely contain the word "key" or "url" as a non-secret token
+		// must stay preserved; the n-gram match must not over-redact identifiers
+		// and ARNs.
+		{name: "key name preserved", key: "KeyName", value: "my-ssh-keypair", wantRedact: false},
+		{name: "public key id preserved", key: "KeyId", value: "1234-abcd", wantRedact: false},
+		{name: "role arn preserved", key: "RoleArn", value: "arn:aws:iam::1:role/app", wantRedact: false},
+		{name: "website url preserved", key: "WebsiteUrl", value: "https://example.com", wantRedact: false},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {

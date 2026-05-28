@@ -184,6 +184,9 @@ func TestScanRedactsSecretLikeStackOutputs(t *testing.T) {
 			Outputs: []StackOutput{
 				{Key: "ServiceUrl", Value: "https://api.example.com"},
 				{Key: "DatabasePassword", Value: "hunter2-should-be-redacted"},
+				// Compound key wrapping a multi-word sensitive policy entry
+				// (connection_string) must redact end to end at emission.
+				{Key: "DatabaseConnectionString", Value: "postgres://u:p@h/db"},
 			},
 		}},
 	}
@@ -196,19 +199,21 @@ func TestScanRedactsSecretLikeStackOutputs(t *testing.T) {
 	resource := findResource(t, envelopes, awscloud.ResourceTypeCloudFormationStack)
 	attributes := resource.Payload["attributes"].(map[string]any)
 	outputs, ok := attributes["outputs"].([]map[string]any)
-	if !ok || len(outputs) != 2 {
-		t.Fatalf("outputs = %#v, want 2 entries", attributes["outputs"])
+	if !ok || len(outputs) != 3 {
+		t.Fatalf("outputs = %#v, want 3 entries", attributes["outputs"])
 	}
+	secretKeys := map[string]struct{}{"DatabasePassword": {}, "DatabaseConnectionString": {}}
 	for _, out := range outputs {
-		if out["key"] == "DatabasePassword" {
+		key, _ := out["key"].(string)
+		if _, secret := secretKeys[key]; secret {
 			if _, present := out["value"]; present {
-				t.Fatalf("secret-like output carried a cleartext value: %#v", out)
+				t.Fatalf("secret-like output %q carried a cleartext value: %#v", key, out)
 			}
 			if out["redacted"] == nil {
-				t.Fatalf("secret-like output missing redaction marker: %#v", out)
+				t.Fatalf("secret-like output %q missing redaction marker: %#v", key, out)
 			}
 		}
-		if out["key"] == "ServiceUrl" && out["value"] != "https://api.example.com" {
+		if key == "ServiceUrl" && out["value"] != "https://api.example.com" {
 			t.Fatalf("non-secret output value = %v, want cleartext", out["value"])
 		}
 	}
