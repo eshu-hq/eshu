@@ -237,6 +237,73 @@ func TestClientUsesRegionalScopeForRegionalBoundary(t *testing.T) {
 	}
 }
 
+// TestScopeForBoundarySelectsScopeFromCanonicalRegionLabel pins the scope
+// selection contract: only the canonical global region label (and an empty
+// region, matching the rest of the AWS collector) selects the CLOUDFRONT scope.
+// Every other region label, including arbitrary tokens, selects REGIONAL so a
+// regional boundary can never be silently routed to the global control plane.
+func TestScopeForBoundarySelectsScopeFromCanonicalRegionLabel(t *testing.T) {
+	cases := []struct {
+		region string
+		want   awswafv2types.Scope
+	}{
+		{region: "aws-global", want: awswafv2types.ScopeCloudfront},
+		{region: "  aws-global  ", want: awswafv2types.ScopeCloudfront},
+		{region: "", want: awswafv2types.ScopeCloudfront},
+		{region: "us-east-1", want: awswafv2types.ScopeRegional},
+		{region: "us-west-2", want: awswafv2types.ScopeRegional},
+		{region: "eu-central-1", want: awswafv2types.ScopeRegional},
+		// Non-canonical tokens must not be treated as the global label.
+		{region: "global", want: awswafv2types.ScopeRegional},
+		{region: "n", want: awswafv2types.ScopeRegional},
+	}
+	for _, tc := range cases {
+		t.Run(tc.region, func(t *testing.T) {
+			got := scopeForBoundary(awscloud.Boundary{Region: tc.region})
+			if got != tc.want {
+				t.Fatalf("scopeForBoundary(%q) = %q, want %q", tc.region, got, tc.want)
+			}
+		})
+	}
+}
+
+// TestClientListIPSetsFollowsNextMarker proves the adapter's explicit marker
+// loop fetches every page. WAFv2 list APIs are not standard paginators, so a
+// dropped marker would silently truncate results. The fake advertises a marker
+// on page one and returns the remainder on page two.
+func TestClientListIPSetsFollowsNextMarker(t *testing.T) {
+	page1ARN := "arn:aws:wafv2:us-east-1:123456789012:regional/ipset/blocklist/ip1"
+	page2ARN := "arn:aws:wafv2:us-east-1:123456789012:regional/ipset/allowlist/ip2"
+	fake := &fakeWAFv2API{
+		ipSetSummaries: []awswafv2types.IPSetSummary{{
+			ARN:  aws.String(page1ARN),
+			Id:   aws.String("ip1"),
+			Name: aws.String("blocklist"),
+		}},
+		ipSetSecondPage: []awswafv2types.IPSetSummary{{
+			ARN:  aws.String(page2ARN),
+			Id:   aws.String("ip2"),
+			Name: aws.String("allowlist"),
+		}},
+		ipSet: &awswafv2types.IPSet{IPAddressVersion: awswafv2types.IPAddressVersionIpv4},
+	}
+	adapter := newTestClient(fake, awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceWAFv2})
+
+	ipSets, err := adapter.ListIPSets(context.Background())
+	if err != nil {
+		t.Fatalf("ListIPSets() error = %v, want nil", err)
+	}
+	if got, want := len(ipSets), 2; got != want {
+		t.Fatalf("len(ipSets) = %d, want %d (marker loop must fetch both pages)", got, want)
+	}
+	if got, want := fake.ipSetListCalls, 2; got != want {
+		t.Fatalf("ListIPSets calls = %d, want %d", got, want)
+	}
+	if got, want := fake.ipSetPageMarkers[1], "page-2"; got != want {
+		t.Fatalf("second page marker = %q, want %q", got, want)
+	}
+}
+
 func assertContains(t *testing.T, label string, values []string, want string) {
 	t.Helper()
 	for _, value := range values {

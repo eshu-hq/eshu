@@ -22,6 +22,13 @@ import (
 // us-east-1, so a global-region claim is rebound to that endpoint.
 const cloudFrontEndpointRegion = "us-east-1"
 
+// globalRegionLabel is the canonical region label the AWS collector uses for
+// global-style claims. A boundary carrying this label (or no region) scans the
+// global CLOUDFRONT scope; any concrete region scans REGIONAL. It mirrors the
+// label used by the rest of the collector (for example the S3 adapter) so a
+// regional boundary can never be silently routed to the global control plane.
+const globalRegionLabel = "aws-global"
+
 // listLimit bounds each WAFv2 list page. WAFv2 list APIs are not standard
 // paginators, so the adapter loops on NextMarker explicitly.
 const listLimit int32 = 100
@@ -89,11 +96,13 @@ func NewClient(
 	}
 }
 
-// scopeForBoundary maps a claim boundary region to the WAFv2 scope. Global
-// region labels select CLOUDFRONT; everything else is REGIONAL.
+// scopeForBoundary maps a claim boundary region to the WAFv2 scope. Only the
+// canonical global region label (or an empty region) selects CLOUDFRONT; every
+// concrete region selects REGIONAL. Matching the exact label keeps a regional
+// boundary from being misrouted to the global control plane.
 func scopeForBoundary(boundary awscloud.Boundary) awswafv2types.Scope {
 	switch strings.TrimSpace(boundary.Region) {
-	case "aws-global", "n", "global":
+	case globalRegionLabel, "":
 		return awswafv2types.ScopeCloudfront
 	default:
 		return awswafv2types.ScopeRegional

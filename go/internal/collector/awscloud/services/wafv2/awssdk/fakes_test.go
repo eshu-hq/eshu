@@ -35,6 +35,12 @@ type fakeWAFv2API struct {
 	ipSetSummaries []awswafv2types.IPSetSummary
 	ipSet          *awswafv2types.IPSet
 	lastIPSetScope awswafv2types.Scope
+	// ipSetSecondPage, when set, is returned only after the first ListIPSets
+	// call advertises a NextMarker. It exercises the explicit marker loop the
+	// adapter runs because WAFv2 list APIs are not standard paginators.
+	ipSetSecondPage  []awswafv2types.IPSetSummary
+	ipSetListCalls   int
+	ipSetPageMarkers []string
 
 	regexSummaries []awswafv2types.RegexPatternSetSummary
 	regexSet       *awswafv2types.RegexPatternSet
@@ -68,6 +74,18 @@ func (f *fakeWAFv2API) GetRuleGroup(context.Context, *awswafv2.GetRuleGroupInput
 
 func (f *fakeWAFv2API) ListIPSets(_ context.Context, input *awswafv2.ListIPSetsInput, _ ...func(*awswafv2.Options)) (*awswafv2.ListIPSetsOutput, error) {
 	f.lastIPSetScope = input.Scope
+	f.ipSetListCalls++
+	f.ipSetPageMarkers = append(f.ipSetPageMarkers, aws.ToString(input.NextMarker))
+	if len(f.ipSetSecondPage) > 0 && input.NextMarker == nil {
+		// First page advertises a marker so the adapter must request page two.
+		return &awswafv2.ListIPSetsOutput{
+			IPSets:     f.ipSetSummaries,
+			NextMarker: aws.String("page-2"),
+		}, nil
+	}
+	if len(f.ipSetSecondPage) > 0 {
+		return &awswafv2.ListIPSetsOutput{IPSets: f.ipSetSecondPage}, nil
+	}
 	return &awswafv2.ListIPSetsOutput{IPSets: f.ipSetSummaries}, nil
 }
 
