@@ -41,6 +41,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/redshiftserverless v1.35.0
 	github.com/aws/aws-sdk-go-v2/service/route53 v1.36.0
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.80.1
+	github.com/aws/aws-sdk-go-v2/service/sagemaker v1.249.0
 	github.com/aws/aws-sdk-go-v2/service/secretsmanager v1.41.7
 	github.com/aws/aws-sdk-go-v2/service/securityhub v1.71.0
 	github.com/aws/aws-sdk-go-v2/service/sfn v1.41.0
