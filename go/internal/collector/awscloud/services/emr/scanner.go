@@ -374,7 +374,6 @@ func sessionMappingObservation(
 			"identity_type":      strings.TrimSpace(mapping.IdentityType),
 			"session_policy_arn": strings.TrimSpace(mapping.SessionPolicyARN),
 			"created_at":         timeOrNil(mapping.CreatedAt),
-			"last_modified_at":   timeOrNil(mapping.LastModifiedAt),
 		},
 		CorrelationAnchors: []string{mappingID},
 		SourceRecordID:     mappingID,

@@ -228,6 +228,43 @@ func TestScannerEmitsStudioVPCSubnetRoleKMSAndSessionMapping(t *testing.T) {
 		mappingID, awscloud.ResourceTypeEMRStudioSessionMapping, "")
 }
 
+// TestSessionMappingOmitsLastModified proves the session-mapping observation
+// never emits a last_modified_at attribute. ListStudioSessionMappings returns
+// SessionMappingSummary, which only carries CreationTime; the AWS SDK exposes
+// LastModifiedTime exclusively through the per-mapping GetStudioSessionMapping
+// detail call, which the metadata-only scanner does not make. Emitting
+// last_modified_at would always be null in production, so the attribute must
+// not exist.
+func TestSessionMappingOmitsLastModified(t *testing.T) {
+	studioARN := "arn:aws:elasticmapreduce:us-east-1:123456789012:studio/es-LM"
+	client := fakeClient{
+		studios: []Studio{{
+			ARN:  studioARN,
+			ID:   "es-LM",
+			Name: "lm-studio",
+			SessionMappings: []StudioSessionMapping{{
+				StudioID:     "es-LM",
+				IdentityID:   "id-9",
+				IdentityName: "engineers",
+				IdentityType: "GROUP",
+				CreatedAt:    time.Date(2026, 4, 1, 0, 0, 0, 0, time.UTC),
+			}},
+		}},
+	}
+	envelopes, err := (Scanner{Client: client}).Scan(context.Background(), testBoundary())
+	if err != nil {
+		t.Fatalf("Scan returned error: %v", err)
+	}
+	mapping := resourceByType(t, envelopes, awscloud.ResourceTypeEMRStudioSessionMapping)
+	attributes, _ := mapping.Payload["attributes"].(map[string]any)
+	if _, exists := attributes["last_modified_at"]; exists {
+		t.Fatalf("session mapping emits last_modified_at, but ListStudioSessionMappings never reports it; attribute must be removed")
+	}
+	if got := attributes["created_at"]; got == nil {
+		t.Fatalf("session mapping created_at = nil, want the mapped CreationTime")
+	}
+}
+
 func TestScannerSurfacesListErrors(t *testing.T) {
 	client := fakeClient{clustersErr: errBoom}
 	if _, err := (Scanner{Client: client}).Scan(context.Background(), testBoundary()); err == nil {

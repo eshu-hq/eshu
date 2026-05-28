@@ -138,7 +138,11 @@ type Studio struct {
 
 // StudioSessionMapping is the scanner-owned representation of an EMR Studio
 // session mapping. SessionPolicyARN is a reference to a managed policy, not the
-// policy body.
+// policy body. Only CreatedAt is recorded: ListStudioSessionMappings returns
+// SessionMappingSummary, which carries CreationTime but no last-modified time.
+// The AWS SDK exposes LastModifiedTime only through the per-mapping
+// GetStudioSessionMapping detail call, which the metadata-only scanner does not
+// make, so no last-modified field is tracked or emitted.
 type StudioSessionMapping struct {
 	StudioID         string
 	IdentityID       string
@@ -146,5 +150,4 @@ type StudioSessionMapping struct {
 	IdentityType     string
 	SessionPolicyARN string
 	CreatedAt        time.Time
-	LastModifiedAt   time.Time
 }
