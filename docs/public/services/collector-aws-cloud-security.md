@@ -9,7 +9,7 @@ redaction. The overview lives in [AWS Cloud Collector](collector-aws-cloud.md).
 | --- | --- |
 | `ESHU_POSTGRES_DSN` or split Postgres DSNs | Shared Postgres runtime loader. |
 | `ESHU_COLLECTOR_INSTANCES_JSON` | Desired collector instances. Must include one enabled `aws` instance with `claims_enabled=true`. |
-| `ESHU_AWS_REDACTION_KEY` | Required when any target scope enables CloudWatch, Cognito, ECS, Lambda, Security Hub, Organizations, or IAM Identity Center (`ssoadmin`). CloudWatch alarm metric dimension values can be customer-tag-named and are redacted before persistence; Cognito redacts identity-pool developer provider names and group descriptions; Identity Center principal display names are redacted before persistence. |
+| `ESHU_AWS_REDACTION_KEY` | Required when any target scope enables CloudFormation, CloudWatch, CodeDeploy, Cognito, ECS, Lambda, Organizations, Security Hub, or IAM Identity Center (`ssoadmin`). CloudFormation redacts secret-like stack output values by output key; CloudWatch alarm metric dimension values can be customer-tag-named and are redacted before persistence; CodeDeploy redacts on-premises instance tag values; Cognito redacts identity-pool developer provider names and group descriptions; Identity Center principal display names are redacted before persistence. |
 
 Optional knobs: `ESHU_AWS_COLLECTOR_INSTANCE_ID`,
 `ESHU_AWS_COLLECTOR_OWNER_ID`, `ESHU_AWS_COLLECTOR_POLL_INTERVAL`,
@@ -52,15 +52,18 @@ set address lists, WAFv2 regex pattern bodies, WAFv2 rule `Statement` bodies,
 Inspector v2 finding details, Inspector v2 filter criteria, or Inspector v2 CIS
 scan results.
 
-CloudWatch, ECS, Lambda, Security Hub, Organizations, and IAM Identity Center
-(`ssoadmin`) scans require `ESHU_AWS_REDACTION_KEY` before startup because
-sensitive-derived fields are redacted before persistence. The key produces
-deterministic HMAC markers; it is not stored in facts. Security Hub action
-target descriptions and Organizations account email/name values pass through the
-shared redaction helper, CloudWatch alarm metric dimension values whose names
-look like customer tags pass through the same helper, and Identity Center
-principal display names resolved from the identity store pass through the same
-helper.
+CloudFormation, CloudWatch, CodeDeploy, Cognito, ECS, Lambda, Organizations,
+Security Hub, and IAM Identity Center (`ssoadmin`) scans require
+`ESHU_AWS_REDACTION_KEY` before startup because sensitive-derived fields are
+redacted before persistence. The key produces deterministic HMAC markers; it is
+not stored in facts. Security Hub action target descriptions and Organizations
+account email/name values pass through the shared redaction helper, CloudWatch
+alarm metric dimension values whose names look like customer tags pass through
+the same helper, CloudFormation secret-like stack output values are redacted by
+output key through the same helper, CodeDeploy on-premises instance tag values
+pass through the same helper, Cognito identity-pool developer provider names and
+group descriptions pass through the same helper, and Identity Center principal
+display names resolved from the identity store pass through the same helper.
 
 IAM Identity Center permission set inline policy bodies
 (`GetInlinePolicyForPermissionSet`), permissions boundary bodies
