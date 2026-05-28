@@ -31,9 +31,10 @@ infer service ownership.
 3. Use exact target scopes: 12-digit account, concrete regions, concrete
    service kinds, per-account concurrency, and one credential mode.
 4. Mount `ESHU_AWS_REDACTION_KEY` when any target scope enables CloudWatch,
-   ECS, Lambda, Security Hub, or Organizations. CloudWatch needs it because
-   alarm metric dimension values can be customer-tag-named and are redacted
-   before persistence.
+   Cognito, ECS, Lambda, Security Hub, or Organizations. CloudWatch needs it
+   because alarm metric dimension values can be customer-tag-named and are
+   redacted before persistence; Cognito needs it for identity-pool developer
+   provider names and group descriptions.
 5. Check `/healthz`, `/readyz`, `/metrics`, and `/admin/status?format=json`.
 6. Confirm scanner status and commit status before debugging reducer or query
    results.

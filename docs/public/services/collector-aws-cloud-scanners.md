@@ -46,6 +46,7 @@ It does not mutate AWS resources, read protected payloads, or write graph truth.
 | `secretsmanager`, `ssm` | Secret or parameter metadata with KMS relationships; no secret/parameter values. |
 | `athena` | Workgroup, data catalog, prepared-statement, and named-query metadata plus workgroup-to-S3-result-bucket, workgroup-to-KMS-key, prepared-statement-to-workgroup, and named-query-to-workgroup relationships. No SQL bodies, query results, query result location object contents, or query history strings. |
 | `securityhub` | Hub configuration, enabled standards, controls, member accounts, action targets, insight summaries, and aggregate finding counts; no finding bodies or insight filters. |
+| `cognito` | User pools (name, MFA configuration, Lambda trigger ARNs, password-policy summary, deletion protection; the Cognito API has deprecated the user-pool status field so it is not emitted), user pool app clients (id, name, allowed OAuth flows, callback and logout URLs, supported identity providers - never ClientSecret), identity providers (type and provider name only - never ProviderDetails secrets), resource servers, user pool groups, identity pools, and identity-pool role-attachment summaries, with user-pool-client-to-user-pool, user-pool-to-Lambda-trigger, identity-pool-to-user-pool, and identity-pool-to-identity-provider relationships. Covers both Cognito User Pools (`cognito-idp`) and Cognito Identity Pools (`cognito-identity`). The scanner never reads Cognito user records: ListUsers, AdminGetUser, AdminListGroupsForUser, and ListUsersInGroup are unreachable through the adapter. It never persists app-client secrets, identity-provider ProviderDetails (client_secret, google_client_secret, and similar), custom message Lambda templates, or MFA SMS configuration access tokens. Requires `ESHU_AWS_REDACTION_KEY`. |
 | `glue` | Data Catalog database, table, crawler, job, trigger, workflow, and connection metadata plus table-in-database, table-to-S3-location, crawler-to-database, crawler-to-IAM-role, job-to-IAM-role, and trigger-to-job relationships. No script bodies, default-argument values, connection passwords, JDBC credential URLs, workflow graphs, table column sample statistics, or classifier custom patterns. |
 | `elasticache` | Cache clusters, replication groups, parameter and subnet groups, users, user groups, and snapshot metadata (name/source/status only); cluster-to-VPC, cluster-to-subnet, cluster-to-KMS, replication-group-to-cluster, and user-group-to-user relationships. No AUTH tokens, user passwords, user access strings, cache contents, or snapshot data. |
 | `msk` | MSK cluster, broker configuration, and replicator metadata with subnet, security-group, KMS-key, IAM-role, and configuration relationships; no broker `server.properties` bodies, broker logs, bootstrap broker endpoints, SCRAM secrets, or Kafka topic data. |
@@ -175,6 +176,17 @@ workflow status. Security Hub finding bodies, resource IDs from findings,
 resource details, remediation text, product fields, user-defined fields, note
 text, network/process details, and insight filter expressions remain outside
 the collector contract.
+
+Cognito user records are PII and are out of scope. The Cognito scanner never
+calls ListUsers, AdminGetUser, AdminListGroupsForUser, or ListUsersInGroup;
+those methods are absent from both the scanner `Client` interface and the SDK
+adapter's API interfaces, enforced by reflection tests. App-client ClientSecret,
+identity-provider ProviderDetails (client_secret, google_client_secret, and
+similar federation secrets), custom message Lambda templates, MFA SMS
+configuration access tokens, and identity-pool role-mapping rule bodies are
+never persisted. The scanner reports control-plane metadata only and routes
+operator-supplied free text (identity-pool developer provider names and group
+descriptions) through the shared AWS redaction path.
 
 Organizations policy attachment metadata is in scope: policy ID, policy name,
 policy type, and target binding. Policy document bodies, statements,
