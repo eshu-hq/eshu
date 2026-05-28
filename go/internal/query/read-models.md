@@ -133,6 +133,9 @@ separate Postgres read model. Security alert reconciliation reads require a
 repository, provider, package, CVE, or GHSA anchor plus `limit`; provider state
 and reconciliation status only filter anchored pages. Rows keep provider alert
 state under `provider_alert` and Eshu-owned impact state under `eshu_impact`.
+Repository-scoped security-alert reads match both the canonical repository id
+and the provider repository scope id, so `provider_only` rows remain visible as
+explicit missing-evidence rows instead of disappearing from repository pages.
 Impact responses also attach a `readiness` envelope built by
 `BuildSupplyChainImpactReadiness` (`supply_chain_impact_readiness.go:121`) so a
 zero-finding result is classified as `not_configured`, `target_incomplete`,
@@ -205,27 +208,34 @@ The same handler exposes cheap-summary aggregates over the reducer-owned
 provider security alert reconciliations through a separate Postgres aggregate
 read model (`security_alert_reconciliation_aggregates.go`).
 `CountSecurityAlertReconciliations` answers total / per-reconciliation-status /
-per-provider / per-provider-state questions over an optional repository id or selector,
-provider, package, CVE, GHSA, provider-state, or reconciliation-status scope.
+per-provider / per-provider-state questions over an optional repository id or
+selector, provider, package, CVE, GHSA, provider-state, or
+reconciliation-status scope.
 `SecurityAlertReconciliationInventory` returns a paginated grouped count along
 one of the dimensions `reconciliation_status`, `provider`, `provider_state`,
 `repository_id`, or `package_id`. The aggregate replaces the page-and-iterate
 caller workflow for ecosystem-level questions exposed by
-`list_security_alert_reconciliations`. It re-uses the existing partial indexes
+`list_security_alert_reconciliations`. Repository-scoped aggregate reads use the
+same canonical-plus-provider scope set as the list route, preserving
+provider-only rows in counts and grouped inventory. It re-uses the existing
+partial indexes
 on `fact_records` for `reducer_security_alert_reconciliation`
-(repository_id + package_id + reconciliation_status; provider + provider_state
-+ reconciliation_status; cve_ids GIN; ghsa_ids GIN); no new schema or graph
-migration is needed.
+(repository_id + package_id + reconciliation_status; provider_repository_id +
+package_id + reconciliation_status; scope_id + package_id +
+reconciliation_status; provider + provider_state + reconciliation_status;
+cve_ids GIN; ghsa_ids GIN); no graph migration is needed.
 
 No-Regression Evidence: `go test ./internal/query -run
-'TestSecurityAlertReconciliationAggregate|TestSecurityAlertReconciliationInventoryGroupExpression|TestNextSecurityAlertReconciliationAggregateOffset|TestSupplyChainSecurityAlertAggregateRoutesResolveRepositorySelectors'
+'TestSecurityAlertReconciliationAggregate|TestSecurityAlertReconciliationInventoryGroupExpression|TestNextSecurityAlertReconciliationAggregateOffset|TestSupplyChainSecurityAlertAggregateRoutesResolveRepositorySelectors|TestSecurityAlertReconciliationAggregateSourceFreshnessUsesCurrentFactAlias'
 -count=1` proves: 503 envelope when the store is missing, totals envelope shape
 with the three rollup maps, grouped inventory shape, truncation marker plus
 `next_offset` on overflow, rejection of unknown grouping dimensions, oversized
 limits, negative offsets, and oversized offsets, null `next_offset` when the
 next page would exceed the documented offset bound, and that the
 dimension-to-SQL-expression map is a closed enum (so SQL substitution stays
-parameter-safe).
+parameter-safe). It also proves the source-freshness rollup uses the current
+fact alias after the CTE and that repository selector filters include provider
+repository scope ids.
 
 Observability Evidence: the aggregate routes add the
 `query.security_alert_reconciliation_aggregate` request span (registered in

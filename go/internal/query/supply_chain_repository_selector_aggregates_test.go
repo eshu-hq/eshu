@@ -3,6 +3,7 @@ package query
 import (
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 )
 
@@ -101,7 +102,7 @@ func TestSupplyChainSecurityAlertAggregateRoutesResolveRepositorySelectors(t *te
 			name:       "count internal id",
 			target:     "/api/v0/supply-chain/security-alerts/reconciliations/count?repository_id=repo://example/api",
 			wantCounts: 1,
-			wantLookup: 0,
+			wantLookup: 1,
 		},
 		{
 			name:       "count repository name",
@@ -155,6 +156,9 @@ func TestSupplyChainSecurityAlertAggregateRoutesResolveRepositorySelectors(t *te
 			}
 			if got := store.lastFilter.RepositoryID; got != "repo://example/api" {
 				t.Fatalf("RepositoryID = %q, want repo://example/api", got)
+			}
+			if got, want := strings.Join(store.lastFilter.RepositoryScopeIDs, ","), "repo://example/api,security-alert:github:example/payments-api"; got != want {
+				t.Fatalf("RepositoryScopeIDs = %q, want %q", got, want)
 			}
 			if got := store.countCalls; got != tc.wantCounts {
 				t.Fatalf("Count calls = %d, want %d", got, tc.wantCounts)

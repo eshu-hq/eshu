@@ -169,12 +169,13 @@ func (h *SupplyChainHandler) securityAlertReconciliationAggregateFilterFromReque
 	w http.ResponseWriter,
 	r *http.Request,
 ) (SecurityAlertReconciliationAggregateFilter, bool) {
-	repositoryID, ok := h.resolveSupplyChainRepositorySelector(w, r, QueryParam(r, "repository_id"))
+	repositoryID, repositoryScopeIDs, ok := h.resolveSupplyChainSecurityAlertRepositorySelector(w, r, QueryParam(r, "repository_id"))
 	if !ok {
 		return SecurityAlertReconciliationAggregateFilter{}, false
 	}
 	return SecurityAlertReconciliationAggregateFilter{
 		RepositoryID:         repositoryID,
+		RepositoryScopeIDs:   repositoryScopeIDs,
 		Provider:             QueryParam(r, "provider"),
 		PackageID:            QueryParam(r, "package_id"),
 		CVEID:                QueryParam(r, "cve_id"),

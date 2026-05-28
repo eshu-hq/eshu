@@ -118,6 +118,8 @@ Provider security alert reads use
 `fact_records_security_alert_cve_ids_idx`,
 `fact_records_security_alert_ghsa_ids_idx`,
 `fact_records_security_alert_reconciliation_lookup_idx`,
+`fact_records_security_alert_reconciliation_provider_repository_idx`,
+`fact_records_security_alert_reconciliation_scope_idx`,
 `fact_records_security_alert_reconciliation_provider_idx`,
 `fact_records_security_alert_reconciliation_cve_ids_idx`, and
 `fact_records_security_alert_reconciliation_ghsa_ids_idx` so source provider
