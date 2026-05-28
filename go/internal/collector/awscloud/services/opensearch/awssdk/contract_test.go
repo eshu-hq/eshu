@@ -101,7 +101,7 @@ func assertInterfaceMethods(t *testing.T, iface reflect.Type, want map[string]bo
 }
 
 // TestDomainModelHasNoMasterUserPasswordField proves the scanner-owned Domain
-// type cannot carry a master user password. DescribeDomain never returns the
+// type cannot carry a master user password. DescribeDomains never returns the
 // password, but this struct-shape assertion makes the absence enforced by the
 // type system: a future edit that adds a password-shaped field fails this test.
 func TestDomainModelHasNoMasterUserPasswordField(t *testing.T) {

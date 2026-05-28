@@ -105,7 +105,7 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 			return nil, err
 		}
 		envelopes = append(envelopes, resource)
-		for _, relationship := range collectionRelationships(boundary, collection, vpcEndpoints) {
+		for _, relationship := range collectionRelationships(boundary, collection) {
 			envelope, err := awscloud.NewRelationshipEnvelope(relationship)
 			if err != nil {
 				return nil, err
@@ -207,7 +207,7 @@ func collectionObservation(boundary awscloud.Boundary, collection Collection) aw
 			"description":         strings.TrimSpace(collection.Description),
 			"kms_key_arn":         strings.TrimSpace(collection.KMSKeyARN),
 			"standby_replicas":    strings.TrimSpace(collection.StandbyReplicas),
-			"deletion_protection": strings.TrimSpace(collection.DeletionProtect),
+			"deletion_protection": strings.TrimSpace(collection.DeletionProtection),
 		},
 		CorrelationAnchors: []string{collectionARN, id, strings.TrimSpace(collection.Name)},
 		SourceRecordID:     resourceID,

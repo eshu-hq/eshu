@@ -61,15 +61,21 @@ func TestScannerEmitsOpenSearchMetadataOnlyFactsAndRelationships(t *testing.T) {
 			}},
 		},
 		collections: []Collection{{
-			ARN:             collectionARN,
-			ID:              "abc123",
-			Name:            "orders-vectors",
-			Type:            "VECTORSEARCH",
-			Status:          "ACTIVE",
-			Description:     "orders vector store",
-			KMSKeyARN:       collectionKMSARN,
-			StandbyReplicas: "ENABLED",
-			DeletionProtect: "DISABLED",
+			ARN:                collectionARN,
+			ID:                 "abc123",
+			Name:               "orders-vectors",
+			Type:               "VECTORSEARCH",
+			Status:             "ACTIVE",
+			Description:        "orders vector store",
+			KMSKeyARN:          collectionKMSARN,
+			StandbyReplicas:    "ENABLED",
+			DeletionProtection: "DISABLED",
+		}, {
+			ARN:    "arn:aws:aoss:us-east-1:123456789012:collection/def456",
+			ID:     "def456",
+			Name:   "events-vectors",
+			Type:   "VECTORSEARCH",
+			Status: "ACTIVE",
 		}},
 		securityConfigs: []SecurityConfig{{
 			ID:          "saml/orders/okta",
@@ -77,6 +83,10 @@ func TestScannerEmitsOpenSearchMetadataOnlyFactsAndRelationships(t *testing.T) {
 			Description: "okta saml",
 			Version:     "MTcw",
 		}},
+		// Two managed VPC endpoints alongside two collections would have produced
+		// a 2x2 cross-product under the old collection->endpoint emission; the
+		// scanner must emit no collection->endpoint edges because neither the
+		// collection record nor the endpoint record reports an association.
 		vpcEndpoints: []VPCEndpoint{{
 			ID:               "vpce-aoss-123",
 			Name:             "orders-aoss-endpoint",
@@ -84,6 +94,11 @@ func TestScannerEmitsOpenSearchMetadataOnlyFactsAndRelationships(t *testing.T) {
 			VPCID:            "vpc-123",
 			SubnetIDs:        []string{"subnet-a"},
 			SecurityGroupIDs: []string{"sg-456"},
+		}, {
+			ID:     "vpce-aoss-456",
+			Name:   "events-aoss-endpoint",
+			Status: "ACTIVE",
+			VPCID:  "vpc-123",
 		}},
 	}
 
@@ -184,10 +199,16 @@ func TestScannerEmitsOpenSearchMetadataOnlyFactsAndRelationships(t *testing.T) {
 	assertRelationshipTargetType(t, envelopes, awscloud.RelationshipOpenSearchPackageAssociatedWithDomain, awscloud.ResourceTypeOpenSearchDomain)
 	assertRelationshipSourceRecordID(t, envelopes, awscloud.RelationshipOpenSearchPackageAssociatedWithDomain, "F12345->opensearch_package_associated_with_domain:"+domainARN)
 
-	assertRelationshipTarget(t, envelopes, awscloud.RelationshipOpenSearchCollectionUsesVPCEndpoint, "vpce-aoss-123")
-	assertRelationshipTargetType(t, envelopes, awscloud.RelationshipOpenSearchCollectionUsesVPCEndpoint, awscloud.ResourceTypeOpenSearchServerlessVPCEndpoint)
 	assertRelationshipTarget(t, envelopes, awscloud.RelationshipOpenSearchCollectionUsesKMSKey, collectionKMSARN)
 	assertRelationshipTargetType(t, envelopes, awscloud.RelationshipOpenSearchCollectionUsesKMSKey, awscloud.ResourceTypeKMSKey)
+
+	// Serverless does not bind a collection to a managed VPC endpoint in the
+	// collection record, and the endpoint record reports no collection, so the
+	// scanner emits no collection->endpoint edge rather than a misleading
+	// cross-product over every managed endpoint in the account.
+	if got := countRelationshipsOfType(envelopes, "opensearch_collection_uses_vpc_endpoint"); got != 0 {
+		t.Fatalf("collection->vpc-endpoint relationship count = %d, want 0 (no reliable association join key)", got)
+	}
 
 	// Every relationship must carry a non-empty target_type to graph-join.
 	for _, envelope := range envelopes {

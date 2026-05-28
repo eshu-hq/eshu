@@ -116,7 +116,7 @@ func NewClient(
 
 // ListDomains returns OpenSearch Service provisioned domain metadata. It lists
 // domain names, batches DescribeDomains for full status, and joins tags per
-// domain ARN. The master user password is never returned by DescribeDomain and
+// domain ARN. The master user password is never returned by DescribeDomains and
 // is never persisted; the adapter resolves only IAM role ARNs referenced by the
 // domain access policy.
 func (c *Client) ListDomains(ctx context.Context) ([]opensearchservice.Domain, error) {

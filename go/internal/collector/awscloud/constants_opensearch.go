@@ -53,11 +53,6 @@ const (
 	// associated with an OpenSearch Service domain. The target is the
 	// OpenSearch-owned aws_opensearch_domain identity.
 	RelationshipOpenSearchPackageAssociatedWithDomain = "opensearch_package_associated_with_domain"
-	// RelationshipOpenSearchCollectionUsesVPCEndpoint records an OpenSearch
-	// Serverless collection's network access through a managed VPC endpoint. The
-	// target is the OpenSearch-owned aws_opensearch_serverless_vpc_endpoint
-	// identity.
-	RelationshipOpenSearchCollectionUsesVPCEndpoint = "opensearch_collection_uses_vpc_endpoint"
 	// RelationshipOpenSearchCollectionUsesKMSKey records an OpenSearch Serverless
 	// collection's reported at-rest encryption KMS key. The target is the
 	// KMS-owned aws_kms_key identity.

@@ -119,10 +119,20 @@ func packageDomainRelationship(
 	}, true
 }
 
+// collectionRelationships emits relationship evidence for one OpenSearch
+// Serverless collection.
+//
+// It deliberately emits no collection-to-VPC-endpoint edge. Serverless does not
+// bind a collection to a managed VPC endpoint in the collection record, and a
+// managed VPC endpoint record reports no collection; the only true binding lives
+// in network security policies that this scanner does not resolve. Emitting an
+// edge per reported managed endpoint would fabricate an N×M cross-product that
+// implies every endpoint grants access to every collection, so the edge is
+// dropped until a reliable association join key (resolved policy selectors)
+// exists. The managed VPC endpoint is still emitted as a standalone resource.
 func collectionRelationships(
 	boundary awscloud.Boundary,
 	collection Collection,
-	vpcEndpoints []VPCEndpoint,
 ) []awscloud.RelationshipObservation {
 	sourceID := firstNonEmpty(collection.ARN, collection.ID, collection.Name)
 	if sourceID == "" {
@@ -148,29 +158,5 @@ func collectionRelationships(
 		})
 	}
 
-	// OpenSearch Serverless does not bind a collection to a single VPC endpoint
-	// in the collection record; network access is governed by network security
-	// policies that select collections and grant managed VPC endpoints. Emitting
-	// a collection-to-endpoint edge per reported managed endpoint records the
-	// observed network-access surface without inventing policy-resolution truth.
-	for _, endpoint := range vpcEndpoints {
-		endpointID := strings.TrimSpace(endpoint.ID)
-		if endpointID == "" {
-			continue
-		}
-		relationships = append(relationships, awscloud.RelationshipObservation{
-			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipOpenSearchCollectionUsesVPCEndpoint,
-			SourceResourceID: sourceID,
-			SourceARN:        collectionARN,
-			TargetResourceID: endpointID,
-			TargetType:       awscloud.ResourceTypeOpenSearchServerlessVPCEndpoint,
-			Attributes: map[string]any{
-				"vpc_endpoint_name": strings.TrimSpace(endpoint.Name),
-				"vpc_id":            strings.TrimSpace(endpoint.VPCID),
-			},
-			SourceRecordID: relationshipRecordID(sourceID, awscloud.RelationshipOpenSearchCollectionUsesVPCEndpoint, endpointID),
-		})
-	}
 	return relationships
 }

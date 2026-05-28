@@ -29,7 +29,7 @@ type Client interface {
 // Domain is the scanner-owned OpenSearch Service provisioned domain model. It
 // carries control-plane metadata only. Domain endpoint contents, access policy
 // bodies, and master user passwords are intentionally excluded; the AWS
-// DescribeDomain response does not return the master user password, and the
+// DescribeDomains response does not return the master user password, and the
 // adapter never persists the raw endpoint or access policy body.
 type Domain struct {
 	ARN                     string
@@ -87,15 +87,15 @@ type PackageAssociation struct {
 // Collection endpoints, dashboard endpoints, and indexed data are never read or
 // persisted; only control-plane identity and configuration metadata is kept.
 type Collection struct {
-	ARN             string
-	ID              string
-	Name            string
-	Type            string
-	Status          string
-	Description     string
-	KMSKeyARN       string
-	StandbyReplicas string
-	DeletionProtect string
+	ARN                string
+	ID                 string
+	Name               string
+	Type               string
+	Status             string
+	Description        string
+	KMSKeyARN          string
+	StandbyReplicas    string
+	DeletionProtection string
 }
 
 // SecurityConfig is the scanner-owned OpenSearch Serverless security

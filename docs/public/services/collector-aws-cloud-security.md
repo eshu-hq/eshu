@@ -140,7 +140,7 @@ scanner never constructs, and the SDK adapter interfaces carry no such method
 and no `GetIndex` on either service. A reflection gate over the `domainAPI` and
 `serverlessAPI` interfaces fails the build path if a mutation, inbound-connection
 acceptance, index, search, or data method is added. Master user passwords are
-never persisted: `DescribeDomain` does not return the password, and the
+never persisted: `DescribeDomains` does not return the password, and the
 scanner-owned `Domain` type has no password-, secret-, token-, or
 credential-shaped field, enforced by a struct-shape test. Domain endpoint
 contents, the domain `Endpoints` map, the access policy body, custom package

@@ -8,8 +8,9 @@ provisioned domains, OpenSearch custom packages, and OpenSearch Serverless
 collections, security configurations, and managed VPC endpoints into
 `aws_resource` facts, and emits relationship evidence for domain-to-VPC,
 domain-to-subnet, domain-to-security-group, domain-to-KMS-key,
-domain-to-IAM-role (master-user mapping refs), package-to-domain,
-collection-to-VPC-endpoint, and collection-to-KMS-key edges.
+domain-to-IAM-role (master-user mapping refs), package-to-domain, and
+collection-to-KMS-key edges. It does not emit a collection-to-VPC-endpoint edge
+(see the invariants below).
 
 ## Ownership boundary
 
@@ -66,7 +67,7 @@ throttles, and pagination spans.
   `_index`, `_doc`, `_bulk`, and similar). That API is reachable only over the
   domain HTTP endpoint, which this package never constructs; the SDK adapter
   interface carries no such method.
-- Master user passwords are never persisted. AWS `DescribeDomain` does not
+- Master user passwords are never persisted. AWS `DescribeDomains` does not
   return the master user password in the first place, and `Domain` has no
   password-shaped field by design (enforced by a struct-shape test).
 - Domain endpoint contents, the `Endpoints` map, the access policy body, custom
@@ -75,8 +76,15 @@ throttles, and pagination spans.
 - Relationships carry a non-empty `target_type` so the reducer can graph-join:
   VPC -> `aws_ec2_vpc`, subnet -> `aws_ec2_subnet`, security group ->
   `aws_ec2_security_group`, KMS -> `aws_kms_key`, IAM role -> `aws_iam_role`,
-  package domain -> `aws_opensearch_domain`, and collection endpoint ->
-  `aws_opensearch_serverless_vpc_endpoint`.
+  and package domain -> `aws_opensearch_domain`.
+- No collection-to-VPC-endpoint edge is emitted. Serverless reports no
+  collection-to-endpoint binding in either the collection record or the managed
+  VPC endpoint record; the only true binding lives in network security policy
+  selectors that this scanner does not resolve. Emitting an edge per reported
+  managed endpoint would fabricate an N×M cross-product implying every endpoint
+  grants access to every collection, so the edge is dropped until a reliable
+  association join key exists. The managed VPC endpoint is still emitted as a
+  standalone `aws_opensearch_serverless_vpc_endpoint` resource.
 - A KMS identifier is treated as an ARN target only when AWS reports it in ARN
   shape; non-ARN identifiers (alias names, raw key IDs) stay as the target
   resource id with an empty target ARN. The aws partition is never synthesized.
@@ -100,8 +108,9 @@ No-Regression Evidence:
 `go test ./cmd/collector-aws-cloud ./internal/collector/awscloud/...` covers
 OpenSearch resource fact emission for all five resource types, relationship
 emission for domain-to-VPC, domain-to-subnet, domain-to-security-group,
-domain-to-KMS-key, domain-to-IAM-role, package-to-domain,
-collection-to-VPC-endpoint, and collection-to-KMS-key edges, the SDK adapter's
+domain-to-KMS-key, domain-to-IAM-role, package-to-domain, and
+collection-to-KMS-key edges, the absence of any collection-to-VPC-endpoint
+cross-product edge, the SDK adapter's
 metadata-only interface shape (no mutation, inbound-connection, or index APIs
 reachable), the absence of any master-password-shaped field on `Domain`,
 runtime registration, command configuration, and access-policy role-ARN

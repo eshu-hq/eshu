@@ -12,7 +12,7 @@ import (
 )
 
 const (
-	// batchGetCollectionlimit caps the ids per BatchGetCollection call. AWS
+	// batchGetCollectionLimit caps the ids per BatchGetCollection call. AWS
 	// accepts up to 100 collection identifiers per batch.
 	batchGetCollectionLimit = 100
 	// batchGetVPCEndpointLimit caps the ids per BatchGetVpcEndpoint call. AWS
@@ -89,15 +89,15 @@ func mapPackage(raw awsopensearchtypes.PackageDetails) opensearchservice.Package
 
 func mapCollection(raw awsserverlesstypes.CollectionDetail) opensearchservice.Collection {
 	return opensearchservice.Collection{
-		ARN:             strings.TrimSpace(aws.ToString(raw.Arn)),
-		ID:              strings.TrimSpace(aws.ToString(raw.Id)),
-		Name:            strings.TrimSpace(aws.ToString(raw.Name)),
-		Type:            string(raw.Type),
-		Status:          string(raw.Status),
-		Description:     strings.TrimSpace(aws.ToString(raw.Description)),
-		KMSKeyARN:       strings.TrimSpace(aws.ToString(raw.KmsKeyArn)),
-		StandbyReplicas: string(raw.StandbyReplicas),
-		DeletionProtect: string(raw.DeletionProtection),
+		ARN:                strings.TrimSpace(aws.ToString(raw.Arn)),
+		ID:                 strings.TrimSpace(aws.ToString(raw.Id)),
+		Name:               strings.TrimSpace(aws.ToString(raw.Name)),
+		Type:               string(raw.Type),
+		Status:             string(raw.Status),
+		Description:        strings.TrimSpace(aws.ToString(raw.Description)),
+		KMSKeyARN:          strings.TrimSpace(aws.ToString(raw.KmsKeyArn)),
+		StandbyReplicas:    string(raw.StandbyReplicas),
+		DeletionProtection: string(raw.DeletionProtection),
 	}
 }
 
