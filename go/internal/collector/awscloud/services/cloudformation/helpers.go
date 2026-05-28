@@ -1,0 +1,59 @@
+package cloudformation
+
+import (
+	"strings"
+	"time"
+)
+
+func firstNonEmpty(values ...string) string {
+	for _, value := range values {
+		if trimmed := strings.TrimSpace(value); trimmed != "" {
+			return trimmed
+		}
+	}
+	return ""
+}
+
+func cloneStringMap(input map[string]string) map[string]string {
+	if len(input) == 0 {
+		return nil
+	}
+	output := make(map[string]string, len(input))
+	for key, value := range input {
+		trimmed := strings.TrimSpace(key)
+		if trimmed == "" {
+			continue
+		}
+		output[trimmed] = value
+	}
+	if len(output) == 0 {
+		return nil
+	}
+	return output
+}
+
+func cloneStrings(input []string) []string {
+	if len(input) == 0 {
+		return nil
+	}
+	output := make([]string, 0, len(input))
+	for _, value := range input {
+		if trimmed := strings.TrimSpace(value); trimmed != "" {
+			output = append(output, trimmed)
+		}
+	}
+	if len(output) == 0 {
+		return nil
+	}
+	return output
+}
+
+// timeOrEmpty renders a timestamp as an RFC3339 UTC string, or an empty string
+// when the timestamp is the zero value. Scanner payloads keep timestamps as
+// strings so the durable fact shape stays stable across SDK pointer values.
+func timeOrEmpty(input time.Time) string {
+	if input.IsZero() {
+		return ""
+	}
+	return input.UTC().Format(time.RFC3339)
+}

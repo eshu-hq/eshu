@@ -36,6 +36,57 @@ func TestAWSRedactStringUsesVersionedLaunchPolicy(t *testing.T) {
 	}
 }
 
+func TestClassifyStackOutputPreservesNonSecretKeysAndRedactsSecrets(t *testing.T) {
+	t.Parallel()
+
+	key, err := redact.NewKey([]byte("aws-redaction-policy-test-key"))
+	if err != nil {
+		t.Fatalf("NewKey() error = %v, want nil", err)
+	}
+
+	tests := []struct {
+		name       string
+		key        string
+		value      string
+		wantRedact bool
+		wantNoLeak string
+	}{
+		{name: "service endpoint preserved", key: "ServiceEndpoint", value: "https://api.example.com", wantRedact: false},
+		{name: "exact password redacted", key: "Password", value: "hunter2", wantRedact: true, wantNoLeak: "hunter2"},
+		{name: "compound pascalcase password redacted", key: "DatabasePassword", value: "leak-me", wantRedact: true, wantNoLeak: "leak-me"},
+		{name: "compound secret redacted", key: "MyServiceSecret", value: "topsecret", wantRedact: true, wantNoLeak: "topsecret"},
+		{name: "compound token redacted", key: "ApiTokenValue", value: "abc123", wantRedact: true, wantNoLeak: "abc123"},
+		{name: "snake_case connection string redacted", key: "connection_string", value: "postgres://u:p@h/d", wantRedact: true, wantNoLeak: "postgres://"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			redacted, marker := ClassifyStackOutput(test.key, test.value, key)
+			if redacted != test.wantRedact {
+				t.Fatalf("ClassifyStackOutput(%q) redacted = %v, want %v", test.key, redacted, test.wantRedact)
+			}
+			if !test.wantRedact {
+				if marker != nil {
+					t.Fatalf("non-secret key %q returned marker %#v, want nil", test.key, marker)
+				}
+				return
+			}
+			if marker == nil {
+				t.Fatalf("secret key %q returned nil marker", test.key)
+			}
+			if got := marker["reason"]; got != redact.ReasonKnownSensitiveKey {
+				t.Fatalf("reason = %#v, want %q", got, redact.ReasonKnownSensitiveKey)
+			}
+			markerValue, ok := marker["marker"].(string)
+			if !ok || !strings.HasPrefix(markerValue, "redacted:") {
+				t.Fatalf("marker = %#v, want redacted marker", marker["marker"])
+			}
+			if test.wantNoLeak != "" && strings.Contains(markerValue, test.wantNoLeak) {
+				t.Fatalf("marker leaked raw value %q: %q", test.wantNoLeak, markerValue)
+			}
+		})
+	}
+}
+
 func TestAWSRedactStringFailsClosedForUnknownEnvironmentKeys(t *testing.T) {
 	t.Parallel()
 

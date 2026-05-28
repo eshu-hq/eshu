@@ -347,7 +347,8 @@ func awsConfigNeedsRedactionKey(config awsruntime.Config) bool {
 	for _, target := range config.Targets {
 		for _, service := range target.AllowedServices {
 			switch strings.TrimSpace(service) {
-			case awscloud.ServiceCloudWatch,
+			case awscloud.ServiceCloudFormation,
+				awscloud.ServiceCloudWatch,
 				awscloud.ServiceECS,
 				awscloud.ServiceLambda,
 				awscloud.ServiceOrganizations,
