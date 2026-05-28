@@ -47,7 +47,9 @@ Keep permissions read-only and service-scoped. Grant only metadata `List*`,
 mutation APIs or data-plane reads for secret values, SSM parameter values, SQS
 messages, DynamoDB items, log events, API execution payloads, S3 object
 contents, database contents, Lambda packages, GuardDuty finding bodies,
-GuardDuty filter criteria, or GuardDuty threat intel/IP list contents.
+GuardDuty filter criteria, GuardDuty threat intel/IP list contents, WAFv2 IP
+set address lists, WAFv2 regex pattern bodies, or WAFv2 rule `Statement`
+bodies.
 
 CloudWatch, ECS, Lambda, Security Hub, Organizations, and IAM Identity Center
 (`ssoadmin`) scans require `ESHU_AWS_REDACTION_KEY` before startup because
@@ -90,6 +92,22 @@ Organizations scopes must run with management-account or delegated-administrator
 credentials and `allowed_regions=["us-east-1"]`. Non-org-aware credentials emit
 bounded org-access-skipped warning/status/metric evidence instead of partial
 organization facts.
+
+WAFv2 IP set address lists, regex pattern set bodies, and rule `Statement`
+bodies are not persisted. The scanner persists the IP set address count and IP
+version, the regex pattern count, web ACL and rule group rule counts, managed
+rule set references (vendor and name), and reference ARNs only. IP set
+addresses, regex detection bodies, and `Statement` search strings
+(`AndStatement`/`OrStatement`/`NotStatement`/`ByteMatchStatement`) reveal threat
+hypotheses and are out of scope. Do not grant WAFv2 mutation APIs to the
+collector role: `CreateWebACL`, `UpdateWebACL`, `DeleteWebACL`,
+`AssociateWebACL`, `DisassociateWebACL`, `Create`/`Update`/`Delete` for rule
+groups, IP sets, and regex pattern sets, `PutLoggingConfiguration`,
+`PutManagedRuleSetVersions`, `PutPermissionPolicy`, `TagResource`, or
+`UntagResource`. WAF Classic (v1) is out of scope by construction: the scanner
+imports only the WAFv2 SDK, which cannot surface `waf` or `waf-regional` v1
+resources. A reflection test over the SDK adapter's API interface fails the
+build path if a mutation or data-plane method is added.
 
 Do not persist credential material, bearer tokens, session tokens, presigned
 query parameters, secret values, policy JSON payload bodies, queue messages, log

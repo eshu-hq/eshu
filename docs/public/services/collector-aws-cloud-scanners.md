@@ -37,6 +37,8 @@ It does not mutate AWS resources, read protected payloads, or write graph truth.
 | `efs` | File system metadata (performance mode, throughput mode, encryption status, lifecycle policy transition summary), access points, mount targets, and replication configurations with mount-target-to-subnet, mount-target-to-security-group, file-system-to-KMS-key, access-point-to-file-system, and replication-to-target-file-system relationships. No NFS file system policy bodies and no file contents. |
 | `cloudwatch` | Metric alarms, composite alarms, dashboards (name + last modified only), Contributor Insights rules (name + state only), and metric streams with alarm-to-SNS-topic, composite-alarm-to-child-alarm, metric-stream-to-Firehose, and alarm-to-metric (dimension summary) relationships. No dashboard body JSON, no Contributor Insights rule definitions, no metric data points. Customer-tag-named alarm dimensions are routed through the shared redact library. |
 | `cloudfront` | Distribution metadata plus ACM certificate and WAF web ACL relationships. |
+| `wafv2` | Web ACL, customer rule group, IP set (id, name, IP version, address count only), and regex pattern set (id, name, pattern count only) metadata for both the REGIONAL and global CLOUDFRONT scope, plus managed rule set references (vendor + name). Relationships: web-ACL-to-protected-resource (ALB, API Gateway stage, AppSync, App Runner service, Cognito user pool, Amplify, Verified Access), web-ACL-to-rule-group, web-ACL-to-IP-set, and web-ACL-to-regex-pattern-set. CloudFront associations are recorded by the `cloudfront` scanner. No IP set address lists, regex pattern bodies, or rule `Statement` bodies (`AndStatement`/`OrStatement`/`NotStatement`/`ByteMatchStatement` search strings) are read or persisted. WAF Classic (v1) is out of scope by
+construction; the scanner imports only the WAFv2 SDK. |
 | `acm` | Public ACM certificate metadata (ARN, domain name, SANs, status, type, issuer, validity, key and signature algorithms) and certificate-to-using-resource relationships derived from ACM-reported in-use-by ARNs (ELB v2, CloudFront, API Gateway, AppSync, App Runner, and other ARN-shaped targets). No certificate body PEM, no private key material, no `GetCertificate` calls, no `ExportCertificate` calls; ACM Private CA is out of scope. |
 | `cloudtrail` | Trail (multi-region and per-region), Lake event data store, channel, and Lake dashboard configuration metadata with trail-to-S3-bucket, trail-to-CloudWatch-Logs, trail-to-KMS-key, trail-to-SNS-topic, and event-data-store-to-KMS-key relationships. Event selectors are summarized as counts only; CloudTrail event payloads, Lake query strings, Lake query results, and dashboard widget query SQL are never read or persisted. |
 | `apigateway` | REST, HTTP, WebSocket, stage, custom-domain, mapping, access-log, ACM, and integration metadata. |
@@ -59,6 +61,11 @@ region label such as `aws-global` so claims keep the
 `(account_id, region, service_kind)` shape. Organizations and Identity Center
 (`ssoadmin`) use the `us-east-1` control-plane endpoint and require
 management-account or delegated-administrator credentials.
+
+WAFv2 is dual-scope: a regional claim scans the REGIONAL scope for its region,
+and an `aws-global` claim scans the global CLOUDFRONT scope through the
+us-east-1 control-plane endpoint. Schedule both shapes to cover regional and
+CloudFront web ACLs.
 
 ## Data Boundaries
 
@@ -123,6 +130,21 @@ GenerateDataKeyWithoutPlaintext, Sign, Verify, ReEncrypt, GenerateMac,
 VerifyMac, DeriveSharedSecret, GetPublicKey, GenerateRandom, or any key
 lifecycle mutation. Only the bounded list of policy revision names from
 ListKeyPolicies is persisted; the scanner does not call GetKeyPolicy.
+
+WAFv2 IP set address lists, regex pattern set bodies, and rule `Statement`
+bodies are out of scope. The WAFv2 scanner persists the IP set address count
+and IP version, the regex pattern count, web ACL and rule group rule counts,
+managed rule set references (vendor and name), and reference ARNs only. IP set
+addresses (which commonly include private CIDR and threat intel), regex
+detection bodies, and `Statement` search strings
+(`AndStatement`/`OrStatement`/`NotStatement`/`ByteMatchStatement`) are never
+read into facts. The scanner reaches the control plane through List- and
+Get-class APIs only; it never calls a mutation API such as `CreateWebACL`,
+`UpdateWebACL`, `DeleteWebACL`, `AssociateWebACL`, `DisassociateWebACL`, any
+`Create`/`Update`/`Delete` rule group, IP set, or regex pattern set operation,
+or `PutLoggingConfiguration`. WAF Classic (v1) is out of scope by construction:
+the scanner imports only the WAFv2 SDK, which cannot surface `waf` or
+`waf-regional` v1 resources.
 
 Security Hub finding aggregate counts are metadata-only when grouped by bounded
 posture fields such as severity, standard, control, compliance status, and
