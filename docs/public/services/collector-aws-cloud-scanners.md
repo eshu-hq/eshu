@@ -34,6 +34,7 @@ It does not mutate AWS resources, read protected payloads, or write graph truth.
 | `dynamodb`, `cloudwatchlogs` | Table or log-group metadata and KMS relationships. |
 | `cloudfront` | Distribution metadata plus ACM certificate and WAF web ACL relationships. |
 | `acm` | Public ACM certificate metadata (ARN, domain name, SANs, status, type, issuer, validity, key and signature algorithms) and certificate-to-using-resource relationships derived from ACM-reported in-use-by ARNs (ELB v2, CloudFront, API Gateway, AppSync, App Runner, and other ARN-shaped targets). No certificate body PEM, no private key material, no `GetCertificate` calls, no `ExportCertificate` calls; ACM Private CA is out of scope. |
+| `cloudtrail` | Trail (multi-region and per-region), Lake event data store, channel, and Lake dashboard configuration metadata with trail-to-S3-bucket, trail-to-CloudWatch-Logs, trail-to-KMS-key, trail-to-SNS-topic, and event-data-store-to-KMS-key relationships. Event selectors are summarized as counts only; CloudTrail event payloads, Lake query strings, Lake query results, and dashboard widget query SQL are never read or persisted. |
 | `apigateway` | REST, HTTP, WebSocket, stage, custom-domain, mapping, access-log, ACM, and integration metadata. |
 | `secretsmanager`, `ssm` | Secret or parameter metadata with KMS relationships; no secret/parameter values. |
 | `athena` | Workgroup, data catalog, prepared-statement, and named-query metadata plus workgroup-to-S3-result-bucket, workgroup-to-KMS-key, prepared-statement-to-workgroup, and named-query-to-workgroup relationships. No SQL bodies, query results, query result location object contents, or query history strings. |
@@ -76,6 +77,10 @@ Task Resource ARNs; Parameters, ResultPath, ResultSelector, InputPath,
 OutputPath, and Result literal contents are excluded.
 GuardDuty finding bodies, GuardDuty filter criteria, GuardDuty threat intel set
 list contents, and GuardDuty IP set list contents are also out of scope.
+CloudTrail audit event payloads, Lake query strings, Lake query result rows,
+event selector bodies, and dashboard widget query SQL stay outside the
+collector contract; the CloudTrail scanner emits trail and Lake configuration
+only, summarizing selectors as bounded counts.
 
 ACM certificate body PEM and ACM-issued private key material are out of scope.
 The ACM scanner never calls `GetCertificate` or `ExportCertificate`, and ACM
