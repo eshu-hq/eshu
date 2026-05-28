@@ -30,8 +30,10 @@ infer service ownership.
 2. Configure one enabled `aws` collector instance with `claims_enabled=true`.
 3. Use exact target scopes: 12-digit account, concrete regions, concrete
    service kinds, per-account concurrency, and one credential mode.
-4. Mount `ESHU_AWS_REDACTION_KEY` when any target scope enables CloudWatch,
-   Cognito, ECS, Lambda, Security Hub, or Organizations. CloudWatch needs it
+4. Mount `ESHU_AWS_REDACTION_KEY` when any target scope enables Batch,
+   CloudWatch, Cognito, ECS, Lambda, Security Hub, or Organizations. Batch needs
+   it because job-definition container environment values can carry secrets and
+   are redacted before persistence. CloudWatch needs it
    because alarm metric dimension values can be customer-tag-named and are
    redacted before persistence; Cognito needs it for identity-pool developer
    provider names and group descriptions.
