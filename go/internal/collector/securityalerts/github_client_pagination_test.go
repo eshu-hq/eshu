@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"testing"
 	"time"
 )
@@ -12,7 +13,7 @@ import (
 func TestGitHubDependabotClientPaginatesWithCursorLinksWithinConfiguredBound(t *testing.T) {
 	t.Parallel()
 
-	var cursors []string
+	var cursors stringRecorder
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if got, want := r.URL.Query().Get("per_page"), "1"; got != want {
 			t.Fatalf("per_page = %q, want %q", got, want)
@@ -23,7 +24,7 @@ func TestGitHubDependabotClientPaginatesWithCursorLinksWithinConfiguredBound(t *
 		if got, want := r.URL.Query().Get("state"), "open"; got != want {
 			t.Fatalf("state = %q, want %q", got, want)
 		}
-		cursors = append(cursors, r.URL.Query().Get("after"))
+		cursors.append(r.URL.Query().Get("after"))
 		switch r.URL.Query().Get("after") {
 		case "":
 			w.Header().Set("Link", `<`+serverURL(t, r)+`?per_page=1&after=cursor-2>; rel="next"`)
@@ -32,7 +33,7 @@ func TestGitHubDependabotClientPaginatesWithCursorLinksWithinConfiguredBound(t *
 		default:
 			t.Fatalf("unexpected cursor %q", r.URL.Query().Get("after"))
 		}
-		_ = json.NewEncoder(w).Encode([]GitHubDependabotAlert{{Number: len(cursors), State: "open"}})
+		_ = json.NewEncoder(w).Encode([]GitHubDependabotAlert{{Number: cursors.len(), State: "open"}})
 	}))
 	defer server.Close()
 
@@ -55,7 +56,7 @@ func TestGitHubDependabotClientPaginatesWithCursorLinksWithinConfiguredBound(t *
 	if !result.Truncated {
 		t.Fatal("Truncated = false, want true when a next page remains after max_pages")
 	}
-	if got, want := cursors, []string{"", "cursor-2"}; !stringSlicesEqual(got, want) {
+	if got, want := cursors.values(), []string{"", "cursor-2"}; !stringSlicesEqual(got, want) {
 		t.Fatalf("cursors = %#v, want %#v", got, want)
 	}
 }
@@ -63,12 +64,12 @@ func TestGitHubDependabotClientPaginatesWithCursorLinksWithinConfiguredBound(t *
 func TestGitHubDependabotClientRequestsOpenAlertsSoFixedPagesDoNotHideOlderOpenAlerts(t *testing.T) {
 	t.Parallel()
 
-	var requestedStates []string
+	var requestedStates stringRecorder
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if got, want := r.URL.Query().Get("per_page"), "1"; got != want {
 			t.Fatalf("per_page = %q, want %q", got, want)
 		}
-		requestedStates = append(requestedStates, r.URL.Query().Get("state"))
+		requestedStates.append(r.URL.Query().Get("state"))
 		if r.URL.Query().Get("state") == "open" {
 			_ = json.NewEncoder(w).Encode([]GitHubDependabotAlert{{Number: 17, State: "open"}})
 			return
@@ -92,7 +93,7 @@ func TestGitHubDependabotClientRequestsOpenAlertsSoFixedPagesDoNotHideOlderOpenA
 	if err != nil {
 		t.Fatalf("ListRepositoryAlertsPages() error = %v, want nil", err)
 	}
-	if got, want := requestedStates, []string{"open"}; !stringSlicesEqual(got, want) {
+	if got, want := requestedStates.values(), []string{"open"}; !stringSlicesEqual(got, want) {
 		t.Fatalf("requested states = %#v, want %#v", got, want)
 	}
 	if got, want := len(result.Alerts), 1; got != want {
@@ -107,6 +108,29 @@ func TestGitHubDependabotClientRequestsOpenAlertsSoFixedPagesDoNotHideOlderOpenA
 	if result.Truncated {
 		t.Fatal("Truncated = true, want false for complete open-alert page")
 	}
+}
+
+type stringRecorder struct {
+	mu          sync.Mutex
+	valuesSlice []string
+}
+
+func (r *stringRecorder) append(value string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.valuesSlice = append(r.valuesSlice, value)
+}
+
+func (r *stringRecorder) len() int {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return len(r.valuesSlice)
+}
+
+func (r *stringRecorder) values() []string {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return append([]string(nil), r.valuesSlice...)
 }
 
 func TestGitHubDependabotClientReturnsRateLimitFailureMetadata(t *testing.T) {
