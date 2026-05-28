@@ -85,6 +85,14 @@ func TestScannerEmitsIdentityCenterMetadataAndRelationships(t *testing.T) {
 	if got, want := instanceAttrs["identity_store_id"], "d-9999999999"; got != want {
 		t.Fatalf("identity_store_id = %#v, want %q", got, want)
 	}
+	// The account-assignment tally must use the *_count naming shared by the
+	// other instance counters; the legacy *_cnt key must not be emitted.
+	if got, want := instanceAttrs["account_assignment_count"], 1; got != want {
+		t.Fatalf("account_assignment_count = %#v, want %d", got, want)
+	}
+	if _, exists := instanceAttrs["account_assignment_cnt"]; exists {
+		t.Fatalf("legacy attribute account_assignment_cnt persisted; use account_assignment_count")
+	}
 
 	permSet := resourceByType(t, envelopes, awscloud.ResourceTypeSSOAdminPermissionSet)
 	permAttrs := attributesOf(t, permSet)
@@ -135,9 +143,19 @@ func TestScannerEmitsIdentityCenterMetadataAndRelationships(t *testing.T) {
 	assertRelationship(t, envelopes, awscloud.RelationshipSSOAdminPermissionSetInInstance)
 	assertRelationship(t, envelopes, awscloud.RelationshipSSOAdminApplicationInInstance)
 
+	// Both policy relationships must target the canonical IAM policy resource
+	// type so downstream correlation matches the IAM scanner's typing.
+	managed := relationshipByType(t, envelopes, awscloud.RelationshipSSOAdminPermissionSetUsesManagedPolicy)
+	if got, want := targetTypeOf(t, managed), awscloud.ResourceTypeIAMPolicy; got != want {
+		t.Fatalf("managed policy target_type = %q, want %q", got, want)
+	}
+
 	// Customer-managed policy relationship must reference the name only, never a
 	// policy body.
 	cmp := relationshipByType(t, envelopes, awscloud.RelationshipSSOAdminPermissionSetUsesCustomerManagedPolicy)
+	if got, want := targetTypeOf(t, cmp), awscloud.ResourceTypeIAMPolicy; got != want {
+		t.Fatalf("customer managed policy target_type = %q, want %q", got, want)
+	}
 	cmpAttrs := attributesOf(t, cmp)
 	if got, want := cmpAttrs["policy_name"], "least-privilege-app"; got != want {
 		t.Fatalf("customer managed policy_name = %#v, want %q", got, want)
@@ -260,6 +278,16 @@ func relationshipByType(t *testing.T, envelopes []facts.Envelope, relationshipTy
 func assertRelationship(t *testing.T, envelopes []facts.Envelope, relationshipType string) {
 	t.Helper()
 	relationshipByType(t, envelopes, relationshipType)
+}
+
+// targetTypeOf returns the relationship envelope's serialized target_type.
+func targetTypeOf(t *testing.T, envelope facts.Envelope) string {
+	t.Helper()
+	targetType, ok := envelope.Payload["target_type"].(string)
+	if !ok {
+		t.Fatalf("target_type = %#v, want string", envelope.Payload["target_type"])
+	}
+	return targetType
 }
 
 func attributesOf(t *testing.T, envelope facts.Envelope) map[string]any {
