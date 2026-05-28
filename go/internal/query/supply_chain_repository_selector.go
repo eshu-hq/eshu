@@ -1,10 +1,16 @@
 package query
 
 import (
+	"context"
+	"fmt"
 	"net/http"
 	"slices"
 	"strings"
 )
+
+type securityAlertProviderRepositoryScopeStore interface {
+	SecurityAlertProviderRepositoryScopes(context.Context, string) ([]string, error)
+}
 
 func (h *SupplyChainHandler) resolveSupplyChainRepositorySelector(
 	w http.ResponseWriter,
@@ -47,7 +53,10 @@ func (h *SupplyChainHandler) resolveSupplyChainSecurityAlertRepositorySelector(
 		switch len(matches) {
 		case 0:
 		case 1:
-			scopes := securityAlertRepositoryScopeIDs(matches[0], securityAlertRepositoryScopesForCatalog(matches[0], entries))
+			scopes, ok := h.securityAlertRepositoryScopeIDsForCatalog(w, r, selector, matches[0], entries)
+			if !ok {
+				return "", nil, false
+			}
 			return matches[0], scopes, true
 		default:
 			WriteError(w, http.StatusBadRequest, repositorySelectorAmbiguousError{Selector: selector, Matches: matches}.Error())
@@ -65,6 +74,67 @@ func (h *SupplyChainHandler) resolveSupplyChainSecurityAlertRepositorySelector(
 	return repoID, securityAlertRepositoryScopeIDs(repoID, nil), true
 }
 
+func (h *SupplyChainHandler) securityAlertRepositoryScopeIDsForCatalog(
+	w http.ResponseWriter,
+	r *http.Request,
+	selector string,
+	repositoryID string,
+	entries []RepositoryCatalogEntry,
+) ([]string, bool) {
+	scopes := securityAlertRepositoryScopesForCatalog(repositoryID, entries)
+	if len(scopes) == 0 {
+		var err error
+		scopes, err = h.securityAlertRepositoryScopesForNames(r.Context(), repositoryID, entries)
+		if err != nil {
+			WriteError(w, http.StatusInternalServerError, err.Error())
+			return nil, false
+		}
+	}
+	scopes = uniqueSortedNonEmpty(scopes)
+	if len(scopes) > 1 {
+		WriteError(w, http.StatusBadRequest, securityAlertProviderScopeAmbiguousError{
+			Selector: selector,
+			Scopes:   scopes,
+		}.Error())
+		return nil, false
+	}
+	return securityAlertRepositoryScopeIDs(repositoryID, scopes), true
+}
+
+func (h *SupplyChainHandler) securityAlertRepositoryScopesForNames(
+	ctx context.Context,
+	repositoryID string,
+	entries []RepositoryCatalogEntry,
+) ([]string, error) {
+	store := h.securityAlertProviderScopeStore()
+	if store == nil {
+		return nil, nil
+	}
+	names := securityAlertRepositoryNamesForCatalog(repositoryID, entries)
+	scopes := make([]string, 0, len(names))
+	for _, name := range names {
+		found, err := store.SecurityAlertProviderRepositoryScopes(ctx, name)
+		if err != nil {
+			return nil, fmt.Errorf("lookup provider security alert repository scopes: %w", err)
+		}
+		scopes = append(scopes, found...)
+	}
+	return scopes, nil
+}
+
+func (h *SupplyChainHandler) securityAlertProviderScopeStore() securityAlertProviderRepositoryScopeStore {
+	if h == nil {
+		return nil
+	}
+	if store, ok := h.SecurityAlerts.(securityAlertProviderRepositoryScopeStore); ok {
+		return store
+	}
+	if store, ok := h.SecurityAlertAggregates.(securityAlertProviderRepositoryScopeStore); ok {
+		return store
+	}
+	return nil
+}
+
 func securityAlertRepositoryScopesForCatalog(
 	repositoryID string,
 	entries []RepositoryCatalogEntry,
@@ -80,6 +150,30 @@ func securityAlertRepositoryScopesForCatalog(
 			}
 		}
 	}
+	return out
+}
+
+func securityAlertRepositoryNamesForCatalog(
+	repositoryID string,
+	entries []RepositoryCatalogEntry,
+) []string {
+	out := make([]string, 0, 1)
+	seen := map[string]struct{}{}
+	for _, entry := range entries {
+		if entry.ID != repositoryID {
+			continue
+		}
+		name := strings.TrimSpace(entry.Name)
+		if name == "" {
+			continue
+		}
+		if _, ok := seen[name]; ok {
+			continue
+		}
+		seen[name] = struct{}{}
+		out = append(out, name)
+	}
+	slices.Sort(out)
 	return out
 }
 
@@ -103,6 +197,37 @@ func securityAlertRepositoryScopeIDs(repositoryID string, scopeIDs []string) []s
 	}
 	slices.Sort(out)
 	return out
+}
+
+func uniqueSortedNonEmpty(values []string) []string {
+	out := make([]string, 0, len(values))
+	seen := map[string]struct{}{}
+	for _, value := range values {
+		value = strings.TrimSpace(value)
+		if value == "" {
+			continue
+		}
+		if _, ok := seen[value]; ok {
+			continue
+		}
+		seen[value] = struct{}{}
+		out = append(out, value)
+	}
+	slices.Sort(out)
+	return out
+}
+
+type securityAlertProviderScopeAmbiguousError struct {
+	Selector string
+	Scopes   []string
+}
+
+func (e securityAlertProviderScopeAmbiguousError) Error() string {
+	return fmt.Sprintf(
+		"repository selector %q matched multiple provider security alert repository scopes: %s; add repo_slug or remote_url evidence to disambiguate",
+		e.Selector,
+		strings.Join(e.Scopes, ", "),
+	)
 }
 
 func cleanSecurityAlertGitHubSlug(value string) string {

@@ -100,6 +100,20 @@ func NewPostgresSecurityAlertReconciliationAggregateStore(
 	return PostgresSecurityAlertReconciliationAggregateStore{DB: db}
 }
 
+// SecurityAlertProviderRepositoryScopes returns provider-owned security alert
+// repository scopes whose exact repository-name segment matches the supplied
+// source repository name. It shares the list store's lookup so aggregate and
+// list routes resolve repository-scoped provider-only alerts identically.
+func (s PostgresSecurityAlertReconciliationAggregateStore) SecurityAlertProviderRepositoryScopes(
+	ctx context.Context,
+	repositoryName string,
+) ([]string, error) {
+	if s.DB == nil {
+		return nil, fmt.Errorf("security alert reconciliation aggregate database is required")
+	}
+	return securityAlertProviderRepositoryScopes(ctx, s.DB, repositoryName)
+}
+
 const securityAlertReconciliationAggregateTotalQuery = `
 WITH security_alert_current AS (
   SELECT

@@ -197,7 +197,7 @@ const openAPIPathsPackageRegistry = `
         "operationId": "listPackageRegistryCorrelations",
         "parameters": [
           {"name": "package_id", "in": "query", "schema": {"type": "string"}, "description": "Package.uid to anchor package ownership, publication, or consumption correlation lookup."},
-          {"name": "repository_id", "in": "query", "schema": {"type": "string"}, "description": "Repository.id to anchor package ownership, publication, or consumption correlation lookup."},
+          {"name": "repository_id", "in": "query", "schema": {"type": "string"}, "description": "Canonical repository id or human source repository selector (name, repo slug, indexed path, local path, or remote URL) to anchor package ownership, publication, or consumption correlation lookup. Unknown or ambiguous selectors return a selector error instead of an empty page."},
           {"name": "relationship_kind", "in": "query", "schema": {"type": "string", "enum": ["ownership", "publication", "consumption"]}, "description": "Optional relationship kind filter."},
           {"name": "after_correlation_id", "in": "query", "schema": {"type": "string"}, "description": "Correlation ID from next_cursor when continuing a truncated page."},
           {"name": "limit", "in": "query", "required": true, "schema": {"type": "integer", "minimum": 1, "maximum": 200}}

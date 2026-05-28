@@ -15,6 +15,7 @@ const (
 
 // ServiceCatalogHandler exposes reducer-owned service catalog correlation reads.
 type ServiceCatalogHandler struct {
+	Content      ContentStore
 	Correlations ServiceCatalogCorrelationStore
 	Profile      QueryProfile
 }
@@ -78,11 +79,15 @@ func (h *ServiceCatalogHandler) listCorrelations(w http.ResponseWriter, r *http.
 	if !ok {
 		return
 	}
+	repositoryID, ok := resolveRepositorySelectorForRequest(w, r, nil, h.Content, QueryParam(r, "repository_id"))
+	if !ok {
+		return
+	}
 	filter := ServiceCatalogCorrelationFilter{
 		ScopeID:            QueryParam(r, "scope_id"),
 		Provider:           QueryParam(r, "provider"),
 		EntityRef:          QueryParam(r, "entity_ref"),
-		RepositoryID:       QueryParam(r, "repository_id"),
+		RepositoryID:       repositoryID,
 		ServiceID:          QueryParam(r, "service_id"),
 		WorkloadID:         QueryParam(r, "workload_id"),
 		OwnerRef:           QueryParam(r, "owner_ref"),

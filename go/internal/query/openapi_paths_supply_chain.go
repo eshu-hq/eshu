@@ -8,7 +8,7 @@ const openAPIPathsSupplyChain = `
         "parameters": [
           {"name": "digest", "in": "query", "schema": {"type": "string"}},
           {"name": "image_ref", "in": "query", "schema": {"type": "string"}},
-          {"name": "repository_id", "in": "query", "schema": {"type": "string"}},
+          {"name": "repository_id", "in": "query", "description": "OCI/image repository identity observed for the container image. This is not a source repository selector.", "schema": {"type": "string"}},
           {"name": "outcome", "in": "query", "schema": {"type": "string", "enum": ["exact_digest", "tag_resolved"]}},
           {"name": "after_identity_id", "in": "query", "schema": {"type": "string"}},
           {"name": "limit", "in": "query", "required": true, "schema": {"type": "integer", "minimum": 1, "maximum": 200}}
@@ -350,7 +350,7 @@ const openAPIPathsSupplyChain = `
           {"name": "advisory_id", "in": "query", "schema": {"type": "string"}},
           {"name": "cve_id", "in": "query", "schema": {"type": "string"}},
           {"name": "package_id", "in": "query", "schema": {"type": "string"}},
-          {"name": "repository_id", "in": "query", "schema": {"type": "string"}},
+          {"name": "repository_id", "in": "query", "description": "Canonical repository id or human source repository selector (name, repo slug, indexed path, local path, or remote URL). Unknown or ambiguous selectors return a selector error instead of a no-evidence explanation.", "schema": {"type": "string"}},
           {"name": "subject_digest", "in": "query", "schema": {"type": "string"}}
         ],
         "responses": {

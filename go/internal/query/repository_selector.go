@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"slices"
 	"strings"
 )
@@ -99,6 +100,25 @@ func resolveRepositorySelectorExact(ctx context.Context, graph GraphQuery, conte
 	}
 
 	return "", repositorySelectorNotFoundError{Selector: selector}
+}
+
+func resolveRepositorySelectorForRequest(
+	w http.ResponseWriter,
+	r *http.Request,
+	graph GraphQuery,
+	content ContentStore,
+	selector string,
+) (string, bool) {
+	repoID, err := resolveRepositorySelectorExact(r.Context(), graph, content, selector)
+	if err != nil {
+		status := http.StatusBadRequest
+		if isRepositorySelectorNotFound(err) {
+			status = http.StatusNotFound
+		}
+		WriteError(w, status, err.Error())
+		return "", false
+	}
+	return repoID, true
 }
 
 func isRepositorySelectorNotFound(err error) bool {

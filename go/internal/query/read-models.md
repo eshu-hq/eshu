@@ -91,6 +91,27 @@ No-Observability-Change: the read handlers use the same request spans,
 GraphQuery spans, HTTP status/error path, truth envelope, limit, count, and
 truncated fields; added identity properties do not create new worker lanes,
 queues, or graph traversal paths.
+Repository-scoped package-registry, CI/CD, service-catalog, and impact-explain
+routes resolve human source repository selectors through the shared repository
+catalog resolver before they call reducer-owned read models. The resolver
+accepts canonical ids, repository names, repo slugs, indexed paths, local paths,
+and remote URLs; unknown selectors return `404`, ambiguous selectors return
+`400`, and container-image repository ids stay in the OCI/image identity domain
+instead of being source-repository resolved.
+
+No-Regression Evidence: `go test ./internal/query -run
+'Test(SupplyChainSecurityAlertReconciliationsResolveNameOnlyCatalogProviderScope|SupplyChainSecurityAlertReconciliationsRejectAmbiguousNameOnlyProviderScope|SupplyChainSecurityAlertAggregateRoutesResolveNameOnlyCatalogProviderScope|PackageRegistryCorrelationsResolveRepositorySelectors|PackageRegistryCorrelationsRejectUnknownRepositorySelector|CICDRunCorrelationsResolveRepositorySelectors|CICDRunCorrelationAggregatesResolveRepositorySelectors|ServiceCatalogCorrelationsResolveRepositorySelectors|SupplyChainImpactExplainResolvesRepositorySelectors)'
+-count=1` proves selector resolution for source repository names across
+repository-scoped read models, exact provider-security-alert scope lookup for
+name-only catalog rows, and fail-closed behavior for unknown or ambiguous
+provider alert scopes.
+
+No-Observability-Change: selector resolution runs before the existing bounded
+Postgres read-model calls and content-catalog lookup is the only added common
+path. It adds no graph write, queue, worker, reducer lane, runtime knob, metric
+instrument, or metric label; operators still diagnose these routes through the
+existing query spans, Postgres query duration metrics, truth envelopes, and
+HTTP status/error bodies.
 `CICDHandler` (`ci_cd.go:16`) reads reducer-owned CI/CD run correlation facts
 from Postgres. It requires an explicit scope, repository, commit, provider-run,
 artifact-digest, or environment anchor plus `limit`, and it keeps CI success,

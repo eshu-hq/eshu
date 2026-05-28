@@ -11,7 +11,7 @@ const openAPIPathsServiceCatalog = `
           {"name": "scope_id", "in": "query", "schema": {"type": "string"}, "description": "Reducer scope ID to anchor lookup."},
           {"name": "provider", "in": "query", "schema": {"type": "string"}, "description": "Catalog provider such as backstage, opslevel, or cortex."},
           {"name": "entity_ref", "in": "query", "schema": {"type": "string"}, "description": "Provider-native catalog entity reference."},
-          {"name": "repository_id", "in": "query", "schema": {"type": "string"}, "description": "Canonical repository ID to anchor lookup."},
+          {"name": "repository_id", "in": "query", "schema": {"type": "string"}, "description": "Canonical repository id or human source repository selector (name, repo slug, indexed path, local path, or remote URL) to anchor lookup. Unknown or ambiguous selectors return a selector error instead of an empty page."},
           {"name": "service_id", "in": "query", "schema": {"type": "string"}, "description": "Canonical service ID to anchor lookup."},
           {"name": "workload_id", "in": "query", "schema": {"type": "string"}, "description": "Canonical workload ID to anchor lookup."},
           {"name": "owner_ref", "in": "query", "schema": {"type": "string"}, "description": "Provider-native owner reference."},

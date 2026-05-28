@@ -29,12 +29,16 @@ func (h *SupplyChainHandler) explainImpact(w http.ResponseWriter, r *http.Reques
 		)
 		return
 	}
+	repositoryID, ok := h.resolveSupplyChainRepositorySelector(w, r, QueryParam(r, "repository_id"))
+	if !ok {
+		return
+	}
 	filter := trimSupplyChainImpactExplanationFilter(SupplyChainImpactExplanationFilter{
 		FindingID:     QueryParam(r, "finding_id"),
 		AdvisoryID:    QueryParam(r, "advisory_id"),
 		CVEID:         QueryParam(r, "cve_id"),
 		PackageID:     QueryParam(r, "package_id"),
-		RepositoryID:  QueryParam(r, "repository_id"),
+		RepositoryID:  repositoryID,
 		SubjectDigest: QueryParam(r, "subject_digest"),
 	})
 	if !filter.hasBoundedScope() {

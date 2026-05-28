@@ -48,7 +48,10 @@ func (h *PackageRegistryHandler) listCorrelations(w http.ResponseWriter, r *http
 		return
 	}
 	packageID := QueryParam(r, "package_id")
-	repositoryID := QueryParam(r, "repository_id")
+	repositoryID, ok := resolveRepositorySelectorForRequest(w, r, h.Neo4j, h.Content, QueryParam(r, "repository_id"))
+	if !ok {
+		return
+	}
 	if packageID == "" && repositoryID == "" {
 		WriteError(w, http.StatusBadRequest, "package_id or repository_id is required")
 		return

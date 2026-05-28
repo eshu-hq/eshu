@@ -327,3 +327,22 @@ func TestPostgresSecurityAlertReconciliationQueryShape(t *testing.T) {
 		}
 	}
 }
+
+func TestSecurityAlertProviderRepositoryScopesQueryIsExactAndBounded(t *testing.T) {
+	t.Parallel()
+
+	for _, want := range []string{
+		"fact.fact_kind = $1",
+		"fact.is_tombstone = FALSE",
+		"scope.active_generation_id = fact.generation_id",
+		"generation.status = 'active'",
+		"provider_scope LIKE 'security-alert:%/%'",
+		"REGEXP_REPLACE(provider_scope, '^security-alert:[^:]+:.*/', '')",
+		"LOWER($2)",
+		"LIMIT 2",
+	} {
+		if !strings.Contains(securityAlertProviderRepositoryScopesQuery, want) {
+			t.Fatalf("securityAlertProviderRepositoryScopesQuery missing %q:\n%s", want, securityAlertProviderRepositoryScopesQuery)
+		}
+	}
+}

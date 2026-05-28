@@ -9,7 +9,7 @@ const openAPIPathsCICD = `
         "operationId": "listCICDRunCorrelations",
         "parameters": [
           {"name": "scope_id", "in": "query", "schema": {"type": "string"}, "description": "Reducer scope ID to anchor lookup."},
-          {"name": "repository_id", "in": "query", "schema": {"type": "string"}, "description": "Repository ID to anchor lookup."},
+          {"name": "repository_id", "in": "query", "schema": {"type": "string"}, "description": "Canonical repository id or human source repository selector (name, repo slug, indexed path, local path, or remote URL) to anchor lookup. Unknown or ambiguous selectors return a selector error instead of an empty page."},
           {"name": "commit_sha", "in": "query", "schema": {"type": "string"}, "description": "Commit SHA to answer what happened after a commit."},
           {"name": "provider", "in": "query", "schema": {"type": "string"}, "description": "CI/CD provider such as github_actions or gitlab_ci; required when provider_run_id is the only anchor."},
           {"name": "provider_run_id", "in": "query", "schema": {"type": "string"}, "description": "Provider-native run, build, or pipeline ID. Pair with provider when no other bounded anchor is present."},
