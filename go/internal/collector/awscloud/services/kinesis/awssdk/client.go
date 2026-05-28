@@ -104,12 +104,14 @@ func (c *Client) ListDataStreams(ctx context.Context) ([]kinesisservice.DataStre
 func (c *Client) listDataStreamNames(ctx context.Context) ([]string, error) {
 	var names []string
 	var nextToken *string
+	var exclusiveStartName *string
 	for {
 		var page *awskinesis.ListStreamsOutput
 		err := c.recordAPICall(ctx, "ListStreams", func(callCtx context.Context) error {
 			var err error
 			page, err = c.dataStreams.ListStreams(callCtx, &awskinesis.ListStreamsInput{
-				NextToken: nextToken,
+				NextToken:                nextToken,
+				ExclusiveStartStreamName: exclusiveStartName,
 			})
 			return err
 		})
@@ -117,29 +119,39 @@ func (c *Client) listDataStreamNames(ctx context.Context) ([]string, error) {
 			return nil, err
 		}
 		if page == nil {
-			return names, nil
+			return dedupeNames(names), nil
 		}
+		lastName := ""
 		for _, summary := range page.StreamSummaries {
 			if name := strings.TrimSpace(aws.ToString(summary.StreamName)); name != "" {
 				names = append(names, name)
+				lastName = name
 			}
 		}
 		for _, name := range page.StreamNames {
 			if trimmed := strings.TrimSpace(name); trimmed != "" {
 				names = append(names, trimmed)
+				lastName = trimmed
 			}
 		}
 		nextToken = page.NextToken
 		if aws.ToString(nextToken) == "" && !aws.ToBool(page.HasMoreStreams) {
 			return dedupeNames(names), nil
 		}
-		if aws.ToString(nextToken) == "" {
-			// HasMoreStreams without a token means continue from the last name.
-			if len(names) == 0 {
-				return nil, nil
-			}
-			nextToken = aws.String(names[len(names)-1])
+		// AWS reports more streams via one of two mechanisms. Prefer the opaque
+		// NextToken when present; otherwise fall back to the documented
+		// ExclusiveStartStreamName continuation keyed by the last stream name.
+		// A stream name must never be sent in NextToken.
+		if aws.ToString(nextToken) != "" {
+			exclusiveStartName = nil
+			continue
 		}
+		if lastName == "" {
+			// HasMoreStreams=true but the page produced no usable name; stop to
+			// avoid resending the same request forever.
+			return dedupeNames(names), nil
+		}
+		exclusiveStartName = aws.String(lastName)
 	}
 }
 

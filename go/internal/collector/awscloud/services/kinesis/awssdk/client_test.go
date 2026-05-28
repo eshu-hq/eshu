@@ -59,6 +59,49 @@ func TestClientListDataStreamsMapsSummaryAndTags(t *testing.T) {
 	}
 }
 
+func TestClientListDataStreamsContinuesWithExclusiveStartStreamName(t *testing.T) {
+	// AWS Kinesis ListStreams reports HasMoreStreams=true without a NextToken
+	// when the account predates the opaque-token pagination model. The documented
+	// continuation is to pass the last stream name in ExclusiveStartStreamName,
+	// not in NextToken. Feeding the name into NextToken makes the API reject the
+	// request, so the second page must carry ExclusiveStartStreamName.
+	fake := &fakeDataStreamsAPI{
+		listPages: []*awskinesis.ListStreamsOutput{
+			{
+				StreamNames:    []string{"alpha", "bravo"},
+				HasMoreStreams: aws.Bool(true),
+			},
+			{
+				StreamNames:    []string{"charlie"},
+				HasMoreStreams: aws.Bool(false),
+			},
+		},
+		summary: &awskinesistypes.StreamDescriptionSummary{
+			StreamName:   aws.String("placeholder"),
+			StreamStatus: awskinesistypes.StreamStatusActive,
+		},
+	}
+	adapter := &Client{dataStreams: fake, boundary: testBoundary()}
+
+	streams, err := adapter.ListDataStreams(context.Background())
+	if err != nil {
+		t.Fatalf("ListDataStreams() error = %v, want nil", err)
+	}
+	if got, want := len(streams), 3; got != want {
+		t.Fatalf("len(streams) = %d, want %d", got, want)
+	}
+	if got, want := len(fake.listInputs), 2; got != want {
+		t.Fatalf("ListStreams call count = %d, want %d", got, want)
+	}
+	second := fake.listInputs[1]
+	if got := aws.ToString(second.ExclusiveStartStreamName); got != "bravo" {
+		t.Fatalf("second ExclusiveStartStreamName = %q, want bravo", got)
+	}
+	if got := aws.ToString(second.NextToken); got != "" {
+		t.Fatalf("second NextToken = %q, want empty; stream name must not be sent as an opaque token", got)
+	}
+}
+
 func TestClientListFirehoseMapsDestinationsWithoutSecretsAndExtractsLambda(t *testing.T) {
 	fake := &fakeFirehoseAPI{
 		listPages: []*awsfirehose.ListDeliveryStreamsOutput{{
@@ -258,17 +301,19 @@ func testBoundary() awscloud.Boundary {
 }
 
 type fakeDataStreamsAPI struct {
-	listPages []*awskinesis.ListStreamsOutput
-	listCalls int
-	summary   *awskinesistypes.StreamDescriptionSummary
-	tags      []awskinesistypes.Tag
+	listPages  []*awskinesis.ListStreamsOutput
+	listCalls  int
+	listInputs []*awskinesis.ListStreamsInput
+	summary    *awskinesistypes.StreamDescriptionSummary
+	tags       []awskinesistypes.Tag
 }
 
 func (f *fakeDataStreamsAPI) ListStreams(
 	_ context.Context,
-	_ *awskinesis.ListStreamsInput,
+	input *awskinesis.ListStreamsInput,
 	_ ...func(*awskinesis.Options),
 ) (*awskinesis.ListStreamsOutput, error) {
+	f.listInputs = append(f.listInputs, input)
 	if f.listCalls >= len(f.listPages) {
 		return &awskinesis.ListStreamsOutput{}, nil
 	}
