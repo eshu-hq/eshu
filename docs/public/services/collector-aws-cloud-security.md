@@ -129,6 +129,31 @@ not grant `GetFilter`, `ListFindings`, `GetFindings`, `ListFindingAggregations`,
 `BatchGetFindingDetails`, `BatchGetCodeSnippet`, `GetSbomExport`,
 `GetCisScanReport`, or `GetCisScanResultDetails`.
 
+OpenSearch is the collector's highest index/search-data exposure surface and is
+metadata-only by construction. The scanner reaches the control plane through
+`ListDomainNames`, `DescribeDomains`, `DescribePackages`,
+`ListDomainsForPackage`, `ListTags`, `ListCollections`, `BatchGetCollection`,
+`ListSecurityConfigs`, `ListVpcEndpoints`, and `BatchGetVpcEndpoint` only. It
+never reaches the OpenSearch HTTP API (`_search`, `_msearch`, `_index`, `_doc`,
+`_bulk`, and similar): that API is served by the domain HTTP endpoint, which the
+scanner never constructs, and the SDK adapter interfaces carry no such method
+and no `GetIndex` on either service. A reflection gate over the `domainAPI` and
+`serverlessAPI` interfaces fails the build path if a mutation, inbound-connection
+acceptance, index, search, or data method is added. Master user passwords are
+never persisted: `DescribeDomain` does not return the password, and the
+scanner-owned `Domain` type has no password-, secret-, token-, or
+credential-shaped field, enforced by a struct-shape test. Domain endpoint
+contents, the domain `Endpoints` map, the access policy body, custom package
+bodies, and serverless saved-object bodies are out of scope; only IAM role ARNs
+referenced by the access policy are resolved for relationship evidence and the
+policy body itself is dropped. Do not grant OpenSearch mutation APIs to the
+collector role: `CreateDomain`, `DeleteDomain`, `UpdateDomainConfig`,
+`CreatePackage`, `DeletePackage`, `AssociatePackage`, `DissociatePackage`,
+`AcceptInboundConnection`, `RejectInboundConnection`, `CreateCollection`,
+`DeleteCollection`, `UpdateCollection`, `CreateSecurityConfig`,
+`CreateVpcEndpoint`, or `DeleteVpcEndpoint`; do not grant `GetIndex` on either
+service. OpenSearch does not require `ESHU_AWS_REDACTION_KEY`.
+
 Do not persist credential material, bearer tokens, session tokens, presigned
 query parameters, secret values, policy JSON payload bodies, queue messages, log
 events, database rows, object contents, Lambda package contents, GuardDuty

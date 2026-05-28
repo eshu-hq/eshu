@@ -24,11 +24,6 @@ const (
 )
 
 const (
-	// ResourceTypeOpenSearchDomain identifies an Amazon OpenSearch Service
-	// domain referenced as a Firehose delivery destination. Eshu has no
-	// OpenSearch scanner yet, so this target type only labels relationship
-	// evidence emitted by the Kinesis scanner.
-	ResourceTypeOpenSearchDomain = "aws_opensearch_domain"
 	// ResourceTypeFirehoseHTTPEndpoint identifies a generic HTTP endpoint
 	// Firehose destination keyed by its reported URL. The scanner never
 	// persists the endpoint access key.
