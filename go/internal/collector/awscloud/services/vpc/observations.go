@@ -192,7 +192,7 @@ func customerGatewayObservation(boundary awscloud.Boundary, gateway CustomerGate
 		Tags:         cloneStringMap(gateway.Tags),
 		Attributes: map[string]any{
 			"bgp_asn":         strings.TrimSpace(gateway.BGPASN),
-			"certificate_arn": strings.TrimSpace(gateway.CertificateAR),
+			"certificate_arn": strings.TrimSpace(gateway.CertificateARN),
 			"device_name":     strings.TrimSpace(gateway.DeviceName),
 			"ip_address":      strings.TrimSpace(gateway.IPAddress),
 			"type":            strings.TrimSpace(gateway.Type),

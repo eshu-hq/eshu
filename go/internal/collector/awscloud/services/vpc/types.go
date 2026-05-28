@@ -79,17 +79,17 @@ type InternetGatewayAttachment struct {
 
 // NATGateway is the scanner-owned representation of one NAT gateway.
 type NATGateway struct {
-	ID                    string
-	VPCID                 string
-	SubnetID              string
-	State                 string
-	ConnectivityType      string
-	FailureCode           string
-	FailureMessage        string
-	CreatedAt             time.Time
-	DeletedAt             time.Time
-	NATGatewayAddresses   []NATGatewayAddress
-	Tags                  map[string]string
+	ID                  string
+	VPCID               string
+	SubnetID            string
+	State               string
+	ConnectivityType    string
+	FailureCode         string
+	FailureMessage      string
+	CreatedAt           time.Time
+	DeletedAt           time.Time
+	NATGatewayAddresses []NATGatewayAddress
+	Tags                map[string]string
 }
 
 // NATGatewayAddress captures one address attached to a NAT gateway.
@@ -211,26 +211,26 @@ type DHCPConfigurationEntry struct {
 // CustomerGateway is the scanner-owned representation of one VPN customer
 // gateway.
 type CustomerGateway struct {
-	ID            string
-	State         string
-	Type          string
-	IPAddress     string
-	BGPASN        string
-	DeviceName    string
-	CertificateAR string
-	Tags          map[string]string
+	ID             string
+	State          string
+	Type           string
+	IPAddress      string
+	BGPASN         string
+	DeviceName     string
+	CertificateARN string
+	Tags           map[string]string
 }
 
 // VPNGateway is the scanner-owned representation of one virtual private
 // gateway.
 type VPNGateway struct {
-	ID                string
-	State             string
-	Type              string
-	AvailabilityZone  string
-	AmazonSideASN     int64
-	VPCAttachments    []VPNGatewayAttachment
-	Tags              map[string]string
+	ID               string
+	State            string
+	Type             string
+	AvailabilityZone string
+	AmazonSideASN    int64
+	VPCAttachments   []VPNGatewayAttachment
+	Tags             map[string]string
 }
 
 // VPNGatewayAttachment captures one VPN gateway VPC attachment.
@@ -242,26 +242,26 @@ type VPNGatewayAttachment struct {
 // VPNConnection is the scanner-owned representation of one site-to-site VPN
 // connection. Tunnel pre-shared keys are intentionally outside the contract.
 type VPNConnection struct {
-	ID                   string
-	State                string
-	Type                 string
-	Category             string
-	CustomerGatewayID    string
-	VPNGatewayID         string
-	TransitGatewayID     string
-	CoreNetworkARN       string
-	StaticRoutesOnly     bool
-	Tags                 map[string]string
-	TelemetrySummaries   []VPNTunnelTelemetry
+	ID                 string
+	State              string
+	Type               string
+	Category           string
+	CustomerGatewayID  string
+	VPNGatewayID       string
+	TransitGatewayID   string
+	CoreNetworkARN     string
+	StaticRoutesOnly   bool
+	Tags               map[string]string
+	TelemetrySummaries []VPNTunnelTelemetry
 }
 
 // VPNTunnelTelemetry captures non-secret tunnel telemetry the scanner persists.
 // The scanner intentionally never reads or stores tunnel pre-shared keys.
 type VPNTunnelTelemetry struct {
-	OutsideIPAddress       string
-	Status                 string
-	StatusMessage          string
-	AcceptedRouteCount     int32
-	LastStatusChange       time.Time
-	CertificateARN         string
+	OutsideIPAddress   string
+	Status             string
+	StatusMessage      string
+	AcceptedRouteCount int32
+	LastStatusChange   time.Time
+	CertificateARN     string
 }

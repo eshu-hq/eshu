@@ -146,6 +146,40 @@ func TestMapRouteTableMapsAssociationsAndRoutes(t *testing.T) {
 	}
 }
 
+// TestMapRoutePreservesVPCEndpointTarget guards the SDK adapter against dropping
+// gateway-endpoint route targets. AWS does not expose a dedicated VpcEndpointId
+// field on a route; a gateway VPC endpoint (for example an S3 gateway endpoint)
+// appears as a managed prefix-list route whose GatewayId carries the vpce-
+// prefixed endpoint ID. mapRoute must steer that vpce- target into
+// Route.VPCEndpointID, otherwise the scanner never emits the
+// vpc_route_targets_vpc_endpoint relationship even though the relationship
+// builder and scanner tests expect Route.VPCEndpointID to be populated. The
+// endpoint target must not leak into Route.GatewayID, where the internet-gateway
+// relationship builder's igw- prefix guard would otherwise have to defend
+// against it.
+func TestMapRoutePreservesVPCEndpointTarget(t *testing.T) {
+	rt := mapRouteTable(awsec2types.RouteTable{
+		RouteTableId: aws.String("rtb-1"),
+		VpcId:        aws.String("vpc-1"),
+		Routes: []awsec2types.Route{{
+			DestinationPrefixListId: aws.String("pl-1"),
+			GatewayId:               aws.String("vpce-1"),
+			Origin:                  awsec2types.RouteOriginCreateRoute,
+			State:                   awsec2types.RouteStateActive,
+		}},
+	})
+
+	if len(rt.Routes) != 1 {
+		t.Fatalf("routes = %#v", rt.Routes)
+	}
+	if rt.Routes[0].VPCEndpointID != "vpce-1" {
+		t.Fatalf("VPCEndpointID = %q, want %q", rt.Routes[0].VPCEndpointID, "vpce-1")
+	}
+	if rt.Routes[0].GatewayID != "" {
+		t.Fatalf("GatewayID = %q, want empty for a vpce- endpoint target", rt.Routes[0].GatewayID)
+	}
+}
+
 func TestMapVPCEndpointMapsSubnetsRouteTablesAndGroups(t *testing.T) {
 	endpoint := mapVPCEndpoint(awsec2types.VpcEndpoint{
 		VpcEndpointId:       aws.String("vpce-1"),

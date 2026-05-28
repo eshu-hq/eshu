@@ -43,13 +43,27 @@ func mapRouteTableAssociation(association awsec2types.RouteTableAssociation) vpc
 }
 
 func mapRoute(route awsec2types.Route) vpcservice.Route {
+	// AWS has no dedicated VpcEndpointId field on a route. A gateway VPC
+	// endpoint target (for example an S3 gateway endpoint) is reported in the
+	// GatewayId field with a vpce- prefix, alongside igw-/vgw-/local gateway
+	// targets. Steer the vpce- variant into VPCEndpointID so the scanner can
+	// emit the vpc_route_targets_vpc_endpoint relationship, and keep it out of
+	// GatewayID so the internet-gateway relationship builder's igw- guard only
+	// ever sees true gateway targets.
+	gatewayID := aws.ToString(route.GatewayId)
+	vpcEndpointID := ""
+	if strings.HasPrefix(gatewayID, "vpce-") {
+		vpcEndpointID = gatewayID
+		gatewayID = ""
+	}
 	return vpcservice.Route{
 		DestinationCIDRBlock:     aws.ToString(route.DestinationCidrBlock),
 		DestinationIPv6CIDRBlock: aws.ToString(route.DestinationIpv6CidrBlock),
 		DestinationPrefixListID:  aws.ToString(route.DestinationPrefixListId),
-		GatewayID:                aws.ToString(route.GatewayId),
+		GatewayID:                gatewayID,
 		NATGatewayID:             aws.ToString(route.NatGatewayId),
 		VPCPeeringConnectionID:   aws.ToString(route.VpcPeeringConnectionId),
+		VPCEndpointID:            vpcEndpointID,
 		TransitGatewayID:         aws.ToString(route.TransitGatewayId),
 		NetworkInterfaceID:       aws.ToString(route.NetworkInterfaceId),
 		InstanceID:               aws.ToString(route.InstanceId),
@@ -127,11 +141,11 @@ func mapNetworkACL(networkACL awsec2types.NetworkAcl) vpcservice.NetworkACL {
 
 func mapNetworkACLEntry(entry awsec2types.NetworkAclEntry) vpcservice.NetworkACLEntry {
 	mapped := vpcservice.NetworkACLEntry{
-		RuleNumber: aws.ToInt32(entry.RuleNumber),
-		Protocol:   aws.ToString(entry.Protocol),
-		RuleAction: string(entry.RuleAction),
-		Egress:     aws.ToBool(entry.Egress),
-		CIDRBlock:  aws.ToString(entry.CidrBlock),
+		RuleNumber:    aws.ToInt32(entry.RuleNumber),
+		Protocol:      aws.ToString(entry.Protocol),
+		RuleAction:    string(entry.RuleAction),
+		Egress:        aws.ToBool(entry.Egress),
+		CIDRBlock:     aws.ToString(entry.CidrBlock),
 		IPv6CIDRBlock: aws.ToString(entry.Ipv6CidrBlock),
 	}
 	if entry.PortRange != nil {
@@ -249,14 +263,14 @@ func mapDHCPOptions(options awsec2types.DhcpOptions) vpcservice.DHCPOptions {
 
 func mapCustomerGateway(gateway awsec2types.CustomerGateway) vpcservice.CustomerGateway {
 	return vpcservice.CustomerGateway{
-		ID:            aws.ToString(gateway.CustomerGatewayId),
-		State:         aws.ToString(gateway.State),
-		Type:          aws.ToString(gateway.Type),
-		IPAddress:     aws.ToString(gateway.IpAddress),
-		BGPASN:        aws.ToString(gateway.BgpAsn),
-		DeviceName:    aws.ToString(gateway.DeviceName),
-		CertificateAR: aws.ToString(gateway.CertificateArn),
-		Tags:          mapTags(gateway.Tags),
+		ID:             aws.ToString(gateway.CustomerGatewayId),
+		State:          aws.ToString(gateway.State),
+		Type:           aws.ToString(gateway.Type),
+		IPAddress:      aws.ToString(gateway.IpAddress),
+		BGPASN:         aws.ToString(gateway.BgpAsn),
+		DeviceName:     aws.ToString(gateway.DeviceName),
+		CertificateARN: aws.ToString(gateway.CertificateArn),
+		Tags:           mapTags(gateway.Tags),
 	}
 }
 
