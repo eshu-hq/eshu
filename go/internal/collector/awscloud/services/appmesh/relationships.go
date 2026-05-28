@@ -26,9 +26,9 @@ func virtualServiceRelationships(boundary awscloud.Boundary, mesh Mesh, service 
 	}}
 }
 
-// virtualNodeRelationships emits the backend, ACM trust, and service-discovery
-// edges for one virtual node. Backend virtual service ARNs are synthesized from
-// the node's own ARN so the partition is never hardcoded.
+// virtualNodeRelationships emits the backend, certificate-authority trust, and
+// service-discovery edges for one virtual node. Backend virtual service ARNs
+// are synthesized from the node's own ARN so the partition is never hardcoded.
 func virtualNodeRelationships(boundary awscloud.Boundary, node VirtualNode) []awscloud.RelationshipObservation {
 	nodeARN := strings.TrimSpace(node.ARN)
 	if nodeARN == "" {
@@ -63,14 +63,19 @@ func virtualNodeRelationships(boundary awscloud.Boundary, node VirtualNode) []aw
 		if !strings.HasPrefix(caARN, "arn:") {
 			continue
 		}
+		// App Mesh reports client TLS trust anchors as ACM Private CA (acm-pca)
+		// certificate authority ARNs, not public ACM certificate ARNs. Keying
+		// the target on the CA ARN with the acm-pca target type lets the edge
+		// join an ACM Private CA certificate authority resource instead of
+		// dangling against the public ACM scanner.
 		relationships = append(relationships, awscloud.RelationshipObservation{
 			Boundary:         boundary,
-			RelationshipType: awscloud.RelationshipAppMeshVirtualNodeTrustsACMCertificateAuthority,
+			RelationshipType: awscloud.RelationshipAppMeshVirtualNodeTrustsCertificateAuthority,
 			SourceResourceID: nodeARN,
 			SourceARN:        nodeARN,
 			TargetResourceID: caARN,
 			TargetARN:        caARN,
-			TargetType:       awscloud.ResourceTypeACMCertificate,
+			TargetType:       awscloud.ResourceTypeACMPCACertificateAuthority,
 			SourceRecordID:   nodeARN + "->" + caARN,
 		})
 	}

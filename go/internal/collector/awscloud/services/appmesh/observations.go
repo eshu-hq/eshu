@@ -61,8 +61,8 @@ func virtualServiceObservation(boundary awscloud.Boundary, service VirtualServic
 }
 
 // virtualNodeObservation maps one virtual node into an aws_resource
-// observation. Client TLS validation is reduced to ACM certificate authority
-// ARNs; no certificate body is ever recorded.
+// observation. Client TLS validation is reduced to ACM Private CA certificate
+// authority ARNs; no certificate body is ever recorded.
 func virtualNodeObservation(boundary awscloud.Boundary, node VirtualNode) awscloud.ResourceObservation {
 	arn := strings.TrimSpace(node.ARN)
 	return awscloud.ResourceObservation{

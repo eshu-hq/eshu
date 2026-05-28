@@ -152,23 +152,29 @@ func TestScannerEmitsInternalRelationshipsWithMatchingJoinKeys(t *testing.T) {
 	}
 }
 
-func TestScannerEmitsACMCertificateAuthorityRelationship(t *testing.T) {
+func TestScannerEmitsCertificateAuthorityRelationship(t *testing.T) {
 	envelopes := scanOK(t, fullInventory())
 
-	rel := singleRelationship(t, envelopes, awscloud.RelationshipAppMeshVirtualNodeTrustsACMCertificateAuthority)
+	rel := singleRelationship(t, envelopes, awscloud.RelationshipAppMeshVirtualNodeTrustsCertificateAuthority)
 	if got := rel.Payload["source_resource_id"]; got != virtualNodeARN {
-		t.Fatalf("ACM trust source = %#v, want %q", got, virtualNodeARN)
+		t.Fatalf("CA trust source = %#v, want %q", got, virtualNodeARN)
 	}
-	// The target_resource_id must match the ACM scanner resource_id, which is
-	// the certificate (authority) ARN, so the graph join lands on the ACM node.
+	// App Mesh client TLS trust anchors are ACM Private CA (acm-pca)
+	// certificate authority ARNs, not public ACM certificate ARNs. The join key
+	// must therefore be the acm-pca CA ARN so the edge lands on the (future)
+	// ACM Private CA certificate authority resource rather than dangling
+	// against the public ACM scanner.
+	if !strings.HasPrefix(acmCAARN, "arn:aws:acm-pca:") {
+		t.Fatalf("test fixture CA ARN = %q, want an acm-pca certificate-authority ARN", acmCAARN)
+	}
 	if got := rel.Payload["target_resource_id"]; got != acmCAARN {
-		t.Fatalf("ACM trust target = %#v, want %q", got, acmCAARN)
+		t.Fatalf("CA trust target = %#v, want %q", got, acmCAARN)
 	}
 	if got := rel.Payload["target_arn"]; got != acmCAARN {
-		t.Fatalf("ACM trust target_arn = %#v, want %q", got, acmCAARN)
+		t.Fatalf("CA trust target_arn = %#v, want %q", got, acmCAARN)
 	}
-	if got, _ := rel.Payload["target_type"].(string); got != awscloud.ResourceTypeACMCertificate {
-		t.Fatalf("ACM trust target_type = %q, want %q", got, awscloud.ResourceTypeACMCertificate)
+	if got, _ := rel.Payload["target_type"].(string); got != awscloud.ResourceTypeACMPCACertificateAuthority {
+		t.Fatalf("CA trust target_type = %q, want %q", got, awscloud.ResourceTypeACMPCACertificateAuthority)
 	}
 }
 

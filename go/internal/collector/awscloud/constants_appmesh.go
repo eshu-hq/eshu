@@ -27,8 +27,8 @@ const (
 	// metadata resource. The fact carries node identity (ARN, name), parent mesh
 	// name, the service discovery shape (DNS hostname or Cloud Map
 	// namespace/service), and the backend virtual service names. Client TLS
-	// validation references record ACM certificate authority ARNs only; the
-	// scanner never persists a literal certificate body.
+	// validation references record ACM Private CA certificate authority ARNs
+	// only; the scanner never persists a literal certificate body.
 	ResourceTypeAppMeshVirtualNode = "aws_appmesh_virtual_node"
 
 	// ResourceTypeAppMeshVirtualRouter identifies an App Mesh virtual router
@@ -78,12 +78,13 @@ const (
 	// its App Mesh ARN.
 	RelationshipAppMeshVirtualGatewayInMesh = "appmesh_virtual_gateway_in_mesh"
 
-	// RelationshipAppMeshVirtualNodeTrustsACMCertificateAuthority records that a
-	// virtual node client TLS policy validates peers against an ACM certificate
-	// authority. The target is the ACM certificate resource keyed by the
-	// certificate authority ARN, matching the ACM scanner resource_id. The
-	// literal certificate body is never read.
-	RelationshipAppMeshVirtualNodeTrustsACMCertificateAuthority = "appmesh_virtual_node_trusts_acm_certificate_authority"
+	// RelationshipAppMeshVirtualNodeTrustsCertificateAuthority records that a
+	// virtual node client TLS policy validates peers against an ACM Private CA
+	// certificate authority. App Mesh reports these trust anchors as ACM Private
+	// CA ARNs (arn:{partition}:acm-pca:{region}:{account}:certificate-authority/
+	// {id}), not public ACM certificate ARNs, so the target keys on the
+	// certificate authority ARN. The literal certificate body is never read.
+	RelationshipAppMeshVirtualNodeTrustsCertificateAuthority = "appmesh_virtual_node_trusts_certificate_authority"
 
 	// RelationshipAppMeshVirtualNodeUsesCloudMapService records that a virtual
 	// node discovers endpoints through an AWS Cloud Map namespace and service.
@@ -98,6 +99,15 @@ const (
 )
 
 const (
+	// ResourceTypeACMPCACertificateAuthority identifies an AWS Certificate
+	// Manager Private CA certificate authority. App Mesh client TLS trust ARNs
+	// point at ACM Private CA (acm-pca) certificate authorities, not public ACM
+	// certificates, so the virtual-node trust edge targets this type. There is
+	// no ACM Private CA scanner yet; this forward-looking constant fixes the
+	// join key so the edge lands once an acm-pca scanner emits resources keyed
+	// by the certificate authority ARN.
+	ResourceTypeACMPCACertificateAuthority = "aws_acmpca_certificate_authority"
+
 	// TargetTypeCloudMapService is the relationship target_type for an AWS Cloud
 	// Map service discovered through an App Mesh virtual node. Cloud Map has no
 	// Eshu scanner yet, so the target keys on the namespace/service identity App

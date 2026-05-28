@@ -27,8 +27,11 @@
   Always preserve the header NAME and match type. `Scanner.Scan` fails closed
   when the redaction key is zero.
 - Every relationship sets a non-empty `target_type`. App Mesh-internal edges
-  key on App Mesh ARNs; the ACM edge keys on the certificate authority ARN to
-  match the ACM scanner resource_id.
+  key on App Mesh ARNs. The client TLS trust edge keys on the ACM Private CA
+  (acm-pca) certificate authority ARN App Mesh reports and targets
+  `aws_acmpca_certificate_authority`, not the public ACM scanner's
+  `aws_acm_certificate`. There is no ACM Private CA scanner yet; the target type
+  is forward-looking so the edge joins once one exists.
 - NEVER hardcode `arn:aws:` when synthesizing an ARN. Derive the partition,
   region, account, and mesh name from a known resource ARN (see
   `siblingResourceARN`).

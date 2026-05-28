@@ -26,9 +26,9 @@
 - The `apiClient` interface MUST stay restricted to List, Describe, and
   `ListTagsForResource` operations. Adding any Create/Update/Delete mutation
   method breaks the security gate and the metadata-only contract.
-- Extract only ACM certificate authority ARNs from client TLS validation
-  trusts. Never read file or SDS trust certificate chains or secret names, and
-  never return a literal certificate body.
+- Extract only ACM Private CA certificate authority ARNs from client TLS
+  validation trusts. Never read file or SDS trust certificate chains or secret
+  names, and never return a literal certificate body.
 - Pass HTTP header match values through verbatim; redaction belongs to the
   scanner.
 - Do not call any App Mesh mutation API. The adapter is read-only.

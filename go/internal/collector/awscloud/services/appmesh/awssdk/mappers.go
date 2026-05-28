@@ -112,11 +112,12 @@ func backendVirtualServiceNames(backends []appmeshtypes.Backend) []string {
 	return names
 }
 
-// clientTLSCertificateAuthorityARNs extracts only the ACM certificate authority
-// ARNs from every client TLS validation trust the node references (backend
-// client policies and backend defaults). File and SDS trust shapes carry
-// certificate chains and secret names, which are intentionally NOT read: the
-// adapter never returns a literal certificate body. Only ARN references survive.
+// clientTLSCertificateAuthorityARNs extracts only the ACM Private CA (acm-pca)
+// certificate authority ARNs from every client TLS validation trust the node
+// references (backend client policies and backend defaults). File and SDS trust
+// shapes carry certificate chains and secret names, which are intentionally NOT
+// read: the adapter never returns a literal certificate body. Only ARN
+// references survive.
 func clientTLSCertificateAuthorityARNs(spec *appmeshtypes.VirtualNodeSpec) []string {
 	var arns []string
 	collect := func(policy *appmeshtypes.ClientPolicy) {

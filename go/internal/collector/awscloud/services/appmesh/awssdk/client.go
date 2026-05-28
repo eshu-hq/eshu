@@ -41,8 +41,8 @@ type apiClient interface {
 // Client adapts AWS SDK App Mesh control-plane calls into scanner-owned
 // metadata. It pages every List operation, fans out to the matching Describe
 // per resource, reads tags per resource, and never calls a mutation API. Client
-// TLS validation is reduced to ACM certificate authority ARNs; certificate
-// bodies are never read.
+// TLS validation is reduced to ACM Private CA certificate authority ARNs;
+// certificate bodies are never read.
 type Client struct {
 	client      apiClient
 	boundary    awscloud.Boundary

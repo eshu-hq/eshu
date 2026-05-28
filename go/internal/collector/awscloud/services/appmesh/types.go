@@ -91,8 +91,8 @@ type VirtualService struct {
 //
 // The node carries service discovery and backend references only. It never
 // carries a literal client TLS certificate body: TLS validation is reduced to
-// the ACM certificate authority ARNs the trust references, which are safe
-// metadata references and the join key for the ACM relationship.
+// the ACM Private CA certificate authority ARNs the trust references, which are
+// safe metadata references and the join key for the trust relationship.
 type VirtualNode struct {
 	// ARN is the virtual node ARN App Mesh reports.
 	ARN string
@@ -115,10 +115,10 @@ type VirtualNode struct {
 	// BackendVirtualServiceNames are the virtual service names this node sends
 	// outbound traffic to.
 	BackendVirtualServiceNames []string
-	// ClientTLSCertificateAuthorityARNs are the ACM certificate authority ARNs
-	// referenced by client TLS validation trust across backend and default
-	// client policies. These are ARN references only; the literal certificate
-	// body and private key material are never read.
+	// ClientTLSCertificateAuthorityARNs are the ACM Private CA (acm-pca)
+	// certificate authority ARNs referenced by client TLS validation trust
+	// across backend and default client policies. These are ARN references only;
+	// the literal certificate body and private key material are never read.
 	ClientTLSCertificateAuthorityARNs []string
 	// Status is the virtual node lifecycle status App Mesh reports.
 	Status string

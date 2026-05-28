@@ -36,7 +36,7 @@ See `doc.go` for the godoc contract.
   `VirtualGateway`, `GatewayRoute` - scanner-owned App Mesh records.
 - `Listener`, `HeaderMatch` - supporting metadata records. There is no client
   TLS certificate body field; `VirtualNode.ClientTLSCertificateAuthorityARNs`
-  carries ACM certificate authority ARN references only.
+  carries ACM Private CA (acm-pca) certificate authority ARN references only.
 
 ## Dependencies
 
@@ -60,8 +60,8 @@ records App Mesh API call counts, throttles, and pagination spans.
 
 - App Mesh facts are metadata only. The scanner must never read or persist a
   client TLS validation certificate body. Client TLS validation is reduced to
-  ACM certificate authority ARN references, which are safe metadata and the
-  join key for the ACM relationship.
+  ACM Private CA certificate authority ARN references, which are safe metadata
+  and the join key for the trust relationship.
 - Sensitive HTTP header match values (Authorization, Cookie, X-Api-Key shaped,
   or values whose header name matches the shared sensitive-key policy) are
   redacted through the shared redact library. The header NAME and match type
@@ -69,8 +69,11 @@ records App Mesh API call counts, throttles, and pagination spans.
   zero.
 - Relationships always set a non-empty `target_type`. App Mesh-internal edges
   key on App Mesh ARNs so the graph join lands on the matching App Mesh
-  resource. The virtual-node-to-ACM edge keys on the certificate authority ARN
-  so it joins the ACM scanner resource_id.
+  resource. The virtual-node client TLS trust edge keys on the ACM Private CA
+  (acm-pca) certificate authority ARN App Mesh reports and targets
+  `aws_acmpca_certificate_authority`, not the public ACM scanner's
+  `aws_acm_certificate`. No ACM Private CA scanner exists yet, so the target
+  type is forward-looking and the edge joins once one lands.
 - Backend virtual service ARNs are synthesized from the virtual node's own ARN
   so the partition (`aws`, `aws-us-gov`, `aws-cn`) is never hardcoded.
 - Tags are raw AWS tag evidence. Do not infer environment, owner, workload, or
@@ -88,8 +91,8 @@ the resource counts App Mesh returns for the claimed account and region.
 
 No-Regression Evidence:
 `go test ./cmd/collector-aws-cloud/... ./internal/collector/awscloud/awsruntime/... -count=1`
-covers App Mesh resource and relationship emission, ACM certificate authority
-join keys, Cloud Map and DNS service-discovery edges, sensitive header value
+covers App Mesh resource and relationship emission, ACM Private CA certificate
+authority join keys, Cloud Map and DNS service-discovery edges, sensitive header value
 redaction, certificate-body exclusion, runtime registration through the derived
 service guard, and command configuration requiring a redaction key.
 

@@ -59,9 +59,10 @@ Resource ARNs, names, tags, and header values stay out of metric labels.
 - The internal `apiClient` interface deliberately excludes every App Mesh
   Create/Update/Delete mutation API. A reflection-based test asserts the
   exclusion and FAILS if any mutation method ever appears.
-- Client TLS validation is reduced to ACM certificate authority ARN references
-  in `mappers.go`. The adapter never reads file or SDS trust certificate chains
-  or secret names, and never returns a literal certificate body.
+- Client TLS validation is reduced to ACM Private CA certificate authority ARN
+  references in `mappers.go`. The adapter never reads file or SDS trust
+  certificate chains or secret names, and never returns a literal certificate
+  body.
 - HTTP header match values are returned verbatim. Redaction is the scanner's
   responsibility because it holds the redaction key; the adapter must not drop
   the value or the scanner cannot make the redaction decision.

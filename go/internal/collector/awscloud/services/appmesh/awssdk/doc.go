@@ -11,9 +11,9 @@
 // quietly add one back.
 //
 // The adapter never returns a client TLS validation certificate body. Client
-// TLS validation is reduced to the ACM certificate authority ARNs the trust
-// references; file and SDS trust shapes (certificate chains, secret names) are
-// not read. HTTP header match values are passed through to the scanner verbatim
-// because the scanner, which holds the redaction key, owns the redaction
-// decision.
+// TLS validation is reduced to the ACM Private CA certificate authority ARNs
+// the trust references; file and SDS trust shapes (certificate chains, secret
+// names) are not read. HTTP header match values are passed through to the
+// scanner verbatim because the scanner, which holds the redaction key, owns the
+// redaction decision.
 package awssdk
