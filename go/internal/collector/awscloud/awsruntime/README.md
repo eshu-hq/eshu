@@ -58,10 +58,16 @@ See `doc.go` for the godoc contract.
   `init()` so new scanners stay pure-additive.
 - `ScannerDeps`, `ScannerRegistration`, `ScannerBuilder` - the registry
   contract. Builders consume `ScannerDeps`; bindings install
-  `ScannerRegistration` records.
+  `ScannerRegistration` records. `ScannerRegistration.RequiresRedactionKey`
+  declares that the scanner cannot run without a redaction key.
 - `SupportedServiceKinds` and `SupportsServiceKind` - registry-backed
   service-kind introspection used by command-side target-scope validation so
   startup checks cannot drift from scanner availability.
+- `ServiceRequiresRedactionKey` and `ServiceKindsRequiringRedactionKey` -
+  registry-backed redaction-key introspection. The command derives the
+  `ESHU_AWS_REDACTION_KEY` pre-flight requirement and its missing-key error
+  message from these, so the requirement stays in lockstep with the
+  `RequiresRedactionKey` flags the bindings register.
 - `ScannerFactory` - creates a service scanner for one target and lease.
 - `ServiceScanner` - scans one service claim into fact envelopes.
 - `CheckpointStore` - durable pagination checkpoint store used by long service

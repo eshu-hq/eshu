@@ -13,6 +13,9 @@
 - Keep the redaction-key guard: return a typed error naming "redaction key" when
   `d.RedactionKey.IsZero()`. The CloudFormation scanner cannot redact stack
   outputs without it.
+- Keep `RequiresRedactionKey: true` in the registration. The command derives the
+  `ESHU_AWS_REDACTION_KEY` requirement from this flag, so dropping it would let a
+  CloudFormation-only target start without a key.
 - Do not load AWS configuration or build SDK clients at init time. Builders
   construct clients per claim from `ScannerDeps`.
 - Do not validate or transform claims here beyond the redaction-key guard.

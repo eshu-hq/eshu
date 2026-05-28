@@ -42,7 +42,9 @@ and the awsruntime README.
   the first scan claim.
 - The builder requires a non-zero `ScannerDeps.RedactionKey` and returns a typed
   error when it is zero, because the scanner redacts secret-like stack output
-  values. The command derives the requirement in `awsConfigNeedsRedactionKey`.
+  values. The registration also sets `RequiresRedactionKey: true`, which is how
+  the command derives the `ESHU_AWS_REDACTION_KEY` requirement; `config.go` no
+  longer hardcodes a service list.
 - Do not perform AWS configuration loading, credential acquisition, or client
   construction at init time. Builders construct clients per claim, using the
   runtime-provided `ScannerDeps`.

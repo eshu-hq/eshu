@@ -11,7 +11,8 @@ import (
 
 func init() {
 	awsruntime.Register(awsruntime.ScannerRegistration{
-		ServiceKind: awscloud.ServiceCodePipeline,
+		ServiceKind:          awscloud.ServiceCodePipeline,
+		RequiresRedactionKey: true,
 		Build: func(d awsruntime.ScannerDeps) (awsruntime.ServiceScanner, error) {
 			if d.RedactionKey.IsZero() {
 				return nil, fmt.Errorf("codepipeline scanner redaction key is required")

@@ -334,7 +334,7 @@ func loadAWSRedactionKeyIfNeeded(
 	}
 	value := strings.TrimSpace(getenv("ESHU_AWS_REDACTION_KEY"))
 	if value == "" {
-		return redact.Key{}, fmt.Errorf("ESHU_AWS_REDACTION_KEY is required when appmesh, batch, cloudformation, cloudwatch, codebuild, codedeploy, codepipeline, cognito, ecs, lambda, organizations, securityhub, or ssoadmin service scans are enabled")
+		return redact.Key{}, fmt.Errorf("ESHU_AWS_REDACTION_KEY is required when %s service scans are enabled", redactionKeyServicesPhrase())
 	}
 	key, err := redact.NewKey([]byte(value))
 	if err != nil {
@@ -343,28 +343,41 @@ func loadAWSRedactionKeyIfNeeded(
 	return key, nil
 }
 
+// awsConfigNeedsRedactionKey reports whether any allowed service in the
+// configuration declared RequiresRedactionKey in its runtimebind registration.
+// The requirement is derived from the awsruntime registry instead of a
+// hand-maintained switch, so adding a redaction-requiring scanner touches no
+// line in this command: it declares the requirement only in its own
+// runtimebind Register call.
 func awsConfigNeedsRedactionKey(config awsruntime.Config) bool {
 	for _, target := range config.Targets {
 		for _, service := range target.AllowedServices {
-			switch strings.TrimSpace(service) {
-			case awscloud.ServiceAppMesh,
-				awscloud.ServiceBatch,
-				awscloud.ServiceCloudFormation,
-				awscloud.ServiceCloudWatch,
-				awscloud.ServiceCodeBuild,
-				awscloud.ServiceCodeDeploy,
-				awscloud.ServiceCodePipeline,
-				awscloud.ServiceCognito,
-				awscloud.ServiceECS,
-				awscloud.ServiceLambda,
-				awscloud.ServiceOrganizations,
-				awscloud.ServiceSecurityHub,
-				awscloud.ServiceSSOAdmin:
+			if awsruntime.ServiceRequiresRedactionKey(strings.TrimSpace(service)) {
 				return true
 			}
 		}
 	}
 	return false
+}
+
+// redactionKeyServicesPhrase renders the sorted set of registered
+// redaction-requiring service kinds as a human list ("a, b, or c") for the
+// missing-key error. The set comes from the registry, so the message stays in
+// lockstep with the runtimebind registrations.
+func redactionKeyServicesPhrase() string {
+	kinds := awsruntime.ServiceKindsRequiringRedactionKey()
+	switch len(kinds) {
+	case 0:
+		// Defensive: no scanner declared the requirement, yet a target tripped
+		// the needs-key check. Name the variable so the operator can grep.
+		return "a redaction-requiring"
+	case 1:
+		return kinds[0]
+	case 2:
+		return kinds[0] + " or " + kinds[1]
+	default:
+		return strings.Join(kinds[:len(kinds)-1], ", ") + ", or " + kinds[len(kinds)-1]
+	}
 }
 
 func envDuration(getenv func(string) string, key string, fallback time.Duration) (time.Duration, error) {

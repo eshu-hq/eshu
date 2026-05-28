@@ -1,3 +1,15 @@
 # The AWS scanner bindings aggregator is a pure list of blank imports. Parallel
 # scanner PRs append independent lines; merge=union avoids textual conflicts.
 go/internal/collector/awscloud/awsruntime/bindings/bindings.go merge=union
+
+# The AWS scanner reference table and Data Boundaries paragraphs grow by one
+# independent row/section per scanner PR. merge=union auto-merges parallel
+# additions; a stray duplicate row is caught by the strict mkdocs build.
+docs/public/services/collector-aws-cloud-scanners.md merge=union
+
+# go.sum is a line-independent set of module checksum lines. Parallel scanner
+# PRs each add one SDK module's hashes. merge=union combines both sides without
+# conflict; the order is not load-bearing and `go mod tidy` re-sorts and prunes
+# it. go.mod is deliberately NOT union-merged: its require block is structured
+# and union would duplicate or interleave entries into an invalid file.
+go.sum merge=union

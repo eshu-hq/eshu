@@ -91,6 +91,22 @@ fails the guard automatically, so adding a scanner touches zero want-lists.
 No file in `awsruntime/` itself changes for a new scanner. The runtime
 already has zero compile-time dependency on individual service packages.
 
+### Redaction-key requirement
+
+A scanner that redacts sensitive metadata declares the requirement in its own
+`runtimebind/bind.go`, not in the command. Set `RequiresRedactionKey: true` in
+the `awsruntime.Register` call and keep the builder's `d.RedactionKey.IsZero()`
+guard. The command derives the `ESHU_AWS_REDACTION_KEY` pre-flight requirement
+and the missing-key error message from
+`awsruntime.ServiceKindsRequiringRedactionKey()`, so adding a redaction scanner
+touches zero shared lines in `go/cmd/collector-aws-cloud/config.go`. Scanners
+that need no key leave the flag unset.
+
+The reference table at
+`docs/public/services/collector-aws-cloud-scanners.md` is marked `merge=union`
+in `.gitattributes`, so parallel scanner PRs append rows without colliding; the
+strict docs build catches any duplicate row.
+
 ## Verification
 
 Use [Local Testing](../reference/local-testing.md) for the full gate map. Common

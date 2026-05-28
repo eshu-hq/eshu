@@ -11,8 +11,10 @@
 
 - Register exactly once from `init()` with `awscloud.ServiceAppSync`.
 - Keep the builder a constructor call with no redaction-key check. AppSync needs
-  no `RedactionKey`; do not add appsync to the command's
-  `awsConfigNeedsRedactionKey`.
+  no `RedactionKey`; leave `RequiresRedactionKey` unset (false) in the
+  registration. The command derives the `ESHU_AWS_REDACTION_KEY` requirement from
+  that flag, so setting it would force a key on AppSync-only targets that do not
+  need one.
 - Do not load AWS configuration or build SDK clients at init time. Builders
   construct clients per claim from `ScannerDeps`.
 - Do not validate or transform claims here. Validation belongs to awsruntime
