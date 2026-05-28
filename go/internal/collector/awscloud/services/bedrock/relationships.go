@@ -190,7 +190,14 @@ func knowledgeBaseDataSourceRelationship(
 		attributes["data_source_id"] = dsID
 	}
 	if bucketArg := strings.TrimSpace(source.S3BucketARN); bucketArg != "" {
-		bucketARN := normalizeS3BucketARN(partition, bucketArg)
+		bucketARN, ok := normalizeS3BucketARN(partition, bucketArg)
+		if !ok {
+			// A reported S3 reference that resolves to an empty bucket name (for
+			// example an `s3://` or `s3:///path` scheme prefix) cannot address a
+			// real bucket. Dropping the edge keeps an invalid empty join key out
+			// of the graph rather than emitting `arn:<partition>:s3:::`.
+			return awscloud.RelationshipObservation{}, false
+		}
 		return awscloud.RelationshipObservation{
 			RelationshipType: awscloud.RelationshipBedrockKnowledgeBaseUsesS3DataSource,
 			SourceResourceID: kbID,
@@ -238,15 +245,24 @@ func urlDataSourceKinds(dataSourceType string) (relationshipType, targetType str
 	}
 }
 
-// normalizeS3BucketARN returns bucketArg unchanged when it is already an S3
-// bucket ARN, otherwise synthesizes one from the partition and a bare bucket
-// name. Bedrock reports a BucketArn for S3 data sources, so the ARN branch is
-// the common case; the name branch guards against any bare-name input.
-func normalizeS3BucketARN(partition, bucketArg string) string {
+// normalizeS3BucketARN resolves an S3 data-source reference to a bucket ARN,
+// reporting ok=false when no bucket can be determined. It returns bucketArg
+// unchanged when it is already an S3 bucket ARN, otherwise it synthesizes one
+// from the partition and a bare bucket name. Bedrock reports a BucketArn for S3
+// data sources, so the ARN branch is the common case; the name branch guards
+// against any bare-name or `s3://` URL input. A non-ARN input that yields an
+// empty bucket after trimming the scheme and path (for example `s3://` or
+// `s3:///path`) is unresolvable, so it returns ""/ok=false instead of
+// synthesizing an invalid `arn:<partition>:s3:::` with an empty join key.
+func normalizeS3BucketARN(partition, bucketArg string) (string, bool) {
 	if strings.HasPrefix(bucketArg, "arn:") {
-		return bucketArg
+		return bucketArg, true
 	}
 	bucket := strings.TrimPrefix(bucketArg, "s3://")
 	bucket, _, _ = strings.Cut(bucket, "/")
-	return s3BucketARN(partition, strings.TrimSpace(bucket))
+	bucket = strings.TrimSpace(bucket)
+	if bucket == "" {
+		return "", false
+	}
+	return s3BucketARN(partition, bucket), true
 }
