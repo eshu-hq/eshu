@@ -56,6 +56,7 @@ func TestSupportedServiceKindsCoversEveryAWSService(t *testing.T) {
 		awscloud.ServiceACM:            true,
 		awscloud.ServiceAPIGateway:     true,
 		awscloud.ServiceAthena:         true,
+		awscloud.ServiceBackup:         true,
 		awscloud.ServiceCloudFront:     true,
 		awscloud.ServiceCloudTrail:     true,
 		awscloud.ServiceCloudWatch:     true,

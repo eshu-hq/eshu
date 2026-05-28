@@ -12,6 +12,7 @@ import (
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/acm/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/apigateway/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/athena/runtimebind"
+	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/backup/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/cloudfront/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/cloudtrail/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/cloudwatch/runtimebind"

@@ -44,6 +44,7 @@ It does not mutate AWS resources, read protected payloads, or write graph truth.
 | `elasticache` | Cache clusters, replication groups, parameter and subnet groups, users, user groups, and snapshot metadata (name/source/status only); cluster-to-VPC, cluster-to-subnet, cluster-to-KMS, replication-group-to-cluster, and user-group-to-user relationships. No AUTH tokens, user passwords, user access strings, cache contents, or snapshot data. |
 | `msk` | MSK cluster, broker configuration, and replicator metadata with subnet, security-group, KMS-key, IAM-role, and configuration relationships; no broker `server.properties` bodies, broker logs, bootstrap broker endpoints, SCRAM secrets, or Kafka topic data. |
 | `stepfunctions` | State machine and activity metadata, execution-role relationships, and ARN-only Task-target relationships; no execution payloads, history events, task tokens, or definition literals. |
+| `backup` | Backup vault, backup plan, backup selection, recovery point (metadata only - id, source resource ARN, vault, status, creation/expiration), report plan, restore testing plan, and framework metadata with plan-to-selection, selection-to-resource, selection-to-IAM-role, vault-to-KMS-key, recovery-point-to-vault, recovery-point-to-source-resource, and framework-to-control relationships. No recovery point contents, vault access policy bodies, or framework control input parameter values. |
 | `accessanalyzer` | Analyzer metadata, archive-rule names, aggregate finding counts, relationships, and unused-access summaries. |
 | `kms` | Customer master keys, aliases, and grants with alias-to-key, grant-to-key, and grant-to-grantee-principal relationships. The scanner never calls cryptographic operations (Encrypt, Decrypt, GenerateDataKey, Sign, Verify, ReEncrypt, GenerateMac, VerifyMac, GenerateDataKeyPair, GenerateDataKeyWithoutPlaintext, DeriveSharedSecret, GetPublicKey) or key lifecycle mutations (CreateKey, ScheduleKeyDeletion, EnableKey, DisableKey, EnableKeyRotation, DisableKeyRotation, PutKeyPolicy, CreateGrant, RevokeGrant, RetireGrant, ReplicateKey, ImportKeyMaterial, DeleteImportedKeyMaterial). Key policy Statement bodies, grant encryption contexts, and key material stay outside the scan slice. |
 | `organizations` | Organization root, OUs, accounts, policy summaries, policy target bindings, and delegated administrators. |
@@ -73,9 +74,11 @@ column statistics with sample values, Glue classifier custom patterns, MSK
 Kafka topic or message data, MSK broker logs, MSK broker `server.properties`
 bodies, MSK configuration revision bodies, MSK bootstrap broker endpoints, MSK
 SCRAM secret material, Step Functions execution input or output, Step
-Functions execution history events, Step Functions activity task tokens, or
-IAM/resource policy JSON unless a service package explicitly documents a
-sanitized metadata-only exception. Step Functions state machine definitions
+Functions execution history events, Step Functions activity task tokens, AWS
+Backup recovery point contents, AWS Backup vault access policy bodies, AWS
+Backup framework control input parameter values, AWS Backup recovery-point
+restore metadata values, or IAM/resource policy JSON unless a service
+package explicitly documents a sanitized metadata-only exception. Step Functions state machine definitions
 are persisted only as state names, state types, structural transitions, and
 Task Resource ARNs; Parameters, ResultPath, ResultSelector, InputPath,
 OutputPath, and Result literal contents are excluded.
