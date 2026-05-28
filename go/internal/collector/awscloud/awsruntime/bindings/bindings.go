@@ -14,6 +14,7 @@ import (
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/appsync/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/athena/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/backup/runtimebind"
+	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/bedrock/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/cloudformation/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/cloudfront/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/cloudtrail/runtimebind"

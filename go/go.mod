@@ -13,6 +13,8 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/appsync v1.53.8
 	github.com/aws/aws-sdk-go-v2/service/athena v1.57.6
 	github.com/aws/aws-sdk-go-v2/service/backup v1.57.0
+	github.com/aws/aws-sdk-go-v2/service/bedrock v1.62.0
+	github.com/aws/aws-sdk-go-v2/service/bedrockagent v1.54.1
 	github.com/aws/aws-sdk-go-v2/service/cloudformation v1.55.0
 	github.com/aws/aws-sdk-go-v2/service/cloudfront v1.64.0
 	github.com/aws/aws-sdk-go-v2/service/cloudtrail v1.55.11

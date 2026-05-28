@@ -67,6 +67,7 @@ It does not mutate AWS resources, read protected payloads, or write graph truth.
 | `ssoadmin` | IAM Identity Center instances, permission sets (name, description, session duration, relay state), account assignments (principal type/id, permission set, account), application instances, trusted token issuers, and group/user principals resolved from the connected identity store. Relationships cover assignment-to-permission-set, assignment-to-account, assignment-to-principal, permission-set-to-managed-policy (ARN ref), and permission-set-to-customer-managed-policy (name ref). No permission set inline policy bodies, permissions boundary bodies, customer-managed policy bodies, or application access-scope group filters. Principal display names are redacted; only the identity store display name is read. |
 | `sagemaker` | Notebook instances, models, endpoints, endpoint configs, training jobs, processing jobs, transform jobs, hyperparameter tuning jobs, projects, pipelines, feature groups (metadata only), Studio domains, user profiles, apps, and inference components, with model-to-S3-artifact, model-to-container-image-URI, model-to-IAM-role, endpoint-to-endpoint-config, endpoint-config-to-model, training-job-to-IAM-role, notebook-to-subnet, domain-to-VPC, and user-profile-to-domain relationships. Metadata only: the scanner never invokes endpoints (InvokeEndpoint / InvokeEndpointAsync) and never persists hyperparameter values, training/processing/transform input or output data references, notebook lifecycle-config script bodies, container environment maps, or pipeline definition bodies. |
 | `config` | AWS Config configuration recorders (recorded resource-type scope, recording strategy - never recorded configuration item bodies), delivery channels (S3 bucket, optional SNS topic, snapshot delivery interval), config rules (name, ARN, owner: AWS managed / CUSTOM_LAMBDA / CUSTOM_POLICY, managed-rule source identifier or custom-Lambda function ARN, and resource-type scope carried as a rule attribute), conformance packs (name, deployment status, member-rule count), configuration aggregators (source accounts and regions, or organization role), and retention configurations. Relationships: conformance-pack-to-rule (targets the `aws_config_rule` node by rule name), custom-rule-to-Lambda-function (targets the `aws_lambda_function` ARN), and aggregator-to-source-account (targets the `aws_account` root ARN with the partition derived from the aggregator ARN, never a hardcoded `arn:aws:`). The rule resource-type scope is a rule attribute, not an edge to a synthetic resource-type node. Metadata only: the scanner never calls GetResourceConfigHistory, GetComplianceDetailsByConfigRule, GetDiscoveredResourceCounts, or BatchGetResourceConfig, never persists recorded configuration item bodies (full resource snapshots), and never fetches custom-rule Lambda code (GetCustomRulePolicy). Aggregate per-rule compliance is used only to derive the conformance pack member-rule set and count. |
+| `bedrock` | Foundation model availability (read-only list), custom models, model customization jobs, provisioned model throughputs, guardrails, agents, agent action groups, and knowledge bases, with custom-model-to-base-model, custom-model-to-S3-output, custom-model-to-customization-job, provisioned-throughput-to-model, agent-to-foundation-model, agent-to-knowledge-base, agent-to-action-group, action-group-to-Lambda-function, and knowledge-base-to-S3/Confluence/SharePoint/web-crawler relationships. Metadata only: the scanner never calls bedrock-runtime (InvokeModel, Converse) or bedrock-agent-runtime (InvokeAgent, Retrieve, RetrieveAndGenerate), and never persists agent instructions (system prompts), prompt-override configurations, guardrail topic or content policy bodies, knowledge base ingested document content, action-group API schema bodies, or custom-model hyperparameter and training-input data. |
 
 IAM, Route 53, and CloudFront are global-style families. Use a concrete global
 region label such as `aws-global` so claims keep the
@@ -320,6 +321,22 @@ Domain endpoint contents, the domain `Endpoints` map, the access policy body,
 custom package bodies, and serverless saved-object bodies are never persisted.
 Only IAM role ARNs referenced by the domain access policy are resolved for
 domain-to-IAM-role relationship evidence; the policy body itself is dropped.
+
+Bedrock is a high-redaction metadata-only control-plane scan over the
+`bedrock` and `bedrock-agent` SDKs. The collector never links the inference
+data-plane modules: it never calls bedrock-runtime (InvokeModel,
+InvokeModelWithResponseStream, Converse, ConverseStream) or bedrock-agent-runtime
+(InvokeAgent, Retrieve, RetrieveAndGenerate), and it never calls a mutation API.
+Three high-IP surfaces are filtered: agent instructions (the system prompt) and
+prompt-override configurations, guardrail topic and content policy bodies, and
+knowledge base ingested document content and chunks. The scanner also drops
+action-group API schema bodies and custom-model hyperparameter and training-input
+data. These exclusions are enforced three ways: the scanner-owned types have no
+field for any forbidden payload (proven by a struct-reflection gate), the SDK
+adapter never calls the operations that return policy bodies or ingested content
+(GetGuardrail, GetKnowledgeBaseDocuments), and a reflection gate over both SDK
+adapter interfaces fails the build if any inference or mutation method ever
+becomes reachable.
 
 ## Evidence And Telemetry
 
