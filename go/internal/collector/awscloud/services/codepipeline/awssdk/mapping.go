@@ -32,13 +32,17 @@ var targetConfigKeys = map[string][]string{
 	"ECS": {"ClusterName", "ServiceName"},
 }
 
-func mapPipelineDeclaration(decl *cptypes.PipelineDeclaration, arn string) cpservice.Pipeline {
+// mapPipelineDeclaration builds the scanner-owned pipeline from the GetPipeline
+// declaration and its metadata. The ARN and the Created/Updated timestamps come
+// from PipelineMetadata, not the declaration, so the adapter must thread the
+// metadata through; otherwise created/updated stay null in emitted facts.
+func mapPipelineDeclaration(decl *cptypes.PipelineDeclaration, metadata *cptypes.PipelineMetadata) cpservice.Pipeline {
 	if decl == nil {
 		return cpservice.Pipeline{}
 	}
 	pipeline := cpservice.Pipeline{
 		Name:          aws.ToString(decl.Name),
-		ARN:           strings.TrimSpace(arn),
+		ARN:           pipelineMetadataARN(metadata),
 		RoleARN:       aws.ToString(decl.RoleArn),
 		PipelineType:  string(decl.PipelineType),
 		ExecutionMode: string(decl.ExecutionMode),
@@ -47,6 +51,14 @@ func mapPipelineDeclaration(decl *cptypes.PipelineDeclaration, arn string) cpser
 	}
 	if decl.Version != nil {
 		pipeline.Version = *decl.Version
+	}
+	if metadata != nil {
+		if metadata.Created != nil {
+			pipeline.Created = metadata.Created.UTC()
+		}
+		if metadata.Updated != nil {
+			pipeline.Updated = metadata.Updated.UTC()
+		}
 	}
 	return pipeline
 }

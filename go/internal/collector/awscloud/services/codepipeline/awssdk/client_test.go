@@ -5,6 +5,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	cptypes "github.com/aws/aws-sdk-go-v2/service/codepipeline/types"
@@ -295,6 +296,51 @@ func TestListPipelinesPaginatesAndResolvesTargets(t *testing.T) {
 	}
 	if alpha.ArtifactStore.KMSKeyID != "arn:aws:kms:us-east-1:123456789012:key/abcd-1234" {
 		t.Fatalf("artifact store KMS key id = %q", alpha.ArtifactStore.KMSKeyID)
+	}
+}
+
+// TestListPipelinesPopulatesMetadataTimestamps proves the adapter maps the
+// GetPipeline PipelineMetadata Created/Updated timestamps onto the scanner-owned
+// Pipeline. Without this the pipeline observation always emits null created and
+// updated, so the regression guards the metadata->scanner wiring.
+func TestListPipelinesPopulatesMetadataTimestamps(t *testing.T) {
+	created := time.Date(2024, time.January, 2, 3, 4, 5, 0, time.UTC)
+	updated := time.Date(2024, time.March, 6, 7, 8, 9, 0, time.UTC)
+	api := &fakeCodePipelineAPI{
+		pipelineNames: []string{"checkout"},
+		pipelines: map[string]cptypes.PipelineDeclaration{
+			"checkout": {
+				Name:    aws.String("checkout"),
+				RoleArn: aws.String("arn:aws:iam::123456789012:role/CodePipelineServiceRole"),
+			},
+		},
+		metadata: map[string]*cptypes.PipelineMetadata{
+			"checkout": {
+				PipelineArn: aws.String("arn:aws:codepipeline:us-east-1:123456789012:checkout"),
+				Created:     aws.Time(created),
+				Updated:     aws.Time(updated),
+			},
+		},
+	}
+	client := newTestClient(api, testKey(t))
+
+	pipelines, err := client.ListPipelines(context.Background())
+	if err != nil {
+		t.Fatalf("ListPipelines() error = %v", err)
+	}
+	if len(pipelines) != 1 {
+		t.Fatalf("pipelines = %d, want 1", len(pipelines))
+	}
+	pipeline := pipelines[0]
+	if !pipeline.Created.Equal(created) {
+		t.Fatalf("pipeline Created = %v, want %v", pipeline.Created, created)
+	}
+	if !pipeline.Updated.Equal(updated) {
+		t.Fatalf("pipeline Updated = %v, want %v", pipeline.Updated, updated)
+	}
+	// Timestamps must be normalized to UTC like the execution timestamps.
+	if loc := pipeline.Created.Location(); loc != time.UTC {
+		t.Fatalf("pipeline Created location = %v, want UTC", loc)
 	}
 }
 

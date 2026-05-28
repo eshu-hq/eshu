@@ -91,9 +91,8 @@ func (c *Client) ListPipelines(ctx context.Context) ([]cpservice.Pipeline, error
 		if output == nil || output.Pipeline == nil {
 			continue
 		}
-		arn := pipelineMetadataARN(output.Metadata)
-		pipeline := mapPipelineDeclaration(output.Pipeline, arn)
-		tags, err := c.listTags(ctx, arn)
+		pipeline := mapPipelineDeclaration(output.Pipeline, output.Metadata)
+		tags, err := c.listTags(ctx, pipeline.ARN)
 		if err != nil {
 			return nil, err
 		}

@@ -28,8 +28,11 @@ type fakeCodePipelineAPI struct {
 	pipelineNames []string
 	// pipelinePages yields one ListPipelines page per slice element, exercising
 	// nextToken continuation.
-	pipelinePages        [][]string
-	pipelines            map[string]cptypes.PipelineDeclaration
+	pipelinePages [][]string
+	pipelines     map[string]cptypes.PipelineDeclaration
+	// metadata yields the GetPipeline PipelineMetadata for a pipeline name,
+	// carrying the canonical ARN plus the Created/Updated timestamps.
+	metadata             map[string]*cptypes.PipelineMetadata
 	executionsByPipeline map[string][]cptypes.PipelineExecutionSummary
 	webhooks             []cptypes.ListWebhookItem
 	actionTypes          []cptypes.ActionType
@@ -80,7 +83,7 @@ func (f *fakeCodePipelineAPI) GetPipeline(
 	if !ok {
 		return &awscodepipeline.GetPipelineOutput{}, nil
 	}
-	return &awscodepipeline.GetPipelineOutput{Pipeline: &decl}, nil
+	return &awscodepipeline.GetPipelineOutput{Pipeline: &decl, Metadata: f.metadata[name]}, nil
 }
 
 func (f *fakeCodePipelineAPI) ListPipelineExecutions(
