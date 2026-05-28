@@ -330,6 +330,41 @@ func TestScannerNeverPersistsCredentialsAcrossFlavors(t *testing.T) {
 	}
 }
 
+// TestBackupRelationshipKeepsARNWhenFileSystemOutOfScope proves the
+// backup->file system edge keeps the file system ARN as target_resource_id when
+// the backup carries the source ARN but the file system is not in the current
+// scan's ARN map (a cross-region/cross-slice backup, or one whose source file
+// system has been deleted). The bare file system ID must not overwrite the ARN,
+// because the file system resource fact's resource_id is the ARN; downgrading to
+// the bare ID would dangle the edge.
+func TestBackupRelationshipKeepsARNWhenFileSystemOutOfScope(t *testing.T) {
+	const crossRegionFSARN = "arn:aws:fsx:us-west-2:123456789012:file-system/fs-elsewhere"
+
+	backup := Backup{
+		ID:            "backup-xregion",
+		ARN:           "arn:aws:fsx:us-east-1:123456789012:backup/backup-xregion",
+		FileSystemID:  "fs-elsewhere",
+		FileSystemARN: crossRegionFSARN,
+	}
+	// The current scan only knows an unrelated, in-region file system, so the
+	// backup's source file system is out of scope.
+	fileSystemARNs := map[string]string{
+		"fs-local": "arn:aws:fsx:us-east-1:123456789012:file-system/fs-local",
+	}
+
+	relationships := backupRelationships(testBoundary(), backup, fileSystemARNs)
+	if got, want := len(relationships), 1; got != want {
+		t.Fatalf("backupRelationships() len = %d, want %d", got, want)
+	}
+	edge := relationships[0]
+	if got, want := edge.TargetResourceID, crossRegionFSARN; got != want {
+		t.Fatalf("backup->file-system target_resource_id = %q, want ARN %q (bare ID must not overwrite the ARN)", got, want)
+	}
+	if got, want := edge.TargetARN, crossRegionFSARN; got != want {
+		t.Fatalf("backup->file-system target_arn = %q, want ARN %q", got, want)
+	}
+}
+
 func TestScannerRejectsMismatchedServiceKind(t *testing.T) {
 	boundary := testBoundary()
 	boundary.ServiceKind = awscloud.ServiceSQS

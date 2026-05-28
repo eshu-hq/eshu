@@ -164,8 +164,13 @@ func volumeRelationships(
 }
 
 // backupRelationships returns the source-file-system edge for one backup. The
-// target is upgraded to the file system ARN when the source file system is
-// known so the edge joins the file system resource fact by ARN.
+// target is upgraded to the file system ARN when the source file system is in
+// this scan's ARN map so the edge joins the file system resource fact by ARN.
+// When the backup reports a source file system ARN but that file system is not
+// in scope (a cross-region/cross-slice backup, or a deleted source file system),
+// the edge keeps the reported ARN as both target_resource_id and target_arn so a
+// later projection can still resolve it by ARN; it is never downgraded to the
+// bare file system ID.
 func backupRelationships(
 	boundary awscloud.Boundary,
 	backup Backup,
@@ -176,14 +181,17 @@ func backupRelationships(
 	if sourceID == "" || fsID == "" {
 		return nil
 	}
+	// targetID starts at the source ARN when the backup reports one (firstNonEmpty
+	// prefers FileSystemARN), so an out-of-scope file system still joins by ARN.
 	targetID := fsID
 	targetARN := strings.TrimSpace(backup.FileSystemARN)
+	// Only upgrade to an in-scope ARN; never downgrade an already-ARN target back
+	// to the bare ID when the source file system is not in this scan's map (e.g.
+	// a cross-region/cross-slice backup or a deleted source file system).
 	if rawID := strings.TrimSpace(backup.FileSystemID); rawID != "" {
-		if upgraded, arn := fileSystemTarget(rawID, fileSystemARNs); upgraded != "" {
-			targetID = upgraded
-			if arn != "" {
-				targetARN = arn
-			}
+		if _, arn := fileSystemTarget(rawID, fileSystemARNs); arn != "" {
+			targetID = arn
+			targetARN = arn
 		}
 	}
 	if isARN(targetID) {
