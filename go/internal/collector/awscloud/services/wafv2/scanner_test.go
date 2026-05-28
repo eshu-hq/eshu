@@ -76,6 +76,97 @@ func TestScannerEmitsWebACLMetadataAndAllRelationshipKinds(t *testing.T) {
 	assertRelationship(t, envelopes, awscloud.RelationshipWAFv2WebACLUsesRegexPatternSet, regexSetARN)
 }
 
+func TestScannerSetsProtectedResourceTargetType(t *testing.T) {
+	const account = "123456789012"
+	cases := []struct {
+		name         string
+		resourceType string
+		targetARN    string
+		wantType     string
+	}{
+		{
+			name:         "alb",
+			resourceType: "APPLICATION_LOAD_BALANCER",
+			targetARN:    "arn:aws:elasticloadbalancing:us-east-1:123456789012:loadbalancer/app/web/1234",
+			wantType:     awscloud.ResourceTypeELBv2LoadBalancer,
+		},
+		{
+			name:         "api_gateway",
+			resourceType: "API_GATEWAY",
+			targetARN:    "arn:aws:apigateway:us-east-1::/restapis/abc123/stages/prod",
+			wantType:     awscloud.ResourceTypeAPIGatewayStage,
+		},
+		{
+			name:         "appsync",
+			resourceType: "APPSYNC",
+			targetARN:    "arn:aws:appsync:us-east-1:123456789012:apis/abcd1234",
+			wantType:     "aws_resource",
+		},
+		{
+			name:         "cognito_user_pool",
+			resourceType: "COGNITO_USER_POOL",
+			targetARN:    "arn:aws:cognito-idp:us-east-1:123456789012:userpool/us-east-1_abc",
+			wantType:     "aws_resource",
+		},
+		{
+			name:         "app_runner",
+			resourceType: "APP_RUNNER_SERVICE",
+			targetARN:    "arn:aws:apprunner:us-east-1:123456789012:service/web/abc",
+			wantType:     "aws_resource",
+		},
+		{
+			name:         "amplify",
+			resourceType: "AMPLIFY",
+			targetARN:    "arn:aws:amplify:us-east-1:123456789012:apps/d123/branches/main",
+			wantType:     "aws_resource",
+		},
+		{
+			name:         "verified_access",
+			resourceType: "VERIFIED_ACCESS_INSTANCE",
+			targetARN:    "arn:aws:ec2:us-east-1:123456789012:verified-access-instance/vai-abc",
+			wantType:     "aws_resource",
+		},
+		{
+			name:         "cloudfront",
+			resourceType: "",
+			targetARN:    "arn:aws:cloudfront::123456789012:distribution/E123",
+			wantType:     awscloud.ResourceTypeCloudFrontDistribution,
+		},
+		{
+			name:         "unknown_arn",
+			resourceType: "SOMETHING_NEW",
+			targetARN:    "arn:aws:mystery:us-east-1:123456789012:thing/abc",
+			wantType:     "aws_resource",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			client := fakeClient{
+				webACLs: []WebACL{{
+					ARN:   "arn:aws:wafv2:us-east-1:" + account + ":regional/webacl/edge/abc",
+					ID:    "abc",
+					Name:  "edge",
+					Scope: "REGIONAL",
+					ProtectedResources: []ProtectedResource{{
+						ARN:          tc.targetARN,
+						ResourceType: tc.resourceType,
+					}},
+				}},
+			}
+
+			envelopes, err := (Scanner{Client: client}).Scan(context.Background(), testBoundary())
+			if err != nil {
+				t.Fatalf("Scan() error = %v, want nil", err)
+			}
+
+			relationship := relationshipByTarget(t, envelopes, awscloud.RelationshipWAFv2WebACLProtectsResource, tc.targetARN)
+			if got, _ := relationship.Payload["target_type"].(string); got != tc.wantType {
+				t.Fatalf("target_type = %q, want %q", got, tc.wantType)
+			}
+		})
+	}
+}
+
 func TestScannerEmitsIPSetCountOnlyNeverAddresses(t *testing.T) {
 	client := fakeClient{
 		ipSets: []IPSet{{
@@ -245,6 +336,13 @@ func resourceByType(t *testing.T, envelopes []facts.Envelope, resourceType strin
 
 func assertRelationship(t *testing.T, envelopes []facts.Envelope, relationshipType, targetID string) {
 	t.Helper()
+	relationshipByTarget(t, envelopes, relationshipType, targetID)
+}
+
+// relationshipByTarget returns the relationship envelope matching the given
+// relationship type and target resource id, failing the test if none exists.
+func relationshipByTarget(t *testing.T, envelopes []facts.Envelope, relationshipType, targetID string) facts.Envelope {
+	t.Helper()
 	for _, envelope := range envelopes {
 		if envelope.FactKind != facts.AWSRelationshipFactKind {
 			continue
@@ -253,10 +351,11 @@ func assertRelationship(t *testing.T, envelopes []facts.Envelope, relationshipTy
 			continue
 		}
 		if got, _ := envelope.Payload["target_resource_id"].(string); got == targetID {
-			return
+			return envelope
 		}
 	}
 	t.Fatalf("missing relationship_type %q target %q in %#v", relationshipType, targetID, envelopes)
+	return facts.Envelope{}
 }
 
 func attributesOf(t *testing.T, envelope facts.Envelope) map[string]any {

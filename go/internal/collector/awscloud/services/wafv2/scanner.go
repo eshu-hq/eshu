@@ -249,6 +249,7 @@ func addProtectedResource(
 		SourceARN:        sourceARN,
 		TargetResourceID: targetARN,
 		TargetARN:        targetARN,
+		TargetType:       protectedResourceTargetType(resource.ResourceType, targetARN),
 		Attributes: map[string]any{
 			"protected_resource_type": strings.TrimSpace(resource.ResourceType),
 		},
@@ -258,6 +259,43 @@ func addProtectedResource(
 	}
 	*envelopes = append(*envelopes, envelope)
 	return nil
+}
+
+// protectedResourceTargetType resolves the Eshu resource type for a web ACL's
+// protected resource so downstream correlation can attach the relationship to a
+// concrete target node. The AWS-reported WAFv2 enum (ListResourcesForWebACL
+// ResourceType, or empty for CloudFront associations) is the primary signal;
+// the ARN service prefix is the fallback when the enum is empty or unknown.
+// Targets without a canonical Eshu constant (Cognito, AppSync, App Runner,
+// Amplify, Verified Access) fall back to the generic "aws_resource" type, which
+// mirrors the ACM scanner so a relationship is still emitted and correlation can
+// resolve the precise node later.
+func protectedResourceTargetType(awsResourceType, targetARN string) string {
+	switch strings.ToUpper(strings.TrimSpace(awsResourceType)) {
+	case "APPLICATION_LOAD_BALANCER":
+		return awscloud.ResourceTypeELBv2LoadBalancer
+	case "API_GATEWAY":
+		return awscloud.ResourceTypeAPIGatewayStage
+	}
+	return targetTypeForProtectedARN(targetARN)
+}
+
+// targetTypeForProtectedARN maps a protected-resource ARN service prefix to an
+// Eshu resource type constant. It is the fallback path when the WAFv2 enum is
+// empty (CloudFront associations) or names a service Eshu does not yet have a
+// canonical constant for. Unknown services resolve to the generic
+// "aws_resource" type.
+func targetTypeForProtectedARN(arn string) string {
+	switch {
+	case strings.Contains(arn, ":elasticloadbalancing:"):
+		return awscloud.ResourceTypeELBv2LoadBalancer
+	case strings.Contains(arn, ":cloudfront:"):
+		return awscloud.ResourceTypeCloudFrontDistribution
+	case strings.Contains(arn, ":apigateway:"):
+		return awscloud.ResourceTypeAPIGatewayStage
+	default:
+		return "aws_resource"
+	}
 }
 
 func ruleGroupObservation(boundary awscloud.Boundary, ruleGroup RuleGroup) awscloud.ResourceObservation {
