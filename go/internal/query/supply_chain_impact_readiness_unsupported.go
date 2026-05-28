@@ -37,6 +37,11 @@ const (
 	// could not fully parse — `unsupported_field`, `malformed_document`, or
 	// equivalent SBOM warnings tied to the requested subject digest.
 	UnsupportedTargetKindSBOMTarget = "sbom_target"
+	// UnsupportedTargetKindPackageRegistryMetadata marks package registry
+	// metadata Eshu observed but did not parse because the source document
+	// exceeded the configured byte limit. The package exists, but version and
+	// vulnerability matching evidence remains unsupported for this source.
+	UnsupportedTargetKindPackageRegistryMetadata = "package_registry_metadata"
 	// UnsupportedTargetKindImageTarget marks a container image target Eshu
 	// observed but cannot analyze with the current scanner-worker matrix.
 	UnsupportedTargetKindImageTarget = "image_target"
@@ -52,10 +57,11 @@ const MissingEvidenceUnsupportedTargets = "unsupported_targets"
 // the envelope is allowed to surface. Unknown values are dropped to prevent
 // silent contract drift between Postgres CTE literals and the Go classifier.
 var allowedUnsupportedTargetKinds = map[string]struct{}{
-	UnsupportedTargetKindEcosystem:          {},
-	UnsupportedTargetKindPackageManagerFile: {},
-	UnsupportedTargetKindSBOMTarget:         {},
-	UnsupportedTargetKindImageTarget:        {},
+	UnsupportedTargetKindEcosystem:               {},
+	UnsupportedTargetKindPackageManagerFile:      {},
+	UnsupportedTargetKindSBOMTarget:              {},
+	UnsupportedTargetKindPackageRegistryMetadata: {},
+	UnsupportedTargetKindImageTarget:             {},
 }
 
 // normalizeUnsupportedTargets trims, drops empty/unknown entries, merges

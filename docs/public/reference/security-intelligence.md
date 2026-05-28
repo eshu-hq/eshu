@@ -394,11 +394,14 @@ reducer-fact counts so the answer never invents findings:
   cannot see contradictory "ready" + "missing" signals.
 - `unsupported_targets[]` is bounded coverage-gap evidence: each entry names
   the unsupported `target_kind` (`ecosystem`, `package_manager_file`,
-  `sbom_target`, or `image_target`), a stable `reason` code, and a `count`
-  for the bounded scope. Optional `ecosystem`, `lockfile_flavor`, and
-  `feature_token` fields explain why the matcher cannot resolve the target.
-  The list is surfaced whenever Eshu observes such evidence — additively
-  when findings exist, or as the dominant signal alongside
+  `sbom_target`, `package_registry_metadata`, or `image_target`), a stable
+  `reason` code, and a `count` for the bounded scope. Optional `ecosystem`,
+  `lockfile_flavor`, and `feature_token` fields explain why the matcher cannot
+  resolve the target. `package_registry_metadata` with
+  `reason=metadata_too_large` means package-registry metadata exceeded the
+  configured byte cap and was recorded as source coverage-gap evidence instead
+  of being retried. The list is surfaced whenever Eshu observes such evidence
+  — additively when findings exist, or as the dominant signal alongside
   `readiness_state=unsupported` when no finding could be admitted.
 - `incomplete_reasons[]` carries collector-emitted reasons explaining why
   source collection is still in flight; only populated when
@@ -448,8 +451,12 @@ The current implementation proves the following:
   `target_kind=package_manager_file` rows with the offending feature token;
   `sbom.warning` facts whose `reason` is `unsupported_field` or
   `malformed_document` join through the SBOM document subject digest and
-  become `target_kind=sbom_target` rows. `image_target` is reserved for
-  future image-analyzer evidence. `unsupported` outranks
+  become `target_kind=sbom_target` rows; `package_registry.warning` facts with
+  `warning_code=metadata_too_large` become
+  `target_kind=package_registry_metadata` rows for package-anchored scopes, or
+  repository scopes with an existing package-consumption correlation.
+  `image_target` is reserved for future image-analyzer evidence. `unsupported`
+  outranks
   `evidence_incomplete` so callers can tell "we observed something we
   cannot match" from "we never collected this." When findings exist, the
   state stays `ready_with_findings` and `unsupported_targets[]` is surfaced

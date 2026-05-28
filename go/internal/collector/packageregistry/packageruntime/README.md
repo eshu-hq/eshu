@@ -90,6 +90,11 @@ must stay out of metrics.
   run. The runtime completes the claim with a `package_registry.warning` fact
   using `warning_code=metadata_not_found`. Explicitly configured targets keep
   their existing `registry_not_found` failure behavior.
+- A metadata document larger than the configured 20 MiB response cap is a
+  deterministic coverage gap, not a retryable provider outage. The runtime
+  completes the claim with a `package_registry.warning` fact using
+  `warning_code=metadata_too_large`, preserving package identity as bounded
+  source-state evidence for readiness without raising the cap.
 
 ## Evidence
 
@@ -108,6 +113,10 @@ No-Regression Evidence: `go test ./internal/collector/packageregistry/packagerun
 No-Regression Evidence: `go test ./internal/collector/packageregistry/packageruntime -run 'TestClaimedSourceCompletesDerivedNotFoundAsWarning|TestClaimedSourceKeepsConfiguredNotFoundAsError' -count=1` proves derived npm registry 404s complete as warning evidence while explicitly configured targets still surface `registry_not_found` as a collector failure.
 
 No-Observability-Change: derived npm targets use the existing package-registry observe duration, request status-class, facts-emitted, rate-limit, generation-lag, parse-failure, health, readiness, metrics, and admin-status signals. No new metric labels were added, and package names, versions, metadata URLs, and credential material stay out of labels.
+
+No-Regression Evidence: `go test ./internal/collector/packageregistry/packageruntime -run 'TestHTTPMetadataProviderClassifiesOversizedMetadataAsTerminalSourceState|TestClaimedSourceCompletesMetadataTooLargeAsCoverageGapWarning|TestClaimedServiceCompletesMetadataTooLargeWithoutRetry' -count=1` proves a response over the configured metadata byte limit is classified as deterministic, converted into `package_registry.warning` evidence, and completed by `collector.ClaimedService` without `FailClaimRetryable` or retry-budget terminal failure.
+
+Observability Evidence: oversized package metadata records `status_class=metadata_too_large` on the existing package-registry request/observe metrics and emits a durable `package_registry.warning` fact with `warning_code=metadata_too_large`. No new metric labels were added, and package names, metadata URLs, versions, and credential material stay out of metric labels and warning messages.
 
 ## Related Docs
 

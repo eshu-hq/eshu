@@ -14,6 +14,7 @@ COLLECTOR_SERVICES="${ESHU_REMOTE_E2E_COLLECTOR_SERVICES:-collector-terraform-st
 EXTRA_SERVICES="${ESHU_REMOTE_E2E_EXTRA_SERVICES:-}"
 CORPUS_MODE="${ESHU_REMOTE_E2E_CORPUS_MODE:-smoke}"
 ADVISORY_EVIDENCE_CVE_ID="${ESHU_REMOTE_E2E_ADVISORY_EVIDENCE_CVE_ID:-${ESHU_VULNERABILITY_E2E_CVE_ID:-CVE-2021-44228}}"
+PACKAGE_REGISTRY_GAP_PACKAGE_ID="${ESHU_REMOTE_E2E_PACKAGE_REGISTRY_GAP_PACKAGE_ID:-}"
 TMP_DIR="$(mktemp -d)"
 INDEX_STATUS_FILE="${TMP_DIR}/index-status.json"
 COMPOSE_CMD=()
@@ -239,6 +240,29 @@ verify_aggregate_counts() {
 		"${image_count}"
 }
 
+verify_package_registry_metadata_gap() {
+	if [[ -z "${PACKAGE_REGISTRY_GAP_PACKAGE_ID}" ]]; then
+		return 0
+	fi
+
+	echo "Checking package-registry expected coverage gap..."
+
+	local gap_file="${TMP_DIR}/package-registry-metadata-gap.json"
+	api_get "/supply-chain/impact/findings?package_id=${PACKAGE_REGISTRY_GAP_PACKAGE_ID}&limit=1" "${gap_file}"
+
+	local gap_count
+	gap_count="$(jq -r '
+		[
+			.readiness.unsupported_targets[]?
+			| select(.target_kind == "package_registry_metadata" and .reason == "metadata_too_large")
+			| (.count // 1)
+		] | add // 0
+	' "${gap_file}")"
+	require_min_count package_registry_metadata_too_large_gaps "${gap_count}" 1
+	printf 'remote E2E package-registry expected gap proof: package_registry_metadata_too_large_gaps=%s\n' \
+		"${gap_count}"
+}
+
 verify_workflow_completion() {
 	echo "Checking workflow coordinator completion..."
 	if jq -e '
@@ -281,6 +305,7 @@ main() {
 	verify_queue_completion
 	verify_workflow_completion
 	verify_aggregate_counts
+	verify_package_registry_metadata_gap
 }
 
 main "$@"
