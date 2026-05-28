@@ -34,6 +34,11 @@ Observability Evidence: `TestClaimedSourceEmitsRepositoryAlertFactsOnly` proves
 the runtime emits repository-alert source facts with redacted source URLs, while
 `TestClaimedSourceReturnsBoundedFailureWithoutRepositoryOrToken` proves provider
 failures do not expose tokens or repository names.
+`TestClaimedSourceMarksProviderCoverageIncompleteWhenOpenAlertPagesAreTruncated`
+proves a capped open-alert provider read marks emitted facts with
+`source_freshness=partial`, `collection_coverage_state=incomplete`, the open
+state filter, bounded pages fetched, and the incomplete reason instead of
+looking complete.
 
 No-Regression Evidence: security-alert refreshes include a stable freshness
 digest over the bounded Dependabot alert snapshot, provider pagination status,
@@ -48,6 +53,7 @@ state changes still create a new freshness boundary.
 
 Observability Evidence: this change reuses the existing collector commit
 telemetry for skipped refreshes (`refresh_skipped=true` logs and
-`RecordSkippedRefresh`) and does not add new metric labels. The digest value is
-not emitted as a label, so alert, repository, package, and URL values remain out
-of metrics.
+`RecordSkippedRefresh`) and the security-alert API/MCP `source_freshness` and
+coverage summaries for partial provider reads. It does not add new metric
+labels. The digest value is not emitted as a label, so alert, repository,
+package, and URL values remain out of metrics.

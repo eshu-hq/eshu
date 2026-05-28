@@ -83,6 +83,7 @@ func (h *SupplyChainHandler) listSecurityAlertReconciliations(w http.ResponseWri
 	body := map[string]any{
 		"reconciliations": results,
 		"count":           len(results),
+		"coverage":        securityAlertCoverageForRows(results),
 		"limit":           limit,
 		"truncated":       truncated,
 	}

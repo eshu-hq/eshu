@@ -62,6 +62,9 @@ the provider alert.
   cursor links and never sends a legacy `page` query parameter; cross-host next
   links are ignored so bearer tokens are not forwarded outside the configured
   provider host.
+- The GitHub Dependabot repository-alert client requests the provider's
+  `state=open` view so newer fixed alerts in default provider ordering cannot
+  hide older open alerts inside the bounded `max_pages` contract.
 - Provider alerts are never emitted as `reducer_supply_chain_impact_finding`
   facts. Reducers reconcile provider state with Eshu-owned evidence.
 
@@ -73,11 +76,13 @@ request totals, provider fetch duration, provider rate-limit counts,
 repository-alert fact counts, `security_alert.observe`, and
 `security_alert.fetch`.
 
-Collector Performance Evidence: request work is bounded by explicit
-repository allowlists, `RepositoryAlertLimit`, and runtime `max_pages`. The
-focused `go test ./internal/collector/securityalerts -run TestGitHubDependabot -count=1`
-proof covers cursor pagination, request guards, cross-host next-link rejection,
-rate-limit metadata, and redaction.
+Collector Performance Evidence: request work is bounded by explicit repository
+allowlists, `RepositoryAlertLimit`, the provider `state=open` filter, and
+runtime `max_pages`. The focused
+`go test ./internal/collector/securityalerts -run TestGitHubDependabot -count=1`
+proof covers open-alert filtering when fixed alerts precede older open alerts,
+cursor pagination, request guards, cross-host next-link rejection, rate-limit
+metadata, and redaction.
 
 Collector Observability Evidence: the hosted runtime exposes the shared
 `/healthz`, `/readyz`, `/metrics`, and `/admin/status` surface through

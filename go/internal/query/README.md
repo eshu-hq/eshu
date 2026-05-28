@@ -110,7 +110,8 @@ canonical graph or reducer truth.
   port by reading exactly one active reducer impact finding and its referenced
   evidence facts (`supply_chain_impact_explain_postgres.go`)
 - `SecurityAlertReconciliationStore` — port for reducer-owned provider alert
-  comparison rows (`security_alert_reconciliation.go`)
+  comparison rows, including partial provider-source freshness from capped
+  open-alert collection (`security_alert_reconciliation.go`)
 - `PostgresSecurityAlertReconciliationStore` — Postgres-backed security alert
   reconciliation read model for bounded API/MCP reads; default pages select one
   current row per provider alert identity before state/status filters and

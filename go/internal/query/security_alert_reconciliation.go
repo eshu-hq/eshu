@@ -41,31 +41,36 @@ type SecurityAlertReconciliationFilter struct {
 // ProviderSecurityAlertRow is the provider-reported alert state preserved by
 // the reconciliation read model.
 type ProviderSecurityAlertRow struct {
-	Provider            string              `json:"provider,omitempty"`
-	ProviderAlertID     string              `json:"provider_alert_id,omitempty"`
-	ProviderAlertNumber int64               `json:"provider_alert_number,omitempty"`
-	ProviderState       string              `json:"provider_state,omitempty"`
-	RepositoryID        string              `json:"repository_id,omitempty"`
-	PackageID           string              `json:"package_id,omitempty"`
-	Ecosystem           string              `json:"ecosystem,omitempty"`
-	PackageName         string              `json:"package_name,omitempty"`
-	ManifestPath        string              `json:"manifest_path,omitempty"`
-	DependencyScope     string              `json:"dependency_scope,omitempty"`
-	Relationship        string              `json:"relationship,omitempty"`
-	GHSAIDs             []string            `json:"ghsa_ids,omitempty"`
-	CVEIDs              []string            `json:"cve_ids,omitempty"`
-	VulnerableRange     string              `json:"vulnerable_range,omitempty"`
-	PatchedVersion      string              `json:"patched_version,omitempty"`
-	Severity            string              `json:"severity,omitempty"`
-	CVSS                map[string]any      `json:"cvss,omitempty"`
-	EPSS                map[string]string   `json:"epss,omitempty"`
-	CWEs                []map[string]string `json:"cwes,omitempty"`
-	Summary             string              `json:"summary,omitempty"`
-	SourceURL           string              `json:"source_url,omitempty"`
-	CreatedAt           string              `json:"created_at,omitempty"`
-	UpdatedAt           string              `json:"updated_at,omitempty"`
-	FixedAt             string              `json:"fixed_at,omitempty"`
-	DismissedAt         string              `json:"dismissed_at,omitempty"`
+	Provider                    string              `json:"provider,omitempty"`
+	ProviderAlertID             string              `json:"provider_alert_id,omitempty"`
+	ProviderAlertNumber         int64               `json:"provider_alert_number,omitempty"`
+	ProviderState               string              `json:"provider_state,omitempty"`
+	RepositoryID                string              `json:"repository_id,omitempty"`
+	PackageID                   string              `json:"package_id,omitempty"`
+	Ecosystem                   string              `json:"ecosystem,omitempty"`
+	PackageName                 string              `json:"package_name,omitempty"`
+	ManifestPath                string              `json:"manifest_path,omitempty"`
+	DependencyScope             string              `json:"dependency_scope,omitempty"`
+	Relationship                string              `json:"relationship,omitempty"`
+	GHSAIDs                     []string            `json:"ghsa_ids,omitempty"`
+	CVEIDs                      []string            `json:"cve_ids,omitempty"`
+	VulnerableRange             string              `json:"vulnerable_range,omitempty"`
+	PatchedVersion              string              `json:"patched_version,omitempty"`
+	Severity                    string              `json:"severity,omitempty"`
+	CVSS                        map[string]any      `json:"cvss,omitempty"`
+	EPSS                        map[string]string   `json:"epss,omitempty"`
+	CWEs                        []map[string]string `json:"cwes,omitempty"`
+	Summary                     string              `json:"summary,omitempty"`
+	SourceURL                   string              `json:"source_url,omitempty"`
+	CreatedAt                   string              `json:"created_at,omitempty"`
+	UpdatedAt                   string              `json:"updated_at,omitempty"`
+	FixedAt                     string              `json:"fixed_at,omitempty"`
+	DismissedAt                 string              `json:"dismissed_at,omitempty"`
+	CollectionCoverageState     string              `json:"collection_coverage_state,omitempty"`
+	CollectionTruncated         bool                `json:"collection_truncated,omitempty"`
+	CollectionPagesFetched      int64               `json:"collection_pages_fetched,omitempty"`
+	CollectionStateFilter       string              `json:"collection_state_filter,omitempty"`
+	CollectionIncompleteReasons []string            `json:"collection_incomplete_reasons,omitempty"`
 }
 
 // SecurityAlertEshuImpactRow carries Eshu-owned impact state matched to a
@@ -259,6 +264,14 @@ func decodeSecurityAlertReconciliationRow(
 			UpdatedAt:           StringVal(payload, "updated_at"),
 			FixedAt:             StringVal(payload, "fixed_at"),
 			DismissedAt:         StringVal(payload, "dismissed_at"),
+			CollectionCoverageState: StringVal(
+				payload,
+				"collection_coverage_state",
+			),
+			CollectionTruncated:         BoolVal(payload, "collection_truncated"),
+			CollectionPagesFetched:      int64(floatVal(payload, "collection_pages_fetched")),
+			CollectionStateFilter:       StringVal(payload, "collection_state_filter"),
+			CollectionIncompleteReasons: StringSliceVal(payload, "collection_incomplete_reasons"),
 		},
 		EshuImpact: SecurityAlertEshuImpactRow{
 			ImpactStatus: StringVal(payload, "eshu_impact_status"),
@@ -267,9 +280,19 @@ func decodeSecurityAlertReconciliationRow(
 		ReconciliationStatus: StringVal(payload, "reconciliation_status"),
 		Reason:               StringVal(payload, "reason"),
 		EvidenceFactIDs:      StringSliceVal(payload, "evidence_fact_ids"),
-		SourceFreshness:      "active",
+		SourceFreshness:      securityAlertSourceFreshness(payload),
 		SourceConfidence:     sourceConfidence,
 	}, nil
+}
+
+func securityAlertSourceFreshness(payload map[string]any) string {
+	if freshness := StringVal(payload, "source_freshness"); freshness != "" {
+		return freshness
+	}
+	if StringVal(payload, "collection_coverage_state") == "incomplete" {
+		return "partial"
+	}
+	return "active"
 }
 
 func mapVal(payload map[string]any, key string) map[string]any {

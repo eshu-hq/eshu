@@ -36,44 +36,50 @@ const (
 // SecurityAlertReconciliationDecision is one reducer-owned comparison between
 // a provider-reported repository alert and Eshu-owned evidence.
 type SecurityAlertReconciliationDecision struct {
-	ProviderAlertFactID       string
-	ProviderAlertScopeID      string
-	ProviderAlertGenerationID string
-	Provider                  string
-	ProviderAlertID           string
-	ProviderAlertNumber       int64
-	ProviderState             string
-	RepositoryID              string
-	ProviderRepositoryID      string
-	RepositoryName            string
-	PackageID                 string
-	Ecosystem                 string
-	PackageName               string
-	ManifestPath              string
-	DependencyScope           string
-	Relationship              string
-	GHSAIDs                   []string
-	CVEIDs                    []string
-	VulnerableRange           string
-	PatchedVersion            string
-	Severity                  string
-	CVSS                      map[string]any
-	EPSS                      map[string]string
-	CWEs                      []map[string]string
-	Summary                   string
-	SourceURL                 string
-	CreatedAt                 string
-	UpdatedAt                 string
-	FixedAt                   string
-	DismissedAt               string
-	Status                    SecurityAlertReconciliationStatus
-	EshuImpactStatus          string
-	EshuImpactFindingID       string
-	Reason                    string
-	CanonicalWrites           int
-	EvidenceFactIDs           []string
-	DependencyEvidenceID      string
-	ImpactEvidenceID          string
+	ProviderAlertFactID         string
+	ProviderAlertScopeID        string
+	ProviderAlertGenerationID   string
+	Provider                    string
+	ProviderAlertID             string
+	ProviderAlertNumber         int64
+	ProviderState               string
+	RepositoryID                string
+	ProviderRepositoryID        string
+	RepositoryName              string
+	PackageID                   string
+	Ecosystem                   string
+	PackageName                 string
+	ManifestPath                string
+	DependencyScope             string
+	Relationship                string
+	GHSAIDs                     []string
+	CVEIDs                      []string
+	VulnerableRange             string
+	PatchedVersion              string
+	Severity                    string
+	CVSS                        map[string]any
+	EPSS                        map[string]string
+	CWEs                        []map[string]string
+	Summary                     string
+	SourceURL                   string
+	CreatedAt                   string
+	UpdatedAt                   string
+	FixedAt                     string
+	DismissedAt                 string
+	SourceFreshness             string
+	CollectionCoverageState     string
+	CollectionTruncated         bool
+	CollectionPagesFetched      int64
+	CollectionStateFilter       string
+	CollectionIncompleteReasons []string
+	Status                      SecurityAlertReconciliationStatus
+	EshuImpactStatus            string
+	EshuImpactFindingID         string
+	Reason                      string
+	CanonicalWrites             int
+	EvidenceFactIDs             []string
+	DependencyEvidenceID        string
+	ImpactEvidenceID            string
 }
 
 type providerSecurityAlert struct {
@@ -171,6 +177,19 @@ func extractProviderSecurityAlerts(envelopes []facts.Envelope) []providerSecurit
 				UpdatedAt:       updatedAt,
 				FixedAt:         payloadStr(envelope.Payload, "fixed_at"),
 				DismissedAt:     payloadStr(envelope.Payload, "dismissed_at"),
+				SourceFreshness: securityAlertSourceFreshness(envelope.Payload),
+				CollectionCoverageState: payloadStr(
+					envelope.Payload,
+					"collection_coverage_state",
+				),
+				CollectionTruncated:    payloadBool(envelope.Payload, "collection_truncated"),
+				CollectionPagesFetched: securityAlertInt64(envelope.Payload, "collection_pages_fetched"),
+				CollectionStateFilter:  payloadStr(envelope.Payload, "collection_state_filter"),
+				CollectionIncompleteReasons: payloadStrings(
+					envelope.Payload,
+					"",
+					"collection_incomplete_reasons",
+				),
 				CanonicalWrites: 0,
 				EvidenceFactIDs: compactStringSlice(envelope.FactID),
 			},
@@ -178,6 +197,16 @@ func extractProviderSecurityAlerts(envelopes []facts.Envelope) []providerSecurit
 		})
 	}
 	return alerts
+}
+
+func securityAlertSourceFreshness(payload map[string]any) string {
+	if freshness := payloadStr(payload, "source_freshness"); freshness != "" {
+		return freshness
+	}
+	if payloadStr(payload, "collection_coverage_state") == "incomplete" {
+		return "partial"
+	}
+	return "active"
 }
 
 func extractSecurityAlertConsumptions(envelopes []facts.Envelope) []securityAlertConsumption {

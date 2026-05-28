@@ -9,7 +9,7 @@ func securityAlertReconciliationAggregateTools() []ToolDefinition {
 	return []ToolDefinition{
 		{
 			Name:        "count_security_alert_reconciliations",
-			Description: "Return reducer-owned provider security alert reconciliation totals for one optional scope without paging through individual reconciliation rows. Provides total reconciliations and rollups by reconciliation_status, provider, and provider_state. Use before list_security_alert_reconciliations when the question is a count, not a list.",
+			Description: "Return reducer-owned provider security alert reconciliation totals for one optional scope without paging through individual reconciliation rows. Provides total reconciliations, rollups by reconciliation_status, provider, provider_state, source_freshness, and provider-source coverage. Use before list_security_alert_reconciliations when the question is a count, not a list.",
 			InputSchema: map[string]any{
 				"type": "object",
 				"properties": map[string]any{

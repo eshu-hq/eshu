@@ -264,7 +264,9 @@ behind explicit credentials and repository allowlists. Targets name a
 target's `allowed_repositories` list before the runtime issues an HTTP request.
 Any `api_base_url` override must use HTTPS because the runtime sends the bearer
 token to that endpoint. Collection is bounded by `repository_alert_limit` and
-`max_pages`, and provider rate-limit responses are surfaced as retryable
+`max_pages`, requests GitHub's open-alert view directly, and surfaces
+`source_freshness=partial` plus a coverage summary when the open-alert provider
+page cap is reached. Provider rate-limit responses are surfaced as retryable
 workflow failures.
 
 `security_alert.repository_alert` facts preserve repository-scoped provider
@@ -284,6 +286,9 @@ with provider state and Eshu impact state as separate fields:
 Provider alert reconciliation reads require a repository, provider, package,
 CVE, or GHSA anchor. Provider state and reconciliation status only filter an
 anchored page; they are not standalone scopes.
+List and count responses include a `coverage` object. `state=target_incomplete`
+means at least one returned or counted reconciliation came from a truncated
+open-alert provider read, so callers must not treat the count as complete.
 
 Eshu should match provider alert counts when it has equivalent owned target
 evidence and advisory data. Eshu may exceed provider alert output when it can
@@ -291,6 +296,23 @@ add code-to-cloud context, image/runtime impact, or additional advisory sources.
 Any mismatch must classify whether the cause is missing target collection,
 missing advisory ingestion, version-range matching, unsupported ecosystem,
 provider-only behavior, or an Eshu reducer bug.
+
+No-Regression Evidence: `go test ./internal/collector/securityalerts ./internal/collector/securityalerts/alertruntime -count=1`
+proves the provider client requests the `state=open` view, preserves cursor
+pagination bounds, and marks truncated open-alert reads as partial source
+freshness. `go test ./internal/reducer -run
+'TestBuildSecurityAlertReconciliations|TestSecurityAlertReconciliationWriterUsesProviderAlertScopeForPackageTriggeredRepair'
+-count=1` proves source freshness and collection coverage survive reducer
+reconciliation payload publication. `go test ./internal/query -run
+'TestSupplyChainListSecurityAlertReconciliations|TestDecodeSecurityAlertReconciliationRowPreservesProviderCoverage|TestSecurityAlertReconciliationAggregate'
+-count=1` proves API/MCP-backed list and count responses expose partial
+coverage without unbounded page reads.
+
+No-Observability-Change: the fix reuses existing security-alert provider
+request counters, fact-emitted counters, fetch-duration histograms,
+`security_alert.observe`, `security_alert.fetch`, and the API/MCP response
+envelope. No repository name, package name, alert URL, token environment name,
+or token value is added to metric labels, status errors, or public docs.
 
 Validation logs may record aggregate counts and mismatch classes. They must not
 commit private repository names, package names, alert URLs, or copied provider

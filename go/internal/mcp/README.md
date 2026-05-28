@@ -161,7 +161,9 @@ Provider security alert reconciliation stays transport-only as well. MCP maps
 repository ids or human repository selectors, provider, package, CVE, or GHSA
 anchors plus optional state/status filters to the HTTP read model and preserves
 the response shape that keeps provider alert state separate from Eshu-owned
-impact state.
+impact state. Count and list
+responses include the same provider-source coverage summary as HTTP, so a
+truncated open-alert provider read is visible as `target_incomplete`.
 
 IaC management tools also keep MCP as transport only. The HTTP query layer adds
 `safety_gate`, `safety_summary`, import-plan candidate shaping, and

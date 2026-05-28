@@ -96,6 +96,10 @@ func TestSecurityAlertReconciliationAggregateCountReturnsRollups(t *testing.T) {
 				"fixed":     2,
 				"dismissed": 1,
 			},
+			BySourceFreshness: map[string]int{
+				"active":  10,
+				"partial": 2,
+			},
 		},
 	}
 	handler := &SupplyChainHandler{SecurityAlertAggregates: store}
@@ -120,7 +124,13 @@ func TestSecurityAlertReconciliationAggregateCountReturnsRollups(t *testing.T) {
 		ByReconciliationStatus map[string]int `json:"by_reconciliation_status"`
 		ByProvider             map[string]int `json:"by_provider"`
 		ByProviderState        map[string]int `json:"by_provider_state"`
-		Scope                  map[string]any `json:"scope"`
+		BySourceFreshness      map[string]int `json:"by_source_freshness"`
+		Coverage               struct {
+			State          string `json:"state"`
+			PartialRows    int    `json:"partial_rows"`
+			RowsConsidered int    `json:"rows_considered"`
+		} `json:"coverage"`
+		Scope map[string]any `json:"scope"`
 	}
 	if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
 		t.Fatalf("decode: %v; body = %s", err, w.Body.String())
@@ -136,6 +146,18 @@ func TestSecurityAlertReconciliationAggregateCountReturnsRollups(t *testing.T) {
 	}
 	if body.ByProviderState["open"] != 9 {
 		t.Fatalf("by_provider_state[open] = %d, want 9", body.ByProviderState["open"])
+	}
+	if body.BySourceFreshness["partial"] != 2 {
+		t.Fatalf("by_source_freshness[partial] = %d, want 2", body.BySourceFreshness["partial"])
+	}
+	if got, want := body.Coverage.State, "target_incomplete"; got != want {
+		t.Fatalf("coverage.state = %q, want %q", got, want)
+	}
+	if got, want := body.Coverage.PartialRows, 2; got != want {
+		t.Fatalf("coverage.partial_rows = %d, want %d", got, want)
+	}
+	if got, want := body.Coverage.RowsConsidered, 12; got != want {
+		t.Fatalf("coverage.rows_considered = %d, want %d", got, want)
 	}
 	if body.Scope["repository_id"] != "repo-A" {
 		t.Fatalf("scope.repository_id = %v, want repo-A", body.Scope["repository_id"])
