@@ -65,8 +65,15 @@ adapter calls. It does NOT expose:
 - `PutBackupVaultAccessPolicy`, `GetBackupVaultAccessPolicy`.
 - `GetRecoveryPointRestoreMetadata`.
 
-`client_test.go` keeps counters on every forbidden API and asserts that the
-adapter never calls them during a full happy-path scan.
+The guarantee is enforced at compile time, not by call counters. `Client.client`
+is typed as `apiClient`, and `client.go` pins
+`var _ apiClient = (*awsbackup.Client)(nil)`, so the real SDK client is reached
+only through this narrow surface. Wiring up any forbidden API would fail to
+compile. `client_test.go::TestAPIClientInterfaceExcludesMutationAndUnsafeReadAPIs`
+reflects over the interface and fails if it ever lists a method outside the
+allowed metadata reads or one whose name carries a mutation/unsafe-read verb,
+and `contract_test.go::TestClientInterfaceExcludesMutationAndUnsafeReadAPIs`
+applies the same shape guard to the package-level `Client` interface.
 
 ## Related docs
 

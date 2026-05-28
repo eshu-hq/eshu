@@ -58,9 +58,12 @@ func TestClientListBackupVaultsProjectsMetadataAndExcludesAccessPolicy(t *testin
 	if vaults[0].MinRetentionDays == nil || *vaults[0].MinRetentionDays != 30 {
 		t.Fatalf("MinRetentionDays = %v, want 30", vaults[0].MinRetentionDays)
 	}
-	if fake.getBackupVaultAccessPolicyCalls != 0 {
-		t.Fatalf("GetBackupVaultAccessPolicy was called %d times; adapter must never call it",
-			fake.getBackupVaultAccessPolicyCalls)
+	// The projected vault must not carry an access policy body. The adapter
+	// cannot call GetBackupVaultAccessPolicy at all (it is absent from the
+	// apiClient interface, enforced at compile time), so the policy body never
+	// enters the metadata.
+	if vaults[0].HasAccessPolicy {
+		t.Fatalf("vault HasAccessPolicy = true; adapter must not read vault access policy bodies")
 	}
 }
 
@@ -160,13 +163,12 @@ func TestClientListRecoveryPointsExcludesRestoreMetadata(t *testing.T) {
 	if rp.BackupSizeInBytes == nil || *rp.BackupSizeInBytes != 2048 {
 		t.Fatalf("BackupSizeInBytes = %v, want 2048", rp.BackupSizeInBytes)
 	}
-	if fake.getRecoveryPointRestoreMetadataCalls != 0 {
-		t.Fatalf("GetRecoveryPointRestoreMetadata called %d times; adapter must never read restore metadata",
-			fake.getRecoveryPointRestoreMetadataCalls)
-	}
-	if fake.deleteRecoveryPointCalls != 0 {
-		t.Fatalf("DeleteRecoveryPoint called %d times; adapter must never delete recovery points",
-			fake.deleteRecoveryPointCalls)
+	// Only safe identity and timing metadata is projected. The adapter cannot
+	// call GetRecoveryPointRestoreMetadata or DeleteRecoveryPoint at all (both
+	// are absent from the apiClient interface, enforced at compile time), so
+	// restore-metadata values can never enter this record.
+	if got, want := rp.CalculatedDeleteAt, time.Date(2026, 11, 20, 0, 0, 0, 0, time.UTC); !got.Equal(want) {
+		t.Fatalf("CalculatedDeleteAt = %v, want %v", got, want)
 	}
 }
 
@@ -234,7 +236,62 @@ func TestClientListFrameworksProjectsControlSummaryWithoutInputParameters(t *tes
 	}
 }
 
-func TestClientNoMutationOrUnsafeReadAPIsCalled(t *testing.T) {
+// TestAPIClientInterfaceExcludesMutationAndUnsafeReadAPIs asserts the SDK-facing
+// apiClient surface exposes only the metadata reads the adapter is allowed to
+// call. apiClient is the single seam between scanner code and the AWS SDK
+// client (Client.client is typed as apiClient, and client.go pins
+// var _ apiClient = (*awsbackup.Client)(nil)), so any SDK method the adapter
+// could call must appear here. A regression that added a mutation or unsafe
+// read would either fail to compile against this interface or trip this shape
+// assertion, which is a real guard rather than a counter that can never
+// increment.
+func TestAPIClientInterfaceExcludesMutationAndUnsafeReadAPIs(t *testing.T) {
+	ifaceType := reflect.TypeOf((*apiClient)(nil)).Elem()
+	want := map[string]bool{
+		"ListBackupVaults":                true,
+		"DescribeBackupVault":             true,
+		"ListBackupPlans":                 true,
+		"GetBackupPlan":                   true,
+		"ListBackupSelections":            true,
+		"GetBackupSelection":              true,
+		"ListRecoveryPointsByBackupVault": true,
+		"ListReportPlans":                 true,
+		"ListRestoreTestingPlans":         true,
+		"ListFrameworks":                  true,
+		"DescribeFramework":               true,
+	}
+	have := map[string]bool{}
+	for i := 0; i < ifaceType.NumMethod(); i++ {
+		have[ifaceType.Method(i).Name] = true
+	}
+	for name := range want {
+		if !have[name] {
+			t.Errorf("apiClient missing required metadata-read method %q", name)
+		}
+	}
+	for name := range have {
+		if !want[name] {
+			t.Errorf("apiClient exposes unexpected method %q; metadata-only contract violated", name)
+		}
+	}
+
+	// Defensive check: no method on the SDK seam may name a forbidden mutation,
+	// job-start, or unsafe-read API. Mirrors the issue #752 acceptance language
+	// and the package-level Client interface guard in contract_test.go.
+	forbiddenSubstrings := []string{
+		"Create", "Update", "Delete", "Put", "Start", "Copy",
+		"AccessPolicy", "RecoveryPointRestoreMetadata", "LegalHold",
+	}
+	for name := range have {
+		for _, forbidden := range forbiddenSubstrings {
+			if strings.Contains(name, forbidden) {
+				t.Errorf("apiClient method %q contains forbidden substring %q", name, forbidden)
+			}
+		}
+	}
+}
+
+func TestClientMetadataReadsSucceedAgainstEmptyFake(t *testing.T) {
 	fake := &fakeBackupAPI{}
 	adapter := &Client{
 		client:   fake,
@@ -257,9 +314,6 @@ func TestClientNoMutationOrUnsafeReadAPIsCalled(t *testing.T) {
 	}
 	if _, err := adapter.ListFrameworks(context.Background()); err != nil {
 		t.Fatalf("ListFrameworks() error = %v", err)
-	}
-	if fake.totalForbiddenCalls() != 0 {
-		t.Fatalf("forbidden API counters non-zero: %+v", fake)
 	}
 }
 

@@ -360,4 +360,3 @@ func TestScannerSkipsRoleAndIncludeWhenIdentitiesMissing(t *testing.T) {
 		t.Fatalf("selection-resource relationship count = %d, want 0 when only non-ARN values reported", got)
 	}
 }
-

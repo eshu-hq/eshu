@@ -8,10 +8,17 @@ import (
 )
 
 // fakeBackupAPI is the in-test stand-in for the AWS Backup SDK client. It
-// implements the apiClient surface the adapter calls and also counts how
-// many times forbidden APIs would have been invoked. Production code never
-// calls those forbidden APIs; the counters exist so test regressions surface
-// loudly if a future code change starts wiring them up.
+// implements exactly the apiClient surface the adapter calls. The metadata-only
+// guarantee that the adapter never reaches a mutation or unsafe-read API is
+// enforced at compile time, not by this fake: apiClient lists only the safe
+// reads, the Client.client field is typed as apiClient, and the compile-time
+// assertion var _ apiClient = (*awsbackup.Client)(nil) in client.go proves the
+// real SDK client is reached through that narrow surface only. A regression
+// that wired up GetBackupVaultAccessPolicy, GetRecoveryPointRestoreMetadata,
+// StartBackupJob, or any Create/Update/Delete call would fail to compile, and
+// the reflective method-shape assertions in
+// backup.TestClientInterfaceExcludesMutationAndUnsafeReadAPIs would also catch
+// any widening of the exposed interface.
 type fakeBackupAPI struct {
 	listBackupVaults     []*awsbackup.ListBackupVaultsOutput
 	listVaultsCalls      int
@@ -21,49 +28,22 @@ type fakeBackupAPI struct {
 	listPlansCalls  int
 	getBackupPlans  map[string]*awsbackup.GetBackupPlanOutput
 
-	listBackupSelections     []*awsbackup.ListBackupSelectionsOutput
-	listSelectionsCalls      int
-	getBackupSelections      map[string]*awsbackup.GetBackupSelectionOutput
+	listBackupSelections []*awsbackup.ListBackupSelectionsOutput
+	listSelectionsCalls  int
+	getBackupSelections  map[string]*awsbackup.GetBackupSelectionOutput
 
 	listRecoveryPoints      map[string][]*awsbackup.ListRecoveryPointsByBackupVaultOutput
 	listRecoveryPointsCalls map[string]int
 
-	listReportPlans     []*awsbackup.ListReportPlansOutput
+	listReportPlans      []*awsbackup.ListReportPlansOutput
 	listReportPlansCalls int
 
-	listRestoreTestingPlans     []*awsbackup.ListRestoreTestingPlansOutput
+	listRestoreTestingPlans      []*awsbackup.ListRestoreTestingPlansOutput
 	listRestoreTestingPlansCalls int
 
-	listFrameworks    []*awsbackup.ListFrameworksOutput
+	listFrameworks      []*awsbackup.ListFrameworksOutput
 	listFrameworksCalls int
-	describeFrameworks map[string]*awsbackup.DescribeFrameworkOutput
-
-	// Forbidden-API counters. The adapter does not call any of these; the
-	// test asserts they stay at zero so a future change cannot quietly
-	// reintroduce a mutation or unsafe read.
-	getBackupVaultAccessPolicyCalls    int
-	getRecoveryPointRestoreMetadataCalls int
-	deleteRecoveryPointCalls           int
-	startBackupJobCalls                int
-	startRestoreJobCalls               int
-	startCopyJobCalls                  int
-	putBackupVaultAccessPolicyCalls    int
-	createBackupVaultCalls             int
-	deleteBackupVaultCalls             int
-	updateRecoveryPointLifecycleCalls  int
-}
-
-func (f *fakeBackupAPI) totalForbiddenCalls() int {
-	return f.getBackupVaultAccessPolicyCalls +
-		f.getRecoveryPointRestoreMetadataCalls +
-		f.deleteRecoveryPointCalls +
-		f.startBackupJobCalls +
-		f.startRestoreJobCalls +
-		f.startCopyJobCalls +
-		f.putBackupVaultAccessPolicyCalls +
-		f.createBackupVaultCalls +
-		f.deleteBackupVaultCalls +
-		f.updateRecoveryPointLifecycleCalls
+	describeFrameworks  map[string]*awsbackup.DescribeFrameworkOutput
 }
 
 func (f *fakeBackupAPI) ListBackupVaults(
