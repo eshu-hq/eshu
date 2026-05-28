@@ -157,6 +157,26 @@ func TestScannerEmitsUserPoolAndIdentityPoolMetadata(t *testing.T) {
 	assertRelationship(t, envelopes, awscloud.RelationshipCognitoUserPoolUsesLambdaTrigger)
 	assertRelationship(t, envelopes, awscloud.RelationshipCognitoIdentityPoolUsesUserPool)
 	assertRelationship(t, envelopes, awscloud.RelationshipCognitoIdentityPoolUsesIdentityProvider)
+
+	// The identity-pool -> user-pool edge must target an identity that the user
+	// pool resource fact actually publishes (its resource_id / correlation
+	// anchors are the bare pool ID and ARN), not the raw
+	// "cognito-idp.<region>.amazonaws.com/<poolId>" provider name string. AWS
+	// returns the provider name in that compound form; emitting it verbatim
+	// produces a dangling edge that never joins the user pool node.
+	identityToUserPool := relationshipByType(t, envelopes, awscloud.RelationshipCognitoIdentityPoolUsesUserPool)
+	if got, want := payloadString(t, identityToUserPool, "target_resource_id"), "us-east-1_abc123"; got != want {
+		t.Fatalf("identity-pool -> user-pool target_resource_id = %q, want %q (user pool resource_id)", got, want)
+	}
+	// The Lambda trigger edge must target the function ARN the Lambda scanner
+	// publishes as its resource_id/arn.
+	lambdaEdge := relationshipByType(t, envelopes, awscloud.RelationshipCognitoUserPoolUsesLambdaTrigger)
+	if got, want := payloadString(t, lambdaEdge, "target_resource_id"), lambdaARN; got != want {
+		t.Fatalf("user-pool -> lambda target_resource_id = %q, want %q", got, want)
+	}
+	if got, want := payloadString(t, lambdaEdge, "target_type"), awscloud.ResourceTypeLambdaFunction; got != want {
+		t.Fatalf("user-pool -> lambda target_type = %q, want %q", got, want)
+	}
 }
 
 func TestScannerRejectsMismatchedServiceKind(t *testing.T) {
@@ -183,6 +203,30 @@ func TestScannerRequiresClient(t *testing.T) {
 	_, err := (Scanner{RedactionKey: testKey(t)}).Scan(context.Background(), testBoundary())
 	if err == nil {
 		t.Fatalf("Scan() error = nil, want missing client")
+	}
+}
+
+// TestUserPoolIDFromProviderName covers the compound AWS provider-name shape
+// and the defensive fallbacks so the identity-pool -> user-pool join key is
+// always the strongest available identity, never empty.
+func TestUserPoolIDFromProviderName(t *testing.T) {
+	cases := []struct {
+		name     string
+		provider string
+		want     string
+	}{
+		{"compound", "cognito-idp.us-east-1.amazonaws.com/us-east-1_abc123", "us-east-1_abc123"},
+		{"compound padded", "  cognito-idp.eu-west-2.amazonaws.com/eu-west-2_XyZ  ", "eu-west-2_XyZ"},
+		{"no slash", "us-east-1_abc123", "us-east-1_abc123"},
+		{"trailing slash falls back to full name", "cognito-idp.us-east-1.amazonaws.com/", "cognito-idp.us-east-1.amazonaws.com/"},
+		{"empty", "", ""},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := userPoolIDFromProviderName(tc.provider); got != tc.want {
+				t.Fatalf("userPoolIDFromProviderName(%q) = %q, want %q", tc.provider, got, tc.want)
+			}
+		})
 	}
 }
 
@@ -318,6 +362,29 @@ func assertRelationship(t *testing.T, envelopes []facts.Envelope, relationshipTy
 		}
 	}
 	t.Fatalf("missing relationship_type %q", relationshipType)
+}
+
+func relationshipByType(t *testing.T, envelopes []facts.Envelope, relationshipType string) facts.Envelope {
+	t.Helper()
+	for _, envelope := range envelopes {
+		if envelope.FactKind != facts.AWSRelationshipFactKind {
+			continue
+		}
+		if got, _ := envelope.Payload["relationship_type"].(string); got == relationshipType {
+			return envelope
+		}
+	}
+	t.Fatalf("missing relationship_type %q", relationshipType)
+	return facts.Envelope{}
+}
+
+func payloadString(t *testing.T, envelope facts.Envelope, key string) string {
+	t.Helper()
+	value, ok := envelope.Payload[key].(string)
+	if !ok {
+		t.Fatalf("payload[%q] = %#v, want string", key, envelope.Payload[key])
+	}
+	return value
 }
 
 func attributesOf(t *testing.T, envelope facts.Envelope) map[string]any {

@@ -74,6 +74,13 @@ pagination spans. The collector counts emitted facts under
   `cognito_user_pool_uses_lambda_trigger` relationships.
 - Identity pools have no ARN from the API, so the SDK adapter synthesizes one
   from the claim boundary for stable identity.
+- AWS reports a Cognito login provider on an identity pool as
+  `cognito-idp.<region>.amazonaws.com/<userPoolId>`. The
+  `cognito_identity_pool_uses_user_pool` edge targets the extracted `<userPoolId>`
+  so it joins the user pool resource fact (whose `resource_id` and correlation
+  anchor is the bare pool ID); the full provider name and app client ID are kept
+  as edge attributes for provenance. Emitting the compound provider name as the
+  target would dangle.
 - The scanner stops on client errors. Runtime adapters decide whether an AWS
   service error is retryable, terminal, or a warning fact.
 

@@ -98,15 +98,24 @@ func identityPoolRelationships(
 		if providerName == "" {
 			continue
 		}
+		// AWS reports the Cognito login provider as
+		// "cognito-idp.<region>.amazonaws.com/<userPoolId>". The user pool
+		// resource fact publishes the bare pool ID as its resource_id and
+		// correlation anchor, so the edge must target that pool ID rather than
+		// the compound provider-name string. Emitting the full provider name
+		// produces a dangling edge that never joins the user pool node.
+		userPoolID := userPoolIDFromProviderName(providerName)
 		observations = append(observations, awscloud.RelationshipObservation{
 			Boundary:         boundary,
 			RelationshipType: awscloud.RelationshipCognitoIdentityPoolUsesUserPool,
 			SourceResourceID: source,
 			SourceARN:        poolARN,
-			TargetResourceID: providerName,
+			TargetResourceID: userPoolID,
 			TargetType:       awscloud.ResourceTypeCognitoUserPool,
 			Attributes: map[string]any{
-				"client_id": strings.TrimSpace(provider.ClientID),
+				"client_id":     strings.TrimSpace(provider.ClientID),
+				"provider_name": providerName,
+				"user_pool_id":  userPoolID,
 			},
 			SourceRecordID: source + "#user-pool-provider#" + providerName,
 		})
@@ -124,6 +133,23 @@ func identityPoolRelationships(
 		})
 	}
 	return observations
+}
+
+// userPoolIDFromProviderName extracts the user pool ID a Cognito login provider
+// references. AWS reports the provider name as
+// "cognito-idp.<region>.amazonaws.com/<userPoolId>", so the user pool ID is the
+// final path segment. When the name is not in that compound form (an
+// unexpected shape), the trimmed provider name is returned unchanged so the
+// edge still carries the strongest available join key rather than an empty
+// target.
+func userPoolIDFromProviderName(providerName string) string {
+	providerName = strings.TrimSpace(providerName)
+	if idx := strings.LastIndex(providerName, "/"); idx >= 0 {
+		if poolID := strings.TrimSpace(providerName[idx+1:]); poolID != "" {
+			return poolID
+		}
+	}
+	return providerName
 }
 
 // externalProviderARNs returns the OIDC and SAML provider ARNs attached to an
