@@ -46,6 +46,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/kinesisvideo v1.33.11
 	github.com/aws/aws-sdk-go-v2/service/kms v1.52.0
 	github.com/aws/aws-sdk-go-v2/service/lambda v1.90.1
+	github.com/aws/aws-sdk-go-v2/service/macie2 v1.51.3
 	github.com/aws/aws-sdk-go-v2/service/mq v1.34.23
 	github.com/aws/aws-sdk-go-v2/service/neptune v1.44.6
 	github.com/aws/aws-sdk-go-v2/service/neptunegraph v1.22.0
