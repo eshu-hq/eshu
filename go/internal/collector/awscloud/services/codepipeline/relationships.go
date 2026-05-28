@@ -96,15 +96,22 @@ func artifactKeyRelationship(
 	if keyID == "" {
 		return awscloud.RelationshipObservation{}, false
 	}
-	// The KMS scanner emits its key resource_id as the bare key id when known
-	// and otherwise the key ARN. CodePipeline reports the key as a key id, key
-	// ARN, or alias ARN, so target the raw value and set target_arn only when
-	// the value is itself an ARN. The KMS node's correlation anchors carry both
-	// the key id and key ARN, so an ARN-valued reference still joins.
+	// CodePipeline reports the encryption key as a bare key id, a key ARN, or an
+	// alias ARN. The KMS scanner emits a key node (resource_id = bare key id or
+	// key ARN, anchors [keyARN, keyID]) and a separate alias node (resource_id =
+	// alias ARN or alias name, anchors [aliasARN, aliasName]). A KMS key never
+	// carries an alias ARN in its anchors, so an alias-ARN reference must target
+	// the alias node, not the key node, or the edge dangles. Detect the alias-ARN
+	// shape (:alias/) and target aws_kms_alias for those; keep aws_kms_key for
+	// key ARNs and bare key ids. Set target_arn only when the value is an ARN.
 	target := keyID
-	keyARN := ""
+	targetType := awscloud.ResourceTypeKMSKey
+	if strings.Contains(keyID, ":alias/") {
+		targetType = awscloud.ResourceTypeKMSAlias
+	}
+	targetARN := ""
 	if strings.HasPrefix(keyID, "arn:") {
-		keyARN = keyID
+		targetARN = keyID
 	}
 	return awscloud.RelationshipObservation{
 		Boundary:         boundary,
@@ -112,8 +119,8 @@ func artifactKeyRelationship(
 		SourceResourceID: pipelineID,
 		SourceARN:        pipelineArnValue,
 		TargetResourceID: target,
-		TargetARN:        keyARN,
-		TargetType:       awscloud.ResourceTypeKMSKey,
+		TargetARN:        targetARN,
+		TargetType:       targetType,
 		SourceRecordID:   pipelineID + "#artifact-key#" + target,
 	}, true
 }

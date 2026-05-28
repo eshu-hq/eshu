@@ -323,6 +323,66 @@ func TestScannerEmitsPipelineRelationshipsWithJoinKeys(t *testing.T) {
 	}
 }
 
+// TestArtifactKeyRelationshipTargetsAliasVersusKey proves the artifact-key edge
+// targets aws_kms_alias when CodePipeline reports an alias ARN and aws_kms_key
+// when it reports a key ARN or a bare key id. KMS keys never carry an alias ARN
+// in their correlation anchors (aliases are separate aws_kms_alias resources),
+// so an alias-ARN reference mislabeled as a key target would dangle.
+func TestArtifactKeyRelationshipTargetsAliasVersusKey(t *testing.T) {
+	boundary := testBoundary()
+	cases := []struct {
+		name           string
+		keyID          string
+		wantTargetType string
+		wantTargetID   string
+		wantTargetARN  string
+	}{
+		{
+			name:           "alias ARN targets the alias node",
+			keyID:          "arn:aws:kms:us-east-1:123456789012:alias/checkout-artifacts",
+			wantTargetType: awscloud.ResourceTypeKMSAlias,
+			wantTargetID:   "arn:aws:kms:us-east-1:123456789012:alias/checkout-artifacts",
+			wantTargetARN:  "arn:aws:kms:us-east-1:123456789012:alias/checkout-artifacts",
+		},
+		{
+			name:           "key ARN targets the key node",
+			keyID:          "arn:aws:kms:us-east-1:123456789012:key/abcd-1234",
+			wantTargetType: awscloud.ResourceTypeKMSKey,
+			wantTargetID:   "arn:aws:kms:us-east-1:123456789012:key/abcd-1234",
+			wantTargetARN:  "arn:aws:kms:us-east-1:123456789012:key/abcd-1234",
+		},
+		{
+			name:           "bare key id targets the key node",
+			keyID:          "abcd-1234-ef56",
+			wantTargetType: awscloud.ResourceTypeKMSKey,
+			wantTargetID:   "abcd-1234-ef56",
+			wantTargetARN:  "",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			pipeline := Pipeline{
+				Name:          "checkout",
+				ARN:           "arn:aws:codepipeline:us-east-1:123456789012:checkout",
+				ArtifactStore: ArtifactStoreSummary{KMSKeyID: tc.keyID},
+			}
+			rel, ok := artifactKeyRelationship(boundary, pipeline, pipeline.ARN, pipeline.ARN)
+			if !ok {
+				t.Fatalf("artifactKeyRelationship returned ok=false, want an edge")
+			}
+			if rel.TargetType != tc.wantTargetType {
+				t.Fatalf("target_type = %q, want %q", rel.TargetType, tc.wantTargetType)
+			}
+			if rel.TargetResourceID != tc.wantTargetID {
+				t.Fatalf("target_resource_id = %q, want %q", rel.TargetResourceID, tc.wantTargetID)
+			}
+			if rel.TargetARN != tc.wantTargetARN {
+				t.Fatalf("target_arn = %q, want %q", rel.TargetARN, tc.wantTargetARN)
+			}
+		})
+	}
+}
+
 func TestScannerUsesBoundaryPartitionForSynthesizedARNs(t *testing.T) {
 	boundary := testBoundary()
 	boundary.Region = "us-gov-west-1"

@@ -79,6 +79,11 @@ adapter records CodePipeline API call counts, throttles, and pagination spans.
   resource_id (CodeBuild/CodeDeploy/Lambda ARN, S3 bucket ARN, ECS service ARN,
   CloudFormation stack name, IAM role ARN, KMS key id/ARN) so no edge has an
   empty `target_type`.
+- The artifact-store encryption-key edge inspects the reported key shape: an
+  alias ARN (`:alias/`) targets `aws_kms_alias` so it joins the KMS scanner's
+  alias node, while a key ARN or bare key id targets `aws_kms_key`. KMS key
+  nodes never carry an alias ARN in their correlation anchors, so an alias
+  reference mislabeled as a key target would dangle.
 - The source-provider edge documents the provider class only
   (`aws_codepipeline_source_provider`) because a source action's concrete bucket
   or repository lives in unpersistable configuration values.
