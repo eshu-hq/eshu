@@ -47,6 +47,7 @@ It does not mutate AWS resources, read protected payloads, or write graph truth.
 | `cloudtrail` | Trail (multi-region and per-region), Lake event data store, channel, and Lake dashboard configuration metadata with trail-to-S3-bucket, trail-to-CloudWatch-Logs, trail-to-KMS-key, trail-to-SNS-topic, and event-data-store-to-KMS-key relationships. Event selectors are summarized as counts only; CloudTrail event payloads, Lake query strings, Lake query results, and dashboard widget query SQL are never read or persisted. |
 | `cloudformation` | Stack (active and recently deleted), stack set, change set (metadata only), drift detection result (status + per-status counts), stack-set instance, and registered extension type metadata with stack-to-resource-type (from ListStackResources), stack-set-to-instance, stack-to-IAM-role, and stack-to-S3-template-URL relationships. Highest template-body redaction surface in the collector: template bodies (`GetTemplate`/`GetTemplateSummary`), parameter values (including NoEcho and SSM-resolved values, only keys are kept), change-set bodies (`DescribeChangeSet`), stack policies (`GetStackPolicy`), and drift property documents are never read or persisted. Secret-like stack output values are routed through the shared redact library by output key; the stack-set `TemplateBody` is never carried. Requires `ESHU_AWS_REDACTION_KEY`. |
 | `apigateway` | REST, HTTP, WebSocket, stage, custom-domain, mapping, access-log, ACM, and integration metadata. |
+| `appsync` | GraphQL API (id, name, authentication type, log config, X-Ray status, WAF ACL ref), data source (name, type, backing-resource target - never inline credentials or HTTP authorization config), resolver (type name + field name + kind + data-source name + runtime), pipeline function (name, data-source name, runtime), schema metadata (creation status + type count), and API key metadata (id, description, expiry) for each API. Relationships: API-to-data-source, resolver-to-data-source, function-to-data-source, data-source-to-Lambda/DynamoDB-table/OpenSearch-domain/HTTP-endpoint/RDS-cluster, API-to-Cognito-user-pool (joined by bare pool id), and API-to-OIDC-issuer. The schema SDL body (exposes the data model and PII field names), resolver request/response mapping templates (VTL or JS, often containing inline auth conditions), pipeline function code bodies, and API key values are never read or persisted; the SDK adapter cannot reach EvaluateMappingTemplate, EvaluateCode, GetIntrospectionSchema, StartSchemaCreation, or any mutation API, and the scanner-owned types have no field for those bodies. |
 | `secretsmanager`, `ssm` | Secret or parameter metadata with KMS relationships; no secret/parameter values. |
 | `athena` | Workgroup, data catalog, prepared-statement, and named-query metadata plus workgroup-to-S3-result-bucket, workgroup-to-KMS-key, prepared-statement-to-workgroup, and named-query-to-workgroup relationships. No SQL bodies, query results, query result location object contents, or query history strings. |
 | `securityhub` | Hub configuration, enabled standards, controls, member accounts, action targets, insight summaries, and aggregate finding counts; no finding bodies or insight filters. |
@@ -191,6 +192,26 @@ metadata.
 ACM certificate body PEM and ACM-issued private key material are out of scope.
 The ACM scanner never calls `GetCertificate` or `ExportCertificate`, and ACM
 Private CA (acm-pca) APIs are not exercised.
+
+AppSync schema SDL bodies, resolver request/response mapping templates (VTL or
+JS), pipeline function code bodies, and API key values are out of scope. The
+schema SDL exposes the data model and PII field names; resolver mapping
+templates often contain inline authorization conditions; function code is
+customer IP; and API key values are bearer credentials. The AppSync scanner
+reaches the control plane through `ListGraphqlApis`, `ListDataSources`,
+`ListTypes`, `ListResolvers`, `ListFunctions`, `ListApiKeys`, and
+`GetSchemaCreationStatus` only. It never calls `EvaluateMappingTemplate`,
+`EvaluateCode`, `GetIntrospectionSchema`, `StartSchemaCreation`,
+`GetDataSourceIntrospection`, or any mutation API such as
+`CreateGraphqlApi`/`UpdateGraphqlApi`/`DeleteGraphqlApi`,
+`Create`/`Update`/`Delete` of a resolver, data source, function, or API key. The
+accepted SDK surface and the scanner-owned types exclude those bodies by
+construction, proven by reflective guard tests on the SDK adapter interface and
+a struct-reflection test on the scanner types. The schema is reduced to a
+creation status and a type count; type definitions (`Type.Definition`) are never
+read. Data-source backing-resource targets (Lambda, DynamoDB, OpenSearch, HTTP,
+RDS) are recorded as relationship evidence without the HTTP endpoint
+authorization config or the RDS secret store ARN.
 
 KMS key policy Statement bodies, KMS grant encryption contexts, KMS key
 material, and the output of any KMS cryptographic operation are out of scope.

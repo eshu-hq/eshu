@@ -92,6 +92,8 @@ github.com/aws/aws-sdk-go-v2/service/apigateway v1.39.3 h1:7MJlB7KGFd+KNKtnPgoFW
 github.com/aws/aws-sdk-go-v2/service/apigateway v1.39.3/go.mod h1:MwilTAruv11x8EFjsk1R0VfjMdCxB6JHVtanCqsTR5o=
 github.com/aws/aws-sdk-go-v2/service/apigatewayv2 v1.34.3 h1:JqFmDekar5Ije9SKKBUAmvuqardAXgCoJV78dt2BQSI=
 github.com/aws/aws-sdk-go-v2/service/apigatewayv2 v1.34.3/go.mod h1:+ONaMzn4bVIQwVsamP28xDWWZuYO+6cWupJpZOSlUNE=
+github.com/aws/aws-sdk-go-v2/service/appsync v1.53.8 h1:CwHQQiBhvXbsEiDS3GERuVE4dRoH8S02jiMIf+Vcihw=
+github.com/aws/aws-sdk-go-v2/service/appsync v1.53.8/go.mod h1:gXYrh3UXmGd/XYsWikBgcjSLs1BAbxqzutFe8JZSuzU=
 github.com/aws/aws-sdk-go-v2/service/athena v1.57.6 h1:QPDxHlfHmozXUj9rmUyxQiOLVEJL3qX4x56CrwAtytM=
 github.com/aws/aws-sdk-go-v2/service/athena v1.57.6/go.mod h1:3QLTFWWkK+tGp4LD0ClX5Ib75MWE5H66vBat1N9f8Os=
 github.com/aws/aws-sdk-go-v2/service/backup v1.57.0 h1:MK5y/qUq8I4OD7JEF1LDjkmLTfAonyiE+6N6i4asdwk=
