@@ -7,6 +7,8 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+
+	"github.com/lib/pq"
 )
 
 const (
@@ -28,6 +30,7 @@ type SecurityAlertReconciliationStore interface {
 // reconciliation status narrow anchored pages but are not standalone scopes.
 type SecurityAlertReconciliationFilter struct {
 	RepositoryID          string
+	RepositoryScopeIDs    []string
 	Provider              string
 	PackageID             string
 	CVEID                 string
@@ -133,7 +136,7 @@ func (s PostgresSecurityAlertReconciliationStore) ListSecurityAlertReconciliatio
 		ctx,
 		listSecurityAlertReconciliationsQuery,
 		securityAlertReconciliationFactKind,
-		filter.RepositoryID,
+		pq.Array(securityAlertRepositoryScopeIDs(filter.RepositoryID, filter.RepositoryScopeIDs)),
 		filter.Provider,
 		filter.PackageID,
 		filter.CVEID,
@@ -206,7 +209,12 @@ WITH security_alert_current AS (
   WHERE fact.fact_kind = $1
     AND fact.is_tombstone = FALSE
     AND generation.status = 'active'
-    AND ($2 = '' OR fact.payload->>'repository_id' = $2)
+    AND (
+      cardinality($2::text[]) = 0
+      OR fact.payload->>'repository_id' = ANY($2::text[])
+      OR fact.payload->>'provider_repository_id' = ANY($2::text[])
+      OR fact.payload->>'scope_id' = ANY($2::text[])
+    )
     AND ($3 = '' OR fact.payload->>'provider' = $3)
     AND ($4 = '' OR fact.payload->>'package_id' = $4)
     AND ($5 = '' OR fact.payload->'cve_ids' ? $5)
@@ -223,7 +231,8 @@ LIMIT $10
 `
 
 func (f SecurityAlertReconciliationFilter) hasScope() bool {
-	return f.RepositoryID != "" || f.Provider != "" || f.PackageID != "" ||
+	return f.RepositoryID != "" || len(f.RepositoryScopeIDs) > 0 ||
+		f.Provider != "" || f.PackageID != "" ||
 		f.CVEID != "" || f.GHSAID != ""
 }
 

@@ -321,7 +321,7 @@ No-Regression Evidence: `go test ./internal/reducer ./internal/query ./internal/
 
 No-Observability-Change: priority scoring reuses the existing `SupplyChainImpactFindings` reducer counter, `reducer_supply_chain_impact_finding` fact kind, impact evidence fields, readiness envelope, and `query.supply_chain_impact_findings` request span. No new graph write, queue, worker, metric instrument, or runtime deployment knob is introduced.
 
-No-Regression Evidence: `go test ./internal/query -run 'TestSupplyChain.*RepositorySelector|TestSupplyChainAggregateRoutesRejectInvalidRepositorySelector|TestSupplyChainListImpactFindingsUsesBoundedStore|TestSupplyChainListSecurityAlertReconciliationsSeparatesProviderAndEshuState' -count=1` covers internal id fast paths, repository name/slug/path resolution, invalid selector errors, and bounded API reads for impact findings, impact aggregates, provider security-alert reconciliations, and reconciliation aggregates.
+No-Regression Evidence: `go test ./internal/query -run 'TestSupplyChain.*RepositorySelector|TestSupplyChainAggregateRoutesRejectInvalidRepositorySelector|TestSupplyChainListImpactFindingsUsesBoundedStore|TestSupplyChainListSecurityAlertReconciliationsSeparatesProviderAndEshuState|TestSecurityAlertReconciliationAggregateSourceFreshnessUsesCurrentFactAlias' -count=1` covers internal id fast paths, repository name/slug/path resolution, invalid selector errors, provider-only alert scope preservation for repository reads, and bounded API reads for impact findings, impact aggregates, provider security-alert reconciliations, and reconciliation aggregates.
 
 No-Observability-Change: selector resolution runs before the existing Postgres read-model calls and reuses `query.supply_chain_impact_findings`, `query.supply_chain_impact_aggregate`, `query.supply_chain_security_alerts`, `query.security_alert_reconciliation_aggregate`, Postgres query instrumentation, and the readiness envelope where applicable. No graph write, queue, worker, metric instrument, or runtime deployment knob is introduced.
 
@@ -468,6 +468,10 @@ caller must provide `limit` and at least one bounded anchor:
 selectors repository context routes accept: repository name, repo slug, indexed
 path, local path, or remote URL. Unknown or ambiguous selectors return a
 selector error before the reconciliation read model runs.
+For security-alert reads, the resolved repository scope also includes the
+provider repository identity when Eshu has it from the repository catalog. That
+keeps `provider_only` rows visible for the selected repository while preserving
+their missing-evidence status.
 The count and inventory aggregate routes use the same repository selector
 resolution before reading reducer-owned aggregate facts.
 

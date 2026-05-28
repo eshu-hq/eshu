@@ -338,6 +338,9 @@ func TestSecurityAlertReconciliationAggregateQueriesUseCurrentProviderAlertRows(
 				"COALESCE(NULLIF(fact.payload->>'provider_repository_id', ''),",
 				"COALESCE(NULLIF(fact.payload->'cve_ids', 'null'::jsonb), '[]'::jsonb)",
 				"COALESCE(NULLIF(fact.payload->'ghsa_ids', 'null'::jsonb), '[]'::jsonb)",
+				"fact.payload->>'repository_id' = ANY($1::text[])",
+				"fact.payload->>'provider_repository_id' = ANY($1::text[])",
+				"fact.payload->>'scope_id' = ANY($1::text[])",
 			} {
 				if !strings.Contains(query, want) {
 					t.Fatalf("%s aggregate query missing %q:\n%s", name, want, query)
@@ -357,6 +360,18 @@ func TestSecurityAlertReconciliationAggregateQueriesUseCurrentProviderAlertRows(
 				}
 			}
 		})
+	}
+}
+
+func TestSecurityAlertReconciliationAggregateSourceFreshnessUsesCurrentFactAlias(t *testing.T) {
+	t.Parallel()
+
+	if strings.Contains(securityAlertReconciliationSourceFreshnessGroupExpr, "NULLIF(fact.payload") ||
+		strings.Contains(securityAlertReconciliationSourceFreshnessGroupExpr, "WHEN fact.payload") {
+		t.Fatalf("source freshness expression must use the current_fact alias after the CTE:\n%s", securityAlertReconciliationSourceFreshnessGroupExpr)
+	}
+	if !strings.Contains(securityAlertReconciliationSourceFreshnessGroupExpr, "current_fact.payload") {
+		t.Fatalf("source freshness expression missing current_fact alias:\n%s", securityAlertReconciliationSourceFreshnessGroupExpr)
 	}
 }
 

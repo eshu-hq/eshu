@@ -5,6 +5,8 @@ import (
 	"database/sql"
 	"fmt"
 	"strings"
+
+	"github.com/lib/pq"
 )
 
 // SecurityAlertReconciliationAggregateStore reads cheap-summary aggregates
@@ -50,6 +52,7 @@ const SecurityAlertReconciliationAggregateMaxLimit = 500
 // `fact_kind` and the active-generation predicate at index lookup time.
 type SecurityAlertReconciliationAggregateFilter struct {
 	RepositoryID         string
+	RepositoryScopeIDs   []string
 	Provider             string
 	PackageID            string
 	CVEID                string
@@ -133,7 +136,12 @@ WITH security_alert_current AS (
   WHERE fact.fact_kind = 'reducer_security_alert_reconciliation'
     AND fact.is_tombstone = FALSE
     AND generation.status = 'active'
-    AND ($1 = '' OR fact.payload->>'repository_id' = $1)
+    AND (
+      cardinality($1::text[]) = 0
+      OR fact.payload->>'repository_id' = ANY($1::text[])
+      OR fact.payload->>'provider_repository_id' = ANY($1::text[])
+      OR fact.payload->>'scope_id' = ANY($1::text[])
+    )
     AND ($2 = '' OR fact.payload->>'provider' = $2)
     AND ($3 = '' OR fact.payload->>'package_id' = $3)
     AND ($4 = '' OR fact.payload->'cve_ids' ? $4)
@@ -182,7 +190,12 @@ WITH security_alert_current AS (
   WHERE fact.fact_kind = 'reducer_security_alert_reconciliation'
     AND fact.is_tombstone = FALSE
     AND generation.status = 'active'
-    AND ($1 = '' OR fact.payload->>'repository_id' = $1)
+    AND (
+      cardinality($1::text[]) = 0
+      OR fact.payload->>'repository_id' = ANY($1::text[])
+      OR fact.payload->>'provider_repository_id' = ANY($1::text[])
+      OR fact.payload->>'scope_id' = ANY($1::text[])
+    )
     AND ($2 = '' OR fact.payload->>'provider' = $2)
     AND ($3 = '' OR fact.payload->>'package_id' = $3)
     AND ($4 = '' OR fact.payload->'cve_ids' ? $4)
@@ -198,9 +211,9 @@ GROUP BY bucket;
 
 const securityAlertReconciliationSourceFreshnessGroupExpr = `
 COALESCE(
-  NULLIF(fact.payload->>'source_freshness', ''),
+  NULLIF(current_fact.payload->>'source_freshness', ''),
   CASE
-    WHEN fact.payload->>'collection_coverage_state' = 'incomplete' THEN 'partial'
+    WHEN current_fact.payload->>'collection_coverage_state' = 'incomplete' THEN 'partial'
     ELSE 'active'
   END
 )
@@ -242,7 +255,12 @@ WITH security_alert_current AS (
   WHERE fact.fact_kind = 'reducer_security_alert_reconciliation'
     AND fact.is_tombstone = FALSE
     AND generation.status = 'active'
-    AND ($1 = '' OR fact.payload->>'repository_id' = $1)
+    AND (
+      cardinality($1::text[]) = 0
+      OR fact.payload->>'repository_id' = ANY($1::text[])
+      OR fact.payload->>'provider_repository_id' = ANY($1::text[])
+      OR fact.payload->>'scope_id' = ANY($1::text[])
+    )
     AND ($2 = '' OR fact.payload->>'provider' = $2)
     AND ($3 = '' OR fact.payload->>'package_id' = $3)
     AND ($4 = '' OR fact.payload->'cve_ids' ? $4)
@@ -269,7 +287,7 @@ func (s PostgresSecurityAlertReconciliationAggregateStore) CountSecurityAlertRec
 	}
 
 	args := []any{
-		filter.RepositoryID,
+		pq.Array(securityAlertRepositoryScopeIDs(filter.RepositoryID, filter.RepositoryScopeIDs)),
 		filter.Provider,
 		filter.PackageID,
 		filter.CVEID,
@@ -358,7 +376,7 @@ func (s PostgresSecurityAlertReconciliationAggregateStore) SecurityAlertReconcil
 	rows, err := s.DB.QueryContext(
 		ctx,
 		q,
-		filter.RepositoryID,
+		pq.Array(securityAlertRepositoryScopeIDs(filter.RepositoryID, filter.RepositoryScopeIDs)),
 		filter.Provider,
 		filter.PackageID,
 		filter.CVEID,

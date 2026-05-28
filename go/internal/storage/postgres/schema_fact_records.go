@@ -410,6 +410,28 @@ CREATE INDEX IF NOT EXISTS fact_records_security_alert_reconciliation_lookup_idx
     WHERE fact_kind = 'reducer_security_alert_reconciliation'
       AND is_tombstone = FALSE;
 
+CREATE INDEX IF NOT EXISTS fact_records_security_alert_reconciliation_provider_repository_idx
+    ON fact_records (
+        (payload->>'provider_repository_id'),
+        (payload->>'package_id'),
+        (payload->>'reconciliation_status'),
+        fact_id ASC,
+        generation_id
+    )
+    WHERE fact_kind = 'reducer_security_alert_reconciliation'
+      AND is_tombstone = FALSE;
+
+CREATE INDEX IF NOT EXISTS fact_records_security_alert_reconciliation_scope_idx
+    ON fact_records (
+        (payload->>'scope_id'),
+        (payload->>'package_id'),
+        (payload->>'reconciliation_status'),
+        fact_id ASC,
+        generation_id
+    )
+    WHERE fact_kind = 'reducer_security_alert_reconciliation'
+      AND is_tombstone = FALSE;
+
 CREATE INDEX IF NOT EXISTS fact_records_security_alert_reconciliation_provider_idx
     ON fact_records (
         (payload->>'provider'),

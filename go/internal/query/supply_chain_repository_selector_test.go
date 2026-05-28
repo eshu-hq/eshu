@@ -182,7 +182,7 @@ func TestSupplyChainSecurityAlertReconciliationsResolveRepositorySelectors(t *te
 		selector  string
 		wantCalls int
 	}{
-		{name: "internal_id", selector: "repo://example/api", wantCalls: 0},
+		{name: "internal_id", selector: "repo://example/api", wantCalls: 1},
 		{name: "name", selector: "payments-api", wantCalls: 1},
 		{name: "slug", selector: "example/payments-api", wantCalls: 1},
 		{name: "path", selector: "/srv/payments-api", wantCalls: 1},
@@ -234,6 +234,9 @@ func TestSupplyChainSecurityAlertReconciliationsResolveRepositorySelectors(t *te
 			if got := store.lastFilter.RepositoryID; got != "repo://example/api" {
 				t.Fatalf("RepositoryID = %q, want repo://example/api", got)
 			}
+			if got, want := strings.Join(store.lastFilter.RepositoryScopeIDs, ","), "repo://example/api,security-alert:github:example/payments-api"; got != want {
+				t.Fatalf("RepositoryScopeIDs = %q, want %q", got, want)
+			}
 			if got := content.matchCalls; got != tc.wantCalls {
 				t.Fatalf("MatchRepositories calls = %d, want %d", got, tc.wantCalls)
 			}
@@ -248,6 +251,50 @@ func TestSupplyChainSecurityAlertReconciliationsResolveRepositorySelectors(t *te
 				t.Fatalf("len(reconciliations) = %d, want 1", got)
 			}
 		})
+	}
+}
+
+func TestSupplyChainSecurityAlertReconciliationsDeriveProviderScopeFromRemoteURL(t *testing.T) {
+	t.Parallel()
+
+	content := &countingRepositoryContentStore{
+		fakePortContentStore: fakePortContentStore{
+			repositories: []RepositoryCatalogEntry{{
+				ID:        "repo://example/api",
+				Name:      "payments-api",
+				RemoteURL: "git@github.com:Example/Payments-API.git",
+			}},
+		},
+	}
+	store := &canonicalRepositorySecurityAlertStore{
+		rows: []SecurityAlertReconciliationRow{{
+			ReconciliationID:     "reconciliation-provider-only",
+			ReconciliationStatus: "provider_only",
+		}},
+	}
+	handler := &SupplyChainHandler{
+		Content:        content,
+		SecurityAlerts: store,
+	}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"/api/v0/supply-chain/security-alerts/reconciliations?"+url.Values{
+			"repository_id": []string{"git@github.com:Example/Payments-API.git"},
+			"limit":         []string{"10"},
+		}.Encode(),
+		nil,
+	)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if got, want := w.Code, http.StatusOK; got != want {
+		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
+	}
+	if got, want := strings.Join(store.lastFilter.RepositoryScopeIDs, ","), "repo://example/api,security-alert:github:example/payments-api"; got != want {
+		t.Fatalf("RepositoryScopeIDs = %q, want %q", got, want)
 	}
 }
 
