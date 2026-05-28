@@ -77,6 +77,7 @@ These variables are read by `scripts/sync_local_compose_mcp.sh`.
 | `ESHU_REMOTE_E2E_MIN_SECURITY_ALERT_RECONCILIATION_COUNT` | `1` in representative mode, otherwise `0` | Minimum security-alert reconciliation count accepted by the remote runtime verifier. |
 | `ESHU_REMOTE_E2E_MIN_SBOM_ATTACHMENT_COUNT` | `1` in representative mode, otherwise `0` | Minimum SBOM attachment aggregate count accepted by the remote runtime verifier. |
 | `ESHU_REMOTE_E2E_MIN_CONTAINER_IMAGE_IDENTITY_COUNT` | `1` in representative mode, otherwise `0` | Minimum container-image identity aggregate count accepted by the remote runtime verifier. |
+| `ESHU_REMOTE_E2E_PACKAGE_REGISTRY_GAP_PACKAGE_ID` | unset | Optional package ID whose impact-readiness envelope must report `package_registry_metadata` / `metadata_too_large` coverage-gap evidence. |
 | `ESHU_REMOTE_E2E_ENV_FILE` | unset | Optional Compose env file passed to `docker compose --env-file`. |
 | `ESHU_REMOTE_E2E_COMPOSE_FILES` | `docker-compose.remote-e2e.yaml` | Colon-separated Compose file list for `scripts/verify_remote_e2e_runtime_state.sh`. |
 | `ESHU_REMOTE_E2E_REQUIRED_SERVICES` | core runtime service list | Core services that must be running and healthy. |

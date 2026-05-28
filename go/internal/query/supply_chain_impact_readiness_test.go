@@ -406,6 +406,44 @@ func TestBuildSupplyChainImpactReadinessClassifiesUnsupportedSBOMTarget(t *testi
 	}
 }
 
+func TestBuildSupplyChainImpactReadinessClassifiesPackageRegistryMetadataTooLarge(t *testing.T) {
+	t.Parallel()
+
+	// The package-registry collector observed the requested package but the
+	// metadata document exceeded the configured byte limit. That is an
+	// explicit source coverage gap, not a clean zero-finding result.
+	envelope := BuildSupplyChainImpactReadiness(
+		SupplyChainImpactTargetScope{PackageID: "pkg:npm/oversized"},
+		nil,
+		false,
+		SupplyChainImpactReadinessSnapshot{
+			EvidenceSources: []SupplyChainImpactEvidenceFamily{
+				{Family: EvidenceFamilyVulnerabilityAdvisory, FactCount: 1, Freshness: FreshnessLabelFresh},
+			},
+			UnsupportedTargets: []SupplyChainImpactUnsupportedTarget{
+				{
+					TargetKind: UnsupportedTargetKindPackageRegistryMetadata,
+					Reason:     "metadata_too_large",
+					Ecosystem:  "npm",
+					Count:      1,
+				},
+			},
+		},
+	)
+	if envelope.State != ReadinessStateUnsupported {
+		t.Fatalf("state = %q, want %q", envelope.State, ReadinessStateUnsupported)
+	}
+	if !readinessMissingContains(envelope.MissingEvidence, MissingEvidenceUnsupportedTargets) {
+		t.Fatalf("missing_evidence = %#v, want unsupported_targets", envelope.MissingEvidence)
+	}
+	if len(envelope.UnsupportedTargets) != 1 ||
+		envelope.UnsupportedTargets[0].TargetKind != UnsupportedTargetKindPackageRegistryMetadata ||
+		envelope.UnsupportedTargets[0].Reason != "metadata_too_large" ||
+		envelope.UnsupportedTargets[0].Ecosystem != "npm" {
+		t.Fatalf("unsupported_targets = %#v, want one package_registry_metadata metadata_too_large entry", envelope.UnsupportedTargets)
+	}
+}
+
 func TestBuildSupplyChainImpactReadinessClassifiesUnsupportedImageTarget(t *testing.T) {
 	t.Parallel()
 

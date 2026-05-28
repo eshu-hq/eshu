@@ -95,6 +95,19 @@ package_registry_active AS (
       AND fact.is_tombstone = FALSE
       AND generation.status = 'active'
 ),
+package_registry_warning_active AS (
+    SELECT fact.payload, fact.observed_at
+    FROM fact_records AS fact
+    JOIN ingestion_scopes AS scope
+      ON scope.scope_id = fact.scope_id
+     AND scope.active_generation_id = fact.generation_id
+    JOIN scope_generations AS generation
+      ON generation.scope_id = fact.scope_id
+     AND generation.generation_id = fact.generation_id
+    WHERE fact.fact_kind = 'package_registry.warning'
+      AND fact.is_tombstone = FALSE
+      AND generation.status = 'active'
+),
 sbom_component_active AS (
     SELECT fact.payload, fact.observed_at
     FROM fact_records AS fact
@@ -337,6 +350,32 @@ unsupported_target_rows AS (
     WHERE $12 <> ''
       AND doc.payload->>'subject_digest' = $12
       AND warn.payload->>'reason' IN ('unsupported_field', 'malformed_document')
+    UNION ALL
+    -- Package-registry metadata documents Eshu observed but skipped because
+    -- the source body exceeded the configured byte limit. Bounded to a
+    -- package_id anchor, or to a repository_id with an already-materialized
+    -- package consumption correlation for the same package_id, so cve-only
+    -- and subject-only scopes cannot scan warning facts globally.
+    SELECT
+        'package_registry_metadata' AS target_kind,
+        NULLIF(TRIM(warn.payload->>'warning_code'), '') AS reason,
+        NULLIF(LOWER(TRIM(warn.payload->>'ecosystem')), '') AS ecosystem,
+        NULL::text AS lockfile_flavor,
+        NULL::text AS feature_token
+    FROM package_registry_warning_active AS warn
+    WHERE warn.payload->>'warning_code' = 'metadata_too_large'
+      AND (
+          ($10 <> '' AND warn.payload->>'package_id' = $10)
+          OR (
+              $11 <> ''
+              AND EXISTS (
+                  SELECT 1
+                  FROM package_consumption_correlation_active AS consumption
+                  WHERE consumption.payload->>'repository_id' = $11
+                    AND consumption.payload->>'package_id' = warn.payload->>'package_id'
+              )
+          )
+      )
 ),
 unsupported_target AS (
     SELECT

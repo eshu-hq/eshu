@@ -146,7 +146,15 @@ ESHU_REMOTE_E2E_MIN_IMPACT_FINDING_COUNT=
 ESHU_REMOTE_E2E_MIN_SECURITY_ALERT_RECONCILIATION_COUNT=
 ESHU_REMOTE_E2E_MIN_SBOM_ATTACHMENT_COUNT=
 ESHU_REMOTE_E2E_MIN_CONTAINER_IMAGE_IDENTITY_COUNT=
+ESHU_REMOTE_E2E_PACKAGE_REGISTRY_GAP_PACKAGE_ID=
 ```
+
+Set `ESHU_REMOTE_E2E_PACKAGE_REGISTRY_GAP_PACKAGE_ID` only when the recorded
+representative corpus intentionally includes an oversized package-registry
+metadata document. The runtime verifier then proves the package's impact
+readiness reports `target_kind=package_registry_metadata` with
+`reason=metadata_too_large`, rather than accepting a retrying or terminally
+failed collector claim as expected evidence.
 
 The output is aggregate-only. Do not paste repository names, package names,
 alert URLs, tokens, hostnames, or machine paths into public issues, docs, or PR
@@ -159,7 +167,11 @@ bounds, unknown modes, terminal queue state, and aggregate counter thresholds.
 Observability Evidence: `scripts/verify_remote_e2e_runtime_state.sh` reports
 terminal queue counts including `dead_letter` plus aggregate package,
 advisory-evidence, impact-finding, security-alert reconciliation, SBOM
-attachment, and container-image identity counters.
+attachment, and container-image identity counters. When configured with
+`ESHU_REMOTE_E2E_PACKAGE_REGISTRY_GAP_PACKAGE_ID`, it also reports the bounded
+`package_registry_metadata_too_large_gaps` count from the readiness API so an
+expected size-limit coverage gap is visible without exposing private package
+names, registry URLs, or credentials.
 
 ## Restart Recovery
 

@@ -368,12 +368,15 @@ matched` from `Eshu did not have the evidence to match yet`:
   so callers cannot see contradictory "ready" + "missing" signals.
 - `unsupported_targets[]` lists observed coverage-gap evidence Eshu cannot
   match. Each entry carries `target_kind` (`ecosystem`,
-  `package_manager_file`, `sbom_target`, or `image_target`), a stable
-  `reason` code, a bounded `count`, and optional `ecosystem`,
-  `lockfile_flavor`, or `feature_token` fields describing why the target
-  is unsupported. The list is surfaced additively alongside `ready_*`
-  states when only some observed targets are unsupported, and as the
-  dominant signal when `readiness_state=unsupported`.
+  `package_manager_file`, `sbom_target`, `package_registry_metadata`, or
+  `image_target`), a stable `reason` code, a bounded `count`, and optional
+  `ecosystem`, `lockfile_flavor`, or `feature_token` fields describing why the
+  target is unsupported. `package_registry_metadata` with
+  `reason=metadata_too_large` means a package-registry source document exceeded
+  the configured byte cap and was recorded as coverage-gap evidence instead of
+  being retried. The list is surfaced additively alongside `ready_*` states
+  when only some observed targets are unsupported, and as the dominant signal
+  when `readiness_state=unsupported`.
 - `incomplete_reasons[]` lists collector-emitted reasons explaining why
   source collection is still in flight; only populated when
   `readiness_state` is `target_incomplete`.

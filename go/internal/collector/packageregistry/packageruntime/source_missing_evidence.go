@@ -11,18 +11,47 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
 
-const warningCodeMetadataNotFound = "metadata_not_found"
+const (
+	warningCodeMetadataNotFound = "metadata_not_found"
+	warningCodeMetadataTooLarge = "metadata_too_large"
+)
 
 func (s *ClaimedSource) missingMetadataWarningGeneration(
 	item workflow.WorkItem,
 	target TargetConfig,
 ) (collector.CollectedGeneration, error) {
+	return s.warningGeneration(
+		item,
+		target,
+		warningCodeMetadataNotFound,
+		"derived package registry metadata was not found; package evidence remains missing",
+	)
+}
+
+func (s *ClaimedSource) metadataTooLargeWarningGeneration(
+	item workflow.WorkItem,
+	target TargetConfig,
+) (collector.CollectedGeneration, error) {
+	return s.warningGeneration(
+		item,
+		target,
+		warningCodeMetadataTooLarge,
+		"package registry metadata exceeded the configured byte limit; package evidence remains unsupported",
+	)
+}
+
+func (s *ClaimedSource) warningGeneration(
+	item workflow.WorkItem,
+	target TargetConfig,
+	warningCode string,
+	message string,
+) (collector.CollectedGeneration, error) {
 	observedAt := s.now().UTC()
 	warning := packageregistry.WarningObservation{
-		WarningKey:          warningCodeMetadataNotFound,
-		WarningCode:         warningCodeMetadataNotFound,
+		WarningKey:          warningCode,
+		WarningCode:         warningCode,
 		Severity:            "warning",
-		Message:             "derived package registry metadata was not found; package evidence remains missing",
+		Message:             message,
 		Package:             targetPackageIdentity(target),
 		ScopeID:             target.Base.ScopeID,
 		GenerationID:        item.GenerationID,

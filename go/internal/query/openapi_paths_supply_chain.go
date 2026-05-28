@@ -308,8 +308,8 @@ const openAPIPathsSupplyChain = `
                           "items": {
                             "type": "object",
                             "properties": {
-                              "target_kind": {"type": "string", "enum": ["ecosystem", "package_manager_file", "sbom_target", "image_target"], "description": "Family of unsupported target observed: dependency in an unsupported ecosystem, package-manager file with an unsupported lockfile feature, malformed/unsupported SBOM document tied to the requested subject digest, or container image target without a supported analyzer."},
-                              "reason": {"type": "string", "description": "Stable reason code explaining why the target is unsupported (e.g., unsupported_ecosystem, lockfile_unsupported_feature, unsupported_field, malformed_document)."},
+                              "target_kind": {"type": "string", "enum": ["ecosystem", "package_manager_file", "sbom_target", "package_registry_metadata", "image_target"], "description": "Family of unsupported target observed: dependency in an unsupported ecosystem, package-manager file with an unsupported lockfile feature, malformed/unsupported SBOM document tied to the requested subject digest, oversized package-registry metadata, or container image target without a supported analyzer."},
+                              "reason": {"type": "string", "description": "Stable reason code explaining why the target is unsupported (e.g., unsupported_ecosystem, lockfile_unsupported_feature, unsupported_field, malformed_document, metadata_too_large)."},
                               "count": {"type": "integer", "minimum": 1},
                               "ecosystem": {"type": "string"},
                               "lockfile_flavor": {"type": "string"},

@@ -65,10 +65,18 @@ func TestPostgresSupplyChainImpactReadinessQueryShape(t *testing.T) {
 		"'ecosystem' AS target_kind",
 		"'package_manager_file' AS target_kind",
 		"'sbom_target' AS target_kind",
+		"'package_registry_metadata' AS target_kind",
 		"NOT IN\n          ('npm', 'nuget', 'maven', 'cargo')",
 		"entity_metadata'->>'lockfile_unsupported_feature'",
 		"warn.payload->>'reason' IN ('unsupported_field', 'malformed_document')",
 		"doc.payload->>'subject_digest' = $12",
+		"package_registry_warning_active AS (",
+		"fact.fact_kind = 'package_registry.warning'",
+		"FROM package_registry_warning_active AS warn",
+		"warn.payload->>'warning_code' = 'metadata_too_large'",
+		"warn.payload->>'package_id' = $10",
+		"FROM package_consumption_correlation_active AS consumption",
+		"consumption.payload->>'repository_id' = $11",
 		// Anchor guards: ecosystem and package_manager_file rows only count
 		// when the request carries an explicit repository_id, and sbom_target
 		// rows only count when the request carries an explicit

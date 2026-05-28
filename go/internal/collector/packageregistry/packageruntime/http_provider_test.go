@@ -49,7 +49,7 @@ func TestHTTPMetadataProviderRequestsAbbreviatedNPMPackument(t *testing.T) {
 		accept := r.Header.Get("Accept")
 		accepts <- accept
 		if !strings.Contains(accept, "application/vnd.npm.install-v1+json") {
-			_, _ = io.CopyN(w, repeatedByteReader('x'), int64(maxMetadataDocumentBytes+1))
+			_, _ = io.Copy(w, oversizedMetadataFixture())
 			return
 		}
 		_, _ = w.Write([]byte(`{
@@ -83,6 +83,45 @@ func TestHTTPMetadataProviderRequestsAbbreviatedNPMPackument(t *testing.T) {
 	}
 	if len(document.Body) > maxMetadataDocumentBytes {
 		t.Fatalf("Body length = %d, want bounded abbreviated metadata", len(document.Body))
+	}
+}
+
+func TestHTTPMetadataProviderClassifiesOversizedMetadataAsTerminalSourceState(t *testing.T) {
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = io.Copy(w, oversizedMetadataFixture())
+	}))
+	defer server.Close()
+
+	_, err := HTTPMetadataProvider{Client: server.Client()}.FetchMetadata(context.Background(), TargetConfig{
+		Base: packageregistry.TargetConfig{
+			Provider:  "npmjs",
+			Ecosystem: packageregistry.EcosystemNPM,
+			Registry:  "https://registry.npmjs.org",
+			ScopeID:   "package-registry://npmjs/npm/oversized",
+		},
+		MetadataURL: server.URL + "/oversized?token=secret",
+	})
+	if err == nil {
+		t.Fatal("FetchMetadata() error = nil, want deterministic too-large failure")
+	}
+	if !isMetadataTooLarge(err) {
+		t.Fatalf("FetchMetadata() error = %T %[1]v, want metadata-too-large classification", err)
+	}
+	if got := failureClass(err); got != failureClassMetadataTooLarge {
+		t.Fatalf("FailureClass() = %q, want %q", got, failureClassMetadataTooLarge)
+	}
+	var terminal interface {
+		TerminalFailure() bool
+	}
+	if !errors.As(err, &terminal) || !terminal.TerminalFailure() {
+		t.Fatalf("TerminalFailure() = false, want true for deterministic size-limit failure: %v", err)
+	}
+	for _, leaked := range []string{"oversized", "token=secret", "registry.npmjs.org"} {
+		if strings.Contains(err.Error(), leaked) || strings.Contains(failureDetails(err), leaked) {
+			t.Fatalf("metadata-too-large failure leaked %q: error=%q details=%q", leaked, err.Error(), failureDetails(err))
+		}
 	}
 }
 
@@ -280,4 +319,8 @@ func (r repeatedByteReader) Read(p []byte) (int, error) {
 		p[i] = byte(r)
 	}
 	return len(p), nil
+}
+
+func oversizedMetadataFixture() io.Reader {
+	return io.LimitReader(repeatedByteReader('x'), int64(maxMetadataDocumentBytes+1))
 }

@@ -135,6 +135,9 @@ case "$*" in
   *"/api/v0/supply-chain/impact/findings/count"*)
     cat "${state_dir}/impact-count.json"
     ;;
+  *"/api/v0/supply-chain/impact/findings?package_id=npm://registry.npmjs.org/oversized&limit=1"*)
+    cat "${state_dir}/package-registry-gap-readiness.json"
+    ;;
   *"/api/v0/supply-chain/security-alerts/reconciliations/count"*)
     cat "${state_dir}/security-alert-count.json"
     ;;
@@ -199,6 +202,22 @@ JSON
 JSON
   cat >"${state_dir}/impact-count.json" <<'JSON'
 {"total_findings": 2, "affected_findings": 2}
+JSON
+  cat >"${state_dir}/package-registry-gap-readiness.json" <<'JSON'
+{
+  "findings": [],
+  "readiness": {
+    "readiness_state": "unsupported",
+    "unsupported_targets": [
+      {
+        "target_kind": "package_registry_metadata",
+        "reason": "metadata_too_large",
+        "ecosystem": "npm",
+        "count": 1
+      }
+    ]
+  }
+}
 JSON
   cat >"${state_dir}/security-alert-count.json" <<'JSON'
 {"total_reconciliations": 1}
@@ -333,6 +352,37 @@ if ! rg -q 'remote E2E aggregate proof counts: package_registry_packages=3 advis
   sed -n '1,220p' /tmp/eshu-remote-e2e-runtime.out >&2
   exit 1
 fi
+
+reset_state
+set_all_services_healthy
+export ESHU_REMOTE_E2E_PACKAGE_REGISTRY_GAP_PACKAGE_ID='npm://registry.npmjs.org/oversized'
+expect_pass
+if ! rg -q 'package_registry_metadata_too_large_gaps=1' /tmp/eshu-remote-e2e-runtime.out; then
+  printf 'expected package-registry metadata too-large gap proof in verifier output\n' >&2
+  sed -n '1,240p' /tmp/eshu-remote-e2e-runtime.out >&2
+  exit 1
+fi
+if rg -q 'npm://registry.npmjs.org/oversized' /tmp/eshu-remote-e2e-runtime.out; then
+  printf 'package-registry gap proof leaked package_id\n' >&2
+  sed -n '1,240p' /tmp/eshu-remote-e2e-runtime.out >&2
+  exit 1
+fi
+unset ESHU_REMOTE_E2E_PACKAGE_REGISTRY_GAP_PACKAGE_ID
+
+reset_state
+set_all_services_healthy
+cat >"${state_dir}/package-registry-gap-readiness.json" <<'JSON'
+{
+  "findings": [],
+  "readiness": {
+    "readiness_state": "ready_zero_findings",
+    "unsupported_targets": []
+  }
+}
+JSON
+export ESHU_REMOTE_E2E_PACKAGE_REGISTRY_GAP_PACKAGE_ID='npm://registry.npmjs.org/oversized'
+expect_fail_with 'package_registry_metadata_too_large_gaps=0 below required minimum 1'
+unset ESHU_REMOTE_E2E_PACKAGE_REGISTRY_GAP_PACKAGE_ID
 
 reset_state
 set_all_services_healthy

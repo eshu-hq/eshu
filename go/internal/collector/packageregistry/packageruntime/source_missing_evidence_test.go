@@ -72,6 +72,68 @@ func TestClaimedSourceCompletesDerivedNotFoundAsWarning(t *testing.T) {
 	}
 }
 
+func TestClaimedSourceCompletesMetadataTooLargeAsCoverageGapWarning(t *testing.T) {
+	t.Parallel()
+
+	observedAt := time.Date(2026, time.May, 28, 14, 30, 0, 0, time.UTC)
+	source := newTestClaimedSource(t, TargetConfig{
+		Base: packageregistry.TargetConfig{
+			Provider:     "npmjs",
+			Ecosystem:    packageregistry.EcosystemNPM,
+			Registry:     "https://registry.npmjs.org",
+			ScopeID:      "package-registry://npmjs/npm/oversized",
+			Packages:     []string{"oversized"},
+			PackageLimit: 1,
+			VersionLimit: 1,
+		},
+		MetadataURL: "https://registry.npmjs.org/oversized?token=secret",
+	}, staticMetadataProvider{})
+	source.provider = failingMetadataProvider{
+		err: newMetadataTooLargeError(maxMetadataDocumentBytes),
+	}
+	source.now = func() time.Time { return observedAt }
+
+	collected, ok, err := source.NextClaimed(
+		context.Background(),
+		testPackageRegistryWorkItemForScope("package-registry://npmjs/npm/oversized"),
+	)
+	if err != nil {
+		t.Fatalf("NextClaimed() error = %v, want nil coverage-gap warning", err)
+	}
+	if !ok {
+		t.Fatal("NextClaimed() ok = false, want completed warning generation")
+	}
+
+	var warnings int
+	for envelope := range collected.Facts {
+		if envelope.FactKind != facts.PackageRegistryWarningFactKind {
+			t.Fatalf("FactKind = %q, want only warning evidence", envelope.FactKind)
+		}
+		warnings++
+		if got, want := envelope.Payload["warning_code"], warningCodeMetadataTooLarge; got != want {
+			t.Fatalf("warning_code = %#v, want %q", got, want)
+		}
+		if got, want := envelope.Payload["package_id"], "npm://registry.npmjs.org/oversized"; got != want {
+			t.Fatalf("package_id = %#v, want %q", got, want)
+		}
+		if got, want := envelope.Payload["ecosystem"], "npm"; got != want {
+			t.Fatalf("ecosystem = %#v, want %q", got, want)
+		}
+		message, _ := envelope.Payload["message"].(string)
+		if !strings.Contains(message, "configured byte limit") {
+			t.Fatalf("warning message = %q, want configured byte-limit explanation", message)
+		}
+		for _, leaked := range []string{"oversized", "token=secret", "registry.npmjs.org"} {
+			if strings.Contains(message, leaked) {
+				t.Fatalf("warning message leaked %q: %q", leaked, message)
+			}
+		}
+	}
+	if warnings != 1 {
+		t.Fatalf("warning facts = %d, want 1", warnings)
+	}
+}
+
 func TestClaimedSourceKeepsConfiguredNotFoundAsError(t *testing.T) {
 	t.Parallel()
 

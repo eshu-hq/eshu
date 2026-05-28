@@ -33,8 +33,9 @@ const (
 	// ReadinessStateUnsupported means Eshu observed real target evidence
 	// (owned dependency in an unsupported ecosystem, package-manager file
 	// flagged with an unsupported lockfile feature, malformed/unsupported
-	// SBOM, or unsupported image manifest) the matcher cannot resolve into a
-	// finding. Callers must not interpret this as clean or affected.
+	// SBOM, oversized package-registry metadata, or unsupported image
+	// manifest) the matcher cannot resolve into a finding. Callers must not
+	// interpret this as clean or affected.
 	ReadinessStateUnsupported SupplyChainImpactReadinessState = "unsupported"
 )
 

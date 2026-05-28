@@ -63,6 +63,11 @@ private-registry package URL. The runtime asks npm-compatible registries for
 the abbreviated install metadata document and keeps the 20 MiB response cap in
 force.
 
+If a package metadata response exceeds that cap, the runtime treats it as a
+deterministic coverage gap. It completes the workflow claim with a
+`package_registry.warning` fact using `warning_code=metadata_too_large` instead
+of retrying the same oversized response until the work item becomes terminal.
+
 `configuration.derive_from_owned_packages.enabled=true` lets the active
 workflow coordinator derive additional npm package metadata targets from active
 owned Git dependency facts. The command accepts derived scopes from workflow
@@ -86,6 +91,11 @@ The binary exposes the shared hosted runtime with `/healthz`, `/readyz`,
 | `eshu_dp_package_registry_parse_failures_total` | Counter | `ecosystem`, `document_type` | Counts parser failures by package-native document family. |
 
 Package names, feed URLs, versions, and artifact paths stay out of metric
+labels.
+
+Oversized metadata responses use the existing request `status_class` label
+value `metadata_too_large` and emit `fact_kind=package_registry.warning`; they
+do not add package names, feed URLs, versions, or credential material to metric
 labels.
 
 `/admin/status` also includes package-registry rows in `registry_collectors`.

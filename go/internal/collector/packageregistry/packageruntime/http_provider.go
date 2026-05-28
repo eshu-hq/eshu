@@ -14,16 +14,46 @@ import (
 )
 
 const (
-	maxMetadataDocumentBytes    = 20 << 20
-	defaultMetadataFetchTimeout = 30 * time.Second
-	npmMetadataAcceptHeader     = "application/vnd.npm.install-v1+json; q=1.0, application/json; q=0.8, */*;q=0.1"
-	jsonMetadataAcceptHeader    = "application/json, application/xml;q=0.5, text/xml;q=0.4, */*;q=0.1"
-	xmlMetadataAcceptHeader     = "application/xml, text/xml;q=0.9, application/json;q=0.5, */*;q=0.1"
+	maxMetadataDocumentBytes     = 20 << 20
+	defaultMetadataFetchTimeout  = 30 * time.Second
+	npmMetadataAcceptHeader      = "application/vnd.npm.install-v1+json; q=1.0, application/json; q=0.8, */*;q=0.1"
+	jsonMetadataAcceptHeader     = "application/json, application/xml;q=0.5, text/xml;q=0.4, */*;q=0.1"
+	xmlMetadataAcceptHeader      = "application/xml, text/xml;q=0.9, application/json;q=0.5, */*;q=0.1"
+	failureClassMetadataTooLarge = "registry_metadata_too_large"
 )
 
 // ErrRateLimited marks provider responses that should be visible as rate limit
 // telemetry without leaking feed URLs or credentials.
 var ErrRateLimited = errors.New("package registry metadata request rate limited")
+
+type metadataTooLargeError struct {
+	limitBytes int
+}
+
+func newMetadataTooLargeError(limitBytes int) error {
+	return metadataTooLargeError{limitBytes: limitBytes}
+}
+
+func (e metadataTooLargeError) Error() string {
+	return fmt.Sprintf("package registry metadata exceeds configured byte limit %d bytes", e.limitBytes)
+}
+
+func (e metadataTooLargeError) FailureClass() string {
+	return failureClassMetadataTooLarge
+}
+
+func (e metadataTooLargeError) FailureDetails() string {
+	return fmt.Sprintf("configured_limit_bytes=%d", e.limitBytes)
+}
+
+func (e metadataTooLargeError) TerminalFailure() bool {
+	return true
+}
+
+func isMetadataTooLarge(err error) bool {
+	var tooLarge metadataTooLargeError
+	return errors.As(err, &tooLarge)
+}
 
 // HTTPMetadataProvider fetches parser-ready package metadata from an explicit
 // package feed endpoint.
@@ -113,7 +143,7 @@ func readBoundedMetadata(reader io.Reader) ([]byte, error) {
 		return nil, fmt.Errorf("read package metadata: %w", err)
 	}
 	if len(body) > maxMetadataDocumentBytes {
-		return nil, fmt.Errorf("package metadata exceeds %d bytes", maxMetadataDocumentBytes)
+		return nil, newMetadataTooLargeError(maxMetadataDocumentBytes)
 	}
 	return body, nil
 }

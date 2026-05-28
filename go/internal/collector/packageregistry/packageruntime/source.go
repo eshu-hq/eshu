@@ -180,6 +180,14 @@ func (s *ClaimedSource) NextClaimed(
 
 	document, err := s.fetchMetadata(observeCtx, target)
 	if err != nil {
+		if isMetadataTooLarge(err) {
+			collected, warningErr := s.metadataTooLargeWarningGeneration(item, target)
+			if warningErr == nil {
+				s.recordObserve(observeCtx, target, "metadata_too_large", startedAt)
+				return collected, true, nil
+			}
+			err = errors.Join(err, warningErr)
+		}
 		if derivedTarget && isRegistryNotFound(err) {
 			collected, warningErr := s.missingMetadataWarningGeneration(item, target)
 			if warningErr == nil {
@@ -227,7 +235,9 @@ func (s *ClaimedSource) fetchMetadata(ctx context.Context, target TargetConfig) 
 	statusClass := "success"
 	if err != nil {
 		statusClass = "error"
-		if errors.Is(err, ErrRateLimited) {
+		if isMetadataTooLarge(err) {
+			statusClass = "metadata_too_large"
+		} else if errors.Is(err, ErrRateLimited) {
 			statusClass = "rate_limited"
 			if s.instruments != nil {
 				s.instruments.PackageRegistryRateLimited.Add(ctx, 1, metric.WithAttributes(

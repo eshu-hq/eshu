@@ -66,6 +66,14 @@ Set `ESHU_REMOTE_E2E_API_BASE_URL` and `ESHU_REMOTE_E2E_API_KEY` when the API
 is not discoverable through the `eshu` Compose service port and generated
 token.
 
+Set `ESHU_REMOTE_E2E_PACKAGE_REGISTRY_GAP_PACKAGE_ID` to a bounded package ID
+when a representative corpus intentionally includes package metadata that
+exceeds the configured package-registry byte cap. The verifier calls the
+supply-chain impact API for that package and requires
+`unsupported_targets[]` to contain `target_kind=package_registry_metadata` and
+`reason=metadata_too_large`, distinguishing an expected coverage gap from a
+collector crash, transient provider outage, or retry storm.
+
 Remote E2E Compose supports either an explicit `ESHU_API_KEY` in the env file
 or an auto-generated local token. When `ESHU_API_KEY` is blank, the API writes
 the generated token under the shared `/data/.eshu/.env` volume, and the MCP
@@ -80,8 +88,11 @@ covers the runtime gate against mocked Docker and API responses. The test
 proves that an ingester stuck in `Created`, an unhealthy collector, a non-zero
 fact queue, and queue-zero plus stale workflow `reducer_converging` /
 pending-completeness state all fail before a run can be accepted, while a
-healthy runtime set with queue-zero and workflow completion passes. Focused
-status and Postgres status-reader coverage also proves `/api/v0/index-status`
+healthy runtime set with queue-zero and workflow completion passes. It also
+proves an explicit package-registry too-large metadata gap is accepted only
+when the impact-readiness envelope reports
+`package_registry_metadata/metadata_too_large`. Focused status and Postgres
+status-reader coverage also proves `/api/v0/index-status`
 health does not report `healthy` while workflow coordinator runs are still
 `reducer_converging`, workflow completeness rows are pending or blocked,
 workflow runs have failed, or status-age fields briefly go negative because the
@@ -101,6 +112,10 @@ private machine-specific logs or paths. The existing `/api/v0/index-status`,
 and overdue claim counts, queue/domain ages, and health reasons that distinguish
 fact-queue backlog, shared projection backlog, workflow convergence, blocked
 completeness, failed workflow runs, and stale pending workflow work.
+When `ESHU_REMOTE_E2E_PACKAGE_REGISTRY_GAP_PACKAGE_ID` is set, the verifier
+also prints `package_registry_metadata_too_large_gaps` from the bounded
+readiness response without printing package names, metadata URLs, or feed
+credentials.
 Additional Observability Evidence: the existing `/index-status` health reason now names
 recent producer activity when it is the reason an old idle fact queue remains
 `progressing` instead of `stalled`. Operators can correlate that reason with
