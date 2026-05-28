@@ -27,7 +27,11 @@
 // source-snapshot cache metadata for advisory sources, stripping absent optional
 // fields from the Postgres JSON rollup before decoding. It never invents
 // findings or duplicates reducer matching: it counts existing source and
-// reducer facts so the answer is diagnosable without re-querying.
+// reducer facts so the answer is diagnosable without re-querying. Provider
+// security-alert reconciliation list, count, and inventory reads select one
+// current reducer row per provider alert identity before applying default
+// status/state filters, while each returned row keeps reducer reason and
+// evidence fact ids for audit.
 // The companion explain route accepts one finding id or an advisory/CVE plus
 // package, repository, or image digest scope, then hydrates only the finding's
 // referenced evidence facts. It reports advisory, package/version,

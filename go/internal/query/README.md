@@ -112,8 +112,9 @@ canonical graph or reducer truth.
 - `SecurityAlertReconciliationStore` — port for reducer-owned provider alert
   comparison rows (`security_alert_reconciliation.go`)
 - `PostgresSecurityAlertReconciliationStore` — Postgres-backed security alert
-  reconciliation read model for bounded API/MCP reads
-  (`security_alert_reconciliation.go`)
+  reconciliation read model for bounded API/MCP reads; default pages select one
+  current row per provider alert identity before state/status filters and
+  cursor pagination (`security_alert_reconciliation.go`)
 - `SupplyChainImpactFindingRow` — reducer-owned vulnerability impact finding
   row that keeps `observed_version`, `requested_range`, `fixed_version`, and
   `match_reason` separate so API and MCP clients can explain version matching

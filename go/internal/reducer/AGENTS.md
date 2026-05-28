@@ -58,6 +58,12 @@ before touching any file in this directory.
   work back into the per-call loop; generated JS bundles make that
   multiplicative. Cache negative scans too; a source with no static aliases
   must not be sent through the regex pass once per call.
+- **Security-alert reconciliation identity is provider-alert stable** —
+  `security_alert_reconciliation_writer.go` must key reducer facts by provider,
+  provider alert id or number, provider evidence scope, package id, and advisory
+  ids. Do not include mutable canonical `repository_id` or source fact id in
+  the replacement identity, or provider-only placeholders can remain active
+  beside later matched or stale rows for the same provider alert.
 
 ## Common changes
 
@@ -131,6 +137,12 @@ before touching any file in this directory.
   JavaScript `function_calls` arrays and run
   BenchmarkExtractCodeCallRowsLargeJavaScriptDynamicCalls before changing
   graph or queue code.
+
+## Evidence notes
+
+No-Regression Evidence: `go test ./internal/reducer -run 'TestSecurityAlertReconciliationFactIdentitySurvivesProviderOnlyToMatched|TestSecurityAlertReconciliationFactIdentitySurvivesMatchedToStale' -count=1` failed before reducer fact identity ignored mutable repository/source-fact fields, then passed. `go test ./internal/query -run 'TestPostgresSecurityAlertReconciliationQueryShape|TestSecurityAlertReconciliationAggregateQueriesUseCurrentProviderAlertRows' -count=1` failed before default list/count/inventory reads ranked one current provider-alert row before status and state filters, then passed.
+
+No-Observability-Change: the change only adjusts reducer fact replacement identity and the existing Postgres read-model selection for security-alert reconciliations. It adds no route, graph query, queue, worker, runtime knob, metric instrument, or metric label; operators still diagnose the path through existing reducer run spans, reducer execution counters, durable `reducer_security_alert_reconciliation` payloads, query handler spans, and Postgres query duration metrics.
 
 ## Anti-patterns
 

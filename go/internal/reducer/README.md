@@ -487,7 +487,11 @@ Log phase attributes: `telemetry.PhaseReduction` (main loop),
   separate from canonical `repository_id`, classifies rows as matched,
   unmatched, stale, dismissed, fixed, or provider-only, and explains when a
   provider alert was not admitted into impact truth because owned dependency
-  evidence was missing, stale, or ambiguous.
+  evidence was missing, stale, or ambiguous. Its durable replacement identity
+  uses provider, provider alert id or number, provider evidence scope, package
+  id, and advisory ids so provider-only rows are replaced by later matched or
+  stale rows for the same provider alert instead of remaining active beside
+  them.
 - **Package ownership is conservative** —
   `PackageSourceCorrelationHandler` writes ownership candidates from registry
   source hints and package-version publication evidence but leaves

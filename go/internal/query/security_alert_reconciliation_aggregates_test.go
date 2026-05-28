@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 )
 
@@ -81,10 +82,10 @@ func TestSecurityAlertReconciliationAggregateCountReturnsRollups(t *testing.T) {
 		count: SecurityAlertReconciliationAggregateCount{
 			TotalReconciliations: 12,
 			ByReconciliationStatus: map[string]int{
-				"eshu_only":          3,
-				"provider_only":      2,
-				"both_active":        6,
-				"both_dismissed":     1,
+				"eshu_only":      3,
+				"provider_only":  2,
+				"both_active":    6,
+				"both_dismissed": 1,
 			},
 			ByProvider: map[string]int{
 				"github_security_advisories": 8,
@@ -292,6 +293,48 @@ func TestSecurityAlertReconciliationAggregateInventoryRejectsOversizedOffset(t *
 	mux.ServeHTTP(w, req)
 	if got, want := w.Code, http.StatusBadRequest; got != want {
 		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
+	}
+}
+
+func TestSecurityAlertReconciliationAggregateQueriesUseCurrentProviderAlertRows(t *testing.T) {
+	t.Parallel()
+
+	for name, query := range map[string]string{
+		"total":     securityAlertReconciliationAggregateTotalQuery,
+		"group":     securityAlertReconciliationAggregateGroupQueryTemplate,
+		"inventory": securityAlertReconciliationInventoryQueryTemplate,
+	} {
+		query := query
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			for _, want := range []string{
+				"ROW_NUMBER() OVER (",
+				"PARTITION BY",
+				"security_alert_current_rank",
+				"COALESCE(NULLIF(fact.payload->>'provider_alert_id', ''),",
+				"COALESCE(NULLIF(fact.payload->>'provider_repository_id', ''),",
+				"COALESCE(NULLIF(fact.payload->'cve_ids', 'null'::jsonb), '[]'::jsonb)",
+				"COALESCE(NULLIF(fact.payload->'ghsa_ids', 'null'::jsonb), '[]'::jsonb)",
+			} {
+				if !strings.Contains(query, want) {
+					t.Fatalf("%s aggregate query missing %q:\n%s", name, want, query)
+				}
+			}
+			currentRank := strings.Index(query, "security_alert_current_rank = 1")
+			if currentRank < 0 {
+				t.Fatalf("%s aggregate query missing current-rank filter:\n%s", name, query)
+			}
+			for _, filter := range []string{
+				"current_fact.payload->>'provider_state' = $6",
+				"current_fact.payload->>'reconciliation_status' = $7",
+			} {
+				filterIndex := strings.Index(query, filter)
+				if filterIndex < currentRank {
+					t.Fatalf("%s aggregate filter %q must apply after current-rank selection:\n%s", name, filter, query)
+				}
+			}
+		})
 	}
 }
 

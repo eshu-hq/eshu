@@ -178,6 +178,13 @@ func TestPostgresSecurityAlertReconciliationQueryShape(t *testing.T) {
 	t.Parallel()
 
 	for _, want := range []string{
+		"ROW_NUMBER() OVER (",
+		"PARTITION BY",
+		"security_alert_current_rank",
+		"COALESCE(NULLIF(fact.payload->>'provider_alert_id', ''),",
+		"COALESCE(NULLIF(fact.payload->>'provider_repository_id', ''),",
+		"COALESCE(NULLIF(fact.payload->'cve_ids', 'null'::jsonb), '[]'::jsonb)",
+		"COALESCE(NULLIF(fact.payload->'ghsa_ids', 'null'::jsonb), '[]'::jsonb)",
 		"scope.active_generation_id = fact.generation_id",
 		"generation.status = 'active'",
 		"fact.fact_kind = $1",
@@ -187,13 +194,24 @@ func TestPostgresSecurityAlertReconciliationQueryShape(t *testing.T) {
 		"fact.payload->>'package_id' = $4",
 		"fact.payload->'cve_ids' ? $5",
 		"fact.payload->'ghsa_ids' ? $6",
-		"fact.payload->>'provider_state' = $7",
-		"fact.payload->>'reconciliation_status' = $8",
-		"fact.fact_id > $9",
 		"LIMIT $10",
 	} {
 		if !strings.Contains(listSecurityAlertReconciliationsQuery, want) {
 			t.Fatalf("listSecurityAlertReconciliationsQuery missing %q:\n%s", want, listSecurityAlertReconciliationsQuery)
+		}
+	}
+	currentRank := strings.Index(listSecurityAlertReconciliationsQuery, "security_alert_current_rank = 1")
+	if currentRank < 0 {
+		t.Fatalf("listSecurityAlertReconciliationsQuery missing current-rank filter:\n%s", listSecurityAlertReconciliationsQuery)
+	}
+	for _, filter := range []string{
+		"current_fact.payload->>'provider_state' = $7",
+		"current_fact.payload->>'reconciliation_status' = $8",
+		"current_fact.fact_id > $9",
+	} {
+		filterIndex := strings.Index(listSecurityAlertReconciliationsQuery, filter)
+		if filterIndex < currentRank {
+			t.Fatalf("filter %q must apply after current-rank selection:\n%s", filter, listSecurityAlertReconciliationsQuery)
 		}
 	}
 }
