@@ -45,6 +45,7 @@ It does not mutate AWS resources, read protected payloads, or write graph truth.
 | `glue` | Data Catalog database, table, crawler, job, trigger, workflow, and connection metadata plus table-in-database, table-to-S3-location, crawler-to-database, crawler-to-IAM-role, job-to-IAM-role, and trigger-to-job relationships. No script bodies, default-argument values, connection passwords, JDBC credential URLs, workflow graphs, table column sample statistics, or classifier custom patterns. |
 | `elasticache` | Cache clusters, replication groups, parameter and subnet groups, users, user groups, and snapshot metadata (name/source/status only); cluster-to-VPC, cluster-to-subnet, cluster-to-KMS, replication-group-to-cluster, and user-group-to-user relationships. No AUTH tokens, user passwords, user access strings, cache contents, or snapshot data. |
 | `msk` | MSK cluster, broker configuration, and replicator metadata with subnet, security-group, KMS-key, IAM-role, and configuration relationships; no broker `server.properties` bodies, broker logs, bootstrap broker endpoints, SCRAM secrets, or Kafka topic data. |
+| `mq` | Amazon MQ broker and broker-configuration metadata for ActiveMQ and RabbitMQ engines (name, engine type/version, deployment mode, instance type, status, security-group refs, encryption options, broker usernames) with broker-to-subnet, broker-to-security-group, broker-to-KMS-key (customer-managed only), broker-to-configuration, and broker-to-CloudWatch-log-group relationships; no broker user passwords, configuration XML bodies, or queue/topic message contents. |
 | `stepfunctions` | State machine and activity metadata, execution-role relationships, and ARN-only Task-target relationships; no execution payloads, history events, task tokens, or definition literals. |
 | `backup` | Backup vault, backup plan, backup selection, recovery point (metadata only - id, source resource ARN, vault, status, creation/expiration), report plan, restore testing plan, and framework metadata with plan-to-selection, selection-to-resource, selection-to-IAM-role, vault-to-KMS-key, recovery-point-to-vault, recovery-point-to-source-resource, and framework-to-control relationships. No recovery point contents, vault access policy bodies, or framework control input parameter values. |
 | `accessanalyzer` | Analyzer metadata, archive-rule names, aggregate finding counts, relationships, and unused-access summaries. |
@@ -76,7 +77,9 @@ passwords or JDBC credential URLs, Glue workflow graph payloads, Glue table
 column statistics with sample values, Glue classifier custom patterns, MSK
 Kafka topic or message data, MSK broker logs, MSK broker `server.properties`
 bodies, MSK configuration revision bodies, MSK bootstrap broker endpoints, MSK
-SCRAM secret material, Step Functions execution input or output, Step
+SCRAM secret material, Amazon MQ broker user passwords, Amazon MQ
+configuration XML bodies, Amazon MQ queue or topic message contents, Step
+Functions execution input or output, Step
 Functions execution history events, Step Functions activity task tokens, AWS
 Backup recovery point contents, AWS Backup vault access policy bodies, AWS
 Backup framework control input parameter values, AWS Backup recovery-point

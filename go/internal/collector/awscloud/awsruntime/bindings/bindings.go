@@ -31,6 +31,7 @@ import (
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/iam/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/kms/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/lambda/runtimebind"
+	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/mq/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/msk/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/organizations/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/rds/runtimebind"
