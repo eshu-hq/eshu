@@ -72,6 +72,13 @@ func TestClassifyStackOutputPreservesNonSecretKeysAndRedactsSecrets(t *testing.T
 		{name: "public key id preserved", key: "KeyId", value: "1234-abcd", wantRedact: false},
 		{name: "role arn preserved", key: "RoleArn", value: "arn:aws:iam::1:role/app", wantRedact: false},
 		{name: "website url preserved", key: "WebsiteUrl", value: "https://example.com", wantRedact: false},
+		// Tokens added when the shared awsSensitiveKeys policy was widened:
+		// outputs named exactly these were preserved in cleartext before.
+		{name: "credentials redacted", key: "Credentials", value: "user:pass", wantRedact: true, wantNoLeak: "user:pass"},
+		{name: "compound credential redacted", key: "ServiceCredential", value: "cred-leak", wantRedact: true, wantNoLeak: "cred-leak"},
+		{name: "encryption key redacted", key: "EncryptionKey", value: "ek-leak", wantRedact: true, wantNoLeak: "ek-leak"},
+		{name: "signing key redacted", key: "SigningKey", value: "sk-leak", wantRedact: true, wantNoLeak: "sk-leak"},
+		{name: "passphrase redacted", key: "Passphrase", value: "pp-leak", wantRedact: true, wantNoLeak: "pp-leak"},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
