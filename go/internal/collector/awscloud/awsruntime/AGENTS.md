@@ -130,9 +130,15 @@
   4. Append one underscore-import line to
      `awsruntime/bindings/bindings.go`. That file is marked `merge=union` in
      `.gitattributes` so parallel scanner PRs do not conflict.
-  5. Add the service to the want-list in
-     `awsruntime/registry_supported_services_test.go` so a missing binding
-     surfaces at test time.
+  There is no want-list to edit. The supported-service guard is DERIVED: the
+  guard tests in `awsruntime/registry_supported_services_test.go` and
+  `awsruntime/bindings/bindings_test.go` enumerate the
+  `services/<svc>/runtimebind/` directories on disk and the runtimebind blank
+  imports parsed from `bindings.go`, then assert the two sets and the registry
+  count agree (see `awsruntime/internal/guardset`). A new
+  `services/<svc>/runtimebind/` directory without a matching `bindings.go`
+  import fails the guard automatically, so adding a scanner touches zero
+  want-lists.
   Command-side target-scope validation continues to use `SupportsServiceKind`,
   which delegates to the registry.
 - Change claim shape only with coordinator, workflow, and ADR updates in the

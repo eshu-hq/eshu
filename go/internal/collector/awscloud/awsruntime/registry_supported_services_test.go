@@ -2,6 +2,8 @@ package awsruntime_test
 
 import (
 	"context"
+	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -9,6 +11,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/awsruntime"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/awsruntime/bindings"
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud/awsruntime/internal/guardset"
 	"github.com/eshu-hq/eshu/go/internal/redact"
 )
 
@@ -46,61 +49,25 @@ func TestSupportedServiceKindsBuildScanners(t *testing.T) {
 	}
 }
 
-// TestSupportedServiceKindsCoversEveryAWSService asserts the registry holds
-// the entire list of AWS service constants the collector promises to support.
-// A new scanner PR has to update awscloud constants and the bindings list;
-// failure here means one of the two is missing.
-func TestSupportedServiceKindsCoversEveryAWSService(t *testing.T) {
-	want := map[string]bool{
-		awscloud.ServiceAccessAnalyzer: true,
-		awscloud.ServiceACM:            true,
-		awscloud.ServiceAPIGateway:     true,
-		awscloud.ServiceAthena:         true,
-		awscloud.ServiceBackup:         true,
-		awscloud.ServiceCloudFront:     true,
-		awscloud.ServiceCloudTrail:     true,
-		awscloud.ServiceCloudWatch:     true,
-		awscloud.ServiceCloudWatchLogs: true,
-		awscloud.ServiceDynamoDB:       true,
-		awscloud.ServiceEC2:            true,
-		awscloud.ServiceECR:            true,
-		awscloud.ServiceECS:            true,
-		awscloud.ServiceEKS:            true,
-		awscloud.ServiceELBv2:          true,
-		awscloud.ServiceElastiCache:    true,
-		awscloud.ServiceEventBridge:    true,
-		awscloud.ServiceGlue:           true,
-		awscloud.ServiceGuardDuty:      true,
-		awscloud.ServiceIAM:            true,
-		awscloud.ServiceKMS:            true,
-		awscloud.ServiceLambda:         true,
-		awscloud.ServiceMSK:            true,
-		awscloud.ServiceOrganizations:  true,
-		awscloud.ServiceRDS:            true,
-		awscloud.ServiceRedshift:       true,
-		awscloud.ServiceRoute53:        true,
-		awscloud.ServiceS3:             true,
-		awscloud.ServiceSNS:            true,
-		awscloud.ServiceSQS:            true,
-		awscloud.ServiceSSM:            true,
-		awscloud.ServiceSecretsManager: true,
-		awscloud.ServiceSecurityHub:    true,
-		awscloud.ServiceStepFunctions:  true,
-		awscloud.ServiceVPC:            true,
+// TestSupportedServiceKindsCoversEveryRuntimebind asserts the registry holds
+// exactly one builder per services/<service>/runtimebind/ directory. The
+// expected count is DERIVED from the filesystem, not a hardcoded want-list, so
+// a new scanner adds zero lines to this test. A binding that is imported but
+// fails to register at init (so its kind never reaches the registry) still
+// fails here because the registered count drops below the directory count.
+//
+// This test imports the bindings aggregator (blank import above) so every
+// production registration runs before the assertion.
+func TestSupportedServiceKindsCoversEveryRuntimebind(t *testing.T) {
+	dirs, err := guardset.RuntimebindServiceDirs(servicesDir(t))
+	if err != nil {
+		t.Fatalf("RuntimebindServiceDirs() error = %v", err)
 	}
-	have := map[string]bool{}
-	for _, kind := range awsruntime.SupportedServiceKinds() {
-		have[kind] = true
+	if len(dirs) == 0 {
+		t.Fatalf("RuntimebindServiceDirs() = empty, want the live scanner set")
 	}
-	for kind := range want {
-		if !have[kind] {
-			t.Errorf("SupportedServiceKinds() missing %q", kind)
-		}
-	}
-	for kind := range have {
-		if !want[kind] {
-			t.Errorf("SupportedServiceKinds() reports unexpected %q (update want list?)", kind)
-		}
+	if got := len(awsruntime.SupportedServiceKinds()); got != len(dirs) {
+		t.Errorf("len(SupportedServiceKinds()) = %d, want %d (one per runtimebind dir %v)", got, len(dirs), dirs)
 	}
 	if !awsruntime.SupportsServiceKind(awscloud.ServiceIAM) {
 		t.Fatalf("SupportsServiceKind(iam) = false, want true")
@@ -108,4 +75,18 @@ func TestSupportedServiceKindsCoversEveryAWSService(t *testing.T) {
 	if awsruntime.SupportsServiceKind("nonexistent") {
 		t.Fatalf("SupportsServiceKind(nonexistent) = true, want false")
 	}
+}
+
+// servicesDir resolves go/internal/collector/awscloud/services from this test
+// file's location so the directory walk does not depend on the go test working
+// directory.
+func servicesDir(t *testing.T) string {
+	t.Helper()
+	_, currentFile, _, ok := runtime.Caller(0)
+	if !ok {
+		t.Fatal("runtime.Caller() failed")
+	}
+	// registry_supported_services_test.go lives in awsruntime/; services is a
+	// sibling of awsruntime under awscloud/.
+	return filepath.Join(filepath.Dir(currentFile), "..", "services")
 }

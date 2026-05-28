@@ -80,9 +80,13 @@ A new scanner adds:
   `go/internal/collector/awscloud/awsruntime/bindings/bindings.go`. That file
   is marked `merge=union` in `.gitattributes` so parallel scanner PRs do not
   collide.
-- One new entry in the want-list inside
-  `awsruntime/registry_supported_services_test.go` so a missing binding
-  surfaces as a test failure.
+
+There is no want-list to edit. The supported-service guard is derived: the
+guard tests enumerate the `services/<svc>/runtimebind/` directories on disk and
+the runtimebind blank imports parsed from `bindings.go`, then assert the two
+sets and the registered scanner count agree. A new
+`services/<svc>/runtimebind/` directory without a matching `bindings.go` import
+fails the guard automatically, so adding a scanner touches zero want-lists.
 
 No file in `awsruntime/` itself changes for a new scanner. The runtime
 already has zero compile-time dependency on individual service packages.

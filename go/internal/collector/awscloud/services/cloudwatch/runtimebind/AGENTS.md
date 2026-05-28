@@ -12,5 +12,6 @@ through `init()`. Agents editing this package MUST:
   registry is intentionally service-package-agnostic; adding a `case` or an
   `import` there is the pre-#764 pattern.
 - Update `awsruntime/bindings/bindings.go` with one alphabetical blank import
-  line.
-- Update the want-list in `awsruntime/registry_supported_services_test.go`.
+  line. There is no want-list to edit: the supported-service guard is derived
+  from the `services/<svc>/runtimebind/` directories plus the `bindings.go`
+  imports (see `awsruntime/internal/guardset`).
