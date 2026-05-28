@@ -45,6 +45,7 @@ func TestBindingsRegistersEverySupportedServiceKind(t *testing.T) {
 		awscloud.ServiceSecretsManager,
 		awscloud.ServiceSecurityHub,
 		awscloud.ServiceStepFunctions,
+		awscloud.ServiceVPC,
 	}
 	for _, kind := range want {
 		if _, ok := awsruntime.LookupBuilder(kind); !ok {

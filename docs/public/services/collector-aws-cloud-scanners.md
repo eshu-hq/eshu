@@ -20,7 +20,8 @@ It does not mutate AWS resources, read protected payloads, or write graph truth.
 | `iam` | Roles, managed policies, instance profiles, trust relationships. |
 | `ecr` | Repositories, lifecycle policies, image references, pagination checkpoints. |
 | `ecs` | Clusters, services, tasks, relationships, redacted task definitions. |
-| `ec2` | VPC, subnet, security group, security-group rule, ENI topology. |
+| `ec2` | VPC, subnet, security group, security-group rule, ENI topology. The EC2 scanner owns the ENI surface and may carry instance target evidence on ENI attachments, but does not emit `aws_ec2_instance` resources; VPC network-fabric resources live in the `vpc` scanner. |
+| `vpc` | Route tables, internet gateways, NAT gateways, network ACLs, VPC peering connections, VPC endpoints (gateway and interface), Elastic IPs, DHCP option sets, customer gateways, virtual private gateways, and site-to-site VPN connections plus relationships back to EC2-owned VPCs, subnets, ENIs, and instances. No VPN tunnel pre-shared keys or `CustomerGatewayConfiguration` XML bodies. |
 | `elbv2` | Load balancers, listeners, listener rules, target groups, routing relationships. |
 | `lambda` | Functions, aliases, event-source mappings, image URIs, execution roles, network joins, redacted environment values. |
 | `eks` | Clusters, node groups, add-ons, OIDC providers, IAM roles, network join evidence. |

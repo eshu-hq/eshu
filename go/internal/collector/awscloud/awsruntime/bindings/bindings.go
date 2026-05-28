@@ -38,4 +38,5 @@ import (
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/sqs/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/ssm/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/stepfunctions/runtimebind"
+	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/vpc/runtimebind"
 )
