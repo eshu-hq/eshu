@@ -2,6 +2,7 @@ package awssdk
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -113,6 +114,46 @@ func TestSnapshotReadsMetadataOnlyAndResolvesPrincipals(t *testing.T) {
 	// the describe call was the only permission-set read performed.
 	if fake.describePermissionSetCalls != 1 {
 		t.Fatalf("DescribePermissionSet calls = %d, want 1", fake.describePermissionSetCalls)
+	}
+}
+
+func TestSnapshotResolvesUserPrincipalDisplayName(t *testing.T) {
+	instanceARN := "arn:aws:sso:::instance/ssoins-1111111111111111"
+	permSetARN := "arn:aws:sso:::permissionSet/ssoins-1111111111111111/ps-2222222222222222"
+	userID := "a1b2c3d4-1111-2222-3333-444455556666"
+	fake := &fakeSSOAdmin{
+		instances: []awsssoadmintypes.InstanceMetadata{{
+			InstanceArn:     aws.String(instanceARN),
+			IdentityStoreId: aws.String("d-9999999999"),
+			Status:          awsssoadmintypes.InstanceStatusActive,
+		}},
+		permissionSets:        []string{permSetARN},
+		describePermissionSet: &awsssoadmintypes.PermissionSet{PermissionSetArn: aws.String(permSetARN)},
+		provisionedAccounts:   []string{"210987654321"},
+		accountAssignments: []awsssoadmintypes.AccountAssignment{{
+			AccountId:        aws.String("210987654321"),
+			PermissionSetArn: aws.String(permSetARN),
+			PrincipalId:      aws.String(userID),
+			PrincipalType:    awsssoadmintypes.PrincipalTypeUser,
+		}},
+	}
+	store := &fakeIdentityStore{userDisplayName: "Ada Lovelace"}
+	client := newTestAdapter(fake, store)
+
+	snapshot, err := client.Snapshot(context.Background())
+	if err != nil {
+		t.Fatalf("Snapshot() error = %v, want nil", err)
+	}
+	if got, want := len(snapshot.Principals), 1; got != want {
+		t.Fatalf("principals = %d, want %d", got, want)
+	}
+	principal := snapshot.Principals[0]
+	if got, want := strings.ToUpper(principal.Type), "USER"; got != want {
+		t.Fatalf("principal type = %q, want %q", principal.Type, want)
+	}
+	// The USER dispatch branch must resolve through DescribeUser, not DescribeGroup.
+	if principal.DisplayName != "Ada Lovelace" {
+		t.Fatalf("principal display name = %q, want %q", principal.DisplayName, "Ada Lovelace")
 	}
 }
 
