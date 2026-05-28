@@ -1,0 +1,60 @@
+package awssdk
+
+import (
+	"reflect"
+	"strings"
+	"testing"
+)
+
+// TestAdapterAPIClientForbidsJobControlAndMutation is the security acceptance
+// gate from issue #757: the Batch SDK adapter must never be able to submit,
+// cancel, or terminate a job, register or deregister a job definition, or
+// mutate any Batch resource. We reflect over the adapter-local apiClient
+// interface and fail the build if any forbidden operation becomes reachable.
+func TestAdapterAPIClientForbidsJobControlAndMutation(t *testing.T) {
+	forbiddenExact := []string{
+		"SubmitJob", "SubmitServiceJob",
+		"CancelJob",
+		"TerminateJob", "TerminateServiceJob",
+		"RegisterJobDefinition", "DeregisterJobDefinition",
+	}
+	// Any method whose name begins with one of these verbs is a write or
+	// lifecycle operation and must not exist on the metadata-only adapter.
+	forbiddenPrefixes := []string{
+		"Create", "Delete", "Update", "Put",
+		"Submit", "Cancel", "Terminate",
+		"Register", "Deregister",
+		"Tag", "Untag",
+		"Associate", "Disassociate",
+		"Enable", "Disable", "Start", "Stop",
+	}
+	iface := reflect.TypeOf((*apiClient)(nil)).Elem()
+	for i := 0; i < iface.NumMethod(); i++ {
+		name := iface.Method(i).Name
+		for _, banned := range forbiddenExact {
+			if name == banned {
+				t.Fatalf("apiClient exposes forbidden job-control/mutation method %q; the Batch adapter is metadata-only", name)
+			}
+		}
+		for _, prefix := range forbiddenPrefixes {
+			if strings.HasPrefix(name, prefix) {
+				t.Fatalf("apiClient exposes mutation method %q (prefix %q); the Batch adapter is metadata-only", name, prefix)
+			}
+		}
+	}
+}
+
+// TestAdapterMethodsAreReadOnly asserts every method on the apiClient interface
+// is a List or Describe read so the read surface stays explicit and auditable.
+func TestAdapterMethodsAreReadOnly(t *testing.T) {
+	iface := reflect.TypeOf((*apiClient)(nil)).Elem()
+	if iface.NumMethod() == 0 {
+		t.Fatalf("apiClient interface has no methods; expected the Batch read surface")
+	}
+	for i := 0; i < iface.NumMethod(); i++ {
+		name := iface.Method(i).Name
+		if !strings.HasPrefix(name, "List") && !strings.HasPrefix(name, "Describe") {
+			t.Fatalf("apiClient method %q is neither a List nor Describe read", name)
+		}
+	}
+}

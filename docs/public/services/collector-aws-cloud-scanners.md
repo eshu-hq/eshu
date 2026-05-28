@@ -27,6 +27,7 @@ It does not mutate AWS resources, read protected payloads, or write graph truth.
 | `lambda` | Functions, aliases, event-source mappings, image URIs, execution roles, network joins, redacted environment values. |
 | `eks` | Clusters, node groups, add-ons, OIDC providers, IAM roles, network join evidence. |
 | `emr` | EMR on EC2 clusters (running + recently terminated), uniform instance groups, instance fleets, security configurations (name only), EMR Serverless applications, EMR Studios, and Studio session mappings under one `service_kind`; resource types distinguish the surfaces. Relationships: cluster-to-subnet/security-group/IAM-role/instance-profile/security-configuration/KMS-key and cluster-to-instance-group/fleet; application-to-subnet/security-group/KMS-key; studio-to-VPC/subnet/security-group/IAM-role/KMS-key and studio-to-session-mapping. The cluster-to-VPC and application-to-VPC joins are derived from subnet membership downstream because the EMR cluster and EMR Serverless APIs do not report a VPC id; EMR Studio reports its VPC id directly. No step command lines (`Args`), bootstrap action script bodies, security configuration policy bodies, or EMR Serverless job-run `SparkSubmit.entryPointArguments`: the scanner never calls ListSteps, DescribeStep, ListBootstrapActions, DescribeSecurityConfiguration, or any EMR Serverless job-run reader. |
+| `batch` | Compute environments (name, type, state, service role ARN, orchestration type, ECS/EKS cluster ARN, instance-profile role, subnets, security groups, launch template), job queues (name, state, priority, compute-environment order), job definitions (name, type, container image URI, job/execution IAM role - never the container command list, never environment values in clear text), scheduling policies (name and ARN only - never fair-share weight state), and recent active jobs (id, status, job-definition reference - never job parameters or container overrides). Relationships: job-queue-to-compute-environment, compute-environment-to-subnet, compute-environment-to-security-group, compute-environment-to-launch-template, compute-environment-to-IAM-role, job-definition-to-IAM-role, job-definition-to-container-image, and job-definition-to-secret-reference (Secrets Manager / SSM ARN ref only). The compute-environment-to-VPC join is reached transitively through the subnet edge. The scanner never submits, cancels, or terminates jobs, never registers or deregisters job definitions, and never mutates any Batch resource; the adapter read surface excludes those operations by construction. Container environment values route through the shared redact library. Requires `ESHU_AWS_REDACTION_KEY`. |
 | `route53` | Hosted zones and A, AAAA, CNAME, ALIAS DNS record facts. |
 | `sqs`, `sns`, `eventbridge` | Queue/topic/bus metadata and ARN-addressable relationships. |
 | `guardduty` | Detectors, member accounts, filter names, publishing destinations, threat intel/IP set metadata, and aggregate finding counts. |
@@ -338,6 +339,25 @@ adapter never calls the operations that return policy bodies or ingested content
 (GetGuardrail, GetKnowledgeBaseDocuments), and a reflection gate over both SDK
 adapter interfaces fails the build if any inference or mutation method ever
 becomes reachable.
+
+AWS Batch is a metadata-only control-plane scan. The scanner never submits,
+cancels, or terminates jobs, never registers or deregisters job definitions,
+and never mutates a compute environment, job queue, job definition, or
+scheduling policy. Those operations are absent from both the scanner `Client`
+interface and the SDK adapter's API interface, enforced by a reflection gate
+that fails the build if a forbidden method becomes reachable. Job-definition
+container command lists (`ContainerProperties.Command`) and job parameters are
+never read: the scanner-owned `Container` and `JobDefinition` types do not
+declare those fields. Container environment values may carry secrets, so they
+are never persisted in clear text; they route through the shared AWS redaction
+path and persist only as HMAC markers, which is why the scanner requires
+`ESHU_AWS_REDACTION_KEY`. Container secret references persist only as the
+Secrets Manager or SSM Parameter Store ARN reference (a relationship edge); the
+resolved secret value is never read. Scheduling policy fair-share weight state
+(`FairsharePolicy`) is never persisted because priority weights may reveal
+business-sensitive tenant ranking. Recent jobs are listed only across active
+states (SUBMITTED, PENDING, RUNNABLE, STARTING, RUNNING), bounded per state, and
+persist identity, status, and the job-definition reference only.
 
 ## Evidence And Telemetry
 

@@ -9,7 +9,7 @@ redaction. The overview lives in [AWS Cloud Collector](collector-aws-cloud.md).
 | --- | --- |
 | `ESHU_POSTGRES_DSN` or split Postgres DSNs | Shared Postgres runtime loader. |
 | `ESHU_COLLECTOR_INSTANCES_JSON` | Desired collector instances. Must include one enabled `aws` instance with `claims_enabled=true`. |
-| `ESHU_AWS_REDACTION_KEY` | Required when any target scope enables CloudWatch, CodeBuild, Cognito, ECS, Lambda, Security Hub, Organizations, or IAM Identity Center (`ssoadmin`). CloudWatch alarm metric dimension values can be customer-tag-named and are redacted before persistence; CodeBuild environment-variable PLAINTEXT values may carry secrets and are redacted before persistence (name and type only); Cognito redacts identity-pool developer provider names and group descriptions; Identity Center principal display names are redacted before persistence. |
+| `ESHU_AWS_REDACTION_KEY` | Required when any target scope enables Batch, CloudWatch, CodeBuild, Cognito, ECS, Lambda, Security Hub, Organizations, or IAM Identity Center (`ssoadmin`). Batch job-definition container environment values can carry secrets and are redacted before persistence; CloudWatch alarm metric dimension values can be customer-tag-named and are redacted before persistence; CodeBuild environment-variable PLAINTEXT values may carry secrets and are redacted before persistence (name and type only); Cognito redacts identity-pool developer provider names and group descriptions; Identity Center principal display names are redacted before persistence. |
 
 Optional knobs: `ESHU_AWS_COLLECTOR_INSTANCE_ID`,
 `ESHU_AWS_COLLECTOR_OWNER_ID`, `ESHU_AWS_COLLECTOR_POLL_INTERVAL`,
