@@ -405,7 +405,7 @@ func mapAggregator(aggregator cfgtypes.ConfigurationAggregator) configservice.Co
 	}
 	if org := aggregator.OrganizationAggregationSource; org != nil {
 		mapped.OrganizationRoleARN = strings.TrimSpace(aws.ToString(org.RoleArn))
-		mapped.OrganizationAllRegion = org.AllAwsRegions
+		mapped.OrganizationAllAWSRegions = org.AllAwsRegions
 		mapped.SourceRegions = append(mapped.SourceRegions, trimStrings(org.AwsRegions)...)
 	}
 	return mapped

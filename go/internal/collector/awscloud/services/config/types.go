@@ -84,17 +84,19 @@ type ConformancePack struct {
 
 // ConfigurationAggregator is the metadata-only view of an AWS Config
 // configuration aggregator. SourceAccountIDs and SourceRegions describe an
-// account-based aggregation; OrganizationRoleARN and OrganizationAllRegions
-// describe an organization-based aggregation.
+// account-based aggregation; OrganizationRoleARN and OrganizationAllAWSRegions
+// describe an organization-based aggregation. AllAWSRegions and
+// OrganizationAllAWSRegions each map the SDK's AllAwsRegions flag ("aggregate
+// from all AWS regions") for their respective aggregation sources.
 type ConfigurationAggregator struct {
-	Name                  string
-	ARN                   string
-	CreatedBy             string
-	SourceAccountIDs      []string
-	SourceRegions         []string
-	AllAWSRegions         bool
-	OrganizationRoleARN   string
-	OrganizationAllRegion bool
+	Name                      string
+	ARN                       string
+	CreatedBy                 string
+	SourceAccountIDs          []string
+	SourceRegions             []string
+	AllAWSRegions             bool
+	OrganizationRoleARN       string
+	OrganizationAllAWSRegions bool
 }
 
 // RetentionConfiguration is the metadata-only view of an AWS Config retention
