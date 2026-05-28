@@ -41,6 +41,7 @@ import (
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/securityhub/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/sns/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/sqs/runtimebind"
+	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/ssoadmin/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/ssm/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/stepfunctions/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/transitgateway/runtimebind"

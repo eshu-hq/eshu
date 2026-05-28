@@ -282,11 +282,15 @@ func validateAllowedServices(values []string) ([]string, error) {
 
 func validateServiceRegionCompatibility(services []string, regions []string) error {
 	for _, service := range services {
-		if strings.TrimSpace(service) != awscloud.ServiceOrganizations {
-			continue
-		}
-		if len(regions) != 1 || strings.TrimSpace(regions[0]) != "us-east-1" {
-			return fmt.Errorf(`organizations scans require allowed_regions ["us-east-1"]`)
+		switch strings.TrimSpace(service) {
+		case awscloud.ServiceOrganizations:
+			if len(regions) != 1 || strings.TrimSpace(regions[0]) != "us-east-1" {
+				return fmt.Errorf(`organizations scans require allowed_regions ["us-east-1"]`)
+			}
+		case awscloud.ServiceSSOAdmin:
+			if len(regions) != 1 || strings.TrimSpace(regions[0]) != "us-east-1" {
+				return fmt.Errorf(`ssoadmin scans require allowed_regions ["us-east-1"]`)
+			}
 		}
 	}
 	return nil
@@ -330,7 +334,7 @@ func loadAWSRedactionKeyIfNeeded(
 	}
 	value := strings.TrimSpace(getenv("ESHU_AWS_REDACTION_KEY"))
 	if value == "" {
-		return redact.Key{}, fmt.Errorf("ESHU_AWS_REDACTION_KEY is required when cloudwatch, ecs, lambda, organizations, or securityhub service scans are enabled")
+		return redact.Key{}, fmt.Errorf("ESHU_AWS_REDACTION_KEY is required when cloudwatch, ecs, lambda, organizations, securityhub, or ssoadmin service scans are enabled")
 	}
 	key, err := redact.NewKey([]byte(value))
 	if err != nil {
@@ -347,7 +351,8 @@ func awsConfigNeedsRedactionKey(config awsruntime.Config) bool {
 				awscloud.ServiceECS,
 				awscloud.ServiceLambda,
 				awscloud.ServiceOrganizations,
-				awscloud.ServiceSecurityHub:
+				awscloud.ServiceSecurityHub,
+				awscloud.ServiceSSOAdmin:
 				return true
 			}
 		}

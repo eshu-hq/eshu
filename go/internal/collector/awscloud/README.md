@@ -85,6 +85,12 @@ See `doc.go` for the godoc contract.
   metadata scans of customer master keys, aliases, and grants. The scanner
   invokes no cryptographic operation and persists no key policy Statement
   bodies, grant encryption contexts, or key material.
+- `ServiceSSOAdmin` - IAM Identity Center service-kind value for org-scoped
+  scans of instances, permission sets, account assignments, applications,
+  trusted token issuers, and resolved principals. The scanner persists no
+  permission set inline policy bodies, permissions boundary bodies,
+  customer-managed policy bodies, or application access-scope filters, and
+  redacts principal display names.
 - `Boundary` - account, region, service, generation, collector instance, and
   fencing token shared by one claimed AWS scan.
 - `ResourceObservation` - one AWS resource ready for envelope emission.
