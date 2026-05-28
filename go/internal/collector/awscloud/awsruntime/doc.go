@@ -11,7 +11,11 @@
 // Service scanners own AWS source observation and reducers own canonical graph
 // truth. SupportedServiceKinds and SupportsServiceKind report the registered
 // production scanner set, including metadata-only families such as GuardDuty,
-// to command-side startup validation. The collector-aws-cloud command
-// blank-imports awsruntime/bindings to install every scanner before
-// DefaultScannerFactory dispatches the first claim.
+// to command-side startup validation. ServiceRequiresRedactionKey and
+// ServiceKindsRequiringRedactionKey report which scanners declared
+// ScannerRegistration.RequiresRedactionKey, so the command derives the
+// ESHU_AWS_REDACTION_KEY requirement from the registry instead of a
+// hand-maintained service list. The collector-aws-cloud command blank-imports
+// awsruntime/bindings to install every scanner before DefaultScannerFactory
+// dispatches the first claim.
 package awsruntime

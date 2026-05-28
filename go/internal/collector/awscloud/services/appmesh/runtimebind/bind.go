@@ -14,7 +14,8 @@ import (
 
 func init() {
 	awsruntime.Register(awsruntime.ScannerRegistration{
-		ServiceKind: awscloud.ServiceAppMesh,
+		ServiceKind:          awscloud.ServiceAppMesh,
+		RequiresRedactionKey: true,
 		Build: func(d awsruntime.ScannerDeps) (awsruntime.ServiceScanner, error) {
 			if d.RedactionKey.IsZero() {
 				return nil, fmt.Errorf("appmesh scanner redaction key is required")

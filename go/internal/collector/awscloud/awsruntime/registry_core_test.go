@@ -135,6 +135,85 @@ func TestLookupBuilderMiss(t *testing.T) {
 	}
 }
 
+// TestServiceRequiresRedactionKeyRoundtrip proves the registry records and
+// reports the per-service RequiresRedactionKey flag, so the command can derive
+// the requirement instead of hardcoding a service switch.
+func TestServiceRequiresRedactionKeyRoundtrip(t *testing.T) {
+	requiring := uniqueServiceKind(t, "requires-redaction")
+	notRequiring := uniqueServiceKind(t, "no-redaction")
+	t.Cleanup(func() {
+		unregisterForTest(requiring)
+		unregisterForTest(notRequiring)
+	})
+
+	Register(ScannerRegistration{
+		ServiceKind:          requiring,
+		RequiresRedactionKey: true,
+		Build:                func(ScannerDeps) (ServiceScanner, error) { return nil, nil },
+	})
+	Register(ScannerRegistration{
+		ServiceKind: notRequiring,
+		Build:       func(ScannerDeps) (ServiceScanner, error) { return nil, nil },
+	})
+
+	if !ServiceRequiresRedactionKey(requiring) {
+		t.Fatalf("ServiceRequiresRedactionKey(%q) = false, want true", requiring)
+	}
+	if ServiceRequiresRedactionKey(notRequiring) {
+		t.Fatalf("ServiceRequiresRedactionKey(%q) = true, want false", notRequiring)
+	}
+	if ServiceRequiresRedactionKey("not-a-real-service-kind-xyzzy") {
+		t.Fatalf("ServiceRequiresRedactionKey(unknown) = true, want false")
+	}
+}
+
+// TestServiceKindsRequiringRedactionKeySortedSnapshot proves the derived set is
+// sorted, contains only the flagged kinds, and is independent of registry
+// state so callers cannot mutate the registry through the returned slice.
+func TestServiceKindsRequiringRedactionKeySortedSnapshot(t *testing.T) {
+	prefix := uniqueServiceKind(t, "redaction-set") + "-"
+	flagged := []string{prefix + "z", prefix + "a", prefix + "m"}
+	for _, name := range flagged {
+		name := name
+		Register(ScannerRegistration{
+			ServiceKind:          name,
+			RequiresRedactionKey: true,
+			Build:                func(ScannerDeps) (ServiceScanner, error) { return nil, nil },
+		})
+		t.Cleanup(func() { unregisterForTest(name) })
+	}
+	unflagged := prefix + "plain"
+	Register(ScannerRegistration{
+		ServiceKind: unflagged,
+		Build:       func(ScannerDeps) (ServiceScanner, error) { return nil, nil },
+	})
+	t.Cleanup(func() { unregisterForTest(unflagged) })
+
+	snapshot := ServiceKindsRequiringRedactionKey()
+	if !sort.StringsAreSorted(snapshot) {
+		t.Fatalf("ServiceKindsRequiringRedactionKey() = %v, want sorted", snapshot)
+	}
+	have := map[string]bool{}
+	for _, kind := range snapshot {
+		have[kind] = true
+	}
+	for _, name := range flagged {
+		if !have[name] {
+			t.Fatalf("ServiceKindsRequiringRedactionKey() missing flagged %q", name)
+		}
+	}
+	if have[unflagged] {
+		t.Fatalf("ServiceKindsRequiringRedactionKey() included unflagged %q", unflagged)
+	}
+	// Returned slice must be a copy so callers cannot mutate registry state.
+	snapshot[0] = "mutated"
+	for _, kind := range ServiceKindsRequiringRedactionKey() {
+		if kind == "mutated" {
+			t.Fatalf("ServiceKindsRequiringRedactionKey() returned shared slice")
+		}
+	}
+}
+
 // TestConcurrentRegisterIsRaceFree exercises the registry under -race so a
 // future contributor cannot remove the mutex by accident.
 func TestConcurrentRegisterIsRaceFree(t *testing.T) {

@@ -11,7 +11,8 @@ import (
 
 func init() {
 	awsruntime.Register(awsruntime.ScannerRegistration{
-		ServiceKind: awscloud.ServiceSSOAdmin,
+		ServiceKind:          awscloud.ServiceSSOAdmin,
+		RequiresRedactionKey: true,
 		Build: func(d awsruntime.ScannerDeps) (awsruntime.ServiceScanner, error) {
 			if d.RedactionKey.IsZero() {
 				return nil, fmt.Errorf("ssoadmin scanner redaction key is required")

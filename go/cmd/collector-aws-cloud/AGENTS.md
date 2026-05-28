@@ -23,10 +23,14 @@
   `external_id` in that mode.
 - Reject wildcard AWS regions or service lists. `allowed_services` must name a
   scanner family wired into the runtime registry.
-- Require `ESHU_AWS_REDACTION_KEY` when CloudWatch, ECS, Lambda, Security Hub,
-  or Organizations is enabled so sensitive-derived fields cannot cross
-  persistence boundaries in plaintext. CloudWatch needs it because alarm metric
-  dimension values can be customer-tag-named and are redacted before persistence.
+- Require `ESHU_AWS_REDACTION_KEY` when any allowed service declared
+  `RequiresRedactionKey: true` in its `runtimebind` registration, so
+  sensitive-derived fields cannot cross persistence boundaries in plaintext.
+  `awsConfigNeedsRedactionKey` and the missing-key error string derive this set
+  from `awsruntime.ServiceKindsRequiringRedactionKey()`; do not reintroduce a
+  hardcoded service switch or literal list in `config.go`. A new
+  redaction-requiring scanner declares the requirement only in its own
+  `runtimebind/bind.go`.
 - Keep this command process-only. AWS credentials belong in `awsruntime`; AWS
   service pagination belongs in service `awssdk` adapters.
 - Keep ELBv2 target health out of stable AWS collector facts; target health is

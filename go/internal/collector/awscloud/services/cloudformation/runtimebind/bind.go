@@ -14,7 +14,8 @@ import (
 
 func init() {
 	awsruntime.Register(awsruntime.ScannerRegistration{
-		ServiceKind: awscloud.ServiceCloudFormation,
+		ServiceKind:          awscloud.ServiceCloudFormation,
+		RequiresRedactionKey: true,
 		Build: func(d awsruntime.ScannerDeps) (awsruntime.ServiceScanner, error) {
 			if d.RedactionKey.IsZero() {
 				return nil, fmt.Errorf("cloudformation scanner redaction key is required")

@@ -42,12 +42,14 @@ the environment/configuration it accepts:
   than the lease TTL.
 - `ESHU_AWS_COLLECTOR_OWNER_ID` - optional owner ID override; defaults to
   `HOSTNAME`, then `collector-aws-cloud`.
-- `ESHU_AWS_REDACTION_KEY` - required when any target scope enables
-  `cloudwatch`, `ecs`, `lambda`, `securityhub`, or `organizations`. Those
-  scanners use it to produce deterministic HMAC-SHA256 markers for
-  sensitive-derived fields before persistence. CloudWatch needs it because
-  alarm metric dimension values whose names look like customer tags route
-  through the shared redact library.
+- `ESHU_AWS_REDACTION_KEY` - required when any target scope enables a scanner
+  that declared `RequiresRedactionKey: true` in its `runtimebind` registration.
+  The command derives this set from `awsruntime.ServiceKindsRequiringRedactionKey()`
+  rather than a hardcoded list, and the missing-key error names the current
+  set. Those scanners use the key to produce deterministic HMAC-SHA256 markers
+  for sensitive-derived fields before persistence (for example, CloudWatch alarm
+  metric dimension values whose names look like customer tags route through the
+  shared redact library).
 
 Instance configuration uses:
 
@@ -119,10 +121,12 @@ The claim concurrency gauge is backed by the runtime's per-account limiter.
   service `awssdk` adapters; command tests should not mock the full AWS SDK
   surface.
 - Credential leases are released after scanner construction and service scan.
-- CloudWatch, ECS, Lambda, Security Hub, and Organizations targets require
-  `ESHU_AWS_REDACTION_KEY`; IAM and ECR targets do not. CloudWatch needs the
-  key because alarm metric dimension values can be customer-tag-named and are
-  redacted before persistence.
+- A target requires `ESHU_AWS_REDACTION_KEY` when any of its allowed scanners
+  declared `RequiresRedactionKey: true` in its `runtimebind` registration; the
+  command derives the set from `awsruntime.ServiceKindsRequiringRedactionKey()`.
+  Metadata-only targets such as IAM and ECR leave the flag unset and do not need
+  the key. CloudWatch, for example, needs it because alarm metric dimension
+  values can be customer-tag-named and are redacted before persistence.
 - ELBv2 targets emit stable routing topology and intentionally exclude target
   health status.
 - Route 53 targets emit hosted-zone resources and A/AAAA/CNAME/ALIAS DNS record

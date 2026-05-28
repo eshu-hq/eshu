@@ -54,14 +54,31 @@ type ScannerRegistration struct {
 	// Build constructs the scanner. The registry rejects nil to prevent
 	// placeholder bindings from shipping to production.
 	Build ScannerBuilder
+	// RequiresRedactionKey declares that this scanner cannot run without a
+	// non-zero redaction key. The runtime command derives the
+	// ESHU_AWS_REDACTION_KEY requirement from this flag instead of a
+	// hand-maintained service switch, so a new redaction scanner declares its
+	// requirement only in its runtimebind Register call. The builder still
+	// enforces the non-zero key at scan time; this flag drives the pre-flight
+	// config check and the operator-facing error message.
+	RequiresRedactionKey bool
 }
 
-// registryState guards the package-level service_kind -> builder map. A
+// registryEntry is the stored value for one service_kind. It pairs the builder
+// with the registration metadata the runtime derives at config time, so the
+// registry stays the single source of truth for both dispatch and the
+// redaction-key requirement.
+type registryEntry struct {
+	build                ScannerBuilder
+	requiresRedactionKey bool
+}
+
+// registryState guards the package-level service_kind -> entry map. A
 // read-write mutex keeps Register/LookupBuilder honest under -race even though
 // production registrations only happen at process start from init().
 var (
-	registryMu       sync.RWMutex
-	scannerRegistry  = map[string]ScannerBuilder{}
+	registryMu      sync.RWMutex
+	scannerRegistry = map[string]registryEntry{}
 )
 
 // Register binds a ScannerRegistration into the package registry. Production
@@ -83,7 +100,10 @@ func Register(reg ScannerRegistration) {
 	if _, exists := scannerRegistry[reg.ServiceKind]; exists {
 		panic(fmt.Sprintf("awsruntime.Register: duplicate registration for service_kind %q", reg.ServiceKind))
 	}
-	scannerRegistry[reg.ServiceKind] = reg.Build
+	scannerRegistry[reg.ServiceKind] = registryEntry{
+		build:                reg.Build,
+		requiresRedactionKey: reg.RequiresRedactionKey,
+	}
 }
 
 // LookupBuilder returns the registered builder for service_kind. The bool
@@ -92,8 +112,11 @@ func Register(reg ScannerRegistration) {
 func LookupBuilder(service string) (ScannerBuilder, bool) {
 	registryMu.RLock()
 	defer registryMu.RUnlock()
-	build, ok := scannerRegistry[service]
-	return build, ok
+	entry, ok := scannerRegistry[service]
+	if !ok {
+		return nil, false
+	}
+	return entry.build, true
 }
 
 // RegisteredServiceKinds returns the sorted snapshot of registered
@@ -105,6 +128,36 @@ func RegisteredServiceKinds() []string {
 	kinds := make([]string, 0, len(scannerRegistry))
 	for kind := range scannerRegistry {
 		kinds = append(kinds, kind)
+	}
+	sort.Strings(kinds)
+	return kinds
+}
+
+// ServiceRequiresRedactionKey reports whether the registered scanner for
+// service declared RequiresRedactionKey. Unknown service_kind values report
+// false so the caller treats unregistered kinds as not requiring a key; the
+// supported-service guard rejects unknown kinds earlier in config validation.
+func ServiceRequiresRedactionKey(service string) bool {
+	registryMu.RLock()
+	defer registryMu.RUnlock()
+	entry, ok := scannerRegistry[service]
+	return ok && entry.requiresRedactionKey
+}
+
+// ServiceKindsRequiringRedactionKey returns the sorted snapshot of registered
+// service_kind values that declared RequiresRedactionKey. The runtime command
+// builds the ESHU_AWS_REDACTION_KEY requirement message from this set, so the
+// list stays in lockstep with the runtimebind registrations. The slice is
+// independent of registry state so callers can iterate without holding the
+// read lock.
+func ServiceKindsRequiringRedactionKey() []string {
+	registryMu.RLock()
+	defer registryMu.RUnlock()
+	kinds := make([]string, 0, len(scannerRegistry))
+	for kind, entry := range scannerRegistry {
+		if entry.requiresRedactionKey {
+			kinds = append(kinds, kind)
+		}
 	}
 	sort.Strings(kinds)
 	return kinds
