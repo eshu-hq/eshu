@@ -14,18 +14,26 @@ func TestBuildSecurityAlertReconciliationsClassifiesProviderAlertStates(t *testi
 	repoID := "repo://github/eshu-hq/eshu"
 	packageID := "npm://registry.npmjs.org/left-pad"
 	alert := securityAlertEnvelope("alert-matched", repoID, map[string]any{
-		"provider":              "github_dependabot",
-		"provider_alert_number": int64(42),
-		"provider_state":        "open",
-		"package_id":            packageID,
-		"ecosystem":             "npm",
-		"package_name":          "left-pad",
-		"manifest_path":         "package-lock.json",
-		"relationship":          "direct",
-		"dependency_scope":      "runtime",
-		"ghsa_ids":              []string{"GHSA-abcd-1234"},
-		"cve_ids":               []string{"CVE-2026-0001"},
-		"updated_at":            "2026-05-23T10:15:00Z",
+		"provider":                  "github_dependabot",
+		"provider_alert_number":     int64(42),
+		"provider_state":            "open",
+		"package_id":                packageID,
+		"ecosystem":                 "npm",
+		"package_name":              "left-pad",
+		"manifest_path":             "package-lock.json",
+		"relationship":              "direct",
+		"dependency_scope":          "runtime",
+		"ghsa_ids":                  []string{"GHSA-abcd-1234"},
+		"cve_ids":                   []string{"CVE-2026-0001"},
+		"updated_at":                "2026-05-23T10:15:00Z",
+		"source_freshness":          "partial",
+		"collection_coverage_state": "incomplete",
+		"collection_truncated":      true,
+		"collection_pages_fetched":  int64(2),
+		"collection_state_filter":   "open",
+		"collection_incomplete_reasons": []string{
+			"provider_open_alert_page_limit_reached",
+		},
 	})
 	consumption := packageConsumptionCorrelationEnvelope("consume-1", repoID, packageID, "package-lock.json")
 	impact := supplyChainImpactFindingEnvelope("impact-1", repoID, packageID, "CVE-2026-0001", "affected_exact")
@@ -49,6 +57,15 @@ func TestBuildSecurityAlertReconciliationsClassifiesProviderAlertStates(t *testi
 	}
 	if got, want := decision.ProviderAlertFactID, "alert-matched"; got != want {
 		t.Fatalf("ProviderAlertFactID = %q, want %q", got, want)
+	}
+	if got, want := decision.SourceFreshness, "partial"; got != want {
+		t.Fatalf("SourceFreshness = %q, want %q", got, want)
+	}
+	if got, want := decision.CollectionCoverageState, "incomplete"; got != want {
+		t.Fatalf("CollectionCoverageState = %q, want %q", got, want)
+	}
+	if !decision.CollectionTruncated {
+		t.Fatal("CollectionTruncated = false, want true")
 	}
 	if len(decision.EvidenceFactIDs) != 3 {
 		t.Fatalf("EvidenceFactIDs = %#v, want alert, consumption, and impact facts", decision.EvidenceFactIDs)
@@ -230,6 +247,14 @@ func TestSecurityAlertReconciliationWriterUsesProviderAlertScopeForPackageTrigge
 		ProviderRepositoryID:      "security-alert:github:acme/api",
 		ProviderAlertScopeID:      "security-alert:github:acme/api",
 		ProviderAlertGenerationID: "security-alert-generation-1",
+		SourceFreshness:           "partial",
+		CollectionCoverageState:   "incomplete",
+		CollectionTruncated:       true,
+		CollectionPagesFetched:    2,
+		CollectionStateFilter:     "open",
+		CollectionIncompleteReasons: []string{
+			"provider_open_alert_page_limit_reached",
+		},
 	}
 
 	identity := securityAlertReconciliationIdentity(write, decision)
@@ -246,6 +271,15 @@ func TestSecurityAlertReconciliationWriterUsesProviderAlertScopeForPackageTrigge
 	}
 	if got, want := payload["generation_id"], "security-alert-generation-1"; got != want {
 		t.Fatalf("payload generation_id = %q, want provider alert generation %q", got, want)
+	}
+	if got, want := payload["source_freshness"], "partial"; got != want {
+		t.Fatalf("payload source_freshness = %q, want %q", got, want)
+	}
+	if got, want := payload["collection_coverage_state"], "incomplete"; got != want {
+		t.Fatalf("payload collection_coverage_state = %q, want %q", got, want)
+	}
+	if got, want := payload["collection_truncated"], true; got != want {
+		t.Fatalf("payload collection_truncated = %v, want %v", got, want)
 	}
 }
 

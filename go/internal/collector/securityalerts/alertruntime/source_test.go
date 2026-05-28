@@ -3,6 +3,7 @@ package alertruntime
 import (
 	"context"
 	"errors"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -113,6 +114,66 @@ func TestClaimedSourceSetsStableFreshnessHintForUnchangedAlerts(t *testing.T) {
 	}
 	if got, want := second.Generation.FreshnessHint, first.Generation.FreshnessHint; got != want {
 		t.Fatalf("FreshnessHint changed for unchanged alerts: got %q, want %q", got, want)
+	}
+}
+
+func TestClaimedSourceMarksProviderCoverageIncompleteWhenOpenAlertPagesAreTruncated(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, time.May, 25, 16, 15, 0, 0, time.UTC)
+	source, err := NewClaimedSource(SourceConfig{
+		CollectorInstanceID: "security-alert-primary",
+		Targets: []TargetConfig{{
+			Provider:            ProviderGitHubDependabot,
+			ScopeID:             "security-alert:github:example-org/example-repo",
+			Repository:          "example-org/example-repo",
+			Token:               "github-token",
+			AllowedRepositories: []string{"example-org/example-repo"},
+			MaxPages:            2,
+		}},
+		ClientFactory: func(TargetConfig) (RepositoryAlertClient, error) {
+			return staticAlertClient{result: securityalerts.GitHubDependabotAlertResult{
+				Alerts:       []securityalerts.GitHubDependabotAlert{testDependabotAlert()},
+				PagesFetched: 2,
+				Truncated:    true,
+				ObservedAt:   now,
+			}}, nil
+		},
+		Now: func() time.Time { return now },
+	})
+	if err != nil {
+		t.Fatalf("NewClaimedSource() error = %v, want nil", err)
+	}
+
+	collected, ok, err := source.NextClaimed(context.Background(), testSecurityAlertWorkItem(now))
+	if err != nil {
+		t.Fatalf("NextClaimed() error = %v, want nil", err)
+	}
+	if !ok {
+		t.Fatal("NextClaimed() ok = false, want true")
+	}
+	envs := drainFacts(collected.Facts)
+	if got, want := len(envs), 1; got != want {
+		t.Fatalf("len(facts) = %d, want %d", got, want)
+	}
+	payload := envs[0].Payload
+	if got, want := payload["source_freshness"], "partial"; got != want {
+		t.Fatalf("Payload[source_freshness] = %#v, want %#v", got, want)
+	}
+	if got, want := payload["collection_coverage_state"], "incomplete"; got != want {
+		t.Fatalf("Payload[collection_coverage_state] = %#v, want %#v", got, want)
+	}
+	if got, want := payload["collection_truncated"], true; got != want {
+		t.Fatalf("Payload[collection_truncated] = %#v, want %#v", got, want)
+	}
+	if got, want := payload["collection_pages_fetched"], int64(2); got != want {
+		t.Fatalf("Payload[collection_pages_fetched] = %#v, want %#v", got, want)
+	}
+	if got, want := payload["collection_state_filter"], "open"; got != want {
+		t.Fatalf("Payload[collection_state_filter] = %#v, want %#v", got, want)
+	}
+	if got, want := payload["collection_incomplete_reasons"], []string{"provider_open_alert_page_limit_reached"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("Payload[collection_incomplete_reasons] = %#v, want %#v", got, want)
 	}
 }
 

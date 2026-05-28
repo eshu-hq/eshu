@@ -562,7 +562,12 @@ const openAPIPathsSupplyChain = `
                               "created_at": {"type": "string"},
                               "updated_at": {"type": "string"},
                               "fixed_at": {"type": "string"},
-                              "dismissed_at": {"type": "string"}
+                              "dismissed_at": {"type": "string"},
+                              "collection_coverage_state": {"type": "string", "enum": ["complete", "incomplete"]},
+                              "collection_truncated": {"type": "boolean"},
+                              "collection_pages_fetched": {"type": "integer"},
+                              "collection_state_filter": {"type": "string", "enum": ["open"]},
+                              "collection_incomplete_reasons": {"type": "array", "items": {"type": "string"}}
                             }
                           },
                           "eshu_impact": {
@@ -583,6 +588,15 @@ const openAPIPathsSupplyChain = `
                       }
                     },
                     "count": {"type": "integer"},
+                    "coverage": {
+                      "type": "object",
+                      "description": "Provider-source coverage for the returned reconciliation page. target_incomplete means at least one row came from a capped open-alert provider read.",
+                      "properties": {
+                        "state": {"type": "string", "enum": ["complete", "target_incomplete"]},
+                        "partial_rows": {"type": "integer"},
+                        "rows_considered": {"type": "integer"}
+                      }
+                    },
                     "limit": {"type": "integer"},
                     "truncated": {"type": "boolean"},
                     "next_cursor": {"type": "object"}

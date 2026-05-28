@@ -67,7 +67,12 @@ func (h *SupplyChainHandler) countSecurityAlertReconciliations(w http.ResponseWr
 		"by_reconciliation_status": count.ByReconciliationStatus,
 		"by_provider":              count.ByProvider,
 		"by_provider_state":        count.ByProviderState,
-		"scope":                    securityAlertReconciliationAggregateScope(filter),
+		"by_source_freshness":      count.BySourceFreshness,
+		"coverage": securityAlertCoverageFromFreshnessCounts(
+			count.TotalReconciliations,
+			count.BySourceFreshness,
+		),
+		"scope": securityAlertReconciliationAggregateScope(filter),
 	}, BuildTruthEnvelope(
 		h.profile(),
 		securityAlertReconciliationAggregateCapability,

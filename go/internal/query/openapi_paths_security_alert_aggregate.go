@@ -26,6 +26,16 @@ const openAPIPathsSecurityAlertAggregate = `
                     "by_reconciliation_status": {"type": "object", "additionalProperties": {"type": "integer"}},
                     "by_provider": {"type": "object", "additionalProperties": {"type": "integer"}},
                     "by_provider_state": {"type": "object", "additionalProperties": {"type": "integer"}},
+                    "by_source_freshness": {"type": "object", "additionalProperties": {"type": "integer"}},
+                    "coverage": {
+                      "type": "object",
+                      "description": "Provider-source coverage for counted reconciliations. target_incomplete means one or more rows came from a capped open-alert provider read.",
+                      "properties": {
+                        "state": {"type": "string", "enum": ["complete", "target_incomplete"]},
+                        "partial_rows": {"type": "integer"},
+                        "rows_considered": {"type": "integer"}
+                      }
+                    },
                     "scope": {"type": "object"}
                   }
                 }

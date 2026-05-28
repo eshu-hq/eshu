@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"testing"
 	"time"
 )
@@ -12,7 +13,7 @@ import (
 func TestGitHubDependabotClientPaginatesWithCursorLinksWithinConfiguredBound(t *testing.T) {
 	t.Parallel()
 
-	var cursors []string
+	var cursors stringRecorder
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if got, want := r.URL.Query().Get("per_page"), "1"; got != want {
 			t.Fatalf("per_page = %q, want %q", got, want)
@@ -20,7 +21,10 @@ func TestGitHubDependabotClientPaginatesWithCursorLinksWithinConfiguredBound(t *
 		if got := r.URL.Query().Get("page"); got != "" {
 			t.Fatalf("page = %q, want empty because Dependabot alerts use cursor pagination", got)
 		}
-		cursors = append(cursors, r.URL.Query().Get("after"))
+		if got, want := r.URL.Query().Get("state"), "open"; got != want {
+			t.Fatalf("state = %q, want %q", got, want)
+		}
+		cursors.append(r.URL.Query().Get("after"))
 		switch r.URL.Query().Get("after") {
 		case "":
 			w.Header().Set("Link", `<`+serverURL(t, r)+`?per_page=1&after=cursor-2>; rel="next"`)
@@ -29,7 +33,7 @@ func TestGitHubDependabotClientPaginatesWithCursorLinksWithinConfiguredBound(t *
 		default:
 			t.Fatalf("unexpected cursor %q", r.URL.Query().Get("after"))
 		}
-		_ = json.NewEncoder(w).Encode([]GitHubDependabotAlert{{Number: len(cursors), State: "open"}})
+		_ = json.NewEncoder(w).Encode([]GitHubDependabotAlert{{Number: cursors.len(), State: "open"}})
 	}))
 	defer server.Close()
 
@@ -52,9 +56,81 @@ func TestGitHubDependabotClientPaginatesWithCursorLinksWithinConfiguredBound(t *
 	if !result.Truncated {
 		t.Fatal("Truncated = false, want true when a next page remains after max_pages")
 	}
-	if got, want := cursors, []string{"", "cursor-2"}; !stringSlicesEqual(got, want) {
+	if got, want := cursors.values(), []string{"", "cursor-2"}; !stringSlicesEqual(got, want) {
 		t.Fatalf("cursors = %#v, want %#v", got, want)
 	}
+}
+
+func TestGitHubDependabotClientRequestsOpenAlertsSoFixedPagesDoNotHideOlderOpenAlerts(t *testing.T) {
+	t.Parallel()
+
+	var requestedStates stringRecorder
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if got, want := r.URL.Query().Get("per_page"), "1"; got != want {
+			t.Fatalf("per_page = %q, want %q", got, want)
+		}
+		requestedStates.append(r.URL.Query().Get("state"))
+		if r.URL.Query().Get("state") == "open" {
+			_ = json.NewEncoder(w).Encode([]GitHubDependabotAlert{{Number: 17, State: "open"}})
+			return
+		}
+		w.Header().Set("Link", `<`+serverURL(t, r)+`?per_page=1&after=older-open>; rel="next"`)
+		_ = json.NewEncoder(w).Encode([]GitHubDependabotAlert{{
+			Number:  3,
+			State:   "fixed",
+			FixedAt: "2026-05-20T12:00:00Z",
+		}})
+	}))
+	defer server.Close()
+
+	client := NewGitHubDependabotClient(GitHubDependabotClientConfig{
+		BaseURL:              server.URL,
+		Token:                "token-value",
+		AllowedRepositories:  []string{"example-org/example-repo"},
+		RepositoryAlertLimit: 1,
+	})
+	result, err := client.ListRepositoryAlertsPages(t.Context(), "example-org/example-repo", 1)
+	if err != nil {
+		t.Fatalf("ListRepositoryAlertsPages() error = %v, want nil", err)
+	}
+	if got, want := requestedStates.values(), []string{"open"}; !stringSlicesEqual(got, want) {
+		t.Fatalf("requested states = %#v, want %#v", got, want)
+	}
+	if got, want := len(result.Alerts), 1; got != want {
+		t.Fatalf("len(Alerts) = %d, want %d", got, want)
+	}
+	if got, want := result.Alerts[0].State, "open"; got != want {
+		t.Fatalf("Alerts[0].State = %q, want %q", got, want)
+	}
+	if got, want := result.Alerts[0].Number, 17; got != want {
+		t.Fatalf("Alerts[0].Number = %d, want older open alert %d", got, want)
+	}
+	if result.Truncated {
+		t.Fatal("Truncated = true, want false for complete open-alert page")
+	}
+}
+
+type stringRecorder struct {
+	mu          sync.Mutex
+	valuesSlice []string
+}
+
+func (r *stringRecorder) append(value string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.valuesSlice = append(r.valuesSlice, value)
+}
+
+func (r *stringRecorder) len() int {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return len(r.valuesSlice)
+}
+
+func (r *stringRecorder) values() []string {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return append([]string(nil), r.valuesSlice...)
 }
 
 func TestGitHubDependabotClientReturnsRateLimitFailureMetadata(t *testing.T) {

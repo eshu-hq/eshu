@@ -100,6 +100,9 @@ Repository names, package names, alert URLs, token environment names, token
 values, and provider response bodies stay out of metric labels. Use
 `/admin/status`, workflow failures, and traces to connect a bounded failure
 class to a specific private target in the operator environment.
+When a bounded GitHub open-alert read reaches `max_pages`, API and MCP
+reconciliation count/list responses expose `coverage.state=target_incomplete`
+and `source_freshness=partial`; this is response metadata, not a metric label.
 
 ## Scanner-Worker Boundary
 

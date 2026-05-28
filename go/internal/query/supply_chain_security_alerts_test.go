@@ -174,6 +174,116 @@ func TestSupplyChainListSecurityAlertReconciliationsSeparatesProviderAndEshuStat
 	}
 }
 
+func TestSupplyChainListSecurityAlertReconciliationsSurfacesIncompleteProviderCoverage(t *testing.T) {
+	t.Parallel()
+
+	store := &recordingSecurityAlertReconciliationStore{
+		rows: []SecurityAlertReconciliationRow{{
+			ReconciliationID: "reconciliation-partial",
+			ProviderAlert: ProviderSecurityAlertRow{
+				Provider:            "github_dependabot",
+				ProviderAlertNumber: 17,
+				ProviderState:       "open",
+				RepositoryID:        "repo://github/example-org/example-repo",
+				PackageID:           "npm://registry.npmjs.org/left-pad",
+			},
+			ReconciliationStatus: "provider_only",
+			SourceFreshness:      "partial",
+			SourceConfidence:     "inferred",
+		}},
+	}
+	handler := &SupplyChainHandler{SecurityAlerts: store}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"/api/v0/supply-chain/security-alerts/reconciliations?repository_id=repo://github/example-org/example-repo&provider_state=open&limit=10",
+		nil,
+	)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+	if got, want := w.Code, http.StatusOK; got != want {
+		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
+	}
+
+	var resp struct {
+		Count           int `json:"count"`
+		Reconciliations []struct {
+			SourceFreshness string `json:"source_freshness"`
+		} `json:"reconciliations"`
+		Coverage struct {
+			State          string `json:"state"`
+			PartialRows    int    `json:"partial_rows"`
+			RowsConsidered int    `json:"rows_considered"`
+		} `json:"coverage"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("json.Unmarshal: %v", err)
+	}
+	if got, want := resp.Count, 1; got != want {
+		t.Fatalf("count = %d, want %d", got, want)
+	}
+	if got, want := resp.Reconciliations[0].SourceFreshness, "partial"; got != want {
+		t.Fatalf("source_freshness = %q, want %q", got, want)
+	}
+	if got, want := resp.Coverage.State, "target_incomplete"; got != want {
+		t.Fatalf("coverage.state = %q, want %q", got, want)
+	}
+	if got, want := resp.Coverage.PartialRows, 1; got != want {
+		t.Fatalf("coverage.partial_rows = %d, want %d", got, want)
+	}
+	if got, want := resp.Coverage.RowsConsidered, 1; got != want {
+		t.Fatalf("coverage.rows_considered = %d, want %d", got, want)
+	}
+}
+
+func TestDecodeSecurityAlertReconciliationRowPreservesProviderCoverage(t *testing.T) {
+	t.Parallel()
+
+	payload := map[string]any{
+		"provider":                      "github_dependabot",
+		"provider_alert_number":         float64(17),
+		"provider_state":                "open",
+		"repository_id":                 "repo://github/example-org/example-repo",
+		"package_id":                    "npm://registry.npmjs.org/left-pad",
+		"reconciliation_status":         "provider_only",
+		"source_freshness":              "partial",
+		"collection_coverage_state":     "incomplete",
+		"collection_truncated":          true,
+		"collection_pages_fetched":      float64(2),
+		"collection_state_filter":       "open",
+		"collection_incomplete_reasons": []any{"provider_open_alert_page_limit_reached"},
+	}
+	raw, err := json.Marshal(payload)
+	if err != nil {
+		t.Fatalf("json.Marshal: %v", err)
+	}
+
+	row, err := decodeSecurityAlertReconciliationRow("reconciliation-partial", "inferred", raw)
+	if err != nil {
+		t.Fatalf("decodeSecurityAlertReconciliationRow() error = %v, want nil", err)
+	}
+	if got, want := row.SourceFreshness, "partial"; got != want {
+		t.Fatalf("SourceFreshness = %q, want %q", got, want)
+	}
+	if got, want := row.ProviderAlert.CollectionCoverageState, "incomplete"; got != want {
+		t.Fatalf("CollectionCoverageState = %q, want %q", got, want)
+	}
+	if !row.ProviderAlert.CollectionTruncated {
+		t.Fatal("CollectionTruncated = false, want true")
+	}
+	if got, want := row.ProviderAlert.CollectionPagesFetched, int64(2); got != want {
+		t.Fatalf("CollectionPagesFetched = %d, want %d", got, want)
+	}
+	if got, want := row.ProviderAlert.CollectionStateFilter, "open"; got != want {
+		t.Fatalf("CollectionStateFilter = %q, want %q", got, want)
+	}
+	if got, want := row.ProviderAlert.CollectionIncompleteReasons, []string{"provider_open_alert_page_limit_reached"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("CollectionIncompleteReasons = %#v, want %#v", got, want)
+	}
+}
+
 func TestPostgresSecurityAlertReconciliationQueryShape(t *testing.T) {
 	t.Parallel()
 

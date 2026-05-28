@@ -35,6 +35,17 @@ const (
 	FailureTerminal = "terminal"
 )
 
+const (
+	securityAlertSourceFreshnessActive  = "active"
+	securityAlertSourceFreshnessPartial = "partial"
+
+	collectionCoverageComplete   = "complete"
+	collectionCoverageIncomplete = "incomplete"
+
+	collectionOpenStateFilter            = "open"
+	collectionOpenPageLimitReachedReason = "provider_open_alert_page_limit_reached"
+)
+
 // RepositoryAlertClient fetches provider repository alerts for one target.
 type RepositoryAlertClient interface {
 	ListRepositoryAlertsPages(
@@ -73,6 +84,11 @@ type TargetConfig struct {
 type targetRuntime struct {
 	config TargetConfig
 	client RepositoryAlertClient
+}
+
+type repositoryAlertCollectionCoverage struct {
+	pagesFetched int
+	truncated    bool
 }
 
 // ClaimedSource resolves security-alert workflow claims into source facts.
@@ -178,7 +194,8 @@ func (s *ClaimedSource) NextClaimed(
 	if observedAt.IsZero() {
 		observedAt = s.now().UTC()
 	}
-	envs, err := s.envelopes(item, target.config, result.Alerts, observedAt)
+	coverage := repositoryAlertCollectionCoverageFromResult(result)
+	envs, err := s.envelopes(item, target.config, result.Alerts, observedAt, coverage)
 	if err != nil {
 		recordSpanError(observeSpan, err)
 		return collector.CollectedGeneration{}, false, err
@@ -218,6 +235,7 @@ func (s *ClaimedSource) envelopes(
 	target TargetConfig,
 	alerts []securityalerts.GitHubDependabotAlert,
 	observedAt time.Time,
+	coverage repositoryAlertCollectionCoverage,
 ) ([]facts.Envelope, error) {
 	envs := make([]facts.Envelope, 0, len(alerts))
 	for _, alert := range alerts {
@@ -238,9 +256,58 @@ func (s *ClaimedSource) envelopes(
 		if env.FactKind != facts.SecurityAlertRepositoryAlertFactKind {
 			return nil, fmt.Errorf("security alert runtime refusing unsupported fact_kind %q", env.FactKind)
 		}
+		annotateRepositoryAlertCollectionCoverage(env.Payload, coverage)
 		envs = append(envs, env)
 	}
 	return envs, nil
+}
+
+func repositoryAlertCollectionCoverageFromResult(
+	result securityalerts.GitHubDependabotAlertResult,
+) repositoryAlertCollectionCoverage {
+	pagesFetched := result.PagesFetched
+	if pagesFetched <= 0 && len(result.Alerts) > 0 {
+		pagesFetched = 1
+	}
+	return repositoryAlertCollectionCoverage{
+		pagesFetched: pagesFetched,
+		truncated:    result.Truncated,
+	}
+}
+
+func annotateRepositoryAlertCollectionCoverage(
+	payload map[string]any,
+	coverage repositoryAlertCollectionCoverage,
+) {
+	payload["source_freshness"] = coverage.sourceFreshness()
+	payload["collection_coverage_state"] = coverage.coverageState()
+	payload["collection_truncated"] = coverage.truncated
+	payload["collection_pages_fetched"] = int64(coverage.pagesFetched)
+	payload["collection_state_filter"] = collectionOpenStateFilter
+	if reasons := coverage.incompleteReasons(); len(reasons) > 0 {
+		payload["collection_incomplete_reasons"] = reasons
+	}
+}
+
+func (c repositoryAlertCollectionCoverage) sourceFreshness() string {
+	if c.truncated {
+		return securityAlertSourceFreshnessPartial
+	}
+	return securityAlertSourceFreshnessActive
+}
+
+func (c repositoryAlertCollectionCoverage) coverageState() string {
+	if c.truncated {
+		return collectionCoverageIncomplete
+	}
+	return collectionCoverageComplete
+}
+
+func (c repositoryAlertCollectionCoverage) incompleteReasons() []string {
+	if !c.truncated {
+		return nil
+	}
+	return []string{collectionOpenPageLimitReachedReason}
 }
 
 func ingestionScope(target TargetConfig) scope.IngestionScope {

@@ -67,6 +67,7 @@ type SecurityAlertReconciliationAggregateCount struct {
 	ByReconciliationStatus map[string]int
 	ByProvider             map[string]int
 	ByProviderState        map[string]int
+	BySourceFreshness      map[string]int
 }
 
 // SecurityAlertReconciliationInventoryRow is one grouped bucket returned by
@@ -195,6 +196,16 @@ WHERE current_fact.security_alert_current_rank = 1
 GROUP BY bucket;
 `
 
+const securityAlertReconciliationSourceFreshnessGroupExpr = `
+COALESCE(
+  NULLIF(fact.payload->>'source_freshness', ''),
+  CASE
+    WHEN fact.payload->>'collection_coverage_state' = 'incomplete' THEN 'partial'
+    ELSE 'active'
+  END
+)
+`
+
 const securityAlertReconciliationInventoryQueryTemplate = `
 WITH security_alert_current AS (
   SELECT
@@ -278,6 +289,7 @@ func (s PostgresSecurityAlertReconciliationAggregateStore) CountSecurityAlertRec
 		ByReconciliationStatus: map[string]int{},
 		ByProvider:             map[string]int{},
 		ByProviderState:        map[string]int{},
+		BySourceFreshness:      map[string]int{},
 	}
 	if err := s.fillBuckets(ctx, args, "COALESCE(NULLIF(current_fact.payload->>'reconciliation_status', ''), 'unknown')", out.ByReconciliationStatus); err != nil {
 		return SecurityAlertReconciliationAggregateCount{}, err
@@ -286,6 +298,9 @@ func (s PostgresSecurityAlertReconciliationAggregateStore) CountSecurityAlertRec
 		return SecurityAlertReconciliationAggregateCount{}, err
 	}
 	if err := s.fillBuckets(ctx, args, "COALESCE(NULLIF(current_fact.payload->>'provider_state', ''), 'unknown')", out.ByProviderState); err != nil {
+		return SecurityAlertReconciliationAggregateCount{}, err
+	}
+	if err := s.fillBuckets(ctx, args, securityAlertReconciliationSourceFreshnessGroupExpr, out.BySourceFreshness); err != nil {
 		return SecurityAlertReconciliationAggregateCount{}, err
 	}
 	return out, nil

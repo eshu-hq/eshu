@@ -15,6 +15,7 @@ import (
 const (
 	defaultGitHubAPIBaseURL        = "https://api.github.com"
 	defaultGitHubDependabotVersion = "2022-11-28"
+	githubDependabotOpenAlertState = "open"
 	defaultRepositoryAlertLimit    = 100
 	defaultRepositoryAlertMaxPages = 1
 	maxGitHubErrorBodyBytes        = 4096
@@ -291,6 +292,7 @@ func (c GitHubDependabotClient) repositoryAlertsURL(repository string) (string, 
 		url.PathEscape(owner) + "/" + url.PathEscape(repo) + "/dependabot/alerts"
 	query := parsed.Query()
 	query.Set("per_page", fmt.Sprint(c.repositoryLimit))
+	query.Set("state", githubDependabotOpenAlertState)
 	parsed.RawQuery = query.Encode()
 	return parsed.String(), nil
 }
@@ -341,6 +343,9 @@ func nextDependabotAlertsURL(currentEndpoint string, raw string) string {
 		if err != nil || next.Scheme != current.Scheme || next.Host != current.Host {
 			continue
 		}
+		query := next.Query()
+		query.Set("state", githubDependabotOpenAlertState)
+		next.RawQuery = query.Encode()
 		return next.String()
 	}
 	return ""
