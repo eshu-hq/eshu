@@ -23,10 +23,6 @@ const (
 )
 
 const (
-	// RelationshipInspector2AccountHasFeatureStatus records an Amazon Inspector
-	// v2 account's enabled scan feature status for a resource type (EC2, ECR,
-	// Lambda, or Lambda code).
-	RelationshipInspector2AccountHasFeatureStatus = "inspector2_account_has_feature_status"
 	// RelationshipInspector2MemberManagedByAdministrator records that an Amazon
 	// Inspector v2 member account is managed by a delegated administrator
 	// account.

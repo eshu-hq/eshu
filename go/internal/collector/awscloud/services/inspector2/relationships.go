@@ -6,34 +6,6 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 )
 
-// featureRelationship records that an account has an enabled-or-disabled scan
-// feature status (account-to-feature-status). It returns false when the
-// feature key is empty so empty SDK entries do not emit dangling edges.
-func featureRelationship(
-	boundary awscloud.Boundary,
-	account AccountStatus,
-	feature FeatureStatus,
-) (awscloud.RelationshipObservation, bool) {
-	accountID := firstNonEmpty(account.AccountID, boundary.AccountID)
-	featureKey := strings.TrimSpace(feature.Feature)
-	if accountID == "" || featureKey == "" {
-		return awscloud.RelationshipObservation{}, false
-	}
-	featureID := "inspector2/feature/" + accountID + "/" + featureKey
-	return awscloud.RelationshipObservation{
-		Boundary:         boundary,
-		RelationshipType: awscloud.RelationshipInspector2AccountHasFeatureStatus,
-		SourceResourceID: accountResourceID(accountID),
-		TargetResourceID: featureID,
-		TargetType:       awscloud.ResourceTypeInspector2Account,
-		Attributes: map[string]any{
-			"feature": featureKey,
-			"status":  strings.TrimSpace(feature.Status),
-		},
-		SourceRecordID: accountResourceID(accountID) + "->" + featureID,
-	}, true
-}
-
 // memberRelationship records that a member account is managed by the delegated
 // administrator account (member-to-administrator).
 func memberRelationship(

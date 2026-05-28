@@ -112,10 +112,11 @@ build path if a mutation or data-plane method is added.
 
 Inspector v2 finding details are not persisted. A CVE plus package version plus
 affected host ARN reveals exploitation surface. Inspector v2 filter criteria
-expressions, filter descriptions, filter reasons, and CIS scan results are also
-out of scope; filter facts are name-only. The Inspector v2 scanner emits account
-status, enabled scan features, member accounts, filter names, and CIS scan
-configuration metadata, and makes no finding-listing or finding-aggregation
+expressions, filter descriptions, and filter reasons, plus CIS scan results, are
+also out of scope; filter facts carry non-criteria identity only (filter ARN,
+name, action, and owner ID). The Inspector v2 scanner emits account status,
+enabled scan features, member accounts, filter non-criteria identity, and CIS
+scan configuration metadata, and makes no finding-listing or finding-aggregation
 call.
 
 Do not grant Inspector v2 mutation APIs to the collector role: `Enable`,

@@ -96,24 +96,15 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 	return envelopes, nil
 }
 
+// accountEnvelopes emits the account-status resource. Feature enablement stays
+// on the account resource's "features" attribute rather than fanning out into
+// relationships to synthetic feature-status targets that no resource backs.
 func accountEnvelopes(boundary awscloud.Boundary, account AccountStatus) ([]facts.Envelope, error) {
 	resource, err := awscloud.NewResourceEnvelope(accountObservation(boundary, account))
 	if err != nil {
 		return nil, err
 	}
-	envelopes := []facts.Envelope{resource}
-	for _, feature := range account.Features {
-		relationship, ok := featureRelationship(boundary, account, feature)
-		if !ok {
-			continue
-		}
-		envelope, err := awscloud.NewRelationshipEnvelope(relationship)
-		if err != nil {
-			return nil, err
-		}
-		envelopes = append(envelopes, envelope)
-	}
-	return envelopes, nil
+	return []facts.Envelope{resource}, nil
 }
 
 func appendResourceAndRelationship(

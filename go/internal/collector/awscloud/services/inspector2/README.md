@@ -5,8 +5,8 @@
 `internal/collector/awscloud/services/inspector2` owns the Amazon Inspector v2
 scanner contract for the AWS cloud collector. It converts account scan status,
 enabled scan features (EC2, ECR, Lambda, Lambda code), member-account, findings
-filter-name, and CIS scan configuration metadata into reported AWS facts and
-relationship evidence.
+filter non-criteria identity (ARN, name, action, owner ID), and CIS scan
+configuration metadata into reported AWS facts and relationship evidence.
 
 ## Ownership boundary
 
@@ -29,12 +29,12 @@ flowchart LR
 See `doc.go` for the godoc contract.
 
 - `Client` - minimal Inspector v2 metadata read surface consumed by `Scanner`.
-- `Scanner` - emits account status, member-account, filter-name, and CIS scan
-  configuration facts plus the account-to-feature-status,
-  member-to-administrator, and CIS-config-to-target-account relationships for
-  one boundary.
+- `Scanner` - emits account status, member-account, filter, and CIS scan
+  configuration facts plus the member-to-administrator and
+  CIS-config-to-target-account relationships for one boundary.
 - `AccountStatus` and `FeatureStatus` - scanner-owned account status with
-  per-resource-type feature enablement.
+  per-resource-type feature enablement carried as a `features` attribute on the
+  account resource (no separate feature-status node or relationship).
 - `MemberAccount` - metadata-only member account summary.
 - `FilterSummary` - filter name and non-criteria identity only; criteria
   expressions, descriptions, and reasons are not part of the contract.
@@ -81,10 +81,11 @@ bounded AWS collector labels.
 
 Collector Performance Evidence: `go test ./internal/collector/awscloud/services/inspector2/...`
 covers the bounded Inspector v2 metadata path: one account status read,
-paginated member, filter-name, and CIS scan configuration list reads, and
-relationship fan-out bounded by feature count (four per account) and the CIS
-target account set. The scanner issues no per-finding read, so handler cost
-scales with configuration cardinality, not finding volume.
+paginated member, filter, and CIS scan configuration list reads, and
+relationship fan-out bounded by the member set and the CIS target account set.
+Feature status is an account attribute, not a relationship. The scanner issues
+no per-finding read, so handler cost scales with configuration cardinality, not
+finding volume.
 
 No-Regression Evidence: `go test ./cmd/collector-aws-cloud ./internal/collector/awscloud/...`
 covers Inspector v2 resource and relationship fact emission, omission of

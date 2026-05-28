@@ -2,6 +2,7 @@ package inspector2
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
@@ -59,9 +60,6 @@ func TestScannerEmitsAccountStatusFeaturesMembersFiltersAndCisConfigs(t *testing
 		t.Fatalf("account features = %#v, want 4 entries", accountAttrs["features"])
 	}
 
-	// Each enabled-feature relationship must be emitted (account-to-feature-status).
-	assertRelationshipCount(t, envelopes, awscloud.RelationshipInspector2AccountHasFeatureStatus, 4)
-
 	member := resourceByType(t, envelopes, awscloud.ResourceTypeInspector2MemberAccount)
 	memberAttrs := attributesOf(t, member)
 	if got, want := memberAttrs["account_id"], "111122223333"; got != want {
@@ -74,9 +72,19 @@ func TestScannerEmitsAccountStatusFeaturesMembersFiltersAndCisConfigs(t *testing
 	if got, want := filter.Payload["name"], "suppress-known-benign"; got != want {
 		t.Fatalf("filter name = %#v, want %q", got, want)
 	}
+	// Filter facts carry non-criteria identity (action, owner ID) alongside the
+	// name; the documented contract is non-criteria identity, not name-only.
+	if got, want := filterAttrs["action"], "SUPPRESS"; got != want {
+		t.Fatalf("filter action = %#v, want %q", got, want)
+	}
+	if got, want := filterAttrs["owner_id"], "123456789012"; got != want {
+		t.Fatalf("filter owner_id = %#v, want %q", got, want)
+	}
+	// Criteria expressions and free-text fields encode threat-hunting hypotheses
+	// and must never be persisted.
 	for _, forbidden := range []string{"criteria", "filter_criteria", "description", "reason"} {
 		if _, exists := filterAttrs[forbidden]; exists {
-			t.Fatalf("filter attribute %q persisted; Inspector2 filters are name-only metadata", forbidden)
+			t.Fatalf("filter attribute %q persisted; Inspector2 filters omit criteria metadata", forbidden)
 		}
 	}
 
@@ -94,6 +102,52 @@ func TestScannerEmitsAccountStatusFeaturesMembersFiltersAndCisConfigs(t *testing
 	// No finding-detail fields may appear anywhere in the emitted payloads.
 	for _, envelope := range envelopes {
 		assertNoFindingDetails(t, envelope)
+	}
+}
+
+// TestScannerFeatureStatusStaysAccountAttributeOnly guards against the
+// mis-typed dangling edge regression: feature status must live as an attribute
+// on the account resource, and the scanner must not emit a relationship to a
+// synthetic feature-status target that no emitted resource backs. Such an edge
+// would tell downstream consumers a feature-status ID is an account resource.
+func TestScannerFeatureStatusStaysAccountAttributeOnly(t *testing.T) {
+	client := fakeClient{
+		account: AccountStatus{
+			AccountID: "123456789012",
+			Status:    "ENABLED",
+			Features: []FeatureStatus{
+				{Feature: "ec2", Status: "ENABLED"},
+				{Feature: "ecr", Status: "ENABLED"},
+			},
+		},
+	}
+
+	envelopes, err := (Scanner{Client: client}).Scan(context.Background(), testBoundary())
+	if err != nil {
+		t.Fatalf("Scan() error = %v, want nil", err)
+	}
+
+	// Feature status remains on the account resource.
+	account := resourceByType(t, envelopes, awscloud.ResourceTypeInspector2Account)
+	features, ok := attributesOf(t, account)["features"].([]map[string]any)
+	if !ok || len(features) != 2 {
+		t.Fatalf("account features = %#v, want 2 entries", attributesOf(t, account)["features"])
+	}
+
+	// No relationship may point at a synthetic feature-status target; every
+	// relationship target must reference a real, emitted resource node.
+	resourceIDs := emittedResourceIDs(envelopes)
+	for _, envelope := range envelopes {
+		if envelope.FactKind != facts.AWSRelationshipFactKind {
+			continue
+		}
+		target, _ := envelope.Payload["target_resource_id"].(string)
+		if strings.HasPrefix(target, "inspector2/feature/") {
+			t.Fatalf("relationship targets synthetic feature-status id %q: %#v", target, envelope)
+		}
+		if _, exists := resourceIDs[target]; !exists {
+			t.Fatalf("relationship target %q has no emitted resource: %#v", target, envelope)
+		}
 	}
 }
 
@@ -200,6 +254,21 @@ func assertRelationshipCount(t *testing.T, envelopes []facts.Envelope, relations
 	if got := relationshipCount(envelopes, relationshipType); got != want {
 		t.Fatalf("relationship_type %q count = %d, want %d", relationshipType, got, want)
 	}
+}
+
+// emittedResourceIDs collects the resource_id of every emitted resource fact so
+// relationship targets can be checked against real, emitted nodes.
+func emittedResourceIDs(envelopes []facts.Envelope) map[string]struct{} {
+	ids := make(map[string]struct{})
+	for _, envelope := range envelopes {
+		if envelope.FactKind != facts.AWSResourceFactKind {
+			continue
+		}
+		if id, ok := envelope.Payload["resource_id"].(string); ok {
+			ids[id] = struct{}{}
+		}
+	}
+	return ids
 }
 
 func relationshipCount(envelopes []facts.Envelope, relationshipType string) int {
