@@ -50,6 +50,9 @@ See `doc.go` for the godoc contract.
   security-intelligence metadata scans.
 - `ServiceS3` - S3 service-kind value for regional bucket metadata scans.
 - `ServiceRDS` - RDS service-kind value for regional database metadata scans.
+- `ServiceDocDB` - DocumentDB service-kind value for regional DocumentDB cluster,
+  instance, parameter group, snapshot, subnet group, global cluster, and event
+  subscription metadata scans.
 - `ServiceDynamoDB` - DynamoDB service-kind value for regional table metadata
   scans.
 - `ServiceCloudWatchLogs` - CloudWatch Logs service-kind value for regional log
