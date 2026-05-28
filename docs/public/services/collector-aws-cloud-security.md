@@ -48,8 +48,9 @@ mutation APIs or data-plane reads for secret values, SSM parameter values, SQS
 messages, DynamoDB items, log events, API execution payloads, S3 object
 contents, database contents, Lambda packages, GuardDuty finding bodies,
 GuardDuty filter criteria, GuardDuty threat intel/IP list contents, WAFv2 IP
-set address lists, WAFv2 regex pattern bodies, or WAFv2 rule `Statement`
-bodies.
+set address lists, WAFv2 regex pattern bodies, WAFv2 rule `Statement` bodies,
+Inspector v2 finding details, Inspector v2 filter criteria, or Inspector v2 CIS
+scan results.
 
 CloudWatch, ECS, Lambda, Security Hub, Organizations, and IAM Identity Center
 (`ssoadmin`) scans require `ESHU_AWS_REDACTION_KEY` before startup because
@@ -109,11 +110,30 @@ imports only the WAFv2 SDK, which cannot surface `waf` or `waf-regional` v1
 resources. A reflection test over the SDK adapter's API interface fails the
 build path if a mutation or data-plane method is added.
 
+Inspector v2 finding details are not persisted. A CVE plus package version plus
+affected host ARN reveals exploitation surface. Inspector v2 filter criteria
+expressions, filter descriptions, and filter reasons, plus CIS scan results, are
+also out of scope; filter facts carry non-criteria identity only (filter ARN,
+name, action, and owner ID). The Inspector v2 scanner emits account status,
+enabled scan features, member accounts, filter non-criteria identity, and CIS
+scan configuration metadata, and makes no finding-listing or finding-aggregation
+call.
+
+Do not grant Inspector v2 mutation APIs to the collector role: `Enable`,
+`Disable`, `EnableDelegatedAdminAccount`, `DisableDelegatedAdminAccount`,
+`AssociateMember`, `DisassociateMember`, `CreateFilter`, `UpdateFilter`,
+`DeleteFilter`, `CreateCisScanConfiguration`, `UpdateCisScanConfiguration`,
+`DeleteCisScanConfiguration`, or `BatchUpdateMemberEc2DeepInspectionStatus`. Do
+not grant `GetFilter`, `ListFindings`, `GetFindings`, `ListFindingAggregations`,
+`BatchGetFindingDetails`, `BatchGetCodeSnippet`, `GetSbomExport`,
+`GetCisScanReport`, or `GetCisScanResultDetails`.
+
 Do not persist credential material, bearer tokens, session tokens, presigned
 query parameters, secret values, policy JSON payload bodies, queue messages, log
 events, database rows, object contents, Lambda package contents, GuardDuty
-finding bodies, GuardDuty filter criteria, GuardDuty list contents, or raw AWS
-error payloads in facts or metric labels.
+finding bodies, GuardDuty filter criteria, GuardDuty list contents, Inspector v2
+finding details, Inspector v2 filter criteria, Inspector v2 CIS scan results, or
+raw AWS error payloads in facts or metric labels.
 
 ## Helm Notes
 
