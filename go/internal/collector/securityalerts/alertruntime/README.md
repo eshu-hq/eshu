@@ -34,3 +34,20 @@ Observability Evidence: `TestClaimedSourceEmitsRepositoryAlertFactsOnly` proves
 the runtime emits repository-alert source facts with redacted source URLs, while
 `TestClaimedSourceReturnsBoundedFailureWithoutRepositoryOrToken` proves provider
 failures do not expose tokens or repository names.
+
+No-Regression Evidence: security-alert refreshes include a stable freshness
+digest over the bounded Dependabot alert snapshot, provider pagination status,
+and truncation state. `TestClaimedSourceSetsStableFreshnessHintForUnchangedAlerts`
+proves unchanged provider snapshots keep the same digest across different
+workflow generation IDs, allowing Postgres to skip no-op refreshes instead of
+moving `active_generation_id` while reducer reconciliation drains.
+`TestSecurityAlertFreshnessHintIgnoresProviderAlertOrder` proves the digest is
+order-insensitive for provider result ordering, and
+`TestSecurityAlertFreshnessHintChangesWhenProviderTruthChanges` proves provider
+state changes still create a new freshness boundary.
+
+Observability Evidence: this change reuses the existing collector commit
+telemetry for skipped refreshes (`refresh_skipped=true` logs and
+`RecordSkippedRefresh`) and does not add new metric labels. The digest value is
+not emitted as a label, so alert, repository, package, and URL values remain out
+of metrics.

@@ -66,6 +66,56 @@ func TestClaimedSourceEmitsRepositoryAlertFactsOnly(t *testing.T) {
 	}
 }
 
+func TestClaimedSourceSetsStableFreshnessHintForUnchangedAlerts(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, time.May, 25, 16, 0, 0, 0, time.UTC)
+	client := staticAlertClient{result: securityalerts.GitHubDependabotAlertResult{
+		Alerts:     []securityalerts.GitHubDependabotAlert{testDependabotAlert()},
+		ObservedAt: now,
+	}}
+	source, err := NewClaimedSource(SourceConfig{
+		CollectorInstanceID: "security-alert-primary",
+		Targets: []TargetConfig{{
+			Provider:            ProviderGitHubDependabot,
+			ScopeID:             "security-alert:github:example-org/example-repo",
+			Repository:          "example-org/example-repo",
+			Token:               "github-token",
+			AllowedRepositories: []string{"example-org/example-repo"},
+		}},
+		ClientFactory: func(TargetConfig) (RepositoryAlertClient, error) { return client, nil },
+		Now:           func() time.Time { return now },
+	})
+	if err != nil {
+		t.Fatalf("NewClaimedSource() error = %v, want nil", err)
+	}
+
+	first, ok, err := source.NextClaimed(context.Background(), testSecurityAlertWorkItem(now))
+	if err != nil {
+		t.Fatalf("NextClaimed() first error = %v, want nil", err)
+	}
+	if !ok {
+		t.Fatal("NextClaimed() first ok = false, want true")
+	}
+	secondItem := testSecurityAlertWorkItem(now.Add(time.Minute))
+	secondItem.GenerationID = "security-alert:generation-2"
+	secondItem.WorkItemID = "security-alert:security-alert-primary:generation-2"
+	second, ok, err := source.NextClaimed(context.Background(), secondItem)
+	if err != nil {
+		t.Fatalf("NextClaimed() second error = %v, want nil", err)
+	}
+	if !ok {
+		t.Fatal("NextClaimed() second ok = false, want true")
+	}
+
+	if strings.TrimSpace(first.Generation.FreshnessHint) == "" {
+		t.Fatal("FreshnessHint is blank, want stable provider snapshot digest")
+	}
+	if got, want := second.Generation.FreshnessHint, first.Generation.FreshnessHint; got != want {
+		t.Fatalf("FreshnessHint changed for unchanged alerts: got %q, want %q", got, want)
+	}
+}
+
 func TestClaimedSourceReturnsBoundedFailureWithoutRepositoryOrToken(t *testing.T) {
 	t.Parallel()
 

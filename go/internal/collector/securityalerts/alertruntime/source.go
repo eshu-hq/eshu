@@ -194,6 +194,11 @@ func (s *ClaimedSource) NextClaimed(
 			IngestedAt:   observedAt,
 			Status:       scope.GenerationStatusPending,
 			TriggerKind:  scope.TriggerKindSnapshot,
+			FreshnessHint: securityAlertFreshnessHint(securityAlertFreshnessInput{
+				alerts:       result.Alerts,
+				pagesFetched: result.PagesFetched,
+				truncated:    result.Truncated,
+			}),
 		},
 		envs,
 	), true, nil
