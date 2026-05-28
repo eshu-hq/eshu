@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	cbtypes "github.com/aws/aws-sdk-go-v2/service/codebuild/types"
@@ -213,7 +214,13 @@ func TestClientListReportGroupsSurfacesNotFound(t *testing.T) {
 	}
 }
 
-func TestClientListRecentBuildsMapsDurationAndSurfacesNotFound(t *testing.T) {
+// TestClientListRecentBuildsMapsStartAndEndTime proves the adapter copies the
+// build identity, status, and the StartTime/EndTime window it is responsible
+// for. Duration is computed in the scanner observation layer (durationSeconds
+// in observations.go), not here, so this test asserts only what mapBuild owns;
+// duration coverage lives in the scanner test (scanner_test.go).
+func TestClientListRecentBuildsMapsStartAndEndTime(t *testing.T) {
+	endTime := testTime.Add(5 * time.Minute)
 	api := &fakeCodeBuildAPI{
 		buildIDs: []string{"checkout-build:abcd"},
 		buildInfo: map[string]cbtypes.Build{
@@ -224,7 +231,7 @@ func TestClientListRecentBuildsMapsDurationAndSurfacesNotFound(t *testing.T) {
 				BuildStatus:   cbtypes.StatusTypeSucceeded,
 				BuildComplete: true,
 				StartTime:     aws.Time(testTime),
-				EndTime:       aws.Time(testTime.Add(5 * 60 * 1e9)),
+				EndTime:       aws.Time(endTime),
 			},
 		},
 	}
@@ -240,8 +247,33 @@ func TestClientListRecentBuildsMapsDurationAndSurfacesNotFound(t *testing.T) {
 	if builds[0].Status != "SUCCEEDED" {
 		t.Fatalf("build status = %q, want SUCCEEDED", builds[0].Status)
 	}
-	if builds[0].EndTime.IsZero() {
-		t.Fatalf("build end time not mapped")
+	if !builds[0].StartTime.Equal(testTime.UTC()) {
+		t.Fatalf("build start time = %v, want %v", builds[0].StartTime, testTime.UTC())
+	}
+	if !builds[0].EndTime.Equal(endTime.UTC()) {
+		t.Fatalf("build end time = %v, want %v", builds[0].EndTime, endTime.UTC())
+	}
+}
+
+// TestClientListRecentBuildsSurfacesNotFound proves the adapter fails the scan
+// when BatchGetBuilds reports unresolved build IDs rather than silently
+// dropping them, and that the error names the unresolved build id so an
+// operator can act on it.
+func TestClientListRecentBuildsSurfacesNotFound(t *testing.T) {
+	const missingID = "checkout-build:missing"
+	api := &fakeCodeBuildAPI{
+		buildIDs:       []string{missingID},
+		buildInfo:      map[string]cbtypes.Build{},
+		buildsNotFound: []string{missingID},
+	}
+	client := newTestClient(api, testKey(t))
+
+	_, err := client.ListRecentBuilds(context.Background())
+	if err == nil {
+		t.Fatalf("ListRecentBuilds() error = nil, want not-found surfaced")
+	}
+	if !strings.Contains(err.Error(), missingID) {
+		t.Fatalf("ListRecentBuilds() error = %v, want it to name the unresolved build id %q", err, missingID)
 	}
 }
 
