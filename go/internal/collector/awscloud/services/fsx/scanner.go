@@ -63,11 +63,11 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 			return nil, err
 		}
 		envelopes = append(envelopes, resource)
-		relationshipEnvelopes, err := relationshipEnvelopes(fileSystemRelationships(boundary, fs))
+		rels, err := relationshipEnvelopes(fileSystemRelationships(boundary, fs))
 		if err != nil {
 			return nil, err
 		}
-		envelopes = append(envelopes, relationshipEnvelopes...)
+		envelopes = append(envelopes, rels...)
 	}
 	for _, svm := range svms {
 		resource, err := awscloud.NewResourceEnvelope(svmObservation(boundary, svm))
@@ -75,11 +75,11 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 			return nil, err
 		}
 		envelopes = append(envelopes, resource)
-		relationshipEnvelopes, err := relationshipEnvelopes(svmRelationships(boundary, svm, fileSystemARNs))
+		rels, err := relationshipEnvelopes(svmRelationships(boundary, svm, fileSystemARNs))
 		if err != nil {
 			return nil, err
 		}
-		envelopes = append(envelopes, relationshipEnvelopes...)
+		envelopes = append(envelopes, rels...)
 	}
 	for _, volume := range volumes {
 		resource, err := awscloud.NewResourceEnvelope(volumeObservation(boundary, volume))
@@ -87,11 +87,11 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 			return nil, err
 		}
 		envelopes = append(envelopes, resource)
-		relationshipEnvelopes, err := relationshipEnvelopes(volumeRelationships(boundary, volume, svmARNs, fileSystemARNs))
+		rels, err := relationshipEnvelopes(volumeRelationships(boundary, volume, svmARNs, fileSystemARNs))
 		if err != nil {
 			return nil, err
 		}
-		envelopes = append(envelopes, relationshipEnvelopes...)
+		envelopes = append(envelopes, rels...)
 	}
 	for _, snapshot := range snapshots {
 		resource, err := awscloud.NewResourceEnvelope(snapshotObservation(boundary, snapshot))
@@ -106,11 +106,11 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 			return nil, err
 		}
 		envelopes = append(envelopes, resource)
-		relationshipEnvelopes, err := relationshipEnvelopes(backupRelationships(boundary, backup, fileSystemARNs))
+		rels, err := relationshipEnvelopes(backupRelationships(boundary, backup, fileSystemARNs))
 		if err != nil {
 			return nil, err
 		}
-		envelopes = append(envelopes, relationshipEnvelopes...)
+		envelopes = append(envelopes, rels...)
 	}
 	return envelopes, nil
 }
