@@ -233,6 +233,8 @@ func newRouter(
 			Profile:      queryProfile,
 		},
 		SupplyChain: &query.SupplyChainHandler{
+			Neo4j:                    neo4jReader,
+			Content:                  contentReader,
 			SBOMAttachments:          query.NewPostgresSBOMAttestationAttachmentStore(db),
 			SBOMAttachmentAggregates: query.NewPostgresSBOMAttestationAttachmentAggregateStore(db),
 			AdvisoryEvidence:         query.NewPostgresAdvisoryEvidenceStore(db),

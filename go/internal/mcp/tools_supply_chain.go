@@ -55,7 +55,7 @@ func supplyChainTools() []ToolDefinition {
 					},
 					"repository_id": map[string]any{
 						"type":        "string",
-						"description": "Repository identifier from package consumption evidence.",
+						"description": "Canonical repository id or human repository selector: name, repo slug, indexed path, local path, or remote URL.",
 					},
 					"subject_digest": map[string]any{
 						"type":        "string",
@@ -190,7 +190,7 @@ func supplyChainTools() []ToolDefinition {
 				"properties": map[string]any{
 					"repository_id": map[string]any{
 						"type":        "string",
-						"description": "Repository identifier from provider alert and owned dependency evidence.",
+						"description": "Canonical repository id or human repository selector: name, repo slug, indexed path, local path, or remote URL.",
 					},
 					"provider": map[string]any{
 						"type":        "string",
