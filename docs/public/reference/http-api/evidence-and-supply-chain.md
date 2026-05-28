@@ -158,6 +158,8 @@ Lists reducer-owned vulnerability impact findings. The caller must provide
 selectors repository context routes accept: repository name, repo slug, indexed
 path, local path, or remote URL. Eshu resolves human selectors before reading
 reducer impact facts; unknown or ambiguous selectors return a selector error.
+The count and inventory aggregate routes use the same repository selector
+resolution before reading reducer-owned aggregate facts.
 
 Valid impact statuses are `affected_exact`, `affected_derived`,
 `possibly_affected`, `not_affected_known_fixed`, and `unknown_impact`.
@@ -298,34 +300,30 @@ finding. Today the reducer computes npm remediation from package-lock
 evidence; other ecosystems report `package_manager_unsupported` rather than
 guessing. Eshu never auto-opens pull requests from this block.
 
-The block includes `ecosystem`, `current_version`, `vulnerable_range`,
-`first_patched_version`, every source-attributed `patched_version_branches[]`,
-and the original `manifest_range`. `manifest_allows_fix` is `allowed`,
-`blocked`, or `unknown`; npm caret and tilde ranges are expanded before the
-check, while transitive findings stay `unknown` because the parent manifest is
-not user-owned. `direct` mirrors the finding's lockfile-derived dependency flag,
-and `parent_package` names the upgrade target for transitive findings when
-known. `confidence` is `exact`, `partial`, or `unknown`; `reason` is a closed
-enum covering direct upgrades, range blocks, transitive parent upgrades,
-missing patched versions, multiple branches, unsupported package managers,
-malformed or missing manifest ranges, and missing or malformed installed
-versions. `missing_evidence[]` names remediable gaps.
+- `ecosystem`: ecosystem the recommendation was computed for.
+- `current_version`: installed version that matched the impact finding.
+- `vulnerable_range`: source-reported affected range expression.
+- `first_patched_version`: lowest source-reported fix Eshu can defend, preferring branches inside the observed major so callers are not pushed into a needless major bump.
+- `patched_version_branches[]`: every source-attributed fixed-version branch (version + source) so callers see multi-branch advisories explicitly.
+- `manifest_range`: original manifest/requested range preserved from package consumption evidence.
+- `manifest_allows_fix`: one of `allowed`, `blocked`, or `unknown`; npm caret and tilde ranges are expanded before checking whether the manifest range admits the first patched version, while transitive findings stay `unknown` because the user does not own the parent package's manifest.
+- `direct`: `true` for direct dependencies, `false` for transitive, mirroring the lockfile-derived `direct_dependency` flag on the finding.
+- `parent_package`: parent package the caller would need to upgrade for a transitive finding; blank for direct dependencies or chains without an identifiable parent.
+- `confidence`: `exact`, `partial`, or `unknown`; exact means every required input was present and unambiguous, partial means the recommendation is actionable but at least one input is ambiguous, and unknown means Eshu cannot recommend a safe upgrade yet.
+- `reason`: stable closed enum (`direct_upgrade_allowed`, `direct_range_blocked`, `transitive_parent_upgrade_required`, `no_patched_version`, `multiple_patched_branches`, `package_manager_unsupported`, `manifest_range_missing`, `manifest_range_malformed`, `installed_version_missing`, `installed_version_malformed`).
+- `missing_evidence[]`: structured reasons the recommendation could not be computed exactly so callers can surface remediable gaps.
 
 Older finding facts written before remediation computation landed expose a
 missing `remediation` block; callers must treat that as "no remediation
 computed yet," not "no fix available."
 
-No-Regression Evidence: `go test ./internal/query -run
-'TestSupplyChain.*RepositorySelector|TestSupplyChainListImpactFindingsUsesBoundedStore|TestSupplyChainListSecurityAlertReconciliationsSeparatesProviderAndEshuState'
--count=1` covers internal id fast paths, repository name/slug/path resolution,
-invalid selector errors, and bounded API reads for impact findings and provider
-security-alert reconciliations.
+No-Regression Evidence: `go test ./internal/reducer ./internal/query ./internal/mcp ./internal/storage/postgres -run 'TestSupplyChainImpactPriority|TestSupplyChainListImpactFindingsFiltersAndSortsByPriority|TestSupplyChainListImpactFindingsRejectsInvalidPriorityFilters|TestDecodeSupplyChainImpactFindingRowPreservesPriority|TestSupplyChainImpactFindingQuerySupportsPriorityFiltersAndSort|TestResolveRouteMapsSupplyChainImpactPriorityFilters|TestSupplyChainImpactToolSchemaAdvertisesPriorityFilters|TestBootstrapDefinitionsIncludeSupplyChainImpactFactIndexes' -count=1` covers score contribution explainability, truth-preserving missing-evidence behavior, API/MCP priority filters and sorts, query shape, and the priority lookup index. The sorted read remains bounded by active reducer impact facts and pages by `(priority_score, finding_id)`.
 
-No-Observability-Change: selector resolution runs before the existing Postgres
-read-model calls and reuses `query.supply_chain_impact_findings`,
-`query.supply_chain_security_alerts`, Postgres query instrumentation, and the
-readiness envelope. No graph write, queue, worker, metric instrument, or runtime
-deployment knob is introduced.
+No-Observability-Change: priority scoring reuses the existing `SupplyChainImpactFindings` reducer counter, `reducer_supply_chain_impact_finding` fact kind, impact evidence fields, readiness envelope, and `query.supply_chain_impact_findings` request span. No new graph write, queue, worker, metric instrument, or runtime deployment knob is introduced.
+
+No-Regression Evidence: `go test ./internal/query -run 'TestSupplyChain.*RepositorySelector|TestSupplyChainAggregateRoutesRejectInvalidRepositorySelector|TestSupplyChainListImpactFindingsUsesBoundedStore|TestSupplyChainListSecurityAlertReconciliationsSeparatesProviderAndEshuState' -count=1` covers internal id fast paths, repository name/slug/path resolution, invalid selector errors, and bounded API reads for impact findings, impact aggregates, provider security-alert reconciliations, and reconciliation aggregates.
+
+No-Observability-Change: selector resolution runs before the existing Postgres read-model calls and reuses `query.supply_chain_impact_findings`, `query.supply_chain_impact_aggregate`, `query.supply_chain_security_alerts`, `query.security_alert_reconciliation_aggregate`, Postgres query instrumentation, and the readiness envelope where applicable. No graph write, queue, worker, metric instrument, or runtime deployment knob is introduced.
 
 The response includes a `readiness` envelope so clients can tell `nothing
 matched` from `Eshu did not have the evidence to match yet`:
@@ -467,6 +465,8 @@ caller must provide `limit` and at least one bounded anchor:
 selectors repository context routes accept: repository name, repo slug, indexed
 path, local path, or remote URL. Unknown or ambiguous selectors return a
 selector error before the reconciliation read model runs.
+The count and inventory aggregate routes use the same repository selector
+resolution before reading reducer-owned aggregate facts.
 
 `provider_state` and `reconciliation_status` may narrow an anchored request,
 but they are filters only and are rejected when sent without one of the anchors

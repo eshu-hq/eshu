@@ -53,12 +53,9 @@ func (h *SupplyChainHandler) countImpactFindings(w http.ResponseWriter, r *http.
 		return
 	}
 
-	filter := SupplyChainImpactAggregateFilter{
-		CVEID:         QueryParam(r, "cve_id"),
-		PackageID:     QueryParam(r, "package_id"),
-		RepositoryID:  QueryParam(r, "repository_id"),
-		SubjectDigest: QueryParam(r, "subject_digest"),
-		ImpactStatus:  QueryParam(r, "impact_status"),
+	filter, ok := h.supplyChainImpactAggregateFilterFromRequest(w, r)
+	if !ok {
+		return
 	}
 
 	count, err := h.ImpactAggregates.CountSupplyChainImpactFindings(r.Context(), filter)
@@ -136,12 +133,9 @@ func (h *SupplyChainHandler) impactInventory(w http.ResponseWriter, r *http.Requ
 	if !ok {
 		return
 	}
-	filter := SupplyChainImpactAggregateFilter{
-		CVEID:         QueryParam(r, "cve_id"),
-		PackageID:     QueryParam(r, "package_id"),
-		RepositoryID:  QueryParam(r, "repository_id"),
-		SubjectDigest: QueryParam(r, "subject_digest"),
-		ImpactStatus:  QueryParam(r, "impact_status"),
+	filter, ok := h.supplyChainImpactAggregateFilterFromRequest(w, r)
+	if !ok {
+		return
 	}
 
 	rows, err := h.ImpactAggregates.SupplyChainImpactInventory(r.Context(), filter, dimension, limit+1, offset)
@@ -169,6 +163,23 @@ func (h *SupplyChainHandler) impactInventory(w http.ResponseWriter, r *http.Requ
 		TruthBasisSemanticFacts,
 		"resolved from reducer-owned impact facts; one grouped bucket per row, ordered by count desc",
 	))
+}
+
+func (h *SupplyChainHandler) supplyChainImpactAggregateFilterFromRequest(
+	w http.ResponseWriter,
+	r *http.Request,
+) (SupplyChainImpactAggregateFilter, bool) {
+	repositoryID, ok := h.resolveSupplyChainRepositorySelector(w, r, QueryParam(r, "repository_id"))
+	if !ok {
+		return SupplyChainImpactAggregateFilter{}, false
+	}
+	return SupplyChainImpactAggregateFilter{
+		CVEID:         QueryParam(r, "cve_id"),
+		PackageID:     QueryParam(r, "package_id"),
+		RepositoryID:  repositoryID,
+		SubjectDigest: QueryParam(r, "subject_digest"),
+		ImpactStatus:  QueryParam(r, "impact_status"),
+	}, true
 }
 
 func supplyChainImpactAggregateScope(filter SupplyChainImpactAggregateFilter) map[string]string {

@@ -15,7 +15,7 @@ func securityAlertReconciliationAggregateTools() []ToolDefinition {
 				"properties": map[string]any{
 					"repository_id": map[string]any{
 						"type":        "string",
-						"description": "Optional repository identifier to scope the totals.",
+						"description": "Optional canonical repository id or human repository selector: name, repo slug, indexed path, local path, or remote URL.",
 					},
 					"provider": map[string]any{
 						"type":        "string",
@@ -58,7 +58,7 @@ func securityAlertReconciliationAggregateTools() []ToolDefinition {
 					},
 					"repository_id": map[string]any{
 						"type":        "string",
-						"description": "Optional repository identifier to scope the inventory.",
+						"description": "Optional canonical repository id or human repository selector: name, repo slug, indexed path, local path, or remote URL.",
 					},
 					"provider": map[string]any{
 						"type":        "string",

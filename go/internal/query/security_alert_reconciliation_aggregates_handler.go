@@ -53,7 +53,10 @@ func (h *SupplyChainHandler) countSecurityAlertReconciliations(w http.ResponseWr
 		return
 	}
 
-	filter := securityAlertReconciliationAggregateFilterFromRequest(r)
+	filter, ok := h.securityAlertReconciliationAggregateFilterFromRequest(w, r)
+	if !ok {
+		return
+	}
 	count, err := h.SecurityAlertAggregates.CountSecurityAlertReconciliations(r.Context(), filter)
 	if err != nil {
 		WriteError(w, http.StatusInternalServerError, err.Error())
@@ -125,7 +128,10 @@ func (h *SupplyChainHandler) securityAlertReconciliationInventory(w http.Respons
 	if !ok {
 		return
 	}
-	filter := securityAlertReconciliationAggregateFilterFromRequest(r)
+	filter, ok := h.securityAlertReconciliationAggregateFilterFromRequest(w, r)
+	if !ok {
+		return
+	}
 
 	rows, err := h.SecurityAlertAggregates.SecurityAlertReconciliationInventory(r.Context(), filter, dimension, limit+1, offset)
 	if err != nil {
@@ -154,16 +160,23 @@ func (h *SupplyChainHandler) securityAlertReconciliationInventory(w http.Respons
 	))
 }
 
-func securityAlertReconciliationAggregateFilterFromRequest(r *http.Request) SecurityAlertReconciliationAggregateFilter {
+func (h *SupplyChainHandler) securityAlertReconciliationAggregateFilterFromRequest(
+	w http.ResponseWriter,
+	r *http.Request,
+) (SecurityAlertReconciliationAggregateFilter, bool) {
+	repositoryID, ok := h.resolveSupplyChainRepositorySelector(w, r, QueryParam(r, "repository_id"))
+	if !ok {
+		return SecurityAlertReconciliationAggregateFilter{}, false
+	}
 	return SecurityAlertReconciliationAggregateFilter{
-		RepositoryID:         QueryParam(r, "repository_id"),
+		RepositoryID:         repositoryID,
 		Provider:             QueryParam(r, "provider"),
 		PackageID:            QueryParam(r, "package_id"),
 		CVEID:                QueryParam(r, "cve_id"),
 		GHSAID:               QueryParam(r, "ghsa_id"),
 		ProviderState:        QueryParam(r, "provider_state"),
 		ReconciliationStatus: QueryParam(r, "reconciliation_status"),
-	}
+	}, true
 }
 
 func securityAlertReconciliationAggregateScope(filter SecurityAlertReconciliationAggregateFilter) map[string]string {
