@@ -47,6 +47,7 @@ It does not mutate AWS resources, read protected payloads, or write graph truth.
 | `elasticache` | Cache clusters, replication groups, parameter and subnet groups, users, user groups, and snapshot metadata (name/source/status only); cluster-to-VPC, cluster-to-subnet, cluster-to-KMS, replication-group-to-cluster, and user-group-to-user relationships. No AUTH tokens, user passwords, user access strings, cache contents, or snapshot data. |
 | `msk` | MSK cluster, broker configuration, and replicator metadata with subnet, security-group, KMS-key, IAM-role, and configuration relationships; no broker `server.properties` bodies, broker logs, bootstrap broker endpoints, SCRAM secrets, or Kafka topic data. |
 | `mq` | Amazon MQ broker and broker-configuration metadata for ActiveMQ and RabbitMQ engines (name, engine type/version, deployment mode, instance type, status, security-group refs, encryption options, broker usernames) with broker-to-subnet, broker-to-security-group, broker-to-KMS-key (customer-managed only), broker-to-configuration, and broker-to-CloudWatch-log-group relationships; no broker user passwords, configuration XML bodies, or queue/topic message contents. |
+| `kinesis` | Kinesis Data Streams (name, shard count, retention, stream mode, encryption), Kinesis Data Firehose delivery streams (name, source, destination type, encryption), and Kinesis Video Streams (name, status, KMS key, retention) under one `service_kind`; resource types distinguish the three sub-services. Relationships: data-stream-to-KMS-key, video-stream-to-KMS-key, Firehose-to-S3/Redshift/OpenSearch/Splunk/HTTP-endpoint, Firehose-to-Lambda-transform, and Firehose-to-IAM-role. No stream records, no video media fragments, no Firehose processing-configuration Lambda body, no HTTP endpoint access keys, no Splunk HEC tokens, and no Redshift passwords. |
 | `stepfunctions` | State machine and activity metadata, execution-role relationships, and ARN-only Task-target relationships; no execution payloads, history events, task tokens, or definition literals. |
 | `backup` | Backup vault, backup plan, backup selection, recovery point (metadata only - id, source resource ARN, vault, status, creation/expiration), report plan, restore testing plan, and framework metadata with plan-to-selection, selection-to-resource, selection-to-IAM-role, vault-to-KMS-key, recovery-point-to-vault, recovery-point-to-source-resource, and framework-to-control relationships. No recovery point contents, vault access policy bodies, or framework control input parameter values. |
 | `accessanalyzer` | Analyzer metadata, archive-rule names, aggregate finding counts, relationships, and unused-access summaries. |
@@ -150,6 +151,15 @@ sensitive group filters. Principal display names resolved from the connected
 identity store pass through the shared AWS redaction path; only the identity
 store display name is read, never addresses, emails, phone numbers, structured
 name, or group memberships.
+
+Kinesis stream records (PutRecord, PutRecords, GetRecords, GetShardIterator
+class), Kinesis Video media fragments (GetMedia, PutMedia,
+GetMediaForFragmentList), the Firehose processing-configuration Lambda body,
+Firehose HTTP endpoint access keys, Firehose Splunk HEC tokens, and Firehose
+Redshift passwords or SecretsManager material stay outside the collector
+contract. The Kinesis scanner reaches the three sub-service control planes only
+through List- and Describe-class APIs and never mutates a data stream, delivery
+stream, or video stream.
 
 It also does not call AWS mutation APIs. If a scanner needs a new API family,
 update the owning service package README with source APIs, forbidden data

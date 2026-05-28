@@ -26,11 +26,14 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/elasticache v1.52.2
 	github.com/aws/aws-sdk-go-v2/service/elasticloadbalancingv2 v1.43.13
 	github.com/aws/aws-sdk-go-v2/service/eventbridge v1.45.25
+	github.com/aws/aws-sdk-go-v2/service/firehose v1.42.17
 	github.com/aws/aws-sdk-go-v2/service/glue v1.142.0
 	github.com/aws/aws-sdk-go-v2/service/guardduty v1.78.0
 	github.com/aws/aws-sdk-go-v2/service/iam v1.36.3
 	github.com/aws/aws-sdk-go-v2/service/identitystore v1.37.1
 	github.com/aws/aws-sdk-go-v2/service/kafka v1.52.0
+	github.com/aws/aws-sdk-go-v2/service/kinesis v1.43.8
+	github.com/aws/aws-sdk-go-v2/service/kinesisvideo v1.33.11
 	github.com/aws/aws-sdk-go-v2/service/kms v1.52.0
 	github.com/aws/aws-sdk-go-v2/service/lambda v1.90.1
 	github.com/aws/aws-sdk-go-v2/service/mq v1.34.23
