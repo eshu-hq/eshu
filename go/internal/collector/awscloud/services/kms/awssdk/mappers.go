@@ -27,20 +27,20 @@ func mapKey(
 		metadata = &kmstypes.KeyMetadata{}
 	}
 	return kmsservice.Key{
-		ID:                     firstNonEmpty(strings.TrimSpace(aws.ToString(metadata.KeyId)), keyID),
-		ARN:                    strings.TrimSpace(aws.ToString(metadata.Arn)),
-		Description:            strings.TrimSpace(aws.ToString(metadata.Description)),
-		KeyManager:             string(metadata.KeyManager),
-		KeyUsage:               string(metadata.KeyUsage),
-		KeySpec:                string(metadata.KeySpec),
-		KeyState:               string(metadata.KeyState),
-		Origin:                 string(metadata.Origin),
-		CreationDate:           formatTime(metadata.CreationDate),
-		DeletionDate:           formatTime(metadata.DeletionDate),
-		Enabled:                metadata.Enabled,
-		MultiRegion:            aws.ToBool(metadata.MultiRegion),
-		MultiRegionKeyType:     multiRegionKeyType(metadata.MultiRegionConfiguration),
-		PrimaryKeyARN:          primaryKeyARN(metadata.MultiRegionConfiguration),
+		ID:                 firstNonEmpty(strings.TrimSpace(aws.ToString(metadata.KeyId)), keyID),
+		ARN:                strings.TrimSpace(aws.ToString(metadata.Arn)),
+		Description:        strings.TrimSpace(aws.ToString(metadata.Description)),
+		KeyManager:         string(metadata.KeyManager),
+		KeyUsage:           string(metadata.KeyUsage),
+		KeySpec:            string(metadata.KeySpec),
+		KeyState:           string(metadata.KeyState),
+		Origin:             string(metadata.Origin),
+		CreationDate:       formatTime(metadata.CreationDate),
+		DeletionDate:       formatTime(metadata.DeletionDate),
+		Enabled:            metadata.Enabled,
+		MultiRegion:        aws.ToBool(metadata.MultiRegion),
+		MultiRegionKeyType: multiRegionKeyType(metadata.MultiRegionConfiguration),
+		PrimaryKeyARN:      primaryKeyARN(metadata.MultiRegionConfiguration),
 		// CustomerMasterKeySpec is deprecated upstream in favor of
 		// KeySpec; we already populate KeySpec above and leave the legacy
 		// alias empty rather than reach for the deprecated AWS field.
@@ -63,15 +63,42 @@ func mapKey(
 // dropped because encryption contexts can carry tenant or workload metadata
 // the scanner contract forbids persisting.
 func mapGrant(entry kmstypes.GrantListEntry) kmsservice.Grant {
+	// A grant principal arrives in one of two distinct AWS fields: an IAM ARN
+	// in GranteePrincipal, or an AWS service principal (for example
+	// "s3.amazonaws.com") in GranteeServicePrincipal. Record which one so the
+	// scanner can classify the principal without re-deriving it from ARN
+	// shape and so a service principal is never emitted as an ARN.
+	grantee, granteeType := principalAndType(
+		aws.ToString(entry.GranteePrincipal),
+		aws.ToString(entry.GranteeServicePrincipal),
+	)
+	retiring, _ := principalAndType(
+		aws.ToString(entry.RetiringPrincipal),
+		aws.ToString(entry.RetiringServicePrincipal),
+	)
 	return kmsservice.Grant{
-		ID:                strings.TrimSpace(aws.ToString(entry.GrantId)),
-		Name:              strings.TrimSpace(aws.ToString(entry.Name)),
-		CreationDate:      formatTime(entry.CreationDate),
-		GranteePrincipal:  firstNonEmpty(strings.TrimSpace(aws.ToString(entry.GranteePrincipal)), strings.TrimSpace(aws.ToString(entry.GranteeServicePrincipal))),
-		RetiringPrincipal: firstNonEmpty(strings.TrimSpace(aws.ToString(entry.RetiringPrincipal)), strings.TrimSpace(aws.ToString(entry.RetiringServicePrincipal))),
-		IssuingAccount:    strings.TrimSpace(aws.ToString(entry.IssuingAccount)),
-		Operations:        grantOperations(entry.Operations),
+		ID:                   strings.TrimSpace(aws.ToString(entry.GrantId)),
+		Name:                 strings.TrimSpace(aws.ToString(entry.Name)),
+		CreationDate:         formatTime(entry.CreationDate),
+		GranteePrincipal:     grantee,
+		GranteePrincipalType: granteeType,
+		RetiringPrincipal:    retiring,
+		IssuingAccount:       strings.TrimSpace(aws.ToString(entry.IssuingAccount)),
+		Operations:           grantOperations(entry.Operations),
 	}
+}
+
+// principalAndType prefers the ARN-shaped principal and classifies it as
+// "AWS"; it falls back to the service principal classified as "Service". The
+// type is empty when neither field is set.
+func principalAndType(arnPrincipal string, servicePrincipal string) (string, string) {
+	if trimmed := strings.TrimSpace(arnPrincipal); trimmed != "" {
+		return trimmed, "AWS"
+	}
+	if trimmed := strings.TrimSpace(servicePrincipal); trimmed != "" {
+		return trimmed, "Service"
+	}
+	return "", ""
 }
 
 func grantOperations(operations []kmstypes.GrantOperation) []string {
@@ -175,10 +202,14 @@ func rotationCheckSupported(metadata *kmstypes.KeyMetadata) bool {
 	return true
 }
 
+// rotationStatus carries the resolved automatic-rotation answer for a key.
+// known is false when GetKeyRotationStatus is not meaningful for the key type
+// or when AWS reports UnsupportedOperation/AccessDenied; the adapter
+// propagates any other GetKeyRotationStatus failure as an error rather than
+// recording it here, so a real outage never masquerades as "rotation unknown".
 type rotationStatus struct {
 	known   bool
 	enabled bool
-	err     error
 }
 
 func formatTime(value *time.Time) string {

@@ -121,12 +121,20 @@ type Grant struct {
 	Name string
 	// CreationDate is the reported CreationDate as an RFC 3339 string.
 	CreationDate string
-	// GranteePrincipal is the ARN-shaped principal authorized to use the
-	// key. It is emitted as-is for relationship evidence; trust evaluation
-	// is a downstream reducer concern.
+	// GranteePrincipal is the opaque principal authorized to use the key. It
+	// is either an IAM ARN (from GranteePrincipal) or an AWS service
+	// principal such as "s3.amazonaws.com" (from GranteeServicePrincipal);
+	// callers must not assume an ARN-only invariant. GranteePrincipalType
+	// records which case this is. The value is emitted as-is for relationship
+	// evidence; trust evaluation is a downstream reducer concern.
 	GranteePrincipal string
-	// RetiringPrincipal is the ARN-shaped principal authorized to retire the
-	// grant; empty when not set.
+	// GranteePrincipalType classifies GranteePrincipal as "AWS" when it is an
+	// IAM ARN or "Service" when it is an AWS service principal, mirroring the
+	// IAM trust-principal scheme. It is empty when there is no grantee.
+	GranteePrincipalType string
+	// RetiringPrincipal is the opaque principal authorized to retire the
+	// grant; either an IAM ARN or an AWS service principal, or empty when not
+	// set. As with GranteePrincipal, callers must not assume it is an ARN.
 	RetiringPrincipal string
 	// IssuingAccount is the AWS account that issued the grant.
 	IssuingAccount string

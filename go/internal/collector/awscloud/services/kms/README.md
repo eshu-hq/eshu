@@ -45,8 +45,13 @@ See `doc.go` for the godoc contract.
   configuration, supported algorithm lists).
 - `Alias` - alias name/ARN and the target key id it points at.
 - `Grant` - grant identity, grantee principal, retiring principal, issuing
-  account, and the bounded operation list. Grant encryption contexts are
-  intentionally absent from this type.
+  account, and the bounded operation list. The grantee principal is either an
+  IAM ARN or an AWS service principal (for example `s3.amazonaws.com`);
+  `GranteePrincipalType` records which case it is. The grant->grantee
+  relationship mirrors the IAM principal scheme: the target identity is
+  `<type>:<principal>` and `target_arn` is populated only for ARN-shaped
+  principals. Grant encryption contexts are intentionally absent from this
+  type.
 
 ## Dependencies
 

@@ -226,22 +226,58 @@ func grantGranteeRelationship(boundary awscloud.Boundary, key Key, grant Grant) 
 	if grantee == "" {
 		return awscloud.RelationshipObservation{}, false
 	}
+	// A KMS grantee is either an IAM ARN or an AWS service principal (for
+	// example "s3.amazonaws.com"). Mirror the IAM scanner's principal scheme:
+	// encode the target identity as "<type>:<value>", only populate target_arn
+	// when the value is actually an ARN, and record principal_type so reducers
+	// can evaluate trust without re-deriving the kind.
+	principalType := principalType(grant.GranteePrincipalType, grantee)
 	grantID := strings.TrimSpace(grant.ID)
 	keyID := strings.TrimSpace(key.ID)
 	resourceID := grantResourceID(keyID, grantID)
-	return awscloud.RelationshipObservation{
+	principalID := principalType + ":" + grantee
+	relationship := awscloud.RelationshipObservation{
 		Boundary:         boundary,
 		RelationshipType: awscloud.RelationshipKMSGrantForGrantee,
 		SourceResourceID: resourceID,
-		TargetResourceID: grantee,
-		TargetARN:        grantee,
+		TargetResourceID: principalID,
 		TargetType:       awscloud.ResourceTypeIAMPrincipal,
 		Attributes: map[string]any{
 			"grant_id":           grantID,
+			"principal_type":     principalType,
 			"retiring_principal": strings.TrimSpace(grant.RetiringPrincipal),
 		},
-		SourceRecordID: resourceID + "->" + grantee,
-	}, true
+		SourceRecordID: resourceID + "->" + principalID,
+	}
+	if principalType == principalTypeAWS {
+		relationship.TargetARN = grantee
+	}
+	return relationship, true
+}
+
+const (
+	// principalTypeAWS marks a grantee that is an IAM ARN, matching the IAM
+	// trust-policy "AWS" principal kind.
+	principalTypeAWS = "AWS"
+	// principalTypeService marks a grantee that is an AWS service principal
+	// (for example "s3.amazonaws.com"), matching the IAM "Service" kind.
+	principalTypeService = "Service"
+)
+
+// principalType resolves the grantee principal kind. It honors the
+// adapter-supplied classification when present and otherwise infers the kind
+// from ARN shape, so a service principal is never mistaken for an ARN.
+func principalType(declared string, grantee string) string {
+	switch strings.TrimSpace(declared) {
+	case principalTypeAWS:
+		return principalTypeAWS
+	case principalTypeService:
+		return principalTypeService
+	}
+	if strings.HasPrefix(grantee, "arn:") {
+		return principalTypeAWS
+	}
+	return principalTypeService
 }
 
 func grantResourceID(keyID string, grantID string) string {

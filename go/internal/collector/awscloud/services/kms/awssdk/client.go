@@ -163,7 +163,10 @@ func (c *Client) keyMetadata(ctx context.Context, keyID string, aliases []kmsser
 	if err != nil {
 		return kmsservice.Key{}, err
 	}
-	rotation := c.keyRotationStatus(ctx, keyID, metadata)
+	rotation, err := c.keyRotationStatus(ctx, keyID, metadata)
+	if err != nil {
+		return kmsservice.Key{}, err
+	}
 	grants, err := c.listGrants(ctx, keyID)
 	if err != nil {
 		return kmsservice.Key{}, err
@@ -214,7 +217,7 @@ func (c *Client) listKeyPolicies(ctx context.Context, keyID string) ([]string, e
 			}
 		}
 		marker = page.NextMarker
-		if aws.ToString(marker) == "" {
+		if !page.Truncated || aws.ToString(marker) == "" {
 			return names, nil
 		}
 	}
@@ -222,11 +225,15 @@ func (c *Client) listKeyPolicies(ctx context.Context, keyID string) ([]string, e
 
 // keyRotationStatus probes GetKeyRotationStatus for the keys that support it.
 // AWS responds with UnsupportedOperationException for asymmetric, HMAC, and
-// AWS-managed keys. Treat that as "rotation status unknown" so the scanner
-// can omit the rotation_enabled attribute rather than report a false answer.
-func (c *Client) keyRotationStatus(ctx context.Context, keyID string, metadata *kmstypes.KeyMetadata) rotationStatus {
+// AWS-managed keys, and may respond with AccessDenied when the caller lacks
+// kms:GetKeyRotationStatus. Those two cases are treated as "rotation status
+// unknown" so the scanner omits the rotation_enabled attribute rather than
+// reporting a false answer. Any other failure (for example an expired
+// credential or a regional outage) is propagated so the scan fails loudly
+// instead of silently downgrading a real outage into rotation_status_known=false.
+func (c *Client) keyRotationStatus(ctx context.Context, keyID string, metadata *kmstypes.KeyMetadata) (rotationStatus, error) {
 	if !rotationCheckSupported(metadata) {
-		return rotationStatus{known: false}
+		return rotationStatus{known: false}, nil
 	}
 	var output *awskms.GetKeyRotationStatusOutput
 	err := c.recordAPICall(ctx, "GetKeyRotationStatus", func(callCtx context.Context) error {
@@ -238,14 +245,14 @@ func (c *Client) keyRotationStatus(ctx context.Context, keyID string, metadata *
 	})
 	if err != nil {
 		if isUnsupportedOperation(err) || isAccessDeniedError(err) {
-			return rotationStatus{known: false}
+			return rotationStatus{known: false}, nil
 		}
-		return rotationStatus{known: false, err: err}
+		return rotationStatus{}, err
 	}
 	if output == nil {
-		return rotationStatus{known: false}
+		return rotationStatus{known: false}, nil
 	}
-	return rotationStatus{known: true, enabled: output.KeyRotationEnabled}
+	return rotationStatus{known: true, enabled: output.KeyRotationEnabled}, nil
 }
 
 func (c *Client) listGrants(ctx context.Context, keyID string) ([]kmsservice.Grant, error) {

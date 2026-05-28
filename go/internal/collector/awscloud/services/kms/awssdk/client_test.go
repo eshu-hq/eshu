@@ -128,6 +128,9 @@ func TestClientListKeysEmitsMetadataAndDropsEncryptionContext(t *testing.T) {
 	if grant.ID != "grant-1" || grant.GranteePrincipal != "arn:aws:iam::123456789012:role/eshu-app" {
 		t.Fatalf("Grant identity = %#v", grant)
 	}
+	if grant.GranteePrincipalType != "AWS" {
+		t.Fatalf("GranteePrincipalType = %q, want %q for an ARN grantee", grant.GranteePrincipalType, "AWS")
+	}
 	// Grant ops list flows through but encryption contexts do not exist on
 	// the scanner-owned type at all, so the SDK adapter cannot leak them.
 	wantOps := []string{string(kmstypes.GrantOperationEncrypt), string(kmstypes.GrantOperationDecrypt)}
@@ -216,6 +219,90 @@ func TestClientListKeysTreatsUnsupportedOperationAsUnknownRotation(t *testing.T)
 	}
 }
 
+// TestClientListKeysSurfacesUnexpectedRotationErrors proves the adapter does
+// not silently downgrade an unexpected GetKeyRotationStatus failure into
+// rotation_status_known=false. A credential or config outage that surfaces as
+// something other than UnsupportedOperation/AccessDenied must fail the scan so
+// the operator sees the real failure instead of a false "rotation unknown".
+func TestClientListKeysSurfacesUnexpectedRotationErrors(t *testing.T) {
+	keyID := "managed-key"
+	api := &fakeKMSAPI{
+		listKeysPages: []*awskms.ListKeysOutput{{
+			Keys: []kmstypes.KeyListEntry{{KeyId: aws.String(keyID)}},
+		}},
+		describeKey: map[string]*kmstypes.KeyMetadata{
+			keyID: {
+				KeyId:      aws.String(keyID),
+				KeyManager: kmstypes.KeyManagerTypeCustomer,
+				KeyUsage:   kmstypes.KeyUsageTypeEncryptDecrypt,
+				KeySpec:    kmstypes.KeySpecSymmetricDefault,
+				KeyState:   kmstypes.KeyStateEnabled,
+			},
+		},
+		// An expired/invalid credential surfaces as an authentication error,
+		// not UnsupportedOperation or AccessDenied.
+		rotationErr: &smithy.GenericAPIError{Code: "ExpiredTokenException", Message: "token expired"},
+	}
+	adapter := &Client{
+		client:   api,
+		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceKMS},
+	}
+
+	_, err := adapter.ListKeys(context.Background())
+	if err == nil {
+		t.Fatalf("ListKeys() error = nil; an unexpected GetKeyRotationStatus failure must surface, not be swallowed as rotation unknown")
+	}
+	if !strings.Contains(err.Error(), "ExpiredTokenException") {
+		t.Fatalf("ListKeys() error = %v, want it to wrap the underlying ExpiredTokenException", err)
+	}
+}
+
+// TestClientListKeyPoliciesHonorsTruncatedFlag proves listKeyPolicies uses the
+// same Truncated/NextMarker termination as the other paginators: it follows a
+// non-empty marker while Truncated is true, and stops once Truncated is false
+// regardless of any stray marker AWS may echo back.
+func TestClientListKeyPoliciesHonorsTruncatedFlag(t *testing.T) {
+	keyID := "policy-paged-key"
+	api := &fakeKMSAPI{
+		listKeysPages: []*awskms.ListKeysOutput{{
+			Keys: []kmstypes.KeyListEntry{{KeyId: aws.String(keyID)}},
+		}},
+		describeKey: map[string]*kmstypes.KeyMetadata{
+			keyID: {
+				KeyId:      aws.String(keyID),
+				KeyManager: kmstypes.KeyManagerTypeCustomer,
+				KeyUsage:   kmstypes.KeyUsageTypeSignVerify,
+				KeySpec:    kmstypes.KeySpecRsa2048,
+				KeyState:   kmstypes.KeyStateEnabled,
+			},
+		},
+		listPoliciesByKey: map[string][]*awskms.ListKeyPoliciesOutput{
+			keyID: {
+				// First page is truncated and points at the next marker.
+				{PolicyNames: []string{"default"}, Truncated: true, NextMarker: aws.String("next")},
+				// Final page is not truncated; the stray marker must NOT trigger
+				// another call.
+				{PolicyNames: []string{"backup"}, Truncated: false, NextMarker: aws.String("ignored")},
+			},
+		},
+	}
+	adapter := &Client{
+		client:   api,
+		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceKMS},
+	}
+
+	keys, err := adapter.ListKeys(context.Background())
+	if err != nil {
+		t.Fatalf("ListKeys() error = %v, want nil", err)
+	}
+	if got, want := keys[0].PolicyRevisionNames, []string{"default", "backup"}; !equalStrings(got, want) {
+		t.Fatalf("PolicyRevisionNames = %#v, want %#v (both pages followed)", got, want)
+	}
+	if api.listPoliciesTotalCalls[keyID] != 2 {
+		t.Fatalf("ListKeyPolicies called %d times, want 2 (stop on Truncated=false despite stray marker)", api.listPoliciesTotalCalls[keyID])
+	}
+}
+
 // TestAdapterAPIClientInterfaceForbidsCryptoAndLifecycleMethods is the
 // gate the issue calls out for the SDK adapter. We reflect over the
 // adapter-local apiClient interface and confirm there is no cryptographic
@@ -246,124 +333,12 @@ func TestAdapterAPIClientInterfaceForbidsCryptoAndLifecycleMethods(t *testing.T)
 			if method.Name == banned {
 				t.Fatalf("apiClient exposes forbidden method %q; KMS adapter contract is metadata-only", banned)
 			}
+			// Match the scanner-side guard's strings.Contains check so a future
+			// addition like EncryptFoo or PutKeyPolicyBar cannot slip past the
+			// interface gate just because its name is not an exact match.
+			if strings.Contains(method.Name, banned) {
+				t.Fatalf("apiClient method %q contains forbidden operation %q; KMS adapter contract is metadata-only", method.Name, banned)
+			}
 		}
 	}
 }
-
-type fakeKMSAPI struct {
-	listKeysPages    []*awskms.ListKeysOutput
-	listKeysCalls    int
-	describeKey      map[string]*kmstypes.KeyMetadata
-	listAliasesPages []*awskms.ListAliasesOutput
-	listAliasesCalls int
-
-	listGrantsByKey   map[string][]*awskms.ListGrantsOutput
-	listGrantsCounter map[string]int
-
-	listPoliciesByKey   map[string][]*awskms.ListKeyPoliciesOutput
-	listPoliciesCounter map[string]int
-
-	rotationByKey             map[string]*awskms.GetKeyRotationStatusOutput
-	rotationErr               error
-	getKeyRotationStatusCalls int
-
-	listTagsByKey   map[string][]*awskms.ListResourceTagsOutput
-	listTagsCounter map[string]int
-
-	getKeyPolicyCalls int
-}
-
-func (f *fakeKMSAPI) ListKeys(_ context.Context, _ *awskms.ListKeysInput, _ ...func(*awskms.Options)) (*awskms.ListKeysOutput, error) {
-	if f.listKeysCalls >= len(f.listKeysPages) {
-		return &awskms.ListKeysOutput{}, nil
-	}
-	page := f.listKeysPages[f.listKeysCalls]
-	f.listKeysCalls++
-	return page, nil
-}
-
-func (f *fakeKMSAPI) DescribeKey(_ context.Context, input *awskms.DescribeKeyInput, _ ...func(*awskms.Options)) (*awskms.DescribeKeyOutput, error) {
-	id := aws.ToString(input.KeyId)
-	metadata, ok := f.describeKey[id]
-	if !ok {
-		return &awskms.DescribeKeyOutput{KeyMetadata: &kmstypes.KeyMetadata{KeyId: aws.String(id)}}, nil
-	}
-	return &awskms.DescribeKeyOutput{KeyMetadata: metadata}, nil
-}
-
-func (f *fakeKMSAPI) ListAliases(_ context.Context, _ *awskms.ListAliasesInput, _ ...func(*awskms.Options)) (*awskms.ListAliasesOutput, error) {
-	if f.listAliasesCalls >= len(f.listAliasesPages) {
-		return &awskms.ListAliasesOutput{}, nil
-	}
-	page := f.listAliasesPages[f.listAliasesCalls]
-	f.listAliasesCalls++
-	return page, nil
-}
-
-func (f *fakeKMSAPI) ListGrants(_ context.Context, input *awskms.ListGrantsInput, _ ...func(*awskms.Options)) (*awskms.ListGrantsOutput, error) {
-	id := aws.ToString(input.KeyId)
-	if f.listGrantsCounter == nil {
-		f.listGrantsCounter = map[string]int{}
-	}
-	pages := f.listGrantsByKey[id]
-	index := f.listGrantsCounter[id]
-	if index >= len(pages) {
-		return &awskms.ListGrantsOutput{}, nil
-	}
-	f.listGrantsCounter[id] = index + 1
-	return pages[index], nil
-}
-
-func (f *fakeKMSAPI) ListKeyPolicies(_ context.Context, input *awskms.ListKeyPoliciesInput, _ ...func(*awskms.Options)) (*awskms.ListKeyPoliciesOutput, error) {
-	id := aws.ToString(input.KeyId)
-	if f.listPoliciesCounter == nil {
-		f.listPoliciesCounter = map[string]int{}
-	}
-	pages := f.listPoliciesByKey[id]
-	index := f.listPoliciesCounter[id]
-	if index >= len(pages) {
-		return &awskms.ListKeyPoliciesOutput{}, nil
-	}
-	f.listPoliciesCounter[id] = index + 1
-	return pages[index], nil
-}
-
-func (f *fakeKMSAPI) GetKeyRotationStatus(_ context.Context, input *awskms.GetKeyRotationStatusInput, _ ...func(*awskms.Options)) (*awskms.GetKeyRotationStatusOutput, error) {
-	f.getKeyRotationStatusCalls++
-	if f.rotationErr != nil {
-		return nil, f.rotationErr
-	}
-	id := aws.ToString(input.KeyId)
-	if output, ok := f.rotationByKey[id]; ok {
-		return output, nil
-	}
-	return &awskms.GetKeyRotationStatusOutput{}, nil
-}
-
-func (f *fakeKMSAPI) ListResourceTags(_ context.Context, input *awskms.ListResourceTagsInput, _ ...func(*awskms.Options)) (*awskms.ListResourceTagsOutput, error) {
-	id := aws.ToString(input.KeyId)
-	if f.listTagsCounter == nil {
-		f.listTagsCounter = map[string]int{}
-	}
-	pages := f.listTagsByKey[id]
-	index := f.listTagsCounter[id]
-	if index >= len(pages) {
-		return &awskms.ListResourceTagsOutput{}, nil
-	}
-	f.listTagsCounter[id] = index + 1
-	return pages[index], nil
-}
-
-func equalStrings(left, right []string) bool {
-	if len(left) != len(right) {
-		return false
-	}
-	for i := range left {
-		if left[i] != right[i] {
-			return false
-		}
-	}
-	return true
-}
-
-var _ apiClient = (*fakeKMSAPI)(nil)

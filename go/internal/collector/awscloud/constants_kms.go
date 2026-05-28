@@ -36,7 +36,9 @@ const (
 	// key.
 	RelationshipKMSGrantOnKey = "kms_grant_on_key"
 	// RelationshipKMSGrantForGrantee records the grantee principal reported
-	// by a KMS grant. The principal is emitted as an opaque ARN-shaped
-	// identity; trust evaluation belongs to reducers, not this scanner.
+	// by a KMS grant. The principal is either an IAM ARN or an AWS service
+	// principal and is emitted with the IAM principal scheme (target identity
+	// "<type>:<principal>", target_arn set only for ARN-shaped values); trust
+	// evaluation belongs to reducers, not this scanner.
 	RelationshipKMSGrantForGrantee = "kms_grant_for_grantee"
 )

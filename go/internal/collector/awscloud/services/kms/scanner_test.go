@@ -135,7 +135,53 @@ func TestScannerEmitsKMSKeyAliasAndGrantMetadataOnly(t *testing.T) {
 
 	assertRelationshipType(t, envelopes, awscloud.RelationshipKMSAliasTargetsKey)
 	assertRelationshipType(t, envelopes, awscloud.RelationshipKMSGrantOnKey)
-	assertRelationshipType(t, envelopes, awscloud.RelationshipKMSGrantForGrantee)
+
+	// An ARN-shaped grantee mirrors the IAM principal scheme: the target
+	// identity is "AWS:<arn>", target_arn is populated, and principal_type is
+	// recorded for downstream reducers.
+	granteeRel := relationshipByType(t, envelopes, awscloud.RelationshipKMSGrantForGrantee)
+	assertPayload(t, granteeRel, "target_resource_id", "AWS:"+grantee)
+	assertPayload(t, granteeRel, "target_arn", grantee)
+	assertPayload(t, granteeRel, "target_type", awscloud.ResourceTypeIAMPrincipal)
+	assertAttribute(t, attributesOf(t, granteeRel), "principal_type", "AWS")
+}
+
+// TestScannerEncodesServicePrincipalGranteeWithoutARN proves a grantee that is
+// a service principal (for example "s3.amazonaws.com") is encoded as
+// "Service:<principal>" and never populates target_arn, since a service
+// principal is not an ARN. This guards the IAM-aligned principal scheme so a
+// service principal is not mistaken for an ARN downstream.
+func TestScannerEncodesServicePrincipalGranteeWithoutARN(t *testing.T) {
+	keyID := "1234abcd-12ab-34cd-56ef-1234567890ab"
+	keyARN := "arn:aws:kms:us-east-1:123456789012:key/" + keyID
+	servicePrincipal := "s3.amazonaws.com"
+	client := fakeClient{keys: []Key{{
+		ID:         keyID,
+		ARN:        keyARN,
+		KeyManager: "CUSTOMER",
+		KeyUsage:   "ENCRYPT_DECRYPT",
+		KeySpec:    "SYMMETRIC_DEFAULT",
+		KeyState:   "Enabled",
+		Origin:     "AWS_KMS",
+		Grants: []Grant{{
+			ID:                   "service-grant",
+			GranteePrincipal:     servicePrincipal,
+			GranteePrincipalType: "Service",
+			Operations:           []string{"Decrypt"},
+		}},
+	}}}
+
+	envelopes, err := (Scanner{Client: client}).Scan(context.Background(), testBoundary())
+	if err != nil {
+		t.Fatalf("Scan() error = %v, want nil", err)
+	}
+	granteeRel := relationshipByType(t, envelopes, awscloud.RelationshipKMSGrantForGrantee)
+	assertPayload(t, granteeRel, "target_resource_id", "Service:"+servicePrincipal)
+	assertPayload(t, granteeRel, "target_type", awscloud.ResourceTypeIAMPrincipal)
+	if got := granteeRel.Payload["target_arn"]; got != "" {
+		t.Fatalf("target_arn = %#v, want empty for a service principal grantee", got)
+	}
+	assertAttribute(t, attributesOf(t, granteeRel), "principal_type", "Service")
 }
 
 func TestScannerOmitsRotationStatusWhenNotReported(t *testing.T) {
@@ -306,6 +352,31 @@ func assertRelationshipType(t *testing.T, envelopes []facts.Envelope, relationsh
 		}
 	}
 	t.Fatalf("missing relationship_type %q in %#v", relationshipType, envelopes)
+}
+
+func relationshipByType(t *testing.T, envelopes []facts.Envelope, relationshipType string) facts.Envelope {
+	t.Helper()
+	for _, envelope := range envelopes {
+		if envelope.FactKind != facts.AWSRelationshipFactKind {
+			continue
+		}
+		if got, _ := envelope.Payload["relationship_type"].(string); got == relationshipType {
+			return envelope
+		}
+	}
+	t.Fatalf("missing relationship_type %q in %#v", relationshipType, envelopes)
+	return facts.Envelope{}
+}
+
+func assertPayload(t *testing.T, envelope facts.Envelope, key string, want any) {
+	t.Helper()
+	got, exists := envelope.Payload[key]
+	if !exists {
+		t.Fatalf("missing payload key %q in %#v", key, envelope.Payload)
+	}
+	if !valuesEqual(got, want) {
+		t.Fatalf("payload %q = %#v, want %#v", key, got, want)
+	}
 }
 
 func valuesEqual(got any, want any) bool {
