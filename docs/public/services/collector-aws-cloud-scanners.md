@@ -29,6 +29,7 @@ It does not mutate AWS resources, read protected payloads, or write graph truth.
 | `route53` | Hosted zones and A, AAAA, CNAME, ALIAS DNS record facts. |
 | `sqs`, `sns`, `eventbridge` | Queue/topic/bus metadata and ARN-addressable relationships. |
 | `guardduty` | Detectors, member accounts, filter names, publishing destinations, threat intel/IP set metadata, and aggregate finding counts. |
+| `inspector2` | Account scan status, enabled scan features (EC2, ECR, Lambda, Lambda code), member accounts (org-admin view), findings filter names, and CIS scan configuration metadata with account-to-feature-status, member-to-administrator, and CIS-configuration-to-target-account relationships. No finding details, no filter criteria expressions, no CIS scan results. |
 | `s3` | Bucket metadata and server-access-log target bucket relationships. |
 | `rds` | DB instances, clusters, subnet groups, and reported security/KMS/role/group relationships. |
 | `docdb` | DocumentDB DB clusters, cluster instances, cluster parameter groups (name + family + parameter count only - NOT parameter values), cluster snapshot metadata, subnet groups, global clusters, and event subscription metadata with cluster-to-VPC, cluster-to-subnet-group, cluster-to-KMS-key, instance-to-cluster, and global-cluster-to-cluster relationships. No master user passwords, master user secrets, database document contents, collections, indexes, cluster parameter values, or snapshot contents. |
@@ -104,6 +105,12 @@ Task Resource ARNs; Parameters, ResultPath, ResultSelector, InputPath,
 OutputPath, and Result literal contents are excluded.
 GuardDuty finding bodies, GuardDuty filter criteria, GuardDuty threat intel set
 list contents, and GuardDuty IP set list contents are also out of scope.
+Inspector v2 finding details (CVE, package version, affected host ARN),
+Inspector v2 filter criteria expressions, filter descriptions, filter reasons,
+and CIS scan results are out of scope; the Inspector v2 scanner emits account
+status, enabled scan features, member accounts, filter names, and CIS scan
+configuration metadata only, and makes no finding-listing or finding-aggregation
+call.
 CloudTrail audit event payloads, Lake query strings, Lake query result rows,
 event selector bodies, and dashboard widget query SQL stay outside the
 collector contract; the CloudTrail scanner emits trail and Lake configuration
