@@ -22,19 +22,19 @@ import (
 // The map is built once and treated as immutable; concurrent HasAttribute
 // callers therefore need no synchronization.
 type packagedSchemaResolver struct {
-	resourceAttributes map[string]map[string]struct{}
+	stateAttributes map[string]map[string]struct{}
 }
 
 // HasAttribute returns true when the loaded provider schemas declare an
-// attribute or block_type named attributeKey on the resourceType. Both
-// arguments are matched as-is; callers must pass the verbatim Terraform
-// resource type (e.g. "aws_s3_bucket") and key (e.g. "acl" or
-// "server_side_encryption_configuration").
+// attribute or block_type named attributeKey on the Terraform state type. Both
+// arguments are matched as-is; callers must pass the verbatim Terraform state
+// type (e.g. "aws_s3_bucket" or "aws_iam_policy_document") and key (e.g.
+// "acl", "statement", or "server_side_encryption_configuration").
 func (r *packagedSchemaResolver) HasAttribute(resourceType string, attributeKey string) bool {
 	if r == nil {
 		return false
 	}
-	attrs, ok := r.resourceAttributes[resourceType]
+	attrs, ok := r.stateAttributes[resourceType]
 	if !ok {
 		return false
 	}
@@ -42,8 +42,8 @@ func (r *packagedSchemaResolver) HasAttribute(resourceType string, attributeKey 
 	return ok
 }
 
-// EntryCount returns the number of Terraform resource types covered by the
-// loaded provider schemas. Callers report this through the
+// EntryCount returns the number of Terraform state types covered by the loaded
+// provider schemas. Callers report this through the
 // eshu_dp_tfstate_schema_resolver_entries observable gauge so operators can
 // size the collector pod for the startup-loaded schema footprint. Returns 0
 // when r is nil.
@@ -51,7 +51,7 @@ func (r *packagedSchemaResolver) EntryCount() int {
 	if r == nil {
 		return 0
 	}
-	return len(r.resourceAttributes)
+	return len(r.stateAttributes)
 }
 
 // LoadPackagedSchemaResolver builds a ProviderSchemaResolver from the gzipped
@@ -61,18 +61,18 @@ func (r *packagedSchemaResolver) EntryCount() int {
 // containerized binaries continue to resolve attribute coverage without
 // shipping the schemas directory.
 //
-// Both sources merge each provider's resource_schemas — top-level attributes
-// and block_types — into a flat resourceType -> trusted-key lookup. Terraform
-// state JSON stores nested blocks (versioning,
-// server_side_encryption_configuration, lifecycle_rule, ...) under the same
-// `attributes` key as scalar attributes, so the trusted surface must include
-// both names.
+// Both sources merge each provider's resource_schemas and data_source_schemas,
+// including top-level attributes and block_types, into a flat stateType ->
+// trusted-key lookup. Terraform state JSON stores managed resources and data
+// sources in the same "resources" array and stores nested blocks (versioning,
+// statement, filter, lifecycle_rule, ...) under the same `attributes` key as
+// scalar attributes, so the trusted surface must include both names.
 //
 // Returns nil when neither source yields any parseable schema. Returning nil
 // is intentional: the parser treats a nil resolver as redact.SchemaUnknown
 // which fails closed under the configured RedactionRules.
 func LoadPackagedSchemaResolver(schemaDir string) (ProviderSchemaResolver, error) {
-	resourceAttributes := make(map[string]map[string]struct{}, 1024)
+	stateAttributes := make(map[string]map[string]struct{}, 1024)
 
 	if schemaDir != "" {
 		matches, err := filepath.Glob(filepath.Join(schemaDir, "*.json*"))
@@ -85,21 +85,21 @@ func LoadPackagedSchemaResolver(schemaDir string) (ProviderSchemaResolver, error
 			if err != nil {
 				continue
 			}
-			parseSchemaInto(resourceAttributes, file, schemaPath)
+			parseSchemaInto(stateAttributes, file, schemaPath)
 			_ = file.Close()
 		}
 	}
 
-	if len(resourceAttributes) == 0 {
-		if err := loadEmbeddedSchemasInto(resourceAttributes); err != nil {
+	if len(stateAttributes) == 0 {
+		if err := loadEmbeddedSchemasInto(stateAttributes); err != nil {
 			return nil, err
 		}
 	}
 
-	if len(resourceAttributes) == 0 {
+	if len(stateAttributes) == 0 {
 		return nil, nil
 	}
-	return &packagedSchemaResolver{resourceAttributes: resourceAttributes}, nil
+	return &packagedSchemaResolver{stateAttributes: stateAttributes}, nil
 }
 
 // loadEmbeddedSchemasInto walks the embedded provider-schema bundle and
@@ -159,6 +159,9 @@ func parseSchemaInto(dst map[string]map[string]struct{}, file io.Reader, name st
 		for resourceType, resource := range provider.ResourceSchemas {
 			mergeResourceBlock(dst, resourceType, resource.Block)
 		}
+		for dataSourceType, dataSource := range provider.DataSourceSchemas {
+			mergeResourceBlock(dst, dataSourceType, dataSource.Block)
+		}
 	}
 }
 
@@ -171,6 +174,9 @@ type schemaDocument struct {
 		ResourceSchemas map[string]struct {
 			Block schemaBlock `json:"block"`
 		} `json:"resource_schemas"`
+		DataSourceSchemas map[string]struct {
+			Block schemaBlock `json:"block"`
+		} `json:"data_source_schemas"`
 	} `json:"provider_schemas"`
 }
 
@@ -181,10 +187,10 @@ type schemaBlock struct {
 	} `json:"block_types"`
 }
 
-// mergeResourceBlock folds one resource's attributes and block_types into the
-// aggregate lookup. Block names live alongside attribute names because
-// Terraform state JSON serializes both under the same per-resource
-// `attributes` object.
+// mergeResourceBlock folds one Terraform state type's attributes and
+// block_types into the aggregate lookup. Block names live alongside attribute
+// names because Terraform state JSON serializes both under the same
+// per-resource `attributes` object.
 //
 // Top-level only: this merge does not recurse into nested block_types. Only
 // the top-level keys of the resource block are added to the trusted surface.

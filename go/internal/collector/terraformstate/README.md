@@ -84,6 +84,16 @@ leaving this package is a redacted fact, warning, identity, or bounded summary.
   output facts, module facts, and a warnings-by-kind breakdown alongside
   redactions by reason. Runtime code records those as metrics; raw values
   and source locators stay out of labels.
+- `LoadPackagedSchemaResolver` loads top-level attributes and block types from
+  both `resource_schemas` and `data_source_schemas` in the packaged Terraform
+  provider bundle. Terraform state serializes managed resources and data
+  sources through the same `resources` array, so schema-backed data-source
+  composites such as `aws_iam_policy_document.statement`,
+  `aws_kms_key.multi_region_configuration`, `aws_kms_key.xks_key_configuration`,
+  `aws_subnets.filter`, `aws_subnets.ids`,
+  `aws_vpc.cidr_block_associations`, and `aws_vpc.filter` are captured as
+  evidence. Provider shapes without a bundled schema, such as
+  `cloudinit_config.part`, remain unsupported and fail closed.
 - `ReadSnapshotIdentity` streams only the top-level serial and lineage fields so
   runtime code can build the claimed generation identity without retaining raw
   state bytes.
@@ -152,6 +162,10 @@ leaving this package is a redacted fact, warning, identity, or bounded summary.
   `unsupported_composite_attribute` warning fact per
   `resource_type`/`attribute_key`/`reason` shape with an `occurrence_count`
   rather than repeating the warning for every resource instance.
+- The provider-schema resolver trusts only the top-level attributes and
+  block types declared in packaged resource or data-source schemas. It does not
+  promote remote E2E shapes from logs alone; adding support for a new provider
+  or shape requires a committed schema bundle or another explicit schema proof.
 - Schema-known composite attributes are captured through a streaming nested
   walker (`readCompositeValue` in `composite_walker.go`). The walker reuses
   the existing `json.Decoder`, applies per-leaf classification via
@@ -233,3 +247,18 @@ locators. The claim runtime records the source-open result and emits a bounded
 `terraform_state_warning` with `warning_kind=state_missing`, so operators can
 separate stale backend declarations from permission errors, parser failures,
 and retryable transport failures.
+
+No-Regression Evidence: the Terraform-state provider-schema composite gap fix
+only changes startup resolver coverage. The parser still performs one immutable
+map lookup at each attribute boundary, keeps the streaming nested walker for
+captured composites, and keeps unknown composites on the existing
+`schema_unknown` warning/metric path. Focused local proof covered the #566
+AWS data-source shapes and the unsupported `cloudinit_config.part` path with
+`go test ./internal/collector/terraformstate -run 'TestLoadPackagedSchemaResolverCoversRemoteE2EDataSourceComposites|TestLoadPackagedSchemaResolverLeavesUnsupportedRemoteE2EGapsUnknown|TestLoadPackagedSchemaResolverFallsBackToEmbeddedSchemas|TestParserCapturesPackagedDataSourceCompositeAttribute|TestParserKeepsUnsupportedPackagedCompositeFailClosed' -count=1`.
+
+Observability Evidence: supported AWS data-source composites now stop emitting
+`schema_unknown` skip records because they land as redacted Terraform-state
+evidence. Unsupported providers and shapes still emit
+`eshu_dp_drift_schema_unknown_composite_total{reason="schema_unknown"}` plus
+the structured skip record carrying `resource_type`, `attribute_key`, source
+path, reason, and diagnostic error.

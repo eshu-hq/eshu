@@ -70,12 +70,13 @@ type LockMetadataOutput struct {
 	ObservedAt time.Time
 }
 
-// ProviderSchemaResolver answers whether a Terraform resource attribute is
-// covered by a loaded provider schema. Callers that supply a non-nil resolver
-// authorize the parser to mark covered attributes as redact.SchemaKnown so
-// non-sensitive scalars flow through to downstream drift detection unredacted.
-// A nil resolver, or a resolver that does not know a given (resourceType,
-// attributeKey) pair, fails closed via redact.SchemaUnknown.
+// ProviderSchemaResolver answers whether a Terraform state resource or data
+// source attribute is covered by a loaded provider schema. Callers that supply
+// a non-nil resolver authorize the parser to mark covered attributes as
+// redact.SchemaKnown so non-sensitive scalars flow through to downstream drift
+// detection unredacted. A nil resolver, or a resolver that does not know a
+// given (resourceType, attributeKey) pair, fails closed via
+// redact.SchemaUnknown.
 //
 // Implementations must be safe for concurrent use because one resolver is
 // shared across every Terraform-state parse the collector runs.
@@ -84,8 +85,8 @@ type ProviderSchemaResolver interface {
 }
 
 // SchemaResolverEntryCounter is an optional capability for
-// ProviderSchemaResolver implementations that can report how many resource
-// types they cover. The production packagedSchemaResolver implements this;
+// ProviderSchemaResolver implementations that can report how many Terraform
+// state types they cover. The production packagedSchemaResolver implements this;
 // fixture stubs typically do not, in which case the
 // eshu_dp_tfstate_schema_resolver_entries gauge is not registered.
 type SchemaResolverEntryCounter interface {
