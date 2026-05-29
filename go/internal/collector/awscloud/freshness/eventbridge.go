@@ -209,8 +209,8 @@ func firstNonEmpty(values ...string) string {
 var configResourceTypeServices = map[string]string{
 	"AWS::ApiGateway::RestApi":                  awscloud.ServiceAPIGateway,
 	"AWS::ApiGateway::Stage":                    awscloud.ServiceAPIGateway,
-	"AWS::ApiGatewayV2::Api":                    awscloud.ServiceAPIGateway,
-	"AWS::ApiGatewayV2::Stage":                  awscloud.ServiceAPIGateway,
+	"AWS::ApiGatewayV2::Api":                    awscloud.ServiceAPIGatewayV2,
+	"AWS::ApiGatewayV2::Stage":                  awscloud.ServiceAPIGatewayV2,
 	"AWS::CloudFront::Distribution":             awscloud.ServiceCloudFront,
 	"AWS::DynamoDB::Table":                      awscloud.ServiceDynamoDB,
 	"AWS::EC2::NetworkInterface":                awscloud.ServiceEC2,
@@ -260,7 +260,7 @@ var configResourceTypeServices = map[string]string{
 
 var cloudTrailSourceServices = map[string]string{
 	"apigateway.amazonaws.com":           awscloud.ServiceAPIGateway,
-	"apigatewayv2.amazonaws.com":         awscloud.ServiceAPIGateway,
+	"apigatewayv2.amazonaws.com":         awscloud.ServiceAPIGatewayV2,
 	"cloudfront.amazonaws.com":           awscloud.ServiceCloudFront,
 	"dynamodb.amazonaws.com":             awscloud.ServiceDynamoDB,
 	"ec2.amazonaws.com":                  awscloud.ServiceEC2,
@@ -286,13 +286,13 @@ var cloudTrailSourceServices = map[string]string{
 }
 
 var cloudTrailResourceIDKeys = map[string][]string{
-	awscloud.ServiceEC2:            {"groupId", "vpcId", "subnetId", "networkInterfaceId", "instanceId"},
-	awscloud.ServiceECR:            {"repositoryName"},
-	awscloud.ServiceECS:            {"service", "cluster", "taskDefinition", "task"},
-	awscloud.ServiceEKS:            {"name", "clusterName", "nodegroupName"},
-	awscloud.ServiceELBv2:          {"loadBalancerArn", "listenerArn", "targetGroupArn", "ruleArn"},
-	awscloud.ServiceLambda:         {"functionName", "uuid"},
-	awscloud.ServiceRDS:            {"dBInstanceIdentifier", "dBClusterIdentifier", "dBSubnetGroupName"},
+	awscloud.ServiceEC2:    {"groupId", "vpcId", "subnetId", "networkInterfaceId", "instanceId"},
+	awscloud.ServiceECR:    {"repositoryName"},
+	awscloud.ServiceECS:    {"service", "cluster", "taskDefinition", "task"},
+	awscloud.ServiceEKS:    {"name", "clusterName", "nodegroupName"},
+	awscloud.ServiceELBv2:  {"loadBalancerArn", "listenerArn", "targetGroupArn", "ruleArn"},
+	awscloud.ServiceLambda: {"functionName", "uuid"},
+	awscloud.ServiceRDS:    {"dBInstanceIdentifier", "dBClusterIdentifier", "dBSubnetGroupName"},
 	awscloud.ServiceRedshift: {
 		"clusterIdentifier",
 		"parameterGroupName",
