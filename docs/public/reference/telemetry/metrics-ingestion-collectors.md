@@ -52,6 +52,15 @@ Content-aware skip reasons use the `content:` prefix. Repo-local
 Raw bucket names, object keys, local paths, and full locators must not appear in
 metric labels.
 
+For unsupported Terraform-state composite attributes, the parser emits one
+`warning_kind=unsupported_composite_attribute` summary fact per
+`resource_type`/`attribute_key`/`reason` shape with an `occurrence_count`.
+Other composite safe drops use `warning_kind=composite_attribute_skipped` with
+the same shape fields.
+Use `eshu_dp_drift_schema_unknown_composite_total{resource_type,reason}` for
+per-occurrence skip volume; `attribute_key` stays in warning facts and bounded
+structured logs, not metric labels.
+
 ## OCI And Package Registry Collectors
 
 | Metric | Key labels | Use |

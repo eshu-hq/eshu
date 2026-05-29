@@ -16,7 +16,9 @@ func TestParseStreamLargeStateDoesNotRetainProviderBindingsOrWarnings(t *testing
 	const resourceInstances = 20_000
 
 	options := parseFixtureOptions(t)
-	var count int
+	var providerBindingFacts int
+	var warningFacts int
+	var warningOccurrenceCount int64
 	peakHeapGrowth := measurePeakHeapGrowth(t, func() {
 		_, err := terraformstate.ParseStream(
 			context.Background(),
@@ -24,8 +26,14 @@ func TestParseStreamLargeStateDoesNotRetainProviderBindingsOrWarnings(t *testing
 			options,
 			terraformstate.FactSinkFunc(func(_ context.Context, envelope facts.Envelope) error {
 				switch envelope.FactKind {
-				case facts.TerraformStateProviderBindingFactKind, facts.TerraformStateWarningFactKind:
-					count++
+				case facts.TerraformStateProviderBindingFactKind:
+					providerBindingFacts++
+				case facts.TerraformStateWarningFactKind:
+					warningFacts++
+					countValue, ok := envelope.Payload["occurrence_count"].(int64)
+					if ok {
+						warningOccurrenceCount += countValue
+					}
 				}
 				return nil
 			}),
@@ -35,8 +43,14 @@ func TestParseStreamLargeStateDoesNotRetainProviderBindingsOrWarnings(t *testing
 		}
 	})
 
-	if got, want := count, resourceInstances*2; got != want {
-		t.Fatalf("provider/warning facts = %d, want %d", got, want)
+	if got, want := providerBindingFacts, resourceInstances; got != want {
+		t.Fatalf("provider binding facts = %d, want %d", got, want)
+	}
+	if got, want := warningFacts, 1; got != want {
+		t.Fatalf("warning facts = %d, want %d bounded summary", got, want)
+	}
+	if got, want := warningOccurrenceCount, int64(resourceInstances); got != want {
+		t.Fatalf("warning occurrence_count sum = %d, want %d", got, want)
 	}
 	if peakHeapGrowth > maxStreamResourcePeakHeapGrowth {
 		t.Fatalf("ParseStream() peak heap growth = %d bytes, want at most %d", peakHeapGrowth, maxStreamResourcePeakHeapGrowth)

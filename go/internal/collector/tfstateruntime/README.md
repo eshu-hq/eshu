@@ -51,12 +51,14 @@ provided:
 - resource fact count by backend
 - output and module fact counts per `safe_locator_hash` and backend
 - warning fact counts per `safe_locator_hash`, backend, and `warning_kind`
-  (including the bypass `state_too_large` and `state_missing` paths)
+  (including the bypass `state_too_large` and `state_missing` paths, plus
+  `unsupported_composite_attribute` summaries for provider-schema gaps)
 - redactions and safe drops by policy reason
 - S3 conditional-read not-modified outcomes
 - `eshu_dp_drift_schema_unknown_composite_total{resource_type,reason}` whenever
   the parser drops a composite before capture or the streaming nested walker
-  stops mid-capture. The companion `slog.Warn` line carries the
+  stops mid-capture. The companion `slog.Warn` line is emitted once per
+  `resource_type`, `attribute_key`, and `reason` shape, carrying the
   high-cardinality `attribute_key`, source path, reason, and diagnostic error
   per the CLAUDE.md observability contract.
 

@@ -103,6 +103,14 @@ with bounded labels only. A missing S3 object is reported as
 or trace raw state locators, bucket names, keys, local paths, or work item IDs.
 Use backend kind, result, claim/run correlation, and the locator hash emitted
 in Terraform-state facts when you need to investigate a specific source.
+Unsupported composite attributes are reported as
+`warning_kind=unsupported_composite_attribute` summary facts keyed by
+`resource_type`, `attribute_key`, and `reason`; `occurrence_count` carries the
+number of repeated state instances. Other composite safe drops use
+`warning_kind=composite_attribute_skipped` with the same bounded fields. The
+companion `eshu_dp_drift_schema_unknown_composite_total{resource_type,reason}`
+counter still increments for every skip, and warn logs are bounded to the first
+occurrence of each same shape.
 
 `eshu_dp_tfstate_schema_resolver_entries` reports the number of Terraform
 resource types the loaded provider-schema bundle covers. The bundle is loaded

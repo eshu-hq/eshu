@@ -942,7 +942,7 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 
 	inst.DriftSchemaUnknownComposite, err = meter.Int64Counter(
 		"eshu_dp_drift_schema_unknown_composite_total",
-		metric.WithDescription("Total Terraform-state composite attributes the streaming nested walker dropped because the provider schema bundle does not cover the (resource_type, attribute_key) pair"),
+		metric.WithDescription("Total Terraform-state composite attributes the parser skipped before or during composite capture, labeled by resource type and reason"),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register DriftSchemaUnknownComposite counter: %w", err)

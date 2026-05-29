@@ -3,6 +3,7 @@ package tfstateruntime
 import (
 	"context"
 	"log/slog"
+	"sync"
 
 	"go.opentelemetry.io/otel/metric"
 
@@ -13,13 +14,22 @@ import (
 // compositeCaptureLoggingRecorder is the production
 // terraformstate.CompositeCaptureRecorder used by ClaimedSource. It forwards
 // every Record call to the eshu_dp_drift_schema_unknown_composite_total
-// counter and to a structured slog.Warn so operators can see provider-schema
-// drift, redaction-policy drops, and walker shape mismatches the moment they
-// show up in real state JSON. Without this recorder, composite skips have no
+// counter and logs the first occurrence of each resource_type, attribute_key,
+// and reason shape so operators can see provider-schema drift,
+// redaction-policy drops, and walker shape mismatches without one warning per
+// repeated resource instance. Without this recorder, composite skips have no
 // operator-visible trail and bucket E (attribute_drift) can regress.
 type compositeCaptureLoggingRecorder struct {
 	counter metric.Int64Counter
 	logger  *slog.Logger
+	mu      sync.Mutex
+	logged  map[compositeCaptureLogKey]struct{}
+}
+
+type compositeCaptureLogKey struct {
+	resourceType string
+	attributeKey string
+	reason       string
 }
 
 // Record implements terraformstate.CompositeCaptureRecorder.
@@ -28,8 +38,12 @@ type compositeCaptureLoggingRecorder struct {
 // loaded schema bundle) and reason (closed enum:
 // terraformstate.CompositeCaptureSkipReason* values). High-cardinality
 // attribute_key, the source path, and the diagnostic error string stay in
-// the structured log attrs per CLAUDE.md observability rules.
-func (r compositeCaptureLoggingRecorder) Record(ctx context.Context, skip terraformstate.CompositeCaptureSkip) {
+// the first structured log attrs for each repeated shape per CLAUDE.md
+// observability rules.
+func (r *compositeCaptureLoggingRecorder) Record(ctx context.Context, skip terraformstate.CompositeCaptureSkip) {
+	if r == nil {
+		return
+	}
 	reason := skip.Reason
 	if reason == "" {
 		// Defensive default: pre-reason callers (or fixtures that did not
@@ -44,18 +58,40 @@ func (r compositeCaptureLoggingRecorder) Record(ctx context.Context, skip terraf
 			telemetry.AttrCompositeSkipReason(reason),
 		))
 	}
-	if r.logger != nil {
-		attrs := []slog.Attr{
-			slog.String(telemetry.LogKeyDriftCompositeResourceType, skip.ResourceType),
-			slog.String(telemetry.LogKeyDriftCompositeAttributeKey, skip.AttributeKey),
-			slog.String(telemetry.LogKeyDriftCompositePath, skip.Path),
-			slog.String(telemetry.LogKeyDriftCompositeReason, reason),
-		}
-		if skip.Err != nil {
-			attrs = append(attrs, slog.String(telemetry.LogKeyDriftCompositeError, skip.Err.Error()))
-		}
-		r.logger.LogAttrs(ctx, slog.LevelWarn, compositeCaptureSkipMessage(reason), attrs...)
+	if !r.shouldLog(skip, reason) {
+		return
 	}
+	attrs := []slog.Attr{
+		slog.String(telemetry.LogKeyDriftCompositeResourceType, skip.ResourceType),
+		slog.String(telemetry.LogKeyDriftCompositeAttributeKey, skip.AttributeKey),
+		slog.String(telemetry.LogKeyDriftCompositePath, skip.Path),
+		slog.String(telemetry.LogKeyDriftCompositeReason, reason),
+	}
+	if skip.Err != nil {
+		attrs = append(attrs, slog.String(telemetry.LogKeyDriftCompositeError, skip.Err.Error()))
+	}
+	r.logger.LogAttrs(ctx, slog.LevelWarn, compositeCaptureSkipMessage(reason), attrs...)
+}
+
+func (r *compositeCaptureLoggingRecorder) shouldLog(skip terraformstate.CompositeCaptureSkip, reason string) bool {
+	if r.logger == nil {
+		return false
+	}
+	key := compositeCaptureLogKey{
+		resourceType: skip.ResourceType,
+		attributeKey: skip.AttributeKey,
+		reason:       reason,
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.logged == nil {
+		r.logged = map[compositeCaptureLogKey]struct{}{}
+	}
+	if _, ok := r.logged[key]; ok {
+		return false
+	}
+	r.logged[key] = struct{}{}
+	return true
 }
 
 func compositeCaptureSkipMessage(reason string) string {
@@ -81,7 +117,7 @@ func (s ClaimedSource) newCompositeCaptureRecorder() terraformstate.CompositeCap
 	if s.Instruments == nil || s.Instruments.DriftSchemaUnknownComposite == nil {
 		return nil
 	}
-	return compositeCaptureLoggingRecorder{
+	return &compositeCaptureLoggingRecorder{
 		counter: s.Instruments.DriftSchemaUnknownComposite,
 		logger:  s.Logger,
 	}
