@@ -1,15 +1,32 @@
 package terraformstate
 
 import (
+	"sort"
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+)
+
+const (
+	warningKindUnsupportedCompositeAttribute = "unsupported_composite_attribute"
+	warningKindCompositeAttributeSkipped     = "composite_attribute_skipped"
 )
 
 type warningPayload struct {
 	WarningKind string
 	Reason      string
 	Source      string
+	Details     map[string]any
+}
+
+type compositeAttributeWarningKey struct {
+	ResourceType string
+	AttributeKey string
+	Reason       string
+}
+
+type compositeAttributeWarningSummary struct {
+	Count int64
 }
 
 func (p *stateParser) addSourceWarnings(warnings []SourceWarning) error {
@@ -49,6 +66,14 @@ func (p *stateParser) emitWarning(warning warningPayload) error {
 		"reason":       warning.Reason,
 		"source":       warning.Source,
 	}
+	for key, value := range warning.Details {
+		switch key {
+		case "warning_kind", "reason", "source":
+			continue
+		default:
+			payload[key] = value
+		}
+	}
 	key := "warning:" + warning.WarningKind + ":" + warning.Source + ":" + warning.Reason
 	if err := p.emitBodyFact(p.envelope(facts.TerraformStateWarningFactKind, key, payload, warning.Source)); err != nil {
 		return err
@@ -58,4 +83,76 @@ func (p *stateParser) emitWarning(warning warningPayload) error {
 	}
 	p.warningsByKind[warning.WarningKind]++
 	return nil
+}
+
+func (p *stateParser) recordCompositeAttributeWarning(resourceType string, attributeKey string, reason string) {
+	resourceType = strings.TrimSpace(resourceType)
+	attributeKey = strings.TrimSpace(attributeKey)
+	reason = strings.TrimSpace(reason)
+	if resourceType == "" || attributeKey == "" || reason == "" {
+		return
+	}
+	key := compositeAttributeWarningKey{
+		ResourceType: resourceType,
+		AttributeKey: attributeKey,
+		Reason:       reason,
+	}
+	if p.compositeWarnings == nil {
+		p.compositeWarnings = map[compositeAttributeWarningKey]*compositeAttributeWarningSummary{}
+	}
+	summary, ok := p.compositeWarnings[key]
+	if !ok {
+		summary = &compositeAttributeWarningSummary{}
+		p.compositeWarnings[key] = summary
+	}
+	summary.Count++
+}
+
+func (p *stateParser) flushCompositeAttributeWarnings() error {
+	if len(p.compositeWarnings) == 0 {
+		return nil
+	}
+	keys := make([]compositeAttributeWarningKey, 0, len(p.compositeWarnings))
+	for key := range p.compositeWarnings {
+		keys = append(keys, key)
+	}
+	sort.Slice(keys, func(i, j int) bool {
+		if keys[i].ResourceType != keys[j].ResourceType {
+			return keys[i].ResourceType < keys[j].ResourceType
+		}
+		if keys[i].AttributeKey != keys[j].AttributeKey {
+			return keys[i].AttributeKey < keys[j].AttributeKey
+		}
+		return keys[i].Reason < keys[j].Reason
+	})
+	for _, key := range keys {
+		summary := p.compositeWarnings[key]
+		if summary == nil || summary.Count <= 0 {
+			continue
+		}
+		if err := p.emitWarning(warningPayload{
+			WarningKind: compositeAttributeWarningKind(key.Reason),
+			Reason:      key.Reason,
+			Source:      compositeAttributeWarningSource(key.ResourceType, key.AttributeKey),
+			Details: map[string]any{
+				"resource_type":    key.ResourceType,
+				"attribute_key":    key.AttributeKey,
+				"occurrence_count": summary.Count,
+			},
+		}); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func compositeAttributeWarningKind(reason string) string {
+	if reason == CompositeCaptureSkipReasonSchemaUnknown {
+		return warningKindUnsupportedCompositeAttribute
+	}
+	return warningKindCompositeAttributeSkipped
+}
+
+func compositeAttributeWarningSource(resourceType string, attributeKey string) string {
+	return "resources." + strings.TrimSpace(resourceType) + ".attributes." + strings.TrimSpace(attributeKey)
 }

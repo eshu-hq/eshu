@@ -43,10 +43,10 @@
 // ADR 2026-05-12-tfstate-parser-composite-capture-for-schema-known-paths
 // registers the DriftSchemaUnknownComposite counter and the
 // MetricDimensionResourceType and MetricDimensionCompositeSkipReason
-// dimensions here so operators can detect provider-schema drift and
-// classify each skip's cause via the closed-enum reason label; the
-// high-cardinality companions (attribute_key, source path, error) stay in
-// the LogKeyDriftComposite* log attrs and out of metric labels.
+// dimensions here so operators can detect provider-schema drift and classify
+// each skip's cause via the closed-enum reason label; high-cardinality
+// companions (attribute_key, source path, error) stay in summary warning facts
+// and bounded LogKeyDriftComposite* log attrs, out of metric labels.
 // Scanner-worker contracts register analyzer, target_kind, and limit_kind
 // dimensions plus claim, analyzer execution, and fact batch spans so isolated
 // security analyzer runtimes can prove queue age, duration, CPU, memory,

@@ -112,9 +112,14 @@ leaving this package is a redacted fact, warning, identity, or bounded summary.
   drops a composite before capture or the streaming nested walker stops
   mid-capture. The collector wires a recorder that increments
   `eshu_dp_drift_schema_unknown_composite_total{resource_type,reason}` and
-  emits a `slog.Warn` line with the high-cardinality `attribute_key`, source
-  path, reason, and diagnostic error. A nil recorder is allowed for fixtures
-  and early-bootstrap paths. ADR
+  emits bounded `slog.Warn` lines with the high-cardinality `attribute_key`,
+  source path, reason, and diagnostic error. Parser warning facts summarize
+  unsupported composite shapes with `warning_kind=unsupported_composite_attribute`,
+  `resource_type`, `attribute_key`, `reason`, and `occurrence_count` so repeated
+  resource instances do not create one warning fact each. Other composite safe
+  drops use `warning_kind=composite_attribute_skipped` with the same bounded
+  shape fields. A nil recorder is allowed for fixtures and early-bootstrap
+  paths. ADR
   `2026-05-12-tfstate-parser-composite-capture-for-schema-known-paths`
   owns the contract.
 
@@ -143,7 +148,10 @@ leaving this package is a redacted fact, warning, identity, or bounded summary.
 - Unknown provider-schema scalar attributes are redacted. Unknown composite
   attributes are dropped and observed via
   `eshu_dp_drift_schema_unknown_composite_total{reason="schema_unknown"}` so
-  operators can detect provider-schema drift.
+  operators can detect provider-schema drift. The parser emits one
+  `unsupported_composite_attribute` warning fact per
+  `resource_type`/`attribute_key`/`reason` shape with an `occurrence_count`
+  rather than repeating the warning for every resource instance.
 - Schema-known composite attributes are captured through a streaming nested
   walker (`readCompositeValue` in `composite_walker.go`). The walker reuses
   the existing `json.Decoder`, applies per-leaf classification via
@@ -162,6 +170,28 @@ leaving this package is a redacted fact, warning, identity, or bounded summary.
 - DynamoDB lock metadata is read-only and observational. The reader records the
   digest and a lock ID hash, but consistency decisions still come from the
   opened state body and durable generation metadata.
+
+## Composite Skip Summaries
+
+No-Regression Evidence: the unsupported-composite summary path keeps supported
+schema-known composites on the existing streaming capture path and leaves
+unsupported composites absent from resource attributes. Focused proof:
+`go test ./internal/collector/terraformstate -run 'TestParserSummarizesUnsupportedCompositeAttributeWarnings' -count=1`
+passed after first failing against the old generic `attribute_dropped` warning
+behavior. The full parser package gate
+`go test ./internal/collector/terraformstate -count=1` passed with the streaming
+large-state memory test updated to expect one summary warning fact for 20,000
+repeated unsupported composites and an `occurrence_count` of 20,000.
+
+Observability Evidence: every skipped composite still increments
+`eshu_dp_drift_schema_unknown_composite_total{resource_type,reason}` through the
+runtime recorder. Parser warning facts now emit
+`warning_kind=unsupported_composite_attribute` once per
+`resource_type`/`attribute_key`/`reason` shape with `occurrence_count`
+(`composite_attribute_skipped` for non-schema-unknown safe drops), while the
+runtime `slog.Warn` companion logs only the first occurrence of each same shape
+and keeps `attribute_key`, source path, reason, and diagnostic error out of
+metric labels.
 
 ## Filtered Discovery Evidence
 

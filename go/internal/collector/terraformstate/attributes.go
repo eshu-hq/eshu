@@ -212,6 +212,10 @@ func (p *stateParser) classifyAttribute(attributes map[string]any, resourceType 
 		p.recordRedaction(decision.Reason)
 	case redact.ActionDrop:
 		p.recordRedaction(decision.Reason)
+		if attribute.Preclassified && !attribute.Scalar {
+			p.recordCompositeAttributeWarning(resourceType, attribute.Key, compositeSkipCause(decision))
+			return nil
+		}
 		if err := p.emitWarning(warningPayload{
 			WarningKind: "attribute_dropped",
 			Reason:      decision.Reason,

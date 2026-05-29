@@ -125,16 +125,17 @@ func emitParsedFacts(
 }
 
 type stateParser struct {
-	ctx            context.Context
-	decoder        *json.Decoder
-	options        ParseOptions
-	snapshot       snapshotMetadata
-	bodyFacts      FactSink
-	resourceFacts  int64
-	outputFacts    int64
-	moduleFacts    int64
-	warningsByKind map[string]int64
-	redactions     map[string]int64
+	ctx               context.Context
+	decoder           *json.Decoder
+	options           ParseOptions
+	snapshot          snapshotMetadata
+	bodyFacts         FactSink
+	resourceFacts     int64
+	outputFacts       int64
+	moduleFacts       int64
+	warningsByKind    map[string]int64
+	redactions        map[string]int64
+	compositeWarnings map[compositeAttributeWarningKey]*compositeAttributeWarningSummary
 }
 
 func (p *stateParser) parse() error {
@@ -169,6 +170,9 @@ func (p *stateParser) parse() error {
 		return err
 	}
 	if err := expectEOF(p.decoder); err != nil {
+		return err
+	}
+	if err := p.flushCompositeAttributeWarnings(); err != nil {
 		return err
 	}
 	if err := p.validateSnapshotIdentity(); err != nil {

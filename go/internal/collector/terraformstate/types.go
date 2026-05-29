@@ -147,9 +147,10 @@ const (
 //
 // The collector wires a recorder that increments the
 // eshu_dp_drift_schema_unknown_composite_total counter with resource_type and
-// reason labels and emits a slog.Warn line with the high-cardinality
-// attribute_key and source path. A nil recorder is allowed (early bootstrap,
-// fixtures without telemetry); the parser treats nil as a no-op.
+// reason labels and emits bounded structured logs carrying the
+// high-cardinality attribute_key and source path. A nil recorder is allowed
+// (early bootstrap, fixtures without telemetry); the parser treats nil as a
+// no-op.
 type CompositeCaptureRecorder interface {
 	Record(ctx context.Context, skip CompositeCaptureSkip)
 }

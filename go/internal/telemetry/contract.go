@@ -95,10 +95,10 @@ const (
 	// MetricDimensionResourceType labels
 	// eshu_dp_drift_schema_unknown_composite_total with the Terraform resource
 	// type (e.g. "aws_s3_bucket") whose composite attribute the streaming
-	// nested walker dropped because the loaded ProviderSchemaResolver does not
-	// recognize it. Cardinality is bounded by the schema bundle; the
-	// high-cardinality attribute_key stays in the structured log per the
-	// observability rules in CLAUDE.md.
+	// nested walker dropped or refused before capture. Cardinality is bounded
+	// by the schema bundle; the high-cardinality attribute_key stays in summary
+	// warning facts and structured logs per the observability rules in
+	// CLAUDE.md.
 	MetricDimensionResourceType = "resource_type"
 	// MetricDimensionCompositeSkipReason labels
 	// eshu_dp_drift_schema_unknown_composite_total with a closed enum that

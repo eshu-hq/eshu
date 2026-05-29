@@ -12,8 +12,8 @@
 // ClaimedSource also wires a CompositeCaptureRecorder into ParseOptions
 // (compositeCaptureLoggingRecorder in composite_capture_recorder.go) so the
 // parser can increment eshu_dp_drift_schema_unknown_composite_total with a
-// bounded reason label and emit a slog.Warn line whenever it drops a composite
-// before capture or the streaming nested walker stops mid-capture. The log
-// carries the high-cardinality attribute_key and source path that stay out of
-// metric labels.
+// bounded reason label for every skipped composite and emit one slog.Warn line
+// per resource_type, attribute_key, and reason shape. The log carries the
+// high-cardinality attribute_key and source path that stay out of metric
+// labels.
 package tfstateruntime
