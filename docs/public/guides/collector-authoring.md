@@ -107,6 +107,31 @@ The reference table at
 in `.gitattributes`, so parallel scanner PRs append rows without colliding; the
 strict docs build catches any duplicate row.
 
+### Relationship graph-join guard
+
+Every relationship a scanner emits must carry a `target_type` that names a
+resource family Eshu can resolve, or the edge dangles and never joins its
+target node. The dominant historical scanner defect was an empty `target_type`,
+a `target_type` that is not a real resource family, or an ARN-keyed target keyed
+by a bare name. The `internal/collector/awscloud/internal/relguard` test-support
+package mechanizes the contract so it is no longer a per-PR review burden:
+
+- A repo-level static guard (`TestLiveScannerTreeHasNoGraphJoinDefects`) AST-walks
+  the scanner tree and fails when any statically resolvable `target_type` literal
+  is empty or is neither a declared `awscloud.ResourceType*` constant value nor a
+  documented `relguard.KnownTargetTypeAllowlist` entry.
+- A runtime helper, `relguard.AssertObservations(t, observations...)`, that a
+  scanner test calls to enforce the same contract on the data-dependent
+  `target_type` values a helper or field read produces, plus ARN shape and
+  ARN-vs-name join-mode consistency.
+
+A new scanner whose target type is a real resource family needs no guard change.
+A target that is deliberately a forward reference (not scanned yet) or a
+synthetic/non-AWS anchor goes in `KnownTargetTypeAllowlist` with a rationale. A
+target whose value should match an existing scanner's published `resource_id`
+type must be fixed, not allowlisted. See the package README for the full list of
+what the guard does and does not catch.
+
 ## Verification
 
 Use [Local Testing](../reference/local-testing.md) for the full gate map. Common
