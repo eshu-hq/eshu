@@ -2,6 +2,7 @@ package memorydb
 
 import (
 	"context"
+	"reflect"
 	"testing"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
@@ -138,6 +139,12 @@ func TestScannerEmitsMemoryDBMetadataOnlyFactsAndRelationships(t *testing.T) {
 	parameterGroupAttributes := attributesOf(t, parameterGroup)
 	assertAttribute(t, parameterGroupAttributes, "family", "memorydb_redis7")
 	assertAttribute(t, parameterGroupAttributes, "description", "orders redis 7 params")
+	// The parameter-group fact shape persists family, description, and tags
+	// (parameter values are excluded by design). Lock the tag emission so the
+	// documented contract and the emitted fact stay in agreement.
+	if got, want := parameterGroup.Payload["tags"], map[string]string{"Environment": "prod"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("parameter group tags = %#v, want %#v", got, want)
+	}
 
 	user := resourceByType(t, envelopes, awscloud.ResourceTypeMemoryDBUser)
 	userAttributes := attributesOf(t, user)

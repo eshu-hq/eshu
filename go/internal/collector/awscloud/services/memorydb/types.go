@@ -56,9 +56,10 @@ type SubnetGroup struct {
 	Tags        map[string]string
 }
 
-// ParameterGroup is the scanner-owned MemoryDB parameter group model. Only the
-// name and family are persisted; individual parameter values can reveal
-// operational posture and stay outside this type by design.
+// ParameterGroup is the scanner-owned MemoryDB parameter group model. It
+// persists the name, family, description, and tags as non-secret control-plane
+// metadata. Individual parameter values can reveal operational posture and stay
+// outside this type by design.
 type ParameterGroup struct {
 	ARN         string
 	Name        string
