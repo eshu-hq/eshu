@@ -340,9 +340,28 @@ through the production `InstrumentedExecutor`, which records
 `eshu_dp_neo4j_query_duration_seconds` (operation=write) and
 `eshu_dp_neo4j_batch_size`. The handler adds an `aws resource materialization
 completed` structured log carrying `scope_id`, `generation_id`, `fact_count`,
-`node_count`, and per-stage durations (load / extract / graph-write) so an
-operator can separate fact-load time from graph-write time at 3 AM. PR #2 adds
-the `materialized` vs `unresolved` edge counter.
+`node_count`, and per-stage durations (load / extract / graph-write /
+phase-publish) so an operator can separate fact-load time, graph-write time, and
+readiness-gate publish time at 3 AM. PR #2 adds the `materialized` vs
+`unresolved` edge counter.
+
+After the node write succeeds (including a legitimate no-op for an empty
+generation), the handler publishes the
+`GraphProjectionKeyspaceCloudResourceUID` /
+`GraphProjectionPhaseCanonicalNodesCommitted` readiness phase via the wired
+`GraphProjectionPhasePublisher` (matching the AWS runtime contract checkpoint in
+`go/internal/reducer/aws/contract.go`). Stage B (PR #2) gates its edge projection
+on this phase. The phase is **not** published when the node write fails, so the
+edge build can never resolve against nodes that did not commit; it **is**
+published for an empty generation so Stage B is not blocked forever on a scan
+that found zero materializable resources.
+
+No-Regression Evidence: the readiness publish reuses the existing
+`publishIntentGraphPhase` helper (the same path `CloudAssetResolutionHandler`,
+`WorkloadIdentityHandler`, and the semantic/platform materializers already use)
+and emits one bounded `GraphProjectionPhaseState` row per intent. It adds no
+graph round trip and no per-resource work, so the measured node-write and
+extract benchmarks above are unchanged.
 
 ## 10. Open Questions For Principal Review
 

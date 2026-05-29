@@ -333,8 +333,9 @@ func implementedDefaultDomainDefinitions(handlers DefaultHandlers) []DomainDefin
 	if handlers.FactLoader != nil && handlers.CloudResourceNodeWriter != nil {
 		awsResources := awsResourceMaterializationDomainDefinition()
 		awsResources.Handler = AWSResourceMaterializationHandler{
-			FactLoader: handlers.FactLoader,
-			NodeWriter: handlers.CloudResourceNodeWriter,
+			FactLoader:     handlers.FactLoader,
+			NodeWriter:     handlers.CloudResourceNodeWriter,
+			PhasePublisher: handlers.GraphProjectionPhasePublisher,
 		}
 		definitions = append(definitions, awsResources)
 	}

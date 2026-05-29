@@ -58,9 +58,18 @@ type CloudResourceNodeWriter interface {
 // (issue #805) joins against. It intentionally does not write edges: edges are
 // resolved against these nodes in a separate, gated stage. See
 // docs/internal/aws-relationship-edge-materialization-design.md.
+//
+// After the canonical node write succeeds, the handler publishes the
+// GraphProjectionKeyspaceCloudResourceUID / GraphProjectionPhaseCanonicalNodesCommitted
+// readiness phase. Stage B (PR #2) gates its edge projection on this phase, so
+// edges never resolve against a generation whose nodes have not yet committed.
 type AWSResourceMaterializationHandler struct {
 	FactLoader FactLoader
 	NodeWriter CloudResourceNodeWriter
+	// PhasePublisher records the canonical-nodes-committed readiness phase that
+	// gates the AWS relationship edge projection. A nil publisher is a no-op so
+	// the additive domain stays safe to register before Stage B is wired.
+	PhasePublisher GraphProjectionPhasePublisher
 }
 
 // Handle executes one AWS resource materialization intent.
@@ -108,14 +117,33 @@ func (h AWSResourceMaterializationHandler) Handle(
 		writeDuration = time.Since(writeStart)
 	}
 
+	// Publish the canonical-nodes-committed readiness phase only after the node
+	// write succeeds (or is a legitimate no-op for an empty generation). Stage B
+	// gates its edge projection on this phase: publishing before a successful
+	// write would let edges resolve against nodes that never committed, and not
+	// publishing on an empty generation would block Stage B forever.
+	phasePublishStart := time.Now()
+	if err := publishIntentGraphPhase(
+		ctx,
+		h.PhasePublisher,
+		intent,
+		GraphProjectionKeyspaceCloudResourceUID,
+		GraphProjectionPhaseCanonicalNodesCommitted,
+		time.Now().UTC(),
+	); err != nil {
+		return Result{}, fmt.Errorf("publish canonical cloud resource nodes phase: %w", err)
+	}
+	phasePublishDuration := time.Since(phasePublishStart)
+
 	logAWSResourceMaterializationCompleted(ctx, awsResourceMaterializationTiming{
-		intent:          intent,
-		factCount:       len(envelopes),
-		nodeCount:       len(rows),
-		loadDuration:    loadDuration,
-		extractDuration: extractDuration,
-		writeDuration:   writeDuration,
-		totalDuration:   time.Since(totalStart),
+		intent:               intent,
+		factCount:            len(envelopes),
+		nodeCount:            len(rows),
+		loadDuration:         loadDuration,
+		extractDuration:      extractDuration,
+		writeDuration:        writeDuration,
+		phasePublishDuration: phasePublishDuration,
+		totalDuration:        time.Since(totalStart),
 	})
 
 	return Result{
@@ -229,13 +257,14 @@ func cloudResourceUID(accountID, region, resourceType, resourceID string) string
 // can identify whether AWS resource work is fact loading, extraction, or graph
 // backend time.
 type awsResourceMaterializationTiming struct {
-	intent          Intent
-	factCount       int
-	nodeCount       int
-	loadDuration    time.Duration
-	extractDuration time.Duration
-	writeDuration   time.Duration
-	totalDuration   time.Duration
+	intent               Intent
+	factCount            int
+	nodeCount            int
+	loadDuration         time.Duration
+	extractDuration      time.Duration
+	writeDuration        time.Duration
+	phasePublishDuration time.Duration
+	totalDuration        time.Duration
 }
 
 func logAWSResourceMaterializationCompleted(
@@ -251,6 +280,7 @@ func logAWSResourceMaterializationCompleted(
 		slog.Float64("load_facts_duration_seconds", timing.loadDuration.Seconds()),
 		slog.Float64("extract_duration_seconds", timing.extractDuration.Seconds()),
 		slog.Float64("graph_write_duration_seconds", timing.writeDuration.Seconds()),
+		slog.Float64("phase_publish_duration_seconds", timing.phasePublishDuration.Seconds()),
 		slog.Float64("total_duration_seconds", timing.totalDuration.Seconds()),
 	)
 }

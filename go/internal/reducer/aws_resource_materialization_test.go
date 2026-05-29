@@ -2,6 +2,7 @@ package reducer
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -289,5 +290,130 @@ func TestAWSResourceMaterializationHandleNoFactsIsNoOp(t *testing.T) {
 	}
 	if writer.calls != 0 {
 		t.Fatalf("writer.calls = %d, want 0 (no facts must not write)", writer.calls)
+	}
+}
+
+func TestAWSResourceMaterializationHandlePublishesCanonicalNodesCommittedPhase(t *testing.T) {
+	t.Parallel()
+
+	publisher := &recordingGraphProjectionPhasePublisher{}
+	loader := &stubFactLoader{envelopes: []facts.Envelope{
+		awsResourceEnvelope(map[string]any{
+			"account_id":    "111122223333",
+			"region":        "us-east-1",
+			"resource_type": "aws_ec2_vpc",
+			"resource_id":   "vpc-123",
+		}),
+	}}
+	handler := AWSResourceMaterializationHandler{
+		FactLoader:     loader,
+		NodeWriter:     &recordingCloudResourceNodeWriter{},
+		PhasePublisher: publisher,
+	}
+
+	if _, err := handler.Handle(context.Background(), Intent{
+		IntentID:     "intent-1",
+		ScopeID:      "scope-1",
+		GenerationID: "gen-1",
+		Domain:       DomainAWSResourceMaterialization,
+		EnqueuedAt:   time.Now(),
+		AvailableAt:  time.Now(),
+	}); err != nil {
+		t.Fatalf("Handle returned error: %v", err)
+	}
+
+	if len(publisher.calls) != 1 {
+		t.Fatalf("publisher.calls = %d, want 1 (Stage B gates on this readiness phase)", len(publisher.calls))
+	}
+	rows := publisher.calls[0]
+	if len(rows) != 1 {
+		t.Fatalf("published rows = %d, want 1", len(rows))
+	}
+	if got, want := rows[0].Key.Keyspace, GraphProjectionKeyspaceCloudResourceUID; got != want {
+		t.Fatalf("keyspace = %q, want %q", got, want)
+	}
+	if got, want := rows[0].Phase, GraphProjectionPhaseCanonicalNodesCommitted; got != want {
+		t.Fatalf("phase = %q, want %q", got, want)
+	}
+	if got, want := rows[0].Key.ScopeID, "scope-1"; got != want {
+		t.Fatalf("scope = %q, want %q", got, want)
+	}
+	if got, want := rows[0].Key.GenerationID, "gen-1"; got != want {
+		t.Fatalf("generation = %q, want %q", got, want)
+	}
+}
+
+func TestAWSResourceMaterializationHandlePublishesPhaseOnEmptyGeneration(t *testing.T) {
+	t.Parallel()
+
+	// A generation that scanned zero materializable resources must still
+	// publish the canonical-nodes-committed phase, otherwise Stage B (the AWS
+	// relationship edge projection) never observes that Stage A completed and
+	// blocks forever on the readiness gate.
+	publisher := &recordingGraphProjectionPhasePublisher{}
+	writer := &recordingCloudResourceNodeWriter{}
+	handler := AWSResourceMaterializationHandler{
+		FactLoader:     &stubFactLoader{},
+		NodeWriter:     writer,
+		PhasePublisher: publisher,
+	}
+
+	if _, err := handler.Handle(context.Background(), Intent{
+		IntentID:     "intent-1",
+		ScopeID:      "scope-1",
+		GenerationID: "gen-1",
+		Domain:       DomainAWSResourceMaterialization,
+		EnqueuedAt:   time.Now(),
+		AvailableAt:  time.Now(),
+	}); err != nil {
+		t.Fatalf("Handle returned error: %v", err)
+	}
+
+	if writer.calls != 0 {
+		t.Fatalf("writer.calls = %d, want 0 (no facts must not write)", writer.calls)
+	}
+	if len(publisher.calls) != 1 {
+		t.Fatalf("publisher.calls = %d, want 1 (empty generation must still unblock Stage B)", len(publisher.calls))
+	}
+	if got, want := publisher.calls[0][0].Phase, GraphProjectionPhaseCanonicalNodesCommitted; got != want {
+		t.Fatalf("phase = %q, want %q", got, want)
+	}
+}
+
+func TestAWSResourceMaterializationHandleDoesNotPublishPhaseOnWriteFailure(t *testing.T) {
+	t.Parallel()
+
+	// Publishing the readiness gate after a failed node write would let Stage B
+	// resolve edges against nodes that never committed. The phase must only be
+	// published once the canonical node write succeeds.
+	publisher := &recordingGraphProjectionPhasePublisher{}
+	writer := &recordingCloudResourceNodeWriter{err: errors.New("graph backend unavailable")}
+	loader := &stubFactLoader{envelopes: []facts.Envelope{
+		awsResourceEnvelope(map[string]any{
+			"account_id":    "111122223333",
+			"region":        "us-east-1",
+			"resource_type": "aws_ec2_vpc",
+			"resource_id":   "vpc-123",
+		}),
+	}}
+	handler := AWSResourceMaterializationHandler{
+		FactLoader:     loader,
+		NodeWriter:     writer,
+		PhasePublisher: publisher,
+	}
+
+	if _, err := handler.Handle(context.Background(), Intent{
+		IntentID:     "intent-1",
+		ScopeID:      "scope-1",
+		GenerationID: "gen-1",
+		Domain:       DomainAWSResourceMaterialization,
+		EnqueuedAt:   time.Now(),
+		AvailableAt:  time.Now(),
+	}); err == nil {
+		t.Fatal("expected error when node write fails")
+	}
+
+	if len(publisher.calls) != 0 {
+		t.Fatalf("publisher.calls = %d, want 0 (no readiness gate after a failed write)", len(publisher.calls))
 	}
 }
