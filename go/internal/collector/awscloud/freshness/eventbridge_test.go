@@ -138,6 +138,82 @@ func TestNormalizeEventBridgeCloudTrailAPITargetsSecurityHub(t *testing.T) {
 	}
 }
 
+func TestNormalizeEventBridgeConfigChangeTargetsAPIGatewayV2(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name         string
+		resourceType string
+	}{
+		{name: "api", resourceType: "AWS::ApiGatewayV2::Api"},
+		{name: "stage", resourceType: "AWS::ApiGatewayV2::Stage"},
+	} {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			payload := []byte(`{
+				"version": "0",
+				"id": "config-apigatewayv2-1",
+				"detail-type": "Config Configuration Item Change",
+				"source": "aws.config",
+				"account": "123456789012",
+				"region": "us-east-1",
+				"time": "2026-05-29T10:11:12Z",
+				"detail": {
+					"configurationItem": {
+						"awsAccountId": "123456789012",
+						"awsRegion": "us-east-1",
+						"resourceType": "` + tc.resourceType + `",
+						"resourceId": "abc123",
+						"configurationItemCaptureTime": "2026-05-29T10:10:59Z"
+					}
+				}
+			}`)
+
+			trigger, err := NormalizeEventBridge(payload)
+			if err != nil {
+				t.Fatalf("NormalizeEventBridge() error = %v, want nil", err)
+			}
+			if trigger.ServiceKind != awscloud.ServiceAPIGatewayV2 {
+				t.Fatalf("ServiceKind = %q, want %q", trigger.ServiceKind, awscloud.ServiceAPIGatewayV2)
+			}
+			if trigger.ResourceType != tc.resourceType {
+				t.Fatalf("ResourceType = %q, want %q", trigger.ResourceType, tc.resourceType)
+			}
+		})
+	}
+}
+
+func TestNormalizeEventBridgeCloudTrailAPITargetsAPIGatewayV2(t *testing.T) {
+	t.Parallel()
+
+	payload := []byte(`{
+		"version": "0",
+		"id": "cloudtrail-apigatewayv2-1",
+		"detail-type": "AWS API Call via CloudTrail",
+		"source": "aws.apigateway",
+		"account": "123456789012",
+		"region": "us-east-1",
+		"time": "2026-05-29T11:12:13Z",
+		"detail": {
+			"eventSource": "apigatewayv2.amazonaws.com",
+			"eventName": "CreateRoute",
+			"requestParameters": {
+				"apiId": "abc123"
+			}
+		}
+	}`)
+
+	trigger, err := NormalizeEventBridge(payload)
+	if err != nil {
+		t.Fatalf("NormalizeEventBridge() error = %v, want nil", err)
+	}
+	if trigger.ServiceKind != awscloud.ServiceAPIGatewayV2 {
+		t.Fatalf("ServiceKind = %q, want %q", trigger.ServiceKind, awscloud.ServiceAPIGatewayV2)
+	}
+}
+
 func TestNormalizeEventBridgeRejectsUnsupportedService(t *testing.T) {
 	t.Parallel()
 
