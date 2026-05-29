@@ -35,16 +35,24 @@ const (
 const SupplyChainImpactAggregateMaxLimit = 500
 
 // SupplyChainImpactAggregateFilter narrows aggregate reads to one repository,
-// package, CVE, or subject digest. An aggregate without a scope is allowed
-// because the totals question itself is the call shape we want to replace —
-// the dataset is already bounded by `fact_kind` and the active-generation
-// predicate at index lookup time.
+// package, CVE, subject digest, profile, priority, or suppression state. An
+// aggregate without a scope is allowed because the totals question itself is
+// the call shape we want to replace — the dataset is already bounded by
+// `fact_kind` and the active-generation predicate at index lookup time.
+// DetectionProfile uses the same downstream value as the list route: `precise`
+// narrows to exact installed-version anchors, and blank admits both precise and
+// comprehensive rows.
 type SupplyChainImpactAggregateFilter struct {
-	CVEID         string
-	PackageID     string
-	RepositoryID  string
-	SubjectDigest string
-	ImpactStatus  string
+	CVEID             string
+	PackageID         string
+	RepositoryID      string
+	SubjectDigest     string
+	ImpactStatus      string
+	DetectionProfile  string
+	PriorityBucket    string
+	MinPriorityScore  int
+	SuppressionState  string
+	IncludeSuppressed bool
 }
 
 // SupplyChainImpactAggregateCount is the cheap-summary totals envelope used by
@@ -112,6 +120,33 @@ WITH scoped_facts AS (
 	  AND ($3 = '' OR fact.payload->>'repository_id' = $3)
 	  AND ($4 = '' OR fact.payload->>'subject_digest' = $4)
 	  AND ($5 = '' OR fact.payload->>'impact_status' = $5)
+	  AND (
+	        $6 = ''
+	        OR fact.payload->>'detection_profile' = $6
+	        OR (
+	              $6 = 'comprehensive'
+	              AND COALESCE(fact.payload->>'detection_profile', '') = ''
+	           )
+	        OR (
+	              $6 = 'precise'
+	              AND COALESCE(fact.payload->>'detection_profile', '') = ''
+	              AND fact.payload->>'impact_status' IN (
+	                    'affected_exact',
+	                    'not_affected_known_fixed'
+	                  )
+	              AND COALESCE(fact.payload->>'observed_version', '') <> ''
+	              AND fact.payload->>'match_reason' IN (
+	                    'npm_semver_affected_range',
+	                    'npm_semver_known_fixed',
+	                    'maven_range_match',
+	                    'maven_known_fixed'
+	                  )
+	           )
+	      )
+	  AND ($7 = '' OR fact.payload->>'priority_bucket' = $7)
+	  AND ($8 = 0 OR COALESCE(NULLIF(fact.payload->>'priority_score', '')::int, 0) >= $8)
+	  AND ($9 = '' OR COALESCE(NULLIF(fact.payload->>'suppression_state', ''), 'active') = $9)
+	  AND ($10::boolean OR COALESCE(NULLIF(fact.payload->>'suppression_state', ''), 'active') NOT IN ('not_affected','accepted_risk','false_positive','ignored'))
 ),
 ranked_facts AS (
 	SELECT *,
@@ -179,6 +214,11 @@ func (s PostgresSupplyChainImpactAggregateStore) CountSupplyChainImpactFindings(
 		filter.RepositoryID,
 		filter.SubjectDigest,
 		filter.ImpactStatus,
+		filter.DetectionProfile,
+		filter.PriorityBucket,
+		filter.MinPriorityScore,
+		filter.SuppressionState,
+		filter.IncludeSuppressed,
 	)
 	var total, affected, affectedExact, affectedDerived, possiblyAffected, notAffected sql.NullInt64
 	if err := row.Scan(&total, &affected, &affectedExact, &affectedDerived, &possiblyAffected, &notAffected); err != nil {
@@ -218,6 +258,11 @@ func (s PostgresSupplyChainImpactAggregateStore) fillPriorityBuckets(
 		filter.RepositoryID,
 		filter.SubjectDigest,
 		filter.ImpactStatus,
+		filter.DetectionProfile,
+		filter.PriorityBucket,
+		filter.MinPriorityScore,
+		filter.SuppressionState,
+		filter.IncludeSuppressed,
 	)
 	if err != nil {
 		return fmt.Errorf("count supply chain impact priority buckets: %w", err)
@@ -247,6 +292,11 @@ func (s PostgresSupplyChainImpactAggregateStore) fillSeverityBuckets(
 		filter.RepositoryID,
 		filter.SubjectDigest,
 		filter.ImpactStatus,
+		filter.DetectionProfile,
+		filter.PriorityBucket,
+		filter.MinPriorityScore,
+		filter.SuppressionState,
+		filter.IncludeSuppressed,
 	)
 	if err != nil {
 		return fmt.Errorf("count supply chain impact severity buckets: %w", err)
@@ -268,7 +318,7 @@ SELECT %s AS bucket, COUNT(*) AS bucket_count
 FROM canonical_facts AS fact
 GROUP BY bucket
 ORDER BY bucket_count DESC, bucket
-LIMIT $6 OFFSET $7;
+LIMIT $11 OFFSET $12;
 `
 
 // SupplyChainImpactInventory returns a paginated grouped count along the
@@ -306,6 +356,11 @@ func (s PostgresSupplyChainImpactAggregateStore) SupplyChainImpactInventory(
 		filter.RepositoryID,
 		filter.SubjectDigest,
 		filter.ImpactStatus,
+		filter.DetectionProfile,
+		filter.PriorityBucket,
+		filter.MinPriorityScore,
+		filter.SuppressionState,
+		filter.IncludeSuppressed,
 		limit,
 		offset,
 	)

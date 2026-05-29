@@ -10,16 +10,18 @@ import (
 )
 
 type stubSupplyChainImpactAggregateStore struct {
-	count          SupplyChainImpactAggregateCount
-	countErr       error
-	inventory      []SupplyChainImpactInventoryRow
-	inventoryErr   error
-	lastFilter     SupplyChainImpactAggregateFilter
-	lastDimension  SupplyChainImpactInventoryDimension
-	lastLimit      int
-	lastOffset     int
-	callCountCount int
-	callInvCount   int
+	count           SupplyChainImpactAggregateCount
+	countErr        error
+	inventory       []SupplyChainImpactInventoryRow
+	inventoryErr    error
+	lastFilter      SupplyChainImpactAggregateFilter
+	lastCountFilter SupplyChainImpactAggregateFilter
+	lastInvFilter   SupplyChainImpactAggregateFilter
+	lastDimension   SupplyChainImpactInventoryDimension
+	lastLimit       int
+	lastOffset      int
+	callCountCount  int
+	callInvCount    int
 }
 
 func (s *stubSupplyChainImpactAggregateStore) CountSupplyChainImpactFindings(
@@ -28,6 +30,7 @@ func (s *stubSupplyChainImpactAggregateStore) CountSupplyChainImpactFindings(
 ) (SupplyChainImpactAggregateCount, error) {
 	s.callCountCount++
 	s.lastFilter = filter
+	s.lastCountFilter = filter
 	if s.countErr != nil {
 		return SupplyChainImpactAggregateCount{}, s.countErr
 	}
@@ -43,6 +46,7 @@ func (s *stubSupplyChainImpactAggregateStore) SupplyChainImpactInventory(
 ) ([]SupplyChainImpactInventoryRow, error) {
 	s.callInvCount++
 	s.lastFilter = filter
+	s.lastInvFilter = filter
 	s.lastDimension = dim
 	s.lastLimit = limit
 	s.lastOffset = offset
@@ -179,6 +183,34 @@ func TestSupplyChainImpactAggregateQueriesCountCanonicalFindings(t *testing.T) {
 		if !strings.Contains(query, "ORDER BY priority_score DESC, has_payload_finding_id DESC, fact_id ASC") {
 			t.Fatalf("%s aggregate query missing deterministic canonical row ranking:\n%s", name, query)
 		}
+	}
+}
+
+func TestSupplyChainImpactAggregateQueriesUseListProfileAndSuppressionPredicates(t *testing.T) {
+	t.Parallel()
+
+	for name, query := range map[string]string{
+		"totals":    supplyChainImpactAggregateCountQuery,
+		"priority":  supplyChainImpactAggregatePriorityCountQuery,
+		"severity":  supplyChainImpactAggregateSeverityCountQuery,
+		"inventory": supplyChainImpactInventoryQueryTemplate,
+	} {
+		for _, want := range []string{
+			"fact.payload->>'detection_profile' = $6",
+			"$6 = 'precise'",
+			"$6 = 'comprehensive'",
+			"fact.payload->>'priority_bucket' = $7",
+			"COALESCE(NULLIF(fact.payload->>'priority_score', '')::int, 0) >= $8",
+			"COALESCE(NULLIF(fact.payload->>'suppression_state', ''), 'active') = $9",
+			"$10::boolean OR COALESCE(NULLIF(fact.payload->>'suppression_state', ''), 'active') NOT IN ('not_affected','accepted_risk','false_positive','ignored')",
+		} {
+			if !strings.Contains(query, want) {
+				t.Fatalf("%s aggregate query missing %q:\n%s", name, want, query)
+			}
+		}
+	}
+	if !strings.Contains(supplyChainImpactInventoryQueryTemplate, "LIMIT $11 OFFSET $12") {
+		t.Fatalf("inventory query must keep limit/offset after filter parameters:\n%s", supplyChainImpactInventoryQueryTemplate)
 	}
 }
 

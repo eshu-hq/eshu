@@ -168,7 +168,11 @@ selectors repository context routes accept: repository name, repo slug, indexed
 path, local path, or remote URL. Eshu resolves human selectors before reading
 reducer impact facts; unknown or ambiguous selectors return a selector error.
 The count and inventory aggregate routes use the same repository selector
-resolution before reading reducer-owned aggregate facts.
+resolution before reading reducer-owned aggregate facts. Aggregates also accept
+the list route's `profile`, `priority_bucket`, `min_priority_score`,
+`suppression_state`, and `include_suppressed` filters and default to the same
+low-noise precise, unsuppressed semantics. `sort`, `after_finding_id`, and list
+pagination remain list-only controls.
 
 Valid impact statuses are `affected_exact`, `affected_derived`,
 `possibly_affected`, `not_affected_known_fixed`, and `unknown_impact`.
@@ -208,7 +212,11 @@ The response body echoes the requested profile in the top-level
 `detection_profile` field. Provider-only security alerts without owned
 package or SBOM evidence remain in
 `/api/v0/supply-chain/security-alerts/reconciliations`; they are not
-promoted into either profile of the impact findings list.
+promoted into either profile of the impact findings list. Count and inventory
+aggregates apply the same detection profile before counting rows and echo the
+requested profile as `detection_profile`; `profile=comprehensive` is required
+for aggregate buckets such as `possibly_affected` when those rows only meet the
+comprehensive evidence bar.
 
 ### Suppression Filtering
 

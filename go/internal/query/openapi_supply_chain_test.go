@@ -129,6 +129,58 @@ func TestOpenAPISpecIncludesSupplyChainImpactFindings(t *testing.T) {
 	}
 }
 
+func TestOpenAPISpecIncludesSupplyChainImpactAggregateProfileFilters(t *testing.T) {
+	t.Parallel()
+
+	var spec map[string]any
+	if err := json.Unmarshal([]byte(OpenAPISpec()), &spec); err != nil {
+		t.Fatalf("json.Unmarshal(OpenAPISpec()) error = %v, want nil", err)
+	}
+
+	paths := mustMapField(t, spec, "paths")
+	for _, pathName := range []string{
+		"/api/v0/supply-chain/impact/findings/count",
+		"/api/v0/supply-chain/impact/inventory",
+	} {
+		path := mustMapField(t, paths, pathName)
+		get := mustMapField(t, path, "get")
+		parameters, ok := get["parameters"].([]any)
+		if !ok {
+			t.Fatalf("%s parameters = %T, want []any", pathName, get["parameters"])
+		}
+		parameterNames := map[string]bool{}
+		for _, parameter := range parameters {
+			parameterMap, ok := parameter.(map[string]any)
+			if !ok {
+				t.Fatalf("%s parameter = %T, want map[string]any", pathName, parameter)
+			}
+			name, _ := parameterMap["name"].(string)
+			parameterNames[name] = true
+		}
+		for _, want := range []string{
+			"profile",
+			"priority_bucket",
+			"min_priority_score",
+			"suppression_state",
+			"include_suppressed",
+		} {
+			if !parameterNames[want] {
+				t.Fatalf("%s parameters missing %q", pathName, want)
+			}
+		}
+
+		responses := mustMapField(t, get, "responses")
+		twoHundred := mustMapField(t, responses, "200")
+		content := mustMapField(t, twoHundred, "content")
+		appJSON := mustMapField(t, content, "application/json")
+		schema := mustMapField(t, appJSON, "schema")
+		properties := mustMapField(t, schema, "properties")
+		if _, ok := properties["detection_profile"]; !ok {
+			t.Fatalf("%s 200 schema missing detection_profile", pathName)
+		}
+	}
+}
+
 func TestOpenAPISpecIncludesSupplyChainImpactRemediation(t *testing.T) {
 	t.Parallel()
 

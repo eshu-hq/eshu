@@ -225,6 +225,10 @@ No-Regression Evidence: `go test ./internal/query -run 'TestSupplyChainImpactCan
 
 No-Observability-Change: canonical impact-finding dedupe stays inside the existing bounded Postgres read models. It adds no route, graph query, queue, worker, runtime knob, metric instrument, or metric label; operators still diagnose list, count, inventory, and explain latency through the existing query spans and Postgres query duration metrics.
 
+No-Regression Evidence: `go test ./internal/query -run 'TestSupplyChainImpactAggregateRoutesUseListProfileDefaults|TestSupplyChainImpactAggregateRoutesComprehensiveProfileIncludesPossiblyAffected|TestSupplyChainImpactAggregateRoutesCanonicalAndNameSelectorsShareProfileSemantics|TestSupplyChainImpactAggregateRoutesKeepSuppressionSeparateFromProfile|TestSupplyChainImpactAggregateQueriesUseListProfileAndSuppressionPredicates|TestOpenAPISpecIncludesSupplyChainImpactAggregateProfileFilters' -count=1` proves count and inventory now apply the same default precise detection profile as the list route, include comprehensive-only `possibly_affected` rows when `profile=comprehensive` is requested, resolve repository name and canonical id selectors to the same aggregate scope, and keep suppression filters independent of profile semantics.
+
+No-Observability-Change: aggregate profile and suppression parity only adds predicates to the existing bounded Postgres aggregate read model and echoes the selected profile in the existing HTTP response. It adds no route, graph query, queue, worker, runtime knob, metric instrument, or metric label; operators still diagnose aggregate latency through the `query.supply_chain_impact_aggregate` span and Postgres query duration metrics.
+
 The same handler exposes cheap-summary aggregates over the reducer-owned
 provider security alert reconciliations through a separate Postgres aggregate
 read model (`security_alert_reconciliation_aggregates.go`).
