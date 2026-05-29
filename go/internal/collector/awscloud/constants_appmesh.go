@@ -102,10 +102,10 @@ const (
 	// ResourceTypeACMPCACertificateAuthority identifies an AWS Certificate
 	// Manager Private CA certificate authority. App Mesh client TLS trust ARNs
 	// point at ACM Private CA (acm-pca) certificate authorities, not public ACM
-	// certificates, so the virtual-node trust edge targets this type. There is
-	// no ACM Private CA scanner yet; this forward-looking constant fixes the
-	// join key so the edge lands once an acm-pca scanner emits resources keyed
-	// by the certificate authority ARN.
+	// certificates, so the virtual-node trust edge targets this type. The
+	// acm-pca scanner (ServiceACMPCA) publishes certificate authority resources
+	// keyed by the certificate authority ARN, which is the resource_id this
+	// constant joins against, so the trust edge resolves.
 	ResourceTypeACMPCACertificateAuthority = "aws_acmpca_certificate_authority"
 
 	// TargetTypeCloudMapService is the relationship target_type for an AWS Cloud

@@ -72,8 +72,8 @@ records App Mesh API call counts, throttles, and pagination spans.
   resource. The virtual-node client TLS trust edge keys on the ACM Private CA
   (acm-pca) certificate authority ARN App Mesh reports and targets
   `aws_acmpca_certificate_authority`, not the public ACM scanner's
-  `aws_acm_certificate`. No ACM Private CA scanner exists yet, so the target
-  type is forward-looking and the edge joins once one lands.
+  `aws_acm_certificate`. The `acm-pca` scanner publishes certificate authority
+  resources keyed by that same CA ARN, so the edge resolves.
 - Backend virtual service ARNs are synthesized from the virtual node's own ARN
   so the partition (`aws`, `aws-us-gov`, `aws-cn`) is never hardcoded.
 - Tags are raw AWS tag evidence. Do not infer environment, owner, workload, or
