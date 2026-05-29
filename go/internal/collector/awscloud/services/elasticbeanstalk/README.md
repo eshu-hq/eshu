@@ -72,9 +72,13 @@ throttles, and pagination spans.
   `DescribeEnvironmentResources`.
 - The scanner never fabricates an `arn:aws:` string. IAM target ARNs are set
   only when AWS reported a full ARN; bare names are kept as the target id.
-- Load-balancer joins target `aws_elbv2_load_balancer`; Auto Scaling group joins
-  target `aws_autoscaling_group`; launch-template joins target
-  `aws_ec2_launch_template`.
+- Load-balancer joins are typed by the identifier `DescribeEnvironmentResources`
+  reports. An ELBv2 (ALB/NLB) ARN keeps the `aws_elbv2_load_balancer` target
+  type and carries a real `target_arn` so it joins the ELBv2 scanner's
+  ARN-keyed node; a bare Classic Load Balancer name (which has no ELBv2 node)
+  falls back to the generic `aws_resource` target type and never fabricates an
+  ARN. Auto Scaling group joins target `aws_autoscaling_group`; launch-template
+  joins target `aws_ec2_launch_template`.
 - The scanner stops on client errors and wraps them with `%w`. Runtime adapters
   decide whether an AWS service error is retryable, terminal, or a warning fact.
 

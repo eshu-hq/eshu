@@ -13,10 +13,11 @@ import (
 )
 
 const (
-	testEnvironmentARN = "arn:aws:elasticbeanstalk:us-east-1:123456789012:environment/checkout/checkout-prod"
-	testAppVersionARN  = "arn:aws:elasticbeanstalk:us-east-1:123456789012:applicationversion/checkout/v42"
-	testInstanceProf   = "arn:aws:iam::123456789012:instance-profile/aws-elasticbeanstalk-ec2-role"
-	testServiceRole    = "arn:aws:iam::123456789012:role/aws-elasticbeanstalk-service-role"
+	testEnvironmentARN  = "arn:aws:elasticbeanstalk:us-east-1:123456789012:environment/checkout/checkout-prod"
+	testAppVersionARN   = "arn:aws:elasticbeanstalk:us-east-1:123456789012:applicationversion/checkout/v42"
+	testInstanceProf    = "arn:aws:iam::123456789012:instance-profile/aws-elasticbeanstalk-ec2-role"
+	testServiceRole     = "arn:aws:iam::123456789012:role/aws-elasticbeanstalk-service-role"
+	testLoadBalancerARN = "arn:aws:elasticloadbalancing:us-east-1:123456789012:loadbalancer/app/awseb-AWSEB-1A2B3C/0123456789abcdef"
 )
 
 func testKey(t *testing.T) redact.Key {
@@ -64,7 +65,7 @@ func fullClient() fakeClient {
 			"e-abc123": {
 				AutoScalingGroupNames: []string{"awseb-e-abc123-stack-AWSEBAutoScalingGroup"},
 				LaunchTemplateIDs:     []string{"lt-0123456789abcdef0"},
-				LoadBalancerNames:     []string{"awseb-AWSEB-LB"},
+				LoadBalancerNames:     []string{testLoadBalancerARN},
 			},
 		},
 		settings: map[string][]OptionSetting{
@@ -138,7 +139,7 @@ func TestScannerEmitsEnvironmentRelationshipsWithJoinKeys(t *testing.T) {
 		{awscloud.RelationshipElasticBeanstalkEnvironmentUsesVPC, "vpc-0123456789abcdef0", awscloud.ResourceTypeEC2VPC},
 		{awscloud.RelationshipElasticBeanstalkEnvironmentUsesInstanceProfile, testInstanceProf, awscloud.ResourceTypeIAMInstanceProfile},
 		{awscloud.RelationshipElasticBeanstalkEnvironmentUsesServiceRole, testServiceRole, awscloud.ResourceTypeIAMRole},
-		{awscloud.RelationshipElasticBeanstalkEnvironmentUsesLoadBalancer, "awseb-AWSEB-LB", awscloud.ResourceTypeELBv2LoadBalancer},
+		{awscloud.RelationshipElasticBeanstalkEnvironmentUsesLoadBalancer, testLoadBalancerARN, awscloud.ResourceTypeELBv2LoadBalancer},
 		{awscloud.RelationshipElasticBeanstalkEnvironmentUsesAutoScalingGroup, "awseb-e-abc123-stack-AWSEBAutoScalingGroup", awscloud.ResourceTypeAutoScalingGroup},
 		{awscloud.RelationshipElasticBeanstalkEnvironmentUsesLaunchTemplate, "lt-0123456789abcdef0", awscloud.ResourceTypeEC2LaunchTemplate},
 		{awscloud.RelationshipElasticBeanstalkEnvironmentRunsVersion, testAppVersionARN, awscloud.ResourceTypeElasticBeanstalkApplicationVersion},
@@ -154,6 +155,75 @@ func TestScannerEmitsEnvironmentRelationshipsWithJoinKeys(t *testing.T) {
 		if got, _ := relationship.Payload["target_type"].(string); got != tc.targetType {
 			t.Fatalf("%s target_type = %q, want %q", tc.relationship, got, tc.targetType)
 		}
+	}
+}
+
+// TestResourceRelationshipsTypesLoadBalancerByIdentifierShape proves the
+// regression Copilot flagged: DescribeEnvironmentResources reports a load
+// balancer identifier that is an ELBv2 ARN for ALB/NLB environments and a bare
+// classic-ELB name for Classic environments. The ELBv2 scanner keys its nodes
+// by ARN, so only an ARN-shaped ELBv2 identifier may claim the
+// aws_elbv2_load_balancer target type (and then carry a real target_arn); any
+// non-ARN identifier (a classic ELB name) must fall back to the generic
+// aws_resource type and never fabricate an ARN, so the edge cannot mis-join an
+// ELBv2 node it does not match.
+func TestResourceRelationshipsTypesLoadBalancerByIdentifierShape(t *testing.T) {
+	const (
+		albARN  = "arn:aws:elasticloadbalancing:us-east-1:123456789012:loadbalancer/app/awseb-AWSEB-1A2B3C/0123456789abcdef"
+		clbName = "awseb-AWSEB-LB"
+	)
+	cases := []struct {
+		name           string
+		loadBalancer   string
+		wantTargetID   string
+		wantTargetType string
+		wantTargetARN  string
+	}{
+		{
+			name:           "alb arn keeps elbv2 type and sets target arn",
+			loadBalancer:   albARN,
+			wantTargetID:   albARN,
+			wantTargetType: awscloud.ResourceTypeELBv2LoadBalancer,
+			wantTargetARN:  albARN,
+		},
+		{
+			name:           "classic elb name falls back to generic resource without arn",
+			loadBalancer:   clbName,
+			wantTargetID:   clbName,
+			wantTargetType: "aws_resource",
+			wantTargetARN:  "",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			observations := resourceRelationships(
+				testBoundary(),
+				testEnvironmentARN,
+				testEnvironmentARN,
+				EnvironmentResources{LoadBalancerNames: []string{tc.loadBalancer}},
+			)
+			var rel awscloud.RelationshipObservation
+			var found bool
+			for _, obs := range observations {
+				if obs.RelationshipType == awscloud.RelationshipElasticBeanstalkEnvironmentUsesLoadBalancer {
+					rel = obs
+					found = true
+					break
+				}
+			}
+			if !found {
+				t.Fatalf("no load-balancer relationship emitted for %q", tc.loadBalancer)
+			}
+			if rel.TargetResourceID != tc.wantTargetID {
+				t.Fatalf("target_resource_id = %q, want %q", rel.TargetResourceID, tc.wantTargetID)
+			}
+			if rel.TargetType != tc.wantTargetType {
+				t.Fatalf("target_type = %q, want %q", rel.TargetType, tc.wantTargetType)
+			}
+			if rel.TargetARN != tc.wantTargetARN {
+				t.Fatalf("target_arn = %q, want %q", rel.TargetARN, tc.wantTargetARN)
+			}
+		})
 	}
 }
 

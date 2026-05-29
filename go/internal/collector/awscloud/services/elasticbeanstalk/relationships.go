@@ -18,6 +18,19 @@ const (
 	optionNameServiceRole       = "ServiceRole"
 )
 
+// genericResourceTargetType keeps a load-balancer relationship honest when the
+// reported identifier is not an ELBv2 ARN. DescribeEnvironmentResources reports
+// a classic-ELB load balancer by bare name, which the ELBv2 scanner does not
+// model, so the edge falls back to the generic resource type rather than
+// asserting a wrong ELBv2 target.
+const genericResourceTargetType = "aws_resource"
+
+// elbv2ARNMarker is the substring present in an Elastic Load Balancing v2
+// (ALB/NLB) ARN. The ELBv2 scanner keys its load balancer nodes by ARN, so only
+// an identifier carrying this marker may claim the ELBv2 target type and a real
+// target_arn.
+const elbv2ARNMarker = ":elasticloadbalancing:"
+
 // environmentRelationships derives every relationship Elastic Beanstalk reports
 // for one environment: the parent application, the VPC/IAM joins from deployed
 // option settings, the load-balancer/Auto-Scaling-group/launch-template joins
@@ -140,19 +153,21 @@ func resourceRelationships(
 	resources EnvironmentResources,
 ) []awscloud.RelationshipObservation {
 	var observations []awscloud.RelationshipObservation
-	for _, name := range resources.LoadBalancerNames {
-		name = strings.TrimSpace(name)
-		if name == "" {
+	for _, identifier := range resources.LoadBalancerNames {
+		identifier = strings.TrimSpace(identifier)
+		if identifier == "" {
 			continue
 		}
+		targetType, targetARN := loadBalancerTarget(identifier)
 		observations = append(observations, awscloud.RelationshipObservation{
 			Boundary:         boundary,
 			RelationshipType: awscloud.RelationshipElasticBeanstalkEnvironmentUsesLoadBalancer,
 			SourceResourceID: sourceID,
 			SourceARN:        environmentARN,
-			TargetResourceID: name,
-			TargetType:       awscloud.ResourceTypeELBv2LoadBalancer,
-			SourceRecordID:   sourceID + "#load-balancer#" + name,
+			TargetResourceID: identifier,
+			TargetARN:        targetARN,
+			TargetType:       targetType,
+			SourceRecordID:   sourceID + "#load-balancer#" + identifier,
 		})
 	}
 	for _, name := range resources.AutoScalingGroupNames {
@@ -214,6 +229,22 @@ func versionRelationship(
 		TargetType:       awscloud.ResourceTypeElasticBeanstalkApplicationVersion,
 		SourceRecordID:   sourceID + "#version#" + label,
 	}, true
+}
+
+// loadBalancerTarget classifies a load-balancer identifier reported by
+// DescribeEnvironmentResources into the Eshu target type it can actually join.
+// Elastic Beanstalk reports an ELBv2 (ALB/NLB) load balancer by ARN and a
+// Classic Load Balancer by bare name. The ELBv2 scanner keys its nodes by ARN,
+// so an ELBv2 ARN target both keeps the ELBv2 type and carries a real
+// target_arn for the join. A non-ARN identifier (a Classic ELB name, which has
+// no ELBv2 node) falls back to the generic resource type and never fabricates
+// an ARN, so the edge cannot mis-join an ELBv2 node it does not match.
+func loadBalancerTarget(identifier string) (targetType, targetARN string) {
+	id := strings.TrimSpace(identifier)
+	if strings.HasPrefix(id, "arn:") && strings.Contains(id, elbv2ARNMarker) {
+		return awscloud.ResourceTypeELBv2LoadBalancer, id
+	}
+	return genericResourceTargetType, ""
 }
 
 // arnOrEmpty returns the value only when it is already an ARN. Elastic
