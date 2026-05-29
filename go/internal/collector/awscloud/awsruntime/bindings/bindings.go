@@ -51,6 +51,7 @@ import (
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/macie/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/mq/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/msk/runtimebind"
+	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/networkfirewall/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/neptune/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/opensearch/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/organizations/runtimebind"
