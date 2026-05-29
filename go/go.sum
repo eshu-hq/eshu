@@ -194,6 +194,8 @@ github.com/aws/aws-sdk-go-v2/service/neptune v1.44.6 h1:fEiBIUr6UVYs6LxASES6m8a6
 github.com/aws/aws-sdk-go-v2/service/neptune v1.44.6/go.mod h1:+UvGeb9YQ093vXXr5/GM8AcOcLeXsO/zejCbna5zZQo=
 github.com/aws/aws-sdk-go-v2/service/neptunegraph v1.22.0 h1:iTnqzV7TNmSlH+wpUszaDtNPK6xANHW8wQIbuGPO1kI=
 github.com/aws/aws-sdk-go-v2/service/neptunegraph v1.22.0/go.mod h1:PMRZaSonQvYX8d0u6JciqToJh3JHIcNDU8JwpLeFiT0=
+github.com/aws/aws-sdk-go-v2/service/networkfirewall v1.61.1 h1:ewqow8gclzOTZRvgxkynXFaj9h8YQE8wJTRpyMMjtqw=
+github.com/aws/aws-sdk-go-v2/service/networkfirewall v1.61.1/go.mod h1:7bRBjeRP7pMQOX2qP8d7kEO1FV1WekbuMq5ZJXQpxCo=
 github.com/aws/aws-sdk-go-v2/service/opensearch v1.70.1 h1:bvmcxzp/PGDLScBLcJHG5WSoChkALP20Xhem54dUaKc=
 github.com/aws/aws-sdk-go-v2/service/opensearch v1.70.1/go.mod h1:VKcO88AHkSJsp7pQeHNr5VVcs1t/0snyD+e0ppd4oE0=
 github.com/aws/aws-sdk-go-v2/service/opensearchserverless v1.31.0 h1:0uBe/bKUfzbhZqzjDv1dqiTTSEOPEC6UY3wfZWZ3DBc=

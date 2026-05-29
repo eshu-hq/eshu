@@ -49,6 +49,7 @@ messages, DynamoDB items, log events, API execution payloads, S3 object
 contents, database contents, Lambda packages, GuardDuty finding bodies,
 GuardDuty filter criteria, GuardDuty threat intel/IP list contents, WAFv2 IP
 set address lists, WAFv2 regex pattern bodies, WAFv2 rule `Statement` bodies,
+Network Firewall rule group rule sources (Suricata signature bodies),
 Inspector v2 finding details, Inspector v2 filter criteria, or Inspector v2 CIS
 scan results.
 
@@ -110,6 +111,29 @@ groups, IP sets, and regex pattern sets, `PutLoggingConfiguration`,
 imports only the WAFv2 SDK, which cannot surface `waf` or `waf-regional` v1
 resources. A reflection test over the SDK adapter's API interface fails the
 build path if a mutation or data-plane method is added.
+
+Network Firewall rule group rule sources are not persisted. The rule source
+holds Suricata signature bodies and stateless rule definitions, which are
+threat-detection intelligence. The scanner reads rule group metadata through
+`DescribeRuleGroupMetadata`, which returns only the rule group type
+(`STATEFUL`/`STATELESS`), configured capacity, and identity; it never calls
+`DescribeRuleGroup`, whose output carries the rule source. Firewall policy facts
+carry the AWS-defined default-action names (for example `aws:forward_to_sfe`,
+`aws:drop_strict`), consumed rule capacity, and rule group / TLS inspection
+configuration reference ARNs only, never the full policy rule body. TLS
+inspection configuration facts carry identity, status, and association count
+only, never certificate bodies or TLS scope rule bodies. Firewall facts carry
+identity, VPC id, subnet mapping ids, protection flags, and readiness status.
+Do not grant Network Firewall mutation APIs to the collector role:
+`CreateFirewall`, `DeleteFirewall`, `Update*` (delete protection, description,
+encryption, policy/subnet/availability-zone change protection),
+`AssociateFirewallPolicy`, `Associate`/`DisassociateSubnets`,
+`Associate`/`DisassociateAvailabilityZones`, `Create`/`Update`/`Delete` for
+firewall policies, rule groups, and TLS inspection configurations,
+`PutResourcePolicy`, `UpdateLoggingConfiguration`, `TagResource`, or
+`UntagResource`. A reflection test over the SDK adapter's API interface fails
+the build path if a mutation method or `DescribeRuleGroup` is added, and a
+struct reflection test fails if a scanner-owned type gains a rule-body field.
 
 Inspector v2 finding details are not persisted. A CVE plus package version plus
 affected host ARN reveals exploitation surface. Inspector v2 filter criteria
