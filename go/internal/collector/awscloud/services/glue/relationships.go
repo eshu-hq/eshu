@@ -32,7 +32,7 @@ func tableS3LocationRelationship(boundary awscloud.Boundary, table Table) *awscl
 	if tableID == "" {
 		return nil
 	}
-	bucketARN := "arn:aws:s3:::" + bucket
+	bucketARN := "arn:" + partition(boundary) + ":s3:::" + bucket
 	attributes := map[string]any{
 		"storage_location": location,
 		"bucket":           bucket,
@@ -162,6 +162,22 @@ func triggerJobRelationships(boundary awscloud.Boundary, trigger Trigger) []awsc
 		return nil
 	}
 	return observations
+}
+
+// partition returns the AWS partition for the scan boundary's region — aws,
+// aws-cn, or aws-us-gov. Glue tables carry no ARN, so the boundary region is the
+// partition source for synthesized S3 bucket ARNs; hardcoding the commercial
+// partition would dangle the table->S3-location edge in GovCloud and China.
+func partition(boundary awscloud.Boundary) string {
+	region := strings.TrimSpace(boundary.Region)
+	switch {
+	case strings.HasPrefix(region, "us-gov-"):
+		return "aws-us-gov"
+	case strings.HasPrefix(region, "cn-"):
+		return "aws-cn"
+	default:
+		return "aws"
+	}
 }
 
 func tableResourceID(table Table) string {
