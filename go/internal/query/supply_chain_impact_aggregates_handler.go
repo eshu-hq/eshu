@@ -57,6 +57,7 @@ func (h *SupplyChainHandler) countImpactFindings(w http.ResponseWriter, r *http.
 	if !ok {
 		return
 	}
+	profile := requestedSupplyChainImpactAggregateProfile(filter)
 
 	count, err := h.ImpactAggregates.CountSupplyChainImpactFindings(r.Context(), filter)
 	if err != nil {
@@ -72,6 +73,7 @@ func (h *SupplyChainHandler) countImpactFindings(w http.ResponseWriter, r *http.
 		"not_affected":       count.NotAffected,
 		"by_priority_bucket": count.ByPriorityBucket,
 		"by_severity":        count.BySeverity,
+		"detection_profile":  profile,
 		"scope":              supplyChainImpactAggregateScope(filter),
 	}, BuildTruthEnvelope(
 		h.profile(),
@@ -137,6 +139,7 @@ func (h *SupplyChainHandler) impactInventory(w http.ResponseWriter, r *http.Requ
 	if !ok {
 		return
 	}
+	profile := requestedSupplyChainImpactAggregateProfile(filter)
 
 	rows, err := h.ImpactAggregates.SupplyChainImpactInventory(r.Context(), filter, dimension, limit+1, offset)
 	if err != nil {
@@ -148,14 +151,15 @@ func (h *SupplyChainHandler) impactInventory(w http.ResponseWriter, r *http.Requ
 		rows = rows[:limit]
 	}
 	body := map[string]any{
-		"buckets":     rows,
-		"count":       len(rows),
-		"limit":       limit,
-		"offset":      offset,
-		"group_by":    string(dimension),
-		"truncated":   truncated,
-		"next_offset": nextSupplyChainImpactAggregateOffset(offset, limit, truncated),
-		"scope":       supplyChainImpactAggregateScope(filter),
+		"buckets":           rows,
+		"count":             len(rows),
+		"limit":             limit,
+		"offset":            offset,
+		"group_by":          string(dimension),
+		"detection_profile": profile,
+		"truncated":         truncated,
+		"next_offset":       nextSupplyChainImpactAggregateOffset(offset, limit, truncated),
+		"scope":             supplyChainImpactAggregateScope(filter),
 	}
 	WriteSuccess(w, r, http.StatusOK, body, BuildTruthEnvelope(
 		h.profile(),
@@ -173,13 +177,48 @@ func (h *SupplyChainHandler) supplyChainImpactAggregateFilterFromRequest(
 	if !ok {
 		return SupplyChainImpactAggregateFilter{}, false
 	}
+	profile, ok := requestedSupplyChainImpactProfile(w, r)
+	if !ok {
+		return SupplyChainImpactAggregateFilter{}, false
+	}
+	priorityBucket := QueryParam(r, "priority_bucket")
+	if priorityBucket != "" && !validSupplyChainImpactPriorityBucket(priorityBucket) {
+		WriteError(w, http.StatusBadRequest, "priority_bucket must be critical, high, medium, low, or informational")
+		return SupplyChainImpactAggregateFilter{}, false
+	}
+	minPriorityScore, err := optionalSupplyChainImpactMinPriorityScore(r)
+	if err != nil {
+		WriteError(w, http.StatusBadRequest, err.Error())
+		return SupplyChainImpactAggregateFilter{}, false
+	}
+	suppressionState := QueryParam(r, "suppression_state")
+	if suppressionState != "" && !isSupportedSupplyChainSuppressionState(suppressionState) {
+		WriteError(w, http.StatusBadRequest, "suppression_state must be one of active, not_affected, accepted_risk, false_positive, ignored, expired, provider_dismissed, scope_mismatch")
+		return SupplyChainImpactAggregateFilter{}, false
+	}
+	includeSuppressed, ok := parseSupplyChainImpactIncludeSuppressed(w, r)
+	if !ok {
+		return SupplyChainImpactAggregateFilter{}, false
+	}
 	return SupplyChainImpactAggregateFilter{
-		CVEID:         QueryParam(r, "cve_id"),
-		PackageID:     QueryParam(r, "package_id"),
-		RepositoryID:  repositoryID,
-		SubjectDigest: QueryParam(r, "subject_digest"),
-		ImpactStatus:  QueryParam(r, "impact_status"),
+		CVEID:             QueryParam(r, "cve_id"),
+		PackageID:         QueryParam(r, "package_id"),
+		RepositoryID:      repositoryID,
+		SubjectDigest:     QueryParam(r, "subject_digest"),
+		ImpactStatus:      QueryParam(r, "impact_status"),
+		DetectionProfile:  filterProfile(profile),
+		PriorityBucket:    priorityBucket,
+		MinPriorityScore:  minPriorityScore,
+		SuppressionState:  suppressionState,
+		IncludeSuppressed: includeSuppressed,
 	}, true
+}
+
+func requestedSupplyChainImpactAggregateProfile(filter SupplyChainImpactAggregateFilter) string {
+	if filter.DetectionProfile == SupplyChainImpactProfilePrecise {
+		return SupplyChainImpactProfilePrecise
+	}
+	return SupplyChainImpactProfileComprehensive
 }
 
 func supplyChainImpactAggregateScope(filter SupplyChainImpactAggregateFilter) map[string]string {
@@ -198,6 +237,19 @@ func supplyChainImpactAggregateScope(filter SupplyChainImpactAggregateFilter) ma
 	}
 	if filter.ImpactStatus != "" {
 		out["impact_status"] = filter.ImpactStatus
+	}
+	out["profile"] = requestedSupplyChainImpactAggregateProfile(filter)
+	if filter.PriorityBucket != "" {
+		out["priority_bucket"] = filter.PriorityBucket
+	}
+	if filter.MinPriorityScore > 0 {
+		out["min_priority_score"] = strconv.Itoa(filter.MinPriorityScore)
+	}
+	if filter.SuppressionState != "" {
+		out["suppression_state"] = filter.SuppressionState
+	}
+	if filter.IncludeSuppressed {
+		out["include_suppressed"] = strconv.FormatBool(filter.IncludeSuppressed)
 	}
 	return out
 }
