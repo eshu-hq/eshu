@@ -399,6 +399,9 @@ func buildProjection(scopeValue scope.IngestionScope, generation scope.ScopeGene
 	if intent, ok := buildAWSCloudRuntimeDriftReducerIntent(scopeValue, generation, inputFacts); ok {
 		intents = append(intents, intent)
 	}
+	if intent, ok := buildAWSResourceMaterializationReducerIntent(scopeValue, generation, inputFacts); ok {
+		intents = append(intents, intent)
+	}
 	if intent, ok := buildContainerImageIdentityReducerIntent(scopeValue, generation, inputFacts); ok {
 		intents = append(intents, intent)
 	}

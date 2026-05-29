@@ -77,6 +77,11 @@ const (
 	// findings as canonical reducer facts. The domain stays graph-neutral until
 	// the drift node and query shape are frozen.
 	DomainAWSCloudRuntimeDrift Domain = "aws_cloud_runtime_drift"
+	// DomainAWSResourceMaterialization materializes aws_resource facts into
+	// canonical CloudResource graph nodes. It is the node substrate the AWS
+	// relationship edge projection (issue #805) joins against; see
+	// docs/internal/aws-relationship-edge-materialization-design.md.
+	DomainAWSResourceMaterialization Domain = "aws_resource_materialization"
 )
 
 // IntentStatus captures the durable reducer intent lifecycle state.
