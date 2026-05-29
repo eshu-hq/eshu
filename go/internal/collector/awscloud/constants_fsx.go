@@ -62,12 +62,3 @@ const (
 	// volume belongs to (ONTAP and OpenZFS).
 	RelationshipFSxVolumeTargetsFileSystem = "fsx_volume_targets_file_system"
 )
-
-const (
-	// ResourceTypeDSDirectory identifies an AWS Directory Service directory
-	// metadata resource. FSx Active Directory join edges target this type by the
-	// bare directory ID; no Directory Service scanner exists yet, so the edge is
-	// forward-looking and joins on the directory ID the future scanner will use
-	// as its resource_id.
-	ResourceTypeDSDirectory = "aws_ds_directory"
-)
