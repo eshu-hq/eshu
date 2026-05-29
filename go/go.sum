@@ -136,6 +136,8 @@ github.com/aws/aws-sdk-go-v2/service/configservice v1.48.1 h1:Ua3cfn1hGHYGrHzm96
 github.com/aws/aws-sdk-go-v2/service/configservice v1.48.1/go.mod h1:tQ7+0gX1FarOQr6WvIvYxyXYg0Hel5YD0aZvhR/053M=
 github.com/aws/aws-sdk-go-v2/service/directoryservice v1.38.19 h1:7uzyDjdMN99ALP0QI/ZaDQ+1kwF6skNZU8AqUMZf4uo=
 github.com/aws/aws-sdk-go-v2/service/directoryservice v1.38.19/go.mod h1:QmDYiedOfdgvQk6gtAHwa8yAgYSZXqiB6dHUxJ1CVBM=
+github.com/aws/aws-sdk-go-v2/service/directconnect v1.38.18 h1:aaZ+da2nGV0D4iSHdb36I7gqY354gfKXh/RItrHfLOE=
+github.com/aws/aws-sdk-go-v2/service/directconnect v1.38.18/go.mod h1:7+LEXCl28CUDCuRgcmXUCL2G335G1zmXjOnmkQDKH2Q=
 github.com/aws/aws-sdk-go-v2/service/docdb v1.48.16 h1:JVfVNI1W7geUmJuyTPVKDdym3cpOXfxWKfGdRhm5O6k=
 github.com/aws/aws-sdk-go-v2/service/docdb v1.48.16/go.mod h1:qzkOzKUNO8ZzfMCC8gTh2uxD/7UmpS9scLHfAZ696i4=
 github.com/aws/aws-sdk-go-v2/service/dynamodb v1.42.1 h1:67oYHlAdIoWS65kdTKatf9o1eDNkR2wan6TlBdP3oe4=
