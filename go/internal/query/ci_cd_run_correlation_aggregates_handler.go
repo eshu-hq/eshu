@@ -52,7 +52,10 @@ func (h *CICDHandler) countRunCorrelations(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	filter := cicdRunCorrelationAggregateFilterFromRequest(r)
+	filter, ok := h.cicdRunCorrelationAggregateFilterFromRequest(w, r)
+	if !ok {
+		return
+	}
 	if !validateCICDRunCorrelationAggregateOutcome(w, filter) {
 		return
 	}
@@ -127,7 +130,10 @@ func (h *CICDHandler) runCorrelationInventory(w http.ResponseWriter, r *http.Req
 	if !ok {
 		return
 	}
-	filter := cicdRunCorrelationAggregateFilterFromRequest(r)
+	filter, ok := h.cicdRunCorrelationAggregateFilterFromRequest(w, r)
+	if !ok {
+		return
+	}
 	if !validateCICDRunCorrelationAggregateOutcome(w, filter) {
 		return
 	}
@@ -159,16 +165,23 @@ func (h *CICDHandler) runCorrelationInventory(w http.ResponseWriter, r *http.Req
 	))
 }
 
-func cicdRunCorrelationAggregateFilterFromRequest(r *http.Request) CICDRunCorrelationAggregateFilter {
+func (h *CICDHandler) cicdRunCorrelationAggregateFilterFromRequest(
+	w http.ResponseWriter,
+	r *http.Request,
+) (CICDRunCorrelationAggregateFilter, bool) {
+	repositoryID, ok := resolveRepositorySelectorForRequest(w, r, nil, h.Content, QueryParam(r, "repository_id"))
+	if !ok {
+		return CICDRunCorrelationAggregateFilter{}, false
+	}
 	return CICDRunCorrelationAggregateFilter{
 		ScopeID:        QueryParam(r, "scope_id"),
-		RepositoryID:   QueryParam(r, "repository_id"),
+		RepositoryID:   repositoryID,
 		CommitSHA:      QueryParam(r, "commit_sha"),
 		Provider:       QueryParam(r, "provider"),
 		ArtifactDigest: QueryParam(r, "artifact_digest"),
 		Environment:    QueryParam(r, "environment"),
 		Outcome:        QueryParam(r, "outcome"),
-	}
+	}, true
 }
 
 func cicdRunCorrelationAggregateScope(filter CICDRunCorrelationAggregateFilter) map[string]string {

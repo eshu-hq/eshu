@@ -15,6 +15,7 @@ const (
 
 // CICDHandler exposes reducer-owned CI/CD run correlation reads.
 type CICDHandler struct {
+	Content      ContentStore
 	Correlations CICDRunCorrelationStore
 	Aggregates   CICDRunCorrelationAggregateStore
 	Profile      QueryProfile
@@ -79,9 +80,13 @@ func (h *CICDHandler) listRunCorrelations(w http.ResponseWriter, r *http.Request
 	if !ok {
 		return
 	}
+	repositoryID, ok := resolveRepositorySelectorForRequest(w, r, nil, h.Content, QueryParam(r, "repository_id"))
+	if !ok {
+		return
+	}
 	filter := CICDRunCorrelationFilter{
 		ScopeID:            QueryParam(r, "scope_id"),
-		RepositoryID:       QueryParam(r, "repository_id"),
+		RepositoryID:       repositoryID,
 		CommitSHA:          QueryParam(r, "commit_sha"),
 		Provider:           QueryParam(r, "provider"),
 		ProviderRunID:      firstNonEmpty(QueryParam(r, "provider_run_id"), QueryParam(r, "run_id")),

@@ -10,16 +10,19 @@ import (
 )
 
 type stubSecurityAlertReconciliationAggregateStore struct {
-	count         SecurityAlertReconciliationAggregateCount
-	countErr      error
-	inventory     []SecurityAlertReconciliationInventoryRow
-	inventoryErr  error
-	lastFilter    SecurityAlertReconciliationAggregateFilter
-	lastDimension SecurityAlertReconciliationInventoryDimension
-	lastLimit     int
-	lastOffset    int
-	countCalls    int
-	invCalls      int
+	count                SecurityAlertReconciliationAggregateCount
+	countErr             error
+	inventory            []SecurityAlertReconciliationInventoryRow
+	inventoryErr         error
+	providerScopes       []string
+	providerScopeErr     error
+	providerScopeLookups []string
+	lastFilter           SecurityAlertReconciliationAggregateFilter
+	lastDimension        SecurityAlertReconciliationInventoryDimension
+	lastLimit            int
+	lastOffset           int
+	countCalls           int
+	invCalls             int
 }
 
 func (s *stubSecurityAlertReconciliationAggregateStore) CountSecurityAlertReconciliations(
@@ -50,6 +53,17 @@ func (s *stubSecurityAlertReconciliationAggregateStore) SecurityAlertReconciliat
 		return nil, s.inventoryErr
 	}
 	return append([]SecurityAlertReconciliationInventoryRow(nil), s.inventory...), nil
+}
+
+func (s *stubSecurityAlertReconciliationAggregateStore) SecurityAlertProviderRepositoryScopes(
+	_ context.Context,
+	repositoryName string,
+) ([]string, error) {
+	s.providerScopeLookups = append(s.providerScopeLookups, repositoryName)
+	if s.providerScopeErr != nil {
+		return nil, s.providerScopeErr
+	}
+	return append([]string(nil), s.providerScopes...), nil
 }
 
 func TestSecurityAlertReconciliationAggregateRoutesReturn503WhenStoreMissing(t *testing.T) {

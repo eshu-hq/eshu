@@ -102,6 +102,32 @@ type securityAlertReconciliationQueryer interface {
 	QueryContext(context.Context, string, ...any) (*sql.Rows, error)
 }
 
+const securityAlertProviderRepositoryScopesQuery = `
+WITH active_provider_scopes AS (
+  SELECT DISTINCT COALESCE(
+      NULLIF(fact.payload->>'provider_repository_id', ''),
+      NULLIF(fact.payload->>'scope_id', ''),
+      NULLIF(fact.payload->>'repository_id', '')
+    ) AS provider_scope
+  FROM fact_records AS fact
+  JOIN ingestion_scopes AS scope
+    ON scope.scope_id = fact.scope_id
+   AND scope.active_generation_id = fact.generation_id
+  JOIN scope_generations AS generation
+    ON generation.scope_id = fact.scope_id
+   AND generation.generation_id = fact.generation_id
+  WHERE fact.fact_kind = $1
+    AND fact.is_tombstone = FALSE
+    AND generation.status = 'active'
+)
+SELECT provider_scope
+FROM active_provider_scopes
+WHERE provider_scope LIKE 'security-alert:%/%'
+  AND LOWER(REGEXP_REPLACE(provider_scope, '^security-alert:[^:]+:.*/', '')) = LOWER($2)
+ORDER BY provider_scope ASC
+LIMIT 2
+`
+
 // PostgresSecurityAlertReconciliationStore reads active provider alert
 // reconciliation facts from Postgres.
 type PostgresSecurityAlertReconciliationStore struct {
@@ -167,6 +193,54 @@ func (s PostgresSecurityAlertReconciliationStore) ListSecurityAlertReconciliatio
 	}
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("list security alert reconciliations: %w", err)
+	}
+	return out, nil
+}
+
+// SecurityAlertProviderRepositoryScopes returns provider-owned security alert
+// repository scopes whose exact repository-name segment matches the supplied
+// source repository name. Callers must treat multiple returned scopes as
+// ambiguous rather than guessing the provider owner.
+func (s PostgresSecurityAlertReconciliationStore) SecurityAlertProviderRepositoryScopes(
+	ctx context.Context,
+	repositoryName string,
+) ([]string, error) {
+	if s.DB == nil {
+		return nil, fmt.Errorf("security alert reconciliation database is required")
+	}
+	return securityAlertProviderRepositoryScopes(ctx, s.DB, repositoryName)
+}
+
+func securityAlertProviderRepositoryScopes(
+	ctx context.Context,
+	db securityAlertReconciliationQueryer,
+	repositoryName string,
+) ([]string, error) {
+	repositoryName = strings.TrimSpace(repositoryName)
+	if repositoryName == "" {
+		return nil, nil
+	}
+	rows, err := db.QueryContext(
+		ctx,
+		securityAlertProviderRepositoryScopesQuery,
+		securityAlertReconciliationFactKind,
+		repositoryName,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("list provider security alert repository scopes: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	out := []string{}
+	for rows.Next() {
+		var scope string
+		if err := rows.Scan(&scope); err != nil {
+			return nil, fmt.Errorf("scan provider security alert repository scope: %w", err)
+		}
+		out = append(out, strings.TrimSpace(scope))
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate provider security alert repository scopes: %w", err)
 	}
 	return out, nil
 }

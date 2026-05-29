@@ -173,6 +173,57 @@ func TestSupplyChainSecurityAlertAggregateRoutesResolveRepositorySelectors(t *te
 	}
 }
 
+func TestSupplyChainSecurityAlertAggregateRoutesResolveNameOnlyCatalogProviderScope(t *testing.T) {
+	t.Parallel()
+
+	content := &countingRepositoryContentStore{
+		fakePortContentStore: fakePortContentStore{
+			repositories: []RepositoryCatalogEntry{{
+				ID:   "repo://example/api",
+				Name: "payments-api",
+			}},
+		},
+	}
+	store := &stubSecurityAlertReconciliationAggregateStore{
+		providerScopes: []string{"security-alert:github:example/payments-api"},
+		count: SecurityAlertReconciliationAggregateCount{
+			TotalReconciliations:   1,
+			ByReconciliationStatus: map[string]int{"provider_only": 1},
+			ByProvider:             map[string]int{"github": 1},
+			ByProviderState:        map[string]int{"open": 1},
+		},
+	}
+	handler := &SupplyChainHandler{
+		Content:                 content,
+		SecurityAlertAggregates: store,
+	}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(
+		w,
+		httptest.NewRequest(
+			http.MethodGet,
+			"/api/v0/supply-chain/security-alerts/reconciliations/count?repository_id=payments-api",
+			nil,
+		),
+	)
+
+	if got, want := w.Code, http.StatusOK; got != want {
+		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
+	}
+	if got, want := store.lastFilter.RepositoryID, "repo://example/api"; got != want {
+		t.Fatalf("RepositoryID = %q, want %q", got, want)
+	}
+	if got, want := strings.Join(store.lastFilter.RepositoryScopeIDs, ","), "repo://example/api,security-alert:github:example/payments-api"; got != want {
+		t.Fatalf("RepositoryScopeIDs = %q, want %q", got, want)
+	}
+	if got, want := strings.Join(store.providerScopeLookups, ","), "payments-api"; got != want {
+		t.Fatalf("provider scope lookups = %q, want %q", got, want)
+	}
+}
+
 func TestSupplyChainAggregateRoutesRejectInvalidRepositorySelector(t *testing.T) {
 	t.Parallel()
 

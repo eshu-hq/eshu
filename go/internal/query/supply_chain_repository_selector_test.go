@@ -43,9 +43,12 @@ func (s *canonicalRepositoryImpactStore) ListSupplyChainImpactFindings(
 }
 
 type canonicalRepositorySecurityAlertStore struct {
-	rows       []SecurityAlertReconciliationRow
-	lastFilter SecurityAlertReconciliationFilter
-	calls      int
+	rows                 []SecurityAlertReconciliationRow
+	providerScopes       []string
+	providerScopeErr     error
+	providerScopeLookups []string
+	lastFilter           SecurityAlertReconciliationFilter
+	calls                int
 }
 
 func (s *canonicalRepositorySecurityAlertStore) ListSecurityAlertReconciliations(
@@ -58,6 +61,17 @@ func (s *canonicalRepositorySecurityAlertStore) ListSecurityAlertReconciliations
 		return nil, fmt.Errorf("repository_id = %q, want repo://example/api", filter.RepositoryID)
 	}
 	return append([]SecurityAlertReconciliationRow(nil), s.rows...), nil
+}
+
+func (s *canonicalRepositorySecurityAlertStore) SecurityAlertProviderRepositoryScopes(
+	_ context.Context,
+	repositoryName string,
+) ([]string, error) {
+	s.providerScopeLookups = append(s.providerScopeLookups, repositoryName)
+	if s.providerScopeErr != nil {
+		return nil, s.providerScopeErr
+	}
+	return append([]string(nil), s.providerScopes...), nil
 }
 
 func TestSupplyChainListImpactFindingsResolvesRepositorySelectors(t *testing.T) {
@@ -295,6 +309,94 @@ func TestSupplyChainSecurityAlertReconciliationsDeriveProviderScopeFromRemoteURL
 	}
 	if got, want := strings.Join(store.lastFilter.RepositoryScopeIDs, ","), "repo://example/api,security-alert:github:example/payments-api"; got != want {
 		t.Fatalf("RepositoryScopeIDs = %q, want %q", got, want)
+	}
+}
+
+func TestSupplyChainSecurityAlertReconciliationsResolveNameOnlyCatalogProviderScope(t *testing.T) {
+	t.Parallel()
+
+	content := &countingRepositoryContentStore{
+		fakePortContentStore: fakePortContentStore{
+			repositories: []RepositoryCatalogEntry{{
+				ID:   "repo://example/api",
+				Name: "payments-api",
+			}},
+		},
+	}
+	store := &canonicalRepositorySecurityAlertStore{
+		providerScopes: []string{"security-alert:github:example/payments-api"},
+		rows: []SecurityAlertReconciliationRow{{
+			ReconciliationID:     "reconciliation-provider-only",
+			ReconciliationStatus: "provider_only",
+		}},
+	}
+	handler := &SupplyChainHandler{
+		Content:        content,
+		SecurityAlerts: store,
+	}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"/api/v0/supply-chain/security-alerts/reconciliations?repository_id=payments-api&limit=10",
+		nil,
+	)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if got, want := w.Code, http.StatusOK; got != want {
+		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
+	}
+	if got, want := strings.Join(store.lastFilter.RepositoryScopeIDs, ","), "repo://example/api,security-alert:github:example/payments-api"; got != want {
+		t.Fatalf("RepositoryScopeIDs = %q, want %q", got, want)
+	}
+	if got, want := strings.Join(store.providerScopeLookups, ","), "payments-api"; got != want {
+		t.Fatalf("provider scope lookups = %q, want %q", got, want)
+	}
+}
+
+func TestSupplyChainSecurityAlertReconciliationsRejectAmbiguousNameOnlyProviderScope(t *testing.T) {
+	t.Parallel()
+
+	content := &countingRepositoryContentStore{
+		fakePortContentStore: fakePortContentStore{
+			repositories: []RepositoryCatalogEntry{{
+				ID:   "repo://example/api",
+				Name: "payments-api",
+			}},
+		},
+	}
+	store := &canonicalRepositorySecurityAlertStore{
+		providerScopes: []string{
+			"security-alert:github:example/payments-api",
+			"security-alert:github:other/payments-api",
+		},
+	}
+	handler := &SupplyChainHandler{
+		Content:        content,
+		SecurityAlerts: store,
+	}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"/api/v0/supply-chain/security-alerts/reconciliations?repository_id=payments-api&limit=10",
+		nil,
+	)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if got, want := w.Code, http.StatusBadRequest; got != want {
+		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
+	}
+	if store.lastFilter.RepositoryID != "" {
+		t.Fatalf("store received filter %#v, want no store call", store.lastFilter)
+	}
+	if body := w.Body.String(); body == "" ||
+		!containsAll(body, "repository selector", "payments-api", "provider security alert") {
+		t.Fatalf("body = %q, want provider scope ambiguity error", body)
 	}
 }
 

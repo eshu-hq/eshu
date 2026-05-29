@@ -94,6 +94,11 @@ narrow an ecosystem-scoped lookup.
 both are provided, the version must belong to that package.
 
 `/correlations` requires `limit` and either `package_id` or `repository_id`.
+`repository_id` accepts a canonical source repository id or the same human
+selectors repository context routes accept: repository name, repo slug, indexed
+path, local path, or remote URL. Eshu resolves selectors before reading
+reducer package-correlation facts; unknown or ambiguous selectors return a
+selector error instead of an empty page.
 `relationship_kind` can request ownership candidates, publication evidence, or
 manifest-backed consumption correlations. Provenance-only rows remain marked
 with `provenance_only=true`.
@@ -117,6 +122,10 @@ When `provider_run_id` or `run_id` is the only anchor, callers must also
 provide `provider` because provider-native run IDs are not globally unique.
 CI success, environment observations, and shell-only deployment hints do not
 become deployment truth by themselves.
+`repository_id` accepts a canonical source repository id or the same human
+repository selectors used by repository context routes. Eshu resolves selectors
+before reading reducer CI/CD correlation facts for the list, count, and
+inventory routes; unknown or ambiguous selectors return a selector error.
 
 ## Vulnerability Impact
 
@@ -321,9 +330,9 @@ No-Regression Evidence: `go test ./internal/reducer ./internal/query ./internal/
 
 No-Observability-Change: priority scoring reuses the existing `SupplyChainImpactFindings` reducer counter, `reducer_supply_chain_impact_finding` fact kind, impact evidence fields, readiness envelope, and `query.supply_chain_impact_findings` request span. No new graph write, queue, worker, metric instrument, or runtime deployment knob is introduced.
 
-No-Regression Evidence: `go test ./internal/query -run 'TestSupplyChain.*RepositorySelector|TestSupplyChainAggregateRoutesRejectInvalidRepositorySelector|TestSupplyChainListImpactFindingsUsesBoundedStore|TestSupplyChainListSecurityAlertReconciliationsSeparatesProviderAndEshuState|TestSecurityAlertReconciliationAggregateSourceFreshnessUsesCurrentFactAlias' -count=1` covers internal id fast paths, repository name/slug/path resolution, invalid selector errors, provider-only alert scope preservation for repository reads, and bounded API reads for impact findings, impact aggregates, provider security-alert reconciliations, and reconciliation aggregates.
+No-Regression Evidence: `go test ./internal/query -run 'Test(SupplyChain.*RepositorySelector|SupplyChainAggregateRoutesRejectInvalidRepositorySelector|SupplyChainListImpactFindingsUsesBoundedStore|SupplyChainListSecurityAlertReconciliationsSeparatesProviderAndEshuState|SecurityAlertReconciliationAggregateSourceFreshnessUsesCurrentFactAlias|PackageRegistryCorrelationsResolveRepositorySelectors|CICDRunCorrelationsResolveRepositorySelectors|CICDRunCorrelationAggregatesResolveRepositorySelectors|ServiceCatalogCorrelationsResolveRepositorySelectors|SupplyChainImpactExplainResolvesRepositorySelectors)' -count=1` covers internal id fast paths, repository name/slug/path resolution, invalid selector errors, provider-only alert scope preservation for repository reads, and bounded API reads for impact findings, impact aggregates, provider security-alert reconciliations, reconciliation aggregates, package registry correlations, CI/CD correlations, service-catalog correlations, and impact explain.
 
-No-Observability-Change: selector resolution runs before the existing Postgres read-model calls and reuses `query.supply_chain_impact_findings`, `query.supply_chain_impact_aggregate`, `query.supply_chain_security_alerts`, `query.security_alert_reconciliation_aggregate`, Postgres query instrumentation, and the readiness envelope where applicable. No graph write, queue, worker, metric instrument, or runtime deployment knob is introduced.
+No-Observability-Change: selector resolution runs before the existing Postgres read-model calls and reuses `query.supply_chain_impact_findings`, `query.supply_chain_impact_aggregate`, `query.supply_chain_security_alerts`, `query.security_alert_reconciliation_aggregate`, `query.package_registry_correlations`, `query.ci_cd_run_correlations`, `query.ci_cd_run_correlation_aggregate`, `query.service_catalog_correlations`, Postgres query instrumentation, and the readiness envelope where applicable. No graph write, queue, worker, metric instrument, or runtime deployment knob is introduced.
 
 The response includes a `readiness` envelope so clients can tell `nothing
 matched` from `Eshu did not have the evidence to match yet`:
@@ -408,6 +417,10 @@ more than one finding, the route returns `409` and asks for a narrower anchor.
 If the scope is bounded but no finding exists, it returns `outcome:
 no_finding` with readiness and missing-evidence reasons instead of implying
 the target is safe.
+`repository_id` accepts a canonical source repository id or a human repository
+selector and resolves it before reading reducer impact facts. Container-image
+routes keep their own `repository_id` field as an OCI/image repository identity;
+they do not accept source repository selectors.
 
 The explanation payload separates:
 
@@ -469,9 +482,12 @@ selectors repository context routes accept: repository name, repo slug, indexed
 path, local path, or remote URL. Unknown or ambiguous selectors return a
 selector error before the reconciliation read model runs.
 For security-alert reads, the resolved repository scope also includes the
-provider repository identity when Eshu has it from the repository catalog. That
-keeps `provider_only` rows visible for the selected repository while preserving
-their missing-evidence status.
+provider repository identity when Eshu has it from the repository catalog. If
+the catalog only has the repository name, Eshu can look up an exact provider
+security-alert repository scope by that name; multiple provider scopes are
+reported as an ambiguity instead of guessed. That keeps `provider_only` rows
+visible for the selected repository while preserving their missing-evidence
+status.
 The count and inventory aggregate routes use the same repository selector
 resolution before reading reducer-owned aggregate facts.
 

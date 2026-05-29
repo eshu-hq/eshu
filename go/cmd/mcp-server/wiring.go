@@ -166,16 +166,19 @@ func newMCPQueryRouter(
 		},
 		PackageRegistry: &query.PackageRegistryHandler{
 			Neo4j:        neo4jReader,
+			Content:      contentReader,
 			Correlations: query.NewPostgresPackageRegistryCorrelationStore(db),
 			Aggregates:   query.NewGraphPackageRegistryAggregateStore(neo4jReader),
 			Profile:      queryProfile,
 		},
 		CICD: &query.CICDHandler{
+			Content:      contentReader,
 			Correlations: query.NewPostgresCICDRunCorrelationStore(db),
 			Aggregates:   query.NewPostgresCICDRunCorrelationAggregateStore(db),
 			Profile:      queryProfile,
 		},
 		ServiceCatalog: &query.ServiceCatalogHandler{
+			Content:      contentReader,
 			Correlations: query.NewPostgresServiceCatalogCorrelationStore(db),
 			Profile:      queryProfile,
 		},

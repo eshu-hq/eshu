@@ -23,6 +23,7 @@ const (
 // PackageRegistryHandler exposes graph-backed package registry identity reads.
 type PackageRegistryHandler struct {
 	Neo4j        GraphQuery
+	Content      ContentStore
 	Correlations PackageRegistryCorrelationStore
 	Aggregates   PackageRegistryAggregateStore
 	Profile      QueryProfile
