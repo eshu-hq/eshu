@@ -233,6 +233,13 @@ tracks this package's broader transient graph-write retry class.
   `WithEntityContainmentInEntityUpsert`
 - `EdgeWriter` — writes shared-domain edge rows for
   `reducer.SharedProjectionEdgeWriter`; constructed with `NewEdgeWriter`
+- `CloudResourceEdgeWriter` — writes canonical `AWS_RELATIONSHIP` edges between
+  `CloudResource` nodes for the AWS relationship materialization reducer domain
+  (issue #805 PR 2); constructed with `NewCloudResourceEdgeWriter`. Uses batched
+  `UNWIND` + `MATCH` source / `MATCH` target / `MERGE` edge so a missing endpoint
+  is a no-op (never a fabricated node), idempotent on
+  `(source_uid, relationship_type, target_uid)`, with an evidence-source-scoped
+  retract
 - `SemanticEntityWriter` — writes semantic entity (Annotation, Module, etc.)
   nodes; five constructors select the Cypher row shape
 
@@ -385,6 +392,49 @@ stage duration metrics, and structured `projection failed` logs expose the
 `oci_registry` phase, source system, generation id, and NornicDB error text.
 Workflow and fact work-item rows surface the same failed projection through
 retry, failed, and dead-letter state without adding a new metric label.
+
+### AWS relationship edge writer (issue #805 PR 2)
+
+`CloudResourceEdgeWriter` projects resolved `aws_relationship` facts into
+`(:CloudResource)-[:AWS_RELATIONSHIP]->(:CloudResource)` edges. Both endpoints
+anchor on the `CloudResource.uid` uniqueness constraint and the
+`nornicdb_cloud_resource_uid_lookup` index PR 1 added, so the two `MATCH`es are
+schema-backed lookups, not label scans; the `MERGE` identity is
+`(source, relationship_type, target)`. Full design and decision record:
+`docs/internal/aws-relationship-edge-materialization-design.md` §5–§11.
+
+Benchmark Evidence: `go test ./internal/storage/cypher -run '^$' -bench
+BenchmarkCloudResourceEdgeWriter -benchmem -count=1` on darwin/arm64 (Apple M4
+Pro), no-op group executor so the number isolates Eshu-side work: `5,000`
+resolved edge rows shaped into batched `MATCH-MATCH-MERGE` statements at the
+default `500`/UNWIND (`10` statements, not `5,000`) ran ~`0.96 ms/op`,
+`1.81 MB/op`, `15,067 allocs/op`. The write side is bounded by
+`ceil(E/batchSize)` statements and the graph commit is one grouped transaction,
+so there is no per-edge round trip and no N+1. The bounded in-memory join that
+feeds it is proven separately by `BenchmarkExtractAWSRelationshipEdgeRows`
+(~`23.2 ms/op` for `5,000` edges over `10,000` resource facts) in
+`go/internal/reducer`.
+
+No-Regression Evidence: this is a new write path (no existing query or writer
+changes shape). It reuses the proven label-scoped SQL relationship writer shape
+(batched `UNWIND` + `MATCH` source / `MATCH` target / `MERGE` edge), engaging the
+same NornicDB schema-backed uid lookup and Neo4j planner path; `go test
+./internal/storage/cypher -run TestCloudResourceEdgeWriter -count=1` proves the
+MATCH-MATCH-MERGE shape, batching, atomic group dispatch, evidence-source-scoped
+retract that deletes only the edge, and the no-fabrication invariant.
+
+Observability Evidence: every edge statement and group flows through the
+production `InstrumentedExecutor`, recording
+`eshu_dp_neo4j_query_duration_seconds` (operation=write) and
+`eshu_dp_neo4j_batch_size`. The reducer handler adds the
+`eshu_dp_aws_relationship_edges_total` counter dimensioned by
+`relationship_type` and `join_mode`
+(arn / bare_id / correlation_anchor / unresolved), the
+`reducer.aws_relationship_materialization` span, and an `aws relationship
+materialization completed` structured log with per-stage durations and the
+resolved/unresolved tallies, so an operator can tell which AWS relationship
+target types are losing edges and whether it is because the target service was
+not scanned in this scope.
 
 ## Extension points
 

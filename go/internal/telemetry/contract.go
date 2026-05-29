@@ -124,6 +124,17 @@ const (
 	// dimension is anchored to this contract and grep-by-constant locates
 	// every counter that uses it.
 	MetricDimensionCompositeSkipReason = "reason"
+	// MetricDimensionRelationshipType labels the AWS relationship edge
+	// projection counter (eshu_dp_aws_relationship_edges_total) with the AWS
+	// relationship type (e.g. "USES_KMS_KEY", "ATTACHED_TO_VPC"). Cardinality is
+	// bounded by the closed set of relationship types the scanner fleet emits.
+	MetricDimensionRelationshipType = "relationship_type"
+	// MetricDimensionJoinMode labels the AWS relationship edge projection counter
+	// with the closed enum of target resolution modes the in-memory join index
+	// uses: arn, bare_id, correlation_anchor, or unresolved when no endpoint was
+	// found. It lets an operator answer "which join mode is losing edges, and is
+	// it because the target service was not scanned in this scope?" at 3 AM.
+	MetricDimensionJoinMode = "join_mode"
 )
 
 // Span names define the stable data-plane tracing contract.
@@ -148,9 +159,15 @@ const (
 	// drift loader. Child Postgres query spans expose the AWS-resource scan,
 	// bounded active-state ARN join, and config-owner lookup per state scope.
 	SpanReducerAWSRuntimeDriftEvidenceLoad = "reducer.aws_runtime_drift_evidence_load"
-	SpanCanonicalWrite                     = "canonical.write"
-	SpanCanonicalProjection                = "canonical.projection"
-	SpanCanonicalRetract                   = "canonical.retract"
+	// SpanReducerAWSRelationshipMaterialization wraps the AWS relationship edge
+	// projection (issue #805): fact load, in-memory join-index build, target
+	// resolution across the three join modes, and the batched MATCH-MATCH-MERGE
+	// edge write. The span carries materialized vs unresolved edge counts so a
+	// trace shows whether forward-looking targets degraded gracefully.
+	SpanReducerAWSRelationshipMaterialization = "reducer.aws_relationship_materialization"
+	SpanCanonicalWrite                        = "canonical.write"
+	SpanCanonicalProjection                   = "canonical.projection"
+	SpanCanonicalRetract                      = "canonical.retract"
 
 	SpanEvidenceDiscovery                 = "ingestion.evidence_discovery"
 	SpanIaCReachabilityMaterialization    = "iac_reachability.materialize"

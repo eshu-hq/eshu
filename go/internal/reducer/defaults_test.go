@@ -471,6 +471,55 @@ func TestImplementedDefaultDomainDefinitionsIncludesContainerImageIdentityWhenAd
 	}
 }
 
+func TestImplementedDefaultDomainDefinitionsOmitsAWSRelationshipMaterializationWithoutEdgeWriter(t *testing.T) {
+	t.Parallel()
+
+	// FactLoader present but no edge writer: the relationship edge domain must
+	// stay unregistered so intents are not silently dropped.
+	definitions := implementedDefaultDomainDefinitions(DefaultHandlers{
+		FactLoader: &stubFactLoader{},
+	})
+	for _, def := range definitions {
+		if def.Domain == DomainAWSRelationshipMaterialization {
+			t.Fatalf("aws_relationship_materialization registered without edge writer; want omitted to avoid silent intent drops")
+		}
+	}
+}
+
+func TestImplementedDefaultDomainDefinitionsIncludesAWSRelationshipMaterializationWhenWired(t *testing.T) {
+	t.Parallel()
+
+	loader := &stubFactLoader{}
+	writer := &recordingCloudResourceEdgeWriter{}
+	definitions := implementedDefaultDomainDefinitions(DefaultHandlers{
+		FactLoader:              loader,
+		CloudResourceEdgeWriter: writer,
+		ReadinessLookup:         readyLookup(true, true),
+	})
+	found := false
+	for _, def := range definitions {
+		if def.Domain == DomainAWSRelationshipMaterialization {
+			found = true
+			handler, ok := def.Handler.(AWSRelationshipMaterializationHandler)
+			if !ok {
+				t.Fatalf("aws_relationship_materialization handler type = %T, want AWSRelationshipMaterializationHandler", def.Handler)
+			}
+			if handler.FactLoader != loader {
+				t.Fatal("aws_relationship_materialization handler FactLoader was not wired")
+			}
+			if handler.EdgeWriter != writer {
+				t.Fatal("aws_relationship_materialization handler EdgeWriter was not wired")
+			}
+			if handler.ReadinessLookup == nil {
+				t.Fatal("aws_relationship_materialization handler ReadinessLookup was not wired")
+			}
+		}
+	}
+	if !found {
+		t.Fatal("aws_relationship_materialization not registered after wiring loader+edge writer")
+	}
+}
+
 // stubDriftEvidenceLoader is a no-op DriftEvidenceLoader used only to satisfy
 // the non-nil gate in implementedDefaultDomainDefinitions.
 type stubDriftEvidenceLoader struct{}

@@ -1,6 +1,8 @@
 # AWS Relationship Edge Materialization Design
 
-Status: design accepted, foundation landed (PR #1).
+Status: design accepted; PR #1 (canonical nodes) landed; PR #2 (edge projection)
+implemented and the three §10 principal-review decisions are resolved (USES edge
+deferred, unresolved targets counted-only in v1, no cross-boundary fabrication).
 Issue: #805 (parent #51, aws/H expansion).
 Owners: AWS scanner fleet + reducer/projection owners.
 
@@ -50,12 +52,22 @@ each stage is independently correct, gated, and measured.
 | Stage | Scope | Status |
 | --- | --- | --- |
 | **PR #1** | Canonical AWS resource node materialization (`aws_resource` -> `CloudResource` nodes), graph schema (label, uid constraint, NornicDB uid lookup index, lookup indexes for ARN/resource-id/type), telemetry, docs. The prerequisite. | This PR. |
-| **PR #2** | `aws_relationship` -> edge projection on top of PR #1 nodes, using the `MATCH-MATCH-MERGE` graceful-degradation pattern, all three join modes, unresolved-edge accounting. | Designed here, tracked as a follow-up issue. |
+| **PR #2** | `aws_relationship` -> edge projection on top of PR #1 nodes, using the `MATCH-MATCH-MERGE` graceful-degradation pattern, all three join modes, unresolved-edge accounting. | Implemented. |
 
 PR #2 is fully designed in §5–§8 so the reducer/principal review can sign off on
 the contract before the second implementation lands. PR #1 deliberately does not
 write edges, so it cannot regress edge correctness; it only adds the missing
 node substrate the edge join requires.
+
+PR #2 landed the `DomainAWSRelationshipMaterialization` reducer domain
+(`go/internal/reducer/aws_relationship_materialization.go` + the bounded join in
+`aws_relationship_join.go`), the backend-neutral edge writer
+(`go/internal/storage/cypher/cloud_resource_edge_writer.go`), the projector
+intent (`go/internal/projector/aws_relationship_materialization_intents.go`), and
+the `eshu_dp_aws_relationship_edges_total` counter. It gates on the PR #1
+`GraphProjectionPhaseCanonicalNodesCommitted` phase on the CloudResource
+keyspace, so edges never resolve against uncommitted nodes. Still requires
+principal-engineer review before merge because it is reducer/graph-write work.
 
 ## 3. Pipeline Placement
 
@@ -363,22 +375,78 @@ and emits one bounded `GraphProjectionPhaseState` row per intent. It adds no
 graph round trip and no per-resource work, so the measured node-write and
 extract benchmarks above are unchanged.
 
-## 10. Open Questions For Principal Review
+## 10. Principal-Review Decisions (Resolved)
 
-1. Label choice `CloudResource` is **settled by the existing read contract**: the
-   query layer already depends on `CloudResource` nodes that no writer produced
-   — `internal/query/compare.go` runs
+These three questions were the locked principal-review gate for PR #2. All three
+are resolved as below and the implementation honors each; they remain documented
+so a future agent does not silently re-open them.
+
+1. **Resolved — resource→resource edges only; `USES` deferred.** Label choice
+   `CloudResource` is **settled by the existing read contract**: the query layer
+   already depends on `CloudResource` nodes that no writer produced —
+   `internal/query/compare.go` runs
    `MATCH (i:WorkloadInstance)-[r:USES]->(c:CloudResource)`,
    `internal/query/impact_resource_investigation.go` traverses `n:CloudResource`,
    and `internal/query/entity_map_traversal.go` resolves the label. PR #1 makes
-   those queries return real data instead of empty results. Confirm only that
-   PR #1 should not also retro-fit the `(:WorkloadInstance)-[:USES]->` edge
-   (deferred to the deployment-mapping owner; PR #1 only creates the nodes).
-2. Whether unresolved forward-looking edges should persist a
-   `pending_aws_relationship` reducer fact in PR #2 v1, or stay counted-only
-   until a service-completion reopen path exists.
-3. Cross-account / cross-region edges: targets in a different account/region than
-   the source. The `uid` includes account+region, so a cross-account ARN target
-   resolves only if that account was also scanned in the same scope. Confirm this
-   is the intended boundary (it is the safe default: no fabrication across trust
-   boundaries).
+   those queries return real data instead of empty results. PR #2 writes **only**
+   `(:CloudResource)-[:AWS_RELATIONSHIP]->(:CloudResource)` edges; it does **not**
+   write the `(:WorkloadInstance)-[:USES]->(:CloudResource)` edge (deferred to the
+   deployment-mapping owner). The edge writer Cypher
+   (`go/internal/storage/cypher/cloud_resource_edge_writer.go`) anchors both
+   endpoints on `CloudResource`, with no `WorkloadInstance`/`USES` anywhere.
+2. **Resolved — unresolved targets are counted-only in v1.** Unresolved
+   forward-looking edges do **not** persist a `pending_aws_relationship` reducer
+   fact in PR #2 v1; they stay counted and logged
+   (`tally.unresolved` / `tally.unresolvedSource` in `aws_relationship_join.go`,
+   surfaced through the `eshu_dp_aws_relationship_edges_total` counter under the
+   `unresolved` join mode and the `unresolved_target_by_type` completion-log
+   field) until a service-completion reopen path exists. A later enhancement may
+   add the durable pending fact.
+3. **Resolved — no node fabrication across the trust boundary.** Cross-account /
+   cross-region targets resolve **only** if that account+region resource was
+   scanned in the same scope. The in-memory join index is built solely from
+   in-scope `aws_resource` facts (each carrying its own `account_id`/`region` in
+   the uid), and the edge writer uses `MATCH` (never `MERGE`) on both endpoints,
+   so an out-of-scope target is counted unresolved rather than fabricated. Proven
+   by `TestExtractAWSRelationshipEdgeRowsCrossAccountTargetStaysUnresolved`.
+
+## 11. PR #2 Evidence
+
+Benchmark Evidence: focused Eshu-owned benchmarks on Apple M4 Pro, Go test
+bench, 5,000 CloudResource resources (10,000 resource facts) and 5,000
+`aws_relationship` facts per scope generation (a realistic large single-region
+scan). No backend round trip (no-op group executor) so the numbers isolate the
+bounded join and batching cost:
+
+- `BenchmarkExtractAWSRelationshipEdgeRows` — full O(R) index build plus O(E)
+  in-memory target resolution producing 5,000 resolved edge rows: ~23.2 ms/op,
+  44.2 MB/op, 521,652 allocs/op. Linear in the corpus, **no per-edge graph round
+  trip and no N+1 Cypher** — the §8 performance contract on the resolution path.
+- `BenchmarkBuildCloudResourceJoinIndex` — O(R) index build over 5,000 resources
+  (10,000 facts): ~15.1 ms/op, 22.1 MB/op, 330,133 allocs/op.
+- `BenchmarkCloudResourceEdgeWriter` (`go/internal/storage/cypher`) — 5,000
+  resolved edge rows shaped into batched `MATCH-MATCH-MERGE` statements at the
+  default 500/UNWIND (10 statements, **not** 5,000): ~0.96 ms/op, 1.81 MB/op,
+  15,067 allocs/op. The graph commit is one grouped transaction via
+  `GroupExecutor`, so the write side is bounded by `ceil(E/batchSize)` statements,
+  never one statement per edge.
+
+No-Regression Evidence: the edge write reuses the proven label-scoped SQL
+relationship writer shape (`buildLabelScopedSQLRelationshipCypher`): batched
+`UNWIND` + `MATCH` source / `MATCH` target / `MERGE` edge, both endpoints anchored
+on the CloudResource `uid` uniqueness constraint and `nornicdb_cloud_resource_uid_lookup`
+index PR #1 added, so it engages the same NornicDB schema-backed lookup and Neo4j
+planner path. It adds a new write path rather than changing an existing query
+shape; no existing reducer, query, or write path changes shape.
+
+Observability Evidence: the handler records `eshu_dp_aws_relationship_edges_total`
+dimensioned by `relationship_type` (bounded by the scanner fleet's closed
+target-type set, guarded by #804's `relguard`) and `join_mode`
+(arn / bare_id / correlation_anchor / unresolved), wraps work in the
+`reducer.aws_relationship_materialization` span, and emits an `aws relationship
+materialization completed` structured log carrying `scope_id`, `generation_id`,
+`resource_fact_count`, `relationship_fact_count`, `edge_count`, the
+resolved/unresolved-by-mode and -by-type tallies, and per-stage durations
+(load / extract / retract / graph-write / total). An operator can answer "which
+AWS relationship target types are losing edges, and is it because the target
+service was not scanned yet?" at 3 AM without a per-edge log line.

@@ -54,6 +54,8 @@ func TestMetricDimensionKeys(t *testing.T) {
 		"rule",
 		"drift_kind",
 		"resource_type",
+		"relationship_type",
+		"join_mode",
 	}
 
 	got := MetricDimensionKeys()
@@ -81,6 +83,7 @@ func TestSpanNames(t *testing.T) {
 		"reducer.batch_claim",
 		"reducer.drift_evidence_load",
 		"reducer.aws_runtime_drift_evidence_load",
+		"reducer.aws_relationship_materialization",
 		"canonical.write",
 		"canonical.projection",
 		"canonical.retract",

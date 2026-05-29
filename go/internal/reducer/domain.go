@@ -28,6 +28,7 @@ var knownDomains = map[Domain]struct{}{
 	DomainSecurityAlertReconciliation:    {},
 	DomainAWSCloudRuntimeDrift:           {},
 	DomainAWSResourceMaterialization:     {},
+	DomainAWSRelationshipMaterialization: {},
 }
 
 // ParseDomain converts one raw string into a known reducer domain.
