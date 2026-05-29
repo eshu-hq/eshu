@@ -43,6 +43,13 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 	}
 	var envelopes []facts.Envelope
 	for _, authority := range authorities {
+		// The CA ARN is load-bearing: it is the resource_id App Mesh client TLS
+		// trust edges resolve against, and the scanner never synthesizes one. A
+		// malformed upstream entry with a blank ARN is skipped rather than
+		// failing the whole scan, so one bad record cannot drop every CA fact.
+		if strings.TrimSpace(authority.ARN) == "" {
+			continue
+		}
 		resource, err := awscloud.NewResourceEnvelope(certificateAuthorityObservation(boundary, authority))
 		if err != nil {
 			return nil, fmt.Errorf("build acmpca certificate authority fact: %w", err)

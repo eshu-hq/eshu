@@ -99,7 +99,7 @@ func (c *Client) listCertificateAuthorityARNs(ctx context.Context) ([]string, er
 				arns = append(arns, arn)
 			}
 		}
-		if aws.ToString(page.NextToken) == "" {
+		if !hasNextPage(nextToken, page.NextToken) {
 			return arns, nil
 		}
 		nextToken = page.NextToken
@@ -156,11 +156,22 @@ func (c *Client) listTags(ctx context.Context, arn string) ([]acmpcatypes.Tag, e
 			return tags, nil
 		}
 		tags = append(tags, output.Tags...)
-		if aws.ToString(output.NextToken) == "" {
+		if !hasNextPage(nextToken, output.NextToken) {
 			return tags, nil
 		}
 		nextToken = output.NextToken
 	}
+}
+
+// hasNextPage reports whether a paginated response advanced to a new token,
+// guarding against a service that echoes the same non-empty token forever. An
+// empty next token, or one equal to the token just sent, ends pagination.
+func hasNextPage(previous, next *string) bool {
+	token := strings.TrimSpace(aws.ToString(next))
+	if token == "" {
+		return false
+	}
+	return token != strings.TrimSpace(aws.ToString(previous))
 }
 
 func mapCertificateAuthority(arn string, detail *acmpcatypes.CertificateAuthority, tags []acmpcatypes.Tag) acmpcaservice.CertificateAuthority {

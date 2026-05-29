@@ -226,6 +226,34 @@ func TestScannerEmitsCRLBucketRelationshipWhenConfigured(t *testing.T) {
 	}
 }
 
+func TestScannerSkipsAuthorityWithBlankARN(t *testing.T) {
+	caARN := "arn:aws:acm-pca:us-east-1:123456789012:certificate-authority/abc"
+	client := fakeClient{authorities: []CertificateAuthority{
+		// A malformed upstream entry with no ARN must be skipped, not fail the
+		// whole scan: the CA ARN is load-bearing and cannot be synthesized.
+		{ARN: "   ", Type: "ROOT", Status: "ACTIVE"},
+		{ARN: caARN, Type: "ROOT", Status: "ACTIVE"},
+	}}
+
+	envelopes, err := (Scanner{Client: client}).Scan(context.Background(), testBoundary())
+	if err != nil {
+		t.Fatalf("Scan() error = %v, want nil (blank-ARN authority must be skipped, not fail the scan)", err)
+	}
+	resources := 0
+	for _, envelope := range envelopes {
+		if envelope.FactKind != facts.AWSResourceFactKind {
+			continue
+		}
+		resources++
+		if got := envelope.Payload["resource_id"]; got != caARN {
+			t.Fatalf("resource_id = %#v, want %q (only the valid CA must materialize)", got, caARN)
+		}
+	}
+	if resources != 1 {
+		t.Fatalf("resource fact count = %d, want 1 (blank-ARN authority must not materialize)", resources)
+	}
+}
+
 func TestScannerRejectsMismatchedServiceKind(t *testing.T) {
 	boundary := testBoundary()
 	boundary.ServiceKind = awscloud.ServiceACM

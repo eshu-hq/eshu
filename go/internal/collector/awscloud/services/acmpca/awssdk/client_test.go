@@ -2,6 +2,7 @@ package awssdk
 
 import (
 	"context"
+	"errors"
 	"reflect"
 	"testing"
 	"time"
@@ -203,6 +204,65 @@ func TestClientPaginatesWithoutSameTokenLoop(t *testing.T) {
 	}
 }
 
+func TestClientListBreaksOnRepeatedNextToken(t *testing.T) {
+	api := &fakeACMPCAAPI{
+		repeatListToken: "stuck-token",
+		descriptions: map[string]*acmpcatypes.CertificateAuthority{
+			"arn:aws:acm-pca:us-east-1:123456789012:certificate-authority/a": {
+				Arn:    aws.String("arn:aws:acm-pca:us-east-1:123456789012:certificate-authority/a"),
+				Status: acmpcatypes.CertificateAuthorityStatusActive,
+			},
+		},
+	}
+	adapter := &Client{
+		client:   api,
+		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceACMPCA},
+	}
+
+	_, err := adapter.ListCertificateAuthorities(context.Background())
+	if err != nil {
+		t.Fatalf("ListCertificateAuthorities() error = %v, want nil", err)
+	}
+	// The same non-empty token must not loop forever: the first page advances
+	// from no token to "stuck-token"; the second page echoes the same token,
+	// which the guard treats as no-advance and terminates pagination at two
+	// calls (well under the fake's loop cap).
+	if got, want := api.listCalls, 2; got != want {
+		t.Fatalf("ListCertificateAuthorities calls = %d, want %d (repeated token must break the loop)", got, want)
+	}
+}
+
+func TestClientListTagsBreaksOnRepeatedNextToken(t *testing.T) {
+	caARN := "arn:aws:acm-pca:us-east-1:123456789012:certificate-authority/a"
+	api := &fakeACMPCAAPI{
+		listPages: []*awsacmpca.ListCertificateAuthoritiesOutput{{
+			CertificateAuthorities: []acmpcatypes.CertificateAuthority{{Arn: aws.String(caARN)}},
+		}},
+		descriptions: map[string]*acmpcatypes.CertificateAuthority{
+			caARN: {Arn: aws.String(caARN), Status: acmpcatypes.CertificateAuthorityStatusActive},
+		},
+		repeatTagsToken: "stuck-tags-token",
+		tags: map[string][]acmpcatypes.Tag{
+			caARN: {{Key: aws.String("Environment"), Value: aws.String("prod")}},
+		},
+	}
+	adapter := &Client{
+		client:   api,
+		boundary: awscloud.Boundary{AccountID: "123456789012", Region: "us-east-1", ServiceKind: awscloud.ServiceACMPCA},
+	}
+
+	authorities, err := adapter.ListCertificateAuthorities(context.Background())
+	if err != nil {
+		t.Fatalf("ListCertificateAuthorities() error = %v, want nil", err)
+	}
+	if got, want := len(authorities), 1; got != want {
+		t.Fatalf("len(authorities) = %d, want %d", got, want)
+	}
+	if got, want := api.listTagsCalls, 2; got != want {
+		t.Fatalf("ListTags calls = %d, want %d (repeated token must break the loop)", got, want)
+	}
+}
+
 func TestClientSkipsBlankARNSummaries(t *testing.T) {
 	api := &fakeACMPCAAPI{
 		listPages: []*awsacmpca.ListCertificateAuthoritiesOutput{{
@@ -237,7 +297,18 @@ type fakeACMPCAAPI struct {
 	lastToken     string
 	descriptions  map[string]*acmpcatypes.CertificateAuthority
 	tags          map[string][]acmpcatypes.Tag
+	// repeatListToken, when set, makes ListCertificateAuthorities echo a single
+	// CA plus the same non-empty NextToken forever, exercising the same-token
+	// break guard. A call cap converts a missing guard into a fast test failure
+	// instead of an infinite loop.
+	repeatListToken string
+	// repeatTagsToken does the same for the ListTags pagination loop.
+	repeatTagsToken string
 }
+
+// fakePaginationCallCap bounds a fake's repeated-token output so a missing
+// same-token guard fails the test quickly instead of hanging.
+const fakePaginationCallCap = 100
 
 func (f *fakeACMPCAAPI) ListCertificateAuthorities(
 	_ context.Context,
@@ -245,6 +316,18 @@ func (f *fakeACMPCAAPI) ListCertificateAuthorities(
 	_ ...func(*awsacmpca.Options),
 ) (*awsacmpca.ListCertificateAuthoritiesOutput, error) {
 	f.lastToken = aws.ToString(input.NextToken)
+	if f.repeatListToken != "" {
+		f.listCalls++
+		if f.listCalls > fakePaginationCallCap {
+			return nil, errRepeatedTokenLoop
+		}
+		return &awsacmpca.ListCertificateAuthoritiesOutput{
+			CertificateAuthorities: []acmpcatypes.CertificateAuthority{{
+				Arn: aws.String("arn:aws:acm-pca:us-east-1:123456789012:certificate-authority/a"),
+			}},
+			NextToken: aws.String(f.repeatListToken),
+		}, nil
+	}
 	if f.listCalls >= len(f.listPages) {
 		return &awsacmpca.ListCertificateAuthoritiesOutput{}, nil
 	}
@@ -252,6 +335,10 @@ func (f *fakeACMPCAAPI) ListCertificateAuthorities(
 	f.listCalls++
 	return page, nil
 }
+
+// errRepeatedTokenLoop signals that a fake exceeded its pagination call cap,
+// which means production code lacks a same-token break guard.
+var errRepeatedTokenLoop = errors.New("pagination did not break on repeated NextToken")
 
 func (f *fakeACMPCAAPI) DescribeCertificateAuthority(
 	_ context.Context,
@@ -274,5 +361,14 @@ func (f *fakeACMPCAAPI) ListTags(
 ) (*awsacmpca.ListTagsOutput, error) {
 	f.listTagsCalls++
 	arn := aws.ToString(input.CertificateAuthorityArn)
+	if f.repeatTagsToken != "" {
+		if f.listTagsCalls > fakePaginationCallCap {
+			return nil, errRepeatedTokenLoop
+		}
+		return &awsacmpca.ListTagsOutput{
+			Tags:      f.tags[arn],
+			NextToken: aws.String(f.repeatTagsToken),
+		}, nil
+	}
 	return &awsacmpca.ListTagsOutput{Tags: f.tags[arn]}, nil
 }
