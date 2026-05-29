@@ -448,6 +448,12 @@ func (c *contentReaderConn) QueryContext(_ context.Context, query string, _ []dr
 		(len(c.results) == 0 || !contentReaderResultColumnsEqual(c.results[0], []string{"language", "file_count"})) {
 		return &contentReaderRows{columns: []string{"language", "file_count"}, rows: nil}, nil
 	}
+	if strings.Contains(query, "SELECT entity_type, count(*) as entity_count") &&
+		strings.Contains(query, "FROM content_entities") &&
+		strings.Contains(query, "GROUP BY entity_type") &&
+		(len(c.results) == 0 || !contentReaderResultColumnsEqual(c.results[0], []string{"entity_type", "entity_count"})) {
+		return &contentReaderRows{columns: []string{"entity_type", "entity_count"}, rows: nil}, nil
+	}
 	if strings.Contains(query, "FROM content_entities") &&
 		strings.Contains(query, "entity_type = 'Function'") &&
 		strings.Contains(query, "entity_name IN") &&

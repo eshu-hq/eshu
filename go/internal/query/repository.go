@@ -9,8 +9,6 @@ import (
 	"time"
 )
 
-const repositorySelectorWhereClause = "r.id = $repo_selector OR r.name = $repo_selector"
-
 const repositoryGraphCoverageStatsTimeout = 2 * time.Second
 
 var repositoryBaseCypher = fmt.Sprintf(`
@@ -559,46 +557,6 @@ func (h *RepositoryHandler) getRepositoryStory(w http.ResponseWriter, r *http.Re
 	enrichRepositoryStoryResponseWithEvidence(response, semanticOverview, narrativeFiles)
 
 	WriteJSON(w, http.StatusOK, response)
-}
-
-// getRepositoryStats returns repository statistics including entity counts.
-func (h *RepositoryHandler) getRepositoryStats(w http.ResponseWriter, r *http.Request) {
-	repoID, ok := h.resolveRepositoryPathSelector(w, r)
-	if !ok {
-		return
-	}
-
-	cypher := fmt.Sprintf(`
-		MATCH (r:Repository) WHERE %s
-		OPTIONAL MATCH (r)-[:REPO_CONTAINS]->(f:File)
-		WITH r, count(f) as file_count, collect(DISTINCT f.language) as languages
-		OPTIONAL MATCH (r)-[:REPO_CONTAINS]->(f2:File)-[:CONTAINS]->(e)
-		RETURN %s,
-		       file_count,
-		       languages,
-		       count(DISTINCT e) as entity_count,
-		       collect(DISTINCT labels(e)[0]) as entity_types
-	`, repositorySelectorWhereClause, RepoProjection("r"))
-
-	row, err := h.Neo4j.RunSingle(r.Context(), cypher, map[string]any{"repo_selector": repoID})
-	if err != nil {
-		WriteError(w, http.StatusInternalServerError, fmt.Sprintf("query failed: %v", err))
-		return
-	}
-	if row == nil {
-		WriteError(w, http.StatusNotFound, "repository not found")
-		return
-	}
-
-	stats := map[string]any{
-		"repository":   RepoRefFromRow(row),
-		"file_count":   IntVal(row, "file_count"),
-		"languages":    StringSliceVal(row, "languages"),
-		"entity_count": IntVal(row, "entity_count"),
-		"entity_types": StringSliceVal(row, "entity_types"),
-	}
-
-	WriteJSON(w, http.StatusOK, stats)
 }
 
 // getRepositoryCoverage returns content store coverage for the repository.

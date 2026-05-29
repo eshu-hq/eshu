@@ -294,6 +294,17 @@ func TestGetRepositoryStatsAcceptsRepositorySlugSelector(t *testing.T) {
 	handler := &RepositoryHandler{
 		Neo4j: canonicalSelectorRepoGraphReader{},
 		Content: fakePortContentStore{
+			coverage: RepositoryContentCoverage{
+				Available:   true,
+				FileCount:   12,
+				EntityCount: 4,
+				Languages: []RepositoryLanguageCount{
+					{Language: "go", FileCount: 12},
+				},
+				EntityTypes: []RepositoryEntityTypeCount{
+					{EntityType: "Function", Count: 4},
+				},
+			},
 			repositories: []RepositoryCatalogEntry{{
 				ID:        "repo-1",
 				Name:      "order-service",

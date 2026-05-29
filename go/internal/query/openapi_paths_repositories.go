@@ -311,7 +311,7 @@ const openAPIPathsRepositories = `
       "get": {
         "tags": ["repositories"],
         "summary": "Get repository statistics",
-        "description": "Returns repository statistics including entity counts.",
+        "description": "Returns bounded repository statistics from content-store coverage when available. Counts are null and coverage.missing_evidence explains the gap when the read model is unavailable; the handler does not fall back to whole-graph traversal.",
         "operationId": "getRepositoryStats",
         "parameters": [
           {"$ref": "#/components/parameters/RepoId"}
@@ -325,10 +325,27 @@ const openAPIPathsRepositories = `
                   "type": "object",
                   "properties": {
                     "repository": {"$ref": "#/components/schemas/RepositoryRef"},
-                    "file_count": {"type": "integer"},
+                    "file_count": {"type": "integer", "nullable": true},
                     "languages": {"type": "array", "items": {"type": "string"}},
-                    "entity_count": {"type": "integer"},
-                    "entity_types": {"type": "array", "items": {"type": "string"}}
+                    "entity_count": {"type": "integer", "nullable": true},
+                    "entity_types": {"type": "array", "items": {"type": "string"}},
+                    "coverage": {
+                      "type": "object",
+                      "properties": {
+                        "source_backend": {"type": "string", "enum": ["content_store", "unavailable"]},
+                        "query_shape": {"type": "string", "enum": ["content_store_repository_coverage", "repository_identity_only"]},
+                        "counts_available": {"type": "boolean"},
+                        "entity_types_available": {"type": "boolean"},
+                        "whole_graph_traversal": {"type": "boolean"},
+                        "missing_evidence": {"type": "array", "items": {"type": "string"}},
+                        "file_count_source": {"type": "string"},
+                        "entity_count_source": {"type": "string"},
+                        "languages_source": {"type": "string"},
+                        "entity_types_source": {"type": "string"},
+                        "content_last_indexed_at": {"type": "string"},
+                        "last_error": {"type": "string"}
+                      }
+                    }
                   }
                 }
               }
