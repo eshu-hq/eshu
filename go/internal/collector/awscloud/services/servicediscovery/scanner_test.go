@@ -200,6 +200,54 @@ func TestScanHTTPNamespaceEmitsNoHostedZoneEdge(t *testing.T) {
 	}
 }
 
+// TestScanSkipsServiceWithUnkeyableIdentity proves a service whose
+// "namespaceName/serviceName" join key cannot be formed (blank namespace name
+// or blank service name) emits NO Cloud Map service resource. Emitting one
+// would let NewResourceEnvelope fall back to the ARN as resource_id, which
+// breaks the App Mesh virtual-node-to-Cloud-Map-service edge that targets the
+// namespaceName/serviceName identity.
+func TestScanSkipsServiceWithUnkeyableIdentity(t *testing.T) {
+	namespaces := inventory()
+	// Blank the namespace name on the service so serviceResourceID() is empty.
+	namespaces[0].Services[0].NamespaceName = ""
+
+	envelopes := scan(t, namespaces)
+
+	for _, envelope := range envelopes {
+		if got, _ := envelope.Payload["resource_type"].(string); got == awscloud.ResourceTypeCloudMapService {
+			t.Fatalf("emitted Cloud Map service resource with resource_id %#v for unkeyable service; want none",
+				envelope.Payload["resource_id"])
+		}
+	}
+}
+
+// TestScanSkipsNamespaceWithBlankID proves a namespace with a blank id emits no
+// namespace resource. The namespace resource is keyed by the Cloud Map
+// namespace id; without it NewResourceEnvelope would key on the ARN while the
+// namespace_id attribute stayed blank, producing an inconsistent fact shape.
+func TestScanSkipsNamespaceWithBlankID(t *testing.T) {
+	namespaces := inventory()
+	namespaces[0].ID = "   "
+
+	envelopes := scan(t, namespaces)
+
+	for _, envelope := range envelopes {
+		gotType, _ := envelope.Payload["resource_type"].(string)
+		if gotType != awscloud.ResourceTypeCloudMapNamespace {
+			continue
+		}
+		if envelope.Payload["resource_id"] == privateNamespaceID {
+			continue
+		}
+		if envelope.Payload["arn"] == privateNamespaceARN {
+			t.Fatalf("emitted namespace resource keyed on ARN fallback (resource_id %#v) for blank-id namespace; want none",
+				envelope.Payload["resource_id"])
+		}
+	}
+	// The HTTP namespace (valid id) must still be present.
+	findResourceByID(t, envelopes, awscloud.ResourceTypeCloudMapNamespace, httpNamespaceID)
+}
+
 // TestScanRejectsServiceKindMismatch confirms a non-servicediscovery service
 // kind is rejected rather than silently scanned.
 func TestScanRejectsServiceKindMismatch(t *testing.T) {

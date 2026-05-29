@@ -73,6 +73,13 @@ func (c *Client) ListNamespaceInventory(ctx context.Context) ([]sdservice.Namesp
 			continue
 		}
 		namespace := mapNamespace(summary)
+		// Normalize the id and name to the validated, trimmed values so the
+		// resource, the ListServices NAMESPACE_ID filter, and the attached
+		// services all key on the same identity. A raw SDK value could carry
+		// surrounding whitespace and would otherwise filter ListServices with a
+		// value that never matches the validated id.
+		namespace.ID = namespaceID
+		namespace.Name = strings.TrimSpace(namespace.Name)
 		namespace.Tags = c.resourceTagsOrEmpty(ctx, namespace.ARN)
 
 		services, err := c.servicesForNamespace(ctx, namespace.ID, namespace.Name)

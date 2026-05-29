@@ -56,7 +56,19 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 // namespaceEnvelopes emits the namespace resource, its hosted-zone edge (DNS
 // namespaces only), and every service resource and service-to-namespace edge
 // the namespace reports.
+//
+// A namespace with a blank id is skipped entirely: the namespace resource is
+// keyed by the Cloud Map namespace id, so without it NewResourceEnvelope would
+// fall back to the ARN as resource_id while the namespace_id attribute stayed
+// blank, and every service-to-namespace edge would target a key that cannot
+// join. A service whose "namespaceName/serviceName" join key cannot be formed
+// is likewise skipped so the scanner never emits a Cloud Map service keyed on
+// an ARN, which would break the App Mesh virtual-node-to-Cloud-Map-service edge.
 func namespaceEnvelopes(boundary awscloud.Boundary, namespace Namespace) ([]facts.Envelope, error) {
+	if strings.TrimSpace(namespace.ID) == "" {
+		return nil, nil
+	}
+
 	var envelopes []facts.Envelope
 	if err := appendResource(&envelopes, namespaceObservation(boundary, namespace)); err != nil {
 		return nil, err
@@ -66,6 +78,9 @@ func namespaceEnvelopes(boundary awscloud.Boundary, namespace Namespace) ([]fact
 	}
 
 	for _, service := range namespace.Services {
+		if serviceResourceID(service) == "" {
+			continue
+		}
 		if err := appendResource(&envelopes, serviceObservation(boundary, service)); err != nil {
 			return nil, err
 		}

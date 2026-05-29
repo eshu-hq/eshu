@@ -155,3 +155,53 @@ func TestListNamespaceInventoryResolvesServicesWithCountOnly(t *testing.T) {
 		t.Fatalf("ListServices filters = %#v, want NAMESPACE_ID=ns-1", filters)
 	}
 }
+
+// TestListNamespaceInventoryTrimsNamespaceIDForServiceFilter proves the adapter
+// scopes ListServices with the trimmed namespace id even when the SDK returns a
+// namespace id with surrounding whitespace. The id is validated after trimming
+// at the top of the loop; the ListServices filter and the attached services
+// must use that same trimmed value, or services would be filtered with a value
+// that never matches and would attach to a namespace keyed on a different id.
+func TestListNamespaceInventoryTrimsNamespaceIDForServiceFilter(t *testing.T) {
+	const trimmedID = "ns-1"
+	nsARN := "arn:aws:servicediscovery:us-east-1:123456789012:namespace/ns-1"
+	svcARN := "arn:aws:servicediscovery:us-east-1:123456789012:service/srv-1"
+	api := &fakeAPI{
+		namespacePages: []*awssd.ListNamespacesOutput{{
+			Namespaces: []sdtypes.NamespaceSummary{{
+				Id:   aws.String("  ns-1  "),
+				Arn:  aws.String(nsARN),
+				Name: aws.String("  apps.local  "),
+				Type: sdtypes.NamespaceTypeDnsPrivate,
+			}},
+		}},
+		servicesByNS: map[string][]sdtypes.ServiceSummary{
+			trimmedID: {{
+				Id:   aws.String("srv-1"),
+				Arn:  aws.String(svcARN),
+				Name: aws.String("checkout"),
+			}},
+		},
+	}
+
+	namespaces, err := newClientWithFake(api).ListNamespaceInventory(context.Background())
+	if err != nil {
+		t.Fatalf("ListNamespaceInventory() error = %v", err)
+	}
+	if len(api.serviceFilters) != 1 {
+		t.Fatalf("ListServices calls = %d, want 1", len(api.serviceFilters))
+	}
+	filters := api.serviceFilters[0]
+	if len(filters) != 1 || filters[0].Values[0] != trimmedID {
+		t.Fatalf("ListServices filter value = %#v, want trimmed %q", filters, trimmedID)
+	}
+	if len(namespaces) != 1 || len(namespaces[0].Services) != 1 {
+		t.Fatalf("namespaces/services = %#v, want one service attached via trimmed id", namespaces)
+	}
+	if got := namespaces[0].Services[0].NamespaceID; got != trimmedID {
+		t.Fatalf("service NamespaceID = %q, want trimmed %q", got, trimmedID)
+	}
+	if got := namespaces[0].Services[0].NamespaceName; got != "apps.local" {
+		t.Fatalf("service NamespaceName = %q, want trimmed %q", got, "apps.local")
+	}
+}
