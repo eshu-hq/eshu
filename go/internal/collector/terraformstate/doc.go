@@ -1,7 +1,8 @@
 // Package terraformstate reads Terraform state snapshots into redacted facts.
 //
 // The package owns exact state discovery primitives, read-only source
-// interfaces, streaming snapshot identity reads, parser redaction, composite
+// interfaces, packaged provider-schema coverage for resource and data-source
+// attributes, streaming snapshot identity reads, parser redaction, composite
 // capture observation, and Terraform-state fact envelope output. It does not
 // schedule claims, choose cloud credentials, commit facts, write graph rows, or
 // call cloud SDKs directly.

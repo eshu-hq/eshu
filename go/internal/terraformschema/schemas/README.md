@@ -1,8 +1,10 @@
 # Packaged Terraform Provider Schemas
 
-Gzipped Terraform provider schemas loaded by `internal/terraformschema` at
-runtime to classify resources and infer identity keys. Files are committed to
-git so the runtime is self-contained.
+Gzipped Terraform provider schemas loaded by `internal/terraformschema` and
+`internal/collector/terraformstate` at runtime. `terraformschema` classifies
+resources and infers identity keys; the Terraform-state collector uses the
+same bundle to trust schema-backed resource and data-source attributes. Files
+are committed to git so the runtime is self-contained.
 
 ## Naming
 

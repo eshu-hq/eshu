@@ -40,6 +40,70 @@ func TestLoadPackagedSchemaResolverCoversTier2Attributes(t *testing.T) {
 	}
 }
 
+// TestLoadPackagedSchemaResolverCoversRemoteE2EDataSourceComposites proves
+// the packaged resolver trusts Terraform data-source composites only when the
+// shipped provider schema declares them. Terraform state serializes managed
+// resources and data sources through the same "resources" array, so the parser
+// receives only the resource type and attribute key at the composite boundary.
+func TestLoadPackagedSchemaResolverCoversRemoteE2EDataSourceComposites(t *testing.T) {
+	t.Parallel()
+
+	resolver, err := terraformstate.LoadPackagedSchemaResolver(terraformschema.DefaultSchemaDir())
+	if err != nil {
+		t.Fatalf("LoadPackagedSchemaResolver() error = %v, want nil", err)
+	}
+	if resolver == nil {
+		t.Fatal("LoadPackagedSchemaResolver() = nil, want resolver loaded from packaged schemas")
+	}
+
+	supportedAttributes := []struct {
+		resourceType string
+		attributeKey string
+	}{
+		{"aws_iam_policy_document", "statement"},
+		{"aws_kms_key", "multi_region_configuration"},
+		{"aws_kms_key", "xks_key_configuration"},
+		{"aws_subnets", "filter"},
+		{"aws_subnets", "ids"},
+		{"aws_vpc", "cidr_block_associations"},
+		{"aws_vpc", "filter"},
+	}
+	for _, attribute := range supportedAttributes {
+		if !resolver.HasAttribute(attribute.resourceType, attribute.attributeKey) {
+			t.Errorf("HasAttribute(%q, %q) = false, want true (remote E2E provider schema declares this data-source shape)",
+				attribute.resourceType, attribute.attributeKey)
+		}
+	}
+}
+
+// TestLoadPackagedSchemaResolverLeavesUnsupportedRemoteE2EGapsUnknown locks
+// the fail-closed side of #566: shapes observed in remote E2E are not promoted
+// unless the packaged provider schema proves they are Terraform state evidence.
+func TestLoadPackagedSchemaResolverLeavesUnsupportedRemoteE2EGapsUnknown(t *testing.T) {
+	t.Parallel()
+
+	resolver, err := terraformstate.LoadPackagedSchemaResolver(terraformschema.DefaultSchemaDir())
+	if err != nil {
+		t.Fatalf("LoadPackagedSchemaResolver() error = %v, want nil", err)
+	}
+	if resolver == nil {
+		t.Fatal("LoadPackagedSchemaResolver() = nil, want resolver loaded from packaged schemas")
+	}
+
+	unsupportedAttributes := []struct {
+		resourceType string
+		attributeKey string
+	}{
+		{"cloudinit_config", "part"},
+	}
+	for _, attribute := range unsupportedAttributes {
+		if resolver.HasAttribute(attribute.resourceType, attribute.attributeKey) {
+			t.Errorf("HasAttribute(%q, %q) = true, want false without packaged provider-schema proof",
+				attribute.resourceType, attribute.attributeKey)
+		}
+	}
+}
+
 // TestLoadPackagedSchemaResolverFallsBackToEmbeddedSchemas proves the
 // container-safe contract: when the on-disk schema directory is unset or
 // empty, the resolver still loads from the schemas embedded in the binary so
@@ -59,6 +123,9 @@ func TestLoadPackagedSchemaResolverFallsBackToEmbeddedSchemas(t *testing.T) {
 	if !resolver.HasAttribute("aws_s3_bucket", "acl") {
 		t.Error("HasAttribute(aws_s3_bucket, acl) = false, want true from embedded fallback")
 	}
+	if !resolver.HasAttribute("aws_iam_policy_document", "statement") {
+		t.Error("HasAttribute(aws_iam_policy_document, statement) = false, want true from embedded data-source fallback")
+	}
 
 	resolver, err = terraformstate.LoadPackagedSchemaResolver("")
 	if err != nil {
@@ -69,5 +136,8 @@ func TestLoadPackagedSchemaResolverFallsBackToEmbeddedSchemas(t *testing.T) {
 	}
 	if !resolver.HasAttribute("aws_s3_bucket", "server_side_encryption_configuration") {
 		t.Error("HasAttribute(aws_s3_bucket, server_side_encryption_configuration) = false, want true from embedded fallback")
+	}
+	if !resolver.HasAttribute("aws_vpc", "filter") {
+		t.Error("HasAttribute(aws_vpc, filter) = false, want true from embedded data-source fallback")
 	}
 }
