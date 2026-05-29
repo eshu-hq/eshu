@@ -153,6 +153,7 @@ gauge when a shared-acceptance observer is available.
 | `CorrelationDriftIntentsEnqueued` | `eshu_dp_correlation_drift_intents_enqueued_total` |
 | `CorrelationOrphanDetected` | `eshu_dp_correlation_orphan_detected_total` |
 | `CorrelationUnmanagedDetected` | `eshu_dp_correlation_unmanaged_detected_total` |
+| `AWSRelationshipEdges` | `eshu_dp_aws_relationship_edges_total` |
 | `DriftUnresolvedModuleCalls` | `eshu_dp_drift_unresolved_module_calls_total` |
 | `DriftSchemaUnknownComposite` | `eshu_dp_drift_schema_unknown_composite_total` |
 | `WebhookRequests` | `eshu_dp_webhook_requests_total` |

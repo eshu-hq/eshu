@@ -128,6 +128,13 @@ type Instruments struct {
 	AWSTagObservationsEmitted       metric.Int64Counter
 	AWSFreshnessEvents              metric.Int64Counter
 	AWSOrgAccessSkipped             metric.Int64Counter
+	// AWSRelationshipEdges counts AWS relationship edge projection outcomes
+	// (issue #805). Labels: relationship_type, join_mode (arn / bare_id /
+	// correlation_anchor / unresolved). The unresolved join_mode is the bounded,
+	// honest diagnostic surface for forward-looking targets that did not
+	// materialize an edge because their endpoint node was not scanned in this
+	// scope; resolved modes count materialized edges.
+	AWSRelationshipEdges metric.Int64Counter
 	// AWSScanStatusStaleFence counts AWS scan-status rejections caused by a
 	// stale fencing token, labeled by service, account, region, and the
 	// operation (start, observe, commit) that was rejected. Operators read
@@ -922,6 +929,14 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register CorrelationOrphanDetected counter: %w", err)
+	}
+
+	inst.AWSRelationshipEdges, err = meter.Int64Counter(
+		"eshu_dp_aws_relationship_edges_total",
+		metric.WithDescription("Total AWS relationship edge projection outcomes by relationship_type and join_mode (arn/bare_id/correlation_anchor/unresolved)"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register AWSRelationshipEdges counter: %w", err)
 	}
 
 	inst.CorrelationUnmanagedDetected, err = meter.Int64Counter(
@@ -1965,6 +1980,18 @@ func AttrNodeType(v string) attribute.KeyValue {
 // AttrEdgeType returns an edge_type attribute for canonical write metrics.
 func AttrEdgeType(v string) attribute.KeyValue {
 	return attribute.String(MetricDimensionEdgeType, v)
+}
+
+// AttrRelationshipType returns a relationship_type attribute for the AWS
+// relationship edge projection counter.
+func AttrRelationshipType(v string) attribute.KeyValue {
+	return attribute.String(MetricDimensionRelationshipType, v)
+}
+
+// AttrJoinMode returns a join_mode attribute for the AWS relationship edge
+// projection counter (arn / bare_id / correlation_anchor / unresolved).
+func AttrJoinMode(v string) attribute.KeyValue {
+	return attribute.String(MetricDimensionJoinMode, v)
 }
 
 // AttrWritePhase returns a write_phase attribute for canonical phase metrics.

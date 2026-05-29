@@ -105,6 +105,14 @@ type DefaultHandlers struct {
 	// the graph.
 	CloudResourceNodeWriter CloudResourceNodeWriter
 
+	// CloudResourceEdgeWriter projects aws_relationship facts into canonical
+	// AWS_RELATIONSHIP edges between CloudResource nodes (issue #805 PR 2). It
+	// must be non-nil alongside FactLoader for the registry to register
+	// DomainAWSRelationshipMaterialization; missing either one would drop every
+	// aws_relationship fact before it reaches the graph. The handler also gates
+	// on ReadinessLookup so edges never resolve against uncommitted nodes.
+	CloudResourceEdgeWriter CloudResourceEdgeWriter
+
 	// ContainerImageIdentityWriter persists digest-keyed image identity
 	// decisions for Git, OCI registry, and runtime image evidence.
 	ContainerImageIdentityWriter ContainerImageIdentityWriter
@@ -338,6 +346,18 @@ func implementedDefaultDomainDefinitions(handlers DefaultHandlers) []DomainDefin
 			PhasePublisher: handlers.GraphProjectionPhasePublisher,
 		}
 		definitions = append(definitions, awsResources)
+	}
+	if handlers.FactLoader != nil && handlers.CloudResourceEdgeWriter != nil {
+		awsRelationships := awsRelationshipMaterializationDomainDefinition()
+		awsRelationships.Handler = AWSRelationshipMaterializationHandler{
+			FactLoader:           handlers.FactLoader,
+			EdgeWriter:           handlers.CloudResourceEdgeWriter,
+			ReadinessLookup:      handlers.ReadinessLookup,
+			PriorGenerationCheck: handlers.PriorGenerationCheck,
+			Tracer:               handlers.Tracer,
+			Instruments:          handlers.Instruments,
+		}
+		definitions = append(definitions, awsRelationships)
 	}
 	if handlers.DeployableUnitCorrelationHandler != nil {
 		definitions = append(definitions, DomainDefinition{
