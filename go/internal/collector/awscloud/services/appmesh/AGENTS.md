@@ -30,8 +30,8 @@
   key on App Mesh ARNs. The client TLS trust edge keys on the ACM Private CA
   (acm-pca) certificate authority ARN App Mesh reports and targets
   `aws_acmpca_certificate_authority`, not the public ACM scanner's
-  `aws_acm_certificate`. There is no ACM Private CA scanner yet; the target type
-  is forward-looking so the edge joins once one exists.
+  `aws_acm_certificate`. The `acm-pca` scanner publishes certificate authority
+  resources keyed by that same CA ARN, so the edge resolves.
 - NEVER hardcode `arn:aws:` when synthesizing an ARN. Derive the partition,
   region, account, and mesh name from a known resource ARN (see
   `siblingResourceARN`).
