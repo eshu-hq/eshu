@@ -283,7 +283,11 @@ by scope generation.
   generation-supersede check skips an intent whose generation is no longer the
   active one for the scope (`ResultStatusSuperseded`), so a slow worker cannot
   overwrite a newer generation's graph. Retraction of a prior generation's edges
-  follows the existing `RetractEdges` pattern keyed by `evidence_source`.
+  follows the existing `RetractEdges` pattern keyed by `evidence_source`, and
+  filters scopes on the **edge's own** `rel.scope_id` (set at write time from the
+  intent), never on a node property: `CloudResource` nodes are cross-scope
+  canonical and carry no `scope_id`, so a node-scoped predicate would match
+  nothing and leak stale edges across generations.
 - **Empty / first generation:** zero facts -> zero rows -> no-op write, no
   retract on first generation (the `PriorGenerationCheck` skip the SQL domain
   uses).

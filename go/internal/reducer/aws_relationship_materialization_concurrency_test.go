@@ -23,6 +23,8 @@ func (w *concurrentCloudResourceEdgeWriter) WriteCloudResourceEdges(
 	_ context.Context,
 	rows []map[string]any,
 	_ string,
+	_ string,
+	_ string,
 ) error {
 	w.mu.Lock()
 	defer w.mu.Unlock()

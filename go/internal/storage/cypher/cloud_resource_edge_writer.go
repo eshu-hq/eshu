@@ -30,12 +30,15 @@ SET rel.target_type = row.target_type,
     rel.evidence_source = row.evidence_source`
 
 // retractCloudResourceEdgesCypher removes the reducer-owned AWS_RELATIONSHIP
-// edges for a set of scopes before a fresh generation reprojects them. It is
-// scoped to this reducer's evidence_source so it never touches edges owned by
-// other writers, and it DELETEs only the relationship, never the endpoint
-// CloudResource nodes.
+// edges for a set of scopes before a fresh generation reprojects them. The
+// scope predicate filters on the edge's own scope_id, not the endpoint node's:
+// CloudResource nodes are cross-scope canonical and carry no scope_id property,
+// so a source.scope_id predicate would match nothing and leak stale edges. It
+// is also scoped to this reducer's evidence_source so it never touches edges
+// owned by other writers, and it DELETEs only the relationship, never the
+// endpoint CloudResource nodes.
 const retractCloudResourceEdgesCypher = `MATCH (source:CloudResource)-[rel:AWS_RELATIONSHIP]->(:CloudResource)
-WHERE source.scope_id IN $scope_ids
+WHERE rel.scope_id IN $scope_ids
   AND rel.evidence_source = $evidence_source
 DELETE rel`
 
@@ -64,9 +67,17 @@ func NewCloudResourceEdgeWriter(executor Executor, batchSize int) *CloudResource
 // (source_uid, relationship_type, target_uid) converges on one edge across
 // batches, retries, and generations, and a missing endpoint is a no-op rather
 // than a fabricated node.
+//
+// scopeID and generationID are injected onto every edge as rel.scope_id /
+// rel.generation_id. The resolution layer does not carry these reducer-scoped
+// fields, so the writer is the single place that stamps them; rel.scope_id is
+// what the prior-generation retract filters on (CloudResource nodes carry no
+// scope_id), so omitting it would make scope-scoped retract a silent no-op.
 func (w *CloudResourceEdgeWriter) WriteCloudResourceEdges(
 	ctx context.Context,
 	rows []map[string]any,
+	scopeID string,
+	generationID string,
 	evidenceSource string,
 ) error {
 	if len(rows) == 0 {
@@ -78,10 +89,12 @@ func (w *CloudResourceEdgeWriter) WriteCloudResourceEdges(
 
 	annotated := make([]map[string]any, 0, len(rows))
 	for _, row := range rows {
-		cloned := make(map[string]any, len(row)+1)
+		cloned := make(map[string]any, len(row)+3)
 		for key, value := range row {
 			cloned[key] = value
 		}
+		cloned["scope_id"] = scopeID
+		cloned["generation_id"] = generationID
 		cloned["evidence_source"] = evidenceSource
 		annotated = append(annotated, cloned)
 	}

@@ -6,29 +6,39 @@ import (
 	"testing"
 	"time"
 
+	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
+	"go.opentelemetry.io/otel/sdk/metric/metricdata"
+
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 // recordingCloudResourceEdgeWriter captures edge writes and retracts so tests
 // can assert the exact materialization request.
 type recordingCloudResourceEdgeWriter struct {
-	writeCalls      int
-	writtenRows     []map[string]any
-	writeEvidence   string
-	retractCalls    int
-	retractScopeIDs []string
-	retractEvidence string
-	writeErr        error
-	retractErr      error
+	writeCalls        int
+	writtenRows       []map[string]any
+	writeScopeID      string
+	writeGenerationID string
+	writeEvidence     string
+	retractCalls      int
+	retractScopeIDs   []string
+	retractEvidence   string
+	writeErr          error
+	retractErr        error
 }
 
 func (w *recordingCloudResourceEdgeWriter) WriteCloudResourceEdges(
 	_ context.Context,
 	rows []map[string]any,
+	scopeID string,
+	generationID string,
 	evidenceSource string,
 ) error {
 	w.writeCalls++
 	w.writtenRows = append(w.writtenRows, rows...)
+	w.writeScopeID = scopeID
+	w.writeGenerationID = generationID
 	w.writeEvidence = evidenceSource
 	return w.writeErr
 }
@@ -166,6 +176,14 @@ func TestAWSRelationshipMaterializationProjectsResolvedEdges(t *testing.T) {
 	}
 	if writer.writeEvidence != awsRelationshipEvidenceSource {
 		t.Fatalf("write evidence = %q, want %q", writer.writeEvidence, awsRelationshipEvidenceSource)
+	}
+	// The handler must pass the intent's scope/generation to the writer so the
+	// persisted edge carries them; otherwise scope-scoped retract is a no-op.
+	if writer.writeScopeID != "scope-1" {
+		t.Fatalf("write scope id = %q, want scope-1", writer.writeScopeID)
+	}
+	if writer.writeGenerationID != "gen-1" {
+		t.Fatalf("write generation id = %q, want gen-1", writer.writeGenerationID)
 	}
 	if result.CanonicalWrites != 1 {
 		t.Fatalf("CanonicalWrites = %d, want 1", result.CanonicalWrites)
@@ -333,5 +351,81 @@ func TestAWSRelationshipMaterializationPropagatesWriteError(t *testing.T) {
 
 	if _, err := handler.Handle(context.Background(), awsRelationshipIntent()); err == nil {
 		t.Fatal("expected the write error to propagate")
+	}
+}
+
+// TestAWSRelationshipMaterializationMetricCarriesRelationshipTypeAndJoinMode
+// pins the eshu_dp_aws_relationship_edges_total contract: every data point is
+// labeled by BOTH the real relationship_type and the join_mode. The prior bug
+// omitted relationship_type on resolved edges and put a target_type value into
+// the relationship_type label on unresolved ones, which this test rejects.
+func TestAWSRelationshipMaterializationMetricCarriesRelationshipTypeAndJoinMode(t *testing.T) {
+	t.Parallel()
+
+	reader := sdkmetric.NewManualReader()
+	provider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader))
+	inst, err := telemetry.NewInstruments(provider.Meter("test"))
+	if err != nil {
+		t.Fatalf("NewInstruments() error = %v", err)
+	}
+
+	source := resourceEnvelope("111122223333", "us-east-1", "aws_lambda_function",
+		"arn:aws:lambda:us-east-1:111122223333:function:fn", "arn:aws:lambda:us-east-1:111122223333:function:fn")
+	kms := resourceEnvelope("111122223333", "us-east-1", "aws_kms_key",
+		"arn:aws:kms:us-east-1:111122223333:key/abc", "arn:aws:kms:us-east-1:111122223333:key/abc")
+	resolved := awsRelationshipEnvelope(map[string]any{
+		"relationship_type":  "USES_KMS_KEY",
+		"source_resource_id": "arn:aws:lambda:us-east-1:111122223333:function:fn",
+		"source_arn":         "arn:aws:lambda:us-east-1:111122223333:function:fn",
+		"target_resource_id": "arn:aws:kms:us-east-1:111122223333:key/abc",
+		"target_arn":         "arn:aws:kms:us-east-1:111122223333:key/abc",
+		"target_type":        "aws_kms_key",
+	})
+	// Resolvable source, target VPC not scanned in this generation -> unresolved.
+	unresolved := awsRelationshipEnvelope(map[string]any{
+		"relationship_type":  "ATTACHED_TO_VPC",
+		"source_resource_id": "arn:aws:lambda:us-east-1:111122223333:function:fn",
+		"source_arn":         "arn:aws:lambda:us-east-1:111122223333:function:fn",
+		"target_resource_id": "vpc-deadbeefdeadbeef",
+		"target_type":        "aws_vpc",
+	})
+
+	handler := AWSRelationshipMaterializationHandler{
+		FactLoader:           &stubFactLoader{envelopes: []facts.Envelope{source, kms, resolved, unresolved}},
+		EdgeWriter:           &recordingCloudResourceEdgeWriter{},
+		ReadinessLookup:      readyLookup(true, true),
+		PriorGenerationCheck: func(context.Context, string, string) (bool, error) { return true, nil },
+		Instruments:          inst,
+	}
+
+	if _, err := handler.Handle(context.Background(), awsRelationshipIntent()); err != nil {
+		t.Fatalf("Handle returned error: %v", err)
+	}
+
+	var rm metricdata.ResourceMetrics
+	if err := reader.Collect(context.Background(), &rm); err != nil {
+		t.Fatalf("Collect() error = %v", err)
+	}
+
+	const counter = "eshu_dp_aws_relationship_edges_total"
+	// Resolved edge: real relationship_type + matched join mode.
+	if !metricHasAttrs(rm, counter, map[string]string{
+		telemetry.MetricDimensionRelationshipType: "USES_KMS_KEY",
+		telemetry.MetricDimensionJoinMode:         "arn",
+	}) {
+		t.Fatal("resolved edge must emit (relationship_type=USES_KMS_KEY, join_mode=arn)")
+	}
+	// Unresolved relationship: real relationship_type + unresolved join mode.
+	if !metricHasAttrs(rm, counter, map[string]string{
+		telemetry.MetricDimensionRelationshipType: "ATTACHED_TO_VPC",
+		telemetry.MetricDimensionJoinMode:         "unresolved",
+	}) {
+		t.Fatal("unresolved relationship must emit (relationship_type=ATTACHED_TO_VPC, join_mode=unresolved)")
+	}
+	// A target_type value must NEVER appear in the relationship_type label.
+	for _, leaked := range []string{"aws_kms_key", "aws_vpc"} {
+		if metricHasAttrs(rm, counter, map[string]string{telemetry.MetricDimensionRelationshipType: leaked}) {
+			t.Fatalf("target_type %q leaked into the relationship_type label", leaked)
+		}
 	}
 }

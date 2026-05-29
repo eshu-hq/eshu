@@ -53,7 +53,7 @@ const awsRelationshipEvidenceSource = "reducer/aws-relationships"
 // facts converge on one edge, and MUST NOT fabricate endpoint nodes: a row
 // whose source or target node is absent is a no-op.
 type CloudResourceEdgeWriter interface {
-	WriteCloudResourceEdges(ctx context.Context, rows []map[string]any, evidenceSource string) error
+	WriteCloudResourceEdges(ctx context.Context, rows []map[string]any, scopeID, generationID, evidenceSource string) error
 	RetractCloudResourceEdges(ctx context.Context, scopeIDs []string, generationID string, evidenceSource string) error
 }
 
@@ -164,7 +164,7 @@ func (h AWSRelationshipMaterializationHandler) Handle(
 	var writeDuration time.Duration
 	if len(rows) > 0 {
 		writeStart := time.Now()
-		if err := h.EdgeWriter.WriteCloudResourceEdges(ctx, rows, awsRelationshipEvidenceSource); err != nil {
+		if err := h.EdgeWriter.WriteCloudResourceEdges(ctx, rows, intent.ScopeID, intent.GenerationID, awsRelationshipEvidenceSource); err != nil {
 			return Result{}, fmt.Errorf("write canonical aws relationship edges: %w", err)
 		}
 		writeDuration = time.Since(writeStart)
@@ -238,29 +238,22 @@ func (h AWSRelationshipMaterializationHandler) shouldSkipRetract(ctx context.Con
 	return !hasPrior, nil
 }
 
-// recordTally emits the materialized vs unresolved edge counter dimensioned by
-// relationship type proxy (join_mode) so an operator can see which join mode is
-// losing edges. Resolved modes increment with the matched mode; unresolved
-// increments under the unresolved join_mode, labeled by target_type.
+// recordTally emits the edge-projection counter dimensioned by
+// (relationship_type, join_mode), the contract registered for
+// eshu_dp_aws_relationship_edges_total. Each tally entry carries the real AWS
+// relationship type (e.g. USES_KMS_KEY) and the resolution mode that produced
+// it — arn / bare_id / correlation_anchor for materialized edges, or unresolved
+// when an endpoint was not a materialized node in this generation. The
+// per-target_type breakdown (which service was not scanned) is the completion
+// log's job, not a metric label, so cardinality stays bounded.
 func (h AWSRelationshipMaterializationHandler) recordTally(ctx context.Context, tally awsRelationshipEdgeTally) {
 	if h.Instruments == nil || h.Instruments.AWSRelationshipEdges == nil {
 		return
 	}
-	for mode, count := range tally.resolved {
+	for key, count := range tally.byRelTypeMode {
 		h.Instruments.AWSRelationshipEdges.Add(ctx, int64(count), metric.WithAttributes(
-			telemetry.AttrJoinMode(mode),
-		))
-	}
-	for targetType, count := range tally.unresolved {
-		h.Instruments.AWSRelationshipEdges.Add(ctx, int64(count), metric.WithAttributes(
-			telemetry.AttrJoinMode(joinModeUnresolved),
-			telemetry.AttrRelationshipType(targetType),
-		))
-	}
-	for targetType, count := range tally.unresolvedSource {
-		h.Instruments.AWSRelationshipEdges.Add(ctx, int64(count), metric.WithAttributes(
-			telemetry.AttrJoinMode(joinModeUnresolved),
-			telemetry.AttrRelationshipType(targetType),
+			telemetry.AttrRelationshipType(key.relationshipType),
+			telemetry.AttrJoinMode(key.mode),
 		))
 	}
 }

@@ -145,25 +145,44 @@ func looksLikeARN(value string) bool {
 	return strings.HasPrefix(value, "arn:")
 }
 
+// relTypeMode is the bounded composite key for the edge-projection counter
+// (eshu_dp_aws_relationship_edges_total): the AWS relationship type crossed with
+// the join/resolution mode. Both members are drawn from closed enums — the
+// fleet's relationship types and the four join modes — so the metric cardinality
+// stays bounded (design §6).
+type relTypeMode struct {
+	relationshipType string
+	mode             string
+}
+
 // awsRelationshipEdgeTally is the bounded, honest accounting surface for the
-// edge projection (design §6). It counts materialized edges by join mode and
-// unresolved relationships by target_type, so an operator can answer "which AWS
+// edge projection (design §6). It serves two consumers with different cardinality
+// needs: the metric is keyed by (relationship_type, join_mode); the completion
+// log keeps the target_type breakdown so an operator can answer "which AWS
 // relationship target types are losing edges, and is it because the target
 // service was not scanned yet?" without a per-edge log line.
 type awsRelationshipEdgeTally struct {
+	// byRelTypeMode counts every relationship fact by (relationship_type,
+	// join_mode) for the edge-projection counter. Resolved edges carry their
+	// matched mode (arn / bare_id / correlation_anchor); a relationship whose
+	// source or target did not resolve carries joinModeUnresolved. This honors
+	// the (relationship_type, join_mode) metric contract.
+	byRelTypeMode map[relTypeMode]int
 	// resolved counts materialized edges keyed by join mode (arn / bare_id /
-	// correlation_anchor).
+	// correlation_anchor) for the completion log's resolved_by_mode field.
 	resolved map[string]int
 	// unresolved counts relationships whose target could not be resolved,
-	// keyed by target_type.
+	// keyed by target_type, for the completion log diagnostic.
 	unresolved map[string]int
 	// unresolvedSource counts relationships whose source could not be resolved,
-	// keyed by target_type (the relationship's own classification).
+	// keyed by target_type (the relationship's own classification), for the
+	// completion log diagnostic.
 	unresolvedSource map[string]int
 }
 
 func newAWSRelationshipEdgeTally() awsRelationshipEdgeTally {
 	return awsRelationshipEdgeTally{
+		byRelTypeMode:    make(map[relTypeMode]int),
 		resolved:         make(map[string]int),
 		unresolved:       make(map[string]int),
 		unresolvedSource: make(map[string]int),
@@ -218,12 +237,14 @@ func ExtractAWSRelationshipEdgeRows(
 		sourceUID, sourceOK := index.resolveSource(sourceARN, sourceResourceID)
 		if !sourceOK {
 			tally.unresolvedSource[targetType]++
+			tally.byRelTypeMode[relTypeMode{relationshipType, joinModeUnresolved}]++
 			continue
 		}
 
 		targetUID, mode, targetOK := index.resolveTarget(targetARN, targetResourceID)
 		if !targetOK {
 			tally.unresolved[targetType]++
+			tally.byRelTypeMode[relTypeMode{relationshipType, joinModeUnresolved}]++
 			continue
 		}
 
@@ -240,6 +261,7 @@ func ExtractAWSRelationshipEdgeRows(
 		seen[key] = struct{}{}
 
 		tally.resolved[mode]++
+		tally.byRelTypeMode[relTypeMode{relationshipType, mode}]++
 		rows = append(rows, map[string]any{
 			"source_uid":        sourceUID,
 			"target_uid":        targetUID,

@@ -34,7 +34,7 @@ func BenchmarkCloudResourceEdgeWriter(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		if err := writer.WriteCloudResourceEdges(ctx, rows, "reducer/aws-relationships"); err != nil {
+		if err := writer.WriteCloudResourceEdges(ctx, rows, "scope-1", "gen-1", "reducer/aws-relationships"); err != nil {
 			b.Fatalf("WriteCloudResourceEdges: %v", err)
 		}
 	}
