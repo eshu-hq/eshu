@@ -111,16 +111,6 @@ func findRelationship(t *testing.T, envelopes []facts.Envelope, relationshipType
 	return relationshipView{}
 }
 
-func resourceTypeFromEnvelope(t *testing.T, envelope facts.Envelope) string {
-	t.Helper()
-	return payloadString(envelope, "resource_type")
-}
-
-func payloadString(envelope facts.Envelope, key string) string {
-	value, _ := envelope.Payload[key].(string)
-	return value
-}
-
 func TestScanEmitsShareResourcePrincipalAndPermissionFacts(t *testing.T) {
 	scanner := ram.Scanner{Client: fakeClient{shares: []ram.ResourceShare{fullShare()}}}
 
@@ -276,6 +266,123 @@ func TestScanDeduplicatesPermissionResourceAcrossShares(t *testing.T) {
 	}
 	if permissionResources != 1 {
 		t.Fatalf("permission resources = %d, want 1 (deduplicated across shares)", permissionResources)
+	}
+}
+
+func TestScanShareResourceWithBlankTypeFallsBackToGenericTargetType(t *testing.T) {
+	share := fullShare()
+	share.Resources = []ram.SharedResource{{ARN: "ec2-arn:subnet/subnet-blank", Type: "  ", Status: "AVAILABLE"}}
+	share.Principals = nil
+	share.Permissions = nil
+	scanner := ram.Scanner{Client: fakeClient{shares: []ram.ResourceShare{share}}}
+
+	envelopes, err := scanner.Scan(context.Background(), testBoundary())
+	if err != nil {
+		t.Fatalf("Scan() error = %v, want nil", err)
+	}
+	rel := findRelationship(t, envelopes, awscloud.RelationshipRAMShareIncludesResource)
+	if rel.TargetType != awscloud.ResourceTypeGeneric {
+		t.Fatalf("TargetType = %q, want generic %q for blank RAM type", rel.TargetType, awscloud.ResourceTypeGeneric)
+	}
+	if rel.TargetResourceID != "ec2-arn:subnet/subnet-blank" {
+		t.Fatalf("TargetResourceID = %q, want shared resource ARN", rel.TargetResourceID)
+	}
+	// The blank RAM-reported type must not be carried as a false resource_type.
+	for _, envelope := range envelopes {
+		if envelope.FactKind != facts.AWSRelationshipFactKind {
+			continue
+		}
+		if payloadString(envelope, "relationship_type") != awscloud.RelationshipRAMShareIncludesResource {
+			continue
+		}
+		if got := payloadAttribute(t, envelope, "resource_type"); got != "" {
+			t.Fatalf("attribute resource_type = %q, want empty for blank RAM type", got)
+		}
+	}
+}
+
+func TestScanUnknownPrincipalDoesNotMasqueradeAsAccount(t *testing.T) {
+	share := fullShare()
+	share.Resources = nil
+	share.Permissions = nil
+	// A service principal is neither a bare account id, an OU ARN, nor an
+	// organization/root ARN. It must not be recorded as an account edge.
+	share.Principals = []ram.Principal{{ID: "ram.amazonaws.com", External: false}}
+	scanner := ram.Scanner{Client: fakeClient{shares: []ram.ResourceShare{share}}}
+
+	envelopes, err := scanner.Scan(context.Background(), testBoundary())
+	if err != nil {
+		t.Fatalf("Scan() error = %v, want nil", err)
+	}
+	for _, envelope := range envelopes {
+		if envelope.FactKind != facts.AWSRelationshipFactKind {
+			continue
+		}
+		relType := payloadString(envelope, "relationship_type")
+		if relType == awscloud.RelationshipRAMShareTargetsAccount {
+			t.Fatalf("unknown principal %q emitted account edge %q", "ram.amazonaws.com", relType)
+		}
+		if relType == awscloud.RelationshipRAMShareTargetsPrincipal {
+			rel := relationshipFromEnvelope(t, envelope)
+			if rel.TargetType != awscloud.ResourceTypeGeneric {
+				t.Fatalf("TargetType = %q, want generic %q for unknown principal", rel.TargetType, awscloud.ResourceTypeGeneric)
+			}
+			if rel.TargetResourceID != "ram.amazonaws.com" {
+				t.Fatalf("TargetResourceID = %q, want raw principal id", rel.TargetResourceID)
+			}
+			if rel.TargetARN != "" {
+				t.Fatalf("TargetARN = %q, want empty for unknown principal", rel.TargetARN)
+			}
+		}
+	}
+	// And the distinct generic principal edge must exist.
+	findRelationship(t, envelopes, awscloud.RelationshipRAMShareTargetsPrincipal)
+}
+
+func TestScanShareWithBlankArnFallsBackToName(t *testing.T) {
+	share := fullShare()
+	share.ARN = "  "
+	share.Name = "orders-share"
+	share.Resources = nil
+	share.Principals = nil
+	share.Permissions = nil
+	scanner := ram.Scanner{Client: fakeClient{shares: []ram.ResourceShare{share}}}
+
+	envelopes, err := scanner.Scan(context.Background(), testBoundary())
+	if err != nil {
+		t.Fatalf("Scan() error = %v, want nil (blank ARN must fall back to name)", err)
+	}
+	resources, _ := collectByType(t, envelopes)
+	if resources != 1 {
+		t.Fatalf("resources = %d, want 1 share resource keyed by name", resources)
+	}
+	var shareResource facts.Envelope
+	for _, envelope := range envelopes {
+		if envelope.FactKind == facts.AWSResourceFactKind {
+			shareResource = envelope
+		}
+	}
+	if got := payloadString(shareResource, "resource_id"); got != "orders-share" {
+		t.Fatalf("resource_id = %q, want name fallback orders-share", got)
+	}
+}
+
+func TestScanShareWithBlankArnAndNameIsSkipped(t *testing.T) {
+	share := fullShare()
+	share.ARN = "  "
+	share.Name = "  "
+	share.Resources = nil
+	share.Principals = nil
+	share.Permissions = nil
+	scanner := ram.Scanner{Client: fakeClient{shares: []ram.ResourceShare{share}}}
+
+	envelopes, err := scanner.Scan(context.Background(), testBoundary())
+	if err != nil {
+		t.Fatalf("Scan() error = %v, want nil (share with no identity must be skipped)", err)
+	}
+	resources, relationships := collectByType(t, envelopes)
+	if resources != 0 || relationships != 0 {
+		t.Fatalf("resources/relationships = %d/%d, want 0/0 for a share with no identity", resources, relationships)
 	}
 }
 

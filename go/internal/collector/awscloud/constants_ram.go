@@ -34,6 +34,13 @@ const (
 	// targets an entire Organizations organization or root principal, targeting
 	// the organization or root ARN.
 	RelationshipRAMShareTargetsOrganization = "ram_share_targets_organization"
+	// RelationshipRAMShareTargetsPrincipal records that a resource share targets
+	// a principal whose form RAM did not report as a bare account id, an
+	// Organizations OU ARN, or an organization or root ARN (for example a
+	// service principal or a future RAM principal form). It uses the generic
+	// resource target type and the raw principal id as the join key so the edge
+	// stays honest without masquerading as an Organizations account.
+	RelationshipRAMShareTargetsPrincipal = "ram_share_targets_principal"
 	// RelationshipRAMShareUsesPermission records that a resource share uses one
 	// managed permission, targeting the permission ARN.
 	RelationshipRAMShareUsesPermission = "ram_share_uses_permission"

@@ -41,7 +41,13 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 	var envelopes []facts.Envelope
 	seenPermission := make(map[string]struct{})
 	for _, share := range shares {
-		shareEnvelope, err := awscloud.NewResourceEnvelope(shareObservation(boundary, share))
+		observation, ok := shareObservation(boundary, share)
+		if !ok {
+			// A share with neither an ARN nor a name has no stable identity, so
+			// skip it rather than failing the whole scan on one malformed record.
+			continue
+		}
+		shareEnvelope, err := awscloud.NewResourceEnvelope(observation)
 		if err != nil {
 			return nil, err
 		}
@@ -97,14 +103,24 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 	return envelopes, nil
 }
 
-func shareObservation(boundary awscloud.Boundary, share ResourceShare) awscloud.ResourceObservation {
+// shareObservation builds the resource observation for one RAM resource share.
+// It keys the resource on the share ARN, falling back to the share name when
+// RAM reports a blank ARN, so one malformed share record cannot fail the whole
+// scan. It returns false when the share has neither an ARN nor a name, because
+// such a record has no stable identity to project.
+func shareObservation(boundary awscloud.Boundary, share ResourceShare) (awscloud.ResourceObservation, bool) {
 	shareARN := strings.TrimSpace(share.ARN)
+	shareName := strings.TrimSpace(share.Name)
+	shareID := shareJoinID(share)
+	if shareID == "" {
+		return awscloud.ResourceObservation{}, false
+	}
 	return awscloud.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          shareARN,
-		ResourceID:   shareARN,
+		ResourceID:   shareID,
 		ResourceType: awscloud.ResourceTypeRAMResourceShare,
-		Name:         strings.TrimSpace(share.Name),
+		Name:         shareName,
 		State:        strings.TrimSpace(share.Status),
 		Tags:         cloneStringMap(share.Tags),
 		Attributes: map[string]any{
@@ -119,9 +135,9 @@ func shareObservation(boundary awscloud.Boundary, share ResourceShare) awscloud.
 			"principal_count":           len(share.Principals),
 			"permission_count":          len(share.Permissions),
 		},
-		CorrelationAnchors: []string{shareARN, share.Name},
-		SourceRecordID:     shareARN,
-	}
+		CorrelationAnchors: []string{shareARN, shareName},
+		SourceRecordID:     shareID,
+	}, true
 }
 
 func permissionObservation(boundary awscloud.Boundary, permission Permission) awscloud.ResourceObservation {

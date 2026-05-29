@@ -7,35 +7,57 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 )
 
+// shareJoinID resolves the join key used for a resource share across its
+// resource fact and every relationship that sources from it. RAM normally
+// reports a resource share ARN, but a defensively blank ARN falls back to the
+// share name so a malformed record does not fail the whole scan and so the
+// share's resource fact and edges still join on the same key. It returns the
+// empty string only when both the ARN and the name are blank.
+func shareJoinID(share ResourceShare) string {
+	if arn := strings.TrimSpace(share.ARN); arn != "" {
+		return arn
+	}
+	return strings.TrimSpace(share.Name)
+}
+
 // shareResourceRelationship records that a resource share shares one resource.
 // The target is the shared resource's ARN, and the target type is the
 // RAM-reported resource type (service-code:resource-code, for example
-// ec2:subnet). It returns false for an empty share ARN or resource ARN so a
-// blank record does not emit a dangling edge.
+// ec2:subnet). When RAM reports a blank type, the edge falls back to the
+// generic resource target type so it keeps a non-empty target type and does not
+// violate the relationship invariant; the RAM-reported type is preserved in the
+// attributes either way. The source join key is the share ARN, or the share
+// name when the ARN is blank. It returns false for an empty share join key or
+// resource ARN so a blank record does not emit a dangling edge.
 func shareResourceRelationship(
 	boundary awscloud.Boundary,
 	share ResourceShare,
 	resource SharedResource,
 ) (awscloud.RelationshipObservation, bool) {
-	shareARN := strings.TrimSpace(share.ARN)
+	shareID := shareJoinID(share)
 	resourceARN := strings.TrimSpace(resource.ARN)
-	if shareARN == "" || resourceARN == "" {
+	if shareID == "" || resourceARN == "" {
 		return awscloud.RelationshipObservation{}, false
+	}
+	resourceType := strings.TrimSpace(resource.Type)
+	targetType := resourceType
+	if targetType == "" {
+		targetType = awscloud.ResourceTypeGeneric
 	}
 	return awscloud.RelationshipObservation{
 		Boundary:         boundary,
 		RelationshipType: awscloud.RelationshipRAMShareIncludesResource,
-		SourceResourceID: shareARN,
-		SourceARN:        shareARN,
+		SourceResourceID: shareID,
+		SourceARN:        strings.TrimSpace(share.ARN),
 		TargetResourceID: resourceARN,
 		TargetARN:        resourceARN,
-		TargetType:       strings.TrimSpace(resource.Type),
+		TargetType:       targetType,
 		Attributes: map[string]any{
-			"resource_type": strings.TrimSpace(resource.Type),
+			"resource_type": resourceType,
 			"status":        strings.TrimSpace(resource.Status),
 			"region_scope":  strings.TrimSpace(resource.RegionScope),
 		},
-		SourceRecordID: shareARN + "#resource#" + resourceARN,
+		SourceRecordID: shareID + "#resource#" + resourceARN,
 	}, true
 }
 
@@ -53,23 +75,26 @@ func shareResourceRelationship(
 //   - an organization or root ARN (path segment :organization/ or :root/)
 //     targets aws_organizations_root by ARN.
 //
-// It returns false for an empty share ARN or principal id.
+// An unrecognized principal form targets the generic resource type with a
+// distinct relationship type rather than masquerading as an account. The source
+// join key is the share ARN, or the share name when the ARN is blank. It
+// returns false for an empty share join key or principal id.
 func sharePrincipalRelationship(
 	boundary awscloud.Boundary,
 	share ResourceShare,
 	principal Principal,
 ) (awscloud.RelationshipObservation, bool) {
-	shareARN := strings.TrimSpace(share.ARN)
+	shareID := shareJoinID(share)
 	principalID := strings.TrimSpace(principal.ID)
-	if shareARN == "" || principalID == "" {
+	if shareID == "" || principalID == "" {
 		return awscloud.RelationshipObservation{}, false
 	}
 	relationshipType, targetType, targetARN := classifyPrincipal(principalID)
 	return awscloud.RelationshipObservation{
 		Boundary:         boundary,
 		RelationshipType: relationshipType,
-		SourceResourceID: shareARN,
-		SourceARN:        shareARN,
+		SourceResourceID: shareID,
+		SourceARN:        strings.TrimSpace(share.ARN),
 		TargetResourceID: principalID,
 		TargetARN:        targetARN,
 		TargetType:       targetType,
@@ -77,28 +102,29 @@ func sharePrincipalRelationship(
 			"principal_id": principalID,
 			"external":     principal.External,
 		},
-		SourceRecordID: shareARN + "#principal#" + principalID,
+		SourceRecordID: shareID + "#principal#" + principalID,
 	}, true
 }
 
 // sharePermissionRelationship records that a resource share uses one managed
-// permission. The target is the permission ARN. It returns false for an empty
-// share ARN or permission ARN.
+// permission. The target is the permission ARN. The source join key is the
+// share ARN, or the share name when the ARN is blank. It returns false for an
+// empty share join key or permission ARN.
 func sharePermissionRelationship(
 	boundary awscloud.Boundary,
 	share ResourceShare,
 	permission Permission,
 ) (awscloud.RelationshipObservation, bool) {
-	shareARN := strings.TrimSpace(share.ARN)
+	shareID := shareJoinID(share)
 	permissionARN := strings.TrimSpace(permission.ARN)
-	if shareARN == "" || permissionARN == "" {
+	if shareID == "" || permissionARN == "" {
 		return awscloud.RelationshipObservation{}, false
 	}
 	return awscloud.RelationshipObservation{
 		Boundary:         boundary,
 		RelationshipType: awscloud.RelationshipRAMShareUsesPermission,
-		SourceResourceID: shareARN,
-		SourceARN:        shareARN,
+		SourceResourceID: shareID,
+		SourceARN:        strings.TrimSpace(share.ARN),
 		TargetResourceID: permissionARN,
 		TargetARN:        permissionARN,
 		TargetType:       awscloud.ResourceTypeRAMPermission,
@@ -107,7 +133,7 @@ func sharePermissionRelationship(
 			"permission_version": strings.TrimSpace(permission.Version),
 			"permission_type":    strings.TrimSpace(permission.PermissionType),
 		},
-		SourceRecordID: shareARN + "#permission#" + permissionARN,
+		SourceRecordID: shareID + "#permission#" + permissionARN,
 	}, true
 }
 
@@ -133,10 +159,13 @@ func classifyPrincipal(principalID string) (relationshipType, targetType, target
 			principalID
 	default:
 		// An unrecognized principal id (for example a service principal or a
-		// future RAM principal form) still records a targeted-account edge
-		// rather than dropping evidence, but carries no derived target ARN.
-		return awscloud.RelationshipRAMShareTargetsAccount,
-			awscloud.ResourceTypeOrganizationsAccount,
+		// future RAM principal form) records a distinct targeted-principal edge
+		// with the generic target type rather than masquerading as an
+		// Organizations account. This keeps evidence without inventing a wrong
+		// account join key; the raw principal id remains the join key and no
+		// derived target ARN is claimed.
+		return awscloud.RelationshipRAMShareTargetsPrincipal,
+			awscloud.ResourceTypeGeneric,
 			""
 	}
 }

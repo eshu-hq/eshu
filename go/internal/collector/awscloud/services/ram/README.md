@@ -74,10 +74,16 @@ counts, throttles, and pagination spans.
   does not enumerate shares owned by other accounts.
 - Permission resources are deduplicated by ARN across shares so a managed
   permission used by many shares emits one resource fact.
+- A resource share keys its resource fact and every relationship that sources
+  from it on the share ARN, falling back to the share name when RAM reports a
+  blank ARN. A share with neither an ARN nor a name has no stable identity and
+  is skipped, so one malformed share record never fails the whole scan.
 - Every relationship sets a non-empty `target_type` and a non-empty join key:
   - share-to-resource targets the shared resource's ARN with its RAM-reported
     `service-code:resource-code` type (for example `ec2:subnet`) as the target
-    type;
+    type; a blank RAM-reported type falls back to the generic `aws_resource`
+    target type while keeping the reported type in the relationship attributes,
+    so the edge never carries an empty `target_type`;
   - share-to-principal-account targets `aws_organizations_account` by bare
     account id, matching the organizations scanner's account `resource_id`
     (no target ARN, because organizations keys accounts by bare id);
@@ -85,11 +91,17 @@ counts, throttles, and pagination spans.
     ARN;
   - share-to-principal-organization targets `aws_organizations_root` by
     organization or root ARN;
+  - share-to-principal of an unrecognized form (for example a service principal
+    or a future RAM principal form) targets the generic `aws_resource` type with
+    the distinct `ram_share_targets_principal` relationship type and the raw
+    principal id as the join key, so it does not masquerade as an organizations
+    account or invent an unmatchable account join key;
   - share-to-permission targets `aws_ram_permission` by permission ARN.
 - Principal classification keys on the principal id form (12-digit account id,
   `:ou/`, `:organization/`, `:root/` path segments) rather than a hardcoded
   `arn:aws:` prefix, so GovCloud and China partition principals classify the
-  same way.
+  same way. Any other form is recorded as a generic targeted-principal edge
+  rather than dropped.
 - The scanner stops on client errors and wraps them with `%w`. Runtime adapters
   decide whether an AWS service error is retryable, terminal, or a warning fact.
 
