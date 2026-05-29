@@ -48,6 +48,40 @@ inventory queries in existing `postgres.query` spans with `db.operation` set to
 `repository_language_inventory`; responses include `limit`, `offset`, and
 `truncated` so slow or incomplete calls are diagnosable from traces and payloads.
 
+`GET /api/v0/repositories/{repo_id}/stats` resolves `{repo_id}` as a repository
+selector, verifies the canonical repository identity with a direct
+`Repository{id}` lookup when a graph backend is present, and then reads
+`file_count`, `entity_count`, `languages`, and `entity_types` from the
+content-store coverage read model. It does not run a post-resolution
+whole-graph traversal to compute totals. If content coverage is unavailable,
+`file_count` and `entity_count` are `null`, `languages` and `entity_types` are
+empty, and `coverage.missing_evidence` names the missing evidence instead of
+inventing zero totals.
+
+Stats responses include `coverage.source_backend`, `coverage.query_shape`,
+`coverage.counts_available`, `coverage.entity_types_available`,
+`coverage.whole_graph_traversal`, and `coverage.missing_evidence`. The normal
+bounded shape is `coverage.query_shape=content_store_repository_coverage` with
+`coverage.source_backend=content_store`; the explicit missing-evidence shape is
+`coverage.query_shape=repository_identity_only` with
+`coverage.source_backend=unavailable`.
+
+No-Regression Evidence: the focused query test covers repository-name and
+canonical-id selectors, proves the stats route does not issue the old optional
+graph aggregation after selector resolution, verifies content-store
+file/entity/language/entity-type counts, and checks that missing content
+coverage returns explicit missing-evidence metadata rather than zero totals:
+`go test ./internal/query -run 'TestGetRepositoryStats|TestContentReaderRepositoryCoverageIncludesEntityTypeCounts' -count=1`.
+
+Observability Evidence: stats calls emit `repository_query.stage_started` and
+`repository_query.stage_completed` log events for `operation=repository_stats`
+with `stage=repository_lookup` and `stage=content_coverage`, including
+`duration_seconds`, `source_backend`, `query_shape`, `counts_available`,
+`entity_types_available`, and `whole_graph_traversal`. `ContentReader` wraps the
+coverage query in a `postgres.query` span with
+`db.operation=repository_coverage` and
+`db.sql.table=content_files,content_entities`.
+
 Repository responses should be treated as:
 
 - canonical identity: `id`

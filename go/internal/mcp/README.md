@@ -111,6 +111,7 @@ Representative tool-to-route mappings from `resolveRoute` (`dispatch.go:173`):
 | `count_repositories_by_language` | GET | `/api/v0/repositories/by-language?limit=0` |
 | `list_repositories_by_language` | GET | `/api/v0/repositories/by-language` |
 | `get_repository_language_inventory` | GET | `/api/v0/repositories/language-inventory` |
+| `get_repository_stats` | GET | `/api/v0/repositories/{repo_id}/stats` |
 | `investigate_change_surface` | POST | `/api/v0/impact/change-surface/investigate` |
 | `investigate_resource` | POST | `/api/v0/impact/resource-investigation` |
 | `resolve_entity` | POST | `/api/v0/entities/resolve` |
@@ -149,6 +150,13 @@ Repository-language tools keep MCP as transport only. The HTTP query layer owns
 the content-index aggregate, language-family aliases, paging, truncation, and
 truth metadata so MCP clients do not have to fan out through every repository
 coverage response to answer inventory questions.
+
+`get_repository_stats` also stays transport-only. The HTTP query layer resolves
+human repository selectors to a canonical repository id, performs only a bounded
+repository identity lookup in the graph, and reads file/entity/language/type
+counts from content-store coverage when that read model is available. Missing
+coverage is returned as explicit `coverage.missing_evidence` metadata instead
+of MCP inventing totals or retrying a whole-graph traversal.
 
 Supply-chain tools keep the same transport-only contract. The impact explain
 tool forwards one `finding_id` or advisory/CVE plus package, repository, or

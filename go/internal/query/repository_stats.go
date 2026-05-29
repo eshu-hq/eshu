@@ -1,0 +1,202 @@
+package query
+
+import (
+	"context"
+	"fmt"
+	"log/slog"
+	"net/http"
+)
+
+const (
+	repositoryStatsContentCoverageShape = "content_store_repository_coverage"
+	repositoryStatsIdentityOnlyShape    = "repository_identity_only"
+)
+
+// getRepositoryStats returns bounded repository statistics from read models.
+func (h *RepositoryHandler) getRepositoryStats(w http.ResponseWriter, r *http.Request) {
+	repoID, ok := h.resolveRepositoryPathSelector(w, r)
+	if !ok {
+		return
+	}
+
+	ctx := r.Context()
+	timer := startRepositoryQueryStage(ctx, h.Logger, "repository_stats", repoID, "repository_lookup")
+	repo, repoSource, err := h.repositoryStatsRepositoryRef(ctx, repoID)
+	timer.Done(ctx,
+		slog.Bool("found", repo != nil),
+		slog.Bool("error", err != nil),
+		slog.String("source_backend", repoSource),
+		slog.String("query_shape", "repository_id_lookup"),
+	)
+	if err != nil {
+		WriteError(w, http.StatusInternalServerError, fmt.Sprintf("query repository failed: %v", err))
+		return
+	}
+	if repo == nil {
+		WriteError(w, http.StatusNotFound, "repository not found")
+		return
+	}
+
+	timer = startRepositoryQueryStage(ctx, h.Logger, "repository_stats", repoID, "content_coverage")
+	coverage, coverageErr := h.repositoryStatsContentCoverage(ctx, repoID)
+	coverageMap := repositoryStatsCoverageMap(coverage, coverageErr, h.Content != nil)
+	timer.Done(ctx, repositoryStatsCoverageLogAttrs(coverageMap, coverageErr)...)
+
+	WriteJSON(w, http.StatusOK, repositoryStatsResponse(repo, coverage, coverageMap))
+}
+
+func (h *RepositoryHandler) repositoryStatsRepositoryRef(
+	ctx context.Context,
+	repoID string,
+) (any, string, error) {
+	if h != nil && h.Neo4j != nil {
+		row, err := h.Neo4j.RunSingle(ctx, repositoryBaseCypher, map[string]any{"repo_id": repoID})
+		if err != nil {
+			return nil, "graph", err
+		}
+		if row != nil {
+			return RepoRefFromRow(row), "graph", nil
+		}
+	}
+	if h != nil && h.Content != nil {
+		repo, err := h.Content.ResolveRepository(ctx, repoID)
+		if err != nil {
+			return nil, "content_store", err
+		}
+		if repo != nil {
+			return repositoryCatalogMap(*repo), "content_store", nil
+		}
+	}
+	return nil, "unavailable", nil
+}
+
+func (h *RepositoryHandler) repositoryStatsContentCoverage(
+	ctx context.Context,
+	repoID string,
+) (RepositoryContentCoverage, error) {
+	if h == nil || h.Content == nil {
+		return RepositoryContentCoverage{}, nil
+	}
+	coverage, err := h.Content.RepositoryCoverage(ctx, repoID)
+	if err != nil {
+		return RepositoryContentCoverage{}, err
+	}
+	if !coverage.Available || !repositoryStatsCoverageHasEvidence(coverage) {
+		return RepositoryContentCoverage{}, nil
+	}
+	return coverage, nil
+}
+
+func repositoryStatsResponse(
+	repo any,
+	coverage RepositoryContentCoverage,
+	coverageMap map[string]any,
+) map[string]any {
+	stats := map[string]any{
+		"repository":   repo,
+		"file_count":   nil,
+		"languages":    []string{},
+		"entity_count": nil,
+		"entity_types": []string{},
+		"coverage":     coverageMap,
+	}
+	if !coverage.Available {
+		return stats
+	}
+	stats["file_count"] = coverage.FileCount
+	stats["languages"] = repositoryStatsLanguageNames(coverage.Languages)
+	stats["entity_count"] = coverage.EntityCount
+	stats["entity_types"] = repositoryStatsEntityTypeNames(coverage.EntityTypes)
+	return stats
+}
+
+func repositoryStatsCoverageMap(
+	coverage RepositoryContentCoverage,
+	coverageErr error,
+	contentConfigured bool,
+) map[string]any {
+	if coverage.Available && coverageErr == nil {
+		coverageMap := map[string]any{
+			"source_backend":         "content_store",
+			"query_shape":            repositoryStatsContentCoverageShape,
+			"counts_available":       true,
+			"entity_types_available": true,
+			"whole_graph_traversal":  false,
+			"missing_evidence":       []string{},
+			"file_count_source":      "content_files",
+			"entity_count_source":    "content_entities",
+			"languages_source":       "content_files",
+			"entity_types_source":    "content_entities",
+		}
+		if latest := latestCoverageTimestamp(coverage.FileIndexedAt, coverage.EntityIndexedAt); !latest.IsZero() {
+			coverageMap["content_last_indexed_at"] = formatCoverageTimestamp(latest)
+		}
+		return coverageMap
+	}
+
+	missingEvidence := []string{"content_store_coverage"}
+	lastError := ""
+	switch {
+	case coverageErr != nil:
+		missingEvidence = []string{"content_store_coverage_error"}
+		lastError = coverageErr.Error()
+	case !contentConfigured:
+		lastError = "content store not configured"
+	default:
+		lastError = "content store coverage unavailable"
+	}
+
+	coverageMap := map[string]any{
+		"source_backend":         "unavailable",
+		"query_shape":            repositoryStatsIdentityOnlyShape,
+		"counts_available":       false,
+		"entity_types_available": false,
+		"whole_graph_traversal":  false,
+		"missing_evidence":       missingEvidence,
+		"last_error":             lastError,
+	}
+	return coverageMap
+}
+
+func repositoryStatsCoverageLogAttrs(coverageMap map[string]any, coverageErr error) []slog.Attr {
+	return []slog.Attr{
+		slog.Bool("error", coverageErr != nil),
+		slog.String("source_backend", StringVal(coverageMap, "source_backend")),
+		slog.String("query_shape", StringVal(coverageMap, "query_shape")),
+		slog.Bool("counts_available", BoolVal(coverageMap, "counts_available")),
+		slog.Bool("entity_types_available", BoolVal(coverageMap, "entity_types_available")),
+		slog.Bool("whole_graph_traversal", BoolVal(coverageMap, "whole_graph_traversal")),
+		slog.Any("missing_evidence", coverageMap["missing_evidence"]),
+	}
+}
+
+func repositoryStatsLanguageNames(languages []RepositoryLanguageCount) []string {
+	names := make([]string, 0, len(languages))
+	for _, language := range languages {
+		if language.Language == "" {
+			continue
+		}
+		names = append(names, language.Language)
+	}
+	return names
+}
+
+func repositoryStatsEntityTypeNames(entityTypes []RepositoryEntityTypeCount) []string {
+	names := make([]string, 0, len(entityTypes))
+	for _, entityType := range entityTypes {
+		if entityType.EntityType == "" {
+			continue
+		}
+		names = append(names, entityType.EntityType)
+	}
+	return names
+}
+
+func repositoryStatsCoverageHasEvidence(coverage RepositoryContentCoverage) bool {
+	return coverage.FileCount > 0 ||
+		coverage.EntityCount > 0 ||
+		len(coverage.Languages) > 0 ||
+		len(coverage.EntityTypes) > 0 ||
+		!coverage.FileIndexedAt.IsZero() ||
+		!coverage.EntityIndexedAt.IsZero()
+}

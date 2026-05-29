@@ -386,7 +386,7 @@ func codebaseTools() []ToolDefinition {
 		},
 		{
 			Name:        "get_repository_stats",
-			Description: "Get graph-derived statistics about indexed repositories, optionally scoped by repository selector.",
+			Description: "Get bounded read-model statistics about an indexed repository, scoped by repository selector.",
 			InputSchema: map[string]any{
 				"type": "object",
 				"properties": map[string]any{

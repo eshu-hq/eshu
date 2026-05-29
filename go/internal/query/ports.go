@@ -44,6 +44,7 @@ type RepositoryContentCoverage struct {
 	FileCount       int
 	EntityCount     int
 	Languages       []RepositoryLanguageCount
+	EntityTypes     []RepositoryEntityTypeCount
 	FileIndexedAt   time.Time
 	EntityIndexedAt time.Time
 }
@@ -52,6 +53,12 @@ type RepositoryContentCoverage struct {
 type RepositoryLanguageCount struct {
 	Language  string
 	FileCount int
+}
+
+// RepositoryEntityTypeCount captures one entity-type bucket in repo coverage.
+type RepositoryEntityTypeCount struct {
+	EntityType string
+	Count      int
 }
 
 // RepositoryLanguageAggregate captures corpus-level language coverage counts.
