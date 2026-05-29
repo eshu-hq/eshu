@@ -98,6 +98,13 @@ type DefaultHandlers struct {
 	AWSCloudRuntimeDriftWriter         AWSCloudRuntimeDriftFindingWriter
 	AWSCloudRuntimeDriftLogger         *slog.Logger
 
+	// CloudResourceNodeWriter materializes aws_resource facts into canonical
+	// CloudResource graph nodes (issue #805). It must be non-nil alongside
+	// FactLoader for the registry to register DomainAWSResourceMaterialization;
+	// missing either one would drop every aws_resource fact before it reaches
+	// the graph.
+	CloudResourceNodeWriter CloudResourceNodeWriter
+
 	// ContainerImageIdentityWriter persists digest-keyed image identity
 	// decisions for Git, OCI registry, and runtime image evidence.
 	ContainerImageIdentityWriter ContainerImageIdentityWriter
@@ -322,6 +329,15 @@ func implementedDefaultDomainDefinitions(handlers DefaultHandlers) []DomainDefin
 			Logger:         handlers.AWSCloudRuntimeDriftLogger,
 		}
 		definitions = append(definitions, awsRuntimeDrift)
+	}
+	if handlers.FactLoader != nil && handlers.CloudResourceNodeWriter != nil {
+		awsResources := awsResourceMaterializationDomainDefinition()
+		awsResources.Handler = AWSResourceMaterializationHandler{
+			FactLoader:     handlers.FactLoader,
+			NodeWriter:     handlers.CloudResourceNodeWriter,
+			PhasePublisher: handlers.GraphProjectionPhasePublisher,
+		}
+		definitions = append(definitions, awsResources)
 	}
 	if handlers.DeployableUnitCorrelationHandler != nil {
 		definitions = append(definitions, DomainDefinition{

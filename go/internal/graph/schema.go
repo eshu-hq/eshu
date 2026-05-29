@@ -127,6 +127,7 @@ var uidConstraintLabels = []string{
 	"ArgoCDApplication",
 	"ArgoCDApplicationSet",
 	"Class",
+	"CloudResource",
 	"CloudFormationOutput",
 	"CloudFormationParameter",
 	"CloudFormationResource",
@@ -212,6 +213,15 @@ var schemaPerformanceIndexes = []string{
 	"CREATE INDEX annotation_lang IF NOT EXISTS FOR (a:Annotation) ON (a.lang)",
 	"CREATE INDEX k8s_kind IF NOT EXISTS FOR (k:K8sResource) ON (k.kind)",
 	"CREATE INDEX k8s_namespace IF NOT EXISTS FOR (k:K8sResource) ON (k.namespace)",
+	// CloudResource lookup indexes back the AWS relationship edge join
+	// (issue #805). The edge projection resolves both endpoints to a
+	// CloudResource.uid using an in-memory index built from aws_resource facts,
+	// but graph-backed reads (impact, compare, entity-map) anchor on arn,
+	// resource_id, and resource_type. Without these, those reads fall back to a
+	// CloudResource label scan.
+	"CREATE INDEX cloud_resource_arn IF NOT EXISTS FOR (r:CloudResource) ON (r.arn)",
+	"CREATE INDEX cloud_resource_resource_id IF NOT EXISTS FOR (r:CloudResource) ON (r.resource_id)",
+	"CREATE INDEX cloud_resource_type IF NOT EXISTS FOR (r:CloudResource) ON (r.resource_type)",
 	"CREATE INDEX tf_resource_type IF NOT EXISTS FOR (r:TerraformResource) ON (r.resource_type)",
 	// Indexes that back the infrastructure resource aggregate (#690)
 	// grouped-count hot path on the TerraformResource label (the largest

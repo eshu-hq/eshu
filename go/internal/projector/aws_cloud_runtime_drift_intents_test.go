@@ -33,13 +33,12 @@ func TestBuildProjectionQueuesSingleAWSCloudRuntimeDriftIntent(t *testing.T) {
 	if err != nil {
 		t.Fatalf("buildProjection() error = %v, want nil", err)
 	}
-	if got, want := len(projection.reducerIntents), 1; got != want {
+	// AWS resource facts enqueue both the runtime-drift intent and the
+	// CloudResource node materialization intent (issue #805).
+	if got, want := len(projection.reducerIntents), 2; got != want {
 		t.Fatalf("len(reducerIntents) = %d, want %d", got, want)
 	}
-	intent := projection.reducerIntents[0]
-	if got, want := intent.Domain, reducer.DomainAWSCloudRuntimeDrift; got != want {
-		t.Fatalf("intent.Domain = %q, want %q", got, want)
-	}
+	intent := intentForDomain(t, projection.reducerIntents, reducer.DomainAWSCloudRuntimeDrift)
 	if got, want := intent.EntityKey, "aws_cloud_runtime_drift:aws:123456789012:us-east-1:lambda"; got != want {
 		t.Fatalf("intent.EntityKey = %q, want %q", got, want)
 	}
@@ -49,6 +48,79 @@ func TestBuildProjectionQueuesSingleAWSCloudRuntimeDriftIntent(t *testing.T) {
 	if got, want := intent.SourceSystem, "aws"; got != want {
 		t.Fatalf("intent.SourceSystem = %q, want %q", got, want)
 	}
+}
+
+func TestBuildProjectionQueuesAWSResourceMaterializationIntent(t *testing.T) {
+	t.Parallel()
+
+	scopeValue := scope.IngestionScope{
+		ScopeID:      "aws:123456789012:us-east-1:lambda",
+		ScopeKind:    "aws_cloud",
+		SourceSystem: "aws",
+	}
+	generation := scope.ScopeGeneration{
+		ScopeID:      scopeValue.ScopeID,
+		GenerationID: "aws-generation-1",
+		ObservedAt:   time.Date(2026, 5, 14, 10, 0, 0, 0, time.UTC),
+		IngestedAt:   time.Date(2026, 5, 14, 10, 0, 1, 0, time.UTC),
+		Status:       scope.GenerationStatusPending,
+	}
+	envelopes := []facts.Envelope{
+		awsResourceEnvelope("fact-aws-1", scopeValue.ScopeID, generation.GenerationID),
+	}
+
+	projection, err := buildProjection(scopeValue, generation, envelopes)
+	if err != nil {
+		t.Fatalf("buildProjection() error = %v, want nil", err)
+	}
+	intent := intentForDomain(t, projection.reducerIntents, reducer.DomainAWSResourceMaterialization)
+	if got, want := intent.EntityKey, "aws_resource_materialization:aws:123456789012:us-east-1:lambda"; got != want {
+		t.Fatalf("intent.EntityKey = %q, want %q", got, want)
+	}
+	if got, want := intent.FactID, "fact-aws-1"; got != want {
+		t.Fatalf("intent.FactID = %q, want first aws_resource fact", got)
+	}
+	if got, want := intent.SourceSystem, "aws"; got != want {
+		t.Fatalf("intent.SourceSystem = %q, want %q", got, want)
+	}
+}
+
+func TestBuildProjectionDoesNotQueueAWSResourceMaterializationWithoutAWSResource(t *testing.T) {
+	t.Parallel()
+
+	scopeValue := scope.IngestionScope{
+		ScopeID:      "aws:123456789012:us-east-1:lambda",
+		ScopeKind:    "aws_cloud",
+		SourceSystem: "aws",
+	}
+	generation := scope.ScopeGeneration{
+		ScopeID:      scopeValue.ScopeID,
+		GenerationID: "aws-generation-1",
+		ObservedAt:   time.Date(2026, 5, 14, 10, 0, 0, 0, time.UTC),
+		IngestedAt:   time.Date(2026, 5, 14, 10, 0, 1, 0, time.UTC),
+		Status:       scope.GenerationStatusPending,
+	}
+
+	projection, err := buildProjection(scopeValue, generation, nil)
+	if err != nil {
+		t.Fatalf("buildProjection() error = %v, want nil", err)
+	}
+	for _, intent := range projection.reducerIntents {
+		if intent.Domain == reducer.DomainAWSResourceMaterialization {
+			t.Fatalf("unexpected aws_resource_materialization intent without aws_resource facts")
+		}
+	}
+}
+
+func intentForDomain(t *testing.T, intents []ReducerIntent, domain reducer.Domain) ReducerIntent {
+	t.Helper()
+	for _, intent := range intents {
+		if intent.Domain == domain {
+			return intent
+		}
+	}
+	t.Fatalf("no reducer intent found for domain %q", domain)
+	return ReducerIntent{}
 }
 
 func TestBuildProjectionDoesNotQueueAWSCloudRuntimeDriftWithoutAWSResource(t *testing.T) {

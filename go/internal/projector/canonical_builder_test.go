@@ -1161,8 +1161,12 @@ func TestEntityTypeLabelMapCoversAllSchemaLabels(t *testing.T) {
 	sort.Strings(schemaLabels)
 	// File has a uid constraint for code-call endpoint matching, but files are
 	// projected by the file phase rather than parsed content-entity facts.
+	// CloudResource is materialized by the aws_resource_materialization reducer
+	// domain from aws_resource facts (issue #805), not from parsed content-entity
+	// facts, so it has no entity_type mapping in this source-local map.
 	sourceLocalNonEntityLabels := map[string]struct{}{
-		"File": {},
+		"File":          {},
+		"CloudResource": {},
 	}
 	var missing []string
 	for _, label := range schemaLabels {
