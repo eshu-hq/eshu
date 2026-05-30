@@ -113,6 +113,11 @@ func certificateRelationships(
 		if !ok {
 			continue
 		}
+		// The edge is deduped by certificate ARN, but one certificate can back
+		// several HTTPS/SSL listeners on different ports. Per-listener port and
+		// protocol are therefore omitted here — they would reflect only the
+		// first listener and silently misrepresent the rest. The full listener
+		// list (ports/protocols) is preserved on the load balancer resource.
 		observations = append(observations, awscloud.RelationshipObservation{
 			Boundary:         boundary,
 			RelationshipType: relationshipType,
@@ -121,11 +126,7 @@ func certificateRelationships(
 			TargetResourceID: certificateARN,
 			TargetARN:        certificateARN,
 			TargetType:       targetType,
-			Attributes: map[string]any{
-				"load_balancer_port": listener.LoadBalancerPort,
-				"protocol":           strings.TrimSpace(listener.Protocol),
-			},
-			SourceRecordID: loadBalancerARN + "#certificate#" + certificateARN,
+			SourceRecordID:   loadBalancerARN + "#certificate#" + certificateARN,
 		})
 	}
 	return observations
