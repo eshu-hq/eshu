@@ -9,6 +9,7 @@ COMPOSE_FILES="${ESHU_REMOTE_E2E_COMPOSE_FILES:-docker-compose.remote-e2e.yaml}"
 COMPOSE_ENV_FILE="${ESHU_REMOTE_E2E_ENV_FILE:-}"
 API_BASE_URL="${ESHU_REMOTE_E2E_API_BASE_URL:-}"
 API_KEY="${ESHU_REMOTE_E2E_API_KEY:-}"
+API_TIMEOUT_SECONDS="${ESHU_REMOTE_E2E_API_TIMEOUT_SECONDS:-30}"
 CORE_SERVICES="${ESHU_REMOTE_E2E_REQUIRED_SERVICES:-eshu mcp-server ingester projector resolution-engine workflow-coordinator}"
 COLLECTOR_SERVICES="${ESHU_REMOTE_E2E_COLLECTOR_SERVICES:-collector-terraform-state collector-oci-registry collector-package-registry collector-sbom-attestation collector-security-alerts collector-vulnerability-intelligence collector-aws-cloud scanner-worker}"
 EXTRA_SERVICES="${ESHU_REMOTE_E2E_EXTRA_SERVICES:-}"
@@ -108,9 +109,16 @@ api_get() {
 	local path="$1"
 	local output_file="$2"
 	local -a curl_args=(-fsS)
+	require_positive_integer ESHU_REMOTE_E2E_API_TIMEOUT_SECONDS "${API_TIMEOUT_SECONDS}"
 	if [[ -n "${API_KEY}" ]]; then
-		curl_args+=(-H "Authorization: Bearer ${API_KEY}")
+		local curl_config="${TMP_DIR}/curl-auth.conf"
+		local escaped_api_key="${API_KEY//\\/\\\\}"
+		escaped_api_key="${escaped_api_key//\"/\\\"}"
+		printf 'header = "Authorization: Bearer %s"\n' "${escaped_api_key}" >"${curl_config}"
+		chmod 600 "${curl_config}"
+		curl_args+=(-K "${curl_config}")
 	fi
+	curl_args+=(--max-time "${API_TIMEOUT_SECONDS}")
 	curl_args+=("${API_BASE_URL}${path}")
 	curl "${curl_args[@]}" >"${output_file}"
 }
@@ -127,6 +135,15 @@ require_non_negative_integer() {
 	fi
 }
 
+require_positive_integer() {
+	local name="$1"
+	local value="$2"
+	if [[ ! "${value}" =~ ^[0-9]+$ ]] || (( value <= 0 )); then
+		echo "${name} must be a positive integer, got ${value}" >&2
+		return 1
+	fi
+}
+
 representative_default_min() {
 	local value="$1"
 	if [[ -n "${value}" ]]; then
@@ -136,6 +153,10 @@ representative_default_min() {
 	else
 		printf '0'
 	fi
+}
+
+is_representative_mode() {
+	[[ "${CORPUS_MODE}" == "representative" ]]
 }
 
 json_int() {
@@ -152,6 +173,20 @@ require_min_count() {
 		echo "remote E2E aggregate proof count ${label}=${value} below required minimum ${minimum}" >&2
 		return 1
 	fi
+}
+
+should_probe_aggregate_count() {
+	local minimum="$1"
+	if [[ "${CORPUS_MODE}" != "representative" ]]; then
+		return 0
+	fi
+	(( minimum > 0 ))
+}
+
+report_skipped_aggregate_count() {
+	local label="$1"
+	local minimum="$2"
+	printf 'remote E2E aggregate proof count %s skipped: minimum=%s\n' "${label}" "${minimum}"
 }
 
 verify_queue_completion() {
@@ -182,6 +217,51 @@ verify_queue_completion() {
 	return 1
 }
 
+verify_representative_runtime_safety() {
+	echo "Checking representative runtime safety..."
+	if ! api_get "/index-status" "${INDEX_STATUS_FILE}"; then
+		echo "remote E2E representative runtime check could not read ${API_BASE_URL}/index-status" >&2
+		echo "verify the API is reachable and ESHU_REMOTE_E2E_API_KEY is valid when set" >&2
+		return 1
+	fi
+	if jq -e '
+		def count_value($section; $name):
+			if ((.coordinator[$section] // null) | type) == "array" then
+				([.coordinator[$section][]? | select(.name == $name) | (.count // 0)] | add // 0)
+			elif ((.coordinator[$section] // null) | type) == "object" then
+				(.coordinator[$section][$name] // 0)
+			else
+				0
+			end;
+		((.status // "") == "healthy" or (.status // "") == "progressing") and
+		(.queue | type == "object") and
+		((.queue.retrying // 0) == 0) and
+		((.queue.failed // 0) == 0) and
+		((.queue.dead_letter // 0) == 0) and
+		(.coordinator | type == "object") and
+		(count_value("run_status_counts"; "failed") == 0) and
+		(count_value("completeness_counts"; "blocked") == 0)
+	' "${INDEX_STATUS_FILE}" >/dev/null; then
+		jq -r '
+			def count_value($section; $name):
+				if ((.coordinator[$section] // null) | type) == "array" then
+					([.coordinator[$section][]? | select(.name == $name) | (.count // 0)] | add // 0)
+				elif ((.coordinator[$section] // null) | type) == "object" then
+					(.coordinator[$section][$name] // 0)
+				else
+					0
+				end;
+			"remote E2E representative scoped terminal state: status=\(.status // "unknown") outstanding=\(.queue.outstanding // 0) in_flight=\(.queue.in_flight // 0) pending=\(.queue.pending // 0) retrying=\(.queue.retrying // 0) failed=\(.queue.failed // 0) dead_letter=\(.queue.dead_letter // 0) reducer_converging=\(count_value("run_status_counts"; "reducer_converging")) pending_completeness=\(count_value("completeness_counts"; "pending")) blocked_completeness=\(count_value("completeness_counts"; "blocked"))"
+		' "${INDEX_STATUS_FILE}"
+		echo "remote E2E representative runtime safety verified"
+		return 0
+	fi
+
+	echo "remote E2E representative runtime safety not reached" >&2
+	cat "${INDEX_STATUS_FILE}" >&2
+	return 1
+}
+
 verify_aggregate_counts() {
 	echo "Checking aggregate proof counts..."
 
@@ -207,21 +287,52 @@ verify_aggregate_counts() {
 	local sbom_file="${TMP_DIR}/sbom-count.json"
 	local image_file="${TMP_DIR}/container-image-count.json"
 
-	api_get "/package-registry/packages/count" "${package_file}"
-	api_get "/supply-chain/advisories/evidence?cve_id=${ADVISORY_EVIDENCE_CVE_ID}&limit=1" "${advisory_file}"
-	api_get "/supply-chain/impact/findings/count" "${impact_file}"
-	api_get "/supply-chain/security-alerts/reconciliations/count" "${security_alert_file}"
-	api_get "/supply-chain/sbom-attestations/attachments/count" "${sbom_file}"
-	api_get "/supply-chain/container-images/identities/count" "${image_file}"
-
 	local package_count advisory_count impact_count affected_count security_alert_count sbom_count image_count
-	package_count="$(json_int "${package_file}" '.total_packages')"
-	advisory_count="$(json_int "${advisory_file}" '.count')"
-	impact_count="$(json_int "${impact_file}" '.total_findings')"
-	affected_count="$(json_int "${impact_file}" '.affected_findings')"
-	security_alert_count="$(json_int "${security_alert_file}" '.total_reconciliations')"
-	sbom_count="$(json_int "${sbom_file}" '.total_attachments')"
-	image_count="$(json_int "${image_file}" '.total_identities')"
+	package_count=0
+	advisory_count=0
+	impact_count=0
+	affected_count=0
+	security_alert_count=0
+	sbom_count=0
+	image_count=0
+
+	if should_probe_aggregate_count "${package_min}"; then
+		api_get "/package-registry/packages/count" "${package_file}"
+		package_count="$(json_int "${package_file}" '.total_packages')"
+	else
+		report_skipped_aggregate_count package_registry_packages "${package_min}"
+	fi
+	if should_probe_aggregate_count "${advisory_min}"; then
+		api_get "/supply-chain/advisories/evidence?cve_id=${ADVISORY_EVIDENCE_CVE_ID}&limit=1" "${advisory_file}"
+		advisory_count="$(json_int "${advisory_file}" '.count')"
+	else
+		report_skipped_aggregate_count advisory_evidence "${advisory_min}"
+	fi
+	if should_probe_aggregate_count "${impact_min}"; then
+		api_get "/supply-chain/impact/findings/count" "${impact_file}"
+		impact_count="$(json_int "${impact_file}" '.total_findings')"
+		affected_count="$(json_int "${impact_file}" '.affected_findings')"
+	else
+		report_skipped_aggregate_count impact_findings "${impact_min}"
+	fi
+	if should_probe_aggregate_count "${security_alert_min}"; then
+		api_get "/supply-chain/security-alerts/reconciliations/count" "${security_alert_file}"
+		security_alert_count="$(json_int "${security_alert_file}" '.total_reconciliations')"
+	else
+		report_skipped_aggregate_count security_alert_reconciliations "${security_alert_min}"
+	fi
+	if should_probe_aggregate_count "${sbom_min}"; then
+		api_get "/supply-chain/sbom-attestations/attachments/count" "${sbom_file}"
+		sbom_count="$(json_int "${sbom_file}" '.total_attachments')"
+	else
+		report_skipped_aggregate_count sbom_attachments "${sbom_min}"
+	fi
+	if should_probe_aggregate_count "${image_min}"; then
+		api_get "/supply-chain/container-images/identities/count" "${image_file}"
+		image_count="$(json_int "${image_file}" '.total_identities')"
+	else
+		report_skipped_aggregate_count container_image_identities "${image_min}"
+	fi
 
 	require_min_count package_registry_packages "${package_count}" "${package_min}"
 	require_min_count advisory_evidence "${advisory_count}" "${advisory_min}"
@@ -302,10 +413,17 @@ main() {
 	fi
 	resolve_api_base_url
 	resolve_api_key
-	verify_queue_completion
-	verify_workflow_completion
-	verify_aggregate_counts
-	verify_package_registry_metadata_gap
+	if is_representative_mode; then
+		verify_representative_runtime_safety
+		verify_aggregate_counts
+		verify_package_registry_metadata_gap
+		verify_representative_runtime_safety
+	else
+		verify_queue_completion
+		verify_workflow_completion
+		verify_aggregate_counts
+		verify_package_registry_metadata_gap
+	fi
 }
 
 main "$@"

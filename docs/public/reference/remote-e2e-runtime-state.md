@@ -51,13 +51,24 @@ It also requires these hosted collector services:
 - `scanner-worker`
 
 Each service must have a container, be `running`, and either have no Docker
-healthcheck or report `healthy`. The verifier then calls
-`/api/v0/index-status` and requires `status=healthy` with `outstanding`,
-`in_flight`, `pending`, `retrying`, `failed`, and `dead_letter` all at zero.
-It also rejects workflow coordinator state with failed or
+healthcheck or report `healthy`. In smoke and full-corpus modes, the verifier
+then calls `/api/v0/index-status` and requires `status=healthy` with
+`outstanding`, `in_flight`, `pending`, `retrying`, `failed`, and `dead_letter`
+all at zero. It also rejects workflow coordinator state with failed or
 `reducer_converging` runs, blocked completeness rows, or pending completeness
 rows. This keeps queue-zero from masking collectors whose reducer phase
 contract never converged.
+
+Representative mode keeps scheduled collectors enabled, so it uses a scoped
+terminal contract instead of queue-zero. `/api/v0/index-status` must report
+`healthy` or `progressing`, the queue must have zero `retrying`, `failed`, and
+`dead_letter` work, and workflow coordinator `failed` or blocked-completeness
+counts must be zero. The verifier still requires the representative aggregate
+proof counters before accepting the run, while printing outstanding, in-flight,
+pending, `reducer_converging`, and pending-completeness counts as active
+follow-up work. A representative aggregate minimum explicitly set to `0` is not
+required evidence, so the verifier skips that probe. Each API probe is bounded
+by `ESHU_REMOTE_E2E_API_TIMEOUT_SECONDS`, which defaults to `30`.
 
 Set `ESHU_REMOTE_E2E_REQUIRED_SERVICES`,
 `ESHU_REMOTE_E2E_COLLECTOR_SERVICES`, or `ESHU_REMOTE_E2E_EXTRA_SERVICES` to
@@ -89,8 +100,11 @@ proves that an ingester stuck in `Created`, an unhealthy collector, a non-zero
 fact queue, and queue-zero plus stale workflow `reducer_converging` /
 pending-completeness state all fail before a run can be accepted, while a
 healthy runtime set with queue-zero and workflow completion passes. It also
-proves an explicit package-registry too-large metadata gap is accepted only
-when the impact-readiness envelope reports
+proves representative mode can accept scheduled follow-up work only when
+required aggregate evidence has landed and `retrying`, `failed`, `dead_letter`,
+failed workflow, and blocked-completeness counts are zero. It also proves an
+explicit package-registry too-large metadata gap is accepted only when the
+impact-readiness envelope reports
 `package_registry_metadata/metadata_too_large`. Focused status and Postgres
 status-reader coverage also proves `/api/v0/index-status`
 health does not report `healthy` while workflow coordinator runs are still
@@ -102,16 +116,19 @@ not alter Compose service definitions, worker counts, graph writes, collector
 scan shape, retry behavior, or NornicDB settings.
 
 Observability Evidence: the verifier prints each checked service with Docker
-runtime state and health state, then records the checkpointed `/index-status`
-payload on queue or workflow-completion failure. Operators can distinguish a
-missing source-local owner from collector failure, API unavailability,
-projection backlog, and stale workflow phase convergence without reading
-private machine-specific logs or paths. The existing `/api/v0/index-status`,
+runtime state and health state, keeps API bearer tokens out of process
+arguments, bounds API probes with a max-time, and records the checkpointed
+`/index-status` payload on queue, workflow-completion, or representative
+runtime-safety failure. Representative scoped terminal output includes queue
+counts, `reducer_converging`, pending completeness, and blocked completeness so
+operators can distinguish active scheduled work from retry storms, terminal
+failures, and blocked evidence. The existing `/api/v0/index-status`,
 `/api/v0/status/index`, and admin status report now carry workflow coordinator
 `run_status_counts`, `work_item_status_counts`, `completeness_counts`, active
-and overdue claim counts, queue/domain ages, and health reasons that distinguish
-fact-queue backlog, shared projection backlog, workflow convergence, blocked
-completeness, failed workflow runs, and stale pending workflow work.
+and overdue claim counts, queue/domain ages, and health reasons that
+distinguish fact-queue backlog, shared projection backlog, workflow
+convergence, blocked completeness, failed workflow runs, and stale pending
+workflow work.
 When `ESHU_REMOTE_E2E_PACKAGE_REGISTRY_GAP_PACKAGE_ID` is set, the verifier
 also prints `package_registry_metadata_too_large_gaps` from the bounded
 readiness response without printing package names, metadata URLs, or feed

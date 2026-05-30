@@ -121,24 +121,36 @@ docker compose --env-file "${ESHU_REMOTE_E2E_ENV_FILE}" \
 
 ## Representative Acceptance
 
-After a representative run reaches queue zero, run:
+After a representative stack finishes the required corpus pass, run:
 
 ```bash
 ESHU_REMOTE_E2E_CORPUS_MODE=representative \
   scripts/verify_remote_e2e_runtime_state.sh
 ```
 
-The verifier checks service health, terminal queue state, workflow terminal
-state, and aggregate proof counters. In representative mode the package,
-advisory-evidence, impact-finding, security-alert reconciliation, SBOM
-attachment, and container-image identity counters default to minimum `1`. The
-advisory-evidence probe is scoped by `ESHU_REMOTE_E2E_ADVISORY_EVIDENCE_CVE_ID`;
-when unset, it falls back to `ESHU_VULNERABILITY_E2E_CVE_ID`, then
-`CVE-2021-44228`. Use these env vars only to make the recorded corpus contract
-more explicit:
+The verifier checks service health, runtime safety, and aggregate proof
+counters. Smoke and full-corpus modes still require strict queue-zero plus
+workflow completion. Representative mode uses a scoped terminal contract
+because scheduled collectors remain enabled in the remote Compose profile: the
+API status must be `healthy` or `progressing`, `retrying`, `failed`, and
+`dead_letter` queue counts must be zero, and workflow coordinator `failed` or
+blocked-completeness rows must be zero. Outstanding, in-flight, pending,
+`reducer_converging`, and pending-completeness counts are printed as
+observability when scheduled follow-up work is still active; they do not fail a
+representative proof once the required aggregate evidence has landed. In
+representative mode the package, advisory-evidence, impact-finding,
+security-alert reconciliation, SBOM attachment, and container-image identity
+counters default to minimum `1`. If a representative corpus explicitly sets one
+of those minimums to `0`, the verifier skips that probe instead of turning an
+unrequired read surface into a proof blocker. The advisory-evidence probe is
+scoped by `ESHU_REMOTE_E2E_ADVISORY_EVIDENCE_CVE_ID`; when unset, it falls back
+to `ESHU_VULNERABILITY_E2E_CVE_ID`, then `CVE-2021-44228`. API probes are
+bounded by `ESHU_REMOTE_E2E_API_TIMEOUT_SECONDS`, which defaults to `30`. Use
+these env vars only to make the recorded corpus contract more explicit:
 
 ```text
 ESHU_REMOTE_E2E_ADVISORY_EVIDENCE_CVE_ID=
+ESHU_REMOTE_E2E_API_TIMEOUT_SECONDS=30
 ESHU_REMOTE_E2E_DERIVED_TARGET_LIMIT=100
 ESHU_REMOTE_E2E_MIN_PACKAGE_COUNT=
 ESHU_REMOTE_E2E_MIN_ADVISORY_EVIDENCE_COUNT=
@@ -162,12 +174,17 @@ evidence.
 
 No-Regression Evidence: `scripts/test-remote-e2e-corpus-preflight.sh` and
 `scripts/test-verify-remote-e2e-runtime-state.sh` cover representative corpus
-bounds, unknown modes, terminal queue state, and aggregate counter thresholds.
+bounds, unknown modes, strict terminal queue state, representative scoped
+terminal state, failed/retrying/dead-letter guardrails, and aggregate counter
+thresholds. The verifier harness also proves API tokens are not exposed in
+curl process arguments, API calls carry a max-time, and representative
+aggregate probes with explicit minimum `0` are skipped.
 
 Observability Evidence: `scripts/verify_remote_e2e_runtime_state.sh` reports
-terminal queue counts including `dead_letter` plus aggregate package,
-advisory-evidence, impact-finding, security-alert reconciliation, SBOM
-attachment, and container-image identity counters. When configured with
+strict terminal queue counts or representative scoped terminal counts including
+`dead_letter`, workflow convergence, and pending completeness, plus aggregate
+package, advisory-evidence, impact-finding, security-alert reconciliation,
+SBOM attachment, and container-image identity counters. When configured with
 `ESHU_REMOTE_E2E_PACKAGE_REGISTRY_GAP_PACKAGE_ID`, it also reports the bounded
 `package_registry_metadata_too_large_gaps` count from the readiness API so an
 expected size-limit coverage gap is visible without exposing private package

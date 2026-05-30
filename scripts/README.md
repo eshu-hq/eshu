@@ -27,12 +27,17 @@ start their own Compose project, choose ports, and tear the stack down unless
 `verify_remote_e2e_runtime_state.sh` is the post-start gate for the hosted
 remote collector E2E stack. It does not start containers. Run it after the
 remote Compose stack is up to prove the API, MCP server, ingester,
-resolution engine, workflow coordinator, hosted collectors, and checkpointed
-queue completion are all healthy before treating the run as deployable proof.
-It also prints aggregate package, advisory, impact, security-alert, SBOM, and
-image identity counts. Use `ESHU_REMOTE_E2E_COMPOSE_FILES` as a colon-separated
-Compose file list and `ESHU_REMOTE_E2E_ENV_FILE` when the stack uses a private
-env file.
+resolution engine, workflow coordinator, and hosted collectors are healthy, and
+the checkpointed runtime state is acceptable, before treating the run as
+deployable proof. Smoke and full-corpus modes require queue-zero;
+representative mode accepts only the scoped terminal contract documented in the
+remote E2E guide so scheduled collectors do not make the inner-loop proof
+nondeterministic. API probes use a bounded max-time and keep bearer tokens out
+of process arguments. It also
+prints aggregate package, advisory, impact, security-alert, SBOM, and image
+identity counts when those probes are required. Use
+`ESHU_REMOTE_E2E_COMPOSE_FILES` as a colon-separated Compose file list and
+`ESHU_REMOTE_E2E_ENV_FILE` when the stack uses a private env file.
 
 `remote-e2e-corpus-preflight.sh` is the one-shot corpus guard used by
 `docker-compose.remote-e2e.yaml`. Smoke mode is fixture-friendly, representative
