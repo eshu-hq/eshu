@@ -34,11 +34,26 @@ func isARN(value string) bool {
 	return strings.HasPrefix(strings.TrimSpace(value), "arn:")
 }
 
+// arnService returns the service segment (the third colon-delimited field) of
+// an AWS ARN, or "" when value is not an ARN with a service segment. Matching
+// the service segment exactly avoids mis-classifying an ARN whose resource
+// portion merely contains a service-like substring (e.g. a Lambda function ARN
+// whose name embeds "sns").
+func arnService(value string) string {
+	parts := strings.SplitN(strings.TrimSpace(value), ":", 4)
+	if len(parts) < 3 {
+		return ""
+	}
+	return parts[2]
+}
+
 // isSNSTopicARN reports whether value is an SNS topic ARN. CodeCommit trigger
 // destinations are most commonly SNS topics; only those produce a typed
-// repository-to-SNS-topic edge.
+// repository-to-SNS-topic edge. It matches the ARN service segment exactly so a
+// non-SNS ARN that merely contains "sns" in its resource portion is not
+// promoted to an SNS edge.
 func isSNSTopicARN(value string) bool {
-	return isARN(value) && strings.Contains(value, ":sns:")
+	return isARN(value) && arnService(value) == "sns"
 }
 
 // cloneURLHost extracts the host segment of a clone URL so the scanner records

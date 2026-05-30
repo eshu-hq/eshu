@@ -165,6 +165,22 @@ func TestNonSNSTriggerDestinationEmitsNoEdge(t *testing.T) {
 	}
 }
 
+// TestLambdaARNWithSNSSubstringEmitsNoEdge guards the ARN-service-segment match:
+// a Lambda ARN whose resource portion produces a ":sns:" substring (a function
+// literally named "sns" with an alias/version) must NOT be promoted to an SNS
+// topic edge. A loose strings.Contains(":sns:") check would have mis-typed it.
+func TestLambdaARNWithSNSSubstringEmitsNoEdge(t *testing.T) {
+	repository := fullRepository()
+	repository.Triggers = []Trigger{{
+		Name:           "lambda-sns-named",
+		DestinationARN: "arn:aws:lambda:us-east-1:123456789012:function:sns:PROD",
+		Events:         []string{"all"},
+	}}
+	if rels := triggerRelationships(testBoundary(), repository); len(rels) != 0 {
+		t.Fatalf("a Lambda ARN containing a ':sns:' substring must not emit an SNS edge, got %#v", rels)
+	}
+}
+
 func TestDuplicateSNSTriggersCollapseToOneEdge(t *testing.T) {
 	repository := fullRepository()
 	repository.Triggers = []Trigger{
