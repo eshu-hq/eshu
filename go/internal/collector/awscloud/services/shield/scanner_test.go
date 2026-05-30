@@ -112,7 +112,7 @@ func TestScannerClassifiesProtectedResourceTargets(t *testing.T) {
 		{"elbv2", testProtectionELBARN, awscloud.ResourceTypeELBv2LoadBalancer, testLoadBalancerARN, testLoadBalancerARN},
 		{"cloudfront", testProtectionCFARN, awscloud.ResourceTypeCloudFrontDistribution, testDistributionARN, testDistributionARN},
 		{"eip", testProtectionEIPARN, awscloud.ResourceTypeVPCElasticIP, testElasticIPAllocation, ""},
-		{"route53", testProtectionZoneARN, awscloud.ResourceTypeRoute53HostedZone, testHostedZoneID, ""},
+		{"route53", testProtectionZoneARN, awscloud.ResourceTypeRoute53HostedZone, "/hostedzone/" + testHostedZoneID, ""},
 		{"globalaccelerator", testProtectionGAARN, awscloud.ResourceTypeGlobalAcceleratorAccelerator, testAcceleratorARN, testAcceleratorARN},
 	}
 	for _, tc := range cases {

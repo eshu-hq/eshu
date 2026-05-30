@@ -85,8 +85,11 @@ func classifyProtectedARN(arn string) (protectedTarget, bool) {
 			return protectedTarget{}, false
 		}
 		return protectedTarget{
-			TargetType:       awscloud.ResourceTypeRoute53HostedZone,
-			TargetResourceID: zoneID,
+			TargetType: awscloud.ResourceTypeRoute53HostedZone,
+			// The route53 scanner publishes the hosted zone resource_id with the
+			// "/hostedzone/" prefix (it does not strip the API-reported ID), so
+			// the edge must carry the same prefixed form to join the node.
+			TargetResourceID: "/hostedzone/" + zoneID,
 			ARNKeyed:         false,
 		}, true
 	default:
