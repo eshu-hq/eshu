@@ -3,6 +3,7 @@ package lakeformation
 import (
 	"context"
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
@@ -66,8 +67,8 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 	if err != nil {
 		return nil, fmt.Errorf("list Lake Formation permissions: %w", err)
 	}
-	for index, permission := range permissions {
-		next, err := permissionEnvelopes(boundary, index, permission)
+	for _, permission := range permissions {
+		next, err := permissionEnvelopes(boundary, permission)
 		if err != nil {
 			return nil, err
 		}
@@ -99,8 +100,8 @@ func registeredResourceEnvelopes(boundary awscloud.Boundary, resource Registered
 	return envelopes, nil
 }
 
-func permissionEnvelopes(boundary awscloud.Boundary, index int, permission Permission) ([]facts.Envelope, error) {
-	permissionID := permissionResourceID(boundary, index, permission)
+func permissionEnvelopes(boundary awscloud.Boundary, permission Permission) ([]facts.Envelope, error) {
+	permissionID := permissionResourceID(boundary, permission)
 	resourceEnvelope, err := awscloud.NewResourceEnvelope(permissionObservation(boundary, permissionID, permission))
 	if err != nil {
 		return nil, err
@@ -184,8 +185,9 @@ func permissionObservation(boundary awscloud.Boundary, permissionID string, perm
 // permission grant from its principal and governed resource reference. Lake
 // Formation does not assign grants an ARN, so the scanner synthesizes a bare
 // identifier (never an ARN) keyed on the grant's natural identity, with the
-// list index as a final disambiguator for grants that would otherwise collide.
-func permissionResourceID(boundary awscloud.Boundary, index int, permission Permission) string {
+// grant's (order-independent) privileges as a final disambiguator for grants
+// that would otherwise collide, so the identity does not depend on API order.
+func permissionResourceID(boundary awscloud.Boundary, permission Permission) string {
 	var resourceRef string
 	switch strings.TrimSpace(permission.ResourceKind) {
 	case "table":
@@ -202,11 +204,24 @@ func permissionResourceID(boundary awscloud.Boundary, index int, permission Perm
 	}
 	principal := strings.TrimSpace(permission.PrincipalID)
 	return fmt.Sprintf(
-		"lakeformation-permission:%s:%s:%s:%s#%d",
+		"lakeformation-permission:%s:%s:%s:%s:%s",
 		strings.TrimSpace(boundary.AccountID),
 		strings.TrimSpace(boundary.Region),
 		principal,
 		resourceRef,
-		index,
+		permissionPrivilegeKey(permission),
 	)
+}
+
+// permissionPrivilegeKey renders the grant's privileges and grantable privileges
+// as an order-independent string, so the synthesized permission identity depends
+// only on the grant's natural fields (account, region, principal, resource, and
+// privileges) rather than the ListPermissions page order. Two grants that share
+// every natural field are the same grant and intentionally collapse to one id.
+func permissionPrivilegeKey(permission Permission) string {
+	privileges := append([]string(nil), permission.Privileges...)
+	grantable := append([]string(nil), permission.GrantablePrivileges...)
+	sort.Strings(privileges)
+	sort.Strings(grantable)
+	return strings.Join(privileges, ",") + "|" + strings.Join(grantable, ",")
 }

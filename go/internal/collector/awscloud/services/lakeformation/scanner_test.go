@@ -214,7 +214,7 @@ func TestScannerOmitsPrincipalEdgeWhenPrincipalIsNotRoleARN(t *testing.T) {
 	}
 }
 
-func TestScannerEmitsTableEdgeForTableWildcardGrant(t *testing.T) {
+func TestScannerEmitsDatabaseEdgeForTableWildcardGrant(t *testing.T) {
 	client := fakeClient{permissions: []Permission{{
 		PrincipalID:   "arn:aws:iam::123456789012:role/Analyst",
 		ResourceKind:  "table",
@@ -227,9 +227,16 @@ func TestScannerEmitsTableEdgeForTableWildcardGrant(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Scan() error = %v, want nil", err)
 	}
-	permTable := relationshipByType(t, envelopes, awscloud.RelationshipLakeFormationPermissionOnGlueTable)
-	if got, want := permTable.Payload["target_resource_id"], "analytics"; got != want {
-		t.Fatalf("wildcard permission->table target_resource_id = %#v, want %q (database join key)", got, want)
+	// A table-wildcard grant has no single Glue table to join (the Glue table
+	// resource_id is "database/table"), so it must route to the Glue database
+	// node keyed by the bare database name, not emit an aws_glue_table edge with
+	// a database-shaped id that would dangle.
+	if got := countRelationships(envelopes, awscloud.RelationshipLakeFormationPermissionOnGlueTable); got != 0 {
+		t.Fatalf("wildcard grant must not emit a glue-table edge, got %d", got)
+	}
+	permDB := relationshipByType(t, envelopes, awscloud.RelationshipLakeFormationPermissionOnGlueDatabase)
+	if got, want := permDB.Payload["target_resource_id"], "analytics"; got != want {
+		t.Fatalf("wildcard permission->database target_resource_id = %#v, want %q", got, want)
 	}
 }
 

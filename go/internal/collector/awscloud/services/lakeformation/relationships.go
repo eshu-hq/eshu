@@ -87,13 +87,28 @@ func permissionResourceRelationship(boundary awscloud.Boundary, permissionID str
 	databaseName := strings.TrimSpace(permission.DatabaseName)
 	switch strings.TrimSpace(permission.ResourceKind) {
 	case "table":
+		if permission.TableWildcard {
+			// A table-wildcard grant covers every table in the database; there is
+			// no single Glue table node to join, so route it to the Glue database
+			// node (keyed by the bare database name). Emitting an aws_glue_table
+			// edge here would carry a database-shaped id (the Glue table
+			// resource_id is "database/table") and never join a table node.
+			if databaseName == "" {
+				return nil
+			}
+			return &awscloud.RelationshipObservation{
+				Boundary:         boundary,
+				RelationshipType: awscloud.RelationshipLakeFormationPermissionOnGlueDatabase,
+				SourceResourceID: permissionID,
+				TargetResourceID: databaseName,
+				TargetType:       awscloud.ResourceTypeGlueDatabase,
+				Attributes:       map[string]any{"table_wildcard": true},
+				SourceRecordID:   permissionID + "->" + awscloud.RelationshipLakeFormationPermissionOnGlueDatabase + ":" + databaseName,
+			}
+		}
 		tableID := glueTableResourceID(databaseName, permission.TableName)
 		if tableID == "" {
 			return nil
-		}
-		attributes := map[string]any{"database_name": databaseName}
-		if permission.TableWildcard {
-			attributes["table_wildcard"] = true
 		}
 		return &awscloud.RelationshipObservation{
 			Boundary:         boundary,
@@ -101,7 +116,7 @@ func permissionResourceRelationship(boundary awscloud.Boundary, permissionID str
 			SourceResourceID: permissionID,
 			TargetResourceID: tableID,
 			TargetType:       awscloud.ResourceTypeGlueTable,
-			Attributes:       attributes,
+			Attributes:       map[string]any{"database_name": databaseName},
 			SourceRecordID:   permissionID + "->" + awscloud.RelationshipLakeFormationPermissionOnGlueTable + ":" + tableID,
 		}
 	case "database":
