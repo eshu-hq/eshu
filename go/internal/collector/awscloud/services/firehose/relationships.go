@@ -33,6 +33,7 @@ func deliveryStreamRelationships(boundary awscloud.Boundary, stream DeliveryStre
 	seenRole := make(map[string]struct{})
 	seenLambda := make(map[string]struct{})
 	seenLogGroup := make(map[string]struct{})
+	seenS3 := make(map[string]struct{})
 	for _, destination := range stream.Destinations {
 		if edge, ok := deliveryRoleRelationship(boundary, streamID, streamARN, destination, seenRole); ok {
 			observations = append(observations, edge)
@@ -45,8 +46,55 @@ func deliveryStreamRelationships(boundary awscloud.Boundary, stream DeliveryStre
 		if edge, ok := destinationTargetRelationship(boundary, streamID, streamARN, destination); ok {
 			observations = append(observations, edge)
 		}
+		// An S3-kind destination already emitted its primary bucket edge above;
+		// record it so a staging edge to the same bucket does not duplicate.
+		if destination.Kind == destinationKindS3 {
+			if bucketARN := strings.TrimSpace(destination.S3BucketARN); isARN(bucketARN) {
+				seenS3[bucketARN] = struct{}{}
+			}
+		}
+		if edge, ok := stagingS3Relationship(boundary, streamID, streamARN, destination, seenS3); ok {
+			observations = append(observations, edge)
+		}
 	}
 	return observations
+}
+
+// stagingS3Relationship emits the stream->S3 edge for a non-S3 destination's
+// staging/backup bucket. Redshift, Splunk, and HTTP-endpoint destinations stage
+// records in S3 around delivery and AWS reports that bucket ARN; without this
+// the staging-bucket join the docs advertise is silently dropped. S3 destinations
+// emit their primary bucket edge via destinationTargetRelationship, so this skips
+// them and dedups any bucket already keyed for the stream.
+func stagingS3Relationship(
+	boundary awscloud.Boundary,
+	streamID string,
+	streamARN string,
+	destination Destination,
+	seen map[string]struct{},
+) (awscloud.RelationshipObservation, bool) {
+	if destination.Kind == destinationKindS3 {
+		return awscloud.RelationshipObservation{}, false
+	}
+	bucketARN := strings.TrimSpace(destination.S3BucketARN)
+	if !isARN(bucketARN) {
+		return awscloud.RelationshipObservation{}, false
+	}
+	if _, ok := seen[bucketARN]; ok {
+		return awscloud.RelationshipObservation{}, false
+	}
+	seen[bucketARN] = struct{}{}
+	return awscloud.RelationshipObservation{
+		Boundary:         boundary,
+		RelationshipType: awscloud.RelationshipFirehoseStreamDeliversToS3Bucket,
+		SourceResourceID: streamID,
+		SourceARN:        streamARN,
+		TargetResourceID: bucketARN,
+		TargetARN:        bucketARN,
+		TargetType:       awscloud.ResourceTypeS3Bucket,
+		Attributes:       map[string]any{"staging_bucket": true},
+		SourceRecordID:   streamID + "#s3-staging#" + bucketARN,
+	}, true
 }
 
 // sourceKinesisStreamRelationship emits the stream-sourced-from-Kinesis edge

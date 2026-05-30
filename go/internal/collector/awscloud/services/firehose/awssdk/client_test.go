@@ -51,7 +51,7 @@ func TestAPIClientExcludesMutationAndRecordOperations(t *testing.T) {
 		}
 	}
 
-	allowed := map[string]struct{}{"ListDeliveryStreams": {}, "DescribeDeliveryStream": {}}
+	allowed := map[string]struct{}{"ListDeliveryStreams": {}, "DescribeDeliveryStream": {}, "ListTagsForDeliveryStream": {}}
 	if got := apiType.NumMethod(); got != len(allowed) {
 		t.Fatalf("apiClient has %d methods, want %d (only the read surface)", got, len(allowed))
 	}
@@ -246,6 +246,7 @@ type fakeFirehoseAPI struct {
 	namePages []*awsfirehose.ListDeliveryStreamsOutput
 	nameCalls int
 	describe  map[string]*awsfirehose.DescribeDeliveryStreamOutput
+	tags      map[string]*awsfirehose.ListTagsForDeliveryStreamOutput
 }
 
 func (f *fakeFirehoseAPI) ListDeliveryStreams(
@@ -273,6 +274,19 @@ func (f *fakeFirehoseAPI) DescribeDeliveryStream(
 		return output, nil
 	}
 	return &awsfirehose.DescribeDeliveryStreamOutput{}, nil
+}
+
+func (f *fakeFirehoseAPI) ListTagsForDeliveryStream(
+	_ context.Context,
+	input *awsfirehose.ListTagsForDeliveryStreamInput,
+	_ ...func(*awsfirehose.Options),
+) (*awsfirehose.ListTagsForDeliveryStreamOutput, error) {
+	if f.tags != nil {
+		if output, ok := f.tags[aws.ToString(input.DeliveryStreamName)]; ok {
+			return output, nil
+		}
+	}
+	return &awsfirehose.ListTagsForDeliveryStreamOutput{HasMoreTags: aws.Bool(false)}, nil
 }
 
 var _ apiClient = (*fakeFirehoseAPI)(nil)

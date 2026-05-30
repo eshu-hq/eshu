@@ -25,6 +25,7 @@ import (
 type apiClient interface {
 	ListDeliveryStreams(context.Context, *awsfirehose.ListDeliveryStreamsInput, ...func(*awsfirehose.Options)) (*awsfirehose.ListDeliveryStreamsOutput, error)
 	DescribeDeliveryStream(context.Context, *awsfirehose.DescribeDeliveryStreamInput, ...func(*awsfirehose.Options)) (*awsfirehose.DescribeDeliveryStreamOutput, error)
+	ListTagsForDeliveryStream(context.Context, *awsfirehose.ListTagsForDeliveryStreamInput, ...func(*awsfirehose.Options)) (*awsfirehose.ListTagsForDeliveryStreamOutput, error)
 }
 
 // Client adapts the AWS SDK Firehose read operations into the scanner-owned
@@ -73,6 +74,11 @@ func (c *Client) ListDeliveryStreams(ctx context.Context) ([]firehoseservice.Del
 		if stream == nil {
 			continue
 		}
+		tags, err := c.listDeliveryStreamTags(ctx, name)
+		if err != nil {
+			return nil, err
+		}
+		stream.Tags = tags
 		streams = append(streams, *stream)
 	}
 	return streams, nil
@@ -108,6 +114,48 @@ func (c *Client) listDeliveryStreamNames(ctx context.Context) ([]string, error) 
 		}
 		exclusiveStart = aws.String(page.DeliveryStreamNames[len(page.DeliveryStreamNames)-1])
 	}
+}
+
+// listDeliveryStreamTags reads one delivery stream's AWS resource tags with the
+// paginated ListTagsForDeliveryStream API. Tags are bounded key/value metadata;
+// the call is read-only. It returns nil for an untagged stream.
+func (c *Client) listDeliveryStreamTags(ctx context.Context, name string) (map[string]string, error) {
+	trimmed := strings.TrimSpace(name)
+	if trimmed == "" {
+		return nil, nil
+	}
+	tags := map[string]string{}
+	var exclusiveStart *string
+	for {
+		var output *awsfirehose.ListTagsForDeliveryStreamOutput
+		err := c.recordAPICall(ctx, "ListTagsForDeliveryStream", func(callCtx context.Context) error {
+			var callErr error
+			output, callErr = c.client.ListTagsForDeliveryStream(callCtx, &awsfirehose.ListTagsForDeliveryStreamInput{
+				DeliveryStreamName:   aws.String(trimmed),
+				ExclusiveStartTagKey: exclusiveStart,
+			})
+			return callErr
+		})
+		if err != nil {
+			return nil, err
+		}
+		if output == nil {
+			break
+		}
+		for _, tag := range output.Tags {
+			if key := strings.TrimSpace(aws.ToString(tag.Key)); key != "" {
+				tags[key] = aws.ToString(tag.Value)
+			}
+		}
+		if !aws.ToBool(output.HasMoreTags) || len(output.Tags) == 0 {
+			break
+		}
+		exclusiveStart = output.Tags[len(output.Tags)-1].Key
+	}
+	if len(tags) == 0 {
+		return nil, nil
+	}
+	return tags, nil
 }
 
 // describeDeliveryStream reads one delivery stream's description and maps it

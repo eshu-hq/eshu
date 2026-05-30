@@ -243,6 +243,27 @@ func TestScannerRequiresClient(t *testing.T) {
 	}
 }
 
+// TestStagingS3RelationshipForNonS3Destination guards the staging-bucket join: a
+// non-S3 destination (Redshift/Splunk/HTTP) that reports a backup/staging S3
+// bucket must still emit a stream->S3 edge, while an S3-kind destination's bucket
+// is handled by the primary edge and must not double-emit here.
+func TestStagingS3RelationshipForNonS3Destination(t *testing.T) {
+	const streamARN = "arn:aws:firehose:us-east-1:123456789012:deliverystream/stream-1"
+	edge, ok := stagingS3Relationship(testBoundary(), "stream-1", streamARN,
+		Destination{Kind: destinationKindRedshift, S3BucketARN: "arn:aws:s3:::staging-bucket", RedshiftClusterIdentifier: "warehouse"},
+		map[string]struct{}{})
+	if !ok {
+		t.Fatal("expected a staging S3 edge for a Redshift destination with a backup bucket")
+	}
+	if edge.TargetType != awscloud.ResourceTypeS3Bucket || edge.TargetResourceID != "arn:aws:s3:::staging-bucket" {
+		t.Fatalf("staging edge = %+v, want S3 bucket arn:aws:s3:::staging-bucket", edge)
+	}
+	if _, ok := stagingS3Relationship(testBoundary(), "stream-1", streamARN,
+		Destination{Kind: destinationKindS3, S3BucketARN: "arn:aws:s3:::primary"}, map[string]struct{}{}); ok {
+		t.Fatal("S3-kind destination must not emit a staging edge (its primary edge covers it)")
+	}
+}
+
 func testBoundary() awscloud.Boundary {
 	return awscloud.Boundary{
 		AccountID:           "123456789012",
