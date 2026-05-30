@@ -122,6 +122,15 @@ state_dir="${ESHU_REMOTE_E2E_TEST_STATE:?set ESHU_REMOTE_E2E_TEST_STATE}"
 if [[ -f "${state_dir}/curl-fails" ]]; then
   exit 7
 fi
+printf '%s\n' "$*" >>"${state_dir}/curl-targets"
+if [[ "$*" == *"test-api-key"* ]]; then
+  echo "curl arguments leaked API key" >&2
+  exit 2
+fi
+if [[ "$*" != *"--max-time"* ]]; then
+  echo "curl call is missing max-time" >&2
+  exit 2
+fi
 case "$*" in
   *"/api/v0/index-status"*)
     cat "${state_dir}/index-status.json"
@@ -157,7 +166,7 @@ chmod +x "${fake_bin}/curl"
 
 reset_state() {
   rm -rf "${state_dir}/containers" "${state_dir}/service_ids"
-  rm -f "${state_dir}/curl-fails"
+  rm -f "${state_dir}/curl-fails" "${state_dir}/curl-targets"
   mkdir -p "${state_dir}/containers" "${state_dir}/service_ids"
   cat >"${state_dir}/services" <<'SERVICES'
 eshu
@@ -343,7 +352,6 @@ cat >"${state_dir}/index-status.json" <<'JSON'
 }
 JSON
 expect_fail_with 'workflow completion'
-
 reset_state
 set_all_services_healthy
 expect_pass
@@ -352,7 +360,105 @@ if ! rg -q 'remote E2E aggregate proof counts: package_registry_packages=3 advis
   sed -n '1,220p' /tmp/eshu-remote-e2e-runtime.out >&2
   exit 1
 fi
-
+reset_state
+set_all_services_healthy
+cat >"${state_dir}/index-status.json" <<'JSON'
+{
+  "status": "progressing",
+  "queue": {
+    "outstanding": 8,
+    "in_flight": 2,
+    "pending": 6,
+    "retrying": 0,
+    "failed": 0,
+    "dead_letter": 0
+  },
+  "coordinator": {
+    "run_status_counts": [
+      {"name": "complete", "count": 12},
+      {"name": "reducer_converging", "count": 4}
+    ],
+    "completeness_counts": [
+      {"name": "pending", "count": 7}
+    ]
+  }
+}
+JSON
+export ESHU_REMOTE_E2E_CORPUS_MODE=representative
+expect_pass
+if ! rg -q 'remote E2E representative scoped terminal state:' /tmp/eshu-remote-e2e-runtime.out; then
+  printf 'expected representative scoped terminal state in verifier output\n' >&2
+  sed -n '1,260p' /tmp/eshu-remote-e2e-runtime.out >&2
+  exit 1
+fi
+unset ESHU_REMOTE_E2E_CORPUS_MODE
+reset_state
+set_all_services_healthy
+export ESHU_REMOTE_E2E_CORPUS_MODE=representative
+export ESHU_REMOTE_E2E_MIN_ADVISORY_EVIDENCE_COUNT=0
+expect_pass
+if rg -q '/api/v0/supply-chain/advisories/evidence' "${state_dir}/curl-targets"; then
+  printf 'expected representative verifier to skip advisory evidence probe when minimum is zero\n' >&2
+  sed -n '1,240p' "${state_dir}/curl-targets" >&2
+  exit 1
+fi
+if ! rg -q 'remote E2E aggregate proof count advisory_evidence skipped: minimum=0' /tmp/eshu-remote-e2e-runtime.out; then
+  printf 'expected representative verifier to report skipped advisory evidence probe\n' >&2
+  exit 1
+fi
+unset ESHU_REMOTE_E2E_MIN_ADVISORY_EVIDENCE_COUNT
+unset ESHU_REMOTE_E2E_CORPUS_MODE
+reset_state
+set_all_services_healthy
+cat >"${state_dir}/index-status.json" <<'JSON'
+{
+  "status": "progressing",
+  "queue": {
+    "outstanding": 8,
+    "in_flight": 1,
+    "pending": 6,
+    "retrying": 1,
+    "failed": 0,
+    "dead_letter": 0
+  },
+  "coordinator": {
+    "run_status_counts": [
+      {"name": "complete", "count": 12}
+    ],
+    "completeness_counts": []
+  }
+}
+JSON
+export ESHU_REMOTE_E2E_CORPUS_MODE=representative
+expect_fail_with 'representative runtime safety'
+unset ESHU_REMOTE_E2E_CORPUS_MODE
+reset_state
+set_all_services_healthy
+cat >"${state_dir}/index-status.json" <<'JSON'
+{
+  "status": "healthy",
+  "queue": {
+    "outstanding": 0,
+    "in_flight": 0,
+    "pending": 0,
+    "retrying": 0,
+    "failed": 0,
+    "dead_letter": 0
+  },
+  "coordinator": {
+    "run_status_counts": [
+      {"name": "complete", "count": 12},
+      {"name": "failed", "count": 1}
+    ],
+    "completeness_counts": [
+      {"name": "blocked", "count": 1}
+    ]
+  }
+}
+JSON
+export ESHU_REMOTE_E2E_CORPUS_MODE=representative
+expect_fail_with 'representative runtime safety'
+unset ESHU_REMOTE_E2E_CORPUS_MODE
 reset_state
 set_all_services_healthy
 export ESHU_REMOTE_E2E_PACKAGE_REGISTRY_GAP_PACKAGE_ID='npm://registry.npmjs.org/oversized'
@@ -368,7 +474,6 @@ if rg -q 'npm://registry.npmjs.org/oversized' /tmp/eshu-remote-e2e-runtime.out; 
   exit 1
 fi
 unset ESHU_REMOTE_E2E_PACKAGE_REGISTRY_GAP_PACKAGE_ID
-
 reset_state
 set_all_services_healthy
 cat >"${state_dir}/package-registry-gap-readiness.json" <<'JSON'
@@ -383,7 +488,6 @@ JSON
 export ESHU_REMOTE_E2E_PACKAGE_REGISTRY_GAP_PACKAGE_ID='npm://registry.npmjs.org/oversized'
 expect_fail_with 'package_registry_metadata_too_large_gaps=0 below required minimum 1'
 unset ESHU_REMOTE_E2E_PACKAGE_REGISTRY_GAP_PACKAGE_ID
-
 reset_state
 set_all_services_healthy
 cat >"${state_dir}/package-count.json" <<'JSON'
@@ -392,5 +496,4 @@ JSON
 export ESHU_REMOTE_E2E_CORPUS_MODE=representative
 expect_fail_with 'package_registry_packages=0 below required minimum 1'
 unset ESHU_REMOTE_E2E_CORPUS_MODE
-
 printf 'verify-remote-e2e-runtime-state tests passed\n'
