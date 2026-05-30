@@ -128,6 +128,23 @@ diagnoses Athena scans through `aws.service.scan`,
 `aws.service.pagination.page`, API/throttle counters, resource/relationship
 counters, and `aws_scan_status`.
 
+### Partition-aware result-bucket join (#860)
+
+No-Regression Evidence: `go test ./internal/collector/awscloud/services/athena/... -count=1`
+covers the new `TestWorkGroupResultBucketRelationshipDerivesPartition`
+(commercial / `aws-us-gov` / `aws-cn` / blank-region-fallback) alongside the
+existing commercial result-bucket assertions in `scanner_test.go`. Athena
+workgroups carry no ARN, so the workgroup->result-bucket target ARN now derives
+its partition from the scan boundary's region via `partition(boundary)` instead
+of hardcoding `aws`, letting GovCloud and China joins resolve to the bucket node
+the S3 scanner publishes (`arn:<partition>:s3:::<bucket>`) instead of dangling.
+Commercial-partition output is byte-for-byte unchanged; this is a metadata-only
+correctness fix with no graph-write, queue, or hot-path behavior change.
+
+No-Observability-Change: the fix only changes the partition substring of a
+synthesized target ARN value; no instrument, span, metric label, or
+`aws_scan_status` row changes.
+
 Collector Deployment Evidence: Athena runs inside the existing hosted
 `collector-aws-cloud` runtime, so `/healthz`, `/readyz`, `/metrics`, and
 `/admin/status` stay covered by the command wiring and Helm collector runtime.
