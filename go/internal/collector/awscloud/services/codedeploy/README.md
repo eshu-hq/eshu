@@ -106,6 +106,24 @@ Collector Deployment Evidence: CodeDeploy runs inside the existing hosted
 `collector-aws-cloud` runtime, so `/healthz`, `/readyz`, `/metrics`, and
 `/admin/status` stay covered by the command wiring and Helm collector runtime.
 
+### Partition-aware ARNs (#866)
+
+No-Regression Evidence: `go test ./internal/collector/awscloud/services/codedeploy/... -count=1`
+covers the new `TestCodeDeploySynthesizedARNsDerivePartition` and
+`TestClientSynthesizedARNsDerivePartition` (commercial / `aws-us-gov` /
+`aws-cn` / blank-region-fallback) alongside the existing assertions. The
+CodeDeploy list/batch APIs return no ARNs, so every synthesized ARN
+(application, deployment group, deployment config, deployment, and the ECS
+service / Lambda function deployment targets) now derives the partition from the
+scan boundary via `awscloud.PartitionForBoundary` instead of hardcoding `aws`.
+Commercial output (`us-east-1`) is byte-for-byte unchanged; this is a
+metadata-only correctness fix with no graph-write, queue, or hot-path behavior
+change.
+
+No-Observability-Change: the fix only changes the partition substring of a
+synthesized ARN value; no instrument, span, metric label, or `aws_scan_status`
+row changes.
+
 ## Related docs
 
 - `docs/public/services/collector-aws-cloud.md`

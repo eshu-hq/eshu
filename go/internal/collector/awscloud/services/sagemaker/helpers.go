@@ -22,26 +22,6 @@ func isARN(value string) bool {
 	return strings.HasPrefix(strings.TrimSpace(value), "arn:")
 }
 
-// arnPartition returns the partition segment of an AWS ARN (aws, aws-cn,
-// aws-us-gov), or "aws" when value is not an ARN with a partition segment. The
-// scanner uses it so a synthesized S3 bucket ARN inherits the partition of the
-// model that referenced it instead of hardcoding the commercial partition,
-// which would dangle the model->artifact edge in GovCloud and China.
-func arnPartition(value string) string {
-	trimmed := strings.TrimSpace(value)
-	if !strings.HasPrefix(trimmed, "arn:") {
-		return "aws"
-	}
-	parts := strings.SplitN(trimmed, ":", 3)
-	if len(parts) < 3 {
-		return "aws"
-	}
-	if partition := strings.TrimSpace(parts[1]); partition != "" {
-		return partition
-	}
-	return "aws"
-}
-
 // cloneStringMap copies a string map, dropping blank keys, and returns nil for
 // an empty result so emitted payloads stay stable across observations.
 func cloneStringMap(input map[string]string) map[string]string {

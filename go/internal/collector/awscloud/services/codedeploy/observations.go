@@ -17,8 +17,8 @@ func applicationARN(boundary awscloud.Boundary, name string) string {
 	if name == "" {
 		return ""
 	}
-	return fmt.Sprintf("arn:aws:codedeploy:%s:%s:application:%s",
-		boundary.Region, boundary.AccountID, name)
+	return fmt.Sprintf("arn:%s:codedeploy:%s:%s:application:%s",
+		awscloud.PartitionForBoundary(boundary), boundary.Region, boundary.AccountID, name)
 }
 
 // deploymentGroupARN builds the canonical CodeDeploy deployment-group ARN from
@@ -29,8 +29,8 @@ func deploymentGroupARN(boundary awscloud.Boundary, application, group string) s
 	if application == "" || group == "" {
 		return ""
 	}
-	return fmt.Sprintf("arn:aws:codedeploy:%s:%s:deploymentgroup:%s/%s",
-		boundary.Region, boundary.AccountID, application, group)
+	return fmt.Sprintf("arn:%s:codedeploy:%s:%s:deploymentgroup:%s/%s",
+		awscloud.PartitionForBoundary(boundary), boundary.Region, boundary.AccountID, application, group)
 }
 
 // deploymentConfigARN builds the canonical CodeDeploy deployment-config ARN.
@@ -39,8 +39,8 @@ func deploymentConfigARN(boundary awscloud.Boundary, name string) string {
 	if name == "" {
 		return ""
 	}
-	return fmt.Sprintf("arn:aws:codedeploy:%s:%s:deploymentconfig:%s",
-		boundary.Region, boundary.AccountID, name)
+	return fmt.Sprintf("arn:%s:codedeploy:%s:%s:deploymentconfig:%s",
+		awscloud.PartitionForBoundary(boundary), boundary.Region, boundary.AccountID, name)
 }
 
 // ecsServiceARN builds the canonical Amazon ECS service ARN for a CodeDeploy
@@ -53,8 +53,8 @@ func ecsServiceARN(boundary awscloud.Boundary, cluster, service string) string {
 	if cluster == "" || service == "" {
 		return ""
 	}
-	return fmt.Sprintf("arn:aws:ecs:%s:%s:service/%s/%s",
-		boundary.Region, boundary.AccountID, cluster, service)
+	return fmt.Sprintf("arn:%s:ecs:%s:%s:service/%s/%s",
+		awscloud.PartitionForBoundary(boundary), boundary.Region, boundary.AccountID, cluster, service)
 }
 
 // lambdaFunctionARN builds the canonical AWS Lambda function ARN for a
@@ -66,8 +66,8 @@ func lambdaFunctionARN(boundary awscloud.Boundary, name string) string {
 	if name == "" {
 		return ""
 	}
-	return fmt.Sprintf("arn:aws:lambda:%s:%s:function:%s",
-		boundary.Region, boundary.AccountID, name)
+	return fmt.Sprintf("arn:%s:lambda:%s:%s:function:%s",
+		awscloud.PartitionForBoundary(boundary), boundary.Region, boundary.AccountID, name)
 }
 
 // deploymentARN builds the canonical CodeDeploy deployment ARN from the
@@ -77,8 +77,8 @@ func deploymentARN(boundary awscloud.Boundary, id string) string {
 	if id == "" {
 		return ""
 	}
-	return fmt.Sprintf("arn:aws:codedeploy:%s:%s:deployment:%s",
-		boundary.Region, boundary.AccountID, id)
+	return fmt.Sprintf("arn:%s:codedeploy:%s:%s:deployment:%s",
+		awscloud.PartitionForBoundary(boundary), boundary.Region, boundary.AccountID, id)
 }
 
 func applicationObservation(boundary awscloud.Boundary, app Application) awscloud.ResourceObservation {

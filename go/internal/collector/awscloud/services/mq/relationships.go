@@ -81,7 +81,7 @@ func brokerRelationships(boundary awscloud.Boundary, broker Broker, configuratio
 			})
 		}
 	}
-	partition := arnPartition(brokerARN)
+	partition := awscloud.PartitionFromARN(brokerARN)
 	for _, logGroup := range brokerLogGroups(broker.Logs) {
 		// The cloudwatchlogs scanner emits each log group with ResourceID set to
 		// its non-wildcard ARN, so synthesize the matching ARN from the broker
@@ -120,17 +120,6 @@ func cloudWatchLogGroupARN(partition string, boundary awscloud.Boundary, name st
 		return name
 	}
 	return fmt.Sprintf("arn:%s:logs:%s:%s:log-group:%s", partition, region, account, name)
-}
-
-// arnPartition returns the partition segment of an AWS ARN, defaulting to the
-// commercial "aws" partition when value is empty or not a parseable ARN. The
-// ARN layout is arn:<partition>:<service>:<region>:<account>:<resource>.
-func arnPartition(value string) string {
-	parts := strings.Split(strings.TrimSpace(value), ":")
-	if len(parts) < 2 || parts[0] != "arn" || parts[1] == "" {
-		return "aws"
-	}
-	return parts[1]
 }
 
 type brokerLogGroup struct {

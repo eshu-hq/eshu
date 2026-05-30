@@ -122,6 +122,21 @@ Collector Deployment Evidence: S3 runs inside the existing hosted
 `collector-aws-cloud` runtime, so `/healthz`, `/readyz`, `/metrics`, and
 `/admin/status` stay covered by the command wiring and Helm collector runtime.
 
+### Partition-aware ARNs (#866)
+
+No-Regression Evidence: `go test ./internal/collector/awscloud/services/s3/... -count=1`
+keeps `TestBucketNodeIdentityDerivesPartition` and
+`TestLoggingRelationshipDerivesPartition` green after the scanner and the SDK
+adapter (`bucketARN`) were switched from their package-local `partition` /
+`partitionForRegion` helpers to the shared `awscloud.PartitionForBoundary` and
+`awscloud.PartitionForRegion`. The derivation logic is identical; commercial
+output (`us-east-1`) is byte-for-byte unchanged; this is a metadata-only
+consolidation with no graph-write, queue, or hot-path behavior change.
+
+No-Observability-Change: the change only swaps helpers; the synthesized bucket
+ARN value is unchanged for every region, and no instrument, span, metric label,
+or `aws_scan_status` row changes.
+
 ## Related docs
 
 - `docs/public/services/collector-aws-cloud.md`

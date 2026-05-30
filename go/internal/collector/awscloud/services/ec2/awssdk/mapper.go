@@ -6,6 +6,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	awsec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
 
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 	ec2service "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/ec2"
 )
 
@@ -264,7 +265,7 @@ func ec2InstanceARN(region string, accountID string, instanceID string) string {
 	if region == "" || accountID == "" || instanceID == "" {
 		return ""
 	}
-	return "arn:aws:ec2:" + region + ":" + accountID + ":instance/" + instanceID
+	return "arn:" + awscloud.PartitionForRegion(region) + ":ec2:" + region + ":" + accountID + ":instance/" + instanceID
 }
 
 func attachedResourceType(instanceID string) string {

@@ -134,6 +134,20 @@ Collector Deployment Evidence: CodePipeline runs inside the existing hosted
 `collector-aws-cloud` runtime, so `/healthz`, `/readyz`, `/metrics`, and
 `/admin/status` stay covered by the command wiring and Helm collector runtime.
 
+### Partition-aware ARNs (#866)
+
+No-Regression Evidence: `go test ./internal/collector/awscloud/services/codepipeline/... -count=1`
+covers the existing partition assertions, now backed by the shared helper. The
+synthesized S3, CodeBuild, CodeDeploy, Lambda, and ECS target ARNs now derive
+the partition from the scan boundary via `awscloud.PartitionForBoundary`
+(replacing the package-local `partition` helper) instead of hardcoding `aws`.
+Commercial output is byte-for-byte unchanged; this is a metadata-only
+correctness fix with no graph-write, queue, or hot-path behavior change.
+
+No-Observability-Change: the fix only changes the partition substring of a
+synthesized ARN value; no instrument, span, metric label, or `aws_scan_status`
+row changes.
+
 ## Related docs
 
 - `docs/public/services/collector-aws-cloud.md`

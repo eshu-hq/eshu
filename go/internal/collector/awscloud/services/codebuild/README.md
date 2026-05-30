@@ -75,9 +75,13 @@ adapter records CodeBuild API call counts, throttles, and pagination spans.
   (`aws_s3_bucket`), secret ARN/name (`aws_secretsmanager_secret`), and
   parameter ARN/name (`aws_ssm_parameter`). Git provider sources target an
   external `git_repository` endpoint.
-- S3 bucket ARNs derived from source/artifact locations use the partition-
-  agnostic `arn:aws:s3:::bucket` form; no region or account partition is
-  synthesized.
+- S3 bucket ARNs derived from source/artifact locations use the
+  `arn:<partition>:s3:::bucket` form. S3 ARNs omit the region and account
+  segments, but the partition segment is not optional: it is `aws`,
+  `aws-us-gov`, or `aws-cn`. For a bare bucket/path location the partition is
+  derived from the scan boundary's region; for a location already shaped as an
+  S3 ARN the source partition is preserved. A hardcoded commercial `aws`
+  partition would dangle the project->S3 edge in GovCloud and China.
 - Tags are raw AWS tag evidence. Do not infer environment, owner, workload, or
   deployable-unit truth from tags in this package.
 
@@ -114,6 +118,22 @@ label value to those existing instruments.
 Collector Deployment Evidence: CodeBuild runs inside the existing hosted
 `collector-aws-cloud` runtime, so `/healthz`, `/readyz`, `/metrics`, and
 `/admin/status` stay covered by the command wiring and Helm collector runtime.
+
+### Partition-aware ARNs (#866)
+
+No-Regression Evidence: `go test ./internal/collector/awscloud/services/codebuild/... -count=1`
+covers the new `TestS3BucketARNFromLocationDerivesPartition` and
+`TestS3BucketARNFromLocationPreservesObjectARNPartition` (commercial /
+`aws-us-gov` / `aws-cn`) alongside the existing assertions. A bare S3
+source/artifact location now derives its bucket-ARN partition from the scan
+boundary via `awscloud.PartitionForBoundary`, and an already-ARN location
+preserves any partition's `:s3:::` segment, instead of hardcoding `aws`.
+Commercial output is byte-for-byte unchanged; this is a metadata-only
+correctness fix with no graph-write, queue, or hot-path behavior change.
+
+No-Observability-Change: the fix only changes the partition substring of a
+synthesized ARN value; no instrument, span, metric label, or `aws_scan_status`
+row changes.
 
 ## Related docs
 

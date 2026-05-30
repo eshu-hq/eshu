@@ -10,7 +10,7 @@ func workGroupResultBucketRelationship(
 	boundary awscloud.Boundary,
 	workGroup WorkGroup,
 ) *awscloud.RelationshipObservation {
-	bucketARN := outputBucketARN(partition(boundary), workGroup.OutputLocation)
+	bucketARN := outputBucketARN(awscloud.PartitionForBoundary(boundary), workGroup.OutputLocation)
 	if bucketARN == "" {
 		return nil
 	}
@@ -128,21 +128,4 @@ func namedQueryResourceID(query NamedQuery) string {
 		return name
 	}
 	return workGroup + "/" + name
-}
-
-// partition returns the AWS partition for the scan boundary's region — aws,
-// aws-cn, or aws-us-gov. Athena workgroups carry no ARN, so the boundary region
-// is the partition source for the synthesized result-bucket ARN; hardcoding the
-// commercial partition would dangle the workgroup->result-bucket edge in
-// GovCloud and China.
-func partition(boundary awscloud.Boundary) string {
-	region := strings.TrimSpace(boundary.Region)
-	switch {
-	case strings.HasPrefix(region, "us-gov-"):
-		return "aws-us-gov"
-	case strings.HasPrefix(region, "cn-"):
-		return "aws-cn"
-	default:
-		return "aws"
-	}
 }

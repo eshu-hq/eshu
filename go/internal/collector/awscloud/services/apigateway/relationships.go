@@ -280,14 +280,16 @@ func restAPIARN(region, apiID string) string {
 	if strings.TrimSpace(apiID) == "" {
 		return ""
 	}
-	return "arn:aws:apigateway:" + strings.TrimSpace(region) + "::/restapis/" + strings.TrimSpace(apiID)
+	region = strings.TrimSpace(region)
+	return "arn:" + awscloud.PartitionForRegion(region) + ":apigateway:" + region + "::/restapis/" + strings.TrimSpace(apiID)
 }
 
 func v2APIARN(region, apiID string) string {
 	if strings.TrimSpace(apiID) == "" {
 		return ""
 	}
-	return "arn:aws:apigateway:" + strings.TrimSpace(region) + "::/apis/" + strings.TrimSpace(apiID)
+	region = strings.TrimSpace(region)
+	return "arn:" + awscloud.PartitionForRegion(region) + ":apigateway:" + region + "::/apis/" + strings.TrimSpace(apiID)
 }
 
 func stageARN(region, apiKind, apiID, stageName string) string {

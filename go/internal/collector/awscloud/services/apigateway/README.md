@@ -73,6 +73,23 @@ scanning. Sustained `GetResources` throttling marks the scan partial with
 - Stage variables, policy JSON, API keys, authorizer secrets, integration
   credentials, request templates, and response templates stay out of facts.
 
+## Evidence
+
+### Partition-aware ARNs (#866)
+
+No-Regression Evidence: `go test ./internal/collector/awscloud/services/apigateway/... -count=1`
+covers the new `TestRestAPIARNDerivesPartition` and `TestV2APIARNDerivesPartition`
+(commercial / `aws-us-gov` / `aws-cn` / blank-region-fallback) alongside the
+existing commercial assertions. API Gateway control-plane ids carry no ARN, so
+`restAPIARN` and `v2APIARN` now derive the partition from the region via
+`awscloud.PartitionForRegion` instead of hardcoding `aws`. Commercial output
+(`us-east-1`) is byte-for-byte unchanged; this is a metadata-only correctness
+fix with no graph-write, queue, or hot-path behavior change.
+
+No-Observability-Change: the fix only changes the partition substring of a
+synthesized ARN value; no instrument, span, metric label, or `aws_scan_status`
+row changes.
+
 ## Related docs
 
 - `docs/public/services/collector-aws-cloud.md`

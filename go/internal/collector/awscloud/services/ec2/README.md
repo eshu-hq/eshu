@@ -61,6 +61,24 @@ AWS API call counters, throttle counters, and pagination spans.
 - This package emits reported AWS evidence only. Do not infer public exposure,
   service ownership, environment, deployable-unit truth, or workload truth here.
 
+## Evidence
+
+### Partition-aware ARNs (#866)
+
+No-Regression Evidence: `go test ./internal/collector/awscloud/services/ec2/... -count=1`
+covers the new `TestEC2InstanceARNDerivesPartition` (commercial / `aws-us-gov` /
+`aws-cn`) alongside the existing commercial assertions. The synthesized EC2
+instance ARN used as a network-interface attachment target now derives its
+partition from the instance region via `awscloud.PartitionForRegion` instead of
+hardcoding `aws`, so the ENI->instance edge resolves in GovCloud and China.
+Commercial output (`us-east-1`) is byte-for-byte unchanged; this is a
+metadata-only correctness fix with no graph-write, queue, or hot-path behavior
+change.
+
+No-Observability-Change: the fix only changes the partition substring of a
+synthesized ARN value; no instrument, span, metric label, or `aws_scan_status`
+row changes.
+
 ## Related docs
 
 - `docs/public/services/collector-aws-cloud.md`

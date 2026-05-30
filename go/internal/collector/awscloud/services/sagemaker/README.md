@@ -129,6 +129,20 @@ Collector Deployment Evidence: SageMaker runs inside the existing hosted
 `collector-aws-cloud` runtime, so `/healthz`, `/readyz`, `/metrics`, and
 `/admin/status` stay covered by the command wiring and Helm collector runtime.
 
+### Partition-aware ARNs (#866)
+
+No-Regression Evidence: `go test ./internal/collector/awscloud/services/sagemaker/... -count=1`
+keeps the `#816` model-artifact partition assertions green after the synthesized
+S3 bucket ARN was switched from the package-local `arnPartition` helper to the
+shared `awscloud.PartitionFromARN`. The derivation logic is identical; the
+bucket ARN still inherits the partition of the referencing model ARN.
+Commercial output is byte-for-byte unchanged; this is a metadata-only
+consolidation with no graph-write, queue, or hot-path behavior change.
+
+No-Observability-Change: the change only swaps a helper; the synthesized ARN
+value is unchanged, and no instrument, span, metric label, or `aws_scan_status`
+row changes.
+
 ## Related docs
 
 - `docs/public/services/collector-aws-cloud-scanners.md`

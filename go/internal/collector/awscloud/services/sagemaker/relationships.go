@@ -87,7 +87,7 @@ func modelArtifactRelationship(
 	if !ok {
 		return awscloud.RelationshipObservation{}, false
 	}
-	bucketARN := "arn:" + arnPartition(modelARN) + ":s3:::" + bucket
+	bucketARN := "arn:" + awscloud.PartitionFromARN(modelARN) + ":s3:::" + bucket
 	attributes := map[string]any{"model_data_url": artifact, "bucket": bucket}
 	if key != "" {
 		attributes["object_key"] = key
