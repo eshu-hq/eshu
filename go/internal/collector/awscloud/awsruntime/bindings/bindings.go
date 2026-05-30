@@ -99,4 +99,5 @@ import (
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/transitgateway/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/vpc/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/wafv2/runtimebind"
+	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/xray/runtimebind"
 )
