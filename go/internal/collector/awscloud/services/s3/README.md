@@ -92,6 +92,32 @@ No-Observability-Change: the existing AWS collector telemetry contract already
 diagnoses S3 scans through `aws.service.scan`, `aws.service.pagination.page`,
 API/throttle counters, resource/relationship counters, and `aws_scan_status`.
 
+### Partition-aware bucket node identity (#862, keystone)
+
+No-Regression Evidence: `go test ./internal/collector/awscloud/services/s3/... -count=1`
+covers the new `TestBucketNodeIdentityDerivesPartition`,
+`TestLoggingRelationshipDerivesPartition`, and `TestBucketARNDerivesPartition`
+(commercial / `aws-us-gov` / `aws-cn` / blank-region-fallback) alongside the
+existing commercial assertions in `scanner_test.go` / `awssdk/client_test.go`.
+S3 buckets carry no API ARN, so the scanner synthesizes the node `ARN`,
+`ResourceID`, ARN correlation anchor, and bucket->bucket logging endpoints; these
+now derive the partition from the claim region (`partitionForRegion` in the SDK
+adapter, `partition(boundary)` in the scanner) instead of hardcoding `aws`. This
+is the keystone for the partition graph-join class: every partition-aware
+consumer (Bedrock, CodePipeline, MQ, Config, SageMaker/Glue #859, Athena #861)
+emits `arn:<partition>:s3:::<bucket>` targets and only resolves once the bucket
+node carries the matching partition. Commercial output is byte-for-byte
+unchanged; metadata-only, no graph-write or hot-path behavior change.
+
+Node-identity note: in GovCloud/China deployments the bucket `CloudResource`
+node identity (a uid input) changes from `arn:aws:s3:::<bucket>` to the
+partition-correct ARN. Within a single-partition deployment there is no
+migration — buckets are materialized with the correct ARN from the first scan.
+
+No-Observability-Change: the fix only changes the partition substring of the
+synthesized bucket ARN value; no instrument, span, metric label, or
+`aws_scan_status` row changes.
+
 Collector Deployment Evidence: S3 runs inside the existing hosted
 `collector-aws-cloud` runtime, so `/healthz`, `/readyz`, `/metrics`, and
 `/admin/status` stay covered by the command wiring and Helm collector runtime.
