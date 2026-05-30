@@ -170,6 +170,8 @@ github.com/aws/aws-sdk-go-v2/service/eventbridge v1.45.25 h1:9PZbyFSCN/E0TnqXqnv
 github.com/aws/aws-sdk-go-v2/service/eventbridge v1.45.25/go.mod h1:ZJ1LBykgykfLqmsP2pBUesSd24sL6SebSEeXzzJ2hhE=
 github.com/aws/aws-sdk-go-v2/service/firehose v1.42.17 h1:OyU46F3vfHyX8XIf6jAyXtGu7wA1zE/XzmIbLVt+orQ=
 github.com/aws/aws-sdk-go-v2/service/firehose v1.42.17/go.mod h1:B0QS9gXSFnQlvnw8hGDigT6KBkEh/om5C+WvdfoWYXw=
+github.com/aws/aws-sdk-go-v2/service/fms v1.45.2 h1:dN7d3j5dPLj7l80lbbKvJ7ZJpqWaTQW13xGU555ahtU=
+github.com/aws/aws-sdk-go-v2/service/fms v1.45.2/go.mod h1:ZPT3EXWD5vm9JFFvMBcl7bblHC94e6D5PVdrqId8hw8=
 github.com/aws/aws-sdk-go-v2/service/fsx v1.66.1 h1:YX1l7nNVKvHe3pEu498sW76WuHUAapZwQU2SpqRVMi8=
 github.com/aws/aws-sdk-go-v2/service/fsx v1.66.1/go.mod h1:DL5UJomGBiqjRf84eSykFbyQoLretYc1JPysrsKZSDc=
 github.com/aws/aws-sdk-go-v2/service/globalaccelerator v1.36.1 h1:1YvLkahfJgY0IfJnA1ikids8/CC/s5LHrmbhWpz9U+w=
