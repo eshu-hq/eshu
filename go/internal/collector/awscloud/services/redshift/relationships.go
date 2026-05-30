@@ -339,7 +339,7 @@ func securityGroupARN(boundary awscloud.Boundary, groupID string) string {
 	if groupID == "" || strings.HasPrefix(groupID, "arn:") {
 		return groupID
 	}
-	return "arn:aws:ec2:" + boundary.Region + ":" + boundary.AccountID + ":security-group/" + groupID
+	return "arn:" + awscloud.PartitionForBoundary(boundary) + ":ec2:" + boundary.Region + ":" + boundary.AccountID + ":security-group/" + groupID
 }
 
 func targetARNFor(targetID string) string {

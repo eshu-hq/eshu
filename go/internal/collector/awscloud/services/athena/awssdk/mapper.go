@@ -138,7 +138,7 @@ func workGroupARN(boundary awscloud.Boundary, name string) string {
 	if name == "" {
 		return ""
 	}
-	return "arn:aws:athena:" + strings.TrimSpace(boundary.Region) +
+	return "arn:" + awscloud.PartitionForBoundary(boundary) + ":athena:" + strings.TrimSpace(boundary.Region) +
 		":" + strings.TrimSpace(boundary.AccountID) +
 		":workgroup/" + name
 }
@@ -150,7 +150,7 @@ func dataCatalogARN(boundary awscloud.Boundary, name string) string {
 	if name == "" {
 		return ""
 	}
-	return "arn:aws:athena:" + strings.TrimSpace(boundary.Region) +
+	return "arn:" + awscloud.PartitionForBoundary(boundary) + ":athena:" + strings.TrimSpace(boundary.Region) +
 		":" + strings.TrimSpace(boundary.AccountID) +
 		":datacatalog/" + name
 }

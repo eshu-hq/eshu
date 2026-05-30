@@ -18,7 +18,7 @@ func pipelineARN(boundary awscloud.Boundary, name string) string {
 		return ""
 	}
 	return fmt.Sprintf("arn:%s:codepipeline:%s:%s:%s",
-		partition(boundary), boundary.Region, boundary.AccountID, name)
+		awscloud.PartitionForBoundary(boundary), boundary.Region, boundary.AccountID, name)
 }
 
 func pipelineObservation(boundary awscloud.Boundary, pipeline Pipeline) awscloud.ResourceObservation {
@@ -205,22 +205,6 @@ func actionTypeResourceID(actionType ActionType) string {
 		strings.TrimSpace(actionType.Version),
 	}
 	return strings.Join(parts, "/")
-}
-
-// partition derives the AWS partition from a boundary ARN or region so
-// synthesized ARNs match the account partition. It never hardcodes the
-// commercial partition because CodePipeline references cross-partition targets
-// in GovCloud and China accounts.
-func partition(boundary awscloud.Boundary) string {
-	region := strings.TrimSpace(boundary.Region)
-	switch {
-	case strings.HasPrefix(region, "us-gov-"):
-		return "aws-us-gov"
-	case strings.HasPrefix(region, "cn-"):
-		return "aws-cn"
-	default:
-		return "aws"
-	}
 }
 
 func timeOrNil(input time.Time) any {

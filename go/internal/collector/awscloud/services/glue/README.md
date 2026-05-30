@@ -135,6 +135,21 @@ Collector Deployment Evidence: Glue runs inside the existing hosted
 `/admin/status` stay covered by the command wiring and Helm collector
 runtime.
 
+### Partition-aware ARNs (#866)
+
+No-Regression Evidence: `go test ./internal/collector/awscloud/services/glue/... -count=1`
+keeps `TestTableS3LocationRelationshipDerivesPartition` (commercial /
+`aws-us-gov` / `aws-cn` / blank-region-fallback) green after the table->S3
+bucket-ARN synthesis was switched from the package-local `partition` helper to
+the shared `awscloud.PartitionForBoundary`. The derivation logic is identical;
+commercial output (`us-east-1`) is byte-for-byte unchanged; this is a
+metadata-only consolidation with no graph-write, queue, or hot-path behavior
+change.
+
+No-Observability-Change: the change only swaps a helper; the synthesized ARN
+value is unchanged for every region, and no instrument, span, metric label, or
+`aws_scan_status` row changes.
+
 ## Related docs
 
 - `docs/public/services/collector-aws-cloud.md`

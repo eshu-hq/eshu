@@ -59,7 +59,7 @@ func customModelS3Relationship(modelID, modelARN, outputURI string) (awscloud.Re
 	if !ok {
 		return awscloud.RelationshipObservation{}, false
 	}
-	bucketARN := s3BucketARN(arnPartition(modelARN), bucket)
+	bucketARN := s3BucketARN(awscloud.PartitionFromARN(modelARN), bucket)
 	attributes := map[string]any{"output_s3_uri": uri, "bucket": bucket}
 	if key != "" {
 		attributes["object_key"] = key
@@ -164,7 +164,7 @@ func knowledgeBaseRelationships(kb KnowledgeBase) []awscloud.RelationshipObserva
 	if id == "" {
 		return nil
 	}
-	partition := arnPartition(kb.ARN)
+	partition := awscloud.PartitionFromARN(kb.ARN)
 	var observations []awscloud.RelationshipObservation
 	for _, source := range kb.DataSources {
 		if observation, ok := knowledgeBaseDataSourceRelationship(id, kb.ARN, partition, source); ok {

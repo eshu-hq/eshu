@@ -3,6 +3,8 @@ package apigatewayv2
 import (
 	"strings"
 	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 )
 
 func cloneStringMap(input map[string]string) map[string]string {
@@ -94,14 +96,16 @@ func domainResourceID(domain DomainName) string {
 }
 
 // apiARN synthesizes the API Gateway v2 API ARN from the region and API id. The
-// partition is the same form the v1 API Gateway sibling uses, and the API id is
-// the bare control-plane id, so the synthesized ARN never hardcodes an account.
+// partition is derived from the region (mirroring the v1 API Gateway sibling),
+// and the API id is the bare control-plane id, so the synthesized ARN never
+// hardcodes an account or a commercial partition.
 func apiARN(region, apiID string) string {
 	apiID = strings.TrimSpace(apiID)
 	if apiID == "" {
 		return ""
 	}
-	return "arn:aws:apigateway:" + strings.TrimSpace(region) + "::/apis/" + apiID
+	region = strings.TrimSpace(region)
+	return "arn:" + awscloud.PartitionForRegion(region) + ":apigateway:" + region + "::/apis/" + apiID
 }
 
 func stageARN(region, apiID, stageName string) string {

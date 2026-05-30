@@ -186,7 +186,8 @@ func identityPoolARN(boundary awscloud.Boundary, poolID string) string {
 		return ""
 	}
 	return fmt.Sprintf(
-		"arn:aws:cognito-identity:%s:%s:identitypool/%s",
+		"arn:%s:cognito-identity:%s:%s:identitypool/%s",
+		awscloud.PartitionForBoundary(boundary),
 		strings.TrimSpace(boundary.Region),
 		strings.TrimSpace(boundary.AccountID),
 		poolID,

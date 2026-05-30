@@ -26,8 +26,12 @@
 - Every relationship target carries a non-empty `target_type` and a target
   resource id that matches the owning scanner's `resource_id`. Do not emit an
   edge whose target type is empty.
-- Derive S3 bucket ARNs with the partition-agnostic `arn:aws:s3:::bucket` form;
-  do not synthesize a region or account partition.
+- Derive S3 bucket ARNs as `arn:<partition>:s3:::bucket`. S3 ARNs omit the
+  region and account segments, but the partition segment is NOT optional and
+  differs across partitions (`aws` / `aws-us-gov` / `aws-cn`). Derive the
+  partition from the scan boundary via `awscloud.PartitionForBoundary`, or
+  preserve the source ARN's partition when reducing an object ARN to its
+  bucket ARN. Never hardcode the commercial `aws` partition.
 
 ## Common Changes
 

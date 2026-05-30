@@ -56,7 +56,7 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 
 func bucketObservation(boundary awscloud.Boundary, bucket Bucket) awscloud.ResourceObservation {
 	name := strings.TrimSpace(bucket.Name)
-	arn := firstNonEmpty(bucket.ARN, arnForBucket(partition(boundary), name))
+	arn := firstNonEmpty(bucket.ARN, arnForBucket(awscloud.PartitionForBoundary(boundary), name))
 	return awscloud.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          arn,
@@ -122,12 +122,12 @@ func loggingRelationship(
 	bucket Bucket,
 ) (awscloud.RelationshipObservation, bool) {
 	sourceName := strings.TrimSpace(bucket.Name)
-	sourceARN := firstNonEmpty(bucket.ARN, arnForBucket(partition(boundary), sourceName))
+	sourceARN := firstNonEmpty(bucket.ARN, arnForBucket(awscloud.PartitionForBoundary(boundary), sourceName))
 	targetName := strings.TrimSpace(bucket.Logging.TargetBucket)
 	if sourceARN == "" || targetName == "" {
 		return awscloud.RelationshipObservation{}, false
 	}
-	targetARN := arnForBucket(partition(boundary), targetName)
+	targetARN := arnForBucket(awscloud.PartitionForBoundary(boundary), targetName)
 	return awscloud.RelationshipObservation{
 		Boundary:         boundary,
 		RelationshipType: awscloud.RelationshipS3BucketLogsToBucket,
@@ -158,23 +158,6 @@ func arnForBucket(partition, name string) string {
 		return name
 	}
 	return "arn:" + partition + ":s3:::" + name
-}
-
-// partition returns the AWS partition for the scan boundary's region — aws,
-// aws-cn, or aws-us-gov. S3 buckets carry no API ARN, so the boundary region is
-// the partition source for the synthesized bucket ARN; hardcoding the commercial
-// partition would dangle every partition-aware consumer's S3 edge in GovCloud
-// and China.
-func partition(boundary awscloud.Boundary) string {
-	region := strings.TrimSpace(boundary.Region)
-	switch {
-	case strings.HasPrefix(region, "us-gov-"):
-		return "aws-us-gov"
-	case strings.HasPrefix(region, "cn-"):
-		return "aws-cn"
-	default:
-		return "aws"
-	}
 }
 
 func timeOrNil(value time.Time) any {

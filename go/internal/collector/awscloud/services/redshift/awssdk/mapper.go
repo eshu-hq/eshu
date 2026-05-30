@@ -178,7 +178,7 @@ func clusterARN(boundary awscloud.Boundary, identifier string) string {
 	if identifier == "" {
 		return ""
 	}
-	return "arn:aws:redshift:" + boundary.Region + ":" + boundary.AccountID + ":cluster:" + identifier
+	return "arn:" + awscloud.PartitionForBoundary(boundary) + ":redshift:" + boundary.Region + ":" + boundary.AccountID + ":cluster:" + identifier
 }
 
 func firstNextInvocationTime(values []time.Time) time.Time {
@@ -389,7 +389,7 @@ func parameterGroupARN(boundary awscloud.Boundary, name string) string {
 	if name == "" {
 		return ""
 	}
-	return "arn:aws:redshift:" + boundary.Region + ":" + boundary.AccountID + ":parametergroup:" + name
+	return "arn:" + awscloud.PartitionForBoundary(boundary) + ":redshift:" + boundary.Region + ":" + boundary.AccountID + ":parametergroup:" + name
 }
 
 func subnetGroupARN(boundary awscloud.Boundary, name string) string {
@@ -397,7 +397,7 @@ func subnetGroupARN(boundary awscloud.Boundary, name string) string {
 	if name == "" {
 		return ""
 	}
-	return "arn:aws:redshift:" + boundary.Region + ":" + boundary.AccountID + ":subnetgroup:" + name
+	return "arn:" + awscloud.PartitionForBoundary(boundary) + ":redshift:" + boundary.Region + ":" + boundary.AccountID + ":subnetgroup:" + name
 }
 
 func snapshotARN(boundary awscloud.Boundary, clusterIdentifier string, identifier string) string {
@@ -406,5 +406,5 @@ func snapshotARN(boundary awscloud.Boundary, clusterIdentifier string, identifie
 	if clusterIdentifier == "" || identifier == "" {
 		return ""
 	}
-	return "arn:aws:redshift:" + boundary.Region + ":" + boundary.AccountID + ":snapshot:" + clusterIdentifier + "/" + identifier
+	return "arn:" + awscloud.PartitionForBoundary(boundary) + ":redshift:" + boundary.Region + ":" + boundary.AccountID + ":snapshot:" + clusterIdentifier + "/" + identifier
 }

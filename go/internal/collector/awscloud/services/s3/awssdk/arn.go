@@ -1,6 +1,10 @@
 package awssdk
 
-import "strings"
+import (
+	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+)
 
 // bucketARN synthesizes the S3 bucket ARN for the claim region's partition. S3
 // buckets have no ARN in the API response, so the adapter synthesizes one; it
@@ -12,19 +16,5 @@ func bucketARN(region, name string) string {
 	if name == "" {
 		return ""
 	}
-	return "arn:" + partitionForRegion(region) + ":s3:::" + name
-}
-
-// partitionForRegion maps an AWS region to its partition: us-gov-* -> aws-us-gov,
-// cn-* -> aws-cn, everything else (including blank) -> aws.
-func partitionForRegion(region string) string {
-	region = strings.TrimSpace(region)
-	switch {
-	case strings.HasPrefix(region, "us-gov-"):
-		return "aws-us-gov"
-	case strings.HasPrefix(region, "cn-"):
-		return "aws-cn"
-	default:
-		return "aws"
-	}
+	return "arn:" + awscloud.PartitionForRegion(region) + ":s3:::" + name
 }

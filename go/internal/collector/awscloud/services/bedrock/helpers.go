@@ -22,26 +22,6 @@ func isARN(value string) bool {
 	return strings.HasPrefix(strings.TrimSpace(value), "arn:")
 }
 
-// arnPartition returns the partition segment of an AWS ARN (aws, aws-cn,
-// aws-us-gov), or "aws" when value is not an ARN with a partition segment. The
-// scanner uses it so a synthesized S3 bucket ARN inherits the partition of the
-// resource that referenced it instead of hardcoding the commercial partition.
-func arnPartition(value string) string {
-	trimmed := strings.TrimSpace(value)
-	if !strings.HasPrefix(trimmed, "arn:") {
-		return "aws"
-	}
-	parts := strings.SplitN(trimmed, ":", 3)
-	if len(parts) < 3 {
-		return "aws"
-	}
-	partition := strings.TrimSpace(parts[1])
-	if partition == "" {
-		return "aws"
-	}
-	return partition
-}
-
 // parseS3URL splits an `s3://bucket[/key]` URL into the bucket name and
 // optional object key. It returns ok=false when the input is not an `s3://`
 // URL or carries no bucket segment.

@@ -425,7 +425,7 @@ func applicationARN(boundary awscloud.Boundary, name string) string {
 	if name == "" {
 		return ""
 	}
-	return fmt.Sprintf("arn:aws:codedeploy:%s:%s:application:%s", boundary.Region, boundary.AccountID, name)
+	return fmt.Sprintf("arn:%s:codedeploy:%s:%s:application:%s", awscloud.PartitionForBoundary(boundary), boundary.Region, boundary.AccountID, name)
 }
 
 func deploymentGroupARN(boundary awscloud.Boundary, application, group string) string {
@@ -434,7 +434,7 @@ func deploymentGroupARN(boundary awscloud.Boundary, application, group string) s
 	if application == "" || group == "" {
 		return ""
 	}
-	return fmt.Sprintf("arn:aws:codedeploy:%s:%s:deploymentgroup:%s/%s", boundary.Region, boundary.AccountID, application, group)
+	return fmt.Sprintf("arn:%s:codedeploy:%s:%s:deploymentgroup:%s/%s", awscloud.PartitionForBoundary(boundary), boundary.Region, boundary.AccountID, application, group)
 }
 
 var _ apiClient = (*awscodedeploy.Client)(nil)

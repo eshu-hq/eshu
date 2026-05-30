@@ -313,7 +313,7 @@ func s3BucketARN(boundary awscloud.Boundary, bucket string) string {
 	if bucket == "" {
 		return ""
 	}
-	return fmt.Sprintf("arn:%s:s3:::%s", partition(boundary), bucket)
+	return fmt.Sprintf("arn:%s:s3:::%s", awscloud.PartitionForBoundary(boundary), bucket)
 }
 
 func codeBuildProjectARN(boundary awscloud.Boundary, name string) string {
@@ -322,7 +322,7 @@ func codeBuildProjectARN(boundary awscloud.Boundary, name string) string {
 		return ""
 	}
 	return fmt.Sprintf("arn:%s:codebuild:%s:%s:project/%s",
-		partition(boundary), boundary.Region, boundary.AccountID, name)
+		awscloud.PartitionForBoundary(boundary), boundary.Region, boundary.AccountID, name)
 }
 
 func codeDeployApplicationARN(boundary awscloud.Boundary, name string) string {
@@ -331,7 +331,7 @@ func codeDeployApplicationARN(boundary awscloud.Boundary, name string) string {
 		return ""
 	}
 	return fmt.Sprintf("arn:%s:codedeploy:%s:%s:application:%s",
-		partition(boundary), boundary.Region, boundary.AccountID, name)
+		awscloud.PartitionForBoundary(boundary), boundary.Region, boundary.AccountID, name)
 }
 
 func lambdaFunctionARN(boundary awscloud.Boundary, name string) string {
@@ -340,7 +340,7 @@ func lambdaFunctionARN(boundary awscloud.Boundary, name string) string {
 		return ""
 	}
 	return fmt.Sprintf("arn:%s:lambda:%s:%s:function:%s",
-		partition(boundary), boundary.Region, boundary.AccountID, name)
+		awscloud.PartitionForBoundary(boundary), boundary.Region, boundary.AccountID, name)
 }
 
 // ecsServiceARN builds the Amazon ECS service ARN. The ECS scanner emits its
@@ -354,5 +354,5 @@ func ecsServiceARN(boundary awscloud.Boundary, cluster, service string) string {
 		return ""
 	}
 	return fmt.Sprintf("arn:%s:ecs:%s:%s:service/%s/%s",
-		partition(boundary), boundary.Region, boundary.AccountID, cluster, service)
+		awscloud.PartitionForBoundary(boundary), boundary.Region, boundary.AccountID, cluster, service)
 }
