@@ -57,6 +57,12 @@ var KnownTargetTypeAllowlist = map[string]string{
 	// codebuild scanner labels them with a stable non-AWS-resource type, mirroring
 	// container_image.
 	"git_repository": "non-AWS join anchor: external git source endpoint (codebuild), see services/codebuild/relationships.go",
+	// Public package registries (npmjs, PyPI, Maven Central, NuGet gallery,
+	// crates.io, etc.) are external (non-AWS) endpoints a CodeArtifact
+	// repository connects to through an external connection. The codeartifact
+	// scanner labels them with a stable non-AWS-resource type, mirroring
+	// container_image and git_repository.
+	"public_package_registry": "non-AWS join anchor: external public package registry endpoint (codeartifact external connection), see services/codeartifact/relationships.go",
 	// CodePipeline source providers (GitHub, CodeStarSourceConnection, Bitbucket)
 	// are a synthetic provider category, not a scanned resource; the constant
 	// guarantees the edge is never empty. See ResourceTypeCodePipelineSourceProvider.
