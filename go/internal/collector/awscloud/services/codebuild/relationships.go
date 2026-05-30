@@ -188,7 +188,7 @@ func sourceRelationship(
 		return awscloud.RelationshipObservation{}, false
 	}
 	if strings.EqualFold(sourceType, projectSourceTypeS3) {
-		bucketARN := s3BucketARNFromLocation(location)
+		bucketARN := s3BucketARNFromLocation(partition(boundary), location)
 		return awscloud.RelationshipObservation{
 			Boundary:         boundary,
 			RelationshipType: awscloud.RelationshipCodeBuildProjectSourcedFromS3,
@@ -253,7 +253,7 @@ func artifactRelationship(
 	if location == "" {
 		return awscloud.RelationshipObservation{}, false
 	}
-	bucketARN := s3BucketARNFromLocation(location)
+	bucketARN := s3BucketARNFromLocation(partition(boundary), location)
 	return awscloud.RelationshipObservation{
 		Boundary:         boundary,
 		RelationshipType: awscloud.RelationshipCodeBuildProjectArtifactsToS3,
@@ -319,17 +319,19 @@ func environmentReferenceRelationships(
 
 // s3BucketARNFromLocation derives the S3 bucket ARN from a CodeBuild S3 source
 // or artifact location of the form "bucket-name/path/prefix". It matches the S3
-// scanner identity, which emits the bucket ARN as its resource_id, so the edge
-// joins the bucket node. The bucket name is partition-agnostic because the S3
-// bucket ARN format omits region and account, so the literal scheme is the same
-// across partitions and no partition is synthesized.
-func s3BucketARNFromLocation(location string) string {
+// scanner identity, which emits the bucket ARN (arn:<partition>:s3:::<bucket>)
+// as its node resource_id, so the edge joins the bucket node. S3 ARNs omit
+// region and account but DO carry the partition segment, so a bare location is
+// synthesized with the boundary partition (passed in); an already-qualified ARN
+// location keeps its own partition. Hardcoding `aws` dangles the edge in
+// GovCloud and China.
+func s3BucketARNFromLocation(partition, location string) string {
 	location = strings.TrimSpace(location)
 	if location == "" {
 		return ""
 	}
 	if strings.HasPrefix(location, "arn:") {
-		// Already an ARN; reduce to the bucket ARN to match the S3 scanner.
+		// Already an ARN; reduce to the bucket ARN, preserving its partition.
 		return bucketARNFromObjectARN(location)
 	}
 	bucket := location
@@ -340,25 +342,47 @@ func s3BucketARNFromLocation(location string) string {
 	if bucket == "" {
 		return ""
 	}
-	return "arn:aws:s3:::" + bucket
+	return "arn:" + partition + ":s3:::" + bucket
 }
 
 // bucketARNFromObjectARN trims an S3 object ARN down to the bucket ARN so the
-// edge joins the S3 bucket node rather than a non-existent object node.
+// edge joins the S3 bucket node rather than a non-existent object node. It is
+// partition-preserving: it matches the `:s3:::` segment in any partition
+// (aws / aws-cn / aws-us-gov) rather than only the commercial prefix.
 func bucketARNFromObjectARN(arn string) string {
-	const prefix = "arn:aws:s3:::"
-	if !strings.HasPrefix(arn, prefix) {
-		return strings.TrimSpace(arn)
+	arn = strings.TrimSpace(arn)
+	const marker = ":s3:::"
+	idx := strings.Index(arn, marker)
+	if !strings.HasPrefix(arn, "arn:") || idx < 0 {
+		return arn
 	}
-	rest := arn[len(prefix):]
-	if slash := strings.IndexByte(rest, '/'); slash >= 0 {
-		rest = rest[:slash]
+	prefixEnd := idx + len(marker)
+	bucket := arn[prefixEnd:]
+	if slash := strings.IndexByte(bucket, '/'); slash >= 0 {
+		bucket = bucket[:slash]
 	}
-	rest = strings.TrimSpace(rest)
-	if rest == "" {
-		return strings.TrimSpace(arn)
+	bucket = strings.TrimSpace(bucket)
+	if bucket == "" {
+		return arn
 	}
-	return prefix + rest
+	return arn[:prefixEnd] + bucket
+}
+
+// partition returns the AWS partition for the scan boundary's region — aws,
+// aws-cn, or aws-us-gov. CodeBuild S3 source/artifact locations are often bare
+// bucket names, so the boundary region is the partition source for the
+// synthesized bucket ARN; hardcoding the commercial partition would dangle the
+// project->S3 edge in GovCloud and China.
+func partition(boundary awscloud.Boundary) string {
+	region := strings.TrimSpace(boundary.Region)
+	switch {
+	case strings.HasPrefix(region, "us-gov-"):
+		return "aws-us-gov"
+	case strings.HasPrefix(region, "cn-"):
+		return "aws-cn"
+	default:
+		return "aws"
+	}
 }
 
 // secretARNOrEmpty returns the reference as a target ARN only when CodeBuild

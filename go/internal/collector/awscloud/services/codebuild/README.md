@@ -75,9 +75,12 @@ adapter records CodeBuild API call counts, throttles, and pagination spans.
   (`aws_s3_bucket`), secret ARN/name (`aws_secretsmanager_secret`), and
   parameter ARN/name (`aws_ssm_parameter`). Git provider sources target an
   external `git_repository` endpoint.
-- S3 bucket ARNs derived from source/artifact locations use the partition-
-  agnostic `arn:aws:s3:::bucket` form; no region or account partition is
-  synthesized.
+- S3 bucket ARNs derived from source/artifact locations use the
+  `arn:<partition>:s3:::bucket` form, taking the partition from the scan
+  boundary's region. S3 ARNs omit region and account but carry the partition
+  segment, so the bucket ARN matches the S3 scanner's node identity in GovCloud
+  (`aws-us-gov`) and China (`aws-cn`) instead of dangling. A bare location with
+  an explicit ARN keeps its own partition.
 - Tags are raw AWS tag evidence. Do not infer environment, owner, workload, or
   deployable-unit truth from tags in this package.
 
@@ -110,6 +113,25 @@ AWS collector signals already diagnose CodeBuild scans through the
 `eshu_dp_aws_relationships_emitted_total{service="codebuild"}`, and
 `aws_scan_status` rows. CodeBuild only adds the bounded `service="codebuild"`
 label value to those existing instruments.
+
+### Partition-aware S3 source/artifact joins (#864)
+
+No-Regression Evidence: `go test ./internal/collector/awscloud/services/codebuild/... -count=1`
+covers the new `TestS3BucketARNFromLocationDerivesPartition` and
+`TestSourceRelationshipS3DerivesPartition` (commercial / `aws-us-gov` / `aws-cn`,
+bare-location synthesis and partition-preserving ARN trimming) alongside the
+existing commercial assertions in `scanner_test.go`. The project->S3
+source/artifact target ARN now derives its partition from the scan boundary
+(`partition(boundary)`) instead of hardcoding `aws`, and `bucketARNFromObjectARN`
+preserves any partition's `:s3:::` segment. This is the last consumer straggler
+after the #862 S3 node-identity keystone — together they make CodeBuild's
+project->S3 edges resolve in GovCloud/China instead of dangling. Commercial
+output is byte-for-byte unchanged; metadata-only, no graph-write or hot-path
+change.
+
+No-Observability-Change: the fix only changes the partition substring of a
+synthesized target ARN value; no instrument, span, metric label, or
+`aws_scan_status` row changes.
 
 Collector Deployment Evidence: CodeBuild runs inside the existing hosted
 `collector-aws-cloud` runtime, so `/healthz`, `/readyz`, `/metrics`, and
