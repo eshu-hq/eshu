@@ -56,7 +56,7 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 
 func bucketObservation(boundary awscloud.Boundary, bucket Bucket) awscloud.ResourceObservation {
 	name := strings.TrimSpace(bucket.Name)
-	arn := firstNonEmpty(bucket.ARN, arnForBucket(name))
+	arn := firstNonEmpty(bucket.ARN, arnForBucket(partition(boundary), name))
 	return awscloud.ResourceObservation{
 		Boundary:     boundary,
 		ARN:          arn,
@@ -122,12 +122,12 @@ func loggingRelationship(
 	bucket Bucket,
 ) (awscloud.RelationshipObservation, bool) {
 	sourceName := strings.TrimSpace(bucket.Name)
-	sourceARN := firstNonEmpty(bucket.ARN, arnForBucket(sourceName))
+	sourceARN := firstNonEmpty(bucket.ARN, arnForBucket(partition(boundary), sourceName))
 	targetName := strings.TrimSpace(bucket.Logging.TargetBucket)
 	if sourceARN == "" || targetName == "" {
 		return awscloud.RelationshipObservation{}, false
 	}
-	targetARN := arnForBucket(targetName)
+	targetARN := arnForBucket(partition(boundary), targetName)
 	return awscloud.RelationshipObservation{
 		Boundary:         boundary,
 		RelationshipType: awscloud.RelationshipS3BucketLogsToBucket,
@@ -143,15 +143,38 @@ func loggingRelationship(
 	}, true
 }
 
-func arnForBucket(name string) string {
+// arnForBucket synthesizes the S3 bucket ARN for the given partition, or returns
+// an already-formed ARN unchanged. S3 buckets have no API ARN, so the scanner
+// synthesizes one carrying the boundary partition (aws / aws-cn / aws-us-gov) so
+// the node identity and bucket->bucket targets match what partition-aware
+// consumers join against. This is the fallback when the SDK adapter did not
+// already supply a (partition-aware) ARN.
+func arnForBucket(partition, name string) string {
 	name = strings.TrimSpace(name)
 	if name == "" {
 		return ""
 	}
-	if strings.HasPrefix(name, "arn:aws:s3:::") {
+	if strings.HasPrefix(name, "arn:") {
 		return name
 	}
-	return "arn:aws:s3:::" + name
+	return "arn:" + partition + ":s3:::" + name
+}
+
+// partition returns the AWS partition for the scan boundary's region — aws,
+// aws-cn, or aws-us-gov. S3 buckets carry no API ARN, so the boundary region is
+// the partition source for the synthesized bucket ARN; hardcoding the commercial
+// partition would dangle every partition-aware consumer's S3 edge in GovCloud
+// and China.
+func partition(boundary awscloud.Boundary) string {
+	region := strings.TrimSpace(boundary.Region)
+	switch {
+	case strings.HasPrefix(region, "us-gov-"):
+		return "aws-us-gov"
+	case strings.HasPrefix(region, "cn-"):
+		return "aws-cn"
+	default:
+		return "aws"
+	}
 }
 
 func timeOrNil(value time.Time) any {

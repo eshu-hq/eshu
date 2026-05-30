@@ -150,7 +150,7 @@ func (c *Client) bucketMetadata(ctx context.Context, listed awss3types.Bucket) (
 		return s3service.Bucket{}, err
 	}
 	return s3service.Bucket{
-		ARN:               bucketARN(name),
+		ARN:               bucketARN(c.boundary.Region, name),
 		Name:              name,
 		Region:            firstNonEmpty(aws.ToString(listed.BucketRegion), aws.ToString(head.BucketRegion), c.boundary.Region),
 		CreationTime:      aws.ToTime(listed.CreationDate),
@@ -389,14 +389,6 @@ func redirectHost(redirect *awss3types.RedirectAllRequestsTo) string {
 		return ""
 	}
 	return aws.ToString(redirect.HostName)
-}
-
-func bucketARN(name string) string {
-	name = strings.TrimSpace(name)
-	if name == "" {
-		return ""
-	}
-	return "arn:aws:s3:::" + name
 }
 
 func expectedBucketOwner(accountID string) *string {
