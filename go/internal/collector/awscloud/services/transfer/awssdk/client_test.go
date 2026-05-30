@@ -147,9 +147,43 @@ func testBoundary() awscloud.Boundary {
 	}
 }
 
+// TestListServersMemoizedAcrossListServersAndListUsers proves the adapter lists
+// servers at most once per claim: the scanner calls ListServers (DescribeServer
+// fan-out) and ListUsers, and both consume the server IDs. Without memoization
+// ListUsers would trigger a second ListServers pagination pass.
+func TestListServersMemoizedAcrossListServersAndListUsers(t *testing.T) {
+	serverID := "s-0123456789abcdef0"
+	api := &fakeTransferAPI{
+		serverPages: []*awstransfer.ListServersOutput{{
+			Servers: []awstransfertypes.ListedServer{{ServerId: aws.String(serverID)}},
+		}},
+		describedServers: map[string]*awstransfertypes.DescribedServer{
+			serverID: {
+				Arn:      aws.String("arn:aws:transfer:us-east-1:123456789012:server/" + serverID),
+				ServerId: aws.String(serverID),
+			},
+		},
+		userPages: map[string][]*awstransfer.ListUsersOutput{
+			serverID: {{Users: []awstransfertypes.ListedUser{{UserName: aws.String("u")}}}},
+		},
+	}
+	adapter := &Client{client: api, boundary: testBoundary()}
+
+	if _, err := adapter.ListServers(context.Background()); err != nil {
+		t.Fatalf("ListServers() error = %v", err)
+	}
+	if _, err := adapter.ListUsers(context.Background()); err != nil {
+		t.Fatalf("ListUsers() error = %v", err)
+	}
+	if api.listServersCalls != 1 {
+		t.Fatalf("ListServers API calls = %d, want 1 (memoized across ListServers + ListUsers)", api.listServersCalls)
+	}
+}
+
 type fakeTransferAPI struct {
 	serverPages      []*awstransfer.ListServersOutput
 	serverCursor     int
+	listServersCalls int
 	describedServers map[string]*awstransfertypes.DescribedServer
 	userPages        map[string][]*awstransfer.ListUsersOutput
 	userCursors      map[string]int
@@ -157,6 +191,7 @@ type fakeTransferAPI struct {
 }
 
 func (f *fakeTransferAPI) ListServers(_ context.Context, _ *awstransfer.ListServersInput, _ ...func(*awstransfer.Options)) (*awstransfer.ListServersOutput, error) {
+	f.listServersCalls++
 	if f.serverCursor >= len(f.serverPages) {
 		return &awstransfer.ListServersOutput{}, nil
 	}

@@ -57,7 +57,20 @@ func firstPathSegment(path string) (segment string, remainder string, ok bool) {
 // system ID as the leading path segment, so the scanner classifies the backing
 // store by this prefix when the server domain is not authoritative.
 func looksLikeEFSFileSystemID(segment string) bool {
-	return strings.HasPrefix(strings.TrimSpace(segment), "fs-")
+	// EFS file system IDs are fs- followed by 8 (legacy) or 17 hex characters.
+	// An S3 bucket name can legally start with "fs-", so a bare prefix check
+	// would misclassify an S3 home directory as EFS; require the hex shape.
+	rest, ok := strings.CutPrefix(strings.TrimSpace(segment), "fs-")
+	if !ok || len(rest) < 8 {
+		return false
+	}
+	for _, r := range rest {
+		isHex := (r >= '0' && r <= '9') || (r >= 'a' && r <= 'f')
+		if !isHex {
+			return false
+		}
+	}
+	return true
 }
 
 func cloneStringSlice(input []string) []string {

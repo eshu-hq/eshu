@@ -32,8 +32,10 @@ type Server struct {
 	SecurityPolicyName   string
 	IPAddressType        string
 
-	// VPCEndpointID is the AWS-reported interface VPC endpoint ID (vpce-...)
-	// for VPC_ENDPOINT servers. Empty for PUBLIC and VPC endpoint types.
+	// VPCEndpointID is the AWS-reported interface VPC endpoint ID (vpce-...). It
+	// is set only when the server's EndpointType is VPC_ENDPOINT (the legacy
+	// interface-endpoint mode); it is empty for the PUBLIC and VPC endpoint
+	// types.
 	VPCEndpointID string
 	// VPCID is the AWS-reported VPC ID for VPC-hosted endpoints.
 	VPCID string

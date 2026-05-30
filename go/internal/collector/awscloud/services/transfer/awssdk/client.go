@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"sync"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	awstransfer "github.com/aws/aws-sdk-go-v2/service/transfer"
@@ -39,6 +40,13 @@ type Client struct {
 	boundary    awscloud.Boundary
 	tracer      trace.Tracer
 	instruments *telemetry.Instruments
+
+	// serverIDsOnce memoizes the claim's ListServers pass so the scanner's
+	// ListServers (DescribeServer fan-out) and ListUsers calls share a single
+	// paginated ListServers stream instead of each re-listing.
+	serverIDsOnce      sync.Once
+	cachedServerIDs    []string
+	cachedServerIDsErr error
 }
 
 // NewClient builds a Transfer Family SDK adapter for one claimed AWS boundary.
@@ -79,7 +87,18 @@ func (c *Client) ListServers(ctx context.Context) ([]transferservice.Server, err
 	return servers, nil
 }
 
+// listServerIDs returns the claim's Transfer server IDs, listing them at most
+// once per adapter (the adapter is scoped to one claimed boundary). ListServers
+// is paginated and both ListServers (DescribeServer fan-out) and ListUsers
+// consume the IDs, so memoizing here keeps the scan to a single ListServers pass.
 func (c *Client) listServerIDs(ctx context.Context) ([]string, error) {
+	c.serverIDsOnce.Do(func() {
+		c.cachedServerIDs, c.cachedServerIDsErr = c.fetchServerIDs(ctx)
+	})
+	return c.cachedServerIDs, c.cachedServerIDsErr
+}
+
+func (c *Client) fetchServerIDs(ctx context.Context) ([]string, error) {
 	var ids []string
 	var nextToken *string
 	for {

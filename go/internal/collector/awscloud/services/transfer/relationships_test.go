@@ -33,7 +33,7 @@ func TestFirstPathSegmentSplitsHomeDirectory(t *testing.T) {
 		{"/landing-bucket/home/user", "landing-bucket", "home/user", true},
 		{"/landing-bucket", "landing-bucket", "", true},
 		{"landing-bucket/x", "landing-bucket", "x", true},
-		{"/fs-0a1b/home", "fs-0a1b", "home", true},
+		{"/fs-0a1b2c3d/home", "fs-0a1b2c3d", "home", true},
 		{"/", "", "", false},
 		{"", "", "", false},
 		{"   ", "", "", false},
@@ -48,11 +48,47 @@ func TestFirstPathSegmentSplitsHomeDirectory(t *testing.T) {
 }
 
 func TestLooksLikeEFSFileSystemID(t *testing.T) {
-	if !looksLikeEFSFileSystemID("fs-0a1b2c3d") {
-		t.Fatalf("looksLikeEFSFileSystemID(fs-...) = false, want true")
+	cases := []struct {
+		value string
+		want  bool
+	}{
+		{"fs-0a1b2c3d", true},          // 8-hex legacy EFS id
+		{"fs-0123456789abcdef0", true}, // 17-hex EFS id
+		{"landing-bucket", false},      // not an fs- value
+		// An S3 bucket name may legally start with "fs-"; it must NOT be
+		// misclassified as EFS (the bug this guards).
+		{"fs-mybucket", false},
+		{"fs-1", false},        // too short to be a real EFS id
+		{"fs-0a1b2c3g", false}, // non-hex character
 	}
-	if looksLikeEFSFileSystemID("landing-bucket") {
-		t.Fatalf("looksLikeEFSFileSystemID(bucket) = true, want false")
+	for _, tc := range cases {
+		if got := looksLikeEFSFileSystemID(tc.value); got != tc.want {
+			t.Fatalf("looksLikeEFSFileSystemID(%q) = %v, want %v", tc.value, got, tc.want)
+		}
+	}
+}
+
+// TestServerRelationshipsSourceMatchesNodeIdentity guards the join: server->*
+// edges must be sourced on the identity the server resource node publishes
+// (ARN-preferred), not the bare ServerID, or they dangle whenever the ARN is
+// present.
+func TestServerRelationshipsSourceMatchesNodeIdentity(t *testing.T) {
+	server := Server{
+		ServerID:       "s-abc",
+		ARN:            "arn:aws:transfer:us-east-1:123456789012:server/s-abc",
+		EndpointType:   "VPC_ENDPOINT",
+		LoggingRoleARN: "arn:aws:iam::123456789012:role/transfer-logging",
+		VPCEndpointID:  "vpce-0123456789abcdef0",
+	}
+	rels := serverRelationships(testBoundary(), server)
+	if len(rels) == 0 {
+		t.Fatal("expected at least one server relationship")
+	}
+	for _, rel := range rels {
+		if rel.SourceResourceID != server.ARN {
+			t.Fatalf("edge %q source_resource_id = %q, want the server ARN %q (else it dangles)",
+				rel.RelationshipType, rel.SourceResourceID, server.ARN)
+		}
 	}
 }
 

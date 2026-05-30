@@ -224,9 +224,9 @@ func TestScannerDerivesSynthesizedARNPartition(t *testing.T) {
 		wantBucketARN string
 		wantEFSARN    string
 	}{
-		{"commercial", "us-east-1", "arn:aws:s3:::landing", "arn:aws:elasticfilesystem:us-east-1:123456789012:file-system/fs-1"},
-		{"govcloud", "us-gov-west-1", "arn:aws-us-gov:s3:::landing", "arn:aws-us-gov:elasticfilesystem:us-gov-west-1:123456789012:file-system/fs-1"},
-		{"china", "cn-north-1", "arn:aws-cn:s3:::landing", "arn:aws-cn:elasticfilesystem:cn-north-1:123456789012:file-system/fs-1"},
+		{"commercial", "us-east-1", "arn:aws:s3:::landing", "arn:aws:elasticfilesystem:us-east-1:123456789012:file-system/fs-0a1b2c3d"},
+		{"govcloud", "us-gov-west-1", "arn:aws-us-gov:s3:::landing", "arn:aws-us-gov:elasticfilesystem:us-gov-west-1:123456789012:file-system/fs-0a1b2c3d"},
+		{"china", "cn-north-1", "arn:aws-cn:s3:::landing", "arn:aws-cn:elasticfilesystem:cn-north-1:123456789012:file-system/fs-0a1b2c3d"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -236,7 +236,7 @@ func TestScannerDerivesSynthesizedARNPartition(t *testing.T) {
 				servers: []Server{{ServerID: "s-1", ARN: "arn:aws:transfer:::server/s-1"}},
 				users: []User{
 					{ServerID: "s-1", ARN: "arn:partition:transfer:::user/s-1/s3", UserName: "s3", HomeDirectory: "/landing/x"},
-					{ServerID: "s-1", ARN: "arn:partition:transfer:::user/s-1/efs", UserName: "efs", HomeDirectory: "/fs-1/x"},
+					{ServerID: "s-1", ARN: "arn:partition:transfer:::user/s-1/efs", UserName: "efs", HomeDirectory: "/fs-0a1b2c3d/x"},
 				},
 			}
 			envelopes, err := (Scanner{Client: client}).Scan(context.Background(), boundary)
@@ -291,7 +291,7 @@ func TestScannerOmitsRelationshipsWhenAWSReportsNoJoinKey(t *testing.T) {
 }
 
 func TestUserHomeDirectoryEFSEdgeRequiresBoundaryAccountAndRegion(t *testing.T) {
-	user := User{ServerID: "s-1", ARN: "arn:aws:transfer:::user/s-1/u", UserName: "u", HomeDirectory: "/fs-1/x"}
+	user := User{ServerID: "s-1", ARN: "arn:aws:transfer:::user/s-1/u", UserName: "u", HomeDirectory: "/fs-0a1b2c3d/x"}
 	// A complete boundary produces the EFS edge.
 	if got := userHomeDirectoryRelationship(testBoundary(), userResourceID(user), user); got == nil {
 		t.Fatalf("user->efs relationship = nil for a complete boundary, want an edge")

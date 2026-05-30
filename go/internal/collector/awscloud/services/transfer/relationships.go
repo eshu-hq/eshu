@@ -12,7 +12,12 @@ import (
 // role. Each edge is emitted only when AWS reports the join key in the shape the
 // target scanner publishes.
 func serverRelationships(boundary awscloud.Boundary, server Server) []awscloud.RelationshipObservation {
-	serverID := strings.TrimSpace(server.ServerID)
+	// Source the edges on the identity the server resource node publishes as its
+	// resource_id (ARN-preferred, matching serverObservation). Using the bare
+	// ServerID here would dangle every server->* edge whenever the server ARN is
+	// present (the common case), because it would not join the emitted
+	// aws_transfer_server node.
+	serverID := firstNonEmpty(strings.TrimSpace(server.ARN), strings.TrimSpace(server.ServerID))
 	if serverID == "" {
 		return nil
 	}
