@@ -9,6 +9,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/accessanalyzer v1.48.0
 	github.com/aws/aws-sdk-go-v2/service/acm v1.39.0
 	github.com/aws/aws-sdk-go-v2/service/acmpca v1.39.0
+	github.com/aws/aws-sdk-go-v2/service/amplify v1.38.18
 	github.com/aws/aws-sdk-go-v2/service/apigateway v1.39.3
 	github.com/aws/aws-sdk-go-v2/service/apigatewayv2 v1.34.3
 	github.com/aws/aws-sdk-go-v2/service/appmesh v1.35.15
