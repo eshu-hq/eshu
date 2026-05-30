@@ -232,6 +232,8 @@ github.com/aws/aws-sdk-go-v2/service/redshift v1.62.8 h1:5Wg38ZauCqmomDAGTCDbA/t
 github.com/aws/aws-sdk-go-v2/service/redshift v1.62.8/go.mod h1:uLWlNO4q8278lSx2iKIJZ09zSXNJ6uQTFM1jvZIZRf4=
 github.com/aws/aws-sdk-go-v2/service/redshiftserverless v1.35.0 h1:4bhy+oTqgUdtw8IvWcc1pPL4DCH5ZT4rkV9a1eggQGY=
 github.com/aws/aws-sdk-go-v2/service/redshiftserverless v1.35.0/go.mod h1:24tWvrWAt7wxYpXYPSmDyfyRWKGdz2glsgnLV9MSRq4=
+github.com/aws/aws-sdk-go-v2/service/resourcegroups v1.33.27 h1:PBuU5HO0JhThHHOZ9WG0xyvK7lsx6XIGRW9ACvvCtHA=
+github.com/aws/aws-sdk-go-v2/service/resourcegroups v1.33.27/go.mod h1:rqCOOEEd3ofM5Lltmv7IehmpnyXCDzxlydqXc6Sx35k=
 github.com/aws/aws-sdk-go-v2/service/route53 v1.36.0 h1:7wh6KdJnej4T7sE/xfnZf5T+GQzp6GfoZi+5r6ZPlW8=
 github.com/aws/aws-sdk-go-v2/service/route53 v1.36.0/go.mod h1:F9El48+5Tf+TkYJB/6M9H7oqXw9Mr9eVetwJ6SUql7g=
 github.com/aws/aws-sdk-go-v2/service/route53resolver v1.36.0 h1:gkR6ADqZBV4RzK+FZVI818Rula1i85/G3JlGnn6FDY0=
