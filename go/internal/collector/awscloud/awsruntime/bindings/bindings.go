@@ -75,6 +75,7 @@ import (
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/sagemaker/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/secretsmanager/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/securityhub/runtimebind"
+	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/servicecatalog/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/servicediscovery/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/shield/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/sns/runtimebind"
