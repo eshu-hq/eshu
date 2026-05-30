@@ -97,8 +97,8 @@ graph writes in the collector.
 No-Regression Evidence:
 `go test ./internal/collector/awscloud/services/codeartifact/... ./internal/collector/awscloud/internal/relguard/... ./cmd/collector-aws-cloud/... -count=1`
 covers CodeArtifact domain and repository metadata fact emission,
-repository-to-domain membership, domain-to-KMS-key, repository-to-upstream
--repository, and repository-to-external-connection relationship emission with
+repository-to-domain membership, domain-to-KMS-key,
+repository-to-upstream-repository, and repository-to-external-connection relationship emission with
 each edge's `target_type` and `target_resource_id` asserted, the metadata-only
 reflection guard on the scanner-owned `Client` and the SDK adapter `apiClient`
 interfaces, the relguard runtime graph-join contract over every emitted edge,
