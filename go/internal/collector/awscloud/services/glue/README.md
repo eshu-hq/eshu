@@ -113,6 +113,23 @@ diagnoses Glue scans through `aws.service.scan`,
 `aws.service.pagination.page`, API/throttle counters, resource/relationship
 counters, and `aws_scan_status`.
 
+### Partition-aware S3 location join (#816)
+
+No-Regression Evidence: `go test ./internal/collector/awscloud/services/glue/... -count=1`
+covers the new `TestTableS3LocationRelationshipDerivesPartition` (commercial /
+`aws-us-gov` / `aws-cn` / blank-region-fallback) alongside the existing
+table-to-S3-location commercial assertions. Glue tables carry no ARN, so the
+table->S3-location target ARN now derives its partition from the scan
+boundary's region via `partition(boundary)` instead of hardcoding `aws`,
+letting GovCloud and China joins resolve to the bucket node the S3 scanner
+publishes (`arn:<partition>:s3:::<bucket>`) instead of dangling.
+Commercial-partition output is byte-for-byte unchanged; this is a metadata-only
+correctness fix with no graph-write, queue, or hot-path behavior change.
+
+No-Observability-Change: the fix only changes the partition substring of a
+synthesized target ARN value; no instrument, span, metric label, or
+`aws_scan_status` row changes.
+
 Collector Deployment Evidence: Glue runs inside the existing hosted
 `collector-aws-cloud` runtime, so `/healthz`, `/readyz`, `/metrics`, and
 `/admin/status` stay covered by the command wiring and Helm collector
