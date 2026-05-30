@@ -128,11 +128,25 @@ func scanFile(servicesDir, path string) ([]Violation, error) {
 				}
 			}
 		case *ast.CallExpr:
-			if !isPrintfFamily(e.Fun) || len(e.Args) == 0 {
-				return true
-			}
-			if v, ok := stringLitValue(e.Args[0]); ok && strings.HasPrefix(v, commercialARNPrefix) {
-				flag(e.Args[0].Pos(), v, "format string")
+			switch fmtCallKind(e.Fun) {
+			case fmtCallFormat:
+				// Sprintf/Errorf/Printf/Fprintf: the first argument is the format
+				// string, so a commercial ARN prefix there is a synthesis.
+				if len(e.Args) == 0 {
+					return true
+				}
+				if v, ok := stringLitValue(e.Args[0]); ok && strings.HasPrefix(v, commercialARNPrefix) {
+					flag(e.Args[0].Pos(), v, "format string")
+				}
+			case fmtCallConcat:
+				// Sprint/Sprintln concatenate their operands rather than taking a
+				// format string, so a commercial ARN prefix in ANY argument is a
+				// synthesis.
+				for _, arg := range e.Args {
+					if v, ok := stringLitValue(arg); ok && strings.HasPrefix(v, commercialARNPrefix) {
+						flag(arg.Pos(), v, "fmt.Sprint argument")
+					}
+				}
 			}
 		}
 		return true
@@ -154,22 +168,35 @@ func commercialOperand(expr ast.Expr, commercialConsts map[string]token.Pos) (st
 	return "", false
 }
 
-// isPrintfFamily reports whether a call target is a fmt printf-family function
-// whose first argument is a format string.
-func isPrintfFamily(fun ast.Expr) bool {
+// fmt call categories. A format call's first argument is a format string; a
+// concat call (Sprint/Sprintln) has no format string and concatenates its
+// operands. Both can synthesize a hardcoded-partition ARN, but the literal sits
+// in a different position, so the guard inspects them differently.
+const (
+	fmtCallNone   = ""
+	fmtCallFormat = "format"
+	fmtCallConcat = "concat"
+)
+
+// fmtCallKind classifies a fmt call as a format-string call
+// (Sprintf/Errorf/Printf/Fprintf), a concatenating call (Sprint/Sprintln), or
+// neither. It returns fmtCallNone for non-fmt or other fmt calls.
+func fmtCallKind(fun ast.Expr) string {
 	sel, ok := fun.(*ast.SelectorExpr)
 	if !ok {
-		return false
+		return fmtCallNone
 	}
 	pkg, ok := sel.X.(*ast.Ident)
 	if !ok || pkg.Name != "fmt" {
-		return false
+		return fmtCallNone
 	}
 	switch sel.Sel.Name {
-	case "Sprintf", "Errorf", "Printf", "Fprintf", "Sprint", "Sprintln":
-		return true
+	case "Sprintf", "Errorf", "Printf", "Fprintf":
+		return fmtCallFormat
+	case "Sprint", "Sprintln":
+		return fmtCallConcat
 	}
-	return false
+	return fmtCallNone
 }
 
 // stringLitValue returns the unquoted value of a string-literal expression.

@@ -46,7 +46,7 @@ func TestS3BucketARNFromLocationPreservesObjectARNPartition(t *testing.T) {
 		{name: "commercial object arn", location: "arn:aws:s3:::bkt/key.zip", want: "arn:aws:s3:::bkt"},
 		{name: "govcloud object arn", location: "arn:aws-us-gov:s3:::bkt/key.zip", want: "arn:aws-us-gov:s3:::bkt"},
 		{name: "china object arn", location: "arn:aws-cn:s3:::bkt/key.zip", want: "arn:aws-cn:s3:::bkt"},
-		{name: "govcloud bucket arn unchanged", location: "arn:aws-cn:s3:::bkt", want: "arn:aws-cn:s3:::bkt"},
+		{name: "china bucket arn unchanged", location: "arn:aws-cn:s3:::bkt", want: "arn:aws-cn:s3:::bkt"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
