@@ -46,6 +46,7 @@ import (
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/elbv2/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/emr/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/eventbridge/runtimebind"
+	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/firehose/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/fsx/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/globalaccelerator/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/glue/runtimebind"
