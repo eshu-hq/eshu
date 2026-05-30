@@ -40,10 +40,12 @@ func timeOrNil(value time.Time) any {
 }
 
 // outputBucketARN converts an Athena workgroup OutputLocation `s3://bucket[/...]`
-// URI into an `arn:aws:s3:::bucket` ARN. It returns an empty string when the
-// location is missing, malformed, or not an S3 URI so result-object contents
-// never leak into the relationship payload.
-func outputBucketARN(outputLocation string) string {
+// URI into an `arn:<partition>:s3:::bucket` ARN. The partition is supplied by the
+// caller (derived from the scan boundary) so the synthesized ARN matches the S3
+// bucket scanner's resource_id in GovCloud and China instead of dangling. It
+// returns an empty string when the location is missing, malformed, or not an S3
+// URI so result-object contents never leak into the relationship payload.
+func outputBucketARN(partition, outputLocation string) string {
 	trimmed := strings.TrimSpace(outputLocation)
 	if trimmed == "" {
 		return ""
@@ -61,5 +63,5 @@ func outputBucketARN(outputLocation string) string {
 	if bucket == "" {
 		return ""
 	}
-	return "arn:aws:s3:::" + bucket
+	return "arn:" + partition + ":s3:::" + bucket
 }
