@@ -142,6 +142,8 @@ github.com/aws/aws-sdk-go-v2/service/cognitoidentityprovider v1.60.3 h1:X3qB+VaA
 github.com/aws/aws-sdk-go-v2/service/cognitoidentityprovider v1.60.3/go.mod h1:8IfDUcBSJboFS3Az4MX8Oh1ik/P/X7jyFf5Q2UZLtrk=
 github.com/aws/aws-sdk-go-v2/service/configservice v1.48.1 h1:Ua3cfn1hGHYGrHzm96GZqHrKGzkp5NLgCYnW3gE7ENY=
 github.com/aws/aws-sdk-go-v2/service/configservice v1.48.1/go.mod h1:tQ7+0gX1FarOQr6WvIvYxyXYg0Hel5YD0aZvhR/053M=
+github.com/aws/aws-sdk-go-v2/service/databasemigrationservice v1.63.2 h1:V4fLKnoAyrZmzjaYAX3fQTR3pUjeer+SfsUHfimrROE=
+github.com/aws/aws-sdk-go-v2/service/databasemigrationservice v1.63.2/go.mod h1:SD7qKHNV8PGzUDYoBgKUJ6ORzICxJ15aSgFDC7YB4xc=
 github.com/aws/aws-sdk-go-v2/service/datasync v1.59.2 h1:HTX7q0tp1rxQMr8670zJZSRFvbCMBxfjUpRcFpIZ4cw=
 github.com/aws/aws-sdk-go-v2/service/datasync v1.59.2/go.mod h1:SvyTh5chBFqwRLRjSVXGSS+buCxlzao+IRKeYJaympM=
 github.com/aws/aws-sdk-go-v2/service/detective v1.39.1 h1:1thuyQ62I37RCNck64j6UG5DKde+FHOuMRjnRohA7Lo=
