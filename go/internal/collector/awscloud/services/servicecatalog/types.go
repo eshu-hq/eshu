@@ -7,9 +7,14 @@ import (
 
 // Client lists metadata-only AWS Service Catalog observations for one claimed
 // account and region. Every method maps to a read-only AWS Service Catalog API.
-// The interface deliberately excludes every provisioning, association,
-// constraint-mutation, and template-read API so the metadata-only contract is
-// enforced by construction; see TestClientInterfaceExcludesMutationAPIs.
+// The interface deliberately excludes every provisioning, association, and
+// constraint mutation API, plus the sensitive-payload read APIs that return
+// provisioning-artifact template bodies, launch-constraint policy documents,
+// provisioning parameter values, or record output values, so the metadata-only
+// contract is enforced by construction. Read-only association lookups
+// (PortfoliosForProduct, PrincipalsForPortfolio) are kept because they return
+// only identity references used to derive relationship edges, not sensitive
+// payloads. See TestClientInterfaceExcludesMutationAPIs.
 type Client interface {
 	// ListPortfolios reads Service Catalog portfolio metadata.
 	ListPortfolios(ctx context.Context) ([]Portfolio, error)

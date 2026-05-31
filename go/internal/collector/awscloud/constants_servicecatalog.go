@@ -13,18 +13,20 @@ const (
 const (
 	// ResourceTypeServiceCatalogPortfolio identifies an AWS Service Catalog
 	// portfolio metadata resource. The scanner emits portfolio identity, ARN,
-	// display name, provider name, and timestamps only.
+	// display name, provider name, description, and creation timestamp only.
 	ResourceTypeServiceCatalogPortfolio = "aws_servicecatalog_portfolio"
 	// ResourceTypeServiceCatalogProduct identifies an AWS Service Catalog
 	// product metadata resource. The scanner emits product identity, ARN, name,
-	// product type, and owner only; provisioning-artifact template bodies stay
-	// outside the contract.
+	// product type, owner, distributor, status, and creation timestamp only;
+	// provisioning-artifact template bodies stay outside the contract.
 	ResourceTypeServiceCatalogProduct = "aws_servicecatalog_product"
 	// ResourceTypeServiceCatalogProvisionedProduct identifies an AWS Service
 	// Catalog provisioned-product metadata resource. The scanner emits
-	// provisioned-product identity, ARN, status, product identifier, and
-	// provisioning-artifact identifier only; provisioning parameter values and
-	// stack output values stay outside the contract.
+	// provisioned-product identity, ARN, status, type, product identifier,
+	// provisioning-artifact identifier, provisioning-artifact name, deployed
+	// CloudFormation stack physical identifier, and creation timestamp only;
+	// provisioning parameter values and stack output values stay outside the
+	// contract.
 	ResourceTypeServiceCatalogProvisionedProduct = "aws_servicecatalog_provisioned_product"
 )
 

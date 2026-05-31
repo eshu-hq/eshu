@@ -368,6 +368,52 @@ func TestScanEmitsNoSecretShapedPayload(t *testing.T) {
 	}
 }
 
+// TestScanEmitsEveryDocumentedAttribute guards the resource-type doc contract
+// against drift in the narrowing direction: the doc comments on
+// ResourceTypeServiceCatalog{Portfolio,Product,ProvisionedProduct} and the
+// service-coverage doc must name every attribute the scanner actually emits. If
+// the scanner gains an attribute the documented contract omits, this test fails
+// so the doc is updated in lockstep. Paired with TestScanEmitsNoSecretShapedPayload
+// (no key outside the allowlist), the two tests pin the emitted set exactly.
+func TestScanEmitsEveryDocumentedAttribute(t *testing.T) {
+	documented := map[string][]string{
+		awscloud.ResourceTypeServiceCatalogPortfolio: {
+			"portfolio_id", "display_name", "provider_name", "description", "created_time"},
+		awscloud.ResourceTypeServiceCatalogProduct: {
+			"product_id", "product_type", "owner", "distributor", "status", "created_time"},
+		awscloud.ResourceTypeServiceCatalogProvisionedProduct: {
+			"provisioned_product_id", "status", "provisioned_product_type", "product_id",
+			"provisioning_artifact_id", "provisioning_artifact_name", "physical_id", "created_time"},
+	}
+	seen := make(map[string]map[string]struct{}, len(documented))
+	for _, envelope := range scanFixture(t, sampleClient()) {
+		if envelope.FactKind != facts.AWSResourceFactKind {
+			continue
+		}
+		resourceType, _ := envelope.Payload["resource_type"].(string)
+		if _, ok := documented[resourceType]; !ok {
+			continue
+		}
+		attributes, _ := envelope.Payload["attributes"].(map[string]any)
+		keys := make(map[string]struct{}, len(attributes))
+		for key := range attributes {
+			keys[key] = struct{}{}
+		}
+		seen[resourceType] = keys
+	}
+	for resourceType, keys := range documented {
+		got, ok := seen[resourceType]
+		if !ok {
+			t.Fatalf("no %s resource emitted; cannot verify documented attributes", resourceType)
+		}
+		for _, key := range keys {
+			if _, ok := got[key]; !ok {
+				t.Fatalf("%s emits no documented attribute %q; doc contract claims it", resourceType, key)
+			}
+		}
+	}
+}
+
 func keySet(keys ...string) map[string]struct{} {
 	set := make(map[string]struct{}, len(keys))
 	for _, key := range keys {
