@@ -38,6 +38,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/cognitoidentityprovider v1.60.3
 	github.com/aws/aws-sdk-go-v2/service/computeoptimizer v1.51.2
 	github.com/aws/aws-sdk-go-v2/service/configservice v1.48.1
+	github.com/aws/aws-sdk-go-v2/service/controltower v1.29.2
 	github.com/aws/aws-sdk-go-v2/service/databasemigrationservice v1.63.2
 	github.com/aws/aws-sdk-go-v2/service/datasync v1.59.2
 	github.com/aws/aws-sdk-go-v2/service/dax v1.29.20
@@ -76,6 +77,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/kms v1.52.0
 	github.com/aws/aws-sdk-go-v2/service/lakeformation v1.47.10
 	github.com/aws/aws-sdk-go-v2/service/lambda v1.90.1
+	github.com/aws/aws-sdk-go-v2/service/licensemanager v1.37.14
 	github.com/aws/aws-sdk-go-v2/service/lightsail v1.53.2
 	github.com/aws/aws-sdk-go-v2/service/macie2 v1.51.3
 	github.com/aws/aws-sdk-go-v2/service/memorydb v1.34.1
@@ -89,6 +91,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/opensearchserverless v1.31.0
 	github.com/aws/aws-sdk-go-v2/service/organizations v1.51.3
 	github.com/aws/aws-sdk-go-v2/service/outposts v1.60.2
+	github.com/aws/aws-sdk-go-v2/service/proton v1.40.0
 	github.com/aws/aws-sdk-go-v2/service/quicksight v1.112.0
 	github.com/aws/aws-sdk-go-v2/service/ram v1.36.6
 	github.com/aws/aws-sdk-go-v2/service/rds v1.118.2
@@ -103,6 +106,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/securityhub v1.71.0
 	github.com/aws/aws-sdk-go-v2/service/servicecatalog v1.39.14
 	github.com/aws/aws-sdk-go-v2/service/servicediscovery v1.40.1
+	github.com/aws/aws-sdk-go-v2/service/servicequotas v1.35.2
 	github.com/aws/aws-sdk-go-v2/service/sesv2 v1.62.0
 	github.com/aws/aws-sdk-go-v2/service/sfn v1.41.0
 	github.com/aws/aws-sdk-go-v2/service/shield v1.34.25
