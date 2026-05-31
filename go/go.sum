@@ -246,6 +246,8 @@ github.com/aws/aws-sdk-go-v2/service/servicediscovery v1.40.1 h1:vyjZg2SefsacQFg
 github.com/aws/aws-sdk-go-v2/service/servicediscovery v1.40.1/go.mod h1:9BpYYXW/GFuScrtiSbfKHLP3LJSYUYKyWLbvXZkB9os=
 github.com/aws/aws-sdk-go-v2/service/sfn v1.41.0 h1:DjtJU3mUbj3Q6ggWmiCZuBfOf1k89O55knWuLABRUYs=
 github.com/aws/aws-sdk-go-v2/service/sfn v1.41.0/go.mod h1:4FYhQ/fQeVDlW53MUOevhxGhJ9RYOYV8HSwyVmFCer0=
+github.com/aws/aws-sdk-go-v2/service/shield v1.34.25 h1:mTkHhGBTt/7wd/7dMQwPpoI9xWeuR9HMk87WQSMmRTE=
+github.com/aws/aws-sdk-go-v2/service/shield v1.34.25/go.mod h1:RFFO1hD4EphzolYUUk2YSf4bQwvdW3uYS2VkGbgSnjI=
 github.com/aws/aws-sdk-go-v2/service/sns v1.39.17 h1:synXIPC/L4Cc489P0XDcrVJzHSLj7krKRpFLalbGM2k=
 github.com/aws/aws-sdk-go-v2/service/sns v1.39.17/go.mod h1:4ABZnI23uNK37waIjGwkubnCwGhepIt9x1GvASfljJA=
 github.com/aws/aws-sdk-go-v2/service/sqs v1.42.27 h1:QgaWXVmNDxv/U/3UIHfGb7ohvtFgerf/bYcYylj4i8E=
