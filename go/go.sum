@@ -284,6 +284,8 @@ github.com/aws/aws-sdk-go-v2/service/organizations v1.51.3 h1:LWSmXWwYzR9yRcszxy
 github.com/aws/aws-sdk-go-v2/service/organizations v1.51.3/go.mod h1:DGpC4BVQ1zS8X/nFYfHGiHyAhrsb8gZ8pPxn+Jf0iPY=
 github.com/aws/aws-sdk-go-v2/service/outposts v1.60.2 h1:nNfpVpJBqICuGLrtsKOdBeVfQv/92L+v5Ob54RD2Rlk=
 github.com/aws/aws-sdk-go-v2/service/outposts v1.60.2/go.mod h1:qS32fHnwl8By83j2hB2nTNfOz8TQZlpkcY+PeZv9uTw=
+github.com/aws/aws-sdk-go-v2/service/pinpoint v1.39.25 h1:zo+1suAVKOUAVrVjLPuKi3d8XWSQ0hC7HR9dNSkZ4KE=
+github.com/aws/aws-sdk-go-v2/service/pinpoint v1.39.25/go.mod h1:7N1GzfR7LHLnb3l+UcpiSntPMmnYkzjV5GnvyEhOnqA=
 github.com/aws/aws-sdk-go-v2/service/proton v1.40.0 h1:2wnaqk55fyxRlMnleQPEekB5CuwNhY4PLeqv+4+PwzU=
 github.com/aws/aws-sdk-go-v2/service/proton v1.40.0/go.mod h1:nTTJPeqKTpLQ2XslChWbwuZAkOKPpyGkbo78la10pB8=
 github.com/aws/aws-sdk-go-v2/service/quicksight v1.112.0 h1:PAW0DClCeudP+lLN1z9i0TLjoqErUGwNu+DfemX4RIc=
