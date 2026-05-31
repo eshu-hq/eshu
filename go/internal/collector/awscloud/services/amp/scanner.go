@@ -40,7 +40,7 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 
 	snapshot, err := s.Client.Snapshot(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("list AMP workspaces: %w", err)
+		return nil, fmt.Errorf("snapshot AMP metadata: %w", err)
 	}
 	var envelopes []facts.Envelope
 	if err := appendWarnings(&envelopes, snapshot.Warnings); err != nil {
@@ -148,11 +148,10 @@ func workspaceObservation(boundary awscloud.Boundary, workspace Workspace) awscl
 		State:        strings.TrimSpace(workspace.Status),
 		Tags:         cloneStringMap(workspace.Tags),
 		Attributes: map[string]any{
-			"workspace_id":        strings.TrimSpace(workspace.WorkspaceID),
-			"alias":               alias,
-			"kms_key_arn":         strings.TrimSpace(workspace.KMSKeyARN),
-			"prometheus_endpoint": strings.TrimSpace(workspace.PrometheusEndpoint),
-			"creation_time":       timeOrNil(workspace.CreatedAt),
+			"workspace_id":  strings.TrimSpace(workspace.WorkspaceID),
+			"alias":         alias,
+			"kms_key_arn":   strings.TrimSpace(workspace.KMSKeyARN),
+			"creation_time": timeOrNil(workspace.CreatedAt),
 		},
 		CorrelationAnchors: []string{workspaceARN, strings.TrimSpace(workspace.WorkspaceID)},
 		SourceRecordID:     resourceID,

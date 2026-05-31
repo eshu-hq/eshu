@@ -23,14 +23,13 @@ const (
 func TestScannerEmitsAMPMetadataAndRelationships(t *testing.T) {
 	client := fakeClient{snapshot: Snapshot{
 		Workspaces: []Workspace{{
-			ARN:                testWorkspaceARN,
-			WorkspaceID:        testWorkspaceID,
-			Alias:              "platform-metrics",
-			Status:             "ACTIVE",
-			KMSKeyARN:          testKMSARN,
-			PrometheusEndpoint: "https://aps-workspaces.us-east-1.amazonaws.com/workspaces/" + testWorkspaceID + "/",
-			CreatedAt:          time.Date(2026, 5, 14, 12, 0, 0, 0, time.UTC),
-			Tags:               map[string]string{"Environment": "prod"},
+			ARN:         testWorkspaceARN,
+			WorkspaceID: testWorkspaceID,
+			Alias:       "platform-metrics",
+			Status:      "ACTIVE",
+			KMSKeyARN:   testKMSARN,
+			CreatedAt:   time.Date(2026, 5, 14, 12, 0, 0, 0, time.UTC),
+			Tags:        map[string]string{"Environment": "prod"},
 			RuleGroupsNamespaces: []RuleGroupsNamespace{{
 				ARN:        testNamespaceARN,
 				Name:       "alerts",
@@ -75,6 +74,13 @@ func TestScannerEmitsAMPMetadataAndRelationships(t *testing.T) {
 	assertAttribute(t, wsAttrs, "workspace_id", testWorkspaceID)
 	assertAttribute(t, wsAttrs, "alias", "platform-metrics")
 	assertAttribute(t, wsAttrs, "kms_key_arn", testKMSARN)
+	// prometheus_endpoint has no list-only data source: ListWorkspaces returns a
+	// WorkspaceSummary that does not carry the endpoint, and the adapter is
+	// forbidden from calling DescribeWorkspace, so the scanner must not emit an
+	// always-empty attribute.
+	if _, exists := wsAttrs["prometheus_endpoint"]; exists {
+		t.Fatalf("prometheus_endpoint attribute emitted; no list-only source exists, must be omitted")
+	}
 
 	// Rule-groups namespace resource node (name only).
 	namespace := resourceByType(t, envelopes, awscloud.ResourceTypeAMPRuleGroupsNamespace)

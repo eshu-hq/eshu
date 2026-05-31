@@ -3,6 +3,7 @@ package awssdk
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -76,18 +77,18 @@ func NewClient(
 func (c *Client) Snapshot(ctx context.Context) (ampservice.Snapshot, error) {
 	workspaces, err := c.listWorkspaces(ctx)
 	if err != nil {
-		return ampservice.Snapshot{}, err
+		return ampservice.Snapshot{}, fmt.Errorf("list AMP workspaces: %w", err)
 	}
 	for i := range workspaces {
 		namespaces, err := c.listNamespaces(ctx, workspaces[i].WorkspaceID)
 		if err != nil {
-			return ampservice.Snapshot{}, err
+			return ampservice.Snapshot{}, fmt.Errorf("list AMP rule-groups namespaces: %w", err)
 		}
 		workspaces[i].RuleGroupsNamespaces = namespaces
 	}
 	scrapers, err := c.listScrapers(ctx)
 	if err != nil {
-		return ampservice.Snapshot{}, err
+		return ampservice.Snapshot{}, fmt.Errorf("list AMP scrapers: %w", err)
 	}
 	return ampservice.Snapshot{Workspaces: workspaces, Scrapers: scrapers}, nil
 }

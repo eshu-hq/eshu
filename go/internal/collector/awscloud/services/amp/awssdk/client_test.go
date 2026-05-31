@@ -2,6 +2,8 @@ package awssdk
 
 import (
 	"context"
+	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -165,13 +167,71 @@ func TestClientReturnsCleanlyForEmptyAccount(t *testing.T) {
 	}
 }
 
+// TestSnapshotWrapsEachListErrorWithItsOperation proves Snapshot reports the
+// operation that actually failed. A failure while listing rule-groups
+// namespaces or scrapers must not be mislabeled as a workspace-list failure, so
+// an operator reading the error sees the real failing AMP API.
+func TestSnapshotWrapsEachListErrorWithItsOperation(t *testing.T) {
+	workspaceARN := "arn:aws:aps:us-east-1:123456789012:workspace/ws-1234"
+	workspaceID := "ws-1234"
+	boom := errors.New("boom")
+
+	cases := []struct {
+		name    string
+		api     *fakeAMPAPI
+		wantsub string
+	}{
+		{
+			name:    "workspace list failure",
+			api:     &fakeAMPAPI{workspaceErr: boom},
+			wantsub: "list AMP workspaces",
+		},
+		{
+			name: "namespace list failure",
+			api: &fakeAMPAPI{
+				workspacePages: []*awsamp.ListWorkspacesOutput{{
+					Workspaces: []awsamptypes.WorkspaceSummary{{
+						Arn:         aws.String(workspaceARN),
+						WorkspaceId: aws.String(workspaceID),
+					}},
+				}},
+				namespaceErr: boom,
+			},
+			wantsub: "list AMP rule-groups namespaces",
+		},
+		{
+			name:    "scraper list failure",
+			api:     &fakeAMPAPI{scraperErr: boom},
+			wantsub: "list AMP scrapers",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			client := &Client{client: tc.api, boundary: testBoundary()}
+			_, err := client.Snapshot(context.Background())
+			if err == nil {
+				t.Fatalf("Snapshot() error = nil, want %q", tc.wantsub)
+			}
+			if !strings.Contains(err.Error(), tc.wantsub) {
+				t.Fatalf("Snapshot() error = %q, want it to contain %q", err.Error(), tc.wantsub)
+			}
+			if !errors.Is(err, boom) {
+				t.Fatalf("Snapshot() error = %q, want it to wrap the underlying SDK error", err.Error())
+			}
+		})
+	}
+}
+
 type fakeAMPAPI struct {
 	workspacePages []*awsamp.ListWorkspacesOutput
 	workspaceCall  int
+	workspaceErr   error
 	namespacePages map[string][]*awsamp.ListRuleGroupsNamespacesOutput
 	namespaceCalls map[string]int
+	namespaceErr   error
 	scraperPages   []*awsamp.ListScrapersOutput
 	scraperCall    int
+	scraperErr     error
 }
 
 func (f *fakeAMPAPI) ListWorkspaces(
@@ -179,6 +239,9 @@ func (f *fakeAMPAPI) ListWorkspaces(
 	_ *awsamp.ListWorkspacesInput,
 	_ ...func(*awsamp.Options),
 ) (*awsamp.ListWorkspacesOutput, error) {
+	if f.workspaceErr != nil {
+		return nil, f.workspaceErr
+	}
 	if f.workspaceCall >= len(f.workspacePages) {
 		return &awsamp.ListWorkspacesOutput{}, nil
 	}
@@ -192,6 +255,9 @@ func (f *fakeAMPAPI) ListRuleGroupsNamespaces(
 	input *awsamp.ListRuleGroupsNamespacesInput,
 	_ ...func(*awsamp.Options),
 ) (*awsamp.ListRuleGroupsNamespacesOutput, error) {
+	if f.namespaceErr != nil {
+		return nil, f.namespaceErr
+	}
 	if f.namespaceCalls == nil {
 		f.namespaceCalls = map[string]int{}
 	}
@@ -210,6 +276,9 @@ func (f *fakeAMPAPI) ListScrapers(
 	_ *awsamp.ListScrapersInput,
 	_ ...func(*awsamp.Options),
 ) (*awsamp.ListScrapersOutput, error) {
+	if f.scraperErr != nil {
+		return nil, f.scraperErr
+	}
 	if f.scraperCall >= len(f.scraperPages) {
 		return &awsamp.ListScrapersOutput{}, nil
 	}

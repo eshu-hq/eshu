@@ -51,9 +51,6 @@ type Workspace struct {
 	// workspace data, when the workspace was created with one. AWS reports a key
 	// ARN here.
 	KMSKeyARN string
-	// PrometheusEndpoint is the Prometheus-compatible HTTP endpoint URL for the
-	// workspace. It is a control-plane endpoint reference, not ingested data.
-	PrometheusEndpoint string
 	// CreatedAt is when the workspace was created.
 	CreatedAt time.Time
 	// Tags carries the workspace resource tags.
