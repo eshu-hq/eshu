@@ -43,7 +43,7 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, fmt.Errorf("snapshot Application Auto Scaling: %w", err)
 	}
 	var envelopes []facts.Envelope
-	if err := appendWarnings(&envelopes, snapshot.Warnings); err != nil {
+	if err := appendWarnings(&envelopes, boundary, snapshot.Warnings); err != nil {
 		return nil, err
 	}
 	for _, target := range snapshot.ScalableTargets {
@@ -70,8 +70,18 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 	return envelopes, nil
 }
 
-func appendWarnings(envelopes *[]facts.Envelope, observations []awscloud.WarningObservation) error {
+// appendWarnings emits a warning envelope per observation, forcing each
+// observation's service_kind to the canonical boundary value. Warning
+// observations are produced by the SDK client from the caller-supplied boundary,
+// which may carry whitespace padding; overwriting it here keeps warning fact IDs
+// and payloads aligned with the resource and relationship facts Scan emits.
+func appendWarnings(
+	envelopes *[]facts.Envelope,
+	boundary awscloud.Boundary,
+	observations []awscloud.WarningObservation,
+) error {
 	for _, observation := range observations {
+		observation.Boundary.ServiceKind = boundary.ServiceKind
 		envelope, err := awscloud.NewWarningEnvelope(observation)
 		if err != nil {
 			return err

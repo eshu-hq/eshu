@@ -102,21 +102,21 @@ func (c *Client) Snapshot(ctx context.Context) (aasservice.Snapshot, error) {
 			return aasservice.Snapshot{}, err
 		}
 		snapshot.ScalableTargets = append(snapshot.ScalableTargets, targets...)
-		snapshot.Warnings = appendThrottleWarningOnce(snapshot.Warnings, warning)
+		snapshot.Warnings = appendThrottleWarning(snapshot.Warnings, warning)
 
 		policies, warning, err := c.listScalingPolicies(ctx, namespace)
 		if err != nil {
 			return aasservice.Snapshot{}, err
 		}
 		snapshot.ScalingPolicies = append(snapshot.ScalingPolicies, policies...)
-		snapshot.Warnings = appendThrottleWarningOnce(snapshot.Warnings, warning)
+		snapshot.Warnings = appendThrottleWarning(snapshot.Warnings, warning)
 
 		actions, warning, err := c.listScheduledActions(ctx, namespace)
 		if err != nil {
 			return aasservice.Snapshot{}, err
 		}
 		snapshot.ScheduledActions = append(snapshot.ScheduledActions, actions...)
-		snapshot.Warnings = appendThrottleWarningOnce(snapshot.Warnings, warning)
+		snapshot.Warnings = appendThrottleWarning(snapshot.Warnings, warning)
 	}
 	return snapshot, nil
 }

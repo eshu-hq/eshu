@@ -42,6 +42,7 @@ func mapScalingPolicy(policy awsaastypes.ScalingPolicy) aasservice.ScalingPolicy
 		ResourceID:        strings.TrimSpace(aws.ToString(policy.ResourceId)),
 		ScalableDimension: strings.TrimSpace(string(policy.ScalableDimension)),
 		AlarmARNs:         alarmARNs(policy.Alarms),
+		CreationTime:      aws.ToTime(policy.CreationTime),
 	}
 }
 
@@ -106,10 +107,13 @@ func (c *Client) throttleWarning(
 	}
 }
 
-// appendThrottleWarningOnce appends warning when it is non-nil and not already
-// recorded for the same component, so repeated throttling across namespaces does
-// not flood the warning stream with duplicate component markers.
-func appendThrottleWarningOnce(
+// appendThrottleWarning appends warning when it is non-nil. Each throttled
+// namespace/component produces a distinct omission (its message and
+// SourceRecordID embed the namespace), so every observation is recorded rather
+// than deduplicated: suppressing a later namespace would hide that its metadata
+// was dropped. A nil warning (the namespace succeeded) leaves the stream
+// unchanged.
+func appendThrottleWarning(
 	warnings []awscloud.WarningObservation,
 	warning *awscloud.WarningObservation,
 ) []awscloud.WarningObservation {
