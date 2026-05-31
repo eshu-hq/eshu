@@ -46,9 +46,11 @@ var KnownTargetTypeAllowlist = map[string]string{
 	// Accelerator) but Eshu does not yet emit an EC2 instance CloudResource; the
 	// ec2/awssdk mapper and globalaccelerator helper both key this value.
 	"aws_ec2_instance": "forward reference: no EC2 instance resource scanner yet",
-	// Classic (v1) ELB load balancers are referenced by ECS service edges but
-	// only ELBv2 is scanned today.
-	"aws_elb_load_balancer": "forward reference: only ELBv2 is scanned, classic ELB is not",
+	// IAM server certificates are referenced by Classic ELB HTTPS/SSL listeners
+	// (and IAM-uploaded certs predating ACM) but Eshu does not scan an IAM
+	// server-certificate resource yet. The classic ELB scanner keys this value
+	// for listeners whose SSLCertificateId is an :iam: server-certificate ARN.
+	"aws_iam_server_certificate": "forward reference: IAM server certificate (classic ELB HTTPS listeners), no IAM server-certificate scanner yet",
 	// Container images are OCI references shared by apprunner, ecs, lambda, and
 	// sagemaker. They are correlated through the image-reference fact stream,
 	// not as an AWS resource family.
