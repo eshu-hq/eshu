@@ -79,7 +79,7 @@ func securityAlertScopedEnvelopeAllowed(
 		return false
 	case factKindContentEntity:
 		for _, dependency := range extractPackageManifestDependencies([]facts.Envelope{envelope}) {
-			if securityAlertManifestDependencyMatches(alerts, dependency) {
+			if securityAlertScopedManifestDependencyAllowed(alerts, allowedRepositoryIDs, dependency) {
 				return true
 			}
 		}
@@ -105,6 +105,30 @@ func securityAlertManifestDependencyMatches(
 		}) {
 			continue
 		}
+		if securityAlertPackageNameMatches(alert, dependency.DependencyName) {
+			return true
+		}
+	}
+	return false
+}
+
+func securityAlertScopedManifestDependencyAllowed(
+	alerts []providerSecurityAlert,
+	allowedRepositoryIDs map[string]struct{},
+	dependency packageManifestDependency,
+) bool {
+	if securityAlertRepositoryIDAllowed(dependency.RepositoryID, allowedRepositoryIDs) &&
+		securityAlertManifestDependencyPackageMatches(alerts, dependency) {
+		return true
+	}
+	return securityAlertManifestDependencyMatches(alerts, dependency)
+}
+
+func securityAlertManifestDependencyPackageMatches(
+	alerts []providerSecurityAlert,
+	dependency packageManifestDependency,
+) bool {
+	for _, alert := range alerts {
 		if securityAlertPackageNameMatches(alert, dependency.DependencyName) {
 			return true
 		}
