@@ -39,6 +39,7 @@ import (
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/detective/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/datasync/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/directconnect/runtimebind"
+	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/dms/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/docdb/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/ds/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/dynamodb/runtimebind"
