@@ -63,6 +63,7 @@ import (
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/inspector2/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/keyspaces/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/kinesis/runtimebind"
+	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/kinesisanalyticsv2/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/kms/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/lakeformation/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/lambda/runtimebind"
