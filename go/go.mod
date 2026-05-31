@@ -36,6 +36,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/codepipeline v1.46.24
 	github.com/aws/aws-sdk-go-v2/service/cognitoidentity v1.33.25
 	github.com/aws/aws-sdk-go-v2/service/cognitoidentityprovider v1.60.3
+	github.com/aws/aws-sdk-go-v2/service/computeoptimizer v1.51.2
 	github.com/aws/aws-sdk-go-v2/service/configservice v1.48.1
 	github.com/aws/aws-sdk-go-v2/service/databasemigrationservice v1.63.2
 	github.com/aws/aws-sdk-go-v2/service/datasync v1.59.2
