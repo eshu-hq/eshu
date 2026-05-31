@@ -1,0 +1,50 @@
+# AGENTS.md — internal/collector/servicecatalog guidance
+
+## Read First
+
+1. `README.md` — package purpose, exported surface, and the payload-key
+   contract.
+2. `backstage.go` / `backstage_model.go` — Backstage manifest normalization.
+3. `facts_builder.go` — provider-agnostic fact envelope construction.
+4. `envelope.go` — fact identity, redaction, and URL safety.
+5. `go/internal/reducer/service_catalog_correlation_index.go` — the reducer
+   index whose payload keys this package MUST honor exactly.
+6. `docs/internal/design/563-service-catalog-manifest-fact-emitter.md` — the
+   design memo and phased PR plan.
+7. `docs/public/reference/collector-reducer-readiness.md` — source-truth
+   boundary for `service_catalog_correlation`.
+
+## Invariants
+
+- Keep this package fixture-backed until the hosted runtime slice is explicitly
+  opened. No HTTP clients, credentials, filesystem discovery, or runtime status.
+- Do not import the reducer or query packages in production code. The reducer is
+  imported only in `*_test.go` for the round-trip contract test.
+- Do not add new fact kinds or change the schema version. This package emits
+  into the existing `service_catalog.*` contract
+  (`facts.ServiceCatalogSchemaVersionV1`).
+- Payload-key fidelity is the highest risk. Any payload key change must be
+  checked against `serviceCatalogEntityFromFact`,
+  `serviceCatalogOwnershipFromFact`, and `serviceCatalogRepositoryLinkFromFact`
+  in the reducer index. The round-trip contract test must still reach the
+  intended outcomes.
+- Non-over-admission: never emit `repository_id`, `service_id`, or `workload_id`
+  from catalog text. A catalog name or owner cannot mint canonical truth.
+- Emit `repository_url` verbatim from the declared manifest URL. Do not
+  pre-canonicalize into `normalized_url`; the reducer re-canonicalizes the value
+  it reads, and a bare host/path key fails re-canonicalization and breaks
+  exact/derived matching.
+- Strip token-bearing or query-string URLs before emission. Redacted operational
+  links emit a `service_catalog.warning`, never a dropped entity.
+- Degraded documents (unsupported version, missing name, duplicate entity) emit
+  warnings, never silent drops. Parse multi-document manifests per document.
+
+## Common Changes
+
+- Add a provider (OpsLevel, Cortex) by adding a provider model and a
+  `<Provider>ManifestEnvelopes` entry point plus fixtures and tests. Reuse the
+  shared builders in `facts_builder.go`.
+- Add live API collection only in a future runtime package with credentials,
+  request budgets, redaction proof, health/readiness, metrics, and status.
+- If payload shape changes, re-check the reducer index and re-run the round-trip
+  contract test before landing.

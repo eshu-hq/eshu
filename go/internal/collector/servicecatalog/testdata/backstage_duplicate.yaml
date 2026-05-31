@@ -1,0 +1,24 @@
+# Two documents declare the same Backstage entity_ref. The producer keeps the
+# deterministic first entity and emits a duplicate_entity warning instead of
+# silently overwriting the second over the first.
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: billing
+  title: Billing (first)
+  annotations:
+    backstage.io/source-location: url:https://github.com/eshu-hq/billing
+spec:
+  type: service
+  lifecycle: production
+  owner: team-billing
+---
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: billing
+  title: Billing (second)
+spec:
+  type: service
+  lifecycle: deprecated
+  owner: team-other
