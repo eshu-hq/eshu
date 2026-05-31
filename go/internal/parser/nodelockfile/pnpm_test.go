@@ -166,3 +166,39 @@ packages:
 		t.Fatalf("expected remote lodash dependency to still be admitted alongside workspace siblings: %#v", got)
 	}
 }
+
+func TestParsePnpmLockfilePreservesOptionalAndPeerImporterScopes(t *testing.T) {
+	t.Parallel()
+
+	path := writeTestFile(t, "pnpm-lock.yaml", `lockfileVersion: '6.0'
+
+importers:
+  .:
+    optionalDependencies:
+      fsevents:
+        specifier: ^2.3.3
+        version: 2.3.3
+    peerDependencies:
+      react:
+        specifier: '>=18'
+        version: 18.3.1
+
+packages:
+
+  /fsevents@2.3.3:
+    resolution: {integrity: sha512-F==}
+
+  /react@18.3.1:
+    resolution: {integrity: sha512-R==}
+`)
+
+	got := rowsByName(parseAndExtractRows(t, path))
+	if got["fsevents"]["section"] != "optional" {
+		t.Fatalf("fsevents section = %#v, want optional", got["fsevents"]["section"])
+	}
+	if got["react"]["section"] != "peer" {
+		t.Fatalf("react section = %#v, want peer", got["react"]["section"])
+	}
+	assertChain(t, got["fsevents"], []string{"fsevents"}, 1, true)
+	assertChain(t, got["react"], []string{"react"}, 1, true)
+}

@@ -12,6 +12,7 @@ func packageLockDependencyVariables(document map[string]any, lang string) []map[
 		return packageLockV1DependencyVariables(document, lang)
 	}
 	chains := packageLockDependencyChains(packages)
+	rootScopes := packageLockRootDependencyScopes(packages[""])
 
 	paths := make([]string, 0, len(packages))
 	for path := range packages {
@@ -33,7 +34,8 @@ func packageLockDependencyVariables(document map[string]any, lang string) []map[
 		if version == "" || version == "<nil>" {
 			continue
 		}
-		rows = append(rows, packageLockDependencyRow(name, version, len(rows)+1, lang, chains[path]))
+		scope := packageLockDependencyScope(entry, chains[path], rootScopes)
+		rows = append(rows, packageLockDependencyRow(name, version, len(rows)+1, lang, chains[path], scope))
 	}
 	return rows
 }
@@ -59,7 +61,7 @@ func packageLockV1DependencyVariables(document map[string]any, lang string) []ma
 		if version == "" || version == "<nil>" {
 			continue
 		}
-		rows = append(rows, packageLockDependencyRow(name, version, len(rows)+1, lang, nil))
+		rows = append(rows, packageLockDependencyRow(name, version, len(rows)+1, lang, nil, packageLockLegacyDependencyScope(entry)))
 	}
 	return rows
 }
@@ -86,7 +88,14 @@ func packageLockPackageName(path string) string {
 	return strings.TrimSpace(name)
 }
 
-func packageLockDependencyRow(name string, version string, lineNumber int, lang string, dependencyPath []string) map[string]any {
+func packageLockDependencyRow(
+	name string,
+	version string,
+	lineNumber int,
+	lang string,
+	dependencyPath []string,
+	dependencyScope string,
+) map[string]any {
 	row := map[string]any{
 		"name":            strings.TrimSpace(name),
 		"line_number":     lineNumber,
@@ -102,7 +111,112 @@ func packageLockDependencyRow(name string, version string, lineNumber int, lang 
 		row["dependency_depth"] = len(dependencyPath)
 		row["direct_dependency"] = len(dependencyPath) == 1
 	}
+	if dependencyScope != "" {
+		row["dependency_scope"] = dependencyScope
+		row["development_dependency"] = dependencyScope == "dev" || dependencyScope == "dev_optional"
+	}
 	return row
+}
+
+func packageLockDependencyScope(
+	entry map[string]any,
+	dependencyPath []string,
+	rootScopes map[string]string,
+) string {
+	if packageLockBool(entry, "devOptional") {
+		return "dev_optional"
+	}
+	if packageLockBool(entry, "dev") {
+		return "dev"
+	}
+	if packageLockBool(entry, "optional") {
+		return "optional"
+	}
+	if packageLockBool(entry, "peer") {
+		return "peer"
+	}
+	if len(dependencyPath) > 0 {
+		if scope := rootScopes[dependencyPath[0]]; scope != "" {
+			return scope
+		}
+	}
+	return "runtime"
+}
+
+func packageLockLegacyDependencyScope(entry map[string]any) string {
+	if packageLockBool(entry, "dev") {
+		return "dev"
+	}
+	if packageLockBool(entry, "optional") {
+		return "optional"
+	}
+	if packageLockBool(entry, "peer") {
+		return "peer"
+	}
+	return "runtime"
+}
+
+func packageLockRootDependencyScopes(raw any) map[string]string {
+	entry, ok := raw.(map[string]any)
+	if !ok {
+		return nil
+	}
+	out := make(map[string]string)
+	for _, section := range []struct {
+		key   string
+		scope string
+	}{
+		{key: "dependencies", scope: "runtime"},
+		{key: "optionalDependencies", scope: "optional"},
+		{key: "peerDependencies", scope: "peer"},
+		{key: "devDependencies", scope: "dev"},
+	} {
+		deps, ok := entry[section.key].(map[string]any)
+		if !ok {
+			continue
+		}
+		for name := range deps {
+			name = strings.TrimSpace(name)
+			if name == "" {
+				continue
+			}
+			if existing, ok := out[name]; ok && packageLockScopePriority(existing) <= packageLockScopePriority(section.scope) {
+				continue
+			}
+			out[name] = section.scope
+		}
+	}
+	return out
+}
+
+func packageLockScopePriority(scope string) int {
+	switch scope {
+	case "runtime":
+		return 0
+	case "optional":
+		return 1
+	case "peer":
+		return 2
+	case "dev":
+		return 3
+	default:
+		return 4
+	}
+}
+
+func packageLockBool(payload map[string]any, key string) bool {
+	raw, ok := payload[key]
+	if !ok {
+		return false
+	}
+	switch typed := raw.(type) {
+	case bool:
+		return typed
+	case string:
+		return strings.EqualFold(strings.TrimSpace(typed), "true")
+	default:
+		return false
+	}
 }
 
 func packageLockDependencyChains(packages map[string]any) map[string][]string {
