@@ -31,9 +31,10 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, fmt.Errorf("macie scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "":
+	case "", awscloud.ServiceMacie:
+		// Canonicalize so emitted facts and telemetry always carry the exact
+		// service_kind string, even when the caller passes whitespace padding.
 		boundary.ServiceKind = awscloud.ServiceMacie
-	case awscloud.ServiceMacie:
 	default:
 		return nil, fmt.Errorf("macie scanner received service_kind %q", boundary.ServiceKind)
 	}

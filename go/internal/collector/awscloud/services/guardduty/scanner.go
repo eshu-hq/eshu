@@ -23,9 +23,10 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, fmt.Errorf("guardduty scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "":
+	case "", awscloud.ServiceGuardDuty:
+		// Canonicalize so emitted facts and telemetry always carry the exact
+		// service_kind string, even when the caller passes whitespace padding.
 		boundary.ServiceKind = awscloud.ServiceGuardDuty
-	case awscloud.ServiceGuardDuty:
 	default:
 		return nil, fmt.Errorf("guardduty scanner received service_kind %q", boundary.ServiceKind)
 	}

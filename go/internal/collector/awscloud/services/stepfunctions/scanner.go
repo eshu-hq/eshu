@@ -27,9 +27,10 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, fmt.Errorf("stepfunctions scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "":
+	case "", awscloud.ServiceStepFunctions:
+		// Canonicalize so emitted facts and telemetry always carry the exact
+		// service_kind string, even when the caller passes whitespace padding.
 		boundary.ServiceKind = awscloud.ServiceStepFunctions
-	case awscloud.ServiceStepFunctions:
 	default:
 		return nil, fmt.Errorf("stepfunctions scanner received service_kind %q", boundary.ServiceKind)
 	}

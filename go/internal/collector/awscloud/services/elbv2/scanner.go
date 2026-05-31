@@ -22,9 +22,10 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, fmt.Errorf("elbv2 scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "":
+	case "", awscloud.ServiceELBv2:
+		// Canonicalize so emitted facts and telemetry always carry the exact
+		// service_kind string, even when the caller passes whitespace padding.
 		boundary.ServiceKind = awscloud.ServiceELBv2
-	case awscloud.ServiceELBv2:
 	default:
 		return nil, fmt.Errorf("elbv2 scanner received service_kind %q", boundary.ServiceKind)
 	}

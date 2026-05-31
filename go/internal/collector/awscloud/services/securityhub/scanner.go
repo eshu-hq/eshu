@@ -29,9 +29,10 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, fmt.Errorf("securityhub scanner redaction key is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "":
+	case "", awscloud.ServiceSecurityHub:
+		// Canonicalize so emitted facts and telemetry always carry the exact
+		// service_kind string, even when the caller passes whitespace padding.
 		boundary.ServiceKind = awscloud.ServiceSecurityHub
-	case awscloud.ServiceSecurityHub:
 	default:
 		return nil, fmt.Errorf("securityhub scanner received service_kind %q", boundary.ServiceKind)
 	}
