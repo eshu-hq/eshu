@@ -11,6 +11,7 @@ import (
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/accessanalyzer/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/acm/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/acmpca/runtimebind"
+	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/amp/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/amplify/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/apigateway/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/apigatewayv2/runtimebind"
