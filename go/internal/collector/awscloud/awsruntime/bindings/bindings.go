@@ -86,6 +86,7 @@ import (
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/neptune/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/networkfirewall/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/opensearch/runtimebind"
+	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/opensearchserverless/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/organizations/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/outposts/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/quicksight/runtimebind"
