@@ -193,6 +193,18 @@ constructor with `InstrumentedDB{Inner: db, StoreName: "my_store", ...}`.
   Reducer reconciliation keeps provider-scoped repository IDs separate from
   canonical `repository_id` values, so Postgres fact payloads should preserve
   both when the source uses a provider-owned repository namespace.
+- Advisory evidence reads stay bounded by first-class advisory identity fields,
+  package IDs, or PURLs before active-generation validation. Performance
+  Evidence: issue #868 changed the read path from a broad active vulnerability
+  CTE to selector-first identity branches backed by
+  `fact_records_vulnerability_active_*_lookup_v2_idx`; representative
+  preserved-volume proof returned `CVE-2021-44228` in 0.691s cold and
+  0.435s/0.439s warm, while `EXPLAIN ANALYZE` completed the present-CVE SQL in
+  472.419ms using those indexes. No-Observability-Change: the API route still
+  emits `query.advisory_evidence`, Postgres query duration metrics, truth
+  envelope metadata, status/error bodies, `count`, `limit`, `truncated`, and
+  `next_cursor`; no graph query, queue, reducer lane, worker, runtime knob, or
+  metric label changed.
 - The NornicDB semantic gate in `ReducerQueue.Claim` is gated on a boolean
   parameter and must not be removed without an ADR; it prevents
   `semantic_entity_materialization` storms on NornicDB label indexes.

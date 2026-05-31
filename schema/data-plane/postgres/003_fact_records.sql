@@ -489,3 +489,8 @@ CREATE INDEX IF NOT EXISTS fact_records_sbom_component_cpe_idx
     )
     WHERE fact_kind = 'sbom.component'
       AND is_tombstone = FALSE;
+
+CREATE INDEX IF NOT EXISTS fact_records_vulnerability_active_cve_lookup_v2_idx ON fact_records ((payload->>'cve_id'), scope_id, generation_id, fact_kind, fact_id ASC) WHERE fact_kind IN ('vulnerability.cve', 'vulnerability.affected_package', 'vulnerability.affected_product', 'vulnerability.epss_score', 'vulnerability.known_exploited', 'vulnerability.reference') AND is_tombstone = FALSE;
+CREATE INDEX IF NOT EXISTS fact_records_vulnerability_active_advisory_lookup_v2_idx ON fact_records ((payload->>'advisory_id'), scope_id, generation_id, fact_kind, fact_id ASC) WHERE fact_kind IN ('vulnerability.cve', 'vulnerability.affected_package', 'vulnerability.affected_product', 'vulnerability.epss_score', 'vulnerability.known_exploited', 'vulnerability.reference') AND is_tombstone = FALSE;
+CREATE INDEX IF NOT EXISTS fact_records_vulnerability_active_ghsa_lookup_v2_idx ON fact_records ((payload->>'ghsa_id'), scope_id, generation_id, fact_kind, fact_id ASC) WHERE fact_kind IN ('vulnerability.cve', 'vulnerability.affected_package', 'vulnerability.affected_product', 'vulnerability.epss_score', 'vulnerability.known_exploited', 'vulnerability.reference') AND is_tombstone = FALSE;
+CREATE INDEX IF NOT EXISTS fact_records_vulnerability_package_purl_lookup_idx ON fact_records ((payload->>'purl'), (payload->>'cve_id'), fact_id ASC, generation_id) WHERE fact_kind = 'vulnerability.affected_package' AND is_tombstone = FALSE;
