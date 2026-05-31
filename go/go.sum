@@ -210,6 +210,8 @@ github.com/aws/aws-sdk-go-v2/service/lakeformation v1.47.10 h1:tJVi7ICBQ/l7ZnRV4
 github.com/aws/aws-sdk-go-v2/service/lakeformation v1.47.10/go.mod h1:i5tQV30EkzCf5M5XD+RpMeOa05gk6V07uNoEF66KYcU=
 github.com/aws/aws-sdk-go-v2/service/lambda v1.90.1 h1:odCeJgHXfQoXEWQUIzPkKvsJTWcLMsaOWowNpovPFFw=
 github.com/aws/aws-sdk-go-v2/service/lambda v1.90.1/go.mod h1:NbtJVztitG7JkuoI4GSrDUlsB32zeXqKBvXj6bUxcMo=
+github.com/aws/aws-sdk-go-v2/service/lightsail v1.53.2 h1:frwYj+OqTr28EO/GFxuE9fsjOF/7WIOrklzusnV4Kzw=
+github.com/aws/aws-sdk-go-v2/service/lightsail v1.53.2/go.mod h1:Etcg8xorq1b0g0V2KMNgFjubYITZseJv08qtX/3szko=
 github.com/aws/aws-sdk-go-v2/service/macie2 v1.51.3 h1:MjhvPAy7WONLMkYlKXySflQMk7GqFLLssUO60BNkJMA=
 github.com/aws/aws-sdk-go-v2/service/macie2 v1.51.3/go.mod h1:rUVkJJSpImXmBlMc1ZWrx/PF2Kz+jch45cIdm4OVnb4=
 github.com/aws/aws-sdk-go-v2/service/memorydb v1.34.1 h1:RhXEEuM4OcMbRSMIqxNjFYwys+T3QYRf0PqzplaqtfY=
