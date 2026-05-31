@@ -24,12 +24,16 @@ that is **partly stale**, and getting this right is the whole decision:
 > facts for this reducer to correlate."
 
 That is true for the **generic multi-provider** observability collector the issue's
-source docs describe (`docs/docs/adrs/2026-05-15-observability-collector.md`,
-`docs/docs/reference/collector-reducer-readiness.md` — note the stale `docs/docs/...`
-paths; current is `docs/public/...`). Those docs model Datadog/Prometheus-style
-*dashboards, monitors, scrape jobs, telemetry pipelines, rules, paging alerts*.
-No such collector exists on `main`, and `collector-reducer-readiness.md` line 115
-correctly lists "observability" as **"design or research only."**
+source docs describe (the issue cites a `docs/docs/adrs/2026-05-15-observability-collector.md`
+ADR and a `docs/docs/reference/collector-reducer-readiness.md` readiness doc). Those
+`docs/docs/...` paths are stale: the observability-collector ADR no longer exists in the
+repo (it was never carried into the current tree, and there is no `docs/public/...`
+equivalent), and only the readiness doc survives, now at
+`docs/public/reference/collector-reducer-readiness.md`. The model those docs describe is
+Datadog/Prometheus-style *dashboards, monitors, scrape jobs, telemetry pipelines, rules,
+paging alerts*. No such collector exists on `main`, and
+`docs/public/reference/collector-reducer-readiness.md` line 115 correctly lists
+"observability" as **"design or research only."**
 
 But it is **not** true for AWS-native observability. The CloudWatch, CloudWatch
 Logs, and X-Ray scanners are **already shipped on `main`** and already emit
@@ -37,7 +41,7 @@ observability objects as facts:
 
 | Source object | Scanner (on main) | Emitted as | Identity / anchor |
 | --- | --- | --- | --- |
-| CloudWatch metric alarm | `go/internal/collector/awscloud/services/cloudwatch/scanner.go` | `aws_resource` (`ResourceTypeCloudWatchMetricAlarm`) + `aws_relationship` (`cloudwatch_alarm_observes_metric`, `cloudwatch_alarm_notifies_sns_topic`) | ARN + name; `CorrelationAnchors: [alarmARN, name]` |
+| CloudWatch metric alarm | `go/internal/collector/awscloud/services/cloudwatch/scanner.go` | `aws_resource` (`ResourceTypeCloudWatchAlarm`, `aws_cloudwatch_alarm`) + `aws_relationship` (`cloudwatch_alarm_observes_metric`, `cloudwatch_alarm_notifies_sns_topic`) | ARN + name; `CorrelationAnchors: [alarmARN, name]` |
 | CloudWatch composite alarm | same | `aws_resource` + `cloudwatch_composite_alarm_has_child_alarm` | ARN + name |
 | CloudWatch dashboard | same | `aws_resource` (`ResourceTypeCloudWatchDashboard`), metadata-only (no body JSON) | ARN + name |
 | CloudWatch Logs log group | `.../services/cloudwatchlogs/scanner.go` | `aws_resource` (`ResourceTypeCloudWatchLogsLogGroup`) + `cloudwatch_logs_log_group_uses_kms_key` | log group ARN + name |
