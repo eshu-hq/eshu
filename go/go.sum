@@ -142,6 +142,8 @@ github.com/aws/aws-sdk-go-v2/service/cognitoidentityprovider v1.60.3 h1:X3qB+VaA
 github.com/aws/aws-sdk-go-v2/service/cognitoidentityprovider v1.60.3/go.mod h1:8IfDUcBSJboFS3Az4MX8Oh1ik/P/X7jyFf5Q2UZLtrk=
 github.com/aws/aws-sdk-go-v2/service/configservice v1.48.1 h1:Ua3cfn1hGHYGrHzm96GZqHrKGzkp5NLgCYnW3gE7ENY=
 github.com/aws/aws-sdk-go-v2/service/configservice v1.48.1/go.mod h1:tQ7+0gX1FarOQr6WvIvYxyXYg0Hel5YD0aZvhR/053M=
+github.com/aws/aws-sdk-go-v2/service/databasemigrationservice v1.63.2 h1:V4fLKnoAyrZmzjaYAX3fQTR3pUjeer+SfsUHfimrROE=
+github.com/aws/aws-sdk-go-v2/service/databasemigrationservice v1.63.2/go.mod h1:SD7qKHNV8PGzUDYoBgKUJ6ORzICxJ15aSgFDC7YB4xc=
 github.com/aws/aws-sdk-go-v2/service/datasync v1.59.2 h1:HTX7q0tp1rxQMr8670zJZSRFvbCMBxfjUpRcFpIZ4cw=
 github.com/aws/aws-sdk-go-v2/service/datasync v1.59.2/go.mod h1:SvyTh5chBFqwRLRjSVXGSS+buCxlzao+IRKeYJaympM=
 github.com/aws/aws-sdk-go-v2/service/detective v1.39.1 h1:1thuyQ62I37RCNck64j6UG5DKde+FHOuMRjnRohA7Lo=
@@ -212,6 +214,8 @@ github.com/aws/aws-sdk-go-v2/service/keyspaces v1.26.1 h1:lqwI3i9ga+BHOzfjTDZinX
 github.com/aws/aws-sdk-go-v2/service/keyspaces v1.26.1/go.mod h1:chiQexe9nFE4EwwLxoTP8M6zX2Gh2zh7sfLwoGTiT9A=
 github.com/aws/aws-sdk-go-v2/service/kinesis v1.43.8 h1:MJ1r18td42gvrFGZcu0bHWcqyPBgcJ/A3gEi5k84gEA=
 github.com/aws/aws-sdk-go-v2/service/kinesis v1.43.8/go.mod h1:f7HKjso4tq0v/kVZB4QNHrZZ0sMZqk/2Wpr7JgL7Y1Y=
+github.com/aws/aws-sdk-go-v2/service/kinesisanalyticsv2 v1.38.1 h1:YvI4ebusHOJj71SHCyy2nzIoNZKLTLqk9EllE8028SA=
+github.com/aws/aws-sdk-go-v2/service/kinesisanalyticsv2 v1.38.1/go.mod h1:vWLIO5UyeGFs6KfejNAIDWlA1TZwyVhBhm0ATMnsry4=
 github.com/aws/aws-sdk-go-v2/service/kinesisvideo v1.33.11 h1:sYHiMglkBZbIVCZEoCjse08cMqLu/9lytB3keV0muGY=
 github.com/aws/aws-sdk-go-v2/service/kinesisvideo v1.33.11/go.mod h1:7kyj3hyFDn4o32dEeQf+XVF73rvJzu2VIrIn31u3imE=
 github.com/aws/aws-sdk-go-v2/service/kms v1.52.0 h1:QNtg+Mtj1zmepk568+UKBD5DFfqh+ESTUUqQT27JkQc=
@@ -242,6 +246,8 @@ github.com/aws/aws-sdk-go-v2/service/opensearchserverless v1.31.0 h1:0uBe/bKUfzb
 github.com/aws/aws-sdk-go-v2/service/opensearchserverless v1.31.0/go.mod h1:WHaDEfICNQgRbrEEeLRKTkFbA0l4oVKE4mXDobZxVJ8=
 github.com/aws/aws-sdk-go-v2/service/organizations v1.51.3 h1:LWSmXWwYzR9yRcszxyqaKuPCO4E6g/iknZv1kQIkD7I=
 github.com/aws/aws-sdk-go-v2/service/organizations v1.51.3/go.mod h1:DGpC4BVQ1zS8X/nFYfHGiHyAhrsb8gZ8pPxn+Jf0iPY=
+github.com/aws/aws-sdk-go-v2/service/outposts v1.60.2 h1:nNfpVpJBqICuGLrtsKOdBeVfQv/92L+v5Ob54RD2Rlk=
+github.com/aws/aws-sdk-go-v2/service/outposts v1.60.2/go.mod h1:qS32fHnwl8By83j2hB2nTNfOz8TQZlpkcY+PeZv9uTw=
 github.com/aws/aws-sdk-go-v2/service/ram v1.36.6 h1:JTIlCNJMmjA1Z2JqVEEBeGQhVNkUwrkkJTkkVYY2vFQ=
 github.com/aws/aws-sdk-go-v2/service/ram v1.36.6/go.mod h1:mIXcD41n1f5BvqKUWB4GX99CfQgiW6Z07LfNPr6UKvQ=
 github.com/aws/aws-sdk-go-v2/service/rds v1.118.2 h1:pkEeQneYFpTAnGhyqSbyp/DlCPPJTGt0GkWahlLYzMA=
@@ -294,6 +300,8 @@ github.com/aws/aws-sdk-go-v2/service/timestreamwrite v1.35.25 h1:x+mdaldP/Jxlyh6
 github.com/aws/aws-sdk-go-v2/service/timestreamwrite v1.35.25/go.mod h1:WRDA6C0snxIyduTkTXEFA48EUV/HLlaZ14KGKXspWms=
 github.com/aws/aws-sdk-go-v2/service/transfer v1.72.2 h1:+QellvYln/9mjMQAwxyvQG3IKR4q6zXOqcFI7dkV57c=
 github.com/aws/aws-sdk-go-v2/service/transfer v1.72.2/go.mod h1:bmgZaPW4xYibdNIVq/vYQwTCq73K+sS02BuFR9tHsiw=
+github.com/aws/aws-sdk-go-v2/service/vpclattice v1.21.2 h1:teYT+6v/DoGzaQjXro527tQsss0oZJzObNDdVDTh66A=
+github.com/aws/aws-sdk-go-v2/service/vpclattice v1.21.2/go.mod h1:cNAJjhaDHuBJxqkHIFySNx8/WnyQE7ATSEu6VQDjW6Y=
 github.com/aws/aws-sdk-go-v2/service/wafv2 v1.71.6 h1:SKPs3pBnHGs4hAKW1I3CoH8GffR2EZqKbqIYiQcpVJ8=
 github.com/aws/aws-sdk-go-v2/service/wafv2 v1.71.6/go.mod h1:L30J3rRiVI9inT2rOU6xD5ysqmbwwmj+ng1rReS0Xt0=
 github.com/aws/aws-sdk-go-v2/service/workspaces v1.68.3 h1:VdduyWoOF4l/GUaNfSIFEJKMTwis943dwoT73SR5+Bg=
