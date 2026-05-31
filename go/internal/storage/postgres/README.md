@@ -208,6 +208,12 @@ constructor with `InstrumentedDB{Inner: db, StoreName: "my_store", ...}`.
 - The NornicDB semantic gate in `ReducerQueue.Claim` is gated on a boolean
   parameter and must not be removed without an ADR; it prevents
   `semantic_entity_materialization` storms on NornicDB label indexes.
+- `aws_relationship_materialization` claims wait on the exact
+  `cloud_resource_uid` / `canonical_nodes_committed` readiness row for the
+  same scope, generation, and `entity_key`. This keeps relationship work
+  pending or retrying until `aws_resource_materialization` has made
+  `CloudResource` nodes visible, while allowing the resource materialization
+  row in the same conflict key to claim and publish the phase.
 - `WorkflowControlStore` claim mutations use `ErrWorkflowClaimRejected` for
   fenced writes; callers must stop processing when this error is returned.
 - `WorkflowControlStore.FailClaimTerminal` uses a dense seven-argument SQL
@@ -251,6 +257,20 @@ No-Observability-Change: existing `workflow_work_items.last_failure_class`,
 `workflow_claims.failure_class`, fenced mutation errors, collector logs, and
 `/api/v0/index-status` continue to expose terminal workflow failures and active
 claim counts; no new telemetry dimension was required.
+
+No-Regression Evidence: AWS relationship readiness gating is covered by
+`go test ./internal/storage/postgres -run 'TestReducerQueueClaim(GatesAWSRelationshipsOnCanonicalCloudResourceReadiness|WaitsForAWSRelationshipReadinessBehavior|WaitsForRetryingAWSRelationshipReadinessBehavior|AWSRelationshipAlreadyReadyBehavior)|TestClaimBatchGatesAWSRelationshipsOnCanonicalCloudResourceReadiness|TestReducerQueueBlockagesReportAWSRelationshipReadinessWait' -count=1`.
+The claim path keeps pending and retrying `aws_relationship_materialization`
+rows unclaimed until the matching `cloud_resource_uid` /
+`canonical_nodes_committed` phase exists, then makes the same row claimable
+without changing worker counts, retry delays, or conflict-key fencing.
+
+Observability Evidence: `/admin/status` queue blockages now include
+`conflict_domain=readiness` and a conflict key prefixed with
+`cloud_resource_uid:canonical_nodes_committed:` for AWS relationship work that
+is waiting on canonical `CloudResource` nodes. Existing queue gauges and domain
+backlog rows continue to expose pending, retrying, in-flight, and oldest-age
+counts without adding a high-cardinality metric label.
 
 No-Regression Evidence: owned dependency target selection is covered by
 `go test ./internal/storage/postgres -run 'TestListOwnedPackageDependencyTargetsQuery|TestOwnedPackageDependencyTargetLimit' -count=1`.

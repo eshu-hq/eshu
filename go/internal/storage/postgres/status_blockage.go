@@ -12,10 +12,12 @@ const reducerConflictBlockageQuery = `
 WITH eligible AS (
     SELECT work_item_id,
            scope_id,
+           generation_id,
            domain,
            conflict_domain,
            COALESCE(conflict_key, scope_id) AS conflict_key,
-           COALESCE(visible_at, created_at) AS available_at
+           COALESCE(visible_at, created_at) AS available_at,
+           payload
     FROM fact_work_items
     WHERE stage = 'reducer'
       AND status IN ('pending', 'retrying', 'claimed', 'running')
@@ -35,6 +37,30 @@ blocked AS (
      AND inflight.work_item_id <> eligible.work_item_id
      AND inflight.status IN ('claimed', 'running')
      AND inflight.claim_until > $1
+),
+readiness_blocked AS (
+    SELECT eligible.domain,
+           'readiness' AS conflict_domain,
+           'cloud_resource_uid:canonical_nodes_committed:' ||
+               COALESCE(NULLIF(eligible.payload->>'entity_key', ''), eligible.scope_id) AS conflict_key,
+           eligible.available_at
+    FROM eligible
+    WHERE eligible.domain = 'aws_relationship_materialization'
+      AND NOT EXISTS (
+          SELECT 1
+          FROM graph_projection_phase_state AS aws_nodes
+          WHERE aws_nodes.scope_id = eligible.scope_id
+            AND aws_nodes.acceptance_unit_id = COALESCE(NULLIF(eligible.payload->>'entity_key', ''), eligible.scope_id)
+            AND aws_nodes.source_run_id = eligible.generation_id
+            AND aws_nodes.generation_id = eligible.generation_id
+            AND aws_nodes.keyspace = 'cloud_resource_uid'
+            AND aws_nodes.phase = 'canonical_nodes_committed'
+      )
+),
+all_blocked AS (
+    SELECT domain, conflict_domain, conflict_key, available_at FROM blocked
+    UNION ALL
+    SELECT domain, conflict_domain, conflict_key, available_at FROM readiness_blocked
 )
 SELECT 'reducer' AS stage,
        domain,
@@ -42,7 +68,7 @@ SELECT 'reducer' AS stage,
        conflict_key,
        COUNT(*) AS blocked_count,
        COALESCE(EXTRACT(EPOCH FROM ($1 - MIN(available_at))), 0) AS oldest_blocked_age_seconds
-FROM blocked
+FROM all_blocked
 GROUP BY domain, conflict_domain, conflict_key
 ORDER BY blocked_count DESC, oldest_blocked_age_seconds DESC, domain ASC, conflict_key ASC
 LIMIT 10
