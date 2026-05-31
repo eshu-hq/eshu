@@ -9,7 +9,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
-const packageSecurityAlertReconciliationMaxAttempts = 3
+const pendingImpactSecurityAlertReconciliationMaxAttempts = 3
 
 // SecurityAlertReconciliationFactFilter bounds active evidence loading for one
 // provider-alert reconciliation intent.
@@ -65,6 +65,11 @@ func (h SecurityAlertReconciliationHandler) Handle(ctx context.Context, intent I
 		return Result{}, fmt.Errorf("load active security alert reconciliation evidence: %w", err)
 	}
 	envelopes = append(envelopes, active...)
+	repositories, err := h.loadActiveSecurityAlertRepositoryFacts(ctx, envelopes)
+	if err != nil {
+		return Result{}, fmt.Errorf("load active security alert repository facts: %w", err)
+	}
+	envelopes = append(envelopes, repositories...)
 	manifestDependencies, err := h.loadActiveSecurityAlertManifestDependencyFacts(ctx, envelopes)
 	if err != nil {
 		return Result{}, fmt.Errorf("load active security alert manifest dependency facts: %w", err)
@@ -73,7 +78,7 @@ func (h SecurityAlertReconciliationHandler) Handle(ctx context.Context, intent I
 	envelopes = dedupeSecurityAlertReconciliationEnvelopes(envelopes)
 
 	decisions := BuildSecurityAlertReconciliations(envelopes)
-	if shouldDeferPackageSecurityAlertReconciliation(intent, decisions) {
+	if shouldDeferSecurityAlertReconciliationForPendingImpact(intent, decisions) {
 		return Result{}, retryableSecurityAlertReconciliationEvidenceError{
 			packageID: firstUnmatchedPackageWithDependency(decisions),
 		}
@@ -119,6 +124,28 @@ func (h SecurityAlertReconciliationHandler) loadActiveEvidence(
 		return nil, classifyFactLoadError(err)
 	}
 	return envelopes, nil
+}
+
+func (h SecurityAlertReconciliationHandler) loadActiveSecurityAlertRepositoryFacts(
+	ctx context.Context,
+	envelopes []facts.Envelope,
+) ([]facts.Envelope, error) {
+	loader, ok := h.FactLoader.(activeRepositoryFactLoader)
+	if !ok || hasPackageSourceRepositoryFact(envelopes) {
+		return nil, nil
+	}
+	if _, ok := h.FactLoader.(activePackageManifestDependencyFactLoader); !ok {
+		return nil, nil
+	}
+	ecosystems, packageNames := securityAlertManifestDependencyFilter(envelopes)
+	if len(ecosystems) == 0 || len(packageNames) == 0 {
+		return nil, nil
+	}
+	repositories, err := loader.ListActiveRepositoryFacts(ctx)
+	if err != nil {
+		return nil, classifyFactLoadError(err)
+	}
+	return repositories, nil
 }
 
 func (h SecurityAlertReconciliationHandler) loadActiveSecurityAlertManifestDependencyFacts(
@@ -202,12 +229,12 @@ func dedupeSecurityAlertReconciliationEnvelopes(envelopes []facts.Envelope) []fa
 	return out
 }
 
-func shouldDeferPackageSecurityAlertReconciliation(
+func shouldDeferSecurityAlertReconciliationForPendingImpact(
 	intent Intent,
 	decisions []SecurityAlertReconciliationDecision,
 ) bool {
-	if intent.AttemptCount >= packageSecurityAlertReconciliationMaxAttempts ||
-		!packageTriggeredSecurityAlertReconciliation(intent) {
+	if intent.AttemptCount >= pendingImpactSecurityAlertReconciliationMaxAttempts ||
+		!impactProducingSecurityAlertReconciliation(intent) {
 		return false
 	}
 	for _, decision := range decisions {
@@ -220,9 +247,11 @@ func shouldDeferPackageSecurityAlertReconciliation(
 	return false
 }
 
-func packageTriggeredSecurityAlertReconciliation(intent Intent) bool {
+func impactProducingSecurityAlertReconciliation(intent Intent) bool {
 	return strings.EqualFold(strings.TrimSpace(intent.SourceSystem), "package_registry") ||
-		strings.EqualFold(strings.TrimSpace(intent.Cause), "package registry identity observed")
+		strings.EqualFold(strings.TrimSpace(intent.Cause), "package registry identity observed") ||
+		strings.EqualFold(strings.TrimSpace(intent.SourceSystem), "security_alert") ||
+		strings.EqualFold(strings.TrimSpace(intent.Cause), "provider security alert evidence observed")
 }
 
 func firstUnmatchedPackageWithDependency(decisions []SecurityAlertReconciliationDecision) string {

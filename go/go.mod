@@ -103,6 +103,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/securityhub v1.71.0
 	github.com/aws/aws-sdk-go-v2/service/servicecatalog v1.39.14
 	github.com/aws/aws-sdk-go-v2/service/servicediscovery v1.40.1
+	github.com/aws/aws-sdk-go-v2/service/servicequotas v1.35.2
 	github.com/aws/aws-sdk-go-v2/service/sesv2 v1.62.0
 	github.com/aws/aws-sdk-go-v2/service/sfn v1.41.0
 	github.com/aws/aws-sdk-go-v2/service/shield v1.34.25

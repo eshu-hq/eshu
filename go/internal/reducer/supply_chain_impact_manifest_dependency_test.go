@@ -12,7 +12,9 @@ import (
 type manifestBackedSupplyChainImpactLoader struct {
 	scopeFacts        []facts.Envelope
 	activeFacts       []facts.Envelope
+	repositoryFacts   []facts.Envelope
 	manifestFacts     []facts.Envelope
+	repositoryCalls   int
 	manifestCalls     int
 	manifestEcosystem []string
 	manifestNames     []string
@@ -44,6 +46,13 @@ func (s *manifestBackedSupplyChainImpactLoader) ListActiveSupplyChainImpactFacts
 ) ([]facts.Envelope, error) {
 	s.filters = append(s.filters, filter)
 	return append([]facts.Envelope(nil), s.activeFacts...), nil
+}
+
+func (s *manifestBackedSupplyChainImpactLoader) ListActiveRepositoryFacts(
+	context.Context,
+) ([]facts.Envelope, error) {
+	s.repositoryCalls++
+	return append([]facts.Envelope(nil), s.repositoryFacts...), nil
 }
 
 func (s *manifestBackedSupplyChainImpactLoader) ListActivePackageManifestDependencyFacts(
@@ -133,6 +142,154 @@ func TestSupplyChainImpactHandlerUsesManifestDependencyBeforeRegistryCorrelation
 	if !strings.Contains(strings.Join(finding.EvidencePath, " -> "), factKindContentEntity) {
 		t.Fatalf("EvidencePath = %#v, want content_entity source dependency evidence", finding.EvidencePath)
 	}
+}
+
+func TestSupplyChainImpactHandlerUsesRepositoryScopedSecurityAlertLockfileEvidence(t *testing.T) {
+	t.Parallel()
+
+	observedAt := time.Date(2026, 5, 26, 9, 0, 0, 0, time.UTC)
+	providerRepoID := "security-alert:github:acme/api"
+	canonicalRepoID := "repository:r_api"
+	packageID := "npm://registry.npmjs.org/fast-uri"
+	loader := &manifestBackedSupplyChainImpactLoader{
+		scopeFacts: []facts.Envelope{
+			securityAlertEnvelope("alert-provider-lockfile", providerRepoID, map[string]any{
+				"provider":              "github_dependabot",
+				"provider_alert_number": int64(172),
+				"provider_state":        "open",
+				"package_id":            packageID,
+				"ecosystem":             "npm",
+				"package_name":          "fast-uri",
+				"manifest_path":         "package-lock.json",
+				"dependency_scope":      "runtime",
+				"relationship":          "transitive",
+				"ghsa_ids":              []string{"GHSA-provider-9670"},
+				"cve_ids":               []string{"CVE-2026-9670"},
+				"vulnerable_range":      "< 3.1.0",
+				"patched_version":       "3.1.0",
+				"severity":              "high",
+				"updated_at":            "2026-05-26T12:00:00Z",
+			}),
+		},
+		repositoryFacts: []facts.Envelope{
+			packageSourceRepositoryFact(
+				canonicalRepoID,
+				"api",
+				"https://github.com/acme/api",
+				false,
+				observedAt,
+			),
+		},
+		manifestFacts: []facts.Envelope{
+			packageManifestDependencyFactWithMetadata(
+				canonicalRepoID,
+				"",
+				"package-lock.json",
+				"fast-uri",
+				"npm",
+				"3.0.3",
+				observedAt.Add(time.Minute),
+				map[string]any{
+					"section":           "package-lock",
+					"lockfile":          true,
+					"dependency_scope":  "runtime",
+					"dependency_path":   []any{"ajv", "fast-uri"},
+					"dependency_depth":  2,
+					"direct_dependency": false,
+				},
+			),
+		},
+	}
+	writer := &recordingSupplyChainImpactWriter{}
+	handler := SupplyChainImpactHandler{FactLoader: loader, Writer: writer}
+
+	result, err := handler.Handle(context.Background(), Intent{
+		IntentID:     "intent-provider-lockfile",
+		ScopeID:      providerRepoID,
+		GenerationID: "security-alert-generation-967",
+		SourceSystem: "security_alert",
+		Domain:       DomainSupplyChainImpact,
+		Cause:        "provider security alert evidence observed",
+	})
+	if err != nil {
+		t.Fatalf("Handle() error = %v, want nil", err)
+	}
+	if loader.repositoryCalls != 1 {
+		t.Fatalf("ListActiveRepositoryFacts() calls = %d, want 1", loader.repositoryCalls)
+	}
+	if loader.manifestCalls != 1 {
+		t.Fatalf("ListActivePackageManifestDependencyFacts() calls = %d, want 1", loader.manifestCalls)
+	}
+	if got, want := len(writer.write.Findings), 1; got != want {
+		t.Fatalf("len(Findings) = %d, want %d: %#v", got, want, writer.write.Findings)
+	}
+	if result.CanonicalWrites != 1 {
+		t.Fatalf("CanonicalWrites = %d, want 1", result.CanonicalWrites)
+	}
+	finding := writer.write.Findings[0]
+	if finding.RepositoryID != canonicalRepoID {
+		t.Fatalf("RepositoryID = %q, want canonical repository id %q", finding.RepositoryID, canonicalRepoID)
+	}
+	assertSupplyChainImpactStatus(t, finding, SupplyChainImpactAffectedExact)
+	if finding.ObservedVersion != "3.0.3" {
+		t.Fatalf("ObservedVersion = %q, want lockfile version 3.0.3", finding.ObservedVersion)
+	}
+	if !strings.Contains(strings.Join(finding.EvidencePath, " -> "), factKindContentEntity) {
+		t.Fatalf("EvidencePath = %#v, want manifest dependency evidence", finding.EvidencePath)
+	}
+}
+
+func TestBuildSupplyChainImpactFindingsUsesProviderAlertManifestDependencyEvidence(t *testing.T) {
+	t.Parallel()
+
+	observedAt := time.Date(2026, 5, 26, 10, 0, 0, 0, time.UTC)
+	providerRepoID := "security-alert:github:acme/api"
+	canonicalRepoID := "repository:r_api"
+	packageID := "npm://registry.npmjs.org/fast-uri"
+	alert := securityAlertEnvelope("alert-provider-manifest", providerRepoID, map[string]any{
+		"provider":              "github_dependabot",
+		"provider_alert_number": int64(173),
+		"provider_state":        "open",
+		"package_id":            packageID,
+		"ecosystem":             "npm",
+		"package_name":          "fast-uri",
+		"manifest_path":         "package-lock.json",
+		"ghsa_ids":              []string{"GHSA-provider-9671"},
+		"cve_ids":               []string{"CVE-2026-9671"},
+		"vulnerable_range":      "< 3.1.0",
+		"patched_version":       "3.1.0",
+	})
+	repository := packageSourceRepositoryFact(
+		canonicalRepoID,
+		"api",
+		"https://github.com/acme/api",
+		false,
+		observedAt,
+	)
+	dependency := packageManifestDependencyFactWithMetadata(
+		canonicalRepoID,
+		"",
+		"package-lock.json",
+		"fast-uri",
+		"npm",
+		"3.0.3",
+		observedAt.Add(time.Minute),
+		map[string]any{
+			"section":          "package-lock",
+			"lockfile":         true,
+			"dependency_scope": "runtime",
+		},
+	)
+
+	findings := BuildSupplyChainImpactFindings([]facts.Envelope{alert, repository, dependency})
+
+	if got, want := len(findings), 1; got != want {
+		t.Fatalf("len(findings) = %d, want %d: %#v", got, want, findings)
+	}
+	if findings[0].RepositoryID != canonicalRepoID {
+		t.Fatalf("RepositoryID = %q, want canonical repository id %q", findings[0].RepositoryID, canonicalRepoID)
+	}
+	assertSupplyChainImpactStatus(t, findings[0], SupplyChainImpactAffectedExact)
 }
 
 func BenchmarkAddManifestDependencySupplyChainConsumption(b *testing.B) {
