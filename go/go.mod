@@ -76,6 +76,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/kms v1.52.0
 	github.com/aws/aws-sdk-go-v2/service/lakeformation v1.47.10
 	github.com/aws/aws-sdk-go-v2/service/lambda v1.90.1
+	github.com/aws/aws-sdk-go-v2/service/licensemanager v1.37.14
 	github.com/aws/aws-sdk-go-v2/service/lightsail v1.53.2
 	github.com/aws/aws-sdk-go-v2/service/macie2 v1.51.3
 	github.com/aws/aws-sdk-go-v2/service/memorydb v1.34.1
