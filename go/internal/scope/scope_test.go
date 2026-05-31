@@ -88,6 +88,11 @@ func TestIngestionScopeValidateAllowsAdditionalCollectorKinds(t *testing.T) {
 			collectorKind: CollectorSecurityAlert,
 		},
 		{
+			name:          "pagerduty",
+			sourceSystem:  "pagerduty",
+			collectorKind: CollectorPagerDuty,
+		},
+		{
 			name:          "scanner_worker",
 			sourceSystem:  "scanner_worker",
 			collectorKind: CollectorScannerWorker,
@@ -203,6 +208,14 @@ func TestIngestionScopeValidateAllowsAdditionalScopeKinds(t *testing.T) {
 			scopeKind:     KindSecurityAlert,
 			collectorKind: CollectorSecurityAlert,
 			partitionKey:  "github_dependabot",
+		},
+		{
+			name:          "pagerduty_account",
+			sourceSystem:  "pagerduty",
+			scopeID:       "pagerduty:account:example",
+			scopeKind:     KindPagerDutyAccount,
+			collectorKind: CollectorPagerDuty,
+			partitionKey:  "example",
 		},
 		{
 			name:          "scanner_worker",

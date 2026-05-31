@@ -1,0 +1,73 @@
+package coordinator
+
+import (
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/scope"
+	"github.com/eshu-hq/eshu/go/internal/workflow"
+)
+
+func TestPagerDutyWorkPlannerPlansOneClaimPerTarget(t *testing.T) {
+	t.Parallel()
+
+	observedAt := time.Date(2026, time.May, 31, 17, 0, 0, 0, time.UTC)
+	instance := workflow.CollectorInstance{
+		InstanceID:     "pagerduty-primary",
+		CollectorKind:  scope.CollectorPagerDuty,
+		Mode:           workflow.CollectorModeContinuous,
+		Enabled:        true,
+		ClaimsEnabled:  true,
+		Configuration:  testPagerDutyConfig(),
+		LastObservedAt: observedAt,
+		CreatedAt:      observedAt,
+		UpdatedAt:      observedAt,
+	}
+
+	run, items, err := (PagerDutyWorkPlanner{}).PlanPagerDutyWork(t.Context(), PagerDutyPlanRequest{
+		Instance:   instance,
+		ObservedAt: observedAt,
+		PlanKey:    "schedule-20260531T170000Z",
+	})
+	if err != nil {
+		t.Fatalf("PlanPagerDutyWork() error = %v, want nil", err)
+	}
+	if got, want := run.RequestedCollector, string(scope.CollectorPagerDuty); got != want {
+		t.Fatalf("RequestedCollector = %q, want %q", got, want)
+	}
+	if got, want := len(items), 1; got != want {
+		t.Fatalf("len(items) = %d, want %d", got, want)
+	}
+	item := items[0]
+	if got, want := item.CollectorKind, scope.CollectorPagerDuty; got != want {
+		t.Fatalf("CollectorKind = %q, want %q", got, want)
+	}
+	if got, want := item.ScopeID, "pagerduty:account:example"; got != want {
+		t.Fatalf("ScopeID = %q, want %q", got, want)
+	}
+	if !strings.Contains(run.RequestedScopeSet, `"provider":"pagerduty"`) {
+		t.Fatalf("RequestedScopeSet = %q, want provider metadata", run.RequestedScopeSet)
+	}
+	if strings.Contains(run.RequestedScopeSet, "PAGERDUTY_TOKEN") {
+		t.Fatalf("RequestedScopeSet = %q, must not expose credential env names", run.RequestedScopeSet)
+	}
+}
+
+func testPagerDutyConfig() string {
+	return `{
+		"targets": [{
+			"provider": "pagerduty",
+			"scope_id": "pagerduty:account:example",
+			"account_id": "example",
+			"token_env": "PAGERDUTY_TOKEN",
+			"api_base_url": "https://api.pagerduty.com",
+			"source_uri": "https://example.pagerduty.com/incidents",
+			"incident_limit": 25,
+			"incident_lookback": "6h",
+			"log_entry_limit": 25,
+			"change_event_limit": 25,
+			"allowed_service_ids": ["PABC123"]
+		}]
+	}`
+}

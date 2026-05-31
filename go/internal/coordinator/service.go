@@ -61,6 +61,12 @@ type SecurityAlertPlanner interface {
 	PlanSecurityAlertWork(context.Context, SecurityAlertPlanRequest) (workflow.Run, []workflow.WorkItem, error)
 }
 
+// PagerDutyPlanner plans PagerDuty incident evidence workflow rows from
+// collector instance configuration.
+type PagerDutyPlanner interface {
+	PlanPagerDutyWork(context.Context, PagerDutyPlanRequest) (workflow.Run, []workflow.WorkItem, error)
+}
+
 // OwnedPackageTargetReader loads active dependency evidence that can bound
 // derived package-registry and vulnerability-intelligence work.
 type OwnedPackageTargetReader interface {
@@ -87,6 +93,7 @@ type Service struct {
 	VulnerabilityIntelligencePlanner VulnerabilityIntelligencePlanner
 	SBOMAttestationPlanner           SBOMAttestationPlanner
 	SecurityAlertPlanner             SecurityAlertPlanner
+	PagerDutyPlanner                 PagerDutyPlanner
 	OwnedPackageTargetReader         OwnedPackageTargetReader
 	AWSScheduledPlanner              AWSScheduledPlanner
 	AWSFreshnessTriggers             AWSFreshnessTriggerStore
@@ -246,6 +253,15 @@ func (s Service) runReconcile(ctx context.Context) error {
 		return err
 	}
 	if err := s.scheduleSecurityAlertWork(ctx, observedAt, instances); err != nil {
+		s.recordReconcile(ctx, ReconcileObservation{
+			Outcome:      reconcileOutcomeReconcileError,
+			Duration:     time.Since(startedAt),
+			DesiredCount: desiredCount,
+			DurableCount: durableCount,
+		})
+		return err
+	}
+	if err := s.schedulePagerDutyWork(ctx, observedAt, instances); err != nil {
 		s.recordReconcile(ctx, ReconcileObservation{
 			Outcome:      reconcileOutcomeReconcileError,
 			Duration:     time.Since(startedAt),

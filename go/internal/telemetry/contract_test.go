@@ -130,6 +130,8 @@ func TestSpanNames(t *testing.T) {
 		"vulnerability_intelligence.fetch",
 		"security_alert.observe",
 		"security_alert.fetch",
+		"pagerduty.observe",
+		"pagerduty.fetch",
 		"query.supply_chain_impact_findings",
 		"query.supply_chain_impact_explanation",
 		"query.supply_chain_impact_aggregate",

@@ -20,5 +20,8 @@
 // validate bounded source targets, mirror URLs, source-cache modes, and cache
 // freshness durations, and security-alert collector instances validate
 // repository allowlists plus HTTPS credentialed API base URLs before the
-// coordinator plans claimable work items.
+// coordinator plans claimable work items. PagerDuty collector instances
+// validate bounded account or service-allowlist targets with credential
+// environment references before the coordinator plans claimable incident
+// evidence work.
 package workflow

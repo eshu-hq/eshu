@@ -27,9 +27,12 @@
 // CVE, affected package/product, EPSS, KEV, reference, snapshot, and warning
 // evidence. Provider security alert fact kind constants and schema-version
 // helpers live here for repository-scoped provider alert evidence; reducers
-// reconcile those alerts with owned dependency and impact facts. Service catalog
-// fact kind constants and schema-version helpers live here for provider-native
-// entity, ownership, repository link, dependency, API,
+// reconcile those alerts with owned dependency and impact facts.
+// Incident-context fact kind constants and schema-version helpers live here for
+// incident, lifecycle-event, and change-event source evidence reported by
+// incident systems. Service catalog fact kind constants and schema-version
+// helpers live here for provider-native entity, ownership, repository link,
+// dependency, API,
 // operational link, scorecard, and warning evidence. Scanner-worker fact kind
 // constants and schema-version helpers live here for source facts produced by
 // isolated security analyzers; reducers remain responsible for admitting any

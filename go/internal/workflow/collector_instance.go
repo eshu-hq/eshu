@@ -66,6 +66,11 @@ func (d DesiredCollectorInstance) Validate() error {
 			return err
 		}
 	}
+	if d.CollectorKind == scope.CollectorPagerDuty {
+		if err := ValidatePagerDutyCollectorConfiguration(d.Configuration); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
@@ -122,6 +127,11 @@ func (i CollectorInstance) Validate() error {
 	}
 	if i.CollectorKind == scope.CollectorSecurityAlert {
 		if err := ValidateSecurityAlertCollectorConfiguration(i.Configuration); err != nil {
+			return err
+		}
+	}
+	if i.CollectorKind == scope.CollectorPagerDuty {
+		if err := ValidatePagerDutyCollectorConfiguration(i.Configuration); err != nil {
 			return err
 		}
 	}

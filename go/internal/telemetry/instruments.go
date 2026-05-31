@@ -80,6 +80,9 @@ type Instruments struct {
 	SecurityAlertProviderRequests             metric.Int64Counter
 	SecurityAlertFactsEmitted                 metric.Int64Counter
 	SecurityAlertRateLimited                  metric.Int64Counter
+	PagerDutyProviderRequests                 metric.Int64Counter
+	PagerDutyFactsEmitted                     metric.Int64Counter
+	PagerDutyRateLimited                      metric.Int64Counter
 	ScannerWorkerClaims                       metric.Int64Counter
 	ScannerWorkerRetries                      metric.Int64Counter
 	ScannerWorkerDeadLetters                  metric.Int64Counter
@@ -266,6 +269,8 @@ type Instruments struct {
 	PackageRegistryGenerationLag           metric.Float64Histogram
 	VulnerabilityIntelligenceFetchDuration metric.Float64Histogram
 	SecurityAlertFetchDuration             metric.Float64Histogram
+	PagerDutyFetchDuration                 metric.Float64Histogram
+	PagerDutyGenerationLag                 metric.Float64Histogram
 	ScannerWorkerQueueWaitDuration         metric.Float64Histogram
 	ScannerWorkerScanDuration              metric.Float64Histogram
 	ScannerWorkerTargetCount               metric.Int64Histogram
@@ -657,6 +662,30 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register SecurityAlertRateLimited counter: %w", err)
+	}
+
+	inst.PagerDutyProviderRequests, err = meter.Int64Counter(
+		"eshu_dp_pagerduty_provider_requests_total",
+		metric.WithDescription("Total PagerDuty provider requests by provider and status class"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register PagerDutyProviderRequests counter: %w", err)
+	}
+
+	inst.PagerDutyFactsEmitted, err = meter.Int64Counter(
+		"eshu_dp_pagerduty_facts_emitted_total",
+		metric.WithDescription("Total PagerDuty incident source facts emitted by provider and fact kind"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register PagerDutyFactsEmitted counter: %w", err)
+	}
+
+	inst.PagerDutyRateLimited, err = meter.Int64Counter(
+		"eshu_dp_pagerduty_rate_limited_total",
+		metric.WithDescription("Total PagerDuty provider requests that ended rate limited by provider"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register PagerDutyRateLimited counter: %w", err)
 	}
 
 	inst.ScannerWorkerClaims, err = meter.Int64Counter(
@@ -1105,6 +1134,27 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register SecurityAlertFetchDuration histogram: %w", err)
+	}
+
+	pagerDutyBuckets := []float64{0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60}
+	inst.PagerDutyFetchDuration, err = meter.Float64Histogram(
+		"eshu_dp_pagerduty_fetch_duration_seconds",
+		metric.WithDescription("PagerDuty incident evidence fetch duration by provider and status class"),
+		metric.WithUnit("s"),
+		metric.WithExplicitBucketBoundaries(pagerDutyBuckets...),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register PagerDutyFetchDuration histogram: %w", err)
+	}
+
+	inst.PagerDutyGenerationLag, err = meter.Float64Histogram(
+		"eshu_dp_pagerduty_generation_lag_seconds",
+		metric.WithDescription("PagerDuty incident evidence lag from source observation to collector processing"),
+		metric.WithUnit("s"),
+		metric.WithExplicitBucketBoundaries(collectorBuckets...),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register PagerDutyGenerationLag histogram: %w", err)
 	}
 
 	scannerWorkerWaitBuckets := []float64{0.001, 0.01, 0.1, 1, 5, 10, 30, 60, 300, 900, 1800, 3600, 21600}

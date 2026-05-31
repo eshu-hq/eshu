@@ -69,6 +69,7 @@ current families are:
 | SBOM and attestations | collector-specific SBOM or attestation source | `sbom.document`, `sbom.component`, `sbom.dependency_relationship`, `sbom.external_reference`, `attestation.statement`, `attestation.slsa_provenance`, `attestation.signature_verification`, `sbom.warning` |
 | Vulnerability intelligence | collector-specific vulnerability source | `vulnerability.source_snapshot`, `vulnerability.cve`, `vulnerability.affected_product`, `vulnerability.affected_package`, `vulnerability.os_package`, `vulnerability.epss_score`, `vulnerability.known_exploited`, `vulnerability.reference`, `vulnerability.warning`, `vulnerability.go_module_evidence`, `vulnerability.go_call_reachability` |
 | Provider security alerts | `security_alert` | `security_alert.repository_alert` |
+| Incident context | `pagerduty` for PagerDuty source collection | `incident.record`, `incident.lifecycle_event`, `change.record` |
 
 Most current core families use schema version `1.0.0`.
 `documentation_section` uses `1.1.0` because section payloads can carry
@@ -104,6 +105,14 @@ reported provider evidence only. Reducers compare it with owned dependency and
 impact facts through `security_alert_reconciliation`; they do not turn provider
 state into `supply_chain_impact` truth.
 
+`incident.record`, `incident.lifecycle_event`, and `change.record` preserve
+provider-reported incident state, incident timeline entries, and related
+change-event evidence. PagerDuty emits these as reported source evidence.
+Reducers and read models must correlate them with runtime artifact, image,
+commit, pull-request, and work-item evidence before presenting an incident
+context path. Missing Jira links are valid incident evidence state and must not
+block incident collection.
+
 ## Promotion Rules
 
 Facts are source evidence, not automatic graph truth.
@@ -121,6 +130,9 @@ Facts are source evidence, not automatic graph truth.
 - CI success, environment names, SBOM metadata, vulnerability feeds, and
   provider alert state remain provenance until consumers correlate them with
   stronger runtime, package, image, or repository evidence.
+- Incident and change facts remain provenance until consumers correlate them
+  with stronger runtime, deployment, image, commit, pull-request, or work-item
+  evidence.
 
 ACL summaries and source-native documentation bodies are sensitive source
 evidence. Do not emit them through logs or metrics. Evidence packet APIs must

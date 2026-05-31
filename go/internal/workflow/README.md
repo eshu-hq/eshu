@@ -120,7 +120,7 @@ Types in this package flow through four phases of the workflow control plane:
   `CollectorTerraformState`, `CollectorAWS`, `CollectorWebhook`,
   `CollectorDocumentation`, `CollectorOCIRegistry`, `CollectorPackageRegistry`,
   `CollectorVulnerabilityIntelligence`, `CollectorSBOMAttestation`,
-  `CollectorSecurityAlert`, `CollectorScannerWorker`
+  `CollectorSecurityAlert`, `CollectorPagerDuty`, `CollectorScannerWorker`
 - `PhaseRequirement`, `PhasePublicationKey` — per-phase requirement and
   publication checkpoint key types
 
@@ -144,6 +144,12 @@ Types in this package flow through four phases of the workflow control plane:
 S3 seeds must include bucket, key, and region; any S3 seed also requires
 `aws.role_arn`. This keeps unsafe or incomplete state-reader config out of the
 durable `collector_instances` table.
+
+`pagerduty` collector instances must declare at least one target with
+`provider`, `scope_id`, `account_id`, and `token_env`. Optional `api_base_url`
+overrides must use HTTPS and must not include credentials. Request limits,
+lookback duration, and source URIs are validated before the instance reaches
+durable storage.
 
 `oci_registry` collector instances are claim-capable. The coordinator plans one
 bounded work item per configured registry repository target, and the
@@ -196,6 +202,13 @@ fencing token, bounded target scope, and resource limits into the analyzer
 input. The collector contract intentionally declares no canonical keyspaces and
 no required reducer phases. Scanner workers commit source facts only; reducers
 own finding admission, prioritization, and graph/read-model truth.
+
+`pagerduty` collector instances are claim-capable. The coordinator plans
+bounded PagerDuty account or service-allowlist work from configured targets,
+and the `collector-pagerduty` runtime resolves each claimed `scope_id` back to
+a configured target before fetching incidents, incident log entries, and
+related change events. PagerDuty instances are fact-only until incident-context
+correlation and query contracts land.
 
 `aws` collector instances are claim-capable. The coordinator plans one bounded
 work item per authorized `(account_id, region, service_kind)` tuple, and the
