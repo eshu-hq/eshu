@@ -117,6 +117,7 @@ import (
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/securityhub/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/securitylake/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/servicecatalog/runtimebind"
+	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/servicecatalogappregistry/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/servicediscovery/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/servicequotas/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/ses/runtimebind"
