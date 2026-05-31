@@ -36,6 +36,8 @@ const (
 	KindSecurityAlert ScopeKind = "security_alert"
 	// KindPagerDutyAccount represents a PagerDuty account or service allowlist scope.
 	KindPagerDutyAccount ScopeKind = "pagerduty_account"
+	// KindJiraSite represents a Jira Cloud site work-item evidence scope.
+	KindJiraSite ScopeKind = "jira_site"
 	// KindScannerWorker represents a bounded security analyzer work scope.
 	KindScannerWorker ScopeKind = "scanner_worker"
 )
@@ -66,6 +68,8 @@ const (
 	CollectorSecurityAlert CollectorKind = "security_alert"
 	// CollectorPagerDuty represents hosted PagerDuty incident evidence collectors.
 	CollectorPagerDuty CollectorKind = "pagerduty"
+	// CollectorJira represents Jira work-item evidence collectors.
+	CollectorJira CollectorKind = "jira"
 	// CollectorScannerWorker represents isolated security analyzer workers.
 	CollectorScannerWorker CollectorKind = "scanner_worker"
 	// CollectorKubernetesLive represents the read-only Kubernetes live cluster

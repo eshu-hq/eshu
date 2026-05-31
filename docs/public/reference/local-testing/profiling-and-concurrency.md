@@ -119,6 +119,7 @@ use an SSH tunnel from their laptop.
 | `scanner-worker` | `127.0.0.1:19671` |
 | `collector-sbom-attestation` | `127.0.0.1:19672` |
 | `collector-security-alerts` | `127.0.0.1:19673` |
+| `collector-jira` | `127.0.0.1:19674` |
 
 Example captures from the remote host:
 

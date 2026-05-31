@@ -120,7 +120,8 @@ Types in this package flow through four phases of the workflow control plane:
   `CollectorTerraformState`, `CollectorAWS`, `CollectorWebhook`,
   `CollectorDocumentation`, `CollectorOCIRegistry`, `CollectorPackageRegistry`,
   `CollectorVulnerabilityIntelligence`, `CollectorSBOMAttestation`,
-  `CollectorSecurityAlert`, `CollectorPagerDuty`, `CollectorScannerWorker`
+  `CollectorSecurityAlert`, `CollectorPagerDuty`, `CollectorJira`,
+  `CollectorScannerWorker`
 - `PhaseRequirement`, `PhasePublicationKey` — per-phase requirement and
   publication checkpoint key types
 
@@ -209,6 +210,14 @@ and the `collector-pagerduty` runtime resolves each claimed `scope_id` back to
 a configured target before fetching incidents, incident log entries, and
 related change events. PagerDuty instances are fact-only until incident-context
 correlation and query contracts land.
+
+`jira` collector instances are claim-capable. The coordinator plans one bounded
+work item per configured Jira site target, and the `collector-jira` runtime
+resolves each claimed `scope_id` back to a configured Jira target before
+fetching updated issues, changelogs, and remote links. The collector contract
+declares no canonical keyspaces and no required reducer phases. Jira commits
+work-item source facts only; reducers and query surfaces own incident, runtime,
+code, and pull-request correlation truth.
 
 `aws` collector instances are claim-capable. The coordinator plans one bounded
 work item per authorized `(account_id, region, service_kind)` tuple, and the

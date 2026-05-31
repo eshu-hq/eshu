@@ -134,6 +134,8 @@ func TestSpanNames(t *testing.T) {
 		"security_alert.fetch",
 		"pagerduty.observe",
 		"pagerduty.fetch",
+		"jira.observe",
+		"jira.fetch",
 		"query.supply_chain_impact_findings",
 		"query.supply_chain_impact_explanation",
 		"query.supply_chain_impact_aggregate",

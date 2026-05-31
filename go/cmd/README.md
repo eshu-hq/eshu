@@ -29,6 +29,7 @@ exact binary set on `PATH`.
 | `eshu-collector-sbom-attestation` | `collector-sbom-attestation/` | Long-running hosted SBOM and attestation collector |
 | `eshu-collector-security-alerts` | `collector-security-alerts/` | Long-running hosted provider security-alert collector |
 | `eshu-collector-pagerduty` | `collector-pagerduty/` | Long-running PagerDuty incident-context collector |
+| `eshu-collector-jira` | `collector-jira/` | Long-running Jira work-item evidence collector |
 | `eshu-scanner-worker` | `scanner-worker/` | Long-running isolated security analyzer worker |
 | `eshu-collector-aws-cloud` | `collector-aws-cloud/` | Long-running AWS cloud collector |
 | `eshu-webhook-listener` | `webhook-listener/` | Long-running GitHub/GitLab webhook intake |
@@ -50,6 +51,7 @@ flowchart LR
   sbom[collector-sbom-attestation] --> postgres
   alerts[collector-security-alerts] --> postgres
   pagerduty[collector-pagerduty] --> postgres
+  jira[collector-jira] --> postgres
   aws[collector-aws-cloud] --> postgres
   scanner[scanner-worker] --> postgres
   webhook[webhook-listener] --> postgres

@@ -71,6 +71,11 @@ func (d DesiredCollectorInstance) Validate() error {
 			return err
 		}
 	}
+	if d.CollectorKind == scope.CollectorJira {
+		if err := ValidateJiraCollectorConfiguration(d.Configuration); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
@@ -132,6 +137,11 @@ func (i CollectorInstance) Validate() error {
 	}
 	if i.CollectorKind == scope.CollectorPagerDuty {
 		if err := ValidatePagerDutyCollectorConfiguration(i.Configuration); err != nil {
+			return err
+		}
+	}
+	if i.CollectorKind == scope.CollectorJira {
+		if err := ValidateJiraCollectorConfiguration(i.Configuration); err != nil {
 			return err
 		}
 	}

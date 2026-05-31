@@ -93,6 +93,11 @@ func TestIngestionScopeValidateAllowsAdditionalCollectorKinds(t *testing.T) {
 			collectorKind: CollectorPagerDuty,
 		},
 		{
+			name:          "jira",
+			sourceSystem:  "jira",
+			collectorKind: CollectorJira,
+		},
+		{
 			name:          "scanner_worker",
 			sourceSystem:  "scanner_worker",
 			collectorKind: CollectorScannerWorker,
@@ -216,6 +221,14 @@ func TestIngestionScopeValidateAllowsAdditionalScopeKinds(t *testing.T) {
 			scopeKind:     KindPagerDutyAccount,
 			collectorKind: CollectorPagerDuty,
 			partitionKey:  "example",
+		},
+		{
+			name:          "jira_site",
+			sourceSystem:  "jira",
+			scopeID:       "jira:site:example",
+			scopeKind:     KindJiraSite,
+			collectorKind: CollectorJira,
+			partitionKey:  "example.atlassian.net",
 		},
 		{
 			name:          "scanner_worker",

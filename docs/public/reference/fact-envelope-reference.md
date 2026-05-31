@@ -70,6 +70,7 @@ current families are:
 | Vulnerability intelligence | collector-specific vulnerability source | `vulnerability.source_snapshot`, `vulnerability.cve`, `vulnerability.affected_product`, `vulnerability.affected_package`, `vulnerability.os_package`, `vulnerability.epss_score`, `vulnerability.known_exploited`, `vulnerability.reference`, `vulnerability.warning`, `vulnerability.go_module_evidence`, `vulnerability.go_call_reachability` |
 | Provider security alerts | `security_alert` | `security_alert.repository_alert` |
 | Incident context | `pagerduty` for PagerDuty source collection | `incident.record`, `incident.lifecycle_event`, `change.record` |
+| Jira work items | `jira` | `work_item.record`, `work_item.transition`, `work_item.external_link` |
 
 Most current core families use schema version `1.0.0`.
 `documentation_section` uses `1.1.0` because section payloads can carry
@@ -112,6 +113,12 @@ Reducers and read models must correlate them with runtime artifact, image,
 commit, pull-request, and work-item evidence before presenting an incident
 context path. Missing Jira links are valid incident evidence state and must not
 block incident collection.
+
+`work_item.record`, `work_item.transition`, and `work_item.external_link`
+preserve Jira work-item state, changelog IDs, and remote-link IDs as provider
+evidence. They do not imply incident ownership, deployment cause, code change,
+or pull-request truth unless a reducer or query later proves that path through
+separate source evidence.
 
 ## Promotion Rules
 

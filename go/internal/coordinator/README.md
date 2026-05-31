@@ -117,6 +117,9 @@ fall back to defaults rather than failing; malformed values fail fast.
   from configured account or service-allowlist targets. Each target becomes one
   claimable work item keyed by `scope_id`, and `requested_scope_set` omits
   token environment references, incident URLs, service IDs, and titles.
+- `JiraWorkPlanner` — plans Jira work-item evidence collection runs from
+  configured Jira Cloud site targets without resolving credential environment
+  variables. Each target becomes one claimable work item keyed by `scope_id`.
 - `OwnedPackageTargetReader` — optional active-mode dependency target reader
   used by `Service` when package-registry or vulnerability-intelligence
   instances enable `derive_from_owned_packages`.

@@ -67,6 +67,11 @@ type PagerDutyPlanner interface {
 	PlanPagerDutyWork(context.Context, PagerDutyPlanRequest) (workflow.Run, []workflow.WorkItem, error)
 }
 
+// JiraPlanner plans Jira workflow rows from collector instance configuration.
+type JiraPlanner interface {
+	PlanJiraWork(context.Context, JiraPlanRequest) (workflow.Run, []workflow.WorkItem, error)
+}
+
 // OwnedPackageTargetReader loads active dependency evidence that can bound
 // derived package-registry and vulnerability-intelligence work.
 type OwnedPackageTargetReader interface {
@@ -94,6 +99,7 @@ type Service struct {
 	SBOMAttestationPlanner           SBOMAttestationPlanner
 	SecurityAlertPlanner             SecurityAlertPlanner
 	PagerDutyPlanner                 PagerDutyPlanner
+	JiraPlanner                      JiraPlanner
 	OwnedPackageTargetReader         OwnedPackageTargetReader
 	AWSScheduledPlanner              AWSScheduledPlanner
 	AWSFreshnessTriggers             AWSFreshnessTriggerStore
@@ -262,6 +268,15 @@ func (s Service) runReconcile(ctx context.Context) error {
 		return err
 	}
 	if err := s.schedulePagerDutyWork(ctx, observedAt, instances); err != nil {
+		s.recordReconcile(ctx, ReconcileObservation{
+			Outcome:      reconcileOutcomeReconcileError,
+			Duration:     time.Since(startedAt),
+			DesiredCount: desiredCount,
+			DurableCount: durableCount,
+		})
+		return err
+	}
+	if err := s.scheduleJiraWork(ctx, observedAt, instances); err != nil {
 		s.recordReconcile(ctx, ReconcileObservation{
 			Outcome:      reconcileOutcomeReconcileError,
 			Duration:     time.Since(startedAt),

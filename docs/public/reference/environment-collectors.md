@@ -163,6 +163,30 @@ PagerDuty tokens must come from private environment variables referenced by
 `token_env`; do not commit token values, incident titles, service names,
 PagerDuty URLs, or copied provider payloads to public values files or docs.
 
+## Jira Collector
+
+The Jira collector is claim-only. It selects an enabled `jira` instance from
+`ESHU_COLLECTOR_INSTANCES_JSON`. Targets currently support Jira Cloud and must
+include `provider: "jira_cloud"`, `scope_id`, `site_id`, `token_env`, and a
+bounded `jql` scope such as a project or label filter. `base_url` defaults to
+`https://<site_id>` when omitted. The runtime resolves the API token from the
+named environment variable, resolves optional basic-auth email from
+`email_env`, and emits only `work_item.*` source facts. PagerDuty incidents,
+GitHub pull requests, deployments, and graph truth are not collected by this
+runtime.
+
+| Variable | Default | Read by | Purpose |
+| --- | --- | --- | --- |
+| `ESHU_JIRA_COLLECTOR_INSTANCE_ID` | required when more than one enabled Jira instance exists | collector-jira | Selects the claim-capable `jira` instance. |
+| `ESHU_JIRA_POLL_INTERVAL` | `1s` | collector-jira | Delay between empty workflow-claim polls. |
+| `ESHU_JIRA_CLAIM_LEASE_TTL` | `60s` | collector-jira | Lease TTL used when claiming and refreshing work. |
+| `ESHU_JIRA_HEARTBEAT_INTERVAL` | `20s` | collector-jira | Heartbeat interval for active workflow claims. Must be less than the claim lease TTL. |
+| `ESHU_JIRA_COLLECTOR_OWNER_ID` | host/process-derived | collector-jira | Owner label written into workflow claim rows. |
+
+Jira API tokens must come from private environment variables referenced by
+`token_env`; do not commit token values, private issue summaries, user names,
+issue URLs, or copied provider payloads to public values files or docs.
+
 ## Vulnerability Intelligence Collector
 
 The vulnerability intelligence collector is claim-only. It selects an enabled

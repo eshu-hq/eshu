@@ -115,6 +115,7 @@ func run(parent context.Context) error {
 		SBOMAttestationPlanner:           coordinator.SBOMAttestationWorkPlanner{},
 		SecurityAlertPlanner:             coordinator.SecurityAlertWorkPlanner{},
 		PagerDutyPlanner:                 coordinator.PagerDutyWorkPlanner{},
+		JiraPlanner:                      coordinator.JiraWorkPlanner{},
 		OwnedPackageTargetReader:         postgres.NewFactStore(ownedPackageTargetsDB),
 		AWSScheduledPlanner:              coordinator.AWSScheduledWorkPlanner{},
 		AWSFreshnessTriggers:             awsFreshnessStore,
