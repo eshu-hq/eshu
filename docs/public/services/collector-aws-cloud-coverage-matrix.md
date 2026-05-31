@@ -18,11 +18,11 @@ scanner. Use that page for resource and edge detail; use this page to answer
   placement, encryption keys, IAM trust, data-source wiring, deployment
   targets). Leaf services with no infrastructure relationships are low priority
   by design, not by oversight.
-- **Counts reflect `main`.** As of this revision the collector ships **93
+- **Counts reflect `main`.** As of this revision the collector ships **94
   service scanners**. The supported list below is grouped by domain; the
   scanner-coverage page enumerates the resources and edges each one emits.
 
-## Supported services (93)
+## Supported services (94)
 
 | Domain | Services |
 |---|---|
@@ -32,7 +32,7 @@ scanner. Use that page for resource and edge detail; use this page to answer
 | Databases (9) | `rds`, `dynamodb`, `elasticache`, `redshift`, `docdb`, `neptune`, `memorydb`, `keyspaces`, `timestream` |
 | Networking & content delivery (12) | `vpc`, `transitgateway`, `directconnect`, `globalaccelerator`, `route53`, `route53resolver`, `cloudfront`, `apigateway`, `apigatewayv2`, `elb`, `elbv2`, `networkfirewall` |
 | Security, identity & compliance (21) | `iam`, `ssoadmin`, `cognito`, `ds`, `kms`, `acm`, `acmpca`, `secretsmanager`, `accessanalyzer`, `guardduty`, `inspector2`, `macie`, `securityhub`, `shield`, `wafv2`, `fms`, `detective`, `config`, `cloudtrail`, `ram`, `lakeformation` |
-| Management & governance (7) | `cloudformation`, `cloudwatch`, `cloudwatchlogs`, `ssm`, `organizations`, `servicecatalog`, `resourcegroups` |
+| Management & governance (8) | `cloudformation`, `cloudwatch`, `cloudwatchlogs`, `ssm`, `organizations`, `servicecatalog`, `resourcegroups`, `fis` |
 | Developer tools (6) | `codebuild`, `codecommit`, `codedeploy`, `codepipeline`, `codeartifact`, `xray` |
 | Analytics & streaming (7) | `athena`, `emr`, `glue`, `kinesis`, `firehose`, `msk`, `opensearch` |
 | Application integration (9) | `sns`, `sqs`, `eventbridge`, `stepfunctions`, `mq`, `appflow`, `appsync`, `mwaa`, `ses` |
@@ -73,7 +73,6 @@ deployment footprints.
 | Compute Optimizer | `compute-optimizer` |
 | Audit Manager | `auditmanager` |
 | Signer | `signer` |
-| Fault Injection Service | `fis` |
 | IAM Roles Anywhere | `rolesanywhere` |
 | Verified Permissions | `verifiedpermissions` |
 | EC2 Verified Access | `ec2` (verified-access) |
