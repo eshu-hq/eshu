@@ -59,7 +59,12 @@ const (
 	MetricDimensionStatusClass    = "status_class"
 	MetricDimensionFailureClass   = "failure_class"
 	MetricDimensionFactKind       = "fact_kind"
-	MetricDimensionDocumentType   = "document_type"
+	// MetricDimensionResourceScope labels Kubernetes live collection metrics
+	// with a bounded resource scope such as namespaces, pods, deployments, or
+	// services. It is a closed enum of resource families, never namespace or
+	// object names, so it stays low-cardinality.
+	MetricDimensionResourceScope = "resource_scope"
+	MetricDimensionDocumentType  = "document_type"
 	// MetricDimensionSafeLocatorHash labels Terraform-state metrics with the
 	// scope-level safe locator hash so operators can group counters per state
 	// without exposing bucket names, S3 keys, or local paths.
@@ -218,6 +223,8 @@ const (
 	SpanWebhookStore                     = "webhook.store"
 	SpanOCIRegistryScan                  = "oci_registry.scan"
 	SpanOCIRegistryAPICall               = "oci_registry.api_call"
+	SpanKubernetesLiveSnapshot           = "kubernetes_live.snapshot"
+	SpanKubernetesLiveAPICall            = "kubernetes_live.api_call"
 	SpanPackageRegistryObserve           = "package_registry.observe"
 	SpanPackageRegistryFetch             = "package_registry.fetch"
 	SpanAWSCollectorClaimProcess         = "aws.collector.claim.process"

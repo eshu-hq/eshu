@@ -1,0 +1,339 @@
+package kuberneteslive
+
+import (
+	"fmt"
+	"net/url"
+	"sort"
+	"strings"
+	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/facts"
+)
+
+// ContainerSummary is the redacted, metadata-only view of one container or
+// init container. It carries image references and declared shape, never
+// environment values, secret references resolved to values, or logs.
+type ContainerSummary struct {
+	Name string
+	// Image is the raw image reference string as declared in the pod template.
+	Image string
+	// Init reports whether this is an init container.
+	Init bool
+	// Ports are declared container ports.
+	Ports []int32
+	// EnvKeys are environment variable NAMES only. Values are never collected.
+	EnvKeys []string
+	// EnvFromSecret reports whether the container references secret-backed env
+	// without collecting any value. It records the existence of a reference for
+	// drift evidence only.
+	EnvFromSecret bool
+}
+
+// PodTemplateObservation is the input for one kubernetes_live.pod_template fact.
+type PodTemplateObservation struct {
+	Identity            ObjectIdentity
+	Containers          []ContainerSummary
+	ServiceAccount      string
+	Selector            map[string]string
+	Labels              map[string]string
+	GenerationID        string
+	CollectorInstanceID string
+	FencingToken        int64
+	ObservedAt          time.Time
+	SourceURI           string
+}
+
+// RelationshipObservation is the input for one kubernetes_live.relationship
+// fact. From and To are durable object identities; the edge is directed
+// From -> To.
+type RelationshipObservation struct {
+	ClusterID           string
+	Type                RelationshipType
+	From                ObjectIdentity
+	To                  ObjectIdentity
+	GenerationID        string
+	CollectorInstanceID string
+	FencingToken        int64
+	ObservedAt          time.Time
+	SourceURI           string
+}
+
+// WarningObservation is the input for one kubernetes_live.warning fact.
+type WarningObservation struct {
+	ClusterID           string
+	Reason              string
+	ResourceScope       string
+	Message             string
+	GenerationID        string
+	CollectorInstanceID string
+	FencingToken        int64
+	ObservedAt          time.Time
+	SourceURI           string
+}
+
+// NewPodTemplateEnvelope builds the durable pod-template fact. It redacts
+// everything except metadata-only fields: image refs, env var names, declared
+// ports, service account, and selector/label metadata.
+func NewPodTemplateEnvelope(observation PodTemplateObservation) (facts.Envelope, error) {
+	if err := observation.Identity.Validate(); err != nil {
+		return facts.Envelope{}, fmt.Errorf("pod template identity: %w", err)
+	}
+	if err := validateBoundary(observation.GenerationID, observation.CollectorInstanceID, "pod template observation"); err != nil {
+		return facts.Envelope{}, err
+	}
+	objectID := observation.Identity.ObjectID()
+	containers := make([]map[string]any, 0, len(observation.Containers))
+	images := make([]string, 0, len(observation.Containers))
+	for _, container := range observation.Containers {
+		containers = append(containers, containerMap(container))
+		if image := strings.TrimSpace(container.Image); image != "" {
+			images = append(images, image)
+		}
+	}
+	anchors := []string{objectID}
+	anchors = append(anchors, images...)
+	payload := map[string]any{
+		"collector_instance_id":  observation.CollectorInstanceID,
+		"cluster_id":             observation.Identity.ClusterID,
+		"object_id":              objectID,
+		"group_version_resource": observation.Identity.GroupVersionResource(),
+		"namespace":              observation.Identity.Namespace,
+		"name":                   observation.Identity.Name,
+		"uid":                    observation.Identity.UID,
+		"service_account":        strings.TrimSpace(observation.ServiceAccount),
+		"containers":             containers,
+		"image_refs":             images,
+		"selector":               sortedStringMap(observation.Selector),
+		"labels":                 sortedStringMap(observation.Labels),
+		"correlation_anchors":    anchors,
+	}
+	return newEnvelope(
+		observation.Identity.ClusterID,
+		facts.KubernetesPodTemplateFactKind,
+		facts.KubernetesPodTemplateSchemaVersion,
+		objectID,
+		observation.GenerationID,
+		observation.CollectorInstanceID,
+		observation.FencingToken,
+		observation.ObservedAt,
+		observation.SourceURI,
+		objectID,
+		payload,
+	)
+}
+
+// NewRelationshipEnvelope builds the durable relationship fact for one directed
+// edge between two live objects.
+func NewRelationshipEnvelope(observation RelationshipObservation) (facts.Envelope, error) {
+	if strings.TrimSpace(string(observation.Type)) == "" {
+		return facts.Envelope{}, fmt.Errorf("relationship type must not be blank")
+	}
+	if err := observation.From.Validate(); err != nil {
+		return facts.Envelope{}, fmt.Errorf("relationship from identity: %w", err)
+	}
+	if err := observation.To.Validate(); err != nil {
+		return facts.Envelope{}, fmt.Errorf("relationship to identity: %w", err)
+	}
+	if err := validateBoundary(observation.GenerationID, observation.CollectorInstanceID, "relationship observation"); err != nil {
+		return facts.Envelope{}, err
+	}
+	fromID := observation.From.ObjectID()
+	toID := observation.To.ObjectID()
+	stableKey := facts.StableID(facts.KubernetesRelationshipFactKind, map[string]any{
+		"from": fromID,
+		"to":   toID,
+		"type": string(observation.Type),
+	})
+	payload := map[string]any{
+		"collector_instance_id":       observation.CollectorInstanceID,
+		"cluster_id":                  strings.TrimSpace(observation.ClusterID),
+		"relationship_type":           string(observation.Type),
+		"from_object_id":              fromID,
+		"to_object_id":                toID,
+		"from_group_version_resource": observation.From.GroupVersionResource(),
+		"to_group_version_resource":   observation.To.GroupVersionResource(),
+		"correlation_anchors":         []string{fromID, toID},
+	}
+	return newEnvelope(
+		observation.ClusterID,
+		facts.KubernetesRelationshipFactKind,
+		facts.KubernetesRelationshipSchemaVersion,
+		stableKey,
+		observation.GenerationID,
+		observation.CollectorInstanceID,
+		observation.FencingToken,
+		observation.ObservedAt,
+		observation.SourceURI,
+		fromID+"->"+toID,
+		payload,
+	)
+}
+
+// NewWarningEnvelope builds the durable non-fatal warning fact.
+func NewWarningEnvelope(observation WarningObservation) (facts.Envelope, error) {
+	reason := strings.TrimSpace(observation.Reason)
+	if reason == "" {
+		return facts.Envelope{}, fmt.Errorf("warning reason must not be blank")
+	}
+	if err := validateBoundary(observation.GenerationID, observation.CollectorInstanceID, "warning observation"); err != nil {
+		return facts.Envelope{}, err
+	}
+	clusterID := strings.TrimSpace(observation.ClusterID)
+	if clusterID == "" {
+		return facts.Envelope{}, fmt.Errorf("warning cluster_id must not be blank")
+	}
+	resourceScope := strings.TrimSpace(observation.ResourceScope)
+	stableKey := facts.StableID(facts.KubernetesWarningFactKind, map[string]any{
+		"cluster_id":     clusterID,
+		"reason":         reason,
+		"resource_scope": resourceScope,
+	})
+	payload := map[string]any{
+		"collector_instance_id": observation.CollectorInstanceID,
+		"cluster_id":            clusterID,
+		"reason":                reason,
+		"resource_scope":        resourceScope,
+		"message":               sanitizeText(observation.Message),
+		"correlation_anchors":   []string{clusterID},
+	}
+	return newEnvelope(
+		clusterID,
+		facts.KubernetesWarningFactKind,
+		facts.KubernetesWarningSchemaVersion,
+		stableKey,
+		observation.GenerationID,
+		observation.CollectorInstanceID,
+		observation.FencingToken,
+		observation.ObservedAt,
+		observation.SourceURI,
+		reason+":"+resourceScope,
+		payload,
+	)
+}
+
+func containerMap(container ContainerSummary) map[string]any {
+	ports := make([]int32, 0, len(container.Ports))
+	ports = append(ports, container.Ports...)
+	sort.Slice(ports, func(i, j int) bool { return ports[i] < ports[j] })
+	envKeys := append([]string(nil), container.EnvKeys...)
+	sort.Strings(envKeys)
+	return map[string]any{
+		"name":            strings.TrimSpace(container.Name),
+		"image":           strings.TrimSpace(container.Image),
+		"init":            container.Init,
+		"ports":           ports,
+		"env_keys":        envKeys,
+		"env_from_secret": container.EnvFromSecret,
+	}
+}
+
+func sortedStringMap(input map[string]string) map[string]string {
+	if len(input) == 0 {
+		return nil
+	}
+	output := make(map[string]string, len(input))
+	for key, value := range input {
+		output[strings.TrimSpace(key)] = value
+	}
+	return output
+}
+
+func newEnvelope(
+	clusterID string,
+	factKind string,
+	schemaVersion string,
+	stableKey string,
+	generationID string,
+	collectorInstanceID string,
+	fencingToken int64,
+	observedAt time.Time,
+	sourceURI string,
+	sourceRecordID string,
+	payload map[string]any,
+) (facts.Envelope, error) {
+	scopeID, err := ClusterScopeID(clusterID)
+	if err != nil {
+		return facts.Envelope{}, err
+	}
+	return facts.Envelope{
+		FactID:           factID(factKind, stableKey, scopeID, generationID),
+		ScopeID:          scopeID,
+		GenerationID:     generationID,
+		FactKind:         factKind,
+		StableFactKey:    stableKey,
+		SchemaVersion:    schemaVersion,
+		CollectorKind:    CollectorKind,
+		FencingToken:     fencingToken,
+		SourceConfidence: facts.SourceConfidenceReported,
+		ObservedAt:       normalizedObservedAt(observedAt),
+		Payload:          payload,
+		SourceRef: facts.Ref{
+			SourceSystem:   CollectorKind,
+			ScopeID:        scopeID,
+			GenerationID:   generationID,
+			FactKey:        stableKey,
+			SourceURI:      sanitizeURL(sourceURI),
+			SourceRecordID: sourceRecordID,
+		},
+	}, nil
+}
+
+func factID(factKind, stableFactKey, scopeID, generationID string) string {
+	return facts.StableID("KubernetesLiveFact", map[string]any{
+		"fact_kind":       factKind,
+		"generation_id":   generationID,
+		"scope_id":        scopeID,
+		"stable_fact_key": stableFactKey,
+	})
+}
+
+func validateBoundary(generationID, collectorInstanceID, noun string) error {
+	if strings.TrimSpace(generationID) == "" {
+		return fmt.Errorf("%s generation_id must not be blank", noun)
+	}
+	if strings.TrimSpace(collectorInstanceID) == "" {
+		return fmt.Errorf("%s collector_instance_id must not be blank", noun)
+	}
+	return nil
+}
+
+func normalizedObservedAt(observedAt time.Time) time.Time {
+	if observedAt.IsZero() {
+		return time.Now().UTC()
+	}
+	return observedAt.UTC()
+}
+
+func sanitizeURL(raw string) string {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return ""
+	}
+	parsed, err := url.Parse(trimmed)
+	if err != nil || parsed.Scheme == "" || parsed.Host == "" {
+		return trimmed
+	}
+	parsed.User = nil
+	query := parsed.Query()
+	for key := range query {
+		if isSensitiveQueryKey(key) {
+			query.Del(key)
+		}
+	}
+	parsed.RawQuery = query.Encode()
+	return parsed.String()
+}
+
+func sanitizeText(input string) string {
+	return sensitiveURLPattern.ReplaceAllStringFunc(input, sanitizeURL)
+}
+
+func isSensitiveQueryKey(key string) bool {
+	switch strings.ToLower(strings.TrimSpace(key)) {
+	case "access_token", "api_key", "apikey", "auth", "authorization", "jwt",
+		"key", "password", "passwd", "secret", "sig", "signature", "token":
+		return true
+	default:
+		return false
+	}
+}
