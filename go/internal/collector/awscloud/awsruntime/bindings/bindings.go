@@ -59,6 +59,7 @@ import (
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/globalaccelerator/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/glue/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/guardduty/runtimebind"
+	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/imagebuilder/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/iam/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/inspector2/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/keyspaces/runtimebind"
