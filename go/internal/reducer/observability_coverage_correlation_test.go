@@ -40,6 +40,85 @@ func TestBuildObservabilityCoverageDecisionsExactAlarmCoverage(t *testing.T) {
 	}
 }
 
+// TestBuildObservabilityCoverageDecisionsResolutionModeARN proves an alarm whose
+// dimension value is the target's ARN records resolution_mode=arn, not a
+// hardcoded bare_id, so the durable fact preserves which join path matched.
+func TestBuildObservabilityCoverageDecisionsResolutionModeARN(t *testing.T) {
+	t.Parallel()
+
+	const alarmARN = "arn:aws:cloudwatch:us-east-1:111122223333:alarm:by-arn"
+	const instanceID = "i-0byarn"
+	const instanceARN = "arn:aws:ec2:us-east-1:111122223333:instance/" + instanceID
+	decisions := BuildObservabilityCoverageDecisions([]facts.Envelope{
+		awsResourceFact("alarm-res", "aws_cloudwatch_alarm", alarmARN, alarmARN, "by-arn", false),
+		awsResourceFact("ec2-res", "aws_ec2_instance", instanceID, instanceARN, "web-1", false),
+		alarmObservesMetricFact("alarm-rel", alarmARN, "AWS/EC2/CPUUtilization", []map[string]any{
+			{"name": "InstanceId", "value": instanceARN},
+		}),
+	})
+
+	want := cloudResourceUID(testCoverageAccount, testCoverageRegion, "aws_ec2_instance", instanceID)
+	decision := observabilityCoverageDecisions(decisions)["alarm|"+alarmARN+"|"+want]
+	assertCoverageOutcome(t, decision, ObservabilityCoverageExact, "covered")
+	if decision.ResolutionMode != "arn" {
+		t.Fatalf("resolution_mode = %q, want arn", decision.ResolutionMode)
+	}
+}
+
+// TestBuildObservabilityCoverageDecisionsResolutionModeCorrelationAnchor proves
+// an alarm dimension that resolves only through a published correlation anchor
+// records resolution_mode=correlation_anchor.
+func TestBuildObservabilityCoverageDecisionsResolutionModeCorrelationAnchor(t *testing.T) {
+	t.Parallel()
+
+	const alarmARN = "arn:aws:cloudwatch:us-east-1:111122223333:alarm:by-anchor"
+	const instanceID = "i-0byanchor"
+	const anchor = "logical://checkout/primary"
+	target := awsResourceFact("ec2-res", "aws_ec2_instance", instanceID, "arn:ec2-anchor", "web-1", false)
+	target.Payload["correlation_anchors"] = []string{anchor}
+	decisions := BuildObservabilityCoverageDecisions([]facts.Envelope{
+		awsResourceFact("alarm-res", "aws_cloudwatch_alarm", alarmARN, alarmARN, "by-anchor", false),
+		target,
+		alarmObservesMetricFact("alarm-rel", alarmARN, "AWS/EC2/CPUUtilization", []map[string]any{
+			{"name": "InstanceId", "value": anchor},
+		}),
+	})
+
+	want := cloudResourceUID(testCoverageAccount, testCoverageRegion, "aws_ec2_instance", instanceID)
+	decision := observabilityCoverageDecisions(decisions)["alarm|"+alarmARN+"|"+want]
+	assertCoverageOutcome(t, decision, ObservabilityCoverageExact, "covered")
+	if decision.ResolutionMode != "correlation_anchor" {
+		t.Fatalf("resolution_mode = %q, want correlation_anchor", decision.ResolutionMode)
+	}
+}
+
+// TestBuildObservabilityCoverageDecisionsTombstonedObjectNeverCovers proves a
+// tombstoned observability object (a deleted alarm) does not prove coverage for
+// an otherwise-active target: tombstones must not overstate current coverage.
+func TestBuildObservabilityCoverageDecisionsTombstonedObjectNeverCovers(t *testing.T) {
+	t.Parallel()
+
+	const alarmARN = "arn:aws:cloudwatch:us-east-1:111122223333:alarm:deleted"
+	const instanceID = "i-0live"
+	decisions := BuildObservabilityCoverageDecisions([]facts.Envelope{
+		awsResourceFact("alarm-res", "aws_cloudwatch_alarm", alarmARN, alarmARN, "deleted", true),
+		awsResourceFact("ec2-res", "aws_ec2_instance", instanceID, "arn:ec2-live", "web-1", false),
+		alarmObservesMetricFact("alarm-rel", alarmARN, "AWS/EC2/CPUUtilization", []map[string]any{
+			{"name": "InstanceId", "value": instanceID},
+		}),
+	})
+
+	targetUID := cloudResourceUID(testCoverageAccount, testCoverageRegion, "aws_ec2_instance", instanceID)
+	for _, decision := range decisions {
+		if decision.ObservabilityObjectRef == alarmARN {
+			t.Fatalf("tombstoned alarm produced a coverage decision: %+v", decision)
+		}
+		if decision.TargetUID == targetUID && decision.Outcome == ObservabilityCoverageExact {
+			t.Fatalf("tombstoned alarm classified target as exact coverage: %+v", decision)
+		}
+	}
+}
+
 // TestBuildObservabilityCoverageDecisionsGapForUncoveredResource proves a
 // monitored resource class (here EC2) that has a covered peer but a second
 // instance with no resolving alarm yields a gap finding keyed on the target.

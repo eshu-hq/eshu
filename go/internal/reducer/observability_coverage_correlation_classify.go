@@ -123,7 +123,7 @@ func classifyCoverageRelationship(
 		base.Outcome = ObservabilityCoverageExact
 		base.CoverageStatus = "covered"
 		base.ProvenanceOnly = false
-		base.ResolutionMode = "bare_id"
+		base.ResolutionMode = active[uid].resolutionMode
 		base.Reason = "alarm dimension resolves to a scanned resource identity"
 		return base, uid
 	default:

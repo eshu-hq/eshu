@@ -36,6 +36,16 @@ const (
 	relXRayMatchesService  = "xray_sampling_rule_matches_service"
 )
 
+// Resolution modes for observability coverage target matches (issue #391). They
+// mirror the AWS relationship edge join_mode enum (issue #805) so the durable
+// fact records which identity path matched: a target's ARN, its bare resource
+// id, or one of its published correlation anchors.
+const (
+	coverageResolutionARN               = joinModeARN
+	coverageResolutionBareID            = joinModeBareID
+	coverageResolutionCorrelationAnchor = joinModeCorrelationAnchor
+)
+
 // observabilityTargetIndex resolves a monitored resource identity to the uid(s)
 // of materialized CloudResource nodes. It is built once per scope generation
 // from the non-observability aws_resource facts so target resolution is O(1) per
@@ -48,11 +58,15 @@ type observabilityTargetIndex struct {
 	byKey map[string]map[string]targetResource // identity key -> uid -> resource
 }
 
-// targetResource is one monitored CloudResource candidate.
+// targetResource is one monitored CloudResource candidate. resolutionMode records
+// which identity path (ARN / bare id / correlation anchor) registered this entry
+// so an exact pick can report the join mode that actually matched rather than a
+// hardcoded value.
 type targetResource struct {
-	uid          string
-	resourceType string
-	tombstone    bool
+	uid            string
+	resourceType   string
+	tombstone      bool
+	resolutionMode string
 }
 
 // observabilityObject is one observability source object (alarm, dashboard, log
@@ -109,6 +123,14 @@ func (index *observabilityCoverageIndex) ingestResource(env facts.Envelope) {
 		return
 	}
 	if signal, ok := observabilityResourceSignals[resourceType]; ok {
+		// A tombstoned observability object (a deleted alarm/dashboard/rule) is no
+		// longer live coverage. Ingesting it would let a stale relationship fact
+		// classify a monitored target as exact/covered and overstate current
+		// coverage, so tombstoned observability objects never enter the index. The
+		// uncovered target then surfaces correctly as a gap.
+		if env.IsTombstone {
+			return
+		}
 		index.ingestObservabilityObject(env, resourceType, signal)
 		return
 	}
@@ -152,22 +174,47 @@ func (index *observabilityCoverageIndex) ingestTargetResource(env facts.Envelope
 		return
 	}
 	uid := cloudResourceUID(accountID, region, resourceType, resourceID)
-	resource := targetResource{uid: uid, resourceType: resourceType, tombstone: env.IsTombstone}
-	for _, key := range targetIdentityKeys(arn, resourceID, env.Payload) {
-		index.targets.add(key, resource)
+	for _, ident := range targetIdentityKeys(arn, resourceID, env.Payload) {
+		index.targets.add(ident.key, targetResource{
+			uid:            uid,
+			resourceType:   resourceType,
+			tombstone:      env.IsTombstone,
+			resolutionMode: ident.mode,
+		})
 	}
 }
 
-// targetIdentityKeys returns the identity keys an observability relationship can
-// use to resolve this resource: its ARN, its bare resource id, and its
-// published correlation anchors. Keys are the same precise identities the #805
-// join index uses so resolution stays exact.
-func targetIdentityKeys(arn, resourceID string, payload map[string]any) []string {
-	keys := compactStringSlice(arn, resourceID)
-	keys = append(keys, payloadStrings(payload, "", "correlation_anchors")...)
-	return keys
+// targetIdentity is one identity key for a monitored resource paired with the
+// resolution mode it represents (ARN, bare id, or correlation anchor).
+type targetIdentity struct {
+	key  string
+	mode string
 }
 
+// targetIdentityKeys returns the identity keys an observability relationship can
+// use to resolve this resource — its ARN, its bare resource id, and its
+// published correlation anchors — each tagged with the resolution mode it
+// represents. Keys are the same precise identities the #805 join index uses so
+// resolution stays exact and the matched join mode is preserved on the fact.
+func targetIdentityKeys(arn, resourceID string, payload map[string]any) []targetIdentity {
+	var idents []targetIdentity
+	if trimmed := strings.TrimSpace(arn); trimmed != "" {
+		idents = append(idents, targetIdentity{key: trimmed, mode: coverageResolutionARN})
+	}
+	if trimmed := strings.TrimSpace(resourceID); trimmed != "" {
+		idents = append(idents, targetIdentity{key: trimmed, mode: coverageResolutionBareID})
+	}
+	for _, anchor := range payloadStrings(payload, "", "correlation_anchors") {
+		if trimmed := strings.TrimSpace(anchor); trimmed != "" {
+			idents = append(idents, targetIdentity{key: trimmed, mode: coverageResolutionCorrelationAnchor})
+		}
+	}
+	return idents
+}
+
+// add registers one identity key for a resource. When the same uid is reachable
+// through multiple key classes, the more specific mode wins (ARN over bare id
+// over anchor) so an exact match reports the strongest identity that matched.
 func (i observabilityTargetIndex) add(key string, resource targetResource) {
 	key = strings.TrimSpace(key)
 	if key == "" {
@@ -178,7 +225,27 @@ func (i observabilityTargetIndex) add(key string, resource targetResource) {
 		bucket = make(map[string]targetResource)
 		i.byKey[key] = bucket
 	}
+	if existing, dup := bucket[resource.uid]; dup &&
+		coverageResolutionRank(existing.resolutionMode) <= coverageResolutionRank(resource.resolutionMode) {
+		return
+	}
 	bucket[resource.uid] = resource
+}
+
+// coverageResolutionRank orders resolution modes from most to least specific so
+// add can keep the strongest mode when one key string is registered for a uid
+// under more than one class. Lower rank is more specific.
+func coverageResolutionRank(mode string) int {
+	switch mode {
+	case coverageResolutionARN:
+		return 0
+	case coverageResolutionBareID:
+		return 1
+	case coverageResolutionCorrelationAnchor:
+		return 2
+	default:
+		return 3
+	}
 }
 
 func (index *observabilityCoverageIndex) ingestRelationship(env facts.Envelope) {

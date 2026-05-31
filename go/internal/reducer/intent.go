@@ -96,8 +96,7 @@ const (
 	// cross-source (observability object vs. the resource it covers) and
 	// cross-scope (a resource in one scan scope may be covered by an alarm
 	// discovered in another). PR1 writes facts only; the optional COVERS graph
-	// edge is a later gated PR. See
-	// docs/internal/design/391-observability-coverage-correlation.md.
+	// edge is a later gated PR. See issue #391 for the design.
 	DomainObservabilityCoverageCorrelation Domain = "observability_coverage_correlation"
 )
 

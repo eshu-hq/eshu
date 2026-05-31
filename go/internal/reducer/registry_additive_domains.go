@@ -207,7 +207,7 @@ func awsCloudRuntimeDriftDomainDefinition() DomainDefinition {
 // them would silently drop every intent. The domain writes durable reducer facts
 // for all outcomes and stays graph-neutral: coverage edges remain provenance
 // until an exact uid/ARN match proves them, and PR1 writes no graph edge at all.
-// See docs/internal/design/391-observability-coverage-correlation.md.
+// See issue #391 for the design and the six-outcome correlation contract.
 func observabilityCoverageCorrelationDomainDefinition() DomainDefinition {
 	return DomainDefinition{
 		Domain:  DomainObservabilityCoverageCorrelation,

@@ -92,9 +92,9 @@ type Instruments struct {
 	// coverage correlation decisions (issue #391). Labels: domain
 	// (observability_coverage_correlation), outcome (exact / derived / ambiguous /
 	// unresolved / stale / rejected), and coverage_signal (alarm /
-	// composite_alarm / dashboard / log_group / trace_sampling / paging). It lets
-	// an operator answer "which observability signal class is losing coverage, and
-	// is it a gap, an ambiguous match, or a rejected weak signal?" at 3 AM.
+	// composite_alarm / dashboard / log_group / trace_sampling). It lets an
+	// operator answer "which observability signal class is losing coverage, and is
+	// it a gap, an ambiguous match, or a rejected weak signal?" at 3 AM.
 	ObservabilityCoverageCorrelations metric.Int64Counter
 	SBOMAttestationAttachments        metric.Int64Counter
 	SupplyChainImpactFindings         metric.Int64Counter
@@ -2012,7 +2012,7 @@ func AttrJoinMode(v string) attribute.KeyValue {
 
 // AttrCoverageSignal returns a coverage_signal attribute for the observability
 // coverage correlation counter (alarm / composite_alarm / dashboard / log_group
-// / trace_sampling / paging).
+// / trace_sampling).
 func AttrCoverageSignal(v string) attribute.KeyValue {
 	return attribute.String(MetricDimensionCoverageSignal, v)
 }

@@ -93,8 +93,7 @@ type ObservabilityCoverageCorrelationWriter interface {
 // CloudResource nodes have observability coverage (CloudWatch alarms,
 // dashboards, log groups, X-Ray) versus which are uncovered, emitting durable
 // provenance-only reducer facts. It writes no graph edges: the optional COVERS
-// edge is a later gated PR. See
-// docs/internal/design/391-observability-coverage-correlation.md §4.
+// edge is a later gated PR. See issue #391 for the design.
 type ObservabilityCoverageCorrelationHandler struct {
 	FactLoader  FactLoader
 	Writer      ObservabilityCoverageCorrelationWriter
