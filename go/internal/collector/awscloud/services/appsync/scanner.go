@@ -25,9 +25,10 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, fmt.Errorf("appsync scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "":
+	case "", awscloud.ServiceAppSync:
+		// Canonicalize so emitted facts and telemetry always carry the exact
+		// service_kind string, even when the caller passes whitespace padding.
 		boundary.ServiceKind = awscloud.ServiceAppSync
-	case awscloud.ServiceAppSync:
 	default:
 		return nil, fmt.Errorf("appsync scanner received service_kind %q", boundary.ServiceKind)
 	}

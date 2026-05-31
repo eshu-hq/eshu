@@ -333,6 +333,39 @@ as the `service` label value (`eshu_dp_aws_resources_emitted_total{service=...}`
 cardinality, span shape, and status keys are byte-identical before and
 after the split.
 
+## Evidence (canonical service_kind on every emitted fact)
+
+Every service scanner gates its work behind
+`switch strings.TrimSpace(boundary.ServiceKind)`. The switch trims only for the
+comparison, so a padded input such as `" sns "` matched the canonical
+`case awscloud.ServiceSNS` arm yet, because that arm was empty, kept its padding
+in `boundary.ServiceKind`. `envelope.go` copies `boundary.ServiceKind` verbatim
+into every emitted fact's `service_kind`, so the padded string leaked into the
+graph and broke joins/filters that key on the canonical value. The fix merges
+the empty and canonical cases (`case "", awscloud.Service<X>:`) so the canonical
+constant is written back on the matched path. It covers the 91 scanners that
+carried the defect; the MWAA scanner that introduced the canonicalizing pattern
+was already correct.
+
+No-Regression Evidence: `cd go && go test ./internal/collector/awscloud/... -count=1`
+covers the per-scanner `TestScannerCanonicalizesPaddedServiceKind` regression in
+all 91 changed service packages (each feeds a whitespace-padded `service_kind`
+through `Scan` and asserts every emitted fact carries the canonical value) plus
+the by-construction `TestScannerServiceKindSwitchesCanonicalize` AST guard, which
+walks all 92 scanners and fails if any service_kind switch regresses to an
+empty-bodied non-default case. Reverting the source fix turns all 91 regression
+tests and the guard red, confirming they catch the defect. The fix performs one
+string write
+per `Scan` invocation (not per resource): it adds no fact-hot-path allocations
+and leaves the emitted fact count unchanged, so there is no throughput impact.
+
+No-Observability-Change: the change only corrects the `service_kind` string
+`envelope.go` stamps into emitted fact payloads. AWS collector telemetry already
+labels spans/metrics with the per-service canonical `Service<X>` constant
+(`aws.service.scan` attributes, `eshu_dp_aws_resources_emitted_total{service=...}`,
+`aws_scan_status`), so span shape, metric label cardinality, and status keys are
+unchanged.
+
 ## Related docs
 
 - `docs/public/services/collector-aws-cloud.md`

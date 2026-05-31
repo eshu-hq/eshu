@@ -25,9 +25,10 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, fmt.Errorf("msk scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "":
+	case "", awscloud.ServiceMSK:
+		// Canonicalize so emitted facts and telemetry always carry the exact
+		// service_kind string, even when the caller passes whitespace padding.
 		boundary.ServiceKind = awscloud.ServiceMSK
-	case awscloud.ServiceMSK:
 	default:
 		return nil, fmt.Errorf("msk scanner received service_kind %q", boundary.ServiceKind)
 	}
@@ -185,11 +186,11 @@ func encryptionInTransitMap(value EncryptionInTransit) map[string]any {
 
 func clientAuthenticationMap(value ClientAuthentication) map[string]any {
 	return map[string]any{
-		"sasl_iam_enabled":             value.SASLIAMEnabled,
-		"sasl_scram_enabled":           value.SASLSCRAMEnabled,
-		"tls_enabled":                  value.TLSEnabled,
-		"tls_certificate_authorities":  cloneStrings(value.TLSCertificateAuthorities),
-		"unauthenticated_enabled":      value.UnauthenticatedEnabled,
+		"sasl_iam_enabled":            value.SASLIAMEnabled,
+		"sasl_scram_enabled":          value.SASLSCRAMEnabled,
+		"tls_enabled":                 value.TLSEnabled,
+		"tls_certificate_authorities": cloneStrings(value.TLSCertificateAuthorities),
+		"unauthenticated_enabled":     value.UnauthenticatedEnabled,
 	}
 }
 
@@ -238,13 +239,13 @@ func replicationInfoMaps(values []ReplicationInfo) []map[string]any {
 	out := make([]map[string]any, 0, len(values))
 	for _, value := range values {
 		out = append(out, map[string]any{
-			"source_cluster_arn":                  strings.TrimSpace(value.SourceClusterARN),
-			"target_cluster_arn":                  strings.TrimSpace(value.TargetClusterARN),
-			"source_alias":                        strings.TrimSpace(value.SourceAlias),
-			"target_alias":                        strings.TrimSpace(value.TargetAlias),
-			"target_compression":                  strings.TrimSpace(value.TargetCompression),
-			"topic_include_pattern_count":         value.TopicIncludePatternCount,
-			"topic_exclude_pattern_count":         value.TopicExcludePatternCount,
+			"source_cluster_arn":                   strings.TrimSpace(value.SourceClusterARN),
+			"target_cluster_arn":                   strings.TrimSpace(value.TargetClusterARN),
+			"source_alias":                         strings.TrimSpace(value.SourceAlias),
+			"target_alias":                         strings.TrimSpace(value.TargetAlias),
+			"target_compression":                   strings.TrimSpace(value.TargetCompression),
+			"topic_include_pattern_count":          value.TopicIncludePatternCount,
+			"topic_exclude_pattern_count":          value.TopicExcludePatternCount,
 			"consumer_group_include_pattern_count": value.ConsumerGroupIncludePatternCount,
 			"consumer_group_exclude_pattern_count": value.ConsumerGroupExcludePatternCount,
 		})

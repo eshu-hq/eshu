@@ -23,9 +23,10 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, fmt.Errorf("s3 scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "":
+	case "", awscloud.ServiceS3:
+		// Canonicalize so emitted facts and telemetry always carry the exact
+		// service_kind string, even when the caller passes whitespace padding.
 		boundary.ServiceKind = awscloud.ServiceS3
-	case awscloud.ServiceS3:
 	default:
 		return nil, fmt.Errorf("s3 scanner received service_kind %q", boundary.ServiceKind)
 	}
