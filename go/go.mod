@@ -82,6 +82,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/opensearch v1.70.1
 	github.com/aws/aws-sdk-go-v2/service/opensearchserverless v1.31.0
 	github.com/aws/aws-sdk-go-v2/service/organizations v1.51.3
+	github.com/aws/aws-sdk-go-v2/service/outposts v1.60.2
 	github.com/aws/aws-sdk-go-v2/service/ram v1.36.6
 	github.com/aws/aws-sdk-go-v2/service/rds v1.118.2
 	github.com/aws/aws-sdk-go-v2/service/redshift v1.62.8
