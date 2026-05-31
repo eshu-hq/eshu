@@ -81,6 +81,7 @@ import (
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/ssm/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/ssoadmin/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/stepfunctions/runtimebind"
+	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/transfer/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/transitgateway/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/vpc/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/wafv2/runtimebind"

@@ -89,6 +89,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/ssm v1.68.6
 	github.com/aws/aws-sdk-go-v2/service/ssoadmin v1.39.1
 	github.com/aws/aws-sdk-go-v2/service/sts v1.33.20
+	github.com/aws/aws-sdk-go-v2/service/transfer v1.72.2
 	github.com/aws/aws-sdk-go-v2/service/wafv2 v1.71.6
 	github.com/aws/smithy-go v1.26.0
 	github.com/charmbracelet/bubbles v1.0.0
