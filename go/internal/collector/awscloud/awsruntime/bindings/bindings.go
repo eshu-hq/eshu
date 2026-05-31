@@ -93,6 +93,7 @@ import (
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/opensearchserverless/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/organizations/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/outposts/runtimebind"
+	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/pinpoint/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/quicksight/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/proton/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/ram/runtimebind"
