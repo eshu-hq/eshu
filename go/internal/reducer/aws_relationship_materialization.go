@@ -26,7 +26,7 @@ import (
 func awsRelationshipMaterializationDomainDefinition() DomainDefinition {
 	return DomainDefinition{
 		Domain:  DomainAWSRelationshipMaterialization,
-		Summary: "project aws_relationship facts into canonical AWS_RELATIONSHIP graph edges",
+		Summary: "project aws_relationship facts into canonical AWS relationship graph edges",
 		Ownership: OwnershipShape{
 			CrossSource:    true,
 			CrossScope:     true,
@@ -41,13 +41,13 @@ func awsRelationshipMaterializationDomainDefinition() DomainDefinition {
 	}
 }
 
-// awsRelationshipEvidenceSource tags AWS_RELATIONSHIP edges written by this
+// awsRelationshipEvidenceSource tags AWS relationship edges written by this
 // reducer so the prior-generation retract path scopes its delete to
 // reducer-owned AWS relationship edges and never touches edges owned by other
 // writers.
 const awsRelationshipEvidenceSource = "reducer/aws-relationships"
 
-// CloudResourceEdgeWriter persists and retracts canonical AWS_RELATIONSHIP
+// CloudResourceEdgeWriter persists and retracts canonical AWS relationship
 // edges between CloudResource nodes. Implementations MUST be idempotent by
 // (source uid, relationship_type, target uid) so reducer retries and duplicate
 // facts converge on one edge, and MUST NOT fabricate endpoint nodes: a row
@@ -58,7 +58,7 @@ type CloudResourceEdgeWriter interface {
 }
 
 // AWSRelationshipMaterializationHandler reduces one AWS relationship
-// materialization follow-up into canonical AWS_RELATIONSHIP edge writes. It
+// materialization follow-up into canonical AWS relationship edge writes. It
 // gates on the GraphProjectionPhaseCanonicalNodesCommitted readiness phase that
 // DomainAWSResourceMaterialization (PR 1) publishes on the CloudResource
 // keyspace, so edges never resolve against a generation whose nodes have not

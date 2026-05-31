@@ -233,11 +233,11 @@ tracks this package's broader transient graph-write retry class.
   `WithEntityContainmentInEntityUpsert`
 - `EdgeWriter` — writes shared-domain edge rows for
   `reducer.SharedProjectionEdgeWriter`; constructed with `NewEdgeWriter`
-- `CloudResourceEdgeWriter` — writes canonical `AWS_RELATIONSHIP` edges between
+- `CloudResourceEdgeWriter` — writes canonical AWS relationship edges between
   `CloudResource` nodes for the AWS relationship materialization reducer domain
   (issue #805 PR 2); constructed with `NewCloudResourceEdgeWriter`. Uses batched
-  `UNWIND` + `MATCH` source / `MATCH` target / `MERGE` edge so a missing endpoint
-  is a no-op (never a fabricated node), idempotent on
+  `UNWIND` + `MATCH` source / `MATCH` target / static-type `MERGE` edge so a
+  missing endpoint is a no-op, idempotent on
   `(source_uid, relationship_type, target_uid)`, with an evidence-source-scoped
   retract
 - `SemanticEntityWriter` — writes semantic entity (Annotation, Module, etc.)
@@ -396,32 +396,38 @@ retry, failed, and dead-letter state without adding a new metric label.
 ### AWS relationship edge writer (issue #805 PR 2)
 
 `CloudResourceEdgeWriter` projects resolved `aws_relationship` facts into
-`(:CloudResource)-[:AWS_RELATIONSHIP]->(:CloudResource)` edges. Both endpoints
+relationship-type-specific
+`(:CloudResource)-[:AWS_<raw relationship_type>]->(:CloudResource)` edges while
+keeping the original `relationship_type` property for readback. Both endpoints
 anchor on the `CloudResource.uid` uniqueness constraint and the
 `nornicdb_cloud_resource_uid_lookup` index PR 1 added, so the two `MATCH`es are
-schema-backed lookups, not label scans; the `MERGE` identity is
-`(source, relationship_type, target)`. Full design and decision record:
-`docs/internal/aws-relationship-edge-materialization-design.md` §5–§11.
+schema-backed lookups, not label scans; the logical identity remains
+`(source, relationship_type, target)`, including case. Full design and decision
+record: `docs/internal/aws-relationship-edge-materialization-design.md`
+§5–§11.
 
 Benchmark Evidence: `go test ./internal/storage/cypher -run '^$' -bench
-BenchmarkCloudResourceEdgeWriter -benchmem -count=1` on darwin/arm64 (Apple M4
+BenchmarkCloudResourceEdgeWriter -benchmem -count=1` on darwin/arm64 (Apple M3
 Pro), no-op group executor so the number isolates Eshu-side work: `5,000`
-resolved edge rows shaped into batched `MATCH-MATCH-MERGE` statements at the
-default `500`/UNWIND (`10` statements, not `5,000`) ran ~`0.96 ms/op`,
-`1.81 MB/op`, `15,067 allocs/op`. The write side is bounded by
-`ceil(E/batchSize)` statements and the graph commit is one grouped transaction,
-so there is no per-edge round trip and no N+1. The bounded in-memory join that
-feeds it is proven separately by `BenchmarkExtractAWSRelationshipEdgeRows`
-(~`23.2 ms/op` for `5,000` edges over `10,000` resource facts) in
-`go/internal/reducer`.
+resolved edge rows shaped into relationship-type-grouped batched
+`MATCH-MATCH-MERGE` statements at the default `500`/UNWIND ran `2.31 ms/op`,
+`3.89 MB/op`, `40,099 allocs/op`. The write side is bounded by distinct
+relationship types times `ceil(E_type/batchSize)` statements, so there is no
+per-edge round trip and no N+1. The bounded in-memory join is proven separately
+by `BenchmarkExtractAWSRelationshipEdgeRows` in `go/internal/reducer`.
 
-No-Regression Evidence: this is a new write path (no existing query or writer
-changes shape). It reuses the proven label-scoped SQL relationship writer shape
-(batched `UNWIND` + `MATCH` source / `MATCH` target / `MERGE` edge), engaging the
-same NornicDB schema-backed uid lookup and Neo4j planner path; `go test
-./internal/storage/cypher -run TestCloudResourceEdgeWriter -count=1` proves the
-MATCH-MATCH-MERGE shape, batching, atomic group dispatch, evidence-source-scoped
-retract that deletes only the edge, and the no-fabrication invariant.
+Performance Evidence: a remote NornicDB-backed Compose probe against a
+populated graph showed the previous property-map relationship `MERGE` timed out
+at `20s` for 12 rows, while the static relationship-type `MERGE` completed in
+`0-1ms` per 12-row relationship-type batch for the same endpoint and row shape.
+The same probe retracted 24 temporary edges with the evidence-source/scope
+delete in about `2.1s`. A follow-up probe confirmed NornicDB accepts the
+case-preserving lower-case static token shape (`AWS_uses_kms_key`) with a `0ms`
+single-row upsert. `go test ./internal/storage/cypher -run
+TestCloudResourceEdgeWriter -count=1` proves the MATCH-MATCH-MERGE shape,
+batching, atomic group dispatch, evidence-source-scoped retract, unsafe
+relationship-type rejection, case-preserving identity, and no-fabrication
+invariant.
 
 Observability Evidence: every edge statement and group flows through the
 production `InstrumentedExecutor`, recording
