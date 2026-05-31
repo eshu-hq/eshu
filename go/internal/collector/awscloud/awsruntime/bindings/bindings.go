@@ -26,6 +26,7 @@ import (
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/bedrock/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/cloudformation/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/cloudfront/runtimebind"
+	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/cloudhsmv2/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/cloudtrail/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/cloudwatch/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/cloudwatchlogs/runtimebind"
