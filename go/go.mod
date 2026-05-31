@@ -36,6 +36,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/cognitoidentityprovider v1.60.3
 	github.com/aws/aws-sdk-go-v2/service/configservice v1.48.1
 	github.com/aws/aws-sdk-go-v2/service/datasync v1.59.2
+	github.com/aws/aws-sdk-go-v2/service/dax v1.29.20
 	github.com/aws/aws-sdk-go-v2/service/detective v1.39.1
 	github.com/aws/aws-sdk-go-v2/service/directconnect v1.38.18
 	github.com/aws/aws-sdk-go-v2/service/directoryservice v1.38.19

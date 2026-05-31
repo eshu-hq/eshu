@@ -144,6 +144,8 @@ github.com/aws/aws-sdk-go-v2/service/configservice v1.48.1 h1:Ua3cfn1hGHYGrHzm96
 github.com/aws/aws-sdk-go-v2/service/configservice v1.48.1/go.mod h1:tQ7+0gX1FarOQr6WvIvYxyXYg0Hel5YD0aZvhR/053M=
 github.com/aws/aws-sdk-go-v2/service/datasync v1.59.2 h1:HTX7q0tp1rxQMr8670zJZSRFvbCMBxfjUpRcFpIZ4cw=
 github.com/aws/aws-sdk-go-v2/service/datasync v1.59.2/go.mod h1:SvyTh5chBFqwRLRjSVXGSS+buCxlzao+IRKeYJaympM=
+github.com/aws/aws-sdk-go-v2/service/dax v1.29.20 h1:O5FHFS1A3BUm1J4QKoPEWpkKZR10nhSuLMbfPSOVme0=
+github.com/aws/aws-sdk-go-v2/service/dax v1.29.20/go.mod h1:Ln8neP1W0YfbIlR5YpMkJ+NhNyHRouoH0g7yE1H6+G8=
 github.com/aws/aws-sdk-go-v2/service/detective v1.39.1 h1:1thuyQ62I37RCNck64j6UG5DKde+FHOuMRjnRohA7Lo=
 github.com/aws/aws-sdk-go-v2/service/detective v1.39.1/go.mod h1:SrAt+XLuO5xJtI9W5bM0fyd8Y109jy/8+vWmIjdoA54=
 github.com/aws/aws-sdk-go-v2/service/directconnect v1.38.18 h1:aaZ+da2nGV0D4iSHdb36I7gqY354gfKXh/RItrHfLOE=
