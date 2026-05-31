@@ -111,6 +111,7 @@ import (
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/servicequotas/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/ses/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/shield/runtimebind"
+	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/signer/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/sns/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/sqs/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/ssm/runtimebind"
