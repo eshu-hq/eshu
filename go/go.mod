@@ -112,6 +112,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/rds v1.118.2
 	github.com/aws/aws-sdk-go-v2/service/redshift v1.62.8
 	github.com/aws/aws-sdk-go-v2/service/redshiftserverless v1.35.0
+	github.com/aws/aws-sdk-go-v2/service/resiliencehub v1.36.2
 	github.com/aws/aws-sdk-go-v2/service/resourcegroups v1.33.27
 	github.com/aws/aws-sdk-go-v2/service/rolesanywhere v1.23.2
 	github.com/aws/aws-sdk-go-v2/service/route53 v1.36.0
