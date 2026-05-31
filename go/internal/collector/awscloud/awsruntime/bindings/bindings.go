@@ -39,6 +39,7 @@ import (
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/detective/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/datasync/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/directconnect/runtimebind"
+	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/dms/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/docdb/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/ds/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/dynamodb/runtimebind"
@@ -63,6 +64,7 @@ import (
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/inspector2/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/keyspaces/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/kinesis/runtimebind"
+	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/kinesisanalyticsv2/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/kms/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/lakeformation/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/lambda/runtimebind"
@@ -102,6 +104,7 @@ import (
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/timestream/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/transitgateway/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/vpc/runtimebind"
+	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/vpclattice/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/wafv2/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/xray/runtimebind"
 )

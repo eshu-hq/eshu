@@ -35,6 +35,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/cognitoidentity v1.33.25
 	github.com/aws/aws-sdk-go-v2/service/cognitoidentityprovider v1.60.3
 	github.com/aws/aws-sdk-go-v2/service/configservice v1.48.1
+	github.com/aws/aws-sdk-go-v2/service/databasemigrationservice v1.63.2
 	github.com/aws/aws-sdk-go-v2/service/datasync v1.59.2
 	github.com/aws/aws-sdk-go-v2/service/detective v1.39.1
 	github.com/aws/aws-sdk-go-v2/service/directconnect v1.38.18
@@ -65,6 +66,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/kafka v1.52.0
 	github.com/aws/aws-sdk-go-v2/service/keyspaces v1.26.1
 	github.com/aws/aws-sdk-go-v2/service/kinesis v1.43.8
+	github.com/aws/aws-sdk-go-v2/service/kinesisanalyticsv2 v1.38.1
 	github.com/aws/aws-sdk-go-v2/service/kinesisvideo v1.33.11
 	github.com/aws/aws-sdk-go-v2/service/kms v1.52.0
 	github.com/aws/aws-sdk-go-v2/service/lakeformation v1.47.10
@@ -105,6 +107,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/sts v1.33.20
 	github.com/aws/aws-sdk-go-v2/service/timestreamwrite v1.35.25
 	github.com/aws/aws-sdk-go-v2/service/transfer v1.72.2
+	github.com/aws/aws-sdk-go-v2/service/vpclattice v1.21.2
 	github.com/aws/aws-sdk-go-v2/service/wafv2 v1.71.6
 	github.com/aws/aws-sdk-go-v2/service/xray v1.36.25
 	github.com/aws/smithy-go v1.26.0
