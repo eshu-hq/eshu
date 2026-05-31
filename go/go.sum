@@ -246,6 +246,8 @@ github.com/aws/aws-sdk-go-v2/service/licensemanager v1.37.14 h1:Jv1GKfgduQ62zjX8
 github.com/aws/aws-sdk-go-v2/service/licensemanager v1.37.14/go.mod h1:Lin9aXsRHJPpAzzhdrOvVCgrWNDQerhP9vWpfMkYq9g=
 github.com/aws/aws-sdk-go-v2/service/lightsail v1.53.2 h1:frwYj+OqTr28EO/GFxuE9fsjOF/7WIOrklzusnV4Kzw=
 github.com/aws/aws-sdk-go-v2/service/lightsail v1.53.2/go.mod h1:Etcg8xorq1b0g0V2KMNgFjubYITZseJv08qtX/3szko=
+github.com/aws/aws-sdk-go-v2/service/location v1.52.2 h1:h3GEZhVYhBp/do9J8MeEsRftJVApcpOsN6JvWn59ap4=
+github.com/aws/aws-sdk-go-v2/service/location v1.52.2/go.mod h1:f3/BaVyLhK6iRq+99NX0ofAUy3G0ljRag66kkOQ98nQ=
 github.com/aws/aws-sdk-go-v2/service/macie2 v1.51.3 h1:MjhvPAy7WONLMkYlKXySflQMk7GqFLLssUO60BNkJMA=
 github.com/aws/aws-sdk-go-v2/service/macie2 v1.51.3/go.mod h1:rUVkJJSpImXmBlMc1ZWrx/PF2Kz+jch45cIdm4OVnb4=
 github.com/aws/aws-sdk-go-v2/service/memorydb v1.34.1 h1:RhXEEuM4OcMbRSMIqxNjFYwys+T3QYRf0PqzplaqtfY=

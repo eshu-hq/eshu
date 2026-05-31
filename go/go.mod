@@ -82,6 +82,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/lambda v1.90.1
 	github.com/aws/aws-sdk-go-v2/service/licensemanager v1.37.14
 	github.com/aws/aws-sdk-go-v2/service/lightsail v1.53.2
+	github.com/aws/aws-sdk-go-v2/service/location v1.52.2
 	github.com/aws/aws-sdk-go-v2/service/macie2 v1.51.3
 	github.com/aws/aws-sdk-go-v2/service/memorydb v1.34.1
 	github.com/aws/aws-sdk-go-v2/service/mq v1.34.23

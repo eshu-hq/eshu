@@ -79,6 +79,7 @@ import (
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/lambda/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/licensemanager/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/lightsail/runtimebind"
+	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/location/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/macie/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/memorydb/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/mq/runtimebind"
