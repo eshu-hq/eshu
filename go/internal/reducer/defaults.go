@@ -106,7 +106,7 @@ type DefaultHandlers struct {
 	CloudResourceNodeWriter CloudResourceNodeWriter
 
 	// CloudResourceEdgeWriter projects aws_relationship facts into canonical
-	// AWS_RELATIONSHIP edges between CloudResource nodes (issue #805 PR 2). It
+	// AWS relationship edges between CloudResource nodes (issue #805 PR 2). It
 	// must be non-nil alongside FactLoader for the registry to register
 	// DomainAWSRelationshipMaterialization; missing either one would drop every
 	// aws_relationship fact before it reaches the graph. The handler also gates

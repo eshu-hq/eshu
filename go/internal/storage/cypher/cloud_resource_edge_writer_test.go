@@ -39,7 +39,7 @@ func TestCloudResourceEdgeWriterEmptyRowsIsNoOp(t *testing.T) {
 	}
 }
 
-func TestCloudResourceEdgeWriterUsesMatchMatchMerge(t *testing.T) {
+func TestCloudResourceEdgeWriterUsesStaticRelationshipTypeMerge(t *testing.T) {
 	t.Parallel()
 
 	executor := &recordingExecutor{}
@@ -66,8 +66,74 @@ func TestCloudResourceEdgeWriterUsesMatchMatchMerge(t *testing.T) {
 	if strings.Contains(cypher, "MERGE (target:CloudResource") || strings.Contains(cypher, "MERGE (source:CloudResource") {
 		t.Fatalf("cypher must not MERGE (fabricate) endpoint nodes:\n%s", cypher)
 	}
-	if !strings.Contains(cypher, "MERGE (source)-[rel:AWS_RELATIONSHIP {relationship_type: row.relationship_type}]->(target)") {
-		t.Fatalf("edge MERGE identity must be (source, relationship_type, target):\n%s", cypher)
+	if strings.Contains(cypher, "{relationship_type: row.relationship_type}") {
+		t.Fatalf("relationship_type must not live inside MERGE identity because NornicDB misses the relationship hot path:\n%s", cypher)
+	}
+	if !strings.Contains(cypher, "MERGE (source)-[rel:AWS_USES_KMS_KEY]->(target)") {
+		t.Fatalf("edge MERGE must use the sanitized AWS relationship type as the Cypher relationship type:\n%s", cypher)
+	}
+	if !strings.Contains(cypher, "rel.relationship_type = row.relationship_type") {
+		t.Fatalf("edge must keep the original relationship_type as a property for API/readback truth:\n%s", cypher)
+	}
+}
+
+func TestCloudResourceEdgeWriterSplitsSameEndpointByRelationshipType(t *testing.T) {
+	t.Parallel()
+
+	executor := &recordingGroupExecutor{}
+	writer := NewCloudResourceEdgeWriter(executor, 500)
+	rows := []map[string]any{
+		{
+			"source_uid":        "shared-source",
+			"target_uid":        "shared-target",
+			"relationship_type": "ec2_subnet_in_vpc",
+			"target_type":       "aws_vpc",
+			"resolution_mode":   "bare_id",
+		},
+		{
+			"source_uid":        "shared-source",
+			"target_uid":        "shared-target",
+			"relationship_type": "ec2_subnet_routes_to_nat_gateway",
+			"target_type":       "aws_nat_gateway",
+			"resolution_mode":   "bare_id",
+		},
+	}
+
+	if err := writer.WriteCloudResourceEdges(context.Background(), rows, "scope-1", "gen-1", "reducer/aws-relationships"); err != nil {
+		t.Fatalf("WriteCloudResourceEdges returned error: %v", err)
+	}
+	if len(executor.groupCalls) != 1 {
+		t.Fatalf("len(groupCalls) = %d, want 1 atomic group", len(executor.groupCalls))
+	}
+	stmts := executor.groupCalls[0]
+	if len(stmts) != 2 {
+		t.Fatalf("group statement count = %d, want one statement per AWS relationship type", len(stmts))
+	}
+	gotCypher := stmts[0].Cypher + "\n" + stmts[1].Cypher
+	for _, want := range []string{
+		"MERGE (source)-[rel:AWS_EC2_SUBNET_IN_VPC]->(target)",
+		"MERGE (source)-[rel:AWS_EC2_SUBNET_ROUTES_TO_NAT_GATEWAY]->(target)",
+	} {
+		if !strings.Contains(gotCypher, want) {
+			t.Fatalf("missing relationship-type-specific MERGE %q in:\n%s", want, gotCypher)
+		}
+	}
+}
+
+func TestCloudResourceEdgeWriterRejectsUnsafeRelationshipType(t *testing.T) {
+	t.Parallel()
+
+	executor := &recordingExecutor{}
+	writer := NewCloudResourceEdgeWriter(executor, 0)
+	rows := cloudResourceEdgeRows(1)
+	rows[0]["relationship_type"] = "bad type`) DELETE n //"
+
+	err := writer.WriteCloudResourceEdges(context.Background(), rows, "scope-1", "gen-1", "reducer/aws-relationships")
+	if err == nil {
+		t.Fatal("WriteCloudResourceEdges returned nil, want unsafe relationship_type error")
+	}
+	if len(executor.calls) != 0 {
+		t.Fatalf("len(calls) = %d, want 0 when relationship_type is unsafe", len(executor.calls))
 	}
 }
 
@@ -159,8 +225,11 @@ func TestCloudResourceEdgeWriterRetractScopesByEvidenceSource(t *testing.T) {
 		t.Fatalf("len(calls) = %d, want 1 retract statement", len(executor.calls))
 	}
 	cypher := executor.calls[0].Cypher
-	if !strings.Contains(cypher, "[rel:AWS_RELATIONSHIP]") {
-		t.Fatalf("retract must target AWS_RELATIONSHIP edges:\n%s", cypher)
+	if strings.Contains(cypher, "[rel:AWS_RELATIONSHIP]") {
+		t.Fatalf("retract must not target only the legacy AWS_RELATIONSHIP type after writes use relationship-type-specific edges:\n%s", cypher)
+	}
+	if !strings.Contains(cypher, "MATCH (source:CloudResource)-[rel]->(:CloudResource)") {
+		t.Fatalf("retract must target all reducer-owned CloudResource relationships for the scope:\n%s", cypher)
 	}
 	// The retract MUST filter on the edge's own scope_id, not the endpoint
 	// node's. CloudResource nodes are cross-scope canonical and carry no

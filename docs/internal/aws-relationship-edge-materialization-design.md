@@ -223,8 +223,9 @@ The first hit wins; ties cannot occur because all three maps key into the same
 UNWIND $rows AS row
 MATCH (source:CloudResource {uid: row.source_uid})
 MATCH (target:CloudResource {uid: row.target_uid})
-MERGE (source)-[rel:AWS_RELATIONSHIP {relationship_type: row.relationship_type}]->(target)
+MERGE (source)-[rel:AWS_<RELATIONSHIP_TYPE>]->(target)
 SET rel.evidence_source = row.evidence_source,
+    rel.relationship_type = row.relationship_type,
     rel.scope_id = row.scope_id,
     rel.generation_id = row.generation_id
 ```
@@ -236,8 +237,14 @@ not-yet-scanned target type simply does not materialize, with zero crash and
 zero fabricated node. This is the identical safety property the label-scoped SQL
 relationship writer relies on (`buildLabelScopedSQLRelationshipCypher`).
 
-The relationship `MERGE` identity is `(source, relationship_type, target)` so
-re-projection is idempotent and duplicate facts converge on one edge.
+The Cypher relationship type is a sanitized static token derived from the
+observed AWS `relationship_type` value, for example
+`ec2_subnet_in_vpc` -> `AWS_EC2_SUBNET_IN_VPC`. The original
+`relationship_type` remains a relationship property for readback. This keeps the
+logical identity `(source, relationship_type, target)` without placing
+`relationship_type` inside the relationship `MERGE` map, which NornicDB does not
+route through its fast relationship upsert path. Unsafe relationship type text
+fails closed before Cypher is built.
 
 ## 6. Unresolved Targets
 
@@ -261,9 +268,10 @@ ambiguous (name-only target with no anchor hit stays unresolved, not guessed).
 
 ## 7. Concurrency And Idempotency Model
 
-Conflict domain: `CloudResource` nodes keyed by `uid`, and `AWS_RELATIONSHIP`
-edges keyed by `(source_uid, relationship_type, target_uid)`, both partitioned
-by scope generation.
+Conflict domain: `CloudResource` nodes keyed by `uid`, and AWS relationship
+edges keyed by `(source_uid, relationship_type, target_uid)` through the static
+`AWS_<RELATIONSHIP_TYPE>` Cypher relationship type, both partitioned by scope
+generation.
 
 - **Claim/lease:** PR #1 node materialization runs as a reducer domain handler,
   claimed per `(scope_id, generation_id)` intent through the existing durable
@@ -302,9 +310,9 @@ write is idempotent under concurrent execution and partitioned by conflict key.
   tfstate writer. Cost is bounded by R and engages the schema-backed uid lookup
   (constraint on Neo4j, uid index on NornicDB) — no label scans.
 - **Stage B (edges):** O(E) in-memory map resolutions, E = relationship facts,
-  plus O(E) batched `MATCH-MATCH-MERGE` rows. The index build is O(R). **No
-  per-edge graph round trip; no unbounded variable-length traversal; no
-  reducer serialization.**
+  plus O(E) batched `MATCH-MATCH-MERGE` rows grouped by AWS relationship type.
+  The index build is O(R). **No per-edge graph round trip; no unbounded
+  variable-length traversal; no reducer serialization.**
 - **Stop threshold:** if Stage A or B exceeds the known-normal band for the
   fixture corpus by >10% or >60s, profile before merge (per
   `eshu-diagnostic-rigor`).
@@ -393,9 +401,10 @@ so a future agent does not silently re-open them.
    `internal/query/impact_resource_investigation.go` traverses `n:CloudResource`,
    and `internal/query/entity_map_traversal.go` resolves the label. PR #1 makes
    those queries return real data instead of empty results. PR #2 writes **only**
-   `(:CloudResource)-[:AWS_RELATIONSHIP]->(:CloudResource)` edges; it does **not**
-   write the `(:WorkloadInstance)-[:USES]->(:CloudResource)` edge (deferred to the
-   deployment-mapping owner). The edge writer Cypher
+   relationship-type-specific
+   `(:CloudResource)-[:AWS_<RELATIONSHIP_TYPE>]->(:CloudResource)` edges; it
+   does **not** write the `(:WorkloadInstance)-[:USES]->(:CloudResource)` edge
+   (deferred to the deployment-mapping owner). The edge writer Cypher
    (`go/internal/storage/cypher/cloud_resource_edge_writer.go`) anchors both
    endpoints on `CloudResource`, with no `WorkloadInstance`/`USES` anywhere.
 2. **Resolved — unresolved targets are counted-only in v1.** Unresolved
@@ -429,19 +438,20 @@ bounded join and batching cost:
 - `BenchmarkBuildCloudResourceJoinIndex` — O(R) index build over 5,000 resources
   (10,000 facts): ~15.1 ms/op, 22.1 MB/op, 330,133 allocs/op.
 - `BenchmarkCloudResourceEdgeWriter` (`go/internal/storage/cypher`) — 5,000
-  resolved edge rows shaped into batched `MATCH-MATCH-MERGE` statements at the
-  default 500/UNWIND (10 statements, **not** 5,000): ~0.96 ms/op, 1.81 MB/op,
-  15,067 allocs/op. The graph commit is one grouped transaction via
-  `GroupExecutor`, so the write side is bounded by `ceil(E/batchSize)` statements,
-  never one statement per edge.
+  resolved edge rows shaped into relationship-type-grouped
+  `MATCH-MATCH-MERGE` statements at the default 500/UNWIND: `2.08 ms/op`,
+  `3.89 MB/op`, `40,099 allocs/op` on darwin/arm64 Apple M3 Pro. The graph
+  commit is one grouped transaction via `GroupExecutor`, so the write side is
+  bounded by distinct relationship types times `ceil(E_type/batchSize)`, never
+  one statement per edge.
 
-No-Regression Evidence: the edge write reuses the proven label-scoped SQL
-relationship writer shape (`buildLabelScopedSQLRelationshipCypher`): batched
-`UNWIND` + `MATCH` source / `MATCH` target / `MERGE` edge, both endpoints anchored
-on the CloudResource `uid` uniqueness constraint and `nornicdb_cloud_resource_uid_lookup`
-index PR #1 added, so it engages the same NornicDB schema-backed lookup and Neo4j
-planner path. It adds a new write path rather than changing an existing query
-shape; no existing reducer, query, or write path changes shape.
+Performance Evidence: a remote NornicDB-backed Compose probe against a
+populated graph showed the previous property-map relationship `MERGE` timed out
+at `20s` for 12 rows, while the static relationship-type `MERGE` completed in
+`0-1ms` per 12-row relationship-type batch for the same endpoint and row shape.
+The same probe retracted 24 temporary edges with the evidence-source/scope
+delete in about `2.1s`. The probe used temporary CloudResource nodes and did
+not include environment-specific identifiers in this document.
 
 Observability Evidence: the handler records `eshu_dp_aws_relationship_edges_total`
 dimensioned by `relationship_type` (bounded by the scanner fleet's closed

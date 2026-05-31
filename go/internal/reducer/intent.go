@@ -83,7 +83,7 @@ const (
 	// docs/internal/aws-relationship-edge-materialization-design.md.
 	DomainAWSResourceMaterialization Domain = "aws_resource_materialization"
 	// DomainAWSRelationshipMaterialization projects aws_relationship facts into
-	// canonical AWS_RELATIONSHIP edges between the CloudResource nodes that
+	// canonical AWS relationship edges between the CloudResource nodes that
 	// DomainAWSResourceMaterialization committed. It gates on the
 	// GraphProjectionPhaseCanonicalNodesCommitted readiness phase so edges never
 	// resolve against nodes that have not committed (issue #805 PR 2); see
