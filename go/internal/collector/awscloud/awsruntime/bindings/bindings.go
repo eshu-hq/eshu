@@ -14,6 +14,8 @@ import (
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/amplify/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/apigateway/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/apigatewayv2/runtimebind"
+	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/appflow/runtimebind"
+	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/appsync/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/appmesh/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/apprunner/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/appsync/runtimebind"
