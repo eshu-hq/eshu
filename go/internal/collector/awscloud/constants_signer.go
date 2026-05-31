@@ -4,10 +4,11 @@ const (
 	// ServiceSigner identifies the regional AWS Signer (code-signing) metadata
 	// scan slice. The scanner reads signing-profile and signing-platform
 	// control-plane metadata through the Signer management APIs
-	// (ListSigningProfiles, GetSigningProfile, ListSigningPlatforms,
-	// ListTagsForResource) and never reads signing jobs, signing material
-	// private keys, signed-object payloads, or revocation records, and never
-	// starts, cancels, or mutates a signing operation.
+	// (ListSigningProfiles, GetSigningProfile, ListSigningPlatforms); profile
+	// tags come from the ListSigningProfiles response rather than a separate
+	// tag read. It never reads signing jobs, signing material private keys,
+	// signed-object payloads, or revocation records, and never starts,
+	// cancels, or mutates a signing operation.
 	ServiceSigner = "signer"
 )
 
