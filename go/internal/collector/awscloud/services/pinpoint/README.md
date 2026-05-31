@@ -71,8 +71,10 @@ pagination spans.
   identity NAME extracted from that ARN, because the SES email-identity scanner
   publishes its resource_id as the bare verified email/domain name; the edge is
   skipped when the reported value is not an SES `:identity/<name>` ARN, so the
-  graph never carries a dangling guess. The reported identity ARN is preserved
-  as the edge `target_arn`.
+  graph never carries a dangling guess. The edge does NOT set `target_arn` (an
+  ARN-keyed target would not join the name-keyed SES node); the reported
+  identity ARN is preserved as the edge `ses_identity_arn` attribute so the
+  evidence is not lost.
 - The email channel reports its SES configuration set as a name, which matches
   the SES configuration-set scanner's published resource_id, so that edge keys
   the name directly.

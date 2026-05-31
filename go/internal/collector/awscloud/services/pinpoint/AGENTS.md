@@ -31,8 +31,10 @@
   AWS-assigned ARN.
 - Emit the email-channel-to-SES-identity edge only when Pinpoint reports an SES
   `:identity/<name>` ARN. Key the bare identity NAME (matching the SES
-  email-identity scanner's published resource_id) and set `target_arn` to the
-  reported identity ARN. Skip the edge when the value is not an SES identity ARN.
+  email-identity scanner's published resource_id). Do NOT set `target_arn`,
+  since the SES node is name-keyed; preserve the reported identity ARN in the
+  `ses_identity_arn` edge attribute instead. Skip the edge when the value is not
+  an SES identity ARN.
 - Emit the email-channel-to-SES-configuration-set edge only when a configuration
   set is reported; key the configuration set NAME (matching the SES
   configuration-set scanner's published resource_id).
