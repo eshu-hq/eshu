@@ -25,10 +25,12 @@
   (fallback to id). Key the membership-in-collaboration edge on that exact value
   so it joins the collaboration node.
 - Emit the configured-table-to-Glue-table edge only when the backing table is a
-  Glue table and both Glue names are present. Key it on the `<database>/<table>`
-  resource_id the Glue scanner publishes; leave `target_arn` empty (the Glue
-  table node is name-keyed, not ARN-keyed). Skip, never dangle, when names are
-  missing or the backing table is Athena/Snowflake.
+  Glue table and the Glue table name is present. Key it on the
+  `<database>/<table>` resource_id the Glue scanner publishes, falling back to
+  just `<table>` when the database name is missing (matching the Glue scanner's
+  own table-node fallback so the edge still joins). Leave `target_arn` empty (the
+  Glue table node is name-keyed, not ARN-keyed). Skip, never dangle, when the
+  Glue table name is missing or the backing table is Athena/Snowflake.
 - Every relationship sets a non-empty `target_type` naming a declared
   `awscloud.ResourceType*` constant and a `target_resource_id` matching how the
   target scanner publishes its resource_id.

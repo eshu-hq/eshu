@@ -63,11 +63,13 @@ pagination spans.
   is keyed by that same collaboration ARN so it joins the collaboration node
   instead of dangling.
 - The configured-table-to-Glue-table edge is emitted only when the backing
-  table is a Glue table and both Glue names are present. The target is keyed by
-  the `<database>/<table>` resource_id the Glue scanner publishes for a table
-  node, NOT an ARN, so `target_arn` stays empty. Athena and Snowflake backing
-  tables record their reference kind only and emit no edge (no Athena/Snowflake
-  table scanner exists to join).
+  table is a Glue table and the Glue table name is present. The target is keyed
+  by the `<database>/<table>` resource_id the Glue scanner publishes for a table
+  node, falling back to just `<table>` when the database name is missing. This
+  mirrors the Glue scanner's own table-node resource_id fallback, so the edge
+  still joins. The target is name-keyed, NOT an ARN, so `target_arn` stays empty.
+  Athena and Snowflake backing tables record their reference kind only and emit
+  no edge (no Athena/Snowflake table scanner exists to join).
 - Emit reported evidence only. Do not infer deployment, workload, repository
   ownership, environment, or deployable-unit truth from collaboration, table, or
   membership names, or AWS tags.

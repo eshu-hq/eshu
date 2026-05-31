@@ -10,8 +10,11 @@ import (
 // backing AWS Glue Data Catalog table. Clean Rooms reports the Glue database and
 // table names, so the target is keyed by the "<database>/<table>" resource_id
 // the Glue scanner publishes for a table node, joining the configured table to
-// its Glue source. It returns nil when the backing table is not a Glue table or
-// when either Glue name is missing, so the edge is skipped rather than dangled.
+// its Glue source. When the database name is missing it falls back to the
+// "<table>" resource_id, matching the Glue scanner's own table-node fallback so
+// the edge still joins. It returns nil when the backing table is not a Glue
+// table or when the Glue table name is missing, so the edge is skipped rather
+// than dangled.
 func configuredTableGlueRelationship(
 	boundary awscloud.Boundary,
 	table ConfiguredTable,
