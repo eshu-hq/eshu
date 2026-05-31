@@ -64,6 +64,10 @@ const (
 	CollectorSecurityAlert CollectorKind = "security_alert"
 	// CollectorScannerWorker represents isolated security analyzer workers.
 	CollectorScannerWorker CollectorKind = "scanner_worker"
+	// CollectorKubernetesLive represents the read-only Kubernetes live cluster
+	// collector. It observes a configured cluster's API server with read-only
+	// credentials and emits typed source facts; it never mutates the cluster.
+	CollectorKubernetesLive CollectorKind = "kubernetes_live"
 )
 
 // TriggerKind identifies how a generation was produced.

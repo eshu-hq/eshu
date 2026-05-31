@@ -109,7 +109,7 @@ implemented:
 
 | Source family | Current state |
 | --- | --- |
-| Kubernetes live | No hosted collector runtime or charted workload. |
+| Kubernetes live | Foundation only: `eshu-collector-kubernetes-live` lists a read-only core resource set (namespaces, pods, deployments, replicasets, services, ingresses) and emits `kubernetes_live.pod_template`, `kubernetes_live.relationship`, and `kubernetes_live.warning` source facts through `collector.Service`. No claim-driven runtime, watch mode, reducer projection, drift read model, or charted workload yet; the #388 correlation/drift work and Helm path remain pending. |
 | Concrete scanner analyzers | The `eshu-scanner-worker` runtime, warning analyzer, bounded `sbom_generation` fallback, `os_package_extraction` rootfs parser, Compose service, and opt-in Helm Deployment exist. Concrete analyzers are not enabled by default until target count, fact count, runtime, CPU, memory, queue state, retry count, dead-letter count, pprof, and reducer/API truth are proven in the target environment. |
 | CI/CD runs | Fixture normalizer and reducer correlation exist; hosted provider polling is not a deployed lane. |
 | Service catalog, observability, incident/change, secrets/IAM posture, GCP, Azure, multi-cloud | Design or research only for deployed collector readiness. |
