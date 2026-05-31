@@ -138,6 +138,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/ssoadmin v1.39.1
 	github.com/aws/aws-sdk-go-v2/service/storagegateway v1.43.17
 	github.com/aws/aws-sdk-go-v2/service/sts v1.33.20
+	github.com/aws/aws-sdk-go-v2/service/synthetics v1.43.0
 	github.com/aws/aws-sdk-go-v2/service/timestreamwrite v1.35.25
 	github.com/aws/aws-sdk-go-v2/service/transfer v1.72.2
 	github.com/aws/aws-sdk-go-v2/service/verifiedpermissions v1.34.1

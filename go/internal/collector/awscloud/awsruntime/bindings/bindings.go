@@ -132,6 +132,7 @@ import (
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/ssoadmin/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/stepfunctions/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/storagegateway/runtimebind"
+	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/synthetics/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/timestream/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/transfer/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/transitgateway/runtimebind"
