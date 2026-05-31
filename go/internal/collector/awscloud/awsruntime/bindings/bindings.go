@@ -37,6 +37,7 @@ import (
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/codebuild/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/codecommit/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/codedeploy/runtimebind"
+	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/codeguru/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/codepipeline/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/cognito/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/computeoptimizer/runtimebind"

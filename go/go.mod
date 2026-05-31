@@ -35,6 +35,8 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/codebuild v1.68.17
 	github.com/aws/aws-sdk-go-v2/service/codecommit v1.33.0
 	github.com/aws/aws-sdk-go-v2/service/codedeploy v1.35.16
+	github.com/aws/aws-sdk-go-v2/service/codeguruprofiler v1.30.2
+	github.com/aws/aws-sdk-go-v2/service/codegurureviewer v1.35.1
 	github.com/aws/aws-sdk-go-v2/service/codepipeline v1.46.24
 	github.com/aws/aws-sdk-go-v2/service/cognitoidentity v1.33.25
 	github.com/aws/aws-sdk-go-v2/service/cognitoidentityprovider v1.60.3
