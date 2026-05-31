@@ -50,10 +50,12 @@ Concrete scanner-worker analyzers live in sub-packages of this package; the
 first one is `sbomgenerator` (see `sbomgenerator/README.md`), which emits
 bounded CycloneDX-compatible `sbom.document`, `sbom.component`, and
 `sbom.warning` source facts for repository, image, or artifact targets when the
-runtime source has enough subject evidence. The hosted
-`eshu-scanner-worker` binary keeps `WarningAnalyzer` as the fallback when no
-runtime-owned `sbomgenerator.Source` is configured, so claims still commit
-explicit warning facts instead of pretending the target was scanned clean.
+runtime source has enough subject evidence. The hosted `eshu-scanner-worker`
+binary now wires a configured repository-manifest SBOM source for
+`package-lock.json`, `npm-shrinkwrap.json`, and `go.mod` targets, and keeps
+`WarningAnalyzer` as the fallback when no runtime-owned `sbomgenerator.Source`
+is configured, so claims still commit explicit warning facts instead of
+pretending the target was scanned clean.
 
 ## Dependencies
 
@@ -91,13 +93,13 @@ result count, CPU seconds, and memory bytes. It starts
 
 ## Evidence
 
-Collector Performance Evidence: `go test ./internal/collector/scannerworker ./internal/collector/ospackagevulnerability/osruntime ./cmd/scanner-worker ./internal/runtime ./internal/telemetry ./internal/workflow ./internal/scope -count=1`
+Collector Performance Evidence: `go test ./internal/collector/scannerworker ./internal/collector/scannerworker/sbomgenerator ./internal/collector/ospackagevulnerability/osruntime ./cmd/scanner-worker ./internal/runtime ./internal/telemetry ./internal/workflow ./internal/scope -count=1`
 covers claim processing, repository/image/artifact target kind derivation,
-source-fact output, OS package analyzer apk/dpkg parsing, retry/dead-letter
-handling, and deployment render contracts. Concrete analyzer rollout still
-needs target count, fact count, runtime, CPU, memory, queue state, retry count,
-dead-letter count, and pprof evidence from the target environment before it
-becomes a default.
+source-fact output, configured repository SBOM generation, OS package analyzer
+apk/dpkg parsing, retry/dead-letter handling, and deployment render contracts.
+Analyzer rollout still needs target count, fact count, runtime, CPU, memory,
+queue state, retry count, dead-letter count, and pprof evidence from the target
+environment before it becomes a default.
 
 Collector Observability Evidence: `Service` records
 `eshu_dp_scanner_worker_claims_total`,

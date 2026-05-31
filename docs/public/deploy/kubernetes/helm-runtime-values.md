@@ -108,6 +108,15 @@ limits. Do not raise reducer resources to host SBOM generation, image
 unpacking, source analysis, OS package extraction, secret scanning, license
 scanning, or misconfiguration analysis.
 
+Analyzer-specific target configuration lives in
+`scannerWorker.collectorInstances[].configuration`. For
+`analyzer=sbom_generation`, configure `sbom_targets[]` with a bounded
+`scope_id`, runtime-local `root_path`, and optional `subject_digest`. The
+scanner-worker pod reads repository manifests from that root and emits
+`sbom.*` source facts only; reducers still own attachment and vulnerability
+finding truth. Do not put private repository paths in public docs, metrics, or
+failure payloads.
+
 Observability Evidence: the Deployment exposes `/healthz`, `/readyz`,
 `/metrics`, `/admin/status`, and optional private pprof through
 `ESHU_PPROF_ADDR`. Scanner-worker metrics include queue wait, scan duration,
