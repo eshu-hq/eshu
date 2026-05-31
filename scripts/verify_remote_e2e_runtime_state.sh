@@ -16,6 +16,8 @@ EXTRA_SERVICES="${ESHU_REMOTE_E2E_EXTRA_SERVICES:-}"
 CORPUS_MODE="${ESHU_REMOTE_E2E_CORPUS_MODE:-smoke}"
 ADVISORY_EVIDENCE_CVE_ID="${ESHU_REMOTE_E2E_ADVISORY_EVIDENCE_CVE_ID:-${ESHU_VULNERABILITY_E2E_CVE_ID:-CVE-2021-44228}}"
 PACKAGE_REGISTRY_GAP_PACKAGE_ID="${ESHU_REMOTE_E2E_PACKAGE_REGISTRY_GAP_PACKAGE_ID:-}"
+DERIVED_TARGET_LIMIT="${ESHU_REMOTE_E2E_DERIVED_TARGET_LIMIT:-100}"
+REPRESENTATIVE_MAX_QUEUE_OUTSTANDING="${ESHU_REMOTE_E2E_REPRESENTATIVE_MAX_QUEUE_OUTSTANDING:-}"
 TMP_DIR="$(mktemp -d)"
 INDEX_STATUS_FILE="${TMP_DIR}/index-status.json"
 COMPOSE_CMD=()
@@ -159,6 +161,26 @@ is_representative_mode() {
 	[[ "${CORPUS_MODE}" == "representative" ]]
 }
 
+representative_max_queue_outstanding() {
+	if [[ -n "${REPRESENTATIVE_MAX_QUEUE_OUTSTANDING}" ]]; then
+		require_non_negative_integer ESHU_REMOTE_E2E_REPRESENTATIVE_MAX_QUEUE_OUTSTANDING "${REPRESENTATIVE_MAX_QUEUE_OUTSTANDING}"
+		printf '%s' "${REPRESENTATIVE_MAX_QUEUE_OUTSTANDING}"
+		return 0
+	fi
+	local effective_limit
+	effective_limit="$(effective_derived_target_limit)"
+	printf '%s' "$((effective_limit * 10))"
+}
+
+effective_derived_target_limit() {
+	require_non_negative_integer ESHU_REMOTE_E2E_DERIVED_TARGET_LIMIT "${DERIVED_TARGET_LIMIT}"
+	if (( DERIVED_TARGET_LIMIT > 0 )); then
+		printf '%s' "${DERIVED_TARGET_LIMIT}"
+		return 0
+	fi
+	printf '100'
+}
+
 json_int() {
 	local file="$1"
 	local filter="$2"
@@ -222,6 +244,15 @@ verify_representative_runtime_safety() {
 	if ! api_get "/index-status" "${INDEX_STATUS_FILE}"; then
 		echo "remote E2E representative runtime check could not read ${API_BASE_URL}/index-status" >&2
 		echo "verify the API is reachable and ESHU_REMOTE_E2E_API_KEY is valid when set" >&2
+		return 1
+	fi
+	local max_outstanding outstanding
+	max_outstanding="$(representative_max_queue_outstanding)"
+	outstanding="$(json_int "${INDEX_STATUS_FILE}" '.queue.outstanding')"
+	if (( outstanding > max_outstanding )); then
+		printf 'remote E2E representative derived fanout exceeded: outstanding=%s max_queue_outstanding=%s derived_target_limit=%s\n' \
+			"${outstanding}" "${max_outstanding}" "$(effective_derived_target_limit)" >&2
+		cat "${INDEX_STATUS_FILE}" >&2
 		return 1
 	fi
 	if jq -e '

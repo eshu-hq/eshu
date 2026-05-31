@@ -371,7 +371,7 @@ func (s Service) packageRegistryOwnedTargets(
 	return s.OwnedPackageTargetReader.ListOwnedPackageDependencyTargets(ctx, workflow.OwnedPackageDependencyTargetFilter{
 		Ecosystems:     sortedStringSetValues(derivationEcosystems(derivation.Ecosystems, []string{"npm"})),
 		Limit:          derivedTargetReadLimit(targetLimit),
-		RotationOffset: derivedTargetRotationOffset(observedAt, s.Config.ReconcileInterval, targetLimit),
+		RotationOffset: derivedTargetRotationOffsetForMode(derivation.PlanningMode, observedAt, s.Config.ReconcileInterval, targetLimit),
 	})
 }
 
@@ -386,14 +386,9 @@ func (s Service) packageRegistryPlanKey(instance workflow.CollectorInstance, obs
 		return "bootstrap"
 	}
 	interval := s.Config.ReconcileInterval
-	if interval <= 0 {
-		interval = defaultReconcileInterval
-	}
 	prefix := strings.TrimSpace(string(instance.Mode))
-	if prefix == "" {
-		prefix = "schedule"
-	}
-	return fmt.Sprintf("%s-%s", prefix, observedAt.UTC().Truncate(interval).Format("20060102T150405Z"))
+	derivation, _ := packageRegistryDerivationFromConfig(instance.Configuration)
+	return derivedTargetPlanKey(prefix, observedAt, interval, derivation.PlanningMode)
 }
 
 func (s Service) scheduleVulnerabilityIntelligenceWork(
@@ -454,7 +449,7 @@ func (s Service) vulnerabilityOwnedTargets(
 		Ecosystems:      sortedStringSetValues(derivationEcosystems(derivation.Ecosystems, []string{"npm"})),
 		Limit:           derivedTargetReadLimit(targetLimit),
 		VersionSpecific: true,
-		RotationOffset:  derivedTargetRotationOffset(observedAt, s.Config.ReconcileInterval, targetLimit),
+		RotationOffset:  derivedTargetRotationOffsetForMode(derivation.PlanningMode, observedAt, s.Config.ReconcileInterval, targetLimit),
 	})
 }
 
@@ -469,14 +464,9 @@ func (s Service) vulnerabilityIntelligencePlanKey(instance workflow.CollectorIns
 		return "bootstrap"
 	}
 	interval := s.Config.ReconcileInterval
-	if interval <= 0 {
-		interval = defaultReconcileInterval
-	}
 	prefix := strings.TrimSpace(string(instance.Mode))
-	if prefix == "" {
-		prefix = "schedule"
-	}
-	return fmt.Sprintf("%s-%s", prefix, observedAt.UTC().Truncate(interval).Format("20060102T150405Z"))
+	derivation, _ := vulnerabilityDerivationFromConfig(instance.Configuration)
+	return derivedTargetPlanKey(prefix, observedAt, interval, derivation.PlanningMode)
 }
 
 func (s Service) scheduleOCIRegistryWork(

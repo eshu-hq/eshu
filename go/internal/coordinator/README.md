@@ -208,6 +208,10 @@ warning (`collector_instance_drift_detected`, fields
   observed skipped counts, the configured limit, collector kind, target class,
   and bounded ecosystem/source labels. It does not include package names,
   versions, repository paths, or advisory payloads.
+- Derived target planning defaults to `rotating`, which advances the bounded
+  owned-package slice by reconcile bucket. `planning_mode=single_pass` pins the
+  plan key and rotation offset for representative proofs so a completed bucket
+  cannot admit another target-limit slice during the same proof.
 
 ## Extension points
 
@@ -236,6 +240,10 @@ progress without adding package names, versions, feed URLs, or credential
 material to metric labels. Rotated target selection and budget-exhausted
 skipped target counts remain visible through the bounded
 `requested_scope_set` rows.
+
+No-Regression Evidence: `go test ./internal/coordinator ./internal/workflow -run 'Test(ServiceRunActiveModeSinglePass(PackageRegistry|Vulnerability)DerivedBudgetDoesNotAdmitNextBucket|PackageRegistryCollectorConfigurationRejectsUnknownDerivedPlanningMode|VulnerabilityIntelligenceCollectorConfigurationRejectsUnknownDerivedPlanningMode)' -count=1` proves representative single-pass derived target planning keeps package-registry and vulnerability-intelligence derived work inside one stable plan key across reconcile buckets while preserving rotating mode as the default.
+
+Observability Evidence: no new metrics were required. Existing collector instance configuration, workflow run IDs, `workflow_work_items`, `requested_scope_set`, coordinator reconcile metrics, and `/api/v0/index-status` show whether a proof used rotating or single-pass planning and whether the remote representative guard rejected queue growth beyond the derived-target budget.
 
 Performance Evidence: `go test ./internal/coordinator -run '^$' -bench BenchmarkVulnerabilityDerivedQueryChunks -benchmem -count=3` on darwin/arm64 dropped derived OSV chunk planning from about `8.9 MB/op` and `48k allocs/op` to about `194 KB/op` and `2.3k allocs/op`. The planner now grows chunks in place and tracks encoded scope length incrementally instead of rebuilding candidate slices and scope IDs on every query.
 

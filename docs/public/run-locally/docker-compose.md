@@ -160,6 +160,10 @@ machine for the default runtime plus claim-driven Terraform state, OCI
 registry, package registry, provider security alerts, vulnerability
 intelligence, scanner-worker, AWS cloud, and optional Confluence collectors. It
 is standalone and defaults the Compose project to `eshu-remote-e2e`.
+Its package-registry and vulnerability-intelligence derived target planners run
+with `planning_mode=single_pass` so representative proofs stay bounded by the
+configured derived target budget instead of rotating through a new owned-package
+slice on every coordinator reconcile bucket.
 
 For the service list, proof commands, AWS credential requirements, pprof ports,
 and acceptance evidence, see
