@@ -184,8 +184,11 @@ can also declare `source_cache` for refresh or offline advisory-source cache
 lifecycle and `fallback_urls` for source mirrors; validation keeps cache modes,
 durations, and mirror URLs bounded before the desired collector instance is
 persisted. Derived package and vulnerability target reads rotate their bounded
-slice on each coordinator reconcile bucket, so a target limit smaller than the
-full corpus does not repeatedly schedule only the first sorted page.
+slice on each coordinator reconcile bucket by default, so a target limit
+smaller than the full corpus does not repeatedly schedule only the first sorted
+page. Set `derive_from_owned_packages.planning_mode=single_pass` only for
+bounded representative proofs that must keep the total derived target set fixed
+across reconcile buckets.
 
 `scanner_worker` work items reserve the workflow boundary for isolated security
 analyzers. A scanner-worker claim copies the active work item, claim ID,
@@ -321,6 +324,10 @@ metrics, vulnerability-intelligence observation/fetch/fact metrics, and
 `/api/v0/index-status` expose planned, skipped, rate-limited, failed, completed,
 and stuck target states without putting package names, versions, feed URLs, or
 credential material in metric labels.
+
+No-Regression Evidence: `go test ./internal/coordinator ./internal/workflow -run 'Test(ServiceRunActiveModeSinglePass(PackageRegistry|Vulnerability)DerivedBudgetDoesNotAdmitNextBucket|PackageRegistryCollectorConfigurationRejectsUnknownDerivedPlanningMode|VulnerabilityIntelligenceCollectorConfigurationRejectsUnknownDerivedPlanningMode)' -count=1` proves representative single-pass derived target planning keeps the same run key and zero rotation offset across reconcile buckets, while config validation rejects unsupported planning modes. The default mode remains rotating, so hosted collectors can continue progressing through larger corpora.
+
+Observability Evidence: no new metrics were required. Single-pass proof mode is visible in collector instance configuration, stable workflow run IDs, zero-offset target-reader requests in tests, and `/api/v0/index-status` queue totals. The remote runtime-state gate now fails representative proofs whose outstanding queue grows beyond the configured derived-target budget guard.
 
 ## Extension points
 

@@ -36,6 +36,7 @@ type packageRegistryTargetConfiguration struct {
 type packageRegistryTargetDerivationConfiguration struct {
 	Enabled      bool     `json:"enabled"`
 	Ecosystems   []string `json:"ecosystems"`
+	PlanningMode string   `json:"planning_mode"`
 	TargetLimit  int      `json:"target_limit"`
 	PackageLimit int      `json:"package_limit"`
 	VersionLimit int      `json:"version_limit"`
@@ -127,6 +128,9 @@ func validatePackageRegistryTargetDerivation(config packageRegistryTargetDerivat
 	}
 	if config.TargetLimit < 0 || config.TargetLimit > maxPackageRegistryDerivedTargetLimit {
 		return fmt.Errorf("derive_from_owned_packages.target_limit must be between 0 and %d", maxPackageRegistryDerivedTargetLimit)
+	}
+	if err := validateDerivedTargetPlanningMode(config.PlanningMode); err != nil {
+		return fmt.Errorf("derive_from_owned_packages.planning_mode: %w", err)
 	}
 	if config.PackageLimit < 0 || config.PackageLimit > maxPackageRegistryPackageLimit {
 		return fmt.Errorf("derive_from_owned_packages.package_limit must be between 0 and %d", maxPackageRegistryPackageLimit)

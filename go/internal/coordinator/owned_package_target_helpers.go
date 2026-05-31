@@ -7,10 +7,16 @@ import (
 	"strings"
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/workflow"
 	"golang.org/x/mod/semver"
 )
 
 const derivedTargetBudgetExhaustionLookahead = 1
+
+const (
+	derivedTargetPlanningModeRotating   = "rotating"
+	derivedTargetPlanningModeSinglePass = "single_pass"
+)
 
 func derivationEcosystems(values []string, defaults []string) map[string]struct{} {
 	return stringSet(values, defaults)
@@ -64,6 +70,40 @@ func derivedTargetRotationOffset(observedAt time.Time, interval time.Duration, l
 	return bucket * int64(limit)
 }
 
+func derivedTargetRotationOffsetForMode(
+	planningMode string,
+	observedAt time.Time,
+	interval time.Duration,
+	limit int,
+) int64 {
+	if normalizeDerivedTargetPlanningMode(planningMode) == derivedTargetPlanningModeSinglePass {
+		return 0
+	}
+	return derivedTargetRotationOffset(observedAt, interval, limit)
+}
+
+func derivedTargetPlanKey(prefix string, observedAt time.Time, interval time.Duration, planningMode string) string {
+	if prefix == "" {
+		prefix = "schedule"
+	}
+	if normalizeDerivedTargetPlanningMode(planningMode) == derivedTargetPlanningModeSinglePass {
+		return prefix + "-single-pass"
+	}
+	if interval <= 0 {
+		interval = defaultReconcileInterval
+	}
+	return fmt.Sprintf("%s-%s", prefix, observedAt.UTC().Truncate(interval).Format("20060102T150405Z"))
+}
+
+func normalizeDerivedTargetPlanningMode(raw string) string {
+	switch strings.TrimSpace(raw) {
+	case derivedTargetPlanningModeSinglePass:
+		return derivedTargetPlanningModeSinglePass
+	default:
+		return derivedTargetPlanningModeRotating
+	}
+}
+
 func derivedTargetReadLimit(targetLimit int) int {
 	if targetLimit <= 0 {
 		return targetLimit
@@ -72,6 +112,9 @@ func derivedTargetReadLimit(targetLimit int) int {
 }
 
 func packageRegistryDerivationFromConfig(raw string) (packageRegistryDerivationConfiguration, error) {
+	if err := workflow.ValidatePackageRegistryCollectorConfiguration(raw); err != nil {
+		return packageRegistryDerivationConfiguration{}, err
+	}
 	var decoded packageRegistryRuntimeConfiguration
 	if err := json.Unmarshal([]byte(raw), &decoded); err != nil {
 		return packageRegistryDerivationConfiguration{}, fmt.Errorf("decode package registry derivation config: %w", err)
@@ -80,6 +123,9 @@ func packageRegistryDerivationFromConfig(raw string) (packageRegistryDerivationC
 }
 
 func vulnerabilityDerivationFromConfig(raw string) (vulnerabilityDerivationConfiguration, error) {
+	if err := workflow.ValidateVulnerabilityIntelligenceCollectorConfiguration(raw); err != nil {
+		return vulnerabilityDerivationConfiguration{}, err
+	}
 	var decoded vulnerabilityRuntimeConfiguration
 	if err := json.Unmarshal([]byte(raw), &decoded); err != nil {
 		return vulnerabilityDerivationConfiguration{}, fmt.Errorf("decode vulnerability derivation config: %w", err)

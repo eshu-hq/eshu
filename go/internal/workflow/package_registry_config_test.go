@@ -63,10 +63,24 @@ func TestPackageRegistryCollectorConfigurationRejectsBlankDerivedEcosystem(t *te
 func TestPackageRegistryCollectorConfigurationAcceptsFullCorpusDerivedTargetLimit(t *testing.T) {
 	t.Parallel()
 
-	raw := `{"derive_from_owned_packages":{"enabled":true,"ecosystems":["npm"],"target_limit":1000,"package_limit":1,"version_limit":200}}`
+	raw := `{"derive_from_owned_packages":{"enabled":true,"ecosystems":["npm"],"planning_mode":"single_pass","target_limit":1000,"package_limit":1,"version_limit":200}}`
 
 	if err := ValidatePackageRegistryCollectorConfiguration(raw); err != nil {
 		t.Fatalf("ValidatePackageRegistryCollectorConfiguration() error = %v, want nil", err)
+	}
+}
+
+func TestPackageRegistryCollectorConfigurationRejectsUnknownDerivedPlanningMode(t *testing.T) {
+	t.Parallel()
+
+	raw := `{"derive_from_owned_packages":{"enabled":true,"ecosystems":["npm"],"planning_mode":"forever"}}`
+
+	err := ValidatePackageRegistryCollectorConfiguration(raw)
+	if err == nil {
+		t.Fatal("ValidatePackageRegistryCollectorConfiguration() error = nil, want planning mode rejection")
+	}
+	if got := err.Error(); !strings.Contains(got, `derive_from_owned_packages.planning_mode: must be "rotating" or "single_pass"`) {
+		t.Fatalf("ValidatePackageRegistryCollectorConfiguration() error = %q, want planning mode rejection", got)
 	}
 }
 

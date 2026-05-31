@@ -394,6 +394,32 @@ fi
 unset ESHU_REMOTE_E2E_CORPUS_MODE
 reset_state
 set_all_services_healthy
+cat >"${state_dir}/index-status.json" <<'JSON'
+{
+  "status": "progressing",
+  "queue": {
+    "outstanding": 25,
+    "in_flight": 2,
+    "pending": 23,
+    "retrying": 0,
+    "failed": 0,
+    "dead_letter": 0
+  },
+  "coordinator": {
+    "run_status_counts": [
+      {"name": "complete", "count": 12}
+    ],
+    "completeness_counts": []
+  }
+}
+JSON
+export ESHU_REMOTE_E2E_CORPUS_MODE=representative
+export ESHU_REMOTE_E2E_DERIVED_TARGET_LIMIT=2
+expect_fail_with 'representative derived fanout exceeded'
+unset ESHU_REMOTE_E2E_DERIVED_TARGET_LIMIT
+unset ESHU_REMOTE_E2E_CORPUS_MODE
+reset_state
+set_all_services_healthy
 export ESHU_REMOTE_E2E_CORPUS_MODE=representative
 export ESHU_REMOTE_E2E_MIN_ADVISORY_EVIDENCE_COUNT=0
 expect_pass

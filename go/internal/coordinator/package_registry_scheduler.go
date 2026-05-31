@@ -53,6 +53,7 @@ type packageRegistryTargetConfiguration struct {
 type packageRegistryDerivationConfiguration struct {
 	Enabled      bool     `json:"enabled"`
 	Ecosystems   []string `json:"ecosystems"`
+	PlanningMode string   `json:"planning_mode"`
 	TargetLimit  int      `json:"target_limit"`
 	PackageLimit int      `json:"package_limit"`
 	VersionLimit int      `json:"version_limit"`

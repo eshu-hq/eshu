@@ -62,13 +62,17 @@ contract never converged.
 Representative mode keeps scheduled collectors enabled, so it uses a scoped
 terminal contract instead of queue-zero. `/api/v0/index-status` must report
 `healthy` or `progressing`, the queue must have zero `retrying`, `failed`, and
-`dead_letter` work, and workflow coordinator `failed` or blocked-completeness
-counts must be zero. The verifier still requires the representative aggregate
-proof counters before accepting the run, while printing outstanding, in-flight,
-pending, `reducer_converging`, and pending-completeness counts as active
-follow-up work. A representative aggregate minimum explicitly set to `0` is not
-required evidence, so the verifier skips that probe. Each API probe is bounded
-by `ESHU_REMOTE_E2E_API_TIMEOUT_SECONDS`, which defaults to `30`.
+`dead_letter` work, and the outstanding queue must stay under the
+representative fanout guard. The guard defaults to
+`ESHU_REMOTE_E2E_DERIVED_TARGET_LIMIT * 10` and can be overridden with
+`ESHU_REMOTE_E2E_REPRESENTATIVE_MAX_QUEUE_OUTSTANDING`. Workflow coordinator
+`failed` or blocked-completeness counts must be zero. The verifier still
+requires the representative aggregate proof counters before accepting the run,
+while printing outstanding, in-flight, pending, `reducer_converging`, and
+pending-completeness counts as active follow-up work. A representative aggregate
+minimum explicitly set to `0` is not required evidence, so the verifier skips
+that probe. Each API probe is bounded by `ESHU_REMOTE_E2E_API_TIMEOUT_SECONDS`,
+which defaults to `30`.
 
 Set `ESHU_REMOTE_E2E_REQUIRED_SERVICES`,
 `ESHU_REMOTE_E2E_COLLECTOR_SERVICES`, or `ESHU_REMOTE_E2E_EXTRA_SERVICES` to
@@ -120,9 +124,10 @@ runtime state and health state, keeps API bearer tokens out of process
 arguments, bounds API probes with a max-time, and records the checkpointed
 `/index-status` payload on queue, workflow-completion, or representative
 runtime-safety failure. Representative scoped terminal output includes queue
-counts, `reducer_converging`, pending completeness, and blocked completeness so
-operators can distinguish active scheduled work from retry storms, terminal
-failures, and blocked evidence. The existing `/api/v0/index-status`,
+counts, the configured queue fanout guard, `reducer_converging`, pending
+completeness, and blocked completeness so operators can distinguish active
+scheduled work from retry storms, terminal failures, and blocked evidence. The
+existing `/api/v0/index-status`,
 `/api/v0/status/index`, and admin status report now carry workflow coordinator
 `run_status_counts`, `work_item_status_counts`, `completeness_counts`, active
 and overdue claim counts, queue/domain ages, and health reasons that
