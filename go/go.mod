@@ -118,6 +118,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/sagemaker v1.249.0
 	github.com/aws/aws-sdk-go-v2/service/secretsmanager v1.41.7
 	github.com/aws/aws-sdk-go-v2/service/securityhub v1.71.0
+	github.com/aws/aws-sdk-go-v2/service/securitylake v1.25.17
 	github.com/aws/aws-sdk-go-v2/service/servicecatalog v1.39.14
 	github.com/aws/aws-sdk-go-v2/service/servicediscovery v1.40.1
 	github.com/aws/aws-sdk-go-v2/service/servicequotas v1.35.2
