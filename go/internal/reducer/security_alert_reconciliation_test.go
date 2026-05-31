@@ -295,20 +295,25 @@ func TestSecurityAlertReconciliationDefersPackageTriggeredUnmatchedEvidence(t *t
 		Status:               SecurityAlertReconciliationUnmatched,
 		DependencyEvidenceID: "consume-1",
 	}}
-	if !shouldDeferPackageSecurityAlertReconciliation(intent, decisions) {
-		t.Fatal("shouldDeferPackageSecurityAlertReconciliation() = false, want true")
+	if !shouldDeferSecurityAlertReconciliationForPendingImpact(intent, decisions) {
+		t.Fatal("shouldDeferSecurityAlertReconciliationForPendingImpact() = false, want true")
 	}
 
 	intent.AttemptCount = 3
-	if shouldDeferPackageSecurityAlertReconciliation(intent, decisions) {
-		t.Fatal("shouldDeferPackageSecurityAlertReconciliation() = true after bounded attempts, want false")
+	if shouldDeferSecurityAlertReconciliationForPendingImpact(intent, decisions) {
+		t.Fatal("shouldDeferSecurityAlertReconciliationForPendingImpact() = true after bounded attempts, want false")
 	}
 
 	intent.AttemptCount = 1
 	intent.SourceSystem = "security_alert"
 	intent.Cause = "provider security alert evidence observed"
-	if shouldDeferPackageSecurityAlertReconciliation(intent, decisions) {
-		t.Fatal("shouldDeferPackageSecurityAlertReconciliation() = true for provider-triggered reconciliation, want false")
+	if !shouldDeferSecurityAlertReconciliationForPendingImpact(intent, decisions) {
+		t.Fatal("shouldDeferSecurityAlertReconciliationForPendingImpact() = false for provider-triggered reconciliation, want true")
+	}
+
+	decisions[0].DependencyEvidenceID = ""
+	if shouldDeferSecurityAlertReconciliationForPendingImpact(intent, decisions) {
+		t.Fatal("shouldDeferSecurityAlertReconciliationForPendingImpact() = true without dependency evidence, want false")
 	}
 }
 

@@ -262,6 +262,8 @@ github.com/aws/aws-sdk-go-v2/service/outposts v1.60.2 h1:nNfpVpJBqICuGLrtsKOdBeV
 github.com/aws/aws-sdk-go-v2/service/outposts v1.60.2/go.mod h1:qS32fHnwl8By83j2hB2nTNfOz8TQZlpkcY+PeZv9uTw=
 github.com/aws/aws-sdk-go-v2/service/quicksight v1.112.0 h1:PAW0DClCeudP+lLN1z9i0TLjoqErUGwNu+DfemX4RIc=
 github.com/aws/aws-sdk-go-v2/service/quicksight v1.112.0/go.mod h1:Cqo3dKj464X8R6TZaYAOCMgPH5wLzBAdYRHT+Ido0gM=
+github.com/aws/aws-sdk-go-v2/service/proton v1.40.0 h1:2wnaqk55fyxRlMnleQPEekB5CuwNhY4PLeqv+4+PwzU=
+github.com/aws/aws-sdk-go-v2/service/proton v1.40.0/go.mod h1:nTTJPeqKTpLQ2XslChWbwuZAkOKPpyGkbo78la10pB8=
 github.com/aws/aws-sdk-go-v2/service/ram v1.36.6 h1:JTIlCNJMmjA1Z2JqVEEBeGQhVNkUwrkkJTkkVYY2vFQ=
 github.com/aws/aws-sdk-go-v2/service/ram v1.36.6/go.mod h1:mIXcD41n1f5BvqKUWB4GX99CfQgiW6Z07LfNPr6UKvQ=
 github.com/aws/aws-sdk-go-v2/service/rds v1.118.2 h1:pkEeQneYFpTAnGhyqSbyp/DlCPPJTGt0GkWahlLYzMA=
@@ -288,6 +290,8 @@ github.com/aws/aws-sdk-go-v2/service/servicecatalog v1.39.14 h1:n6eneXBRp/J0T3Ij
 github.com/aws/aws-sdk-go-v2/service/servicecatalog v1.39.14/go.mod h1:Ava9lSQtC5dJqB/H+usuyndF17h2o4YWEVF1MYxGss0=
 github.com/aws/aws-sdk-go-v2/service/servicediscovery v1.40.1 h1:vyjZg2SefsacQFgU9WfbTve/3Aj6hE2NSJuChImmyVg=
 github.com/aws/aws-sdk-go-v2/service/servicediscovery v1.40.1/go.mod h1:9BpYYXW/GFuScrtiSbfKHLP3LJSYUYKyWLbvXZkB9os=
+github.com/aws/aws-sdk-go-v2/service/servicequotas v1.35.2 h1:YNt4dy9bnSIitgsgRx/RD2ffIvCe5rVptQljUBkWuIY=
+github.com/aws/aws-sdk-go-v2/service/servicequotas v1.35.2/go.mod h1:BGF6NBtiIiv4l//4hWeXFshINAlkZCXT0WDL5Vyx4wg=
 github.com/aws/aws-sdk-go-v2/service/sesv2 v1.62.0 h1:xoMHNDEZXvQVSAFW6kSBsQ9q1K4e9waRRNTZ+BC9t98=
 github.com/aws/aws-sdk-go-v2/service/sesv2 v1.62.0/go.mod h1:fEhWxFkKLfG5VHNn1UQTVAiuQ3jzC0eit31UxpYL91c=
 github.com/aws/aws-sdk-go-v2/service/sfn v1.41.0 h1:DjtJU3mUbj3Q6ggWmiCZuBfOf1k89O55knWuLABRUYs=
