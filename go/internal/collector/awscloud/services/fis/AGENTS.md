@@ -32,7 +32,9 @@
   the role ARN matches the IAM scanner's published role resource_id.
 - Type each explicit target ARN to its resource family and key it to that
   family's published identity: EC2 instances by the bare `i-` id (forward-
-  reference `aws_ec2_instance`, full ARN in `target_arn`), ECS clusters and RDS
+  reference `aws_ec2_instance`, with `target_arn` left empty and the full ARN
+  in the `instance_arn` edge attribute so relguard does not reject a bare-id
+  join key paired with an ARN), ECS clusters and RDS
   DB instances/clusters by ARN. Skip targets selected only by tag/filter and
   ARNs from unmodeled families - never key a dangling edge.
 - Trim the trailing `:*` wildcard from the reported CloudWatch log group ARN so

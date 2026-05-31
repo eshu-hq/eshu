@@ -64,8 +64,10 @@ spans.
   role; the role ARN matches the IAM scanner's published role resource_id.
 - The template-target edges are emitted only for explicitly listed resource
   ARNs whose family this scanner models. EC2 instances are keyed by the bare
-  instance id (`i-...`) extracted from the ARN (`target_arn` carries the full
-  ARN); ECS clusters and RDS DB instances/clusters are keyed by ARN, matching
+  instance id (`i-...`) extracted from the ARN, with `target_arn` left empty
+  (relguard rejects a bare-id join key paired with a populated ARN) and the
+  full ARN preserved in the `instance_arn` edge attribute; ECS clusters and RDS
+  DB instances/clusters are keyed by ARN, matching
   the ECS and RDS scanners' published resource_ids. Targets selected only by
   tag or filter, and ARNs from unmodeled families, are skipped rather than
   dangled.
