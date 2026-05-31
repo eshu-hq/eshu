@@ -190,6 +190,7 @@ nav:
       - AWS Cloud Collector: services/collector-aws-cloud.md
       - AWS Collector Security And Config: services/collector-aws-cloud-security.md
       - AWS Collector Scanner Coverage: services/collector-aws-cloud-scanners.md
+      - AWS Collector Coverage Matrix: services/collector-aws-cloud-coverage-matrix.md
     - Source Layout: reference/source-layout.md
     - Languages:
       - Feature Matrix: languages/feature-matrix.md
