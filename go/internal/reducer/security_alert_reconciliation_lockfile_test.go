@@ -195,6 +195,154 @@ func TestSecurityAlertReconciliationHandlerDefersPackageTriggeredLockfileEvidenc
 	}
 }
 
+func TestSecurityAlertReconciliationHandlerDefersProviderTriggeredPendingImpactEvidence(t *testing.T) {
+	t.Parallel()
+
+	repoID := "repo://github/acme/api"
+	packageID := "npm://registry.npmjs.org/pending-provider-lib"
+	loader := &recordingSecurityAlertReconciliationFactLoader{
+		scopeFacts: []facts.Envelope{
+			securityAlertEnvelope("alert-provider-pending-impact", repoID, map[string]any{
+				"provider":              "github_dependabot",
+				"provider_alert_number": int64(15),
+				"provider_state":        "open",
+				"package_id":            packageID,
+				"package_name":          "pending-provider-lib",
+				"ecosystem":             "npm",
+				"manifest_path":         "package-lock.json",
+				"cve_ids":               []string{"CVE-2026-9680"},
+				"ghsa_ids":              []string{"GHSA-synthetic-9680"},
+				"vulnerable_range":      "<8.9.1",
+				"patched_version":       "8.9.1",
+			}),
+		},
+		manifestFacts: []facts.Envelope{
+			packageManifestDependencyFactWithMetadata(
+				repoID,
+				"api",
+				"package-lock.json",
+				"pending-provider-lib",
+				"npm",
+				"8.9.0",
+				time.Date(2026, 5, 25, 10, 0, 0, 0, time.UTC),
+				map[string]any{
+					"section":           "package-lock",
+					"lockfile":          true,
+					"dependency_path":   []any{"root", "pending-provider-lib"},
+					"dependency_depth":  2,
+					"direct_dependency": false,
+				},
+			),
+		},
+	}
+	writer := &recordingSecurityAlertReconciliationWriter{}
+	handler := SecurityAlertReconciliationHandler{FactLoader: loader, Writer: writer}
+
+	_, err := handler.Handle(context.Background(), Intent{
+		IntentID:     "intent-provider-triggered-pending-impact",
+		ScopeID:      repoID,
+		GenerationID: "security-alert-generation-1",
+		SourceSystem: "security_alert",
+		Domain:       DomainSecurityAlertReconciliation,
+		Cause:        "provider alert observed",
+		AttemptCount: 1,
+	})
+	if err == nil {
+		t.Fatal("Handle() error = nil, want retryable pending-impact error")
+	}
+	if retryable, ok := err.(interface{ Retryable() bool }); !ok || !retryable.Retryable() {
+		t.Fatalf("Handle() error = %T %v, want retryable pending-impact error", err, err)
+	}
+	if writer.calls != 0 {
+		t.Fatalf("writer calls = %d, want 0 while provider-triggered impact evidence is pending", writer.calls)
+	}
+}
+
+func TestSecurityAlertReconciliationHandlerUsesRepositoryFactsForLockfileScope(t *testing.T) {
+	t.Parallel()
+
+	providerRepoID := "security-alert:github:acme/api"
+	canonicalRepoID := "repository:r_api"
+	packageID := "npm://registry.npmjs.org/provider-scoped-lib"
+	loader := &recordingSecurityAlertReconciliationFactLoader{
+		scopeFacts: []facts.Envelope{
+			securityAlertEnvelope("alert-provider-scope-lockfile", providerRepoID, map[string]any{
+				"provider":              "github_dependabot",
+				"provider_alert_number": int64(15),
+				"provider_state":        "open",
+				"package_id":            packageID,
+				"package_name":          "provider-scoped-lib",
+				"ecosystem":             "npm",
+				"manifest_path":         "package-lock.json",
+				"cve_ids":               []string{"CVE-2026-9550"},
+				"ghsa_ids":              []string{"GHSA-synthetic-9550"},
+			}),
+		},
+		activeFacts: []facts.Envelope{
+			supplyChainImpactFindingEnvelope(
+				"impact-provider-scope-lockfile",
+				canonicalRepoID,
+				packageID,
+				"CVE-2026-9550",
+				"affected_exact",
+			),
+		},
+		repositoryFacts: []facts.Envelope{
+			packageSourceRepositoryFact(
+				canonicalRepoID,
+				"api",
+				"",
+				false,
+				time.Date(2026, 5, 25, 9, 30, 0, 0, time.UTC),
+			),
+		},
+		manifestFacts: []facts.Envelope{
+			packageManifestDependencyFactWithMetadata(
+				canonicalRepoID,
+				"",
+				"package-lock.json",
+				"provider-scoped-lib",
+				"npm",
+				"1.2.3",
+				time.Date(2026, 5, 25, 10, 0, 0, 0, time.UTC),
+				map[string]any{
+					"section":           "package-lock",
+					"lockfile":          true,
+					"dependency_path":   []any{"provider-scoped-lib"},
+					"dependency_depth":  1,
+					"direct_dependency": true,
+				},
+			),
+		},
+	}
+	writer := &recordingSecurityAlertReconciliationWriter{}
+	handler := SecurityAlertReconciliationHandler{FactLoader: loader, Writer: writer}
+
+	result, err := handler.Handle(context.Background(), Intent{
+		IntentID:     "intent-provider-scope-lockfile",
+		ScopeID:      providerRepoID,
+		GenerationID: "security-alert-generation-1",
+		SourceSystem: "security_alert",
+		Domain:       DomainSecurityAlertReconciliation,
+		Cause:        "provider alert observed",
+	})
+	if err != nil {
+		t.Fatalf("Handle() error = %v, want nil", err)
+	}
+	if result.Status != ResultStatusSucceeded {
+		t.Fatalf("Handle() status = %q, want succeeded", result.Status)
+	}
+	if got, want := writer.write.Decisions[0].Status, SecurityAlertReconciliationMatched; got != want {
+		t.Fatalf("decision status = %q, want %q; reason=%q", got, want, writer.write.Decisions[0].Reason)
+	}
+	if got, want := writer.write.Decisions[0].RepositoryID, canonicalRepoID; got != want {
+		t.Fatalf("decision RepositoryID = %q, want canonical repo id %q", got, want)
+	}
+	if got, want := loader.repositoryCalls, 1; got != want {
+		t.Fatalf("ListActiveRepositoryFacts calls = %d, want %d", got, want)
+	}
+}
+
 func securityAlertDecisionsByFactID(
 	decisions []SecurityAlertReconciliationDecision,
 ) map[string]SecurityAlertReconciliationDecision {
@@ -208,9 +356,11 @@ func securityAlertDecisionsByFactID(
 type recordingSecurityAlertReconciliationFactLoader struct {
 	scopeFacts           []facts.Envelope
 	activeFacts          []facts.Envelope
+	repositoryFacts      []facts.Envelope
 	manifestFacts        []facts.Envelope
 	manifestEcosystems   []string
 	manifestPackageNames []string
+	repositoryCalls      int
 }
 
 func (l *recordingSecurityAlertReconciliationFactLoader) ListFacts(
@@ -235,6 +385,13 @@ func (l *recordingSecurityAlertReconciliationFactLoader) ListActiveSecurityAlert
 	SecurityAlertReconciliationFactFilter,
 ) ([]facts.Envelope, error) {
 	return append([]facts.Envelope(nil), l.activeFacts...), nil
+}
+
+func (l *recordingSecurityAlertReconciliationFactLoader) ListActiveRepositoryFacts(
+	context.Context,
+) ([]facts.Envelope, error) {
+	l.repositoryCalls++
+	return append([]facts.Envelope(nil), l.repositoryFacts...), nil
 }
 
 func (l *recordingSecurityAlertReconciliationFactLoader) ListActivePackageManifestDependencyFacts(

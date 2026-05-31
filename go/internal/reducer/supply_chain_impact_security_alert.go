@@ -16,6 +16,7 @@ func appendSecurityAlertImpactFindings(
 		return findings
 	}
 	consumptions := extractSecurityAlertConsumptions(envelopes)
+	consumptions = append(consumptions, extractSecurityAlertManifestConsumptions(alerts, envelopes)...)
 	for _, alert := range alerts {
 		finding, ok := buildSecurityAlertImpactFinding(alert, consumptions, findings)
 		if !ok {
@@ -76,8 +77,12 @@ func buildSecurityAlertImpactFinding(
 		DependencyPath:     append([]string(nil), consumption.dependencyPath...),
 		DependencyDepth:    consumption.dependencyDepth,
 		DirectDependency:   cloneBoolPointer(consumption.directDependency),
-		EvidencePath:       []string{facts.SecurityAlertRepositoryAlertFactKind, packageConsumptionCorrelationFactKind},
-		EvidenceFactIDs:    []string{alert.ProviderAlertFactID, consumption.factID},
+		EvidencePath: []string{
+			facts.SecurityAlertRepositoryAlertFactKind,
+			securityAlertConsumptionEvidenceKind(consumption),
+		},
+		EvidenceFactIDs: []string{alert.ProviderAlertFactID, consumption.factID},
+		CanonicalWrites: 1,
 		AdvisorySources: []AdvisorySourceObservation{{
 			Source:          strings.TrimSpace(alert.Provider),
 			AdvisoryID:      securityAlertImpactAdvisoryID(alert),
@@ -86,6 +91,13 @@ func buildSecurityAlertImpactFinding(
 	}
 	applySupplyChainVersionDecision(&finding, decision)
 	return finding, true
+}
+
+func securityAlertConsumptionEvidenceKind(consumption securityAlertConsumption) string {
+	if strings.TrimSpace(consumption.evidenceKind) != "" {
+		return strings.TrimSpace(consumption.evidenceKind)
+	}
+	return packageConsumptionCorrelationFactKind
 }
 
 func securityAlertCanSeedImpact(alert providerSecurityAlert) bool {

@@ -89,6 +89,7 @@ type providerSecurityAlert struct {
 
 type securityAlertConsumption struct {
 	factID           string
+	evidenceKind     string
 	repositoryID     string
 	repositoryName   string
 	packageID        string
@@ -218,6 +219,7 @@ func extractSecurityAlertConsumptions(envelopes []facts.Envelope) []securityAler
 		}
 		consumptions = append(consumptions, securityAlertConsumption{
 			factID:           envelope.FactID,
+			evidenceKind:     packageConsumptionCorrelationFactKind,
 			repositoryID:     payloadStr(envelope.Payload, "repository_id"),
 			repositoryName:   payloadStr(envelope.Payload, "repository_name"),
 			packageID:        payloadStr(envelope.Payload, "package_id"),
@@ -252,6 +254,7 @@ func extractSecurityAlertManifestConsumptions(
 			}
 			consumptions = append(consumptions, securityAlertConsumption{
 				factID:           dependency.FactID,
+				evidenceKind:     factKindContentEntity,
 				repositoryID:     dependency.RepositoryID,
 				repositoryName:   dependency.RepositoryName,
 				packageID:        alert.PackageID,
