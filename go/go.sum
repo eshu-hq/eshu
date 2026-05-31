@@ -120,6 +120,8 @@ github.com/aws/aws-sdk-go-v2/service/bedrock v1.62.0 h1:W+9SC9IbSJfB8uIVvYrE4+AR
 github.com/aws/aws-sdk-go-v2/service/bedrock v1.62.0/go.mod h1:s8wtBVt3pTWX6N4QvrYzOehkoUsVzkiGRdZuA4utdVQ=
 github.com/aws/aws-sdk-go-v2/service/bedrockagent v1.54.1 h1:jc+0xbKgIthQDrAb8KVr5uJdItkany+WIEb3dnkJiHQ=
 github.com/aws/aws-sdk-go-v2/service/bedrockagent v1.54.1/go.mod h1:mHMqUmNCieOVD/XOD6Xmlqof1ptZnF/TsRMTy/Jr8CY=
+github.com/aws/aws-sdk-go-v2/service/cleanrooms v1.45.2 h1:gR8t5PPjbXC560dJpneufXAVxCLMk9DqE6KvX1aVNB8=
+github.com/aws/aws-sdk-go-v2/service/cleanrooms v1.45.2/go.mod h1:bco+Qqrm8s590aigR9lOA5/nDmYHEkPq9vuyWag7CsE=
 github.com/aws/aws-sdk-go-v2/service/cloudformation v1.55.0 h1:Pf3hi7g1jDoD31qetA/HuY94jga2pH4W5W3+5uVaxKY=
 github.com/aws/aws-sdk-go-v2/service/cloudformation v1.55.0/go.mod h1:WEfYjobS0jTq12V8UgB+wfHcq/tTV4mZXIc+a8OjL2A=
 github.com/aws/aws-sdk-go-v2/service/cloudfront v1.64.0 h1:a6XmNe8cAvfrXVKwjXzWl9HHtuyE/n4kBroNm2mSOyo=
