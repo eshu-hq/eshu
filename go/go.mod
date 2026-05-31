@@ -88,7 +88,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/networkfirewall v1.61.1
 	github.com/aws/aws-sdk-go-v2/service/networkmanager v1.42.2
 	github.com/aws/aws-sdk-go-v2/service/opensearch v1.70.1
-	github.com/aws/aws-sdk-go-v2/service/opensearchserverless v1.31.0
+	github.com/aws/aws-sdk-go-v2/service/opensearchserverless v1.31.1
 	github.com/aws/aws-sdk-go-v2/service/organizations v1.51.3
 	github.com/aws/aws-sdk-go-v2/service/outposts v1.60.2
 	github.com/aws/aws-sdk-go-v2/service/proton v1.40.0
