@@ -18,89 +18,74 @@ scanner. Use that page for resource and edge detail; use this page to answer
   placement, encryption keys, IAM trust, data-source wiring, deployment
   targets). Leaf services with no infrastructure relationships are low priority
   by design, not by oversight.
-- **Counts reflect `main`.** As of this revision the collector ships **94
+- **Counts reflect `main`.** As of this revision the collector ships **124
   service scanners**. The supported list below is grouped by domain; the
   scanner-coverage page enumerates the resources and edges each one emits.
 
-## Supported services (94)
+## Supported services (124)
 
 | Domain | Services |
 |---|---|
-| Compute & serverless (7) | `ec2`, `autoscaling`, `batch`, `lambda`, `lightsail`, `elasticbeanstalk`, `apprunner` |
+| Compute & serverless (8) | `ec2`, `autoscaling`, `batch`, `lambda`, `lightsail`, `elasticbeanstalk`, `apprunner`, `imagebuilder` |
 | Containers, registry & mesh (5) | `ecr`, `ecs`, `eks`, `appmesh`, `servicediscovery` |
+| End-user computing (2) | `workspaces`, `appstream` |
 | Storage & transfer (7) | `s3`, `efs`, `fsx`, `backup`, `storagegateway`, `datasync`, `transfer` |
-| Databases (9) | `rds`, `dynamodb`, `elasticache`, `redshift`, `docdb`, `neptune`, `memorydb`, `keyspaces`, `timestream` |
-| Networking & content delivery (12) | `vpc`, `transitgateway`, `directconnect`, `globalaccelerator`, `route53`, `route53resolver`, `cloudfront`, `apigateway`, `apigatewayv2`, `elb`, `elbv2`, `networkfirewall` |
-| Security, identity & compliance (21) | `iam`, `ssoadmin`, `cognito`, `ds`, `kms`, `acm`, `acmpca`, `secretsmanager`, `accessanalyzer`, `guardduty`, `inspector2`, `macie`, `securityhub`, `shield`, `wafv2`, `fms`, `detective`, `config`, `cloudtrail`, `ram`, `lakeformation` |
-| Management & governance (8) | `cloudformation`, `cloudwatch`, `cloudwatchlogs`, `ssm`, `organizations`, `servicecatalog`, `resourcegroups`, `fis` |
-| Developer tools (6) | `codebuild`, `codecommit`, `codedeploy`, `codepipeline`, `codeartifact`, `xray` |
-| Analytics & streaming (7) | `athena`, `emr`, `glue`, `kinesis`, `firehose`, `msk`, `opensearch` |
-| Application integration (9) | `sns`, `sqs`, `eventbridge`, `stepfunctions`, `mq`, `appflow`, `appsync`, `mwaa`, `ses` |
-| ML & front-end (3) | `sagemaker`, `bedrock`, `amplify` |
+| Databases (10) | `rds`, `dynamodb`, `elasticache`, `redshift`, `docdb`, `neptune`, `memorydb`, `keyspaces`, `timestream`, `dax` |
+| Networking & content delivery (14) | `vpc`, `transitgateway`, `directconnect`, `globalaccelerator`, `route53`, `route53resolver`, `cloudfront`, `apigateway`, `apigatewayv2`, `elb`, `elbv2`, `networkfirewall`, `vpclattice`, `networkmanager` |
+| Security, identity & compliance (27) | `iam`, `ssoadmin`, `cognito`, `ds`, `kms`, `acm`, `acmpca`, `secretsmanager`, `accessanalyzer`, `guardduty`, `inspector2`, `macie`, `securityhub`, `shield`, `wafv2`, `fms`, `detective`, `config`, `cloudtrail`, `ram`, `lakeformation`, `cloudhsmv2`, `auditmanager`, `signer`, `rolesanywhere`, `verifiedpermissions`, `verifiedaccess` |
+| Management & governance (13) | `cloudformation`, `cloudwatch`, `cloudwatchlogs`, `ssm`, `organizations`, `servicecatalog`, `resourcegroups`, `controltower`, `servicequotas`, `computeoptimizer`, `licensemanager`, `proton`, `fis` |
+| Developer tools (7) | `codebuild`, `codecommit`, `codedeploy`, `codepipeline`, `codeartifact`, `xray`, `codeguru` |
+| Analytics & streaming (13) | `athena`, `emr`, `glue`, `kinesis`, `firehose`, `msk`, `opensearch`, `kinesisanalyticsv2`, `opensearchserverless`, `databrew`, `datazone`, `cleanrooms`, `quicksight` |
+| Application integration (10) | `sns`, `sqs`, `eventbridge`, `stepfunctions`, `mq`, `appflow`, `appsync`, `mwaa`, `ses`, `pinpoint` |
+| Observability & operations (2) | `grafana`, `amp` |
+| ML & AI (2) | `sagemaker`, `bedrock` |
+| Front-end, mobile & location (2) | `amplify`, `location` |
+| Migration & edge (2) | `dms`, `outposts` |
 
 ## Not yet covered
 
-### Tier A — high graph value, commonly deployed
+The infrastructure-relevant surface is essentially complete. What remains is a
+short tail of medium-value niche services plus the deliberately out-of-scope
+leaf set.
 
-These own infrastructure resources with strong edges into already-scanned
-services. They are the recommended next expansion wave.
+### Candidate next wave (aws/J) — medium graph value
 
-| Service | SDK / API | Graph value |
-|---|---|---|
-| Database Migration Service | `dms` | replication instances live in a VPC; endpoints fan out to RDS / S3 / Kinesis / Redshift |
-| Managed Service for Apache Flink | `kinesisanalyticsv2` | applications → Kinesis / MSK / S3 sources and sinks |
-| VPC Lattice | `vpc-lattice` | service networks, services, target groups → VPC / EC2 / Lambda |
-| Network Manager | `networkmanager` | global networks → transit gateways, Direct Connect |
-| DynamoDB Accelerator | `dax` | clusters → DynamoDB tables, VPC subnets/security groups |
-| CloudHSM v2 | `cloudhsmv2` | clusters → VPC, KMS custom key stores |
-| EC2 Image Builder | `imagebuilder` | pipelines / recipes → AMIs, ECR, distribution configs |
-| WorkSpaces | `workspaces` | directories, bundles → Directory Service, VPC |
-| AppStream 2.0 | `appstream` | fleets, stacks, image builders → VPC, IAM |
-| QuickSight | `quicksight` | data sources → Redshift / Athena / RDS / S3 |
-| Outposts | `outposts` | sites, racks, outposts → EC2 / VPC placement |
+These own infrastructure resources with real edges into already-scanned
+services. Tracked as issues under epic #51.
 
-### Tier B — moderate graph value (governance, security, dev-tools)
+| Service | SDK / API | Graph value | Issue |
+|---|---|---|---|
+| Application Migration Service | `mgn` | source servers → launched EC2 instances, replication | #1000 |
+| Elastic Disaster Recovery | `drs` | source servers → recovery EC2 instances, replication | #1001 |
+| AppConfig | `appconfig` | apps / environments / profiles → Lambda / ECS, CloudWatch monitors | #1002 |
+| Application Auto Scaling | `applicationautoscaling` | scalable targets → DynamoDB / ECS / Aurora | #1003 |
+| Security Lake | `securitylake` | lake config, log sources, subscribers → S3 / Glue / KMS | #1004 |
+| Service Catalog AppRegistry | `servicecatalogappregistry` | applications → associated resource collections | #1005 |
+| Resilience Hub | `resiliencehub` | resilience apps → the resources they protect | #1006 |
+| DocumentDB Elastic Clusters | `docdbelastic` | elastic clusters → VPC, KMS, Secrets Manager | #1007 |
+| Route 53 ARC | `route53recoverycontrolconfig` | clusters, control panels, routing controls, readiness | #1008 |
+| CloudWatch Synthetics | `synthetics` | canaries → S3, IAM, Lambda, VPC, monitored endpoints | #1009 |
 
-Worth covering after Tier A; mostly thinner resource graphs or narrower
-deployment footprints.
+EventBridge **Pipes / Scheduler / Schemas** are also candidates, better modeled
+as an extension of the existing `eventbridge` scanner than as new services.
 
-| Service | SDK / API |
-|---|---|
-| Service Quotas | `service-quotas` |
-| Control Tower | `controltower` |
-| Proton | `proton` |
-| License Manager | `license-manager` |
-| Compute Optimizer | `compute-optimizer` |
-| Audit Manager | `auditmanager` |
-| Signer | `signer` |
-| IAM Roles Anywhere | `rolesanywhere` |
-| Verified Permissions | `verifiedpermissions` |
-| EC2 Verified Access | `ec2` (verified-access) |
-| CodeGuru (Reviewer + Profiler) | `codeguru-reviewer`, `codeguruprofiler` |
-| Glue DataBrew | `databrew` |
-| DataZone | `datazone` |
-| Clean Rooms | `cleanrooms` |
-| OpenSearch Serverless / Ingestion | `opensearchserverless`, `osis` |
-| Managed Grafana | `grafana` |
-| Managed Service for Prometheus | `amp` |
-| Pinpoint | `pinpoint` |
-| Location Service | `location` |
+### Out of scope — leaf services, no infrastructure edges
 
-### Tier C — low graph value (out of scope unless a use case appears)
-
-These are predominantly leaf services with no infrastructure relationships, so
-they add nodes but few edges. They are intentionally deprioritized:
+Predominantly leaf services that add nodes but no graph edges; low priority by
+design, not oversight:
 
 - **AI/ML leaf APIs:** Comprehend, Rekognition, Polly, Transcribe, Translate,
-  Textract, Lex, Kendra, Personalize, Forecast, Fraud Detector, Lookout\*, Q.
+  Textract, Lex, Kendra, Personalize, Forecast, Fraud Detector, Lookout\*,
+  Amazon Q, HealthLake.
 - **Media:** MediaConvert / MediaLive / MediaPackage / MediaStore /
-  MediaConnect / MediaTailor, Elemental, IVS.
-- **IoT:** IoT Core, Greengrass, IoT Analytics, SiteWise, TwinMaker, IoT Events.
+  MediaConnect / MediaTailor, IVS, Elastic Transcoder.
+- **IoT:** IoT Core, Greengrass, IoT Analytics, SiteWise, TwinMaker, IoT Events,
+  FleetWise, Wireless.
 - **Business applications:** Connect, Chime, WorkMail, WorkDocs, Supply Chain.
-- **Edge / specialized compute:** Snow Family, Braket, Ground Station, Deadline,
-  RoboMaker.
-- **Cost management:** Cost Explorer, Budgets, Cost and Usage Report — billing
-  surfaces with no graph resources.
+- **Edge / specialized compute:** Snow Family, Braket, Ground Station, Deadline
+  Cloud, Panorama, Private 5G.
+- **Cost management:** Cost Explorer, Budgets, Cost and Usage Report, Billing
+  Conductor — billing surfaces with no graph resources.
 
 ## In-scanner sub-resource gaps
 
