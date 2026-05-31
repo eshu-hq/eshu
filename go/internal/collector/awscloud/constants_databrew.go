@@ -4,10 +4,11 @@ const (
 	// ServiceDatabrew identifies the regional AWS Glue DataBrew metadata-only
 	// scan slice. The scanner reads dataset, recipe, job, and project
 	// control-plane metadata through the DataBrew list APIs (ListDatasets,
-	// ListRecipes, ListJobs, ListProjects, ListTagsForResource) and never reads
-	// or persists recipe step expressions, transformation parameters, custom
-	// SQL query strings, sample data, or any data-plane payload, and never
-	// mutates DataBrew state.
+	// ListRecipes, ListJobs, ListProjects) and reads resource tags inline from
+	// those list responses, never via a separate ListTagsForResource call. It
+	// never reads or persists recipe step expressions, transformation
+	// parameters, custom SQL query strings, sample data, or any data-plane
+	// payload, and never mutates DataBrew state.
 	ServiceDatabrew = "databrew"
 )
 
