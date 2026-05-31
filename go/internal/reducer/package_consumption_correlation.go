@@ -4,6 +4,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/packageidentity"
@@ -66,6 +67,7 @@ type packageManifestDependency struct {
 	RepositoryID     string
 	RepositoryName   string
 	RelativePath     string
+	ObservedAt       time.Time
 	DependencyName   string
 	PackageManager   string
 	ManifestSection  string
@@ -207,6 +209,7 @@ func extractPackageManifestDependencies(envelopes []facts.Envelope) []packageMan
 			RepositoryID:     repositoryID,
 			RepositoryName:   packageRepositoryName(repositoryID, repositories, envelope.Payload),
 			RelativePath:     payloadStr(envelope.Payload, "relative_path"),
+			ObservedAt:       envelope.ObservedAt,
 			DependencyName:   payloadStr(envelope.Payload, "entity_name"),
 			PackageManager:   strings.ToLower(packageManifestMetadataString(envelope.Payload, "package_manager")),
 			ManifestSection:  packageManifestMetadataString(envelope.Payload, "section"),

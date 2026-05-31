@@ -481,17 +481,17 @@ Log phase attributes: `telemetry.PhaseReduction` (main loop),
 - **Provider alert reconciliation stays explicit** —
   `SecurityAlertReconciliationHandler` writes
   `reducer_security_alert_reconciliation` facts from
-  `security_alert.repository_alert`, package-consumption correlation, and
-  supply-chain impact facts. It preserves provider alert state and Eshu impact
-  state in separate payload fields, keeps raw `provider_repository_id`
-  separate from canonical `repository_id`, classifies rows as matched,
-  unmatched, stale, dismissed, fixed, or provider-only, and explains when a
-  provider alert was not admitted into impact truth because owned dependency
-  evidence was missing, stale, or ambiguous. Its durable replacement identity
-  uses provider, provider alert id or number, provider evidence scope, package
-  id, and advisory ids so provider-only rows are replaced by later matched or
-  stale rows for the same provider alert instead of remaining active beside
-  them.
+  `security_alert.repository_alert`, package-consumption correlation, active
+  manifest dependency evidence, and supply-chain impact facts. It preserves
+  provider alert state and Eshu impact state in separate payload fields, keeps
+  raw `provider_repository_id` separate from canonical `repository_id`,
+  classifies rows as matched, unmatched, stale, dismissed, fixed, or
+  provider-only, and explains when a provider alert was not admitted into
+  impact truth because owned dependency evidence was missing, stale, or
+  ambiguous. Its durable replacement identity uses provider, provider alert id
+  or number, provider evidence scope, package id, and advisory ids so
+  provider-only rows are replaced by later matched or stale rows for the same
+  provider alert instead of remaining active beside them.
 - **Package ownership is conservative** —
   `PackageSourceCorrelationHandler` writes ownership candidates from registry
   source hints and package-version publication evidence but leaves
@@ -561,6 +561,9 @@ Performance Evidence: `go test ./internal/reducer -run '^$' -bench BenchmarkAddM
 
 No-Regression Evidence: `go test ./internal/reducer -run 'TestBuildSecurityAlertReconciliations(FailsClosedForAmbiguousProviderRepositoryScope|ResolvesProviderAlertRepositoryScope)|TestBuildSupplyChainImpactFindings(SkipsAmbiguousProviderRepositoryScope|ResolvesProviderAlertRepositoryScope)' -count=1` failed before provider-alert repository scopes were resolved against canonical owned dependency evidence, then passed after raw provider repository IDs were preserved separately and ambiguous repository-name matches failed closed.
 No-Observability-Change: this is an in-memory reducer admission and payload-shape correction over facts already loaded through `ListActiveSupplyChainImpactFacts`; existing reducer run spans, reducer duration metrics, reducer execution counters, durable `reducer_security_alert_reconciliation` payloads, and `reducer_supply_chain_impact_finding` evidence paths remain the operator-visible signals.
+
+No-Regression Evidence: `go test ./internal/reducer -run 'TestBuildSecurityAlertReconciliationsUsesSupportedNpmLockfileEvidence|TestSecurityAlertReconciliationHandlerDefersPackageTriggeredLockfileEvidence' -count=1` failed before security alert reconciliation consumed supported npm lockfile `content_entity` dependency evidence, then passed after the handler loaded active manifest dependency facts and the classifier treated matching lockfile rows as owned dependency evidence. Provider-only rows without local dependency evidence still stay provider-only with a missing-evidence reason, and package-triggered rows defer while matching impact evidence is still pending.
+No-Observability-Change: this changes reducer reconciliation over facts loaded through the existing active manifest-dependency read path. It adds no graph write, route, queue domain, worker, metric label, or runtime knob; operators still diagnose the path through existing reducer run spans, reducer execution counters, durable `reducer_security_alert_reconciliation` payload reasons and evidence IDs, fact-load Postgres timings, and API/MCP reconciliation read spans.
 
 No-Regression Evidence: `go test ./internal/reducer -run 'TestSupplyChainImpactStableFactKeyIgnoresSourceScopeGeneration|TestSupplyChainImpactStableFactKeyIncludesRepository|TestPostgresSupplyChainImpactWriterPersistsSignalsWithoutPriorityCollapse' -count=1` proves supply-chain impact row storage remains source-scoped while the stable fact key and public finding identity are canonical to the logical vulnerability tuple. Repeated vulnerability-intelligence, package-registry, or mixed-source reducer cycles can preserve source-specific rows without changing the user-facing finding identity.
 No-Observability-Change: this changes reducer fact identity fields only. Existing reducer run spans, reducer duration metrics, reducer execution counters, durable `reducer_supply_chain_impact_finding` payloads, query readiness envelopes, and API/MCP read spans remain the operator-visible signals; no queue, graph write, metric label, or runtime knob was added.

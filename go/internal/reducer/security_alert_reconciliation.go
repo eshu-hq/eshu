@@ -116,6 +116,7 @@ type securityAlertImpact struct {
 func BuildSecurityAlertReconciliations(envelopes []facts.Envelope) []SecurityAlertReconciliationDecision {
 	alerts := extractProviderSecurityAlerts(envelopes)
 	consumptions := extractSecurityAlertConsumptions(envelopes)
+	consumptions = append(consumptions, extractSecurityAlertManifestConsumptions(alerts, envelopes)...)
 	impacts := extractSecurityAlertImpacts(envelopes)
 
 	decisions := make([]SecurityAlertReconciliationDecision, 0, len(alerts))
@@ -230,6 +231,78 @@ func extractSecurityAlertConsumptions(envelopes []facts.Envelope) []securityAler
 		})
 	}
 	return consumptions
+}
+
+func extractSecurityAlertManifestConsumptions(
+	alerts []providerSecurityAlert,
+	envelopes []facts.Envelope,
+) []securityAlertConsumption {
+	if len(alerts) == 0 {
+		return nil
+	}
+	dependencies := extractPackageManifestDependencies(envelopes)
+	if len(dependencies) == 0 {
+		return nil
+	}
+	consumptions := make([]securityAlertConsumption, 0)
+	for _, dependency := range dependencies {
+		for _, alert := range alerts {
+			if !securityAlertManifestConsumptionMatches(alert, dependency) {
+				continue
+			}
+			consumptions = append(consumptions, securityAlertConsumption{
+				factID:           dependency.FactID,
+				repositoryID:     dependency.RepositoryID,
+				repositoryName:   dependency.RepositoryName,
+				packageID:        alert.PackageID,
+				relativePath:     dependency.RelativePath,
+				observedAt:       dependency.ObservedAt,
+				dependencyRange:  dependency.DependencyRange,
+				dependencyPath:   append([]string(nil), dependency.DependencyPath...),
+				dependencyDepth:  dependency.DependencyDepth,
+				directDependency: cloneBoolPointer(dependency.DirectDependency),
+				dependencyScope:  dependency.DependencyScope,
+			})
+		}
+	}
+	return consumptions
+}
+
+func securityAlertManifestConsumptionMatches(
+	alert providerSecurityAlert,
+	dependency packageManifestDependency,
+) bool {
+	if strings.TrimSpace(alert.PackageID) == "" ||
+		!securityAlertRepositoryScopeMatches(alert, securityAlertConsumption{
+			repositoryID:   dependency.RepositoryID,
+			repositoryName: dependency.RepositoryName,
+		}) {
+		return false
+	}
+	alertKeys := stringSet(packageConsumptionKeys(
+		alert.Ecosystem,
+		securityAlertPackageNameCandidates(alert)...,
+	))
+	if len(alertKeys) == 0 {
+		return false
+	}
+	for _, key := range packageConsumptionKeys(dependency.PackageManager, dependency.DependencyName) {
+		if _, ok := alertKeys[key]; ok {
+			return true
+		}
+	}
+	return false
+}
+
+func securityAlertPackageNameCandidates(alert providerSecurityAlert) []string {
+	candidates := []string{alert.PackageName}
+	packageID := strings.TrimSpace(alert.PackageID)
+	if strings.HasPrefix(packageID, "pkg:") {
+		candidates = append(candidates, packageNameFromPURL(packageID))
+	} else {
+		candidates = append(candidates, packageNameFromPackageID(packageID))
+	}
+	return uniqueSortedStrings(candidates)
 }
 
 func extractSecurityAlertImpacts(envelopes []facts.Envelope) []securityAlertImpact {
