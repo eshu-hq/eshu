@@ -8,7 +8,7 @@ import (
 
 // buildAWSRelationshipMaterializationReducerIntent enqueues one reducer intent
 // that projects the scope generation's aws_relationship facts into canonical
-// AWS_RELATIONSHIP graph edges (issue #805 PR 2). The intent is anchored to the
+// AWS relationship graph edges (issue #805 PR 2). The intent is anchored to the
 // first aws_relationship fact so the reducer claim is stable across
 // reprojections of the same generation.
 //

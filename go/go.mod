@@ -25,6 +25,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/batch v1.65.1
 	github.com/aws/aws-sdk-go-v2/service/bedrock v1.62.0
 	github.com/aws/aws-sdk-go-v2/service/bedrockagent v1.54.1
+	github.com/aws/aws-sdk-go-v2/service/cleanrooms v1.45.2
 	github.com/aws/aws-sdk-go-v2/service/cloudformation v1.55.0
 	github.com/aws/aws-sdk-go-v2/service/cloudfront v1.64.0
 	github.com/aws/aws-sdk-go-v2/service/cloudhsmv2 v1.35.0
@@ -35,6 +36,8 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/codebuild v1.68.17
 	github.com/aws/aws-sdk-go-v2/service/codecommit v1.33.0
 	github.com/aws/aws-sdk-go-v2/service/codedeploy v1.35.16
+	github.com/aws/aws-sdk-go-v2/service/codeguruprofiler v1.30.2
+	github.com/aws/aws-sdk-go-v2/service/codegurureviewer v1.35.1
 	github.com/aws/aws-sdk-go-v2/service/codepipeline v1.46.24
 	github.com/aws/aws-sdk-go-v2/service/cognitoidentity v1.33.25
 	github.com/aws/aws-sdk-go-v2/service/cognitoidentityprovider v1.60.3
@@ -42,6 +45,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/configservice v1.48.1
 	github.com/aws/aws-sdk-go-v2/service/controltower v1.29.2
 	github.com/aws/aws-sdk-go-v2/service/databasemigrationservice v1.63.2
+	github.com/aws/aws-sdk-go-v2/service/databrew v1.40.2
 	github.com/aws/aws-sdk-go-v2/service/datasync v1.59.2
 	github.com/aws/aws-sdk-go-v2/service/datazone v1.62.2
 	github.com/aws/aws-sdk-go-v2/service/dax v1.29.20
@@ -63,6 +67,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/emrserverless v1.41.1
 	github.com/aws/aws-sdk-go-v2/service/eventbridge v1.45.25
 	github.com/aws/aws-sdk-go-v2/service/firehose v1.42.17
+	github.com/aws/aws-sdk-go-v2/service/fis v1.38.2
 	github.com/aws/aws-sdk-go-v2/service/fms v1.45.2
 	github.com/aws/aws-sdk-go-v2/service/fsx v1.66.1
 	github.com/aws/aws-sdk-go-v2/service/globalaccelerator v1.36.1
@@ -116,6 +121,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/sesv2 v1.62.0
 	github.com/aws/aws-sdk-go-v2/service/sfn v1.41.0
 	github.com/aws/aws-sdk-go-v2/service/shield v1.34.25
+	github.com/aws/aws-sdk-go-v2/service/signer v1.33.2
 	github.com/aws/aws-sdk-go-v2/service/sns v1.39.17
 	github.com/aws/aws-sdk-go-v2/service/sqs v1.42.27
 	github.com/aws/aws-sdk-go-v2/service/ssm v1.68.6

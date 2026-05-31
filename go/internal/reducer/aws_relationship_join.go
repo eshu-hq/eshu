@@ -189,7 +189,7 @@ func newAWSRelationshipEdgeTally() awsRelationshipEdgeTally {
 	}
 }
 
-// ExtractAWSRelationshipEdgeRows builds canonical AWS_RELATIONSHIP edge rows by
+// ExtractAWSRelationshipEdgeRows builds canonical AWS relationship edge rows by
 // resolving each aws_relationship fact's endpoints against an in-memory index
 // built from the scope generation's aws_resource facts. It never fabricates a
 // node: an endpoint that is not a materialized CloudResource in this scope is
