@@ -111,15 +111,12 @@ func TestBuildPackageConsumptionDecisionsAdmitsPnpmLockEvidence(t *testing.T) {
 	}
 }
 
-// TestBuildPackageConsumptionDecisionsAcceptsYarnBerryUnsupportedFlagButPreservesEvidence
-// documents the intentional accept-and-flag behavior for unsupported Yarn
-// Berry protocols (patch:, exec:, etc). If the lockfile flagged the row as
-// unsupported, we still admit the underlying npm-identity row as a
-// consumption decision; the unsupported flag rides along on the fact for
-// downstream readiness, it is not used to suppress the decision. A future
-// reviewer should not silently change this contract; if suppression becomes
-// the desired behavior, the test name and assertions must flip too.
-func TestBuildPackageConsumptionDecisionsAcceptsYarnBerryUnsupportedFlagButPreservesEvidence(t *testing.T) {
+// TestBuildPackageConsumptionDecisionsRejectsUnsupportedYarnBerryFeature
+// keeps unsupported Yarn Berry protocols out of exact consumption truth.
+// The parser still records the row for readiness/audit, but reducer-owned
+// impact must not treat patch:, exec:, or other unsupported protocols as a
+// precise installed registry package.
+func TestBuildPackageConsumptionDecisionsRejectsUnsupportedYarnBerryFeature(t *testing.T) {
 	t.Parallel()
 
 	observedAt := time.Date(2026, 5, 24, 15, 0, 0, 0, time.UTC)
@@ -148,10 +145,7 @@ func TestBuildPackageConsumptionDecisionsAcceptsYarnBerryUnsupportedFlagButPrese
 		),
 	})
 
-	if got, want := len(decisions), 1; got != want {
-		t.Fatalf("len(decisions) = %d, want %d - patch: lockfile entries still produce one decision because the package_id and version are real", got, want)
-	}
-	if got, want := decisions[0].DependencyRange, "1.0.0"; got != want {
-		t.Fatalf("DependencyRange = %q, want %q (patched packages still pin a base version)", got, want)
+	if got, want := len(decisions), 0; got != want {
+		t.Fatalf("len(decisions) = %d, want %d because unsupported lockfile features are audit evidence, not precise consumption truth", got, want)
 	}
 }

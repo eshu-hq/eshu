@@ -37,12 +37,14 @@ type runtimeConfig struct {
 	HeartbeatInterval time.Duration
 	Analyzer          scannerworker.AnalyzerKind
 	Limits            scannerworker.ResourceLimits
+	SBOMTargets       []sbomTargetConfig
 	OSPackageTargets  []osruntime.TargetConfig
 }
 
 type scannerInstanceConfig struct {
 	Analyzer         string                   `json:"analyzer"`
 	ResourceLimits   resourceLimitsJSON       `json:"resource_limits"`
+	SBOMTargets      []sbomTargetConfig       `json:"sbom_targets"`
 	OSPackageTargets []osruntime.TargetConfig `json:"os_package_targets"`
 }
 
@@ -107,6 +109,7 @@ func loadRuntimeConfig(getenv func(string) string) (runtimeConfig, error) {
 		HeartbeatInterval: heartbeatInterval,
 		Analyzer:          analyzer,
 		Limits:            limits,
+		SBOMTargets:       decoded.SBOMTargets,
 		OSPackageTargets:  decoded.OSPackageTargets,
 	}, nil
 }

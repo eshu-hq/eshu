@@ -27,10 +27,10 @@ const ParseStatusGenerated = "generated"
 
 // Warning reason vocabulary recorded in sbom.warning payloads.
 const (
-	WarningReasonMissingSubject          = "missing_subject"
-	WarningReasonMalformedSubjectDigest  = "malformed_subject_digest"
+	WarningReasonMissingSubject           = "missing_subject"
+	WarningReasonMalformedSubjectDigest   = "malformed_subject_digest"
 	WarningReasonComponentMissingIdentity = "component_missing_identity"
-	WarningReasonNoComponentsFound       = "no_components_found"
+	WarningReasonNoComponentsFound        = "no_components_found"
 )
 
 // ErrUnsupportedTarget signals that the runtime Source cannot scan the claim's
@@ -72,6 +72,9 @@ type Inventory struct {
 	// Components is the bounded component list. The analyzer skips components
 	// with no PURL and no name+version identity and records a warning fact.
 	Components []Component
+	// ResourceUsage carries runtime-measured CPU and memory usage for this
+	// inventory read. Scanner-worker telemetry records it after validation.
+	ResourceUsage scannerworker.ResourceUsage
 }
 
 // Component is one component the runtime extracted from the bounded inventory.
@@ -160,6 +163,7 @@ func (a Analyzer) Analyze(ctx context.Context, input scannerworker.ClaimInput) (
 			ResultCount: componentCount,
 			Facts:       envelopes,
 		},
+		Usage: inventory.ResourceUsage,
 	}, nil
 }
 

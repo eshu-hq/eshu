@@ -125,6 +125,11 @@ type DefaultHandlers struct {
 	// repository correlation decisions.
 	ServiceCatalogCorrelationWriter ServiceCatalogCorrelationWriter
 
+	// ObservabilityCoverageCorrelationWriter persists observability coverage
+	// correlation decisions (covered, gap, ambiguous, stale, rejected) for
+	// CloudWatch, CloudWatch Logs, and X-Ray facts.
+	ObservabilityCoverageCorrelationWriter ObservabilityCoverageCorrelationWriter
+
 	// SBOMAttestationAttachmentWriter persists SBOM and attestation document
 	// attachment decisions for digest-keyed image evidence.
 	SBOMAttestationAttachmentWriter SBOMAttestationAttachmentWriter
@@ -299,6 +304,15 @@ func implementedDefaultDomainDefinitions(handlers DefaultHandlers) []DomainDefin
 			Instruments: handlers.Instruments,
 		}
 		definitions = append(definitions, serviceCatalog)
+	}
+	if handlers.FactLoader != nil && handlers.ObservabilityCoverageCorrelationWriter != nil {
+		observability := observabilityCoverageCorrelationDomainDefinition()
+		observability.Handler = ObservabilityCoverageCorrelationHandler{
+			FactLoader:  handlers.FactLoader,
+			Writer:      handlers.ObservabilityCoverageCorrelationWriter,
+			Instruments: handlers.Instruments,
+		}
+		definitions = append(definitions, observability)
 	}
 	if handlers.FactLoader != nil && handlers.SBOMAttestationAttachmentWriter != nil {
 		attachments := sbomAttestationAttachmentDomainDefinition()

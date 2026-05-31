@@ -33,8 +33,8 @@ defines claim input, target scope, resource limits, source fact output,
 retry/dead-letter payloads, telemetry names, Compose wiring, and an opt-in Helm
 Deployment. The built-in warning analyzer proves source-fact emission without
 claiming a target is clean. The bounded `sbom_generation` analyzer emits
-CycloneDX-compatible SBOM source facts when a runtime-owned source is wired and
-otherwise emits an explicit warning. The `os_package_extraction` analyzer
+CycloneDX-compatible SBOM source facts from configured repository manifest
+targets and otherwise emits an explicit warning. The `os_package_extraction` analyzer
 parses configured, already-extracted Alpine or Debian rootfs metadata into
 `vulnerability.os_package` and `vulnerability.warning` source facts without
 matching advisories or publishing findings.
@@ -113,6 +113,8 @@ implemented:
 | Source family | Current state |
 | --- | --- |
 | Kubernetes live | No hosted collector runtime or charted workload. |
+| Concrete scanner analyzers | The `eshu-scanner-worker` runtime, warning analyzer, configured repository-manifest `sbom_generation` source, `os_package_extraction` rootfs parser, Compose service, and opt-in Helm Deployment exist. Additional image, secret, license, source, and misconfiguration analyzers are not enabled by default until target count, fact count, runtime, CPU, memory, queue state, retry count, dead-letter count, pprof, and reducer/API truth are proven in the target environment. |
+| Kubernetes live | Foundation only: `eshu-collector-kubernetes-live` lists a read-only core resource set (namespaces, pods, deployments, replicasets, services, ingresses) and emits `kubernetes_live.pod_template`, `kubernetes_live.relationship`, and `kubernetes_live.warning` source facts through `collector.Service`. No claim-driven runtime, watch mode, reducer projection, drift read model, or charted workload yet; the #388 correlation/drift work and Helm path remain pending. |
 | Concrete scanner analyzers | The `eshu-scanner-worker` runtime, warning analyzer, bounded `sbom_generation` fallback, `os_package_extraction` rootfs parser, Compose service, and opt-in Helm Deployment exist. Concrete analyzers are not enabled by default until target count, fact count, runtime, CPU, memory, queue state, retry count, dead-letter count, pprof, and reducer/API truth are proven in the target environment. |
 | CI/CD runs | Fixture normalizer and reducer correlation exist; hosted provider polling is not a deployed lane. |
 | Service catalog, observability, incident/change correlation, secrets/IAM posture, GCP, Azure, multi-cloud | Design or research only for deployed collector readiness. PagerDuty source facts exist, but incident-to-runtime, image, commit, pull-request, and work-item correlation remains gated. |

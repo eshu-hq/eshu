@@ -1,0 +1,35 @@
+# Partial/degraded Backstage manifest. Each document exercises a warning path
+# without aborting the whole file.
+# Document 1: unsupported descriptor apiVersion. Minimally parseable, so the
+# entity is still emitted alongside an unsupported_descriptor_version warning.
+apiVersion: backstage.io/v9unknown
+kind: Component
+metadata:
+  name: future-shape
+spec:
+  type: service
+  lifecycle: production
+  owner: team-future
+---
+# Document 2: missing metadata.name. Cannot anchor an entity_ref, so it is
+# skipped with an invalid_ref warning, never a silent drop.
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  title: Anonymous
+spec:
+  type: service
+  owner: team-anon
+---
+# Document 3: a Resource kind with a token-bearing operational link that must
+# be redacted, emitting an operational_link_redacted warning.
+apiVersion: backstage.io/v1alpha1
+kind: Resource
+metadata:
+  name: payments-db
+  links:
+    - url: https://dashboards.example.com/db?token=topsecret
+      title: DB Dashboard
+spec:
+  type: database
+  owner: team-payments

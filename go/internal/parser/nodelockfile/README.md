@@ -13,8 +13,8 @@ do not need to learn about the underlying lockfile flavor.
 ## Ownership boundary
 
 This package owns Yarn classic, Yarn Berry, and pnpm lockfile decoding,
-dependency-chain reconstruction across importer-to-package edges, scope
-distinctions (`runtime`, `dev`, `optional`, `peer`), the package-manager
+dependency-chain reconstruction across importer-to-package edges, pnpm importer
+scope distinctions (`runtime`, `dev`, `optional`, `peer`), the package-manager
 flavor label (`yarn`, `pnpm`), and the workspace/file/link/portal exclusion
 that keeps local code out of remote-evidence rows. It does not own parser
 dispatch (parent engine), npm `package.json` or `package-lock.json` parsing
@@ -63,6 +63,9 @@ Every emitted row carries:
   chain evidence reconstructed from package-to-package dependency edges.
 - `lockfile_resolution_protocol` and `lockfile_unsupported_feature` for
   Yarn Berry rows that resolve through non-npm protocols (`patch:`, etc.).
+  Unsupported protocol rows use `config_kind: "unsupported_dependency"` so
+  they remain visible as audit evidence without entering precise consumption
+  truth.
 
 ## Invariants
 
@@ -70,6 +73,9 @@ Every emitted row carries:
   remote-package rows. The lockfile does not prove a registry identity
   for those entries, and treating them as remote would invent false
   positives in vulnerability impact.
+- Yarn lockfiles do not carry an importer table, so Yarn rows preserve exact
+  versions and dependency chains but do not claim runtime, dev, optional, or
+  peer manifest scope without a paired manifest fact.
 - Malformed or empty lockfiles MUST set `lockfile_parse_state` and emit
   zero dependency rows so missing evidence stays visible to readiness.
 - Row order MUST be deterministic so downstream fact dedupe and reducer

@@ -174,15 +174,15 @@ jq -e '.state.scanner_worker_limits.ESHU_SCANNER_WORKER_MAX_FACTS == "50000"' "$
 jq -e '.pass == true' "${state_file}" >/dev/null \
     || { printf 'evidence.pass was not true on offline run\n' >&2; exit 1; }
 [ -s "${repo1}/_evidence/evidence.md" ] || { printf 'evidence.md missing in case1\n' >&2; exit 1; }
-grep -q "Security Intelligence Release Gate" "${repo1}/_evidence/evidence.md" \
+rg --fixed-strings --quiet -- "Security Intelligence Release Gate" "${repo1}/_evidence/evidence.md" \
     || { printf 'evidence.md missing title in case1\n' >&2; exit 1; }
-grep -q "v0.0.3-pre-release-9" "${repo1}/_evidence/evidence.md" \
+rg --fixed-strings --quiet -- "v0.0.3-pre-release-9" "${repo1}/_evidence/evidence.md" \
     || { printf 'evidence.md missing image tag candidate in case1\n' >&2; exit 1; }
 
 # --- Test 2: unknown phase fails fast with a clear message.
 repo2="$(init_fake_repo case2 --scanner-worker)"
 expect_fail "${repo2}" --phases bogus
-grep -q 'unknown phase: bogus' "${repo2}/_gate.err" \
+rg --fixed-strings --quiet -- 'unknown phase: bogus' "${repo2}/_gate.err" \
     || { printf 'expected unknown-phase error in case2\n' >&2; exit 1; }
 
 # --- Test 3: provider phase refuses to record private data.
@@ -190,7 +190,7 @@ repo3="$(init_fake_repo case3 --scanner-worker --with-private)"
 expect_fail "${repo3}" \
     --phases state,provider \
     --provider-compare "${repo3}/private-compare.json"
-grep -q "private data" "${repo3}/_gate.err" \
+rg --fixed-strings --quiet -- "private data" "${repo3}/_gate.err" \
     || { printf 'expected private-data rejection in case3\n' >&2; exit 1; }
 
 # --- Test 4: provider phase accepts a bounded aggregate-only payload.
@@ -217,14 +217,14 @@ rm "${repo5}/deploy/helm/eshu/Chart.yaml"
 git -C "${repo5}" add -A
 git -C "${repo5}" commit -q -m "drop chart"
 expect_fail "${repo5}" --phases state
-grep -q "Chart.yaml" "${repo5}/_gate.err" \
+rg --fixed-strings --quiet -- "Chart.yaml" "${repo5}/_gate.err" \
     || { printf 'expected Chart.yaml error in case5\n' >&2; exit 1; }
 
 # --- Test 6: runtime/k8s phases noop without endpoints/namespace but state
 # still passes when explicitly requested as additional phases.
 repo6="$(init_fake_repo case6 --scanner-worker)"
 expect_fail "${repo6}" --phases state,runtime
-grep -q "runtime phase requires" "${repo6}/_gate.err" \
+rg --fixed-strings --quiet -- "runtime phase requires" "${repo6}/_gate.err" \
     || { printf 'expected runtime requirement message in case6\n' >&2; exit 1; }
 
 # --- Test 7: runtime phase fails closed when endpoints error and writes
@@ -250,10 +250,13 @@ jq -e '.runtime.endpoints_failed > 0' "${ev7}" >/dev/null \
     || { printf 'runtime.endpoints_failed not surfaced in case7\n' >&2; exit 1; }
 [ -d "${repo7}/_evidence/runtime-readback" ] \
     || { printf 'runtime-readback/ directory missing in case7\n' >&2; exit 1; }
-ls "${repo7}/_evidence/runtime-readback/" | grep -q '_api_v0_index-status.json' \
+rg --files "${repo7}/_evidence/runtime-readback" | rg --fixed-strings --quiet -- '_api_v0_index-status.json' \
     || { printf 'expected index-status readback file under runtime-readback/ in case7\n' >&2; exit 1; }
 # No body files should leak outside runtime-readback/ (path-separator bug).
-leaked="$(ls "${repo7}/_evidence/" 2>/dev/null | grep -c '^runtime-readback_' || true)"
+shopt -s nullglob
+leaked_files=("${repo7}/_evidence"/runtime-readback_*)
+shopt -u nullglob
+leaked="${#leaked_files[@]}"
 if [ "${leaked}" != "0" ]; then
     printf 'readback files leaked outside runtime-readback/ (count=%s) in case7\n' "${leaked}" >&2
     exit 1

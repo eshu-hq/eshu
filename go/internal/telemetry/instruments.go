@@ -70,6 +70,10 @@ type Instruments struct {
 	OCIRegistryTagsObserved                   metric.Int64Counter
 	OCIRegistryManifestsObserved              metric.Int64Counter
 	OCIRegistryReferrersObserved              metric.Int64Counter
+	KubernetesLiveAPICalls                    metric.Int64Counter
+	KubernetesLiveResourcesListed             metric.Int64Counter
+	KubernetesLiveFactsEmitted                metric.Int64Counter
+	KubernetesLiveWarnings                    metric.Int64Counter
 	PackageRegistryRequests                   metric.Int64Counter
 	PackageRegistryFactsEmitted               metric.Int64Counter
 	PackageRegistryRateLimited                metric.Int64Counter
@@ -91,8 +95,16 @@ type Instruments struct {
 	ContainerImageIdentityDecisions           metric.Int64Counter
 	CICDRunCorrelations                       metric.Int64Counter
 	ServiceCatalogCorrelations                metric.Int64Counter
-	SBOMAttestationAttachments                metric.Int64Counter
-	SupplyChainImpactFindings                 metric.Int64Counter
+	// ObservabilityCoverageCorrelations counts reducer-owned observability
+	// coverage correlation decisions (issue #391). Labels: domain
+	// (observability_coverage_correlation), outcome (exact / derived / ambiguous /
+	// unresolved / stale / rejected), and coverage_signal (alarm /
+	// composite_alarm / dashboard / log_group / trace_sampling). It lets an
+	// operator answer "which observability signal class is losing coverage, and is
+	// it a gap, an ambiguous match, or a rejected weak signal?" at 3 AM.
+	ObservabilityCoverageCorrelations metric.Int64Counter
+	SBOMAttestationAttachments        metric.Int64Counter
+	SupplyChainImpactFindings         metric.Int64Counter
 	// SupplyChainSuppressionDecisions counts reducer suppression-state
 	// outcomes per supply-chain impact finding. Labels: domain
 	// (supply_chain_impact) and outcome (one of active, not_affected,
@@ -265,6 +277,7 @@ type Instruments struct {
 	TerraformStateSnapshotBytes            metric.Int64Histogram
 	TerraformStateParseDuration            metric.Float64Histogram
 	OCIRegistryScanDuration                metric.Float64Histogram
+	KubernetesLiveListDuration             metric.Float64Histogram
 	PackageRegistryObserveDuration         metric.Float64Histogram
 	PackageRegistryGenerationLag           metric.Float64Histogram
 	VulnerabilityIntelligenceFetchDuration metric.Float64Histogram
@@ -584,6 +597,38 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 		return nil, fmt.Errorf("register OCIRegistryReferrersObserved counter: %w", err)
 	}
 
+	inst.KubernetesLiveAPICalls, err = meter.Int64Counter(
+		"eshu_dp_kubernetes_api_calls_total",
+		metric.WithDescription("Total Kubernetes live API calls by operation and result"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register KubernetesLiveAPICalls counter: %w", err)
+	}
+
+	inst.KubernetesLiveResourcesListed, err = meter.Int64Counter(
+		"eshu_dp_kubernetes_resources_listed_total",
+		metric.WithDescription("Total Kubernetes live resources listed by resource scope and result"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register KubernetesLiveResourcesListed counter: %w", err)
+	}
+
+	inst.KubernetesLiveFactsEmitted, err = meter.Int64Counter(
+		"eshu_dp_kubernetes_facts_emitted_total",
+		metric.WithDescription("Total Kubernetes live facts emitted by fact kind"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register KubernetesLiveFactsEmitted counter: %w", err)
+	}
+
+	inst.KubernetesLiveWarnings, err = meter.Int64Counter(
+		"eshu_dp_kubernetes_warnings_total",
+		metric.WithDescription("Total Kubernetes live warnings emitted by reason"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register KubernetesLiveWarnings counter: %w", err)
+	}
+
 	inst.PackageRegistryRequests, err = meter.Int64Counter(
 		"eshu_dp_package_registry_requests_total",
 		metric.WithDescription("Total package registry metadata requests by ecosystem and status class"),
@@ -750,6 +795,14 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register ServiceCatalogCorrelations counter: %w", err)
+	}
+
+	inst.ObservabilityCoverageCorrelations, err = meter.Int64Counter(
+		"eshu_dp_observability_coverage_correlations_total",
+		metric.WithDescription("Total observability coverage correlation decisions by reducer domain, outcome, and coverage signal"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register ObservabilityCoverageCorrelations counter: %w", err)
 	}
 
 	inst.SBOMAttestationAttachments, err = meter.Int64Counter(
@@ -1091,6 +1144,17 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register OCIRegistryScanDuration histogram: %w", err)
+	}
+
+	kubernetesLiveListBuckets := []float64{0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60, 120}
+	inst.KubernetesLiveListDuration, err = meter.Float64Histogram(
+		"eshu_dp_kubernetes_list_duration_seconds",
+		metric.WithDescription("Kubernetes live resource list duration by resource scope"),
+		metric.WithUnit("s"),
+		metric.WithExplicitBucketBoundaries(kubernetesLiveListBuckets...),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register KubernetesLiveListDuration histogram: %w", err)
 	}
 
 	packageRegistryBuckets := []float64{0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60}
@@ -2044,6 +2108,13 @@ func AttrJoinMode(v string) attribute.KeyValue {
 	return attribute.String(MetricDimensionJoinMode, v)
 }
 
+// AttrCoverageSignal returns a coverage_signal attribute for the observability
+// coverage correlation counter (alarm / composite_alarm / dashboard / log_group
+// / trace_sampling).
+func AttrCoverageSignal(v string) attribute.KeyValue {
+	return attribute.String(MetricDimensionCoverageSignal, v)
+}
+
 // AttrWritePhase returns a write_phase attribute for canonical phase metrics.
 func AttrWritePhase(v string) attribute.KeyValue {
 	return attribute.String(MetricDimensionWritePhase, v)
@@ -2107,6 +2178,18 @@ func AttrFailureClass(v string) attribute.KeyValue {
 // AttrOperation returns an operation attribute for metric recording.
 func AttrOperation(v string) attribute.KeyValue {
 	return attribute.String(MetricDimensionOperation, v)
+}
+
+// AttrResourceScope returns a resource_scope attribute for Kubernetes live
+// metrics. The value must be a bounded resource family, never namespace or
+// object names.
+func AttrResourceScope(v string) attribute.KeyValue {
+	return attribute.String(MetricDimensionResourceScope, v)
+}
+
+// AttrFactKind returns a fact_kind attribute for metric recording.
+func AttrFactKind(v string) attribute.KeyValue {
+	return attribute.String(MetricDimensionFactKind, v)
 }
 
 // AttrStatusClass returns a status_class attribute for metric recording.

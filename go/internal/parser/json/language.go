@@ -110,9 +110,7 @@ func Parse(
 	case !shouldSkipJSONEntities(filename):
 		switch {
 		case filename == "package.json":
-			payload["variables"] = dependencyVariables(object, languageName, "dependencies", "npm", topLevelEntries)
-			devVariables := dependencyVariables(object, languageName, "devDependencies", "npm", topLevelEntries)
-			payload["variables"] = append(payload["variables"].([]map[string]any), devVariables...)
+			payload["variables"] = packageJSONDependencyVariables(object, languageName, topLevelEntries)
 			payload["functions"] = jsonScriptFunctions(object, languageName, topLevelEntries)
 		case filename == "composer.json":
 			payload["variables"] = dependencyVariables(object, languageName, "require", "composer", topLevelEntries)
@@ -127,6 +125,37 @@ func Parse(
 		payload["source"] = string(source)
 	}
 	return payload, nil
+}
+
+func packageJSONDependencyVariables(
+	document map[string]any,
+	lang string,
+	topLevelEntries []orderedJSONEntry,
+) []map[string]any {
+	sections := []struct {
+		name  string
+		scope string
+		dev   bool
+	}{
+		{name: "dependencies", scope: "runtime"},
+		{name: "devDependencies", scope: "dev", dev: true},
+		{name: "optionalDependencies", scope: "optional"},
+		{name: "peerDependencies", scope: "peer"},
+	}
+	rows := make([]map[string]any, 0)
+	for _, section := range sections {
+		sectionRows := dependencyVariablesWithScope(
+			document,
+			lang,
+			section.name,
+			"npm",
+			topLevelEntries,
+			section.scope,
+			section.dev,
+		)
+		rows = append(rows, sectionRows...)
+	}
+	return rows
 }
 
 func jsonBasePayload(path string, isDependency bool) map[string]any {
@@ -216,6 +245,18 @@ func dependencyVariables(
 	packageManager string,
 	topLevelEntries []orderedJSONEntry,
 ) []map[string]any {
+	return dependencyVariablesWithScope(document, lang, section, packageManager, topLevelEntries, "", false)
+}
+
+func dependencyVariablesWithScope(
+	document map[string]any,
+	lang string,
+	section string,
+	packageManager string,
+	topLevelEntries []orderedJSONEntry,
+	dependencyScope string,
+	developmentDependency bool,
+) []map[string]any {
 	raw, ok := document[section].(map[string]any)
 	if !ok {
 		return []map[string]any{}
@@ -224,7 +265,7 @@ func dependencyVariables(
 	rows := make([]map[string]any, 0, len(raw))
 	lineNumber := 1
 	for _, name := range orderedJSONSectionKeys(topLevelEntries, section, raw) {
-		rows = append(rows, map[string]any{
+		row := map[string]any{
 			"name":            name,
 			"line_number":     lineNumber,
 			"value":           fmt.Sprint(raw[name]),
@@ -232,7 +273,12 @@ func dependencyVariables(
 			"config_kind":     "dependency",
 			"package_manager": packageManager,
 			"lang":            lang,
-		})
+		}
+		if dependencyScope != "" {
+			row["dependency_scope"] = dependencyScope
+			row["development_dependency"] = developmentDependency
+		}
+		rows = append(rows, row)
 		lineNumber++
 	}
 	return rows

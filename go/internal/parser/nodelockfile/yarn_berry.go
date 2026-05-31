@@ -120,6 +120,7 @@ func parseYarnBerryLockfile(source []byte, payload map[string]any) []map[string]
 		}
 		if p.unsupported != "" {
 			row["lockfile_unsupported_feature"] = p.unsupported
+			row["config_kind"] = "unsupported_dependency"
 		}
 		rows = append(rows, row)
 	}

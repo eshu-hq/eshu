@@ -91,6 +91,39 @@ func TestLoadRuntimeConfigSelectsSBOMGenerationAnalyzer(t *testing.T) {
 	}
 }
 
+func TestLoadRuntimeConfigParsesSBOMTargets(t *testing.T) {
+	t.Parallel()
+
+	env := map[string]string{
+		envCollectorInstances: `[{
+			"instance_id":"scanner-worker-sbom",
+			"collector_kind":"scanner_worker",
+			"mode":"continuous",
+			"enabled":true,
+			"claims_enabled":true,
+			"configuration":{
+				"analyzer":"sbom_generation",
+				"sbom_targets":[{
+					"scope_id":"scanner-worker://repository/repo-private-name",
+					"root_path":"/var/lib/eshu/scanner/repositories/repo-private-name",
+					"subject_digest":"sha256:1111111111111111111111111111111111111111111111111111111111111111"
+				}]
+			}
+		}]`,
+	}
+
+	config, err := loadRuntimeConfig(func(key string) string { return env[key] })
+	if err != nil {
+		t.Fatalf("loadRuntimeConfig() error = %v, want nil", err)
+	}
+	if got, want := len(config.SBOMTargets), 1; got != want {
+		t.Fatalf("SBOMTargets len = %d, want %d", got, want)
+	}
+	if got, want := config.SBOMTargets[0].SubjectDigest, "sha256:1111111111111111111111111111111111111111111111111111111111111111"; got != want {
+		t.Fatalf("SubjectDigest = %q, want %q", got, want)
+	}
+}
+
 func TestBuildAnalyzerUsesSBOMGenerationFallbackWarning(t *testing.T) {
 	t.Parallel()
 

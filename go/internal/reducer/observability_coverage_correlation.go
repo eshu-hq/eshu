@@ -1,0 +1,228 @@
+package reducer
+
+import (
+	"context"
+	"fmt"
+
+	"go.opentelemetry.io/otel/metric"
+
+	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
+)
+
+// ObservabilityCoverageCorrelationOutcome names the reducer decision for one
+// observability coverage candidate. The six values are the issue #391 contract
+// and mirror ServiceCatalogCorrelationOutcome (#390) exactly so callers reuse one
+// outcome vocabulary across reducer correlation domains.
+type ObservabilityCoverageCorrelationOutcome string
+
+const (
+	// ObservabilityCoverageExact means an observability object resolved to a
+	// CloudResource target by a stable identity (ARN or bare resource id), so the
+	// coverage is canonical truth, not provenance.
+	ObservabilityCoverageExact ObservabilityCoverageCorrelationOutcome = "exact"
+	// ObservabilityCoverageDerived means coverage is real but inferred through
+	// deterministic normalization or a name-only anchor (such as an X-Ray service
+	// name) rather than an exact resource identity.
+	ObservabilityCoverageDerived ObservabilityCoverageCorrelationOutcome = "derived"
+	// ObservabilityCoverageAmbiguous means an observability object's target
+	// identity matched multiple active CloudResource nodes; no single target is
+	// picked and candidates are recorded.
+	ObservabilityCoverageAmbiguous ObservabilityCoverageCorrelationOutcome = "ambiguous"
+	// ObservabilityCoverageUnresolved means the observability object is valid but
+	// its target is not present as a CloudResource in this generation, or a
+	// monitored resource has no resolving observability object (the coverage gap).
+	ObservabilityCoverageUnresolved ObservabilityCoverageCorrelationOutcome = "unresolved"
+	// ObservabilityCoverageStale means the observability object resolved only to a
+	// tombstoned resource fact (a lingering alarm over a deleted resource — a real
+	// drift signal).
+	ObservabilityCoverageStale ObservabilityCoverageCorrelationOutcome = "stale"
+	// ObservabilityCoverageRejected means the signal is too weak or unsafe to
+	// promote, such as a metric-name-only alarm with no resolvable resource
+	// dimension. Rejected decisions are suppressed, never promoted to covered.
+	ObservabilityCoverageRejected ObservabilityCoverageCorrelationOutcome = "rejected"
+)
+
+// ObservabilityCoverageCorrelationDecision records one bounded observability
+// coverage decision: either a coverage edge candidate (observability object →
+// monitored target) or a gap finding keyed on an uncovered target. Fields carry
+// IDs and classifications only; no metric values or dashboard body JSON are ever
+// ingested, so the "no health assertions from telemetry values" contract holds
+// structurally.
+type ObservabilityCoverageCorrelationDecision struct {
+	Provider               string
+	CoverageSignal         string
+	ObservabilityObjectRef string
+	ObservabilityUID       string
+	TargetUID              string
+	TargetServiceRef       string
+	Outcome                ObservabilityCoverageCorrelationOutcome
+	Reason                 string
+	CoverageStatus         string
+	ProvenanceOnly         bool
+	ResolutionMode         string
+	CandidateTargetUIDs    []string
+	EvidenceFactIDs        []string
+}
+
+// ObservabilityCoverageCorrelationWrite carries decisions for durable
+// publication for one scope generation.
+type ObservabilityCoverageCorrelationWrite struct {
+	IntentID     string
+	ScopeID      string
+	GenerationID string
+	SourceSystem string
+	Cause        string
+	Decisions    []ObservabilityCoverageCorrelationDecision
+}
+
+// ObservabilityCoverageCorrelationWriteResult summarizes durable coverage writes.
+type ObservabilityCoverageCorrelationWriteResult struct {
+	FactsWritten    int
+	EvidenceSummary string
+}
+
+// ObservabilityCoverageCorrelationWriter persists reducer-owned observability
+// coverage correlations. Implementations MUST be idempotent by the decision's
+// stable identity so reducer retries and duplicate facts converge on one fact.
+type ObservabilityCoverageCorrelationWriter interface {
+	WriteObservabilityCoverageCorrelations(context.Context, ObservabilityCoverageCorrelationWrite) (ObservabilityCoverageCorrelationWriteResult, error)
+}
+
+// ObservabilityCoverageCorrelationHandler correlates which monitored
+// CloudResource nodes have observability coverage (CloudWatch alarms,
+// dashboards, log groups, X-Ray) versus which are uncovered, emitting durable
+// provenance-only reducer facts. It writes no graph edges: the optional COVERS
+// edge is a later gated PR. See issue #391 for the design.
+type ObservabilityCoverageCorrelationHandler struct {
+	FactLoader  FactLoader
+	Writer      ObservabilityCoverageCorrelationWriter
+	Instruments *telemetry.Instruments
+}
+
+// Handle executes one observability coverage correlation reducer intent. It
+// loads the scope generation's aws_resource and aws_relationship facts, builds a
+// bounded in-memory coverage index, classifies each observability object into
+// one of the six outcomes plus gap findings for uncovered targets, and writes
+// durable provenance-only facts.
+func (h ObservabilityCoverageCorrelationHandler) Handle(ctx context.Context, intent Intent) (Result, error) {
+	if intent.Domain != DomainObservabilityCoverageCorrelation {
+		return Result{}, fmt.Errorf("observability_coverage_correlation handler does not accept domain %q", intent.Domain)
+	}
+	if h.FactLoader == nil {
+		return Result{}, fmt.Errorf("observability coverage correlation fact loader is required")
+	}
+	if h.Writer == nil {
+		return Result{}, fmt.Errorf("observability coverage correlation writer is required")
+	}
+
+	envelopes, err := loadFactsForKinds(ctx, h.FactLoader, intent.ScopeID, intent.GenerationID, observabilityCoverageCorrelationFactKinds())
+	if err != nil {
+		return Result{}, fmt.Errorf("load observability coverage correlation facts: %w", err)
+	}
+
+	decisions := BuildObservabilityCoverageDecisions(envelopes)
+	counts := observabilityCoverageCounts(decisions)
+	writeResult, err := h.Writer.WriteObservabilityCoverageCorrelations(ctx, ObservabilityCoverageCorrelationWrite{
+		IntentID:     intent.IntentID,
+		ScopeID:      intent.ScopeID,
+		GenerationID: intent.GenerationID,
+		SourceSystem: intent.SourceSystem,
+		Cause:        intent.Cause,
+		Decisions:    decisions,
+	})
+	if err != nil {
+		return Result{}, fmt.Errorf("write observability coverage correlations: %w", err)
+	}
+	h.emitCounters(ctx, decisions)
+
+	return Result{
+		IntentID:        intent.IntentID,
+		Domain:          DomainObservabilityCoverageCorrelation,
+		Status:          ResultStatusSucceeded,
+		EvidenceSummary: observabilityCoverageSummary(len(decisions), counts, writeResult.FactsWritten),
+		CanonicalWrites: writeResult.FactsWritten,
+	}, nil
+}
+
+// emitCounters records the ObservabilityCoverageCorrelations counter dimensioned
+// by domain, outcome, and coverage_signal so an operator can answer which signal
+// class (alarm / log_group / trace_sampling …) is losing coverage at 3 AM.
+func (h ObservabilityCoverageCorrelationHandler) emitCounters(
+	ctx context.Context,
+	decisions []ObservabilityCoverageCorrelationDecision,
+) {
+	if h.Instruments == nil || h.Instruments.ObservabilityCoverageCorrelations == nil {
+		return
+	}
+	type signalOutcome struct {
+		signal  string
+		outcome ObservabilityCoverageCorrelationOutcome
+	}
+	counts := make(map[signalOutcome]int, len(decisions))
+	for _, decision := range decisions {
+		counts[signalOutcome{decision.CoverageSignal, decision.Outcome}]++
+	}
+	for key, count := range counts {
+		h.Instruments.ObservabilityCoverageCorrelations.Add(ctx, int64(count), metric.WithAttributes(
+			telemetry.AttrDomain(string(DomainObservabilityCoverageCorrelation)),
+			telemetry.AttrOutcome(string(key.outcome)),
+			telemetry.AttrCoverageSignal(key.signal),
+		))
+	}
+}
+
+// BuildObservabilityCoverageDecisions classifies observability coverage without
+// fabricating a covered edge from name coincidence or a metric-name-only signal.
+// It is a pure function over fact envelopes (no I/O) so the six-outcome contract
+// is table-test friendly.
+func BuildObservabilityCoverageDecisions(envelopes []facts.Envelope) []ObservabilityCoverageCorrelationDecision {
+	index := buildObservabilityCoverageIndex(envelopes)
+	return classifyObservabilityCoverage(index)
+}
+
+func observabilityCoverageCorrelationFactKinds() []string {
+	return []string{
+		facts.AWSResourceFactKind,
+		facts.AWSRelationshipFactKind,
+	}
+}
+
+func observabilityCoverageOutcomes() []ObservabilityCoverageCorrelationOutcome {
+	return []ObservabilityCoverageCorrelationOutcome{
+		ObservabilityCoverageExact,
+		ObservabilityCoverageDerived,
+		ObservabilityCoverageAmbiguous,
+		ObservabilityCoverageUnresolved,
+		ObservabilityCoverageStale,
+		ObservabilityCoverageRejected,
+	}
+}
+
+func observabilityCoverageCounts(
+	decisions []ObservabilityCoverageCorrelationDecision,
+) map[ObservabilityCoverageCorrelationOutcome]int {
+	counts := make(map[ObservabilityCoverageCorrelationOutcome]int, len(observabilityCoverageOutcomes()))
+	for _, decision := range decisions {
+		counts[decision.Outcome]++
+	}
+	return counts
+}
+
+func observabilityCoverageSummary(
+	evaluated int,
+	counts map[ObservabilityCoverageCorrelationOutcome]int,
+	factsWritten int,
+) string {
+	return fmt.Sprintf(
+		"observability coverage correlation evaluated=%d exact=%d derived=%d ambiguous=%d unresolved=%d stale=%d rejected=%d facts_written=%d",
+		evaluated,
+		counts[ObservabilityCoverageExact],
+		counts[ObservabilityCoverageDerived],
+		counts[ObservabilityCoverageAmbiguous],
+		counts[ObservabilityCoverageUnresolved],
+		counts[ObservabilityCoverageStale],
+		counts[ObservabilityCoverageRejected],
+		factsWritten,
+	)
+}

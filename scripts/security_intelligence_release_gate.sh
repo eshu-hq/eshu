@@ -332,7 +332,7 @@ run_phase_provider() {
     fi
     # Refuse anything that looks like private data. Only aggregate totals + a
     # synthetic comparison id are accepted into evidence.
-    if printf '%s' "${raw}" | grep -Eq \
+    if printf '%s' "${raw}" | rg --quiet \
         'ghp_|github_pat_|glpat-|https?://[^"]*github\.com|https?://[^"]*gitlab\.com|/security/dependabot|"package_name"|"alert_url"|"repository"|"installation"'; then
         die "provider-compare looks like private data; only aggregate totals are accepted"
     fi

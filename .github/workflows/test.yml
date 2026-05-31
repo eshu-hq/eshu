@@ -41,6 +41,9 @@ jobs:
           scripts/test-verify-package-docs.sh
           scripts/verify-package-docs.sh
 
+      - name: Verify vulnerability parity fixtures
+        run: scripts/verify_vulnerability_parity_fixtures.sh
+
       - name: Install golangci-lint
         run: go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.11.4
 

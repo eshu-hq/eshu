@@ -303,6 +303,19 @@ worker disabled unless `workflowCoordinator.enabled=true`,
 `workflowCoordinator.claimsEnabled=true`; the chart rejects a scanner-worker
 Deployment without that claim control plane.
 
+The first concrete `sbom_generation` source in `eshu-scanner-worker` is a
+repository-manifest source configured through the selected `scanner_worker`
+collector instance's `configuration.sbom_targets[]`. Each target maps a
+scanner-worker `scope_id` to a runtime-local `root_path` and optional
+`subject_digest`. The source walks the repository under the claim's file and
+byte budgets, skips common dependency/cache directories, reads
+`package-lock.json`, `npm-shrinkwrap.json`, and `go.mod`, and emits
+CycloneDX-compatible `sbom.document`, `sbom.component`, and `sbom.warning`
+source facts. It does not match advisories or publish findings. Missing
+components still produce a document plus `sbom.warning`, not a silent clean
+claim. Runtime-local repository paths stay out of retry, dead-letter, metric,
+log, and public read payloads.
+
 ## Scanner Observability
 
 The hosted scanner-worker service records these signals:
@@ -328,13 +341,13 @@ retrying transiently, or dead-lettering terminally without reading raw target
 names.
 
 No-Regression Evidence: scanner-worker runtime behavior is covered by
-`go test ./internal/collector/scannerworker ./cmd/scanner-worker ./internal/runtime -run 'Test(Service|DefaultResourceLimits|WarningAnalyzer|LoadRuntimeConfig|ScannerWorkerBinary|RemoteE2EComposeIncludesScannerWorker|HelmClaimDrivenCollectorDeployments)' -count=1`.
+`go test ./internal/collector/scannerworker ./internal/collector/scannerworker/sbomgenerator ./cmd/scanner-worker ./internal/runtime -run 'Test(Service|DefaultResourceLimits|WarningAnalyzer|Analyzer|LoadRuntimeConfig|RepositorySBOMSource|ScannerWorkerBinary|RemoteE2EComposeIncludesScannerWorker|HelmClaimDrivenCollectorDeployments)' -count=1`.
 That proof covers source fact emission, retryable analyzer failure, terminal
 dead-letter payloads, silent-clean rejection, resource-limit defaults, runtime
-config, binary packaging, Compose pprof wiring, and Helm rendering. Remote
-Compose acceptance still records target and fact counts, runtime, memory, CPU,
-queue state, retries, dead letters, and pprof availability before analyzer
-rollout.
+config, configured repository SBOM generation, binary packaging, Compose pprof
+wiring, and Helm rendering. Remote Compose acceptance still records target and
+fact counts, runtime, memory, CPU, queue state, retries, dead letters, and
+pprof availability before enabling additional analyzers by default.
 
 ## Readiness Semantics
 

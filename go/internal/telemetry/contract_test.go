@@ -42,6 +42,7 @@ func TestMetricDimensionKeys(t *testing.T) {
 		"status_class",
 		"failure_class",
 		"fact_kind",
+		"resource_scope",
 		"document_type",
 		"service",
 		"account",
@@ -56,6 +57,7 @@ func TestMetricDimensionKeys(t *testing.T) {
 		"resource_type",
 		"relationship_type",
 		"join_mode",
+		"coverage_signal",
 	}
 
 	got := MetricDimensionKeys()
@@ -152,6 +154,8 @@ func TestSpanNames(t *testing.T) {
 		"webhook.store",
 		"oci_registry.scan",
 		"oci_registry.api_call",
+		"kubernetes_live.snapshot",
+		"kubernetes_live.api_call",
 		"aws.collector.claim.process",
 		"aws.credentials.assume_role",
 		"aws.service.scan",

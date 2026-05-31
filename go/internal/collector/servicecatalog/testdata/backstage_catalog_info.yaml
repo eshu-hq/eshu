@@ -1,0 +1,69 @@
+# Multi-document Backstage catalog manifest used as offline producer input.
+# Document 1: a Component with an owner and an exact repository link via the
+# source-location annotation, plus a redactable operational link.
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: checkout-api
+  title: Checkout API
+  description: Handles checkout and payment orchestration.
+  annotations:
+    backstage.io/source-location: url:https://github.com/eshu-hq/checkout-api
+  tags:
+    - go
+    - tier-1
+  links:
+    - url: https://runbooks.example.com/checkout
+      title: Runbook
+    - url: https://events.pagerduty.com/integration?token=secret123
+      title: PagerDuty
+spec:
+  type: service
+  lifecycle: production
+  owner: team-payments
+  system: commerce
+  dependsOn:
+    - component:default/ledger
+    - resource:default/payments-db
+---
+# Document 2: a Component whose source-location matches a repo only after
+# git-URL canonicalization (.git suffix), exercising the derived outcome.
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: ledger
+  title: Ledger Service
+  annotations:
+    backstage.io/source-location: url:https://github.com/eshu-hq/ledger.git
+spec:
+  type: service
+  lifecycle: production
+  owner: group:default/team-finance
+---
+# Document 3: a Component with NO repository link evidence. Owner recorded as
+# provenance only; must classify unresolved, never minting service identity.
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: notifications
+  title: Notifications
+spec:
+  type: service
+  lifecycle: experimental
+  owner: team-platform
+---
+# Document 4: a name-only repository claim. The project-slug carries a bare repo
+# name with no host/URL and no canonical id, so the producer emits a
+# repository_link with repository_name only. The reducer must reject it: a
+# catalog name string cannot prove repository ownership.
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: search
+  title: Search
+  annotations:
+    backstage.io/project-slug: search
+spec:
+  type: service
+  lifecycle: production
+  owner: team-discovery

@@ -14,8 +14,8 @@
 // Workspace and file-protocol entries are intentionally NOT emitted as remote
 // package rows. Those entries do not prove a package/version identity the
 // vulnerability impact reducer can join to a registry advisory; treating them
-// as remote would invent a false positive. Malformed or unsupported lockfile
-// shapes are recorded through the lockfile_parse_state and
-// lockfile_unsupported_feature fields so readiness can surface evidence gaps
-// instead of returning nothing.
+// as remote would invent a false positive. Malformed lockfiles are recorded
+// through lockfile_parse_state, and unsupported Yarn Berry protocols are emitted
+// as audit-only unsupported_dependency rows with lockfile_unsupported_feature so
+// readiness can surface evidence gaps instead of returning nothing.
 package nodelockfile
