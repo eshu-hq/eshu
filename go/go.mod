@@ -15,6 +15,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/appflow v1.51.16
 	github.com/aws/aws-sdk-go-v2/service/appmesh v1.35.15
 	github.com/aws/aws-sdk-go-v2/service/apprunner v1.40.1
+	github.com/aws/aws-sdk-go-v2/service/appstream v1.60.1
 	github.com/aws/aws-sdk-go-v2/service/appsync v1.53.8
 	github.com/aws/aws-sdk-go-v2/service/athena v1.57.6
 	github.com/aws/aws-sdk-go-v2/service/autoscaling v1.66.3
@@ -24,6 +25,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/bedrockagent v1.54.1
 	github.com/aws/aws-sdk-go-v2/service/cloudformation v1.55.0
 	github.com/aws/aws-sdk-go-v2/service/cloudfront v1.64.0
+	github.com/aws/aws-sdk-go-v2/service/cloudhsmv2 v1.35.0
 	github.com/aws/aws-sdk-go-v2/service/cloudtrail v1.55.11
 	github.com/aws/aws-sdk-go-v2/service/cloudwatch v1.57.0
 	github.com/aws/aws-sdk-go-v2/service/cloudwatchlogs v1.73.0
@@ -35,7 +37,9 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/cognitoidentity v1.33.25
 	github.com/aws/aws-sdk-go-v2/service/cognitoidentityprovider v1.60.3
 	github.com/aws/aws-sdk-go-v2/service/configservice v1.48.1
+	github.com/aws/aws-sdk-go-v2/service/databasemigrationservice v1.63.2
 	github.com/aws/aws-sdk-go-v2/service/datasync v1.59.2
+	github.com/aws/aws-sdk-go-v2/service/dax v1.29.20
 	github.com/aws/aws-sdk-go-v2/service/detective v1.39.1
 	github.com/aws/aws-sdk-go-v2/service/directconnect v1.38.18
 	github.com/aws/aws-sdk-go-v2/service/directoryservice v1.38.19
@@ -66,6 +70,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/kafka v1.52.0
 	github.com/aws/aws-sdk-go-v2/service/keyspaces v1.26.1
 	github.com/aws/aws-sdk-go-v2/service/kinesis v1.43.8
+	github.com/aws/aws-sdk-go-v2/service/kinesisanalyticsv2 v1.38.1
 	github.com/aws/aws-sdk-go-v2/service/kinesisvideo v1.33.11
 	github.com/aws/aws-sdk-go-v2/service/kms v1.52.0
 	github.com/aws/aws-sdk-go-v2/service/lakeformation v1.47.10
@@ -78,9 +83,11 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/neptune v1.44.6
 	github.com/aws/aws-sdk-go-v2/service/neptunegraph v1.22.0
 	github.com/aws/aws-sdk-go-v2/service/networkfirewall v1.61.1
+	github.com/aws/aws-sdk-go-v2/service/networkmanager v1.42.2
 	github.com/aws/aws-sdk-go-v2/service/opensearch v1.70.1
 	github.com/aws/aws-sdk-go-v2/service/opensearchserverless v1.31.0
 	github.com/aws/aws-sdk-go-v2/service/organizations v1.51.3
+	github.com/aws/aws-sdk-go-v2/service/outposts v1.60.2
 	github.com/aws/aws-sdk-go-v2/service/ram v1.36.6
 	github.com/aws/aws-sdk-go-v2/service/rds v1.118.2
 	github.com/aws/aws-sdk-go-v2/service/redshift v1.62.8
@@ -105,7 +112,9 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/sts v1.33.20
 	github.com/aws/aws-sdk-go-v2/service/timestreamwrite v1.35.25
 	github.com/aws/aws-sdk-go-v2/service/transfer v1.72.2
+	github.com/aws/aws-sdk-go-v2/service/vpclattice v1.21.2
 	github.com/aws/aws-sdk-go-v2/service/wafv2 v1.71.6
+	github.com/aws/aws-sdk-go-v2/service/workspaces v1.68.3
 	github.com/aws/aws-sdk-go-v2/service/xray v1.36.25
 	github.com/aws/smithy-go v1.26.0
 	github.com/charmbracelet/bubbles v1.0.0
