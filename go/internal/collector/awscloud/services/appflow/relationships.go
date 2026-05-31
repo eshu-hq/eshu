@@ -28,14 +28,34 @@ func flowS3SourceRelationship(boundary awscloud.Boundary, flow Flow) *awscloud.R
 	)
 }
 
-// flowS3DestinationRelationship records a flow whose destination connector is
-// Amazon S3, targeting the destination bucket node. It returns nil when the
-// destination bucket is absent.
-func flowS3DestinationRelationship(boundary awscloud.Boundary, flow Flow) *awscloud.RelationshipObservation {
-	return flowS3Relationship(
-		boundary, flow, flow.DestinationS3Bucket,
-		awscloud.RelationshipAppFlowFlowWritesToS3Bucket, "destination",
-	)
+// flowS3DestinationRelationships records one edge per destination whose
+// connector is Amazon S3, targeting each destination bucket node by the
+// `arn:<partition>:s3:::<bucket>` identity the S3 scanner publishes. AppFlow
+// fan-out flows can write to several S3 buckets, so every S3 destination yields
+// its own edge. Buckets seen more than once collapse to a single edge so a
+// flow listing the same destination twice does not double-count. It returns nil
+// when no destination uses S3.
+func flowS3DestinationRelationships(boundary awscloud.Boundary, flow Flow) []awscloud.RelationshipObservation {
+	var observations []awscloud.RelationshipObservation
+	seen := make(map[string]struct{}, len(flow.Destinations))
+	for _, destination := range flow.Destinations {
+		bucket := strings.TrimSpace(destination.S3Bucket)
+		if bucket == "" {
+			continue
+		}
+		if _, ok := seen[bucket]; ok {
+			continue
+		}
+		seen[bucket] = struct{}{}
+		observation := flowS3Relationship(
+			boundary, flow, bucket,
+			awscloud.RelationshipAppFlowFlowWritesToS3Bucket, "destination",
+		)
+		if observation != nil {
+			observations = append(observations, *observation)
+		}
+	}
+	return observations
 }
 
 func flowS3Relationship(
@@ -72,23 +92,31 @@ func flowS3Relationship(
 
 // flowConnectorProfileRelationships records the flow's source and destination
 // connector profile dependencies, keyed by the connector profile name the
-// connector-profile scanner publishes as its resource_id. A flow may reference
-// the same profile for both its source and destination; that case collapses to
-// a single edge.
+// connector-profile scanner publishes as its resource_id. The source profile is
+// the scalar source-side reference; the destination profiles come from every
+// destination AppFlow reports, since a fan-out flow can target several
+// connector-profile destinations. A profile referenced more than once (source
+// and destination, or two destinations) collapses to a single edge.
 func flowConnectorProfileRelationships(boundary awscloud.Boundary, flow Flow) []awscloud.RelationshipObservation {
 	flowID := flowResourceID(flow)
 	if flowID == "" {
 		return nil
 	}
-	var observations []awscloud.RelationshipObservation
-	seen := make(map[string]struct{}, 2)
-	for _, candidate := range []struct {
+	candidates := []struct {
 		name      string
 		direction string
 	}{
 		{name: flow.SourceConnectorProfileName, direction: "source"},
-		{name: flow.DestinationConnectorProfileName, direction: "destination"},
-	} {
+	}
+	for _, destination := range flow.Destinations {
+		candidates = append(candidates, struct {
+			name      string
+			direction string
+		}{name: destination.ConnectorProfileName, direction: "destination"})
+	}
+	var observations []awscloud.RelationshipObservation
+	seen := make(map[string]struct{}, len(candidates))
+	for _, candidate := range candidates {
 		name := strings.TrimSpace(candidate.name)
 		if name == "" {
 			continue

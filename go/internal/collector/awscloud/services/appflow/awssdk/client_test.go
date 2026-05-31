@@ -107,6 +107,72 @@ func TestClientListFlowsMapsSafeMetadata(t *testing.T) {
 	}
 }
 
+// TestClientListFlowsCapturesEveryDestination pins that a flow with more than
+// one destination in DestinationFlowConfigList carries every destination
+// forward, not just the first. AppFlow supports fan-out flows (for example two
+// S3 buckets, or an S3 bucket plus a connector-profile destination); flattening
+// to a single destination would drop the additional destination's S3 and
+// connector-profile graph edges, leaving incomplete graph evidence.
+func TestClientListFlowsCapturesEveryDestination(t *testing.T) {
+	api := &fakeAPI{
+		flows: []awsappflowtypes.FlowDefinition{{
+			FlowArn:  aws.String("arn:aws:appflow:us-east-1:123456789012:flow/fanout"),
+			FlowName: aws.String("fanout"),
+		}},
+		describe: map[string]*awsappflow.DescribeFlowOutput{
+			"fanout": {
+				FlowArn: aws.String("arn:aws:appflow:us-east-1:123456789012:flow/fanout"),
+				DestinationFlowConfigList: []awsappflowtypes.DestinationFlowConfig{
+					{
+						ConnectorType: awsappflowtypes.ConnectorTypeS3,
+						DestinationConnectorProperties: &awsappflowtypes.DestinationConnectorProperties{
+							S3: &awsappflowtypes.S3DestinationProperties{BucketName: aws.String("primary-out")},
+						},
+					},
+					{
+						ConnectorType: awsappflowtypes.ConnectorTypeS3,
+						DestinationConnectorProperties: &awsappflowtypes.DestinationConnectorProperties{
+							S3: &awsappflowtypes.S3DestinationProperties{BucketName: aws.String("secondary-out")},
+						},
+					},
+					{
+						ConnectorType:        awsappflowtypes.ConnectorTypeSalesforce,
+						ConnectorProfileName: aws.String("salesforce-prod"),
+					},
+				},
+			},
+		},
+	}
+	client := &Client{client: api, boundary: testBoundary()}
+
+	flows, err := client.ListFlows(context.Background())
+	if err != nil {
+		t.Fatalf("ListFlows() error = %v", err)
+	}
+	if len(flows) != 1 {
+		t.Fatalf("ListFlows() returned %d flows, want 1", len(flows))
+	}
+	flow := flows[0]
+	if len(flow.Destinations) != 3 {
+		t.Fatalf("flow.Destinations length = %d, want 3 (every reported destination)", len(flow.Destinations))
+	}
+	wantBuckets := []string{"primary-out", "secondary-out", ""}
+	wantProfiles := []string{"", "", "salesforce-prod"}
+	for i, dest := range flow.Destinations {
+		if dest.S3Bucket != wantBuckets[i] {
+			t.Fatalf("Destinations[%d].S3Bucket = %q, want %q", i, dest.S3Bucket, wantBuckets[i])
+		}
+		if dest.ConnectorProfileName != wantProfiles[i] {
+			t.Fatalf("Destinations[%d].ConnectorProfileName = %q, want %q", i, dest.ConnectorProfileName, wantProfiles[i])
+		}
+	}
+	// The flattened summary fields still reflect the first destination for the
+	// resource attributes, preserving existing behaviour.
+	if flow.DestinationS3Bucket != "primary-out" {
+		t.Fatalf("DestinationS3Bucket = %q, want primary-out (first destination)", flow.DestinationS3Bucket)
+	}
+}
+
 func TestClientListConnectorProfilesForwardsOnlyCredentialARN(t *testing.T) {
 	api := &fakeAPI{
 		profiles: []awsappflowtypes.ConnectorProfile{{

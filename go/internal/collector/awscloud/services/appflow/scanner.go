@@ -72,12 +72,11 @@ func flowEnvelopes(boundary awscloud.Boundary, flow Flow) ([]facts.Envelope, err
 	}
 	envelopes := []facts.Envelope{resource}
 
-	relationships := []*awscloud.RelationshipObservation{
+	scalarRelationships := []*awscloud.RelationshipObservation{
 		flowS3SourceRelationship(boundary, flow),
-		flowS3DestinationRelationship(boundary, flow),
 		flowKMSKeyRelationship(boundary, flow),
 	}
-	for _, relationship := range relationships {
+	for _, relationship := range scalarRelationships {
 		if relationship == nil {
 			continue
 		}
@@ -87,7 +86,9 @@ func flowEnvelopes(boundary awscloud.Boundary, flow Flow) ([]facts.Envelope, err
 		}
 		envelopes = append(envelopes, envelope)
 	}
-	for _, relationship := range flowConnectorProfileRelationships(boundary, flow) {
+	listRelationships := flowS3DestinationRelationships(boundary, flow)
+	listRelationships = append(listRelationships, flowConnectorProfileRelationships(boundary, flow)...)
+	for _, relationship := range listRelationships {
 		envelope, err := awscloud.NewRelationshipEnvelope(relationship)
 		if err != nil {
 			return nil, err

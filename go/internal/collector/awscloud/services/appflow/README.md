@@ -66,10 +66,14 @@ spans.
   connector profiles by name. The flow-to-connector-profile edge targets that
   name, so the two join.
 - Flow-to-S3 relationships are emitted only when the source or destination
-  connector is Amazon S3 and AWS reports the bucket name. The synthesized bucket
-  ARN derives its partition from the flow ARN (or the boundary region when the
-  flow ARN is absent), matching the `arn:<partition>:s3:::<bucket>` identity the
-  S3 scanner publishes, so GovCloud and China joins resolve instead of dangling.
+  connector is Amazon S3 and AWS reports the bucket name. AppFlow flows can fan
+  out to several destinations, so every S3 destination in the flow's
+  `DestinationFlowConfigList` emits its own flow-to-S3 edge (and every distinct
+  destination connector profile its own flow-to-connector-profile edge) rather
+  than only the first. The synthesized bucket ARN derives its partition from the
+  flow ARN (or the boundary region when the flow ARN is absent), matching the
+  `arn:<partition>:s3:::<bucket>` identity the S3 scanner publishes, so GovCloud
+  and China joins resolve instead of dangling.
 - Flow-to-KMS-key relationships are emitted only when AWS reports a customer
   KMS key ARN. The AppFlow-managed key produces no edge.
 - Connector-profile-to-secret relationships are emitted only when the reported

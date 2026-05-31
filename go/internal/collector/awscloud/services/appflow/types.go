@@ -41,15 +41,25 @@ type Flow struct {
 	// SourceConnectorProfileName is the source connector profile name, when the
 	// source connector uses a connector profile.
 	SourceConnectorProfileName string
-	// DestinationConnectorProfileName is the destination connector profile name,
-	// when the destination connector uses a connector profile.
+	// DestinationConnectorProfileName is the first destination connector profile
+	// name, when that destination uses a connector profile. It summarizes
+	// Destinations[0] for the resource attributes; the full set of destinations
+	// drives the per-destination graph edges.
 	DestinationConnectorProfileName string
 	// SourceS3Bucket is the source S3 bucket name when the source connector is
 	// Amazon S3. It is empty for non-S3 sources.
 	SourceS3Bucket string
-	// DestinationS3Bucket is the destination S3 bucket name when the destination
-	// connector is Amazon S3. It is empty for non-S3 destinations.
+	// DestinationS3Bucket is the first destination's S3 bucket name when that
+	// destination connector is Amazon S3. It summarizes Destinations[0] for the
+	// resource attributes; the full set of destinations drives the
+	// per-destination flow-to-S3 edges.
 	DestinationS3Bucket string
+	// Destinations carries every destination AppFlow reports for the flow
+	// (DestinationFlowConfigList). AppFlow supports fan-out flows with multiple
+	// destinations, so each destination is preserved to emit one flow-to-S3 and
+	// one flow-to-connector-profile edge per reported destination rather than
+	// only the first.
+	Destinations []FlowDestination
 	// KMSKeyARN is the customer-provided KMS key ARN used to encrypt transferred
 	// data. It is empty when the flow uses the AppFlow-managed key.
 	KMSKeyARN string
@@ -59,6 +69,25 @@ type Flow struct {
 	CreatedAt time.Time
 	// LastUpdatedAt is when the flow was last updated.
 	LastUpdatedAt time.Time
+}
+
+// FlowDestination is one entry from a flow's DestinationFlowConfigList. AppFlow
+// flows can fan out to multiple destinations, so each destination carries its
+// own connector kind, optional connector profile name, and optional S3 bucket
+// so the scanner emits one graph edge per destination. Destination connector
+// properties beyond the S3 bucket name (object/entity selectors and error
+// handling) are not read.
+type FlowDestination struct {
+	// ConnectorType is this destination's connector kind (for example S3,
+	// Salesforce).
+	ConnectorType string
+	// ConnectorProfileName is this destination's connector profile name, when the
+	// destination connector uses a connector profile. It matches the resource_id
+	// the connector-profile node publishes.
+	ConnectorProfileName string
+	// S3Bucket is this destination's S3 bucket name when the destination connector
+	// is Amazon S3. It is empty for non-S3 destinations.
+	S3Bucket string
 }
 
 // ConnectorProfile is the scanner-owned Amazon AppFlow connector profile view.

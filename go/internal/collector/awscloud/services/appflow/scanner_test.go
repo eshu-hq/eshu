@@ -27,10 +27,13 @@ func TestScannerEmitsAppFlowMetadataResourcesAndRelationships(t *testing.T) {
 			DestinationConnectorType:        "Salesforce",
 			SourceS3Bucket:                  "orders-landing",
 			DestinationConnectorProfileName: profileName,
-			KMSKeyARN:                       kmsARN,
-			TriggerType:                     "Scheduled",
-			CreatedAt:                       time.Date(2026, 5, 20, 16, 0, 0, 0, time.UTC),
-			LastUpdatedAt:                   time.Date(2026, 5, 21, 16, 0, 0, 0, time.UTC),
+			Destinations: []FlowDestination{
+				{ConnectorType: "Salesforce", ConnectorProfileName: profileName},
+			},
+			KMSKeyARN:     kmsARN,
+			TriggerType:   "Scheduled",
+			CreatedAt:     time.Date(2026, 5, 20, 16, 0, 0, 0, time.UTC),
+			LastUpdatedAt: time.Date(2026, 5, 21, 16, 0, 0, 0, time.UTC),
 		}},
 		profiles: []ConnectorProfile{{
 			ARN:            "arn:aws:appflow:us-east-1:123456789012:connectorprofile/salesforce-prod",
@@ -155,6 +158,9 @@ func TestScannerEmitsDestinationS3Relationship(t *testing.T) {
 		SourceConnectorType:      "Salesforce",
 		DestinationConnectorType: "S3",
 		DestinationS3Bucket:      "exports-bucket",
+		Destinations: []FlowDestination{
+			{ConnectorType: "S3", S3Bucket: "exports-bucket"},
+		},
 	}}}
 
 	envelopes, err := (Scanner{Client: client}).Scan(context.Background(), testBoundary())
@@ -168,6 +174,69 @@ func TestScannerEmitsDestinationS3Relationship(t *testing.T) {
 	if got := countRelationships(envelopes, awscloud.RelationshipAppFlowFlowReadsFromS3Bucket); got != 0 {
 		t.Fatalf("flow->s3 read relationship count = %d, want 0 for non-S3 source", got)
 	}
+}
+
+// TestScannerEmitsEdgePerDestination pins that a fan-out flow with multiple
+// destinations emits one S3 write edge per S3 destination bucket and one
+// connector-profile edge per distinct destination profile, rather than collapsing
+// to a single destination. A flattened scanner would silently drop the second
+// bucket and the profile edge, producing incomplete graph evidence.
+func TestScannerEmitsEdgePerDestination(t *testing.T) {
+	flowARN := "arn:aws:appflow:us-east-1:123456789012:flow/fanout"
+	client := fakeClient{flows: []Flow{{
+		ARN:                 flowARN,
+		Name:                "fanout",
+		SourceConnectorType: "Salesforce",
+		Destinations: []FlowDestination{
+			{ConnectorType: "S3", S3Bucket: "primary-out"},
+			{ConnectorType: "S3", S3Bucket: "secondary-out"},
+			{ConnectorType: "Salesforce", ConnectorProfileName: "salesforce-prod"},
+		},
+	}}}
+
+	envelopes, err := (Scanner{Client: client}).Scan(context.Background(), testBoundary())
+	if err != nil {
+		t.Fatalf("Scan() error = %v, want nil", err)
+	}
+
+	if got := countRelationships(envelopes, awscloud.RelationshipAppFlowFlowWritesToS3Bucket); got != 2 {
+		t.Fatalf("flow->s3 write relationship count = %d, want 2 (one per S3 destination)", got)
+	}
+	wantBuckets := map[string]bool{
+		"arn:aws:s3:::primary-out":   false,
+		"arn:aws:s3:::secondary-out": false,
+	}
+	for _, envelope := range envelopes {
+		if envelope.FactKind != facts.AWSRelationshipFactKind {
+			continue
+		}
+		if got, _ := envelope.Payload["relationship_type"].(string); got != awscloud.RelationshipAppFlowFlowWritesToS3Bucket {
+			continue
+		}
+		if got, _ := envelope.Payload["source_resource_id"].(string); got != flowARN {
+			t.Fatalf("flow->s3 source_resource_id = %q, want %q (flow node id)", got, flowARN)
+		}
+		target, _ := envelope.Payload["target_resource_id"].(string)
+		if _, ok := wantBuckets[target]; !ok {
+			t.Fatalf("unexpected flow->s3 target_resource_id %q", target)
+		}
+		wantBuckets[target] = true
+	}
+	for bucket, seen := range wantBuckets {
+		if !seen {
+			t.Fatalf("missing flow->s3 destination edge for %q", bucket)
+		}
+	}
+
+	if got := countRelationships(envelopes, awscloud.RelationshipAppFlowFlowUsesConnectorProfile); got != 1 {
+		t.Fatalf("flow->profile relationship count = %d, want 1 (destination profile)", got)
+	}
+	profile := relationshipByType(t, envelopes, awscloud.RelationshipAppFlowFlowUsesConnectorProfile)
+	if got, want := profile.Payload["target_resource_id"], "salesforce-prod"; got != want {
+		t.Fatalf("flow->profile target_resource_id = %#v, want %q", got, want)
+	}
+
+	relguard.AssertObservations(t, allRelationshipObservations(testBoundary(), client.flows, client.profiles)...)
 }
 
 func TestScannerOmitsKMSRelationshipForManagedKey(t *testing.T) {
@@ -210,6 +279,9 @@ func TestScannerCollapsesSameProfileSourceAndDestination(t *testing.T) {
 		Name:                            "loop",
 		SourceConnectorProfileName:      "shared-profile",
 		DestinationConnectorProfileName: "shared-profile",
+		Destinations: []FlowDestination{
+			{ConnectorType: "Salesforce", ConnectorProfileName: "shared-profile"},
+		},
 	}}}
 
 	envelopes, err := (Scanner{Client: client}).Scan(context.Background(), testBoundary())
@@ -276,7 +348,7 @@ func allRelationshipObservations(
 	}
 	for _, flow := range flows {
 		add(flowS3SourceRelationship(boundary, flow))
-		add(flowS3DestinationRelationship(boundary, flow))
+		observations = append(observations, flowS3DestinationRelationships(boundary, flow)...)
 		add(flowKMSKeyRelationship(boundary, flow))
 		observations = append(observations, flowConnectorProfileRelationships(boundary, flow)...)
 	}

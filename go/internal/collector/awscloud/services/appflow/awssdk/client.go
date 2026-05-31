@@ -162,18 +162,32 @@ func applySourceFlowConfig(flow *appflowservice.Flow, config *awsappflowtypes.So
 }
 
 // applyDestinationFlowConfig copies the safe destination-side references from
-// the first destination config (connector profile name and S3 destination
-// bucket) into the scanner-owned flow view.
+// every destination config (connector kind, connector profile name, and S3
+// destination bucket) into the scanner-owned flow view. AppFlow supports fan-out
+// flows whose DestinationFlowConfigList carries multiple destinations, so each
+// destination is preserved in flow.Destinations to drive one graph edge per
+// destination. The scalar summary fields mirror the first destination for the
+// resource attributes. Destination connector properties beyond the S3 bucket
+// name (object/entity selectors, error handling) are not read.
 func applyDestinationFlowConfig(flow *appflowservice.Flow, configs []awsappflowtypes.DestinationFlowConfig) {
 	for _, config := range configs {
-		if connectorType := strings.TrimSpace(string(config.ConnectorType)); connectorType != "" && flow.DestinationConnectorType == "" {
-			flow.DestinationConnectorType = connectorType
+		destination := appflowservice.FlowDestination{
+			ConnectorType:        strings.TrimSpace(string(config.ConnectorType)),
+			ConnectorProfileName: strings.TrimSpace(aws.ToString(config.ConnectorProfileName)),
+		}
+		if props := config.DestinationConnectorProperties; props != nil && props.S3 != nil {
+			destination.S3Bucket = strings.TrimSpace(aws.ToString(props.S3.BucketName))
+		}
+		flow.Destinations = append(flow.Destinations, destination)
+
+		if destination.ConnectorType != "" && flow.DestinationConnectorType == "" {
+			flow.DestinationConnectorType = destination.ConnectorType
 		}
 		if flow.DestinationConnectorProfileName == "" {
-			flow.DestinationConnectorProfileName = strings.TrimSpace(aws.ToString(config.ConnectorProfileName))
+			flow.DestinationConnectorProfileName = destination.ConnectorProfileName
 		}
-		if props := config.DestinationConnectorProperties; props != nil && props.S3 != nil && flow.DestinationS3Bucket == "" {
-			flow.DestinationS3Bucket = strings.TrimSpace(aws.ToString(props.S3.BucketName))
+		if destination.S3Bucket != "" && flow.DestinationS3Bucket == "" {
+			flow.DestinationS3Bucket = destination.S3Bucket
 		}
 	}
 }
