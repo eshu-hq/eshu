@@ -38,6 +38,7 @@ import (
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/codepipeline/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/cognito/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/config/runtimebind"
+	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/controltower/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/detective/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/datasync/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/dax/runtimebind"
