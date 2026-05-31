@@ -88,7 +88,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/networkfirewall v1.61.1
 	github.com/aws/aws-sdk-go-v2/service/networkmanager v1.42.2
 	github.com/aws/aws-sdk-go-v2/service/opensearch v1.70.1
-	github.com/aws/aws-sdk-go-v2/service/opensearchserverless v1.31.0
+	github.com/aws/aws-sdk-go-v2/service/opensearchserverless v1.31.1
 	github.com/aws/aws-sdk-go-v2/service/organizations v1.51.3
 	github.com/aws/aws-sdk-go-v2/service/outposts v1.60.2
 	github.com/aws/aws-sdk-go-v2/service/proton v1.40.0
@@ -119,6 +119,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/sts v1.33.20
 	github.com/aws/aws-sdk-go-v2/service/timestreamwrite v1.35.25
 	github.com/aws/aws-sdk-go-v2/service/transfer v1.72.2
+	github.com/aws/aws-sdk-go-v2/service/verifiedpermissions v1.34.1
 	github.com/aws/aws-sdk-go-v2/service/vpclattice v1.21.2
 	github.com/aws/aws-sdk-go-v2/service/wafv2 v1.71.6
 	github.com/aws/aws-sdk-go-v2/service/workspaces v1.68.3
