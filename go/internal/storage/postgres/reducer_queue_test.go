@@ -311,6 +311,47 @@ func TestReducerQueueClaimPassesSemanticEntityClaimLimit(t *testing.T) {
 	}
 }
 
+func TestReducerQueueClaimGatesAWSRelationshipsOnCanonicalCloudResourceReadiness(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, time.May, 31, 10, 0, 0, 0, time.UTC)
+	db := &fakeExecQueryer{
+		queryResponses: []queueFakeRows{
+			{rows: nil},
+		},
+	}
+	queue := ReducerQueue{
+		db:            db,
+		LeaseOwner:    "test-owner",
+		LeaseDuration: time.Minute,
+		Now:           func() time.Time { return now },
+	}
+
+	_, claimed, err := queue.Claim(context.Background())
+	if err != nil {
+		t.Fatalf("Claim() error = %v", err)
+	}
+	if claimed {
+		t.Fatal("Claim() claimed = true, want false from empty rows")
+	}
+
+	query := db.queries[0].query
+	for _, want := range []string{
+		"domain <> 'aws_relationship_materialization'",
+		"FROM graph_projection_phase_state AS aws_nodes",
+		"aws_nodes.scope_id = fact_work_items.scope_id",
+		"aws_nodes.acceptance_unit_id = COALESCE(NULLIF(fact_work_items.payload->>'entity_key', ''), fact_work_items.scope_id)",
+		"aws_nodes.source_run_id = fact_work_items.generation_id",
+		"aws_nodes.generation_id = fact_work_items.generation_id",
+		"aws_nodes.keyspace = 'cloud_resource_uid'",
+		"aws_nodes.phase = 'canonical_nodes_committed'",
+	} {
+		if !strings.Contains(query, want) {
+			t.Fatalf("claim query missing AWS relationship readiness gate %q:\n%s", want, query)
+		}
+	}
+}
+
 func TestReducerQueueClaimCanFilterByDomain(t *testing.T) {
 	t.Parallel()
 

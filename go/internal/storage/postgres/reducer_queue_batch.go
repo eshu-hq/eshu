@@ -87,6 +87,21 @@ WITH candidate AS (
             AND semantic_inflight.status IN ('claimed', 'running')
             AND semantic_inflight.claim_until > $1
       ))
+      -- AWS relationship edges consume CloudResource nodes produced by the
+      -- aws_resource_materialization domain for the exact same
+      -- scope/generation/entity-key readiness slice. Keep relationship work
+      -- pending or retrying until canonical nodes are visibly committed instead
+      -- of claiming it and recording retryable reducer failures.
+      AND (domain <> 'aws_relationship_materialization' OR EXISTS (
+          SELECT 1
+          FROM graph_projection_phase_state AS aws_nodes
+          WHERE aws_nodes.scope_id = fact_work_items.scope_id
+            AND aws_nodes.acceptance_unit_id = COALESCE(NULLIF(fact_work_items.payload->>'entity_key', ''), fact_work_items.scope_id)
+            AND aws_nodes.source_run_id = fact_work_items.generation_id
+            AND aws_nodes.generation_id = fact_work_items.generation_id
+            AND aws_nodes.keyspace = 'cloud_resource_uid'
+            AND aws_nodes.phase = 'canonical_nodes_committed'
+      ))
       -- Reducer domains can touch the same graph nodes for a scope. Fence by
       -- explicit conflict key so unrelated graph families can still overlap.
       AND NOT EXISTS (
@@ -111,6 +126,16 @@ WITH candidate AS (
             AND (same.visible_at IS NULL OR same.visible_at <= $1)
             AND (same.claim_until IS NULL OR same.claim_until <= $1)
             AND ($2::text[] IS NULL OR same.domain = ANY($2::text[]))
+            AND (same.domain <> 'aws_relationship_materialization' OR EXISTS (
+                SELECT 1
+                FROM graph_projection_phase_state AS same_nodes
+                WHERE same_nodes.scope_id = same.scope_id
+                  AND same_nodes.acceptance_unit_id = COALESCE(NULLIF(same.payload->>'entity_key', ''), same.scope_id)
+                  AND same_nodes.source_run_id = same.generation_id
+                  AND same_nodes.generation_id = same.generation_id
+                  AND same_nodes.keyspace = 'cloud_resource_uid'
+                  AND same_nodes.phase = 'canonical_nodes_committed'
+            ))
           ORDER BY same.updated_at ASC, same.work_item_id ASC
           LIMIT 1
       )
