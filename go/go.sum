@@ -182,6 +182,8 @@ github.com/aws/aws-sdk-go-v2/service/directoryservice v1.38.19 h1:7uzyDjdMN99ALP
 github.com/aws/aws-sdk-go-v2/service/directoryservice v1.38.19/go.mod h1:QmDYiedOfdgvQk6gtAHwa8yAgYSZXqiB6dHUxJ1CVBM=
 github.com/aws/aws-sdk-go-v2/service/docdb v1.48.16 h1:JVfVNI1W7geUmJuyTPVKDdym3cpOXfxWKfGdRhm5O6k=
 github.com/aws/aws-sdk-go-v2/service/docdb v1.48.16/go.mod h1:qzkOzKUNO8ZzfMCC8gTh2uxD/7UmpS9scLHfAZ696i4=
+github.com/aws/aws-sdk-go-v2/service/drs v1.39.0 h1:ilSeSNQHscs68padboFXl6P56EqevPVCwIVR5mAzNVU=
+github.com/aws/aws-sdk-go-v2/service/drs v1.39.0/go.mod h1:EgK0xL+CCw4zfrSedWPSwDCWWZ5EE4JkldSz7BIgyiA=
 github.com/aws/aws-sdk-go-v2/service/dynamodb v1.42.1 h1:67oYHlAdIoWS65kdTKatf9o1eDNkR2wan6TlBdP3oe4=
 github.com/aws/aws-sdk-go-v2/service/dynamodb v1.42.1/go.mod h1:yYaWRnVSPyAmexW5t7G3TcuYoalYfT+xQwzWsvtUQ7M=
 github.com/aws/aws-sdk-go-v2/service/ec2 v1.300.0 h1:HgOfUy9Sm2Q9UQAyj9I/7NZhIaymTEakGA/FnLw65lw=
