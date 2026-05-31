@@ -91,6 +91,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/location v1.52.2
 	github.com/aws/aws-sdk-go-v2/service/macie2 v1.51.3
 	github.com/aws/aws-sdk-go-v2/service/memorydb v1.34.1
+	github.com/aws/aws-sdk-go-v2/service/mgn v1.44.2
 	github.com/aws/aws-sdk-go-v2/service/mq v1.34.23
 	github.com/aws/aws-sdk-go-v2/service/mwaa v1.40.2
 	github.com/aws/aws-sdk-go-v2/service/neptune v1.44.6
