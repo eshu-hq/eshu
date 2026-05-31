@@ -306,6 +306,8 @@ github.com/aws/aws-sdk-go-v2/service/redshift v1.62.8 h1:5Wg38ZauCqmomDAGTCDbA/t
 github.com/aws/aws-sdk-go-v2/service/redshift v1.62.8/go.mod h1:uLWlNO4q8278lSx2iKIJZ09zSXNJ6uQTFM1jvZIZRf4=
 github.com/aws/aws-sdk-go-v2/service/redshiftserverless v1.35.0 h1:4bhy+oTqgUdtw8IvWcc1pPL4DCH5ZT4rkV9a1eggQGY=
 github.com/aws/aws-sdk-go-v2/service/redshiftserverless v1.35.0/go.mod h1:24tWvrWAt7wxYpXYPSmDyfyRWKGdz2glsgnLV9MSRq4=
+github.com/aws/aws-sdk-go-v2/service/resiliencehub v1.36.2 h1:LMH3gu6ReVf0S+eMsxPCSvHaWaix7GjQs/RWgqChpAw=
+github.com/aws/aws-sdk-go-v2/service/resiliencehub v1.36.2/go.mod h1:eSmKLg0sK0IJ7hSGZzsixS+Kyl5i4QxNeZzYh0G/FsA=
 github.com/aws/aws-sdk-go-v2/service/resourcegroups v1.33.27 h1:PBuU5HO0JhThHHOZ9WG0xyvK7lsx6XIGRW9ACvvCtHA=
 github.com/aws/aws-sdk-go-v2/service/resourcegroups v1.33.27/go.mod h1:rqCOOEEd3ofM5Lltmv7IehmpnyXCDzxlydqXc6Sx35k=
 github.com/aws/aws-sdk-go-v2/service/rolesanywhere v1.23.2 h1:PZNf5utGnnMQ02iyOC8GLFEMKI8IiOOHKbGLlrBtbGw=

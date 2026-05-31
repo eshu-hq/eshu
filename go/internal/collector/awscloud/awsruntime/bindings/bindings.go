@@ -107,6 +107,7 @@ import (
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/ram/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/rds/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/redshift/runtimebind"
+	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/resiliencehub/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/resourcegroups/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/rolesanywhere/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/route53/runtimebind"
