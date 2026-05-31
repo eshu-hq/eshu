@@ -16,8 +16,9 @@
 // skipped-target evidence when an owned-package derivation budget is exhausted.
 // Service reads one bounded owned-package lookahead beyond each planning budget
 // so requested scope sets can show exhaustion without widening admitted work.
-// AWSScheduledWorkPlanner and AWSFreshnessWorkPlanner plan ordinary AWS
-// collector work from configured schedules or webhook freshness triggers.
+// PagerDutyWorkPlanner plans incident-evidence work from configured PagerDuty
+// targets. AWSScheduledWorkPlanner and AWSFreshnessWorkPlanner plan ordinary
+// AWS collector work from configured schedules or webhook freshness triggers.
 // Planners produce workflow rows only; claim ownership and fact emission stay
 // with the collector runtimes.
 package coordinator

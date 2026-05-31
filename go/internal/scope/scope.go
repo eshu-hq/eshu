@@ -34,6 +34,8 @@ const (
 	KindSBOMAttestation ScopeKind = "sbom_attestation"
 	// KindSecurityAlert represents a hosted provider repository-alert scope.
 	KindSecurityAlert ScopeKind = "security_alert"
+	// KindPagerDutyAccount represents a PagerDuty account or service allowlist scope.
+	KindPagerDutyAccount ScopeKind = "pagerduty_account"
 	// KindScannerWorker represents a bounded security analyzer work scope.
 	KindScannerWorker ScopeKind = "scanner_worker"
 )
@@ -62,6 +64,8 @@ const (
 	CollectorSBOMAttestation CollectorKind = "sbom_attestation"
 	// CollectorSecurityAlert represents hosted provider security-alert collectors.
 	CollectorSecurityAlert CollectorKind = "security_alert"
+	// CollectorPagerDuty represents hosted PagerDuty incident evidence collectors.
+	CollectorPagerDuty CollectorKind = "pagerduty"
 	// CollectorScannerWorker represents isolated security analyzer workers.
 	CollectorScannerWorker CollectorKind = "scanner_worker"
 	// CollectorKubernetesLive represents the read-only Kubernetes live cluster

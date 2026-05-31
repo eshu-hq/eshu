@@ -139,6 +139,30 @@ Provider tokens must come from private environment variables referenced by
 `token_env`; do not commit token values, private repository names, alert URLs,
 or copied provider payloads to public values files or docs.
 
+## PagerDuty Collector
+
+The PagerDuty collector is claim-only. It selects an enabled `pagerduty`
+instance from `ESHU_COLLECTOR_INSTANCES_JSON`. Provider targets must include
+`provider`, `scope_id`, `account_id`, and `token_env`. The runtime resolves the
+credential from the named environment variable and emits only
+`incident.record`, `incident.lifecycle_event`, and `change.record` facts.
+Optional `api_base_url` overrides must use HTTPS because the runtime sends the
+PagerDuty token to that endpoint. Optional target fields bound collection with
+`incident_lookback`, `incident_limit`, `log_entry_limit`,
+`change_event_limit`, and `allowed_service_ids`.
+
+| Variable | Default | Read by | Purpose |
+| --- | --- | --- | --- |
+| `ESHU_PAGERDUTY_COLLECTOR_INSTANCE_ID` | required when more than one enabled PagerDuty instance exists | collector-pagerduty | Selects the claim-capable `pagerduty` instance. |
+| `ESHU_PAGERDUTY_POLL_INTERVAL` | `1s` | collector-pagerduty | Delay between empty workflow-claim polls. |
+| `ESHU_PAGERDUTY_CLAIM_LEASE_TTL` | `60s` | collector-pagerduty | Lease TTL used when claiming and refreshing work. |
+| `ESHU_PAGERDUTY_HEARTBEAT_INTERVAL` | `20s` | collector-pagerduty | Heartbeat interval for active workflow claims. Must be less than the claim lease TTL. |
+| `ESHU_PAGERDUTY_COLLECTOR_OWNER_ID` | host/process-derived | collector-pagerduty | Owner label written into workflow claim rows. |
+
+PagerDuty tokens must come from private environment variables referenced by
+`token_env`; do not commit token values, incident titles, service names,
+PagerDuty URLs, or copied provider payloads to public values files or docs.
+
 ## Vulnerability Intelligence Collector
 
 The vulnerability intelligence collector is claim-only. It selects an enabled

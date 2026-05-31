@@ -113,6 +113,22 @@ When a bounded GitHub open-alert read reaches `max_pages`, API and MCP
 reconciliation count/list responses expose `coverage.state=target_incomplete`
 and `source_freshness=partial`; this is response metadata, not a metric label.
 
+## PagerDuty Collector
+
+| Metric | Key labels | Use |
+| --- | --- | --- |
+| `eshu_dp_pagerduty_provider_requests_total` | `provider`, `status_class` | PagerDuty incident evidence request attempts, including retryable and terminal failures. |
+| `eshu_dp_pagerduty_facts_emitted_total` | `provider`, `fact_kind` | Incident, lifecycle-event, and change-event source facts emitted per claimed target. |
+| `eshu_dp_pagerduty_rate_limited_total` | `provider` | PagerDuty rate-limit pressure surfaced to workflow retry handling. |
+| `eshu_dp_pagerduty_fetch_duration_seconds` | `provider`, `status_class` | Bounded PagerDuty fetch duration for one claimed target. |
+| `eshu_dp_pagerduty_generation_lag_seconds` | `provider` | Difference between collector clock and provider observation time. |
+
+Incident IDs, incident titles, service names, escalation-policy names, PagerDuty
+URLs, token environment names, token values, and provider response bodies stay
+out of metric labels. Use `/admin/status`, workflow failures, and traces to
+connect a bounded failure class to a specific private target in the operator
+environment.
+
 ## Scanner-Worker Boundary
 
 Scanner-worker metrics are emitted by the hosted scanner-worker runtime for

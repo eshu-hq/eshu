@@ -42,11 +42,12 @@ this. `TransitionTo` enforces the table; forbidden transitions return an error.
 - `ScopeKind` — `KindRepository`, `KindAccount`, `KindRegion`, `KindCluster`,
   `KindStateSnapshot`, `KindEventTrigger`, `KindDocumentationSource`,
   `KindContainerRegistryRepository`, `KindPackageRegistry`,
-  `KindVulnerabilityIntelligence`, `KindSecurityAlert`, `KindScannerWorker`
+  `KindVulnerabilityIntelligence`, `KindSBOMAttestation`,
+  `KindSecurityAlert`, `KindPagerDutyAccount`, `KindScannerWorker`
 - `CollectorKind` — `CollectorGit`, `CollectorAWS`, `CollectorTerraformState`,
   `CollectorWebhook`, `CollectorDocumentation`, `CollectorOCIRegistry`,
   `CollectorPackageRegistry`, `CollectorVulnerabilityIntelligence`,
-  `CollectorSecurityAlert`,
+  `CollectorSBOMAttestation`, `CollectorSecurityAlert`, `CollectorPagerDuty`,
   `CollectorScannerWorker`
 - `TriggerKind` — `TriggerKindSnapshot`
 - `GenerationStatus` — `GenerationStatusPending`, `GenerationStatusActive`,

@@ -190,6 +190,11 @@ it.
   that fetches configured documents or OCI referrer artifact blobs, delegates
   SBOM parsing to `sbomdocument`, and emits in-toto attestation facts without
   making reducer attachment truth decisions
+- `pagerduty` subpackage — PagerDuty incident, incident lifecycle, and related
+  change-event evidence collection for the `pagerduty` collector family. It
+  emits reported-confidence incident-context source facts and leaves runtime,
+  image, commit, pull-request, Jira, graph, and read-model truth to downstream
+  collectors and reducers.
 - `cicdrun` subpackage — fixture-backed CI/CD provider normalization and
   reported-confidence run, job, step, artifact, trigger, environment, and
   warning fact-envelope construction for the `ci_cd_run` collector family

@@ -244,6 +244,24 @@ func TestCollectorContractForSecurityAlertHasNoOperationalKeyspaces(t *testing.T
 	}
 }
 
+func TestCollectorContractForPagerDutyHasNoOperationalKeyspaces(t *testing.T) {
+	t.Parallel()
+
+	contract, ok := CollectorContractFor(scope.CollectorPagerDuty)
+	if !ok {
+		t.Fatalf("CollectorContractFor(%q) found = false, want true", scope.CollectorPagerDuty)
+	}
+	if contract.CollectorKind != scope.CollectorPagerDuty {
+		t.Fatalf("CollectorKind = %q, want %q", contract.CollectorKind, scope.CollectorPagerDuty)
+	}
+	if len(contract.CanonicalKeyspaces) != 0 {
+		t.Fatalf("CanonicalKeyspaces = %#v, want empty because PagerDuty emits incident evidence only", contract.CanonicalKeyspaces)
+	}
+	if len(contract.RequiredPhases) != 0 {
+		t.Fatalf("RequiredPhases = %#v, want empty because reducers own incident context truth", contract.RequiredPhases)
+	}
+}
+
 func TestCollectorContractForReturnsClonedSlices(t *testing.T) {
 	t.Parallel()
 

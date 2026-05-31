@@ -189,6 +189,21 @@ They are source evidence only: reducers must reconcile them with Eshu-owned
 package consumption and vulnerability impact facts before any user-facing
 impact state is reported.
 
+Incident-context fact kinds use schema version `1.0.0` for the first collector
+contract:
+
+- `incident.record`
+- `incident.lifecycle_event`
+- `change.record`
+
+Use `IncidentContextFactKinds` when callers need the accepted incident-context
+source fact set, and `IncidentContextSchemaVersion` when building incident
+context envelopes. These facts preserve provider-reported incident state,
+incident timeline events, and related change events. They are source evidence
+only: reducers and read models must correlate them with runtime, image, commit,
+pull-request, and work-item evidence before presenting an incident context
+path.
+
 Vulnerability suppression fact kinds use schema version `1.0.0` for the
 first VEX and operator-policy contract:
 
