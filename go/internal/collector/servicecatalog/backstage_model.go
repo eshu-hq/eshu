@@ -73,22 +73,13 @@ func (e backstageEntity) entityRef() string {
 	return kind + ":" + namespace + "/" + strings.ToLower(name)
 }
 
-// ownerRef normalizes Backstage owner references such as
-// `group:default/team-x` down to the bare owner identifier the reducer records.
+// ownerRef returns the Backstage owner reference verbatim, preserving any
+// `kind:namespace/name` provenance (for example `group:default/payments`). The
+// reducer records the full reference as provenance; collapsing it to a bare
+// name would merge distinct owners such as `group:default/team-x` and
+// `user:default/team-x` and break owner filters and reporting.
 func (e backstageEntity) ownerRef() string {
-	owner := strings.TrimSpace(e.Spec.Owner)
-	if owner == "" {
-		return ""
-	}
-	// Strip an optional `kind:` prefix.
-	if _, after, ok := strings.Cut(owner, ":"); ok {
-		owner = after
-	}
-	// Strip an optional `namespace/` prefix.
-	if _, after, ok := strings.Cut(owner, "/"); ok {
-		owner = after
-	}
-	return strings.TrimSpace(owner)
+	return strings.TrimSpace(e.Spec.Owner)
 }
 
 // repositoryURL returns the declared source-repository URL from the

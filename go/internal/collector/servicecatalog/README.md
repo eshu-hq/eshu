@@ -81,8 +81,10 @@ change an entity's correlation outcome.
   imports, or query imports in production code (the reducer is imported in test
   code only, for the round-trip contract test).
 - Every emitted fact carries `schema_version = 1.0.0`
-  (`facts.ServiceCatalogSchemaVersionV1`); a mismatch is silently rejected at the
-  projector.
+  (`facts.ServiceCatalogSchemaVersionV1`). For a known service-catalog fact kind,
+  a blank or mismatched `schema_version` is a hard error at the projector
+  (`validateServiceCatalogSchemaVersion` aborts the projection); it is never a
+  benign skip, so producers must always stamp the supported version.
 - `source_confidence = observed` because manifests are read directly from a repo
   artifact.
 - Catalog names and owners never mint `repository_id`, `service_id`, or

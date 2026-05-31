@@ -65,6 +65,12 @@ func TestBackstageManifestEnvelopesEmitsTypedContract(t *testing.T) {
 	owner := findOwnership(t, envelopes, "component:default/checkout-api")
 	assertPayload(t, owner.Payload, "owner_ref", "team-payments")
 
+	// A kind:namespace/name owner must be preserved verbatim as provenance; the
+	// reducer keeps the full reference, and collapsing it to a bare name would
+	// merge distinct owners (group:default/x vs user:default/x).
+	ledgerOwner := findOwnership(t, envelopes, "component:default/ledger")
+	assertPayload(t, ledgerOwner.Payload, "owner_ref", "group:default/team-finance")
+
 	// Every emitted service-catalog envelope must carry the shared schema
 	// version, or the projector silently rejects the reducer intent.
 	for _, envelope := range envelopes {
