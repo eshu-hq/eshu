@@ -287,6 +287,20 @@ func renderPayload(payload map[string]any) string {
 			for _, inner := range v {
 				walk(inner)
 			}
+		case map[string]string:
+			// tags lands in the payload as a native map[string]string.
+			for key, inner := range v {
+				b.WriteString(key)
+				b.WriteByte(' ')
+				b.WriteString(inner)
+				b.WriteByte(' ')
+			}
+		case []string:
+			// correlation_anchors lands as a native []string.
+			for _, inner := range v {
+				b.WriteString(inner)
+				b.WriteByte(' ')
+			}
 		case string:
 			b.WriteString(v)
 			b.WriteByte(' ')
@@ -294,6 +308,25 @@ func renderPayload(payload map[string]any) string {
 	}
 	walk(map[string]any(payload))
 	return b.String()
+}
+
+// TestRenderPayloadScansStringContainers guards the defense-in-depth scan used
+// by TestScannerNeverEmitsEnvVarsOrTokens. The emitted payload carries tags as a
+// native map[string]string and correlation_anchors as a native []string, so a
+// renderPayload walker that only recursed into map[string]any and []any would
+// silently skip a token hiding in either container. This proves the walker
+// surfaces values from both so the forbidden-string assertion can catch them.
+func TestRenderPayloadScansStringContainers(t *testing.T) {
+	payload := map[string]any{
+		"tags":                map[string]string{"owner": "tag_secret_value"},
+		"correlation_anchors": []string{"anchor_secret_value"},
+	}
+	rendered := renderPayload(payload)
+	for _, needle := range []string{"tag_secret_value", "anchor_secret_value"} {
+		if !strings.Contains(rendered, needle) {
+			t.Fatalf("renderPayload did not scan %q in its string container: %q", needle, rendered)
+		}
+	}
 }
 
 func TestScannerUsesBoundaryPartitionForSynthesizedARNs(t *testing.T) {

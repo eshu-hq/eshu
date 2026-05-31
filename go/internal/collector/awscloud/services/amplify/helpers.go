@@ -64,11 +64,14 @@ func branchResourceID(boundary awscloud.Boundary, branch Branch) string {
 // SanitizeRepositoryURL reduces an Amplify repository URL to scheme, host, and
 // path only, dropping any embedded userinfo (a token-bearing
 // https://x-access-token:TOKEN@github.com/... form) and any query or fragment.
-// A token must never reach a fact payload or a graph join key. Non-URL values
-// (scp-style git@github.com:org/repo.git) are returned trimmed but unchanged
-// because they carry no userinfo password component. It is exported so the SDK
-// adapter strips the token at the boundary, before the raw URL reaches a
-// scanner-owned record.
+// A token must never reach a fact payload or a graph join key. For non-URL
+// values that do not parse as an absolute URL (scp-style
+// git@github.com:org/repo.git) it strips any leading "<user>@" segment, so
+// "git@github.com:org/repo.git" becomes "github.com:org/repo.git", dropping a
+// user component that could carry a token while preserving the host and path.
+// Values without an "@" are returned trimmed and otherwise unchanged. It is
+// exported so the SDK adapter strips the token at the boundary, before the raw
+// URL reaches a scanner-owned record.
 func SanitizeRepositoryURL(raw string) string {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {
