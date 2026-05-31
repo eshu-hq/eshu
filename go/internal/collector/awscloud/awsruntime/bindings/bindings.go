@@ -18,6 +18,7 @@ import (
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/appsync/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/appmesh/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/apprunner/runtimebind"
+	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/appstream/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/appsync/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/athena/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/autoscaling/runtimebind"
