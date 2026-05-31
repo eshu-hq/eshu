@@ -43,6 +43,7 @@ import (
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/computeoptimizer/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/config/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/controltower/runtimebind"
+	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/databrew/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/detective/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/datasync/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/datazone/runtimebind"
