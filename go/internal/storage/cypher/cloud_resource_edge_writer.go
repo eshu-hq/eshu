@@ -139,7 +139,7 @@ func canonicalAWSRelationshipCypherType(row map[string]any) (string, error) {
 		}
 		return "", fmt.Errorf("aws relationship_type %q contains unsupported character %q", raw, ch)
 	}
-	return "AWS_" + strings.ToUpper(raw), nil
+	return "AWS_" + raw, nil
 }
 
 // RetractCloudResourceEdges removes this reducer's AWS relationship edges for

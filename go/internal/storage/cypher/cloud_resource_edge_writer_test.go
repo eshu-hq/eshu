@@ -111,11 +111,54 @@ func TestCloudResourceEdgeWriterSplitsSameEndpointByRelationshipType(t *testing.
 	}
 	gotCypher := stmts[0].Cypher + "\n" + stmts[1].Cypher
 	for _, want := range []string{
-		"MERGE (source)-[rel:AWS_EC2_SUBNET_IN_VPC]->(target)",
-		"MERGE (source)-[rel:AWS_EC2_SUBNET_ROUTES_TO_NAT_GATEWAY]->(target)",
+		"MERGE (source)-[rel:AWS_ec2_subnet_in_vpc]->(target)",
+		"MERGE (source)-[rel:AWS_ec2_subnet_routes_to_nat_gateway]->(target)",
 	} {
 		if !strings.Contains(gotCypher, want) {
 			t.Fatalf("missing relationship-type-specific MERGE %q in:\n%s", want, gotCypher)
+		}
+	}
+}
+
+func TestCloudResourceEdgeWriterPreservesRelationshipTypeCaseInIdentity(t *testing.T) {
+	t.Parallel()
+
+	executor := &recordingGroupExecutor{}
+	writer := NewCloudResourceEdgeWriter(executor, 500)
+	rows := []map[string]any{
+		{
+			"source_uid":        "shared-source",
+			"target_uid":        "shared-target",
+			"relationship_type": "uses_kms_key",
+			"target_type":       "aws_kms_key",
+			"resolution_mode":   "arn",
+		},
+		{
+			"source_uid":        "shared-source",
+			"target_uid":        "shared-target",
+			"relationship_type": "USES_KMS_KEY",
+			"target_type":       "aws_kms_key",
+			"resolution_mode":   "arn",
+		},
+	}
+
+	if err := writer.WriteCloudResourceEdges(context.Background(), rows, "scope-1", "gen-1", "reducer/aws-relationships"); err != nil {
+		t.Fatalf("WriteCloudResourceEdges returned error: %v", err)
+	}
+	if len(executor.groupCalls) != 1 {
+		t.Fatalf("len(groupCalls) = %d, want 1 atomic group", len(executor.groupCalls))
+	}
+	stmts := executor.groupCalls[0]
+	if len(stmts) != 2 {
+		t.Fatalf("group statement count = %d, want case-distinct relationship types to stay distinct", len(stmts))
+	}
+	gotCypher := stmts[0].Cypher + "\n" + stmts[1].Cypher
+	for _, want := range []string{
+		"MERGE (source)-[rel:AWS_USES_KMS_KEY]->(target)",
+		"MERGE (source)-[rel:AWS_uses_kms_key]->(target)",
+	} {
+		if !strings.Contains(gotCypher, want) {
+			t.Fatalf("missing case-preserving relationship MERGE %q in:\n%s", want, gotCypher)
 		}
 	}
 }

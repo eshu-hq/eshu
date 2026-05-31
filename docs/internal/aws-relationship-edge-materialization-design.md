@@ -239,12 +239,14 @@ relationship writer relies on (`buildLabelScopedSQLRelationshipCypher`).
 
 The Cypher relationship type is a sanitized static token derived from the
 observed AWS `relationship_type` value, for example
-`ec2_subnet_in_vpc` -> `AWS_EC2_SUBNET_IN_VPC`. The original
+`ec2_subnet_in_vpc` -> `AWS_ec2_subnet_in_vpc`. The original
 `relationship_type` remains a relationship property for readback. This keeps the
 logical identity `(source, relationship_type, target)` without placing
 `relationship_type` inside the relationship `MERGE` map, which NornicDB does not
-route through its fast relationship upsert path. Unsafe relationship type text
-fails closed before Cypher is built.
+route through its fast relationship upsert path. The token preserves the raw
+relationship type's case so graph identity matches the reducer's documented
+case-sensitive key. Unsafe relationship type text fails closed before Cypher is
+built.
 
 ## 6. Unresolved Targets
 
@@ -270,7 +272,7 @@ ambiguous (name-only target with no anchor hit stays unresolved, not guessed).
 
 Conflict domain: `CloudResource` nodes keyed by `uid`, and AWS relationship
 edges keyed by `(source_uid, relationship_type, target_uid)` through the static
-`AWS_<RELATIONSHIP_TYPE>` Cypher relationship type, both partitioned by scope
+`AWS_<raw relationship_type>` Cypher relationship type, both partitioned by scope
 generation.
 
 - **Claim/lease:** PR #1 node materialization runs as a reducer domain handler,
@@ -402,7 +404,7 @@ so a future agent does not silently re-open them.
    and `internal/query/entity_map_traversal.go` resolves the label. PR #1 makes
    those queries return real data instead of empty results. PR #2 writes **only**
    relationship-type-specific
-   `(:CloudResource)-[:AWS_<RELATIONSHIP_TYPE>]->(:CloudResource)` edges; it
+   `(:CloudResource)-[:AWS_<raw relationship_type>]->(:CloudResource)` edges; it
    does **not** write the `(:WorkloadInstance)-[:USES]->(:CloudResource)` edge
    (deferred to the deployment-mapping owner). The edge writer Cypher
    (`go/internal/storage/cypher/cloud_resource_edge_writer.go`) anchors both
@@ -439,7 +441,7 @@ bounded join and batching cost:
   (10,000 facts): ~15.1 ms/op, 22.1 MB/op, 330,133 allocs/op.
 - `BenchmarkCloudResourceEdgeWriter` (`go/internal/storage/cypher`) — 5,000
   resolved edge rows shaped into relationship-type-grouped
-  `MATCH-MATCH-MERGE` statements at the default 500/UNWIND: `2.08 ms/op`,
+  `MATCH-MATCH-MERGE` statements at the default 500/UNWIND: `2.31 ms/op`,
   `3.89 MB/op`, `40,099 allocs/op` on darwin/arm64 Apple M3 Pro. The graph
   commit is one grouped transaction via `GroupExecutor`, so the write side is
   bounded by distinct relationship types times `ceil(E_type/batchSize)`, never
@@ -451,7 +453,9 @@ at `20s` for 12 rows, while the static relationship-type `MERGE` completed in
 `0-1ms` per 12-row relationship-type batch for the same endpoint and row shape.
 The same probe retracted 24 temporary edges with the evidence-source/scope
 delete in about `2.1s`. The probe used temporary CloudResource nodes and did
-not include environment-specific identifiers in this document.
+not include environment-specific identifiers in this document. A follow-up probe
+also confirmed NornicDB accepts the case-preserving lower-case static token
+shape (`AWS_uses_kms_key`) with a `0ms` single-row upsert.
 
 Observability Evidence: the handler records `eshu_dp_aws_relationship_edges_total`
 dimensioned by `relationship_type` (bounded by the scanner fleet's closed
