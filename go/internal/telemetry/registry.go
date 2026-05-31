@@ -47,6 +47,7 @@ var metricDimensionKeys = []string{
 	MetricDimensionResourceType,
 	MetricDimensionRelationshipType,
 	MetricDimensionJoinMode,
+	MetricDimensionCoverageSignal,
 }
 
 var spanNames = []string{

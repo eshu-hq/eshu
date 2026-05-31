@@ -135,6 +135,13 @@ const (
 	// found. It lets an operator answer "which join mode is losing edges, and is
 	// it because the target service was not scanned in this scope?" at 3 AM.
 	MetricDimensionJoinMode = "join_mode"
+	// MetricDimensionCoverageSignal labels the observability coverage correlation
+	// counter (eshu_dp_observability_coverage_correlations_total) with the closed
+	// enum of AWS-native coverage signal classes: alarm, composite_alarm,
+	// dashboard, log_group, trace_sampling. Cardinality is bounded by that closed
+	// set so an operator can answer "which observability signal class is losing
+	// coverage?" at 3 AM.
+	MetricDimensionCoverageSignal = "coverage_signal"
 )
 
 // Span names define the stable data-plane tracing contract.

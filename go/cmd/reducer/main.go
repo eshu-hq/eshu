@@ -327,6 +327,9 @@ func buildReducerService(
 		ServiceCatalogCorrelationWriter: reducer.PostgresServiceCatalogCorrelationWriter{
 			DB: database,
 		},
+		ObservabilityCoverageCorrelationWriter: reducer.PostgresObservabilityCoverageCorrelationWriter{
+			DB: database,
+		},
 		SBOMAttestationAttachmentWriter: reducer.PostgresSBOMAttestationAttachmentWriter{
 			DB: database,
 		},
