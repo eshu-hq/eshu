@@ -3,6 +3,7 @@ package main
 import (
 	"crypto/rand"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"log/slog"
 	"sync/atomic"
@@ -12,6 +13,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector/ospackagevulnerability/osruntime"
 	"github.com/eshu-hq/eshu/go/internal/collector/scannerworker"
+	"github.com/eshu-hq/eshu/go/internal/collector/scannerworker/sbomgenerator"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
@@ -68,7 +70,14 @@ func buildAnalyzer(config runtimeConfig) (scannerworker.Analyzer, error) {
 			Now:                 time.Now,
 		})
 	case scannerworker.AnalyzerSBOMGeneration:
-		return scannerworker.WarningAnalyzer{Reason: "sbom_generator_source_not_configured"}, nil
+		source, err := newRepositorySBOMSource(config.SBOMTargets)
+		if err != nil {
+			if errors.Is(err, errNoSBOMTargets) {
+				return scannerworker.WarningAnalyzer{Reason: "sbom_generator_source_not_configured"}, nil
+			}
+			return nil, err
+		}
+		return sbomgenerator.Analyzer{Source: source, Now: time.Now}, nil
 	default:
 		return scannerworker.WarningAnalyzer{Reason: "analyzer_not_configured"}, nil
 	}

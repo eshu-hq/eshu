@@ -27,6 +27,10 @@ flowchart LR
 - Applies analyzer defaults, optional instance `resource_limits`, then
   `ESHU_SCANNER_WORKER_*` resource overrides.
 - Emits source facts only and rejects silent clean output before committing.
+- Runs the concrete `sbom_generation` analyzer when configured with
+  `sbom_targets`; this source walks a configured repository root, reads bounded
+  `package-lock.json`, `npm-shrinkwrap.json`, and `go.mod` manifests, and emits
+  `sbom.document`, `sbom.component`, and `sbom.warning` facts.
 - Runs the concrete `os_package_extraction` analyzer when configured with
   `os_package_targets`; this parser consumes already-extracted Alpine or Debian
   rootfs metadata and emits `vulnerability.os_package` /
@@ -37,11 +41,31 @@ flowchart LR
   private pprof through `ESHU_PPROF_ADDR`.
 
 The fallback analyzer emits an explicit `scanner_worker.warning` source fact
-(`reason=analyzer_not_configured`). The `sbom_generation` contract accepts
-repository, image, or artifact work items when the runtime source has enough
-subject evidence, and it still emits source facts only. Concrete SBOM, image,
-secret, license, source, and misconfiguration analyzers must plug into this
-boundary instead of running in reducer lanes.
+(`reason=analyzer_not_configured`). `sbom_generation` falls back to
+`reason=sbom_generator_source_not_configured` when no `sbom_targets` are
+configured. Concrete image, secret, license, source, and misconfiguration
+analyzers must plug into this boundary instead of running in reducer lanes.
+
+`sbom_generation` repository targets are configured inside the selected
+`scanner_worker` collector instance:
+
+```json
+{
+  "analyzer": "sbom_generation",
+  "sbom_targets": [
+    {
+      "scope_id": "scanner-worker://repository/team-api",
+      "root_path": "/var/lib/eshu/scanner/repositories/team-api",
+      "subject_digest": "sha256:..."
+    }
+  ]
+}
+```
+
+The repository path is runtime-local configuration. It must not appear in
+retry, dead-letter, metric, log, or public documentation payloads. If no usable
+components are found, the analyzer emits a document fact plus an
+`sbom.warning` fact instead of returning silent clean output.
 
 `os_package_extraction` targets are configured inside the selected
 `scanner_worker` collector instance:
@@ -87,4 +111,7 @@ No-Regression Evidence: scanner-worker runtime behavior is covered by
 Observability Evidence: the runtime records scanner-worker claim, retry,
 dead-letter, facts-emitted, queue-wait, scan-duration, target-count,
 result-count, CPU, and memory metrics, plus `scanner_worker.*` spans and
-bounded structured failure logs.
+bounded structured failure logs. Configured `sbom_generation` sources return
+measured manifest input bytes as peak memory usage and CPU seconds from the Go
+runtime counters, so operators can distinguish queue wait, manifest read cost,
+source fact volume, retries, and terminal resource-limit failures.

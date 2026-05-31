@@ -47,7 +47,8 @@ unparseable, or subject-mismatched.
   runtime-owned `Source` and an optional `Now` clock.
 - `Source` — port the runtime implements to return bounded inventory for
   one claim.
-- `Inventory`, `Component` — bounded inputs the source returns.
+- `Inventory`, `Component` — bounded inputs the source returns, including
+  measured CPU and peak-memory usage for scanner-worker telemetry.
 - `ErrUnsupportedTarget`, `ErrSourceUnavailable` — sentinels the runtime
   returns from `Collect`; the analyzer maps them to terminal
   `unsupported_target` or retryable `source_unavailable` workflow
@@ -82,6 +83,9 @@ unparseable, or subject-mismatched.
   any envelopes by comparing the inventory's worst-case fact count
   (`1 + len(components) + 2`) against `MaxFacts`. The analyzer fails
   before emitting any partial fact bundle.
+- Runtime sources carry `ResourceUsage` on `Inventory`; the analyzer passes it
+  through to `scannerworker.Service` so `sbom_generation` records CPU and
+  memory signals with the rest of the scanner-worker metric set.
 - Generic `Source` errors map to terminal `analyzer_failed` and the wrapped
   cause is discarded. This keeps repository paths, image names, registry
   URLs, and package coordinates out of retry/dead-letter payloads.
@@ -100,8 +104,8 @@ Coverage Evidence: `go test ./internal/collector/scannerworker/sbomgenerator -co
 exercises successful generation, repository/image/artifact target support,
 malformed subject digest, missing subject warning, component identity skipping,
 silent clean rejection, file/input/fact limit enforcement, unsupported target
-classification, retryable source unavailability, and terminal analyzer failure
-with privacy-safe error strings.
+classification, retryable source unavailability, terminal analyzer failure
+with privacy-safe error strings, and resource-usage propagation.
 
 Reducer Path Evidence:
 `go test ./internal/reducer -run 'TestScannerWorkerGeneratedSBOMFactsAdmittedByReducerAttachment' -count=1`
@@ -111,10 +115,12 @@ proves the analyzer-emitted document and component facts feed
 `unknown_subject` when it is not. Scanner workers never short-circuit
 attachment truth.
 
-No-Observability-Change: this package reuses
-`scanner_worker.*` claim metrics and spans from `internal/telemetry`. It
-adds no new metric instrument, span, log key, queue, reducer lane, graph
-write, or runtime configuration knob.
+Observability Evidence: this package reuses `scanner_worker.*` claim metrics
+and spans from `internal/telemetry`. The `Inventory.ResourceUsage` field feeds
+`eshu_dp_scanner_worker_cpu_seconds` and
+`eshu_dp_scanner_worker_memory_bytes`; the analyzer adds no new metric
+instrument, span, log key, queue, reducer lane, graph write, or runtime
+configuration knob.
 
 Resource Contract Evidence: the analyzer enforces the same
 `max_files`, `max_input_bytes`, and `max_facts` from
