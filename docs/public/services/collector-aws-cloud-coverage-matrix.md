@@ -18,11 +18,11 @@ scanner. Use that page for resource and edge detail; use this page to answer
   placement, encryption keys, IAM trust, data-source wiring, deployment
   targets). Leaf services with no infrastructure relationships are low priority
   by design, not by oversight.
-- **Counts reflect `main`.** As of this revision the collector ships **92
+- **Counts reflect `main`.** As of this revision the collector ships **93
   service scanners**. The supported list below is grouped by domain; the
   scanner-coverage page enumerates the resources and edges each one emits.
 
-## Supported services (92)
+## Supported services (93)
 
 | Domain | Services |
 |---|---|
@@ -35,7 +35,7 @@ scanner. Use that page for resource and edge detail; use this page to answer
 | Management & governance (7) | `cloudformation`, `cloudwatch`, `cloudwatchlogs`, `ssm`, `organizations`, `servicecatalog`, `resourcegroups` |
 | Developer tools (6) | `codebuild`, `codecommit`, `codedeploy`, `codepipeline`, `codeartifact`, `xray` |
 | Analytics & streaming (7) | `athena`, `emr`, `glue`, `kinesis`, `firehose`, `msk`, `opensearch` |
-| Application integration (8) | `sns`, `sqs`, `eventbridge`, `stepfunctions`, `mq`, `appflow`, `appsync`, `mwaa` |
+| Application integration (9) | `sns`, `sqs`, `eventbridge`, `stepfunctions`, `mq`, `appflow`, `appsync`, `mwaa`, `ses` |
 | ML & front-end (3) | `sagemaker`, `bedrock`, `amplify` |
 
 ## Not yet covered
@@ -48,8 +48,6 @@ services. They are the recommended next expansion wave.
 | Service | SDK / API | Graph value |
 |---|---|---|
 | Database Migration Service | `dms` | replication instances live in a VPC; endpoints fan out to RDS / S3 / Kinesis / Redshift |
-| Simple Email Service | `sesv2` | identities, configuration sets, event destinations → SNS / Firehose |
-| Kinesis Video Streams | `kinesisvideo` | streams + KMS encryption; intended under #750 but never shipped (see sub-resource gap below) |
 | Managed Service for Apache Flink | `kinesisanalyticsv2` | applications → Kinesis / MSK / S3 sources and sinks |
 | VPC Lattice | `vpc-lattice` | service networks, services, target groups → VPC / EC2 / Lambda |
 | Network Manager | `networkmanager` | global networks → transit gateways, Direct Connect |
@@ -109,11 +107,15 @@ they add nodes but few edges. They are intentionally deprioritized:
 
 These are gaps *inside* an already-shipped scanner rather than missing services:
 
-- **Kinesis Video Streams.** Epic #750 scoped the `kinesis` scanner as "Data
-  Streams + Firehose + Video Streams." Data Streams shipped in `kinesis`,
-  Firehose shipped as its own `firehose` scanner, but Video Streams
-  (`kinesisvideo`) was never built. It is tracked in Tier A above so the title
-  no longer implies coverage that does not exist.
+- **Kinesis Video Streams — covered; only WebRTC signaling channels are not
+  modeled.** Epic #750 scoped the `kinesis` scanner as "Data Streams + Firehose
+  + Video Streams." All three shipped: Data Streams and Video Streams under the
+  `kinesis` scanner (`aws_kinesis_video_stream` with a stream → `aws_kms_key`
+  edge, from #798), and Firehose as its own `firehose` scanner. The only KVS
+  sub-feature not modeled is WebRTC **signaling channels**
+  (`ListSignalingChannels`), which are identity-only with no cross-service edges
+  — deliberately out of scope as low graph value. (Issue #915, which assumed
+  video streams were unshipped, was closed as already-satisfied.)
 
 ## Deeper coverage track
 
