@@ -101,8 +101,10 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/ssoadmin v1.39.1
 	github.com/aws/aws-sdk-go-v2/service/storagegateway v1.43.17
 	github.com/aws/aws-sdk-go-v2/service/sts v1.33.20
+	github.com/aws/aws-sdk-go-v2/service/timestreamwrite v1.35.25
 	github.com/aws/aws-sdk-go-v2/service/transfer v1.72.2
 	github.com/aws/aws-sdk-go-v2/service/wafv2 v1.71.6
+	github.com/aws/aws-sdk-go-v2/service/xray v1.36.25
 	github.com/aws/smithy-go v1.26.0
 	github.com/charmbracelet/bubbles v1.0.0
 	github.com/charmbracelet/bubbletea v1.3.10
@@ -185,7 +187,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/internal/v4a v1.4.24 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.13.9 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/checksum v1.7.2 // indirect
-	github.com/aws/aws-sdk-go-v2/service/internal/endpoint-discovery v1.10.15 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/endpoint-discovery v1.12.2 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.13.24 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.18.15 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sso v1.25.3 // indirect
