@@ -240,3 +240,23 @@ runtime configuration knob. Operators continue to diagnose the path through
 existing parser-stage timing, package-consumption correlation facts,
 `reducer_supply_chain_impact_finding`, `match_reason`, `dependency_scope`,
 `missing_evidence`, and the supply-chain impact readiness envelope.
+
+No-Regression Evidence: Java Maven and Gradle vulnerability parity for issue
+`#1011` is guarded by `go test ./internal/parser/maven
+./internal/parser/gradle -count=1` and `go test ./internal/reducer -run
+'TestBuildSupplyChainImpactFindings(ProvesJVMManifestParity|KeepsUnresolvedJVMVersionsIncomplete)|TestBuildSupplyChainImpactFindingsExplainsMavenRangeAndFixedVersion'
+-count=1`. The fixtures prove `pom.xml` dependencies,
+`dependencyManagement`, `build.gradle`, and `build.gradle.kts` rows join
+through `groupId:artifactId` Maven identity to advisory evidence, Maven
+bracket ranges classify affected and known-fixed versions, and unresolved JVM
+manifest versions keep `observed_version` blank with explicit missing-version
+evidence instead of becoming affected or safely fixed.
+
+No-Observability-Change: the `#1011` parity work changes in-memory parser
+fixtures and the exact-manifest-version guard only. It adds no metric
+instrument, span, log key, queue, reducer lane, graph write, scanner worker,
+route, MCP tool, or runtime configuration knob. Operators continue to diagnose
+JVM impact through existing parser-stage timing, package-consumption
+correlation facts, `reducer_supply_chain_impact_finding`, `match_reason`,
+`requested_range`, `observed_version`, `missing_evidence`, and the
+supply-chain impact readiness envelope.

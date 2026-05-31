@@ -29,12 +29,12 @@ dependencies {
 	}
 
 	expected := map[string]string{
-		"org.springframework:spring-core":              "implementation",
-		"com.google.guava:guava":                       "api",
-		"org.postgresql:postgresql":                    "runtimeOnly",
-		"org.projectlombok:lombok":                     "compileOnly",
-		"junit:junit":                                  "testImplementation",
-		"org.junit.jupiter:junit-jupiter-engine":       "testRuntimeOnly",
+		"org.springframework:spring-core":        "implementation",
+		"com.google.guava:guava":                 "api",
+		"org.postgresql:postgresql":              "runtimeOnly",
+		"org.projectlombok:lombok":               "compileOnly",
+		"junit:junit":                            "testImplementation",
+		"org.junit.jupiter:junit-jupiter-engine": "testRuntimeOnly",
 	}
 	for name, wantSection := range expected {
 		row := requireDependencyRow(t, payload, name)
@@ -210,6 +210,28 @@ func TestParseSkipsProjectDependenciesAndFileCollections(t *testing.T) {
 	want := []string{"org.example:real"}
 	if !equalStringSlices(names, want) {
 		t.Fatalf("dependency rows = %#v, want %#v (project/files/fileTree skipped)", names, want)
+	}
+}
+
+func TestParseSkipsGradleSourceSetAndVersionCatalogAliases(t *testing.T) {
+	t.Parallel()
+
+	path := writeFixture(t, "build.gradle.kts", `dependencies {
+    implementation(libs.spring.core)
+    implementation(sourceSets.main.get().output)
+    implementation("org.example:real:1.0.0")
+}`)
+
+	payload, err := Parse(path, false, shared.Options{})
+	if err != nil {
+		t.Fatalf("Parse() error = %v", err)
+	}
+
+	rows, _ := payload["variables"].([]map[string]any)
+	names := dependencyNames(rows)
+	want := []string{"org.example:real"}
+	if !equalStringSlices(names, want) {
+		t.Fatalf("dependency rows = %#v, want %#v (version catalog and source-set aliases skipped)", names, want)
 	}
 }
 
