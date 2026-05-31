@@ -65,6 +65,11 @@ func (h SecurityAlertReconciliationHandler) Handle(ctx context.Context, intent I
 		return Result{}, fmt.Errorf("load active security alert reconciliation evidence: %w", err)
 	}
 	envelopes = append(envelopes, active...)
+	manifestDependencies, err := h.loadActiveSecurityAlertManifestDependencyFacts(ctx, envelopes)
+	if err != nil {
+		return Result{}, fmt.Errorf("load active security alert manifest dependency facts: %w", err)
+	}
+	envelopes = append(envelopes, manifestDependencies...)
 	envelopes = dedupeSecurityAlertReconciliationEnvelopes(envelopes)
 
 	decisions := BuildSecurityAlertReconciliations(envelopes)
@@ -116,6 +121,25 @@ func (h SecurityAlertReconciliationHandler) loadActiveEvidence(
 	return envelopes, nil
 }
 
+func (h SecurityAlertReconciliationHandler) loadActiveSecurityAlertManifestDependencyFacts(
+	ctx context.Context,
+	envelopes []facts.Envelope,
+) ([]facts.Envelope, error) {
+	loader, ok := h.FactLoader.(activePackageManifestDependencyFactLoader)
+	if !ok {
+		return nil, nil
+	}
+	ecosystems, packageNames := securityAlertManifestDependencyFilter(envelopes)
+	if len(ecosystems) == 0 || len(packageNames) == 0 {
+		return nil, nil
+	}
+	dependencies, err := loader.ListActivePackageManifestDependencyFacts(ctx, ecosystems, packageNames)
+	if err != nil {
+		return nil, classifyFactLoadError(err)
+	}
+	return dependencies, nil
+}
+
 func securityAlertReconciliationFilter(envelopes []facts.Envelope) SecurityAlertReconciliationFactFilter {
 	var repositoryIDs, packageIDs, cveIDs, ghsaIDs []string
 	for _, envelope := range envelopes {
@@ -138,6 +162,20 @@ func securityAlertReconciliationFilter(envelopes []facts.Envelope) SecurityAlert
 		CVEIDs:        uniqueSortedStrings(cveIDs),
 		GHSAIDs:       uniqueSortedStrings(ghsaIDs),
 	}
+}
+
+func securityAlertManifestDependencyFilter(envelopes []facts.Envelope) ([]string, []string) {
+	alerts := extractProviderSecurityAlerts(envelopes)
+	if len(alerts) == 0 {
+		return nil, nil
+	}
+	var ecosystems []string
+	var packageNames []string
+	for _, alert := range alerts {
+		ecosystems = append(ecosystems, alert.Ecosystem)
+		packageNames = append(packageNames, securityAlertPackageNameCandidates(alert)...)
+	}
+	return uniqueSortedStrings(ecosystems), uniqueSortedStrings(packageNames)
 }
 
 func dedupeSecurityAlertReconciliationEnvelopes(envelopes []facts.Envelope) []facts.Envelope {
