@@ -180,6 +180,12 @@ func environmentLogGroupRelationships(
 	observations := make([]awscloud.RelationshipObservation, 0, len(environment.LogGroups))
 	seen := make(map[string]struct{}, len(environment.LogGroups))
 	for _, logGroup := range environment.LogGroups {
+		// AWS reports a log group ARN even for disabled modules. A disabled
+		// module does not publish Airflow logs, so emitting an edge would create
+		// misleading dependency evidence; skip it.
+		if !logGroup.Enabled {
+			continue
+		}
 		logGroupARN := trimLogGroupWildcardARN(logGroup.ARN)
 		if logGroupARN == "" {
 			continue

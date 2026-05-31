@@ -263,6 +263,61 @@ func TestScannerTrimsLogGroupWildcardAndDeduplicates(t *testing.T) {
 	}
 }
 
+func TestScannerCanonicalizesPaddedServiceKind(t *testing.T) {
+	// A caller may pass a service_kind padded with whitespace. The switch only
+	// trims for the comparison, so the canonical value must be written back to
+	// the boundary; otherwise the padded string leaks into every emitted fact's
+	// service_kind and breaks joins/filters that expect the canonical "mwaa".
+	boundary := testBoundary()
+	boundary.ServiceKind = "  " + awscloud.ServiceMWAA + "  "
+	client := fakeClient{environments: []Environment{{
+		Name:            "padded-env",
+		ARN:             "arn:aws:airflow:us-east-1:123456789012:environment/padded-env",
+		SourceBucketARN: "arn:aws:s3:::padded-dags",
+	}}}
+
+	envelopes, err := (Scanner{Client: client}).Scan(context.Background(), boundary)
+	if err != nil {
+		t.Fatalf("Scan() error = %v, want nil", err)
+	}
+	if len(envelopes) == 0 {
+		t.Fatalf("Scan() returned no envelopes")
+	}
+	for _, envelope := range envelopes {
+		if got, want := envelope.Payload["service_kind"], awscloud.ServiceMWAA; got != want {
+			t.Fatalf("envelope service_kind = %#v, want %q (padded service_kind must be canonicalized)", got, want)
+		}
+	}
+}
+
+func TestScannerSkipsDisabledLogModuleRelationships(t *testing.T) {
+	// AWS reports a CloudWatch log group ARN even for disabled Airflow log
+	// modules. A disabled module does not publish logs, so it must not emit an
+	// env->log-group edge that would create misleading dependency evidence.
+	enabledLogGroup := "arn:aws:logs:us-east-1:123456789012:log-group:airflow-env-Scheduler"
+	disabledLogGroup := "arn:aws:logs:us-east-1:123456789012:log-group:airflow-env-Worker"
+	client := fakeClient{environments: []Environment{{
+		Name: "env",
+		ARN:  "arn:aws:airflow:us-east-1:123456789012:environment/env",
+		LogGroups: []LogGroup{
+			{Module: "SchedulerLogs", ARN: enabledLogGroup + ":*", Enabled: true},
+			{Module: "WorkerLogs", ARN: disabledLogGroup + ":*", Enabled: false},
+		},
+	}}}
+
+	envelopes, err := (Scanner{Client: client}).Scan(context.Background(), testBoundary())
+	if err != nil {
+		t.Fatalf("Scan() error = %v, want nil", err)
+	}
+	edges := relationshipsByType(envelopes, awscloud.RelationshipMWAAEnvironmentLogsToCloudWatchLogGroup)
+	if got := len(edges); got != 1 {
+		t.Fatalf("env->log-group edge count = %d, want 1 (disabled module must not emit an edge)", got)
+	}
+	if got, want := edges[0].Payload["target_resource_id"], enabledLogGroup; got != want {
+		t.Fatalf("env->log-group target_resource_id = %#v, want %q (only the enabled module)", got, want)
+	}
+}
+
 func TestScannerRejectsMismatchedServiceKind(t *testing.T) {
 	boundary := testBoundary()
 	boundary.ServiceKind = awscloud.ServiceSNS

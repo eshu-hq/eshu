@@ -28,9 +28,10 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, fmt.Errorf("mwaa scanner client is required")
 	}
 	switch strings.TrimSpace(boundary.ServiceKind) {
-	case "":
+	case "", awscloud.ServiceMWAA:
+		// Canonicalize so emitted facts and telemetry always carry the exact
+		// service_kind string, even when the caller passes whitespace padding.
 		boundary.ServiceKind = awscloud.ServiceMWAA
-	case awscloud.ServiceMWAA:
 	default:
 		return nil, fmt.Errorf("mwaa scanner received service_kind %q", boundary.ServiceKind)
 	}

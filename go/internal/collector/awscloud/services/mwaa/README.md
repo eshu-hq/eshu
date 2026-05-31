@@ -79,10 +79,13 @@ spans.
   publishes.
 - The environment-to-KMS-key edge targets the AWS-reported KMS key reference
   (an ARN), which the `kms` scanner carries as a correlation anchor.
-- The environment-to-CloudWatch-log-group edge trims the trailing `:*`
-  wildcard suffix MWAA appends to each module's log group ARN so the edge
-  joins the non-wildcard ARN `resource_id` the `cloudwatchlogs` scanner
-  publishes. Duplicate log group ARNs across modules collapse to one edge.
+- The environment-to-CloudWatch-log-group edge is emitted only for enabled
+  Airflow log modules; disabled modules still report a log group ARN but do
+  not publish logs, so they are skipped to avoid misleading dependency
+  evidence. The edge trims the trailing `:*` wildcard suffix MWAA appends to
+  each module's log group ARN so it joins the non-wildcard ARN `resource_id`
+  the `cloudwatchlogs` scanner publishes. Duplicate log group ARNs across
+  enabled modules collapse to one edge.
 - Emit reported evidence only. Do not infer deployment, workload, repository
   ownership, environment, or deployable-unit truth from environment names or
   AWS tags.
