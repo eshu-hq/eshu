@@ -120,6 +120,8 @@ github.com/aws/aws-sdk-go-v2/service/cloudformation v1.55.0 h1:Pf3hi7g1jDoD31qet
 github.com/aws/aws-sdk-go-v2/service/cloudformation v1.55.0/go.mod h1:WEfYjobS0jTq12V8UgB+wfHcq/tTV4mZXIc+a8OjL2A=
 github.com/aws/aws-sdk-go-v2/service/cloudfront v1.64.0 h1:a6XmNe8cAvfrXVKwjXzWl9HHtuyE/n4kBroNm2mSOyo=
 github.com/aws/aws-sdk-go-v2/service/cloudfront v1.64.0/go.mod h1:brhMG/gR2xEB5lezxL2Cx+hqsEzGUn4LhNUtu7+ePFE=
+github.com/aws/aws-sdk-go-v2/service/cloudhsmv2 v1.35.0 h1:WqA9PmkllN5QolQch9zdc4h0hr1c2VWNgNUVNyBAcJI=
+github.com/aws/aws-sdk-go-v2/service/cloudhsmv2 v1.35.0/go.mod h1:wyM87TWUaJ6fx+HwJQejQ/IlXtJx7S7CY7goU5zYEAs=
 github.com/aws/aws-sdk-go-v2/service/cloudtrail v1.55.11 h1:3IDx7ybn7pyrLgVShEfGmEXec1xsqgoD1ADI1SxqKT0=
 github.com/aws/aws-sdk-go-v2/service/cloudtrail v1.55.11/go.mod h1:iSArc5uhvz1S3EICNNvRzPksb6HPAUhltzMvoCrGyfM=
 github.com/aws/aws-sdk-go-v2/service/cloudwatch v1.57.0 h1:dlkFtYOrwOuM7IIBD6FPLtt0Xvnph+8hqmmbzyowkCk=
