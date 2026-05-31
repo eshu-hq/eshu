@@ -62,12 +62,15 @@ bounded byte lookahead so large config files do not pay repeated substring
 trims.
 
 `package-lock.json`, `composer.lock`, and `packages.lock.json` rows represent
-exact versions installed by the owning repository. Manifest dependency rows can
-still contain ranges such as `^5.4.11`; callers that need observed package
-versions must prefer lockfile rows and keep manifest ranges as partial evidence.
-The dependency coverage matrix also names non-JSON ecosystems, such as Cargo,
-because the public coverage table needs one sorted source of truth even when
-parser execution is owned by another package.
+exact versions installed by the owning repository. npm `package-lock.json` rows
+also preserve dependency chains, direct/transitive evidence, and
+`dependency_scope` when npm records runtime, dev, optional, or peer placement.
+`package.json` rows preserve requested ranges from `dependencies`,
+`devDependencies`, `optionalDependencies`, and `peerDependencies`; callers that
+need observed package versions must prefer lockfile rows and keep manifest
+ranges as partial evidence. The dependency coverage matrix also names non-JSON
+ecosystems, such as Cargo, because the public coverage table needs one sorted
+source of truth even when parser execution is owned by another package.
 
 `composer.lock` rows likewise represent exact PHP package versions
 installed by Composer. The parser emits one row per package in the

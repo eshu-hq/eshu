@@ -18,5 +18,8 @@
 // rule that missing dependency evidence is neither safe nor affected. Guard
 // tests in dependency_coverage_test.go exercise JSON-owned covered files and
 // gap files, while parent-parser tests prove covered exact-name entries owned by
-// other parser packages.
+// other parser packages. npm package manifests preserve runtime, dev, optional,
+// and peer range scopes; package-lock rows preserve exact installed versions,
+// dependency chains, and npm-recorded runtime/dev/optional/peer scope where
+// available.
 package json

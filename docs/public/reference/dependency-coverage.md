@@ -72,10 +72,10 @@ absence of evidence look like absence of risk. Guard tests:
 | gradle | build.gradle | build | covered | ✓ | — | ✓ | ✓ | ✓ | — | `go/internal/parser/gradle/parser.go` | Groovy DSL `dependencies` blocks (implementation, api, runtimeOnly, compileOnly, testImplementation, platform/enforcedPlatform, buildscript) emit content_entity rows. `project()/files()/fileTree()` are skipped; unresolved `${var}` interpolations stay marked `unresolved`. |
 | gradle | build.gradle.kts | build | covered | ✓ | — | ✓ | ✓ | ✓ | — | `go/internal/parser/gradle/parser.go` | Kotlin DSL `dependencies` blocks emit content_entity rows mirroring the Groovy parser; configuration closures (e.g., `version { strictly(...) }`) without a top-level coordinate version stay `partial`. |
 | maven | pom.xml | manifest | covered | ✓ | — | ✓ | ✓ | ✓ | — | `go/internal/parser/maven/parser.go` | `<dependencies>` and `<dependencyManagement>` emit content_entity rows with `groupId:artifactId` identity. Local `<properties>` resolve at parse time; parent-POM references and unsatisfied `${property}` references stay marked `partial`/`unresolved`. |
-| npm | package.json | manifest | covered | ✓ | — | ✓ | ✓ | ✓ | — | `go/internal/parser/json/language.go` (`dependencyVariables`, npm) | `dependencies` and `devDependencies` emit content_entity rows; optional and peer scopes are not yet split. |
-| npm | package-lock.json | lockfile | covered | ✓ | ✓ | — | ✓ | — | ✓ | `go/internal/parser/json/package_lock.go` | Lockfile v3 and v1 emit exact-version rows with `dependency_path`/`dependency_depth` and `direct_dependency`. |
+| npm | package.json | manifest | covered | ✓ | — | ✓ | ✓ | ✓ | — | `go/internal/parser/json/language.go` (`dependencyVariables`, npm) | `dependencies`, `devDependencies`, `optionalDependencies`, and `peerDependencies` emit content_entity rows with runtime/dev/optional/peer scope labels. |
+| npm | package-lock.json | lockfile | covered | ✓ | ✓ | — | ✓ | ✓ | ✓ | `go/internal/parser/json/package_lock.go` | Lockfile v3 and v1 emit exact-version rows with `dependency_path`/`dependency_depth`, `direct_dependency`, and runtime/dev/optional/peer scope where npm records it. |
 | npm | pnpm-lock.yaml | lockfile | covered | ✓ | ✓ | — | ✓ | ✓ | ✓ | `go/internal/parser/nodelockfile/pnpm.go` | pnpm v6+ lockfiles emit exact-version rows with `package_manager: npm` plus `package_manager_flavor: pnpm`, `dependency_path`/`dependency_depth`, `direct_dependency`, and runtime vs dev scope split; workspace, file, link, and portal entries stay out of remote evidence. |
-| npm | yarn.lock | lockfile | covered | ✓ | ✓ | — | — | — | ✓ | `go/internal/parser/nodelockfile/yarn_classic.go` and `yarn_berry.go` | Yarn classic v1 and Yarn Berry lockfiles emit exact-version rows with `package_manager: npm` plus `package_manager_flavor: yarn`, `dependency_path`/`dependency_depth`, `direct_dependency`, and `lockfile_resolution_protocol` for non-npm protocols; workspace/file/link/portal entries stay out of remote evidence. |
+| npm | yarn.lock | lockfile | covered | ✓ | ✓ | — | — | — | ✓ | `go/internal/parser/nodelockfile/yarn_classic.go` and `yarn_berry.go` | Yarn classic v1 and Yarn Berry lockfiles emit exact-version rows with `package_manager: npm` plus `package_manager_flavor: yarn`, `dependency_path`/`dependency_depth`, and `direct_dependency`; yarn.lock alone does not preserve runtime/dev/optional/peer importer scope, and unsupported non-npm Berry protocols remain audit-only rows. |
 | nuget | *.csproj | manifest | covered | ✓ | — | ✓ | ✓ | ✓ | — | `go/internal/parser/nuget_project_language.go` | PackageReference rows preserve requested versions, resolved MSBuild properties, unresolved-property partial evidence, and PrivateAssets dev/test signals. |
 | nuget | packages.lock.json | lockfile | covered | ✓ | ✓ | — | ✓ | — | ✓ | `go/internal/parser/json/nuget_lock.go` | NuGet lockfiles emit exact resolved versions and direct/transitive dependency paths when the lockfile proves them. |
 | pypi | Pipfile | manifest | covered | ✓ | — | ✓ | ✓ | ✓ | — | `go/internal/parser/pythondep/pipfile.go` | `[packages]` and `[dev-packages]` emit content_entity rows; inline `{git=…}`, `{path=…}`, `{url=…}` entries surface as `vcs_dependency`, `path_dependency`, or `url_dependency`. |
@@ -93,6 +93,18 @@ absence of evidence look like absence of risk. Guard tests:
   [#565](https://github.com/eshu-hq/eshu/pull/565) used npm/package.json
   evidence plus Maven registry identity to validate the log4j-core impact
   story end-to-end.
+- npm manifests and lockfiles distinguish JavaScript/TypeScript runtime, dev,
+  optional, and peer evidence where the source format supports it.
+  `package.json` rows remain range-only evidence, so supply-chain impact
+  reports them as possible/incomplete until paired with exact lockfile or
+  SBOM evidence. `package-lock.json` rows carry exact installed versions
+  plus npm-recorded scope flags. pnpm lockfiles preserve importer-side
+  runtime/dev/optional/peer scope. Yarn classic and Berry lockfiles do not
+  include importer scope by themselves, so Yarn rows keep exact versions and
+  dependency chains but leave scope empty unless a paired manifest supplies
+  it. Unsupported Yarn Berry protocols such as `patch:` are emitted as
+  `unsupported_dependency` audit rows and are not admitted as precise
+  consumption truth.
 - Maven `pom.xml` and Gradle `build.gradle` / `build.gradle.kts` emit
   repository-side dependency facts with `groupId:artifactId` identity that
   the reducer joins to Maven package-registry identities, so JVM impact
@@ -156,14 +168,16 @@ through the real engine into dependency rows). `go test
 allocate per-call only — no shared state, locks, or worker pools — so
 they add no concurrency surface to the ingest pipeline. `go test
 ./internal/parser/json -run
-'TestDependencyCoverage|TestParseComposerLock|TestParseComposerManifestAndLockfile|TestParseNuGet|TestParsePipfileLock'
+'TestDependencyCoverage|TestParseComposerLock|TestParseComposerManifestAndLockfile|TestParseNuGet|TestParsePipfileLock|TestParsePackageJSONEmitsRuntimeDevOptionalAndPeerScopes|TestParsePackageLockEmitsExactVersionScopeFlags'
 -count=1` runs the matrix invariants plus the covered/gap parser fixtures
-(npm, Composer, RubyGems, NuGet, Maven, Gradle, and Pipfile.lock); it is
-a pure in-memory fixture path and adds no Cypher, queue, or storage
-work. `go test ./internal/parser/nodelockfile -count=1` runs the Yarn
-classic, Yarn Berry, and pnpm-lock.yaml fixtures (direct, transitive,
-scoped, workspace/local, malformed, unsupported-protocol, and
-multi-version-per-name) in the same single-digit-second range. `go test
+(npm, Composer, RubyGems, NuGet, Maven, Gradle, and Pipfile.lock), including
+JavaScript/TypeScript package.json range scopes and package-lock exact-version
+scope flags; it is a pure in-memory fixture path and adds no Cypher, queue, or
+storage work. `go test ./internal/parser/nodelockfile -count=1` runs the Yarn
+classic, Yarn Berry, and pnpm-lock.yaml fixtures (direct, transitive, scoped,
+optional/peer importer scope, workspace/local, malformed,
+unsupported-protocol, and multi-version-per-name) in the same
+single-digit-second range. `go test
 ./internal/parser/gomod ./internal/parser/pythondep -run '.' -count=1`
 covers go.mod require/indirect/replace/exclude rows, the go.sum
 checksum-only ambiguity contract, the scanner-error / malformed-state
@@ -178,7 +192,11 @@ case, Maven/Gradle manifest coordinates, and the new PyPI manifest
 admission case), git/path ambiguity rejection, and the safety-rule
 negatives (go.sum checksum-only ambiguity, replace/exclude
 non-admission, malformed go.mod, PyPI VCS provenance non-admission)
-without touching Postgres or the graph backend.
+without touching Postgres or the graph backend. `go test ./internal/reducer
+-run 'TestBuildPackageConsumptionDecisions(AdmitsYarnLockEvidence|AdmitsPnpmLockEvidence|RejectsUnsupportedYarnBerryFeature)|TestBuildSupplyChainImpactFindings(ProvesNPMFamilyLockfileExactVersions|KeepsNPMDevScopeVisible)'
+-count=1` proves npm-family lockfile consumption and impact parity across
+package-lock, Yarn classic/Berry, and pnpm, including dev-scope propagation
+and unsupported-lockfile rejection.
 
 No-Regression Evidence: Cargo coverage is guarded by
 `go test ./internal/parser -run 'TestCargoDependencyCoverageMatrixMarksCargoFilesCovered|TestDefaultEngineParsePathCargo' -count=1`,
@@ -201,3 +219,24 @@ decision surfaces `direct_dependency: null` rather than guessing. Maven
 and Gradle dependency rows flow through the same `content_entity` ingest
 path as npm/Composer/RubyGems rows and reuse the existing parser-stage
 histograms.
+
+No-Regression Evidence: JavaScript/TypeScript vulnerability parity for issue
+`#997` is guarded by `go test ./internal/parser/json -run
+'TestParsePackageJSONEmitsRuntimeDevOptionalAndPeerScopes|TestParsePackageLockEmitsExactVersionScopeFlags'
+-count=1`, `go test ./internal/parser/nodelockfile -run
+'TestParseUnsupportedYarnBerryFeatureIsRecorded|TestParsePnpmLockfilePreservesOptionalAndPeerImporterScopes'
+-count=1`, and `go test ./internal/reducer -run
+'TestBuildPackageConsumptionDecisionsRejectsUnsupportedYarnBerryFeature|TestBuildSupplyChainImpactFindingsProvesNPMFamilyLockfileExactVersions|TestBuildSupplyChainImpactFindingsKeepsNPMDevScopeVisible'
+-count=1`. These fixtures prove package.json range-only npm scopes,
+package-lock exact installed scope flags, Yarn unsupported-protocol
+audit rows, pnpm optional/peer importer scopes, precise exact-version
+findings, dev-scope readback, and fail-closed unsupported lockfile
+handling without graph, queue, Postgres, or hosted runtime work.
+
+No-Observability-Change: the `#997` parity work changes parser row metadata
+and reducer admission filters only. It adds no metric instrument, span, log
+key, queue, reducer lane, graph write, route, MCP tool, scanner worker, or
+runtime configuration knob. Operators continue to diagnose the path through
+existing parser-stage timing, package-consumption correlation facts,
+`reducer_supply_chain_impact_finding`, `match_reason`, `dependency_scope`,
+`missing_evidence`, and the supply-chain impact readiness envelope.

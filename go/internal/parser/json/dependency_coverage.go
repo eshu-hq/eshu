@@ -97,7 +97,7 @@ func DependencyCoverage() []DependencyCoverageEntry {
 			CapturesScope:           true,
 			CapturesDevRuntimeSplit: true,
 			SourceReference:         "go/internal/parser/json/language.go (dependencyVariables, npm)",
-			Notes:                   "dependencies and devDependencies emit content_entity rows; optional and peer scopes are not yet split.",
+			Notes:                   "dependencies, devDependencies, optionalDependencies, and peerDependencies emit content_entity rows with runtime/dev/optional/peer scope labels.",
 		},
 		{
 			Ecosystem:               "npm",
@@ -107,9 +107,10 @@ func DependencyCoverage() []DependencyCoverageEntry {
 			CapturesPackageIdentity: true,
 			CapturesExactVersion:    true,
 			CapturesScope:           true,
+			CapturesDevRuntimeSplit: true,
 			CapturesDependencyChain: true,
 			SourceReference:         "go/internal/parser/json/package_lock.go",
-			Notes:                   "lockfile v3 and v1 emit exact-version rows with dependency_path/depth and direct_dependency flag.",
+			Notes:                   "lockfile v3 and v1 emit exact-version rows with dependency_path/depth, direct_dependency, and runtime/dev/optional/peer scope where npm records it.",
 		},
 		{
 			Ecosystem:               "npm",
@@ -120,7 +121,7 @@ func DependencyCoverage() []DependencyCoverageEntry {
 			CapturesExactVersion:    true,
 			CapturesDependencyChain: true,
 			SourceReference:         "go/internal/parser/nodelockfile/yarn_classic.go and yarn_berry.go",
-			Notes:                   "Yarn classic v1 and Yarn Berry lockfiles emit exact-version rows with package_manager=npm and package_manager_flavor=yarn, dependency_path/depth, direct_dependency, and lockfile_resolution_protocol for non-npm protocols.",
+			Notes:                   "Yarn classic v1 and Yarn Berry lockfiles emit exact-version rows with package_manager=npm and package_manager_flavor=yarn, dependency_path/depth, and direct_dependency; yarn.lock alone does not preserve dev/runtime/optional/peer importer scope, and unsupported non-npm Berry protocols are audit-only rows.",
 		},
 		{
 			Ecosystem:               "npm",

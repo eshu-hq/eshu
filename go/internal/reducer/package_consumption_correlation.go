@@ -229,6 +229,9 @@ func extractPackageManifestDependencies(envelopes []facts.Envelope) []packageMan
 		if dependency.DependencyName == "" || dependency.PackageManager == "" {
 			continue
 		}
+		if packageManifestMetadataString(envelope.Payload, "lockfile_unsupported_feature") != "" {
+			continue
+		}
 		if dependency.SourceAmbiguous {
 			continue
 		}

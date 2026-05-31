@@ -240,4 +240,7 @@ func TestParseUnsupportedYarnBerryFeatureIsRecorded(t *testing.T) {
 	if row["lockfile_resolution_protocol"] != "patch" {
 		t.Fatalf("patched-lib lockfile_resolution_protocol = %#v, want patch", row["lockfile_resolution_protocol"])
 	}
+	if row["config_kind"] != "unsupported_dependency" {
+		t.Fatalf("patched-lib config_kind = %#v, want unsupported_dependency so the reducer cannot admit it as precise consumption", row["config_kind"])
+	}
 }

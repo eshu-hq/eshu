@@ -29,7 +29,17 @@ For the supply-chain impact reducer, the practical implications are:
   (`package_manager: "npm"`) so the consumption reducer and the
   owned-package SQL filter both match them as npm evidence, and they
   surface the actual package manager tool as `package_manager_flavor:
-  "yarn"` or `"pnpm"` for operators and readiness reads. Composer
+  "yarn"` or `"pnpm"` for operators and readiness reads. package.json
+  rows preserve runtime/dev/optional/peer manifest scope but remain
+  range-only evidence until paired with exact lockfile or SBOM evidence.
+  package-lock rows carry exact installed versions plus npm-recorded
+  runtime/dev/optional/peer scope. pnpm lockfiles preserve importer-side
+  runtime/dev/optional/peer scope. Yarn lockfiles preserve exact versions
+  and dependency chains but do not carry importer scope on their own, so
+  Yarn runtime/dev/optional/peer scope needs paired manifest evidence.
+  Unsupported Yarn Berry non-npm protocols such as `patch:` remain
+  audit-only `unsupported_dependency` rows and are not admitted as
+  precise consumption truth. Composer
   lockfile rows carry exact installed versions and a `lockfile: true`
   flag, so the reducer reports `direct_dependency: null` rather than
   guessing directness when no manifest range was also observed. Bundler
@@ -80,6 +90,26 @@ No-Observability-Change: Cargo coverage reuses existing parser payloads,
 `query.supply_chain_impact_findings` read span. It adds no metric instrument,
 span, log key, queue, reducer lane, graph write, scanner worker, or runtime
 configuration knob.
+
+No-Regression Evidence: JavaScript/TypeScript vulnerability parity for issue
+`#997` is guarded by `go test ./internal/parser/json -run
+'TestParsePackageJSONEmitsRuntimeDevOptionalAndPeerScopes|TestParsePackageLockEmitsExactVersionScopeFlags'
+-count=1`, `go test ./internal/parser/nodelockfile -run
+'TestParseUnsupportedYarnBerryFeatureIsRecorded|TestParsePnpmLockfilePreservesOptionalAndPeerImporterScopes'
+-count=1`, and `go test ./internal/reducer -run
+'TestBuildPackageConsumptionDecisionsRejectsUnsupportedYarnBerryFeature|TestBuildSupplyChainImpactFindingsProvesNPMFamilyLockfileExactVersions|TestBuildSupplyChainImpactFindingsKeepsNPMDevScopeVisible'
+-count=1`. Provider-alert comparison remains a private validation path:
+compare sanitized aggregate counts and row-level mismatch classes against
+representative Dependabot alerts without committing provider payloads,
+repository names, package names, or alert URLs.
+
+No-Observability-Change: the `#997` parity work changes parser row metadata
+and reducer admission filters only. It reuses existing `content_entity`
+dependency facts, package-consumption correlation facts,
+`reducer_supply_chain_impact_finding`, `match_reason`, `dependency_scope`,
+`missing_evidence`, and `query.supply_chain_impact_findings`. It adds no
+metric instrument, span, log key, queue, reducer lane, graph write, scanner
+worker, route, MCP tool, or runtime configuration knob.
 
 ## Advisory Source Coverage
 
