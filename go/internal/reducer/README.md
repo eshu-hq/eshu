@@ -268,6 +268,15 @@ Key metrics (all prefixed `eshu_dp_`):
   store catalog entity, owner, repository, service/workload IDs when explicitly
   supplied by evidence, drift status, candidate repository IDs, and evidence
   fact IDs for API/MCP freshness checks.
+- `observability_coverage_correlations_total` — observability coverage
+  correlation decisions by bounded outcome (`exact`, `derived`, `ambiguous`,
+  `unresolved`, `stale`, `rejected`), reducer domain, and `coverage_signal`
+  (`alarm`, `composite_alarm`, `dashboard`, `log_group`, `trace_sampling`).
+  Durable `reducer_observability_coverage_correlation` facts record
+  which monitored CloudResource nodes have CloudWatch / CloudWatch Logs / X-Ray
+  coverage versus uncovered gaps. PR1 is fact-only: no graph edge is written;
+  the optional `COVERS` edge is a later gated PR, and the query/MCP read surface
+  is a follow-up PR.
 - `correlation_rule_matches_total`, `correlation_orphan_detected_total`, and
   `correlation_unmanaged_detected_total` — AWS runtime drift rule execution and
   admitted orphan/unmanaged findings. Unknown and ambiguous findings are exposed
@@ -509,6 +518,20 @@ Log phase attributes: `telemetry.PhaseReduction` (main loop),
   stale, and multiple active repository matches are ambiguous. Catalog names,
   component names, and ownership labels never create repository, service, or
   workload truth by themselves.
+- **Observability coverage correlation is stable-identity gated** —
+  `ObservabilityCoverageCorrelationHandler` writes
+  `reducer_observability_coverage_correlation` facts for all six outcomes. A
+  coverage edge is canonical truth (`exact`, not provenance-only) only when an
+  observability object resolves to a monitored CloudResource by a stable identity
+  (an alarm whose AWS system dimension value, e.g. `InstanceId`, matches a scanned
+  resource id). X-Ray service-name matches stay `derived`/provenance-only;
+  metric-name-only alarms (e.g. `AWS/Billing`) are `rejected`; non-unique
+  dimension matches are `ambiguous`; tombstoned-only matches are `stale`;
+  monitored resources with no resolving coverage emit `unresolved` gap findings
+  (bounded to classes with a covered peer in scope). The handler reads only
+  `aws_resource` and `aws_relationship` facts through a bounded in-memory index
+  (no per-edge graph round trip), redacted dimension values never resolve a
+  target, and PR1 writes no graph edge.
 - **Projection must be idempotent** — queue retries, duplicate claims, and
   partial graph writes must converge on the same truth.
 - **Generation supersession** — `Runtime.execute` calls `GenerationCheck`
@@ -576,6 +599,9 @@ No-Observability-Change: this changes reducer fact identity fields only. Existin
 
 No-Regression Evidence: `go test ./internal/reducer -run 'TestSecurityAlertReconciliationHandlerDefersProviderTriggeredPendingImpactEvidence|TestSecurityAlertReconciliationDefersPackageTriggeredUnmatchedEvidence|TestSecurityAlertReconciliationHandlerUsesRepositoryFactsForLockfileScope|TestSupplyChainImpactHandlerUsesRepositoryScopedSecurityAlertLockfileEvidence' -count=1` failed before provider-triggered reconciliation waited for pending impact evidence, then passed after the same bounded retry guard used for package-triggered repairs covered provider-alert triggers. Provider-only alerts still write provider-only when no owned dependency evidence exists, and retries stop at the existing max-attempt boundary.
 No-Observability-Change: this changes the reducer retry decision for premature reconciliation only. Existing reducer queue retry status, `failure_class=security_alert_reconciliation_waiting_for_impact`, retry delay, max attempts, reducer run spans, reducer execution counters, durable reconciliation payloads, and API/MCP read spans remain the operator-visible signals; no metric label, queue domain, graph write, route, or runtime knob was added.
+
+No-Regression Evidence: `go test ./internal/reducer -run 'ObservabilityCoverage' -count=1` and `go test ./internal/telemetry -run 'TestMetricDimensionKeys|TestNewInstruments' -count=1` pass for the new `observability_coverage_correlation` domain. `BuildObservabilityCoverageDecisions` is a pure in-memory function over the scope generation's `aws_resource` and `aws_relationship` fact envelopes: it builds one bounded coverage index (O(R) over target resources by ARN / bare resource id / correlation anchor — the #805 §5.1 join shape) and resolves each observability relationship by O(1) map lookup (O(E)), with the durable fact write going through the existing `canonicalReducerFactInsertQuery` path. There is no graph write, no new table or schema migration, no per-edge graph round trip, and no N+1; the handler reads only two fact kinds and emits provenance-only reducer facts, so the touched reducer hot path adds no measured graph or queue cost.
+Observability Evidence: the new `eshu_dp_observability_coverage_correlations_total` counter is dimensioned by `domain`, `outcome` (six values), and `coverage_signal` (`alarm` / `composite_alarm` / `dashboard` / `log_group` / `trace_sampling`), so an operator can answer at 3 AM which observability signal class is losing coverage and whether the cause is a gap, an ambiguous match, a stale tombstoned target, or a rejected weak signal. The `EvidenceSummary` and `CanonicalWrites` on the reducer `Result`, plus the existing reducer run spans, execution counters, fact-load Postgres timings, and the durable `reducer_observability_coverage_correlation` payload (`outcome`, `coverage_status`, `resolution_mode`, `candidate_target_uids`, `evidence_fact_ids`) expose per-intent progress; no graph-write metric is added because PR1 performs no graph write.
 ## Related docs
 
 - `docs/public/architecture.md`

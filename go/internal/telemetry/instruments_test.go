@@ -58,6 +58,7 @@ func TestNewInstrumentsNoError(t *testing.T) {
 	assert.NotNil(t, inst.ContainerImageIdentityDecisions, "ContainerImageIdentityDecisions counter should be registered")
 	assert.NotNil(t, inst.CICDRunCorrelations, "CICDRunCorrelations counter should be registered")
 	assert.NotNil(t, inst.ServiceCatalogCorrelations, "ServiceCatalogCorrelations counter should be registered")
+	assert.NotNil(t, inst.ObservabilityCoverageCorrelations, "ObservabilityCoverageCorrelations counter should be registered")
 	assert.NotNil(t, inst.SBOMAttestationAttachments, "SBOMAttestationAttachments counter should be registered")
 	assert.NotNil(t, inst.SupplyChainImpactFindings, "SupplyChainImpactFindings counter should be registered")
 	assert.NotNil(t, inst.ConfluenceHTTPRequests, "ConfluenceHTTPRequests counter should be registered")

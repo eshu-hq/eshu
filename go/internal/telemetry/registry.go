@@ -33,6 +33,7 @@ var metricDimensionKeys = []string{
 	MetricDimensionStatusClass,
 	MetricDimensionFailureClass,
 	MetricDimensionFactKind,
+	MetricDimensionResourceScope,
 	MetricDimensionDocumentType,
 	MetricDimensionService,
 	MetricDimensionAccount,
@@ -47,6 +48,7 @@ var metricDimensionKeys = []string{
 	MetricDimensionResourceType,
 	MetricDimensionRelationshipType,
 	MetricDimensionJoinMode,
+	MetricDimensionCoverageSignal,
 }
 
 var spanNames = []string{
@@ -105,6 +107,8 @@ var spanNames = []string{
 	SpanWebhookStore,
 	SpanOCIRegistryScan,
 	SpanOCIRegistryAPICall,
+	SpanKubernetesLiveSnapshot,
+	SpanKubernetesLiveAPICall,
 	SpanAWSCollectorClaimProcess,
 	SpanAWSCredentialsAssumeRole,
 	SpanAWSServiceScan,

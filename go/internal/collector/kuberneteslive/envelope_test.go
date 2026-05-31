@@ -1,0 +1,263 @@
+package kuberneteslive
+
+import (
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/facts"
+)
+
+func sampleIdentity() ObjectIdentity {
+	return ObjectIdentity{
+		ClusterID: "prod-us-east-1",
+		APIGroup:  "apps",
+		Version:   "v1",
+		Resource:  "deployments",
+		Namespace: "payments",
+		Name:      "checkout",
+		UID:       "uid-checkout-1",
+	}
+}
+
+func TestNewPodTemplateEnvelopeShape(t *testing.T) {
+	t.Parallel()
+
+	observedAt := time.Date(2026, 5, 31, 12, 0, 0, 0, time.UTC)
+	envelope, err := NewPodTemplateEnvelope(PodTemplateObservation{
+		Identity: sampleIdentity(),
+		Containers: []ContainerSummary{
+			{
+				Name:          "app",
+				Image:         "ghcr.io/acme/checkout@sha256:abc",
+				Ports:         []int32{8080, 80},
+				EnvKeys:       []string{"DATABASE_HOST", "API_KEY"},
+				EnvFromSecret: true,
+			},
+		},
+		ServiceAccount:      "checkout-sa",
+		Selector:            map[string]string{"app": "checkout"},
+		GenerationID:        "gen-1",
+		CollectorInstanceID: "k8s-prod",
+		FencingToken:        7,
+		ObservedAt:          observedAt,
+	})
+	if err != nil {
+		t.Fatalf("NewPodTemplateEnvelope() error = %v", err)
+	}
+	if envelope.FactKind != facts.KubernetesPodTemplateFactKind {
+		t.Fatalf("FactKind = %q, want %q", envelope.FactKind, facts.KubernetesPodTemplateFactKind)
+	}
+	if envelope.SchemaVersion != facts.KubernetesPodTemplateSchemaVersion {
+		t.Fatalf("SchemaVersion = %q, want %q", envelope.SchemaVersion, facts.KubernetesPodTemplateSchemaVersion)
+	}
+	if envelope.CollectorKind != CollectorKind {
+		t.Fatalf("CollectorKind = %q, want %q", envelope.CollectorKind, CollectorKind)
+	}
+	if envelope.SourceConfidence != facts.SourceConfidenceReported {
+		t.Fatalf("SourceConfidence = %q, want reported", envelope.SourceConfidence)
+	}
+	if envelope.FencingToken != 7 {
+		t.Fatalf("FencingToken = %d, want 7", envelope.FencingToken)
+	}
+	wantScope, _ := ClusterScopeID("prod-us-east-1")
+	if envelope.ScopeID != wantScope {
+		t.Fatalf("ScopeID = %q, want %q", envelope.ScopeID, wantScope)
+	}
+	if !envelope.ObservedAt.Equal(observedAt) {
+		t.Fatalf("ObservedAt = %v, want %v", envelope.ObservedAt, observedAt)
+	}
+
+	// Env var NAMES are kept; values must never appear because none are read.
+	envKeys, ok := envelope.Payload["containers"].([]map[string]any)
+	if !ok || len(envKeys) != 1 {
+		t.Fatalf("containers payload missing or wrong shape: %#v", envelope.Payload["containers"])
+	}
+	keys, _ := envKeys[0]["env_keys"].([]string)
+	if strings.Join(keys, ",") != "API_KEY,DATABASE_HOST" {
+		t.Fatalf("env_keys = %v, want sorted names only", keys)
+	}
+	if envKeys[0]["env_from_secret"] != true {
+		t.Fatalf("env_from_secret = %v, want true", envKeys[0]["env_from_secret"])
+	}
+}
+
+func TestPodTemplateRedactionNoSecretValues(t *testing.T) {
+	t.Parallel()
+
+	// The payload must never contain any of these sentinel secret strings;
+	// only metadata (names, images, ports) is emitted.
+	secret := "super-secret-password-value"
+	envelope, err := NewPodTemplateEnvelope(PodTemplateObservation{
+		Identity:            sampleIdentity(),
+		Containers:          []ContainerSummary{{Name: "app", Image: "img:1", EnvKeys: []string{"DB_PASSWORD"}}},
+		GenerationID:        "gen-1",
+		CollectorInstanceID: "k8s-prod",
+	})
+	if err != nil {
+		t.Fatalf("NewPodTemplateEnvelope() error = %v", err)
+	}
+	if payloadContains(envelope.Payload, secret) {
+		t.Fatalf("payload leaked a secret value")
+	}
+	// Sanity: the key name is retained, the value is not present anywhere.
+	if !payloadContains(envelope.Payload, "DB_PASSWORD") {
+		t.Fatalf("payload should retain env var key name DB_PASSWORD")
+	}
+}
+
+func TestPodTemplateEnvelopeIsDeterministic(t *testing.T) {
+	t.Parallel()
+
+	build := func() facts.Envelope {
+		env, err := NewPodTemplateEnvelope(PodTemplateObservation{
+			Identity:            sampleIdentity(),
+			Containers:          []ContainerSummary{{Name: "app", Image: "img:1"}},
+			GenerationID:        "gen-1",
+			CollectorInstanceID: "k8s-prod",
+			ObservedAt:          time.Unix(100, 0).UTC(),
+		})
+		if err != nil {
+			t.Fatalf("NewPodTemplateEnvelope() error = %v", err)
+		}
+		return env
+	}
+	first := build()
+	second := build()
+	if first.FactID != second.FactID {
+		t.Fatalf("FactID is not deterministic: %q vs %q", first.FactID, second.FactID)
+	}
+	if first.StableFactKey != second.StableFactKey {
+		t.Fatalf("StableFactKey is not deterministic")
+	}
+}
+
+func TestNewRelationshipEnvelope(t *testing.T) {
+	t.Parallel()
+
+	owner := sampleIdentity()
+	owned := ObjectIdentity{
+		ClusterID: "prod-us-east-1",
+		APIGroup:  "apps",
+		Version:   "v1",
+		Resource:  "replicasets",
+		Namespace: "payments",
+		Name:      "checkout-abc",
+		UID:       "uid-rs-1",
+	}
+	envelope, err := NewRelationshipEnvelope(RelationshipObservation{
+		ClusterID:           "prod-us-east-1",
+		Type:                RelationshipOwnerReference,
+		From:                owned,
+		To:                  owner,
+		GenerationID:        "gen-1",
+		CollectorInstanceID: "k8s-prod",
+	})
+	if err != nil {
+		t.Fatalf("NewRelationshipEnvelope() error = %v", err)
+	}
+	if envelope.FactKind != facts.KubernetesRelationshipFactKind {
+		t.Fatalf("FactKind = %q, want relationship", envelope.FactKind)
+	}
+	if envelope.Payload["relationship_type"] != string(RelationshipOwnerReference) {
+		t.Fatalf("relationship_type = %v", envelope.Payload["relationship_type"])
+	}
+	if envelope.Payload["from_object_id"] != owned.ObjectID() {
+		t.Fatalf("from_object_id mismatch")
+	}
+	if envelope.Payload["to_object_id"] != owner.ObjectID() {
+		t.Fatalf("to_object_id mismatch")
+	}
+}
+
+func TestNewWarningEnvelope(t *testing.T) {
+	t.Parallel()
+
+	envelope, err := NewWarningEnvelope(WarningObservation{
+		ClusterID:           "prod-us-east-1",
+		Reason:              WarningForbiddenResource,
+		ResourceScope:       ResourceScopeServices,
+		Message:             "list services forbidden at https://api.example.com?token=leak",
+		GenerationID:        "gen-1",
+		CollectorInstanceID: "k8s-prod",
+	})
+	if err != nil {
+		t.Fatalf("NewWarningEnvelope() error = %v", err)
+	}
+	if envelope.FactKind != facts.KubernetesWarningFactKind {
+		t.Fatalf("FactKind = %q, want warning", envelope.FactKind)
+	}
+	if envelope.Payload["reason"] != WarningForbiddenResource {
+		t.Fatalf("reason = %v", envelope.Payload["reason"])
+	}
+	message, _ := envelope.Payload["message"].(string)
+	if strings.Contains(message, "token=leak") {
+		t.Fatalf("warning message leaked sensitive query param: %q", message)
+	}
+}
+
+func TestEnvelopeBoundaryValidation(t *testing.T) {
+	t.Parallel()
+
+	if _, err := NewPodTemplateEnvelope(PodTemplateObservation{
+		Identity:            sampleIdentity(),
+		CollectorInstanceID: "k8s-prod",
+	}); err == nil {
+		t.Fatalf("expected error for blank generation_id")
+	}
+	if _, err := NewWarningEnvelope(WarningObservation{
+		ClusterID:           "c",
+		Reason:              "",
+		GenerationID:        "gen-1",
+		CollectorInstanceID: "k8s-prod",
+	}); err == nil {
+		t.Fatalf("expected error for blank reason")
+	}
+	if _, err := NewRelationshipEnvelope(RelationshipObservation{
+		ClusterID:           "c",
+		Type:                RelationshipOwnerReference,
+		From:                ObjectIdentity{},
+		To:                  sampleIdentity(),
+		GenerationID:        "gen-1",
+		CollectorInstanceID: "k8s-prod",
+	}); err == nil {
+		t.Fatalf("expected error for invalid from identity")
+	}
+}
+
+func payloadContains(payload map[string]any, needle string) bool {
+	for _, value := range payload {
+		if valueContains(value, needle) {
+			return true
+		}
+	}
+	return false
+}
+
+func valueContains(value any, needle string) bool {
+	switch typed := value.(type) {
+	case string:
+		return strings.Contains(typed, needle)
+	case []string:
+		for _, item := range typed {
+			if strings.Contains(item, needle) {
+				return true
+			}
+		}
+	case []map[string]any:
+		for _, item := range typed {
+			if payloadContains(item, needle) {
+				return true
+			}
+		}
+	case map[string]any:
+		return payloadContains(typed, needle)
+	case map[string]string:
+		for k, v := range typed {
+			if strings.Contains(k, needle) || strings.Contains(v, needle) {
+				return true
+			}
+		}
+	}
+	return false
+}

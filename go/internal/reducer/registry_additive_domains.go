@@ -1,0 +1,228 @@
+package reducer
+
+import "github.com/eshu-hq/eshu/go/internal/truth"
+
+// configStateDriftDomainDefinition returns the additive DomainDefinition for
+// terraform_config_state_drift. The drift domain is intentionally NOT part of
+// DefaultDomainDefinitions because its handler requires three adapters
+// (TerraformBackendResolver, DriftEvidenceLoader, DriftLogger) that the
+// production reducer binary wires explicitly. Registering the domain without
+// those adapters silently drops every intent — the additive pattern keeps the
+// catalog honest about what the runtime can actually serve. See defaults.go
+// (implementedDefaultDomainDefinitions) for the wiring gate.
+func configStateDriftDomainDefinition() DomainDefinition {
+	return DomainDefinition{
+		Domain:  DomainConfigStateDrift,
+		Summary: "correlate Terraform config (parsed HCL) against state snapshots to detect five drift kinds",
+		// CounterEmit declares the v1 truth surface: bounded metric
+		// counters + structured logs. Graph projection follows per
+		// design doc §10.
+		Ownership: OwnershipShape{
+			CrossSource:    true,
+			CrossScope:     true,
+			CanonicalWrite: false,
+			CounterEmit:    true,
+		},
+		TruthContract: truth.Contract{
+			CanonicalKind: "config_state_drift",
+			SourceLayers: []truth.Layer{
+				truth.LayerSourceDeclaration,
+				truth.LayerObservedResource,
+			},
+		},
+	}
+}
+
+// packageSourceCorrelationDomainDefinition returns the additive definition for
+// the package source-correlation classifier. Source hints remain provenance-only
+// ownership and publication candidates, while Git manifest dependencies matched
+// to package registry identity are durable consumption facts.
+func packageSourceCorrelationDomainDefinition() DomainDefinition {
+	return DomainDefinition{
+		Domain:  DomainPackageSourceCorrelation,
+		Summary: "classify package-registry ownership, publication, and consumption correlations",
+		Ownership: OwnershipShape{
+			CrossSource:    true,
+			CrossScope:     true,
+			CanonicalWrite: true,
+			CounterEmit:    true,
+		},
+		TruthContract: truth.Contract{
+			CanonicalKind: "package_source_correlation",
+			SourceLayers: []truth.Layer{
+				truth.LayerSourceDeclaration,
+			},
+		},
+	}
+}
+
+// containerImageIdentityDomainDefinition returns the additive definition for
+// digest-keyed image identity decisions. The domain writes durable reducer
+// facts only for digest-proven or single tag-to-digest registry observations;
+// ambiguous, missing, and stale tag cases remain explicit decision facts.
+func containerImageIdentityDomainDefinition() DomainDefinition {
+	return DomainDefinition{
+		Domain:  DomainContainerImageIdentity,
+		Summary: "join Git, OCI registry, and runtime image references into digest-keyed image identity",
+		Ownership: OwnershipShape{
+			CrossSource:    true,
+			CrossScope:     true,
+			CanonicalWrite: true,
+			CounterEmit:    true,
+		},
+		TruthContract: truth.Contract{
+			CanonicalKind: "container_image_identity",
+			SourceLayers: []truth.Layer{
+				truth.LayerSourceDeclaration,
+				truth.LayerObservedResource,
+			},
+		},
+	}
+}
+
+// cicdRunCorrelationDomainDefinition returns the additive definition for
+// CI/CD run correlation. The domain writes durable reducer facts for all
+// outcomes, but exact canonical writes require an explicit artifact identity
+// anchor rather than CI success or shell text.
+func cicdRunCorrelationDomainDefinition() DomainDefinition {
+	return DomainDefinition{
+		Domain:  DomainCICDRunCorrelation,
+		Summary: "correlate CI/CD runs, artifacts, and environments with artifact identity evidence",
+		Ownership: OwnershipShape{
+			CrossSource:    true,
+			CrossScope:     true,
+			CanonicalWrite: true,
+			CounterEmit:    true,
+		},
+		TruthContract: truth.Contract{
+			CanonicalKind: "ci_cd_run_correlation",
+			SourceLayers: []truth.Layer{
+				truth.LayerSourceDeclaration,
+				truth.LayerObservedResource,
+			},
+		},
+	}
+}
+
+// serviceCatalogCorrelationDomainDefinition returns the additive definition for
+// service-catalog correlation. The domain writes durable reducer facts for all
+// outcomes, while catalog names, owners, and declared dependencies remain
+// provenance until repository or stronger runtime evidence corroborates them.
+func serviceCatalogCorrelationDomainDefinition() DomainDefinition {
+	return DomainDefinition{
+		Domain:  DomainServiceCatalogCorrelation,
+		Summary: "correlate service-catalog entities with repository and ownership evidence",
+		Ownership: OwnershipShape{
+			CrossSource:    true,
+			CrossScope:     true,
+			CanonicalWrite: true,
+			CounterEmit:    true,
+		},
+		TruthContract: truth.Contract{
+			CanonicalKind: "service_catalog_correlation",
+			SourceLayers: []truth.Layer{
+				truth.LayerSourceDeclaration,
+			},
+		},
+	}
+}
+
+// sbomAttestationAttachmentDomainDefinition returns the additive definition for
+// SBOM and attestation attachment. The domain writes durable reducer facts for
+// all outcomes, but canonical attachment requires an explicit digest subject.
+func sbomAttestationAttachmentDomainDefinition() DomainDefinition {
+	return DomainDefinition{
+		Domain:  DomainSBOMAttestationAttachment,
+		Summary: "attach SBOM and attestation evidence to image digests when subject evidence is explicit",
+		Ownership: OwnershipShape{
+			CrossSource:    true,
+			CrossScope:     true,
+			CanonicalWrite: true,
+			CounterEmit:    true,
+		},
+		TruthContract: truth.Contract{
+			CanonicalKind: "sbom_attestation_attachment",
+			SourceLayers: []truth.Layer{
+				truth.LayerSourceDeclaration,
+				truth.LayerObservedResource,
+			},
+		},
+	}
+}
+
+// supplyChainImpactDomainDefinition returns the additive definition for
+// vulnerability impact findings. The domain writes durable reducer facts for
+// all statuses and keeps CVSS, EPSS, KEV, package, runtime, and deployment
+// signals separate so callers can see missing evidence.
+func supplyChainImpactDomainDefinition() DomainDefinition {
+	return DomainDefinition{
+		Domain:  DomainSupplyChainImpact,
+		Summary: "publish reducer-owned vulnerability impact findings with explicit evidence paths",
+		Ownership: OwnershipShape{
+			CrossSource:    true,
+			CrossScope:     true,
+			CanonicalWrite: true,
+			CounterEmit:    true,
+		},
+		TruthContract: truth.Contract{
+			CanonicalKind: "supply_chain_impact",
+			SourceLayers: []truth.Layer{
+				truth.LayerSourceDeclaration,
+				truth.LayerObservedResource,
+			},
+		},
+	}
+}
+
+// awsCloudRuntimeDriftDomainDefinition returns the additive definition for
+// AWS runtime drift publication. The domain consumes admitted
+// aws_cloud_runtime_drift candidates and writes durable reducer facts, but it
+// deliberately does not declare graph writes until the drift node and query
+// surface shape are frozen in the active ADR.
+func awsCloudRuntimeDriftDomainDefinition() DomainDefinition {
+	return DomainDefinition{
+		Domain:  DomainAWSCloudRuntimeDrift,
+		Summary: "publish admitted AWS runtime orphan and unmanaged drift findings as canonical reducer facts",
+		Ownership: OwnershipShape{
+			CrossSource:    true,
+			CrossScope:     true,
+			CanonicalWrite: true,
+			CounterEmit:    true,
+		},
+		TruthContract: truth.Contract{
+			CanonicalKind: "aws_cloud_runtime_drift",
+			SourceLayers: []truth.Layer{
+				truth.LayerSourceDeclaration,
+				truth.LayerAppliedDeclaration,
+				truth.LayerObservedResource,
+			},
+		},
+	}
+}
+
+// observabilityCoverageCorrelationDomainDefinition returns the additive
+// definition for observability coverage correlation. It is additive (not part of
+// DefaultDomainDefinitions) because the handler requires an explicitly wired
+// FactLoader and ObservabilityCoverageCorrelationWriter; registering it without
+// them would silently drop every intent. The domain writes durable reducer facts
+// for all outcomes and stays graph-neutral: coverage edges remain provenance
+// until an exact uid/ARN match proves them, and PR1 writes no graph edge at all.
+// See issue #391 for the design and the six-outcome correlation contract.
+func observabilityCoverageCorrelationDomainDefinition() DomainDefinition {
+	return DomainDefinition{
+		Domain:  DomainObservabilityCoverageCorrelation,
+		Summary: "correlate observability coverage of monitored cloud resources versus uncovered gaps",
+		Ownership: OwnershipShape{
+			CrossSource:    true,
+			CrossScope:     true,
+			CanonicalWrite: true,
+			CounterEmit:    true,
+		},
+		TruthContract: truth.Contract{
+			CanonicalKind: "observability_coverage_correlation",
+			SourceLayers: []truth.Layer{
+				truth.LayerObservedResource,
+			},
+		},
+	}
+}

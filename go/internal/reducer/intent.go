@@ -89,6 +89,15 @@ const (
 	// resolve against nodes that have not committed (issue #805 PR 2); see
 	// docs/internal/aws-relationship-edge-materialization-design.md §5–§8.
 	DomainAWSRelationshipMaterialization Domain = "aws_relationship_materialization"
+	// DomainObservabilityCoverageCorrelation correlates which monitored
+	// CloudResource nodes have observability coverage (CloudWatch alarms,
+	// dashboards, log groups, X-Ray) versus which are uncovered, emitting durable
+	// provenance-only reducer facts with the six-outcome contract. It is
+	// cross-source (observability object vs. the resource it covers) and
+	// cross-scope (a resource in one scan scope may be covered by an alarm
+	// discovered in another). PR1 writes facts only; the optional COVERS graph
+	// edge is a later gated PR. See issue #391 for the design.
+	DomainObservabilityCoverageCorrelation Domain = "observability_coverage_correlation"
 )
 
 // IntentStatus captures the durable reducer intent lifecycle state.
