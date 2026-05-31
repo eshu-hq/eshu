@@ -88,8 +88,16 @@ type Instruments struct {
 	ContainerImageIdentityDecisions           metric.Int64Counter
 	CICDRunCorrelations                       metric.Int64Counter
 	ServiceCatalogCorrelations                metric.Int64Counter
-	SBOMAttestationAttachments                metric.Int64Counter
-	SupplyChainImpactFindings                 metric.Int64Counter
+	// ObservabilityCoverageCorrelations counts reducer-owned observability
+	// coverage correlation decisions (issue #391). Labels: domain
+	// (observability_coverage_correlation), outcome (exact / derived / ambiguous /
+	// unresolved / stale / rejected), and coverage_signal (alarm /
+	// composite_alarm / dashboard / log_group / trace_sampling / paging). It lets
+	// an operator answer "which observability signal class is losing coverage, and
+	// is it a gap, an ambiguous match, or a rejected weak signal?" at 3 AM.
+	ObservabilityCoverageCorrelations metric.Int64Counter
+	SBOMAttestationAttachments        metric.Int64Counter
+	SupplyChainImpactFindings         metric.Int64Counter
 	// SupplyChainSuppressionDecisions counts reducer suppression-state
 	// outcomes per supply-chain impact finding. Labels: domain
 	// (supply_chain_impact) and outcome (one of active, not_affected,
@@ -721,6 +729,14 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register ServiceCatalogCorrelations counter: %w", err)
+	}
+
+	inst.ObservabilityCoverageCorrelations, err = meter.Int64Counter(
+		"eshu_dp_observability_coverage_correlations_total",
+		metric.WithDescription("Total observability coverage correlation decisions by reducer domain, outcome, and coverage signal"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register ObservabilityCoverageCorrelations counter: %w", err)
 	}
 
 	inst.SBOMAttestationAttachments, err = meter.Int64Counter(
@@ -1992,6 +2008,13 @@ func AttrRelationshipType(v string) attribute.KeyValue {
 // projection counter (arn / bare_id / correlation_anchor / unresolved).
 func AttrJoinMode(v string) attribute.KeyValue {
 	return attribute.String(MetricDimensionJoinMode, v)
+}
+
+// AttrCoverageSignal returns a coverage_signal attribute for the observability
+// coverage correlation counter (alarm / composite_alarm / dashboard / log_group
+// / trace_sampling / paging).
+func AttrCoverageSignal(v string) attribute.KeyValue {
+	return attribute.String(MetricDimensionCoverageSignal, v)
 }
 
 // AttrWritePhase returns a write_phase attribute for canonical phase metrics.
