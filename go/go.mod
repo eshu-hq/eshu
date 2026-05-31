@@ -15,6 +15,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/appflow v1.51.16
 	github.com/aws/aws-sdk-go-v2/service/appmesh v1.35.15
 	github.com/aws/aws-sdk-go-v2/service/apprunner v1.40.1
+	github.com/aws/aws-sdk-go-v2/service/appstream v1.60.1
 	github.com/aws/aws-sdk-go-v2/service/appsync v1.53.8
 	github.com/aws/aws-sdk-go-v2/service/athena v1.57.6
 	github.com/aws/aws-sdk-go-v2/service/autoscaling v1.66.3
