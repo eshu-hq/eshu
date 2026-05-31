@@ -86,6 +86,7 @@ import (
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/organizations/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/outposts/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/quicksight/runtimebind"
+	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/proton/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/ram/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/rds/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/redshift/runtimebind"
