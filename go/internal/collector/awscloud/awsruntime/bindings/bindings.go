@@ -124,6 +124,7 @@ import (
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/timestream/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/transitgateway/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/verifiedpermissions/runtimebind"
+	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/verifiedaccess/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/vpc/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/vpclattice/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/wafv2/runtimebind"
