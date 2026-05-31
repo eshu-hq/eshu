@@ -48,6 +48,26 @@ func isARN(value string) bool {
 	return strings.HasPrefix(strings.TrimSpace(value), "arn:")
 }
 
+// isKMSAliasReference reports whether a reported X-Ray encryption KeyID names a
+// KMS alias rather than a key. X-Ray PutEncryptionConfig accepts a bare alias
+// name ("alias/MyKey") or an alias ARN ("arn:<partition>:kms:...:alias/MyKey"),
+// and GetEncryptionConfig reports the reference verbatim. The KMS scanner emits
+// aliases as aws_kms_alias nodes and keys as aws_kms_key nodes, so the X-Ray
+// KMS edge must target the alias family for these references or it dangles. A
+// bare alias name is identified by the "alias/" prefix; an alias ARN by an
+// "alias/" resource segment after the final ":" (a key ARN carries "key/").
+func isKMSAliasReference(value string) bool {
+	trimmed := strings.TrimSpace(value)
+	if strings.HasPrefix(trimmed, "alias/") {
+		return true
+	}
+	if !isARN(trimmed) {
+		return false
+	}
+	resource := trimmed[strings.LastIndex(trimmed, ":")+1:]
+	return strings.HasPrefix(resource, "alias/")
+}
+
 // firstNonEmpty returns the first trimmed non-empty value, or "".
 func firstNonEmpty(values ...string) string {
 	for _, value := range values {

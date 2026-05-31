@@ -143,6 +143,60 @@ func TestEncryptionConfigKMSEdgeKeysBareIDWithoutFabricatedARN(t *testing.T) {
 	}
 }
 
+func TestEncryptionConfigKMSEdgeTargetsAliasForAliasName(t *testing.T) {
+	// X-Ray PutEncryptionConfig accepts a KMS alias name ("alias/MyKey"), and
+	// GetEncryptionConfig reports the reference verbatim. The KMS scanner emits
+	// aliases as aws_kms_alias nodes keyed by firstNonEmpty(aliasARN, aliasName),
+	// so an alias-name reference must target aws_kms_alias by that bare name; a
+	// fabricated key-family target would dangle. Regression for the #804
+	// graph-join defect class.
+	boundary := testBoundary()
+	edge, ok := encryptionConfigKMSRelationship(boundary, EncryptionConfig{
+		Type:   "KMS",
+		Status: "ACTIVE",
+		KeyID:  "alias/MyKey",
+	})
+	if !ok {
+		t.Fatal("expected a KMS edge for an alias-name reference")
+	}
+	if got, want := edge.TargetType, awscloud.ResourceTypeKMSAlias; got != want {
+		t.Fatalf("alias-name edge target_type = %q, want %q", got, want)
+	}
+	if got, want := edge.TargetResourceID, "alias/MyKey"; got != want {
+		t.Fatalf("alias-name edge target_resource_id = %q, want %q", got, want)
+	}
+	if edge.TargetARN != "" {
+		t.Fatalf("alias name given a fabricated target_arn = %q", edge.TargetARN)
+	}
+}
+
+func TestEncryptionConfigKMSEdgeTargetsAliasForAliasARN(t *testing.T) {
+	// An alias ARN ("arn:aws:kms:...:alias/MyKey") must target aws_kms_alias by
+	// the ARN, matching the alias scanner's resource_id = firstNonEmpty(aliasARN,
+	// aliasName). A key ARN ("...:key/...") still targets aws_kms_key; only the
+	// alias-shaped resource segment switches families.
+	boundary := testBoundary()
+	edge, ok := encryptionConfigKMSRelationship(boundary, EncryptionConfig{
+		Type:   "KMS",
+		Status: "ACTIVE",
+		KeyID:  "arn:aws:kms:us-east-1:123456789012:alias/MyKey",
+	})
+	if !ok {
+		t.Fatal("expected a KMS edge for an alias-ARN reference")
+	}
+	if got, want := edge.TargetType, awscloud.ResourceTypeKMSAlias; got != want {
+		t.Fatalf("alias-ARN edge target_type = %q, want %q", got, want)
+	}
+	if got, want := edge.TargetResourceID, "arn:aws:kms:us-east-1:123456789012:alias/MyKey"; got != want {
+		t.Fatalf("alias-ARN edge target_resource_id = %q, want %q", got, want)
+	}
+	if got, want := edge.TargetARN, "arn:aws:kms:us-east-1:123456789012:alias/MyKey"; got != want {
+		t.Fatalf("alias-ARN edge target_arn = %q, want %q", got, want)
+	}
+	// The graph-join contract must hold for the alias-targeted edge.
+	relguard.AssertObservations(t, edge)
+}
+
 func TestNoKMSEdgeWhenEncryptionTypeIsNone(t *testing.T) {
 	client := fakeClient{
 		config: &EncryptionConfig{Type: "NONE", Status: "ACTIVE"},

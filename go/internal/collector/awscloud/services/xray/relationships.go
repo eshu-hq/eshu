@@ -11,12 +11,16 @@ import (
 // data. It is emitted only when the encryption type is KMS and AWS reports a
 // key reference, so an account using X-Ray default encryption produces no edge.
 //
-// The target keys the KMS key family (aws_kms_key). The KMS scanner publishes
-// its key resource id as the bare key id (falling back to the key ARN), so the
-// reported key reference — a key id, key ARN, or alias — is used as the join
-// key directly. target_arn is set only when the reference is ARN-shaped, so an
-// ARN-keyed target is never keyed by a bare id and a bare-id/alias reference is
-// never given a fabricated ARN.
+// The target keys whichever KMS family the reference names. X-Ray accepts a key
+// id, key ARN, alias name, or alias ARN and reports it verbatim; the KMS scanner
+// publishes keys as aws_kms_key keyed by firstNonEmpty(keyID, keyARN) and aliases
+// as aws_kms_alias keyed by firstNonEmpty(aliasARN, aliasName). An alias-shaped
+// reference therefore targets aws_kms_alias and a key-shaped reference targets
+// aws_kms_key, with the reported reference used as the join key directly so the
+// edge joins the right node family instead of dangling against the other.
+// target_arn is set only when the reference is ARN-shaped, so an ARN-keyed
+// target is never keyed by a bare id/name and a bare-id/name reference is never
+// given a fabricated ARN.
 func encryptionConfigKMSRelationship(
 	boundary awscloud.Boundary,
 	config EncryptionConfig,
@@ -28,13 +32,17 @@ func encryptionConfigKMSRelationship(
 	if keyRef == "" {
 		return awscloud.RelationshipObservation{}, false
 	}
+	targetType := awscloud.ResourceTypeKMSKey
+	if isKMSAliasReference(keyRef) {
+		targetType = awscloud.ResourceTypeKMSAlias
+	}
 	source := encryptionConfigResourceID(boundary)
 	relationship := awscloud.RelationshipObservation{
 		Boundary:         boundary,
 		RelationshipType: awscloud.RelationshipXRayEncryptionConfigUsesKMSKey,
 		SourceResourceID: source,
 		TargetResourceID: keyRef,
-		TargetType:       awscloud.ResourceTypeKMSKey,
+		TargetType:       targetType,
 		Attributes: map[string]any{
 			"encryption_status": strings.TrimSpace(config.Status),
 			"key_reference":     keyRef,
