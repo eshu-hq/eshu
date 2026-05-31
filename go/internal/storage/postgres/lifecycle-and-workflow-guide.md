@@ -113,6 +113,15 @@ loader uses `fact_records_vulnerability_affected_package_lookup_idx` and
 image-identity indexes above, so impact correlation stays bounded by the CVE,
 package ID, PURL, SBOM document ID, or digest discovered in the triggering
 intent.
+Advisory evidence reads additionally use
+`fact_records_vulnerability_active_cve_lookup_v2_idx`,
+`fact_records_vulnerability_active_advisory_lookup_v2_idx`,
+`fact_records_vulnerability_active_ghsa_lookup_v2_idx`,
+and `fact_records_vulnerability_package_purl_lookup_idx` so source-only
+advisory/CVE/package drilldowns stay anchored to first-class advisory identity
+fields, package IDs, or PURLs before active-generation validation. Aliases and
+correlation anchors remain returned evidence, but they are not top-level
+Postgres scan predicates for this read model.
 Provider security alert reads use
 `fact_records_security_alert_repository_lookup_idx`,
 `fact_records_security_alert_cve_ids_idx`,

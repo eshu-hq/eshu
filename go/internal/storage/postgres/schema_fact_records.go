@@ -1,6 +1,8 @@
 package postgres
 
-const factRecordSchemaSQL = `
+const factRecordSchemaSQL = factRecordBaseSchemaSQL + vulnerabilityFactRecordReadIndexesSQL
+
+const factRecordBaseSchemaSQL = `
 CREATE TABLE IF NOT EXISTS fact_records (
     fact_id TEXT PRIMARY KEY,
     scope_id TEXT NOT NULL REFERENCES ingestion_scopes(scope_id) ON DELETE CASCADE,
