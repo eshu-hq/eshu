@@ -110,6 +110,7 @@ import (
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/resourcegroups/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/rolesanywhere/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/route53/runtimebind"
+	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/route53recoverycontrolconfig/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/route53resolver/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/s3/runtimebind"
 	_ "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/sagemaker/runtimebind"
