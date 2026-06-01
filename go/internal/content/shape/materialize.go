@@ -119,6 +119,7 @@ var contentEntityBuckets = []entityBucketMapping{
 	{bucket: "data_owners", label: "DataOwner"},
 	{bucket: "data_contracts", label: "DataContract"},
 	{bucket: "impl_blocks", label: "ImplBlock"},
+	{bucket: "pagerduty_declarations", label: "PagerDutyDeclaration"},
 }
 
 var sourceFieldContainsCode = map[string]struct{}{

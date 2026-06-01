@@ -49,6 +49,168 @@ resource "aws_iam_user" "writer" {
 	}
 }
 
+func TestTerraformParsePagerDutyDeclarationsFromModules(t *testing.T) {
+	t.Parallel()
+
+	filePath := writeHCLTestFile(t, "team-checkout.tf", `module "checkout_pagerduty_service" {
+  source  = "boatsgroup.pe.jfrog.io/TF__BG/pagerduty-service/aws"
+  version = "~> 2.0"
+
+  name                    = local.checkout_params.pagerduty_service_name
+  description             = "Checkout service"
+  escalation_policy       = local.checkout_params.pagerduty_escalation_policy
+  incident_urgency        = "high"
+  acknowledgement_timeout = try(local.checkout_params.pagerduty_acknowledgement_timeout, 0)
+  auto_resolve_timeout    = 3600
+  event_orchestration     = try(local.checkout_params.pagerduty_event_orchestration, null)
+  enable_slack_connection = try(local.checkout_params.slack_enable_pagerduty, false)
+  integration_key         = "secret-routing-key"
+}
+
+module "pagerduty_runbook" {
+  source = "example.com/acme/pagerduty-runbook/aws"
+  name   = "unsupported"
+}
+`)
+
+	got, err := Parse(filePath, false, shared.Options{})
+	if err != nil {
+		t.Fatalf("Parse() error = %v, want nil", err)
+	}
+
+	rows := bucketForTest(t, got, "pagerduty_declarations")
+	if len(rows) != 2 {
+		t.Fatalf("len(pagerduty_declarations) = %d, want 2: %#v", len(rows), rows)
+	}
+
+	service := namedItemForTest(t, rows, "module.checkout_pagerduty_service")
+	if got, want := service["source_class"], "declared"; got != want {
+		t.Fatalf("source_class = %#v, want %#v", got, want)
+	}
+	if got, want := service["declaration_kind"], "terraform_module"; got != want {
+		t.Fatalf("declaration_kind = %#v, want %#v", got, want)
+	}
+	if got, want := service["outcome"], "declared"; got != want {
+		t.Fatalf("outcome = %#v, want %#v", got, want)
+	}
+	if got, ok := service["module_source_fingerprint"].(string); !ok || got == "" {
+		t.Fatalf("module_source_fingerprint = %#v, want non-empty string", service["module_source_fingerprint"])
+	}
+	if got, want := service["module_source_redacted"], true; got != want {
+		t.Fatalf("module_source_redacted = %#v, want %#v", got, want)
+	}
+	if got, want := service["service_name"], "local.checkout_params.pagerduty_service_name"; got != want {
+		t.Fatalf("service_name = %#v, want %#v", got, want)
+	}
+	if got, want := service["service_name_resolution"], "reference"; got != want {
+		t.Fatalf("service_name_resolution = %#v, want %#v", got, want)
+	}
+	if got, want := service["incident_urgency"], "high"; got != want {
+		t.Fatalf("incident_urgency = %#v, want %#v", got, want)
+	}
+	if got, want := service["acknowledgement_timeout_resolution"], "unresolved"; got != want {
+		t.Fatalf("acknowledgement_timeout_resolution = %#v, want %#v", got, want)
+	}
+	if got, want := service["event_orchestration_declared"], true; got != want {
+		t.Fatalf("event_orchestration_declared = %#v, want %#v", got, want)
+	}
+	if got, want := service["unresolved_inputs"], "acknowledgement_timeout,enable_slack_connection,event_orchestration"; got != want {
+		t.Fatalf("unresolved_inputs = %#v, want %#v", got, want)
+	}
+	if got, want := service["redacted_inputs"], "integration_key"; got != want {
+		t.Fatalf("redacted_inputs = %#v, want %#v", got, want)
+	}
+	if got, want := service["redaction_state"], "redacted"; got != want {
+		t.Fatalf("redaction_state = %#v, want %#v", got, want)
+	}
+
+	unsupported := namedItemForTest(t, rows, "module.pagerduty_runbook")
+	if got, want := unsupported["outcome"], "unsupported"; got != want {
+		t.Fatalf("unsupported outcome = %#v, want %#v", got, want)
+	}
+	if got, want := unsupported["unsupported_reason"], "unsupported_module_source"; got != want {
+		t.Fatalf("unsupported_reason = %#v, want %#v", got, want)
+	}
+}
+
+func TestTerraformParsePagerDutyDeclarationsFromTFVars(t *testing.T) {
+	t.Parallel()
+
+	filePath := writeHCLTestFileAt(t, filepath.Join("environments", "bg-qa", "terraform.tfvars"), `environment_vars = {
+  checkout = {
+    pagerduty_service_name            = "QA Checkout"
+    pagerduty_service_description     = "Checkout Service"
+    pagerduty_escalation_policy       = "Checkout QA"
+    pagerduty_incident_urgency        = "low"
+    pagerduty_acknowledgement_timeout = 0
+    pagerduty_event_orchestration = {
+      start = {
+        label = "Downgrade all alerts"
+      }
+    }
+    slack_enable_pagerduty = false
+  }
+
+  checkout_duplicate = {
+    pagerduty_service_name      = "QA Checkout"
+    pagerduty_escalation_policy = "Checkout QA"
+  }
+
+  malformed = {
+    pagerduty_service_name = {
+      nested = "not-a-service-name"
+    }
+  }
+}
+`)
+
+	got, err := Parse(filePath, false, shared.Options{})
+	if err != nil {
+		t.Fatalf("Parse() error = %v, want nil", err)
+	}
+
+	rows := bucketForTest(t, got, "pagerduty_declarations")
+	if len(rows) != 3 {
+		t.Fatalf("len(pagerduty_declarations) = %d, want 3: %#v", len(rows), rows)
+	}
+
+	checkout := namedItemForTest(t, rows, "tfvars.environment_vars.checkout")
+	if got, want := checkout["declaration_kind"], "tfvars"; got != want {
+		t.Fatalf("declaration_kind = %#v, want %#v", got, want)
+	}
+	if got, want := checkout["environment"], "bg-qa"; got != want {
+		t.Fatalf("environment = %#v, want %#v", got, want)
+	}
+	if got, want := checkout["service_name"], "QA Checkout"; got != want {
+		t.Fatalf("service_name = %#v, want %#v", got, want)
+	}
+	if got, want := checkout["outcome"], "ambiguous"; got != want {
+		t.Fatalf("outcome = %#v, want duplicate service ambiguity", got)
+	}
+	if got, want := checkout["duplicate_service_name"], true; got != want {
+		t.Fatalf("duplicate_service_name = %#v, want %#v", got, want)
+	}
+	if got, want := checkout["event_orchestration_declared"], true; got != want {
+		t.Fatalf("event_orchestration_declared = %#v, want %#v", got, want)
+	}
+	if _, exists := checkout["event_orchestration"]; exists {
+		t.Fatalf("event_orchestration raw payload present; want metadata-only declaration")
+	}
+
+	duplicate := namedItemForTest(t, rows, "tfvars.environment_vars.checkout_duplicate")
+	if got, want := duplicate["outcome"], "ambiguous"; got != want {
+		t.Fatalf("duplicate outcome = %#v, want %#v", got, want)
+	}
+
+	malformed := namedItemForTest(t, rows, "tfvars.environment_vars.malformed")
+	if got, want := malformed["outcome"], "rejected"; got != want {
+		t.Fatalf("malformed outcome = %#v, want %#v", got, want)
+	}
+	if got, want := malformed["malformed_inputs"], "service_name"; got != want {
+		t.Fatalf("malformed_inputs = %#v, want %#v", got, want)
+	}
+}
+
 func TestTerraformParseS3BackendDynamoDBTableMetadata(t *testing.T) {
 	t.Parallel()
 
@@ -124,7 +286,15 @@ locals {
 
 func writeHCLTestFile(t *testing.T, name string, body string) string {
 	t.Helper()
+	return writeHCLTestFileAt(t, name, body)
+}
+
+func writeHCLTestFileAt(t *testing.T, name string, body string) string {
+	t.Helper()
 	filePath := filepath.Join(t.TempDir(), name)
+	if err := os.MkdirAll(filepath.Dir(filePath), 0o755); err != nil {
+		t.Fatalf("os.MkdirAll(%q) error = %v, want nil", filepath.Dir(filePath), err)
+	}
 	if err := os.WriteFile(filePath, []byte(body), 0o644); err != nil {
 		t.Fatalf("os.WriteFile(%q) error = %v, want nil", filePath, err)
 	}
@@ -240,7 +410,7 @@ func TestTerraformParseResourceAttributesNestedBlocks(t *testing.T) {
 	}
 
 	cases := map[string]string{
-		"acl": "private",
+		"acl":                "private",
 		"versioning.enabled": "true",
 		"server_side_encryption_configuration.rule.apply_server_side_encryption_by_default.sse_algorithm": "AES256",
 	}

@@ -144,7 +144,10 @@ it.
 - `RepositorySnapshot` — `RepoPath`, `RemoteURL`, `FileCount`, `ImportsMap`,
   `FileData`, `ContentFileMetas`, `ContentEntities`, `DiscoveryAdvisory`
 - `ContentFileSnapshot`, `ContentFileMeta`, `ContentEntitySnapshot` — portable
-  file and entity records; `ContentFileMeta` carries no body string
+  file and entity records; `ContentFileMeta` carries no body string. Declared
+  PagerDuty module/tfvars rows materialize as `PagerDutyDeclaration` content
+  entities from Terraform source evidence, not live PagerDuty incident or
+  configuration truth.
 - `RepoSyncConfig` — all env-driven sync configuration; populated by
   `LoadRepoSyncConfig`
 - `LoadRepoSyncConfig(component, getenv)` — parses the repo-sync env contract
