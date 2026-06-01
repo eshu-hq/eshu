@@ -150,6 +150,38 @@ type RDSPostureObservation struct {
 	SourceRecordID string
 }
 
+// IAMPermissionObservation describes one normalized, metadata-only IAM policy
+// statement attached to a principal. It is the derived projection of a single
+// statement: effect, action set, resource pattern, and a condition summary.
+//
+// It deliberately carries NO raw policy JSON body and NO condition values
+// (which can embed source IPs, tags, or other sensitive selectors). The scanner
+// normalizes the statement at the SDK boundary and emits only identifiers and
+// derived booleans.
+type IAMPermissionObservation struct {
+	Boundary      Boundary
+	PrincipalARN  string
+	PrincipalType string
+	PolicySource  string
+	PolicyARN     string
+	PolicyName    string
+	StatementSID  string
+	Effect        string
+	Actions       []string
+	NotActions    []string
+	Resources     []string
+	NotResources  []string
+	// ConditionKeys lists the condition keys present on the statement (for
+	// example aws:SourceIp). Values are intentionally omitted; only the key
+	// identifiers are kept as a derived condition summary.
+	ConditionKeys []string
+	// AssumePrincipals lists the principals a trust statement grants assume-role
+	// to. It is only meaningful when PolicySource is IAMPolicySourceTrust.
+	AssumePrincipals []string
+	SourceURI        string
+	SourceRecordID   string
+}
+
 // WarningObservation describes one non-fatal AWS scan warning.
 type WarningObservation struct {
 	Boundary       Boundary

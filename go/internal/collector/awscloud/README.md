@@ -126,6 +126,8 @@ See `doc.go` for the godoc contract.
   posture fact from a `SecurityGroupRuleObservation`, normalizing the rule
   source to one of the `SecurityGroupRuleSource*` kinds and deriving the
   `is_internet`, `is_all_protocols`, and `is_all_ports` booleans.
+- `NewIAMPermissionEnvelope` - builds an `aws_iam_permission` fact (derived,
+  metadata-only IAM policy statement; no raw policy JSON or condition values).
 - `NewWarningEnvelope` - builds an `aws_warning` fact.
 - `NewS3BucketPostureEnvelope` - builds a derived metadata-only
   `s3_bucket_posture` fact from `S3BucketPostureObservation` (block-public-access

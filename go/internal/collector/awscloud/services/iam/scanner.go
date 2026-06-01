@@ -13,6 +13,7 @@ import (
 // translate AWS SDK responses into these scanner-owned types.
 type Client interface {
 	ListRoles(context.Context) ([]Role, error)
+	ListUsers(context.Context) ([]User, error)
 	ListPolicies(context.Context) ([]Policy, error)
 	ListInstanceProfiles(context.Context) ([]InstanceProfile, error)
 }
@@ -40,6 +41,10 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 	if err != nil {
 		return nil, fmt.Errorf("list IAM roles: %w", err)
 	}
+	users, err := s.Client.ListUsers(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("list IAM users: %w", err)
+	}
 	policies, err := s.Client.ListPolicies(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("list IAM policies: %w", err)
@@ -49,7 +54,7 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, fmt.Errorf("list IAM instance profiles: %w", err)
 	}
 
-	envelopes := make([]facts.Envelope, 0, len(roles)+len(policies)+len(profiles))
+	envelopes := make([]facts.Envelope, 0, len(roles)+len(users)+len(policies)+len(profiles))
 	for _, role := range roles {
 		resource, err := awscloud.NewResourceEnvelope(roleObservation(boundary, role))
 		if err != nil {
@@ -70,6 +75,23 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 			}
 			envelopes = append(envelopes, relationship)
 		}
+		permissions, err := permissionEnvelopes(boundary, role.ARN, awscloud.ResourceTypeIAMRole, role.PermissionStatements)
+		if err != nil {
+			return nil, err
+		}
+		envelopes = append(envelopes, permissions...)
+	}
+	for _, user := range users {
+		resource, err := awscloud.NewResourceEnvelope(userObservation(boundary, user))
+		if err != nil {
+			return nil, err
+		}
+		envelopes = append(envelopes, resource)
+		permissions, err := permissionEnvelopes(boundary, user.ARN, awscloud.ResourceTypeIAMUser, user.PermissionStatements)
+		if err != nil {
+			return nil, err
+		}
+		envelopes = append(envelopes, permissions...)
 	}
 	for _, policy := range policies {
 		resource, err := awscloud.NewResourceEnvelope(policyObservation(boundary, policy))
@@ -148,6 +170,56 @@ func instanceProfileObservation(boundary awscloud.Boundary, profile InstanceProf
 		CorrelationAnchors: []string{profileARN, strings.TrimSpace(profile.Name)},
 		SourceRecordID:     profileARN,
 	}
+}
+
+func userObservation(boundary awscloud.Boundary, user User) awscloud.ResourceObservation {
+	userARN := strings.TrimSpace(user.ARN)
+	return awscloud.ResourceObservation{
+		Boundary:     boundary,
+		ARN:          userARN,
+		ResourceID:   userARN,
+		ResourceType: awscloud.ResourceTypeIAMUser,
+		Name:         user.Name,
+		Attributes: map[string]any{
+			"path": strings.TrimSpace(user.Path),
+		},
+		CorrelationAnchors: []string{userARN, strings.TrimSpace(user.Name)},
+		SourceRecordID:     userARN,
+	}
+}
+
+// permissionEnvelopes maps the normalized policy statements for one principal
+// into derived aws_iam_permission facts. It bounds nothing itself: the SDK
+// adapter is responsible for paging and bounding the per-principal policy
+// fan-out before handing the normalized statements to the scanner.
+func permissionEnvelopes(boundary awscloud.Boundary, principalARN, principalType string, statements []PolicyStatement) ([]facts.Envelope, error) {
+	if len(statements) == 0 {
+		return nil, nil
+	}
+	envelopes := make([]facts.Envelope, 0, len(statements))
+	for _, statement := range statements {
+		envelope, err := awscloud.NewIAMPermissionEnvelope(awscloud.IAMPermissionObservation{
+			Boundary:         boundary,
+			PrincipalARN:     strings.TrimSpace(principalARN),
+			PrincipalType:    principalType,
+			PolicySource:     strings.TrimSpace(statement.Source),
+			PolicyARN:        strings.TrimSpace(statement.PolicyARN),
+			PolicyName:       strings.TrimSpace(statement.PolicyName),
+			StatementSID:     strings.TrimSpace(statement.StatementSID),
+			Effect:           statement.Effect,
+			Actions:          statement.Actions,
+			NotActions:       statement.NotActions,
+			Resources:        statement.Resources,
+			NotResources:     statement.NotResources,
+			ConditionKeys:    statement.ConditionKeys,
+			AssumePrincipals: statement.AssumePrincipals,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("build IAM permission fact for principal %q: %w", principalARN, err)
+		}
+		envelopes = append(envelopes, envelope)
+	}
+	return envelopes, nil
 }
 
 func roleTrustRelationship(boundary awscloud.Boundary, role Role, principal TrustPrincipal) awscloud.RelationshipObservation {
