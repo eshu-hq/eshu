@@ -67,7 +67,8 @@ flowchart TB
    (`RepositoryHandler`, `EntityHandler`, `CodeHandler`, `ContentHandler`,
    `InfraHandler`, `IaCHandler`, `ImpactHandler`, `EvidenceHandler`,
    `PackageRegistryHandler`, `CICDHandler`, `SupplyChainHandler`,
-   `StatusHandler`, `CompareHandler`) into a `query.APIRouter` and mounts it.
+   `IncidentHandler`, `WorkItemHandler`, `StatusHandler`, `CompareHandler`) into
+   a `query.APIRouter` and mounts it.
 4. The mounted handler is wrapped by `query.AuthMiddleware`.
 5. `mountRuntimeSurface` creates a shared admin mux via
    `internalruntime.NewStatusAdminMux` exposing `/healthz`, `/readyz`,
@@ -152,6 +153,8 @@ or spans beyond the startup/connection events.
   `SupplyChainHandler.ImpactExplanations`, and
   `SupplyChainHandler.SecurityAlerts` must be non-nil because MCP exposes read
   tools for those routes.
+- `IncidentHandler.Context` and `WorkItemHandler.Evidence` must be non-nil
+  because MCP exposes incident context and ticket-first work-item evidence tools.
 
 ## Related docs
 

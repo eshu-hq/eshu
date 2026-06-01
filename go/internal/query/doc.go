@@ -89,4 +89,15 @@
 // selected work item's project visibility and status category without reading
 // raw issue bodies. Jira-only pull-request URLs do not verify pull request
 // identity by themselves.
+//
+// WorkItemHandler, WorkItemEvidenceFilter, and WorkItemEvidenceRow expose
+// Jira/work-item source facts directly for ticket-first prompts. They require a
+// bounded scope anchor plus an explicit limit, sanitize external URLs to
+// fingerprints, and return missing, stale, permission-hidden, unsupported-link,
+// and rejected-payload states without promoting Jira-only URLs into
+// pull-request, commit, deployment, runtime, image, service, or incident truth.
+// The query.work_item_evidence span carries the telemetry package's bounded
+// SpanAttrWorkItemEvidence* query, result, evidence-state, and truncation
+// counts; raw URLs, issue summaries, users, and tenant values stay out of
+// metric labels.
 package query

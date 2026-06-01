@@ -10,6 +10,7 @@ route list is verified against `go/internal/query`.
 | --- | --- |
 | Entity resolution | `POST /api/v0/entities/resolve` |
 | Incident context | `GET /api/v0/incidents/{incident_id}/context` |
+| Work-item evidence | `GET /api/v0/work-items/evidence` |
 | Context | `GET /api/v0/entities/{entity_id}/context`, `GET /api/v0/workloads/{workload_id}/context`, `GET /api/v0/services/{service_name}/context`, `GET /api/v0/repositories/{repo_id}/context` |
 | Catalog | `GET /api/v0/catalog` |
 | Stories | `GET /api/v0/repositories/{repo_id}/story`, `GET /api/v0/workloads/{workload_id}/story`, `GET /api/v0/services/{service_name}/story`, `POST /api/v0/impact/trace-deployment-chain`, `POST /api/v0/impact/deployment-config-influence` |
@@ -83,6 +84,22 @@ title can enrich the work-item slot, but Jira-only PR URLs do not verify
 pull-request identity. Fallback change candidates are labeled separately from
 exact provider evidence and from derived reducer edges, and name-only service or
 tag matches are not promoted.
+
+## Work-Item Evidence
+
+`GET /api/v0/work-items/evidence` lists active Jira/work-item source facts.
+Requests must include `limit` and at least one scope anchor: `scope_id`,
+`project_key`, `work_item_key`, `provider_work_item_id`, `external_url`,
+`url_fingerprint`, or `observed_after`. The route returns redacted evidence
+rows, `missing_evidence`, state summaries, and `next_cursor.after_fact_id` when
+the page is truncated.
+
+The route is ticket-first evidence, not an incident or deployment verifier.
+External URLs are converted to sanitized fingerprints and raw URLs are not
+returned. Jira facts can show exact provider evidence, unsupported link types,
+stale evidence, permission-hidden evidence, missing evidence, or rejected unsafe
+payloads, but PR, commit, deployment, runtime artifact, image, service, and
+incident truth require provider or reducer evidence outside Jira.
 
 ## Catalog
 

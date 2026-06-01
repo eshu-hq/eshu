@@ -54,6 +54,9 @@ with all handler structs wired to the concrete `query.Neo4jReader` and
 `query.ContentReader` adapters. The supply-chain handler also wires
 `AdvisoryEvidence` to `query.NewPostgresAdvisoryEvidenceStore` so source-only
 advisory evidence is available through the API without requiring graph access.
+`IncidentHandler` and `WorkItemHandler` wire Postgres-backed incident context
+and Jira/work-item source evidence reads so on-call and ticket-first surfaces
+can answer from active facts without provider API calls.
 
 `mountRuntimeSurface` calls `internalruntime.NewStatusAdminMux` to compose
 `/healthz`, `/readyz`, `/admin/status`, and `/metrics` alongside the API routes.
@@ -84,9 +87,9 @@ See `doc.go` for the full godoc contract.
 
 - `internal/query` — `APIRouter`, `RepositoryHandler`, `EntityHandler`,
   `CodeHandler`, `ContentHandler`, `InfraHandler`, `IaCHandler`, `ImpactHandler`,
-  `EvidenceHandler`, `SupplyChainHandler`, `StatusHandler`, `CompareHandler`,
-  `AdminHandler`, `Neo4jReader`, `ContentReader`, `AuthMiddleware`,
-  `ParseQueryProfile`, `ParseGraphBackend`
+  `EvidenceHandler`, `SupplyChainHandler`, `IncidentHandler`, `WorkItemHandler`,
+  `StatusHandler`, `CompareHandler`, `AdminHandler`, `Neo4jReader`,
+  `ContentReader`, `AuthMiddleware`, `ParseQueryProfile`, `ParseGraphBackend`
 - `internal/runtime` — `OpenNeo4jDriver`, `ResolveAPIKey`, `NewStatusAdminMux`,
   `NewStatusRequestHandler`
 - `internal/recovery` — `NewHandler` for refinalize/replay routes

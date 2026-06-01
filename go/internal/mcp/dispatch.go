@@ -349,6 +349,18 @@ func resolveRoute(toolName string, args map[string]any) (*route, error) {
 			"until":      str(args, "until"),
 			"limit":      intString(args, "limit", 25),
 		}}, nil
+	case "list_work_item_evidence":
+		return &route{method: "GET", path: "/api/v0/work-items/evidence", query: map[string]string{
+			"scope_id":              str(args, "scope_id"),
+			"project_key":           str(args, "project_key"),
+			"work_item_key":         str(args, "work_item_key"),
+			"provider_work_item_id": str(args, "provider_work_item_id"),
+			"external_url":          str(args, "external_url"),
+			"url_fingerprint":       str(args, "url_fingerprint"),
+			"observed_after":        str(args, "observed_after"),
+			"after_fact_id":         str(args, "after_fact_id"),
+			"limit":                 intString(args, "limit", 25),
+		}}, nil
 
 	// ── Content ──
 	case "get_file_content":

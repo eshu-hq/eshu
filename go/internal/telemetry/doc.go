@@ -28,6 +28,8 @@
 // documentation proof. SpanQuerySBOMAttestationAttachments names the
 // digest/document-anchored SBOM and attestation attachment read path.
 // SpanQueryAdvisoryEvidence names the source-only advisory evidence read path,
+// SpanQueryWorkItemEvidence names the bounded Jira/work-item source evidence
+// read path,
 // and SpanQuerySupplyChainImpactExplanation names the bounded vulnerability
 // finding/advisory explanation route. Pipeline stage, graph-backend, and
 // failure-class names
@@ -85,6 +87,10 @@
 // see how often Eshu produces an exact advisory-only safe-upgrade path
 // versus how many findings still need additional ecosystem support to
 // graduate from unknown.
+// SpanAttrWorkItemEvidence* constants name the bounded work-item evidence
+// query span counts for query volume, returned rows, evidence states, and
+// truncation without adding tenant, user, issue, URL, or summary values to
+// metric labels.
 // Callers must reuse existing log keys and Attr* helpers before adding new
 // names. High-cardinality values such as file paths, fact identifiers,
 // repository names, delivery IDs, source paths, and attribute keys belong in

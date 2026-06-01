@@ -282,6 +282,7 @@ Pipeline spans: `SpanCollectorObserve`, `SpanCollectorStream`, `SpanScopeAssign`
 `SpanQueryPackageRegistryDependencies`,
 `SpanQueryAdvisoryEvidence`,
 `SpanQueryIncidentContext`,
+`SpanQueryWorkItemEvidence`,
 `SpanQuerySupplyChainImpactExplanation`,
 `SpanScannerWorkerClaimProcess`, `SpanScannerWorkerAnalyze`,
 `SpanScannerWorkerFactEmitBatch`, `SpanTerraformStateClaimProcess`,
@@ -290,6 +291,11 @@ Pipeline spans: `SpanCollectorObserve`, `SpanCollectorStream`, `SpanScopeAssign`
 `SpanTerraformStateCoordinatorDone`, `SpanWebhookHandle`, `SpanWebhookStore`,
 `SpanOCIRegistryScan`, `SpanOCIRegistryAPICall`, `SpanPagerDutyObserve`,
 `SpanPagerDutyFetch`, `SpanJiraObserve`, and `SpanJiraFetch`.
+
+Work-item evidence query spans use bounded `SpanAttrWorkItemEvidence*` integer
+and boolean attributes for query count, result count, stale evidence,
+permission-hidden evidence, rejected unsafe payloads, unsupported link types,
+missing evidence, and page truncation.
 
 Jira fetch spans use bounded integer attributes for page and output counts:
 `jira.search_pages`, `jira.changelog_pages`, `jira.remote_link_pages`,

@@ -124,6 +124,7 @@ type APIRouter struct {
 	ObservabilityCoverage *ObservabilityCoverageHandler
 	SupplyChain           *SupplyChainHandler
 	Incident              *IncidentHandler
+	WorkItems             *WorkItemHandler
 	Status                *StatusHandler
 	Compare               *CompareHandler
 	Admin                 *AdminHandler
@@ -219,6 +220,11 @@ func (a *APIRouter) Mount(mux *http.ServeMux) {
 	// Incident context
 	if a.Incident != nil {
 		a.Incident.Mount(mux)
+	}
+
+	// Work items
+	if a.WorkItems != nil {
+		a.WorkItems.Mount(mux)
 	}
 
 	// Status
