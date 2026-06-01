@@ -12,6 +12,7 @@ phases_arg=""
 out_dir=""
 image_tag_candidate="${ESHU_RELEASE_GATE_IMAGE_TAG_CANDIDATE:-}"
 provider_compare="${ESHU_RELEASE_GATE_PROVIDER_COMPARE:-}"
+proof_matrix="${ESHU_RELEASE_GATE_PROOF_MATRIX:-}"
 api_base_url="${ESHU_RELEASE_GATE_API_BASE_URL:-}"
 api_key="${ESHU_RELEASE_GATE_API_KEY:-}"
 k8s_namespace="${ESHU_RELEASE_GATE_K8S_NAMESPACE:-}"
@@ -31,13 +32,14 @@ usage() {
 Usage: $(basename "$0") [options]
 
 Phases (default: ${phases_default}; "all" enables every phase):
-  state, focused, fixtures, runtime, k8s, provider
+  state, focused, fixtures, proof-matrix, runtime, k8s, provider
 
 Options:
   --phases <list>               Comma-separated phases.
   --out-dir <path>              Evidence dir (default \${TMPDIR:-/tmp}/eshu-security-intel-release-gate/<ts>).
   --image-tag-candidate <tag>   Image tag this gate is judging. Recorded in evidence.
   --provider-compare <file>     Aggregate-only provider parity JSON (provider phase).
+  --proof-matrix <file>         Aggregate-only representative corpus proof matrix JSON.
   --api-base-url <url>          Base URL for runtime and k8s phase readback.
   --api-key <token>             Bearer token for runtime/k8s API readback.
   --pprof-base-url <url>        Base URL for the runtime/k8s pprof probe.
@@ -63,6 +65,7 @@ while [ $# -gt 0 ]; do
         --out-dir) out_dir="$2"; shift 2 ;;
         --image-tag-candidate) image_tag_candidate="$2"; shift 2 ;;
         --provider-compare) provider_compare="$2"; shift 2 ;;
+        --proof-matrix) proof_matrix="$2"; shift 2 ;;
         --api-base-url) api_base_url="$2"; shift 2 ;;
         --api-key) api_key="$2"; shift 2 ;;
         --pprof-base-url) pprof_base_url="$2"; shift 2 ;;
@@ -75,13 +78,13 @@ done
 
 phases_arg="${phases_arg:-${ESHU_RELEASE_GATE_PHASES:-${phases_default}}}"
 if [ "${phases_arg}" = "all" ]; then
-    phases_arg="state,focused,fixtures,runtime,k8s,provider"
+    phases_arg="state,focused,fixtures,proof-matrix,runtime,k8s,provider"
 fi
 
 IFS=',' read -r -a phases <<<"${phases_arg}"
 for p in "${phases[@]}"; do
     case "${p}" in
-        state|focused|fixtures|runtime|k8s|provider) ;;
+        state|focused|fixtures|proof-matrix|runtime|k8s|provider) ;;
         '' ) ;;
         *) die "unknown phase: ${p}" ;;
     esac
@@ -322,6 +325,9 @@ run_phase_fixtures() {
 # shellcheck source=scripts/lib/security_intelligence_release_gate_phases.sh
 source "$(dirname "$0")/lib/security_intelligence_release_gate_phases.sh"
 
+# shellcheck source=scripts/lib/security_intelligence_release_gate_proof_matrix.sh
+source "$(dirname "$0")/lib/security_intelligence_release_gate_proof_matrix.sh"
+
 run_phase_provider() {
     [ -n "${provider_compare}" ] || die "provider phase requires --provider-compare"
     [ -f "${provider_compare}" ] || die "provider-compare file not found: ${provider_compare}"
@@ -352,6 +358,7 @@ for p in "${phases[@]}"; do
         state) run_phase_state ;;
         focused) run_phase_focused ;;
         fixtures) run_phase_fixtures ;;
+        proof-matrix) run_phase_proof_matrix ;;
         runtime) run_phase_runtime ;;
         k8s) run_phase_k8s ;;
         provider) run_phase_provider ;;
