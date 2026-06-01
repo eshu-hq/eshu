@@ -6,13 +6,18 @@ const derivedTargetSkipReasonBudgetExhausted = "derived_target_budget_exhausted"
 
 const (
 	derivedTargetSkipReasonMissingPackageName    = "derived_target_missing_package_name"
+	derivedTargetSkipReasonMissingPURL           = "derived_target_missing_purl"
+	derivedTargetSkipReasonMissingSource         = "derived_target_missing_source"
 	derivedTargetSkipReasonMissingSourceLocation = "derived_target_missing_source_location"
+	derivedTargetSkipReasonMissingSubject        = "derived_target_missing_subject"
+	derivedTargetSkipReasonMissingVersion        = "derived_target_missing_version"
 	derivedTargetSkipReasonNonExactVersion       = "derived_target_non_exact_version"
 )
 
 type derivedTargetSkipEvidence struct {
 	CollectorKind string   `json:"collector_kind"`
 	TargetClass   string   `json:"target_class"`
+	SourceFamily  string   `json:"source_family,omitempty"`
 	Reason        string   `json:"reason"`
 	TargetLimit   int      `json:"target_limit"`
 	SelectedCount int      `json:"selected_count"`
@@ -51,6 +56,23 @@ func derivedTargetSkipEvidenceByReason(
 				Sources:       sources,
 			})
 		}
+	}
+	return out
+}
+
+func derivedTargetSkipEvidenceByReasonForClass(
+	collectorKind string,
+	targetClass string,
+	sourceFamily string,
+	targetLimit int,
+	selectedCount int,
+	skippedCounts map[string]map[string]int,
+	sources []string,
+) []derivedTargetSkipEvidence {
+	out := derivedTargetSkipEvidenceByReason(collectorKind, targetLimit, selectedCount, skippedCounts, sources)
+	for i := range out {
+		out[i].TargetClass = targetClass
+		out[i].SourceFamily = sourceFamily
 	}
 	return out
 }

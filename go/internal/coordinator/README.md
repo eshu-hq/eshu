@@ -133,6 +133,12 @@ fall back to defaults rather than failing; malformed values fail fast.
 - `OwnedPackageTargetReader` — optional active-mode dependency target reader
   used by `Service` when package-registry or vulnerability-intelligence
   instances enable `derive_from_owned_packages`.
+- `OSPackageAdvisoryTargetReader` and `SBOMComponentAdvisoryTargetReader` —
+  optional active-mode installed-evidence readers used by
+  vulnerability-intelligence instances that enable
+  `derive_from_installed_evidence`. OS package reads come from active
+  `vulnerability.os_package` facts; SBOM component reads come from active
+  attached `sbom.component` facts.
 - `AWSScheduledWorkPlanner` — plans scheduled AWS collection runs from the
   configured target scopes without requiring a separate provider webhook when
   the AWS collector configuration sets `scheduled_scan_enabled=true`. Each
@@ -214,25 +220,38 @@ warning (`collector_instance_drift_detected`, fields
 - Derived package and vulnerability target planning is visible in
   `workflow_runs.requested_scope_set`. Planned entries include a
   `target_class`: `configured_direct` for explicit package or advisory scopes,
-  `owned_package` for targets derived from active owned dependency evidence, and
-  `broad` for broad package-registry scans. Package-registry derived entries
-  include `derived=true` and `package_name`; vulnerability derived entries
-  include `source`, `ecosystem`, and either exact `package_name`/`version`,
-  bounded `versions`, or bounded `queries` for OSV querybatch work. If a
+  `owned_package` for targets derived from active owned dependency evidence,
+  `installed_os_package` for targets derived from exact installed OS package
+  evidence, `sbom_component` for targets derived from attached SBOM component
+  evidence, and `broad` for broad package-registry scans. Installed-evidence
+  entries also carry `source_family` as `os_package` or `sbom_component`.
+  Package-registry derived entries include `derived=true` and `package_name`;
+  vulnerability derived entries include `source`, `ecosystem`, and either exact
+  `package_name`/`version`, bounded `versions`, or bounded `queries` for OSV
+  querybatch work. If a
   derivation-enabled instance plans no work, first check the owned dependency
-  fact query, then confirm the dependency evidence is active and exact enough
-  for the collector family. Package-registry derived npm and PyPI targets have
-  native metadata URLs; Go module, Maven, NuGet, Composer, RubyGems, and Cargo
-  derived targets intentionally surface missing metadata-source evidence until
-  native adapters land. Bounded reads rotate by reconcile bucket, and the
+  fact query or installed-evidence reader, then confirm the evidence is active
+  and exact enough for the collector family. OS package derivation requires
+  vendor repository/source proof, package-manager proof, exact installed
+  version, package name, and image/scope subject evidence. SBOM derivation
+  requires an attached subject digest plus PURL-derived ecosystem, package name,
+  and exact version. Package-registry derived npm and PyPI targets have native
+  metadata URLs; Go module, Maven, NuGet, Composer, RubyGems, and Cargo derived
+  targets intentionally surface missing metadata-source evidence until native
+  adapters land. Bounded reads rotate by reconcile bucket, and the
   planner preserves that reader order so direct and owned targets do not sit
   behind unrelated broad fanout. Derived reads include one bounded lookahead
   target beyond the planning budget. If that lookahead proves the owned-package
-  derivation budget is exhausted, `requested_scope_set.skipped_targets` records
-  aggregate `derived_target_budget_exhausted` evidence with selected and
-  observed skipped counts, the configured limit, collector kind, target class,
-  and bounded ecosystem/source labels. It does not include package names,
-  versions, repository paths, or advisory payloads.
+  or installed-evidence derivation budget is exhausted,
+  `requested_scope_set.skipped_targets` records aggregate
+  `derived_target_budget_exhausted` evidence with selected and observed skipped
+  counts, the configured limit, collector kind, target class, source family
+  where present, and bounded ecosystem/source labels. Partial-evidence skip
+  reasons such as `derived_target_missing_source`,
+  `derived_target_missing_subject`, `derived_target_missing_purl`, and
+  `derived_target_missing_version` use the same aggregate shape. It does not
+  include package names, versions, repository paths, image digests, PURLs, or
+  advisory payloads.
 - Derived target planning defaults to `rotating`, which advances the bounded
   owned-package slice by reconcile bucket. `planning_mode=single_pass` pins the
   plan key and rotation offset for representative proofs so a completed bucket
@@ -294,6 +313,14 @@ No-Regression Evidence: `go test ./internal/coordinator ./internal/workflow -run
 Observability Evidence: no new metrics were required. Existing collector instance configuration, workflow run IDs, `workflow_work_items`, `requested_scope_set`, coordinator reconcile metrics, and `/api/v0/index-status` show whether a proof used rotating or single-pass planning and whether the remote representative guard rejected queue growth beyond the derived-target budget.
 
 Performance Evidence: `go test ./internal/coordinator -run '^$' -bench BenchmarkVulnerabilityDerivedQueryChunks -benchmem -count=3` on darwin/arm64 dropped derived OSV chunk planning from about `8.9 MB/op` and `48k allocs/op` to about `194 KB/op` and `2.3k allocs/op`. The planner now grows chunks in place and tracks encoded scope length incrementally instead of rebuilding candidate slices and scope IDs on every query.
+
+No-Regression Evidence: `go test ./internal/coordinator -run 'InstalledEvidence|OSPackageAdvisory|SBOMComponentAdvisory|BatchesInstalled|BatchesSBOM' -count=1` proves vulnerability-intelligence installed-evidence planning admits exact OS package and SBOM component targets, batches exact OSV queries where supported, keeps bounded single-pass reader state, and reports partial-evidence skips without leaking package coordinates.
+
+No-Observability-Change: installed-evidence advisory target planning uses the
+existing workflow and collector status surfaces. It adds `target_class` and
+`source_family` values inside `requested_scope_set`, but no metrics labels or
+logs include package names, versions, PURLs, image digests, repository paths, or
+advisory payloads.
 
 - `Store` — substitute any implementation satisfying the four-method interface
   for testing or future backends.

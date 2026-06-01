@@ -133,6 +133,20 @@ func vulnerabilityDerivationFromConfig(raw string) (vulnerabilityDerivationConfi
 	return decoded.DeriveFromOwnedPackages, nil
 }
 
+func vulnerabilityPlanKeyDerivationFromConfig(raw string) (vulnerabilityDerivationConfiguration, error) {
+	if err := workflow.ValidateVulnerabilityIntelligenceCollectorConfiguration(raw); err != nil {
+		return vulnerabilityDerivationConfiguration{}, err
+	}
+	var decoded vulnerabilityRuntimeConfiguration
+	if err := json.Unmarshal([]byte(raw), &decoded); err != nil {
+		return vulnerabilityDerivationConfiguration{}, fmt.Errorf("decode vulnerability derivation config: %w", err)
+	}
+	if decoded.DeriveFromOwnedPackages.Enabled {
+		return decoded.DeriveFromOwnedPackages, nil
+	}
+	return decoded.DeriveFromInstalledEvidence, nil
+}
+
 func exactOwnedDependencyVersion(raw string) (string, bool) {
 	version := strings.TrimSpace(raw)
 	if version == "" {

@@ -8,14 +8,18 @@ import (
 const (
 	targetClassConfiguredDirect = "configured_direct"
 	targetClassOwnedPackage     = "owned_package"
+	targetClassInstalledOS      = "installed_os_package"
+	targetClassSBOMComponent    = "sbom_component"
 	targetClassBroad            = "broad"
 
 	packageRegistryTargetClassConfiguredDirect = targetClassConfiguredDirect
 	packageRegistryTargetClassOwnedPackage     = targetClassOwnedPackage
 	packageRegistryTargetClassBroad            = targetClassBroad
 
-	vulnerabilityTargetClassConfiguredDirect = targetClassConfiguredDirect
-	vulnerabilityTargetClassOwnedPackage     = targetClassOwnedPackage
+	vulnerabilityTargetClassConfiguredDirect   = targetClassConfiguredDirect
+	vulnerabilityTargetClassOwnedPackage       = targetClassOwnedPackage
+	vulnerabilityTargetClassInstalledOSPackage = targetClassInstalledOS
+	vulnerabilityTargetClassSBOMComponent      = targetClassSBOMComponent
 )
 
 func targetClassRank(targetClass string) int {
@@ -24,10 +28,12 @@ func targetClassRank(targetClass string) int {
 		return 0
 	case targetClassOwnedPackage:
 		return 1
-	case targetClassBroad:
+	case targetClassInstalledOS, targetClassSBOMComponent:
 		return 2
-	default:
+	case targetClassBroad:
 		return 3
+	default:
+		return 4
 	}
 }
 
