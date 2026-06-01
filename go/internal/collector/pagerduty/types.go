@@ -12,6 +12,28 @@ import (
 const (
 	// ProviderPagerDuty identifies PagerDuty source evidence.
 	ProviderPagerDuty = "pagerduty"
+
+	// ConfigSourceClassObserved marks live PagerDuty configuration evidence.
+	ConfigSourceClassObserved = "observed"
+	// ConfigSourceKindPagerDutyAPI marks PagerDuty REST API config evidence.
+	ConfigSourceKindPagerDutyAPI = "pagerduty_api"
+
+	// ConfigResourceClassService marks a PagerDuty service resource.
+	ConfigResourceClassService = "service"
+	// ConfigResourceClassServiceIntegration marks a PagerDuty integration.
+	ConfigResourceClassServiceIntegration = "service_integration"
+
+	// ConfigMatchStateNotCompared means reducer comparison has not run.
+	ConfigMatchStateNotCompared = "not_compared"
+
+	// ConfigWarningMissing marks a configured resource missing from live state.
+	ConfigWarningMissing = "missing"
+	// ConfigWarningPermissionHidden marks a resource hidden by permissions.
+	ConfigWarningPermissionHidden = "permission_hidden"
+	// ConfigWarningUnsupported marks unsupported live configuration collection.
+	ConfigWarningUnsupported = "unsupported"
+	// ConfigWarningPartial marks an incomplete live configuration read.
+	ConfigWarningPartial = "partial"
 )
 
 // EnvelopeContext carries durable fact-envelope identity for PagerDuty facts.
@@ -81,6 +103,52 @@ type ChangeEvent struct {
 	HTMLURL   string
 }
 
+// ConfigService is one live PagerDuty service normalized before envelope
+// emission.
+type ConfigService struct {
+	ID              string
+	Summary         string
+	Status          string
+	AlertCreation   string
+	Escalation      Reference
+	Teams           []Reference
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
+	HTMLURL         string
+	Disabled        bool
+	Deleted         bool
+	MatchState      string
+	ManuallyCreated bool
+	DriftReason     string
+}
+
+// ConfigIntegration is one live PagerDuty service integration normalized
+// before envelope emission.
+type ConfigIntegration struct {
+	ID                 string
+	ServiceID          string
+	Summary            string
+	Type               string
+	VendorID           string
+	HTMLURL            string
+	CreatedAt          time.Time
+	UpdatedAt          time.Time
+	Disabled           bool
+	Deleted            bool
+	MatchState         string
+	ManuallyCreated    bool
+	DriftReason        string
+	RoutingKey         string
+	RoutingKeyRedacted bool
+}
+
+// ConfigWarning is one bounded live-configuration coverage warning.
+type ConfigWarning struct {
+	ResourceClass string
+	ResourceID    string
+	Reason        string
+}
+
 // CollectionWindow bounds one PagerDuty provider read.
 type CollectionWindow struct {
 	Since time.Time
@@ -97,10 +165,28 @@ type CollectionResult struct {
 	Truncated           bool
 }
 
+// ConfigCollectionResult is one optional live PagerDuty configuration
+// observation for a target.
+type ConfigCollectionResult struct {
+	Services     []ConfigService
+	Integrations []ConfigIntegration
+	Warnings     []ConfigWarning
+	ObservedAt   time.Time
+	PagesFetched int
+	Partial      bool
+	Redactions   int
+}
+
 // EvidenceClient fetches PagerDuty incident evidence for one target and time
 // window.
 type EvidenceClient interface {
 	CollectIncidentEvidence(context.Context, TargetConfig, CollectionWindow) (CollectionResult, error)
+}
+
+// ConfigEvidenceClient fetches optional live PagerDuty configuration evidence
+// for one target.
+type ConfigEvidenceClient interface {
+	CollectConfigEvidence(context.Context, TargetConfig) (ConfigCollectionResult, error)
 }
 
 // ClientFactory builds a PagerDuty evidence client for a validated target.
@@ -118,15 +204,17 @@ type SourceConfig struct {
 
 // TargetConfig describes one PagerDuty account or service allowlist target.
 type TargetConfig struct {
-	Provider          string
-	ScopeID           string
-	AccountID         string
-	Token             string
-	APIBaseURL        string
-	SourceURI         string
-	IncidentLimit     int
-	IncidentLookback  time.Duration
-	LogEntryLimit     int
-	ChangeEventLimit  int
-	AllowedServiceIDs []string
+	Provider                string
+	ScopeID                 string
+	AccountID               string
+	Token                   string
+	APIBaseURL              string
+	SourceURI               string
+	IncidentLimit           int
+	IncidentLookback        time.Duration
+	LogEntryLimit           int
+	ChangeEventLimit        int
+	AllowedServiceIDs       []string
+	ConfigValidationEnabled bool
+	ConfigResourceLimit     int
 }

@@ -90,12 +90,38 @@ func TestDesiredCollectorInstanceValidateAcceptsPagerDutyClaimsEnabled(t *testin
 			"incident_lookback":"6h",
 			"log_entry_limit":25,
 			"change_event_limit":25,
-			"allowed_service_ids":["SVC1"]
+			"allowed_service_ids":["SVC1"],
+			"config_validation_enabled":true,
+			"config_resource_limit":25
 		}]}`,
 	}
 
 	if err := instance.Validate(); err != nil {
 		t.Fatalf("Validate() error = %v, want nil", err)
+	}
+}
+
+func TestDesiredCollectorInstanceValidateRejectsPagerDutyConfigResourceLimitOutOfRange(t *testing.T) {
+	t.Parallel()
+
+	instance := DesiredCollectorInstance{
+		InstanceID:    "pagerduty-primary",
+		CollectorKind: scope.CollectorPagerDuty,
+		Mode:          CollectorModeContinuous,
+		Enabled:       true,
+		ClaimsEnabled: true,
+		Configuration: `{"targets":[{
+			"provider":"pagerduty",
+			"scope_id":"pagerduty:account:example",
+			"account_id":"example",
+			"token_env":"PAGERDUTY_TOKEN",
+			"config_validation_enabled":true,
+			"config_resource_limit":101
+		}]}`,
+	}
+
+	if err := instance.Validate(); err == nil {
+		t.Fatal("Validate() error = nil, want config_resource_limit error")
 	}
 }
 

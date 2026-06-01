@@ -87,6 +87,10 @@ type Instruments struct {
 	PagerDutyProviderRequests                 metric.Int64Counter
 	PagerDutyFactsEmitted                     metric.Int64Counter
 	PagerDutyRateLimited                      metric.Int64Counter
+	PagerDutyConfigResourcesObserved          metric.Int64Counter
+	PagerDutyConfigDriftCandidates            metric.Int64Counter
+	PagerDutyConfigPartialFailures            metric.Int64Counter
+	PagerDutyConfigRedactions                 metric.Int64Counter
 	JiraProviderRequests                      metric.Int64Counter
 	JiraFactsEmitted                          metric.Int64Counter
 	JiraRateLimited                           metric.Int64Counter
@@ -765,7 +769,7 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 
 	inst.PagerDutyFactsEmitted, err = meter.Int64Counter(
 		"eshu_dp_pagerduty_facts_emitted_total",
-		metric.WithDescription("Total PagerDuty incident source facts emitted by provider and fact kind"),
+		metric.WithDescription("Total PagerDuty incident and routing source facts emitted by provider and fact kind"),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register PagerDutyFactsEmitted counter: %w", err)
@@ -777,6 +781,38 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register PagerDutyRateLimited counter: %w", err)
+	}
+
+	inst.PagerDutyConfigResourcesObserved, err = meter.Int64Counter(
+		"eshu_dp_pagerduty_config_resources_observed_total",
+		metric.WithDescription("Total live PagerDuty configuration resources observed by provider and resource type"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register PagerDutyConfigResourcesObserved counter: %w", err)
+	}
+
+	inst.PagerDutyConfigDriftCandidates, err = meter.Int64Counter(
+		"eshu_dp_pagerduty_config_drift_candidates_total",
+		metric.WithDescription("Total live PagerDuty configuration drift candidates by provider and bounded reason"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register PagerDutyConfigDriftCandidates counter: %w", err)
+	}
+
+	inst.PagerDutyConfigPartialFailures, err = meter.Int64Counter(
+		"eshu_dp_pagerduty_config_partial_failures_total",
+		metric.WithDescription("Total partial live PagerDuty configuration failures by provider and bounded reason"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register PagerDutyConfigPartialFailures counter: %w", err)
+	}
+
+	inst.PagerDutyConfigRedactions, err = meter.Int64Counter(
+		"eshu_dp_pagerduty_config_redactions_total",
+		metric.WithDescription("Total live PagerDuty configuration redactions by provider and bounded reason"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register PagerDutyConfigRedactions counter: %w", err)
 	}
 
 	inst.JiraProviderRequests, err = meter.Int64Counter(

@@ -2,11 +2,12 @@
 
 This page defines the evidence contract for PagerDuty incident-routing context.
 It covers the path from infrastructure declarations to applied state to live
-PagerDuty observations. It does not change the existing PagerDuty incident
-collector, and it does not add a Terraform provider loader.
+PagerDuty observations. It keeps the existing PagerDuty incident collector
+behavior separate from optional live configuration validation, and it does not
+add a Terraform provider loader.
 
 Eshu already packages the PagerDuty Terraform provider schema. The missing work
-is the typed evidence contract that lets future collectors and reducers explain
+is the staged evidence path that lets collectors and reducers explain
 how a PagerDuty service, integration, escalation policy, or alert route relates
 to an incident without treating any one source as automatic truth.
 
@@ -70,11 +71,11 @@ sanitized alert target reference.
 
 ## Fact Families
 
-The first implementation slices should start with these fact families. Names
-are contract candidates until the corresponding code PR lands. Terraform-state
+The first implementation slices start with these fact families. Terraform-state
 applied PagerDuty and alert-route facts are emitted by the Terraform-state
-parser; declared-source reducers and live-observed provider facts remain
-separate follow-up slices.
+parser. Live PagerDuty service and service-integration facts are emitted only
+when a PagerDuty target opts into live configuration validation. Declared-source
+reducers and broader live resource classes remain separate follow-up slices.
 
 | Fact family | Source class | Identity keys | Payload boundaries |
 | --- | --- | --- | --- |
@@ -86,8 +87,8 @@ separate follow-up slices.
 | `incident_routing.declared_alert_route` | `declared` | AWS resource ARN or Terraform address, route type, sanitized PagerDuty target reference | AWS alert path from SNS, Lambda, SSM, EventBridge, CloudWatch, or related resources into PagerDuty. Secret-bearing URLs and parameter values are excluded. |
 | `incident_routing.applied_pagerduty_resource` | `applied` | Terraform state resource address, resource type, provider address, state generation, provider object ID | Applied PagerDuty service, team, escalation policy, integration, or orchestration state. Sensitive state attributes are redacted before persistence. |
 | `incident_routing.applied_alert_route` | `applied` | Terraform state resource address, AWS ARN, provider address, state generation, sanitized target reference | Applied AWS routing resources that can deliver alerts into PagerDuty. Secret values, endpoint tokens, and payload templates are excluded. |
-| `incident_routing.observed_pagerduty_service` | `observed` | PagerDuty service ID, sanitized service URL, account scope | Live service status, escalation policy reference, team references, integration references, and update timestamp. |
-| `incident_routing.observed_pagerduty_integration` | `observed` | PagerDuty integration ID, service ID, integration type | Live integration state, vendor summary, and service reference. Integration keys are excluded. |
+| `incident_routing.observed_pagerduty_service` | `observed` | PagerDuty service ID, sanitized service URL, account scope | Optional live service status, escalation policy reference, team references, name fingerprint, comparison state, and update timestamp. Raw service names are excluded. |
+| `incident_routing.observed_pagerduty_integration` | `observed` | PagerDuty integration ID, service ID, integration type | Optional live integration state, vendor reference, service reference, name fingerprint, comparison state, and redaction flags. Integration keys and routing keys are excluded. |
 | `incident_routing.coverage_warning` | any | Scope, source instance, warning reason, related identity key | Missing provider permission, unsupported resource type, stale source, ambiguous match, rejected sensitive value, or incomplete route proof. |
 
 Existing `incident.record`, `incident.lifecycle_event`, and `change.record`
@@ -198,16 +199,19 @@ collector lane is treated as production-ready.
 
 ## Readiness
 
-The shipped PagerDuty collector remains an incident-context source collector.
-It emits provider-reported incident and change evidence. PagerDuty
-incident-routing evidence from Terraform source, Terraform state, AWS alert
-routes, and live configuration comparison is a separate follow-up contract.
+The shipped PagerDuty collector emits provider-reported incident and change
+evidence. Terraform-state applied PagerDuty and alert-route evidence and
+optional live PagerDuty service/integration observations now exist as source
+fact lanes. Declared Terraform source evidence, broader live PagerDuty config
+classes, and reducer/API/MCP comparison remain staged follow-up work.
 
-Do not add Helm values or production-readiness claims for these new
-incident-routing facts until the collector, reducer, fixtures, telemetry,
-status, and API/MCP reads all exist.
+Do not add Helm production-readiness claims for the full incident-routing
+surface until the collector, reducer, fixtures, telemetry, status, and API/MCP
+reads all exist.
 
-No-Observability-Change: this contract is documentation-only. It defines future
-evidence classes and tests, but it does not change runtime collection,
-telemetry, reducers, schemas, APIs, MCP tools, Helm charts, or deployment
-behavior.
+Observability Evidence: optional live PagerDuty config validation records
+bounded provider request, emitted fact, config resource observed, drift
+candidate, partial failure, redaction, fetch duration, rate-limit, and
+generation-lag metrics without putting incident IDs, service names, integration
+names, routing keys, token env names, token values, or private URLs into metric
+labels.

@@ -120,14 +120,18 @@ and `source_freshness=partial`; this is response metadata, not a metric label.
 | `eshu_dp_pagerduty_provider_requests_total` | `provider`, `status_class` | PagerDuty incident evidence request attempts, including retryable and terminal failures. |
 | `eshu_dp_pagerduty_facts_emitted_total` | `provider`, `fact_kind` | Incident, lifecycle-event, and change-event source facts emitted per claimed target. |
 | `eshu_dp_pagerduty_rate_limited_total` | `provider` | PagerDuty rate-limit pressure surfaced to workflow retry handling. |
+| `eshu_dp_pagerduty_config_resources_observed_total` | `provider`, `resource_type` | Optional live PagerDuty service and integration resources observed for no-IaC fallback and freshness validation. |
+| `eshu_dp_pagerduty_config_drift_candidates_total` | `provider`, `reason` | Bounded live-config drift candidates, such as manually-created resources, before reducer-owned comparison. |
+| `eshu_dp_pagerduty_config_partial_failures_total` | `provider`, `reason` | Partial optional live-config reads, including permission-hidden, missing, unsupported, or rate-limited resource families. |
+| `eshu_dp_pagerduty_config_redactions_total` | `provider`, `reason` | Sensitive live-config values redacted or fingerprinted before fact emission. |
 | `eshu_dp_pagerduty_fetch_duration_seconds` | `provider`, `status_class` | Bounded PagerDuty fetch duration for one claimed target. |
 | `eshu_dp_pagerduty_generation_lag_seconds` | `provider` | Difference between collector clock and provider observation time. |
 
 Incident IDs, incident titles, service names, escalation-policy names, PagerDuty
-URLs, token environment names, token values, and provider response bodies stay
-out of metric labels. Use `/admin/status`, workflow failures, and traces to
-connect a bounded failure class to a specific private target in the operator
-environment.
+URLs, integration names, routing keys, warning resource IDs, token environment
+names, token values, and provider response bodies stay out of metric labels.
+Use `/admin/status`, workflow failures, and traces to connect a bounded failure
+class to a specific private target in the operator environment.
 
 ## Scanner-Worker Boundary
 

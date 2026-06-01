@@ -23,5 +23,7 @@
 // coordinator plans claimable work items. PagerDuty collector instances
 // validate bounded account or service-allowlist targets with credential
 // environment references before the coordinator plans claimable incident
-// evidence work.
+// evidence work; optional live-configuration validation fields are checked at
+// the same workflow boundary so PagerDuty service and integration reads stay
+// bounded.
 package workflow

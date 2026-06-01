@@ -32,7 +32,9 @@ func TestLoadClaimedRuntimeConfigSelectsPagerDutyInstanceAndLoadsTokenEnv(t *tes
 						"incident_lookback": "6h",
 						"log_entry_limit": 25,
 						"change_event_limit": 25,
-						"allowed_service_ids": ["SVC1"]
+						"allowed_service_ids": ["SVC1"],
+						"config_validation_enabled": true,
+						"config_resource_limit": 25
 					}]
 				}
 			}]`
@@ -58,6 +60,12 @@ func TestLoadClaimedRuntimeConfigSelectsPagerDutyInstanceAndLoadsTokenEnv(t *tes
 	}
 	if got, want := target.IncidentLookback, 6*time.Hour; got != want {
 		t.Fatalf("IncidentLookback = %s, want %s", got, want)
+	}
+	if !target.ConfigValidationEnabled {
+		t.Fatal("ConfigValidationEnabled = false, want true")
+	}
+	if got, want := target.ConfigResourceLimit, 25; got != want {
+		t.Fatalf("ConfigResourceLimit = %d, want %d", got, want)
 	}
 }
 

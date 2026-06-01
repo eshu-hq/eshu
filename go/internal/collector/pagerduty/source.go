@@ -118,17 +118,28 @@ func (s *ClaimedSource) NextClaimed(
 		fetchSpan.End()
 		return collector.CollectedGeneration{}, false, failure
 	}
+	configResult, err := s.collectConfigEvidence(fetchCtx, target)
+	if err != nil {
+		failure := classifiedProviderFailure(err)
+		s.recordFetch(observeCtx, target.config, failure.FailureClass(), startedAt)
+		s.recordRateLimit(observeCtx, target.config, failure)
+		recordSpanError(fetchSpan, failure)
+		recordSpanError(observeSpan, failure)
+		fetchSpan.End()
+		return collector.CollectedGeneration{}, false, failure
+	}
 	fetchSpan.End()
-	observedAt := result.ObservedAt.UTC()
+	observedAt := collectionObservedAt(result, configResult, s.now())
 	if observedAt.IsZero() {
 		observedAt = s.now().UTC()
 	}
-	envs, err := s.envelopes(item, target.config, result, observedAt)
+	envs, err := s.envelopes(item, target.config, result, configResult, observedAt)
 	if err != nil {
 		recordSpanError(observeSpan, err)
 		return collector.CollectedGeneration{}, false, err
 	}
 	s.recordFacts(observeCtx, target.config, envs)
+	s.recordConfigTelemetry(observeCtx, target.config, configResult)
 	s.recordFetch(observeCtx, target.config, "success", startedAt)
 	s.recordGenerationLag(observeCtx, target.config, observedAt)
 	return collector.FactsFromSlice(
@@ -181,6 +192,12 @@ func validateTarget(target TargetConfig) (TargetConfig, error) {
 	if target.ChangeEventLimit < 0 || target.ChangeEventLimit > 100 {
 		return TargetConfig{}, fmt.Errorf("change_event_limit must be between 0 and 100")
 	}
+	if target.ConfigResourceLimit < 0 || target.ConfigResourceLimit > 100 {
+		return TargetConfig{}, fmt.Errorf("config_resource_limit must be between 0 and 100")
+	}
+	if target.ConfigValidationEnabled && target.ConfigResourceLimit == 0 {
+		target.ConfigResourceLimit = 100
+	}
 	return target, nil
 }
 
@@ -188,6 +205,7 @@ func (s *ClaimedSource) envelopes(
 	item workflow.WorkItem,
 	target TargetConfig,
 	result CollectionResult,
+	configResult ConfigCollectionResult,
 	observedAt time.Time,
 ) ([]facts.Envelope, error) {
 	ctx := EnvelopeContext{
@@ -198,7 +216,7 @@ func (s *ClaimedSource) envelopes(
 		ObservedAt:          observedAt,
 		SourceURI:           target.SourceURI,
 	}
-	envs := make([]facts.Envelope, 0, len(result.Incidents))
+	envs := make([]facts.Envelope, 0, len(result.Incidents)+len(configResult.Services)+len(configResult.Integrations)+len(configResult.Warnings))
 	for _, incident := range result.Incidents {
 		incidentCtx := ctx
 		incidentCtx.SourceURI = firstNonBlank(incident.HTMLURL, target.SourceURI)
@@ -225,6 +243,27 @@ func (s *ClaimedSource) envelopes(
 			}
 			envs = append(envs, env)
 		}
+	}
+	for _, service := range configResult.Services {
+		env, err := NewObservedPagerDutyServiceEnvelope(ctx, service)
+		if err != nil {
+			return nil, err
+		}
+		envs = append(envs, env)
+	}
+	for _, integration := range configResult.Integrations {
+		env, err := NewObservedPagerDutyIntegrationEnvelope(ctx, integration)
+		if err != nil {
+			return nil, err
+		}
+		envs = append(envs, env)
+	}
+	for _, warning := range configResult.Warnings {
+		env, err := NewPagerDutyConfigCoverageWarningEnvelope(ctx, warning)
+		if err != nil {
+			return nil, err
+		}
+		envs = append(envs, env)
 	}
 	return envs, nil
 }

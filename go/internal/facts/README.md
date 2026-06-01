@@ -209,15 +209,19 @@ contract:
 
 - `incident_routing.applied_pagerduty_resource`
 - `incident_routing.applied_alert_route`
+- `incident_routing.observed_pagerduty_service`
+- `incident_routing.observed_pagerduty_integration`
 - `incident_routing.coverage_warning`
 
 Use `IncidentRoutingFactKinds` when callers need the accepted
 incident-routing source fact set, and `IncidentRoutingSchemaVersion` when
 building incident-routing envelopes. These facts preserve applied
-Terraform-state evidence for PagerDuty resources and alert-routing resources.
-They are source evidence only: reducers and read models must compare them with
-declared source evidence and live provider evidence before presenting incident
-routing coverage, drift, or context paths.
+Terraform-state evidence for PagerDuty resources and alert-routing resources,
+plus optional live PagerDuty service and integration observations for no-IaC
+fallback and freshness validation. They are source evidence only: reducers and
+read models must compare them with declared source evidence, applied state
+evidence, and live provider evidence before presenting incident routing
+coverage, drift, or context paths.
 
 Work-item fact kinds use schema version `1.0.0` for the first Jira collector
 contract:

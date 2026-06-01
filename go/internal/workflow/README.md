@@ -149,8 +149,12 @@ durable `collector_instances` table.
 `pagerduty` collector instances must declare at least one target with
 `provider`, `scope_id`, `account_id`, and `token_env`. Optional `api_base_url`
 overrides must use HTTPS and must not include credentials. Request limits,
-lookback duration, and source URIs are validated before the instance reaches
-durable storage.
+lookback duration, source URIs, and optional live-configuration validation
+limits are validated before the instance reaches durable storage.
+`config_validation_enabled` opts a target into live PagerDuty service and
+service-integration metadata collection, and `config_resource_limit` keeps that
+read bounded to the same 0-100 page limit family as incident, log-entry, and
+change-event reads.
 
 `oci_registry` collector instances are claim-capable. The coordinator plans one
 bounded work item per configured registry repository target, and the

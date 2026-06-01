@@ -15,17 +15,19 @@ type pagerDutyCollectorConfiguration struct {
 }
 
 type pagerDutyTargetConfiguration struct {
-	Provider          string   `json:"provider"`
-	ScopeID           string   `json:"scope_id"`
-	AccountID         string   `json:"account_id"`
-	TokenEnv          string   `json:"token_env"`
-	APIBaseURL        string   `json:"api_base_url"`
-	SourceURI         string   `json:"source_uri"`
-	IncidentLimit     int      `json:"incident_limit"`
-	IncidentLookback  string   `json:"incident_lookback"`
-	LogEntryLimit     int      `json:"log_entry_limit"`
-	ChangeEventLimit  int      `json:"change_event_limit"`
-	AllowedServiceIDs []string `json:"allowed_service_ids"`
+	Provider                string   `json:"provider"`
+	ScopeID                 string   `json:"scope_id"`
+	AccountID               string   `json:"account_id"`
+	TokenEnv                string   `json:"token_env"`
+	APIBaseURL              string   `json:"api_base_url"`
+	SourceURI               string   `json:"source_uri"`
+	IncidentLimit           int      `json:"incident_limit"`
+	IncidentLookback        string   `json:"incident_lookback"`
+	LogEntryLimit           int      `json:"log_entry_limit"`
+	ChangeEventLimit        int      `json:"change_event_limit"`
+	AllowedServiceIDs       []string `json:"allowed_service_ids"`
+	ConfigValidationEnabled bool     `json:"config_validation_enabled"`
+	ConfigResourceLimit     int      `json:"config_resource_limit"`
 }
 
 // ValidatePagerDutyCollectorConfiguration checks bounded PagerDuty collector
@@ -76,6 +78,9 @@ func validatePagerDutyTargetConfiguration(target pagerDutyTargetConfiguration) e
 	}
 	if target.ChangeEventLimit < 0 || target.ChangeEventLimit > maxPagerDutyPageLimit {
 		return fmt.Errorf("change_event_limit must be between 0 and %d", maxPagerDutyPageLimit)
+	}
+	if target.ConfigResourceLimit < 0 || target.ConfigResourceLimit > maxPagerDutyPageLimit {
+		return fmt.Errorf("config_resource_limit must be between 0 and %d", maxPagerDutyPageLimit)
 	}
 	if strings.TrimSpace(target.IncidentLookback) != "" {
 		value, err := time.ParseDuration(strings.TrimSpace(target.IncidentLookback))
