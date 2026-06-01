@@ -9,11 +9,13 @@ import (
 var incidentIssueKeyRE = regexp.MustCompile(`\b[A-Z][A-Z0-9]+-[0-9]+\b`)
 
 type incidentReviewWorkItemInput struct {
-	CommitSHA     string
-	IncidentURL   string
-	PullRequests  []incidentPullRequestEvidence
-	WorkItemLinks []incidentWorkItemExternalLink
-	WorkItems     []incidentWorkItemRecord
+	CommitSHA       string
+	IncidentURL     string
+	PullRequests    []incidentPullRequestEvidence
+	WorkItemLinks   []incidentWorkItemExternalLink
+	WorkItems       []incidentWorkItemRecord
+	ProjectMetadata []incidentWorkItemProjectMetadata
+	StatusMetadata  []incidentWorkItemStatusMetadata
 }
 
 type incidentPullRequestEvidence struct {
@@ -43,8 +45,28 @@ type incidentWorkItemRecord struct {
 	WorkItemID  string
 	WorkItemKey string
 	Summary     string
+	StatusID    string
 	StatusName  string
+	ProjectID   string
+	ProjectKey  string
 	SourceURL   string
+}
+
+type incidentWorkItemProjectMetadata struct {
+	FactID          string
+	Provider        string
+	ProjectID       string
+	ProjectKey      string
+	VisibilityState string
+}
+
+type incidentWorkItemStatusMetadata struct {
+	FactID            string
+	Provider          string
+	StatusID          string
+	ProjectID         string
+	StatusCategory    string
+	StatusCategoryKey string
 }
 
 func buildIncidentReviewWorkItemEvidence(
@@ -139,6 +161,8 @@ func buildIncidentWorkItemEdge(
 				records,
 				IncidentTruthDerived,
 				"Jira work item key was derived from the provider-verified pull request title",
+				input.ProjectMetadata,
+				input.StatusMetadata,
 			)
 		}
 	}
@@ -187,6 +211,8 @@ func incidentWorkItemRecordEdge(
 	records []incidentWorkItemRecord,
 	label IncidentTruthLabel,
 	explanation string,
+	projects []incidentWorkItemProjectMetadata,
+	statuses []incidentWorkItemStatusMetadata,
 ) *IncidentContextEvidenceEdge {
 	if len(records) > 1 {
 		return &IncidentContextEvidenceEdge{
@@ -197,21 +223,66 @@ func incidentWorkItemRecordEdge(
 		}
 	}
 	record := records[0]
+	value := map[string]string{
+		"provider":      record.Provider,
+		"work_item_id":  record.WorkItemID,
+		"work_item_key": record.WorkItemKey,
+		"summary":       record.Summary,
+		"status_name":   record.StatusName,
+	}
+	evidence := []IncidentContextEvidenceRef{
+		incidentEvidenceRef("work_item.record", record.FactID, record.SourceURL, record.Provider),
+	}
+	if project := incidentWorkItemProjectMetadataForRecord(projects, record); project != nil {
+		value["project_key"] = firstNonEmpty(record.ProjectKey, project.ProjectKey)
+		value["project_visibility_state"] = project.VisibilityState
+		evidence = append(evidence, incidentEvidenceRef("work_item.project_metadata", project.FactID, "", project.Provider))
+	} else if strings.TrimSpace(record.ProjectKey) != "" {
+		value["project_key"] = record.ProjectKey
+	}
+	if status := incidentWorkItemStatusMetadataForRecord(statuses, record); status != nil {
+		value["status_category"] = status.StatusCategory
+		value["status_category_key"] = status.StatusCategoryKey
+		evidence = append(evidence, incidentEvidenceRef("work_item.status_metadata", status.FactID, "", status.Provider))
+	}
 	return &IncidentContextEvidenceEdge{
 		Slot:        IncidentSlotWorkItem,
 		TruthLabel:  label,
 		Explanation: explanation,
-		Value: map[string]string{
-			"provider":      record.Provider,
-			"work_item_id":  record.WorkItemID,
-			"work_item_key": record.WorkItemKey,
-			"summary":       record.Summary,
-			"status_name":   record.StatusName,
-		},
-		Evidence: []IncidentContextEvidenceRef{
-			incidentEvidenceRef("work_item.record", record.FactID, record.SourceURL, record.Provider),
-		},
+		Value:       value,
+		Evidence:    evidence,
 	}
+}
+
+func incidentWorkItemProjectMetadataForRecord(
+	projects []incidentWorkItemProjectMetadata,
+	record incidentWorkItemRecord,
+) *incidentWorkItemProjectMetadata {
+	for i := range projects {
+		project := projects[i]
+		if strings.TrimSpace(project.ProjectID) != "" && strings.TrimSpace(project.ProjectID) == strings.TrimSpace(record.ProjectID) {
+			return &project
+		}
+		if strings.TrimSpace(project.ProjectKey) != "" && strings.TrimSpace(project.ProjectKey) == strings.TrimSpace(record.ProjectKey) {
+			return &project
+		}
+	}
+	return nil
+}
+
+func incidentWorkItemStatusMetadataForRecord(
+	statuses []incidentWorkItemStatusMetadata,
+	record incidentWorkItemRecord,
+) *incidentWorkItemStatusMetadata {
+	for i := range statuses {
+		status := statuses[i]
+		if strings.TrimSpace(status.StatusID) != "" && strings.TrimSpace(status.StatusID) == strings.TrimSpace(record.StatusID) {
+			if strings.TrimSpace(status.ProjectID) == "" || strings.TrimSpace(record.ProjectID) == "" || strings.TrimSpace(status.ProjectID) == strings.TrimSpace(record.ProjectID) {
+				return &status
+			}
+		}
+	}
+	return nil
 }
 
 func incidentWorkItemLinksForURL(

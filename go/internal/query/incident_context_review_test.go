@@ -105,14 +105,32 @@ func TestBuildIncidentReviewWorkItemEvidenceAddsIssueKeyDerivedWorkItem(t *testi
 				WorkItemID:  "10001",
 				WorkItemKey: "INC-123",
 				Summary:     "Fix checkout deploy",
+				StatusID:    "3",
 				StatusName:  "Done",
+				ProjectID:   "10000",
+				ProjectKey:  "INC",
 				SourceURL:   "https://example.atlassian.net/browse/INC-123",
 			},
+		},
+		ProjectMetadata: []incidentWorkItemProjectMetadata{
+			{FactID: "jira-project", Provider: "jira_cloud", ProjectID: "10000", ProjectKey: "INC", VisibilityState: "active"},
+		},
+		StatusMetadata: []incidentWorkItemStatusMetadata{
+			{FactID: "jira-status", Provider: "jira_cloud", StatusID: "3", StatusCategory: "DONE", StatusCategoryKey: "done"},
 		},
 	})
 
 	assertIncidentEdge(t, got, IncidentSlotPullRequest, IncidentTruthExact)
-	assertIncidentEdge(t, got, IncidentSlotWorkItem, IncidentTruthDerived)
+	edge := assertIncidentEdge(t, got, IncidentSlotWorkItem, IncidentTruthDerived)
+	if got := edge.Value["project_key"]; got != "INC" {
+		t.Fatalf("project_key = %q, want INC", got)
+	}
+	if got := edge.Value["project_visibility_state"]; got != "active" {
+		t.Fatalf("project_visibility_state = %q, want active", got)
+	}
+	if got := edge.Value["status_category"]; got != "DONE" {
+		t.Fatalf("status_category = %q, want DONE", got)
+	}
 }
 
 func TestBuildIncidentReviewWorkItemEvidenceKeepsMissingWorkItemImplicit(t *testing.T) {

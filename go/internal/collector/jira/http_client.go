@@ -19,9 +19,11 @@ const (
 	defaultIssueLimit       = 50
 	defaultChangelogLimit   = 50
 	defaultRemoteLinkLimit  = 50
+	defaultMetadataLimit    = 100
 	maxIssueLimit           = 100
 	maxChangelogLimit       = 100
 	maxRemoteLinkLimit      = 100
+	maxMetadataLimit        = 500
 	maxJiraErrorBodyBytes   = 4096
 	jiraTimeLayout          = "2006-01-02T15:04:05.000-0700"
 	jiraJQLTimeLayout       = "2006-01-02 15:04"
@@ -165,6 +167,14 @@ func (c HTTPClient) CollectWorkItemEvidence(
 	}
 	if result.ObservedAt.IsZero() {
 		result.ObservedAt = time.Now().UTC()
+	}
+	if err := c.collectMetadata(ctx, target, &result); err != nil {
+		result.Stats.PartialFailures++
+		return CollectionResult{}, PartialCollectionError{
+			Stage: "metadata",
+			Stats: result.Stats,
+			Cause: err,
+		}
 	}
 	for _, issue := range issues {
 		transitions, err := c.issueChangelog(

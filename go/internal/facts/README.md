@@ -229,16 +229,24 @@ contract:
 - `work_item.record`
 - `work_item.transition`
 - `work_item.external_link`
+- `work_item.project_metadata`
+- `work_item.issue_type_metadata`
+- `work_item.status_metadata`
+- `work_item.workflow_metadata`
+- `work_item.field_metadata`
+- `work_item.metadata_warning`
 
 Use `WorkItemFactKinds` when callers need the accepted work-item source fact
 set, and `WorkItemSchemaVersion` when building work-item envelopes. These facts
-preserve Jira issue state, changelog IDs, and remote links as source evidence
+preserve Jira issue state, changelog IDs, remote links, project/status/workflow
+context, custom-field schema classes, and metadata warnings as source evidence
 only. Reducers and query surfaces must prove incident, deployment, code, or PR
 relationships before presenting those paths as Eshu truth. Jira work-item
 payloads carry `redaction_policy_version=jira_work_item_v1`; private summaries,
-user identifiers, raw Jira URLs, remote-link URLs, remote-link titles, and
-remote-link summaries are represented by presence booleans or URL fingerprints
-rather than raw values.
+user identifiers, raw Jira URLs, metadata names/descriptions, custom-field
+identifiers, remote-link URLs, remote-link titles, and remote-link summaries are
+represented by presence booleans, bounded categories, or fingerprints rather
+than raw values.
 
 Observability fact kinds use schema version `1.0.0` for the first
 Grafana-stack evidence contract, including Grafana metadata,

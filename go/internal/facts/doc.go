@@ -41,7 +41,13 @@
 // reconcile those alerts with owned dependency and impact facts.
 // Incident-context fact kind constants and schema-version helpers live here for
 // incident, lifecycle-event, and change-event source evidence reported by
-// incident systems. Incident-routing fact kind constants and schema-version
+// incident systems. Jira work-item fact kind constants and schema-version
+// helpers live here for issue, transition, external-link, project metadata,
+// issue-type metadata, status metadata, workflow metadata, field metadata, and
+// metadata-warning source evidence. Metadata facts keep raw names,
+// descriptions, private URLs, custom-field IDs, and user identifiers out of the
+// payload while preserving fingerprints and bounded categories for reader
+// context. Incident-routing fact kind constants and schema-version
 // helpers live here for applied PagerDuty and alert-route evidence observed
 // from Terraform state and optional live PagerDuty service/integration
 // observations; reducers compare that evidence with declared source and

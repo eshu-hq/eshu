@@ -27,7 +27,8 @@ func TestLoadClaimedRuntimeConfigSelectsJiraInstanceAndResolvesCredential(t *tes
 					"issue_limit":25,
 					"updated_lookback":"24h",
 					"changelog_limit":25,
-					"remote_link_limit":25
+					"remote_link_limit":25,
+					"metadata_limit":25
 				}]
 			}
 		}]`,
@@ -58,6 +59,9 @@ func TestLoadClaimedRuntimeConfigSelectsJiraInstanceAndResolvesCredential(t *tes
 	}
 	if got := config.Source.Targets[0].Email; got != "user@example.com" {
 		t.Fatalf("resolved email = %q, want user@example.com", got)
+	}
+	if got := config.Source.Targets[0].MetadataLimit; got != 25 {
+		t.Fatalf("MetadataLimit = %d, want 25", got)
 	}
 }
 

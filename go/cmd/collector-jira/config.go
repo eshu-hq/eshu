@@ -45,6 +45,7 @@ type targetJSON struct {
 	UpdatedLookback string `json:"updated_lookback"`
 	ChangelogLimit  int    `json:"changelog_limit"`
 	RemoteLinkLimit int    `json:"remote_link_limit"`
+	MetadataLimit   int    `json:"metadata_limit"`
 }
 
 func loadClaimedRuntimeConfig(getenv func(string) string) (claimedRuntimeConfig, error) {
@@ -183,6 +184,7 @@ func mapTarget(target targetJSON, getenv func(string) string) (jira.TargetConfig
 		UpdatedLookback: lookback,
 		ChangelogLimit:  target.ChangelogLimit,
 		RemoteLinkLimit: target.RemoteLinkLimit,
+		MetadataLimit:   target.MetadataLimit,
 	}, nil
 }
 
