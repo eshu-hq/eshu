@@ -103,6 +103,7 @@ nav:
     - Collector Authoring: guides/collector-authoring.md
     - Collector And Reducer Readiness: reference/collector-reducer-readiness.md
     - PagerDuty Evidence Contract: reference/pagerduty-evidence.md
+    - Observability Evidence Contract: reference/observability-evidence.md
     - Vulnerability Parity Gate: reference/vulnerability-parity-gate.md
     - Security Intelligence Release Gate: reference/security-intelligence-release-gate.md
     - Component Package Manager: reference/component-package-manager.md
