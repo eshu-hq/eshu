@@ -54,6 +54,106 @@ func TestBuildIncidentRuntimeEvidenceUsesExplicitPagerDutyOperationalLink(t *tes
 	assertIncidentEdge(t, got, IncidentSlotRuntimeArtifact, IncidentTruthExact)
 }
 
+func TestBuildIncidentRuntimeEvidenceAddsBuildAndCommitFromDigestCorrelation(t *testing.T) {
+	t.Parallel()
+
+	got := buildIncidentRuntimeEvidence(baseIncidentRuntimeEvidenceInput(
+		incidentContainerImageIdentity{
+			FactID:           "image-identity",
+			Digest:           "sha256:runtime",
+			ImageRef:         "registry.example/checkout@sha256:runtime",
+			RepositoryID:     "repo-checkout",
+			Outcome:          "exact",
+			IdentityStrength: "digest",
+		},
+		[]incidentCICDRunCorrelation{
+			{
+				FactID:          "run-correlation",
+				Provider:        "github_actions",
+				RunID:           "123",
+				RepositoryID:    "repo-checkout",
+				CommitSHA:       "abcdef1234567890",
+				Environment:     "prod",
+				ArtifactDigest:  "sha256:runtime",
+				ImageRef:        "registry.example/checkout@sha256:runtime",
+				Outcome:         "exact",
+				CorrelationKind: "artifact_digest",
+			},
+		},
+	))
+
+	assertIncidentEdge(t, got, IncidentSlotBuildDeploy, IncidentTruthExact)
+	assertIncidentEdge(t, got, IncidentSlotCommit, IncidentTruthExact)
+}
+
+func TestBuildIncidentRuntimeEvidenceTreatsTagOnlyCommitAsDerived(t *testing.T) {
+	t.Parallel()
+
+	got := buildIncidentRuntimeEvidence(baseIncidentRuntimeEvidenceInput(
+		incidentContainerImageIdentity{
+			FactID:           "image-identity",
+			ImageRef:         "registry.example/checkout:2026-06-01",
+			RepositoryID:     "repo-checkout",
+			Outcome:          "derived",
+			IdentityStrength: "tag",
+		},
+		[]incidentCICDRunCorrelation{
+			{
+				FactID:       "run-correlation",
+				Provider:     "github_actions",
+				RunID:        "123",
+				RepositoryID: "repo-checkout",
+				CommitSHA:    "abcdef1234567890",
+				Environment:  "prod",
+				ImageRef:     "registry.example/checkout:2026-06-01",
+				Outcome:      "exact",
+			},
+		},
+	))
+
+	assertIncidentEdge(t, got, IncidentSlotBuildDeploy, IncidentTruthDerived)
+	assertIncidentEdge(t, got, IncidentSlotCommit, IncidentTruthDerived)
+}
+
+func TestBuildIncidentRuntimeEvidenceKeepsMultipleCommitCandidatesAmbiguous(t *testing.T) {
+	t.Parallel()
+
+	got := buildIncidentRuntimeEvidence(baseIncidentRuntimeEvidenceInput(
+		incidentContainerImageIdentity{
+			FactID:       "image-identity",
+			Digest:       "sha256:runtime",
+			ImageRef:     "registry.example/checkout@sha256:runtime",
+			RepositoryID: "repo-checkout",
+			Outcome:      "exact",
+		},
+		[]incidentCICDRunCorrelation{
+			{
+				FactID:         "run-a",
+				RunID:          "123",
+				CommitSHA:      "commit-a",
+				ArtifactDigest: "sha256:runtime",
+				Outcome:        "exact",
+			},
+			{
+				FactID:         "run-b",
+				RunID:          "456",
+				CommitSHA:      "commit-b",
+				ArtifactDigest: "sha256:runtime",
+				Outcome:        "exact",
+			},
+		},
+	))
+
+	build := incidentEdgeBySlot(t, got, IncidentSlotBuildDeploy)
+	if build.TruthLabel != IncidentTruthAmbiguous {
+		t.Fatalf("build truth_label = %q, want ambiguous", build.TruthLabel)
+	}
+	commit := incidentEdgeBySlot(t, got, IncidentSlotCommit)
+	if commit.TruthLabel != IncidentTruthAmbiguous {
+		t.Fatalf("commit truth_label = %q, want ambiguous", commit.TruthLabel)
+	}
+}
+
 func TestBuildIncidentRuntimeEvidenceKeepsMultipleImagesAmbiguous(t *testing.T) {
 	t.Parallel()
 
@@ -190,4 +290,31 @@ func findIncidentEdge(
 		}
 	}
 	return nil
+}
+
+func baseIncidentRuntimeEvidenceInput(
+	image incidentContainerImageIdentity,
+	runs []incidentCICDRunCorrelation,
+) incidentRuntimeEvidenceInput {
+	return incidentRuntimeEvidenceInput{
+		ServiceLink: incidentServiceCatalogOperationalLink{
+			FactID:    "op-link",
+			Provider:  "backstage",
+			EntityRef: "component:default/checkout-api",
+			URL:       "https://example.pagerduty.com/services/P-SVC",
+		},
+		CatalogCorrelations: []incidentServiceCatalogCorrelation{
+			{
+				FactID:       "catalog-correlation",
+				EntityRef:    "component:default/checkout-api",
+				DisplayName:  "Checkout API",
+				RepositoryID: "repo-checkout",
+				ServiceID:    "service:checkout-api",
+				WorkloadID:   "workload:checkout-api",
+				Outcome:      "exact",
+			},
+		},
+		ImageIdentities:     []incidentContainerImageIdentity{image},
+		CICDRunCorrelations: runs,
+	}
 }
