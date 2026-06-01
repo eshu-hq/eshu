@@ -1,0 +1,5 @@
+{
+  "name": "synthetic-monorepo-workspace-scope",
+  "private": true,
+  "workspaces": ["apps/*", "packages/*"]
+}

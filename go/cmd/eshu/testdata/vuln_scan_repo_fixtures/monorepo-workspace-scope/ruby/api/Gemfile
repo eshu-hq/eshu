@@ -1,0 +1,2 @@
+source "synthetic://rubygems"
+gem "synthetic_workspace_bundler", "1.0.0"

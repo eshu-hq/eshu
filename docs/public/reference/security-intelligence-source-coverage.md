@@ -534,9 +534,14 @@ synthetic repository names, package names, and advisory identifiers while
 covering vulnerable and ready-zero states for npm, Yarn, pnpm, Go modules, PyPI
 requirements/pyproject/Pipfile/Poetry, Maven, Gradle, Composer, Bundler, Cargo,
 NuGet, and local/image OS-package fixtures for apk, dpkg, and RPM queryformat
-evidence. Separate synthetic cases cover malformed lockfile, unsupported
-ecosystem, incomplete advisory, incomplete package, and stale-cache readiness
-states without private repositories or live provider payloads.
+evidence. A separate synthetic monorepo/workspace fixture covers nested npm,
+Yarn, pnpm, Go multi-module, Maven multi-module, Gradle multi-project, Cargo
+workspace and renamed-package, .NET solution/project, Python
+requirements/pyproject/Pipfile/Poetry, Composer, Bundler, and image/SBOM scope
+cases. Separate synthetic cases cover malformed lockfile, unsupported
+ecosystem, incomplete advisory, incomplete package, ambiguous multi-root
+evidence, and stale-cache readiness states without private repositories or live
+provider payloads.
 
 The command runs in scoped mode by default. The CLI derives its scope plan
 from the readiness envelope of `GET /api/v0/supply-chain/impact/findings` for
@@ -597,10 +602,11 @@ package metadata was current, and where the scan stopped.
 
 The scanner-style parent report lives at `data.report` in JSON mode. Its
 schema version is `eshu.vulnerability_report.v1`, and it keeps the same
-readiness envelope, target/package/image/SBOM context, affected-version fields,
-evidence fact handles, missing-evidence reasons, unsupported-target coverage,
-and remediation metadata separate. Provider payload fields are not copied into
-the report.
+readiness envelope, target/package/image/SBOM context, manifest/source paths
+with line anchors when the API provides them, affected-version fields, evidence
+fact handles, missing-evidence reasons, unsupported-target coverage, and
+remediation metadata separate. Provider payload fields are not copied into the
+report.
 
 `eshu vuln-scan repo --export sarif` now writes a SARIF v2.1.0 artifact from
 that parent scanner envelope. Vulnerability findings carry package/image target
@@ -647,6 +653,14 @@ VEX impact-status mapping, non-ready readiness preservation without
 not-affected statements, evidence handles, remediation sanitization, and
 private provider payload redaction.
 `go test ./cmd/eshu -run
+'TestRunVulnScanRepoWorkspaceScopeProof|TestVulnScanRepoWorkspaceScopeFixtureHasParserBackedDependencyEvidence'
+-count=1` proves the synthetic monorepo/workspace scope fixture: nested
+workspace positives keep manifest/source paths in the scanner report, ready-zero
+rows stay clean for unrelated package roots, image/SBOM findings attach only to
+the explicit subject/workload/service/environment hop, ambiguous multi-root
+evidence remains `evidence_incomplete`, and every nested manifest/lockfile in
+the fixture is parser-backed dependency evidence.
+`go test ./cmd/eshu -run
 'TestVulnScanRepoCommandRegistersBroadFlag|TestRunVulnScanRepoDefaultScopedModeAttachesScopePlanAndPerformance|TestRunVulnScanRepoFailsClosedOnStalePackageMetadata|TestRunVulnScanRepoScopedModeFailsClosedOnStaleAdvisoryCache|TestRunVulnScanRepoScopedModeIgnoresGlobalStaleSnapshotsWhenEnvelopeFresh|TestRunVulnScanRepoScopedModePassesThroughServerTargetIncomplete|TestRunVulnScanRepoBroadModeSkipsScopeGuards|TestRunVulnScanRepoScopedModeSurfacesEvidenceIncompleteWhenNoOwnedDeps'
 -count=1` proves the `--broad` flag registration, default scoped scope-plan
 and scan-performance attachment with scoped package-registry freshness,
@@ -659,12 +673,13 @@ the response as `evidence_incomplete`. The full `go test ./cmd/eshu -count=1`
 suite continues to pass with the updated findings-stub responses that mirror
 the production readiness envelope.
 
-No-Observability-Change: the scope plan, performance block, and
-`--broad` flag, report envelope, and scanner exit-code mapping are CLI-only
-orchestration over the existing `/api/v0/supply-chain/impact/findings`
-readiness envelope and the existing `query.supply_chain_impact_findings`
-span. No new HTTP route, MCP tool, metric instrument, span, queue, reducer
-lane, graph write, or scanner worker is introduced.
+No-Observability-Change: the scope plan, performance block, `--broad` flag,
+report envelope, scanner exit-code mapping, and manifest/source path report
+preservation are CLI-only orchestration over the existing
+`/api/v0/supply-chain/impact/findings` readiness envelope and the existing
+`query.supply_chain_impact_findings` span. No new HTTP route, MCP tool, metric
+instrument, span, queue, reducer lane, graph write, or scanner worker is
+introduced.
 
 Performance Evidence: the focused CLI tests above run under 0.5s on Go
 1.26.3 darwin/arm64 with the local authoritative-owner stubs and synthetic

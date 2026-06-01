@@ -1,0 +1,4 @@
+[project]
+name = "synthetic-pyproject-workspace"
+version = "1.0.0"
+dependencies = ["synthetic-pyproject-workspace-ready==1.0.0"]

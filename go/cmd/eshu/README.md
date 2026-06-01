@@ -126,8 +126,9 @@ No-Regression Evidence: provider-parity lifecycle behavior is covered by
   separate measurement step. JSON output also includes
   `data.report.schema_version = "eshu.vulnerability_report.v1"` with the
   scanner summary, readiness, freshness, unsupported targets, target/package
-  context, evidence handles, remediation metadata, scope plan, and performance
-  block. Scoped mode treats stale or unknown aggregate freshness as
+  context, manifest/source paths with line anchors when the API provides them,
+  image/SBOM subjects, evidence handles, remediation metadata, scope plan, and
+  performance block. Scoped mode treats stale or unknown aggregate freshness as
   `evidence_incomplete`. The command exits `0` for ready-zero, `3` for
   findings, `4` for non-ready evidence, `5` for unsupported target evidence,
   and `1` for runtime or transport failures before readiness is classified.

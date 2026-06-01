@@ -4,7 +4,9 @@
 // The binary registers root flags (`--database`, `--visual`, `--version`,
 // `-v`) and a tree of subcommands covering local indexing (`index`, `list`, `watch`, `query`,
 // `stats`), security intelligence (`vuln-scan repo` with terminal and JSON
-// exit classification plus SARIF and VEX-style report exports,
+// exit classification plus SARIF and VEX-style report exports that preserve
+// manifest/source paths, line anchors, and image/SBOM subjects from the API
+// findings envelope,
 // `vuln-scan provider-parity` aggregate provider proof with approved mismatch
 // classes plus readiness/freshness rollups), service launch (`mcp start`, `api start`,
 // `serve`), authenticated local Eshu service commands (`graph` — `mcp start --workspace-root` can attach

@@ -1,0 +1,7 @@
+[tool.poetry]
+name = "synthetic-poetry-workspace"
+version = "1.0.0"
+
+[tool.poetry.dependencies]
+python = "^3.11"
+synthetic-poetry-workspace-ready = "1.0.0"

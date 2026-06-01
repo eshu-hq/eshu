@@ -1,0 +1,5 @@
+[workspace]
+members = ["crates/cargo-api"]
+
+[workspace.dependencies]
+synthetic-cargo-workspace-real = "1.0.0"

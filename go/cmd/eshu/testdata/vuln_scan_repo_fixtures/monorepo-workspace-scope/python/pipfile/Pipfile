@@ -1,0 +1,7 @@
+[[source]]
+name = "synthetic"
+url = "synthetic://pypi"
+verify_ssl = false
+
+[packages]
+synthetic-pipfile-workspace-ready = "==1.0.0"

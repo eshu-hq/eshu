@@ -1,0 +1,1 @@
+synthetic-python-workspace-ready==1.0.0

@@ -1,0 +1,7 @@
+[package]
+name = "synthetic-cargo-api"
+version = "1.0.0"
+edition = "2021"
+
+[dependencies]
+synthetic-cargo-workspace-vulnerable = { package = "synthetic-cargo-workspace-real", version = "1.0.0" }

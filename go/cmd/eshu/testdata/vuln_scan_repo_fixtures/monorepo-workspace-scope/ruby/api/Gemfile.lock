@@ -1,0 +1,6 @@
+GEM
+  specs:
+    synthetic_workspace_bundler (1.0.0)
+
+DEPENDENCIES
+  synthetic_workspace_bundler (= 1.0.0)
