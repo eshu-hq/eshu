@@ -163,6 +163,11 @@ func parseRequirementLine(content string, raw string, section string, dev bool, 
 	}
 	builder.Marker = marker
 
+	if name, extras, source, ok := splitDirectReference(content); ok {
+		populateDirectReferenceRow(&builder, name, extras, source, editable)
+		return builder
+	}
+
 	switch {
 	case isVCSRequirement(content):
 		populateVCSRow(&builder, content, editable)
@@ -188,6 +193,48 @@ func parseRequirementLine(content string, raw string, section string, dev bool, 
 	builder.Value = value
 	builder.ConfigKind = configKindDependency
 	return builder
+}
+
+func splitDirectReference(content string) (string, []string, string, bool) {
+	left, right, ok := strings.Cut(content, "@")
+	if !ok {
+		return "", nil, "", false
+	}
+	name, extras, value, valid := splitNameSpecifier(strings.TrimSpace(left))
+	if !valid || name == "" || value != "" {
+		return "", nil, "", false
+	}
+	source := strings.TrimSpace(right)
+	if source == "" {
+		return "", nil, "", false
+	}
+	return name, extras, source, true
+}
+
+func populateDirectReferenceRow(
+	builder *rowBuilder,
+	name string,
+	extras []string,
+	source string,
+	editable bool,
+) {
+	builder.Name = name
+	builder.Extras = extras
+	switch {
+	case isVCSRequirement(source):
+		populateVCSRow(builder, source, editable)
+	case isURLRequirement(source):
+		populateURLRow(builder, source, editable)
+	case looksLikePathRequirement(source, editable):
+		populatePathRow(builder, source, editable)
+	default:
+		builder.Value = source
+		builder.ConfigKind = configKindMalformed
+		builder.Malformed = true
+		return
+	}
+	builder.Name = name
+	builder.Extras = extras
 }
 
 func isVCSRequirement(content string) bool {

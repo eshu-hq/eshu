@@ -13,6 +13,8 @@ const (
 	supplyChainVersionReasonNuGetSemverKnownFixed    = "nuget_semver_known_fixed"
 	supplyChainVersionReasonCargoSemverAffectedRange = "cargo_semver_affected_range"
 	supplyChainVersionReasonCargoSemverKnownFixed    = "cargo_semver_known_fixed"
+	supplyChainVersionReasonPyPIPep440AffectedRange  = "pypi_pep440_affected_range"
+	supplyChainVersionReasonPyPIPep440KnownFixed     = "pypi_pep440_known_fixed"
 	supplyChainVersionReasonMavenRangeMatch          = "maven_range_match"
 	supplyChainVersionReasonMavenKnownFixed          = "maven_known_fixed"
 	supplyChainVersionReasonRangeOnlyManifest        = "range_only_manifest"
@@ -67,6 +69,8 @@ func evaluateSupplyChainVersionMatch(
 		return evaluateNuGetSemverMatch(observed, fixedVersion, pkgs)
 	case string(packageidentity.EcosystemCargo):
 		return evaluateCargoSemverMatch(observed, fixedVersion, pkgs)
+	case string(packageidentity.EcosystemPyPI):
+		return evaluatePyPIPep440Match(observed, fixedVersion, pkgs)
 	case string(packageidentity.EcosystemMaven):
 		return evaluateMavenVersionMatch(observed, fixedVersion, pkgs)
 	default:

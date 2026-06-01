@@ -8,8 +8,9 @@
 //   - ParseRequirements parses pip-style requirements files (requirements.txt
 //     and sibling requirements-*.txt / requirements_*.txt forms). It preserves
 //     pinned/range specifiers, extras, environment markers, runtime vs dev
-//     scope (derived from the filename), and distinguishes VCS, path, URL,
-//     editable, and malformed entries from registry-version evidence.
+//     scope (derived from the filename), and distinguishes PEP 508 direct
+//     references, VCS, path, URL, editable, and malformed entries from
+//     registry-version evidence.
 //   - ParsePyProject parses pyproject.toml for PEP 621 `[project]`
 //     dependencies, `[project.optional-dependencies]`, Poetry's
 //     `[tool.poetry.dependencies]` and group-style dev dependencies, and

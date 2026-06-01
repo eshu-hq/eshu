@@ -330,8 +330,9 @@ Log phase attributes: `telemetry.PhaseReduction` (main loop),
   package version. The reducer preserves the exact installed version, the
   requested manifest range, the selected fixed version, and the match reason as
   separate finding fields. Version/range evaluation is ecosystem-aware for npm
-  semver and Maven; unsupported ecosystems and malformed advisory ranges fail
-  closed as partial evidence with explicit missing-evidence reasons. Npm
+  and Cargo SEMVER, NuGet, Maven, and PyPI PEP 440; unsupported ecosystems and
+  malformed advisory ranges fail closed as partial evidence with explicit
+  missing-evidence reasons. Npm
   `package-lock.json` rows also preserve the ordered dependency path, depth, and
   direct/transitive flag so vulnerability impact can explain whether a finding
   came from a direct dependency or through an owned transitive chain.
@@ -481,7 +482,9 @@ Log phase attributes: `telemetry.PhaseReduction` (main loop),
   explicit version) plus an ecosystem-aware exact match. Comprehensive
   covers range-only manifests, SBOM/CPE-derived image paths without an
   exact version, malformed advisory ranges, unsupported ecosystems, and
-  missing observed versions. The tier is persisted alongside the truth
+  missing observed versions. PyPI exact lockfile matches qualify as precise
+  only after the PEP 440 matcher proves the advisory range or known-fixed
+  boundary. The tier is persisted alongside the truth
   labels (status, confidence, runtime_reachability) and missing-evidence
   reasons; readers (API, MCP, parity gate) decide which tier they want.
 - **Provider alerts are dependency-gated before impact admission** —

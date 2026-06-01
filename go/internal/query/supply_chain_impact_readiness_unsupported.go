@@ -25,7 +25,7 @@ type SupplyChainImpactUnsupportedTarget struct {
 const (
 	// UnsupportedTargetKindEcosystem marks owned dependency evidence in an
 	// ecosystem the supply-chain version matcher cannot evaluate (e.g.,
-	// PyPI, Go modules, RubyGems today). The dependency was observed but
+	// Go modules or RubyGems today). The dependency was observed but
 	// cannot be matched, so the result is neither clean nor affected.
 	UnsupportedTargetKindEcosystem = "ecosystem"
 	// UnsupportedTargetKindPackageManagerFile marks a package-manager file

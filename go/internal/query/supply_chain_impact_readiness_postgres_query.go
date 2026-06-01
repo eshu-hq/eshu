@@ -315,7 +315,7 @@ unsupported_target_rows AS (
       AND payload->>'repo_id' = $11
       AND NULLIF(LOWER(TRIM(payload->'entity_metadata'->>'package_manager')), '') IS NOT NULL
       AND LOWER(TRIM(payload->'entity_metadata'->>'package_manager')) NOT IN
-          ('npm', 'nuget', 'maven', 'cargo')
+          ('npm', 'nuget', 'maven', 'cargo', 'pypi')
     UNION ALL
     -- Package-manager files Eshu parsed but where the lockfile recorded an
     -- unsupported feature (e.g., Yarn Berry patch directives). The row was

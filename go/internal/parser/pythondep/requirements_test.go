@@ -188,6 +188,53 @@ func TestParseRequirementsKeepsPlainPathRequirementsAsPathNotEditable(t *testing
 	}
 }
 
+// TestParseRequirementsKeepsPEP508DirectReferencesOutOfRegistryEvidence proves
+// that `name @ source` entries are provenance, not PyPI version evidence. Pip
+// accepts these PEP 508 direct-reference forms, but the reducer must not admit
+// them as public-registry consumption until a separate lockfile or registry
+// row proves an installed PyPI version.
+func TestParseRequirementsKeepsPEP508DirectReferencesOutOfRegistryEvidence(t *testing.T) {
+	t.Parallel()
+
+	path := writeTempFile(t, "requirements.txt", strings.Join([]string{
+		"direct-url @ https://example.com/direct-url-1.0.0.tar.gz",
+		"direct-tight@https://example.com/direct-tight-1.0.0.tar.gz",
+		"direct-vcs @ git+https://github.com/acme/direct-vcs.git@v1.0.0",
+		"direct-path @ ../vendor/direct-path",
+	}, "\n"))
+	payload, err := ParseRequirements(path)
+	if err != nil {
+		t.Fatalf("ParseRequirements error = %v", err)
+	}
+	rows := variableRows(t, payload)
+	byName := rowsByName(rows)
+
+	for _, tc := range []struct {
+		name       string
+		configKind string
+		sourceKind string
+	}{
+		{name: "direct-url", configKind: "url_dependency", sourceKind: "url"},
+		{name: "direct-tight", configKind: "url_dependency", sourceKind: "url"},
+		{name: "direct-vcs", configKind: "vcs_dependency", sourceKind: "vcs"},
+		{name: "direct-path", configKind: "path_dependency", sourceKind: "path"},
+	} {
+		row, ok := byName[tc.name]
+		if !ok {
+			t.Fatalf("%s missing from %#v", tc.name, rows)
+		}
+		if got := row["config_kind"]; got != tc.configKind {
+			t.Fatalf("%s config_kind = %#v, want %q", tc.name, got, tc.configKind)
+		}
+		if got := row["source_kind"]; got != tc.sourceKind {
+			t.Fatalf("%s source_kind = %#v, want %q", tc.name, got, tc.sourceKind)
+		}
+		if got := row["package_manager"]; got != "pypi" {
+			t.Fatalf("%s package_manager = %#v, want pypi", tc.name, got)
+		}
+	}
+}
+
 // TestParseRequirementsHandlesEmptyFileWithoutPanicOrFakeRows guards the
 // safety rule that an empty/whitespace-only requirements file must not produce
 // dependency rows. Empty manifest evidence is not the same as "no

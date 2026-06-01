@@ -260,3 +260,25 @@ JVM impact through existing parser-stage timing, package-consumption
 correlation facts, `reducer_supply_chain_impact_finding`, `match_reason`,
 `requested_range`, `observed_version`, `missing_evidence`, and the
 supply-chain impact readiness envelope.
+
+No-Regression Evidence: Python/PyPI vulnerability parity for issue `#999` is
+guarded by `go test ./internal/parser/pythondep -run
+TestParseRequirementsKeepsPEP508DirectReferencesOutOfRegistryEvidence -count=1`,
+`go test ./internal/reducer -run
+'TestBuildSupplyChainImpactFindings(ProvesPyPILockfileExactVersions|KeepsPyPIManifestRangesPossible)'
+-count=1`, and `go test ./internal/query -run
+TestPostgresSupplyChainImpactReadinessQueryShape -count=1`. These fixture tests
+prove PEP 508 direct references stay out of registry-version evidence, PyPI
+lockfile versions produce precise affected and known-fixed findings through the
+PEP 440 matcher, manifest-only ranges stay possible with missing installed
+version evidence, and repository readiness no longer reports PyPI dependency
+rows as unsupported target evidence.
+
+No-Observability-Change: the `#999` parity work changes parser row
+classification, in-memory reducer version matching, and the supported
+package-manager allowlist in the existing readiness SQL. It adds no metric
+instrument, span, log key, queue, reducer lane, graph write, route, MCP tool,
+scanner worker, or runtime configuration knob. Operators continue to diagnose
+the path through parser-stage timing, `package.consumption` readiness counts,
+`reducer_supply_chain_impact_finding`, `match_reason`, `missing_evidence`, and
+the supply-chain impact readiness envelope.
