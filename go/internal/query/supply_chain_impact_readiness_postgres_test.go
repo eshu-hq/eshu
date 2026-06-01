@@ -77,6 +77,16 @@ func TestPostgresSupplyChainImpactReadinessQueryShape(t *testing.T) {
 		"warn.payload->>'package_id' = $10",
 		"FROM package_consumption_correlation_active AS consumption",
 		"consumption.payload->>'repository_id' = $11",
+		"package_registry_active.payload->>'package_id' = package_registry_scope_packages.package_id",
+		// Package-registry freshness must be evaluated across the full
+		// consumed package set. One fresh registry row for one consumed
+		// package must not mask missing or stale metadata for another.
+		"package_registry_scope_packages AS (",
+		"package_registry_scoped AS (",
+		"LEFT JOIN package_registry_active",
+		"COUNT(package_registry_active.payload)::int AS fact_count",
+		"BOOL_OR(fact_count = 0)",
+		"MIN(latest_observed_at)",
 		// Anchor guards: ecosystem and package_manager_file rows only count
 		// when the request carries an explicit repository_id, and sbom_target
 		// rows only count when the request carries an explicit

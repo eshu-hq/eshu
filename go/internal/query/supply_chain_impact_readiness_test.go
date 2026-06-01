@@ -63,6 +63,7 @@ func TestBuildSupplyChainImpactReadinessClassifiesReadyZeroFindings(t *testing.T
 			EvidenceSources: []SupplyChainImpactEvidenceFamily{
 				{Family: EvidenceFamilyVulnerabilityAdvisory, FactCount: 12, Freshness: FreshnessLabelFresh},
 				{Family: EvidenceFamilyPackageConsumption, FactCount: 3, Freshness: FreshnessLabelFresh},
+				{Family: EvidenceFamilyPackageRegistry, FactCount: 3, Freshness: FreshnessLabelFresh},
 			},
 		},
 	)
@@ -75,8 +76,8 @@ func TestBuildSupplyChainImpactReadinessClassifiesReadyZeroFindings(t *testing.T
 	if len(envelope.MissingEvidence) != 0 {
 		t.Fatalf("missing_evidence = %#v, want empty", envelope.MissingEvidence)
 	}
-	if envelope.Counts.EvidenceFactsTotal != 15 {
-		t.Fatalf("evidence_facts_total = %d, want 15", envelope.Counts.EvidenceFactsTotal)
+	if envelope.Counts.EvidenceFactsTotal != 18 {
+		t.Fatalf("evidence_facts_total = %d, want 18", envelope.Counts.EvidenceFactsTotal)
 	}
 }
 

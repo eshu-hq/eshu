@@ -178,6 +178,9 @@ const (
 	// MissingEvidenceOwnedPackages signals no owned package consumption facts
 	// for the requested scope.
 	MissingEvidenceOwnedPackages = "owned_packages"
+	// MissingEvidencePackageRegistryMetadata signals missing or stale
+	// package-registry metadata for a package or repository scope.
+	MissingEvidencePackageRegistryMetadata = "package_registry_metadata"
 	// MissingEvidenceSBOMOrImage signals no SBOM, attestation, or container
 	// image identity facts for an image-scoped request.
 	MissingEvidenceSBOMOrImage = "sbom_or_image_evidence"
@@ -337,6 +340,14 @@ func classifyMissingEvidence(
 			missing = append(missing, MissingEvidenceOwnedPackages)
 		}
 	}
+	if scopeRequiresPackageRegistryMetadata(scope, sources) {
+		registryFreshness := evidenceFamilyFreshness(sources, EvidenceFamilyPackageRegistry)
+		if evidenceFactCount(sources, EvidenceFamilyPackageRegistry) == 0 ||
+			registryFreshness == FreshnessLabelStale ||
+			registryFreshness == FreshnessLabelUnknown {
+			missing = append(missing, MissingEvidencePackageRegistryMetadata)
+		}
+	}
 	if scopeRequiresImageEvidence(scope) &&
 		evidenceFactCount(sources, EvidenceFamilyContainerImageIdentity) == 0 &&
 		evidenceFactCount(sources, EvidenceFamilySBOMComponent) == 0 &&
@@ -360,6 +371,13 @@ func isReadyState(state SupplyChainImpactReadinessState) bool {
 
 func scopeRequiresOwnedPackages(scope SupplyChainImpactTargetScope) bool {
 	return scope.RepositoryID != "" || scope.PackageID != ""
+}
+
+func scopeRequiresPackageRegistryMetadata(scope SupplyChainImpactTargetScope, sources []SupplyChainImpactEvidenceFamily) bool {
+	if scope.PackageID != "" {
+		return true
+	}
+	return scope.RepositoryID != "" && evidenceFactCount(sources, EvidenceFamilyPackageConsumption) > 0
 }
 
 func scopeRequiresImageEvidence(scope SupplyChainImpactTargetScope) bool {
@@ -398,6 +416,16 @@ func evidenceFactCount(sources []SupplyChainImpactEvidenceFamily, name string) i
 		}
 	}
 	return 0
+}
+
+func evidenceFamilyFreshness(sources []SupplyChainImpactEvidenceFamily, name string) string {
+	freshness := FreshnessLabelUnknown
+	for _, family := range sources {
+		if family.Family == name {
+			freshness = combineReadinessFreshness(freshness, family.Freshness)
+		}
+	}
+	return freshness
 }
 
 func aggregateReadinessFreshness(sources []SupplyChainImpactEvidenceFamily) string {

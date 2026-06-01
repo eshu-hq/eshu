@@ -43,6 +43,7 @@ func TestSupplyChainListImpactFindingsAttachesReadinessForZeroFindings(t *testin
 			EvidenceSources: []SupplyChainImpactEvidenceFamily{
 				{Family: EvidenceFamilyVulnerabilityAdvisory, FactCount: 5, Freshness: FreshnessLabelFresh},
 				{Family: EvidenceFamilyPackageConsumption, FactCount: 2, Freshness: FreshnessLabelFresh},
+				{Family: EvidenceFamilyPackageRegistry, FactCount: 1, Freshness: FreshnessLabelFresh},
 			},
 		},
 	}

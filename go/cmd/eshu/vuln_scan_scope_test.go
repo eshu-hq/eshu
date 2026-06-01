@@ -33,10 +33,10 @@ func TestRunVulnScanRepoDefaultScopedModeAttachesScopePlanAndPerformance(t *test
 	//
 	// The readiness envelope's `evidence_sources[].fact_count` is a count of
 	// source facts (not unique packages or advisory sources), so the scope
-	// plan and performance fields use *_facts names. `package.registry` is
-	// intentionally omitted from this stub because the server only counts
-	// registry metadata when a `package_id` anchor is supplied; the assertion
-	// confirms a repo-only scan reports `package_registry_facts == 0`.
+	// plan and performance fields use *_facts names. This fixture includes
+	// fresh `package.registry` evidence because repository-scoped scans with
+	// observed package consumption need registry metadata as join evidence
+	// before the CLI can declare the scope ready.
 	repoPath := t.TempDir()
 	if err := os.WriteFile(filepath.Join(repoPath, "package.json"), []byte(`{"name":"demo"}`), 0o644); err != nil {
 		t.Fatalf("write package.json error = %v, want nil", err)
@@ -50,7 +50,7 @@ func TestRunVulnScanRepoDefaultScopedModeAttachesScopePlanAndPerformance(t *test
 		case "/api/v0/repositories":
 			_, _ = w.Write([]byte(`{"count":1,"repositories":[{"id":"repo-local","name":"local","path":"` + repoPath + `","local_path":"` + repoPath + `"}]}`))
 		case "/api/v0/supply-chain/impact/findings":
-			_, _ = w.Write([]byte(`{"data":{"findings":[{"finding_id":"f-1","cve_id":"CVE-2026-0001","package_id":"npm://registry.npmjs.org/ws","impact_status":"affected_exact","repository_id":"repo-local"}],"count":1,"limit":50,"truncated":false,"readiness":{"readiness_state":"ready_with_findings","target_scope":{"repository_id":"repo-local"},"evidence_sources":[{"family":"package.consumption","fact_count":4,"freshness":"fresh","latest_observed_at":"2026-05-25T10:00:00Z"},{"family":"vulnerability.advisory","fact_count":120,"freshness":"fresh","latest_observed_at":"2026-05-25T09:00:00Z"}],"source_snapshots":[{"source":"osv","ecosystem":"npm","freshness":"fresh","complete":true,"cache_artifact_version":"v1","snapshot_digest":"abc"}],"freshness":"fresh","counts":{"findings_returned":1,"evidence_facts_total":124}}},"truth":{"level":"exact","freshness":{"state":"fresh"}},"error":null}`))
+			_, _ = w.Write([]byte(`{"data":{"findings":[{"finding_id":"f-1","cve_id":"CVE-2026-0001","package_id":"npm://registry.npmjs.org/ws","impact_status":"affected_exact","repository_id":"repo-local"}],"count":1,"limit":50,"truncated":false,"readiness":{"readiness_state":"ready_with_findings","target_scope":{"repository_id":"repo-local"},"evidence_sources":[{"family":"package.consumption","fact_count":4,"freshness":"fresh","latest_observed_at":"2026-05-25T10:00:00Z"},{"family":"package.registry","fact_count":1,"freshness":"fresh","latest_observed_at":"2026-05-25T10:01:00Z"},{"family":"vulnerability.advisory","fact_count":120,"freshness":"fresh","latest_observed_at":"2026-05-25T09:00:00Z"}],"source_snapshots":[{"source":"osv","ecosystem":"npm","freshness":"fresh","complete":true,"cache_artifact_version":"v1","snapshot_digest":"abc"}],"freshness":"fresh","counts":{"findings_returned":1,"evidence_facts_total":125}}},"truth":{"level":"exact","freshness":{"state":"fresh"}},"error":null}`))
 		default:
 			t.Fatalf("unexpected request %s %s", r.Method, r.URL.String())
 		}
@@ -91,8 +91,8 @@ func TestRunVulnScanRepoDefaultScopedModeAttachesScopePlanAndPerformance(t *test
 	if got := plan["advisory_facts"]; got == nil || toInt(t, got) != 120 {
 		t.Fatalf("plan[advisory_facts] = %#v, want 120", got)
 	}
-	if got := plan["package_registry_facts"]; got == nil || toInt(t, got) != 0 {
-		t.Fatalf("plan[package_registry_facts] = %#v, want 0 (repo-only scope omits registry counts)", got)
+	if got := plan["package_registry_facts"]; got == nil || toInt(t, got) != 1 {
+		t.Fatalf("plan[package_registry_facts] = %#v, want 1", got)
 	}
 	if got, want := plan["freshness"], "fresh"; got != want {
 		t.Fatalf("plan[freshness] = %#v, want %#v", got, want)
@@ -135,7 +135,7 @@ func TestRunVulnScanRepoScopedModeFailsClosedOnStaleAdvisoryCache(t *testing.T) 
 		case "/api/v0/repositories":
 			_, _ = w.Write([]byte(`{"count":1,"repositories":[{"id":"repo-local","name":"local","path":"` + repoPath + `","local_path":"` + repoPath + `"}]}`))
 		case "/api/v0/supply-chain/impact/findings":
-			_, _ = w.Write([]byte(`{"data":{"findings":[],"count":0,"limit":50,"truncated":false,"readiness":{"readiness_state":"ready_zero_findings","target_scope":{"repository_id":"repo-local"},"evidence_sources":[{"family":"package.consumption","fact_count":3,"freshness":"fresh"},{"family":"vulnerability.advisory","fact_count":50,"freshness":"stale"}],"freshness":"stale","counts":{"findings_returned":0,"evidence_facts_total":53}}},"truth":{"level":"exact","freshness":{"state":"stale"}},"error":null}`))
+			_, _ = w.Write([]byte(`{"data":{"findings":[],"count":0,"limit":50,"truncated":false,"readiness":{"readiness_state":"ready_zero_findings","target_scope":{"repository_id":"repo-local"},"evidence_sources":[{"family":"package.consumption","fact_count":3,"freshness":"fresh"},{"family":"package.registry","fact_count":1,"freshness":"fresh"},{"family":"vulnerability.advisory","fact_count":50,"freshness":"stale"}],"freshness":"stale","counts":{"findings_returned":0,"evidence_facts_total":54}}},"truth":{"level":"exact","freshness":{"state":"stale"}},"error":null}`))
 		default:
 			t.Fatalf("unexpected request %s %s", r.Method, r.URL.String())
 		}
@@ -197,7 +197,7 @@ func TestRunVulnScanRepoScopedModeIgnoresGlobalStaleSnapshotsWhenEnvelopeFresh(t
 		case "/api/v0/repositories":
 			_, _ = w.Write([]byte(`{"count":1,"repositories":[{"id":"repo-local","name":"local","path":"` + repoPath + `","local_path":"` + repoPath + `"}]}`))
 		case "/api/v0/supply-chain/impact/findings":
-			_, _ = w.Write([]byte(`{"data":{"findings":[],"count":0,"limit":50,"truncated":false,"readiness":{"readiness_state":"ready_zero_findings","target_scope":{"repository_id":"repo-local"},"evidence_sources":[{"family":"package.consumption","fact_count":3,"freshness":"fresh"},{"family":"vulnerability.advisory","fact_count":50,"freshness":"fresh"}],"source_snapshots":[{"source":"osv","ecosystem":"npm","freshness":"fresh","complete":true},{"source":"osv","ecosystem":"pypi","freshness":"stale","complete":false,"warning_code":"stale_cache","warning_message":"unrelated python snapshot"}],"freshness":"fresh","counts":{"findings_returned":0,"evidence_facts_total":53}}},"truth":{"level":"exact","freshness":{"state":"fresh"}},"error":null}`))
+			_, _ = w.Write([]byte(`{"data":{"findings":[],"count":0,"limit":50,"truncated":false,"readiness":{"readiness_state":"ready_zero_findings","target_scope":{"repository_id":"repo-local"},"evidence_sources":[{"family":"package.consumption","fact_count":3,"freshness":"fresh"},{"family":"package.registry","fact_count":1,"freshness":"fresh"},{"family":"vulnerability.advisory","fact_count":50,"freshness":"fresh"}],"source_snapshots":[{"source":"osv","ecosystem":"npm","freshness":"fresh","complete":true},{"source":"osv","ecosystem":"pypi","freshness":"stale","complete":false,"warning_code":"stale_cache","warning_message":"unrelated python snapshot"}],"freshness":"fresh","counts":{"findings_returned":0,"evidence_facts_total":54}}},"truth":{"level":"exact","freshness":{"state":"fresh"}},"error":null}`))
 		default:
 			t.Fatalf("unexpected request %s %s", r.Method, r.URL.String())
 		}
@@ -295,7 +295,7 @@ func TestRunVulnScanRepoBroadModeSkipsScopeGuards(t *testing.T) {
 		case "/api/v0/repositories":
 			_, _ = w.Write([]byte(`{"count":1,"repositories":[{"id":"repo-local","name":"local","path":"` + repoPath + `","local_path":"` + repoPath + `"}]}`))
 		case "/api/v0/supply-chain/impact/findings":
-			_, _ = w.Write([]byte(`{"data":{"findings":[],"count":0,"limit":50,"truncated":false,"readiness":{"readiness_state":"ready_zero_findings","target_scope":{"repository_id":"repo-local"},"evidence_sources":[{"family":"package.consumption","fact_count":3,"freshness":"fresh"},{"family":"vulnerability.advisory","fact_count":50,"freshness":"stale"}],"source_snapshots":[{"source":"osv","ecosystem":"npm","freshness":"stale","complete":true}],"freshness":"stale","counts":{"findings_returned":0,"evidence_facts_total":53}}},"truth":{"level":"exact","freshness":{"state":"stale"}},"error":null}`))
+			_, _ = w.Write([]byte(`{"data":{"findings":[],"count":0,"limit":50,"truncated":false,"readiness":{"readiness_state":"ready_zero_findings","target_scope":{"repository_id":"repo-local"},"evidence_sources":[{"family":"package.consumption","fact_count":3,"freshness":"fresh"},{"family":"package.registry","fact_count":1,"freshness":"fresh"},{"family":"vulnerability.advisory","fact_count":50,"freshness":"stale"}],"source_snapshots":[{"source":"osv","ecosystem":"npm","freshness":"stale","complete":true}],"freshness":"stale","counts":{"findings_returned":0,"evidence_facts_total":54}}},"truth":{"level":"exact","freshness":{"state":"stale"}},"error":null}`))
 		default:
 			t.Fatalf("unexpected request %s %s", r.Method, r.URL.String())
 		}
