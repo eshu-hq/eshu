@@ -99,6 +99,35 @@ func TestDesiredCollectorInstanceValidateAcceptsPagerDutyClaimsEnabled(t *testin
 	}
 }
 
+func TestDesiredCollectorInstanceValidateAcceptsJiraClaimsEnabled(t *testing.T) {
+	t.Parallel()
+
+	instance := DesiredCollectorInstance{
+		InstanceID:    "jira-primary",
+		CollectorKind: scope.CollectorJira,
+		Mode:          CollectorModeContinuous,
+		Enabled:       true,
+		ClaimsEnabled: true,
+		Configuration: `{"targets":[{
+			"provider":"jira_cloud",
+			"scope_id":"jira:site:example",
+			"site_id":"example.atlassian.net",
+			"base_url":"https://example.atlassian.net",
+			"email_env":"JIRA_EMAIL",
+			"token_env":"JIRA_API_TOKEN",
+			"jql":"project = OPS ORDER BY updated ASC",
+			"issue_limit":50,
+			"updated_lookback":"24h",
+			"changelog_limit":50,
+			"remote_link_limit":50
+		}]}`,
+	}
+
+	if err := instance.Validate(); err != nil {
+		t.Fatalf("Validate() error = %v, want nil", err)
+	}
+}
+
 func TestDesiredCollectorInstanceValidateRejectsPagerDutyMissingTokenEnv(t *testing.T) {
 	t.Parallel()
 
@@ -112,6 +141,28 @@ func TestDesiredCollectorInstanceValidateRejectsPagerDutyMissingTokenEnv(t *test
 			"provider":"pagerduty",
 			"scope_id":"pagerduty:account:example",
 			"account_id":"example"
+		}]}`,
+	}
+
+	if err := instance.Validate(); err == nil {
+		t.Fatal("Validate() error = nil, want missing token_env")
+	}
+}
+
+func TestDesiredCollectorInstanceValidateRejectsJiraMissingCredentialEnv(t *testing.T) {
+	t.Parallel()
+
+	instance := DesiredCollectorInstance{
+		InstanceID:    "jira-primary",
+		CollectorKind: scope.CollectorJira,
+		Mode:          CollectorModeContinuous,
+		Enabled:       true,
+		ClaimsEnabled: true,
+		Configuration: `{"targets":[{
+			"provider":"jira_cloud",
+			"scope_id":"jira:site:example",
+			"site_id":"example.atlassian.net",
+			"base_url":"https://example.atlassian.net"
 		}]}`,
 	}
 

@@ -43,12 +43,13 @@ this. `TransitionTo` enforces the table; forbidden transitions return an error.
   `KindStateSnapshot`, `KindEventTrigger`, `KindDocumentationSource`,
   `KindContainerRegistryRepository`, `KindPackageRegistry`,
   `KindVulnerabilityIntelligence`, `KindSBOMAttestation`,
-  `KindSecurityAlert`, `KindPagerDutyAccount`, `KindScannerWorker`
+  `KindSecurityAlert`, `KindPagerDutyAccount`, `KindJiraSite`,
+  `KindScannerWorker`
 - `CollectorKind` — `CollectorGit`, `CollectorAWS`, `CollectorTerraformState`,
   `CollectorWebhook`, `CollectorDocumentation`, `CollectorOCIRegistry`,
   `CollectorPackageRegistry`, `CollectorVulnerabilityIntelligence`,
   `CollectorSBOMAttestation`, `CollectorSecurityAlert`, `CollectorPagerDuty`,
-  `CollectorScannerWorker`
+  `CollectorJira`, `CollectorScannerWorker`
 - `TriggerKind` — `TriggerKindSnapshot`
 - `GenerationStatus` — `GenerationStatusPending`, `GenerationStatusActive`,
   `GenerationStatusSuperseded`, `GenerationStatusCompleted`,
@@ -105,6 +106,9 @@ This package emits no metrics, spans, or logs.
   raw repository paths, image names, registry URLs, or other private locators in
   operator-facing retry or dead-letter payloads; use safe locator hashes for
   those diagnostics.
+- Jira site scope identity is the provider site target boundary. Issue keys,
+  summaries, user identities, and remote-link URLs belong in source facts, not
+  in scope IDs, partition keys, or metric labels.
 
 ## Related docs
 

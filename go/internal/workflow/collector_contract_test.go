@@ -262,6 +262,24 @@ func TestCollectorContractForPagerDutyHasNoOperationalKeyspaces(t *testing.T) {
 	}
 }
 
+func TestCollectorContractForJiraHasNoOperationalKeyspaces(t *testing.T) {
+	t.Parallel()
+
+	contract, ok := CollectorContractFor(scope.CollectorJira)
+	if !ok {
+		t.Fatalf("CollectorContractFor(%q) found = false, want true", scope.CollectorJira)
+	}
+	if contract.CollectorKind != scope.CollectorJira {
+		t.Fatalf("CollectorKind = %q, want %q", contract.CollectorKind, scope.CollectorJira)
+	}
+	if len(contract.CanonicalKeyspaces) != 0 {
+		t.Fatalf("CanonicalKeyspaces = %#v, want empty because Jira emits source facts only", contract.CanonicalKeyspaces)
+	}
+	if len(contract.RequiredPhases) != 0 {
+		t.Fatalf("RequiredPhases = %#v, want empty because reducers own work-item truth", contract.RequiredPhases)
+	}
+}
+
 func TestCollectorContractForReturnsClonedSlices(t *testing.T) {
 	t.Parallel()
 

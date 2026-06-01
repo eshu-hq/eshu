@@ -9,11 +9,12 @@
 // requires claims enabled with at least one claim-capable collector instance.
 //
 // TerraformStateWorkPlanner plans Terraform-state collection runs from resolved
-// discovery candidates. OCIRegistryWorkPlanner, PackageRegistryWorkPlanner, and
-// VulnerabilityIntelligenceWorkPlanner each plan bounded work items without
-// opening provider connections; package and vulnerability planners preserve
-// direct and owned target priority ahead of broad fanout and report aggregate
-// skipped-target evidence when an owned-package derivation budget is exhausted.
+// discovery candidates. OCIRegistryWorkPlanner, PackageRegistryWorkPlanner,
+// VulnerabilityIntelligenceWorkPlanner, and JiraWorkPlanner each plan bounded
+// work items without opening provider connections; package and vulnerability
+// planners preserve direct and owned target priority ahead of broad fanout and
+// report aggregate skipped-target evidence when an owned-package derivation
+// budget is exhausted.
 // Service reads one bounded owned-package lookahead beyond each planning budget
 // so requested scope sets can show exhaustion without widening admitted work.
 // PagerDutyWorkPlanner plans incident-evidence work from configured PagerDuty

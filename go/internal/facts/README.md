@@ -204,6 +204,19 @@ only: reducers and read models must correlate them with runtime, image, commit,
 pull-request, and work-item evidence before presenting an incident context
 path.
 
+Work-item fact kinds use schema version `1.0.0` for the first Jira collector
+contract:
+
+- `work_item.record`
+- `work_item.transition`
+- `work_item.external_link`
+
+Use `WorkItemFactKinds` when callers need the accepted work-item source fact
+set, and `WorkItemSchemaVersion` when building work-item envelopes. These facts
+preserve Jira issue state, changelog IDs, and remote links as source evidence
+only. Reducers and query surfaces must prove incident, deployment, code, or PR
+relationships before presenting those paths as Eshu truth.
+
 Vulnerability suppression fact kinds use schema version `1.0.0` for the
 first VEX and operator-policy contract:
 

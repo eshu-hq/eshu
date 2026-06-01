@@ -16,9 +16,9 @@ The public Helm chart supports two collector styles:
 - Claim-driven collectors that receive `ESHU_COLLECTOR_INSTANCES_JSON`, select
   one enabled instance, claim durable work, and commit facts.
 
-Claim-driven Terraform-state, AWS cloud, package-registry, SBOM-attestation,
-provider security-alert, scanner-worker, and vulnerability-intelligence charted
-Deployments require:
+Charted claim-driven Terraform-state, AWS cloud, package-registry,
+SBOM-attestation, provider security-alert, scanner-worker, and
+vulnerability-intelligence Deployments require:
 
 - `workflowCoordinator.enabled=true`
 - `workflowCoordinator.deploymentMode=active`
@@ -26,6 +26,9 @@ Deployments require:
 - at least one matching collector instance
 
 The chart fails at render time when those prerequisites are missing.
+The PagerDuty and Jira collector binaries use the same workflow control-plane
+prerequisites when deployed manually; Helm deployment wiring is intentionally
+separate from this source-collector contract.
 
 ## Collector Matrix
 
@@ -39,6 +42,7 @@ The chart fails at render time when those prerequisites are missing.
 | SBOM Attestation Collector | `sbom_attestation` | workflow claims for configured SBOM document URLs or OCI referrer documents | `/usr/local/bin/eshu-collector-sbom-attestation` | `deploy/helm/eshu/templates/deployment-sbom-attestation-collector.yaml` |
 | Security Alert Collector | `security_alert` | workflow claims for configured GitHub Dependabot repository-alert targets | `/usr/local/bin/eshu-collector-security-alerts` | `deploy/helm/eshu/templates/deployment-security-alert-collector.yaml` |
 | PagerDuty Collector | `pagerduty` | workflow claims for configured PagerDuty account or service-allowlist targets | `/usr/local/bin/eshu-collector-pagerduty` | chart template pending |
+| Jira Collector | `jira` | workflow claims for configured Jira Cloud work-item targets | `/usr/local/bin/eshu-collector-jira` | not yet charted |
 | Scanner Worker | `scanner_worker` | workflow claims for CPU-heavy or memory-heavy security analyzer targets | `/usr/local/bin/eshu-scanner-worker` | `deploy/helm/eshu/templates/deployment-scanner-worker.yaml` |
 | Vulnerability Intelligence Collector | `vulnerability_intelligence` | workflow claims for bounded vulnerability source targets (CISA KEV, FIRST EPSS, NVD windows, OSV queries, GitLab Gemnasium, GHSA) or derived owned-package targets | `/usr/local/bin/eshu-collector-vulnerability-intelligence` | `deploy/helm/eshu/templates/deployment-vulnerability-intelligence-collector.yaml` |
 
@@ -57,6 +61,7 @@ All hosted collector runtimes expose `/healthz`, `/readyz`, `/metrics`, and
 | SBOM Attestation | Claim-driven. Selects one enabled `sbom_attestation` instance, fetches configured CycloneDX/SPDX SBOMs or in-toto attestations from HTTP(S) document URLs or OCI referrer blobs, and commits typed `sbom.*` and `attestation.*` facts. It redacts source URIs, preserves parse warnings as source facts, and keeps signature verification status separate from subject attachment truth. |
 | Security Alert | Claim-driven. Selects one enabled `security_alert` instance, resolves the target `token_env` from the pod environment, refuses non-allowlisted repositories, requires HTTPS for any `api_base_url` override, fetches bounded GitHub Dependabot alert pages, and commits only `security_alert.repository_alert` facts. Provider state remains source evidence; reducers own reconciliation and impact truth. |
 | PagerDuty | Claim-driven. Selects one enabled `pagerduty` instance, resolves target `token_env` from the runtime environment, requires HTTPS for any configured `api_base_url`, fetches bounded incident, log-entry, and related change-event evidence, and commits only `incident.record`, `incident.lifecycle_event`, and `change.record` facts. PagerDuty state remains source evidence; reducers own runtime, image, commit, PR, and work-item correlation. |
+| Jira | Claim-driven. Selects one enabled `jira` instance, resolves `token_env` and optional `email_env` from the pod environment, searches a bounded Jira Cloud updated window, fetches issue changelogs and remote links, and commits only `work_item.record`, `work_item.transition`, and `work_item.external_link` facts. Work-item state remains source evidence; reducers and query surfaces own incident, runtime, code, and pull-request correlation truth. |
 | Scanner Worker | Claim-driven. Selects one enabled `scanner_worker` instance, applies analyzer resource limits, emits source facts only, and records retry or dead-letter state without producing reducer-owned findings. The fallback analyzer emits `scanner_worker.warning`; `sbom_generation` accepts repository, image, or artifact targets when the runtime source has enough subject evidence; and the concrete `os_package_extraction` analyzer parses configured, already-extracted Alpine or Debian rootfs targets into `vulnerability.os_package` and `vulnerability.warning` facts. |
 | Vulnerability Intelligence | Claim-driven. Selects one enabled `vulnerability_intelligence` instance, fetches bounded source targets (explicit CVE IDs, source snapshots, OSV package-version queries, NVD modified windows, GitLab Gemnasium, GHSA) or coordinator-derived owned-package targets, and commits `vulnerability.*` facts. API keys are referenced from the pod environment through the target's `api_key_env` and never persisted into facts, logs, metric labels, or chart values. |
 
@@ -70,6 +75,16 @@ URLs, or credential values in metric labels or status errors. Keep public
 examples generic and pass live credentials through a private environment file
 or Kubernetes Secret.
 
+For PagerDuty, do not put incident titles, service names, account IDs,
+PagerDuty URLs, or credential values in metric labels or status errors. Keep
+incident and change details in source-fact payloads only when the target
+environment accepts that evidence retention boundary.
+
+For Jira, do not put site IDs, issue keys, user identities, summaries, remote
+link URLs, or credential values in metric labels or status errors. Keep Jira
+summaries and remote link titles as source-fact payloads only when the target
+environment accepts that evidence retention boundary.
+
 Use the focused service runbooks for target, permission, redaction, dashboard,
 and failure detail:
 
@@ -80,8 +95,9 @@ and failure detail:
 ## ServiceMonitor Coverage
 
 Helm can render `ServiceMonitor` resources for every hosted collector on this
-page except PagerDuty, whose chart support is pending. Schema bootstrap and
-bootstrap-index are excluded because they are not steady-state services.
+page except PagerDuty and Jira, whose chart support is pending. Schema
+bootstrap and bootstrap-index are excluded because they are not steady-state
+services.
 
 The collector metrics services live under:
 

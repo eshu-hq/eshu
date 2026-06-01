@@ -1,0 +1,272 @@
+package jira
+
+import (
+	"context"
+	"fmt"
+	"strings"
+	"time"
+
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
+
+	"github.com/eshu-hq/eshu/go/internal/collector"
+	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/scope"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
+	"github.com/eshu-hq/eshu/go/internal/workflow"
+)
+
+const defaultUpdatedLookback = 24 * time.Hour
+
+type targetRuntime struct {
+	config TargetConfig
+	client EvidenceClient
+}
+
+// ClaimedSource resolves Jira workflow claims into work-item source facts.
+type ClaimedSource struct {
+	collectorInstanceID string
+	targets             map[string]targetRuntime
+	now                 func() time.Time
+	tracer              trace.Tracer
+	instruments         *telemetry.Instruments
+}
+
+// NewClaimedSource validates configuration and builds a claim-driven Jira
+// source.
+func NewClaimedSource(config SourceConfig) (*ClaimedSource, error) {
+	collectorID := strings.TrimSpace(config.CollectorInstanceID)
+	if collectorID == "" {
+		return nil, fmt.Errorf("jira collector instance ID is required")
+	}
+	factory := config.ClientFactory
+	if factory == nil {
+		factory = defaultClientFactory
+	}
+	targets := make(map[string]targetRuntime, len(config.Targets))
+	for i, target := range config.Targets {
+		validated, err := validateTarget(target)
+		if err != nil {
+			return nil, fmt.Errorf("target %d: %w", i, err)
+		}
+		if _, exists := targets[validated.ScopeID]; exists {
+			return nil, fmt.Errorf("duplicate jira target scope_id %q", validated.ScopeID)
+		}
+		client, err := factory(validated)
+		if err != nil {
+			return nil, fmt.Errorf("target %d client: %w", i, err)
+		}
+		targets[validated.ScopeID] = targetRuntime{config: validated, client: client}
+	}
+	if len(targets) == 0 {
+		return nil, fmt.Errorf("at least one jira target is required")
+	}
+	now := config.Now
+	if now == nil {
+		now = time.Now
+	}
+	return &ClaimedSource{
+		collectorInstanceID: collectorID,
+		targets:             targets,
+		now:                 now,
+		tracer:              config.Tracer,
+		instruments:         config.Instruments,
+	}, nil
+}
+
+// NextClaimed collects the Jira target named by item.ScopeID.
+func (s *ClaimedSource) NextClaimed(
+	ctx context.Context,
+	item workflow.WorkItem,
+) (collector.CollectedGeneration, bool, error) {
+	if strings.TrimSpace(item.CollectorInstanceID) != s.collectorInstanceID {
+		return collector.CollectedGeneration{}, false, fmt.Errorf(
+			"jira work item collector_instance_id %q does not match source %q",
+			item.CollectorInstanceID,
+			s.collectorInstanceID,
+		)
+	}
+	if item.CollectorKind != "" && item.CollectorKind != scope.CollectorJira {
+		return collector.CollectedGeneration{}, false, fmt.Errorf("jira source cannot collect %q work items", item.CollectorKind)
+	}
+	if strings.TrimSpace(item.GenerationID) == "" {
+		return collector.CollectedGeneration{}, false, fmt.Errorf("jira work item generation_id is required")
+	}
+	target, ok := s.targets[strings.TrimSpace(item.ScopeID)]
+	if !ok {
+		return collector.CollectedGeneration{}, false, ProviderFailure{
+			failureClass: FailureRetryable,
+			cause:        fmt.Errorf("jira target scope_id is not configured"),
+		}
+	}
+
+	startedAt := time.Now()
+	observeCtx, observeSpan := s.startObserve(ctx, target.config)
+	defer observeSpan.End()
+	fetchCtx, fetchSpan := s.startFetch(observeCtx)
+	result, err := target.client.CollectWorkItemEvidence(fetchCtx, target.config, s.window(target.config))
+	if err != nil {
+		failure := classifiedProviderFailure(err)
+		s.recordFetch(observeCtx, target.config, failure.FailureClass(), startedAt)
+		s.recordRateLimit(observeCtx, target.config, failure)
+		recordSpanError(fetchSpan, failure)
+		recordSpanError(observeSpan, failure)
+		fetchSpan.End()
+		return collector.CollectedGeneration{}, false, failure
+	}
+	fetchSpan.End()
+
+	observedAt := result.ObservedAt.UTC()
+	if observedAt.IsZero() {
+		observedAt = s.now().UTC()
+	}
+	envs, err := s.envelopes(item, target.config, result, observedAt)
+	if err != nil {
+		recordSpanError(observeSpan, err)
+		return collector.CollectedGeneration{}, false, err
+	}
+	s.recordFacts(observeCtx, target.config, envs)
+	s.recordFetch(observeCtx, target.config, "success", startedAt)
+	return collector.FactsFromSlice(
+		ingestionScope(target.config),
+		scope.ScopeGeneration{
+			GenerationID:  item.GenerationID,
+			ScopeID:       target.config.ScopeID,
+			ObservedAt:    observedAt,
+			IngestedAt:    observedAt,
+			Status:        scope.GenerationStatusPending,
+			TriggerKind:   scope.TriggerKindSnapshot,
+			FreshnessHint: "jira_updated_window",
+		},
+		envs,
+	), true, nil
+}
+
+func defaultClientFactory(target TargetConfig) (EvidenceClient, error) {
+	return NewHTTPClient(HTTPClientConfig{
+		BaseURL: target.BaseURL,
+		Email:   target.Email,
+		Token:   target.Token,
+	})
+}
+
+func validateTarget(target TargetConfig) (TargetConfig, error) {
+	target.Provider = strings.TrimSpace(target.Provider)
+	if target.Provider == "" {
+		target.Provider = ProviderJiraCloud
+	}
+	if target.Provider != ProviderJiraCloud {
+		return TargetConfig{}, fmt.Errorf("unsupported jira provider %q", target.Provider)
+	}
+	target.ScopeID = strings.TrimSpace(target.ScopeID)
+	target.SiteID = strings.TrimSpace(target.SiteID)
+	target.BaseURL = strings.TrimRight(strings.TrimSpace(target.BaseURL), "/")
+	target.Email = strings.TrimSpace(target.Email)
+	target.Token = strings.TrimSpace(target.Token)
+	target.JQL = strings.TrimSpace(target.JQL)
+	if target.ScopeID == "" {
+		return TargetConfig{}, fmt.Errorf("scope_id is required")
+	}
+	if target.SiteID == "" {
+		return TargetConfig{}, fmt.Errorf("site_id is required")
+	}
+	if target.BaseURL == "" {
+		target.BaseURL = "https://" + target.SiteID
+	}
+	if target.Token == "" {
+		return TargetConfig{}, fmt.Errorf("token is required")
+	}
+	if target.UpdatedLookback == 0 {
+		target.UpdatedLookback = defaultUpdatedLookback
+	}
+	if target.UpdatedLookback < 0 {
+		return TargetConfig{}, fmt.Errorf("updated lookback must be positive")
+	}
+	return target, nil
+}
+
+func (s *ClaimedSource) window(target TargetConfig) CollectionWindow {
+	until := s.now().UTC()
+	return CollectionWindow{
+		Since: until.Add(-target.UpdatedLookback),
+		Until: until,
+	}
+}
+
+func (s *ClaimedSource) envelopes(
+	item workflow.WorkItem,
+	target TargetConfig,
+	result CollectionResult,
+	observedAt time.Time,
+) ([]facts.Envelope, error) {
+	envs := make([]facts.Envelope, 0, len(result.Issues))
+	for _, issue := range result.Issues {
+		ctx := EnvelopeContext{
+			ScopeID:             target.ScopeID,
+			GenerationID:        item.GenerationID,
+			CollectorInstanceID: s.collectorInstanceID,
+			FencingToken:        item.CurrentFencingToken,
+			ObservedAt:          observedAt,
+			SourceURI:           firstNonBlank(issue.Self, target.BaseURL),
+		}
+		record, err := NewWorkItemRecordEnvelope(ctx, issue)
+		if err != nil {
+			return nil, err
+		}
+		envs = append(envs, record)
+		for _, transition := range result.Transitions[issue.ID] {
+			transitionEnv, err := NewWorkItemTransitionEnvelope(ctx, transition)
+			if err != nil {
+				return nil, err
+			}
+			envs = append(envs, transitionEnv)
+		}
+		for _, link := range result.ExternalLinks[issue.ID] {
+			linkEnv, err := NewWorkItemExternalLinkEnvelope(ctx, link)
+			if err != nil {
+				return nil, err
+			}
+			envs = append(envs, linkEnv)
+		}
+	}
+	return envs, nil
+}
+
+func ingestionScope(target TargetConfig) scope.IngestionScope {
+	return scope.IngestionScope{
+		ScopeID:       target.ScopeID,
+		SourceSystem:  string(scope.CollectorJira),
+		ScopeKind:     scope.KindJiraSite,
+		CollectorKind: scope.CollectorJira,
+		PartitionKey:  firstNonBlank(target.SiteID, target.Provider),
+		Metadata: map[string]string{
+			"provider": target.Provider,
+			"site_id":  target.SiteID,
+		},
+	}
+}
+
+func (s *ClaimedSource) startObserve(ctx context.Context, target TargetConfig) (context.Context, trace.Span) {
+	if s.tracer == nil {
+		return ctx, trace.SpanFromContext(ctx)
+	}
+	return s.tracer.Start(ctx, telemetry.SpanJiraObserve, trace.WithAttributes(
+		attribute.String(telemetry.MetricDimensionProvider, target.Provider),
+	))
+}
+
+func (s *ClaimedSource) startFetch(ctx context.Context) (context.Context, trace.Span) {
+	if s.tracer == nil {
+		return ctx, trace.SpanFromContext(ctx)
+	}
+	return s.tracer.Start(ctx, telemetry.SpanJiraFetch)
+}
+
+func recordSpanError(span trace.Span, err error) {
+	if span == nil || err == nil {
+		return
+	}
+	span.RecordError(err)
+	span.SetStatus(codes.Error, err.Error())
+}

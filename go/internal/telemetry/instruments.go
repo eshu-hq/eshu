@@ -87,6 +87,9 @@ type Instruments struct {
 	PagerDutyProviderRequests                 metric.Int64Counter
 	PagerDutyFactsEmitted                     metric.Int64Counter
 	PagerDutyRateLimited                      metric.Int64Counter
+	JiraProviderRequests                      metric.Int64Counter
+	JiraFactsEmitted                          metric.Int64Counter
+	JiraRateLimited                           metric.Int64Counter
 	ScannerWorkerClaims                       metric.Int64Counter
 	ScannerWorkerRetries                      metric.Int64Counter
 	ScannerWorkerDeadLetters                  metric.Int64Counter
@@ -284,6 +287,7 @@ type Instruments struct {
 	SecurityAlertFetchDuration             metric.Float64Histogram
 	PagerDutyFetchDuration                 metric.Float64Histogram
 	PagerDutyGenerationLag                 metric.Float64Histogram
+	JiraFetchDuration                      metric.Float64Histogram
 	ScannerWorkerQueueWaitDuration         metric.Float64Histogram
 	ScannerWorkerScanDuration              metric.Float64Histogram
 	ScannerWorkerTargetCount               metric.Int64Histogram
@@ -731,6 +735,30 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register PagerDutyRateLimited counter: %w", err)
+	}
+
+	inst.JiraProviderRequests, err = meter.Int64Counter(
+		"eshu_dp_jira_provider_requests_total",
+		metric.WithDescription("Total Jira provider requests by provider and status class"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register JiraProviderRequests counter: %w", err)
+	}
+
+	inst.JiraFactsEmitted, err = meter.Int64Counter(
+		"eshu_dp_jira_facts_emitted_total",
+		metric.WithDescription("Total Jira work-item source facts emitted by provider and fact kind"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register JiraFactsEmitted counter: %w", err)
+	}
+
+	inst.JiraRateLimited, err = meter.Int64Counter(
+		"eshu_dp_jira_rate_limited_total",
+		metric.WithDescription("Total Jira provider requests that ended rate limited by provider"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register JiraRateLimited counter: %w", err)
 	}
 
 	inst.ScannerWorkerClaims, err = meter.Int64Counter(
@@ -1219,6 +1247,17 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register PagerDutyGenerationLag histogram: %w", err)
+	}
+
+	jiraBuckets := []float64{0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60}
+	inst.JiraFetchDuration, err = meter.Float64Histogram(
+		"eshu_dp_jira_fetch_duration_seconds",
+		metric.WithDescription("Jira work-item evidence fetch duration by provider and status class"),
+		metric.WithUnit("s"),
+		metric.WithExplicitBucketBoundaries(jiraBuckets...),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register JiraFetchDuration histogram: %w", err)
 	}
 
 	scannerWorkerWaitBuckets := []float64{0.001, 0.01, 0.1, 1, 5, 10, 30, 60, 300, 900, 1800, 3600, 21600}
