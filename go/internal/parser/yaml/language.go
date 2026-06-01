@@ -150,7 +150,9 @@ func appendYAMLDocument(payload map[string]any, path string, filename string, do
 	if strings.TrimSpace(apiVersion) == "" || strings.TrimSpace(kind) == "" {
 		return
 	}
-	appendGrafanaObservabilityFromDocument(payload, path, document, metadata, apiVersion, kind, lineNumber)
+	if !appendAppliedObservabilityFromDocument(payload, path, document, metadata, apiVersion, kind, lineNumber) {
+		appendGrafanaObservabilityFromDocument(payload, path, document, metadata, apiVersion, kind, lineNumber)
+	}
 	if isArgoCDApplication(apiVersion, kind) {
 		shared.AppendBucket(payload, "argocd_applications", parseArgoCDApplication(document, metadata, path, lineNumber))
 		return

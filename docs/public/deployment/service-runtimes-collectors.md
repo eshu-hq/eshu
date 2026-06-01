@@ -98,6 +98,13 @@ work-item payloads retain provider IDs, presence flags, redaction policy
 version, and URL fingerprints rather than raw summaries, user identifiers,
 private URLs, remote-link titles, or remote-link summaries.
 
+For observability evidence, do not put dashboard titles, raw dashboard JSON,
+queries, scrape targets, label values, tag values, log lines, spans, traces,
+status messages, Kubernetes labels, raw UIDs, managed fields, cluster URLs, or
+credential values in metric labels or status errors. Declared and applied
+observability facts retain safe identities, fingerprints, resource classes,
+source revisions, freshness state, and outcomes only.
+
 Use the focused service runbooks for target, permission, redaction, dashboard,
 and failure detail:
 
@@ -105,6 +112,7 @@ and failure detail:
 - [AWS Cloud Collector](../services/collector-aws-cloud.md)
 - [PagerDuty Collector](../services/collector-pagerduty.md)
 - [Jira Evidence Contract](../reference/jira-evidence.md)
+- [Observability Evidence Contract](../reference/observability-evidence.md)
 
 ## ServiceMonitor Coverage
 

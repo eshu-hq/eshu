@@ -12,7 +12,10 @@ provisioning, Prometheus Operator scrape and rule resources, Prometheus/Mimir
 Helm values, Promtail client routes, OTel metric and log pipelines, OTel
 Prometheus receiver scrape configs, Loki gateway values, OTel trace pipelines,
 Tempo gateway values, Grafana Tempo datasource links, and chart ServiceMonitor
-settings.
+settings. It also emits metadata-only applied observability rows from Argo CD
+Application status resources and Kubernetes API-exported observability
+resources when status, resource version, UID, or managed-fields state proves
+the file represents applied state rather than declared intent.
 
 ## Ownership boundary
 
@@ -63,6 +66,11 @@ files still emit Helm metadata. `values.yaml` files may also emit declared
 Grafana, Prometheus/Mimir, Loki, and Tempo observability metadata, but they do
 not prove applied or live provider state.
 
+Applied observability rows are limited to source class, source kind, Argo CD
+sync/health state, Kubernetes resource identity, generation, UID fingerprint,
+cluster/server fingerprint, freshness/outcome, and resource class. Declared-only
+manifests do not emit applied rows.
+
 Declared observability rows never store dashboard JSON, panel query bodies,
 raw PromQL or LogQL, scrape target addresses, datasource, remote-write, or Loki
 route URLs, tenant header values, tenant IDs, secure datasource values, alert
@@ -70,7 +78,9 @@ model bodies, contact addresses, folder titles, provisioning paths, log label
 values, Tempo route URLs, spans, traces, raw trace IDs, request attributes,
 TraceQL bodies, trace tag values, or private routing values. Unsafe values are
 omitted and represented by fingerprints, redaction fields, or coverage
-warnings.
+warnings. Applied rows follow the same boundary and never store raw status
+messages, dashboard payloads, query bodies, Secret data, labels, managed fields,
+raw Kubernetes UIDs, or raw cluster server URLs.
 
 YAML intrinsic tags such as Ref and Sub are converted to the decoded shapes
 expected by the CloudFormation parser before template extraction.

@@ -177,6 +177,27 @@ PagerDuty incident links, or issue-key evidence can enrich work-item slots, but
 Jira-only PR URLs do not verify PR identity. Missing Jira links are valid
 incident evidence state and must not block incident collection.
 
+`observability.applied_resource` and `observability.applied_sync_state` preserve
+metadata-only Argo CD and Kubernetes applied-state evidence. They identify
+source class, source kind, app, namespace, cluster, cluster-server fingerprint,
+resource identity, resource class, generation, UID fingerprint, sync and health
+state, operation phase, freshness, and outcome. They do not contain raw status
+messages, labels, managed fields, dashboard payloads, query bodies, Secret data,
+raw Kubernetes UIDs, or raw cluster URLs. Reducers own any later comparison
+between declared, applied, and observed observability state.
+
+`work_item.record`, `work_item.transition`, and `work_item.external_link`
+preserve Jira work-item state, changelog IDs, and remote-link IDs as provider
+evidence. They do not imply incident ownership, deployment cause, code change,
+or pull-request truth unless a reducer or query later proves that path through
+separate source evidence. A `work_item.external_link` to a GitHub PR URL is
+source evidence only until GitHub/provider PR evidence verifies the commit-to-PR
+hop. The Jira source boundary, identity keys, freshness semantics, and fixture
+matrix are defined in [Jira Evidence Contract](jira-evidence.md). Jira payloads
+carry `redaction_policy_version=jira_work_item_v1`; private summaries, user
+identifiers, raw Jira URLs, remote-link URLs, remote-link titles, and
+remote-link summaries are represented by presence booleans or URL fingerprints,
+not raw values.
 `work_item.record`, `work_item.transition`, `work_item.external_link`, and the
 Jira metadata fact kinds preserve Jira work-item state, changelog IDs,
 remote-link IDs, project/status/workflow context, custom-field schema classes,
