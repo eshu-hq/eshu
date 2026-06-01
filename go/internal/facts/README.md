@@ -237,8 +237,8 @@ only. Reducers and query surfaces must prove incident, deployment, code, or PR
 relationships before presenting those paths as Eshu truth.
 
 Observability fact kinds use schema version `1.0.0` for the first
-Grafana-stack evidence contract, including Grafana metadata and
-Prometheus/Mimir metric coverage metadata:
+Grafana-stack evidence contract, including Grafana metadata,
+Prometheus/Mimir metric coverage metadata, and Loki log-route metadata:
 
 - `observability.source_instance`
 - `observability.declared_folder`
@@ -265,8 +265,8 @@ preserve declared, applied, or observed source evidence only. Reducers and query
 surfaces must compare declared IaC, applied state, and live provider evidence
 before presenting coverage, drift, or operational truth. Dashboard JSON, raw
 queries, scrape targets, remote-write URLs, datasource credentials, tenant
-header values, contact routes, log lines, and spans do not belong in these
-payloads.
+header values, tenant IDs, contact routes, Loki route URLs, log label values,
+log lines, and spans do not belong in these payloads.
 
 Vulnerability suppression fact kinds use schema version `1.0.0` for the
 first VEX and operator-policy contract:
