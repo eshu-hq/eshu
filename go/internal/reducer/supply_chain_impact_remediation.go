@@ -88,6 +88,7 @@ const (
 	SupplyChainRemediationReasonDirectUpgradeAllowed      = "direct_upgrade_allowed"
 	SupplyChainRemediationReasonDirectRangeBlocked        = "direct_range_blocked"
 	SupplyChainRemediationReasonTransitiveParentUpgrade   = "transitive_parent_upgrade_required"
+	SupplyChainRemediationReasonAlreadyFixed              = "already_fixed"
 	SupplyChainRemediationReasonNoPatchedVersion          = "no_patched_version"
 	SupplyChainRemediationReasonMultiplePatchedBranches   = "multiple_patched_branches"
 	SupplyChainRemediationReasonPackageManagerUnsupported = "package_manager_unsupported"
@@ -149,7 +150,7 @@ func BuildSupplyChainImpactRemediation(finding SupplyChainImpactFinding) SupplyC
 		Confidence:             SupplyChainRemediationConfidenceUnknown,
 	}
 
-	ops, supported := remediationEcosystemOperations(ecosystem)
+	ops, supported := remediationOperationsForFinding(finding)
 	if !supported {
 		remediation.Reason = SupplyChainRemediationReasonPackageManagerUnsupported
 		remediation.MissingEvidence = append(remediation.MissingEvidence, SupplyChainRemediationMissingEcosystemUnsupported)
@@ -205,6 +206,11 @@ func BuildSupplyChainImpactRemediation(finding SupplyChainImpactFinding) SupplyC
 	if patched == "" {
 		remediation.Reason = SupplyChainRemediationReasonNoPatchedVersion
 		remediation.MissingEvidence = append(remediation.MissingEvidence, SupplyChainRemediationMissingFixedVersion)
+		return finalizeRemediation(remediation)
+	}
+	if finding.Status == SupplyChainImpactNotAffectedKnownFixed {
+		remediation.Reason = SupplyChainRemediationReasonAlreadyFixed
+		remediation.Confidence = SupplyChainRemediationConfidenceExact
 		return finalizeRemediation(remediation)
 	}
 	if ops.osPackage && branchCount > 1 {
@@ -366,6 +372,40 @@ func remediationEcosystemOperations(ecosystem string) (remediationVersionOperati
 		default:
 			return remediationVersionOperations{}, false
 		}
+	}
+}
+
+func remediationOperationsForFinding(finding SupplyChainImpactFinding) (remediationVersionOperations, bool) {
+	if ops, supported := remediationEcosystemOperations(finding.Ecosystem); supported {
+		return ops, true
+	}
+	if strings.ToLower(strings.TrimSpace(finding.Ecosystem)) != string(packageidentity.EcosystemOS) {
+		return remediationVersionOperations{}, false
+	}
+	switch osRemediationFamilyForFinding(finding) {
+	case "rpm":
+		return remediationVersionOperations{
+			valid:            validRPMEVR,
+			compare:          compareRPMEVR,
+			manifestRequired: false,
+			osPackage:        true,
+		}, true
+	case "dpkg":
+		return remediationVersionOperations{
+			valid:            validDPKGVersion,
+			compare:          compareDPKGVersion,
+			manifestRequired: false,
+			osPackage:        true,
+		}, true
+	case "apk":
+		return remediationVersionOperations{
+			valid:            validAPKVersion,
+			compare:          compareAPKVersion,
+			manifestRequired: false,
+			osPackage:        true,
+		}, true
+	default:
+		return remediationVersionOperations{}, false
 	}
 }
 

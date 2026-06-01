@@ -127,8 +127,12 @@ func buildAdvisoryProvenanceObservations(
 	matchedAffected := make(map[string]bool, len(packages))
 	for _, cve := range cves {
 		matched := matchAffectedForCVE(cve, packages, matchedAffected)
+		source := classifyAdvisorySource(cve.source, cve.advisoryID)
+		if packageSource := classifyAffectedPackageAdvisorySource(matched); packageSource != "" {
+			source = packageSource
+		}
 		observations = append(observations, AdvisoryProvenanceObservation{
-			Source:          classifyAdvisorySource(cve.source, cve.advisoryID),
+			Source:          source,
 			AdvisoryID:      firstNonBlank(cve.advisoryID, cve.cveID),
 			SourceUpdatedAt: strings.TrimSpace(cve.sourceUpdatedAt),
 			SeverityScore:   cve.cvssScore,
@@ -146,7 +150,7 @@ func buildAdvisoryProvenanceObservations(
 			continue
 		}
 		observations = append(observations, AdvisoryProvenanceObservation{
-			Source:         classifyAdvisorySource(pkg.source, pkg.advisoryID),
+			Source:         classifyAffectedPackageAdvisorySource(pkg),
 			AdvisoryID:     firstNonBlank(pkg.advisoryID, pkg.cveID),
 			FixedVersions:  append([]string(nil), pkg.fixedVersions...),
 			AffectedRange:  supplyChainAffectedRangeSummary(pkg),
@@ -311,6 +315,9 @@ func advisorySourcePriority(ecosystem string, source string) int {
 	if vendor, ok := vendorForOSPackageClass(ecosystem); ok {
 		return vendorClassPriorityRank(vendor, source)
 	}
+	if ecosystem == "os" && isOSVendorAdvisorySource(source) {
+		return 1
+	}
 	return languageClassPriorityRank(source)
 }
 
@@ -355,6 +362,16 @@ func vendorClassPriorityRank(vendor string, source string) int {
 		return 5
 	default:
 		return 999
+	}
+}
+
+func isOSVendorAdvisorySource(source string) bool {
+	switch source {
+	case "redhat", "fedora", "centos", "rocky", "alma", "amazonlinux",
+		"debian", "ubuntu", "alpine", "suse", "wolfi", "chainguard", "oracle":
+		return true
+	default:
+		return false
 	}
 }
 

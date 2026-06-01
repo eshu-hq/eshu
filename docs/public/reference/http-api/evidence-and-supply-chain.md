@@ -410,7 +410,7 @@ auto-opens pull requests from this block.
 - `direct`: `true` for direct dependencies, `false` for transitive, mirroring the lockfile-derived `direct_dependency` flag on the finding.
 - `parent_package`: parent package the caller would need to upgrade for a transitive finding; blank for direct dependencies or chains without an identifiable parent.
 - `confidence`: `exact`, `partial`, or `unknown`; exact means every required input was present and unambiguous, partial means the recommendation is actionable but at least one input is ambiguous, and unknown means Eshu cannot recommend a safe upgrade yet.
-- `reason`: stable closed enum (`direct_upgrade_allowed`, `direct_range_blocked`, `transitive_parent_upgrade_required`, `no_patched_version`, `multiple_patched_branches`, `package_manager_unsupported`, `manifest_range_missing`, `manifest_range_malformed`, `installed_version_missing`, `installed_version_malformed`).
+- `reason`: stable closed enum (`direct_upgrade_allowed`, `direct_range_blocked`, `transitive_parent_upgrade_required`, `already_fixed`, `no_patched_version`, `multiple_patched_branches`, `package_manager_unsupported`, `manifest_range_missing`, `manifest_range_malformed`, `installed_version_missing`, `installed_version_malformed`).
 - `missing_evidence[]`: structured reasons the recommendation could not be
   computed exactly so callers can surface remediable gaps. OS package
   remediation can report `advisory_provenance_missing`,
