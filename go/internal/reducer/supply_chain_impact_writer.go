@@ -225,6 +225,12 @@ func supplyChainImpactRemediationPayload(r SupplyChainImpactRemediation) map[str
 	if r.VulnerableRange != "" {
 		out["vulnerable_range"] = r.VulnerableRange
 	}
+	if r.FixedVersionSource != "" {
+		out["fixed_version_source"] = r.FixedVersionSource
+	}
+	if r.MatchReason != "" {
+		out["match_reason"] = r.MatchReason
+	}
 	if r.FirstPatchedVersion != "" {
 		out["first_patched_version"] = r.FirstPatchedVersion
 	}

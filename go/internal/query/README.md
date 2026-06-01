@@ -149,9 +149,10 @@ canonical graph or reducer truth.
   and persisted on the canonical finding payload, so list responses expose
   the same expression as the explain route. Every row also carries a
   `Remediation` block (issue #595) with the installed version, vulnerable
-  range, first patched version, every published fixed-version branch,
-  manifest range, manifest_allows_fix tri-state, direct/transitive
-  designation, parent_package required for transitive upgrades,
+  range, selected fixed-version source, match reason, first patched version,
+  every published fixed-version branch, manifest range, manifest_allows_fix
+  tri-state, direct/transitive designation, parent_package required for
+  transitive upgrades,
   ecosystem, an exact|partial|unknown confidence label, and a closed
   reason enum so API and MCP callers can explain the advisory-only
   safe-upgrade path without re-reading raw advisory or lockfile facts.

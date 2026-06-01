@@ -218,6 +218,8 @@ func remediationForVEX(finding vulnScanReportFinding) map[string]any {
 		"ecosystem",
 		"current_version",
 		"vulnerable_range",
+		"fixed_version_source",
+		"match_reason",
 		"first_patched_version",
 		"fixed_version",
 		"manifest_range",

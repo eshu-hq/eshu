@@ -168,6 +168,8 @@ type sarifResultProps struct {
 type sarifRemediationProps struct {
 	CurrentVersion      string   `json:"currentVersion,omitempty"`
 	VulnerableRange     string   `json:"vulnerableRange,omitempty"`
+	FixedVersionSource  string   `json:"fixedVersionSource,omitempty"`
+	MatchReason         string   `json:"matchReason,omitempty"`
 	FirstPatchedVersion string   `json:"firstPatchedVersion,omitempty"`
 	ManifestRange       string   `json:"manifestRange,omitempty"`
 	ManifestAllowsFix   string   `json:"manifestAllowsFix,omitempty"`

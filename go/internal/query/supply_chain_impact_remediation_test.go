@@ -119,6 +119,37 @@ func TestSupplyChainExplainImpactRemediationEnrichesTransitiveParent(t *testing.
 	}
 }
 
+func TestDecodeSupplyChainImpactRemediationPreservesMatchAndSourceTruth(t *testing.T) {
+	t.Parallel()
+
+	payload := map[string]any{
+		"remediation": map[string]any{
+			"ecosystem":                "maven",
+			"current_version":          "3.9.8",
+			"vulnerable_range":         "[3.8.0,3.9.9)",
+			"first_patched_version":    "3.9.9",
+			"fixed_version_source":     "ghsa",
+			"match_reason":             "maven_range_match",
+			"manifest_range":           "[3.8.0,4.0.0)",
+			"manifest_allows_fix":      "allowed",
+			"confidence":               "exact",
+			"reason":                   "direct_upgrade_allowed",
+			"patched_version_branches": []any{map[string]any{"version": "3.9.9", "source": "ghsa"}},
+		},
+	}
+
+	remediation := decodeSupplyChainImpactRemediation(payload)
+	if remediation == nil {
+		t.Fatal("decodeSupplyChainImpactRemediation() = nil, want remediation")
+	}
+	if remediation.MatchReason != "maven_range_match" {
+		t.Fatalf("MatchReason = %q, want maven_range_match", remediation.MatchReason)
+	}
+	if remediation.FixedVersionSource != "ghsa" {
+		t.Fatalf("FixedVersionSource = %q, want ghsa", remediation.FixedVersionSource)
+	}
+}
+
 func remediationExplanationRow() SupplyChainImpactExplanationRow {
 	direct := true
 	return SupplyChainImpactExplanationRow{

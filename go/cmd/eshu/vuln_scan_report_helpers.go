@@ -22,6 +22,8 @@ func remediationFromFinding(finding map[string]any) map[string]any {
 		"ecosystem",
 		"current_version",
 		"vulnerable_range",
+		"fixed_version_source",
+		"match_reason",
 		"first_patched_version",
 		"manifest_range",
 		"manifest_allows_fix",

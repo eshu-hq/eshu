@@ -56,8 +56,24 @@ func TestDispatchToolSupplyChainImpactFindingsReturnsReadinessEnvelope(t *testin
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(map[string]any{
 			"data": map[string]any{
-				"findings":  []any{},
-				"count":     0,
+				"findings": []any{
+					map[string]any{
+						"finding_id": "finding-remediation",
+						"remediation": map[string]any{
+							"ecosystem":             "maven",
+							"current_version":       "3.9.8",
+							"vulnerable_range":      "[3.8.0,3.9.9)",
+							"fixed_version_source":  "ghsa",
+							"match_reason":          "maven_range_match",
+							"first_patched_version": "3.9.9",
+							"manifest_range":        "[3.8.0,4.0.0)",
+							"manifest_allows_fix":   "allowed",
+							"confidence":            "exact",
+							"reason":                "direct_upgrade_allowed",
+						},
+					},
+				},
+				"count":     1,
 				"limit":     25,
 				"truncated": false,
 				"readiness": map[string]any{
@@ -126,6 +142,14 @@ func TestDispatchToolSupplyChainImpactFindingsReturnsReadinessEnvelope(t *testin
 	}
 	if got, want := readiness["freshness"], "fresh"; got != want {
 		t.Fatalf("freshness = %#v, want %#v", got, want)
+	}
+	findings := data["findings"].([]any)
+	remediation := findings[0].(map[string]any)["remediation"].(map[string]any)
+	if got, want := remediation["match_reason"], "maven_range_match"; got != want {
+		t.Fatalf("remediation.match_reason = %#v, want %#v", got, want)
+	}
+	if got, want := remediation["fixed_version_source"], "ghsa"; got != want {
+		t.Fatalf("remediation.fixed_version_source = %#v, want %#v", got, want)
 	}
 	sources, ok := readiness["evidence_sources"].([]any)
 	if !ok {

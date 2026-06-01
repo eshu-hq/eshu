@@ -207,6 +207,8 @@ func TestOpenAPISpecIncludesSupplyChainImpactRemediation(t *testing.T) {
 		"ecosystem",
 		"current_version",
 		"vulnerable_range",
+		"fixed_version_source",
+		"match_reason",
 		"first_patched_version",
 		"patched_version_branches",
 		"manifest_range",
@@ -250,6 +252,8 @@ func TestOpenAPISpecIncludesSupplyChainImpactRemediation(t *testing.T) {
 		"reason",
 		"manifest_allows_fix",
 		"first_patched_version",
+		"fixed_version_source",
+		"match_reason",
 	} {
 		if _, ok := explainRemediationProps[key]; !ok {
 			t.Fatalf("explain remediation.properties missing %q", key)
