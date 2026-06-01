@@ -449,7 +449,7 @@ Log phase attributes: `telemetry.PhaseReduction` (main loop),
   package version. The reducer preserves the exact installed version, the
   requested manifest range, the selected fixed version, and the match reason as
   separate finding fields. Version/range evaluation is ecosystem-aware for npm,
-  Cargo, and Swift semver, NuGet semantic versions, Composer semver, Maven
+  Cargo, Pub, and Swift semver, NuGet semantic versions, Composer semver, Maven
   version/range ordering, PyPI PEP 440, RPM EVR ordering, and RubyGems
   `Gem::Version`-style installed versions. Swift impact requires exact
   `Package.resolved` remote source-control pin evidence and a source-backed OSV
@@ -638,6 +638,18 @@ Log phase attributes: `telemetry.PhaseReduction` (main loop),
   finding payloads/evidence paths, warning facts, and API/MCP readiness
   envelopes remain the operator-visible signals; no new queue domain, graph
   write, route, runtime knob, metric instrument, or metric label was added.
+- **Pub parity is hosted-lockfile gated** —
+  Pub `pubspec.lock` consumption rows can now produce `affected_exact` and
+  `not_affected_known_fixed` findings when OSV Pub advisory ranges or fixed
+  versions match the exact hosted `pub.dev` version. `pubspec.yaml` ranges,
+  git/path dependencies, private-hosted rows, mismatched lockfile names, and
+  dependency overrides remain partial or non-evidence and do not publish
+  precise Pub impact.
+
+  No-Regression Evidence: `go test ./internal/reducer -run
+  'BuildSupplyChainImpactFindingsMatchesPub' -count=1` proves exact hosted
+  Pub lockfile rows admit precise findings while manifest range-only rows keep
+  missing installed-version evidence.
 - **RubyGems parity is exact-version gated** —
   Ruby Bundler lockfile consumption rows can now produce `affected_exact` and
   `not_affected_known_fixed` findings when a RubyGems advisory range or fixed

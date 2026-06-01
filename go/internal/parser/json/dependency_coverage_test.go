@@ -86,6 +86,8 @@ func TestDependencyCoverageMatrixIsStableAndExhaustive(t *testing.T) {
 		"pypi|poetry.lock",
 		"hex|mix.exs",
 		"hex|mix.lock",
+		"pub|pubspec.yaml",
+		"pub|pubspec.lock",
 	}
 	for _, key := range requiredCovered {
 		ecosystem, file, _ := strings.Cut(key, "|")

@@ -228,9 +228,9 @@ Selection rules:
 - For language ecosystems (npm, PyPI, Go, Maven, Crates.io, RubyGems,
   Composer, Pub, Hex, Swift, NuGet), GHSA outranks GLAD, OSV-via-OSV,
   PYSEC-via-OSV, RUSTSEC-via-OSV, GO-via-OSV, and NVD.
-  Impact-supported version matchers are npm, PyPI, Cargo, Swift, NuGet, and
-  Maven; vendor-backed RPM-family OS package facts use the OS package priority
-  above. Go, RubyGems, Composer, Pub, Hex, and other matcher-unimplemented
+  Impact-supported version matchers are npm, PyPI, Cargo, Pub, Swift, NuGet,
+  and Maven; vendor-backed RPM-family OS package facts use the OS package priority
+  above. Go, RubyGems, Composer, Hex, and other matcher-unimplemented
   ecosystems remain source-only, missing, or unsupported evidence until package
   identity, dependency evidence, version matching, advisory ingestion, and
   readback are proven end to end.
@@ -272,7 +272,7 @@ alerts, image tags, workload names, service names, environment names, or
 repository names.
 
 Version and range matching is reducer-owned and ecosystem-aware. The supported
-matchers are npm, Go modules, Cargo, Hex, and Swift semver over OSV-style event
+matchers are npm, Go modules, Cargo, Pub, Hex, and Swift semver over OSV-style event
 ranges and GLAD-style comparator ranges, NuGet semantic versions from exact
 lockfile or pinned manifest evidence, Maven version/range ordering for Maven
 bracket and comparator ranges, PyPI PEP 440, RPM EVR ordering for
@@ -281,7 +281,9 @@ Bundler lockfile evidence. Swift support is exact `Package.resolved` evidence
 only; OSV `SwiftURL` records use a Git URL as the source package name; Eshu
 normalizes that URL to the shared Swift Package Manager identity and can also
 use a `PACKAGE` reference as a fallback for source records that only publish a
-short package name. RubyGems matching uses the same reducer-owned exact-version
+short package name. Pub support requires hosted `pub.dev` parser evidence and
+exact `pubspec.lock` versions for precise findings; manifest ranges remain
+partial evidence. RubyGems matching uses the same reducer-owned exact-version
 gate as other precise lockfile ecosystems: git/path Bundler dependencies remain
 ambiguous source evidence and are not admitted as public RubyGems registry
 versions. Findings preserve `observed_version`, `requested_range`,

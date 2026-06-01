@@ -21,6 +21,8 @@ const (
 	supplyChainVersionReasonPyPIPep440KnownFixed        = "pypi_pep440_known_fixed"
 	supplyChainVersionReasonSwiftSemverAffectedRange    = "swift_semver_affected_range"
 	supplyChainVersionReasonSwiftSemverKnownFixed       = "swift_semver_known_fixed"
+	supplyChainVersionReasonPubSemverAffectedRange      = "pub_semver_affected_range"
+	supplyChainVersionReasonPubSemverKnownFixed         = "pub_semver_known_fixed"
 	supplyChainVersionReasonComposerSemverAffectedRange = "composer_semver_affected_range"
 	supplyChainVersionReasonComposerSemverKnownFixed    = "composer_semver_known_fixed"
 	supplyChainVersionReasonMavenRangeMatch             = "maven_range_match"
@@ -93,6 +95,8 @@ func evaluateSupplyChainVersionMatch(
 		return evaluatePyPIPep440Match(observed, fixedVersion, pkgs)
 	case string(packageidentity.EcosystemSwift):
 		return evaluateSwiftSemverMatch(observed, fixedVersion, pkgs)
+	case string(packageidentity.EcosystemPub):
+		return evaluatePubSemverMatch(observed, fixedVersion, pkgs)
 	case string(packageidentity.EcosystemComposer):
 		return evaluateComposerSemverMatch(observed, fixedVersion, pkgs)
 	case string(packageidentity.EcosystemMaven):
@@ -328,6 +332,21 @@ func evaluateSwiftSemverMatch(
 		decision.Reason = supplyChainVersionReasonSwiftSemverAffectedRange
 	case supplyChainVersionReasonNPMSemverKnownFixed:
 		decision.Reason = supplyChainVersionReasonSwiftSemverKnownFixed
+	}
+	return decision
+}
+
+func evaluatePubSemverMatch(
+	observed string,
+	fixedVersion string,
+	pkgs []supplyChainAffectedPackage,
+) supplyChainVersionMatchDecision {
+	decision := evaluateNPMSemverMatch(observed, fixedVersion, pkgs)
+	switch decision.Reason {
+	case supplyChainVersionReasonNPMSemverAffectedRange:
+		decision.Reason = supplyChainVersionReasonPubSemverAffectedRange
+	case supplyChainVersionReasonNPMSemverKnownFixed:
+		decision.Reason = supplyChainVersionReasonPubSemverKnownFixed
 	}
 	return decision
 }

@@ -111,10 +111,10 @@ fall back to defaults rather than failing; malformed values fail fast.
 - `VulnerabilityIntelligenceWorkPlanner` — plans vulnerability-intelligence
   collection runs from configured source targets and optional active owned
   package evidence. Derived OSV targets are limited to exact owned dependency
-  versions; manifest ranges remain partial evidence and are skipped for exact
-  source collection. Exact package-version queries are batched across packages
-  within one ecosystem while keeping scope IDs below indexed workflow tuple
-  limits.
+  versions for supported ecosystems such as npm, Pub, and Swift; manifest
+  ranges remain partial evidence and are skipped for exact source collection.
+  Exact package-version queries are batched across packages within one ecosystem
+  while keeping scope IDs below indexed workflow tuple limits.
 - `SBOMAttestationWorkPlanner` — plans hosted SBOM and attestation collection
   runs from configured document or OCI-referrer targets. Each target becomes one
   claimable work item keyed by `scope_id`.

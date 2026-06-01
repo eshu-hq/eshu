@@ -297,7 +297,7 @@ Debian, Ubuntu, Alpine, SUSE, Wolfi, Chainguard, Amazon Linux, Oracle Linux)
 outrank generic GLAD/GHSA/OSV/NVD records for the matching OS package class;
 GHSA outranks GLAD, OSV, and NVD for normalized language advisory metadata
 when a finding can otherwise be admitted. Impact-supported language version
-matchers are npm, PyPI, NuGet, Cargo, Swift, Hex, and Maven today; vendor-backed
+matchers are npm, PyPI, NuGet, Cargo, Pub, Swift, Hex, and Maven today; vendor-backed
 RPM-family OS package facts use the OS package priority above.
 Matcher-unimplemented ecosystems remain source-only, missing, or unsupported
 evidence rather than finding rows. If the selected source did not publish a

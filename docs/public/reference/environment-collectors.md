@@ -193,12 +193,13 @@ The vulnerability intelligence collector is claim-only. It selects an enabled
 `vulnerability_intelligence` instance from `ESHU_COLLECTOR_INSTANCES_JSON`.
 Supported source targets are CISA KEV, FIRST EPSS, OSV, and NVD.
 Collector configuration may define explicit `targets` or enable
-`derive_from_owned_packages` so the coordinator derives bounded OSV npm and
-Swift package-version targets from active owned dependency facts with exact
+`derive_from_owned_packages` so the coordinator derives bounded OSV npm, Pub,
+and Swift package-version targets from active owned dependency facts with exact
 versions. Swift targets keep Eshu's canonical `swift` ecosystem internally and
-are sent to OSV as `SwiftURL`. Manifest ranges, aliases, branch-only Swift
-pins, revision-only Swift pins, and local/path Swift pins remain partial
-evidence and are skipped for exact OSV collection. The default derived target
+are sent to OSV as `SwiftURL`; Pub targets keep canonical `pub`. Manifest
+ranges, aliases, Pub git/path/private-hosted rows, Pub dependency overrides,
+branch-only Swift pins, revision-only Swift pins, and local/path Swift pins
+remain partial evidence and are skipped for exact OSV collection. The default derived target
 limit is 100; full-corpus deployments can raise
 `derive_from_owned_packages.target_limit` up to 5000. The single OSV target
 query payload remains capped separately at 100 queries.

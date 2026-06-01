@@ -315,8 +315,8 @@ collector instance's `configuration.sbom_targets[]`. Each target maps a
 scanner-worker `scope_id` to a runtime-local `root_path` and optional
 `subject_digest`. The source walks the repository under the claim's file and
 byte budgets, skips common dependency/cache directories, reads
-`package-lock.json`, `npm-shrinkwrap.json`, `go.mod`, and Swift
-`Package.resolved`, and emits
+`package-lock.json`, `npm-shrinkwrap.json`, `go.mod`, Swift
+`Package.resolved`, and Pub `pubspec.lock`, and emits
 CycloneDX-compatible `sbom.document`, `sbom.component`, and `sbom.warning`
 source facts. It does not match advisories or publish findings. Missing
 components still produce a document plus `sbom.warning`, not a silent clean

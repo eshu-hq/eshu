@@ -85,6 +85,8 @@ absence of evidence look like absence of risk. Guard tests:
 | pypi | poetry.lock | lockfile | covered | ✓ | ✓ | — | ✓ | ✓ | — | `go/internal/parser/pythondep/poetry_lock.go` | Each `[[package]]` array entry emits one exact-version row; attached `[package.source]` `type=git|directory|url` swaps the row to vcs/path/url so registry-version semantics are not invented. |
 | pypi | pyproject.toml | manifest | covered | ✓ | — | ✓ | ✓ | ✓ | — | `go/internal/parser/pythondep/pyproject.go` | PEP 621 `[project] dependencies`, `[project.optional-dependencies]`, `[tool.poetry.dependencies]`, `[tool.poetry.dev-dependencies]`, `[tool.poetry.group.*.dependencies]`, and `[tool.hatch.envs.*.dependencies]` all emit content_entity rows. VCS/path/url forms surface with non-`dependency` `config_kind`. |
 | pypi | requirements.txt | manifest | covered | ✓ | — | ✓ | ✓ | ✓ | — | `go/internal/parser/pythondep/requirements.go` | pip requirements files (`requirements.txt`, `requirements-*.txt`, `requirements_*.txt`) emit rows with extras, environment markers, and a `dev_dependency` flag derived from dev/test filename suffixes. VCS/path/URL/editable/malformed entries surface as separate `config_kind` values. |
+| pub | pubspec.lock | lockfile | covered | ✓ | ✓ | — | ✓ | ✓ | — | `go/internal/parser/yaml/pubspec.go` | Pub lockfiles emit exact hosted `pub.dev` versions with direct/transitive and runtime/dev scope evidence; git, private hosted, and mismatched package rows remain non-evidence. |
+| pub | pubspec.yaml | manifest | covered | ✓ | — | ✓ | ✓ | ✓ | — | `go/internal/parser/yaml/pubspec.go` | Pub manifests emit hosted dependency rows for `dependencies` and `dev_dependencies`; git/path dependencies and `dependency_overrides` remain non-evidence. |
 | rubygems | Gemfile | manifest | covered | ✓ | — | ✓ | ✓ | ✓ | — | `go/internal/parser/ruby/bundler_gemfile.go` | Literal `gem` declarations emit RubyGems rows with group scope and git/path source metadata; dynamic Ruby is skipped. |
 | rubygems | Gemfile.lock | lockfile | covered | ✓ | ✓ | — | ✓ | — | ✓ | `go/internal/parser/ruby/bundler_lockfile.go` | Bundler lockfiles emit exact versions and dependency chains only when `DEPENDENCIES` and `specs:` indentation prove them. |
 | swift | Package.resolved | lockfile | covered | ✓ | ✓ | — | — | — | — | `go/internal/parser/json/swift_package_resolved.go` | Swift Package.resolved v2 remote source-control pins emit exact-version rows with source namespace and SwiftPM identity; branch, revision-only, local, path, and unsupported pins remain non-evidence. |
@@ -143,6 +145,12 @@ absence of evidence look like absence of risk. Guard tests:
   module version any tool has verified rather than the currently selected
   version, so checksum-only ambiguity must remain explicit until paired
   with a go.mod require.
+- Pub `pubspec.lock` rows preserve exact hosted `pub.dev` versions with
+  direct/transitive and runtime/dev scope evidence. `pubspec.yaml` rows preserve
+  hosted dependency ranges only. Git/path/private-hosted rows, mismatched
+  lockfile package names, and `dependency_overrides` remain non-evidence or
+  partial evidence so the reducer cannot infer an installed Pub package from
+  ambiguous source declarations.
 - Gap files turn into evidence-incomplete readiness states. The MCP and
   HTTP supply-chain reads must keep distinguishing
   `evidence_incomplete` from `ready_zero_findings` so callers cannot
@@ -256,6 +264,15 @@ organization-scoped package identity, git-dependency fail-closed behavior,
 derived OSV Hex target planning only for exact owned versions, Hex semver
 impact matching, and readiness/readback behavior without queue, graph, or
 hosted-runtime work.
+
+No-Regression Evidence: Pub dependency evidence is guarded by
+`go test ./internal/packageidentity -run 'Pub|NormalizePackageIdentityUsesCanonicalEcosystemRules' -count=1`,
+`go test ./internal/parser ./internal/parser/yaml ./internal/parser/json -run 'Pub|DependencyCoverageMatrix|DependencyCoveragePubspec|TestDependencyCoverageEngineCoversPackageManagers' -count=1`,
+and `go test ./internal/reducer -run 'BuildSupplyChainImpactFindingsMatchesPub' -count=1`.
+These fixtures prove Pub package identity normalization, hosted pubspec
+manifest and lockfile evidence, exact lockfile semver matching, and fail-closed
+manifest-range behavior. They do not by themselves prove hosted runtime
+collection, queue behavior, graph writes, or deployed readback.
 
 No-Observability-Change: this change is parser fixture work and reducer
 truth assertions. It introduces no new metric instrument, span, log key,

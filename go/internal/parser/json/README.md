@@ -70,8 +70,8 @@ also preserve dependency chains, direct/transitive evidence, and
 `devDependencies`, `optionalDependencies`, and `peerDependencies`; callers that
 need observed package versions must prefer lockfile rows and keep manifest
 ranges as partial evidence. The dependency coverage matrix also names non-JSON
-ecosystems, such as Cargo, because the public coverage table needs one sorted
-source of truth even when parser execution is owned by another package.
+ecosystems, such as Cargo and Pub, because the public coverage table needs one
+sorted source of truth even when parser execution is owned by another package.
 
 `composer.lock` rows likewise represent exact PHP package versions
 installed by Composer. The parser emits one row per package in the

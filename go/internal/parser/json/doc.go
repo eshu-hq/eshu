@@ -24,6 +24,8 @@
 // where available. Composer manifests preserve runtime/dev range scopes, while
 // composer.lock rows preserve exact installed versions, runtime/dev scope, and
 // dependency paths when the lockfile proves package-to-package requirements.
+// Pub coverage is YAML-owned and still listed here so public readiness tables
+// have one sorted source.
 // SwiftPM Package.resolved rows are limited to remote source-control pins with
 // an exact version; branch-only, revision-only, and local pins remain
 // non-evidence.

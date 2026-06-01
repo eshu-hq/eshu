@@ -67,6 +67,8 @@
 // installed_version_missing, installed_version_malformed). Eshu does not
 // open pull requests from this block; it is strictly advisory so callers
 // can decide whether and how to upgrade.
+// Pub impact rows use exact hosted pubspec.lock evidence for precise matching;
+// pubspec.yaml ranges stay comprehensive until exact installed evidence exists.
 //
 // Incident-context reads expose PagerDuty incident source facts as bounded
 // packets with provider state, timeline events, fallback service/time change
