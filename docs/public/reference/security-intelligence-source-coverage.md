@@ -444,6 +444,15 @@ Any mismatch must classify whether the cause is missing target collection,
 missing advisory ingestion, version-range matching, unsupported ecosystem,
 provider-only behavior, or an Eshu reducer bug.
 
+Operator-local `eshu vuln-scan provider-parity` runs this comparison across a
+local repository allowlist and emits only aggregate-safe output. The public
+summary includes repository count, provider alert count, Eshu finding count,
+approved mismatch class counts, truncation, readiness state, and freshness
+state. Row-level provider alerts, repository names, package names, advisory ids,
+alert URLs, and raw Eshu finding rows stay in the operator-local evidence set.
+If a row lands in `unclassified`, open a follow-up issue with private evidence
+kept outside the public repo before claiming parity for that validation set.
+
 No-Regression Evidence: `go test ./internal/collector/securityalerts ./internal/collector/securityalerts/alertruntime -count=1`
 proves the provider client requests the `state=open` view, preserves cursor
 pagination bounds, and marks truncated open-alert reads as partial source

@@ -67,7 +67,7 @@ func TestRunVulnScanProviderParityOutputsAggregateOnlyJSON(t *testing.T) {
 			t.Fatalf("unexpected request %s %s", r.Method, r.URL.String())
 		}
 		gotQuery = r.URL.RawQuery
-		_, _ = w.Write([]byte(`{"data":{"findings":[{"finding_id":"finding-synthetic","advisory_id":"GHSA-synthetic-local-0001","cve_id":"CVE-2026-SYNTHETIC-0001","ecosystem":"npm","package_name":"synthetic-sensitive-package","package_id":"npm:synthetic-sensitive-package","impact_status":"affected_exact","repository_id":"repo-synthetic-local"}],"count":1,"limit":50,"truncated":false,"readiness":{"readiness_state":"ready_with_findings","evidence_sources":[{"family":"package.consumption","fact_count":1},{"family":"vulnerability.advisory","fact_count":1}]}},"truth":{"level":"exact","freshness":{"state":"fresh"}},"error":null}`))
+		_, _ = w.Write([]byte(`{"data":{"findings":[{"finding_id":"finding-synthetic","advisory_id":"GHSA-synthetic-local-0001","cve_id":"CVE-2026-SYNTHETIC-0001","ecosystem":"npm","package_name":"synthetic-sensitive-package","package_id":"npm:synthetic-sensitive-package","impact_status":"affected_exact","repository_id":"repo-synthetic-local"}],"count":1,"limit":50,"truncated":false,"readiness":{"readiness_state":"ready_with_findings","freshness":"fresh","evidence_sources":[{"family":"package.consumption","fact_count":1,"freshness":"fresh"},{"family":"vulnerability.advisory","fact_count":1,"freshness":"fresh"}]}},"truth":{"level":"exact","freshness":{"state":"fresh"}},"error":null}`))
 	}))
 	defer server.Close()
 
@@ -107,8 +107,25 @@ func TestRunVulnScanProviderParityOutputsAggregateOnlyJSON(t *testing.T) {
 	}
 	data := payload["data"].(map[string]any)
 	counts := classCountsFromWire(t, data["counts"])
-	if got, want := counts[string(vulnerabilityparity.ClassMatched)], 1; got != want {
+	if got, want := counts[string(vulnerabilityparityproof.ProviderParityClassMatched)], 1; got != want {
 		t.Fatalf("matched count = %d, want %d (counts=%v)", got, want, counts)
+	}
+	if got, want := data["readiness_state"], "ready_with_findings"; got != want {
+		t.Fatalf("data[readiness_state] = %#v, want %#v", got, want)
+	}
+	if got, want := data["freshness_state"], "fresh"; got != want {
+		t.Fatalf("data[freshness_state] = %#v, want %#v", got, want)
+	}
+	mismatchCounts := classCountsFromWire(t, data["mismatch_classes"])
+	for _, forbiddenClass := range []string{
+		string(vulnerabilityparity.ClassMissingAdvisoryEvidence),
+		string(vulnerabilityparity.ClassMissingDependencyEvidence),
+		string(vulnerabilityparity.ClassReducerBugCandidate),
+		string(vulnerabilityparity.ClassFixedDismissedMismatch),
+	} {
+		if _, ok := mismatchCounts[forbiddenClass]; ok {
+			t.Fatalf("mismatch_classes included internal classifier %q: %v", forbiddenClass, mismatchCounts)
+		}
 	}
 	for _, forbidden := range []string{
 		"synthetic-owner",
