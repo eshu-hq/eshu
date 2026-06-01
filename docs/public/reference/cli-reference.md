@@ -122,9 +122,29 @@ Run properties preserve the scanner report schema, readiness state, freshness,
 scope mode, exit code, missing evidence, and unsupported targets. A non-ready
 scan such as `evidence_incomplete` or `unsupported` emits a location-free SARIF
 status result, so CI does not treat missing evidence as a clean zero-finding
-scan. Use the process exit code as the scanner verdict: SARIF is the artifact,
-not a replacement for the readiness contract. `--json` and `--export sarif`
-cannot be combined.
+scan.
+
+With `--export vex`, the command writes a compact
+`eshu.vex_statements.v1` JSON document for tools that need VEX-style status
+statements rather than the full scanner report. Eshu maps only reducer-owned
+impact statuses into statements: `affected_exact` and `affected_derived`
+become `affected`, `not_affected_known_fixed` becomes `not_affected`, and
+`possibly_affected` or `unknown_impact` remain `under_investigation`.
+`evidence_incomplete`, `unsupported`, `target_incomplete`, and
+`readiness_unavailable` readiness states do not create `not_affected`
+statements. The VEX document still carries readiness freshness, missing
+evidence, unsupported targets, evidence fact handles, and sanitized
+remediation fields when the reducer supplied them.
+
+Use `--json` instead of `--export vex` when automation needs the complete
+scanner envelope: raw reducer finding rows, scope-plan counters, package
+metadata freshness, source snapshots, scan-performance evidence, target
+diagnostics, or unsupported/missing evidence that is not attached to a VEX
+statement. VEX is an exchange artifact for defensible affected/not-affected
+claims; the JSON report is the audit artifact for deciding whether Eshu had
+enough evidence to make those claims. Use the process exit code as the scanner
+verdict: exports are artifacts, not replacements for the readiness contract.
+`--json` and `--export` cannot be combined.
 
 Exit codes are part of the scanner contract:
 
@@ -207,9 +227,49 @@ Sanitized JSON report excerpt:
 }
 ```
 
-VEX-style statements remain a separate follow-up format. SARIF is generated
-from this command's `data.report` parent scanner envelope without changing
-readiness semantics.
+Sanitized VEX-style example:
+
+```json
+{
+  "schema_version": "eshu.vex_statements.v1",
+  "scope": {
+    "kind": "repository",
+    "repository_id": "repo-synthetic"
+  },
+  "readiness": {
+    "state": "ready_with_findings",
+    "freshness": "fresh"
+  },
+  "statements": [
+    {
+      "statement_id": "eshu-vex-finding-1",
+      "finding_id": "finding-1",
+      "status": "affected",
+      "impact_status": "affected_exact",
+      "vulnerability": {
+        "cve_id": "CVE-2026-0001",
+        "advisory_id": "GHSA-xxxx-yyyy-zzzz"
+      },
+      "product": {
+        "repository_id": "repo-synthetic",
+        "package_id": "npm://registry.npmjs.org/example-lib",
+        "ecosystem": "npm"
+      },
+      "evidence_handles": [
+        {
+          "kind": "fact",
+          "id": "fact-package-synthetic"
+        }
+      ],
+      "remediation": {
+        "fixed_version": "1.2.3",
+        "first_patched_version": "1.2.3",
+        "confidence": "exact"
+      }
+    }
+  ]
+}
+```
 
 `eshu vuln-scan provider-parity` is API-backed and operator-local. It requires
 `--allowlist-file`, reads provider credentials only from the named local

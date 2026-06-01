@@ -11,7 +11,10 @@ import (
 	exportspkg "github.com/eshu-hq/eshu/go/internal/exports"
 )
 
-const vulnScanExportFormatSARIF = "sarif"
+const (
+	vulnScanExportFormatSARIF = "sarif"
+	vulnScanExportFormatVEX   = "vex"
+)
 
 func writeVulnScanSARIF(w io.Writer, result vulnScanRepoResult, report vulnScanReport) error {
 	snapshot, err := vulnScanSARIFSnapshot(result, report)

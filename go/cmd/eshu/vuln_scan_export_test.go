@@ -86,6 +86,117 @@ func TestRunVulnScanRepoSARIFExportPreservesEvidenceIncompleteWithoutLocation(t 
 	}
 }
 
+func TestRunVulnScanRepoVEXExportMapsOnlySupportedImpactStatuses(t *testing.T) {
+	repoPath := t.TempDir()
+	reset := stubScanRuntime(t)
+	defer reset()
+	resetVulnScanClock := stubVulnScanClock(t)
+	defer resetVulnScanClock()
+
+	server := vulnScanReportTestServer(t, repoPath, `{"data":{"findings":[{"finding_id":"finding-affected","cve_id":"CVE-2026-VEX-0001","advisory_id":"GHSA-vex-0001","package_id":"npm://registry.npmjs.org/synthetic-runtime-lib","package_name":"synthetic-runtime-lib","ecosystem":"npm","purl":"pkg:npm/synthetic-runtime-lib@2.3.4","impact_status":"affected_exact","confidence":"exact","observed_version":"2.3.4","requested_range":"^2.3.0","vulnerable_range":"<2.3.5","fixed_version":"2.3.5","repository_id":"repo-local","evidence_fact_ids":["fact-package-1","fact-advisory-1"],"source_freshness":"fresh","remediation":{"current_version":"2.3.4","vulnerable_range":"<2.3.5","first_patched_version":"2.3.5","manifest_range":"^2.3.0","manifest_allows_fix":"allowed","confidence":"exact","reason":"direct_upgrade_allowed","provider_payload_url":"https://private.example/alert/1"}},{"finding_id":"finding-fixed","cve_id":"CVE-2026-VEX-0002","advisory_id":"GHSA-vex-0002","package_id":"npm://registry.npmjs.org/synthetic-fixed-lib","package_name":"synthetic-fixed-lib","ecosystem":"npm","purl":"pkg:npm/synthetic-fixed-lib@4.0.0","impact_status":"not_affected_known_fixed","confidence":"exact","observed_version":"4.0.0","fixed_version":"3.9.0","repository_id":"repo-local","evidence_fact_ids":["fact-package-2","fact-advisory-2"],"source_freshness":"fresh"},{"finding_id":"finding-unknown","cve_id":"CVE-2026-VEX-0003","advisory_id":"GHSA-vex-0003","package_id":"npm://registry.npmjs.org/synthetic-unknown-lib","package_name":"synthetic-unknown-lib","ecosystem":"npm","impact_status":"unknown_impact","confidence":"partial","repository_id":"repo-local","missing_evidence":["observed_version"],"evidence_fact_ids":["fact-advisory-3"],"source_freshness":"stale"}],"count":3,"limit":50,"truncated":false,"readiness":{"readiness_state":"ready_with_findings","target_scope":{"repository_id":"repo-local"},"evidence_sources":[{"family":"package.consumption","fact_count":3,"freshness":"fresh"},{"family":"package.registry","fact_count":2,"freshness":"fresh"},{"family":"vulnerability.advisory","fact_count":80,"freshness":"fresh"}],"freshness":"fresh","counts":{"findings_returned":3,"evidence_facts_total":85}}},"truth":{"level":"exact","freshness":{"state":"fresh"}},"error":null}`)
+	defer server.Close()
+
+	out := &bytes.Buffer{}
+	cmd := newTestVulnScanRepoCommand(t)
+	cmd.SetOut(out)
+	cmd.SetErr(io.Discard)
+	if err := cmd.Flags().Set("service-url", server.URL); err != nil {
+		t.Fatalf("Set(service-url) error = %v, want nil", err)
+	}
+	if err := cmd.Flags().Set("export", "vex"); err != nil {
+		t.Fatalf("Set(export) error = %v, want nil", err)
+	}
+
+	requireVulnScanExitCode(t, runVulnScanRepo(cmd, []string{repoPath}), 3)
+
+	var vex map[string]any
+	if err := json.Unmarshal(out.Bytes(), &vex); err != nil {
+		t.Fatalf("json.Unmarshal(VEX) error = %v, want nil; output=%s", err, out.String())
+	}
+	if got, want := vex["schema_version"], "eshu.vex_statements.v1"; got != want {
+		t.Fatalf("schema_version = %#v, want %#v", got, want)
+	}
+	statements := requireSliceField(t, vex, "statements")
+	if got, want := len(statements), 3; got != want {
+		t.Fatalf("statements len = %d, want %d", got, want)
+	}
+	statuses := map[string]string{}
+	for _, raw := range statements {
+		statement := raw.(map[string]any)
+		statuses[statement["finding_id"].(string)] = statement["status"].(string)
+	}
+	if got, want := statuses["finding-affected"], "affected"; got != want {
+		t.Fatalf("affected status = %#v, want %#v", got, want)
+	}
+	if got, want := statuses["finding-fixed"], "not_affected"; got != want {
+		t.Fatalf("fixed status = %#v, want %#v", got, want)
+	}
+	if got, want := statuses["finding-unknown"], "under_investigation"; got != want {
+		t.Fatalf("unknown status = %#v, want %#v", got, want)
+	}
+	first := statements[0].(map[string]any)
+	handles := requireSliceField(t, first, "evidence_handles")
+	if got, want := len(handles), 2; got != want {
+		t.Fatalf("evidence_handles len = %d, want %d", got, want)
+	}
+	remediation := requireMapField(t, first, "remediation")
+	if got, want := remediation["first_patched_version"], "2.3.5"; got != want {
+		t.Fatalf("remediation[first_patched_version] = %#v, want %#v", got, want)
+	}
+	if bytes.Contains(out.Bytes(), []byte("provider_payload_url")) ||
+		bytes.Contains(out.Bytes(), []byte("private.example")) {
+		t.Fatalf("VEX output leaked private provider payload data:\n%s", out.String())
+	}
+	if bytes.Contains(out.Bytes(), []byte(repoPath)) {
+		t.Fatalf("VEX output leaked local repository path %q:\n%s", repoPath, out.String())
+	}
+}
+
+func TestRunVulnScanRepoVEXExportPreservesNonReadyEvidenceWithoutNotAffected(t *testing.T) {
+	repoPath := t.TempDir()
+	reset := stubScanRuntime(t)
+	defer reset()
+	resetVulnScanClock := stubVulnScanClock(t)
+	defer resetVulnScanClock()
+
+	server := vulnScanReportTestServer(t, repoPath, `{"data":{"findings":[],"count":0,"limit":50,"truncated":false,"readiness":{"readiness_state":"unsupported","target_scope":{"repository_id":"repo-local"},"missing_evidence":["unsupported_targets"],"unsupported_targets":[{"target_kind":"ecosystem","reason":"matcher_not_available","ecosystem":"swift","count":2}],"freshness":"stale","counts":{"findings_returned":0,"evidence_facts_total":20}}},"truth":{"level":"exact","freshness":{"state":"fresh"}},"error":null}`)
+	defer server.Close()
+
+	out := &bytes.Buffer{}
+	cmd := newTestVulnScanRepoCommand(t)
+	cmd.SetOut(out)
+	cmd.SetErr(io.Discard)
+	if err := cmd.Flags().Set("service-url", server.URL); err != nil {
+		t.Fatalf("Set(service-url) error = %v, want nil", err)
+	}
+	if err := cmd.Flags().Set("export", "vex"); err != nil {
+		t.Fatalf("Set(export) error = %v, want nil", err)
+	}
+
+	requireVulnScanExitCode(t, runVulnScanRepo(cmd, []string{repoPath}), 5)
+
+	var vex map[string]any
+	if err := json.Unmarshal(out.Bytes(), &vex); err != nil {
+		t.Fatalf("json.Unmarshal(VEX) error = %v, want nil; output=%s", err, out.String())
+	}
+	statements := requireSliceField(t, vex, "statements")
+	if got, want := len(statements), 0; got != want {
+		t.Fatalf("statements len = %d, want %d so unsupported evidence is not exported as not_affected", got, want)
+	}
+	readiness := requireMapField(t, vex, "readiness")
+	if got, want := readiness["state"], "unsupported"; got != want {
+		t.Fatalf("readiness[state] = %#v, want %#v", got, want)
+	}
+	missing := requireSliceField(t, readiness, "missing_evidence")
+	if got, want := missing[0], "unsupported_targets"; got != want {
+		t.Fatalf("missing_evidence[0] = %#v, want %#v", got, want)
+	}
+	unsupported := requireSliceField(t, readiness, "unsupported_targets")
+	if got, want := len(unsupported), 1; got != want {
+		t.Fatalf("unsupported_targets len = %d, want %d", got, want)
+	}
+}
+
 func TestRunVulnScanRepoRejectsJSONAndSARIFExportTogether(t *testing.T) {
 	cmd := newTestVulnScanRepoCommand(t)
 	if err := cmd.Flags().Set("json", "true"); err != nil {
