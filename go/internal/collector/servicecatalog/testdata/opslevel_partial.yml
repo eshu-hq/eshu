@@ -1,0 +1,33 @@
+# Partial/degraded OpsLevel manifest. Each document exercises a warning path
+# without aborting the whole file.
+# Document 1: unsupported descriptor version. Minimally parseable, so the entity
+# is still emitted alongside an unsupported_descriptor_version warning.
+version: 9
+component:
+  name: Future Shape
+  type: service
+  lifecycle: generally_available
+  owner: team_future
+  aliases:
+    - future-shape
+---
+# Document 2: missing component name. Cannot anchor an entity_ref, so it is
+# skipped with an invalid_ref warning, never a silent drop.
+version: 1
+component:
+  type: service
+  owner: team_anon
+---
+# Document 3: a component with a token-bearing tool link that must be redacted,
+# emitting an operational_link_redacted warning, without dropping the entity.
+version: 1
+component:
+  name: Payments DB
+  type: database
+  owner: order_management_team
+  aliases:
+    - payments-db
+  tools:
+    - name: DB Dashboard
+      category: metrics
+      url: https://dashboards.example.com/db?token=topsecret

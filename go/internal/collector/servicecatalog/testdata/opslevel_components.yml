@@ -1,0 +1,76 @@
+# Multi-document OpsLevel opslevel.yml manifest used as offline producer input.
+# Each document declares one component. OpsLevel repositories are referenced by
+# provider + name slug (no URL); known public providers are expanded into a
+# derivable repository_url, while unknown providers stay name-only.
+# Document 1: a component with an owner, a github repository whose derived URL
+# matches an active repo remote exactly, dependencies, and a redactable tool.
+version: 1
+component:
+  name: Checkout API
+  type: service
+  description: Handles checkout and payment orchestration.
+  lifecycle: generally_available
+  tier: tier_1
+  owner: order_management_team
+  system: commerce
+  aliases:
+    - checkout-api
+  repositories:
+    - name: eshu-hq/checkout-api
+      provider: github
+      path: "/"
+      display_name: Checkout Code
+  dependencies:
+    - alias: ledger
+      notes: Posts ledger entries.
+    - alias: payments_db
+  tools:
+    - name: Runbook
+      category: runbooks
+      url: https://runbooks.example.com/checkout
+    - name: PagerDuty
+      category: incidents
+      url: https://account.pagerduty.com/services/PH99999?token=secret123
+      environment: Production
+---
+# Document 2: a component whose github repository derives a URL that matches an
+# active repo remote only after git-URL canonicalization (.git suffix),
+# exercising the derived outcome.
+version: 1
+component:
+  name: Ledger Service
+  type: service
+  lifecycle: generally_available
+  owner: team_finance
+  aliases:
+    - ledger
+  repositories:
+    - name: eshu-hq/ledger
+      provider: github
+---
+# Document 3: a component with NO repository evidence. Owner recorded as
+# provenance only; must classify unresolved, never minting service identity.
+version: 1
+component:
+  name: Notifications
+  type: service
+  lifecycle: experimental
+  owner: team_platform
+  aliases:
+    - notifications
+---
+# Document 4: a name-only repository claim via an unsupported provider. The slug
+# carries no host and the provider host is unknown, so the producer emits a
+# repository_link with repository_name only. The reducer must reject it: a
+# catalog name string cannot prove repository ownership.
+version: 1
+component:
+  name: Search
+  type: service
+  lifecycle: generally_available
+  owner: team_discovery
+  aliases:
+    - search
+  repositories:
+    - name: search
+      provider: homegrown_vcs

@@ -1,0 +1,23 @@
+# Two documents declare the same OpsLevel entity_ref (same primary alias). The
+# producer keeps the deterministic first entity and emits a duplicate_entity
+# warning instead of silently overwriting the first with the second.
+version: 1
+component:
+  name: Billing (first)
+  type: service
+  lifecycle: generally_available
+  owner: team_billing
+  aliases:
+    - billing
+  repositories:
+    - name: eshu-hq/billing
+      provider: github
+---
+version: 1
+component:
+  name: Billing (second)
+  type: service
+  lifecycle: deprecated
+  owner: team_other
+  aliases:
+    - billing
