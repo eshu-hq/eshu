@@ -255,9 +255,11 @@ func (s providerParityEshuSource) ListEshuFindings(
 		return vulnerabilityparityproof.EshuFindingPage{}, err
 	}
 	return vulnerabilityparityproof.EshuFindingPage{
-		Findings:  findings,
-		Evidence:  providerParityEvidenceFromReadiness(envelope.Data.Readiness),
-		Truncated: envelope.Data.Truncated,
+		Findings:       findings,
+		Evidence:       providerParityEvidenceFromReadiness(envelope.Data.Readiness),
+		Truncated:      envelope.Data.Truncated,
+		ReadinessState: vulnScanReadinessState(envelope.Data.Readiness, len(findings)),
+		FreshnessState: providerParityFreshnessState(envelope.Data.Readiness, envelope.Truth),
 	}, nil
 }
 
@@ -329,6 +331,16 @@ func providerParityEvidenceFromReadiness(readiness map[string]any) vulnerability
 		}
 	}
 	return evidence
+}
+
+func providerParityFreshnessState(readiness map[string]any, truth map[string]any) string {
+	if freshness := rowString(readiness, "freshness"); freshness != "" {
+		return freshness
+	}
+	if freshness, ok := truth["freshness"].(map[string]any); ok {
+		return rowString(freshness, "state")
+	}
+	return ""
 }
 
 func readinessEvidenceFamilies(readiness map[string]any) []string {

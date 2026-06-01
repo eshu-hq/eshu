@@ -275,6 +275,9 @@ Sanitized VEX-style example:
 `--allowlist-file`, reads provider credentials only from the named local
 environment variable, and emits aggregate provider/Eshu parity counts without
 printing repositories, packages, advisory ids, alert URLs, tokens, or payloads.
+The JSON output includes repository count, provider alert count, Eshu finding
+count, approved mismatch class counts, truncation, readiness state, and
+freshness state.
 
 ## Version Probes
 

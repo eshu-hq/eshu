@@ -149,13 +149,18 @@ No-Regression Evidence: provider-parity lifecycle behavior is covered by
   wrapper. It reads an operator-local allowlist file, optionally reads a local
   generic provider summary file, or fetches GitHub Dependabot alert summaries
   using a token from the named environment variable. It calls only the bounded
-  Eshu supply-chain impact API and returns aggregate class counts. The command
-  must not print repository names, repository ids, package names, package ids,
-  advisory ids, CVE ids, alert URLs, tokens, provider payloads, or Eshu finding
-  rows. Provider lifecycle state is evidence, not active-impact truth:
-  fixed/closed and dismissed/suppressed provider rows do not become reducer bug
-  candidates unless Eshu has a conflicting row, and stale readiness evidence is
-  treated as missing evidence for parity.
+  Eshu supply-chain impact API and returns aggregate class counts in the
+  provider-parity reason set: `matched`, `provider_only`, `stale`,
+  `unsupported_ecosystem`, `missing_advisory_ingestion`,
+  `version_matching_gap`, `target_collection_gap`, `reducer_bug`, and
+  `unclassified`. The JSON output also rolls up readiness and freshness states
+  across allowlisted repositories. The command must not print repository names,
+  repository ids, package names, package ids, advisory ids, CVE ids, alert URLs,
+  tokens, provider payloads, or Eshu finding rows. Provider lifecycle state is
+  evidence, not active-impact truth: fixed/closed and dismissed/suppressed
+  provider rows do not become reducer bug candidates unless Eshu has a
+  conflicting row, and stale readiness evidence is treated as missing evidence
+  for parity.
 - `eshu trace service <name>` is a read-only CLI consumer of
   `/api/v0/services/{service_name}/story`. It asks the API for
   `application/eshu.envelope+json`, passes supported selectors through as

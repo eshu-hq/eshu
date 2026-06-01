@@ -5,7 +5,8 @@
 // `-v`) and a tree of subcommands covering local indexing (`index`, `list`, `watch`, `query`,
 // `stats`), security intelligence (`vuln-scan repo` with terminal and JSON
 // exit classification plus SARIF and VEX-style report exports,
-// `vuln-scan provider-parity`), service launch (`mcp start`, `api start`,
+// `vuln-scan provider-parity` aggregate provider proof with approved mismatch
+// classes plus readiness/freshness rollups), service launch (`mcp start`, `api start`,
 // `serve`), authenticated local Eshu service commands (`graph` — `mcp start --workspace-root` can attach
 // stdio or HTTP MCP transports to the active local owner; `stop` handles both `local_lightweight`
 // and `local_authoritative` profiles; lightweight stop verifies the owner
