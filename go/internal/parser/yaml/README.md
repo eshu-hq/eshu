@@ -6,9 +6,11 @@ internal/parser/yaml owns YAML-family source extraction for Kubernetes,
 Argo CD, Crossplane, Kustomize, Helm, and CloudFormation/SAM payload rows. It
 exists so YAML parsing behavior can evolve behind a language-owned package
 without depending on the parent parser dispatcher. It also emits metadata-only
-declared Grafana observability rows from Helm values, GrafanaFolder and
-GrafanaDashboard resources, dashboard ConfigMaps, folder, datasource, and alert
-provisioning.
+declared observability rows from Helm values, GrafanaFolder and
+GrafanaDashboard resources, dashboard ConfigMaps, folder, datasource, alert
+provisioning, Prometheus Operator scrape and rule resources, Prometheus/Mimir
+Helm values, OTel metric pipelines, OTel Prometheus receiver scrape configs,
+and chart ServiceMonitor settings.
 
 ## Ownership boundary
 
@@ -56,11 +58,12 @@ bucket before returning.
 Helm template manifests are intentionally skipped after source preservation
 because templated chart manifests are rendered elsewhere; Chart.yaml and values
 files still emit Helm metadata. `values.yaml` files may also emit declared
-Grafana observability metadata, but they do not prove applied or live provider
-state.
+Grafana, Prometheus, and Mimir observability metadata, but they do not prove
+applied or live provider state.
 
-Declared Grafana observability rows never store dashboard JSON, panel query
-bodies, datasource URLs, secure datasource values, alert model bodies, contact
+Declared observability rows never store dashboard JSON, panel query bodies,
+raw PromQL, scrape target addresses, datasource or remote-write URLs, tenant
+header values, secure datasource values, alert model bodies, contact
 addresses, folder titles, provisioning paths, or private routing values. Unsafe
 values are omitted and represented by fingerprints, redaction fields, or
 coverage warnings.

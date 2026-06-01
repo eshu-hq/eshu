@@ -196,21 +196,29 @@ collector. In incident-context reads, they fill the intended-routing slot only;
 applied and live routing still require Terraform-state or PagerDuty API source
 evidence.
 
-Declared Grafana observability evidence from repository source is emitted by
-the Git collector as `observability.source_instance`,
+Declared Grafana and Prometheus/Mimir observability evidence from repository
+source is emitted by the Git collector as `observability.source_instance`,
 `observability.declared_folder`, `observability.declared_dashboard`,
-`observability.declared_datasource`, `observability.declared_alert_rule`, and
-`observability.coverage_warning` facts. The parser supports Helm values,
-GrafanaFolder and GrafanaDashboard resources, dashboard ConfigMaps, folder,
-datasource, and alert provisioning, and Terraform `grafana_folder`,
-`grafana_dashboard`, `grafana_data_source`, and `grafana_rule_group` resources.
-These facts preserve repo path, source revision when available, overlay or
-environment, resource identity, folder UID/title fingerprint, dashboard
-UID/title fingerprint, datasource UID/type/name fingerprint, alert UID/title
-fingerprint, datasource refs, redaction state, and
-unsupported/malformed/duplicate outcomes. They do not run
-Terraform, call Grafana, or store dashboard JSON, query bodies, datasource URLs,
-secret datasource fields, contact addresses, log lines, or spans.
+`observability.declared_datasource`, `observability.declared_alert_rule`,
+`observability.declared_scrape_config`, `observability.declared_metric_rule`,
+`observability.declared_metric_route`, and `observability.coverage_warning`
+facts. The parser supports Helm values, GrafanaFolder and GrafanaDashboard
+resources, dashboard ConfigMaps, folder, datasource, and alert provisioning,
+Prometheus Operator ServiceMonitor, PodMonitor, PrometheusRule, and
+ScrapeConfig resources, kube-prometheus-stack and Mimir Helm values, OTel
+metric pipelines, OTel Prometheus receiver scrape configs, chart ServiceMonitor
+settings, and Terraform
+`grafana_folder`, `grafana_dashboard`, `grafana_data_source`, and
+`grafana_rule_group` resources. These facts preserve repo path, source revision
+when available, overlay or environment, resource identity, folder UID/title
+fingerprint, dashboard UID/title fingerprint, datasource UID/type/name
+fingerprint, alert UID/title fingerprint, datasource refs, selector keys and
+selector fingerprints, rule group identity, metric route backend, redaction
+state, and unsupported/malformed/duplicate outcomes. They do not run
+Terraform, call Grafana, Prometheus, or Mimir, or store dashboard JSON, query
+bodies, raw PromQL, scrape target addresses, remote-write URLs, tenant header
+values, datasource URLs, secret datasource fields, contact addresses, log
+lines, or spans.
 
 ## Promotion Rules
 

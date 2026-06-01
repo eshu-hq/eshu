@@ -170,10 +170,11 @@ func assertHCLForbiddenKeysAbsent(t *testing.T, row map[string]any, keys ...stri
 
 func assertHCLForbiddenValuesAbsent(t *testing.T, row map[string]any, values ...string) {
 	t.Helper()
-	rendered := strings.ToLower(strings.Join(mapValuesForHCLTest(row), " "))
 	for _, value := range values {
-		if strings.Contains(rendered, strings.ToLower(value)) {
-			t.Fatalf("forbidden value %q present in %#v", value, row)
+		for _, rendered := range mapValuesForHCLTest(row) {
+			if strings.Contains(strings.ToLower(rendered), strings.ToLower(value)) {
+				t.Fatalf("forbidden value %q present in %#v", value, row)
+			}
 		}
 	}
 }
