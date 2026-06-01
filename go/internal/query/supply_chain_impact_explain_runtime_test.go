@@ -63,10 +63,70 @@ func TestBuildSupplyChainImpactExplanationReturnsRuntimePathAndMissingHops(t *te
 		t.Fatalf("impact_path = %#v, want structured path", payload["impact_path"])
 	}
 	assertImpactPathExcludesHop(t, impactPath, "fixed_version")
+	assertImpactPathContainsHop(t, impactPath, "repository", "present")
+	assertImpactPathContainsHop(t, impactPath, "image", "present")
+	assertImpactPathContainsHop(t, impactPath, "workload", "present")
+	assertImpactPathContainsHop(t, impactPath, "service", "present")
+	assertImpactPathContainsHop(t, impactPath, "environment", "present")
 	anchors := payload["anchors"].(map[string]any)
 	assertJSONListContains(t, anchors["services"], "service:example-api")
 	assertJSONListContains(t, anchors["environments"], "prod")
 	assertJSONListContains(t, payload["missing_evidence"], "fixed_version")
+}
+
+func TestBuildSupplyChainImpactExplanationReturnsSemanticMissingHops(t *testing.T) {
+	t.Parallel()
+
+	got := BuildSupplyChainImpactExplanation(
+		SupplyChainImpactExplanationFilter{FindingID: "finding-repo-only"},
+		SupplyChainImpactExplanationRow{
+			Finding: SupplyChainImpactFindingRow{
+				FindingID:           "finding-repo-only",
+				CVEID:               "CVE-2026-0682",
+				PackageID:           "pkg:npm/example",
+				ImpactStatus:        "affected_exact",
+				RuntimeReachability: "package_manifest",
+				RepositoryID:        "repo://example/api",
+				EvidencePath: []string{
+					"vulnerability.cve",
+					"vulnerability.affected_package",
+					"reducer_package_consumption_correlation",
+				},
+				MissingEvidence: []string{
+					"image or SBOM attachment evidence missing",
+					"deployment exposure evidence missing",
+					"workload evidence missing",
+					"service evidence missing",
+				},
+				EvidenceFactIDs: []string{"consume-1"},
+			},
+			EvidenceFacts: []SupplyChainImpactEvidenceFact{
+				explanationFact("consume-1", "reducer_package_consumption_correlation", map[string]any{
+					"repository_id": "repo://example/api",
+					"package_id":    "pkg:npm/example",
+				}),
+			},
+		},
+		SupplyChainImpactReadinessEnvelope{State: ReadinessStateReadyWithFindings},
+	)
+
+	raw, err := json.Marshal(got)
+	if err != nil {
+		t.Fatalf("json.Marshal() error = %v", err)
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(raw, &payload); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+	impactPath, ok := payload["impact_path"].([]any)
+	if !ok {
+		t.Fatalf("impact_path = %#v, want structured path", payload["impact_path"])
+	}
+	assertImpactPathContainsHop(t, impactPath, "repository", "present")
+	assertImpactPathContainsHop(t, impactPath, "image", "missing_evidence")
+	assertImpactPathContainsHop(t, impactPath, "workload", "missing_evidence")
+	assertImpactPathContainsHop(t, impactPath, "service", "missing_evidence")
+	assertImpactPathContainsHop(t, impactPath, "environment", "missing_evidence")
 }
 
 func assertImpactPathExcludesHop(t *testing.T, raw []any, unwanted string) {
@@ -80,6 +140,23 @@ func assertImpactPathExcludesHop(t *testing.T, raw []any, unwanted string) {
 			t.Fatalf("impact_path unexpectedly includes %q: %#v", unwanted, raw)
 		}
 	}
+}
+
+func assertImpactPathContainsHop(t *testing.T, raw []any, wantHop string, wantStatus string) {
+	t.Helper()
+	for _, entry := range raw {
+		hop, ok := entry.(map[string]any)
+		if !ok {
+			t.Fatalf("impact_path entry = %T, want object", entry)
+		}
+		if hop["hop"] == wantHop {
+			if hop["status"] != wantStatus {
+				t.Fatalf("impact_path hop %q status = %#v, want %#v", wantHop, hop["status"], wantStatus)
+			}
+			return
+		}
+	}
+	t.Fatalf("impact_path missing hop %q: %#v", wantHop, raw)
 }
 
 func assertJSONListContains(t *testing.T, raw any, want string) {

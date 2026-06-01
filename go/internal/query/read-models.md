@@ -254,6 +254,27 @@ No-Regression Evidence: `go test ./internal/query -run 'TestSupplyChainImpactCan
 
 No-Observability-Change: canonical impact-finding dedupe stays inside the existing bounded Postgres read models. It adds no route, graph query, queue, worker, runtime knob, metric instrument, or metric label; operators still diagnose list, count, inventory, and explain latency through the existing query spans and Postgres query duration metrics.
 
+The supply-chain impact explain payload includes a semantic hop overlay for
+repository, image, workload, service, and environment evidence. These hop rows
+are shaped from the reducer finding and the already-loaded evidence fact
+previews; they do not perform a new graph traversal. Present hops carry
+referenced evidence fact ids when the preview payload exposes the corresponding
+anchor, while missing hops reuse the reducer-owned missing-evidence reasons so
+callers can distinguish repository-only, image-only, and explicitly deployed
+paths.
+
+No-Regression Evidence: `go test ./internal/query -run
+'TestBuildSupplyChainImpactExplanationReturns(RuntimePathAndMissingHops|SemanticMissingHops)'
+-count=1` failed before explain output carried stable repository/image/workload/service/environment
+hop rows, then passed with deployed-image evidence marked present and
+repository-only evidence preserving missing image, workload, service, and
+environment hops.
+
+No-Observability-Change: semantic explain hops are response shaping over the
+existing bounded explanation row and evidence previews. The route, Postgres
+queries, query spans, and `eshu_dp_postgres_query_duration_seconds` metrics are
+unchanged.
+
 No-Regression Evidence: `go test ./internal/query -run 'TestSupplyChainImpactAggregateRoutesUseListProfileDefaults|TestSupplyChainImpactAggregateRoutesComprehensiveProfileIncludesPossiblyAffected|TestSupplyChainImpactAggregateRoutesCanonicalAndNameSelectorsShareProfileSemantics|TestSupplyChainImpactAggregateRoutesKeepSuppressionSeparateFromProfile|TestSupplyChainImpactAggregateQueriesUseListProfileAndSuppressionPredicates|TestOpenAPISpecIncludesSupplyChainImpactAggregateProfileFilters' -count=1` proves count and inventory now apply the same default precise detection profile as the list route, include comprehensive-only `possibly_affected` rows when `profile=comprehensive` is requested, resolve repository name and canonical id selectors to the same aggregate scope, and keep suppression filters independent of profile semantics.
 
 No-Observability-Change: aggregate profile and suppression parity only adds predicates to the existing bounded Postgres aggregate read model and echoes the selected profile in the existing HTTP response. It adds no route, graph query, queue, worker, runtime knob, metric instrument, or metric label; operators still diagnose aggregate latency through the `query.supply_chain_impact_aggregate` span and Postgres query duration metrics.

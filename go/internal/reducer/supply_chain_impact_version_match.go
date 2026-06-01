@@ -75,6 +75,8 @@ func evaluateSupplyChainVersionMatch(
 	normalized := normalizedSupplyChainVersionEcosystem(ecosystem)
 	if normalized == "" {
 		normalized = strings.ToLower(strings.TrimSpace(ecosystem))
+	} else if normalized == string(packageidentity.EcosystemOS) {
+		normalized = strings.ToLower(strings.TrimSpace(ecosystem))
 	}
 	switch normalized {
 	case string(packageidentity.EcosystemNPM):
@@ -97,6 +99,22 @@ func evaluateSupplyChainVersionMatch(
 		return evaluateMavenVersionMatch(observed, fixedVersion, pkgs)
 	case "redhat", "fedora", "centos", "rocky", "alma", "amazonlinux", "rpm":
 		return evaluateRPMVersionMatch(observed, fixedVersion, pkgs)
+	case "debian", "ubuntu", "deb", "dpkg":
+		return evaluateExactOSPackageVersionMatch(
+			observed,
+			fixedVersion,
+			pkgs,
+			supplyChainVersionReasonDPKGExactAffected,
+			supplyChainVersionReasonDPKGExactKnownFixed,
+		)
+	case "alpine", "apk":
+		return evaluateExactOSPackageVersionMatch(
+			observed,
+			fixedVersion,
+			pkgs,
+			supplyChainVersionReasonAPKExactAffected,
+			supplyChainVersionReasonAPKExactKnownFixed,
+		)
 	case string(packageidentity.EcosystemRubyGems):
 		return evaluateRubyGemsVersionMatch(observed, fixedVersion, pkgs)
 	default:
@@ -372,46 +390,6 @@ func mavenAffectedByPackage(observed string, pkg supplyChainAffectedPackage) (bo
 		}
 	}
 	return false, valid
-}
-
-func affectedVersionDecision(reason string) supplyChainVersionMatchDecision {
-	return supplyChainVersionMatchDecision{
-		Status:              SupplyChainImpactAffectedExact,
-		Confidence:          "exact",
-		RuntimeReachability: "package_manifest",
-		Reason:              reason,
-	}
-}
-
-func knownFixedDecision(reason string) supplyChainVersionMatchDecision {
-	return supplyChainVersionMatchDecision{
-		Status:              SupplyChainImpactNotAffectedKnownFixed,
-		Confidence:          "exact",
-		RuntimeReachability: "known_fixed",
-		Reason:              reason,
-	}
-}
-
-func malformedVersionDecision() supplyChainVersionMatchDecision {
-	return possiblyAffectedDecision(supplyChainVersionReasonMalformedRange, []string{supplyChainMissingMalformedRange})
-}
-
-func malformedInstalledVersionDecision() supplyChainVersionMatchDecision {
-	return possiblyAffectedDecision(
-		supplyChainVersionReasonMalformedInstalled,
-		[]string{supplyChainMissingMalformedInstalled},
-	)
-}
-
-func possiblyAffectedDecision(reason string, missing []string) supplyChainVersionMatchDecision {
-	return supplyChainVersionMatchDecision{
-		Status:          SupplyChainImpactPossiblyAffected,
-		Confidence:      "partial",
-		Reason:          reason,
-		MissingEvidence: missing,
-		FailClosed: reason == supplyChainVersionReasonMalformedRange ||
-			reason == supplyChainVersionReasonMalformedInstalled,
-	}
 }
 
 func semverEqual(left string, right string) (bool, bool) {

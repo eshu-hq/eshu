@@ -14,6 +14,7 @@ func buildSupplyChainImpactPath(
 			EvidenceFactIDs: evidenceFactIDsForHop(hop, row),
 		})
 	}
+	hops = append(hops, semanticSupplyChainImpactHops(row, missing)...)
 	for _, reason := range missing {
 		hops = append(hops, SupplyChainImpactPathHop{
 			Hop:             reason,
@@ -27,6 +28,69 @@ func buildSupplyChainImpactPath(
 	return hops
 }
 
+func semanticSupplyChainImpactHops(
+	row SupplyChainImpactExplanationRow,
+	missing []string,
+) []SupplyChainImpactPathHop {
+	repositoryEvidence := evidenceFactIDsForSemanticHop(row, "repository")
+	imageEvidence := evidenceFactIDsForSemanticHop(row, "image")
+	workloadEvidence := evidenceFactIDsForSemanticHop(row, "workload")
+	serviceEvidence := evidenceFactIDsForSemanticHop(row, "service")
+	environmentEvidence := evidenceFactIDsForSemanticHop(row, "environment")
+	return []SupplyChainImpactPathHop{
+		semanticSupplyChainImpactHop(
+			"repository",
+			row.Finding.RepositoryID != "" || len(repositoryEvidence) > 0,
+			repositoryEvidence,
+			missingReasonForSemanticHop("repository", missing),
+		),
+		semanticSupplyChainImpactHop(
+			"image",
+			row.Finding.SubjectDigest != "" || row.Finding.ImageRef != "" || len(imageEvidence) > 0,
+			imageEvidence,
+			missingReasonForSemanticHop("image", missing),
+		),
+		semanticSupplyChainImpactHop(
+			"workload",
+			len(row.Finding.WorkloadIDs) > 0 || len(workloadEvidence) > 0,
+			workloadEvidence,
+			missingReasonForSemanticHop("workload", missing),
+		),
+		semanticSupplyChainImpactHop(
+			"service",
+			len(row.Finding.ServiceIDs) > 0 || len(serviceEvidence) > 0,
+			serviceEvidence,
+			missingReasonForSemanticHop("service", missing),
+		),
+		semanticSupplyChainImpactHop(
+			"environment",
+			len(row.Finding.Environments) > 0 || len(environmentEvidence) > 0,
+			environmentEvidence,
+			missingReasonForSemanticHop("environment", missing),
+		),
+	}
+}
+
+func semanticSupplyChainImpactHop(
+	hop string,
+	present bool,
+	evidenceFactIDs []string,
+	missingEvidence []string,
+) SupplyChainImpactPathHop {
+	if present {
+		return SupplyChainImpactPathHop{
+			Hop:             hop,
+			Status:          "present",
+			EvidenceFactIDs: evidenceFactIDs,
+		}
+	}
+	return SupplyChainImpactPathHop{
+		Hop:             hop,
+		Status:          "missing_evidence",
+		MissingEvidence: missingEvidence,
+	}
+}
+
 func evidenceFactIDsForHop(hop string, row SupplyChainImpactExplanationRow) []string {
 	var factIDs []string
 	for _, fact := range row.EvidenceFacts {
@@ -35,6 +99,72 @@ func evidenceFactIDsForHop(hop string, row SupplyChainImpactExplanationRow) []st
 		}
 	}
 	return explanationUniqueStrings(factIDs)
+}
+
+func evidenceFactIDsForSemanticHop(
+	row SupplyChainImpactExplanationRow,
+	hop string,
+) []string {
+	var factIDs []string
+	for _, fact := range row.EvidenceFacts {
+		switch hop {
+		case "repository":
+			if StringVal(fact.Payload, "repository_id") != "" {
+				factIDs = append(factIDs, fact.FactID)
+			}
+		case "image":
+			if StringVal(fact.Payload, "subject_digest") != "" ||
+				StringVal(fact.Payload, "digest") != "" ||
+				StringVal(fact.Payload, "image_ref") != "" ||
+				StringVal(fact.Payload, "artifact_digest") != "" {
+				factIDs = append(factIDs, fact.FactID)
+			}
+		case "workload":
+			if StringVal(fact.Payload, "workload_id") != "" {
+				factIDs = append(factIDs, fact.FactID)
+			}
+		case "service":
+			if StringVal(fact.Payload, "service_id") != "" {
+				factIDs = append(factIDs, fact.FactID)
+			}
+		case "environment":
+			if StringVal(fact.Payload, "environment") != "" {
+				factIDs = append(factIDs, fact.FactID)
+			}
+		}
+	}
+	return explanationUniqueStrings(factIDs)
+}
+
+func missingReasonForSemanticHop(hop string, missing []string) []string {
+	for _, reason := range missing {
+		switch hop {
+		case "repository":
+			if reason == "repository dependency evidence missing" {
+				return []string{reason}
+			}
+		case "image":
+			if reason == "image or SBOM attachment evidence missing" ||
+				strings.HasPrefix(reason, "image identity evidence ") {
+				return []string{reason}
+			}
+		case "workload":
+			if reason == "workload evidence missing" {
+				return []string{reason}
+			}
+		case "service":
+			if reason == "service evidence missing" ||
+				strings.HasPrefix(reason, "service catalog evidence ") {
+				return []string{reason}
+			}
+		case "environment":
+			if reason == "deployment exposure evidence missing" ||
+				strings.HasPrefix(reason, "deployment evidence ") {
+				return []string{reason}
+			}
+		}
+	}
+	return []string{hop + " evidence missing"}
 }
 
 func supplyChainImpactPathMissingEvidence(missing []string) []string {
