@@ -33,8 +33,9 @@ flowchart LR
   that target the repository default branch.
 - `NormalizeBitbucket` accepts Bitbucket Cloud push events and fulfilled pull
   request events that target the repository default branch.
-- `Trigger` carries provider, delivery, repository, ref, target SHA, sender, and
-  decision fields for the later durable trigger handoff.
+- `Trigger` carries provider, delivery, repository, ref, target SHA, sender,
+  decision fields, and bounded merged-PR provenance for the later durable
+  trigger handoff.
 - `StoredTrigger` adds durable trigger IDs, refresh keys, status, duplicate
   count, and timestamps after persistence owns the decision.
 
@@ -43,6 +44,9 @@ flowchart LR
 - A webhook is a wake-up signal only. The collector must still fetch git state,
   create a repository snapshot, emit facts, and let projection update graph and
   content state.
+- Merged GitHub pull-request number, URL, and title fields are provider
+  provenance for read-model enrichment. They do not skip repository refresh or
+  create graph truth directly.
 - Tag events, non-default branch events, default-branch deletes, and merge
   events without a provider merge commit are ignored with explicit
   `DecisionReason` values.

@@ -118,6 +118,7 @@
 // webhook_refresh_triggers, deduplicates refresh requests by refresh_key, moves
 // a prior ignored row back to queued when a later accepted delivery has the
 // same refresh key, claims queued triggers with FOR UPDATE SKIP LOCKED in
-// received_at order, and records handed-off rows or failed rows with failed_at
-// without making repository or graph freshness claims.
+// received_at order, records handed-off rows or failed rows with failed_at,
+// and preserves merged pull-request provenance without making repository or
+// graph freshness claims.
 package postgres

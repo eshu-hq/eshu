@@ -15,6 +15,9 @@ CREATE TABLE IF NOT EXISTS webhook_refresh_triggers (
     target_sha TEXT NOT NULL,
     action TEXT NOT NULL DEFAULT '',
     sender TEXT NOT NULL DEFAULT '',
+    pull_request_number TEXT NOT NULL DEFAULT '',
+    pull_request_url TEXT NOT NULL DEFAULT '',
+    pull_request_title TEXT NOT NULL DEFAULT '',
     status TEXT NOT NULL,
     duplicate_count INTEGER NOT NULL DEFAULT 0,
     received_at TIMESTAMPTZ NOT NULL,
@@ -31,6 +34,15 @@ CREATE TABLE IF NOT EXISTS webhook_refresh_triggers (
 ALTER TABLE webhook_refresh_triggers
     ADD COLUMN IF NOT EXISTS failed_at TIMESTAMPTZ NULL;
 
+ALTER TABLE webhook_refresh_triggers
+    ADD COLUMN IF NOT EXISTS pull_request_number TEXT NOT NULL DEFAULT '';
+
+ALTER TABLE webhook_refresh_triggers
+    ADD COLUMN IF NOT EXISTS pull_request_url TEXT NOT NULL DEFAULT '';
+
+ALTER TABLE webhook_refresh_triggers
+    ADD COLUMN IF NOT EXISTS pull_request_title TEXT NOT NULL DEFAULT '';
+
 CREATE UNIQUE INDEX IF NOT EXISTS webhook_refresh_triggers_refresh_key_idx
     ON webhook_refresh_triggers (refresh_key);
 
@@ -42,3 +54,8 @@ CREATE INDEX IF NOT EXISTS webhook_refresh_triggers_status_idx
 
 CREATE INDEX IF NOT EXISTS webhook_refresh_triggers_delivery_key_idx
     ON webhook_refresh_triggers (delivery_key, updated_at DESC);
+
+CREATE INDEX IF NOT EXISTS webhook_refresh_triggers_pr_commit_idx
+    ON webhook_refresh_triggers (provider, event_kind, target_sha, received_at ASC, trigger_id ASC)
+    WHERE decision = 'accepted'
+      AND pull_request_url <> '';

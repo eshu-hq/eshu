@@ -1,6 +1,6 @@
 package postgres
 
-const factRecordSchemaSQL = factRecordBaseSchemaSQL + vulnerabilityFactRecordReadIndexesSQL + incidentFactRecordReadIndexesSQL + incidentRuntimeFactRecordReadIndexesSQL
+const factRecordSchemaSQL = factRecordBaseSchemaSQL + vulnerabilityFactRecordReadIndexesSQL + incidentFactRecordReadIndexesSQL + incidentRuntimeFactRecordReadIndexesSQL + incidentWorkItemFactRecordReadIndexesSQL
 
 const factRecordBaseSchemaSQL = `
 CREATE TABLE IF NOT EXISTS fact_records (
@@ -34,10 +34,8 @@ ALTER TABLE fact_records
 
 ALTER TABLE fact_records
     ADD COLUMN IF NOT EXISTS source_confidence TEXT NOT NULL DEFAULT 'unknown';
-
 CREATE INDEX IF NOT EXISTS fact_records_scope_generation_idx
     ON fact_records (scope_id, generation_id, fact_kind, observed_at DESC);
-
 CREATE INDEX IF NOT EXISTS fact_records_stable_key_idx
     ON fact_records (stable_fact_key, generation_id);
 
