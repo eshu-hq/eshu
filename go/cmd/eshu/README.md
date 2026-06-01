@@ -131,6 +131,8 @@ No-Regression Evidence: provider-parity lifecycle behavior is covered by
   `evidence_incomplete`. The command exits `0` for ready-zero, `3` for
   findings, `4` for non-ready evidence, `5` for unsupported target evidence,
   and `1` for runtime or transport failures before readiness is classified.
+  Terminal summaries print the same exit code and reason as the JSON report,
+  then show readiness, missing evidence, scope counters, and performance.
   `--export sarif` writes SARIF v2.1.0 to stdout from the same scanner report:
   reducer-owned findings become SARIF results, source paths become locations
   only when the API provided them, and run properties preserve readiness,

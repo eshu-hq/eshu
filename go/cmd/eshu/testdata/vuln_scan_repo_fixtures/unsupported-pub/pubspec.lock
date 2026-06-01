@@ -1,0 +1,5 @@
+packages:
+  pointycastle:
+    dependency: direct main
+    source: hosted
+    version: "3.7.3"
