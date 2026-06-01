@@ -253,6 +253,14 @@ bodies, raw PromQL, LogQL, or TraceQL, scrape target addresses, remote-write
 URLs, Loki or Tempo route URLs, tenant header values, tenant IDs, datasource
 URLs, secret datasource fields, contact addresses, log lines, spans, traces,
 raw trace IDs, request attributes, or high-cardinality trace tag values.
+Live Tempo metadata facts use the same observability family with
+`collector_kind=tempo`. The live collector emits
+`observability.source_instance`, `observability.observed_trace_signal`, and
+`observability.coverage_warning` facts from bounded tag-name, tag-value, and
+freshness metadata only. It stores tag-value counts and fingerprints within
+configured cardinality limits; it does not store spans, traces, raw trace IDs,
+request attributes, TraceQL bodies, tenant IDs, raw tag values, private URLs, or
+provider response bodies.
 
 Live Grafana observed metadata is emitted by the Grafana collector package as
 `observability.source_instance`, `observability.observed_dashboard`,

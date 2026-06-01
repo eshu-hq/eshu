@@ -207,6 +207,11 @@ it.
   emits reported-confidence incident-context source facts and leaves runtime,
   image, commit, pull-request, Jira, graph, and read-model truth to downstream
   collectors and reducers.
+- `tempo` subpackage — live Tempo trace-signal metadata collection for the
+  `tempo` collector family. It emits reported-confidence observability source
+  facts for source instances, tag names, bounded tag-value metadata, and
+  coverage warnings without storing spans, traces, raw trace IDs, request
+  attributes, TraceQL bodies, tenant IDs, or raw tag values.
 - `cicdrun` subpackage — fixture-backed CI/CD provider normalization and
   reported-confidence run, job, step, artifact, trigger, environment, and
   warning fact-envelope construction for the `ci_cd_run` collector family
