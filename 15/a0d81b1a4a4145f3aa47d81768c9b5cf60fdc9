@@ -1,0 +1,23 @@
+go/internal/query/read-models.md
+  s_f2f7fbb6f30866::t_7ce388fbf17092 199-201,203-208
+go/internal/query/doc.go
+  s_f2f7fbb6f30866::t_8356776c72bfc2 29-39
+go/internal/query/README.md
+  s_f2f7fbb6f30866::t_c71bb19d2fd845 96,99-105
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "15a0d81b1a4a4145f3aa47d81768c9b5cf60fdc9",
+  "prompts": {},
+  "sessions": {
+    "s_f2f7fbb6f30866": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e360b-90eb-7472-bac7-56d488b65f77",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
