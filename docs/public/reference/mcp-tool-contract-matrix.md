@@ -24,7 +24,7 @@ Cypher.
 | Runtime and indexing status prompts | `get_index_status`, `list_ingesters`, `get_ingester_status` | Runtime prompts use shipped status tools instead of stale job-status names. | None |
 | Documentation/confluence prompts | story routes, `list_documentation_facts`, plus `build_evidence_citation_packet` | Exact source, docs, manifest, collected documentation facts, and deployment proof use bounded fact reads or citation packets from returned handles. | None |
 | Structural code inventory | `inspect_code_inventory` | Content-index inventory covers functions, classes, file-local entities, decorators, methods, and file-level counts. | None |
-| Incident response prompts | `get_incident_context` | Incident context returns PagerDuty source evidence, fallback change candidates, and explicit missing Jira/PR/runtime/image/build/commit/deployable slots. | Runtime, work-item, and PR enrichment remain separate evidence collectors/reducers. |
+| Incident response prompts | `get_incident_context` | Incident context returns PagerDuty source evidence, fallback change candidates, explicit missing Jira/PR/build/commit slots, deployable/runtime/image slots only when explicit service-catalog, image-identity, and Kubernetes reducer evidence exists, and build/commit slots only when reducer-owned CI/CD run correlations match the selected image. | Work-item and PR enrichment remain separate evidence collectors/reducers. |
 
 | Tool | Scope contract | Bound | Envelope | Prompt readiness |
 | --- | --- | --- | --- | --- |
@@ -141,8 +141,10 @@ No-Regression Evidence: focused query, MCP, and telemetry tests cover:
   limit and truncation behavior.
 - Environment comparison story packets, deployment configuration influence, and
   resource-first investigation route contracts.
-- Incident context route contracts, explicit missing evidence slots, ambiguous
-  provider-scope errors, OpenAPI fields, and MCP route mapping.
+- Incident context route contracts, explicit missing evidence slots, explicit
+  PagerDuty service URL to runtime/image evidence, image-to-build/commit
+  evidence, ambiguous provider-scope errors, OpenAPI fields, and MCP route
+  mapping.
 - Broader MCP dispatch and query contracts through `go test ./internal/mcp ./internal/query -count=1`.
 
 Observability Evidence: `telemetry.SpanQueryIaCTerraformImportPlan` (`query.iac_terraform_import_plan`) wraps the import-plan candidate HTTP/MCP route with stable `http.route` and `eshu.capability` attributes. `telemetry.SpanQueryDeadCodeInvestigation` (`query.dead_code_investigation`) wraps the dead-code investigation route with the same route and capability attributes. `telemetry.SpanQueryIncidentContext` (`query.incident_context`) wraps the incident-context route with stable route and capability attributes. Existing MCP `dispatch tool` debug logs, HTTP response envelopes, query handler errors, graph `neo4j.query` spans, Postgres `postgres.query` spans, service query timing logs, and bounded `coverage.limit`/`coverage.truncated` response fields diagnose whether a prompt call was scoped, complete, or needs a follow-up page.

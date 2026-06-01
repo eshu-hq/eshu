@@ -203,7 +203,6 @@ CREATE INDEX IF NOT EXISTS fact_records_service_catalog_correlations_entity_idx
     )
     WHERE fact_kind = 'reducer_service_catalog_correlation'
       AND is_tombstone = FALSE;
-
 CREATE INDEX IF NOT EXISTS fact_records_service_catalog_correlations_repository_idx
     ON fact_records (
         (payload->>'repository_id'),
@@ -235,7 +234,6 @@ CREATE INDEX IF NOT EXISTS fact_records_container_image_identity_digest_idx
     )
     WHERE fact_kind = 'reducer_container_image_identity'
       AND is_tombstone = FALSE;
-
 CREATE INDEX IF NOT EXISTS fact_records_container_image_identity_ref_idx
     ON fact_records (
         (payload->>'image_ref'),
@@ -497,3 +495,5 @@ CREATE INDEX IF NOT EXISTS fact_records_vulnerability_package_purl_lookup_idx ON
 CREATE INDEX IF NOT EXISTS fact_records_incident_context_record_lookup_idx ON fact_records (source_system, (payload->>'provider_incident_id'), scope_id, observed_at DESC, fact_id ASC) WHERE fact_kind = 'incident.record' AND is_tombstone = FALSE;
 CREATE INDEX IF NOT EXISTS fact_records_incident_context_timeline_lookup_idx ON fact_records (scope_id, generation_id, (payload->>'provider_incident_id'), (payload->>'created_at'), fact_id ASC) WHERE fact_kind = 'incident.lifecycle_event' AND is_tombstone = FALSE;
 CREATE INDEX IF NOT EXISTS fact_records_incident_context_change_services_idx ON fact_records USING GIN (payload jsonb_path_ops) WHERE fact_kind = 'change.record' AND is_tombstone = FALSE;
+CREATE INDEX IF NOT EXISTS fact_records_service_catalog_operational_link_url_idx ON fact_records ((payload->>'url'), (payload->>'provider'), (payload->>'entity_ref'), fact_id ASC) WHERE fact_kind = 'service_catalog.operational_link' AND is_tombstone = FALSE;
+CREATE INDEX IF NOT EXISTS fact_records_kubernetes_correlation_image_lookup_idx ON fact_records ((payload->>'source_digest'), (payload->>'image_ref'), (payload->>'outcome'), fact_id ASC) WHERE fact_kind = 'reducer_kubernetes_correlation' AND is_tombstone = FALSE;

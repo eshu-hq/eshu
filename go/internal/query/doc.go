@@ -66,6 +66,10 @@
 // Incident-context reads expose PagerDuty incident source facts as bounded
 // packets with provider state, timeline events, fallback service/time change
 // candidates, and explicit missing evidence slots. They do not call provider
-// APIs or promote runtime, image, commit, pull-request, or work-item links
-// without separate evidence.
+// APIs. Runtime and image slots are promoted only when an explicit
+// service-catalog operational link connects the PagerDuty service to a catalog
+// correlation and reducer-owned image or Kubernetes evidence proves the next
+// hop. Build/deploy and commit slots are promoted only from reducer-owned
+// CI/CD run correlations tied to the selected image digest or reference;
+// pull-request and work-item links still require separate evidence.
 package query

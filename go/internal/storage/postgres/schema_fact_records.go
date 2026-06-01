@@ -1,6 +1,6 @@
 package postgres
 
-const factRecordSchemaSQL = factRecordBaseSchemaSQL + vulnerabilityFactRecordReadIndexesSQL + incidentFactRecordReadIndexesSQL
+const factRecordSchemaSQL = factRecordBaseSchemaSQL + vulnerabilityFactRecordReadIndexesSQL + incidentFactRecordReadIndexesSQL + incidentRuntimeFactRecordReadIndexesSQL
 
 const factRecordBaseSchemaSQL = `
 CREATE TABLE IF NOT EXISTS fact_records (
@@ -208,7 +208,6 @@ CREATE INDEX IF NOT EXISTS fact_records_service_catalog_correlations_entity_idx
     )
     WHERE fact_kind = 'reducer_service_catalog_correlation'
       AND is_tombstone = FALSE;
-
 CREATE INDEX IF NOT EXISTS fact_records_service_catalog_correlations_repository_idx
     ON fact_records (
         (payload->>'repository_id'),
@@ -240,7 +239,6 @@ CREATE INDEX IF NOT EXISTS fact_records_container_image_identity_digest_idx
     )
     WHERE fact_kind = 'reducer_container_image_identity'
       AND is_tombstone = FALSE;
-
 CREATE INDEX IF NOT EXISTS fact_records_container_image_identity_ref_idx
     ON fact_records (
         (payload->>'image_ref'),
