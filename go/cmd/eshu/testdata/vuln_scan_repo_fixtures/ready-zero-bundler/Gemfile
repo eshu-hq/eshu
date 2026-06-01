@@ -1,0 +1,2 @@
+source "synthetic://rubygems"
+gem "synthetic_bundler_ready_zero", "1.0.0"

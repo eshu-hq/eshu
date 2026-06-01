@@ -1,0 +1,7 @@
+[tool.poetry]
+name = "synthetic-ready-zero-poetry-repo"
+version = "1.0.0"
+
+[tool.poetry.dependencies]
+python = "^3.11"
+synthetic-poetry-ready-zero = "1.0.0"

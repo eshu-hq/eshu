@@ -1,0 +1,5 @@
+plugins { id 'java' }
+
+dependencies {
+    implementation 'synthetic.example:synthetic-gradle-vulnerable:1.0.0'
+}

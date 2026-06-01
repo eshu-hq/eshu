@@ -1,0 +1,7 @@
+GEM
+  remote: synthetic://rubygems
+  specs:
+    synthetic_bundler_vulnerable (1.0.0)
+
+DEPENDENCIES
+  synthetic_bundler_vulnerable (= 1.0.0)

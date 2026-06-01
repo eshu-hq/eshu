@@ -1,0 +1,1 @@
+<project><modelVersion>4.0.0</modelVersion><groupId>synthetic.example</groupId><artifactId>synthetic-vulnerable-maven-repo</artifactId><version>1.0.0</version><dependencies><dependency><groupId>synthetic.example</groupId><artifactId>synthetic-maven-vulnerable</artifactId><version>1.0.0</version></dependency></dependencies></project>

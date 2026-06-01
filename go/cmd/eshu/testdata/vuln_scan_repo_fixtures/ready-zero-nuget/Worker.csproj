@@ -1,0 +1,1 @@
+<Project Sdk="Microsoft.NET.Sdk"><ItemGroup><PackageReference Include="Synthetic.NuGet.ReadyZero" Version="1.0.0" /></ItemGroup></Project>

@@ -1,0 +1,2 @@
+[packages]
+synthetic-pipfile-ready-zero = "==1.0.0"

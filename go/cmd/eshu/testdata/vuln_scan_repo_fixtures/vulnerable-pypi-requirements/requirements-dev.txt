@@ -1,0 +1,1 @@
+synthetic-pypi-dev-vulnerable==1.0.0

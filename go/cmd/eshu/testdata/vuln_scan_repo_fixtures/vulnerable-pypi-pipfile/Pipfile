@@ -1,0 +1,2 @@
+[packages]
+synthetic-pipfile-vulnerable = "==1.0.0"

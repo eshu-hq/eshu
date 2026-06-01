@@ -1,0 +1,9 @@
+# yarn lockfile v1
+
+synthetic-yarn-parent@1.0.0:
+  version "1.0.0"
+  dependencies:
+    synthetic-yarn-transitive "1.0.0"
+
+synthetic-yarn-transitive@1.0.0:
+  version "1.0.0"

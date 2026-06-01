@@ -1,0 +1,4 @@
+[project]
+name = "synthetic-vulnerable-pyproject-repo"
+version = "1.0.0"
+dependencies = ["synthetic-pyproject-vulnerable==1.0.0"]

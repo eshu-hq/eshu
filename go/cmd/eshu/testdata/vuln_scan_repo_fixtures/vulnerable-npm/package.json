@@ -1,1 +1,1 @@
-{"name":"vulnerable-npm","version":"1.0.0","dependencies":{"lodash":"4.17.15"}}
+{"name":"synthetic-vulnerable-npm-repo","version":"1.0.0","dependencies":{"synthetic-vulnerable-npm":"1.0.0"}}

@@ -1,0 +1,1 @@
+<project><modelVersion>4.0.0</modelVersion><groupId>synthetic.example</groupId><artifactId>synthetic-ready-zero-maven-repo</artifactId><version>1.0.0</version><dependencies><dependency><groupId>synthetic.example</groupId><artifactId>synthetic-maven-ready-zero</artifactId><version>1.0.0</version></dependency></dependencies></project>

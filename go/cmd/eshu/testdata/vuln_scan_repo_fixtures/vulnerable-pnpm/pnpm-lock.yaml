@@ -1,0 +1,10 @@
+lockfileVersion: '6.0'
+importers:
+  .:
+    devDependencies:
+      synthetic-pnpm-vulnerable:
+        specifier: 1.0.0
+        version: 1.0.0
+packages:
+  /synthetic-pnpm-vulnerable@1.0.0:
+    dev: true
