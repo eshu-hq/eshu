@@ -152,6 +152,7 @@ type supplyChainImpactIndex struct {
 	riskSignals             map[string]supplyChainRiskSignals
 	goReachability          map[string]GoVulnerabilityFinding
 	jsTSPackageReachability jsTSPackageReachabilityIndex
+	pythonReachability      map[string]pythonReachabilityRepositoryEvidence
 }
 
 func buildSupplyChainImpactIndex(envelopes []facts.Envelope) supplyChainImpactIndex {
@@ -165,6 +166,7 @@ func buildSupplyChainImpactIndex(envelopes []facts.Envelope) supplyChainImpactIn
 		riskSignals:             map[string]supplyChainRiskSignals{},
 		goReachability:          map[string]GoVulnerabilityFinding{},
 		jsTSPackageReachability: buildJSTSPackageReachabilityIndex(envelopes),
+		pythonReachability:      map[string]pythonReachabilityRepositoryEvidence{},
 	}
 	for _, envelope := range envelopes {
 		switch envelope.FactKind {
@@ -240,6 +242,7 @@ func buildSupplyChainImpactIndex(envelopes []facts.Envelope) supplyChainImpactIn
 		key := goSupplyChainReachabilityKey(finding.OSVID, finding.ModulePath, finding.RepositoryID)
 		index.goReachability[key] = finding
 	}
+	index.pythonReachability = extractPythonReachabilityEvidence(envelopes)
 	addManifestDependencySupplyChainConsumption(&index, envelopes)
 	sort.SliceStable(index.cves, func(i, j int) bool {
 		return index.cves[i].cveID < index.cves[j].cveID
@@ -309,20 +312,24 @@ func classifySupplyChainImpactPackage(
 		applySupplyChainVersionDecision(&finding, versionDecision)
 		goMissing := applyGoSupplyChainReachability(&finding, pkgs, index)
 		jsTSMissing := applyJSTSPackageReachability(&finding, index)
-		finalizeSupplyChainImpactFinding(&finding, index, versionDecision.MissingEvidence, imagePathMissing, consumptionMissing, goMissing, jsTSMissing)
+		pythonMissing := applyPythonSupplyChainReachability(&finding, pkgs, index)
+		finalizeSupplyChainImpactFinding(&finding, index, versionDecision.MissingEvidence, imagePathMissing, consumptionMissing, goMissing, jsTSMissing, pythonMissing)
 		return finding
 	}
 	if versionDecision.Status == SupplyChainImpactNotAffectedKnownFixed {
 		applySupplyChainVersionDecision(&finding, versionDecision)
 		goMissing := applyGoSupplyChainReachability(&finding, pkgs, index)
-		finalizeSupplyChainImpactFinding(&finding, index, versionDecision.MissingEvidence, imagePathMissing, consumptionMissing, goMissing)
+		jsTSMissing := applyJSTSPackageReachability(&finding, index)
+		pythonMissing := applyPythonSupplyChainReachability(&finding, pkgs, index)
+		finalizeSupplyChainImpactFinding(&finding, index, versionDecision.MissingEvidence, imagePathMissing, consumptionMissing, goMissing, jsTSMissing, pythonMissing)
 		return finding
 	}
 	if versionDecision.FailClosed {
 		applySupplyChainVersionDecision(&finding, versionDecision)
 		goMissing := applyGoSupplyChainReachability(&finding, pkgs, index)
 		jsTSMissing := applyJSTSPackageReachability(&finding, index)
-		finalizeSupplyChainImpactFinding(&finding, index, versionDecision.MissingEvidence, imagePathMissing, consumptionMissing, goMissing, jsTSMissing)
+		pythonMissing := applyPythonSupplyChainReachability(&finding, pkgs, index)
+		finalizeSupplyChainImpactFinding(&finding, index, versionDecision.MissingEvidence, imagePathMissing, consumptionMissing, goMissing, jsTSMissing, pythonMissing)
 		return finding
 	}
 	if hasOSPackage && versionDecision.Status == SupplyChainImpactAffectedExact {
@@ -347,7 +354,8 @@ func classifySupplyChainImpactPackage(
 	finding.CanonicalWrites = 1
 	goMissing := applyGoSupplyChainReachability(&finding, pkgs, index)
 	jsTSMissing := applyJSTSPackageReachability(&finding, index)
-	finalizeSupplyChainImpactFinding(&finding, index, versionDecision.MissingEvidence, imagePathMissing, consumptionMissing, goMissing, jsTSMissing)
+	pythonMissing := applyPythonSupplyChainReachability(&finding, pkgs, index)
+	finalizeSupplyChainImpactFinding(&finding, index, versionDecision.MissingEvidence, imagePathMissing, consumptionMissing, goMissing, jsTSMissing, pythonMissing)
 	return finding
 }
 

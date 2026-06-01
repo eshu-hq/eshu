@@ -82,6 +82,42 @@ func supplyChainReachabilityForFinding(finding SupplyChainImpactFinding) SupplyC
 			Reason:           "govulncheck proved the vulnerable surface is not called from any entry point",
 			LanguageMaturity: maturity,
 		}
+	case pythonReachabilityParserCall:
+		return SupplyChainReachability{
+			State:            SupplyChainReachabilityReachable,
+			Confidence:       "partial",
+			Source:           "python_parser",
+			Evidence:         detail,
+			Reason:           "parser evidence proves code calls an imported PyPI package API",
+			LanguageMaturity: maturity,
+		}
+	case pythonReachabilitySCIPCall:
+		return SupplyChainReachability{
+			State:            SupplyChainReachabilityReachable,
+			Confidence:       "partial",
+			Source:           "python_scip",
+			Evidence:         detail,
+			Reason:           "SCIP evidence proves code calls a PyPI package API",
+			LanguageMaturity: maturity,
+		}
+	case pythonReachabilityParserDecorator:
+		return SupplyChainReachability{
+			State:            SupplyChainReachabilityReachable,
+			Confidence:       "partial",
+			Source:           "python_parser",
+			Evidence:         detail,
+			Reason:           "parser evidence proves code uses a PyPI package decorator API",
+			LanguageMaturity: maturity,
+		}
+	case pythonReachabilityParserImport:
+		return SupplyChainReachability{
+			State:            SupplyChainReachabilityReachable,
+			Confidence:       "partial",
+			Source:           "python_parser",
+			Evidence:         detail,
+			Reason:           "parser evidence proves code imports the PyPI package API",
+			LanguageMaturity: maturity,
+		}
 	case "image_sbom", "image_os_package", "deployed_image":
 		return SupplyChainReachability{
 			State:            SupplyChainReachabilityReachable,
@@ -140,6 +176,9 @@ func supplyChainReachabilityForFinding(finding SupplyChainImpactFinding) SupplyC
 			MissingEvidence:  supplyChainReachabilityMissingEvidence(finding, ecosystem),
 		}
 	case "package_manifest", string(GoVulnReachabilityModuleOnly), string(GoVulnReachabilityUnknown), "known_fixed":
+		if ecosystem == "pypi" {
+			return pythonUnknownSupplyChainReachability(finding, detail, maturity)
+		}
 		return SupplyChainReachability{
 			State:            SupplyChainReachabilityUnknown,
 			Confidence:       "unknown",
@@ -292,9 +331,47 @@ func longTailReachabilityHasMissingEvidence(values []string) bool {
 	return false
 }
 
+func pythonUnknownSupplyChainReachability(
+	finding SupplyChainImpactFinding,
+	detail string,
+	maturity string,
+) SupplyChainReachability {
+	missing := supplyChainReachabilityMissingEvidence(finding, "pypi")
+	state := SupplyChainReachabilityMissingEvidence
+	reason := "Python parser or SCIP reachability evidence is missing for the PyPI package"
+	if hasPythonAmbiguousReachabilityEvidence(missing) {
+		state = SupplyChainReachabilityUnknown
+		reason = "Python parser evidence is ambiguous because dynamic imports, plugin loading, or package API identity gaps remain"
+	}
+	return SupplyChainReachability{
+		State:            state,
+		Confidence:       "unknown",
+		Source:           "python_parser",
+		Evidence:         detail,
+		Reason:           reason,
+		LanguageMaturity: maturity,
+		MissingEvidence:  missing,
+	}
+}
+
+func hasPythonAmbiguousReachabilityEvidence(values []string) bool {
+	for _, value := range values {
+		value = strings.ToLower(strings.TrimSpace(value))
+		if strings.Contains(value, "dynamic import") ||
+			strings.Contains(value, "plugin loading") ||
+			strings.Contains(value, "api identity") {
+			return true
+		}
+	}
+	return false
+}
+
 func supplyChainReachabilitySourceForUnknown(ecosystem string, detail string) string {
 	if ecosystem == "gomod" {
 		return "govulncheck"
+	}
+	if ecosystem == "pypi" {
+		return "python_parser"
 	}
 	if detail == "package_manifest" {
 		return "parser"
