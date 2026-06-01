@@ -68,9 +68,7 @@ func TestRunVulnScanRepoDefaultScopedModeAttachesScopePlanAndPerformance(t *test
 		t.Fatalf("Set(json) error = %v, want nil", err)
 	}
 
-	if err := runVulnScanRepo(cmd, []string{repoPath}); err != nil {
-		t.Fatalf("runVulnScanRepo() error = %v, want nil", err)
-	}
+	requireVulnScanExitCode(t, runVulnScanRepo(cmd, []string{repoPath}), 3)
 
 	var payload map[string]any
 	if err := json.Unmarshal(out.Bytes(), &payload); err != nil {
@@ -268,9 +266,7 @@ func TestRunVulnScanRepoScopedModePassesThroughServerTargetIncomplete(t *testing
 		t.Fatalf("Set(json) error = %v, want nil", err)
 	}
 
-	if err := runVulnScanRepo(cmd, []string{repoPath}); err != nil {
-		t.Fatalf("runVulnScanRepo() error = %v, want nil (server target_incomplete passes through)", err)
-	}
+	requireVulnScanExitCode(t, runVulnScanRepo(cmd, []string{repoPath}), 4)
 
 	var payload map[string]any
 	if uerr := json.Unmarshal(out.Bytes(), &payload); uerr != nil {
@@ -385,9 +381,7 @@ func TestRunVulnScanRepoScopedModeSurfacesEvidenceIncompleteWhenNoOwnedDeps(t *t
 		t.Fatalf("Set(json) error = %v, want nil", err)
 	}
 
-	if err := runVulnScanRepo(cmd, []string{repoPath}); err != nil {
-		t.Fatalf("runVulnScanRepo() error = %v, want nil (server already classifies non-ready)", err)
-	}
+	requireVulnScanExitCode(t, runVulnScanRepo(cmd, []string{repoPath}), 4)
 
 	var payload map[string]any
 	if uerr := json.Unmarshal(out.Bytes(), &payload); uerr != nil {

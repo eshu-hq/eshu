@@ -27,6 +27,11 @@ const (
 	// families today; per-snapshot entries in `source_snapshots[]` are reported
 	// without scope filtering, so the CLI does not gate on them.
 	vulnScanMissingAdvisoryCacheStale = "advisory_cache_stale"
+	// vulnScanMissingAdvisoryCacheFreshnessUnknown marks a ready server verdict
+	// that lacks a fresh aggregate cache signal. Unknown freshness is not a
+	// clean result because the CLI cannot prove advisory or package evidence is
+	// current for the scanned repository.
+	vulnScanMissingAdvisoryCacheFreshnessUnknown = "advisory_cache_freshness_unknown"
 )
 
 // vulnScanScopePlan describes how the local vulnerability scan derived its
@@ -188,15 +193,15 @@ func readinessSourceSnapshots(readiness map[string]any) []vulnScanSourceCacheSta
 // applyScopedGuards inspects the scope plan and decides whether scoped mode
 // should override the server-provided readiness state.
 //
-// Only one CLI-side guard fires today: when the server returned a `ready_*`
-// state but the envelope's aggregate `freshness` is `stale`, scoped mode
-// downgrades to `evidence_incomplete` and records `advisory_cache_stale` so
-// the operator never gets a clean answer backed by stale source data. The
-// envelope freshness is the only freshness signal the server aggregates from
+// The CLI-side guard fires when the server returned a `ready_*` state but the
+// envelope's aggregate `freshness` is not `fresh`. Stale or unknown freshness
+// downgrades to `evidence_incomplete` so the operator never gets a clean answer
+// backed by stale source data or an unclassified freshness state. The envelope
+// freshness is the only freshness signal the server aggregates from
 // repo-anchored evidence families today; per-source entries in
-// `readiness.source_snapshots[]` are reported without scope filtering and
-// would taint repo-scoped runs with unrelated global staleness, so the CLI
-// does not gate on them.
+// `readiness.source_snapshots[]` are reported without scope filtering and would
+// taint repo-scoped runs with unrelated global staleness, so the CLI does not
+// gate on them.
 //
 // Non-ready server verdicts (`not_configured`, `target_incomplete`,
 // `evidence_incomplete`, `readiness_unavailable`) already preserve
@@ -220,11 +225,17 @@ func applyScopedGuards(
 	if !isReadyReadinessState(readinessState) {
 		return readinessState, nil, nil
 	}
-	if !strings.EqualFold(plan.Freshness, "stale") {
+	freshness := strings.ToLower(strings.TrimSpace(plan.Freshness))
+	if freshness == "fresh" {
 		return readinessState, nil, nil
 	}
 	state := "evidence_incomplete"
-	missing = []string{vulnScanMissingAdvisoryCacheStale}
+	switch freshness {
+	case "stale":
+		missing = []string{vulnScanMissingAdvisoryCacheStale}
+	default:
+		missing = []string{vulnScanMissingAdvisoryCacheFreshnessUnknown}
+	}
 	plan.MissingEvidence = missing
 	plan.StopThreshold = state
 	failErr = commandExitError{

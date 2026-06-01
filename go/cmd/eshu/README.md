@@ -111,7 +111,14 @@ launched runtime via the shared `telemetry` package. Errors print to
   repository_size_bytes, repository_file_count, observed_dependency_facts,
   advisory_facts, package_registry_facts, cache_freshness, scope_mode, and
   stop_threshold so the local one-shot scan ships its own performance
-  evidence without a separate measurement step.
+  evidence without a separate measurement step. JSON output also includes
+  `data.report.schema_version = "eshu.vulnerability_report.v1"` with the
+  scanner summary, readiness, freshness, unsupported targets, target/package
+  context, evidence handles, remediation metadata, scope plan, and performance
+  block. Scoped mode treats stale or unknown aggregate freshness as
+  `evidence_incomplete`. The command exits `0` for ready-zero, `3` for
+  findings, `4` for non-ready evidence, `5` for unsupported target evidence,
+  and `1` for runtime or transport failures before readiness is classified.
 - `eshu vuln-scan provider-parity` is the private-safe provider alert proof
   wrapper. It reads an operator-local allowlist file, optionally reads a local
   generic provider summary file, or fetches GitHub Dependabot alert summaries
