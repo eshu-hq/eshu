@@ -62,8 +62,11 @@ cannot land without the code-level context future agents and reviewers need.
 cutting the next prerelease image with vulnerability or security-intelligence
 work. By default it runs the offline phases (state capture, focused Go tests,
 synthetic parity fixtures) and emits a single `evidence.json` plus markdown
-summary. The `runtime`, `k8s`, and `provider` phases are operator-opted into
-and never persist private data. The companion test harness
-`test-security_intelligence_release_gate.sh` covers the offline phases against
-a synthesized repo. The runbook lives at
+summary. The `proof-matrix`, `runtime`, `k8s`, and `provider` phases are
+operator-opted into and never persist private data. The proof-matrix phase
+accepts only aggregate representative-corpus coverage, readback counters, and
+public follow-up issue refs. The companion test harnesses
+`test-security_intelligence_release_gate.sh` and
+`test-security_intelligence_release_gate_proof_matrix.sh` cover the offline
+phases against synthesized repos. The runbook lives at
 `docs/public/reference/security-intelligence-release-gate.md`.
