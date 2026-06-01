@@ -83,6 +83,8 @@
 // from reducer-owned CI/CD run correlations tied to the selected image digest or
 // reference; pull-request slots require provider pull-request evidence tied to
 // that commit. Jira work-item links enrich the path from explicit remote links
-// or issue-key evidence, but Jira-only pull-request URLs do not verify pull
-// request identity by themselves.
+// or issue-key evidence, and active Jira project/status metadata can explain the
+// selected work item's project visibility and status category without reading
+// raw issue bodies. Jira-only pull-request URLs do not verify pull request
+// identity by themselves.
 package query

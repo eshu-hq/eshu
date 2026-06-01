@@ -175,9 +175,11 @@ include `provider: "jira_cloud"`, `scope_id`, `site_id`, `token_env`, and a
 bounded `jql` scope such as a project or label filter. `base_url` defaults to
 `https://<site_id>` when omitted. The runtime resolves the API token from the
 named environment variable, resolves optional basic-auth email from
-`email_env`, and emits only `work_item.*` source facts. PagerDuty incidents,
-GitHub pull requests, deployments, and graph truth are not collected by this
-runtime.
+`email_env`, and emits only `work_item.*` source facts. The optional
+`metadata_limit` target setting bounds project, issue-type, status, workflow,
+and field definition reads; omitted values use the collector default. PagerDuty
+incidents, GitHub pull requests, deployments, and graph truth are not collected
+by this runtime.
 
 | Variable | Default | Read by | Purpose |
 | --- | --- | --- | --- |

@@ -30,12 +30,22 @@ func (s PostgresIncidentContextStore) readIncidentReviewWorkItemEvidence(
 	if err != nil {
 		return nil, err
 	}
+	projectMetadata, err := s.readIncidentWorkItemProjectMetadata(ctx, workItems)
+	if err != nil {
+		return nil, err
+	}
+	statusMetadata, err := s.readIncidentWorkItemStatusMetadata(ctx, workItems)
+	if err != nil {
+		return nil, err
+	}
 	return buildIncidentReviewWorkItemEvidence(incidentReviewWorkItemInput{
-		CommitSHA:     commitSHA,
-		IncidentURL:   incident.SourceURL,
-		PullRequests:  pullRequests,
-		WorkItemLinks: workItemLinks,
-		WorkItems:     workItems,
+		CommitSHA:       commitSHA,
+		IncidentURL:     incident.SourceURL,
+		PullRequests:    pullRequests,
+		WorkItemLinks:   workItemLinks,
+		WorkItems:       workItems,
+		ProjectMetadata: projectMetadata,
+		StatusMetadata:  statusMetadata,
 	}), nil
 }
 
@@ -134,6 +144,68 @@ func (s PostgresIncidentContextStore) readIncidentWorkItemsByKeys(
 	return records, nil
 }
 
+func (s PostgresIncidentContextStore) readIncidentWorkItemProjectMetadata(
+	ctx context.Context,
+	records []incidentWorkItemRecord,
+) ([]incidentWorkItemProjectMetadata, error) {
+	projectIDs := incidentWorkItemProjectIDs(records)
+	metadata := make([]incidentWorkItemProjectMetadata, 0, len(projectIDs))
+	for _, projectID := range projectIDs {
+		rows, err := s.queryIncidentContextRows(
+			ctx,
+			listIncidentWorkItemProjectMetadataByIDQuery,
+			projectID,
+			incidentRuntimeEvidenceLimit+1,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("list incident work item project metadata: %w", err)
+		}
+		for _, row := range rows {
+			metadata = append(metadata, decodeIncidentWorkItemProjectMetadata(row))
+		}
+	}
+	return metadata, nil
+}
+
+func (s PostgresIncidentContextStore) readIncidentWorkItemStatusMetadata(
+	ctx context.Context,
+	records []incidentWorkItemRecord,
+) ([]incidentWorkItemStatusMetadata, error) {
+	statusIDs := incidentWorkItemStatusIDs(records)
+	metadata := make([]incidentWorkItemStatusMetadata, 0, len(statusIDs))
+	for _, statusID := range statusIDs {
+		rows, err := s.queryIncidentContextRows(
+			ctx,
+			listIncidentWorkItemStatusMetadataByIDQuery,
+			statusID,
+			incidentRuntimeEvidenceLimit+1,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("list incident work item status metadata: %w", err)
+		}
+		for _, row := range rows {
+			metadata = append(metadata, decodeIncidentWorkItemStatusMetadata(row))
+		}
+	}
+	return metadata, nil
+}
+
+func incidentWorkItemProjectIDs(records []incidentWorkItemRecord) []string {
+	ids := make([]string, 0)
+	for _, record := range records {
+		ids = appendIncidentReviewDistinct(ids, record.ProjectID)
+	}
+	return ids
+}
+
+func incidentWorkItemStatusIDs(records []incidentWorkItemRecord) []string {
+	ids := make([]string, 0)
+	for _, record := range records {
+		ids = appendIncidentReviewDistinct(ids, record.StatusID)
+	}
+	return ids
+}
+
 func incidentReviewWorkItemURLs(
 	incident IncidentContextIncident,
 	changes []IncidentContextChangeCandidate,
@@ -180,16 +252,20 @@ func appendIncidentReviewURL(urls []string, value string) []string {
 }
 
 func appendIncidentIssueKey(keys []string, value string) []string {
+	return appendIncidentReviewDistinct(keys, value)
+}
+
+func appendIncidentReviewDistinct(values []string, value string) []string {
 	value = strings.TrimSpace(value)
 	if value == "" {
-		return keys
+		return values
 	}
-	for _, existing := range keys {
+	for _, existing := range values {
 		if existing == value {
-			return keys
+			return values
 		}
 	}
-	return append(keys, value)
+	return append(values, value)
 }
 
 func decodeIncidentWorkItemExternalLink(row incidentContextFactRow) incidentWorkItemExternalLink {
@@ -212,7 +288,31 @@ func decodeIncidentWorkItemRecord(row incidentContextFactRow) incidentWorkItemRe
 		WorkItemID:  StringVal(row.Payload, "provider_work_item_id"),
 		WorkItemKey: StringVal(row.Payload, "work_item_key"),
 		Summary:     StringVal(row.Payload, "summary"),
+		StatusID:    StringVal(row.Payload, "status_id"),
 		StatusName:  StringVal(row.Payload, "status_name"),
+		ProjectID:   StringVal(row.Payload, "project_id"),
+		ProjectKey:  StringVal(row.Payload, "project_key"),
 		SourceURL:   StringVal(row.Payload, "source_url"),
+	}
+}
+
+func decodeIncidentWorkItemProjectMetadata(row incidentContextFactRow) incidentWorkItemProjectMetadata {
+	return incidentWorkItemProjectMetadata{
+		FactID:          row.FactID,
+		Provider:        StringVal(row.Payload, "provider"),
+		ProjectID:       StringVal(row.Payload, "project_id"),
+		ProjectKey:      StringVal(row.Payload, "project_key"),
+		VisibilityState: StringVal(row.Payload, "visibility_state"),
+	}
+}
+
+func decodeIncidentWorkItemStatusMetadata(row incidentContextFactRow) incidentWorkItemStatusMetadata {
+	return incidentWorkItemStatusMetadata{
+		FactID:            row.FactID,
+		Provider:          StringVal(row.Payload, "provider"),
+		StatusID:          StringVal(row.Payload, "status_id"),
+		ProjectID:         StringVal(row.Payload, "project_id"),
+		StatusCategory:    StringVal(row.Payload, "status_category"),
+		StatusCategoryKey: StringVal(row.Payload, "status_category_key"),
 	}
 }

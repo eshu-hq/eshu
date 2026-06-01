@@ -70,6 +70,9 @@ func TestHTTPClientCollectWorkItemEvidenceUsesBoundedJiraEndpoints(t *testing.T)
 				"object":       map[string]any{"url": "https://github.com/example/app/pull/42?token=secret", "title": "PR 42"},
 			}})
 		default:
+			if writeEmptyMetadataResponse(t, w, r) {
+				return
+			}
 			t.Fatalf("unexpected request path %q", r.URL.Path)
 		}
 	}))
@@ -106,10 +109,8 @@ func TestHTTPClientCollectWorkItemEvidenceUsesBoundedJiraEndpoints(t *testing.T)
 		t.Fatalf("external link URL = %q, want sensitive query redacted", got)
 	}
 	wantPaths := []string{"/rest/api/3/search/jql", "/rest/api/3/issue/OPS-123/changelog", "/rest/api/3/issue/OPS-123/remotelink"}
-	for i, want := range wantPaths {
-		if requested[i] != want {
-			t.Fatalf("requested[%d] = %q, want %q; all %#v", i, requested[i], want, requested)
-		}
+	for _, want := range wantPaths {
+		assertContainsPath(t, requested, want)
 	}
 }
 
@@ -238,6 +239,9 @@ func TestHTTPClientCollectWorkItemEvidencePaginatesSearchAndChangelog(t *testing
 		case "/rest/api/3/issue/OPS-123/remotelink", "/rest/api/3/issue/OPS-124/remotelink":
 			writeJSON(t, w, []map[string]any{})
 		default:
+			if writeEmptyMetadataResponse(t, w, r) {
+				return
+			}
 			t.Fatalf("unexpected request path %q", r.URL.Path)
 		}
 	}))
@@ -344,6 +348,9 @@ func TestHTTPClientClassifiesMalformedRemoteLinksWithoutFailingCollection(t *tes
 				},
 			})
 		default:
+			if writeEmptyMetadataResponse(t, w, r) {
+				return
+			}
 			t.Fatalf("unexpected request path %q", r.URL.Path)
 		}
 	}))
@@ -402,6 +409,9 @@ func TestHTTPClientPartialFailurePreservesBoundedStats(t *testing.T) {
 			w.WriteHeader(http.StatusInternalServerError)
 			_, _ = w.Write([]byte(`{"errorMessages":["temporary changelog failure"]}`))
 		default:
+			if writeEmptyMetadataResponse(t, w, r) {
+				return
+			}
 			t.Fatalf("unexpected request path %q", r.URL.Path)
 		}
 	}))
@@ -442,6 +452,21 @@ func writeJSON(t *testing.T, w http.ResponseWriter, value any) {
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(value); err != nil {
 		t.Fatalf("encode response: %v", err)
+	}
+}
+
+func writeEmptyMetadataResponse(t *testing.T, w http.ResponseWriter, r *http.Request) bool {
+	t.Helper()
+	switch r.URL.Path {
+	case "/rest/api/3/project/search", "/rest/api/3/statuses/search",
+		"/rest/api/3/field/search", "/rest/api/3/workflows/search":
+		writeJSON(t, w, map[string]any{"isLast": true, "values": []map[string]any{}})
+		return true
+	case "/rest/api/3/issuetype/project":
+		writeJSON(t, w, []map[string]any{})
+		return true
+	default:
+		return false
 	}
 }
 

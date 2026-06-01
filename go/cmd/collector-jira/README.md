@@ -51,7 +51,8 @@ Target shape:
   "issue_limit": 50,
   "updated_lookback": "24h",
   "changelog_limit": 50,
-  "remote_link_limit": 50
+  "remote_link_limit": 50,
+  "metadata_limit": 100
 }
 ```
 
@@ -78,6 +79,10 @@ signals:
 - `eshu_dp_jira_facts_emitted_total`
 - `eshu_dp_jira_rate_limited_total`
 - `eshu_dp_jira_fetch_duration_seconds`
+
+The `jira.fetch` span also records metadata page counts, metadata objects
+scanned/emitted, unsupported metadata, permission-hidden metadata, stale
+metadata, and metadata redaction counts.
 
 ## Gotchas / invariants
 

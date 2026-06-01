@@ -287,10 +287,13 @@ Pipeline spans: `SpanCollectorObserve`, `SpanCollectorStream`, `SpanScopeAssign`
 
 Jira fetch spans use bounded integer attributes for page and output counts:
 `jira.search_pages`, `jira.changelog_pages`, `jira.remote_link_pages`,
-`jira.issues_emitted`, `jira.changelog_events_emitted`,
+`jira.metadata_pages`, `jira.issues_emitted`, `jira.changelog_events_emitted`,
 `jira.remote_links_emitted`, `jira.remote_links_rejected`,
-`jira.unsupported_provider_links`, `jira.partial_failures`,
-`jira.rate_limits`, `jira.retry_after_seconds`, and `jira.stale_windows`.
+`jira.unsupported_provider_links`, `jira.metadata_objects_scanned`,
+`jira.metadata_objects_emitted`, `jira.unsupported_metadata`,
+`jira.permission_hidden_metadata`, `jira.stale_metadata`,
+`jira.metadata_redactions`, `jira.partial_failures`, `jira.rate_limits`,
+`jira.retry_after_seconds`, and `jira.stale_windows`.
 
 Dependency spans: `SpanPostgresExec`, `SpanPostgresQuery`, `SpanNeo4jExecute`.
 

@@ -96,6 +96,125 @@ type ExternalLink struct {
 	ProviderSupportState string
 }
 
+// MetadataScope identifies whether Jira metadata is global or scoped to a
+// project.
+type MetadataScope struct {
+	Type      string
+	ProjectID string
+}
+
+// ProjectMetadata is one Jira project definition normalized for source
+// evidence without private project names or URLs.
+type ProjectMetadata struct {
+	ID              string
+	Key             string
+	Name            string
+	TypeKey         string
+	CategoryID      string
+	CategoryName    string
+	Style           string
+	Archived        bool
+	Deleted         bool
+	Self            string
+	LastIssueUpdate time.Time
+	IssueCount      int
+}
+
+// IssueTypeMetadata is one Jira issue-type definition normalized for work-item
+// context.
+type IssueTypeMetadata struct {
+	ID             string
+	Name           string
+	Description    string
+	EntityID       string
+	ProjectID      string
+	Scope          MetadataScope
+	HierarchyLevel int
+	Subtask        bool
+	Self           string
+}
+
+// StatusMetadata is one Jira workflow status definition normalized for
+// work-item context.
+type StatusMetadata struct {
+	ID                string
+	Name              string
+	Description       string
+	StatusCategory    string
+	StatusCategoryKey string
+	ProjectID         string
+	Scope             MetadataScope
+	Self              string
+}
+
+// WorkflowVersion identifies one provider workflow version.
+type WorkflowVersion struct {
+	ID     string
+	Number int
+}
+
+// WorkflowStatusMetadata identifies one status reference inside a workflow
+// definition.
+type WorkflowStatusMetadata struct {
+	StatusReference string
+	StatusID        string
+	Deprecated      bool
+}
+
+// WorkflowTransitionMetadata identifies one sanitized transition shape inside
+// a workflow definition.
+type WorkflowTransitionMetadata struct {
+	ID                   string
+	Name                 string
+	Type                 string
+	FromStatusReferences []string
+	ToStatusReference    string
+	HasValidators        bool
+	HasTriggers          bool
+	HasActions           bool
+}
+
+// WorkflowMetadata is one Jira workflow definition normalized for transition
+// context without raw workflow or transition names.
+type WorkflowMetadata struct {
+	ID          string
+	Name        string
+	Description string
+	Scope       MetadataScope
+	Version     WorkflowVersion
+	Statuses    []WorkflowStatusMetadata
+	Transitions []WorkflowTransitionMetadata
+}
+
+// FieldSchema is the safe subset of a Jira field schema definition. CustomID
+// records provider input presence only and is not emitted as a raw payload
+// value.
+type FieldSchema struct {
+	Type     string
+	Items    string
+	System   string
+	Custom   string
+	CustomID string
+}
+
+// FieldMetadata is one Jira field definition normalized for work-item context.
+type FieldMetadata struct {
+	ID          string
+	Name        string
+	Description string
+	Schema      FieldSchema
+	Self        string
+}
+
+// MetadataWarning records a metadata collection state that must remain visible
+// to readers instead of being confused with empty metadata.
+type MetadataWarning struct {
+	MetadataType string
+	Reason       string
+	FailureClass string
+	ProviderID   string
+}
+
 // CollectionWindow bounds one Jira updated-window collection.
 type CollectionWindow struct {
 	Since time.Time
@@ -104,11 +223,17 @@ type CollectionWindow struct {
 
 // CollectionResult is one bounded Jira work-item evidence fetch.
 type CollectionResult struct {
-	Issues        []Issue
-	Transitions   map[string][]Transition
-	ExternalLinks map[string][]ExternalLink
-	ObservedAt    time.Time
-	Stats         CollectionStats
+	Issues           []Issue
+	Transitions      map[string][]Transition
+	ExternalLinks    map[string][]ExternalLink
+	Projects         []ProjectMetadata
+	IssueTypes       []IssueTypeMetadata
+	Statuses         []StatusMetadata
+	Workflows        []WorkflowMetadata
+	Fields           []FieldMetadata
+	MetadataWarnings []MetadataWarning
+	ObservedAt       time.Time
+	Stats            CollectionStats
 }
 
 // CollectionStats carries bounded collection counters for telemetry and tests.
@@ -116,10 +241,17 @@ type CollectionStats struct {
 	SearchPages              int
 	ChangelogPages           int
 	RemoteLinkPages          int
+	MetadataPages            int
 	IssuesEmitted            int
 	ChangelogEventsEmitted   int
 	RemoteLinksEmitted       int
 	RemoteLinksRejected      int
+	MetadataObjectsScanned   int
+	MetadataObjectsEmitted   int
+	UnsupportedMetadata      int
+	PermissionHiddenMetadata int
+	StaleMetadata            int
+	MetadataRedactions       int
 	PartialFailures          int
 	RateLimits               int
 	RetryAfterSeconds        int
@@ -159,4 +291,5 @@ type TargetConfig struct {
 	UpdatedLookback time.Duration
 	ChangelogLimit  int
 	RemoteLinkLimit int
+	MetadataLimit   int
 }
