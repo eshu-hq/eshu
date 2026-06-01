@@ -15,9 +15,11 @@ import (
 
 // PagerDutyPlanRequest carries one PagerDuty incident evidence planning request.
 type PagerDutyPlanRequest struct {
-	Instance   workflow.CollectorInstance
-	ObservedAt time.Time
-	PlanKey    string
+	Instance    workflow.CollectorInstance
+	ObservedAt  time.Time
+	PlanKey     string
+	TriggerKind workflow.TriggerKind
+	ScopeIDs    []string
 }
 
 // PagerDutyWorkPlanner plans workflow rows for configured PagerDuty targets
@@ -50,11 +52,12 @@ func (p PagerDutyWorkPlanner) PlanPagerDutyWork(
 	if err := validateUniquePagerDutyTargets(targets); err != nil {
 		return workflow.Run{}, nil, err
 	}
+	targets = filterPagerDutyTargetsByScopeIDs(targets, request.ScopeIDs)
 
 	observedAt := request.ObservedAt.UTC()
 	run := workflow.Run{
-		RunID:              pagerDutyRunID(request.Instance, request.PlanKey),
-		TriggerKind:        pagerDutyTriggerKind(request.Instance),
+		RunID:              pagerDutyRunID(request.Instance, request.PlanKey, pagerDutyRequestTriggerKind(request)),
+		TriggerKind:        pagerDutyRequestTriggerKind(request),
 		Status:             workflow.RunStatusCollectionPending,
 		RequestedScopeSet:  pagerDutyRequestedScopeSet(request.Instance, targets),
 		RequestedCollector: string(scope.CollectorPagerDuty),
@@ -91,6 +94,11 @@ func validatePagerDutyPlanRequest(request PagerDutyPlanRequest) error {
 	if err := validateSafePlanKey("pagerduty planner", request.PlanKey); err != nil {
 		return err
 	}
+	if request.TriggerKind != "" {
+		if err := request.TriggerKind.Validate(); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
@@ -124,14 +132,21 @@ func validateUniquePagerDutyTargets(targets []pagerDutyTargetConfiguration) erro
 	return nil
 }
 
-func pagerDutyRunID(instance workflow.CollectorInstance, planKey string) string {
+func pagerDutyRunID(instance workflow.CollectorInstance, planKey string, triggerKind workflow.TriggerKind) string {
 	return fmt.Sprintf(
 		"%s:%s:%s:%s",
 		scope.CollectorPagerDuty,
 		strings.TrimSpace(instance.InstanceID),
-		pagerDutyTriggerKind(instance),
+		triggerKind,
 		strings.TrimSpace(planKey),
 	)
+}
+
+func pagerDutyRequestTriggerKind(request PagerDutyPlanRequest) workflow.TriggerKind {
+	if request.TriggerKind != "" {
+		return request.TriggerKind
+	}
+	return pagerDutyTriggerKind(request.Instance)
 }
 
 func pagerDutyTriggerKind(instance workflow.CollectorInstance) workflow.TriggerKind {
@@ -139,6 +154,29 @@ func pagerDutyTriggerKind(instance workflow.CollectorInstance) workflow.TriggerK
 		return workflow.TriggerKindBootstrap
 	}
 	return workflow.TriggerKindSchedule
+}
+
+func filterPagerDutyTargetsByScopeIDs(
+	targets []pagerDutyTargetConfiguration,
+	scopeIDs []string,
+) []pagerDutyTargetConfiguration {
+	if len(scopeIDs) == 0 {
+		return targets
+	}
+	allowed := make(map[string]struct{}, len(scopeIDs))
+	for _, scopeID := range scopeIDs {
+		scopeID = strings.TrimSpace(scopeID)
+		if scopeID != "" {
+			allowed[scopeID] = struct{}{}
+		}
+	}
+	out := make([]pagerDutyTargetConfiguration, 0, len(targets))
+	for _, target := range targets {
+		if _, ok := allowed[strings.TrimSpace(target.ScopeID)]; ok {
+			out = append(out, target)
+		}
+	}
+	return out
 }
 
 func pagerDutyRequestedScopeSet(

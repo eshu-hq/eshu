@@ -199,6 +199,18 @@ webhookListener:
     path: /webhooks/aws/eventbridge
     secretName: ""
     tokenKey: token
+  pagerDuty:
+    enabled: false
+    path: /webhooks/pagerduty
+    secretName: ""
+    secretKey: secret
+    scopeId: ""
+  jira:
+    enabled: false
+    path: /webhooks/jira
+    secretName: ""
+    secretKey: secret
+    scopeId: ""
   exposure:
     ingress:
       enabled: false

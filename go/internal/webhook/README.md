@@ -2,8 +2,9 @@
 
 This package is the provider-facing normalization layer for the webhook
 listener runtime. It verifies provider authentication inputs, parses GitHub,
-GitLab, and Bitbucket payloads, and returns a `Trigger` that says whether the
-event should create repository refresh work.
+GitLab, Bitbucket, PagerDuty, and Jira payloads, and returns a `Trigger` or
+`IncidentFreshnessTrigger` that says whether the event should create refresh
+work.
 
 The package does not enqueue work, write graph data, or decide repository
 truth. It only turns a verified provider delivery into an accepted or ignored
@@ -13,10 +14,10 @@ refresh decision.
 
 ```mermaid
 flowchart LR
-  Provider["GitHub, GitLab, or Bitbucket"] --> Verify["signature or token verification"]
+  Provider["GitHub, GitLab, Bitbucket, PagerDuty, or Jira"] --> Verify["signature or token verification"]
   Verify --> Normalize["provider normalizer"]
-  Normalize --> Trigger["Trigger decision"]
-  Trigger --> Durable["future durable refresh trigger store"]
+  Normalize --> Trigger["Trigger or IncidentFreshnessTrigger decision"]
+  Trigger --> Durable["durable refresh trigger store"]
 ```
 
 ## Exported Surface
@@ -27,17 +28,29 @@ flowchart LR
   secret.
 - `VerifyBitbucketSignature` accepts Bitbucket Cloud `X-Hub-Signature`
   HMAC-SHA256 signatures.
+- `VerifyPagerDutySignature` accepts PagerDuty `X-PagerDuty-Signature`
+  HMAC-SHA256 signatures with the `v1=` header value.
+- `VerifyJiraSignature` accepts Jira Cloud `X-Hub-Signature` HMAC-SHA256
+  signatures.
 - `NormalizeGitHub` accepts GitHub push events and merged pull request events
   that target the repository default branch.
 - `NormalizeGitLab` accepts GitLab push events and merged merge request events
   that target the repository default branch.
 - `NormalizeBitbucket` accepts Bitbucket Cloud push events and fulfilled pull
   request events that target the repository default branch.
+- `NormalizePagerDutyIncidentFreshness` accepts verified PagerDuty webhook
+  deliveries as incident-source collector wake-ups.
+- `NormalizeJiraIncidentFreshness` accepts verified Jira webhook deliveries as
+  work-item-source collector wake-ups.
 - `Trigger` carries provider, delivery, repository, ref, target SHA, sender,
   decision fields, and bounded merged-PR provenance for the later durable
   trigger handoff.
 - `StoredTrigger` adds durable trigger IDs, refresh keys, status, duplicate
   count, and timestamps after persistence owns the decision.
+- `IncidentFreshnessTrigger` carries provider, event, delivery, configured
+  scope, bounded source resource ID, and observed-at metadata only.
+- `StoredIncidentFreshnessTrigger` adds durable delivery and freshness keys,
+  status, duplicate count, and timestamps after persistence owns the decision.
 
 ## Invariants
 
@@ -54,6 +67,11 @@ flowchart LR
   downgrade authentication.
 - Repository provider ID, repository full name, and default branch are required
   before a `Trigger` can be accepted or ignored.
+- PagerDuty and Jira webhook payloads are scoped refresh triggers only. They do
+  not create incident, change, work-item, pull-request, deployment, image, or
+  code facts.
+- Incident freshness requires a configured collector `scope_id`; the coordinator
+  later rejects stale or unauthorized scope IDs before creating collector work.
 
 ## Operational Notes
 

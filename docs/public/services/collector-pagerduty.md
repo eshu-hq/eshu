@@ -31,6 +31,11 @@ flowchart LR
 
 The coordinator plans one work item per configured target. A target is usually
 a PagerDuty account scope, optionally narrowed by `allowed_service_ids`.
+Signed PagerDuty webhooks can wake this same target through
+`incident_freshness_triggers`, but they only create scoped collector work. The
+collector still fetches PagerDuty through the normal claimed runtime before any
+`incident.*` or `change.*` facts exist, and scheduled/polling collection remains
+the backfill path for missed or dropped webhooks.
 
 ## Collector Instance Shape
 

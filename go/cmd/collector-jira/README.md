@@ -40,3 +40,9 @@ startup and never persists the resolved values.
 
 The collector emits source facts only. Incident, deployment, code, pull-request,
 and work-item correlations are reducer/query responsibilities.
+
+Signed Jira webhooks can wake the same configured `scope_id` through
+`incident_freshness_triggers`, but the webhook listener does not emit
+`work_item.*` facts. The workflow coordinator must authorize the trigger
+against this collector configuration and create normal Jira collector work, and
+polling remains the backfill path for missed webhook deliveries.
