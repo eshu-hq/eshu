@@ -222,6 +222,16 @@ type Instruments struct {
 	// Lets an operator answer "which coverage signal class is materializing
 	// COVERS edges, and by which identity path?" at 3 AM.
 	ObservabilityCoverageEdges metric.Int64Counter
+	// IAMCanAssumeEdges counts IAM CAN_ASSUME trust-graph edge projection
+	// outcomes (issue #1134 PR2). Labels: principal_kind (role / user — the
+	// resolved assuming-principal node type) and resolution_mode (arn). It counts
+	// only materialized edges; external, AWS-service, wildcard, account-root, and
+	// unscanned assume-principals never produce an edge and are surfaced by the
+	// "iam can-assume materialization completed" completion log's skip tally
+	// instead. Lets an operator answer "which assuming-principal kind is
+	// materializing CAN_ASSUME edges, and did a generation produce zero?" at
+	// 3 AM.
+	IAMCanAssumeEdges metric.Int64Counter
 	// AWSScanStatusStaleFence counts AWS scan-status rejections caused by a
 	// stale fencing token, labeled by service, account, region, and the
 	// operation (start, observe, commit) that was rejected. Operators read
@@ -1212,6 +1222,14 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register ObservabilityCoverageEdges counter: %w", err)
+	}
+
+	inst.IAMCanAssumeEdges, err = meter.Int64Counter(
+		"eshu_dp_iam_can_assume_edges_total",
+		metric.WithDescription("Total IAM CAN_ASSUME trust-graph edge projection outcomes by principal_kind (role/user) and resolution_mode (arn)"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register IAMCanAssumeEdges counter: %w", err)
 	}
 
 	inst.CorrelationUnmanagedDetected, err = meter.Int64Counter(
@@ -2323,6 +2341,12 @@ func AttrCoverageSignal(v string) attribute.KeyValue {
 // coverage COVERS edge projection counter (arn / bare_id / correlation_anchor).
 func AttrResolutionMode(v string) attribute.KeyValue {
 	return attribute.String(MetricDimensionResolutionMode, v)
+}
+
+// AttrPrincipalKind returns a principal_kind attribute for the IAM CAN_ASSUME
+// edge projection counter (role / user).
+func AttrPrincipalKind(v string) attribute.KeyValue {
+	return attribute.String(MetricDimensionPrincipalKind, v)
 }
 
 // AttrEndpointKind returns an endpoint_kind attribute for the security-group

@@ -60,6 +60,7 @@ func TestMetricDimensionKeys(t *testing.T) {
 		"coverage_signal",
 		"resolution_mode",
 		"endpoint_kind",
+		"principal_kind",
 	}
 
 	got := MetricDimensionKeys()
@@ -90,6 +91,7 @@ func TestSpanNames(t *testing.T) {
 		"reducer.aws_relationship_materialization",
 		"reducer.observability_coverage_materialization",
 		"reducer.security_group_reachability_materialization",
+		"reducer.iam_can_assume_materialization",
 		"canonical.write",
 		"canonical.projection",
 		"canonical.retract",

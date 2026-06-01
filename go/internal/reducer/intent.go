@@ -190,6 +190,21 @@ const (
 	// anchors or endpoints, unknown sources, and tombstoned rules materialize no
 	// node and no edge and are counted, never dropped silently. See issue #1135.
 	DomainSecurityGroupReachabilityMaterialization Domain = "security_group_reachability_materialization"
+	// DomainIAMCanAssumeMaterialization projects aws_iam_permission trust
+	// statements into canonical CAN_ASSUME edges between the IAM CloudResource
+	// nodes that DomainAWSResourceMaterialization committed: an assuming
+	// principal (role/user) and the role whose trust policy grants the assume.
+	// It gates on the GraphProjectionPhaseCanonicalNodesCommitted readiness phase
+	// on the cloud_resource_uid keyspace so edges never resolve against nodes that
+	// have not committed (issue #1134 PR2), exactly like
+	// DomainAWSRelationshipMaterialization (#805) and
+	// DomainObservabilityCoverageMaterialization (#391 PR3). Only an
+	// effect=Allow trust statement whose assume-principal resolves to a scanned
+	// role/user node materializes an edge; external, AWS-service, wildcard,
+	// account-root, and unscanned principals fabricate no edge and are counted.
+	// The escalation edges (CAN_PERFORM, CAN_ESCALATE_TO) are a follow-up design
+	// fork; see docs/internal/design/1134-iam-can-assume-trust-graph.md §8.
+	DomainIAMCanAssumeMaterialization Domain = "iam_can_assume_materialization"
 )
 
 // IntentStatus captures the durable reducer intent lifecycle state.

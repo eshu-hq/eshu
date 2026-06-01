@@ -160,6 +160,13 @@ const (
 	// closed set so an operator can answer "are CIDR or prefix-list endpoint nodes
 	// landing, and did a generation produce zero?" at 3 AM.
 	MetricDimensionEndpointKind = "endpoint_kind"
+	// MetricDimensionPrincipalKind labels the IAM CAN_ASSUME edge projection
+	// counter (eshu_dp_iam_can_assume_edges_total) with the closed enum of
+	// resolved assuming-principal node kinds: role or user. Cardinality is
+	// bounded by that closed set so an operator can answer "are role- or
+	// user-assumed trust edges landing, and did a generation produce zero?" at
+	// 3 AM.
+	MetricDimensionPrincipalKind = "principal_kind"
 )
 
 // Span names define the stable data-plane tracing contract.
@@ -197,6 +204,13 @@ const (
 	// skipped edge counts so a trace shows whether derived/provenance-only
 	// coverage degraded gracefully without fabricating edges.
 	SpanReducerObservabilityCoverageMaterialization = "reducer.observability_coverage_materialization"
+	// SpanReducerIAMCanAssumeMaterialization wraps the IAM CAN_ASSUME trust-graph
+	// edge projection (issue #1134 PR2): fact load, in-memory role/user join-index
+	// build, assume-principal resolution, retract, and the batched
+	// MATCH-MATCH-MERGE CAN_ASSUME edge write. The span carries materialized vs
+	// skipped edge counts so a trace shows whether external/service/wildcard/
+	// unscanned principals degraded gracefully without fabricating edges.
+	SpanReducerIAMCanAssumeMaterialization = "reducer.iam_can_assume_materialization"
 	// SpanReducerKubernetesCorrelationMaterialization wraps the live-workload
 	// RUNS_IMAGE edge projection (issue #388 PR3): fact load, classifier re-run plus
 	// digest->uid source resolution, exact-image edge-row extraction, and the batched
