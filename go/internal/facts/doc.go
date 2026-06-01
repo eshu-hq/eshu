@@ -41,9 +41,12 @@
 // reconcile those alerts with owned dependency and impact facts.
 // Incident-context fact kind constants and schema-version helpers live here for
 // incident, lifecycle-event, and change-event source evidence reported by
-// incident systems. Service catalog fact kind constants and schema-version
-// helpers live here for provider-native entity, ownership, repository link,
-// dependency, API,
+// incident systems. Incident-routing fact kind constants and schema-version
+// helpers live here for applied PagerDuty and alert-route evidence observed
+// from Terraform state; reducers compare that evidence with declared source and
+// live provider facts before presenting routing truth. Service catalog fact
+// kind constants and schema-version helpers live here for provider-native
+// entity, ownership, repository link, dependency, API,
 // operational link, scorecard, and warning evidence. Scanner-worker fact kind
 // constants and schema-version helpers live here for source facts produced by
 // isolated security analyzers, including coverage and unsupported analyzer

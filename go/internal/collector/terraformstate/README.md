@@ -99,6 +99,12 @@ leaving this package is a redacted fact, warning, identity, or bounded summary.
   state bytes.
 - `ParseOptions` carries scope, generation, source, fencing, and redaction
   context.
+- The parser emits `incident_routing.applied_pagerduty_resource`,
+  `incident_routing.applied_alert_route`, and
+  `incident_routing.coverage_warning` facts for allowlisted PagerDuty and alert
+  route resources observed in Terraform state. These are applied source
+  evidence only; reducers own declared/applied/observed comparison, drift
+  classification, graph projection, and read-model truth.
 - `internal/collector/tfstateruntime` adapts these primitives to workflow
   claims: it resolves exact candidates, opens a matching source, parses facts
   with the claim fencing token, and leaves SDK-specific cloud wiring behind the
@@ -162,6 +168,12 @@ leaving this package is a redacted fact, warning, identity, or bounded summary.
   `unsupported_composite_attribute` warning fact per
   `resource_type`/`attribute_key`/`reason` shape with an `occurrence_count`
   rather than repeating the warning for every resource instance.
+- Known provider-schema attributes that are unsafe for incident-routing state
+  evidence still fail closed in the generic `terraform_state_resource` fact.
+  This covers PagerDuty integration keys and user emails, SNS endpoints, SSM
+  parameter values, Lambda environment blocks, EventBridge target payload
+  templates, webhook configs, and IAM policy documents even when a packaged
+  schema would otherwise mark the attribute as known.
 - The provider-schema resolver trusts only the top-level attributes and
   block types declared in packaged resource or data-source schemas. It does not
   promote remote E2E shapes from logs alone; adding support for a new provider
@@ -184,6 +196,44 @@ leaving this package is a redacted fact, warning, identity, or bounded summary.
 - DynamoDB lock metadata is read-only and observational. The reader records the
   digest and a lock ID hash, but consistency decisions still come from the
   opened state body and durable generation metadata.
+
+## Applied PagerDuty Incident Routing
+
+Terraform-state PagerDuty evidence is emitted from the existing per-resource
+streaming parser boundary. The collector does not evaluate Terraform, call
+PagerDuty, inspect declared source files, or infer graph truth. It only turns
+applied resource instances into bounded source facts when the resource type and
+attribute names are on a hardcoded allowlist.
+
+PagerDuty resources emit `incident_routing.applied_pagerduty_resource` with the
+Terraform state address, resource type, module address, provider address,
+state generation, serial, lineage, locator hash, provider object ID, and
+fingerprinted names. Unsupported `pagerduty_*` resource types emit
+`incident_routing.coverage_warning` with `reason=unsupported_pagerduty_resource`
+instead of trying to persist unknown attributes.
+
+AWS alert-route resources emit `incident_routing.applied_alert_route` only when
+the Terraform address, module, resource name, ARN/name-like fields, endpoint, or
+state value names PagerDuty. Secret-bearing endpoint values, SSM parameter
+values, IAM policy documents, integration keys, private URLs, and user emails
+are never persisted in these facts. Endpoint, value, and policy presence is
+recorded with redaction flags plus optional fingerprints for correlation.
+
+No-Regression Evidence: the applied incident-routing path reuses the existing
+streaming resource loop, adds one small allowlist check per resource instance,
+and does not change Terraform-state discovery, source opening, generic
+resource/output/module/provider facts, worker counts, graph writes, queue
+behavior, or provider-schema composite capture. Focused proof:
+`go test ./internal/collector/terraformstate -run 'TestParserEmitsAppliedPagerDutyIncidentRoutingFacts|TestParserEmitsAppliedPagerDutyAlertRouteFacts' -count=1`
+and `go test ./internal/collector/terraformstate -run TestParserRedactsAppliedRoutingSensitiveAttributesUnderKnownSchema -count=1`
+plus `go test ./internal/facts -run TestIncidentRoutingFactKindsAndSchemaVersions -count=1`.
+
+No-Observability-Change: this slice emits additional source facts and bounded
+coverage-warning facts from an existing parser stage. Operators still diagnose
+Terraform-state runs through the existing claim status, parser fact counts,
+warning facts, redaction counts, source-open errors, collector logs, and
+workflow terminal state; no new runtime stage, queue, metric label, span, or log
+field is required.
 
 ## Composite Skip Summaries
 
