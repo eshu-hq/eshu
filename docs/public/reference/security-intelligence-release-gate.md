@@ -15,6 +15,7 @@ This page is the operator runbook for issue
 sub-proof lives in:
 
 - [Security Intelligence](security-intelligence.md)
+- [Vulnerability Scanner Confidence Matrix](vulnerability-scanner-confidence.md)
 - [Vulnerability Parity Gate](vulnerability-parity-gate.md)
 - [Remote Collector E2E](local-testing/remote-collector-e2e.md)
 - [Remote E2E Runtime State](remote-e2e-runtime-state.md)
@@ -27,6 +28,11 @@ names as proof of deployability. The gate forces the same kind of evidence
 for security intelligence that other Eshu surfaces require: the exact commit,
 image tag candidate, NornicDB pin, schema/bootstrap state, every queue and
 fact count, and the API/MCP readback shape that users will actually see.
+Operators should compare the release claim against the
+[Vulnerability Scanner Confidence Matrix](vulnerability-scanner-confidence.md)
+before cutting an image; a row marked `blocked`, `partial`, or `unsupported`
+cannot be described as fully scanner-ready without narrower wording and linked
+evidence.
 
 The gate is intentionally:
 

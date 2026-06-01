@@ -32,6 +32,12 @@ This page is the public architecture contract for issue
 provider alert exports, repository names, package names, and URLs stay outside
 the public repository.
 
+For the current public claim boundary by ecosystem and target family, use the
+[Vulnerability Scanner Confidence Matrix](vulnerability-scanner-confidence.md).
+It distinguishes implemented, fixture-proven, remote-proven, EKS-proven,
+partial, unsupported, and blocked work so this page does not overclaim scanner
+readiness while the issue lanes are still closing.
+
 ## End-State Flow
 
 ```mermaid
