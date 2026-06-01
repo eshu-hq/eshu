@@ -117,6 +117,7 @@ Collector Observability Evidence: the hosted runtime exposes the shared
 `collector.ClaimedService`.
 
 Collector Deployment Evidence: this package is wired by the
-`collector-pagerduty` binary. Public Helm chart rendering is not part of this
-slice, so operators should run it as a local or custom hosted claim-driven
-runtime until the chart path lands.
+`collector-pagerduty` binary and the public Helm `pagerDutyCollector` runtime.
+The chart renders the Deployment, metrics Service, ServiceMonitor,
+NetworkPolicy, and PDB while preserving the claim-driven workflow-coordinator
+boundary.

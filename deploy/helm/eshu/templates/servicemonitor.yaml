@@ -296,6 +296,29 @@ spec:
       scrapeTimeout: {{ .Values.observability.prometheus.serviceMonitor.scrapeTimeout | quote }}
 {{- end }}
 ---
+{{- if .Values.pagerDutyCollector.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "eshu.pagerDutyCollectorMetricsServiceName" . }}
+  labels:
+    {{- include "eshu.labels" . | nindent 4 }}
+    app.kubernetes.io/component: pagerduty-collector
+    {{- with .Values.observability.prometheus.serviceMonitor.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "eshu.labels" . | nindent 6 }}
+      app.kubernetes.io/component: pagerduty-collector
+  endpoints:
+    - port: metrics
+      path: {{ .Values.observability.prometheus.path | quote }}
+      interval: {{ .Values.observability.prometheus.serviceMonitor.interval | quote }}
+      scrapeTimeout: {{ .Values.observability.prometheus.serviceMonitor.scrapeTimeout | quote }}
+{{- end }}
+---
 {{- if .Values.grafanaCollector.enabled }}
 apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor

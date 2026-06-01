@@ -117,6 +117,40 @@ Hosted vulnerability-intelligence validation must add request budgets,
 rate-limit telemetry, fact-emission metrics, admin/status output, and deployment
 docs before enabling hosted collection.
 
+## PagerDuty
+
+The PagerDuty smoke is read-only. It skips unless `ESHU_PAGERDUTY_LIVE=1` and a
+token is available through `ESHU_PAGERDUTY_API_TOKEN` or
+`PAGERDUTY_API_TOKEN`; `PAGERDUTY_USER_API_KEY` is accepted for local
+maintainer env files. The default run fetches at most one recent incident and up
+to two live config resources so it can still prove source facts when the
+incident window is empty.
+
+```bash
+set -a
+source /path/to/local/private/env
+set +a
+
+export ESHU_PAGERDUTY_LIVE=1
+export ESHU_PAGERDUTY_INCIDENT_LOOKBACK="${ESHU_PAGERDUTY_INCIDENT_LOOKBACK:-24h}"
+export ESHU_PAGERDUTY_INCIDENT_LIMIT="${ESHU_PAGERDUTY_INCIDENT_LIMIT:-1}"
+export ESHU_PAGERDUTY_LOG_ENTRY_LIMIT="${ESHU_PAGERDUTY_LOG_ENTRY_LIMIT:-1}"
+export ESHU_PAGERDUTY_CHANGE_EVENT_LIMIT="${ESHU_PAGERDUTY_CHANGE_EVENT_LIMIT:-1}"
+export ESHU_PAGERDUTY_CONFIG_VALIDATION_ENABLED="${ESHU_PAGERDUTY_CONFIG_VALIDATION_ENABLED:-true}"
+export ESHU_PAGERDUTY_CONFIG_RESOURCE_LIMIT="${ESHU_PAGERDUTY_CONFIG_RESOURCE_LIMIT:-2}"
+
+cd go
+go test ./internal/collector/pagerduty \
+  -run TestLivePagerDutyIncidentOrConfigEvidence -count=1 -v
+```
+
+Use `ESHU_PAGERDUTY_ALLOWED_SERVICE_IDS` as a comma-separated allowlist when
+you need the live config proof to target a known service. Optional
+`ESHU_PAGERDUTY_SCOPE_ID`, `ESHU_PAGERDUTY_ACCOUNT_ID`,
+`ESHU_PAGERDUTY_SOURCE_URI`, and `ESHU_PAGERDUTY_API_BASE_URL` override the
+default synthetic scope and API endpoint. The smoke fails if no facts are
+visible or if the token appears in emitted envelopes.
+
 ## OCI Registry Smokes
 
 All smokes are read-only and skip unless their live flag is set.

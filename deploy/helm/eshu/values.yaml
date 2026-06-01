@@ -427,6 +427,31 @@ securityAlertCollector:
       cpu: 1000m
       memory: 2Gi
 
+pagerDutyCollector:
+  enabled: false
+  replicas: 1
+  revisionHistoryLimit: 3
+  instanceId: pagerduty-primary
+  pollInterval: 2s
+  claimLeaseTTL: ""
+  heartbeatInterval: ""
+  collectorInstances: []
+  extraEnv: []
+  connectionTuning:
+    postgres:
+      maxOpenConns: ""
+      maxIdleConns: ""
+      connMaxLifetime: ""
+      connMaxIdleTime: ""
+      pingTimeout: ""
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      cpu: 1000m
+      memory: 2Gi
+
 grafanaCollector:
   enabled: false
   replicas: 1

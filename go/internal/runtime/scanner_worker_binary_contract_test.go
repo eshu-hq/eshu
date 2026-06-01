@@ -39,6 +39,24 @@ func TestSBOMAttestationCollectorBinaryIsBuiltInstalledAndDocumented(t *testing.
 	}
 }
 
+func TestPagerDutyCollectorBinaryIsBuiltInstalledAndDocumented(t *testing.T) {
+	t.Parallel()
+
+	for file, want := range map[string]string{
+		"Dockerfile":                        "-o /go-bin/eshu-collector-pagerduty ./cmd/collector-pagerduty",
+		"scripts/install-local-binaries.sh": "go build -trimpath -ldflags=\"$LDFLAGS\" -o \"$INSTALL_DIR/eshu-collector-pagerduty\" ./cmd/collector-pagerduty",
+		"go/cmd/README.md":                  "`eshu-collector-pagerduty`",
+		"docs/public/deployment/service-runtimes-collectors.md":          "deploy/helm/eshu/templates/deployment-pagerduty-collector.yaml",
+		"docs/public/reference/environment-collectors.md":                "ESHU_PAGERDUTY_COLLECTOR_INSTANCE_ID",
+		"deploy/helm/eshu/templates/deployment-pagerduty-collector.yaml": "/usr/local/bin/eshu-collector-pagerduty",
+	} {
+		content := readRepositoryFile(t, "../../..", file)
+		if !strings.Contains(content, want) {
+			t.Fatalf("%s missing %q", file, want)
+		}
+	}
+}
+
 func TestObservabilityCollectorBinariesAreBuiltInstalledAndDocumented(t *testing.T) {
 	t.Parallel()
 

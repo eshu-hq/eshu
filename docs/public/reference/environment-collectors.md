@@ -167,6 +167,16 @@ PagerDuty tokens must come from private environment variables referenced by
 integration names, routing keys, PagerDuty URLs, or copied provider payloads to
 public values files or docs.
 
+Helm deployments use `pagerDutyCollector.collectorInstances` for the
+collector-local claim configuration and `pagerDutyCollector.extraEnv` for
+Secret-backed token variables referenced by target `token_env`. Keep the
+selected `pagerDutyCollector.instanceId` aligned with an enabled, claim-driven
+`pagerduty` entry in both the collector block and
+`workflowCoordinator.collectorInstances`. If signed PagerDuty webhooks are
+enabled, `webhookListener.pagerDuty.scopeId` must match a configured target
+scope; the webhook listener only enqueues freshness and never emits PagerDuty
+facts.
+
 ## Jira Collector
 
 The Jira collector is claim-only. It selects an enabled `jira` instance from

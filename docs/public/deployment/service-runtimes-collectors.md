@@ -17,7 +17,8 @@ The public Helm chart supports two collector styles:
   one enabled instance, claim durable work, and commit facts.
 
 Charted claim-driven Terraform-state, AWS cloud, package-registry,
-SBOM-attestation, provider security-alert, Jira work-item, live Grafana-stack,
+SBOM-attestation, provider security-alert, PagerDuty, Jira work-item, live
+Grafana-stack,
 scanner-worker, and vulnerability-intelligence Deployments require:
 
 - `workflowCoordinator.enabled=true`
@@ -26,9 +27,6 @@ scanner-worker, and vulnerability-intelligence Deployments require:
 - at least one matching collector instance
 
 The chart fails at render time when those prerequisites are missing.
-The PagerDuty collector binary uses the same workflow control-plane
-prerequisites when deployed manually; Helm deployment wiring is intentionally
-separate from this source-collector contract.
 For observability, source-controlled IaC/GitOps evidence is preferred when it
 is current. Live Grafana, Prometheus/Mimir, Loki, and Tempo collection is the
 fallback and validation lane for no-IaC environments, drift detection,
@@ -45,7 +43,7 @@ freshness, and effective target, rule, log-signal, or trace-signal metadata.
 | Package Registry Collector | `package_registry` | workflow claims for configured or derived package metadata targets | `/usr/local/bin/eshu-collector-package-registry` | `deploy/helm/eshu/templates/deployment-package-registry-collector.yaml` |
 | SBOM Attestation Collector | `sbom_attestation` | workflow claims for configured SBOM document URLs or OCI referrer documents | `/usr/local/bin/eshu-collector-sbom-attestation` | `deploy/helm/eshu/templates/deployment-sbom-attestation-collector.yaml` |
 | Security Alert Collector | `security_alert` | workflow claims for configured GitHub Dependabot repository-alert targets | `/usr/local/bin/eshu-collector-security-alerts` | `deploy/helm/eshu/templates/deployment-security-alert-collector.yaml` |
-| PagerDuty Collector | `pagerduty` | workflow claims for configured PagerDuty account or service-allowlist targets | `/usr/local/bin/eshu-collector-pagerduty` | chart template pending |
+| PagerDuty Collector | `pagerduty` | workflow claims for configured PagerDuty account or service-allowlist targets | `/usr/local/bin/eshu-collector-pagerduty` | `deploy/helm/eshu/templates/deployment-pagerduty-collector.yaml` |
 | Jira Collector | `jira` | workflow claims for configured Jira Cloud work-item targets | `/usr/local/bin/eshu-collector-jira` | `deploy/helm/eshu/templates/deployment-jira-collector.yaml` |
 | Grafana Collector | `grafana` | workflow claims for configured live Grafana API targets | `/usr/local/bin/eshu-collector-grafana` | `deploy/helm/eshu/templates/deployment-grafana-collector.yaml` |
 | Prometheus/Mimir Collector | `prometheus_mimir` | workflow claims for configured live Prometheus or Mimir API targets | `/usr/local/bin/eshu-collector-prometheus-mimir` | `deploy/helm/eshu/templates/deployment-prometheus-mimir-collector.yaml` |
@@ -146,8 +144,8 @@ and failure detail:
 
 ## ServiceMonitor Coverage
 
-Helm can render `ServiceMonitor` resources for every hosted collector on this
-page except PagerDuty, whose chart support is pending. Schema bootstrap and
+Helm can render `ServiceMonitor` resources for every charted hosted collector
+on this page. Schema bootstrap and
 bootstrap-index are excluded because they are not steady-state services.
 
 The collector metrics services live under:
@@ -159,6 +157,7 @@ The collector metrics services live under:
 - `deploy/helm/eshu/templates/service-package-registry-collector-metrics.yaml`
 - `deploy/helm/eshu/templates/service-sbom-attestation-collector-metrics.yaml`
 - `deploy/helm/eshu/templates/service-security-alert-collector-metrics.yaml`
+- `deploy/helm/eshu/templates/service-pagerduty-collector-metrics.yaml`
 - `deploy/helm/eshu/templates/service-jira-collector-metrics.yaml`
 - `deploy/helm/eshu/templates/service-scanner-worker-metrics.yaml`
 - `deploy/helm/eshu/templates/service-vulnerability-intelligence-collector-metrics.yaml`
@@ -172,3 +171,14 @@ Observability Evidence: the rendered Deployment exposes `/healthz`, `/readyz`,
 `/metrics`, and `/admin/status` through the shared hosted runtime and keeps
 Jira provider request, fact, rate-limit, and fetch-duration telemetry on the
 existing bounded Jira collector instruments.
+
+No-Regression Evidence: the Helm runtime contract test
+`go test ./internal/runtime -run TestHelmPagerDutyCollectorDeployment -count=1`
+renders `pagerDutyCollector` with workflow claims, metrics Service,
+ServiceMonitor, NetworkPolicy, PDB, status probes, and Secret-backed
+`PAGERDUTY_API_TOKEN` wiring without enabling the Deployment by default.
+
+Observability Evidence: the chart wires the hosted PagerDuty binary to the
+shared `/healthz`, `/readyz`, `/metrics`, and `/admin/status` runtime surface
+and the ServiceMonitor selects only the bounded `pagerduty-collector`
+component labels.

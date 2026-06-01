@@ -80,6 +80,23 @@
 {{- fail "securityAlertCollector.collectorInstances must contain an enabled claim-driven security_alert instance matching securityAlertCollector.instanceId" -}}
 {{- end -}}
 {{- end -}}
+{{- if .Values.pagerDutyCollector.enabled -}}
+{{- if not .Values.pagerDutyCollector.instanceId -}}
+{{- fail "pagerDutyCollector.instanceId is required when pagerDutyCollector.enabled=true" -}}
+{{- end -}}
+{{- if not .Values.pagerDutyCollector.collectorInstances -}}
+{{- fail "pagerDutyCollector.collectorInstances must contain at least one instance when pagerDutyCollector.enabled=true" -}}
+{{- end -}}
+{{- $pagerDutyLocalMatch := false -}}
+{{- range .Values.pagerDutyCollector.collectorInstances -}}
+{{- if and (eq (default "" .collector_kind) "pagerduty") (eq (default "" .instance_id) $.Values.pagerDutyCollector.instanceId) (default false .enabled) (default false .claims_enabled) -}}
+{{- $pagerDutyLocalMatch = true -}}
+{{- end -}}
+{{- end -}}
+{{- if not $pagerDutyLocalMatch -}}
+{{- fail "pagerDutyCollector.collectorInstances must contain an enabled claim-driven pagerduty instance matching pagerDutyCollector.instanceId" -}}
+{{- end -}}
+{{- end -}}
 {{- if .Values.grafanaCollector.enabled -}}
 {{- if not .Values.grafanaCollector.instanceId -}}
 {{- fail "grafanaCollector.instanceId is required when grafanaCollector.enabled=true" -}}
@@ -190,7 +207,7 @@
 {{- fail "vulnerabilityIntelligenceCollector.collectorInstances must contain an enabled claim-driven vulnerability_intelligence instance matching vulnerabilityIntelligenceCollector.instanceId" -}}
 {{- end -}}
 {{- end -}}
-{{- $claimDrivenCollectorsEnabled := or .Values.terraformStateCollector.enabled .Values.awsCloudCollector.enabled .Values.packageRegistryCollector.enabled .Values.sbomAttestationCollector.enabled .Values.securityAlertCollector.enabled .Values.grafanaCollector.enabled .Values.prometheusMimirCollector.enabled .Values.lokiCollector.enabled .Values.tempoCollector.enabled .Values.jiraCollector.enabled .Values.scannerWorker.enabled .Values.vulnerabilityIntelligenceCollector.enabled -}}
+{{- $claimDrivenCollectorsEnabled := or .Values.terraformStateCollector.enabled .Values.awsCloudCollector.enabled .Values.packageRegistryCollector.enabled .Values.sbomAttestationCollector.enabled .Values.securityAlertCollector.enabled .Values.pagerDutyCollector.enabled .Values.grafanaCollector.enabled .Values.prometheusMimirCollector.enabled .Values.lokiCollector.enabled .Values.tempoCollector.enabled .Values.jiraCollector.enabled .Values.scannerWorker.enabled .Values.vulnerabilityIntelligenceCollector.enabled -}}
 {{- if and $claimDrivenCollectorsEnabled (not .Values.workflowCoordinator.enabled) -}}
 {{- fail "workflowCoordinator.enabled=true is required when claim-driven collectors are enabled" -}}
 {{- end -}}
@@ -240,6 +257,17 @@
 {{- end -}}
 {{- if not $securityAlertCoordinatorMatch -}}
 {{- fail "workflowCoordinator.collectorInstances must contain an enabled claim-driven security_alert instance when securityAlertCollector.enabled=true" -}}
+{{- end -}}
+{{- end -}}
+{{- if .Values.pagerDutyCollector.enabled -}}
+{{- $pagerDutyCoordinatorMatch := false -}}
+{{- range .Values.workflowCoordinator.collectorInstances -}}
+{{- if and (eq (default "" .collector_kind) "pagerduty") (default false .claims_enabled) (default false .enabled) -}}
+{{- $pagerDutyCoordinatorMatch = true -}}
+{{- end -}}
+{{- end -}}
+{{- if not $pagerDutyCoordinatorMatch -}}
+{{- fail "workflowCoordinator.collectorInstances must contain an enabled claim-driven pagerduty instance when pagerDutyCollector.enabled=true" -}}
 {{- end -}}
 {{- end -}}
 {{- if .Values.grafanaCollector.enabled -}}
