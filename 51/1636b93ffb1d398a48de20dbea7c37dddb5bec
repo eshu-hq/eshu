@@ -1,0 +1,23 @@
+go/cmd/eshu/vuln_scan_scope_test.go
+  s_f2f7fbb6f30866::t_1ac2d837a778db 125-126,183-187,216,237
+go/cmd/eshu/README.md
+  s_f2f7fbb6f30866::t_09f27790682265 111-113
+go/cmd/eshu/vuln_scan_scope.go
+  s_f2f7fbb6f30866::t_780064e18b61e5 27-28,68-69,219-222
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "511636b93ffb1d398a48de20dbea7c37dddb5bec",
+  "prompts": {},
+  "sessions": {
+    "s_f2f7fbb6f30866": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e360b-90eb-7472-bac7-56d488b65f77",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
