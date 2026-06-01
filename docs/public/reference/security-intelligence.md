@@ -316,6 +316,17 @@ components still produce a document plus `sbom.warning`, not a silent clean
 claim. Runtime-local repository paths stay out of retry, dead-letter, metric,
 log, and public read payloads.
 
+OS package extraction currently supports parser-backed Alpine apk, Debian
+dpkg, and RPM-family queryformat snapshots. RPM-family support intentionally
+does not parse raw rpmdb Berkeley DB, ndb, or SQLite files; the isolated
+scanner source must emit the supported `# eshu-rpm-queryformat-v1`
+tab-separated snapshot after reading `/etc/os-release` and repository
+configuration. RPM rows preserve epoch/version/release, arch, source RPM,
+repository ID/URL, vendor advisory source, PURL, and BOMRef-compatible
+identity. Third-party repositories, unknown repositories, unsupported rpmdb
+bytes, missing distro metadata, and ambiguous vendor origin emit
+`vulnerability.warning` evidence instead of clean package evidence.
+
 ## Scanner Observability
 
 The hosted scanner-worker service records these signals:

@@ -76,6 +76,24 @@ func supplyChainSBOMComponentFromEnvelope(envelope facts.Envelope) supplyChainSB
 	}
 }
 
+func supplyChainOSPackageFromEnvelope(envelope facts.Envelope) supplyChainOSPackage {
+	purl := payloadStr(envelope.Payload, "purl")
+	return supplyChainOSPackage{
+		factID:               envelope.FactID,
+		scopeID:              envelope.ScopeID,
+		packageID:            packageIDFromPURL(purl),
+		purl:                 purl,
+		distro:               strings.ToLower(payloadStr(envelope.Payload, "distro")),
+		distroVersion:        payloadStr(envelope.Payload, "distro_version"),
+		packageManager:       strings.ToLower(payloadStr(envelope.Payload, "package_manager")),
+		name:                 payloadStr(envelope.Payload, "name"),
+		arch:                 payloadStr(envelope.Payload, "arch"),
+		installedVersion:     payloadStr(envelope.Payload, "installed_version_raw"),
+		repositoryClass:      strings.ToLower(payloadStr(envelope.Payload, "repository_class")),
+		vendorAdvisorySource: strings.ToLower(payloadStr(envelope.Payload, "vendor_advisory_source")),
+	}
+}
+
 func supplyChainAttachmentFromEnvelope(envelope facts.Envelope) supplyChainAttachment {
 	return supplyChainAttachment{
 		factID:        envelope.FactID,
@@ -198,6 +216,47 @@ func firstSBOMImpactPath(
 		return component, attachment, image, true, nil
 	}
 	return supplyChainSBOMComponent{}, supplyChainAttachment{}, supplyChainImageIdentity{}, false, uniqueSortedStrings(missing)
+}
+
+func firstOSPackageImpactPath(
+	pkg supplyChainAffectedPackage,
+	index supplyChainImpactIndex,
+) (supplyChainOSPackage, bool) {
+	vendorSource := classifyAdvisorySource(pkg.source, pkg.advisoryID)
+	if vendorSource == "" {
+		return supplyChainOSPackage{}, false
+	}
+	for _, installed := range index.osPackages[pkg.packageID] {
+		if !osPackageMatchesAffectedPackage(installed, pkg, vendorSource) {
+			continue
+		}
+		return installed, true
+	}
+	return supplyChainOSPackage{}, false
+}
+
+func osPackageMatchesAffectedPackage(
+	installed supplyChainOSPackage,
+	pkg supplyChainAffectedPackage,
+	vendorSource string,
+) bool {
+	if installed.packageManager != "rpm" || installed.distroVersion == "" || installed.arch == "" {
+		return false
+	}
+	if installed.repositoryClass != "vendor" || installed.vendorAdvisorySource == "" {
+		return false
+	}
+	if installed.vendorAdvisorySource != vendorSource {
+		return false
+	}
+	if pkg.ecosystem != "" && pkg.ecosystem != "rpm" &&
+		pkg.ecosystem != installed.vendorAdvisorySource && pkg.ecosystem != installed.distro {
+		return false
+	}
+	if pkg.packageID != "" && pkg.packageID == installed.packageID {
+		return true
+	}
+	return pkg.purl != "" && packageIDFromPURL(pkg.purl) == installed.packageID
 }
 
 func firstSBOMProductImpactPath(

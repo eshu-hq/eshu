@@ -66,6 +66,21 @@ type supplyChainSBOMComponent struct {
 	version    string
 }
 
+type supplyChainOSPackage struct {
+	factID               string
+	scopeID              string
+	packageID            string
+	purl                 string
+	distro               string
+	distroVersion        string
+	packageManager       string
+	name                 string
+	arch                 string
+	installedVersion     string
+	repositoryClass      string
+	vendorAdvisorySource string
+}
+
 type supplyChainAttachment struct {
 	factID        string
 	documentID    string
@@ -120,6 +135,7 @@ type supplyChainImpactIndex struct {
 	affectedPackages map[string][]supplyChainAffectedPackage
 	affectedProducts map[string][]supplyChainAffectedProduct
 	consumption      map[string][]supplyChainPackageConsumption
+	osPackages       map[string][]supplyChainOSPackage
 	components       []supplyChainSBOMComponent
 	attachments      map[string]supplyChainAttachment
 	images           map[string]supplyChainImageIdentity
@@ -134,6 +150,7 @@ func buildSupplyChainImpactIndex(envelopes []facts.Envelope) supplyChainImpactIn
 		affectedPackages: map[string][]supplyChainAffectedPackage{},
 		affectedProducts: map[string][]supplyChainAffectedProduct{},
 		consumption:      map[string][]supplyChainPackageConsumption{},
+		osPackages:       map[string][]supplyChainOSPackage{},
 		attachments:      map[string]supplyChainAttachment{},
 		images:           map[string]supplyChainImageIdentity{},
 		riskSignals:      map[string]supplyChainRiskSignals{},
@@ -159,6 +176,11 @@ func buildSupplyChainImpactIndex(envelopes []facts.Envelope) supplyChainImpactIn
 			consumption := supplyChainConsumptionFromEnvelope(envelope)
 			if consumption.packageID != "" {
 				index.consumption[consumption.packageID] = append(index.consumption[consumption.packageID], consumption)
+			}
+		case facts.VulnerabilityOSPackageFactKind:
+			pkg := supplyChainOSPackageFromEnvelope(envelope)
+			if pkg.packageID != "" && pkg.vendorAdvisorySource != "" && pkg.repositoryClass == "vendor" {
+				index.osPackages[pkg.packageID] = append(index.osPackages[pkg.packageID], pkg)
 			}
 		case facts.SBOMComponentFactKind:
 			component := supplyChainSBOMComponentFromEnvelope(envelope)
@@ -216,6 +238,7 @@ func classifySupplyChainImpactPackage(
 	pkg := representativeAffectedPackage(pkgs)
 	component, attachment, image, hasComponentPath, imagePathMissing := firstSBOMImpactPath(pkg, index)
 	consumption := firstConsumption(pkg.packageID, index.consumption)
+	osPackage, hasOSPackage := firstOSPackageImpactPath(pkg, index)
 	if consumption.factID != "" {
 		finding.RepositoryID = consumption.repositoryID
 		finding.RequestedRange = strings.TrimSpace(consumption.dependencyRange)
@@ -243,6 +266,13 @@ func classifySupplyChainImpactPackage(
 			finding.RepositoryID = image.repositoryID
 		}
 	}
+	if hasOSPackage {
+		finding.PURL = firstNonBlank(osPackage.purl, finding.PURL)
+		finding.ObservedVersion = firstNonBlank(osPackage.installedVersion, finding.ObservedVersion)
+		finding.SubjectDigest = firstNonBlank(osPackage.scopeID, finding.SubjectDigest)
+		finding.EvidenceFactIDs = append(finding.EvidenceFactIDs, osPackage.factID)
+		finding.EvidencePath = append(finding.EvidencePath, facts.VulnerabilityOSPackageFactKind)
+	}
 	versionDecision := evaluateSupplyChainVersionMatch(
 		finding.Ecosystem,
 		finding.ObservedVersion,
@@ -262,6 +292,12 @@ func classifySupplyChainImpactPackage(
 	}
 	if versionDecision.FailClosed {
 		applySupplyChainVersionDecision(&finding, versionDecision)
+		finalizeSupplyChainImpactFinding(&finding, index, versionDecision.MissingEvidence, imagePathMissing)
+		return finding
+	}
+	if hasOSPackage && versionDecision.Status == SupplyChainImpactAffectedExact {
+		applySupplyChainVersionDecision(&finding, versionDecision)
+		finding.RuntimeReachability = "image_os_package"
 		finalizeSupplyChainImpactFinding(&finding, index, versionDecision.MissingEvidence, imagePathMissing)
 		return finding
 	}

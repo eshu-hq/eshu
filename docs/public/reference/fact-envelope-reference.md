@@ -84,12 +84,14 @@ do not prove vulnerability impact without reducer-owned package, image, or
 deployment evidence.
 
 `vulnerability.os_package` carries one installed OS package observation from
-an Alpine apk or Debian dpkg snapshot. The payload preserves distro,
-distro version, package manager, name, epoch, upstream version, distro
-release (including Alpine `-rN` and Debian `~debNuM` / `+debNuM` backport
-suffixes), arch, source package, source version, repository URL,
-repository class (`vendor`, `third_party`, `unknown`), vendor advisory source
-(`alpine`, `debian`, or empty), and the verbatim `installed_version_raw`.
+an Alpine apk, Debian dpkg, or RPM-family queryformat snapshot. The payload
+preserves distro, distro version, package manager, name, epoch, upstream
+version, distro release (including Alpine `-rN`, Debian `~debNuM` /
+`+debNuM`, and RPM `el9_2`-style release suffixes), arch, source package,
+source version, repository URL, repository class (`vendor`, `third_party`,
+`unknown`), vendor advisory source (`alpine`, `debian`, `redhat`, `fedora`,
+`amazonlinux`, `rocky`, `alma`, `centos`, or empty), PURL, BOMRef identity,
+and the verbatim `installed_version_raw`.
 The `fixed_version_source` field is left empty by the collector; reducers
 populate it after joining a matching vendor advisory. Reducers MUST NOT
 compare `installed_version_raw` against an upstream OSV/NVD advisory's

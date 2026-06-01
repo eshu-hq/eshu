@@ -59,7 +59,9 @@ func classifySupplyChainImpactDetectionProfile(finding SupplyChainImpactFinding)
 		supplyChainVersionReasonCargoSemverAffectedRange,
 		supplyChainVersionReasonCargoSemverKnownFixed,
 		supplyChainVersionReasonMavenRangeMatch,
-		supplyChainVersionReasonMavenKnownFixed:
+		supplyChainVersionReasonMavenKnownFixed,
+		supplyChainVersionReasonRPMExactAffected,
+		supplyChainVersionReasonRPMKnownFixed:
 		return DetectionProfilePrecise
 	default:
 		return DetectionProfileComprehensive

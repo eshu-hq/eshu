@@ -15,6 +15,8 @@ const (
 	supplyChainVersionReasonCargoSemverKnownFixed    = "cargo_semver_known_fixed"
 	supplyChainVersionReasonMavenRangeMatch          = "maven_range_match"
 	supplyChainVersionReasonMavenKnownFixed          = "maven_known_fixed"
+	supplyChainVersionReasonRPMExactAffected         = "rpm_exact_affected_version"
+	supplyChainVersionReasonRPMKnownFixed            = "rpm_known_fixed"
 	supplyChainVersionReasonRangeOnlyManifest        = "range_only_manifest"
 	supplyChainVersionReasonUnsupportedEcosystem     = "unsupported_ecosystem"
 	supplyChainVersionReasonMalformedRange           = "malformed_advisory_range"
@@ -60,7 +62,11 @@ func evaluateSupplyChainVersionMatch(
 		}
 	}
 
-	switch normalizedSupplyChainVersionEcosystem(ecosystem) {
+	normalized := normalizedSupplyChainVersionEcosystem(ecosystem)
+	if normalized == "" {
+		normalized = strings.ToLower(strings.TrimSpace(ecosystem))
+	}
+	switch normalized {
 	case string(packageidentity.EcosystemNPM):
 		return evaluateNPMSemverMatch(observed, fixedVersion, pkgs)
 	case string(packageidentity.EcosystemNuGet):
@@ -69,6 +75,8 @@ func evaluateSupplyChainVersionMatch(
 		return evaluateCargoSemverMatch(observed, fixedVersion, pkgs)
 	case string(packageidentity.EcosystemMaven):
 		return evaluateMavenVersionMatch(observed, fixedVersion, pkgs)
+	case "redhat", "fedora", "centos", "rocky", "alma", "amazonlinux", "rpm":
+		return evaluateRPMVersionMatch(observed, fixedVersion, pkgs)
 	default:
 		return supplyChainVersionMatchDecision{
 			Status:          SupplyChainImpactPossiblyAffected,

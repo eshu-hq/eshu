@@ -159,8 +159,12 @@ Selection rules:
 
 - For OS package classes (`rpm`, `deb`, `apk`, `rhel`, `redhat`, `debian`,
   `ubuntu`, `alpine`, `amazonlinux`, `suse`, `opensuse`, `wolfi`,
-  `chainguard`, `oracle`, `rocky`), the matching vendor advisory outranks
-  GLAD, GHSA, OSV, and NVD because vendor backports change applicability.
+  `chainguard`, `oracle`, `rocky`, `alma`, `centos`), the matching vendor
+  advisory outranks GLAD, GHSA, OSV, and NVD because vendor backports change
+  applicability. RPM-family installed package evidence must include distro,
+  distro version, arch, repository class, and a matching
+  `vendor_advisory_source`; third-party or ambiguous vendor-origin rows remain
+  source warnings and do not join as vendor-applicable impact truth.
 - For language ecosystems (npm, PyPI, Go, Maven, Crates.io, RubyGems,
   Composer, Pub, Hex, Swift, NuGet), GHSA outranks GLAD, OSV-via-OSV,
   PYSEC-via-OSV, RUSTSEC-via-OSV, GO-via-OSV, and NVD.
@@ -204,12 +208,28 @@ repository names.
 Version and range matching is reducer-owned and ecosystem-aware. The supported
 matchers are npm and Cargo semver over OSV-style event ranges and GLAD-style
 comparator ranges, NuGet semantic versions from exact lockfile or pinned
-manifest evidence, plus Maven version/range ordering for Maven bracket and
-comparator ranges. Findings preserve `observed_version`, `requested_range`,
+manifest evidence, Maven version/range ordering for Maven bracket and
+comparator ranges, and RPM EVR ordering for vendor-backed RPM-family OS
+package facts. Findings preserve `observed_version`, `requested_range`,
 `fixed_version`, and `match_reason` as separate fields. Unsupported ecosystems
 and malformed installed versions or advisory ranges fail closed as
 `possibly_affected` with explicit missing-evidence reasons instead of being
 treated as affected or safely fixed.
+
+No-Regression Evidence: `go test ./internal/collector/ospackagevulnerability
+-run 'TestParseRPM|TestBuildEnvelopesEmitsOSPackage' -count=1` and `go test
+./internal/reducer -run
+'TestBuildSupplyChainImpactFindings(UsesVendorRPMOSPackageEvidence|SkipsAmbiguousRPMOSPackageEvidence)'
+-count=1` prove RPM queryformat package evidence preserves EVR, distro,
+repository, PURL/BOMRef identity, and joins Red Hat advisories only for
+vendor-class RPM rows with matching distro/version/vendor source evidence.
+
+No-Observability-Change: the RPM parser emits existing `vulnerability.warning`
+facts for raw rpmdb bytes, third-party repositories, unknown repositories, and
+ambiguous vendor origin, and the reducer uses existing supply-chain impact
+payload fields, evidence paths, reducer run spans, reducer execution counters,
+and API/MCP readiness envelopes. No new metric label, graph write, queue
+domain, route, or runtime knob was added.
 
 No-Regression Evidence: after rebasing PR #638 onto `origin/main`
 `1afcc154`, focused red tests reproduced the review gaps where
