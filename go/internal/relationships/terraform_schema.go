@@ -102,8 +102,9 @@ func RegisterSchemaDrivenTerraformExtractors(schemaDir string) map[string]int {
 
 				identityKeys := terraformschema.InferIdentityKeys(attributes)
 				category := terraformschema.ClassifyResourceCategory(resourceType)
+				service := terraformschema.ClassifyResourceService(resourceType)
 				terraformResourceExtractors[normalized] = []terraformResourceExtractor{
-					makeTerraformSchemaExtractor(identityKeys, category),
+					makeTerraformSchemaExtractor(identityKeys, service, category),
 				}
 				registeredCount++
 			}
@@ -180,6 +181,7 @@ func discoverTerraformSchemaEvidence(
 
 func makeTerraformSchemaExtractor(
 	identityKeys []string,
+	service string,
 	category string,
 ) terraformResourceExtractor {
 	return func(resourceType, resourceName, body string) []terraformResourceRelationship {
@@ -214,21 +216,29 @@ func makeTerraformSchemaExtractor(
 
 		return []terraformResourceRelationship{
 			{
-				EvidenceKind:     EvidenceKind("TERRAFORM_" + strings.ToUpper(suffix)),
+				EvidenceKind:     terraformSchemaEvidenceKind(resourceType, service, suffix),
 				RelationshipType: RelProvisionsDependencyFor,
 				Confidence:       confidence,
 				Rationale:        "Terraform " + resourceType + " provisions " + category + " infrastructure",
 				CandidateName:    candidate,
 				Details: map[string]any{
-					"resource_type": resourceType,
-					"resource_name": resourceName,
-					"identity_key":  matchedKey,
-					"category":      category,
-					"schema_driven": true,
+					"resource_type":    resourceType,
+					"resource_name":    resourceName,
+					"resource_service": service,
+					"identity_key":     matchedKey,
+					"category":         category,
+					"schema_driven":    true,
 				},
 			},
 		}
 	}
+}
+
+func terraformSchemaEvidenceKind(resourceType, service, suffix string) EvidenceKind {
+	if strings.HasPrefix(service, "pagerduty_") {
+		return EvidenceKind("TERRAFORM_" + strings.ToUpper(normalizeResourceType(resourceType)))
+	}
+	return EvidenceKind("TERRAFORM_" + strings.ToUpper(suffix))
 }
 
 func defaultTerraformSchemaDir() string {

@@ -81,6 +81,68 @@ func TestClassifyResourceService(t *testing.T) {
 	}
 }
 
+func TestClassifyPagerDutyResourceTypesAsMonitoring(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		resourceType string
+		wantService  string
+		wantCategory string
+	}{
+		{resourceType: "pagerduty_service", wantService: "pagerduty_service", wantCategory: "monitoring"},
+		{resourceType: "pagerduty_escalation_policy", wantService: "pagerduty_escalation_policy", wantCategory: "monitoring"},
+		{resourceType: "pagerduty_team", wantService: "pagerduty_team", wantCategory: "monitoring"},
+		{resourceType: "pagerduty_team_membership", wantService: "pagerduty_team_membership", wantCategory: "monitoring"},
+		{resourceType: "pagerduty_service_integration", wantService: "pagerduty_service_integration", wantCategory: "monitoring"},
+		{resourceType: "pagerduty_event_orchestration", wantService: "pagerduty_event_orchestration", wantCategory: "monitoring"},
+		{resourceType: "pagerduty_event_orchestration_router", wantService: "pagerduty_event_orchestration_router", wantCategory: "monitoring"},
+		{resourceType: "pagerduty_service_dependency", wantService: "pagerduty_service_dependency", wantCategory: "monitoring"},
+		{resourceType: "pagerduty_webhook_subscription", wantService: "pagerduty_webhook_subscription", wantCategory: "monitoring"},
+		{resourceType: "pagerduty_business_service", wantService: "pagerduty_business_service", wantCategory: "monitoring"},
+		{resourceType: "pagerduty_slack_connection", wantService: "pagerduty_slack_connection", wantCategory: "monitoring"},
+		{resourceType: "pagerduty_jira_cloud_account_mapping_rule", wantService: "pagerduty_jira_cloud_account_mapping_rule", wantCategory: "monitoring"},
+	}
+
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.resourceType, func(t *testing.T) {
+			t.Parallel()
+			if got := ClassifyResourceService(tc.resourceType); got != tc.wantService {
+				t.Fatalf("ClassifyResourceService(%q) = %q, want %q", tc.resourceType, got, tc.wantService)
+			}
+			if got := ClassifyResourceCategory(tc.resourceType); got != tc.wantCategory {
+				t.Fatalf("ClassifyResourceCategory(%q) = %q, want %q", tc.resourceType, got, tc.wantCategory)
+			}
+		})
+	}
+}
+
+func TestPagerDutyOverridesDoNotReclassifyGenericServiceResources(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		resourceType string
+		wantService  string
+		wantCategory string
+	}{
+		{resourceType: "kubernetes_service", wantService: "service", wantCategory: "networking"},
+		{resourceType: "aws_ecs_service", wantService: "ecs", wantCategory: "compute"},
+	}
+
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.resourceType, func(t *testing.T) {
+			t.Parallel()
+			if got := ClassifyResourceService(tc.resourceType); got != tc.wantService {
+				t.Fatalf("ClassifyResourceService(%q) = %q, want %q", tc.resourceType, got, tc.wantService)
+			}
+			if got := ClassifyResourceCategory(tc.resourceType); got != tc.wantCategory {
+				t.Fatalf("ClassifyResourceCategory(%q) = %q, want %q", tc.resourceType, got, tc.wantCategory)
+			}
+		})
+	}
+}
+
 func TestClassifyCommonAWSResourceTypesAvoidsGenericInfrastructure(t *testing.T) {
 	t.Parallel()
 

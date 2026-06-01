@@ -183,3 +183,155 @@ func TestDiscoverEvidenceSchemaDrivenSkipsGenericResourceName(t *testing.T) {
 		t.Fatalf("len(evidence) = %d, want 0", len(evidence))
 	}
 }
+
+func TestDiscoverEvidenceIncludesTypedPagerDutyTerraformEvidence(t *testing.T) {
+	resetTerraformSchemaRegistryForTest()
+	RegisterSchemaDrivenTerraformExtractors(defaultTerraformSchemaDir())
+
+	envelopes := []facts.Envelope{
+		{
+			ScopeID: "repo-infra",
+			Payload: map[string]any{
+				"artifact_type": "terraform",
+				"relative_path": "pagerduty.tf",
+				"content": `resource "pagerduty_service" "checkout" {
+  name = "checkout-service"
+}
+
+resource "pagerduty_escalation_policy" "checkout" {
+  name = "checkout-escalation"
+}
+
+resource "pagerduty_team" "checkout" {
+  name = "checkout-team"
+}
+
+resource "pagerduty_service_integration" "checkout" {
+  name    = "checkout-events"
+  service = pagerduty_service.checkout.id
+}
+
+resource "pagerduty_event_orchestration" "checkout" {
+  name = "checkout-orchestration"
+}
+
+resource "pagerduty_webhook_subscription" "checkout-webhook" {
+  type   = "webhook_subscription"
+  active = true
+}`,
+			},
+		},
+	}
+	catalog := []CatalogEntry{
+		{RepoID: "repo-service", Aliases: []string{"checkout-service"}},
+		{RepoID: "repo-escalation", Aliases: []string{"checkout-escalation"}},
+		{RepoID: "repo-team", Aliases: []string{"checkout-team"}},
+		{RepoID: "repo-integration", Aliases: []string{"checkout-events"}},
+		{RepoID: "repo-orchestration", Aliases: []string{"checkout-orchestration"}},
+		{RepoID: "repo-webhook", Aliases: []string{"checkout-webhook"}},
+	}
+
+	evidence := DiscoverEvidence(envelopes, catalog)
+	expected := map[EvidenceKind]struct {
+		targetRepoID    string
+		resourceType    string
+		identityKey     string
+		resourceService string
+		category        string
+	}{
+		EvidenceKind("TERRAFORM_PAGERDUTY_SERVICE"): {
+			targetRepoID: "repo-service", resourceType: "pagerduty_service", identityKey: "name",
+			resourceService: "pagerduty_service", category: "monitoring",
+		},
+		EvidenceKind("TERRAFORM_PAGERDUTY_ESCALATION_POLICY"): {
+			targetRepoID: "repo-escalation", resourceType: "pagerduty_escalation_policy", identityKey: "name",
+			resourceService: "pagerduty_escalation_policy", category: "monitoring",
+		},
+		EvidenceKind("TERRAFORM_PAGERDUTY_TEAM"): {
+			targetRepoID: "repo-team", resourceType: "pagerduty_team", identityKey: "name",
+			resourceService: "pagerduty_team", category: "monitoring",
+		},
+		EvidenceKind("TERRAFORM_PAGERDUTY_SERVICE_INTEGRATION"): {
+			targetRepoID: "repo-integration", resourceType: "pagerduty_service_integration", identityKey: "name",
+			resourceService: "pagerduty_service_integration", category: "monitoring",
+		},
+		EvidenceKind("TERRAFORM_PAGERDUTY_EVENT_ORCHESTRATION"): {
+			targetRepoID: "repo-orchestration", resourceType: "pagerduty_event_orchestration", identityKey: "name",
+			resourceService: "pagerduty_event_orchestration", category: "monitoring",
+		},
+		EvidenceKind("TERRAFORM_PAGERDUTY_WEBHOOK_SUBSCRIPTION"): {
+			targetRepoID: "repo-webhook", resourceType: "pagerduty_webhook_subscription", identityKey: "resource_name",
+			resourceService: "pagerduty_webhook_subscription", category: "monitoring",
+		},
+	}
+	if len(evidence) != len(expected) {
+		t.Fatalf("len(evidence) = %d, want %d: %#v", len(evidence), len(expected), evidence)
+	}
+
+	for kind, want := range expected {
+		got := evidenceFactByKind(t, evidence, kind)
+		if got.TargetRepoID != want.targetRepoID {
+			t.Fatalf("%s TargetRepoID = %q, want %q", kind, got.TargetRepoID, want.targetRepoID)
+		}
+		if got.RelationshipType != RelProvisionsDependencyFor {
+			t.Fatalf("%s RelationshipType = %q, want %q", kind, got.RelationshipType, RelProvisionsDependencyFor)
+		}
+		if got.Details["resource_type"] != want.resourceType {
+			t.Fatalf("%s resource_type = %#v, want %q", kind, got.Details["resource_type"], want.resourceType)
+		}
+		if got.Details["identity_key"] != want.identityKey {
+			t.Fatalf("%s identity_key = %#v, want %q", kind, got.Details["identity_key"], want.identityKey)
+		}
+		if got.Details["resource_service"] != want.resourceService {
+			t.Fatalf("%s resource_service = %#v, want %q", kind, got.Details["resource_service"], want.resourceService)
+		}
+		if got.Details["category"] != want.category {
+			t.Fatalf("%s category = %#v, want %q", kind, got.Details["category"], want.category)
+		}
+	}
+}
+
+func TestDiscoverEvidencePagerDutyDoesNotUseSensitiveIdentityAttributes(t *testing.T) {
+	resetTerraformSchemaRegistryForTest()
+	RegisterSchemaDrivenTerraformExtractors(defaultTerraformSchemaDir())
+
+	envelopes := []facts.Envelope{
+		{
+			ScopeID: "repo-infra",
+			Payload: map[string]any{
+				"artifact_type": "terraform",
+				"relative_path": "pagerduty.tf",
+				"content": `resource "pagerduty_service_integration" "main" {
+  integration_key = "pd-secret-routing-key"
+  service         = pagerduty_service.checkout.id
+}
+
+resource "pagerduty_team_membership" "main" {
+  team_id = "PTEAM123"
+  user_id = "PUSER456"
+}`,
+			},
+		},
+	}
+	catalog := []CatalogEntry{
+		{RepoID: "repo-secret", Aliases: []string{"pd-secret-routing-key"}},
+		{RepoID: "repo-user", Aliases: []string{"PUSER456"}},
+		{RepoID: "repo-team", Aliases: []string{"PTEAM123"}},
+	}
+
+	evidence := DiscoverEvidence(envelopes, catalog)
+	if len(evidence) != 0 {
+		t.Fatalf("len(evidence) = %d, want 0 so sensitive PagerDuty attributes stay out of candidates: %#v", len(evidence), evidence)
+	}
+}
+
+func evidenceFactByKind(t *testing.T, evidence []EvidenceFact, kind EvidenceKind) EvidenceFact {
+	t.Helper()
+	for _, fact := range evidence {
+		if fact.EvidenceKind == kind {
+			return fact
+		}
+	}
+	t.Fatalf("missing evidence kind %q in %#v", kind, evidence)
+	return EvidenceFact{}
+}

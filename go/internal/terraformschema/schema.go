@@ -163,12 +163,17 @@ func InferIdentityKeys(attributes map[string]AttributeSchema) []string {
 // ClassifyResourceCategory returns a broad infrastructure category for a
 // Terraform provider resource or data-source type.
 func ClassifyResourceCategory(resourceType string) string {
-	servicePart := terraformResourceServicePart(resourceType)
+	normalized := strings.ToLower(strings.TrimSpace(resourceType))
+	if classification, ok := resourceClassifications[normalized]; ok {
+		return classification.category
+	}
+
+	servicePart := terraformResourceServicePart(normalized)
 	if servicePart == "" {
 		return "infrastructure"
 	}
 
-	if service := ClassifyResourceService(resourceType); service != "" {
+	if service := ClassifyResourceService(normalized); service != "" {
 		if category, ok := serviceCategories[service]; ok {
 			return category
 		}
@@ -179,7 +184,12 @@ func ClassifyResourceCategory(resourceType string) string {
 // ClassifyResourceService returns the provider service family for a Terraform
 // resource type, using the longest known category prefix when one exists.
 func ClassifyResourceService(resourceType string) string {
-	servicePart := terraformResourceServicePart(resourceType)
+	normalized := strings.ToLower(strings.TrimSpace(resourceType))
+	if classification, ok := resourceClassifications[normalized]; ok {
+		return classification.service
+	}
+
+	servicePart := terraformResourceServicePart(normalized)
 	if servicePart == "" {
 		return ""
 	}

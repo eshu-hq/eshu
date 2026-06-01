@@ -26,9 +26,18 @@ For `aws_cloudwatch_event_rule`:
 Longest-prefix matching lets `aws_cloudwatch_event_rule` map to `messaging`
 while other `aws_cloudwatch_*` resources can map to `monitoring`.
 
+Some provider resources need exact classifications before prefix matching. For
+example, the PagerDuty provider schema is already packaged, but
+`pagerduty_service` must classify as PagerDuty monitoring evidence rather than
+the generic `service` networking family. Those exact entries live in
+`resourceClassifications` in `go/internal/terraformschema/categories.go` and
+are used before the provider prefix is stripped.
+
 ## Adding Mappings
 
 Edit `serviceCategories` in `go/internal/terraformschema/categories.go`.
+When a provider-specific resource collides with a generic suffix, add an exact
+`resourceClassifications` entry instead.
 
 Choose the longest stable service prefix that avoids false matches. Do not add
 provider-specific category names when an existing broad label works across

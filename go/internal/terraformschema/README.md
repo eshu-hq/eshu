@@ -61,12 +61,15 @@ matches, it falls back to any attribute ending in `_name` or `_identifier`,
 sorted for stable output. The returned keys are used by the relationships
 package to extract candidate names from Terraform resource blocks.
 
-`ClassifyResourceService` strips the provider prefix from a resource type
-(e.g. `aws_rds_cluster` → `rds_cluster`) then performs a longest-prefix match
-in the `serviceCategories` table in `categories.go`. `ClassifyResourceCategory`
-calls `ClassifyResourceService` and then looks up the resulting service in the
-same table to return the broad category string (`compute`, `storage`, `data`,
-`networking`, `messaging`, `security`, `cicd`, `monitoring`, `governance`).
+`ClassifyResourceService` first checks exact resource classifications for
+provider-specific resources whose suffix would collide with generic families
+(for example `pagerduty_service`). Without an exact override, it strips the
+provider prefix from a resource type (e.g. `aws_rds_cluster` → `rds_cluster`)
+then performs a longest-prefix match in the `serviceCategories` table in
+`categories.go`. `ClassifyResourceCategory` follows the same exact-override
+then service-category lookup path to return the broad category string
+(`compute`, `storage`, `data`, `networking`, `messaging`, `security`, `cicd`,
+`monitoring`, `governance`).
 
 `DefaultSchemaDir` resolves the packaged `schemas/` directory relative to
 `paths.go` using `runtime.Caller`. An explicit `ESHU_TERRAFORM_SCHEMA_DIR`
@@ -138,7 +141,9 @@ None. Schema loading is a startup-time operation; callers in
   relationships package. No code changes to this package are needed.
 - **Add a new service category mapping** → add entries to `serviceCategories`
   in `categories.go`. Use the longest unambiguous prefix for the resource type
-  service part. Run `go test ./internal/terraformschema -count=1`.
+  service part. If a provider-specific resource would collide with a generic
+  suffix such as `service`, add an exact entry to `resourceClassifications`
+  instead. Run `go test ./internal/terraformschema -count=1`.
 - **Add a new identity key pattern** → append to `identityKeyPatterns` in
   `schema.go`. Patterns are tried in order; put higher-confidence patterns
   earlier. Run the identity inference tests to verify no regressions.
@@ -148,10 +153,10 @@ None. Schema loading is a startup-time operation; callers in
 - `LoadProviderSchema` merges nested block attributes only from blocks listed
   in `nestedIdentityBlocks`. Attributes in other block types (e.g. `timeouts`,
   `tags_all`) are not promoted to the top level.
-- `ClassifyResourceService` strips only the first underscore-separated segment
-  as the provider prefix. Resource types without an underscore return an empty
-  service string and `ClassifyResourceCategory` falls back to
-  `"infrastructure"`.
+- `ClassifyResourceService` checks exact classifications before stripping the
+  provider prefix. Resource types without an exact match and without an
+  underscore return an empty service string, and `ClassifyResourceCategory`
+  falls back to `"infrastructure"`.
 - `ProviderSchemaInfo.ResourceTypes` is a flat merge across all providers in
   the schema file. When two providers define the same resource type string,
   the last-sorted provider's attributes win. In practice, each schema file
