@@ -143,6 +143,8 @@ func TestSpanNames(t *testing.T) {
 		"pagerduty.fetch",
 		"jira.observe",
 		"jira.fetch",
+		"grafana.observe",
+		"grafana.fetch",
 		"query.supply_chain_impact_findings",
 		"query.supply_chain_impact_explanation",
 		"query.supply_chain_impact_aggregate",
