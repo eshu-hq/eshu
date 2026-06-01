@@ -389,9 +389,11 @@ Log phase attributes: `telemetry.PhaseReduction` (main loop),
   version/range ordering, PyPI PEP 440, RPM EVR ordering, and RubyGems
   `Gem::Version`-style installed versions. Swift impact requires exact
   `Package.resolved` remote source-control pin evidence and a source-backed OSV
-  `SwiftURL` package identity. Unsupported ecosystems and malformed advisory
-  ranges fail closed as partial evidence with explicit missing-evidence
-  reasons. Npm `package-lock.json`, PHP `composer.lock`, and Ruby Bundler
+  `SwiftURL` package identity. Malformed advisory ranges fail closed as
+  partial evidence with explicit missing-evidence reasons. Unsupported matcher
+  ecosystems do not publish impact findings; the query readiness envelope
+  surfaces observed unsupported dependencies as coverage gaps with stable
+  reason codes. Npm `package-lock.json`, PHP `composer.lock`, and Ruby Bundler
   `Gemfile.lock` rows also preserve the ordered dependency path, depth,
   direct/transitive flag, and runtime/dev scope when the lockfile proves the
   chain, so vulnerability impact can explain whether a finding came from a
@@ -542,10 +544,11 @@ Log phase attributes: `telemetry.PhaseReduction` (main loop),
   (lockfile, manifest with pinned version, or SBOM component with an
   explicit version) plus an ecosystem-aware exact match. Comprehensive
   covers range-only manifests, SBOM/CPE-derived image paths without an
-  exact version, malformed advisory ranges, unsupported ecosystems, and
-  missing observed versions. PyPI exact lockfile matches qualify as precise
-  only after the PEP 440 matcher proves the advisory range or known-fixed
-  boundary. The tier is persisted alongside the truth
+  exact version, malformed advisory ranges, and missing observed versions.
+  Unsupported matcher ecosystems are not finding rows and are reported by
+  readiness instead. PyPI exact lockfile matches qualify as precise only after
+  the PEP 440 matcher proves the advisory range or known-fixed boundary. The
+  tier is persisted alongside the truth
   labels (status, confidence, runtime_reachability) and missing-evidence
   reasons; readers (API, MCP, parity gate) decide which tier they want.
 - **RPM OS package evidence is vendor-gated** — `vulnerability.os_package`

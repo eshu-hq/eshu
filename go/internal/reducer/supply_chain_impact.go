@@ -112,8 +112,10 @@ type SupplyChainImpactFinding struct {
 	CanonicalWrites       int
 	// DetectionProfile records which tier this finding meets: precise for
 	// exact installed-version anchors, comprehensive for range-only,
-	// SBOM-derived, product-derived, malformed, unsupported-ecosystem, or
-	// missing-version evidence. Always set before the writer persists the row.
+	// SBOM-derived, product-derived, malformed, or missing-version evidence.
+	// Always set before the writer persists the row. Unsupported matcher
+	// ecosystems are withheld from impact findings and surfaced through
+	// readiness coverage gaps instead.
 	DetectionProfile DetectionProfile
 	// Suppression carries the VEX or operator-policy decision evaluated for
 	// this finding. State is always populated; it is "active" when no
@@ -394,6 +396,9 @@ func appendSupplyChainImpactFinding(
 	if !supplyChainImpactFindingHasOwnedAnchor(finding) {
 		return findings
 	}
+	if supplyChainImpactFindingHasUnsupportedMatcher(finding) {
+		return findings
+	}
 	finding.DetectionProfile = classifySupplyChainImpactDetectionProfile(finding)
 	finding = withSupplyChainImpactPriority(finding)
 	finding.Remediation = BuildSupplyChainImpactRemediation(finding)
@@ -402,6 +407,13 @@ func appendSupplyChainImpactFinding(
 
 func supplyChainImpactFindingHasOwnedAnchor(finding SupplyChainImpactFinding) bool {
 	return strings.TrimSpace(finding.RepositoryID) != "" || strings.TrimSpace(finding.SubjectDigest) != ""
+}
+
+func supplyChainImpactFindingHasUnsupportedMatcher(finding SupplyChainImpactFinding) bool {
+	if strings.TrimSpace(finding.MatchReason) != supplyChainVersionReasonUnsupportedEcosystem {
+		return false
+	}
+	return normalizedSupplyChainVersionEcosystem(finding.Ecosystem) != "os"
 }
 
 func supplyChainImpactFactKinds() []string {

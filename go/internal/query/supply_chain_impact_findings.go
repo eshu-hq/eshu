@@ -99,9 +99,10 @@ type SupplyChainImpactFindingRow struct {
 	Suppression *SupplyChainSuppressionDecisionRow
 	// DetectionProfile records which evidence tier produced the row:
 	// precise for exact installed-version anchors, comprehensive for
-	// range-only, SBOM-derived, CPE-derived, malformed,
-	// unsupported-ecosystem, or missing-version evidence. Older rows
-	// written before profile tagging may return blank.
+	// range-only, SBOM-derived, CPE-derived, malformed, or missing-version
+	// evidence. Unsupported matcher ecosystems are readiness gaps, not
+	// findings.
+	// Older rows written before profile tagging may return blank.
 	DetectionProfile string
 	// Remediation is the reducer-owned advisory-only safe-upgrade
 	// recommendation for this finding. Older rows written before #595
@@ -324,8 +325,8 @@ func decodeSupplyChainImpactFindingRow(
 // reducer applies live. Rolling-upgrade scenarios — query service updated
 // before the reducer reruns — would otherwise return zero precise rows
 // for findings whose payload qualifies. Range-only, derived,
-// product-only, malformed, unsupported, and missing-version rows still
-// land in comprehensive.
+// product-only, malformed, and missing-version rows still land in
+// comprehensive.
 func inferLegacyDetectionProfile(impactStatus string, observedVersion string, matchReason string) string {
 	switch impactStatus {
 	case "affected_exact", "not_affected_known_fixed":

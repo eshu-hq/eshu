@@ -7,7 +7,7 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
-func TestBuildSupplyChainImpactFindingsCarriesRubyGemsLockfileEvidence(t *testing.T) {
+func TestBuildSupplyChainImpactFindingsUsesRubyGemsLockfileVersion(t *testing.T) {
 	t.Parallel()
 
 	findings := BuildSupplyChainImpactFindings([]facts.Envelope{

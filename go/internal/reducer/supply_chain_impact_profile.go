@@ -12,15 +12,17 @@ const (
 	// DetectionProfilePrecise marks findings backed by an exact installed
 	// version anchor (lockfile, manifest with pinned version, SBOM
 	// component version) that resolved with an ecosystem-aware matcher.
-	// Range-only manifest, malformed, unsupported-ecosystem, derived
-	// product/CPE, and missing-version evidence do not qualify.
+	// Range-only manifest, malformed, derived product/CPE, and
+	// missing-version evidence do not qualify. Unsupported matcher
+	// ecosystems are withheld from impact findings and surfaced through
+	// readiness coverage gaps instead.
 	DetectionProfilePrecise DetectionProfile = "precise"
 	// DetectionProfileComprehensive marks findings that do not meet the
 	// precise bar but still carry owned anchor evidence (SBOM component,
-	// CPE-derived image path, range-only manifest, malformed range,
-	// unsupported ecosystem, or missing observed version). They keep their
-	// truth labels (status, confidence, runtime_reachability) and explicit
-	// missing-evidence reasons so callers can interpret recall correctly.
+	// CPE-derived image path, range-only manifest, malformed range, or
+	// missing observed version). They keep their truth labels (status,
+	// confidence, runtime_reachability) and explicit missing-evidence reasons
+	// so callers can interpret recall correctly.
 	DetectionProfileComprehensive DetectionProfile = "comprehensive"
 )
 

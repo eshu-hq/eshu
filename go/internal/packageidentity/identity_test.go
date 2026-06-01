@@ -328,3 +328,26 @@ func TestNormalizePackageIdentityRejectsMissingRequiredFields(t *testing.T) {
 		})
 	}
 }
+
+func TestNormalizePackageIdentityRejectsUnimplementedEcosystemAliases(t *testing.T) {
+	t.Parallel()
+
+	for _, ecosystem := range []Ecosystem{"pub", "hex"} {
+		ecosystem := ecosystem
+		t.Run(string(ecosystem), func(t *testing.T) {
+			t.Parallel()
+
+			if got := NormalizeEcosystem(ecosystem); got != "" {
+				t.Fatalf("NormalizeEcosystem(%q) = %q, want unsupported", ecosystem, got)
+			}
+			_, err := Normalize(RawIdentity{
+				Ecosystem: ecosystem,
+				Registry:  "example.org",
+				RawName:   "example",
+			})
+			if err == nil {
+				t.Fatalf("Normalize(%q) error = nil, want unsupported ecosystem error", ecosystem)
+			}
+		})
+	}
+}
