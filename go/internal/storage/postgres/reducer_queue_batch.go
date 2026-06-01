@@ -103,6 +103,23 @@ WITH candidate AS (
             AND aws_nodes.keyspace = 'cloud_resource_uid'
             AND aws_nodes.phase = 'canonical_nodes_committed'
       ))
+      -- The live-workload RUNS_IMAGE edge consumes KubernetesWorkload nodes
+      -- produced by the kubernetes_workload_materialization domain for the exact
+      -- same scope/generation/entity-key readiness slice, but on the
+      -- kubernetes_workload_uid keyspace (a different node family than the AWS and
+      -- observability edges above). Keep the edge domain pending or retrying until
+      -- those workload nodes are visibly committed instead of claiming it and
+      -- recording a retryable reducer failure.
+      AND (domain <> 'kubernetes_correlation_materialization' OR EXISTS (
+          SELECT 1
+          FROM graph_projection_phase_state AS kube_nodes
+          WHERE kube_nodes.scope_id = fact_work_items.scope_id
+            AND kube_nodes.acceptance_unit_id = COALESCE(NULLIF(fact_work_items.payload->>'entity_key', ''), fact_work_items.scope_id)
+            AND kube_nodes.source_run_id = fact_work_items.generation_id
+            AND kube_nodes.generation_id = fact_work_items.generation_id
+            AND kube_nodes.keyspace = 'kubernetes_workload_uid'
+            AND kube_nodes.phase = 'canonical_nodes_committed'
+      ))
       -- Reducer domains can touch the same graph nodes for a scope. Fence by
       -- explicit conflict key so unrelated graph families can still overlap.
       AND NOT EXISTS (
@@ -136,6 +153,16 @@ WITH candidate AS (
                   AND same_nodes.generation_id = same.generation_id
                   AND same_nodes.keyspace = 'cloud_resource_uid'
                   AND same_nodes.phase = 'canonical_nodes_committed'
+            ))
+            AND (same.domain <> 'kubernetes_correlation_materialization' OR EXISTS (
+                SELECT 1
+                FROM graph_projection_phase_state AS same_kube_nodes
+                WHERE same_kube_nodes.scope_id = same.scope_id
+                  AND same_kube_nodes.acceptance_unit_id = COALESCE(NULLIF(same.payload->>'entity_key', ''), same.scope_id)
+                  AND same_kube_nodes.source_run_id = same.generation_id
+                  AND same_kube_nodes.generation_id = same.generation_id
+                  AND same_kube_nodes.keyspace = 'kubernetes_workload_uid'
+                  AND same_kube_nodes.phase = 'canonical_nodes_committed'
             ))
           ORDER BY same.updated_at ASC, same.work_item_id ASC
           LIMIT 1

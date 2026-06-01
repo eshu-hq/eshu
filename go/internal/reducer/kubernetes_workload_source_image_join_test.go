@@ -191,3 +191,65 @@ func TestSourceImageDigestJoinIndexIngestsImageIndexAndDescriptorFacts(t *testin
 		t.Fatal("a reusable descriptor digest must resolve to its node uid")
 	}
 }
+
+func TestSourceImageDigestJoinIndexResolveNodeReturnsLabelPerKind(t *testing.T) {
+	t.Parallel()
+
+	// The edge MATCH must anchor the source endpoint on the exact uid-indexed
+	// label the projector wrote, and the three OCI digest-addressed node kinds
+	// carry distinct labels (OciImageManifest / OciImageIndex / OciImageDescriptor).
+	// ResolveDigestNode therefore returns the node label alongside the uid so the
+	// edge writer can group its MATCH by label rather than guessing a single label
+	// that would miss index or descriptor source nodes.
+	envelopes := []facts.Envelope{
+		ociManifestEnvelope(sampleManifestPayload(
+			"oci-registry://registry.example.com/checkout",
+			"oci-descriptor://registry.example.com/checkout@sha256:man",
+			"sha256:man",
+		), false),
+		{
+			FactKind: facts.OCIImageIndexFactKind,
+			FactID:   "fact-index",
+			Payload: sampleManifestPayload(
+				"oci-registry://registry.example.com/checkout",
+				"oci-descriptor://registry.example.com/checkout@sha256:index",
+				"sha256:index",
+			),
+		},
+		{
+			FactKind: facts.OCIImageDescriptorFactKind,
+			FactID:   "fact-descriptor",
+			Payload: sampleManifestPayload(
+				"oci-registry://registry.example.com/checkout",
+				"oci-descriptor://registry.example.com/checkout@sha256:desc",
+				"sha256:desc",
+			),
+		},
+	}
+
+	index := BuildSourceImageDigestJoinIndex(envelopes)
+	for _, tc := range []struct {
+		digest    string
+		wantLabel string
+	}{
+		{"sha256:man", sourceImageNodeLabelManifest},
+		{"sha256:index", sourceImageNodeLabelIndex},
+		{"sha256:desc", sourceImageNodeLabelDescriptor},
+	} {
+		node, ok := index.ResolveDigestNode(tc.digest)
+		if !ok {
+			t.Fatalf("digest %q must resolve to a source node", tc.digest)
+		}
+		if node.Label != tc.wantLabel {
+			t.Fatalf("digest %q label = %q, want %q", tc.digest, node.Label, tc.wantLabel)
+		}
+		if node.UID == "" {
+			t.Fatalf("digest %q resolved an empty uid", tc.digest)
+		}
+		// ResolveDigest stays compatible: same uid, no label.
+		uid, okLegacy := index.ResolveDigest(tc.digest)
+		if !okLegacy || uid != node.UID {
+			t.Fatalf("ResolveDigest %q = (%q,%v), want (%q,true)", tc.digest, uid, okLegacy, node.UID)
+		}
+	}
+}

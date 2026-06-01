@@ -57,10 +57,31 @@ readiness_blocked AS (
             AND aws_nodes.phase = 'canonical_nodes_committed'
       )
 ),
+kubernetes_readiness_blocked AS (
+    SELECT eligible.domain,
+           'readiness' AS conflict_domain,
+           'kubernetes_workload_uid:canonical_nodes_committed:' ||
+               COALESCE(NULLIF(eligible.payload->>'entity_key', ''), eligible.scope_id) AS conflict_key,
+           eligible.available_at
+    FROM eligible
+    WHERE eligible.domain = 'kubernetes_correlation_materialization'
+      AND NOT EXISTS (
+          SELECT 1
+          FROM graph_projection_phase_state AS kube_nodes
+          WHERE kube_nodes.scope_id = eligible.scope_id
+            AND kube_nodes.acceptance_unit_id = COALESCE(NULLIF(eligible.payload->>'entity_key', ''), eligible.scope_id)
+            AND kube_nodes.source_run_id = eligible.generation_id
+            AND kube_nodes.generation_id = eligible.generation_id
+            AND kube_nodes.keyspace = 'kubernetes_workload_uid'
+            AND kube_nodes.phase = 'canonical_nodes_committed'
+      )
+),
 all_blocked AS (
     SELECT domain, conflict_domain, conflict_key, available_at FROM blocked
     UNION ALL
     SELECT domain, conflict_domain, conflict_key, available_at FROM readiness_blocked
+    UNION ALL
+    SELECT domain, conflict_domain, conflict_key, available_at FROM kubernetes_readiness_blocked
 )
 SELECT 'reducer' AS stage,
        domain,

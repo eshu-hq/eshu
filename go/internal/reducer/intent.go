@@ -131,6 +131,22 @@ const (
 	// slice gates exactly like DomainAWSRelationshipMaterialization (#805). See
 	// issue #388 and docs/internal/design/388-kubernetes-correlation-readmodel.md.
 	DomainKubernetesWorkloadMaterialization Domain = "kubernetes_workload_materialization"
+	// DomainKubernetesCorrelationMaterialization projects the exact-outcome live
+	// Kubernetes correlation decisions into canonical RUNS_IMAGE edges between a
+	// KubernetesWorkload node (committed by DomainKubernetesWorkloadMaterialization)
+	// and the digest-addressed OCI source node a live workload was observed running.
+	// It gates on the GraphProjectionKeyspaceKubernetesWorkloadUID /
+	// GraphProjectionPhaseCanonicalNodesCommitted readiness phase so edges never
+	// resolve against workload nodes that have not committed (issue #388 PR3),
+	// exactly like DomainAWSRelationshipMaterialization (#805) and
+	// DomainObservabilityCoverageMaterialization (#391 PR3). Only an exact image
+	// digest match whose source digest resolves a canonical OCI node uid
+	// materializes an edge; derived, ambiguous, unresolved, stale, and rejected
+	// outcomes — and the structural owner_reference identity decision, which is a
+	// workload->workload edge rather than a workload->image edge — stay
+	// provenance-only and fabricate no edge. See issue #388 and
+	// docs/internal/design/388-kubernetes-correlation-readmodel.md.
+	DomainKubernetesCorrelationMaterialization Domain = "kubernetes_correlation_materialization"
 )
 
 // IntentStatus captures the durable reducer intent lifecycle state.

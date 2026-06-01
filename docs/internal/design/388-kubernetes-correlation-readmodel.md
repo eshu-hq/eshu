@@ -206,3 +206,82 @@ graph or queue cost.
    optional `ListActiveKubernetesCorrelationSourceFacts` loader, mirroring
    #container-image-identity. Confirm this is the right cross-scope seam vs. a
    query against already-materialized image identity facts.
+
+## PR3 — gated RUNS_IMAGE graph edge (shipped, needs principal review)
+
+**Status:** NEEDS PRINCIPAL REVIEW — gated graph-write (`risk:schema`), no
+auto-merge. This slice is a direct mirror of the shipped #805 AWS relationship
+edge and #391 PR3 COVERS edge. It writes the final edge that closes the #388
+chain.
+
+### What it materializes
+
+A canonical `(:KubernetesWorkload)-[:RUNS_IMAGE]->(:OciImage{Manifest,Index,Descriptor})`
+edge, from **exact image-digest** correlation outcomes only:
+
+- Source endpoint: the live `KubernetesWorkload` node (uid = the
+  collector-emitted `object_id`) committed by
+  `DomainKubernetesWorkloadMaterialization`.
+- Target endpoint: the digest-addressed OCI source node resolved by
+  `SourceImageDigestJoinIndex.ResolveDigestNode` (the digest→uid bridge the node
+  slice added). The index now also returns the node's uid-indexed label so the
+  edge MATCH anchors per node kind.
+- Domain: `DomainKubernetesCorrelationMaterialization`
+  (`kubernetes_correlation_materialization`), additive, registered only when a
+  `KubernetesCorrelationEdgeWriter` is wired.
+- Gate: the durable Postgres claim/blockage gate now carries a
+  `kubernetes_correlation_materialization` clause gating on the
+  `kubernetes_workload_uid` keyspace's `canonical_nodes_committed` phase — a
+  **separate** clause from the AWS/COVERS `cloud_resource_uid` clause because the
+  workload node family is a different keyspace.
+
+### Relationship-type decision (principal-review focus)
+
+The PR1/node design placeholder named the edge `RUNS` / `DRIFTS_FROM`. The
+shipped edge uses **`RUNS_IMAGE`**: a single static token from a closed
+vocabulary, validated in the writer, kept out of the MERGE property map so
+NornicDB keeps its relationship hot path (#805 §5.3). `DRIFTS_FROM` is **not**
+shipped — drift is already a provenance-only `drift_kind` on the PR1 facts, and a
+`RUNS_IMAGE` edge to the *resolved* digest is the accurate canonical claim; a
+drift edge would assert a second relationship the exact outcome does not prove.
+Confirm `RUNS_IMAGE` (workload→resolved image) is the intended canonical
+relationship type.
+
+### owner_reference deferral (the surfaced fork)
+
+The PR1 classifier produces a second `exact` outcome: a structural
+`owner_reference` identity edge (`from_object_id`→`to_object_id`). This slice
+does **not** edge it, by design:
+
+1. Both endpoints are K8s `object_id`s, i.e. a workload→workload structural edge,
+   not a workload→image edge. The node + digest-join prerequisites (#1105) were
+   built specifically for the image edge, not for an object_id→object_id edge.
+2. The `KubernetesWorkload` node is materialized from `pod_template` facts only,
+   so the owner target (a ReplicaSet/Deployment owner) is **not guaranteed** to
+   have a node. Anchoring an edge there would either fabricate a node (forbidden)
+   or dangle. Per "never fabricate / else SKIP", it is excluded — the
+   `owner_reference` exact decision carries no `SourceDigest`, so it is naturally
+   filtered out of the image-edge extractor.
+
+A future PR may add a separate `OWNS` workload→workload edge once the node slice
+materializes non-pod-template workload owners. That is out of scope here. Confirm
+this deferral.
+
+### Idempotency / concurrency / no-dangle
+
+- Idempotent on `(workload_uid, RUNS_IMAGE, source_uid)`; rows deduplicated and
+  sorted so retries and reprojections produce a byte-stable batch. Conflict key
+  is per-edge — not a "serialization is not a fix" case.
+- An exact decision whose digest resolves no canonical node (tag-only evidence,
+  which is not a digest-addressed node) is counted skipped, never written as a
+  dangling edge.
+- Evidence-scoped, edge-`scope_id`-filtered retract (endpoint nodes carry no
+  reducer `scope_id`).
+
+### Evidence
+
+Performance, no-regression, and observability evidence (benchmarks, gate
+commands, telemetry) live in `go/internal/reducer/README.md` (the
+"Live-workload RUNS_IMAGE edge projection" section) and
+`go/internal/storage/cypher/README.md` (the `KubernetesCorrelationEdgeWriter`
+entry), which are the gate-tracked evidence files.

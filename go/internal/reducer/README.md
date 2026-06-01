@@ -75,6 +75,64 @@ canonical-write or bounded counter-emission requirements.
 | `DomainSecurityAlertReconciliation` | Compare provider repository security alerts with Eshu-owned dependency and impact evidence, including alert-seeded impact rows only when owned dependency evidence matches |
 | `DomainAWSResourceMaterialization` | Materialize `aws_resource` facts into canonical `CloudResource` nodes; publishes the `cloud_resource_uid` canonical-nodes phase the AWS relationship edge gates on (issue #805) |
 | `DomainKubernetesWorkloadMaterialization` | Materialize `kubernetes_live.pod_template` facts into canonical `KubernetesWorkload` nodes keyed by the collector-emitted `object_id`; publishes the `kubernetes_workload_uid` canonical-nodes phase the #388 live-workload edge gates on |
+| `DomainKubernetesCorrelationMaterialization` | Project exact live-workload correlation decisions into canonical `RUNS_IMAGE` edges from a `KubernetesWorkload` node to the digest-addressed OCI source node it runs; gates on the `kubernetes_workload_uid` canonical-nodes phase, exact-only, never fabricates or dangles an edge (issue #388 PR3) |
+
+## Live-workload RUNS_IMAGE edge projection (issue #388 PR3)
+
+`DomainKubernetesCorrelationMaterialization`
+(`kubernetes_correlation_materialization.go`) is the gated graph-write slice that
+closes the #388 chain. It mirrors `DomainAWSRelationshipMaterialization` (#805
+PR2) and `DomainObservabilityCoverageMaterialization` (#391 PR3):
+
+- It gates on `GraphProjectionKeyspaceKubernetesWorkloadUID` /
+  `canonical_nodes_committed` (published by
+  `DomainKubernetesWorkloadMaterialization`) so an edge never resolves against a
+  workload node that has not committed. The miss is a retryable error so the
+  durable queue re-runs the intent rather than failing terminally or writing
+  against absent nodes. The durable Postgres claim gate
+  (`reducer_queue_claim_query.go`, `reducer_queue_batch.go`) and the blockage
+  view (`status_blockage.go`) carry a matching `kubernetes_workload_uid` clause.
+- `ExtractKubernetesCorrelationEdgeRows` re-runs the PR1 classifier and promotes
+  to an edge **only** an `exact` image decision that resolved both a workload
+  node uid (`object_id`) and a digest-addressed OCI source node uid (resolved via
+  `SourceImageDigestJoinIndex.ResolveDigestNode`). Derived / ambiguous /
+  unresolved / stale / rejected outcomes stay provenance-only; the structural
+  `owner_reference` identity decision is a workload→workload edge whose owner
+  target is not guaranteed to have a `KubernetesWorkload` node, so it carries no
+  `SourceDigest` and is naturally excluded from this image-edge slice. An exact
+  decision whose digest resolves no canonical node (tag-only evidence) is counted
+  skipped, never written as a dangling edge.
+- The write is idempotent on `(workload_uid, RUNS_IMAGE, source_uid)`; rows are
+  deduplicated and sorted so retries and reprojections produce a byte-stable
+  batch. The conflict key is per-edge, so no serialization workaround is
+  introduced (this is not a "serialization is not a fix" case).
+
+Performance Evidence: `go test ./internal/reducer -run '^$' -bench
+'BenchmarkExtractKubernetesCorrelationEdgeRows' -benchmem -benchtime=100x`
+resolved 5,000 workloads → 5,000 edges in `8.89 ms/op` (`22.4 MB/op`,
+`135,221 allocs/op`) on darwin/arm64 (Apple M3 Pro): the pure classifier plus the
+O(M) digest→uid index build and O(1) per-edge source resolution, no per-edge
+graph round trip and no N+1.
+No-Regression Evidence: the edge write reuses the established UNWIND-batched
+MATCH-MATCH-MERGE shape; `BenchmarkKubernetesCorrelationEdgeWriter` (in
+`go/internal/storage/cypher`) shaped 5,000 edges at batch 500 in `1.14 ms/op`
+(`2.16 MB/op`, `25,098 allocs/op`), faster and leaner than the proven
+`BenchmarkCloudResourceEdgeWriter` (`1.81 ms/op`, `3.89 MB/op`) and
+`BenchmarkObservabilityCoverageEdgeWriter` (`1.71 ms/op`) baselines on the same
+input shape and machine, because the row carries fewer properties and a single
+static relationship type. `go test ./internal/reducer
+./internal/storage/cypher ./internal/storage/postgres ./cmd/reducer -count=1`
+proves the exact-only, idempotent-reprojection, readiness-gating,
+digest-unresolvable-no-dangle, empty, stale, and owner-reference-excluded cases.
+Observability Evidence: the new `eshu_dp_kubernetes_correlation_edges_total`
+counter (dimension `resolution_mode`), the `kubernetes correlation
+materialization completed` structured log with per-stage durations, edge count,
+and `skipped_unresolvable_source`, the
+`reducer.kubernetes_correlation_materialization` span, and the
+InstrumentedExecutor's `eshu_dp_neo4j_query_duration_seconds` /
+`eshu_dp_neo4j_batch_size` on each `phase=kubernetes_correlation_edge` /
+`label=RUNS_IMAGE` statement let an operator see live-workload edge throughput
+and spot a generation that materialized zero edges, at 3 AM.
 
 ## Intent lifecycle
 
@@ -317,6 +375,12 @@ Key metrics (all prefixed `eshu_dp_`):
   workload materialization completed` structured log with per-stage durations and
   the node count. See issue #388 and
   `docs/internal/design/388-kubernetes-workload-node.md`.
+- `kubernetes_correlation_edges_total` — canonical `RUNS_IMAGE` live-workload
+  edges committed by `DomainKubernetesCorrelationMaterialization`, dimensioned by
+  `resolution_mode` (`digest`). It counts only materialized exact edges;
+  provenance-only correlation and exact decisions whose source digest resolved no
+  canonical OCI node (counted in the completion log's
+  `skipped_unresolvable_source`) never produce an edge. See issue #388 PR3.
 
   Benchmark Evidence: `go test ./internal/reducer -run '^$' -bench
   'BenchmarkExtractKubernetesWorkloadNodeRows|BenchmarkBuildSourceImageDigestJoinIndex'

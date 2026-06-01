@@ -120,7 +120,16 @@ type Instruments struct {
 	// how many live-workload nodes one generation committed — the substrate the
 	// later live-workload edge slice resolves against — and spot a generation that
 	// produced zero nodes (every pod template lacked an object_id) at 3 AM.
-	KubernetesWorkloadNodes    metric.Int64Counter
+	KubernetesWorkloadNodes metric.Int64Counter
+	// KubernetesCorrelationEdges counts canonical RUNS_IMAGE edges the live-workload
+	// correlation edge projection committed (issue #388 PR3). Label: resolution_mode
+	// (digest — the only edge-eligible exact join). It counts only materialized
+	// exact edges; provenance-only correlation (derived/ambiguous/unresolved/stale/
+	// rejected) and exact decisions whose source digest resolved no canonical OCI
+	// node (counted skipped in the completion log) never produce an edge. Lets an
+	// operator see live-workload->image edge throughput, and a generation that
+	// materialized zero edges, at 3 AM.
+	KubernetesCorrelationEdges metric.Int64Counter
 	SBOMAttestationAttachments metric.Int64Counter
 	SupplyChainImpactFindings  metric.Int64Counter
 	// SupplyChainSuppressionDecisions counts reducer suppression-state
@@ -872,6 +881,14 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register KubernetesWorkloadNodes counter: %w", err)
+	}
+
+	inst.KubernetesCorrelationEdges, err = meter.Int64Counter(
+		"eshu_dp_kubernetes_correlation_edges_total",
+		metric.WithDescription("Total canonical RUNS_IMAGE live-workload edges committed by resolution_mode (digest)"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register KubernetesCorrelationEdges counter: %w", err)
 	}
 
 	inst.SBOMAttestationAttachments, err = meter.Int64Counter(
