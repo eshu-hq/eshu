@@ -38,9 +38,9 @@ Options:
   --out-dir <path>              Evidence dir (default \${TMPDIR:-/tmp}/eshu-security-intel-release-gate/<ts>).
   --image-tag-candidate <tag>   Image tag this gate is judging. Recorded in evidence.
   --provider-compare <file>     Aggregate-only provider parity JSON (provider phase).
-  --api-base-url <url>          Base URL for runtime phase API readback.
-  --api-key <token>             Bearer token for runtime phase API readback.
-  --pprof-base-url <url>        Base URL for the runtime phase pprof probe.
+  --api-base-url <url>          Base URL for runtime and k8s phase readback.
+  --api-key <token>             Bearer token for runtime/k8s API readback.
+  --pprof-base-url <url>        Base URL for the runtime/k8s pprof probe.
                                 Pprof is exposed via a separate listener; without
                                 this, pprof_status is recorded as "unchecked".
   --k8s-namespace <name>        Namespace for k8s phase snapshots.

@@ -114,7 +114,7 @@ comparison input looks like private data.
 | `focused` | Runs `go test` over `./internal/vulnerabilityparity`, `./internal/reducer`, `./internal/query`, `./internal/mcp`, `./internal/collector/vulnerabilityintelligence`, `./internal/collector/scannerworker`, `./cmd/scanner-worker`. | Go toolchain. |
 | `fixtures` | Runs `go test ./internal/vulnerabilityparity` and `scripts/verify_vulnerability_parity_fixtures.sh`. | Go toolchain plus `jq` (already required by the verifier). |
 | `runtime` | Wraps `scripts/verify_remote_e2e_runtime_state.sh`, calls the documented supply-chain endpoints with `limit=1`, captures `docker stats --no-stream` for the running services, and optionally probes pprof when `--pprof-base-url` is provided (pprof rides a separate listener on its own host port; without an explicit URL the gate records `pprof_status: unchecked`). Any endpoint readback error, a missing verifier script, or a verifier non-zero exit fails the phase. | A running remote Compose stack. `--api-base-url` is required; `--api-key` is required when the stack uses an explicit bearer token. |
-| `k8s` | Captures `kubectl get pods -o json`, `kubectl top pods`, and `helm get values` for the target release. Any of those commands failing (auth, missing namespace, no metrics-server, missing helm) is recorded as a phase failure so the gate cannot report green without resource snapshots. | `--k8s-namespace`, `kubectl`, and `helm` (`helm` is required because rendered values are the documented resource snapshot). |
+| `k8s` | Captures public-safe pod/resource summaries, sanitized Helm values, sanitized logs for Eshu pods, `/admin/status` and `/api/v0/index-status` queue readback, and optional pprof reachability. Missing logs, missing queue retry/dead-letter readback, missing CPU/memory snapshots, unreachable provided pprof URL, or missing Helm values are recorded as phase failures. | `--k8s-namespace`, `--api-base-url`, `kubectl`, `curl`, and `helm`. Use `--pprof-base-url` when a private pprof port-forward is available; without it the phase records `pprof_status: unchecked`. |
 | `provider` | Records an operator-supplied aggregate-only parity comparison JSON. The harness rejects anything that contains package names, alert URLs, repository names, installation ids, or known token prefixes (`ghp_`, `github_pat_`, `glpat-`). | A JSON file containing `comparison_id` and a non-empty `totals` map of classification class to count. |
 
 ### Selecting phases
@@ -144,6 +144,9 @@ scripts/security_intelligence_release_gate.sh --phases all \
 `$REMOTE_PPROF_BASE_URL` is the base of the separate pprof listener
 (`ESHU_PPROF_ADDR`, typically a different host port than the API). Omit the
 flag to mark `pprof_status: unchecked` rather than probe the API URL.
+For Kubernetes, pass the local port-forward base URL for the API admin surface
+with `--api-base-url`; the phase stores only sanitized summaries and does not
+record the private URL in the Kubernetes evidence.
 
 ## Sequence operators follow
 
@@ -177,9 +180,15 @@ flag to mark `pprof_status: unchecked` rather than probe the API URL.
    pass the file to `--provider-compare`. The harness records only the
    aggregate counts and the synthetic comparison id.
 8. **Run the `k8s` phase against the staging cluster.** Follow
-   [Deploy To EKS](../deploy/eks/index.md) for cluster setup. The harness
-   captures pod, top, and Helm values snapshots; operators capture pprof and
-   logs through a port-forward (never through the public service).
+   [Deploy To EKS](../deploy/eks/index.md) for cluster setup. Use a private
+   port-forward for `--api-base-url` so the harness can read
+   `/admin/status?format=json` and `/api/v0/index-status`; add
+   `--pprof-base-url` when a private pprof port-forward is available. The
+   harness records sanitized pod/resource summaries, sanitized logs, sanitized
+   Helm values, queue retry/dead-letter counts, terminal-status summary, and
+   pprof reachability without storing private URLs, pod hostnames, IP
+   addresses, provider URLs, repository names, package names, tokens, or
+   machine-local paths.
 9. **Review `evidence.md` and `evidence.json` together.** The gate is green
    only when `evidence.json` has `pass: true` at the top level and every
    enabled phase has `status` set to `pass` or `skipped`. Phases that fail
@@ -194,7 +203,10 @@ flag to mark `pprof_status: unchecked` rather than probe the API URL.
 top-level key with at least `status` set to `pass`, `fail`, or `skipped`. The
 runtime phase also surfaces `api_base_url` (the normalized value the gate
 actually used; see below), `endpoints_failed`, and per-endpoint readback rows
-keyed by the documented `/api/v0/...` paths.
+keyed by the documented `/api/v0/...` paths. The Kubernetes phase surfaces
+`pprof_status`, `logs_ok`, `queue_readback_ok`, `queue_retrying`,
+`queue_dead_letter`, `queue_failed`, sanitized evidence file references, and
+resource snapshot status.
 
 The `--api-base-url` value is normalized: a trailing `/` or `/api/v0` is
 stripped so the same env value that `verify_remote_e2e_runtime_state.sh`
@@ -219,6 +231,11 @@ The harness intentionally records only public-safe data. In particular:
   before they reach the evidence document.
 - API readback uses `limit=1` so response bodies stay small and diagnostic,
   not a dump of customer findings.
+- Kubernetes evidence stores sanitized summaries only. Pod snapshots remove
+  node names, pod names, IP addresses, and image references; logs and Helm
+  values redact repository names, package names, provider URLs, tokens,
+  hostnames, IP addresses, and machine-local paths before writing evidence
+  files.
 - Operator-local artefacts (private corpora paths, AWS account ids, GitHub
   installation ids) are not echoed by the gate; they live in the operator's
   own env file.
@@ -234,6 +251,11 @@ harness.
 ```bash
 scripts/test-security_intelligence_release_gate.sh
 ```
+
+`scripts/test-security_intelligence_release_gate_k8s.sh` proves the Kubernetes
+evidence contract with fake `kubectl`, `helm`, and `curl` tools. It verifies
+sanitized logs, pprof reachability, queue retry/dead-letter readback, CPU and
+memory resource snapshots, and public-safe generated Kubernetes evidence.
 
 The fixture parity gate and the focused security-intelligence Go tests use
 their existing per-package commands. The release gate harness wraps them so
