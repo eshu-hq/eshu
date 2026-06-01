@@ -146,3 +146,155 @@ func TestSupplyChainReachabilityPriorityUsesSignalWithoutChangingImpact(t *testi
 		t.Fatalf("Status = %q, want affected_exact", reachable.Status)
 	}
 }
+
+func TestSupplyChainReachabilityLongTailEcosystemPackageEvidence(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name         string
+		finding      SupplyChainImpactFinding
+		wantSource   string
+		wantEvidence string
+		wantMissing  string
+	}{
+		{
+			name: "Composer dependency path is reachable package evidence with PHP blockers",
+			finding: SupplyChainImpactFinding{
+				Ecosystem:           "composer",
+				Status:              SupplyChainImpactAffectedExact,
+				RuntimeReachability: "package_manifest",
+				DependencyPath:      []string{"symfony/http-kernel"},
+				DirectDependency:    boolPtr(true),
+			},
+			wantSource:   "composer",
+			wantEvidence: "composer_dependency_path",
+			wantMissing:  "php autoload and dynamic dispatch evidence missing",
+		},
+		{
+			name: "RubyGems dependency path is reachable package evidence with metaprogramming blockers",
+			finding: SupplyChainImpactFinding{
+				Ecosystem:           "rubygems",
+				Status:              SupplyChainImpactAffectedExact,
+				RuntimeReachability: "package_manifest",
+				DependencyPath:      []string{"rails", "actionpack"},
+				DirectDependency:    boolPtr(false),
+			},
+			wantSource:   "bundler",
+			wantEvidence: "bundler_dependency_path",
+			wantMissing:  "ruby metaprogramming and autoload evidence missing",
+		},
+		{
+			name: "Cargo dependency path is reachable package evidence with macro cfg blockers",
+			finding: SupplyChainImpactFinding{
+				Ecosystem:           "cargo",
+				Status:              SupplyChainImpactAffectedExact,
+				RuntimeReachability: "package_manifest",
+				DependencyPath:      []string{"serde", "serde_derive", "proc-macro2"},
+				DirectDependency:    boolPtr(false),
+			},
+			wantSource:   "cargo",
+			wantEvidence: "cargo_dependency_path",
+			wantMissing:  "rust macro and cfg reachability evidence missing",
+		},
+		{
+			name: "NuGet dependency path is reachable package evidence with dotnet blockers",
+			finding: SupplyChainImpactFinding{
+				Ecosystem:           "nuget",
+				Status:              SupplyChainImpactAffectedExact,
+				RuntimeReachability: "package_manifest",
+				DependencyPath:      []string{"Newtonsoft.Json"},
+				DirectDependency:    boolPtr(true),
+			},
+			wantSource:   "nuget",
+			wantEvidence: "nuget_dependency_path",
+			wantMissing:  ".net reflection dependency-injection and generated-code evidence missing",
+		},
+	}
+
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			got := withSupplyChainReachability(tc.finding)
+			if got.Status != SupplyChainImpactAffectedExact {
+				t.Fatalf("Status = %q, want affected_exact", got.Status)
+			}
+			if got.Reachability.State != SupplyChainReachabilityReachable {
+				t.Fatalf("Reachability.State = %q, want reachable", got.Reachability.State)
+			}
+			if got.Reachability.Confidence != "partial" {
+				t.Fatalf("Reachability.Confidence = %q, want partial", got.Reachability.Confidence)
+			}
+			if got.Reachability.Source != tc.wantSource {
+				t.Fatalf("Reachability.Source = %q, want %q", got.Reachability.Source, tc.wantSource)
+			}
+			if got.Reachability.Evidence != tc.wantEvidence {
+				t.Fatalf("Reachability.Evidence = %q, want %q", got.Reachability.Evidence, tc.wantEvidence)
+			}
+			if got.Reachability.LanguageMaturity != "partial" {
+				t.Fatalf("Reachability.LanguageMaturity = %q, want partial", got.Reachability.LanguageMaturity)
+			}
+			if !stringSliceContains(got.Reachability.MissingEvidence, tc.wantMissing) {
+				t.Fatalf("Reachability.MissingEvidence = %#v, want %q", got.Reachability.MissingEvidence, tc.wantMissing)
+			}
+		})
+	}
+}
+
+func TestSupplyChainReachabilityLongTailPartialEvidenceStaysMissingEvidence(t *testing.T) {
+	t.Parallel()
+
+	got := withSupplyChainReachability(SupplyChainImpactFinding{
+		Ecosystem:           "nuget",
+		Status:              SupplyChainImpactAffectedExact,
+		RuntimeReachability: "package_manifest",
+		DependencyPath:      []string{"Legacy.Project", "Newtonsoft.Json"},
+		DirectDependency:    boolPtr(false),
+		MissingEvidence: []string{
+			"msbuild property unresolved: PackageVersion",
+			"nuget project-reference resolution missing",
+		},
+	})
+
+	if got.Reachability.State != SupplyChainReachabilityMissingEvidence {
+		t.Fatalf("Reachability.State = %q, want missing_evidence", got.Reachability.State)
+	}
+	if got.Reachability.Source != "nuget" {
+		t.Fatalf("Reachability.Source = %q, want nuget", got.Reachability.Source)
+	}
+	if got.Reachability.Evidence != "nuget_dependency_path" {
+		t.Fatalf("Reachability.Evidence = %q, want nuget_dependency_path", got.Reachability.Evidence)
+	}
+	for _, want := range []string{
+		"msbuild property unresolved: PackageVersion",
+		"nuget project-reference resolution missing",
+	} {
+		if !stringSliceContains(got.Reachability.MissingEvidence, want) {
+			t.Fatalf("Reachability.MissingEvidence = %#v, want %q", got.Reachability.MissingEvidence, want)
+		}
+	}
+}
+
+func assertSupplyChainReachability(
+	t *testing.T,
+	finding SupplyChainImpactFinding,
+	state SupplyChainReachabilityState,
+	source string,
+	evidence string,
+) {
+	t.Helper()
+
+	if finding.Reachability == nil {
+		t.Fatal("Reachability = nil, want envelope")
+	}
+	if finding.Reachability.State != state {
+		t.Fatalf("Reachability.State = %q, want %q", finding.Reachability.State, state)
+	}
+	if finding.Reachability.Source != source {
+		t.Fatalf("Reachability.Source = %q, want %q", finding.Reachability.Source, source)
+	}
+	if finding.Reachability.Evidence != evidence {
+		t.Fatalf("Reachability.Evidence = %q, want %q", finding.Reachability.Evidence, evidence)
+	}
+}
