@@ -615,19 +615,23 @@ Log phase attributes: `telemetry.PhaseReduction` (main loop),
   tier is persisted alongside the truth
   labels (status, confidence, runtime_reachability) and missing-evidence
   reasons; readers (API, MCP, parity gate) decide which tier they want.
-- **RPM OS package evidence is vendor-gated** — `vulnerability.os_package`
-  rows from RPM-family snapshots can seed supply-chain impact only when the
-  row is vendor-class, carries distro and distro-version evidence, includes
-  arch and installed RPM EVR, and its `vendor_advisory_source` matches the
-  selected vendor advisory source. Third-party, unknown, and ambiguous
-  vendor-origin RPM rows are source warnings only; the reducer does not use
-  them as image OS-package impact evidence.
+- **OS package evidence is vendor-gated** — `vulnerability.os_package`
+  rows from RPM-family, Debian dpkg, and Alpine apk snapshots can seed
+  supply-chain impact only when the row is vendor-class, carries distro and
+  distro-version evidence, includes arch and the source-recorded installed
+  version, and its `vendor_advisory_source` matches the selected vendor
+  advisory source. Debian and Alpine matching is exact-version only; the
+  reducer does not try to compare backport or apk release ordering unless a
+  source fact names the exact installed version. Third-party, unknown, and
+  ambiguous vendor-origin OS package rows are source warnings only; the
+  reducer does not use them as image OS-package impact evidence.
 
   No-Regression Evidence: `go test ./internal/reducer -run
-  'TestBuildSupplyChainImpactFindings(UsesVendorRPMOSPackageEvidence|SkipsAmbiguousRPMOSPackageEvidence)'
-  -count=1` failed before `vulnerability.os_package` rows were indexed, then
-  passed after Red Hat RPM EVR facts joined only matching Red Hat advisory
-  evidence and ambiguous-origin rows produced no impact finding.
+  'TestBuildSupplyChainImpactFindingsUsesVendor(DPKG|APK|RPM)OSPackageEvidence|TestBuildSupplyChainImpactFindingsRejectsLanguageAdvisoryForDPKGOSPackage|TestBuildSupplyChainImpactFindingsSkipsAmbiguousRPMOSPackageEvidence'
+  -count=1` failed for dpkg/apk on `origin/main`, then passed after Red Hat RPM
+  EVR, Debian dpkg, and Alpine apk facts joined only matching vendor advisory
+  evidence; GHSA language advisory evidence against a Debian package and
+  ambiguous-origin rows produced no impact finding.
   No-Observability-Change: this is an in-memory admission change over facts
   already loaded by the supply-chain impact handler. Existing reducer run
   spans, reducer duration metrics, reducer execution counters, durable

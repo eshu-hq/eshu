@@ -254,7 +254,8 @@ func osPackageMatchesAffectedPackage(
 	pkg supplyChainAffectedPackage,
 	vendorSource string,
 ) bool {
-	if installed.packageManager != "rpm" || installed.distroVersion == "" || installed.arch == "" {
+	if !supportedOSPackageImpactManager(installed.packageManager) ||
+		installed.distroVersion == "" || installed.arch == "" {
 		return false
 	}
 	if installed.repositoryClass != "vendor" || installed.vendorAdvisorySource == "" {
@@ -263,14 +264,55 @@ func osPackageMatchesAffectedPackage(
 	if installed.vendorAdvisorySource != vendorSource {
 		return false
 	}
-	if pkg.ecosystem != "" && pkg.ecosystem != "rpm" &&
-		pkg.ecosystem != installed.vendorAdvisorySource && pkg.ecosystem != installed.distro {
+	if !osPackageEcosystemMatchesVendor(pkg.ecosystem, installed.packageManager, installed.vendorAdvisorySource, installed.distro) {
 		return false
 	}
 	if pkg.packageID != "" && pkg.packageID == installed.packageID {
 		return true
 	}
 	return pkg.purl != "" && packageIDFromPURL(pkg.purl) == installed.packageID
+}
+
+func supportedOSPackageImpactManager(manager string) bool {
+	switch strings.ToLower(strings.TrimSpace(manager)) {
+	case "rpm", "dpkg", "apk":
+		return true
+	default:
+		return false
+	}
+}
+
+func osPackageEcosystemMatchesVendor(
+	ecosystem string,
+	packageManager string,
+	vendorSource string,
+	distro string,
+) bool {
+	ecosystem = strings.ToLower(strings.TrimSpace(ecosystem))
+	if ecosystem == "" {
+		return true
+	}
+	packageManager = strings.ToLower(strings.TrimSpace(packageManager))
+	vendorSource = strings.ToLower(strings.TrimSpace(vendorSource))
+	distro = strings.ToLower(strings.TrimSpace(distro))
+	switch ecosystem {
+	case packageManager, vendorSource, distro:
+		return true
+	case "deb":
+		return packageManager == "dpkg" || vendorSource == "debian" || distro == "debian" || distro == "ubuntu"
+	case "debian":
+		return vendorSource == "debian" || distro == "debian"
+	case "ubuntu":
+		return vendorSource == "ubuntu" || distro == "ubuntu"
+	case "apk", "alpine":
+		return packageManager == "apk" || vendorSource == "alpine" || distro == "alpine"
+	case "rpm":
+		return packageManager == "rpm"
+	case "redhat", "rhel", "fedora", "centos", "rocky", "rockylinux", "alma", "amazon", "amazonlinux":
+		return packageManager == "rpm" && (vendorSource == ecosystem || distro == ecosystem)
+	default:
+		return false
+	}
 }
 
 func firstSBOMProductImpactPath(
