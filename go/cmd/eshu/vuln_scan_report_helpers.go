@@ -141,6 +141,31 @@ func compactStrings(values []string) []string {
 	return out
 }
 
+func mergeStringLists(first []string, second []string) []string {
+	if len(first) == 0 {
+		return compactStrings(second)
+	}
+	if len(second) == 0 {
+		return compactStrings(first)
+	}
+	seen := make(map[string]struct{}, len(first)+len(second))
+	out := make([]string, 0, len(first)+len(second))
+	for _, values := range [][]string{first, second} {
+		for _, value := range values {
+			value = strings.TrimSpace(value)
+			if value == "" {
+				continue
+			}
+			if _, ok := seen[value]; ok {
+				continue
+			}
+			seen[value] = struct{}{}
+			out = append(out, value)
+		}
+	}
+	return out
+}
+
 func mapSliceFromAny(value any) []map[string]any {
 	switch typed := value.(type) {
 	case []map[string]any:

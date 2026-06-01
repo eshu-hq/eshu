@@ -161,6 +161,7 @@ Sanitized terminal summary example:
 Vulnerability scan (scoped): evidence_incomplete
 Repository: repo-synthetic-local
 Findings: 0
+Exit: code=4 reason=evidence_incomplete
 Readiness: state=evidence_incomplete freshness=unknown
 Missing evidence: advisory_cache_freshness_unknown
 Scope: observed_dependency_facts=2 advisory_facts=80 package_registry_facts=0 freshness=unknown

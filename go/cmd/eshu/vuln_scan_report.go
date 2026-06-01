@@ -106,6 +106,10 @@ type vulnScanEvidenceHandle struct {
 func buildVulnScanReport(result vulnScanRepoResult, generatedAt time.Time) vulnScanReport {
 	code, reason := vulnScanExitClassification(result.ReadinessState, result.Count)
 	readiness := buildVulnScanReportReadiness(result.Readiness, result.ReadinessState)
+	if result.ScopePlan != nil {
+		readiness.MissingEvidence = mergeStringLists(readiness.MissingEvidence, result.ScopePlan.MissingEvidence)
+		readiness.IncompleteReasons = mergeStringLists(readiness.IncompleteReasons, result.ScopePlan.IncompleteReasons)
+	}
 	findings := buildVulnScanReportFindings(result.Findings)
 	return vulnScanReport{
 		SchemaVersion: vulnScanReportSchemaVersion,
@@ -152,6 +156,13 @@ func renderVulnScanRepoSummary(w io.Writer, result vulnScanRepoResult) error {
 		}
 	}
 	if _, err := fmt.Fprintln(w); err != nil {
+		return err
+	}
+	if _, err := fmt.Fprintf(
+		w,
+		"Exit: code=%d reason=%s\n",
+		report.Summary.ExitCode, report.Summary.ExitReason,
+	); err != nil {
 		return err
 	}
 	if _, err := fmt.Fprintf(
