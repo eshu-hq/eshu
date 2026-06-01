@@ -23,6 +23,7 @@ var observabilitySourceBuckets = []struct {
 	{bucket: "observability_declared_scrape_configs", kind: facts.ObservabilityDeclaredScrapeConfigFactKind},
 	{bucket: "observability_declared_metric_rules", kind: facts.ObservabilityDeclaredMetricRuleFactKind},
 	{bucket: "observability_declared_metric_routes", kind: facts.ObservabilityDeclaredMetricRouteFactKind},
+	{bucket: "observability_declared_log_routes", kind: facts.ObservabilityDeclaredLogRouteFactKind},
 	{bucket: "observability_coverage_warnings", kind: facts.ObservabilityCoverageWarningFactKind},
 }
 
@@ -34,6 +35,7 @@ var forbiddenObservabilityPayloadKeys = map[string]struct{}{
 	"endpoint":                 {},
 	"expr":                     {},
 	"headers":                  {},
+	"include":                  {},
 	"job_name":                 {},
 	"json":                     {},
 	"jobName":                  {},
@@ -49,6 +51,7 @@ var forbiddenObservabilityPayloadKeys = map[string]struct{}{
 	"scrape_configs":           {},
 	"static_configs":           {},
 	"staticConfigs":            {},
+	"tenant_id":                {},
 	"targets":                  {},
 	"title":                    {},
 	"url":                      {},
@@ -220,7 +223,7 @@ func observabilityRecordIdentity(payload map[string]any) string {
 		"source_class", "source_kind", "source_instance_id", "relative_path",
 		"folder_uid", "folder_title_fingerprint", "dashboard_uid", "datasource_uid", "alert_rule_uid", "warning_kind",
 		"selector_identity_fingerprint", "job_name_fingerprint", "rule_group", "rule_kind", "alert_rule_name_fingerprint", "record_rule_name_fingerprint",
-		"pipeline_name", "backend_kind", "exporter_refs",
+		"pipeline_name", "backend_kind", "exporter_refs", "processor_refs", "receiver_refs", "route_destination_fingerprint", "tenant_id_fingerprint", "label_identity_fingerprint",
 		"name", "resource_kind", "resource_name", "config_key",
 	}
 	parts := make([]string, 0, len(keys))

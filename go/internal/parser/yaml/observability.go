@@ -15,6 +15,7 @@ const (
 	observabilityScrapeBucket      = "observability_declared_scrape_configs"
 	observabilityMetricRuleBucket  = "observability_declared_metric_rules"
 	observabilityMetricRouteBucket = "observability_declared_metric_routes"
+	observabilityLogRouteBucket    = "observability_declared_log_routes"
 	observabilityWarningBucket     = "observability_coverage_warnings"
 )
 
@@ -26,6 +27,7 @@ var observabilityBuckets = []string{
 	observabilityScrapeBucket,
 	observabilityMetricRuleBucket,
 	observabilityMetricRouteBucket,
+	observabilityLogRouteBucket,
 	observabilityWarningBucket,
 }
 
@@ -62,6 +64,7 @@ func initObservabilityBuckets(payload map[string]any) {
 func sortObservabilityBuckets(payload map[string]any) {
 	markDuplicateDashboardRows(payload[observabilityDashboardBucket].([]map[string]any))
 	markDuplicateMetricRuleRows(payload[observabilityMetricRuleBucket].([]map[string]any))
+	markDuplicateLogRouteRows(payload[observabilityLogRouteBucket].([]map[string]any))
 	for _, bucket := range observabilityBuckets {
 		shared.SortNamedBucket(payload, bucket)
 	}
@@ -133,6 +136,7 @@ func appendHelmGrafanaObservability(payload map[string]any, path string, source 
 		walkGrafanaAlertDocuments(payload, nestedMap(grafana, "alerting"), ctx)
 	}
 	appendHelmMetricObservability(payload, path, root)
+	appendHelmLogObservability(payload, path, root)
 }
 
 func appendDashboardFromGrafanaResource(payload map[string]any, document map[string]any, ctx grafanaSourceContext) {

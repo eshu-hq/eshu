@@ -9,13 +9,14 @@
 // compatibility paths that decode YAML-side metadata. Argo CD Application rows preserve the legacy
 // singular source fields while adding positional source tuple fields that keep
 // repo, path, revision, and root values aligned by source index. The package
-// also emits metadata-only declared Grafana, Prometheus, and Mimir
+// also emits metadata-only declared Grafana, Prometheus/Mimir, and Loki
 // observability rows from Helm values, Grafana resources, dashboard ConfigMaps,
-// provisioning files, Prometheus Operator resources, OTel metric pipelines,
-// OTel Prometheus receiver scrape configs, and chart ServiceMonitor settings
-// while omitting dashboard JSON, query bodies, scrape targets, remote-write
-// URLs, tenant header values, datasource URLs, secrets, contact routes, folder
-// titles, and provisioning paths. The package keeps output deterministic by
-// sorting emitted buckets and by routing decoded CloudFormation documents
-// through the shared CloudFormation parser contract.
+// provisioning files, Prometheus Operator resources, Promtail client routes,
+// OTel metric and log pipelines, OTel Prometheus receiver scrape configs, Loki
+// gateway values, and chart ServiceMonitor settings while omitting dashboard
+// JSON, query bodies, scrape targets, remote-write URLs, Loki route URLs,
+// tenant header values, tenant IDs, datasource URLs, secrets, contact routes,
+// folder titles, provisioning paths, and log label values. The package keeps
+// output deterministic by sorting emitted buckets and by routing decoded
+// CloudFormation documents through the shared CloudFormation parser contract.
 package yaml
