@@ -68,6 +68,20 @@ func TestSupplyChainImpactFindingsExposeReachabilityWithoutDowngradingImpact(t *
 					Source:     "govulncheck",
 				},
 			},
+			{
+				FindingID:           "finding-rubygems-reachable",
+				CVEID:               "CVE-2026-3703",
+				ImpactStatus:        "affected_exact",
+				Confidence:          "exact",
+				RepositoryID:        "repo://example/ruby",
+				RuntimeReachability: "package_manifest",
+				Reachability: &SupplyChainReachabilityResult{
+					State:      "reachable",
+					Confidence: "partial",
+					Source:     "bundler",
+					Evidence:   "bundler_dependency_path",
+				},
+			},
 		},
 	}
 	handler := &SupplyChainHandler{ImpactFindings: store}
@@ -76,7 +90,7 @@ func TestSupplyChainImpactFindingsExposeReachabilityWithoutDowngradingImpact(t *
 
 	req := httptest.NewRequest(
 		http.MethodGet,
-		"/api/v0/supply-chain/impact/findings?repository_id=repo://example/go&limit=10",
+		"/api/v0/supply-chain/impact/findings?repository_id=repo://example/ruby&limit=10",
 		nil,
 	)
 	w := httptest.NewRecorder()
@@ -99,5 +113,17 @@ func TestSupplyChainImpactFindingsExposeReachabilityWithoutDowngradingImpact(t *
 	}
 	if got, want := resp.Findings[0].Reachability.State, "not_called"; got != want {
 		t.Fatalf("Reachability.State = %q, want %q", got, want)
+	}
+	if got, want := resp.Findings[0].Reachability.Source, "govulncheck"; got != want {
+		t.Fatalf("Reachability.Source = %q, want %q", got, want)
+	}
+	if resp.Findings[1].Reachability == nil {
+		t.Fatal("Reachability = nil for second finding, want envelope")
+	}
+	if got, want := resp.Findings[1].Reachability.State, "reachable"; got != want {
+		t.Fatalf("Second Reachability.State = %q, want %q", got, want)
+	}
+	if got, want := resp.Findings[1].Reachability.Source, "bundler"; got != want {
+		t.Fatalf("Second Reachability.Source = %q, want %q", got, want)
 	}
 }

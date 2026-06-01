@@ -125,6 +125,13 @@ func TestBuildSupplyChainImpactFindingsUsesCargoLockfileVersion(t *testing.T) {
 	if !reflect.DeepEqual(got.DependencyPath, []string{"serde_json"}) {
 		t.Fatalf("DependencyPath = %#v, want direct Cargo lockfile path", got.DependencyPath)
 	}
+	assertSupplyChainReachability(
+		t,
+		got,
+		SupplyChainReachabilityReachable,
+		"cargo",
+		"cargo_dependency_path",
+	)
 }
 
 func TestBuildSupplyChainImpactFindingsMarksCargoLockfileVersionKnownFixed(t *testing.T) {

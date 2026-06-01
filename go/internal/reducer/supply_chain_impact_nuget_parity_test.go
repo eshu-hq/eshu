@@ -40,6 +40,13 @@ func TestBuildSupplyChainImpactFindingsMatchesNuGetBracketRange(t *testing.T) {
 	if got.VulnerableRange != "[13.0.0,13.0.4)" {
 		t.Fatalf("VulnerableRange = %q, want bracket range preserved", got.VulnerableRange)
 	}
+	assertSupplyChainReachability(
+		t,
+		got,
+		SupplyChainReachabilityReachable,
+		"nuget",
+		"nuget_dependency_path",
+	)
 }
 
 func TestBuildSupplyChainImpactFindingsMarksNuGetFixedVersionSafe(t *testing.T) {

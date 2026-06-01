@@ -50,6 +50,9 @@ func supplyChainReachabilityForFinding(finding SupplyChainImpactFinding) SupplyC
 	detail := strings.TrimSpace(finding.RuntimeReachability)
 	ecosystem := normalizedSupplyChainVersionEcosystem(finding.Ecosystem)
 	maturity := supplyChainReachabilityLanguageMaturity(ecosystem)
+	if reachability, ok := longTailSupplyChainReachability(finding, ecosystem, maturity, detail); ok {
+		return reachability
+	}
 	switch detail {
 	case string(GoVulnReachabilitySymbolReachable):
 		return SupplyChainReachability{
@@ -117,6 +120,128 @@ func supplyChainReachabilityForFinding(finding SupplyChainImpactFinding) SupplyC
 			LanguageMaturity: maturity,
 		}
 	}
+}
+
+type longTailReachabilitySpec struct {
+	source         string
+	evidence       string
+	reason         string
+	missingReasons []string
+}
+
+func longTailSupplyChainReachability(
+	finding SupplyChainImpactFinding,
+	ecosystem string,
+	maturity string,
+	detail string,
+) (SupplyChainReachability, bool) {
+	if detail != "package_manifest" {
+		return SupplyChainReachability{}, false
+	}
+	spec, ok := longTailReachabilitySpecForEcosystem(ecosystem)
+	if !ok {
+		return SupplyChainReachability{}, false
+	}
+	missing := uniqueSortedStrings(append(
+		append([]string(nil), finding.MissingEvidence...),
+		spec.missingReasons...,
+	))
+	if longTailReachabilityHasMissingEvidence(finding.MissingEvidence) {
+		return SupplyChainReachability{
+			State:            SupplyChainReachabilityMissingEvidence,
+			Confidence:       "unknown",
+			Source:           spec.source,
+			Evidence:         spec.evidence,
+			Reason:           "ecosystem package evidence exists, but unresolved project or resolver evidence prevents reachability classification",
+			LanguageMaturity: maturity,
+			MissingEvidence:  missing,
+		}, true
+	}
+	if !longTailReachabilityHasPackageEvidence(finding) {
+		return SupplyChainReachability{
+			State:            SupplyChainReachabilityUnknown,
+			Confidence:       "unknown",
+			Source:           spec.source,
+			Evidence:         "package_manifest",
+			Reason:           "dependency evidence exists, but ecosystem package usage evidence is not strong enough for reachability",
+			LanguageMaturity: maturity,
+			MissingEvidence:  missing,
+		}, true
+	}
+	return SupplyChainReachability{
+		State:            SupplyChainReachabilityReachable,
+		Confidence:       "partial",
+		Source:           spec.source,
+		Evidence:         spec.evidence,
+		Reason:           spec.reason,
+		LanguageMaturity: maturity,
+		MissingEvidence:  missing,
+	}, true
+}
+
+func longTailReachabilitySpecForEcosystem(ecosystem string) (longTailReachabilitySpec, bool) {
+	switch ecosystem {
+	case "composer":
+		return longTailReachabilitySpec{
+			source:   "composer",
+			evidence: "composer_dependency_path",
+			reason:   "Composer dependency evidence proves the vulnerable package is installed or declared for the repository; PHP API calls are not proven",
+			missingReasons: []string{
+				"php autoload and dynamic dispatch evidence missing",
+				"php parser/scip package API call evidence missing",
+			},
+		}, true
+	case "rubygems":
+		return longTailReachabilitySpec{
+			source:   "bundler",
+			evidence: "bundler_dependency_path",
+			reason:   "Bundler dependency evidence proves the vulnerable gem is installed or declared for the repository; Ruby API calls are not proven",
+			missingReasons: []string{
+				"ruby metaprogramming and autoload evidence missing",
+				"ruby parser/scip package API call evidence missing",
+			},
+		}, true
+	case "cargo":
+		return longTailReachabilitySpec{
+			source:   "cargo",
+			evidence: "cargo_dependency_path",
+			reason:   "Cargo dependency evidence proves the vulnerable crate is installed or declared for the repository; Rust API calls are not proven",
+			missingReasons: []string{
+				"rust macro and cfg reachability evidence missing",
+				"rust parser/scip package API call evidence missing",
+			},
+		}, true
+	case "nuget":
+		return longTailReachabilitySpec{
+			source:   "nuget",
+			evidence: "nuget_dependency_path",
+			reason:   "NuGet dependency evidence proves the vulnerable package is installed or declared for the repository; .NET API calls are not proven",
+			missingReasons: []string{
+				".net reflection dependency-injection and generated-code evidence missing",
+				".net parser/scip package API call evidence missing",
+			},
+		}, true
+	default:
+		return longTailReachabilitySpec{}, false
+	}
+}
+
+func longTailReachabilityHasPackageEvidence(finding SupplyChainImpactFinding) bool {
+	return len(finding.DependencyPath) > 0 || finding.DirectDependency != nil ||
+		strings.TrimSpace(finding.ObservedVersion) != "" || strings.TrimSpace(finding.RequestedRange) != ""
+}
+
+func longTailReachabilityHasMissingEvidence(values []string) bool {
+	for _, value := range values {
+		normalized := strings.ToLower(strings.TrimSpace(value))
+		if strings.Contains(normalized, "unresolved") ||
+			strings.Contains(normalized, "ambiguous") ||
+			strings.Contains(normalized, "project-reference") ||
+			strings.Contains(normalized, "msbuild") {
+			return true
+		}
+	}
+	return false
 }
 
 func supplyChainReachabilitySourceForUnknown(ecosystem string, detail string) string {
