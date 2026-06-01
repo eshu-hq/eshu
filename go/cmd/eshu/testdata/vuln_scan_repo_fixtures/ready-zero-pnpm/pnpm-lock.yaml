@@ -1,0 +1,10 @@
+lockfileVersion: '6.0'
+importers:
+  .:
+    dependencies:
+      synthetic-ready-zero-pnpm:
+        specifier: 1.0.0
+        version: 1.0.0
+packages:
+  /synthetic-ready-zero-pnpm@1.0.0:
+    dev: false

@@ -1,0 +1,4 @@
+[project]
+name = "synthetic-ready-zero-pyproject-repo"
+version = "1.0.0"
+dependencies = ["synthetic-pyproject-ready-zero==1.0.0"]

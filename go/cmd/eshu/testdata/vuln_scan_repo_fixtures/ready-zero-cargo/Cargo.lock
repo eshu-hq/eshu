@@ -1,0 +1,5 @@
+version = 3
+
+[[package]]
+name = "synthetic-cargo-ready-zero"
+version = "1.0.0"

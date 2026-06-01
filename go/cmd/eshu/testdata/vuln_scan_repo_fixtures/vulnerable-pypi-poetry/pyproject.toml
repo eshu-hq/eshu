@@ -1,0 +1,7 @@
+[tool.poetry]
+name = "synthetic-vulnerable-poetry-repo"
+version = "1.0.0"
+
+[tool.poetry.dependencies]
+python = "^3.11"
+synthetic-poetry-vulnerable = "1.0.0"

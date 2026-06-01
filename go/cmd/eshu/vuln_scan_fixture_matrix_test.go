@@ -41,17 +41,17 @@ func TestRunVulnScanRepoFixtureMatrixProvesStandaloneReadinessStates(t *testing.
 			exitCode:       3,
 			findings: []map[string]any{
 				{
-					"finding_id":        "finding-lodash-cve-2021-23337",
-					"cve_id":            "CVE-2021-23337",
-					"advisory_id":       "GHSA-35jh-r3h4-6jhm",
-					"package_id":        "npm://registry.npmjs.org/lodash",
-					"package_name":      "lodash",
+					"finding_id":        "finding-synthetic-vulnerable-npm",
+					"cve_id":            "CVE-2026-SYNTHETIC-NPM",
+					"advisory_id":       "GHSA-synthetic-npm-0001",
+					"package_id":        "npm:synthetic-vulnerable-npm",
+					"package_name":      "synthetic-vulnerable-npm",
 					"ecosystem":         "npm",
 					"impact_status":     "affected_exact",
-					"observed_version":  "4.17.15",
-					"fixed_version":     "4.17.21",
+					"observed_version":  "1.0.0",
+					"fixed_version":     "1.0.1",
 					"repository_id":     "repo-fixture-vulnerable-npm",
-					"evidence_fact_ids": []any{"fact-fixture-package-lodash", "fact-fixture-advisory-lodash"},
+					"evidence_fact_ids": []any{"fact-fixture-package-synthetic-npm", "fact-fixture-advisory-synthetic-npm"},
 				},
 			},
 			evidenceSources: []map[string]any{
@@ -62,7 +62,7 @@ func TestRunVulnScanRepoFixtureMatrixProvesStandaloneReadinessStates(t *testing.
 			sourceSnapshots: []map[string]any{
 				{"source": "osv", "ecosystem": "npm", "freshness": "fresh", "complete": true},
 			},
-			wantTerminalNeedle: "lodash affected_exact fixed=4.17.21",
+			wantTerminalNeedle: "synthetic-vulnerable-npm affected_exact fixed=1.0.1",
 		},
 		{
 			name:           "ready zero with collected evidence",

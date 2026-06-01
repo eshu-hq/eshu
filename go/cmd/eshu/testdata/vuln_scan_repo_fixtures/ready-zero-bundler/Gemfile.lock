@@ -1,0 +1,7 @@
+GEM
+  remote: synthetic://rubygems
+  specs:
+    synthetic_bundler_ready_zero (1.0.0)
+
+DEPENDENCIES
+  synthetic_bundler_ready_zero (= 1.0.0)

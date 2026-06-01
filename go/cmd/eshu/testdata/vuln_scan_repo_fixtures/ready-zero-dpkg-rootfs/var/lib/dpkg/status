@@ -1,0 +1,4 @@
+Package: synthetic-dpkg-ready-zero
+Status: install ok installed
+Version: 1.0.0-1
+Architecture: amd64

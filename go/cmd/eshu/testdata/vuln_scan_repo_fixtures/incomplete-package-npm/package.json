@@ -1,1 +1,1 @@
-{"name":"incomplete-package-npm","version":"1.0.0","dependencies":{"minimist":"0.0.8"}}
+{"name":"synthetic-incomplete-package-npm-repo","version":"1.0.0","dependencies":{"synthetic-incomplete-package-npm":"1.0.0"}}

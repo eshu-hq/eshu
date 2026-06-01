@@ -1,0 +1,2 @@
+source "synthetic://rubygems"
+gem "synthetic_bundler_vulnerable", "1.0.0"

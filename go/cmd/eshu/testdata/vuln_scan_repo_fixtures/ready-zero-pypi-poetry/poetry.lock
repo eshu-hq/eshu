@@ -1,0 +1,6 @@
+[[package]]
+name = "synthetic-poetry-ready-zero"
+version = "1.0.0"
+category = "main"
+optional = false
+python-versions = "*"

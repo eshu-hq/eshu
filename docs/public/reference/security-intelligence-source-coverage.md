@@ -529,10 +529,14 @@ resolution, local service attach/start when no API is configured, scan
 readiness proof, repository-scoped impact reads, JSON envelopes, terminal
 summaries, and fail-closed incomplete target behavior. Advisory source cache
 state is exposed through readiness metadata. Package metadata cache freshness
-is part of the scoped fail-closed guard, and the local fixture matrix now proves
-vulnerable, ready-zero, incomplete-advisory, incomplete-package, unsupported
-ecosystem, and stale-cache states without private repositories or live provider
-payloads.
+is part of the scoped fail-closed guard. The local fixture corpus now uses only
+synthetic repository names, package names, and advisory identifiers while
+covering vulnerable and ready-zero states for npm, Yarn, pnpm, Go modules, PyPI
+requirements/pyproject/Pipfile/Poetry, Maven, Gradle, Composer, Bundler, Cargo,
+NuGet, and local/image OS-package fixtures for apk, dpkg, and RPM queryformat
+evidence. Separate synthetic cases cover malformed lockfile, unsupported
+ecosystem, incomplete advisory, incomplete package, and stale-cache readiness
+states without private repositories or live provider payloads.
 
 The command runs in scoped mode by default. The CLI derives its scope plan
 from the readiness envelope of `GET /api/v0/supply-chain/impact/findings` for
@@ -619,16 +623,19 @@ reducer finding rows to decide whether Eshu had enough evidence to issue a
 statement.
 
 No-Regression Evidence: `go test ./cmd/eshu -run
-'TestRunVulnScanRepoFixtureMatrixProvesStandaloneReadinessStates' -count=1`
-proves the local fixture matrix for `vuln-scan repo`: a known vulnerable npm
-dependency (`lodash@4.17.15` / `CVE-2021-23337`) exits `3` with reducer-owned
-findings, a collected fresh zero-finding npm repository exits `0`, missing
-advisory evidence exits `4`, missing package-registry evidence fails closed
-from a server `ready_zero_findings` verdict to `evidence_incomplete` and exits
-`4`, unsupported Pub evidence exits `5`, and stale advisory cache evidence
-exits `4`. The same test runs JSON and terminal output for every fixture and
-asserts readiness, freshness, missing evidence, unsupported targets, exit
-classification, and `scan_performance.wall_time_ms`.
+'Test(VulnScanRepoFixtureCorpus|RunVulnScanRepoFixtureMatrix)' -count=1`
+proves the local fixture corpus for `vuln-scan repo`: synthetic vulnerable
+fixtures exit `3` with reducer-owned finding envelopes, collected fresh
+ready-zero fixtures exit `0`, missing advisory evidence exits `4`, missing
+package-registry evidence fails closed from a server `ready_zero_findings`
+verdict to `evidence_incomplete` and exits `4`, unsupported Pub evidence exits
+`5`, stale advisory cache evidence exits `4`, and malformed lockfile evidence
+stays incomplete rather than clean. The same test runs JSON and terminal output
+for every readiness class and asserts readiness, freshness, missing evidence,
+unsupported targets, exit classification, and `scan_performance.wall_time_ms`.
+`TestVulnScanRepoFixtureCorpusHasParserBackedDependencyEvidence` additionally
+parses each non-OS supported-manager fixture through `internal/parser` so the
+local corpus cannot pass with empty placeholder manifests.
 `go test ./cmd/eshu -run
 'TestRunVulnScanRepo(JSONReportPreservesScannerContractAndFindingsExit|JSONReportPreservesTargetPackageImageAndVersionContext|ExitCodesPreserveReadinessClasses|ScopedModeFailsClosedOnUnknownFreshness|TextSummaryRendersBeforeFindingsExit)|TestRenderVulnScanRepoSummaryIncludesReadinessEvidenceAndRemediation'
 -count=1` proves the stable JSON report schema, target/package/image and
