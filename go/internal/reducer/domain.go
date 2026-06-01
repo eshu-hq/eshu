@@ -34,6 +34,7 @@ var knownDomains = map[Domain]struct{}{
 	DomainKubernetesCorrelation:                {},
 	DomainKubernetesWorkloadMaterialization:    {},
 	DomainKubernetesCorrelationMaterialization: {},
+	DomainSecurityGroupCidrMaterialization:     {},
 }
 
 // ParseDomain converts one raw string into a known reducer domain.

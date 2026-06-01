@@ -1167,10 +1167,16 @@ func TestEntityTypeLabelMapCoversAllSchemaLabels(t *testing.T) {
 	// KubernetesWorkload is materialized by the kubernetes_workload_materialization
 	// reducer domain from kubernetes_live.pod_template facts (issue #388), not from
 	// parsed content-entity facts, so it likewise has no entity_type mapping here.
+	// CidrBlock and PrefixList are materialized by the
+	// security_group_cidr_materialization reducer domain from
+	// aws_security_group_rule facts (issue #1135 PR2a), not from parsed
+	// content-entity facts, so they have no entity_type mapping in this map.
 	sourceLocalNonEntityLabels := map[string]struct{}{
 		"File":               {},
 		"CloudResource":      {},
 		"KubernetesWorkload": {},
+		"CidrBlock":          {},
+		"PrefixList":         {},
 	}
 	var missing []string
 	for _, label := range schemaLabels {

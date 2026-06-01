@@ -59,6 +59,7 @@ func TestMetricDimensionKeys(t *testing.T) {
 		"join_mode",
 		"coverage_signal",
 		"resolution_mode",
+		"endpoint_kind",
 	}
 
 	got := MetricDimensionKeys()

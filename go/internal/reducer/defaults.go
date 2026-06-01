@@ -154,6 +154,18 @@ type DefaultHandlers struct {
 	// relationship edge gates on the CloudResource node phase (#805).
 	KubernetesWorkloadNodeWriter KubernetesWorkloadNodeWriter
 
+	// SecurityGroupEndpointNodeWriter materializes the CIDR and managed
+	// prefix-list source endpoints of aws_security_group_rule facts into canonical
+	// CidrBlock and PrefixList graph nodes (issue #1135 PR2a). It must be non-nil
+	// alongside FactLoader for the registry to register
+	// DomainSecurityGroupCidrMaterialization; missing either one would drop every
+	// security-group rule endpoint before it reaches the graph. The handler also
+	// publishes the canonical-nodes-committed phase through
+	// GraphProjectionPhasePublisher so the later network-reachability edge slice
+	// (#1135 PR2b) can gate on it exactly like the AWS relationship edge gates on
+	// the CloudResource node phase (#805).
+	SecurityGroupEndpointNodeWriter SecurityGroupEndpointNodeWriter
+
 	// KubernetesCorrelationEdgeWriter projects exact live-workload correlation
 	// decisions into canonical RUNS_IMAGE edges between a KubernetesWorkload node
 	// and the digest-addressed OCI source node it runs (issue #388 PR3). It must be
@@ -414,6 +426,7 @@ func implementedDefaultDomainDefinitions(handlers DefaultHandlers) []DomainDefin
 		}
 		definitions = append(definitions, kubernetesWorkloads)
 	}
+	definitions = appendSecurityGroupEndpointDomain(definitions, handlers)
 	if handlers.FactLoader != nil && handlers.CloudResourceEdgeWriter != nil {
 		awsRelationships := awsRelationshipMaterializationDomainDefinition()
 		awsRelationships.Handler = AWSRelationshipMaterializationHandler{
