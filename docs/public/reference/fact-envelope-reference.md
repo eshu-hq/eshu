@@ -74,7 +74,7 @@ current families are:
 | Incident context | `pagerduty` for PagerDuty source collection | `incident.record`, `incident.lifecycle_event`, `change.record` |
 | Incident routing | source collector that observed the routing evidence, including `terraform_state` and optional live `pagerduty` config validation | `incident_routing.applied_pagerduty_resource`, `incident_routing.applied_alert_route`, `incident_routing.observed_pagerduty_service`, `incident_routing.observed_pagerduty_integration`, `incident_routing.coverage_warning` |
 | Jira work items | `jira` | `work_item.record`, `work_item.transition`, `work_item.external_link` |
-| Observability | source collector that observed the evidence, including `git` for declared IaC/GitOps | `observability.source_instance`, `observability.declared_folder`, `observability.declared_dashboard`, `observability.declared_datasource`, `observability.declared_alert_rule`, `observability.declared_scrape_config`, `observability.declared_metric_rule`, `observability.declared_metric_route`, `observability.declared_log_route`, `observability.declared_trace_route`, `observability.applied_resource`, `observability.applied_sync_state`, `observability.observed_dashboard`, `observability.observed_target`, `observability.observed_rule`, `observability.observed_log_signal`, `observability.observed_trace_signal`, `observability.coverage_warning` |
+| Observability | source collector that observed the evidence, including `git` for declared IaC/GitOps and applied Argo CD/Kubernetes exports | `observability.source_instance`, `observability.declared_folder`, `observability.declared_dashboard`, `observability.declared_datasource`, `observability.declared_alert_rule`, `observability.declared_scrape_config`, `observability.declared_metric_rule`, `observability.declared_metric_route`, `observability.declared_log_route`, `observability.declared_trace_route`, `observability.applied_resource`, `observability.applied_sync_state`, `observability.observed_dashboard`, `observability.observed_target`, `observability.observed_rule`, `observability.observed_log_signal`, `observability.observed_trace_signal`, `observability.coverage_warning` |
 
 Most current core families use schema version `1.0.0`.
 `documentation_section` uses `1.1.0` because section payloads can carry
@@ -176,6 +176,15 @@ selected commit. Jira remote links to that provider-verified PR, direct
 PagerDuty incident links, or issue-key evidence can enrich work-item slots, but
 Jira-only PR URLs do not verify PR identity. Missing Jira links are valid
 incident evidence state and must not block incident collection.
+
+`observability.applied_resource` and `observability.applied_sync_state` preserve
+metadata-only Argo CD and Kubernetes applied-state evidence. They identify
+source class, source kind, app, namespace, cluster, cluster-server fingerprint,
+resource identity, resource class, generation, UID fingerprint, sync and health
+state, operation phase, freshness, and outcome. They do not contain raw status
+messages, labels, managed fields, dashboard payloads, query bodies, Secret data,
+raw Kubernetes UIDs, or raw cluster URLs. Reducers own any later comparison
+between declared, applied, and observed observability state.
 
 `work_item.record`, `work_item.transition`, and `work_item.external_link`
 preserve Jira work-item state, changelog IDs, and remote-link IDs as provider

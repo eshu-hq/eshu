@@ -30,9 +30,19 @@ Tempo route endpoints, malformed log or trace route configs, duplicate log or
 trace routes, redacted high-cardinality log label values, and redacted
 high-cardinality trace tag values are emitted as coverage warnings rather than
 silently accepted. Terraform Grafana folder, dashboard, datasource, and
-rule-group resources are also supported.
-Applied-state, live-provider, reducer, API, and MCP coverage work remains
-separate.
+rule-group resources are also supported. The Git collector also emits applied
+Argo CD and Kubernetes observability metadata from Application status resources
+and API-exported observability resources when the source carries status,
+resource version, UID, or managed-fields evidence that it is applied state.
+Live-provider, reducer, API, and MCP coverage work remains separate.
+
+Applied-state facts distinguish what reached the cluster from what was merely
+declared. They preserve Argo CD sync and health status, operation phase,
+resource count, applied source revision, namespace, cluster name, cluster server
+fingerprint, Kubernetes resource identity, generation, UID fingerprint,
+resource class, freshness, and outcome. They never store raw status messages,
+dashboard bodies, query bodies, labels, managed fields, Secret data, raw
+Kubernetes UIDs, or raw cluster URLs.
 
 Declared Prometheus/Mimir facts are intent evidence. Live Prometheus and Mimir
 API collection is still required when a team does not use source-controlled
@@ -194,15 +204,16 @@ Each provider-specific implementation must prove:
 - no graph `COVERS` edge for derived, ambiguous, unresolved, stale, rejected,
   drifted, or permission-hidden evidence
 
-No-Regression Evidence: the declared Grafana, Prometheus/Mimir, Loki, and Tempo IaC
-source-fact slices add bounded parser buckets and Git fact emission only. They
-do not add provider calls, graph writes, queue workers, reducer stages, query
-handlers, metrics, spans, logs, or status output.
+No-Regression Evidence: the declared Grafana, Prometheus/Mimir, Loki, and Tempo
+IaC source-fact slices and the applied Argo CD/Kubernetes source-fact slice add
+bounded parser buckets and Git fact emission only. They do not add provider
+calls, graph writes, queue workers, reducer stages, query handlers, metrics,
+spans, logs, or status output.
 
-No-Observability-Change: declared Grafana, Prometheus/Mimir, Loki, and Tempo source
-facts use the existing Git collector snapshot, parse, and fact-commit
-telemetry. Operators diagnose these slices through existing file parse counts,
-generation fact counts, fact commit counts, and collector observe duration.
+No-Observability-Change: declared and applied observability source facts use the
+existing Git collector snapshot, parse, and fact-commit telemetry. Operators
+diagnose these slices through existing file parse counts, generation fact
+counts, fact commit counts, and collector observe duration.
 
 ## Related Work
 
