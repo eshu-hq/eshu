@@ -102,3 +102,6 @@ Telemetry names are frozen in the Go package:
 
 When adding a signal, update the code contract first, then update the focused
 public telemetry page that operators use for that signal.
+The incident context read route uses `query.incident_context` with stable
+`http.route` and `eshu.capability` span attributes so on-call lookups can be
+distinguished from generic service context or supply-chain reads.

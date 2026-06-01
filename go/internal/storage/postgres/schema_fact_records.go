@@ -1,6 +1,6 @@
 package postgres
 
-const factRecordSchemaSQL = factRecordBaseSchemaSQL + vulnerabilityFactRecordReadIndexesSQL
+const factRecordSchemaSQL = factRecordBaseSchemaSQL + vulnerabilityFactRecordReadIndexesSQL + incidentFactRecordReadIndexesSQL
 
 const factRecordBaseSchemaSQL = `
 CREATE TABLE IF NOT EXISTS fact_records (

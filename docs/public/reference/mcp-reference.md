@@ -36,7 +36,7 @@ families are:
 | IaC and cloud management | `find_dead_iac`, `find_unmanaged_resources`, `get_iac_management_status`, `explain_iac_management_status`, `propose_terraform_import_plan`, `list_aws_runtime_drift_findings` |
 | Infrastructure and impact | `get_ecosystem_overview`, `trace_deployment_chain`, `investigate_deployment_config`, `find_blast_radius`, `find_infra_resources`, `investigate_resource`, `analyze_infra_relationships`, `trace_resource_to_code`, `explain_dependency_path`, `find_change_surface`, `investigate_change_surface`, `compare_environments` |
 | Repository and relationship drilldowns | `get_repo_summary`, `get_repo_context`, `get_repo_story`, `get_repository_coverage`, `count_repositories_by_language`, `list_repositories_by_language`, `get_repository_language_inventory`, `get_relationship_evidence`, `search_registry_bundles` |
-| Context and stories | `resolve_entity`, `get_entity_context`, `get_workload_context`, `get_workload_story`, `get_service_context`, `get_service_story`, `investigate_service` |
+| Context and stories | `resolve_entity`, `get_entity_context`, `get_workload_context`, `get_workload_story`, `get_service_context`, `get_service_story`, `investigate_service`, `get_incident_context` |
 | Content and citations | `get_file_content`, `get_file_lines`, `get_entity_content`, `build_evidence_citation_packet`, `search_file_content`, `search_entity_content` |
 | Package registry | `list_package_registry_packages`, `list_package_registry_versions`, `list_package_registry_dependencies`, `list_package_registry_correlations` |
 | CI/CD and supply chain | `list_ci_cd_run_correlations`, `list_supply_chain_impact_findings`, `explain_supply_chain_impact`, `list_security_alert_reconciliations`, `list_sbom_attestation_attachments` |

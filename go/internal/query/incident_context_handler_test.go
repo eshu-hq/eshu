@@ -1,0 +1,215 @@
+package query
+
+import (
+	"context"
+	"database/sql"
+	"encoding/json"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"testing"
+)
+
+type recordingIncidentContextStore struct {
+	snapshot   IncidentContextSnapshot
+	err        error
+	lastFilter IncidentContextFilter
+}
+
+func (s *recordingIncidentContextStore) ReadIncidentContext(
+	_ context.Context,
+	filter IncidentContextFilter,
+) (IncidentContextSnapshot, error) {
+	s.lastFilter = filter
+	return s.snapshot, s.err
+}
+
+type unusedIncidentContextQueryer struct{}
+
+func (unusedIncidentContextQueryer) QueryContext(
+	context.Context,
+	string,
+	...any,
+) (*sql.Rows, error) {
+	return nil, fmt.Errorf("query must not run for invalid filters")
+}
+
+func TestIncidentContextHandlerUsesBoundedStore(t *testing.T) {
+	t.Parallel()
+
+	store := &recordingIncidentContextStore{
+		snapshot: IncidentContextSnapshot{
+			Query: IncidentContextQuery{
+				Provider:           "pagerduty",
+				ProviderIncidentID: "PABC123",
+				ScopeID:            "pagerduty-prod",
+				ServiceID:          "P-SVC",
+				Limit:              6,
+			},
+			Incident: IncidentContextIncident{
+				Provider:           "pagerduty",
+				ProviderIncidentID: "PABC123",
+				Title:              "Checkout elevated error rate",
+				Service: IncidentContextReference{
+					ID:      "P-SVC",
+					Summary: "checkout-api",
+				},
+				EvidenceFactID: "incident-fact",
+			},
+		},
+	}
+	handler := &IncidentHandler{Context: store, Profile: ProfileProduction}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"/api/v0/incidents/PABC123/context?provider=pagerduty&scope_id=pagerduty-prod&service_id=P-SVC&limit=5",
+		nil,
+	)
+	req.Header.Set("Accept", EnvelopeMIMEType)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+	if got, want := w.Code, http.StatusOK; got != want {
+		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
+	}
+	if got, want := store.lastFilter.Provider, "pagerduty"; got != want {
+		t.Fatalf("provider = %q, want %q", got, want)
+	}
+	if got, want := store.lastFilter.ProviderIncidentID, "PABC123"; got != want {
+		t.Fatalf("provider incident id = %q, want %q", got, want)
+	}
+	if got, want := store.lastFilter.ScopeID, "pagerduty-prod"; got != want {
+		t.Fatalf("scope id = %q, want %q", got, want)
+	}
+	if got, want := store.lastFilter.ServiceID, "P-SVC"; got != want {
+		t.Fatalf("service id = %q, want %q", got, want)
+	}
+	if got, want := store.lastFilter.Limit, 6; got != want {
+		t.Fatalf("limit = %d, want limit+1 %d", got, want)
+	}
+
+	var envelope ResponseEnvelope
+	if err := json.Unmarshal(w.Body.Bytes(), &envelope); err != nil {
+		t.Fatalf("json.Unmarshal envelope: %v", err)
+	}
+	if envelope.Truth == nil || envelope.Truth.Capability != incidentContextCapability {
+		t.Fatalf("truth = %#v, want incident context capability", envelope.Truth)
+	}
+	dataBytes, err := json.Marshal(envelope.Data)
+	if err != nil {
+		t.Fatalf("json.Marshal data: %v", err)
+	}
+	var body IncidentContextResponse
+	if err := json.Unmarshal(dataBytes, &body); err != nil {
+		t.Fatalf("json.Unmarshal data: %v", err)
+	}
+	assertIncidentEdge(t, body.EvidencePath, IncidentSlotWorkItem, IncidentTruthMissing)
+}
+
+func TestIncidentContextHandlerRequiresIncidentIDAndLimit(t *testing.T) {
+	t.Parallel()
+
+	handler := &IncidentHandler{Context: &recordingIncidentContextStore{}}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	for _, target := range []string{
+		"/api/v0/incidents/%20/context?limit=5",
+		"/api/v0/incidents/PABC123/context?limit=0",
+		"/api/v0/incidents/PABC123/context?limit=1000",
+	} {
+		target := target
+		t.Run(target, func(t *testing.T) {
+			t.Parallel()
+
+			req := httptest.NewRequest(http.MethodGet, target, nil)
+			w := httptest.NewRecorder()
+			mux.ServeHTTP(w, req)
+			if got, want := w.Code, http.StatusBadRequest; got != want {
+				t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
+			}
+		})
+	}
+}
+
+func TestIncidentContextHandlerReturnsAmbiguousCandidates(t *testing.T) {
+	t.Parallel()
+
+	store := &recordingIncidentContextStore{
+		err: IncidentContextAmbiguousError{
+			ProviderIncidentID: "PABC123",
+			Candidates: []IncidentContextIncidentCandidate{
+				{Provider: "pagerduty", ProviderIncidentID: "PABC123", ScopeID: "pd-prod"},
+				{Provider: "pagerduty", ProviderIncidentID: "PABC123", ScopeID: "pd-stage"},
+			},
+		},
+	}
+	handler := &IncidentHandler{Context: store}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v0/incidents/PABC123/context?limit=5", nil)
+	req.Header.Set("Accept", EnvelopeMIMEType)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+	if got, want := w.Code, http.StatusConflict; got != want {
+		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
+	}
+	if !strings.Contains(w.Body.String(), `"code":"ambiguous"`) {
+		t.Fatalf("body = %s, want ambiguous code", w.Body.String())
+	}
+	if !strings.Contains(w.Body.String(), `"pd-stage"`) {
+		t.Fatalf("body = %s, want candidate scope", w.Body.String())
+	}
+}
+
+func TestPostgresIncidentContextStoreRejectsUnboundedFilter(t *testing.T) {
+	t.Parallel()
+
+	store := NewPostgresIncidentContextStore(unusedIncidentContextQueryer{})
+	_, err := store.ReadIncidentContext(context.Background(), IncidentContextFilter{Limit: 5})
+	if err == nil {
+		t.Fatal("ReadIncidentContext() error = nil, want required incident id error")
+	}
+	if !strings.Contains(err.Error(), "provider_incident_id is required") {
+		t.Fatalf("error = %q, want provider_incident_id requirement", err.Error())
+	}
+}
+
+func TestIncidentContextQueriesStayBoundedToActiveFacts(t *testing.T) {
+	t.Parallel()
+
+	for _, want := range []string{
+		"scope.active_generation_id = fact.generation_id",
+		"fact.fact_kind = 'incident.record'",
+		"fact.payload->>'provider_incident_id' = $2",
+		"($3 = '' OR fact.scope_id = $3)",
+		"LIMIT $4",
+	} {
+		if !strings.Contains(listIncidentContextIncidentsQuery, want) {
+			t.Fatalf("listIncidentContextIncidentsQuery missing %q:\n%s", want, listIncidentContextIncidentsQuery)
+		}
+	}
+	for _, forbidden := range []string{
+		"MATCH ",
+		"CALL db",
+	} {
+		if strings.Contains(listIncidentContextIncidentsQuery, forbidden) {
+			t.Fatalf("listIncidentContextIncidentsQuery must not use graph scan %q:\n%s", forbidden, listIncidentContextIncidentsQuery)
+		}
+	}
+	for _, want := range []string{
+		"fact.fact_kind = 'change.record'",
+		"fact.scope_id = $2",
+		"fact.generation_id = $3",
+		"($4::timestamptz IS NULL OR NULLIF(fact.payload->>'timestamp', '')::timestamptz >= $4)",
+		"($5::timestamptz IS NULL OR NULLIF(fact.payload->>'timestamp', '')::timestamptz <= $5)",
+		"LIMIT $6",
+	} {
+		if !strings.Contains(listIncidentContextChangeCandidatesQuery, want) {
+			t.Fatalf("listIncidentContextChangeCandidatesQuery missing %q:\n%s", want, listIncidentContextChangeCandidatesQuery)
+		}
+	}
+}

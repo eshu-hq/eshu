@@ -9,6 +9,7 @@ route list is verified against `go/internal/query`.
 | Area | Routes |
 | --- | --- |
 | Entity resolution | `POST /api/v0/entities/resolve` |
+| Incident context | `GET /api/v0/incidents/{incident_id}/context` |
 | Context | `GET /api/v0/entities/{entity_id}/context`, `GET /api/v0/workloads/{workload_id}/context`, `GET /api/v0/services/{service_name}/context`, `GET /api/v0/repositories/{repo_id}/context` |
 | Catalog | `GET /api/v0/catalog` |
 | Stories | `GET /api/v0/repositories/{repo_id}/story`, `GET /api/v0/workloads/{workload_id}/story`, `GET /api/v0/services/{service_name}/story`, `POST /api/v0/impact/trace-deployment-chain`, `POST /api/v0/impact/deployment-config-influence` |
@@ -43,6 +44,20 @@ responses use `materialization_status=identity_only`,
 
 Entity context may include semantic narrative fields when normalized semantic
 metadata exists: `semantic_summary`, `semantic_profile`, and `story`.
+
+## Incident Context
+
+`GET /api/v0/incidents/{incident_id}/context` returns a bounded incident
+packet from collected source facts. `provider` defaults to `pagerduty`;
+`scope_id` disambiguates duplicate provider incident IDs; `service_id`,
+`since`, and `until` bound fallback change candidates.
+
+The response always includes an ordered evidence path for incident, service,
+deployable, runtime artifact, image, build/deploy record, commit, pull request,
+and work item slots. Missing Jira, pull-request, runtime, image, build,
+deployable, or commit evidence is reported explicitly instead of omitted.
+Fallback change candidates are labeled separately from exact provider evidence
+and from later derived reducer edges.
 
 ## Catalog
 

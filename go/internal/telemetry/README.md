@@ -271,6 +271,7 @@ Pipeline spans: `SpanCollectorObserve`, `SpanCollectorStream`, `SpanScopeAssign`
 `SpanQueryPackageRegistryPackages`, `SpanQueryPackageRegistryVersions`,
 `SpanQueryPackageRegistryDependencies`,
 `SpanQueryAdvisoryEvidence`,
+`SpanQueryIncidentContext`,
 `SpanQuerySupplyChainImpactExplanation`,
 `SpanScannerWorkerClaimProcess`, `SpanScannerWorkerAnalyze`,
 `SpanScannerWorkerFactEmitBatch`, `SpanTerraformStateClaimProcess`,

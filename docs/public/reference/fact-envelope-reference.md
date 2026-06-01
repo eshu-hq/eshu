@@ -109,9 +109,11 @@ state into `supply_chain_impact` truth.
 `incident.record`, `incident.lifecycle_event`, and `change.record` preserve
 provider-reported incident state, incident timeline entries, and related
 change-event evidence. PagerDuty emits these as reported source evidence.
-Reducers and read models must correlate them with runtime artifact, image,
-commit, pull-request, and work-item evidence before presenting an incident
-context path. Missing Jira links are valid incident evidence state and must not
+The incident-context read model may present provider state, timeline entries,
+fallback change candidates, and explicit missing path slots directly from these
+facts. Reducers and enrichment collectors must prove runtime artifact, image,
+commit, pull-request, and work-item evidence before those path slots become
+non-missing. Missing Jira links are valid incident evidence state and must not
 block incident collection.
 
 `work_item.record`, `work_item.transition`, and `work_item.external_link`
