@@ -1,7 +1,159 @@
+go/internal/collector/vulnerabilityintelligence/vulnruntime/source_derived_batch_test.go
+  s_f2f7fbb6f30866::t_0cbb2a2a276541 187-191,193-200,202-243
+  s_f2f7fbb6f30866::t_e262c04334f30f 192,201
+  s_f2f7fbb6f30866::t_7ca4af9f6e7e0f 244-300
+go/internal/packageidentity/identity.go
+  s_f2f7fbb6f30866::t_8360e0c9d78a35 30-31,101-103,152,206-207,244-260,265-266,304
+  s_f2f7fbb6f30866::t_a8ad05b52638e9 32-33,85-87,153-154,204
+  s_f2f7fbb6f30866::t_71f130560da12b 151
+go/internal/coordinator/README.md
+  s_f2f7fbb6f30866::t_594583935f2b06 114-117
+docs/public/reference/collector-reducer-readiness.md
+  s_f2f7fbb6f30866::t_0d61cb75ab6e15 76
+go/internal/parser/yaml/pubspec.go
+  s_f2f7fbb6f30866::t_a8ad05b52638e9 1-6,9-146,158,160-225
+  s_f2f7fbb6f30866::t_34654cd4cdda1b 7-8
+  s_f2f7fbb6f30866::t_787acd45031b67 147-157,159
+go/internal/reducer/supply_chain_impact_pub_test.go
+  s_f2f7fbb6f30866::t_2b671b41f810bb 1-90
+go/internal/packageidentity/README.md
+  s_f2f7fbb6f30866::t_29416621972638 27-29,46
+go/internal/mcp/tools_supply_chain.go
+  s_f2f7fbb6f30866::t_22e4598ed55531 44
+go/internal/reducer/supply_chain_impact_ranges.go
+  s_f2f7fbb6f30866::t_4fd6e25abb7539 69-93
+docs/public/languages/json.md
+  s_f2f7fbb6f30866::t_0d61cb75ab6e15 40
+go/internal/packageidentity/doc.go
+  s_f2f7fbb6f30866::t_29416621972638 3-6
+go/internal/collector/vulnerabilityintelligence/osv_envelope_test.go
+  s_f2f7fbb6f30866::t_0cbb2a2a276541 165-168,170-176,178,180-204,206-212
+  s_f2f7fbb6f30866::t_632887085ade1e 169,177,179,205
+  s_f2f7fbb6f30866::t_da02bff211f895 213-252
+  s_f2f7fbb6f30866::t_f5a083af28c4ea 253-296
+go/internal/parser/yaml/language.go
+  s_f2f7fbb6f30866::t_a8ad05b52638e9 110,120-122
+docs/public/languages/dart.md
+  s_f2f7fbb6f30866::t_be5d9d9b65a1ed 73-77
+docs/public/reference/security-intelligence-source-coverage.md
+  s_f2f7fbb6f30866::t_b0893be046fbdf 31,153-157,159-169
+  s_f2f7fbb6f30866::t_7954bb0646f1c9 158
+docs/public/reference/security-intelligence.md
+  s_f2f7fbb6f30866::t_23933a5258db74 318-319
+go/internal/reducer/README.md
+  s_f2f7fbb6f30866::t_e3ca85344c3190 451,562
+  s_f2f7fbb6f30866::t_6a19bad583f7d3 823-824
+go/internal/query/read-models.md
+  s_f2f7fbb6f30866::t_5053984bdae319 192
+  s_f2f7fbb6f30866::t_23933a5258db74 193-197
+go/internal/collector/vulnerabilityintelligence/vulnruntime/source.go
+  s_f2f7fbb6f30866::t_71f130560da12b 283,285
+  s_f2f7fbb6f30866::t_a8ad05b52638e9 284
+go/internal/parser/registry.go
+  s_f2f7fbb6f30866::t_8360e0c9d78a35 281
+  s_f2f7fbb6f30866::t_0d475d6f681c6d 378
+go/internal/reducer/supply_chain_impact_profile.go
+  s_f2f7fbb6f30866::t_71f130560da12b 65-66
+  s_f2f7fbb6f30866::t_6b44c47da66a94 67-68
+go/internal/coordinator/vulnerability_intelligence_batch_test.go
+  s_f2f7fbb6f30866::t_b79926aea42a7a 7
+  s_f2f7fbb6f30866::t_3a8864d16f28b8 8,254-309,311
+  s_f2f7fbb6f30866::t_d03ca1356fe317 118-134,141-159,161-165,167,310
+  s_f2f7fbb6f30866::t_a4b29b119e9b16 135-140,160,166,168-196,204-210
+  s_f2f7fbb6f30866::t_528ba023b206b6 197-203
+  s_f2f7fbb6f30866::t_acf8dd7e135e0c 214-253
+go/internal/collector/vulnerabilityintelligence/vulnruntime/doc.go
+  s_f2f7fbb6f30866::t_8e6f7d2e51c91b 10
+  s_f2f7fbb6f30866::t_6c4bc70e9d3d36 11-13
+docs/public/reference/http-api/evidence-and-supply-chain.md
+  s_f2f7fbb6f30866::t_bbb1851db587eb 201
+docs/public/reference/environment-collectors.md
+  s_f2f7fbb6f30866::t_0d61cb75ab6e15 196-197,199-202
+  s_f2f7fbb6f30866::t_cec632e5c60f4e 198,203-205
+go/internal/collector/vulnerabilityintelligence/identity.go
+  s_f2f7fbb6f30866::t_71f130560da12b 13-19,60-77,80-81,92,122-124,192-193
+  s_f2f7fbb6f30866::t_fccb0c03956eac 30-36,78-79,82-91,93-121
+  s_f2f7fbb6f30866::t_a8ad05b52638e9 194-195
+go/internal/collector/vulnerabilityintelligence/README.md
+  s_f2f7fbb6f30866::t_a1e89b6a62a9d5 10-13,169,182
+  s_f2f7fbb6f30866::t_7bd8d2de8be6e9 14,180,268-271
+  s_f2f7fbb6f30866::t_7d5c0da4f8b41f 181
+  s_f2f7fbb6f30866::t_23933a5258db74 272-274
+go/internal/mcp/README.md
+  s_f2f7fbb6f30866::t_22e4598ed55531 108
+go/internal/parser/yaml/pubspec_test.go
+  s_f2f7fbb6f30866::t_787acd45031b67 1-176
+go/internal/collector/vulnerabilityintelligence/vulnruntime/README.md
+  s_f2f7fbb6f30866::t_6c4bc70e9d3d36 61,63,70-71,103
+  s_f2f7fbb6f30866::t_80ff2378faee64 62,65,68-69
+  s_f2f7fbb6f30866::t_c510126407de6f 64
+go/internal/workflow/README.md
+  s_f2f7fbb6f30866::t_6c4bc70e9d3d36 184-192,336
+  s_f2f7fbb6f30866::t_3ee33fe88cc25d 193-196,337-339
+docs/public/reference/dependency-coverage.md
+  s_f2f7fbb6f30866::t_f220fa7aab2d66 90,124-128,225-231
+  s_f2f7fbb6f30866::t_da44f1f079edcf 129-131,232-233
+  s_f2f7fbb6f30866::t_e865dad5d8a1f1 248-255
+go/internal/parser/yaml/doc.go
+  s_f2f7fbb6f30866::t_1f55035a4f2895 7-9
+go/internal/parser/json/README.md
+  s_f2f7fbb6f30866::t_2165edb6f16893 13-17,95-99
+  s_f2f7fbb6f30866::t_1f55035a4f2895 73-74
+go/internal/parser/json/dependency_coverage.go
+  s_f2f7fbb6f30866::t_8360e0c9d78a35 351-360
+  s_f2f7fbb6f30866::t_7f6fab1251f64d 361-383
+  s_f2f7fbb6f30866::t_d570f24ddff619 417
+go/internal/parser/json/dependency_coverage_test.go
+  s_f2f7fbb6f30866::t_c1cb61445c04d6 78
+go/internal/collector/vulnerabilityintelligence/doc.go
+  s_f2f7fbb6f30866::t_a1e89b6a62a9d5 23-25
+  s_f2f7fbb6f30866::t_f9237a96769a52 26
+go/internal/collector/packageregistry/types.go
+  s_f2f7fbb6f30866::t_8360e0c9d78a35 32-33
+  s_f2f7fbb6f30866::t_a8ad05b52638e9 34-35
+go/internal/query/README.md
+  s_f2f7fbb6f30866::t_9a0249fe0a8dc7 131-132
+go/internal/parser/json/doc.go
+  s_f2f7fbb6f30866::t_2165edb6f16893 5-6
+go/internal/query/doc.go
+  s_f2f7fbb6f30866::t_6756ef4bd4cfc6 70-71
+go/internal/reducer/supply_chain_impact_version_match.go
+  s_f2f7fbb6f30866::t_71f130560da12b 90-91,287-297
+  s_f2f7fbb6f30866::t_34654cd4cdda1b 92-93,302-312
+go/internal/workflow/vulnerability_intelligence_config_test.go
+  s_f2f7fbb6f30866::t_0cbb2a2a276541 167-176
+  s_f2f7fbb6f30866::t_28dac474a08693 177-186
+go/internal/parser/yaml/README.md
+  s_f2f7fbb6f30866::t_1f55035a4f2895 13-14,63-66
+go/internal/workflow/vulnerability_intelligence_config.go
+  s_f2f7fbb6f30866::t_a8ad05b52638e9 243
+go/internal/reducer/supply_chain_impact_provenance.go
+  s_f2f7fbb6f30866::t_4fd6e25abb7539 138,152
+go/internal/reducer/doc.go
+  s_f2f7fbb6f30866::t_f6d02dfdff5d15 27-29
+go/internal/packageidentity/identity_test.go
+  s_f2f7fbb6f30866::t_2c2a628d766b20 165-174,176-186,394
+  s_f2f7fbb6f30866::t_c1cb61445c04d6 175
+  s_f2f7fbb6f30866::t_0cbb2a2a276541 187-207
+  s_f2f7fbb6f30866::t_bcbde76c7b11a2 208,217,305-358
+  s_f2f7fbb6f30866::t_7943c60e7bef5b 209-216,218-227
+go/internal/parser/dependency_coverage_engine_test.go
+  s_f2f7fbb6f30866::t_c1cb61445c04d6 155-173
+  s_f2f7fbb6f30866::t_284d1a445fcc6c 174-199
 ---
 {
   "schema_version": "authorship/3.0.0",
   "git_ai_version": "1.5.2",
   "base_commit_sha": "ba7f84a20e50b71b9115617bb61cb8e2344e81e2",
-  "prompts": {}
+  "prompts": {},
+  "sessions": {
+    "s_f2f7fbb6f30866": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e360b-90eb-7472-bac7-56d488b65f77",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
 }
