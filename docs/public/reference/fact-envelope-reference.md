@@ -71,12 +71,25 @@ current families are:
 | Vulnerability intelligence | collector-specific vulnerability source | `vulnerability.source_snapshot`, `vulnerability.cve`, `vulnerability.affected_product`, `vulnerability.affected_package`, `vulnerability.os_package`, `vulnerability.epss_score`, `vulnerability.known_exploited`, `vulnerability.reference`, `vulnerability.warning`, `vulnerability.go_module_evidence`, `vulnerability.go_call_reachability` |
 | Provider security alerts | `security_alert` | `security_alert.repository_alert` |
 | Incident context | `pagerduty` for PagerDuty source collection | `incident.record`, `incident.lifecycle_event`, `change.record` |
+| Incident routing | source collector that observed the routing evidence, including `terraform_state` | `incident_routing.applied_pagerduty_resource`, `incident_routing.applied_alert_route`, `incident_routing.coverage_warning` |
 | Jira work items | `jira` | `work_item.record`, `work_item.transition`, `work_item.external_link` |
 
 Most current core families use schema version `1.0.0`.
 `documentation_section` uses `1.1.0` because section payloads can carry
 source-native content for updater diff generation. Check the fact-family helper
 before emitting rows.
+
+Incident-routing facts preserve routing evidence before reducer-owned
+comparison. Terraform-state applied evidence is emitted as
+`incident_routing.applied_pagerduty_resource` for allowlisted PagerDuty
+resources and `incident_routing.applied_alert_route` for allowlisted AWS
+alert-routing resources that identify PagerDuty. Unsupported PagerDuty state
+resources emit `incident_routing.coverage_warning` instead of persisting
+unknown attributes. These facts carry Terraform state address, resource type,
+module/provider address, scope, state generation, serial, lineage, locator
+hash, and bounded resource identifiers. Secret-bearing endpoint values, SSM
+parameter values, IAM policy documents, integration keys, private URLs, and
+user emails are omitted or represented by redaction flags and fingerprints.
 
 `vulnerability.source_snapshot` may include cache lifecycle metadata such as
 cache artifact version, snapshot digest, cache update time, expiration,

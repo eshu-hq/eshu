@@ -11,6 +11,11 @@
 // windows. Callers receive typed fact envelopes, redaction evidence, bounded
 // parse summaries, and warning counts, not raw state bytes or unredacted
 // attribute values.
+// The parser also emits applied incident-routing source facts for allowlisted
+// PagerDuty and alert-route resources observed in state. Those facts preserve
+// Terraform address, module, provider, state generation, and fingerprinted or
+// redacted routing metadata; reducers own declared/applied/observed comparison
+// and graph/read-model truth.
 //
 // LocatorHash and ScopeLocatorHash are separate contracts. LocatorHash includes
 // backend kind, locator, and version ID for per-candidate identity.

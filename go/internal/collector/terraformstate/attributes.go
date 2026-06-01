@@ -279,6 +279,9 @@ func (p *stateParser) schemaTrust(resourceType string, attributeKey string) reda
 	if resourceType == "" || attributeKey == "" {
 		return redact.SchemaUnknown
 	}
+	if isHardSensitiveStateAttribute(resourceType, attributeKey) {
+		return redact.SchemaUnknown
+	}
 	if p.options.SchemaResolver.HasAttribute(resourceType, attributeKey) {
 		return redact.SchemaKnown
 	}

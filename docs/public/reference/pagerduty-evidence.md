@@ -71,7 +71,10 @@ sanitized alert target reference.
 ## Fact Families
 
 The first implementation slices should start with these fact families. Names
-are contract candidates until the corresponding code PR lands.
+are contract candidates until the corresponding code PR lands. Terraform-state
+applied PagerDuty and alert-route facts are emitted by the Terraform-state
+parser; declared-source reducers and live-observed provider facts remain
+separate follow-up slices.
 
 | Fact family | Source class | Identity keys | Payload boundaries |
 | --- | --- | --- | --- |

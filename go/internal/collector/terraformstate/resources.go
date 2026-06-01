@@ -158,6 +158,9 @@ func (p *stateParser) readInstance(resource resourceContext, instanceIndex int) 
 	if err := p.emitTagObservations(address, attributes); err != nil {
 		return err
 	}
+	if err := p.emitAppliedIncidentRoutingEvidence(resource, address, attributes); err != nil {
+		return err
+	}
 	classifiedAttributes, err := p.classifyAttributes(strings.TrimSpace(resource.Type), address, attributes)
 	if err != nil {
 		return err
