@@ -23,6 +23,10 @@ each format diverge from the next over time. This package centralizes:
   and components whose own scope identifiers disagree with the snapshot
   scope. A handler bug that mixes a second target's evidence into the input
   cannot leak through the writer.
+- **Scanner status.** [`SnapshotStatus`](exports.go) carries optional
+  readiness, missing-evidence, unsupported-target, and exit-code context for
+  scanner-style exports. SARIF uses this to avoid turning
+  `evidence_incomplete` or `unsupported` scans into empty clean results.
 - **Deterministic output.** Findings, components, advisory sources, and
   locations are sorted before serialization. The same input snapshot produces
   byte-identical output across processes. Golden fixtures under
@@ -49,7 +53,7 @@ exporter is still being built.
 
 | Concern | File |
 | --- | --- |
-| Format-neutral types (`Scope`, `Finding`, `Component`, `Snapshot`, `Options`, `Tool`, `FieldRedactor`) | [`exports.go`](exports.go) |
+| Format-neutral types (`Scope`, `Finding`, `Component`, `Snapshot`, `SnapshotStatus`, `Options`, `Tool`, `FieldRedactor`) | [`exports.go`](exports.go) |
 | Registry + format extension surface | [`registry.go`](registry.go) |
 | SARIF v2.1.0 writer | [`sarif.go`](sarif.go) |
 | Unit tests for scope/severity/registry | [`exports_test.go`](exports_test.go) |
@@ -88,6 +92,13 @@ fixture so a formatting change (indentation, key escaping, trailing
 newline) fails the test even if the JSON value is semantically identical.
 `TestSARIFExporter_IsDeterministic` runs the writer twice and asserts
 `bytes.Equal`. Add the same test shape for each new format.
+
+SARIF emits scanner status in `run.properties` with `eshu.` keys. For
+non-ready scanner states such as `evidence_incomplete` or `unsupported`, the
+writer also emits one location-free status result so code-scanning consumers
+do not interpret an empty vulnerability finding list as a clean scan. The
+result intentionally omits `locations`; callers must not invent source paths
+for missing evidence.
 
 ## Redaction contract
 

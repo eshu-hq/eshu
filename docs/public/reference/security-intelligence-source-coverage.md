@@ -576,8 +576,16 @@ schema version is `eshu.vulnerability_report.v1`, and it keeps the same
 readiness envelope, target/package/image/SBOM context, affected-version fields,
 evidence fact handles, missing-evidence reasons, unsupported-target coverage,
 and remediation metadata separate. Provider payload fields are not copied into
-the report. SARIF and VEX-style statements remain separate export formats
-tracked outside this parent envelope.
+the report.
+
+`eshu vuln-scan repo --export sarif` now writes a SARIF v2.1.0 artifact from
+that parent scanner envelope. Vulnerability findings carry package/image target
+context, severity, remediation metadata, evidence fact ids, and real source
+locations when present. Missing evidence and unsupported targets are preserved
+as `eshu.*` SARIF properties, and non-ready states emit a location-free status
+result so CI cannot mistake incomplete evidence for a clean scan. VEX-style
+statements remain a separate follow-up format tracked outside this parent
+envelope.
 
 No-Regression Evidence: `go test ./cmd/eshu -run
 'TestRunVulnScanRepo(JSONReportPreservesScannerContractAndFindingsExit|JSONReportPreservesTargetPackageImageAndVersionContext|ExitCodesPreserveReadinessClasses|ScopedModeFailsClosedOnUnknownFreshness|TextSummaryRendersBeforeFindingsExit)|TestRenderVulnScanRepoSummaryIncludesReadinessEvidenceAndRemediation'

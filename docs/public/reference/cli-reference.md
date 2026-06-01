@@ -114,6 +114,18 @@ handles, remediation metadata, the scope plan, and scan-performance evidence.
 The raw reducer-owned findings remain in `data.findings` so automation can
 keep using the API/MCP envelope directly.
 
+With `--export sarif`, the command writes SARIF v2.1.0 to stdout instead of the
+text summary or JSON envelope. Findings become SARIF results with vulnerability
+identity, package and image target context, severity, remediation metadata,
+evidence fact ids, and source locations only when the API supplied a real path.
+Run properties preserve the scanner report schema, readiness state, freshness,
+scope mode, exit code, missing evidence, and unsupported targets. A non-ready
+scan such as `evidence_incomplete` or `unsupported` emits a location-free SARIF
+status result, so CI does not treat missing evidence as a clean zero-finding
+scan. Use the process exit code as the scanner verdict: SARIF is the artifact,
+not a replacement for the readiness contract. `--json` and `--export sarif`
+cannot be combined.
+
 Exit codes are part of the scanner contract:
 
 | Code | Meaning |
@@ -195,9 +207,9 @@ Sanitized JSON report excerpt:
 }
 ```
 
-SARIF exports and VEX-style statements are intentionally separate follow-up
-formats; this command's `data.report` is the parent scanner envelope that
-future formats can consume without changing readiness semantics.
+VEX-style statements remain a separate follow-up format. SARIF is generated
+from this command's `data.report` parent scanner envelope without changing
+readiness semantics.
 
 `eshu vuln-scan provider-parity` is API-backed and operator-local. It requires
 `--allowlist-file`, reads provider credentials only from the named local

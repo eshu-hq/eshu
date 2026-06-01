@@ -22,6 +22,7 @@ type vulnScanRepoOptions struct {
 	ImpactStatus string
 	RepoID       string
 	Broad        bool
+	ExportFormat string
 }
 
 type vulnScanRepoResult struct {
@@ -111,6 +112,7 @@ func addVulnScanRepoFlags(cmd *cobra.Command) {
 		false,
 		"Skip the scoped fail-closed guards and accept advisory/package coverage beyond observed dependencies",
 	)
+	cmd.Flags().String("export", "", "Write a scanner report export format to stdout (supported: sarif)")
 }
 
 func runVulnScanRepo(cmd *cobra.Command, args []string) error {
@@ -138,7 +140,7 @@ func runVulnScanRepo(cmd *cobra.Command, args []string) error {
 	}
 	result := newVulnScanRepoResult(opts, client.BaseURL)
 	scanStdout := cmd.OutOrStdout()
-	if opts.Scan.JSON {
+	if opts.Scan.JSON || opts.ExportFormat != "" {
 		scanStdout = cmd.ErrOrStderr()
 	}
 	scanResult, err := executeScan(cmd.Context(), scanStdout, cmd.ErrOrStderr(), client, opts.Scan, !opts.Scan.JSON)
@@ -277,12 +279,26 @@ func vulnScanRepoOptionsFromCommand(cmd *cobra.Command, args []string) (vulnScan
 	if err != nil {
 		return vulnScanRepoOptions{}, err
 	}
+	exportFormat, err := cmd.Flags().GetString("export")
+	if err != nil {
+		return vulnScanRepoOptions{}, err
+	}
+	exportFormat = strings.ToLower(strings.TrimSpace(exportFormat))
+	switch exportFormat {
+	case "", vulnScanExportFormatSARIF:
+	default:
+		return vulnScanRepoOptions{}, commandExitError{message: fmt.Sprintf("unsupported --export %q: expected sarif", exportFormat), code: 2}
+	}
+	if exportFormat != "" && scanOpts.JSON {
+		return vulnScanRepoOptions{}, commandExitError{message: "--json cannot be combined with --export; use one output contract", code: 2}
+	}
 	return vulnScanRepoOptions{
 		Scan:         scanOpts,
 		Limit:        limit,
 		ImpactStatus: strings.TrimSpace(impactStatus),
 		RepoID:       strings.TrimSpace(repoID),
 		Broad:        broad,
+		ExportFormat: exportFormat,
 	}, nil
 }
 
@@ -366,6 +382,15 @@ func finishVulnScanRepo(
 	}
 	report := buildVulnScanReport(result, vulnScanNow())
 	result.Report = &report
+	if opts.ExportFormat == vulnScanExportFormatSARIF {
+		if err != nil && !isVulnScanScannerExit(err) {
+			return err
+		}
+		if writeErr := writeVulnScanSARIF(cmd.OutOrStdout(), result, report); writeErr != nil {
+			return writeErr
+		}
+		return err
+	}
 	envelope := vulnScanRepoEnvelope{
 		Data:  result,
 		Truth: truth,

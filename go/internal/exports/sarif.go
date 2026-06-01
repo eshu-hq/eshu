@@ -71,6 +71,7 @@ func buildSARIFLog(snapshot Snapshot, opts Options) (sarifLog, error) {
 	sortFindings(scoped)
 	rules, ruleIndex := buildRules(scoped)
 	results := buildResults(scoped, ruleIndex)
+	rules, results = appendStatusResults(rules, ruleIndex, results, snapshot.Status)
 
 	run := sarifRun{
 		Tool: sarifTool{
@@ -90,6 +91,7 @@ func buildSARIFLog(snapshot Snapshot, opts Options) (sarifLog, error) {
 			FormatVersion:   sarifVersion,
 		},
 	}
+	applySARIFStatusProperties(run.Properties, snapshot.Status)
 	if !snapshot.GeneratedAt.IsZero() {
 		run.Invocations = []sarifInvocation{{
 			ExecutionSuccessful: true,
@@ -401,17 +403,75 @@ func buildFingerprints(finding Finding) map[string]string {
 
 func buildResultProperties(finding Finding) *sarifResultProps {
 	props := &sarifResultProps{
-		FindingID:       finding.FindingID,
-		PackageID:       finding.PackageID,
-		PackageName:     finding.PackageName,
-		ObservedVersion: finding.ObservedVersion,
-		FixedVersion:    finding.FixedVersion,
-		RepositoryID:    finding.RepositoryID,
-		SubjectDigest:   finding.SubjectDigest,
+		FindingID:           finding.FindingID,
+		PackageID:           finding.PackageID,
+		PackageName:         finding.PackageName,
+		ObservedVersion:     finding.ObservedVersion,
+		FixedVersion:        finding.FixedVersion,
+		RepositoryID:        finding.RepositoryID,
+		SubjectDigest:       finding.SubjectDigest,
+		ImageRef:            finding.ImageRef,
+		RuntimeReachability: finding.RuntimeReachability,
+		ImpactStatus:        finding.ImpactStatus,
+		Confidence:          finding.Confidence,
+		RequestedRange:      finding.RequestedRange,
+		VulnerableRange:     finding.VulnerableRange,
+		MatchReason:         finding.MatchReason,
+		WorkloadIDs:         cloneStrings(finding.WorkloadIDs),
+		ServiceIDs:          cloneStrings(finding.ServiceIDs),
+		Environments:        cloneStrings(finding.Environments),
+		DependencyScope:     finding.DependencyScope,
+		DependencyPath:      cloneStrings(finding.DependencyPath),
+		DirectDependency:    finding.DirectDependency,
+		MissingEvidence:     cloneStrings(finding.MissingEvidence),
+		EvidenceFactIDs:     cloneStrings(finding.EvidenceFactIDs),
+		SourceFreshness:     finding.SourceFreshness,
+		Remediation:         buildSARIFRemediation(finding.Remediation),
 	}
 	if props.FindingID == "" && props.PackageID == "" && props.PackageName == "" &&
 		props.ObservedVersion == "" && props.FixedVersion == "" &&
-		props.RepositoryID == "" && props.SubjectDigest == "" {
+		props.RepositoryID == "" && props.SubjectDigest == "" && props.ImageRef == "" &&
+		props.RuntimeReachability == "" && props.ImpactStatus == "" && props.Confidence == "" &&
+		props.RequestedRange == "" && props.VulnerableRange == "" && props.MatchReason == "" &&
+		len(props.WorkloadIDs) == 0 && len(props.ServiceIDs) == 0 &&
+		len(props.Environments) == 0 && props.DependencyScope == "" &&
+		len(props.DependencyPath) == 0 && props.DirectDependency == nil &&
+		len(props.MissingEvidence) == 0 && len(props.EvidenceFactIDs) == 0 &&
+		props.SourceFreshness == "" && props.Remediation == nil {
+		return nil
+	}
+	return props
+}
+
+func cloneStrings(in []string) []string {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make([]string, len(in))
+	copy(out, in)
+	return out
+}
+
+func buildSARIFRemediation(remediation *Remediation) *sarifRemediationProps {
+	if remediation == nil {
+		return nil
+	}
+	props := &sarifRemediationProps{
+		CurrentVersion:      remediation.CurrentVersion,
+		VulnerableRange:     remediation.VulnerableRange,
+		FirstPatchedVersion: remediation.FirstPatchedVersion,
+		ManifestRange:       remediation.ManifestRange,
+		ManifestAllowsFix:   remediation.ManifestAllowsFix,
+		Confidence:          remediation.Confidence,
+		Reason:              remediation.Reason,
+		Direct:              remediation.Direct,
+		MissingEvidence:     cloneStrings(remediation.MissingEvidence),
+	}
+	if props.CurrentVersion == "" && props.VulnerableRange == "" &&
+		props.FirstPatchedVersion == "" && props.ManifestRange == "" &&
+		props.ManifestAllowsFix == "" && props.Confidence == "" &&
+		props.Reason == "" && props.Direct == nil &&
+		len(props.MissingEvidence) == 0 {
 		return nil
 	}
 	return props

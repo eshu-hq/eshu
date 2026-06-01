@@ -124,6 +124,11 @@ launched runtime via the shared `telemetry` package. Errors print to
   `evidence_incomplete`. The command exits `0` for ready-zero, `3` for
   findings, `4` for non-ready evidence, `5` for unsupported target evidence,
   and `1` for runtime or transport failures before readiness is classified.
+  `--export sarif` writes SARIF v2.1.0 to stdout from the same scanner report:
+  reducer-owned findings become SARIF results, source paths become locations
+  only when the API provided them, and run properties preserve readiness,
+  missing-evidence, unsupported-target, scope-mode, and exit-code context.
+  `--json` and `--export sarif` are mutually exclusive output contracts.
 - `eshu vuln-scan provider-parity` is the private-safe provider alert proof
   wrapper. It reads an operator-local allowlist file, optionally reads a local
   generic provider summary file, or fetches GitHub Dependabot alert summaries

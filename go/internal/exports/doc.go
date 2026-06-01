@@ -2,10 +2,11 @@
 // snapshots into standard wire formats.
 //
 // Callers assemble a [Snapshot] from already-authorized reducer-owned
-// vulnerability findings and SBOM components, then ask the [Registry] for an
-// [Exporter] for the requested [Format]. The exporter writes bytes; the
-// package never reads the database, never expands scope, and never decides
-// authorization. That ownership belongs to the calling handler.
+// vulnerability findings, SBOM components, and optional scanner readiness
+// status, then ask the [Registry] for an [Exporter] for the requested [Format].
+// The exporter writes bytes; the package never reads the database, never
+// expands scope, and never decides authorization. That ownership belongs to the
+// calling handler.
 //
 // Three rules hold across every format:
 //
