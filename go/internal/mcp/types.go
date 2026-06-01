@@ -19,7 +19,11 @@ func ReadOnlyTools() []ToolDefinition {
 	tools = append(tools, cicdTools()...)
 	tools = append(tools, cicdRunCorrelationAggregateTools()...)
 	tools = append(tools, serviceCatalogTools()...)
+<<<<<<< HEAD
 	tools = append(tools, kubernetesTools()...)
+=======
+	tools = append(tools, observabilityCoverageTools()...)
+>>>>>>> 57b01a50 (feat: observability coverage read surface — PR2 (query/MCP) (toward #391))
 	tools = append(tools, supplyChainTools()...)
 	tools = append(tools, supplyChainImpactAggregateTools()...)
 	tools = append(tools, securityAlertReconciliationAggregateTools()...)

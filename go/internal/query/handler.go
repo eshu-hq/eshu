@@ -108,6 +108,7 @@ func capabilityUnsupported(profile QueryProfile, capability string) bool {
 
 // APIRouter builds the top-level /api/v0 mux for all query endpoints.
 type APIRouter struct {
+<<<<<<< HEAD
 	Repositories    *RepositoryHandler
 	Entities        *EntityHandler
 	Code            *CodeHandler
@@ -126,6 +127,26 @@ type APIRouter struct {
 	Status          *StatusHandler
 	Compare         *CompareHandler
 	Admin           *AdminHandler
+=======
+	Repositories          *RepositoryHandler
+	Entities              *EntityHandler
+	Code                  *CodeHandler
+	Content               *ContentHandler
+	Infra                 *InfraHandler
+	IaC                   *IaCHandler
+	Impact                *ImpactHandler
+	Evidence              *EvidenceHandler
+	Documentation         *DocumentationHandler
+	PackageRegistry       *PackageRegistryHandler
+	CICD                  *CICDHandler
+	ServiceCatalog        *ServiceCatalogHandler
+	ObservabilityCoverage *ObservabilityCoverageHandler
+	SupplyChain           *SupplyChainHandler
+	Incident              *IncidentHandler
+	Status                *StatusHandler
+	Compare               *CompareHandler
+	Admin                 *AdminHandler
+>>>>>>> 57b01a50 (feat: observability coverage read surface — PR2 (query/MCP) (toward #391))
 }
 
 // Mount registers all query-layer HTTP routes on the given mux.
@@ -200,9 +221,15 @@ func (a *APIRouter) Mount(mux *http.ServeMux) {
 		a.ServiceCatalog.Mount(mux)
 	}
 
+<<<<<<< HEAD
 	// Kubernetes
 	if a.Kubernetes != nil {
 		a.Kubernetes.Mount(mux)
+=======
+	// Observability coverage
+	if a.ObservabilityCoverage != nil {
+		a.ObservabilityCoverage.Mount(mux)
+>>>>>>> 57b01a50 (feat: observability coverage read surface — PR2 (query/MCP) (toward #391))
 	}
 
 	// Supply chain

@@ -71,7 +71,11 @@ func OpenAPISpec() string {
 			openAPIPathsCICD+
 			openAPIPathsCICDRunCorrelationAggregate+
 			openAPIPathsServiceCatalog+
+<<<<<<< HEAD
 			openAPIPathsKubernetes+
+=======
+			openAPIPathsObservabilityCoverage+
+>>>>>>> 57b01a50 (feat: observability coverage read surface — PR2 (query/MCP) (toward #391))
 			openAPIPathsSupplyChain+
 			openAPIPathsSupplyChainImpactAggregate+
 			openAPIPathsSecurityAlertAggregate+

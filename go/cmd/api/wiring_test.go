@@ -147,6 +147,12 @@ func TestNewRouterMountsPostgresBackedHandlers(t *testing.T) {
 	if router.ServiceCatalog.Correlations == nil {
 		t.Fatal("newRouter().ServiceCatalog.Correlations = nil, want Postgres read model store")
 	}
+	if router.ObservabilityCoverage == nil {
+		t.Fatal("newRouter().ObservabilityCoverage = nil, want observability coverage route mounted")
+	}
+	if router.ObservabilityCoverage.Correlations == nil {
+		t.Fatal("newRouter().ObservabilityCoverage.Correlations = nil, want Postgres read model store")
+	}
 }
 
 func TestNewRouter_MountsAdminRoutes(t *testing.T) {
