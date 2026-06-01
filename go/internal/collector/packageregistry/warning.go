@@ -35,6 +35,9 @@ func NewWarningEnvelope(observation WarningObservation) (facts.Envelope, error) 
 		"message":               sanitizeText(observation.Message),
 		"correlation_anchors":   correlationAnchors(observation.ScopeID),
 	}
+	if ecosystem := strings.TrimSpace(string(observation.Ecosystem)); ecosystem != "" {
+		payload["ecosystem"] = ecosystem
+	}
 	stableIdentity := map[string]any{
 		"scope_id":     observation.ScopeID,
 		"warning_code": warningCode,

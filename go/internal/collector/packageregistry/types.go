@@ -245,6 +245,7 @@ type WarningObservation struct {
 	WarningCode         string
 	Severity            string
 	Message             string
+	Ecosystem           Ecosystem
 	Package             *PackageIdentity
 	Version             string
 	ScopeID             string

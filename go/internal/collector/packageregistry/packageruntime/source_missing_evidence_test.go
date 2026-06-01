@@ -166,6 +166,145 @@ func TestClaimedSourceKeepsConfiguredNotFoundAsError(t *testing.T) {
 	}
 }
 
+func TestClaimedSourceCompletesUnsupportedDerivedMetadataSourceAsWarning(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name      string
+		ecosystem packageregistry.Ecosystem
+		scopeID   string
+	}{
+		{name: "go", ecosystem: packageregistry.EcosystemGoModule, scopeID: "gomod://proxy.golang.org/example.com/acme/lib/v2"},
+		{name: "maven", ecosystem: packageregistry.EcosystemMaven, scopeID: "maven://repo.maven.apache.org/maven2/org.example:demo-core"},
+		{name: "nuget", ecosystem: packageregistry.EcosystemNuGet, scopeID: "nuget://api.nuget.org/v3/index.json/newtonsoft.json"},
+		{name: "composer", ecosystem: packageregistry.EcosystemComposer, scopeID: "composer://repo.packagist.org/symfony/console"},
+		{name: "rubygems", ecosystem: packageregistry.EcosystemRubyGems, scopeID: "rubygems://rubygems.org/rails"},
+		{name: "cargo", ecosystem: packageregistry.EcosystemCargo, scopeID: "cargo://crates.io/serde_json"},
+	} {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			source, err := NewClaimedSource(SourceConfig{
+				CollectorInstanceID: "collector-package-registry",
+				DerivedTargets: DerivedTargetConfig{
+					Enabled:    true,
+					Ecosystems: []packageregistry.Ecosystem{tc.ecosystem},
+				},
+				Provider: staticMetadataProvider{document: []byte(`{}`)},
+				Now: func() time.Time {
+					return time.Date(2026, time.June, 1, 11, 0, 0, 0, time.UTC)
+				},
+			})
+			if err != nil {
+				t.Fatalf("NewClaimedSource() error = %v", err)
+			}
+
+			collected, ok, err := source.NextClaimed(context.Background(), testPackageRegistryWorkItemForScope(tc.scopeID))
+			if err != nil {
+				t.Fatalf("NextClaimed() error = %v, want nil unsupported-source warning", err)
+			}
+			if !ok {
+				t.Fatal("NextClaimed() ok = false, want completed warning generation")
+			}
+			assertSinglePackageRegistryWarningCode(t, collected, warningCodeUnsupportedMetadataSource)
+		})
+	}
+}
+
+func TestClaimedSourceCompletesMalformedMetadataAsWarning(t *testing.T) {
+	t.Parallel()
+
+	source, err := NewClaimedSource(SourceConfig{
+		CollectorInstanceID: "collector-package-registry",
+		DerivedTargets: DerivedTargetConfig{
+			Enabled:    true,
+			Ecosystems: []packageregistry.Ecosystem{packageregistry.EcosystemPyPI},
+		},
+		Provider: staticMetadataProvider{document: []byte(`{"info":`)},
+		Now: func() time.Time {
+			return time.Date(2026, time.June, 1, 11, 15, 0, 0, time.UTC)
+		},
+	})
+	if err != nil {
+		t.Fatalf("NewClaimedSource() error = %v", err)
+	}
+
+	collected, ok, err := source.NextClaimed(context.Background(), testPackageRegistryWorkItemForScope("pypi://pypi.org/pypi/friendly-bard"))
+	if err != nil {
+		t.Fatalf("NextClaimed() error = %v, want nil malformed-metadata warning", err)
+	}
+	if !ok {
+		t.Fatal("NextClaimed() ok = false, want completed warning generation")
+	}
+	assertSinglePackageRegistryWarningCode(t, collected, warningCodeMalformedMetadata)
+}
+
+func TestClaimedSourceCompletesMissingCredentialsAsWarning(t *testing.T) {
+	t.Parallel()
+
+	source := newTestClaimedSource(t, TargetConfig{
+		Base: packageregistry.TargetConfig{
+			Provider:     "generic-private",
+			Ecosystem:    packageregistry.EcosystemGeneric,
+			Registry:     "https://registry.example.com",
+			ScopeID:      "generic://registry.example.com/team/tool",
+			Packages:     []string{"team/tool"},
+			PackageLimit: 1,
+			VersionLimit: 1,
+			Visibility:   packageregistry.VisibilityPrivate,
+		},
+		MetadataURL: "https://registry.example.com/team/tool",
+	}, staticMetadataProvider{document: []byte(`{}`)})
+
+	collected, ok, err := source.NextClaimed(context.Background(), testPackageRegistryWorkItemForScope("generic://registry.example.com/team/tool"))
+	if err != nil {
+		t.Fatalf("NextClaimed() error = %v, want nil missing-credentials warning", err)
+	}
+	if !ok {
+		t.Fatal("NextClaimed() ok = false, want completed warning generation")
+	}
+	envelope := assertSinglePackageRegistryWarningCode(t, collected, warningCodeCredentialsMissing)
+	for _, privateField := range []string{"registry", "package_id", "source_uri"} {
+		if value := envelope.Payload[privateField]; value != nil && value != "" {
+			t.Fatalf("credentials warning payload[%q] = %#v, want omitted private target detail", privateField, value)
+		}
+	}
+	if value := collected.Scope.Metadata["registry"]; value != "" {
+		t.Fatalf("credentials warning scope registry metadata = %q, want omitted private registry URL", value)
+	}
+	if got, want := envelope.Payload["ecosystem"], string(packageregistry.EcosystemGeneric); got != want {
+		t.Fatalf("credentials warning ecosystem = %#v, want %q", got, want)
+	}
+}
+
+func assertSinglePackageRegistryWarningCode(t *testing.T, collected collector.CollectedGeneration, want string) facts.Envelope {
+	t.Helper()
+
+	var warnings int
+	var warning facts.Envelope
+	for envelope := range collected.Facts {
+		if envelope.FactKind != facts.PackageRegistryWarningFactKind {
+			t.Fatalf("FactKind = %q, want only warning evidence", envelope.FactKind)
+		}
+		warning = envelope
+		warnings++
+		if got := envelope.Payload["warning_code"]; got != want {
+			t.Fatalf("warning_code = %#v, want %q", got, want)
+		}
+		message, _ := envelope.Payload["message"].(string)
+		for _, leaked := range []string{"example.com/acme", "org.example", "newtonsoft", "symfony", "rails", "serde", "team/tool", "registry.example.com"} {
+			if strings.Contains(strings.ToLower(message), strings.ToLower(leaked)) {
+				t.Fatalf("warning message leaked %q: %q", leaked, message)
+			}
+		}
+	}
+	if warnings != 1 {
+		t.Fatalf("warning facts = %d, want 1", warnings)
+	}
+	return warning
+}
+
 type failingMetadataProvider struct {
 	err error
 }

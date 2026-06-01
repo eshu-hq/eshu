@@ -115,6 +115,15 @@ func TestRenderStatusIncludesRegistryCollectors(t *testing.T) {
 					Name:  "registry_rate_limited",
 					Count: 1,
 				}},
+				MetadataTargetCounts: []status.RegistryMetadataTargetCount{{
+					Ecosystem:   "npm",
+					Planned:     5,
+					Completed:   3,
+					Skipped:     1,
+					Stale:       1,
+					Failed:      1,
+					RateLimited: 1,
+				}},
 			}},
 		},
 		status.DefaultOptions(),
@@ -131,6 +140,10 @@ func TestRenderStatusIncludesRegistryCollectors(t *testing.T) {
 		"\"active_scopes\": 2",
 		"\"recent_completed_generations\": 4",
 		"\"name\": \"registry_rate_limited\"",
+		"\"metadata_targets\"",
+		"\"ecosystem\": \"npm\"",
+		"\"planned\": 5",
+		"\"rate_limited\": 1",
 	} {
 		if !strings.Contains(body, want) {
 			t.Fatalf("RenderJSON() = %s, want %q", payload, want)
@@ -138,7 +151,8 @@ func TestRenderStatusIncludesRegistryCollectors(t *testing.T) {
 	}
 	text := status.RenderText(report)
 	if !strings.Contains(text, "Registry collectors:") ||
-		!strings.Contains(text, "failure_classes=registry_rate_limited=1") {
+		!strings.Contains(text, "failure_classes=registry_rate_limited=1") ||
+		!strings.Contains(text, "metadata_targets=npm(planned=5 completed=3 skipped=1 stale=1 failed=1 rate_limited=1)") {
 		t.Fatalf("RenderText() = %s, want registry collector summary", text)
 	}
 }

@@ -174,6 +174,9 @@ func (s *ClaimedSource) NextClaimed(
 		}
 		derivedTarget = true
 	}
+	if collected, handled, err := s.prefetchWarningGeneration(item, target); handled {
+		return collected, err == nil, err
+	}
 	startedAt := time.Now()
 	observeCtx, span := s.startObserve(ctx, target)
 	defer span.End()
@@ -288,6 +291,9 @@ func (s *ClaimedSource) collectDocument(
 				attribute.String(telemetry.MetricDimensionEcosystem, string(target.Base.Ecosystem)),
 				attribute.String(telemetry.MetricDimensionDocumentType, firstNonBlank(document.DocumentType, string(target.Base.Ecosystem))),
 			))
+		}
+		if collected, handled, warningErr := s.parserWarningGeneration(item, target, err); handled {
+			return collected, warningErr
 		}
 		return collector.CollectedGeneration{}, fmt.Errorf("parse package registry %s metadata: %w", target.Base.Ecosystem, err)
 	}

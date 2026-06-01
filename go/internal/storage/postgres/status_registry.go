@@ -87,6 +87,62 @@ WHERE collector_kind IN ('oci_registry', 'package_registry')
 GROUP BY collector_kind, failure_class
 ORDER BY collector_kind, failure_class
 `
+	registryMetadataTargetStatusQuery = `
+WITH work_counts AS (
+    SELECT
+        collector_kind,
+        NULLIF(BTRIM(SPLIT_PART(fairness_key, ':', 4)), '') AS ecosystem,
+        COUNT(*) AS planned,
+        COUNT(*) FILTER (WHERE status = 'completed') AS completed,
+        COUNT(*) FILTER (
+            WHERE status IN ('pending', 'claimed', 'failed_retryable')
+              AND updated_at < $1::timestamptz - INTERVAL '24 hours'
+        ) AS stale,
+        COUNT(*) FILTER (WHERE status IN ('failed_retryable', 'failed_terminal')) AS failed,
+        COUNT(*) FILTER (WHERE last_failure_class = 'registry_rate_limited') AS rate_limited
+    FROM workflow_work_items
+    WHERE collector_kind = 'package_registry'
+      AND NULLIF(BTRIM(SPLIT_PART(fairness_key, ':', 4)), '') IS NOT NULL
+    GROUP BY collector_kind, ecosystem
+),
+warning_counts AS (
+    SELECT
+        NULLIF(LOWER(BTRIM(fact.payload->>'ecosystem')), '') AS ecosystem,
+        COUNT(*) AS skipped
+    FROM fact_records AS fact
+    JOIN ingestion_scopes AS scope
+      ON scope.scope_id = fact.scope_id
+     AND scope.active_generation_id = fact.generation_id
+    JOIN scope_generations AS generation
+      ON generation.scope_id = fact.scope_id
+     AND generation.generation_id = fact.generation_id
+    WHERE fact.fact_kind = 'package_registry.warning'
+      AND fact.is_tombstone = FALSE
+      AND generation.status = 'active'
+      AND fact.payload->>'warning_code' IN (
+        'unsupported_metadata_source',
+        'registry_not_found',
+        'metadata_too_large',
+        'malformed_metadata',
+        'credentials_missing'
+      )
+    GROUP BY ecosystem
+)
+SELECT
+    'package_registry' AS collector_kind,
+    COALESCE(work_counts.ecosystem, warning_counts.ecosystem) AS ecosystem,
+    COALESCE(work_counts.planned, 0) AS planned,
+    COALESCE(work_counts.completed, 0) AS completed,
+    COALESCE(warning_counts.skipped, 0) AS skipped,
+    COALESCE(work_counts.stale, 0) AS stale,
+    COALESCE(work_counts.failed, 0) AS failed,
+    COALESCE(work_counts.rate_limited, 0) AS rate_limited
+FROM work_counts
+FULL OUTER JOIN warning_counts
+  ON warning_counts.ecosystem = work_counts.ecosystem
+WHERE COALESCE(work_counts.ecosystem, warning_counts.ecosystem) IS NOT NULL
+ORDER BY ecosystem
+`
 )
 
 func readRegistryCollectorSnapshots(
@@ -135,14 +191,71 @@ func readRegistryCollectorSnapshots(
 		return nil, fmt.Errorf("read registry collector status: %w", err)
 	}
 
+	metadataTargetCounts, err := readRegistryMetadataTargetCounts(ctx, queryer, asOf)
+	if err != nil {
+		return nil, err
+	}
 	failureCounts, err := readRegistryCollectorFailureClassCounts(ctx, queryer)
 	if err != nil {
 		return nil, err
 	}
 	for i := range snapshots {
 		snapshots[i].FailureClassCounts = failureCounts[snapshots[i].CollectorKind]
+		snapshots[i].MetadataTargetCounts = metadataTargetCounts[snapshots[i].CollectorKind]
 	}
 	return snapshots, nil
+}
+
+func readRegistryMetadataTargetCounts(
+	ctx context.Context,
+	queryer Queryer,
+	asOf time.Time,
+) (map[string][]statuspkg.RegistryMetadataTargetCount, error) {
+	rows, err := queryer.QueryContext(ctx, registryMetadataTargetStatusQuery, asOf.UTC())
+	if err != nil {
+		return nil, fmt.Errorf("read registry metadata target counts: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	counts := map[string][]statuspkg.RegistryMetadataTargetCount{}
+	for rows.Next() {
+		var collectorKind string
+		var row statuspkg.RegistryMetadataTargetCount
+		var planned int64
+		var completed int64
+		var skipped int64
+		var stale int64
+		var failed int64
+		var rateLimited int64
+		if err := rows.Scan(
+			&collectorKind,
+			&row.Ecosystem,
+			&planned,
+			&completed,
+			&skipped,
+			&stale,
+			&failed,
+			&rateLimited,
+		); err != nil {
+			return nil, fmt.Errorf("read registry metadata target counts: %w", err)
+		}
+		collectorKind = strings.TrimSpace(collectorKind)
+		row.Ecosystem = strings.TrimSpace(row.Ecosystem)
+		if collectorKind == "" || row.Ecosystem == "" {
+			continue
+		}
+		row.Planned = int(planned)
+		row.Completed = int(completed)
+		row.Skipped = int(skipped)
+		row.Stale = int(stale)
+		row.Failed = int(failed)
+		row.RateLimited = int(rateLimited)
+		counts[collectorKind] = append(counts[collectorKind], row)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("read registry metadata target counts: %w", err)
+	}
+	return counts, nil
 }
 
 func readRegistryCollectorFailureClassCounts(

@@ -404,7 +404,7 @@ func (s Service) packageRegistryOwnedTargets(
 	}
 	targetLimit := packageRegistryDerivedTargetLimit(derivation.TargetLimit)
 	return s.OwnedPackageTargetReader.ListOwnedPackageDependencyTargets(ctx, workflow.OwnedPackageDependencyTargetFilter{
-		Ecosystems:     sortedStringSetValues(derivationEcosystems(derivation.Ecosystems, []string{"npm"})),
+		Ecosystems:     sortedStringSetValues(packageRegistryDerivationEcosystems(derivation.Ecosystems)),
 		Limit:          derivedTargetReadLimit(targetLimit),
 		RotationOffset: derivedTargetRotationOffsetForMode(derivation.PlanningMode, observedAt, s.Config.ReconcileInterval, targetLimit),
 	})

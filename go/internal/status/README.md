@@ -79,6 +79,10 @@ See `doc.go` for the godoc contract. Key types and functions:
   counts for configured instances, active scopes, recent completed generations,
   last completed timestamp, retryable/terminal failures, and failure classes
   without private registry object names
+- `RegistryMetadataTargetCount` — package-registry metadata target counts by
+  ecosystem for planned, completed, skipped, stale, failed, and rate-limited
+  work. Skipped rows come from stable `package_registry.warning` reason codes
+  and do not expose package names, registry URLs, or credential material.
 - `AWSCloudScanStatus` — per AWS `(collector_instance_id, account_id, region,
   service_kind)` scanner status, commit status, API call count, throttle count,
   warning count, and budget/credential flags
@@ -182,6 +186,10 @@ strings.
   queued, claimed, handed-off, and failed trigger counts plus oldest queued age.
   Resource IDs, ARNs, event IDs, and raw payloads stay out of the status
   contract.
+- **Package-registry metadata status is aggregate only.** `metadata_targets`
+  groups package-registry work and warning facts by ecosystem. It reports
+  planned, completed, skipped, stale, failed, and rate-limited counts without
+  package names, private registry URLs, metadata URLs, or credentials.
 - **`BuildReport` is a pure function.** It can be called in tests without any
   storage dependency. Use it to unit-test health logic, flow summaries, and
   domain backlog ordering.

@@ -134,3 +134,49 @@ func TestClaimedSourceRejectsDerivedTargetWhenDisabled(t *testing.T) {
 		t.Fatal("NextClaimed() error = nil, want derived target disabled rejection")
 	}
 }
+
+func TestClaimedSourceResolvesDerivedPyPITarget(t *testing.T) {
+	t.Parallel()
+
+	provider := &recordingMetadataProvider{
+		staticMetadataProvider: staticMetadataProvider{
+			document: []byte(`{
+				"info":{"name":"Friendly_Bard","version":"2.0.0"},
+				"releases":{"2.0.0":[{"filename":"friendly_bard-2.0.0-py3-none-any.whl"}]}
+			}`),
+		},
+	}
+	source, err := NewClaimedSource(SourceConfig{
+		CollectorInstanceID: "collector-package-registry",
+		DerivedTargets: DerivedTargetConfig{
+			Enabled:      true,
+			Ecosystems:   []packageregistry.Ecosystem{packageregistry.EcosystemPyPI},
+			PackageLimit: 1,
+			VersionLimit: 1,
+		},
+		Provider: provider,
+		Now: func() time.Time {
+			return time.Date(2026, time.June, 1, 10, 30, 0, 0, time.UTC)
+		},
+	})
+	if err != nil {
+		t.Fatalf("NewClaimedSource() error = %v", err)
+	}
+
+	collected, ok, err := source.NextClaimed(
+		context.Background(),
+		testPackageRegistryWorkItemForScope("pypi://pypi.org/pypi/friendly-bard"),
+	)
+	if err != nil {
+		t.Fatalf("NextClaimed() error = %v, want nil", err)
+	}
+	if !ok {
+		t.Fatal("NextClaimed() ok = false, want true")
+	}
+	if got, want := provider.targets[0].MetadataURL, "https://pypi.org/pypi/friendly-bard/json"; got != want {
+		t.Fatalf("MetadataURL = %q, want %q", got, want)
+	}
+	if got, want := collected.Scope.ScopeID, "pypi://pypi.org/pypi/friendly-bard"; got != want {
+		t.Fatalf("collected scope = %q, want %q", got, want)
+	}
+}

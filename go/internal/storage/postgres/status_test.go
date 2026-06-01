@@ -187,8 +187,8 @@ func TestStatusStoreReadRawSnapshot(t *testing.T) {
 		t.Fatalf("ReadRawSnapshot().Coordinator = %#v, want nil", got.Coordinator)
 	}
 
-	if len(queryer.queries) != 22 {
-		t.Fatalf("QueryContext() call count = %d, want 22", len(queryer.queries))
+	if len(queryer.queries) != 23 {
+		t.Fatalf("QueryContext() call count = %d, want 23", len(queryer.queries))
 	}
 	for _, want := range []string{
 		"FROM ingestion_scopes",
@@ -200,6 +200,7 @@ func TestStatusStoreReadRawSnapshot(t *testing.T) {
 		"FROM fact_work_items",
 		"inflight.conflict_domain",
 		"failure_details",
+		"SPLIT_PART(fairness_key, ':', 4)",
 		"FROM aws_scan_status",
 		"FROM aws_freshness_triggers",
 	} {
@@ -316,6 +317,11 @@ func TestReadRegistryCollectorSnapshotsUsesBoundedStatusOnly(t *testing.T) {
 			},
 			{
 				rows: [][]any{
+					{"package_registry", "npm", int64(5), int64(3), int64(1), int64(1), int64(1), int64(1)},
+				},
+			},
+			{
+				rows: [][]any{
 					{"oci_registry", "registry_rate_limited", int64(2)},
 					{"package_registry", "registry_auth_denied", int64(1)},
 				},
@@ -343,8 +349,18 @@ func TestReadRegistryCollectorSnapshotsUsesBoundedStatusOnly(t *testing.T) {
 		got[0].FailureClassCounts[0].Count != 2 {
 		t.Fatalf("OCI FailureClassCounts = %#v", got[0].FailureClassCounts)
 	}
+	if len(got[1].MetadataTargetCounts) != 1 ||
+		got[1].MetadataTargetCounts[0].Ecosystem != "npm" ||
+		got[1].MetadataTargetCounts[0].Planned != 5 ||
+		got[1].MetadataTargetCounts[0].Completed != 3 ||
+		got[1].MetadataTargetCounts[0].Skipped != 1 ||
+		got[1].MetadataTargetCounts[0].Stale != 1 ||
+		got[1].MetadataTargetCounts[0].Failed != 1 ||
+		got[1].MetadataTargetCounts[0].RateLimited != 1 {
+		t.Fatalf("package registry MetadataTargetCounts = %#v", got[1].MetadataTargetCounts)
+	}
 	joinedQueries := strings.Join(queryer.queries, "\n")
-	for _, privateColumn := range []string{"repository_path", "package_name", "metadata_url", "credential"} {
+	for _, privateColumn := range []string{"repository_path", "package_name", "metadata_url", "credential_env", "credential_value"} {
 		if strings.Contains(strings.ToLower(joinedQueries), privateColumn) {
 			t.Fatalf("registry status query mentions private column %q:\n%s", privateColumn, joinedQueries)
 		}
@@ -352,6 +368,8 @@ func TestReadRegistryCollectorSnapshotsUsesBoundedStatusOnly(t *testing.T) {
 	for _, want := range []string{
 		"updated_at >= $1::timestamptz - INTERVAL '24 hours'",
 		"DISTINCT ON (collector_kind)",
+		"SPLIT_PART(fairness_key, ':', 4)",
+		"registry_rate_limited",
 	} {
 		if !strings.Contains(joinedQueries, want) {
 			t.Fatalf("registry status query missing %q:\n%s", want, joinedQueries)
