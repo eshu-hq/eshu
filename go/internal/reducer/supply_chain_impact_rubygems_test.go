@@ -58,6 +58,13 @@ func TestBuildSupplyChainImpactFindingsUsesRubyGemsLockfileVersion(t *testing.T)
 	if got.DetectionProfile != DetectionProfilePrecise {
 		t.Fatalf("DetectionProfile = %q, want precise for exact RubyGems match", got.DetectionProfile)
 	}
+	assertSupplyChainReachability(
+		t,
+		got,
+		SupplyChainReachabilityReachable,
+		"bundler",
+		"bundler_dependency_path",
+	)
 }
 
 func TestBuildSupplyChainImpactFindingsMarksRubyGemsFixedVersionKnownFixed(t *testing.T) {

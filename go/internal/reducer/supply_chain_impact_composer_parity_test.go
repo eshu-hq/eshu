@@ -54,6 +54,13 @@ func TestBuildSupplyChainImpactFindingsProvesComposerLockfileExactVersion(t *tes
 	if !reflect.DeepEqual(got.DependencyPath, []string{"symfony/http-kernel"}) {
 		t.Fatalf("DependencyPath = %#v, want direct Composer path", got.DependencyPath)
 	}
+	assertSupplyChainReachability(
+		t,
+		got,
+		SupplyChainReachabilityReachable,
+		"composer",
+		"composer_dependency_path",
+	)
 }
 
 func TestBuildSupplyChainImpactFindingsKeepsComposerDevScopeVisible(t *testing.T) {
@@ -90,6 +97,13 @@ func TestBuildSupplyChainImpactFindingsKeepsComposerDevScopeVisible(t *testing.T
 	if got.RuntimeReachability != "package_manifest" {
 		t.Fatalf("RuntimeReachability = %q, want package_manifest", got.RuntimeReachability)
 	}
+	assertSupplyChainReachability(
+		t,
+		got,
+		SupplyChainReachabilityReachable,
+		"composer",
+		"composer_dependency_path",
+	)
 }
 
 func TestBuildSupplyChainImpactFindingsLeavesComposerManifestRangeIncomplete(t *testing.T) {
