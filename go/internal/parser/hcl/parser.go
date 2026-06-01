@@ -66,6 +66,11 @@ func Parse(
 		}
 	} else {
 		parseTerraformBlocks(payload, body, source, path)
+		for bucket, rows := range parseGrafanaDeclarations(body, source, path) {
+			for _, row := range rows {
+				shared.AppendBucket(payload, bucket, row)
+			}
+		}
 		for _, row := range parsePagerDutyDeclarations(body, source, path) {
 			shared.AppendBucket(payload, "pagerduty_declarations", row)
 		}
@@ -89,6 +94,11 @@ func Parse(
 	shared.SortNamedBucket(payload, "terraform_checks")
 	shared.SortNamedBucket(payload, "terraform_lock_providers")
 	shared.SortNamedBucket(payload, "pagerduty_declarations")
+	shared.SortNamedBucket(payload, "observability_declared_folders")
+	shared.SortNamedBucket(payload, "observability_declared_dashboards")
+	shared.SortNamedBucket(payload, "observability_declared_datasources")
+	shared.SortNamedBucket(payload, "observability_declared_alert_rules")
+	shared.SortNamedBucket(payload, "observability_coverage_warnings")
 	shared.SortNamedBucket(payload, "terragrunt_configs")
 	shared.SortNamedBucket(payload, "terragrunt_dependencies")
 	shared.SortNamedBucket(payload, "terragrunt_locals")
@@ -118,6 +128,11 @@ func hclBasePayload(path string, isDependency bool) map[string]any {
 	payload["terraform_checks"] = []map[string]any{}
 	payload["terraform_lock_providers"] = []map[string]any{}
 	payload["pagerduty_declarations"] = []map[string]any{}
+	payload["observability_declared_folders"] = []map[string]any{}
+	payload["observability_declared_dashboards"] = []map[string]any{}
+	payload["observability_declared_datasources"] = []map[string]any{}
+	payload["observability_declared_alert_rules"] = []map[string]any{}
+	payload["observability_coverage_warnings"] = []map[string]any{}
 	payload["terragrunt_configs"] = []map[string]any{}
 	payload["terragrunt_dependencies"] = []map[string]any{}
 	payload["terragrunt_locals"] = []map[string]any{}

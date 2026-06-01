@@ -17,6 +17,13 @@ observability directly in provider UIs. The precedence is explicit:
 Reducers and query surfaces own correlation and user-facing truth. Collectors
 emit source facts only.
 
+Implementation status: the Git collector emits declared Grafana IaC/GitOps
+facts from Helm values, GrafanaFolder and GrafanaDashboard resources, dashboard
+ConfigMaps, folder provisioning, datasource provisioning, alert provisioning,
+and Terraform Grafana folder, dashboard, datasource, and rule-group resources.
+Applied-state, live-provider, reducer, API, and MCP coverage work remains
+separate.
+
 ## Evidence Classes
 
 | Class | Source | Proves | Does not prove |
@@ -38,6 +45,7 @@ scope, generation, provenance, freshness, and redaction fields are mandatory.
 | Fact kind | Class | Purpose |
 | --- | --- | --- |
 | `observability.source_instance` | all | Identifies a configured IaC, applied-state, or live-provider source. |
+| `observability.declared_folder` | `declared` | Declared Grafana folder UID and title fingerprint. |
 | `observability.declared_dashboard` | `declared` | Declared Grafana dashboard identity, folder, datasource refs, and service hints. |
 | `observability.declared_datasource` | `declared` | Declared Grafana datasource UID/type/backend refs, including Mimir, Loki, Tempo, and Prometheus. |
 | `observability.declared_alert_rule` | `declared` | Declared alert rule identity and safe service/route hints. |
@@ -157,11 +165,15 @@ Each provider-specific implementation must prove:
 - no graph `COVERS` edge for derived, ambiguous, unresolved, stale, rejected,
   drifted, or permission-hidden evidence
 
-Docs-only contract changes do not alter runtime telemetry.
+No-Regression Evidence: the declared Grafana IaC source-fact slice adds bounded
+parser buckets and Git fact emission only. It does not add provider calls,
+graph writes, queue workers, reducer stages, query handlers, metrics, spans,
+logs, or status output.
 
-No-Observability-Change: this page defines the future source-fact contract and
-does not change collectors, reducers, query handlers, metrics, spans, logs, or
-status output.
+No-Observability-Change: declared Grafana source facts use the existing Git
+collector snapshot, parse, and fact-commit telemetry. Operators diagnose this
+slice through existing file parse counts, generation fact counts, fact commit
+counts, and collector observe duration.
 
 ## Related Work
 

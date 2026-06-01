@@ -44,7 +44,8 @@ func buildStreamingGeneration(
 		contentFileCount = len(snapshot.ContentFileMetas)
 	}
 	factCount := 1 + len(snapshot.FileData) + contentFileCount +
-		len(snapshot.ContentEntities) + len(snapshot.TerraformStateCandidates) + 7
+		len(snapshot.ContentEntities) + len(snapshot.TerraformStateCandidates) +
+		observabilityFactCount(snapshot.FileData) + 7
 
 	factCh := make(chan facts.Envelope, factStreamBuffer)
 	go streamFacts(
@@ -105,8 +106,13 @@ func streamFacts(
 	snapshot.TerraformStateCandidates = nil
 
 	// File metadata facts
+	sourceRevisions := commitSHAByRelativePath(repoPath, snapshot)
 	for i, fileData := range snapshot.FileData {
 		ch <- fileFactEnvelope(repoPath, repo.ID, scopeID, generationID, observedAt, fileData, isDependency)
+		relativePath := repositoryRelativePath(repoPath, payloadPath(fileData, "path"))
+		emitObservabilityFactsForFile(
+			ch, repoPath, repo.ID, scopeID, generationID, observedAt, fileData, sourceRevisions[relativePath],
+		)
 		snapshot.FileData[i] = nil
 	}
 	snapshot.FileData = nil

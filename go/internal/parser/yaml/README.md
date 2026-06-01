@@ -5,7 +5,10 @@
 internal/parser/yaml owns YAML-family source extraction for Kubernetes,
 Argo CD, Crossplane, Kustomize, Helm, and CloudFormation/SAM payload rows. It
 exists so YAML parsing behavior can evolve behind a language-owned package
-without depending on the parent parser dispatcher.
+without depending on the parent parser dispatcher. It also emits metadata-only
+declared Grafana observability rows from Helm values, GrafanaFolder and
+GrafanaDashboard resources, dashboard ConfigMaps, folder, datasource, and alert
+provisioning.
 
 ## Ownership boundary
 
@@ -52,7 +55,15 @@ bucket before returning.
 
 Helm template manifests are intentionally skipped after source preservation
 because templated chart manifests are rendered elsewhere; Chart.yaml and values
-files still emit Helm metadata.
+files still emit Helm metadata. `values.yaml` files may also emit declared
+Grafana observability metadata, but they do not prove applied or live provider
+state.
+
+Declared Grafana observability rows never store dashboard JSON, panel query
+bodies, datasource URLs, secure datasource values, alert model bodies, contact
+addresses, folder titles, provisioning paths, or private routing values. Unsafe
+values are omitted and represented by fingerprints, redaction fields, or
+coverage warnings.
 
 YAML intrinsic tags such as Ref and Sub are converted to the decoded shapes
 expected by the CloudFormation parser before template extraction.

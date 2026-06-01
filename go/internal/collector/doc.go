@@ -11,7 +11,10 @@
 // handle partial snapshots, discovery skips, webhook-triggered refreshes, claim
 // fencing, and batch-drain hooks explicitly. Raw Terraform-state bytes do not
 // enter normal repository snapshots; only metadata-only state candidates are
-// emitted for the Terraform-state collector path to approve and read.
+// emitted for the Terraform-state collector path to approve and read. Declared
+// Grafana observability rows from repository parsers become metadata-only
+// observability source facts; reducers and query surfaces own any later
+// declared/applied/observed coverage truth.
 //
 // The scannerworker subpackage owns the hosted boundary for isolated security
 // analyzers. It defines claim input, target scope, resource limits,

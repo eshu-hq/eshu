@@ -45,9 +45,13 @@
 // helpers live here for applied PagerDuty and alert-route evidence observed
 // from Terraform state and optional live PagerDuty service/integration
 // observations; reducers compare that evidence with declared source and
-// applied/live provider facts before presenting routing truth. Service catalog fact
-// kind constants and schema-version helpers live here for provider-native
-// entity, ownership, repository link, dependency, API,
+// applied/live provider facts before presenting routing truth. Observability
+// fact kind constants and schema-version helpers live here for declared,
+// applied, and observed Grafana-stack evidence, including folders, plus
+// coverage warnings;
+// reducers compare those facts before presenting coverage or drift truth.
+// Service catalog fact kind constants and schema-version helpers live here for
+// provider-native entity, ownership, repository link, dependency, API,
 // operational link, scorecard, and warning evidence. Scanner-worker fact kind
 // constants and schema-version helpers live here for source facts produced by
 // isolated security analyzers, including coverage and unsupported analyzer

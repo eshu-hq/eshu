@@ -41,6 +41,8 @@ func Parse(
 		if item := parseHelmValues(path, source); item != nil {
 			shared.AppendBucket(payload, "helm_values", item)
 		}
+		appendHelmGrafanaObservability(payload, path, source)
+		sortObservabilityBuckets(payload)
 		if options.IndexSource {
 			payload["source"] = string(source)
 		}
@@ -84,6 +86,7 @@ func Parse(
 	} {
 		shared.SortNamedBucket(payload, bucket)
 	}
+	sortObservabilityBuckets(payload)
 	if options.IndexSource {
 		payload["source"] = string(source)
 	}
@@ -108,6 +111,7 @@ func yamlBasePayload(path string, isDependency bool) map[string]any {
 	payload["cloudformation_cross_stack_imports"] = []map[string]any{}
 	payload["cloudformation_cross_stack_exports"] = []map[string]any{}
 	payload["variables"] = []map[string]any{}
+	initObservabilityBuckets(payload)
 	return payload
 }
 
@@ -146,6 +150,7 @@ func appendYAMLDocument(payload map[string]any, path string, filename string, do
 	if strings.TrimSpace(apiVersion) == "" || strings.TrimSpace(kind) == "" {
 		return
 	}
+	appendGrafanaObservabilityFromDocument(payload, path, document, metadata, apiVersion, kind, lineNumber)
 	if isArgoCDApplication(apiVersion, kind) {
 		shared.AppendBucket(payload, "argocd_applications", parseArgoCDApplication(document, metadata, path, lineNumber))
 		return
