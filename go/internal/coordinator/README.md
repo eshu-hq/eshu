@@ -113,10 +113,13 @@ fall back to defaults rather than failing; malformed values fail fast.
 - `VulnerabilityIntelligenceWorkPlanner` — plans vulnerability-intelligence
   collection runs from configured source targets and optional active owned
   package evidence. Derived OSV targets are limited to exact owned dependency
-  versions for supported ecosystems such as npm, Pub, and Swift; manifest
-  ranges remain partial evidence and are skipped for exact source collection.
-  Exact package-version queries are batched across packages within one ecosystem
-  while keeping scope IDs below indexed workflow tuple limits.
+  versions for npm, PyPI, Go modules, Maven, NuGet, Composer, RubyGems, Cargo,
+  Pub, Hex, and Swift. Manifest ranges, aliases, workspace references,
+  VCS/path/local references, branch pins, malformed versions, and Swift rows
+  without a usable source URL remain partial evidence and are skipped with
+  reason-coded aggregate counts by ecosystem. Exact package-version queries are
+  batched across packages within one ecosystem while keeping scope IDs below
+  indexed workflow tuple limits.
 - `SBOMAttestationWorkPlanner` — plans hosted SBOM and attestation collection
   runs from configured document or OCI-referrer targets. Each target becomes one
   claimable work item keyed by `scope_id`.
@@ -257,19 +260,22 @@ unauthorized trigger states without adding incident IDs, issue keys, URLs, or
 payload fields to metric labels.
 
 No-Regression Evidence: owned package target derivation is covered by
-`go test ./internal/coordinator -run 'Test(PackageRegistryWorkPlannerDerivesNPMTargetsFromOwnedPackageEvidence|VulnerabilityIntelligenceWorkPlannerDerivesOSVTargetsForExactOwnedVersions|ServiceRunActiveModePassesOwnedPackageEvidenceTo(PackageRegistry|Vulnerability)Planner)' -count=1`.
+`go test ./internal/coordinator -run 'Test(PackageRegistryWorkPlannerDerivesNPMTargetsFromOwnedPackageEvidence|VulnerabilityIntelligenceWorkPlannerDerivesOSVTargetsForExactOwnedVersions|VulnerabilityIntelligenceWorkPlannerDerivesOSVTargetsAcrossSupportedEcosystems|VulnerabilityIntelligenceWorkPlannerReportsSkippedDerivedTargetReasonsByEcosystem|ServiceRunActiveModePassesOwnedPackageEvidenceTo(PackageRegistry|Vulnerability)Planner)' -count=1`.
 The package-wide proof ran as part of
 `go test ./internal/coordinator ./internal/workflow ./internal/storage/postgres ./internal/collector/packageregistry/packageruntime ./internal/collector/vulnerabilityintelligence/vulnruntime ./cmd/workflow-coordinator ./cmd/collector-package-registry ./cmd/collector-vulnerability-intelligence -count=1`.
 This is a planning-only change: it adds bounded target rows from active owned
-dependency evidence, keeps range dependencies out of exact OSV collection, and
-does not change claim leases, worker counts, queue concurrency, reducer graph
-writes, or NornicDB settings.
+dependency evidence, keeps range and ambiguous dependencies out of exact OSV
+collection, and does not change claim leases, worker counts, queue concurrency,
+reducer graph writes, or NornicDB settings.
 
 No-Regression Evidence: `go test ./internal/coordinator -run 'Test(ServiceRunActiveModeSurfaces(PackageRegistry|Vulnerability)DerivedBudgetExhaustion|PackageRegistryWorkPlannerReportsDerivedTargetBudgetExhaustion|VulnerabilityIntelligenceWorkPlannerReportsDerivedQueryBudgetExhaustion)' -count=1`
 proves representative proof budgets cap package-registry targets and OSV
 package-version query selection while the active service path reads one bounded
 lookahead and surfaces aggregate skipped-target counts in
-`workflow_runs.requested_scope_set`.
+`workflow_runs.requested_scope_set`. Non-exact, malformed, or ambiguous
+derived vulnerability candidates also appear in `requested_scope_set` as
+reason-coded skipped-target counts by ecosystem, without package names or
+versions.
 
 Observability Evidence: existing coordinator reconcile counters and duration
 histograms, `workflow_runs.requested_scope_set`, `workflow_work_items` status
@@ -278,8 +284,8 @@ whether targets were planned, claimed, completed, retried, or failed. Package
 registry and vulnerability work items also carry `target_class` in
 `fairness_key`, so operators can separate direct, owned, and broad target
 progress without adding package names, versions, feed URLs, or credential
-material to metric labels. Rotated target selection and budget-exhausted
-skipped target counts remain visible through the bounded
+material to metric labels. Rotated target selection, budget-exhausted counts,
+and reason-coded partial-evidence skips remain visible through the bounded
 `requested_scope_set` rows, and package-registry metadata target counts are
 summarized by ecosystem in `/admin/status`.
 

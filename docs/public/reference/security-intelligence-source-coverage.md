@@ -400,6 +400,45 @@ write, or runtime worker. Operators continue to use the existing
 `complete` fields and the readiness envelope on the supply-chain impact API
 to diagnose coverage.
 
+## Derived Advisory Target Planning
+
+The workflow coordinator can derive bounded OSV package-version targets from
+active owned dependency facts when `vulnerability_intelligence`
+`derive_from_owned_packages.enabled=true`. Derivation is exact-version only.
+It admits npm lockfile evidence, PyPI lockfile evidence from Pipfile.lock and
+poetry.lock, Go module versions that remain usable Go module versions such as
+`v0.17.0`, resolved Maven and Gradle coordinates, NuGet
+`packages.lock.json`, Composer lockfile rows, Bundler lockfile rows, Cargo.lock
+rows, Pub lockfile rows, Hex lockfile rows, and Swift `Package.resolved` remote
+version pins with a usable source URL. The coordinator keeps canonical Eshu
+ecosystems in workflow scope IDs and batches package-version queries into OSV
+`/v1/querybatch` work items when the encoded scope remains inside the workflow
+tuple limit.
+
+Range-only manifests, aliases, workspace references, VCS/path/local
+dependencies, branch refs, malformed versions, missing package names, and Swift
+rows without a source URL stay out of exact advisory
+collection. They are reported in `workflow_runs.requested_scope_set` as
+aggregate skipped-target entries with stable reason codes and one ecosystem per
+entry, without package names or versions. Budget exhaustion uses the same
+skipped-target shape so representative proofs can show what was left out
+without widening admitted work.
+
+OS package and SBOM/component evidence is not promoted by this owned Git
+dependency planner. Those target families need a separate source reader over
+`vulnerability.os_package` and `sbom.component` facts so the planner can prove
+package ecosystem, installed version, subject attachment, and vendor/source
+context before issuing advisory queries.
+
+No-Regression Evidence: `go test ./internal/coordinator -run 'TestVulnerabilityIntelligenceWorkPlanner(DerivesOSVTargetsAcrossSupportedEcosystems|ReportsSkippedDerivedTargetReasonsByEcosystem|DerivesOSVTargetsForExactOwnedVersions|DerivesOSVTargetsForExactHexVersions|HonorsFullCorpusDerivedTargetLimit|BatchesDerivedVersionsByPackage|BatchesDerivedQueriesAcrossPackages|KeepsDerivedBatchScopesIndexSafe|EncodesSwiftSourcePackageScopes|SkipsSwiftWithoutSourceURL|EncodesPubPackageScopes|SanitizesSwiftSourceLocations)|TestServiceRunActiveMode(PassesOwnedPackageEvidenceToVulnerabilityPlanner|SurfacesVulnerabilityDerivedBudgetExhaustion|SinglePassVulnerabilityDerivedBudgetDoesNotAdmitNextBucket)' -count=1`, `go test ./internal/workflow -run 'TestVulnerabilityIntelligenceCollectorConfigurationAcceptsDerivedSupportedEcosystems' -count=1`, and `go test ./internal/collector/vulnerabilityintelligence/vulnruntime -run 'TestClaimedSourceResolvesDerived(OSVTarget|OSVTargetBatch|OSVTargetQueryBatchAcrossPackages|SwiftOSVTarget|PubOSVTarget|OSVTargetsAcrossSupportedEcosystems)|TestHTTPProviderMapsSwiftOSVQueriesToSwiftURL' -count=1` prove exact target admission, skipped reasons, rotation, bounds, single-pass planning, and runtime batch resolution without live network calls.
+
+No-Observability-Change: derived advisory target planning reuses existing
+workflow runs, work items, claim status rows, `requested_scope_set`, coordinator
+reconcile metrics, vulnerability-intelligence observe/fetch spans, observation
+counter, fetch-duration histogram, facts-emitted counter, rate-limit counter,
+source snapshot facts, and `/api/v0/index-status`. No metric label carries
+package names, versions, PURLs, URLs, repository names, or credentials.
+
 ## Provider Alert Parity Gate
 
 Provider-hosted alert parity is a validation gate, not a source of public test
