@@ -69,6 +69,7 @@ var spanNames = []string{
 	SpanReducerObservabilityCoverageMaterialization,
 	SpanReducerSecurityGroupReachabilityMaterialization,
 	SpanReducerIAMCanAssumeMaterialization,
+	SpanReducerS3LogsToMaterialization,
 	SpanReducerIAMEscalationMaterialization,
 	SpanCanonicalWrite,
 	SpanCanonicalProjection,

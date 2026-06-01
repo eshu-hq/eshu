@@ -130,6 +130,15 @@ type DefaultHandlers struct {
 	// nodes.
 	IAMCanAssumeEdgeWriter IAMCanAssumeEdgeWriter
 
+	// S3LogsToEdgeWriter projects s3_bucket_posture logging_target_bucket fields
+	// into canonical LOGS_TO edges between S3 bucket CloudResource nodes (issue
+	// #1144 PR2). It must be non-nil alongside FactLoader for the registry to
+	// register DomainS3LogsToMaterialization; missing either one would drop every
+	// LOGS_TO materialization intent before it reaches the graph. The handler
+	// also gates on ReadinessLookup so edges never resolve against uncommitted
+	// nodes.
+	S3LogsToEdgeWriter S3LogsToEdgeWriter
+
 	// ContainerImageIdentityWriter persists digest-keyed image identity
 	// decisions for Git, OCI registry, and runtime image evidence.
 	ContainerImageIdentityWriter ContainerImageIdentityWriter

@@ -171,6 +171,18 @@ func appendAdditiveDomainDefinitions(definitions []DomainDefinition, handlers De
 		}
 		definitions = append(definitions, iamCanAssume)
 	}
+	if handlers.FactLoader != nil && handlers.S3LogsToEdgeWriter != nil {
+		s3LogsTo := s3LogsToMaterializationDomainDefinition()
+		s3LogsTo.Handler = S3LogsToMaterializationHandler{
+			FactLoader:           handlers.FactLoader,
+			EdgeWriter:           handlers.S3LogsToEdgeWriter,
+			ReadinessLookup:      handlers.ReadinessLookup,
+			PriorGenerationCheck: handlers.PriorGenerationCheck,
+			Tracer:               handlers.Tracer,
+			Instruments:          handlers.Instruments,
+		}
+		definitions = append(definitions, s3LogsTo)
+	}
 	if handlers.FactLoader != nil && handlers.KubernetesCorrelationEdgeWriter != nil {
 		kubernetesEdges := kubernetesCorrelationMaterializationDomainDefinition()
 		kubernetesEdges.Handler = KubernetesCorrelationMaterializationHandler{

@@ -282,6 +282,25 @@ type Instruments struct {
 	// materializing CAN_ASSUME edges, and did a generation produce zero?" at
 	// 3 AM.
 	IAMCanAssumeEdges metric.Int64Counter
+	// S3LogsToEdges counts S3 LOGS_TO server-access-log edge projection outcomes
+	// (issue #1144 PR2). Label: resolution_mode (name — the only resolution path,
+	// bucket-name equality against the in-memory join index). It counts only
+	// materialized edges; cross-account, out-of-scope, and unscanned log targets
+	// never produce an edge and are surfaced by S3LogsToSkipped and the "s3
+	// logs-to materialization completed" completion log instead. Lets an operator
+	// answer "are LOGS_TO edges landing, and did a generation produce zero?" at
+	// 3 AM.
+	S3LogsToEdges metric.Int64Counter
+	// S3LogsToSkipped counts s3_bucket_posture facts that named a log target but
+	// produced no LOGS_TO edge. Label: skip_reason (source_unresolved — the
+	// posture fact's own bucket did not scan as a node; target_unresolved — the
+	// named log bucket was not scanned in this scope, e.g. a cross-account central
+	// log account). It is the bounded, honest graceful-degradation surface: a
+	// rising target_unresolved rate means LOGS_TO edges are missing because the
+	// central log bucket has not been scanned, not because the reducer silently
+	// dropped facts. A blank logging_target_bucket (logging disabled) is NOT
+	// counted here — it is the normal no-edge state.
+	S3LogsToSkipped metric.Int64Counter
 	// AWSScanStatusStaleFence counts AWS scan-status rejections caused by a
 	// stale fencing token, labeled by service, account, region, and the
 	// operation (start, observe, commit) that was rejected. Operators read
@@ -1508,6 +1527,22 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register IAMCanAssumeEdges counter: %w", err)
+	}
+
+	inst.S3LogsToEdges, err = meter.Int64Counter(
+		"eshu_dp_s3_logs_to_edges_total",
+		metric.WithDescription("Total S3 LOGS_TO server-access-log edge projection outcomes by resolution_mode (name)"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register S3LogsToEdges counter: %w", err)
+	}
+
+	inst.S3LogsToSkipped, err = meter.Int64Counter(
+		"eshu_dp_s3_logs_to_skipped_total",
+		metric.WithDescription("Total s3_bucket_posture facts that named a log target but produced no LOGS_TO edge, by skip_reason (source_unresolved/target_unresolved)"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register S3LogsToSkipped counter: %w", err)
 	}
 
 	inst.CorrelationUnmanagedDetected, err = meter.Int64Counter(

@@ -221,6 +221,25 @@ const (
 	// sts:AssumeRole is deferred to the separate CAN_ASSUME trust edge. It is
 	// security-sensitive and conservative by design (issue #1134 PR3).
 	DomainIAMEscalationMaterialization Domain = "iam_escalation_materialization"
+	// DomainS3LogsToMaterialization projects s3_bucket_posture
+	// logging_target_bucket fields into canonical LOGS_TO edges between the S3
+	// bucket CloudResource nodes that DomainAWSResourceMaterialization committed:
+	// a source bucket that emits server-access logs and the target log bucket
+	// those logs are delivered to. It is EDGE-ONLY on the existing
+	// cloud_resource_uid keyspace (both endpoints are S3 CloudResource nodes #805
+	// materializes); no new node type. It gates on the
+	// GraphProjectionKeyspaceCloudResourceUID /
+	// GraphProjectionPhaseCanonicalNodesCommitted phase so an edge never resolves
+	// against an S3 node that has not committed (issue #1144 PR2), exactly like
+	// DomainIAMCanAssumeMaterialization (#1134 PR2) and
+	// DomainAWSRelationshipMaterialization (#805). A blank logging_target_bucket
+	// (logging disabled) produces no edge and is not a skip; a self-target (a
+	// bucket logging to itself) is a legal S3 config and DOES produce an edge.
+	// Cross-account, out-of-scope, and unscanned log targets fabricate no edge and
+	// are counted. The GRANTS_ACCESS_TO :ExternalPrincipal node-then-edge slice and
+	// the internet-exposure node-property flag are deferred follow-ups; see
+	// docs/internal/design/1144-s3-logs-to-edge.md §8.
+	DomainS3LogsToMaterialization Domain = "s3_logs_to_materialization"
 	// DomainIncidentRoutingMaterialization projects exact PagerDuty
 	// incident-routing evidence into reducer-owned IncidentRoutingEvidence graph
 	// nodes and evidence relationships. It preserves declared/applied/observed
