@@ -65,13 +65,9 @@ are extracted via `StringVal`, `BoolVal`, `IntVal`, `StringSliceVal`
 Read-model details stay package-local but out of the top-level index:
 
 - [read-models.md](read-models.md) covers entity-map traversal, package
-<<<<<<< HEAD
-  registry bounds, CI/CD, service catalog, and Kubernetes correlations,
-  supply-chain read models, OCI deployment trace enrichment, and
-=======
-  registry bounds, CI/CD, service catalog, and observability coverage
-  correlations, supply-chain read models, OCI deployment trace enrichment, and
->>>>>>> 57b01a50 (feat: observability coverage read surface — PR2 (query/MCP) (toward #391))
+  registry bounds, CI/CD, service catalog, Kubernetes, and observability
+  coverage correlations, supply-chain read models, OCI deployment trace
+  enrichment, and
   investigation-route read models.
 - [dead-code-reachability.md](dead-code-reachability.md) covers dead-code
   language reachability, exactness blockers, candidate paging, hydration,
@@ -103,7 +99,10 @@ canonical graph or reducer truth.
   that runs one bounded CTE per impact-findings response, surfaces
   vulnerability source-cache snapshot metadata and package-registry metadata
   freshness for package/repository scopes, and strips absent optional fields
-  from the JSON rollup
+  from the JSON rollup. Readiness treats Composer as a supported
+  impact-matcher ecosystem alongside the existing supported matchers, so
+  Composer evidence gaps stay explicit instead of being classified as
+  unsupported.
   (`supply_chain_impact_readiness_postgres.go`)
 - `AdvisoryEvidenceStore` — port for source-only vulnerability advisory
   evidence grouped by canonical CVE/GHSA/OSV/NVD identity without implying
@@ -130,8 +129,11 @@ canonical graph or reducer truth.
   without collapsing range-only, unsupported, malformed, affected, and
   known-fixed states. Legacy rows without an explicit detection profile are
   backfilled as precise only for supported exact-version match reasons,
-  including npm, NuGet, Cargo, Maven, and Swift paths. Every row carries a
-  `Suppression` block decoded from the
+  including npm, NuGet, Cargo, Maven, Swift, and Composer paths. Composer rows
+  preserve exact lockfile versions,
+  manifest-only ranges, require versus require-dev scope, transitive paths, and
+  missing-evidence reasons from reducer truth rather than reclassifying them in
+  the read layer. Every row carries a `Suppression` block decoded from the
   reducer's VEX/operator-policy decision so the `include_suppressed` toggle
   and `suppression_state` filter on
   `GET /api/v0/supply-chain/impact/findings` can hide, surface, and explain

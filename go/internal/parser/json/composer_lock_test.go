@@ -234,6 +234,112 @@ func TestParseComposerManifestAndLockfilePreserveBothEvidence(t *testing.T) {
 	}
 }
 
+func TestParseComposerLockEmitsDependencyChainAndDevScope(t *testing.T) {
+	t.Parallel()
+
+	path := writeJSONTestFile(t, "composer.lock", `{
+  "packages": [
+    {
+      "name": "symfony/http-kernel",
+      "version": "6.4.1",
+      "require": {
+        "php": ">=8.1",
+        "symfony/event-dispatcher": "^6.4"
+      }
+    },
+    {
+      "name": "symfony/event-dispatcher",
+      "version": "6.4.0"
+    }
+  ],
+  "packages-dev": [
+    {
+      "name": "phpunit/phpunit",
+      "version": "10.5.0",
+      "require": {
+        "sebastian/version": "^4.0"
+      }
+    },
+    {
+      "name": "sebastian/version",
+      "version": "4.0.1"
+    }
+  ]
+}`)
+
+	payload, err := Parse(path, false, shared.Options{}, Config{})
+	if err != nil {
+		t.Fatalf("Parse() error = %v, want nil", err)
+	}
+
+	rows := dependencyRowsByName(rowsOrNil(payload))
+	dispatcher := rows["symfony/event-dispatcher"]
+	if got, want := dispatcher["dependency_path"], []string{"symfony/http-kernel", "symfony/event-dispatcher"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("symfony/event-dispatcher dependency_path = %#v, want %#v", got, want)
+	}
+	if got, want := dispatcher["dependency_depth"], 2; got != want {
+		t.Fatalf("symfony/event-dispatcher dependency_depth = %#v, want %#v", got, want)
+	}
+	if got, want := dispatcher["direct_dependency"], false; got != want {
+		t.Fatalf("symfony/event-dispatcher direct_dependency = %#v, want %#v", got, want)
+	}
+	if got, want := rows["symfony/http-kernel"]["direct_dependency"], true; got != want {
+		t.Fatalf("symfony/http-kernel direct_dependency = %#v, want %#v", got, want)
+	}
+	if got, want := rows["symfony/http-kernel"]["dependency_scope"], "runtime"; got != want {
+		t.Fatalf("symfony/http-kernel dependency_scope = %#v, want %#v", got, want)
+	}
+
+	sebastian := rows["sebastian/version"]
+	if got, want := sebastian["dependency_scope"], "dev"; got != want {
+		t.Fatalf("sebastian/version dependency_scope = %#v, want %#v", got, want)
+	}
+	if got, want := sebastian["development_dependency"], true; got != want {
+		t.Fatalf("sebastian/version development_dependency = %#v, want %#v", got, want)
+	}
+	if got, want := sebastian["dependency_path"], []string{"phpunit/phpunit", "sebastian/version"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("sebastian/version dependency_path = %#v, want %#v", got, want)
+	}
+}
+
+func TestParseComposerLockOmitsUnprovenDependencyChain(t *testing.T) {
+	t.Parallel()
+
+	path := writeJSONTestFile(t, "composer.lock", `{
+  "packages": [
+    {
+      "name": "vendor/a",
+      "version": "1.0.0",
+      "require": {"vendor/b": "^1.0"}
+    },
+    {
+      "name": "vendor/b",
+      "version": "1.0.0",
+      "require": {"vendor/a": "^1.0"}
+    }
+  ]
+}`)
+
+	payload, err := Parse(path, false, shared.Options{}, Config{})
+	if err != nil {
+		t.Fatalf("Parse() error = %v, want nil", err)
+	}
+
+	rows := dependencyRowsByName(rowsOrNil(payload))
+	for _, name := range []string{"vendor/a", "vendor/b"} {
+		row := rows[name]
+		if _, ok := row["dependency_path"]; ok {
+			t.Fatalf("%s dependency_path = %#v, want omitted for unrooted lock graph", name, row["dependency_path"])
+		}
+		if _, ok := row["dependency_depth"]; ok {
+			t.Fatalf("%s dependency_depth = %#v, want omitted for unrooted lock graph", name, row["dependency_depth"])
+		}
+		if _, ok := row["direct_dependency"]; ok {
+			t.Fatalf("%s direct_dependency = %#v, want omitted for unrooted lock graph", name, row["direct_dependency"])
+		}
+	}
+}
+
 func rowsOrNil(payload map[string]any) []map[string]any {
 	rows, _ := payload["variables"].([]map[string]any)
 	return rows

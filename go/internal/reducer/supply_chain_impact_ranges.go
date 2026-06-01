@@ -70,7 +70,15 @@ func semverRangeContainsDecision(
 	affectedRange supplyChainAffectedRange,
 	observed string,
 ) (bool, bool) {
-	if ok, valid := semverBeforeLimitsDecision(observed, affectedRange.events); !valid {
+	return versionRangeContainsDecision(affectedRange, observed, compareOSVSemver)
+}
+
+func versionRangeContainsDecision(
+	affectedRange supplyChainAffectedRange,
+	observed string,
+	compare versionCompareFunc,
+) (bool, bool) {
+	if ok, valid := versionBeforeLimitsDecision(observed, affectedRange.events, compare); !valid {
 		return false, false
 	} else if !ok {
 		return false, true
@@ -79,19 +87,19 @@ func semverRangeContainsDecision(
 	for _, event := range affectedRange.events {
 		switch {
 		case event.introduced != "":
-			if ok, valid := semverAtLeast(observed, event.introduced); !valid {
+			if ok, valid := versionAtLeast(observed, event.introduced, compare); !valid {
 				return false, false
 			} else if ok {
 				vulnerable = true
 			}
 		case event.fixed != "":
-			if ok, valid := semverAtLeast(observed, event.fixed); !valid {
+			if ok, valid := versionAtLeast(observed, event.fixed, compare); !valid {
 				return false, false
 			} else if ok {
 				vulnerable = false
 			}
 		case event.lastAffected != "":
-			if ok, valid := semverGreaterThan(observed, event.lastAffected); !valid {
+			if ok, valid := versionGreaterThan(observed, event.lastAffected, compare); !valid {
 				return false, false
 			} else if ok {
 				vulnerable = false
@@ -101,7 +109,11 @@ func semverRangeContainsDecision(
 	return vulnerable, true
 }
 
-func semverBeforeLimitsDecision(observed string, events []supplyChainAffectedRangeEvent) (bool, bool) {
+func versionBeforeLimitsDecision(
+	observed string,
+	events []supplyChainAffectedRangeEvent,
+	compare versionCompareFunc,
+) (bool, bool) {
 	hasLimit := false
 	for _, event := range events {
 		limit := strings.TrimSpace(event.limit)
@@ -112,7 +124,7 @@ func semverBeforeLimitsDecision(observed string, events []supplyChainAffectedRan
 		if limit == "*" {
 			return true, true
 		}
-		if ok, valid := semverLessThan(observed, limit); !valid {
+		if ok, valid := versionLessThan(observed, limit, compare); !valid {
 			return false, false
 		} else if ok {
 			return true, true
@@ -122,17 +134,21 @@ func semverBeforeLimitsDecision(observed string, events []supplyChainAffectedRan
 }
 
 func semverAtLeast(left string, right string) (bool, bool) {
-	cmp, ok := compareOSVSemver(left, right)
+	return versionAtLeast(left, right, compareOSVSemver)
+}
+
+func versionAtLeast(left string, right string, compare versionCompareFunc) (bool, bool) {
+	cmp, ok := compare(left, right)
 	return cmp >= 0, ok
 }
 
-func semverGreaterThan(left string, right string) (bool, bool) {
-	cmp, ok := compareOSVSemver(left, right)
+func versionGreaterThan(left string, right string, compare versionCompareFunc) (bool, bool) {
+	cmp, ok := compare(left, right)
 	return cmp > 0, ok
 }
 
-func semverLessThan(left string, right string) (bool, bool) {
-	cmp, ok := compareOSVSemver(left, right)
+func versionLessThan(left string, right string, compare versionCompareFunc) (bool, bool) {
+	cmp, ok := compare(left, right)
 	return cmp < 0, ok
 }
 
@@ -165,6 +181,63 @@ func normalizeOSVSemver(raw string) (string, bool) {
 	return raw, true
 }
 
+func compareComposerVersion(left string, right string) (int, bool) {
+	leftNormalized, ok := normalizeComposerVersion(left)
+	if !ok {
+		return 0, false
+	}
+	rightNormalized, ok := normalizeComposerVersion(right)
+	if !ok {
+		return 0, false
+	}
+	return semver.Compare(leftNormalized, rightNormalized), true
+}
+
+func validComposerVersion(raw string) bool {
+	_, ok := normalizeComposerVersion(raw)
+	return ok
+}
+
+func normalizeComposerVersion(raw string) (string, bool) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return "", false
+	}
+	raw = strings.TrimPrefix(raw, "v")
+	raw = strings.TrimPrefix(raw, "V")
+	parts := strings.SplitN(raw, "-", 2)
+	core := parts[0]
+	numbers := strings.Split(core, ".")
+	if len(numbers) > 3 {
+		return "", false
+	}
+	for _, number := range numbers {
+		if number == "" {
+			return "", false
+		}
+		for _, char := range number {
+			if char < '0' || char > '9' {
+				return "", false
+			}
+		}
+	}
+	for len(numbers) < 3 {
+		numbers = append(numbers, "0")
+	}
+	normalized := "v" + strings.Join(numbers, ".")
+	if len(parts) == 2 {
+		suffix := strings.TrimSpace(parts[1])
+		if suffix == "" {
+			return "", false
+		}
+		normalized += "-" + suffix
+	}
+	if !semver.IsValid(normalized) {
+		return "", false
+	}
+	return normalized, true
+}
+
 func exactManifestDependencyVersion(raw string) (string, bool) {
 	version := strings.TrimSpace(raw)
 	if version == "" {
@@ -193,6 +266,10 @@ func exactConsumptionDependencyVersion(
 		if !consumption.lockfile {
 			return "", false
 		}
+	}
+	if consumption.lockfile {
+		version := strings.TrimSpace(consumption.dependencyRange)
+		return version, version != ""
 	}
 	return exactManifestDependencyVersion(consumption.dependencyRange)
 }

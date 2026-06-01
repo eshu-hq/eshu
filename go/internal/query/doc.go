@@ -27,8 +27,9 @@
 // source-snapshot cache metadata for advisory sources and scoped
 // package-registry freshness for package/repository targets, stripping absent
 // optional fields from the Postgres JSON rollup before decoding. It never
-// invents findings or duplicates reducer matching: it counts existing source
-// and reducer facts so the answer is diagnosable without re-querying. Provider
+// invents findings or duplicates reducer matching: Composer and the other
+// supported impact-matcher ecosystems are classified from existing source and
+// reducer facts so the answer is diagnosable without re-querying. Provider
 // security-alert reconciliation list, count, and inventory reads select one
 // current reducer row per provider alert identity before applying default
 // status/state filters, while each returned row keeps reducer reason and

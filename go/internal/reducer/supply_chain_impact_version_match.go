@@ -7,28 +7,30 @@ import (
 )
 
 const (
-	supplyChainVersionReasonNPMSemverAffectedRange   = "npm_semver_affected_range"
-	supplyChainVersionReasonNPMSemverKnownFixed      = "npm_semver_known_fixed"
-	supplyChainVersionReasonNuGetSemverAffectedRange = "nuget_semver_affected_range"
-	supplyChainVersionReasonNuGetSemverKnownFixed    = "nuget_semver_known_fixed"
-	supplyChainVersionReasonCargoSemverAffectedRange = "cargo_semver_affected_range"
-	supplyChainVersionReasonCargoSemverKnownFixed    = "cargo_semver_known_fixed"
-	supplyChainVersionReasonGoSemverAffectedRange    = "go_semver_affected_range"
-	supplyChainVersionReasonGoSemverKnownFixed       = "go_semver_known_fixed"
-	supplyChainVersionReasonPyPIPep440AffectedRange  = "pypi_pep440_affected_range"
-	supplyChainVersionReasonPyPIPep440KnownFixed     = "pypi_pep440_known_fixed"
-	supplyChainVersionReasonSwiftSemverAffectedRange = "swift_semver_affected_range"
-	supplyChainVersionReasonSwiftSemverKnownFixed    = "swift_semver_known_fixed"
-	supplyChainVersionReasonMavenRangeMatch          = "maven_range_match"
-	supplyChainVersionReasonMavenKnownFixed          = "maven_known_fixed"
-	supplyChainVersionReasonRPMExactAffected         = "rpm_exact_affected_version"
-	supplyChainVersionReasonRPMKnownFixed            = "rpm_known_fixed"
-	supplyChainVersionReasonRangeOnlyManifest        = "range_only_manifest"
-	supplyChainVersionReasonUnsupportedEcosystem     = "unsupported_ecosystem"
-	supplyChainVersionReasonMalformedRange           = "malformed_advisory_range"
-	supplyChainVersionReasonMalformedInstalled       = "installed_version_malformed"
-	supplyChainVersionReasonNoAffectedMatch          = "version_not_in_advisory_range"
-	supplyChainVersionReasonMissingInstalled         = "installed_version_missing"
+	supplyChainVersionReasonNPMSemverAffectedRange      = "npm_semver_affected_range"
+	supplyChainVersionReasonNPMSemverKnownFixed         = "npm_semver_known_fixed"
+	supplyChainVersionReasonNuGetSemverAffectedRange    = "nuget_semver_affected_range"
+	supplyChainVersionReasonNuGetSemverKnownFixed       = "nuget_semver_known_fixed"
+	supplyChainVersionReasonCargoSemverAffectedRange    = "cargo_semver_affected_range"
+	supplyChainVersionReasonCargoSemverKnownFixed       = "cargo_semver_known_fixed"
+	supplyChainVersionReasonGoSemverAffectedRange       = "go_semver_affected_range"
+	supplyChainVersionReasonGoSemverKnownFixed          = "go_semver_known_fixed"
+	supplyChainVersionReasonPyPIPep440AffectedRange     = "pypi_pep440_affected_range"
+	supplyChainVersionReasonPyPIPep440KnownFixed        = "pypi_pep440_known_fixed"
+	supplyChainVersionReasonSwiftSemverAffectedRange    = "swift_semver_affected_range"
+	supplyChainVersionReasonSwiftSemverKnownFixed       = "swift_semver_known_fixed"
+	supplyChainVersionReasonComposerSemverAffectedRange = "composer_semver_affected_range"
+	supplyChainVersionReasonComposerSemverKnownFixed    = "composer_semver_known_fixed"
+	supplyChainVersionReasonMavenRangeMatch             = "maven_range_match"
+	supplyChainVersionReasonMavenKnownFixed             = "maven_known_fixed"
+	supplyChainVersionReasonRPMExactAffected            = "rpm_exact_affected_version"
+	supplyChainVersionReasonRPMKnownFixed               = "rpm_known_fixed"
+	supplyChainVersionReasonRangeOnlyManifest           = "range_only_manifest"
+	supplyChainVersionReasonUnsupportedEcosystem        = "unsupported_ecosystem"
+	supplyChainVersionReasonMalformedRange              = "malformed_advisory_range"
+	supplyChainVersionReasonMalformedInstalled          = "installed_version_malformed"
+	supplyChainVersionReasonNoAffectedMatch             = "version_not_in_advisory_range"
+	supplyChainVersionReasonMissingInstalled            = "installed_version_missing"
 
 	supplyChainMissingUnsupportedMatcher = "ecosystem version matcher unsupported"
 	supplyChainMissingMalformedRange     = "advisory version range malformed"
@@ -85,6 +87,8 @@ func evaluateSupplyChainVersionMatch(
 		return evaluatePyPIPep440Match(observed, fixedVersion, pkgs)
 	case string(packageidentity.EcosystemSwift):
 		return evaluateSwiftSemverMatch(observed, fixedVersion, pkgs)
+	case string(packageidentity.EcosystemComposer):
+		return evaluateComposerSemverMatch(observed, fixedVersion, pkgs)
 	case string(packageidentity.EcosystemMaven):
 		return evaluateMavenVersionMatch(observed, fixedVersion, pkgs)
 	case "redhat", "fedora", "centos", "rocky", "alma", "amazonlinux", "rpm":
@@ -407,7 +411,7 @@ func comparatorRangeContains(raw string, observed string, compare versionCompare
 		return false, true
 	}
 	malformed := false
-	for _, branch := range strings.Split(raw, "||") {
+	for _, branch := range comparatorRangeBranches(raw) {
 		branch = strings.TrimSpace(branch)
 		if branch == "" {
 			malformed = true
@@ -422,6 +426,11 @@ func comparatorRangeContains(raw string, observed string, compare versionCompare
 		}
 	}
 	return false, !malformed
+}
+
+func comparatorRangeBranches(raw string) []string {
+	raw = strings.ReplaceAll(raw, "||", "|")
+	return strings.Split(raw, "|")
 }
 
 func comparatorBranchContains(branch string, observed string, compare versionCompareFunc) (bool, bool) {

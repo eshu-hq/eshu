@@ -10,11 +10,16 @@ const (
 	SpanQueryObservabilityCoverageCorrelations = "query.observability_coverage_correlations"
 )
 
-// init lands this span right after the service catalog correlation span. Go runs
-// cross-file package init in filename order, so the contract_z_ prefix forces this
-// file to initialize after contract_service_catalog.go (and the other contract_*.go
-// span inserts), guaranteeing the service catalog anchor is already present.
+// init lands this span after the Kubernetes correlation span when that surface
+// is present, otherwise after service catalog. That keeps the frozen read-model
+// span order stable as the query surface grows.
 func init() {
+	for idx, name := range spanNames {
+		if name == SpanQueryKubernetesCorrelations {
+			spanNames = slices.Insert(spanNames, idx+1, SpanQueryObservabilityCoverageCorrelations)
+			return
+		}
+	}
 	for idx, name := range spanNames {
 		if name == SpanQueryServiceCatalogCorrelations {
 			spanNames = slices.Insert(spanNames, idx+1, SpanQueryObservabilityCoverageCorrelations)

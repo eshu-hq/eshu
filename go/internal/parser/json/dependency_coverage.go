@@ -157,8 +157,9 @@ func DependencyCoverage() []DependencyCoverageEntry {
 			CapturesExactVersion:    true,
 			CapturesScope:           true,
 			CapturesDevRuntimeSplit: true,
+			CapturesDependencyChain: true,
 			SourceReference:         "go/internal/parser/json/composer_lock.go",
-			Notes:                   "packages and packages-dev arrays emit exact-version rows with a lockfile flag so the reducer can join manifest ranges to installed versions without dropping the dev/runtime split.",
+			Notes:                   "packages and packages-dev arrays emit exact-version rows with a lockfile flag, runtime/dev scope, and direct/transitive dependency paths when same-section require edges prove the chain.",
 		},
 		{
 			Ecosystem:               "pypi",

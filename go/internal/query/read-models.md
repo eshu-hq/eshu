@@ -121,7 +121,6 @@ catalog ownership and drift correlation facts from Postgres. It requires an
 explicit scope, entity, repository, service, workload, or owner anchor plus
 `limit`, and it keeps catalog declarations provenance-only until reducer
 evidence corroborates repository, service, workload, ownership, or drift truth.
-<<<<<<< HEAD
 `KubernetesHandler` (`kubernetes.go:16`) reads reducer-owned Kubernetes workload
 correlation facts (`reducer_kubernetes_correlation`, produced by issue #388 PR1)
 from Postgres. It requires an explicit scope, cluster, workload object,
@@ -132,7 +131,6 @@ provenance-only unless its image digest or owner edge resolved exactly. The
 handler writes nothing and projects no graph edge: the gated canonical edge is a
 later PR. Reads are wrapped by the `query.kubernetes_correlations` span and the
 `kubernetes.correlations.list` capability.
-=======
 `ObservabilityCoverageHandler` (`observability_coverage.go:16`) reads
 reducer-owned observability coverage correlation facts from Postgres
 (`reducer_observability_coverage_correlation`, produced by the issue #391 PR1
@@ -144,7 +142,6 @@ contract (`exact`, `derived`, `ambiguous`, `unresolved`, `stale`, `rejected`),
 and keeps coverage strictly structural: it surfaces correlation IDs, the resolved
 target, and evidence fact IDs only, never a health assertion derived from
 telemetry values.
->>>>>>> 57b01a50 (feat: observability coverage read surface — PR2 (query/MCP) (toward #391))
 `SupplyChainHandler` (`supply_chain.go:16`) reads reducer-owned SBOM and
 attestation attachment facts from Postgres. It requires a subject digest,
 document ID, or document digest plus `limit`, and it keeps attachment status,

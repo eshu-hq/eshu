@@ -343,15 +343,16 @@ Log phase attributes: `telemetry.PhaseReduction` (main loop),
   package version. The reducer preserves the exact installed version, the
   requested manifest range, the selected fixed version, and the match reason as
   separate finding fields. Version/range evaluation is ecosystem-aware for npm,
-  Cargo, and Swift semver, NuGet semantic versions, Maven version/range
-  ordering, PyPI PEP 440, and RPM EVR ordering. Unsupported ecosystems and
+  Cargo, and Swift semver, NuGet semantic versions, Composer semver, Maven
+  version/range ordering, PyPI PEP 440, and RPM EVR ordering. Swift impact
+  requires exact `Package.resolved` remote source-control pin evidence and a
+  source-backed OSV `SwiftURL` package identity. Unsupported ecosystems and
   malformed advisory ranges fail closed as partial evidence with explicit
-  missing-evidence reasons. Swift impact requires exact `Package.resolved`
-  remote source-control pin evidence and a source-backed OSV `SwiftURL` package
-  identity. Npm
-  `package-lock.json` rows also preserve the ordered dependency path, depth, and
-  direct/transitive flag so vulnerability impact can explain whether a finding
-  came from a direct dependency or through an owned transitive chain.
+  missing-evidence reasons. Npm `package-lock.json` and
+  PHP `composer.lock` rows also preserve the ordered dependency path, depth,
+  direct/transitive flag, and runtime/dev scope so vulnerability impact can
+  explain whether a finding came from a direct dependency, through an owned
+  transitive chain, or from development-only evidence.
   Vulnerability-scoped impact runs also load active manifest dependency facts
   by advisory ecosystem and package name, so exact source dependency evidence
   can publish repository impact before package-registry enrichment catches up.
