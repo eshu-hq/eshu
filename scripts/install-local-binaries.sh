@@ -59,6 +59,10 @@ main() {
     go build -trimpath -ldflags="$LDFLAGS" -o "$INSTALL_DIR/eshu-collector-sbom-attestation" ./cmd/collector-sbom-attestation
     go build -trimpath -ldflags="$LDFLAGS" -o "$INSTALL_DIR/eshu-collector-pagerduty" ./cmd/collector-pagerduty
     go build -trimpath -ldflags="$LDFLAGS" -o "$INSTALL_DIR/eshu-collector-jira" ./cmd/collector-jira
+    go build -trimpath -ldflags="$LDFLAGS" -o "$INSTALL_DIR/eshu-collector-grafana" ./cmd/collector-grafana
+    go build -trimpath -ldflags="$LDFLAGS" -o "$INSTALL_DIR/eshu-collector-prometheus-mimir" ./cmd/collector-prometheus-mimir
+    go build -trimpath -ldflags="$LDFLAGS" -o "$INSTALL_DIR/eshu-collector-loki" ./cmd/collector-loki
+    go build -trimpath -ldflags="$LDFLAGS" -o "$INSTALL_DIR/eshu-collector-tempo" ./cmd/collector-tempo
     go build -trimpath -ldflags="$LDFLAGS" -o "$INSTALL_DIR/eshu-scanner-worker" ./cmd/scanner-worker
     go build -trimpath -ldflags="$LDFLAGS" -o "$INSTALL_DIR/eshu-collector-aws-cloud" ./cmd/collector-aws-cloud
     go build -trimpath -ldflags="$LDFLAGS" -o "$INSTALL_DIR/eshu-collector-kubernetes-live" ./cmd/collector-kubernetes-live

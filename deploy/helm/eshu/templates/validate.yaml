@@ -80,6 +80,74 @@
 {{- fail "securityAlertCollector.collectorInstances must contain an enabled claim-driven security_alert instance matching securityAlertCollector.instanceId" -}}
 {{- end -}}
 {{- end -}}
+{{- if .Values.grafanaCollector.enabled -}}
+{{- if not .Values.grafanaCollector.instanceId -}}
+{{- fail "grafanaCollector.instanceId is required when grafanaCollector.enabled=true" -}}
+{{- end -}}
+{{- if not .Values.grafanaCollector.collectorInstances -}}
+{{- fail "grafanaCollector.collectorInstances must contain at least one instance when grafanaCollector.enabled=true" -}}
+{{- end -}}
+{{- $grafanaLocalMatch := false -}}
+{{- range .Values.grafanaCollector.collectorInstances -}}
+{{- if and (eq (default "" .collector_kind) "grafana") (eq (default "" .instance_id) $.Values.grafanaCollector.instanceId) (default false .enabled) (default false .claims_enabled) -}}
+{{- $grafanaLocalMatch = true -}}
+{{- end -}}
+{{- end -}}
+{{- if not $grafanaLocalMatch -}}
+{{- fail "grafanaCollector.collectorInstances must contain an enabled claim-driven grafana instance matching grafanaCollector.instanceId" -}}
+{{- end -}}
+{{- end -}}
+{{- if .Values.prometheusMimirCollector.enabled -}}
+{{- if not .Values.prometheusMimirCollector.instanceId -}}
+{{- fail "prometheusMimirCollector.instanceId is required when prometheusMimirCollector.enabled=true" -}}
+{{- end -}}
+{{- if not .Values.prometheusMimirCollector.collectorInstances -}}
+{{- fail "prometheusMimirCollector.collectorInstances must contain at least one instance when prometheusMimirCollector.enabled=true" -}}
+{{- end -}}
+{{- $metricLocalMatch := false -}}
+{{- range .Values.prometheusMimirCollector.collectorInstances -}}
+{{- if and (eq (default "" .collector_kind) "prometheus_mimir") (eq (default "" .instance_id) $.Values.prometheusMimirCollector.instanceId) (default false .enabled) (default false .claims_enabled) -}}
+{{- $metricLocalMatch = true -}}
+{{- end -}}
+{{- end -}}
+{{- if not $metricLocalMatch -}}
+{{- fail "prometheusMimirCollector.collectorInstances must contain an enabled claim-driven prometheus_mimir instance matching prometheusMimirCollector.instanceId" -}}
+{{- end -}}
+{{- end -}}
+{{- if .Values.lokiCollector.enabled -}}
+{{- if not .Values.lokiCollector.instanceId -}}
+{{- fail "lokiCollector.instanceId is required when lokiCollector.enabled=true" -}}
+{{- end -}}
+{{- if not .Values.lokiCollector.collectorInstances -}}
+{{- fail "lokiCollector.collectorInstances must contain at least one instance when lokiCollector.enabled=true" -}}
+{{- end -}}
+{{- $lokiLocalMatch := false -}}
+{{- range .Values.lokiCollector.collectorInstances -}}
+{{- if and (eq (default "" .collector_kind) "loki") (eq (default "" .instance_id) $.Values.lokiCollector.instanceId) (default false .enabled) (default false .claims_enabled) -}}
+{{- $lokiLocalMatch = true -}}
+{{- end -}}
+{{- end -}}
+{{- if not $lokiLocalMatch -}}
+{{- fail "lokiCollector.collectorInstances must contain an enabled claim-driven loki instance matching lokiCollector.instanceId" -}}
+{{- end -}}
+{{- end -}}
+{{- if .Values.tempoCollector.enabled -}}
+{{- if not .Values.tempoCollector.instanceId -}}
+{{- fail "tempoCollector.instanceId is required when tempoCollector.enabled=true" -}}
+{{- end -}}
+{{- if not .Values.tempoCollector.collectorInstances -}}
+{{- fail "tempoCollector.collectorInstances must contain at least one instance when tempoCollector.enabled=true" -}}
+{{- end -}}
+{{- $tempoLocalMatch := false -}}
+{{- range .Values.tempoCollector.collectorInstances -}}
+{{- if and (eq (default "" .collector_kind) "tempo") (eq (default "" .instance_id) $.Values.tempoCollector.instanceId) (default false .enabled) (default false .claims_enabled) -}}
+{{- $tempoLocalMatch = true -}}
+{{- end -}}
+{{- end -}}
+{{- if not $tempoLocalMatch -}}
+{{- fail "tempoCollector.collectorInstances must contain an enabled claim-driven tempo instance matching tempoCollector.instanceId" -}}
+{{- end -}}
+{{- end -}}
 {{- if .Values.scannerWorker.enabled -}}
 {{- if not .Values.scannerWorker.instanceId -}}
 {{- fail "scannerWorker.instanceId is required when scannerWorker.enabled=true" -}}
@@ -105,7 +173,7 @@
 {{- fail "vulnerabilityIntelligenceCollector.collectorInstances must contain an enabled claim-driven vulnerability_intelligence instance matching vulnerabilityIntelligenceCollector.instanceId" -}}
 {{- end -}}
 {{- end -}}
-{{- $claimDrivenCollectorsEnabled := or .Values.terraformStateCollector.enabled .Values.awsCloudCollector.enabled .Values.packageRegistryCollector.enabled .Values.sbomAttestationCollector.enabled .Values.securityAlertCollector.enabled .Values.scannerWorker.enabled .Values.vulnerabilityIntelligenceCollector.enabled -}}
+{{- $claimDrivenCollectorsEnabled := or .Values.terraformStateCollector.enabled .Values.awsCloudCollector.enabled .Values.packageRegistryCollector.enabled .Values.sbomAttestationCollector.enabled .Values.securityAlertCollector.enabled .Values.grafanaCollector.enabled .Values.prometheusMimirCollector.enabled .Values.lokiCollector.enabled .Values.tempoCollector.enabled .Values.scannerWorker.enabled .Values.vulnerabilityIntelligenceCollector.enabled -}}
 {{- if and $claimDrivenCollectorsEnabled (not .Values.workflowCoordinator.enabled) -}}
 {{- fail "workflowCoordinator.enabled=true is required when claim-driven collectors are enabled" -}}
 {{- end -}}
@@ -155,6 +223,50 @@
 {{- end -}}
 {{- if not $securityAlertCoordinatorMatch -}}
 {{- fail "workflowCoordinator.collectorInstances must contain an enabled claim-driven security_alert instance when securityAlertCollector.enabled=true" -}}
+{{- end -}}
+{{- end -}}
+{{- if .Values.grafanaCollector.enabled -}}
+{{- $grafanaCoordinatorMatch := false -}}
+{{- range .Values.workflowCoordinator.collectorInstances -}}
+{{- if and (eq (default "" .collector_kind) "grafana") (default false .claims_enabled) (default false .enabled) -}}
+{{- $grafanaCoordinatorMatch = true -}}
+{{- end -}}
+{{- end -}}
+{{- if not $grafanaCoordinatorMatch -}}
+{{- fail "workflowCoordinator.collectorInstances must contain an enabled claim-driven grafana instance when grafanaCollector.enabled=true" -}}
+{{- end -}}
+{{- end -}}
+{{- if .Values.prometheusMimirCollector.enabled -}}
+{{- $metricCoordinatorMatch := false -}}
+{{- range .Values.workflowCoordinator.collectorInstances -}}
+{{- if and (eq (default "" .collector_kind) "prometheus_mimir") (default false .claims_enabled) (default false .enabled) -}}
+{{- $metricCoordinatorMatch = true -}}
+{{- end -}}
+{{- end -}}
+{{- if not $metricCoordinatorMatch -}}
+{{- fail "workflowCoordinator.collectorInstances must contain an enabled claim-driven prometheus_mimir instance when prometheusMimirCollector.enabled=true" -}}
+{{- end -}}
+{{- end -}}
+{{- if .Values.lokiCollector.enabled -}}
+{{- $lokiCoordinatorMatch := false -}}
+{{- range .Values.workflowCoordinator.collectorInstances -}}
+{{- if and (eq (default "" .collector_kind) "loki") (default false .claims_enabled) (default false .enabled) -}}
+{{- $lokiCoordinatorMatch = true -}}
+{{- end -}}
+{{- end -}}
+{{- if not $lokiCoordinatorMatch -}}
+{{- fail "workflowCoordinator.collectorInstances must contain an enabled claim-driven loki instance when lokiCollector.enabled=true" -}}
+{{- end -}}
+{{- end -}}
+{{- if .Values.tempoCollector.enabled -}}
+{{- $tempoCoordinatorMatch := false -}}
+{{- range .Values.workflowCoordinator.collectorInstances -}}
+{{- if and (eq (default "" .collector_kind) "tempo") (default false .claims_enabled) (default false .enabled) -}}
+{{- $tempoCoordinatorMatch = true -}}
+{{- end -}}
+{{- end -}}
+{{- if not $tempoCoordinatorMatch -}}
+{{- fail "workflowCoordinator.collectorInstances must contain an enabled claim-driven tempo instance when tempoCollector.enabled=true" -}}
 {{- end -}}
 {{- end -}}
 {{- if .Values.webhookListener.enabled -}}

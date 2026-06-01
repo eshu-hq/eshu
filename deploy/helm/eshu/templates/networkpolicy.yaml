@@ -368,6 +368,114 @@ spec:
     - {}
 {{- end }}
 ---
+{{- if .Values.grafanaCollector.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "eshu.grafanaCollectorFullname" . }}
+  labels:
+    {{- include "eshu.labels" . | nindent 4 }}
+    app.kubernetes.io/component: grafana-collector
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "eshu.grafanaCollectorSelectorLabels" . | nindent 6 }}
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - ports:
+        - protocol: TCP
+          port: 8080
+        {{- if .Values.observability.prometheus.enabled }}
+        - protocol: TCP
+          port: {{ .Values.observability.prometheus.port }}
+        {{- end }}
+  egress:
+    - {}
+{{- end }}
+---
+{{- if .Values.prometheusMimirCollector.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "eshu.prometheusMimirCollectorFullname" . }}
+  labels:
+    {{- include "eshu.labels" . | nindent 4 }}
+    app.kubernetes.io/component: prometheus-mimir-collector
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "eshu.prometheusMimirCollectorSelectorLabels" . | nindent 6 }}
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - ports:
+        - protocol: TCP
+          port: 8080
+        {{- if .Values.observability.prometheus.enabled }}
+        - protocol: TCP
+          port: {{ .Values.observability.prometheus.port }}
+        {{- end }}
+  egress:
+    - {}
+{{- end }}
+---
+{{- if .Values.lokiCollector.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "eshu.lokiCollectorFullname" . }}
+  labels:
+    {{- include "eshu.labels" . | nindent 4 }}
+    app.kubernetes.io/component: loki-collector
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "eshu.lokiCollectorSelectorLabels" . | nindent 6 }}
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - ports:
+        - protocol: TCP
+          port: 8080
+        {{- if .Values.observability.prometheus.enabled }}
+        - protocol: TCP
+          port: {{ .Values.observability.prometheus.port }}
+        {{- end }}
+  egress:
+    - {}
+{{- end }}
+---
+{{- if .Values.tempoCollector.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "eshu.tempoCollectorFullname" . }}
+  labels:
+    {{- include "eshu.labels" . | nindent 4 }}
+    app.kubernetes.io/component: tempo-collector
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "eshu.tempoCollectorSelectorLabels" . | nindent 6 }}
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - ports:
+        - protocol: TCP
+          port: 8080
+        {{- if .Values.observability.prometheus.enabled }}
+        - protocol: TCP
+          port: {{ .Values.observability.prometheus.port }}
+        {{- end }}
+  egress:
+    - {}
+{{- end }}
+---
 {{- if .Values.scannerWorker.enabled }}
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy

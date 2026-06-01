@@ -296,6 +296,98 @@ spec:
       scrapeTimeout: {{ .Values.observability.prometheus.serviceMonitor.scrapeTimeout | quote }}
 {{- end }}
 ---
+{{- if .Values.grafanaCollector.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "eshu.grafanaCollectorMetricsServiceName" . }}
+  labels:
+    {{- include "eshu.labels" . | nindent 4 }}
+    app.kubernetes.io/component: grafana-collector
+    {{- with .Values.observability.prometheus.serviceMonitor.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "eshu.labels" . | nindent 6 }}
+      app.kubernetes.io/component: grafana-collector
+  endpoints:
+    - port: metrics
+      path: {{ .Values.observability.prometheus.path | quote }}
+      interval: {{ .Values.observability.prometheus.serviceMonitor.interval | quote }}
+      scrapeTimeout: {{ .Values.observability.prometheus.serviceMonitor.scrapeTimeout | quote }}
+{{- end }}
+---
+{{- if .Values.prometheusMimirCollector.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "eshu.prometheusMimirCollectorMetricsServiceName" . }}
+  labels:
+    {{- include "eshu.labels" . | nindent 4 }}
+    app.kubernetes.io/component: prometheus-mimir-collector
+    {{- with .Values.observability.prometheus.serviceMonitor.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "eshu.labels" . | nindent 6 }}
+      app.kubernetes.io/component: prometheus-mimir-collector
+  endpoints:
+    - port: metrics
+      path: {{ .Values.observability.prometheus.path | quote }}
+      interval: {{ .Values.observability.prometheus.serviceMonitor.interval | quote }}
+      scrapeTimeout: {{ .Values.observability.prometheus.serviceMonitor.scrapeTimeout | quote }}
+{{- end }}
+---
+{{- if .Values.lokiCollector.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "eshu.lokiCollectorMetricsServiceName" . }}
+  labels:
+    {{- include "eshu.labels" . | nindent 4 }}
+    app.kubernetes.io/component: loki-collector
+    {{- with .Values.observability.prometheus.serviceMonitor.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "eshu.labels" . | nindent 6 }}
+      app.kubernetes.io/component: loki-collector
+  endpoints:
+    - port: metrics
+      path: {{ .Values.observability.prometheus.path | quote }}
+      interval: {{ .Values.observability.prometheus.serviceMonitor.interval | quote }}
+      scrapeTimeout: {{ .Values.observability.prometheus.serviceMonitor.scrapeTimeout | quote }}
+{{- end }}
+---
+{{- if .Values.tempoCollector.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "eshu.tempoCollectorMetricsServiceName" . }}
+  labels:
+    {{- include "eshu.labels" . | nindent 4 }}
+    app.kubernetes.io/component: tempo-collector
+    {{- with .Values.observability.prometheus.serviceMonitor.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "eshu.labels" . | nindent 6 }}
+      app.kubernetes.io/component: tempo-collector
+  endpoints:
+    - port: metrics
+      path: {{ .Values.observability.prometheus.path | quote }}
+      interval: {{ .Values.observability.prometheus.serviceMonitor.interval | quote }}
+      scrapeTimeout: {{ .Values.observability.prometheus.serviceMonitor.scrapeTimeout | quote }}
+{{- end }}
+---
 {{- if .Values.scannerWorker.enabled }}
 apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
