@@ -1,0 +1,21 @@
+scripts/README.md
+  s_f2f7fbb6f30866::t_b49738ce7b5359 65-71
+docs/public/reference/security-intelligence-release-gate.md
+  s_f2f7fbb6f30866::t_28d38b7d92a228 13-16,44-46,60,94,120,145,172-177,180,184-189,194,198,208,222-227,246-312,317-319,337-339,343
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "33fe1b3de815f0dd49f948750005b957771bea55",
+  "prompts": {},
+  "sessions": {
+    "s_f2f7fbb6f30866": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e360b-90eb-7472-bac7-56d488b65f77",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
