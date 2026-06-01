@@ -55,6 +55,13 @@ Metrics:
 - `eshu_dp_jira_rate_limited_total`
 - `eshu_dp_jira_fetch_duration_seconds`
 
+The `jira.fetch` span also carries bounded page and output counters:
+`jira.search_pages`, `jira.changelog_pages`, `jira.remote_link_pages`,
+`jira.issues_emitted`, `jira.changelog_events_emitted`,
+`jira.remote_links_emitted`, `jira.remote_links_rejected`,
+`jira.unsupported_provider_links`, `jira.partial_failures`,
+`jira.rate_limits`, `jira.retry_after_seconds`, and `jira.stale_windows`.
+
 Metric labels stay low-cardinality: provider, status class, and fact kind are
 allowed. Site IDs, issue keys, summaries, user identities, URLs, and credential
 values are not allowed in metric labels or status errors.
@@ -65,7 +72,8 @@ values are not allowed in metric labels or status errors.
   `token_env` and optional `email_env`. The token value is never included in
   facts, metric labels, status errors, or requested scope sets.
 - Remote-link URLs and Jira self/browse URLs have sensitive query parameters
-  removed before they enter envelopes.
+  removed before normalization and are represented by fingerprints in
+  envelopes.
 - Duplicate remote links inside one issue collection are collapsed by provider
   link ID, global ID, or URL.
 - Empty Jira projects or updated windows commit a successful empty generation.
@@ -74,10 +82,39 @@ values are not allowed in metric labels or status errors.
   source of truth.
 
 No-Regression Evidence: focused collector tests cover envelope redaction,
-provider failure classification, empty windows, and bounded REST endpoints.
-No-Observability-Change: the evidence contract adds no new runtime stage or
-metric; existing collector, workflow, status, and runtime signals diagnose the
-current Jira collection path.
+provider failure classification, empty windows, bounded REST endpoints, search
+pagination, changelog pagination, malformed remote-link rejection, unsupported
+provider classification, duplicate-window stable keys, visibility and archive
+status classification, partial-failure stats, and Retry-After handling.
+
+Collector Performance Evidence: `go test ./cmd/collector-jira
+./internal/collector/jira ./internal/telemetry ./internal/facts -count=1`
+proves the bounded Jira collection path with configured issue, changelog, and
+remote-link limits. The collector still performs one bounded updated-window
+search plus per-issue changelog and remote-link reads; this slice adds
+pagination and redaction without adding graph writes, reducer work, or
+unbounded provider calls.
+
+Observability Evidence: the existing Jira metrics plus bounded `jira.fetch`
+span counters diagnose pages scanned, issues emitted, changelog events emitted,
+remote links emitted or rejected, unsupported provider links, rate limits, and
+partial failures, stale collection windows, and retry guidance without
+high-cardinality labels.
+
+Collector Observability Evidence: `jira.observe` and `jira.fetch` spans,
+`eshu_dp_jira_provider_requests_total`,
+`eshu_dp_jira_facts_emitted_total`, `eshu_dp_jira_rate_limited_total`, and
+`eshu_dp_jira_fetch_duration_seconds` expose collection attempts, provider
+failures, emitted fact counts, rate limits, fetch duration, page counts,
+partial failures, rejected links, stale windows, and retry guidance without
+site IDs, issue keys, summaries, users, URLs, or credential values in metric
+labels.
+
+Collector Deployment Evidence: no new runtime, port, Helm template, or
+ServiceMonitor is added in this slice. Existing hosted collector deployment and
+scrape coverage continue to own `collector-jira`; operators diagnose this path
+through the existing collector metrics and the `jira.observe`/`jira.fetch`
+spans.
 
 ## Related docs
 

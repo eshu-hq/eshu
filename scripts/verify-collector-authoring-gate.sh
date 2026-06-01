@@ -64,7 +64,7 @@ is_evidence_file() {
 is_telemetry_contract_file() {
   local path="$1"
   case "$path" in
-    go/internal/telemetry/contract.go|go/internal/telemetry/instruments.go) return 0 ;;
+    go/internal/telemetry/contract.go|go/internal/telemetry/contract_*.go|go/internal/telemetry/instruments.go) return 0 ;;
     *) return 1 ;;
   esac
 }

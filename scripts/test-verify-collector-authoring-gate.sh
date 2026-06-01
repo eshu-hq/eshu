@@ -93,7 +93,7 @@ Collector Deployment Evidence: no hosted runtime in this slice; ServiceMonitor
 coverage is deferred until a charted command package lands.
 MD
 printf 'package confluence2\nfunc TestSource(t interface{}) {}\n' >"${complete_repo}/go/internal/collector/confluence2/source_test.go"
-printf 'package telemetry\nconst MetricDimensionFailureClass = "failure_class"\n' >"${complete_repo}/go/internal/telemetry/contract.go"
+printf 'package telemetry\nconst SpanJiraFetch = "jira.fetch"\n' >"${complete_repo}/go/internal/telemetry/contract_jira.go"
 git -C "${complete_repo}" add .
 git -C "${complete_repo}" commit -q -m 'complete collector gate evidence'
 expect_pass "${complete_repo}"

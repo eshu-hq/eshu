@@ -6,8 +6,12 @@ import (
 	"testing"
 	"time"
 
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	"go.opentelemetry.io/otel/sdk/trace/tracetest"
+
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/scope"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
 
@@ -165,6 +169,74 @@ func TestProviderFailuresClassifyPermissionHiddenDeletedAndArchived(t *testing.T
 	}
 }
 
+func TestClaimedSourceRecordsFetchStatsOnSpan(t *testing.T) {
+	t.Parallel()
+
+	observedAt := time.Date(2026, time.May, 31, 18, 30, 0, 0, time.UTC)
+	spanRecorder := tracetest.NewSpanRecorder()
+	tracerProvider := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(spanRecorder))
+	source, err := NewClaimedSource(SourceConfig{
+		CollectorInstanceID: "jira-primary",
+		Targets: []TargetConfig{{
+			Provider: ProviderJiraCloud,
+			ScopeID:  "jira:site:example",
+			SiteID:   "example.atlassian.net",
+			BaseURL:  "https://example.atlassian.net",
+			Token:    "token",
+		}},
+		ClientFactory: func(TargetConfig) (EvidenceClient, error) {
+			return fakeEvidenceClient{result: CollectionResult{
+				Issues: []Issue{{
+					ID:        "10001",
+					Key:       "OPS-123",
+					Status:    Reference{ID: "3", Name: "In Progress"},
+					Project:   Reference{ID: "10000", Key: "OPS"},
+					UpdatedAt: observedAt,
+				}},
+				Stats: CollectionStats{
+					SearchPages:              2,
+					ChangelogPages:           3,
+					RemoteLinkPages:          1,
+					IssuesEmitted:            1,
+					ChangelogEventsEmitted:   2,
+					RemoteLinksEmitted:       1,
+					RemoteLinksRejected:      1,
+					UnsupportedProviderLinks: 1,
+				},
+				ObservedAt: observedAt,
+			}}, nil
+		},
+		Now:    func() time.Time { return observedAt },
+		Tracer: tracerProvider.Tracer("test"),
+	})
+	if err != nil {
+		t.Fatalf("NewClaimedSource() error = %v, want nil", err)
+	}
+
+	_, ok, err := source.NextClaimed(context.Background(), workflow.WorkItem{
+		CollectorKind:       scope.CollectorJira,
+		CollectorInstanceID: "jira-primary",
+		ScopeID:             "jira:site:example",
+		GenerationID:        "jira:generation-1",
+	})
+	if err != nil {
+		t.Fatalf("NextClaimed() error = %v, want nil", err)
+	}
+	if !ok {
+		t.Fatal("NextClaimed() ok = false, want true")
+	}
+	spans := spanRecorder.Ended()
+	if got := spanIntAttribute(t, spans, telemetry.SpanJiraFetch, telemetry.SpanAttrJiraSearchPages); got != 2 {
+		t.Fatalf("jira.search_pages = %d, want 2", got)
+	}
+	if got := spanIntAttribute(t, spans, telemetry.SpanJiraFetch, telemetry.SpanAttrJiraRemoteLinksRejected); got != 1 {
+		t.Fatalf("jira.remote_links_rejected = %d, want 1", got)
+	}
+	if got := spanIntAttribute(t, spans, telemetry.SpanJiraFetch, telemetry.SpanAttrJiraUnsupportedProviderLinks); got != 1 {
+		t.Fatalf("jira.unsupported_provider_links = %d, want 1", got)
+	}
+}
+
 type fakeEvidenceClient struct {
 	result CollectionResult
 	err    error
@@ -172,4 +244,21 @@ type fakeEvidenceClient struct {
 
 func (f fakeEvidenceClient) CollectWorkItemEvidence(context.Context, TargetConfig, CollectionWindow) (CollectionResult, error) {
 	return f.result, f.err
+}
+
+func spanIntAttribute(t *testing.T, spans []sdktrace.ReadOnlySpan, spanName string, key string) int64 {
+	t.Helper()
+	for _, span := range spans {
+		if span.Name() != spanName {
+			continue
+		}
+		for _, attr := range span.Attributes() {
+			if string(attr.Key) == key {
+				return attr.Value.AsInt64()
+			}
+		}
+		t.Fatalf("span %q missing attribute %q", spanName, key)
+	}
+	t.Fatalf("missing span %q", spanName)
+	return 0
 }

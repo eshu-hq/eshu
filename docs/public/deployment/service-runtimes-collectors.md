@@ -92,9 +92,10 @@ details in source-fact payloads only when the target environment accepts that
 evidence retention boundary.
 
 For Jira, do not put site IDs, issue keys, user identities, summaries, remote
-link URLs, or credential values in metric labels or status errors. Keep Jira
-summaries and remote link titles as source-fact payloads only when the target
-environment accepts that evidence retention boundary.
+link URLs, or credential values in metric labels or status errors. Jira
+work-item payloads retain provider IDs, presence flags, redaction policy
+version, and URL fingerprints rather than raw summaries, user identifiers,
+private URLs, remote-link titles, or remote-link summaries.
 
 Use the focused service runbooks for target, permission, redaction, dashboard,
 and failure detail:

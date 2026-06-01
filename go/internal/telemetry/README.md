@@ -282,8 +282,15 @@ Pipeline spans: `SpanCollectorObserve`, `SpanCollectorStream`, `SpanScopeAssign`
 `SpanTerraformStateDiscoveryResolve`, `SpanTerraformStateSourceOpen`,
 `SpanTerraformStateParserStream`, `SpanTerraformStateFactEmitBatch`,
 `SpanTerraformStateCoordinatorDone`, `SpanWebhookHandle`, `SpanWebhookStore`,
-`SpanOCIRegistryScan`, `SpanOCIRegistryAPICall`, `SpanPagerDutyObserve`, and
-`SpanPagerDutyFetch`.
+`SpanOCIRegistryScan`, `SpanOCIRegistryAPICall`, `SpanPagerDutyObserve`,
+`SpanPagerDutyFetch`, `SpanJiraObserve`, and `SpanJiraFetch`.
+
+Jira fetch spans use bounded integer attributes for page and output counts:
+`jira.search_pages`, `jira.changelog_pages`, `jira.remote_link_pages`,
+`jira.issues_emitted`, `jira.changelog_events_emitted`,
+`jira.remote_links_emitted`, `jira.remote_links_rejected`,
+`jira.unsupported_provider_links`, `jira.partial_failures`,
+`jira.rate_limits`, `jira.retry_after_seconds`, and `jira.stale_windows`.
 
 Dependency spans: `SpanPostgresExec`, `SpanPostgresQuery`, `SpanNeo4jExecute`.
 

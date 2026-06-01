@@ -133,6 +133,25 @@ names, token values, and provider response bodies stay out of metric labels.
 Use `/admin/status`, workflow failures, and traces to connect a bounded failure
 class to a specific private target in the operator environment.
 
+## Jira Collector
+
+| Metric | Key labels | Use |
+| --- | --- | --- |
+| `eshu_dp_jira_provider_requests_total` | `provider`, `status_class` | Jira work-item evidence request attempts, including retryable and terminal failures. |
+| `eshu_dp_jira_facts_emitted_total` | `provider`, `fact_kind` | Work-item source facts emitted per claimed target. |
+| `eshu_dp_jira_rate_limited_total` | `provider` | Jira rate-limit pressure surfaced to workflow retry handling. |
+| `eshu_dp_jira_fetch_duration_seconds` | `provider`, `status_class` | Bounded Jira fetch duration for one claimed target. |
+
+Jira fetch spans carry bounded page and output counters for search pages,
+changelog pages, remote-link pages, issues emitted, changelog events emitted,
+remote links emitted, remote links rejected, unsupported provider links, and
+partial failures, rate limits, Retry-After seconds, and stale collection
+windows. Site IDs, issue keys, summaries, user identifiers, raw remote-link
+URLs, token environment names, token values, and provider response bodies stay
+out of metric labels. Use `/admin/status`, workflow failures, and traces to
+connect a bounded failure class to a specific private target in the operator
+environment.
+
 ## Scanner-Worker Boundary
 
 Scanner-worker metrics are emitted by the hosted scanner-worker runtime for

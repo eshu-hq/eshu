@@ -52,6 +52,13 @@
 // security analyzer runtimes can prove queue age, duration, CPU, memory,
 // retry, dead-letter, target count, and result count without inventing local
 // labels.
+// Jira source collection registers SpanJiraObserve, SpanJiraFetch, and bounded
+// jira.fetch span attributes for search pages, changelog pages, remote-link
+// pages, emitted issues, emitted changelog events, emitted/rejected remote
+// links, unsupported provider links, partial failures, rate limits, Retry-After
+// seconds, and stale updated windows. These stay span attributes rather than
+// metric labels so site IDs, issue keys, user identifiers, summaries, and URLs
+// remain out of dashboard cardinality.
 // The supply-chain reducer registers SupplyChainSuppressionDecisions
 // (eshu_dp_supply_chain_suppression_decisions_total), labeled by reducer
 // domain and outcome state (active, not_affected, accepted_risk,

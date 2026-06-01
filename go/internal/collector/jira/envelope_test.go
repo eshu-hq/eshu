@@ -126,6 +126,125 @@ func TestNewWorkItemExternalLinkEnvelopeAcceptsURLOnlyIdentity(t *testing.T) {
 	}
 }
 
+func TestWorkItemEnvelopesRedactPrivateTextUsersAndURLs(t *testing.T) {
+	t.Parallel()
+
+	ctx := testEnvelopeContext()
+	record, err := NewWorkItemRecordEnvelope(ctx, Issue{
+		ID:       "10001",
+		Key:      "OPS-123",
+		Summary:  "Customer checkout is broken",
+		Status:   Reference{ID: "3", Name: "In Progress"},
+		Project:  Reference{ID: "10000", Key: "OPS", Name: "Private Operations"},
+		Assignee: Reference{AccountID: "acct-private-1", DisplayName: "Private User"},
+		Reporter: Reference{AccountID: "acct-private-2", DisplayName: "Reporter User"},
+		Self:     "https://example.atlassian.net/rest/api/3/issue/10001?token=secret",
+	})
+	if err != nil {
+		t.Fatalf("NewWorkItemRecordEnvelope() error = %v, want nil", err)
+	}
+	if got := record.Payload["summary"]; got != "" {
+		t.Fatalf("summary payload = %q, want private issue text redacted", got)
+	}
+	if got := record.Payload["assignee_account_id"]; got != "" {
+		t.Fatalf("assignee_account_id = %q, want user identifier redacted", got)
+	}
+	if got := record.Payload["reporter_display_name"]; got != "" {
+		t.Fatalf("reporter_display_name = %q, want user display name redacted", got)
+	}
+	if got := record.Payload["self_url"]; got != "" {
+		t.Fatalf("self_url = %q, want private Jira URL redacted", got)
+	}
+	if got := record.Payload["self_url_fingerprint"]; got == "" {
+		t.Fatal("self_url_fingerprint is blank, want normalized URL fingerprint")
+	}
+	if got := record.Payload["redaction_policy_version"]; got != "jira_work_item_v1" {
+		t.Fatalf("redaction_policy_version = %q, want jira_work_item_v1", got)
+	}
+
+	transition, err := NewWorkItemTransitionEnvelope(ctx, Transition{
+		ID:             "20001",
+		IssueID:        "10001",
+		IssueKey:       "OPS-123",
+		Field:          "assignee",
+		From:           "Private User",
+		To:             "Another Private User",
+		Author:         Reference{AccountID: "acct-private-3", DisplayName: "Change Author"},
+		ValueRedacted:  true,
+		AuthorRedacted: true,
+	})
+	if err != nil {
+		t.Fatalf("NewWorkItemTransitionEnvelope() error = %v, want nil", err)
+	}
+	if got := transition.Payload["from"]; got != "" {
+		t.Fatalf("transition from = %q, want private field value redacted", got)
+	}
+	if got := transition.Payload["author_account_id"]; got != "" {
+		t.Fatalf("author_account_id = %q, want user identifier redacted", got)
+	}
+	if got := transition.Payload["value_redacted"]; got != true {
+		t.Fatalf("value_redacted = %v, want true", got)
+	}
+
+	link, err := NewWorkItemExternalLinkEnvelope(ctx, ExternalLink{
+		ID:          "30001",
+		IssueID:     "10001",
+		IssueKey:    "OPS-123",
+		Application: LinkApplication{Name: "Unknown Tracker", Type: "unknown"},
+		Object: LinkObject{
+			URL:     "https://private.example.invalid/deploy/123?token=secret",
+			Title:   "Private deploy",
+			Summary: "Private deployment summary",
+		},
+	})
+	if err != nil {
+		t.Fatalf("NewWorkItemExternalLinkEnvelope() error = %v, want nil", err)
+	}
+	if got := link.Payload["url"]; got != "" {
+		t.Fatalf("external link URL = %q, want private URL redacted", got)
+	}
+	if got := link.Payload["title"]; got != "" {
+		t.Fatalf("external link title = %q, want private title redacted", got)
+	}
+	if got := link.Payload["url_fingerprint"]; got == "" {
+		t.Fatal("url_fingerprint is blank, want normalized external URL fingerprint")
+	}
+	if got := link.Payload["provider_support_state"]; got != "unsupported_provider" {
+		t.Fatalf("provider_support_state = %q, want unsupported_provider", got)
+	}
+}
+
+func TestWorkItemStableKeysConvergeAcrossDuplicateWindows(t *testing.T) {
+	t.Parallel()
+
+	issue := Issue{
+		ID:        "10001",
+		Key:       "OPS-123",
+		Status:    Reference{ID: "3", Name: "In Progress"},
+		Project:   Reference{ID: "10000", Key: "OPS"},
+		UpdatedAt: time.Date(2026, time.May, 31, 18, 30, 0, 0, time.UTC),
+	}
+	firstCtx := testEnvelopeContext()
+	firstCtx.GenerationID = "jira:generation-1"
+	secondCtx := testEnvelopeContext()
+	secondCtx.GenerationID = "jira:generation-2"
+
+	first, err := NewWorkItemRecordEnvelope(firstCtx, issue)
+	if err != nil {
+		t.Fatalf("NewWorkItemRecordEnvelope(first) error = %v, want nil", err)
+	}
+	second, err := NewWorkItemRecordEnvelope(secondCtx, issue)
+	if err != nil {
+		t.Fatalf("NewWorkItemRecordEnvelope(second) error = %v, want nil", err)
+	}
+	if first.StableFactKey != second.StableFactKey {
+		t.Fatalf("StableFactKey mismatch for duplicate window: %q != %q", first.StableFactKey, second.StableFactKey)
+	}
+	if first.FactID == second.FactID {
+		t.Fatalf("FactID = %q for both generations, want generation-specific fact IDs", first.FactID)
+	}
+}
+
 func testEnvelopeContext() EnvelopeContext {
 	return EnvelopeContext{
 		ScopeID:             "jira:site:example",
