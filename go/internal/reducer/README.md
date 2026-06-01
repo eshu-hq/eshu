@@ -449,9 +449,10 @@ Log phase attributes: `telemetry.PhaseReduction` (main loop),
   package version. The reducer preserves the exact installed version, the
   requested manifest range, the selected fixed version, and the match reason as
   separate finding fields. Version/range evaluation is ecosystem-aware for npm,
-  Cargo, Pub, and Swift semver, NuGet semantic versions, Composer semver, Maven
-  version/range ordering, PyPI PEP 440, RPM EVR ordering, and RubyGems
-  `Gem::Version`-style installed versions. Swift impact requires exact
+  Cargo, Go modules, Pub, Hex, Swift, Composer constraints, NuGet semantic
+  versions, Maven version/range ordering, PyPI PEP 440, vendor-backed OS
+  package matching, and RubyGems `Gem::Version`-style requirements.
+  Swift impact requires exact
   `Package.resolved` remote source-control pin evidence and a source-backed OSV
   `SwiftURL` package identity. Malformed advisory ranges fail closed as
   partial evidence with explicit missing-evidence reasons. Unsupported matcher
