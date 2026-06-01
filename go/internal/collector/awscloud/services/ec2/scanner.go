@@ -11,7 +11,10 @@ import (
 )
 
 // Scanner emits EC2 VPC, subnet, security group, security group rule, ENI, and
-// topology relationship facts for one claimed account and region.
+// topology relationship facts for one claimed account and region. It also emits
+// one metadata-only ec2_instance_posture fact per instance from the existing
+// DescribeInstances pass; it does not emit an aws_resource inventory fact for
+// instances and never reads user-data content.
 type Scanner struct {
 	Client Client
 }
@@ -89,6 +92,18 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 			return nil, err
 		}
 		envelopes = append(envelopes, networkInterfaceEnvelopes...)
+	}
+
+	instances, err := s.Client.ListInstances(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("list EC2 instances: %w", err)
+	}
+	for _, instance := range instances {
+		instanceEnvelopes, err := instancePostureEnvelopes(boundary, instance)
+		if err != nil {
+			return nil, err
+		}
+		envelopes = append(envelopes, instanceEnvelopes...)
 	}
 	return envelopes, nil
 }

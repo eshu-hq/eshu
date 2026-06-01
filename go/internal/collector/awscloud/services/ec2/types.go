@@ -13,6 +13,55 @@ type Client interface {
 	ListSecurityGroups(context.Context) ([]SecurityGroup, error)
 	ListSecurityGroupRules(context.Context) ([]SecurityGroupRule, error)
 	ListNetworkInterfaces(context.Context) ([]NetworkInterface, error)
+	// ListInstances returns instance posture inputs read from the existing
+	// DescribeInstances pass. It carries no user-data content: presence only.
+	ListInstances(context.Context) ([]Instance, error)
+}
+
+// Instance is the scanner-owned representation of EC2 instance posture inputs.
+// It is the metadata-only projection of one DescribeInstances entry used to
+// derive the ec2_instance_posture fact. It never carries user-data content,
+// console output, or any other instance payload: UserDataPresent is a presence
+// boolean derived at the SDK boundary.
+type Instance struct {
+	ID           string
+	ARN          string
+	State        string
+	OwnerID      string
+	InstanceType string
+	SubnetID     string
+	VPCID        string
+
+	// IMDS settings.
+	IMDSv2Required          *bool
+	HTTPEndpoint            string
+	HTTPPutResponseHopLimit *int32
+
+	// UserDataPresent reports whether user-data is attached. The content is
+	// never read. Nil means presence could not be determined.
+	UserDataPresent *bool
+
+	DetailedMonitoring  bool
+	EBSOptimized        bool
+	PublicIPAssociated  bool
+	PublicIPAddress     string
+	InstanceProfileARN  string
+	Tenancy             string
+	NitroEnclaveEnabled bool
+
+	BlockDevices []BlockDevice
+	Tags         map[string]string
+}
+
+// BlockDevice is one instance block-device mapping entry. Per-volume encryption
+// is not reported by DescribeInstances; Encrypted stays nil here and reducers
+// resolve it from volume evidence.
+type BlockDevice struct {
+	DeviceName          string
+	VolumeID            string
+	DeleteOnTermination bool
+	Status              string
+	Encrypted           *bool
 }
 
 // VPC is the scanner-owned representation of an EC2 VPC.

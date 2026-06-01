@@ -348,6 +348,27 @@ connection secrets, snapshot payloads, log bodies, or Performance Insights
 samples. They emit no graph edges; reducers own KMS, parameter/option-group,
 and internet-exposure projection from this evidence.
 
+EC2 instance posture fact kinds use schema version `1.0.0` for the first
+metadata-only posture contract:
+
+- `ec2_instance_posture`
+
+Use `EC2InstancePostureFactKinds` when callers need the accepted set, and
+`EC2InstancePostureSchemaVersion` when building EC2 instance posture envelopes.
+The EC2 scanner derives one `ec2_instance_posture` fact per instance from the
+existing DescribeInstances pass: IMDS settings (IMDSv2-required, hop limit,
+endpoint state), user-data PRESENCE (a boolean only), detailed monitoring, EBS
+optimization, public-IP association, the attached instance-profile ARN,
+per-volume block-device metadata, and tenancy / Nitro-enclave state. These facts
+are metadata-only control-plane evidence: they never carry the user-data content
+(which can embed secrets), instance console output, environment variables, or any
+other instance payload. They emit no graph edges and no `aws_resource` inventory
+fact for the instance; reducers own the USES_PROFILE join to the IAM instance
+profile (#1134), the block-device to KMS join, and the derived internet-exposed
+flag (#1135). Per-volume encryption is not reported by DescribeInstances, so each
+block device's `encrypted` stays unset; reducers resolve it from volume evidence
+without per-instance API fan-out at scan time.
+
 See `doc.go` for the full godoc contract.
 
 ## Dependencies

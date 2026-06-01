@@ -17,6 +17,10 @@ const (
 	ResourceTypeEC2SecurityGroupRule = "aws_ec2_security_group_rule"
 	// ResourceTypeEC2NetworkInterface identifies an EC2 network interface.
 	ResourceTypeEC2NetworkInterface = "aws_ec2_network_interface"
+	// ResourceTypeEC2Instance identifies an EC2 instance. It is the join anchor
+	// for the metadata-only ec2_instance_posture fact; the EC2 scanner does not
+	// emit an aws_resource inventory fact for instances.
+	ResourceTypeEC2Instance = "aws_ec2_instance"
 )
 
 const (

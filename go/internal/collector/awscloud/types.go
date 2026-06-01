@@ -150,6 +150,70 @@ type RDSPostureObservation struct {
 	SourceRecordID string
 }
 
+// EC2InstancePostureObservation describes the derived security and operations
+// posture for one EC2 instance. Every field is metadata-only control-plane
+// evidence read from the existing DescribeInstances pass: IMDS settings,
+// user-data PRESENCE (a boolean only), detailed-monitoring and EBS-optimized
+// flags, public-IP association, the attached instance-profile ARN, per-volume
+// block-device metadata, and tenancy / Nitro-enclave state.
+//
+// It never carries the user-data content (which can embed secrets), instance
+// console output, environment variables, command-line arguments, or any other
+// instance payload. The builder only ever sees presence booleans and safe
+// identifiers; the raw user-data string never reaches it.
+//
+// Pointer booleans distinguish an unknown setting (nil, the control-plane read
+// returned no value) from an observed false. Plain booleans are scanner-derived
+// summaries that default to false when the underlying configuration is absent.
+type EC2InstancePostureObservation struct {
+	Boundary   Boundary
+	ARN        string
+	InstanceID string
+	State      string
+
+	// IMDS (instance metadata service) settings. IMDSv2Required reflects
+	// HttpTokens == "required"; HTTPEndpoint reflects the endpoint state
+	// ("enabled"/"disabled"); HTTPPutResponseHopLimit is the token TTL hop limit.
+	IMDSv2Required          *bool
+	HTTPEndpoint            string
+	HTTPPutResponseHopLimit *int32
+
+	// UserDataPresent is true when the instance has user-data attached. The
+	// scanner derives this from a presence read; the user-data CONTENT is never
+	// fetched or persisted. Nil means presence could not be determined.
+	UserDataPresent *bool
+
+	DetailedMonitoring  bool
+	EBSOptimized        bool
+	PublicIPAssociated  bool
+	PublicIPAddress     string
+	InstanceProfileARN  string
+	Tenancy             string
+	NitroEnclaveEnabled bool
+
+	// BlockDevices carries per-volume block-device metadata reported by
+	// DescribeInstances. Per-volume encryption state is NOT on this response, so
+	// Encrypted stays nil here; the reducer (#1134/#1146 PR2) joins each volume id
+	// to its encryption and KMS evidence.
+	BlockDevices []EC2BlockDevicePosture
+
+	SourceURI      string
+	SourceRecordID string
+}
+
+// EC2BlockDevicePosture is one instance block-device mapping entry: the device
+// name, attached volume id, delete-on-termination flag, and attachment status.
+// Encrypted is a pointer so an unknown encryption state (the common case from
+// DescribeInstances, which does not report it) stays distinct from observed
+// false; reducers resolve it from volume evidence.
+type EC2BlockDevicePosture struct {
+	DeviceName          string
+	VolumeID            string
+	DeleteOnTermination bool
+	Status              string
+	Encrypted           *bool
+}
+
 // IAMPermissionObservation describes one normalized, metadata-only IAM policy
 // statement attached to a principal. It is the derived projection of a single
 // statement: effect, action set, resource pattern, and a condition summary.

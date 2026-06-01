@@ -19,6 +19,7 @@ import (
 const ec2PageLimit int32 = 1000
 
 type apiClient interface {
+	awsec2.DescribeInstancesAPIClient
 	awsec2.DescribeNetworkInterfacesAPIClient
 	awsec2.DescribeSecurityGroupRulesAPIClient
 	awsec2.DescribeSecurityGroupsAPIClient
@@ -168,6 +169,35 @@ func (c *Client) ListNetworkInterfaces(ctx context.Context) ([]ec2service.Networ
 		}
 	}
 	return networkInterfaces, nil
+}
+
+// ListInstances returns instance posture inputs from the existing
+// DescribeInstances pass. The mapper reads only metadata-only posture fields
+// (IMDS settings, derived booleans, instance-profile ARN, and block-device
+// metadata); it never fetches user-data content, console output, or any other
+// instance payload, so this adds no per-instance API fan-out.
+func (c *Client) ListInstances(ctx context.Context) ([]ec2service.Instance, error) {
+	paginator := awsec2.NewDescribeInstancesPaginator(c.client, &awsec2.DescribeInstancesInput{
+		MaxResults: aws.Int32(ec2PageLimit),
+	})
+	var instances []ec2service.Instance
+	for paginator.HasMorePages() {
+		var page *awsec2.DescribeInstancesOutput
+		err := c.recordAPICall(ctx, "DescribeInstances", func(callCtx context.Context) error {
+			var err error
+			page, err = paginator.NextPage(callCtx)
+			return err
+		})
+		if err != nil {
+			return nil, err
+		}
+		for _, reservation := range page.Reservations {
+			for _, instance := range reservation.Instances {
+				instances = append(instances, mapInstance(c.boundary.Region, c.boundary.AccountID, instance))
+			}
+		}
+	}
+	return instances, nil
 }
 
 func networkInterfacesInput() *awsec2.DescribeNetworkInterfacesInput {

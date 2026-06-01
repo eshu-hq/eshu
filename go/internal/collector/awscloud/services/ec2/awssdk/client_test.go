@@ -110,6 +110,91 @@ func TestMapNetworkInterfacePreservesAttachmentAndSecurityGroups(t *testing.T) {
 	}
 }
 
+func TestMapInstanceDerivesMetadataOnlyPosture(t *testing.T) {
+	instance := mapInstance("us-east-1", "123456789012", awsec2types.Instance{
+		InstanceId:      aws.String("i-1234567890abcdef0"),
+		InstanceType:    awsec2types.InstanceTypeM5Large,
+		State:           &awsec2types.InstanceState{Name: awsec2types.InstanceStateNameRunning},
+		SubnetId:        aws.String("subnet-123"),
+		VpcId:           aws.String("vpc-123"),
+		EbsOptimized:    aws.Bool(true),
+		PublicIpAddress: aws.String("203.0.113.10"),
+		Monitoring:      &awsec2types.Monitoring{State: awsec2types.MonitoringStateEnabled},
+		MetadataOptions: &awsec2types.InstanceMetadataOptionsResponse{
+			HttpTokens:              awsec2types.HttpTokensStateRequired,
+			HttpEndpoint:            awsec2types.InstanceMetadataEndpointStateEnabled,
+			HttpPutResponseHopLimit: aws.Int32(1),
+		},
+		IamInstanceProfile: &awsec2types.IamInstanceProfile{
+			Arn: aws.String("arn:aws:iam::123456789012:instance-profile/app"),
+		},
+		Placement:      &awsec2types.Placement{Tenancy: awsec2types.TenancyDefault},
+		EnclaveOptions: &awsec2types.EnclaveOptions{Enabled: aws.Bool(true)},
+		BlockDeviceMappings: []awsec2types.InstanceBlockDeviceMapping{{
+			DeviceName: aws.String("/dev/xvda"),
+			Ebs: &awsec2types.EbsInstanceBlockDevice{
+				VolumeId:            aws.String("vol-0abc"),
+				DeleteOnTermination: aws.Bool(true),
+				Status:              awsec2types.AttachmentStatusAttached,
+			},
+		}},
+		Tags: []awsec2types.Tag{{Key: aws.String("env"), Value: aws.String("prod")}},
+	})
+
+	if instance.ARN != "arn:aws:ec2:us-east-1:123456789012:instance/i-1234567890abcdef0" {
+		t.Fatalf("ARN = %q", instance.ARN)
+	}
+	if instance.IMDSv2Required == nil || !*instance.IMDSv2Required {
+		t.Fatalf("IMDSv2Required = %#v, want true", instance.IMDSv2Required)
+	}
+	if instance.HTTPEndpoint != "enabled" {
+		t.Fatalf("HTTPEndpoint = %q, want enabled", instance.HTTPEndpoint)
+	}
+	if instance.HTTPPutResponseHopLimit == nil || *instance.HTTPPutResponseHopLimit != 1 {
+		t.Fatalf("HTTPPutResponseHopLimit = %#v, want 1", instance.HTTPPutResponseHopLimit)
+	}
+	if !instance.DetailedMonitoring {
+		t.Fatalf("DetailedMonitoring = false, want true")
+	}
+	if !instance.EBSOptimized {
+		t.Fatalf("EBSOptimized = false, want true")
+	}
+	if !instance.PublicIPAssociated || instance.PublicIPAddress != "203.0.113.10" {
+		t.Fatalf("public IP = %v/%q, want true/203.0.113.10", instance.PublicIPAssociated, instance.PublicIPAddress)
+	}
+	if instance.InstanceProfileARN != "arn:aws:iam::123456789012:instance-profile/app" {
+		t.Fatalf("InstanceProfileARN = %q", instance.InstanceProfileARN)
+	}
+	if instance.Tenancy != "default" {
+		t.Fatalf("Tenancy = %q, want default", instance.Tenancy)
+	}
+	if !instance.NitroEnclaveEnabled {
+		t.Fatalf("NitroEnclaveEnabled = false, want true")
+	}
+	if len(instance.BlockDevices) != 1 || instance.BlockDevices[0].VolumeID != "vol-0abc" {
+		t.Fatalf("BlockDevices = %#v", instance.BlockDevices)
+	}
+	if instance.BlockDevices[0].Encrypted != nil {
+		t.Fatalf("BlockDevices[0].Encrypted = %#v, want nil (DescribeInstances does not report it)", instance.BlockDevices[0].Encrypted)
+	}
+	// DescribeInstances carries no user-data; the mapper must not invent presence.
+	if instance.UserDataPresent != nil {
+		t.Fatalf("UserDataPresent = %#v, want nil (no per-instance user-data read)", instance.UserDataPresent)
+	}
+}
+
+func TestMapInstanceDerivesPartitionForGovCloud(t *testing.T) {
+	instance := mapInstance("us-gov-west-1", "123456789012", awsec2types.Instance{
+		InstanceId: aws.String("i-abc"),
+	})
+	if instance.ARN != "arn:aws-us-gov:ec2:us-gov-west-1:123456789012:instance/i-abc" {
+		t.Fatalf("ARN = %q, want gov partition", instance.ARN)
+	}
+	if instance.IMDSv2Required != nil {
+		t.Fatalf("IMDSv2Required = %#v, want nil when MetadataOptions absent", instance.IMDSv2Required)
+	}
+}
+
 func TestNetworkInterfaceInputIncludesManagedResourcesAndPagination(t *testing.T) {
 	input := networkInterfacesInput()
 
