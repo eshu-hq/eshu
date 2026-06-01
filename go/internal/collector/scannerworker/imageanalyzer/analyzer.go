@@ -16,6 +16,8 @@ import (
 const (
 	warningReasonUnsupported = "image_analyzer_unsupported_target"
 	extractionUnsupported    = "unsupported_or_missing_package_database"
+	extractionMissingDigest  = "missing_image_digest"
+	extractionMalformedImage = "malformed_image_evidence"
 	extractionOK             = "package_database_extracted"
 )
 
@@ -88,6 +90,10 @@ func (a *Analyzer) Analyze(
 		}
 		return scannerworker.AnalyzerResult{}, analyzerFailure(err, usage)
 	}
+	if strings.TrimSpace(snapshot.ImageDigest) == "" {
+		snapshot.ExtractionReason = extractionMissingDigest
+		return a.unsupportedResult(input, target, snapshot, usage), nil
+	}
 	envelopes, resultCount, err := a.envelopes(input, snapshot)
 	if err != nil {
 		if errors.Is(err, errUnsupportedTarget) {
@@ -95,6 +101,15 @@ func (a *Analyzer) Analyze(
 		}
 		return scannerworker.AnalyzerResult{}, analyzerFailure(err, usage)
 	}
+	if len(envelopes) > input.Limits.MaxFacts {
+		return scannerworker.AnalyzerResult{}, scannerworker.NewTerminalAnalyzerFailure(
+			scannerworker.FailureClassFactLimitExceeded,
+			usage,
+			errFactLimitExceeded,
+		)
+	}
+	analysis := newAnalysisFact(input, target, snapshot, resultCount, len(envelopes)+1, a.now().UTC())
+	envelopes = append([]facts.Envelope{analysis}, envelopes...)
 	if len(envelopes) > input.Limits.MaxFacts {
 		return scannerworker.AnalyzerResult{}, scannerworker.NewTerminalAnalyzerFailure(
 			scannerworker.FailureClassFactLimitExceeded,

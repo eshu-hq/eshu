@@ -48,8 +48,9 @@ graph projection phases.
 
 Concrete scanner-worker analyzers live in sub-packages of this package:
 `imageanalyzer` reads configured image rootfs metadata or ordered local OCI
-layer tar streams and emits installed OS package facts or unsupported warning
-facts, and `sbomgenerator` emits bounded CycloneDX-compatible `sbom.document`,
+layer tar streams and emits `scanner_worker.analysis` coverage facts,
+installed OS package facts, or unsupported warning facts, and `sbomgenerator`
+emits bounded CycloneDX-compatible `sbom.document`,
 `sbom.component`, and `sbom.warning` source facts for repository, image, or
 artifact targets when the runtime source has enough subject evidence. The
 hosted `eshu-scanner-worker` binary wires configured image, OS package
@@ -92,7 +93,9 @@ result count, CPU seconds, and memory bytes. It starts
   expirations, expired claims, and non-scanner workflow items.
 - The built-in warning analyzer is not a clean finding. It preserves proof that
   the hosted worker claimed and committed source evidence without pretending a
-  real scanner ran.
+  real scanner ran. Warning payloads carry `analysis_status=not_scanned` and
+  `coverage_status=unsupported` so readback can expose missing analyzer
+  capability instead of classifying the target as safe, affected, or scanned.
 
 ## Evidence
 

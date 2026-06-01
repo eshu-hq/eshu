@@ -35,11 +35,11 @@
 // dependency, API,
 // operational link, scorecard, and warning evidence. Scanner-worker fact kind
 // constants and schema-version helpers live here for source facts produced by
-// isolated security analyzers; reducers remain responsible for admitting any
-// user-facing findings from that evidence. Vulnerability suppression fact
-// kind constants and schema-version helpers live here for VEX statements,
-// operator-policy suppressions, and provider-dismissal pointers; reducers
-// apply suppressions only when scope matches the finding identity and
-// evidence path, and provider dismissals stay evidence rather than automatic
-// suppressions.
+// isolated security analyzers, including coverage and unsupported analyzer
+// evidence; reducers remain responsible for admitting any user-facing findings
+// from that evidence. Vulnerability suppression fact kind constants and
+// schema-version helpers live here for VEX statements, operator-policy
+// suppressions, and provider-dismissal pointers; reducers apply suppressions
+// only when scope matches the finding identity and evidence path, and provider
+// dismissals stay evidence rather than automatic suppressions.
 package facts

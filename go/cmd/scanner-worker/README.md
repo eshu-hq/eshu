@@ -30,8 +30,9 @@ flowchart LR
 - Runs the concrete `image_unpacking` analyzer when configured with
   `image_targets`; this source reads configured local image rootfs metadata or
   ordered OCI layer tar streams, extracts Alpine apk or Debian dpkg installed
-  package databases, and emits `vulnerability.os_package`,
-  `vulnerability.warning`, or `scanner_worker.warning` unsupported evidence.
+  package databases, and emits `scanner_worker.analysis` coverage,
+  `vulnerability.os_package`, `vulnerability.warning`, or
+  `scanner_worker.warning` unsupported evidence.
 - Runs the concrete `sbom_generation` analyzer when configured with
   `sbom_targets`; this source walks a configured repository root, reads bounded
   `package-lock.json`, `npm-shrinkwrap.json`, `go.mod`, `Cargo.lock`,
@@ -76,8 +77,10 @@ collector instance:
 `rootfs_path` and `layer_paths` are runtime-local configuration. They must not
 appear in retry, dead-letter, metric, log, or public documentation payloads.
 Layer paths are ordered from base to top layer. Unsupported image shapes emit
-`scanner_worker.warning` facts with an `extraction_reason` instead of clean
-results.
+`scanner_worker.warning` facts with `analysis_status=not_scanned`,
+`coverage_status=unsupported`, and an `extraction_reason` instead of clean
+results. Missing image digests are unsupported coverage evidence; tag-only
+image configuration does not emit package facts.
 
 `sbom_generation` repository targets are configured inside the selected
 `scanner_worker` collector instance:

@@ -40,6 +40,19 @@ sbom_warning_active AS (
       AND fact.is_tombstone = FALSE
       AND generation.status = 'active'
 ),
+scanner_worker_warning_active AS (
+    SELECT fact.scope_id, fact.payload, fact.observed_at
+    FROM fact_records AS fact
+    JOIN ingestion_scopes AS scope
+      ON scope.scope_id = fact.scope_id
+     AND scope.active_generation_id = fact.generation_id
+    JOIN scope_generations AS generation
+      ON generation.scope_id = fact.scope_id
+     AND generation.generation_id = fact.generation_id
+    WHERE fact.fact_kind = 'scanner_worker.warning'
+      AND fact.is_tombstone = FALSE
+      AND generation.status = 'active'
+),
 exploitability_active AS (
     SELECT fact.payload, fact.observed_at
     FROM fact_records AS fact
@@ -301,15 +314,12 @@ vulnerability_source_snapshot AS (
         ) AS incomplete_reasons,
         COALESCE(
             JSONB_AGG(DISTINCT JSONB_STRIP_NULLS(JSONB_BUILD_OBJECT(
-                'source', payload->>'source',
-                'ecosystem', payload->>'ecosystem',
+                'source', payload->>'source', 'ecosystem', payload->>'ecosystem',
                 'cache_artifact_version', payload->>'cache_artifact_version',
                 'snapshot_digest', payload->>'cache_snapshot_digest',
-                'last_updated_at', payload->>'cache_updated_at',
-                'freshness', payload->>'cache_freshness',
+                'last_updated_at', payload->>'cache_updated_at', 'freshness', payload->>'cache_freshness',
                 'complete', payload @> '{"complete": true}'::jsonb,
-                'warning_code', payload->>'warning_code',
-                'warning_message', payload->>'warning_message'
+                'warning_code', payload->>'warning_code', 'warning_message', payload->>'warning_message'
             ))) FILTER (WHERE payload IS NOT NULL),
             '[]'::jsonb
         )::text AS source_snapshots_json,
@@ -318,12 +328,6 @@ vulnerability_source_snapshot AS (
     FROM vulnerability_source_snapshot_active
 ),
 unsupported_target_rows AS (
-    -- Owned dependency rows in an ecosystem the supply-chain matcher cannot
-    -- resolve (no precise version/range match available today). Reported as
-    -- target_kind=ecosystem so callers see real observed coverage gaps.
-    -- Bounded to an explicit repository_id anchor so a cve_id-only or
-    -- subject_digest-only scope cannot trigger an unbounded global scan of
-    -- every dependency row in the fact store.
     SELECT
         'ecosystem' AS target_kind,
         'unsupported_ecosystem' AS reason,
@@ -337,11 +341,6 @@ unsupported_target_rows AS (
       AND LOWER(TRIM(payload->'entity_metadata'->>'package_manager')) NOT IN
           ('npm', 'nuget', 'maven', 'cargo', 'pypi', 'swift', 'composer', 'go', 'rubygems')
     UNION ALL
-    -- Package-manager files Eshu parsed but where the lockfile recorded an
-    -- unsupported feature (e.g., Yarn Berry patch directives). The row was
-    -- admitted so the dependency identity is preserved, but the lockfile
-    -- chain cannot prove exact-version impact for this entry. Bounded to
-    -- an explicit repository_id anchor for the same reason.
     SELECT
         'package_manager_file' AS target_kind,
         'lockfile_unsupported_feature' AS reason,
@@ -353,11 +352,6 @@ unsupported_target_rows AS (
       AND payload->>'repo_id' = $11
       AND NULLIF(TRIM(payload->'entity_metadata'->>'lockfile_unsupported_feature'), '') IS NOT NULL
     UNION ALL
-    -- SBOM targets where the document parser recorded an unsupported field
-    -- or a malformed document. Joined to sbom.document so the subject digest
-    -- scope filter applies; sbom.warning payloads only carry document_id.
-    -- Bounded to an explicit subject_digest anchor so a repository_id-only
-    -- scope cannot collect SBOM warnings from unrelated images.
     SELECT
         'sbom_target' AS target_kind,
         NULLIF(TRIM(warn.payload->>'reason'), '') AS reason,
@@ -371,11 +365,6 @@ unsupported_target_rows AS (
       AND doc.payload->>'subject_digest' = $12
       AND warn.payload->>'reason' IN ('unsupported_field', 'malformed_document')
     UNION ALL
-    -- Package-registry metadata documents Eshu observed but skipped because
-    -- the source body exceeded the configured byte limit. Bounded to a
-    -- package_id anchor, or to a repository_id with an already-materialized
-    -- package consumption correlation for the same package_id, so cve-only
-    -- and subject-only scopes cannot scan warning facts globally.
     SELECT
         'package_registry_metadata' AS target_kind,
         NULLIF(TRIM(warn.payload->>'warning_code'), '') AS reason,
@@ -395,6 +384,22 @@ unsupported_target_rows AS (
                     AND consumption.payload->>'package_id' = warn.payload->>'package_id'
               )
           )
+      )
+    UNION ALL
+    SELECT
+        'image_target' AS target_kind,
+        NULLIF(TRIM(warn.payload->>'reason'), '') AS reason,
+        NULL::text AS ecosystem,
+        NULL::text AS lockfile_flavor,
+        NULL::text AS feature_token
+    FROM scanner_worker_warning_active AS warn
+    WHERE $12 <> ''
+      AND warn.payload->>'target_kind' = 'image'
+      AND warn.payload->>'reason' IN ('analyzer_not_configured', 'image_analyzer_unsupported_target')
+      AND (
+          warn.payload->>'image_digest' = $12
+          OR warn.scope_id = $12
+          OR RIGHT(warn.scope_id, LENGTH('@' || $12)) = '@' || $12
       )
 ),
 unsupported_target AS (
@@ -428,21 +433,10 @@ unsupported_target AS (
 ),
 vulnerability_source_state_candidates AS (
     SELECT
-        collector_instance_id,
-        scope_id,
-        source,
-        ecosystem,
-        window_start,
-        window_end,
-        last_attempt_at,
-        last_success_at,
-        next_retry_at,
-        last_error_class,
-        freshness_state,
-        terminal_status,
-        result_count,
-        warning_count,
-        updated_at
+        collector_instance_id, scope_id, source, ecosystem, window_start,
+        window_end, last_attempt_at, last_success_at, next_retry_at,
+        last_error_class, freshness_state, terminal_status, result_count,
+        warning_count, updated_at
     FROM vulnerability_source_states
     WHERE scope_id IN ($9, $10, $11, $12)
        OR scope_id NOT LIKE 'vuln-intel://osv/%/%?version=%'
@@ -466,10 +460,8 @@ vulnerability_source_state AS (
         NULL::text AS source_snapshots_json,
         COALESCE(
             JSONB_AGG(DISTINCT JSONB_STRIP_NULLS(JSONB_BUILD_OBJECT(
-                'collector_instance_id', collector_instance_id,
-                'scope_id', scope_id,
-                'source', source,
-                'ecosystem', ecosystem,
+                'collector_instance_id', collector_instance_id, 'scope_id', scope_id,
+                'source', source, 'ecosystem', ecosystem,
                 'collection_window', JSONB_STRIP_NULLS(JSONB_BUILD_OBJECT(
                     'start', TO_CHAR(window_start AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"'),
                     'end', TO_CHAR(window_end AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"')
@@ -477,10 +469,8 @@ vulnerability_source_state AS (
                 'last_attempt_at', TO_CHAR(last_attempt_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"'),
                 'last_success_at', TO_CHAR(last_success_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"'),
                 'next_retry_at', TO_CHAR(next_retry_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"'),
-                'last_error_class', last_error_class,
-                'freshness_state', freshness_state,
-                'terminal_status', terminal_status,
-                'result_count', result_count,
+                'last_error_class', last_error_class, 'freshness_state', freshness_state,
+                'terminal_status', terminal_status, 'result_count', result_count,
                 'warning_count', warning_count,
                 'updated_at', TO_CHAR(updated_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"')
             ))) FILTER (WHERE scope_id IS NOT NULL),

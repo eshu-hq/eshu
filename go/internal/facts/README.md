@@ -247,6 +247,10 @@ Use `ScannerWorkerFactKinds` when callers need the accepted scanner-worker
 source fact set, and `ScannerWorkerSchemaVersion` when building source fact
 envelopes. Scanner-worker facts are source evidence only. Reducers must admit
 security findings, coverage, priority, and remediation truth from those facts.
+Image analyzer `scanner_worker.analysis` facts mark completed coverage without
+asserting impact, while `scanner_worker.warning` facts mark unsupported or
+unconfigured analyzer coverage as `analysis_status=not_scanned` and
+`coverage_status=unsupported`.
 
 Service catalog fact kinds use schema version `1.0.0` for the first collector
 contract:

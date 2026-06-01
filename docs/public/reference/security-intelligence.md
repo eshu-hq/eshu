@@ -233,7 +233,7 @@ Analyzer lane ownership:
 | Analyzer profile | Lane | Reason |
 | --- | --- | --- |
 | SBOM generation | `scanner_worker` | Can read repository, image, or artifact inputs and produce many component facts. |
-| Image unpacking | `scanner_worker` | CPU, disk, and memory pressure must be isolated. The current analyzer reads configured local rootfs metadata or ordered OCI layer tar streams and emits package facts only when apk/dpkg database proof exists. |
+| Image unpacking | `scanner_worker` | CPU, disk, and memory pressure must be isolated. The current analyzer reads configured local rootfs metadata or ordered OCI layer tar streams and emits coverage facts, package facts only when apk/dpkg database proof exists, or unsupported warning evidence. |
 | Source analysis | `scanner_worker` | Repository-size dependent CPU and memory cost. |
 | OS package extraction | `scanner_worker` | Image/rootfs extraction belongs outside reducers. |
 | Secret scanning | `scanner_worker` | High-cardinality file scanning with bounded output. |
@@ -254,7 +254,9 @@ that is a proof of claimed scanner-worker execution, not a clean finding. The
 `image_unpacking` analyzer preserves image reference, image digest,
 rootfs/layer evidence source, distro, package manager, package name, installed
 version, and extraction reason on source facts. Unsupported image shapes emit
-bounded warning facts and must not be interpreted as clean.
+bounded warning facts with `analysis_status=not_scanned` and
+`coverage_status=unsupported`; they must not be interpreted as safe, affected,
+or scanned.
 
 Starting Kubernetes resource envelopes:
 
@@ -300,20 +302,12 @@ Reducer attachment remains separate from collection:
   evidence as impact-ready.
 
 Remote Compose starts a dedicated `scanner-worker` service with separate
-resource-limit env vars:
-
-- `ESHU_SCANNER_WORKER_CPU_MILLIS`
-- `ESHU_SCANNER_WORKER_MEMORY_BYTES`
-- `ESHU_SCANNER_WORKER_TIMEOUT`
-- `ESHU_SCANNER_WORKER_MAX_INPUT_BYTES`
-- `ESHU_SCANNER_WORKER_MAX_FILES`
-- `ESHU_SCANNER_WORKER_MAX_FACTS`
-
-Helm renders the same contract from the `scannerWorker` values block. Keep the
-worker disabled unless `workflowCoordinator.enabled=true`,
-`workflowCoordinator.deploymentMode=active`, and
-`workflowCoordinator.claimsEnabled=true`; the chart rejects a scanner-worker
-Deployment without that claim control plane.
+resource-limit env vars: `ESHU_SCANNER_WORKER_CPU_MILLIS`,
+`ESHU_SCANNER_WORKER_MEMORY_BYTES`, `ESHU_SCANNER_WORKER_TIMEOUT`,
+`ESHU_SCANNER_WORKER_MAX_INPUT_BYTES`, `ESHU_SCANNER_WORKER_MAX_FILES`, and
+`ESHU_SCANNER_WORKER_MAX_FACTS`. Helm renders the same contract from
+`scannerWorker` values and rejects a scanner-worker Deployment unless the
+workflow coordinator is active with claims enabled.
 
 The first concrete `sbom_generation` source in `eshu-scanner-worker` is a
 repository-manifest source configured through the selected `scanner_worker`
@@ -329,16 +323,11 @@ components still produce a document plus `sbom.warning`, not a silent clean
 claim. Runtime-local repository paths stay out of retry, dead-letter, metric,
 log, and public read payloads.
 
-OS package extraction currently supports parser-backed Alpine apk, Debian
-dpkg, and RPM-family queryformat snapshots. RPM-family support intentionally
-does not parse raw rpmdb Berkeley DB, ndb, or SQLite files; the isolated
-scanner source must emit the supported `# eshu-rpm-queryformat-v1`
-tab-separated snapshot after reading `/etc/os-release` and repository
-configuration. RPM rows preserve epoch/version/release, arch, source RPM,
-repository ID/URL, vendor advisory source, PURL, and BOMRef-compatible
-identity. Third-party repositories, unknown repositories, unsupported rpmdb
-bytes, missing distro metadata, and ambiguous vendor origin emit
-`vulnerability.warning` evidence instead of clean package evidence.
+OS package extraction supports parser-backed Alpine apk, Debian dpkg, and
+RPM-family queryformat snapshots. RPM-family support expects the isolated
+scanner source to emit `# eshu-rpm-queryformat-v1` rows after reading
+`/etc/os-release` and repository configuration; raw rpmdb Berkeley DB, ndb,
+and SQLite bytes remain unsupported warning evidence.
 
 ## Scanner Observability
 
@@ -348,12 +337,8 @@ The hosted scanner-worker service records these signals:
   `eshu_dp_scanner_worker_retries_total`,
   `eshu_dp_scanner_worker_dead_letters_total`,
   `eshu_dp_scanner_worker_facts_emitted_total`;
-- histograms: `eshu_dp_scanner_worker_queue_wait_seconds`,
-  `eshu_dp_scanner_worker_scan_duration_seconds`,
-  `eshu_dp_scanner_worker_target_count`,
-  `eshu_dp_scanner_worker_result_count`,
-  `eshu_dp_scanner_worker_cpu_seconds`,
-  `eshu_dp_scanner_worker_memory_bytes`;
+- histograms: queue wait, scan duration, target count, result count, CPU
+  seconds, and memory bytes under the `eshu_dp_scanner_worker_*` prefix;
 - spans: `scanner_worker.claim.process`, `scanner_worker.analyze`, and
   `scanner_worker.fact.emit_batch`;
 - bounded dimensions: `analyzer`, `target_kind`, `limit_kind`,
@@ -402,56 +387,43 @@ findings.
 every response. The envelope is derived from existing source-fact and
 reducer-fact counts so the answer never invents findings:
 
-- `readiness_state` is one of the five core classification states above, plus
-  the out-of-band `readiness_unavailable` when the readiness lookup itself
-  fails, and `unsupported` when bounded unsupported-target evidence exists.
-- `target_scope` echoes the bounded anchors the caller used (`cve_id`,
-  `package_id`, `repository_id`, `subject_digest`, `impact_status`).
-  `impact_status` alone is not a fact-anchor: the readiness store skips its
-  Postgres scan and returns an empty snapshot for impact_status-only
-  requests, because impact_status is a reducer-finding attribute that does
-  not exist on source facts. The findings page is still returned.
-- `evidence_sources[]` reports per-family fact counts, `latest_observed_at`,
-  and `freshness` (`fresh`, `stale`, or `unknown`) for:
-  `vulnerability.advisory`, `vulnerability.exploitability`,
+- `readiness_state` is one of the core states above, plus
+  `readiness_unavailable` when the lookup itself fails and `unsupported` when
+  bounded unsupported-target evidence exists.
+- `target_scope` echoes `cve_id`, `package_id`, `repository_id`,
+  `subject_digest`, and `impact_status`. `impact_status` alone is not a
+  fact-anchor; the readiness store skips its Postgres scan for
+  impact_status-only requests because source facts do not carry that reducer
+  attribute.
+- `evidence_sources[]` reports scoped counts, `latest_observed_at`, and
+  freshness for `vulnerability.advisory`, `vulnerability.exploitability`,
   `package.consumption`, `package.registry`, `sbom.component`,
-  `sbom.attestation`, and `container_image.identity`. Families with zero
-  facts in the requested scope are omitted so the payload reflects only what
-  Eshu actually has for the caller. `package.registry` is counted only for an
-  explicit `package_id`, or for package metadata already joined to the
-  requested repository through package-consumption evidence. Global registry
-  metadata does not satisfy repository consumption or freshness on its own.
-- `source_snapshots[]` reports vulnerability source observation/cache metadata:
+  `sbom.attestation`, and `container_image.identity`. Zero-count families are
+  omitted. Package registry evidence counts only for an explicit `package_id`
+  or for package metadata joined to the requested repository through
+  package-consumption evidence.
+- `source_snapshots[]` reports bounded vulnerability source cache metadata:
   source, ecosystem, cache artifact version, snapshot digest, cache update time,
-  freshness, completion state, and bounded warning fields. Raw advisory bodies,
-  package names, and source URLs are not returned.
-- `missing_evidence[]` names absent required join families using the stable
-  identifiers `advisory_sources`, `owned_packages`,
-  `package_registry_metadata`, `sbom_or_image_evidence`,
-  `target_collection_incomplete`, `readiness_unavailable`, and
-  `unsupported_targets`. `package_registry_metadata` means the bounded package
-  metadata needed for the package or repository scope is missing, stale, or
-  freshness-unknown. The list is empty on `ready_*` states so callers cannot
-  see contradictory "ready" + "missing" signals.
-- `unsupported_targets[]` is bounded coverage-gap evidence: each entry names
-  the unsupported `target_kind` (`ecosystem`, `package_manager_file`,
-  `sbom_target`, `package_registry_metadata`, or `image_target`), a stable
-  `reason` code, and a `count` for the bounded scope. Optional `ecosystem`,
-  `lockfile_flavor`, and `feature_token` fields explain why the matcher cannot
-  resolve the target. `package_registry_metadata` with
-  `reason=metadata_too_large` means package-registry metadata exceeded the
-  configured byte cap and was recorded as source coverage-gap evidence instead
-  of being retried. The list is surfaced whenever Eshu observes such evidence
-  — additively when findings exist, or as the dominant signal alongside
-  `readiness_state=unsupported` when no finding could be admitted.
-- `incomplete_reasons[]` carries collector-emitted reasons explaining why
-  source collection is still in flight; only populated when
-  `readiness_state` is `target_incomplete`.
+  freshness, completion state, and warning fields. Raw advisory bodies, package
+  names, and source URLs are not returned.
+- `missing_evidence[]` uses stable identifiers:
+  `advisory_sources`, `owned_packages`, `package_registry_metadata`,
+  `sbom_or_image_evidence`, `target_collection_incomplete`,
+  `readiness_unavailable`, and `unsupported_targets`. Ready states clear the
+  list so callers cannot see contradictory "ready" and "missing" signals.
+- `unsupported_targets[]` is bounded coverage-gap evidence. Each entry carries
+  `target_kind` (`ecosystem`, `package_manager_file`, `sbom_target`,
+  `package_registry_metadata`, or `image_target`), a stable `reason`, and a
+  scoped `count`; optional `ecosystem`, `lockfile_flavor`, and `feature_token`
+  fields explain the unsupported target. `reason=metadata_too_large` means
+  package-registry metadata exceeded the byte cap and was recorded as source
+  evidence instead of being retried. The list is surfaced additively when
+  findings exist, or as the dominant signal with `readiness_state=unsupported`
+  when no finding could be admitted.
+- `incomplete_reasons[]` carries collector-emitted in-flight reasons only for
+  `target_incomplete`.
 - `freshness` summarizes the worst per-family freshness as one label.
-- `counts` reports `findings_returned`, `findings_truncated`,
-  `findings_by_status`, and `evidence_facts_total`. `findings_returned` and
-  `findings_by_status` describe the returned page only; combine with
-  `truncated` to know whether more pages exist.
+- `counts` reports page-local finding counts and total source-evidence facts.
 
 Readiness reflects existing facts. It does not poll collectors, dispatch reducer
 work, or change finding ownership. `target_incomplete` and `unsupported` depend
@@ -462,48 +434,32 @@ not inferred target state.
 
 The current implementation proves the following:
 
-- `not_configured` when no advisory or owned-evidence facts exist for the
-  scope.
-- `evidence_incomplete` when advisory facts exist but a required join family
-  for the requested anchor is missing or stale, including package-registry
-  metadata required for package or repository vulnerability matching.
-- `ready_zero_findings` when advisory and required owned evidence exist and
-  the reducer returned no matching impact.
-- `ready_with_findings` whenever the reducer returned at least one finding.
-  `missing_evidence` is cleared on ready states so the envelope cannot
-  report `ready_with_findings` and `missing advisory_sources` at the same
-  time.
-- `target_incomplete` when a `vulnerability.source_snapshot` fact carries
-  `"complete": false` AND the requested scope has no advisory evidence yet.
-  An in-flight snapshot for an unrelated source does not flip a scope whose
-  advisory evidence is already collected, so cross-source ingestion noise
-  cannot invalidate ready answers. `incomplete_reasons` carries the distinct
-  collector-emitted `warning_message` values that justify the state.
-- `readiness_unavailable` when the readiness lookup itself fails. The
-  findings page is still returned so callers do not lose data, but
-  `missing_evidence` carries `readiness_unavailable` and the state explicitly
-  warns that coverage cannot be classified for this response.
-- `unsupported` when the bounded readiness scope has observed unsupported
-  target evidence the matcher cannot resolve. Evidence is read directly from
-  existing facts: `content_entity` dependency rows whose
-  `entity_metadata.package_manager` is outside the supported matcher set
-  (`npm`, `nuget`, `maven`, `cargo`, `pypi`, `swift`, `composer`) become
-  `target_kind=ecosystem` rows;
-  `content_entity` dependency rows carrying
-  `entity_metadata.lockfile_unsupported_feature` become
-  `target_kind=package_manager_file` rows with the offending feature token;
-  `sbom.warning` facts whose `reason` is `unsupported_field` or
-  `malformed_document` join through the SBOM document subject digest and
-  become `target_kind=sbom_target` rows; `package_registry.warning` facts with
-  `warning_code=metadata_too_large` become
-  `target_kind=package_registry_metadata` rows for package-anchored scopes, or
-  repository scopes with an existing package-consumption correlation.
-  `image_target` is reserved for future image-analyzer evidence. `unsupported`
-  outranks
-  `evidence_incomplete` so callers can tell "we observed something we
-  cannot match" from "we never collected this." When findings exist, the
-  state stays `ready_with_findings` and `unsupported_targets[]` is surfaced
-  additively so operators still see the coverage gap.
+- `not_configured`: no advisory or owned-evidence facts exist for the scope.
+- `evidence_incomplete`: advisory facts exist but a required join family is
+  missing or stale, including package-registry metadata required for package or
+  repository vulnerability matching.
+- `ready_zero_findings`: advisory and required owned evidence exist and the
+  reducer returned no matching impact.
+- `ready_with_findings`: at least one reducer finding was returned. Ready
+  states clear `missing_evidence` so the envelope cannot report both ready and
+  missing advisory sources.
+- `target_incomplete`: a `vulnerability.source_snapshot` fact carries
+  `"complete": false` and the requested scope has no advisory evidence yet.
+  Scope-relevant `incomplete_reasons` carry distinct collector warning
+  messages.
+- `readiness_unavailable`: the readiness lookup failed. The findings page is
+  still returned, and `missing_evidence` carries `readiness_unavailable`.
+- `unsupported`: the bounded scope has observed target evidence the matcher
+  cannot resolve. Producers are `content_entity` unsupported package managers
+  outside `npm`, `nuget`, `maven`, `cargo`, `pypi`, `swift`, `composer`, and
+  `go`; `content_entity` lockfile unsupported-feature markers; `sbom.warning`
+  reasons `unsupported_field` or `malformed_document` joined to the document
+  subject digest; `package_registry.warning` code `metadata_too_large`; and
+  image-target `scanner_worker.warning` reasons `analyzer_not_configured` or
+  `image_analyzer_unsupported_target` matched by `image_digest` or image
+  scope id. `unsupported` outranks `evidence_incomplete`; when findings exist,
+  the state stays `ready_with_findings` and `unsupported_targets[]` remains
+  visible additively.
 
 The package.consumption family is sourced from the real
 `reducer_package_consumption_correlation` facts and `content_entity` manifest
@@ -515,13 +471,8 @@ requested repository. Repository-scoped requests cannot satisfy
 `owned_packages` or package metadata freshness through unrelated global
 registry metadata.
 
-#### Follow-Up Work
-
-- Extend `target_kind=image_target` once the image-scanner worker emits
-  unsupported-manifest evidence; the envelope and OpenAPI contract already
-  reserve it, and only the SQL aggregation arm is empty today.
-- Surface per-collector freshness windows when the collector contract carries
-  source-specific staleness thresholds.
+Follow-up: surface per-collector freshness windows when the collector contract
+carries source-specific staleness thresholds.
 
 Performance Evidence: focused query tests
 `go test ./internal/query -run 'PackageMetadata|SupplyChainImpactReadiness'
@@ -530,17 +481,18 @@ freshness, source-snapshot cache metadata, unsupported target kinds, the
 missing-evidence versus unsupported boundary, and the Postgres query shape. The
 readiness path runs one bounded CTE per response with seven anchored
 evidence-family counts, source roll-ups, and unsupported-target aggregation over
-existing `content_entity`, package-registry, and `sbom.warning` facts; it adds
-no round trip beyond the readiness query already issued with the
-impact-finding read.
+existing `content_entity`, package-registry, `sbom.warning`, and
+`scanner_worker.warning` facts; it adds no round trip beyond the readiness query
+already issued with the impact-finding read.
 
 No-Observability-Change: the readiness path reuses
 `query.supply_chain_impact_findings`, `eshu_dp_postgres_query_duration_seconds`,
-the impact-findings HTTP/MCP envelope, `vulnerability.source_snapshot` payloads,
-and `source_snapshots[]` readiness metadata. The unsupported-target rollup adds
-no metric, span, log key, queue, reducer lane, graph write, or runtime worker;
-operators diagnose gaps through `unsupported_targets[]` and the
-`vulnerability.unsupported_target` aggregation marker.
+the impact-findings HTTP/MCP envelope, scanner-worker metrics and spans,
+`vulnerability.source_snapshot` payloads, and `source_snapshots[]` readiness
+metadata. The unsupported-target rollup adds no metric, span, log key, queue,
+reducer lane, graph write, or runtime worker; operators diagnose image analyzer
+coverage gaps through `scanner_worker.warning`, `unsupported_targets[]`, and
+the `vulnerability.unsupported_target` aggregation marker.
 
 ## Source Coverage And Read Contracts
 
