@@ -5,10 +5,10 @@
 This package owns Terraform and Terragrunt HCL parsing for the parser engine.
 It reads HCL source, extracts Terraform blocks, resources, variables, outputs,
 modules, providers, data sources, locals, backends, imports, moved blocks,
-removed blocks, checks, lockfile providers, Terragrunt configs, dependencies,
-inputs, local config asset paths, and Terragrunt `remote_state` blocks
-(including blocks inherited via the include chain), then returns the parser
-payload shape.
+removed blocks, checks, lockfile providers, declared PagerDuty
+module/tfvars evidence, Terragrunt configs, dependencies, inputs, local config
+asset paths, and Terragrunt `remote_state` blocks (including blocks inherited
+via the include chain), then returns the parser payload shape.
 
 ## HCL parse flow
 
@@ -97,6 +97,14 @@ evaluate to the unescaped character). The encoding must stay in lockstep with
 the state-side flattener in `tfstate_drift_evidence_state_row.go` — see
 `literalAttributeValue` and `ctyValueToDriftString` in
 `terraform_resource_attributes.go`.
+
+PagerDuty declaration extraction (`pagerduty_declarations.go`) is declared
+source evidence only. It recognizes supported PagerDuty service modules and
+tfvars service objects, preserves repo path, environment/workspace, module
+source fingerprint, module name, bounded input values, resolution state,
+redaction state, and duplicate/malformed/unsupported outcomes. It never runs
+Terraform, evaluates arbitrary expressions, calls PagerDuty, or stores endpoint,
+token, key, URL, or secret-bearing values.
 
 Payload buckets must stay deterministic. Rows are sorted before `Parse`
 returns so ingestion retries and repair runs converge on the same facts.

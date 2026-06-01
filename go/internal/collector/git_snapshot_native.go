@@ -90,6 +90,7 @@ var snapshotEntityBuckets = []struct {
 	{bucket: "data_owners", label: "DataOwner"},
 	{bucket: "data_contracts", label: "DataContract"},
 	{bucket: "impl_blocks", label: "ImplBlock"},
+	{bucket: "pagerduty_declarations", label: "PagerDutyDeclaration"},
 }
 
 // NativeRepositorySnapshotter builds repository snapshots without Python bridge code.

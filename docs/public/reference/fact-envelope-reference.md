@@ -147,6 +147,15 @@ separate source evidence. A `work_item.external_link` to a GitHub PR URL is
 source evidence only until GitHub/provider PR evidence verifies the commit-to-PR
 hop.
 
+Declared PagerDuty module and tfvars evidence from Terraform source is emitted
+through ordinary `content_entity` facts with `entity_type=PagerDutyDeclaration`
+and `source_class=declared` in entity metadata. These facts preserve repo path,
+environment/workspace, module source fingerprint, module name, bounded input
+values, redaction state, and duplicate/malformed/unsupported outcomes. They do
+not require live PagerDuty credentials, do not run Terraform, and do not replace
+the observed `incident.*` or `change.*` facts emitted by the PagerDuty
+collector.
+
 ## Promotion Rules
 
 Facts are source evidence, not automatic graph truth.

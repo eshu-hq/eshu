@@ -280,6 +280,9 @@ func TestMaterializeCarriesExtendedParserEntityBuckets(t *testing.T) {
 					"components": {
 						{Name: "ToolbarButton", LineNumber: 6},
 					},
+					"pagerduty_declarations": {
+						{Name: "module.checkout_pagerduty_service", LineNumber: 7},
+					},
 				},
 			},
 		},
@@ -290,8 +293,8 @@ func TestMaterializeCarriesExtendedParserEntityBuckets(t *testing.T) {
 		t.Fatalf("Materialize() error = %v, want nil", err)
 	}
 
-	if len(got.Entities) != 6 {
-		t.Fatalf("len(Materialize().Entities) = %d, want 6", len(got.Entities))
+	if len(got.Entities) != 7 {
+		t.Fatalf("len(Materialize().Entities) = %d, want 7", len(got.Entities))
 	}
 
 	wantTypes := []string{
@@ -301,6 +304,7 @@ func TestMaterializeCarriesExtendedParserEntityBuckets(t *testing.T) {
 		"TypeAnnotation",
 		"Typedef",
 		"Component",
+		"PagerDutyDeclaration",
 	}
 	gotTypes := make([]string, 0, len(got.Entities))
 	for _, entity := range got.Entities {
