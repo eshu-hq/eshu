@@ -102,6 +102,11 @@ func supplyChainConsumptionFromManifestDependency(
 		versionEvidence:           strings.TrimSpace(dependency.VersionEvidence),
 		unresolvedMSBuildProperty: strings.TrimSpace(dependency.UnresolvedMSBuildProperty),
 		ambiguousMSBuildProperty:  strings.TrimSpace(dependency.AmbiguousMSBuildProperty),
+		packageAPIPackages:        uniqueSortedStrings(dependency.PackageAPIPackages),
+		packageAPIIdentitySource:  strings.TrimSpace(dependency.PackageAPIIdentitySource),
+		dependencyResolutionState: strings.TrimSpace(dependency.DependencyResolutionState),
+		sourceSet:                 strings.TrimSpace(dependency.SourceSet),
+		generatedCode:             cloneBoolPointer(dependency.GeneratedCode),
 		partialEvidence:           dependency.PartialEvidence,
 		lockfile:                  dependency.Lockfile,
 	}

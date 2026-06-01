@@ -77,6 +77,9 @@ Supported today:
   providers, and Spring Boot autoconfiguration metadata are modeled roots.
 - Bounded literal reflection and method-reference evidence protect parser-proven
   references.
+- Vulnerability reachability for Maven/Gradle findings can use Java imports and
+  calls only after resolver evidence proves the dependency's package API prefix;
+  this is a reachable prioritization signal, not a not-called or safe result.
 
 Not claimed today:
 

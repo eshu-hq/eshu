@@ -68,6 +68,9 @@ Supported today:
   derived roots.
 - Interfaces, same-file interface implementations, overrides, and top-level
   `main` are modeled as root evidence.
+- Maven/Gradle vulnerability reachability can use Kotlin imports, calls, and
+  SCIP evidence only when resolver evidence proves the dependency's package API
+  prefix; the result is reachable prioritization, not safe/not-called truth.
 
 Not claimed today:
 

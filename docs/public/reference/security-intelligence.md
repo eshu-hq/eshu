@@ -518,7 +518,7 @@ vulnerability scanner to a safe/not-safe oracle. Current support:
 | Go modules | `implemented` | Go module facts plus govulncheck-compatible module, import, symbol, and `not_called` evidence. | `symbol_reachable` and package-import evidence prioritize a finding; `not_called` is explicit but does not hide or downgrade impact. Missing govulncheck evidence becomes `missing_evidence`. |
 | JavaScript / TypeScript npm | `partial` | Dependency manifests/lockfiles plus parser or SCIP package API import, call, and re-export evidence when the npm package identity is proven exactly. | Matching package API evidence can mark a finding `reachable` for prioritization, but absence or ambiguity stays `unknown` or `missing_evidence`; JS/TS never emits `not_called` today. |
 | Python PyPI | `partial` | Requirements/pyproject/Pipfile/Poetry evidence plus parser/SCIP import, call, decorator, and framework-root evidence. Parser/SCIP evidence can mark a finding `reachable` only when a valid PyPI package API identity, such as `requests`, joins to an observed import/call/decorator/SCIP symbol. | Dynamic imports, plugin loading, hyphenated or otherwise unresolved package APIs, and package-name-to-module gaps remain `unknown` or `missing_evidence`; Python never emits `not_called` safety claims from absent parser evidence. |
-| JVM Maven / Gradle | `partial` | Maven/Gradle dependency evidence plus Java/Kotlin/Scala parser roots, method references, overrides, Spring/JUnit/ServiceLoader evidence. | Resolver/source-set and dynamic dispatch gaps keep vulnerability reachability below implemented scanner semantics. |
+| JVM Maven / Gradle | `partial` | Maven/Gradle dependency evidence plus resolver-proven package API prefixes and Java/Kotlin/Scala parser or SCIP import/call evidence. | Matching API-prefix usage marks a finding `reachable` for prioritization only. Source-set, resolver, reflection, dependency-injection, generated-code, and dynamic dispatch gaps remain explicit missing evidence; JVM never emits `not_called` without a future ecosystem-specific analyzer. |
 | PHP Composer | `partial` | Composer dependency paths and exact installed-version evidence can mark package-level reachability as `reachable` with partial confidence. PHP parser roots, interface/trait methods, controllers, literal routes, and hook callbacks remain supporting evidence. | Autoload, dynamic dispatch, broader framework routes, and missing parser/SCIP package API calls stay in `missing_evidence`; Composer never emits `not_called`. |
 | Ruby / RubyGems | `partial` | Bundler dependency paths and exact installed-version evidence can mark package-level reachability as `reachable` with partial confidence. Ruby parser roots, Rails controller/callback evidence, literal method references, and method-missing guards remain supporting evidence. | Metaprogramming, autoload, and missing parser/SCIP package API calls stay in `missing_evidence`; RubyGems never emits `not_called`. |
 | Rust Cargo | `partial` | Cargo dependency paths and exact installed-version evidence can mark package-level reachability as `reachable` with partial confidence. Rust parser roots, tests, public API items, trait implementations, benchmarks, and module-resolution evidence remain supporting evidence. | Macro expansion, cfg/feature solving, cross-crate semantic gaps, and missing parser/SCIP package API calls stay in `missing_evidence`; Cargo never emits `not_called`. |
@@ -538,18 +538,24 @@ repository-scoped parser fact loading from the active Git scope/generation
 instead of the vulnerability-intent scope, fail-closed missing evidence when no
 repository scope is available, stable reachability states, and PyPI version
 matching.
+No-Regression Evidence: `go test ./internal/reducer -run 'TestBuildSupplyChainImpactFindings.*JVM|TestSupplyChainImpactHandlerLoadsActiveJVMReachabilityFacts' -count=1`
+proves Maven and Gradle impact findings only become
+`jvm_package_api_reachable` when resolver-proven API prefixes match parser or
+SCIP usage in the same repository, while missing API identity, missing parser
+usage, and absent not-called analyzer evidence stay explicit.
 
 No-Observability-Change: reachability enrichment is serialized onto existing
 `reducer_supply_chain_impact_finding` facts and read through the existing
 `query.supply_chain_impact_findings` route, MCP tool dispatch, CLI report, and
-SARIF exporter. The JS/TS and Python joins add in-memory reducer
+SARIF exporter. The JS/TS, Python, and JVM joins add in-memory reducer
 classification and use repository-bounded active fact reads; Python resolves
 the impacted repository to its active Git scope/generation before loading
-existing `file` facts by `repo_id`. The joins add no graph write, queue,
-worker, metric instrument, span name, log key, runtime setting, or collector.
-Operators diagnose the path through the existing impact finding payload,
-readiness envelope, reducer execution counters, query spans, and Postgres query
-duration metrics.
+existing `file` facts by `repo_id`, while JVM bounds parser/SCIP reads by
+canonical repository IDs and indexed JVM file facts before API-prefix matching.
+They add no graph write, queue, worker, metric instrument, span name, log key,
+runtime setting, or collector. Operators diagnose the path through the existing
+impact finding payload, readiness envelope, reducer execution counters, query
+spans, and Postgres query duration metrics.
 
 Performance Evidence: focused query tests
 `go test ./internal/query -run 'PackageMetadata|SupplyChainImpactReadiness'

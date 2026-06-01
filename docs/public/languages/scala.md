@@ -49,6 +49,9 @@ Supported today:
   suites, and lifecycle callbacks are modeled as derived roots.
 - `main`, objects extending `App`, traits, same-file trait implementations,
   and overrides are also modeled as root evidence.
+- Maven/Gradle vulnerability reachability can use Scala imports, calls, and
+  SCIP evidence only when resolver evidence proves the dependency's package API
+  prefix; this remains a prioritization signal and never emits `not_called`.
 
 Not claimed today:
 

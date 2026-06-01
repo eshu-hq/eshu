@@ -204,6 +204,11 @@ func (h SupplyChainImpactHandler) Handle(ctx context.Context, intent Intent) (Re
 		return Result{}, fmt.Errorf("load Python reachability evidence facts: %w", err)
 	}
 	envelopes = appendUniqueSupplyChainImpactFacts(envelopes, pythonReachabilityEvidence...)
+	jvmReachabilityFacts, err := h.loadActiveJVMReachabilityFacts(ctx, envelopes)
+	if err != nil {
+		return Result{}, fmt.Errorf("load active JVM reachability facts: %w", err)
+	}
+	envelopes = appendUniqueSupplyChainImpactFacts(envelopes, jvmReachabilityFacts...)
 	if supplyChainImpactUsesSecurityAlertScope(intent, envelopes) {
 		envelopes = scopeSupplyChainImpactEvidenceToSecurityAlerts(envelopes)
 	}

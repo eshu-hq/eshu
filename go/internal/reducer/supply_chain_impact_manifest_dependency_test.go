@@ -10,16 +10,19 @@ import (
 )
 
 type manifestBackedSupplyChainImpactLoader struct {
-	scopeFacts        []facts.Envelope
-	activeFacts       []facts.Envelope
-	repositoryFacts   []facts.Envelope
-	manifestFacts     []facts.Envelope
-	repositoryCalls   int
-	manifestCalls     int
-	manifestEcosystem []string
-	manifestNames     []string
-	kindCalls         [][]string
-	filters           []SupplyChainImpactFactFilter
+	scopeFacts           []facts.Envelope
+	activeFacts          []facts.Envelope
+	repositoryFacts      []facts.Envelope
+	manifestFacts        []facts.Envelope
+	jvmReachabilityFacts []facts.Envelope
+	repositoryCalls      int
+	manifestCalls        int
+	jvmReachabilityCalls int
+	jvmFilters           []JVMReachabilityFactFilter
+	manifestEcosystem    []string
+	manifestNames        []string
+	kindCalls            [][]string
+	filters              []SupplyChainImpactFactFilter
 }
 
 func (s *manifestBackedSupplyChainImpactLoader) ListFacts(
@@ -64,6 +67,15 @@ func (s *manifestBackedSupplyChainImpactLoader) ListActivePackageManifestDepende
 	s.manifestEcosystem = append([]string(nil), ecosystems...)
 	s.manifestNames = append([]string(nil), packageNames...)
 	return append([]facts.Envelope(nil), s.manifestFacts...), nil
+}
+
+func (s *manifestBackedSupplyChainImpactLoader) ListActiveJVMReachabilityFacts(
+	_ context.Context,
+	filter JVMReachabilityFactFilter,
+) ([]facts.Envelope, error) {
+	s.jvmReachabilityCalls++
+	s.jvmFilters = append(s.jvmFilters, filter)
+	return append([]facts.Envelope(nil), s.jvmReachabilityFacts...), nil
 }
 
 func TestSupplyChainImpactHandlerUsesManifestDependencyBeforeRegistryCorrelation(t *testing.T) {
