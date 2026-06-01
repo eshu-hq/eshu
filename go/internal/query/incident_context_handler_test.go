@@ -213,3 +213,29 @@ func TestIncidentContextQueriesStayBoundedToActiveFacts(t *testing.T) {
 		}
 	}
 }
+
+func TestIncidentContextRuntimeQueriesStayBoundedToExplicitEvidence(t *testing.T) {
+	t.Parallel()
+
+	for _, want := range []string{
+		"fact.fact_kind = 'service_catalog.operational_link'",
+		"fact.payload->>'url' = $1",
+		"scope.active_generation_id = fact.generation_id",
+		"LIMIT $2",
+	} {
+		if !strings.Contains(listIncidentServiceCatalogOperationalLinksQuery, want) {
+			t.Fatalf("listIncidentServiceCatalogOperationalLinksQuery missing %q:\n%s", want, listIncidentServiceCatalogOperationalLinksQuery)
+		}
+	}
+	for _, want := range []string{
+		"fact.fact_kind = 'reducer_kubernetes_correlation'",
+		"fact.payload->>'source_digest' = $1",
+		"fact.payload->>'image_ref' = $2",
+		"fact.payload->>'outcome' IN ('exact', 'derived', 'ambiguous')",
+		"LIMIT $3",
+	} {
+		if !strings.Contains(listIncidentKubernetesCorrelationsByImageQuery, want) {
+			t.Fatalf("listIncidentKubernetesCorrelationsByImageQuery missing %q:\n%s", want, listIncidentKubernetesCorrelationsByImageQuery)
+		}
+	}
+}

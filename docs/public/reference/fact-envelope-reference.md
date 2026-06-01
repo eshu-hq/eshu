@@ -115,8 +115,11 @@ The incident-context read model may present provider state, timeline entries,
 fallback change candidates, and explicit missing path slots directly from these
 facts. Reducers and enrichment collectors must prove runtime artifact, image,
 commit, pull-request, and work-item evidence before those path slots become
-non-missing. Missing Jira links are valid incident evidence state and must not
-block incident collection.
+non-missing. Runtime and image slots require explicit service-catalog
+operational-link evidence to the PagerDuty service URL plus reducer-owned
+catalog, container-image, or Kubernetes correlation facts; similar service names
+are not enough. Missing Jira links are valid incident evidence state and must
+not block incident collection.
 
 `work_item.record`, `work_item.transition`, and `work_item.external_link`
 preserve Jira work-item state, changelog IDs, and remote-link IDs as provider
