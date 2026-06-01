@@ -4,6 +4,7 @@ import (
 	"context"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
@@ -180,6 +181,16 @@ func TestBuildSupplyChainImpactFindingsMarksPyPISCIPCallReachable(t *testing.T) 
 func TestSupplyChainImpactHandlerLoadsPyPIParserEvidenceByRepository(t *testing.T) {
 	t.Parallel()
 
+	observedAt := time.Date(2026, 6, 1, 12, 0, 0, 0, time.UTC)
+	repository := packageSourceRepositoryFact(
+		testImpactRepositoryID,
+		"api",
+		"https://github.com/acme/api",
+		false,
+		observedAt,
+	)
+	repository.ScopeID = "git-repository-scope:repository:r_api"
+	repository.GenerationID = "git-generation-api-active"
 	loader := &pythonReachabilityImpactLoader{
 		scopeFacts: []facts.Envelope{
 			vulnerabilityCVEFact("cve-pypi-handler", "CVE-2026-118603", 8.7),
@@ -201,6 +212,7 @@ func TestSupplyChainImpactHandlerLoadsPyPIParserEvidenceByRepository(t *testing.
 				true,
 			),
 		},
+		repositoryFacts: []facts.Envelope{repository},
 		payloadFacts: []facts.Envelope{
 			pythonReachabilityFileFact(
 				"file-pypi-handler-unrelated",
@@ -243,6 +255,15 @@ func TestSupplyChainImpactHandlerLoadsPyPIParserEvidenceByRepository(t *testing.
 	if call.factKind != factKindFile || call.payloadKey != "repo_id" {
 		t.Fatalf("payload call = %#v, want file facts by repo_id", call)
 	}
+	if call.scopeID != repository.ScopeID || call.generationID != repository.GenerationID {
+		t.Fatalf(
+			"payload call scope = (%q, %q), want repository scope (%q, %q)",
+			call.scopeID,
+			call.generationID,
+			repository.ScopeID,
+			repository.GenerationID,
+		)
+	}
 	if got, want := strings.Join(call.payloadValues, ","), testImpactRepositoryID; got != want {
 		t.Fatalf("payload values = %q, want %q", got, want)
 	}
@@ -257,14 +278,88 @@ func TestSupplyChainImpactHandlerLoadsPyPIParserEvidenceByRepository(t *testing.
 	}
 }
 
+func TestSupplyChainImpactHandlerKeepsPyPIReachabilityMissingWithoutRepositoryScope(t *testing.T) {
+	t.Parallel()
+
+	loader := &pythonReachabilityImpactLoader{
+		scopeFacts: []facts.Envelope{
+			vulnerabilityCVEFact("cve-pypi-missing-repo-scope", "CVE-2026-118605", 8.1),
+			vulnerabilityAffectedPackageRangeFact(
+				"affected-pypi-missing-repo-scope",
+				"CVE-2026-118605",
+				"pkg:pypi/requests",
+				"pypi",
+				"requests",
+				"2.32.0",
+			),
+			packageConsumptionFactWithChain(
+				"consume-pypi-missing-repo-scope",
+				"pkg:pypi/requests",
+				testImpactRepositoryID,
+				"2.31.0",
+				[]string{"requests"},
+				1,
+				true,
+			),
+		},
+		payloadFacts: []facts.Envelope{
+			pythonReachabilityFileFact(
+				"file-pypi-missing-repo-scope",
+				testImpactRepositoryID,
+				"app.py",
+				[]any{map[string]any{"name": "requests", "source": "requests", "lang": "python"}},
+				[]any{map[string]any{"name": "get", "full_name": "requests.get", "line_number": 4, "lang": "python"}},
+				nil,
+				nil,
+			),
+		},
+	}
+	writer := &recordingSupplyChainImpactWriter{}
+	handler := SupplyChainImpactHandler{FactLoader: loader, Writer: writer}
+
+	_, err := handler.Handle(context.Background(), Intent{
+		IntentID:     "intent-pypi-missing-repo-scope",
+		ScopeID:      "vuln-intel://osv/pypi/requests@2.32.0",
+		GenerationID: "generation-vuln-intel-pypi-requests",
+		SourceSystem: "vulnerability_intelligence",
+		Domain:       DomainSupplyChainImpact,
+		Cause:        "vulnerability evidence observed",
+	})
+	if err != nil {
+		t.Fatalf("Handle() error = %v, want nil", err)
+	}
+	if len(loader.payloadCalls) != 0 {
+		t.Fatalf("ListFactsByKindAndPayloadValue() calls = %d, want 0 without repository scope", len(loader.payloadCalls))
+	}
+	if len(writer.write.Findings) != 1 {
+		t.Fatalf("written findings = %d, want 1", len(writer.write.Findings))
+	}
+	finding := writer.write.Findings[0]
+	assertSupplyChainImpactStatus(t, finding, SupplyChainImpactAffectedExact)
+	if got := finding.Reachability; got == nil || got.State != SupplyChainReachabilityMissingEvidence {
+		t.Fatalf("written Reachability = %#v, want missing evidence", got)
+	}
+	if !stringSliceContains(finding.Reachability.MissingEvidence, "python parser or SCIP reachability evidence missing") {
+		t.Fatalf("MissingEvidence = %#v, want parser evidence missing", finding.Reachability.MissingEvidence)
+	}
+	if stringSliceContains(finding.EvidenceFactIDs, "file-pypi-missing-repo-scope") {
+		t.Fatalf("EvidenceFactIDs = %#v, must not cite unqueried repository file facts", finding.EvidenceFactIDs)
+	}
+}
+
 type pythonReachabilityImpactLoader struct {
-	scopeFacts   []facts.Envelope
-	payloadFacts []facts.Envelope
-	kindCalls    [][]string
-	payloadCalls []pythonPayloadFactCall
+	scopeFacts      []facts.Envelope
+	repositoryFacts []facts.Envelope
+	payloadFacts    []facts.Envelope
+	kindCalls       [][]string
+	repositoryCalls int
+	manifestCalls   int
+	payloadCalls    []pythonPayloadFactCall
 }
 
 type pythonPayloadFactCall struct {
+	scopeID       string
+	generationID  string
 	factKind      string
 	payloadKey    string
 	payloadValues []string
@@ -290,18 +385,39 @@ func (l *pythonReachabilityImpactLoader) ListFactsByKind(
 
 func (l *pythonReachabilityImpactLoader) ListFactsByKindAndPayloadValue(
 	_ context.Context,
-	_ string,
-	_ string,
+	scopeID string,
+	generationID string,
 	factKind string,
 	payloadKey string,
 	payloadValues []string,
 ) ([]facts.Envelope, error) {
 	l.payloadCalls = append(l.payloadCalls, pythonPayloadFactCall{
+		scopeID:       scopeID,
+		generationID:  generationID,
 		factKind:      factKind,
 		payloadKey:    payloadKey,
 		payloadValues: append([]string(nil), payloadValues...),
 	})
+	if scopeID != "git-repository-scope:repository:r_api" || generationID != "git-generation-api-active" {
+		return nil, nil
+	}
 	return append([]facts.Envelope(nil), l.payloadFacts...), nil
+}
+
+func (l *pythonReachabilityImpactLoader) ListActiveRepositoryFacts(
+	context.Context,
+) ([]facts.Envelope, error) {
+	l.repositoryCalls++
+	return append([]facts.Envelope(nil), l.repositoryFacts...), nil
+}
+
+func (l *pythonReachabilityImpactLoader) ListActivePackageManifestDependencyFacts(
+	context.Context,
+	[]string,
+	[]string,
+) ([]facts.Envelope, error) {
+	l.manifestCalls++
+	return nil, nil
 }
 
 func (l *pythonReachabilityImpactLoader) ListActiveSupplyChainImpactFacts(

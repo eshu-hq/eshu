@@ -199,7 +199,7 @@ func (h SupplyChainImpactHandler) Handle(ctx context.Context, intent Intent) (Re
 	if err != nil {
 		return Result{}, fmt.Errorf("load active supply chain impact facts: %w", err)
 	}
-	pythonReachabilityEvidence, err := h.loadPythonReachabilityEvidenceFacts(ctx, intent, envelopes)
+	pythonReachabilityEvidence, err := h.loadPythonReachabilityEvidenceFacts(ctx, envelopes)
 	if err != nil {
 		return Result{}, fmt.Errorf("load Python reachability evidence facts: %w", err)
 	}

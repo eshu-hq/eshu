@@ -531,20 +531,25 @@ proves the stable reachability states, Go govulncheck `reachable` and
 missing-evidence states, repository-bounded file evidence loading, priority
 contributions that do not alter `impact_status`, package-level Composer,
 RubyGems, Cargo, and NuGet reachability joins, API/MCP/CLI/export shaping, and
-parity report preservation. `go test ./internal/reducer -run 'TestBuildSupplyChainImpactFindingsMarksPyPIParserImportReachable|TestBuildSupplyChainImpactFindingsMarksPyPISCIPCallReachable|TestBuildSupplyChainImpactFindingsKeepsPyPIDynamicImportsAmbiguous|TestSupplyChainImpactHandlerLoadsPyPIParserEvidenceByRepository|TestSupplyChainReachability|TestBuildSupplyChainImpactFindings.*PyPI|TestEvaluatePyPIMatch' -count=1`
+parity report preservation.
+No-Regression Evidence: `go test ./internal/reducer -run 'TestBuildSupplyChainImpactFindingsMarksPyPIParserImportReachable|TestBuildSupplyChainImpactFindingsMarksPyPISCIPCallReachable|TestBuildSupplyChainImpactFindingsKeepsPyPIDynamicImportsAmbiguous|TestSupplyChainImpactHandlerLoadsPyPIParserEvidenceByRepository|TestSupplyChainImpactHandlerKeepsPyPIReachabilityMissingWithoutRepositoryScope|TestSupplyChainReachability|TestBuildSupplyChainImpactFindings.*PyPI|TestEvaluatePyPIMatch' -count=1`
 proves PyPI parser/SCIP `reachable`, dynamic/plugin ambiguity, bounded
-repository-scoped parser fact loading, stable reachability states, and PyPI
-version matching.
+repository-scoped parser fact loading from the active Git scope/generation
+instead of the vulnerability-intent scope, fail-closed missing evidence when no
+repository scope is available, stable reachability states, and PyPI version
+matching.
 
 No-Observability-Change: reachability enrichment is serialized onto existing
 `reducer_supply_chain_impact_finding` facts and read through the existing
 `query.supply_chain_impact_findings` route, MCP tool dispatch, CLI report, and
 SARIF exporter. The JS/TS and Python joins add in-memory reducer
-classification and use repository-bounded active fact reads; they add no graph
-write, queue, worker, metric instrument, span name, log key, runtime setting,
-or collector. Operators diagnose the path through the existing impact finding
-payload, readiness envelope, reducer execution counters, query spans, and
-Postgres query duration metrics.
+classification and use repository-bounded active fact reads; Python resolves
+the impacted repository to its active Git scope/generation before loading
+existing `file` facts by `repo_id`. The joins add no graph write, queue,
+worker, metric instrument, span name, log key, runtime setting, or collector.
+Operators diagnose the path through the existing impact finding payload,
+readiness envelope, reducer execution counters, query spans, and Postgres query
+duration metrics.
 
 Performance Evidence: focused query tests
 `go test ./internal/query -run 'PackageMetadata|SupplyChainImpactReadiness'

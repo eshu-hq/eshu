@@ -2,6 +2,7 @@ package reducer
 
 import (
 	"context"
+	"sort"
 	"strings"
 	"unicode"
 
@@ -24,9 +25,13 @@ type pythonReachabilityRepositoryEvidence struct {
 	pluginLoading    bool
 }
 
+type pythonReachabilityRepositoryScope struct {
+	scopeID      string
+	generationID string
+}
+
 func (h SupplyChainImpactHandler) loadPythonReachabilityEvidenceFacts(
 	ctx context.Context,
-	intent Intent,
 	envelopes []facts.Envelope,
 ) ([]facts.Envelope, error) {
 	if !supplyChainImpactHasPyPIEvidence(envelopes) {
@@ -36,15 +41,89 @@ func (h SupplyChainImpactHandler) loadPythonReachabilityEvidenceFacts(
 	if len(repositoryIDs) == 0 {
 		return nil, nil
 	}
-	return loadFactsForKindAndPayloadValue(
-		ctx,
-		h.FactLoader,
-		intent.ScopeID,
-		intent.GenerationID,
-		factKindFile,
-		"repo_id",
-		repositoryIDs,
-	)
+	repositoriesByScope := pythonReachabilityRepositoryIDsByScope(envelopes, repositoryIDs)
+	if len(repositoriesByScope) == 0 {
+		return nil, nil
+	}
+
+	var loaded []facts.Envelope
+	for _, repoScope := range sortedPythonReachabilityRepositoryScopes(repositoriesByScope) {
+		fileFacts, err := loadFactsForKindAndPayloadValue(
+			ctx,
+			h.FactLoader,
+			repoScope.scopeID,
+			repoScope.generationID,
+			factKindFile,
+			"repo_id",
+			repositoriesByScope[repoScope],
+		)
+		if err != nil {
+			return nil, err
+		}
+		loaded = appendUniqueSupplyChainImpactFacts(loaded, fileFacts...)
+	}
+	return loaded, nil
+}
+
+func pythonReachabilityRepositoryIDsByScope(
+	envelopes []facts.Envelope,
+	repositoryIDs []string,
+) map[pythonReachabilityRepositoryScope][]string {
+	needed := make(map[string]struct{}, len(repositoryIDs))
+	for _, repositoryID := range repositoryIDs {
+		repositoryID = strings.TrimSpace(repositoryID)
+		if repositoryID == "" {
+			continue
+		}
+		needed[repositoryID] = struct{}{}
+	}
+	if len(needed) == 0 {
+		return nil
+	}
+
+	out := map[pythonReachabilityRepositoryScope][]string{}
+	for _, envelope := range envelopes {
+		if envelope.FactKind != factKindRepository || envelope.IsTombstone {
+			continue
+		}
+		repositoryID := firstNonBlank(
+			payloadStr(envelope.Payload, "graph_id"),
+			payloadStr(envelope.Payload, "repo_id"),
+			payloadStr(envelope.Payload, "repository_id"),
+			packageSourceRepositoryIDFromScope(envelope.ScopeID),
+		)
+		if _, ok := needed[repositoryID]; !ok {
+			continue
+		}
+		repoScope := pythonReachabilityRepositoryScope{
+			scopeID:      strings.TrimSpace(envelope.ScopeID),
+			generationID: strings.TrimSpace(envelope.GenerationID),
+		}
+		if repoScope.scopeID == "" || repoScope.generationID == "" {
+			continue
+		}
+		out[repoScope] = append(out[repoScope], repositoryID)
+	}
+	for repoScope, ids := range out {
+		out[repoScope] = uniqueSortedStrings(ids)
+	}
+	return out
+}
+
+func sortedPythonReachabilityRepositoryScopes(
+	repositoriesByScope map[pythonReachabilityRepositoryScope][]string,
+) []pythonReachabilityRepositoryScope {
+	repoScopes := make([]pythonReachabilityRepositoryScope, 0, len(repositoriesByScope))
+	for repoScope := range repositoriesByScope {
+		repoScopes = append(repoScopes, repoScope)
+	}
+	sort.Slice(repoScopes, func(i, j int) bool {
+		if repoScopes[i].scopeID != repoScopes[j].scopeID {
+			return repoScopes[i].scopeID < repoScopes[j].scopeID
+		}
+		return repoScopes[i].generationID < repoScopes[j].generationID
+	})
+	return repoScopes
 }
 
 func supplyChainImpactHasPyPIEvidence(envelopes []facts.Envelope) bool {
