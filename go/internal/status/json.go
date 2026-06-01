@@ -136,14 +136,25 @@ type coordinatorSnapshotJSON struct {
 }
 
 type registryCollectorJSON struct {
-	CollectorKind              string           `json:"collector_kind"`
-	ConfiguredInstances        int              `json:"configured_instances"`
-	ActiveScopes               int              `json:"active_scopes"`
-	RecentCompletedGenerations int              `json:"recent_completed_generations"`
-	LastCompletedAt            string           `json:"last_completed_at,omitempty"`
-	RetryableFailures          int              `json:"retryable_failures"`
-	TerminalFailures           int              `json:"terminal_failures"`
-	FailureClassCounts         []namedCountJSON `json:"failure_class_counts,omitempty"`
+	CollectorKind              string               `json:"collector_kind"`
+	ConfiguredInstances        int                  `json:"configured_instances"`
+	ActiveScopes               int                  `json:"active_scopes"`
+	RecentCompletedGenerations int                  `json:"recent_completed_generations"`
+	LastCompletedAt            string               `json:"last_completed_at,omitempty"`
+	RetryableFailures          int                  `json:"retryable_failures"`
+	TerminalFailures           int                  `json:"terminal_failures"`
+	FailureClassCounts         []namedCountJSON     `json:"failure_class_counts,omitempty"`
+	MetadataTargets            []metadataTargetJSON `json:"metadata_targets,omitempty"`
+}
+
+type metadataTargetJSON struct {
+	Ecosystem   string `json:"ecosystem"`
+	Planned     int    `json:"planned"`
+	Completed   int    `json:"completed"`
+	Skipped     int    `json:"skipped"`
+	Stale       int    `json:"stale"`
+	Failed      int    `json:"failed"`
+	RateLimited int    `json:"rate_limited"`
 }
 
 type awsCloudScanJSON struct {
@@ -336,7 +347,16 @@ func registryCollectorsJSON(rows []RegistryCollectorSnapshot) []registryCollecto
 			RetryableFailures:          row.RetryableFailures,
 			TerminalFailures:           row.TerminalFailures,
 			FailureClassCounts:         namedCountsJSON(row.FailureClassCounts),
+			MetadataTargets:            metadataTargetsJSON(row.MetadataTargetCounts),
 		})
+	}
+	return projected
+}
+
+func metadataTargetsJSON(rows []RegistryMetadataTargetCount) []metadataTargetJSON {
+	projected := make([]metadataTargetJSON, 0, len(rows))
+	for _, row := range rows {
+		projected = append(projected, metadataTargetJSON(row))
 	}
 	return projected
 }

@@ -428,11 +428,14 @@ reducer-fact counts so the answer never invents findings:
   `sbom_target`, `package_registry_metadata`, or `image_target`), a stable
   `reason` code, and a `count` for the bounded scope. Optional `ecosystem`,
   `lockfile_flavor`, and `feature_token` fields explain why the matcher cannot
-  resolve the target. `package_registry_metadata` with
-  `reason=metadata_too_large` means package-registry metadata exceeded the
-  configured byte cap and was recorded as source coverage-gap evidence instead
-  of being retried. The list is surfaced whenever Eshu observes such evidence
-  — additively when findings exist, or as the dominant signal alongside
+  resolve the target. `package_registry_metadata` reasons are
+  `unsupported_metadata_source`, `registry_not_found`, `metadata_too_large`,
+  `malformed_metadata`, and `credentials_missing`. They mean bounded registry
+  metadata was planned from observed owned package evidence, but the adapter,
+  registry response, body size, parser, or private-registry credential state
+  left missing evidence that must remain visible instead of clean scanner
+  output. The list is surfaced whenever Eshu observes such evidence —
+  additively when findings exist, or as the dominant signal alongside
   `readiness_state=unsupported` when no finding could be admitted.
 - `incomplete_reasons[]` carries collector-emitted reasons explaining why
   source collection is still in flight; only populated when
@@ -471,8 +474,10 @@ The current implementation proves the following:
   outside `npm`, `nuget`, `maven`, `cargo`, `pypi`, `swift`, `composer`, `go`,
   `rubygems`, and `hex`; `content_entity` lockfile unsupported-feature markers;
   `sbom.warning` reasons `unsupported_field` or `malformed_document` joined to
-  the document subject digest; `package_registry.warning` code
-  `metadata_too_large`; and image-target `scanner_worker.warning` reasons
+  the document subject digest; `package_registry.warning` codes
+  `unsupported_metadata_source`, `registry_not_found`, `metadata_too_large`,
+  `malformed_metadata`, and `credentials_missing`; and image-target
+  `scanner_worker.warning` reasons
   `analyzer_not_configured` or `image_analyzer_unsupported_target` matched by
   `image_digest` or image scope id. `unsupported` outranks
   `evidence_incomplete` so callers can tell "we observed something we cannot

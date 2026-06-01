@@ -99,7 +99,7 @@ func validatePackageRegistryTargetConfiguration(target packageRegistryTargetConf
 
 func validatePackageRegistryEcosystem(raw string) error {
 	switch strings.TrimSpace(raw) {
-	case "npm", "pypi", "gomod", "maven", "nuget", "generic":
+	case "npm", "pypi", "go", "gomod", "maven", "nuget", "composer", "rubygems", "cargo", "generic":
 		return nil
 	case "":
 		return fmt.Errorf("ecosystem is required")
@@ -143,7 +143,7 @@ func validatePackageRegistryTargetDerivation(config packageRegistryTargetDerivat
 
 func validatePackageRegistryDerivedEcosystem(raw string) error {
 	switch strings.TrimSpace(raw) {
-	case "npm":
+	case "npm", "pypi", "go", "gomod", "maven", "nuget", "composer", "rubygems", "cargo":
 		return nil
 	case "":
 		return fmt.Errorf("ecosystem must not be blank")

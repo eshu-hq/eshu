@@ -465,6 +465,37 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/RegistryFailureClassCount"
+        metadata_targets:
+          type: array
+          description: Package-registry metadata target counts by ecosystem.
+          items:
+            $ref: "#/components/schemas/RegistryMetadataTargetCount"
+    RegistryMetadataTargetCount:
+      type: object
+      additionalProperties: false
+      required:
+        - ecosystem
+        - planned
+        - completed
+        - skipped
+        - stale
+        - failed
+        - rate_limited
+      properties:
+        ecosystem:
+          type: string
+        planned:
+          type: integer
+        completed:
+          type: integer
+        skipped:
+          type: integer
+        stale:
+          type: integer
+        failed:
+          type: integer
+        rate_limited:
+          type: integer
     AWSCloudScanSummary:
       type: object
       additionalProperties: false

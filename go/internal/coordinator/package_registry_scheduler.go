@@ -4,12 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"net/url"
 	"sort"
 	"strings"
 	"time"
 
-	"github.com/eshu-hq/eshu/go/internal/collector/packageregistry"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
@@ -270,7 +268,7 @@ func derivePackageRegistryTargets(
 	if versionLimit <= 0 {
 		versionLimit = 200
 	}
-	ecosystems := derivationEcosystems(derivation.Ecosystems, []string{"npm"})
+	ecosystems := packageRegistryDerivationEcosystems(derivation.Ecosystems)
 	seen := make(map[string]struct{}, len(configured)+len(owned))
 	for _, target := range configured {
 		seen[strings.TrimSpace(target.ScopeID)] = struct{}{}
@@ -281,7 +279,7 @@ func derivePackageRegistryTargets(
 		if !stringSetContains(ecosystems, target.Ecosystem) {
 			continue
 		}
-		derived, ok := npmPackageRegistryTarget(target, packageLimit, versionLimit)
+		derived, ok := packageRegistryTargetForOwnedPackage(target, packageLimit, versionLimit)
 		if !ok {
 			continue
 		}
@@ -319,38 +317,6 @@ func packageRegistryDerivedTargetLimit(raw int) int {
 		return maxDerivedPackageTargets
 	}
 	return limit
-}
-
-func npmPackageRegistryTarget(
-	target workflow.OwnedPackageDependencyTarget,
-	packageLimit int,
-	versionLimit int,
-) (packageRegistryTargetConfiguration, bool) {
-	identity, err := packageregistry.NormalizePackageIdentity(packageregistry.PackageIdentity{
-		Ecosystem: packageregistry.EcosystemNPM,
-		Registry:  "https://registry.npmjs.org",
-		RawName:   strings.TrimSpace(target.PackageName),
-	})
-	if err != nil {
-		return packageRegistryTargetConfiguration{}, false
-	}
-	metadataURL := "https://registry.npmjs.org/" + url.PathEscape(identity.NormalizedName)
-	return packageRegistryTargetConfiguration{
-		Provider:     "npm",
-		Ecosystem:    string(packageregistry.EcosystemNPM),
-		Registry:     "https://registry.npmjs.org",
-		ScopeID:      identity.PackageID,
-		Namespace:    identity.Namespace,
-		Packages:     []string{identity.NormalizedName},
-		PackageLimit: packageLimit,
-		VersionLimit: versionLimit,
-		Visibility:   string(packageregistry.VisibilityUnknown),
-		SourceURI:    metadataURL,
-		MetadataURL:  metadataURL,
-		Derived:      true,
-		PackageName:  identity.NormalizedName,
-		TargetClass:  packageRegistryTargetClassOwnedPackage,
-	}, true
 }
 
 func packageRegistryWorkItem(

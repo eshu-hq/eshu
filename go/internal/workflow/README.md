@@ -170,15 +170,19 @@ configured metadata endpoint before parsing package-native evidence. Targets
 may opt into `document_format=artifactory_package` when the response is a
 JFrog wrapper around native metadata; unknown document formats are rejected
 before planning. Targets may also opt into `derive_from_owned_packages` for
-bounded npm package metadata planning from active owned Git dependency facts.
+bounded package metadata planning from active owned Git dependency facts for
+npm, PyPI, Go modules, Maven, NuGet, Composer, RubyGems, and Cargo.
 Package-registry derivation selects package identities, not package-version
 rows, so one heavily reused package cannot consume the whole planning budget.
-Derived npm package-registry targets are identity-first by default: when
-`version_limit` is omitted, the runtime keeps one registry version for the
-package identity and leaves exact installed-version truth to source dependency
-facts and vulnerability-intelligence OSV query batches. Explicit
-package-registry targets can still set a higher `version_limit` when the goal is
-targeted registry version/dependency inspection.
+Derived npm and PyPI targets have native metadata URLs today; derived Go
+module, Maven, NuGet, Composer, RubyGems, and Cargo targets are planned as
+identity evidence and complete with explicit missing-evidence warnings until
+native metadata adapters land. When `version_limit` is omitted, the runtime
+keeps one registry version for fetched metadata and leaves exact
+installed-version truth to source dependency facts and vulnerability-intelligence
+OSV query batches. Explicit package-registry targets can still set a higher
+`version_limit` when the goal is targeted registry version/dependency
+inspection.
 Package registry instances are fact-only until reducer correlation and graph
 projection contracts land.
 
@@ -335,8 +339,9 @@ health, drift read-model publication, and future graph-readiness gaps.
 
 No-Regression Evidence: the owned package target derivation contract is covered
 by `go test ./internal/coordinator ./internal/workflow ./internal/storage/postgres ./internal/collector/packageregistry/packageruntime ./internal/collector/vulnerabilityintelligence/vulnruntime ./cmd/workflow-coordinator ./cmd/collector-package-registry ./cmd/collector-vulnerability-intelligence -count=1`.
-The test set proves package-registry planning derives unique npm metadata
-targets from active owned package evidence, vulnerability planning derives OSV
+The test set proves package-registry planning derives unique metadata targets
+from active owned package evidence across npm, PyPI, Go modules, Maven, NuGet,
+Composer, RubyGems, and Cargo; vulnerability planning derives OSV
 targets only for exact owned npm, Pub, and Swift versions, range and alias
 dependencies stay out of exact vulnerability collection, source-backed Swift
 package names with slashes are encoded into storage-safe `scope_id` values,
@@ -345,20 +350,21 @@ dependency rows to both planners, and both hosted collector commands parse the
 new derivation config. Planning remains bounded by
 `derive_from_owned_packages.target_limit`; the default remains 100 derived
 targets, and operators can explicitly raise the cap up to 5000 for full-corpus
-proofs. Package-registry derivation reads package-level npm identities and
-defaults omitted derived npm `version_limit` values to one registry version,
-vulnerability derivation reads exact package-version identities and batches them
-into storage-safe OSV querybatch work items, and the
-coordinator rotates each bounded read by reconcile bucket. This does not change
-worker counts, claim leases, graph writes, reducer queues, or NornicDB settings.
+proofs. Package-registry derivation reads package-level identities and defaults
+omitted derived `version_limit` values to one registry version when metadata is
+fetched. Vulnerability derivation reads exact package-version identities and
+batches them into storage-safe OSV querybatch work items, and the coordinator
+rotates each bounded read by reconcile bucket. This does not change worker
+counts, claim leases, graph writes, reducer queues, or NornicDB settings.
 
 Observability Evidence: no new metrics were required. Existing workflow run
 rows, work-item rows, `requested_scope_set` payloads, coordinator reconcile
 metrics, collector claim status, package-registry request/fact/rate-limit
 metrics, vulnerability-intelligence observation/fetch/fact metrics, and
 `/api/v0/index-status` expose planned, skipped, rate-limited, failed, completed,
-and stuck target states without putting package names, versions, feed URLs, or
-credential material in metric labels.
+and stuck target states. `/admin/status?format=json` also exposes
+package-registry metadata target counts by ecosystem without putting package
+names, versions, feed URLs, or credential material in metric labels.
 
 No-Regression Evidence: `go test ./internal/coordinator ./internal/workflow -run 'Test(ServiceRunActiveModeSinglePass(PackageRegistry|Vulnerability)DerivedBudgetDoesNotAdmitNextBucket|PackageRegistryCollectorConfigurationRejectsUnknownDerivedPlanningMode|VulnerabilityIntelligenceCollectorConfigurationRejectsUnknownDerivedPlanningMode)' -count=1` proves representative single-pass derived target planning keeps the same run key and zero rotation offset across reconcile buckets, while config validation rejects unsupported planning modes. The default mode remains rotating, so hosted collectors can continue progressing through larger corpora.
 

@@ -107,7 +107,9 @@ fall back to defaults rather than failing; malformed values fail fast.
 - `PackageRegistryWorkPlanner` — plans package-registry collection runs from
   configured package/feed targets and optional active owned package evidence
   without opening registry connections. Each configured or derived target
-  becomes one claimable work item keyed by its normalized `scope_id`.
+  becomes one claimable work item keyed by its normalized `scope_id`. Derived
+  package identities cover npm, PyPI, Go modules, Maven, NuGet, Composer,
+  RubyGems, and Cargo while preserving per-instance target limits.
 - `VulnerabilityIntelligenceWorkPlanner` — plans vulnerability-intelligence
   collection runs from configured source targets and optional active owned
   package evidence. Derived OSV targets are limited to exact owned dependency
@@ -216,7 +218,10 @@ warning (`collector_instance_drift_detected`, fields
   bounded `versions`, or bounded `queries` for OSV querybatch work. If a
   derivation-enabled instance plans no work, first check the owned dependency
   fact query, then confirm the dependency evidence is active and exact enough
-  for the collector family. Bounded reads rotate by reconcile bucket, and the
+  for the collector family. Package-registry derived npm and PyPI targets have
+  native metadata URLs; Go module, Maven, NuGet, Composer, RubyGems, and Cargo
+  derived targets intentionally surface missing metadata-source evidence until
+  native adapters land. Bounded reads rotate by reconcile bucket, and the
   planner preserves that reader order so direct and owned targets do not sit
   behind unrelated broad fanout. Derived reads include one bounded lookahead
   target beyond the planning budget. If that lookahead proves the owned-package
@@ -275,7 +280,8 @@ registry and vulnerability work items also carry `target_class` in
 progress without adding package names, versions, feed URLs, or credential
 material to metric labels. Rotated target selection and budget-exhausted
 skipped target counts remain visible through the bounded
-`requested_scope_set` rows.
+`requested_scope_set` rows, and package-registry metadata target counts are
+summarized by ecosystem in `/admin/status`.
 
 No-Regression Evidence: `go test ./internal/coordinator ./internal/workflow -run 'Test(ServiceRunActiveModeSinglePass(PackageRegistry|Vulnerability)DerivedBudgetDoesNotAdmitNextBucket|PackageRegistryCollectorConfigurationRejectsUnknownDerivedPlanningMode|VulnerabilityIntelligenceCollectorConfigurationRejectsUnknownDerivedPlanningMode)' -count=1` proves representative single-pass derived target planning keeps package-registry and vulnerability-intelligence derived work inside one stable plan key across reconcile buckets while preserving rotating mode as the default.
 

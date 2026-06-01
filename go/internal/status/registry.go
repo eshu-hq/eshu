@@ -3,6 +3,7 @@ package status
 import (
 	"fmt"
 	"slices"
+	"strings"
 	"time"
 )
 
@@ -18,12 +19,26 @@ type RegistryCollectorSnapshot struct {
 	RetryableFailures          int
 	TerminalFailures           int
 	FailureClassCounts         []NamedCount
+	MetadataTargetCounts       []RegistryMetadataTargetCount
+}
+
+// RegistryMetadataTargetCount summarizes package-registry metadata target
+// progress by ecosystem without exposing package names or registry URLs.
+type RegistryMetadataTargetCount struct {
+	Ecosystem   string
+	Planned     int
+	Completed   int
+	Skipped     int
+	Stale       int
+	Failed      int
+	RateLimited int
 }
 
 func cloneRegistryCollectorSnapshots(rows []RegistryCollectorSnapshot) []RegistryCollectorSnapshot {
 	cloned := slices.Clone(rows)
 	for i := range cloned {
 		cloned[i].FailureClassCounts = slices.Clone(cloned[i].FailureClassCounts)
+		cloned[i].MetadataTargetCounts = slices.Clone(cloned[i].MetadataTargetCounts)
 	}
 	return cloned
 }
@@ -49,7 +64,27 @@ func renderRegistryCollectorLines(rows []RegistryCollectorSnapshot) []string {
 		if len(row.FailureClassCounts) > 0 {
 			line += fmt.Sprintf(" failure_classes=%s", formatNamedTotals(toCountMap(row.FailureClassCounts)))
 		}
+		if len(row.MetadataTargetCounts) > 0 {
+			line += fmt.Sprintf(" metadata_targets=%s", formatMetadataTargetCounts(row.MetadataTargetCounts))
+		}
 		lines = append(lines, line)
 	}
 	return lines
+}
+
+func formatMetadataTargetCounts(rows []RegistryMetadataTargetCount) string {
+	parts := make([]string, 0, len(rows))
+	for _, row := range rows {
+		parts = append(parts, fmt.Sprintf(
+			"%s(planned=%d completed=%d skipped=%d stale=%d failed=%d rate_limited=%d)",
+			row.Ecosystem,
+			row.Planned,
+			row.Completed,
+			row.Skipped,
+			row.Stale,
+			row.Failed,
+			row.RateLimited,
+		))
+	}
+	return strings.Join(parts, " ")
 }

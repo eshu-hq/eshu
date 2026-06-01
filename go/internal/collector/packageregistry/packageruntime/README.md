@@ -25,7 +25,7 @@ flowchart LR
 
 - `SourceConfig` validates collector instance ID, bounded targets, provider,
   and optional telemetry handles.
-- `DerivedTargetConfig` enables bounded npm target resolution from coordinator
+- `DerivedTargetConfig` enables bounded target resolution from coordinator
   scope IDs derived from active owned package evidence.
 - `TargetConfig` stores parsed target identity plus runtime-only endpoint,
   document format, and credential material.
@@ -57,9 +57,9 @@ must stay out of metrics.
 
 - A claimed source only collects the configured `scope_id` from the workflow
   item. Unknown scope IDs fail the claim instead of falling back to another
-  target. When derived targets are enabled, the only implicit target shape is a
-  normalized public npm package scope such as
-  `npm://registry.npmjs.org/vite`.
+  target. When derived targets are enabled, implicit targets are normalized
+  package identities for npm, PyPI, Go modules, Maven, NuGet, Composer,
+  RubyGems, and Cargo that started from active owned dependency evidence.
 - `document_format` defaults to `native`. `artifactory_package` is allowed only
   as a wrapper around package-native metadata and uses the same parser registry
   as native metadata; Artifactory repository topology remains hosting evidence.
@@ -79,17 +79,27 @@ must stay out of metrics.
   shape. The body-size cap still applies to the returned document; the request
   shape prevents normal npm package identity and version evidence from needing
   an unbounded full packument.
-- Derived npm targets use the same abbreviated packument path and configured
-  `package_limit` / `version_limit` contract as npm targets. When the derived
-  `version_limit` is omitted, it defaults to one registry version so full-corpus
-  vulnerability enrichment records package identity without projecting every
-  registry version and dependency edge for heavily reused packages. The runtime
-  still collects one claimed scope at a time and does not enumerate the npm
-  registry.
-- A 404 for a derived npm target is missing evidence, not a failed collection
+- Derived npm targets use the abbreviated packument path, and derived PyPI
+  targets use the PyPI JSON project API. Both keep the configured
+  `package_limit` / `version_limit` contract. When the derived `version_limit`
+  is omitted, it defaults to one registry version so full-corpus vulnerability
+  enrichment records package identity without projecting every registry version
+  and dependency edge for heavily reused packages.
+- Derived Go module, Maven, NuGet, Composer, RubyGems, and Cargo targets are
+  identity evidence until native metadata adapter URLs land. The runtime
+  completes those claims with `warning_code=unsupported_metadata_source` rather
+  than crawling public registries or reporting clean scanner output.
+- Private registry and Artifactory targets must use explicit `metadata_url`
+  configuration. Missing credentials for private explicit targets complete as
+  `warning_code=credentials_missing`; registry URLs and credential material stay
+  out of facts, metrics, and warning messages.
+- A 404 for a derived target is missing evidence, not a failed collection
   run. The runtime completes the claim with a `package_registry.warning` fact
-  using `warning_code=metadata_not_found`. Explicitly configured targets keep
+  using `warning_code=registry_not_found`. Explicitly configured targets keep
   their existing `registry_not_found` failure behavior.
+- Parser failures for fetched metadata complete as
+  `warning_code=malformed_metadata` unless the parser registry has no adapter
+  for the ecosystem, which is `warning_code=unsupported_metadata_source`.
 - A metadata document larger than the configured 20 MiB response cap is a
   deterministic coverage gap, not a retryable provider outage. The runtime
   completes the claim with a `package_registry.warning` fact using
@@ -117,6 +127,10 @@ No-Observability-Change: derived npm targets use the existing package-registry o
 No-Regression Evidence: `go test ./internal/collector/packageregistry/packageruntime -run 'TestHTTPMetadataProviderClassifiesOversizedMetadataAsTerminalSourceState|TestClaimedSourceCompletesMetadataTooLargeAsCoverageGapWarning|TestClaimedServiceCompletesMetadataTooLargeWithoutRetry' -count=1` proves a response over the configured metadata byte limit is classified as deterministic, converted into `package_registry.warning` evidence, and completed by `collector.ClaimedService` without `FailClaimRetryable` or retry-budget terminal failure.
 
 Observability Evidence: oversized package metadata records `status_class=metadata_too_large` on the existing package-registry request/observe metrics and emits a durable `package_registry.warning` fact with `warning_code=metadata_too_large`. No new metric labels were added, and package names, metadata URLs, versions, and credential material stay out of metric labels and warning messages.
+
+No-Regression Evidence: `go test ./internal/collector/packageregistry/packageruntime -run 'TestClaimedSource(ResolvesDerivedPyPITarget|CompletesUnsupportedDerivedMetadataSourceAsWarning|CompletesMalformedMetadataAsWarning|CompletesMissingCredentialsAsWarning)' -count=1` proves derived PyPI target resolution and fail-closed warning behavior for unsupported adapters, malformed metadata, and missing private-registry credentials.
+
+Observability Evidence: derived missing-evidence claims emit stable `package_registry.warning` facts with `warning_code` values `unsupported_metadata_source`, `registry_not_found`, `metadata_too_large`, `malformed_metadata`, and `credentials_missing`. The new per-ecosystem `/admin/status` metadata-target counts are read from workflow rows and warning facts; no new metric labels, raw package names, registry URLs, or credential values were added.
 
 ## Related Docs
 

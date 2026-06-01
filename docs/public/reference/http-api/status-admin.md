@@ -20,6 +20,11 @@ mounted:
 - `registry_collectors` reports aggregate OCI and package-registry collector
   status without leaking registry hosts, repository paths, package names, tags,
   digests, account IDs, metadata URLs, or credentials.
+  Package-registry rows include `metadata_targets` counts by ecosystem for
+  planned, completed, skipped, stale, failed, and rate-limited metadata work.
+  Skipped counts use the stable warning reasons
+  `unsupported_metadata_source`, `registry_not_found`, `metadata_too_large`,
+  `malformed_metadata`, and `credentials_missing`.
 - `aws_cloud_scans` reports scanner status per collector instance, account,
   region, and service kind. It includes commit status, API call count, throttle
   count, warning count, budget and credential flags, and bounded failure-class

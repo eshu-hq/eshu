@@ -67,7 +67,13 @@ unsupported_target_rows AS (
         NULL::text AS lockfile_flavor,
         NULL::text AS feature_token
     FROM package_registry_warning_active AS warn
-    WHERE warn.payload->>'warning_code' = 'metadata_too_large'
+    WHERE warn.payload->>'warning_code' IN (
+        'unsupported_metadata_source',
+        'registry_not_found',
+        'metadata_too_large',
+        'malformed_metadata',
+        'credentials_missing'
+      )
       AND (
           ($10 <> '' AND warn.payload->>'package_id' = $10)
           OR (

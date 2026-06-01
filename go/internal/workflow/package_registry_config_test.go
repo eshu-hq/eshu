@@ -70,6 +70,33 @@ func TestPackageRegistryCollectorConfigurationAcceptsFullCorpusDerivedTargetLimi
 	}
 }
 
+func TestPackageRegistryCollectorConfigurationAcceptsDerivedSupportedEcosystems(t *testing.T) {
+	t.Parallel()
+
+	raw := `{"derive_from_owned_packages":{"enabled":true,"ecosystems":["npm","pypi","go","maven","nuget","composer","rubygems","cargo"],"planning_mode":"single_pass","target_limit":1000,"package_limit":1,"version_limit":200}}`
+
+	if err := ValidatePackageRegistryCollectorConfiguration(raw); err != nil {
+		t.Fatalf("ValidatePackageRegistryCollectorConfiguration() error = %v, want nil", err)
+	}
+}
+
+func TestPackageRegistryCollectorConfigurationAcceptsExplicitUnsupportedAdapterTargets(t *testing.T) {
+	t.Parallel()
+
+	for _, ecosystem := range []string{"composer", "rubygems", "cargo"} {
+		ecosystem := ecosystem
+		t.Run(ecosystem, func(t *testing.T) {
+			t.Parallel()
+
+			raw := `{"targets":[{"provider":"fixture","ecosystem":"` + ecosystem + `","registry":"https://registry.example.com","scope_id":"` + ecosystem + `://registry.example.com/example-package","packages":["example-package"],"package_limit":1,"version_limit":1,"metadata_url":"https://registry.example.com/example-package"}]}`
+
+			if err := ValidatePackageRegistryCollectorConfiguration(raw); err != nil {
+				t.Fatalf("ValidatePackageRegistryCollectorConfiguration() error = %v, want nil", err)
+			}
+		})
+	}
+}
+
 func TestPackageRegistryCollectorConfigurationRejectsUnknownDerivedPlanningMode(t *testing.T) {
 	t.Parallel()
 
