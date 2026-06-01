@@ -49,6 +49,11 @@ func (s PostgresIncidentContextStore) readIncidentRuntimeEvidence(
 	input.ImageIdentities = images
 	imageCandidates := incidentImagePromotionCandidates(images, catalogCandidates[0].RepositoryID)
 	if len(imageCandidates) == 1 {
+		cicd, err := s.readIncidentCICDRunCorrelations(ctx, imageCandidates[0])
+		if err != nil {
+			return nil, err
+		}
+		input.CICDRunCorrelations = cicd
 		kubernetes, err := s.readIncidentKubernetesCorrelations(ctx, imageCandidates[0])
 		if err != nil {
 			return nil, err
@@ -141,6 +146,40 @@ func (s PostgresIncidentContextStore) readIncidentContainerImageIdentities(
 	return images, nil
 }
 
+func (s PostgresIncidentContextStore) readIncidentCICDRunCorrelations(
+	ctx context.Context,
+	image incidentContainerImageIdentity,
+) ([]incidentCICDRunCorrelation, error) {
+	if image.Digest != "" {
+		store := NewPostgresCICDRunCorrelationStore(s.DB)
+		rows, err := store.ListCICDRunCorrelations(ctx, CICDRunCorrelationFilter{
+			ArtifactDigest: image.Digest,
+			Limit:          incidentRuntimeEvidenceLimit + 1,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("list incident ci/cd run correlations: %w", err)
+		}
+		return incidentCICDRunCorrelationsFromRows(rows), nil
+	}
+	if image.ImageRef == "" {
+		return nil, nil
+	}
+	rows, err := s.queryIncidentContextRows(
+		ctx,
+		listIncidentCICDRunCorrelationsByImageRefQuery,
+		image.ImageRef,
+		incidentRuntimeEvidenceLimit+1,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("list incident ci/cd run correlations by image ref: %w", err)
+	}
+	correlations := make([]incidentCICDRunCorrelation, 0, len(rows))
+	for _, row := range rows {
+		correlations = append(correlations, decodeIncidentCICDRunCorrelation(row))
+	}
+	return correlations, nil
+}
+
 func (s PostgresIncidentContextStore) readIncidentKubernetesCorrelations(
 	ctx context.Context,
 	image incidentContainerImageIdentity,
@@ -163,6 +202,52 @@ func (s PostgresIncidentContextStore) readIncidentKubernetesCorrelations(
 		correlations = append(correlations, decodeIncidentKubernetesCorrelation(row))
 	}
 	return correlations, nil
+}
+
+func incidentCICDRunCorrelationsFromRows(
+	rows []CICDRunCorrelationRow,
+) []incidentCICDRunCorrelation {
+	correlations := make([]incidentCICDRunCorrelation, 0, len(rows))
+	for _, row := range rows {
+		correlations = append(correlations, incidentCICDRunCorrelation{
+			FactID:          row.CorrelationID,
+			Provider:        row.Provider,
+			RunID:           row.RunID,
+			RunAttempt:      row.RunAttempt,
+			RepositoryID:    row.RepositoryID,
+			CommitSHA:       row.CommitSHA,
+			Environment:     row.Environment,
+			ArtifactDigest:  row.ArtifactDigest,
+			ImageRef:        row.ImageRef,
+			Outcome:         row.Outcome,
+			Reason:          row.Reason,
+			ProvenanceOnly:  row.ProvenanceOnly,
+			CanonicalTarget: row.CanonicalTarget,
+			CorrelationKind: row.CorrelationKind,
+			EvidenceFactIDs: row.EvidenceFactIDs,
+		})
+	}
+	return correlations
+}
+
+func decodeIncidentCICDRunCorrelation(row incidentContextFactRow) incidentCICDRunCorrelation {
+	return incidentCICDRunCorrelation{
+		FactID:          row.FactID,
+		Provider:        StringVal(row.Payload, "provider"),
+		RunID:           StringVal(row.Payload, "run_id"),
+		RunAttempt:      StringVal(row.Payload, "run_attempt"),
+		RepositoryID:    StringVal(row.Payload, "repository_id"),
+		CommitSHA:       StringVal(row.Payload, "commit_sha"),
+		Environment:     StringVal(row.Payload, "environment"),
+		ArtifactDigest:  StringVal(row.Payload, "artifact_digest"),
+		ImageRef:        StringVal(row.Payload, "image_ref"),
+		Outcome:         StringVal(row.Payload, "outcome"),
+		Reason:          StringVal(row.Payload, "reason"),
+		ProvenanceOnly:  BoolVal(row.Payload, "provenance_only"),
+		CanonicalTarget: StringVal(row.Payload, "canonical_target"),
+		CorrelationKind: StringVal(row.Payload, "correlation_kind"),
+		EvidenceFactIDs: StringSliceVal(row.Payload, "evidence_fact_ids"),
+	}
 }
 
 func decodeIncidentServiceCatalogOperationalLink(

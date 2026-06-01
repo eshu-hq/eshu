@@ -69,6 +69,7 @@
 // APIs. Runtime and image slots are promoted only when an explicit
 // service-catalog operational link connects the PagerDuty service to a catalog
 // correlation and reducer-owned image or Kubernetes evidence proves the next
-// hop; commit, pull-request, and work-item links still require separate
-// evidence.
+// hop. Build/deploy and commit slots are promoted only from reducer-owned
+// CI/CD run correlations tied to the selected image digest or reference;
+// pull-request and work-item links still require separate evidence.
 package query

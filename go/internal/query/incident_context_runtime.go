@@ -7,6 +7,7 @@ type incidentRuntimeEvidenceInput struct {
 	CatalogCorrelations    []incidentServiceCatalogCorrelation
 	ImageIdentities        []incidentContainerImageIdentity
 	KubernetesCorrelations []incidentKubernetesCorrelation
+	CICDRunCorrelations    []incidentCICDRunCorrelation
 }
 
 type incidentServiceCatalogOperationalLink struct {
@@ -89,6 +90,10 @@ func buildIncidentRuntimeEvidence(
 		edges = append(edges, *imageEdge)
 	}
 	if selectedImage != nil {
+		edges = append(edges, buildIncidentBuildCommitEdges(
+			input.CICDRunCorrelations,
+			*selectedImage,
+		)...)
 		if runtimeEdge := buildIncidentRuntimeArtifactEdge(
 			input.KubernetesCorrelations,
 			*selectedImage,

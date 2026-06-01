@@ -84,8 +84,10 @@ The incident-context read model can present this provider evidence with
 explicit missing slots for deployment, image, commit, pull request, and Jira
 work-item links. Runtime and image slots are promoted only from explicit
 service-catalog operational links to the PagerDuty service URL plus
-reducer-owned catalog, container-image, or Kubernetes evidence. Reducers and
-enrichment collectors must prove any non-missing code, pull-request, or
+reducer-owned catalog, container-image, or Kubernetes evidence. Build/deploy
+and commit slots are promoted only from reducer-owned CI/CD run correlations
+tied to the selected image digest or reference; tag-only matches stay derived.
+Reducers and enrichment collectors must prove any non-missing pull-request or
 work-item edge before the slot is promoted. Missing Jira links are normal for
 on-call incidents and must not block PagerDuty collection.
 

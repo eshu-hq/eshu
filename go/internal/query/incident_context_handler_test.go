@@ -238,4 +238,14 @@ func TestIncidentContextRuntimeQueriesStayBoundedToExplicitEvidence(t *testing.T
 			t.Fatalf("listIncidentKubernetesCorrelationsByImageQuery missing %q:\n%s", want, listIncidentKubernetesCorrelationsByImageQuery)
 		}
 	}
+	for _, want := range []string{
+		"fact.fact_kind = 'reducer_ci_cd_run_correlation'",
+		"fact.payload->>'image_ref' = $1",
+		"fact.payload->>'outcome' IN ('exact', 'derived', 'ambiguous')",
+		"LIMIT $2",
+	} {
+		if !strings.Contains(listIncidentCICDRunCorrelationsByImageRefQuery, want) {
+			t.Fatalf("listIncidentCICDRunCorrelationsByImageRefQuery missing %q:\n%s", want, listIncidentCICDRunCorrelationsByImageRefQuery)
+		}
+	}
 }
