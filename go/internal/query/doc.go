@@ -32,8 +32,9 @@
 // package/repository targets. It strips absent optional fields from the
 // Postgres JSON rollup before decoding. It never invents findings or
 // duplicates reducer matching: supported impact-matcher ecosystems are
-// classified from existing source and reducer facts so the answer is
-// diagnosable without re-querying. Provider security-alert reconciliation
+// classified from existing source and reducer facts, while VCS/path/URL,
+// editable, and other provenance-only dependency rows stay unsupported target
+// evidence with stable reason codes. Provider security-alert reconciliation
 // list, count, and inventory reads select one current reducer row per provider
 // alert identity before applying default status/state filters, while each
 // returned row keeps reducer reason and evidence fact ids for audit.

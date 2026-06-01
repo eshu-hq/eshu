@@ -109,7 +109,7 @@ func TestOpenAPISpecIncludesSupplyChainImpactFindings(t *testing.T) {
 	}
 	targetKindSchema := mustMapField(t, unsupportedTargetsItemProps, "target_kind")
 	targetKindEnum := mustStringSliceField(t, targetKindSchema, "enum")
-	for _, want := range []string{"ecosystem", "package_manager_file", "sbom_target", "package_registry_metadata", "image_target"} {
+	for _, want := range []string{"ecosystem", "package_manager_file", "dependency_source", "sbom_target", "package_registry_metadata", "image_target"} {
 		if !containsOpenAPIEnumString(targetKindEnum, want) {
 			t.Fatalf("unsupported_targets.target_kind enum = %#v, want %q", targetKindEnum, want)
 		}

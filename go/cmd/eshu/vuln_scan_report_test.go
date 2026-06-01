@@ -145,6 +145,62 @@ func TestRunVulnScanRepoJSONReportPreservesTargetPackageImageAndVersionContext(t
 	}
 }
 
+func TestRunVulnScanRepoJSONReportPreservesMalformedVersionAndRangeEvidence(t *testing.T) {
+	repoPath := t.TempDir()
+	reset := stubScanRuntime(t)
+	defer reset()
+
+	server := vulnScanReportTestServer(t, repoPath, `{"data":{"findings":[{"finding_id":"finding-malformed-version","cve_id":"CVE-2026-0101","advisory_id":"GHSA-malformed-version","package_id":"npm://registry.npmjs.org/bad-version","package_name":"bad-version","ecosystem":"npm","impact_status":"unknown_impact","confidence":"partial","observed_version":"not-semver","requested_range":"^1.0.0","vulnerable_range":"<1.2.0","match_reason":"malformed_installed_version","repository_id":"repo-local","missing_evidence":["installed_version_malformed"],"evidence_fact_ids":["fact-package-malformed"],"source_freshness":"fresh","remediation":{"current_version":"not-semver","vulnerable_range":"<1.2.0","manifest_range":"^1.0.0","confidence":"unknown","reason":"installed_version_malformed","missing_evidence":["installed_version_malformed"]}},{"finding_id":"finding-malformed-range","cve_id":"CVE-2026-0102","advisory_id":"GHSA-malformed-range","package_id":"npm://registry.npmjs.org/bad-range","package_name":"bad-range","ecosystem":"npm","impact_status":"unknown_impact","confidence":"partial","observed_version":"1.0.0","requested_range":"^1.0.0","vulnerable_range":"<<bad","match_reason":"malformed_advisory_range","repository_id":"repo-local","missing_evidence":["vulnerable_range"],"evidence_fact_ids":["fact-advisory-malformed"],"source_freshness":"fresh","remediation":{"current_version":"1.0.0","vulnerable_range":"<<bad","manifest_range":"^1.0.0","confidence":"unknown","reason":"manifest_range_malformed","missing_evidence":["vulnerable_range"]}}],"count":2,"limit":50,"truncated":false,"readiness":{"readiness_state":"ready_with_findings","target_scope":{"repository_id":"repo-local"},"evidence_sources":[{"family":"package.consumption","fact_count":2,"freshness":"fresh"},{"family":"package.registry","fact_count":2,"freshness":"fresh"},{"family":"vulnerability.advisory","fact_count":2,"freshness":"fresh"}],"freshness":"fresh","counts":{"findings_returned":2,"evidence_facts_total":6}}},"truth":{"level":"exact","freshness":{"state":"fresh"}},"error":null}`)
+	defer server.Close()
+
+	out := &bytes.Buffer{}
+	cmd := newReportTestVulnScanRepoCommand(t, server.URL, out)
+
+	requireVulnScanExitCode(t, runVulnScanRepo(cmd, []string{repoPath}), 3)
+
+	payload := decodeVulnScanPayload(t, out)
+	data := payload["data"].(map[string]any)
+	report := data["report"].(map[string]any)
+	findings := report["findings"].([]any)
+	if got, want := len(findings), 2; got != want {
+		t.Fatalf("len(findings) = %d, want %d", got, want)
+	}
+
+	versionFinding := findings[0].(map[string]any)
+	versionAffected := requireMapField(t, versionFinding, "affected")
+	if got, want := versionAffected["observed_version"], "not-semver"; got != want {
+		t.Fatalf("malformed version observed_version = %#v, want %#v", got, want)
+	}
+	if got, want := versionAffected["match_reason"], "malformed_installed_version"; got != want {
+		t.Fatalf("malformed version match_reason = %#v, want %#v", got, want)
+	}
+	versionMissing := requireSliceField(t, versionFinding, "missing_evidence")
+	if got, want := versionMissing[0], "installed_version_malformed"; got != want {
+		t.Fatalf("malformed version missing_evidence[0] = %#v, want %#v", got, want)
+	}
+	versionRemediation := requireMapField(t, versionFinding, "remediation")
+	if got, want := versionRemediation["reason"], "installed_version_malformed"; got != want {
+		t.Fatalf("malformed version remediation.reason = %#v, want %#v", got, want)
+	}
+
+	rangeFinding := findings[1].(map[string]any)
+	rangeAffected := requireMapField(t, rangeFinding, "affected")
+	if got, want := rangeAffected["vulnerable_range"], "<<bad"; got != want {
+		t.Fatalf("malformed advisory vulnerable_range = %#v, want %#v", got, want)
+	}
+	if got, want := rangeAffected["match_reason"], "malformed_advisory_range"; got != want {
+		t.Fatalf("malformed advisory match_reason = %#v, want %#v", got, want)
+	}
+	rangeMissing := requireSliceField(t, rangeFinding, "missing_evidence")
+	if got, want := rangeMissing[0], "vulnerable_range"; got != want {
+		t.Fatalf("malformed advisory missing_evidence[0] = %#v, want %#v", got, want)
+	}
+	rangeRemediation := requireMapField(t, rangeFinding, "remediation")
+	if got, want := rangeRemediation["reason"], "manifest_range_malformed"; got != want {
+		t.Fatalf("malformed advisory remediation.reason = %#v, want %#v", got, want)
+	}
+}
+
 func TestRunVulnScanRepoExitCodesPreserveReadinessClasses(t *testing.T) {
 	tests := []struct {
 		name      string
