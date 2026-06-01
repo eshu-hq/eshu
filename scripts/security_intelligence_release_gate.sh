@@ -38,9 +38,9 @@ Options:
   --out-dir <path>              Evidence dir (default \${TMPDIR:-/tmp}/eshu-security-intel-release-gate/<ts>).
   --image-tag-candidate <tag>   Image tag this gate is judging. Recorded in evidence.
   --provider-compare <file>     Aggregate-only provider parity JSON (provider phase).
-  --api-base-url <url>          Base URL for runtime phase API readback.
-  --api-key <token>             Bearer token for runtime phase API readback.
-  --pprof-base-url <url>        Base URL for the runtime phase pprof probe.
+  --api-base-url <url>          Base URL for runtime and k8s phase readback.
+  --api-key <token>             Bearer token for runtime/k8s API readback.
+  --pprof-base-url <url>        Base URL for the runtime/k8s pprof probe.
                                 Pprof is exposed via a separate listener; without
                                 this, pprof_status is recorded as "unchecked".
   --k8s-namespace <name>        Namespace for k8s phase snapshots.
@@ -99,8 +99,8 @@ out_md="${out_dir}/evidence.md"
 
 # evidence is built incrementally as JSON; start with shell-safe scaffolding.
 phases_json="$(printf '%s\n' "${phases[@]}" | jq -R . | jq -sc 'map(select(length>0))')"
-jq -n --arg ts "${timestamp}" --arg root "${repo_root}" --argjson phases "${phases_json}" \
-    '{schema_version: 1, generated_at: $ts, repo_root: $root, phases: $phases, pass: true, failures: []}' \
+jq -n --arg ts "${timestamp}" --argjson phases "${phases_json}" \
+    '{schema_version: 1, generated_at: $ts, repo_root: "[redacted-path]", phases: $phases, pass: true, failures: []}' \
     >"${out_json}.tmp"
 
 # Extract the first sha256 digest token from stdin in a portable way.
@@ -117,7 +117,7 @@ list_evidence_files() {
         if [ -d "${entry}" ]; then
             list_evidence_files "${entry}"
         elif [ -f "${entry}" ]; then
-            rel="${entry#${out_dir}/}"
+            rel="${entry#"${out_dir}"/}"
             [ "${rel}" = "evidence.md" ] && continue
             printf '%s\n' "${rel}"
         fi
@@ -319,7 +319,7 @@ run_phase_fixtures() {
 # Runtime + k8s phases live in the shared lib so this main script stays under
 # the repo file-size rule. They depend on globals declared above plus die() and
 # record_failure().
-# shellcheck source=lib/security_intelligence_release_gate_phases.sh
+# shellcheck source=scripts/lib/security_intelligence_release_gate_phases.sh
 source "$(dirname "$0")/lib/security_intelligence_release_gate_phases.sh"
 
 run_phase_provider() {
