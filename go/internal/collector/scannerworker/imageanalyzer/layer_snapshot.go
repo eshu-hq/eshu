@@ -54,6 +54,9 @@ func readLayerSnapshot(
 	}
 	for _, layerPath := range target.LayerPaths {
 		if err := reader.readLayer(ctx, layerPath); err != nil {
+			if errors.Is(err, errUnsupportedTarget) {
+				return unsupportedLayerSnapshot(target, now, extractionMalformedImage), reader.usage(), err
+			}
 			return Snapshot{}, reader.usage(), err
 		}
 	}
@@ -90,6 +93,23 @@ func readLayerSnapshot(
 		return Snapshot{}, reader.usage(), fmt.Errorf("%w: unsupported package manager", errUnsupportedTarget)
 	}
 	return snapshot, reader.usage(), nil
+}
+
+func unsupportedLayerSnapshot(target TargetConfig, now func() time.Time, reason string) Snapshot {
+	return Snapshot{
+		Distro:             target.Distro,
+		DistroVersion:      target.DistroVersion,
+		PackageManager:     target.PackageManager,
+		Repositories:       target.Repositories,
+		ThirdPartyPackages: target.ThirdPartyPackages,
+		SourceURI:          target.SourceURI,
+		SourceRecordID:     target.SourceRecordID,
+		ImageReference:     target.ImageReference,
+		ImageDigest:        target.ImageDigest,
+		EvidenceSource:     EvidenceSourceLayer,
+		ExtractionReason:   reason,
+		ObservedAt:         now().UTC(),
+	}
 }
 
 func firstNonBlankDistro(values ...ospackagevulnerability.Distro) ospackagevulnerability.Distro {

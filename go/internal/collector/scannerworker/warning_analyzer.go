@@ -45,6 +45,8 @@ func (a WarningAnalyzer) Analyze(_ context.Context, input ClaimInput) (AnalyzerR
 			"target_locator_hash": input.Target.LocatorHash,
 			"reason":              reason,
 			"warning_class":       "scanner_worker_warning",
+			"analysis_status":     "not_scanned",
+			"coverage_status":     "unsupported",
 		},
 		SourceRef: facts.Ref{
 			SourceSystem: string(scope.CollectorScannerWorker),

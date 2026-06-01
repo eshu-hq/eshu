@@ -6,7 +6,9 @@
 to Eshu source facts. It consumes configured local image evidence, either an
 already-extracted rootfs or bounded local OCI layer tar streams, and emits
 installed OS package source facts when Alpine apk or Debian dpkg package
-database evidence exists.
+database evidence exists. Every supported image target also emits
+`scanner_worker.analysis` coverage evidence so operators can distinguish a
+completed scan from package facts alone.
 
 ## Ownership boundary
 
@@ -50,7 +52,11 @@ hosted runtime can record resource telemetry.
 - OCI whiteout markers are honored for the package metadata paths before facts
   are emitted.
 - Unsupported image shapes emit `scanner_worker.warning` facts with
+  `analysis_status=not_scanned`, `coverage_status=unsupported`, and an
   `extraction_reason`, not clean results.
+- Image identity must include an image digest before package facts are emitted;
+  tag-only or otherwise incomplete image targets are unsupported coverage
+  evidence.
 - Missing local layer files are retryable target-unavailable failures; missing
   package databases in readable image evidence are unsupported coverage gaps.
 - Rootfs and layer paths must stay out of retry, dead-letter, metric, and log
@@ -58,12 +64,15 @@ hosted runtime can record resource telemetry.
 
 ## Evidence Contract
 
-Emitted `vulnerability.os_package` facts preserve the image reference, image
-digest, source URI/record, evidence source (`rootfs` or `layer`), package
-manager, package name, installed version, distro, and distro release when the
-package database supplies them. Unsupported image shapes emit
-`scanner_worker.warning` facts with a bounded `extraction_reason` instead of
-silent clean output.
+Emitted `scanner_worker.analysis` facts mark supported image targets as
+`analysis_status=completed` and `coverage_status=scanned` without asserting
+impact. Emitted `vulnerability.os_package` facts preserve the image reference,
+image digest, source URI/record, evidence source (`rootfs` or `layer`),
+package manager, package name, installed version, distro, and distro release
+when the package database supplies them. Unsupported image shapes, malformed
+layer evidence, missing package databases, and missing image digests emit
+`scanner_worker.warning` facts with bounded status and `extraction_reason`
+fields instead of silent clean output.
 
 No-Regression Evidence: `go test ./internal/collector/scannerworker/imageanalyzer ./internal/collector/ospackagevulnerability/osruntime ./internal/collector/scannerworker ./cmd/scanner-worker -count=1` covers layer/rootfs extraction, unsupported evidence, resource limits, output validation, and runtime wiring.
 

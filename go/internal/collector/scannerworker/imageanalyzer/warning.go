@@ -29,10 +29,12 @@ func newUnsupportedWarning(
 		"target_locator_hash": input.Target.LocatorHash,
 		"reason":              warningReasonUnsupported,
 		"warning_class":       "scanner_worker_warning",
+		"analysis_status":     analysisStatusNotScanned,
+		"coverage_status":     coverageStatusUnsupported,
 		"image_reference":     strings.TrimSpace(target.ImageReference),
 		"image_digest":        strings.TrimSpace(target.ImageDigest),
 		"evidence_source":     evidenceSourceForWarning(target, snapshot),
-		"extraction_reason":   extractionUnsupported,
+		"extraction_reason":   firstNonBlank(snapshot.ExtractionReason, extractionUnsupported),
 	}
 	addOptionalPayloadValue(payload, "distro", string(firstNonBlankDistro(snapshot.Distro, target.Distro)))
 	addOptionalPayloadValue(payload, "distro_version", firstNonBlank(snapshot.DistroVersion, target.DistroVersion))
