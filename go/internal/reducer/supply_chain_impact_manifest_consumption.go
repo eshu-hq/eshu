@@ -96,6 +96,7 @@ func supplyChainConsumptionFromManifestDependency(
 		dependencyDepth:  dependency.DependencyDepth,
 		directDependency: cloneBoolPointer(dependency.DirectDependency),
 		dependencyScope:  strings.TrimSpace(dependency.DependencyScope),
+		lockfile:         dependency.Lockfile,
 	}
 }
 

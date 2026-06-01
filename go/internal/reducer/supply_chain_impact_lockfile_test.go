@@ -4,6 +4,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
@@ -96,7 +97,7 @@ func TestBuildSupplyChainImpactFindingsUsesCargoLockfileVersion(t *testing.T) {
 			"serde_json",
 			"1.0.120",
 		),
-		packageConsumptionFactWithChain(
+		cargoLockfileConsumptionFactWithChain(
 			"consume-serde-json",
 			"pkg:cargo/serde_json",
 			testImpactRepositoryID,
@@ -139,7 +140,7 @@ func TestBuildSupplyChainImpactFindingsMarksCargoLockfileVersionKnownFixed(t *te
 			"serde_json",
 			"1.0.120",
 		),
-		packageConsumptionFactWithChain(
+		cargoLockfileConsumptionFactWithChain(
 			"consume-fixed-serde-json",
 			"pkg:cargo/serde_json",
 			testImpactRepositoryID,
@@ -161,6 +162,49 @@ func TestBuildSupplyChainImpactFindingsMarksCargoLockfileVersionKnownFixed(t *te
 	if got.RuntimeReachability != "known_fixed" {
 		t.Fatalf("RuntimeReachability = %q, want known_fixed", got.RuntimeReachability)
 	}
+}
+
+func TestBuildSupplyChainImpactFindingsKeepsCargoManifestVersionRangeOnly(t *testing.T) {
+	t.Parallel()
+
+	observedAt := time.Date(2026, 5, 31, 18, 0, 0, 0, time.UTC)
+	findings := BuildSupplyChainImpactFindings([]facts.Envelope{
+		vulnerabilityCVEFact("cve-cargo-manifest", "CVE-2026-64902", 7.9),
+		vulnerabilityAffectedPackageRangeFact(
+			"affected-cargo-manifest",
+			"CVE-2026-64902",
+			"pkg:cargo/serde_json",
+			"cargo",
+			"serde_json",
+			"1.0.120",
+		),
+		packageManifestDependencyFactWithMetadata(
+			testImpactRepositoryID,
+			"rust-api",
+			"Cargo.toml",
+			"serde_json",
+			"cargo",
+			"1.0.116",
+			observedAt,
+			map[string]any{
+				"section":          "dependencies",
+				"dependency_scope": "runtime",
+			},
+		),
+	})
+
+	got := supplyChainImpactFindingsByCVE(findings)["CVE-2026-64902"]
+	assertSupplyChainImpactStatus(t, got, SupplyChainImpactPossiblyAffected)
+	if got.ObservedVersion != "" {
+		t.Fatalf("ObservedVersion = %q, want blank because Cargo.toml values are ranges, not installed versions", got.ObservedVersion)
+	}
+	if got.RequestedRange != "1.0.116" {
+		t.Fatalf("RequestedRange = %q, want Cargo manifest range 1.0.116", got.RequestedRange)
+	}
+	if got.MatchReason != "range_only_manifest" {
+		t.Fatalf("MatchReason = %q, want range_only_manifest", got.MatchReason)
+	}
+	assertContainsString(t, got.MissingEvidence, "installed package version missing")
 }
 
 func TestBuildSupplyChainImpactFindingsLeavesRangeDependencyPossiblyAffected(t *testing.T) {
@@ -308,5 +352,27 @@ func packageConsumptionFactWithChain(
 	envelope.Payload["dependency_path"] = payloadPath
 	envelope.Payload["dependency_depth"] = dependencyDepth
 	envelope.Payload["direct_dependency"] = directDependency
+	return envelope
+}
+
+func cargoLockfileConsumptionFactWithChain(
+	factID string,
+	packageID string,
+	repositoryID string,
+	dependencyRange string,
+	dependencyPath []string,
+	dependencyDepth int,
+	directDependency bool,
+) facts.Envelope {
+	envelope := packageConsumptionFactWithChain(
+		factID,
+		packageID,
+		repositoryID,
+		dependencyRange,
+		dependencyPath,
+		dependencyDepth,
+		directDependency,
+	)
+	envelope.Payload["lockfile"] = true
 	return envelope
 }

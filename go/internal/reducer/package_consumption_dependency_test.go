@@ -1,6 +1,7 @@
 package reducer
 
 import (
+	"context"
 	"reflect"
 	"testing"
 	"time"
@@ -309,6 +310,50 @@ func TestBuildPackageConsumptionDecisionsKeepsCargoLockfileWithoutProofUnchained
 	}
 	if decision.DirectDependency != nil {
 		t.Fatalf("DirectDependency = %#v, want nil without Cargo.lock reachability proof", decision.DirectDependency)
+	}
+}
+
+func TestPackageCorrelationWriterPersistsCargoLockfileEvidence(t *testing.T) {
+	t.Parallel()
+
+	observedAt := time.Date(2026, 5, 31, 18, 15, 0, 0, time.UTC)
+	decisions := BuildPackageConsumptionDecisions([]facts.Envelope{
+		packageRegistryPackageFact("cargo://crates.io/serde_json", "cargo", "serde_json", "", observedAt),
+		packageSourceRepositoryFact("repo-rust", "rust-api", "https://github.com/example/rust-api", false, observedAt),
+		packageManifestDependencyFactWithMetadata(
+			"repo-rust",
+			"rust-api",
+			"Cargo.lock",
+			"serde_json",
+			"cargo",
+			"1.0.116",
+			observedAt,
+			map[string]any{
+				"section":  "cargo-lock",
+				"lockfile": true,
+			},
+		),
+	})
+
+	if got, want := len(decisions), 1; got != want {
+		t.Fatalf("len(decisions) = %d, want %d", got, want)
+	}
+	db := &fakeWorkloadIdentityExecer{}
+	writer := PostgresPackageCorrelationWriter{DB: db, Now: func() time.Time { return observedAt }}
+	_, err := writer.WritePackageCorrelations(context.Background(), PackageCorrelationWrite{
+		ScopeID:              "scope-package",
+		GenerationID:         "generation-package",
+		ConsumptionDecisions: decisions,
+	})
+	if err != nil {
+		t.Fatalf("WritePackageCorrelations() error = %v, want nil", err)
+	}
+	if got, want := len(db.execs), 1; got != want {
+		t.Fatalf("ExecContext calls = %d, want %d", got, want)
+	}
+	payload := unmarshalPackageCorrelationPayload(t, db.execs[0].args[14])
+	if got, want := payload["lockfile"], true; got != want {
+		t.Fatalf("lockfile = %#v, want %#v so Cargo.lock exact-version evidence survives reducer handoff", got, want)
 	}
 }
 

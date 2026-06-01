@@ -54,6 +54,7 @@ type supplyChainPackageConsumption struct {
 	dependencyDepth  int
 	directDependency *bool
 	dependencyScope  string
+	lockfile         bool
 }
 
 type supplyChainSBOMComponent struct {
@@ -227,7 +228,7 @@ func classifySupplyChainImpactPackage(
 		}
 		finding.EvidenceFactIDs = append(finding.EvidenceFactIDs, consumption.factID)
 		finding.EvidencePath = append(finding.EvidencePath, firstNonBlank(consumption.evidenceKind, packageConsumptionCorrelationFactKind))
-		if manifestVersion, ok := exactManifestDependencyVersion(consumption.dependencyRange); ok {
+		if manifestVersion, ok := exactConsumptionDependencyVersion(finding.Ecosystem, consumption); ok {
 			finding.ObservedVersion = manifestVersion
 		}
 	}

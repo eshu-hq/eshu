@@ -3,6 +3,7 @@ package reducer
 import (
 	"strings"
 
+	"github.com/eshu-hq/eshu/go/internal/packageidentity"
 	"golang.org/x/mod/semver"
 )
 
@@ -181,6 +182,17 @@ func exactManifestDependencyVersion(raw string) (string, bool) {
 		return "", false
 	}
 	return version, true
+}
+
+func exactConsumptionDependencyVersion(
+	ecosystem string,
+	consumption supplyChainPackageConsumption,
+) (string, bool) {
+	if normalizedSupplyChainVersionEcosystem(ecosystem) == string(packageidentity.EcosystemCargo) &&
+		!consumption.lockfile {
+		return "", false
+	}
+	return exactManifestDependencyVersion(consumption.dependencyRange)
 }
 
 func nonVersionDependencyPrefix(lower string) bool {
