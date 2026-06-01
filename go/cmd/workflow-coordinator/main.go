@@ -112,6 +112,13 @@ func run(parent context.Context) error {
 		Instruments: instruments,
 		StoreName:   "owned_package_targets",
 	}
+	installedAdvisoryTargetsDB := &postgres.InstrumentedDB{
+		Inner:       postgres.SQLDB{DB: db},
+		Tracer:      providers.TracerProvider.Tracer(telemetry.DefaultSignalName),
+		Instruments: instruments,
+		StoreName:   "installed_advisory_targets",
+	}
+	factStore := postgres.NewFactStore(installedAdvisoryTargetsDB)
 	serviceRunner := coordinator.Service{
 		Config: cfg,
 		Store:  store,
@@ -119,21 +126,23 @@ func run(parent context.Context) error {
 			GitReadiness: postgres.TerraformStateGitReadinessChecker{DB: postgres.SQLQueryer{DB: db}},
 			BackendFacts: postgres.TerraformStateBackendFactReader{DB: postgres.SQLQueryer{DB: db}},
 		},
-		OCIRegistryPlanner:               coordinator.OCIRegistryWorkPlanner{},
-		PackageRegistryPlanner:           coordinator.PackageRegistryWorkPlanner{},
-		VulnerabilityIntelligencePlanner: coordinator.VulnerabilityIntelligenceWorkPlanner{},
-		SBOMAttestationPlanner:           coordinator.SBOMAttestationWorkPlanner{},
-		SecurityAlertPlanner:             coordinator.SecurityAlertWorkPlanner{},
-		PagerDutyPlanner:                 coordinator.PagerDutyWorkPlanner{},
-		JiraPlanner:                      coordinator.JiraWorkPlanner{},
-		OwnedPackageTargetReader:         postgres.NewFactStore(ownedPackageTargetsDB),
-		AWSScheduledPlanner:              coordinator.AWSScheduledWorkPlanner{},
-		AWSFreshnessTriggers:             awsFreshnessStore,
-		AWSFreshnessPlanner:              coordinator.AWSFreshnessWorkPlanner{},
-		AWSFreshnessEvents:               instruments.AWSFreshnessEvents,
-		IncidentFreshnessTriggers:        incidentFreshnessStore,
-		Metrics:                          metrics,
-		Logger:                           logger,
+		OCIRegistryPlanner:                coordinator.OCIRegistryWorkPlanner{},
+		PackageRegistryPlanner:            coordinator.PackageRegistryWorkPlanner{},
+		VulnerabilityIntelligencePlanner:  coordinator.VulnerabilityIntelligenceWorkPlanner{},
+		SBOMAttestationPlanner:            coordinator.SBOMAttestationWorkPlanner{},
+		SecurityAlertPlanner:              coordinator.SecurityAlertWorkPlanner{},
+		PagerDutyPlanner:                  coordinator.PagerDutyWorkPlanner{},
+		JiraPlanner:                       coordinator.JiraWorkPlanner{},
+		OwnedPackageTargetReader:          postgres.NewFactStore(ownedPackageTargetsDB),
+		OSPackageAdvisoryTargetReader:     factStore,
+		SBOMComponentAdvisoryTargetReader: factStore,
+		AWSScheduledPlanner:               coordinator.AWSScheduledWorkPlanner{},
+		AWSFreshnessTriggers:              awsFreshnessStore,
+		AWSFreshnessPlanner:               coordinator.AWSFreshnessWorkPlanner{},
+		AWSFreshnessEvents:                instruments.AWSFreshnessEvents,
+		IncidentFreshnessTriggers:         incidentFreshnessStore,
+		Metrics:                           metrics,
+		Logger:                            logger,
 	}
 	statusReader := postgres.NewStatusStore(postgres.SQLQueryer{DB: db})
 	service, err := app.NewHostedWithStatusServer(

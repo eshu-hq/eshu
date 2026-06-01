@@ -88,25 +88,27 @@ type AWSScheduledPlanner interface {
 
 // Service is the workflow coordinator runner.
 type Service struct {
-	Config                           Config
-	Store                            Store
-	Metrics                          Metrics
-	Logger                           *slog.Logger
-	TerraformStatePlanner            TerraformStatePlanner
-	OCIRegistryPlanner               OCIRegistryPlanner
-	PackageRegistryPlanner           PackageRegistryPlanner
-	VulnerabilityIntelligencePlanner VulnerabilityIntelligencePlanner
-	SBOMAttestationPlanner           SBOMAttestationPlanner
-	SecurityAlertPlanner             SecurityAlertPlanner
-	PagerDutyPlanner                 PagerDutyPlanner
-	JiraPlanner                      JiraPlanner
-	OwnedPackageTargetReader         OwnedPackageTargetReader
-	AWSScheduledPlanner              AWSScheduledPlanner
-	AWSFreshnessTriggers             AWSFreshnessTriggerStore
-	AWSFreshnessPlanner              AWSFreshnessPlanner
-	AWSFreshnessEvents               awsFreshnessEventCounter
-	IncidentFreshnessTriggers        IncidentFreshnessTriggerStore
-	Clock                            func() time.Time
+	Config                            Config
+	Store                             Store
+	Metrics                           Metrics
+	Logger                            *slog.Logger
+	TerraformStatePlanner             TerraformStatePlanner
+	OCIRegistryPlanner                OCIRegistryPlanner
+	PackageRegistryPlanner            PackageRegistryPlanner
+	VulnerabilityIntelligencePlanner  VulnerabilityIntelligencePlanner
+	SBOMAttestationPlanner            SBOMAttestationPlanner
+	SecurityAlertPlanner              SecurityAlertPlanner
+	PagerDutyPlanner                  PagerDutyPlanner
+	JiraPlanner                       JiraPlanner
+	OwnedPackageTargetReader          OwnedPackageTargetReader
+	OSPackageAdvisoryTargetReader     OSPackageAdvisoryTargetReader
+	SBOMComponentAdvisoryTargetReader SBOMComponentAdvisoryTargetReader
+	AWSScheduledPlanner               AWSScheduledPlanner
+	AWSFreshnessTriggers              AWSFreshnessTriggerStore
+	AWSFreshnessPlanner               AWSFreshnessPlanner
+	AWSFreshnessEvents                awsFreshnessEventCounter
+	IncidentFreshnessTriggers         IncidentFreshnessTriggerStore
+	Clock                             func() time.Time
 }
 
 // Run periodically reconciles declarative collector instance state and, in
@@ -445,11 +447,17 @@ func (s Service) scheduleVulnerabilityIntelligenceWork(
 		if err != nil {
 			return fmt.Errorf("load vulnerability intelligence derived targets for %q: %w", instance.InstanceID, err)
 		}
+		osTargets, sbomTargets, err := s.vulnerabilityInstalledEvidenceTargets(ctx, instance, observedAt)
+		if err != nil {
+			return fmt.Errorf("load vulnerability intelligence installed evidence targets for %q: %w", instance.InstanceID, err)
+		}
 		run, items, err := s.VulnerabilityIntelligencePlanner.PlanVulnerabilityIntelligenceWork(ctx, VulnerabilityIntelligencePlanRequest{
-			Instance:            instance,
-			ObservedAt:          observedAt,
-			PlanKey:             s.vulnerabilityIntelligencePlanKey(instance, observedAt),
-			OwnedPackageTargets: ownedTargets,
+			Instance:             instance,
+			ObservedAt:           observedAt,
+			PlanKey:              s.vulnerabilityIntelligencePlanKey(instance, observedAt),
+			OwnedPackageTargets:  ownedTargets,
+			OSPackageTargets:     osTargets,
+			SBOMComponentTargets: sbomTargets,
 		})
 		if err != nil {
 			return fmt.Errorf("plan vulnerability intelligence work for %q: %w", instance.InstanceID, err)
@@ -500,7 +508,7 @@ func (s Service) vulnerabilityIntelligencePlanKey(instance workflow.CollectorIns
 	}
 	interval := s.Config.ReconcileInterval
 	prefix := strings.TrimSpace(string(instance.Mode))
-	derivation, _ := vulnerabilityDerivationFromConfig(instance.Configuration)
+	derivation, _ := vulnerabilityPlanKeyDerivationFromConfig(instance.Configuration)
 	return derivedTargetPlanKey(prefix, observedAt, interval, derivation.PlanningMode)
 }
 
