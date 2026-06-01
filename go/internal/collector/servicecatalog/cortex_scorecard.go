@@ -183,6 +183,14 @@ func cortexScorecardResultEnvelope(ctx FixtureContext, scorecardTag, entityRef s
 // normalizeScorecardScore renders a YAML-decoded score (int, float, or string)
 // into a stable string. Integral floats are rendered without a decimal point so
 // re-emission stays idempotent regardless of how YAML typed the scalar.
+//
+// FormatFloat with the 'f' verb and precision -1 already emits the shortest
+// decimal that round-trips, so 100.0 renders as "100" and 100.5 as "100.5". It
+// is used directly instead of routing integral floats through an int64
+// conversion: converting an out-of-range float64 to int64 is
+// implementation-defined in Go and could yield an unstable value, while
+// FormatFloat renders even an out-of-range magnitude as a stable full-precision
+// decimal string.
 func normalizeScorecardScore(score any) string {
 	switch value := score.(type) {
 	case nil:
@@ -194,9 +202,6 @@ func normalizeScorecardScore(score any) string {
 	case int64:
 		return strconv.FormatInt(value, 10)
 	case float64:
-		if value == float64(int64(value)) {
-			return strconv.FormatInt(int64(value), 10)
-		}
 		return strconv.FormatFloat(value, 'f', -1, 64)
 	default:
 		return strings.TrimSpace(fmt.Sprintf("%v", value))

@@ -166,55 +166,101 @@ func (i cortexEntityInfo) tier() string {
 	return ""
 }
 
-// dependencies returns the declared dependency tags.
+// dependencies returns the declared dependency targets anchored in the canonical
+// `type:cortex/<tag>` entity-ref shape the entity producer mints. A Cortex
+// x-cortex-dependency entry carries only a target tag, not the dependency's own
+// type, so it is anchored as an untyped (service) entity under the cortex
+// namespace, exactly as an untyped entity ref is minted. Anchoring the
+// dependency ref the same way an entity ref is minted lets a future reducer join
+// correlate a dependency to the emitted entity by provider plus entity_ref; a
+// raw tag would not join. Tags are emitted in declaration order, deduplicated so
+// a repeated tag does not produce duplicate dependency facts.
 func (i cortexEntityInfo) dependencies() []string {
 	out := make([]string, 0, len(i.Dependencies))
+	seen := make(map[string]bool, len(i.Dependencies))
 	for _, dep := range i.Dependencies {
-		tag := strings.TrimSpace(dep.Tag)
-		if tag != "" {
-			out = append(out, tag)
+		ref := cortexDependencyRef(dep.Tag)
+		if ref == "" || seen[ref] {
+			continue
 		}
+		seen[ref] = true
+		out = append(out, ref)
 	}
 	return out
+}
+
+// cortexDependencyRef anchors one x-cortex-dependency target tag in the same
+// `type:cortex/<tag>` ref shape minted for an untyped entity. It returns an empty
+// string for a blank tag so the caller skips it.
+func cortexDependencyRef(tag string) string {
+	tag = strings.ToLower(strings.TrimSpace(tag))
+	if tag == "" {
+		return ""
+	}
+	return cortexDefaultType + ":" + ProviderCortexNamespace + "/" + tag
 }
 
 // repositoryLocator resolves the x-cortex-git block into a declared repository
 // URL for a known public provider, or a name-only slug otherwise. It returns
 // (url, "") when a known host plus a path-shaped slug can be expanded, and
-// ("", name) when the provider is unknown/self-hosted or the slug is not a path.
-// It never fabricates a repository id.
+// ("", name) when no declared provider can be expanded (unknown/self-hosted
+// provider, missing Azure project, or a slug that is not a path). It never
+// fabricates a repository id.
 //
 // Provider keys are visited in sorted order so the result is deterministic when
 // a descriptor declares more than one git provider; a non-deterministic map
-// iteration would break the stable-fact-id idempotency contract.
+// iteration would break the stable-fact-id idempotency contract. A provider that
+// cannot be expanded does not short-circuit the scan: the first provider that
+// yields a real URL wins, so an unexpandable provider (for example an Azure entry
+// missing its project) never shadows a resolvable provider and downgrades a
+// derivable repository_url into a name-only locator the reducer rejects. Only
+// when no provider expands does the first (sorted-order) name-only slug stand in.
 func (g cortexGit) repositoryLocator() (repositoryURL, repositoryName string) {
 	providers := make([]string, 0, len(g.Providers))
 	for provider := range g.Providers {
 		providers = append(providers, provider)
 	}
 	sort.Strings(providers)
+	fallbackName := ""
 	for _, provider := range providers {
 		entry := g.Providers[provider]
 		repo := strings.Trim(strings.TrimSpace(entry.Repository), "/")
 		if repo == "" {
 			continue
 		}
-		if provider == "azure" {
-			return azureRepositoryURL(entry, repo)
+		url, name := cortexProviderLocator(provider, entry, repo)
+		if url != "" {
+			return url, ""
 		}
-		host, known := cortexProviderHosts[provider]
-		if !known {
-			// Unknown or self-hosted provider: a host guess would be wrong, so
-			// keep the slug as a name-only locator the reducer rejects.
-			return "", repo
+		if fallbackName == "" {
+			// Remember the first name-only slug in sorted order, but keep scanning
+			// for a provider that yields a real URL.
+			fallbackName = name
 		}
-		if !strings.Contains(repo, "/") {
-			// A bare slug with no namespace path cannot form a valid repo URL.
-			return "", repo
-		}
-		return host + "/" + repo, ""
 	}
-	return "", ""
+	return "", fallbackName
+}
+
+// cortexProviderLocator expands a single x-cortex-git provider entry into either
+// a derivable repository URL or a name-only slug. It returns (url, "") when the
+// known host plus a path-shaped slug forms a valid URL, and ("", name) when the
+// provider is unknown/self-hosted, the Azure project is missing, or the slug is
+// not a path. It never fabricates a host for an unknown provider.
+func cortexProviderLocator(provider string, entry cortexGitProvider, repo string) (repositoryURL, repositoryName string) {
+	if provider == "azure" {
+		return azureRepositoryURL(entry, repo)
+	}
+	host, known := cortexProviderHosts[provider]
+	if !known {
+		// Unknown or self-hosted provider: a host guess would be wrong, so keep
+		// the slug as a name-only locator the reducer rejects.
+		return "", repo
+	}
+	if !strings.Contains(repo, "/") {
+		// A bare slug with no namespace path cannot form a valid repo URL.
+		return "", repo
+	}
+	return host + "/" + repo, ""
 }
 
 // azureRepositoryURL expands an Azure DevOps entry. Azure splits the locator

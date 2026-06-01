@@ -13,13 +13,10 @@ type Provider string
 const (
 	// ProviderBackstage identifies Backstage catalog-info.yaml manifests.
 	ProviderBackstage Provider = "backstage"
-<<<<<<< HEAD
 	// ProviderOpsLevel identifies OpsLevel opslevel.yml manifests.
 	ProviderOpsLevel Provider = "opslevel"
-=======
 	// ProviderCortex identifies Cortex cortex.yaml entity descriptors.
 	ProviderCortex Provider = "cortex"
->>>>>>> b715b446 (feat(servicecatalog): Cortex manifest fact emitter (producer slice, PR-3))
 )
 
 // ProviderCortexNamespace is the entity-ref namespace segment for Cortex

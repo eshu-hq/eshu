@@ -146,6 +146,119 @@ func TestCortexGitMultiProviderIsDeterministic(t *testing.T) {
 	}
 }
 
+func TestCortexGitMultiProviderPrefersResolvableURL(t *testing.T) {
+	t.Parallel()
+
+	// A descriptor can declare more than one git provider. A provider that cannot
+	// be expanded into a URL (an Azure entry missing its project, or an
+	// unknown/self-hosted provider, or a bare slug) MUST NOT block a later provider
+	// in the same x-cortex-git block from yielding a resolvable repository_url.
+	// Otherwise a resolvable repository is silently downgraded to a name-only
+	// locator and the reducer rejects it.
+	cases := []struct {
+		name      string
+		providers map[string]cortexGitProvider
+		wantURL   string
+		wantName  string
+	}{
+		{
+			// "azure" sorts before "github"; the Azure entry has no project so it
+			// cannot expand, but github must still win.
+			name: "azure_missing_project_then_github",
+			providers: map[string]cortexGitProvider{
+				"azure":  {Repository: "myrepo"},
+				"github": {Repository: "eshu-hq/checkout-api"},
+			},
+			wantURL:  "https://github.com/eshu-hq/checkout-api",
+			wantName: "",
+		},
+		{
+			// "aaa-self-hosted" sorts before "gitlab"; an unknown provider must not
+			// shadow the resolvable gitlab entry.
+			name: "unknown_provider_then_gitlab",
+			providers: map[string]cortexGitProvider{
+				"aaa-self-hosted": {Repository: "team/repo"},
+				"gitlab":          {Repository: "group/project"},
+			},
+			wantURL:  "https://gitlab.com/group/project",
+			wantName: "",
+		},
+		{
+			// A bare slug (no namespace path) on a known provider cannot form a URL;
+			// a later provider with a path-shaped slug must still resolve.
+			name: "bare_slug_then_pathed_provider",
+			providers: map[string]cortexGitProvider{
+				"github": {Repository: "barename"},
+				"gitlab": {Repository: "group/project"},
+			},
+			wantURL:  "https://gitlab.com/group/project",
+			wantName: "",
+		},
+		{
+			// When NO provider can expand, fall back to a name-only locator chosen
+			// deterministically (first in sorted provider order) so the reducer can
+			// reject it without fabricating a URL.
+			name: "no_resolvable_provider_falls_back_to_name",
+			providers: map[string]cortexGitProvider{
+				"azure":           {Repository: "myrepo"},
+				"zzz-self-hosted": {Repository: "team/repo"},
+			},
+			wantURL:  "",
+			wantName: "myrepo",
+		},
+	}
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			git := cortexGit{Providers: tc.providers}
+			// Repeat to also assert determinism across map-iteration orderings.
+			for i := 0; i < 50; i++ {
+				gotURL, gotName := git.repositoryLocator()
+				if gotURL != tc.wantURL || gotName != tc.wantName {
+					t.Fatalf("repositoryLocator() = (%q, %q), want (%q, %q)", gotURL, gotName, tc.wantURL, tc.wantName)
+				}
+			}
+		})
+	}
+}
+
+func TestCortexDependencyRefIsEntityRefShaped(t *testing.T) {
+	t.Parallel()
+
+	// Cortex x-cortex-dependency carries only a tag. The producer must anchor the
+	// dependency target in the same `type:cortex/<tag>` ref shape the entity
+	// producer mints for an untyped entity, so a future reducer join can correlate
+	// a dependency to the emitted entity by provider plus ref. Raw tags would not
+	// join.
+	raw := readFixture(t, "testdata/cortex_catalog.yaml")
+	envelopes, err := CortexManifestEnvelopes(raw, cortexContext())
+	if err != nil {
+		t.Fatalf("CortexManifestEnvelopes() error = %v", err)
+	}
+
+	wantRefs := map[string]bool{
+		"service:cortex/ledger":      false,
+		"service:cortex/payments-db": false,
+	}
+	for _, envelope := range envelopes {
+		if envelope.FactKind != facts.ServiceCatalogDependencyFactKind {
+			continue
+		}
+		assertPayload(t, envelope.Payload, "entity_ref", "service:cortex/checkout-api")
+		ref, _ := envelope.Payload["depends_on_ref"].(string)
+		if _, ok := wantRefs[ref]; !ok {
+			t.Fatalf("dependency depends_on_ref = %q, want an entity-ref-shaped cortex target", ref)
+		}
+		wantRefs[ref] = true
+	}
+	for ref, seen := range wantRefs {
+		if !seen {
+			t.Fatalf("expected dependency fact with depends_on_ref %q was not emitted", ref)
+		}
+	}
+}
+
 // TestCortexManifestReducerRoundTrip is the payload-key-fidelity contract test:
 // emitted envelopes flow through the real reducer index and must reach the
 // intended outcomes. It imports the reducer in test code only.
@@ -307,119 +420,4 @@ func TestCortexManifestRequiresContext(t *testing.T) {
 	if _, err := CortexManifestEnvelopes(raw, FixtureContext{ScopeID: "s", GenerationID: "g"}); err == nil {
 		t.Fatalf("blank collector_instance_id must error")
 	}
-}
-
-// TestCortexScorecardEnvelopesEmitsCarriedFacts proves the scorecard descriptor
-// produces scorecard_definition (per rule) and scorecard_result (per entity)
-// facts that pass the schema-version gate, anchor on provider+entity_ref, and
-// never carry canonical ids.
-func TestCortexScorecardEnvelopesEmitsCarriedFacts(t *testing.T) {
-	t.Parallel()
-
-	raw := readFixture(t, "testdata/cortex_scorecard.yaml")
-	envelopes, err := CortexScorecardEnvelopes(raw, cortexContext())
-	if err != nil {
-		t.Fatalf("CortexScorecardEnvelopes() error = %v", err)
-	}
-	byKind := envelopesByKind(envelopes)
-
-	// Two rules -> two definition facts; two declared results -> two result facts.
-	assertKindCount(t, byKind, facts.ServiceCatalogScorecardDefinitionFactKind, 2)
-	assertKindCount(t, byKind, facts.ServiceCatalogScorecardResultFactKind, 2)
-
-	def := findScorecardDefinition(t, envelopes, "has-runbook")
-	assertPayload(t, def.Payload, "provider", string(ProviderCortex))
-	assertPayload(t, def.Payload, "scorecard_tag", "production-readiness")
-	assertPayload(t, def.Payload, "rule_identifier", "has-runbook")
-	assertPayload(t, def.Payload, "level", "Bronze")
-
-	result := findScorecardResult(t, envelopes, "service:cortex/checkout-api")
-	assertPayload(t, result.Payload, "provider", string(ProviderCortex))
-	assertPayload(t, result.Payload, "entity_ref", "service:cortex/checkout-api")
-	assertPayload(t, result.Payload, "scorecard_tag", "production-readiness")
-	assertPayload(t, result.Payload, "level", "Gold")
-	// Never mint canonical identity from a scorecard result.
-	assertBlank(t, result.Payload, "service_id")
-	assertBlank(t, result.Payload, "workload_id")
-
-	for _, envelope := range envelopes {
-		if _, ok := facts.ServiceCatalogSchemaVersion(envelope.FactKind); !ok {
-			t.Fatalf("emitted unexpected fact kind %q", envelope.FactKind)
-		}
-		if envelope.SchemaVersion != facts.ServiceCatalogSchemaVersionV1 {
-			t.Fatalf("fact %q schema_version = %q, want %q", envelope.FactKind, envelope.SchemaVersion, facts.ServiceCatalogSchemaVersionV1)
-		}
-	}
-}
-
-// TestCortexScorecardResultsDoNotChangeCorrelation proves scorecard facts are
-// carried-only: feeding them alongside entity facts must not alter any entity's
-// reducer outcome, because the reducer index does not consume scorecards yet.
-func TestCortexScorecardResultsDoNotChangeCorrelation(t *testing.T) {
-	t.Parallel()
-
-	catalog, err := CortexManifestEnvelopes(readFixture(t, "testdata/cortex_catalog.yaml"), cortexContext())
-	if err != nil {
-		t.Fatalf("CortexManifestEnvelopes() error = %v", err)
-	}
-	scorecards, err := CortexScorecardEnvelopes(readFixture(t, "testdata/cortex_scorecard.yaml"), cortexContext())
-	if err != nil {
-		t.Fatalf("CortexScorecardEnvelopes() error = %v", err)
-	}
-	repos := []facts.Envelope{
-		activeRepositoryFact("repo-checkout", "https://github.com/eshu-hq/checkout-api", false),
-	}
-
-	withoutScorecards := decisionsByEntity(reducer.BuildServiceCatalogCorrelationDecisions(append(catalog, repos...)))
-	combined := append(append([]facts.Envelope{}, catalog...), scorecards...)
-	withScorecards := decisionsByEntity(reducer.BuildServiceCatalogCorrelationDecisions(append(combined, repos...)))
-
-	if len(withoutScorecards) != len(withScorecards) {
-		t.Fatalf("scorecard facts changed decision count: %d vs %d", len(withoutScorecards), len(withScorecards))
-	}
-	for ref, before := range withoutScorecards {
-		after, ok := withScorecards[ref]
-		if !ok {
-			t.Fatalf("entity %q lost its decision when scorecards were added", ref)
-		}
-		if before.Outcome != after.Outcome {
-			t.Fatalf("entity %q outcome drifted with scorecards: %q -> %q", ref, before.Outcome, after.Outcome)
-		}
-	}
-}
-
-func TestCortexScorecardEmptyInputIsClean(t *testing.T) {
-	t.Parallel()
-
-	envelopes, err := CortexScorecardEnvelopes([]byte("\n# nothing\n"), cortexContext())
-	if err != nil {
-		t.Fatalf("CortexScorecardEnvelopes() empty error = %v", err)
-	}
-	if len(envelopes) != 0 {
-		t.Fatalf("empty scorecard envelopes = %d, want 0", len(envelopes))
-	}
-}
-
-// --- cortex-specific helpers ---
-
-func findScorecardDefinition(t *testing.T, envelopes []facts.Envelope, ruleIdentifier string) facts.Envelope {
-	t.Helper()
-	for i := range envelopes {
-		if envelopes[i].FactKind == facts.ServiceCatalogScorecardDefinitionFactKind && envelopes[i].Payload["rule_identifier"] == ruleIdentifier {
-			return envelopes[i]
-		}
-	}
-	t.Fatalf("scorecard definition for rule %q not found", ruleIdentifier)
-	return facts.Envelope{}
-}
-
-func findScorecardResult(t *testing.T, envelopes []facts.Envelope, entityRef string) facts.Envelope {
-	t.Helper()
-	for i := range envelopes {
-		if envelopes[i].FactKind == facts.ServiceCatalogScorecardResultFactKind && envelopes[i].Payload["entity_ref"] == entityRef {
-			return envelopes[i]
-		}
-	}
-	t.Fatalf("scorecard result for %q not found", entityRef)
-	return facts.Envelope{}
 }

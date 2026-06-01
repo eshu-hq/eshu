@@ -5,29 +5,19 @@
 1. `README.md` — package purpose, exported surface, and the payload-key
    contract.
 2. `backstage.go` / `backstage_model.go` — Backstage manifest normalization.
-<<<<<<< HEAD
 3. `opslevel.go` / `opslevel_model.go` — OpsLevel `opslevel.yml` normalization,
    including provider-host repository URL derivation.
-4. `facts_builder.go` — provider-agnostic fact envelope construction.
-5. `envelope.go` — fact identity, redaction, and URL safety.
-6. `go/internal/reducer/service_catalog_correlation_index.go` — the reducer
-   index whose payload keys this package MUST honor exactly.
-7. `docs/internal/design/563-service-catalog-manifest-fact-emitter.md` — the
-   design memo and phased PR plan.
-8. `docs/public/reference/collector-reducer-readiness.md` — source-truth
-=======
-3. `cortex.go` / `cortex_model.go` — Cortex `cortex.yaml` normalization,
+4. `cortex.go` / `cortex_model.go` — Cortex `cortex.yaml` normalization,
    including git-provider repository URL derivation.
-4. `cortex_scorecard.go` — Cortex scorecard descriptor normalization into
+5. `cortex_scorecard.go` — Cortex scorecard descriptor normalization into
    carried-only scorecard_definition and scorecard_result facts.
-5. `facts_builder.go` — provider-agnostic fact envelope construction.
-6. `envelope.go` — fact identity, redaction, and URL safety.
-7. `go/internal/reducer/service_catalog_correlation_index.go` — the reducer
+6. `facts_builder.go` — provider-agnostic fact envelope construction.
+7. `envelope.go` — fact identity, redaction, and URL safety.
+8. `go/internal/reducer/service_catalog_correlation_index.go` — the reducer
    index whose payload keys this package MUST honor exactly.
-8. `docs/internal/design/563-service-catalog-manifest-fact-emitter.md` — the
+9. `docs/internal/design/563-service-catalog-manifest-fact-emitter.md` — the
    design memo and phased PR plan.
-9. `docs/public/reference/collector-reducer-readiness.md` — source-truth
->>>>>>> b715b446 (feat(servicecatalog): Cortex manifest fact emitter (producer slice, PR-3))
+10. `docs/public/reference/collector-reducer-readiness.md` — source-truth
    boundary for `service_catalog_correlation`.
 
 ## Invariants
@@ -51,25 +41,23 @@
   pre-canonicalize into `normalized_url`; the reducer re-canonicalizes the value
   it reads, and a bare host/path key fails re-canonicalization and breaks
   exact/derived matching.
-<<<<<<< HEAD
 - OpsLevel-only: a repository is declared as `provider` + a `name` slug, not a
   URL. Expand only the known public hosts in `opslevelProviderHosts`
   (`github`, `gitlab`, `bitbucket`, `azure_devops`) into a `repository_url`.
   Never guess a host for an unknown or self-hosted provider; emit the slug as a
   name-only `repository_name` and let the reducer reject it. Guessing a host
   would manufacture a wrong derivation and risk a false correlation.
-=======
 - Cortex-only: a repository is declared as a git `provider` plus a `name` slug.
   Expand only the known public hosts in `cortexProviderHosts`
   (`github`, `gitlab`, `bitbucket`) plus the Azure `project`+`repository` split.
   Never guess a host for an unknown or self-hosted provider; emit the slug as a
   name-only `repository_name` and let the reducer reject it. Resolve
   multi-provider blocks in sorted provider order so stable fact ids stay
-  deterministic.
+  deterministic, and prefer the first provider that yields a real URL so an
+  unexpandable provider never shadows a resolvable one.
 - Cortex scorecard_definition and scorecard_result facts are carried-only: the
   reducer index loads but does not classify them. Keep a test asserting they do
   not change any entity's correlation outcome.
->>>>>>> b715b446 (feat(servicecatalog): Cortex manifest fact emitter (producer slice, PR-3))
 - Strip token-bearing or query-string URLs before emission. Redacted operational
   links emit a `service_catalog.warning`, never a dropped entity.
 - Degraded documents (unsupported version, missing name, duplicate entity) emit
