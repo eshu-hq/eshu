@@ -197,16 +197,16 @@ record the private URL in the Kubernetes evidence.
 
 ## Evidence schema
 
-`evidence.json` carries `schema_version: 1`, `generated_at`, `repo_root`,
-`phases[]` (the list operators requested), `pass` (overall boolean), and
-`failures[]` (per-phase failure messages). Each requested phase populates a
-top-level key with at least `status` set to `pass`, `fail`, or `skipped`. The
-runtime phase also surfaces `api_base_url` (the normalized value the gate
-actually used; see below), `endpoints_failed`, and per-endpoint readback rows
-keyed by the documented `/api/v0/...` paths. The Kubernetes phase surfaces
-`pprof_status`, `logs_ok`, `queue_readback_ok`, `queue_retrying`,
-`queue_dead_letter`, `queue_failed`, sanitized evidence file references, and
-resource snapshot status.
+`evidence.json` carries `schema_version: 1`, `generated_at`, redacted
+`repo_root`, `phases[]` (the list operators requested), `pass` (overall
+boolean), and `failures[]` (per-phase failure messages). Each requested phase
+populates a top-level key with at least `status` set to `pass`, `fail`, or
+`skipped`. The runtime phase also surfaces `api_base_url` (the normalized value
+the gate actually used; see below), `endpoints_failed`, and per-endpoint
+readback rows keyed by the documented `/api/v0/...` paths. The Kubernetes phase
+surfaces `pprof_status`, `logs_ok`, `queue_readback_ok`, `queue_terminal_ok`,
+queue outstanding/pending/in-flight/retry/failed/dead-letter counters,
+sanitized evidence file references, and resource snapshot status.
 
 The `--api-base-url` value is normalized: a trailing `/` or `/api/v0` is
 stripped so the same env value that `verify_remote_e2e_runtime_state.sh`
@@ -233,9 +233,9 @@ The harness intentionally records only public-safe data. In particular:
   not a dump of customer findings.
 - Kubernetes evidence stores sanitized summaries only. Pod snapshots remove
   node names, pod names, IP addresses, and image references; logs and Helm
-  values redact repository names, package names, provider URLs, tokens,
-  hostnames, IP addresses, and machine-local paths before writing evidence
-  files.
+  values redact repository names, package names, provider URLs, tokens, common
+  secret key values, authorization headers, ARNs, account ids, hostnames, IP
+  addresses, and machine-local paths before writing evidence files.
 - Operator-local artefacts (private corpora paths, AWS account ids, GitHub
   installation ids) are not echoed by the gate; they live in the operator's
   own env file.
