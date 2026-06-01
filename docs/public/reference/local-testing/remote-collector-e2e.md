@@ -90,6 +90,17 @@ Git repository root. Override `ESHU_REMOTE_E2E_MIN_REPOSITORY_COUNT` or
 `ESHU_REMOTE_E2E_MAX_REPOSITORY_COUNT` only when the corpus design is recorded
 with the run evidence.
 
+Keep the actual representative corpus manifest outside the public repository.
+It can list private repository paths, provider targets, and package
+coordinates for the operator, but those values must not be copied into public
+docs, issues, PRs, or release-gate evidence. Public evidence records only the
+aggregate proof matrix described in
+[Security Intelligence Release Gate](../security-intelligence-release-gate.md):
+synthetic matrix id, repository count, ecosystem coverage counts, Terraform/IaC
+coverage, image/SBOM coverage, deployment coverage, queue counters, wall time,
+CPU/memory signal state, pprof/log availability, mismatch-class totals, and
+public follow-up issue refs.
+
 Full-corpus mode rejects the default fixture root unless
 `ESHU_REMOTE_E2E_MIN_REPOSITORY_COUNT` or
 `ESHU_REMOTE_E2E_EXPECTED_REPOSITORY_COUNT` is set.
@@ -118,6 +129,23 @@ export ESHU_REMOTE_E2E_PROJECT_NAME=eshu-remote-e2e-representative
 docker compose --env-file "${ESHU_REMOTE_E2E_ENV_FILE}" \
   -f docker-compose.remote-e2e.yaml up --build
 ```
+
+After the stack reaches the representative acceptance state, build the
+operator-local proof matrix from the aggregate readback and run the release
+gate phase:
+
+```bash
+scripts/security_intelligence_release_gate.sh \
+  --phases proof-matrix \
+  --proof-matrix /secure/local/eshu/proof-matrix.json
+```
+
+The proof matrix must cover npm, Go modules, PyPI, Maven/Gradle, Composer,
+RubyGems, Cargo, and NuGet. It must also cover Terraform/IaC evidence,
+image/SBOM evidence, and deployment evidence, or classify the missing coverage
+with one of the release-gate gap classes and a public issue ref. The harness
+rejects repository names, package names, provider URLs, alert URLs, tokens,
+hostnames, and machine-local paths.
 
 ## Representative Acceptance
 
