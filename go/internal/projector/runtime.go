@@ -414,6 +414,9 @@ func buildProjection(scopeValue scope.IngestionScope, generation scope.ScopeGene
 	if intent, ok := buildIAMCanAssumeMaterializationReducerIntent(scopeValue, generation, inputFacts); ok {
 		intents = append(intents, intent)
 	}
+	if intent, ok := buildS3LogsToMaterializationReducerIntent(scopeValue, generation, inputFacts); ok {
+		intents = append(intents, intent)
+	}
 	if intent, ok := buildContainerImageIdentityReducerIntent(scopeValue, generation, inputFacts); ok {
 		intents = append(intents, intent)
 	}

@@ -190,6 +190,8 @@ gauge when a shared-acceptance observer is available.
 | `CorrelationUnmanagedDetected` | `eshu_dp_correlation_unmanaged_detected_total` |
 | `AWSRelationshipEdges` | `eshu_dp_aws_relationship_edges_total` |
 | `IAMCanAssumeEdges` | `eshu_dp_iam_can_assume_edges_total` |
+| `S3LogsToEdges` | `eshu_dp_s3_logs_to_edges_total` |
+| `S3LogsToSkipped` | `eshu_dp_s3_logs_to_skipped_total` |
 | `DriftUnresolvedModuleCalls` | `eshu_dp_drift_unresolved_module_calls_total` |
 | `DriftSchemaUnknownComposite` | `eshu_dp_drift_schema_unknown_composite_total` |
 | `WebhookRequests` | `eshu_dp_webhook_requests_total` |

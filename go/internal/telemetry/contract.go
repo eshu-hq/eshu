@@ -219,6 +219,13 @@ const (
 	// provenance-only or digest-unresolvable correlation degraded gracefully without
 	// fabricating or dangling edges.
 	SpanReducerKubernetesCorrelationMaterialization = "reducer.kubernetes_correlation_materialization"
+	// SpanReducerS3LogsToMaterialization wraps the S3 LOGS_TO server-access-log
+	// edge projection (issue #1144 PR2): fact load, in-memory S3 bucket-name
+	// join-index build, source/target bucket resolution, retract, and the batched
+	// MATCH-MATCH-MERGE LOGS_TO edge write. The span carries materialized vs
+	// skipped edge counts so a trace shows whether cross-account or unscanned log
+	// targets degraded gracefully without fabricating edges.
+	SpanReducerS3LogsToMaterialization = "reducer.s3_logs_to_materialization"
 	// SpanReducerSecurityGroupReachabilityMaterialization wraps the security-group
 	// network-reachability edge projection (issue #1135 PR2b, Option D): fact load,
 	// the triple canonical-nodes readiness gate, in-memory join-index build, SG
@@ -239,8 +246,8 @@ const (
 	// fabricating or dangling edges.
 	SpanReducerIAMEscalationMaterialization = "reducer.iam_escalation_materialization"
 	SpanCanonicalWrite                      = "canonical.write"
-	SpanCanonicalProjection                             = "canonical.projection"
-	SpanCanonicalRetract                                = "canonical.retract"
+	SpanCanonicalProjection                 = "canonical.projection"
+	SpanCanonicalRetract                    = "canonical.retract"
 
 	SpanEvidenceDiscovery                 = "ingestion.evidence_discovery"
 	SpanIaCReachabilityMaterialization    = "iac_reachability.materialize"
