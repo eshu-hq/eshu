@@ -379,6 +379,21 @@ readback fields: `package.consumption`, `vulnerability.go_module_evidence`,
 key, queue, reducer lane, route, MCP tool, graph write, scanner worker, or
 runtime configuration knob.
 
+No-Regression Evidence: Go module readiness support for issue `#1089` is
+guarded by `go test ./internal/query -run TestPostgresSupplyChainImpactReadinessQueryShape -count=1`.
+The query-shape guard proves `go` stays in the supported package-manager list
+for the repository-scoped unsupported-target rollup, so owned `go.mod`
+dependency rows are not reported as `unsupported_targets[]` after the reducer
+and parser evidence has first-class Go module support.
+
+No-Observability-Change: the `#1089` readiness fix changes only the existing
+bounded Postgres readiness query's supported package-manager allowlist. It adds
+no metric instrument, span, log key, queue, reducer lane, route, MCP tool,
+graph write, scanner worker, or runtime configuration knob. Operators continue
+to diagnose the path through `package.consumption` readiness counts, the
+unsupported-target rollup, and the existing supply-chain impact readiness
+envelope.
+
 No-Regression Evidence: Ruby/Bundler vulnerability parity for issue `#1013`
 is guarded by `go test ./internal/parser/ruby -run 'TestParseGemfile' -count=1`
 and `go test ./internal/reducer -run
