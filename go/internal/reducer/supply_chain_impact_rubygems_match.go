@@ -68,7 +68,7 @@ func rubyGemsAffectedByPackage(observed string, pkg supplyChainAffectedPackage) 
 		}
 	}
 	if raw := strings.TrimSpace(pkg.affectedRangeRaw); raw != "" {
-		if affected, ok := comparatorRangeContains(raw, observed, compareRubyGemsVersion); affected {
+		if affected, ok := rubyGemsRequirementContains(raw, observed); affected {
 			return true, true
 		} else if !ok {
 			valid = false

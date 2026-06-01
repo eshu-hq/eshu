@@ -63,7 +63,7 @@ func composerAffectedByPackage(observed string, pkg supplyChainAffectedPackage) 
 		}
 	}
 	if raw := strings.TrimSpace(pkg.affectedRangeRaw); raw != "" {
-		if affected, ok := comparatorRangeContains(raw, observed, compareComposerVersion); affected {
+		if affected, ok := composerConstraintContains(raw, observed); affected {
 			return true, true
 		} else if !ok {
 			valid = false
