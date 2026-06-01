@@ -46,18 +46,19 @@ graph projection phases.
 - `WarningAnalyzer` — safe built-in analyzer used when no concrete scanner is
   configured; it emits `scanner_worker.warning`.
 
-Concrete scanner-worker analyzers live in sub-packages of this package; the
-first one is `sbomgenerator` (see `sbomgenerator/README.md`), which emits
-bounded CycloneDX-compatible `sbom.document`, `sbom.component`, and
-`sbom.warning` source facts for repository, image, or artifact targets when the
-runtime source has enough subject evidence. The hosted `eshu-scanner-worker`
-binary now wires a configured repository-manifest SBOM source for
-`package-lock.json`, `npm-shrinkwrap.json`, `go.mod`, `Cargo.lock`,
-`composer.lock`, `packages.lock.json`, `Pipfile.lock`, `poetry.lock`,
-`Gemfile.lock`, and `gradle.lockfile` targets, and keeps `WarningAnalyzer` as
-the fallback when no runtime-owned `sbomgenerator.Source` is configured, so
-claims still commit explicit warning facts instead of pretending the target was
-scanned clean.
+Concrete scanner-worker analyzers live in sub-packages of this package:
+`imageanalyzer` reads configured image rootfs metadata or ordered local OCI
+layer tar streams and emits installed OS package facts or unsupported warning
+facts, and `sbomgenerator` emits bounded CycloneDX-compatible `sbom.document`,
+`sbom.component`, and `sbom.warning` source facts for repository, image, or
+artifact targets when the runtime source has enough subject evidence. The
+hosted `eshu-scanner-worker` binary wires configured image, OS package
+extraction, and repository-manifest SBOM sources for `package-lock.json`,
+`npm-shrinkwrap.json`, `go.mod`, `Cargo.lock`, `composer.lock`,
+`packages.lock.json`, `Pipfile.lock`, `poetry.lock`, `Gemfile.lock`, and
+`gradle.lockfile` targets, and keeps `WarningAnalyzer` as the fallback when no
+runtime-owned analyzer source is configured, so claims still commit explicit
+warning facts instead of pretending the target was scanned clean.
 
 ## Dependencies
 
@@ -95,10 +96,11 @@ result count, CPU seconds, and memory bytes. It starts
 
 ## Evidence
 
-Collector Performance Evidence: `go test ./internal/collector/scannerworker ./internal/collector/scannerworker/sbomgenerator ./internal/collector/ospackagevulnerability/osruntime ./cmd/scanner-worker ./internal/runtime ./internal/telemetry ./internal/workflow ./internal/scope -count=1`
+Collector Performance Evidence: `go test ./internal/collector/scannerworker ./internal/collector/scannerworker/imageanalyzer ./internal/collector/scannerworker/sbomgenerator ./internal/collector/ospackagevulnerability/osruntime ./cmd/scanner-worker ./internal/runtime ./internal/telemetry ./internal/workflow ./internal/scope -count=1`
 covers claim processing, repository/image/artifact target kind derivation,
-source-fact output, configured repository SBOM generation, OS package analyzer
-apk/dpkg parsing, retry/dead-letter handling, and deployment render contracts.
+source-fact output, configured image rootfs/layer package extraction,
+configured repository SBOM generation, OS package analyzer apk/dpkg parsing,
+retry/dead-letter handling, and deployment render contracts.
 Analyzer rollout still needs target count, fact count, runtime, CPU, memory,
 queue state, retry count, dead-letter count, and pprof evidence from the target
 environment before it becomes a default.

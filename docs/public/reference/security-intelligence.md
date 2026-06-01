@@ -225,7 +225,7 @@ Analyzer lane ownership:
 | Analyzer profile | Lane | Reason |
 | --- | --- | --- |
 | SBOM generation | `scanner_worker` | Can read repository, image, or artifact inputs and produce many component facts. |
-| Image unpacking | `scanner_worker` | CPU, disk, and memory pressure must be isolated. |
+| Image unpacking | `scanner_worker` | CPU, disk, and memory pressure must be isolated. The current analyzer reads configured local rootfs metadata or ordered OCI layer tar streams and emits package facts only when apk/dpkg database proof exists. |
 | Source analysis | `scanner_worker` | Repository-size dependent CPU and memory cost. |
 | OS package extraction | `scanner_worker` | Image/rootfs extraction belongs outside reducers. |
 | Secret scanning | `scanner_worker` | High-cardinality file scanning with bounded output. |
@@ -242,7 +242,11 @@ the default reducer lane. It is available in the remote Compose proof stack and
 as an opt-in Helm `scannerWorker` Deployment, but it is not enabled by default
 in normal Helm installs. The built-in analyzer emits an explicit
 `scanner_worker.warning` source fact when no concrete analyzer is configured;
-that is a proof of claimed scanner-worker execution, not a clean finding.
+that is a proof of claimed scanner-worker execution, not a clean finding. The
+`image_unpacking` analyzer preserves image reference, image digest,
+rootfs/layer evidence source, distro, package manager, package name, installed
+version, and extraction reason on source facts. Unsupported image shapes emit
+bounded warning facts and must not be interpreted as clean.
 
 Starting Kubernetes resource envelopes:
 
@@ -250,7 +254,7 @@ Starting Kubernetes resource envelopes:
 | --- | --- | --- | --- |
 | Repository source analysis, secret, license, or misconfiguration scan | `cpu=1`, `memory=2Gi` | `cpu=4`, `memory=4Gi` | `cpu_millis=4000`, `memory_bytes=4294967296`, `timeout=10m`, `max_files=250000`, `max_facts=50000` |
 | SBOM generation or OS package extraction | `cpu=1`, `memory=2Gi` | `cpu=4`, `memory=8Gi` | `cpu_millis=4000`, `memory_bytes=8589934592`, `timeout=10m`, `max_input_bytes=2Gi`, `max_facts=50000` |
-| Image unpacking | `cpu=2`, `memory=4Gi` | `cpu=6`, `memory=12Gi` | `cpu_millis=6000`, `memory_bytes=12884901888`, `timeout=15m`, `max_input_bytes=4Gi`, `max_facts=50000` |
+| Image unpacking | `cpu=2`, `memory=4Gi` | `cpu=6`, `memory=12Gi` | `cpu_millis=6000`, `memory_bytes=12884901888`, `timeout=15m`, `max_input_bytes=4Gi`, `max_files=250000`, `max_facts=50000` |
 
 Use a separate worker pool per analyzer class when those envelopes diverge.
 Do not co-locate scanner workers with reducers until pprof and metrics prove

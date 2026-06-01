@@ -4,9 +4,11 @@
 // The package owns the narrow boundary that lets workflow-owned work items
 // carry bounded repository, image, or artifact target scope and resource limits
 // into isolated CPU and memory heavy security analyzers. Scanner workers emit
-// allowlisted source fact families only; reducers remain the truth owners for
-// finding admission, prioritization, and graph projection. Target kind
-// derivation stays bounded to repository, image, or artifact enums so telemetry
-// and failure payloads do not leak raw locators. Hosted workers must either
-// commit source evidence or record a bounded retry or dead-letter payload.
+// allowlisted source fact families only, including image/rootfs package
+// evidence when a configured analyzer proves it from package databases;
+// reducers remain the truth owners for finding admission, prioritization, and
+// graph projection. Target kind derivation stays bounded to repository, image,
+// or artifact enums so telemetry and failure payloads do not leak raw locators.
+// Hosted workers must either commit source evidence or record a bounded retry
+// or dead-letter payload.
 package scannerworker

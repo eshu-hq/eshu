@@ -27,6 +27,11 @@ flowchart LR
 - Applies analyzer defaults, optional instance `resource_limits`, then
   `ESHU_SCANNER_WORKER_*` resource overrides.
 - Emits source facts only and rejects silent clean output before committing.
+- Runs the concrete `image_unpacking` analyzer when configured with
+  `image_targets`; this source reads configured local image rootfs metadata or
+  ordered OCI layer tar streams, extracts Alpine apk or Debian dpkg installed
+  package databases, and emits `vulnerability.os_package`,
+  `vulnerability.warning`, or `scanner_worker.warning` unsupported evidence.
 - Runs the concrete `sbom_generation` analyzer when configured with
   `sbom_targets`; this source walks a configured repository root, reads bounded
   `package-lock.json`, `npm-shrinkwrap.json`, `go.mod`, `Cargo.lock`,
@@ -45,8 +50,34 @@ flowchart LR
 The fallback analyzer emits an explicit `scanner_worker.warning` source fact
 (`reason=analyzer_not_configured`). `sbom_generation` falls back to
 `reason=sbom_generator_source_not_configured` when no `sbom_targets` are
-configured. Concrete image, secret, license, source, and misconfiguration
-analyzers must plug into this boundary instead of running in reducer lanes.
+configured. Concrete secret, license, source, and misconfiguration analyzers
+must plug into this boundary instead of running in reducer lanes.
+
+`image_unpacking` targets are configured inside the selected `scanner_worker`
+collector instance:
+
+```json
+{
+  "analyzer": "image_unpacking",
+  "image_targets": [
+    {
+      "scope_id": "image://registry.example/team/app@sha256:...",
+      "rootfs_path": "/var/lib/eshu/scanner/rootfs/...",
+      "layer_paths": ["/var/lib/eshu/scanner/layers/layer.tar.gz"],
+      "source_uri": "oci://registry.example/team/app@sha256:...",
+      "source_record_id": "sha256:...",
+      "image_reference": "registry.example/team/app:1.2.3",
+      "image_digest": "sha256:..."
+    }
+  ]
+}
+```
+
+`rootfs_path` and `layer_paths` are runtime-local configuration. They must not
+appear in retry, dead-letter, metric, log, or public documentation payloads.
+Layer paths are ordered from base to top layer. Unsupported image shapes emit
+`scanner_worker.warning` facts with an `extraction_reason` instead of clean
+results.
 
 `sbom_generation` repository targets are configured inside the selected
 `scanner_worker` collector instance:
@@ -114,7 +145,7 @@ dead-letter, metric, log, or public documentation payloads.
 ## Evidence
 
 No-Regression Evidence: scanner-worker runtime behavior is covered by
-`go test ./internal/collector/scannerworker ./internal/collector/scannerworker/sbomgenerator ./internal/collector/ospackagevulnerability/osruntime ./cmd/scanner-worker -count=1`.
+`go test ./internal/collector/scannerworker ./internal/collector/scannerworker/imageanalyzer ./internal/collector/scannerworker/sbomgenerator ./internal/collector/ospackagevulnerability/osruntime ./cmd/scanner-worker -count=1`.
 
 No-Regression Evidence: `go test ./cmd/scanner-worker -run 'TestRepositorySBOMSource(ParsesCargoAndComposerLockfiles|ParsesPythonRubyAndGradleLockfiles|EmitsMalformedLockfileWarning)' -count=1`
 proved repository SBOM generation extracts Cargo, Composer, PyPI, RubyGems,
@@ -126,7 +157,8 @@ analyzer failure or silent clean output.
 Observability Evidence: the runtime records scanner-worker claim, retry,
 dead-letter, facts-emitted, queue-wait, scan-duration, target-count,
 result-count, CPU, and memory metrics, plus `scanner_worker.*` spans and
-bounded structured failure logs. Configured `sbom_generation` sources return
-measured manifest input bytes as peak memory usage and CPU seconds from the Go
-runtime counters, so operators can distinguish queue wait, manifest read cost,
-source fact volume, retries, and terminal resource-limit failures.
+bounded structured failure logs. Configured `image_unpacking` and
+`sbom_generation` sources return measured metadata or manifest input bytes as
+peak memory usage and CPU seconds from the Go runtime counters, so operators can
+distinguish queue wait, extraction or manifest read cost, source fact volume,
+retries, and terminal resource-limit failures.
