@@ -38,6 +38,12 @@ It distinguishes implemented, fixture-proven, remote-proven, EKS-proven,
 partial, unsupported, and blocked work so this page does not overclaim scanner
 readiness while the issue lanes are still closing.
 
+For the standalone product boundary, use
+[Standalone Vulnerability Scanner Boundary](standalone-vulnerability-scanner-boundary.md).
+It defines what runs in the CLI process, local services, hosted collectors,
+scanner workers, reducers, and read surfaces without forking a second
+vulnerability engine.
+
 ## End-State Flow
 
 ```mermaid

@@ -489,7 +489,7 @@ The current vulnerability impact route is documented in
 ## CLI Contract
 
 The local vulnerability scan command is a thin orchestration layer, not a
-second scanner product:
+second scanner product. It preserves one truth model across local CLI, hosted API, MCP, and future service use by rendering stable scanner artifacts from the same reducer-owned readiness and finding envelope:
 
 - resolve one repository or workspace root using the same local source rules as
   the existing scan workflow;

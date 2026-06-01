@@ -48,6 +48,8 @@ The gate is intentionally:
 
 | Acceptance criterion | Where it is proven |
 | --- | --- |
+| Standalone local proof that `eshu vuln-scan repo` uses the same reducer-owned finding/readiness envelope and does not fork a second vulnerability engine | Focused CLI tests plus an operator-recorded local run with JSON/terminal/export shape, cache freshness, scope counters, exit code, wall time, and zero retry/dead-letter evidence |
+| Hosted E2E proof for the same vulnerability truth model through API, MCP, collectors, scanner-worker, reducer, Postgres, graph, and queue state | `runtime` phase plus remote Compose readback, preserved-volume restart, and `k8s` phase before a scanner-ready image claim |
 | Clean-volume remote Compose proof with API, MCP, ingester, reducer, coordinator, package-registry, vulnerability-intelligence, SBOM-attestation, scanner-worker, security-alert path, and backing stores | `runtime` phase plus [Remote E2E Runtime State](remote-e2e-runtime-state.md) and [Remote Collector E2E](local-testing/remote-collector-e2e.md) |
 | Preserved-volume restart proof and no stale queue, duplicate claim, dead-letter, or startup regression | `runtime` phase re-run after restarting data-plane services on the same volumes |
 | API and MCP readback for supply-chain impact, readiness, explanation, advisory evidence, security-alert reconciliations, SBOM attachments, container-image identities, priority, suppression, and exports where applicable | `runtime` phase API readback against the documented endpoints |
@@ -151,27 +153,34 @@ flag to mark `pprof_status: unchecked` rather than probe the API URL.
    will run.
 2. **Run the fixture parity gate.** The `fixtures` phase covers the
    synthetic suite. Mismatches must be classified before continuing.
-3. **Bring up the remote Compose stack with a clean volume.** Follow
+3. **Run standalone local proof.** From the same commit, run
+   `eshu vuln-scan repo` against a bounded fixture or representative local
+   repository in fresh-cache and offline/repeat-cache shapes. Record the JSON
+   report, terminal summary, export shape if relevant, readiness, cache
+   freshness, scope counters, exit code, wall time, retry count, and
+   dead-letter count. A clean or not-affected claim is invalid if the scan did
+   not reach a ready state.
+4. **Bring up the remote Compose stack with a clean volume.** Follow
    [Remote Collector E2E](local-testing/remote-collector-e2e.md). Use the
    `.env.remote-e2e.example` defaults or your full-corpus profile.
-4. **Run the `runtime` phase.** It calls
+5. **Run the `runtime` phase.** It calls
    [Remote E2E Runtime State](remote-e2e-runtime-state.md) plus the
    supply-chain readback. Record the resulting `evidence.json`,
    `runtime-readback/`, `docker-stats.json`, and pprof reachability.
-5. **Run preserved-volume restart proof.** Stop the data-plane services
+6. **Run preserved-volume restart proof.** Stop the data-plane services
    without removing volumes, start them again, then re-run the `runtime`
    phase. Compare workflow run counts, queue counts, retries, dead letters,
    and `index-status` health between the two runs. Any new dead letter or
    stuck claim fails the gate.
-6. **Run the optional `provider` phase.** When operator-local provider data
+7. **Run the optional `provider` phase.** When operator-local provider data
    is available, generate the aggregate-only comparison outside the repo and
    pass the file to `--provider-compare`. The harness records only the
    aggregate counts and the synthetic comparison id.
-7. **Run the `k8s` phase against the staging cluster.** Follow
+8. **Run the `k8s` phase against the staging cluster.** Follow
    [Deploy To EKS](../deploy/eks/index.md) for cluster setup. The harness
    captures pod, top, and Helm values snapshots; operators capture pprof and
    logs through a port-forward (never through the public service).
-8. **Review `evidence.md` and `evidence.json` together.** The gate is green
+9. **Review `evidence.md` and `evidence.json` together.** The gate is green
    only when `evidence.json` has `pass: true` at the top level and every
    enabled phase has `status` set to `pass` or `skipped`. Phases that fail
    (or that were enabled but produced an incomplete capture) record

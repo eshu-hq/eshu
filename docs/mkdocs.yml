@@ -143,6 +143,7 @@ nav:
     - Documentation Updater Actuator Contract: reference/documentation-updater-actuator-contract.md
     - Component Package Manager: reference/component-package-manager.md
     - Security Intelligence: reference/security-intelligence.md
+    - Standalone Vulnerability Scanner Boundary: reference/standalone-vulnerability-scanner-boundary.md
     - Vulnerability Scanner Confidence Matrix: reference/vulnerability-scanner-confidence.md
     - Security Intelligence Source Coverage: reference/security-intelligence-source-coverage.md
     - Dependency And Lockfile Coverage: reference/dependency-coverage.md
