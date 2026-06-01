@@ -153,7 +153,19 @@ keys, token environment names, and token values stay out of labels.
 ## Deployment Status
 
 This slice provides the Go fact contract, workflow planner, hosted binary,
-configuration parsing, source client, and telemetry contract. The public Helm
-Deployment, Service, ServiceMonitor, NetworkPolicy, and PDB are not part of
-this slice, so production clusters should run the binary through a custom
-hosted deployment until chart support lands.
+configuration parsing, source client, telemetry contract, and public Helm
+runtime. The `pagerDutyCollector` chart block renders the Deployment, metrics
+Service, ServiceMonitor, NetworkPolicy, and PDB when enabled. It also validates
+that the selected `instanceId` exists as an enabled claim-driven `pagerduty`
+instance in the collector-local list and that the workflow coordinator has an
+enabled claim-driven `pagerduty` instance.
+
+No-Regression Evidence: the focused Helm proof
+`go test ./internal/runtime -run TestHelmPagerDutyCollectorDeployment -count=1`
+checks default-disabled rendering, claim runtime env, metrics Service,
+ServiceMonitor, NetworkPolicy, PDB, and Secret-backed token env wiring.
+
+Observability Evidence: the hosted Deployment exposes the shared `/healthz`,
+`/readyz`, `/metrics`, and `/admin/status` endpoints through
+`collector.ClaimedService`; the ServiceMonitor targets the
+`pagerduty-collector` metrics service.

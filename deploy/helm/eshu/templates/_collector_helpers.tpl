@@ -140,6 +140,30 @@
 {{- end }}
 {{- end -}}
 
+{{- define "eshu.renderPagerDutyCollectorEnv" -}}
+- name: ESHU_COLLECTOR_INSTANCES_JSON
+  value: {{ required "pagerDutyCollector.collectorInstances must contain at least one instance when pagerDutyCollector.enabled=true" .Values.pagerDutyCollector.collectorInstances | toJson | quote }}
+- name: ESHU_PAGERDUTY_COLLECTOR_INSTANCE_ID
+  value: {{ .Values.pagerDutyCollector.instanceId | quote }}
+- name: ESHU_PAGERDUTY_COLLECTOR_OWNER_ID
+  valueFrom:
+    fieldRef:
+      fieldPath: metadata.name
+- name: ESHU_PAGERDUTY_POLL_INTERVAL
+  value: {{ .Values.pagerDutyCollector.pollInterval | quote }}
+{{- with .Values.pagerDutyCollector.claimLeaseTTL }}
+- name: ESHU_PAGERDUTY_CLAIM_LEASE_TTL
+  value: {{ . | quote }}
+{{- end }}
+{{- with .Values.pagerDutyCollector.heartbeatInterval }}
+- name: ESHU_PAGERDUTY_HEARTBEAT_INTERVAL
+  value: {{ . | quote }}
+{{- end }}
+{{- with .Values.pagerDutyCollector.extraEnv }}
+{{ toYaml . }}
+{{- end }}
+{{- end -}}
+
 {{- define "eshu.renderGrafanaCollectorEnv" -}}
 - name: ESHU_COLLECTOR_INSTANCES_JSON
   value: {{ required "grafanaCollector.collectorInstances must contain at least one instance when grafanaCollector.enabled=true" .Values.grafanaCollector.collectorInstances | toJson | quote }}
