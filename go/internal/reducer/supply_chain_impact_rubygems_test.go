@@ -52,11 +52,11 @@ func TestBuildSupplyChainImpactFindingsUsesRubyGemsLockfileVersion(t *testing.T)
 	if got.DirectDependency == nil || !*got.DirectDependency {
 		t.Fatalf("DirectDependency = %#v, want true", got.DirectDependency)
 	}
-	if got.MatchReason != "rubygems_affected_range" {
-		t.Fatalf("MatchReason = %q, want rubygems_affected_range", got.MatchReason)
+	if got.MatchReason != supplyChainVersionReasonRubyGemsAffectedRange {
+		t.Fatalf("MatchReason = %q, want %q", got.MatchReason, supplyChainVersionReasonRubyGemsAffectedRange)
 	}
 	if got.DetectionProfile != DetectionProfilePrecise {
-		t.Fatalf("DetectionProfile = %q, want precise for exact Bundler lockfile match", got.DetectionProfile)
+		t.Fatalf("DetectionProfile = %q, want precise for exact RubyGems match", got.DetectionProfile)
 	}
 }
 
