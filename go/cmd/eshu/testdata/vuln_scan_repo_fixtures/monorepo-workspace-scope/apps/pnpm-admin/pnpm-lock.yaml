@@ -1,0 +1,10 @@
+lockfileVersion: '6.0'
+importers:
+  .:
+    dependencies:
+      synthetic-pnpm-workspace-ready:
+        specifier: 1.0.0
+        version: 1.0.0
+packages:
+  /synthetic-pnpm-workspace-ready@1.0.0:
+    resolution: {integrity: sha512-synthetic}

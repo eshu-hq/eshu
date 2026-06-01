@@ -1,0 +1,1 @@
+<project><modelVersion>4.0.0</modelVersion><groupId>synthetic.example</groupId><artifactId>workspace-parent</artifactId><version>1.0.0</version><packaging>pom</packaging><modules><module>api</module></modules></project>

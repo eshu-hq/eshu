@@ -61,6 +61,10 @@ type vulnScanReportFinding struct {
 
 type vulnScanReportFindingTarget struct {
 	RepositoryID        string   `json:"repository_id,omitempty"`
+	SourcePath          string   `json:"source_path,omitempty"`
+	ManifestPath        string   `json:"manifest_path,omitempty"`
+	StartLine           int      `json:"start_line,omitempty"`
+	EndLine             int      `json:"end_line,omitempty"`
 	SubjectDigest       string   `json:"subject_digest,omitempty"`
 	ImageRef            string   `json:"image_ref,omitempty"`
 	RuntimeReachability string   `json:"runtime_reachability,omitempty"`
@@ -257,6 +261,10 @@ func buildVulnScanReportFindings(findings []map[string]any) []vulnScanReportFind
 			AdvisoryID: stringFromMap(finding, "advisory_id"),
 			Target: vulnScanReportFindingTarget{
 				RepositoryID:        stringFromMap(finding, "repository_id"),
+				SourcePath:          vulnScanFindingSourcePath(finding),
+				ManifestPath:        stringFromMap(finding, "manifest_path"),
+				StartLine:           intFromAny(finding["start_line"]),
+				EndLine:             intFromAny(finding["end_line"]),
 				SubjectDigest:       stringFromMap(finding, "subject_digest"),
 				ImageRef:            stringFromMap(finding, "image_ref"),
 				RuntimeReachability: stringFromMap(finding, "runtime_reachability"),
@@ -293,4 +301,11 @@ func buildVulnScanReportFindings(findings []map[string]any) []vulnScanReportFind
 		reportFindings = append(reportFindings, reportFinding)
 	}
 	return reportFindings
+}
+
+func vulnScanFindingSourcePath(finding map[string]any) string {
+	if sourcePath := stringFromMap(finding, "source_path"); sourcePath != "" {
+		return sourcePath
+	}
+	return stringFromMap(finding, "manifest_path")
 }

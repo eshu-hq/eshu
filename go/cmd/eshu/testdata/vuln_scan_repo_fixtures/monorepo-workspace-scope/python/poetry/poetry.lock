@@ -1,0 +1,6 @@
+[[package]]
+name = "synthetic-poetry-workspace-ready"
+version = "1.0.0"
+description = "synthetic"
+optional = false
+python-versions = "*"

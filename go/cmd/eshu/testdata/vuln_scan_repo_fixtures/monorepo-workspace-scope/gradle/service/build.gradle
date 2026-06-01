@@ -1,0 +1,2 @@
+plugins { id "java" }
+dependencies { implementation "synthetic.example:synthetic-gradle-workspace-ready:1.0.0" }
