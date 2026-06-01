@@ -1,5 +1,34 @@
 package terraformschema
 
+type resourceClassification struct {
+	service  string
+	category string
+}
+
+// resourceClassifications holds exact overrides for provider resources whose
+// provider-stripped suffix would collide with generic service categories.
+var resourceClassifications = map[string]resourceClassification{
+	"pagerduty_business_service":                           {service: "pagerduty_business_service", category: "monitoring"},
+	"pagerduty_escalation_policy":                          {service: "pagerduty_escalation_policy", category: "monitoring"},
+	"pagerduty_event_orchestration":                        {service: "pagerduty_event_orchestration", category: "monitoring"},
+	"pagerduty_event_orchestration_global":                 {service: "pagerduty_event_orchestration_global", category: "monitoring"},
+	"pagerduty_event_orchestration_global_cache_variable":  {service: "pagerduty_event_orchestration_global_cache_variable", category: "monitoring"},
+	"pagerduty_event_orchestration_integration":            {service: "pagerduty_event_orchestration_integration", category: "monitoring"},
+	"pagerduty_event_orchestration_router":                 {service: "pagerduty_event_orchestration_router", category: "monitoring"},
+	"pagerduty_event_orchestration_service":                {service: "pagerduty_event_orchestration_service", category: "monitoring"},
+	"pagerduty_event_orchestration_service_cache_variable": {service: "pagerduty_event_orchestration_service_cache_variable", category: "monitoring"},
+	"pagerduty_event_orchestration_unrouted":               {service: "pagerduty_event_orchestration_unrouted", category: "monitoring"},
+	"pagerduty_jira_cloud_account_mapping_rule":            {service: "pagerduty_jira_cloud_account_mapping_rule", category: "monitoring"},
+	"pagerduty_service":                                    {service: "pagerduty_service", category: "monitoring"},
+	"pagerduty_service_dependency":                         {service: "pagerduty_service_dependency", category: "monitoring"},
+	"pagerduty_service_event_rule":                         {service: "pagerduty_service_event_rule", category: "monitoring"},
+	"pagerduty_service_integration":                        {service: "pagerduty_service_integration", category: "monitoring"},
+	"pagerduty_slack_connection":                           {service: "pagerduty_slack_connection", category: "monitoring"},
+	"pagerduty_team":                                       {service: "pagerduty_team", category: "monitoring"},
+	"pagerduty_team_membership":                            {service: "pagerduty_team_membership", category: "monitoring"},
+	"pagerduty_webhook_subscription":                       {service: "pagerduty_webhook_subscription", category: "monitoring"},
+}
+
 var serviceCategories = map[string]string{
 	"lambda":                       "compute",
 	"ecs":                          "compute",
