@@ -409,18 +409,22 @@ reducer-fact counts so the answer never invents findings:
   `package.consumption`, `package.registry`, `sbom.component`,
   `sbom.attestation`, and `container_image.identity`. Families with zero
   facts in the requested scope are omitted so the payload reflects only what
-  Eshu actually has for the caller. `package.registry` is only counted when
-  the request anchors on a specific `package_id` (registry data without a
-  package anchor is global metadata, not proof of repository consumption).
+  Eshu actually has for the caller. `package.registry` is counted only for an
+  explicit `package_id`, or for package metadata already joined to the
+  requested repository through package-consumption evidence. Global registry
+  metadata does not satisfy repository consumption or freshness on its own.
 - `source_snapshots[]` reports vulnerability source observation/cache metadata:
   source, ecosystem, cache artifact version, snapshot digest, cache update time,
   freshness, completion state, and bounded warning fields. Raw advisory bodies,
   package names, and source URLs are not returned.
 - `missing_evidence[]` names absent required join families using the stable
-  identifiers `advisory_sources`, `owned_packages`, `sbom_or_image_evidence`,
+  identifiers `advisory_sources`, `owned_packages`,
+  `package_registry_metadata`, `sbom_or_image_evidence`,
   `target_collection_incomplete`, `readiness_unavailable`, and
-  `unsupported_targets`. The list is empty on `ready_*` states so callers
-  cannot see contradictory "ready" + "missing" signals.
+  `unsupported_targets`. `package_registry_metadata` means the bounded package
+  metadata needed for the package or repository scope is missing, stale, or
+  freshness-unknown. The list is empty on `ready_*` states so callers cannot
+  see contradictory "ready" + "missing" signals.
 - `unsupported_targets[]` is bounded coverage-gap evidence: each entry names
   the unsupported `target_kind` (`ecosystem`, `package_manager_file`,
   `sbom_target`, `package_registry_metadata`, or `image_target`), a stable
@@ -452,8 +456,9 @@ The current implementation proves the following:
 
 - `not_configured` when no advisory or owned-evidence facts exist for the
   scope.
-- `evidence_incomplete` when advisory facts exist but the required join
-  family for the requested anchor is missing.
+- `evidence_incomplete` when advisory facts exist but a required join family
+  for the requested anchor is missing or stale, including package-registry
+  metadata required for package or repository vulnerability matching.
 - `ready_zero_findings` when advisory and required owned evidence exist and
   the reducer returned no matching impact.
 - `ready_with_findings` whenever the reducer returned at least one finding.
@@ -496,9 +501,11 @@ The package.consumption family is sourced from the real
 `reducer_package_consumption_correlation` facts and `content_entity` manifest
 dependency facts (the same `content_entity` + `entity_metadata.config_kind =
 'dependency'` discriminators used by other supply-chain reducers).
-`package.registry` is only counted when the request anchors on a specific
-`package_id`; repository-scoped requests cannot satisfy `owned_packages`
-through global registry metadata.
+`package.registry` is counted for explicit package anchors and for repository
+scopes only after consumption evidence ties the same package id to the
+requested repository. Repository-scoped requests cannot satisfy
+`owned_packages` or package metadata freshness through unrelated global
+registry metadata.
 
 #### Follow-Up Work
 
@@ -509,13 +516,15 @@ through global registry metadata.
   source-specific staleness thresholds.
 
 Performance Evidence: focused query tests
-`go test ./internal/query -run 'SupplyChainImpactReadiness' -count=1` exercise
-the readiness states, source-snapshot cache metadata, unsupported target kinds,
-the missing-evidence versus unsupported boundary, and the Postgres query shape.
-The readiness path runs one bounded CTE per response with seven anchored
+`go test ./internal/query -run 'PackageMetadata|SupplyChainImpactReadiness'
+-count=1` exercises the readiness states, scoped package-registry metadata
+freshness, source-snapshot cache metadata, unsupported target kinds, the
+missing-evidence versus unsupported boundary, and the Postgres query shape. The
+readiness path runs one bounded CTE per response with seven anchored
 evidence-family counts, source roll-ups, and unsupported-target aggregation over
-existing `content_entity` and `sbom.warning` facts; it adds no round trip beyond
-the readiness query already issued with the impact-finding read.
+existing `content_entity`, package-registry, and `sbom.warning` facts; it adds
+no round trip beyond the readiness query already issued with the
+impact-finding read.
 
 No-Observability-Change: the readiness path reuses
 `query.supply_chain_impact_findings`, `eshu_dp_postgres_query_duration_seconds`,

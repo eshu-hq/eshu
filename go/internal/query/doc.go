@@ -24,10 +24,11 @@
 // with a readiness envelope so a zero-finding answer can be classified as
 // not_configured, target_incomplete, evidence_incomplete, ready_zero_findings,
 // or ready_with_findings. The readiness layer also exposes bounded
-// source-snapshot cache metadata for advisory sources, stripping absent optional
-// fields from the Postgres JSON rollup before decoding. It never invents
-// findings or duplicates reducer matching: it counts existing source and
-// reducer facts so the answer is diagnosable without re-querying. Provider
+// source-snapshot cache metadata for advisory sources and scoped
+// package-registry freshness for package/repository targets, stripping absent
+// optional fields from the Postgres JSON rollup before decoding. It never
+// invents findings or duplicates reducer matching: it counts existing source
+// and reducer facts so the answer is diagnosable without re-querying. Provider
 // security-alert reconciliation list, count, and inventory reads select one
 // current reducer row per provider alert identity before applying default
 // status/state filters, while each returned row keeps reducer reason and

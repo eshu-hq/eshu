@@ -213,21 +213,41 @@ package_manifest_dependency AS (
     FROM package_manifest_active
     WHERE ($11 = '' OR payload->>'repo_id' = $11)
 ),
+package_registry_scope_packages AS (
+    SELECT DISTINCT NULLIF(TRIM($10), '') AS package_id
+    WHERE $10 <> ''
+    UNION
+    SELECT DISTINCT NULLIF(TRIM(consumption.payload->>'package_id'), '') AS package_id
+    FROM package_consumption_correlation_active AS consumption
+    WHERE $11 <> ''
+      AND consumption.payload->>'repository_id' = $11
+      AND NULLIF(TRIM(consumption.payload->>'package_id'), '') IS NOT NULL
+),
+package_registry_scoped AS (
+    SELECT
+        package_registry_scope_packages.package_id,
+        COUNT(package_registry_active.payload)::int AS fact_count,
+        MAX(package_registry_active.observed_at) AS latest_observed_at
+    FROM package_registry_scope_packages
+    LEFT JOIN package_registry_active
+      ON package_registry_active.payload->>'package_id' = package_registry_scope_packages.package_id
+    GROUP BY package_registry_scope_packages.package_id
+),
 package_registry AS (
     SELECT
         'package.registry' AS family,
-        COUNT(*)::int AS fact_count,
-        MAX(observed_at) AS latest_observed_at,
+        COALESCE(SUM(fact_count), 0)::int AS fact_count,
+        CASE
+            WHEN COUNT(*) = 0 THEN NULL::timestamptz
+            WHEN BOOL_OR(fact_count = 0) THEN NULL::timestamptz
+            ELSE MIN(latest_observed_at)
+        END AS latest_observed_at,
         NULL::boolean AS target_incomplete,
         NULL::text[] AS incomplete_reasons,
         NULL::text AS source_snapshots_json,
         NULL::text AS source_states_json,
         NULL::text AS unsupported_targets_json
-    FROM package_registry_active
-    -- package_registry is global metadata; only count it when the caller
-    -- asked about a specific package_id so a repo-only scope does not get
-    -- a global count that suppresses missing owned-package signals.
-    WHERE $10 <> '' AND payload->>'package_id' = $10
+    FROM package_registry_scoped
 ),
 sbom_component AS (
     SELECT

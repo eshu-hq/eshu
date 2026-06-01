@@ -92,26 +92,31 @@ launched runtime via the shared `telemetry` package. Errors print to
   The command is an API-backed reader and must not open graph or Postgres
   connections directly.
   The default scope mode is `scoped`: the CLI derives observed-dependency
-  facts, advisory facts, package-registry facts, source-snapshot diagnostics,
-  and the envelope-aggregate freshness from the readiness envelope. The
-  scoped guard fires only when the envelope's aggregate `freshness` is
-  `stale` and the server still returned a `ready_*` state; in that case the
-  CLI downgrades to `evidence_incomplete` and records
-  `advisory_cache_stale`. Per-source `source_snapshots[]` entries are
+  facts, advisory facts, package-registry facts and freshness, source-snapshot
+  diagnostics, and the envelope-aggregate freshness from the readiness
+  envelope. The package metadata guard fires whenever a `ready_*` response is
+  backed by missing or non-fresh `package.registry` evidence; the CLI
+  downgrades to `evidence_incomplete` and records
+  `package_registry_metadata`. The scoped advisory guard also fires when the
+  envelope's aggregate `freshness` is `stale` and the server still returned a
+  `ready_*` state; in that case the CLI records `advisory_cache_stale`.
+  Per-source `source_snapshots[]` entries are
   surfaced for visibility only — the readiness store aggregates them
   globally rather than by repository scope, so the CLI does not gate on
-  them. `--broad` skips the scoped guard, records a warning that the wider
-  mode bypassed it, and surfaces `data.scope_mode = "broad"` so operators
-  can tell the modes apart in JSON output. The `*_facts` fields are counts
+  them. `--broad` skips the advisory scoped guard, records a warning that the
+  wider mode bypassed it, and surfaces `data.scope_mode = "broad"` so
+  operators can tell the modes apart in JSON output; it still fails closed on
+  stale or missing package-registry metadata. The `*_facts` fields are counts
   of source facts (the same `evidence_sources[].fact_count` the server
-  reports); `package_registry_facts` is typically `0` for `vuln-scan repo`
-  because the readiness store only counts registry metadata when the
-  request anchors on a specific `package_id`. Every run attaches a
+  reports); `package_registry_facts` counts metadata only for the requested
+  package or for packages already tied to the requested repository by
+  consumption evidence. Every run attaches a
   `data.scan_performance` block with started_at, completed_at, wall_time_ms,
   repository_size_bytes, repository_file_count, observed_dependency_facts,
-  advisory_facts, package_registry_facts, cache_freshness, scope_mode, and
-  stop_threshold so the local one-shot scan ships its own performance
-  evidence without a separate measurement step. JSON output also includes
+  advisory_facts, package_registry_facts, package_registry_freshness,
+  package_registry_complete, cache_freshness, scope_mode, and stop_threshold
+  so the local one-shot scan ships its own performance evidence without a
+  separate measurement step. JSON output also includes
   `data.report.schema_version = "eshu.vulnerability_report.v1"` with the
   scanner summary, readiness, freshness, unsupported targets, target/package
   context, evidence handles, remediation metadata, scope plan, and performance

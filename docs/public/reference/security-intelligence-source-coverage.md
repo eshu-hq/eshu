@@ -497,27 +497,47 @@ Per-source entries in `readiness.source_snapshots[]` are surfaced in
 aggregates those snapshots globally rather than by requested scope, so they do
 not gate scoped fail-closed behavior.
 
-The scope plan exposes observed dependency, advisory, and package-registry fact
-counts from `evidence_sources[].fact_count`, the aggregate freshness, the stop
-threshold, and diagnostic-only source snapshots. `package_registry_facts` is
-usually `0` for repository-scoped runs because registry metadata is counted only
-when the request anchors on a specific `package_id`.
+The scope plan exposes:
 
-Operators who explicitly want broader advisory or package coverage can pass
-`--broad`. In broad mode the CLI surfaces `data.scope_mode = "broad"`, sets
-`data.scope_plan.mode = "broad"`, records a warning that scoped fail-closed
-guards were skipped, and returns the server's readiness verdict unchanged.
-Broad mode never converts a stale cache into a clean answer: the envelope
-freshness and source-snapshot diagnostics stay visible in the JSON envelope
-and the terminal summary still prints `Scope: ... freshness=stale`.
+- `observed_dependency_facts`: `evidence_sources[package.consumption].fact_count`
+- `advisory_facts`: `evidence_sources[vulnerability.advisory].fact_count`
+- `package_registry_facts`: `evidence_sources[package.registry].fact_count`;
+  the readiness store emits this count for an explicit `package_id`, or for
+  package metadata joined to the requested `repository_id` through owned
+  package-consumption evidence.
+- `package_registry_freshness`: `evidence_sources[package.registry].freshness`
+  for the scoped package metadata.
+- `package_registry_complete`: true only when scoped package-registry metadata
+  exists and is fresh.
+- `freshness`: `readiness.freshness`, the worst-of per-family aggregate.
+- `stop_threshold`: the readiness state the CLI returned to the operator,
+  either the server verdict or the scoped downgrade when applicable.
+- `source_snapshots`: diagnostic-only per-source cache state from the
+  readiness envelope, not gated on.
+
+The `*_facts` fields are counts of source facts as reported by
+`evidence_sources[].fact_count`, not counts of unique packages or advisory
+sources. A single dependency or advisory observation can contribute multiple
+facts.
+
+Operators who explicitly want broader advisory coverage can pass `--broad`. In
+broad mode the CLI surfaces `data.scope_mode = "broad"`, sets
+`data.scope_plan.mode = "broad"`, records a warning that the advisory scoped
+guard was skipped, and returns the server's advisory readiness verdict
+unchanged. Broad mode still fails closed when required package-registry
+metadata is stale or missing, and never converts stale package metadata into a
+clean answer. The envelope freshness, package-registry freshness, and
+source-snapshot diagnostics stay visible in the JSON envelope and the terminal
+summary still prints `Scope: ... freshness=stale`.
 
 Local performance evidence is attached as `data.scan_performance` on every
 run: `started_at`, `completed_at`, `wall_time_ms`, `repository_size_bytes`,
 `repository_file_count`, `observed_dependency_facts`, `advisory_facts`,
 `package_registry_facts`, `cache_freshness`, `scope_mode`, and
+`package_registry_freshness`, `package_registry_complete`, and
 `stop_threshold`. Operators can compare scoped and broad runs of the same
-repository to see how much advisory coverage the scoped guard trimmed and
-where the scan stopped.
+repository to see how much advisory coverage the scoped guard trimmed, whether
+package metadata was current, and where the scan stopped.
 
 The scanner-style parent report lives at `data.report` in JSON mode. Its
 schema version is `eshu.vulnerability_report.v1`, and it keeps the same
@@ -534,13 +554,17 @@ version-context mapping, evidence fact handles, remediation allowlist,
 findings/non-ready/unsupported exit codes, terminal summary rendering before
 scanner exit, and scoped fail-closed handling for unknown freshness.
 `go test ./cmd/eshu -run
-'TestVulnScanRepoCommandRegistersBroadFlag|TestRunVulnScanRepoDefaultScopedModeAttachesScopePlanAndPerformance|TestRunVulnScanRepoScopedModeFailsClosedOnStaleAdvisoryCache|TestRunVulnScanRepoScopedModeIgnoresGlobalStaleSnapshotsWhenEnvelopeFresh|TestRunVulnScanRepoScopedModePassesThroughServerTargetIncomplete|TestRunVulnScanRepoBroadModeSkipsScopeGuards|TestRunVulnScanRepoScopedModeSurfacesEvidenceIncompleteWhenNoOwnedDeps'
--count=1` continues to prove the `--broad` flag, scope plan, performance
-block, stale-freshness guard, source-snapshot no-regression, server
-`target_incomplete` pass-through, broad mode, and server-classified
-`evidence_incomplete` pass-through. The full `go test ./cmd/eshu -count=1`
-suite continues to pass with findings stubs that mirror the production
-readiness envelope.
+'TestVulnScanRepoCommandRegistersBroadFlag|TestRunVulnScanRepoDefaultScopedModeAttachesScopePlanAndPerformance|TestRunVulnScanRepoFailsClosedOnStalePackageMetadata|TestRunVulnScanRepoScopedModeFailsClosedOnStaleAdvisoryCache|TestRunVulnScanRepoScopedModeIgnoresGlobalStaleSnapshotsWhenEnvelopeFresh|TestRunVulnScanRepoScopedModePassesThroughServerTargetIncomplete|TestRunVulnScanRepoBroadModeSkipsScopeGuards|TestRunVulnScanRepoScopedModeSurfacesEvidenceIncompleteWhenNoOwnedDeps'
+-count=1` proves the `--broad` flag registration, default scoped scope-plan
+and scan-performance attachment with scoped package-registry freshness,
+package metadata fail-closed behavior, the envelope-freshness advisory
+fail-closed guard, the no-regression that an unrelated globally-stale source
+snapshot does not flip a fresh repo-only scan, server `target_incomplete`
+pass-through, broad-mode pass-through with the advisory scoped guard
+explicitly skipped, and scoped pass-through when the server already classifies
+the response as `evidence_incomplete`. The full `go test ./cmd/eshu -count=1`
+suite continues to pass with the updated findings-stub responses that mirror
+the production readiness envelope.
 
 No-Observability-Change: the scope plan, performance block, and
 `--broad` flag, report envelope, and scanner exit-code mapping are CLI-only

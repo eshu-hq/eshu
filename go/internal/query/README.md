@@ -91,12 +91,14 @@ canonical graph or reducer truth.
 - `PostgresIaCReachabilityStore` — reducer-materialized IaC cleanup findings
   (`iac_reachability_store.go`)
 - `IaCReachabilityStore` — port for IaC cleanup findings (`iac.go:74`)
-- `SupplyChainImpactReadinessStore` — port for bounded readiness counts
+- `SupplyChainImpactReadinessStore` — port for bounded readiness counts and
+  scoped package-registry metadata freshness
   (`supply_chain_impact_readiness.go`)
 - `PostgresSupplyChainImpactReadinessStore` — Postgres-backed readiness store
-  that runs one bounded CTE per impact-findings response and surfaces
-  vulnerability source-cache snapshot metadata while stripping absent optional
-  fields from the JSON rollup
+  that runs one bounded CTE per impact-findings response, surfaces
+  vulnerability source-cache snapshot metadata and package-registry metadata
+  freshness for package/repository scopes, and strips absent optional fields
+  from the JSON rollup
   (`supply_chain_impact_readiness_postgres.go`)
 - `AdvisoryEvidenceStore` — port for source-only vulnerability advisory
   evidence grouped by canonical CVE/GHSA/OSV/NVD identity without implying

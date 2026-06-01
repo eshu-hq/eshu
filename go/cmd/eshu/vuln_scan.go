@@ -194,11 +194,10 @@ func runVulnScanRepo(cmd *cobra.Command, args []string) error {
 }
 
 // applyVulnScanScope builds the scope plan from the readiness envelope, runs
-// the scoped fail-closed guards when scope mode is scoped, and surfaces the
-// broad-mode note when the operator opted into wider coverage. It returns the
-// fail-closed error (nil when scoped guards pass or in broad mode) so the
-// caller can short-circuit the success path while still emitting the JSON
-// envelope with the scope plan attached.
+// fail-closed guards, and surfaces the broad-mode note when the operator opted
+// into wider advisory coverage. It returns the fail-closed error so the caller
+// can short-circuit the success path while still emitting the JSON envelope
+// with the scope plan attached.
 func applyVulnScanScope(result *vulnScanRepoResult) error {
 	plan := buildVulnScanScopePlan(result.ScopeMode, result.Readiness)
 	state, missing, failErr := applyScopedGuards(&plan, result.ReadinessState)
@@ -208,8 +207,17 @@ func applyVulnScanScope(result *vulnScanRepoResult) error {
 	result.ScopePlan = &plan
 
 	if plan.Mode == vulnScanScopeModeBroad {
+		if failErr != nil {
+			result.ReadinessState = state
+			if len(missing) > 0 {
+				result.Warnings = append(result.Warnings,
+					fmt.Sprintf("broad mode fail-closed: %s", strings.Join(missing, ", ")),
+				)
+			}
+			return failErr
+		}
 		result.Warnings = append(result.Warnings,
-			"broad mode skipped scoped fail-closed guards; advisory and package coverage may exceed observed dependencies",
+			"broad mode skipped advisory freshness fail-closed guard; package-registry metadata still must be fresh when observed dependencies require it",
 		)
 		return nil
 	}
@@ -219,7 +227,7 @@ func applyVulnScanScope(result *vulnScanRepoResult) error {
 	result.ReadinessState = state
 	if len(missing) > 0 {
 		result.Warnings = append(result.Warnings,
-			fmt.Sprintf("scoped fail-closed: %s", strings.Join(missing, ", ")),
+			fmt.Sprintf("vuln-scan fail-closed: %s", strings.Join(missing, ", ")),
 		)
 	}
 	return failErr
