@@ -2,6 +2,7 @@ package jira
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -101,13 +102,16 @@ func (s *ClaimedSource) NextClaimed(
 		}
 	}
 
-	startedAt := time.Now()
+	startedAt := time.Now().UTC()
 	observeCtx, observeSpan := s.startObserve(ctx, target.config)
 	defer observeSpan.End()
 	fetchCtx, fetchSpan := s.startFetch(observeCtx)
-	result, err := target.client.CollectWorkItemEvidence(fetchCtx, target.config, s.window(target.config))
+	window := s.window(target.config)
+	windowStats := collectionWindowStats(window, startedAt, target.config.UpdatedLookback)
+	result, err := target.client.CollectWorkItemEvidence(fetchCtx, target.config, window)
 	if err != nil {
 		failure := classifiedProviderFailure(err)
+		recordFailureStats(fetchSpan, failure, windowStats)
 		s.recordFetch(observeCtx, target.config, failure.FailureClass(), startedAt)
 		s.recordRateLimit(observeCtx, target.config, failure)
 		recordSpanError(fetchSpan, failure)
@@ -115,6 +119,8 @@ func (s *ClaimedSource) NextClaimed(
 		fetchSpan.End()
 		return collector.CollectedGeneration{}, false, failure
 	}
+	result.Stats.StaleWindows += windowStats.StaleWindows
+	recordFetchStats(fetchSpan, result.Stats)
 	fetchSpan.End()
 
 	observedAt := result.ObservedAt.UTC()
@@ -208,7 +214,7 @@ func (s *ClaimedSource) envelopes(
 			CollectorInstanceID: s.collectorInstanceID,
 			FencingToken:        item.CurrentFencingToken,
 			ObservedAt:          observedAt,
-			SourceURI:           firstNonBlank(issue.Self, target.BaseURL),
+			SourceURI:           target.BaseURL,
 		}
 		record, err := NewWorkItemRecordEnvelope(ctx, issue)
 		if err != nil {
@@ -269,4 +275,63 @@ func recordSpanError(span trace.Span, err error) {
 	}
 	span.RecordError(err)
 	span.SetStatus(codes.Error, err.Error())
+}
+
+func recordFetchStats(span trace.Span, stats CollectionStats) {
+	if span == nil {
+		return
+	}
+	span.SetAttributes(
+		attribute.Int(telemetry.SpanAttrJiraSearchPages, stats.SearchPages),
+		attribute.Int(telemetry.SpanAttrJiraChangelogPages, stats.ChangelogPages),
+		attribute.Int(telemetry.SpanAttrJiraRemoteLinkPages, stats.RemoteLinkPages),
+		attribute.Int(telemetry.SpanAttrJiraIssuesEmitted, stats.IssuesEmitted),
+		attribute.Int(telemetry.SpanAttrJiraChangelogEventsEmitted, stats.ChangelogEventsEmitted),
+		attribute.Int(telemetry.SpanAttrJiraRemoteLinksEmitted, stats.RemoteLinksEmitted),
+		attribute.Int(telemetry.SpanAttrJiraRemoteLinksRejected, stats.RemoteLinksRejected),
+		attribute.Int(telemetry.SpanAttrJiraUnsupportedProviderLinks, stats.UnsupportedProviderLinks),
+		attribute.Int(telemetry.SpanAttrJiraPartialFailures, stats.PartialFailures),
+		attribute.Int(telemetry.SpanAttrJiraRateLimits, stats.RateLimits),
+		attribute.Int(telemetry.SpanAttrJiraRetryAfterSeconds, stats.RetryAfterSeconds),
+		attribute.Int(telemetry.SpanAttrJiraStaleWindows, stats.StaleWindows),
+	)
+}
+
+func recordFailureStats(span trace.Span, failure ProviderFailure, base CollectionStats) {
+	if span == nil {
+		return
+	}
+	stats := base
+	var partial PartialCollectionError
+	if errors.As(failure, &partial) {
+		stats = partial.Stats
+		stats.StaleWindows += base.StaleWindows
+	}
+	var jiraErr JiraError
+	if errors.As(failure, &jiraErr) {
+		if failure.FailureClass() == FailureRateLimited {
+			stats.RateLimits++
+		}
+		if jiraErr.RetryAfter > 0 {
+			stats.RetryAfterSeconds = int(jiraErr.RetryAfter / time.Second)
+		}
+	}
+	recordFetchStats(span, stats)
+}
+
+func collectionWindowStats(window CollectionWindow, startedAt time.Time, lookback time.Duration) CollectionStats {
+	if !staleCollectionWindow(window, startedAt, lookback) {
+		return CollectionStats{}
+	}
+	return CollectionStats{StaleWindows: 1}
+}
+
+func staleCollectionWindow(window CollectionWindow, startedAt time.Time, lookback time.Duration) bool {
+	if window.Since.IsZero() || window.Until.IsZero() || window.Until.Before(window.Since) {
+		return true
+	}
+	if lookback <= 0 {
+		return false
+	}
+	return window.Until.Before(startedAt.UTC().Add(-lookback))
 }

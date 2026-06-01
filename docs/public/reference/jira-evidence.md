@@ -27,9 +27,9 @@ The current implemented fact kinds are:
 
 | Fact kind | Current source | Truth boundary |
 | --- | --- | --- |
-| `work_item.record` | One Jira issue returned from a bounded search window. | Source-reported work-item state only. |
-| `work_item.transition` | One Jira changelog item for a collected issue. | Source-reported lifecycle evidence only. |
-| `work_item.external_link` | One Jira remote issue link attached to a collected issue. | Source-reported external-link evidence only. |
+| `work_item.record` | One Jira issue returned from a bounded search window. | Source-reported work-item state only; private summaries, users, project names, and source URLs are redacted or fingerprinted. |
+| `work_item.transition` | One Jira changelog item for a collected issue. | Source-reported lifecycle evidence only; user authors and sensitive/custom field values are redacted. |
+| `work_item.external_link` | One Jira remote issue link attached to a collected issue. | Source-reported external-link evidence only; URLs, titles, and summaries are redacted while URL fingerprints and provider support state remain. |
 
 Project, status, workflow, and field metadata remain a follow-up contract for
 #1122. Those expansions must stay under the `work_item.*` family, add fact kind
@@ -103,16 +103,13 @@ Minimum source fields:
 | Provider generation | `GenerationID` separates one Jira observation window from another. |
 | Observation time | `ObservedAt` records when Eshu observed the provider response. |
 | Freshness | Readers derive freshness from generation, observation time, workflow status, and webhook wake-up state. |
-| Redaction marker | New or changed payloads must carry `redaction_policy_version` or an equivalent documented retention marker. |
+| Redaction marker | Jira payloads carry `redaction_policy_version=jira_work_item_v1`. |
 
 The payload must preserve provider-native identifiers needed for replay and
 joins, including issue ID/key, project ID/key when known, changelog ID, remote
-link ID, and remote global ID. Payload shape changes must be additive and must
-document the active redaction policy version before live collection expands.
-The completion target for new or changed Jira payloads is an explicit
-`redaction_policy_version` or equivalent documented retention marker; the
-current `work_item.*` baseline treats this as a readiness gap for follow-up
-hardening work rather than silently inventing a field.
+link ID, remote global ID, and URL fingerprints. Payload shape changes must be
+additive and must document the active redaction policy version before live
+collection expands.
 
 ## Redaction Boundary
 
@@ -127,9 +124,10 @@ fixtures follow these rules:
   summaries, user identities, emails, account IDs, URLs, or tokens.
 - Public fixtures must use synthetic site scopes, issue keys, account IDs,
   names, summaries, emails, and URLs.
-- Jira summaries, display names, account IDs, project names, and remote-link
-  titles can appear in source-fact payloads only when the target environment
-  accepts that evidence retention boundary.
+- Jira summaries, display names, account IDs, project names, remote-link titles,
+  remote-link summaries, and raw source URLs are not retained as payload values.
+  The payload keeps presence booleans, provider IDs, safe status fields, and URL
+  fingerprints instead.
 - Remote-link and Jira URLs must be sanitized before emission. User info,
   fragments, and sensitive query keys such as `token`, `api_key`, `sig`,
   `signature`, `authorization`, `password`, and `secret` are removed.
@@ -196,8 +194,8 @@ before implementation expands.
 | `issue_deleted` | Jira returns not found for an issue or scope. | `deleted` failure classification; no fabricated record. |
 | `issue_archived` | Jira returns archived issue/project behavior. | `archived` failure classification; no fabricated active record. |
 | `permission_hidden` | Jira denies browse or issue-security access. | `permission_hidden` classification; absence is not treated as deletion. |
-| `paged_search` | Search response spans more than one page. | All pages collected within configured bounds; stable keys across retries. |
-| `paged_changelog` | Changelog response spans more than one page. | All permitted pages collected within configured bounds. |
+| `paged_search` | Search response spans more than one page. | All pages collected within configured bounds; stable keys across retries; `jira.search_pages` records page count on the fetch span. |
+| `paged_changelog` | Changelog response spans more than one page. | All permitted pages collected within configured bounds; `jira.changelog_pages` records page count on the fetch span. |
 | `duplicate_polling_window` | Same updated window is collected twice. | Same stable fact keys and generation-aware convergence. |
 | `remote_link_github_pr` | Remote link points at a GitHub PR URL. | External-link fact only; PR truth remains missing until provider evidence verifies it. |
 | `remote_link_commit` | Remote link points at a commit URL. | External-link fact only; commit truth remains missing until Git/provider evidence verifies it. |
@@ -205,11 +203,11 @@ before implementation expands.
 | `remote_link_runbook` | Remote link points at a runbook. | External-link fact only; documentation truth requires documentation evidence. |
 | `remote_link_postmortem` | Remote link points at a postmortem. | External-link fact only; documentation truth requires documentation evidence. |
 | `remote_link_unknown_provider` | Remote link has no supported provider shape. | Opaque external-link evidence; no promotion. |
-| `remote_link_malformed_url` | Remote link URL is malformed or unsafe. | Redacted, skipped, or warning evidence without raw unsafe URL. |
+| `remote_link_malformed_url` | Remote link URL is malformed or unsafe. | Redacted or rejected evidence without raw unsafe URL; `jira.remote_links_rejected` records rejected rows on the fetch span. |
 | `webhook_duplicate_delivery` | Same signed Jira webhook arrives more than once. | One authorized freshness work item after dedupe/coalescing. |
 | `polling_recovery_after_webhook` | Webhook is missed, delayed, or unauthorized. | Scheduled polling still collects the bounded window. |
-| `rate_limited_retry_after` | Jira returns `429` and retry guidance. | Retryable `rate_limited` classification; no private request payload in logs. |
-| `partial_failure` | Search succeeds but changelog or remote-link fetch fails. | Claim failure or explicit partial-failure classification; no complete-looking result. |
+| `rate_limited_retry_after` | Jira returns `429` and retry guidance. | Retryable `rate_limited` classification, `Retry-After` capture, and no private request payload in logs. |
+| `partial_failure` | Search succeeds but changelog or remote-link fetch fails. | Claim failure with bounded partial counters on `jira.fetch`; no complete-looking result. |
 | `stale_source` | Last successful generation is older than the allowed freshness window. | Reader-facing stale state instead of silently fresh output. |
 | `metadata_project_status_workflow_field_change` | Project/status/workflow/field metadata changes. | Follow-up `work_item.*` metadata facts after #1122 defines names and schema. |
 | `redaction_required` | Source contains summaries, emails, account IDs, private URLs, or tokens. | Public fixtures redact or synthesize values; metrics/status never label with private values. |
@@ -244,16 +242,20 @@ Before a Jira expansion PR is production-ready, it must prove:
 6. Query or MCP surfaces keep exact provider facts separate from derived
    incident, PR, commit, deployment, runtime, image, and service truth.
 
-No-Regression Evidence: this contract adds no new Jira REST call, workflow
-claim path, graph write, reducer phase, or query handler. The existing Jira
-collector tests remain the code-level proof for current `work_item.*` envelope
-identity, URL redaction, empty-window handling, bounded REST endpoints, and
-failure classification.
+No-Regression Evidence: `go test ./internal/collector/jira -count=1` covers
+bounded endpoint use, search and changelog pagination, duplicate-safe remote
+link identity, duplicate-window stable keys, malformed remote-link rejection,
+Retry-After classification, envelope redaction, empty-window handling, and
+visibility, deletion, archive, and provider failure classification.
 
-No-Observability-Change: no runtime signal changes are required for this
-contract-only slice. Existing collector, workflow, status, and runtime metrics
-diagnose Jira collection attempts, claim failures, fact counts, and failed
-provider classes.
+Observability Evidence: the Jira fetch span records bounded counts for
+`jira.search_pages`, `jira.changelog_pages`, `jira.remote_link_pages`,
+`jira.issues_emitted`, `jira.changelog_events_emitted`,
+`jira.remote_links_emitted`, `jira.remote_links_rejected`,
+`jira.unsupported_provider_links`, `jira.partial_failures`,
+`jira.rate_limits`, `jira.retry_after_seconds`, and `jira.stale_windows`.
+Existing Jira metrics continue to report provider request attempts, emitted fact
+counts, rate limits, and fetch duration with bounded labels.
 
 ## Related
 

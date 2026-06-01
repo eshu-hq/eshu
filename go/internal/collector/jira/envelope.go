@@ -1,6 +1,8 @@
 package jira
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"net/url"
 	"strconv"
@@ -9,6 +11,8 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
+
+const redactionPolicyVersion = "jira_work_item_v1"
 
 // NewWorkItemRecordEnvelope converts one Jira issue into a source fact.
 func NewWorkItemRecordEnvelope(ctx EnvelopeContext, issue Issue) (facts.Envelope, error) {
@@ -26,30 +30,39 @@ func NewWorkItemRecordEnvelope(ctx EnvelopeContext, issue Issue) (facts.Envelope
 		"issue_id":  issueID,
 		"issue_key": issueKey,
 	})
+	selfURL := sanitizeURL(issue.Self)
+	sourceURL := sanitizeURL(firstNonBlank(issue.BrowseURL, issue.Self, ctx.SourceURI))
 	payload := map[string]any{
-		"collector_instance_id": ctx.CollectorInstanceID,
-		"provider":              ProviderJiraCloud,
-		"provider_work_item_id": issueID,
-		"work_item_key":         issueKey,
-		"summary":               strings.TrimSpace(issue.Summary),
-		"issue_type_id":         strings.TrimSpace(issue.IssueType.ID),
-		"issue_type_name":       strings.TrimSpace(issue.IssueType.Name),
-		"status_id":             strings.TrimSpace(issue.Status.ID),
-		"status_name":           strings.TrimSpace(issue.Status.Name),
-		"project_id":            strings.TrimSpace(issue.Project.ID),
-		"project_key":           strings.TrimSpace(issue.Project.Key),
-		"project_name":          strings.TrimSpace(issue.Project.Name),
-		"assignee_account_id":   strings.TrimSpace(issue.Assignee.AccountID),
-		"assignee_display_name": strings.TrimSpace(issue.Assignee.DisplayName),
-		"reporter_account_id":   strings.TrimSpace(issue.Reporter.AccountID),
-		"reporter_display_name": strings.TrimSpace(issue.Reporter.DisplayName),
-		"created_at":            formatTime(issue.CreatedAt),
-		"updated_at":            formatTime(issue.UpdatedAt),
-		"resolved_at":           formatTime(issue.ResolvedAt),
-		"self_url":              sanitizeURL(issue.Self),
-		"source_url":            sanitizeURL(firstNonBlank(issue.BrowseURL, issue.Self, ctx.SourceURI)),
+		"collector_instance_id":    ctx.CollectorInstanceID,
+		"provider":                 ProviderJiraCloud,
+		"redaction_policy_version": redactionPolicyVersion,
+		"provider_work_item_id":    issueID,
+		"work_item_key":            issueKey,
+		"summary":                  "",
+		"summary_present":          strings.TrimSpace(issue.Summary) != "",
+		"issue_type_id":            strings.TrimSpace(issue.IssueType.ID),
+		"issue_type_name":          strings.TrimSpace(issue.IssueType.Name),
+		"status_id":                strings.TrimSpace(issue.Status.ID),
+		"status_name":              strings.TrimSpace(issue.Status.Name),
+		"project_id":               strings.TrimSpace(issue.Project.ID),
+		"project_key":              strings.TrimSpace(issue.Project.Key),
+		"project_name":             "",
+		"project_name_present":     strings.TrimSpace(issue.Project.Name) != "",
+		"assignee_account_id":      "",
+		"assignee_display_name":    "",
+		"assignee_present":         referencePresent(issue.Assignee),
+		"reporter_account_id":      "",
+		"reporter_display_name":    "",
+		"reporter_present":         referencePresent(issue.Reporter),
+		"created_at":               formatTime(issue.CreatedAt),
+		"updated_at":               formatTime(issue.UpdatedAt),
+		"resolved_at":              formatTime(issue.ResolvedAt),
+		"self_url":                 "",
+		"self_url_fingerprint":     urlFingerprint(selfURL),
+		"source_url":               "",
+		"source_url_fingerprint":   urlFingerprint(sourceURL),
 	}
-	return workItemEnvelope(ctx, facts.WorkItemRecordFactKind, stableFactKey, payload, issueID, firstNonBlank(issue.Self, ctx.SourceURI)), nil
+	return workItemEnvelope(ctx, facts.WorkItemRecordFactKind, stableFactKey, payload, issueID, ctx.SourceURI), nil
 }
 
 // NewWorkItemTransitionEnvelope converts one Jira changelog item into a source
@@ -69,18 +82,23 @@ func NewWorkItemTransitionEnvelope(ctx EnvelopeContext, transition Transition) (
 		"changelog_id": changelogID,
 		"field":        strings.TrimSpace(transition.Field),
 	})
+	from, to := transitionValues(transition)
 	payload := map[string]any{
-		"collector_instance_id": ctx.CollectorInstanceID,
-		"provider":              ProviderJiraCloud,
-		"provider_changelog_id": changelogID,
-		"provider_work_item_id": strings.TrimSpace(transition.IssueID),
-		"work_item_key":         strings.TrimSpace(transition.IssueKey),
-		"field":                 strings.TrimSpace(transition.Field),
-		"from":                  strings.TrimSpace(transition.From),
-		"to":                    strings.TrimSpace(transition.To),
-		"author_account_id":     strings.TrimSpace(transition.Author.AccountID),
-		"author_display_name":   strings.TrimSpace(transition.Author.DisplayName),
-		"created_at":            formatTime(transition.CreatedAt),
+		"collector_instance_id":    ctx.CollectorInstanceID,
+		"provider":                 ProviderJiraCloud,
+		"redaction_policy_version": redactionPolicyVersion,
+		"provider_changelog_id":    changelogID,
+		"provider_work_item_id":    strings.TrimSpace(transition.IssueID),
+		"work_item_key":            strings.TrimSpace(transition.IssueKey),
+		"field":                    strings.TrimSpace(transition.Field),
+		"from":                     from,
+		"to":                       to,
+		"value_redacted":           transition.ValueRedacted,
+		"author_account_id":        "",
+		"author_display_name":      "",
+		"author_present":           referencePresent(transition.Author),
+		"author_redacted":          transition.AuthorRedacted || referencePresent(transition.Author),
+		"created_at":               formatTime(transition.CreatedAt),
 	}
 	return workItemEnvelope(ctx, facts.WorkItemTransitionFactKind, stableFactKey, payload, changelogID, ctx.SourceURI), nil
 }
@@ -91,7 +109,9 @@ func NewWorkItemExternalLinkEnvelope(ctx EnvelopeContext, link ExternalLink) (fa
 	if err := validateEnvelopeContext(ctx); err != nil {
 		return facts.Envelope{}, err
 	}
-	recordID := firstNonBlank(link.ID, link.GlobalID, sanitizeURL(link.Object.URL))
+	sanitizedURL := sanitizeURL(link.Object.URL)
+	fingerprint := firstNonBlank(link.URLFingerprint, urlFingerprint(sanitizedURL))
+	recordID := firstNonBlank(link.ID, link.GlobalID, fingerprint)
 	if recordID == "" {
 		return facts.Envelope{}, fmt.Errorf("jira remote link id, global_id, or url is required")
 	}
@@ -104,6 +124,7 @@ func NewWorkItemExternalLinkEnvelope(ctx EnvelopeContext, link ExternalLink) (fa
 	payload := map[string]any{
 		"collector_instance_id":    ctx.CollectorInstanceID,
 		"provider":                 ProviderJiraCloud,
+		"redaction_policy_version": redactionPolicyVersion,
 		"provider_remote_link_id":  strings.TrimSpace(link.ID),
 		"provider_work_item_id":    strings.TrimSpace(link.IssueID),
 		"work_item_key":            strings.TrimSpace(link.IssueKey),
@@ -111,12 +132,18 @@ func NewWorkItemExternalLinkEnvelope(ctx EnvelopeContext, link ExternalLink) (fa
 		"application_name":         strings.TrimSpace(link.Application.Name),
 		"application_type":         strings.TrimSpace(link.Application.Type),
 		"relationship":             strings.TrimSpace(link.Relationship),
-		"url":                      sanitizeURL(link.Object.URL),
-		"title":                    strings.TrimSpace(link.Object.Title),
-		"summary":                  strings.TrimSpace(link.Object.Summary),
+		"url":                      "",
+		"url_present":              strings.TrimSpace(link.Object.URL) != "",
+		"url_fingerprint":          fingerprint,
+		"url_redacted":             link.URLRedacted || strings.TrimSpace(link.Object.URL) != "",
+		"title":                    "",
+		"title_present":            strings.TrimSpace(link.Object.Title) != "",
+		"summary":                  "",
+		"summary_present":          strings.TrimSpace(link.Object.Summary) != "",
 		"correlation_anchor_class": externalLinkAnchorClass(link),
+		"provider_support_state":   externalLinkSupportState(link),
 	}
-	return workItemEnvelope(ctx, facts.WorkItemExternalLinkFactKind, stableFactKey, payload, recordID, firstNonBlank(link.Object.URL, ctx.SourceURI)), nil
+	return workItemEnvelope(ctx, facts.WorkItemExternalLinkFactKind, stableFactKey, payload, recordID, ctx.SourceURI), nil
 }
 
 func workItemEnvelope(
@@ -184,6 +211,33 @@ func externalLinkAnchorClass(link ExternalLink) string {
 	}
 }
 
+func externalLinkSupportState(link ExternalLink) string {
+	if strings.TrimSpace(link.ProviderSupportState) != "" {
+		return strings.TrimSpace(link.ProviderSupportState)
+	}
+	switch externalLinkAnchorClass(link) {
+	case "github_pull_request", "gitlab_merge_request":
+		return "supported_provider"
+	default:
+		return "unsupported_provider"
+	}
+}
+
+func transitionValues(transition Transition) (string, string) {
+	if transition.ValueRedacted {
+		return "", ""
+	}
+	return strings.TrimSpace(transition.From), strings.TrimSpace(transition.To)
+}
+
+func referencePresent(ref Reference) bool {
+	return strings.TrimSpace(ref.ID) != "" ||
+		strings.TrimSpace(ref.Key) != "" ||
+		strings.TrimSpace(ref.Name) != "" ||
+		strings.TrimSpace(ref.AccountID) != "" ||
+		strings.TrimSpace(ref.DisplayName) != ""
+}
+
 func sanitizeURL(raw string) string {
 	trimmed := strings.TrimSpace(raw)
 	if trimmed == "" {
@@ -213,6 +267,15 @@ func sensitiveQueryKey(key string) bool {
 	default:
 		return false
 	}
+}
+
+func urlFingerprint(sanitized string) string {
+	trimmed := strings.TrimSpace(sanitized)
+	if trimmed == "" {
+		return ""
+	}
+	sum := sha256.Sum256([]byte(trimmed))
+	return "sha256:" + hex.EncodeToString(sum[:])
 }
 
 func firstNonBlank(values ...string) string {

@@ -184,7 +184,11 @@ or pull-request truth unless a reducer or query later proves that path through
 separate source evidence. A `work_item.external_link` to a GitHub PR URL is
 source evidence only until GitHub/provider PR evidence verifies the commit-to-PR
 hop. The Jira source boundary, identity keys, freshness semantics, and fixture
-matrix are defined in [Jira Evidence Contract](jira-evidence.md).
+matrix are defined in [Jira Evidence Contract](jira-evidence.md). Jira payloads
+carry `redaction_policy_version=jira_work_item_v1`; private summaries, user
+identifiers, raw Jira URLs, remote-link URLs, remote-link titles, and
+remote-link summaries are represented by presence booleans or URL fingerprints,
+not raw values.
 
 Declared PagerDuty module and tfvars evidence from Terraform source is emitted
 through ordinary `content_entity` facts with `entity_type=PagerDutyDeclaration`

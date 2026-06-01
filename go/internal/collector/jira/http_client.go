@@ -46,14 +46,17 @@ type HTTPClient struct {
 }
 
 type searchRequest struct {
-	JQL        string   `json:"jql"`
-	MaxResults int      `json:"maxResults"`
-	Fields     []string `json:"fields,omitempty"`
-	Expand     string   `json:"expand,omitempty"`
+	JQL           string   `json:"jql"`
+	MaxResults    int      `json:"maxResults"`
+	Fields        []string `json:"fields,omitempty"`
+	Expand        string   `json:"expand,omitempty"`
+	NextPageToken string   `json:"nextPageToken,omitempty"`
 }
 
 type searchResponse struct {
-	Issues []searchIssue `json:"issues"`
+	Issues        []searchIssue `json:"issues"`
+	NextPageToken string        `json:"nextPageToken"`
+	IsLast        bool          `json:"isLast"`
 }
 
 type searchIssue struct {
@@ -76,7 +79,11 @@ type issueFields struct {
 }
 
 type changelogResponse struct {
-	Values []changelogEntry `json:"values"`
+	StartAt    int              `json:"startAt"`
+	MaxResults int              `json:"maxResults"`
+	Total      int              `json:"total"`
+	IsLast     bool             `json:"isLast"`
+	Values     []changelogEntry `json:"values"`
 }
 
 type changelogEntry struct {
@@ -143,15 +150,18 @@ func (c HTTPClient) CollectWorkItemEvidence(
 	target TargetConfig,
 	window CollectionWindow,
 ) (CollectionResult, error) {
-	issues, err := c.searchIssues(ctx, target, window)
+	stats := CollectionStats{}
+	issues, err := c.searchIssues(ctx, target, window, &stats)
 	if err != nil {
 		return CollectionResult{}, err
 	}
+	stats.IssuesEmitted = len(issues)
 	result := CollectionResult{
 		Issues:        issues,
 		Transitions:   make(map[string][]Transition, len(issues)),
 		ExternalLinks: make(map[string][]ExternalLink, len(issues)),
 		ObservedAt:    window.Until.UTC(),
+		Stats:         stats,
 	}
 	if result.ObservedAt.IsZero() {
 		result.ObservedAt = time.Now().UTC()
@@ -161,23 +171,37 @@ func (c HTTPClient) CollectWorkItemEvidence(
 			ctx,
 			issue,
 			normalizedLimit(target.ChangelogLimit, defaultChangelogLimit, maxChangelogLimit),
+			&result.Stats,
 		)
 		if err != nil {
-			return CollectionResult{}, err
+			result.Stats.PartialFailures++
+			return CollectionResult{}, PartialCollectionError{
+				Stage: "changelog",
+				Stats: result.Stats,
+				Cause: err,
+			}
 		}
 		if len(transitions) > 0 {
 			result.Transitions[issue.ID] = transitions
+			result.Stats.ChangelogEventsEmitted += len(transitions)
 		}
 		links, err := c.issueRemoteLinks(
 			ctx,
 			issue,
 			normalizedLimit(target.RemoteLinkLimit, defaultRemoteLinkLimit, maxRemoteLinkLimit),
+			&result.Stats,
 		)
 		if err != nil {
-			return CollectionResult{}, err
+			result.Stats.PartialFailures++
+			return CollectionResult{}, PartialCollectionError{
+				Stage: "remote_links",
+				Stats: result.Stats,
+				Cause: err,
+			}
 		}
 		if len(links) > 0 {
 			result.ExternalLinks[issue.ID] = links
+			result.Stats.RemoteLinksEmitted += len(links)
 		}
 	}
 	return result, nil
@@ -187,79 +211,109 @@ func (c HTTPClient) searchIssues(
 	ctx context.Context,
 	target TargetConfig,
 	window CollectionWindow,
+	stats *CollectionStats,
 ) ([]Issue, error) {
-	body := searchRequest{
-		JQL:        boundedJQL(target.JQL, window),
-		MaxResults: normalizedLimit(target.IssueLimit, defaultIssueLimit, maxIssueLimit),
-		Fields: []string{
-			"summary",
-			"created",
-			"updated",
-			"resolutiondate",
-			"issuetype",
-			"status",
-			"project",
-			"assignee",
-			"reporter",
-		},
-	}
-	var response searchResponse
-	if err := c.doJSON(ctx, http.MethodPost, jiraSearchEndpoint, nil, body, &response); err != nil {
-		return nil, err
-	}
-	issues := make([]Issue, 0, len(response.Issues))
-	for _, raw := range response.Issues {
-		issues = append(issues, Issue{
-			ID:         strings.TrimSpace(raw.ID),
-			Key:        strings.TrimSpace(raw.Key),
-			Summary:    strings.TrimSpace(raw.Fields.Summary),
-			IssueType:  raw.Fields.IssueType,
-			Status:     raw.Fields.Status,
-			Project:    raw.Fields.Project,
-			Assignee:   raw.Fields.Assignee,
-			Reporter:   raw.Fields.Reporter,
-			CreatedAt:  parseJiraTime(raw.Fields.Created),
-			UpdatedAt:  parseJiraTime(raw.Fields.Updated),
-			ResolvedAt: parseJiraTime(raw.Fields.ResolutionDate),
-			Self:       sanitizeURL(raw.Self),
-			BrowseURL:  c.browseURL(raw.Key),
-		})
+	limit := normalizedLimit(target.IssueLimit, defaultIssueLimit, maxIssueLimit)
+	issues := make([]Issue, 0, limit)
+	nextPageToken := ""
+	for len(issues) < limit {
+		body := searchRequest{
+			JQL:           boundedJQL(target.JQL, window),
+			MaxResults:    min(limit-len(issues), maxIssueLimit),
+			Fields:        jiraSearchFields(),
+			NextPageToken: nextPageToken,
+		}
+		var response searchResponse
+		if err := c.doJSON(ctx, http.MethodPost, jiraSearchEndpoint, nil, body, &response); err != nil {
+			return nil, err
+		}
+		stats.SearchPages++
+		for _, raw := range response.Issues {
+			if len(issues) >= limit {
+				break
+			}
+			issues = append(issues, Issue{
+				ID:         strings.TrimSpace(raw.ID),
+				Key:        strings.TrimSpace(raw.Key),
+				Summary:    strings.TrimSpace(raw.Fields.Summary),
+				IssueType:  raw.Fields.IssueType,
+				Status:     raw.Fields.Status,
+				Project:    raw.Fields.Project,
+				Assignee:   raw.Fields.Assignee,
+				Reporter:   raw.Fields.Reporter,
+				CreatedAt:  parseJiraTime(raw.Fields.Created),
+				UpdatedAt:  parseJiraTime(raw.Fields.Updated),
+				ResolvedAt: parseJiraTime(raw.Fields.ResolutionDate),
+				Self:       sanitizeURL(raw.Self),
+				BrowseURL:  c.browseURL(raw.Key),
+			})
+		}
+		nextPageToken = strings.TrimSpace(response.NextPageToken)
+		if response.IsLast || nextPageToken == "" || len(response.Issues) == 0 {
+			break
+		}
 	}
 	return issues, nil
 }
 
-func (c HTTPClient) issueChangelog(ctx context.Context, issue Issue, limit int) ([]Transition, error) {
-	query := url.Values{}
-	query.Set("maxResults", fmt.Sprintf("%d", limit))
+func (c HTTPClient) issueChangelog(ctx context.Context, issue Issue, limit int, stats *CollectionStats) ([]Transition, error) {
 	endpoint := path.Join(jiraIssueEndpointPrefix, issue.Key, "changelog")
-	var response changelogResponse
-	if err := c.doJSON(ctx, http.MethodGet, endpoint, query, nil, &response); err != nil {
-		return nil, err
-	}
-	transitions := make([]Transition, 0, len(response.Values))
-	for _, entry := range response.Values {
-		for _, item := range entry.Items {
-			transitions = append(transitions, Transition{
-				ID:        strings.TrimSpace(entry.ID),
-				IssueID:   strings.TrimSpace(issue.ID),
-				IssueKey:  strings.TrimSpace(issue.Key),
-				Field:     strings.TrimSpace(item.Field),
-				From:      firstNonBlank(item.From, item.FromID),
-				To:        firstNonBlank(item.To, item.ToID),
-				Author:    entry.Author,
-				CreatedAt: parseJiraTime(entry.CreatedAt),
-			})
+	transitions := make([]Transition, 0, limit)
+	startAt := 0
+	for len(transitions) < limit {
+		query := url.Values{}
+		query.Set("maxResults", fmt.Sprintf("%d", min(limit-len(transitions), maxChangelogLimit)))
+		query.Set("startAt", fmt.Sprintf("%d", startAt))
+		var response changelogResponse
+		if err := c.doJSON(ctx, http.MethodGet, endpoint, query, nil, &response); err != nil {
+			return nil, err
+		}
+		stats.ChangelogPages++
+		for _, entry := range response.Values {
+			for _, item := range entry.Items {
+				if len(transitions) >= limit {
+					break
+				}
+				from, to, redacted := changelogValues(item)
+				transitions = append(transitions, Transition{
+					ID:             strings.TrimSpace(entry.ID),
+					IssueID:        strings.TrimSpace(issue.ID),
+					IssueKey:       strings.TrimSpace(issue.Key),
+					Field:          strings.TrimSpace(item.Field),
+					From:           from,
+					To:             to,
+					Author:         entry.Author,
+					CreatedAt:      parseJiraTime(entry.CreatedAt),
+					ValueRedacted:  redacted,
+					AuthorRedacted: referencePresent(entry.Author),
+				})
+			}
+		}
+		if !changelogPaginationPresent(response) {
+			break
+		}
+		if response.IsLast || len(response.Values) == 0 {
+			break
+		}
+		pageSize := response.MaxResults
+		if pageSize <= 0 {
+			pageSize = len(response.Values)
+		}
+		startAt = response.StartAt + pageSize
+		if response.Total > 0 && startAt >= response.Total {
+			break
 		}
 	}
 	return transitions, nil
 }
 
-func (c HTTPClient) issueRemoteLinks(ctx context.Context, issue Issue, limit int) ([]ExternalLink, error) {
+func (c HTTPClient) issueRemoteLinks(ctx context.Context, issue Issue, limit int, stats *CollectionStats) ([]ExternalLink, error) {
 	endpoint := path.Join(jiraIssueEndpointPrefix, issue.Key, "remotelink")
 	var response []remoteLinkResponse
 	if err := c.doJSON(ctx, http.MethodGet, endpoint, nil, nil, &response); err != nil {
 		return nil, err
 	}
+	stats.RemoteLinkPages++
 	if len(response) > limit {
 		response = response[:limit]
 	}
@@ -267,23 +321,33 @@ func (c HTTPClient) issueRemoteLinks(ctx context.Context, issue Issue, limit int
 	seen := make(map[string]struct{}, len(response))
 	for _, raw := range response {
 		id := anyString(raw.ID)
-		key := firstNonBlank(id, raw.GlobalID, raw.Object.URL)
+		sanitizedURL := sanitizeURL(raw.Object.URL)
+		fingerprint := urlFingerprint(sanitizedURL)
+		key := firstNonBlank(id, raw.GlobalID, fingerprint)
 		if key == "" {
+			stats.RemoteLinksRejected++
 			continue
 		}
 		if _, exists := seen[key]; exists {
 			continue
 		}
 		seen[key] = struct{}{}
-		raw.Object.URL = sanitizeURL(raw.Object.URL)
+		raw.Object.URL = sanitizedURL
+		supportState := remoteLinkProviderSupportState(raw.Application, raw.Object.URL)
+		if supportState == "unsupported_provider" {
+			stats.UnsupportedProviderLinks++
+		}
 		links = append(links, ExternalLink{
-			ID:           id,
-			IssueID:      strings.TrimSpace(issue.ID),
-			IssueKey:     strings.TrimSpace(issue.Key),
-			GlobalID:     strings.TrimSpace(raw.GlobalID),
-			Application:  raw.Application,
-			Relationship: strings.TrimSpace(raw.Relationship),
-			Object:       raw.Object,
+			ID:                   id,
+			IssueID:              strings.TrimSpace(issue.ID),
+			IssueKey:             strings.TrimSpace(issue.Key),
+			GlobalID:             strings.TrimSpace(raw.GlobalID),
+			Application:          raw.Application,
+			Relationship:         strings.TrimSpace(raw.Relationship),
+			Object:               raw.Object,
+			URLFingerprint:       fingerprint,
+			URLRedacted:          strings.TrimSpace(raw.Object.URL) != "",
+			ProviderSupportState: supportState,
 		})
 	}
 	return links, nil
@@ -366,7 +430,12 @@ func jiraStatusError(response *http.Response) error {
 	if response.StatusCode == http.StatusGone {
 		return fmt.Errorf("%w: %s", ErrArchivedIssue, message)
 	}
-	return JiraError{StatusCode: response.StatusCode, Message: message}
+	return JiraError{
+		StatusCode:      response.StatusCode,
+		Message:         message,
+		RetryAfter:      parseRetryAfter(response.Header.Get("Retry-After")),
+		RateLimitReason: strings.TrimSpace(response.Header.Get("RateLimit-Reason")),
+	}
 }
 
 func boundedJQL(raw string, window CollectionWindow) string {

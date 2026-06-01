@@ -23,7 +23,7 @@ registry.
 | Collection and projection | `collector.observe`, `collector.stream`, `scope.assign`, `fact.emit`, `projector.run`, `reducer_intent.enqueue`, `canonical.projection`, `canonical.write`, `canonical.retract` |
 | Reducer and materialization | `reducer.run`, `reducer.batch_claim`, `reducer.drift_evidence_load`, `reducer.aws_runtime_drift_evidence_load`, `reducer.cross_repo_resolution`, `reducer.sql_relationship_materialization`, `reducer.inheritance_materialization`, `iac_reachability.materialize`, `shared_acceptance.lookup`, `shared_acceptance.upsert` |
 | Query handlers | `query.*` spans for relationship evidence, documentation, IaC, code investigation, entity map, package registry, CI/CD, image identity, SBOM, and supply-chain reads |
-| Source collectors and webhooks | `tfstate.*`, `webhook.handle`, `webhook.store`, `oci_registry.*`, `vulnerability_intelligence.*`, `security_alert.*`, `pagerduty.*`, `package_registry.*`, `scanner_worker.*`, and `aws.*` |
+| Source collectors and webhooks | `tfstate.*`, `webhook.handle`, `webhook.store`, `oci_registry.*`, `vulnerability_intelligence.*`, `security_alert.*`, `pagerduty.*`, `jira.*`, `package_registry.*`, `scanner_worker.*`, and `aws.*` |
 | Storage dependencies | `postgres.exec`, `postgres.query`, `neo4j.execute`; read wrappers can also emit `neo4j.query` and `neo4j.query.single` |
 
 Legacy names such as `eshu.http.*`, `eshu.mcp.*`, `eshu.query.*`,
@@ -44,6 +44,7 @@ Legacy names such as `eshu.http.*`, `eshu.mcp.*`, `eshu.query.*`,
 | Vulnerability intelligence collector | `vulnerability_intelligence.observe` and `vulnerability_intelligence.fetch`. |
 | Security alert collector | `security_alert.observe` and `security_alert.fetch`. |
 | PagerDuty collector | `pagerduty.observe` and `pagerduty.fetch`. |
+| Jira collector | `jira.observe` and `jira.fetch`; fetch spans carry bounded page, emitted-fact, rejected-link, unsupported-provider, and Retry-After counters. |
 | Scanner worker | `scanner_worker.claim.process`, `scanner_worker.analyze`, and `scanner_worker.fact.emit_batch`. |
 
 Keep high-cardinality or sensitive values out of span attributes. Raw bucket
@@ -70,6 +71,14 @@ The most useful attributes on current Go spans are:
 
 Webhook traces also use bounded attributes such as `provider`, `event_kind`,
 `decision`, `status`, `outcome`, and `reason`.
+
+Jira fetch traces use bounded integer attributes such as `jira.search_pages`,
+`jira.changelog_pages`, `jira.remote_link_pages`, `jira.issues_emitted`,
+`jira.changelog_events_emitted`, `jira.remote_links_emitted`,
+`jira.remote_links_rejected`, `jira.unsupported_provider_links`,
+`jira.partial_failures`, `jira.rate_limits`, `jira.retry_after_seconds`, and
+`jira.stale_windows`. They must not carry site IDs, issue keys, user
+identifiers, summaries, or URLs.
 
 ## Recipes
 

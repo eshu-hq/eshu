@@ -56,14 +56,16 @@ type Issue struct {
 
 // Transition is one Jira changelog item normalized as lifecycle evidence.
 type Transition struct {
-	ID        string
-	IssueID   string
-	IssueKey  string
-	Field     string
-	From      string
-	To        string
-	Author    Reference
-	CreatedAt time.Time
+	ID             string
+	IssueID        string
+	IssueKey       string
+	Field          string
+	From           string
+	To             string
+	Author         Reference
+	CreatedAt      time.Time
+	ValueRedacted  bool
+	AuthorRedacted bool
 }
 
 // LinkApplication identifies the external system attached to a Jira issue.
@@ -82,13 +84,16 @@ type LinkObject struct {
 // ExternalLink is one Jira remote issue link normalized as cross-system
 // evidence.
 type ExternalLink struct {
-	ID           string
-	IssueID      string
-	IssueKey     string
-	GlobalID     string
-	Application  LinkApplication
-	Relationship string
-	Object       LinkObject
+	ID                   string
+	IssueID              string
+	IssueKey             string
+	GlobalID             string
+	Application          LinkApplication
+	Relationship         string
+	Object               LinkObject
+	URLFingerprint       string
+	URLRedacted          bool
+	ProviderSupportState string
 }
 
 // CollectionWindow bounds one Jira updated-window collection.
@@ -103,6 +108,23 @@ type CollectionResult struct {
 	Transitions   map[string][]Transition
 	ExternalLinks map[string][]ExternalLink
 	ObservedAt    time.Time
+	Stats         CollectionStats
+}
+
+// CollectionStats carries bounded collection counters for telemetry and tests.
+type CollectionStats struct {
+	SearchPages              int
+	ChangelogPages           int
+	RemoteLinkPages          int
+	IssuesEmitted            int
+	ChangelogEventsEmitted   int
+	RemoteLinksEmitted       int
+	RemoteLinksRejected      int
+	PartialFailures          int
+	RateLimits               int
+	RetryAfterSeconds        int
+	StaleWindows             int
+	UnsupportedProviderLinks int
 }
 
 // EvidenceClient fetches Jira work-item evidence for one target and time
