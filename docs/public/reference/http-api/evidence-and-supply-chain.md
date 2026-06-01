@@ -380,7 +380,9 @@ matched` from `Eshu did not have the evidence to match yet`:
 - `source_snapshots[]` reports vulnerability source cache metadata:
   `source`, optional `ecosystem`, `cache_artifact_version`, `snapshot_digest`,
   `last_updated_at`, `freshness`, `complete`, and bounded warning fields. It
-  never returns raw advisory payloads.
+  is filtered to source scopes and ecosystems derived from the requested target
+  before the envelope computes aggregate freshness, and it never returns raw
+  advisory payloads.
 - `source_states[]` reports durable vulnerability source target state:
   `last_attempt_at`, `last_success_at`, `next_retry_at`, `last_error_class`,
   collection window, `freshness_state`, `terminal_status`, `result_count`, and

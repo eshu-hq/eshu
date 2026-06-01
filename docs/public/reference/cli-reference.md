@@ -89,9 +89,8 @@ selected repository, and the CLI downgrades a `ready_*` verdict to
 `evidence_incomplete` when the envelope's aggregate `freshness` is `stale`
 (`advisory_cache_stale`) or unknown
 (`advisory_cache_freshness_unknown`). Per-source entries in
-`readiness.source_snapshots[]`
-are surfaced for operator visibility only; they are aggregated globally by
-the server and not used to gate scoped fail-closed behavior. Pass `--broad`
+`readiness.source_snapshots[]` are surfaced for operator visibility while the
+CLI gates on the server-owned aggregate scoped freshness verdict. Pass `--broad`
 to skip that guard and accept advisory/package coverage beyond observed
 dependencies; the JSON envelope reports the active mode under
 `data.scope_mode` and the bounded plan under `data.scope_plan` regardless of
