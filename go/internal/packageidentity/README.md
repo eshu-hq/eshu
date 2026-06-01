@@ -25,8 +25,8 @@ truth; reducers admit user-facing truth.
   package ID plus PURL/BOMRef fields.
 - `NormalizeEcosystem` maps package-manager aliases such as `python`,
   `typescript`, `golang`, `packagist`, `ruby`, `crates.io`, and distro package
-  managers, plus SwiftPM aliases such as `swiftpm` and `spm`, onto Eshu's
-  canonical ecosystems.
+  managers, plus SwiftPM aliases such as `swiftpm` and `spm` and Hex aliases
+  such as `hexpm`, onto Eshu's canonical ecosystems.
 - `NormalizeRegistry` canonicalizes registry host/path values without hiding
   the source registry.
 
@@ -43,7 +43,7 @@ truth; reducers admit user-facing truth.
 
 No-Regression Evidence: `go test ./internal/packageidentity ./internal/collector/packageregistry ./internal/collector/vulnerabilityintelligence ./internal/reducer ./internal/projector ./internal/storage/cypher ./internal/query -count=1`
 proves the shared identity contract normalizes npm, PyPI, Go, Maven, Composer,
-RubyGems, Cargo, Swift, NuGet, OS, and generic package coordinates, carries
+RubyGems, Cargo, Swift, Hex, NuGet, OS, and generic package coordinates, carries
 PURL/BOMRef/manager/source fields through package-registry facts, keeps OSV
 and GLAD affected-package facts on the same canonical IDs, and preserves
 bounded package-registry query behavior.

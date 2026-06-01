@@ -27,6 +27,7 @@ func Parse(path string, isDependency bool, options shared.Options) (map[string]a
 	payload := shared.BasePayload(path, "elixir", isDependency)
 	payload["modules"] = []map[string]any{}
 	payload["protocols"] = []map[string]any{}
+	appendHexDependencyRows(payload, path, string(source))
 	lines := strings.Split(string(source), "\n")
 	seenCalls := make(map[string]struct{})
 	scopes := make([]scope, 0)

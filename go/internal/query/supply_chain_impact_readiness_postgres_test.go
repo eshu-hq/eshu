@@ -66,7 +66,7 @@ func TestPostgresSupplyChainImpactReadinessQueryShape(t *testing.T) {
 		"'sbom_target' AS target_kind",
 		"'package_registry_metadata' AS target_kind",
 		"'image_target' AS target_kind",
-		"NOT IN\n          ('npm', 'nuget', 'maven', 'cargo', 'pypi', 'swift', 'composer', 'go', 'rubygems')",
+		"NOT IN\n          ('npm', 'nuget', 'maven', 'cargo', 'pypi', 'swift', 'composer', 'go', 'rubygems', 'hex')",
 		"entity_metadata'->>'lockfile_unsupported_feature'",
 		"warn.payload->>'reason' IN ('unsupported_field', 'malformed_document')",
 		"doc.payload->>'subject_digest' = $12",

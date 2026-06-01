@@ -143,6 +143,8 @@ func TestSupplyChainImpactFindingQueryUsesDetectionProfileFilter(t *testing.T) {
 		"nuget_semver_known_fixed",
 		"cargo_semver_affected_range",
 		"cargo_semver_known_fixed",
+		"hex_semver_affected_range",
+		"hex_semver_known_fixed",
 		"maven_range_match",
 		"maven_known_fixed",
 		"swift_semver_affected_range",
@@ -195,6 +197,15 @@ func TestDecodeSupplyChainImpactFindingRowBackfillsLegacyPreciseProfile(t *testi
                 "impact_status": "affected_exact",
                 "match_reason": "swift_semver_affected_range",
                 "observed_version": "4.3.0"
+            }`),
+		},
+		{
+			name: "hex_semver",
+			payload: []byte(`{
+                "cve_id": "CVE-2026-9005",
+                "impact_status": "affected_exact",
+                "match_reason": "hex_semver_affected_range",
+                "observed_version": "1.2.3"
             }`),
 		},
 	}

@@ -29,6 +29,8 @@ const (
 	EcosystemCargo Ecosystem = "cargo"
 	// EcosystemSwift identifies Swift Package Manager source package metadata.
 	EcosystemSwift Ecosystem = "swift"
+	// EcosystemHex identifies Hex package metadata.
+	EcosystemHex Ecosystem = "hex"
 	// EcosystemOS identifies distro package metadata.
 	EcosystemOS Ecosystem = "os"
 	// EcosystemGeneric identifies provider-specific generic package metadata.
@@ -145,6 +147,8 @@ func NormalizeEcosystem(value Ecosystem) Ecosystem {
 		return EcosystemCargo
 	case "swift", "swifturl", "swiftpm", "spm", "swift-package-manager":
 		return EcosystemSwift
+	case "hex", "hexpm", "hex.pm":
+		return EcosystemHex
 	case "os", "apk", "alpine", "deb", "debian", "rpm", "rhel", "ubuntu":
 		return EcosystemOS
 	case "generic":
@@ -198,6 +202,8 @@ func normalizeName(ecosystem Ecosystem, rawName, namespace string) (string, stri
 		return strings.ToLower(rawName), "", nil
 	case EcosystemSwift:
 		return normalizeSwiftName(rawName, namespace)
+	case EcosystemHex:
+		return strings.ToLower(rawName), strings.ToLower(strings.TrimSpace(namespace)), nil
 	case EcosystemGeneric:
 		return rawName, namespace, nil
 	default:
@@ -257,6 +263,11 @@ func packageIDFor(ecosystem Ecosystem, registry, namespace, normalizedName strin
 		return fmt.Sprintf("%s://%s/%s:%s", ecosystem, registry, namespace, normalizedName)
 	case EcosystemSwift:
 		return fmt.Sprintf("%s://%s/%s", ecosystem, namespace, normalizedName)
+	case EcosystemHex:
+		if namespace != "" {
+			return fmt.Sprintf("%s://%s/%s/%s", ecosystem, registry, namespace, normalizedName)
+		}
+		return fmt.Sprintf("%s://%s/%s", ecosystem, registry, normalizedName)
 	default:
 		return fmt.Sprintf("%s://%s/%s", ecosystem, registry, normalizedName)
 	}
@@ -296,6 +307,11 @@ func purlPathFor(ecosystem Ecosystem, registry, namespace, normalizedName string
 		return strings.Trim(namespace, "/") + "/" + strings.Trim(normalizedName, "/")
 	case EcosystemSwift:
 		return strings.Trim(namespace, "/") + "/" + strings.Trim(normalizedName, "/")
+	case EcosystemHex:
+		if namespace != "" {
+			return strings.Trim(namespace, "/") + "/" + strings.Trim(normalizedName, "/")
+		}
+		return strings.Trim(normalizedName, "/")
 	case EcosystemOS:
 		return strings.Trim(registry, "/") + "/" + strings.Trim(normalizedName, "/")
 	default:

@@ -445,8 +445,8 @@ The current implementation proves the following:
 
 - `not_configured`: no advisory or owned-evidence facts exist for the scope.
 - `evidence_incomplete`: advisory facts exist but a required join family is
-  missing or stale, including package-registry metadata required for package or
-  repository vulnerability matching.
+  missing or stale for the requested anchor, including package-registry metadata
+  required for package or repository vulnerability matching.
 - `ready_zero_findings`: advisory and required owned evidence exist and the
   reducer returned no matching impact.
 - `ready_with_findings`: at least one reducer finding was returned. Ready
@@ -454,20 +454,23 @@ The current implementation proves the following:
   missing advisory sources.
 - `target_incomplete`: a `vulnerability.source_snapshot` fact carries
   `"complete": false` and the requested scope has no advisory evidence yet.
-  Scope-relevant `incomplete_reasons` carry distinct collector warning
-  messages.
+  An in-flight snapshot for an unrelated source does not flip a scope whose
+  advisory evidence is already collected, so cross-source ingestion noise
+  cannot invalidate ready answers. Scope-relevant `incomplete_reasons` carry
+  distinct collector warning messages.
 - `readiness_unavailable`: the readiness lookup failed. The findings page is
   still returned, and `missing_evidence` carries `readiness_unavailable`.
 - `unsupported`: the bounded scope has observed target evidence the matcher
   cannot resolve. Producers are `content_entity` unsupported package managers
-  outside `npm`, `nuget`, `maven`, `cargo`, `pypi`, `swift`, `composer`, and
-  `go`, and `rubygems`; `content_entity` lockfile unsupported-feature markers;
+  outside `npm`, `nuget`, `maven`, `cargo`, `pypi`, `swift`, `composer`, `go`,
+  `rubygems`, and `hex`; `content_entity` lockfile unsupported-feature markers;
   `sbom.warning` reasons `unsupported_field` or `malformed_document` joined to
   the document subject digest; `package_registry.warning` code
   `metadata_too_large`; and image-target `scanner_worker.warning` reasons
   `analyzer_not_configured` or `image_analyzer_unsupported_target` matched by
   `image_digest` or image scope id. `unsupported` outranks
-  `evidence_incomplete`; when findings exist, the state stays
+  `evidence_incomplete` so callers can tell "we observed something we cannot
+  match" from "we never collected this." When findings exist, the state stays
   `ready_with_findings` and `unsupported_targets[]` remains visible additively.
 
 The package.consumption family is sourced from the real

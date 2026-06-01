@@ -201,6 +201,7 @@ func TestSupplyChainImpactAggregateQueriesUseListProfileAndSuppressionPredicates
 			"$6 = 'comprehensive'",
 			"nuget_semver_affected_range",
 			"cargo_semver_known_fixed",
+			"hex_semver_affected_range",
 			"swift_semver_affected_range",
 			"swift_semver_known_fixed",
 			"fact.payload->>'priority_bucket' = $7",

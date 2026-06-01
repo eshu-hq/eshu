@@ -76,6 +76,7 @@ type packageManifestDependency struct {
 	RelativePath              string
 	ObservedAt                time.Time
 	DependencyName            string
+	PackageNamespace          string
 	PackageManager            string
 	ManifestSection           string
 	DependencyRange           string
@@ -239,6 +240,7 @@ func extractPackageManifestDependencies(envelopes []facts.Envelope) []packageMan
 			RelativePath:              payloadStr(envelope.Payload, "relative_path"),
 			ObservedAt:                envelope.ObservedAt,
 			DependencyName:            payloadStr(envelope.Payload, "entity_name"),
+			PackageNamespace:          packageManifestMetadataString(envelope.Payload, "namespace"),
 			PackageManager:            packageManager,
 			ManifestSection:           packageManifestMetadataString(envelope.Payload, "section"),
 			DependencyRange:           packageManifestMetadataString(envelope.Payload, "value"),
@@ -338,7 +340,11 @@ func packageConsumptionIdentityForDependency(
 	identityByKey map[string]packageRegistryIdentity,
 	dependency packageManifestDependency,
 ) (packageRegistryIdentity, bool) {
-	for _, key := range packageConsumptionKeys(dependency.PackageManager, dependency.DependencyName) {
+	names := []string{dependency.DependencyName}
+	if dependency.PackageNamespace != "" {
+		names = append(names, strings.TrimSpace(dependency.PackageNamespace)+"/"+dependency.DependencyName)
+	}
+	for _, key := range packageConsumptionKeys(dependency.PackageManager, names...) {
 		identity, ok := identityByKey[key]
 		if ok {
 			return identity, true
@@ -404,7 +410,7 @@ func packageConsumptionRawNameAndNamespace(
 	packageName string,
 ) (string, string) {
 	packageName = strings.TrimSpace(packageName)
-	if ecosystem != packageidentity.EcosystemMaven {
+	if ecosystem != packageidentity.EcosystemMaven && ecosystem != packageidentity.EcosystemHex {
 		return packageName, ""
 	}
 	namespace, name, ok := strings.Cut(packageName, ":")

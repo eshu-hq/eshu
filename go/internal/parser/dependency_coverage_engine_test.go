@@ -200,6 +200,35 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 			expectedDependencies: map[string]string{"tokio": "1.37.0"},
 			expectedPackageMgr:   "cargo",
 		},
+		"mix.exs": {
+			body: `defmodule Demo.MixProject do
+  use Mix.Project
+  defp deps do
+    [
+      {:phoenix_html, "~> 4.2"},
+      {:jason, "~> 1.4", only: :test}
+    ]
+  end
+end
+`,
+			expectedDependencies: map[string]string{
+				"phoenix_html": "~> 4.2",
+				"jason":        "~> 1.4",
+			},
+			expectedPackageMgr: "hex",
+		},
+		"mix.lock": {
+			body: `%{
+  "phoenix_html": {:hex, :phoenix_html, "4.2.1", "checksum", [:mix], [], "hexpm", "outer"},
+  "decimal": {:hex, :decimal, "2.1.1", "checksum", [:mix], [], "hexpm", "outer"}
+}
+`,
+			expectedDependencies: map[string]string{
+				"phoenix_html": "4.2.1",
+				"decimal":      "2.1.1",
+			},
+			expectedPackageMgr: "hex",
+		},
 		"pom.xml": {
 			body: `<?xml version="1.0" encoding="UTF-8"?>
 <project xmlns="http://maven.apache.org/POM/4.0.0">

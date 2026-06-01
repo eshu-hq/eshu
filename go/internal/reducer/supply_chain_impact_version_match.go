@@ -13,6 +13,8 @@ const (
 	supplyChainVersionReasonNuGetSemverKnownFixed       = "nuget_semver_known_fixed"
 	supplyChainVersionReasonCargoSemverAffectedRange    = "cargo_semver_affected_range"
 	supplyChainVersionReasonCargoSemverKnownFixed       = "cargo_semver_known_fixed"
+	supplyChainVersionReasonHexSemverAffectedRange      = "hex_semver_affected_range"
+	supplyChainVersionReasonHexSemverKnownFixed         = "hex_semver_known_fixed"
 	supplyChainVersionReasonGoSemverAffectedRange       = "go_semver_affected_range"
 	supplyChainVersionReasonGoSemverKnownFixed          = "go_semver_known_fixed"
 	supplyChainVersionReasonPyPIPep440AffectedRange     = "pypi_pep440_affected_range"
@@ -81,6 +83,8 @@ func evaluateSupplyChainVersionMatch(
 		return evaluateNuGetSemverMatch(observed, fixedVersion, pkgs)
 	case string(packageidentity.EcosystemCargo):
 		return evaluateCargoSemverMatch(observed, fixedVersion, pkgs)
+	case string(packageidentity.EcosystemHex):
+		return evaluateHexSemverMatch(observed, fixedVersion, pkgs)
 	case string(packageidentity.EcosystemGoModule):
 		return evaluateGoSemverMatch(observed, fixedVersion, pkgs)
 	case string(packageidentity.EcosystemPyPI):
@@ -276,6 +280,21 @@ func evaluateGoSemverMatch(
 		decision.Reason = supplyChainVersionReasonGoSemverAffectedRange
 	case supplyChainVersionReasonNPMSemverKnownFixed:
 		decision.Reason = supplyChainVersionReasonGoSemverKnownFixed
+	}
+	return decision
+}
+
+func evaluateHexSemverMatch(
+	observed string,
+	fixedVersion string,
+	pkgs []supplyChainAffectedPackage,
+) supplyChainVersionMatchDecision {
+	decision := evaluateNPMSemverMatch(observed, fixedVersion, pkgs)
+	switch decision.Reason {
+	case supplyChainVersionReasonNPMSemverAffectedRange:
+		decision.Reason = supplyChainVersionReasonHexSemverAffectedRange
+	case supplyChainVersionReasonNPMSemverKnownFixed:
+		decision.Reason = supplyChainVersionReasonHexSemverKnownFixed
 	}
 	return decision
 }

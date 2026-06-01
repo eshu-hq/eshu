@@ -208,6 +208,75 @@ func TestVulnerabilityIntelligenceWorkPlannerDerivesOSVTargetsForExactOwnedVersi
 	}
 }
 
+func TestVulnerabilityIntelligenceWorkPlannerDerivesOSVTargetsForExactHexVersions(t *testing.T) {
+	t.Parallel()
+
+	observedAt := time.Date(2026, time.June, 1, 15, 0, 0, 0, time.UTC)
+	instance := workflow.CollectorInstance{
+		InstanceID:     "collector-vulnerability-intelligence",
+		CollectorKind:  scope.CollectorVulnerabilityIntelligence,
+		Mode:           workflow.CollectorModeContinuous,
+		Enabled:        true,
+		ClaimsEnabled:  true,
+		Configuration:  `{"derive_from_owned_packages":{"enabled":true,"sources":["osv"],"ecosystems":["hex"],"target_limit":10}}`,
+		LastObservedAt: observedAt,
+		CreatedAt:      observedAt,
+		UpdatedAt:      observedAt,
+	}
+
+	run, items, err := VulnerabilityIntelligenceWorkPlanner{}.PlanVulnerabilityIntelligenceWork(context.Background(), VulnerabilityIntelligencePlanRequest{
+		Instance:   instance,
+		ObservedAt: observedAt,
+		PlanKey:    "continuous-20260601T150000Z",
+		OwnedPackageTargets: []workflow.OwnedPackageDependencyTarget{
+			{
+				Ecosystem:    "hex",
+				PackageName:  "phoenix_html",
+				Version:      "4.2.1",
+				Lockfile:     true,
+				RepositoryID: "repo-elixir",
+			},
+			{
+				Ecosystem:    "hex",
+				PackageName:  "jason",
+				Version:      "~> 1.4",
+				RepositoryID: "repo-elixir",
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("PlanVulnerabilityIntelligenceWork() error = %v", err)
+	}
+	if got, want := len(items), 1; got != want {
+		t.Fatalf("len(items) = %d, want %d", got, want)
+	}
+	if got, want := items[0].ScopeID, "vuln-intel://osv/hex/phoenix_html?version=4.2.1"; got != want {
+		t.Fatalf("ScopeID = %q, want %q", got, want)
+	}
+
+	var requested struct {
+		Targets []struct {
+			Source      string `json:"source"`
+			Ecosystem   string `json:"ecosystem"`
+			PackageName string `json:"package_name"`
+			Version     string `json:"version"`
+			Derived     bool   `json:"derived"`
+		} `json:"targets"`
+	}
+	if err := json.Unmarshal([]byte(run.RequestedScopeSet), &requested); err != nil {
+		t.Fatalf("RequestedScopeSet JSON = %q: %v", run.RequestedScopeSet, err)
+	}
+	if got, want := requested.Targets[0].Ecosystem, "hex"; got != want {
+		t.Fatalf("Ecosystem = %q, want %q", got, want)
+	}
+	if got, want := requested.Targets[0].PackageName, "phoenix_html"; got != want {
+		t.Fatalf("PackageName = %q, want %q", got, want)
+	}
+	if !requested.Targets[0].Derived {
+		t.Fatalf("derived Hex OSV target not marked derived: %#v", requested.Targets[0])
+	}
+}
+
 func TestVulnerabilityIntelligenceWorkPlannerHonorsFullCorpusDerivedTargetLimit(t *testing.T) {
 	t.Parallel()
 

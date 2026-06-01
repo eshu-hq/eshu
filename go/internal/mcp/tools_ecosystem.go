@@ -237,7 +237,7 @@ func ecosystemTools() []ToolDefinition {
 					},
 					"ecosystem": map[string]any{
 						"type":        "string",
-						"description": "Package ecosystem scope such as npm, maven, pypi, go, cargo, or nuget.",
+						"description": "Package ecosystem scope such as npm, maven, pypi, go, cargo, hex, or nuget.",
 					},
 					"name": map[string]any{
 						"type":        "string",

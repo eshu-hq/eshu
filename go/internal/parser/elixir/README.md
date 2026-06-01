@@ -5,8 +5,9 @@
 `internal/parser/elixir` owns Elixir language extraction that can run without
 importing the parent `internal/parser` package. It emits the Elixir payload,
 pre-scan names, `dead_code_root_kinds`, `exactness_blockers`, modules,
-protocols, functions, imports, attributes, variables, and bounded call
-metadata. Dynamic `apply(...)` calls mark the enclosing function even when the
+protocols, functions, imports, attributes, variables, bounded call metadata,
+and Hex dependency evidence from literal `mix.exs` deps plus `mix.lock`
+entries. Dynamic `apply(...)` calls mark the enclosing function even when the
 dispatch sits on a one-line `def ..., do:` declaration.
 
 ## Ownership boundary
@@ -22,7 +23,9 @@ The godoc contract is in `doc.go`. Current exports are:
 
 - `Parse` extracts modules, protocols, functions, imports, attributes, bounded
   call metadata, parser-backed root kinds, and observed dynamic-dispatch
-  blockers from both function bodies and one-line declarations.
+  blockers from both function bodies and one-line declarations. It also emits
+  Hex `config_kind=dependency` rows for literal Mix deps and lockfile entries,
+  while git deps remain provenance-only `vcs_dependency` rows.
 - `PreScan` returns deterministic names for import-map pre-scan.
 
 ## Dependencies

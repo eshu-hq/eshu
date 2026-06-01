@@ -14,7 +14,7 @@ func packageRegistryAggregateTools() []ToolDefinition {
 				"properties": map[string]any{
 					"ecosystem": map[string]any{
 						"type":        "string",
-						"description": "Optional ecosystem identifier (such as `npm`, `pypi`, `maven`) to scope the totals.",
+						"description": "Optional ecosystem identifier (such as `npm`, `pypi`, `maven`, or `hex`) to scope the totals.",
 					},
 					"registry": map[string]any{
 						"type":        "string",

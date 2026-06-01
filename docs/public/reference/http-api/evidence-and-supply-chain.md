@@ -254,9 +254,10 @@ Version fields intentionally do not collapse into one string:
   the MCP tools all expose the same expression. Older rows written before
   remediation computation may omit this value.
 - `match_reason`: reducer explanation for the version decision, including
-  supported matches, range-only manifests, and malformed installed versions or
-  advisory ranges. Unsupported non-OS package ecosystems are readiness coverage
-  gaps, not finding match reasons.
+  supported matches such as npm, Hex, Cargo, NuGet, Maven, and other
+  implemented ecosystem checks, range-only manifests, and malformed installed
+  versions or advisory ranges. Unsupported non-OS package ecosystems are
+  readiness coverage gaps, not finding match reasons.
 
 Priority fields intentionally describe urgency without changing impact truth:
 
@@ -296,14 +297,14 @@ Debian, Ubuntu, Alpine, SUSE, Wolfi, Chainguard, Amazon Linux, Oracle Linux)
 outrank generic GLAD/GHSA/OSV/NVD records for the matching OS package class;
 GHSA outranks GLAD, OSV, and NVD for normalized language advisory metadata
 when a finding can otherwise be admitted. Impact-supported language version
-matchers are npm, PyPI, NuGet, Cargo, Swift, and Maven today; vendor-backed
+matchers are npm, PyPI, NuGet, Cargo, Swift, Hex, and Maven today; vendor-backed
 RPM-family OS package facts use the OS package priority above.
 Matcher-unimplemented ecosystems remain source-only, missing, or unsupported
 evidence rather than finding rows. If the selected source did not publish a
 severity, the reducer falls back to the next-best source instead of emitting a
 zero severity.
 Exact owned lockfile dependency rows can prove the observed package version.
-Npm and NuGet lockfile-backed findings may include `dependency_path`,
+Npm, Hex, and NuGet lockfile-backed findings may include `dependency_path`,
 `dependency_depth`, and `direct_dependency` so callers can explain direct versus
 transitive package impact without re-walking the lockfile.
 Manifest ranges remain partial package evidence until a lockfile, SBOM/image,

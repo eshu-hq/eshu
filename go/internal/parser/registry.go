@@ -229,6 +229,7 @@ func defaultDefinitions() []Definition {
 			ParserKey:  "elixir",
 			Language:   "elixir",
 			Extensions: []string{".ex", ".exs"},
+			ExactNames: []string{"mix.lock"},
 		},
 		{
 			ParserKey:  "go",

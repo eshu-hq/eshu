@@ -343,6 +343,8 @@ func inferLegacyDetectionProfile(impactStatus string, observedVersion string, ma
 		"nuget_semver_known_fixed",
 		"cargo_semver_affected_range",
 		"cargo_semver_known_fixed",
+		"hex_semver_affected_range",
+		"hex_semver_known_fixed",
 		"maven_range_match",
 		"maven_known_fixed",
 		"swift_semver_affected_range",

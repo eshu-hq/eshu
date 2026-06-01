@@ -226,6 +226,30 @@ func TestNormalizePackageIdentityUsesCanonicalEcosystemRules(t *testing.T) {
 			},
 		},
 		{
+			name: "hex lowercases package and private organization namespace",
+			in: RawIdentity{
+				Ecosystem:  "hexpm",
+				Registry:   "https://repo.hex.pm",
+				Namespace:  "Acme",
+				RawName:    "Phoenix_HTML",
+				Version:    "4.2.1",
+				SourcePath: "mix.lock",
+			},
+			want: Identity{
+				Ecosystem:      EcosystemHex,
+				Registry:       "repo.hex.pm",
+				RawName:        "Phoenix_HTML",
+				NormalizedName: "phoenix_html",
+				Namespace:      "acme",
+				Version:        "4.2.1",
+				PURL:           "pkg:hex/acme/phoenix_html@4.2.1",
+				BOMRef:         "pkg:hex/acme/phoenix_html@4.2.1",
+				PackageManager: "hex",
+				SourcePath:     "mix.lock",
+				PackageID:      "hex://repo.hex.pm/acme/phoenix_html",
+			},
+		},
+		{
 			name: "os package keeps distro registry and package manager",
 			in: RawIdentity{
 				Ecosystem:      "debian",
@@ -332,7 +356,7 @@ func TestNormalizePackageIdentityRejectsMissingRequiredFields(t *testing.T) {
 func TestNormalizePackageIdentityRejectsUnimplementedEcosystemAliases(t *testing.T) {
 	t.Parallel()
 
-	for _, ecosystem := range []Ecosystem{"pub", "hex"} {
+	for _, ecosystem := range []Ecosystem{"pub"} {
 		ecosystem := ecosystem
 		t.Run(string(ecosystem), func(t *testing.T) {
 			t.Parallel()
