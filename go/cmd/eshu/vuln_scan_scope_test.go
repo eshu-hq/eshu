@@ -122,10 +122,8 @@ func TestRunVulnScanRepoScopedModeFailsClosedOnStaleAdvisoryCache(t *testing.T) 
 	// When the readiness envelope's aggregate `freshness` is `stale` and the
 	// server still classifies the scope as `ready_zero_findings`, scoped mode
 	// must downgrade to `evidence_incomplete` and record
-	// `advisory_cache_stale`. The CLI does not gate on per-source-snapshot
-	// freshness because the server aggregates `source_snapshots[]` globally
-	// rather than by the repository scope (see server readiness postgres
-	// CTE `vulnerability_source_snapshot`).
+	// `advisory_cache_stale`. The CLI gates on the server's aggregate scoped
+	// freshness verdict instead of reclassifying individual source snapshots.
 	repoPath := t.TempDir()
 	reset := stubScanRuntime(t)
 	defer reset()
@@ -182,12 +180,11 @@ func TestRunVulnScanRepoScopedModeFailsClosedOnStaleAdvisoryCache(t *testing.T) 
 	}
 }
 
-func TestRunVulnScanRepoScopedModeIgnoresGlobalStaleSnapshotsWhenEnvelopeFresh(t *testing.T) {
-	// `source_snapshots[]` is aggregated globally by the readiness store,
-	// so a stale Python snapshot must not flip a repo-only npm scan whose
-	// repo-anchored evidence (package.consumption + vulnerability.advisory)
-	// is fresh and whose envelope-level freshness is `fresh`. This regression
-	// guards against the CLI re-introducing a per-snapshot fail-closed gate.
+func TestRunVulnScanRepoScopedModeIgnoresSnapshotStalenessWhenEnvelopeFresh(t *testing.T) {
+	// A stale per-source snapshot must not flip a repo-only scan when the
+	// server-owned aggregate scoped freshness is `fresh`. This regression
+	// guards against the CLI re-introducing a per-snapshot fail-closed gate
+	// that could disagree with the API/MCP readiness verdict.
 	repoPath := t.TempDir()
 	reset := stubScanRuntime(t)
 	defer reset()
@@ -216,7 +213,7 @@ func TestRunVulnScanRepoScopedModeIgnoresGlobalStaleSnapshotsWhenEnvelopeFresh(t
 	}
 
 	if err := runVulnScanRepo(cmd, []string{repoPath}); err != nil {
-		t.Fatalf("runVulnScanRepo() error = %v, want nil (unrelated global stale snapshot must not flip a fresh repo-scoped run)", err)
+		t.Fatalf("runVulnScanRepo() error = %v, want nil (snapshot staleness must not override a fresh scoped envelope)", err)
 	}
 
 	var payload map[string]any
@@ -237,8 +234,7 @@ func TestRunVulnScanRepoScopedModePassesThroughServerTargetIncomplete(t *testing
 	// The server already classifies in-flight advisory ingestion as
 	// `target_incomplete` via `vulnerability_source_snapshot.target_incomplete`.
 	// Scoped mode passes that verdict through unchanged rather than adding a
-	// duplicate CLI-side guard (the per-snapshot list is global and not safe
-	// to gate on).
+	// duplicate CLI-side guard that could disagree with API/MCP readiness.
 	repoPath := t.TempDir()
 	reset := stubScanRuntime(t)
 	defer reset()

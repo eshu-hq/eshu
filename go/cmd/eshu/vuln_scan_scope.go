@@ -24,9 +24,8 @@ const (
 const (
 	// vulnScanMissingAdvisoryCacheStale marks the scope plan when the readiness
 	// envelope's aggregate freshness signal is `stale`. The envelope freshness
-	// is the only freshness signal aggregated from repo-anchored evidence
-	// families today; per-snapshot entries in `source_snapshots[]` are reported
-	// without scope filtering, so the CLI does not gate on them.
+	// is the server-owned scoped verdict across evidence families and source
+	// target state; the CLI does not reclassify individual source snapshots.
 	vulnScanMissingAdvisoryCacheStale = "advisory_cache_stale"
 	// vulnScanMissingAdvisoryCacheFreshnessUnknown marks a ready server verdict
 	// that lacks a fresh aggregate cache signal. Unknown freshness is not a
@@ -66,9 +65,8 @@ type vulnScanScopePlan struct {
 }
 
 // vulnScanSourceCacheState records the per-source cache health surfaced by the
-// readiness envelope. The CLI presents this list for operator visibility only;
-// the entries are aggregated globally by the server today and therefore do
-// not gate scoped fail-closed behavior.
+// readiness envelope. The CLI presents this list for operator visibility while
+// gating on the server's aggregate scoped freshness verdict.
 type vulnScanSourceCacheState struct {
 	Source               string `json:"source"`
 	Ecosystem            string `json:"ecosystem,omitempty"`
@@ -218,12 +216,10 @@ func readinessSourceSnapshots(readiness map[string]any) []vulnScanSourceCacheSta
 // so the operator never gets a clean answer backed by stale source data or an
 // unclassified freshness state. The package-registry guard then downgrades
 // `ready_*` answers when the repository has observed dependency evidence but no
-// fresh package metadata for those packages. The envelope freshness is the only
-// freshness signal the server aggregates from repo-anchored evidence families
-// today; per-source entries in
-// `readiness.source_snapshots[]` are reported without scope filtering and would
-// taint repo-scoped runs with unrelated global staleness, so the CLI does not
-// gate on them.
+// fresh package metadata for those packages. The envelope freshness is the
+// server-owned aggregate over scoped evidence families and source target state;
+// per-source entries in `readiness.source_snapshots[]` stay visible in the
+// plan, but the CLI does not reinterpret individual cache rows.
 //
 // Non-ready server verdicts (`not_configured`, `target_incomplete`,
 // `evidence_incomplete`, `readiness_unavailable`) already preserve

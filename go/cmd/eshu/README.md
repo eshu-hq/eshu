@@ -108,10 +108,9 @@ No-Regression Evidence: provider-parity lifecycle behavior is covered by
   `package_registry_metadata`. The scoped advisory guard also fires when the
   envelope's aggregate `freshness` is `stale` and the server still returned a
   `ready_*` state; in that case the CLI records `advisory_cache_stale`.
-  Per-source `source_snapshots[]` entries are
-  surfaced for visibility only — the readiness store aggregates them
-  globally rather than by repository scope, so the CLI does not gate on
-  them. `--broad` skips the advisory scoped guard, records a warning that the
+  Per-source `source_snapshots[]` entries are surfaced for visibility while
+  the CLI gates on the server-owned aggregate scoped freshness verdict.
+  `--broad` skips the advisory scoped guard, records a warning that the
   wider mode bypassed it, and surfaces `data.scope_mode = "broad"` so
   operators can tell the modes apart in JSON output; it still fails closed on
   stale or missing package-registry metadata. The `*_facts` fields are counts
