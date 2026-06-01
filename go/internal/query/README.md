@@ -65,14 +65,9 @@ are extracted via `StringVal`, `BoolVal`, `IntVal`, `StringSliceVal`
 Read-model details stay package-local but out of the top-level index:
 
 - [read-models.md](read-models.md) covers entity-map traversal, package
-<<<<<<< HEAD
-  registry bounds, CI/CD, service catalog, and Kubernetes correlations,
-  supply-chain read models, OCI deployment trace enrichment, and
-=======
-  registry bounds, CI/CD, service catalog, and observability coverage
-  correlations, supply-chain read models, OCI deployment trace enrichment, and
->>>>>>> 57b01a50 (feat: observability coverage read surface — PR2 (query/MCP) (toward #391))
-  investigation-route read models.
+  registry bounds, CI/CD, service catalog, Kubernetes, and observability
+  coverage correlations, supply-chain read models, OCI deployment trace
+  enrichment, and investigation-route read models.
 - [dead-code-reachability.md](dead-code-reachability.md) covers dead-code
   language reachability, exactness blockers, candidate paging, hydration,
   observed blockers, and the language-specific suppression contract.
