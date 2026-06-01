@@ -1,5 +1,6 @@
-// Package coordinator runs the workflow coordinator's reconcile, expired-claim
-// reap, and workflow-run reconciliation loops.
+// Package coordinator runs the workflow coordinator's reconcile,
+// webhook-freshness handoff, expired-claim reap, and workflow-run reconciliation
+// loops.
 //
 // Service reconciles declarative collector instances against the durable store
 // on every reconcile interval. In active mode it also plans supported
@@ -20,6 +21,8 @@
 // PagerDutyWorkPlanner plans incident-evidence work from configured PagerDuty
 // targets. AWSScheduledWorkPlanner and AWSFreshnessWorkPlanner plan ordinary
 // AWS collector work from configured schedules or webhook freshness triggers.
-// Planners produce workflow rows only; claim ownership and fact emission stay
-// with the collector runtimes.
+// Incident freshness handoff narrows PagerDuty and Jira webhook wake-ups to
+// authorized configured scope IDs before creating normal collector work. Planners
+// produce workflow rows only; claim ownership and fact emission stay with the
+// collector runtimes.
 package coordinator

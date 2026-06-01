@@ -3,6 +3,7 @@ package webhook
 import (
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"strings"
 )
 
@@ -55,6 +56,11 @@ func normalizeGitHubPullRequest(deliveryID string, payload []byte, defaultBranch
 	trigger.Action = strings.TrimSpace(event.Action)
 	trigger.Ref = branchRef(strings.TrimSpace(event.PullRequest.Base.Ref))
 	trigger.TargetSHA = strings.TrimSpace(event.PullRequest.MergeCommitSHA)
+	if event.Number > 0 {
+		trigger.PullRequestNumber = strconv.FormatInt(event.Number, 10)
+	}
+	trigger.PullRequestURL = strings.TrimSpace(event.PullRequest.HTMLURL)
+	trigger.PullRequestTitle = strings.TrimSpace(event.PullRequest.Title)
 
 	if trigger.Action != "closed" || !event.PullRequest.Merged {
 		trigger.Decision = DecisionIgnored
@@ -95,10 +101,13 @@ type githubPushPayload struct {
 
 type githubPullRequestPayload struct {
 	Action      string           `json:"action"`
+	Number      int64            `json:"number"`
 	Repository  githubRepository `json:"repository"`
 	PullRequest struct {
 		Merged         bool   `json:"merged"`
 		MergeCommitSHA string `json:"merge_commit_sha"`
+		HTMLURL        string `json:"html_url"`
+		Title          string `json:"title"`
 		Base           struct {
 			Ref string `json:"ref"`
 		} `json:"base"`

@@ -29,10 +29,8 @@ ALTER TABLE fact_records
 
 ALTER TABLE fact_records
     ADD COLUMN IF NOT EXISTS source_confidence TEXT NOT NULL DEFAULT 'unknown';
-
 CREATE INDEX IF NOT EXISTS fact_records_scope_generation_idx
     ON fact_records (scope_id, generation_id, fact_kind, observed_at DESC);
-
 CREATE INDEX IF NOT EXISTS fact_records_stable_key_idx
     ON fact_records (stable_fact_key, generation_id);
 
@@ -497,3 +495,5 @@ CREATE INDEX IF NOT EXISTS fact_records_incident_context_timeline_lookup_idx ON 
 CREATE INDEX IF NOT EXISTS fact_records_incident_context_change_services_idx ON fact_records USING GIN (payload jsonb_path_ops) WHERE fact_kind = 'change.record' AND is_tombstone = FALSE;
 CREATE INDEX IF NOT EXISTS fact_records_service_catalog_operational_link_url_idx ON fact_records ((payload->>'url'), (payload->>'provider'), (payload->>'entity_ref'), fact_id ASC) WHERE fact_kind = 'service_catalog.operational_link' AND is_tombstone = FALSE;
 CREATE INDEX IF NOT EXISTS fact_records_kubernetes_correlation_image_lookup_idx ON fact_records ((payload->>'source_digest'), (payload->>'image_ref'), (payload->>'outcome'), fact_id ASC) WHERE fact_kind = 'reducer_kubernetes_correlation' AND is_tombstone = FALSE;
+CREATE INDEX IF NOT EXISTS fact_records_work_item_external_link_url_idx ON fact_records ((payload->>'url'), (payload->>'work_item_key'), fact_id ASC) WHERE fact_kind = 'work_item.external_link' AND is_tombstone = FALSE;
+CREATE INDEX IF NOT EXISTS fact_records_work_item_record_key_idx ON fact_records ((payload->>'work_item_key'), fact_id ASC) WHERE fact_kind = 'work_item.record' AND is_tombstone = FALSE;

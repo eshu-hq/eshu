@@ -107,6 +107,12 @@ func (s PostgresIncidentContextStore) ReadIncidentContext(
 	if err != nil {
 		return IncidentContextSnapshot{}, err
 	}
+	reviewEvidence, err := s.readIncidentReviewWorkItemEvidence(ctx, incident, changes, runtimeEvidence)
+	if err != nil {
+		return IncidentContextSnapshot{}, err
+	}
+	evidencePath := append([]IncidentContextEvidenceEdge(nil), runtimeEvidence...)
+	evidencePath = append(evidencePath, reviewEvidence...)
 
 	return IncidentContextSnapshot{
 		Query: IncidentContextQuery{
@@ -121,7 +127,7 @@ func (s PostgresIncidentContextStore) ReadIncidentContext(
 		Incident:       incident,
 		Timeline:       timeline,
 		RelatedChanges: changes,
-		EvidencePath:   runtimeEvidence,
+		EvidencePath:   evidencePath,
 	}, nil
 }
 

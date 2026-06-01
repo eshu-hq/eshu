@@ -243,10 +243,22 @@ Set exactly one of `ESHU_CONFLUENCE_SPACE_ID`, `ESHU_CONFLUENCE_SPACE_IDS`, or
 | `ESHU_WEBHOOK_GITHUB_SECRET` | unset | webhook-listener | Enables and verifies the GitHub webhook route using `X-Hub-Signature-256`. |
 | `ESHU_WEBHOOK_GITLAB_TOKEN` | unset | webhook-listener | Enables and verifies the GitLab webhook route using `X-Gitlab-Token`. |
 | `ESHU_WEBHOOK_BITBUCKET_SECRET` | unset | webhook-listener | Enables and verifies the Bitbucket webhook route using `X-Hub-Signature`. |
+| `ESHU_WEBHOOK_PAGERDUTY_SECRET` | unset | webhook-listener | Enables and verifies the PagerDuty incident freshness route using `X-PagerDuty-Signature`. |
+| `ESHU_WEBHOOK_JIRA_SECRET` | unset | webhook-listener | Enables and verifies the Jira incident freshness route using `X-Hub-Signature`. |
 | `ESHU_WEBHOOK_GITHUB_PATH` | `/webhooks/github` | webhook-listener | HTTP path for GitHub webhook intake. |
 | `ESHU_WEBHOOK_GITLAB_PATH` | `/webhooks/gitlab` | webhook-listener | HTTP path for GitLab webhook intake. |
 | `ESHU_WEBHOOK_BITBUCKET_PATH` | `/webhooks/bitbucket` | webhook-listener | HTTP path for Bitbucket webhook intake. |
+| `ESHU_WEBHOOK_PAGERDUTY_PATH` | `/webhooks/pagerduty` | webhook-listener | HTTP path for PagerDuty incident freshness intake. |
+| `ESHU_WEBHOOK_JIRA_PATH` | `/webhooks/jira` | webhook-listener | HTTP path for Jira incident freshness intake. |
+| `ESHU_WEBHOOK_PAGERDUTY_SCOPE_ID` | unset | webhook-listener | Required with `ESHU_WEBHOOK_PAGERDUTY_SECRET`; names the configured PagerDuty collector target allowed for webhook wake-ups. |
+| `ESHU_WEBHOOK_JIRA_SCOPE_ID` | unset | webhook-listener | Required with `ESHU_WEBHOOK_JIRA_SECRET`; names the configured Jira collector target allowed for webhook wake-ups. |
 | `ESHU_WEBHOOK_MAX_BODY_BYTES` | `1 MiB` | webhook-listener | Maximum accepted webhook request body size. |
 | `ESHU_WEBHOOK_DEFAULT_BRANCH` | unset | webhook-listener | Fallback default branch when provider payloads omit repository default branch. |
 | `ESHU_AWS_FRESHNESS_TOKEN` | unset | webhook-listener | Enables AWS freshness intake and validates bearer or `X-Eshu-AWS-Freshness-Token` headers. |
 | `ESHU_AWS_FRESHNESS_PATH` | `/webhooks/aws/eventbridge` | webhook-listener | HTTP path for AWS freshness intake. |
+
+PagerDuty and Jira webhook variables only enqueue bounded incident freshness
+triggers. They do not store provider payloads or emit facts directly; the
+workflow coordinator must still authorize the configured `scope_id` and create
+normal collector work, and polling remains the backfill path for missed
+deliveries.

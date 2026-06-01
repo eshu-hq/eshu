@@ -1,7 +1,8 @@
 # Webhook Listener Command
 
 `eshu-webhook-listener` is the public intake runtime for provider webhooks. It
-accepts GitHub, GitLab, Bitbucket, and AWS EventBridge/AWS Config HTTP
+accepts GitHub, GitLab, Bitbucket, AWS EventBridge/AWS Config, PagerDuty, and
+Jira HTTP
 deliveries, verifies the configured shared secret or token, normalizes the
 payload, and persists a durable refresh trigger in Postgres. GitHub `ping`
 deliveries are accepted as verified no-op handshakes and do not create refresh
@@ -19,11 +20,11 @@ row. For Bitbucket, delivery identity prefers `X-Request-UUID` before
 
 ```mermaid
 flowchart LR
-  Provider["GitHub, GitLab, Bitbucket, or AWS"] --> Handler["provider route"]
+  Provider["GitHub, GitLab, Bitbucket, AWS, PagerDuty, or Jira"] --> Handler["provider route"]
   Handler --> Verify["signature or token check"]
-  Verify --> Normalize["webhook or aws freshness package"]
-  Normalize --> Store["webhook_refresh_triggers or aws_freshness_triggers"]
-  Store --> Collector["Git or AWS collector handoff"]
+  Verify --> Normalize["webhook, aws freshness, or incident freshness package"]
+  Normalize --> Store["webhook_refresh_triggers, aws_freshness_triggers, or incident_freshness_triggers"]
+  Store --> Collector["Git, AWS, PagerDuty, or Jira collector handoff"]
 ```
 
 ## Environment
@@ -32,10 +33,18 @@ flowchart LR
 - `ESHU_WEBHOOK_GITLAB_TOKEN` enables `/webhooks/gitlab`.
 - `ESHU_WEBHOOK_BITBUCKET_SECRET` enables `/webhooks/bitbucket`.
 - `ESHU_AWS_FRESHNESS_TOKEN` enables `/webhooks/aws/eventbridge`.
+- `ESHU_WEBHOOK_PAGERDUTY_SECRET` enables `/webhooks/pagerduty`.
+- `ESHU_WEBHOOK_JIRA_SECRET` enables `/webhooks/jira`.
 - `ESHU_WEBHOOK_GITHUB_PATH` overrides the GitHub route.
 - `ESHU_WEBHOOK_GITLAB_PATH` overrides the GitLab route.
 - `ESHU_WEBHOOK_BITBUCKET_PATH` overrides the Bitbucket route.
 - `ESHU_AWS_FRESHNESS_PATH` overrides the AWS freshness route.
+- `ESHU_WEBHOOK_PAGERDUTY_PATH` overrides the PagerDuty route.
+- `ESHU_WEBHOOK_JIRA_PATH` overrides the Jira route.
+- `ESHU_WEBHOOK_PAGERDUTY_SCOPE_ID` names the configured PagerDuty collector
+  target the webhook route is allowed to wake up.
+- `ESHU_WEBHOOK_JIRA_SCOPE_ID` names the configured Jira collector target the
+  webhook route is allowed to wake up.
 - `ESHU_WEBHOOK_MAX_BODY_BYTES` bounds request bodies and defaults to 1 MiB.
 - `ESHU_WEBHOOK_DEFAULT_BRANCH` is a fallback only when provider payloads omit
   repository default-branch data.
@@ -45,6 +54,12 @@ Bitbucket uses `X-Hub-Signature` for provider authentication.
 AWS freshness intake accepts either `Authorization: Bearer <token>` or
 `X-Eshu-AWS-Freshness-Token: <token>` and stores only the normalized
 `(account_id, region, service_kind)` wake-up trigger.
+PagerDuty incident freshness intake uses `X-PagerDuty-Signature` and a delivery
+identifier from the payload `event.id`, `X-Webhook-Id`, or `X-Request-Id`; Jira
+intake uses `X-Hub-Signature` and a delivery identifier from
+`X-Atlassian-Webhook-Identifier` or `X-Request-Id`. PagerDuty and Jira routes
+store only bounded source, event, scope, and resource identifiers; the provider
+payload remains a wake-up signal and is not a fact source.
 Requests over `ESHU_WEBHOOK_MAX_BODY_BYTES` return 413; malformed or interrupted
 body reads return 400 so operators do not confuse transport errors with size
 limits.
@@ -66,10 +81,21 @@ of metric labels and request-outcome logs.
 | Signal | Type | What it tells operators |
 | --- | --- | --- |
 | `eshu_dp_webhook_requests_total` | Counter | Request volume by provider, outcome, and rejection or success reason. |
-| `eshu_dp_webhook_trigger_decisions_total` | Counter | Normalized trigger decisions that reached durable storage, by provider, event kind, decision, reason, and status. |
+| `eshu_dp_webhook_trigger_decisions_total` | Counter | Normalized repository or incident trigger decisions that reached durable storage, by provider, event kind, decision, reason, and status. |
 | `eshu_dp_webhook_store_operations_total` | Counter | Trigger-store upsert attempts by provider, outcome, and stored status. |
 | `eshu_dp_aws_freshness_events_total` | Counter | AWS Config/EventBridge intake and coordinator handoff events by bounded kind and action. |
 | `eshu_dp_webhook_request_duration_seconds` | Histogram | End-to-end provider route latency, including body read, auth verification, normalization, and store handoff. |
 | `eshu_dp_webhook_store_duration_seconds` | Histogram | Durable trigger-store latency for the Postgres upsert path. |
 | `webhook.handle` | Span | Provider route handling for one delivery. |
 | `webhook.store` | Span | The durable trigger storage substep inside an accepted route. |
+
+No-Regression Evidence: incident freshness is queued through
+`incident_freshness_triggers` and the workflow coordinator hands it to the
+existing PagerDuty or Jira collector claim path. The listener still emits no
+facts and polling remains the authoritative backfill path for missed, dropped,
+or rejected webhooks.
+
+Observability Evidence: signature failures, missing delivery IDs, malformed
+payloads, durable-store failures, duplicate/coalesced triggers, and accepted
+freshness triggers use the existing webhook request, decision, store, and span
+signals with bounded provider, event kind, status, outcome, and reason labels.

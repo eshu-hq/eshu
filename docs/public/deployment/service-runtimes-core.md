@@ -10,10 +10,11 @@ Normal freshness is incremental:
 
 - The ingester syncs repositories, parses content, emits facts, and hands off
   projection work.
-- The webhook listener persists verified provider refresh triggers. It does not
-  clone, parse, emit facts, or write graph truth.
+- The webhook listener persists verified Git provider, AWS, PagerDuty, and Jira
+  refresh triggers. It does not clone, parse, emit facts, or write graph truth.
 - The workflow coordinator reconciles collector instances, creates supported
-  claims when active, and reaps expired leases.
+  claims when active, hands off authorized freshness triggers, and reaps
+  expired leases.
 - The resolution engine drains durable reducer and shared-projection work.
 - Bootstrap indexing remains a one-shot empty-environment or recovery tool.
 
@@ -29,7 +30,7 @@ before restarting services or reindexing.
 | Ingester | `/usr/local/bin/eshu-ingester` | Repository workspace, sync, parsing, fact emission. | `statefulset.yaml` |
 | Resolution Engine | `/usr/local/bin/eshu-reducer` | Reducer queue, projection, replay, retry, recovery. | `deployment-resolution-engine.yaml` |
 | Workflow Coordinator | `/usr/local/bin/eshu-workflow-coordinator` | Collector instance reconciliation and claim lifecycle. | `deployment-workflow-coordinator.yaml` |
-| Webhook Listener | `/usr/local/bin/eshu-webhook-listener` | Verified provider webhook intake. | `deployment-webhook-listener.yaml` |
+| Webhook Listener | `/usr/local/bin/eshu-webhook-listener` | Verified Git, AWS, PagerDuty, and Jira webhook intake. | `deployment-webhook-listener.yaml` |
 
 The ingester is the only long-running Kubernetes runtime that should mount the
 workspace PVC. Stdio MCP mode does not expose the HTTP admin surface.
@@ -42,8 +43,8 @@ workspace PVC. Stdio MCP mode does not expose the HTTP admin surface.
 - Fix Postgres contention before adding reducer replicas.
 - Keep `ESHU_REDUCER_CLAIM_DOMAIN(S)` out of global Helm `env` when
   `resolutionEngine.lanes` is configured; each lane owns its allowlist.
-- Route only provider webhook paths publicly. Keep admin and metrics endpoints
-  internal unless protected by an operator-owned layer.
+- Route only configured provider webhook paths publicly. Keep admin and metrics
+  endpoints internal unless protected by an operator-owned layer.
 
 The reducer-specific runtime contract lives in
 [Resolution Engine](../services/resolution-engine.md). Helm lane and env
