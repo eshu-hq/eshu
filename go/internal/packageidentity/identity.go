@@ -27,6 +27,8 @@ const (
 	EcosystemRubyGems Ecosystem = "rubygems"
 	// EcosystemCargo identifies Rust Cargo crate metadata.
 	EcosystemCargo Ecosystem = "cargo"
+	// EcosystemSwift identifies Swift Package Manager source package metadata.
+	EcosystemSwift Ecosystem = "swift"
 	// EcosystemOS identifies distro package metadata.
 	EcosystemOS Ecosystem = "os"
 	// EcosystemGeneric identifies provider-specific generic package metadata.
@@ -91,6 +93,9 @@ func Normalize(raw RawIdentity) (Identity, error) {
 	if err != nil {
 		return Identity{}, err
 	}
+	if ecosystem == EcosystemSwift {
+		registry = normalizedNamespace
+	}
 	packageID := packageIDFor(ecosystem, registry, normalizedNamespace, normalizedName)
 	purl := strings.TrimSpace(raw.PURL)
 	if purl == "" {
@@ -138,6 +143,8 @@ func NormalizeEcosystem(value Ecosystem) Ecosystem {
 		return EcosystemRubyGems
 	case "cargo", "crate", "crates", "crates.io", "rust":
 		return EcosystemCargo
+	case "swift", "swifturl", "swiftpm", "spm", "swift-package-manager":
+		return EcosystemSwift
 	case "os", "apk", "alpine", "deb", "debian", "rpm", "rhel", "ubuntu":
 		return EcosystemOS
 	case "generic":
@@ -189,6 +196,8 @@ func normalizeName(ecosystem Ecosystem, rawName, namespace string) (string, stri
 		return strings.ToLower(rawName), "", nil
 	case EcosystemRubyGems, EcosystemCargo, EcosystemOS:
 		return strings.ToLower(rawName), "", nil
+	case EcosystemSwift:
+		return normalizeSwiftName(rawName, namespace)
 	case EcosystemGeneric:
 		return rawName, namespace, nil
 	default:
@@ -225,10 +234,29 @@ func normalizeTwoSegmentName(rawName, namespace, ecosystem string) (string, stri
 	return ns + "/" + name, ns, nil
 }
 
+func normalizeSwiftName(rawName, namespace string) (string, string, error) {
+	ns := strings.ToLower(strings.TrimSuffix(NormalizeRegistry(namespace), ".git"))
+	if ns == "" {
+		return "", "", fmt.Errorf("swift package identity requires source namespace")
+	}
+	name := strings.ToLower(strings.Trim(strings.TrimSuffix(strings.TrimSpace(rawName), ".git"), "/"))
+	name = strings.TrimPrefix(name, ns+"/")
+	if strings.Contains(name, "/") {
+		segments := strings.Split(strings.Trim(name, "/"), "/")
+		name = segments[len(segments)-1]
+	}
+	if name == "" {
+		return "", "", fmt.Errorf("swift package name must not be blank")
+	}
+	return name, ns, nil
+}
+
 func packageIDFor(ecosystem Ecosystem, registry, namespace, normalizedName string) string {
 	switch ecosystem {
 	case EcosystemMaven:
 		return fmt.Sprintf("%s://%s/%s:%s", ecosystem, registry, namespace, normalizedName)
+	case EcosystemSwift:
+		return fmt.Sprintf("%s://%s/%s", ecosystem, namespace, normalizedName)
 	default:
 		return fmt.Sprintf("%s://%s/%s", ecosystem, registry, normalizedName)
 	}
@@ -265,6 +293,8 @@ func purlPathFor(ecosystem Ecosystem, registry, namespace, normalizedName string
 	case EcosystemNPM:
 		return encodeNPMNameForPURL(normalizedName)
 	case EcosystemMaven:
+		return strings.Trim(namespace, "/") + "/" + strings.Trim(normalizedName, "/")
+	case EcosystemSwift:
 		return strings.Trim(namespace, "/") + "/" + strings.Trim(normalizedName, "/")
 	case EcosystemOS:
 		return strings.Trim(registry, "/") + "/" + strings.Trim(normalizedName, "/")

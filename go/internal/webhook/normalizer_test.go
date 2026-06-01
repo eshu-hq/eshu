@@ -1,6 +1,9 @@
 package webhook
 
 import (
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/hex"
 	"testing"
 )
 
@@ -25,6 +28,30 @@ func TestVerifyBitbucketSignature(t *testing.T) {
 
 	if err := VerifyBitbucketSignature(payload, secret, validSignature); err != nil {
 		t.Fatalf("VerifyBitbucketSignature() error = %v, want nil", err)
+	}
+}
+
+func TestVerifyJiraSignature(t *testing.T) {
+	t.Parallel()
+
+	payload := []byte("Hello, Jira!")
+	secret := "jira-secret"
+	validSignature := webSubSignature(secret, payload)
+
+	if err := VerifyJiraSignature(payload, secret, validSignature); err != nil {
+		t.Fatalf("VerifyJiraSignature() error = %v, want nil", err)
+	}
+}
+
+func TestVerifyPagerDutySignature(t *testing.T) {
+	t.Parallel()
+
+	payload := []byte(`{"event":{"id":"evt-1"}}`)
+	secret := "pagerduty-secret"
+	validSignature := pagerDutySignature(secret, payload)
+
+	if err := VerifyPagerDutySignature(payload, secret, validSignature); err != nil {
+		t.Fatalf("VerifyPagerDutySignature() error = %v, want nil", err)
 	}
 }
 
@@ -67,6 +94,18 @@ func TestVerifyGitHubSignatureRejectsInvalidInputs(t *testing.T) {
 			}
 		})
 	}
+}
+
+func webSubSignature(secret string, payload []byte) string {
+	mac := hmac.New(sha256.New, []byte(secret))
+	_, _ = mac.Write(payload)
+	return "sha256=" + hex.EncodeToString(mac.Sum(nil))
+}
+
+func pagerDutySignature(secret string, payload []byte) string {
+	mac := hmac.New(sha256.New, []byte(secret))
+	_, _ = mac.Write(payload)
+	return "v1=" + hex.EncodeToString(mac.Sum(nil))
 }
 
 func TestVerifyGitLabToken(t *testing.T) {
@@ -167,6 +206,8 @@ func TestNormalizeGitHubPullRequestAcceptsMergedDefaultBranch(t *testing.T) {
 		"pull_request": {
 			"merged": true,
 			"merge_commit_sha": "3333333333333333333333333333333333333333",
+			"html_url": "https://github.com/eshu-hq/eshu/pull/211",
+			"title": "INC-123 fix checkout deploy",
 			"base": {"ref": "main"},
 			"head": {"sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}
 		},
@@ -193,6 +234,9 @@ func TestNormalizeGitHubPullRequestAcceptsMergedDefaultBranch(t *testing.T) {
 		Ref:                  "refs/heads/main",
 		TargetSHA:            "3333333333333333333333333333333333333333",
 		Action:               "closed",
+		PullRequestNumber:    "211",
+		PullRequestURL:       "https://github.com/eshu-hq/eshu/pull/211",
+		PullRequestTitle:     "INC-123 fix checkout deploy",
 	})
 }
 
@@ -402,5 +446,14 @@ func assertTrigger(t *testing.T, got Trigger, want Trigger) {
 	}
 	if got.Sender != want.Sender {
 		t.Fatalf("Sender = %q, want %q", got.Sender, want.Sender)
+	}
+	if got.PullRequestNumber != want.PullRequestNumber {
+		t.Fatalf("PullRequestNumber = %q, want %q", got.PullRequestNumber, want.PullRequestNumber)
+	}
+	if got.PullRequestURL != want.PullRequestURL {
+		t.Fatalf("PullRequestURL = %q, want %q", got.PullRequestURL, want.PullRequestURL)
+	}
+	if got.PullRequestTitle != want.PullRequestTitle {
+		t.Fatalf("PullRequestTitle = %q, want %q", got.PullRequestTitle, want.PullRequestTitle)
 	}
 }

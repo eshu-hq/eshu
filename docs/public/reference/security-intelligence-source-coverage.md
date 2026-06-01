@@ -23,9 +23,12 @@ For the supply-chain impact reducer, the practical implications are:
   `.csproj` PackageReference and `packages.lock.json`, Rust Cargo
   `Cargo.toml` and `Cargo.lock`, Go `go.mod`, Maven `pom.xml`, Gradle
   `build.gradle` / `build.gradle.kts`, and PyPI `requirements.txt` /
-  `pyproject.toml` / `Pipfile` / `Pipfile.lock` / `poetry.lock` produce
-  repository consumption decisions when joined to package-registry
-  identity. Yarn and pnpm lockfile rows keep the canonical npm ecosystem
+  `pyproject.toml` / `Pipfile` / `Pipfile.lock` / `poetry.lock`, and Swift
+  Package Manager `Package.resolved` produce repository consumption decisions
+  when joined to package-registry identity. Swift rows are exact lockfile-only
+  evidence from remote source-control pins; branch, revision-only, local, and
+  path pins stay out of precise vulnerability impact. Yarn and pnpm lockfile
+  rows keep the canonical npm ecosystem
   (`package_manager: "npm"`) so the consumption reducer and the
   owned-package SQL filter both match them as npm evidence, and they
   surface the actual package manager tool as `package_manager_flavor:
@@ -147,6 +150,23 @@ facts, reducer supply-chain impact facts, readiness envelopes,
 remote-E2E verifier status output; no new metric, span, queue, worker, route,
 or graph-write shape was introduced.
 
+No-Regression Evidence: Swift Package Manager impact support is guarded by
+`go test ./internal/parser ./internal/parser/json -run 'Swift|PackageResolved|DependencyCoverage' -count=1`,
+`go test ./internal/collector/vulnerabilityintelligence ./internal/collector/vulnerabilityintelligence/vulnruntime -run 'SwiftURL|SwiftOSV|MapsSwiftOSV' -count=1`,
+and `go test ./internal/reducer ./internal/query -run 'Swift|SupplyChainImpactFindingQueryUsesDetectionProfileFilter|DecodeSupplyChainImpactFindingRowBackfillsLegacyPreciseProfile|AggregateQueriesUseListProfileAndSuppressionPredicates' -count=1`.
+The fixtures prove exact `Package.resolved` dependency evidence, OSV
+`SwiftURL` advisory normalization from source Git URLs, Swift
+semver range matching, precise read-model profile behavior, and fail-closed
+behavior for unsupported Swift dependency shapes without adding a new queue,
+graph write, or runtime knob.
+
+No-Observability-Change: Swift impact uses existing parser dependency facts,
+package-consumption correlation facts, `reducer_supply_chain_impact_finding`,
+`match_reason`, `missing_evidence`, source snapshot/readiness facts, and the
+existing `query.supply_chain_impact_findings` read span. It adds no metric
+instrument, span, log key, queue, reducer lane, graph write, scanner worker,
+route, MCP tool, or runtime configuration knob.
+
 ## Advisory Source Coverage
 
 Eshu collects advisory source truth from OSV, FIRST EPSS, CISA KEV, NVD CVE
@@ -241,11 +261,15 @@ alerts, image tags, workload names, service names, environment names, or
 repository names.
 
 Version and range matching is reducer-owned and ecosystem-aware. The supported
-matchers are npm and Cargo semver over OSV-style event ranges and GLAD-style
-comparator ranges, NuGet semantic versions from exact lockfile or pinned
-manifest evidence, Maven version/range ordering for Maven bracket and
-comparator ranges, and RPM EVR ordering for vendor-backed RPM-family OS
-package facts. Findings preserve `observed_version`, `requested_range`,
+matchers are npm, Cargo, and Swift semver over OSV-style event ranges and
+GLAD-style comparator ranges, NuGet semantic versions from exact lockfile or
+pinned manifest evidence, Maven version/range ordering for Maven bracket and
+comparator ranges, PyPI PEP 440, and RPM EVR ordering for vendor-backed
+RPM-family OS package facts. Swift support is exact `Package.resolved` evidence
+only; OSV `SwiftURL` records use a Git URL as the source package name; Eshu
+normalizes that URL to the shared Swift Package Manager identity and can also
+use a `PACKAGE` reference as a fallback for source records that only publish a
+short package name. Findings preserve `observed_version`, `requested_range`,
 `fixed_version`, and `match_reason` as separate fields. Unsupported ecosystems
 and malformed installed versions or advisory ranges fail closed as
 `possibly_affected` with explicit missing-evidence reasons instead of being

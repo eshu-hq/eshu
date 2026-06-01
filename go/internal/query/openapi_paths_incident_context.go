@@ -5,7 +5,7 @@ const openAPIPathsIncidentContext = `
       "get": {
         "tags": ["incidents"],
         "summary": "Get incident context",
-        "description": "Returns a bounded incident context packet from active incident source facts. The response includes provider incident state, timeline events, fallback change candidates, explicit evidence-path slots, missing evidence for unproven hops, deployable/image/runtime artifact evidence only when explicit service-catalog and reducer-owned runtime facts prove those links, and build/commit evidence only when reducer-owned CI/CD run correlations match the selected image digest or reference.",
+        "description": "Returns a bounded incident context packet from active incident source facts. The response includes provider incident state, timeline events, fallback change candidates, explicit evidence-path slots, missing evidence for unproven hops, deployable/image/runtime artifact evidence only when explicit service-catalog and reducer-owned runtime facts prove those links, build/commit evidence only when reducer-owned CI/CD run correlations match the selected image digest or reference, and PR/work-item enrichment only when provider PR evidence or Jira work-item evidence proves those hops.",
         "operationId": "getIncidentContext",
         "parameters": [
           {"name": "incident_id", "in": "path", "required": true, "schema": {"type": "string"}},

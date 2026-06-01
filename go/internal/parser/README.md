@@ -128,12 +128,12 @@ calls, and local receiver type metadata from
 cross-file calls.
 JSON parsing now lives in the JSON helper subpackage. The parent parser keeps
 the wrapper and dbt SQL lineage callback, while the child package owns
-ordered-object metadata, dependency manifests, npm and NuGet lockfile rows,
-`.jsonc` config files, TypeScript config rows, CloudFormation/SAM JSON
-attachment, dbt manifest payload construction, and data-intelligence replay
-documents. NuGet `.csproj` files route through the `nuget_project` parser to
-emit PackageReference dependency rows without mixing project XML parsing into
-the C# syntax adapter.
+ordered-object metadata, dependency manifests, npm/Composer/NuGet/SwiftPM
+lockfile rows, `.jsonc` config files, TypeScript config rows,
+CloudFormation/SAM JSON attachment, dbt manifest payload construction, and
+data-intelligence replay documents. NuGet `.csproj` files route through the
+`nuget_project` parser to emit PackageReference dependency rows without mixing
+project XML parsing into the C# syntax adapter.
 
 Package-level roots are resolved from the nearest owning `package.json`, so
 nested workspaces can expose

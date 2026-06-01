@@ -83,6 +83,156 @@ func TestWebhookHandlerAcceptsSignedGitHubPingWithoutStoringTrigger(t *testing.T
 	}
 }
 
+func TestWebhookHandlerAcceptsSignedPagerDutyFreshnessTrigger(t *testing.T) {
+	t.Parallel()
+
+	payload := []byte(`{
+		"event": {
+			"id": "evt-123",
+			"event_type": "incident.triggered",
+			"occurred_at": "2026-05-31T18:00:00Z",
+			"data": {"id": "PINC123", "type": "incident"}
+		}
+	}`)
+	store := &recordingIncidentFreshnessStore{}
+	mux := mustIncidentWebhookMux(t, webhookListenerConfig{
+		PagerDutySecret:     "secret",
+		PagerDutyPath:       "/webhooks/pagerduty",
+		PagerDutyScopeID:    "pagerduty:account:example",
+		MaxRequestBodyBytes: defaultMaxWebhookBodyBytes,
+	}, store)
+	req := httptest.NewRequest(http.MethodPost, "/webhooks/pagerduty", bytes.NewReader(payload))
+	req.Header.Set("X-PagerDuty-Signature", pagerDutyWebhookSignature("secret", payload))
+	rec := httptest.NewRecorder()
+
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusAccepted {
+		t.Fatalf("status = %d, want %d body=%q", rec.Code, http.StatusAccepted, rec.Body.String())
+	}
+	if got, want := len(store.triggers), 1; got != want {
+		t.Fatalf("stored incident triggers = %d, want %d", got, want)
+	}
+	if got, want := store.triggers[0].ScopeID, "pagerduty:account:example"; got != want {
+		t.Fatalf("ScopeID = %q, want %q", got, want)
+	}
+}
+
+func TestWebhookHandlerAcceptsSignedJiraFreshnessTrigger(t *testing.T) {
+	t.Parallel()
+
+	payload := []byte(`{
+		"webhookEvent": "jira:issue_updated",
+		"timestamp": 1780250400000,
+		"issue": {
+			"id": "10001",
+			"key": "OPS-123",
+			"self": "https://example.atlassian.net/rest/api/3/issue/10001"
+		}
+	}`)
+	store := &recordingIncidentFreshnessStore{}
+	mux := mustIncidentWebhookMux(t, webhookListenerConfig{
+		JiraSecret:          "secret",
+		JiraPath:            "/webhooks/jira",
+		JiraScopeID:         "jira:site:example",
+		MaxRequestBodyBytes: defaultMaxWebhookBodyBytes,
+	}, store)
+	req := httptest.NewRequest(http.MethodPost, "/webhooks/jira", bytes.NewReader(payload))
+	req.Header.Set("X-Atlassian-Webhook-Identifier", "delivery-jira-1")
+	req.Header.Set("X-Hub-Signature", githubSignature("secret", payload))
+	rec := httptest.NewRecorder()
+
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusAccepted {
+		t.Fatalf("status = %d, want %d body=%q", rec.Code, http.StatusAccepted, rec.Body.String())
+	}
+	if got, want := len(store.triggers), 1; got != want {
+		t.Fatalf("stored incident triggers = %d, want %d", got, want)
+	}
+	if got, want := store.triggers[0].ResourceID, "OPS-123"; got != want {
+		t.Fatalf("ResourceID = %q, want %q", got, want)
+	}
+}
+
+func TestWebhookHandlerRejectsMissingPagerDutySignature(t *testing.T) {
+	t.Parallel()
+
+	payload := []byte(`{"event":{"id":"evt-123","event_type":"incident.triggered"}}`)
+	store := &recordingIncidentFreshnessStore{}
+	mux := mustIncidentWebhookMux(t, webhookListenerConfig{
+		PagerDutySecret:     "secret",
+		PagerDutyPath:       "/webhooks/pagerduty",
+		PagerDutyScopeID:    "pagerduty:account:example",
+		MaxRequestBodyBytes: defaultMaxWebhookBodyBytes,
+	}, store)
+	req := httptest.NewRequest(http.MethodPost, "/webhooks/pagerduty", bytes.NewReader(payload))
+	req.Header.Set("X-Webhook-Id", "delivery-pd-1")
+	rec := httptest.NewRecorder()
+
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("status = %d, want %d body=%q", rec.Code, http.StatusUnauthorized, rec.Body.String())
+	}
+	if len(store.triggers) != 0 {
+		t.Fatalf("stored incident triggers = %d, want 0", len(store.triggers))
+	}
+}
+
+func TestWebhookHandlerRejectsMissingPagerDutyDeliveryIdentity(t *testing.T) {
+	t.Parallel()
+
+	payload := []byte(`{"event":{"event_type":"incident.triggered"}}`)
+	store := &recordingIncidentFreshnessStore{}
+	mux := mustIncidentWebhookMux(t, webhookListenerConfig{
+		PagerDutySecret:     "secret",
+		PagerDutyPath:       "/webhooks/pagerduty",
+		PagerDutyScopeID:    "pagerduty:account:example",
+		MaxRequestBodyBytes: defaultMaxWebhookBodyBytes,
+	}, store)
+	req := httptest.NewRequest(http.MethodPost, "/webhooks/pagerduty", bytes.NewReader(payload))
+	req.Header.Set("X-PagerDuty-Signature", pagerDutyWebhookSignature("secret", payload))
+	rec := httptest.NewRecorder()
+
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want %d body=%q", rec.Code, http.StatusBadRequest, rec.Body.String())
+	}
+	if len(store.triggers) != 0 {
+		t.Fatalf("stored incident triggers = %d, want 0", len(store.triggers))
+	}
+}
+
+func TestWebhookHandlerRejectsMissingJiraDeliveryID(t *testing.T) {
+	t.Parallel()
+
+	payload := []byte(`{
+		"webhookEvent": "jira:issue_updated",
+		"issue": {"id": "10001", "key": "OPS-123"}
+	}`)
+	store := &recordingIncidentFreshnessStore{}
+	mux := mustIncidentWebhookMux(t, webhookListenerConfig{
+		JiraSecret:          "secret",
+		JiraPath:            "/webhooks/jira",
+		JiraScopeID:         "jira:site:example",
+		MaxRequestBodyBytes: defaultMaxWebhookBodyBytes,
+	}, store)
+	req := httptest.NewRequest(http.MethodPost, "/webhooks/jira", bytes.NewReader(payload))
+	req.Header.Set("X-Hub-Signature", githubSignature("secret", payload))
+	rec := httptest.NewRecorder()
+
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want %d body=%q", rec.Code, http.StatusBadRequest, rec.Body.String())
+	}
+	if len(store.triggers) != 0 {
+		t.Fatalf("stored incident triggers = %d, want 0", len(store.triggers))
+	}
+}
+
 func TestWebhookHandlerRejectsBadGitHubSignature(t *testing.T) {
 	t.Parallel()
 
@@ -334,14 +484,37 @@ func mustWebhookMux(t *testing.T, cfg webhookListenerConfig, store triggerStore)
 	return mux
 }
 
+func mustIncidentWebhookMux(t *testing.T, cfg webhookListenerConfig, store incidentFreshnessStore) *http.ServeMux {
+	t.Helper()
+	mux, err := newWebhookMux(webhookHandler{
+		Config:                 cfg,
+		IncidentFreshnessStore: store,
+		Clock:                  func() time.Time { return time.Date(2026, time.May, 31, 18, 0, 0, 0, time.UTC) },
+	})
+	if err != nil {
+		t.Fatalf("newWebhookMux() error = %v, want nil", err)
+	}
+	return mux
+}
+
 func githubSignature(secret string, payload []byte) string {
 	mac := hmac.New(sha256.New, []byte(secret))
 	_, _ = mac.Write(payload)
 	return "sha256=" + hex.EncodeToString(mac.Sum(nil))
 }
 
+func pagerDutyWebhookSignature(secret string, payload []byte) string {
+	mac := hmac.New(sha256.New, []byte(secret))
+	_, _ = mac.Write(payload)
+	return "v1=" + hex.EncodeToString(mac.Sum(nil))
+}
+
 type recordingTriggerStore struct {
 	triggers []webhook.Trigger
+}
+
+type recordingIncidentFreshnessStore struct {
+	triggers []webhook.IncidentFreshnessTrigger
 }
 
 type errReader struct{}
@@ -368,5 +541,20 @@ func (s *recordingTriggerStore) StoreTrigger(
 		Status:     webhook.TriggerStatusQueued,
 		ReceivedAt: receivedAt,
 		UpdatedAt:  receivedAt,
+	}, nil
+}
+
+func (s *recordingIncidentFreshnessStore) StoreIncidentFreshnessTrigger(
+	_ context.Context,
+	trigger webhook.IncidentFreshnessTrigger,
+	receivedAt time.Time,
+) (webhook.StoredIncidentFreshnessTrigger, error) {
+	s.triggers = append(s.triggers, trigger)
+	return webhook.StoredIncidentFreshnessTrigger{
+		IncidentFreshnessTrigger: trigger,
+		TriggerID:                "incident-trigger-1",
+		Status:                   webhook.TriggerStatusQueued,
+		ReceivedAt:               receivedAt,
+		UpdatedAt:                receivedAt,
 	}, nil
 }

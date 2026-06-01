@@ -152,6 +152,25 @@ BUNDLED WITH
 			expectedDependencies: map[string]string{"Newtonsoft.Json": "13.0.3"},
 			expectedPackageMgr:   "nuget",
 		},
+		"Package.resolved": {
+			body: `{
+  "originHash": "example",
+  "pins": [
+    {
+      "identity": "swift-argument-parser",
+      "kind": "remoteSourceControl",
+      "location": "https://github.com/apple/swift-argument-parser.git",
+      "state": {
+        "revision": "0123456789abcdef0123456789abcdef01234567",
+        "version": "1.2.3"
+      }
+    }
+  ],
+  "version": 2
+}`,
+			expectedDependencies: map[string]string{"github.com/apple/swift-argument-parser": "1.2.3"},
+			expectedPackageMgr:   "swift",
+		},
 		"cargo.toml": {
 			body: `[package]
 name = "demo"

@@ -235,6 +235,10 @@ func newRouter(
 			Correlations: query.NewPostgresServiceCatalogCorrelationStore(db),
 			Profile:      queryProfile,
 		},
+		Kubernetes: &query.KubernetesHandler{
+			Correlations: query.NewPostgresKubernetesCorrelationStore(db),
+			Profile:      queryProfile,
+		},
 		SupplyChain: &query.SupplyChainHandler{
 			Neo4j:                    neo4jReader,
 			Content:                  contentReader,

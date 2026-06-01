@@ -1,5 +1,6 @@
 // Package main runs the eshu-webhook-listener binary, the public webhook intake
-// runtime for GitHub, GitLab, Bitbucket, and AWS freshness triggers.
+// runtime for GitHub, GitLab, Bitbucket, AWS freshness triggers, PagerDuty, and
+// Jira.
 //
 // The runtime verifies provider authentication, normalizes webhook payloads,
 // persists trigger decisions in Postgres, and exposes the shared Eshu admin
@@ -10,13 +11,16 @@
 // X-Hub-Signature verification. The runtime does not mount the repository
 // workspace, connect to the graph backend, or mark webhook metadata as graph
 // truth. AWS EventBridge and AWS Config deliveries are normalized into
-// service-tuple wake-up triggers and never write graph truth directly. Request
-// body handling returns 413 only when MaxRequestBodyBytes is exceeded; other
+// service-tuple wake-up triggers and never write graph truth directly.
+// PagerDuty and Jira deliveries are normalized into scoped incident freshness
+// wake-ups and never emit incident, change, work-item, deployment, code, or PR
+// facts directly. Request body handling returns 413 only when
+// MaxRequestBodyBytes is exceeded; other
 // body read failures are rejected as bad requests. Provider intake records
 // bounded structured logs plus OTEL counters, histograms, and spans through
 // telemetry.Instruments and telemetry.SpanWebhookHandle/
 // telemetry.SpanWebhookStore. Provider, event kind, decision, status, outcome,
 // reason, AWS freshness kind, and AWS freshness action are bounded metric
-// labels; repository, delivery identity, resource names, and ARNs stay out of
-// metrics.
+// labels; repository, delivery identity, incident IDs, issue keys, resource
+// names, and ARNs stay out of metrics.
 package main

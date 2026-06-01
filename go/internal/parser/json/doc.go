@@ -2,8 +2,8 @@
 // data-intelligence documents for the parent parser engine.
 //
 // Parse reads one file, preserves legacy JSON payload buckets, and returns
-// deterministic rows for dependency manifests, npm, Composer, and NuGet
-// lockfile versions, TypeScript configs, `.jsonc` config files,
+// deterministic rows for dependency manifests, npm, Composer, NuGet, and
+// SwiftPM lockfile versions, TypeScript configs, `.jsonc` config files,
 // CloudFormation templates, dbt manifests, and replay fixture documents.
 // JSONC normalization strips comments
 // and trailing commas with bounded scans before strict JSON decoding. The
@@ -21,5 +21,7 @@
 // other parser packages. npm package manifests preserve runtime, dev, optional,
 // and peer range scopes; package-lock rows preserve exact installed versions,
 // dependency chains, and npm-recorded runtime/dev/optional/peer scope where
-// available.
+// available. SwiftPM Package.resolved rows are limited to remote source-control
+// pins with an exact version; branch-only, revision-only, and local pins remain
+// non-evidence.
 package json

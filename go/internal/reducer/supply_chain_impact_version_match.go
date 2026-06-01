@@ -15,6 +15,8 @@ const (
 	supplyChainVersionReasonCargoSemverKnownFixed    = "cargo_semver_known_fixed"
 	supplyChainVersionReasonPyPIPep440AffectedRange  = "pypi_pep440_affected_range"
 	supplyChainVersionReasonPyPIPep440KnownFixed     = "pypi_pep440_known_fixed"
+	supplyChainVersionReasonSwiftSemverAffectedRange = "swift_semver_affected_range"
+	supplyChainVersionReasonSwiftSemverKnownFixed    = "swift_semver_known_fixed"
 	supplyChainVersionReasonMavenRangeMatch          = "maven_range_match"
 	supplyChainVersionReasonMavenKnownFixed          = "maven_known_fixed"
 	supplyChainVersionReasonRPMExactAffected         = "rpm_exact_affected_version"
@@ -77,6 +79,8 @@ func evaluateSupplyChainVersionMatch(
 		return evaluateCargoSemverMatch(observed, fixedVersion, pkgs)
 	case string(packageidentity.EcosystemPyPI):
 		return evaluatePyPIPep440Match(observed, fixedVersion, pkgs)
+	case string(packageidentity.EcosystemSwift):
+		return evaluateSwiftSemverMatch(observed, fixedVersion, pkgs)
 	case string(packageidentity.EcosystemMaven):
 		return evaluateMavenVersionMatch(observed, fixedVersion, pkgs)
 	case "redhat", "fedora", "centos", "rocky", "alma", "amazonlinux", "rpm":
@@ -247,6 +251,21 @@ func evaluateCargoSemverMatch(
 		decision.Reason = supplyChainVersionReasonCargoSemverAffectedRange
 	case supplyChainVersionReasonNPMSemverKnownFixed:
 		decision.Reason = supplyChainVersionReasonCargoSemverKnownFixed
+	}
+	return decision
+}
+
+func evaluateSwiftSemverMatch(
+	observed string,
+	fixedVersion string,
+	pkgs []supplyChainAffectedPackage,
+) supplyChainVersionMatchDecision {
+	decision := evaluateNPMSemverMatch(observed, fixedVersion, pkgs)
+	switch decision.Reason {
+	case supplyChainVersionReasonNPMSemverAffectedRange:
+		decision.Reason = supplyChainVersionReasonSwiftSemverAffectedRange
+	case supplyChainVersionReasonNPMSemverKnownFixed:
+		decision.Reason = supplyChainVersionReasonSwiftSemverKnownFixed
 	}
 	return decision
 }

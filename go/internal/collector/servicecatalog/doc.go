@@ -8,8 +8,9 @@
 // into the already-defined service_catalog.* fact contract
 // (facts.ServiceCatalogSchemaVersionV1).
 //
-// The first slice parses Backstage catalog-info.yaml manifests via
-// BackstageManifestEnvelopes. It does not call hosted Backstage, OpsLevel, or
+// The package parses Backstage catalog-info.yaml manifests via
+// BackstageManifestEnvelopes and OpsLevel opslevel.yml manifests via
+// OpsLevelManifestEnvelopes. It does not call hosted Backstage, OpsLevel, or
 // Cortex APIs, manage credentials, discover files, write graph state, or import
 // the reducer or query packages. Two invariants dominate the design:
 //
@@ -18,7 +19,10 @@
 //   - Non-over-admission: the producer never fabricates a repository_id,
 //     service_id, or workload_id from catalog text. A catalog name or owner
 //     cannot mint canonical repository, service, or workload truth; the reducer
-//     decides correlation from active repository facts.
+//     decides correlation from active repository facts. OpsLevel references a
+//     repository by provider plus a name slug, which is expanded into a
+//     derivable URL only for known public git hosts; an unknown or self-hosted
+//     provider stays a name-only locator the reducer rejects.
 //
 // Degraded manifest shapes (unsupported descriptor versions, missing entity
 // references, duplicate entities, redacted operational links) emit

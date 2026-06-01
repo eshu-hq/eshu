@@ -1,6 +1,7 @@
 // Package postgres owns Eshu's relational persistence: facts, queue state,
 // content store, status, recovery data, decisions, webhook refresh triggers,
-// AWS scan status, and workflow coordination tables.
+// incident freshness triggers, AWS scan status, and workflow coordination
+// tables.
 //
 // The package wraps the Postgres driver with OTEL-instrumented helpers and
 // exposes typed access to queue claim, lease, batch, and recovery
@@ -118,6 +119,12 @@
 // webhook_refresh_triggers, deduplicates refresh requests by refresh_key, moves
 // a prior ignored row back to queued when a later accepted delivery has the
 // same refresh key, claims queued triggers with FOR UPDATE SKIP LOCKED in
-// received_at order, and records handed-off rows or failed rows with failed_at
-// without making repository or graph freshness claims.
+// received_at order, records handed-off rows or failed rows with failed_at,
+// and preserves merged pull-request provenance without making repository or
+// graph freshness claims.
+// IncidentFreshnessStore persists PagerDuty and Jira webhook wake-ups in
+// incident_freshness_triggers, coalesces duplicate source events by
+// freshness_key, claims queued rows with FOR UPDATE SKIP LOCKED, and records
+// coordinator handoff or failure without storing provider payloads or emitting
+// facts.
 package postgres

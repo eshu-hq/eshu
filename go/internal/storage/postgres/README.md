@@ -41,6 +41,7 @@ flowchart TB
   C --> J["DecisionStore\nprojection_decisions\nprojection_decision_evidence"]
   C --> K["RecoveryStore\nreplay dead_letter / failed\nwork items"]
   C --> L["WorkflowControlStore\nworkflow coordinator\nclaim lease fencing"]
+  C --> N["IncidentFreshnessStore\nincident_freshness_triggers\nFOR UPDATE SKIP LOCKED"]
   E --> M["Beginner.Begin\natomic ack transaction:\nsupersede active → supersede obsolete terminal → activate → update scope → mark succeeded"]
 ```
 
@@ -66,9 +67,9 @@ High-signal invariants for this package:
 - Reducer claims share the lease/retry contract and add domain filters plus the
   NornicDB semantic gate for `semantic_entity_materialization` while
   source-local projection is in flight.
-- Workflow, AWS pagination, AWS scan-status, and webhook stores use fencing
-  keys so stale workers or replayed deliveries cannot overwrite newer durable
-  truth.
+- Workflow, AWS pagination, AWS scan-status, webhook, and incident freshness
+  stores use fencing or coalescing keys so stale workers or replayed deliveries
+  cannot overwrite newer durable truth.
 
 ## Exported surface
 
@@ -178,9 +179,10 @@ constructor with `InstrumentedDB{Inner: db, StoreName: "my_store", ...}`.
 - `ListOwnedPackageDependencyTargets` serves workflow-coordinator derivation.
   Package-registry callers use package-level identities so repeated versions of
   one package cannot starve later packages. Vulnerability-intelligence callers
-  use package-version identities. The rotation offset lets bounded full-corpus
-  runs advance past the first sorted page without changing worker counts or
-  query scope.
+  use package-version identities and retain dependency `source_location` so
+  Swift OSV planning can send the source Git URL required by OSV `SwiftURL`.
+  The rotation offset lets bounded full-corpus runs advance past the first
+  sorted page without changing worker counts or query scope.
 - `ListActivePackageManifestDependencyFacts` serves both package-source
   correlation and supply-chain impact. The query stays indexed on active Git
   dependency entities by `(package_manager, entity_name)`, so vulnerability
@@ -237,14 +239,34 @@ constructor with `InstrumentedDB{Inner: db, StoreName: "my_store", ...}`.
   terminal (the AWS claimed runtime does this via
   `awsruntime.FailureClassStaleFence`) instead of looping it on the
   retryable queue.
-- `WebhookTriggerStore` treats webhook payloads as trigger evidence only. The
-  Git collector must still fetch the repository before freshness becomes true.
+- `WebhookTriggerStore` treats webhook payloads as trigger evidence only. It
+  preserves merged pull-request number, URL, and title provenance for bounded
+  read-model enrichment, but the Git collector must still fetch the repository
+  before freshness becomes true.
 - `AWSFreshnessStore` treats AWS Config and EventBridge events as trigger
   evidence only. The AWS collector must still scan the affected service tuple
   before cloud inventory becomes fresh.
+- `IncidentFreshnessStore` treats PagerDuty and Jira webhooks as source-scoped
+  trigger evidence only. It coalesces repeated delivery events by
+  `freshness_key`, claims queued triggers with `FOR UPDATE SKIP LOCKED`, and
+  records handed-off or failed rows after the workflow coordinator authorizes a
+  configured collector `scope_id`.
 - Schema definitions in `bootstrapDefinitions` are applied in slice order.
   Tables with foreign key constraints on other tables must appear after their
   dependencies.
+
+No-Regression Evidence: incident freshness store coverage includes
+`go test ./internal/storage/postgres -run 'TestIncidentFreshness|TestBootstrapSQLFilesMirrorDefinitions' -count=1`.
+The queue keeps at-least-once webhook delivery coalesced by source freshness
+key, preserves claimed rows during duplicate upserts, and uses
+`FOR UPDATE SKIP LOCKED` for concurrent coordinator handoff without changing
+fact emission, reducer lanes, worker counts, or graph writes.
+
+Observability Evidence: incident freshness storage is wrapped by
+`InstrumentedDB` as `store="incident_freshness_triggers"` in the webhook
+listener and workflow coordinator. Existing Postgres query-duration metrics and
+spans expose read/write latency without adding delivery IDs, issue keys,
+incident IDs, URLs, or provider payload fields to metric labels.
 
 No-Regression Evidence: workflow terminal failure mutation coverage includes
 `go test ./internal/storage/postgres -run TestWorkflowControlStoreFailClaimTerminalUsesDensePostgresParameters -count=1`

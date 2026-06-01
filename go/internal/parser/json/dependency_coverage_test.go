@@ -79,6 +79,7 @@ func TestDependencyCoverageMatrixIsStableAndExhaustive(t *testing.T) {
 		"rubygems|gemfile.lock",
 		"cargo|cargo.toml",
 		"cargo|cargo.lock",
+		"swift|Package.resolved",
 		"maven|pom.xml",
 		"gradle|build.gradle",
 		"gradle|build.gradle.kts",
@@ -268,6 +269,27 @@ DEPENDENCIES
     }
   }
 }`,
+		},
+		"Package.resolved": {
+			parser: parseJSONFixture,
+			body: `{
+  "originHash": "example",
+  "pins": [
+    {
+      "identity": "swift-argument-parser",
+      "kind": "remoteSourceControl",
+      "location": "https://github.com/apple/swift-argument-parser.git",
+      "state": {
+        "revision": "0123456789abcdef0123456789abcdef01234567",
+        "version": "1.2.3"
+      }
+    }
+  ],
+  "version": 2
+}`,
+			expectedDependencies: map[string]string{"github.com/apple/swift-argument-parser": "1.2.3"},
+			expectedPackageMgr:   "swift",
+			expectedSection:      "Package.resolved",
 		},
 		"pom.xml": {
 			parser: parseMavenFixture,
@@ -555,7 +577,6 @@ func parseNodeLockfileFixture(t *testing.T, filename, body string) (map[string]a
 	path := writeJSONTestFile(t, filename, body)
 	return nodelockfile.Parse(path, false, shared.Options{})
 }
-
 
 // TestDependencyCoverageGapsDoNotEmitDependencyRows enforces the safety rule
 // from issue #571: until a real parser exists, gap files MUST NOT smuggle

@@ -13,6 +13,8 @@ type Provider string
 const (
 	// ProviderBackstage identifies Backstage catalog-info.yaml manifests.
 	ProviderBackstage Provider = "backstage"
+	// ProviderOpsLevel identifies OpsLevel opslevel.yml manifests.
+	ProviderOpsLevel Provider = "opslevel"
 )
 
 // FixtureContext carries the collector boundary fields copied into every

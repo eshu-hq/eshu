@@ -71,5 +71,8 @@
 // correlation and reducer-owned image or Kubernetes evidence proves the next
 // hop. Build/deploy and commit slots are promoted only from reducer-owned
 // CI/CD run correlations tied to the selected image digest or reference;
-// pull-request and work-item links still require separate evidence.
+// pull-request slots require provider pull-request evidence tied to that
+// commit. Jira work-item links enrich the path from explicit remote links or
+// issue-key evidence, but Jira-only pull-request URLs do not verify pull
+// request identity by themselves.
 package query

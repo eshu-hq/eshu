@@ -59,7 +59,10 @@ package-registry reducer intent. `ListOwnedPackageDependencyTargets` uses the
 same active-generation dependency predicate with a small ecosystem allowlist
 and hard result cap so the workflow coordinator can derive package-registry and
 vulnerability-intelligence targets without scanning stale generations or the
-full fact table. Package correlation reads use
+full fact table. It carries dependency `source_location` alongside the package
+identity so Swift vulnerability-intelligence planning can call OSV `SwiftURL`
+with the source Git URL instead of an internal package ID. Package correlation
+reads use
 `fact_records_package_correlations_v2_lookup_idx` for package-scoped reads and
 `fact_records_package_correlations_v2_repository_lookup_idx` for
 repository-scoped reads across ownership, publication, and consumption rows so
@@ -285,7 +288,7 @@ workflow-run state, workflow completeness rows, and coordinator structured logs
 with `reason=target_already_planned`, `planned_work_items`,
 `enqueued_work_items`, `skipped_work_items`, and `trigger_kind`.
 
-No-Regression Evidence: `go test ./internal/storage/postgres -run TestListOwnedPackageDependencyTargetsQueryIsActiveAndBounded -count=1` proves owned dependency target planning uses active Git dependency facts, the existing package dependency predicate, an ecosystem allowlist, and a bounded `LIMIT`. The broader touched-package proof ran `go test ./internal/coordinator ./internal/workflow ./internal/storage/postgres ./internal/collector/packageregistry/packageruntime ./internal/collector/vulnerabilityintelligence/vulnruntime ./cmd/workflow-coordinator ./cmd/collector-package-registry ./cmd/collector-vulnerability-intelligence -count=1`.
+No-Regression Evidence: `go test ./internal/storage/postgres -run TestListOwnedPackageDependencyTargetsQueryIsActiveAndBounded -count=1` proves owned dependency target planning uses active Git dependency facts, the existing package dependency predicate, an ecosystem allowlist, preserved dependency source locations, and a bounded `LIMIT`. The broader touched-package proof ran `go test ./internal/coordinator ./internal/workflow ./internal/storage/postgres ./internal/collector/packageregistry/packageruntime ./internal/collector/vulnerabilityintelligence/vulnruntime ./cmd/workflow-coordinator ./cmd/collector-package-registry ./cmd/collector-vulnerability-intelligence -count=1`.
 
 No-Regression Evidence: `go test ./internal/storage/postgres -run 'TestWorkflowControlStoreGuardedRunRetriesDeadlockTransaction|TestWorkflowControlStoreGuardedRunCreatesEligibleScheduledTarget' -count=1` proves guarded workflow run admission retries Postgres `40P01` deadlock failures without duplicating target work, while preserving the normal eligible-target insert path.
 

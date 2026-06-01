@@ -31,6 +31,11 @@ flowchart LR
 
 The coordinator plans one work item per configured target. A target is usually
 a PagerDuty account scope, optionally narrowed by `allowed_service_ids`.
+Signed PagerDuty webhooks can wake this same target through
+`incident_freshness_triggers`, but they only create scoped collector work. The
+collector still fetches PagerDuty through the normal claimed runtime before any
+`incident.*` or `change.*` facts exist, and scheduled/polling collection remains
+the backfill path for missed or dropped webhooks.
 
 ## Collector Instance Shape
 
@@ -87,9 +92,11 @@ service-catalog operational links to the PagerDuty service URL plus
 reducer-owned catalog, container-image, or Kubernetes evidence. Build/deploy
 and commit slots are promoted only from reducer-owned CI/CD run correlations
 tied to the selected image digest or reference; tag-only matches stay derived.
-Reducers and enrichment collectors must prove any non-missing pull-request or
-work-item edge before the slot is promoted. Missing Jira links are normal for
-on-call incidents and must not block PagerDuty collection.
+Pull-request slots are promoted only from provider merged-PR evidence tied to
+the selected commit. Jira remote links or issue keys can enrich work-item slots
+when they match provider-verified PR or incident evidence, but Jira-only PR
+URLs do not verify PR identity. Missing Jira links are normal for on-call
+incidents and must not block PagerDuty collection.
 
 ## Observability
 

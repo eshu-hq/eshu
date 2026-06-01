@@ -278,7 +278,7 @@ func defaultDefinitions() []Definition {
 			ParserKey:  "json",
 			Language:   "json",
 			Extensions: []string{".json", ".jsonc"},
-			ExactNames: []string{"composer.lock", "Pipfile.lock"},
+			ExactNames: []string{"composer.lock", "Pipfile.lock", "Package.resolved"},
 		},
 		{
 			ParserKey:  "nuget_project",

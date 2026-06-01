@@ -277,6 +277,26 @@
             "tokenKey": { "type": "string" }
           }
         },
+        "pagerDuty": {
+          "type": "object",
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "path": { "type": "string" },
+            "secretName": { "type": "string" },
+            "secretKey": { "type": "string" },
+            "scopeId": { "type": "string" }
+          }
+        },
+        "jira": {
+          "type": "object",
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "path": { "type": "string" },
+            "secretName": { "type": "string" },
+            "secretKey": { "type": "string" },
+            "scopeId": { "type": "string" }
+          }
+        },
         "exposure": {
           "type": "object",
           "properties": {

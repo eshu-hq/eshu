@@ -124,6 +124,7 @@ func TestSpanNames(t *testing.T) {
 		"query.package_registry_aggregate",
 		"query.ci_cd_run_correlations",
 		"query.service_catalog_correlations",
+		"query.kubernetes_correlations",
 		"query.container_image_identities",
 		"query.supply_chain_security_alerts",
 		"query.sbom_attestation_attachments",

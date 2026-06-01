@@ -3,12 +3,13 @@
 ## Purpose
 
 `internal/coordinator` owns the workflow coordinator's collector reconcile,
-workflow-run reconciliation, AWS freshness handoff, and expired-claim reap
-loops. `Service.Run` ticks through discrete operations — collector-instance and
+workflow-run reconciliation, AWS freshness handoff, incident freshness handoff,
+and expired-claim reap loops. `Service.Run` ticks through discrete operations —
+collector-instance and
 scheduled-work planning reconciliation (always), workflow-run progress
-reconciliation (active mode only), AWS freshness handoff (active mode only),
-and expired-claim reaping (active mode only) — against a narrow `Store`
-interface backed by Postgres. The package also owns
+reconciliation (active mode only), AWS and incident freshness handoff (active
+mode only), and expired-claim reaping (active mode only) — against a narrow
+`Store` interface backed by Postgres. The package also owns
 `ESHU_WORKFLOW_COORDINATOR_*` env parsing and OTEL instrument registration for
 the coordinator.
 
@@ -40,12 +41,14 @@ flowchart TB
   I --> P["runActiveMaintenance"]
   P --> D
   P --> Q["runAWSFreshnessHandoff"]
+  P --> R["runIncidentFreshnessHandoff"]
   P --> E
   B --> J["Store.ReconcileCollectorInstances\nthen Store.ListCollectorInstances"]
   J --> K["Metrics.RecordReconcile\nlog drift if any"]
   D --> L["Store.ReapExpiredClaims"]
   L --> M["Metrics.RecordReap"]
-  Q --> R["Store.ListCollectorInstances\nthen scheduleAWSFreshnessWork"]
+  Q --> S["Store.ListCollectorInstances\nthen scheduleAWSFreshnessWork"]
+  R --> T["Store.ListCollectorInstances\nthen scheduleIncidentFreshnessWork"]
   E --> N["Store.ReconcileWorkflowRuns"]
   N --> O["Metrics.RecordRunReconciliation"]
 ```
@@ -58,11 +61,13 @@ tick. In active mode, `runReconcileTicker` fires `runWorkflowReconciliation`
 independently so slow scheduled-work planning cadences do not leave completed
 runs stuck in stale `collection_pending` state. The `reapTicker` also runs
 active maintenance: expired-claim reaping, AWS freshness handoff from durable
-collector instances, and workflow-run reconciliation. That keeps webhook-driven
-AWS freshness and terminal run status moving even when scheduled scan planning
-uses a long reconcile interval. The `reapTicker` and `runReconcileTicker` are
-nil in dark mode — `tickerChan(nil)` returns a nil channel the `select` never
-picks. Context cancellation (`ctx.Done`) exits the loop cleanly.
+collector instances, incident freshness handoff from durable collector
+instances, and workflow-run reconciliation. That keeps webhook-driven AWS,
+PagerDuty, and Jira freshness plus terminal run status moving even when
+scheduled scan planning uses a long reconcile interval. The `reapTicker` and
+`runReconcileTicker` are nil in dark mode — `tickerChan(nil)` returns a nil
+channel the `select` never picks. Context cancellation (`ctx.Done`) exits the
+loop cleanly.
 
 `Config.Validate` runs at `LoadConfig` time and again at `Service.Run` entry.
 Defaults are applied by `withDefaults` before validation, so missing env vars
@@ -136,6 +141,9 @@ fall back to defaults rather than failing; malformed values fail fast.
   becomes one normal AWS collector claim.
 - `AWSFreshnessTriggerStore` — claim, handed-off, and failed-state operations
   for the coalesced `aws_freshness_triggers` handoff queue.
+- `IncidentFreshnessTriggerStore` — claim, handed-off, and failed-state
+  operations for PagerDuty and Jira webhook wake-ups in
+  `incident_freshness_triggers`.
 
 ## Dependencies
 
@@ -149,6 +157,8 @@ fall back to defaults rather than failing; malformed values fail fast.
   by the claim planner.
 - `internal/collector/awscloud/freshness` — normalized AWS freshness trigger
   and target identity used by the AWS freshness planner.
+- `internal/webhook` — normalized PagerDuty and Jira incident freshness
+  triggers used by the coordinator handoff.
 
 ## Telemetry
 
@@ -219,8 +229,27 @@ warning (`collector_instance_drift_detected`, fields
   owned-package slice by reconcile bucket. `planning_mode=single_pass` pins the
   plan key and rotation offset for representative proofs so a completed bucket
   cannot admit another target-limit slice during the same proof.
+- Incident freshness handoff authorizes each PagerDuty or Jira webhook trigger
+  against durable collector instance configuration before creating work. A
+  stale `scope_id`, disabled collector instance, or wrong provider kind is
+  marked failed with `unauthorized_target`; the webhook payload is never used to
+  create facts, root-cause claims, deployment links, or Jira/PagerDuty coupling.
 
 ## Extension points
+
+No-Regression Evidence: incident freshness handoff coverage includes
+`go test ./internal/coordinator -run 'Test(PagerDuty|Jira)WorkPlannerPlansWebhookScopeSubset|TestServiceRunActiveMode(HandoffsIncidentFreshnessTriggers|MarksStaleIncidentFreshnessTriggerFailed)' -count=1`.
+The coordinator narrows webhook-triggered work to authorized PagerDuty or Jira
+scope IDs, leaves scheduled polling as the backfill path, and does not alter
+claim lease timing, worker counts, queue ordering, reducer graph writes, or
+fact emission.
+
+Observability Evidence: no new coordinator metric was required. Existing
+workflow runs, work items, claim status/failure rows, `/api/v0/index-status`,
+Postgres `store="incident_freshness_triggers"` telemetry, and webhook listener
+request/store signals show accepted, duplicate, handed-off, failed, stale, and
+unauthorized trigger states without adding incident IDs, issue keys, URLs, or
+payload fields to metric labels.
 
 No-Regression Evidence: owned package target derivation is covered by
 `go test ./internal/coordinator -run 'Test(PackageRegistryWorkPlannerDerivesNPMTargetsFromOwnedPackageEvidence|VulnerabilityIntelligenceWorkPlannerDerivesOSVTargetsForExactOwnedVersions|ServiceRunActiveModePassesOwnedPackageEvidenceTo(PackageRegistry|Vulnerability)Planner)' -count=1`.

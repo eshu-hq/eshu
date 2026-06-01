@@ -121,14 +121,19 @@ reducer-owned catalog, container-image, or Kubernetes correlation facts; similar
 service names are not enough. Build/deploy and commit slots require
 reducer-owned CI/CD run correlations tied to the selected image digest or
 reference, and tag-only matches stay derived until immutable artifact evidence
-exists. Missing Jira links are valid incident evidence state and must not block
-incident collection.
+exists. Pull-request slots require provider merged-PR evidence tied to the
+selected commit. Jira remote links to that provider-verified PR, direct
+PagerDuty incident links, or issue-key evidence can enrich work-item slots, but
+Jira-only PR URLs do not verify PR identity. Missing Jira links are valid
+incident evidence state and must not block incident collection.
 
 `work_item.record`, `work_item.transition`, and `work_item.external_link`
 preserve Jira work-item state, changelog IDs, and remote-link IDs as provider
 evidence. They do not imply incident ownership, deployment cause, code change,
 or pull-request truth unless a reducer or query later proves that path through
-separate source evidence.
+separate source evidence. A `work_item.external_link` to a GitHub PR URL is
+source evidence only until GitHub/provider PR evidence verifies the commit-to-PR
+hop.
 
 ## Promotion Rules
 

@@ -121,6 +121,16 @@ catalog ownership and drift correlation facts from Postgres. It requires an
 explicit scope, entity, repository, service, workload, or owner anchor plus
 `limit`, and it keeps catalog declarations provenance-only until reducer
 evidence corroborates repository, service, workload, ownership, or drift truth.
+`KubernetesHandler` (`kubernetes.go:16`) reads reducer-owned Kubernetes workload
+correlation facts (`reducer_kubernetes_correlation`, produced by issue #388 PR1)
+from Postgres. It requires an explicit scope, cluster, workload object,
+namespace, image reference, or source digest anchor plus `limit`, exposes the
+six-outcome contract (`exact`, `derived`, `ambiguous`, `unresolved`, `stale`,
+`rejected`) and the `drift_kind` classification, and keeps a live workload
+provenance-only unless its image digest or owner edge resolved exactly. The
+handler writes nothing and projects no graph edge: the gated canonical edge is a
+later PR. Reads are wrapped by the `query.kubernetes_correlations` span and the
+`kubernetes.correlations.list` capability.
 `SupplyChainHandler` (`supply_chain.go:16`) reads reducer-owned SBOM and
 attestation attachment facts from Postgres. It requires a subject digest,
 document ID, or document digest plus `limit`, and it keeps attachment status,
@@ -168,6 +178,11 @@ per-family fact counts and `latest_observed_at` for `vulnerability.advisory`,
 returns the stable `missing_evidence` reasons `advisory_sources`,
 `owned_packages`, `sbom_or_image_evidence`, `target_collection_incomplete`,
 and `readiness_unavailable`. The envelope also carries
+`unsupported_targets[]` for observed package-manager evidence outside the
+supported exact-version matcher set. Swift is excluded from unsupported
+ecosystem targets only for exact `Package.resolved` evidence joined to OSV
+`SwiftURL` advisory facts; branch-only, revision-only, local, or path pins
+remain missing or unsupported evidence. The envelope also carries
 `source_snapshots[]` with source, ecosystem, cache artifact version, snapshot
 digest, cache update time, freshness, completion state, and bounded warning
 fields from `vulnerability.source_snapshot` facts. `PostgresSupplyChainImpactReadinessStore`
