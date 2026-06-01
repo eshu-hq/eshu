@@ -93,3 +93,21 @@ func TestObservabilityCollectorBinariesAreBuiltInstalledAndDocumented(t *testing
 		}
 	}
 }
+
+func TestJiraCollectorBinaryIsBuiltInstalledAndDocumented(t *testing.T) {
+	t.Parallel()
+
+	for file, want := range map[string]string{
+		"Dockerfile":                        "-o /go-bin/eshu-collector-jira ./cmd/collector-jira",
+		"scripts/install-local-binaries.sh": "go build -trimpath -ldflags=\"$LDFLAGS\" -o \"$INSTALL_DIR/eshu-collector-jira\" ./cmd/collector-jira",
+		"go/cmd/README.md":                  "`eshu-collector-jira`",
+		"docs/public/deployment/service-runtimes-collectors.md":     "deploy/helm/eshu/templates/deployment-jira-collector.yaml",
+		"docs/public/reference/environment-collectors.md":           "ESHU_JIRA_COLLECTOR_INSTANCE_ID",
+		"deploy/helm/eshu/templates/deployment-jira-collector.yaml": "/usr/local/bin/eshu-collector-jira",
+	} {
+		content := readRepositoryFile(t, "../../..", file)
+		if !strings.Contains(content, want) {
+			t.Fatalf("%s missing %q", file, want)
+		}
+	}
+}

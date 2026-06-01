@@ -70,6 +70,37 @@ go test ./internal/collector/confluence \
   -count=1 -v
 ```
 
+## Jira
+
+Use this when testing the Jira collector against a real Jira Cloud site. The
+smoke is read-only and goes through the same claim-backed source path as the
+hosted collector, but it does not require a local Postgres workflow queue. Keep
+site URLs, project filters, emails, and tokens in local shell config only.
+
+```bash
+set -a
+source /path/to/local/private/env
+set +a
+
+export ESHU_JIRA_LIVE=1
+export ESHU_JIRA_BASE_URL="${ESHU_JIRA_BASE_URL:?set the Jira Cloud site URL}"
+export ESHU_JIRA_EMAIL="${ESHU_JIRA_EMAIL:-${JIRA_EMAIL:?set JIRA_EMAIL}}"
+export ESHU_JIRA_API_TOKEN="${ESHU_JIRA_API_TOKEN:-${JIRA_API_TOKEN:?set JIRA_API_TOKEN}}"
+export ESHU_JIRA_JQL="${ESHU_JIRA_JQL:-}"
+export ESHU_JIRA_UPDATED_LOOKBACK="${ESHU_JIRA_UPDATED_LOOKBACK:-168h}"
+export ESHU_JIRA_ISSUE_LIMIT="${ESHU_JIRA_ISSUE_LIMIT:-1}"
+export ESHU_JIRA_METADATA_LIMIT="${ESHU_JIRA_METADATA_LIMIT:-25}"
+```
+
+```bash
+cd go
+go test ./internal/collector/jira -run TestLiveJiraWorkItemEvidence -count=1 -v
+```
+
+The smoke fetches a bounded updated window, issue changelogs, remote links, and
+bounded metadata definitions. It fails if no `work_item.*` facts are emitted or
+if credential material appears in emitted envelopes or source references.
+
 ## Vulnerability Intelligence Fixture
 
 This is not a live hosted smoke. It verifies bounded OSV, CISA KEV, FIRST EPSS,

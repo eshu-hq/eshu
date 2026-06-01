@@ -17,7 +17,7 @@ The public Helm chart supports two collector styles:
   one enabled instance, claim durable work, and commit facts.
 
 Charted claim-driven Terraform-state, AWS cloud, package-registry,
-SBOM-attestation, provider security-alert, live Grafana-stack,
+SBOM-attestation, provider security-alert, Jira work-item, live Grafana-stack,
 scanner-worker, and vulnerability-intelligence Deployments require:
 
 - `workflowCoordinator.enabled=true`
@@ -26,7 +26,7 @@ scanner-worker, and vulnerability-intelligence Deployments require:
 - at least one matching collector instance
 
 The chart fails at render time when those prerequisites are missing.
-The PagerDuty and Jira collector binaries use the same workflow control-plane
+The PagerDuty collector binary uses the same workflow control-plane
 prerequisites when deployed manually; Helm deployment wiring is intentionally
 separate from this source-collector contract.
 For observability, source-controlled IaC/GitOps evidence is preferred when it
@@ -46,7 +46,7 @@ freshness, and effective target, rule, log-signal, or trace-signal metadata.
 | SBOM Attestation Collector | `sbom_attestation` | workflow claims for configured SBOM document URLs or OCI referrer documents | `/usr/local/bin/eshu-collector-sbom-attestation` | `deploy/helm/eshu/templates/deployment-sbom-attestation-collector.yaml` |
 | Security Alert Collector | `security_alert` | workflow claims for configured GitHub Dependabot repository-alert targets | `/usr/local/bin/eshu-collector-security-alerts` | `deploy/helm/eshu/templates/deployment-security-alert-collector.yaml` |
 | PagerDuty Collector | `pagerduty` | workflow claims for configured PagerDuty account or service-allowlist targets | `/usr/local/bin/eshu-collector-pagerduty` | chart template pending |
-| Jira Collector | `jira` | workflow claims for configured Jira Cloud work-item targets | `/usr/local/bin/eshu-collector-jira` | not yet charted |
+| Jira Collector | `jira` | workflow claims for configured Jira Cloud work-item targets | `/usr/local/bin/eshu-collector-jira` | `deploy/helm/eshu/templates/deployment-jira-collector.yaml` |
 | Grafana Collector | `grafana` | workflow claims for configured live Grafana API targets | `/usr/local/bin/eshu-collector-grafana` | `deploy/helm/eshu/templates/deployment-grafana-collector.yaml` |
 | Prometheus/Mimir Collector | `prometheus_mimir` | workflow claims for configured live Prometheus or Mimir API targets | `/usr/local/bin/eshu-collector-prometheus-mimir` | `deploy/helm/eshu/templates/deployment-prometheus-mimir-collector.yaml` |
 | Loki Collector | `loki` | workflow claims for configured live Loki API targets | `/usr/local/bin/eshu-collector-loki` | `deploy/helm/eshu/templates/deployment-loki-collector.yaml` |
@@ -69,7 +69,7 @@ All hosted collector runtimes expose `/healthz`, `/readyz`, `/metrics`, and
 | SBOM Attestation | Claim-driven. Selects one enabled `sbom_attestation` instance, fetches configured CycloneDX/SPDX SBOMs or in-toto attestations from HTTP(S) document URLs or OCI referrer blobs, and commits typed `sbom.*` and `attestation.*` facts. It redacts source URIs, preserves parse warnings as source facts, and keeps signature verification status separate from subject attachment truth. |
 | Security Alert | Claim-driven. Selects one enabled `security_alert` instance, resolves the target `token_env` from the pod environment, refuses non-allowlisted repositories, requires HTTPS for any `api_base_url` override, fetches bounded GitHub Dependabot alert pages, and commits only `security_alert.repository_alert` facts. Provider state remains source evidence; reducers own reconciliation and impact truth. |
 | PagerDuty | Claim-driven. Selects one enabled `pagerduty` instance, resolves target `token_env` from the runtime environment, requires HTTPS for any configured `api_base_url`, fetches bounded incident, log-entry, and related change-event evidence, and optionally fetches bounded live service/integration configuration when `config_validation_enabled` is set. It commits `incident.record`, `incident.lifecycle_event`, `change.record`, `incident_routing.observed_pagerduty_service`, `incident_routing.observed_pagerduty_integration`, and coverage-warning source facts only. Signed PagerDuty webhooks can wake the same configured `scope_id`, but they do not emit facts. PagerDuty state remains source evidence; the incident-context read model owns declared/applied/observed routing slots, while reducers and query surfaces own runtime, image, build/commit, PR, and work-item correlation. |
-| Jira | Claim-driven. Selects one enabled `jira` instance, resolves `token_env` and optional `email_env` from the pod environment, searches a bounded Jira Cloud updated window, fetches issue changelogs and remote links, collects bounded project/status/workflow/field metadata, and commits only `work_item.*` source facts. Signed Jira webhooks can wake the same configured `scope_id`, but they do not emit facts. Work-item state remains source evidence; reducers and query surfaces own incident, runtime, code, and pull-request correlation truth. See [Jira Evidence Contract](../reference/jira-evidence.md) for identity, freshness, redaction, and fixture expectations. |
+| Jira | Claim-driven and charted. Selects one enabled `jira` instance, resolves `token_env` and optional `email_env` from the pod environment, searches a bounded Jira Cloud updated window, fetches issue changelogs and remote links, collects bounded project/status/workflow/field metadata, and commits only `work_item.*` source facts. Signed Jira webhooks can wake the same configured `scope_id`, but they do not emit facts. Polling-only mode runs only `jiraCollector`; webhook-enabled mode also enables the shared webhook listener with a matching Jira `scopeId`. Work-item state remains source evidence; reducers and query surfaces own incident, runtime, code, and pull-request correlation truth. See [Jira Evidence Contract](../reference/jira-evidence.md) for identity, freshness, redaction, and fixture expectations. |
 | Grafana | Claim-driven. Selects one enabled `grafana` instance, resolves a bounded live Grafana API target, reads folder/dashboard search, datasources, and alert-rule provisioning metadata, and commits only `observability.source_instance`, `observability.observed_dashboard`, `observability.observed_rule`, and `observability.coverage_warning` facts. It drops or fingerprints dashboard titles, dashboard URLs, datasource URLs, alert query models, contacts, notification destinations, credentials, private URLs, and token values. Live Grafana state is fallback and validation evidence for no-IaC, drift, and freshness; declared GitOps evidence remains preferred when current. |
 | Prometheus/Mimir | Claim-driven. Selects one enabled `prometheus_mimir` instance, resolves a bounded live Prometheus-compatible API target, reads Prometheus active-target metadata and Prometheus/Mimir rule metadata, and commits only `observability.source_instance`, `observability.observed_target`, `observability.observed_rule`, and `observability.coverage_warning` facts. It drops or fingerprints scrape target URLs, target label values, discovered label values, raw PromQL, annotations, tenant IDs, tenant headers, credentials, and token values. Live metric provider state is fallback and validation evidence for no-IaC, drift, and freshness; declared GitOps evidence remains preferred when current. |
 | Loki | Claim-driven. Selects one enabled `loki` instance, resolves a bounded live Loki API target, reads label metadata, explicitly allowlisted bounded label-value metadata, series metadata, and ruler rule metadata, and commits only `observability.source_instance`, `observability.observed_log_signal`, `observability.observed_rule`, and `observability.coverage_warning` facts. It does not call log query endpoints that can return streams. It drops or fingerprints label values, raw LogQL, tenant IDs, tenant headers, credentials, token values, private URLs, and provider response bodies. Live Loki state is fallback and validation evidence for no-IaC, drift, and freshness; declared GitOps evidence remains preferred when current. |
@@ -147,9 +147,8 @@ and failure detail:
 ## ServiceMonitor Coverage
 
 Helm can render `ServiceMonitor` resources for every hosted collector on this
-page except PagerDuty and Jira, whose chart support is pending. Schema
-bootstrap and bootstrap-index are excluded because they are not steady-state
-services.
+page except PagerDuty, whose chart support is pending. Schema bootstrap and
+bootstrap-index are excluded because they are not steady-state services.
 
 The collector metrics services live under:
 
@@ -160,5 +159,16 @@ The collector metrics services live under:
 - `deploy/helm/eshu/templates/service-package-registry-collector-metrics.yaml`
 - `deploy/helm/eshu/templates/service-sbom-attestation-collector-metrics.yaml`
 - `deploy/helm/eshu/templates/service-security-alert-collector-metrics.yaml`
+- `deploy/helm/eshu/templates/service-jira-collector-metrics.yaml`
 - `deploy/helm/eshu/templates/service-scanner-worker-metrics.yaml`
 - `deploy/helm/eshu/templates/service-vulnerability-intelligence-collector-metrics.yaml`
+
+No-Regression Evidence: `go test ./internal/runtime -run 'TestHelmJiraCollectorDeployment|TestJiraCollectorBinaryIsBuiltInstalledAndDocumented' -count=1`
+proves the Jira collector stays opt-in by default, renders a claim-driven
+Deployment with `/usr/local/bin/eshu-collector-jira`, mounts Secret-backed
+credential env vars through `extraEnv`, and publishes metrics Service,
+ServiceMonitor, NetworkPolicy, and PodDisruptionBudget resources when enabled.
+Observability Evidence: the rendered Deployment exposes `/healthz`, `/readyz`,
+`/metrics`, and `/admin/status` through the shared hosted runtime and keeps
+Jira provider request, fact, rate-limit, and fetch-duration telemetry on the
+existing bounded Jira collector instruments.

@@ -17,6 +17,7 @@ intake. Runtime ownership lives in
 | `packageRegistryCollector` | Package-registry collector | workflow claims | disabled |
 | `sbomAttestationCollector` | SBOM-attestation collector | workflow claims | disabled |
 | `securityAlertCollector` | Provider security-alert collector | workflow claims | disabled |
+| `jiraCollector` | Jira work-item collector | workflow claims | disabled |
 | `vulnerabilityIntelligenceCollector` | Vulnerability-intelligence collector | workflow claims | disabled |
 
 Direct collectors render from their own enabled block and required target
@@ -25,7 +26,7 @@ values. Claim-driven collectors also require active workflow coordination.
 ## Claim-Driven Contract
 
 Terraform-state, AWS cloud, package-registry, SBOM-attestation, provider
-security-alert, and vulnerability-intelligence collectors require:
+security-alert, Jira, and vulnerability-intelligence collectors require:
 
 - `workflowCoordinator.enabled=true`
 - `workflowCoordinator.deploymentMode=active`
@@ -49,6 +50,7 @@ keep the selected `instanceId` aligned with that list.
 | Package registry | `instanceId`, `collectorInstances` | Claim-driven package metadata fetch. |
 | SBOM attestation | `instanceId`, `collectorInstances` with a `sbom_attestation` instance matching `instanceId`, `workflowCoordinator.collectorInstances` with an enabled claim-driven `sbom_attestation` instance | Fetches configured HTTP(S) SBOM documents or OCI referrer blobs and emits typed source facts. Attachment, subject mismatch, parse warnings, and verification status are reducer/read-surface concerns. |
 | Security alert | `instanceId`, `collectorInstances` with a `security_alert` instance matching `instanceId`, `workflowCoordinator.collectorInstances` with an enabled claim-driven `security_alert` instance | Fetches bounded GitHub Dependabot repository alert pages and emits only `security_alert.repository_alert` source facts. Target `token_env` values must resolve from `extraEnv` Secret refs; any `api_base_url` override must use HTTPS; repository names and tokens should stay out of public values files. |
+| Jira | `instanceId`, `collectorInstances` with a `jira` instance matching `instanceId`, `workflowCoordinator.collectorInstances` with an enabled claim-driven `jira` instance | Polling-only mode enables `jiraCollector` and passes `token_env` plus optional `email_env` through `extraEnv` Secret refs. Webhook-enabled mode also enables `webhookListener.jira` with a matching `scopeId`; webhooks are freshness triggers only and polling remains the recovery path. |
 | Vulnerability intelligence | `instanceId`, `collectorInstances` with a `vulnerability_intelligence` instance matching `instanceId`, `workflowCoordinator.collectorInstances` with an enabled claim-driven `vulnerability_intelligence` instance | Bounded source targets only (explicit CVE IDs, source snapshots, OSV package-version queries, NVD windows, or derived owned-package targets). API keys are referenced from `extraEnv` Secret refs via `api_key_env` and never embedded in values. |
 
 All optional collectors support `replicas`, `revisionHistoryLimit`, `resources`,
@@ -78,10 +80,10 @@ Rendering fails for inactive workflow coordination with claim-driven collectors,
 empty collector instance lists, missing Confluence or Terraform-state required
 values, OCI registry with no targets, webhook listener with no provider,
 enabled webhook providers without Secret names, and PagerDuty or Jira webhook
-providers without `scopeId`. For SBOM-attestation, provider security-alert, and
-vulnerability-intelligence collectors, rendering additionally fails when the
-collector-local instance list does not contain a matching enabled claim-driven
-instance or when
+providers without `scopeId`. For SBOM-attestation, provider security-alert,
+Jira, and vulnerability-intelligence collectors, rendering additionally fails
+when the collector-local instance list does not contain a matching enabled
+claim-driven instance or when
 `workflowCoordinator.collectorInstances` does not contain an enabled
 claim-driven instance for that collector kind.
 

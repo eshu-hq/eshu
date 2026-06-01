@@ -236,6 +236,30 @@
 {{- end }}
 {{- end -}}
 
+{{- define "eshu.renderJiraCollectorEnv" -}}
+- name: ESHU_COLLECTOR_INSTANCES_JSON
+  value: {{ required "jiraCollector.collectorInstances must contain at least one instance when jiraCollector.enabled=true" .Values.jiraCollector.collectorInstances | toJson | quote }}
+- name: ESHU_JIRA_COLLECTOR_INSTANCE_ID
+  value: {{ .Values.jiraCollector.instanceId | quote }}
+- name: ESHU_JIRA_COLLECTOR_OWNER_ID
+  valueFrom:
+    fieldRef:
+      fieldPath: metadata.name
+- name: ESHU_JIRA_POLL_INTERVAL
+  value: {{ .Values.jiraCollector.pollInterval | quote }}
+{{- with .Values.jiraCollector.claimLeaseTTL }}
+- name: ESHU_JIRA_CLAIM_LEASE_TTL
+  value: {{ . | quote }}
+{{- end }}
+{{- with .Values.jiraCollector.heartbeatInterval }}
+- name: ESHU_JIRA_HEARTBEAT_INTERVAL
+  value: {{ . | quote }}
+{{- end }}
+{{- with .Values.jiraCollector.extraEnv }}
+{{ toYaml . }}
+{{- end }}
+{{- end -}}
+
 {{- define "eshu.renderVulnerabilityIntelligenceCollectorEnv" -}}
 - name: ESHU_COLLECTOR_INSTANCES_JSON
   value: {{ required "vulnerabilityIntelligenceCollector.collectorInstances must contain at least one instance when vulnerabilityIntelligenceCollector.enabled=true" .Values.vulnerabilityIntelligenceCollector.collectorInstances | toJson | quote }}
