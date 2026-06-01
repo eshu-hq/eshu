@@ -24,6 +24,9 @@
 // SBOM and attestation documents emit sbom_attestation_attachment reducer
 // intents; source-local components enrich the reducer decision but do not attach
 // themselves to images in the projector.
+// PagerDuty incident and incident-routing facts emit one
+// incident_routing_materialization reducer intent; declared/applied/live routing
+// comparison and graph admission remain reducer-owned.
 // EntityTypeLabel keeps parser/content entity labels, including Terraform
 // backend/import/refactor/check and lockfile-provider labels, aligned with graph
 // schema support.

@@ -301,6 +301,14 @@ constructor with `InstrumentedDB{Inner: db, StoreName: "my_store", ...}`.
   `freshness_key`, claims queued triggers with `FOR UPDATE SKIP LOCKED`, and
   records handed-off or failed rows after the workflow coordinator authorizes a
   configured collector `scope_id`.
+- `FactStore.LoadIncidentRoutingEvidence` builds reducer-ready PagerDuty
+  incident-routing packets for the graph materialization domain. It loads
+  `incident.record` anchors and same-generation `incident_routing.*` facts for
+  the claimed scope/generation, skips tombstones, filters applied evidence to
+  PagerDuty service resources, and then reads Terraform-source
+  `PagerDutyDeclaration` content rows through a lowercased service-name
+  allowlist. Routing facts without an incident anchor do not trigger a
+  cross-scope graph mutation.
 - Schema definitions in `bootstrapDefinitions` are applied in slice order.
   Tables with foreign key constraints on other tables must appear after their
   dependencies.
@@ -317,6 +325,12 @@ Observability Evidence: incident freshness storage is wrapped by
 listener and workflow coordinator. Existing Postgres query-duration metrics and
 spans expose read/write latency without adding delivery IDs, issue keys,
 incident IDs, URLs, or provider payload fields to metric labels.
+
+No-Regression Evidence: incident-routing evidence loading is covered by
+`go test ./internal/storage/postgres -run 'IncidentRoutingEvidence' -count=1`.
+The read path stays bounded to one scope/generation fact query plus one
+service-name allowlisted `content_entities` query and adds no table, schema
+migration, queue behavior, worker count, or graph query.
 
 No-Regression Evidence: workflow terminal failure mutation coverage includes
 `go test ./internal/storage/postgres -run TestWorkflowControlStoreFailClaimTerminalUsesDensePostgresParameters -count=1`

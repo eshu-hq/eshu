@@ -1175,13 +1175,17 @@ func TestEntityTypeLabelMapCoversAllSchemaLabels(t *testing.T) {
 	// reducer domain from aws_security_group_rule facts (issue #1135 PR2b, Option
 	// D), not from parsed content-entity facts, so it likewise has no entity_type
 	// mapping here.
+	// IncidentRoutingEvidence is materialized by the
+	// incident_routing_materialization reducer domain from incident-routing source
+	// evidence (issue #1168), not from parsed content-entity facts.
 	sourceLocalNonEntityLabels := map[string]struct{}{
-		"File":               {},
-		"CloudResource":      {},
-		"KubernetesWorkload": {},
-		"CidrBlock":          {},
-		"PrefixList":         {},
-		"SecurityGroupRule":  {},
+		"File":                    {},
+		"CloudResource":           {},
+		"KubernetesWorkload":      {},
+		"CidrBlock":               {},
+		"PrefixList":              {},
+		"SecurityGroupRule":       {},
+		"IncidentRoutingEvidence": {},
 	}
 	var missing []string
 	for _, label := range schemaLabels {

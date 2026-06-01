@@ -221,6 +221,15 @@ const (
 	// sts:AssumeRole is deferred to the separate CAN_ASSUME trust edge. It is
 	// security-sensitive and conservative by design (issue #1134 PR3).
 	DomainIAMEscalationMaterialization Domain = "iam_escalation_materialization"
+	// DomainIncidentRoutingMaterialization projects exact PagerDuty
+	// incident-routing evidence into reducer-owned IncidentRoutingEvidence graph
+	// nodes and evidence relationships. It preserves declared/applied/observed
+	// source class and never promotes routing evidence into deployable, image,
+	// commit, pull-request, work-item, service-health, blast-radius, or root-cause
+	// truth. Drifted, stale, permission-hidden, ambiguous, unresolved, rejected,
+	// derived, and missing routing stays provenance-only in the incident-context
+	// read model. See issue #1168.
+	DomainIncidentRoutingMaterialization Domain = "incident_routing_materialization"
 )
 
 // IntentStatus captures the durable reducer intent lifecycle state.

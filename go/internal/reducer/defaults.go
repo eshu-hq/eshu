@@ -222,6 +222,18 @@ type DefaultHandlers struct {
 	// PackageCorrelationWriter persists package ownership candidates and
 	// manifest-backed consumption decisions for package-registry evidence.
 	PackageCorrelationWriter PackageCorrelationWriter
+
+	// IncidentRoutingEvidenceLoader loads PagerDuty incident-routing packets from
+	// incident.record facts, Terraform-source PagerDutyDeclaration content rows,
+	// Terraform-state routing facts, and optional live PagerDuty routing facts.
+	// It must be non-nil alongside IncidentRoutingEvidenceWriter to register
+	// DomainIncidentRoutingMaterialization; missing either one would drop every
+	// incident-routing graph materialization intent before it reaches graph truth.
+	IncidentRoutingEvidenceLoader IncidentRoutingEvidenceLoader
+
+	// IncidentRoutingEvidenceWriter projects exact PagerDuty routing evidence into
+	// canonical IncidentRoutingEvidence graph nodes and evidence relationships.
+	IncidentRoutingEvidenceWriter IncidentRoutingEvidenceWriter
 }
 
 // NewDefaultRegistry constructs the canonical reducer catalog for the default

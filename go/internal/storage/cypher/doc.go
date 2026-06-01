@@ -40,5 +40,8 @@
 // cleanup without becoming canonical image identity. Package-registry writes
 // keep package, version, and package dependency identity keyed by uid; source
 // repository hints remain weak evidence until reducer correlation admits an
-// ownership or publication relationship.
+// ownership or publication relationship. IncidentRoutingEvidenceWriter writes
+// PagerDuty routing evidence nodes and static intended/applied/live evidence
+// relationships without creating service, runtime, image, code-review, work
+// item, or root-cause graph truth.
 package cypher

@@ -33,6 +33,10 @@
 // active-reference index over OCI digest/tag observations and Git/AWS image
 // references, so an OCI scan can re-evaluate existing runtime references
 // without scanning unrelated facts.
+// FactStore.LoadIncidentRoutingEvidence serves the PagerDuty incident-routing
+// graph materialization domain by loading incident-scoped anchors and
+// same-generation routing facts, then resolving Terraform-source
+// PagerDutyDeclaration content rows through a bounded service-name allowlist.
 // Current
 // source-run history lookups let chunked code-call projection avoid retracting
 // edges written by earlier chunks from the same accepted run. StatusStore also
