@@ -167,6 +167,8 @@ func TestNormalizeGitHubPullRequestAcceptsMergedDefaultBranch(t *testing.T) {
 		"pull_request": {
 			"merged": true,
 			"merge_commit_sha": "3333333333333333333333333333333333333333",
+			"html_url": "https://github.com/eshu-hq/eshu/pull/211",
+			"title": "INC-123 fix checkout deploy",
 			"base": {"ref": "main"},
 			"head": {"sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}
 		},
@@ -193,6 +195,9 @@ func TestNormalizeGitHubPullRequestAcceptsMergedDefaultBranch(t *testing.T) {
 		Ref:                  "refs/heads/main",
 		TargetSHA:            "3333333333333333333333333333333333333333",
 		Action:               "closed",
+		PullRequestNumber:    "211",
+		PullRequestURL:       "https://github.com/eshu-hq/eshu/pull/211",
+		PullRequestTitle:     "INC-123 fix checkout deploy",
 	})
 }
 
@@ -402,5 +407,14 @@ func assertTrigger(t *testing.T, got Trigger, want Trigger) {
 	}
 	if got.Sender != want.Sender {
 		t.Fatalf("Sender = %q, want %q", got.Sender, want.Sender)
+	}
+	if got.PullRequestNumber != want.PullRequestNumber {
+		t.Fatalf("PullRequestNumber = %q, want %q", got.PullRequestNumber, want.PullRequestNumber)
+	}
+	if got.PullRequestURL != want.PullRequestURL {
+		t.Fatalf("PullRequestURL = %q, want %q", got.PullRequestURL, want.PullRequestURL)
+	}
+	if got.PullRequestTitle != want.PullRequestTitle {
+		t.Fatalf("PullRequestTitle = %q, want %q", got.PullRequestTitle, want.PullRequestTitle)
 	}
 }

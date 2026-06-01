@@ -87,9 +87,11 @@ service-catalog operational links to the PagerDuty service URL plus
 reducer-owned catalog, container-image, or Kubernetes evidence. Build/deploy
 and commit slots are promoted only from reducer-owned CI/CD run correlations
 tied to the selected image digest or reference; tag-only matches stay derived.
-Reducers and enrichment collectors must prove any non-missing pull-request or
-work-item edge before the slot is promoted. Missing Jira links are normal for
-on-call incidents and must not block PagerDuty collection.
+Pull-request slots are promoted only from provider merged-PR evidence tied to
+the selected commit. Jira remote links or issue keys can enrich work-item slots
+when they match provider-verified PR or incident evidence, but Jira-only PR
+URLs do not verify PR identity. Missing Jira links are normal for on-call
+incidents and must not block PagerDuty collection.
 
 ## Observability
 

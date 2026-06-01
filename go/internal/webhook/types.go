@@ -73,6 +73,9 @@ type Trigger struct {
 	TargetSHA            string
 	Action               string
 	Sender               string
+	PullRequestNumber    string
+	PullRequestURL       string
+	PullRequestTitle     string
 }
 
 // TriggerStatus describes the durable intake and handoff lifecycle for one

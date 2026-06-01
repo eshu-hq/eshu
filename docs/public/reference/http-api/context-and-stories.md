@@ -61,9 +61,14 @@ the read model can use reducer-owned catalog, container-image, and Kubernetes
 correlation facts to fill deployable, image, and runtime artifact slots. When
 CI/CD run correlation evidence names the selected image digest, build/deploy
 and commit slots can be exact; tag-only image-reference matches remain derived
-unless a later reducer fact proves an immutable artifact digest. Fallback
-change candidates are labeled separately from exact provider evidence and from
-derived reducer edges, and name-only service or tag matches are not promoted.
+unless a later reducer fact proves an immutable artifact digest. When a
+GitHub merged-pull-request trigger names the selected commit, the pull request
+slot is exact provider evidence. Jira remote links to that provider-verified
+PR, direct PagerDuty incident links, or issue keys in the PR title can enrich
+the work-item slot, but Jira-only PR URLs do not verify pull-request identity.
+Fallback change candidates are labeled separately from exact provider evidence
+and from derived reducer edges, and name-only service or tag matches are not
+promoted.
 
 ## Catalog
 

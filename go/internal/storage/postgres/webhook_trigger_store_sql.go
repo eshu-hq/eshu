@@ -18,18 +18,26 @@ INSERT INTO webhook_refresh_triggers (
     target_sha,
     action,
     sender,
+    pull_request_number,
+    pull_request_url,
+    pull_request_title,
     status,
     received_at,
     updated_at
 ) VALUES (
     $1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
-    $11, $12, $13, $14, $15, $16, $17, $18, $19
+    $11, $12, $13, $14, $15, $16, $17, $18, $19, $20,
+    $21, $22
 )
 ON CONFLICT (refresh_key) DO UPDATE
 SET trigger_id = EXCLUDED.trigger_id,
     delivery_key = EXCLUDED.delivery_key,
     provider = EXCLUDED.provider,
-    event_kind = EXCLUDED.event_kind,
+    event_kind = CASE
+        WHEN EXCLUDED.pull_request_url <> ''
+        THEN EXCLUDED.event_kind
+        ELSE webhook_refresh_triggers.event_kind
+    END,
     decision = EXCLUDED.decision,
     reason = EXCLUDED.reason,
     delivery_id = EXCLUDED.delivery_id,
@@ -41,6 +49,9 @@ SET trigger_id = EXCLUDED.trigger_id,
     target_sha = EXCLUDED.target_sha,
     action = EXCLUDED.action,
     sender = EXCLUDED.sender,
+    pull_request_number = COALESCE(NULLIF(EXCLUDED.pull_request_number, ''), webhook_refresh_triggers.pull_request_number),
+    pull_request_url = COALESCE(NULLIF(EXCLUDED.pull_request_url, ''), webhook_refresh_triggers.pull_request_url),
+    pull_request_title = COALESCE(NULLIF(EXCLUDED.pull_request_title, ''), webhook_refresh_triggers.pull_request_title),
     status = CASE
         WHEN webhook_refresh_triggers.status = 'ignored' AND EXCLUDED.status = 'queued'
         THEN EXCLUDED.status
@@ -65,6 +76,9 @@ RETURNING
     target_sha,
     action,
     sender,
+    pull_request_number,
+    pull_request_url,
+    pull_request_title,
     status,
     duplicate_count,
     received_at,
@@ -104,6 +118,9 @@ RETURNING
     trigger.target_sha,
     trigger.action,
     trigger.sender,
+    trigger.pull_request_number,
+    trigger.pull_request_url,
+    trigger.pull_request_title,
     trigger.status,
     trigger.duplicate_count,
     trigger.received_at,

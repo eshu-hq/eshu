@@ -17,8 +17,12 @@ func TestWebhookTriggerSchemaDefinesDurableDedupeKeys(t *testing.T) {
 		"CREATE TABLE IF NOT EXISTS webhook_refresh_triggers",
 		"delivery_key TEXT NOT NULL",
 		"refresh_key TEXT NOT NULL",
+		"pull_request_number TEXT NOT NULL DEFAULT ''",
+		"pull_request_url TEXT NOT NULL DEFAULT ''",
+		"pull_request_title TEXT NOT NULL DEFAULT ''",
 		"PRIMARY KEY (trigger_id)",
 		"failed_at TIMESTAMPTZ NULL",
+		"webhook_refresh_triggers_pr_commit_idx",
 		"CREATE UNIQUE INDEX IF NOT EXISTS webhook_refresh_triggers_refresh_key_idx",
 		"CREATE INDEX IF NOT EXISTS webhook_refresh_triggers_status_received_idx",
 		"ON webhook_refresh_triggers (status, received_at ASC, trigger_id ASC)",
@@ -44,6 +48,9 @@ func TestWebhookTriggerStoreStoreTriggerUpsertsAcceptedTrigger(t *testing.T) {
 		Ref:                  "refs/heads/main",
 		BeforeSHA:            "1111111111111111111111111111111111111111",
 		TargetSHA:            "2222222222222222222222222222222222222222",
+		PullRequestNumber:    "42",
+		PullRequestURL:       "https://github.com/eshu-hq/eshu/pull/42",
+		PullRequestTitle:     "INC-123 fix checkout deploy",
 		Sender:               "linuxdynasty",
 	}
 	db := &fakeExecQueryer{
@@ -76,6 +83,20 @@ func TestWebhookTriggerStoreStoreTriggerUpsertsAcceptedTrigger(t *testing.T) {
 	if !strings.Contains(db.queries[0].query, "RETURNING") {
 		t.Fatalf("query missing persisted row return: %s", db.queries[0].query)
 	}
+	for _, want := range []string{
+		"event_kind = CASE",
+		"pull_request_number",
+		"pull_request_url = COALESCE(NULLIF(EXCLUDED.pull_request_url, ''), webhook_refresh_triggers.pull_request_url)",
+		"pull_request_url",
+		"pull_request_title",
+	} {
+		if !strings.Contains(db.queries[0].query, want) {
+			t.Fatalf("query missing %q: %s", want, db.queries[0].query)
+		}
+	}
+	if stored.PullRequestURL != trigger.PullRequestURL {
+		t.Fatalf("PullRequestURL = %q, want %q", stored.PullRequestURL, trigger.PullRequestURL)
+	}
 }
 
 func TestWebhookTriggerStoreStoreTriggerPersistsIgnoredDecision(t *testing.T) {
@@ -106,7 +127,7 @@ func TestWebhookTriggerStoreStoreTriggerPersistsIgnoredDecision(t *testing.T) {
 	if stored.Status != webhook.TriggerStatusIgnored {
 		t.Fatalf("Status = %q, want %q", stored.Status, webhook.TriggerStatusIgnored)
 	}
-	if got := db.queries[0].args[16]; got != string(webhook.TriggerStatusIgnored) {
+	if got := db.queries[0].args[19]; got != string(webhook.TriggerStatusIgnored) {
 		t.Fatalf("status arg = %v, want ignored", got)
 	}
 }
@@ -152,6 +173,7 @@ func TestWebhookTriggerStoreClaimQueuedTriggersUsesSkipLocked(t *testing.T) {
 				string(webhook.DecisionAccepted), "",
 				"delivery-1", "42", "eshu-hq/eshu", "main", "refs/heads/main",
 				"before", "after", "", "linuxdynasty",
+				"", "", "",
 				string(webhook.TriggerStatusClaimed), 0, now, now,
 			}}},
 		},
@@ -257,6 +279,7 @@ func webhookTriggerRow(trigger webhook.Trigger, status webhook.TriggerStatus, no
 		string(trigger.Decision), string(trigger.Reason),
 		trigger.DeliveryID, trigger.RepositoryExternalID, trigger.RepositoryFullName,
 		trigger.DefaultBranch, trigger.Ref, trigger.BeforeSHA, trigger.TargetSHA,
-		trigger.Action, trigger.Sender, string(status), 0, now, now,
+		trigger.Action, trigger.Sender, trigger.PullRequestNumber, trigger.PullRequestURL,
+		trigger.PullRequestTitle, string(status), 0, now, now,
 	}}}
 }

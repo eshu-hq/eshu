@@ -237,8 +237,10 @@ constructor with `InstrumentedDB{Inner: db, StoreName: "my_store", ...}`.
   terminal (the AWS claimed runtime does this via
   `awsruntime.FailureClassStaleFence`) instead of looping it on the
   retryable queue.
-- `WebhookTriggerStore` treats webhook payloads as trigger evidence only. The
-  Git collector must still fetch the repository before freshness becomes true.
+- `WebhookTriggerStore` treats webhook payloads as trigger evidence only. It
+  preserves merged pull-request number, URL, and title provenance for bounded
+  read-model enrichment, but the Git collector must still fetch the repository
+  before freshness becomes true.
 - `AWSFreshnessStore` treats AWS Config and EventBridge events as trigger
   evidence only. The AWS collector must still scan the affected service tuple
   before cloud inventory becomes fresh.
