@@ -1,7 +1,7 @@
 # internal/mcp
 
 `mcp` owns the Model Context Protocol tool surface for Eshu. It implements the
-MCP server, the JSON-RPC dispatcher, the SSE session model, and the 79
+MCP server, the JSON-RPC dispatcher, the SSE session model, and the 99
 read-only tool definitions. Tool dispatch calls into the same `http.Handler`
 chain the HTTP API uses, so a tool response and the corresponding HTTP query
 response share the same truth.
@@ -59,20 +59,31 @@ flowchart TB
 
 ## Tool groups
 
-`ReadOnlyTools` assembles 79 tools from the tool definition files.
+`ReadOnlyTools` assembles 99 tools from the tool definition files.
 
 | Group | Count | Source file |
 |---|---|---|
 | `codebaseTools` | 27 | `tools_codebase.go`, `tools_code_topic.go`, `tools_dead_code.go`, `tools_import_dependencies.go`, `tools_call_graph_metrics.go`, `tools_security.go`, `tools_structural_inventory.go`, `tools_iac.go` |
 | `repositoryLanguageTools` | 3 | `tools_repository_language.go` |
 | `ecosystemTools` | 19 | `tools_ecosystem.go` |
+| `infraResourceAggregateTools` | 2 | `tools_infra_resource_aggregates.go` |
 | `packageRegistryTools` | 2 | `tools_package_registry.go` |
+| `packageRegistryAggregateTools` | 2 | `tools_package_registry_aggregates.go` |
 | `cicdTools` | 1 | `tools_cicd.go` |
+| `cicdRunCorrelationAggregateTools` | 2 | `tools_cicd_aggregates.go` |
 | `serviceCatalogTools` | 1 | `tools_service_catalog.go` |
-| `supplyChainTools` | 6 | `tools_supply_chain.go` |
+| `kubernetesTools` | 1 | `tools_kubernetes.go` |
+| `observabilityCoverageTools` | 1 | `tools_observability_coverage.go` |
+| `supplyChainTools` | 7 | `tools_supply_chain.go` |
+| `supplyChainImpactAggregateTools` | 2 | `tools_supply_chain_aggregates.go` |
+| `securityAlertReconciliationAggregateTools` | 2 | `tools_security_alert_aggregates.go` |
+| `containerImageIdentityAggregateTools` | 2 | `tools_container_image_aggregates.go` |
+| `sbomAttestationAttachmentAggregateTools` | 2 | `tools_sbom_attachment_aggregates.go` |
+| `incidentContextTools` | 1 | `tools_incident_context.go` |
 | `contextTools` | 7 | `tools_context.go` |
 | `contentTools` | 6 | `tools_content.go` |
 | `documentationTools` | 4 | `tools_documentation.go` |
+| `documentationFindingAggregateTools` | 2 | `tools_documentation_aggregates.go` |
 | `runtimeTools` | 3 | `tools_runtime.go` |
 
 Representative tool-to-route mappings from `resolveRoute` (`dispatch.go:173`):
@@ -105,7 +116,8 @@ Representative tool-to-route mappings from `resolveRoute` (`dispatch.go:173`):
 | `list_service_catalog_correlations` | GET | `/api/v0/service-catalog/correlations` |
 | `list_kubernetes_correlations` | GET | `/api/v0/kubernetes/correlations` |
 | `get_incident_context` | GET | `/api/v0/incidents/{incident_id}/context` |
-| `list_supply_chain_impact_findings` | GET | `/api/v0/supply-chain/impact/findings` (accepts repository ids or human repository selectors, plus `profile`, `include_suppressed`, and `suppression_state` filters; precise rows require supported exact-version evidence such as npm, Maven, Cargo, Pub `pubspec.lock`, NuGet, or Swift `Package.resolved`, and each row carries a `suppression` block with state, source, justification, author, timestamps, reason, and VEX provenance) |
+| `get_vulnerability_scanner_read_contract` | GET | `/api/v0/supply-chain/vulnerability-scanner/contract` |
+| `list_supply_chain_impact_findings` | GET | `/api/v0/supply-chain/impact/findings` (accepts repository ids or human repository selectors plus scanner filters such as `advisory_id`, `ecosystem`, `service_id`, `workload_id`, `environment`, `severity`, `profile`, `include_suppressed`, and `suppression_state`; precise rows require supported exact-version evidence such as npm, Maven, Cargo, Pub `pubspec.lock`, NuGet, or Swift `Package.resolved`, and each row carries a `suppression` block with state, source, justification, author, timestamps, reason, and VEX provenance) |
 | `list_advisory_evidence` | GET | `/api/v0/supply-chain/advisories/evidence` |
 | `explain_supply_chain_impact` | GET | `/api/v0/supply-chain/impact/explain` |
 | `list_security_alert_reconciliations` | GET | `/api/v0/supply-chain/security-alerts/reconciliations` (accepts repository ids or human repository selectors) |
@@ -190,7 +202,7 @@ callers.
 | `Server.Run` (`Run`) | `server.go:288` | stdio transport; reads stdin, writes stdout |
 | `Server.RunHTTP` (`RunHTTP`) | `server.go:128` | HTTP+SSE transport; listens on `addr` |
 | `ToolDefinition` | `types.go:4` | `Name`, `Description`, `InputSchema` |
-| `ReadOnlyTools` | `types.go:11` | returns all 79 tool definitions |
+| `ReadOnlyTools` | `types.go:11` | returns all 99 tool definitions |
 
 ## SSE session model
 

@@ -2,6 +2,12 @@ package mcp
 
 import "strconv"
 
+func vulnerabilityScannerReadContractRoute(args map[string]any) *route {
+	return &route{method: "GET", path: "/api/v0/supply-chain/vulnerability-scanner/contract", query: map[string]string{
+		"route": str(args, "route"),
+	}}
+}
+
 func containerImageIdentitiesRoute(args map[string]any) *route {
 	return &route{method: "GET", path: "/api/v0/supply-chain/container-images/identities", query: map[string]string{
 		"after_identity_id": str(args, "after_identity_id"),
@@ -15,18 +21,26 @@ func containerImageIdentitiesRoute(args map[string]any) *route {
 
 func supplyChainImpactFindingsRoute(args map[string]any) *route {
 	query := map[string]string{
+		"advisory_id":        str(args, "advisory_id"),
 		"after_finding_id":   str(args, "after_finding_id"),
 		"cve_id":             str(args, "cve_id"),
+		"ecosystem":          str(args, "ecosystem"),
+		"environment":        str(args, "environment"),
+		"ghsa_id":            str(args, "ghsa_id"),
 		"impact_status":      str(args, "impact_status"),
 		"limit":              strconv.Itoa(intOr(args, "limit", 50)),
 		"min_priority_score": strconv.Itoa(intOr(args, "min_priority_score", 0)),
+		"osv_id":             str(args, "osv_id"),
 		"package_id":         str(args, "package_id"),
 		"priority_bucket":    str(args, "priority_bucket"),
 		"profile":            str(args, "profile"),
 		"repository_id":      str(args, "repository_id"),
+		"service_id":         str(args, "service_id"),
+		"severity":           str(args, "severity"),
 		"sort":               str(args, "sort"),
 		"subject_digest":     str(args, "subject_digest"),
 		"suppression_state":  str(args, "suppression_state"),
+		"workload_id":        str(args, "workload_id"),
 	}
 	// include_suppressed is omitted when the caller did not set it so the
 	// query string stays free of the empty key; the API parser accepts a

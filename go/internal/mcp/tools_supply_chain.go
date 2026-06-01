@@ -3,6 +3,20 @@ package mcp
 func supplyChainTools() []ToolDefinition {
 	return []ToolDefinition{
 		{
+			Name:        "get_vulnerability_scanner_read_contract",
+			Description: "Return the API/MCP vulnerability scanner read contract, including supported filters, unsupported filters, route consistency rules, backing read models, and missing-evidence semantics.",
+			InputSchema: map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"route": map[string]any{
+						"type":        "string",
+						"description": "Optional route slice to inspect.",
+						"enum":        []string{"impact_findings", "impact_count", "impact_inventory", "impact_explain", "security_alert_reconciliations", "security_alert_count", "security_alert_inventory", "scanner_report"},
+					},
+				},
+			},
+		},
+		{
 			Name:        "list_container_image_identities",
 			Description: "List reducer-owned container image identity facts by digest, image reference, repository, or outcome.",
 			InputSchema: map[string]any{
@@ -49,6 +63,18 @@ func supplyChainTools() []ToolDefinition {
 						"type":        "string",
 						"description": "CVE or advisory identifier to inspect.",
 					},
+					"advisory_id": map[string]any{
+						"type":        "string",
+						"description": "Exact source advisory identifier such as GHSA, OSV, GLAD, vendor advisory, or CVE id.",
+					},
+					"ghsa_id": map[string]any{
+						"type":        "string",
+						"description": "GHSA advisory identifier alias for advisory_id.",
+					},
+					"osv_id": map[string]any{
+						"type":        "string",
+						"description": "OSV advisory identifier alias for advisory_id.",
+					},
 					"package_id": map[string]any{
 						"type":        "string",
 						"description": "Normalized package identity such as pkg:npm/example.",
@@ -66,9 +92,30 @@ func supplyChainTools() []ToolDefinition {
 						"description": "Optional reducer impact status filter.",
 						"enum":        []string{"affected_exact", "affected_derived", "possibly_affected", "not_affected_known_fixed", "unknown_impact"},
 					},
+					"ecosystem": map[string]any{
+						"type":        "string",
+						"description": "Package ecosystem from reducer-owned impact facts, such as npm, maven, cargo, nuget, pypi, rubygems, swift, or rpm.",
+					},
+					"workload_id": map[string]any{
+						"type":        "string",
+						"description": "Reducer-admitted workload anchor. Missing runtime mapping remains missing evidence.",
+					},
+					"service_id": map[string]any{
+						"type":        "string",
+						"description": "Reducer-admitted service anchor derived from workload/service evidence.",
+					},
+					"environment": map[string]any{
+						"type":        "string",
+						"description": "Reducer-admitted environment anchor. Environment names are not inferred from tags or repository names.",
+					},
+					"severity": map[string]any{
+						"type":        "string",
+						"description": "CVSS-derived severity bucket for impact findings.",
+						"enum":        []string{"critical", "high", "medium", "low", "none"},
+					},
 					"profile": map[string]any{
 						"type":        "string",
-						"description": "Detection profile filter. precise (default) returns only findings backed by an exact installed-version anchor; comprehensive also returns range-only, SBOM/CPE-derived, malformed, unsupported-ecosystem, and missing-version rows.",
+						"description": "Detection profile filter. precise (default) returns only findings backed by an exact installed-version anchor; comprehensive also returns range-only, SBOM/CPE-derived, malformed, and missing-version rows. Unsupported ecosystems remain readiness gaps.",
 						"enum":        []string{"precise", "comprehensive"},
 						"default":     "precise",
 					},

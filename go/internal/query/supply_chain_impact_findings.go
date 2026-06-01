@@ -25,19 +25,14 @@ type SupplyChainImpactFindingStore interface {
 // scope_mismatch findings remain visible regardless because they keep
 // operator audit signal.
 type SupplyChainImpactFindingFilter struct {
-	CVEID             string
-	PackageID         string
-	RepositoryID      string
-	SubjectDigest     string
-	ImpactStatus      string
-	DetectionProfile  string
-	PriorityBucket    string
-	MinPriorityScore  int
-	Sort              string
-	SuppressionState  string
-	IncludeSuppressed bool
-	AfterFindingID    string
-	Limit             int
+	CVEID, AdvisoryID                      string
+	PackageID, RepositoryID, SubjectDigest string
+	ImpactStatus, Ecosystem, Severity      string
+	WorkloadID, ServiceID, Environment     string
+	DetectionProfile, PriorityBucket, Sort string
+	SuppressionState, AfterFindingID       string
+	MinPriorityScore, Limit                int
+	IncludeSuppressed                      bool
 }
 
 // SupplyChainImpactFindingRow is one durable impact finding decoded from
@@ -199,7 +194,7 @@ func (s PostgresSupplyChainImpactFindingStore) ListSupplyChainImpactFindings(
 		return nil, fmt.Errorf("supply chain impact finding database is required")
 	}
 	if !filter.hasScope() {
-		return nil, fmt.Errorf("cve_id, package_id, repository_id, subject_digest, impact_status, priority_bucket, or min_priority_score > 0 is required")
+		return nil, fmt.Errorf("cve_id, advisory_id, package_id, repository_id, subject_digest, impact_status, ecosystem, workload_id, service_id, environment, severity, priority_bucket, or min_priority_score > 0 is required")
 	}
 	if filter.Limit <= 0 || filter.Limit > supplyChainImpactFindingMaxLimit+1 {
 		return nil, fmt.Errorf("limit must be between 1 and %d for internal pagination", supplyChainImpactFindingMaxLimit+1)
@@ -214,6 +209,12 @@ func (s PostgresSupplyChainImpactFindingStore) ListSupplyChainImpactFindings(
 		filter.RepositoryID,
 		filter.SubjectDigest,
 		filter.ImpactStatus,
+		filter.AdvisoryID,
+		filter.Ecosystem,
+		filter.ServiceID,
+		filter.WorkloadID,
+		filter.Environment,
+		filter.Severity,
 		filter.DetectionProfile,
 		filter.PriorityBucket,
 		filter.MinPriorityScore,
@@ -249,8 +250,10 @@ func (s PostgresSupplyChainImpactFindingStore) ListSupplyChainImpactFindings(
 }
 
 func (f SupplyChainImpactFindingFilter) hasScope() bool {
-	return f.CVEID != "" || f.PackageID != "" || f.RepositoryID != "" ||
-		f.SubjectDigest != "" || f.ImpactStatus != "" || f.PriorityBucket != "" ||
+	return f.CVEID != "" || f.AdvisoryID != "" || f.PackageID != "" ||
+		f.RepositoryID != "" || f.SubjectDigest != "" || f.ImpactStatus != "" ||
+		f.Ecosystem != "" || f.WorkloadID != "" || f.ServiceID != "" ||
+		f.Environment != "" || f.Severity != "" || f.PriorityBucket != "" ||
 		f.MinPriorityScore > 0
 }
 

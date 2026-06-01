@@ -59,9 +59,15 @@ type SupplyChainImpactReadinessEnvelope struct {
 // the readiness verdict is reproducible without re-deriving query parameters.
 type SupplyChainImpactTargetScope struct {
 	CVEID         string `json:"cve_id,omitempty"`
+	AdvisoryID    string `json:"advisory_id,omitempty"`
 	PackageID     string `json:"package_id,omitempty"`
 	RepositoryID  string `json:"repository_id,omitempty"`
 	SubjectDigest string `json:"subject_digest,omitempty"`
+	Ecosystem     string `json:"ecosystem,omitempty"`
+	WorkloadID    string `json:"workload_id,omitempty"`
+	ServiceID     string `json:"service_id,omitempty"`
+	Environment   string `json:"environment,omitempty"`
+	Severity      string `json:"severity,omitempty"`
 	ImpactStatus  string `json:"impact_status,omitempty"`
 }
 
@@ -101,12 +107,19 @@ type SupplyChainImpactReadinessCounts struct {
 // runs alongside the findings page. ImpactStatus is intentionally not used by
 // the source-fact counts because source facts have no impact-status field;
 // it is preserved here so the call site can build the query from the same
-// scope value used to echo TargetScope back to the caller.
+// scope value used to echo TargetScope back to the caller. AdvisoryID narrows
+// source-advisory rows only when another fact anchor is present.
 type SupplyChainImpactReadinessQuery struct {
 	CVEID         string
+	AdvisoryID    string
 	PackageID     string
 	RepositoryID  string
 	SubjectDigest string
+	Ecosystem     string
+	WorkloadID    string
+	ServiceID     string
+	Environment   string
+	Severity      string
 	ImpactStatus  string
 }
 

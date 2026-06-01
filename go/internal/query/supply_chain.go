@@ -10,15 +10,16 @@ import (
 )
 
 const (
-	sbomAttestationAttachmentsCapability   = "supply_chain.sbom_attestation_attachments.list"
-	supplyChainImpactFindingsCapability    = "supply_chain.impact_findings.list"
-	supplyChainImpactExplanationCapability = "supply_chain.impact_explanation.read"
-	containerImageIdentitiesCapability     = "supply_chain.container_image_identities.list"
-	securityAlertReconciliationsCapability = "supply_chain.security_alert_reconciliations.list"
-	sbomAttestationAttachmentMaxLimit      = 200
-	supplyChainImpactFindingMaxLimit       = 200
-	containerImageIdentityMaxLimit         = 200
-	securityAlertReconciliationMaxLimit    = 200
+	sbomAttestationAttachmentsCapability       = "supply_chain.sbom_attestation_attachments.list"
+	vulnerabilityScannerReadContractCapability = "supply_chain.vulnerability_scanner.contract.read"
+	supplyChainImpactFindingsCapability        = "supply_chain.impact_findings.list"
+	supplyChainImpactExplanationCapability     = "supply_chain.impact_explanation.read"
+	containerImageIdentitiesCapability         = "supply_chain.container_image_identities.list"
+	securityAlertReconciliationsCapability     = "supply_chain.security_alert_reconciliations.list"
+	sbomAttestationAttachmentMaxLimit          = 200
+	supplyChainImpactFindingMaxLimit           = 200
+	containerImageIdentityMaxLimit             = 200
+	securityAlertReconciliationMaxLimit        = 200
 
 	// SupplyChainImpactProfilePrecise selects exact installed-version
 	// anchored findings only.
@@ -92,6 +93,7 @@ type ContainerImageIdentityResult struct {
 
 // Mount registers supply-chain query routes.
 func (h *SupplyChainHandler) Mount(mux *http.ServeMux) {
+	mux.HandleFunc("GET /api/v0/supply-chain/vulnerability-scanner/contract", h.getVulnerabilityScannerReadContract)
 	mux.HandleFunc("GET /api/v0/supply-chain/sbom-attestations/attachments", h.listSBOMAttachments)
 	mux.HandleFunc("GET /api/v0/supply-chain/advisories/evidence", h.listAdvisoryEvidence)
 	mux.HandleFunc("GET /api/v0/supply-chain/impact/findings", h.listImpactFindings)
@@ -141,6 +143,17 @@ func (h *SupplyChainHandler) listImpactFindings(w http.ResponseWriter, r *http.R
 	if !ok {
 		return
 	}
+	if !rejectUnsupportedVulnerabilityScannerFilters(w, r, impactFindingsScannerFilters()) {
+		return
+	}
+	advisoryID := QueryParam(r, "advisory_id")
+	if advisoryID == "" {
+		advisoryID = firstNonEmptyQueryParam(r, "ghsa_id", "osv_id")
+	}
+	severity, ok := parseSupplyChainScannerSeverity(w, r)
+	if !ok {
+		return
+	}
 	priorityBucket, minPriorityScore, sort, err := supplyChainImpactPriorityFilter(r)
 	if err != nil {
 		WriteError(w, http.StatusBadRequest, err.Error())
@@ -161,10 +174,16 @@ func (h *SupplyChainHandler) listImpactFindings(w http.ResponseWriter, r *http.R
 	}
 	filter := SupplyChainImpactFindingFilter{
 		CVEID:             QueryParam(r, "cve_id"),
+		AdvisoryID:        advisoryID,
 		PackageID:         QueryParam(r, "package_id"),
 		RepositoryID:      repositoryID,
 		SubjectDigest:     QueryParam(r, "subject_digest"),
 		ImpactStatus:      QueryParam(r, "impact_status"),
+		Ecosystem:         QueryParam(r, "ecosystem"),
+		WorkloadID:        QueryParam(r, "workload_id"),
+		ServiceID:         QueryParam(r, "service_id"),
+		Environment:       QueryParam(r, "environment"),
+		Severity:          severity,
 		DetectionProfile:  filterProfile(profile),
 		PriorityBucket:    priorityBucket,
 		MinPriorityScore:  minPriorityScore,
@@ -175,7 +194,7 @@ func (h *SupplyChainHandler) listImpactFindings(w http.ResponseWriter, r *http.R
 		Limit:             limit + 1,
 	}
 	if !filter.hasScope() {
-		WriteError(w, http.StatusBadRequest, "cve_id, package_id, repository_id, subject_digest, impact_status, priority_bucket, or min_priority_score > 0 is required")
+		WriteError(w, http.StatusBadRequest, "cve_id, advisory_id, package_id, repository_id, subject_digest, impact_status, ecosystem, workload_id, service_id, environment, severity, priority_bucket, or min_priority_score > 0 is required")
 		return
 	}
 	if h.ImpactFindings == nil {
@@ -207,9 +226,15 @@ func (h *SupplyChainHandler) listImpactFindings(w http.ResponseWriter, r *http.R
 	}
 	scope := SupplyChainImpactTargetScope{
 		CVEID:         filter.CVEID,
+		AdvisoryID:    filter.AdvisoryID,
 		PackageID:     filter.PackageID,
 		RepositoryID:  filter.RepositoryID,
 		SubjectDigest: filter.SubjectDigest,
+		Ecosystem:     filter.Ecosystem,
+		WorkloadID:    filter.WorkloadID,
+		ServiceID:     filter.ServiceID,
+		Environment:   filter.Environment,
+		Severity:      filter.Severity,
 		ImpactStatus:  filter.ImpactStatus,
 	}
 	snapshot, readinessErr := h.readSupplyChainImpactReadinessSnapshot(r, scope)

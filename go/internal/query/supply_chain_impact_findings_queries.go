@@ -26,6 +26,14 @@ const supplyChainImpactPayloadFindingIDPresentSQL = `CASE
          ELSE 1
        END`
 
+const supplyChainImpactSeverityBucketFactSQL = `CASE
+		WHEN COALESCE(NULLIF(fact.payload->>'cvss_score', '')::numeric, 0) >= 9.0 THEN 'critical'
+		WHEN COALESCE(NULLIF(fact.payload->>'cvss_score', '')::numeric, 0) >= 7.0 THEN 'high'
+		WHEN COALESCE(NULLIF(fact.payload->>'cvss_score', '')::numeric, 0) >= 4.0 THEN 'medium'
+		WHEN COALESCE(NULLIF(fact.payload->>'cvss_score', '')::numeric, 0) > 0.0  THEN 'low'
+		ELSE 'none'
+	END`
+
 const listSupplyChainImpactFindingsQuery = `
 WITH scoped_facts AS (
 SELECT fact.fact_id,
@@ -50,15 +58,21 @@ WHERE fact.fact_kind = $1
   AND ($4 = '' OR fact.payload->>'repository_id' = $4)
   AND ($5 = '' OR fact.payload->>'subject_digest' = $5)
   AND ($6 = '' OR fact.payload->>'impact_status' = $6)
+  AND ($7 = '' OR fact.payload->>'advisory_id' = $7)
+  AND ($8 = '' OR LOWER(fact.payload->>'ecosystem') = LOWER($8))
+  AND ($9 = '' OR fact.payload->'service_ids' ? $9)
+  AND ($10 = '' OR fact.payload->'workload_ids' ? $10)
+  AND ($11 = '' OR fact.payload->'environments' ? $11)
+  AND ($12 = '' OR ` + supplyChainImpactSeverityBucketFactSQL + ` = $12)
   AND (
-        $7 = ''
-        OR fact.payload->>'detection_profile' = $7
+        $13 = ''
+        OR fact.payload->>'detection_profile' = $13
         OR (
-              $7 = 'comprehensive'
+              $13 = 'comprehensive'
               AND COALESCE(fact.payload->>'detection_profile', '') = ''
            )
         OR (
-              $7 = 'precise'
+              $13 = 'precise'
               AND COALESCE(fact.payload->>'detection_profile', '') = ''
               AND fact.payload->>'impact_status' IN (
                     'affected_exact',
@@ -81,10 +95,10 @@ WHERE fact.fact_kind = $1
 	                  )
 	           )
 	      )
-  AND ($8 = '' OR fact.payload->>'priority_bucket' = $8)
-  AND ($9 = 0 OR COALESCE(NULLIF(fact.payload->>'priority_score', '')::int, 0) >= $9)
-  AND ($13 = '' OR COALESCE(NULLIF(fact.payload->>'suppression_state', ''), 'active') = $13)
-  AND ($14::boolean OR COALESCE(NULLIF(fact.payload->>'suppression_state', ''), 'active') NOT IN ('not_affected','accepted_risk','false_positive','ignored'))
+  AND ($14 = '' OR fact.payload->>'priority_bucket' = $14)
+  AND ($15 = 0 OR COALESCE(NULLIF(fact.payload->>'priority_score', '')::int, 0) >= $15)
+  AND ($19 = '' OR COALESCE(NULLIF(fact.payload->>'suppression_state', ''), 'active') = $19)
+  AND ($20::boolean OR COALESCE(NULLIF(fact.payload->>'suppression_state', ''), 'active') NOT IN ('not_affected','accepted_risk','false_positive','ignored'))
 ),
 ranked_facts AS (
 SELECT *,
@@ -101,31 +115,31 @@ WHERE canonical_rank = 1
 )
 SELECT finding_id, source_confidence, payload
 FROM canonical_facts
-WHERE $10 = ''
-   OR ($11 = 'finding_id' AND finding_id > $10)
+WHERE $16 = ''
+   OR ($17 = 'finding_id' AND finding_id > $16)
    OR (
-      $11 = 'priority_score_desc'
+      $17 = 'priority_score_desc'
       AND (
-        priority_score < COALESCE((SELECT cursor.priority_score FROM canonical_facts AS cursor WHERE cursor.finding_id = $10), -1)
+        priority_score < COALESCE((SELECT cursor.priority_score FROM canonical_facts AS cursor WHERE cursor.finding_id = $16), -1)
         OR (
-          priority_score = COALESCE((SELECT cursor.priority_score FROM canonical_facts AS cursor WHERE cursor.finding_id = $10), -1)
-          AND finding_id > $10
+          priority_score = COALESCE((SELECT cursor.priority_score FROM canonical_facts AS cursor WHERE cursor.finding_id = $16), -1)
+          AND finding_id > $16
         )
       )
    )
    OR (
-      $11 = 'priority_score_asc'
+      $17 = 'priority_score_asc'
       AND (
-        priority_score > COALESCE((SELECT cursor.priority_score FROM canonical_facts AS cursor WHERE cursor.finding_id = $10), 101)
+        priority_score > COALESCE((SELECT cursor.priority_score FROM canonical_facts AS cursor WHERE cursor.finding_id = $16), 101)
         OR (
-          priority_score = COALESCE((SELECT cursor.priority_score FROM canonical_facts AS cursor WHERE cursor.finding_id = $10), 101)
-          AND finding_id > $10
+          priority_score = COALESCE((SELECT cursor.priority_score FROM canonical_facts AS cursor WHERE cursor.finding_id = $16), 101)
+          AND finding_id > $16
         )
       )
    )
 ORDER BY
-  CASE WHEN $11 = 'priority_score_desc' THEN priority_score END DESC,
-  CASE WHEN $11 = 'priority_score_asc' THEN priority_score END ASC,
+  CASE WHEN $17 = 'priority_score_desc' THEN priority_score END DESC,
+  CASE WHEN $17 = 'priority_score_asc' THEN priority_score END ASC,
   finding_id ASC
-LIMIT $12
+LIMIT $18
 `

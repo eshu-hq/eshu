@@ -234,6 +234,7 @@ func (f SupplyChainImpactExplanationFilter) hasBoundedScope() bool {
 func (f SupplyChainImpactExplanationFilter) readinessScope() SupplyChainImpactTargetScope {
 	return SupplyChainImpactTargetScope{
 		CVEID:         f.CVEID,
+		AdvisoryID:    f.AdvisoryID,
 		PackageID:     f.PackageID,
 		RepositoryID:  f.RepositoryID,
 		SubjectDigest: f.SubjectDigest,
@@ -244,6 +245,9 @@ func findingReadinessScope(row SupplyChainImpactFindingRow, fallback SupplyChain
 	scope := fallback.readinessScope()
 	if scope.CVEID == "" {
 		scope.CVEID = row.CVEID
+	}
+	if scope.AdvisoryID == "" {
+		scope.AdvisoryID = row.AdvisoryID
 	}
 	if scope.PackageID == "" {
 		scope.PackageID = row.PackageID

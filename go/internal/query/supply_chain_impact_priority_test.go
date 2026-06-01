@@ -153,10 +153,10 @@ func TestSupplyChainImpactFindingQuerySupportsPriorityFiltersAndSort(t *testing.
 	t.Parallel()
 
 	for _, want := range []string{
-		"fact.payload->>'priority_bucket' = $8",
-		"COALESCE(NULLIF(fact.payload->>'priority_score', '')::int, 0) >= $9",
-		"$11 = 'priority_score_desc'",
-		"$11 = 'priority_score_asc'",
+		"fact.payload->>'priority_bucket' = $14",
+		"COALESCE(NULLIF(fact.payload->>'priority_score', '')::int, 0) >= $15",
+		"$17 = 'priority_score_desc'",
+		"$17 = 'priority_score_asc'",
 		"fact_id ASC",
 	} {
 		if !strings.Contains(listSupplyChainImpactFindingsQuery, want) {

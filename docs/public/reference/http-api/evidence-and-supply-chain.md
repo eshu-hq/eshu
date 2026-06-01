@@ -150,16 +150,54 @@ or imply reducer-owned package, repository, image, workload, deployment, or
 reachability impact. Use the impact routes below when you need admitted impact
 truth.
 
+## Standalone Vulnerability Scanner Read Contract
+
+`GET /api/v0/supply-chain/vulnerability-scanner/contract`
+
+Returns the machine-readable scanner contract used by HTTP and MCP clients. It
+names each scanner-facing filter, the routes that support it, the support class
+(`exact`, `derived`, `provider-only`, `unsupported`, or `missing-evidence
+driven`), and the backing index or precomputed read model. `?route=` narrows the
+response to one route contract and rejects unknown route names before any read
+model query runs.
+
+| Filter | Support | Backing |
+|---|---|---|
+| `repository_id` | derived, exact, provider-only | Repository selector resolution plus reducer/provider Postgres read models. |
+| `package_id` | exact | Active reducer impact facts and provider reconciliation facts. |
+| `cve_id`, `advisory_id`, `ghsa_id`, `osv_id` | exact, provider-only | Payload advisory identifiers on reducer and provider reconciliation facts. |
+| `subject_digest`, `digest` | exact, missing-evidence driven | Impact, SBOM, and container-image read models. |
+| `workload_id`, `service_id`, `environment` | derived, missing-evidence driven | Reducer impact arrays populated only from admitted runtime/service evidence. |
+| `ecosystem` | exact, unsupported | Impact payload ecosystem predicate; unsupported ecosystems stay in readiness gaps. |
+| `language` | unsupported | No scanner read model maps source language to vulnerability impact truth. |
+| `severity` | derived | CVSS-derived impact severity buckets: `critical`, `high`, `medium`, `low`, `none`. |
+| `impact_status`, `reconciliation_status` | exact, provider-only | Reducer impact truth and provider reconciliation truth stay separate. |
+| `readiness` | missing-evidence driven | Readiness is reported in envelopes and reports, not accepted as a row filter. |
+| `provider_state`, `provider` | provider-only | Provider alert reconciliation facts; these never change Eshu impact truth. |
+
+List, count, inventory, explain, and scanner-report reads share the same truth
+envelope and missing-evidence vocabulary. List and inventory routes return
+deterministic ordering, `limit`, `truncated`, and cursor or offset metadata.
+Count routes do not page, but they use the same scope filters as list reads.
+Unsupported scanner filters fail with a bounded `400` response instead of
+falling through to broad graph or Postgres reads.
+
 `GET /api/v0/supply-chain/impact/findings`
 
 Lists reducer-owned vulnerability impact findings. The caller must provide
 `limit` and at least one bounded anchor:
 
 - `cve_id`
+- `advisory_id`, `ghsa_id`, or `osv_id`
 - `package_id`
 - `repository_id`
 - `subject_digest`
 - `impact_status`
+- `ecosystem`
+- `workload_id`
+- `service_id`
+- `environment`
+- `severity`
 - `priority_bucket`
 - `min_priority_score` greater than `0`
 
@@ -169,13 +207,15 @@ path, local path, or remote URL. Eshu resolves human selectors before reading
 reducer impact facts; unknown or ambiguous selectors return a selector error.
 The count and inventory aggregate routes use the same repository selector
 resolution before reading reducer-owned aggregate facts. Aggregates also accept
-the list route's `profile`, `priority_bucket`, `min_priority_score`,
-`suppression_state`, and `include_suppressed` filters and default to the same
-low-noise precise, unsuppressed semantics. `sort`, `after_finding_id`, and list
-pagination remain list-only controls.
+the list route's `advisory_id`, `ecosystem`, `workload_id`, `service_id`,
+`environment`, `severity`, `profile`, `priority_bucket`,
+`min_priority_score`, `suppression_state`, and `include_suppressed` filters and
+default to the same low-noise precise, unsuppressed semantics. `sort`,
+`after_finding_id`, and list pagination remain list-only controls.
 
 Valid impact statuses are `affected_exact`, `affected_derived`,
 `possibly_affected`, `not_affected_known_fixed`, and `unknown_impact`.
+Valid severity buckets are `critical`, `high`, `medium`, `low`, and `none`.
 Valid priority buckets are `critical`, `high`, `medium`, `low`, and
 `informational`. `min_priority_score` accepts `0` through `100`; `0` is the
 default no-op value and does not count as a bounded anchor by itself. `sort` accepts
@@ -527,6 +567,15 @@ impact evidence. Valid reconciliation statuses are `matched`, `unmatched`,
 
 This route does not turn provider alert state into vulnerability impact truth.
 Use `/api/v0/supply-chain/impact/findings` for reducer-owned impact findings.
+Provider `severity` is returned inside `provider_alert`; it is not the same as
+the impact `severity` scanner filter.
+
+No-Regression Evidence: `go test ./internal/query ./internal/mcp -run 'Test(VulnerabilityScannerReadContract|SupplyChainImpactFindingsAcceptsScannerContractFilters|SupplyChainImpactFindingsRejectsUnsupportedScannerFiltersBeforeStore|SupplyChainImpactAggregatesAcceptScannerContractFilters|SupplyChainImpactInventoryCanGroupByEcosystem|ResolveRouteMapsVulnerabilityScannerContract|SupplyChainImpactMCPRouteForwardsScannerContractFilters|SupplyChainImpactAggregateMCPRoutesForwardScannerContractFilters)' -count=1` covers the scanner read contract, bounded unsupported-filter failures, shared API/MCP filter forwarding, provider-only separation, and deterministic aggregate/list read semantics without graph traversal.
+
+No-Observability-Change: the scanner contract route is static metadata and the
+new filters reuse the existing HTTP/MCP truth envelope, readiness envelope,
+limit/truncated fields, and bounded Postgres read-model errors; no reducer,
+collector, worker, queue, graph write, metric, span, or log contract changes.
 
 ## SBOM And Attestation Attachments
 

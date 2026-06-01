@@ -134,9 +134,9 @@ func TestSupplyChainImpactFindingQueryUsesDetectionProfileFilter(t *testing.T) {
 	t.Parallel()
 
 	for _, want := range []string{
-		"fact.payload->>'detection_profile' = $7",
-		"$7 = 'comprehensive'",
-		"$7 = 'precise'",
+		"fact.payload->>'detection_profile' = $13",
+		"$13 = 'comprehensive'",
+		"$13 = 'precise'",
 		"npm_semver_affected_range",
 		"npm_semver_known_fixed",
 		"nuget_semver_affected_range",
