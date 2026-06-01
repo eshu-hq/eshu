@@ -147,6 +147,12 @@ const (
 	// set so an operator can answer "which observability signal class is losing
 	// coverage?" at 3 AM.
 	MetricDimensionCoverageSignal = "coverage_signal"
+	// MetricDimensionResolutionMode labels the observability coverage COVERS edge
+	// projection counter (eshu_dp_observability_coverage_edges_total) with the
+	// closed enum of target resolution modes the coverage index uses: arn,
+	// bare_id, or correlation_anchor. It lets an operator answer "which identity
+	// path proved the covered edges, and is exact coverage shrinking?" at 3 AM.
+	MetricDimensionResolutionMode = "resolution_mode"
 )
 
 // Span names define the stable data-plane tracing contract.
@@ -177,9 +183,16 @@ const (
 	// edge write. The span carries materialized vs unresolved edge counts so a
 	// trace shows whether forward-looking targets degraded gracefully.
 	SpanReducerAWSRelationshipMaterialization = "reducer.aws_relationship_materialization"
-	SpanCanonicalWrite                        = "canonical.write"
-	SpanCanonicalProjection                   = "canonical.projection"
-	SpanCanonicalRetract                      = "canonical.retract"
+	// SpanReducerObservabilityCoverageMaterialization wraps the observability
+	// coverage COVERS edge projection (issue #391 PR3): fact load, classifier
+	// re-run, exact-coverage edge-row extraction, and the batched
+	// MATCH-MATCH-MERGE COVERS edge write. The span carries materialized vs
+	// skipped edge counts so a trace shows whether derived/provenance-only
+	// coverage degraded gracefully without fabricating edges.
+	SpanReducerObservabilityCoverageMaterialization = "reducer.observability_coverage_materialization"
+	SpanCanonicalWrite                              = "canonical.write"
+	SpanCanonicalProjection                         = "canonical.projection"
+	SpanCanonicalRetract                            = "canonical.retract"
 
 	SpanEvidenceDiscovery                 = "ingestion.evidence_discovery"
 	SpanIaCReachabilityMaterialization    = "iac_reachability.materialize"

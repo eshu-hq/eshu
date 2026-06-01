@@ -113,6 +113,15 @@ type DefaultHandlers struct {
 	// on ReadinessLookup so edges never resolve against uncommitted nodes.
 	CloudResourceEdgeWriter CloudResourceEdgeWriter
 
+	// ObservabilityCoverageEdgeWriter projects exact observability coverage
+	// decisions into canonical COVERS edges between CloudResource nodes (issue
+	// #391 PR3). It must be non-nil alongside FactLoader for the registry to
+	// register DomainObservabilityCoverageMaterialization; missing either one
+	// would drop every coverage materialization intent before it reaches the
+	// graph. The handler also gates on ReadinessLookup so edges never resolve
+	// against uncommitted nodes.
+	ObservabilityCoverageEdgeWriter ObservabilityCoverageEdgeWriter
+
 	// ContainerImageIdentityWriter persists digest-keyed image identity
 	// decisions for Git, OCI registry, and runtime image evidence.
 	ContainerImageIdentityWriter ContainerImageIdentityWriter
@@ -386,6 +395,18 @@ func implementedDefaultDomainDefinitions(handlers DefaultHandlers) []DomainDefin
 			Instruments:          handlers.Instruments,
 		}
 		definitions = append(definitions, awsRelationships)
+	}
+	if handlers.FactLoader != nil && handlers.ObservabilityCoverageEdgeWriter != nil {
+		coverageEdges := observabilityCoverageMaterializationDomainDefinition()
+		coverageEdges.Handler = ObservabilityCoverageMaterializationHandler{
+			FactLoader:           handlers.FactLoader,
+			EdgeWriter:           handlers.ObservabilityCoverageEdgeWriter,
+			ReadinessLookup:      handlers.ReadinessLookup,
+			PriorGenerationCheck: handlers.PriorGenerationCheck,
+			Tracer:               handlers.Tracer,
+			Instruments:          handlers.Instruments,
+		}
+		definitions = append(definitions, coverageEdges)
 	}
 	if handlers.DeployableUnitCorrelationHandler != nil {
 		definitions = append(definitions, DomainDefinition{

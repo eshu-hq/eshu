@@ -49,6 +49,7 @@ var metricDimensionKeys = []string{
 	MetricDimensionRelationshipType,
 	MetricDimensionJoinMode,
 	MetricDimensionCoverageSignal,
+	MetricDimensionResolutionMode,
 }
 
 var spanNames = []string{
@@ -63,6 +64,7 @@ var spanNames = []string{
 	SpanReducerDriftEvidenceLoad,
 	SpanReducerAWSRuntimeDriftEvidenceLoad,
 	SpanReducerAWSRelationshipMaterialization,
+	SpanReducerObservabilityCoverageMaterialization,
 	SpanCanonicalWrite,
 	SpanCanonicalProjection,
 	SpanCanonicalRetract,
