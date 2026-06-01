@@ -145,6 +145,8 @@ func TestSpanNames(t *testing.T) {
 		"jira.fetch",
 		"grafana.observe",
 		"grafana.fetch",
+		"prometheus_mimir.observe",
+		"prometheus_mimir.fetch",
 		"query.supply_chain_impact_findings",
 		"query.supply_chain_impact_explanation",
 		"query.supply_chain_impact_aggregate",

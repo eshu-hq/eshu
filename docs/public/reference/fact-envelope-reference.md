@@ -266,6 +266,19 @@ credentials, screenshots, private URLs, or token values. Live Grafana facts are
 reported provider evidence for no-IaC fallback, drift, and freshness validation;
 they do not replace current declared source-controlled evidence.
 
+Live Prometheus and Mimir observed metadata is emitted by the
+Prometheus/Mimir collector package as `observability.source_instance`,
+`observability.observed_target`, `observability.observed_rule`, and
+`observability.coverage_warning` facts. These facts preserve provider UIDs,
+scrape pool, health, label-key lists, rule group/name/type, freshness state,
+redaction state, tenant presence, tenant fingerprints, manual-provider drift
+candidates, and bounded coverage warnings. They do not store metric samples,
+exemplars, profile data, raw PromQL, scrape target URLs, target label values,
+discovered label values, annotations, tenant IDs, tenant secrets, credentials,
+private URLs, or token values. Live metric facts are reported provider evidence
+for no-IaC fallback, drift, and freshness validation; they do not replace
+current declared source-controlled evidence.
+
 ## Promotion Rules
 
 Facts are source evidence, not automatic graph truth.

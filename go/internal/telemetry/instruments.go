@@ -99,6 +99,12 @@ type Instruments struct {
 	GrafanaRateLimited                        metric.Int64Counter
 	GrafanaRetries                            metric.Int64Counter
 	GrafanaRedactions                         metric.Int64Counter
+	PrometheusMimirProviderRequests           metric.Int64Counter
+	PrometheusMimirFactsEmitted               metric.Int64Counter
+	PrometheusMimirRateLimited                metric.Int64Counter
+	PrometheusMimirRetries                    metric.Int64Counter
+	PrometheusMimirRedactions                 metric.Int64Counter
+	PrometheusMimirStale                      metric.Int64Counter
 	ScannerWorkerClaims                       metric.Int64Counter
 	ScannerWorkerRetries                      metric.Int64Counter
 	ScannerWorkerDeadLetters                  metric.Int64Counter
@@ -363,6 +369,7 @@ type Instruments struct {
 	PagerDutyGenerationLag                 metric.Float64Histogram
 	JiraFetchDuration                      metric.Float64Histogram
 	GrafanaFetchDuration                   metric.Float64Histogram
+	PrometheusMimirFetchDuration           metric.Float64Histogram
 	ScannerWorkerQueueWaitDuration         metric.Float64Histogram
 	ScannerWorkerScanDuration              metric.Float64Histogram
 	ScannerWorkerTargetCount               metric.Int64Histogram
@@ -906,6 +913,54 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register GrafanaRedactions counter: %w", err)
+	}
+
+	inst.PrometheusMimirProviderRequests, err = meter.Int64Counter(
+		"eshu_dp_prometheus_mimir_provider_requests_total",
+		metric.WithDescription("Total Prometheus/Mimir provider requests by provider and status class"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register PrometheusMimirProviderRequests counter: %w", err)
+	}
+
+	inst.PrometheusMimirFactsEmitted, err = meter.Int64Counter(
+		"eshu_dp_prometheus_mimir_facts_emitted_total",
+		metric.WithDescription("Total live Prometheus/Mimir observability source facts emitted by provider and fact kind"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register PrometheusMimirFactsEmitted counter: %w", err)
+	}
+
+	inst.PrometheusMimirRateLimited, err = meter.Int64Counter(
+		"eshu_dp_prometheus_mimir_rate_limited_total",
+		metric.WithDescription("Total Prometheus/Mimir provider requests that ended rate limited by provider"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register PrometheusMimirRateLimited counter: %w", err)
+	}
+
+	inst.PrometheusMimirRetries, err = meter.Int64Counter(
+		"eshu_dp_prometheus_mimir_retries_total",
+		metric.WithDescription("Total Prometheus/Mimir provider retry attempts by provider"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register PrometheusMimirRetries counter: %w", err)
+	}
+
+	inst.PrometheusMimirRedactions, err = meter.Int64Counter(
+		"eshu_dp_prometheus_mimir_redactions_total",
+		metric.WithDescription("Total live Prometheus/Mimir metadata redactions by provider and bounded reason"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register PrometheusMimirRedactions counter: %w", err)
+	}
+
+	inst.PrometheusMimirStale, err = meter.Int64Counter(
+		"eshu_dp_prometheus_mimir_stale_total",
+		metric.WithDescription("Total live Prometheus/Mimir stale observations by provider"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register PrometheusMimirStale counter: %w", err)
 	}
 
 	inst.ScannerWorkerClaims, err = meter.Int64Counter(
@@ -1480,6 +1535,17 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register GrafanaFetchDuration histogram: %w", err)
+	}
+
+	prometheusMimirBuckets := []float64{0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60}
+	inst.PrometheusMimirFetchDuration, err = meter.Float64Histogram(
+		"eshu_dp_prometheus_mimir_fetch_duration_seconds",
+		metric.WithDescription("Prometheus/Mimir observed metadata fetch duration by provider and status class"),
+		metric.WithUnit("s"),
+		metric.WithExplicitBucketBoundaries(prometheusMimirBuckets...),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register PrometheusMimirFetchDuration histogram: %w", err)
 	}
 
 	scannerWorkerWaitBuckets := []float64{0.001, 0.01, 0.1, 1, 5, 10, 30, 60, 300, 900, 1800, 3600, 21600}

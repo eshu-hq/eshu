@@ -66,6 +66,12 @@
 // duration instruments. Instance IDs, titles, datasource names, URLs, query
 // models, contacts, notification routes, and token values stay out of metric
 // labels.
+//
+// Prometheus/Mimir source collection registers SpanPrometheusMimirObserve,
+// SpanPrometheusMimirFetch, provider request, fact emitted, rate-limit, retry,
+// redaction, stale, and fetch duration instruments. Instance IDs, scrape target
+// URLs, label values, raw PromQL, annotations, tenant IDs, tenant headers, and
+// token values stay out of metric labels.
 // The supply-chain reducer registers SupplyChainSuppressionDecisions
 // (eshu_dp_supply_chain_suppression_decisions_total), labeled by reducer
 // domain and outcome state (active, not_affected, accepted_risk,

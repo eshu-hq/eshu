@@ -133,6 +133,12 @@ gauge when a shared-acceptance observer is available.
 | `GrafanaRateLimited` | `eshu_dp_grafana_rate_limited_total` |
 | `GrafanaRetries` | `eshu_dp_grafana_retries_total` |
 | `GrafanaRedactions` | `eshu_dp_grafana_redactions_total` |
+| `PrometheusMimirProviderRequests` | `eshu_dp_prometheus_mimir_provider_requests_total` |
+| `PrometheusMimirFactsEmitted` | `eshu_dp_prometheus_mimir_facts_emitted_total` |
+| `PrometheusMimirRateLimited` | `eshu_dp_prometheus_mimir_rate_limited_total` |
+| `PrometheusMimirRetries` | `eshu_dp_prometheus_mimir_retries_total` |
+| `PrometheusMimirRedactions` | `eshu_dp_prometheus_mimir_redactions_total` |
+| `PrometheusMimirStale` | `eshu_dp_prometheus_mimir_stale_total` |
 | `ScannerWorkerClaims` | `eshu_dp_scanner_worker_claims_total` |
 | `ScannerWorkerRetries` | `eshu_dp_scanner_worker_retries_total` |
 | `ScannerWorkerDeadLetters` | `eshu_dp_scanner_worker_dead_letters_total` |
@@ -202,6 +208,7 @@ module prefixes across generations.
 | `PagerDutyGenerationLag` | `eshu_dp_pagerduty_generation_lag_seconds` | 0.01–60 s |
 | `JiraFetchDuration` | `eshu_dp_jira_fetch_duration_seconds` | 0.01–60 s |
 | `GrafanaFetchDuration` | `eshu_dp_grafana_fetch_duration_seconds` | 0.01–60 s |
+| `PrometheusMimirFetchDuration` | `eshu_dp_prometheus_mimir_fetch_duration_seconds` | 0.01–60 s |
 | `ScannerWorkerQueueWaitDuration` | `eshu_dp_scanner_worker_queue_wait_seconds` | 0.001–21600 s |
 | `ScannerWorkerScanDuration` | `eshu_dp_scanner_worker_scan_duration_seconds` | 0.05–1200 s |
 | `ScannerWorkerTargetCount` | `eshu_dp_scanner_worker_target_count` (Int64) | 1–100000 targets |
@@ -289,7 +296,8 @@ Pipeline spans: `SpanCollectorObserve`, `SpanCollectorStream`, `SpanScopeAssign`
 `SpanTerraformStateParserStream`, `SpanTerraformStateFactEmitBatch`,
 `SpanTerraformStateCoordinatorDone`, `SpanWebhookHandle`, `SpanWebhookStore`,
 `SpanOCIRegistryScan`, `SpanOCIRegistryAPICall`, `SpanPagerDutyObserve`,
-`SpanPagerDutyFetch`, `SpanJiraObserve`, and `SpanJiraFetch`.
+`SpanPagerDutyFetch`, `SpanJiraObserve`, `SpanJiraFetch`,
+`SpanPrometheusMimirObserve`, and `SpanPrometheusMimirFetch`.
 
 Jira fetch spans use bounded integer attributes for page and output counts:
 `jira.search_pages`, `jira.changelog_pages`, `jira.remote_link_pages`,
