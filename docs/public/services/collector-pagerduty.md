@@ -80,9 +80,12 @@ PagerDuty evidence stays provider-reported:
 - Related change-event summary, source, services, links, and timestamp stay on
   `change.record`.
 
-Reducers and read models must later decide whether this evidence matches a
-known deployment, image, commit, pull request, or Jira work item. Missing Jira
-links are normal for on-call incidents and must not block PagerDuty collection.
+The incident-context read model can present this provider evidence with
+explicit missing slots for deployment, image, commit, pull request, and Jira
+work-item links. Reducers and enrichment collectors must prove any non-missing
+runtime, code, pull-request, or work-item edge before the slot is promoted.
+Missing Jira links are normal for on-call incidents and must not block
+PagerDuty collection.
 
 ## Observability
 

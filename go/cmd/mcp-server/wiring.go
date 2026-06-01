@@ -198,6 +198,10 @@ func newMCPQueryRouter(
 			Readiness:                query.NewPostgresSupplyChainImpactReadinessStore(db),
 			Profile:                  queryProfile,
 		},
+		Incident: &query.IncidentHandler{
+			Context: query.NewPostgresIncidentContextStore(db),
+			Profile: queryProfile,
+		},
 		Status: &query.StatusHandler{
 			Neo4j:        neo4jReader,
 			DB:           db,

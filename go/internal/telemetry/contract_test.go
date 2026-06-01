@@ -128,6 +128,7 @@ func TestSpanNames(t *testing.T) {
 		"query.supply_chain_security_alerts",
 		"query.sbom_attestation_attachments",
 		"query.advisory_evidence",
+		"query.incident_context",
 		"vulnerability_intelligence.observe",
 		"vulnerability_intelligence.fetch",
 		"security_alert.observe",

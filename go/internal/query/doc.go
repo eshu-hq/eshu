@@ -62,4 +62,10 @@
 // installed_version_missing, installed_version_malformed). Eshu does not
 // open pull requests from this block; it is strictly advisory so callers
 // can decide whether and how to upgrade.
+//
+// Incident-context reads expose PagerDuty incident source facts as bounded
+// packets with provider state, timeline events, fallback service/time change
+// candidates, and explicit missing evidence slots. They do not call provider
+// APIs or promote runtime, image, commit, pull-request, or work-item links
+// without separate evidence.
 package query

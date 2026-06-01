@@ -336,6 +336,19 @@ func resolveRoute(toolName string, args map[string]any) (*route, error) {
 			"intent":      str(args, "intent"),
 			"question":    str(args, "question"),
 		}}, nil
+	case "get_incident_context":
+		incidentID := str(args, "provider_incident_id")
+		if incidentID == "" {
+			incidentID = str(args, "incident_id")
+		}
+		return &route{method: "GET", path: "/api/v0/incidents/" + url.PathEscape(incidentID) + "/context", query: map[string]string{
+			"provider":   str(args, "provider"),
+			"scope_id":   str(args, "scope_id"),
+			"service_id": str(args, "service_id"),
+			"since":      str(args, "since"),
+			"until":      str(args, "until"),
+			"limit":      intString(args, "limit", 25),
+		}}, nil
 
 	// ── Content ──
 	case "get_file_content":
