@@ -153,6 +153,13 @@ const (
 	// bare_id, or correlation_anchor. It lets an operator answer "which identity
 	// path proved the covered edges, and is exact coverage shrinking?" at 3 AM.
 	MetricDimensionResolutionMode = "resolution_mode"
+	// MetricDimensionEndpointKind labels the security-group endpoint node
+	// materialization counter (eshu_dp_security_group_endpoint_nodes_total) with
+	// the closed enum of network-reachability endpoint node kinds the reducer
+	// materializes: cidr_block or prefix_list. Cardinality is bounded by that
+	// closed set so an operator can answer "are CIDR or prefix-list endpoint nodes
+	// landing, and did a generation produce zero?" at 3 AM.
+	MetricDimensionEndpointKind = "endpoint_kind"
 )
 
 // Span names define the stable data-plane tracing contract.

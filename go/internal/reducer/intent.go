@@ -147,6 +147,20 @@ const (
 	// provenance-only and fabricate no edge. See issue #388 and
 	// docs/internal/design/388-kubernetes-correlation-readmodel.md.
 	DomainKubernetesCorrelationMaterialization Domain = "kubernetes_correlation_materialization"
+	// DomainSecurityGroupCidrMaterialization materializes the CIDR and managed
+	// prefix-list source endpoints of aws_security_group_rule facts into canonical
+	// CidrBlock and PrefixList graph nodes. CidrBlock nodes are keyed by a
+	// deterministic hash of the canonicalized (masked, lowercased) CIDR plus its
+	// address family, with an is_internet property for 0.0.0.0/0 and ::/0;
+	// PrefixList nodes are keyed by the prefix-list id scoped to its account and
+	// region. It is the endpoint-node substrate the #1135 network-reachability edge
+	// projection (PR2b) joins against; referenced-security-group endpoints already
+	// have CloudResource nodes and are not re-materialized here. After the node
+	// write succeeds it publishes the GraphProjectionKeyspaceSecurityGroupEndpointUID
+	// / GraphProjectionPhaseCanonicalNodesCommitted readiness phase so the later
+	// ALLOWS_INGRESS/EGRESS edge slice gates exactly like
+	// DomainAWSRelationshipMaterialization (#805). See issue #1135.
+	DomainSecurityGroupCidrMaterialization Domain = "security_group_cidr_materialization"
 )
 
 // IntentStatus captures the durable reducer intent lifecycle state.

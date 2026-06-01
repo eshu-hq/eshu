@@ -130,6 +130,14 @@ type Instruments struct {
 	// operator see live-workload->image edge throughput, and a generation that
 	// materialized zero edges, at 3 AM.
 	KubernetesCorrelationEdges metric.Int64Counter
+	// SecurityGroupEndpointNodes counts canonical CidrBlock and PrefixList graph
+	// nodes committed by the security-group endpoint materialization reducer
+	// (issue #1135 PR2a). Label: endpoint_kind (cidr_block / prefix_list). It lets
+	// an operator see how many network-reachability endpoint nodes one generation
+	// committed — the substrate the later ALLOWS_INGRESS/EGRESS edge slice resolves
+	// against — and spot a generation that produced zero endpoints (every rule
+	// named a referenced group, or had an unparseable CIDR) at 3 AM.
+	SecurityGroupEndpointNodes metric.Int64Counter
 	SBOMAttestationAttachments metric.Int64Counter
 	SupplyChainImpactFindings  metric.Int64Counter
 	// SupplyChainSuppressionDecisions counts reducer suppression-state
@@ -889,6 +897,14 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register KubernetesCorrelationEdges counter: %w", err)
+	}
+
+	inst.SecurityGroupEndpointNodes, err = meter.Int64Counter(
+		"eshu_dp_security_group_endpoint_nodes_total",
+		metric.WithDescription("Total canonical CidrBlock and PrefixList graph nodes committed by endpoint kind"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register SecurityGroupEndpointNodes counter: %w", err)
 	}
 
 	inst.SBOMAttestationAttachments, err = meter.Int64Counter(
@@ -2224,6 +2240,12 @@ func AttrCoverageSignal(v string) attribute.KeyValue {
 // coverage COVERS edge projection counter (arn / bare_id / correlation_anchor).
 func AttrResolutionMode(v string) attribute.KeyValue {
 	return attribute.String(MetricDimensionResolutionMode, v)
+}
+
+// AttrEndpointKind returns an endpoint_kind attribute for the security-group
+// endpoint node materialization counter (cidr_block / prefix_list).
+func AttrEndpointKind(v string) attribute.KeyValue {
+	return attribute.String(MetricDimensionEndpointKind, v)
 }
 
 // AttrDriftKind returns a drift_kind attribute for drift-classification

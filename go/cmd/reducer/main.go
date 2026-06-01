@@ -185,6 +185,7 @@ func buildReducerService(
 	cloudResourceNodeWriter := sourcecypher.NewCloudResourceNodeWriter(neo4jExec, neo4jBatchSize(getenv))
 	cloudResourceEdgeWriter := sourcecypher.NewCloudResourceEdgeWriter(neo4jExec, neo4jBatchSize(getenv))
 	kubernetesWorkloadNodeWriter := sourcecypher.NewKubernetesWorkloadNodeWriter(neo4jExec, neo4jBatchSize(getenv))
+	securityGroupEndpointNodeWriter := sourcecypher.NewSecurityGroupEndpointNodeWriter(neo4jExec, neo4jBatchSize(getenv))
 	kubernetesCorrelationEdgeWriter := sourcecypher.NewKubernetesCorrelationEdgeWriter(neo4jExec, neo4jBatchSize(getenv))
 	observabilityCoverageEdgeWriter := sourcecypher.NewObservabilityCoverageEdgeWriter(neo4jExec, neo4jBatchSize(getenv))
 	relationshipStore := postgres.NewRelationshipStore(database)
@@ -322,6 +323,7 @@ func buildReducerService(
 		CloudResourceNodeWriter:         cloudResourceNodeWriter,
 		CloudResourceEdgeWriter:         cloudResourceEdgeWriter,
 		KubernetesWorkloadNodeWriter:    kubernetesWorkloadNodeWriter,
+		SecurityGroupEndpointNodeWriter: securityGroupEndpointNodeWriter,
 		KubernetesCorrelationEdgeWriter: kubernetesCorrelationEdgeWriter,
 		ObservabilityCoverageEdgeWriter: observabilityCoverageEdgeWriter,
 		ContainerImageIdentityWriter: reducer.PostgresContainerImageIdentityWriter{

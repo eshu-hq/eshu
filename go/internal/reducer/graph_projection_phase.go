@@ -36,6 +36,15 @@ const (
 	// canonical-nodes-committed phase exactly as the AWS relationship edge gates on
 	// GraphProjectionKeyspaceCloudResourceUID (#805).
 	GraphProjectionKeyspaceKubernetesWorkloadUID GraphProjectionKeyspace = "kubernetes_workload_uid"
+	// GraphProjectionKeyspaceSecurityGroupEndpointUID represents the canonical
+	// security-group network-reachability endpoint identity domain: the CidrBlock
+	// and PrefixList nodes a security_group_rule fact's source endpoint
+	// materializes (issue #1135 PR2a). The ALLOWS_INGRESS/EGRESS edge slice
+	// (#1135 PR2b) gates its edge projection on this keyspace's
+	// canonical-nodes-committed phase exactly as the AWS relationship edge gates on
+	// GraphProjectionKeyspaceCloudResourceUID (#805), so edges never resolve
+	// against endpoint nodes that have not committed.
+	GraphProjectionKeyspaceSecurityGroupEndpointUID GraphProjectionKeyspace = "security_group_endpoint_uid"
 	// GraphProjectionKeyspaceWebhookEventUID represents the canonical webhook
 	// event identity domain.
 	GraphProjectionKeyspaceWebhookEventUID GraphProjectionKeyspace = "webhook_event_uid"

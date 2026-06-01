@@ -126,6 +126,7 @@ var uidConstraintLabels = []string{
 	"Annotation",
 	"ArgoCDApplication",
 	"ArgoCDApplicationSet",
+	"CidrBlock",
 	"Class",
 	"CloudResource",
 	"CloudFormationOutput",
@@ -162,6 +163,7 @@ var uidConstraintLabels = []string{
 	"PackageRegistryPackage",
 	"PackageRegistryPackageVersion",
 	"PackageVersion",
+	"PrefixList",
 	"Property",
 	"Protocol",
 	"ProtocolImplementation",
@@ -230,6 +232,15 @@ var schemaPerformanceIndexes = []string{
 	"CREATE INDEX cloud_resource_arn IF NOT EXISTS FOR (r:CloudResource) ON (r.arn)",
 	"CREATE INDEX cloud_resource_resource_id IF NOT EXISTS FOR (r:CloudResource) ON (r.resource_id)",
 	"CREATE INDEX cloud_resource_type IF NOT EXISTS FOR (r:CloudResource) ON (r.resource_type)",
+	// CidrBlock and PrefixList lookup indexes back the security-group
+	// network-reachability edge join (issue #1135 PR2b) and the internet-exposure
+	// read. The edge projection resolves a rule's CIDR/prefix endpoint to a
+	// canonical uid (already indexed by the generated uid uniqueness constraint),
+	// but graph-backed reads anchor on the human-readable cidr / prefix_list_id and
+	// the is_internet flag. Without these, those reads fall back to a label scan.
+	"CREATE INDEX cidr_block_cidr IF NOT EXISTS FOR (c:CidrBlock) ON (c.cidr)",
+	"CREATE INDEX cidr_block_is_internet IF NOT EXISTS FOR (c:CidrBlock) ON (c.is_internet)",
+	"CREATE INDEX prefix_list_prefix_list_id IF NOT EXISTS FOR (p:PrefixList) ON (p.prefix_list_id)",
 	"CREATE INDEX tf_resource_type IF NOT EXISTS FOR (r:TerraformResource) ON (r.resource_type)",
 	// Indexes that back the infrastructure resource aggregate (#690)
 	// grouped-count hot path on the TerraformResource label (the largest

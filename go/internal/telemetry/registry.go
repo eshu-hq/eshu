@@ -50,6 +50,7 @@ var metricDimensionKeys = []string{
 	MetricDimensionJoinMode,
 	MetricDimensionCoverageSignal,
 	MetricDimensionResolutionMode,
+	MetricDimensionEndpointKind,
 }
 
 var spanNames = []string{
