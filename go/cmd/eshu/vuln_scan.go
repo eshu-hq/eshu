@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"io"
 	"net/url"
 	"os"
 	"strings"
@@ -41,6 +40,7 @@ type vulnScanRepoResult struct {
 	Readiness      map[string]any       `json:"readiness,omitempty"`
 	ScopePlan      *vulnScanScopePlan   `json:"scope_plan,omitempty"`
 	Performance    *vulnScanPerformance `json:"scan_performance,omitempty"`
+	Report         *vulnScanReport      `json:"report,omitempty"`
 	Warnings       []string             `json:"warnings,omitempty"`
 	Evidence       vulnScanRepoEvidence `json:"evidence"`
 }
@@ -187,6 +187,9 @@ func runVulnScanRepo(cmd *cobra.Command, args []string) error {
 
 	scopeErr := applyVulnScanScope(&result)
 	recordVulnScanPerformance(&result, startedAt, opts.Scan.Target.Root)
+	if scopeErr == nil {
+		scopeErr = vulnScanExitErrorForResult(result)
+	}
 	return finishVulnScanRepoAfterCleanup(cmd, opts, result, findings.Truth, scopeErr, closeLocalRuntime)
 }
 
@@ -353,11 +356,13 @@ func finishVulnScanRepo(
 	if truth == nil {
 		truth = scanTruth("stale", "partial", opts.Scan.Profile, currentGraphBackend())
 	}
+	report := buildVulnScanReport(result, vulnScanNow())
+	result.Report = &report
 	envelope := vulnScanRepoEnvelope{
 		Data:  result,
 		Truth: truth,
 	}
-	if err != nil {
+	if err != nil && !isVulnScanFindingsExit(err) {
 		envelope.Error = &vulnScanRepoError{Message: err.Error()}
 	}
 	if opts.Scan.JSON {
@@ -367,6 +372,11 @@ func finishVulnScanRepo(
 		return err
 	}
 	if err != nil {
+		if isVulnScanScannerExit(err) {
+			if renderErr := renderVulnScanRepoSummary(cmd.OutOrStdout(), result); renderErr != nil {
+				return renderErr
+			}
+		}
 		return err
 	}
 	return renderVulnScanRepoSummary(cmd.OutOrStdout(), result)
@@ -400,54 +410,4 @@ func vulnScanHasConfiguredServiceURL(cmd *cobra.Command) bool {
 		return true
 	}
 	return strings.TrimSpace(os.Getenv("ESHU_SERVICE_URL")) != ""
-}
-
-func renderVulnScanRepoSummary(w io.Writer, result vulnScanRepoResult) error {
-	mode := result.ScopeMode
-	if mode == "" {
-		mode = vulnScanScopeModeScoped
-	}
-	if _, err := fmt.Fprintf(w, "Vulnerability scan (%s): %s\n", mode, result.ReadinessState); err != nil {
-		return err
-	}
-	if _, err := fmt.Fprintf(w, "Repository: %s\n", result.RepositoryID); err != nil {
-		return err
-	}
-	if _, err := fmt.Fprintf(w, "Findings: %d", result.Count); err != nil {
-		return err
-	}
-	if result.Truncated {
-		if _, err := fmt.Fprint(w, " (truncated)"); err != nil {
-			return err
-		}
-	}
-	if _, err := fmt.Fprintln(w); err != nil {
-		return err
-	}
-	if plan := result.ScopePlan; plan != nil {
-		if _, err := fmt.Fprintf(
-			w,
-			"Scope: observed_dependency_facts=%d advisory_facts=%d package_registry_facts=%d freshness=%s\n",
-			plan.ObservedDependencyFacts, plan.AdvisoryFacts, plan.PackageRegistryFacts, defaultString(plan.Freshness, "unknown"),
-		); err != nil {
-			return err
-		}
-	}
-	if perf := result.Performance; perf != nil {
-		if _, err := fmt.Fprintf(
-			w,
-			"Performance: wall_time_ms=%d repo_files=%d repo_bytes=%d stop=%s\n",
-			perf.WallTimeMS, perf.RepositoryFileCount, perf.RepositorySizeBytes, perf.StopThreshold,
-		); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func defaultString(value, fallback string) string {
-	if strings.TrimSpace(value) == "" {
-		return fallback
-	}
-	return value
 }

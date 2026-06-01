@@ -397,50 +397,32 @@ This keeps the developer experience simple while preserving the accuracy rule:
 the CLI can be convenient, but it must not produce a result that means
 something different from the hosted graph.
 
-The current `eshu vuln-scan repo [path]` implementation covers the command
-registration, local root resolution, local service attach/start when no API is
-configured, scan readiness proof, repository-scoped impact read, JSON envelope,
-concise terminal summary, and fail-closed incomplete target behavior.
-Advisory source cache lifecycle is implemented for vulnerability-intelligence
-source collection and exposed through readiness metadata. Package metadata
-cache freshness and fixture-backed vulnerable/ready-zero runtime proof remain
-implementation gates before this is a complete standalone vulnerability scan
-workflow.
+The current `eshu vuln-scan repo [path]` implementation covers local root
+resolution, local service attach/start when no API is configured, scan
+readiness proof, repository-scoped impact reads, JSON envelopes, terminal
+summaries, and fail-closed incomplete target behavior. Advisory source cache
+state is exposed through readiness metadata. Package metadata cache freshness
+and fixture-backed vulnerable/ready-zero runtime proof remain gates before this
+is a complete standalone vulnerability scan workflow.
 
 The command runs in scoped mode by default. The CLI derives its scope plan
 from the readiness envelope of `GET /api/v0/supply-chain/impact/findings` for
 the scanned repository. Scoped mode adds one CLI-side fail-closed guard on
 top of the server's classification: when the envelope's aggregate
-`freshness` is `stale` and the server still returned a `ready_*` state,
-scoped mode downgrades to `evidence_incomplete` and records
-`advisory_cache_stale` so the operator never gets a clean answer backed by
-stale source data. Per-source entries in `readiness.source_snapshots[]` are
-surfaced in `scope_plan.source_snapshots` for operator visibility only,
-because the readiness store currently aggregates source snapshots globally
-(see the `vulnerability_source_snapshot` CTE in
-`go/internal/query/supply_chain_impact_readiness_postgres.go`) rather than
-filtering by the requested scope; gating scoped fail-closed on those entries
-would let an unrelated stale ecosystem, for example a PyPI snapshot, flip an
-otherwise-ready npm-only repo scan.
+`freshness` is `stale` or `unknown` and the server still returned a
+`ready_*` state, scoped mode downgrades to `evidence_incomplete` and records
+`advisory_cache_stale` or `advisory_cache_freshness_unknown` so the operator
+never gets a clean answer backed by stale or unclassified source data.
+Per-source entries in `readiness.source_snapshots[]` are surfaced in
+`scope_plan.source_snapshots` for operator visibility only. The readiness store
+aggregates those snapshots globally rather than by requested scope, so they do
+not gate scoped fail-closed behavior.
 
-The scope plan exposes:
-
-- `observed_dependency_facts`: `evidence_sources[package.consumption].fact_count`
-- `advisory_facts`: `evidence_sources[vulnerability.advisory].fact_count`
-- `package_registry_facts`: `evidence_sources[package.registry].fact_count`;
-  the readiness store only emits this count when the request anchors on a
-  specific `package_id`, so `vuln-scan repo`, which anchors on
-  `repository_id`, reports `0` here.
-- `freshness`: `readiness.freshness`, the worst-of per-family aggregate.
-- `stop_threshold`: the readiness state the CLI returned to the operator,
-  either the server verdict or the scoped downgrade when applicable.
-- `source_snapshots`: diagnostic-only per-source cache state from the
-  readiness envelope, not gated on.
-
-The `*_facts` fields are counts of source facts as reported by
-`evidence_sources[].fact_count`, not counts of unique packages or advisory
-sources. A single dependency or advisory observation can contribute multiple
-facts.
+The scope plan exposes observed dependency, advisory, and package-registry fact
+counts from `evidence_sources[].fact_count`, the aggregate freshness, the stop
+threshold, and diagnostic-only source snapshots. `package_registry_facts` is
+usually `0` for repository-scoped runs because registry metadata is counted only
+when the request anchors on a specific `package_id`.
 
 Operators who explicitly want broader advisory or package coverage can pass
 `--broad`. In broad mode the CLI surfaces `data.scope_mode = "broad"`, sets
@@ -458,25 +440,35 @@ run: `started_at`, `completed_at`, `wall_time_ms`, `repository_size_bytes`,
 repository to see how much advisory coverage the scoped guard trimmed and
 where the scan stopped.
 
+The scanner-style parent report lives at `data.report` in JSON mode. Its
+schema version is `eshu.vulnerability_report.v1`, and it keeps the same
+readiness envelope, target/package/image/SBOM context, affected-version fields,
+evidence fact handles, missing-evidence reasons, unsupported-target coverage,
+and remediation metadata separate. Provider payload fields are not copied into
+the report. SARIF and VEX-style statements remain separate export formats
+tracked outside this parent envelope.
+
 No-Regression Evidence: `go test ./cmd/eshu -run
+'TestRunVulnScanRepo(JSONReportPreservesScannerContractAndFindingsExit|JSONReportPreservesTargetPackageImageAndVersionContext|ExitCodesPreserveReadinessClasses|ScopedModeFailsClosedOnUnknownFreshness|TextSummaryRendersBeforeFindingsExit)|TestRenderVulnScanRepoSummaryIncludesReadinessEvidenceAndRemediation'
+-count=1` proves the stable JSON report schema, target/package/image and
+version-context mapping, evidence fact handles, remediation allowlist,
+findings/non-ready/unsupported exit codes, terminal summary rendering before
+scanner exit, and scoped fail-closed handling for unknown freshness.
+`go test ./cmd/eshu -run
 'TestVulnScanRepoCommandRegistersBroadFlag|TestRunVulnScanRepoDefaultScopedModeAttachesScopePlanAndPerformance|TestRunVulnScanRepoScopedModeFailsClosedOnStaleAdvisoryCache|TestRunVulnScanRepoScopedModeIgnoresGlobalStaleSnapshotsWhenEnvelopeFresh|TestRunVulnScanRepoScopedModePassesThroughServerTargetIncomplete|TestRunVulnScanRepoBroadModeSkipsScopeGuards|TestRunVulnScanRepoScopedModeSurfacesEvidenceIncompleteWhenNoOwnedDeps'
--count=1` proves the `--broad` flag registration, default scoped scope-plan
-and scan-performance attachment with `package_registry_facts == 0` for a
-repo-only scope, the envelope-freshness fail-closed guard, the no-regression
-that an unrelated globally-stale source snapshot does not flip a fresh
-repo-only scan, server `target_incomplete` pass-through, broad-mode
-pass-through with the scoped guard explicitly skipped, and scoped
-pass-through when the server already classifies the response as
-`evidence_incomplete`. The full `go test ./cmd/eshu -count=1` suite
-continues to pass with the updated findings-stub responses that mirror the
-production readiness envelope.
+-count=1` continues to prove the `--broad` flag, scope plan, performance
+block, stale-freshness guard, source-snapshot no-regression, server
+`target_incomplete` pass-through, broad mode, and server-classified
+`evidence_incomplete` pass-through. The full `go test ./cmd/eshu -count=1`
+suite continues to pass with findings stubs that mirror the production
+readiness envelope.
 
 No-Observability-Change: the scope plan, performance block, and
-`--broad` flag are CLI-only orchestration over the existing
-`/api/v0/supply-chain/impact/findings` readiness envelope and the existing
-`query.supply_chain_impact_findings` span. No new HTTP route, MCP tool,
-metric instrument, span, queue, reducer lane, graph write, or scanner worker
-is introduced.
+`--broad` flag, report envelope, and scanner exit-code mapping are CLI-only
+orchestration over the existing `/api/v0/supply-chain/impact/findings`
+readiness envelope and the existing `query.supply_chain_impact_findings`
+span. No new HTTP route, MCP tool, metric instrument, span, queue, reducer
+lane, graph write, or scanner worker is introduced.
 
 Performance Evidence: the focused CLI tests above run under 0.5s on Go
 1.26.3 darwin/arm64 with the local authoritative-owner stubs and synthetic
@@ -485,37 +477,21 @@ readiness envelopes (`package.consumption.fact_count=4`,
 snapshot). The scoped fail-closed path is exercised against an envelope
 whose aggregate `freshness=stale`; the CLI downgrades to
 `evidence_incomplete`, records `advisory_cache_stale` in
-`scope_plan.missing_evidence`, and exits non-zero. Repository size, file
-count, and wall-clock time on the live `eshu vuln-scan repo` workflow are
-exposed through `data.scan_performance` for operators to record
-per-environment ceilings; the focused tests pin wall-time only as a
-non-negative integer because the stubbed scan clock advances one second per
-call.
+`scope_plan.missing_evidence`, and exits non-zero. The report-contract tests
+also exercise aggregate `freshness=unknown`, which downgrades to
+`evidence_incomplete`, records `advisory_cache_freshness_unknown`, and exits
+non-zero. Repository size, file count, and wall-clock time on the live
+`eshu vuln-scan repo` workflow are exposed through `data.scan_performance` for
+operators to record per-environment ceilings; the focused tests pin wall-time
+only as a non-negative integer because the stubbed scan clock advances one
+second per call.
 
 ## Acceptance Gates
 
-Security intelligence work is ready only when all applicable gates pass:
-
-- source facts are collected with provenance and freshness;
-- reducer findings require owned evidence anchors;
-- readiness distinguishes zero findings from missing coverage;
-- API and MCP calls are scoped, bounded, and observable;
-- private provider-alert comparison matches or explains mismatches without
-  committing private data;
-- remote Compose proves clean-volume and preserved-volume behavior;
-- Kubernetes rollout proves resource settings, pprof access, logs, queue drain,
-  retries, and no dead letters;
-- performance evidence records target count, fact count, queue timing,
-  reducer-domain timing, memory, CPU, and stop thresholds.
-
-The final release-cut gate that ties these proofs together is described in
-[Security Intelligence Release Gate](security-intelligence-release-gate.md).
-The harness at `scripts/security_intelligence_release_gate.sh` aggregates the
-required evidence, including commit, image tag candidate, NornicDB pin, schema
-state, fixture parity, focused security-intelligence tests, remote Compose
-runtime state, the documented supply-chain HTTP API readback, and Kubernetes or
-EKS snapshots, into a single evidence document before any image cut is
-accepted. The MCP tools listed above share the same reducer-owned facts as the
-HTTP API, so the harness reads the HTTP routes that back them. Operators who
-want explicit MCP-side proof drive `eshu mcp` or their MCP client separately
-and attach the transcript to the same evidence directory.
+Security intelligence work is ready only when applicable source-fact,
+reducer-readiness, API/MCP scope, private provider-parity, remote Compose,
+Kubernetes, and performance gates pass. The release-cut gate that ties these
+proofs together is [Security Intelligence Release Gate](security-intelligence-release-gate.md).
+`scripts/security_intelligence_release_gate.sh` aggregates commit, image,
+backend, schema, fixture, API readback, remote Compose, and rollout snapshots
+into one evidence document before an image cut is accepted.

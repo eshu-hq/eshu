@@ -86,8 +86,10 @@ services.
 The command runs in scoped mode by default: the scope plan is derived from
 the readiness envelope of `/api/v0/supply-chain/impact/findings` for the
 selected repository, and the CLI downgrades a `ready_*` verdict to
-`evidence_incomplete` (`advisory_cache_stale`) when the envelope's aggregate
-`freshness` is `stale`. Per-source entries in `readiness.source_snapshots[]`
+`evidence_incomplete` when the envelope's aggregate `freshness` is `stale`
+(`advisory_cache_stale`) or unknown
+(`advisory_cache_freshness_unknown`). Per-source entries in
+`readiness.source_snapshots[]`
 are surfaced for operator visibility only; they are aggregated globally by
 the server and not used to gate scoped fail-closed behavior. Pass `--broad`
 to skip that guard and accept advisory/package coverage beyond observed
@@ -102,6 +104,100 @@ mode, and the readiness state the scan stopped at. The
 advisory sources. `package_registry_facts` is typically `0` for `vuln-scan
 repo` because the readiness store only counts registry metadata when the
 request is anchored on a specific `package_id`.
+
+With `--json`, `eshu vuln-scan repo` returns the normal Eshu envelope and a
+stable scanner report at `data.report`. The report schema version is
+`eshu.vulnerability_report.v1`; it includes a summary, readiness state,
+freshness, missing evidence, unsupported targets, evidence-source counts,
+sanitized finding rows, target/package/image/SBOM context, evidence fact
+handles, remediation metadata, the scope plan, and scan-performance evidence.
+The raw reducer-owned findings remain in `data.findings` so automation can
+keep using the API/MCP envelope directly.
+
+Exit codes are part of the scanner contract:
+
+| Code | Meaning |
+| --- | --- |
+| `0` | `ready_zero_findings`: required evidence is ready and no reducer-owned findings were returned. |
+| `3` | `ready_with_findings`: reducer-owned findings are present. |
+| `4` | Evidence is not cleanly ready: `not_configured`, `target_incomplete`, `evidence_incomplete`, or `readiness_unavailable`. |
+| `5` | `unsupported`: Eshu observed target evidence that the matcher cannot resolve. |
+| `1` | Runtime or transport failure before Eshu can classify readiness. |
+
+Sanitized terminal summary example:
+
+```text
+Vulnerability scan (scoped): evidence_incomplete
+Repository: repo-synthetic-local
+Findings: 0
+Readiness: state=evidence_incomplete freshness=unknown
+Missing evidence: advisory_cache_freshness_unknown
+Scope: observed_dependency_facts=2 advisory_facts=80 package_registry_facts=0 freshness=unknown
+Performance: wall_time_ms=1042 repo_files=24 repo_bytes=8192 stop=evidence_incomplete
+```
+
+Sanitized JSON report excerpt:
+
+```json
+{
+  "data": {
+    "readiness_state": "ready_with_findings",
+    "report": {
+      "schema_version": "eshu.vulnerability_report.v1",
+      "summary": {
+        "total_findings": 1,
+        "exit_code": 3,
+        "exit_reason": "findings_present",
+        "readiness_state": "ready_with_findings"
+      },
+      "readiness": {
+        "state": "ready_with_findings",
+        "freshness": "fresh",
+        "unsupported_targets": []
+      },
+      "findings": [
+        {
+          "finding_id": "finding-synthetic-1",
+          "cve_id": "CVE-2026-SYNTHETIC-0001",
+          "target": {
+            "repository_id": "repo-synthetic-local",
+            "subject_digest": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+            "image_ref": "registry.example.test/team/api@sha256:1111111111111111111111111111111111111111111111111111111111111111",
+            "runtime_reachability": "image_sbom"
+          },
+          "package": {
+            "ecosystem": "npm",
+            "package_id": "npm://registry.npmjs.org/synthetic-runtime-lib",
+            "package_name": "synthetic-runtime-lib",
+            "purl": "pkg:npm/synthetic-runtime-lib@2.3.4"
+          },
+          "affected": {
+            "status": "possibly_affected",
+            "observed_version": "2.3.4",
+            "requested_range": "^2.3.0",
+            "vulnerable_range": "<2.3.5",
+            "fixed_version": "2.3.5",
+            "match_reason": "range_only_manifest"
+          },
+          "remediation": {
+            "first_patched_version": "2.3.5",
+            "confidence": "partial",
+            "reason": "direct_upgrade_allowed"
+          },
+          "evidence_handles": [
+            {"kind": "fact", "id": "fact-package-synthetic"}
+          ]
+        }
+      ]
+    }
+  },
+  "error": null
+}
+```
+
+SARIF exports and VEX-style statements are intentionally separate follow-up
+formats; this command's `data.report` is the parent scanner envelope that
+future formats can consume without changing readiness semantics.
 
 `eshu vuln-scan provider-parity` is API-backed and operator-local. It requires
 `--allowlist-file`, reads provider credentials only from the named local

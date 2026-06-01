@@ -101,9 +101,7 @@ func TestRunVulnScanRepoIndexesResolvesRepoAndListsImpactFindings(t *testing.T) 
 		t.Fatalf("Set(impact-status) error = %v, want nil", err)
 	}
 
-	if err := runVulnScanRepo(cmd, []string{repoPath}); err != nil {
-		t.Fatalf("runVulnScanRepo() error = %v, want nil", err)
-	}
+	requireVulnScanExitCode(t, runVulnScanRepo(cmd, []string{repoPath}), 3)
 	if !bootstrapCalled.Load() {
 		t.Fatal("bootstrap was not called")
 	}
@@ -165,9 +163,7 @@ func TestRunVulnScanRepoReportsReadyZeroFindings(t *testing.T) {
 		t.Fatalf("Set(json) error = %v, want nil", err)
 	}
 
-	if err := runVulnScanRepo(cmd, []string{repoPath}); err != nil {
-		t.Fatalf("runVulnScanRepo() error = %v, want nil", err)
-	}
+	requireVulnScanExitCode(t, runVulnScanRepo(cmd, []string{repoPath}), 0)
 
 	var payload map[string]any
 	if err := json.Unmarshal(out.Bytes(), &payload); err != nil {
@@ -211,9 +207,7 @@ func TestRunVulnScanRepoSurfacesServerNotConfiguredReadiness(t *testing.T) {
 		t.Fatalf("Set(json) error = %v, want nil", err)
 	}
 
-	if err := runVulnScanRepo(cmd, []string{repoPath}); err != nil {
-		t.Fatalf("runVulnScanRepo() error = %v, want nil", err)
-	}
+	requireVulnScanExitCode(t, runVulnScanRepo(cmd, []string{repoPath}), 4)
 
 	var payload map[string]any
 	if err := json.Unmarshal(out.Bytes(), &payload); err != nil {
