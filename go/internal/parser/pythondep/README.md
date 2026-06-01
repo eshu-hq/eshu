@@ -57,8 +57,8 @@ Every row mirrors the npm / composer rows emitted from `go/internal/parser/json`
 ## Tests
 
 - `requirements_test.go` covers pinned, range, extras, markers, dev-scope
-  filename derivation, VCS, path, URL, editable, and malformed entries plus
-  the empty-file safety case.
+  filename derivation, PEP 508 direct references, VCS, path, URL, editable,
+  and malformed entries plus the empty-file safety case.
 - `pyproject_test.go` covers PEP 621, Poetry dependencies, Poetry group
   dependencies, Hatch envs, inline-table sources (git/path), and the
   malformed-array case.
