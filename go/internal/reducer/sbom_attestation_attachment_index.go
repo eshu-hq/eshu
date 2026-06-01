@@ -203,12 +203,17 @@ func componentEvidenceRows(components []facts.Envelope) []map[string]string {
 	out := make([]map[string]string, 0, len(components))
 	for _, component := range components {
 		out = append(out, map[string]string{
-			"component_id": payloadString(component.Payload, "component_id"),
-			"name":         payloadString(component.Payload, "name"),
-			"version":      payloadString(component.Payload, "version"),
-			"purl":         payloadString(component.Payload, "purl"),
-			"cpe":          payloadString(component.Payload, "cpe"),
-			"fact_id":      component.FactID,
+			"component_id":      payloadString(component.Payload, "component_id"),
+			"name":              payloadString(component.Payload, "name"),
+			"version":           payloadString(component.Payload, "version"),
+			"purl":              payloadString(component.Payload, "purl"),
+			"cpe":               payloadString(component.Payload, "cpe"),
+			"ecosystem":         payloadString(component.Payload, "ecosystem"),
+			"lockfile_path":     payloadString(component.Payload, "lockfile_path"),
+			"dependency_scope":  payloadString(component.Payload, "dependency_scope"),
+			"dependency_type":   payloadString(component.Payload, "dependency_type"),
+			"extraction_reason": payloadString(component.Payload, "extraction_reason"),
+			"fact_id":           component.FactID,
 		})
 	}
 	return out

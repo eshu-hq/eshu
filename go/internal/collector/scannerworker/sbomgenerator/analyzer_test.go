@@ -140,6 +140,58 @@ func TestAnalyzerSkipsComponentsMissingIdentityWithWarning(t *testing.T) {
 	}
 }
 
+func TestAnalyzerPreservesLockfileComponentAndWarningEvidence(t *testing.T) {
+	t.Parallel()
+
+	input := testClaimInput(t)
+	source := &stubSource{
+		inventory: Inventory{
+			SubjectDigest: "sha256:11111111111111111111111111111111111111111111111111111111111111aa",
+			Components: []Component{{
+				PURL:             "pkg:composer/symfony/console@v7.0.0",
+				Name:             "symfony/console",
+				Version:          "v7.0.0",
+				Type:             "library",
+				Ecosystem:        "composer",
+				EvidenceSource:   "repository_lockfile",
+				LockfilePath:     "services/api/composer.lock",
+				DependencyScope:  "packages",
+				DependencyType:   "runtime",
+				ExtractionReason: "lockfile_exact_version",
+			}},
+			Warnings: []Warning{{
+				Reason:           WarningReasonLockfileMalformed,
+				Summary:          "services/api/packages.lock.json could not be parsed as nuget lockfile evidence: unexpected EOF",
+				Ecosystem:        "nuget",
+				EvidenceSource:   "repository_lockfile",
+				LockfilePath:     "services/api/packages.lock.json",
+				ExtractionReason: "lockfile_malformed",
+			}},
+		},
+	}
+	analyzer := Analyzer{Source: source, Now: testClock}
+
+	result, err := analyzer.Analyze(context.Background(), input)
+	if err != nil {
+		t.Fatalf("Analyze() error = %v, want nil", err)
+	}
+	component := firstFact(result.Output.Facts, facts.SBOMComponentFactKind)
+	assertPayloadString(t, component.Payload, "ecosystem", "composer")
+	assertPayloadString(t, component.Payload, "evidence_source", "repository_lockfile")
+	assertPayloadString(t, component.Payload, "lockfile_path", "services/api/composer.lock")
+	assertPayloadString(t, component.Payload, "dependency_scope", "packages")
+	assertPayloadString(t, component.Payload, "dependency_type", "runtime")
+	assertPayloadString(t, component.Payload, "extraction_reason", "lockfile_exact_version")
+	warning := firstFact(result.Output.Facts, facts.SBOMWarningFactKind)
+	assertPayloadString(t, warning.Payload, "reason", WarningReasonLockfileMalformed)
+	assertPayloadString(t, warning.Payload, "ecosystem", "nuget")
+	assertPayloadString(t, warning.Payload, "lockfile_path", "services/api/packages.lock.json")
+	assertPayloadString(t, warning.Payload, "extraction_reason", "lockfile_malformed")
+	if err := scannerworker.ValidateFactOutput(input, result.Output); err != nil {
+		t.Fatalf("ValidateFactOutput() error = %v, want nil", err)
+	}
+}
+
 func TestAnalyzerNeverEmitsSilentCleanOutput(t *testing.T) {
 	t.Parallel()
 
@@ -371,6 +423,14 @@ func warningReasons(envelopes []facts.Envelope) []string {
 		}
 	}
 	return out
+}
+
+func assertPayloadString(t *testing.T, payload map[string]any, key string, want string) {
+	t.Helper()
+
+	if got, _ := payload[key].(string); got != want {
+		t.Fatalf("payload[%q] = %#v, want %q", key, payload[key], want)
+	}
 }
 
 func testClock() time.Time {

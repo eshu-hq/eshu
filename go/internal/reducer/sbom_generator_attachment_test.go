@@ -72,6 +72,57 @@ func TestScannerWorkerGeneratedSBOMFactsAdmittedByReducerAttachment(t *testing.T
 	if len(missingDecision.WarningSummaries) == 0 {
 		t.Fatal("WarningSummaries empty, want missing_subject warning surfaced through reducer attachment")
 	}
+
+	withLockfileEvidence := runSBOMGenerator(t, sbomgenerator.Inventory{
+		SubjectDigest: generatorSubjectDigest,
+		Components: []sbomgenerator.Component{{
+			PURL:             "pkg:composer/symfony/console@v7.0.0",
+			Name:             "symfony/console",
+			Version:          "v7.0.0",
+			Type:             "library",
+			Ecosystem:        "composer",
+			EvidenceSource:   "repository_lockfile",
+			LockfilePath:     "services/api/composer.lock",
+			DependencyScope:  "packages",
+			DependencyType:   "runtime",
+			ExtractionReason: "lockfile_exact_version",
+		}},
+		Warnings: []sbomgenerator.Warning{{
+			Reason:           sbomgenerator.WarningReasonLockfileMalformed,
+			Summary:          "services/api/packages.lock.json could not be parsed as nuget lockfile evidence: unexpected EOF",
+			Ecosystem:        "nuget",
+			EvidenceSource:   "repository_lockfile",
+			LockfilePath:     "services/api/packages.lock.json",
+			ExtractionReason: "lockfile_malformed",
+		}},
+	})
+	decisionsWithLockfileEvidence := reducer.BuildSBOMAttestationAttachmentDecisions(withLockfileEvidence)
+	if got, want := len(decisionsWithLockfileEvidence), 1; got != want {
+		t.Fatalf("lockfile-evidence decisions = %d, want %d", got, want)
+	}
+	lockfileDecision := decisionsWithLockfileEvidence[0]
+	if got, want := lockfileDecision.AttachmentStatus, reducer.SBOMAttachmentAttachedParseOnly; got != want {
+		t.Fatalf("lockfile-evidence AttachmentStatus = %q, want %q", got, want)
+	}
+	if got, want := len(lockfileDecision.ComponentEvidence), 1; got != want {
+		t.Fatalf("ComponentEvidence len = %d, want %d", got, want)
+	}
+	componentEvidence := lockfileDecision.ComponentEvidence[0]
+	if got, want := componentEvidence["ecosystem"], "composer"; got != want {
+		t.Fatalf("ComponentEvidence ecosystem = %q, want %q", got, want)
+	}
+	if got, want := componentEvidence["lockfile_path"], "services/api/composer.lock"; got != want {
+		t.Fatalf("ComponentEvidence lockfile_path = %q, want %q", got, want)
+	}
+	if got, want := componentEvidence["dependency_scope"], "packages"; got != want {
+		t.Fatalf("ComponentEvidence dependency_scope = %q, want %q", got, want)
+	}
+	if got, want := componentEvidence["extraction_reason"], "lockfile_exact_version"; got != want {
+		t.Fatalf("ComponentEvidence extraction_reason = %q, want %q", got, want)
+	}
+	if len(lockfileDecision.WarningSummaries) != 1 {
+		t.Fatalf("WarningSummaries = %#v, want one malformed lockfile summary", lockfileDecision.WarningSummaries)
+	}
 }
 
 func runSBOMGenerator(t *testing.T, inventory sbomgenerator.Inventory) []facts.Envelope {

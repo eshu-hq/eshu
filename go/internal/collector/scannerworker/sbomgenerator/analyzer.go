@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/scannerworker"
@@ -31,6 +32,8 @@ const (
 	WarningReasonMalformedSubjectDigest   = "malformed_subject_digest"
 	WarningReasonComponentMissingIdentity = "component_missing_identity"
 	WarningReasonNoComponentsFound        = "no_components_found"
+	WarningReasonLockfileMalformed        = "lockfile_malformed"
+	WarningReasonLockfileUnsupported      = "lockfile_unsupported"
 )
 
 // ErrUnsupportedTarget signals that the runtime Source cannot scan the claim's
@@ -72,6 +75,10 @@ type Inventory struct {
 	// Components is the bounded component list. The analyzer skips components
 	// with no PURL and no name+version identity and records a warning fact.
 	Components []Component
+	// Warnings is bounded non-fatal evidence, such as malformed lockfiles that
+	// could not produce components. The analyzer emits these as sbom.warning
+	// facts without turning the claim into a clean result.
+	Warnings []Warning
 	// ResourceUsage carries runtime-measured CPU and memory usage for this
 	// inventory read. Scanner-worker telemetry records it after validation.
 	ResourceUsage scannerworker.ResourceUsage
@@ -79,11 +86,27 @@ type Inventory struct {
 
 // Component is one component the runtime extracted from the bounded inventory.
 type Component struct {
-	PURL    string
-	Name    string
-	Version string
-	Type    string
-	BomRef  string
+	PURL             string
+	Name             string
+	Version          string
+	Type             string
+	BomRef           string
+	Ecosystem        string
+	EvidenceSource   string
+	LockfilePath     string
+	DependencyScope  string
+	DependencyType   string
+	ExtractionReason string
+}
+
+// Warning is one non-fatal analyzer warning with bounded source evidence.
+type Warning struct {
+	Reason           string
+	Summary          string
+	Ecosystem        string
+	EvidenceSource   string
+	LockfilePath     string
+	ExtractionReason string
 }
 
 // Analyzer is the bounded scanner-worker analyzer that converts one Source's
@@ -136,7 +159,7 @@ func (a Analyzer) Analyze(ctx context.Context, input scannerworker.ClaimInput) (
 	// component_missing_identity warning), plus up to one subject warning and
 	// one no_components_found warning on top of the always-emitted document
 	// fact.
-	maxPossibleFacts := 1 + len(inventory.Components) + 2
+	maxPossibleFacts := 1 + len(inventory.Components) + len(inventory.Warnings) + 2
 	if maxPossibleFacts > input.Limits.MaxFacts {
 		return scannerworker.AnalyzerResult{}, scannerworker.NewTerminalAnalyzerFailure(
 			scannerworker.FailureClassFactLimitExceeded,
@@ -231,6 +254,12 @@ func (a Analyzer) buildFacts(input scannerworker.ClaimInput, inventory Inventory
 		emittedComponents++
 	}
 
+	for _, warning := range inventory.Warnings {
+		if strings.TrimSpace(warning.Reason) == "" {
+			continue
+		}
+		warningFacts = append(warningFacts, newWarningFactWithEvidence(input, observedAt, documentID, warning))
+	}
 	if subjectWarning != "" {
 		warningFacts = append(warningFacts, newWarningFact(input, observedAt, documentID, subjectWarning, subjectWarningSummary(subjectWarning, inventory.SubjectDigest)))
 	}

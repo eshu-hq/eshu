@@ -1,10 +1,7 @@
 package main
 
 import (
-	"bufio"
-	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -68,7 +65,7 @@ func (s *repositorySBOMSource) Collect(
 		maxFiles:        input.Limits.MaxFiles,
 		startCPUSeconds: currentScannerCPUSeconds(),
 	}
-	components, err := reader.collect(ctx)
+	components, warnings, err := reader.collect(ctx)
 	usage := reader.usage()
 	if err != nil {
 		return sbomgenerator.Inventory{}, err
@@ -83,6 +80,7 @@ func (s *repositorySBOMSource) Collect(
 		FileCount:     reader.filesSeen,
 		InputBytes:    reader.inputBytes,
 		Components:    components,
+		Warnings:      warnings,
 		ResourceUsage: usage,
 	}, nil
 }
@@ -111,16 +109,17 @@ type repositoryManifestReader struct {
 	startCPUSeconds float64
 }
 
-func (r *repositoryManifestReader) collect(ctx context.Context) ([]sbomgenerator.Component, error) {
+func (r *repositoryManifestReader) collect(ctx context.Context) ([]sbomgenerator.Component, []sbomgenerator.Warning, error) {
 	root, err := secureRepositoryRoot(r.root)
 	if err != nil {
-		return nil, scannerworker.NewRetryableAnalyzerFailure(
+		return nil, nil, scannerworker.NewRetryableAnalyzerFailure(
 			scannerworker.FailureClassTargetUnavailable,
 			r.usage(),
 			err,
 		)
 	}
 	components := make([]sbomgenerator.Component, 0)
+	warnings := make([]sbomgenerator.Warning, 0)
 	err = filepath.WalkDir(root, func(path string, entry fs.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			return scannerworker.NewRetryableAnalyzerFailure(
@@ -160,21 +159,20 @@ func (r *repositoryManifestReader) collect(ctx context.Context) ([]sbomgenerator
 		if err != nil {
 			return err
 		}
-		parsed, err := parseRepositoryManifest(entry.Name(), body)
+		relativePath, err := filepath.Rel(root, path)
 		if err != nil {
-			return scannerworker.NewTerminalAnalyzerFailure(
-				scannerworker.FailureClassAnalyzerFailed,
-				r.usage(),
-				err,
-			)
+			relativePath = entry.Name()
 		}
+		relativePath = filepath.ToSlash(relativePath)
+		parsed, parsedWarnings := parseRepositoryManifest(relativePath, entry.Name(), body)
 		components = append(components, parsed...)
+		warnings = append(warnings, parsedWarnings...)
 		return nil
 	})
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	return components, nil
+	return components, warnings, nil
 }
 
 func (r *repositoryManifestReader) readManifest(path string) ([]byte, error) {
@@ -257,135 +255,6 @@ func shouldSkipRepositoryDir(name string) bool {
 	default:
 		return false
 	}
-}
-
-func isSupportedManifestName(name string) bool {
-	switch name {
-	case "package-lock.json", "npm-shrinkwrap.json", "go.mod":
-		return true
-	default:
-		return false
-	}
-}
-
-func parseRepositoryManifest(name string, body []byte) ([]sbomgenerator.Component, error) {
-	switch name {
-	case "package-lock.json", "npm-shrinkwrap.json":
-		return parseNPMLockComponents(body)
-	case "go.mod":
-		return parseGoModComponents(body), nil
-	default:
-		return nil, nil
-	}
-}
-
-type npmLockFile struct {
-	Packages     map[string]npmLockPackage `json:"packages"`
-	Dependencies map[string]npmLockPackage `json:"dependencies"`
-}
-
-type npmLockPackage struct {
-	Name         string                    `json:"name"`
-	Version      string                    `json:"version"`
-	Dependencies map[string]npmLockPackage `json:"dependencies"`
-}
-
-func parseNPMLockComponents(body []byte) ([]sbomgenerator.Component, error) {
-	var lock npmLockFile
-	if err := json.Unmarshal(body, &lock); err != nil {
-		return nil, err
-	}
-	components := make([]sbomgenerator.Component, 0, len(lock.Packages)+len(lock.Dependencies))
-	for path, pkg := range lock.Packages {
-		if strings.TrimSpace(path) == "" {
-			continue
-		}
-		name := firstNonBlank(pkg.Name, npmNameFromPackagePath(path))
-		if strings.TrimSpace(name) == "" || strings.TrimSpace(pkg.Version) == "" {
-			continue
-		}
-		components = append(components, sbomgenerator.Component{
-			Name:    name,
-			Version: pkg.Version,
-			Type:    "library",
-		})
-	}
-	appendNPMDependencies(&components, lock.Dependencies)
-	return components, nil
-}
-
-func appendNPMDependencies(components *[]sbomgenerator.Component, deps map[string]npmLockPackage) {
-	for name, dep := range deps {
-		if strings.TrimSpace(name) != "" && strings.TrimSpace(dep.Version) != "" {
-			*components = append(*components, sbomgenerator.Component{
-				Name:    name,
-				Version: dep.Version,
-				Type:    "library",
-			})
-		}
-		appendNPMDependencies(components, dep.Dependencies)
-	}
-}
-
-func npmNameFromPackagePath(path string) string {
-	normalized := filepath.ToSlash(strings.TrimSpace(path))
-	index := strings.LastIndex(normalized, "node_modules/")
-	if index < 0 {
-		return ""
-	}
-	return strings.TrimSpace(normalized[index+len("node_modules/"):])
-}
-
-func parseGoModComponents(body []byte) []sbomgenerator.Component {
-	scanner := bufio.NewScanner(bytes.NewReader(body))
-	scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024)
-	components := make([]sbomgenerator.Component, 0)
-	inRequireBlock := false
-	for scanner.Scan() {
-		line := stripGoComment(scanner.Text())
-		if line == "" {
-			continue
-		}
-		if inRequireBlock {
-			if line == ")" {
-				inRequireBlock = false
-				continue
-			}
-			if component, ok := goRequireComponent(line); ok {
-				components = append(components, component)
-			}
-			continue
-		}
-		if strings.TrimSpace(line) == "require (" {
-			inRequireBlock = true
-			continue
-		}
-		if rest, ok := strings.CutPrefix(line, "require "); ok {
-			if component, ok := goRequireComponent(rest); ok {
-				components = append(components, component)
-			}
-		}
-	}
-	return components
-}
-
-func goRequireComponent(line string) (sbomgenerator.Component, bool) {
-	fields := strings.Fields(line)
-	if len(fields) < 2 {
-		return sbomgenerator.Component{}, false
-	}
-	return sbomgenerator.Component{
-		Name:    fields[0],
-		Version: fields[1],
-		Type:    "library",
-	}, true
-}
-
-func stripGoComment(line string) string {
-	if before, _, ok := strings.Cut(line, "//"); ok {
-		line = before
-	}
-	return strings.TrimSpace(line)
 }
 
 func currentScannerCPUSeconds() float64 {

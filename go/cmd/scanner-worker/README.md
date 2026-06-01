@@ -29,7 +29,9 @@ flowchart LR
 - Emits source facts only and rejects silent clean output before committing.
 - Runs the concrete `sbom_generation` analyzer when configured with
   `sbom_targets`; this source walks a configured repository root, reads bounded
-  `package-lock.json`, `npm-shrinkwrap.json`, and `go.mod` manifests, and emits
+  `package-lock.json`, `npm-shrinkwrap.json`, `go.mod`, `Cargo.lock`,
+  `composer.lock`, `packages.lock.json`, `Pipfile.lock`, `poetry.lock`,
+  `Gemfile.lock`, and `gradle.lockfile` lockfile evidence, and emits
   `sbom.document`, `sbom.component`, and `sbom.warning` facts.
 - Runs the concrete `os_package_extraction` analyzer when configured with
   `os_package_targets`; this parser consumes already-extracted Alpine or Debian
@@ -65,7 +67,13 @@ analyzers must plug into this boundary instead of running in reducer lanes.
 The repository path is runtime-local configuration. It must not appear in
 retry, dead-letter, metric, log, or public documentation payloads. If no usable
 components are found, the analyzer emits a document fact plus an
-`sbom.warning` fact instead of returning silent clean output.
+`sbom.warning` fact instead of returning silent clean output. Component facts
+preserve bounded evidence fields: `ecosystem`, repository-relative
+`lockfile_path`, `evidence_source`, package `name`, installed `version`, PURL,
+dependency scope/type when the lockfile reports it, and
+`extraction_reason="lockfile_exact_version"`. Malformed supported lockfiles
+emit `sbom.warning` with `reason="lockfile_malformed"` and the relative
+lockfile path; they do not leak the runtime-local repository root.
 
 `os_package_extraction` targets are configured inside the selected
 `scanner_worker` collector instance:
@@ -107,6 +115,13 @@ dead-letter, metric, log, or public documentation payloads.
 
 No-Regression Evidence: scanner-worker runtime behavior is covered by
 `go test ./internal/collector/scannerworker ./internal/collector/scannerworker/sbomgenerator ./internal/collector/ospackagevulnerability/osruntime ./cmd/scanner-worker -count=1`.
+
+No-Regression Evidence: `go test ./cmd/scanner-worker -run 'TestRepositorySBOMSource(ParsesCargoAndComposerLockfiles|ParsesPythonRubyAndGradleLockfiles|EmitsMalformedLockfileWarning)' -count=1`
+proved repository SBOM generation extracts Cargo, Composer, PyPI, RubyGems,
+Gradle/Maven, and NuGet exact lockfile components with ecosystem, relative
+path, dependency scope/type, PURL, and extraction reason, while malformed
+Composer lockfiles produce bounded `sbom.warning` evidence instead of terminal
+analyzer failure or silent clean output.
 
 Observability Evidence: the runtime records scanner-worker claim, retry,
 dead-letter, facts-emitted, queue-wait, scan-duration, target-count,

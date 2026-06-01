@@ -47,8 +47,11 @@ unparseable, or subject-mismatched.
   runtime-owned `Source` and an optional `Now` clock.
 - `Source` — port the runtime implements to return bounded inventory for
   one claim.
-- `Inventory`, `Component` — bounded inputs the source returns, including
-  measured CPU and peak-memory usage for scanner-worker telemetry.
+- `Inventory`, `Component`, `Warning` — bounded inputs the source returns,
+  including measured CPU and peak-memory usage for scanner-worker telemetry.
+  Repository lockfile sources use component and warning fields to preserve
+  ecosystem, relative lockfile path, evidence source, dependency scope/type
+  when present, and the extraction reason.
 - `ErrUnsupportedTarget`, `ErrSourceUnavailable` — sentinels the runtime
   returns from `Collect`; the analyzer maps them to terminal
   `unsupported_target` or retryable `source_unavailable` workflow
@@ -78,11 +81,18 @@ unparseable, or subject-mismatched.
   the canonical identity hint. The component fact ID is derived from the
   same canonical identity, so two equivalent inputs always produce
   identical fact IDs across runs.
+- Repository lockfile inputs must not invent components without exact
+  lockfile proof. When the runtime source can name the ecosystem, relative
+  lockfile path, package name, installed version, dependency scope/type, or
+  extraction reason, the analyzer preserves those fields on the component
+  fact. Malformed supported lockfiles become bounded `sbom.warning` facts
+  such as `lockfile_malformed`; they are not terminal analyzer failures and
+  they are not clean results.
 - Resource-limit breaches dead-letter; they do not silently truncate the
   output. The analyzer rejects oversized inventories *before* allocating
   any envelopes by comparing the inventory's worst-case fact count
-  (`1 + len(components) + 2`) against `MaxFacts`. The analyzer fails
-  before emitting any partial fact bundle.
+  (`1 + len(components) + len(warnings) + 2`) against `MaxFacts`. The
+  analyzer fails before emitting any partial fact bundle.
 - Runtime sources carry `ResourceUsage` on `Inventory`; the analyzer passes it
   through to `scannerworker.Service` so `sbom_generation` records CPU and
   memory signals with the rest of the scanner-worker metric set.
@@ -107,13 +117,21 @@ silent clean rejection, file/input/fact limit enforcement, unsupported target
 classification, retryable source unavailability, terminal analyzer failure
 with privacy-safe error strings, and resource-usage propagation.
 
+No-Regression Evidence:
+`go test ./internal/collector/scannerworker/sbomgenerator -run TestAnalyzerPreservesLockfileComponentAndWarningEvidence -count=1`
+proves `sbom.component` facts preserve lockfile ecosystem, evidence source,
+relative lockfile path, dependency scope/type, and extraction reason, and
+`sbom.warning` facts preserve malformed lockfile evidence without leaking a raw
+repository root.
+
 Reducer Path Evidence:
 `go test ./internal/reducer -run 'TestScannerWorkerGeneratedSBOMFactsAdmittedByReducerAttachment' -count=1`
 proves the analyzer-emitted document and component facts feed
 `reducer.BuildSBOMAttestationAttachmentDecisions` and produce
 `attached_parse_only` when a subject digest is present and
-`unknown_subject` when it is not. Scanner workers never short-circuit
-attachment truth.
+`unknown_subject` when it is not. It also proves lockfile component evidence
+and malformed lockfile warning summaries flow through reducer attachment
+without letting scanner workers short-circuit attachment truth.
 
 Observability Evidence: this package reuses `scanner_worker.*` claim metrics
 and spans from `internal/telemetry`. The `Inventory.ResourceUsage` field feeds

@@ -52,10 +52,12 @@ bounded CycloneDX-compatible `sbom.document`, `sbom.component`, and
 `sbom.warning` source facts for repository, image, or artifact targets when the
 runtime source has enough subject evidence. The hosted `eshu-scanner-worker`
 binary now wires a configured repository-manifest SBOM source for
-`package-lock.json`, `npm-shrinkwrap.json`, and `go.mod` targets, and keeps
-`WarningAnalyzer` as the fallback when no runtime-owned `sbomgenerator.Source`
-is configured, so claims still commit explicit warning facts instead of
-pretending the target was scanned clean.
+`package-lock.json`, `npm-shrinkwrap.json`, `go.mod`, `Cargo.lock`,
+`composer.lock`, `packages.lock.json`, `Pipfile.lock`, `poetry.lock`,
+`Gemfile.lock`, and `gradle.lockfile` targets, and keeps `WarningAnalyzer` as
+the fallback when no runtime-owned `sbomgenerator.Source` is configured, so
+claims still commit explicit warning facts instead of pretending the target was
+scanned clean.
 
 ## Dependencies
 
@@ -100,6 +102,14 @@ apk/dpkg parsing, retry/dead-letter handling, and deployment render contracts.
 Analyzer rollout still needs target count, fact count, runtime, CPU, memory,
 queue state, retry count, dead-letter count, and pprof evidence from the target
 environment before it becomes a default.
+
+No-Regression Evidence: `go test ./cmd/scanner-worker -run 'TestRepositorySBOMSource(ParsesCargoAndComposerLockfiles|ParsesPythonRubyAndGradleLockfiles|EmitsMalformedLockfileWarning)' -count=1`
+proved the hosted scanner-worker repository SBOM source extracts Cargo,
+Composer, PyPI, RubyGems, Gradle/Maven, and NuGet exact lockfile components with
+bounded ecosystem, relative path, dependency scope/type, PURL, and extraction
+reason evidence, and turns malformed Composer lockfiles into bounded
+`sbom.warning` evidence instead of clean output or path-leaking terminal
+failure.
 
 Collector Observability Evidence: `Service` records
 `eshu_dp_scanner_worker_claims_total`,
