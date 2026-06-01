@@ -112,6 +112,41 @@ dependency facts, package-consumption correlation facts,
 metric instrument, span, log key, queue, reducer lane, graph write, scanner
 worker, route, MCP tool, or runtime configuration knob.
 
+No-Regression Evidence: remote Docker Compose JVM vulnerability parity for
+issue `#1065` was rerun after rebasing to `origin/main` `e7f71b75` with a
+clean-volume, bounded JVM slice of 3 repositories. The slice emitted 118 Maven
+dependency rows and 3 Gradle dependency rows, all classified as resolved; the
+Maven package-registry/advisory join produced 1 Maven package-consumption
+correlation after the reducer started requesting Maven `groupId:artifactId`
+manifest-coordinate candidates. Reducer-owned impact facts materialized as
+4 `affected_exact` / `maven_range_match`, 16
+`not_affected_known_fixed` / `maven_known_fixed`, and 8
+`possibly_affected` / `version_not_in_advisory_range` rows. The scoped
+Log4Shell API and MCP-mounted HTTP read both returned
+`ready_with_findings`, `fresh`, `truncated=false`, and 2
+`not_affected_known_fixed` findings with `match_reason=maven_known_fixed`.
+Provider-alert reconciliation was present as 18 aggregate `provider_only/open`
+rows for this slice. No private repository names, private package names,
+advisory payloads, alert URLs, hostnames, keys, or machine-local paths were
+recorded.
+
+Observability Evidence: the same `#1065` run used
+`scripts/verify_remote_e2e_runtime_state.sh` in representative mode and
+reported healthy API, MCP, ingester, projector, resolution-engine,
+workflow-coordinator, hosted collector, and scanner-worker services. The
+terminal scoped queue counts were `outstanding=0`, `in_flight=0`,
+`pending=0`, `retrying=0`, `failed=0`, `dead_letter=0`,
+`reducer_converging=0`, `pending_completeness=0`, and
+`blocked_completeness=0`. Fact work items were `209 succeeded`; workflow
+work items included scheduled AWS follow-up rows but no retry, failed, or
+dead-letter states. Filtered NornicDB logs for `UNWIND MERGE`, `SQLSTATE`,
+constraint, panic, fatal, and OOM patterns returned 0 matching lines. The
+path reuses existing parser-stage timing, package-consumption correlation
+facts, reducer supply-chain impact facts, readiness envelopes,
+`query.supply_chain_impact_findings`, runtime health routes, and
+remote-E2E verifier status output; no new metric, span, queue, worker, route,
+or graph-write shape was introduced.
+
 ## Advisory Source Coverage
 
 Eshu collects advisory source truth from OSV, FIRST EPSS, CISA KEV, NVD CVE

@@ -161,6 +161,7 @@ func extractPackageRegistryIdentities(envelopes []facts.Envelope) []packageRegis
 			PackageID: packageID,
 			Ecosystem: ecosystem,
 			Names: packageRegistryIdentityNames(
+				ecosystem,
 				payloadStr(envelope.Payload, "raw_name"),
 				payloadStr(envelope.Payload, "normalized_name"),
 				payloadStr(envelope.Payload, "namespace"),
@@ -179,12 +180,15 @@ func extractPackageRegistryIdentities(envelopes []facts.Envelope) []packageRegis
 	return out
 }
 
-func packageRegistryIdentityNames(rawName, normalizedName, namespace string) []string {
+func packageRegistryIdentityNames(ecosystem, rawName, normalizedName, namespace string) []string {
 	candidates := []string{rawName, normalizedName}
 	namespace = strings.TrimSpace(namespace)
 	normalizedName = strings.TrimSpace(normalizedName)
 	if namespace != "" && normalizedName != "" {
 		candidates = append(candidates, strings.TrimRight(namespace, "/")+"/"+strings.TrimLeft(normalizedName, "/"))
+		if packageidentity.NormalizeEcosystem(packageidentity.Ecosystem(ecosystem)) == packageidentity.EcosystemMaven {
+			candidates = append(candidates, strings.TrimRight(namespace, ":")+":"+strings.TrimLeft(normalizedName, ":"))
+		}
 	}
 	return uniqueSortedStrings(candidates)
 }
