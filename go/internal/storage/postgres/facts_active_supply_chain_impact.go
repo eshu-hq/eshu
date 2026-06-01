@@ -48,6 +48,7 @@ WHERE fact.fact_kind IN (
     'reducer_ci_cd_run_correlation',
     'reducer_service_catalog_correlation',
     'reducer_workload_identity',
+    'file',
     'vulnerability.epss_score',
     'vulnerability.known_exploited'
 )
@@ -73,10 +74,12 @@ WHERE fact.fact_kind IN (
               'reducer_container_image_identity',
               'reducer_ci_cd_run_correlation',
               'reducer_service_catalog_correlation',
-              'reducer_workload_identity'
+              'reducer_workload_identity',
+              'file'
           )
           AND (
               fact.payload->>'repository_id' = ANY($7::text[])
+              OR fact.payload->>'repo_id' = ANY($7::text[])
               OR fact.payload->'scope'->>'repository_id' = ANY($7::text[])
               OR fact.scope_id = ANY($7::text[])
               OR fact.payload->>'scope_id' = ANY($7::text[])

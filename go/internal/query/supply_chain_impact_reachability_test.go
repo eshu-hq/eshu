@@ -50,6 +50,47 @@ func TestDecodeSupplyChainImpactFindingRowPreservesReachabilityEnvelope(t *testi
 	}
 }
 
+func TestDecodeSupplyChainImpactFindingRowPreservesJSTSReachabilitySeparatelyFromImpact(t *testing.T) {
+	t.Parallel()
+
+	payload := []byte(`{
+		"cve_id": "CVE-2026-3703",
+		"package_id": "pkg:npm/@scope/vulnerable-api",
+		"ecosystem": "npm",
+		"impact_status": "affected_exact",
+		"confidence": "exact",
+		"runtime_reachability": "package_api_call",
+		"reachability": {
+			"state": "reachable",
+			"confidence": "partial",
+			"source": "parser_js_ts",
+			"evidence": "package_api_call",
+			"reason": "JavaScript/TypeScript parser evidence proves the package API identity is called",
+			"language_maturity": "partial"
+		}
+	}`)
+
+	row, err := decodeSupplyChainImpactFindingRow("finding-js-ts-reachability", "observed", payload)
+	if err != nil {
+		t.Fatalf("decodeSupplyChainImpactFindingRow() error = %v", err)
+	}
+	if row.ImpactStatus != "affected_exact" {
+		t.Fatalf("ImpactStatus = %q, want affected_exact", row.ImpactStatus)
+	}
+	if row.Confidence != "exact" {
+		t.Fatalf("Confidence = %q, want exact impact confidence", row.Confidence)
+	}
+	if row.Reachability == nil {
+		t.Fatal("Reachability = nil, want JS/TS envelope")
+	}
+	if row.Reachability.Source != "parser_js_ts" {
+		t.Fatalf("Reachability.Source = %q, want parser_js_ts", row.Reachability.Source)
+	}
+	if row.Reachability.Confidence != "partial" {
+		t.Fatalf("Reachability.Confidence = %q, want partial reachability confidence", row.Reachability.Confidence)
+	}
+}
+
 func TestSupplyChainImpactFindingsExposeReachabilityWithoutDowngradingImpact(t *testing.T) {
 	t.Parallel()
 

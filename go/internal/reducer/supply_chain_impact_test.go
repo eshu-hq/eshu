@@ -150,8 +150,14 @@ func TestBuildSupplyChainImpactFindingsRequiresAffectedVersionForExactImpact(t *
 
 	got := supplyChainImpactFindingsByCVE(findings)["CVE-2026-0001"]
 	assertSupplyChainImpactStatus(t, got, SupplyChainImpactPossiblyAffected)
-	if got.RuntimeReachability != "unknown" {
-		t.Fatalf("RuntimeReachability = %q, want unknown without affected-version proof", got.RuntimeReachability)
+	if got.RuntimeReachability != jsTSPackageAPIMissingEvidence {
+		t.Fatalf("RuntimeReachability = %q, want JS/TS package API missing evidence", got.RuntimeReachability)
+	}
+	if got.Confidence != "partial" || got.Reachability == nil || got.Reachability.Confidence != "unknown" {
+		t.Fatalf("impact/reachability confidence = %q/%#v, want separate partial impact and unknown reachability", got.Confidence, got.Reachability)
+	}
+	if !stringSliceContains(got.MissingEvidence, jsTSParserOrSCIPMissingReason) {
+		t.Fatalf("MissingEvidence = %#v, want JS/TS parser or SCIP package API gap", got.MissingEvidence)
 	}
 }
 

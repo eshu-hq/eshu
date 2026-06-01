@@ -19,7 +19,7 @@ func TestSupplyChainImpactToolDescriptionAdvertisesReachabilityEnvelope(t *testi
 		t.Fatal("list_supply_chain_impact_findings tool missing")
 	}
 	description := strings.ToLower(tool.Description)
-	for _, want := range []string{"reachability", "not_called", "does not change impact"} {
+	for _, want := range []string{"reachability", "not_called", "does not change impact", "parser/scip"} {
 		if !strings.Contains(description, want) {
 			t.Fatalf("description missing %q: %s", want, tool.Description)
 		}

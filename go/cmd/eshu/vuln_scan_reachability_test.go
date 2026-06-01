@@ -67,3 +67,43 @@ func TestBuildVulnScanReportPreservesReachabilityEnvelope(t *testing.T) {
 		t.Fatalf("Reachability.Source = %q, want %q", got, want)
 	}
 }
+
+func TestBuildVulnScanReportPreservesJSTSReachabilityConfidence(t *testing.T) {
+	t.Parallel()
+
+	result := vulnScanRepoResult{
+		Command:        "vuln-scan repo",
+		RepositoryID:   "repo-js",
+		ReadinessState: "ready_with_findings",
+		Count:          1,
+		Findings: []map[string]any{
+			{
+				"finding_id":           "finding-js-ts",
+				"impact_status":        "affected_exact",
+				"confidence":           "exact",
+				"runtime_reachability": "package_api_call",
+				"reachability": map[string]any{
+					"state":             "reachable",
+					"confidence":        "partial",
+					"source":            "parser_js_ts",
+					"evidence":          "package_api_call",
+					"language_maturity": "partial",
+				},
+			},
+		},
+	}
+
+	report := buildVulnScanReport(result, vulnScanNow())
+	if got, want := report.Findings[0].Affected.Confidence, "exact"; got != want {
+		t.Fatalf("Affected.Confidence = %q, want %q", got, want)
+	}
+	if report.Findings[0].Reachability == nil {
+		t.Fatal("Reachability = nil, want envelope")
+	}
+	if got, want := report.Findings[0].Reachability.Source, "parser_js_ts"; got != want {
+		t.Fatalf("Reachability.Source = %q, want %q", got, want)
+	}
+	if got, want := report.Findings[0].Reachability.Confidence, "partial"; got != want {
+		t.Fatalf("Reachability.Confidence = %q, want %q", got, want)
+	}
+}

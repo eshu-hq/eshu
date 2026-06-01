@@ -322,17 +322,20 @@ state, or readiness:
   `unavailable`, or `missing_evidence`.
 - `reachability.confidence`: confidence in the reachability signal, separate
   from vulnerability impact confidence.
-- `reachability.source`: evidence family such as `govulncheck`, `parser`,
-  `runtime_or_sbom`, or `not_available`.
+- `reachability.source`: evidence family such as `govulncheck`,
+  `parser_js_ts`, `scip_js_ts`, `runtime_or_sbom`, or `not_available`.
 - `reachability.language_maturity`: `implemented`, `partial`, `unavailable`,
   or `unsupported` for the ecosystem's current vulnerability-reachability
   support.
 - `reachability.missing_evidence[]`: analyzer or runtime evidence that would
   improve the reachability state.
 
-`not_called` currently has strong semantics for Go only when it comes from
-govulncheck-style evidence. For other ecosystems, missing parser or
-reachability evidence is explicit and never becomes a clean result.
+JavaScript and TypeScript npm rows can use parser or SCIP package API evidence
+only when the imported, called, or re-exported package identity exactly matches
+the vulnerable package. Similar unscoped/scoped names remain ambiguous, and
+missing parser or SCIP rows become `missing_evidence` rather than a clean
+result. `not_called` currently has strong semantics for Go only when it comes
+from govulncheck-style evidence.
 
 Each row also carries a `provenance` block so callers can see which advisory
 source supplied the selected severity, fixed version, and vulnerable range,

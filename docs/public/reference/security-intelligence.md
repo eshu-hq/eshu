@@ -516,7 +516,7 @@ vulnerability scanner to a safe/not-safe oracle. Current support:
 | Language / ecosystem | Current level | Evidence Eshu can use today | Boundary |
 | --- | --- | --- | --- |
 | Go modules | `implemented` | Go module facts plus govulncheck-compatible module, import, symbol, and `not_called` evidence. | `symbol_reachable` and package-import evidence prioritize a finding; `not_called` is explicit but does not hide or downgrade impact. Missing govulncheck evidence becomes `missing_evidence`. |
-| JavaScript / TypeScript npm | `partial` | Dependency manifests/lockfiles plus parser/SCIP import, call, export, and framework-root evidence already used by dead-code analysis. | Eshu does not yet join vulnerable npm package APIs to call paths strongly enough to call a package safe. Missing evidence remains `unknown` or `unavailable`. |
+| JavaScript / TypeScript npm | `partial` | Dependency manifests/lockfiles plus parser or SCIP package API import, call, and re-export evidence when the npm package identity is proven exactly. | Matching package API evidence can mark a finding `reachable` for prioritization, but absence or ambiguity stays `unknown` or `missing_evidence`; JS/TS never emits `not_called` today. |
 | Python PyPI | `partial` | Requirements/pyproject/Pipfile/Poetry evidence plus parser/SCIP import, call, decorator, and framework-root evidence. | Dynamic imports, plugin loading, and package API resolution prevent not-called safety claims. |
 | JVM Maven / Gradle | `partial` | Maven/Gradle dependency evidence plus Java/Kotlin/Scala parser roots, method references, overrides, Spring/JUnit/ServiceLoader evidence. | Resolver/source-set and dynamic dispatch gaps keep vulnerability reachability below implemented scanner semantics. |
 | PHP Composer | `partial` | Composer dependency paths and exact installed-version evidence can mark package-level reachability as `reachable` with partial confidence. PHP parser roots, interface/trait methods, controllers, literal routes, and hook callbacks remain supporting evidence. | Autoload, dynamic dispatch, broader framework routes, and missing parser/SCIP package API calls stay in `missing_evidence`; Composer never emits `not_called`. |
@@ -525,9 +525,10 @@ vulnerability scanner to a safe/not-safe oracle. Current support:
 | .NET / NuGet | `partial` | NuGet dependency paths and exact installed-version evidence can mark package-level reachability as `reachable` with partial confidence. C# parser roots, ASP.NET controller actions, hosted-service callbacks, interface/override evidence, tests, and serialization callbacks remain supporting evidence. | Reflection, dependency injection, generated code, unresolved project-reference gaps, and missing parser/SCIP package API calls stay in `missing_evidence`; NuGet never emits `not_called`. |
 | Unsupported ecosystems | `unsupported` | Evidence may exist as dependency or advisory facts only. | Unsupported reachability is reported as unavailable or missing evidence, never as clean. |
 
-No-Regression Evidence: `go test ./internal/reducer ./internal/query ./internal/mcp ./internal/exports ./internal/vulnerabilityparity ./cmd/eshu -run 'Test.*Reachability|TestSupplyChainReachability|TestBuildVulnScanReportPreservesReachabilityEnvelope|TestBuildSupplyChainImpactFindings(ProvesComposerLockfileExactVersion|KeepsComposerDevScopeVisible|UsesRubyGemsLockfileVersion|UsesCargoLockfileVersion|MatchesNuGetBracketRange)' -count=1`
+No-Regression Evidence: `go test ./internal/reducer ./internal/query ./internal/mcp ./internal/storage/postgres ./internal/exports ./internal/vulnerabilityparity ./cmd/eshu -run 'Test.*Reachability|TestSupplyChainReachability|TestBuildVulnScanReportPreservesReachabilityEnvelope|TestBuildSupplyChainImpactFindingsUsesJSTSPackageAPIReachability|TestBuildSupplyChainImpactFindingsKeepsJSTSMissingAndAmbiguousEvidenceExplicit|TestListActiveSupplyChainImpactFactsQueryBoundsRepositoryFollowUp' -count=1`
 proves the stable reachability states, Go govulncheck `reachable` and
-`not_called` semantics, missing and unavailable evidence states, priority
+`not_called` semantics, JS/TS parser/SCIP positive, negative, ambiguous, and
+missing-evidence states, repository-bounded file evidence loading, priority
 contributions that do not alter `impact_status`, package-level Composer,
 RubyGems, Cargo, and NuGet reachability joins, API/MCP/CLI/export shaping, and
 parity report preservation.
@@ -535,10 +536,12 @@ parity report preservation.
 No-Observability-Change: reachability enrichment is serialized onto existing
 `reducer_supply_chain_impact_finding` facts and read through the existing
 `query.supply_chain_impact_findings` route, MCP tool dispatch, CLI report, and
-SARIF exporter. It adds no graph write, queue, worker, metric instrument, span
-name, log key, runtime setting, or collector. Operators diagnose the path
-through the existing impact finding payload, readiness envelope, reducer
-execution counters, query spans, and Postgres query duration metrics.
+SARIF exporter. The JS/TS join adds in-memory reducer classification and extends
+the existing repository-bounded active fact read; it adds no graph write, queue,
+worker, metric instrument, span name, log key, runtime setting, or collector.
+Operators diagnose the path through the existing impact finding payload,
+readiness envelope, reducer execution counters, query spans, and Postgres query
+duration metrics.
 
 Performance Evidence: focused query tests
 `go test ./internal/query -run 'PackageMetadata|SupplyChainImpactReadiness'
