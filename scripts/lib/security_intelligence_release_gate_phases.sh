@@ -29,7 +29,7 @@ normalize_api_base_url() {
 
 evidence_ref() {
     local path="$1"
-    printf '%s' "${path#${out_dir}/}"
+    printf '%s' "${path#"${out_dir}"/}"
 }
 
 sanitize_public_file() {
@@ -37,6 +37,11 @@ sanitize_public_file() {
     local output="$2"
     sed -E \
         -e 's#https?://[^[:space:]"<>]+#[redacted-url]#g' \
+        -e 's#arn:(aws|aws-us-gov|aws-cn):[^[:space:]"'\'',}]+#[redacted-arn]#g' \
+        -e 's#(^|[^0-9])[0-9]{12}([^0-9]|$)#\1[redacted-account]\2#g' \
+        -e 's#([Aa][Uu][Tt][Hh][Oo][Rr][Ii][Zz][Aa][Tt][Ii][Oo][Nn][[:space:]]*:[[:space:]]*)(Bearer|Basic)[[:space:]]+[^[:space:]"'\'',}]+#\1[redacted-token]#g' \
+        -e 's#("([Pp][Aa][Ss][Ss][Ww][Oo][Rr][Dd]|[Aa][Ww][Ss]_[Ss][Ee][Cc][Rr][Ee][Tt]_[Aa][Cc][Cc][Ee][Ss][Ss]_[Kk][Ee][Yy]|[Aa][Pp][Ii][Kk][Ee][Yy]|[Cc][Ll][Ii][Ee][Nn][Tt]_[Ss][Ee][Cc][Rr][Ee][Tt]|[Aa][Uu][Tt][Hh][Oo][Rr][Ii][Zz][Aa][Tt][Ii][Oo][Nn])"[[:space:]]*:[[:space:]]*)"[^"]*"#\1"[redacted-secret]"#g' \
+        -e 's#(([Pp][Aa][Ss][Ss][Ww][Oo][Rr][Dd]|[Aa][Ww][Ss]_[Ss][Ee][Cc][Rr][Ee][Tt]_[Aa][Cc][Cc][Ee][Ss][Ss]_[Kk][Ee][Yy]|[Aa][Pp][Ii][Kk][Ee][Yy]|[Cc][Ll][Ii][Ee][Nn][Tt]_[Ss][Ee][Cc][Rr][Ee][Tt])[[:space:]]*[:=][[:space:]]*)["'\'']?[^[:space:]"'\'',}]+#\1[redacted-secret]#g' \
         -e 's#(ghp_|github_pat_|glpat-|AKIA|ASIA|xox[baprs]-)[A-Za-z0-9_./+=:-]*#[redacted-token]#g' \
         -e 's#([0-9]{1,3}\.){3}[0-9]{1,3}#[redacted-ip]#g' \
         -e 's#([[:alnum:]_-]+\.)+(internal|local|example\.com|invalid|com|net|org|io|dev|cloud)(:[0-9]+)?#[redacted-host]#g' \
@@ -106,7 +111,7 @@ summarize_admin_status() {
             | map({status: .[0], count: length})
         )
     }' "${input}" >"${output}" \
-        && jq -e '.queue.retrying != null and .queue.dead_letter != null and .queue.failed != null' "${output}" >/dev/null
+        && jq -e '.queue.outstanding != null and .queue.pending != null and .queue.in_flight != null and .queue.retrying != null and .queue.dead_letter != null and .queue.failed != null' "${output}" >/dev/null
 }
 
 summarize_index_status() {
@@ -124,7 +129,7 @@ summarize_index_status() {
             dead_letter: (.queue.dead_letter // null)
         }
     }' "${input}" >"${output}" \
-        && jq -e '.queue.retrying != null and .queue.dead_letter != null and (.status | length > 0)' "${output}" >/dev/null
+        && jq -e '.queue.outstanding != null and .queue.pending != null and .queue.in_flight != null and .queue.retrying != null and .queue.dead_letter != null and .queue.failed != null and (.status | length > 0)' "${output}" >/dev/null
 }
 
 run_phase_runtime() {
@@ -360,10 +365,27 @@ run_phase_k8s() {
     local queue_retrying="null"
     local queue_dead_letter="null"
     local queue_failed="null"
+    local queue_outstanding="null"
+    local queue_pending="null"
+    local queue_in_flight="null"
+    local queue_terminal_ok=0
     if [ -s "${readback_dir}/admin-status-summary.json" ]; then
+        queue_outstanding="$(jq '.queue.outstanding' "${readback_dir}/admin-status-summary.json")"
+        queue_pending="$(jq '.queue.pending' "${readback_dir}/admin-status-summary.json")"
+        queue_in_flight="$(jq '.queue.in_flight' "${readback_dir}/admin-status-summary.json")"
         queue_retrying="$(jq '.queue.retrying' "${readback_dir}/admin-status-summary.json")"
         queue_dead_letter="$(jq '.queue.dead_letter' "${readback_dir}/admin-status-summary.json")"
         queue_failed="$(jq '.queue.failed' "${readback_dir}/admin-status-summary.json")"
+    fi
+    if [ -s "${readback_dir}/admin-status-summary.json" ] && [ -s "${readback_dir}/index-status-summary.json" ]; then
+        local admin_queue_total index_queue_total
+        admin_queue_total="$(jq '[.queue.outstanding, .queue.pending, .queue.in_flight, .queue.retrying, .queue.failed, .queue.dead_letter, .queue.overdue_claims] | map(. // 0) | add' "${readback_dir}/admin-status-summary.json")"
+        index_queue_total="$(jq '[.queue.outstanding, .queue.pending, .queue.in_flight, .queue.retrying, .queue.failed, .queue.dead_letter] | map(. // 0) | add' "${readback_dir}/index-status-summary.json")"
+        if [ "${admin_queue_total}" -eq 0 ] && [ "${index_queue_total}" -eq 0 ]; then
+            queue_terminal_ok=1
+        else
+            record_failure k8s "queue readback was not terminal; active, retrying, failed, or dead-letter work remains"
+        fi
     fi
 
     local pprof_status="unchecked"
@@ -388,7 +410,8 @@ run_phase_k8s() {
 
     local phase_status="pass"
     if [ "${pods_ok}" -eq 0 ] || [ "${top_ok}" -eq 0 ] || [ "${helm_ok}" -eq 0 ] \
-        || [ "${logs_ok}" -eq 0 ] || [ "${readback_ok}" -eq 0 ] || [ "${pprof_ok}" -eq 0 ]; then
+        || [ "${logs_ok}" -eq 0 ] || [ "${readback_ok}" -eq 0 ] || [ "${pprof_ok}" -eq 0 ] \
+        || [ "${queue_terminal_ok}" -eq 0 ]; then
         phase_status="fail"
     fi
     jq --arg ns "${k8s_namespace}" \
@@ -409,9 +432,13 @@ run_phase_k8s() {
        --argjson logs_ok "${logs_ok}" \
        --argjson logs_captured "${logs_captured}" \
        --argjson readback_ok "${readback_ok}" \
+       --argjson queue_outstanding "${queue_outstanding}" \
+       --argjson queue_pending "${queue_pending}" \
+       --argjson queue_in_flight "${queue_in_flight}" \
        --argjson queue_retrying "${queue_retrying}" \
        --argjson queue_dead_letter "${queue_dead_letter}" \
        --argjson queue_failed "${queue_failed}" \
+       --argjson queue_terminal_ok "${queue_terminal_ok}" \
        '.k8s = {
             status: $phase_status,
             namespace: $ns,
@@ -424,9 +451,13 @@ run_phase_k8s() {
             logs_captured: $logs_captured,
             admin_status_file: $admin_file,
             index_status_file: $index_file,
+            queue_outstanding: $queue_outstanding,
+            queue_pending: $queue_pending,
+            queue_in_flight: $queue_in_flight,
             queue_retrying: $queue_retrying,
             queue_dead_letter: $queue_dead_letter,
             queue_failed: $queue_failed,
+            queue_terminal_ok: ($queue_terminal_ok == 1),
             pprof_status: $pprof_status,
             pprof_diagnostic: $pprof_diagnostic,
             pods_ok: ($pods_ok == 1),
