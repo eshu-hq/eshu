@@ -18,6 +18,7 @@ type manifestBackedSupplyChainImpactLoader struct {
 	repositoryCalls      int
 	manifestCalls        int
 	jvmReachabilityCalls int
+	jvmFilters           []JVMReachabilityFactFilter
 	manifestEcosystem    []string
 	manifestNames        []string
 	kindCalls            [][]string
@@ -73,6 +74,7 @@ func (s *manifestBackedSupplyChainImpactLoader) ListActiveJVMReachabilityFacts(
 	filter JVMReachabilityFactFilter,
 ) ([]facts.Envelope, error) {
 	s.jvmReachabilityCalls++
+	s.jvmFilters = append(s.jvmFilters, filter)
 	return append([]facts.Envelope(nil), s.jvmReachabilityFacts...), nil
 }
 

@@ -204,9 +204,23 @@ constructor with `InstrumentedDB{Inner: db, StoreName: "my_store", ...}`.
 - `ListActiveJVMReachabilityFacts` serves JVM vulnerability reachability
   enrichment after Maven or Gradle dependency evidence has already proven a
   canonical repository and resolver-backed API package prefix. The query is
-  bounded by repository IDs and the JVM file partial index; reducers still
-  perform the API-prefix match and keep missing source-set, resolver,
+  bounded by repository IDs, the JVM file partial index, and the resolver API
+  package list across parser imports, parser calls, and SCIP calls; reducers
+  still perform the API-prefix match and keep missing source-set, resolver,
   reflection, dependency-injection, and generated-code evidence visible.
+  No-Regression Evidence: `go test ./internal/storage/postgres -run
+  'TestListActiveJVMReachabilityFacts' -count=1` failed before the SQL passed
+  the API package list into the active-file query, then passed with the
+  repository/API/language bound and a matching Java parser-import row. `go test
+  ./internal/reducer -run
+  'TestSupplyChainImpactHandlerLoadsActiveJVMReachabilityFacts|TestBuildSupplyChainImpactFindingsMarksJVMReachableFrom(ParserImport|SCIPEvidence)|TestBuildSupplyChainImpactFindingsKeepsJVMGapsUnknownWithoutAPIIdentity|TestBuildSupplyChainImpactFindingsNeverMarksJVMNotCalledWithoutAnalyzer'
+  -count=1` proves the reducer still sends the repository/API filter and keeps
+  parser and SCIP evidence accurate. No-Observability-Change: the read path
+  still uses the existing instrumented Postgres query span and
+  `eshu_dp_postgres_query_duration_seconds` metric from the reducer's
+  Postgres adapter, plus reducer execution spans/counters and the persisted
+  supply-chain impact reachability/missing-evidence payloads; no route, queue,
+  graph write, worker, runtime knob, metric name, or metric label changed.
 - `ListActiveSupplyChainImpactFacts` includes provider security alerts in the
   same package/repository-bounded read used for vulnerability, package, SBOM,
   image, and service evidence. This lets alert-seeded impact admission reuse

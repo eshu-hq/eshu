@@ -2,6 +2,7 @@ package reducer
 
 import (
 	"context"
+	"slices"
 	"testing"
 	"time"
 
@@ -255,6 +256,15 @@ func TestSupplyChainImpactHandlerLoadsActiveJVMReachabilityFacts(t *testing.T) {
 	}
 	if loader.jvmReachabilityCalls != 1 {
 		t.Fatalf("ListActiveJVMReachabilityFacts() calls = %d, want 1", loader.jvmReachabilityCalls)
+	}
+	if got, want := len(loader.jvmFilters), 1; got != want {
+		t.Fatalf("JVM reachability filters = %d, want %d", got, want)
+	}
+	if got, want := loader.jvmFilters[0].RepositoryIDs, []string{"repo://example/handler-jvm"}; !slices.Equal(got, want) {
+		t.Fatalf("JVM reachability repository filter = %v, want %v", got, want)
+	}
+	if got, want := loader.jvmFilters[0].APIPackages, []string{"org.apache.logging.log4j"}; !slices.Equal(got, want) {
+		t.Fatalf("JVM reachability API package filter = %v, want %v", got, want)
 	}
 	got := writer.write.Findings[0]
 	if got.RuntimeReachability != "jvm_package_api_reachable" {

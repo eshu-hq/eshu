@@ -10,6 +10,11 @@ import (
 )
 
 const listActiveJVMReachabilityFactsQuery = `
+WITH api_packages AS (
+	SELECT LOWER(BTRIM(api_package)) AS api_package
+	FROM UNNEST($2::text[]) AS api_package(api_package)
+	WHERE BTRIM(api_package) <> ''
+)
 SELECT
     fact.fact_id,
     fact.scope_id,
@@ -47,12 +52,72 @@ WHERE fact.fact_kind = 'file'
       OR fact.payload->>'relative_path' LIKE '%.scala'
       OR fact.payload->>'relative_path' LIKE '%.sc'
   )
+  AND EXISTS (
+      SELECT 1
+      FROM api_packages
+      WHERE EXISTS (
+          SELECT 1
+          FROM jsonb_array_elements(
+              CASE
+                WHEN jsonb_typeof(fact.payload->'parsed_file_data'->'imports') = 'array'
+                THEN fact.payload->'parsed_file_data'->'imports'
+                ELSE '[]'::jsonb
+              END
+          ) AS item(value)
+          CROSS JOIN LATERAL (
+              VALUES
+                (LOWER(REPLACE(REPLACE(REPLACE(COALESCE(item.value->>'source', ''), '/', '.'), '#', '.'), ' ', '.'))),
+                (LOWER(REPLACE(REPLACE(REPLACE(COALESCE(item.value->>'name', ''), '/', '.'), '#', '.'), ' ', '.'))),
+                (LOWER(REPLACE(REPLACE(REPLACE(COALESCE(item.value->>'full_import_name', ''), '/', '.'), '#', '.'), ' ', '.')))
+          ) AS extracted(jvm_reachability_value)
+          WHERE jvm_reachability_value = api_package
+             OR jvm_reachability_value LIKE api_package || '.%'
+             OR jvm_reachability_value LIKE '%.' || api_package || '.%'
+      )
+      OR EXISTS (
+          SELECT 1
+          FROM jsonb_array_elements(
+              CASE
+                WHEN jsonb_typeof(fact.payload->'parsed_file_data'->'function_calls') = 'array'
+                THEN fact.payload->'parsed_file_data'->'function_calls'
+                ELSE '[]'::jsonb
+              END
+          ) AS item(value)
+          CROSS JOIN LATERAL (
+              VALUES
+                (LOWER(REPLACE(REPLACE(REPLACE(COALESCE(item.value->>'full_name', ''), '/', '.'), '#', '.'), ' ', '.'))),
+                (LOWER(REPLACE(REPLACE(REPLACE(COALESCE(item.value->>'inferred_obj_type', ''), '/', '.'), '#', '.'), ' ', '.'))),
+                (LOWER(REPLACE(REPLACE(REPLACE(COALESCE(item.value->>'name', ''), '/', '.'), '#', '.'), ' ', '.')))
+          ) AS extracted(jvm_reachability_value)
+          WHERE jvm_reachability_value = api_package
+             OR jvm_reachability_value LIKE api_package || '.%'
+             OR jvm_reachability_value LIKE '%.' || api_package || '.%'
+      )
+      OR EXISTS (
+          SELECT 1
+          FROM jsonb_array_elements(
+              CASE
+                WHEN jsonb_typeof(fact.payload->'parsed_file_data'->'function_calls_scip') = 'array'
+                THEN fact.payload->'parsed_file_data'->'function_calls_scip'
+                ELSE '[]'::jsonb
+              END
+          ) AS item(value)
+          CROSS JOIN LATERAL (
+              VALUES
+                (LOWER(REPLACE(REPLACE(REPLACE(COALESCE(item.value->>'callee_symbol', ''), '/', '.'), '#', '.'), ' ', '.'))),
+                (LOWER(REPLACE(REPLACE(REPLACE(COALESCE(item.value->>'callee_name', ''), '/', '.'), '#', '.'), ' ', '.')))
+          ) AS extracted(jvm_reachability_value)
+          WHERE jvm_reachability_value = api_package
+             OR jvm_reachability_value LIKE api_package || '.%'
+             OR jvm_reachability_value LIKE '%.' || api_package || '.%'
+      )
+  )
   AND (
-    $2::timestamptz IS NULL
-    OR (fact.observed_at, fact.fact_id) > ($2::timestamptz, $3::text)
+    $3::timestamptz IS NULL
+    OR (fact.observed_at, fact.fact_id) > ($3::timestamptz, $4::text)
   )
 ORDER BY fact.observed_at ASC, fact.fact_id ASC
-LIMIT $4
+LIMIT $5
 `
 
 // ListActiveJVMReachabilityFacts loads active Java/Kotlin/Scala parser and
@@ -79,6 +144,7 @@ func (s FactStore) ListActiveJVMReachabilityFacts(
 		page, err := s.listActiveJVMReachabilityFactsPage(
 			ctx,
 			filter.RepositoryIDs,
+			filter.APIPackages,
 			cursorObservedAt,
 			cursorFactID,
 		)
@@ -100,6 +166,7 @@ func (s FactStore) ListActiveJVMReachabilityFacts(
 func (s FactStore) listActiveJVMReachabilityFactsPage(
 	ctx context.Context,
 	repositoryIDs []string,
+	apiPackages []string,
 	cursorObservedAt *time.Time,
 	cursorFactID string,
 ) ([]facts.Envelope, error) {
@@ -112,6 +179,7 @@ func (s FactStore) listActiveJVMReachabilityFactsPage(
 		ctx,
 		listActiveJVMReachabilityFactsQuery,
 		repositoryIDs,
+		apiPackages,
 		cursor,
 		cursorFactID,
 		listFactsByKindPageSize,
