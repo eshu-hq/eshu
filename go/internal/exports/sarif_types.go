@@ -88,13 +88,22 @@ type sarifInvocation struct {
 // is prefixed with `eshu.` so it does not collide with SARIF reserved
 // property names.
 type sarifProperties struct {
-	Scope            string `json:"eshu.scope"`
-	GeneratedAt      string `json:"eshu.generatedAt,omitempty"`
-	TruncatedScope   bool   `json:"eshu.truncatedScope,omitempty"`
-	DroppedFindings  int    `json:"eshu.droppedFindings,omitempty"`
-	RedactedPaths    int    `json:"eshu.redactedPaths,omitempty"`
-	FormatVersion    string `json:"eshu.formatVersion"`
-	SnapshotEvidence string `json:"eshu.snapshotEvidence,omitempty"`
+	Scope               string                     `json:"eshu.scope"`
+	GeneratedAt         string                     `json:"eshu.generatedAt,omitempty"`
+	TruncatedScope      bool                       `json:"eshu.truncatedScope,omitempty"`
+	DroppedFindings     int                        `json:"eshu.droppedFindings,omitempty"`
+	RedactedPaths       int                        `json:"eshu.redactedPaths,omitempty"`
+	FormatVersion       string                     `json:"eshu.formatVersion"`
+	SnapshotEvidence    string                     `json:"eshu.snapshotEvidence,omitempty"`
+	ReportSchemaVersion string                     `json:"eshu.reportSchemaVersion,omitempty"`
+	ReadinessState      string                     `json:"eshu.readinessState,omitempty"`
+	ReadinessFreshness  string                     `json:"eshu.readinessFreshness,omitempty"`
+	ExitCode            int                        `json:"eshu.exitCode,omitempty"`
+	ExitReason          string                     `json:"eshu.exitReason,omitempty"`
+	ScopeMode           string                     `json:"eshu.scopeMode,omitempty"`
+	MissingEvidence     []string                   `json:"eshu.missingEvidence,omitempty"`
+	IncompleteReasons   []string                   `json:"eshu.incompleteReasons,omitempty"`
+	UnsupportedTargets  []sarifUnsupportedTargetJS `json:"eshu.unsupportedTargets,omitempty"`
 }
 
 // sarifRuleProps carries vendor-prefixed advisory metadata on a SARIF rule.
@@ -122,11 +131,56 @@ type sarifAdvisorySourceJS struct {
 // sarifResultProps carries vendor-prefixed evidence metadata on a SARIF
 // result.
 type sarifResultProps struct {
-	FindingID       string `json:"eshu.findingId"`
-	PackageID       string `json:"eshu.packageId,omitempty"`
-	PackageName     string `json:"eshu.packageName,omitempty"`
-	ObservedVersion string `json:"eshu.observedVersion,omitempty"`
-	FixedVersion    string `json:"eshu.fixedVersion,omitempty"`
-	RepositoryID    string `json:"eshu.repositoryId,omitempty"`
-	SubjectDigest   string `json:"eshu.subjectDigest,omitempty"`
+	FindingID           string                  `json:"eshu.findingId,omitempty"`
+	PackageID           string                  `json:"eshu.packageId,omitempty"`
+	PackageName         string                  `json:"eshu.packageName,omitempty"`
+	ObservedVersion     string                  `json:"eshu.observedVersion,omitempty"`
+	FixedVersion        string                  `json:"eshu.fixedVersion,omitempty"`
+	RepositoryID        string                  `json:"eshu.repositoryId,omitempty"`
+	SubjectDigest       string                  `json:"eshu.subjectDigest,omitempty"`
+	ImageRef            string                  `json:"eshu.imageRef,omitempty"`
+	RuntimeReachability string                  `json:"eshu.runtimeReachability,omitempty"`
+	ImpactStatus        string                  `json:"eshu.impactStatus,omitempty"`
+	Confidence          string                  `json:"eshu.confidence,omitempty"`
+	RequestedRange      string                  `json:"eshu.requestedRange,omitempty"`
+	VulnerableRange     string                  `json:"eshu.vulnerableRange,omitempty"`
+	MatchReason         string                  `json:"eshu.matchReason,omitempty"`
+	WorkloadIDs         []string                `json:"eshu.workloadIds,omitempty"`
+	ServiceIDs          []string                `json:"eshu.serviceIds,omitempty"`
+	Environments        []string                `json:"eshu.environments,omitempty"`
+	DependencyScope     string                  `json:"eshu.dependencyScope,omitempty"`
+	DependencyPath      []string                `json:"eshu.dependencyPath,omitempty"`
+	DirectDependency    *bool                   `json:"eshu.directDependency,omitempty"`
+	MissingEvidence     []string                `json:"eshu.missingEvidence,omitempty"`
+	EvidenceFactIDs     []string                `json:"eshu.evidenceFactIds,omitempty"`
+	SourceFreshness     string                  `json:"eshu.sourceFreshness,omitempty"`
+	Remediation         *sarifRemediationProps  `json:"eshu.remediation,omitempty"`
+	ScannerStatus       *sarifScannerStatusProp `json:"eshu.scannerStatus,omitempty"`
+}
+
+type sarifRemediationProps struct {
+	CurrentVersion      string   `json:"currentVersion,omitempty"`
+	VulnerableRange     string   `json:"vulnerableRange,omitempty"`
+	FirstPatchedVersion string   `json:"firstPatchedVersion,omitempty"`
+	ManifestRange       string   `json:"manifestRange,omitempty"`
+	ManifestAllowsFix   string   `json:"manifestAllowsFix,omitempty"`
+	Confidence          string   `json:"confidence,omitempty"`
+	Reason              string   `json:"reason,omitempty"`
+	Direct              *bool    `json:"direct,omitempty"`
+	MissingEvidence     []string `json:"missingEvidence,omitempty"`
+}
+
+type sarifScannerStatusProp struct {
+	ReadinessState    string   `json:"readinessState,omitempty"`
+	MissingEvidence   []string `json:"missingEvidence,omitempty"`
+	IncompleteReasons []string `json:"incompleteReasons,omitempty"`
+}
+
+type sarifUnsupportedTargetJS struct {
+	TargetKind  string `json:"targetKind,omitempty"`
+	Reason      string `json:"reason,omitempty"`
+	Ecosystem   string `json:"ecosystem,omitempty"`
+	PackageID   string `json:"packageId,omitempty"`
+	PackageName string `json:"packageName,omitempty"`
+	Count       int    `json:"count,omitempty"`
 }

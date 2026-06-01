@@ -1,0 +1,162 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "eshu",
+          "version": "dev",
+          "informationUri": "https://eshu.dev",
+          "rules": [
+            {
+              "id": "GHSA-sarif-0001",
+              "name": "synthetic-runtime-lib",
+              "shortDescription": {
+                "text": "synthetic-runtime-lib vulnerable through 2.3.4"
+              },
+              "helpUri": "https://github.com/advisories/GHSA-sarif-0001",
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "properties": {
+                "eshu.severity": "high",
+                "eshu.cvssScore": 8.8,
+                "eshu.cvssVector": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H",
+                "eshu.epssProbability": "0.234",
+                "eshu.knownExploited": true,
+                "eshu.ecosystem": "npm",
+                "eshu.purl": "pkg:npm/synthetic-runtime-lib@2.3.4",
+                "eshu.advisorySources": [
+                  {
+                    "source": "ghsa",
+                    "advisoryId": "GHSA-sarif-0001",
+                    "url": "https://github.com/advisories/GHSA-sarif-0001"
+                  },
+                  {
+                    "source": "nvd",
+                    "advisoryId": "CVE-2026-SARIF-0001"
+                  }
+                ],
+                "tags": [
+                  "ecosystem:npm",
+                  "kev",
+                  "security",
+                  "vulnerability"
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "invocations": [
+        {
+          "executionSuccessful": true,
+          "startTimeUtc": "2026-05-21T12:00:02Z",
+          "endTimeUtc": "2026-05-21T12:00:02Z"
+        }
+      ],
+      "results": [
+        {
+          "ruleId": "GHSA-sarif-0001",
+          "ruleIndex": 0,
+          "level": "error",
+          "message": {
+            "text": "GHSA-sarif-0001 in synthetic-runtime-lib@2.3.4; fixed in 2.3.5 — synthetic-runtime-lib vulnerable through 2.3.4"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "services/api/package.json"
+                },
+                "region": {
+                  "startLine": 12,
+                  "endLine": 12
+                }
+              }
+            }
+          ],
+          "partialFingerprints": {
+            "eshu/advisoryId/v1": "GHSA-sarif-0001",
+            "eshu/cveId/v1": "CVE-2026-SARIF-0001",
+            "eshu/findingId/v1": "finding-sarif-1",
+            "eshu/observedVersion/v1": "2.3.4",
+            "eshu/packageId/v1": "npm://registry.npmjs.org/synthetic-runtime-lib"
+          },
+          "properties": {
+            "eshu.findingId": "finding-sarif-1",
+            "eshu.packageId": "npm://registry.npmjs.org/synthetic-runtime-lib",
+            "eshu.packageName": "synthetic-runtime-lib",
+            "eshu.observedVersion": "2.3.4",
+            "eshu.fixedVersion": "2.3.5",
+            "eshu.repositoryId": "repo-local",
+            "eshu.subjectDigest": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+            "eshu.imageRef": "registry.example.test/team/api@sha256:1111111111111111111111111111111111111111111111111111111111111111",
+            "eshu.runtimeReachability": "image_sbom",
+            "eshu.impactStatus": "possibly_affected",
+            "eshu.confidence": "partial",
+            "eshu.requestedRange": "^2.3.0",
+            "eshu.vulnerableRange": "<2.3.5",
+            "eshu.matchReason": "range_only_manifest",
+            "eshu.workloadIds": [
+              "workload-synthetic"
+            ],
+            "eshu.serviceIds": [
+              "service-synthetic"
+            ],
+            "eshu.environments": [
+              "prod"
+            ],
+            "eshu.dependencyScope": "runtime",
+            "eshu.dependencyPath": [
+              "synthetic-root",
+              "synthetic-runtime-lib"
+            ],
+            "eshu.directDependency": true,
+            "eshu.missingEvidence": [
+              "workload_evidence"
+            ],
+            "eshu.evidenceFactIds": [
+              "fact-package-1",
+              "fact-sbom-1"
+            ],
+            "eshu.sourceFreshness": "fresh",
+            "eshu.remediation": {
+              "currentVersion": "2.3.4",
+              "vulnerableRange": "<2.3.5",
+              "firstPatchedVersion": "2.3.5",
+              "manifestRange": "^2.3.0",
+              "manifestAllowsFix": "allowed",
+              "confidence": "partial",
+              "reason": "direct_upgrade_allowed",
+              "direct": true,
+              "missingEvidence": [
+                "workload_evidence"
+              ]
+            }
+          }
+        }
+      ],
+      "properties": {
+        "eshu.scope": "repository:repo-local",
+        "eshu.generatedAt": "2026-05-21T12:00:02Z",
+        "eshu.formatVersion": "2.1.0",
+        "eshu.reportSchemaVersion": "eshu.vulnerability_report.v1",
+        "eshu.readinessState": "ready_with_findings",
+        "eshu.readinessFreshness": "fresh",
+        "eshu.exitCode": 3,
+        "eshu.exitReason": "findings_present",
+        "eshu.scopeMode": "scoped",
+        "eshu.unsupportedTargets": [
+          {
+            "targetKind": "ecosystem",
+            "reason": "matcher_not_available",
+            "ecosystem": "swift",
+            "count": 1
+          }
+        ]
+      }
+    }
+  ]
+}

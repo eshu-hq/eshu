@@ -215,27 +215,62 @@ type AdvisorySource struct {
 // optional fields and omit the corresponding format-native field rather than
 // inventing values.
 type Finding struct {
-	FindingID       string
-	CVEID           string
-	AdvisoryID      string
-	PackageID       string
-	Ecosystem       string
-	PackageName     string
-	PURL            string
-	ObservedVersion string
-	FixedVersion    string
-	Summary         string
-	Description     string
-	Severity        Severity
-	CVSSScore       float64
-	CVSSVector      string
-	KnownExploited  bool
-	EPSSProbability string
-	RepositoryID    string
-	SubjectDigest   string
-	Locations       []Location
-	AdvisorySources []AdvisorySource
-	HelpURI         string
+	FindingID           string
+	CVEID               string
+	AdvisoryID          string
+	PackageID           string
+	Ecosystem           string
+	PackageName         string
+	PURL                string
+	ObservedVersion     string
+	RequestedRange      string
+	VulnerableRange     string
+	FixedVersion        string
+	MatchReason         string
+	Summary             string
+	Description         string
+	Severity            Severity
+	CVSSScore           float64
+	CVSSVector          string
+	KnownExploited      bool
+	EPSSProbability     string
+	RepositoryID        string
+	SubjectDigest       string
+	ImageRef            string
+	RuntimeReachability string
+	ImpactStatus        string
+	Confidence          string
+	WorkloadIDs         []string
+	ServiceIDs          []string
+	Environments        []string
+	DependencyScope     string
+	DependencyPath      []string
+	DirectDependency    *bool
+	MissingEvidence     []string
+	EvidenceFactIDs     []string
+	SourceFreshness     string
+	Remediation         *Remediation
+	Locations           []Location
+	AdvisorySources     []AdvisorySource
+	HelpURI             string
+}
+
+// Remediation is the safe-upgrade metadata attached to a vulnerability
+// finding.
+//
+// The fields intentionally mirror reducer-owned remediation fields that are
+// safe for export. Provider payload URLs and private alert bodies do not belong
+// here; callers should drop them before constructing a Finding.
+type Remediation struct {
+	CurrentVersion      string
+	VulnerableRange     string
+	FirstPatchedVersion string
+	ManifestRange       string
+	ManifestAllowsFix   string
+	Confidence          string
+	Reason              string
+	Direct              *bool
+	MissingEvidence     []string
 }
 
 // RuleID returns the canonical rule identifier for a finding.
@@ -290,6 +325,32 @@ type Snapshot struct {
 	GeneratedAt time.Time
 	Findings    []Finding
 	Components  []Component
+	Status      SnapshotStatus
+}
+
+// SnapshotStatus carries scanner/report readiness metadata for formats that
+// can represent a run-level status alongside vulnerability findings.
+type SnapshotStatus struct {
+	ReportSchemaVersion string
+	ReadinessState      string
+	ReadinessFreshness  string
+	ExitCode            int
+	ExitReason          string
+	ScopeMode           string
+	MissingEvidence     []string
+	IncompleteReasons   []string
+	UnsupportedTargets  []UnsupportedTarget
+}
+
+// UnsupportedTarget describes target evidence the scanner observed but could
+// not evaluate with the current matcher/export capability.
+type UnsupportedTarget struct {
+	TargetKind  string
+	Reason      string
+	Ecosystem   string
+	PackageID   string
+	PackageName string
+	Count       int
 }
 
 // FieldRedactor rewrites caller-controlled path or locator strings before an

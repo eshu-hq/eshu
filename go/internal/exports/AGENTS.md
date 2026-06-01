@@ -54,6 +54,10 @@
   the suffix and document the migration.
 - **Properties prefixed `eshu.`** for vendor-specific values so they do not
   collide with SARIF reserved property names.
+- **Scanner status stays location-free**: non-ready scanner states may emit
+  SARIF status results, but they must not invent source locations. Missing or
+  unsupported evidence belongs in `run.properties` and the status result
+  properties unless a real source path was supplied with a finding.
 
 ## Common changes and how to scope them
 
