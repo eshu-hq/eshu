@@ -272,28 +272,50 @@ alerts, image tags, workload names, service names, environment names, or
 repository names.
 
 Version and range matching is reducer-owned and ecosystem-aware. The supported
-matchers are npm, Go modules, Cargo, Pub, Hex, and Swift semver over OSV-style event
-ranges and GLAD-style comparator ranges, NuGet semantic versions from exact
-lockfile or pinned manifest evidence, Maven version/range ordering for Maven
-bracket and comparator ranges, PyPI PEP 440, RPM EVR ordering for
-vendor-backed RPM-family OS package facts, and RubyGems installed versions from
-Bundler lockfile evidence. Swift support is exact `Package.resolved` evidence
-only; OSV `SwiftURL` records use a Git URL as the source package name; Eshu
-normalizes that URL to the shared Swift Package Manager identity and can also
-use a `PACKAGE` reference as a fallback for source records that only publish a
-short package name. Pub support requires hosted `pub.dev` parser evidence and
-exact `pubspec.lock` versions for precise findings; manifest ranges remain
-partial evidence. RubyGems matching uses the same reducer-owned exact-version
-gate as other precise lockfile ecosystems: git/path Bundler dependencies remain
-ambiguous source evidence and are not admitted as public RubyGems registry
-versions. Findings preserve `observed_version`, `requested_range`,
-`fixed_version`, and `match_reason` as separate fields. Unsupported non-OS
-package ecosystems do not produce impact findings; readiness surfaces them as
-`unsupported_targets[]` with `reason=unsupported_ecosystem` when the bounded
-scope has observed dependency evidence. Malformed installed versions or
-advisory ranges still fail closed as
-`possibly_affected` with explicit missing-evidence reasons instead of being
-treated as affected or safely fixed.
+matchers are npm, Cargo, Go modules, Pub, Hex, and Swift semver over OSV-style
+event ranges and GLAD-style comparator ranges; PyPI PEP 440 versions and
+specifier sets including epochs, local versions, compatible releases,
+exclusions, and prereleases; Composer constraints for exact, comparator, caret,
+tilde, wildcard, stability-flagged, and OR branches; RubyGems exact,
+comparator, and pessimistic requirements including prerelease segments; NuGet
+semantic versions from exact lockfile or pinned manifest evidence; Maven
+version/range ordering for Maven bracket and comparator ranges; RPM EVR
+ordering for vendor-backed RPM-family OS package facts; and exact DPKG/APK
+fixed-version checks where the distro package identity is explicit. Swift
+support is exact `Package.resolved` evidence only; OSV `SwiftURL` records use a
+Git URL as the source package name; Eshu normalizes that URL to the shared
+Swift Package Manager identity and can also use a `PACKAGE` reference as a
+fallback for source records that only publish a short package name. Pub support
+requires hosted `pub.dev` parser evidence and exact `pubspec.lock` versions for
+precise findings; manifest ranges remain partial evidence. RubyGems matching
+uses the same reducer-owned exact-version gate as other precise lockfile
+ecosystems: git/path Bundler dependencies remain ambiguous source evidence and
+are not admitted as public RubyGems registry versions. SBOM component versions
+only participate in exact matching when their PURL or package ID maps to a
+supported package ecosystem. Findings preserve `observed_version`,
+`requested_range`, the advisory vulnerable range (`vulnerable_range`),
+`fixed_version`, malformed or unsupported state, and `match_reason` as separate
+truth fields instead of collapsing them into severity or reachability.
+Unsupported ecosystems do not produce clean impact findings; readiness surfaces
+them as `unsupported_targets[]` with `reason=unsupported_ecosystem` when the
+bounded scope has observed dependency evidence. Malformed installed versions,
+malformed advisory ranges, unsupported operators, Composer branch aliases, and
+`dev-*` branch evidence still fail closed as `possibly_affected` with explicit
+missing-evidence reasons instead of being treated as affected or safely fixed.
+
+No-Regression Evidence: `go test ./internal/reducer -run
+'TestBuildSupplyChainImpactFindingsMatches(PyPISpecifierSets|GoModulePseudoVersions|ComposerConstraints|RubyGemsPessimisticConstraint)|TestEvaluate(PyPIMatch|ComposerMatch|RubyGemsMatch)|TestBuildSupplyChainImpactFindingsFailsClosedForUnsupportedAndMalformedRanges'
+-count=1` proves the cross-ecosystem matcher boundary without changing queue,
+graph, or API routing behavior.
+
+No-Observability-Change: the matcher expansion only changes in-memory
+supply-chain impact admission over facts the reducer already loads. It adds no
+route, MCP tool, queue domain, graph write, worker, runtime knob, metric
+instrument, or metric label. Operators continue to diagnose decisions through
+the existing `reducer_supply_chain_impact_finding` payload fields
+(`observed_version`, `requested_range`, `vulnerable_range`, `fixed_version`,
+`match_reason`, and `missing_evidence`), `SupplyChainImpactFindings` reducer
+counters, and the `query.supply_chain_impact_findings` span.
 
 No-Regression Evidence: `go test ./internal/collector/ospackagevulnerability
 -run 'TestParseRPM|TestBuildEnvelopesEmitsOSPackage' -count=1` and `go test
