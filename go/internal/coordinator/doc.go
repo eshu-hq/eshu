@@ -15,7 +15,8 @@
 // work items without opening provider connections; package and vulnerability
 // planners preserve direct and owned target priority ahead of broad fanout and
 // report aggregate skipped-target evidence when an owned-package derivation
-// budget is exhausted.
+// budget is exhausted or partial dependency evidence cannot safely become an
+// exact vulnerability source query.
 // Service reads one bounded owned-package lookahead beyond each planning budget
 // so requested scope sets can show exhaustion without widening admitted work.
 // PagerDutyWorkPlanner plans incident-evidence work from configured PagerDuty

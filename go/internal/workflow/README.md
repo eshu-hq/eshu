@@ -189,28 +189,30 @@ projection contracts land.
 `vulnerability_intelligence` collector instances are claim-capable. The
 coordinator plans one bounded work item per configured vulnerability source
 target. When `derive_from_owned_packages.enabled=true`, the planner can derive
-OSV npm, Pub, and Swift package-version targets from active owned dependency
-facts only when the dependency carries an exact version. Pub rows are planned
-from hosted `pubspec.lock` evidence and keep canonical ecosystem `pub`. Swift
-rows are planned from remote source-control `Package.resolved` pins and keep
-canonical ecosystem `swift`; the coordinator carries the dependency
-`source_location` as the OSV package name, and the runtime maps those queries to
-OSV's `SwiftURL` ecosystem. Manifest ranges, aliases, workspace references,
-file/git references, Pub dependency overrides, branch-only Swift pins,
-revision-only Swift pins, local/path Swift pins, and `latest` remain
-partial evidence and are not promoted into OSV package-version collection
-targets. Exact package-version queries are grouped into bounded OSV querybatch
-work items when the scope ID remains storage-safe, preserving installed-version
-truth without issuing one claim per package version. The configuration
-can also declare `source_cache` for refresh or offline advisory-source cache
-lifecycle and `fallback_urls` for source mirrors; validation keeps cache modes,
-durations, and mirror URLs bounded before the desired collector instance is
-persisted. Derived package and vulnerability target reads rotate their bounded
-slice on each coordinator reconcile bucket by default, so a target limit
-smaller than the full corpus does not repeatedly schedule only the first sorted
-page. Set `derive_from_owned_packages.planning_mode=single_pass` only for
-bounded representative proofs that must keep the total derived target set fixed
-across reconcile buckets.
+OSV package-version targets for npm, PyPI, Go modules, Maven, NuGet, Composer,
+RubyGems, Cargo, Pub, Hex, and Swift from active owned dependency facts only
+when the dependency carries an exact version. Go rows must keep a usable
+module-version string such as `v0.17.0`. Pub rows are planned from hosted
+`pubspec.lock` evidence and keep canonical ecosystem `pub`. Swift rows are
+planned from remote source-control `Package.resolved` pins and keep canonical
+ecosystem `swift`; the coordinator carries the dependency `source_location` as
+the OSV package name, and the runtime maps those queries to OSV's `SwiftURL`
+ecosystem. Manifest ranges, aliases, workspace references, file/git references,
+Pub dependency overrides, branch-only Swift pins, revision-only Swift pins,
+local/path Swift pins, malformed versions, and `latest` remain partial evidence
+and are not promoted into OSV package-version collection targets. Exact
+package-version queries are grouped into bounded OSV querybatch work items when
+the scope ID remains storage-safe, preserving installed-version truth without
+issuing one claim per package version. The configuration can also declare
+`source_cache` for refresh or offline advisory-source cache lifecycle and
+`fallback_urls` for source mirrors; validation keeps cache modes, durations,
+and mirror URLs bounded before the desired collector instance is persisted.
+Derived package and vulnerability target reads rotate their bounded slice on
+each coordinator reconcile bucket by default, so a target limit smaller than
+the full corpus does not repeatedly schedule only the first sorted page. Set
+`derive_from_owned_packages.planning_mode=single_pass` only for bounded
+representative proofs that must keep the total derived target set fixed across
+reconcile buckets.
 
 `scanner_worker` work items reserve the workflow boundary for isolated security
 analyzers. A scanner-worker claim copies the active work item, claim ID,
@@ -342,12 +344,13 @@ by `go test ./internal/coordinator ./internal/workflow ./internal/storage/postgr
 The test set proves package-registry planning derives unique metadata targets
 from active owned package evidence across npm, PyPI, Go modules, Maven, NuGet,
 Composer, RubyGems, and Cargo; vulnerability planning derives OSV
-targets only for exact owned npm, Pub, and Swift versions, range and alias
-dependencies stay out of exact vulnerability collection, source-backed Swift
-package names with slashes are encoded into storage-safe `scope_id` values,
-the coordinator passes active owned
-dependency rows to both planners, and both hosted collector commands parse the
-new derivation config. Planning remains bounded by
+targets only for exact owned npm, PyPI, Go, Maven, NuGet, Composer, RubyGems,
+Cargo, Pub, Hex, and Swift versions, range and alias dependencies stay out of
+exact vulnerability collection, skipped exact-query candidates carry stable
+reason counts by ecosystem, source-backed Swift package names with slashes are
+encoded into storage-safe `scope_id` values, the coordinator passes active
+owned dependency rows to both planners, and both hosted collector commands parse
+the new derivation config. Planning remains bounded by
 `derive_from_owned_packages.target_limit`; the default remains 100 derived
 targets, and operators can explicitly raise the cap up to 5000 for full-corpus
 proofs. Package-registry derivation reads package-level identities and defaults
@@ -362,7 +365,9 @@ rows, work-item rows, `requested_scope_set` payloads, coordinator reconcile
 metrics, collector claim status, package-registry request/fact/rate-limit
 metrics, vulnerability-intelligence observation/fetch/fact metrics, and
 `/api/v0/index-status` expose planned, skipped, rate-limited, failed, completed,
-and stuck target states. `/admin/status?format=json` also exposes
+and stuck target states. `requested_scope_set.skipped_targets` reports skipped
+vulnerability derivation counts by ecosystem and reason without package names or
+versions. `/admin/status?format=json` also exposes
 package-registry metadata target counts by ecosystem without putting package
 names, versions, feed URLs, or credential material in metric labels.
 
