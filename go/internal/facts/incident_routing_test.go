@@ -6,6 +6,8 @@ func TestIncidentRoutingFactKindsAndSchemaVersions(t *testing.T) {
 	want := []string{
 		IncidentRoutingAppliedPagerDutyResourceFactKind,
 		IncidentRoutingAppliedAlertRouteFactKind,
+		IncidentRoutingObservedPagerDutyServiceFactKind,
+		IncidentRoutingObservedPagerDutyIntegrationFactKind,
 		IncidentRoutingCoverageWarningFactKind,
 	}
 

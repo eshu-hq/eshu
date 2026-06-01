@@ -29,7 +29,8 @@ func safeSourceURI(raw string) string {
 func sensitiveQueryKey(key string) bool {
 	switch strings.ToLower(strings.TrimSpace(key)) {
 	case "access_token", "api_key", "apikey", "auth", "authorization", "jwt",
-		"key", "password", "passwd", "secret", "sig", "signature", "token":
+		"integration_key", "key", "password", "passwd", "routing_key",
+		"secret", "sig", "signature", "token":
 		return true
 	default:
 		return false

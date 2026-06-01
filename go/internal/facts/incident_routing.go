@@ -9,6 +9,12 @@ const (
 	// IncidentRoutingAppliedAlertRouteFactKind identifies one alert route
 	// resource observed from applied Terraform state.
 	IncidentRoutingAppliedAlertRouteFactKind = "incident_routing.applied_alert_route"
+	// IncidentRoutingObservedPagerDutyServiceFactKind identifies one live
+	// PagerDuty service observed from the PagerDuty REST API.
+	IncidentRoutingObservedPagerDutyServiceFactKind = "incident_routing.observed_pagerduty_service"
+	// IncidentRoutingObservedPagerDutyIntegrationFactKind identifies one live
+	// PagerDuty service integration observed from the PagerDuty REST API.
+	IncidentRoutingObservedPagerDutyIntegrationFactKind = "incident_routing.observed_pagerduty_integration"
 	// IncidentRoutingCoverageWarningFactKind identifies bounded coverage gaps
 	// while collecting incident-routing evidence.
 	IncidentRoutingCoverageWarningFactKind = "incident_routing.coverage_warning"
@@ -21,13 +27,17 @@ const (
 var incidentRoutingFactKinds = []string{
 	IncidentRoutingAppliedPagerDutyResourceFactKind,
 	IncidentRoutingAppliedAlertRouteFactKind,
+	IncidentRoutingObservedPagerDutyServiceFactKind,
+	IncidentRoutingObservedPagerDutyIntegrationFactKind,
 	IncidentRoutingCoverageWarningFactKind,
 }
 
 var incidentRoutingSchemaVersions = map[string]string{
-	IncidentRoutingAppliedPagerDutyResourceFactKind: IncidentRoutingSchemaVersionV1,
-	IncidentRoutingAppliedAlertRouteFactKind:        IncidentRoutingSchemaVersionV1,
-	IncidentRoutingCoverageWarningFactKind:          IncidentRoutingSchemaVersionV1,
+	IncidentRoutingAppliedPagerDutyResourceFactKind:     IncidentRoutingSchemaVersionV1,
+	IncidentRoutingAppliedAlertRouteFactKind:            IncidentRoutingSchemaVersionV1,
+	IncidentRoutingObservedPagerDutyServiceFactKind:     IncidentRoutingSchemaVersionV1,
+	IncidentRoutingObservedPagerDutyIntegrationFactKind: IncidentRoutingSchemaVersionV1,
+	IncidentRoutingCoverageWarningFactKind:              IncidentRoutingSchemaVersionV1,
 }
 
 // IncidentRoutingFactKinds returns accepted incident-routing source fact kinds

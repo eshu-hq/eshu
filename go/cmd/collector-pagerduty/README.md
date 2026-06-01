@@ -16,7 +16,10 @@ flowchart LR
 Configuration requires one or more targets with `provider="pagerduty"`,
 `scope_id`, `account_id`, and `token_env`. Optional target fields bound request
 work with `incident_lookback`, `incident_limit`, `log_entry_limit`,
-`change_event_limit`, and `allowed_service_ids`.
+`change_event_limit`, and `allowed_service_ids`. Live configuration validation
+is opt-in per target with `config_validation_enabled`; `config_resource_limit`
+bounds service and service-integration reads used for no-IaC fallback,
+freshness proof, and reducer-owned drift comparison.
 
 The token value is read only inside this process and is never copied into
 workflow run metadata, facts, metric labels, logs, or status errors.
@@ -29,5 +32,6 @@ remains the backfill path for missed webhook deliveries.
 
 Observability Evidence: the binary exposes the shared hosted status/admin
 server plus Prometheus metrics for provider requests, emitted facts,
-rate-limit events, fetch duration, and generation lag through
+rate-limit events, optional config resources observed, config drift candidates,
+partial config failures, redactions, fetch duration, and generation lag through
 `telemetry.Instruments`.

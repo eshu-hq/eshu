@@ -144,12 +144,15 @@ or copied provider payloads to public values files or docs.
 The PagerDuty collector is claim-only. It selects an enabled `pagerduty`
 instance from `ESHU_COLLECTOR_INSTANCES_JSON`. Provider targets must include
 `provider`, `scope_id`, `account_id`, and `token_env`. The runtime resolves the
-credential from the named environment variable and emits only
-`incident.record`, `incident.lifecycle_event`, and `change.record` facts.
+credential from the named environment variable and emits incident/change
+source facts. When `config_validation_enabled` is true on a target, it also
+emits optional live PagerDuty service and service-integration incident-routing
+source facts plus coverage warnings.
 Optional `api_base_url` overrides must use HTTPS because the runtime sends the
 PagerDuty token to that endpoint. Optional target fields bound collection with
 `incident_lookback`, `incident_limit`, `log_entry_limit`,
-`change_event_limit`, and `allowed_service_ids`.
+`change_event_limit`, `allowed_service_ids`, `config_validation_enabled`, and
+`config_resource_limit`.
 
 | Variable | Default | Read by | Purpose |
 | --- | --- | --- | --- |
@@ -161,7 +164,8 @@ PagerDuty token to that endpoint. Optional target fields bound collection with
 
 PagerDuty tokens must come from private environment variables referenced by
 `token_env`; do not commit token values, incident titles, service names,
-PagerDuty URLs, or copied provider payloads to public values files or docs.
+integration names, routing keys, PagerDuty URLs, or copied provider payloads to
+public values files or docs.
 
 ## Jira Collector
 

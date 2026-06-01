@@ -1,11 +1,15 @@
 # PagerDuty Collector
 
 `collector-pagerduty` is a claim-driven incident-context collector. It reads
-bounded PagerDuty incident evidence and emits source facts only:
+bounded PagerDuty incident evidence and can optionally validate bounded live
+PagerDuty service and integration configuration. It emits source facts only:
 
 - `incident.record`
 - `incident.lifecycle_event`
 - `change.record`
+- `incident_routing.observed_pagerduty_service`
+- `incident_routing.observed_pagerduty_integration`
+- `incident_routing.coverage_warning`
 
 PagerDuty is the alerting source. This collector does not create Jira tickets,
 infer deployment impact, write graph truth, or connect incidents to code by
@@ -17,15 +21,15 @@ requests, and work items.
 
 The runtime selects one enabled `pagerduty` collector instance from
 `ESHU_COLLECTOR_INSTANCES_JSON`, claims work from the workflow control plane,
-fetches incidents for the claimed target, and commits facts through the shared
-ingestion store.
+fetches incidents and any opted-in live configuration for the claimed target,
+and commits facts through the shared ingestion store.
 
 ```mermaid
 flowchart LR
   A["workflow coordinator"] --> B["pagerduty work item"]
   B --> C["collector-pagerduty"]
   C --> D["PagerDuty REST API"]
-  D --> E["incident-context source facts"]
+  D --> E["incident and optional config source facts"]
   E --> F["Postgres fact store"]
 ```
 
@@ -59,7 +63,9 @@ the backfill path for missed or dropped webhooks.
         "incident_limit": 25,
         "log_entry_limit": 25,
         "change_event_limit": 25,
-        "allowed_service_ids": ["PABC123"]
+        "allowed_service_ids": ["PABC123"],
+        "config_validation_enabled": true,
+        "config_resource_limit": 25
       }
     ]
   }
@@ -74,6 +80,13 @@ labels, or status errors.
 `api_base_url` overrides must use HTTPS in workflow configuration. The direct
 HTTP client still accepts an injected test server for unit tests.
 
+`config_validation_enabled` is optional. When enabled, the collector reads
+bounded PagerDuty service and service-integration metadata for no-IaC fallback,
+freshness proof, and reducer-owned drift comparison. It does not overwrite
+Terraform declared or applied evidence. `config_resource_limit` must be between
+0 and 100; a zero value uses the default bounded page limit when validation is
+enabled.
+
 ## Evidence Boundaries
 
 PagerDuty evidence stays provider-reported:
@@ -84,6 +97,15 @@ PagerDuty evidence stays provider-reported:
   `incident.lifecycle_event`.
 - Related change-event summary, source, services, links, and timestamp stay on
   `change.record`.
+- Optional live service and service-integration status, provider IDs,
+  escalation/team references, comparison state, and update timestamps stay on
+  `incident_routing.observed_pagerduty_*` facts.
+- Permission-hidden, missing, unsupported, and partial live-configuration reads
+  stay on `incident_routing.coverage_warning`.
+
+Live configuration facts redact or fingerprint service names, escalation-policy
+names, team names, integration summaries, routing keys, integration keys, and
+token-like URL parameters before persistence.
 
 The incident-context read model can present this provider evidence with
 explicit missing slots for deployment, image, commit, pull request, and Jira
@@ -114,12 +136,16 @@ PagerDuty-specific signals:
 - `eshu_dp_pagerduty_provider_requests_total`
 - `eshu_dp_pagerduty_facts_emitted_total`
 - `eshu_dp_pagerduty_rate_limited_total`
+- `eshu_dp_pagerduty_config_resources_observed_total`
+- `eshu_dp_pagerduty_config_drift_candidates_total`
+- `eshu_dp_pagerduty_config_partial_failures_total`
+- `eshu_dp_pagerduty_config_redactions_total`
 - `eshu_dp_pagerduty_fetch_duration_seconds`
 - `eshu_dp_pagerduty_generation_lag_seconds`
 
 Metric labels use bounded provider, status-class, and fact-kind values only.
-Incident titles, service names, PagerDuty URLs, token environment names, and
-token values stay out of labels.
+Incident titles, service names, integration names, PagerDuty URLs, routing
+keys, token environment names, and token values stay out of labels.
 
 ## Deployment Status
 

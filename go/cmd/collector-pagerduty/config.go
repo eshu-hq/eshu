@@ -34,17 +34,19 @@ type pagerDutyRuntimeConfiguration struct {
 }
 
 type targetJSON struct {
-	Provider          string   `json:"provider"`
-	ScopeID           string   `json:"scope_id"`
-	AccountID         string   `json:"account_id"`
-	TokenEnv          string   `json:"token_env"`
-	APIBaseURL        string   `json:"api_base_url"`
-	SourceURI         string   `json:"source_uri"`
-	IncidentLimit     int      `json:"incident_limit"`
-	IncidentLookback  string   `json:"incident_lookback"`
-	LogEntryLimit     int      `json:"log_entry_limit"`
-	ChangeEventLimit  int      `json:"change_event_limit"`
-	AllowedServiceIDs []string `json:"allowed_service_ids"`
+	Provider                string   `json:"provider"`
+	ScopeID                 string   `json:"scope_id"`
+	AccountID               string   `json:"account_id"`
+	TokenEnv                string   `json:"token_env"`
+	APIBaseURL              string   `json:"api_base_url"`
+	SourceURI               string   `json:"source_uri"`
+	IncidentLimit           int      `json:"incident_limit"`
+	IncidentLookback        string   `json:"incident_lookback"`
+	LogEntryLimit           int      `json:"log_entry_limit"`
+	ChangeEventLimit        int      `json:"change_event_limit"`
+	AllowedServiceIDs       []string `json:"allowed_service_ids"`
+	ConfigValidationEnabled bool     `json:"config_validation_enabled"`
+	ConfigResourceLimit     int      `json:"config_resource_limit"`
 }
 
 func loadClaimedRuntimeConfig(getenv func(string) string) (claimedRuntimeConfig, error) {
@@ -169,17 +171,19 @@ func mapTarget(target targetJSON, getenv func(string) string) (pagerduty.TargetC
 		lookback = parsed
 	}
 	return pagerduty.TargetConfig{
-		Provider:          strings.TrimSpace(target.Provider),
-		ScopeID:           strings.TrimSpace(target.ScopeID),
-		AccountID:         strings.TrimSpace(target.AccountID),
-		Token:             token,
-		APIBaseURL:        strings.TrimRight(strings.TrimSpace(target.APIBaseURL), "/"),
-		SourceURI:         strings.TrimSpace(firstNonBlank(target.SourceURI, target.APIBaseURL)),
-		IncidentLimit:     target.IncidentLimit,
-		IncidentLookback:  lookback,
-		LogEntryLimit:     target.LogEntryLimit,
-		ChangeEventLimit:  target.ChangeEventLimit,
-		AllowedServiceIDs: cleanConfigStrings(target.AllowedServiceIDs),
+		Provider:                strings.TrimSpace(target.Provider),
+		ScopeID:                 strings.TrimSpace(target.ScopeID),
+		AccountID:               strings.TrimSpace(target.AccountID),
+		Token:                   token,
+		APIBaseURL:              strings.TrimRight(strings.TrimSpace(target.APIBaseURL), "/"),
+		SourceURI:               strings.TrimSpace(firstNonBlank(target.SourceURI, target.APIBaseURL)),
+		IncidentLimit:           target.IncidentLimit,
+		IncidentLookback:        lookback,
+		LogEntryLimit:           target.LogEntryLimit,
+		ChangeEventLimit:        target.ChangeEventLimit,
+		AllowedServiceIDs:       cleanConfigStrings(target.AllowedServiceIDs),
+		ConfigValidationEnabled: target.ConfigValidationEnabled,
+		ConfigResourceLimit:     target.ConfigResourceLimit,
 	}, nil
 }
 

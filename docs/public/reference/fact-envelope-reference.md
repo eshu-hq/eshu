@@ -71,7 +71,7 @@ current families are:
 | Vulnerability intelligence | collector-specific vulnerability source | `vulnerability.source_snapshot`, `vulnerability.cve`, `vulnerability.affected_product`, `vulnerability.affected_package`, `vulnerability.os_package`, `vulnerability.epss_score`, `vulnerability.known_exploited`, `vulnerability.reference`, `vulnerability.warning`, `vulnerability.go_module_evidence`, `vulnerability.go_call_reachability` |
 | Provider security alerts | `security_alert` | `security_alert.repository_alert` |
 | Incident context | `pagerduty` for PagerDuty source collection | `incident.record`, `incident.lifecycle_event`, `change.record` |
-| Incident routing | source collector that observed the routing evidence, including `terraform_state` | `incident_routing.applied_pagerduty_resource`, `incident_routing.applied_alert_route`, `incident_routing.coverage_warning` |
+| Incident routing | source collector that observed the routing evidence, including `terraform_state` and optional live `pagerduty` config validation | `incident_routing.applied_pagerduty_resource`, `incident_routing.applied_alert_route`, `incident_routing.observed_pagerduty_service`, `incident_routing.observed_pagerduty_integration`, `incident_routing.coverage_warning` |
 | Jira work items | `jira` | `work_item.record`, `work_item.transition`, `work_item.external_link` |
 
 Most current core families use schema version `1.0.0`.
@@ -90,6 +90,13 @@ module/provider address, scope, state generation, serial, lineage, locator
 hash, and bounded resource identifiers. Secret-bearing endpoint values, SSM
 parameter values, IAM policy documents, integration keys, private URLs, and
 user emails are omitted or represented by redaction flags and fingerprints.
+Optional live PagerDuty configuration validation emits
+`incident_routing.observed_pagerduty_service` and
+`incident_routing.observed_pagerduty_integration` for bounded service and
+service-integration metadata. These observed facts carry provider-native IDs,
+comparison state, update timestamps, and redaction flags; names, integration
+keys, routing keys, private URLs, and token-like URL parameters are omitted,
+sanitized, or fingerprinted.
 
 `vulnerability.source_snapshot` may include cache lifecycle metadata such as
 cache artifact version, snapshot digest, cache update time, expiration,

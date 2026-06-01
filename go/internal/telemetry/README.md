@@ -121,6 +121,10 @@ gauge when a shared-acceptance observer is available.
 | `PagerDutyProviderRequests` | `eshu_dp_pagerduty_provider_requests_total` |
 | `PagerDutyFactsEmitted` | `eshu_dp_pagerduty_facts_emitted_total` |
 | `PagerDutyRateLimited` | `eshu_dp_pagerduty_rate_limited_total` |
+| `PagerDutyConfigResourcesObserved` | `eshu_dp_pagerduty_config_resources_observed_total` |
+| `PagerDutyConfigDriftCandidates` | `eshu_dp_pagerduty_config_drift_candidates_total` |
+| `PagerDutyConfigPartialFailures` | `eshu_dp_pagerduty_config_partial_failures_total` |
+| `PagerDutyConfigRedactions` | `eshu_dp_pagerduty_config_redactions_total` |
 | `JiraProviderRequests` | `eshu_dp_jira_provider_requests_total` |
 | `JiraFactsEmitted` | `eshu_dp_jira_facts_emitted_total` |
 | `JiraRateLimited` | `eshu_dp_jira_rate_limited_total` |
