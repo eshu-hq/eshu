@@ -60,8 +60,8 @@ See `doc.go` for the godoc contract.
   vulnerability-hint, registry-event, hosting, and warning observations
   produced from one metadata document.
 - `NormalizePackageIdentity` — shared ecosystem normalization for npm, PyPI,
-  Go modules, Maven, Composer, RubyGems, Cargo, NuGet, OS package managers,
-  and generic package feeds.
+  Go modules, Maven, Composer, RubyGems, Cargo, Swift, NuGet, OS package
+  managers, and generic package feeds.
 - `ParseNPMPackumentMetadata` — parses one npm packument fixture into
   observations.
 - `ParsePyPIProjectMetadata` — parses one PyPI JSON API fixture into
@@ -164,6 +164,9 @@ in `packageruntime` and uses the `eshu_dp_package_registry_*` metric family.
 - New ecosystems should add a parser and register it with
   `MetadataParserRegistry`; do not route package-manager behavior through one
   opaque adapter.
+- Swift currently has a shared identity contract only; package-registry
+  metadata collection still requires a future registered metadata parser before
+  registry-side Swift facts can be collected.
 - Private package names, feed URLs, versions, and artifact paths must not become
   metric labels.
 

@@ -107,6 +107,8 @@ func Parse(
 		payload["variables"] = composerLockDependencyVariables(object, languageName)
 	case filename == "pipfile.lock":
 		payload["variables"] = pipfileLockDependencyVariables(object)
+	case filename == "package.resolved":
+		payload["variables"] = swiftPackageResolvedDependencyVariables(object, languageName)
 	case !shouldSkipJSONEntities(filename):
 		switch {
 		case filename == "package.json":

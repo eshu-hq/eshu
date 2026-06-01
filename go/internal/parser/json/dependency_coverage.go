@@ -347,6 +347,16 @@ func DependencyCoverage() []DependencyCoverageEntry {
 			SourceReference:         "go/internal/parser/rust/cargo_dependencies.go",
 			Notes:                   "Cargo lockfiles emit exact crate versions and dependency paths only when the lock graph proves a package is reachable from a workspace root.",
 		},
+		{
+			Ecosystem:               "swift",
+			FilePattern:             "Package.resolved",
+			FileKind:                "lockfile",
+			Status:                  DependencyCoverageCovered,
+			CapturesPackageIdentity: true,
+			CapturesExactVersion:    true,
+			SourceReference:         "go/internal/parser/json/swift_package_resolved.go",
+			Notes:                   "Swift Package.resolved v2 remote source-control pins emit exact-version rows with source namespace and SwiftPM identity; branch, revision-only, local, path, and unsupported pins remain non-evidence.",
+		},
 	}
 
 	sort.SliceStable(entries, func(i, j int) bool {
@@ -380,6 +390,7 @@ func DependencyCoverageByFile(filename string) (DependencyCoverageEntry, bool) {
 }
 
 func dependencyCoveragePatternMatches(pattern string, target string) bool {
+	pattern = strings.ToLower(strings.TrimSpace(pattern))
 	if pattern == target {
 		return true
 	}

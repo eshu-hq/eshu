@@ -182,12 +182,13 @@ type WorkItem struct {
 // OwnedPackageDependencyTarget is one active dependency declaration that can
 // bound package-registry or vulnerability-intelligence collector planning.
 type OwnedPackageDependencyTarget struct {
-	Ecosystem    string
-	PackageName  string
-	Version      string
-	Lockfile     bool
-	RepositoryID string
-	FactID       string
+	Ecosystem      string
+	PackageName    string
+	Version        string
+	Lockfile       bool
+	RepositoryID   string
+	FactID         string
+	SourceLocation string
 }
 
 // OwnedPackageDependencyTargetFilter bounds active dependency target reads.

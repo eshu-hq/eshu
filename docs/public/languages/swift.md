@@ -31,6 +31,12 @@ Canonical implementation: `go/internal/parser/registry.go` plus the entrypoint a
 - Property wrappers are not tracked as distinct decorators
 - `@objc` and dynamic dispatch attributes are not modeled in the graph
 - Computed property bodies are not traversed for embedded function calls
+- SwiftPM `Package.resolved` dependency evidence is handled by the JSON
+  exact-name parser, not the `.swift` source parser. Only remote
+  source-control pins with an exact `state.version` become dependency rows;
+  `Package.swift` manifests, branch-only pins, revision-only pins, local pins,
+  path dependencies, and SwiftPM target resolution remain unsupported for
+  supply-chain impact evidence.
 - Dead-code cleanup remains non-exact. Macro expansion, conditional
   compilation, SwiftPM target membership, protocol witness resolution, dynamic
   dispatch, property-wrapper generated code, result-builder expansion,

@@ -329,10 +329,13 @@ Log phase attributes: `telemetry.PhaseReduction` (main loop),
   Exact package-manifest or lockfile dependency versions can prove an observed
   package version. The reducer preserves the exact installed version, the
   requested manifest range, the selected fixed version, and the match reason as
-  separate finding fields. Version/range evaluation is ecosystem-aware for npm
-  and Cargo SEMVER, NuGet, Maven, and PyPI PEP 440; unsupported ecosystems and
+  separate finding fields. Version/range evaluation is ecosystem-aware for npm,
+  Cargo, and Swift semver, NuGet semantic versions, Maven version/range
+  ordering, PyPI PEP 440, and RPM EVR ordering. Unsupported ecosystems and
   malformed advisory ranges fail closed as partial evidence with explicit
-  missing-evidence reasons. Npm
+  missing-evidence reasons. Swift impact requires exact `Package.resolved`
+  remote source-control pin evidence and a source-backed OSV `SwiftURL` package
+  identity. Npm
   `package-lock.json` rows also preserve the ordered dependency path, depth, and
   direct/transitive flag so vulnerability impact can explain whether a finding
   came from a direct dependency or through an owned transitive chain.
@@ -432,7 +435,7 @@ Log phase attributes: `telemetry.PhaseReduction` (main loop),
   observed version is non-empty but fails npm-semver normalization.
   The reducer expands npm caret and tilde manifest ranges before
   delegating to the existing comparator engine so the answer stays
-  npm-correct; ecosystems other than npm currently report
+  npm-correct; ecosystems without a remediation matcher currently report
   `package_manager_unsupported` rather than guessing. The reducer also
   captures `VulnerableRange` from the same provenance observation that
   supplies `RangeSource`, persists it on the canonical finding payload
@@ -640,6 +643,9 @@ No-Observability-Change: this keeps the existing supply-chain impact reducer dom
 
 No-Regression Evidence: `go test ./internal/reducer -run 'TestSupplyChainImpactStableFactKeyIgnoresSourceScopeGeneration|TestSupplyChainImpactStableFactKeyIncludesRepository|TestPostgresSupplyChainImpactWriterPersistsSignalsWithoutPriorityCollapse' -count=1` proves supply-chain impact row storage remains source-scoped while the stable fact key and public finding identity are canonical to the logical vulnerability tuple. Repeated vulnerability-intelligence, package-registry, or mixed-source reducer cycles can preserve source-specific rows without changing the user-facing finding identity.
 No-Observability-Change: this changes reducer fact identity fields only. Existing reducer run spans, reducer duration metrics, reducer execution counters, durable `reducer_supply_chain_impact_finding` payloads, query readiness envelopes, and API/MCP read spans remain the operator-visible signals; no queue, graph write, metric label, or runtime knob was added.
+
+No-Regression Evidence: `go test ./internal/reducer -run 'Swift|PackageConsumptionDecisionsMatchesSwift' -count=1` proves exact Swift Package Manager lockfile evidence joins to package identity and OSV `SwiftURL` advisory ranges without admitting branch-only, revision-only, local, or path pins as precise impact.
+No-Observability-Change: Swift impact reuses existing supply-chain impact reducer facts, match reasons, missing-evidence fields, query readiness envelopes, API/MCP read spans, and reducer run metrics. It adds no graph write, queue domain, worker, runtime knob, metric instrument, or metric label.
 
 No-Regression Evidence: `go test ./internal/reducer -run 'TestSecurityAlertReconciliationHandlerDefersProviderTriggeredPendingImpactEvidence|TestSecurityAlertReconciliationDefersPackageTriggeredUnmatchedEvidence|TestSecurityAlertReconciliationHandlerUsesRepositoryFactsForLockfileScope|TestSupplyChainImpactHandlerUsesRepositoryScopedSecurityAlertLockfileEvidence' -count=1` failed before provider-triggered reconciliation waited for pending impact evidence, then passed after the same bounded retry guard used for package-triggered repairs covered provider-alert triggers. Provider-only alerts still write provider-only when no owned dependency evidence exists, and retries stop at the existing max-attempt boundary.
 No-Observability-Change: this changes the reducer retry decision for premature reconciliation only. Existing reducer queue retry status, `failure_class=security_alert_reconciliation_waiting_for_impact`, retry delay, max attempts, reducer run spans, reducer execution counters, durable reconciliation payloads, and API/MCP read spans remain the operator-visible signals; no metric label, queue domain, graph write, route, or runtime knob was added.

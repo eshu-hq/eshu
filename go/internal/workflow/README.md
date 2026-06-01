@@ -181,12 +181,17 @@ projection contracts land.
 `vulnerability_intelligence` collector instances are claim-capable. The
 coordinator plans one bounded work item per configured vulnerability source
 target. When `derive_from_owned_packages.enabled=true`, the planner can derive
-OSV npm package-version targets from active owned dependency facts only when
-the dependency carries an exact version. Manifest ranges, aliases, workspace
-references, file/git references, and `latest` remain partial evidence and are
-not promoted into OSV package-version collection targets. Exact package-version
-queries are grouped into bounded OSV querybatch work items, preserving
-installed-version truth without issuing one claim per package version. The configuration
+OSV npm and Swift package-version targets from active owned dependency facts
+only when the dependency carries an exact version. Swift rows are planned from
+remote source-control `Package.resolved` pins and keep canonical ecosystem
+`swift`; the coordinator carries the dependency `source_location` as the OSV
+package name, and the runtime maps those queries to OSV's `SwiftURL` ecosystem. Manifest
+ranges, aliases, workspace references, file/git references, branch-only Swift
+pins, revision-only Swift pins, local/path Swift pins, and `latest` remain
+partial evidence and are not promoted into OSV package-version collection
+targets. Exact package-version queries are grouped into bounded OSV querybatch
+work items when the scope ID remains storage-safe, preserving installed-version
+truth without issuing one claim per package version. The configuration
 can also declare `source_cache` for refresh or offline advisory-source cache
 lifecycle and `fallback_urls` for source mirrors; validation keeps cache modes,
 durations, and mirror URLs bounded before the desired collector instance is
@@ -326,8 +331,10 @@ No-Regression Evidence: the owned package target derivation contract is covered
 by `go test ./internal/coordinator ./internal/workflow ./internal/storage/postgres ./internal/collector/packageregistry/packageruntime ./internal/collector/vulnerabilityintelligence/vulnruntime ./cmd/workflow-coordinator ./cmd/collector-package-registry ./cmd/collector-vulnerability-intelligence -count=1`.
 The test set proves package-registry planning derives unique npm metadata
 targets from active owned package evidence, vulnerability planning derives OSV
-targets only for exact owned npm versions, range and alias dependencies stay
-out of exact vulnerability collection, the coordinator passes active owned
+targets only for exact owned npm and Swift versions, range and alias
+dependencies stay out of exact vulnerability collection, source-backed Swift
+package names with slashes are encoded into storage-safe `scope_id` values,
+the coordinator passes active owned
 dependency rows to both planners, and both hosted collector commands parse the
 new derivation config. Planning remains bounded by
 `derive_from_owned_packages.target_limit`; the default remains 100 derived

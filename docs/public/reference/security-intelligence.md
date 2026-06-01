@@ -309,7 +309,8 @@ collector instance's `configuration.sbom_targets[]`. Each target maps a
 scanner-worker `scope_id` to a runtime-local `root_path` and optional
 `subject_digest`. The source walks the repository under the claim's file and
 byte budgets, skips common dependency/cache directories, reads
-`package-lock.json`, `npm-shrinkwrap.json`, and `go.mod`, and emits
+`package-lock.json`, `npm-shrinkwrap.json`, `go.mod`, and Swift
+`Package.resolved`, and emits
 CycloneDX-compatible `sbom.document`, `sbom.component`, and `sbom.warning`
 source facts. It does not match advisories or publish findings. Missing
 components still produce a document plus `sbom.warning`, not a silent clean
@@ -469,7 +470,7 @@ The current implementation proves the following:
   target evidence the matcher cannot resolve. Evidence is read directly from
   existing facts: `content_entity` dependency rows whose
   `entity_metadata.package_manager` is outside the supported matcher set
-  (`npm`, `nuget`, `maven`, `cargo`, `pypi`) become
+  (`npm`, `nuget`, `maven`, `cargo`, `pypi`, `swift`) become
   `target_kind=ecosystem` rows;
   `content_entity` dependency rows carrying
   `entity_metadata.lockfile_unsupported_feature` become

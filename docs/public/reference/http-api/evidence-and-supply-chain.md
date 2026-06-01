@@ -198,7 +198,9 @@ Callers can ask for two detection profiles via `?profile=`:
 - `precise` (default): returns only findings backed by an exact installed
   version anchor (lockfile, manifest with pinned version, or SBOM component
   with an explicit version) resolved by an ecosystem-aware matcher. This is
-  Eshu's low-noise default.
+  Eshu's low-noise default. Supported exact-version matchers include npm,
+  Cargo, Swift, NuGet, and Maven; Swift requires an exact remote
+  source-control pin from `Package.resolved`.
 - `comprehensive`: also returns findings whose evidence stops short of
   precise — range-only manifest ranges, CPE/SBOM-derived image paths
   without an exact version, malformed advisory ranges, unsupported
