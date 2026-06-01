@@ -149,6 +149,7 @@ type supplyChainImpactIndex struct {
 	workloads        []supplyChainWorkloadContext
 	services         []supplyChainServiceContext
 	riskSignals      map[string]supplyChainRiskSignals
+	goReachability   map[string]GoVulnerabilityFinding
 }
 
 func buildSupplyChainImpactIndex(envelopes []facts.Envelope) supplyChainImpactIndex {
@@ -160,6 +161,7 @@ func buildSupplyChainImpactIndex(envelopes []facts.Envelope) supplyChainImpactIn
 		attachments:      map[string]supplyChainAttachment{},
 		images:           map[string]supplyChainImageIdentity{},
 		riskSignals:      map[string]supplyChainRiskSignals{},
+		goReachability:   map[string]GoVulnerabilityFinding{},
 	}
 	for _, envelope := range envelopes {
 		switch envelope.FactKind {
@@ -228,6 +230,13 @@ func buildSupplyChainImpactIndex(envelopes []facts.Envelope) supplyChainImpactIn
 			index.riskSignals[supplyChainCVEID(envelope.Payload)] = signals
 		}
 	}
+	for _, finding := range ClassifyGoVulnerabilityReachability(envelopes) {
+		if finding.OSVID == "" || finding.ModulePath == "" {
+			continue
+		}
+		key := goSupplyChainReachabilityKey(finding.OSVID, finding.ModulePath, finding.RepositoryID)
+		index.goReachability[key] = finding
+	}
 	addManifestDependencySupplyChainConsumption(&index, envelopes)
 	sort.SliceStable(index.cves, func(i, j int) bool {
 		return index.cves[i].cveID < index.cves[j].cveID
@@ -295,17 +304,20 @@ func classifySupplyChainImpactPackage(
 	consumptionMissing := supplyChainConsumptionMissingEvidence(consumption)
 	if consumption.factID != "" && versionDecision.Status == SupplyChainImpactAffectedExact {
 		applySupplyChainVersionDecision(&finding, versionDecision)
-		finalizeSupplyChainImpactFinding(&finding, index, versionDecision.MissingEvidence, imagePathMissing, consumptionMissing)
+		goMissing := applyGoSupplyChainReachability(&finding, pkgs, index)
+		finalizeSupplyChainImpactFinding(&finding, index, versionDecision.MissingEvidence, imagePathMissing, consumptionMissing, goMissing)
 		return finding
 	}
 	if versionDecision.Status == SupplyChainImpactNotAffectedKnownFixed {
 		applySupplyChainVersionDecision(&finding, versionDecision)
-		finalizeSupplyChainImpactFinding(&finding, index, versionDecision.MissingEvidence, imagePathMissing, consumptionMissing)
+		goMissing := applyGoSupplyChainReachability(&finding, pkgs, index)
+		finalizeSupplyChainImpactFinding(&finding, index, versionDecision.MissingEvidence, imagePathMissing, consumptionMissing, goMissing)
 		return finding
 	}
 	if versionDecision.FailClosed {
 		applySupplyChainVersionDecision(&finding, versionDecision)
-		finalizeSupplyChainImpactFinding(&finding, index, versionDecision.MissingEvidence, imagePathMissing, consumptionMissing)
+		goMissing := applyGoSupplyChainReachability(&finding, pkgs, index)
+		finalizeSupplyChainImpactFinding(&finding, index, versionDecision.MissingEvidence, imagePathMissing, consumptionMissing, goMissing)
 		return finding
 	}
 	if hasOSPackage && versionDecision.Status == SupplyChainImpactAffectedExact {
@@ -328,7 +340,8 @@ func classifySupplyChainImpactPackage(
 	finding.MatchReason = versionDecision.Reason
 	finding.RuntimeReachability = "unknown"
 	finding.CanonicalWrites = 1
-	finalizeSupplyChainImpactFinding(&finding, index, versionDecision.MissingEvidence, imagePathMissing, consumptionMissing)
+	goMissing := applyGoSupplyChainReachability(&finding, pkgs, index)
+	finalizeSupplyChainImpactFinding(&finding, index, versionDecision.MissingEvidence, imagePathMissing, consumptionMissing, goMissing)
 	return finding
 }
 

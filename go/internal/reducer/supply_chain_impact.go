@@ -412,6 +412,8 @@ func supplyChainImpactFactKinds() []string {
 		facts.VulnerabilityEPSSScoreFactKind,
 		facts.VulnerabilityKnownExploitedFactKind,
 		facts.VulnerabilitySuppressionFactKind,
+		facts.VulnerabilityGoModuleEvidenceFactKind,
+		facts.VulnerabilityGoCallReachabilityFactKind,
 		facts.SecurityAlertRepositoryAlertFactKind,
 		facts.PackageRegistryPackageFactKind,
 		facts.SBOMComponentFactKind,

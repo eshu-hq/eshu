@@ -328,3 +328,30 @@ scanner worker, or runtime configuration knob. Operators continue to diagnose
 the path through parser-stage timing, `package.consumption` readiness counts,
 `reducer_supply_chain_impact_finding`, `match_reason`, `missing_evidence`, and
 the supply-chain impact readiness envelope.
+
+No-Regression Evidence: Go module vulnerability parity for issue `#998` is
+guarded by `go test ./internal/parser/gomod ./internal/reducer -run
+'Test(BuildPackageConsumptionDecisions.*Go|BuildSupplyChainImpactFindings.*Go|ClassifyGoVulnerabilityReachability)' -count=1`.
+The fixtures prove `go.mod` require and indirect rows remain the owned
+dependency evidence admitted by package consumption, replacement metadata keeps
+the declared `requested_range` separate from the resolved `observed_version`,
+`go.sum` checksum-only rows do not prove an installed vulnerable version, Go
+OSV SEMVER ranges classify affected and known-fixed versions, malformed Go
+advisory ranges fail closed with explicit missing evidence, and govulncheck
+reachability is read back only after module evidence anchors the repository.
+
+Performance Evidence: the Go parity path is reducer-local over the same fact
+envelope already loaded for supply-chain impact. It adds one per-envelope Go
+reachability index keyed by `(osv_id, module_path, repository_id)` and does not
+introduce filesystem scans, advisory network calls, queue work, graph writes,
+Postgres writes, or scanner workers. The focused reducer fixtures remain
+in-memory and bounded to the package, advisory, module-evidence, and
+call-reachability rows supplied by each test.
+
+No-Observability-Change: the `#998` parity work reuses existing fact kinds and
+readback fields: `package.consumption`, `vulnerability.go_module_evidence`,
+`vulnerability.go_call_reachability`, `reducer_supply_chain_impact_finding`,
+`match_reason`, `runtime_reachability`, `requested_range`, `observed_version`,
+`EvidencePath`, and `missing_evidence`. It adds no metric instrument, span, log
+key, queue, reducer lane, route, MCP tool, graph write, scanner worker, or
+runtime configuration knob.
