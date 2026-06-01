@@ -78,7 +78,11 @@ For the supply-chain impact reducer, the practical implications are:
   and Pipenv `{git=...}`, surface with a non-`dependency` `config_kind`
   (`vcs_dependency`, `path_dependency`, `url_dependency`,
   `editable_dependency`) so the reducer cannot mis-admit unresolved
-  provenance as a PyPI registry version.
+  provenance as a PyPI registry version. Supply-chain readiness reports these
+  rows as `dependency_source` unsupported target evidence with stable reason
+  codes such as `vcs_dependency_unsupported` or `path_dependency_unsupported`,
+  so a repository with only local or source-control dependencies never looks
+  clean.
 - When a parser graduates a file from gap to covered, the matrix MUST be
   updated in the same PR, the covered-fixture guard MUST grow a row, and a
   reducer test MUST prove the new evidence path can produce a consumption

@@ -99,10 +99,12 @@ canonical graph or reducer truth.
   that runs one bounded CTE per impact-findings response, scopes vulnerability
   source-cache snapshot and durable source-state metadata by requested CVE,
   package, repository-owned ecosystem, or image component ecosystem, surfaces
-  package-registry metadata freshness for package/repository scopes, and strips
-  absent optional fields from the JSON rollup. Readiness treats Composer as a
-  supported impact-matcher ecosystem alongside the existing supported matchers,
-  so Composer evidence gaps stay explicit instead of being classified as
+  package-registry metadata freshness for package/repository scopes, exposes
+  VCS/path/URL/editable dependency rows as `dependency_source` unsupported
+  target evidence with stable reason codes, and strips absent optional fields
+  from the JSON rollup. Readiness treats Composer as a supported
+  impact-matcher ecosystem alongside the existing supported matchers, so
+  Composer evidence gaps stay explicit instead of being classified as
   unsupported.
   (`supply_chain_impact_readiness_postgres.go`)
 - `AdvisoryEvidenceStore` — port for source-only vulnerability advisory
@@ -147,9 +149,10 @@ canonical graph or reducer truth.
   and persisted on the canonical finding payload, so list responses expose
   the same expression as the explain route. Every row also carries a
   `Remediation` block (issue #595) with the installed version, vulnerable
-  range, first patched version, every published fixed-version branch,
-  manifest range, manifest_allows_fix tri-state, direct/transitive
-  designation, parent_package required for transitive upgrades,
+  range, selected fixed-version source, match reason, first patched version,
+  every published fixed-version branch, manifest range, manifest_allows_fix
+  tri-state, direct/transitive designation, parent_package required for
+  transitive upgrades,
   ecosystem, an exact|partial|unknown confidence label, and a closed
   reason enum so API and MCP callers can explain the advisory-only
   safe-upgrade path without re-reading raw advisory or lockfile facts.

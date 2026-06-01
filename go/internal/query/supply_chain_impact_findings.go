@@ -71,6 +71,7 @@ type SupplyChainImpactFindingRow struct {
 	PriorityReasonCodes   []string
 	PriorityContributions []SupplyChainImpactPriorityContribution
 	RuntimeReachability   string
+	Reachability          *SupplyChainReachabilityResult
 	RepositoryID          string
 	SubjectDigest         string
 	ImageRef              string
@@ -297,6 +298,7 @@ func decodeSupplyChainImpactFindingRow(
 			payload["priority_contributions"],
 		),
 		RuntimeReachability: StringVal(payload, "runtime_reachability"),
+		Reachability:        decodeSupplyChainReachability(payload),
 		RepositoryID:        StringVal(payload, "repository_id"),
 		SubjectDigest:       StringVal(payload, "subject_digest"),
 		ImageRef:            StringVal(payload, "image_ref"),
@@ -321,6 +323,26 @@ func decodeSupplyChainImpactFindingRow(
 		row.DetectionProfile = inferLegacyDetectionProfile(row.ImpactStatus, row.ObservedVersion, row.MatchReason)
 	}
 	return row, nil
+}
+
+func decodeSupplyChainReachability(payload map[string]any) *SupplyChainReachabilityResult {
+	raw, ok := payload["reachability"].(map[string]any)
+	if !ok {
+		return nil
+	}
+	state := StringVal(raw, "state")
+	if state == "" {
+		return nil
+	}
+	return &SupplyChainReachabilityResult{
+		State:            state,
+		Confidence:       StringVal(raw, "confidence"),
+		Source:           StringVal(raw, "source"),
+		Evidence:         StringVal(raw, "evidence"),
+		Reason:           StringVal(raw, "reason"),
+		LanguageMaturity: StringVal(raw, "language_maturity"),
+		MissingEvidence:  StringSliceVal(raw, "missing_evidence"),
+	}
 }
 
 // inferLegacyDetectionProfile classifies pre-profile findings (written

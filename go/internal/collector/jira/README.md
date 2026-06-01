@@ -4,8 +4,9 @@
 
 `internal/collector/jira` owns Jira Cloud work-item source evidence for Eshu. It
 reads bounded updated windows, fetches each changed issue's changelog and remote
-links, and emits `work_item.record`, `work_item.transition`, and
-`work_item.external_link` facts.
+links, reads bounded project/status/workflow/field metadata, and emits
+`work_item.record`, `work_item.transition`, `work_item.external_link`, and
+metadata `work_item.*` facts.
 
 ## Ownership boundary
 
@@ -14,9 +15,10 @@ GitHub, deployment systems, graph backends, or query handlers. Jira facts can
 enrich incident context later when another reducer or query can prove a link,
 but a PagerDuty incident does not need a Jira ticket to be useful.
 
-Project, status, workflow, and field metadata expansion is not implemented in
-this package yet. That work must add `work_item.*` fact names, schema helpers,
-and fixtures before provider calls change.
+Project, status, workflow, issue-type, and field metadata remain source
+context only. This package fingerprints private names, descriptions, URLs, and
+custom-field identifiers; reducers and query surfaces decide how that context
+explains incidents, pull requests, commits, deployments, and services.
 
 ## Exported surface
 
@@ -24,9 +26,10 @@ See `doc.go` for the godoc package contract. The main exported API is:
 
 - `ClaimedSource` and `NewClaimedSource` for workflow-claim-driven collection
 - `HTTPClient` and `NewHTTPClient` for bounded Jira Cloud REST reads
-- `NewWorkItemRecordEnvelope`, `NewWorkItemTransitionEnvelope`, and
-  `NewWorkItemExternalLinkEnvelope` for source-fact envelope construction
-- `EnvelopeContext`, `Issue`, `Transition`, `ExternalLink`,
+- `NewWorkItemRecordEnvelope`, `NewWorkItemTransitionEnvelope`,
+  `NewWorkItemExternalLinkEnvelope`, and metadata envelope constructors for
+  source-fact envelope construction
+- `EnvelopeContext`, `Issue`, `Transition`, `ExternalLink`, metadata model types,
   `CollectionWindow`, `CollectionResult`, `SourceConfig`, and `TargetConfig`
   for source and envelope input shape
 - `ProviderFailure`, `JiraError`, and failure-class constants for bounded
@@ -57,6 +60,10 @@ Metrics:
 
 The `jira.fetch` span also carries bounded page and output counters:
 `jira.search_pages`, `jira.changelog_pages`, `jira.remote_link_pages`,
+`jira.metadata_pages`, `jira.metadata_objects_scanned`,
+`jira.metadata_objects_emitted`, `jira.unsupported_metadata`,
+`jira.permission_hidden_metadata`, `jira.stale_metadata`,
+`jira.metadata_redactions`,
 `jira.issues_emitted`, `jira.changelog_events_emitted`,
 `jira.remote_links_emitted`, `jira.remote_links_rejected`,
 `jira.unsupported_provider_links`, `jira.partial_failures`,
@@ -77,28 +84,33 @@ values are not allowed in metric labels or status errors.
 - Duplicate remote links inside one issue collection are collapsed by provider
   link ID, global ID, or URL.
 - Empty Jira projects or updated windows commit a successful empty generation.
+- Permission-hidden metadata emits `work_item.metadata_warning` so readers can
+  distinguish hidden source context from a genuinely empty site.
 - Signed Jira webhooks wake configured collector scopes through the shared
   webhook/workflow path; this package still treats polling as the backfill
   source of truth.
 
 No-Regression Evidence: focused collector tests cover envelope redaction,
 provider failure classification, empty windows, bounded REST endpoints, search
-pagination, changelog pagination, malformed remote-link rejection, unsupported
-provider classification, duplicate-window stable keys, visibility and archive
-status classification, partial-failure stats, and Retry-After handling.
+pagination, changelog pagination, metadata endpoint collection, permission-hidden
+metadata warnings, malformed remote-link rejection, unsupported provider
+classification, duplicate-window stable keys, visibility and archive status
+classification, partial-failure stats, and Retry-After handling.
 
 Collector Performance Evidence: `go test ./cmd/collector-jira
 ./internal/collector/jira ./internal/telemetry ./internal/facts -count=1`
-proves the bounded Jira collection path with configured issue, changelog, and
-remote-link limits. The collector still performs one bounded updated-window
-search plus per-issue changelog and remote-link reads; this slice adds
-pagination and redaction without adding graph writes, reducer work, or
+proves the bounded Jira collection path with configured issue, changelog,
+remote-link, and metadata limits. The collector still performs one bounded
+updated-window search plus per-issue changelog and remote-link reads, and now
+adds bounded metadata definition reads without graph writes, reducer work, or
 unbounded provider calls.
 
 Observability Evidence: the existing Jira metrics plus bounded `jira.fetch`
 span counters diagnose pages scanned, issues emitted, changelog events emitted,
-remote links emitted or rejected, unsupported provider links, rate limits, and
-partial failures, stale collection windows, and retry guidance without
+remote links emitted or rejected, metadata pages, metadata objects scanned or
+emitted, unsupported metadata, permission-hidden metadata, stale metadata,
+metadata redactions, unsupported provider links, rate limits, partial failures,
+stale collection windows, and retry guidance without
 high-cardinality labels.
 
 Collector Observability Evidence: `jira.observe` and `jira.fetch` spans,

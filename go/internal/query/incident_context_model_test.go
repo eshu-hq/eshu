@@ -127,17 +127,18 @@ func assertIncidentEdge(
 	edges []IncidentContextEvidenceEdge,
 	slot IncidentEvidenceSlot,
 	label IncidentTruthLabel,
-) {
+) *IncidentContextEvidenceEdge {
 	t.Helper()
 	for _, edge := range edges {
 		if edge.Slot == slot {
 			if edge.TruthLabel != label {
 				t.Fatalf("edge %s truth_label = %q, want %q", slot, edge.TruthLabel, label)
 			}
-			return
+			return &edge
 		}
 	}
 	t.Fatalf("missing edge for slot %s in %#v", slot, edges)
+	return nil
 }
 
 func assertIncidentMissing(

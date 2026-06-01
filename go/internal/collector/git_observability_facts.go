@@ -1,6 +1,8 @@
 package collector
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"path/filepath"
 	"sort"
@@ -25,6 +27,8 @@ var observabilitySourceBuckets = []struct {
 	{bucket: "observability_declared_metric_routes", kind: facts.ObservabilityDeclaredMetricRouteFactKind},
 	{bucket: "observability_declared_log_routes", kind: facts.ObservabilityDeclaredLogRouteFactKind},
 	{bucket: "observability_declared_trace_routes", kind: facts.ObservabilityDeclaredTraceRouteFactKind},
+	{bucket: "observability_applied_resources", kind: facts.ObservabilityAppliedResourceFactKind},
+	{bucket: "observability_applied_sync_states", kind: facts.ObservabilityAppliedSyncStateFactKind},
 	{bucket: "observability_coverage_warnings", kind: facts.ObservabilityCoverageWarningFactKind},
 }
 
@@ -32,6 +36,7 @@ var forbiddenObservabilityPayloadKeys = map[string]struct{}{
 	"actions":                  {},
 	"basicAuthPassword":        {},
 	"config_json":              {},
+	"cluster_server":           {},
 	"dashboard_json":           {},
 	"data":                     {},
 	"endpoint":                 {},
@@ -48,6 +53,7 @@ var forbiddenObservabilityPayloadKeys = map[string]struct{}{
 	"password":                 {},
 	"queries":                  {},
 	"query":                    {},
+	"resourceVersion":          {},
 	"secureJsonData":           {},
 	"secure_json_data_encoded": {},
 	"serverSnippet":            {},
@@ -96,8 +102,9 @@ func emitObservabilityFactsForFile(
 	if rowCount == 0 {
 		return
 	}
+	sourceClass := observabilitySourceClassForFile(fileData)
 	ch <- observabilitySourceInstanceEnvelope(
-		repoPath, repoID, scopeID, generationID, observedAt, relativePath, sourceRevision, rowCount-1,
+		repoPath, repoID, scopeID, generationID, observedAt, relativePath, sourceRevision, sourceClass, rowCount-1,
 	)
 	for _, mapping := range observabilitySourceBuckets {
 		for _, row := range observabilityRows(fileData, mapping.bucket) {
@@ -116,10 +123,12 @@ func observabilitySourceInstanceEnvelope(
 	observedAt time.Time,
 	relativePath string,
 	sourceRevision string,
+	sourceClass string,
 	sourceFactCount int,
 ) facts.Envelope {
 	sourceInstanceID := repoID + ":" + relativePath
 	payload := observabilityBasePayload(repoID, scopeID, generationID, observedAt, relativePath, sourceRevision)
+	payload["source_class"] = firstNonEmptyString(sourceClass, "declared")
 	payload["name"] = "source." + relativePath
 	payload["source_kind"] = "git"
 	payload["source_instance_id"] = sourceInstanceID
@@ -152,7 +161,16 @@ func observabilityRowEnvelope(
 ) facts.Envelope {
 	payload := observabilityBasePayload(repoID, scopeID, generationID, observedAt, relativePath, sourceRevision)
 	for key, value := range row {
-		if _, forbidden := forbiddenObservabilityPayloadKeys[key]; forbidden {
+		if key == "cluster_server" {
+			if fingerprint := observabilityFingerprint(payloadString(row, key)); fingerprint != "" {
+				payload["cluster_server_fingerprint"] = fingerprint
+			}
+			continue
+		}
+		if key == "source_revision" && payloadString(row, key) == "unknown" {
+			continue
+		}
+		if observabilityPayloadKeyForbidden(key) {
 			continue
 		}
 		payload[key] = value
@@ -224,6 +242,49 @@ func observabilityRows(fileData map[string]any, bucket string) []map[string]any 
 	}
 }
 
+func observabilitySourceClassForFile(fileData map[string]any) string {
+	classes := map[string]struct{}{}
+	for _, mapping := range observabilitySourceBuckets {
+		for _, row := range observabilityRows(fileData, mapping.bucket) {
+			if sourceClass := strings.TrimSpace(payloadString(row, "source_class")); sourceClass != "" {
+				classes[sourceClass] = struct{}{}
+			}
+		}
+	}
+	if len(classes) == 0 {
+		return "declared"
+	}
+	for _, candidate := range []string{"applied", "observed", "declared"} {
+		if _, ok := classes[candidate]; ok {
+			return candidate
+		}
+	}
+	for sourceClass := range classes {
+		return sourceClass
+	}
+	return "declared"
+}
+
+func observabilityPayloadKeyForbidden(key string) bool {
+	if _, forbidden := forbiddenObservabilityPayloadKeys[key]; forbidden {
+		return true
+	}
+	lower := strings.ToLower(key)
+	return strings.Contains(lower, "password") ||
+		strings.Contains(lower, "private") ||
+		strings.Contains(lower, "secret") ||
+		strings.Contains(lower, "token")
+}
+
+func observabilityFingerprint(value string) string {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return ""
+	}
+	sum := sha256.Sum256([]byte(strings.ToLower(value)))
+	return hex.EncodeToString(sum[:])[:16]
+}
+
 func observabilityFactKey(factKind string, identity string, generationID string) string {
 	return strings.Join([]string{factKind, identity, generationID}, ":")
 }
@@ -235,7 +296,9 @@ func observabilityRecordIdentity(payload map[string]any) string {
 		"selector_identity_fingerprint", "job_name_fingerprint", "rule_group", "rule_kind", "alert_rule_name_fingerprint", "record_rule_name_fingerprint",
 		"pipeline_name", "backend_kind", "exporter_refs", "processor_refs", "receiver_refs", "route_destination_fingerprint", "tenant_id_fingerprint", "label_identity_fingerprint",
 		"connector_refs", "trace_tag_identity_fingerprint", "traces_to_logs_datasource_uid", "traces_to_metrics_datasource_uid", "service_map_datasource_uid",
-		"name", "resource_kind", "resource_name", "config_key",
+		"app_name", "app_namespace", "cluster_name", "resource_identity", "resource_identity_fingerprint", "observability_resource_class",
+		"sync_status", "health_status", "operation_phase", "resource_uid_fingerprint",
+		"name", "resource_kind", "resource_name", "resource_namespace", "config_key",
 	}
 	parts := make([]string, 0, len(keys))
 	for _, key := range keys {

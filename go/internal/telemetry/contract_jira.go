@@ -33,6 +33,27 @@ const (
 	// SpanAttrJiraUnsupportedProviderLinks records remote links whose provider
 	// shape remains unsupported and provenance-only.
 	SpanAttrJiraUnsupportedProviderLinks = "jira.unsupported_provider_links"
+	// SpanAttrJiraMetadataPages records bounded Jira metadata pages scanned
+	// during one fetch span.
+	SpanAttrJiraMetadataPages = "jira.metadata_pages"
+	// SpanAttrJiraMetadataObjectsScanned records Jira metadata definitions read
+	// before redaction and source fact emission.
+	SpanAttrJiraMetadataObjectsScanned = "jira.metadata_objects_scanned"
+	// SpanAttrJiraMetadataObjectsEmitted records Jira metadata facts and
+	// metadata warnings accepted for source fact emission.
+	SpanAttrJiraMetadataObjectsEmitted = "jira.metadata_objects_emitted"
+	// SpanAttrJiraUnsupportedMetadata records metadata endpoints or definitions
+	// that Jira reported as unsupported for the configured target.
+	SpanAttrJiraUnsupportedMetadata = "jira.unsupported_metadata"
+	// SpanAttrJiraPermissionHiddenMetadata records metadata hidden by Jira
+	// permissions so readers can distinguish it from empty metadata.
+	SpanAttrJiraPermissionHiddenMetadata = "jira.permission_hidden_metadata"
+	// SpanAttrJiraStaleMetadata records metadata collected through a stale
+	// source window.
+	SpanAttrJiraStaleMetadata = "jira.stale_metadata"
+	// SpanAttrJiraMetadataRedactions records private metadata values represented
+	// by fingerprints or presence flags instead of raw payload fields.
+	SpanAttrJiraMetadataRedactions = "jira.metadata_redactions"
 	// SpanAttrJiraPartialFailures records partial Jira fetch failures after
 	// accepting some bounded source pages.
 	SpanAttrJiraPartialFailures = "jira.partial_failures"

@@ -539,11 +539,11 @@ Log phase attributes: `telemetry.PhaseReduction` (main loop),
 - **Safe-upgrade remediation is advisory-only** —
   `SupplyChainImpactHandler` attaches a `Remediation` block to every finding
   via `BuildSupplyChainImpactRemediation` (issue #595). The block records the
-  installed version, source-reported vulnerable range, first patched
-  version, every published fixed-version branch, the manifest range
-  preserved from package consumption evidence, a tri-state
-  manifest_allows_fix decision (`allowed`, `blocked`, `unknown`), the
-  direct/transitive designation, the parent package the caller would need
+  installed version, source-reported vulnerable range, selected fixed-version
+  source, match reason, first patched version, every published fixed-version
+  branch, the manifest range preserved from package consumption evidence, a
+  tri-state manifest_allows_fix decision (`allowed`, `blocked`, `unknown`),
+  the direct/transitive designation, the parent package the caller would need
   to upgrade for transitive findings, the ecosystem the recommendation was
   computed for, an `exact|partial|unknown` confidence label, and a closed
   reason enum (`direct_upgrade_allowed`, `direct_range_blocked`,
@@ -557,11 +557,13 @@ Log phase attributes: `telemetry.PhaseReduction` (main loop),
   across all branches could be a downgrade or unnecessary cross-major
   bump, so the reducer blanks the recommendation rather than committing
   to either branch. `installed_version_malformed` fires whenever the
-  observed version is non-empty but fails npm-semver normalization.
-  The reducer expands npm caret and tilde manifest ranges before
-  delegating to the existing comparator engine so the answer stays
-  npm-correct; ecosystems without a remediation matcher currently report
-  `package_manager_unsupported` rather than guessing. The reducer also
+  observed version is non-empty but fails the ecosystem-specific version
+  parser. The reducer delegates manifest allowance and fixed-branch ordering
+  to the same ecosystem-aware matcher families used for impact classification:
+  npm, Go modules, PyPI, Maven/Gradle, NuGet, Cargo, Composer, RubyGems, and
+  vendor-gated RPM. OS package managers without proven distro version ordering
+  still report `package_manager_unsupported` rather than guessing. The reducer
+  also
   captures `VulnerableRange` from the same provenance observation that
   supplies `RangeSource`, persists it on the canonical finding payload
   (top-level `vulnerable_range` and inside the `remediation` block), and

@@ -15,7 +15,7 @@ This contract covers the completion boundary for the Jira collector line:
 
 - bounded Jira Cloud issue search windows
 - issue changelog and remote-link evidence
-- project, status, workflow, and field metadata added in follow-up work
+- project, status, workflow, issue-type, and field metadata
 - webhook deliveries as freshness triggers
 - redaction, fixture, retry, and stale-source expectations
 
@@ -30,11 +30,12 @@ The current implemented fact kinds are:
 | `work_item.record` | One Jira issue returned from a bounded search window. | Source-reported work-item state only; private summaries, users, project names, and source URLs are redacted or fingerprinted. |
 | `work_item.transition` | One Jira changelog item for a collected issue. | Source-reported lifecycle evidence only; user authors and sensitive/custom field values are redacted. |
 | `work_item.external_link` | One Jira remote issue link attached to a collected issue. | Source-reported external-link evidence only; URLs, titles, and summaries are redacted while URL fingerprints and provider support state remain. |
-
-Project, status, workflow, and field metadata remain a follow-up contract for
-#1122. Those expansions must stay under the `work_item.*` family, add fact kind
-constants and schema-version helpers before emission, and include fixtures
-before live collection behavior changes.
+| `work_item.project_metadata` | One Jira project definition. | Source-reported project context only; project names and URLs are fingerprinted, and archived/deleted state remains source evidence. |
+| `work_item.issue_type_metadata` | One Jira issue-type definition. | Source-reported issue-type context only; names and descriptions are fingerprinted. |
+| `work_item.status_metadata` | One Jira status definition. | Source-reported status context only; names and descriptions are fingerprinted while status category remains bounded context. |
+| `work_item.workflow_metadata` | One Jira workflow definition. | Source-reported workflow and transition shape only; workflow and transition names are fingerprinted. |
+| `work_item.field_metadata` | One Jira field definition. | Source-reported schema context only; field names, custom IDs, and descriptions are fingerprinted or represented by presence flags. |
+| `work_item.metadata_warning` | One metadata collection warning. | Distinguishes unsupported, stale, archived/deleted, or permission-hidden metadata from an empty source. |
 
 ## Source Contracts
 
@@ -45,7 +46,8 @@ Jira collection follows Jira Cloud provider contracts rather than UI behavior:
 | Jira Cloud REST v3 issue search | Poll bounded JQL updated windows with an explicit result limit and deterministic ordering. |
 | Jira issue changelogs | Collect transition and field-change evidence for issues found in the bounded window. |
 | Jira remote issue links | Preserve source-reported external links without verifying the target provider identity. |
-| Jira webhooks | Wake a configured Jira collector scope for issue created, updated, or deleted events; webhook intake does not emit `work_item.*` facts. |
+| Jira metadata APIs | Collect bounded project, issue-type, status, workflow, and field definitions for readback context. |
+| Jira webhooks | Wake a configured Jira collector scope; webhook intake does not emit `work_item.*` facts. |
 | Jira rate-limit headers | Classify throttling as retryable and keep provider limits out of metric labels. |
 
 Official provider references:
@@ -54,6 +56,11 @@ Official provider references:
 - [Issue search](https://developer.atlassian.com/cloud/jira/platform/rest/v3/api-group-issue-search/)
 - [Issues and changelogs](https://developer.atlassian.com/cloud/jira/platform/rest/v3/api-group-issues/)
 - [Issue remote links](https://developer.atlassian.com/cloud/jira/platform/rest/v3/api-group-issue-remote-links/)
+- [Projects](https://developer.atlassian.com/cloud/jira/platform/rest/v3/api-group-projects/)
+- [Issue types](https://developer.atlassian.com/cloud/jira/platform/rest/v3/api-group-issue-types/)
+- [Statuses](https://developer.atlassian.com/cloud/jira/platform/rest/v3/api-group-status/)
+- [Issue fields](https://developer.atlassian.com/cloud/jira/platform/rest/v3/api-group-issue-fields/)
+- [Workflows](https://developer.atlassian.com/cloud/jira/platform/rest/v3/api-group-workflows/)
 - [Webhooks](https://developer.atlassian.com/cloud/jira/platform/webhooks/)
 - [Rate limiting](https://developer.atlassian.com/cloud/jira/platform/rate-limiting/)
 
@@ -87,6 +94,12 @@ stable key instead of creating conflicting evidence.
 | `work_item.record` | provider, `scope_id`, Jira issue ID, Jira issue key |
 | `work_item.transition` | provider, `scope_id`, Jira issue ID, changelog ID, changed field |
 | `work_item.external_link` | provider, `scope_id`, Jira issue ID, remote-link ID, global ID, or sanitized URL fallback |
+| `work_item.project_metadata` | provider, `scope_id`, Jira project ID/key |
+| `work_item.issue_type_metadata` | provider, `scope_id`, Jira issue-type ID, project ID |
+| `work_item.status_metadata` | provider, `scope_id`, Jira status ID, project ID when scoped |
+| `work_item.workflow_metadata` | provider, `scope_id`, Jira workflow ID, project ID when scoped |
+| `work_item.field_metadata` | provider, `scope_id`, Jira field ID hashed into the stable key |
+| `work_item.metadata_warning` | provider, `scope_id`, metadata type, warning reason, provider ID fingerprint |
 
 The envelope carries `ScopeID`, `GenerationID`, `FactKind`, `StableFactKey`,
 `SchemaVersion`, `CollectorKind`, `ObservedAt`, `SourceConfidence`, and
@@ -124,10 +137,11 @@ fixtures follow these rules:
   summaries, user identities, emails, account IDs, URLs, or tokens.
 - Public fixtures must use synthetic site scopes, issue keys, account IDs,
   names, summaries, emails, and URLs.
-- Jira summaries, display names, account IDs, project names, remote-link titles,
-  remote-link summaries, and raw source URLs are not retained as payload values.
-  The payload keeps presence booleans, provider IDs, safe status fields, and URL
-  fingerprints instead.
+- Jira summaries, display names, account IDs, project names, metadata names,
+  metadata descriptions, custom-field IDs, remote-link titles, remote-link
+  summaries, and raw source URLs are not retained as payload values. The payload
+  keeps presence booleans, bounded categories, provider IDs needed for work-item
+  joins, safe status fields, and fingerprints instead.
 - Remote-link and Jira URLs must be sanitized before emission. User info,
   fragments, and sensitive query keys such as `token`, `api_key`, `sig`,
   `signature`, `authorization`, `password`, and `secret` are removed.
@@ -217,7 +231,7 @@ before implementation expands.
 | `rate_limited_retry_after` | Jira returns `429` and retry guidance. | Retryable `rate_limited` classification, `Retry-After` capture, and no private request payload in logs. |
 | `partial_failure` | Search succeeds but changelog or remote-link fetch fails. | Claim failure with bounded partial counters on `jira.fetch`; no complete-looking result. |
 | `stale_source` | Last successful generation is older than the allowed freshness window. | Reader-facing stale state instead of silently fresh output. |
-| `metadata_project_status_workflow_field_change` | Project/status/workflow/field metadata changes. | Follow-up `work_item.*` metadata facts after #1122 defines names and schema. |
+| `metadata_project_status_workflow_field_change` | Project/status/workflow/field metadata changes. | `work_item.*` metadata facts with private names, descriptions, URLs, and custom IDs redacted or fingerprinted. |
 | `redaction_required` | Source contains summaries, emails, account IDs, private URLs, or tokens. | Public fixtures redact or synthesize values; metrics/status never label with private values. |
 
 ## Read Semantics
@@ -271,6 +285,10 @@ polling recovery after missed webhook delivery.
 
 Observability Evidence: the Jira fetch span records bounded counts for
 `jira.search_pages`, `jira.changelog_pages`, `jira.remote_link_pages`,
+`jira.metadata_pages`, `jira.metadata_objects_scanned`,
+`jira.metadata_objects_emitted`, `jira.unsupported_metadata`,
+`jira.permission_hidden_metadata`, `jira.stale_metadata`,
+`jira.metadata_redactions`,
 `jira.issues_emitted`, `jira.changelog_events_emitted`,
 `jira.remote_links_emitted`, `jira.remote_links_rejected`,
 `jira.unsupported_provider_links`, `jira.partial_failures`,

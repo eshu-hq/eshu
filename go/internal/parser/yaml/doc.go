@@ -18,7 +18,11 @@
 // bodies, scrape targets, remote-write URLs, Loki and Tempo route URLs, tenant
 // header values, tenant IDs, datasource URLs, secrets, contact routes, folder
 // titles, provisioning paths, log label values, spans, traces, raw trace IDs,
-// request attributes, TraceQL bodies, and trace tag values. The package keeps
-// output deterministic by sorting emitted buckets and by routing decoded
-// CloudFormation documents through the shared CloudFormation parser contract.
+// request attributes, TraceQL bodies, and trace tag values. Argo CD Application
+// status and Kubernetes API-exported observability resources may also emit
+// applied-state metadata, but raw status messages, labels, managed fields, UIDs,
+// cluster URLs, dashboard bodies, query bodies, and Secret data stay out of
+// parser payload rows. The package keeps output deterministic by sorting
+// emitted buckets and by routing decoded CloudFormation documents through the
+// shared CloudFormation parser contract.
 package yaml

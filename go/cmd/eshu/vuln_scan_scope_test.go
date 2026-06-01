@@ -180,6 +180,62 @@ func TestRunVulnScanRepoScopedModeFailsClosedOnStaleAdvisoryCache(t *testing.T) 
 	}
 }
 
+func TestRunVulnScanRepoPassesThroughServerStaleAdvisoryReadiness(t *testing.T) {
+	repoPath := t.TempDir()
+	reset := stubScanRuntime(t)
+	defer reset()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/v0/repositories":
+			_, _ = w.Write([]byte(`{"count":1,"repositories":[{"id":"repo-local","name":"local","path":"` + repoPath + `","local_path":"` + repoPath + `"}]}`))
+		case "/api/v0/supply-chain/impact/findings":
+			_, _ = w.Write([]byte(`{"data":{"findings":[],"count":0,"limit":50,"truncated":false,"readiness":{"readiness_state":"evidence_incomplete","target_scope":{"repository_id":"repo-local"},"evidence_sources":[{"family":"package.consumption","fact_count":3,"freshness":"fresh"},{"family":"package.registry","fact_count":1,"freshness":"fresh"},{"family":"vulnerability.advisory","fact_count":50,"freshness":"stale"}],"missing_evidence":["advisory_sources"],"freshness":"stale","counts":{"findings_returned":0,"evidence_facts_total":54}}},"truth":{"level":"exact","freshness":{"state":"stale"}},"error":null}`))
+		default:
+			t.Fatalf("unexpected request %s %s", r.Method, r.URL.String())
+		}
+	}))
+	defer server.Close()
+
+	out := &bytes.Buffer{}
+	cmd := newTestVulnScanRepoCommand(t)
+	cmd.SetOut(out)
+	cmd.SetErr(io.Discard)
+	if err := cmd.Flags().Set("service-url", server.URL); err != nil {
+		t.Fatalf("Set(service-url) error = %v, want nil", err)
+	}
+	if err := cmd.Flags().Set("json", "true"); err != nil {
+		t.Fatalf("Set(json) error = %v, want nil", err)
+	}
+
+	err := runVulnScanRepo(cmd, []string{repoPath})
+	if err == nil {
+		t.Fatal("runVulnScanRepo() error = nil, want non-ready server stale advisory state to fail closed")
+	}
+
+	var payload map[string]any
+	if uerr := json.Unmarshal(out.Bytes(), &payload); uerr != nil {
+		t.Fatalf("json.Unmarshal() error = %v, want nil; output=%s", uerr, out.String())
+	}
+	data := payload["data"].(map[string]any)
+	if got, want := data["readiness_state"], "evidence_incomplete"; got != want {
+		t.Fatalf("data[readiness_state] = %#v, want %#v", got, want)
+	}
+	report := data["report"].(map[string]any)
+	readiness := report["readiness"].(map[string]any)
+	missing := requireSliceField(t, readiness, "missing_evidence")
+	if got, want := missing[0], "advisory_sources"; got != want {
+		t.Fatalf("report.readiness.missing_evidence[0] = %#v, want %#v", got, want)
+	}
+	plan := data["scope_plan"].(map[string]any)
+	if got, want := plan["stop_threshold"], "evidence_incomplete"; got != want {
+		t.Fatalf("plan[stop_threshold] = %#v, want %#v", got, want)
+	}
+	if got := plan["missing_evidence"]; got != nil {
+		t.Fatalf("plan[missing_evidence] = %#v, want nil because server already classified stale advisory evidence", got)
+	}
+}
+
 func TestRunVulnScanRepoScopedModeIgnoresSnapshotStalenessWhenEnvelopeFresh(t *testing.T) {
 	// A stale per-source snapshot must not flip a repo-only scan when the
 	// server-owned aggregate scoped freshness is `fresh`. This regression

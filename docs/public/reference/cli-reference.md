@@ -212,6 +212,8 @@ Sanitized JSON report excerpt:
             "match_reason": "range_only_manifest"
           },
           "remediation": {
+            "fixed_version_source": "ghsa",
+            "match_reason": "range_only_manifest",
             "first_patched_version": "2.3.5",
             "confidence": "partial",
             "reason": "direct_upgrade_allowed"
@@ -263,6 +265,8 @@ Sanitized VEX-style example:
       ],
       "remediation": {
         "fixed_version": "1.2.3",
+        "fixed_version_source": "ghsa",
+        "match_reason": "npm_semver_affected_range",
         "first_patched_version": "1.2.3",
         "confidence": "exact"
       }

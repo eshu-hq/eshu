@@ -109,7 +109,7 @@ func TestOpenAPISpecIncludesSupplyChainImpactFindings(t *testing.T) {
 	}
 	targetKindSchema := mustMapField(t, unsupportedTargetsItemProps, "target_kind")
 	targetKindEnum := mustStringSliceField(t, targetKindSchema, "enum")
-	for _, want := range []string{"ecosystem", "package_manager_file", "sbom_target", "package_registry_metadata", "image_target"} {
+	for _, want := range []string{"ecosystem", "package_manager_file", "dependency_source", "sbom_target", "package_registry_metadata", "image_target"} {
 		if !containsOpenAPIEnumString(targetKindEnum, want) {
 			t.Fatalf("unsupported_targets.target_kind enum = %#v, want %q", targetKindEnum, want)
 		}
@@ -207,6 +207,8 @@ func TestOpenAPISpecIncludesSupplyChainImpactRemediation(t *testing.T) {
 		"ecosystem",
 		"current_version",
 		"vulnerable_range",
+		"fixed_version_source",
+		"match_reason",
 		"first_patched_version",
 		"patched_version_branches",
 		"manifest_range",
@@ -250,6 +252,8 @@ func TestOpenAPISpecIncludesSupplyChainImpactRemediation(t *testing.T) {
 		"reason",
 		"manifest_allows_fix",
 		"first_patched_version",
+		"fixed_version_source",
+		"match_reason",
 	} {
 		if _, ok := explainRemediationProps[key]; !ok {
 			t.Fatalf("explain remediation.properties missing %q", key)

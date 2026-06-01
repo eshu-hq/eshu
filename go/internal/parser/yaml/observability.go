@@ -17,6 +17,8 @@ const (
 	observabilityMetricRouteBucket = "observability_declared_metric_routes"
 	observabilityLogRouteBucket    = "observability_declared_log_routes"
 	observabilityTraceRouteBucket  = "observability_declared_trace_routes"
+	observabilityAppliedBucket     = "observability_applied_resources"
+	observabilityAppliedSyncBucket = "observability_applied_sync_states"
 	observabilityWarningBucket     = "observability_coverage_warnings"
 )
 
@@ -30,6 +32,8 @@ var observabilityBuckets = []string{
 	observabilityMetricRouteBucket,
 	observabilityLogRouteBucket,
 	observabilityTraceRouteBucket,
+	observabilityAppliedBucket,
+	observabilityAppliedSyncBucket,
 	observabilityWarningBucket,
 }
 

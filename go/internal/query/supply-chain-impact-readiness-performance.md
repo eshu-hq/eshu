@@ -19,3 +19,17 @@ the readiness envelope's `evidence_sources[]`, `source_snapshots[]`,
 `source_states[]`, `missing_evidence[]`, and `freshness` fields. The change adds
 no route, graph query, queue, reducer lane, worker, runtime knob, metric
 instrument, span, log key, or metric label.
+
+No-Regression Evidence: issue #1018 treats stale advisory metadata and
+provenance-only dependency sources as fail-closed evidence. Stale
+`vulnerability.advisory` rows add `advisory_sources` missing evidence instead
+of allowing `ready_zero_findings`. VCS, path, URL, editable, and unsupported
+dependency rows are aggregated as `dependency_source` unsupported targets with
+stable reason codes, scoped to the requested repository. Focused proof:
+`go test ./internal/query ./internal/mcp ./cmd/eshu -run 'TestBuildSupplyChainImpactReadinessClassifies(StaleAdvisoryAsIncomplete|UnsupportedDependencySource|MissingSBOMOrImageEvidence)|TestPostgresSupplyChainImpactReadinessQueryShape|TestOpenAPISupplyChainImpactFindingsDocumentsReadinessEnvelope|TestDispatchToolSupplyChainImpactFindingsSurfacesIncompleteCoverageStates|TestRunVulnScanRepo(PassesThroughServerStaleAdvisoryReadiness|JSONReportPreservesMalformedVersionAndRangeEvidence)' -count=1`.
+
+No-Observability-Change: the dependency-source branch reads active
+`content_entity` rows through the same repository-bounded readiness query and
+continues to emit the existing readiness envelope fields. It adds no new
+metric, span, log key, graph query, queue, reducer lane, worker, or runtime
+setting.

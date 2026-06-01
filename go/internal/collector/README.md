@@ -100,8 +100,9 @@ per repository:
    `VariableScope=all`. Terraform parser buckets are mapped explicitly into
    content entities, including backends, imports, moved blocks, removed blocks,
    checks, and lockfile providers. Declared Grafana, Prometheus/Mimir, Loki,
-   and Tempo observability parser buckets are emitted as versioned
-   `observability.*` source facts during fact streaming, not as graph truth.
+   and Tempo observability parser buckets plus applied Argo CD/Kubernetes
+   observability state buckets are emitted as versioned `observability.*`
+   source facts during fact streaming, not as graph truth.
 5. **Materialize** — `shape.Materialize` turns parsed files into
    `ContentFileMeta` records and `ContentEntitySnapshot` rows. Body strings are
    released after materialization; `streamFacts` re-reads them from disk at emit

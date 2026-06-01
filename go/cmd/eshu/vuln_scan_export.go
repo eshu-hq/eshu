@@ -107,6 +107,7 @@ func vulnScanSARIFFindings(findings []map[string]any) []exportspkg.Finding {
 			SubjectDigest:       stringFromMap(finding, "subject_digest"),
 			ImageRef:            stringFromMap(finding, "image_ref"),
 			RuntimeReachability: stringFromMap(finding, "runtime_reachability"),
+			Reachability:        vulnScanSARIFReachability(finding),
 			ImpactStatus:        stringFromMap(finding, "impact_status"),
 			Confidence:          stringFromMap(finding, "confidence"),
 			WorkloadIDs:         cloneAndSortStrings(stringSliceFromAny(finding["workload_ids"])),
@@ -239,6 +240,8 @@ func vulnScanSARIFRemediation(finding map[string]any) *exportspkg.Remediation {
 	out := &exportspkg.Remediation{
 		CurrentVersion:      stringFromMap(remediation, "current_version"),
 		VulnerableRange:     stringFromMap(remediation, "vulnerable_range"),
+		FixedVersionSource:  stringFromMap(remediation, "fixed_version_source"),
+		MatchReason:         stringFromMap(remediation, "match_reason"),
 		FirstPatchedVersion: stringFromMap(remediation, "first_patched_version"),
 		ManifestRange:       stringFromMap(remediation, "manifest_range"),
 		ManifestAllowsFix:   stringFromMap(remediation, "manifest_allows_fix"),
@@ -248,6 +251,7 @@ func vulnScanSARIFRemediation(finding map[string]any) *exportspkg.Remediation {
 		MissingEvidence:     cloneAndSortStrings(stringSliceFromAny(remediation["missing_evidence"])),
 	}
 	if out.CurrentVersion == "" && out.VulnerableRange == "" &&
+		out.FixedVersionSource == "" && out.MatchReason == "" &&
 		out.FirstPatchedVersion == "" && out.ManifestRange == "" &&
 		out.ManifestAllowsFix == "" && out.Confidence == "" &&
 		out.Reason == "" && out.Direct == nil &&

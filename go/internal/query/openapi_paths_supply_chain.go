@@ -114,6 +114,7 @@ const openAPIPathsSupplyChain = `
                           "priority_reason_codes": {"type": "array", "items": {"type": "string"}},
                           "priority_contributions": {"type": "array", "description": "Explainable scoring inputs. Priority is triage metadata and never proves affected truth.", "items": {"type": "object", "properties": {"reason_code": {"type": "string"}, "input": {"type": "string"}, "value": {"type": "string"}, "contribution": {"type": "integer"}}, "required": ["reason_code", "input", "contribution"]}},
                           "runtime_reachability": {"type": "string"},
+                          "reachability": {"type": "object", "description": "Cross-language reachability enrichment. This is prioritization metadata and never downgrades or hides impact findings. missing_evidence and unavailable are not clean results.", "properties": {"state": {"type": "string", "enum": ["reachable", "not_called", "unknown", "unavailable", "missing_evidence"]}, "confidence": {"type": "string"}, "source": {"type": "string"}, "evidence": {"type": "string"}, "reason": {"type": "string"}, "language_maturity": {"type": "string", "enum": ["implemented", "partial", "unavailable", "unsupported"]}, "missing_evidence": {"type": "array", "items": {"type": "string"}}}, "required": ["state"]},
                           "repository_id": {"type": "string"},
                           "subject_digest": {"type": "string"},
                           "image_ref": {"type": "string"},
@@ -152,6 +153,8 @@ const openAPIPathsSupplyChain = `
                               "ecosystem": {"type": "string"},
                               "current_version": {"type": "string"},
                               "vulnerable_range": {"type": "string"},
+                              "fixed_version_source": {"type": "string"},
+                              "match_reason": {"type": "string"},
                               "first_patched_version": {"type": "string"},
                               "patched_version_branches": {
                                 "type": "array",
@@ -237,7 +240,7 @@ const openAPIPathsSupplyChain = `
                       "type": "object",
                       "description": "Bounded coverage metadata so zero findings can be distinguished from missing target collection or missing required evidence. readiness_unavailable means the readiness lookup itself failed; the findings page is still returned but coverage cannot be classified.",
                       "properties": {
-                        "readiness_state": {"type": "string", "enum": ["not_configured", "target_incomplete", "evidence_incomplete", "ready_zero_findings", "ready_with_findings", "readiness_unavailable", "unsupported"], "description": "Coverage classification for the bounded vulnerability impact answer. unsupported fires when Eshu observed real target evidence the matcher cannot resolve (unsupported ecosystem, package-manager file with unsupported lockfile feature, malformed/unsupported SBOM document, or unsupported image target)."},
+                        "readiness_state": {"type": "string", "enum": ["not_configured", "target_incomplete", "evidence_incomplete", "ready_zero_findings", "ready_with_findings", "readiness_unavailable", "unsupported"], "description": "Coverage classification for the bounded vulnerability impact answer. unsupported fires when Eshu observed real target evidence the matcher cannot resolve (unsupported ecosystem, package-manager file with unsupported lockfile feature, VCS/path/URL/editable dependency source, malformed/unsupported SBOM document, or unsupported image target)."},
                         "target_scope": {
                           "type": "object",
                           "properties": {
@@ -322,8 +325,8 @@ const openAPIPathsSupplyChain = `
                           "items": {
                             "type": "object",
                             "properties": {
-                              "target_kind": {"type": "string", "enum": ["ecosystem", "package_manager_file", "sbom_target", "package_registry_metadata", "image_target"], "description": "Family of unsupported target observed: dependency in an unsupported ecosystem, package-manager file with an unsupported lockfile feature, malformed/unsupported SBOM document tied to the requested subject digest, oversized package-registry metadata, or container image target without a supported analyzer."},
-                              "reason": {"type": "string", "description": "Stable reason code explaining why the target is unsupported (e.g., unsupported_ecosystem, lockfile_unsupported_feature, unsupported_field, malformed_document, metadata_too_large)."},
+                              "target_kind": {"type": "string", "enum": ["ecosystem", "package_manager_file", "dependency_source", "sbom_target", "package_registry_metadata", "image_target"], "description": "Family of unsupported target observed: dependency in an unsupported ecosystem, package-manager file with an unsupported lockfile feature, VCS/path/URL/editable dependency source evidence, malformed/unsupported SBOM document tied to the requested subject digest, oversized package-registry metadata, or container image target without a supported analyzer."},
+                              "reason": {"type": "string", "description": "Stable reason code explaining why the target is unsupported (e.g., unsupported_ecosystem, lockfile_unsupported_feature, vcs_dependency_unsupported, path_dependency_unsupported, unsupported_field, malformed_document, metadata_too_large)."},
                               "count": {"type": "integer", "minimum": 1},
                               "ecosystem": {"type": "string"},
                               "lockfile_flavor": {"type": "string"},
@@ -487,6 +490,8 @@ const openAPIPathsSupplyChain = `
                         "ecosystem": {"type": "string"},
                         "current_version": {"type": "string"},
                         "vulnerable_range": {"type": "string"},
+                        "fixed_version_source": {"type": "string"},
+                        "match_reason": {"type": "string"},
                         "first_patched_version": {"type": "string"},
                         "patched_version_branches": {
                           "type": "array",

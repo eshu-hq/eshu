@@ -206,16 +206,58 @@ func (s *ClaimedSource) envelopes(
 	result CollectionResult,
 	observedAt time.Time,
 ) ([]facts.Envelope, error) {
-	envs := make([]facts.Envelope, 0, len(result.Issues))
-	for _, issue := range result.Issues {
-		ctx := EnvelopeContext{
-			ScopeID:             target.ScopeID,
-			GenerationID:        item.GenerationID,
-			CollectorInstanceID: s.collectorInstanceID,
-			FencingToken:        item.CurrentFencingToken,
-			ObservedAt:          observedAt,
-			SourceURI:           target.BaseURL,
+	envs := make([]facts.Envelope, 0, len(result.Issues)+len(result.Projects)+len(result.IssueTypes)+len(result.Statuses)+len(result.Workflows)+len(result.Fields)+len(result.MetadataWarnings))
+	ctx := EnvelopeContext{
+		ScopeID:             target.ScopeID,
+		GenerationID:        item.GenerationID,
+		CollectorInstanceID: s.collectorInstanceID,
+		FencingToken:        item.CurrentFencingToken,
+		ObservedAt:          observedAt,
+		SourceURI:           target.BaseURL,
+	}
+	for _, project := range result.Projects {
+		env, err := NewWorkItemProjectMetadataEnvelope(ctx, project)
+		if err != nil {
+			return nil, err
 		}
+		envs = append(envs, env)
+	}
+	for _, issueType := range result.IssueTypes {
+		env, err := NewWorkItemIssueTypeMetadataEnvelope(ctx, issueType)
+		if err != nil {
+			return nil, err
+		}
+		envs = append(envs, env)
+	}
+	for _, status := range result.Statuses {
+		env, err := NewWorkItemStatusMetadataEnvelope(ctx, status)
+		if err != nil {
+			return nil, err
+		}
+		envs = append(envs, env)
+	}
+	for _, workflow := range result.Workflows {
+		env, err := NewWorkItemWorkflowMetadataEnvelope(ctx, workflow)
+		if err != nil {
+			return nil, err
+		}
+		envs = append(envs, env)
+	}
+	for _, field := range result.Fields {
+		env, err := NewWorkItemFieldMetadataEnvelope(ctx, field)
+		if err != nil {
+			return nil, err
+		}
+		envs = append(envs, env)
+	}
+	for _, warning := range result.MetadataWarnings {
+		env, err := NewWorkItemMetadataWarningEnvelope(ctx, warning)
+		if err != nil {
+			return nil, err
+		}
+		envs = append(envs, env)
+	}
+	for _, issue := range result.Issues {
 		record, err := NewWorkItemRecordEnvelope(ctx, issue)
 		if err != nil {
 			return nil, err
@@ -290,6 +332,13 @@ func recordFetchStats(span trace.Span, stats CollectionStats) {
 		attribute.Int(telemetry.SpanAttrJiraRemoteLinksEmitted, stats.RemoteLinksEmitted),
 		attribute.Int(telemetry.SpanAttrJiraRemoteLinksRejected, stats.RemoteLinksRejected),
 		attribute.Int(telemetry.SpanAttrJiraUnsupportedProviderLinks, stats.UnsupportedProviderLinks),
+		attribute.Int(telemetry.SpanAttrJiraMetadataPages, stats.MetadataPages),
+		attribute.Int(telemetry.SpanAttrJiraMetadataObjectsScanned, stats.MetadataObjectsScanned),
+		attribute.Int(telemetry.SpanAttrJiraMetadataObjectsEmitted, stats.MetadataObjectsEmitted),
+		attribute.Int(telemetry.SpanAttrJiraUnsupportedMetadata, stats.UnsupportedMetadata),
+		attribute.Int(telemetry.SpanAttrJiraPermissionHiddenMetadata, stats.PermissionHiddenMetadata),
+		attribute.Int(telemetry.SpanAttrJiraStaleMetadata, stats.StaleMetadata),
+		attribute.Int(telemetry.SpanAttrJiraMetadataRedactions, stats.MetadataRedactions),
 		attribute.Int(telemetry.SpanAttrJiraPartialFailures, stats.PartialFailures),
 		attribute.Int(telemetry.SpanAttrJiraRateLimits, stats.RateLimits),
 		attribute.Int(telemetry.SpanAttrJiraRetryAfterSeconds, stats.RetryAfterSeconds),
@@ -323,7 +372,7 @@ func collectionWindowStats(window CollectionWindow, startedAt time.Time, lookbac
 	if !staleCollectionWindow(window, startedAt, lookback) {
 		return CollectionStats{}
 	}
-	return CollectionStats{StaleWindows: 1}
+	return CollectionStats{StaleWindows: 1, StaleMetadata: 1}
 }
 
 func staleCollectionWindow(window CollectionWindow, startedAt time.Time, lookback time.Duration) bool {

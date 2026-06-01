@@ -312,6 +312,28 @@ Priority fields intentionally describe urgency without changing impact truth:
   exact/range-only/missing version evidence, SBOM/image evidence, deployed
   workload evidence, owned repository evidence, and fixed-version availability.
 
+Reachability fields are enrichment and prioritization metadata. They do not
+change `impact_status`, `confidence`, missing-evidence truth, suppression
+state, or readiness:
+
+- `runtime_reachability`: legacy compact signal such as `image_sbom`,
+  `package_manifest`, `symbol_reachable`, or `not_called`.
+- `reachability.state`: one of `reachable`, `not_called`, `unknown`,
+  `unavailable`, or `missing_evidence`.
+- `reachability.confidence`: confidence in the reachability signal, separate
+  from vulnerability impact confidence.
+- `reachability.source`: evidence family such as `govulncheck`, `parser`,
+  `runtime_or_sbom`, or `not_available`.
+- `reachability.language_maturity`: `implemented`, `partial`, `unavailable`,
+  or `unsupported` for the ecosystem's current vulnerability-reachability
+  support.
+- `reachability.missing_evidence[]`: analyzer or runtime evidence that would
+  improve the reachability state.
+
+`not_called` currently has strong semantics for Go only when it comes from
+govulncheck-style evidence. For other ecosystems, missing parser or
+reachability evidence is explicit and never becomes a clean result.
+
 Each row also carries a `provenance` block so callers can see which advisory
 source supplied the selected severity, fixed version, and vulnerable range,
 plus alternate severities reported by other sources for the same advisory:
@@ -366,17 +388,23 @@ or service names.
 
 Each finding row and the explain payload also carry a `remediation` block
 that explains the advisory-only safe-upgrade path Eshu can compute for that
-finding. Today the reducer computes npm remediation from package-lock
-evidence; other ecosystems report `package_manager_unsupported` rather than
-guessing. Eshu never auto-opens pull requests from this block.
+finding. The reducer computes remediation only for ecosystems whose version
+ordering and manifest-range semantics are represented in reducer matchers:
+npm, Go modules, PyPI, Maven/Gradle, NuGet, Cargo, Composer, RubyGems, and
+vendor-gated RPM OS packages. OS package managers without proven distro
+version ordering, malformed ranges, and missing branch evidence remain
+explicit unsupported or missing-evidence outcomes rather than guessed upgrade
+paths. Eshu never auto-opens pull requests from this block.
 
 - `ecosystem`: ecosystem the recommendation was computed for.
 - `current_version`: installed version that matched the impact finding.
 - `vulnerable_range`: source-reported affected range expression.
+- `fixed_version_source`: advisory source that supplied the selected fixed version.
+- `match_reason`: reducer version-match reason that explains why the package was affected or known fixed; kept separate from the remediation `reason`.
 - `first_patched_version`: lowest source-reported fix Eshu can defend, preferring branches inside the observed major so callers are not pushed into a needless major bump.
 - `patched_version_branches[]`: every source-attributed fixed-version branch (version + source) so callers see multi-branch advisories explicitly.
 - `manifest_range`: original manifest/requested range preserved from package consumption evidence.
-- `manifest_allows_fix`: one of `allowed`, `blocked`, or `unknown`; npm caret and tilde ranges are expanded before checking whether the manifest range admits the first patched version, while transitive findings stay `unknown` because the user does not own the parent package's manifest.
+- `manifest_allows_fix`: one of `allowed`, `blocked`, or `unknown`; ecosystem-specific manifest semantics are checked before deciding whether the manifest range admits the first patched version, while transitive findings stay `unknown` because the user does not own the parent package's manifest.
 - `direct`: `true` for direct dependencies, `false` for transitive, mirroring the lockfile-derived `direct_dependency` flag on the finding.
 - `parent_package`: parent package the caller would need to upgrade for a transitive finding; blank for direct dependencies or chains without an identifiable parent.
 - `confidence`: `exact`, `partial`, or `unknown`; exact means every required input was present and unambiguous, partial means the recommendation is actionable but at least one input is ambiguous, and unknown means Eshu cannot recommend a safe upgrade yet.

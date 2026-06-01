@@ -17,6 +17,8 @@ type SupplyChainImpactRemediation struct {
 	Ecosystem              string                          `json:"ecosystem,omitempty"`
 	CurrentVersion         string                          `json:"current_version,omitempty"`
 	VulnerableRange        string                          `json:"vulnerable_range,omitempty"`
+	FixedVersionSource     string                          `json:"fixed_version_source,omitempty"`
+	MatchReason            string                          `json:"match_reason,omitempty"`
 	FirstPatchedVersion    string                          `json:"first_patched_version,omitempty"`
 	PatchedVersionBranches []SupplyChainFixedVersionBranch `json:"patched_version_branches,omitempty"`
 	ManifestRange          string                          `json:"manifest_range,omitempty"`
@@ -40,6 +42,8 @@ func decodeSupplyChainImpactRemediation(payload map[string]any) *SupplyChainImpa
 		Ecosystem:              StringVal(raw, "ecosystem"),
 		CurrentVersion:         StringVal(raw, "current_version"),
 		VulnerableRange:        StringVal(raw, "vulnerable_range"),
+		FixedVersionSource:     StringVal(raw, "fixed_version_source"),
+		MatchReason:            StringVal(raw, "match_reason"),
 		FirstPatchedVersion:    StringVal(raw, "first_patched_version"),
 		PatchedVersionBranches: decodeFixedVersionBranches(raw["patched_version_branches"]),
 		ManifestRange:          StringVal(raw, "manifest_range"),
@@ -59,6 +63,7 @@ func decodeSupplyChainImpactRemediation(payload map[string]any) *SupplyChainImpa
 func remediationIsEmpty(r SupplyChainImpactRemediation) bool {
 	return r.Reason == "" && r.Confidence == "" && r.FirstPatchedVersion == "" &&
 		r.ManifestRange == "" && r.CurrentVersion == "" && r.VulnerableRange == "" &&
+		r.FixedVersionSource == "" && r.MatchReason == "" &&
 		len(r.PatchedVersionBranches) == 0 && len(r.MissingEvidence) == 0 &&
 		r.ParentPackage == "" && r.Ecosystem == "" && r.Direct == nil &&
 		r.ManifestAllowsFix == ""

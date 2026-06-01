@@ -73,7 +73,7 @@ current families are:
 | Provider security alerts | `security_alert` | `security_alert.repository_alert` |
 | Incident context | `pagerduty` for PagerDuty source collection | `incident.record`, `incident.lifecycle_event`, `change.record` |
 | Incident routing | source collector that observed the routing evidence, including `terraform_state` and optional live `pagerduty` config validation | `incident_routing.applied_pagerduty_resource`, `incident_routing.applied_alert_route`, `incident_routing.observed_pagerduty_service`, `incident_routing.observed_pagerduty_integration`, `incident_routing.coverage_warning` |
-| Jira work items | `jira` | `work_item.record`, `work_item.transition`, `work_item.external_link` |
+| Jira work items | `jira` | `work_item.record`, `work_item.transition`, `work_item.external_link`, `work_item.project_metadata`, `work_item.issue_type_metadata`, `work_item.status_metadata`, `work_item.workflow_metadata`, `work_item.field_metadata`, `work_item.metadata_warning` |
 | Observability | source collector that observed the evidence, including `git` for declared IaC/GitOps | `observability.source_instance`, `observability.declared_folder`, `observability.declared_dashboard`, `observability.declared_datasource`, `observability.declared_alert_rule`, `observability.declared_scrape_config`, `observability.declared_metric_rule`, `observability.declared_metric_route`, `observability.declared_log_route`, `observability.declared_trace_route`, `observability.applied_resource`, `observability.applied_sync_state`, `observability.observed_dashboard`, `observability.observed_target`, `observability.observed_rule`, `observability.observed_log_signal`, `observability.observed_trace_signal`, `observability.coverage_warning` |
 
 Most current core families use schema version `1.0.0`.
@@ -177,6 +177,15 @@ PagerDuty incident links, or issue-key evidence can enrich work-item slots, but
 Jira-only PR URLs do not verify PR identity. Missing Jira links are valid
 incident evidence state and must not block incident collection.
 
+`observability.applied_resource` and `observability.applied_sync_state` preserve
+metadata-only Argo CD and Kubernetes applied-state evidence. They identify
+source class, source kind, app, namespace, cluster, cluster-server fingerprint,
+resource identity, resource class, generation, UID fingerprint, sync and health
+state, operation phase, freshness, and outcome. They do not contain raw status
+messages, labels, managed fields, dashboard payloads, query bodies, Secret data,
+raw Kubernetes UIDs, or raw cluster URLs. Reducers own any later comparison
+between declared, applied, and observed observability state.
+
 `work_item.record`, `work_item.transition`, and `work_item.external_link`
 preserve Jira work-item state, changelog IDs, and remote-link IDs as provider
 evidence. They do not imply incident ownership, deployment cause, code change,
@@ -189,6 +198,20 @@ carry `redaction_policy_version=jira_work_item_v1`; private summaries, user
 identifiers, raw Jira URLs, remote-link URLs, remote-link titles, and
 remote-link summaries are represented by presence booleans or URL fingerprints,
 not raw values.
+`work_item.record`, `work_item.transition`, `work_item.external_link`, and the
+Jira metadata fact kinds preserve Jira work-item state, changelog IDs,
+remote-link IDs, project/status/workflow context, custom-field schema classes,
+and metadata warnings as provider evidence. They do not imply incident
+ownership, deployment cause, code change, or pull-request truth unless a reducer
+or query later proves that path through separate source evidence. A
+`work_item.external_link` to a GitHub PR URL is source evidence only until
+GitHub/provider PR evidence verifies the commit-to-PR hop. The Jira source
+boundary, identity keys, freshness semantics, and fixture matrix are defined in
+[Jira Evidence Contract](jira-evidence.md). Jira payloads carry
+`redaction_policy_version=jira_work_item_v1`; private summaries, user
+identifiers, raw Jira URLs, metadata names/descriptions, custom-field IDs,
+remote-link URLs, remote-link titles, and remote-link summaries are represented
+by presence booleans, bounded categories, or fingerprints, not raw values.
 
 Declared PagerDuty module and tfvars evidence from Terraform source is emitted
 through ordinary `content_entity` facts with `entity_type=PagerDutyDeclaration`

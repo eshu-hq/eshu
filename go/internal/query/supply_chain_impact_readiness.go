@@ -32,10 +32,11 @@ const (
 	ReadinessStateReadinessUnavailable SupplyChainImpactReadinessState = "readiness_unavailable"
 	// ReadinessStateUnsupported means Eshu observed real target evidence
 	// (owned dependency in an unsupported ecosystem, package-manager file
-	// flagged with an unsupported lockfile feature, malformed/unsupported
-	// SBOM, oversized package-registry metadata, or unsupported image
-	// manifest) the matcher cannot resolve into a finding. Callers must not
-	// interpret this as clean or affected.
+	// flagged with an unsupported lockfile feature, VCS/path/URL/editable
+	// dependency source, malformed/unsupported SBOM, oversized
+	// package-registry metadata, or unsupported image manifest) the matcher
+	// cannot resolve into a finding. Callers must not interpret this as clean
+	// or affected.
 	ReadinessStateUnsupported SupplyChainImpactReadinessState = "unsupported"
 )
 
@@ -336,6 +337,9 @@ func classifyMissingEvidence(
 	}
 	if evidenceFactCount(sources, EvidenceFamilyVulnerabilityAdvisory) == 0 &&
 		!sourceStatesHaveFreshSuccess(snapshot.SourceStates) {
+		missing = append(missing, MissingEvidenceAdvisorySources)
+	}
+	if advisoryFreshness := evidenceFamilyFreshness(sources, EvidenceFamilyVulnerabilityAdvisory); advisoryFreshness == FreshnessLabelStale {
 		missing = append(missing, MissingEvidenceAdvisorySources)
 	}
 	// package.registry without a package_id anchor is global metadata, not

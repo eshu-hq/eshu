@@ -181,6 +181,9 @@ func supplyChainImpactPayload(write SupplyChainImpactWrite, finding SupplyChainI
 	if finding.DirectDependency != nil {
 		payload["direct_dependency"] = *finding.DirectDependency
 	}
+	if reachability := supplyChainReachabilityPayload(finding.Reachability); reachability != nil {
+		payload["reachability"] = reachability
+	}
 	provenance := supplyChainImpactProvenancePayload(finding)
 	if len(provenance) > 0 {
 		payload["provenance"] = provenance
@@ -221,6 +224,12 @@ func supplyChainImpactRemediationPayload(r SupplyChainImpactRemediation) map[str
 	}
 	if r.VulnerableRange != "" {
 		out["vulnerable_range"] = r.VulnerableRange
+	}
+	if r.FixedVersionSource != "" {
+		out["fixed_version_source"] = r.FixedVersionSource
+	}
+	if r.MatchReason != "" {
+		out["match_reason"] = r.MatchReason
 	}
 	if r.FirstPatchedVersion != "" {
 		out["first_patched_version"] = r.FirstPatchedVersion

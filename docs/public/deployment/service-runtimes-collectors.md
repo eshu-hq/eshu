@@ -61,7 +61,7 @@ All hosted collector runtimes expose `/healthz`, `/readyz`, `/metrics`, and
 | SBOM Attestation | Claim-driven. Selects one enabled `sbom_attestation` instance, fetches configured CycloneDX/SPDX SBOMs or in-toto attestations from HTTP(S) document URLs or OCI referrer blobs, and commits typed `sbom.*` and `attestation.*` facts. It redacts source URIs, preserves parse warnings as source facts, and keeps signature verification status separate from subject attachment truth. |
 | Security Alert | Claim-driven. Selects one enabled `security_alert` instance, resolves the target `token_env` from the pod environment, refuses non-allowlisted repositories, requires HTTPS for any `api_base_url` override, fetches bounded GitHub Dependabot alert pages, and commits only `security_alert.repository_alert` facts. Provider state remains source evidence; reducers own reconciliation and impact truth. |
 | PagerDuty | Claim-driven. Selects one enabled `pagerduty` instance, resolves target `token_env` from the runtime environment, requires HTTPS for any configured `api_base_url`, fetches bounded incident, log-entry, and related change-event evidence, and optionally fetches bounded live service/integration configuration when `config_validation_enabled` is set. It commits `incident.record`, `incident.lifecycle_event`, `change.record`, `incident_routing.observed_pagerduty_service`, `incident_routing.observed_pagerduty_integration`, and coverage-warning source facts only. Signed PagerDuty webhooks can wake the same configured `scope_id`, but they do not emit facts. PagerDuty state remains source evidence; the incident-context read model owns declared/applied/observed routing slots, while reducers and query surfaces own runtime, image, build/commit, PR, and work-item correlation. |
-| Jira | Claim-driven. Selects one enabled `jira` instance, resolves `token_env` and optional `email_env` from the pod environment, searches a bounded Jira Cloud updated window, fetches issue changelogs and remote links, and commits only `work_item.record`, `work_item.transition`, and `work_item.external_link` facts. Signed Jira webhooks can wake the same configured `scope_id`, but they do not emit facts. Work-item state remains source evidence; reducers and query surfaces own incident, runtime, code, and pull-request correlation truth. See [Jira Evidence Contract](../reference/jira-evidence.md) for identity, freshness, redaction, and fixture expectations. |
+| Jira | Claim-driven. Selects one enabled `jira` instance, resolves `token_env` and optional `email_env` from the pod environment, searches a bounded Jira Cloud updated window, fetches issue changelogs and remote links, collects bounded project/status/workflow/field metadata, and commits only `work_item.*` source facts. Signed Jira webhooks can wake the same configured `scope_id`, but they do not emit facts. Work-item state remains source evidence; reducers and query surfaces own incident, runtime, code, and pull-request correlation truth. See [Jira Evidence Contract](../reference/jira-evidence.md) for identity, freshness, redaction, and fixture expectations. |
 | Scanner Worker | Claim-driven. Selects one enabled `scanner_worker` instance, applies analyzer resource limits, emits source facts only, and records retry or dead-letter state without producing reducer-owned findings. The fallback analyzer emits `scanner_worker.warning`; `sbom_generation` accepts repository, image, or artifact targets when the runtime source has enough subject evidence; and the concrete `os_package_extraction` analyzer parses configured, already-extracted Alpine or Debian rootfs targets into `vulnerability.os_package` and `vulnerability.warning` facts. |
 | Vulnerability Intelligence | Claim-driven. Selects one enabled `vulnerability_intelligence` instance, fetches bounded source targets (explicit CVE IDs, source snapshots, OSV package-version queries, NVD modified windows, GitLab Gemnasium, GHSA) or coordinator-derived exact owned-package targets for supported ecosystems such as npm and Hex, and commits `vulnerability.*` facts. API keys are referenced from the pod environment through the target's `api_key_env` and never persisted into facts, logs, metric labels, or chart values. |
 
@@ -91,11 +91,19 @@ labels or status errors. Keep incident, change, and optional live-config
 details in source-fact payloads only when the target environment accepts that
 evidence retention boundary.
 
-For Jira, do not put site IDs, issue keys, user identities, summaries, remote
-link URLs, or credential values in metric labels or status errors. Jira
+For Jira, do not put site IDs, issue keys, user identities, summaries, metadata
+names, custom-field IDs, remote link URLs, or credential values in metric
+labels or status errors. Jira
 work-item payloads retain provider IDs, presence flags, redaction policy
 version, and URL fingerprints rather than raw summaries, user identifiers,
 private URLs, remote-link titles, or remote-link summaries.
+
+For observability evidence, do not put dashboard titles, raw dashboard JSON,
+queries, scrape targets, label values, tag values, log lines, spans, traces,
+status messages, Kubernetes labels, raw UIDs, managed fields, cluster URLs, or
+credential values in metric labels or status errors. Declared and applied
+observability facts retain safe identities, fingerprints, resource classes,
+source revisions, freshness state, and outcomes only.
 
 Use the focused service runbooks for target, permission, redaction, dashboard,
 and failure detail:
@@ -104,6 +112,7 @@ and failure detail:
 - [AWS Cloud Collector](../services/collector-aws-cloud.md)
 - [PagerDuty Collector](../services/collector-pagerduty.md)
 - [Jira Evidence Contract](../reference/jira-evidence.md)
+- [Observability Evidence Contract](../reference/observability-evidence.md)
 
 ## ServiceMonitor Coverage
 

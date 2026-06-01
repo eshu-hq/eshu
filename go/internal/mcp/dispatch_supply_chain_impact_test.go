@@ -56,8 +56,24 @@ func TestDispatchToolSupplyChainImpactFindingsReturnsReadinessEnvelope(t *testin
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(map[string]any{
 			"data": map[string]any{
-				"findings":  []any{},
-				"count":     0,
+				"findings": []any{
+					map[string]any{
+						"finding_id": "finding-remediation",
+						"remediation": map[string]any{
+							"ecosystem":             "maven",
+							"current_version":       "3.9.8",
+							"vulnerable_range":      "[3.8.0,3.9.9)",
+							"fixed_version_source":  "ghsa",
+							"match_reason":          "maven_range_match",
+							"first_patched_version": "3.9.9",
+							"manifest_range":        "[3.8.0,4.0.0)",
+							"manifest_allows_fix":   "allowed",
+							"confidence":            "exact",
+							"reason":                "direct_upgrade_allowed",
+						},
+					},
+				},
+				"count":     1,
 				"limit":     25,
 				"truncated": false,
 				"readiness": map[string]any{
@@ -127,6 +143,14 @@ func TestDispatchToolSupplyChainImpactFindingsReturnsReadinessEnvelope(t *testin
 	if got, want := readiness["freshness"], "fresh"; got != want {
 		t.Fatalf("freshness = %#v, want %#v", got, want)
 	}
+	findings := data["findings"].([]any)
+	remediation := findings[0].(map[string]any)["remediation"].(map[string]any)
+	if got, want := remediation["match_reason"], "maven_range_match"; got != want {
+		t.Fatalf("remediation.match_reason = %#v, want %#v", got, want)
+	}
+	if got, want := remediation["fixed_version_source"], "ghsa"; got != want {
+		t.Fatalf("remediation.fixed_version_source = %#v, want %#v", got, want)
+	}
 	sources, ok := readiness["evidence_sources"].([]any)
 	if !ok {
 		t.Fatalf("evidence_sources = %T, want []any", readiness["evidence_sources"])
@@ -151,9 +175,10 @@ func TestDispatchToolSupplyChainImpactFindingsSurfacesIncompleteCoverageStates(t
 	// the server's not_configured / evidence_incomplete / target_incomplete
 	// states through the MCP envelope, not just ready_zero_findings.
 	cases := []struct {
-		name           string
-		readinessState string
-		missing        []string
+		name               string
+		readinessState     string
+		missing            []string
+		unsupportedTargets []map[string]any
 	}{
 		{
 			name:           "not_configured surfaces missing advisory sources",
@@ -174,6 +199,15 @@ func TestDispatchToolSupplyChainImpactFindingsSurfacesIncompleteCoverageStates(t
 			name:           "unsupported surfaces observed target coverage gap",
 			readinessState: "unsupported",
 			missing:        []string{"unsupported_targets"},
+			unsupportedTargets: []map[string]any{
+				{
+					"target_kind":   "dependency_source",
+					"reason":        "vcs_dependency_unsupported",
+					"ecosystem":     "pypi",
+					"feature_token": "vcs_dependency",
+					"count":         1,
+				},
+			},
 		},
 	}
 	for _, tc := range cases {
@@ -191,12 +225,13 @@ func TestDispatchToolSupplyChainImpactFindingsSurfacesIncompleteCoverageStates(t
 						"limit":     25,
 						"truncated": false,
 						"readiness": map[string]any{
-							"readiness_state":  tc.readinessState,
-							"target_scope":     map[string]any{"repository_id": "repo://example/api"},
-							"evidence_sources": []map[string]any{},
-							"missing_evidence": tc.missing,
-							"freshness":        "unknown",
-							"counts":           map[string]any{"findings_returned": 0, "findings_truncated": false, "evidence_facts_total": 0},
+							"readiness_state":     tc.readinessState,
+							"target_scope":        map[string]any{"repository_id": "repo://example/api"},
+							"evidence_sources":    []map[string]any{},
+							"missing_evidence":    tc.missing,
+							"unsupported_targets": tc.unsupportedTargets,
+							"freshness":           "unknown",
+							"counts":              map[string]any{"findings_returned": 0, "findings_truncated": false, "evidence_facts_total": 0},
 						},
 					},
 					"truth": map[string]any{"level": "exact", "capability": "supply_chain.impact_findings.list", "profile": "production", "basis": "semantic_facts", "freshness": map[string]any{"state": "fresh"}},
@@ -229,6 +264,19 @@ func TestDispatchToolSupplyChainImpactFindingsSurfacesIncompleteCoverageStates(t
 			}
 			if len(missingRaw) != len(tc.missing) {
 				t.Fatalf("len(missing_evidence) = %d, want %d", len(missingRaw), len(tc.missing))
+			}
+			if len(tc.unsupportedTargets) > 0 {
+				targets, ok := readiness["unsupported_targets"].([]any)
+				if !ok || len(targets) != len(tc.unsupportedTargets) {
+					t.Fatalf("unsupported_targets = %#v, want %#v", readiness["unsupported_targets"], tc.unsupportedTargets)
+				}
+				first := targets[0].(map[string]any)
+				if got, want := first["target_kind"], "dependency_source"; got != want {
+					t.Fatalf("unsupported_targets[0].target_kind = %#v, want %#v", got, want)
+				}
+				if got, want := first["reason"], "vcs_dependency_unsupported"; got != want {
+					t.Fatalf("unsupported_targets[0].reason = %#v, want %#v", got, want)
+				}
 			}
 		})
 	}
