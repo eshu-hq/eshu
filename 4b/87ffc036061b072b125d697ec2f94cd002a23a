@@ -1,0 +1,98 @@
+go/internal/collector/packageregistry/packageruntime/README.md
+  s_f2f7fbb6f30866::t_b24087a5392cbf 28,60-62,82-96,98,100-102,131-133
+go/internal/storage/postgres/proof_domain_harness_test.go
+  s_f2f7fbb6f30866::t_61960b99ab9d84 223-224
+go/internal/coordinator/package_registry_derivation_ecosystems_test.go
+  s_f2f7fbb6f30866::t_e3eb4a048fb6dd 1-85
+docs/public/deployment/service-runtimes-collectors.md
+  s_f2f7fbb6f30866::t_be598dd7d5ed2f 60
+go/internal/status/doc.go
+  s_f2f7fbb6f30866::t_6a1e32fb607e70 18-19
+go/internal/storage/postgres/status_test.go
+  s_f2f7fbb6f30866::t_aebdcaf7065e84 363
+  s_f2f7fbb6f30866::t_6037ed5045cfe4 320-322,352-360,371-372
+  s_f2f7fbb6f30866::t_0f6fa3ebb33c7c 190-191,203
+go/internal/collector/packageregistry/types.go
+  s_f2f7fbb6f30866::t_a19ab4b934c84e 246
+go/internal/status/registry.go
+  s_f2f7fbb6f30866::t_b9aa06506deabb 6
+  s_f2f7fbb6f30866::t_2b60673b820d93 22-34,41,67-69,74-89
+go/internal/collector/packageregistry/packageruntime/derived_targets.go
+  s_f2f7fbb6f30866::t_132767f43fc895 9,18,20,49,56-65,104-167,169-171,176-177,179-185,212-213,216-236
+  s_f2f7fbb6f30866::t_495b4994fc5ada 215
+  s_f2f7fbb6f30866::t_8192f4ccf8ab8b 168,172-175,178,186-211,214
+docs/public/reference/security-intelligence.md
+  s_f2f7fbb6f30866::t_a313975739da47 431-438,477-480
+go/internal/coordinator/README.md
+  s_f2f7fbb6f30866::t_e79fce8b018587 110-112,221-224,283-284
+go/internal/workflow/package_registry_config_test.go
+  s_f2f7fbb6f30866::t_e3eb4a048fb6dd 73-99
+go/internal/collector/packageregistry/warning.go
+  s_f2f7fbb6f30866::t_d2f90fe57c0a9e 38-40
+go/internal/workflow/README.md
+  s_f2f7fbb6f30866::t_e5946bb1b9d1dc 173-174,177-185,340-342,351-352,363-365
+  s_f2f7fbb6f30866::t_5bffbe7937fbfa 353-356
+go/internal/collector/packageregistry/packageruntime/source_warnings.go
+  s_f2f7fbb6f30866::t_155f47ba9b92ed 53-67
+  s_f2f7fbb6f30866::t_7cdc5d492a2184 6,8,10-42
+  s_f2f7fbb6f30866::t_928faf9fd8629b 7,9,45
+  s_f2f7fbb6f30866::t_c88d3102146e68 1-5,43-44,46-52,68-76
+go/internal/query/supply_chain_impact_readiness_postgres_query_source.go
+  s_f2f7fbb6f30866::t_0ee57100246fd1 70-76
+go/internal/collector/packageregistry/packageruntime/source.go
+  s_f2f7fbb6f30866::t_a606a3aa7d326b 177-179,296
+  s_f2f7fbb6f30866::t_17f85f640f6e64 295
+docs/public/reference/http-api/status-admin.md
+  s_f2f7fbb6f30866::t_ac6aa48a155974 23-27
+go/internal/query/supply_chain_impact_readiness_postgres_test.go
+  s_f2f7fbb6f30866::t_99f4727cb40c6a 76-81
+go/internal/status/status_render_json_test.go
+  s_f2f7fbb6f30866::t_6c7930d437da72 118-126,143-146,154-155
+go/internal/status/README.md
+  s_f2f7fbb6f30866::t_cb6f84a68fc293 82-85,189-192
+go/internal/collector/packageregistry/packageruntime/derived_targets_test.go
+  s_f2f7fbb6f30866::t_aa3cad2767cfce 137-182
+go/internal/workflow/package_registry_config.go
+  s_f2f7fbb6f30866::t_c664035ca1f7d1 102,146
+go/internal/collector/packageregistry/packageruntime/source_missing_evidence.go
+  s_f2f7fbb6f30866::t_c88d3102146e68 34-66
+  s_f2f7fbb6f30866::t_eba15565827156 94,154-155
+  s_f2f7fbb6f30866::t_86905bf062fd90 15-19,95,101,113,126-153
+docs/public/reference/vulnerability-scanner-confidence.md
+  s_f2f7fbb6f30866::t_78c7973f5c50e8 61
+docs/openapi/runtime-admin-v1.yaml
+  s_f2f7fbb6f30866::t_eb9ee93290ef83 468-498
+go/internal/coordinator/package_registry_scheduler.go
+  s_f2f7fbb6f30866::t_c664035ca1f7d1 271,282
+go/internal/coordinator/service.go
+  s_f2f7fbb6f30866::t_f2048dcf3756a6 407
+go/internal/status/json.go
+  s_f2f7fbb6f30866::t_1cb2077fa01feb 147-157,350,356-358
+  s_f2f7fbb6f30866::t_5ab730b6c1e8b5 359
+go/internal/coordinator/package_registry_ecosystem_targets.go
+  s_f2f7fbb6f30866::t_aebdcaf7065e84 69-77,79-81
+  s_f2f7fbb6f30866::t_a8b155cd360dc6 47-50
+  s_f2f7fbb6f30866::t_c664035ca1f7d1 1-46,51-68,78,82-144
+go/internal/storage/postgres/status_registry.go
+  s_f2f7fbb6f30866::t_fc8842a7cbd2e2 90-144,194-197,204,209-258
+go/internal/collector/packageregistry/packageruntime/source_missing_evidence_test.go
+  s_f2f7fbb6f30866::t_517d99948f7dc8 169-266,279-280,282-284,286-289,291-304,306-307
+  s_f2f7fbb6f30866::t_312efa2c002cc6 267-275,281,285,290,305
+  s_f2f7fbb6f30866::t_1c1b6c3d75622a 276-278
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "4b87ffc036061b072b125d697ec2f94cd002a23a",
+  "prompts": {},
+  "sessions": {
+    "s_f2f7fbb6f30866": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e360b-90eb-7472-bac7-56d488b65f77",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
