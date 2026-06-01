@@ -27,13 +27,17 @@ func swiftPackageResolvedDependencyVariables(document map[string]any, lang strin
 		if identity == "" || location == "" || !isRemoteSwiftPin(kind) {
 			continue
 		}
+		sourceLocation := sanitizeSwiftRemoteLocation(location)
+		if sourceLocation == "" {
+			continue
+		}
 		state, _ := pin["state"].(map[string]any)
 		version, _ := state["version"].(string)
 		version = strings.TrimSpace(version)
 		if version == "" {
 			continue
 		}
-		namespace, ok := swiftSourceNamespace(location)
+		namespace, ok := swiftSourceNamespace(sourceLocation)
 		if !ok {
 			continue
 		}
@@ -45,7 +49,7 @@ func swiftPackageResolvedDependencyVariables(document map[string]any, lang strin
 			"config_kind":      "dependency",
 			"package_manager":  "swift",
 			"package_identity": identity,
-			"source_location":  location,
+			"source_location":  sourceLocation,
 			"source_namespace": namespace,
 			"lockfile":         true,
 			"lockfile_format":  "swift-package-resolved",
@@ -65,6 +69,38 @@ func isRemoteSwiftPin(kind string) bool {
 		return true
 	default:
 		return false
+	}
+}
+
+func sanitizeSwiftRemoteLocation(location string) string {
+	trimmed := strings.TrimSpace(location)
+	if trimmed == "" {
+		return ""
+	}
+	if strings.HasPrefix(trimmed, "git@") {
+		cleaned := trimmed
+		if index := strings.IndexAny(cleaned, "?#"); index >= 0 {
+			cleaned = cleaned[:index]
+		}
+		hostAndPath := strings.TrimPrefix(cleaned, "git@")
+		host, repoPath, ok := strings.Cut(hostAndPath, ":")
+		if ok && strings.TrimSpace(host) != "" && strings.TrimSpace(repoPath) != "" {
+			return cleaned
+		}
+		return ""
+	}
+	parsed, err := url.Parse(trimmed)
+	if err != nil || parsed.Host == "" || parsed.Path == "" {
+		return ""
+	}
+	switch strings.ToLower(parsed.Scheme) {
+	case "https", "http", "ssh", "git":
+		parsed.User = nil
+		parsed.RawQuery = ""
+		parsed.Fragment = ""
+		return parsed.String()
+	default:
+		return ""
 	}
 }
 

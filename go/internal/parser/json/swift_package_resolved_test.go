@@ -74,6 +74,39 @@ func TestSwiftPackageResolvedEmitsOnlyVersionedRemoteDependencies(t *testing.T) 
 	}
 }
 
+func TestSwiftPackageResolvedSanitizesCredentialedSourceLocation(t *testing.T) {
+	t.Parallel()
+
+	path := writeJSONTestFile(t, "Package.resolved", `{
+  "pins": [
+    {
+      "identity": "swift-crypto",
+      "kind": "remoteSourceControl",
+      "location": "https://token:secret@github.com/apple/swift-crypto.git?token=secret&ref=main#fragment",
+      "state": {
+        "revision": "0123456789abcdef0123456789abcdef01234567",
+        "version": "4.3.0"
+      }
+    }
+  ],
+  "version": 2
+}`)
+	payload, err := Parse(path, false, shared.Options{}, Config{})
+	if err != nil {
+		t.Fatalf("Parse() error = %v", err)
+	}
+	rows, _ := payload["variables"].([]map[string]any)
+	rowsByName := dependencyRowsByName(rows)
+
+	row, ok := rowsByName["github.com/apple/swift-crypto"]
+	if !ok {
+		t.Fatalf("swift-crypto dependency missing from %#v", rows)
+	}
+	if got, want := row["source_location"], "https://github.com/apple/swift-crypto.git"; got != want {
+		t.Fatalf("source_location = %#v, want sanitized URL %#v", got, want)
+	}
+}
+
 func TestSwiftPackageResolvedUnsupportedFormatVersionEmitsNoDependencies(t *testing.T) {
 	t.Parallel()
 

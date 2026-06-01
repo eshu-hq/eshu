@@ -15,10 +15,10 @@ const (
 
 func listOwnedPackageDependencyTargetsQuery(versionSpecific bool) string {
 	distinctColumns := "ecosystem, package_name"
-	distinctOrder := "ecosystem ASC, package_name ASC, lockfile DESC, version ASC, fact_id ASC"
+	distinctOrder := "ecosystem ASC, package_name ASC, CASE WHEN source_location <> '' THEN 0 ELSE 1 END ASC, lockfile DESC, version ASC, fact_id ASC"
 	if versionSpecific {
 		distinctColumns = "ecosystem, package_name, version"
-		distinctOrder = "ecosystem ASC, package_name ASC, version ASC, lockfile DESC, fact_id ASC"
+		distinctOrder = "ecosystem ASC, package_name ASC, version ASC, CASE WHEN source_location <> '' THEN 0 ELSE 1 END ASC, lockfile DESC, fact_id ASC"
 	}
 	return fmt.Sprintf(`
 WITH active_dependencies AS (

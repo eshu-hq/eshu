@@ -20,6 +20,7 @@ func TestListOwnedPackageDependencyTargetsQueryIsActiveAndBounded(t *testing.T) 
 		"COALESCE((fact.payload->'entity_metadata'->>'lockfile') = 'true', FALSE) AS lockfile",
 		"COALESCE(fact.payload->'entity_metadata'->>'source_location', '') AS source_location",
 		"SELECT DISTINCT ON (ecosystem, package_name, version)",
+		"CASE WHEN source_location <> '' THEN 0 ELSE 1 END ASC",
 		"ROW_NUMBER() OVER",
 		"ORDER BY rotated_rank ASC, target_rank ASC",
 		"LIMIT $2",
