@@ -7,50 +7,6 @@
 # api_key, pprof_base_url, k8s_namespace, helm_release, repo_root, out_dir,
 # out_json. They call die() and record_failure() from the main script.
 
-curl_readback() {
-    local path="$1"
-    if [ -n "${api_key}" ]; then
-        curl -fsS -m 15 -H "Authorization: Bearer ${api_key}" "${api_base_url}${path}"
-    else
-        curl -fsS -m 15 "${api_base_url}${path}"
-    fi
-}
-
-# Normalize api_base_url so a value that already ends with "/api/v0" (the
-# shape verify_remote_e2e_runtime_state.sh expects from
-# ESHU_REMOTE_E2E_API_BASE_URL) does not double-prefix our hard-coded
-# /api/v0/... endpoint paths.
-normalize_api_base_url() {
-    local raw="$1"
-    raw="${raw%/}"
-    raw="${raw%/api/v0}"
-    printf '%s' "${raw}"
-}
-
-evidence_ref() {
-    local path="$1"
-    printf '%s' "${path#"${out_dir}"/}"
-}
-
-sanitize_public_file() {
-    local input="$1"
-    local output="$2"
-    sed -E \
-        -e 's#https?://[^[:space:]"<>]+#[redacted-url]#g' \
-        -e 's#arn:(aws|aws-us-gov|aws-cn):[^[:space:]"'\'',}]+#[redacted-arn]#g' \
-        -e 's#(^|[^0-9])[0-9]{12}([^0-9]|$)#\1[redacted-account]\2#g' \
-        -e 's#([Aa][Uu][Tt][Hh][Oo][Rr][Ii][Zz][Aa][Tt][Ii][Oo][Nn][[:space:]]*:[[:space:]]*)(Bearer|Basic)[[:space:]]+[^[:space:]"'\'',}]+#\1[redacted-token]#g' \
-        -e 's#("([Pp][Aa][Ss][Ss][Ww][Oo][Rr][Dd]|[Aa][Ww][Ss]_[Ss][Ee][Cc][Rr][Ee][Tt]_[Aa][Cc][Cc][Ee][Ss][Ss]_[Kk][Ee][Yy]|[Aa][Pp][Ii][Kk][Ee][Yy]|[Cc][Ll][Ii][Ee][Nn][Tt]_[Ss][Ee][Cc][Rr][Ee][Tt]|[Aa][Uu][Tt][Hh][Oo][Rr][Ii][Zz][Aa][Tt][Ii][Oo][Nn])"[[:space:]]*:[[:space:]]*)"[^"]*"#\1"[redacted-secret]"#g' \
-        -e 's#(([Pp][Aa][Ss][Ss][Ww][Oo][Rr][Dd]|[Aa][Ww][Ss]_[Ss][Ee][Cc][Rr][Ee][Tt]_[Aa][Cc][Cc][Ee][Ss][Ss]_[Kk][Ee][Yy]|[Aa][Pp][Ii][Kk][Ee][Yy]|[Cc][Ll][Ii][Ee][Nn][Tt]_[Ss][Ee][Cc][Rr][Ee][Tt])[[:space:]]*[:=][[:space:]]*)["'\'']?[^[:space:]"'\'',}]+#\1[redacted-secret]#g' \
-        -e 's#(ghp_|github_pat_|glpat-|AKIA|ASIA|xox[baprs]-)[A-Za-z0-9_./+=:-]*#[redacted-token]#g' \
-        -e 's#([0-9]{1,3}\.){3}[0-9]{1,3}#[redacted-ip]#g' \
-        -e 's#([[:alnum:]_-]+\.)+(internal|local|example\.com|invalid|com|net|org|io|dev|cloud)(:[0-9]+)?#[redacted-host]#g' \
-        -e 's#/(Users|home|private|var|tmp|Volumes|workspace|workspaces|repos|personal-repos)/[^[:space:]",}]*(/[^[:space:]",}]*)*#[redacted-path]#g' \
-        -e 's#((repository|repo|repo_id|package|package_name|provider_url|url|host|hostname|ip|path|file|token)=)["'\'']?[^[:space:]"'\'',}]+#\1[redacted]#g' \
-        -e 's#("(repo|repository|repo_id|package|package_name|provider_url|url|host|hostname|ip|path|file|token)"[[:space:]]*:[[:space:]]*)"[^"]*"#\1"[redacted]"#g' \
-        "${input}" >"${output}"
-}
-
 write_k8s_pod_summary() {
     local input="$1"
     local output="$2"
@@ -77,16 +33,6 @@ write_k8s_resource_snapshot() {
     local input="$1"
     local output="$2"
     awk 'NF >= 3 { printf "pod-%d cpu=%s memory=%s\n", NR, $2, $3 }' "${input}" >"${output}"
-}
-
-k8s_curl_readback() {
-    local base="$1"
-    local path="$2"
-    if [ -n "${api_key}" ]; then
-        curl -fsS -m 15 -H "Accept: application/json" -H "Authorization: Bearer ${api_key}" "${base}${path}"
-    else
-        curl -fsS -m 15 -H "Accept: application/json" "${base}${path}"
-    fi
 }
 
 summarize_admin_status() {
@@ -134,7 +80,12 @@ summarize_index_status() {
 
 run_phase_runtime() {
     [ -n "${api_base_url}" ] || die "runtime phase requires --api-base-url"
+    validate_runtime_run_kind
     api_base_url="$(normalize_api_base_url "${api_base_url}")"
+    local previous_runtime_json
+    previous_runtime_json="$(runtime_previous_evidence_json)"
+    local volume_proof_json
+    volume_proof_json="$(runtime_volume_proof_json)"
     local runtime_script="${repo_root}/scripts/verify_remote_e2e_runtime_state.sh"
     local readback_dir="${out_dir}/runtime-readback"
     mkdir -p "${readback_dir}"
@@ -163,18 +114,33 @@ run_phase_runtime() {
     local readback_json="{}"
     local ep_count=0
     local ep_failed=0
-    local ep safe_name body_file status
+    local ep safe_name body_file raw_body_file raw_err_file status
     for ep in "${endpoints[@]}"; do
         safe_name="$(printf '%s' "${ep}" | tr '/?=&' '____')"
         body_file="${readback_dir}/${safe_name}.json"
-        if curl_readback "${ep}" >"${body_file}" 2>"${body_file}.err"; then
+        raw_body_file="${body_file}.raw"
+        raw_err_file="${body_file}.err.raw"
+        if curl_readback "${ep}" >"${raw_body_file}" 2>"${raw_err_file}"; then
             status="ok"
         else
             status="error"
             ep_failed=$((ep_failed + 1))
         fi
-        readback_json="$(jq --arg path "${ep}" --arg status "${status}" --arg body "${body_file}" \
-            '. + {($path): {status: $status, body: $body}}' <<<"${readback_json}")"
+        if [ -s "${raw_body_file}" ]; then
+            sanitize_public_file "${raw_body_file}" "${body_file}"
+        else
+            : >"${body_file}"
+        fi
+        if [ -s "${raw_err_file}" ]; then
+            sanitize_public_file "${raw_err_file}" "${body_file}.err"
+        else
+            : >"${body_file}.err"
+        fi
+        rm -f "${raw_body_file}" "${raw_err_file}"
+        readback_json="$(jq --arg path "${ep}" --arg status "${status}" \
+            --arg body "$(evidence_ref "${body_file}")" \
+            --arg error "$(evidence_ref "${body_file}.err")" \
+            '. + {($path): {status: $status, body: $body, error: $error}}' <<<"${readback_json}")"
         ep_count=$((ep_count + 1))
     done
     if [ "${ep_failed}" -gt 0 ]; then
@@ -187,11 +153,22 @@ run_phase_runtime() {
             '{"name":"{{.Name}}","cpu":"{{.CPUPerc}}","mem":"{{.MemUsage}}","net":"{{.NetIO}}","block":"{{.BlockIO}}"}' \
             >"${docker_stats_file}" 2>/dev/null || true
     fi
+    local docker_stats_status
+    docker_stats_status="$(runtime_docker_stats_status "${docker_stats_file}")"
+    if [ "${docker_stats_status}" != "captured" ]; then
+        record_failure runtime "docker stats CPU/memory snapshot was not captured"
+    fi
 
-    # Pprof rides a separate opt-in listener (ESHU_PPROF_ADDR) and in remote
-    # Compose it lives on a different host port than the API. Probe only when
-    # an operator provides the URL explicitly; record "unchecked" otherwise.
-    local pprof_status="unchecked"
+    local index_status_json
+    index_status_json="$(runtime_index_status_json "${readback_dir}/_api_v0_index-status.json")"
+    if ! jq -e '.queue_terminal_ok == true' <<<"${index_status_json}" >/dev/null; then
+        record_failure runtime "index-status queue readback was not terminal; active, retrying, failed, or dead-letter work remains"
+    fi
+
+    # Pprof rides a separate listener (ESHU_PPROF_ADDR) and in remote Compose
+    # it lives on a different host port than the API. Release proof must pass
+    # the listener URL explicitly so missing pprof access cannot look green.
+    local pprof_status="missing"
     local pprof_url=""
     if [ -n "${pprof_base_url}" ]; then
         pprof_url="${pprof_base_url%/}/debug/pprof/"
@@ -201,34 +178,54 @@ run_phase_runtime() {
         else
             pprof_status="not_reachable"
         fi
+    else
+        record_failure runtime "runtime phase requires --pprof-base-url for pprof proof"
+    fi
+    if [ "${pprof_status}" != "reachable" ]; then
+        record_failure runtime "runtime pprof endpoint was not reachable"
     fi
 
     local phase_status="pass"
-    if [ "${runtime_ok}" -eq 0 ] || [ "${ep_failed}" -gt 0 ]; then
+    if [ "${runtime_ok}" -eq 0 ] || [ "${ep_failed}" -gt 0 ] \
+        || [ "${docker_stats_status}" != "captured" ] \
+        || ! jq -e '.status == "pass"' <<<"${volume_proof_json}" >/dev/null \
+        || ! jq -e '.queue_terminal_ok == true' <<<"${index_status_json}" >/dev/null \
+        || [ "${pprof_status}" != "reachable" ]; then
         phase_status="fail"
     fi
 
     jq --argjson readback "${readback_json}" \
+       --arg run_kind "${runtime_run_kind}" \
+       --argjson previous_runtime "${previous_runtime_json}" \
+       --argjson volume_proof "${volume_proof_json}" \
+       --argjson index_status "${index_status_json}" \
        --arg api_base_url "${api_base_url}" \
        --arg pprof "${pprof_status}" \
        --arg pprof_url "${pprof_url}" \
-       --arg docker_stats_file "${docker_stats_file}" \
-       --arg runtime_log "${readback_dir}/verify_remote_e2e_runtime_state.log" \
+       --arg docker_stats_file "$(evidence_ref "${docker_stats_file}")" \
+       --arg docker_stats_status "${docker_stats_status}" \
+       --arg runtime_log "$(evidence_ref "${readback_dir}/verify_remote_e2e_runtime_state.log")" \
        --arg phase_status "${phase_status}" \
        --argjson endpoints_checked "${ep_count}" \
        --argjson endpoints_failed "${ep_failed}" \
        --argjson runtime_state_ok "${runtime_ok}" \
        '.runtime = {
             status: $phase_status,
+            run_kind: $run_kind,
+            previous_runtime: $previous_runtime,
+            volume_proof: $volume_proof,
             api_base_url: $api_base_url,
             runtime_state_ok: ($runtime_state_ok == 1),
             runtime_state_log: $runtime_log,
             endpoints_checked: $endpoints_checked,
             endpoints_failed: $endpoints_failed,
+            index_status: $index_status,
+            queue_terminal_ok: ($index_status.queue_terminal_ok == true),
             readback: $readback,
             pprof_status: $pprof,
             pprof_url: $pprof_url,
-            docker_stats_file: $docker_stats_file
+            docker_stats_file: $docker_stats_file,
+            docker_stats_status: $docker_stats_status
        }' "${out_json}.tmp" >"${out_json}.tmp.new"
     mv "${out_json}.tmp.new" "${out_json}.tmp"
 }
@@ -388,7 +385,7 @@ run_phase_k8s() {
         fi
     fi
 
-    local pprof_status="unchecked"
+    local pprof_status="missing"
     local pprof_diagnostic="no --pprof-base-url provided"
     if [ -n "${pprof_base_url}" ]; then
         local pprof_probe_url="${pprof_base_url%/}/debug/pprof/"
@@ -406,6 +403,9 @@ run_phase_k8s() {
             pprof_ok=0
             record_failure k8s "pprof endpoint was provided but not reachable"
         fi
+    else
+        pprof_ok=0
+        record_failure k8s "k8s phase requires --pprof-base-url for pprof proof"
     fi
 
     local phase_status="pass"

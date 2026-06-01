@@ -13,11 +13,15 @@ out_dir=""
 image_tag_candidate="${ESHU_RELEASE_GATE_IMAGE_TAG_CANDIDATE:-}"
 provider_compare="${ESHU_RELEASE_GATE_PROVIDER_COMPARE:-}"
 proof_matrix="${ESHU_RELEASE_GATE_PROOF_MATRIX:-}"
+readback_proof="${ESHU_RELEASE_GATE_READBACK_PROOF:-}"
 api_base_url="${ESHU_RELEASE_GATE_API_BASE_URL:-}"
 api_key="${ESHU_RELEASE_GATE_API_KEY:-}"
 k8s_namespace="${ESHU_RELEASE_GATE_K8S_NAMESPACE:-}"
 helm_release="${ESHU_RELEASE_GATE_HELM_RELEASE:-eshu}"
 pprof_base_url="${ESHU_RELEASE_GATE_PPROF_BASE_URL:-}"
+runtime_run_kind="${ESHU_RELEASE_GATE_RUNTIME_RUN_KIND:-}"
+previous_runtime_evidence="${ESHU_RELEASE_GATE_PREVIOUS_RUNTIME_EVIDENCE:-}"
+runtime_volume_proof="${ESHU_RELEASE_GATE_RUNTIME_VOLUME_PROOF:-}"
 
 repo_root="${ESHU_RELEASE_GATE_REPO_ROOT:-}"
 if [ -z "${repo_root}" ]; then
@@ -32,7 +36,7 @@ usage() {
 Usage: $(basename "$0") [options]
 
 Phases (default: ${phases_default}; "all" enables every phase):
-  state, focused, fixtures, proof-matrix, runtime, k8s, provider
+  state, focused, fixtures, proof-matrix, runtime, readback-proof, k8s, provider
 
 Options:
   --phases <list>               Comma-separated phases.
@@ -40,11 +44,16 @@ Options:
   --image-tag-candidate <tag>   Image tag this gate is judging. Recorded in evidence.
   --provider-compare <file>     Aggregate-only provider parity JSON (provider phase).
   --proof-matrix <file>         Aggregate-only representative corpus proof matrix JSON.
+  --readback-proof <file>       Aggregate-only API/MCP/CLI readback proof JSON.
   --api-base-url <url>          Base URL for runtime and k8s phase readback.
   --api-key <token>             Bearer token for runtime/k8s API readback.
   --pprof-base-url <url>        Base URL for the runtime/k8s pprof probe.
-                                Pprof is exposed via a separate listener; without
-                                this, pprof_status is recorded as "unchecked".
+                                Pprof is exposed via a separate listener and is
+                                required for runtime/k8s release proof.
+  --runtime-run-kind <kind>     Runtime proof kind: clean or preserved.
+  --previous-runtime-evidence <file>
+                                Prior clean evidence.json for preserved runtime proof.
+  --runtime-volume-proof <file> Aggregate-only clean/preserved Compose volume proof JSON.
   --k8s-namespace <name>        Namespace for k8s phase snapshots.
   --helm-release <name>         Helm release name (default: ${helm_release}).
   -h, --help                    Show this help and exit.
@@ -66,9 +75,13 @@ while [ $# -gt 0 ]; do
         --image-tag-candidate) image_tag_candidate="$2"; shift 2 ;;
         --provider-compare) provider_compare="$2"; shift 2 ;;
         --proof-matrix) proof_matrix="$2"; shift 2 ;;
+        --readback-proof) readback_proof="$2"; shift 2 ;;
         --api-base-url) api_base_url="$2"; shift 2 ;;
         --api-key) api_key="$2"; shift 2 ;;
         --pprof-base-url) pprof_base_url="$2"; shift 2 ;;
+        --runtime-run-kind) runtime_run_kind="$2"; shift 2 ;;
+        --previous-runtime-evidence) previous_runtime_evidence="$2"; shift 2 ;;
+        --runtime-volume-proof) runtime_volume_proof="$2"; shift 2 ;;
         --k8s-namespace) k8s_namespace="$2"; shift 2 ;;
         --helm-release) helm_release="$2"; shift 2 ;;
         -h|--help) usage; exit 0 ;;
@@ -78,13 +91,13 @@ done
 
 phases_arg="${phases_arg:-${ESHU_RELEASE_GATE_PHASES:-${phases_default}}}"
 if [ "${phases_arg}" = "all" ]; then
-    phases_arg="state,focused,fixtures,proof-matrix,runtime,k8s,provider"
+    phases_arg="state,focused,fixtures,proof-matrix,runtime,readback-proof,k8s,provider"
 fi
 
 IFS=',' read -r -a phases <<<"${phases_arg}"
 for p in "${phases[@]}"; do
     case "${p}" in
-        state|focused|fixtures|proof-matrix|runtime|k8s|provider) ;;
+        state|focused|fixtures|proof-matrix|runtime|readback-proof|k8s|provider) ;;
         '' ) ;;
         *) die "unknown phase: ${p}" ;;
     esac
@@ -133,9 +146,14 @@ run_phase_state() {
     local compose_root="${repo_root}/docker-compose.yaml"
     local compose_remote="${repo_root}/docker-compose.remote-e2e.yaml"
     local schema_dir="${repo_root}/schema/data-plane/postgres"
+    local state_status="pass"
 
     [ -f "${chart}" ] || die "missing Chart.yaml at ${chart}"
     [ -f "${compose_root}" ] || die "missing docker-compose.yaml at ${compose_root}"
+    if [ -z "${image_tag_candidate}" ]; then
+        state_status="fail"
+        record_failure state "state phase requires --image-tag-candidate"
+    fi
 
     local helm_chart_version helm_app_version git_commit git_branch nornicdb_image nornicdb_digest
     helm_chart_version="$(awk '/^version:/ {print $2; exit}' "${chart}")"
@@ -208,6 +226,7 @@ run_phase_state() {
     jq --arg helm_chart_version "${helm_chart_version}" \
        --arg helm_app_version "${helm_app_version}" \
        --arg image_tag_candidate "${image_tag_candidate}" \
+       --arg state_status "${state_status}" \
        --arg git_commit "${git_commit}" \
        --arg git_branch "${git_branch}" \
        --arg nornicdb_image "${nornicdb_image}" \
@@ -217,7 +236,7 @@ run_phase_state() {
        --argjson remote_e2e_services "${remote_services_json}" \
        --argjson scanner_worker_limits "${scanner_limits_json}" \
        '.state = {
-            status: "pass",
+            status: $state_status,
             git_commit: $git_commit,
             git_branch: $git_branch,
             helm_chart_version: $helm_chart_version,
@@ -322,11 +341,20 @@ run_phase_fixtures() {
 # Runtime + k8s phases live in the shared lib so this main script stays under
 # the repo file-size rule. They depend on globals declared above plus die() and
 # record_failure().
+# shellcheck source=scripts/lib/security_intelligence_release_gate_public.sh
+source "$(dirname "$0")/lib/security_intelligence_release_gate_public.sh"
+
+# shellcheck source=scripts/lib/security_intelligence_release_gate_runtime.sh
+source "$(dirname "$0")/lib/security_intelligence_release_gate_runtime.sh"
+
 # shellcheck source=scripts/lib/security_intelligence_release_gate_phases.sh
 source "$(dirname "$0")/lib/security_intelligence_release_gate_phases.sh"
 
 # shellcheck source=scripts/lib/security_intelligence_release_gate_proof_matrix.sh
 source "$(dirname "$0")/lib/security_intelligence_release_gate_proof_matrix.sh"
+
+# shellcheck source=scripts/lib/security_intelligence_release_gate_readback.sh
+source "$(dirname "$0")/lib/security_intelligence_release_gate_readback.sh"
 
 run_phase_provider() {
     [ -n "${provider_compare}" ] || die "provider phase requires --provider-compare"
@@ -360,6 +388,7 @@ for p in "${phases[@]}"; do
         fixtures) run_phase_fixtures ;;
         proof-matrix) run_phase_proof_matrix ;;
         runtime) run_phase_runtime ;;
+        readback-proof) run_phase_readback_proof ;;
         k8s) run_phase_k8s ;;
         provider) run_phase_provider ;;
         '' ) ;;

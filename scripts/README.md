@@ -62,11 +62,18 @@ cannot land without the code-level context future agents and reviewers need.
 cutting the next prerelease image with vulnerability or security-intelligence
 work. By default it runs the offline phases (state capture, focused Go tests,
 synthetic parity fixtures) and emits a single `evidence.json` plus markdown
-summary. The `proof-matrix`, `runtime`, `k8s`, and `provider` phases are
+summary. The `proof-matrix`, `runtime`, `readback-proof`, `k8s`, and `provider` phases are
 operator-opted into and never persist private data. The proof-matrix phase
 accepts only aggregate representative-corpus coverage, readback counters, and
-public follow-up issue refs. The companion test harnesses
+public follow-up issue refs, and requires captured CPU/memory, logs, and pprof.
+The runtime phase requires an explicit clean or preserved run kind, sanitized
+readback, pprof, CPU/memory, queue-terminal state, and aggregate volume proof;
+preserved runs also point at the prior clean evidence packet. The
+`readback-proof` phase accepts only aggregate API/MCP/CLI status and queue
+counters. The companion test harnesses
 `test-security_intelligence_release_gate.sh` and
-`test-security_intelligence_release_gate_proof_matrix.sh` cover the offline
-phases against synthesized repos. The runbook lives at
+`test-security_intelligence_release_gate_proof_matrix.sh`,
+`test-security_intelligence_release_gate_runtime.sh`, and
+`test-security_intelligence_release_gate_k8s.sh` cover the offline phases and
+mocked runtime/k8s evidence against synthesized repos. The runbook lives at
 `docs/public/reference/security-intelligence-release-gate.md`.

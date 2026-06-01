@@ -64,9 +64,9 @@ validate_proof_matrix_contract() {
             (($r.failed // -1) == 0) and
             (($r.dead_letters // -1) == 0) and
             ($r.ready_state_counts | type == "object") and
-            (($r.cpu_memory_snapshot // "") as $status | (["captured","not_captured"] | index($status)) != null) and
-            (($r.pprof_status // "") as $status | (["reachable","not_reachable","unchecked"] | index($status)) != null) and
-            (($r.logs_status // "") as $status | (["captured","not_captured"] | index($status)) != null);
+            (($r.cpu_memory_snapshot // "") == "captured") and
+            (($r.pprof_status // "") == "reachable") and
+            (($r.logs_status // "") == "captured");
         . as $root |
         ($root.schema_version == 1) and
         ($root.matrix_id | type == "string" and test("^[A-Za-z0-9._-]+$")) and
@@ -136,9 +136,9 @@ write_proof_matrix_summary() {
                 failed: (.readback.failed // 0),
                 dead_letters: (.readback.dead_letters // 0),
                 wall_time_seconds: (.readback.wall_time_seconds // 0),
-                cpu_memory_snapshot: (.readback.cpu_memory_snapshot // "not_captured"),
-                pprof_status: (.readback.pprof_status // "unchecked"),
-                logs_status: (.readback.logs_status // "not_captured")
+                cpu_memory_snapshot: (.readback.cpu_memory_snapshot // "missing"),
+                pprof_status: (.readback.pprof_status // "missing"),
+                logs_status: (.readback.logs_status // "missing")
             },
             mismatch_classes: (
                 . as $root |
