@@ -230,6 +230,45 @@ func TestParseExtractsDependencyManagementWithImportScope(t *testing.T) {
 	}
 }
 
+func TestParseResolvesDependencyManagementLocalProperties(t *testing.T) {
+	t.Parallel()
+
+	path := writeFixture(t, "pom.xml", `<project xmlns="http://maven.apache.org/POM/4.0.0">
+  <modelVersion>4.0.0</modelVersion>
+  <groupId>com.example</groupId>
+  <artifactId>demo</artifactId>
+  <version>1.0.0</version>
+  <properties>
+    <jackson.version>2.15.3</jackson.version>
+  </properties>
+  <dependencyManagement>
+    <dependencies>
+      <dependency>
+        <groupId>com.fasterxml.jackson.core</groupId>
+        <artifactId>jackson-databind</artifactId>
+        <version>${jackson.version}</version>
+      </dependency>
+    </dependencies>
+  </dependencyManagement>
+</project>`)
+
+	payload, err := Parse(path, false, shared.Options{})
+	if err != nil {
+		t.Fatalf("Parse() error = %v", err)
+	}
+
+	row := requireDependencyRow(t, payload, "com.fasterxml.jackson.core:jackson-databind")
+	if got, want := row["section"], "dependencyManagement"; got != want {
+		t.Fatalf("section = %#v, want %q", got, want)
+	}
+	if got, want := row["value"], "2.15.3"; got != want {
+		t.Fatalf("value = %#v, want locally resolved dependencyManagement version %q", got, want)
+	}
+	if got, want := row["dependency_resolution_state"], "resolved"; got != want {
+		t.Fatalf("dependency_resolution_state = %#v, want %q", got, want)
+	}
+}
+
 func TestParseMarksOptionalDependencies(t *testing.T) {
 	t.Parallel()
 

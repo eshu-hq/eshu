@@ -175,7 +175,7 @@ func exactManifestDependencyVersion(raw string) (string, bool) {
 	}
 	if strings.ContainsAny(version, "<>^~*=|, []") ||
 		strings.Contains(lower, " - ") ||
-		strings.Contains(version, "$(") ||
+		strings.Contains(version, "$") ||
 		strings.Contains(lower, ".x") ||
 		strings.Contains(lower, "x.") {
 		return "", false
