@@ -279,6 +279,19 @@ private URLs, or token values. Live metric facts are reported provider evidence
 for no-IaC fallback, drift, and freshness validation; they do not replace
 current declared source-controlled evidence.
 
+Live Loki observed metadata is emitted by the Loki collector package as
+`observability.source_instance`, `observability.observed_log_signal`,
+`observability.observed_rule`, and `observability.coverage_warning` facts.
+These facts preserve provider UIDs, label-key lists, bounded label-value
+counts, label-value fingerprints, series fingerprints, rule namespace/group/name
+metadata, freshness state, redaction state, tenant presence, tenant
+fingerprints, manual-provider drift candidates, and bounded coverage warnings.
+They do not store log lines, raw LogQL, private URLs, unbounded label values,
+tenant IDs, tenant secrets, credentials, token values, or provider response
+bodies. Live Loki facts are reported provider evidence for no-IaC fallback,
+drift, and freshness validation; they do not replace current declared
+source-controlled evidence.
+
 ## Promotion Rules
 
 Facts are source evidence, not automatic graph truth.

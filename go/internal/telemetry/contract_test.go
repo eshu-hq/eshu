@@ -150,6 +150,8 @@ func TestSpanNames(t *testing.T) {
 		"grafana.fetch",
 		"prometheus_mimir.observe",
 		"prometheus_mimir.fetch",
+		"loki.observe",
+		"loki.fetch",
 		"query.supply_chain_impact_findings",
 		"query.supply_chain_impact_explanation",
 		"query.supply_chain_impact_aggregate",

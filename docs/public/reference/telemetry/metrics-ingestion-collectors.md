@@ -187,6 +187,23 @@ Prometheus/Mimir fetch spans are `prometheus_mimir.observe` and
 PromQL, annotations, tenant IDs, tenant headers, token environment names, token
 values, and provider response bodies stay out of metric labels.
 
+## Loki Collector
+
+| Metric | Key labels | Use |
+| --- | --- | --- |
+| `eshu_dp_loki_provider_requests_total` | `provider`, `status_class` | Live Loki metadata request attempts, including retryable and terminal failures. |
+| `eshu_dp_loki_facts_emitted_total` | `provider`, `fact_kind` | Observability source facts emitted per claimed target. |
+| `eshu_dp_loki_rate_limited_total` | `provider` | Loki rate-limit pressure surfaced as partial observed coverage or retry pressure. |
+| `eshu_dp_loki_retries_total` | `provider` | Bounded provider retry attempts before the source returns or fails. |
+| `eshu_dp_loki_redactions_total` | `provider`, `reason` | Label value, LogQL, tenant, URL, and provider metadata dropped or fingerprinted before fact emission. |
+| `eshu_dp_loki_high_cardinality_rejected_total` | `provider`, `reason` | Allowlisted label values rejected because they exceeded the configured cardinality bound. |
+| `eshu_dp_loki_stale_total` | `provider` | Signals or rules older than the configured freshness window. |
+| `eshu_dp_loki_fetch_duration_seconds` | `provider`, `status_class` | Bounded Loki fetch duration for one claimed target. |
+
+Loki fetch spans are `loki.observe` and `loki.fetch`. Instance IDs, label
+values, private URLs, raw LogQL, tenant IDs, tenant headers, token environment
+names, token values, and provider response bodies stay out of metric labels.
+
 ## Scanner-Worker Boundary
 
 Scanner-worker metrics are emitted by the hosted scanner-worker runtime for

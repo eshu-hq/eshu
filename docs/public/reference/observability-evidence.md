@@ -73,6 +73,15 @@ log lines or raw LogQL. Use live Loki API reads only for no-IaC fallback,
 validation, drift detection, and freshness proof after declared or applied
 evidence has been considered.
 
+Live Loki metadata collection now exists as a source package for the
+observed-provider log-signal slice. It reads label metadata, explicitly
+allowlisted bounded label-value metadata, series metadata, and Loki ruler rule
+metadata from configured API targets and emits `observability.source_instance`,
+`observability.observed_log_signal`, `observability.observed_rule`, and
+`observability.coverage_warning` facts. The slice remains runtime-wiring
+pending: command, Helm, end-to-end status, and deployment proof are tracked
+separately.
+
 Declared Tempo facts are also intent evidence. Live Tempo collection must remain
 metadata-only: bounded service, tag, search, dependency, or freshness metadata
 only, never spans, traces, raw trace IDs, request attributes, or TraceQL bodies.
@@ -231,10 +240,10 @@ existing Git collector snapshot, parse, and fact-commit telemetry. Operators
 diagnose these slices through existing file parse counts, generation fact
 counts, fact commit counts, and collector observe duration.
 
-No-Regression Evidence: live Grafana observed metadata collection adds a
-metadata-only source package and bounded telemetry. It does not add graph
-writes, reducer phases, query handlers, Helm wiring, or a long-running runtime
-command.
+No-Regression Evidence: live Grafana, Prometheus/Mimir, and Loki observed
+metadata collection add metadata-only source packages and bounded telemetry.
+They do not add graph writes, reducer phases, query handlers, Helm wiring, or
+long-running runtime commands.
 
 Observability Evidence: live Grafana observed metadata collection records
 `grafana.observe`, `grafana.fetch`,
@@ -258,6 +267,14 @@ records `prometheus_mimir.observe`, `prometheus_mimir.fetch`,
 `eshu_dp_prometheus_mimir_retries_total`,
 `eshu_dp_prometheus_mimir_redactions_total`, and
 `eshu_dp_prometheus_mimir_stale_total` with bounded labels only.
+
+Observability Evidence: live Loki observed metadata collection records
+`loki.observe`, `loki.fetch`, `eshu_dp_loki_provider_requests_total`,
+`eshu_dp_loki_fetch_duration_seconds`, `eshu_dp_loki_facts_emitted_total`,
+`eshu_dp_loki_rate_limited_total`, `eshu_dp_loki_retries_total`,
+`eshu_dp_loki_redactions_total`,
+`eshu_dp_loki_high_cardinality_rejected_total`, and
+`eshu_dp_loki_stale_total` with bounded labels only.
 
 ## Related Work
 
