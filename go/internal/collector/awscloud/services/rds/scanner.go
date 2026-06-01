@@ -90,6 +90,11 @@ func instanceEnvelopes(
 		return nil, err
 	}
 	envelopes := []facts.Envelope{resource}
+	posture, err := awscloud.NewRDSInstancePostureEnvelope(instancePostureObservation(boundary, instance))
+	if err != nil {
+		return nil, err
+	}
+	envelopes = append(envelopes, posture)
 	for _, relationship := range instanceRelationships(
 		boundary,
 		instance,
@@ -116,6 +121,11 @@ func clusterEnvelopes(
 		return nil, err
 	}
 	envelopes := []facts.Envelope{resource}
+	posture, err := awscloud.NewRDSInstancePostureEnvelope(clusterPostureObservation(boundary, cluster))
+	if err != nil {
+		return nil, err
+	}
+	envelopes = append(envelopes, posture)
 	for _, relationship := range clusterRelationships(boundary, cluster, subnetGroupIDs) {
 		envelope, err := awscloud.NewRelationshipEnvelope(relationship)
 		if err != nil {

@@ -307,6 +307,23 @@ presence, and booleans DERIVED from the bucket policy document (public grant,
 cross-account principal). It never carries the raw bucket policy JSON, ACL
 grants, or object data. It is source evidence only; reducer graph projection of
 this posture is a separate consumer.
+RDS posture fact kinds use schema version `1.0.0` for the first metadata-only
+posture contract:
+
+- `rds_instance_posture`
+
+Use `RDSPostureFactKinds` when callers need the accepted set, and
+`RDSPostureSchemaVersion` when building RDS posture envelopes. The RDS scanner
+derives one `rds_instance_posture` fact per DB instance and Aurora DB cluster
+from the existing describe pass: public exposure, encryption and KMS key, IAM
+database authentication, backup retention, multi-AZ, deletion protection,
+Performance Insights configuration (enabled, retention, PI-KMS key),
+parameter/option-group identity, a curated set of security-relevant
+parameters, and the CA certificate identifier. These facts are metadata-only
+control-plane evidence: they never carry database contents, master usernames,
+connection secrets, snapshot payloads, log bodies, or Performance Insights
+samples. They emit no graph edges; reducers own KMS, parameter/option-group,
+and internet-exposure projection from this evidence.
 
 See `doc.go` for the full godoc contract.
 
