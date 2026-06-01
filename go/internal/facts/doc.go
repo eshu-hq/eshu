@@ -48,9 +48,9 @@
 // applied/live provider facts before presenting routing truth. Observability
 // fact kind constants and schema-version helpers live here for declared,
 // applied, and observed Grafana-stack evidence, including folders, metric
-// scrape config, metric rules, metric routes, log routes, and coverage
-// warnings; reducers compare those facts before presenting coverage or drift
-// truth.
+// scrape config, metric rules, metric routes, log routes, trace routes, and
+// coverage warnings; reducers compare those facts before presenting coverage
+// or drift truth.
 // Service catalog fact kind constants and schema-version helpers live here for
 // provider-native entity, ownership, repository link, dependency, API,
 // operational link, scorecard, and warning evidence. Scanner-worker fact kind

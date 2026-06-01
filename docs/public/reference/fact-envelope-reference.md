@@ -201,31 +201,35 @@ collector. In incident-context reads, they fill the intended-routing slot only;
 applied and live routing still require Terraform-state or PagerDuty API source
 evidence.
 
-Declared Grafana, Prometheus/Mimir, and Loki observability evidence from
+Declared Grafana, Prometheus/Mimir, Loki, and Tempo observability evidence from
 repository source is emitted by the Git collector as
 `observability.source_instance`, `observability.declared_folder`,
 `observability.declared_dashboard`, `observability.declared_datasource`,
 `observability.declared_alert_rule`, `observability.declared_scrape_config`,
 `observability.declared_metric_rule`, `observability.declared_metric_route`,
-`observability.declared_log_route`, and `observability.coverage_warning` facts.
+`observability.declared_log_route`, `observability.declared_trace_route`, and
+`observability.coverage_warning` facts.
 The parser supports Helm values, GrafanaFolder and GrafanaDashboard resources,
 dashboard ConfigMaps, folder, datasource, and alert provisioning, Prometheus
 Operator ServiceMonitor, PodMonitor, PrometheusRule, and ScrapeConfig
 resources, kube-prometheus-stack and Mimir Helm values, Promtail client routes,
-OTel metric and log pipelines, OTel Prometheus receiver scrape configs, Loki
-gateway values, chart ServiceMonitor settings, and Terraform
+OTel metric, log, and trace pipelines, OTel Prometheus receiver scrape configs,
+Loki and Tempo gateway values, Grafana Tempo datasource links, chart
+ServiceMonitor settings, and Terraform
 `grafana_folder`, `grafana_dashboard`, `grafana_data_source`, and
 `grafana_rule_group` resources. These facts preserve repo path, source revision
 when available, overlay or environment, resource identity, folder UID/title
 fingerprint, dashboard UID/title fingerprint, datasource UID/type/name
 fingerprint, alert UID/title fingerprint, datasource refs, selector keys and
 selector fingerprints, rule group identity, metric/log route backend,
-redaction state, route destination fingerprints, tenant-scope state, and
+trace route backend, trace tag keys, datasource trace links, redaction state,
+route destination fingerprints, tenant-scope state, and
 unsupported/malformed/duplicate outcomes. They do not run Terraform, call
-Grafana, Prometheus, Mimir, or Loki, or store dashboard JSON, query bodies, raw
-PromQL or LogQL, scrape target addresses, remote-write URLs, Loki route URLs,
-tenant header values, tenant IDs, datasource URLs, secret datasource fields,
-contact addresses, log lines, or spans.
+Grafana, Prometheus, Mimir, Loki, or Tempo, or store dashboard JSON, query
+bodies, raw PromQL, LogQL, or TraceQL, scrape target addresses, remote-write
+URLs, Loki or Tempo route URLs, tenant header values, tenant IDs, datasource
+URLs, secret datasource fields, contact addresses, log lines, spans, traces,
+raw trace IDs, request attributes, or high-cardinality trace tag values.
 
 ## Promotion Rules
 

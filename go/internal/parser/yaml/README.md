@@ -10,8 +10,9 @@ declared observability rows from Helm values, GrafanaFolder and
 GrafanaDashboard resources, dashboard ConfigMaps, folder, datasource, alert
 provisioning, Prometheus Operator scrape and rule resources, Prometheus/Mimir
 Helm values, Promtail client routes, OTel metric and log pipelines, OTel
-Prometheus receiver scrape configs, Loki gateway values, and chart
-ServiceMonitor settings.
+Prometheus receiver scrape configs, Loki gateway values, OTel trace pipelines,
+Tempo gateway values, Grafana Tempo datasource links, and chart ServiceMonitor
+settings.
 
 ## Ownership boundary
 
@@ -59,15 +60,17 @@ bucket before returning.
 Helm template manifests are intentionally skipped after source preservation
 because templated chart manifests are rendered elsewhere; Chart.yaml and values
 files still emit Helm metadata. `values.yaml` files may also emit declared
-Grafana, Prometheus/Mimir, and Loki observability metadata, but they do not
-prove applied or live provider state.
+Grafana, Prometheus/Mimir, Loki, and Tempo observability metadata, but they do
+not prove applied or live provider state.
 
 Declared observability rows never store dashboard JSON, panel query bodies,
 raw PromQL or LogQL, scrape target addresses, datasource, remote-write, or Loki
 route URLs, tenant header values, tenant IDs, secure datasource values, alert
 model bodies, contact addresses, folder titles, provisioning paths, log label
-values, or private routing values. Unsafe values are omitted and represented by
-fingerprints, redaction fields, or coverage warnings.
+values, Tempo route URLs, spans, traces, raw trace IDs, request attributes,
+TraceQL bodies, trace tag values, or private routing values. Unsafe values are
+omitted and represented by fingerprints, redaction fields, or coverage
+warnings.
 
 YAML intrinsic tags such as Ref and Sub are converted to the decoded shapes
 expected by the CloudFormation parser before template extraction.

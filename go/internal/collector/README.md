@@ -99,8 +99,8 @@ per repository:
    languages that rely on local-variable evidence still parse with
    `VariableScope=all`. Terraform parser buckets are mapped explicitly into
    content entities, including backends, imports, moved blocks, removed blocks,
-   checks, and lockfile providers. Declared Grafana, Prometheus/Mimir, and
-   Loki observability parser buckets are emitted as versioned
+   checks, and lockfile providers. Declared Grafana, Prometheus/Mimir, Loki,
+   and Tempo observability parser buckets are emitted as versioned
    `observability.*` source facts during fact streaming, not as graph truth.
 5. **Materialize** — `shape.Materialize` turns parsed files into
    `ContentFileMeta` records and `ContentEntitySnapshot` rows. Body strings are
@@ -151,10 +151,11 @@ it.
   entities from Terraform source evidence, not live PagerDuty incident or
   configuration truth. Declared Grafana folder, dashboard, datasource,
   alert-rule, Prometheus/Mimir scrape config, metric rule, metric route, Loki
-  log route, and coverage-warning rows remain metadata-only
+  log route, Tempo trace route, and coverage-warning rows remain metadata-only
   `observability.*` facts with dashboard JSON, query bodies, scrape targets,
-  remote-write URLs, Loki route URLs, tenant header values, tenant IDs,
-  datasource URLs, log label values, and secret fields omitted.
+  remote-write URLs, Loki or Tempo route URLs, tenant header values, tenant
+  IDs, datasource URLs, log label values, trace tag values, raw trace IDs,
+  request attributes, and secret fields omitted.
 - `RepoSyncConfig` — all env-driven sync configuration; populated by
   `LoadRepoSyncConfig`
 - `LoadRepoSyncConfig(component, getenv)` — parses the repo-sync env contract
@@ -294,16 +295,17 @@ it.
   provider kind, repository id, repository ordinal/count, branch when known,
   elapsed seconds, and `failure_class=git_sync_failure` on failures while
   redacting credential-bearing URLs and avoiding full local paths.
-- Collector Performance Evidence: declared Prometheus/Mimir and Loki source
+- Collector Performance Evidence: declared Prometheus/Mimir, Loki, and Tempo source
   facts reuse the existing repository parse and fact-stream pass. The focused
   proof is
   `go test ./internal/parser/yaml ./internal/parser/hcl ./internal/collector ./internal/facts -count=1`;
   it covers bounded metadata rows for Prometheus Operator resources, Helm
   values, OTel metric and log routes, OTel Prometheus receiver scrape configs,
   Promtail client routes, Loki gateway values, Grafana Loki datasource
-  references, and Git fact emission without adding provider calls, queue
-  workers, graph writes, or reducer stages.
-- Collector Observability Evidence: declared Prometheus/Mimir and Loki facts
+  references, OTel trace routes, Tempo gateway values, Grafana Tempo datasource
+  links, and Git fact emission without adding provider calls, queue workers,
+  graph writes, or reducer stages.
+- Collector Observability Evidence: declared Prometheus/Mimir, Loki, and Tempo facts
   use the existing Git collector telemetry listed in this section:
   `collector.observe`, `collector.stream`, `fact.emit`,
   `eshu_dp_file_parse_duration_seconds`, `eshu_dp_generation_fact_count`,
@@ -311,9 +313,10 @@ it.
 - No-Observability-Change: this slice adds parser buckets and fact mappings
   only. It adds no metrics, spans, logs, status fields, or metric labels.
 - Collector Deployment Evidence: no hosted Deployment, Service, ServiceMonitor,
-  Helm values, or Docker Compose path changes. Declared Prometheus/Mimir/Loki
-  extraction runs inside the existing Git repository collector and remains
-  separate from future live Prometheus/Mimir/Loki provider collectors.
+  Helm values, or Docker Compose path changes. Declared
+  Prometheus/Mimir/Loki/Tempo extraction runs inside the existing Git
+  repository collector and remains separate from future live
+  Prometheus/Mimir/Loki/Tempo provider collectors.
 - Parser variable scope is part of performance and truth. Java defaults to
   module-level variables during native snapshots because dead-code candidates
   and Java call inference do not need every method-local declaration as a

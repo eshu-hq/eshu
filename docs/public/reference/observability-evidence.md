@@ -18,17 +18,19 @@ Reducers and query surfaces own correlation and user-facing truth. Collectors
 emit source facts only.
 
 Implementation status: the Git collector emits declared Grafana,
-Prometheus/Mimir, and Loki IaC/GitOps facts from Helm values, GrafanaFolder and
-GrafanaDashboard resources, dashboard ConfigMaps, folder provisioning,
-datasource provisioning, alert provisioning, Prometheus Operator
+Prometheus/Mimir, Loki, and Tempo IaC/GitOps facts from Helm values,
+GrafanaFolder and GrafanaDashboard resources, dashboard ConfigMaps, folder
+provisioning, datasource provisioning, alert provisioning, Prometheus Operator
 ServiceMonitor, PodMonitor, PrometheusRule, and ScrapeConfig resources,
 kube-prometheus-stack and Mimir Helm values, Promtail client routes, OTel
-metric and log pipelines, Loki gateway values, and chart Prometheus receiver
-scrape configs and ServiceMonitor settings. Missing Prometheus discovery
-labels, missing Loki route endpoints, malformed log-route configs, duplicate
-log routes, and redacted high-cardinality log label values are emitted as
-coverage warnings rather than silently accepted. Terraform Grafana folder,
-dashboard, datasource, and rule-group resources are also supported.
+metric, log, and trace pipelines, Loki and Tempo gateway values, Grafana Tempo
+datasource links, and chart Prometheus receiver scrape configs and
+ServiceMonitor settings. Missing Prometheus discovery labels, missing Loki or
+Tempo route endpoints, malformed log or trace route configs, duplicate log or
+trace routes, redacted high-cardinality log label values, and redacted
+high-cardinality trace tag values are emitted as coverage warnings rather than
+silently accepted. Terraform Grafana folder, dashboard, datasource, and
+rule-group resources are also supported.
 Applied-state, live-provider, reducer, API, and MCP coverage work remains
 separate.
 
@@ -44,6 +46,12 @@ metadata-only: bounded label, series, ruler, or freshness metadata only, never
 log lines or raw LogQL. Use live Loki API reads only for no-IaC fallback,
 validation, drift detection, and freshness proof after declared or applied
 evidence has been considered.
+
+Declared Tempo facts are also intent evidence. Live Tempo collection must remain
+metadata-only: bounded service, tag, search, dependency, or freshness metadata
+only, never spans, traces, raw trace IDs, request attributes, or TraceQL bodies.
+Use live Tempo API reads only for no-IaC fallback, validation, drift detection,
+and freshness proof after declared or applied evidence has been considered.
 
 ## Evidence Classes
 
@@ -186,12 +194,12 @@ Each provider-specific implementation must prove:
 - no graph `COVERS` edge for derived, ambiguous, unresolved, stale, rejected,
   drifted, or permission-hidden evidence
 
-No-Regression Evidence: the declared Grafana, Prometheus/Mimir, and Loki IaC
+No-Regression Evidence: the declared Grafana, Prometheus/Mimir, Loki, and Tempo IaC
 source-fact slices add bounded parser buckets and Git fact emission only. They
 do not add provider calls, graph writes, queue workers, reducer stages, query
 handlers, metrics, spans, logs, or status output.
 
-No-Observability-Change: declared Grafana, Prometheus/Mimir, and Loki source
+No-Observability-Change: declared Grafana, Prometheus/Mimir, Loki, and Tempo source
 facts use the existing Git collector snapshot, parse, and fact-commit
 telemetry. Operators diagnose these slices through existing file parse counts,
 generation fact counts, fact commit counts, and collector observe duration.

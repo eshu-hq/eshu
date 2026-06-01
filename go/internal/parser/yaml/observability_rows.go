@@ -77,6 +77,7 @@ func appendDatasourceRow(payload map[string]any, datasource map[string]any, ctx 
 	}
 	appendBucketRow(payload, observabilityDatasourceBucket, row)
 	appendLogRouteFromGrafanaDatasource(payload, datasource, ctx, uid, datasourceType, nameFingerprint)
+	appendTraceRouteFromGrafanaDatasource(payload, datasource, ctx, uid, datasourceType, nameFingerprint)
 }
 
 func walkGrafanaAlertDocuments(payload map[string]any, object map[string]any, ctx grafanaSourceContext) {
