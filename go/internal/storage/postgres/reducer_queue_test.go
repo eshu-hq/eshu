@@ -337,7 +337,7 @@ func TestReducerQueueClaimGatesAWSRelationshipsOnCanonicalCloudResourceReadiness
 
 	query := db.queries[0].query
 	for _, want := range []string{
-		"domain <> 'aws_relationship_materialization'",
+		"domain NOT IN ('aws_relationship_materialization', 'observability_coverage_materialization')",
 		"FROM graph_projection_phase_state AS aws_nodes",
 		"aws_nodes.scope_id = fact_work_items.scope_id",
 		"aws_nodes.acceptance_unit_id = COALESCE(NULLIF(fact_work_items.payload->>'entity_key', ''), fact_work_items.scope_id)",

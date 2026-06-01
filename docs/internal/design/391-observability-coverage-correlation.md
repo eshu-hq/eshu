@@ -485,7 +485,7 @@ write is idempotent under concurrent execution and partitioned by conflict key.
 | --- | --- | --- | --- |
 | **PR 1 — read model (facts only)** | New `DomainObservabilityCoverageCorrelation`; `intent.go` + additive `registry.go` definition + `defaults.go` wiring gate; `ObservabilityCoverageCorrelationHandler` + pure `BuildObservabilityCoverageDecisions`; `PostgresObservabilityCoverageCorrelationWriter` writing `reducer_observability_coverage_correlation` facts; in-memory coverage index; six-outcome classifier incl. gap findings; the `ObservabilityCoverageCorrelations` counter; package docs (`doc.go`/`README.md`/`AGENTS.md` already exist for `reducer`, so update them). **No graph write.** Full table-test proof matrix (§5). | Postgres fact write only; no graph, no schema migration. Lowest risk. | Focused `go test ./internal/reducer ./internal/telemetry`; `verify-performance-evidence.sh` (new reducer correlation path); `verify-package-docs.sh`. |
 | **PR 2 — query / MCP surface** | Read handler + MCP/API tool that answers "does service/resource X have alarm/log/trace coverage, and list coverage gaps," reading the PR 1 facts. OpenAPI + `http-api.md` lockstep if a new wire contract is added. Bounded reads (scope/limit/timeout/ordering) per `eshu-mcp-call-rigor`. | Read-only. | `go test ./internal/query ./internal/mcp ./cmd/api ./cmd/mcp`; OpenAPI lockstep check. |
-| **PR 3 — `COVERS` graph edge (optional, gated)** | Reducer-owned `COVERS` edge for `exact`/`derived` decisions, gated on `GraphProjectionPhaseCanonicalNodesCommitted`; backend-neutral edge writer reusing the #805 static-relationship-token shape; partitioned by `obs_uid`; unresolved/materialized tally. Real NornicDB Compose probe evidence (Q3). | Graph write; highest risk; isolated behind PR 1/2 already shipping value. | NornicDB + Neo4j conformance; Compose probe; `cypher-performance` evidence. |
+| **PR 3 — `COVERS` graph edge (gated)** — *shipped, see §12* | Reducer-owned `DomainObservabilityCoverageMaterialization` writing `COVERS` edges for `exact` decisions that resolved a target uid (derived X-Ray coverage resolves a service name, not a node, so it stays provenance-only and is counted skipped), gated on `GraphProjectionPhaseCanonicalNodesCommitted` in both the handler and the Postgres claim/batch/blockage SQL; backend-neutral `ObservabilityCoverageEdgeWriter` reusing the #805 static-relationship-token shape (`AWS_COVERS_<signal>`); materialized/skipped tally; `eshu_dp_observability_coverage_edges_total` counter + span. | Graph write; highest risk; isolated behind PR 1/2 already shipping value. | `go test ./internal/reducer ./internal/storage/cypher ./internal/projector ./internal/telemetry ./internal/storage/postgres ./cmd/reducer`; edge-writer benchmark; `verify-performance-evidence.sh`. |
 
 PR 1 alone satisfies acceptance criteria 1, 2, 4 and the data half of 3. PR 2
 completes criterion 3's query surface. PR 3 is value-add graph reachability and is
@@ -543,3 +543,82 @@ The issue's release-lane triage ("not ready, no collector exists") is correct fo
 the generic slice but understated the AWS-native facts already shipped; this memo
 unblocks the buildable subset without overreaching into the part that genuinely
 lacks inputs.
+
+---
+
+## 12. PR3 implementation status (`COVERS` graph edge) — shipped
+
+PR1 (fact-only read model) and PR2 (query/MCP surface) have landed. PR3 lands the
+gated `COVERS` graph edge as designed in §6, with the Q3 recommendation adopted:
+the **static relationship-token shape `AWS_COVERS_<signal>`** (not a property-keyed
+relationship `MERGE`), so NornicDB keeps its relationship hot path.
+
+What shipped:
+
+- **New gated graph-write domain** `DomainObservabilityCoverageMaterialization`,
+  separate from the PR1 fact-only `DomainObservabilityCoverageCorrelation`, exactly
+  mirroring the #805 split of `aws_resource_materialization` (nodes) from
+  `aws_relationship_materialization` (edges). The fact-only read model still
+  populates without the gate; only the edge phase is gated.
+- **Backend-neutral edge writer** `cypher.ObservabilityCoverageEdgeWriter`
+  (`go/internal/storage/cypher/observability_coverage_edge_writer.go`) mirroring
+  `cloud_resource_edge_writer.go`: batched `UNWIND` + two `MATCH (:CloudResource
+  {uid})` before the `MERGE (obs)-[:AWS_COVERS_<signal>]->(target)`, so a missing
+  endpoint is a no-op and no node is fabricated. The signal token is validated to a
+  closed `[A-Za-z0-9_]` vocabulary (no Cypher injection). Prior-generation retract
+  filters on the edge's own `rel.scope_id` + `rel.evidence_source =
+  'reducer/observability-coverage'`, never an endpoint node property.
+- **Only `exact` coverage with a resolved `target_uid` becomes an edge.** Derived
+  X-Ray service coverage resolves a service name, not a `CloudResource.uid`, so it
+  has no target node to `MATCH` and is counted skipped, never fabricated. Ambiguous
+  / unresolved / stale / rejected stay provenance-only — no edge. This is the §5
+  truth matrix and the #805 §5.3 no-fabrication property.
+- **Durable readiness gate** on `GraphProjectionPhaseCanonicalNodesCommitted` /
+  `cloud_resource_uid`, both in the handler (`ReadinessLookup`, retryable miss) and
+  in the Postgres claim/batch/blockage SQL (the same EXISTS predicate that already
+  guards `aws_relationship_materialization`, extended to the new domain). The
+  projector intent reuses the `aws_resource_materialization:<scope>` entity key so
+  the gate resolves the exact slice #805 PR1 publishes.
+- **Telemetry**: `eshu_dp_observability_coverage_edges_total` counter dimensioned
+  by `coverage_signal` + `resolution_mode`, span
+  `reducer.observability_coverage_materialization`, and a structured completion log
+  with per-stage durations (load / classify / retract / graph_write) plus
+  materialized-vs-skipped-by-signal tallies.
+
+Concurrency (per §6, honoring "Serialization Is Not A Fix"): the `MERGE` is
+idempotent on `(obs_uid, coverage_signal, target_uid)`; retried batches cannot
+duplicate edges; the conflict domain is partitioned by the same scope-generation
+fence the queue already enforces; no worker-count reduction or single-threading was
+used. Empty/first generation is a pure no-op (no rows, prior-generation retract
+skip).
+
+Benchmark Evidence: `BenchmarkObservabilityCoverageEdgeWriter` (Apple M4 Pro, Go
+test bench, no-op grouped executor, 5000 COVERS rows, batch 500) = 1.72 ms/op,
+3.89 MB/op, 40099 allocs/op — within noise of the proven #805
+`BenchmarkCloudResourceEdgeWriter` on identical input shape (1.75 ms/op, same alloc
+profile). The write side is one batched `UNWIND` group per coverage signal: no
+per-edge graph round trip, no N+1.
+
+No-Regression Evidence: the COVERS writer reuses the exact batched
+MATCH-MATCH-MERGE statement shape, `buildBatchedStatements` batching, and
+`GroupExecutor` atomic dispatch that #805's `CloudResourceEdgeWriter` already
+measured on NornicDB and Neo4j; the relationship-type is a static token (the
+proven 0–1 ms NornicDB relationship-upsert path), not a property-keyed
+relationship `MERGE` (the 20 s timeout shape #805 §5.3 rejected). The shared
+backend executor seam, retry classification (`WrapRetryableNeo4jError`), and uid
+constraint/index (`cloud_resource_uid_unique` + `nornicdb_cloud_resource_uid_lookup`)
+are unchanged — no new index or constraint, so there is no new write-time
+validation cost. A full NornicDB Compose probe of the live edge counts remains the
+recommended pre-broad-rollout follow-up (Q3), but the write-path shape carries no
+measurable regression over the shipped #805 edge writer on the same input.
+
+Observability Evidence: `eshu_dp_observability_coverage_edges_total{coverage_signal,
+resolution_mode}` counts materialized edges by signal and identity path; the
+completion log `observability coverage materialization completed` carries
+`edge_count`, `materialized_by_signal`, `skipped_derived_by_signal`, `skip_retract`,
+and per-stage `*_duration_seconds`, so an operator can answer at 3 AM "which
+coverage signal is materializing edges, by which identity path, and is fact-load,
+classify, retract, or graph-write the cost." The readiness-gate miss is a retryable
+failure with `FailureClass()=observability_coverage_nodes_not_ready`, and the
+Postgres status-blockage query surfaces the same `cloud_resource_uid:
+canonical_nodes_committed` readiness conflict key for the new domain.

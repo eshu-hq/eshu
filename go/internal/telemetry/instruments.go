@@ -115,7 +115,7 @@ type Instruments struct {
 	// selector or a rejected weak ref?" at 3 AM.
 	KubernetesCorrelations     metric.Int64Counter
 	SBOMAttestationAttachments metric.Int64Counter
-	SupplyChainImpactFindings         metric.Int64Counter
+	SupplyChainImpactFindings  metric.Int64Counter
 	// SupplyChainSuppressionDecisions counts reducer suppression-state
 	// outcomes per supply-chain impact finding. Labels: domain
 	// (supply_chain_impact) and outcome (one of active, not_affected,
@@ -161,6 +161,16 @@ type Instruments struct {
 	// materialize an edge because their endpoint node was not scanned in this
 	// scope; resolved modes count materialized edges.
 	AWSRelationshipEdges metric.Int64Counter
+	// ObservabilityCoverageEdges counts observability COVERS edge projection
+	// outcomes (issue #391 PR3). Labels: coverage_signal (alarm / composite_alarm
+	// / dashboard / log_group / trace_sampling) and resolution_mode (arn /
+	// bare_id / correlation_anchor). It counts only materialized exact-coverage
+	// edges; provenance-only coverage (derived/ambiguous/unresolved/stale/
+	// rejected) never produces an edge and is surfaced by the
+	// ObservabilityCoverageCorrelations counter and the completion log instead.
+	// Lets an operator answer "which coverage signal class is materializing
+	// COVERS edges, and by which identity path?" at 3 AM.
+	ObservabilityCoverageEdges metric.Int64Counter
 	// AWSScanStatusStaleFence counts AWS scan-status rejections caused by a
 	// stale fencing token, labeled by service, account, region, and the
 	// operation (start, observe, commit) that was rejected. Operators read
@@ -1063,6 +1073,14 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register AWSRelationshipEdges counter: %w", err)
+	}
+
+	inst.ObservabilityCoverageEdges, err = meter.Int64Counter(
+		"eshu_dp_observability_coverage_edges_total",
+		metric.WithDescription("Total observability COVERS edge projection outcomes by coverage_signal and resolution_mode (arn/bare_id/correlation_anchor)"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register ObservabilityCoverageEdges counter: %w", err)
 	}
 
 	inst.CorrelationUnmanagedDetected, err = meter.Int64Counter(
@@ -2168,6 +2186,12 @@ func AttrJoinMode(v string) attribute.KeyValue {
 // / trace_sampling).
 func AttrCoverageSignal(v string) attribute.KeyValue {
 	return attribute.String(MetricDimensionCoverageSignal, v)
+}
+
+// AttrResolutionMode returns a resolution_mode attribute for the observability
+// coverage COVERS edge projection counter (arn / bare_id / correlation_anchor).
+func AttrResolutionMode(v string) attribute.KeyValue {
+	return attribute.String(MetricDimensionResolutionMode, v)
 }
 
 // AttrDriftKind returns a drift_kind attribute for drift-classification

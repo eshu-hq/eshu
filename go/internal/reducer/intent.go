@@ -98,6 +98,17 @@ const (
 	// discovered in another). PR1 writes facts only; the optional COVERS graph
 	// edge is a later gated PR. See issue #391 for the design.
 	DomainObservabilityCoverageCorrelation Domain = "observability_coverage_correlation"
+	// DomainObservabilityCoverageMaterialization projects the exact-outcome
+	// observability coverage decisions into canonical COVERS edges between the
+	// CloudResource nodes that DomainAWSResourceMaterialization committed: an
+	// observability object (alarm/dashboard/log group/X-Ray) covering a monitored
+	// resource. It gates on the GraphProjectionPhaseCanonicalNodesCommitted
+	// readiness phase so edges never resolve against nodes that have not committed
+	// (issue #391 PR3), exactly like DomainAWSRelationshipMaterialization. Only
+	// exact coverage with a resolved target uid materializes an edge; derived,
+	// ambiguous, unresolved, stale, and rejected coverage stays provenance-only in
+	// the PR1 read model and fabricates no edge. See issue #391 for the design.
+	DomainObservabilityCoverageMaterialization Domain = "observability_coverage_materialization"
 	// DomainKubernetesCorrelation correlates live Kubernetes workload evidence
 	// (kubernetes_live.* facts) against deployment-source image and identity
 	// evidence, emitting durable provenance-only reducer facts with the

@@ -274,9 +274,22 @@ Key metrics (all prefixed `eshu_dp_`):
   (`alarm`, `composite_alarm`, `dashboard`, `log_group`, `trace_sampling`).
   Durable `reducer_observability_coverage_correlation` facts record
   which monitored CloudResource nodes have CloudWatch / CloudWatch Logs / X-Ray
-  coverage versus uncovered gaps. PR1 is fact-only: no graph edge is written;
-  the optional `COVERS` edge is a later gated PR, and the query/MCP read surface
-  is a follow-up PR.
+  coverage versus uncovered gaps. The `DomainObservabilityCoverageCorrelation`
+  domain is fact-only and is **not** gated on graph readiness, so the read model
+  populates before any edge lands.
+- `observability_coverage_edges_total` — observability `COVERS` graph-edge
+  projection outcomes by `coverage_signal` and `resolution_mode` (`arn`,
+  `bare_id`, `correlation_anchor`). The separate, gated
+  `DomainObservabilityCoverageMaterialization` domain (issue #391 PR3) projects
+  only `exact` coverage decisions that resolved a target `CloudResource.uid` into
+  one `(:CloudResource)-[:AWS_COVERS_<signal>]->(:CloudResource)` edge per
+  `(observability uid, coverage_signal, target uid)`, gated on the
+  `GraphProjectionPhaseCanonicalNodesCommitted` readiness phase on the
+  `cloud_resource_uid` keyspace (the same gate `aws_relationship_materialization`
+  uses) so edges never resolve against uncommitted nodes. Derived, ambiguous,
+  unresolved, stale, and rejected coverage stays provenance-only in the read
+  model and fabricates no edge. See issue #391 and
+  `docs/internal/design/391-observability-coverage-correlation.md` §6/§12.
 - `kubernetes_correlations_total` — live Kubernetes correlation decisions by
   bounded outcome (`exact`, `derived`, `ambiguous`, `unresolved`, `stale`,
   `rejected`), reducer domain, and `drift_kind` (`in_sync`, `image_drift`,
@@ -564,7 +577,23 @@ Log phase attributes: `telemetry.PhaseReduction` (main loop),
   (bounded to classes with a covered peer in scope). The handler reads only
   `aws_resource` and `aws_relationship` facts through a bounded in-memory index
   (no per-edge graph round trip), redacted dimension values never resolve a
-  target, and PR1 writes no graph edge.
+  target, and the correlation domain writes no graph edge.
+- **Observability `COVERS` edges are exact-only and readiness-gated** —
+  `ObservabilityCoverageMaterializationHandler` (the separate
+  `DomainObservabilityCoverageMaterialization` domain, issue #391 PR3) re-runs the
+  same pure classifier and projects only `exact` coverage decisions that resolved
+  a target `CloudResource.uid` into one
+  `(:CloudResource)-[:AWS_COVERS_<signal>]->(:CloudResource)` edge per
+  `(observability uid, coverage_signal, target uid)`. It gates on the
+  `GraphProjectionPhaseCanonicalNodesCommitted` readiness phase (handler
+  `ReadinessLookup` + the durable Postgres claim/batch/blockage gate) so edges
+  never resolve against uncommitted nodes, retracts prior-generation edges scoped
+  to `rel.evidence_source = 'reducer/observability-coverage'`, and fabricates no
+  node (two `MATCH`es precede the `MERGE`). Derived X-Ray service coverage
+  resolves a service name, not a node, so it is counted skipped and produces no
+  edge; ambiguous, unresolved, stale, and rejected coverage never materialize.
+  The write is idempotent under retry and partitioned by the scope-generation
+  conflict fence, never single-threaded.
 - **Live Kubernetes correlation is digest-first and selector-ambiguity-safe** —
   `KubernetesCorrelationHandler` writes `reducer_kubernetes_correlation` facts
   for all six outcomes plus a `drift_kind`. A live image reference joins

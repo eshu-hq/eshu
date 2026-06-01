@@ -56,12 +56,13 @@ WITH candidate AS (
             AND semantic_inflight.status IN ('claimed', 'running')
             AND semantic_inflight.claim_until > $1
       ) < $7)
-      -- AWS relationship edges consume CloudResource nodes produced by the
-      -- aws_resource_materialization domain for the exact same
-      -- scope/generation/entity-key readiness slice. Keep relationship work
-      -- pending or retrying until canonical nodes are visibly committed instead
-      -- of claiming it and recording retryable reducer failures.
-      AND (domain <> 'aws_relationship_materialization' OR EXISTS (
+      -- AWS relationship edges and observability COVERS edges both consume
+      -- CloudResource nodes produced by the aws_resource_materialization domain
+      -- for the exact same scope/generation/entity-key readiness slice. Keep
+      -- those graph-write domains pending or retrying until canonical nodes are
+      -- visibly committed instead of claiming them and recording retryable
+      -- reducer failures.
+      AND (domain NOT IN ('aws_relationship_materialization', 'observability_coverage_materialization') OR EXISTS (
           SELECT 1
           FROM graph_projection_phase_state AS aws_nodes
           WHERE aws_nodes.scope_id = fact_work_items.scope_id
