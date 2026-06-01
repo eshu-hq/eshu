@@ -1,0 +1,166 @@
+package awscloud
+
+import (
+	"testing"
+	"time"
+
+	"github.com/eshu-hq/eshu/go/internal/facts"
+)
+
+func TestNewIAMPermissionEnvelopeNormalizesStatement(t *testing.T) {
+	boundary := testBoundary(time.Date(2026, 5, 13, 12, 0, 0, 0, time.UTC))
+	envelope, err := NewIAMPermissionEnvelope(IAMPermissionObservation{
+		Boundary:      boundary,
+		PrincipalARN:  "arn:aws:iam::123456789012:role/eshu-runtime",
+		PrincipalType: ResourceTypeIAMRole,
+		PolicySource:  IAMPolicySourceInline,
+		PolicyName:    "inline-escalate",
+		StatementSID:  "AllowPassRole",
+		Effect:        "Allow",
+		Actions:       []string{"iam:passrole", "iam:PassRole", "  sts:AssumeRole  "},
+		Resources:     []string{"arn:aws:iam::123456789012:role/*"},
+		ConditionKeys: []string{"aws:SourceIp", "aws:SourceIp"},
+	})
+	if err != nil {
+		t.Fatalf("NewIAMPermissionEnvelope returned error: %v", err)
+	}
+	if envelope.FactKind != facts.AWSIAMPermissionFactKind {
+		t.Fatalf("FactKind = %q, want %q", envelope.FactKind, facts.AWSIAMPermissionFactKind)
+	}
+	if envelope.SchemaVersion != facts.AWSIAMPermissionSchemaVersion {
+		t.Fatalf("SchemaVersion = %q, want %q", envelope.SchemaVersion, facts.AWSIAMPermissionSchemaVersion)
+	}
+	assertPayloadString(t, envelope.Payload, "principal_arn", "arn:aws:iam::123456789012:role/eshu-runtime")
+	assertPayloadString(t, envelope.Payload, "principal_type", ResourceTypeIAMRole)
+	assertPayloadString(t, envelope.Payload, "policy_source", IAMPolicySourceInline)
+	assertPayloadString(t, envelope.Payload, "effect", "Allow")
+
+	actions, ok := envelope.Payload["actions"].([]string)
+	if !ok {
+		t.Fatalf("actions = %T, want []string", envelope.Payload["actions"])
+	}
+	// Normalization: trimmed, lowercased, de-duplicated, sorted. The two
+	// iam:PassRole spellings collapse to one entry.
+	want := []string{"iam:passrole", "sts:assumerole"}
+	if len(actions) != len(want) {
+		t.Fatalf("actions = %v, want %v", actions, want)
+	}
+	for i := range want {
+		if actions[i] != want[i] {
+			t.Fatalf("actions[%d] = %q, want %q", i, actions[i], want[i])
+		}
+	}
+
+	if got, _ := envelope.Payload["has_conditions"].(bool); !got {
+		t.Fatalf("has_conditions = %v, want true", got)
+	}
+	keys, ok := envelope.Payload["condition_keys"].([]string)
+	if !ok {
+		t.Fatalf("condition_keys = %T, want []string", envelope.Payload["condition_keys"])
+	}
+	if len(keys) != 1 || keys[0] != "aws:SourceIp" {
+		t.Fatalf("condition_keys = %v, want [aws:SourceIp] (de-duplicated, no values)", keys)
+	}
+}
+
+func TestNewIAMPermissionEnvelopeWildcardActionAndResource(t *testing.T) {
+	boundary := testBoundary(time.Date(2026, 5, 13, 12, 0, 0, 0, time.UTC))
+	envelope, err := NewIAMPermissionEnvelope(IAMPermissionObservation{
+		Boundary:      boundary,
+		PrincipalARN:  "arn:aws:iam::123456789012:user/admin",
+		PrincipalType: ResourceTypeIAMUser,
+		PolicySource:  IAMPolicySourceAttachedManaged,
+		PolicyARN:     "arn:aws:iam::aws:policy/AdministratorAccess",
+		Effect:        "Allow",
+		Actions:       []string{"*"},
+		Resources:     []string{"*"},
+	})
+	if err != nil {
+		t.Fatalf("NewIAMPermissionEnvelope returned error: %v", err)
+	}
+	if got, _ := envelope.Payload["is_wildcard_action"].(bool); !got {
+		t.Fatalf("is_wildcard_action = %v, want true", got)
+	}
+	if got, _ := envelope.Payload["is_wildcard_resource"].(bool); !got {
+		t.Fatalf("is_wildcard_resource = %v, want true", got)
+	}
+	if got, _ := envelope.Payload["has_conditions"].(bool); got {
+		t.Fatalf("has_conditions = %v, want false", got)
+	}
+	assertPayloadString(t, envelope.Payload, "policy_arn", "arn:aws:iam::aws:policy/AdministratorAccess")
+}
+
+func TestNewIAMPermissionEnvelopeTrustStatementCapturesAssumePrincipals(t *testing.T) {
+	boundary := testBoundary(time.Date(2026, 5, 13, 12, 0, 0, 0, time.UTC))
+	envelope, err := NewIAMPermissionEnvelope(IAMPermissionObservation{
+		Boundary:         boundary,
+		PrincipalARN:     "arn:aws:iam::123456789012:role/eshu-runtime",
+		PrincipalType:    ResourceTypeIAMRole,
+		PolicySource:     IAMPolicySourceTrust,
+		Effect:           "Allow",
+		Actions:          []string{"sts:AssumeRole"},
+		AssumePrincipals: []string{"arn:aws:iam::111122223333:root", "arn:aws:iam::111122223333:root"},
+	})
+	if err != nil {
+		t.Fatalf("NewIAMPermissionEnvelope returned error: %v", err)
+	}
+	assertPayloadString(t, envelope.Payload, "policy_source", IAMPolicySourceTrust)
+	principals, ok := envelope.Payload["assume_principals"].([]string)
+	if !ok {
+		t.Fatalf("assume_principals = %T, want []string", envelope.Payload["assume_principals"])
+	}
+	if len(principals) != 1 || principals[0] != "arn:aws:iam::111122223333:root" {
+		t.Fatalf("assume_principals = %v, want one de-duplicated entry", principals)
+	}
+}
+
+func TestNewIAMPermissionEnvelopeRequiresPrincipalAndEffect(t *testing.T) {
+	boundary := testBoundary(time.Now())
+	if _, err := NewIAMPermissionEnvelope(IAMPermissionObservation{
+		Boundary:     boundary,
+		PolicySource: IAMPolicySourceInline,
+		Effect:       "Allow",
+		Actions:      []string{"s3:GetObject"},
+	}); err == nil {
+		t.Fatal("NewIAMPermissionEnvelope() error = nil, want missing principal error")
+	}
+	if _, err := NewIAMPermissionEnvelope(IAMPermissionObservation{
+		Boundary:     boundary,
+		PrincipalARN: "arn:aws:iam::123456789012:role/app",
+		PolicySource: IAMPolicySourceInline,
+		Actions:      []string{"s3:GetObject"},
+	}); err == nil {
+		t.Fatal("NewIAMPermissionEnvelope() error = nil, want missing effect error")
+	}
+}
+
+func TestNewIAMPermissionEnvelopeStableIdentityIgnoresConditionOrder(t *testing.T) {
+	boundary := testBoundary(time.Date(2026, 5, 13, 12, 0, 0, 0, time.UTC))
+	base := IAMPermissionObservation{
+		Boundary:      boundary,
+		PrincipalARN:  "arn:aws:iam::123456789012:role/eshu-runtime",
+		PrincipalType: ResourceTypeIAMRole,
+		PolicySource:  IAMPolicySourceInline,
+		PolicyName:    "inline-escalate",
+		StatementSID:  "AllowPassRole",
+		Effect:        "Allow",
+		Actions:       []string{"iam:PassRole"},
+		Resources:     []string{"arn:aws:iam::123456789012:role/*"},
+	}
+	first, err := NewIAMPermissionEnvelope(base)
+	if err != nil {
+		t.Fatalf("first envelope error: %v", err)
+	}
+	reordered := base
+	reordered.Actions = []string{"IAM:PassRole"}
+	second, err := NewIAMPermissionEnvelope(reordered)
+	if err != nil {
+		t.Fatalf("second envelope error: %v", err)
+	}
+	if first.FactID != second.FactID {
+		t.Fatalf("FactID changed with action casing: %q != %q", first.FactID, second.FactID)
+	}
+	if first.StableFactKey != second.StableFactKey {
+		t.Fatalf("StableFactKey changed with action casing: %q != %q", first.StableFactKey, second.StableFactKey)
+	}
+}

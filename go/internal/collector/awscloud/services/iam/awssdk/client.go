@@ -20,6 +20,13 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
+// maxPolicyDocumentsPerPrincipal bounds the per-principal managed-policy document
+// fan-out. Reading a managed policy document costs a GetPolicy + GetPolicyVersion
+// pair, so an unbounded loop over a principal with many attachments is an N+1
+// against IAM. The cap keeps the derived-permission read cost linear and bounded
+// per principal; statements past the cap are skipped rather than fetched.
+const maxPolicyDocumentsPerPrincipal = 25
+
 // Client adapts AWS SDK IAM pagination into scanner-owned IAM records.
 type Client struct {
 	client      *awsiam.Client
@@ -131,7 +138,8 @@ func (c *Client) ListInstanceProfiles(ctx context.Context) ([]iamservice.Instanc
 
 func (c *Client) mapRole(ctx context.Context, role awsiamtypes.Role) (iamservice.Role, error) {
 	roleName := aws.ToString(role.RoleName)
-	trustPolicy, trustPrincipals, err := parseTrustPolicy(aws.ToString(role.AssumeRolePolicyDocument))
+	rawTrust := aws.ToString(role.AssumeRolePolicyDocument)
+	trustPolicy, trustPrincipals, err := parseTrustPolicy(rawTrust)
 	if err != nil {
 		return iamservice.Role{}, fmt.Errorf("parse IAM trust policy for role %q: %w", roleName, err)
 	}
@@ -143,14 +151,21 @@ func (c *Client) mapRole(ctx context.Context, role awsiamtypes.Role) (iamservice
 	if err != nil {
 		return iamservice.Role{}, err
 	}
+
+	statements, err := c.roleStatements(ctx, roleName, rawTrust, attached, inline)
+	if err != nil {
+		return iamservice.Role{}, err
+	}
+
 	return iamservice.Role{
-		ARN:                aws.ToString(role.Arn),
-		Name:               roleName,
-		Path:               aws.ToString(role.Path),
-		AssumeRolePolicy:   trustPolicy,
-		TrustPrincipals:    trustPrincipals,
-		AttachedPolicyARNs: attached,
-		InlinePolicyNames:  inline,
+		ARN:                  aws.ToString(role.Arn),
+		Name:                 roleName,
+		Path:                 aws.ToString(role.Path),
+		AssumeRolePolicy:     trustPolicy,
+		TrustPrincipals:      trustPrincipals,
+		AttachedPolicyARNs:   attached,
+		InlinePolicyNames:    inline,
+		PermissionStatements: statements,
 	}, nil
 }
 

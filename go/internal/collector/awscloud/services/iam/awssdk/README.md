@@ -4,8 +4,11 @@
 
 `internal/collector/awscloud/services/iam/awssdk` adapts AWS SDK for Go v2 IAM
 responses to the scanner-owned `iam.Client` contract. It owns IAM API
-pagination, trust policy decoding, throttle classification, and per-page AWS
-API telemetry.
+pagination, trust policy decoding, policy-document normalization, throttle
+classification, and per-page AWS API telemetry. It reads inline and attached
+managed policy documents (`GetRolePolicy`, `GetUserPolicy`, `GetPolicy` +
+`GetPolicyVersion`) and normalizes them into metadata-only `iam.PolicyStatement`
+values; it never returns the raw policy JSON body or condition values.
 
 ## Ownership boundary
 
@@ -17,11 +20,13 @@ query behavior.
 flowchart LR
   A["aws.Config"] --> B["NewClient"]
   B --> C["Client.ListRoles"]
-  B --> D["Client.ListPolicies"]
-  B --> E["Client.ListInstanceProfiles"]
-  C --> F["iam.Role"]
-  D --> G["iam.Policy"]
-  E --> H["iam.InstanceProfile"]
+  B --> D["Client.ListUsers"]
+  B --> E["Client.ListPolicies"]
+  B --> F["Client.ListInstanceProfiles"]
+  C --> G["iam.Role + PolicyStatement"]
+  D --> H["iam.User + PolicyStatement"]
+  E --> I["iam.Policy"]
+  F --> J["iam.InstanceProfile"]
 ```
 
 ## Exported surface
@@ -60,6 +65,15 @@ labels.
   downstream evidence keeps the source shape.
 - SDK adapters translate AWS records into scanner-owned types; scanner tests
   should not mock AWS SDK paginators.
+- Policy-document normalization is metadata-only. `policy_normalize.go` keeps the
+  effect, action/resource patterns, statement SID, condition KEYS, and trust
+  assume-principals; it discards the raw JSON and every condition value. The raw
+  policy body is never returned from this package.
+- The per-principal managed policy document fan-out is bounded by
+  `maxPolicyDocumentsPerPrincipal`. Each managed document costs a `GetPolicy` +
+  `GetPolicyVersion` pair, so the cap stops an N+1 against IAM for principals
+  with many attachments. `boundedManagedPolicyStatements` makes the bound unit
+  testable without an AWS client.
 
 ## Related docs
 

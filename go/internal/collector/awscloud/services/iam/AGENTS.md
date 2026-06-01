@@ -15,9 +15,17 @@
   package.
 - Emit reported evidence only. Do not infer environment, deployment, workload,
   or deployable-unit truth from IAM names or policy text.
-- Preserve stable role, policy, profile, and relationship identities across
-  repeated observations in the same AWS generation.
+- Preserve stable role, user, policy, profile, relationship, and permission
+  identities across repeated observations in the same AWS generation.
 - Keep trust policy JSON and ARNs out of metric labels.
+- Derived `aws_iam_permission` facts are metadata-only. Emit only the normalized
+  statement (effect, action set, resource pattern, condition KEYS, trust
+  assume-principals). NEVER persist the raw policy JSON body or condition values.
+  The SDK adapter normalizes documents; this package consumes `PolicyStatement`
+  values and never holds raw JSON.
+- Do not project the permission facts into graph edges here. The CAN_ASSUME /
+  escalation-primitive reducer projection is a separate principal-review PR
+  (issue #1134).
 
 ## Common Changes
 
@@ -26,7 +34,10 @@
 - Add a new IAM relationship by defining the relationship constant in
   `awscloud`, adding scanner coverage, and keeping source and target identity
   explicit.
-- Extend SDK pagination in the runtime adapter, not here.
+- Add a new derived permission attribute by extending `PolicyStatement` and the
+  `awscloud.IAMPermissionObservation` builder, keeping it metadata-only.
+- Extend SDK pagination and policy-document fan-out (with a per-principal bound)
+  in the runtime adapter, not here.
 
 ## What Not To Change Without An ADR
 

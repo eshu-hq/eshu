@@ -19,6 +19,14 @@ const (
 	// normalized reachability tuple (group, direction, protocol, port range,
 	// source) that the reducer projects into network-reachability edges.
 	AWSSecurityGroupRuleFactKind = "aws_security_group_rule"
+	// AWSIAMPermissionFactKind identifies one derived IAM permission statement.
+	//
+	// It is the normalized, metadata-only projection of a single IAM policy
+	// statement attached to a principal: effect, action set, resource pattern,
+	// and a condition summary. It NEVER carries the raw policy JSON body or any
+	// condition values. PR1 emits this fact; the reducer graph projection that
+	// consumes it ships separately under principal review (issue #1134).
+	AWSIAMPermissionFactKind = "aws_iam_permission"
 	// AWSWarningFactKind identifies one non-fatal AWS scanner warning.
 	AWSWarningFactKind = "aws_warning"
 
@@ -35,6 +43,8 @@ const (
 	// AWSSecurityGroupRuleSchemaVersion is the first AWS security-group-rule
 	// posture fact schema.
 	AWSSecurityGroupRuleSchemaVersion = "1.0.0"
+	// AWSIAMPermissionSchemaVersion is the first derived IAM permission schema.
+	AWSIAMPermissionSchemaVersion = "1.0.0"
 	// AWSWarningSchemaVersion is the first AWS warning fact schema.
 	AWSWarningSchemaVersion = "1.0.0"
 )
@@ -46,6 +56,7 @@ var awsFactKinds = []string{
 	AWSDNSRecordFactKind,
 	AWSImageReferenceFactKind,
 	AWSSecurityGroupRuleFactKind,
+	AWSIAMPermissionFactKind,
 	AWSWarningFactKind,
 }
 
@@ -56,6 +67,7 @@ var awsSchemaVersions = map[string]string{
 	AWSDNSRecordFactKind:         AWSDNSRecordSchemaVersion,
 	AWSImageReferenceFactKind:    AWSImageReferenceSchemaVersion,
 	AWSSecurityGroupRuleFactKind: AWSSecurityGroupRuleSchemaVersion,
+	AWSIAMPermissionFactKind:     AWSIAMPermissionSchemaVersion,
 	AWSWarningFactKind:           AWSWarningSchemaVersion,
 }
 

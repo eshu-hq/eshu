@@ -17,16 +17,18 @@
 // descriptor, referrer, and warning evidence reported by OCI-compatible
 // registries. AWS cloud fact kind constants and schema-version helpers live
 // here for resource, relationship, tag, DNS, image-reference,
-// security-group-rule, and warning evidence reported by AWS service APIs. The
-// security-group-rule kind is a derived posture fact: one normalized
-// ingress/egress rule the reducer projects into network-reachability edges. The
-// S3 bucket posture fact kind constant and schema-version helpers live here for
-// the derived, metadata-only per-bucket security posture (block-public-access,
-// default-encryption detail, versioning and MFA-delete, object-ownership /
-// ACL-disabled, access-logging target, replication presence, and policy-derived
-// public/cross-account booleans); it never carries the raw bucket policy
-// document, and reducers project it separately. CI/CD run fact kind constants
-// and
+// security-group-rule, derived IAM permission, and warning evidence reported by
+// AWS service APIs. The security-group-rule kind is a derived posture fact: one
+// normalized ingress/egress rule the reducer projects into network-reachability
+// edges. The S3 bucket posture fact kind constant and schema-version helpers
+// live here for the derived, metadata-only per-bucket security posture
+// (block-public-access, default-encryption detail, versioning and MFA-delete,
+// object-ownership / ACL-disabled, access-logging target, replication presence,
+// and policy-derived public/cross-account booleans); it never carries the raw
+// bucket policy document, and reducers project it separately. The derived IAM
+// permission fact is metadata-only: it captures a normalized policy statement
+// (effect, action set, resource pattern, condition-key summary) and never the
+// raw policy JSON body or condition values. CI/CD run fact kind constants and
 // schema-version helpers live here for pipeline definition, run, job, step,
 // artifact, trigger, environment, and warning evidence reported by providers.
 // SBOM and attestation fact kind constants and schema-version helpers live here

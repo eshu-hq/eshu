@@ -17,7 +17,7 @@ It does not mutate AWS resources, read protected payloads, or write graph truth.
 
 | Service kind | Coverage |
 | --- | --- |
-| `iam` | Roles, managed policies, instance profiles, trust relationships. |
+| `iam` | Roles, users, managed policies, instance profiles, trust relationships, and derived `aws_iam_permission` facts. The permission fact is the normalized, metadata-only projection of one inline, attached managed, or role trust policy statement: principal, effect, normalized action set, resource pattern, condition-key summary, and trust assume-principals. It never carries the raw policy JSON body or condition values. The SDK adapter reads inline + attached managed policy documents (`GetRolePolicy`/`GetUserPolicy`/`GetPolicy`+`GetPolicyVersion`) and bounds the per-principal document fan-out to avoid an N+1 against IAM. PR1 emits these facts only; the reducer graph projection (assume-role / escalation-primitive edges) ships separately under principal review (issue #1134). |
 | `ecr` | Repositories, lifecycle policies, image references, pagination checkpoints. |
 | `ecs` | Clusters, services, tasks, relationships, redacted task definitions. |
 | `ec2` | VPC, subnet, security group, security-group rule, ENI topology. The EC2 scanner owns the ENI surface and may carry instance target evidence on ENI attachments, but does not emit `aws_ec2_instance` resources; VPC network-fabric resources live in the `vpc` scanner. |

@@ -57,6 +57,17 @@ func TestAWSFactBuildersUseReportedConfidence(t *testing.T) {
 				CIDRIPv4:   "0.0.0.0/0",
 			})
 		},
+		facts.AWSIAMPermissionFactKind: func() (facts.Envelope, error) {
+			return NewIAMPermissionEnvelope(IAMPermissionObservation{
+				Boundary:      boundary,
+				PrincipalARN:  "arn:aws:iam::123456789012:role/eshu-runtime",
+				PrincipalType: ResourceTypeIAMRole,
+				PolicySource:  IAMPolicySourceInline,
+				Effect:        "Allow",
+				Actions:       []string{"iam:PassRole"},
+				Resources:     []string{"*"},
+			})
+		},
 		facts.AWSWarningFactKind: func() (facts.Envelope, error) {
 			return NewWarningEnvelope(WarningObservation{
 				Boundary:    boundary,
