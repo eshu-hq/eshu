@@ -20,6 +20,9 @@ var observabilitySourceBuckets = []struct {
 	{bucket: "observability_declared_dashboards", kind: facts.ObservabilityDeclaredDashboardFactKind},
 	{bucket: "observability_declared_datasources", kind: facts.ObservabilityDeclaredDatasourceFactKind},
 	{bucket: "observability_declared_alert_rules", kind: facts.ObservabilityDeclaredAlertRuleFactKind},
+	{bucket: "observability_declared_scrape_configs", kind: facts.ObservabilityDeclaredScrapeConfigFactKind},
+	{bucket: "observability_declared_metric_rules", kind: facts.ObservabilityDeclaredMetricRuleFactKind},
+	{bucket: "observability_declared_metric_routes", kind: facts.ObservabilityDeclaredMetricRouteFactKind},
 	{bucket: "observability_coverage_warnings", kind: facts.ObservabilityCoverageWarningFactKind},
 }
 
@@ -28,14 +31,24 @@ var forbiddenObservabilityPayloadKeys = map[string]struct{}{
 	"config_json":              {},
 	"dashboard_json":           {},
 	"data":                     {},
+	"endpoint":                 {},
 	"expr":                     {},
+	"headers":                  {},
+	"job_name":                 {},
 	"json":                     {},
+	"jobName":                  {},
+	"labels":                   {},
+	"matchLabels":              {},
 	"model":                    {},
 	"panels":                   {},
 	"password":                 {},
 	"query":                    {},
 	"secureJsonData":           {},
 	"secure_json_data_encoded": {},
+	"serverSnippet":            {},
+	"scrape_configs":           {},
+	"static_configs":           {},
+	"staticConfigs":            {},
 	"targets":                  {},
 	"title":                    {},
 	"url":                      {},
@@ -206,6 +219,8 @@ func observabilityRecordIdentity(payload map[string]any) string {
 	keys := []string{
 		"source_class", "source_kind", "source_instance_id", "relative_path",
 		"folder_uid", "folder_title_fingerprint", "dashboard_uid", "datasource_uid", "alert_rule_uid", "warning_kind",
+		"selector_identity_fingerprint", "job_name_fingerprint", "rule_group", "rule_kind", "alert_rule_name_fingerprint", "record_rule_name_fingerprint",
+		"pipeline_name", "backend_kind", "exporter_refs",
 		"name", "resource_kind", "resource_name", "config_key",
 	}
 	parts := make([]string, 0, len(keys))
