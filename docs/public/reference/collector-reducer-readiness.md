@@ -84,6 +84,13 @@ readiness states, provider-alert parity, local one-shot scanning, and
 scanner-worker boundaries, is documented in
 [Security Intelligence](security-intelligence.md).
 
+PagerDuty incident-routing evidence across Terraform source, Terraform state,
+AWS alert routes, and live PagerDuty configuration remains a contract and
+follow-up implementation path. See
+[PagerDuty Evidence Contract](pagerduty-evidence.md). This complements the
+implemented PagerDuty incident-context source collector; it does not promote new
+configuration facts or production readiness by itself.
+
 ## Reducer Truth Boundaries
 
 Collector readiness depends on the reducer admitting explicit evidence, not on
