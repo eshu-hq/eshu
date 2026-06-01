@@ -91,6 +91,54 @@ func supplyChainReachabilityForFinding(finding SupplyChainImpactFinding) SupplyC
 			Reason:           "runtime, image, or SBOM evidence places the vulnerable component on an owned target",
 			LanguageMaturity: maturity,
 		}
+	case jsTSPackageAPICallEvidence, jsTSPackageAPIImportEvidence, jsTSPackageAPIReExportEvidence:
+		return SupplyChainReachability{
+			State:            SupplyChainReachabilityReachable,
+			Confidence:       "partial",
+			Source:           "parser_js_ts",
+			Evidence:         detail,
+			Reason:           "JavaScript/TypeScript parser evidence proves the package API identity is imported, called, or re-exported",
+			LanguageMaturity: maturity,
+		}
+	case jsTSPackageAPISCIPCallEvidence:
+		return SupplyChainReachability{
+			State:            SupplyChainReachabilityReachable,
+			Confidence:       "partial",
+			Source:           "scip_js_ts",
+			Evidence:         detail,
+			Reason:           "SCIP-backed JavaScript/TypeScript evidence proves the package API identity is referenced",
+			LanguageMaturity: maturity,
+		}
+	case jsTSPackageAPIUnknownEvidence:
+		return SupplyChainReachability{
+			State:            SupplyChainReachabilityUnknown,
+			Confidence:       "unknown",
+			Source:           "parser_js_ts",
+			Evidence:         detail,
+			Reason:           "JavaScript/TypeScript parser or SCIP evidence exists, but no matching package API identity is proven",
+			LanguageMaturity: maturity,
+			MissingEvidence:  supplyChainReachabilityMissingEvidence(finding, ecosystem),
+		}
+	case jsTSPackageAPIAmbiguousEvidence:
+		return SupplyChainReachability{
+			State:            SupplyChainReachabilityUnknown,
+			Confidence:       "unknown",
+			Source:           "parser_js_ts",
+			Evidence:         detail,
+			Reason:           "JavaScript/TypeScript parser or SCIP evidence is similar but package API identity is ambiguous",
+			LanguageMaturity: maturity,
+			MissingEvidence:  supplyChainReachabilityMissingEvidence(finding, ecosystem),
+		}
+	case jsTSPackageAPIMissingEvidence:
+		return SupplyChainReachability{
+			State:            SupplyChainReachabilityMissingEvidence,
+			Confidence:       "unknown",
+			Source:           "parser_js_ts",
+			Evidence:         detail,
+			Reason:           "JavaScript/TypeScript package reachability is supported, but parser or SCIP package API evidence is missing",
+			LanguageMaturity: maturity,
+			MissingEvidence:  supplyChainReachabilityMissingEvidence(finding, ecosystem),
+		}
 	case "package_manifest", string(GoVulnReachabilityModuleOnly), string(GoVulnReachabilityUnknown), "known_fixed":
 		return SupplyChainReachability{
 			State:            SupplyChainReachabilityUnknown,

@@ -62,7 +62,9 @@ func buildSupplyChainImpactPriorityContributions(
 	if finding.Reachability != nil {
 		switch finding.Reachability.State {
 		case SupplyChainReachabilityReachable:
-			if finding.Reachability.Source == "govulncheck" {
+			if finding.Reachability.Source == "govulncheck" ||
+				finding.Reachability.Source == "parser_js_ts" ||
+				finding.Reachability.Source == "scip_js_ts" {
 				contributions = append(contributions, priorityContribution(
 					"reachable_code_evidence",
 					"reachability",
@@ -78,12 +80,14 @@ func buildSupplyChainImpactPriorityContributions(
 				-20,
 			))
 		case SupplyChainReachabilityMissingEvidence:
-			contributions = append(contributions, priorityContribution(
-				"reachability_missing_evidence",
-				"reachability",
-				string(finding.Reachability.State),
-				-5,
-			))
+			if finding.Reachability.Source == "govulncheck" {
+				contributions = append(contributions, priorityContribution(
+					"reachability_missing_evidence",
+					"reachability",
+					string(finding.Reachability.State),
+					-5,
+				))
+			}
 		}
 	}
 	if hasDeploymentPriorityEvidence(finding) {

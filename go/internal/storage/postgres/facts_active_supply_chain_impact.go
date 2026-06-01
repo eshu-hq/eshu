@@ -48,6 +48,7 @@ WHERE fact.fact_kind IN (
     'reducer_ci_cd_run_correlation',
     'reducer_service_catalog_correlation',
     'reducer_workload_identity',
+    'file',
     'vulnerability.epss_score',
     'vulnerability.known_exploited'
 )
@@ -77,6 +78,7 @@ WHERE fact.fact_kind IN (
           )
           AND (
               fact.payload->>'repository_id' = ANY($7::text[])
+              OR fact.payload->>'repo_id' = ANY($7::text[])
               OR fact.payload->'scope'->>'repository_id' = ANY($7::text[])
               OR fact.scope_id = ANY($7::text[])
               OR fact.payload->>'scope_id' = ANY($7::text[])
@@ -85,11 +87,29 @@ WHERE fact.fact_kind IN (
               OR scope.payload->>'id' = ANY($7::text[])
           )
       )
+      OR (
+          fact.fact_kind = 'file'
+          AND (
+              fact.payload->>'repository_id' = ANY($9::text[])
+              OR fact.payload->>'repo_id' = ANY($9::text[])
+              OR fact.payload->'scope'->>'repository_id' = ANY($9::text[])
+              OR fact.scope_id = ANY($9::text[])
+              OR fact.payload->>'scope_id' = ANY($9::text[])
+              OR scope.source_key = ANY($9::text[])
+              OR scope.payload->>'repo_id' = ANY($9::text[])
+              OR scope.payload->>'id' = ANY($9::text[])
+          )
+          AND LOWER(COALESCE(
+              fact.payload->'parsed_file_data'->>'language',
+              fact.payload->>'language',
+              ''
+          )) IN ('javascript', 'jsx', 'typescript', 'tsx')
+      )
       OR fact.payload->>'image_ref' = ANY($8::text[])
   )
-  AND ($9 = '' OR fact.fact_id > $9)
+  AND ($10 = '' OR fact.fact_id > $10)
 ORDER BY fact.fact_id ASC
-LIMIT $10
+LIMIT $11
 `
 
 // ListActiveSupplyChainImpactFacts loads active package, SBOM, image, and risk
@@ -108,11 +128,13 @@ func (s FactStore) ListActiveSupplyChainImpactFacts(
 	filter.DocumentIDs = cleanStringFilterValues(filter.DocumentIDs)
 	filter.ProductCriteria = cleanStringFilterValues(filter.ProductCriteria)
 	filter.RepositoryIDs = cleanStringFilterValues(filter.RepositoryIDs)
+	filter.FileRepositoryIDs = cleanStringFilterValues(filter.FileRepositoryIDs)
 	filter.ImageRefs = cleanStringFilterValues(filter.ImageRefs)
 	if len(filter.PackageIDs) == 0 && len(filter.PURLs) == 0 &&
 		len(filter.CVEIDs) == 0 && len(filter.SubjectDigests) == 0 &&
 		len(filter.DocumentIDs) == 0 && len(filter.ProductCriteria) == 0 &&
-		len(filter.RepositoryIDs) == 0 && len(filter.ImageRefs) == 0 {
+		len(filter.RepositoryIDs) == 0 && len(filter.FileRepositoryIDs) == 0 &&
+		len(filter.ImageRefs) == 0 {
 		return nil, nil
 	}
 
@@ -147,6 +169,7 @@ func (s FactStore) listActiveSupplyChainImpactFactsPage(
 		filter.DocumentIDs,
 		filter.RepositoryIDs,
 		filter.ImageRefs,
+		filter.FileRepositoryIDs,
 		cursorFactID,
 		listFactsByKindPageSize,
 	)
@@ -157,7 +180,7 @@ func (s FactStore) listActiveSupplyChainImpactFactsPage(
 
 	loaded := make([]facts.Envelope, 0,
 		len(filter.PackageIDs)+len(filter.PURLs)+len(filter.CVEIDs)+len(filter.SubjectDigests)+
-			len(filter.DocumentIDs)+len(filter.ProductCriteria))
+			len(filter.DocumentIDs)+len(filter.ProductCriteria)+len(filter.FileRepositoryIDs))
 	for rows.Next() {
 		envelope, scanErr := scanFactEnvelope(rows)
 		if scanErr != nil {

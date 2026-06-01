@@ -34,8 +34,11 @@ func TestBuildSupplyChainImpactFindingsUsesOwnedLockfileVersion(t *testing.T) {
 	if got.RepositoryID != testImpactRepositoryID {
 		t.Fatalf("RepositoryID = %q, want %q", got.RepositoryID, testImpactRepositoryID)
 	}
-	if got.RuntimeReachability != "package_manifest" {
-		t.Fatalf("RuntimeReachability = %q, want package_manifest", got.RuntimeReachability)
+	if got.RuntimeReachability != jsTSPackageAPIMissingEvidence {
+		t.Fatalf("RuntimeReachability = %q, want JS/TS package API missing evidence", got.RuntimeReachability)
+	}
+	if !stringSliceContains(got.MissingEvidence, jsTSParserOrSCIPMissingReason) {
+		t.Fatalf("MissingEvidence = %#v, want JS/TS parser or SCIP package API gap", got.MissingEvidence)
 	}
 	assertNotContainsString(t, got.MissingEvidence, "image or SBOM attachment evidence missing")
 	path := strings.Join(got.EvidencePath, " -> ")

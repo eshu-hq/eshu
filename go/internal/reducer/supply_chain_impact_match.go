@@ -458,7 +458,7 @@ func missingImpactEvidence(finding SupplyChainImpactFinding) []string {
 		missing = append(missing, "repository dependency evidence missing")
 	}
 	if finding.SubjectDigest == "" && finding.RuntimeReachability != "known_fixed" &&
-		finding.RuntimeReachability != "package_manifest" {
+		!supplyChainReachabilityHasPackageAnchor(finding.RuntimeReachability) {
 		missing = append(missing, "image or SBOM attachment evidence missing")
 	}
 	if finding.RuntimeReachability != "known_fixed" && len(finding.Environments) == 0 {
@@ -471,4 +471,20 @@ func missingImpactEvidence(finding SupplyChainImpactFinding) []string {
 		missing = append(missing, "service evidence missing")
 	}
 	return uniqueSortedStrings(missing)
+}
+
+func supplyChainReachabilityHasPackageAnchor(runtimeReachability string) bool {
+	switch runtimeReachability {
+	case "package_manifest",
+		jsTSPackageAPICallEvidence,
+		jsTSPackageAPIImportEvidence,
+		jsTSPackageAPIReExportEvidence,
+		jsTSPackageAPISCIPCallEvidence,
+		jsTSPackageAPIUnknownEvidence,
+		jsTSPackageAPIAmbiguousEvidence,
+		jsTSPackageAPIMissingEvidence:
+		return true
+	default:
+		return false
+	}
 }

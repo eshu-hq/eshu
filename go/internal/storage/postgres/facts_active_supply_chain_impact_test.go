@@ -30,8 +30,8 @@ func TestListActiveSupplyChainImpactFactsQueryIsPackageBoundedAndPaged(t *testin
 		"fact.payload->>'document_id' = ANY($6::text[])",
 		"fact.payload->>'repository_id' = ANY($7::text[])",
 		"fact.payload->>'image_ref' = ANY($8::text[])",
-		"fact.fact_id > $9",
-		"LIMIT $10",
+		"fact.fact_id > $10",
+		"LIMIT $11",
 	} {
 		if !strings.Contains(listActiveSupplyChainImpactFactsQuery, want) {
 			t.Fatalf("listActiveSupplyChainImpactFactsQuery missing %q:\n%s", want, listActiveSupplyChainImpactFactsQuery)
@@ -69,6 +69,7 @@ func TestListActiveSupplyChainImpactFactsQueryBoundsRepositoryFollowUp(t *testin
 		"'reducer_ci_cd_run_correlation',\n              'reducer_service_catalog_correlation'",
 		"'reducer_workload_identity'",
 		"fact.payload->>'repository_id' = ANY($7::text[])",
+		"fact.payload->>'repo_id' = ANY($7::text[])",
 		"fact.payload->'scope'->>'repository_id' = ANY($7::text[])",
 		"fact.scope_id = ANY($7::text[])",
 		"fact.payload->>'scope_id' = ANY($7::text[])",
@@ -82,6 +83,36 @@ func TestListActiveSupplyChainImpactFactsQueryBoundsRepositoryFollowUp(t *testin
 	}
 	if strings.Contains(listActiveSupplyChainImpactFactsQuery, "OR fact.payload->>'repository_id' = ANY($7::text[])") {
 		t.Fatalf("repository_id follow-up must be fact-kind gated:\n%s", listActiveSupplyChainImpactFactsQuery)
+	}
+}
+
+func TestListActiveSupplyChainImpactFactsQuerySeparatesParserFileFollowUp(t *testing.T) {
+	t.Parallel()
+
+	repositoryBranchStart := strings.Index(listActiveSupplyChainImpactFactsQuery, "fact.fact_kind IN (\n              'vulnerability.suppression'")
+	if repositoryBranchStart < 0 {
+		t.Fatalf("repository follow-up branch missing:\n%s", listActiveSupplyChainImpactFactsQuery)
+	}
+	repositoryBranchEnd := strings.Index(listActiveSupplyChainImpactFactsQuery[repositoryBranchStart:], "OR (\n          fact.fact_kind = 'file'")
+	if repositoryBranchEnd < 0 {
+		t.Fatalf("repository follow-up branch end missing:\n%s", listActiveSupplyChainImpactFactsQuery)
+	}
+	repositoryBranch := listActiveSupplyChainImpactFactsQuery[repositoryBranchStart : repositoryBranchStart+repositoryBranchEnd]
+	if strings.Contains(repositoryBranch, "'file'") {
+		t.Fatalf("repository follow-up branch must not load parser file facts:\n%s", repositoryBranch)
+	}
+
+	for _, want := range []string{
+		"fact.fact_kind = 'file'",
+		"ANY($9::text[])",
+		"fact.payload->'parsed_file_data'->>'language'",
+		"'javascript', 'jsx', 'typescript', 'tsx'",
+		"fact.fact_id > $10",
+		"LIMIT $11",
+	} {
+		if !strings.Contains(listActiveSupplyChainImpactFactsQuery, want) {
+			t.Fatalf("listActiveSupplyChainImpactFactsQuery missing %q:\n%s", want, listActiveSupplyChainImpactFactsQuery)
+		}
 	}
 }
 

@@ -208,6 +208,23 @@ constructor with `InstrumentedDB{Inner: db, StoreName: "my_store", ...}`.
   Reducer reconciliation keeps provider-scoped repository IDs separate from
   canonical `repository_id` values, so Postgres fact payloads should preserve
   both when the source uses a provider-owned repository namespace.
+- Supply-chain impact parser-file follow-up is separate from normal repository
+  follow-up. Repository IDs still load bounded context facts such as workload,
+  service, image, CI/CD, and suppression evidence, but active `file` facts only
+  load through the JS/TS parser-file repository filter and the SQL language
+  predicate for JavaScript, JSX, TypeScript, and TSX. Non-JS/npm findings must
+  not use broad repository IDs to pull every active file fact for a repository.
+  No-Regression Evidence: `go test ./internal/reducer -run
+  'TestSupplyChainImpactHandlerRequestsParserFilesOnlyForNPMReachability|TestBuildSupplyChainImpactFindingsUsesJSTSPackageAPIReachability|TestBuildSupplyChainImpactFindingsKeepsJSTSMissingAndAmbiguousEvidenceExplicit'
+  -count=1` and `go test ./internal/storage/postgres -run
+  'TestListActiveSupplyChainImpactFactsQuerySeparatesParserFileFollowUp|TestListActiveSupplyChainImpactFactsQueryBoundsRepositoryFollowUp'
+  -count=1` prove non-JS/npm repository follow-up excludes parser files while
+  npm JS/TS reachability still requests JS/TS file evidence.
+  No-Observability-Change: the change only narrows the existing
+  `FactStore.ListActiveSupplyChainImpactFacts` SQL predicate and reducer filter
+  keys; operators continue to diagnose the path through
+  `eshu_dp_postgres_query_duration_seconds`, reducer run spans/counters, and
+  durable supply-chain impact finding payloads.
 - Advisory evidence reads stay bounded by first-class advisory identity fields,
   package IDs, or PURLs before active-generation validation. Performance
   Evidence: issue #868 changed the read path from a broad active vulnerability

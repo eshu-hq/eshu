@@ -32,14 +32,15 @@ func supplyChainImpactFollowUpFilter(
 	current SupplyChainImpactFactFilter,
 ) SupplyChainImpactFactFilter {
 	return SupplyChainImpactFactFilter{
-		PackageIDs:      missingStringValues(current.PackageIDs, requested.PackageIDs),
-		PURLs:           missingStringValues(current.PURLs, requested.PURLs),
-		CVEIDs:          missingStringValues(current.CVEIDs, requested.CVEIDs),
-		SubjectDigests:  missingStringValues(current.SubjectDigests, requested.SubjectDigests),
-		DocumentIDs:     missingStringValues(current.DocumentIDs, requested.DocumentIDs),
-		ProductCriteria: missingStringValues(current.ProductCriteria, requested.ProductCriteria),
-		RepositoryIDs:   missingStringValues(current.RepositoryIDs, requested.RepositoryIDs),
-		ImageRefs:       missingStringValues(current.ImageRefs, requested.ImageRefs),
+		PackageIDs:        missingStringValues(current.PackageIDs, requested.PackageIDs),
+		PURLs:             missingStringValues(current.PURLs, requested.PURLs),
+		CVEIDs:            missingStringValues(current.CVEIDs, requested.CVEIDs),
+		SubjectDigests:    missingStringValues(current.SubjectDigests, requested.SubjectDigests),
+		DocumentIDs:       missingStringValues(current.DocumentIDs, requested.DocumentIDs),
+		ProductCriteria:   missingStringValues(current.ProductCriteria, requested.ProductCriteria),
+		RepositoryIDs:     missingStringValues(current.RepositoryIDs, requested.RepositoryIDs),
+		FileRepositoryIDs: missingStringValues(current.FileRepositoryIDs, requested.FileRepositoryIDs),
+		ImageRefs:         missingStringValues(current.ImageRefs, requested.ImageRefs),
 	}
 }
 
@@ -53,17 +54,19 @@ func mergeSupplyChainImpactFactFilters(filters ...SupplyChainImpactFactFilter) S
 		merged.DocumentIDs = append(merged.DocumentIDs, filter.DocumentIDs...)
 		merged.ProductCriteria = append(merged.ProductCriteria, filter.ProductCriteria...)
 		merged.RepositoryIDs = append(merged.RepositoryIDs, filter.RepositoryIDs...)
+		merged.FileRepositoryIDs = append(merged.FileRepositoryIDs, filter.FileRepositoryIDs...)
 		merged.ImageRefs = append(merged.ImageRefs, filter.ImageRefs...)
 	}
 	return SupplyChainImpactFactFilter{
-		PackageIDs:      uniqueSortedStrings(merged.PackageIDs),
-		PURLs:           uniqueSortedStrings(merged.PURLs),
-		CVEIDs:          uniqueSortedStrings(merged.CVEIDs),
-		SubjectDigests:  uniqueSortedStrings(merged.SubjectDigests),
-		DocumentIDs:     uniqueSortedStrings(merged.DocumentIDs),
-		ProductCriteria: uniqueSortedStrings(merged.ProductCriteria),
-		RepositoryIDs:   uniqueSortedStrings(merged.RepositoryIDs),
-		ImageRefs:       uniqueSortedStrings(merged.ImageRefs),
+		PackageIDs:        uniqueSortedStrings(merged.PackageIDs),
+		PURLs:             uniqueSortedStrings(merged.PURLs),
+		CVEIDs:            uniqueSortedStrings(merged.CVEIDs),
+		SubjectDigests:    uniqueSortedStrings(merged.SubjectDigests),
+		DocumentIDs:       uniqueSortedStrings(merged.DocumentIDs),
+		ProductCriteria:   uniqueSortedStrings(merged.ProductCriteria),
+		RepositoryIDs:     uniqueSortedStrings(merged.RepositoryIDs),
+		FileRepositoryIDs: uniqueSortedStrings(merged.FileRepositoryIDs),
+		ImageRefs:         uniqueSortedStrings(merged.ImageRefs),
 	}
 }
 
@@ -157,19 +160,80 @@ func supplyChainImpactFilter(envelopes []facts.Envelope) SupplyChainImpactFactFi
 		}
 	}
 	return SupplyChainImpactFactFilter{
-		PackageIDs:      uniqueSortedStrings(packageIDs),
-		PURLs:           uniqueSortedStrings(purls),
-		CVEIDs:          uniqueSortedStrings(cveIDs),
-		SubjectDigests:  uniqueSortedStrings(digests),
-		DocumentIDs:     uniqueSortedStrings(documentIDs),
-		ProductCriteria: uniqueSortedStrings(productCriteria),
-		RepositoryIDs:   uniqueSortedStrings(repositoryIDs),
-		ImageRefs:       uniqueSortedStrings(imageRefs),
+		PackageIDs:        uniqueSortedStrings(packageIDs),
+		PURLs:             uniqueSortedStrings(purls),
+		CVEIDs:            uniqueSortedStrings(cveIDs),
+		SubjectDigests:    uniqueSortedStrings(digests),
+		DocumentIDs:       uniqueSortedStrings(documentIDs),
+		ProductCriteria:   uniqueSortedStrings(productCriteria),
+		RepositoryIDs:     uniqueSortedStrings(repositoryIDs),
+		FileRepositoryIDs: supplyChainImpactParserFileRepositoryIDs(envelopes),
+		ImageRefs:         uniqueSortedStrings(imageRefs),
 	}
 }
 
 func (f SupplyChainImpactFactFilter) empty() bool {
 	return len(f.PackageIDs) == 0 && len(f.PURLs) == 0 && len(f.CVEIDs) == 0 &&
 		len(f.SubjectDigests) == 0 && len(f.DocumentIDs) == 0 && len(f.ProductCriteria) == 0 &&
-		len(f.RepositoryIDs) == 0 && len(f.ImageRefs) == 0
+		len(f.RepositoryIDs) == 0 && len(f.FileRepositoryIDs) == 0 && len(f.ImageRefs) == 0
+}
+
+func supplyChainImpactParserFileRepositoryIDs(envelopes []facts.Envelope) []string {
+	affectedByPackageID, affectedGroups := npmAffectedPackages(envelopes)
+	if len(affectedByPackageID) == 0 {
+		return nil
+	}
+
+	var repositoryIDs []string
+	for _, envelope := range envelopes {
+		if envelope.FactKind != packageConsumptionCorrelationFactKind {
+			continue
+		}
+		consumption := supplyChainConsumptionFromEnvelope(envelope)
+		if consumption.repositoryID == "" {
+			continue
+		}
+		if _, ok := affectedByPackageID[consumption.packageID]; ok {
+			repositoryIDs = append(repositoryIDs, consumption.repositoryID)
+		}
+	}
+
+	for _, dependency := range extractPackageManifestDependencies(envelopes) {
+		if dependency.RepositoryID == "" {
+			continue
+		}
+		dependencyKeys := stringSet(packageConsumptionKeys(dependency.PackageManager, dependency.DependencyName))
+		if len(dependencyKeys) == 0 {
+			continue
+		}
+		for _, affected := range manifestAffectedPackageMatches(affectedGroups) {
+			if manifestDependencyMatchesAffectedPackage(dependencyKeys, affected.keys) {
+				repositoryIDs = append(repositoryIDs, dependency.RepositoryID)
+				break
+			}
+		}
+	}
+
+	return uniqueSortedStrings(repositoryIDs)
+}
+
+func npmAffectedPackages(envelopes []facts.Envelope) (map[string]struct{}, map[string][]supplyChainAffectedPackage) {
+	byPackageID := map[string]struct{}{}
+	groups := map[string][]supplyChainAffectedPackage{}
+	for _, envelope := range envelopes {
+		if envelope.FactKind != facts.VulnerabilityAffectedPackageFactKind {
+			continue
+		}
+		pkg := supplyChainAffectedPackageFromEnvelope(envelope)
+		if normalizedSupplyChainVersionEcosystem(pkg.ecosystem) != "npm" {
+			continue
+		}
+		if pkg.packageID != "" {
+			byPackageID[pkg.packageID] = struct{}{}
+		}
+		if pkg.cveID != "" {
+			groups[pkg.cveID] = append(groups[pkg.cveID], pkg)
+		}
+	}
+	return byPackageID, groups
 }
