@@ -15,6 +15,23 @@ const canonicalPhaseObservabilityCoverageEdge = "observability_coverage_edge"
 // edge statement metadata and the edge-projection counter dimension.
 const observabilityCoverageEdgeLabel = "AWS_COVERS"
 
+// observabilityCoverageSignalVocabulary is the closed set of coverage signals
+// the COVERS projection is allowed to turn into an AWS_COVERS_<signal>
+// relationship type. It is the single enforcement point for the schema-surface
+// contract: a token outside this set is rejected rather than interpolated into a
+// new relationship type, so a deviating or adversarial upstream signal can never
+// silently fabricate AWS_COVERS_<token>. The members mirror the reducer's
+// coverageSignal* vocabulary; the duplication is intentional because the cypher
+// writer owns the relationship-type position and must not depend on reducer
+// internals.
+var observabilityCoverageSignalVocabulary = map[string]struct{}{
+	"alarm":           {},
+	"composite_alarm": {},
+	"dashboard":       {},
+	"log_group":       {},
+	"trace_sampling":  {},
+}
+
 // canonicalObservabilityCoverageEdgeUpsertCypherFormat batches COVERS edge
 // upserts between two already-materialized CloudResource nodes: the
 // observability object (alarm/dashboard/log group/X-Ray) and the monitored
@@ -139,10 +156,13 @@ func (w *ObservabilityCoverageEdgeWriter) WriteObservabilityCoverageEdges(
 
 // canonicalObservabilityCoverageCypherType validates the coverage signal and
 // returns the sanitized static relationship token (AWS_COVERS_<signal>). The
-// signal must be a closed-vocabulary token (alarm, composite_alarm, dashboard,
-// log_group, trace_sampling); rejecting anything else keeps injected text out of
+// signal must be a member of the closed coverage vocabulary (alarm,
+// composite_alarm, dashboard, log_group, trace_sampling); membership is checked
+// against observabilityCoverageSignalVocabulary, not just the character class, so
+// a charset-safe but out-of-vocabulary token (or injected text) can never reach
 // the relationship-type position, which is interpolated into Cypher and cannot
-// be parameterized.
+// be parameterized. The character-class screen runs first to keep the error for
+// unsafe input precise before the allowlist check.
 func canonicalObservabilityCoverageCypherType(row map[string]any) (string, error) {
 	raw, ok := row["coverage_signal"].(string)
 	if !ok || raw == "" || raw != strings.TrimSpace(raw) {
@@ -154,6 +174,9 @@ func canonicalObservabilityCoverageCypherType(row map[string]any) (string, error
 			continue
 		}
 		return "", fmt.Errorf("observability coverage_signal %q contains unsupported character %q", raw, ch)
+	}
+	if _, ok := observabilityCoverageSignalVocabulary[raw]; !ok {
+		return "", fmt.Errorf("observability coverage_signal %q is outside the closed coverage vocabulary", raw)
 	}
 	return observabilityCoverageEdgeLabel + "_" + raw, nil
 }

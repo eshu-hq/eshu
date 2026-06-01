@@ -14,9 +14,13 @@ type observabilityCoverageEdgeTally struct {
 	// materialized counts COVERS edges written, keyed by coverage signal
 	// (alarm / composite_alarm / dashboard / log_group / trace_sampling).
 	materialized map[string]int
-	// skipped counts exact/derived coverage decisions that did NOT produce an
-	// edge because they resolved no target CloudResource uid (e.g. X-Ray service
+	// skipped counts derived coverage decisions that did NOT produce an edge
+	// because they resolved no target CloudResource uid (e.g. X-Ray service
 	// coverage), keyed by coverage signal. Counted, never silently dropped.
+	// Only derived qualifies: the classifier guarantees an exact decision always
+	// carries a non-empty TargetUID (so exact is never skipped), and
+	// ambiguous/unresolved/stale/rejected are gaps or drift, not reachable
+	// coverage. This matches totalSkipped and the completion-log accounting.
 	skipped map[string]int
 }
 

@@ -137,6 +137,56 @@ func TestObservabilityCoverageEdgeWriterRejectsUnsafeSignal(t *testing.T) {
 	}
 }
 
+func TestObservabilityCoverageEdgeWriterRejectsOutOfVocabularySignal(t *testing.T) {
+	t.Parallel()
+
+	// A token can be character-safe yet still not belong to the closed coverage
+	// vocabulary (alarm/composite_alarm/dashboard/log_group/trace_sampling). The
+	// writer must reject it so a deviating upstream signal cannot fabricate a new
+	// AWS_COVERS_<token> relationship type and silently grow the schema surface.
+	executor := &recordingExecutor{}
+	writer := NewObservabilityCoverageEdgeWriter(executor, 0)
+	rows := observabilityCoverageEdgeRows(1)
+	rows[0]["coverage_signal"] = "metric_filter"
+
+	err := writer.WriteObservabilityCoverageEdges(context.Background(), rows, "scope-1", "gen-1", "reducer/observability-coverage")
+	if err == nil {
+		t.Fatal("WriteObservabilityCoverageEdges returned nil, want out-of-vocabulary coverage_signal error")
+	}
+	if len(executor.calls) != 0 {
+		t.Fatalf("len(calls) = %d, want 0 when coverage_signal is out of vocabulary", len(executor.calls))
+	}
+}
+
+func TestObservabilityCoverageEdgeWriterAcceptsEveryClosedVocabularySignal(t *testing.T) {
+	t.Parallel()
+
+	// Every member of the closed vocabulary must still produce its own
+	// AWS_COVERS_<signal> relationship type; the allowlist tightens the gate
+	// without dropping any contract signal.
+	for _, signal := range []string{"alarm", "composite_alarm", "dashboard", "log_group", "trace_sampling"} {
+		signal := signal
+		t.Run(signal, func(t *testing.T) {
+			t.Parallel()
+			executor := &recordingExecutor{}
+			writer := NewObservabilityCoverageEdgeWriter(executor, 0)
+			rows := observabilityCoverageEdgeRows(1)
+			rows[0]["coverage_signal"] = signal
+
+			if err := writer.WriteObservabilityCoverageEdges(context.Background(), rows, "scope-1", "gen-1", "reducer/observability-coverage"); err != nil {
+				t.Fatalf("WriteObservabilityCoverageEdges(%q) returned error: %v", signal, err)
+			}
+			if len(executor.calls) != 1 {
+				t.Fatalf("len(calls) = %d, want 1 for closed-vocabulary signal %q", len(executor.calls), signal)
+			}
+			want := "MERGE (obs)-[rel:AWS_COVERS_" + signal + "]->(target)"
+			if !strings.Contains(executor.calls[0].Cypher, want) {
+				t.Fatalf("missing %q in:\n%s", want, executor.calls[0].Cypher)
+			}
+		})
+	}
+}
+
 func TestObservabilityCoverageEdgeWriterBatchesRows(t *testing.T) {
 	t.Parallel()
 
