@@ -154,6 +154,20 @@ Analyzer, target, limit, failure, fact-kind, outcome, and result labels must
 come from bounded enums. Raw repository paths, image names, registry URLs,
 package coordinates, bucket keys, and source locators stay out of labels.
 
+The bounded `image_unpacking` analyzer
+(`internal/collector/scannerworker/imageanalyzer`) reuses these signals without
+introducing new metric instruments, spans, log keys, or queues. The hosted
+scanner worker wires configured `image_targets` whose local `rootfs_path` or
+ordered `layer_paths` are read under scanner-worker resource limits. Emitted
+`vulnerability.os_package`, `vulnerability.warning`, and
+`scanner_worker.warning` source facts appear on
+`eshu_dp_scanner_worker_facts_emitted_total` with
+`analyzer="image_unpacking"` and bounded `fact_kind` labels. Unsupported image
+shapes surface as warning facts with an `extraction_reason`; local source
+unavailability and resource-limit breaches surface through the existing
+retry/dead-letter metric vocabulary without raw paths, image names, registry
+URLs, package names, or layer locators in labels.
+
 The bounded `sbom_generation` analyzer
 (`internal/collector/scannerworker/sbomgenerator`) reuses these signals
 without introducing new metric instruments, spans, log keys, or queues. The

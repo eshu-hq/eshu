@@ -9,6 +9,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector/ospackagevulnerability/osruntime"
 	"github.com/eshu-hq/eshu/go/internal/collector/scannerworker"
+	"github.com/eshu-hq/eshu/go/internal/collector/scannerworker/imageanalyzer"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/workflow"
 )
@@ -39,13 +40,15 @@ type runtimeConfig struct {
 	Limits            scannerworker.ResourceLimits
 	SBOMTargets       []sbomTargetConfig
 	OSPackageTargets  []osruntime.TargetConfig
+	ImageTargets      []imageanalyzer.TargetConfig
 }
 
 type scannerInstanceConfig struct {
-	Analyzer         string                   `json:"analyzer"`
-	ResourceLimits   resourceLimitsJSON       `json:"resource_limits"`
-	SBOMTargets      []sbomTargetConfig       `json:"sbom_targets"`
-	OSPackageTargets []osruntime.TargetConfig `json:"os_package_targets"`
+	Analyzer         string                       `json:"analyzer"`
+	ResourceLimits   resourceLimitsJSON           `json:"resource_limits"`
+	SBOMTargets      []sbomTargetConfig           `json:"sbom_targets"`
+	OSPackageTargets []osruntime.TargetConfig     `json:"os_package_targets"`
+	ImageTargets     []imageanalyzer.TargetConfig `json:"image_targets"`
 }
 
 type resourceLimitsJSON struct {
@@ -111,6 +114,7 @@ func loadRuntimeConfig(getenv func(string) string) (runtimeConfig, error) {
 		Limits:            limits,
 		SBOMTargets:       decoded.SBOMTargets,
 		OSPackageTargets:  decoded.OSPackageTargets,
+		ImageTargets:      decoded.ImageTargets,
 	}, nil
 }
 

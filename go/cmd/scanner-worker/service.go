@@ -13,6 +13,7 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/collector/ospackagevulnerability/osruntime"
 	"github.com/eshu-hq/eshu/go/internal/collector/scannerworker"
+	"github.com/eshu-hq/eshu/go/internal/collector/scannerworker/imageanalyzer"
 	"github.com/eshu-hq/eshu/go/internal/collector/scannerworker/sbomgenerator"
 	"github.com/eshu-hq/eshu/go/internal/scope"
 	"github.com/eshu-hq/eshu/go/internal/storage/postgres"
@@ -62,6 +63,12 @@ func buildService(
 // an explicit warning fact instead of pretending the target scanned clean.
 func buildAnalyzer(config runtimeConfig) (scannerworker.Analyzer, error) {
 	switch config.Analyzer {
+	case scannerworker.AnalyzerImageUnpacking:
+		return imageanalyzer.NewAnalyzer(imageanalyzer.AnalyzerConfig{
+			CollectorInstanceID: config.Instance.InstanceID,
+			Targets:             config.ImageTargets,
+			Now:                 time.Now,
+		})
 	case scannerworker.AnalyzerOSPackageExtraction:
 		return osruntime.NewAnalyzer(osruntime.AnalyzerConfig{
 			CollectorInstanceID: config.Instance.InstanceID,

@@ -213,3 +213,45 @@ func TestLoadRuntimeConfigParsesOSPackageTargets(t *testing.T) {
 		t.Fatalf("Distro = %q, want %q", got, want)
 	}
 }
+
+func TestLoadRuntimeConfigParsesImageAnalyzerTargets(t *testing.T) {
+	t.Parallel()
+
+	env := map[string]string{
+		envCollectorInstances: `[{
+			"instance_id":"scanner-worker-image",
+			"collector_kind":"scanner_worker",
+			"mode":"continuous",
+			"enabled":true,
+			"claims_enabled":true,
+			"configuration":{
+				"analyzer":"image_unpacking",
+				"image_targets":[{
+					"scope_id":"image://registry.example/team/app@sha256:deadbeef",
+					"rootfs_path":"/var/lib/eshu/scanner/rootfs/deadbeef",
+					"layer_paths":["/var/lib/eshu/scanner/layers/deadbeef.tar.gz"],
+					"source_uri":"oci://registry.example/team/app@sha256:deadbeef",
+					"source_record_id":"sha256:deadbeef",
+					"image_reference":"registry.example/team/app:1.2.3",
+					"image_digest":"sha256:deadbeef",
+					"distro":"alpine",
+					"distro_version":"3.19.1"
+				}]
+			}
+		}]`,
+	}
+
+	config, err := loadRuntimeConfig(func(key string) string { return env[key] })
+	if err != nil {
+		t.Fatalf("loadRuntimeConfig() error = %v, want nil", err)
+	}
+	if got, want := config.Analyzer, scannerworker.AnalyzerImageUnpacking; got != want {
+		t.Fatalf("Analyzer = %q, want %q", got, want)
+	}
+	if got, want := len(config.ImageTargets), 1; got != want {
+		t.Fatalf("ImageTargets len = %d, want %d", got, want)
+	}
+	if got, want := config.ImageTargets[0].ImageReference, "registry.example/team/app:1.2.3"; got != want {
+		t.Fatalf("ImageReference = %q, want %q", got, want)
+	}
+}
