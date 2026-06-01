@@ -55,9 +55,9 @@ flowchart TB
 5. `NewWorkflowControlStore` wraps the connection as the `Store`
    implementation.
 6. `coordinator.Service` is wired with all dependencies, including
-   Terraform-state, OCI registry, package registry, scheduled AWS, AWS
-   freshness, PagerDuty, and Jira planners, plus freshness trigger stores, and
-   handed to
+   Terraform-state, OCI registry, package registry, vulnerability installed
+   advisory target readers, scheduled AWS, AWS freshness, PagerDuty, and Jira
+   planners, plus freshness trigger stores, and handed to
    `NewHostedWithStatusServer`, which mounts the admin surface.
 7. `NotifyContext` installs SIGINT/SIGTERM shutdown; `Service.Run` blocks
    until the context is cancelled.
@@ -132,10 +132,11 @@ The direct process contract includes `eshu-workflow-coordinator --version` and
   ESHU_WORKFLOW_COORDINATOR_CLAIMS_ENABLED=true, and supply at least one
   enabled claim-capable collector instance in ESHU_COLLECTOR_INSTANCES_JSON.
   `Config.Validate` rejects active mode without these conditions.
-- Active mode plans Terraform-state, OCI registry, package registry, and
-  opt-in scheduled AWS work today. AWS, PagerDuty, and Jira freshness webhooks
-  create targeted collector work only after the configured `scope_id` is
-  authorized against durable collector instances.
+- Active mode plans Terraform-state, OCI registry, package registry,
+  vulnerability-intelligence installed advisory target work, and opt-in
+  scheduled AWS work today. AWS, PagerDuty, and Jira freshness webhooks create
+  targeted collector work only after the configured `scope_id` is authorized
+  against durable collector instances.
 - The binary does not reconcile canonical graph truth. It is a control plane on
   top of `eshu-reducer` and `eshu-ingester`.
 - Shutdown is signal-driven (SIGINT or SIGTERM). `NewHostedWithStatusServer`

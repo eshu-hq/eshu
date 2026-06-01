@@ -21,7 +21,8 @@ reducer/query adapter.
 
 - `FactStore` / `NewFactStore` — `UpsertFacts`, `LoadFacts`, `ListFacts`,
   `ListFactsByKind`, `ListFactsByKindAndPayloadValue`,
-  `ListActiveRepositoryFacts`, `CountFacts`
+  `ListActiveRepositoryFacts`, `CountFacts`,
+  `ListOSPackageAdvisoryTargets`, and `ListSBOMComponentAdvisoryTargets`
 - `AWSCloudRuntimeDriftFindingStore` /
   `NewAWSCloudRuntimeDriftFindingStore` — active-generation reads over
   `reducer_aws_cloud_runtime_drift_finding` facts for the IaC management API;

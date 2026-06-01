@@ -83,6 +83,8 @@ Primary groups:
 - Database adapters: `ExecQueryer`, `Transaction`, `Beginner`, `SQLDB`,
   `SQLTx`, `InstrumentedDB`.
 - Fact, queue, recovery, status, workflow, and webhook stores.
+- Installed advisory target readers for active OS package and active attached
+  SBOM component evidence used by vulnerability-intelligence planning.
 - Content stores and content writers, including bounded entity-batch
   concurrency and Postgres pool-budget notes.
 - Graph projection phase, shared projection intent, acceptance, freshness, and
@@ -183,6 +185,17 @@ constructor with `InstrumentedDB{Inner: db, StoreName: "my_store", ...}`.
   Swift OSV planning can send the source Git URL required by OSV `SwiftURL`.
   The rotation offset lets bounded full-corpus runs advance past the first
   sorted page without changing worker counts or query scope.
+- `ListOSPackageAdvisoryTargets` and `ListSBOMComponentAdvisoryTargets` serve
+  vulnerability-intelligence installed-evidence derivation. OS package reads
+  stay on active `vulnerability.os_package` facts joined to the active
+  generation and filtered by vendor advisory source/distro ecosystem. SBOM
+  component reads stay on active `sbom.component` facts that have active
+  same-scope attached `reducer_sbom_attestation_attachment` evidence and filter
+  by PURL ecosystem before applying the bounded rotated limit. SBOM rows derive
+  exact package identity from the PURL; component payload versions that
+  conflict with the PURL version are dropped before planning. The readers return
+  exact source facts only; the coordinator owns admission and partial-evidence
+  skip reasons.
 - `ListActivePackageManifestDependencyFacts` serves both package-source
   correlation and supply-chain impact. The query stays indexed on active Git
   dependency entities by `(package_manager, entity_name)`, so vulnerability
@@ -306,6 +319,14 @@ claim status, and `/api/v0/index-status` expose whether derived targets were
 planned, repeated, completed, retried, or failed. The target reader adds no new
 metric labels and does not include package names or versions in telemetry
 labels.
+
+No-Regression Evidence: `go test ./internal/storage/postgres -run 'List.*AdvisoryTargets' -count=1` proves installed advisory target SQL stays active-generation scoped, bounded, ecosystem-filtered, and attached to SBOM subject evidence before the coordinator admits exact OSV targets.
+
+No-Observability-Change: installed advisory target readers use the existing
+`InstrumentedDB` query spans and `eshu_dp_postgres_query_duration_seconds`
+histogram. Store labels stay bounded to the configured store name and operation;
+package names, versions, PURLs, document IDs, subject digests, and advisory
+payloads are not metric labels.
 
 ## Related docs
 
