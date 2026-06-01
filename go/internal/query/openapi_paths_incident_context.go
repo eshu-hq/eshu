@@ -5,7 +5,7 @@ const openAPIPathsIncidentContext = `
       "get": {
         "tags": ["incidents"],
         "summary": "Get incident context",
-        "description": "Returns a bounded incident context packet from active incident source facts. The response includes provider incident state, timeline events, fallback change candidates, explicit evidence-path slots, missing evidence for unproven hops, deployable/image/runtime artifact evidence only when explicit service-catalog and reducer-owned runtime facts prove those links, build/commit evidence only when reducer-owned CI/CD run correlations match the selected image digest or reference, and PR/work-item enrichment only when provider PR evidence or Jira work-item evidence proves those hops.",
+        "description": "Returns a bounded incident context packet from active incident source facts. The response includes provider incident state, timeline events, intended/applied/live PagerDuty routing evidence, fallback change candidates, explicit evidence-path slots, missing evidence for unproven hops, deployable/image/runtime artifact evidence only when explicit service-catalog and reducer-owned runtime facts prove those links, build/commit evidence only when reducer-owned CI/CD run correlations match the selected image digest or reference, and PR/work-item enrichment only when provider PR evidence or Jira work-item evidence proves those hops.",
         "operationId": "getIncidentContext",
         "parameters": [
           {"name": "incident_id", "in": "path", "required": true, "schema": {"type": "string"}},
@@ -34,7 +34,7 @@ const openAPIPathsIncidentContext = `
                     },
                     "evidence_path": {
                       "type": "array",
-                      "description": "Ordered incident to service/deployable/runtime/image/build/commit/PR/work-item slots with exact, derived, fallback, ambiguous, or missing truth labels.",
+                      "description": "Ordered incident to service/routing/deployable/runtime/image/build/commit/PR/work-item slots with exact, derived, fallback, drifted, ambiguous, permission_hidden, unresolved, stale, rejected, or missing truth labels.",
                       "items": {"type": "object"}
                     },
                     "missing_evidence": {"type": "array", "items": {"type": "object"}},

@@ -446,6 +446,39 @@ dialect differences belong in `internal/storage/cypher` adapters behind the
 - `docs/public/reference/dead-code-reachability-spec.md` for the dead-code
   language maturity contract.
 
+## Incident context routing evidence (#1142)
+
+Incident context now includes three routing slots before deployable/runtime
+promotion:
+
+- `intended_routing` from Terraform-source `PagerDutyDeclaration` content rows.
+- `applied_routing` from active
+  `incident_routing.applied_pagerduty_resource` facts.
+- `live_routing` from active
+  `incident_routing.observed_pagerduty_service` facts and scoped
+  `incident_routing.coverage_warning` gaps.
+
+The read model keeps source classes separate. Terraform declarations explain
+intended routing, Terraform state explains applied routing, and live PagerDuty
+facts explain current provider state. These slots do not prove root cause,
+service health, deployable identity, image identity, commit, pull request, or
+Jira work-item truth. Those later slots still require their existing explicit
+service-catalog, reducer, provider-PR, and work-item evidence.
+
+No-Regression Evidence: `go test ./internal/query -run
+'TestBuildIncidentRoutingEvidence|TestIncidentContextRoutingQueriesStayBounded'
+-count=1` proves exact declared/applied/live convergence, no-IaC live-only
+PagerDuty evidence, live drift, permission-hidden coverage warnings,
+ambiguous declared routing, and bounded read-model SQL over `content_entities`
+plus active incident-routing facts.
+
+Observability Evidence: the route continues to run under
+`query.incident_context` with stable route and capability attributes. The new
+SQL reads are scoped by incident service id, service-name fingerprint, or active
+PagerDuty scope and are covered by the existing Postgres query spans and
+`eshu_dp_postgres_query_duration_seconds`; no new high-cardinality metric label
+is added.
+
 ## Package registry aggregate hot-path evidence (#689)
 
 The graph-backed package-registry aggregate (`package_registry_aggregates.go`,

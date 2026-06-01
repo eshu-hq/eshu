@@ -103,6 +103,10 @@ func (s PostgresIncidentContextStore) ReadIncidentContext(
 	if err != nil {
 		return IncidentContextSnapshot{}, err
 	}
+	routingEvidence, err := s.readIncidentRoutingEvidence(ctx, incident)
+	if err != nil {
+		return IncidentContextSnapshot{}, err
+	}
 	runtimeEvidence, err := s.readIncidentRuntimeEvidence(ctx, incident)
 	if err != nil {
 		return IncidentContextSnapshot{}, err
@@ -111,7 +115,8 @@ func (s PostgresIncidentContextStore) ReadIncidentContext(
 	if err != nil {
 		return IncidentContextSnapshot{}, err
 	}
-	evidencePath := append([]IncidentContextEvidenceEdge(nil), runtimeEvidence...)
+	evidencePath := append([]IncidentContextEvidenceEdge(nil), routingEvidence...)
+	evidencePath = append(evidencePath, runtimeEvidence...)
 	evidencePath = append(evidencePath, reviewEvidence...)
 
 	return IncidentContextSnapshot{

@@ -160,10 +160,11 @@ state into `supply_chain_impact` truth.
 provider-reported incident state, incident timeline entries, and related
 change-event evidence. PagerDuty emits these as reported source evidence.
 The incident-context read model may present provider state, timeline entries,
-fallback change candidates, and explicit missing path slots directly from these
-facts. Reducers and enrichment collectors must prove runtime artifact, image,
-build/deploy, commit, pull-request, and work-item evidence before those path
-slots become non-missing. Runtime and image slots require explicit
+declared/applied/live PagerDuty routing slots, fallback change candidates, and
+explicit missing path slots directly from these facts and the incident-routing
+source lanes. Reducers and enrichment collectors must prove runtime artifact,
+image, build/deploy, commit, pull-request, and work-item evidence before those
+path slots become non-missing. Runtime and image slots require explicit
 service-catalog operational-link evidence to the PagerDuty service URL plus
 reducer-owned catalog, container-image, or Kubernetes correlation facts; similar
 service names are not enough. Build/deploy and commit slots require
@@ -190,7 +191,9 @@ environment/workspace, module source fingerprint, module name, bounded input
 values, redaction state, and duplicate/malformed/unsupported outcomes. They do
 not require live PagerDuty credentials, do not run Terraform, and do not replace
 the observed `incident.*` or `change.*` facts emitted by the PagerDuty
-collector.
+collector. In incident-context reads, they fill the intended-routing slot only;
+applied and live routing still require Terraform-state or PagerDuty API source
+evidence.
 
 ## Promotion Rules
 

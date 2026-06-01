@@ -69,15 +69,18 @@
 // can decide whether and how to upgrade.
 //
 // Incident-context reads expose PagerDuty incident source facts as bounded
-// packets with provider state, timeline events, fallback service/time change
-// candidates, and explicit missing evidence slots. They do not call provider
-// APIs. Runtime and image slots are promoted only when an explicit
-// service-catalog operational link connects the PagerDuty service to a catalog
-// correlation and reducer-owned image or Kubernetes evidence proves the next
-// hop. Build/deploy and commit slots are promoted only from reducer-owned
-// CI/CD run correlations tied to the selected image digest or reference;
-// pull-request slots require provider pull-request evidence tied to that
-// commit. Jira work-item links enrich the path from explicit remote links or
-// issue-key evidence, but Jira-only pull-request URLs do not verify pull
+// packets with provider state, timeline events, PagerDuty intended/applied/live
+// routing evidence, fallback service/time change candidates, and explicit
+// missing evidence slots. They do not call provider APIs. Intended routing comes
+// from Terraform-source PagerDutyDeclaration content rows, applied routing from
+// Terraform-state incident-routing facts, and live routing from optional
+// PagerDuty API configuration facts. Runtime and image slots are promoted only
+// when an explicit service-catalog operational link connects the PagerDuty
+// service to a catalog correlation and reducer-owned image or Kubernetes
+// evidence proves the next hop. Build/deploy and commit slots are promoted only
+// from reducer-owned CI/CD run correlations tied to the selected image digest or
+// reference; pull-request slots require provider pull-request evidence tied to
+// that commit. Jira work-item links enrich the path from explicit remote links
+// or issue-key evidence, but Jira-only pull-request URLs do not verify pull
 // request identity by themselves.
 package query

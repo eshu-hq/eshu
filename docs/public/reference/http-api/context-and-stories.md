@@ -53,22 +53,36 @@ packet from collected source facts. `provider` defaults to `pagerduty`;
 `since`, and `until` bound fallback change candidates.
 
 The response always includes an ordered evidence path for incident, service,
+intended PagerDuty routing, applied PagerDuty routing, live PagerDuty routing,
 deployable, runtime artifact, image, build/deploy record, commit, pull request,
 and work item slots. Missing Jira, pull-request, runtime, image, build,
-deployable, or commit evidence is reported explicitly instead of omitted. When
-a service-catalog operational link exactly names the PagerDuty service URL,
-the read model can use reducer-owned catalog, container-image, and Kubernetes
-correlation facts to fill deployable, image, and runtime artifact slots. When
-CI/CD run correlation evidence names the selected image digest, build/deploy
-and commit slots can be exact; tag-only image-reference matches remain derived
-unless a later reducer fact proves an immutable artifact digest. When a
-GitHub merged-pull-request trigger names the selected commit, the pull request
-slot is exact provider evidence. Jira remote links to that provider-verified
-PR, direct PagerDuty incident links, or issue keys in the PR title can enrich
-the work-item slot, but Jira-only PR URLs do not verify pull-request identity.
-Fallback change candidates are labeled separately from exact provider evidence
-and from derived reducer edges, and name-only service or tag matches are not
-promoted.
+deployable, routing, or commit evidence is reported explicitly instead of
+omitted.
+
+Routing slots preserve source class. `intended_routing` comes from
+Terraform-source `PagerDutyDeclaration` content rows. `applied_routing` comes
+from active Terraform-state `incident_routing.applied_pagerduty_resource`
+facts. `live_routing` comes from optional live
+`incident_routing.observed_pagerduty_service` facts or scoped
+`incident_routing.coverage_warning` gaps such as permission-hidden provider
+state. These slots explain whether the incident service is declared, applied,
+or currently visible in PagerDuty; they do not prove root cause, service
+health, blast radius, deployable identity, image identity, commit, pull request,
+or Jira work-item truth.
+
+When a service-catalog operational link exactly names the PagerDuty service
+URL, the read model can use reducer-owned catalog, container-image, and
+Kubernetes correlation facts to fill deployable, image, and runtime artifact
+slots. When CI/CD run correlation evidence names the selected image digest,
+build/deploy and commit slots can be exact; tag-only image-reference matches
+remain derived unless a later reducer fact proves an immutable artifact digest.
+When a GitHub merged-pull-request trigger names the selected commit, the pull
+request slot is exact provider evidence. Jira remote links to that
+provider-verified PR, direct PagerDuty incident links, or issue keys in the PR
+title can enrich the work-item slot, but Jira-only PR URLs do not verify
+pull-request identity. Fallback change candidates are labeled separately from
+exact provider evidence and from derived reducer edges, and name-only service or
+tag matches are not promoted.
 
 ## Catalog
 

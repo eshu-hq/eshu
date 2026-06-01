@@ -7,6 +7,9 @@ import (
 var incidentEvidenceSlotOrder = []IncidentEvidenceSlot{
 	IncidentSlotIncident,
 	IncidentSlotService,
+	IncidentSlotIntendedRouting,
+	IncidentSlotAppliedRouting,
+	IncidentSlotLiveRouting,
 	IncidentSlotDeployable,
 	IncidentSlotRuntimeArtifact,
 	IncidentSlotImage,
@@ -44,7 +47,8 @@ func BuildIncidentContextResponse(snapshot IncidentContextSnapshot) IncidentCont
 	ambiguous := make([]IncidentContextEvidenceEdge, 0)
 	for _, edge := range path {
 		switch edge.TruthLabel {
-		case IncidentTruthMissing:
+		case IncidentTruthMissing, IncidentTruthUnresolved, IncidentTruthStale,
+			IncidentTruthPermissionHidden, IncidentTruthRejected:
 			missing = append(missing, IncidentMissingEvidence{
 				Slot:   edge.Slot,
 				Reason: edge.Explanation,
@@ -176,6 +180,12 @@ func defaultIncidentContextExplanation(
 		return "no provider incident record matched the requested incident id"
 	case IncidentSlotService:
 		return "no affected service was reported on the incident record"
+	case IncidentSlotIntendedRouting:
+		return "no Terraform-declared PagerDuty routing evidence has been linked to this incident service yet"
+	case IncidentSlotAppliedRouting:
+		return "no applied Terraform-state PagerDuty service evidence has been linked to this incident service yet"
+	case IncidentSlotLiveRouting:
+		return "no live PagerDuty service configuration evidence has been linked to this incident service yet"
 	case IncidentSlotDeployable:
 		return "no deployable or workload mapping evidence has been linked to this incident yet"
 	case IncidentSlotRuntimeArtifact:

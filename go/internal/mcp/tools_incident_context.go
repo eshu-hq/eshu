@@ -4,7 +4,7 @@ func incidentContextTools() []ToolDefinition {
 	return []ToolDefinition{
 		{
 			Name:        "get_incident_context",
-			Description: "Get a bounded incident context packet from collected incident evidence, including explicit missing slots plus deployable, runtime, image, build, commit, PR, and work-item slots only when provider or reducer evidence proves them.",
+			Description: "Get a bounded incident context packet from collected incident evidence, including explicit missing slots plus intended/applied/live PagerDuty routing and deployable, runtime, image, build, commit, PR, and work-item slots only when provider or reducer evidence proves them.",
 			InputSchema: map[string]any{
 				"type": "object",
 				"properties": map[string]any{

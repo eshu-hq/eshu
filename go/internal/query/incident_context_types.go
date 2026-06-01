@@ -39,11 +39,16 @@ type IncidentContextQuery struct {
 type IncidentTruthLabel string
 
 const (
-	IncidentTruthExact     IncidentTruthLabel = "exact"
-	IncidentTruthDerived   IncidentTruthLabel = "derived"
-	IncidentTruthFallback  IncidentTruthLabel = "fallback"
-	IncidentTruthAmbiguous IncidentTruthLabel = "ambiguous"
-	IncidentTruthMissing   IncidentTruthLabel = "missing"
+	IncidentTruthExact            IncidentTruthLabel = "exact"
+	IncidentTruthDerived          IncidentTruthLabel = "derived"
+	IncidentTruthFallback         IncidentTruthLabel = "fallback"
+	IncidentTruthDrifted          IncidentTruthLabel = "drifted"
+	IncidentTruthAmbiguous        IncidentTruthLabel = "ambiguous"
+	IncidentTruthUnresolved       IncidentTruthLabel = "unresolved"
+	IncidentTruthStale            IncidentTruthLabel = "stale"
+	IncidentTruthRejected         IncidentTruthLabel = "rejected"
+	IncidentTruthPermissionHidden IncidentTruthLabel = "permission_hidden"
+	IncidentTruthMissing          IncidentTruthLabel = "missing"
 )
 
 // IncidentEvidenceSlot names one position in the incident evidence path.
@@ -52,6 +57,9 @@ type IncidentEvidenceSlot string
 const (
 	IncidentSlotIncident        IncidentEvidenceSlot = "incident"
 	IncidentSlotService         IncidentEvidenceSlot = "service"
+	IncidentSlotIntendedRouting IncidentEvidenceSlot = "intended_routing"
+	IncidentSlotAppliedRouting  IncidentEvidenceSlot = "applied_routing"
+	IncidentSlotLiveRouting     IncidentEvidenceSlot = "live_routing"
 	IncidentSlotDeployable      IncidentEvidenceSlot = "deployable"
 	IncidentSlotRuntimeArtifact IncidentEvidenceSlot = "runtime_artifact"
 	IncidentSlotImage           IncidentEvidenceSlot = "image"
@@ -88,6 +96,7 @@ type IncidentContextResponse struct {
 type IncidentContextIncident struct {
 	Provider           string                     `json:"provider"`
 	ProviderIncidentID string                     `json:"provider_incident_id"`
+	ScopeID            string                     `json:"scope_id,omitempty"`
 	IncidentNumber     int64                      `json:"incident_number,omitempty"`
 	Title              string                     `json:"title,omitempty"`
 	Status             string                     `json:"status,omitempty"`
@@ -163,6 +172,7 @@ type IncidentContextEvidenceEdge struct {
 // IncidentContextEvidenceRef points to one source or reducer fact behind an edge.
 type IncidentContextEvidenceRef struct {
 	FactID     string `json:"fact_id,omitempty"`
+	RecordID   string `json:"record_id,omitempty"`
 	Source     string `json:"source,omitempty"`
 	Kind       string `json:"kind,omitempty"`
 	URL        string `json:"url,omitempty"`
