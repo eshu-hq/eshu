@@ -74,6 +74,7 @@ current families are:
 | Incident context | `pagerduty` for PagerDuty source collection | `incident.record`, `incident.lifecycle_event`, `change.record` |
 | Incident routing | source collector that observed the routing evidence, including `terraform_state` and optional live `pagerduty` config validation | `incident_routing.applied_pagerduty_resource`, `incident_routing.applied_alert_route`, `incident_routing.observed_pagerduty_service`, `incident_routing.observed_pagerduty_integration`, `incident_routing.coverage_warning` |
 | Jira work items | `jira` | `work_item.record`, `work_item.transition`, `work_item.external_link` |
+| Observability | source collector that observed the evidence, including `git` for declared IaC/GitOps | `observability.source_instance`, `observability.declared_folder`, `observability.declared_dashboard`, `observability.declared_datasource`, `observability.declared_alert_rule`, `observability.declared_scrape_config`, `observability.declared_metric_rule`, `observability.declared_metric_route`, `observability.declared_log_route`, `observability.declared_trace_route`, `observability.applied_resource`, `observability.applied_sync_state`, `observability.observed_dashboard`, `observability.observed_target`, `observability.observed_rule`, `observability.observed_log_signal`, `observability.observed_trace_signal`, `observability.coverage_warning` |
 
 Most current core families use schema version `1.0.0`.
 `documentation_section` uses `1.1.0` because section payloads can carry
@@ -195,6 +196,22 @@ collector. In incident-context reads, they fill the intended-routing slot only;
 applied and live routing still require Terraform-state or PagerDuty API source
 evidence.
 
+Declared Grafana observability evidence from repository source is emitted by
+the Git collector as `observability.source_instance`,
+`observability.declared_folder`, `observability.declared_dashboard`,
+`observability.declared_datasource`, `observability.declared_alert_rule`, and
+`observability.coverage_warning` facts. The parser supports Helm values,
+GrafanaFolder and GrafanaDashboard resources, dashboard ConfigMaps, folder,
+datasource, and alert provisioning, and Terraform `grafana_folder`,
+`grafana_dashboard`, `grafana_data_source`, and `grafana_rule_group` resources.
+These facts preserve repo path, source revision when available, overlay or
+environment, resource identity, folder UID/title fingerprint, dashboard
+UID/title fingerprint, datasource UID/type/name fingerprint, alert UID/title
+fingerprint, datasource refs, redaction state, and
+unsupported/malformed/duplicate outcomes. They do not run
+Terraform, call Grafana, or store dashboard JSON, query bodies, datasource URLs,
+secret datasource fields, contact addresses, log lines, or spans.
+
 ## Promotion Rules
 
 Facts are source evidence, not automatic graph truth.
@@ -215,6 +232,9 @@ Facts are source evidence, not automatic graph truth.
 - Incident and change facts remain provenance until consumers correlate them
   with stronger runtime, deployment, image, commit, pull-request, or work-item
   evidence.
+- Observability facts remain source evidence until reducers compare declared
+  IaC, applied state, and live provider evidence for the same service or
+  runtime target.
 
 ACL summaries and source-native documentation bodies are sensitive source
 evidence. Do not emit them through logs or metrics. Evidence packet APIs must

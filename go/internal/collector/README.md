@@ -99,7 +99,9 @@ per repository:
    languages that rely on local-variable evidence still parse with
    `VariableScope=all`. Terraform parser buckets are mapped explicitly into
    content entities, including backends, imports, moved blocks, removed blocks,
-   checks, and lockfile providers.
+   checks, and lockfile providers. Declared Grafana observability parser
+   buckets are emitted as versioned `observability.*` source facts during fact
+   streaming, not as graph truth.
 5. **Materialize** — `shape.Materialize` turns parsed files into
    `ContentFileMeta` records and `ContentEntitySnapshot` rows. Body strings are
    released after materialization; `streamFacts` re-reads them from disk at emit
@@ -147,7 +149,10 @@ it.
   file and entity records; `ContentFileMeta` carries no body string. Declared
   PagerDuty module/tfvars rows materialize as `PagerDutyDeclaration` content
   entities from Terraform source evidence, not live PagerDuty incident or
-  configuration truth.
+  configuration truth. Declared Grafana folder, dashboard, datasource,
+  alert-rule, and coverage-warning rows remain metadata-only
+  `observability.*` facts with dashboard JSON, query bodies, datasource URLs,
+  and secret fields omitted.
 - `RepoSyncConfig` — all env-driven sync configuration; populated by
   `LoadRepoSyncConfig`
 - `LoadRepoSyncConfig(component, getenv)` — parses the repo-sync env contract

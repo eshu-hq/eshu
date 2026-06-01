@@ -6,9 +6,10 @@ This package owns Terraform and Terragrunt HCL parsing for the parser engine.
 It reads HCL source, extracts Terraform blocks, resources, variables, outputs,
 modules, providers, data sources, locals, backends, imports, moved blocks,
 removed blocks, checks, lockfile providers, declared PagerDuty
-module/tfvars evidence, Terragrunt configs, dependencies, inputs, local config
-asset paths, and Terragrunt `remote_state` blocks (including blocks inherited
-via the include chain), then returns the parser payload shape.
+module/tfvars evidence, declared Grafana Terraform resource metadata,
+Terragrunt configs, dependencies, inputs, local config asset paths, and
+Terragrunt `remote_state` blocks (including blocks inherited via the include
+chain), then returns the parser payload shape.
 
 ## HCL parse flow
 
@@ -105,6 +106,16 @@ source fingerprint, module name, bounded input values, resolution state,
 redaction state, and duplicate/malformed/unsupported outcomes. It never runs
 Terraform, evaluates arbitrary expressions, calls PagerDuty, or stores endpoint,
 token, key, URL, or secret-bearing values.
+
+Grafana declaration extraction (`grafana_declarations.go`) is declared source
+evidence only. It recognizes Terraform resources for Grafana folders,
+dashboards, datasources, and rule groups, preserves repo path,
+environment/workspace, resource identity, folder UID/title fingerprint,
+dashboard UID/title fingerprint, datasource refs, datasource UID/type,
+rule-group identity, redaction state, and unsupported datasource outcomes. It
+never evaluates Terraform, calls Grafana, stores dashboard JSON, folder titles,
+datasource URLs, alert model bodies, PromQL, LogQL, TraceQL, contact routes,
+tokens, passwords, or secret-bearing values.
 
 Payload buckets must stay deterministic. Rows are sorted before `Parse`
 returns so ingestion retries and repair runs converge on the same facts.

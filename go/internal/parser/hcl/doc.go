@@ -4,9 +4,10 @@
 // Parse reads one HCL file, preserves the Terraform and Terragrunt bucket
 // contract, and returns deterministic rows sorted by name. Terraform parsing
 // covers authored configuration blocks, declared PagerDuty module/tfvars
-// evidence, modern import/refactor/check blocks, and provider lock files
-// without mixing lockfile providers into provider configuration rows. The
-// package owns HCL syntax parsing, local Terragrunt helper-expression
+// evidence, declared Grafana folder/dashboard/datasource/rule-group metadata,
+// modern import/refactor/check blocks, and provider lock files without mixing
+// lockfile providers into provider configuration rows. The package owns HCL syntax
+// parsing, local Terragrunt helper-expression
 // extraction, and per-resource attribute extraction for drift comparison.
 // Registry dispatch and parse timing remain in the parent parser package.
 //
