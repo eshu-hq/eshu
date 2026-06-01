@@ -8,11 +8,15 @@ import (
 )
 
 const (
-	observabilityFolderBucket     = "observability_declared_folders"
-	observabilityDashboardBucket  = "observability_declared_dashboards"
-	observabilityDatasourceBucket = "observability_declared_datasources"
-	observabilityAlertRuleBucket  = "observability_declared_alert_rules"
-	observabilityWarningBucket    = "observability_coverage_warnings"
+	observabilityFolderBucket      = "observability_declared_folders"
+	observabilityDashboardBucket   = "observability_declared_dashboards"
+	observabilityDatasourceBucket  = "observability_declared_datasources"
+	observabilityAlertRuleBucket   = "observability_declared_alert_rules"
+	observabilityScrapeBucket      = "observability_declared_scrape_configs"
+	observabilityMetricRuleBucket  = "observability_declared_metric_rules"
+	observabilityMetricRouteBucket = "observability_declared_metric_routes"
+	observabilityLogRouteBucket    = "observability_declared_log_routes"
+	observabilityWarningBucket     = "observability_coverage_warnings"
 )
 
 var observabilityBuckets = []string{
@@ -20,6 +24,10 @@ var observabilityBuckets = []string{
 	observabilityDashboardBucket,
 	observabilityDatasourceBucket,
 	observabilityAlertRuleBucket,
+	observabilityScrapeBucket,
+	observabilityMetricRuleBucket,
+	observabilityMetricRouteBucket,
+	observabilityLogRouteBucket,
 	observabilityWarningBucket,
 }
 
@@ -55,6 +63,8 @@ func initObservabilityBuckets(payload map[string]any) {
 
 func sortObservabilityBuckets(payload map[string]any) {
 	markDuplicateDashboardRows(payload[observabilityDashboardBucket].([]map[string]any))
+	markDuplicateMetricRuleRows(payload[observabilityMetricRuleBucket].([]map[string]any))
+	markDuplicateLogRouteRows(payload[observabilityLogRouteBucket].([]map[string]any))
 	for _, bucket := range observabilityBuckets {
 		shared.SortNamedBucket(payload, bucket)
 	}
@@ -99,6 +109,7 @@ func appendGrafanaObservabilityFromDocument(
 		ctx.declarationKind = "grafana_datasource_resource"
 		appendDatasourcesFromObject(payload, nestedMap(document, "spec"), ctx)
 	}
+	appendPrometheusObservabilityFromDocument(payload, document, ctx)
 }
 
 func appendHelmGrafanaObservability(payload map[string]any, path string, source []byte) {
@@ -112,19 +123,20 @@ func appendHelmGrafanaObservability(payload map[string]any, path string, source 
 	}
 	delete(root, "__eshu_line_number")
 	grafana := nestedMap(root, "grafana")
-	if len(grafana) == 0 {
-		return
+	if len(grafana) > 0 {
+		ctx := grafanaSourceContext{
+			path:            path,
+			sourceKind:      "helm",
+			declarationKind: "helm_values",
+			lineNumber:      1,
+			environment:     environmentFromPath(path),
+		}
+		walkHelmGrafanaDatasources(payload, nestedMap(grafana, "datasources"), ctx)
+		walkHelmGrafanaDashboards(payload, nestedMap(grafana, "dashboards"), ctx)
+		walkGrafanaAlertDocuments(payload, nestedMap(grafana, "alerting"), ctx)
 	}
-	ctx := grafanaSourceContext{
-		path:            path,
-		sourceKind:      "helm",
-		declarationKind: "helm_values",
-		lineNumber:      1,
-		environment:     environmentFromPath(path),
-	}
-	walkHelmGrafanaDatasources(payload, nestedMap(grafana, "datasources"), ctx)
-	walkHelmGrafanaDashboards(payload, nestedMap(grafana, "dashboards"), ctx)
-	walkGrafanaAlertDocuments(payload, nestedMap(grafana, "alerting"), ctx)
+	appendHelmMetricObservability(payload, path, root)
+	appendHelmLogObservability(payload, path, root)
 }
 
 func appendDashboardFromGrafanaResource(payload map[string]any, document map[string]any, ctx grafanaSourceContext) {

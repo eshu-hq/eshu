@@ -156,6 +156,37 @@ func fingerprintValue(value string) string {
 	return hex.EncodeToString(sum[:])[:16]
 }
 
+func fingerprintObject(value any) string {
+	data, err := json.Marshal(value)
+	if err != nil || len(data) == 0 || string(data) == "null" {
+		return ""
+	}
+	sum := sha256.Sum256(data)
+	return hex.EncodeToString(sum[:])[:16]
+}
+
+func safeNamePart(value string) string {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return ""
+	}
+	replacer := strings.NewReplacer("/", "_", "\\", "_", ":", "_", " ", "_", ".", "_")
+	return replacer.Replace(value)
+}
+
+func cleanStringList(values []any) []string {
+	if len(values) == 0 {
+		return nil
+	}
+	result := make([]string, 0, len(values))
+	for _, value := range values {
+		if cleaned := cleanString(value); cleaned != "" {
+			result = append(result, cleaned)
+		}
+	}
+	return sortedUniqueStrings(result)
+}
+
 func sortedUniqueStrings(values []string) []string {
 	if len(values) == 0 {
 		return nil

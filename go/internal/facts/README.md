@@ -236,8 +236,9 @@ preserve Jira issue state, changelog IDs, and remote links as source evidence
 only. Reducers and query surfaces must prove incident, deployment, code, or PR
 relationships before presenting those paths as Eshu truth.
 
-Observability fact kinds use schema version `1.0.0` for the first Grafana-stack
-evidence contract:
+Observability fact kinds use schema version `1.0.0` for the first
+Grafana-stack evidence contract, including Grafana metadata,
+Prometheus/Mimir metric coverage metadata, and Loki log-route metadata:
 
 - `observability.source_instance`
 - `observability.declared_folder`
@@ -262,9 +263,10 @@ Use `ObservabilityFactKinds` when callers need the accepted set and
 `ObservabilitySchemaVersion` when building observability envelopes. These facts
 preserve declared, applied, or observed source evidence only. Reducers and query
 surfaces must compare declared IaC, applied state, and live provider evidence
-before presenting coverage, drift, or operational truth. Dashboard JSON, query
-bodies, datasource credentials, contact routes, log lines, and spans do not
-belong in these payloads.
+before presenting coverage, drift, or operational truth. Dashboard JSON, raw
+queries, scrape targets, remote-write URLs, datasource credentials, tenant
+header values, tenant IDs, contact routes, Loki route URLs, log label values,
+log lines, and spans do not belong in these payloads.
 
 Vulnerability suppression fact kinds use schema version `1.0.0` for the
 first VEX and operator-policy contract:

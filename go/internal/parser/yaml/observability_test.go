@@ -306,6 +306,10 @@ resources:
 		"observability_declared_dashboards",
 		"observability_declared_datasources",
 		"observability_declared_alert_rules",
+		"observability_declared_scrape_configs",
+		"observability_declared_metric_rules",
+		"observability_declared_metric_routes",
+		"observability_declared_log_routes",
 		"observability_coverage_warnings",
 	} {
 		if rows := yamlBucketForTest(t, got, bucket); len(rows) != 0 {

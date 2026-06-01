@@ -17,12 +17,33 @@ observability directly in provider UIs. The precedence is explicit:
 Reducers and query surfaces own correlation and user-facing truth. Collectors
 emit source facts only.
 
-Implementation status: the Git collector emits declared Grafana IaC/GitOps
-facts from Helm values, GrafanaFolder and GrafanaDashboard resources, dashboard
-ConfigMaps, folder provisioning, datasource provisioning, alert provisioning,
-and Terraform Grafana folder, dashboard, datasource, and rule-group resources.
+Implementation status: the Git collector emits declared Grafana,
+Prometheus/Mimir, and Loki IaC/GitOps facts from Helm values, GrafanaFolder and
+GrafanaDashboard resources, dashboard ConfigMaps, folder provisioning,
+datasource provisioning, alert provisioning, Prometheus Operator
+ServiceMonitor, PodMonitor, PrometheusRule, and ScrapeConfig resources,
+kube-prometheus-stack and Mimir Helm values, Promtail client routes, OTel
+metric and log pipelines, Loki gateway values, and chart Prometheus receiver
+scrape configs and ServiceMonitor settings. Missing Prometheus discovery
+labels, missing Loki route endpoints, malformed log-route configs, duplicate
+log routes, and redacted high-cardinality log label values are emitted as
+coverage warnings rather than silently accepted. Terraform Grafana folder,
+dashboard, datasource, and rule-group resources are also supported.
 Applied-state, live-provider, reducer, API, and MCP coverage work remains
 separate.
+
+Declared Prometheus/Mimir facts are intent evidence. Live Prometheus and Mimir
+API collection is still required when a team does not use source-controlled
+configuration, when Eshu must prove drift between declared and effective
+targets or rules, when target/rule freshness matters, or when rendered
+Prometheus Operator selection turns Helm and CRD inputs into effective scrape
+jobs.
+
+Declared Loki facts are also intent evidence. Live Loki collection must remain
+metadata-only: bounded label, series, ruler, or freshness metadata only, never
+log lines or raw LogQL. Use live Loki API reads only for no-IaC fallback,
+validation, drift detection, and freshness proof after declared or applied
+evidence has been considered.
 
 ## Evidence Classes
 
@@ -165,15 +186,15 @@ Each provider-specific implementation must prove:
 - no graph `COVERS` edge for derived, ambiguous, unresolved, stale, rejected,
   drifted, or permission-hidden evidence
 
-No-Regression Evidence: the declared Grafana IaC source-fact slice adds bounded
-parser buckets and Git fact emission only. It does not add provider calls,
-graph writes, queue workers, reducer stages, query handlers, metrics, spans,
-logs, or status output.
+No-Regression Evidence: the declared Grafana, Prometheus/Mimir, and Loki IaC
+source-fact slices add bounded parser buckets and Git fact emission only. They
+do not add provider calls, graph writes, queue workers, reducer stages, query
+handlers, metrics, spans, logs, or status output.
 
-No-Observability-Change: declared Grafana source facts use the existing Git
-collector snapshot, parse, and fact-commit telemetry. Operators diagnose this
-slice through existing file parse counts, generation fact counts, fact commit
-counts, and collector observe duration.
+No-Observability-Change: declared Grafana, Prometheus/Mimir, and Loki source
+facts use the existing Git collector snapshot, parse, and fact-commit
+telemetry. Operators diagnose these slices through existing file parse counts,
+generation fact counts, fact commit counts, and collector observe duration.
 
 ## Related Work
 
