@@ -55,9 +55,12 @@ packet from collected source facts. `provider` defaults to `pagerduty`;
 The response always includes an ordered evidence path for incident, service,
 deployable, runtime artifact, image, build/deploy record, commit, pull request,
 and work item slots. Missing Jira, pull-request, runtime, image, build,
-deployable, or commit evidence is reported explicitly instead of omitted.
+deployable, or commit evidence is reported explicitly instead of omitted. When
+a service-catalog operational link exactly names the PagerDuty service URL,
+the read model can use reducer-owned catalog, container-image, and Kubernetes
+correlation facts to fill deployable, image, and runtime artifact slots.
 Fallback change candidates are labeled separately from exact provider evidence
-and from later derived reducer edges.
+and from derived reducer edges, and name-only service matches are not promoted.
 
 ## Catalog
 

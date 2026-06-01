@@ -103,6 +103,10 @@ func (s PostgresIncidentContextStore) ReadIncidentContext(
 	if err != nil {
 		return IncidentContextSnapshot{}, err
 	}
+	runtimeEvidence, err := s.readIncidentRuntimeEvidence(ctx, incident)
+	if err != nil {
+		return IncidentContextSnapshot{}, err
+	}
 
 	return IncidentContextSnapshot{
 		Query: IncidentContextQuery{
@@ -117,6 +121,7 @@ func (s PostgresIncidentContextStore) ReadIncidentContext(
 		Incident:       incident,
 		Timeline:       timeline,
 		RelatedChanges: changes,
+		EvidencePath:   runtimeEvidence,
 	}, nil
 }
 
