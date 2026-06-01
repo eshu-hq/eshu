@@ -294,6 +294,18 @@ failure class.
   fail-closed stale-data policy.
 - [x] Add focused tests before registering the public command and docs claim.
 
+## Chunk 5A: Standalone Scanner Service Boundary
+
+- [x] Document one truth model across local CLI, hosted API, MCP, and future service use.
+- [x] Keep CLI, local services, hosted collectors, scanner workers, reducer,
+  and read surfaces as separate owners.
+- [x] Define source facts, reducer-owned final findings, required local caches,
+  stable outputs, and future export rules without forking a second engine.
+- [x] Keep heavy analyzers out of the default reducer lane and behind
+  scanner-worker resource limits.
+- [x] Require both standalone local proof and hosted E2E proof before a
+  scanner-ready release claim.
+
 Status 2026-05-24: `eshu vuln-scan repo [path]` exists as a thin orchestration
 wrapper over the same local and hosted read paths. When a service URL is
 configured, it uses that API. When no API is configured, it starts or attaches to
