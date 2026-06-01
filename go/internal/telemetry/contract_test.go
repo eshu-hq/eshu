@@ -152,6 +152,8 @@ func TestSpanNames(t *testing.T) {
 		"prometheus_mimir.fetch",
 		"loki.observe",
 		"loki.fetch",
+		"tempo.observe",
+		"tempo.fetch",
 		"query.supply_chain_impact_findings",
 		"query.supply_chain_impact_explanation",
 		"query.supply_chain_impact_aggregate",

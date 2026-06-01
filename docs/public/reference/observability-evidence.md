@@ -87,6 +87,11 @@ metadata-only: bounded service, tag, search, dependency, or freshness metadata
 only, never spans, traces, raw trace IDs, request attributes, or TraceQL bodies.
 Use live Tempo API reads only for no-IaC fallback, validation, drift detection,
 and freshness proof after declared or applied evidence has been considered.
+The first live Tempo slice reads only `/api/echo`, `/api/v2/search/tags`, and
+operator-allowlisted `/api/v2/search/tag/<tag>/values` metadata. It stores tag
+names, tag-value counts, value fingerprints within cardinality limits, source
+instance state, and coverage warnings. It does not call trace retrieval,
+TraceQL search, TraceQL metrics, or any endpoint that returns spans or traces.
 
 ## Evidence Classes
 
@@ -233,12 +238,20 @@ No-Regression Evidence: the declared Grafana, Prometheus/Mimir, Loki, and Tempo
 IaC source-fact slices and the applied Argo CD/Kubernetes source-fact slice add
 bounded parser buckets and Git fact emission only. They do not add provider
 calls, graph writes, queue workers, reducer stages, query handlers, metrics,
-spans, logs, or status output.
+spans, logs, or status output. The live Tempo provider slice adds bounded
+metadata calls only; it still emits source facts and does not add graph writes,
+reducer stages, query handlers, or status output.
 
-No-Observability-Change: declared and applied observability source facts use the
+Observability Evidence: declared and applied observability source facts use the
 existing Git collector snapshot, parse, and fact-commit telemetry. Operators
 diagnose these slices through existing file parse counts, generation fact
-counts, fact commit counts, and collector observe duration.
+counts, fact commit counts, and collector observe duration. The live Tempo
+source path adds `tempo.observe` and `tempo.fetch` spans plus
+`eshu_dp_tempo_provider_requests_total`,
+`eshu_dp_tempo_facts_emitted_total`, `eshu_dp_tempo_rate_limited_total`,
+`eshu_dp_tempo_retries_total`, `eshu_dp_tempo_redactions_total`,
+`eshu_dp_tempo_high_cardinality_rejected_total`,
+`eshu_dp_tempo_stale_total`, and `eshu_dp_tempo_fetch_duration_seconds`.
 
 No-Regression Evidence: live Grafana, Prometheus/Mimir, and Loki observed
 metadata collection add metadata-only source packages and bounded telemetry.

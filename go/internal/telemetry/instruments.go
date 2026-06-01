@@ -112,6 +112,13 @@ type Instruments struct {
 	LokiRedactions                            metric.Int64Counter
 	LokiHighCardinalityRejected               metric.Int64Counter
 	LokiStale                                 metric.Int64Counter
+	TempoProviderRequests                     metric.Int64Counter
+	TempoFactsEmitted                         metric.Int64Counter
+	TempoRateLimited                          metric.Int64Counter
+	TempoRetries                              metric.Int64Counter
+	TempoRedactions                           metric.Int64Counter
+	TempoHighCardinalityRejected              metric.Int64Counter
+	TempoStale                                metric.Int64Counter
 	ScannerWorkerClaims                       metric.Int64Counter
 	ScannerWorkerRetries                      metric.Int64Counter
 	ScannerWorkerDeadLetters                  metric.Int64Counter
@@ -388,6 +395,7 @@ type Instruments struct {
 	GrafanaFetchDuration                   metric.Float64Histogram
 	PrometheusMimirFetchDuration           metric.Float64Histogram
 	LokiFetchDuration                      metric.Float64Histogram
+	TempoFetchDuration                     metric.Float64Histogram
 	ScannerWorkerQueueWaitDuration         metric.Float64Histogram
 	ScannerWorkerScanDuration              metric.Float64Histogram
 	ScannerWorkerTargetCount               metric.Int64Histogram
@@ -1037,6 +1045,62 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 		return nil, fmt.Errorf("register LokiStale counter: %w", err)
 	}
 
+	inst.TempoProviderRequests, err = meter.Int64Counter(
+		"eshu_dp_tempo_provider_requests_total",
+		metric.WithDescription("Total Tempo provider metadata requests by provider and status class"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register TempoProviderRequests counter: %w", err)
+	}
+
+	inst.TempoFactsEmitted, err = meter.Int64Counter(
+		"eshu_dp_tempo_facts_emitted_total",
+		metric.WithDescription("Total Tempo observability source facts emitted by provider and fact kind"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register TempoFactsEmitted counter: %w", err)
+	}
+
+	inst.TempoRateLimited, err = meter.Int64Counter(
+		"eshu_dp_tempo_rate_limited_total",
+		metric.WithDescription("Total Tempo provider metadata requests that ended rate limited by provider"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register TempoRateLimited counter: %w", err)
+	}
+
+	inst.TempoRetries, err = meter.Int64Counter(
+		"eshu_dp_tempo_retries_total",
+		metric.WithDescription("Total Tempo provider metadata request retries by provider"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register TempoRetries counter: %w", err)
+	}
+
+	inst.TempoRedactions, err = meter.Int64Counter(
+		"eshu_dp_tempo_redactions_total",
+		metric.WithDescription("Total Tempo metadata redactions by provider"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register TempoRedactions counter: %w", err)
+	}
+
+	inst.TempoHighCardinalityRejected, err = meter.Int64Counter(
+		"eshu_dp_tempo_high_cardinality_rejected_total",
+		metric.WithDescription("Total Tempo high-cardinality tag-value reads rejected by provider"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register TempoHighCardinalityRejected counter: %w", err)
+	}
+
+	inst.TempoStale, err = meter.Int64Counter(
+		"eshu_dp_tempo_stale_total",
+		metric.WithDescription("Total Tempo metadata observations classified stale by provider"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register TempoStale counter: %w", err)
+	}
+
 	inst.ScannerWorkerClaims, err = meter.Int64Counter(
 		"eshu_dp_scanner_worker_claims_total",
 		metric.WithDescription("Total scanner-worker workflow claims by analyzer, target kind, and outcome"),
@@ -1639,6 +1703,17 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register LokiFetchDuration histogram: %w", err)
+	}
+
+	tempoBuckets := []float64{0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60}
+	inst.TempoFetchDuration, err = meter.Float64Histogram(
+		"eshu_dp_tempo_fetch_duration_seconds",
+		metric.WithDescription("Tempo metadata fetch duration by provider and status class"),
+		metric.WithUnit("s"),
+		metric.WithExplicitBucketBoundaries(tempoBuckets...),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register TempoFetchDuration histogram: %w", err)
 	}
 
 	scannerWorkerWaitBuckets := []float64{0.001, 0.01, 0.1, 1, 5, 10, 30, 60, 300, 900, 1800, 3600, 21600}

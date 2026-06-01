@@ -204,6 +204,27 @@ Loki fetch spans are `loki.observe` and `loki.fetch`. Instance IDs, label
 values, private URLs, raw LogQL, tenant IDs, tenant headers, token environment
 names, token values, and provider response bodies stay out of metric labels.
 
+## Tempo Collector
+
+| Metric | Key labels | Use |
+| --- | --- | --- |
+| `eshu_dp_tempo_provider_requests_total` | `provider`, `status_class` | Tempo metadata request attempts, including retryable, rate-limited, and terminal failures. |
+| `eshu_dp_tempo_facts_emitted_total` | `provider`, `fact_kind` | Observability source facts emitted per claimed Tempo target. |
+| `eshu_dp_tempo_rate_limited_total` | `provider` | Tempo HTTP 429 pressure surfaced to workflow retry handling. |
+| `eshu_dp_tempo_retries_total` | `provider` | Bounded retry attempts for retryable Tempo metadata requests. |
+| `eshu_dp_tempo_redactions_total` | `provider` | Tag-value and tenant metadata redactions applied before fact emission. |
+| `eshu_dp_tempo_high_cardinality_rejected_total` | `provider` | Allowlisted tag-value reads rejected because they exceeded the configured cardinality limit. |
+| `eshu_dp_tempo_stale_total` | `provider` | Tempo metadata observations classified stale. |
+| `eshu_dp_tempo_fetch_duration_seconds` | `provider`, `status_class` | Bounded Tempo metadata fetch duration for one claimed target. |
+
+Tempo fetch spans are `tempo.observe` and `tempo.fetch`. They cover metadata
+reads from `/api/echo`, `/api/v2/search/tags`, and configured
+`/api/v2/search/tag/<tag>/values` endpoints. Tenant IDs, base URLs, raw tag
+values, trace IDs, spans, request attributes, TraceQL bodies, token environment
+names, token values, and provider response bodies stay out of metric labels.
+Use workflow failures and traces to connect a bounded failure class to a
+specific private target in the operator environment.
+
 ## Scanner-Worker Boundary
 
 Scanner-worker metrics are emitted by the hosted scanner-worker runtime for
