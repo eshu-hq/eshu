@@ -1,0 +1,75 @@
+# Multi-document Cortex entity descriptor (cortex.yaml) used as offline producer
+# input. Each document is a fully compliant OpenAPI 3 spec with x-cortex-*
+# extensions under `info`. Document 1: a service with an owner and an exact
+# repository link via x-cortex-git github, plus a redactable operational link.
+openapi: 3.0.1
+info:
+  title: Checkout API
+  description: Handles checkout and payment orchestration.
+  x-cortex-tag: checkout-api
+  x-cortex-type: service
+  x-cortex-groups:
+    - go
+    - tier-1
+  x-cortex-owners:
+    - type: group
+      name: team-payments
+      provider: CORTEX
+  x-cortex-git:
+    github:
+      repository: eshu-hq/checkout-api
+  x-cortex-link:
+    - name: Runbook
+      type: RUNBOOK
+      url: https://runbooks.example.com/checkout
+    - name: PagerDuty
+      type: ON_CALL
+      url: https://events.pagerduty.com/integration?token=secret123
+  x-cortex-dependency:
+    - tag: ledger
+    - tag: payments-db
+---
+# Document 2: a service whose x-cortex-git github repository matches a repo only
+# after git-URL canonicalization (the active repo fact carries a .git suffix),
+# exercising the derived outcome. Owner preserves provider/type provenance.
+openapi: 3.0.1
+info:
+  title: Ledger Service
+  x-cortex-tag: ledger
+  x-cortex-type: service
+  x-cortex-owners:
+    - type: group
+      name: team-finance
+      provider: GITHUB
+  x-cortex-git:
+    github:
+      repository: eshu-hq/ledger
+---
+# Document 3: a service with NO repository link evidence. Owner recorded as
+# provenance only; must classify unresolved, never minting service identity.
+openapi: 3.0.1
+info:
+  title: Notifications
+  x-cortex-tag: notifications
+  x-cortex-type: service
+  x-cortex-owners:
+    - type: group
+      name: team-platform
+      provider: CORTEX
+---
+# Document 4: a self-hosted/unknown git provider. The producer cannot safely
+# expand a host for an unknown provider, so it emits a name-only repository_name
+# locator. The reducer must reject it: a catalog name string cannot prove
+# repository ownership.
+openapi: 3.0.1
+info:
+  title: Search
+  x-cortex-tag: search
+  x-cortex-type: service
+  x-cortex-owners:
+    - type: group
+      name: team-discovery
+      provider: CORTEX
+  x-cortex-git:
+    other:
+      repository: search

@@ -1,0 +1,14 @@
+# Two documents declaring the same x-cortex-tag. First-wins: the producer keeps
+# the deterministic first entity and emits a duplicate_entity warning for the
+# second, never silently overwriting.
+openapi: 3.0.1
+info:
+  title: Billing (first)
+  x-cortex-tag: billing
+  x-cortex-type: service
+---
+openapi: 3.0.1
+info:
+  title: Billing (second)
+  x-cortex-tag: billing
+  x-cortex-type: service
