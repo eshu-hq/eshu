@@ -585,9 +585,20 @@ that parent scanner envelope. Vulnerability findings carry package/image target
 context, severity, remediation metadata, evidence fact ids, and real source
 locations when present. Missing evidence and unsupported targets are preserved
 as `eshu.*` SARIF properties, and non-ready states emit a location-free status
-result so CI cannot mistake incomplete evidence for a clean scan. VEX-style
-statements remain a separate follow-up format tracked outside this parent
-envelope.
+result so CI cannot mistake incomplete evidence for a clean scan.
+
+`eshu vuln-scan repo --export vex` writes VEX-style JSON statements from the
+same parent scanner envelope. The exporter maps only reducer-owned impact
+statuses into statement statuses: `affected_exact` and `affected_derived` are
+`affected`, `not_affected_known_fixed` is `not_affected`, and
+`possibly_affected` or `unknown_impact` stay `under_investigation`. Readiness
+states such as `evidence_incomplete`, `unsupported`, and
+`readiness_unavailable` preserve missing evidence, unsupported targets, and
+freshness in the document without creating `not_affected` statements. Use the
+JSON scanner report instead of VEX when the caller needs the full readiness
+envelope, source snapshots, scope counters, scan-performance block, or raw
+reducer finding rows to decide whether Eshu had enough evidence to issue a
+statement.
 
 No-Regression Evidence: `go test ./cmd/eshu -run
 'TestRunVulnScanRepo(JSONReportPreservesScannerContractAndFindingsExit|JSONReportPreservesTargetPackageImageAndVersionContext|ExitCodesPreserveReadinessClasses|ScopedModeFailsClosedOnUnknownFreshness|TextSummaryRendersBeforeFindingsExit)|TestRenderVulnScanRepoSummaryIncludesReadinessEvidenceAndRemediation'
@@ -595,6 +606,10 @@ No-Regression Evidence: `go test ./cmd/eshu -run
 version-context mapping, evidence fact handles, remediation allowlist,
 findings/non-ready/unsupported exit codes, terminal summary rendering before
 scanner exit, and scoped fail-closed handling for unknown freshness.
+`go test ./cmd/eshu -run 'TestRunVulnScanRepoVEXExport' -count=1` proves
+VEX impact-status mapping, non-ready readiness preservation without
+not-affected statements, evidence handles, remediation sanitization, and
+private provider payload redaction.
 `go test ./cmd/eshu -run
 'TestVulnScanRepoCommandRegistersBroadFlag|TestRunVulnScanRepoDefaultScopedModeAttachesScopePlanAndPerformance|TestRunVulnScanRepoFailsClosedOnStalePackageMetadata|TestRunVulnScanRepoScopedModeFailsClosedOnStaleAdvisoryCache|TestRunVulnScanRepoScopedModeIgnoresGlobalStaleSnapshotsWhenEnvelopeFresh|TestRunVulnScanRepoScopedModePassesThroughServerTargetIncomplete|TestRunVulnScanRepoBroadModeSkipsScopeGuards|TestRunVulnScanRepoScopedModeSurfacesEvidenceIncompleteWhenNoOwnedDeps'
 -count=1` proves the `--broad` flag registration, default scoped scope-plan

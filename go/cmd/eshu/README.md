@@ -135,7 +135,14 @@ No-Regression Evidence: provider-parity lifecycle behavior is covered by
   reducer-owned findings become SARIF results, source paths become locations
   only when the API provided them, and run properties preserve readiness,
   missing-evidence, unsupported-target, scope-mode, and exit-code context.
-  `--json` and `--export sarif` are mutually exclusive output contracts.
+  `--export vex` writes VEX-style JSON statements from the same report:
+  `affected_exact` and `affected_derived` become `affected`,
+  `not_affected_known_fixed` becomes `not_affected`, and
+  `possibly_affected` or `unknown_impact` stay `under_investigation`.
+  Non-ready scanner states such as `evidence_incomplete`, `unsupported`, and
+  `readiness_unavailable` preserve readiness metadata without inventing
+  `not_affected` statements. `--json` and `--export` are mutually exclusive
+  output contracts.
 - `eshu vuln-scan provider-parity` is the private-safe provider alert proof
   wrapper. It reads an operator-local allowlist file, optionally reads a local
   generic provider summary file, or fetches GitHub Dependabot alert summaries

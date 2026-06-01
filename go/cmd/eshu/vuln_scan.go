@@ -112,7 +112,7 @@ func addVulnScanRepoFlags(cmd *cobra.Command) {
 		false,
 		"Skip the scoped fail-closed guards and accept advisory/package coverage beyond observed dependencies",
 	)
-	cmd.Flags().String("export", "", "Write a scanner report export format to stdout (supported: sarif)")
+	cmd.Flags().String("export", "", "Write a scanner report export format to stdout (supported: sarif, vex)")
 }
 
 func runVulnScanRepo(cmd *cobra.Command, args []string) error {
@@ -285,9 +285,9 @@ func vulnScanRepoOptionsFromCommand(cmd *cobra.Command, args []string) (vulnScan
 	}
 	exportFormat = strings.ToLower(strings.TrimSpace(exportFormat))
 	switch exportFormat {
-	case "", vulnScanExportFormatSARIF:
+	case "", vulnScanExportFormatSARIF, vulnScanExportFormatVEX:
 	default:
-		return vulnScanRepoOptions{}, commandExitError{message: fmt.Sprintf("unsupported --export %q: expected sarif", exportFormat), code: 2}
+		return vulnScanRepoOptions{}, commandExitError{message: fmt.Sprintf("unsupported --export %q: expected sarif or vex", exportFormat), code: 2}
 	}
 	if exportFormat != "" && scanOpts.JSON {
 		return vulnScanRepoOptions{}, commandExitError{message: "--json cannot be combined with --export; use one output contract", code: 2}
@@ -387,6 +387,15 @@ func finishVulnScanRepo(
 			return err
 		}
 		if writeErr := writeVulnScanSARIF(cmd.OutOrStdout(), result, report); writeErr != nil {
+			return writeErr
+		}
+		return err
+	}
+	if opts.ExportFormat == vulnScanExportFormatVEX {
+		if err != nil && !isVulnScanScannerExit(err) {
+			return err
+		}
+		if writeErr := writeVulnScanVEX(cmd.OutOrStdout(), result, report); writeErr != nil {
 			return writeErr
 		}
 		return err
