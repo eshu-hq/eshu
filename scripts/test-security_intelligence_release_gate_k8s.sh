@@ -145,6 +145,7 @@ PATH="${repo}/_bin:${PATH}" \
     "${gate}" \
         --out-dir "${out_dir}" \
         --phases state,k8s \
+        --image-tag-candidate v0.0.3-test \
         --api-base-url "http://127.0.0.1:8080" \
         --pprof-base-url "http://127.0.0.1:6060" \
         --k8s-namespace eshu \
@@ -207,6 +208,7 @@ if PATH="${repo}/_bin:${PATH}" \
     "${gate}" \
         --out-dir "${nonterminal_out_dir}" \
         --phases state,k8s \
+        --image-tag-candidate v0.0.3-test \
         --api-base-url "http://127.0.0.1:8080" \
         --pprof-base-url "http://127.0.0.1:6060" \
         --k8s-namespace eshu \

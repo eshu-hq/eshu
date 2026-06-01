@@ -170,4 +170,15 @@ expect_fail "${repo4}" --phases proof-matrix --proof-matrix "${matrix4}"
 rg --fixed-strings --quiet -- "follow-up issue" "${repo4}/_gate.err" \
     || { printf 'expected follow-up issue failure\n' >&2; exit 1; }
 
+# --- Test 5: release proof matrix must include captured CPU/memory, pprof, and logs.
+repo5="$(init_fake_repo case5)"
+matrix5="${repo5}/proof-matrix.json"
+write_valid_matrix "${matrix5}"
+jq '.readback.cpu_memory_snapshot = "not_captured" | .readback.pprof_status = "unchecked" | .readback.logs_status = "not_captured"' \
+    "${matrix5}" >"${matrix5}.tmp"
+mv "${matrix5}.tmp" "${matrix5}"
+expect_fail "${repo5}" --phases proof-matrix --proof-matrix "${matrix5}"
+rg --fixed-strings --quiet -- "queue-zero readback" "${repo5}/_gate.err" \
+    || { printf 'expected readback evidence failure\n' >&2; exit 1; }
+
 printf 'security-intelligence proof-matrix gate tests passed\n'

@@ -189,6 +189,7 @@ rg --fixed-strings --quiet -- 'unknown phase: bogus' "${repo2}/_gate.err" \
 repo3="$(init_fake_repo case3 --scanner-worker --with-private)"
 expect_fail "${repo3}" \
     --phases state,provider \
+    --image-tag-candidate v0.0.3-test \
     --provider-compare "${repo3}/private-compare.json"
 rg --fixed-strings --quiet -- "private data" "${repo3}/_gate.err" \
     || { printf 'expected private-data rejection in case3\n' >&2; exit 1; }
@@ -200,6 +201,7 @@ cat >"${repo4}/aggregate-compare.json" <<'JSON'
 JSON
 expect_pass "${repo4}" \
     --phases state,provider \
+    --image-tag-candidate v0.0.3-test \
     --provider-compare "${repo4}/aggregate-compare.json"
 prov_file="$(evidence_json "${repo4}")"
 jq -e '.provider.totals.matched == 12' "${prov_file}" >/dev/null \
@@ -228,7 +230,7 @@ rg --fixed-strings --quiet -- "runtime phase requires" "${repo6}/_gate.err" \
     || { printf 'expected runtime requirement message in case6\n' >&2; exit 1; }
 
 # --- Test 7: runtime phase fails closed when endpoints error and writes
-# readback under runtime-readback/. pprof stays "unchecked" by default.
+# sanitized relative readback references under runtime-readback/.
 repo7="$(init_fake_repo case7 --scanner-worker)"
 mkdir -p "${repo7}/scripts"
 cat >"${repo7}/scripts/verify_remote_e2e_runtime_state.sh" <<'SH'
@@ -238,6 +240,8 @@ SH
 chmod +x "${repo7}/scripts/verify_remote_e2e_runtime_state.sh"
 expect_fail "${repo7}" \
     --phases state,runtime \
+    --runtime-run-kind clean \
+    --image-tag-candidate v0.0.3-test \
     --api-base-url "http://127.0.0.1:1"
 ev7="$(evidence_json "${repo7}")"
 jq -e '.pass == false' "${ev7}" >/dev/null \
@@ -261,14 +265,18 @@ if [ "${leaked}" != "0" ]; then
     printf 'readback files leaked outside runtime-readback/ (count=%s) in case7\n' "${leaked}" >&2
     exit 1
 fi
-jq -e '.runtime.pprof_status == "unchecked"' "${ev7}" >/dev/null \
-    || { printf 'pprof default not "unchecked" when --pprof-base-url is absent in case7\n' >&2; exit 1; }
+jq -e '.runtime.pprof_status == "missing"' "${ev7}" >/dev/null \
+    || { printf 'pprof missing status not recorded when --pprof-base-url is absent in case7\n' >&2; exit 1; }
+jq -e '.runtime.readback["/api/v0/index-status"].body == "runtime-readback/_api_v0_index-status.json"' "${ev7}" >/dev/null \
+    || { printf 'runtime readback did not store relative evidence path in case7\n' >&2; exit 1; }
 
 # --- Test 8: missing verify_remote_e2e_runtime_state.sh is recorded as a runtime failure.
 repo8="$(init_fake_repo case8 --scanner-worker)"
 # Intentionally do not create scripts/verify_remote_e2e_runtime_state.sh
 expect_fail "${repo8}" \
     --phases state,runtime \
+    --runtime-run-kind clean \
+    --image-tag-candidate v0.0.3-test \
     --api-base-url "http://127.0.0.1:1"
 ev8="$(evidence_json "${repo8}")"
 jq -e '.runtime.runtime_state_ok == false' "${ev8}" >/dev/null \
@@ -289,6 +297,7 @@ saved_path="${PATH}"
 PATH="${repo9}/_bin:${PATH}" \
     expect_fail "${repo9}" \
         --phases state,k8s \
+        --image-tag-candidate v0.0.3-test \
         --k8s-namespace eshu
 PATH="${saved_path}"
 ev9="$(evidence_json "${repo9}")"
@@ -307,6 +316,8 @@ SH
 chmod +x "${repo10}/scripts/verify_remote_e2e_runtime_state.sh"
 expect_fail "${repo10}" \
     --phases state,runtime \
+    --runtime-run-kind clean \
+    --image-tag-candidate v0.0.3-test \
     --api-base-url "http://127.0.0.1:1" \
     --pprof-base-url "http://127.0.0.1:1"
 ev10="$(evidence_json "${repo10}")"
@@ -326,6 +337,8 @@ ESHU_RELEASE_GATE_SKIP_GO_TESTS=1 \
     "${gate}" \
     --out-dir "${repo11}/_evidence" \
     --phases state,runtime \
+    --runtime-run-kind clean \
+    --image-tag-candidate v0.0.3-test \
     --api-base-url "http://127.0.0.1:1/api/v0" \
     >"${repo11}/_gate.out" 2>"${repo11}/_gate.err" \
     && { printf 'expected gate to fail in case11 (endpoints unreachable)\n' >&2; exit 1; } \
@@ -350,6 +363,7 @@ ESHU_RELEASE_GATE_REPO_ROOT="${repo12}" \
     "${gate}" \
     --out-dir "${repo12}/_evidence" \
     --phases state,fixtures \
+    --image-tag-candidate v0.0.3-test \
     >"${repo12}/_gate.out" 2>"${repo12}/_gate.err" \
     && { printf 'expected gate to fail when verify_vulnerability_parity_fixtures.sh is missing in case12\n' >&2; exit 1; } \
     || true
@@ -368,5 +382,74 @@ for ph in state focused fixtures; do
     jq -e --arg ph "${ph}" '.[$ph].status | IN("pass","fail","skipped")' "${ev13}" >/dev/null \
         || { printf 'phase %s missing status field in case13\n' "${ph}" >&2; exit 1; }
 done
+
+# --- Test 14: readback-proof phase accepts public-safe API/MCP/CLI aggregate evidence.
+repo14="$(init_fake_repo case14 --scanner-worker)"
+cat >"${repo14}/readback-proof.json" <<'JSON'
+{
+  "schema_version": 1,
+  "proof_id": "security-readback-proof-v1",
+  "surfaces": {
+    "api": {"status": "pass", "checked": 6, "failed": 0},
+    "mcp": {"status": "pass", "checked": 4, "failed": 0},
+    "cli": {"status": "pass", "checked": 3, "failed": 0}
+  },
+  "queue": {"retrying": 0, "failed": 0, "dead_letters": 0},
+  "transcript_status": "captured"
+}
+JSON
+expect_pass "${repo14}" \
+    --phases state,readback-proof \
+    --image-tag-candidate v0.0.3-test \
+    --readback-proof "${repo14}/readback-proof.json"
+ev14="$(evidence_json "${repo14}")"
+jq -e '.readback_proof.status == "pass" and .readback_proof.surfaces.mcp.checked == 4' "${ev14}" >/dev/null \
+    || { printf 'readback-proof summary did not capture MCP aggregate evidence in case14\n' >&2; exit 1; }
+jq -e '.readback_proof.queue.dead_letters == 0 and .readback_proof.transcript_status == "captured"' "${ev14}" >/dev/null \
+    || { printf 'readback-proof queue/transcript summary wrong in case14\n' >&2; exit 1; }
+
+# --- Test 15: readback-proof phase rejects private transcript content.
+repo15="$(init_fake_repo case15 --scanner-worker)"
+cat >"${repo15}/private-readback-proof.json" <<'JSON'
+{
+  "schema_version": 1,
+  "proof_id": "security-readback-proof-v1",
+  "surfaces": {
+    "api": {"status": "pass", "checked": 6, "failed": 0},
+    "mcp": {"status": "pass", "checked": 4, "failed": 0},
+    "cli": {"status": "pass", "checked": 3, "failed": 0}
+  },
+  "queue": {"retrying": 0, "failed": 0, "dead_letters": 0},
+  "transcript_status": "captured",
+  "repository": "private-org/private-repo"
+}
+JSON
+expect_fail "${repo15}" \
+    --phases state,readback-proof \
+    --image-tag-candidate v0.0.3-test \
+    --readback-proof "${repo15}/private-readback-proof.json"
+rg --fixed-strings --quiet -- "readback-proof looks like private data" "${repo15}/_gate.err" \
+    || { printf 'private readback proof was not rejected in case15\n' >&2; exit 1; }
+
+# --- Test 16: readback-proof phase fails closed when MCP/CLI evidence is missing.
+repo16="$(init_fake_repo case16 --scanner-worker)"
+cat >"${repo16}/incomplete-readback-proof.json" <<'JSON'
+{
+  "schema_version": 1,
+  "proof_id": "security-readback-proof-v1",
+  "surfaces": {
+    "api": {"status": "pass", "checked": 6, "failed": 0},
+    "cli": {"status": "pass", "checked": 3, "failed": 0}
+  },
+  "queue": {"retrying": 0, "failed": 0, "dead_letters": 0},
+  "transcript_status": "captured"
+}
+JSON
+expect_fail "${repo16}" \
+    --phases state,readback-proof \
+    --image-tag-candidate v0.0.3-test \
+    --readback-proof "${repo16}/incomplete-readback-proof.json"
+rg --fixed-strings --quiet -- "readback-proof does not satisfy API/MCP/CLI" "${repo16}/_gate.err" \
+    || { printf 'incomplete readback proof did not fail closed in case16\n' >&2; exit 1; }
 
 printf 'security-intelligence release gate tests passed\n'
