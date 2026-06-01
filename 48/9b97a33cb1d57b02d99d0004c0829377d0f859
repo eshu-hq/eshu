@@ -1,0 +1,25 @@
+go/internal/reducer/supply_chain_impact_python_reachability.go
+  s_f2f7fbb6f30866::t_ff23645b967f26 5,28-32,44-126
+go/internal/reducer/supply_chain_impact.go
+  s_f2f7fbb6f30866::t_42fb01da7e9db7 201
+go/internal/reducer/supply_chain_impact_python_reachability_test.go
+  s_f2f7fbb6f30866::t_9c0adc8863fccc 7
+  s_f2f7fbb6f30866::t_1bf4005a116c09 184-193,215,258-266,281-338,340-349,351-357,361,388-389,395,401-403,407-420
+  s_f2f7fbb6f30866::t_d01ba87cb5be15 339,362,396
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "489b97a33cb1d57b02d99d0004c0829377d0f859",
+  "prompts": {},
+  "sessions": {
+    "s_f2f7fbb6f30866": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e360b-90eb-7472-bac7-56d488b65f77",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
