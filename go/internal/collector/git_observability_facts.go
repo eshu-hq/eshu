@@ -24,10 +24,12 @@ var observabilitySourceBuckets = []struct {
 	{bucket: "observability_declared_metric_rules", kind: facts.ObservabilityDeclaredMetricRuleFactKind},
 	{bucket: "observability_declared_metric_routes", kind: facts.ObservabilityDeclaredMetricRouteFactKind},
 	{bucket: "observability_declared_log_routes", kind: facts.ObservabilityDeclaredLogRouteFactKind},
+	{bucket: "observability_declared_trace_routes", kind: facts.ObservabilityDeclaredTraceRouteFactKind},
 	{bucket: "observability_coverage_warnings", kind: facts.ObservabilityCoverageWarningFactKind},
 }
 
 var forbiddenObservabilityPayloadKeys = map[string]struct{}{
+	"actions":                  {},
 	"basicAuthPassword":        {},
 	"config_json":              {},
 	"dashboard_json":           {},
@@ -44,16 +46,24 @@ var forbiddenObservabilityPayloadKeys = map[string]struct{}{
 	"model":                    {},
 	"panels":                   {},
 	"password":                 {},
+	"queries":                  {},
 	"query":                    {},
 	"secureJsonData":           {},
 	"secure_json_data_encoded": {},
 	"serverSnippet":            {},
 	"scrape_configs":           {},
+	"span_id":                  {},
+	"spanID":                   {},
+	"spans":                    {},
 	"static_configs":           {},
 	"staticConfigs":            {},
+	"tags":                     {},
 	"tenant_id":                {},
 	"targets":                  {},
 	"title":                    {},
+	"trace_id":                 {},
+	"traceID":                  {},
+	"traces":                   {},
 	"url":                      {},
 }
 
@@ -224,6 +234,7 @@ func observabilityRecordIdentity(payload map[string]any) string {
 		"folder_uid", "folder_title_fingerprint", "dashboard_uid", "datasource_uid", "alert_rule_uid", "warning_kind",
 		"selector_identity_fingerprint", "job_name_fingerprint", "rule_group", "rule_kind", "alert_rule_name_fingerprint", "record_rule_name_fingerprint",
 		"pipeline_name", "backend_kind", "exporter_refs", "processor_refs", "receiver_refs", "route_destination_fingerprint", "tenant_id_fingerprint", "label_identity_fingerprint",
+		"connector_refs", "trace_tag_identity_fingerprint", "traces_to_logs_datasource_uid", "traces_to_metrics_datasource_uid", "service_map_datasource_uid",
 		"name", "resource_kind", "resource_name", "config_key",
 	}
 	parts := make([]string, 0, len(keys))

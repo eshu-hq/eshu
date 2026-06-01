@@ -242,7 +242,8 @@ rather than raw values.
 
 Observability fact kinds use schema version `1.0.0` for the first
 Grafana-stack evidence contract, including Grafana metadata,
-Prometheus/Mimir metric coverage metadata, and Loki log-route metadata:
+Prometheus/Mimir metric coverage metadata, Loki log-route metadata, and Tempo
+trace-route metadata:
 
 - `observability.source_instance`
 - `observability.declared_folder`
@@ -270,7 +271,8 @@ surfaces must compare declared IaC, applied state, and live provider evidence
 before presenting coverage, drift, or operational truth. Dashboard JSON, raw
 queries, scrape targets, remote-write URLs, datasource credentials, tenant
 header values, tenant IDs, contact routes, Loki route URLs, log label values,
-log lines, and spans do not belong in these payloads.
+Tempo route URLs, log lines, spans, traces, raw trace IDs, request attributes,
+TraceQL bodies, and trace tag values do not belong in these payloads.
 
 Vulnerability suppression fact kinds use schema version `1.0.0` for the
 first VEX and operator-policy contract:
