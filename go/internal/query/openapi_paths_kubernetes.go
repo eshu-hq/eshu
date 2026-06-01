@@ -10,7 +10,7 @@ const openAPIPathsKubernetes = `
         "parameters": [
           {"name": "scope_id", "in": "query", "schema": {"type": "string"}, "description": "Reducer scope ID to anchor lookup."},
           {"name": "cluster_id", "in": "query", "schema": {"type": "string"}, "description": "Cluster ID to anchor lookup."},
-          {"name": "workload_object_id", "in": "query", "schema": {"type": "string"}, "description": "Workload object ID (such as deployment/namespace/name) to anchor lookup."},
+          {"name": "workload_object_id", "in": "query", "schema": {"type": "string"}, "description": "Durable workload object ID emitted by the Kubernetes live collector (an opaque deterministic identifier, not a deployment/namespace/name shorthand) to anchor lookup."},
           {"name": "namespace", "in": "query", "schema": {"type": "string"}, "description": "Kubernetes namespace to anchor lookup."},
           {"name": "image_ref", "in": "query", "schema": {"type": "string"}, "description": "Live container image reference to anchor lookup."},
           {"name": "source_digest", "in": "query", "schema": {"type": "string"}, "description": "Deployment-source image digest to anchor lookup."},

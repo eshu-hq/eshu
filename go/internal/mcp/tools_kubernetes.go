@@ -18,7 +18,7 @@ func kubernetesTools() []ToolDefinition {
 					},
 					"workload_object_id": map[string]any{
 						"type":        "string",
-						"description": "Workload object ID (such as deployment/namespace/name) to anchor lookup.",
+						"description": "Durable workload object ID emitted by the Kubernetes live collector (an opaque deterministic identifier, not a deployment/namespace/name shorthand) to anchor lookup.",
 					},
 					"namespace": map[string]any{
 						"type":        "string",

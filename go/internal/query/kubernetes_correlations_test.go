@@ -2,6 +2,7 @@ package query
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -145,11 +146,51 @@ func TestKubernetesCorrelationQueryUsesActiveFactReadModel(t *testing.T) {
 	}
 }
 
+// failingKubernetesCorrelationQueryer fails the test if any query reaches the
+// database. It proves that scope/anchor validation rejects an unbounded read
+// before a SQL statement is ever issued.
+type failingKubernetesCorrelationQueryer struct {
+	t *testing.T
+}
+
+func (q failingKubernetesCorrelationQueryer) QueryContext(
+	context.Context,
+	string,
+	...any,
+) (*sql.Rows, error) {
+	q.t.Helper()
+	q.t.Fatal("QueryContext called: unbounded scope reached the database instead of being rejected")
+	return nil, nil
+}
+
 func TestKubernetesCorrelationFilterRejectsUnboundedScope(t *testing.T) {
 	t.Parallel()
 
+	// A non-nil DB ensures the nil-DB guard passes so the scope/anchor
+	// validation is the path actually exercised. The queryer fails the test if
+	// it is ever reached, proving the unbounded read is rejected up front.
+	store := PostgresKubernetesCorrelationStore{DB: failingKubernetesCorrelationQueryer{t: t}}
+	_, err := store.ListKubernetesCorrelations(context.Background(), KubernetesCorrelationFilter{Limit: 10})
+	if err == nil {
+		t.Fatal("ListKubernetesCorrelations() error = nil, want non-nil for unbounded scope")
+	}
+	if want := "is required"; !strings.Contains(err.Error(), want) {
+		t.Fatalf("ListKubernetesCorrelations() error = %q, want it to contain %q", err.Error(), want)
+	}
+}
+
+func TestKubernetesCorrelationFilterRejectsNilDB(t *testing.T) {
+	t.Parallel()
+
 	store := PostgresKubernetesCorrelationStore{DB: nil}
-	if _, err := store.ListKubernetesCorrelations(context.Background(), KubernetesCorrelationFilter{Limit: 10}); err == nil {
+	_, err := store.ListKubernetesCorrelations(context.Background(), KubernetesCorrelationFilter{
+		ClusterID: "cluster-prod",
+		Limit:     10,
+	})
+	if err == nil {
 		t.Fatal("ListKubernetesCorrelations() error = nil, want non-nil for nil DB")
+	}
+	if want := "database is required"; !strings.Contains(err.Error(), want) {
+		t.Fatalf("ListKubernetesCorrelations() error = %q, want it to contain %q", err.Error(), want)
 	}
 }
