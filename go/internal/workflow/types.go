@@ -199,6 +199,48 @@ type OwnedPackageDependencyTargetFilter struct {
 	RotationOffset  int64
 }
 
+// OSPackageAdvisoryTarget is one active installed OS package fact that can
+// bound advisory target planning when vendor source and exact installed
+// version evidence are present.
+type OSPackageAdvisoryTarget struct {
+	Ecosystem            string
+	PackageName          string
+	InstalledVersion     string
+	PackageManager       string
+	VendorAdvisorySource string
+	RepositoryClass      string
+	PURL                 string
+	FactID               string
+	ScopeID              string
+}
+
+// OSPackageAdvisoryTargetFilter bounds active installed OS package target reads.
+type OSPackageAdvisoryTargetFilter struct {
+	Ecosystems     []string
+	Limit          int
+	RotationOffset int64
+}
+
+// SBOMComponentAdvisoryTarget is one active attached SBOM component fact that
+// can bound advisory target planning when package source, subject attachment,
+// and exact version evidence are present.
+type SBOMComponentAdvisoryTarget struct {
+	Ecosystem     string
+	PackageName   string
+	Version       string
+	PURL          string
+	DocumentID    string
+	SubjectDigest string
+	FactID        string
+}
+
+// SBOMComponentAdvisoryTargetFilter bounds active SBOM component target reads.
+type SBOMComponentAdvisoryTargetFilter struct {
+	Ecosystems     []string
+	Limit          int
+	RotationOffset int64
+}
+
 // Validate checks that the work item has durable identity and lifecycle shape.
 func (w WorkItem) Validate() error {
 	if err := validateIdentifier("work_item_id", w.WorkItemID); err != nil {

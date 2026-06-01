@@ -204,13 +204,25 @@ and are not promoted into OSV package-version collection targets. Exact
 package-version queries are grouped into bounded OSV querybatch work items when
 the scope ID remains storage-safe, preserving installed-version truth without
 issuing one claim per package version. The configuration can also declare
+`derive_from_installed_evidence.enabled=true`; that path derives OSV targets
+from active installed OS package facts and attached SBOM component facts only
+when the owning evidence proves the ecosystem/source family, exact installed
+version, and subject attachment. OS package rows require vendor repository
+classification, vendor advisory source, package manager, package name, exact
+installed version, and image/scope subject evidence. SBOM component rows require
+an attached subject digest plus PURL-derived package ecosystem, name, and exact
+version. Partial installed-evidence rows stay skipped with stable aggregate
+reason codes by ecosystem and source family, without package names or versions
+in skip status.
+The configuration can also declare
 `source_cache` for refresh or offline advisory-source cache lifecycle and
 `fallback_urls` for source mirrors; validation keeps cache modes, durations,
 and mirror URLs bounded before the desired collector instance is persisted.
 Derived package and vulnerability target reads rotate their bounded slice on
 each coordinator reconcile bucket by default, so a target limit smaller than
 the full corpus does not repeatedly schedule only the first sorted page. Set
-`derive_from_owned_packages.planning_mode=single_pass` only for bounded
+`derive_from_owned_packages.planning_mode=single_pass` or
+`derive_from_installed_evidence.planning_mode=single_pass` only for bounded
 representative proofs that must keep the total derived target set fixed across
 reconcile buckets.
 
@@ -372,6 +384,15 @@ package-registry metadata target counts by ecosystem without putting package
 names, versions, feed URLs, or credential material in metric labels.
 
 No-Regression Evidence: `go test ./internal/coordinator ./internal/workflow -run 'Test(ServiceRunActiveModeSinglePass(PackageRegistry|Vulnerability)DerivedBudgetDoesNotAdmitNextBucket|PackageRegistryCollectorConfigurationRejectsUnknownDerivedPlanningMode|VulnerabilityIntelligenceCollectorConfigurationRejectsUnknownDerivedPlanningMode)' -count=1` proves representative single-pass derived target planning keeps the same run key and zero rotation offset across reconcile buckets, while config validation rejects unsupported planning modes. The default mode remains rotating, so hosted collectors can continue progressing through larger corpora.
+
+No-Regression Evidence: `go test ./internal/coordinator ./internal/workflow ./internal/storage/postgres ./internal/collector/vulnerabilityintelligence/vulnruntime ./cmd/workflow-coordinator ./cmd/collector-vulnerability-intelligence -run 'InstalledEvidence|OSPackageAdvisory|SBOMComponentAdvisory|DerivedInstalledEvidence|TestOSVQueryEcosystemMapsInstalledOSEcosystems|VulnerabilityIntelligenceCollectorConfigurationAcceptsInstalledEvidenceDerivation|TestMapConfigAcceptsInstalledEvidenceDerivation' -count=1` proves installed OS package and SBOM component derivation admits only exact source-owned evidence, batches OSV query scopes where supported, preserves stable skip reason counts, and maps distro ecosystems to OSV query names.
+
+Observability Evidence: installed-evidence derivation reuses workflow run
+`requested_scope_set`, work-item status, collector claim status, source
+snapshot, fetch duration, fact-emitted, rate-limit, and `/api/v0/index-status`
+signals. No new metric labels were added; skipped-target status is aggregated
+by reason, ecosystem, source family, collector kind, target class, source, and
+selected/limit counts only.
 
 Observability Evidence: no new metrics were required. Single-pass proof mode is visible in collector instance configuration, stable workflow run IDs, zero-offset target-reader requests in tests, and `/api/v0/index-status` queue totals. The remote runtime-state gate now fails representative proofs whose outstanding queue grows beyond the configured derived-target budget guard.
 
