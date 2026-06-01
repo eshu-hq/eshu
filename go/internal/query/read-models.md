@@ -168,6 +168,11 @@ per-family fact counts and `latest_observed_at` for `vulnerability.advisory`,
 returns the stable `missing_evidence` reasons `advisory_sources`,
 `owned_packages`, `sbom_or_image_evidence`, `target_collection_incomplete`,
 and `readiness_unavailable`. The envelope also carries
+`unsupported_targets[]` for observed package-manager evidence outside the
+supported exact-version matcher set. Swift is excluded from unsupported
+ecosystem targets only for exact `Package.resolved` evidence joined to OSV
+`SwiftURL` advisory facts; branch-only, revision-only, local, or path pins
+remain missing or unsupported evidence. The envelope also carries
 `source_snapshots[]` with source, ecosystem, cache artifact version, snapshot
 digest, cache update time, freshness, completion state, and bounded warning
 fields from `vulnerability.source_snapshot` facts. `PostgresSupplyChainImpactReadinessStore`

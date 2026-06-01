@@ -15,10 +15,10 @@ const (
 
 func listOwnedPackageDependencyTargetsQuery(versionSpecific bool) string {
 	distinctColumns := "ecosystem, package_name"
-	distinctOrder := "ecosystem ASC, package_name ASC, lockfile DESC, version ASC, fact_id ASC"
+	distinctOrder := "ecosystem ASC, package_name ASC, CASE WHEN source_location <> '' THEN 0 ELSE 1 END ASC, lockfile DESC, version ASC, fact_id ASC"
 	if versionSpecific {
 		distinctColumns = "ecosystem, package_name, version"
-		distinctOrder = "ecosystem ASC, package_name ASC, version ASC, lockfile DESC, fact_id ASC"
+		distinctOrder = "ecosystem ASC, package_name ASC, version ASC, CASE WHEN source_location <> '' THEN 0 ELSE 1 END ASC, lockfile DESC, fact_id ASC"
 	}
 	return fmt.Sprintf(`
 WITH active_dependencies AS (
@@ -28,7 +28,8 @@ WITH active_dependencies AS (
     fact.payload->'entity_metadata'->>'value' AS version,
     COALESCE((fact.payload->'entity_metadata'->>'lockfile') = 'true', FALSE) AS lockfile,
     COALESCE(fact.payload->>'repo_id', '') AS repository_id,
-    fact.fact_id
+    fact.fact_id,
+    COALESCE(fact.payload->'entity_metadata'->>'source_location', '') AS source_location
 FROM fact_records AS fact
 JOIN ingestion_scopes AS scope
   ON scope.scope_id = fact.scope_id
@@ -51,7 +52,8 @@ distinct_targets AS (
     version,
     lockfile,
     repository_id,
-    fact_id
+    fact_id,
+    source_location
   FROM active_dependencies
   ORDER BY %s
 ),
@@ -63,6 +65,7 @@ numbered_targets AS (
     lockfile,
     repository_id,
     fact_id,
+    source_location,
     ROW_NUMBER() OVER (
       ORDER BY ecosystem ASC, package_name ASC, version ASC, lockfile DESC, fact_id ASC
     ) - 1 AS target_rank,
@@ -77,6 +80,7 @@ rotated_targets AS (
     lockfile,
     repository_id,
     fact_id,
+    source_location,
     target_rank,
     MOD(target_rank - MOD($3::bigint, total_targets) + total_targets, total_targets) AS rotated_rank
   FROM numbered_targets
@@ -87,7 +91,8 @@ SELECT
     version,
     lockfile,
     repository_id,
-    fact_id
+    fact_id,
+    source_location
 FROM rotated_targets
 ORDER BY rotated_rank ASC, target_rank ASC
 LIMIT $2
@@ -132,12 +137,14 @@ func (s FactStore) ListOwnedPackageDependencyTargets(
 			&target.Lockfile,
 			&target.RepositoryID,
 			&target.FactID,
+			&target.SourceLocation,
 		); err != nil {
 			return nil, fmt.Errorf("list owned package dependency targets: %w", err)
 		}
 		target.Ecosystem = strings.ToLower(strings.TrimSpace(target.Ecosystem))
 		target.PackageName = strings.TrimSpace(target.PackageName)
 		target.Version = strings.TrimSpace(target.Version)
+		target.SourceLocation = strings.TrimSpace(target.SourceLocation)
 		if target.Ecosystem == "" || target.PackageName == "" {
 			continue
 		}

@@ -10,11 +10,11 @@ rows consumed by collector and projection code.
 ## Ownership boundary
 
 This package owns JSON decoding, JSON-specific ordered-object handling,
-package-manager manifest rows, npm `package-lock.json` and Composer
-`composer.lock` exact dependency rows, NuGet `packages.lock.json` exact
-dependency rows, the repository-wide dependency coverage matrix, TypeScript
-config rows, dbt manifest payload construction, and data-intelligence replay
-fixture extraction. The replay code is split across
+package-manager manifest rows, npm `package-lock.json`, Composer
+`composer.lock`, NuGet `packages.lock.json`, and SwiftPM `Package.resolved`
+exact dependency rows, the repository-wide dependency coverage matrix,
+TypeScript config rows, dbt manifest payload construction, and
+data-intelligence replay fixture extraction. The replay code is split across
 domain files so no single helper becomes a catch-all parser. This package does
 not own parser dispatch, repository discovery, fact persistence, graph
 projection, YAML decoding, or dbt SQL lineage parsing.
@@ -88,6 +88,12 @@ package boundary type.
 
 CloudFormation and SAM documents return after template extraction so generic
 JSON dependency rows do not mix with infrastructure payload rows.
+
+SwiftPM `Package.resolved` rows are intentionally narrow. Only remote
+source-control pins with an exact `state.version` become `config_kind:
+"dependency"` rows. Branch-only, revision-only, local, path, and unsupported
+pins remain non-evidence so supply-chain impact cannot infer a Swift package
+version from incomplete resolver state.
 
 ## Related docs
 

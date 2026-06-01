@@ -120,7 +120,10 @@ canonical graph or reducer truth.
   row that keeps `observed_version`, `requested_range`, `fixed_version`, and
   `match_reason` separate so API and MCP clients can explain version matching
   without collapsing range-only, unsupported, malformed, affected, and
-  known-fixed states. Every row carries a `Suppression` block decoded from the
+  known-fixed states. Legacy rows without an explicit detection profile are
+  backfilled as precise only for supported exact-version match reasons,
+  including npm, NuGet, Cargo, Maven, and Swift paths. Every row carries a
+  `Suppression` block decoded from the
   reducer's VEX/operator-policy decision so the `include_suppressed` toggle
   and `suppression_state` filter on
   `GET /api/v0/supply-chain/impact/findings` can hide, surface, and explain

@@ -65,14 +65,20 @@ WHERE fact.fact_kind = $1
                     'not_affected_known_fixed'
                   )
               AND COALESCE(fact.payload->>'observed_version', '') <> ''
-              AND fact.payload->>'match_reason' IN (
-                    'npm_semver_affected_range',
-                    'npm_semver_known_fixed',
-                    'maven_range_match',
-                    'maven_known_fixed'
-                  )
-           )
-      )
+	              AND fact.payload->>'match_reason' IN (
+	                    'npm_semver_affected_range',
+	                    'npm_semver_known_fixed',
+	                    'nuget_semver_affected_range',
+	                    'nuget_semver_known_fixed',
+	                    'cargo_semver_affected_range',
+	                    'cargo_semver_known_fixed',
+	                    'maven_range_match',
+	                    'maven_known_fixed',
+	                    'swift_semver_affected_range',
+	                    'swift_semver_known_fixed'
+	                  )
+	           )
+	      )
   AND ($8 = '' OR fact.payload->>'priority_bucket' = $8)
   AND ($9 = 0 OR COALESCE(NULLIF(fact.payload->>'priority_score', '')::int, 0) >= $9)
   AND ($13 = '' OR COALESCE(NULLIF(fact.payload->>'suppression_state', ''), 'active') = $13)

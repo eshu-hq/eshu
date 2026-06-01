@@ -85,6 +85,7 @@ absence of evidence look like absence of risk. Guard tests:
 | pypi | requirements.txt | manifest | covered | ✓ | — | ✓ | ✓ | ✓ | — | `go/internal/parser/pythondep/requirements.go` | pip requirements files (`requirements.txt`, `requirements-*.txt`, `requirements_*.txt`) emit rows with extras, environment markers, and a `dev_dependency` flag derived from dev/test filename suffixes. VCS/path/URL/editable/malformed entries surface as separate `config_kind` values. |
 | rubygems | Gemfile | manifest | covered | ✓ | — | ✓ | ✓ | ✓ | — | `go/internal/parser/ruby/bundler_gemfile.go` | Literal `gem` declarations emit RubyGems rows with group scope and git/path source metadata; dynamic Ruby is skipped. |
 | rubygems | Gemfile.lock | lockfile | covered | ✓ | ✓ | — | ✓ | — | ✓ | `go/internal/parser/ruby/bundler_lockfile.go` | Bundler lockfiles emit exact versions and dependency chains only when `DEPENDENCIES` and `specs:` indentation prove them. |
+| swift | Package.resolved | lockfile | covered | ✓ | ✓ | — | — | — | — | `go/internal/parser/json/swift_package_resolved.go` | Swift Package.resolved v2 remote source-control pins emit exact-version rows with source namespace and SwiftPM identity; branch, revision-only, local, path, and unsupported pins remain non-evidence. |
 
 ## Implications For The Reducer And Readiness Envelope
 
@@ -118,6 +119,14 @@ absence of evidence look like absence of risk. Guard tests:
   and dev/build/runtime scope. Cargo `Cargo.lock` rows preserve exact resolved
   crate versions and dependency paths only when the lockfile root graph proves
   the transitive relationship.
+- SwiftPM `Package.resolved` rows preserve exact versions only for remote
+  source-control pins with `state.version`. The row identity is the source
+  namespace plus SwiftPM package identity, for example
+  `github.com/apple/swift-argument-parser`, with `package_manager: "swift"`.
+  `Package.swift`, branch-only pins, revision-only pins, local pins, and path
+  dependencies remain missing evidence. Swift advisory ingestion and impact
+  matching are separate contracts documented in
+  [Security Intelligence Source Coverage](security-intelligence-source-coverage.md).
 - Go repositories now emit owned-package evidence from `go.mod`. Require,
   indirect-require, replace, and exclude directives become content_entity
   rows; the consumption reducer admits only the require/indirect rows
@@ -204,6 +213,16 @@ No-Regression Evidence: Cargo coverage is guarded by
 and `go test ./internal/reducer -run 'TestBuildPackageConsumptionDecisions(MatchesCargoRenamedPackage|KeepsCargoLockfileWithoutProofUnchained)|TestPackageCorrelationWriterPersistsCargoLockfileEvidence|TestBuildSupplyChainImpactFindings(UsesCargoLockfileVersion|MarksCargoLockfileVersionKnownFixed|KeepsCargoManifestVersionRangeOnly)' -count=1`.
 These are in-memory parser and reducer fixtures; they do not claim queue,
 graph-backend, or hosted-runtime performance.
+
+No-Regression Evidence: Swift dependency evidence is guarded by
+`go test ./internal/packageidentity -count=1`,
+`go test ./internal/parser/json -run 'TestDependencyCoverageMatrixIsStableAndExhaustive|TestDependencyCoverageCoveredJSONFilesEmitDependencyRows|TestSwiftPackageResolvedEmitsOnlyVersionedRemoteDependencies' -count=1`,
+and
+`go test ./internal/parser -run TestDependencyCoverageCoveredFilesEmitDependencyRowsThroughEngine -count=1`.
+These fixtures prove SwiftPM identity normalization, exact-version
+Package.resolved row emission, fail-closed branch/revision/local pin handling,
+and parser-engine exact-name dispatch. They do not by themselves prove hosted
+runtime collection, queue behavior, graph writes, or deployed readback.
 
 No-Observability-Change: this change is parser fixture work and reducer
 truth assertions. It introduces no new metric instrument, span, log key,

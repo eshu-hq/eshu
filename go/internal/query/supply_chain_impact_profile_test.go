@@ -138,7 +138,15 @@ func TestSupplyChainImpactFindingQueryUsesDetectionProfileFilter(t *testing.T) {
 		"$7 = 'comprehensive'",
 		"$7 = 'precise'",
 		"npm_semver_affected_range",
+		"npm_semver_known_fixed",
+		"nuget_semver_affected_range",
+		"nuget_semver_known_fixed",
+		"cargo_semver_affected_range",
+		"cargo_semver_known_fixed",
+		"maven_range_match",
 		"maven_known_fixed",
+		"swift_semver_affected_range",
+		"swift_semver_known_fixed",
 	} {
 		if !strings.Contains(listSupplyChainImpactFindingsQuery, want) {
 			t.Fatalf("listSupplyChainImpactFindingsQuery missing %q:\n%s", want, listSupplyChainImpactFindingsQuery)
@@ -149,19 +157,59 @@ func TestSupplyChainImpactFindingQueryUsesDetectionProfileFilter(t *testing.T) {
 func TestDecodeSupplyChainImpactFindingRowBackfillsLegacyPreciseProfile(t *testing.T) {
 	t.Parallel()
 
-	payload := []byte(`{
-            "cve_id": "CVE-2026-9001",
-            "impact_status": "affected_exact",
-            "match_reason": "npm_semver_affected_range",
-            "observed_version": "1.2.3"
-        }`)
-
-	row, err := decodeSupplyChainImpactFindingRow("finding-legacy-precise", "inferred", payload)
-	if err != nil {
-		t.Fatalf("decodeSupplyChainImpactFindingRow() error = %v", err)
+	cases := []struct {
+		name    string
+		payload []byte
+	}{
+		{
+			name: "npm_semver",
+			payload: []byte(`{
+                "cve_id": "CVE-2026-9001",
+                "impact_status": "affected_exact",
+                "match_reason": "npm_semver_affected_range",
+                "observed_version": "1.2.3"
+            }`),
+		},
+		{
+			name: "nuget_semver",
+			payload: []byte(`{
+                "cve_id": "CVE-2026-9003",
+                "impact_status": "not_affected_known_fixed",
+                "match_reason": "nuget_semver_known_fixed",
+                "observed_version": "13.0.4"
+            }`),
+		},
+		{
+			name: "cargo_semver",
+			payload: []byte(`{
+                "cve_id": "CVE-2026-9004",
+                "impact_status": "affected_exact",
+                "match_reason": "cargo_semver_affected_range",
+                "observed_version": "1.0.210"
+            }`),
+		},
+		{
+			name: "swift_semver",
+			payload: []byte(`{
+                "cve_id": "CVE-2026-9002",
+                "impact_status": "affected_exact",
+                "match_reason": "swift_semver_affected_range",
+                "observed_version": "4.3.0"
+            }`),
+		},
 	}
-	if got, want := row.DetectionProfile, SupplyChainImpactProfilePrecise; got != want {
-		t.Fatalf("DetectionProfile = %q, want %q for legacy fact qualifying as precise", got, want)
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			row, err := decodeSupplyChainImpactFindingRow("finding-legacy-precise-"+tc.name, "inferred", tc.payload)
+			if err != nil {
+				t.Fatalf("decodeSupplyChainImpactFindingRow() error = %v", err)
+			}
+			if got, want := row.DetectionProfile, SupplyChainImpactProfilePrecise; got != want {
+				t.Fatalf("DetectionProfile = %q, want %q for legacy fact qualifying as precise", got, want)
+			}
+		})
 	}
 }
 

@@ -178,9 +178,10 @@ constructor with `InstrumentedDB{Inner: db, StoreName: "my_store", ...}`.
 - `ListOwnedPackageDependencyTargets` serves workflow-coordinator derivation.
   Package-registry callers use package-level identities so repeated versions of
   one package cannot starve later packages. Vulnerability-intelligence callers
-  use package-version identities. The rotation offset lets bounded full-corpus
-  runs advance past the first sorted page without changing worker counts or
-  query scope.
+  use package-version identities and retain dependency `source_location` so
+  Swift OSV planning can send the source Git URL required by OSV `SwiftURL`.
+  The rotation offset lets bounded full-corpus runs advance past the first
+  sorted page without changing worker counts or query scope.
 - `ListActivePackageManifestDependencyFacts` serves both package-source
   correlation and supply-chain impact. The query stays indexed on active Git
   dependency entities by `(package_manager, entity_name)`, so vulnerability

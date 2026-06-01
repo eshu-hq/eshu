@@ -162,6 +162,50 @@ func TestNormalizePackageIdentityUsesCanonicalEcosystemRules(t *testing.T) {
 			},
 		},
 		{
+			name: "swift package uses source namespace and lowercased identity",
+			in: RawIdentity{
+				Ecosystem: "swiftpm",
+				Registry:  "https://GitHub.com/Apple",
+				Namespace: "GitHub.com/Apple",
+				RawName:   "Swift-Argument-Parser",
+				Version:   "1.2.3",
+			},
+			want: Identity{
+				Ecosystem:      EcosystemSwift,
+				Registry:       "github.com/apple",
+				RawName:        "Swift-Argument-Parser",
+				NormalizedName: "swift-argument-parser",
+				Namespace:      "github.com/apple",
+				Version:        "1.2.3",
+				PURL:           "pkg:swift/github.com/apple/swift-argument-parser@1.2.3",
+				BOMRef:         "pkg:swift/github.com/apple/swift-argument-parser@1.2.3",
+				PackageManager: "swift",
+				PackageID:      "swift://github.com/apple/swift-argument-parser",
+			},
+		},
+		{
+			name: "osv SwiftURL alias uses swift identity contract",
+			in: RawIdentity{
+				Ecosystem: "SwiftURL",
+				Registry:  "https://github.com/apple",
+				Namespace: "https://github.com/apple",
+				RawName:   "swift-crypto",
+				Version:   "4.3.0",
+			},
+			want: Identity{
+				Ecosystem:      EcosystemSwift,
+				Registry:       "github.com/apple",
+				RawName:        "swift-crypto",
+				NormalizedName: "swift-crypto",
+				Namespace:      "github.com/apple",
+				Version:        "4.3.0",
+				PURL:           "pkg:swift/github.com/apple/swift-crypto@4.3.0",
+				BOMRef:         "pkg:swift/github.com/apple/swift-crypto@4.3.0",
+				PackageManager: "swift",
+				PackageID:      "swift://github.com/apple/swift-crypto",
+			},
+		},
+		{
 			name: "nuget lowercases package id",
 			in: RawIdentity{
 				Ecosystem: EcosystemNuGet,
@@ -270,6 +314,7 @@ func TestNormalizePackageIdentityRejectsMissingRequiredFields(t *testing.T) {
 		{name: "missing package name", in: RawIdentity{Ecosystem: EcosystemNPM, Registry: "registry.npmjs.org"}},
 		{name: "maven missing group", in: RawIdentity{Ecosystem: EcosystemMaven, Registry: "repo.maven.apache.org", RawName: "maven-core"}},
 		{name: "composer missing vendor", in: RawIdentity{Ecosystem: EcosystemComposer, Registry: "repo.packagist.org", RawName: "console"}},
+		{name: "swift missing source namespace", in: RawIdentity{Ecosystem: "swift", Registry: "github.com/apple", RawName: "swift-argument-parser"}},
 	}
 
 	for _, tt := range tests {
