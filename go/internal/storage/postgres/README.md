@@ -83,8 +83,8 @@ Primary groups:
 - Database adapters: `ExecQueryer`, `Transaction`, `Beginner`, `SQLDB`,
   `SQLTx`, `InstrumentedDB`.
 - Fact, queue, recovery, status, workflow, and webhook stores.
-- Installed advisory target readers for active OS package and attached SBOM
-  component evidence used by vulnerability-intelligence planning.
+- Installed advisory target readers for active OS package and active attached
+  SBOM component evidence used by vulnerability-intelligence planning.
 - Content stores and content writers, including bounded entity-batch
   concurrency and Postgres pool-budget notes.
 - Graph projection phase, shared projection intent, acceptance, freshness, and
@@ -189,10 +189,13 @@ constructor with `InstrumentedDB{Inner: db, StoreName: "my_store", ...}`.
   vulnerability-intelligence installed-evidence derivation. OS package reads
   stay on active `vulnerability.os_package` facts joined to the active
   generation and filtered by vendor advisory source/distro ecosystem. SBOM
-  component reads stay on active `sbom.component` facts that have attached
-  `reducer_sbom_attestation_attachment` evidence and filter by PURL ecosystem
-  before applying the bounded rotated limit. The readers return exact source
-  facts only; the coordinator owns admission and partial-evidence skip reasons.
+  component reads stay on active `sbom.component` facts that have active
+  same-scope attached `reducer_sbom_attestation_attachment` evidence and filter
+  by PURL ecosystem before applying the bounded rotated limit. SBOM rows derive
+  exact package identity from the PURL; component payload versions that
+  conflict with the PURL version are dropped before planning. The readers return
+  exact source facts only; the coordinator owns admission and partial-evidence
+  skip reasons.
 - `ListActivePackageManifestDependencyFacts` serves both package-source
   correlation and supply-chain impact. The query stays indexed on active Git
   dependency entities by `(package_manager, entity_name)`, so vulnerability

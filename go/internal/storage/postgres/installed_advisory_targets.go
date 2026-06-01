@@ -83,11 +83,19 @@ WITH active_components AS (
   JOIN fact_records AS attachment
     ON attachment.fact_kind = 'reducer_sbom_attestation_attachment'
    AND attachment.is_tombstone = FALSE
+   AND attachment.scope_id = component.scope_id
    AND component.payload->>'document_id' = attachment.payload->>'document_id'
    AND attachment.payload->>'attachment_status' IN ('attached_verified', 'attached_unverified', 'attached_parse_only')
+  JOIN ingestion_scopes AS attachment_scope
+    ON attachment_scope.scope_id = attachment.scope_id
+   AND attachment_scope.active_generation_id = attachment.generation_id
+  JOIN scope_generations AS attachment_generation
+    ON attachment_generation.scope_id = attachment.scope_id
+   AND attachment_generation.generation_id = attachment.generation_id
   WHERE component.fact_kind = 'sbom.component'
     AND component.is_tombstone = FALSE
     AND generation.status = 'active'
+    AND attachment_generation.status = 'active'
 ),
 numbered_targets AS (
   SELECT
@@ -186,27 +194,61 @@ func (s FactStore) ListSBOMComponentAdvisoryTargets(
 
 	targets := make([]workflow.SBOMComponentAdvisoryTarget, 0, limit)
 	for rows.Next() {
-		var target workflow.SBOMComponentAdvisoryTarget
+		var row sbomComponentAdvisoryTargetRow
 		if err := rows.Scan(
-			&target.PURL,
-			&target.PackageName,
-			&target.Version,
-			&target.DocumentID,
-			&target.SubjectDigest,
-			&target.FactID,
+			&row.PURL,
+			&row.PackageName,
+			&row.Version,
+			&row.DocumentID,
+			&row.SubjectDigest,
+			&row.FactID,
 		); err != nil {
 			return nil, fmt.Errorf("list SBOM component advisory targets: %w", err)
 		}
-		identity := installedAdvisoryPURLIdentity(target.PURL)
-		target.Ecosystem = identity.ecosystem
-		target.PackageName = firstNonBlankTrimmed(identity.packageName, target.PackageName)
-		target.Version = firstNonBlankTrimmed(target.Version, identity.version)
-		targets = append(targets, target)
+		target, ok := sbomComponentAdvisoryTargetFromRow(row)
+		if ok {
+			targets = append(targets, target)
+		}
 	}
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("list SBOM component advisory targets: %w", err)
 	}
 	return targets, nil
+}
+
+type sbomComponentAdvisoryTargetRow struct {
+	PURL          string
+	PackageName   string
+	Version       string
+	DocumentID    string
+	SubjectDigest string
+	FactID        string
+}
+
+func sbomComponentAdvisoryTargetFromRow(row sbomComponentAdvisoryTargetRow) (workflow.SBOMComponentAdvisoryTarget, bool) {
+	identity := installedAdvisoryPURLIdentity(row.PURL)
+	if identity.ecosystem == "" || identity.packageName == "" || identity.version == "" {
+		return workflow.SBOMComponentAdvisoryTarget{}, false
+	}
+	if conflictingSBOMComponentVersion(row.Version, identity.version) {
+		return workflow.SBOMComponentAdvisoryTarget{}, false
+	}
+	target := workflow.SBOMComponentAdvisoryTarget{
+		Ecosystem:     identity.ecosystem,
+		PackageName:   identity.packageName,
+		Version:       identity.version,
+		PURL:          strings.TrimSpace(row.PURL),
+		DocumentID:    strings.TrimSpace(row.DocumentID),
+		SubjectDigest: strings.TrimSpace(row.SubjectDigest),
+		FactID:        strings.TrimSpace(row.FactID),
+	}
+	return target, true
+}
+
+func conflictingSBOMComponentVersion(observed string, purlVersion string) bool {
+	observed = strings.TrimSpace(observed)
+	purlVersion = strings.TrimSpace(purlVersion)
+	return observed != "" && purlVersion != "" && observed != purlVersion
 }
 
 type installedAdvisoryPURLParts struct {
@@ -258,13 +300,4 @@ func urlDecodePath(raw string) string {
 		return strings.TrimSpace(raw)
 	}
 	return strings.TrimSpace(decoded)
-}
-
-func firstNonBlankTrimmed(values ...string) string {
-	for _, value := range values {
-		if strings.TrimSpace(value) != "" {
-			return strings.TrimSpace(value)
-		}
-	}
-	return ""
 }
