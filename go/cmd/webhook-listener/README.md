@@ -59,7 +59,9 @@ identifier from the payload `event.id`, `X-Webhook-Id`, or `X-Request-Id`; Jira
 intake uses `X-Hub-Signature` and a delivery identifier from
 `X-Atlassian-Webhook-Identifier` or `X-Request-Id`. PagerDuty and Jira routes
 store only bounded source, event, scope, and resource identifiers; the provider
-payload remains a wake-up signal and is not a fact source.
+payload remains a wake-up signal and is not a fact source. Jira intake accepts
+only issue created, updated, and deleted events as collector wake-ups; other
+Jira webhook families are rejected with `reason=unsupported_event`.
 Requests over `ESHU_WEBHOOK_MAX_BODY_BYTES` return 413; malformed or interrupted
 body reads return 400 so operators do not confuse transport errors with size
 limits.
@@ -96,6 +98,7 @@ facts and polling remains the authoritative backfill path for missed, dropped,
 or rejected webhooks.
 
 Observability Evidence: signature failures, missing delivery IDs, malformed
-payloads, durable-store failures, duplicate/coalesced triggers, and accepted
-freshness triggers use the existing webhook request, decision, store, and span
-signals with bounded provider, event kind, status, outcome, and reason labels.
+payloads, unsupported Jira event families, durable-store failures,
+duplicate/coalesced triggers, and accepted freshness triggers use the existing
+webhook request, decision, store, and span signals with bounded provider, event
+kind, status, outcome, and reason labels.

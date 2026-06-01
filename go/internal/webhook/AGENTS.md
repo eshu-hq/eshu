@@ -6,7 +6,9 @@ Read these files first:
 2. `types.go`
 3. `signature.go`
 4. `normalizer.go`
-5. `normalizer_test.go`
+5. `incident_freshness.go`
+6. `normalizer_test.go`
+7. `incident_freshness_test.go`
 
 ## Invariants
 
@@ -23,6 +25,8 @@ Read these files first:
 
 - Add provider payload fields in `normalizer.go` when the runtime needs more
   provenance.
+- Add Jira or PagerDuty freshness trigger behavior in `incident_freshness.go`
+  and keep provider payloads as wake-up signals only.
 - Add new ignored reasons in `types.go` when operators need to distinguish a
   valid but non-refreshing event.
 - Add table tests in `normalizer_test.go` before changing provider event

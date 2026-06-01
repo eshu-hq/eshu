@@ -95,6 +95,43 @@ func TestJiraWorkPlannerPlansWebhookScopeSubset(t *testing.T) {
 	}
 }
 
+func TestJiraWorkPlannerScheduledPollingCoversAllTargetsAfterMissedWebhook(t *testing.T) {
+	t.Parallel()
+
+	observedAt := time.Date(2026, time.May, 31, 16, 0, 0, 0, time.UTC)
+	instance := workflow.CollectorInstance{
+		InstanceID:     "jira-primary",
+		CollectorKind:  scope.CollectorJira,
+		Mode:           workflow.CollectorModeContinuous,
+		Enabled:        true,
+		ClaimsEnabled:  true,
+		Configuration:  testJiraConfigWithTwoTargets(),
+		LastObservedAt: observedAt,
+		CreatedAt:      observedAt,
+		UpdatedAt:      observedAt,
+	}
+
+	run, items, err := (JiraWorkPlanner{}).PlanJiraWork(t.Context(), JiraPlanRequest{
+		Instance:   instance,
+		ObservedAt: observedAt,
+		PlanKey:    "schedule-20260531T160000Z",
+	})
+	if err != nil {
+		t.Fatalf("PlanJiraWork() error = %v, want nil", err)
+	}
+	if got, want := run.TriggerKind, workflow.TriggerKindSchedule; got != want {
+		t.Fatalf("TriggerKind = %q, want %q", got, want)
+	}
+	if got, want := len(items), 2; got != want {
+		t.Fatalf("len(items) = %d, want %d", got, want)
+	}
+	for _, want := range []string{"jira:site:example", "jira:site:service-desk"} {
+		if !strings.Contains(run.RequestedScopeSet, want) {
+			t.Fatalf("RequestedScopeSet = %q, want polling target %q", run.RequestedScopeSet, want)
+		}
+	}
+}
+
 func testJiraConfig() string {
 	return `{
 		"targets": [{

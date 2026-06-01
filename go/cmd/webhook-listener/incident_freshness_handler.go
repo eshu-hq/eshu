@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -10,6 +11,8 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/webhook"
 	"go.opentelemetry.io/otel/trace"
 )
+
+const webhookReasonUnsupported = "unsupported_event"
 
 func (h webhookHandler) handlePagerDuty(w http.ResponseWriter, r *http.Request) {
 	ctx, span, startedAt := h.startWebhookRequest(r.Context(), webhook.ProviderPagerDuty)
@@ -96,6 +99,11 @@ func (h webhookHandler) storeIncidentFreshnessAndWrite(
 		Decision:  webhook.DecisionAccepted,
 	}
 	if normalizeErr != nil {
+		if errors.Is(normalizeErr, webhook.ErrUnsupportedIncidentFreshnessEvent) {
+			result.Reason = webhookReasonUnsupported
+			http.Error(w, "unsupported webhook event", http.StatusBadRequest)
+			return result
+		}
 		http.Error(w, "unsupported or malformed webhook event", http.StatusBadRequest)
 		return result
 	}

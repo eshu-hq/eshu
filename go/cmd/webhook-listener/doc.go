@@ -14,7 +14,8 @@
 // service-tuple wake-up triggers and never write graph truth directly.
 // PagerDuty and Jira deliveries are normalized into scoped incident freshness
 // wake-ups and never emit incident, change, work-item, deployment, code, or PR
-// facts directly. Request body handling returns 413 only when
+// facts directly. Jira intake admits only issue created, updated, and deleted
+// events as collector wake-ups. Request body handling returns 413 only when
 // MaxRequestBodyBytes is exceeded; other
 // body read failures are rejected as bad requests. Provider intake records
 // bounded structured logs plus OTEL counters, histograms, and spans through

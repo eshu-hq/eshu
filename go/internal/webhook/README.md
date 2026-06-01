@@ -40,15 +40,19 @@ flowchart LR
   request events that target the repository default branch.
 - `NormalizePagerDutyIncidentFreshness` accepts verified PagerDuty webhook
   deliveries as incident-source collector wake-ups.
-- `NormalizeJiraIncidentFreshness` accepts verified Jira webhook deliveries as
-  work-item-source collector wake-ups.
+- `NormalizeJiraIncidentFreshness` accepts verified Jira issue created,
+  updated, and deleted webhook deliveries as work-item-source collector
+  wake-ups.
+- `ErrUnsupportedIncidentFreshnessEvent` marks verified provider deliveries
+  that are not allowed to wake an incident-source collector.
 - `Trigger` carries provider, delivery, repository, ref, target SHA, sender,
   decision fields, and bounded merged-PR provenance for the later durable
   trigger handoff.
 - `StoredTrigger` adds durable trigger IDs, refresh keys, status, duplicate
   count, and timestamps after persistence owns the decision.
 - `IncidentFreshnessTrigger` carries provider, event, delivery, configured
-  scope, bounded source resource ID, and observed-at metadata only.
+  scope, bounded source resource ID, and observed-at metadata only. Jira
+  self-only issue URLs are represented by fingerprints, not raw URLs.
 - `StoredIncidentFreshnessTrigger` adds durable delivery and freshness keys,
   status, duplicate count, and timestamps after persistence owns the decision.
 
@@ -70,6 +74,8 @@ flowchart LR
 - PagerDuty and Jira webhook payloads are scoped refresh triggers only. They do
   not create incident, change, work-item, pull-request, deployment, image, or
   code facts.
+- Jira project, board, sprint, version, user, and other non-issue webhooks are
+  rejected as unsupported collector wake-ups.
 - Incident freshness requires a configured collector `scope_id`; the coordinator
   later rejects stale or unauthorized scope IDs before creating collector work.
 

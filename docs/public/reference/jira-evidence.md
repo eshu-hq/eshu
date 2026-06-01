@@ -45,7 +45,7 @@ Jira collection follows Jira Cloud provider contracts rather than UI behavior:
 | Jira Cloud REST v3 issue search | Poll bounded JQL updated windows with an explicit result limit and deterministic ordering. |
 | Jira issue changelogs | Collect transition and field-change evidence for issues found in the bounded window. |
 | Jira remote issue links | Preserve source-reported external links without verifying the target provider identity. |
-| Jira webhooks | Wake a configured Jira collector scope; webhook intake does not emit `work_item.*` facts. |
+| Jira webhooks | Wake a configured Jira collector scope for issue created, updated, or deleted events; webhook intake does not emit `work_item.*` facts. |
 | Jira rate-limit headers | Classify throttling as retryable and keep provider limits out of metric labels. |
 
 Official provider references:
@@ -152,6 +152,7 @@ stale evidence.
 | Duplicate polling window | Re-emit stable keys; storage converges rather than duplicating facts. |
 | Webhook duplicate delivery | Coalesce to one authorized collector work item for the configured scope. |
 | Polling recovery after webhook | Polling still backfills the source window when webhook delivery was missed or delayed. |
+| Unsupported webhook event | Reject the delivery as an unsupported wake-up; do not store payload fields or create collector work. |
 | Permission-hidden issue | Classify as `permission_hidden`; do not infer deletion or absence. |
 | Deleted issue | Classify as `deleted`; do not synthesize a tombstone without source support. |
 | Archived issue or project | Classify as `archived`; preserve the failure class for operator diagnosis. |
@@ -162,6 +163,13 @@ stale evidence.
 Freshness triggers are not facts. They are durable wake-ups that the workflow
 coordinator authorizes against collector configuration before normal Jira
 collection runs.
+
+Jira webhook intake accepts only the issue event family:
+`jira:issue_created`, `jira:issue_updated`, and `jira:issue_deleted`. Project,
+board, sprint, version, user, and other non-issue webhook families are rejected
+as unsupported wake-ups. If Jira omits issue ID and key but includes an
+`issue.self` URL, Eshu stores a fingerprinted resource identifier instead of
+the raw URL.
 
 ## Remote-Link Semantics
 
@@ -248,6 +256,19 @@ link identity, duplicate-window stable keys, malformed remote-link rejection,
 Retry-After classification, envelope redaction, empty-window handling, and
 visibility, deletion, archive, and provider failure classification.
 
+Webhook No-Regression Evidence:
+
+```bash
+go test ./internal/webhook ./cmd/webhook-listener ./internal/coordinator \
+  -run 'TestNormalizeJiraIncidentFreshness|TestNewStoredJiraIncidentFreshness|TestWebhookHandler(DoesNotRegisterUnsignedJiraRouteWhenSecretDisabled|RejectsBadJiraSignature|RejectsUnsupportedJiraEvent|RecordsJiraUnsupportedEventTelemetry)|TestServiceRunActiveModeCoalescesRepeatedJiraWebhookClaims|TestJiraWorkPlannerScheduledPollingCoversAllTargetsAfterMissedWebhook' \
+  -count=1
+```
+
+This covers signed intake, disabled unsigned Jira routes, invalid signatures,
+unsupported Jira event rejection, duplicate delivery coalescing, delayed and
+deleted issue events, self-URL fingerprinting, targeted handoff, and scheduled
+polling recovery after missed webhook delivery.
+
 Observability Evidence: the Jira fetch span records bounded counts for
 `jira.search_pages`, `jira.changelog_pages`, `jira.remote_link_pages`,
 `jira.issues_emitted`, `jira.changelog_events_emitted`,
@@ -256,6 +277,13 @@ Observability Evidence: the Jira fetch span records bounded counts for
 `jira.rate_limits`, `jira.retry_after_seconds`, and `jira.stale_windows`.
 Existing Jira metrics continue to report provider request attempts, emitted fact
 counts, rate limits, and fetch duration with bounded labels.
+
+Webhook Observability Evidence: existing webhook listener metrics and spans
+report accepted, rejected, unsupported, malformed, invalid-signature,
+duplicate/coalesced, and stored Jira freshness outcomes with bounded provider,
+event kind, status, outcome, and reason labels. Delivery IDs, issue keys, user
+identities, raw URLs, tokens, and request payloads are excluded from metric
+labels.
 
 ## Related
 
