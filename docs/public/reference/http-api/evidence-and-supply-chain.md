@@ -199,14 +199,17 @@ Callers can ask for two detection profiles via `?profile=`:
   version anchor (lockfile, manifest with pinned version, or SBOM component
   with an explicit version) resolved by an ecosystem-aware matcher. This is
   Eshu's low-noise default. Supported exact-version matchers include npm,
-  Cargo, Swift, NuGet, and Maven; Swift requires an exact remote
-  source-control pin from `Package.resolved`.
+  PyPI, Cargo, Swift, NuGet, Maven, and vendor-backed RPM-family OS package
+  facts; Swift requires an exact remote source-control pin from
+  `Package.resolved`.
 - `comprehensive`: also returns findings whose evidence stops short of
   precise — range-only manifest ranges, CPE/SBOM-derived image paths
-  without an exact version, malformed advisory ranges, unsupported
-  ecosystems, and missing observed versions. Comprehensive rows keep their
-  `impact_status`, `confidence`, `match_reason`, and `missing_evidence` so
-  callers see exactly why the precise bar was not met.
+  without an exact version, malformed advisory ranges, and missing observed
+  versions. Unsupported non-OS package ecosystems do not appear as finding rows;
+  the readiness envelope reports them through `unsupported_targets[]` with
+  stable reason codes. Comprehensive rows keep their `impact_status`, `confidence`,
+  `match_reason`, and `missing_evidence` so callers see exactly why the precise
+  bar was not met.
 
 Each row carries `detection_profile` (`precise` or `comprehensive`) so a
 UI or MCP client can compose the two profiles without re-running the query.
@@ -251,8 +254,9 @@ Version fields intentionally do not collapse into one string:
   the MCP tools all expose the same expression. Older rows written before
   remediation computation may omit this value.
 - `match_reason`: reducer explanation for the version decision, including
-  supported matches, range-only manifests, unsupported ecosystems, and
-  malformed installed versions or advisory ranges.
+  supported matches, range-only manifests, and malformed installed versions or
+  advisory ranges. Unsupported non-OS package ecosystems are readiness coverage
+  gaps, not finding match reasons.
 
 Priority fields intentionally describe urgency without changing impact truth:
 
@@ -290,9 +294,14 @@ plus alternate severities reported by other sources for the same advisory:
 Selection uses documented per-ecosystem priority: vendor advisories (Red Hat,
 Debian, Ubuntu, Alpine, SUSE, Wolfi, Chainguard, Amazon Linux, Oracle Linux)
 outrank generic GLAD/GHSA/OSV/NVD records for the matching OS package class;
-GHSA outranks GLAD, OSV, and NVD for language ecosystems (npm, PyPI, Go,
-Maven, etc.). If the selected source did not publish a severity, the reducer
-falls back to the next-best source instead of emitting a zero severity.
+GHSA outranks GLAD, OSV, and NVD for normalized language advisory metadata
+when a finding can otherwise be admitted. Impact-supported language version
+matchers are npm, PyPI, NuGet, Cargo, Swift, and Maven today; vendor-backed
+RPM-family OS package facts use the OS package priority above.
+Matcher-unimplemented ecosystems remain source-only, missing, or unsupported
+evidence rather than finding rows. If the selected source did not publish a
+severity, the reducer falls back to the next-best source instead of emitting a
+zero severity.
 Exact owned lockfile dependency rows can prove the observed package version.
 Npm and NuGet lockfile-backed findings may include `dependency_path`,
 `dependency_depth`, and `direct_dependency` so callers can explain direct versus

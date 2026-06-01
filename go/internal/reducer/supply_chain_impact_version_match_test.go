@@ -221,11 +221,9 @@ func TestBuildSupplyChainImpactFindingsFailsClosedForUnsupportedAndMalformedRang
 	})
 
 	got := supplyChainImpactFindingsByCVE(findings)
-	assertSupplyChainImpactStatus(t, got["CVE-2026-59004"], SupplyChainImpactPossiblyAffected)
-	if got["CVE-2026-59004"].MatchReason != "unsupported_ecosystem" {
-		t.Fatalf("unsupported MatchReason = %q, want unsupported_ecosystem", got["CVE-2026-59004"].MatchReason)
+	if _, ok := got["CVE-2026-59004"]; ok {
+		t.Fatalf("unsupported ecosystem emitted finding %#v, want no user-facing impact finding", got["CVE-2026-59004"])
 	}
-	assertContainsString(t, got["CVE-2026-59004"].MissingEvidence, "ecosystem version matcher unsupported")
 
 	assertSupplyChainImpactStatus(t, got["CVE-2026-59005"], SupplyChainImpactPossiblyAffected)
 	if got["CVE-2026-59005"].MatchReason != "malformed_advisory_range" {

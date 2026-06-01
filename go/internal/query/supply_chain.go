@@ -25,7 +25,8 @@ const (
 	SupplyChainImpactProfilePrecise = "precise"
 	// SupplyChainImpactProfileComprehensive selects every owned-anchor
 	// finding including range-only manifest, SBOM/CPE-derived,
-	// unsupported ecosystem, malformed range, and missing-version rows.
+	// malformed range, and missing-version rows. Unsupported matcher
+	// ecosystems are surfaced by readiness, not as finding rows.
 	SupplyChainImpactProfileComprehensive = "comprehensive"
 )
 
@@ -357,8 +358,7 @@ func requiredSBOMAttestationAttachmentLimit(w http.ResponseWriter, r *http.Reque
 // rejects unknown values with a 400, and defaults to precise. `precise`
 // returns only findings with an exact installed-version anchor.
 // `comprehensive` returns every owned-anchor finding, including range-only,
-// SBOM/CPE-derived, malformed, unsupported-ecosystem, and missing-version
-// rows.
+// SBOM/CPE-derived, malformed, and missing-version rows.
 func requestedSupplyChainImpactProfile(w http.ResponseWriter, r *http.Request) (string, bool) {
 	raw := strings.TrimSpace(QueryParam(r, "profile"))
 	if raw == "" {

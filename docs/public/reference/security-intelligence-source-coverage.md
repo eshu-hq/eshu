@@ -223,6 +223,12 @@ Selection rules:
 - For language ecosystems (npm, PyPI, Go, Maven, Crates.io, RubyGems,
   Composer, Pub, Hex, Swift, NuGet), GHSA outranks GLAD, OSV-via-OSV,
   PYSEC-via-OSV, RUSTSEC-via-OSV, GO-via-OSV, and NVD.
+  Impact-supported version matchers are npm, PyPI, Cargo, Swift, NuGet, and
+  Maven; vendor-backed RPM-family OS package facts use the OS package priority
+  above. Go, RubyGems, Composer, Pub, Hex, and other matcher-unimplemented
+  ecosystems remain source-only, missing, or unsupported evidence until package
+  identity, dependency evidence, version matching, advisory ingestion, and
+  readback are proven end to end.
 - An OSV record whose advisory id begins with `GHSA-`, `PYSEC-`, `GO-`,
   `RUSTSEC-`, or `MAL-` is classified by that upstream prefix, so a GHSA
   collected through OSV still ranks as a GHSA observation.
@@ -274,8 +280,11 @@ short package name. RubyGems matching uses the same reducer-owned exact-version
 gate as other precise lockfile ecosystems: git/path Bundler dependencies remain
 ambiguous source evidence and are not admitted as public RubyGems registry
 versions. Findings preserve `observed_version`, `requested_range`,
-`fixed_version`, and `match_reason` as separate fields. Unsupported ecosystems
-and malformed installed versions or advisory ranges fail closed as
+`fixed_version`, and `match_reason` as separate fields. Unsupported non-OS
+package ecosystems do not produce impact findings; readiness surfaces them as
+`unsupported_targets[]` with `reason=unsupported_ecosystem` when the bounded
+scope has observed dependency evidence. Malformed installed versions or
+advisory ranges still fail closed as
 `possibly_affected` with explicit missing-evidence reasons instead of being
 treated as affected or safely fixed.
 
@@ -358,10 +367,11 @@ to diagnose source coverage.
 No-Regression Evidence: `go test ./internal/reducer ./internal/query
 ./internal/mcp -count=1` covers npm semver affected ranges, Maven vulnerable
 ranges, Maven known-fixed classification, range-only manifests, unsupported
-ecosystem fail-closed behavior, GLAD not-equal range matching, malformed
-installed-version and advisory-range reasons, impact fact serialization, impact
-read-model decoding, API result shaping, and MCP pass-through for the
-supply-chain impact envelope. The matcher is bounded to the active
+ecosystem fail-closed behavior with no impact finding, GLAD not-equal range
+matching, malformed installed-version and advisory-range reasons, impact fact
+serialization, impact read-model decoding, API result shaping, and MCP
+pass-through for the supply-chain impact envelope. The matcher is bounded to
+the active
 `(cve_id, package_id)` affected-package rows already loaded by the impact
 reducer plus the owned dependency/SBOM evidence for that package; it does not
 scan the public package universe.
@@ -465,8 +475,8 @@ Security reads must be bounded, explainable, and scoped:
 - keep provider alert state separate from Eshu impact state;
 - return evidence handles and missing-evidence reasons instead of raw full
   source payloads;
-- expose exact, derived, possible, known-fixed, unknown, and unsupported states
-  without collapsing them into one severity bucket.
+- expose exact, derived, possible, known-fixed, unknown impact statuses and
+  unsupported readiness states without collapsing them into one severity bucket.
 
 The current vulnerability impact route is documented in
 [HTTP Evidence And Supply-Chain Routes](http-api/evidence-and-supply-chain.md).
