@@ -1,0 +1,63 @@
+go/internal/reducer/supply_chain_impact_manifest_consumption.go
+  s_f2f7fbb6f30866::t_3752dc47d31329 105-109
+docs/public/languages/java.md
+  s_f2f7fbb6f30866::t_69b004bb2455ac 80-82
+go/internal/storage/postgres/schema_fact_records.go
+  s_f2f7fbb6f30866::t_91dffae57e63af 55-68
+go/internal/reducer/supply_chain_impact.go
+  s_f2f7fbb6f30866::t_c627925e806da7 99,409
+  s_f2f7fbb6f30866::t_1baf423e05d432 201-205
+go/internal/reducer/supply_chain_impact_jvm_reachability_test.go
+  s_f2f7fbb6f30866::t_b887e9b59a166c 1-297
+docs/public/reference/http-api/evidence-and-supply-chain.md
+  s_f2f7fbb6f30866::t_4f5f88bc80d022 315-319,322-325,328-336,341
+  s_f2f7fbb6f30866::t_ee3d536d6fa6b0 320-321,326-327,337-340
+go/internal/reducer/supply_chain_impact_index.go
+  s_f2f7fbb6f30866::t_d00733d7da4c2d 63-67
+  s_f2f7fbb6f30866::t_07c20c541dc220 159,172
+  s_f2f7fbb6f30866::t_974e596ab29586 315-316,321-322,327-328,351-352,356-364
+go/internal/reducer/supply_chain_impact_manifest_dependency_test.go
+  s_f2f7fbb6f30866::t_1a1c2b9a5221db 17-24,71-76
+go/internal/storage/postgres/README.md
+  s_f2f7fbb6f30866::t_3c58f68c9b4287 204-209
+docs/public/languages/kotlin.md
+  s_f2f7fbb6f30866::t_68c76322a20592 71-73
+go/internal/reducer/package_consumption_correlation.go
+  s_f2f7fbb6f30866::t_93c8742af68316 45-46,100-104,155-156,274-275
+  s_f2f7fbb6f30866::t_1e586448f73b3a 47-49,157-159,276-278
+schema/data-plane/postgres/003_fact_records.sql
+  s_f2f7fbb6f30866::t_2fc45eb48496c9 50-63
+docs/public/languages/scala.md
+  s_f2f7fbb6f30866::t_ec224f4889d53c 52-54
+go/internal/storage/postgres/facts_active_jvm_reachability.go
+  s_f2f7fbb6f30866::t_e93a9ba70bfc11 1-136
+go/internal/reducer/supply_chain_impact_jvm_reachability.go
+  s_f2f7fbb6f30866::t_d4078113b33f2b 1-85,90-158,161-243,253-257,259-275
+  s_f2f7fbb6f30866::t_fbdd7e005cc259 86-89
+  s_f2f7fbb6f30866::t_751943596f8968 159-160,244-252,258
+go/internal/reducer/supply_chain_impact_reachability.go
+  s_f2f7fbb6f30866::t_c627925e806da7 1-52,56-93,105-114,116-129,166,252-253,255-298
+  s_f2f7fbb6f30866::t_09f8e75036c6ad 94-103
+  s_f2f7fbb6f30866::t_c540c3e20c427d 104
+  s_f2f7fbb6f30866::t_f33e9135be87e3 115
+docs/public/reference/security-intelligence.md
+  s_f2f7fbb6f30866::t_4f5f88bc80d022 131-136,255,511-520,526
+  s_f2f7fbb6f30866::t_360c8dafb6f03f 521,528-532,541,544-549
+  s_f2f7fbb6f30866::t_53aaf596c0b975 536,540,542-543,550
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "ae3861b285fe904046116ca875d64e63bb8e3984",
+  "prompts": {},
+  "sessions": {
+    "s_f2f7fbb6f30866": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e360b-90eb-7472-bac7-56d488b65f77",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
