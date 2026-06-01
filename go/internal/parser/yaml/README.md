@@ -10,7 +10,8 @@ without depending on the parent parser dispatcher.
 ## Ownership boundary
 
 This package is responsible for reading one YAML file, decoding YAML documents,
-normalizing templated YAML enough for parser-safe reads, and returning
+normalizing templated YAML enough for parser-safe reads, emitting hosted Pub
+dependency rows from `pubspec.yaml` and `pubspec.lock`, and returning
 deterministic payload buckets. The parent internal/parser package still owns
 registry lookup, engine dispatch, repository path resolution, and content
 metadata inference.
@@ -58,6 +59,11 @@ expected by the CloudFormation parser before template extraction.
 
 SanitizeTemplating is parser hygiene only. Do not treat it as a general
 template evaluator.
+
+Pub dependency rows are source evidence only. Hosted `pubspec.lock` rows carry
+exact versions; hosted `pubspec.yaml` rows carry requested ranges. Git/path,
+private-hosted, dependency override, and mismatched lockfile rows stay out of
+the `dependency` contract so the reducer keeps missing evidence visible.
 
 ## Related docs
 

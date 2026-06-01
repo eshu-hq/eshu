@@ -31,6 +31,8 @@ const (
 	EcosystemCargo = packageidentity.EcosystemCargo
 	// EcosystemSwift identifies Swift Package Manager source package metadata.
 	EcosystemSwift = packageidentity.EcosystemSwift
+	// EcosystemPub identifies Dart Pub package metadata.
+	EcosystemPub = packageidentity.EcosystemPub
 	// EcosystemOS identifies distro package metadata.
 	EcosystemOS = packageidentity.EcosystemOS
 	// EcosystemGeneric identifies provider-specific generic package metadata.

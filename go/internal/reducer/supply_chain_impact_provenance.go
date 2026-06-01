@@ -135,7 +135,7 @@ func buildAdvisoryProvenanceObservations(
 			SeverityVector:  strings.TrimSpace(cve.cvssVector),
 			SeverityLabel:   strings.TrimSpace(cve.severityLabel),
 			FixedVersions:   append([]string(nil), matched.fixedVersions...),
-			AffectedRange:   strings.TrimSpace(matched.affectedRangeRaw),
+			AffectedRange:   supplyChainAffectedRangeSummary(matched),
 			WithdrawnAt:     strings.TrimSpace(cve.withdrawnAt),
 			CVEFactID:       cve.factID,
 			AffectedFactID:  matched.factID,
@@ -149,7 +149,7 @@ func buildAdvisoryProvenanceObservations(
 			Source:         classifyAdvisorySource(pkg.source, pkg.advisoryID),
 			AdvisoryID:     firstNonBlank(pkg.advisoryID, pkg.cveID),
 			FixedVersions:  append([]string(nil), pkg.fixedVersions...),
-			AffectedRange:  strings.TrimSpace(pkg.affectedRangeRaw),
+			AffectedRange:  supplyChainAffectedRangeSummary(pkg),
 			AffectedFactID: pkg.factID,
 		})
 	}
@@ -257,9 +257,9 @@ type advisoryProvenanceSelection struct {
 	// VulnerableRange is the raw vulnerable-range expression Eshu copied
 	// from the selected source observation so list-route callers see the
 	// same expression as the explain route.
-	VulnerableRange      string
-	AdvisorySources      []AdvisorySourceObservation
-	EvidenceFactIDs      []string
+	VulnerableRange string
+	AdvisorySources []AdvisorySourceObservation
+	EvidenceFactIDs []string
 }
 
 // classifyAdvisorySource maps the source-fact payload's collector source name

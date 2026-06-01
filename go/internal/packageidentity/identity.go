@@ -31,6 +31,8 @@ const (
 	EcosystemSwift Ecosystem = "swift"
 	// EcosystemHex identifies Hex package metadata.
 	EcosystemHex Ecosystem = "hex"
+	// EcosystemPub identifies Dart Pub package metadata.
+	EcosystemPub Ecosystem = "pub"
 	// EcosystemOS identifies distro package metadata.
 	EcosystemOS Ecosystem = "os"
 	// EcosystemGeneric identifies provider-specific generic package metadata.
@@ -81,6 +83,9 @@ func Normalize(raw RawIdentity) (Identity, error) {
 	registry := NormalizeRegistry(raw.Registry)
 	if registry == "" {
 		return Identity{}, fmt.Errorf("package registry must not be blank")
+	}
+	if ecosystem == EcosystemPub && registry == "pub.dartlang.org" {
+		registry = "pub.dev"
 	}
 	rawName := strings.TrimSpace(raw.RawName)
 	if rawName == "" {
@@ -149,6 +154,8 @@ func NormalizeEcosystem(value Ecosystem) Ecosystem {
 		return EcosystemSwift
 	case "hex", "hexpm", "hex.pm":
 		return EcosystemHex
+	case "pub", "pub.dev", "dart", "dart-pub":
+		return EcosystemPub
 	case "os", "apk", "alpine", "deb", "debian", "rpm", "rhel", "ubuntu":
 		return EcosystemOS
 	case "generic":
@@ -198,7 +205,7 @@ func normalizeName(ecosystem Ecosystem, rawName, namespace string) (string, stri
 		return normalizeTwoSegmentName(rawName, namespace, "composer")
 	case EcosystemNuGet:
 		return strings.ToLower(rawName), "", nil
-	case EcosystemRubyGems, EcosystemCargo, EcosystemOS:
+	case EcosystemRubyGems, EcosystemCargo, EcosystemPub, EcosystemOS:
 		return strings.ToLower(rawName), "", nil
 	case EcosystemSwift:
 		return normalizeSwiftName(rawName, namespace)

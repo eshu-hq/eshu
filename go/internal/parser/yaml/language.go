@@ -107,6 +107,7 @@ func yamlBasePayload(path string, isDependency bool) map[string]any {
 	payload["cloudformation_conditions"] = []map[string]any{}
 	payload["cloudformation_cross_stack_imports"] = []map[string]any{}
 	payload["cloudformation_cross_stack_exports"] = []map[string]any{}
+	payload["variables"] = []map[string]any{}
 	return payload
 }
 
@@ -115,6 +116,10 @@ func appendYAMLDocument(payload map[string]any, path string, filename string, do
 	delete(document, "__eshu_line_number")
 	if lineNumber <= 0 {
 		lineNumber = 1
+	}
+	if isPubspecDependencyFile(filename) {
+		appendPubspecDependencyRows(payload, filename, document, path, lineNumber)
+		return
 	}
 	if cloudformation.IsTemplate(document) {
 		result := cloudformation.Parse(document, path, lineNumber, "yaml")

@@ -24,9 +24,9 @@
 // designation, parent package required for transitive upgrades, and an
 // exact/partial/unknown confidence label so API and MCP callers can
 // explain the upgrade path. Supply-chain impact version matching is
-// ecosystem-aware for npm, Cargo, NuGet, Maven, and PyPI PEP 440 exact-version
-// evidence; unsupported or malformed ranges fail closed with explicit missing
-// evidence. Security-alert reconciliation facts are keyed by provider alert
+// ecosystem-aware for npm, Cargo, Pub, Swift, NuGet, Maven, and PyPI PEP 440
+// exact-version evidence; unsupported or malformed ranges fail closed with
+// explicit missing evidence. Security-alert reconciliation facts are keyed by provider alert
 // identity, package identity, advisory ids, and provider evidence scope so
 // provider-only placeholders are replaced by later matched or stale rows while
 // preserving reason and evidence references for audit.

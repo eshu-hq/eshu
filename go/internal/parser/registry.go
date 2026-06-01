@@ -376,6 +376,7 @@ func defaultDefinitions() []Definition {
 			ParserKey:  "yaml",
 			Language:   "yaml",
 			Extensions: []string{".yaml", ".yml"},
+			ExactNames: []string{"pubspec.lock"},
 		},
 	}
 }

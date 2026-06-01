@@ -171,6 +171,32 @@ BUNDLED WITH
 			expectedDependencies: map[string]string{"github.com/apple/swift-argument-parser": "1.2.3"},
 			expectedPackageMgr:   "swift",
 		},
+		"pubspec.yaml": {
+			body: `name: demo
+dependencies:
+  http: ^1.2.0
+dev_dependencies:
+  test: any
+`,
+			expectedDependencies: map[string]string{
+				"http": "^1.2.0",
+				"test": "any",
+			},
+			expectedPackageMgr: "pub",
+		},
+		"pubspec.lock": {
+			body: `packages:
+  http:
+    dependency: "direct main"
+    description:
+      name: http
+      url: "https://pub.dev"
+    source: hosted
+    version: "1.2.2"
+`,
+			expectedDependencies: map[string]string{"http": "1.2.2"},
+			expectedPackageMgr:   "pub",
+		},
 		"cargo.toml": {
 			body: `[package]
 name = "demo"

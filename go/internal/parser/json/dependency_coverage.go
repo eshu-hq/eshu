@@ -382,6 +382,29 @@ func DependencyCoverage() []DependencyCoverageEntry {
 			SourceReference:         "go/internal/parser/json/swift_package_resolved.go",
 			Notes:                   "Swift Package.resolved v2 remote source-control pins emit exact-version rows with source namespace and SwiftPM identity; branch, revision-only, local, path, and unsupported pins remain non-evidence.",
 		},
+		{
+			Ecosystem:               "pub",
+			FilePattern:             "pubspec.yaml",
+			FileKind:                "manifest",
+			Status:                  DependencyCoverageCovered,
+			CapturesPackageIdentity: true,
+			CapturesVersionRange:    true,
+			CapturesScope:           true,
+			CapturesDevRuntimeSplit: true,
+			SourceReference:         "go/internal/parser/yaml/pubspec.go",
+			Notes:                   "Pub manifests emit hosted dependency rows for dependencies and dev_dependencies; git/path dependencies and dependency_overrides remain non-evidence.",
+		},
+		{
+			Ecosystem:               "pub",
+			FilePattern:             "pubspec.lock",
+			FileKind:                "lockfile",
+			Status:                  DependencyCoverageCovered,
+			CapturesPackageIdentity: true,
+			CapturesExactVersion:    true,
+			CapturesScope:           true,
+			SourceReference:         "go/internal/parser/yaml/pubspec.go",
+			Notes:                   "Pub lockfiles emit exact hosted pub.dev versions with direct/transitive and runtime/dev scope evidence; git, private hosted, and mismatched package rows remain non-evidence.",
+		},
 	}
 
 	sort.SliceStable(entries, func(i, j int) bool {

@@ -66,6 +66,31 @@ func supplyChainAffectedRangeEvents(raw any) []supplyChainAffectedRangeEvent {
 	return events
 }
 
+func supplyChainAffectedRangeSummary(pkg supplyChainAffectedPackage) string {
+	if raw := strings.TrimSpace(pkg.affectedRangeRaw); raw != "" {
+		return raw
+	}
+	for _, affectedRange := range pkg.affectedRanges {
+		parts := make([]string, 0, len(affectedRange.events))
+		for _, event := range affectedRange.events {
+			switch {
+			case event.introduced != "":
+				parts = append(parts, ">="+event.introduced)
+			case event.fixed != "":
+				parts = append(parts, "<"+event.fixed)
+			case event.lastAffected != "":
+				parts = append(parts, "<="+event.lastAffected)
+			case event.limit != "":
+				parts = append(parts, "<"+event.limit)
+			}
+		}
+		if len(parts) > 0 {
+			return strings.Join(parts, " ")
+		}
+	}
+	return ""
+}
+
 func semverRangeContainsDecision(
 	affectedRange supplyChainAffectedRange,
 	observed string,

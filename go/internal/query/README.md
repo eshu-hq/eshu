@@ -130,8 +130,9 @@ canonical graph or reducer truth.
   without collapsing range-only, unsupported, malformed, affected, and
   known-fixed states. Legacy rows without an explicit detection profile are
   backfilled as precise only for supported exact-version match reasons,
-  including npm, NuGet, Cargo, Maven, Swift, and Composer paths. Composer rows
-  preserve exact lockfile versions,
+  including npm, NuGet, Cargo, Maven, Pub, Swift, and Composer paths. Pub rows
+  preserve exact hosted `pubspec.lock` versions while manifest ranges stay
+  comprehensive. Composer rows preserve exact lockfile versions,
   manifest-only ranges, require versus require-dev scope, transitive paths, and
   missing-evidence reasons from reducer truth rather than reclassifying them in
   the read layer. Every row carries a `Suppression` block decoded from the

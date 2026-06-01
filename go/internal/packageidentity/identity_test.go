@@ -206,6 +206,26 @@ func TestNormalizePackageIdentityUsesCanonicalEcosystemRules(t *testing.T) {
 			},
 		},
 		{
+			name: "pub lowercases package name and emits pub purl",
+			in: RawIdentity{
+				Ecosystem: "pub",
+				Registry:  "https://pub.dev",
+				RawName:   "HTTP_Parser",
+				Version:   "4.0.2",
+			},
+			want: Identity{
+				Ecosystem:      Ecosystem("pub"),
+				Registry:       "pub.dev",
+				RawName:        "HTTP_Parser",
+				NormalizedName: "http_parser",
+				Version:        "4.0.2",
+				PURL:           "pkg:pub/http_parser@4.0.2",
+				BOMRef:         "pkg:pub/http_parser@4.0.2",
+				PackageManager: "pub",
+				PackageID:      "pub://pub.dev/http_parser",
+			},
+		},
+		{
 			name: "nuget lowercases package id",
 			in: RawIdentity{
 				Ecosystem: EcosystemNuGet,
@@ -306,6 +326,63 @@ func TestNormalizePackageIdentityPreservesExplicitBOMRef(t *testing.T) {
 	}
 }
 
+func TestNormalizePackageIdentitySupportsPubPURLAndRegistryAliases(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		in       RawIdentity
+		registry string
+	}{
+		{
+			name: "canonical pub.dev",
+			in: RawIdentity{
+				Ecosystem: "Pub",
+				Registry:  "https://pub.dev/",
+				RawName:   "HTTP_Parser",
+				Version:   "4.0.2",
+			},
+			registry: "pub.dev",
+		},
+		{
+			name: "legacy pub.dartlang.org alias",
+			in: RawIdentity{
+				Ecosystem: "pub.dev",
+				Registry:  "https://pub.dartlang.org",
+				RawName:   "HTTP_Parser",
+				Version:   "4.0.2",
+			},
+			registry: "pub.dev",
+		},
+	}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			got, err := Normalize(tt.in)
+			if err != nil {
+				t.Fatalf("Normalize() error = %v", err)
+			}
+			if got.Ecosystem != Ecosystem("pub") {
+				t.Fatalf("Ecosystem = %q, want pub", got.Ecosystem)
+			}
+			if got.Registry != tt.registry {
+				t.Fatalf("Registry = %q, want %q", got.Registry, tt.registry)
+			}
+			if got.NormalizedName != "http_parser" {
+				t.Fatalf("NormalizedName = %q, want http_parser", got.NormalizedName)
+			}
+			if got.PURL != "pkg:pub/http_parser@4.0.2" {
+				t.Fatalf("PURL = %q, want pkg:pub/http_parser@4.0.2", got.PURL)
+			}
+			if got.PackageID != "pub://pub.dev/http_parser" {
+				t.Fatalf("PackageID = %q, want pub://pub.dev/http_parser", got.PackageID)
+			}
+		})
+	}
+}
+
 func TestNormalizePackageIdentityDoesNotDuplicateTwoSegmentNamespace(t *testing.T) {
 	t.Parallel()
 
@@ -356,7 +433,7 @@ func TestNormalizePackageIdentityRejectsMissingRequiredFields(t *testing.T) {
 func TestNormalizePackageIdentityRejectsUnimplementedEcosystemAliases(t *testing.T) {
 	t.Parallel()
 
-	for _, ecosystem := range []Ecosystem{"pub"} {
+	for _, ecosystem := range []Ecosystem{"unsupported-ecosystem"} {
 		ecosystem := ecosystem
 		t.Run(string(ecosystem), func(t *testing.T) {
 			t.Parallel()

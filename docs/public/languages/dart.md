@@ -70,3 +70,8 @@ Not claimed today:
 
 - Flutter route wiring, generated code, mirrors, conditional imports/exports,
   package export surfaces, and broad dynamic dispatch remain exactness blockers.
+- Pub dependency evidence is source-file evidence, not Dart language graph
+  reachability. The YAML parser emits hosted `pubspec.yaml` range rows and
+  exact hosted `pubspec.lock` version rows for supply-chain impact; git/path,
+  private-hosted, override, and mismatched lockfile rows remain partial or
+  missing evidence.
