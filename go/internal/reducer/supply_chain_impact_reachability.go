@@ -175,6 +175,16 @@ func supplyChainReachabilityForFinding(finding SupplyChainImpactFinding) SupplyC
 			LanguageMaturity: maturity,
 			MissingEvidence:  supplyChainReachabilityMissingEvidence(finding, ecosystem),
 		}
+	case jvmRuntimeReachabilityPackageAPIReachable:
+		return SupplyChainReachability{
+			State:            SupplyChainReachabilityReachable,
+			Confidence:       "partial",
+			Source:           "jvm_parser_resolver",
+			Evidence:         detail,
+			Reason:           "Maven or Gradle resolver evidence proved package API identity and parser or SCIP evidence observed that API in source",
+			LanguageMaturity: maturity,
+			MissingEvidence:  supplyChainReachabilityMissingEvidence(finding, ecosystem),
+		}
 	case "package_manifest", string(GoVulnReachabilityModuleOnly), string(GoVulnReachabilityUnknown), "known_fixed":
 		if ecosystem == "pypi" {
 			return pythonUnknownSupplyChainReachability(finding, detail, maturity)

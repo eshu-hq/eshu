@@ -201,6 +201,12 @@ constructor with `InstrumentedDB{Inner: db, StoreName: "my_store", ...}`.
   dependency entities by `(package_manager, entity_name)`, so vulnerability
   impact can load repository lockfile evidence for one advisory package without
   waiting for package-registry enrichment to finish.
+- `ListActiveJVMReachabilityFacts` serves JVM vulnerability reachability
+  enrichment after Maven or Gradle dependency evidence has already proven a
+  canonical repository and resolver-backed API package prefix. The query is
+  bounded by repository IDs and the JVM file partial index; reducers still
+  perform the API-prefix match and keep missing source-set, resolver,
+  reflection, dependency-injection, and generated-code evidence visible.
 - `ListActiveSupplyChainImpactFacts` includes provider security alerts in the
   same package/repository-bounded read used for vulnerability, package, SBOM,
   image, and service evidence. This lets alert-seeded impact admission reuse

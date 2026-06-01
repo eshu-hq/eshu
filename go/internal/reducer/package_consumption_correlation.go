@@ -42,6 +42,11 @@ type PackageConsumptionDecision struct {
 	VersionEvidence           string
 	UnresolvedMSBuildProperty string
 	AmbiguousMSBuildProperty  string
+	PackageAPIPackages        []string
+	PackageAPIIdentitySource  string
+	DependencyResolutionState string
+	SourceSet                 string
+	GeneratedCode             *bool
 	PartialEvidence           bool
 	DependencyPath            []string
 	DependencyDepth           int
@@ -92,6 +97,11 @@ type packageManifestDependency struct {
 	VersionEvidence           string
 	UnresolvedMSBuildProperty string
 	AmbiguousMSBuildProperty  string
+	PackageAPIPackages        []string
+	PackageAPIIdentitySource  string
+	DependencyResolutionState string
+	SourceSet                 string
+	GeneratedCode             *bool
 	PartialEvidence           bool
 	DependencyPath            []string
 	DependencyDepth           int
@@ -142,6 +152,11 @@ func BuildPackageConsumptionDecisions(envelopes []facts.Envelope) []PackageConsu
 			VersionEvidence:           dependency.VersionEvidence,
 			UnresolvedMSBuildProperty: dependency.UnresolvedMSBuildProperty,
 			AmbiguousMSBuildProperty:  dependency.AmbiguousMSBuildProperty,
+			PackageAPIPackages:        append([]string(nil), dependency.PackageAPIPackages...),
+			PackageAPIIdentitySource:  dependency.PackageAPIIdentitySource,
+			DependencyResolutionState: dependency.DependencyResolutionState,
+			SourceSet:                 dependency.SourceSet,
+			GeneratedCode:             cloneBoolPointer(dependency.GeneratedCode),
 			PartialEvidence:           dependency.PartialEvidence,
 			DependencyPath:            dependency.DependencyPath,
 			DependencyDepth:           dependency.DependencyDepth,
@@ -256,6 +271,11 @@ func extractPackageManifestDependencies(envelopes []facts.Envelope) []packageMan
 			VersionEvidence:           packageManifestMetadataString(envelope.Payload, "version_evidence"),
 			UnresolvedMSBuildProperty: packageManifestMetadataString(envelope.Payload, "unresolved_msbuild_property"),
 			AmbiguousMSBuildProperty:  packageManifestMetadataString(envelope.Payload, "ambiguous_msbuild_property"),
+			PackageAPIPackages:        packageManifestMetadataStrings(envelope.Payload, "package_api_packages"),
+			PackageAPIIdentitySource:  packageManifestMetadataString(envelope.Payload, "package_api_identity_source"),
+			DependencyResolutionState: packageManifestMetadataString(envelope.Payload, "dependency_resolution_state"),
+			SourceSet:                 packageManifestMetadataString(envelope.Payload, "source_set"),
+			GeneratedCode:             packageManifestMetadataBool(envelope.Payload, "generated_code"),
 			PartialEvidence:           packageManifestMetadataBoolValue(envelope.Payload, "partial_evidence"),
 			DependencyPath:            packageManifestMetadataStrings(envelope.Payload, "dependency_path"),
 			DependencyDepth:           packageManifestMetadataInt(envelope.Payload, "dependency_depth"),

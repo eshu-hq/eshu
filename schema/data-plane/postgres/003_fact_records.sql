@@ -47,6 +47,20 @@ CREATE INDEX IF NOT EXISTS fact_records_framework_routes_repo_path_idx
           COALESCE(payload->'parsed_file_data'->'framework_semantics'->'frameworks', '[]'::jsonb)
       ) > 0;
 
+CREATE INDEX IF NOT EXISTS fact_records_jvm_reachability_repo_file_idx
+    ON fact_records ((payload->>'repo_id'), observed_at ASC, fact_id ASC, generation_id)
+    WHERE fact_kind = 'file'
+      AND source_system = 'git'
+      AND is_tombstone = FALSE
+      AND (
+          LOWER(COALESCE(payload->'parsed_file_data'->>'lang', '')) IN ('java', 'kotlin', 'scala')
+          OR payload->>'relative_path' LIKE '%.java'
+          OR payload->>'relative_path' LIKE '%.kt'
+          OR payload->>'relative_path' LIKE '%.kts'
+          OR payload->>'relative_path' LIKE '%.scala'
+          OR payload->>'relative_path' LIKE '%.sc'
+      );
+
 CREATE INDEX IF NOT EXISTS fact_records_documentation_sources_observed_idx
     ON fact_records (observed_at DESC, fact_id DESC)
     WHERE fact_kind = 'documentation_source'
