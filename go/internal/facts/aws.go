@@ -13,6 +13,12 @@ const (
 	AWSDNSRecordFactKind = "aws_dns_record"
 	// AWSImageReferenceFactKind identifies one ECR image reference observation.
 	AWSImageReferenceFactKind = "aws_image_reference"
+	// AWSSecurityGroupRuleFactKind identifies one normalized EC2 security-group
+	// ingress or egress rule. It is a derived posture fact distinct from the raw
+	// aws_resource security-group-rule observation: each fact carries the single
+	// normalized reachability tuple (group, direction, protocol, port range,
+	// source) that the reducer projects into network-reachability edges.
+	AWSSecurityGroupRuleFactKind = "aws_security_group_rule"
 	// AWSWarningFactKind identifies one non-fatal AWS scanner warning.
 	AWSWarningFactKind = "aws_warning"
 
@@ -26,6 +32,9 @@ const (
 	AWSDNSRecordSchemaVersion = "1.0.0"
 	// AWSImageReferenceSchemaVersion is the first AWS image reference schema.
 	AWSImageReferenceSchemaVersion = "1.0.0"
+	// AWSSecurityGroupRuleSchemaVersion is the first AWS security-group-rule
+	// posture fact schema.
+	AWSSecurityGroupRuleSchemaVersion = "1.0.0"
 	// AWSWarningSchemaVersion is the first AWS warning fact schema.
 	AWSWarningSchemaVersion = "1.0.0"
 )
@@ -36,16 +45,18 @@ var awsFactKinds = []string{
 	AWSTagObservationFactKind,
 	AWSDNSRecordFactKind,
 	AWSImageReferenceFactKind,
+	AWSSecurityGroupRuleFactKind,
 	AWSWarningFactKind,
 }
 
 var awsSchemaVersions = map[string]string{
-	AWSResourceFactKind:       AWSResourceSchemaVersion,
-	AWSRelationshipFactKind:   AWSRelationshipSchemaVersion,
-	AWSTagObservationFactKind: AWSTagObservationSchemaVersion,
-	AWSDNSRecordFactKind:      AWSDNSRecordSchemaVersion,
-	AWSImageReferenceFactKind: AWSImageReferenceSchemaVersion,
-	AWSWarningFactKind:        AWSWarningSchemaVersion,
+	AWSResourceFactKind:          AWSResourceSchemaVersion,
+	AWSRelationshipFactKind:      AWSRelationshipSchemaVersion,
+	AWSTagObservationFactKind:    AWSTagObservationSchemaVersion,
+	AWSDNSRecordFactKind:         AWSDNSRecordSchemaVersion,
+	AWSImageReferenceFactKind:    AWSImageReferenceSchemaVersion,
+	AWSSecurityGroupRuleFactKind: AWSSecurityGroupRuleSchemaVersion,
+	AWSWarningFactKind:           AWSWarningSchemaVersion,
 }
 
 // AWSFactKinds returns the accepted AWS fact kinds in their emission order.

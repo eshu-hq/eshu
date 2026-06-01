@@ -100,7 +100,27 @@ func TestScannerEmitsNetworkTopologyWithoutInstanceFacts(t *testing.T) {
 	if counts[facts.AWSRelationshipFactKind] != 7 {
 		t.Fatalf("aws_relationship count = %d, want 7", counts[facts.AWSRelationshipFactKind])
 	}
+	if counts[facts.AWSSecurityGroupRuleFactKind] != 1 {
+		t.Fatalf("aws_security_group_rule count = %d, want 1", counts[facts.AWSSecurityGroupRuleFactKind])
+	}
 	assertNoResourceType(t, envelopes, "aws_ec2_instance")
+
+	ruleFact := assertSecurityGroupRuleFact(t, envelopes)
+	if got := ruleFact.Payload["group_id"]; got != "sg-123" {
+		t.Fatalf("security_group_rule group_id = %#v, want sg-123", got)
+	}
+	if got := ruleFact.Payload["direction"]; got != awscloud.SecurityGroupRuleDirectionIngress {
+		t.Fatalf("security_group_rule direction = %#v, want ingress", got)
+	}
+	if got := ruleFact.Payload["source_kind"]; got != awscloud.SecurityGroupRuleSourceCIDRIPv4 {
+		t.Fatalf("security_group_rule source_kind = %#v, want cidr_ipv4", got)
+	}
+	if got := ruleFact.Payload["source_value"]; got != "0.0.0.0/0" {
+		t.Fatalf("security_group_rule source_value = %#v, want 0.0.0.0/0", got)
+	}
+	if got, _ := ruleFact.Payload["is_internet"].(bool); !got {
+		t.Fatalf("security_group_rule is_internet = %#v, want true", ruleFact.Payload["is_internet"])
+	}
 
 	vpc := assertResourceType(t, envelopes, awscloud.ResourceTypeEC2VPC)
 	assertAttribute(t, vpc, "cidr_block", "10.0.0.0/16")
@@ -208,6 +228,17 @@ func assertNoResourceType(t *testing.T, envelopes []facts.Envelope, resourceType
 			t.Fatalf("unexpected resource_type %q", resourceType)
 		}
 	}
+}
+
+func assertSecurityGroupRuleFact(t *testing.T, envelopes []facts.Envelope) facts.Envelope {
+	t.Helper()
+	for _, envelope := range envelopes {
+		if envelope.FactKind == facts.AWSSecurityGroupRuleFactKind {
+			return envelope
+		}
+	}
+	t.Fatalf("missing %q fact in %#v", facts.AWSSecurityGroupRuleFactKind, envelopes)
+	return facts.Envelope{}
 }
 
 func assertRelationship(t *testing.T, envelopes []facts.Envelope, relationshipType string) facts.Envelope {

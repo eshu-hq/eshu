@@ -10,6 +10,7 @@ func TestAWSFactKindRegistry(t *testing.T) {
 		AWSTagObservationFactKind,
 		AWSDNSRecordFactKind,
 		AWSImageReferenceFactKind,
+		AWSSecurityGroupRuleFactKind,
 		AWSWarningFactKind,
 	}
 	if len(kinds) != len(want) {
