@@ -161,6 +161,35 @@ const (
 	// ALLOWS_INGRESS/EGRESS edge slice gates exactly like
 	// DomainAWSRelationshipMaterialization (#805). See issue #1135.
 	DomainSecurityGroupCidrMaterialization Domain = "security_group_cidr_materialization"
+	// DomainSecurityGroupRuleMaterialization materializes aws_security_group_rule
+	// facts into canonical port-precise :SecurityGroupRule graph nodes (issue #1135
+	// PR2b, Option D). Each live rule whose SecurityGroup anchor resolved to a
+	// committed CloudResource node becomes one node keyed by a deterministic hash of
+	// the SG anchor uid, direction, protocol, normalized port range, and source —
+	// so port and protocol live in the NODE key (two ports key two nodes) rather
+	// than in a relationship-property MERGE that times out at 20s on NornicDB. It is
+	// the rule-node substrate the reachability edge projection joins against; after
+	// the node write succeeds it publishes the
+	// GraphProjectionKeyspaceSecurityGroupRuleUID /
+	// GraphProjectionPhaseCanonicalNodesCommitted readiness phase so the edge slice
+	// gates exactly like DomainAWSRelationshipMaterialization (#805). See issue #1135.
+	DomainSecurityGroupRuleMaterialization Domain = "security_group_rule_materialization"
+	// DomainSecurityGroupReachabilityMaterialization projects aws_security_group_rule
+	// facts into the Option D network-reachability graph: each live rule becomes a
+	// port-precise :SecurityGroupRule node, with a SecurityGroup -> rule
+	// ALLOWS_INGRESS/EGRESS edge and a rule -[:TO]-> endpoint edge whose endpoint is
+	// a CidrBlock, PrefixList, or referenced SecurityGroup CloudResource node. Port
+	// and protocol live in the rule NODE key (keyed in its uid), never in a
+	// relationship-property MERGE that times out at 20s on NornicDB. It gates on
+	// THREE GraphProjectionPhaseCanonicalNodesCommitted phases —
+	// GraphProjectionKeyspaceSecurityGroupRuleUID (the rule nodes this domain itself
+	// commits before edges), GraphProjectionKeyspaceSecurityGroupEndpointUID (the
+	// CidrBlock/PrefixList endpoints, #1135 PR2a), and
+	// GraphProjectionKeyspaceCloudResourceUID (the SG nodes, #805) — so an edge
+	// never resolves against any endpoint that has not committed. Unresolved SG
+	// anchors or endpoints, unknown sources, and tombstoned rules materialize no
+	// node and no edge and are counted, never dropped silently. See issue #1135.
+	DomainSecurityGroupReachabilityMaterialization Domain = "security_group_reachability_materialization"
 )
 
 // IntentStatus captures the durable reducer intent lifecycle state.

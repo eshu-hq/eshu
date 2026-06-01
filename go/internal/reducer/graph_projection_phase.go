@@ -45,6 +45,16 @@ const (
 	// GraphProjectionKeyspaceCloudResourceUID (#805), so edges never resolve
 	// against endpoint nodes that have not committed.
 	GraphProjectionKeyspaceSecurityGroupEndpointUID GraphProjectionKeyspace = "security_group_endpoint_uid"
+	// GraphProjectionKeyspaceSecurityGroupRuleUID represents the canonical
+	// security-group reachability rule identity domain: the :SecurityGroupRule
+	// nodes a security_group_rule fact materializes (issue #1135 PR2b, Option D).
+	// The ALLOWS_INGRESS/EGRESS and TO edge slice gates its edge projection on
+	// THREE canonical-nodes-committed phases — this rule-node keyspace, the
+	// endpoint keyspace (GraphProjectionKeyspaceSecurityGroupEndpointUID, the
+	// CidrBlock/PrefixList nodes), and the cloud-resource keyspace
+	// (GraphProjectionKeyspaceCloudResourceUID, the SG nodes) — so an edge never
+	// resolves against any endpoint node that has not committed.
+	GraphProjectionKeyspaceSecurityGroupRuleUID GraphProjectionKeyspace = "security_group_rule_uid"
 	// GraphProjectionKeyspaceWebhookEventUID represents the canonical webhook
 	// event identity domain.
 	GraphProjectionKeyspaceWebhookEventUID GraphProjectionKeyspace = "webhook_event_uid"

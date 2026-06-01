@@ -89,6 +89,43 @@ WITH candidate AS (
             AND kube_nodes.keyspace = 'kubernetes_workload_uid'
             AND kube_nodes.phase = 'canonical_nodes_committed'
       ))
+      -- The security-group reachability edge (ALLOWS_INGRESS/EGRESS + TO, #1135
+      -- PR2b Option D) consumes THREE node families for the exact same
+      -- scope/generation/entity-key readiness slice: the :SecurityGroupRule nodes
+      -- (security_group_rule_uid), the CidrBlock/PrefixList endpoint nodes
+      -- (security_group_endpoint_uid, #1135 PR2a), and the SecurityGroup
+      -- CloudResource nodes (cloud_resource_uid, #805). Keep the edge domain
+      -- pending or retrying until ALL THREE phases are visibly committed instead
+      -- of claiming it and recording a retryable reducer failure.
+      AND (domain <> 'security_group_reachability_materialization' OR (
+          EXISTS (
+              SELECT 1 FROM graph_projection_phase_state AS sg_rule_nodes
+              WHERE sg_rule_nodes.scope_id = fact_work_items.scope_id
+                AND sg_rule_nodes.acceptance_unit_id = COALESCE(NULLIF(fact_work_items.payload->>'entity_key', ''), fact_work_items.scope_id)
+                AND sg_rule_nodes.source_run_id = fact_work_items.generation_id
+                AND sg_rule_nodes.generation_id = fact_work_items.generation_id
+                AND sg_rule_nodes.keyspace = 'security_group_rule_uid'
+                AND sg_rule_nodes.phase = 'canonical_nodes_committed'
+          )
+          AND EXISTS (
+              SELECT 1 FROM graph_projection_phase_state AS sg_endpoint_nodes
+              WHERE sg_endpoint_nodes.scope_id = fact_work_items.scope_id
+                AND sg_endpoint_nodes.acceptance_unit_id = COALESCE(NULLIF(fact_work_items.payload->>'entity_key', ''), fact_work_items.scope_id)
+                AND sg_endpoint_nodes.source_run_id = fact_work_items.generation_id
+                AND sg_endpoint_nodes.generation_id = fact_work_items.generation_id
+                AND sg_endpoint_nodes.keyspace = 'security_group_endpoint_uid'
+                AND sg_endpoint_nodes.phase = 'canonical_nodes_committed'
+          )
+          AND EXISTS (
+              SELECT 1 FROM graph_projection_phase_state AS sg_cloud_nodes
+              WHERE sg_cloud_nodes.scope_id = fact_work_items.scope_id
+                AND sg_cloud_nodes.acceptance_unit_id = COALESCE(NULLIF(fact_work_items.payload->>'entity_key', ''), fact_work_items.scope_id)
+                AND sg_cloud_nodes.source_run_id = fact_work_items.generation_id
+                AND sg_cloud_nodes.generation_id = fact_work_items.generation_id
+                AND sg_cloud_nodes.keyspace = 'cloud_resource_uid'
+                AND sg_cloud_nodes.phase = 'canonical_nodes_committed'
+          )
+      ))
       -- Reducer domains can touch the same graph nodes for a scope. Fence by
       -- explicit conflict key so unrelated graph families can still overlap.
       AND NOT EXISTS (

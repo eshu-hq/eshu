@@ -89,6 +89,7 @@ func TestSpanNames(t *testing.T) {
 		"reducer.aws_runtime_drift_evidence_load",
 		"reducer.aws_relationship_materialization",
 		"reducer.observability_coverage_materialization",
+		"reducer.security_group_reachability_materialization",
 		"canonical.write",
 		"canonical.projection",
 		"canonical.retract",

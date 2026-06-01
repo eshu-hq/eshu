@@ -142,8 +142,31 @@ type Instruments struct {
 	// against — and spot a generation that produced zero endpoints (every rule
 	// named a referenced group, or had an unparseable CIDR) at 3 AM.
 	SecurityGroupEndpointNodes metric.Int64Counter
-	SBOMAttestationAttachments metric.Int64Counter
-	SupplyChainImpactFindings  metric.Int64Counter
+	// SecurityGroupReachabilityRuleNodes counts canonical :SecurityGroupRule graph
+	// nodes committed by the network-reachability edge projection (issue #1135
+	// PR2b, Option D). No label: it is the port-precise rule-node throughput for
+	// one generation. A zero count is itself a signal (every rule named an
+	// unscanned group or carried an unknown source), so the counter is recorded
+	// even when no nodes materialized.
+	SecurityGroupReachabilityRuleNodes metric.Int64Counter
+	// SecurityGroupReachabilityEdges counts canonical reachability edges committed
+	// by the network-reachability edge projection. Label: edge_type (sg_rule for
+	// the SecurityGroup -> SecurityGroupRule ALLOWS_INGRESS/EGRESS edge,
+	// rule_endpoint for the SecurityGroupRule -[:TO]-> endpoint edge). It lets an
+	// operator see reachability edge throughput per family and spot a generation
+	// that committed rule nodes but zero TO edges (every endpoint unscanned).
+	SecurityGroupReachabilityEdges metric.Int64Counter
+	// SecurityGroupReachabilitySkipped counts security_group_rule facts that
+	// produced no graph truth. Label: skip_reason (unresolved_anchor — the SG was
+	// not scanned; unresolved_endpoint — a referenced group / parseable CIDR /
+	// prefix list endpoint did not resolve; unknown_source — the rule reported no
+	// usable source). It is the bounded, honest diagnostic surface for graceful
+	// degradation: a rising unresolved_anchor rate means reachability edges are
+	// missing because security groups have not been scanned, not because the
+	// reducer silently dropped rules.
+	SecurityGroupReachabilitySkipped metric.Int64Counter
+	SBOMAttestationAttachments       metric.Int64Counter
+	SupplyChainImpactFindings        metric.Int64Counter
 	// SupplyChainSuppressionDecisions counts reducer suppression-state
 	// outcomes per supply-chain impact finding. Labels: domain
 	// (supply_chain_impact) and outcome (one of active, not_affected,
@@ -941,6 +964,30 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register SecurityGroupEndpointNodes counter: %w", err)
+	}
+
+	inst.SecurityGroupReachabilityRuleNodes, err = meter.Int64Counter(
+		"eshu_dp_security_group_reachability_rule_nodes_total",
+		metric.WithDescription("Total canonical SecurityGroupRule graph nodes committed by the network-reachability edge projection"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register SecurityGroupReachabilityRuleNodes counter: %w", err)
+	}
+
+	inst.SecurityGroupReachabilityEdges, err = meter.Int64Counter(
+		"eshu_dp_security_group_reachability_edges_total",
+		metric.WithDescription("Total canonical security-group reachability edges committed by edge_type (sg_rule/rule_endpoint)"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register SecurityGroupReachabilityEdges counter: %w", err)
+	}
+
+	inst.SecurityGroupReachabilitySkipped, err = meter.Int64Counter(
+		"eshu_dp_security_group_reachability_skipped_total",
+		metric.WithDescription("Total security_group_rule facts skipped by the reachability edge projection by skip_reason (unresolved_anchor/unresolved_endpoint/unknown_source)"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register SecurityGroupReachabilitySkipped counter: %w", err)
 	}
 
 	inst.SBOMAttestationAttachments, err = meter.Int64Counter(

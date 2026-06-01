@@ -169,6 +169,7 @@ var uidConstraintLabels = []string{
 	"ProtocolImplementation",
 	"QueryExecution",
 	"Record",
+	"SecurityGroupRule",
 	"SqlColumn",
 	"SqlFunction",
 	"SqlIndex",
@@ -241,6 +242,14 @@ var schemaPerformanceIndexes = []string{
 	"CREATE INDEX cidr_block_cidr IF NOT EXISTS FOR (c:CidrBlock) ON (c.cidr)",
 	"CREATE INDEX cidr_block_is_internet IF NOT EXISTS FOR (c:CidrBlock) ON (c.is_internet)",
 	"CREATE INDEX prefix_list_prefix_list_id IF NOT EXISTS FOR (p:PrefixList) ON (p.prefix_list_id)",
+	// SecurityGroupRule lookup indexes back the network-reachability edge
+	// projection (issue #1135 PR2b) and the internet-exposure read. The
+	// ALLOWS_INGRESS/EGRESS and TO edges anchor on the rule uid (already indexed
+	// by the generated uid uniqueness constraint), but graph-backed reads filter
+	// reachability by direction and surface internet-open rules by is_internet.
+	// Without these, those reads fall back to a SecurityGroupRule label scan.
+	"CREATE INDEX security_group_rule_direction IF NOT EXISTS FOR (r:SecurityGroupRule) ON (r.direction)",
+	"CREATE INDEX security_group_rule_is_internet IF NOT EXISTS FOR (r:SecurityGroupRule) ON (r.is_internet)",
 	"CREATE INDEX tf_resource_type IF NOT EXISTS FOR (r:TerraformResource) ON (r.resource_type)",
 	// Indexes that back the infrastructure resource aggregate (#690)
 	// grouped-count hot path on the TerraformResource label (the largest
