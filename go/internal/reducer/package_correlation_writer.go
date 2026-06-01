@@ -283,6 +283,12 @@ func packageConsumptionPayload(
 			string(truth.LayerObservedResource),
 		},
 	}
+	if strings.TrimSpace(decision.ObservedVersion) != "" {
+		payload["observed_version"] = strings.TrimSpace(decision.ObservedVersion)
+	}
+	if strings.TrimSpace(decision.RequestedRange) != "" {
+		payload["requested_range"] = strings.TrimSpace(decision.RequestedRange)
+	}
 	if len(decision.DependencyPath) > 0 {
 		payload["dependency_path"] = orderedStrings(decision.DependencyPath)
 		payload["dependency_depth"] = decision.DependencyDepth
@@ -310,6 +316,18 @@ func packageConsumptionPayload(
 	}
 	if decision.TestDependency {
 		payload["test_dependency"] = true
+	}
+	if strings.TrimSpace(decision.VersionEvidence) != "" {
+		payload["version_evidence"] = strings.TrimSpace(decision.VersionEvidence)
+	}
+	if strings.TrimSpace(decision.UnresolvedMSBuildProperty) != "" {
+		payload["unresolved_msbuild_property"] = strings.TrimSpace(decision.UnresolvedMSBuildProperty)
+	}
+	if strings.TrimSpace(decision.AmbiguousMSBuildProperty) != "" {
+		payload["ambiguous_msbuild_property"] = strings.TrimSpace(decision.AmbiguousMSBuildProperty)
+	}
+	if decision.PartialEvidence {
+		payload["partial_evidence"] = true
 	}
 	return payload
 }

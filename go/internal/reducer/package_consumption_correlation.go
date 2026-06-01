@@ -2,7 +2,6 @@ package reducer
 
 import (
 	"sort"
-	"strconv"
 	"strings"
 	"time"
 
@@ -23,29 +22,35 @@ const (
 // PackageConsumptionDecision records one repo-to-package consumption
 // correlation admitted from source declaration plus registry identity.
 type PackageConsumptionDecision struct {
-	PackageID        string
-	Ecosystem        string
-	PackageName      string
-	RepositoryID     string
-	RepositoryName   string
-	RelativePath     string
-	ManifestSection  string
-	DependencyRange  string
-	DependencyScope  string
-	PrivateAssets    string
-	IncludeAssets    string
-	ExcludeAssets    string
-	DevelopmentOnly  bool
-	TestDependency   bool
-	DependencyPath   []string
-	DependencyDepth  int
-	DirectDependency *bool
-	Lockfile         bool
-	Outcome          PackageConsumptionOutcome
-	Reason           string
-	ProvenanceOnly   bool
-	CanonicalWrites  int
-	EvidenceFactIDs  []string
+	PackageID                 string
+	Ecosystem                 string
+	PackageName               string
+	RepositoryID              string
+	RepositoryName            string
+	RelativePath              string
+	ManifestSection           string
+	DependencyRange           string
+	ObservedVersion           string
+	RequestedRange            string
+	DependencyScope           string
+	PrivateAssets             string
+	IncludeAssets             string
+	ExcludeAssets             string
+	DevelopmentOnly           bool
+	TestDependency            bool
+	VersionEvidence           string
+	UnresolvedMSBuildProperty string
+	AmbiguousMSBuildProperty  string
+	PartialEvidence           bool
+	DependencyPath            []string
+	DependencyDepth           int
+	DirectDependency          *bool
+	Lockfile                  bool
+	Outcome                   PackageConsumptionOutcome
+	Reason                    string
+	ProvenanceOnly            bool
+	CanonicalWrites           int
+	EvidenceFactIDs           []string
 }
 
 // PackageManifestDependencyFactFilter bounds the active Git dependency facts
@@ -64,26 +69,32 @@ type packageRegistryIdentity struct {
 }
 
 type packageManifestDependency struct {
-	FactID           string
-	RepositoryID     string
-	RepositoryName   string
-	RelativePath     string
-	ObservedAt       time.Time
-	DependencyName   string
-	PackageManager   string
-	ManifestSection  string
-	DependencyRange  string
-	DependencyScope  string
-	PrivateAssets    string
-	IncludeAssets    string
-	ExcludeAssets    string
-	DevelopmentOnly  bool
-	TestDependency   bool
-	DependencyPath   []string
-	DependencyDepth  int
-	DirectDependency *bool
-	Lockfile         bool
-	SourceAmbiguous  bool
+	FactID                    string
+	RepositoryID              string
+	RepositoryName            string
+	RelativePath              string
+	ObservedAt                time.Time
+	DependencyName            string
+	PackageManager            string
+	ManifestSection           string
+	DependencyRange           string
+	ObservedVersion           string
+	RequestedRange            string
+	DependencyScope           string
+	PrivateAssets             string
+	IncludeAssets             string
+	ExcludeAssets             string
+	DevelopmentOnly           bool
+	TestDependency            bool
+	VersionEvidence           string
+	UnresolvedMSBuildProperty string
+	AmbiguousMSBuildProperty  string
+	PartialEvidence           bool
+	DependencyPath            []string
+	DependencyDepth           int
+	DirectDependency          *bool
+	Lockfile                  bool
+	SourceAmbiguous           bool
 }
 
 // BuildPackageConsumptionDecisions matches package registry identities to Git
@@ -108,29 +119,35 @@ func BuildPackageConsumptionDecisions(envelopes []facts.Envelope) []PackageConsu
 			continue
 		}
 		decisions = append(decisions, PackageConsumptionDecision{
-			PackageID:        identity.PackageID,
-			Ecosystem:        identity.Ecosystem,
-			PackageName:      dependency.DependencyName,
-			RepositoryID:     dependency.RepositoryID,
-			RepositoryName:   dependency.RepositoryName,
-			RelativePath:     dependency.RelativePath,
-			ManifestSection:  dependency.ManifestSection,
-			DependencyRange:  dependency.DependencyRange,
-			DependencyScope:  dependency.DependencyScope,
-			PrivateAssets:    dependency.PrivateAssets,
-			IncludeAssets:    dependency.IncludeAssets,
-			ExcludeAssets:    dependency.ExcludeAssets,
-			DevelopmentOnly:  dependency.DevelopmentOnly,
-			TestDependency:   dependency.TestDependency,
-			DependencyPath:   dependency.DependencyPath,
-			DependencyDepth:  dependency.DependencyDepth,
-			DirectDependency: dependency.DirectDependency,
-			Lockfile:         dependency.Lockfile,
-			Outcome:          PackageConsumptionManifestDeclared,
-			Reason:           "git manifest dependency matches package registry identity",
-			ProvenanceOnly:   false,
-			CanonicalWrites:  1,
-			EvidenceFactIDs:  []string{dependency.FactID},
+			PackageID:                 identity.PackageID,
+			Ecosystem:                 identity.Ecosystem,
+			PackageName:               dependency.DependencyName,
+			RepositoryID:              dependency.RepositoryID,
+			RepositoryName:            dependency.RepositoryName,
+			RelativePath:              dependency.RelativePath,
+			ManifestSection:           dependency.ManifestSection,
+			DependencyRange:           dependency.DependencyRange,
+			ObservedVersion:           dependency.ObservedVersion,
+			RequestedRange:            dependency.RequestedRange,
+			DependencyScope:           dependency.DependencyScope,
+			PrivateAssets:             dependency.PrivateAssets,
+			IncludeAssets:             dependency.IncludeAssets,
+			ExcludeAssets:             dependency.ExcludeAssets,
+			DevelopmentOnly:           dependency.DevelopmentOnly,
+			TestDependency:            dependency.TestDependency,
+			VersionEvidence:           dependency.VersionEvidence,
+			UnresolvedMSBuildProperty: dependency.UnresolvedMSBuildProperty,
+			AmbiguousMSBuildProperty:  dependency.AmbiguousMSBuildProperty,
+			PartialEvidence:           dependency.PartialEvidence,
+			DependencyPath:            dependency.DependencyPath,
+			DependencyDepth:           dependency.DependencyDepth,
+			DirectDependency:          dependency.DirectDependency,
+			Lockfile:                  dependency.Lockfile,
+			Outcome:                   PackageConsumptionManifestDeclared,
+			Reason:                    "git manifest dependency matches package registry identity",
+			ProvenanceOnly:            false,
+			CanonicalWrites:           1,
+			EvidenceFactIDs:           []string{dependency.FactID},
 		})
 	}
 	sort.SliceStable(decisions, func(i, j int) bool {
@@ -206,27 +223,35 @@ func extractPackageManifestDependencies(envelopes []facts.Envelope) []packageMan
 		if repositoryID == "" {
 			continue
 		}
+		packageManager := strings.ToLower(packageManifestMetadataString(envelope.Payload, "package_manager"))
+		lockfile := packageManifestMetadataBoolValue(envelope.Payload, "lockfile")
 		dependency := packageManifestDependency{
-			FactID:           envelope.FactID,
-			RepositoryID:     repositoryID,
-			RepositoryName:   packageRepositoryName(repositoryID, repositories, envelope.Payload),
-			RelativePath:     payloadStr(envelope.Payload, "relative_path"),
-			ObservedAt:       envelope.ObservedAt,
-			DependencyName:   payloadStr(envelope.Payload, "entity_name"),
-			PackageManager:   strings.ToLower(packageManifestMetadataString(envelope.Payload, "package_manager")),
-			ManifestSection:  packageManifestMetadataString(envelope.Payload, "section"),
-			DependencyRange:  packageManifestMetadataString(envelope.Payload, "value"),
-			DependencyScope:  packageManifestMetadataString(envelope.Payload, "dependency_scope"),
-			PrivateAssets:    packageManifestMetadataString(envelope.Payload, "private_assets"),
-			IncludeAssets:    packageManifestMetadataString(envelope.Payload, "include_assets"),
-			ExcludeAssets:    packageManifestMetadataString(envelope.Payload, "exclude_assets"),
-			DevelopmentOnly:  packageManifestMetadataBoolValue(envelope.Payload, "development_dependency"),
-			TestDependency:   packageManifestMetadataBoolValue(envelope.Payload, "test_dependency"),
-			DependencyPath:   packageManifestMetadataStrings(envelope.Payload, "dependency_path"),
-			DependencyDepth:  packageManifestMetadataInt(envelope.Payload, "dependency_depth"),
-			DirectDependency: packageManifestMetadataBool(envelope.Payload, "direct_dependency"),
-			Lockfile:         packageManifestMetadataBoolValue(envelope.Payload, "lockfile"),
-			SourceAmbiguous:  packageManifestMetadataBoolValue(envelope.Payload, "source_ambiguous"),
+			FactID:                    envelope.FactID,
+			RepositoryID:              repositoryID,
+			RepositoryName:            packageRepositoryName(repositoryID, repositories, envelope.Payload),
+			RelativePath:              payloadStr(envelope.Payload, "relative_path"),
+			ObservedAt:                envelope.ObservedAt,
+			DependencyName:            payloadStr(envelope.Payload, "entity_name"),
+			PackageManager:            packageManager,
+			ManifestSection:           packageManifestMetadataString(envelope.Payload, "section"),
+			DependencyRange:           packageManifestMetadataString(envelope.Payload, "value"),
+			ObservedVersion:           packageManifestObservedVersion(envelope.Payload, packageManager, lockfile),
+			RequestedRange:            packageManifestRequestedRange(envelope.Payload),
+			DependencyScope:           packageManifestMetadataString(envelope.Payload, "dependency_scope"),
+			PrivateAssets:             packageManifestMetadataString(envelope.Payload, "private_assets"),
+			IncludeAssets:             packageManifestMetadataString(envelope.Payload, "include_assets"),
+			ExcludeAssets:             packageManifestMetadataString(envelope.Payload, "exclude_assets"),
+			DevelopmentOnly:           packageManifestMetadataBoolValue(envelope.Payload, "development_dependency"),
+			TestDependency:            packageManifestMetadataBoolValue(envelope.Payload, "test_dependency"),
+			VersionEvidence:           packageManifestMetadataString(envelope.Payload, "version_evidence"),
+			UnresolvedMSBuildProperty: packageManifestMetadataString(envelope.Payload, "unresolved_msbuild_property"),
+			AmbiguousMSBuildProperty:  packageManifestMetadataString(envelope.Payload, "ambiguous_msbuild_property"),
+			PartialEvidence:           packageManifestMetadataBoolValue(envelope.Payload, "partial_evidence"),
+			DependencyPath:            packageManifestMetadataStrings(envelope.Payload, "dependency_path"),
+			DependencyDepth:           packageManifestMetadataInt(envelope.Payload, "dependency_depth"),
+			DirectDependency:          packageManifestMetadataBool(envelope.Payload, "direct_dependency"),
+			Lockfile:                  lockfile,
+			SourceAmbiguous:           packageManifestMetadataBoolValue(envelope.Payload, "source_ambiguous"),
 		}
 		if dependency.DependencyName == "" || dependency.PackageManager == "" {
 			continue
@@ -265,87 +290,6 @@ func packageRepositoryName(
 	return payloadStr(payload, "repo_name")
 }
 
-func packageManifestMetadataString(payload map[string]any, key string) string {
-	if value := payloadStr(payload, key); value != "" {
-		return value
-	}
-	raw, ok := payload["entity_metadata"].(map[string]any)
-	if !ok {
-		return ""
-	}
-	return payloadStr(raw, key)
-}
-
-func packageManifestMetadataStrings(payload map[string]any, key string) []string {
-	values := payloadOrderedStrings(payload, key)
-	if len(values) > 0 {
-		return values
-	}
-	raw, ok := payload["entity_metadata"].(map[string]any)
-	if !ok {
-		return nil
-	}
-	return payloadOrderedStrings(raw, key)
-}
-
-func payloadOrderedStrings(payload map[string]any, key string) []string {
-	raw, ok := payload[key]
-	if !ok {
-		return nil
-	}
-	switch typed := raw.(type) {
-	case []string:
-		out := make([]string, 0, len(typed))
-		for _, value := range typed {
-			if value = strings.TrimSpace(value); value != "" {
-				out = append(out, value)
-			}
-		}
-		return out
-	case []any:
-		out := make([]string, 0, len(typed))
-		for _, value := range typed {
-			text := strings.TrimSpace(payloadString(map[string]any{"value": value}, "value"))
-			if text != "" {
-				out = append(out, text)
-			}
-		}
-		return out
-	case string:
-		if trimmed := strings.TrimSpace(typed); trimmed != "" {
-			return []string{trimmed}
-		}
-	}
-	return nil
-}
-
-func packageManifestMetadataInt(payload map[string]any, key string) int {
-	if value := packageManifestMetadataString(payload, key); value != "" {
-		parsed, _ := strconv.Atoi(value)
-		return parsed
-	}
-	return 0
-}
-
-func packageManifestMetadataBool(payload map[string]any, key string) *bool {
-	raw := packageManifestMetadataString(payload, key)
-	if raw == "" {
-		return nil
-	}
-	value := strings.EqualFold(raw, "true")
-	return &value
-}
-
-// packageManifestMetadataBoolValue returns the metadata boolean for `key`
-// as a plain bool, defaulting to false when the field is missing. It is
-// used for flags whose absence and false value carry the same meaning,
-// such as `lockfile` and `source_ambiguous`, where only the true case changes
-// downstream behavior.
-func packageManifestMetadataBoolValue(payload map[string]any, key string) bool {
-	value := packageManifestMetadataBool(payload, key)
-	return value != nil && *value
-}
-
 func normalizePackageManifestDependencyChain(dependency packageManifestDependency) packageManifestDependency {
 	if len(dependency.DependencyPath) > 0 {
 		if dependency.DependencyDepth == 0 {
@@ -367,6 +311,10 @@ func normalizePackageManifestDependencyChain(dependency packageManifestDependenc
 
 func packageManifestDependencyNeedsProvenChain(dependency packageManifestDependency) bool {
 	if dependency.Lockfile {
+		return true
+	}
+	if packageidentity.NormalizeEcosystem(packageidentity.Ecosystem(dependency.PackageManager)) ==
+		packageidentity.EcosystemNuGet {
 		return true
 	}
 	switch strings.ToLower(strings.TrimSpace(dependency.ManifestSection)) {

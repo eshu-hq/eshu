@@ -241,6 +241,33 @@ existing parser-stage timing, package-consumption correlation facts,
 `reducer_supply_chain_impact_finding`, `match_reason`, `dependency_scope`,
 `missing_evidence`, and the supply-chain impact readiness envelope.
 
+No-Regression Evidence: NuGet/.NET vulnerability parity for issue `#1015` is
+guarded by `go test ./internal/parser ./internal/reducer ./internal/query -run
+'TestParseNuGetProjectKeepsAmbiguousMSBuildPropertyPartial|TestBuildPackageConsumptionDecisions(SeparatesNuGetLockfileRequestedRange|PreservesNuGetPartialMSBuildEvidence)|TestBuildSupplyChainImpactFindings(MatchesNuGetBracketRange|MarksNuGetFixedVersionSafe|KeepsNuGetLockfileRequestedRangeSeparate|KeepsNuGetUnresolvedPropertyPartial|FailsClosedForMalformedNuGetRange)|TestBuildSupplyChainImpactReadinessClassifiesNuGetReadyZeroFindings'
+-count=1`, `go test ./internal/parser ./internal/parser/json ./internal/reducer
+./internal/query -run
+'TestParseNuGet|TestBuildPackageConsumptionDecisions.*NuGet|TestBuildSupplyChainImpactFindings.*NuGet|TestEvaluateNuGet|TestBuildSupplyChainImpactReadiness.*NuGet|TestParseNuGetPackagesLockJSON'
+-count=1`, and `go test ./internal/reducer -run
+'TestBuildPackageConsumptionDecisions(SeparatesNuGetLockfileRequestedRange|PreservesNuGetPartialMSBuildEvidence)|TestPackageConsumptionPayloadPersistsNuGetVersionEvidence|TestBuildSupplyChainImpactFindings(MatchesNuGetBracketRange|MarksNuGetFixedVersionSafe|KeepsNuGetLockfileRequestedRangeSeparate|KeepsNuGetUnresolvedPropertyPartial|FailsClosedForMalformedNuGetRange)'
+-count=1`. These tests prove ambiguous MSBuild properties fail closed instead
+of producing fake installed versions, NuGet `packages.lock.json` keeps exact
+installed versions separate from requested ranges, PackageReference
+PrivateAssets/dev/test evidence remains independent scope context, NuGet
+bracket ranges and fixed-version known-safe behavior are matched with explicit
+`match_reason`, malformed ranges remain possible affected with missing-evidence
+reasons, and ready-zero NuGet evidence stays distinct from unsupported or
+evidence-incomplete states.
+
+No-Observability-Change: the `#1015` parity work changes in-memory parser rows,
+package-consumption fact payload fields, reducer version matching, and query
+readiness fixtures only. It adds no metric instrument, span, log key, queue,
+reducer lane, graph write, route, MCP tool, scanner worker, or runtime
+configuration knob. Operators continue to diagnose NuGet coverage through the
+existing parser-stage timing, `reducer_package_consumption_correlation`,
+`reducer_supply_chain_impact_finding`, `observed_version`, `requested_range`,
+`vulnerable_range`, `match_reason`, `missing_evidence`, `dependency_scope`, and
+the supply-chain impact readiness envelope.
+
 No-Regression Evidence: Java Maven and Gradle vulnerability parity for issue
 `#1011` is guarded by `go test ./internal/parser/maven
 ./internal/parser/gradle -count=1` and `go test ./internal/reducer -run

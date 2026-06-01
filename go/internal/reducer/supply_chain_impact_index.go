@@ -45,16 +45,22 @@ type supplyChainAffectedProduct struct {
 }
 
 type supplyChainPackageConsumption struct {
-	factID           string
-	evidenceKind     string
-	packageID        string
-	repositoryID     string
-	dependencyRange  string
-	dependencyPath   []string
-	dependencyDepth  int
-	directDependency *bool
-	dependencyScope  string
-	lockfile         bool
+	factID                    string
+	evidenceKind              string
+	packageID                 string
+	repositoryID              string
+	dependencyRange           string
+	observedVersion           string
+	requestedRange            string
+	dependencyPath            []string
+	dependencyDepth           int
+	directDependency          *bool
+	dependencyScope           string
+	versionEvidence           string
+	unresolvedMSBuildProperty string
+	ambiguousMSBuildProperty  string
+	partialEvidence           bool
+	lockfile                  bool
 }
 
 type supplyChainSBOMComponent struct {
@@ -218,7 +224,10 @@ func classifySupplyChainImpactPackage(
 	consumption := firstConsumption(pkg.packageID, index.consumption)
 	if consumption.factID != "" {
 		finding.RepositoryID = consumption.repositoryID
-		finding.RequestedRange = strings.TrimSpace(consumption.dependencyRange)
+		finding.RequestedRange = firstNonBlank(
+			strings.TrimSpace(consumption.requestedRange),
+			strings.TrimSpace(consumption.dependencyRange),
+		)
 		finding.DependencyScope = strings.TrimSpace(consumption.dependencyScope)
 		finding.DependencyPath = append([]string(nil), consumption.dependencyPath...)
 		finding.DependencyDepth = consumption.dependencyDepth
@@ -228,8 +237,11 @@ func classifySupplyChainImpactPackage(
 		}
 		finding.EvidenceFactIDs = append(finding.EvidenceFactIDs, consumption.factID)
 		finding.EvidencePath = append(finding.EvidencePath, firstNonBlank(consumption.evidenceKind, packageConsumptionCorrelationFactKind))
-		if manifestVersion, ok := exactConsumptionDependencyVersion(finding.Ecosystem, consumption); ok {
-			finding.ObservedVersion = manifestVersion
+		finding.ObservedVersion = strings.TrimSpace(consumption.observedVersion)
+		if finding.ObservedVersion == "" {
+			if manifestVersion, ok := exactConsumptionDependencyVersion(finding.Ecosystem, consumption); ok {
+				finding.ObservedVersion = manifestVersion
+			}
 		}
 	}
 	if hasComponentPath {
@@ -250,19 +262,20 @@ func classifySupplyChainImpactPackage(
 		finding.FixedVersion,
 		pkgs,
 	)
+	consumptionMissing := supplyChainConsumptionMissingEvidence(consumption)
 	if consumption.factID != "" && versionDecision.Status == SupplyChainImpactAffectedExact {
 		applySupplyChainVersionDecision(&finding, versionDecision)
-		finalizeSupplyChainImpactFinding(&finding, index, versionDecision.MissingEvidence, imagePathMissing)
+		finalizeSupplyChainImpactFinding(&finding, index, versionDecision.MissingEvidence, imagePathMissing, consumptionMissing)
 		return finding
 	}
 	if versionDecision.Status == SupplyChainImpactNotAffectedKnownFixed {
 		applySupplyChainVersionDecision(&finding, versionDecision)
-		finalizeSupplyChainImpactFinding(&finding, index, versionDecision.MissingEvidence, imagePathMissing)
+		finalizeSupplyChainImpactFinding(&finding, index, versionDecision.MissingEvidence, imagePathMissing, consumptionMissing)
 		return finding
 	}
 	if versionDecision.FailClosed {
 		applySupplyChainVersionDecision(&finding, versionDecision)
-		finalizeSupplyChainImpactFinding(&finding, index, versionDecision.MissingEvidence, imagePathMissing)
+		finalizeSupplyChainImpactFinding(&finding, index, versionDecision.MissingEvidence, imagePathMissing, consumptionMissing)
 		return finding
 	}
 	if hasComponentPath {
@@ -271,7 +284,7 @@ func classifySupplyChainImpactPackage(
 		finding.MatchReason = "sbom_component_path"
 		finding.RuntimeReachability = "image_sbom"
 		finding.CanonicalWrites = 1
-		finalizeSupplyChainImpactFinding(&finding, index, versionDecision.MissingEvidence)
+		finalizeSupplyChainImpactFinding(&finding, index, versionDecision.MissingEvidence, consumptionMissing)
 		return finding
 	}
 	finding.Status = SupplyChainImpactPossiblyAffected
@@ -279,7 +292,7 @@ func classifySupplyChainImpactPackage(
 	finding.MatchReason = versionDecision.Reason
 	finding.RuntimeReachability = "unknown"
 	finding.CanonicalWrites = 1
-	finalizeSupplyChainImpactFinding(&finding, index, versionDecision.MissingEvidence, imagePathMissing)
+	finalizeSupplyChainImpactFinding(&finding, index, versionDecision.MissingEvidence, imagePathMissing, consumptionMissing)
 	return finding
 }
 
@@ -296,6 +309,20 @@ func applySupplyChainVersionDecision(
 	}
 	finding.CanonicalWrites = 1
 	finding.MissingEvidence = combinedMissingImpactEvidence(*finding, decision.MissingEvidence)
+}
+
+func supplyChainConsumptionMissingEvidence(consumption supplyChainPackageConsumption) []string {
+	if consumption.factID == "" || !consumption.partialEvidence {
+		return nil
+	}
+	var missing []string
+	if property := strings.TrimSpace(consumption.unresolvedMSBuildProperty); property != "" {
+		missing = append(missing, "msbuild property unresolved: "+property)
+	}
+	if property := strings.TrimSpace(consumption.ambiguousMSBuildProperty); property != "" {
+		missing = append(missing, "msbuild property ambiguous: "+property)
+	}
+	return uniqueSortedStrings(missing)
 }
 
 func combinedMissingImpactEvidence(finding SupplyChainImpactFinding, extra []string) []string {
