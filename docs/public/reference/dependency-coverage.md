@@ -411,3 +411,18 @@ rows, `reducer_package_consumption_correlation`,
 `dependency_path`, `missing_evidence`, and the supply-chain impact readiness
 envelope. It adds no metric instrument, span, log key, queue, reducer lane,
 graph write, scanner worker, route, MCP tool, or runtime knob.
+
+No-Regression Evidence: RubyGems readiness support for issue `#1091` is
+guarded by `go test ./internal/query -run TestPostgresSupplyChainImpactReadinessQueryShape -count=1`.
+The query-shape guard proves `rubygems` stays in the supported package-manager
+list for the repository-scoped unsupported-target rollup, so owned Gemfile and
+Gemfile.lock dependency rows are not reported as `unsupported_targets[]` after
+the reducer and parser evidence has first-class RubyGems support.
+
+No-Observability-Change: the `#1091` readiness fix changes only the existing
+bounded Postgres readiness query's supported package-manager allowlist. It adds
+no metric instrument, span, log key, queue, reducer lane, route, MCP tool,
+graph write, scanner worker, or runtime configuration knob. Operators continue
+to diagnose the path through `package.consumption` readiness counts, the
+unsupported-target rollup, and the existing supply-chain impact readiness
+envelope.
