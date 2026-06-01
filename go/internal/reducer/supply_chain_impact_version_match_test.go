@@ -105,7 +105,7 @@ func TestBuildSupplyChainImpactFindingsExplainsNuGetLockfileExactVersion(t *test
 			"Newtonsoft.Json",
 			"13.0.4",
 		),
-		packageConsumptionFactWithChain(
+		nugetLockfileConsumptionFactWithChain(
 			"consume-nuget",
 			"pkg:nuget/newtonsoft.json",
 			testImpactRepositoryID,

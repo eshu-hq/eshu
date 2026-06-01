@@ -43,15 +43,24 @@ func buildSecurityAlertImpactFinding(
 		return SupplyChainImpactFinding{}, false
 	}
 
-	observedVersion := ""
-	if version, ok := exactManifestDependencyVersion(consumption.dependencyRange); ok {
-		observedVersion = version
+	observedVersion := strings.TrimSpace(consumption.observedVersion)
+	if observedVersion == "" {
+		if manifestVersion, ok := exactConsumptionDependencyVersion(alert.Ecosystem, supplyChainPackageConsumption{
+			dependencyRange: consumption.dependencyRange,
+			lockfile:        consumption.lockfile,
+		}); ok {
+			observedVersion = manifestVersion
+		}
 	}
+	requestedRange := firstNonBlank(
+		strings.TrimSpace(consumption.requestedRange),
+		strings.TrimSpace(consumption.dependencyRange),
+	)
 	pkg := supplyChainAffectedPackageFromSecurityAlert(alert)
 	decision := evaluateSupplyChainVersionMatch(
 		alert.Ecosystem,
 		observedVersion,
-		consumption.dependencyRange,
+		requestedRange,
 		alert.PatchedVersion,
 		[]supplyChainAffectedPackage{pkg},
 	)
@@ -62,7 +71,7 @@ func buildSecurityAlertImpactFinding(
 		Ecosystem:          strings.ToLower(strings.TrimSpace(alert.Ecosystem)),
 		PackageName:        alert.PackageName,
 		ObservedVersion:    observedVersion,
-		RequestedRange:     strings.TrimSpace(consumption.dependencyRange),
+		RequestedRange:     requestedRange,
 		FixedVersion:       strings.TrimSpace(alert.PatchedVersion),
 		VulnerableRange:    strings.TrimSpace(alert.VulnerableRange),
 		CVSSScore:          securityAlertCVSSScore(alert.CVSS),

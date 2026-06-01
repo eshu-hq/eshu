@@ -18,6 +18,7 @@ type nugetProjectFile struct {
 }
 
 type nugetPropertyGroup struct {
+	Condition  string            `xml:"Condition,attr"`
 	Properties []nugetNamedValue `xml:",any"`
 }
 
@@ -40,6 +41,11 @@ type nugetPackageReference struct {
 type nugetNamedValue struct {
 	XMLName xml.Name
 	Value   string `xml:",chardata"`
+}
+
+type nugetProjectProperty struct {
+	value     string
+	ambiguous bool
 }
 
 func parseNuGetProject(path string, isDependency bool, options Options) (map[string]any, error) {
@@ -82,7 +88,7 @@ func nugetProjectDependencyRow(
 	name string,
 	reference nugetPackageReference,
 	groupCondition string,
-	properties map[string]string,
+	properties map[string]nugetProjectProperty,
 	lineNumber int,
 ) map[string]any {
 	rawVersion := strings.TrimSpace(firstNonEmpty(
@@ -128,21 +134,30 @@ func nugetProjectDependencyRow(
 	return row
 }
 
-func nugetProjectProperties(groups []nugetPropertyGroup) map[string]string {
-	out := make(map[string]string)
+func nugetProjectProperties(groups []nugetPropertyGroup) map[string]nugetProjectProperty {
+	out := make(map[string]nugetProjectProperty)
 	for _, group := range groups {
 		for _, property := range group.Properties {
 			name := strings.TrimSpace(property.XMLName.Local)
 			value := strings.TrimSpace(property.Value)
-			if name != "" && value != "" {
-				out[name] = value
+			if name == "" || value == "" {
+				continue
+			}
+			existing, ok := out[name]
+			if !ok {
+				out[name] = nugetProjectProperty{value: value}
+				continue
+			}
+			if existing.value != value {
+				existing.ambiguous = true
+				out[name] = existing
 			}
 		}
 	}
 	return out
 }
 
-func resolveNuGetVersion(raw string, properties map[string]string) (string, map[string]any) {
+func resolveNuGetVersion(raw string, properties map[string]nugetProjectProperty) (string, map[string]any) {
 	metadata := map[string]any{}
 	raw = strings.TrimSpace(raw)
 	if raw == "" {
@@ -155,12 +170,19 @@ func resolveNuGetVersion(raw string, properties map[string]string) (string, map[
 		resolved := raw
 		resolvedProperties := make([]string, 0, len(matches))
 		unresolvedProperties := make([]string, 0)
+		ambiguousProperties := make([]string, 0)
 		for _, match := range matches {
 			if len(match) != 2 {
 				continue
 			}
 			property := match[1]
-			if value := strings.TrimSpace(properties[property]); value != "" {
+			resolution, ok := properties[property]
+			if ok && resolution.ambiguous {
+				ambiguousProperties = append(ambiguousProperties, property)
+				continue
+			}
+			if ok && resolution.value != "" {
+				value := strings.TrimSpace(resolution.value)
 				resolved = strings.ReplaceAll(resolved, match[0], value)
 				resolvedProperties = append(resolvedProperties, property)
 				continue
@@ -168,6 +190,12 @@ func resolveNuGetVersion(raw string, properties map[string]string) (string, map[
 			unresolvedProperties = append(unresolvedProperties, property)
 		}
 		setNuGetProjectVersionPropertyMetadata(metadata, resolvedProperties)
+		if len(ambiguousProperties) > 0 {
+			metadata["ambiguous_msbuild_property"] = strings.Join(uniqueNuGetProjectStrings(ambiguousProperties), ",")
+			metadata["version_evidence"] = "ambiguous_msbuild_property"
+			metadata["partial_evidence"] = true
+			return raw, metadata
+		}
 		if len(unresolvedProperties) > 0 {
 			metadata["unresolved_msbuild_property"] = strings.Join(uniqueNuGetProjectStrings(unresolvedProperties), ",")
 			metadata["version_evidence"] = "unresolved_msbuild_property"

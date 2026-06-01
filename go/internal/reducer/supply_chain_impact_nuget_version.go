@@ -169,6 +169,104 @@ func nugetSemverRangeContainsDecision(
 	return vulnerable, true
 }
 
+func nugetAffectedRangeRawContains(raw string, observed string) (bool, bool) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return false, true
+	}
+	malformed := false
+	for _, branch := range strings.Split(raw, "||") {
+		branch = strings.TrimSpace(branch)
+		if branch == "" {
+			malformed = true
+			continue
+		}
+		var (
+			affected bool
+			valid    bool
+		)
+		if nugetRangeBranchUsesBounds(branch) {
+			affected, valid = nugetRangeBranchContains(branch, observed)
+		} else {
+			affected, valid = comparatorRangeContains(branch, observed, compareNuGetVersion)
+		}
+		if affected {
+			return true, true
+		}
+		if !valid {
+			malformed = true
+		}
+	}
+	return false, !malformed
+}
+
+func nugetRangeBranchUsesBounds(raw string) bool {
+	if raw == "" {
+		return false
+	}
+	first := raw[0]
+	return first == '[' || first == '('
+}
+
+func nugetRangeBranchContains(raw string, observed string) (bool, bool) {
+	raw = strings.TrimSpace(raw)
+	if len(raw) < 2 {
+		return false, false
+	}
+	lowerInclusive := raw[0] == '['
+	lowerExclusive := raw[0] == '('
+	upperInclusive := raw[len(raw)-1] == ']'
+	upperExclusive := raw[len(raw)-1] == ')'
+	if (!lowerInclusive && !lowerExclusive) || (!upperInclusive && !upperExclusive) {
+		return false, false
+	}
+	body := strings.TrimSpace(raw[1 : len(raw)-1])
+	if body == "" {
+		return false, false
+	}
+	if !strings.Contains(body, ",") {
+		if !lowerInclusive || !upperInclusive {
+			return false, false
+		}
+		cmp, ok := compareNuGetVersion(observed, body)
+		return cmp == 0, ok
+	}
+	lower, upper, ok := strings.Cut(body, ",")
+	if !ok {
+		return false, false
+	}
+	lower = strings.TrimSpace(lower)
+	upper = strings.TrimSpace(upper)
+	if lower == "" && upper == "" {
+		return false, false
+	}
+	if lower != "" {
+		cmp, valid := compareNuGetVersion(observed, lower)
+		if !valid {
+			return false, false
+		}
+		if lowerInclusive && cmp < 0 {
+			return false, true
+		}
+		if lowerExclusive && cmp <= 0 {
+			return false, true
+		}
+	}
+	if upper != "" {
+		cmp, valid := compareNuGetVersion(observed, upper)
+		if !valid {
+			return false, false
+		}
+		if upperInclusive && cmp > 0 {
+			return false, true
+		}
+		if upperExclusive && cmp >= 0 {
+			return false, true
+		}
+	}
+	return true, true
+}
+
 func nugetVersionBeforeLimitsDecision(observed string, events []supplyChainAffectedRangeEvent) (bool, bool) {
 	hasLimit := false
 	for _, event := range events {

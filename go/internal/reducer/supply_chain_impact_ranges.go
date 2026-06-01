@@ -188,9 +188,11 @@ func exactConsumptionDependencyVersion(
 	ecosystem string,
 	consumption supplyChainPackageConsumption,
 ) (string, bool) {
-	if normalizedSupplyChainVersionEcosystem(ecosystem) == string(packageidentity.EcosystemCargo) &&
-		!consumption.lockfile {
-		return "", false
+	switch normalizedSupplyChainVersionEcosystem(ecosystem) {
+	case string(packageidentity.EcosystemCargo), string(packageidentity.EcosystemNuGet):
+		if !consumption.lockfile {
+			return "", false
+		}
 	}
 	return exactManifestDependencyVersion(consumption.dependencyRange)
 }

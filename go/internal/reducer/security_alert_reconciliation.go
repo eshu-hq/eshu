@@ -3,7 +3,6 @@ package reducer
 import (
 	"sort"
 	"strings"
-	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
@@ -80,35 +79,6 @@ type SecurityAlertReconciliationDecision struct {
 	EvidenceFactIDs             []string
 	DependencyEvidenceID        string
 	ImpactEvidenceID            string
-}
-
-type providerSecurityAlert struct {
-	SecurityAlertReconciliationDecision
-	updatedAtTime time.Time
-}
-
-type securityAlertConsumption struct {
-	factID           string
-	evidenceKind     string
-	repositoryID     string
-	repositoryName   string
-	packageID        string
-	relativePath     string
-	observedAt       time.Time
-	dependencyRange  string
-	dependencyPath   []string
-	dependencyDepth  int
-	directDependency *bool
-	dependencyScope  string
-}
-
-type securityAlertImpact struct {
-	factID       string
-	repositoryID string
-	packageID    string
-	cveID        string
-	advisoryID   string
-	status       string
 }
 
 // BuildSecurityAlertReconciliations compares provider-reported repository
@@ -226,10 +196,13 @@ func extractSecurityAlertConsumptions(envelopes []facts.Envelope) []securityAler
 			relativePath:     payloadStr(envelope.Payload, "relative_path"),
 			observedAt:       envelope.ObservedAt,
 			dependencyRange:  payloadStr(envelope.Payload, "dependency_range"),
+			observedVersion:  payloadStr(envelope.Payload, "observed_version"),
+			requestedRange:   payloadStr(envelope.Payload, "requested_range"),
 			dependencyPath:   payloadOrderedStrings(envelope.Payload, "dependency_path"),
 			dependencyDepth:  supplyChainInt(envelope.Payload, "dependency_depth"),
 			directDependency: payloadBoolPointer(envelope.Payload, "direct_dependency"),
 			dependencyScope:  supplyChainDependencyScope(envelope.Payload),
+			lockfile:         payloadBool(envelope.Payload, "lockfile"),
 		})
 	}
 	return consumptions
@@ -261,10 +234,13 @@ func extractSecurityAlertManifestConsumptions(
 				relativePath:     dependency.RelativePath,
 				observedAt:       dependency.ObservedAt,
 				dependencyRange:  dependency.DependencyRange,
+				observedVersion:  dependency.ObservedVersion,
+				requestedRange:   dependency.RequestedRange,
 				dependencyPath:   append([]string(nil), dependency.DependencyPath...),
 				dependencyDepth:  dependency.DependencyDepth,
 				directDependency: cloneBoolPointer(dependency.DirectDependency),
 				dependencyScope:  dependency.DependencyScope,
+				lockfile:         dependency.Lockfile,
 			})
 		}
 	}

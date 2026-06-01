@@ -219,7 +219,7 @@ func nugetAffectedByPackage(observed string, pkg supplyChainAffectedPackage) (bo
 		}
 	}
 	if raw := strings.TrimSpace(pkg.affectedRangeRaw); raw != "" {
-		if affected, ok := comparatorRangeContains(raw, observed, compareNuGetVersion); affected {
+		if affected, ok := nugetAffectedRangeRawContains(raw, observed); affected {
 			return true, true
 		} else if !ok {
 			valid = false

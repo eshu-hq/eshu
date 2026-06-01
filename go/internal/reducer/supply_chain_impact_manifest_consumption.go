@@ -87,16 +87,22 @@ func supplyChainConsumptionFromManifestDependency(
 	pkg supplyChainAffectedPackage,
 ) supplyChainPackageConsumption {
 	return supplyChainPackageConsumption{
-		factID:           dependency.FactID,
-		evidenceKind:     factKindContentEntity,
-		packageID:        pkg.packageID,
-		repositoryID:     strings.TrimSpace(dependency.RepositoryID),
-		dependencyRange:  strings.TrimSpace(dependency.DependencyRange),
-		dependencyPath:   append([]string(nil), dependency.DependencyPath...),
-		dependencyDepth:  dependency.DependencyDepth,
-		directDependency: cloneBoolPointer(dependency.DirectDependency),
-		dependencyScope:  strings.TrimSpace(dependency.DependencyScope),
-		lockfile:         dependency.Lockfile,
+		factID:                    dependency.FactID,
+		evidenceKind:              factKindContentEntity,
+		packageID:                 pkg.packageID,
+		repositoryID:              strings.TrimSpace(dependency.RepositoryID),
+		dependencyRange:           strings.TrimSpace(dependency.DependencyRange),
+		observedVersion:           strings.TrimSpace(dependency.ObservedVersion),
+		requestedRange:            strings.TrimSpace(dependency.RequestedRange),
+		dependencyPath:            append([]string(nil), dependency.DependencyPath...),
+		dependencyDepth:           dependency.DependencyDepth,
+		directDependency:          cloneBoolPointer(dependency.DirectDependency),
+		dependencyScope:           strings.TrimSpace(dependency.DependencyScope),
+		versionEvidence:           strings.TrimSpace(dependency.VersionEvidence),
+		unresolvedMSBuildProperty: strings.TrimSpace(dependency.UnresolvedMSBuildProperty),
+		ambiguousMSBuildProperty:  strings.TrimSpace(dependency.AmbiguousMSBuildProperty),
+		partialEvidence:           dependency.PartialEvidence,
+		lockfile:                  dependency.Lockfile,
 	}
 }
 
