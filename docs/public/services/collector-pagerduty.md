@@ -108,17 +108,20 @@ names, team names, integration summaries, routing keys, integration keys, and
 token-like URL parameters before persistence.
 
 The incident-context read model can present this provider evidence with
-explicit missing slots for deployment, image, commit, pull request, and Jira
-work-item links. Runtime and image slots are promoted only from explicit
-service-catalog operational links to the PagerDuty service URL plus
-reducer-owned catalog, container-image, or Kubernetes evidence. Build/deploy
-and commit slots are promoted only from reducer-owned CI/CD run correlations
-tied to the selected image digest or reference; tag-only matches stay derived.
-Pull-request slots are promoted only from provider merged-PR evidence tied to
-the selected commit. Jira remote links or issue keys can enrich work-item slots
-when they match provider-verified PR or incident evidence, but Jira-only PR
-URLs do not verify PR identity. Missing Jira links are normal for on-call
-incidents and must not block PagerDuty collection.
+explicit missing slots for intended routing, applied routing, live routing,
+deployment, image, commit, pull request, and Jira work-item links. Live
+configuration facts fill the live-routing slot; Terraform-source
+PagerDutyDeclaration rows and Terraform-state incident-routing facts fill the
+intended and applied routing slots. Runtime and image slots are promoted only
+from explicit service-catalog operational links to the PagerDuty service URL
+plus reducer-owned catalog, container-image, or Kubernetes evidence.
+Build/deploy and commit slots are promoted only from reducer-owned CI/CD run
+correlations tied to the selected image digest or reference; tag-only matches
+stay derived. Pull-request slots are promoted only from provider merged-PR
+evidence tied to the selected commit. Jira remote links or issue keys can
+enrich work-item slots when they match provider-verified PR or incident
+evidence, but Jira-only PR URLs do not verify PR identity. Missing Jira links
+are normal for on-call incidents and must not block PagerDuty collection.
 
 ## Observability
 

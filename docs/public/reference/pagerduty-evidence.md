@@ -108,7 +108,7 @@ same vocabulary used by incident context.
 | `observed` | Live PagerDuty API confirms provider state or supplies no-IaC evidence. |
 | `drifted` | Declared, applied, and observed evidence disagree on a meaningful identity or route field. |
 | `stale` | Source evidence is older than the accepted freshness window or belongs to an inactive generation. |
-| `permission-hidden` | The collector lacks permission to observe a resource that source or state evidence references. |
+| `permission_hidden` | The collector lacks permission to observe a resource that source or state evidence references. |
 | `unsupported` | Eshu recognizes the source but does not yet model the specific resource or route type. |
 | `rejected` | Evidence was intentionally dropped because it was invalid, unsafe, secret-bearing, or outside the configured scope. |
 | `exact` | Evidence resolves to one unambiguous incident-routing object or downstream incident-context path. |
@@ -191,7 +191,7 @@ implementation code. At minimum, tests must prove:
 - Existing `incident.record`, `incident.lifecycle_event`, and `change.record`
   fixtures still behave as observed incident evidence.
 - Reducer, API, and MCP reads agree on exact, derived, ambiguous, missing,
-  drifted, stale, permission-hidden, unsupported, and rejected outcomes.
+  drifted, stale, permission_hidden, unsupported, and rejected outcomes.
 
 Operator-facing runtime work must also expose bounded metrics, spans, logs,
 status, retry, dead-letter, fact-count, and freshness evidence before any new
@@ -200,10 +200,16 @@ collector lane is treated as production-ready.
 ## Readiness
 
 The shipped PagerDuty collector emits provider-reported incident and change
-evidence. Terraform-state applied PagerDuty and alert-route evidence and
-optional live PagerDuty service/integration observations now exist as source
-fact lanes. Declared Terraform source evidence, broader live PagerDuty config
-classes, and reducer/API/MCP comparison remain staged follow-up work.
+evidence. Terraform-state applied PagerDuty and alert-route evidence,
+Terraform-source PagerDutyDeclaration content rows, and optional live PagerDuty
+service/integration observations now exist as source lanes. The incident-context
+API/MCP read model compares declared, applied, and observed PagerDuty service
+evidence for the incident service and reports intended, applied, and live
+routing slots without promoting root cause, service health, blast radius,
+deployable, image, commit, pull-request, or work-item truth.
+
+Broader live PagerDuty config classes, alert-route-to-service comparison, and
+graph materialization remain staged follow-up work.
 
 Do not add Helm production-readiness claims for the full incident-routing
 surface until the collector, reducer, fixtures, telemetry, status, and API/MCP

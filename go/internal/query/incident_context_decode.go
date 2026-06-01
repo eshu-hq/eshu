@@ -7,6 +7,7 @@ func decodeIncidentContextIncident(row incidentContextFactRow) IncidentContextIn
 	return IncidentContextIncident{
 		Provider:           firstNonEmpty(StringVal(payload, "provider"), incidentContextProviderPagerDuty),
 		ProviderIncidentID: firstNonEmpty(StringVal(payload, "provider_incident_id"), row.SourceRecordID),
+		ScopeID:            row.ScopeID,
 		IncidentNumber:     incidentContextInt64(payload["incident_number"]),
 		Title:              StringVal(payload, "title"),
 		Status:             StringVal(payload, "status"),
