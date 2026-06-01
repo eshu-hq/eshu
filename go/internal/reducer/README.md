@@ -344,15 +344,17 @@ Log phase attributes: `telemetry.PhaseReduction` (main loop),
   requested manifest range, the selected fixed version, and the match reason as
   separate finding fields. Version/range evaluation is ecosystem-aware for npm,
   Cargo, and Swift semver, NuGet semantic versions, Composer semver, Maven
-  version/range ordering, PyPI PEP 440, and RPM EVR ordering. Swift impact
-  requires exact `Package.resolved` remote source-control pin evidence and a
-  source-backed OSV `SwiftURL` package identity. Unsupported ecosystems and
-  malformed advisory ranges fail closed as partial evidence with explicit
-  missing-evidence reasons. Npm `package-lock.json` and
-  PHP `composer.lock` rows also preserve the ordered dependency path, depth,
-  direct/transitive flag, and runtime/dev scope so vulnerability impact can
-  explain whether a finding came from a direct dependency, through an owned
-  transitive chain, or from development-only evidence.
+  version/range ordering, PyPI PEP 440, RPM EVR ordering, and RubyGems
+  `Gem::Version`-style installed versions. Swift impact requires exact
+  `Package.resolved` remote source-control pin evidence and a source-backed OSV
+  `SwiftURL` package identity. Unsupported ecosystems and malformed advisory
+  ranges fail closed as partial evidence with explicit missing-evidence
+  reasons. Npm `package-lock.json`, PHP `composer.lock`, and Ruby Bundler
+  `Gemfile.lock` rows also preserve the ordered dependency path, depth,
+  direct/transitive flag, and runtime/dev scope when the lockfile proves the
+  chain, so vulnerability impact can explain whether a finding came from a
+  direct dependency, through an owned transitive chain, or from development-only
+  evidence.
   Vulnerability-scoped impact runs also load active manifest dependency facts
   by advisory ecosystem and package name, so exact source dependency evidence
   can publish repository impact before package-registry enrichment catches up.
@@ -523,6 +525,29 @@ Log phase attributes: `telemetry.PhaseReduction` (main loop),
   finding payloads/evidence paths, warning facts, and API/MCP readiness
   envelopes remain the operator-visible signals; no new queue domain, graph
   write, route, runtime knob, metric instrument, or metric label was added.
+- **RubyGems parity is exact-version gated** —
+  Ruby Bundler lockfile consumption rows can now produce `affected_exact` and
+  `not_affected_known_fixed` findings when a RubyGems advisory range or fixed
+  version matches the exact installed version. Git and path Bundler
+  dependencies still stop at source evidence because `source_ambiguous=true`
+  prevents public RubyGems registry admission, and rows without a proven
+  lockfile chain keep `direct_dependency=null` instead of guessing directness.
+
+  No-Regression Evidence: `go test ./internal/reducer -run
+  'TestBuildSupplyChainImpactFindings.*RubyGems|TestBuildPackageConsumptionDecisions.*RubyGems'
+  -count=1` proves Bundler lockfile exact-version impact, known-fixed
+  behavior, four-segment RubyGems versions, dependency-chain propagation, and
+  git/path ambiguity rejection. The tests are in-memory reducer fixtures; they
+  add no Postgres, graph, queue, worker, or hosted-runtime work.
+
+  No-Observability-Change: RubyGems parity only adds reducer-side version
+  comparison for already-admitted package-consumption facts. Operators continue
+  to diagnose the path through existing parser-stage timing,
+  `reducer_package_consumption_correlation`,
+  `reducer_supply_chain_impact_finding`, `match_reason`, `dependency_path`,
+  `missing_evidence`, and the supply-chain impact API/MCP readiness envelope.
+  No metric instrument, span, log key, queue, graph write, scanner worker,
+  route, or runtime knob was added.
 - **Provider alerts are dependency-gated before impact admission** —
   `SupplyChainImpactHandler` can seed a `reducer_supply_chain_impact_finding`
   from an open `security_alert.repository_alert` only when active owned

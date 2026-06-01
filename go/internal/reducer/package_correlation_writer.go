@@ -293,6 +293,9 @@ func packageConsumptionPayload(
 		payload["dependency_path"] = orderedStrings(decision.DependencyPath)
 		payload["dependency_depth"] = decision.DependencyDepth
 	}
+	if strings.TrimSpace(decision.InstalledVersion) != "" {
+		payload["installed_version"] = strings.TrimSpace(decision.InstalledVersion)
+	}
 	if decision.DirectDependency != nil {
 		payload["direct_dependency"] = *decision.DirectDependency
 	}

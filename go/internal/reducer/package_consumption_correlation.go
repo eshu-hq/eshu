@@ -32,6 +32,7 @@ type PackageConsumptionDecision struct {
 	DependencyRange           string
 	ObservedVersion           string
 	RequestedRange            string
+	InstalledVersion          string
 	DependencyScope           string
 	PrivateAssets             string
 	IncludeAssets             string
@@ -80,6 +81,7 @@ type packageManifestDependency struct {
 	DependencyRange           string
 	ObservedVersion           string
 	RequestedRange            string
+	InstalledVersion          string
 	DependencyScope           string
 	PrivateAssets             string
 	IncludeAssets             string
@@ -129,6 +131,7 @@ func BuildPackageConsumptionDecisions(envelopes []facts.Envelope) []PackageConsu
 			DependencyRange:           dependency.DependencyRange,
 			ObservedVersion:           dependency.ObservedVersion,
 			RequestedRange:            dependency.RequestedRange,
+			InstalledVersion:          dependency.InstalledVersion,
 			DependencyScope:           dependency.DependencyScope,
 			PrivateAssets:             dependency.PrivateAssets,
 			IncludeAssets:             dependency.IncludeAssets,
@@ -241,6 +244,7 @@ func extractPackageManifestDependencies(envelopes []facts.Envelope) []packageMan
 			DependencyRange:           packageManifestMetadataString(envelope.Payload, "value"),
 			ObservedVersion:           packageManifestObservedVersion(envelope.Payload, packageManager, lockfile),
 			RequestedRange:            packageManifestRequestedRange(envelope.Payload),
+			InstalledVersion:          packageManifestMetadataString(envelope.Payload, "installed_version"),
 			DependencyScope:           packageManifestMetadataString(envelope.Payload, "dependency_scope"),
 			PrivateAssets:             packageManifestMetadataString(envelope.Payload, "private_assets"),
 			IncludeAssets:             packageManifestMetadataString(envelope.Payload, "include_assets"),
@@ -269,6 +273,7 @@ func extractPackageManifestDependencies(envelopes []facts.Envelope) []packageMan
 		dependency = normalizePackageManifestDependencyChain(dependency)
 		out = append(out, dependency)
 	}
+	joinRubyGemsLockfileManifestRanges(out)
 	return out
 }
 

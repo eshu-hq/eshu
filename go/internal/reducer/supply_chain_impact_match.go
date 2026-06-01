@@ -58,6 +58,7 @@ func supplyChainConsumptionFromEnvelope(envelope facts.Envelope) supplyChainPack
 		dependencyRange:           payloadStr(envelope.Payload, "dependency_range"),
 		observedVersion:           firstNonBlank(payloadStr(envelope.Payload, "observed_version"), payloadStr(envelope.Payload, "resolved_version")),
 		requestedRange:            payloadStr(envelope.Payload, "requested_range"),
+		installedVersion:          payloadStr(envelope.Payload, "installed_version"),
 		dependencyPath:            payloadOrderedStrings(envelope.Payload, "dependency_path"),
 		dependencyDepth:           supplyChainInt(envelope.Payload, "dependency_depth"),
 		directDependency:          payloadBoolPointer(envelope.Payload, "direct_dependency"),
@@ -189,12 +190,19 @@ func firstConsumption(
 	packageID string,
 	consumption map[string][]supplyChainPackageConsumption,
 ) supplyChainPackageConsumption {
+	var fallback supplyChainPackageConsumption
 	for _, row := range consumption[packageID] {
-		if row.repositoryID != "" {
+		if row.repositoryID == "" {
+			continue
+		}
+		if strings.TrimSpace(row.installedVersion) != "" || row.lockfile {
 			return row
 		}
+		if fallback.repositoryID == "" {
+			fallback = row
+		}
 	}
-	return supplyChainPackageConsumption{}
+	return fallback
 }
 
 func firstSBOMImpactPath(

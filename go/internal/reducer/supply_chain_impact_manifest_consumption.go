@@ -94,6 +94,7 @@ func supplyChainConsumptionFromManifestDependency(
 		dependencyRange:           strings.TrimSpace(dependency.DependencyRange),
 		observedVersion:           strings.TrimSpace(dependency.ObservedVersion),
 		requestedRange:            strings.TrimSpace(dependency.RequestedRange),
+		installedVersion:          strings.TrimSpace(dependency.InstalledVersion),
 		dependencyPath:            append([]string(nil), dependency.DependencyPath...),
 		dependencyDepth:           dependency.DependencyDepth,
 		directDependency:          cloneBoolPointer(dependency.DirectDependency),
