@@ -243,6 +243,63 @@ func TestPackageSourceCorrelationHandlerLoadsActiveRepositoriesAndEmitsCounters(
 	}
 }
 
+func TestPackageSourceCorrelationHandlerLoadsMavenManifestCoordinates(t *testing.T) {
+	t.Parallel()
+
+	observedAt := time.Date(2026, 6, 1, 0, 50, 0, 0, time.UTC)
+	loader := &stubPackageSourceFactLoader{
+		scopeFacts: []facts.Envelope{
+			packageRegistryPackageFact(
+				"maven://repo.maven.apache.org/maven2/org.apache.logging.log4j:log4j-core",
+				"maven",
+				"log4j-core",
+				"org.apache.logging.log4j",
+				observedAt,
+			),
+		},
+		manifestDependencies: []facts.Envelope{
+			packageManifestDependencyFact(
+				"repo-jvm",
+				"jvm-repo",
+				"pom.xml",
+				"org.apache.logging.log4j:log4j-core",
+				"maven",
+				"2.17.1",
+				observedAt,
+			),
+		},
+	}
+	writer := &recordingPackageCorrelationWriter{}
+	handler := PackageSourceCorrelationHandler{
+		FactLoader: loader,
+		Writer:     writer,
+	}
+
+	result, err := handler.Handle(context.Background(), Intent{
+		IntentID:     "intent-package-source-maven",
+		ScopeID:      "package-registry:maven:log4j-core",
+		GenerationID: "generation-1",
+		SourceSystem: "package_registry",
+		Domain:       DomainPackageSourceCorrelation,
+		Cause:        "package registry source hints observed",
+	})
+	if err != nil {
+		t.Fatalf("Handle() error = %v, want nil", err)
+	}
+	if result.CanonicalWrites != 1 {
+		t.Fatalf("Handle().CanonicalWrites = %d, want 1 Maven consumption write", result.CanonicalWrites)
+	}
+	if !packageSourceStringsContain(loader.manifestPackageNames, "org.apache.logging.log4j:log4j-core") {
+		t.Fatalf("PackageNames = %#v, want Maven groupId:artifactId coordinate", loader.manifestPackageNames)
+	}
+	if got, want := len(writer.write.ConsumptionDecisions), 1; got != want {
+		t.Fatalf("ConsumptionDecisions len = %d, want %d", got, want)
+	}
+	if got, want := writer.write.ConsumptionDecisions[0].PackageID, "maven://repo.maven.apache.org/maven2/org.apache.logging.log4j:log4j-core"; got != want {
+		t.Fatalf("consumption PackageID = %q, want %q", got, want)
+	}
+}
+
 func TestBuildPackageSourceCorrelationDecisionsClassifiesExactRepositoryHint(t *testing.T) {
 	observedAt := time.Date(2026, 5, 14, 10, 0, 0, 0, time.UTC)
 	decisions := BuildPackageSourceCorrelationDecisions([]facts.Envelope{
@@ -552,4 +609,13 @@ func sameStrings(left, right []string) bool {
 		}
 	}
 	return true
+}
+
+func packageSourceStringsContain(values []string, want string) bool {
+	for _, value := range values {
+		if value == want {
+			return true
+		}
+	}
+	return false
 }
