@@ -15,16 +15,15 @@
 // vulnerability.suppression facts and writes the resulting VEX or operator
 // policy decision onto every impact finding; provider dismissals stay
 // evidence and never auto-hide findings. The handler also computes an
-// advisory-only safe-upgrade remediation per finding using npm package-lock
-// evidence today (issue #595): it never auto-opens pull requests; Composer
-// vulnerability matching is still exact/range impact classification rather than
-// safe-upgrade recommendation. The
-// remediation block names the current version, vulnerable range, first
-// patched version, manifest-allows-fix decision, direct/transitive
-// designation, parent package required for transitive upgrades, and an
-// exact/partial/unknown confidence label so API and MCP callers can
-// explain the upgrade path. Supply-chain impact version matching is
-// ecosystem-aware for npm, Cargo, Pub, Swift, NuGet, Maven, and PyPI PEP 440
+// advisory-only safe-upgrade remediation per finding for ecosystems whose
+// version and manifest semantics are represented in reducer matchers: it never
+// auto-opens pull requests, and unsupported remediation remains explicit. The
+// remediation block names the current version, vulnerable range, fixed-version
+// source, match reason, first patched version, manifest-allows-fix decision,
+// direct/transitive designation, parent package required for transitive
+// upgrades, and an exact/partial/unknown confidence label so API and MCP
+// callers can explain the upgrade path. Supply-chain impact version matching
+// is ecosystem-aware for npm, Cargo, Pub, Swift, NuGet, Maven, and PyPI PEP 440
 // exact-version evidence; unsupported or malformed ranges fail closed with
 // explicit missing evidence. Security-alert reconciliation facts are keyed by provider alert
 // identity, package identity, advisory ids, and provider evidence scope so

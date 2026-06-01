@@ -459,6 +459,8 @@ func buildSARIFRemediation(remediation *Remediation) *sarifRemediationProps {
 	props := &sarifRemediationProps{
 		CurrentVersion:      remediation.CurrentVersion,
 		VulnerableRange:     remediation.VulnerableRange,
+		FixedVersionSource:  remediation.FixedVersionSource,
+		MatchReason:         remediation.MatchReason,
 		FirstPatchedVersion: remediation.FirstPatchedVersion,
 		ManifestRange:       remediation.ManifestRange,
 		ManifestAllowsFix:   remediation.ManifestAllowsFix,
@@ -468,6 +470,7 @@ func buildSARIFRemediation(remediation *Remediation) *sarifRemediationProps {
 		MissingEvidence:     cloneStrings(remediation.MissingEvidence),
 	}
 	if props.CurrentVersion == "" && props.VulnerableRange == "" &&
+		props.FixedVersionSource == "" && props.MatchReason == "" &&
 		props.FirstPatchedVersion == "" && props.ManifestRange == "" &&
 		props.ManifestAllowsFix == "" && props.Confidence == "" &&
 		props.Reason == "" && props.Direct == nil &&

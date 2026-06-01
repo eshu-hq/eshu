@@ -264,6 +264,8 @@ type Finding struct {
 type Remediation struct {
 	CurrentVersion      string
 	VulnerableRange     string
+	FixedVersionSource  string
+	MatchReason         string
 	FirstPatchedVersion string
 	ManifestRange       string
 	ManifestAllowsFix   string

@@ -152,6 +152,8 @@ const openAPIPathsSupplyChain = `
                               "ecosystem": {"type": "string"},
                               "current_version": {"type": "string"},
                               "vulnerable_range": {"type": "string"},
+                              "fixed_version_source": {"type": "string"},
+                              "match_reason": {"type": "string"},
                               "first_patched_version": {"type": "string"},
                               "patched_version_branches": {
                                 "type": "array",
@@ -487,6 +489,8 @@ const openAPIPathsSupplyChain = `
                         "ecosystem": {"type": "string"},
                         "current_version": {"type": "string"},
                         "vulnerable_range": {"type": "string"},
+                        "fixed_version_source": {"type": "string"},
+                        "match_reason": {"type": "string"},
                         "first_patched_version": {"type": "string"},
                         "patched_version_branches": {
                           "type": "array",

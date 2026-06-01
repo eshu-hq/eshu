@@ -1,9 +1,7 @@
 package reducer
 
 import (
-	"fmt"
 	"sort"
-	"strconv"
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/packageidentity"
@@ -41,6 +39,13 @@ type SupplyChainImpactRemediation struct {
 	// VulnerableRange is the source-reported affected range expression for
 	// the advisory selected by reducer provenance.
 	VulnerableRange string
+	// FixedVersionSource records the advisory source that supplied the
+	// selected FirstPatchedVersion.
+	FixedVersionSource string
+	// MatchReason preserves the reducer impact matcher reason separately
+	// from the remediation reason so callers can distinguish why a package
+	// matched from what upgrade action is safe.
+	MatchReason string
 	// FirstPatchedVersion is the lowest source-reported fixed version Eshu
 	// can defend, preferring branches inside the observed major when one
 	// exists. Blank when the advisory carries no fixed versions.
@@ -55,9 +60,8 @@ type SupplyChainImpactRemediation struct {
 	// ManifestAllowsFix is "allowed" when the manifest range admits the
 	// FirstPatchedVersion, "blocked" when it does not, and "unknown" when
 	// either the range or the fix is missing or unparseable. The reducer
-	// uses the conservative npm range expansion (caret/tilde/exact) so a
-	// transitive finding without a known parent manifest stays "unknown"
-	// rather than guessing.
+	// uses ecosystem-specific range evaluation so a transitive finding
+	// without a known parent manifest stays "unknown" rather than guessing.
 	ManifestAllowsFix string
 	// Direct mirrors SupplyChainImpactFinding.DirectDependency so the
 	// remediation block can be consumed without re-reading the finding.
@@ -82,16 +86,16 @@ type SupplyChainImpactRemediation struct {
 // Remediation reason codes. The set is closed; new codes require explicit
 // docs + API/MCP description updates.
 const (
-	SupplyChainRemediationReasonDirectUpgradeAllowed       = "direct_upgrade_allowed"
-	SupplyChainRemediationReasonDirectRangeBlocked         = "direct_range_blocked"
-	SupplyChainRemediationReasonTransitiveParentUpgrade    = "transitive_parent_upgrade_required"
-	SupplyChainRemediationReasonNoPatchedVersion           = "no_patched_version"
-	SupplyChainRemediationReasonMultiplePatchedBranches    = "multiple_patched_branches"
-	SupplyChainRemediationReasonPackageManagerUnsupported  = "package_manager_unsupported"
-	SupplyChainRemediationReasonManifestRangeMalformed     = "manifest_range_malformed"
-	SupplyChainRemediationReasonManifestRangeMissing       = "manifest_range_missing"
-	SupplyChainRemediationReasonInstalledVersionMissing    = "installed_version_missing"
-	SupplyChainRemediationReasonInstalledVersionMalformed  = "installed_version_malformed"
+	SupplyChainRemediationReasonDirectUpgradeAllowed      = "direct_upgrade_allowed"
+	SupplyChainRemediationReasonDirectRangeBlocked        = "direct_range_blocked"
+	SupplyChainRemediationReasonTransitiveParentUpgrade   = "transitive_parent_upgrade_required"
+	SupplyChainRemediationReasonNoPatchedVersion          = "no_patched_version"
+	SupplyChainRemediationReasonMultiplePatchedBranches   = "multiple_patched_branches"
+	SupplyChainRemediationReasonPackageManagerUnsupported = "package_manager_unsupported"
+	SupplyChainRemediationReasonManifestRangeMalformed    = "manifest_range_malformed"
+	SupplyChainRemediationReasonManifestRangeMissing      = "manifest_range_missing"
+	SupplyChainRemediationReasonInstalledVersionMissing   = "installed_version_missing"
+	SupplyChainRemediationReasonInstalledVersionMalformed = "installed_version_malformed"
 )
 
 // Remediation confidence labels.
@@ -110,12 +114,12 @@ const (
 
 // Remediation missing-evidence labels surfaced inside the remediation block.
 const (
-	SupplyChainRemediationMissingFixedVersion        = "fixed_version_missing"
-	SupplyChainRemediationMissingObservedVersion     = "observed_version_missing"
-	SupplyChainRemediationMissingManifestRange       = "manifest_range_missing"
-	SupplyChainRemediationMissingManifestRangeMalformed = "manifest_range_malformed"
+	SupplyChainRemediationMissingFixedVersion              = "fixed_version_missing"
+	SupplyChainRemediationMissingObservedVersion           = "observed_version_missing"
+	SupplyChainRemediationMissingManifestRange             = "manifest_range_missing"
+	SupplyChainRemediationMissingManifestRangeMalformed    = "manifest_range_malformed"
 	SupplyChainRemediationMissingInstalledVersionMalformed = "installed_version_malformed"
-	SupplyChainRemediationMissingEcosystemUnsupported = "ecosystem_remediation_unsupported"
+	SupplyChainRemediationMissingEcosystemUnsupported      = "ecosystem_remediation_unsupported"
 )
 
 // BuildSupplyChainImpactRemediation computes the advisory-only safe-upgrade
@@ -124,7 +128,7 @@ const (
 // fixed version, source-attributed fixed-version branches, and the
 // dependency chain. The function never mutates the finding.
 //
-// Today the reducer supports npm. Other ecosystems return a remediation row
+// Ecosystems without a proven remediation matcher return a remediation row
 // with reason="package_manager_unsupported" and confidence="unknown" so the
 // API and MCP surfaces stay explicit about the gap.
 func BuildSupplyChainImpactRemediation(finding SupplyChainImpactFinding) SupplyChainImpactRemediation {
@@ -133,6 +137,8 @@ func BuildSupplyChainImpactRemediation(finding SupplyChainImpactFinding) SupplyC
 		Ecosystem:              ecosystem,
 		CurrentVersion:         strings.TrimSpace(finding.ObservedVersion),
 		VulnerableRange:        strings.TrimSpace(finding.VulnerableRange),
+		FixedVersionSource:     strings.TrimSpace(finding.FixedVersionSource),
+		MatchReason:            strings.TrimSpace(finding.MatchReason),
 		ManifestRange:          strings.TrimSpace(finding.RequestedRange),
 		ManifestAllowsFix:      SupplyChainRemediationManifestUnknown,
 		Direct:                 cloneBool(finding.DirectDependency),
@@ -141,7 +147,8 @@ func BuildSupplyChainImpactRemediation(finding SupplyChainImpactFinding) SupplyC
 		Confidence:             SupplyChainRemediationConfidenceUnknown,
 	}
 
-	if !isSupportedRemediationEcosystem(ecosystem) {
+	ops, supported := remediationEcosystemOperations(ecosystem)
+	if !supported {
 		remediation.Reason = SupplyChainRemediationReasonPackageManagerUnsupported
 		remediation.MissingEvidence = append(remediation.MissingEvidence, SupplyChainRemediationMissingEcosystemUnsupported)
 		return finalizeRemediation(remediation)
@@ -151,18 +158,34 @@ func BuildSupplyChainImpactRemediation(finding SupplyChainImpactFinding) SupplyC
 	// Without a parseable installed version, comparator decisions and
 	// branch-selection logic both lose their anchor, so the reducer
 	// refuses to commit to an upgrade path.
-	if remediation.CurrentVersion != "" && !validSupplyChainSemver(remediation.CurrentVersion) {
+	if remediation.CurrentVersion != "" && !ops.valid(remediation.CurrentVersion) {
 		remediation.Reason = SupplyChainRemediationReasonInstalledVersionMalformed
 		remediation.MissingEvidence = append(remediation.MissingEvidence, SupplyChainRemediationMissingInstalledVersionMalformed)
-		patched, branchCount, _ := selectFirstPatchedVersion("", finding.FixedVersion, finding.FixedVersionBranches)
+		patched, branchCount, _ := selectFirstPatchedVersion(
+			"",
+			finding.FixedVersion,
+			finding.FixedVersionBranches,
+			ops,
+		)
 		if branchCount == 1 {
 			remediation.FirstPatchedVersion = patched
 		}
 		return finalizeRemediation(remediation)
 	}
 
-	patched, branchCount, _ := selectFirstPatchedVersion(remediation.CurrentVersion, finding.FixedVersion, finding.FixedVersionBranches)
+	patched, branchCount, _ := selectFirstPatchedVersion(
+		remediation.CurrentVersion,
+		finding.FixedVersion,
+		finding.FixedVersionBranches,
+		ops,
+	)
 	remediation.FirstPatchedVersion = patched
+	remediation.FixedVersionSource = fixedVersionSourceForPatch(
+		patched,
+		finding.FixedVersion,
+		finding.FixedVersionSource,
+		finding.FixedVersionBranches,
+	)
 
 	if patched == "" {
 		remediation.Reason = SupplyChainRemediationReasonNoPatchedVersion
@@ -184,10 +207,14 @@ func BuildSupplyChainImpactRemediation(finding SupplyChainImpactFinding) SupplyC
 		return finalizeRemediation(remediation)
 	}
 
-	allowance, allowanceMissing := evaluateNPMManifestAllowsFix(remediation.ManifestRange, patched)
-	remediation.ManifestAllowsFix = allowance
-	if allowanceMissing != "" {
-		remediation.MissingEvidence = append(remediation.MissingEvidence, allowanceMissing)
+	allowance := SupplyChainRemediationManifestUnknown
+	if ops.manifestRequired {
+		var allowanceMissing string
+		allowance, allowanceMissing = ops.manifestAllowsFix(remediation.ManifestRange, patched)
+		remediation.ManifestAllowsFix = allowance
+		if allowanceMissing != "" {
+			remediation.MissingEvidence = append(remediation.MissingEvidence, allowanceMissing)
+		}
 	}
 	if remediation.CurrentVersion == "" {
 		// Single-branch case where Eshu still recommends the patched
@@ -208,6 +235,9 @@ func BuildSupplyChainImpactRemediation(finding SupplyChainImpactFinding) SupplyC
 	case branchCount > 1:
 		remediation.Reason = SupplyChainRemediationReasonMultiplePatchedBranches
 		remediation.Confidence = SupplyChainRemediationConfidencePartial
+	case !ops.manifestRequired:
+		remediation.Reason = SupplyChainRemediationReasonDirectUpgradeAllowed
+		remediation.Confidence = SupplyChainRemediationConfidenceExact
 	case allowance == SupplyChainRemediationManifestAllowed:
 		remediation.Reason = SupplyChainRemediationReasonDirectUpgradeAllowed
 		remediation.Confidence = SupplyChainRemediationConfidenceExact
@@ -230,9 +260,87 @@ func finalizeRemediation(remediation SupplyChainImpactRemediation) SupplyChainIm
 	return remediation
 }
 
-func isSupportedRemediationEcosystem(ecosystem string) bool {
+type remediationVersionOperations struct {
+	valid             func(string) bool
+	compare           versionCompareFunc
+	major             func(string) (int, bool)
+	manifestAllowsFix func(string, string) (string, string)
+	manifestRequired  bool
+}
+
+func remediationEcosystemOperations(ecosystem string) (remediationVersionOperations, bool) {
 	normalized := strings.ToLower(string(packageidentity.NormalizeEcosystem(packageidentity.Ecosystem(ecosystem))))
-	return normalized == string(packageidentity.EcosystemNPM)
+	switch normalized {
+	case string(packageidentity.EcosystemNPM):
+		return semverRemediationOperations(evaluateNPMManifestAllowsFix), true
+	case string(packageidentity.EcosystemCargo):
+		return semverRemediationOperations(evaluateCargoManifestAllowsFix), true
+	case string(packageidentity.EcosystemGoModule):
+		return semverRemediationOperations(evaluateGoModuleManifestAllowsFix), true
+	case string(packageidentity.EcosystemPyPI):
+		return remediationVersionOperations{
+			valid:             validPyPIVersion,
+			compare:           comparePyPIVersion,
+			major:             pypiVersionMajor,
+			manifestAllowsFix: evaluatePyPIManifestAllowsFix,
+			manifestRequired:  true,
+		}, true
+	case string(packageidentity.EcosystemMaven):
+		return remediationVersionOperations{
+			valid:             validMavenVersion,
+			compare:           compareMavenVersion,
+			major:             mavenVersionMajor,
+			manifestAllowsFix: evaluateMavenManifestAllowsFix,
+			manifestRequired:  true,
+		}, true
+	case string(packageidentity.EcosystemNuGet):
+		return remediationVersionOperations{
+			valid:             validNuGetVersion,
+			compare:           compareNuGetVersion,
+			major:             nugetVersionMajor,
+			manifestAllowsFix: evaluateNuGetManifestAllowsFix,
+			manifestRequired:  true,
+		}, true
+	case string(packageidentity.EcosystemComposer):
+		return remediationVersionOperations{
+			valid:             validComposerVersion,
+			compare:           compareComposerVersion,
+			major:             composerVersionMajor,
+			manifestAllowsFix: evaluateComposerManifestAllowsFix,
+			manifestRequired:  true,
+		}, true
+	case string(packageidentity.EcosystemRubyGems):
+		return remediationVersionOperations{
+			valid:             validRubyGemsVersion,
+			compare:           compareRubyGemsVersion,
+			major:             rubyGemsVersionMajor,
+			manifestAllowsFix: evaluateRubyGemsManifestAllowsFix,
+			manifestRequired:  true,
+		}, true
+	default:
+		switch strings.ToLower(strings.TrimSpace(ecosystem)) {
+		case "redhat", "fedora", "centos", "rocky", "alma", "amazonlinux", "rpm":
+			return remediationVersionOperations{
+				valid:            validRPMEVR,
+				compare:          compareRPMEVR,
+				manifestRequired: false,
+			}, true
+		default:
+			return remediationVersionOperations{}, false
+		}
+	}
+}
+
+func semverRemediationOperations(
+	manifestAllowsFix func(string, string) (string, string),
+) remediationVersionOperations {
+	return remediationVersionOperations{
+		valid:             validSupplyChainSemver,
+		compare:           compareOSVSemver,
+		major:             semverMajor,
+		manifestAllowsFix: manifestAllowsFix,
+		manifestRequired:  true,
+	}
 }
 
 func parentPackageFromChain(path []string) string {
@@ -259,43 +367,68 @@ func cloneFixedVersionBranches(values []FixedVersionBranch) []FixedVersionBranch
 	return out
 }
 
+func fixedVersionSourceForPatch(
+	patched string,
+	primaryFixed string,
+	primarySource string,
+	branches []FixedVersionBranch,
+) string {
+	patched = strings.TrimSpace(patched)
+	if patched == "" {
+		return strings.TrimSpace(primarySource)
+	}
+	if patched == strings.TrimSpace(primaryFixed) && strings.TrimSpace(primarySource) != "" {
+		return strings.TrimSpace(primarySource)
+	}
+	for _, branch := range branches {
+		if strings.TrimSpace(branch.Version) == patched && strings.TrimSpace(branch.Source) != "" {
+			return strings.TrimSpace(branch.Source)
+		}
+	}
+	return strings.TrimSpace(primarySource)
+}
+
 // selectFirstPatchedVersion picks the lowest source-reported fixed version
-// Eshu can defend for npm. When fixed-version branches span multiple majors
-// and an installed version is known, the selector keeps branches inside the
-// observed major so the caller is not forced into a major bump unless the
-// only fix lives across a major boundary. The returned branchCount is the
-// number of unique parseable fixed versions Eshu observed across all
-// sources, which lets the remediation layer detect "multiple patched
-// branches" without redoing the parse.
+// Eshu can defend for one ecosystem. When fixed-version branches span
+// multiple majors and an installed version is known, the selector keeps
+// branches inside the observed major so the caller is not forced into a major
+// bump unless the only fix lives across a major boundary. The returned
+// branchCount is the number of unique parseable fixed versions Eshu observed
+// across all sources, which lets the remediation layer detect "multiple
+// patched branches" without redoing the parse.
 func selectFirstPatchedVersion(
 	observed string,
 	primaryFixed string,
 	branches []FixedVersionBranch,
+	ops remediationVersionOperations,
 ) (string, int, bool) {
-	uniqueVersions := uniqueParseableVersions(branches, primaryFixed)
+	uniqueVersions := uniqueParseableVersions(branches, primaryFixed, ops.valid)
 	branchCount := len(uniqueVersions)
 	if branchCount == 0 {
 		return "", 0, false
 	}
-	observedMajor, observedValid := semverMajor(observed)
-	if observedValid {
-		sameMajor := versionsInMajor(uniqueVersions, observedMajor)
-		if len(sameMajor) > 0 {
-			return lowestSemver(sameMajor), branchCount, true
+	if ops.major != nil {
+		observedMajor, observedValid := ops.major(observed)
+		if observedValid {
+			sameMajor := versionsInMajor(uniqueVersions, observedMajor, ops.major)
+			if len(sameMajor) > 0 {
+				return lowestVersion(sameMajor, ops.compare), branchCount, true
+			}
 		}
 	}
-	return lowestSemver(uniqueVersions), branchCount, true
+	return lowestVersion(uniqueVersions, ops.compare), branchCount, true
 }
 
-func uniqueParseableVersions(branches []FixedVersionBranch, primary string) []string {
+func uniqueParseableVersions(
+	branches []FixedVersionBranch,
+	primary string,
+	valid func(string) bool,
+) []string {
 	seen := make(map[string]struct{})
 	out := make([]string, 0, len(branches)+1)
 	add := func(raw string) {
 		raw = strings.TrimSpace(raw)
-		if raw == "" {
-			return
-		}
-		if _, ok := normalizeOSVSemver(raw); !ok {
+		if raw == "" || !valid(raw) {
 			return
 		}
 		if _, dup := seen[raw]; dup {
@@ -324,10 +457,14 @@ func semverMajor(raw string) (int, bool) {
 	return major, true
 }
 
-func versionsInMajor(versions []string, major int) []string {
+func versionsInMajor(
+	versions []string,
+	major int,
+	majorFunc func(string) (int, bool),
+) []string {
 	out := make([]string, 0, len(versions))
 	for _, version := range versions {
-		m, ok := semverMajor(version)
+		m, ok := majorFunc(version)
 		if !ok {
 			continue
 		}
@@ -338,213 +475,17 @@ func versionsInMajor(versions []string, major int) []string {
 	return out
 }
 
-func lowestSemver(versions []string) string {
+func lowestVersion(versions []string, compare versionCompareFunc) string {
 	if len(versions) == 0 {
 		return ""
 	}
 	sorted := append([]string(nil), versions...)
 	sort.SliceStable(sorted, func(i, j int) bool {
-		cmp, ok := compareOSVSemver(sorted[i], sorted[j])
+		cmp, ok := compare(sorted[i], sorted[j])
 		if !ok {
 			return sorted[i] < sorted[j]
 		}
 		return cmp < 0
 	})
 	return sorted[0]
-}
-
-// evaluateNPMManifestAllowsFix decides whether the npm manifest range admits
-// the candidate patched version. Returns ("allowed"|"blocked"|"unknown",
-// missingEvidenceCode). The reducer expands the npm-specific caret/tilde
-// notation before delegating to the existing comparator engine so callers do
-// not have to learn semver shorthand to read the answer.
-func evaluateNPMManifestAllowsFix(manifestRange string, candidate string) (string, string) {
-	manifestRange = strings.TrimSpace(manifestRange)
-	candidate = strings.TrimSpace(candidate)
-	if candidate == "" {
-		return SupplyChainRemediationManifestUnknown, SupplyChainRemediationMissingFixedVersion
-	}
-	if manifestRange == "" {
-		return SupplyChainRemediationManifestUnknown, SupplyChainRemediationMissingManifestRange
-	}
-	expanded, ok := expandNPMRange(manifestRange)
-	if !ok {
-		return SupplyChainRemediationManifestUnknown, SupplyChainRemediationMissingManifestRangeMalformed
-	}
-	allows, valid := comparatorRangeContains(expanded, candidate, compareOSVSemver)
-	if !valid {
-		return SupplyChainRemediationManifestUnknown, SupplyChainRemediationMissingManifestRangeMalformed
-	}
-	if allows {
-		return SupplyChainRemediationManifestAllowed, ""
-	}
-	return SupplyChainRemediationManifestBlocked, ""
-}
-
-// expandNPMRange rewrites an npm manifest range expression into the
-// comparator form the reducer's comparatorRangeContains engine understands.
-// Handles caret (^x.y.z), tilde (~x.y.z), bare exact versions, and chained
-// comparators joined by "||" branches. Returns (expanded, true) on success.
-// Wildcard manifests ("*", "latest") return ">=0.0.0" so they accept any
-// patched version. Returns ("", false) when any token is non-version (file:,
-// git+, npm:, workspace:) or malformed.
-func expandNPMRange(rangeExpr string) (string, bool) {
-	rangeExpr = strings.TrimSpace(rangeExpr)
-	if rangeExpr == "" {
-		return "", false
-	}
-	lower := strings.ToLower(rangeExpr)
-	if lower == "*" || lower == "x" || lower == "latest" {
-		return ">=0.0.0", true
-	}
-	if nonVersionDependencyPrefix(lower) {
-		return "", false
-	}
-	branches := strings.Split(rangeExpr, "||")
-	expanded := make([]string, 0, len(branches))
-	for _, branch := range branches {
-		out, ok := expandNPMBranch(strings.TrimSpace(branch))
-		if !ok {
-			return "", false
-		}
-		expanded = append(expanded, out)
-	}
-	return strings.Join(expanded, " || "), true
-}
-
-func expandNPMBranch(branch string) (string, bool) {
-	if branch == "" {
-		return "", false
-	}
-	lower := strings.ToLower(branch)
-	if lower == "*" || lower == "x" {
-		return ">=0.0.0", true
-	}
-	if strings.Contains(branch, " - ") {
-		// hyphen ranges (e.g. "1.0.0 - 2.0.0") are out of scope for the v0
-		// npm remediation. Marking them unknown is safer than silently
-		// converting them with potentially wrong semantics.
-		return "", false
-	}
-	fields := strings.Fields(branch)
-	out := make([]string, 0, len(fields)*2)
-	for _, field := range fields {
-		expanded, ok := expandNPMComparator(field)
-		if !ok {
-			return "", false
-		}
-		out = append(out, expanded...)
-	}
-	if len(out) == 0 {
-		return "", false
-	}
-	return strings.Join(out, " "), true
-}
-
-func expandNPMComparator(token string) ([]string, bool) {
-	token = strings.TrimSpace(token)
-	if token == "" {
-		return nil, false
-	}
-	switch {
-	case strings.HasPrefix(token, "^"):
-		base := strings.TrimSpace(strings.TrimPrefix(token, "^"))
-		return expandCaret(base)
-	case strings.HasPrefix(token, "~"):
-		base := strings.TrimSpace(strings.TrimPrefix(token, "~"))
-		return expandTilde(base)
-	case strings.HasPrefix(token, ">="),
-		strings.HasPrefix(token, "<="),
-		strings.HasPrefix(token, "=="),
-		strings.HasPrefix(token, "!="):
-		return []string{normalizeComparator(token, 2)}, true
-	case strings.HasPrefix(token, ">"),
-		strings.HasPrefix(token, "<"),
-		strings.HasPrefix(token, "="):
-		return []string{normalizeComparator(token, 1)}, true
-	default:
-		if _, ok := normalizeOSVSemver(token); !ok {
-			return nil, false
-		}
-		return []string{"=" + token}, true
-	}
-}
-
-func normalizeComparator(token string, operatorLen int) string {
-	if len(token) < operatorLen {
-		return token
-	}
-	return token[:operatorLen] + strings.TrimSpace(token[operatorLen:])
-}
-
-func expandCaret(base string) ([]string, bool) {
-	major, minor, patch, ok := parseSemverParts(base)
-	if !ok {
-		return nil, false
-	}
-	switch {
-	case major > 0:
-		return []string{">=" + base, "<" + fmt.Sprintf("%d.0.0", major+1)}, true
-	case minor > 0:
-		return []string{">=" + base, "<" + fmt.Sprintf("0.%d.0", minor+1)}, true
-	default:
-		return []string{">=" + base, "<" + fmt.Sprintf("0.0.%d", patch+1)}, true
-	}
-}
-
-func expandTilde(base string) ([]string, bool) {
-	major, minor, _, ok := parseSemverParts(base)
-	if !ok {
-		return nil, false
-	}
-	return []string{">=" + base, "<" + fmt.Sprintf("%d.%d.0", major, minor+1)}, true
-}
-
-// parseSemverParts returns the major/minor/patch ints from a semver string,
-// stripping any pre-release or build metadata. Caret and tilde expansion need
-// only the numeric majors; pre-release ordering stays delegated to
-// compareOSVSemver downstream.
-func parseSemverParts(raw string) (int, int, int, bool) {
-	raw = strings.TrimSpace(raw)
-	if raw == "" {
-		return 0, 0, 0, false
-	}
-	// Strip pre-release and build metadata before parsing major.minor.patch.
-	if idx := strings.IndexAny(raw, "-+"); idx >= 0 {
-		raw = raw[:idx]
-	}
-	parts := strings.Split(raw, ".")
-	if len(parts) < 1 || len(parts) > 3 {
-		return 0, 0, 0, false
-	}
-	major, ok := atoiNonNegative(parts[0])
-	if !ok {
-		return 0, 0, 0, false
-	}
-	minor := 0
-	patch := 0
-	if len(parts) >= 2 {
-		minor, ok = atoiNonNegative(parts[1])
-		if !ok {
-			return 0, 0, 0, false
-		}
-	}
-	if len(parts) == 3 {
-		patch, ok = atoiNonNegative(parts[2])
-		if !ok {
-			return 0, 0, 0, false
-		}
-	}
-	return major, minor, patch, true
-}
-
-func atoiNonNegative(token string) (int, bool) {
-	if token == "" {
-		return 0, false
-	}
-	value, err := strconv.Atoi(token)
-	if err != nil || value < 0 {
-		return 0, false
-	}
-	return value, true
 }

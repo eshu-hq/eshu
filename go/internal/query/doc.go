@@ -55,10 +55,11 @@
 //
 // Each supply-chain impact row and explain payload also carries an
 // advisory-only Remediation block (issue #595) with the installed version,
-// vulnerable range, first patched version, every published fixed-version
-// branch, the manifest range, a manifest_allows_fix tri-state, the
-// direct/transitive designation, a parent_package needed for transitive
-// upgrades, the ecosystem the recommendation applies to, an
+// vulnerable range, selected fixed-version source, match reason, first patched
+// version, every published fixed-version branch, the manifest range, a
+// manifest_allows_fix tri-state, the direct/transitive designation, a
+// parent_package needed for transitive upgrades, the ecosystem the
+// recommendation applies to, an
 // exact|partial|unknown confidence label, and a closed reason enum
 // (direct_upgrade_allowed, direct_range_blocked,
 // transitive_parent_upgrade_required, no_patched_version,
