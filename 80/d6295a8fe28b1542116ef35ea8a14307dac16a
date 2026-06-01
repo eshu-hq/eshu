@@ -1,0 +1,47 @@
+go/cmd/eshu/testdata/vuln_scan_repo_fixtures/unsupported-pub/pubspec.yaml
+  s_f2f7fbb6f30866::t_0c0f37e124a5b1 1-3
+go/cmd/eshu/vuln_scan_fixture_matrix_test.go
+  s_f2f7fbb6f30866::t_0c0f37e124a5b1 1-9,11-209,211-226,257-339
+  s_f2f7fbb6f30866::t_075cb56b9fe311 254
+  s_f2f7fbb6f30866::t_e5f68dae17c91a 10,210,227-253,255-256
+docs/public/reference/cli-reference.md
+  s_f2f7fbb6f30866::t_2a23427b9c66d3 164
+go/cmd/eshu/testdata/vuln_scan_repo_fixtures/stale-cache-npm/package.json
+  s_f2f7fbb6f30866::t_0c0f37e124a5b1 1
+go/cmd/eshu/doc.go
+  s_f2f7fbb6f30866::t_841508c5aa85a4 6-8
+go/cmd/eshu/testdata/vuln_scan_repo_fixtures/incomplete-advisory-npm/package.json
+  s_f2f7fbb6f30866::t_0c0f37e124a5b1 1
+go/cmd/eshu/testdata/vuln_scan_repo_fixtures/incomplete-package-npm/package.json
+  s_f2f7fbb6f30866::t_0c0f37e124a5b1 1
+go/cmd/eshu/README.md
+  s_f2f7fbb6f30866::t_2a23427b9c66d3 134-135
+go/cmd/eshu/testdata/vuln_scan_repo_fixtures/vulnerable-npm/package.json
+  s_f2f7fbb6f30866::t_0c0f37e124a5b1 1
+go/cmd/eshu/testdata/vuln_scan_repo_fixtures/ready-zero-npm/package.json
+  s_f2f7fbb6f30866::t_0c0f37e124a5b1 1
+go/cmd/eshu/vuln_scan_report.go
+  s_f2f7fbb6f30866::t_72532f96574f9b 109-112,161-165
+go/cmd/eshu/vuln_scan_report_helpers.go
+  s_f2f7fbb6f30866::t_72532f96574f9b 144-168
+docs/public/reference/vulnerability-scanner-confidence.md
+  s_f2f7fbb6f30866::t_2a23427b9c66d3 62
+docs/public/reference/security-intelligence-source-coverage.md
+  s_f2f7fbb6f30866::t_2a23427b9c66d3 516-519,606-616
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "80d6295a8fe28b1542116ef35ea8a14307dac16a",
+  "prompts": {},
+  "sessions": {
+    "s_f2f7fbb6f30866": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e360b-90eb-7472-bac7-56d488b65f77",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
