@@ -2,11 +2,13 @@
 // parser dispatcher.
 //
 // Parse emits modules, protocols, functions, imports, attributes, variables,
-// bounded call metadata, dead-code root kinds, and observed dynamic-dispatch
-// blockers from function bodies and one-line declarations in Elixir source
-// text. Root metadata stays conservative: Application start needs Application
-// syntax, and OTP/Phoenix callback roots use arity checks where the framework
-// contract defines them. PreScan returns the deterministic names used by the
+// bounded call metadata, dead-code root kinds, observed dynamic-dispatch
+// blockers, and Hex dependency evidence from Mix manifests and lockfiles.
+// Root metadata stays conservative: Application start needs Application syntax,
+// and OTP/Phoenix callback roots use arity checks where the framework contract
+// defines them. Hex dependency rows admit literal registry dependencies only;
+// VCS dependencies stay provenance-only so downstream reducers do not invent
+// package consumption. PreScan returns the deterministic names used by the
 // parent parser's repository import-map pass. The implementation stays
 // parent-independent so Elixir-specific helpers do not add more surface area to
 // the central parser dispatcher.

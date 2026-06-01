@@ -27,7 +27,12 @@ For the supply-chain impact reducer, the practical implications are:
   Package Manager `Package.resolved` produce repository consumption decisions
   when joined to package-registry identity. Swift rows are exact lockfile-only
   evidence from remote source-control pins; branch, revision-only, local, and
-  path pins stay out of precise vulnerability impact. Yarn and pnpm lockfile
+  path pins stay out of precise vulnerability impact.
+  Hex `mix.exs` and `mix.lock` also produce repository consumption decisions
+  for literal registry dependencies, including `hex:` package overrides and
+  private organization namespaces from Mix manifest entries, while Mix git
+  dependencies stay provenance-only and fail closed. These dependency rows are
+  admitted only when joined to package-registry identity. Yarn and pnpm lockfile
   rows keep the canonical npm ecosystem
   (`package_manager: "npm"`) so the consumption reducer and the
   owned-package SQL filter both match them as npm evidence, and they
@@ -267,7 +272,7 @@ alerts, image tags, workload names, service names, environment names, or
 repository names.
 
 Version and range matching is reducer-owned and ecosystem-aware. The supported
-matchers are npm, Go modules, Cargo, and Swift semver over OSV-style event
+matchers are npm, Go modules, Cargo, Hex, and Swift semver over OSV-style event
 ranges and GLAD-style comparator ranges, NuGet semantic versions from exact
 lockfile or pinned manifest evidence, Maven version/range ordering for Maven
 bracket and comparator ranges, PyPI PEP 440, RPM EVR ordering for

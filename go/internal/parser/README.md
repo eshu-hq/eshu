@@ -290,7 +290,7 @@ JavaScript, Rust, Java, C, C++).
 | C++ | `cpp` | `.cc`, `.cpp`, `.cxx`, `.h`, `.hh`, `.hpp` | yes |
 | Dart | `dart` | `.dart` | — |
 | Dockerfile | `__dockerfile__` | `Dockerfile`, `Dockerfile.*` | — |
-| Elixir | `elixir` | `.ex`, `.exs` | — |
+| Elixir | `elixir` | `.ex`, `.exs`, `mix.lock` | — |
 | Go | `go` | `.go` | yes |
 | Go modules | `gomod` | `go.mod`, `go.sum` (exact filenames) | — |
 | Groovy/Jenkinsfile | `groovy`, `__jenkinsfile__` | `.groovy`, `Jenkinsfile` | — |

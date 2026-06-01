@@ -60,6 +60,8 @@ func classifySupplyChainImpactDetectionProfile(finding SupplyChainImpactFinding)
 		supplyChainVersionReasonNuGetSemverKnownFixed,
 		supplyChainVersionReasonCargoSemverAffectedRange,
 		supplyChainVersionReasonCargoSemverKnownFixed,
+		supplyChainVersionReasonHexSemverAffectedRange,
+		supplyChainVersionReasonHexSemverKnownFixed,
 		supplyChainVersionReasonPyPIPep440AffectedRange,
 		supplyChainVersionReasonPyPIPep440KnownFixed,
 		supplyChainVersionReasonSwiftSemverAffectedRange,

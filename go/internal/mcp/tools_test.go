@@ -1,6 +1,7 @@
 package mcp
 
 import (
+	"strings"
 	"testing"
 )
 
@@ -106,6 +107,35 @@ func TestPackageRegistryDependencyToolLimitDefaultIsOptional(t *testing.T) {
 		if field == "limit" {
 			t.Fatalf("required = %#v, want limit omitted because schema default is informational", required)
 		}
+	}
+}
+
+func TestPackageRegistryPackageToolNamesHexEcosystemScope(t *testing.T) {
+	t.Parallel()
+
+	tools := ecosystemTools()
+	var packageTool ToolDefinition
+	for _, tool := range tools {
+		if tool.Name == "list_package_registry_packages" {
+			packageTool = tool
+			break
+		}
+	}
+	schema, ok := packageTool.InputSchema.(map[string]any)
+	if !ok {
+		t.Fatalf("InputSchema type = %T, want map[string]any", packageTool.InputSchema)
+	}
+	properties, ok := schema["properties"].(map[string]any)
+	if !ok {
+		t.Fatalf("properties type = %T, want map[string]any", schema["properties"])
+	}
+	ecosystem, ok := properties["ecosystem"].(map[string]any)
+	if !ok {
+		t.Fatalf("ecosystem schema type = %T, want map[string]any", properties["ecosystem"])
+	}
+	description, _ := ecosystem["description"].(string)
+	if !strings.Contains(description, "hex") {
+		t.Fatalf("ecosystem description = %q, want Hex named among package-registry scopes", description)
 	}
 }
 

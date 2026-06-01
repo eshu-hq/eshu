@@ -71,6 +71,8 @@ absence of evidence look like absence of risk. Guard tests:
 | go | go.sum | lockfile | gap | — | — | — | — | — | — | `go/internal/parser/gomod/parser.go` emits checksum-only rows (`config_kind=dependency_checksum`, `ambiguous=true`) | go.sum records every module version any tool has ever verified, not the currently selected version, so checksum-only ambiguity prevents claiming exact observed installed evidence. The gomod parser emits `dependency_checksum` rows for audit corroboration but the consumption reducer treats go.sum as missing evidence until paired with a go.mod require. |
 | gradle | build.gradle | build | covered | ✓ | — | ✓ | ✓ | ✓ | — | `go/internal/parser/gradle/parser.go` | Groovy DSL `dependencies` blocks (implementation, api, runtimeOnly, compileOnly, testImplementation, platform/enforcedPlatform, buildscript) emit content_entity rows. `project()/files()/fileTree()` are skipped; unresolved `${var}` interpolations stay marked `unresolved`. |
 | gradle | build.gradle.kts | build | covered | ✓ | — | ✓ | ✓ | ✓ | — | `go/internal/parser/gradle/parser.go` | Kotlin DSL `dependencies` blocks emit content_entity rows mirroring the Groovy parser; configuration closures (e.g., `version { strictly(...) }`) without a top-level coordinate version stay `partial`. |
+| hex | mix.exs | manifest | covered | ✓ | — | ✓ | ✓ | ✓ | — | `go/internal/parser/elixir/hex_dependencies.go` | Literal Mix deps emit Hex dependency rows with runtime/dev/test scope; `hex:` package overrides and organization-scoped private packages preserve registry identity, while git dependencies surface as `vcs_dependency` provenance so registry consumption is not invented. |
+| hex | mix.lock | lockfile | covered | ✓ | ✓ | — | ✓ | — | ✓ | `go/internal/parser/elixir/hex_dependencies.go` | Hex lockfile rows emit exact top-level package versions and bounded one-hop dependency paths when mix.lock records Hex dependencies; non-Hex lock entries stay out of consumption truth. |
 | maven | pom.xml | manifest | covered | ✓ | — | ✓ | ✓ | ✓ | — | `go/internal/parser/maven/parser.go` | `<dependencies>` and `<dependencyManagement>` emit content_entity rows with `groupId:artifactId` identity. Local `<properties>` resolve at parse time; parent-POM references and unsatisfied `${property}` references stay marked `partial`/`unresolved`. |
 | npm | package.json | manifest | covered | ✓ | — | ✓ | ✓ | ✓ | — | `go/internal/parser/json/language.go` (`dependencyVariables`, npm) | `dependencies`, `devDependencies`, `optionalDependencies`, and `peerDependencies` emit content_entity rows with runtime/dev/optional/peer scope labels. |
 | npm | package-lock.json | lockfile | covered | ✓ | ✓ | — | ✓ | ✓ | ✓ | `go/internal/parser/json/package_lock.go` | Lockfile v3 and v1 emit exact-version rows with `dependency_path`/`dependency_depth`, `direct_dependency`, and runtime/dev/optional/peer scope where npm records it. |
@@ -127,6 +129,12 @@ absence of evidence look like absence of risk. Guard tests:
   dependencies remain missing evidence. Swift advisory ingestion and impact
   matching are separate contracts documented in
   [Security Intelligence Source Coverage](security-intelligence-source-coverage.md).
+- Hex `mix.exs` rows preserve literal dependency ranges, runtime/dev/test
+  scope, `hex:` package overrides, and organization namespaces for private
+  packages. Hex `mix.lock` rows preserve exact locked versions plus direct and
+  one-hop transitive dependency paths when Mix records Hex dependencies. Git
+  dependencies remain provenance-only `vcs_dependency` rows and do not count as
+  Hex registry consumption.
 - Go repositories now emit owned-package evidence from `go.mod`. Require,
   indirect-require, replace, and exclude directives become content_entity
   rows; the consumption reducer admits only the require/indirect rows
@@ -151,18 +159,19 @@ absence of evidence look like absence of risk. Guard tests:
 ## Performance Evidence
 
 No-Regression Evidence: baseline coverage before this slice was the
-existing in-memory npm, Composer, RubyGems, NuGet, Go module, JVM, and
+existing in-memory npm, Composer, RubyGems, NuGet, Go module, JVM, Hex, and
 PyPI parser/reducer path; after the rebased change, `go test
 ./internal/parser/json ./internal/parser/nodelockfile
 ./internal/parser/gomod ./internal/parser/maven ./internal/parser/gradle
-./internal/parser/pythondep ./internal/parser ./internal/reducer -count=1`
+./internal/parser/pythondep ./internal/parser/elixir ./internal/parser
+./internal/reducer -count=1`
 and `go test ./...` pass on Go 1.26.3 darwin/arm64. Input shape is
 fixture-only manifests and lockfiles (`package.json`,
 `package-lock.json`, `yarn.lock`, `pnpm-lock.yaml`, `composer.json`,
 `composer.lock`, `Gemfile`, `Gemfile.lock`, `.csproj`,
 `packages.lock.json`, `go.mod`, `go.sum`, `pom.xml`, `build.gradle`,
 `build.gradle.kts`, `requirements.txt`, `pyproject.toml`, `Pipfile`,
-`Pipfile.lock`, and `poetry.lock`). Terminal runtime counts stay bounded
+`Pipfile.lock`, `poetry.lock`, `mix.exs`, and `mix.lock`). Terminal runtime counts stay bounded
 to parser dependency rows and reducer decisions asserted in tests: no
 queue rows, graph rows, or Postgres rows are written by these paths.
 
@@ -237,13 +246,26 @@ stays visible as dev evidence, same-section lockfile `require` edges carry
 direct/transitive paths, Packagist aliases normalize to the Composer ecosystem,
 and Composer dependency rows no longer appear as unsupported-target evidence.
 
+No-Regression Evidence: Hex dependency coverage for issue `#1093` is guarded by
+`go test ./internal/parser/elixir -run 'TestParseMix' -count=1`,
+`go test ./internal/parser ./internal/parser/json -run 'TestDependencyCoverage' -count=1`,
+`go test ./internal/reducer -run 'TestBuildPackageConsumptionDecisions(AdmitsParsedMixLockExactVersion|RejectsParsedMixGitDependency|MatchesPrivateHexOrganization)|TestBuildSupplyChainImpactFindings(ExplainsHexLockfileExactVersion|MarksHexLockfileKnownFixed)' -count=1`,
+and `go test ./internal/workflow ./internal/coordinator ./internal/query -run 'TestVulnerabilityIntelligence.*Hex|TestPostgresSupplyChainImpactReadinessQueryShape|TestSupplyChainImpactFindingQueryUsesDetectionProfileFilter|TestSupplyChainImpactAggregateQueriesUseListProfileAndSuppressionPredicates' -count=1`.
+These fixture tests prove Mix manifest and lockfile dependency rows,
+organization-scoped package identity, git-dependency fail-closed behavior,
+derived OSV Hex target planning only for exact owned versions, Hex semver
+impact matching, and readiness/readback behavior without queue, graph, or
+hosted-runtime work.
+
 No-Observability-Change: this change is parser fixture work and reducer
 truth assertions. It introduces no new metric instrument, span, log key,
 queue, reducer lane, graph write, or runtime worker. Operators continue to
 diagnose dependency-evidence coverage through the existing
 supply-chain impact readiness envelope (`missing_evidence` family
 `owned_packages`, `package.consumption` evidence-source count) and the
-existing `reducer_supply_chain_impact_finding` fact payload. Composer
+existing `reducer_supply_chain_impact_finding` fact payload. Hex rows use the
+same `content_entity` dependency facts and package-consumption correlation facts
+as the existing language package managers. Composer
 lockfile rows carry the same `lockfile: true` metadata bit used by the
 npm `package-lock.json` parser, so the reducer treats lockfile
 directness uniformly: when no explicit dependency chain is present, the

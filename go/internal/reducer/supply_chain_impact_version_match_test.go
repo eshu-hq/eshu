@@ -129,6 +129,80 @@ func TestBuildSupplyChainImpactFindingsExplainsNuGetLockfileExactVersion(t *test
 	}
 }
 
+func TestBuildSupplyChainImpactFindingsExplainsHexLockfileExactVersion(t *testing.T) {
+	t.Parallel()
+
+	findings := BuildSupplyChainImpactFindings([]facts.Envelope{
+		vulnerabilityCVEFact("cve-hex", "CVE-2026-1093", 8.4),
+		vulnerabilityAffectedPackageRangeFact(
+			"affected-hex",
+			"CVE-2026-1093",
+			"pkg:hex/phoenix_html",
+			"hex",
+			"phoenix_html",
+			"4.2.2",
+		),
+		packageConsumptionFactWithChain(
+			"consume-hex",
+			"pkg:hex/phoenix_html",
+			testImpactRepositoryID,
+			"4.2.1",
+			[]string{"phoenix_html"},
+			1,
+			true,
+		),
+	})
+
+	got := supplyChainImpactFindingsByCVE(findings)["CVE-2026-1093"]
+	assertSupplyChainImpactStatus(t, got, SupplyChainImpactAffectedExact)
+	if got.ObservedVersion != "4.2.1" {
+		t.Fatalf("ObservedVersion = %q, want exact Hex lockfile version", got.ObservedVersion)
+	}
+	if got.MatchReason != "hex_semver_affected_range" {
+		t.Fatalf("MatchReason = %q, want hex_semver_affected_range", got.MatchReason)
+	}
+	if got.DetectionProfile != DetectionProfilePrecise {
+		t.Fatalf("DetectionProfile = %q, want precise for exact Hex lockfile match", got.DetectionProfile)
+	}
+}
+
+func TestBuildSupplyChainImpactFindingsMarksHexLockfileKnownFixed(t *testing.T) {
+	t.Parallel()
+
+	findings := BuildSupplyChainImpactFindings([]facts.Envelope{
+		vulnerabilityCVEFact("cve-hex-fixed", "CVE-2026-1094", 8.4),
+		vulnerabilityAffectedPackageRangeFact(
+			"affected-hex-fixed",
+			"CVE-2026-1094",
+			"pkg:hex/jason",
+			"hex",
+			"jason",
+			"1.4.3",
+		),
+		packageConsumptionFactWithChain(
+			"consume-hex-fixed",
+			"pkg:hex/jason",
+			testImpactRepositoryID,
+			"1.4.3",
+			[]string{"jason"},
+			1,
+			true,
+		),
+	})
+
+	got := supplyChainImpactFindingsByCVE(findings)["CVE-2026-1094"]
+	assertSupplyChainImpactStatus(t, got, SupplyChainImpactNotAffectedKnownFixed)
+	if got.MatchReason != "hex_semver_known_fixed" {
+		t.Fatalf("MatchReason = %q, want hex_semver_known_fixed", got.MatchReason)
+	}
+	if got.FixedVersion != "1.4.3" {
+		t.Fatalf("FixedVersion = %q, want first fixed Hex version", got.FixedVersion)
+	}
+	if got.DetectionProfile != DetectionProfilePrecise {
+		t.Fatalf("DetectionProfile = %q, want precise for known-fixed Hex lockfile match", got.DetectionProfile)
+	}
+}
+
 func TestEvaluateNuGetSemverMatchAcceptsShortLockfileVersion(t *testing.T) {
 	t.Parallel()
 
