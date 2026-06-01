@@ -1,6 +1,10 @@
 package query
 
-const listSupplyChainImpactReadinessQuery = `
+const listSupplyChainImpactReadinessQuery = listSupplyChainImpactReadinessQueryCore +
+	listSupplyChainImpactReadinessQueryUnsupportedAndSource +
+	listSupplyChainImpactReadinessQuerySelect
+
+const listSupplyChainImpactReadinessQueryCore = `
 WITH advisory_active AS (
     SELECT fact.payload, fact.observed_at
     FROM fact_records AS fact
@@ -161,7 +165,7 @@ container_image_identity_active AS (
       AND generation.status = 'active'
 ),
 vulnerability_source_snapshot_active AS (
-    SELECT fact.payload, fact.observed_at
+    SELECT fact.scope_id, fact.payload, fact.observed_at
     FROM fact_records AS fact
     JOIN ingestion_scopes AS scope
       ON scope.scope_id = fact.scope_id
@@ -172,6 +176,60 @@ vulnerability_source_snapshot_active AS (
     WHERE fact.fact_kind = ANY($8::text[])
       AND fact.is_tombstone = FALSE
       AND generation.status = 'active'
+),
+target_vulnerability_source_ecosystems AS (
+    SELECT DISTINCT NULLIF(LOWER(TRIM(payload->'entity_metadata'->>'package_manager')), '') AS ecosystem
+    FROM package_manifest_active
+    WHERE $11 <> ''
+      AND payload->>'repo_id' = $11
+    UNION
+    SELECT DISTINCT NULLIF(LOWER(TRIM(consumption.payload->>'ecosystem')), '') AS ecosystem
+    FROM package_consumption_correlation_active AS consumption
+    WHERE ($11 <> '' AND consumption.payload->>'repository_id' = $11)
+       OR ($10 <> '' AND consumption.payload->>'package_id' = $10)
+    UNION
+    SELECT DISTINCT NULLIF(LOWER(TRIM(registry.payload->>'package_manager')), '') AS ecosystem
+    FROM package_registry_active AS registry
+    WHERE $10 <> ''
+      AND registry.payload->>'package_id' = $10
+    UNION
+    SELECT DISTINCT NULLIF(LOWER(TRIM(component.payload->>'ecosystem')), '') AS ecosystem
+    FROM sbom_component_active AS component
+    WHERE $12 <> ''
+      AND component.payload->>'subject_digest' = $12
+    UNION
+    SELECT DISTINCT NULLIF(LOWER(TRIM(
+        CASE
+            WHEN $10 LIKE 'pkg:%' THEN SPLIT_PART(SUBSTRING($10 FROM 5), '/', 1)
+            WHEN POSITION('://' IN $10) > 0 THEN SPLIT_PART($10, '://', 1)
+            ELSE ''
+        END
+    )), '') AS ecosystem
+    WHERE $10 <> ''
+),
+target_vulnerability_source_scopes AS (
+    SELECT DISTINCT NULLIF(TRIM($9), '') AS scope_id, NULL::text AS source, NULL::text AS ecosystem
+    WHERE $9 <> ''
+    UNION
+    SELECT DISTINCT 'vuln-intel://nvd/cve' AS scope_id, 'nvd' AS source, NULL::text AS ecosystem
+    WHERE $9 <> ''
+    UNION
+    SELECT DISTINCT 'vuln-intel://nvd/' || TRIM($9) AS scope_id, 'nvd' AS source, NULL::text AS ecosystem
+    WHERE $9 <> ''
+    UNION
+    SELECT DISTINCT 'vuln-intel://cisa/kev' AS scope_id, 'cisa_kev' AS source, NULL::text AS ecosystem
+    WHERE $9 <> ''
+    UNION
+    SELECT DISTINCT 'vuln-intel://first/epss' AS scope_id, 'first_epss' AS source, NULL::text AS ecosystem
+    WHERE $9 <> ''
+    UNION
+    SELECT DISTINCT NULL::text AS scope_id, 'osv' AS source, ecosystem
+    FROM target_vulnerability_source_ecosystems
+    WHERE ecosystem IS NOT NULL
+    UNION
+    SELECT DISTINCT NULL::text AS scope_id, 'glad' AS source, ecosystem
+    FROM target_vulnerability_source_ecosystems
+    WHERE ecosystem IS NOT NULL
 ),
 vulnerability_advisory AS (
     SELECT
@@ -325,169 +383,16 @@ vulnerability_source_snapshot AS (
         )::text AS source_snapshots_json,
         NULL::text AS source_states_json,
         NULL::text AS unsupported_targets_json
-    FROM vulnerability_source_snapshot_active
+    FROM vulnerability_source_snapshot_active AS snapshot
+    WHERE EXISTS (
+        SELECT 1
+        FROM target_vulnerability_source_scopes AS target
+        WHERE (target.scope_id IS NOT NULL AND snapshot.scope_id = target.scope_id)
+           OR (
+               target.scope_id IS NULL
+               AND target.source = snapshot.payload->>'source'
+               AND target.ecosystem = NULLIF(LOWER(TRIM(snapshot.payload->>'ecosystem')), '')
+           )
+    )
 ),
-unsupported_target_rows AS (
-    SELECT
-        'ecosystem' AS target_kind,
-        'unsupported_ecosystem' AS reason,
-        NULLIF(LOWER(TRIM(payload->'entity_metadata'->>'package_manager')), '') AS ecosystem,
-        NULL::text AS lockfile_flavor,
-        NULL::text AS feature_token
-    FROM package_manifest_active
-    WHERE $11 <> ''
-      AND payload->>'repo_id' = $11
-      AND NULLIF(LOWER(TRIM(payload->'entity_metadata'->>'package_manager')), '') IS NOT NULL
-      AND LOWER(TRIM(payload->'entity_metadata'->>'package_manager')) NOT IN
-          ('npm', 'nuget', 'maven', 'cargo', 'pypi', 'swift', 'composer', 'go', 'rubygems')
-    UNION ALL
-    SELECT
-        'package_manager_file' AS target_kind,
-        'lockfile_unsupported_feature' AS reason,
-        NULL::text AS ecosystem,
-        NULLIF(TRIM(payload->'entity_metadata'->>'package_manager_flavor'), '') AS lockfile_flavor,
-        NULLIF(TRIM(payload->'entity_metadata'->>'lockfile_unsupported_feature'), '') AS feature_token
-    FROM package_manifest_active
-    WHERE $11 <> ''
-      AND payload->>'repo_id' = $11
-      AND NULLIF(TRIM(payload->'entity_metadata'->>'lockfile_unsupported_feature'), '') IS NOT NULL
-    UNION ALL
-    SELECT
-        'sbom_target' AS target_kind,
-        NULLIF(TRIM(warn.payload->>'reason'), '') AS reason,
-        NULL::text AS ecosystem,
-        NULL::text AS lockfile_flavor,
-        NULL::text AS feature_token
-    FROM sbom_warning_active AS warn
-    JOIN sbom_document_active AS doc
-      ON doc.payload->>'document_id' = warn.payload->>'document_id'
-    WHERE $12 <> ''
-      AND doc.payload->>'subject_digest' = $12
-      AND warn.payload->>'reason' IN ('unsupported_field', 'malformed_document')
-    UNION ALL
-    SELECT
-        'package_registry_metadata' AS target_kind,
-        NULLIF(TRIM(warn.payload->>'warning_code'), '') AS reason,
-        NULLIF(LOWER(TRIM(warn.payload->>'ecosystem')), '') AS ecosystem,
-        NULL::text AS lockfile_flavor,
-        NULL::text AS feature_token
-    FROM package_registry_warning_active AS warn
-    WHERE warn.payload->>'warning_code' = 'metadata_too_large'
-      AND (
-          ($10 <> '' AND warn.payload->>'package_id' = $10)
-          OR (
-              $11 <> ''
-              AND EXISTS (
-                  SELECT 1
-                  FROM package_consumption_correlation_active AS consumption
-                  WHERE consumption.payload->>'repository_id' = $11
-                    AND consumption.payload->>'package_id' = warn.payload->>'package_id'
-              )
-          )
-      )
-    UNION ALL
-    SELECT
-        'image_target' AS target_kind,
-        NULLIF(TRIM(warn.payload->>'reason'), '') AS reason,
-        NULL::text AS ecosystem,
-        NULL::text AS lockfile_flavor,
-        NULL::text AS feature_token
-    FROM scanner_worker_warning_active AS warn
-    WHERE $12 <> ''
-      AND warn.payload->>'target_kind' = 'image'
-      AND warn.payload->>'reason' IN ('analyzer_not_configured', 'image_analyzer_unsupported_target')
-      AND (
-          warn.payload->>'image_digest' = $12
-          OR warn.scope_id = $12
-          OR RIGHT(warn.scope_id, LENGTH('@' || $12)) = '@' || $12
-      )
-),
-unsupported_target AS (
-    SELECT
-        'vulnerability.unsupported_target' AS family,
-        COUNT(*)::int AS fact_count,
-        NULL::timestamptz AS latest_observed_at,
-        NULL::boolean AS target_incomplete,
-        NULL::text[] AS incomplete_reasons,
-        NULL::text AS source_snapshots_json,
-        NULL::text AS source_states_json,
-        COALESCE(
-            (
-                SELECT JSONB_AGG(entry ORDER BY entry->>'target_kind', entry->>'reason', entry->>'ecosystem', entry->>'lockfile_flavor', entry->>'feature_token')
-                FROM (
-                    SELECT JSONB_STRIP_NULLS(JSONB_BUILD_OBJECT(
-                        'target_kind', target_kind,
-                        'reason', reason,
-                        'ecosystem', ecosystem,
-                        'lockfile_flavor', lockfile_flavor,
-                        'feature_token', feature_token,
-                        'count', COUNT(*)::int
-                    )) AS entry
-                    FROM unsupported_target_rows
-                    GROUP BY target_kind, reason, ecosystem, lockfile_flavor, feature_token
-                ) AS grouped_targets
-            ),
-            '[]'::jsonb
-        )::text AS unsupported_targets_json
-    FROM unsupported_target_rows
-),
-vulnerability_source_state_candidates AS (
-    SELECT
-        collector_instance_id, scope_id, source, ecosystem, window_start,
-        window_end, last_attempt_at, last_success_at, next_retry_at,
-        last_error_class, freshness_state, terminal_status, result_count,
-        warning_count, updated_at
-    FROM vulnerability_source_states
-    WHERE scope_id IN ($9, $10, $11, $12)
-       OR scope_id NOT LIKE 'vuln-intel://osv/%/%?version=%'
-    ORDER BY CASE WHEN scope_id IN ($9, $10, $11, $12) THEN 0 ELSE 1 END,
-        updated_at DESC,
-        source ASC,
-        scope_id ASC
-    LIMIT 200
-),
-vulnerability_source_state AS (
-    SELECT
-        'vulnerability.source_state' AS family,
-        0::int AS fact_count,
-        MAX(updated_at) AS latest_observed_at,
-        BOOL_OR(freshness_state IN ('pending', 'stale', 'rate_limited', 'failed', 'partial')) AS target_incomplete,
-        ARRAY_REMOVE(
-            ARRAY_AGG(DISTINCT source || ':' || freshness_state)
-                FILTER (WHERE freshness_state IN ('pending', 'stale', 'rate_limited', 'failed', 'partial')),
-            NULL
-        ) AS incomplete_reasons,
-        NULL::text AS source_snapshots_json,
-        COALESCE(
-            JSONB_AGG(DISTINCT JSONB_STRIP_NULLS(JSONB_BUILD_OBJECT(
-                'collector_instance_id', collector_instance_id, 'scope_id', scope_id,
-                'source', source, 'ecosystem', ecosystem,
-                'collection_window', JSONB_STRIP_NULLS(JSONB_BUILD_OBJECT(
-                    'start', TO_CHAR(window_start AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"'),
-                    'end', TO_CHAR(window_end AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"')
-                )),
-                'last_attempt_at', TO_CHAR(last_attempt_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"'),
-                'last_success_at', TO_CHAR(last_success_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"'),
-                'next_retry_at', TO_CHAR(next_retry_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"'),
-                'last_error_class', last_error_class, 'freshness_state', freshness_state,
-                'terminal_status', terminal_status, 'result_count', result_count,
-                'warning_count', warning_count,
-                'updated_at', TO_CHAR(updated_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"')
-            ))) FILTER (WHERE scope_id IS NOT NULL),
-            '[]'::jsonb
-        )::text AS source_states_json,
-        NULL::text AS unsupported_targets_json
-    FROM vulnerability_source_state_candidates
-)
-SELECT family, fact_count, latest_observed_at, target_incomplete, incomplete_reasons, source_snapshots_json, source_states_json, unsupported_targets_json FROM vulnerability_advisory
-UNION ALL SELECT family, fact_count, latest_observed_at, target_incomplete, incomplete_reasons, source_snapshots_json, source_states_json, unsupported_targets_json FROM vulnerability_exploitability
-UNION ALL SELECT family, fact_count, latest_observed_at, target_incomplete, incomplete_reasons, source_snapshots_json, source_states_json, unsupported_targets_json FROM package_consumption_correlation
-UNION ALL SELECT family, fact_count, latest_observed_at, target_incomplete, incomplete_reasons, source_snapshots_json, source_states_json, unsupported_targets_json FROM package_manifest_dependency
-UNION ALL SELECT family, fact_count, latest_observed_at, target_incomplete, incomplete_reasons, source_snapshots_json, source_states_json, unsupported_targets_json FROM package_registry
-UNION ALL SELECT family, fact_count, latest_observed_at, target_incomplete, incomplete_reasons, source_snapshots_json, source_states_json, unsupported_targets_json FROM sbom_component
-UNION ALL SELECT family, fact_count, latest_observed_at, target_incomplete, incomplete_reasons, source_snapshots_json, source_states_json, unsupported_targets_json FROM sbom_attestation
-UNION ALL SELECT family, fact_count, latest_observed_at, target_incomplete, incomplete_reasons, source_snapshots_json, source_states_json, unsupported_targets_json FROM container_image_identity
-UNION ALL SELECT family, fact_count, latest_observed_at, target_incomplete, incomplete_reasons, source_snapshots_json, source_states_json, unsupported_targets_json FROM vulnerability_source_snapshot
-UNION ALL SELECT family, fact_count, latest_observed_at, target_incomplete, incomplete_reasons, source_snapshots_json, source_states_json, unsupported_targets_json FROM vulnerability_source_state
-UNION ALL SELECT family, fact_count, latest_observed_at, target_incomplete, incomplete_reasons, source_snapshots_json, source_states_json, unsupported_targets_json FROM unsupported_target
 `

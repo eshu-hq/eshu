@@ -93,15 +93,16 @@ canonical graph or reducer truth.
   (`iac_reachability_store.go`)
 - `IaCReachabilityStore` — port for IaC cleanup findings (`iac.go:74`)
 - `SupplyChainImpactReadinessStore` — port for bounded readiness counts and
-  scoped package-registry metadata freshness
+  scoped source and package-registry metadata freshness
   (`supply_chain_impact_readiness.go`)
 - `PostgresSupplyChainImpactReadinessStore` — Postgres-backed readiness store
-  that runs one bounded CTE per impact-findings response, surfaces
-  vulnerability source-cache snapshot metadata and package-registry metadata
-  freshness for package/repository scopes, and strips absent optional fields
-  from the JSON rollup. Readiness treats Composer as a supported
-  impact-matcher ecosystem alongside the existing supported matchers, so
-  Composer evidence gaps stay explicit instead of being classified as
+  that runs one bounded CTE per impact-findings response, scopes vulnerability
+  source-cache snapshot and durable source-state metadata by requested CVE,
+  package, repository-owned ecosystem, or image component ecosystem, surfaces
+  package-registry metadata freshness for package/repository scopes, and strips
+  absent optional fields from the JSON rollup. Readiness treats Composer as a
+  supported impact-matcher ecosystem alongside the existing supported matchers,
+  so Composer evidence gaps stay explicit instead of being classified as
   unsupported.
   (`supply_chain_impact_readiness_postgres.go`)
 - `AdvisoryEvidenceStore` — port for source-only vulnerability advisory

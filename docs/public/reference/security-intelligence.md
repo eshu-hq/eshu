@@ -404,24 +404,33 @@ reducer-fact counts so the answer never invents findings:
   package-consumption evidence.
 - `source_snapshots[]` reports bounded vulnerability source cache metadata:
   source, ecosystem, cache artifact version, snapshot digest, cache update time,
-  freshness, completion state, and warning fields. Raw advisory bodies, package
-  names, and source URLs are not returned.
-- `missing_evidence[]` uses stable identifiers:
-  `advisory_sources`, `owned_packages`, `package_registry_metadata`,
-  `sbom_or_image_evidence`, `target_collection_incomplete`,
-  `readiness_unavailable`, and `unsupported_targets`. Ready states clear the
-  list so callers cannot see contradictory "ready" and "missing" signals.
-- `unsupported_targets[]` is bounded coverage-gap evidence. Each entry carries
-  `target_kind` (`ecosystem`, `package_manager_file`, `sbom_target`,
-  `package_registry_metadata`, or `image_target`), a stable `reason`, and a
-  scoped `count`; optional `ecosystem`, `lockfile_flavor`, and `feature_token`
-  fields explain the unsupported target. `reason=metadata_too_large` means
-  package-registry metadata exceeded the byte cap and was recorded as source
-  evidence instead of being retried. The list is surfaced additively when
-  findings exist, or as the dominant signal with `readiness_state=unsupported`
-  when no finding could be admitted.
-- `incomplete_reasons[]` carries collector-emitted in-flight reasons only for
-  `target_incomplete`.
+  freshness, completion state, and bounded warning fields. Snapshot and durable
+  source-state rows are scoped to the requested target by CVE, package,
+  repository-owned ecosystem, or image component ecosystem before the readiness
+  envelope computes aggregate freshness. Raw advisory bodies, package names,
+  and source URLs are not returned.
+- `missing_evidence[]` names absent required join families using the stable
+  identifiers `advisory_sources`, `owned_packages`,
+  `package_registry_metadata`, `sbom_or_image_evidence`,
+  `target_collection_incomplete`, `readiness_unavailable`, and
+  `unsupported_targets`. `package_registry_metadata` means the bounded package
+  metadata needed for the package or repository scope is missing, stale, or
+  freshness-unknown. The list is empty on `ready_*` states so callers cannot
+  see contradictory "ready" + "missing" signals.
+- `unsupported_targets[]` is bounded coverage-gap evidence: each entry names
+  the unsupported `target_kind` (`ecosystem`, `package_manager_file`,
+  `sbom_target`, `package_registry_metadata`, or `image_target`), a stable
+  `reason` code, and a `count` for the bounded scope. Optional `ecosystem`,
+  `lockfile_flavor`, and `feature_token` fields explain why the matcher cannot
+  resolve the target. `package_registry_metadata` with
+  `reason=metadata_too_large` means package-registry metadata exceeded the
+  configured byte cap and was recorded as source coverage-gap evidence instead
+  of being retried. The list is surfaced whenever Eshu observes such evidence
+  — additively when findings exist, or as the dominant signal alongside
+  `readiness_state=unsupported` when no finding could be admitted.
+- `incomplete_reasons[]` carries collector-emitted reasons explaining why
+  source collection is still in flight; only populated when
+  `readiness_state` is `target_incomplete`.
 - `freshness` summarizes the worst per-family freshness as one label.
 - `counts` reports page-local finding counts and total source-evidence facts.
 
@@ -452,14 +461,14 @@ The current implementation proves the following:
 - `unsupported`: the bounded scope has observed target evidence the matcher
   cannot resolve. Producers are `content_entity` unsupported package managers
   outside `npm`, `nuget`, `maven`, `cargo`, `pypi`, `swift`, `composer`, and
-  `go`; `content_entity` lockfile unsupported-feature markers; `sbom.warning`
-  reasons `unsupported_field` or `malformed_document` joined to the document
-  subject digest; `package_registry.warning` code `metadata_too_large`; and
-  image-target `scanner_worker.warning` reasons `analyzer_not_configured` or
-  `image_analyzer_unsupported_target` matched by `image_digest` or image
-  scope id. `unsupported` outranks `evidence_incomplete`; when findings exist,
-  the state stays `ready_with_findings` and `unsupported_targets[]` remains
-  visible additively.
+  `go`, and `rubygems`; `content_entity` lockfile unsupported-feature markers;
+  `sbom.warning` reasons `unsupported_field` or `malformed_document` joined to
+  the document subject digest; `package_registry.warning` code
+  `metadata_too_large`; and image-target `scanner_worker.warning` reasons
+  `analyzer_not_configured` or `image_analyzer_unsupported_target` matched by
+  `image_digest` or image scope id. `unsupported` outranks
+  `evidence_incomplete`; when findings exist, the state stays
+  `ready_with_findings` and `unsupported_targets[]` remains visible additively.
 
 The package.consumption family is sourced from the real
 `reducer_package_consumption_correlation` facts and `content_entity` manifest
@@ -487,12 +496,13 @@ already issued with the impact-finding read.
 
 No-Observability-Change: the readiness path reuses
 `query.supply_chain_impact_findings`, `eshu_dp_postgres_query_duration_seconds`,
-the impact-findings HTTP/MCP envelope, scanner-worker metrics and spans,
-`vulnerability.source_snapshot` payloads, and `source_snapshots[]` readiness
-metadata. The unsupported-target rollup adds no metric, span, log key, queue,
-reducer lane, graph write, or runtime worker; operators diagnose image analyzer
-coverage gaps through `scanner_worker.warning`, `unsupported_targets[]`, and
-the `vulnerability.unsupported_target` aggregation marker.
+the impact-findings HTTP/MCP envelope, `vulnerability.source_snapshot` payloads,
+`vulnerability_source_states`, scanner-worker metrics and spans, and
+`source_snapshots[]` readiness metadata. The scoped source-freshness and
+unsupported-target rollups add no metric, span, log key, queue, reducer lane,
+graph write, or runtime worker; operators diagnose gaps through
+`source_states[]`, `source_snapshots[]`, `scanner_worker.warning`,
+`unsupported_targets[]`, and the aggregation family markers.
 
 ## Source Coverage And Read Contracts
 

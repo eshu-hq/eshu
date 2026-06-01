@@ -525,9 +525,10 @@ top of the server's classification: when the envelope's aggregate
 `advisory_cache_stale` or `advisory_cache_freshness_unknown` so the operator
 never gets a clean answer backed by stale or unclassified source data.
 Per-source entries in `readiness.source_snapshots[]` are surfaced in
-`scope_plan.source_snapshots` for operator visibility only. The readiness store
-aggregates those snapshots globally rather than by requested scope, so they do
-not gate scoped fail-closed behavior.
+`scope_plan.source_snapshots` for operator visibility. The readiness store
+scopes source snapshots and durable source states to requested target anchors,
+then the CLI gates on the aggregate `readiness.freshness` verdict so CLI, API,
+and MCP callers share one scoped freshness contract.
 
 The scope plan exposes:
 
@@ -544,8 +545,9 @@ The scope plan exposes:
 - `freshness`: `readiness.freshness`, the worst-of per-family aggregate.
 - `stop_threshold`: the readiness state the CLI returned to the operator,
   either the server verdict or the scoped downgrade when applicable.
-- `source_snapshots`: diagnostic-only per-source cache state from the
-  readiness envelope, not gated on.
+- `source_snapshots`: per-source cache state from the readiness envelope;
+  individual rows are visible for diagnostics, while scoped fail-closed behavior
+  is driven by `readiness.freshness`.
 
 The `*_facts` fields are counts of source facts as reported by
 `evidence_sources[].fact_count`, not counts of unique packages or advisory
