@@ -26,16 +26,17 @@
 // ready_with_findings, or unsupported. Unsupported matcher ecosystems, scanner
 // worker image warnings, and other unsupported targets are coverage-gap
 // evidence, not impact findings. The readiness layer also exposes bounded
-// source-snapshot cache metadata for advisory sources and scoped
-// package-registry freshness for package/repository targets, stripping absent
-// optional fields from the Postgres JSON rollup before decoding. It never
-// invents findings or duplicates reducer matching: supported impact-matcher
-// ecosystems are classified from existing source and reducer facts so the
-// answer is diagnosable without re-querying. Provider
-// security-alert reconciliation list, count, and inventory reads select one
-// current reducer row per provider alert identity before applying default
-// status/state filters, while each returned row keeps reducer reason and
-// evidence fact ids for audit.
+// source-snapshot and durable source-state freshness for advisory sources
+// scoped by requested CVE, package, repository-owned ecosystem, or image
+// component ecosystem, plus scoped package-registry freshness for
+// package/repository targets. It strips absent optional fields from the
+// Postgres JSON rollup before decoding. It never invents findings or
+// duplicates reducer matching: supported impact-matcher ecosystems are
+// classified from existing source and reducer facts so the answer is
+// diagnosable without re-querying. Provider security-alert reconciliation
+// list, count, and inventory reads select one current reducer row per provider
+// alert identity before applying default status/state filters, while each
+// returned row keeps reducer reason and evidence fact ids for audit.
 // The companion explain route accepts one finding id or an advisory/CVE plus
 // package, repository, or image digest scope, then hydrates only the finding's
 // referenced evidence facts. It reports advisory, package/version,

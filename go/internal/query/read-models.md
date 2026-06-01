@@ -196,13 +196,16 @@ ecosystem targets only for exact `Package.resolved` evidence joined to OSV
 remain missing or unsupported evidence. The envelope also carries
 `source_snapshots[]` with source, ecosystem, cache artifact version, snapshot
 digest, cache update time, freshness, completion state, and bounded warning
-fields from `vulnerability.source_snapshot` facts. `PostgresSupplyChainImpactReadinessStore`
+fields from `vulnerability.source_snapshot` facts scoped by requested CVE,
+package, repository-owned ecosystem, or image component ecosystem.
+`PostgresSupplyChainImpactReadinessStore`
 (`supply_chain_impact_readiness_postgres.go:18`) runs one bounded CTE per
-response with seven anchored counts and a `vulnerability.source_snapshot`
-roll-up. The readiness path never invents findings, never duplicates reducer
-matching, and adds one Postgres round trip alongside the existing impact
-read; observability stays on the existing `query.supply_chain_impact_findings`
-span, the `query.supply_chain_impact_explanation` span, and the
+response with seven anchored counts, source-state/source-snapshot roll-ups, and
+unsupported-target aggregation. The readiness path never invents findings,
+never duplicates reducer matching, and adds one Postgres round trip alongside
+the existing impact read; observability stays on the existing
+`query.supply_chain_impact_findings` span, the
+`query.supply_chain_impact_explanation` span, and the
 `eshu_dp_postgres_query_duration_seconds` histogram.
 
 No-Regression Evidence: `go test ./internal/query -run
