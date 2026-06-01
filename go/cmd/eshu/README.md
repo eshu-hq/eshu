@@ -59,6 +59,14 @@ The Cobra dispatcher does no OTEL bootstrap. Telemetry runs inside each
 launched runtime via the shared `telemetry` package. Errors print to
 `os.Stderr`; the binary exits 1 on any Cobra error.
 
+No-Observability-Change: provider-parity lifecycle normalization stays inside
+the local CLI and aggregate proof mapping. The Eshu finding read still uses the
+existing supply-chain impact API request path, API telemetry, and aggregate
+JSON/error output.
+
+No-Regression Evidence: provider-parity lifecycle behavior is covered by
+`go test ./cmd/eshu -count=1`.
+
 ## Gotchas / invariants
 
 - `SilenceUsage` and `SilenceErrors` are set on the root command
@@ -131,7 +139,10 @@ launched runtime via the shared `telemetry` package. Errors print to
   Eshu supply-chain impact API and returns aggregate class counts. The command
   must not print repository names, repository ids, package names, package ids,
   advisory ids, CVE ids, alert URLs, tokens, provider payloads, or Eshu finding
-  rows.
+  rows. Provider lifecycle state is evidence, not active-impact truth:
+  fixed/closed and dismissed/suppressed provider rows do not become reducer bug
+  candidates unless Eshu has a conflicting row, and stale readiness evidence is
+  treated as missing evidence for parity.
 - `eshu trace service <name>` is a read-only CLI consumer of
   `/api/v0/services/{service_name}/story`. It asks the API for
   `application/eshu.envelope+json`, passes supported selectors through as
