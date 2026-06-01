@@ -109,6 +109,47 @@ type DNSGeoLocation struct {
 	SubdivisionCode string
 }
 
+// RDSPostureObservation describes the derived security and operations posture
+// for one RDS DB instance or Aurora DB cluster. Every field is metadata-only
+// control-plane evidence returned by the RDS describe APIs: derived booleans,
+// retention windows, and KMS/parameter/option-group identifiers. It never
+// carries database contents, master usernames, connection secrets, snapshot
+// payloads, log bodies, or Performance Insights samples.
+type RDSPostureObservation struct {
+	Boundary     Boundary
+	ARN          string
+	ResourceID   string
+	ResourceType string
+	Identifier   string
+	Engine       string
+
+	PubliclyAccessible               bool
+	StorageEncrypted                 bool
+	KMSKeyID                         string
+	IAMDatabaseAuthenticationEnabled bool
+	MultiAZ                          bool
+	DeletionProtection               bool
+	BackupRetentionPeriod            int32
+
+	PerformanceInsightsEnabled       bool
+	PerformanceInsightsRetentionDays int32
+	PerformanceInsightsKMSKeyID      string
+
+	CACertificateIdentifier string
+
+	ParameterGroups []string
+	OptionGroups    []string
+
+	// SecurityParameters is a curated set of security-relevant non-default
+	// parameter name/value pairs (for example rds.force_ssl). It is populated
+	// only from already-reported configuration; the scanner must not read
+	// database contents to fill it.
+	SecurityParameters map[string]string
+
+	SourceURI      string
+	SourceRecordID string
+}
+
 // WarningObservation describes one non-fatal AWS scan warning.
 type WarningObservation struct {
 	Boundary       Boundary

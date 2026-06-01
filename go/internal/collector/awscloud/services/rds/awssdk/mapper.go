@@ -38,7 +38,9 @@ func mapDBInstance(raw awsrdstypes.DBInstance, tags map[string]string) rdsservic
 		OptionGroups:                     optionGroups(raw.OptionGroupMemberships),
 		MonitoringRoleARN:                strings.TrimSpace(aws.ToString(raw.MonitoringRoleArn)),
 		PerformanceInsightsEnabled:       aws.ToBool(raw.PerformanceInsightsEnabled),
+		PerformanceInsightsRetentionDays: aws.ToInt32(raw.PerformanceInsightsRetentionPeriod),
 		PerformanceInsightsKMSKeyID:      strings.TrimSpace(aws.ToString(raw.PerformanceInsightsKMSKeyId)),
+		CACertificateIdentifier:          strings.TrimSpace(aws.ToString(raw.CACertificateIdentifier)),
 		Tags:                             tags,
 	}
 }
@@ -66,6 +68,10 @@ func mapDBCluster(raw awsrdstypes.DBCluster, tags map[string]string) rdsservice.
 		Members:                          clusterMembers(raw.DBClusterMembers),
 		ParameterGroup:                   strings.TrimSpace(aws.ToString(raw.DBClusterParameterGroup)),
 		AssociatedRoleARNs:               clusterRoleARNs(raw.AssociatedRoles),
+		PubliclyAccessible:               aws.ToBool(raw.PubliclyAccessible),
+		PerformanceInsightsEnabled:       aws.ToBool(raw.PerformanceInsightsEnabled),
+		PerformanceInsightsRetentionDays: aws.ToInt32(raw.PerformanceInsightsRetentionPeriod),
+		PerformanceInsightsKMSKeyID:      strings.TrimSpace(aws.ToString(raw.PerformanceInsightsKMSKeyId)),
 		Tags:                             tags,
 	}
 }
