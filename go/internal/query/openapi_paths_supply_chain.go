@@ -114,6 +114,7 @@ const openAPIPathsSupplyChain = `
                           "priority_reason_codes": {"type": "array", "items": {"type": "string"}},
                           "priority_contributions": {"type": "array", "description": "Explainable scoring inputs. Priority is triage metadata and never proves affected truth.", "items": {"type": "object", "properties": {"reason_code": {"type": "string"}, "input": {"type": "string"}, "value": {"type": "string"}, "contribution": {"type": "integer"}}, "required": ["reason_code", "input", "contribution"]}},
                           "runtime_reachability": {"type": "string"},
+                          "reachability": {"type": "object", "description": "Cross-language reachability enrichment. This is prioritization metadata and never downgrades or hides impact findings. missing_evidence and unavailable are not clean results.", "properties": {"state": {"type": "string", "enum": ["reachable", "not_called", "unknown", "unavailable", "missing_evidence"]}, "confidence": {"type": "string"}, "source": {"type": "string"}, "evidence": {"type": "string"}, "reason": {"type": "string"}, "language_maturity": {"type": "string", "enum": ["implemented", "partial", "unavailable", "unsupported"]}, "missing_evidence": {"type": "array", "items": {"type": "string"}}}, "required": ["state"]},
                           "repository_id": {"type": "string"},
                           "subject_digest": {"type": "string"},
                           "image_ref": {"type": "string"},

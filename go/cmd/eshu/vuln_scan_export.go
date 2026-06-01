@@ -107,6 +107,7 @@ func vulnScanSARIFFindings(findings []map[string]any) []exportspkg.Finding {
 			SubjectDigest:       stringFromMap(finding, "subject_digest"),
 			ImageRef:            stringFromMap(finding, "image_ref"),
 			RuntimeReachability: stringFromMap(finding, "runtime_reachability"),
+			Reachability:        vulnScanSARIFReachability(finding),
 			ImpactStatus:        stringFromMap(finding, "impact_status"),
 			Confidence:          stringFromMap(finding, "confidence"),
 			WorkloadIDs:         cloneAndSortStrings(stringSliceFromAny(finding["workload_ids"])),

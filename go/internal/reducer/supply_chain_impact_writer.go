@@ -181,6 +181,9 @@ func supplyChainImpactPayload(write SupplyChainImpactWrite, finding SupplyChainI
 	if finding.DirectDependency != nil {
 		payload["direct_dependency"] = *finding.DirectDependency
 	}
+	if reachability := supplyChainReachabilityPayload(finding.Reachability); reachability != nil {
+		payload["reachability"] = reachability
+	}
 	provenance := supplyChainImpactProvenancePayload(finding)
 	if len(provenance) > 0 {
 		payload["provenance"] = provenance

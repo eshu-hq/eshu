@@ -34,6 +34,7 @@ type SupplyChainImpactFindingResult struct {
 	PriorityReasonCodes   []string                                `json:"priority_reason_codes,omitempty"`
 	PriorityContributions []SupplyChainImpactPriorityContribution `json:"priority_contributions,omitempty"`
 	RuntimeReachability   string                                  `json:"runtime_reachability,omitempty"`
+	Reachability          *SupplyChainReachabilityResult          `json:"reachability,omitempty"`
 	RepositoryID          string                                  `json:"repository_id,omitempty"`
 	SubjectDigest         string                                  `json:"subject_digest,omitempty"`
 	ImageRef              string                                  `json:"image_ref,omitempty"`
@@ -70,4 +71,17 @@ type SupplyChainImpactPriorityContribution struct {
 	Input        string `json:"input"`
 	Value        string `json:"value,omitempty"`
 	Contribution int    `json:"contribution"`
+}
+
+// SupplyChainReachabilityResult is the stable reachability enrichment envelope
+// attached to one vulnerability finding. It is separate from impact_status and
+// confidence so callers cannot treat reachability absence as a clean result.
+type SupplyChainReachabilityResult struct {
+	State            string   `json:"state"`
+	Confidence       string   `json:"confidence,omitempty"`
+	Source           string   `json:"source,omitempty"`
+	Evidence         string   `json:"evidence,omitempty"`
+	Reason           string   `json:"reason,omitempty"`
+	LanguageMaturity string   `json:"language_maturity,omitempty"`
+	MissingEvidence  []string `json:"missing_evidence,omitempty"`
 }

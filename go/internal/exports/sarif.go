@@ -403,35 +403,46 @@ func buildFingerprints(finding Finding) map[string]string {
 
 func buildResultProperties(finding Finding) *sarifResultProps {
 	props := &sarifResultProps{
-		FindingID:           finding.FindingID,
-		PackageID:           finding.PackageID,
-		PackageName:         finding.PackageName,
-		ObservedVersion:     finding.ObservedVersion,
-		FixedVersion:        finding.FixedVersion,
-		RepositoryID:        finding.RepositoryID,
-		SubjectDigest:       finding.SubjectDigest,
-		ImageRef:            finding.ImageRef,
-		RuntimeReachability: finding.RuntimeReachability,
-		ImpactStatus:        finding.ImpactStatus,
-		Confidence:          finding.Confidence,
-		RequestedRange:      finding.RequestedRange,
-		VulnerableRange:     finding.VulnerableRange,
-		MatchReason:         finding.MatchReason,
-		WorkloadIDs:         cloneStrings(finding.WorkloadIDs),
-		ServiceIDs:          cloneStrings(finding.ServiceIDs),
-		Environments:        cloneStrings(finding.Environments),
-		DependencyScope:     finding.DependencyScope,
-		DependencyPath:      cloneStrings(finding.DependencyPath),
-		DirectDependency:    finding.DirectDependency,
-		MissingEvidence:     cloneStrings(finding.MissingEvidence),
-		EvidenceFactIDs:     cloneStrings(finding.EvidenceFactIDs),
-		SourceFreshness:     finding.SourceFreshness,
-		Remediation:         buildSARIFRemediation(finding.Remediation),
+		FindingID:                    finding.FindingID,
+		PackageID:                    finding.PackageID,
+		PackageName:                  finding.PackageName,
+		ObservedVersion:              finding.ObservedVersion,
+		FixedVersion:                 finding.FixedVersion,
+		RepositoryID:                 finding.RepositoryID,
+		SubjectDigest:                finding.SubjectDigest,
+		ImageRef:                     finding.ImageRef,
+		RuntimeReachability:          finding.RuntimeReachability,
+		ReachabilityState:            reachabilityState(finding.Reachability),
+		ReachabilityConfidence:       reachabilityConfidence(finding.Reachability),
+		ReachabilitySource:           reachabilitySource(finding.Reachability),
+		ReachabilityEvidence:         reachabilityEvidence(finding.Reachability),
+		ReachabilityReason:           reachabilityReason(finding.Reachability),
+		ReachabilityLanguageMaturity: reachabilityLanguageMaturity(finding.Reachability),
+		ReachabilityMissingEvidence:  reachabilityMissingEvidence(finding.Reachability),
+		ImpactStatus:                 finding.ImpactStatus,
+		Confidence:                   finding.Confidence,
+		RequestedRange:               finding.RequestedRange,
+		VulnerableRange:              finding.VulnerableRange,
+		MatchReason:                  finding.MatchReason,
+		WorkloadIDs:                  cloneStrings(finding.WorkloadIDs),
+		ServiceIDs:                   cloneStrings(finding.ServiceIDs),
+		Environments:                 cloneStrings(finding.Environments),
+		DependencyScope:              finding.DependencyScope,
+		DependencyPath:               cloneStrings(finding.DependencyPath),
+		DirectDependency:             finding.DirectDependency,
+		MissingEvidence:              cloneStrings(finding.MissingEvidence),
+		EvidenceFactIDs:              cloneStrings(finding.EvidenceFactIDs),
+		SourceFreshness:              finding.SourceFreshness,
+		Remediation:                  buildSARIFRemediation(finding.Remediation),
 	}
 	if props.FindingID == "" && props.PackageID == "" && props.PackageName == "" &&
 		props.ObservedVersion == "" && props.FixedVersion == "" &&
 		props.RepositoryID == "" && props.SubjectDigest == "" && props.ImageRef == "" &&
-		props.RuntimeReachability == "" && props.ImpactStatus == "" && props.Confidence == "" &&
+		props.RuntimeReachability == "" && props.ReachabilityState == "" &&
+		props.ReachabilityConfidence == "" && props.ReachabilitySource == "" &&
+		props.ReachabilityEvidence == "" && props.ReachabilityReason == "" &&
+		props.ReachabilityLanguageMaturity == "" && len(props.ReachabilityMissingEvidence) == 0 &&
+		props.ImpactStatus == "" && props.Confidence == "" &&
 		props.RequestedRange == "" && props.VulnerableRange == "" && props.MatchReason == "" &&
 		len(props.WorkloadIDs) == 0 && len(props.ServiceIDs) == 0 &&
 		len(props.Environments) == 0 && props.DependencyScope == "" &&
@@ -441,6 +452,55 @@ func buildResultProperties(finding Finding) *sarifResultProps {
 		return nil
 	}
 	return props
+}
+
+func reachabilityState(reachability *Reachability) string {
+	if reachability == nil {
+		return ""
+	}
+	return reachability.State
+}
+
+func reachabilityConfidence(reachability *Reachability) string {
+	if reachability == nil {
+		return ""
+	}
+	return reachability.Confidence
+}
+
+func reachabilitySource(reachability *Reachability) string {
+	if reachability == nil {
+		return ""
+	}
+	return reachability.Source
+}
+
+func reachabilityEvidence(reachability *Reachability) string {
+	if reachability == nil {
+		return ""
+	}
+	return reachability.Evidence
+}
+
+func reachabilityReason(reachability *Reachability) string {
+	if reachability == nil {
+		return ""
+	}
+	return reachability.Reason
+}
+
+func reachabilityLanguageMaturity(reachability *Reachability) string {
+	if reachability == nil {
+		return ""
+	}
+	return reachability.LanguageMaturity
+}
+
+func reachabilityMissingEvidence(reachability *Reachability) []string {
+	if reachability == nil {
+		return nil
+	}
+	return cloneStrings(reachability.MissingEvidence)
 }
 
 func cloneStrings(in []string) []string {
