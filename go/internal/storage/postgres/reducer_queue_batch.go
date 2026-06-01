@@ -87,13 +87,13 @@ WITH candidate AS (
             AND semantic_inflight.status IN ('claimed', 'running')
             AND semantic_inflight.claim_until > $1
       ))
-      -- AWS relationship edges and observability COVERS edges both consume
-      -- CloudResource nodes produced by the aws_resource_materialization domain
-      -- for the exact same scope/generation/entity-key readiness slice. Keep
-      -- those graph-write domains pending or retrying until canonical nodes are
-      -- visibly committed instead of claiming them and recording retryable
-      -- reducer failures.
-      AND (domain NOT IN ('aws_relationship_materialization', 'observability_coverage_materialization') OR EXISTS (
+      -- AWS relationship edges, observability COVERS edges, and IAM CAN_ASSUME
+      -- trust edges all consume CloudResource nodes produced by the
+      -- aws_resource_materialization domain for the exact same
+      -- scope/generation/entity-key readiness slice. Keep those graph-write
+      -- domains pending or retrying until canonical nodes are visibly committed
+      -- instead of claiming them and recording retryable reducer failures.
+      AND (domain NOT IN ('aws_relationship_materialization', 'observability_coverage_materialization', 'iam_can_assume_materialization') OR EXISTS (
           SELECT 1
           FROM graph_projection_phase_state AS aws_nodes
           WHERE aws_nodes.scope_id = fact_work_items.scope_id
@@ -177,7 +177,7 @@ WITH candidate AS (
             AND (same.visible_at IS NULL OR same.visible_at <= $1)
             AND (same.claim_until IS NULL OR same.claim_until <= $1)
             AND ($2::text[] IS NULL OR same.domain = ANY($2::text[]))
-            AND (same.domain NOT IN ('aws_relationship_materialization', 'observability_coverage_materialization') OR EXISTS (
+            AND (same.domain NOT IN ('aws_relationship_materialization', 'observability_coverage_materialization', 'iam_can_assume_materialization') OR EXISTS (
                 SELECT 1
                 FROM graph_projection_phase_state AS same_nodes
                 WHERE same_nodes.scope_id = same.scope_id

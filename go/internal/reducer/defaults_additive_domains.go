@@ -159,6 +159,18 @@ func appendAdditiveDomainDefinitions(definitions []DomainDefinition, handlers De
 		}
 		definitions = append(definitions, coverageEdges)
 	}
+	if handlers.FactLoader != nil && handlers.IAMCanAssumeEdgeWriter != nil {
+		iamCanAssume := iamCanAssumeMaterializationDomainDefinition()
+		iamCanAssume.Handler = IAMCanAssumeMaterializationHandler{
+			FactLoader:           handlers.FactLoader,
+			EdgeWriter:           handlers.IAMCanAssumeEdgeWriter,
+			ReadinessLookup:      handlers.ReadinessLookup,
+			PriorGenerationCheck: handlers.PriorGenerationCheck,
+			Tracer:               handlers.Tracer,
+			Instruments:          handlers.Instruments,
+		}
+		definitions = append(definitions, iamCanAssume)
+	}
 	if handlers.FactLoader != nil && handlers.KubernetesCorrelationEdgeWriter != nil {
 		kubernetesEdges := kubernetesCorrelationMaterializationDomainDefinition()
 		kubernetesEdges.Handler = KubernetesCorrelationMaterializationHandler{

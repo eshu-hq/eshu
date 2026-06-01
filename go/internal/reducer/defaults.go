@@ -121,6 +121,15 @@ type DefaultHandlers struct {
 	// against uncommitted nodes.
 	ObservabilityCoverageEdgeWriter ObservabilityCoverageEdgeWriter
 
+	// IAMCanAssumeEdgeWriter projects aws_iam_permission trust statements into
+	// canonical CAN_ASSUME edges between IAM CloudResource nodes (issue #1134
+	// PR2). It must be non-nil alongside FactLoader for the registry to register
+	// DomainIAMCanAssumeMaterialization; missing either one would drop every
+	// CAN_ASSUME materialization intent before it reaches the graph. The handler
+	// also gates on ReadinessLookup so edges never resolve against uncommitted
+	// nodes.
+	IAMCanAssumeEdgeWriter IAMCanAssumeEdgeWriter
+
 	// ContainerImageIdentityWriter persists digest-keyed image identity
 	// decisions for Git, OCI registry, and runtime image evidence.
 	ContainerImageIdentityWriter ContainerImageIdentityWriter
