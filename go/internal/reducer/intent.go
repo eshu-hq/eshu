@@ -98,6 +98,17 @@ const (
 	// discovered in another). PR1 writes facts only; the optional COVERS graph
 	// edge is a later gated PR. See issue #391 for the design.
 	DomainObservabilityCoverageCorrelation Domain = "observability_coverage_correlation"
+	// DomainKubernetesCorrelation correlates live Kubernetes workload evidence
+	// (kubernetes_live.* facts) against deployment-source image and identity
+	// evidence, emitting durable provenance-only reducer facts with the
+	// six-outcome contract plus a drift classification. Live image refs join
+	// digest-first then repository+tag; a label-selector edge that cannot prove
+	// exact ownership stays ambiguous and is never promoted to exact. It is
+	// cross-source (live cluster vs. registry/Git/IaC source) and cross-scope
+	// (live facts live in a cluster scope, source facts in repo/cloud scopes).
+	// PR1 writes facts only; the gated canonical graph edge is a later PR. See
+	// issue #388 for the design.
+	DomainKubernetesCorrelation Domain = "kubernetes_correlation"
 )
 
 // IntentStatus captures the durable reducer intent lifecycle state.

@@ -106,7 +106,15 @@ type Instruments struct {
 	// operator answer "which observability signal class is losing coverage, and is
 	// it a gap, an ambiguous match, or a rejected weak signal?" at 3 AM.
 	ObservabilityCoverageCorrelations metric.Int64Counter
-	SBOMAttestationAttachments        metric.Int64Counter
+	// KubernetesCorrelations counts reducer-owned live Kubernetes correlation
+	// decisions (issue #388). Labels: domain (kubernetes_correlation), outcome
+	// (exact / derived / ambiguous / unresolved / stale / rejected), and
+	// drift_kind (in_sync / image_drift / missing_source / stale_source /
+	// unknown). It lets an operator answer "which drift class is growing —
+	// missing_source, image_drift, or stale_source — and is it an ambiguous
+	// selector or a rejected weak ref?" at 3 AM.
+	KubernetesCorrelations     metric.Int64Counter
+	SBOMAttestationAttachments metric.Int64Counter
 	SupplyChainImpactFindings         metric.Int64Counter
 	// SupplyChainSuppressionDecisions counts reducer suppression-state
 	// outcomes per supply-chain impact finding. Labels: domain
@@ -831,6 +839,14 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register ObservabilityCoverageCorrelations counter: %w", err)
+	}
+
+	inst.KubernetesCorrelations, err = meter.Int64Counter(
+		"eshu_dp_kubernetes_correlations_total",
+		metric.WithDescription("Total live Kubernetes correlation decisions by reducer domain, outcome, and drift kind"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register KubernetesCorrelations counter: %w", err)
 	}
 
 	inst.SBOMAttestationAttachments, err = meter.Int64Counter(
@@ -2152,6 +2168,13 @@ func AttrJoinMode(v string) attribute.KeyValue {
 // / trace_sampling).
 func AttrCoverageSignal(v string) attribute.KeyValue {
 	return attribute.String(MetricDimensionCoverageSignal, v)
+}
+
+// AttrDriftKind returns a drift_kind attribute for drift-classification
+// counters such as the live Kubernetes correlation counter (in_sync /
+// image_drift / missing_source / stale_source / unknown).
+func AttrDriftKind(v string) attribute.KeyValue {
+	return attribute.String(MetricDimensionDriftKind, v)
 }
 
 // AttrWritePhase returns a write_phase attribute for canonical phase metrics.

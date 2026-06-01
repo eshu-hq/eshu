@@ -420,6 +420,9 @@ func buildProjection(scopeValue scope.IngestionScope, generation scope.ScopeGene
 	if intent, ok := buildSecurityAlertReconciliationReducerIntent(scopeValue, generation, inputFacts); ok {
 		intents = append(intents, intent)
 	}
+	if intent, ok := buildKubernetesCorrelationReducerIntent(scopeValue, generation, inputFacts); ok {
+		intents = append(intents, intent)
+	}
 
 	sort.SliceStable(intents, func(i, j int) bool {
 		left := intents[i]

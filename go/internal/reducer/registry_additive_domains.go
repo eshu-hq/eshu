@@ -226,3 +226,34 @@ func observabilityCoverageCorrelationDomainDefinition() DomainDefinition {
 		},
 	}
 }
+
+// kubernetesCorrelationDomainDefinition returns the additive definition for
+// live Kubernetes correlation. It is additive (not part of
+// DefaultDomainDefinitions) because the handler requires an explicitly wired
+// FactLoader and KubernetesCorrelationWriter; registering it without them would
+// silently drop every intent. The domain writes durable reducer facts for all
+// outcomes and stays graph-neutral: derived image links and ambiguous selector
+// edges remain provenance until an exact digest/owner-reference match proves
+// them, and PR1 writes no graph edge at all. It correlates the live observed
+// cluster (LayerObservedResource) against deployment-source declarations
+// (LayerSourceDeclaration). See issue #388 for the design and the six-outcome
+// correlation contract.
+func kubernetesCorrelationDomainDefinition() DomainDefinition {
+	return DomainDefinition{
+		Domain:  DomainKubernetesCorrelation,
+		Summary: "correlate live Kubernetes workloads to deployment-source image and identity evidence with drift classification",
+		Ownership: OwnershipShape{
+			CrossSource:    true,
+			CrossScope:     true,
+			CanonicalWrite: true,
+			CounterEmit:    true,
+		},
+		TruthContract: truth.Contract{
+			CanonicalKind: "kubernetes_correlation",
+			SourceLayers: []truth.Layer{
+				truth.LayerSourceDeclaration,
+				truth.LayerObservedResource,
+			},
+		},
+	}
+}

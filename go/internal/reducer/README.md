@@ -277,6 +277,14 @@ Key metrics (all prefixed `eshu_dp_`):
   coverage versus uncovered gaps. PR1 is fact-only: no graph edge is written;
   the optional `COVERS` edge is a later gated PR, and the query/MCP read surface
   is a follow-up PR.
+- `kubernetes_correlations_total` — live Kubernetes correlation decisions by
+  bounded outcome (`exact`, `derived`, `ambiguous`, `unresolved`, `stale`,
+  `rejected`), reducer domain, and `drift_kind` (`in_sync`, `image_drift`,
+  `missing_source`, `stale_source`, `unknown`). Durable
+  `reducer_kubernetes_correlation` facts record how each live workload's image
+  references and identity edges join to deployment-source image evidence. PR1 is
+  fact-only: no graph edge is written; the gated canonical edge and the query/MCP
+  read surface are follow-up PRs. See issue #388.
 - `correlation_rule_matches_total`, `correlation_orphan_detected_total`, and
   `correlation_unmanaged_detected_total` — AWS runtime drift rule execution and
   admitted orphan/unmanaged findings. Unknown and ambiguous findings are exposed
@@ -532,6 +540,20 @@ Log phase attributes: `telemetry.PhaseReduction` (main loop),
   `aws_resource` and `aws_relationship` facts through a bounded in-memory index
   (no per-edge graph round trip), redacted dimension values never resolve a
   target, and PR1 writes no graph edge.
+- **Live Kubernetes correlation is digest-first and selector-ambiguity-safe** —
+  `KubernetesCorrelationHandler` writes `reducer_kubernetes_correlation` facts
+  for all six outcomes plus a `drift_kind`. A live image reference joins
+  digest-first (`exact`/`in_sync`), then repository+tag (`derived`); a tag that
+  resolves to multiple source digests is `ambiguous`/`unknown`; a live image with
+  no source is `unresolved`/`missing_source`; a tombstoned-only source is
+  `stale`/`stale_source`; an unparseable ref is `rejected`. For workload
+  identity, only a Kubernetes `owner_reference` edge is `exact`; a label-selector
+  edge that cannot prove exact ownership stays `ambiguous` with an explicit
+  `non_promotion` and is **never** promoted to `exact`. The handler reads the
+  three settled `kubernetes_live.*` fact kinds for the cluster scope generation
+  and joins the cross-scope active deployment-source image facts through a
+  bounded in-memory index (no per-edge graph round trip). PR1 writes no graph
+  edge.
 - **Projection must be idempotent** — queue retries, duplicate claims, and
   partial graph writes must converge on the same truth.
 - **Generation supersession** — `Runtime.execute` calls `GenerationCheck`
