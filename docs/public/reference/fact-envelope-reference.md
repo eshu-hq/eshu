@@ -183,7 +183,8 @@ evidence. They do not imply incident ownership, deployment cause, code change,
 or pull-request truth unless a reducer or query later proves that path through
 separate source evidence. A `work_item.external_link` to a GitHub PR URL is
 source evidence only until GitHub/provider PR evidence verifies the commit-to-PR
-hop.
+hop. The Jira source boundary, identity keys, freshness semantics, and fixture
+matrix are defined in [Jira Evidence Contract](jira-evidence.md).
 
 Declared PagerDuty module and tfvars evidence from Terraform source is emitted
 through ordinary `content_entity` facts with `entity_type=PagerDutyDeclaration`
@@ -262,5 +263,6 @@ When adding or changing a fact family:
 - [Fact Schema Versioning](fact-schema-versioning.md)
 - [Collector Authoring](../guides/collector-authoring.md)
 - [Collector And Reducer Readiness](collector-reducer-readiness.md)
+- [Jira Evidence Contract](jira-evidence.md)
 - [Component Package Manager](component-package-manager.md)
 - [Plugin Trust Model](plugin-trust-model.md)
