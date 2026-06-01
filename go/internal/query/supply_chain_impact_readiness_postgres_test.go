@@ -137,6 +137,26 @@ func TestPostgresSupplyChainImpactReadinessScopesSourceFreshness(t *testing.T) {
 	}
 }
 
+func TestPostgresSupplyChainImpactReadinessScopesAdvisoryFacts(t *testing.T) {
+	t.Parallel()
+
+	for _, want := range []string{
+		"target_advisory_packages AS (",
+		"NULLIF(TRIM($10), '') AS package_id",
+		"consumption.payload->>'repository_id' = $11",
+		"component.payload->>'subject_digest' = $12",
+		"payload->>'package_id' IN (SELECT package_id FROM target_advisory_packages)",
+		"($9 <> '' AND payload->>'cve_id' = $9)",
+	} {
+		if !strings.Contains(listSupplyChainImpactReadinessQuery, want) {
+			t.Fatalf("listSupplyChainImpactReadinessQuery missing advisory scope fragment %q:\n%s", want, listSupplyChainImpactReadinessQuery)
+		}
+	}
+	if strings.Contains(listSupplyChainImpactReadinessQuery, "FROM advisory_active\n    WHERE ($9 = '' OR payload->>'cve_id' = $9)") {
+		t.Fatalf("listSupplyChainImpactReadinessQuery still counts unrelated advisory facts for non-CVE scopes:\n%s", listSupplyChainImpactReadinessQuery)
+	}
+}
+
 type rejectingSupplyChainImpactReadinessQueryer struct{ called int }
 
 func (r *rejectingSupplyChainImpactReadinessQueryer) QueryContext(

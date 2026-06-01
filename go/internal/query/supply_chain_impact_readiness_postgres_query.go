@@ -231,6 +231,22 @@ target_vulnerability_source_scopes AS (
     FROM target_vulnerability_source_ecosystems
     WHERE ecosystem IS NOT NULL
 ),
+target_advisory_packages AS (
+    SELECT DISTINCT NULLIF(TRIM($10), '') AS package_id
+    WHERE $10 <> ''
+    UNION
+    SELECT DISTINCT NULLIF(TRIM(consumption.payload->>'package_id'), '') AS package_id
+    FROM package_consumption_correlation_active AS consumption
+    WHERE $11 <> ''
+      AND consumption.payload->>'repository_id' = $11
+      AND NULLIF(TRIM(consumption.payload->>'package_id'), '') IS NOT NULL
+    UNION
+    SELECT DISTINCT NULLIF(TRIM(component.payload->>'package_id'), '') AS package_id
+    FROM sbom_component_active AS component
+    WHERE $12 <> ''
+      AND component.payload->>'subject_digest' = $12
+      AND NULLIF(TRIM(component.payload->>'package_id'), '') IS NOT NULL
+),
 vulnerability_advisory AS (
     SELECT
         'vulnerability.advisory' AS family,
@@ -242,7 +258,10 @@ vulnerability_advisory AS (
         NULL::text AS source_states_json,
         NULL::text AS unsupported_targets_json
     FROM advisory_active
-    WHERE ($9 = '' OR payload->>'cve_id' = $9)
+    WHERE ($9 <> '' AND payload->>'cve_id' = $9)
+       OR (($10 <> '' OR $11 <> '' OR $12 <> '')
+           AND payload->>'package_id' IN (SELECT package_id FROM target_advisory_packages))
+       OR ($9 = '' AND $10 = '' AND $11 = '' AND $12 = '')
 ),
 vulnerability_exploitability AS (
     SELECT
