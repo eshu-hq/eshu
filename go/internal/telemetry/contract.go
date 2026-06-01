@@ -190,6 +190,14 @@ const (
 	// skipped edge counts so a trace shows whether derived/provenance-only
 	// coverage degraded gracefully without fabricating edges.
 	SpanReducerObservabilityCoverageMaterialization = "reducer.observability_coverage_materialization"
+	// SpanReducerKubernetesCorrelationMaterialization wraps the live-workload
+	// RUNS_IMAGE edge projection (issue #388 PR3): fact load, classifier re-run plus
+	// digest->uid source resolution, exact-image edge-row extraction, and the batched
+	// MATCH-MATCH-MERGE RUNS_IMAGE edge write grouped by source-node label. The span
+	// carries materialized vs skipped edge counts so a trace shows whether
+	// provenance-only or digest-unresolvable correlation degraded gracefully without
+	// fabricating or dangling edges.
+	SpanReducerKubernetesCorrelationMaterialization = "reducer.kubernetes_correlation_materialization"
 	SpanCanonicalWrite                              = "canonical.write"
 	SpanCanonicalProjection                         = "canonical.projection"
 	SpanCanonicalRetract                            = "canonical.retract"

@@ -248,6 +248,36 @@ tracks this package's broader transient graph-write retry class.
   retries and duplicate facts. Mirrors the proven CloudResource node writer so
   it engages the same schema-backed uid lookup; the #388 edge slice (PR3)
   resolves its workload endpoint against these nodes
+- `KubernetesCorrelationEdgeWriter` — writes canonical `RUNS_IMAGE` edges from a
+  `KubernetesWorkload` node to the digest-addressed OCI source node it runs, for
+  the live-workload correlation materialization reducer domain (issue #388 PR3);
+  constructed with `NewKubernetesCorrelationEdgeWriter`. Batched `UNWIND` +
+  `MATCH (w:KubernetesWorkload {uid})` / `MATCH (img:<OciImage*> {uid})` /
+  static-type `MERGE (w)-[rel:RUNS_IMAGE]->(img)` so a missing endpoint is a
+  no-op (never a fabricated node), grouped by the source-node label which is
+  validated against the closed OCI source vocabulary
+  (`OciImageManifest`/`OciImageIndex`/`OciImageDescriptor`) before
+  interpolation. Idempotent on `(workload_uid, RUNS_IMAGE, source_uid)`, with an
+  evidence-source-scoped, edge-`scope_id`-filtered retract
+
+  Performance Evidence: `go test ./internal/storage/cypher -run '^$' -bench
+  BenchmarkKubernetesCorrelationEdgeWriter -benchmem -benchtime=200x` shaped
+  5,000 edges at batch 500 in `1.14 ms/op` (`2.16 MB/op`, `25,098 allocs/op`) on
+  darwin/arm64 (Apple M3 Pro), no-op group executor.
+  No-Regression Evidence: faster and leaner than the proven
+  `BenchmarkCloudResourceEdgeWriter` (`1.81 ms/op`, `3.89 MB/op`) and
+  `BenchmarkObservabilityCoverageEdgeWriter` (`1.71 ms/op`) baselines on the same
+  machine and input shape because the row carries fewer properties and one static
+  relationship type; the write is bounded by `ceil(E/batchSize)` statements with
+  no per-edge graph round trip. `go test ./internal/storage/cypher -run
+  TestKubernetesCorrelationEdgeWriter -count=1` proves the MATCH-MATCH-MERGE
+  shape, the closed-vocabulary source-label hardening, batching, atomic grouping,
+  scope/evidence annotation, and the edge-scoped retract.
+  Observability Evidence: statement summaries and operation metadata
+  (`phase=kubernetes_correlation_edge`, `label=RUNS_IMAGE`) ride each statement
+  for the InstrumentedExecutor's `eshu_dp_neo4j_query_duration_seconds` /
+  `eshu_dp_neo4j_batch_size`; the reducer handler owns the
+  `eshu_dp_kubernetes_correlation_edges_total` counter and completion log.
 - `SemanticEntityWriter` — writes semantic entity (Annotation, Module, etc.)
   nodes; five constructors select the Cypher row shape
 

@@ -154,6 +154,16 @@ type DefaultHandlers struct {
 	// relationship edge gates on the CloudResource node phase (#805).
 	KubernetesWorkloadNodeWriter KubernetesWorkloadNodeWriter
 
+	// KubernetesCorrelationEdgeWriter projects exact live-workload correlation
+	// decisions into canonical RUNS_IMAGE edges between a KubernetesWorkload node
+	// and the digest-addressed OCI source node it runs (issue #388 PR3). It must be
+	// non-nil alongside FactLoader for the registry to register
+	// DomainKubernetesCorrelationMaterialization; missing either one would drop
+	// every correlation materialization intent before it reaches the graph. The
+	// handler also gates on ReadinessLookup so edges never resolve against
+	// uncommitted KubernetesWorkload nodes.
+	KubernetesCorrelationEdgeWriter KubernetesCorrelationEdgeWriter
+
 	// SBOMAttestationAttachmentWriter persists SBOM and attestation document
 	// attachment decisions for digest-keyed image evidence.
 	SBOMAttestationAttachmentWriter SBOMAttestationAttachmentWriter
@@ -427,6 +437,18 @@ func implementedDefaultDomainDefinitions(handlers DefaultHandlers) []DomainDefin
 			Instruments:          handlers.Instruments,
 		}
 		definitions = append(definitions, coverageEdges)
+	}
+	if handlers.FactLoader != nil && handlers.KubernetesCorrelationEdgeWriter != nil {
+		kubernetesEdges := kubernetesCorrelationMaterializationDomainDefinition()
+		kubernetesEdges.Handler = KubernetesCorrelationMaterializationHandler{
+			FactLoader:           handlers.FactLoader,
+			EdgeWriter:           handlers.KubernetesCorrelationEdgeWriter,
+			ReadinessLookup:      handlers.ReadinessLookup,
+			PriorGenerationCheck: handlers.PriorGenerationCheck,
+			Tracer:               handlers.Tracer,
+			Instruments:          handlers.Instruments,
+		}
+		definitions = append(definitions, kubernetesEdges)
 	}
 	if handlers.DeployableUnitCorrelationHandler != nil {
 		definitions = append(definitions, DomainDefinition{
