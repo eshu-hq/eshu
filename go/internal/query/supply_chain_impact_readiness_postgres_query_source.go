@@ -1,6 +1,28 @@
 package query
 
 const listSupplyChainImpactReadinessQueryUnsupportedAndSource = `
+package_dependency_gap_active AS (
+    SELECT fact.payload, fact.observed_at
+    FROM fact_records AS fact
+    JOIN ingestion_scopes AS scope
+      ON scope.scope_id = fact.scope_id
+     AND scope.active_generation_id = fact.generation_id
+    JOIN scope_generations AS generation
+      ON generation.scope_id = fact.scope_id
+     AND generation.generation_id = fact.generation_id
+    WHERE fact.fact_kind = 'content_entity'
+      AND fact.source_system = 'git'
+      AND fact.is_tombstone = FALSE
+      AND generation.status = 'active'
+      AND fact.payload->>'entity_type' = 'Variable'
+      AND fact.payload->'entity_metadata'->>'config_kind' IN (
+          'vcs_dependency',
+          'path_dependency',
+          'url_dependency',
+          'editable_dependency',
+          'unsupported_dependency'
+      )
+),
 unsupported_target_rows AS (
     -- Owned dependency rows in an ecosystem the supply-chain matcher cannot
     -- resolve (no precise version/range match available today). Reported as
@@ -36,6 +58,26 @@ unsupported_target_rows AS (
     WHERE $11 <> ''
       AND payload->>'repo_id' = $11
       AND NULLIF(TRIM(payload->'entity_metadata'->>'lockfile_unsupported_feature'), '') IS NOT NULL
+    UNION ALL
+    -- VCS, path, URL, editable, and other provenance-only dependency rows
+    -- identify real owned dependency inputs but do not prove a registry
+    -- package version. Keep them as unsupported target evidence instead of
+    -- admitting them as clean or silently dropping them from readiness.
+    SELECT
+        'dependency_source' AS target_kind,
+        CASE payload->'entity_metadata'->>'config_kind'
+            WHEN 'vcs_dependency' THEN 'vcs_dependency_unsupported'
+            WHEN 'path_dependency' THEN 'path_dependency_unsupported'
+            WHEN 'url_dependency' THEN 'url_dependency_unsupported'
+            WHEN 'editable_dependency' THEN 'editable_dependency_unsupported'
+            ELSE 'unsupported_dependency_unsupported'
+        END AS reason,
+        NULLIF(LOWER(TRIM(payload->'entity_metadata'->>'package_manager')), '') AS ecosystem,
+        NULLIF(TRIM(payload->'entity_metadata'->>'package_manager_flavor'), '') AS lockfile_flavor,
+        NULLIF(TRIM(payload->'entity_metadata'->>'config_kind'), '') AS feature_token
+    FROM package_dependency_gap_active
+    WHERE $11 <> ''
+      AND payload->>'repo_id' = $11
     UNION ALL
     -- SBOM targets where the document parser recorded an unsupported field
     -- or a malformed document. Joined to sbom.document so the subject digest

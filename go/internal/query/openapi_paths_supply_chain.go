@@ -237,7 +237,7 @@ const openAPIPathsSupplyChain = `
                       "type": "object",
                       "description": "Bounded coverage metadata so zero findings can be distinguished from missing target collection or missing required evidence. readiness_unavailable means the readiness lookup itself failed; the findings page is still returned but coverage cannot be classified.",
                       "properties": {
-                        "readiness_state": {"type": "string", "enum": ["not_configured", "target_incomplete", "evidence_incomplete", "ready_zero_findings", "ready_with_findings", "readiness_unavailable", "unsupported"], "description": "Coverage classification for the bounded vulnerability impact answer. unsupported fires when Eshu observed real target evidence the matcher cannot resolve (unsupported ecosystem, package-manager file with unsupported lockfile feature, malformed/unsupported SBOM document, or unsupported image target)."},
+                        "readiness_state": {"type": "string", "enum": ["not_configured", "target_incomplete", "evidence_incomplete", "ready_zero_findings", "ready_with_findings", "readiness_unavailable", "unsupported"], "description": "Coverage classification for the bounded vulnerability impact answer. unsupported fires when Eshu observed real target evidence the matcher cannot resolve (unsupported ecosystem, package-manager file with unsupported lockfile feature, VCS/path/URL/editable dependency source, malformed/unsupported SBOM document, or unsupported image target)."},
                         "target_scope": {
                           "type": "object",
                           "properties": {
@@ -322,8 +322,8 @@ const openAPIPathsSupplyChain = `
                           "items": {
                             "type": "object",
                             "properties": {
-                              "target_kind": {"type": "string", "enum": ["ecosystem", "package_manager_file", "sbom_target", "package_registry_metadata", "image_target"], "description": "Family of unsupported target observed: dependency in an unsupported ecosystem, package-manager file with an unsupported lockfile feature, malformed/unsupported SBOM document tied to the requested subject digest, oversized package-registry metadata, or container image target without a supported analyzer."},
-                              "reason": {"type": "string", "description": "Stable reason code explaining why the target is unsupported (e.g., unsupported_ecosystem, lockfile_unsupported_feature, unsupported_field, malformed_document, metadata_too_large)."},
+                              "target_kind": {"type": "string", "enum": ["ecosystem", "package_manager_file", "dependency_source", "sbom_target", "package_registry_metadata", "image_target"], "description": "Family of unsupported target observed: dependency in an unsupported ecosystem, package-manager file with an unsupported lockfile feature, VCS/path/URL/editable dependency source evidence, malformed/unsupported SBOM document tied to the requested subject digest, oversized package-registry metadata, or container image target without a supported analyzer."},
+                              "reason": {"type": "string", "description": "Stable reason code explaining why the target is unsupported (e.g., unsupported_ecosystem, lockfile_unsupported_feature, vcs_dependency_unsupported, path_dependency_unsupported, unsupported_field, malformed_document, metadata_too_large)."},
                               "count": {"type": "integer", "minimum": 1},
                               "ecosystem": {"type": "string"},
                               "lockfile_flavor": {"type": "string"},

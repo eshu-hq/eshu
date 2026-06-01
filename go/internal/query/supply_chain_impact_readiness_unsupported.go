@@ -33,6 +33,10 @@ const (
 	// Berry "patch" entries). Evidence rows still exist but the lockfile
 	// chain that would prove exact-version impact is incomplete.
 	UnsupportedTargetKindPackageManagerFile = "package_manager_file"
+	// UnsupportedTargetKindDependencySource marks VCS, path, URL, editable,
+	// local, or other provenance-only dependency rows that identify a real
+	// dependency source without proving a registry-resolvable package version.
+	UnsupportedTargetKindDependencySource = "dependency_source"
 	// UnsupportedTargetKindSBOMTarget marks an SBOM target Eshu observed but
 	// could not fully parse — `unsupported_field`, `malformed_document`, or
 	// equivalent SBOM warnings tied to the requested subject digest.
@@ -59,6 +63,7 @@ const MissingEvidenceUnsupportedTargets = "unsupported_targets"
 var allowedUnsupportedTargetKinds = map[string]struct{}{
 	UnsupportedTargetKindEcosystem:               {},
 	UnsupportedTargetKindPackageManagerFile:      {},
+	UnsupportedTargetKindDependencySource:        {},
 	UnsupportedTargetKindSBOMTarget:              {},
 	UnsupportedTargetKindPackageRegistryMetadata: {},
 	UnsupportedTargetKindImageTarget:             {},

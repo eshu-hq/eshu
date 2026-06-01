@@ -81,6 +81,36 @@ func TestBuildSupplyChainImpactReadinessClassifiesReadyZeroFindings(t *testing.T
 	}
 }
 
+func TestBuildSupplyChainImpactReadinessClassifiesStaleAdvisoryAsIncomplete(t *testing.T) {
+	t.Parallel()
+
+	// Stale advisory evidence is missing evidence for the current scanner
+	// answer, even when owned package and package-registry joins are fresh.
+	// API and MCP callers must not receive ready_zero_findings for a
+	// zero-finding page backed by stale advisory metadata.
+	envelope := BuildSupplyChainImpactReadiness(
+		SupplyChainImpactTargetScope{RepositoryID: "repo://example/api"},
+		nil,
+		false,
+		SupplyChainImpactReadinessSnapshot{
+			EvidenceSources: []SupplyChainImpactEvidenceFamily{
+				{Family: EvidenceFamilyVulnerabilityAdvisory, FactCount: 12, Freshness: FreshnessLabelStale},
+				{Family: EvidenceFamilyPackageConsumption, FactCount: 3, Freshness: FreshnessLabelFresh},
+				{Family: EvidenceFamilyPackageRegistry, FactCount: 3, Freshness: FreshnessLabelFresh},
+			},
+		},
+	)
+	if envelope.State != ReadinessStateEvidenceIncomplete {
+		t.Fatalf("state = %q, want %q", envelope.State, ReadinessStateEvidenceIncomplete)
+	}
+	if !readinessMissingContains(envelope.MissingEvidence, MissingEvidenceAdvisorySources) {
+		t.Fatalf("missing_evidence = %#v, want advisory_sources for stale advisory metadata", envelope.MissingEvidence)
+	}
+	if envelope.Freshness != FreshnessLabelStale {
+		t.Fatalf("freshness = %q, want %q", envelope.Freshness, FreshnessLabelStale)
+	}
+}
+
 func TestBuildSupplyChainImpactReadinessClassifiesReadyWithFindings(t *testing.T) {
 	t.Parallel()
 
@@ -377,6 +407,47 @@ func TestBuildSupplyChainImpactReadinessClassifiesUnsupportedPackageManagerFile(
 	}
 }
 
+func TestBuildSupplyChainImpactReadinessClassifiesUnsupportedDependencySource(t *testing.T) {
+	t.Parallel()
+
+	// VCS/path/local dependency evidence is observed target evidence, but it
+	// is not registry-resolvable package consumption. Surface it as an
+	// unsupported target with a stable reason code instead of letting the
+	// scope look clean or merely absent.
+	envelope := BuildSupplyChainImpactReadiness(
+		SupplyChainImpactTargetScope{RepositoryID: "repo://example/api"},
+		nil,
+		false,
+		SupplyChainImpactReadinessSnapshot{
+			EvidenceSources: []SupplyChainImpactEvidenceFamily{
+				{Family: EvidenceFamilyVulnerabilityAdvisory, FactCount: 2, Freshness: FreshnessLabelFresh},
+				{Family: EvidenceFamilyPackageConsumption, FactCount: 1, Freshness: FreshnessLabelFresh},
+			},
+			UnsupportedTargets: []SupplyChainImpactUnsupportedTarget{
+				{
+					TargetKind:   UnsupportedTargetKindDependencySource,
+					Reason:       "vcs_dependency_unsupported",
+					Ecosystem:    "pypi",
+					FeatureToken: "vcs_dependency",
+					Count:        1,
+				},
+			},
+		},
+	)
+	if envelope.State != ReadinessStateUnsupported {
+		t.Fatalf("state = %q, want %q", envelope.State, ReadinessStateUnsupported)
+	}
+	if !readinessMissingContains(envelope.MissingEvidence, MissingEvidenceUnsupportedTargets) {
+		t.Fatalf("missing_evidence = %#v, want unsupported_targets", envelope.MissingEvidence)
+	}
+	if len(envelope.UnsupportedTargets) != 1 ||
+		envelope.UnsupportedTargets[0].TargetKind != UnsupportedTargetKindDependencySource ||
+		envelope.UnsupportedTargets[0].Reason != "vcs_dependency_unsupported" ||
+		envelope.UnsupportedTargets[0].FeatureToken != "vcs_dependency" {
+		t.Fatalf("unsupported_targets = %#v, want one dependency_source vcs row", envelope.UnsupportedTargets)
+	}
+}
+
 func TestBuildSupplyChainImpactReadinessClassifiesUnsupportedSBOMTarget(t *testing.T) {
 	t.Parallel()
 
@@ -404,6 +475,27 @@ func TestBuildSupplyChainImpactReadinessClassifiesUnsupportedSBOMTarget(t *testi
 	if len(envelope.UnsupportedTargets) != 1 ||
 		envelope.UnsupportedTargets[0].TargetKind != UnsupportedTargetKindSBOMTarget {
 		t.Fatalf("unsupported_targets = %#v, want one sbom_target entry", envelope.UnsupportedTargets)
+	}
+}
+
+func TestBuildSupplyChainImpactReadinessClassifiesMissingSBOMOrImageEvidence(t *testing.T) {
+	t.Parallel()
+
+	envelope := BuildSupplyChainImpactReadiness(
+		SupplyChainImpactTargetScope{SubjectDigest: "sha256:missing"},
+		nil,
+		false,
+		SupplyChainImpactReadinessSnapshot{
+			EvidenceSources: []SupplyChainImpactEvidenceFamily{
+				{Family: EvidenceFamilyVulnerabilityAdvisory, FactCount: 1, Freshness: FreshnessLabelFresh},
+			},
+		},
+	)
+	if envelope.State != ReadinessStateEvidenceIncomplete {
+		t.Fatalf("state = %q, want %q", envelope.State, ReadinessStateEvidenceIncomplete)
+	}
+	if !readinessMissingContains(envelope.MissingEvidence, MissingEvidenceSBOMOrImage) {
+		t.Fatalf("missing_evidence = %#v, want sbom_or_image_evidence", envelope.MissingEvidence)
 	}
 }
 
