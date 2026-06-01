@@ -121,6 +121,7 @@ catalog ownership and drift correlation facts from Postgres. It requires an
 explicit scope, entity, repository, service, workload, or owner anchor plus
 `limit`, and it keeps catalog declarations provenance-only until reducer
 evidence corroborates repository, service, workload, ownership, or drift truth.
+<<<<<<< HEAD
 `KubernetesHandler` (`kubernetes.go:16`) reads reducer-owned Kubernetes workload
 correlation facts (`reducer_kubernetes_correlation`, produced by issue #388 PR1)
 from Postgres. It requires an explicit scope, cluster, workload object,
@@ -131,6 +132,19 @@ provenance-only unless its image digest or owner edge resolved exactly. The
 handler writes nothing and projects no graph edge: the gated canonical edge is a
 later PR. Reads are wrapped by the `query.kubernetes_correlations` span and the
 `kubernetes.correlations.list` capability.
+=======
+`ObservabilityCoverageHandler` (`observability_coverage.go:16`) reads
+reducer-owned observability coverage correlation facts from Postgres
+(`reducer_observability_coverage_correlation`, produced by the issue #391 PR1
+reducer). It answers whether a monitored cloud resource or service has alarm,
+dashboard, log, or trace coverage versus which coverage gaps remain. It requires
+an explicit scope, provider, coverage-signal, observability-object, target
+resource, or target service anchor plus `limit`, surfaces the six-outcome
+contract (`exact`, `derived`, `ambiguous`, `unresolved`, `stale`, `rejected`),
+and keeps coverage strictly structural: it surfaces correlation IDs, the resolved
+target, and evidence fact IDs only, never a health assertion derived from
+telemetry values.
+>>>>>>> 57b01a50 (feat: observability coverage read surface — PR2 (query/MCP) (toward #391))
 `SupplyChainHandler` (`supply_chain.go:16`) reads reducer-owned SBOM and
 attestation attachment facts from Postgres. It requires a subject digest,
 document ID, or document digest plus `limit`, and it keeps attachment status,
@@ -347,6 +361,34 @@ Observability Evidence: the aggregate routes add the
 attributes. They re-use the existing `eshu_dp_postgres_query_duration_seconds`
 histogram and add no new graph query, queue, reducer lane, worker, or metric
 instrument.
+
+The observability coverage read surface (`observability_coverage.go`,
+`observability_coverage_correlations.go`) mirrors this same bounded Postgres
+read model for the issue #391 `reducer_observability_coverage_correlation`
+facts: anchor-or-400, `limit`-required, deterministic `ORDER BY fact.fact_id
+ASC` keyset paging on `fact_id`, and the active-generation join filtered to
+`is_tombstone = FALSE` and `generation.status = 'active'`, so duplicate facts,
+tombstoned (stale) coverage, and inactive generations never leak into a page.
+
+No-Regression Evidence: `go test ./internal/query -run
+'TestObservabilityCoverage|TestOpenAPISpecIncludesObservabilityCoverageCorrelations'
+-count=1` proves: anchor-or-400 plus required `limit`, the bounded store call
+with `limit+1` overfetch, `truncated` + `next_cursor.after_correlation_id`
+keyset paging, the active-fact read-model predicates (fact kind, `is_tombstone
+= FALSE`, `generation.status = 'active'`, payload anchors, and `fact_id`
+cursor), and OpenAPI wire-contract lockstep. This is a read-only query slice
+over facts already on `main`; `scripts/verify-performance-evidence.sh`
+classifies it as "no hot Cypher/concurrency/runtime files changed", so it adds
+no graph write, queue, reducer lane, worker, lease, or schema change.
+
+Observability Evidence: the route adds the
+`query.observability_coverage_correlations` request span (registered in
+`go/internal/telemetry/contract_z_observability_coverage.go`) with route and
+capability attributes and re-uses the existing
+`eshu_dp_postgres_query_duration_seconds` histogram. No new metric instrument
+is introduced; the `coverage_signal` metric dimension and
+`eshu_dp_observability_coverage_correlations_total` counter were already added
+by the issue #391 PR1 reducer slice.
 
 `PackageRegistryHandler` (`package_registry.go`) exposes cheap-summary
 aggregates over the graph (:Package) corpus through a separate graph-backed

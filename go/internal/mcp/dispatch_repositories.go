@@ -50,8 +50,13 @@ func repositoryRoute(toolName string, args map[string]any) (*route, bool) {
 		return cicdRunCorrelationAggregateInventoryRoute(args), true
 	case "list_service_catalog_correlations":
 		return serviceCatalogCorrelationsRoute(args), true
+<<<<<<< HEAD
 	case "list_kubernetes_correlations":
 		return kubernetesCorrelationsRoute(args), true
+=======
+	case "list_observability_coverage_correlations":
+		return observabilityCoverageCorrelationsRoute(args), true
+>>>>>>> 57b01a50 (feat: observability coverage read surface — PR2 (query/MCP) (toward #391))
 	case "list_container_image_identities":
 		return containerImageIdentitiesRoute(args), true
 	case "count_container_image_identities":

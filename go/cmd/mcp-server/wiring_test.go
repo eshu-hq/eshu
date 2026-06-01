@@ -111,6 +111,12 @@ func TestNewMCPQueryRouterMountsMCPBackedHandlers(t *testing.T) {
 	if router.ServiceCatalog.Correlations == nil {
 		t.Fatal("newMCPQueryRouter().ServiceCatalog.Correlations = nil, want Postgres read model store")
 	}
+	if router.ObservabilityCoverage == nil {
+		t.Fatal("newMCPQueryRouter().ObservabilityCoverage = nil, want observability coverage route mounted")
+	}
+	if router.ObservabilityCoverage.Correlations == nil {
+		t.Fatal("newMCPQueryRouter().ObservabilityCoverage.Correlations = nil, want Postgres read model store")
+	}
 }
 
 func TestOpenQueryGraphAcceptsNornicDBOnSharedBoltPath(t *testing.T) {

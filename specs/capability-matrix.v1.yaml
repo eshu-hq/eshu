@@ -362,6 +362,7 @@ capabilities:
       local_authoritative: {status: supported, max_truth_level: exact, required_runtime: local_host_plus_graph, p95_latency_ms: 1000, max_scope_size: catalog_entity_repository_service_workload_or_owner_scope, verification: [{go_test: ./internal/query}], notes: bounded reducer service catalog ownership and drift lookup anchored by scope, entity, repository, service, workload, or owner}
       local_full_stack: {status: supported, max_truth_level: exact, required_runtime: full_stack, p95_latency_ms: 1000, max_scope_size: catalog_entity_repository_service_workload_or_owner_scope, verification: [{go_test: ./internal/query}], notes: bounded reducer service catalog ownership and drift lookup anchored by scope, entity, repository, service, workload, or owner}
       production: {status: supported, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 1500, max_scope_size: catalog_entity_repository_service_workload_or_owner_scope, verification: [{remote_validation: prod-service-catalog-correlations}], notes: bounded reducer service catalog ownership and drift lookup anchored by scope, entity, repository, service, workload, or owner}
+<<<<<<< HEAD
   - capability: kubernetes.correlations.list
     tools: [list_kubernetes_correlations]
     profiles:
@@ -369,6 +370,15 @@ capabilities:
       local_authoritative: {status: supported, max_truth_level: exact, required_runtime: local_host_plus_graph, p95_latency_ms: 1000, max_scope_size: cluster_workload_namespace_image_or_digest_scope, verification: [{go_test: ./internal/query}], notes: bounded reducer Kubernetes workload ownership and drift lookup anchored by scope, cluster, workload object, namespace, image ref, or source digest}
       local_full_stack: {status: supported, max_truth_level: exact, required_runtime: full_stack, p95_latency_ms: 1000, max_scope_size: cluster_workload_namespace_image_or_digest_scope, verification: [{go_test: ./internal/query}], notes: bounded reducer Kubernetes workload ownership and drift lookup anchored by scope, cluster, workload object, namespace, image ref, or source digest}
       production: {status: supported, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 1500, max_scope_size: cluster_workload_namespace_image_or_digest_scope, verification: [{remote_validation: prod-kubernetes-correlations}], notes: bounded reducer Kubernetes workload ownership and drift lookup anchored by scope, cluster, workload object, namespace, image ref, or source digest}
+=======
+  - capability: observability.coverage.correlations.list
+    tools: [list_observability_coverage_correlations]
+    profiles:
+      local_lightweight: {status: unsupported, max_truth_level: unsupported, required_runtime: local_host, p95_latency_ms: null, max_scope_size: active_monofolder, verification: [{integration_test: local-lightweight-unsupported-observability-coverage-correlations}], notes: requires reducer observability coverage correlation facts}
+      local_authoritative: {status: supported, max_truth_level: exact, required_runtime: local_host_plus_graph, p95_latency_ms: 1000, max_scope_size: scope_provider_signal_object_resource_or_service_scope, verification: [{go_test: ./internal/query}], notes: bounded reducer observability coverage lookup anchored by scope, provider, coverage signal, observability object, target resource, or target service}
+      local_full_stack: {status: supported, max_truth_level: exact, required_runtime: full_stack, p95_latency_ms: 1000, max_scope_size: scope_provider_signal_object_resource_or_service_scope, verification: [{go_test: ./internal/query}], notes: bounded reducer observability coverage lookup anchored by scope, provider, coverage signal, observability object, target resource, or target service}
+      production: {status: supported, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 1500, max_scope_size: scope_provider_signal_object_resource_or_service_scope, verification: [{remote_validation: prod-observability-coverage-correlations}], notes: bounded reducer observability coverage lookup anchored by scope, provider, coverage signal, observability object, target resource, or target service}
+>>>>>>> 57b01a50 (feat: observability coverage read surface — PR2 (query/MCP) (toward #391))
   - capability: supply_chain.sbom_attestation_attachments.list
     tools: [list_sbom_attestation_attachments]
     profiles:
