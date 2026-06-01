@@ -59,6 +59,33 @@ func buildSupplyChainImpactPriorityContributions(
 		contributions = append(contributions, priorityContribution("sbom_image_evidence", "sbom_image", finding.SubjectDigest, 15))
 		contributions = append(contributions, priorityContribution("runtime_reachable", "runtime_reachability", finding.RuntimeReachability, 25))
 	}
+	if finding.Reachability != nil {
+		switch finding.Reachability.State {
+		case SupplyChainReachabilityReachable:
+			if finding.Reachability.Source == "govulncheck" {
+				contributions = append(contributions, priorityContribution(
+					"reachable_code_evidence",
+					"reachability",
+					string(finding.Reachability.State),
+					20,
+				))
+			}
+		case SupplyChainReachabilityNotCalled:
+			contributions = append(contributions, priorityContribution(
+				"reachability_not_called",
+				"reachability",
+				string(finding.Reachability.State),
+				-20,
+			))
+		case SupplyChainReachabilityMissingEvidence:
+			contributions = append(contributions, priorityContribution(
+				"reachability_missing_evidence",
+				"reachability",
+				string(finding.Reachability.State),
+				-5,
+			))
+		}
+	}
 	if hasDeploymentPriorityEvidence(finding) {
 		contributions = append(contributions, priorityContribution("deployed_workload_evidence", "deployment", deploymentPriorityValue(finding), 20))
 	}

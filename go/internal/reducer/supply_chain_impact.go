@@ -96,6 +96,7 @@ type SupplyChainImpactFinding struct {
 	PriorityReasonCodes   []string
 	PriorityContributions []SupplyChainImpactPriorityContribution
 	RuntimeReachability   string
+	Reachability          *SupplyChainReachability
 	RepositoryID          string
 	SubjectDigest         string
 	ImageRef              string
@@ -400,6 +401,7 @@ func appendSupplyChainImpactFinding(
 		return findings
 	}
 	finding.DetectionProfile = classifySupplyChainImpactDetectionProfile(finding)
+	finding = withSupplyChainReachability(finding)
 	finding = withSupplyChainImpactPriority(finding)
 	finding.Remediation = BuildSupplyChainImpactRemediation(finding)
 	return append(findings, finding)

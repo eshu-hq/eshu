@@ -238,6 +238,7 @@ type Finding struct {
 	SubjectDigest       string
 	ImageRef            string
 	RuntimeReachability string
+	Reachability        *Reachability
 	ImpactStatus        string
 	Confidence          string
 	WorkloadIDs         []string
@@ -253,6 +254,22 @@ type Finding struct {
 	Locations           []Location
 	AdvisorySources     []AdvisorySource
 	HelpURI             string
+}
+
+// Reachability is vulnerability reachability enrichment for one finding.
+//
+// It is intentionally separate from impact status and confidence. Missing or
+// unavailable reachability evidence does not make a finding clean, and
+// not_called only has stronger semantics when the ecosystem-specific scanner
+// that produced it says so.
+type Reachability struct {
+	State            string
+	Confidence       string
+	Source           string
+	Evidence         string
+	Reason           string
+	LanguageMaturity string
+	MissingEvidence  []string
 }
 
 // Remediation is the safe-upgrade metadata attached to a vulnerability

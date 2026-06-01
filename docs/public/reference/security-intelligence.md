@@ -128,6 +128,12 @@ Capabilities run over targets:
   skipped, stale, unsupported, or incomplete.
 - `priority`: combine severity, exploitability, known exploitation, runtime
   exposure, ownership, and deployment evidence.
+- `reachability`: enrich impact findings with call/runtime reachability when
+  evidence exists. The stable states are `reachable`, `not_called`, `unknown`,
+  `unavailable`, and `missing_evidence`. Reachability is a prioritization
+  signal, not proof that a vulnerable package is safe unless the
+  ecosystem-specific scanner that produced the evidence defines stronger
+  semantics.
 - `remediation`: recommend fixed versions, dependency paths, image rebuild
   targets, or ownership handoffs when the evidence supports them.
 - `export`: emit evidence-backed findings, VEX-style statements, or audit
@@ -246,6 +252,7 @@ Analyzer lane ownership:
 | License scanning | `scanner_worker` | Repository-wide scan that should not block reducer drains. |
 | Misconfiguration scanning | `scanner_worker` | Analyzer-specific CPU and memory limits are required. |
 | Vulnerability matching | `reducer` | Reducers own joins across package, advisory, image, workload, and ownership evidence. |
+| Vulnerability reachability enrichment | `reducer` | Reducers attach reachability state to impact findings while preserving impact truth. Go govulncheck-style call evidence is implemented; parser/SCIP-backed language evidence remains partial until ecosystem-specific joins prove stronger semantics. |
 | Coverage readiness | `reducer` | Readiness is a truth model over collected evidence. |
 | Security priority | `reducer` | Priority needs reducer-owned impact, exploitability, runtime, and ownership context. |
 
@@ -500,6 +507,37 @@ registry metadata.
 
 Follow-up: surface per-collector freshness windows when the collector contract
 carries source-specific staleness thresholds.
+
+## Vulnerability Reachability Maturity
+
+Reachability maturity is ecosystem scoped and does not promote the whole
+vulnerability scanner to a safe/not-safe oracle. Current support:
+
+| Language / ecosystem | Current level | Evidence Eshu can use today | Boundary |
+| --- | --- | --- | --- |
+| Go modules | `implemented` | Go module facts plus govulncheck-compatible module, import, symbol, and `not_called` evidence. | `symbol_reachable` and package-import evidence prioritize a finding; `not_called` is explicit but does not hide or downgrade impact. Missing govulncheck evidence becomes `missing_evidence`. |
+| JavaScript / TypeScript npm | `partial` | Dependency manifests/lockfiles plus parser/SCIP import, call, export, and framework-root evidence already used by dead-code analysis. | Eshu does not yet join vulnerable npm package APIs to call paths strongly enough to call a package safe. Missing evidence remains `unknown` or `unavailable`. |
+| Python PyPI | `partial` | Requirements/pyproject/Pipfile/Poetry evidence plus parser/SCIP import, call, decorator, and framework-root evidence. | Dynamic imports, plugin loading, and package API resolution prevent not-called safety claims. |
+| JVM Maven / Gradle | `partial` | Maven/Gradle dependency evidence plus Java/Kotlin/Scala parser roots, method references, overrides, Spring/JUnit/ServiceLoader evidence. | Resolver/source-set and dynamic dispatch gaps keep vulnerability reachability below implemented scanner semantics. |
+| PHP Composer | `partial` | Composer evidence plus PHP parser roots, interface/trait methods, controllers, literal routes, and hook callbacks. | Autoload, dynamic dispatch, and framework route gaps keep the signal prioritization-only. |
+| Ruby / RubyGems | `partial` | Bundler evidence plus Ruby parser roots, Rails controller/callback evidence, literal method references, and method-missing guards. | Metaprogramming and autoload gaps prevent safe not-called claims. |
+| Rust Cargo | `partial` | Cargo evidence plus Rust parser roots, tests, public API items, trait implementations, benchmarks, and module-resolution evidence. | Macro, cfg, feature, and cross-crate semantic gaps keep the signal prioritization-only. |
+| .NET / NuGet | `partial` | NuGet evidence plus C# parser roots, ASP.NET controller actions, hosted-service callbacks, interface/override evidence, tests, and serialization callbacks. | Reflection, dependency injection, generated code, and project-reference gaps prevent safe not-called claims. |
+| Unsupported ecosystems | `unsupported` | Evidence may exist as dependency or advisory facts only. | Unsupported reachability is reported as unavailable or missing evidence, never as clean. |
+
+No-Regression Evidence: `go test ./internal/reducer ./internal/query ./internal/mcp ./internal/exports ./internal/vulnerabilityparity ./cmd/eshu -run 'Test.*Reachability|TestSupplyChainReachability|TestBuildVulnScanReportPreservesReachabilityEnvelope' -count=1`
+proves the stable reachability states, Go govulncheck `reachable` and
+`not_called` semantics, missing and unavailable evidence states, priority
+contributions that do not alter `impact_status`, API/MCP/CLI/export shaping,
+and parity report preservation.
+
+No-Observability-Change: reachability enrichment is serialized onto existing
+`reducer_supply_chain_impact_finding` facts and read through the existing
+`query.supply_chain_impact_findings` route, MCP tool dispatch, CLI report, and
+SARIF exporter. It adds no graph write, queue, worker, metric instrument, span
+name, log key, runtime setting, or collector. Operators diagnose the path
+through the existing impact finding payload, readiness envelope, reducer
+execution counters, query spans, and Postgres query duration metrics.
 
 Performance Evidence: focused query tests
 `go test ./internal/query -run 'PackageMetadata|SupplyChainImpactReadiness'

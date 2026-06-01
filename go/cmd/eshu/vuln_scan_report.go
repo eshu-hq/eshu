@@ -53,6 +53,7 @@ type vulnScanReportFinding struct {
 	Package         vulnScanReportPackageContext   `json:"package"`
 	Affected        vulnScanReportAffectedContext  `json:"affected"`
 	Priority        *vulnScanReportPriorityContext `json:"priority,omitempty"`
+	Reachability    *vulnScanReportReachability    `json:"reachability,omitempty"`
 	Remediation     map[string]any                 `json:"remediation,omitempty"`
 	MissingEvidence []string                       `json:"missing_evidence,omitempty"`
 	EvidenceHandles []vulnScanEvidenceHandle       `json:"evidence_handles,omitempty"`
@@ -100,6 +101,16 @@ type vulnScanReportPriorityContext struct {
 	Score       int      `json:"score,omitempty"`
 	Reason      string   `json:"reason,omitempty"`
 	ReasonCodes []string `json:"reason_codes,omitempty"`
+}
+
+type vulnScanReportReachability struct {
+	State            string   `json:"state"`
+	Confidence       string   `json:"confidence,omitempty"`
+	Source           string   `json:"source,omitempty"`
+	Evidence         string   `json:"evidence,omitempty"`
+	Reason           string   `json:"reason,omitempty"`
+	LanguageMaturity string   `json:"language_maturity,omitempty"`
+	MissingEvidence  []string `json:"missing_evidence,omitempty"`
 }
 
 type vulnScanEvidenceHandle struct {
@@ -293,6 +304,7 @@ func buildVulnScanReportFindings(findings []map[string]any) []vulnScanReportFind
 				MatchReason:     stringFromMap(finding, "match_reason"),
 			},
 			Priority:        priorityFromFinding(finding),
+			Reachability:    reachabilityFromFinding(finding),
 			MissingEvidence: stringSliceFromAny(finding["missing_evidence"]),
 			EvidenceHandles: evidenceHandlesFromFinding(finding),
 			SourceFreshness: stringFromMap(finding, "source_freshness"),

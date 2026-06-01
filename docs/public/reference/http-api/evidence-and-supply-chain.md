@@ -312,6 +312,28 @@ Priority fields intentionally describe urgency without changing impact truth:
   exact/range-only/missing version evidence, SBOM/image evidence, deployed
   workload evidence, owned repository evidence, and fixed-version availability.
 
+Reachability fields are enrichment and prioritization metadata. They do not
+change `impact_status`, `confidence`, missing-evidence truth, suppression
+state, or readiness:
+
+- `runtime_reachability`: legacy compact signal such as `image_sbom`,
+  `package_manifest`, `symbol_reachable`, or `not_called`.
+- `reachability.state`: one of `reachable`, `not_called`, `unknown`,
+  `unavailable`, or `missing_evidence`.
+- `reachability.confidence`: confidence in the reachability signal, separate
+  from vulnerability impact confidence.
+- `reachability.source`: evidence family such as `govulncheck`, `parser`,
+  `runtime_or_sbom`, or `not_available`.
+- `reachability.language_maturity`: `implemented`, `partial`, `unavailable`,
+  or `unsupported` for the ecosystem's current vulnerability-reachability
+  support.
+- `reachability.missing_evidence[]`: analyzer or runtime evidence that would
+  improve the reachability state.
+
+`not_called` currently has strong semantics for Go only when it comes from
+govulncheck-style evidence. For other ecosystems, missing parser or
+reachability evidence is explicit and never becomes a clean result.
+
 Each row also carries a `provenance` block so callers can see which advisory
 source supplied the selected severity, fixed version, and vulnerable range,
 plus alternate severities reported by other sources for the same advisory:
