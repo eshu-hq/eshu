@@ -19,7 +19,10 @@
 // here for resource, relationship, tag, DNS, image-reference,
 // security-group-rule, and warning evidence reported by AWS service APIs. The
 // security-group-rule kind is a derived posture fact: one normalized
-// ingress/egress rule the reducer projects into network-reachability edges.
+// ingress/egress rule the reducer projects into network-reachability edges. RDS
+// posture fact kind constants and schema-version helpers live here for the
+// metadata-only rds_instance_posture evidence the RDS scanner derives for DB
+// instances and Aurora clusters; reducers own any posture graph projection.
 // CI/CD run fact kind constants and
 // schema-version helpers live here for pipeline definition, run, job, step,
 // artifact, trigger, environment, and warning evidence reported by providers.

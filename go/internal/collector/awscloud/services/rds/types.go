@@ -40,7 +40,10 @@ type DBInstance struct {
 	OptionGroups                     []OptionGroup
 	MonitoringRoleARN                string
 	PerformanceInsightsEnabled       bool
+	PerformanceInsightsRetentionDays int32
 	PerformanceInsightsKMSKeyID      string
+	CACertificateIdentifier          string
+	SecurityParameters               map[string]string
 	Tags                             map[string]string
 }
 
@@ -69,6 +72,11 @@ type DBCluster struct {
 	Members                          []ClusterMember
 	ParameterGroup                   string
 	AssociatedRoleARNs               []string
+	PubliclyAccessible               bool
+	PerformanceInsightsEnabled       bool
+	PerformanceInsightsRetentionDays int32
+	PerformanceInsightsKMSKeyID      string
+	SecurityParameters               map[string]string
 	Tags                             map[string]string
 }
 

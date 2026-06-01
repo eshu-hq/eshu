@@ -8,6 +8,16 @@ for the AWS cloud collector. It converts RDS control-plane metadata into
 database cluster membership, DB subnet groups, VPC security groups, KMS keys,
 monitoring roles, associated IAM roles, parameter groups, and option groups.
 
+For every DB instance and Aurora DB cluster the scanner also emits one
+`rds_instance_posture` fact: derived security and operations posture
+(`publicly_accessible`, encryption + KMS key, IAM database authentication,
+backup retention + multi-AZ + deletion protection, Performance Insights enabled
++ retention + PI-KMS key, parameter/option-group identity, a curated set of
+security-relevant parameters, and the CA certificate identifier). Posture facts
+are derived from the same bounded describe pass; they add no per-resource AWS
+API fan-out and emit no graph edges. Reducer-owned graph projection of posture
+follows in a separate PR.
+
 ## Ownership boundary
 
 This package owns scanner-level RDS fact selection and identity mapping. It
@@ -21,8 +31,10 @@ flowchart LR
   B --> C["Scanner.Scan"]
   C --> D["aws_resource"]
   C --> E["aws_relationship"]
+  C --> G["rds_instance_posture"]
   D --> F["facts.Envelope"]
   E --> F
+  G --> F
 ```
 
 ## Exported surface
@@ -30,12 +42,19 @@ flowchart LR
 See `doc.go` for the godoc contract.
 
 - `Client` - minimal RDS metadata read surface consumed by `Scanner`.
-- `Scanner` - emits DB instance, DB cluster, DB subnet group, and direct
-  relationship facts for one boundary.
+- `Scanner` - emits DB instance, DB cluster, DB subnet group, direct
+  relationship, and `rds_instance_posture` facts for one boundary.
 - `DBInstance`, `DBCluster`, and `DBSubnetGroup` - scanner-owned metadata-only
-  resource representations.
+  resource representations. `DBInstance` and `DBCluster` also carry the
+  posture inputs (Performance Insights retention, CA certificate identifier,
+  and curated security parameters) used to derive the posture fact.
 - `ParameterGroup`, `OptionGroup`, and `ClusterMember` - reported RDS
   relationship details.
+
+The `rds_instance_posture` fact kind, schema version, and payload envelope are
+owned by `internal/facts` and `internal/collector/awscloud`
+(`facts.RDSInstancePostureFactKind`, `awscloud.RDSPostureObservation`,
+`awscloud.NewRDSInstancePostureEnvelope`).
 
 ## Dependencies
 
@@ -58,6 +77,14 @@ spans.
 - RDS facts are metadata only. The scanner must not connect to databases, read
   snapshots, read log contents, read Performance Insights samples, discover
   schemas or tables, or mutate RDS resources.
+- The `rds_instance_posture` fact carries only derived booleans, retention
+  windows, and KMS/parameter/option-group identifiers from the describe APIs.
+  Performance Insights *configuration* (enabled, retention, KMS key) is metadata;
+  Performance Insights *samples* are data-plane and must never be read or
+  persisted. `security_parameters` must be populated only from already-reported
+  configuration, never by reading database contents.
+- Posture facts emit no graph edges. Reducers own KMS, parameter/option-group,
+  and internet-exposure projection from this evidence.
 - Database names, master usernames, passwords, connection secrets, snapshot
   identifiers, log payloads, schemas, tables, and row data are not persisted.
 - DB instance and cluster endpoints are reported control-plane metadata and are
@@ -111,6 +138,23 @@ fix with no graph-write, queue, or hot-path behavior change.
 No-Observability-Change: the fix only changes the partition substring of a
 synthesized ARN value; no instrument, span, metric label, or `aws_scan_status`
 row changes.
+
+### RDS/Aurora posture facts (#1145, PR1 facts-only)
+
+No-Regression Evidence: `go test ./internal/collector/awscloud/services/rds/... ./internal/facts -count=1`
+covers the new `rds_instance_posture` fact for DB instances and Aurora clusters
+(`TestScannerEmitsInstanceAndClusterPostureFacts`,
+`TestScannerEmitsNoPostureRelationships`,
+`TestNewRDSInstancePostureEnvelope*`, `TestRDSPosture*`). Posture is derived
+inside the existing bounded `DescribeDBInstances` / `DescribeDBClusters`
+pages; the slice adds no per-resource AWS API fan-out (no N+1) and emits no
+graph edges. The metadata-only guarantees and per-resource stable identity are
+asserted directly.
+
+No-Observability-Change: posture facts reuse the existing AWS collector
+telemetry contract (`aws.service.scan`, `aws.service.pagination.page`,
+`eshu_dp_aws_api_calls_total`, and `aws_scan_status`); no new instrument, span,
+or metric label is introduced and no new AWS API call is added.
 
 ## Related docs
 

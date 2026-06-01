@@ -63,6 +63,7 @@ current families are:
 | Documentation | `documentation` | `documentation_source`, `documentation_document`, `documentation_section`, `documentation_link`, `documentation_entity_mention`, `documentation_claim_candidate`, `documentation_finding`, `documentation_evidence_packet` |
 | Terraform state | `terraform_state` for collected state, `git` for safe repo-local candidates | `terraform_state_candidate`, `terraform_state_snapshot`, `terraform_state_resource`, `terraform_state_output`, `terraform_state_module`, `terraform_state_provider_binding`, `terraform_state_tag_observation`, `terraform_state_warning` |
 | AWS cloud | `aws` | `aws_resource`, `aws_relationship`, `aws_tag_observation`, `aws_dns_record`, `aws_image_reference`, `aws_security_group_rule`, `aws_warning` |
+| RDS posture | `aws` | `rds_instance_posture` |
 | OCI registry | `oci_registry` | `oci_registry.repository`, `oci_registry.image_tag_observation`, `oci_registry.image_manifest`, `oci_registry.image_index`, `oci_registry.image_descriptor`, `oci_registry.image_referrer`, `oci_registry.warning` |
 | Package registry | `package_registry` | `package_registry.package`, `package_registry.package_version`, `package_registry.package_dependency`, `package_registry.package_artifact`, `package_registry.source_hint`, `package_registry.vulnerability_hint`, `package_registry.registry_event`, `package_registry.repository_hosting`, `package_registry.warning` |
 | CI/CD runs | `ci_cd_run` | `ci.pipeline_definition`, `ci.run`, `ci.job`, `ci.step`, `ci.artifact`, `ci.trigger_edge`, `ci.environment_observation`, `ci.warning` |
@@ -99,6 +100,17 @@ fixed version: vendor backports (for example
 `openssl 3.0.11-1~deb12u2`) often patch the upstream fix without changing
 the upstream version number, and using upstream evidence would produce
 false positives against the vendor-published build.
+
+`rds_instance_posture` carries one metadata-only security and operations
+posture observation per RDS DB instance or Aurora DB cluster, derived from the
+existing RDS describe pass: `publicly_accessible`, encryption and KMS key, IAM
+database authentication, backup retention, multi-AZ, deletion protection,
+Performance Insights configuration (enabled, retention, PI-KMS key),
+parameter/option-group identity, a curated set of security-relevant parameters,
+and the CA certificate identifier. It never carries database contents, master
+usernames, connection secrets, snapshot payloads, log bodies, or Performance
+Insights samples, and it emits no graph edges. Reducers own KMS,
+parameter/option-group, and internet-exposure projection from this evidence.
 
 `security_alert.repository_alert` preserves repository-scoped provider alert
 state, Dependabot alert ID/number, dependency ecosystem/name, manifest path,

@@ -15,60 +15,66 @@ func TestClientListsRDSMetadataOnly(t *testing.T) {
 	api := &fakeRDSAPI{
 		instancePages: []*awsrds.DescribeDBInstancesOutput{{
 			DBInstances: []awsrdstypes.DBInstance{{
-				DBInstanceArn:                    aws.String("arn:aws:rds:us-east-1:123456789012:db:orders-writer"),
-				DBInstanceIdentifier:             aws.String("orders-writer"),
-				DbiResourceId:                    aws.String("db-ORDERSWRITER"),
-				DBInstanceClass:                  aws.String("db.r7g.large"),
-				Engine:                           aws.String("postgres"),
-				EngineVersion:                    aws.String("16.3"),
-				DBInstanceStatus:                 aws.String("available"),
-				Endpoint:                         &awsrdstypes.Endpoint{Address: aws.String("orders.example"), Port: aws.Int32(5432), HostedZoneId: aws.String("Z2")},
-				AvailabilityZone:                 aws.String("us-east-1a"),
-				SecondaryAvailabilityZone:        aws.String("us-east-1b"),
-				MultiAZ:                          aws.Bool(true),
-				PubliclyAccessible:               aws.Bool(false),
-				StorageEncrypted:                 aws.Bool(true),
-				KmsKeyId:                         aws.String("arn:aws:kms:us-east-1:123456789012:key/orders"),
-				IAMDatabaseAuthenticationEnabled: aws.Bool(true),
-				DeletionProtection:               aws.Bool(true),
-				BackupRetentionPeriod:            aws.Int32(7),
-				DBSubnetGroup:                    &awsrdstypes.DBSubnetGroup{DBSubnetGroupName: aws.String("orders-db"), VpcId: aws.String("vpc-123")},
-				VpcSecurityGroups:                []awsrdstypes.VpcSecurityGroupMembership{{VpcSecurityGroupId: aws.String("sg-123")}},
-				DBClusterIdentifier:              aws.String("orders"),
-				DBParameterGroups:                []awsrdstypes.DBParameterGroupStatus{{DBParameterGroupName: aws.String("orders-postgres16"), ParameterApplyStatus: aws.String("in-sync")}},
-				OptionGroupMemberships:           []awsrdstypes.OptionGroupMembership{{OptionGroupName: aws.String("orders-options"), Status: aws.String("in-sync")}},
-				MonitoringRoleArn:                aws.String("arn:aws:iam::123456789012:role/rds-monitoring"),
-				PerformanceInsightsEnabled:       aws.Bool(true),
-				PerformanceInsightsKMSKeyId:      aws.String("arn:aws:kms:us-east-1:123456789012:key/pi"),
-				DBName:                           aws.String("do-not-copy"),
-				MasterUsername:                   aws.String("do-not-copy"),
+				DBInstanceArn:                      aws.String("arn:aws:rds:us-east-1:123456789012:db:orders-writer"),
+				DBInstanceIdentifier:               aws.String("orders-writer"),
+				DbiResourceId:                      aws.String("db-ORDERSWRITER"),
+				DBInstanceClass:                    aws.String("db.r7g.large"),
+				Engine:                             aws.String("postgres"),
+				EngineVersion:                      aws.String("16.3"),
+				DBInstanceStatus:                   aws.String("available"),
+				Endpoint:                           &awsrdstypes.Endpoint{Address: aws.String("orders.example"), Port: aws.Int32(5432), HostedZoneId: aws.String("Z2")},
+				AvailabilityZone:                   aws.String("us-east-1a"),
+				SecondaryAvailabilityZone:          aws.String("us-east-1b"),
+				MultiAZ:                            aws.Bool(true),
+				PubliclyAccessible:                 aws.Bool(false),
+				StorageEncrypted:                   aws.Bool(true),
+				KmsKeyId:                           aws.String("arn:aws:kms:us-east-1:123456789012:key/orders"),
+				IAMDatabaseAuthenticationEnabled:   aws.Bool(true),
+				DeletionProtection:                 aws.Bool(true),
+				BackupRetentionPeriod:              aws.Int32(7),
+				DBSubnetGroup:                      &awsrdstypes.DBSubnetGroup{DBSubnetGroupName: aws.String("orders-db"), VpcId: aws.String("vpc-123")},
+				VpcSecurityGroups:                  []awsrdstypes.VpcSecurityGroupMembership{{VpcSecurityGroupId: aws.String("sg-123")}},
+				DBClusterIdentifier:                aws.String("orders"),
+				DBParameterGroups:                  []awsrdstypes.DBParameterGroupStatus{{DBParameterGroupName: aws.String("orders-postgres16"), ParameterApplyStatus: aws.String("in-sync")}},
+				OptionGroupMemberships:             []awsrdstypes.OptionGroupMembership{{OptionGroupName: aws.String("orders-options"), Status: aws.String("in-sync")}},
+				MonitoringRoleArn:                  aws.String("arn:aws:iam::123456789012:role/rds-monitoring"),
+				PerformanceInsightsEnabled:         aws.Bool(true),
+				PerformanceInsightsRetentionPeriod: aws.Int32(731),
+				PerformanceInsightsKMSKeyId:        aws.String("arn:aws:kms:us-east-1:123456789012:key/pi"),
+				CACertificateIdentifier:            aws.String("rds-ca-rsa2048-g1"),
+				DBName:                             aws.String("do-not-copy"),
+				MasterUsername:                     aws.String("do-not-copy"),
 			}},
 		}},
 		clusterPages: []*awsrds.DescribeDBClustersOutput{{
 			DBClusters: []awsrdstypes.DBCluster{{
-				DBClusterArn:                     aws.String("arn:aws:rds:us-east-1:123456789012:cluster:orders"),
-				DBClusterIdentifier:              aws.String("orders"),
-				DbClusterResourceId:              aws.String("cluster-ORDERS"),
-				Engine:                           aws.String("aurora-postgresql"),
-				EngineVersion:                    aws.String("16.3"),
-				Status:                           aws.String("available"),
-				Endpoint:                         aws.String("orders.cluster.example"),
-				ReaderEndpoint:                   aws.String("orders.cluster-ro.example"),
-				HostedZoneId:                     aws.String("Z2"),
-				Port:                             aws.Int32(5432),
-				MultiAZ:                          aws.Bool(true),
-				StorageEncrypted:                 aws.Bool(true),
-				KmsKeyId:                         aws.String("arn:aws:kms:us-east-1:123456789012:key/orders"),
-				IAMDatabaseAuthenticationEnabled: aws.Bool(true),
-				DeletionProtection:               aws.Bool(true),
-				BackupRetentionPeriod:            aws.Int32(7),
-				DBSubnetGroup:                    aws.String("orders-db"),
-				VpcSecurityGroups:                []awsrdstypes.VpcSecurityGroupMembership{{VpcSecurityGroupId: aws.String("sg-123")}},
-				DBClusterMembers:                 []awsrdstypes.DBClusterMember{{DBInstanceIdentifier: aws.String("orders-writer"), IsClusterWriter: aws.Bool(true)}},
-				DBClusterParameterGroup:          aws.String("orders-cluster-params"),
-				AssociatedRoles:                  []awsrdstypes.DBClusterRole{{RoleArn: aws.String("arn:aws:iam::123456789012:role/rds-s3-import")}},
-				DatabaseName:                     aws.String("do-not-copy"),
-				MasterUsername:                   aws.String("do-not-copy"),
+				DBClusterArn:                       aws.String("arn:aws:rds:us-east-1:123456789012:cluster:orders"),
+				DBClusterIdentifier:                aws.String("orders"),
+				DbClusterResourceId:                aws.String("cluster-ORDERS"),
+				Engine:                             aws.String("aurora-postgresql"),
+				EngineVersion:                      aws.String("16.3"),
+				Status:                             aws.String("available"),
+				Endpoint:                           aws.String("orders.cluster.example"),
+				ReaderEndpoint:                     aws.String("orders.cluster-ro.example"),
+				HostedZoneId:                       aws.String("Z2"),
+				Port:                               aws.Int32(5432),
+				MultiAZ:                            aws.Bool(true),
+				StorageEncrypted:                   aws.Bool(true),
+				KmsKeyId:                           aws.String("arn:aws:kms:us-east-1:123456789012:key/orders"),
+				IAMDatabaseAuthenticationEnabled:   aws.Bool(true),
+				DeletionProtection:                 aws.Bool(true),
+				BackupRetentionPeriod:              aws.Int32(7),
+				DBSubnetGroup:                      aws.String("orders-db"),
+				VpcSecurityGroups:                  []awsrdstypes.VpcSecurityGroupMembership{{VpcSecurityGroupId: aws.String("sg-123")}},
+				DBClusterMembers:                   []awsrdstypes.DBClusterMember{{DBInstanceIdentifier: aws.String("orders-writer"), IsClusterWriter: aws.Bool(true)}},
+				DBClusterParameterGroup:            aws.String("orders-cluster-params"),
+				AssociatedRoles:                    []awsrdstypes.DBClusterRole{{RoleArn: aws.String("arn:aws:iam::123456789012:role/rds-s3-import")}},
+				PubliclyAccessible:                 aws.Bool(false),
+				PerformanceInsightsEnabled:         aws.Bool(true),
+				PerformanceInsightsRetentionPeriod: aws.Int32(7),
+				PerformanceInsightsKMSKeyId:        aws.String("arn:aws:kms:us-east-1:123456789012:key/pi"),
+				DatabaseName:                       aws.String("do-not-copy"),
+				MasterUsername:                     aws.String("do-not-copy"),
 			}},
 		}},
 		subnetGroupPages: []*awsrds.DescribeDBSubnetGroupsOutput{{
@@ -121,6 +127,12 @@ func TestClientListsRDSMetadataOnly(t *testing.T) {
 	if len(instance.ParameterGroups) != 1 || instance.ParameterGroups[0].Name != "orders-postgres16" {
 		t.Fatalf("ParameterGroups = %#v, want orders-postgres16", instance.ParameterGroups)
 	}
+	if instance.PerformanceInsightsRetentionDays != 731 {
+		t.Fatalf("instance PerformanceInsightsRetentionDays = %d, want 731", instance.PerformanceInsightsRetentionDays)
+	}
+	if instance.CACertificateIdentifier != "rds-ca-rsa2048-g1" {
+		t.Fatalf("instance CACertificateIdentifier = %q, want rds-ca-rsa2048-g1", instance.CACertificateIdentifier)
+	}
 	cluster := clusters[0]
 	if cluster.Identifier != "orders" || cluster.ReaderEndpointAddress != "orders.cluster-ro.example" {
 		t.Fatalf("cluster = %#v, want mapped identity and reader endpoint", cluster)
@@ -130,6 +142,12 @@ func TestClientListsRDSMetadataOnly(t *testing.T) {
 	}
 	if cluster.Tags["Tier"] != "data" {
 		t.Fatalf("cluster tags = %#v, want Tier=data", cluster.Tags)
+	}
+	if cluster.PerformanceInsightsRetentionDays != 7 || !cluster.PerformanceInsightsEnabled {
+		t.Fatalf("cluster PI = enabled %v retention %d, want enabled true retention 7", cluster.PerformanceInsightsEnabled, cluster.PerformanceInsightsRetentionDays)
+	}
+	if cluster.PerformanceInsightsKMSKeyID != "arn:aws:kms:us-east-1:123456789012:key/pi" {
+		t.Fatalf("cluster PI KMS = %q, want key/pi", cluster.PerformanceInsightsKMSKeyID)
 	}
 	subnetGroup := subnetGroups[0]
 	if subnetGroup.Name != "orders-db" || subnetGroup.SubnetIDs[0] != "subnet-a" {
