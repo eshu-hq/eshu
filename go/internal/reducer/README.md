@@ -73,6 +73,8 @@ canonical-write or bounded counter-emission requirements.
 | `DomainSBOMAttestationAttachment` | Attach SBOM and attestation documents to image digests only when subject evidence is explicit |
 | `DomainSupplyChainImpact` | Publish vulnerability impact findings only when explicit vulnerability, package, SBOM, image, or repository evidence exists |
 | `DomainSecurityAlertReconciliation` | Compare provider repository security alerts with Eshu-owned dependency and impact evidence, including alert-seeded impact rows only when owned dependency evidence matches |
+| `DomainAWSResourceMaterialization` | Materialize `aws_resource` facts into canonical `CloudResource` nodes; publishes the `cloud_resource_uid` canonical-nodes phase the AWS relationship edge gates on (issue #805) |
+| `DomainKubernetesWorkloadMaterialization` | Materialize `kubernetes_live.pod_template` facts into canonical `KubernetesWorkload` nodes keyed by the collector-emitted `object_id`; publishes the `kubernetes_workload_uid` canonical-nodes phase the #388 live-workload edge gates on |
 
 ## Intent lifecycle
 
@@ -124,6 +126,15 @@ Key phases:
 is the only write path for phase rows. Use `publishIntentGraphPhase`
 (`graph_projection_phase_publish.go`) inside handlers rather than calling the
 publisher directly.
+
+Canonical-node materializers publish `GraphProjectionPhaseCanonicalNodesCommitted`
+on a per-node-type keyspace so an edge slice can gate on the exact node family it
+joins: `GraphProjectionKeyspaceCloudResourceUID` (AWS resource nodes, issue #805)
+and `GraphProjectionKeyspaceKubernetesWorkloadUID` (live `KubernetesWorkload`
+nodes, issue #388). The durable claim/blockage gate in
+`go/internal/storage/postgres` fences each *edge* domain on its node keyspace's
+phase; that gate clause is added when the edge domain ships, so this prerequisite
+slice publishes the `kubernetes_workload_uid` phase but adds no edge-gate clause.
 
 `GraphProjectionPhaseRepairQueue` (`graph_projection_phase_repair.go:36`) and
 `GraphProjectionPhaseRepairer` (`graph_projection_phase_repair_runner.go:58`)
@@ -298,6 +309,37 @@ Key metrics (all prefixed `eshu_dp_`):
   references and identity edges join to deployment-source image evidence. PR1 is
   fact-only: no graph edge is written; the gated canonical edge and the query/MCP
   read surface are follow-up PRs. See issue #388.
+- `kubernetes_workload_nodes_total` — canonical `KubernetesWorkload` graph nodes
+  committed by `DomainKubernetesWorkloadMaterialization`, dimensioned by `domain`.
+  The handler also publishes the `kubernetes_workload_uid` /
+  `canonical_nodes_committed` readiness phase only after the node write succeeds
+  (or is a legitimate no-op for an empty generation), and emits a `kubernetes
+  workload materialization completed` structured log with per-stage durations and
+  the node count. See issue #388 and
+  `docs/internal/design/388-kubernetes-workload-node.md`.
+
+  Benchmark Evidence: `go test ./internal/reducer -run '^$' -bench
+  'BenchmarkExtractKubernetesWorkloadNodeRows|BenchmarkBuildSourceImageDigestJoinIndex'
+  -benchmem -benchtime=200x` on darwin/arm64 (Apple M3 Pro): node-row extraction
+  ran `5.13 ms/op`, `9.34 MB/op`, `150,024 allocs/op` for `5,000` pod-template
+  facts (bounded O(W)); the source-side digest→uid join index built in
+  `0.93 ms/op`, `1.80 MB/op`, `10,065 allocs/op` for `5,000` manifest facts
+  (bounded O(M) build, O(1) resolution, no per-edge round trip and no N+1). The
+  cypher write path is benchmarked separately as
+  `BenchmarkKubernetesWorkloadNodeWriter` in `go/internal/storage/cypher`.
+  No-Regression Evidence: the node-write path reuses the proven CloudResource
+  UNWIND-batched MERGE-on-uid writer and the bounded-join shape from #805 §5.1; it
+  adds no graph round trip per node or per digest. `go test ./internal/reducer
+  -run 'KubernetesWorkload|SourceImageDigestJoinIndex' -count=1` proves the
+  object_id node identity, idempotent dedup, tombstone suppression, empty/no-op
+  handling, the readiness-phase-after-write-success invariant (and that a failed
+  write publishes no phase), and digest→uid resolution including the unresolvable
+  and tombstone-only cases. Observability Evidence: the
+  `eshu_dp_kubernetes_workload_nodes_total` counter, the `kubernetes workload
+  materialization completed` log, and the InstrumentedExecutor's
+  `eshu_dp_neo4j_query_duration_seconds` / `eshu_dp_neo4j_batch_size` on each
+  `phase=kubernetes_workload` statement let an operator see node throughput and
+  graph-write cost at 3 AM.
 - `correlation_rule_matches_total`, `correlation_orphan_detected_total`, and
   `correlation_unmanaged_detected_total` — AWS runtime drift rule execution and
   admitted orphan/unmanaged findings. Unknown and ambiguous findings are exposed

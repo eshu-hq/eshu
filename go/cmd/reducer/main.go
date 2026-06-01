@@ -184,6 +184,7 @@ func buildReducerService(
 	edgeWriterForHandlers.SQLRelationshipGroupBatchSize = sqlRelationshipEdgeGroupBatchSize
 	cloudResourceNodeWriter := sourcecypher.NewCloudResourceNodeWriter(neo4jExec, neo4jBatchSize(getenv))
 	cloudResourceEdgeWriter := sourcecypher.NewCloudResourceEdgeWriter(neo4jExec, neo4jBatchSize(getenv))
+	kubernetesWorkloadNodeWriter := sourcecypher.NewKubernetesWorkloadNodeWriter(neo4jExec, neo4jBatchSize(getenv))
 	observabilityCoverageEdgeWriter := sourcecypher.NewObservabilityCoverageEdgeWriter(neo4jExec, neo4jBatchSize(getenv))
 	relationshipStore := postgres.NewRelationshipStore(database)
 	factStore := postgres.NewFactStore(database)
@@ -319,6 +320,7 @@ func buildReducerService(
 		AWSCloudRuntimeDriftLogger:      logger,
 		CloudResourceNodeWriter:         cloudResourceNodeWriter,
 		CloudResourceEdgeWriter:         cloudResourceEdgeWriter,
+		KubernetesWorkloadNodeWriter:    kubernetesWorkloadNodeWriter,
 		ObservabilityCoverageEdgeWriter: observabilityCoverageEdgeWriter,
 		ContainerImageIdentityWriter: reducer.PostgresContainerImageIdentityWriter{
 			DB: database,

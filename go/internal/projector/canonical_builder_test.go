@@ -1164,9 +1164,13 @@ func TestEntityTypeLabelMapCoversAllSchemaLabels(t *testing.T) {
 	// CloudResource is materialized by the aws_resource_materialization reducer
 	// domain from aws_resource facts (issue #805), not from parsed content-entity
 	// facts, so it has no entity_type mapping in this source-local map.
+	// KubernetesWorkload is materialized by the kubernetes_workload_materialization
+	// reducer domain from kubernetes_live.pod_template facts (issue #388), not from
+	// parsed content-entity facts, so it likewise has no entity_type mapping here.
 	sourceLocalNonEntityLabels := map[string]struct{}{
-		"File":          {},
-		"CloudResource": {},
+		"File":               {},
+		"CloudResource":      {},
+		"KubernetesWorkload": {},
 	}
 	var missing []string
 	for _, label := range schemaLabels {
