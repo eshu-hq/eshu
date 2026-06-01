@@ -60,6 +60,7 @@ func supplyChainConsumptionFromEnvelope(envelope facts.Envelope) supplyChainPack
 		dependencyDepth:  supplyChainInt(envelope.Payload, "dependency_depth"),
 		directDependency: payloadBoolPointer(envelope.Payload, "direct_dependency"),
 		dependencyScope:  supplyChainDependencyScope(envelope.Payload),
+		lockfile:         payloadBool(envelope.Payload, "lockfile"),
 	}
 }
 

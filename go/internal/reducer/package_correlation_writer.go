@@ -290,6 +290,9 @@ func packageConsumptionPayload(
 	if decision.DirectDependency != nil {
 		payload["direct_dependency"] = *decision.DirectDependency
 	}
+	if decision.Lockfile {
+		payload["lockfile"] = true
+	}
 	if strings.TrimSpace(decision.DependencyScope) != "" {
 		payload["dependency_scope"] = strings.TrimSpace(decision.DependencyScope)
 	}

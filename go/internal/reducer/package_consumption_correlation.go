@@ -40,6 +40,7 @@ type PackageConsumptionDecision struct {
 	DependencyPath   []string
 	DependencyDepth  int
 	DirectDependency *bool
+	Lockfile         bool
 	Outcome          PackageConsumptionOutcome
 	Reason           string
 	ProvenanceOnly   bool
@@ -124,6 +125,7 @@ func BuildPackageConsumptionDecisions(envelopes []facts.Envelope) []PackageConsu
 			DependencyPath:   dependency.DependencyPath,
 			DependencyDepth:  dependency.DependencyDepth,
 			DirectDependency: dependency.DirectDependency,
+			Lockfile:         dependency.Lockfile,
 			Outcome:          PackageConsumptionManifestDeclared,
 			Reason:           "git manifest dependency matches package registry identity",
 			ProvenanceOnly:   false,
