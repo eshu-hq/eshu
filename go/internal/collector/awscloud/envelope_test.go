@@ -46,6 +46,17 @@ func TestAWSFactBuildersUseReportedConfidence(t *testing.T) {
 				RecordType:   "A",
 			})
 		},
+		facts.AWSSecurityGroupRuleFactKind: func() (facts.Envelope, error) {
+			ec2Boundary := boundary
+			ec2Boundary.ServiceKind = ServiceEC2
+			return NewSecurityGroupRuleEnvelope(SecurityGroupRuleObservation{
+				Boundary:   ec2Boundary,
+				RuleID:     "sgr-123",
+				GroupID:    "sg-123",
+				IPProtocol: "tcp",
+				CIDRIPv4:   "0.0.0.0/0",
+			})
+		},
 		facts.AWSWarningFactKind: func() (facts.Envelope, error) {
 			return NewWarningEnvelope(WarningObservation{
 				Boundary:    boundary,

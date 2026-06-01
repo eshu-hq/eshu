@@ -16,8 +16,11 @@
 // and schema-version helpers live here for repository, tag, manifest, index,
 // descriptor, referrer, and warning evidence reported by OCI-compatible
 // registries. AWS cloud fact kind constants and schema-version helpers live
-// here for resource, relationship, tag, DNS, image-reference, and warning
-// evidence reported by AWS service APIs. CI/CD run fact kind constants and
+// here for resource, relationship, tag, DNS, image-reference,
+// security-group-rule, and warning evidence reported by AWS service APIs. The
+// security-group-rule kind is a derived posture fact: one normalized
+// ingress/egress rule the reducer projects into network-reachability edges.
+// CI/CD run fact kind constants and
 // schema-version helpers live here for pipeline definition, run, job, step,
 // artifact, trigger, environment, and warning evidence reported by providers.
 // SBOM and attestation fact kind constants and schema-version helpers live here

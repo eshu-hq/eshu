@@ -209,7 +209,39 @@ func securityGroupRuleEnvelopes(boundary awscloud.Boundary, rule SecurityGroupRu
 		}
 		envelopes = append(envelopes, envelope)
 	}
+	posture, err := awscloud.NewSecurityGroupRuleEnvelope(securityGroupRulePostureObservation(boundary, rule))
+	if err != nil {
+		return nil, err
+	}
+	envelopes = append(envelopes, posture)
 	return envelopes, nil
+}
+
+// securityGroupRulePostureObservation maps the scanner-owned rule into the
+// normalized aws_security_group_rule posture observation. It reuses the rule
+// already fetched for the resource and relationship facts, so the posture fact
+// adds no AWS API calls. The referenced-group id is the only field flattened
+// here; the raw referenced-group metadata stays on the aws_resource fact.
+func securityGroupRulePostureObservation(boundary awscloud.Boundary, rule SecurityGroupRule) awscloud.SecurityGroupRuleObservation {
+	referencedSG := ""
+	if rule.ReferencedGroup != nil {
+		referencedSG = strings.TrimSpace(rule.ReferencedGroup.GroupID)
+	}
+	return awscloud.SecurityGroupRuleObservation{
+		Boundary:     boundary,
+		RuleID:       strings.TrimSpace(rule.ID),
+		GroupID:      strings.TrimSpace(rule.GroupID),
+		GroupOwnerID: strings.TrimSpace(rule.GroupOwnerID),
+		IsEgress:     rule.IsEgress,
+		IPProtocol:   strings.TrimSpace(rule.Protocol),
+		FromPort:     rule.FromPort,
+		ToPort:       rule.ToPort,
+		CIDRIPv4:     strings.TrimSpace(rule.CIDRIPv4),
+		CIDRIPv6:     strings.TrimSpace(rule.CIDRIPv6),
+		PrefixListID: strings.TrimSpace(rule.PrefixListID),
+		ReferencedSG: referencedSG,
+		Description:  strings.TrimSpace(rule.Description),
+	}
 }
 
 func securityGroupRuleObservation(boundary awscloud.Boundary, rule SecurityGroupRule) awscloud.ResourceObservation {

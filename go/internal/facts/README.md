@@ -279,7 +279,14 @@ contract:
 - `aws_tag_observation`
 - `aws_dns_record`
 - `aws_image_reference`
+- `aws_security_group_rule`
 - `aws_warning`
+
+`aws_security_group_rule` is a derived posture fact: one normalized EC2
+security-group ingress/egress rule carrying the reachability tuple (group,
+direction, protocol, port range, normalized source) plus metadata-only derived
+booleans. It is distinct from the raw `aws_resource` security-group-rule
+observation; the reducer projects it into network-reachability edges.
 
 Use `AWSFactKinds` when callers need the full accepted set, and
 `AWSSchemaVersion` when building AWS cloud envelopes. These facts are reported

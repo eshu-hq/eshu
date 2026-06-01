@@ -122,6 +122,10 @@ See `doc.go` for the godoc contract.
 - `NewRelationshipEnvelope` - builds an `aws_relationship` fact.
 - `NewImageReferenceEnvelope` - builds an `aws_image_reference` fact.
 - `NewDNSRecordEnvelope` - builds an `aws_dns_record` fact.
+- `NewSecurityGroupRuleEnvelope` - builds an `aws_security_group_rule` derived
+  posture fact from a `SecurityGroupRuleObservation`, normalizing the rule
+  source to one of the `SecurityGroupRuleSource*` kinds and deriving the
+  `is_internet`, `is_all_protocols`, and `is_all_ports` booleans.
 - `NewWarningEnvelope` - builds an `aws_warning` fact.
 
 Envelope builders validate account, region, service kind, scope, generation,

@@ -445,9 +445,12 @@ persist identity, status, and the job-definition reference only.
 ## Evidence And Telemetry
 
 Scanner packages emit reported `aws_resource`, `aws_relationship`,
-`aws_image_reference`, `aws_dns_record`, and `aws_warning` facts. Reducers must
-corroborate them before promoting workload, deployment, ownership, drift, or
-unmanaged-resource truth.
+`aws_image_reference`, `aws_dns_record`, `aws_security_group_rule`, and
+`aws_warning` facts. The `aws_security_group_rule` posture fact is a normalized
+EC2 ingress/egress rule (the reachability tuple plus metadata-only derived
+booleans); it is emitted but not yet projected, pending the reducer
+network-reachability slice. Reducers must corroborate these facts before
+promoting workload, deployment, ownership, drift, or unmanaged-resource truth.
 
 Runtime spans include `aws.collector.claim.process`,
 `aws.credentials.assume_role`, `aws.service.scan`, and

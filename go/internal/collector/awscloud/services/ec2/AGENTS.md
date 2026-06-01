@@ -17,7 +17,11 @@
 - Preserve VPC, subnet, security-group, security-group-rule, and ENI identity
   as AWS reports it.
 - Emit topology edges as `aws_relationship` facts only.
-- Do not infer public exposure from CIDR blocks or ports in the scanner.
+- The `aws_security_group_rule` posture fact normalizes one rule into a single
+  `(source_kind, source_value)` pair plus metadata-only derived booleans. Its
+  `is_internet` flag is an exact open-CIDR match only; do not turn it into a
+  reachability or exposure claim, and do not emit graph edges or `:CidrBlock`
+  nodes from this scanner (that is the reducer PR2 slice for issue #1135).
 - Keep ENI IDs, security group IDs, subnet IDs, VPC IDs, descriptions, tags,
   and attached resource ARNs out of metric labels.
 
