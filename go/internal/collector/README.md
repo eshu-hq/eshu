@@ -210,6 +210,11 @@ it.
 - `cicdrun` subpackage — fixture-backed CI/CD provider normalization and
   reported-confidence run, job, step, artifact, trigger, environment, and
   warning fact-envelope construction for the `ci_cd_run` collector family
+- `grafana` subpackage — claim-driven live Grafana API metadata collection for
+  the `grafana` collector family. It emits reported-confidence observed
+  observability source facts for folders, dashboards, datasources, alert rules,
+  and coverage warnings without retaining dashboard JSON, query models,
+  datasource URLs, contacts, notification routes, credentials, or private URLs.
 - `scannerworker` subpackage — scanner-worker claim processing, analyzer port,
   bounded target scope, resource limits, source-fact output validation, and
   retry/dead-letter payloads. Concrete heavy analyzers plug in behind this

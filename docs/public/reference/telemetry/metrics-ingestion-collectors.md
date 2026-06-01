@@ -154,6 +154,22 @@ response bodies stay out of metric labels. Use `/admin/status`, workflow
 failures, and traces to connect a bounded failure class to a specific private
 target in the operator environment.
 
+## Grafana Collector
+
+| Metric | Key labels | Use |
+| --- | --- | --- |
+| `eshu_dp_grafana_provider_requests_total` | `provider`, `status_class` | Live Grafana metadata request attempts, including retryable and terminal failures. |
+| `eshu_dp_grafana_facts_emitted_total` | `provider`, `fact_kind` | Observability source facts emitted per claimed target. |
+| `eshu_dp_grafana_rate_limited_total` | `provider` | Grafana rate-limit pressure surfaced as partial observed coverage. |
+| `eshu_dp_grafana_retries_total` | `provider` | Bounded provider retry attempts before the source returns or fails. |
+| `eshu_dp_grafana_redactions_total` | `provider`, `reason` | Dashboard URL, datasource URL, query model, contact, and notification metadata dropped or fingerprinted before fact emission. |
+| `eshu_dp_grafana_fetch_duration_seconds` | `provider`, `status_class` | Bounded Grafana fetch duration for one claimed target. |
+
+Grafana fetch spans are `grafana.observe` and `grafana.fetch`. Instance IDs,
+folder names, dashboard titles, datasource names, URLs, alert query models,
+contact points, notification destinations, token environment names, token
+values, and provider response bodies stay out of metric labels.
+
 ## Scanner-Worker Boundary
 
 Scanner-worker metrics are emitted by the hosted scanner-worker runtime for

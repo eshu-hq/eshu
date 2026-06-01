@@ -254,6 +254,18 @@ URLs, Loki or Tempo route URLs, tenant header values, tenant IDs, datasource
 URLs, secret datasource fields, contact addresses, log lines, spans, traces,
 raw trace IDs, request attributes, or high-cardinality trace tag values.
 
+Live Grafana observed metadata is emitted by the Grafana collector package as
+`observability.source_instance`, `observability.observed_dashboard`,
+`observability.observed_rule`, and `observability.coverage_warning` facts. These
+facts preserve provider UIDs, resource classes, folder UIDs, datasource type,
+rule group identity, match-state hints, freshness state, redaction state,
+manual-provider drift candidates, and bounded coverage warnings. They do not
+store dashboard JSON, panel definitions, raw dashboard or datasource URLs, alert
+query models, PromQL expressions, contact points, notification destinations,
+credentials, screenshots, private URLs, or token values. Live Grafana facts are
+reported provider evidence for no-IaC fallback, drift, and freshness validation;
+they do not replace current declared source-controlled evidence.
+
 ## Promotion Rules
 
 Facts are source evidence, not automatic graph truth.

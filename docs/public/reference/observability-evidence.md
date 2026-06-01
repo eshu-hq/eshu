@@ -44,6 +44,14 @@ resource class, freshness, and outcome. They never store raw status messages,
 dashboard bodies, query bodies, labels, managed fields, Secret data, raw
 Kubernetes UIDs, or raw cluster URLs.
 
+Live Grafana metadata collection now exists as a source package for the first
+observed-provider slice. It reads folder/dashboard search, datasources, and
+alert-rule provisioning metadata from configured Grafana API targets and emits
+`observability.source_instance`, `observability.observed_dashboard`,
+`observability.observed_rule`, and `observability.coverage_warning` facts. The
+slice remains runtime-wiring pending: command, Helm, end-to-end status, and
+deployment proof are tracked separately.
+
 Declared Prometheus/Mimir facts are intent evidence. Live Prometheus and Mimir
 API collection is still required when a team does not use source-controlled
 configuration, when Eshu must prove drift between declared and effective
@@ -214,6 +222,19 @@ No-Observability-Change: declared and applied observability source facts use the
 existing Git collector snapshot, parse, and fact-commit telemetry. Operators
 diagnose these slices through existing file parse counts, generation fact
 counts, fact commit counts, and collector observe duration.
+
+No-Regression Evidence: live Grafana observed metadata collection adds a
+metadata-only source package and bounded telemetry. It does not add graph
+writes, reducer phases, query handlers, Helm wiring, or a long-running runtime
+command.
+
+Observability Evidence: live Grafana observed metadata collection records
+`grafana.observe`, `grafana.fetch`,
+`eshu_dp_grafana_provider_requests_total`,
+`eshu_dp_grafana_fetch_duration_seconds`,
+`eshu_dp_grafana_facts_emitted_total`,
+`eshu_dp_grafana_rate_limited_total`, `eshu_dp_grafana_retries_total`, and
+`eshu_dp_grafana_redactions_total` with bounded labels only.
 
 ## Related Work
 

@@ -94,6 +94,11 @@ type Instruments struct {
 	JiraProviderRequests                      metric.Int64Counter
 	JiraFactsEmitted                          metric.Int64Counter
 	JiraRateLimited                           metric.Int64Counter
+	GrafanaProviderRequests                   metric.Int64Counter
+	GrafanaFactsEmitted                       metric.Int64Counter
+	GrafanaRateLimited                        metric.Int64Counter
+	GrafanaRetries                            metric.Int64Counter
+	GrafanaRedactions                         metric.Int64Counter
 	ScannerWorkerClaims                       metric.Int64Counter
 	ScannerWorkerRetries                      metric.Int64Counter
 	ScannerWorkerDeadLetters                  metric.Int64Counter
@@ -357,6 +362,7 @@ type Instruments struct {
 	PagerDutyFetchDuration                 metric.Float64Histogram
 	PagerDutyGenerationLag                 metric.Float64Histogram
 	JiraFetchDuration                      metric.Float64Histogram
+	GrafanaFetchDuration                   metric.Float64Histogram
 	ScannerWorkerQueueWaitDuration         metric.Float64Histogram
 	ScannerWorkerScanDuration              metric.Float64Histogram
 	ScannerWorkerTargetCount               metric.Int64Histogram
@@ -860,6 +866,46 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register JiraRateLimited counter: %w", err)
+	}
+
+	inst.GrafanaProviderRequests, err = meter.Int64Counter(
+		"eshu_dp_grafana_provider_requests_total",
+		metric.WithDescription("Total Grafana provider requests by provider and status class"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register GrafanaProviderRequests counter: %w", err)
+	}
+
+	inst.GrafanaFactsEmitted, err = meter.Int64Counter(
+		"eshu_dp_grafana_facts_emitted_total",
+		metric.WithDescription("Total live Grafana observability source facts emitted by provider and fact kind"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register GrafanaFactsEmitted counter: %w", err)
+	}
+
+	inst.GrafanaRateLimited, err = meter.Int64Counter(
+		"eshu_dp_grafana_rate_limited_total",
+		metric.WithDescription("Total Grafana provider requests that ended rate limited by provider"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register GrafanaRateLimited counter: %w", err)
+	}
+
+	inst.GrafanaRetries, err = meter.Int64Counter(
+		"eshu_dp_grafana_retries_total",
+		metric.WithDescription("Total Grafana provider retry attempts by provider"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register GrafanaRetries counter: %w", err)
+	}
+
+	inst.GrafanaRedactions, err = meter.Int64Counter(
+		"eshu_dp_grafana_redactions_total",
+		metric.WithDescription("Total live Grafana metadata redactions by provider and bounded reason"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register GrafanaRedactions counter: %w", err)
 	}
 
 	inst.ScannerWorkerClaims, err = meter.Int64Counter(
@@ -1423,6 +1469,17 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register JiraFetchDuration histogram: %w", err)
+	}
+
+	grafanaBuckets := []float64{0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60}
+	inst.GrafanaFetchDuration, err = meter.Float64Histogram(
+		"eshu_dp_grafana_fetch_duration_seconds",
+		metric.WithDescription("Grafana observed metadata fetch duration by provider and status class"),
+		metric.WithUnit("s"),
+		metric.WithExplicitBucketBoundaries(grafanaBuckets...),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register GrafanaFetchDuration histogram: %w", err)
 	}
 
 	scannerWorkerWaitBuckets := []float64{0.001, 0.01, 0.1, 1, 5, 10, 30, 60, 300, 900, 1800, 3600, 21600}
