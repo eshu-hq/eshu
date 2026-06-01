@@ -174,6 +174,165 @@ func TestBuildSupplyChainImpactFindingsUsesVendorAPKOSPackageEvidence(t *testing
 	}
 }
 
+func TestBuildSupplyChainImpactFindingsUsesCollectorShapedOSVDebianAndAPKRanges(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name             string
+		cveID            string
+		advisoryID       string
+		packageID        string
+		purl             string
+		packageManager   string
+		distro           string
+		distroVersion    string
+		arch             string
+		installedVersion string
+		fixedVersion     string
+		wantStatus       SupplyChainImpactStatus
+		wantReason       string
+		wantSource       string
+	}{
+		{
+			name:             "debian vulnerable below fixed branch",
+			cveID:            "CVE-2026-119303",
+			advisoryID:       "DSA-2026-119303",
+			packageID:        "os://debian/openssl",
+			purl:             "pkg:deb/debian/openssl@3.0.11-1~deb12u2",
+			packageManager:   "dpkg",
+			distro:           "debian",
+			distroVersion:    "12",
+			arch:             "amd64",
+			installedVersion: "3.0.11-1~deb12u2",
+			fixedVersion:     "3.0.11-1~deb12u3",
+			wantStatus:       SupplyChainImpactAffectedExact,
+			wantReason:       "dpkg_affected_range",
+			wantSource:       "debian",
+		},
+		{
+			name:             "debian safe at fixed branch",
+			cveID:            "CVE-2026-119304",
+			advisoryID:       "DSA-2026-119304",
+			packageID:        "os://debian/openssl",
+			purl:             "pkg:deb/debian/openssl@3.0.11-1~deb12u3",
+			packageManager:   "dpkg",
+			distro:           "debian",
+			distroVersion:    "12",
+			arch:             "amd64",
+			installedVersion: "3.0.11-1~deb12u3",
+			fixedVersion:     "3.0.11-1~deb12u3",
+			wantStatus:       SupplyChainImpactNotAffectedKnownFixed,
+			wantReason:       "dpkg_known_fixed",
+			wantSource:       "debian",
+		},
+		{
+			name:             "apk vulnerable below fixed branch",
+			cveID:            "CVE-2026-119305",
+			advisoryID:       "ALPINE-2026-119305",
+			packageID:        "os://alpine/openssl",
+			purl:             "pkg:apk/alpine/openssl@3.1.4-r5",
+			packageManager:   "apk",
+			distro:           "alpine",
+			distroVersion:    "3.19.1",
+			arch:             "x86_64",
+			installedVersion: "3.1.4-r5",
+			fixedVersion:     "3.1.4-r6",
+			wantStatus:       SupplyChainImpactAffectedExact,
+			wantReason:       "apk_affected_range",
+			wantSource:       "alpine",
+		},
+		{
+			name:             "apk safe above fixed branch",
+			cveID:            "CVE-2026-119306",
+			advisoryID:       "ALPINE-2026-119306",
+			packageID:        "os://alpine/openssl",
+			purl:             "pkg:apk/alpine/openssl@3.1.4-r7",
+			packageManager:   "apk",
+			distro:           "alpine",
+			distroVersion:    "3.19.1",
+			arch:             "x86_64",
+			installedVersion: "3.1.4-r7",
+			fixedVersion:     "3.1.4-r6",
+			wantStatus:       SupplyChainImpactNotAffectedKnownFixed,
+			wantReason:       "apk_known_fixed",
+			wantSource:       "alpine",
+		},
+	}
+
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			findings := BuildSupplyChainImpactFindings([]facts.Envelope{
+				vulnerabilityCVEFactWithProvenance(
+					"osv-"+tc.cveID,
+					tc.cveID,
+					"osv",
+					tc.advisoryID,
+					7.5,
+					"CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:N/A:N",
+					"HIGH",
+					"2026-06-01T12:00:00Z",
+				),
+				vulnerabilityAffectedPackageOSVRangeFact(
+					"affected-"+tc.cveID,
+					tc.cveID,
+					tc.advisoryID,
+					tc.packageID,
+					tc.purl,
+					"openssl",
+					tc.fixedVersion,
+				),
+				osPackageFact("os-package-"+tc.cveID, "image://registry.example/osv-remediation@sha256:"+tc.cveID, map[string]any{
+					"distro":                 tc.distro,
+					"distro_version":         tc.distroVersion,
+					"package_manager":        tc.packageManager,
+					"name":                   "openssl",
+					"arch":                   tc.arch,
+					"repository_class":       "vendor",
+					"vendor_advisory_source": tc.wantSource,
+					"installed_version_raw":  tc.installedVersion,
+					"purl":                   tc.purl,
+				}),
+			})
+
+			if len(findings) != 1 {
+				t.Fatalf("findings = %d, want one collector-shaped OSV OS package finding: %#v", len(findings), findings)
+			}
+			got := findings[0]
+			assertSupplyChainImpactStatus(t, got, tc.wantStatus)
+			if got.Ecosystem != "os" {
+				t.Fatalf("Ecosystem = %q, want collector-shaped os", got.Ecosystem)
+			}
+			if got.MatchReason != tc.wantReason {
+				t.Fatalf("MatchReason = %q, want %q", got.MatchReason, tc.wantReason)
+			}
+			if got.ObservedVersion != tc.installedVersion {
+				t.Fatalf("ObservedVersion = %q, want %q", got.ObservedVersion, tc.installedVersion)
+			}
+			if got.FixedVersionSource != tc.wantSource {
+				t.Fatalf("FixedVersionSource = %q, want %q", got.FixedVersionSource, tc.wantSource)
+			}
+			if got.Remediation.FixedVersionSource != tc.wantSource {
+				t.Fatalf("Remediation.FixedVersionSource = %q, want %q", got.Remediation.FixedVersionSource, tc.wantSource)
+			}
+			if got.Status == SupplyChainImpactAffectedExact &&
+				got.Remediation.Reason != SupplyChainRemediationReasonDirectUpgradeAllowed {
+				t.Fatalf("Remediation.Reason = %q, want direct upgrade for vulnerable OS package", got.Remediation.Reason)
+			}
+			if got.Status == SupplyChainImpactNotAffectedKnownFixed &&
+				got.Remediation.Reason == SupplyChainRemediationReasonDirectUpgradeAllowed {
+				t.Fatalf("Remediation.Reason = %q, safe package must not recommend an affected upgrade", got.Remediation.Reason)
+			}
+			if got.Status == SupplyChainImpactNotAffectedKnownFixed &&
+				got.Remediation.Reason != SupplyChainRemediationReasonAlreadyFixed {
+				t.Fatalf("Remediation.Reason = %q, want already_fixed for safe package", got.Remediation.Reason)
+			}
+		})
+	}
+}
+
 func TestBuildSupplyChainImpactFindingsRejectsLanguageAdvisoryForDPKGOSPackage(t *testing.T) {
 	t.Parallel()
 
@@ -274,5 +433,39 @@ func osPackageFact(factID string, scopeID string, payload map[string]any) facts.
 		FactKind: facts.VulnerabilityOSPackageFactKind,
 		ScopeID:  scopeID,
 		Payload:  payload,
+	}
+}
+
+func vulnerabilityAffectedPackageOSVRangeFact(
+	factID string,
+	cveID string,
+	advisoryID string,
+	packageID string,
+	purl string,
+	name string,
+	fixedVersion string,
+) facts.Envelope {
+	return facts.Envelope{
+		FactID:   factID,
+		FactKind: facts.VulnerabilityAffectedPackageFactKind,
+		Payload: map[string]any{
+			"cve_id":         cveID,
+			"advisory_id":    advisoryID,
+			"source":         "osv",
+			"package_id":     packageID,
+			"ecosystem":      "os",
+			"package_name":   name,
+			"purl":           purl,
+			"fixed_versions": []any{fixedVersion},
+			"affected_ranges": []any{
+				map[string]any{
+					"type": "ECOSYSTEM",
+					"events": []any{
+						map[string]any{"introduced": "0"},
+						map[string]any{"fixed": fixedVersion},
+					},
+				},
+			},
+		},
 	}
 }

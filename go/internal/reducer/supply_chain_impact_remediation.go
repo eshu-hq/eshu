@@ -1,7 +1,6 @@
 package reducer
 
 import (
-	"sort"
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/packageidentity"
@@ -89,6 +88,7 @@ const (
 	SupplyChainRemediationReasonDirectUpgradeAllowed      = "direct_upgrade_allowed"
 	SupplyChainRemediationReasonDirectRangeBlocked        = "direct_range_blocked"
 	SupplyChainRemediationReasonTransitiveParentUpgrade   = "transitive_parent_upgrade_required"
+	SupplyChainRemediationReasonAlreadyFixed              = "already_fixed"
 	SupplyChainRemediationReasonNoPatchedVersion          = "no_patched_version"
 	SupplyChainRemediationReasonMultiplePatchedBranches   = "multiple_patched_branches"
 	SupplyChainRemediationReasonPackageManagerUnsupported = "package_manager_unsupported"
@@ -120,6 +120,9 @@ const (
 	SupplyChainRemediationMissingManifestRangeMalformed    = "manifest_range_malformed"
 	SupplyChainRemediationMissingInstalledVersionMalformed = "installed_version_malformed"
 	SupplyChainRemediationMissingEcosystemUnsupported      = "ecosystem_remediation_unsupported"
+	SupplyChainRemediationMissingAdvisoryProvenance        = "advisory_provenance_missing"
+	SupplyChainRemediationMissingFixedBranchAmbiguous      = "fixed_version_branch_ambiguous"
+	SupplyChainRemediationMissingVersionOrdering           = "version_ordering_unsupported"
 )
 
 // BuildSupplyChainImpactRemediation computes the advisory-only safe-upgrade
@@ -147,11 +150,24 @@ func BuildSupplyChainImpactRemediation(finding SupplyChainImpactFinding) SupplyC
 		Confidence:             SupplyChainRemediationConfidenceUnknown,
 	}
 
-	ops, supported := remediationEcosystemOperations(ecosystem)
+	ops, supported := remediationOperationsForFinding(finding)
 	if !supported {
 		remediation.Reason = SupplyChainRemediationReasonPackageManagerUnsupported
 		remediation.MissingEvidence = append(remediation.MissingEvidence, SupplyChainRemediationMissingEcosystemUnsupported)
 		return finalizeRemediation(remediation)
+	}
+	if ops.osPackage {
+		if remediation.CurrentVersion == "" {
+			remediation.Reason = SupplyChainRemediationReasonInstalledVersionMissing
+			remediation.MissingEvidence = append(remediation.MissingEvidence, SupplyChainRemediationMissingObservedVersion)
+			return finalizeRemediation(remediation)
+		}
+		if missing := osRemediationMissingEvidence(finding); len(missing) > 0 {
+			remediation.Reason = SupplyChainRemediationReasonPackageManagerUnsupported
+			remediation.FirstPatchedVersion = ""
+			remediation.MissingEvidence = append(remediation.MissingEvidence, missing...)
+			return finalizeRemediation(remediation)
+		}
 	}
 
 	// A malformed observed version is a first-class remediation outcome.
@@ -190,6 +206,18 @@ func BuildSupplyChainImpactRemediation(finding SupplyChainImpactFinding) SupplyC
 	if patched == "" {
 		remediation.Reason = SupplyChainRemediationReasonNoPatchedVersion
 		remediation.MissingEvidence = append(remediation.MissingEvidence, SupplyChainRemediationMissingFixedVersion)
+		return finalizeRemediation(remediation)
+	}
+	if finding.Status == SupplyChainImpactNotAffectedKnownFixed {
+		remediation.Reason = SupplyChainRemediationReasonAlreadyFixed
+		remediation.Confidence = SupplyChainRemediationConfidenceExact
+		return finalizeRemediation(remediation)
+	}
+	if ops.osPackage && branchCount > 1 {
+		remediation.Reason = SupplyChainRemediationReasonPackageManagerUnsupported
+		remediation.Confidence = SupplyChainRemediationConfidenceUnknown
+		remediation.FirstPatchedVersion = ""
+		remediation.MissingEvidence = append(remediation.MissingEvidence, SupplyChainRemediationMissingFixedBranchAmbiguous)
 		return finalizeRemediation(remediation)
 	}
 
@@ -266,6 +294,7 @@ type remediationVersionOperations struct {
 	major             func(string) (int, bool)
 	manifestAllowsFix func(string, string) (string, string)
 	manifestRequired  bool
+	osPackage         bool
 }
 
 func remediationEcosystemOperations(ecosystem string) (remediationVersionOperations, bool) {
@@ -324,10 +353,59 @@ func remediationEcosystemOperations(ecosystem string) (remediationVersionOperati
 				valid:            validRPMEVR,
 				compare:          compareRPMEVR,
 				manifestRequired: false,
+				osPackage:        true,
+			}, true
+		case "debian", "ubuntu", "deb", "dpkg":
+			return remediationVersionOperations{
+				valid:            validDPKGVersion,
+				compare:          compareDPKGVersion,
+				manifestRequired: false,
+				osPackage:        true,
+			}, true
+		case "alpine", "apk":
+			return remediationVersionOperations{
+				valid:            validAPKVersion,
+				compare:          compareAPKVersion,
+				manifestRequired: false,
+				osPackage:        true,
 			}, true
 		default:
 			return remediationVersionOperations{}, false
 		}
+	}
+}
+
+func remediationOperationsForFinding(finding SupplyChainImpactFinding) (remediationVersionOperations, bool) {
+	if ops, supported := remediationEcosystemOperations(finding.Ecosystem); supported {
+		return ops, true
+	}
+	if strings.ToLower(strings.TrimSpace(finding.Ecosystem)) != string(packageidentity.EcosystemOS) {
+		return remediationVersionOperations{}, false
+	}
+	switch osRemediationFamilyForFinding(finding) {
+	case "rpm":
+		return remediationVersionOperations{
+			valid:            validRPMEVR,
+			compare:          compareRPMEVR,
+			manifestRequired: false,
+			osPackage:        true,
+		}, true
+	case "dpkg":
+		return remediationVersionOperations{
+			valid:            validDPKGVersion,
+			compare:          compareDPKGVersion,
+			manifestRequired: false,
+			osPackage:        true,
+		}, true
+	case "apk":
+		return remediationVersionOperations{
+			valid:            validAPKVersion,
+			compare:          compareAPKVersion,
+			manifestRequired: false,
+			osPackage:        true,
+		}, true
+	default:
+		return remediationVersionOperations{}, false
 	}
 }
 
@@ -386,106 +464,4 @@ func fixedVersionSourceForPatch(
 		}
 	}
 	return strings.TrimSpace(primarySource)
-}
-
-// selectFirstPatchedVersion picks the lowest source-reported fixed version
-// Eshu can defend for one ecosystem. When fixed-version branches span
-// multiple majors and an installed version is known, the selector keeps
-// branches inside the observed major so the caller is not forced into a major
-// bump unless the only fix lives across a major boundary. The returned
-// branchCount is the number of unique parseable fixed versions Eshu observed
-// across all sources, which lets the remediation layer detect "multiple
-// patched branches" without redoing the parse.
-func selectFirstPatchedVersion(
-	observed string,
-	primaryFixed string,
-	branches []FixedVersionBranch,
-	ops remediationVersionOperations,
-) (string, int, bool) {
-	uniqueVersions := uniqueParseableVersions(branches, primaryFixed, ops.valid)
-	branchCount := len(uniqueVersions)
-	if branchCount == 0 {
-		return "", 0, false
-	}
-	if ops.major != nil {
-		observedMajor, observedValid := ops.major(observed)
-		if observedValid {
-			sameMajor := versionsInMajor(uniqueVersions, observedMajor, ops.major)
-			if len(sameMajor) > 0 {
-				return lowestVersion(sameMajor, ops.compare), branchCount, true
-			}
-		}
-	}
-	return lowestVersion(uniqueVersions, ops.compare), branchCount, true
-}
-
-func uniqueParseableVersions(
-	branches []FixedVersionBranch,
-	primary string,
-	valid func(string) bool,
-) []string {
-	seen := make(map[string]struct{})
-	out := make([]string, 0, len(branches)+1)
-	add := func(raw string) {
-		raw = strings.TrimSpace(raw)
-		if raw == "" || !valid(raw) {
-			return
-		}
-		if _, dup := seen[raw]; dup {
-			return
-		}
-		seen[raw] = struct{}{}
-		out = append(out, raw)
-	}
-	add(primary)
-	for _, branch := range branches {
-		add(branch.Version)
-	}
-	return out
-}
-
-func semverMajor(raw string) (int, bool) {
-	normalized, ok := normalizeOSVSemver(raw)
-	if !ok {
-		return 0, false
-	}
-	trimmed := strings.TrimPrefix(normalized, "v")
-	major, _, _, ok := parseSemverParts(trimmed)
-	if !ok {
-		return 0, false
-	}
-	return major, true
-}
-
-func versionsInMajor(
-	versions []string,
-	major int,
-	majorFunc func(string) (int, bool),
-) []string {
-	out := make([]string, 0, len(versions))
-	for _, version := range versions {
-		m, ok := majorFunc(version)
-		if !ok {
-			continue
-		}
-		if m == major {
-			out = append(out, version)
-		}
-	}
-	return out
-}
-
-func lowestVersion(versions []string, compare versionCompareFunc) string {
-	if len(versions) == 0 {
-		return ""
-	}
-	sorted := append([]string(nil), versions...)
-	sort.SliceStable(sorted, func(i, j int) bool {
-		cmp, ok := compare(sorted[i], sorted[j])
-		if !ok {
-			return sorted[i] < sorted[j]
-		}
-		return cmp < 0
-	})
-	return sorted[0]
 }

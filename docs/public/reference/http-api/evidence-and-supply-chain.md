@@ -394,10 +394,12 @@ that explains the advisory-only safe-upgrade path Eshu can compute for that
 finding. The reducer computes remediation only for ecosystems whose version
 ordering and manifest-range semantics are represented in reducer matchers:
 npm, Go modules, PyPI, Maven/Gradle, NuGet, Cargo, Composer, RubyGems, and
-vendor-gated RPM OS packages. OS package managers without proven distro
-version ordering, malformed ranges, and missing branch evidence remain
-explicit unsupported or missing-evidence outcomes rather than guessed upgrade
-paths. Eshu never auto-opens pull requests from this block.
+vendor-gated RPM, Debian/dpkg, and Alpine/APK OS packages. Debian and Alpine
+recommendations require vendor advisory provenance, a parseable installed OS
+package version, and one source-attributed fixed branch. OS package managers or
+fixed-version branches without enough provenance remain explicit unsupported or
+missing-evidence outcomes rather than guessed upgrade paths. Eshu never
+auto-opens pull requests from this block.
 
 - `ecosystem`: ecosystem the recommendation was computed for.
 - `current_version`: installed version that matched the impact finding.
@@ -411,8 +413,12 @@ paths. Eshu never auto-opens pull requests from this block.
 - `direct`: `true` for direct dependencies, `false` for transitive, mirroring the lockfile-derived `direct_dependency` flag on the finding.
 - `parent_package`: parent package the caller would need to upgrade for a transitive finding; blank for direct dependencies or chains without an identifiable parent.
 - `confidence`: `exact`, `partial`, or `unknown`; exact means every required input was present and unambiguous, partial means the recommendation is actionable but at least one input is ambiguous, and unknown means Eshu cannot recommend a safe upgrade yet.
-- `reason`: stable closed enum (`direct_upgrade_allowed`, `direct_range_blocked`, `transitive_parent_upgrade_required`, `no_patched_version`, `multiple_patched_branches`, `package_manager_unsupported`, `manifest_range_missing`, `manifest_range_malformed`, `installed_version_missing`, `installed_version_malformed`).
-- `missing_evidence[]`: structured reasons the recommendation could not be computed exactly so callers can surface remediable gaps.
+- `reason`: stable closed enum (`direct_upgrade_allowed`, `direct_range_blocked`, `transitive_parent_upgrade_required`, `already_fixed`, `no_patched_version`, `multiple_patched_branches`, `package_manager_unsupported`, `manifest_range_missing`, `manifest_range_malformed`, `installed_version_missing`, `installed_version_malformed`).
+- `missing_evidence[]`: structured reasons the recommendation could not be
+  computed exactly so callers can surface remediable gaps. OS package
+  remediation can report `advisory_provenance_missing`,
+  `fixed_version_branch_ambiguous`, or `version_ordering_unsupported` when
+  Debian/APK/RPM provenance is not strong enough.
 
 Older finding facts written before remediation computation landed expose a
 missing `remediation` block; callers must treat that as "no remediation

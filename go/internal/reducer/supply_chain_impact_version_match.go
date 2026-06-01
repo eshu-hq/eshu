@@ -78,7 +78,10 @@ func evaluateSupplyChainVersionMatch(
 	if normalized == "" {
 		normalized = strings.ToLower(strings.TrimSpace(ecosystem))
 	} else if normalized == string(packageidentity.EcosystemOS) {
-		normalized = strings.ToLower(strings.TrimSpace(ecosystem))
+		normalized = osPackageVersionFamily(pkgs)
+		if normalized == "" {
+			normalized = strings.ToLower(strings.TrimSpace(ecosystem))
+		}
 	}
 	switch normalized {
 	case string(packageidentity.EcosystemNPM):
@@ -104,20 +107,26 @@ func evaluateSupplyChainVersionMatch(
 	case "redhat", "fedora", "centos", "rocky", "alma", "amazonlinux", "rpm":
 		return evaluateRPMVersionMatch(observed, fixedVersion, pkgs)
 	case "debian", "ubuntu", "deb", "dpkg":
-		return evaluateExactOSPackageVersionMatch(
+		return evaluateOSPackageVersionMatch(
 			observed,
 			fixedVersion,
 			pkgs,
 			supplyChainVersionReasonDPKGExactAffected,
 			supplyChainVersionReasonDPKGExactKnownFixed,
+			supplyChainVersionReasonDPKGAffectedRange,
+			supplyChainVersionReasonDPKGKnownFixed,
+			compareDPKGVersion,
 		)
 	case "alpine", "apk":
-		return evaluateExactOSPackageVersionMatch(
+		return evaluateOSPackageVersionMatch(
 			observed,
 			fixedVersion,
 			pkgs,
 			supplyChainVersionReasonAPKExactAffected,
 			supplyChainVersionReasonAPKExactKnownFixed,
+			supplyChainVersionReasonAPKAffectedRange,
+			supplyChainVersionReasonAPKKnownFixed,
+			compareAPKVersion,
 		)
 	case string(packageidentity.EcosystemRubyGems):
 		return evaluateRubyGemsVersionMatch(observed, fixedVersion, pkgs)
@@ -130,6 +139,15 @@ func evaluateSupplyChainVersionMatch(
 			FailClosed:      true,
 		}
 	}
+}
+
+func osPackageVersionFamily(pkgs []supplyChainAffectedPackage) string {
+	for _, pkg := range pkgs {
+		if family := osPackageFamilyFromPURL(pkg.purl); family != "" {
+			return family
+		}
+	}
+	return ""
 }
 
 func normalizedSupplyChainVersionEcosystem(ecosystem string) string {

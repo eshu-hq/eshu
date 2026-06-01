@@ -22,8 +22,11 @@
 // source, match reason, first patched version, manifest-allows-fix decision,
 // direct/transitive designation, parent package required for transitive
 // upgrades, and an exact/partial/unknown confidence label so API and MCP
-// callers can explain the upgrade path. Supply-chain impact version matching
-// is ecosystem-aware for npm, Cargo, Pub, Swift, NuGet, Maven, and PyPI PEP 440
+// callers can explain the upgrade path. Vendor-proven RPM, Debian/dpkg, and
+// Alpine/APK remediation stays limited to parseable installed versions and
+// single source-attributed fixed branches; missing provenance or ambiguous
+// branches remain explicit missing evidence. Supply-chain impact version
+// matching is ecosystem-aware for npm, Cargo, Pub, Swift, NuGet, Maven, and PyPI PEP 440
 // exact-version evidence; unsupported or malformed ranges fail closed with
 // explicit missing evidence. Security-alert reconciliation facts are keyed by provider alert
 // identity, package identity, advisory ids, and provider evidence scope so

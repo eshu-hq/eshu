@@ -228,6 +228,7 @@ func TestOpenAPISpecIncludesSupplyChainImpactRemediation(t *testing.T) {
 		"direct_upgrade_allowed",
 		"direct_range_blocked",
 		"transitive_parent_upgrade_required",
+		"already_fixed",
 		"no_patched_version",
 		"multiple_patched_branches",
 		"package_manager_unsupported",

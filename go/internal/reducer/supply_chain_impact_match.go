@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/packageidentity"
 )
 
 func supplyChainCVEFromEnvelope(envelope facts.Envelope) supplyChainImpactCVE {
@@ -236,15 +237,17 @@ func firstOSPackageImpactPath(
 	pkg supplyChainAffectedPackage,
 	index supplyChainImpactIndex,
 ) (supplyChainOSPackage, bool) {
-	vendorSource := classifyAdvisorySource(pkg.source, pkg.advisoryID)
+	vendorSource := classifyAffectedPackageAdvisorySource(pkg)
 	if vendorSource == "" {
 		return supplyChainOSPackage{}, false
 	}
-	for _, installed := range index.osPackages[pkg.packageID] {
-		if !osPackageMatchesAffectedPackage(installed, pkg, vendorSource) {
-			continue
+	for _, key := range affectedOSPackageLookupKeys(pkg) {
+		for _, installed := range index.osPackages[key] {
+			if !osPackageMatchesAffectedPackage(installed, pkg, vendorSource) {
+				continue
+			}
+			return installed, true
 		}
-		return installed, true
 	}
 	return supplyChainOSPackage{}, false
 }
@@ -298,6 +301,9 @@ func osPackageEcosystemMatchesVendor(
 	switch ecosystem {
 	case packageManager, vendorSource, distro:
 		return true
+	case string(packageidentity.EcosystemOS):
+		return osPackageFamilyFromPackageManager(packageManager) != "" &&
+			osPackageVendorMatchesFamily(vendorSource, packageManager, distro)
 	case "deb":
 		return packageManager == "dpkg" || vendorSource == "debian" || distro == "debian" || distro == "ubuntu"
 	case "debian":
