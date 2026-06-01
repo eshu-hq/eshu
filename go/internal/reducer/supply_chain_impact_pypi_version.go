@@ -77,7 +77,7 @@ func pypiAffectedByPackage(observed string, pkg supplyChainAffectedPackage) (boo
 		}
 	}
 	if raw := strings.TrimSpace(pkg.affectedRangeRaw); raw != "" {
-		if affected, ok := comparatorRangeContains(raw, observed, comparePyPIVersion); affected {
+		if affected, ok := pypiSpecifierSetContains(raw, observed); affected {
 			return true, true
 		} else if !ok {
 			valid = false
