@@ -1,0 +1,33 @@
+docs/public/reference/security-intelligence-release-gate.md
+  s_f2f7fbb6f30866::t_783f9c501ed3fb 51-52,156-163,166,170,175,179,183
+docs/public/reference/security-intelligence.md
+  s_f2f7fbb6f30866::t_0c4d117f04d7ae 41-46
+docs/public/reference/standalone-vulnerability-scanner-boundary.md
+  s_f2f7fbb6f30866::t_dbc505fab5bafc 1-4,6-121
+  s_f2f7fbb6f30866::t_edc0febed928d2 5
+docs/public/reference/security-intelligence-source-coverage.md
+  s_f2f7fbb6f30866::t_2451d9535edb18 487
+scripts/test-security_intelligence_standalone_boundary_docs.sh
+  s_f2f7fbb6f30866::t_5f3e8a026c6fdc 9,32-45
+  s_f2f7fbb6f30866::t_3a12d735b16e4f 1-8,10-31,46-57
+docs/mkdocs.yml
+  s_f2f7fbb6f30866::t_0c4d117f04d7ae 146
+docs/internal/security-intelligence-implementation-plan.md
+  s_f2f7fbb6f30866::t_0c4d117f04d7ae 297-308
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "163e68c4aa5c9dd1b4ae9866d777d420e6609dcc",
+  "prompts": {},
+  "sessions": {
+    "s_f2f7fbb6f30866": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e360b-90eb-7472-bac7-56d488b65f77",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
