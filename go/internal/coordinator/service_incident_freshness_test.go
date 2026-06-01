@@ -99,6 +99,54 @@ func TestServiceRunActiveModeMarksStaleIncidentFreshnessTriggerFailed(t *testing
 	}
 }
 
+func TestServiceRunActiveModeCoalescesRepeatedJiraWebhookClaims(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, time.May, 31, 18, 30, 0, 0, time.UTC)
+	jira := workflow.CollectorInstance{
+		InstanceID:     "jira-primary",
+		CollectorKind:  scope.CollectorJira,
+		Mode:           workflow.CollectorModeContinuous,
+		Enabled:        true,
+		ClaimsEnabled:  true,
+		Configuration:  testJiraConfig(),
+		LastObservedAt: now,
+		CreatedAt:      now,
+		UpdatedAt:      now,
+	}
+	triggerStore := &fakeIncidentFreshnessTriggerStore{
+		claimed: []webhook.StoredIncidentFreshnessTrigger{
+			incidentFreshnessStoredTrigger("trigger-jira-retry-1", webhook.ProviderJira, "jira:site:example", now.Add(-15*time.Minute)),
+			incidentFreshnessStoredTrigger("trigger-jira-retry-2", webhook.ProviderJira, "jira:site:example", now),
+		},
+	}
+	store := &fakeStore{instances: []workflow.CollectorInstance{jira}}
+	service := Service{
+		Config: Config{
+			DeploymentMode:    deploymentModeActive,
+			ClaimsEnabled:     true,
+			ReconcileInterval: time.Hour,
+		},
+		Store:                     store,
+		JiraPlanner:               JiraWorkPlanner{},
+		IncidentFreshnessTriggers: triggerStore,
+		Clock:                     func() time.Time { return now },
+	}
+
+	if err := service.runIncidentFreshnessHandoff(context.Background()); err != nil {
+		t.Fatalf("runIncidentFreshnessHandoff() error = %v, want nil", err)
+	}
+	if got, want := len(store.enqueuedItems), 1; got != want {
+		t.Fatalf("enqueued items = %d, want %d", got, want)
+	}
+	if got, want := store.enqueuedItems[0].ScopeID, "jira:site:example"; got != want {
+		t.Fatalf("enqueued ScopeID = %q, want %q", got, want)
+	}
+	if !reflect.DeepEqual(triggerStore.handedOff, []string{"trigger-jira-retry-1", "trigger-jira-retry-2"}) {
+		t.Fatalf("handedOff = %#v, want both duplicate trigger IDs", triggerStore.handedOff)
+	}
+}
+
 type fakeIncidentFreshnessTriggerStore struct {
 	claimed     []webhook.StoredIncidentFreshnessTrigger
 	handedOff   []string

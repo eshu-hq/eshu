@@ -13,5 +13,7 @@
 // refreshed commit to provider-owned PR evidence without treating the webhook
 // as graph truth. PagerDuty and Jira incident freshness triggers carry only
 // bounded event, scope, and resource identifiers; their payloads wake the normal
-// claim-driven collectors and do not emit facts directly.
+// claim-driven collectors and do not emit facts directly. Jira freshness
+// normalization accepts only issue created, updated, and deleted events, and
+// fingerprints issue self URLs when Jira omits issue ID and key values.
 package webhook

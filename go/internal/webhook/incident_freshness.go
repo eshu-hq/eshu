@@ -2,6 +2,7 @@ package webhook
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -19,14 +20,20 @@ type pagerDutyIncidentPayload struct {
 }
 
 type jiraIncidentPayload struct {
-	WebhookEvent string `json:"webhookEvent"`
-	Timestamp    int64  `json:"timestamp"`
-	Issue        struct {
-		ID   string `json:"id"`
-		Key  string `json:"key"`
-		Self string `json:"self"`
-	} `json:"issue"`
+	WebhookEvent string           `json:"webhookEvent"`
+	Timestamp    int64            `json:"timestamp"`
+	Issue        jiraIssuePayload `json:"issue"`
 }
+
+type jiraIssuePayload struct {
+	ID   string `json:"id"`
+	Key  string `json:"key"`
+	Self string `json:"self"`
+}
+
+// ErrUnsupportedIncidentFreshnessEvent marks a verified provider webhook that
+// is not allowed to wake an incident-source collector.
+var ErrUnsupportedIncidentFreshnessEvent = errors.New("unsupported incident freshness event")
 
 // NormalizePagerDutyIncidentFreshness maps a verified PagerDuty webhook into a
 // scoped collector refresh trigger without treating the payload as fact truth.
@@ -69,12 +76,16 @@ func NormalizeJiraIncidentFreshness(
 	if decoded.Timestamp > 0 {
 		observedAt = time.UnixMilli(decoded.Timestamp).UTC()
 	}
+	eventKind := firstNonEmpty(decoded.WebhookEvent, "jira.webhook")
+	if !supportedJiraIncidentFreshnessEvent(eventKind) {
+		return IncidentFreshnessTrigger{}, fmt.Errorf("%w: jira webhook event %q", ErrUnsupportedIncidentFreshnessEvent, eventKind)
+	}
 	trigger := IncidentFreshnessTrigger{
 		Provider:   ProviderJira,
-		EventKind:  firstNonEmpty(decoded.WebhookEvent, "jira.webhook"),
+		EventKind:  eventKind,
 		EventID:    deliveryID,
 		ScopeID:    scopeID,
-		ResourceID: firstNonEmpty(decoded.Issue.Key, decoded.Issue.ID, decoded.Issue.Self),
+		ResourceID: jiraIssueResourceID(decoded.Issue),
 		ObservedAt: observedAt,
 	}
 	return trigger.normalized(), trigger.Validate()
@@ -152,6 +163,26 @@ func (t IncidentFreshnessTrigger) normalized() IncidentFreshnessTrigger {
 	t.ResourceID = strings.TrimSpace(t.ResourceID)
 	t.ObservedAt = t.ObservedAt.UTC()
 	return t
+}
+
+func supportedJiraIncidentFreshnessEvent(eventKind string) bool {
+	switch strings.TrimSpace(eventKind) {
+	case "jira:issue_created", "jira:issue_updated", "jira:issue_deleted":
+		return true
+	default:
+		return false
+	}
+}
+
+func jiraIssueResourceID(issue jiraIssuePayload) string {
+	if id := firstNonEmpty(issue.Key, issue.ID); id != "" {
+		return id
+	}
+	self := strings.TrimSpace(issue.Self)
+	if self == "" {
+		return ""
+	}
+	return "jira_self:" + facts.StableID("JiraWebhookIssueSelf", map[string]any{"self": self})
 }
 
 func pagerDutyResourceID(raw json.RawMessage) string {

@@ -139,6 +139,56 @@ func TestWebhookHandlerLogsBoundedRejectedOutcome(t *testing.T) {
 	}
 }
 
+func TestWebhookHandlerRecordsJiraUnsupportedEventTelemetry(t *testing.T) {
+	t.Parallel()
+
+	payload := []byte(`{
+		"webhookEvent": "project_deleted",
+		"timestamp": 1780250400000,
+		"project": {"id": "10000", "key": "OPS"}
+	}`)
+	reader := sdkmetric.NewManualReader()
+	meterProvider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader))
+	instruments, err := telemetry.NewInstruments(meterProvider.Meter("webhook-listener-test"))
+	if err != nil {
+		t.Fatalf("NewInstruments() error = %v, want nil", err)
+	}
+	store := &recordingIncidentFreshnessStore{}
+	mux, err := newWebhookMux(webhookHandler{
+		Config: webhookListenerConfig{
+			JiraSecret:          "secret",
+			JiraPath:            "/webhooks/jira",
+			JiraScopeID:         "jira:site:example",
+			MaxRequestBodyBytes: defaultMaxWebhookBodyBytes,
+		},
+		IncidentFreshnessStore: store,
+		Clock:                  func() time.Time { return time.Date(2026, time.May, 31, 18, 0, 0, 0, time.UTC) },
+		Instruments:            instruments,
+	})
+	if err != nil {
+		t.Fatalf("newWebhookMux() error = %v, want nil", err)
+	}
+	req := httptest.NewRequest(http.MethodPost, "/webhooks/jira", bytes.NewReader(payload))
+	req.Header.Set("X-Atlassian-Webhook-Identifier", "delivery-jira-unsupported")
+	req.Header.Set("X-Hub-Signature", githubSignature("secret", payload))
+	rec := httptest.NewRecorder()
+
+	mux.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want %d body=%q", rec.Code, http.StatusBadRequest, rec.Body.String())
+	}
+	if len(store.triggers) != 0 {
+		t.Fatalf("stored incident triggers = %d, want 0", len(store.triggers))
+	}
+	rm := collectMetrics(t, reader)
+	assertCounterPoint(t, rm, "eshu_dp_webhook_requests_total", map[string]string{
+		telemetry.MetricDimensionProvider: "jira_cloud",
+		telemetry.MetricDimensionOutcome:  "rejected",
+		telemetry.MetricDimensionReason:   "unsupported_event",
+	})
+}
+
 func mustWebhookMuxWithObservability(
 	t *testing.T,
 	cfg webhookListenerConfig,

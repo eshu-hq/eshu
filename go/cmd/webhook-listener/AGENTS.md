@@ -5,11 +5,13 @@ Read these files first:
 1. `doc.go`
 2. `config.go`
 3. `handler.go`
-4. `aws_freshness_handler.go`
-5. `handler_observability_test.go`
-6. `main.go`
-7. `handler_test.go`
-8. `aws_freshness_handler_test.go`
+4. `incident_freshness_handler.go`
+5. `aws_freshness_handler.go`
+6. `handler_observability_test.go`
+7. `main.go`
+8. `handler_test.go`
+9. `incident_freshness_handler_test.go`
+10. `aws_freshness_handler_test.go`
 
 ## Invariants
 
@@ -28,6 +30,9 @@ Read these files first:
 - Add provider configuration in `config.go`.
 - Add provider route behavior in `handler.go` and cover it in
   `handler_test.go`.
+- Add PagerDuty or Jira incident freshness route behavior in
+  `incident_freshness_handler.go` and cover it in
+  `incident_freshness_handler_test.go`.
 - Add AWS freshness route behavior in `aws_freshness_handler.go` and cover it
   in `aws_freshness_handler_test.go`.
 - Add or change OTEL behavior in `handler.go` and cover it in

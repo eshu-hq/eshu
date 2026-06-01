@@ -245,8 +245,14 @@ warning (`collector_instance_drift_detected`, fields
 
 ## Extension points
 
-No-Regression Evidence: incident freshness handoff coverage includes
-`go test ./internal/coordinator -run 'Test(PagerDuty|Jira)WorkPlannerPlansWebhookScopeSubset|TestServiceRunActiveMode(HandoffsIncidentFreshnessTriggers|MarksStaleIncidentFreshnessTriggerFailed)' -count=1`.
+No-Regression Evidence: incident freshness handoff coverage includes:
+
+```bash
+go test ./internal/coordinator \
+  -run 'Test(PagerDuty|Jira)WorkPlannerPlansWebhookScopeSubset|TestServiceRunActiveMode(HandoffsIncidentFreshnessTriggers|MarksStaleIncidentFreshnessTriggerFailed|CoalescesRepeatedJiraWebhookClaims)|TestJiraWorkPlannerScheduledPollingCoversAllTargetsAfterMissedWebhook' \
+  -count=1
+```
+
 The coordinator narrows webhook-triggered work to authorized PagerDuty or Jira
 scope IDs, leaves scheduled polling as the backfill path, and does not alter
 claim lease timing, worker counts, queue ordering, reducer graph writes, or
