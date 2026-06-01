@@ -7,7 +7,6 @@ import (
 
 	"github.com/eshu-hq/eshu/go/internal/relationships/tfstatebackend"
 	"github.com/eshu-hq/eshu/go/internal/telemetry"
-	"github.com/eshu-hq/eshu/go/internal/truth"
 )
 
 // DefaultHandlers captures the reducer-owned backend adapters available for the
@@ -166,6 +165,20 @@ type DefaultHandlers struct {
 	// the CloudResource node phase (#805).
 	SecurityGroupEndpointNodeWriter SecurityGroupEndpointNodeWriter
 
+	// SecurityGroupRuleNodeWriter materializes aws_security_group_rule facts into
+	// canonical port-precise :SecurityGroupRule graph nodes and (via the handler)
+	// publishes the rule-uid canonical-nodes phase the edge slice gates on (issue
+	// #1135 PR2b, Option D). Required alongside FactLoader to register
+	// DomainSecurityGroupRuleMaterialization.
+	SecurityGroupRuleNodeWriter SecurityGroupRuleNodeWriter
+
+	// SecurityGroupReachabilityWriter projects aws_security_group_rule facts into
+	// the Option D reachability edges (SecurityGroup -> rule ALLOWS_INGRESS/EGRESS,
+	// rule -[:TO]-> endpoint). Required alongside FactLoader to register
+	// DomainSecurityGroupReachabilityMaterialization; the handler gates on the rule,
+	// endpoint, and SG node keyspaces via ReadinessLookup (#1135 PR2b).
+	SecurityGroupReachabilityWriter SecurityGroupReachabilityWriter
+
 	// KubernetesCorrelationEdgeWriter projects exact live-workload correlation
 	// decisions into canonical RUNS_IMAGE edges between a KubernetesWorkload node
 	// and the digest-addressed OCI source node it runs (issue #388 PR3). It must be
@@ -303,184 +316,5 @@ func implementedDefaultDomainDefinitions(handlers DefaultHandlers) []DomainDefin
 		}
 		definitions = append(definitions, def)
 	}
-	if handlers.TerraformBackendResolver != nil &&
-		handlers.DriftEvidenceLoader != nil &&
-		handlers.DriftLogger != nil {
-		drift := configStateDriftDomainDefinition()
-		drift.Handler = TerraformConfigStateDriftHandler{
-			Resolver:       handlers.TerraformBackendResolver,
-			EvidenceLoader: handlers.DriftEvidenceLoader,
-			Instruments:    handlers.Instruments,
-			Logger:         handlers.DriftLogger,
-		}
-		definitions = append(definitions, drift)
-	}
-	if handlers.FactLoader != nil && handlers.PackageCorrelationWriter != nil {
-		packageSource := packageSourceCorrelationDomainDefinition()
-		packageSource.Handler = PackageSourceCorrelationHandler{
-			FactLoader:  handlers.FactLoader,
-			Writer:      handlers.PackageCorrelationWriter,
-			Instruments: handlers.Instruments,
-		}
-		definitions = append(definitions, packageSource)
-	}
-	if handlers.FactLoader != nil && handlers.ContainerImageIdentityWriter != nil {
-		imageIdentity := containerImageIdentityDomainDefinition()
-		imageIdentity.Handler = ContainerImageIdentityHandler{
-			FactLoader:  handlers.FactLoader,
-			Writer:      handlers.ContainerImageIdentityWriter,
-			Instruments: handlers.Instruments,
-		}
-		definitions = append(definitions, imageIdentity)
-	}
-	if handlers.FactLoader != nil && handlers.CICDRunCorrelationWriter != nil {
-		cicdRun := cicdRunCorrelationDomainDefinition()
-		cicdRun.Handler = CICDRunCorrelationHandler{
-			FactLoader:  handlers.FactLoader,
-			Writer:      handlers.CICDRunCorrelationWriter,
-			Instruments: handlers.Instruments,
-		}
-		definitions = append(definitions, cicdRun)
-	}
-	if handlers.FactLoader != nil && handlers.ServiceCatalogCorrelationWriter != nil {
-		serviceCatalog := serviceCatalogCorrelationDomainDefinition()
-		serviceCatalog.Handler = ServiceCatalogCorrelationHandler{
-			FactLoader:  handlers.FactLoader,
-			Writer:      handlers.ServiceCatalogCorrelationWriter,
-			Instruments: handlers.Instruments,
-		}
-		definitions = append(definitions, serviceCatalog)
-	}
-	if handlers.FactLoader != nil && handlers.ObservabilityCoverageCorrelationWriter != nil {
-		observability := observabilityCoverageCorrelationDomainDefinition()
-		observability.Handler = ObservabilityCoverageCorrelationHandler{
-			FactLoader:  handlers.FactLoader,
-			Writer:      handlers.ObservabilityCoverageCorrelationWriter,
-			Instruments: handlers.Instruments,
-		}
-		definitions = append(definitions, observability)
-	}
-	if handlers.FactLoader != nil && handlers.KubernetesCorrelationWriter != nil {
-		kubernetes := kubernetesCorrelationDomainDefinition()
-		kubernetes.Handler = KubernetesCorrelationHandler{
-			FactLoader:  handlers.FactLoader,
-			Writer:      handlers.KubernetesCorrelationWriter,
-			Instruments: handlers.Instruments,
-		}
-		definitions = append(definitions, kubernetes)
-	}
-	if handlers.FactLoader != nil && handlers.SBOMAttestationAttachmentWriter != nil {
-		attachments := sbomAttestationAttachmentDomainDefinition()
-		attachments.Handler = SBOMAttestationAttachmentHandler{
-			FactLoader:  handlers.FactLoader,
-			Writer:      handlers.SBOMAttestationAttachmentWriter,
-			Instruments: handlers.Instruments,
-		}
-		definitions = append(definitions, attachments)
-	}
-	if handlers.FactLoader != nil && handlers.SupplyChainImpactWriter != nil {
-		impact := supplyChainImpactDomainDefinition()
-		impact.Handler = SupplyChainImpactHandler{
-			FactLoader:  handlers.FactLoader,
-			Writer:      handlers.SupplyChainImpactWriter,
-			Instruments: handlers.Instruments,
-		}
-		definitions = append(definitions, impact)
-	}
-	if handlers.FactLoader != nil && handlers.SecurityAlertReconciliationWriter != nil {
-		securityAlerts := securityAlertReconciliationDomainDefinition()
-		securityAlerts.Handler = SecurityAlertReconciliationHandler{
-			FactLoader:  handlers.FactLoader,
-			Writer:      handlers.SecurityAlertReconciliationWriter,
-			Instruments: handlers.Instruments,
-		}
-		definitions = append(definitions, securityAlerts)
-	}
-	if handlers.AWSCloudRuntimeDriftEvidenceLoader != nil &&
-		handlers.AWSCloudRuntimeDriftWriter != nil {
-		awsRuntimeDrift := awsCloudRuntimeDriftDomainDefinition()
-		awsRuntimeDrift.Handler = AWSCloudRuntimeDriftHandler{
-			EvidenceLoader: handlers.AWSCloudRuntimeDriftEvidenceLoader,
-			Writer:         handlers.AWSCloudRuntimeDriftWriter,
-			Instruments:    handlers.Instruments,
-			Logger:         handlers.AWSCloudRuntimeDriftLogger,
-		}
-		definitions = append(definitions, awsRuntimeDrift)
-	}
-	if handlers.FactLoader != nil && handlers.CloudResourceNodeWriter != nil {
-		awsResources := awsResourceMaterializationDomainDefinition()
-		awsResources.Handler = AWSResourceMaterializationHandler{
-			FactLoader:     handlers.FactLoader,
-			NodeWriter:     handlers.CloudResourceNodeWriter,
-			PhasePublisher: handlers.GraphProjectionPhasePublisher,
-		}
-		definitions = append(definitions, awsResources)
-	}
-	if handlers.FactLoader != nil && handlers.KubernetesWorkloadNodeWriter != nil {
-		kubernetesWorkloads := kubernetesWorkloadMaterializationDomainDefinition()
-		kubernetesWorkloads.Handler = KubernetesWorkloadMaterializationHandler{
-			FactLoader:     handlers.FactLoader,
-			NodeWriter:     handlers.KubernetesWorkloadNodeWriter,
-			PhasePublisher: handlers.GraphProjectionPhasePublisher,
-			Instruments:    handlers.Instruments,
-		}
-		definitions = append(definitions, kubernetesWorkloads)
-	}
-	definitions = appendSecurityGroupEndpointDomain(definitions, handlers)
-	if handlers.FactLoader != nil && handlers.CloudResourceEdgeWriter != nil {
-		awsRelationships := awsRelationshipMaterializationDomainDefinition()
-		awsRelationships.Handler = AWSRelationshipMaterializationHandler{
-			FactLoader:           handlers.FactLoader,
-			EdgeWriter:           handlers.CloudResourceEdgeWriter,
-			ReadinessLookup:      handlers.ReadinessLookup,
-			PriorGenerationCheck: handlers.PriorGenerationCheck,
-			Tracer:               handlers.Tracer,
-			Instruments:          handlers.Instruments,
-		}
-		definitions = append(definitions, awsRelationships)
-	}
-	if handlers.FactLoader != nil && handlers.ObservabilityCoverageEdgeWriter != nil {
-		coverageEdges := observabilityCoverageMaterializationDomainDefinition()
-		coverageEdges.Handler = ObservabilityCoverageMaterializationHandler{
-			FactLoader:           handlers.FactLoader,
-			EdgeWriter:           handlers.ObservabilityCoverageEdgeWriter,
-			ReadinessLookup:      handlers.ReadinessLookup,
-			PriorGenerationCheck: handlers.PriorGenerationCheck,
-			Tracer:               handlers.Tracer,
-			Instruments:          handlers.Instruments,
-		}
-		definitions = append(definitions, coverageEdges)
-	}
-	if handlers.FactLoader != nil && handlers.KubernetesCorrelationEdgeWriter != nil {
-		kubernetesEdges := kubernetesCorrelationMaterializationDomainDefinition()
-		kubernetesEdges.Handler = KubernetesCorrelationMaterializationHandler{
-			FactLoader:           handlers.FactLoader,
-			EdgeWriter:           handlers.KubernetesCorrelationEdgeWriter,
-			ReadinessLookup:      handlers.ReadinessLookup,
-			PriorGenerationCheck: handlers.PriorGenerationCheck,
-			Tracer:               handlers.Tracer,
-			Instruments:          handlers.Instruments,
-		}
-		definitions = append(definitions, kubernetesEdges)
-	}
-	if handlers.DeployableUnitCorrelationHandler != nil {
-		definitions = append(definitions, DomainDefinition{
-			Domain:  DomainDeployableUnitCorrelation,
-			Summary: "correlate deployable-unit candidates across sources before workload admission",
-			Ownership: OwnershipShape{
-				CrossSource:    true,
-				CrossScope:     true,
-				CanonicalWrite: true,
-			},
-			TruthContract: truth.Contract{
-				CanonicalKind: "deployable_unit_correlation",
-				SourceLayers: []truth.Layer{
-					truth.LayerSourceDeclaration,
-				},
-			},
-			Handler: handlers.DeployableUnitCorrelationHandler,
-		})
-	}
-
-	return definitions
+	return appendAdditiveDomainDefinitions(definitions, handlers)
 }

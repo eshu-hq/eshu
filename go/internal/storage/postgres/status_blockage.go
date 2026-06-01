@@ -76,12 +76,41 @@ kubernetes_readiness_blocked AS (
             AND kube_nodes.phase = 'canonical_nodes_committed'
       )
 ),
+security_group_reachability_readiness_blocked AS (
+    -- The reachability edge (#1135 PR2b) gates on three keyspaces; surface each
+    -- missing phase as its own blockage row so an operator can see which node
+    -- family (rule / endpoint / cloud_resource) is the one that has not committed.
+    SELECT eligible.domain,
+           'readiness' AS conflict_domain,
+           missing.keyspace || ':canonical_nodes_committed:' ||
+               COALESCE(NULLIF(eligible.payload->>'entity_key', ''), eligible.scope_id) AS conflict_key,
+           eligible.available_at
+    FROM eligible
+    CROSS JOIN (VALUES
+        ('security_group_rule_uid'),
+        ('security_group_endpoint_uid'),
+        ('cloud_resource_uid')
+    ) AS missing(keyspace)
+    WHERE eligible.domain = 'security_group_reachability_materialization'
+      AND NOT EXISTS (
+          SELECT 1
+          FROM graph_projection_phase_state AS sg_nodes
+          WHERE sg_nodes.scope_id = eligible.scope_id
+            AND sg_nodes.acceptance_unit_id = COALESCE(NULLIF(eligible.payload->>'entity_key', ''), eligible.scope_id)
+            AND sg_nodes.source_run_id = eligible.generation_id
+            AND sg_nodes.generation_id = eligible.generation_id
+            AND sg_nodes.keyspace = missing.keyspace
+            AND sg_nodes.phase = 'canonical_nodes_committed'
+      )
+),
 all_blocked AS (
     SELECT domain, conflict_domain, conflict_key, available_at FROM blocked
     UNION ALL
     SELECT domain, conflict_domain, conflict_key, available_at FROM readiness_blocked
     UNION ALL
     SELECT domain, conflict_domain, conflict_key, available_at FROM kubernetes_readiness_blocked
+    UNION ALL
+    SELECT domain, conflict_domain, conflict_key, available_at FROM security_group_reachability_readiness_blocked
 )
 SELECT 'reducer' AS stage,
        domain,

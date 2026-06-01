@@ -205,9 +205,18 @@ const (
 	// provenance-only or digest-unresolvable correlation degraded gracefully without
 	// fabricating or dangling edges.
 	SpanReducerKubernetesCorrelationMaterialization = "reducer.kubernetes_correlation_materialization"
-	SpanCanonicalWrite                              = "canonical.write"
-	SpanCanonicalProjection                         = "canonical.projection"
-	SpanCanonicalRetract                            = "canonical.retract"
+	// SpanReducerSecurityGroupReachabilityMaterialization wraps the security-group
+	// network-reachability edge projection (issue #1135 PR2b, Option D): fact load,
+	// the triple canonical-nodes readiness gate, in-memory join-index build, SG
+	// anchor + endpoint resolution, port-precise rule-node extraction, and the
+	// batched MERGE of :SecurityGroupRule nodes plus the ALLOWS_INGRESS/EGRESS and
+	// TO edges. The span carries materialized rule/edge counts and the skipped
+	// tally so a trace shows whether rules degraded gracefully (unscanned SG or
+	// endpoint) without fabricating or dangling edges.
+	SpanReducerSecurityGroupReachabilityMaterialization = "reducer.security_group_reachability_materialization"
+	SpanCanonicalWrite                                  = "canonical.write"
+	SpanCanonicalProjection                             = "canonical.projection"
+	SpanCanonicalRetract                                = "canonical.retract"
 
 	SpanEvidenceDiscovery                 = "ingestion.evidence_discovery"
 	SpanIaCReachabilityMaterialization    = "iac_reachability.materialize"
