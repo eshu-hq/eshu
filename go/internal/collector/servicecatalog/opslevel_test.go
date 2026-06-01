@@ -241,6 +241,48 @@ func TestOpsLevelManifestIsIdempotent(t *testing.T) {
 	}
 }
 
+func TestOpsLevelEntityRefRejectsEmptySlugAnchor(t *testing.T) {
+	t.Parallel()
+
+	// An anchor that is non-blank but consists entirely of punctuation slugifies
+	// to "". entityRef must return "" rather than emit "component:opslevel/",
+	// which would collide across every such entity and break reducer correlation.
+	for _, anchor := range []string{"---", "!!!", "  ///  ", "***"} {
+		component := opslevelComponent{Name: anchor}
+		if ref := component.entityRef(); ref != "" {
+			t.Fatalf("entityRef(name=%q) = %q, want empty (slug is empty)", anchor, ref)
+		}
+		// Same guard must hold when the empty-slug anchor arrives via an alias.
+		aliased := opslevelComponent{Aliases: []string{anchor}, Name: "fallback-name"}
+		if ref := aliased.entityRef(); ref != "component:opslevel/fallback-name" {
+			t.Fatalf("entityRef(alias=%q) = %q, want fallback to name", anchor, ref)
+		}
+	}
+}
+
+func TestOpsLevelManifestEmptySlugAnchorWarnsNotAdmits(t *testing.T) {
+	t.Parallel()
+
+	// A component whose only identifier slugifies to empty must yield an
+	// invalid_ref warning and zero entity facts: non-over-admission of a junk ref.
+	raw := []byte("version: 1\ncomponent:\n  name: \"---\"\n  owner: order_team\n")
+	envelopes, err := OpsLevelManifestEnvelopes(raw, opslevelContext())
+	if err != nil {
+		t.Fatalf("OpsLevelManifestEnvelopes() error = %v", err)
+	}
+	byKind := envelopesByKind(envelopes)
+	assertKindCount(t, byKind, facts.ServiceCatalogEntityFactKind, 0)
+	assertWarningReason(t, byKind, "invalid_ref")
+	// No envelope may carry a junk "component:opslevel/" ref with an empty slug.
+	for _, envelope := range envelopes {
+		if ref, ok := envelope.Payload["entity_ref"].(string); ok {
+			if ref == opslevelComponentKind+":"+ProviderOpsLevelNamespace+"/" {
+				t.Fatalf("emitted junk empty-slug ref %q", ref)
+			}
+		}
+	}
+}
+
 func TestOpsLevelManifestRequiresContext(t *testing.T) {
 	t.Parallel()
 

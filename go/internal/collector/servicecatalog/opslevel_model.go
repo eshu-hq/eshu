@@ -113,14 +113,21 @@ func (d opslevelDocument) version() string {
 }
 
 // entityRef returns the canonical `component:opslevel/name` reference for one
-// OpsLevel component, or an empty string when no stable name or alias is present.
-// The OpsLevel block is always a component (its free-form `type`, e.g. service or
-// database, flows into entity_type, not the ref kind, mirroring how Backstage
-// uses kind for the ref and spec.type for entity_type). OpsLevel aliases are the
-// stable user-facing identifiers, so the first declared alias wins; otherwise the
-// component name is slugified. The opslevel namespace segment keeps the ref
-// distinct from a Backstage `component:default/...` ref so the reducer never
-// merges two providers' entities under one key.
+// OpsLevel component, or an empty string when no stable name or alias yields a
+// non-empty slug. The OpsLevel block is always a component (its free-form
+// `type`, e.g. service or database, flows into entity_type, not the ref kind,
+// mirroring how Backstage uses kind for the ref and spec.type for entity_type).
+// OpsLevel aliases are the stable user-facing identifiers, so the first declared
+// alias that slugifies to a non-empty segment wins; otherwise the component name
+// is slugified. The opslevel namespace segment keeps the ref distinct from a
+// Backstage `component:default/...` ref so the reducer never merges two
+// providers' entities under one key.
+//
+// primaryAnchor already rejects an anchor that slugifies to an empty string (for
+// example a punctuation-only "---"), so a non-empty anchor here always slugifies
+// to a non-empty segment. Emitting "component:opslevel/" with an empty slug would
+// collide across every such entity and break reducer correlation; the empty
+// anchor instead falls through to the caller's invalid_ref warning.
 func (c opslevelComponent) entityRef() string {
 	anchor := c.primaryAnchor()
 	if anchor == "" {
@@ -135,14 +142,24 @@ func (c opslevelComponent) entityRef() string {
 const ProviderOpsLevelNamespace = "opslevel"
 
 // primaryAnchor returns the stable identifier OpsLevel resolution keys on: the
-// first non-blank alias, else the component name.
+// first alias that slugifies to a non-empty segment, else the component name.
+// An alias composed entirely of punctuation (for example "---") slugifies to
+// "", carries no usable identity, and is skipped so a junk alias never shadows a
+// usable component name. The returned string is the original (non-slugified)
+// anchor; callers slugify it. The result is empty only when neither any alias
+// nor the name yields a non-empty slug, which the caller surfaces as
+// invalid_ref rather than admitting a junk "component:opslevel/" reference.
 func (c opslevelComponent) primaryAnchor() string {
 	for _, alias := range c.Aliases {
-		if trimmed := strings.TrimSpace(alias); trimmed != "" {
+		trimmed := strings.TrimSpace(alias)
+		if trimmed != "" && slugify(trimmed) != "" {
 			return trimmed
 		}
 	}
-	return strings.TrimSpace(c.Name)
+	if name := strings.TrimSpace(c.Name); name != "" && slugify(name) != "" {
+		return name
+	}
+	return ""
 }
 
 // entityType returns the declared component type verbatim.
