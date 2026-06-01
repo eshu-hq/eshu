@@ -261,19 +261,19 @@ alerts, image tags, workload names, service names, environment names, or
 repository names.
 
 Version and range matching is reducer-owned and ecosystem-aware. The supported
-matchers are npm, Cargo, and Swift semver over OSV-style event ranges and
-GLAD-style comparator ranges, NuGet semantic versions from exact lockfile or
-pinned manifest evidence, Maven version/range ordering for Maven bracket and
-comparator ranges, PyPI PEP 440, and RPM EVR ordering for vendor-backed
-RPM-family OS package facts. Swift support is exact `Package.resolved` evidence
-only; OSV `SwiftURL` records use a Git URL as the source package name; Eshu
-normalizes that URL to the shared Swift Package Manager identity and can also
-use a `PACKAGE` reference as a fallback for source records that only publish a
-short package name. Findings preserve `observed_version`, `requested_range`,
-`fixed_version`, and `match_reason` as separate fields. Unsupported ecosystems
-and malformed installed versions or advisory ranges fail closed as
-`possibly_affected` with explicit missing-evidence reasons instead of being
-treated as affected or safely fixed.
+matchers are npm, Go modules, Cargo, and Swift semver over OSV-style event
+ranges and GLAD-style comparator ranges, NuGet semantic versions from exact
+lockfile or pinned manifest evidence, Maven version/range ordering for Maven
+bracket and comparator ranges, PyPI PEP 440, and RPM EVR ordering for
+vendor-backed RPM-family OS package facts. Swift support is exact
+`Package.resolved` evidence only; OSV `SwiftURL` records use a Git URL as the
+source package name; Eshu normalizes that URL to the shared Swift Package
+Manager identity and can also use a `PACKAGE` reference as a fallback for source
+records that only publish a short package name. Findings preserve
+`observed_version`, `requested_range`, `fixed_version`, and `match_reason` as
+separate fields. Unsupported ecosystems and malformed installed versions or
+advisory ranges fail closed as `possibly_affected` with explicit
+missing-evidence reasons instead of being treated as affected or safely fixed.
 
 No-Regression Evidence: `go test ./internal/collector/ospackagevulnerability
 -run 'TestParseRPM|TestBuildEnvelopesEmitsOSPackage' -count=1` and `go test

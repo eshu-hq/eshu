@@ -22,9 +22,11 @@ func packageManifestObservedVersion(payload map[string]any, packageManager strin
 	if !packageManifestCanObserveExactVersion(packageManager, lockfile) {
 		return ""
 	}
-	value := packageManifestMetadataString(payload, "value")
-	if version, ok := exactManifestDependencyVersion(value); ok {
-		return version
+	for _, key := range []string{"resolved_version", "value"} {
+		value := packageManifestMetadataString(payload, key)
+		if version, ok := exactManifestDependencyVersion(value); ok {
+			return version
+		}
 	}
 	return ""
 }

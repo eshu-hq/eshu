@@ -56,7 +56,7 @@ func supplyChainConsumptionFromEnvelope(envelope facts.Envelope) supplyChainPack
 		packageID:                 payloadStr(envelope.Payload, "package_id"),
 		repositoryID:              payloadStr(envelope.Payload, "repository_id"),
 		dependencyRange:           payloadStr(envelope.Payload, "dependency_range"),
-		observedVersion:           payloadStr(envelope.Payload, "observed_version"),
+		observedVersion:           firstNonBlank(payloadStr(envelope.Payload, "observed_version"), payloadStr(envelope.Payload, "resolved_version")),
 		requestedRange:            payloadStr(envelope.Payload, "requested_range"),
 		dependencyPath:            payloadOrderedStrings(envelope.Payload, "dependency_path"),
 		dependencyDepth:           supplyChainInt(envelope.Payload, "dependency_depth"),
