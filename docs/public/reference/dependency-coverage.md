@@ -49,7 +49,7 @@ absence of evidence look like absence of risk. Guard tests:
   JSON, gomod, ruby, nuget_project, rust/cargo, pythondep, etc.).
   JSON-owned entries additionally carry per-package fixtures in
   `TestDependencyCoverageCoveredJSONFilesEmitDependencyRows` in
-  `go/internal/parser/json/dependency_coverage_test.go`.
+  `go/internal/parser/json/dependency_coverage_emit_test.go`.
 - **Status `gap`** means the file is not yet parsed into a dependency row;
   the reducer cannot use it as repository evidence; readiness must report
   the missing family. The matrix still names the file so the gap is visible
@@ -65,8 +65,8 @@ absence of evidence look like absence of risk. Guard tests:
 |-----------|------|------|--------|----------|-------|-------|-------|-------------|-------|--------|-------|
 | cargo | Cargo.lock | lockfile | covered | ✓ | ✓ | — | ✓ | — | ✓ | `go/internal/parser/rust/cargo_dependencies.go` | Cargo lockfiles emit exact crate versions and dependency paths only when the lock graph proves a package is reachable from a workspace root. |
 | cargo | Cargo.toml | manifest | covered | ✓ | — | ✓ | ✓ | ✓ | — | `go/internal/parser/rust/cargo_dependencies.go` | Cargo manifests emit dependency rows for direct, dev, build, target-specific, workspace-inherited, and renamed package dependencies; transitive chains require Cargo.lock. |
-| composer | composer.json | manifest | covered | ✓ | — | ✓ | ✓ | ✓ | — | `go/internal/parser/json/language.go` (`dependencyVariables`, composer) | `require` and `require-dev` sections emit content_entity rows. |
-| composer | composer.lock | lockfile | covered | ✓ | ✓ | — | ✓ | ✓ | — | `go/internal/parser/json/composer_lock.go` | `packages` and `packages-dev` arrays emit exact-version rows with a `lockfile` flag so the reducer can join manifest ranges to installed PHP versions without dropping the dev/runtime split; transitive chain is not yet derived. |
+| composer | composer.json | manifest | covered | ✓ | — | ✓ | ✓ | ✓ | — | `go/internal/parser/json/composer_manifest.go` | `require` and `require-dev` sections emit content_entity rows. |
+| composer | composer.lock | lockfile | covered | ✓ | ✓ | — | ✓ | ✓ | ✓ | `go/internal/parser/json/composer_lock.go` | `packages` and `packages-dev` arrays emit exact-version rows with a `lockfile` flag, runtime/dev scope, and direct/transitive dependency paths when same-section `require` edges prove the chain. |
 | go | go.mod | manifest | covered | ✓ | — | ✓ | ✓ | — | — | `go/internal/parser/gomod/parser.go` (`Parse` for go.mod) | `require`/indirect/`replace`/`exclude` directives emit content_entity rows. go.mod is a manifest, not a lockfile: require versions are the MVS minimum-version requirement (and the version the resolver would select when no transitive dep forces a higher one), not a resolver-locked exact installed version, so the matrix tracks them under `Range`. Replacement targets surface as `resolved_module_path`/`resolved_version` on each require row; `replace` and `exclude` rows use distinct `config_kind` values so they never get admitted as consumption. Go has no dev/runtime split, and module-graph chains beyond direct/indirect are not stored in go.mod. |
 | go | go.sum | lockfile | gap | — | — | — | — | — | — | `go/internal/parser/gomod/parser.go` emits checksum-only rows (`config_kind=dependency_checksum`, `ambiguous=true`) | go.sum records every module version any tool has ever verified, not the currently selected version, so checksum-only ambiguity prevents claiming exact observed installed evidence. The gomod parser emits `dependency_checksum` rows for audit corroboration but the consumption reducer treats go.sum as missing evidence until paired with a go.mod require. |
 | gradle | build.gradle | build | covered | ✓ | — | ✓ | ✓ | ✓ | — | `go/internal/parser/gradle/parser.go` | Groovy DSL `dependencies` blocks (implementation, api, runtimeOnly, compileOnly, testImplementation, platform/enforcedPlatform, buildscript) emit content_entity rows. `project()/files()/fileTree()` are skipped; unresolved `${var}` interpolations stay marked `unresolved`. |
@@ -224,6 +224,19 @@ Package.resolved row emission, fail-closed branch/revision/local pin handling,
 and parser-engine exact-name dispatch. They do not by themselves prove hosted
 runtime collection, queue behavior, graph writes, or deployed readback.
 
+No-Regression Evidence: PHP Composer vulnerability parity for issue `#1012`
+is guarded by `go test ./internal/parser/json -run
+'TestParseComposer(ManifestAndLockfilePreserveBothEvidence|LockEmitsDependencyChainAndDevScope)'
+-count=1`, `go test ./internal/reducer -run
+'TestBuildSupplyChainImpactFindings.*Composer' -count=1`, and `go test
+./internal/query -run TestPostgresSupplyChainImpactReadinessQueryShape
+-count=1`. These in-memory parser, reducer, and query-shape fixtures prove
+composer.json range-only evidence stays incomplete, composer.lock exact
+installed versions become precise findings, require-dev / packages-dev scope
+stays visible as dev evidence, same-section lockfile `require` edges carry
+direct/transitive paths, Packagist aliases normalize to the Composer ecosystem,
+and Composer dependency rows no longer appear as unsupported-target evidence.
+
 No-Observability-Change: this change is parser fixture work and reducer
 truth assertions. It introduces no new metric instrument, span, log key,
 queue, reducer lane, graph write, or runtime worker. Operators continue to
@@ -238,6 +251,16 @@ decision surfaces `direct_dependency: null` rather than guessing. Maven
 and Gradle dependency rows flow through the same `content_entity` ingest
 path as npm/Composer/RubyGems rows and reuse the existing parser-stage
 histograms.
+
+No-Observability-Change: the `#1012` Composer parity work changes parser row
+metadata, in-memory reducer version matching, and the readiness unsupported
+ecosystem allowlist only. It adds no metric instrument, span, log key, queue,
+reducer lane, graph write, route, MCP tool, scanner worker, or runtime
+configuration knob. Operators continue to diagnose Composer vulnerability
+truth through existing parser-stage timing, package-consumption correlation
+facts, `reducer_supply_chain_impact_finding` payloads, `match_reason`,
+`dependency_scope`, `missing_evidence`, and the supply-chain impact readiness
+envelope.
 
 No-Regression Evidence: JavaScript/TypeScript vulnerability parity for issue
 `#997` is guarded by `go test ./internal/parser/json -run

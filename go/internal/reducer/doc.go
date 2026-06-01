@@ -16,7 +16,9 @@
 // policy decision onto every impact finding; provider dismissals stay
 // evidence and never auto-hide findings. The handler also computes an
 // advisory-only safe-upgrade remediation per finding using npm package-lock
-// evidence today (issue #595): it never auto-opens pull requests; the
+// evidence today (issue #595): it never auto-opens pull requests; Composer
+// vulnerability matching is still exact/range impact classification rather than
+// safe-upgrade recommendation. The
 // remediation block names the current version, vulnerable range, first
 // patched version, manifest-allows-fix decision, direct/transitive
 // designation, parent package required for transitive upgrades, and an

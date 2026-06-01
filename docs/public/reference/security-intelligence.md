@@ -479,7 +479,7 @@ The current implementation proves the following:
   target evidence the matcher cannot resolve. Evidence is read directly from
   existing facts: `content_entity` dependency rows whose
   `entity_metadata.package_manager` is outside the supported matcher set
-  (`npm`, `nuget`, `maven`, `cargo`, `pypi`, `swift`) become
+  (`npm`, `nuget`, `maven`, `cargo`, `pypi`, `swift`, `composer`) become
   `target_kind=ecosystem` rows;
   `content_entity` dependency rows carrying
   `entity_metadata.lockfile_unsupported_feature` become

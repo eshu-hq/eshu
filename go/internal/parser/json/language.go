@@ -115,9 +115,7 @@ func Parse(
 			payload["variables"] = packageJSONDependencyVariables(object, languageName, topLevelEntries)
 			payload["functions"] = jsonScriptFunctions(object, languageName, topLevelEntries)
 		case filename == "composer.json":
-			payload["variables"] = dependencyVariables(object, languageName, "require", "composer", topLevelEntries)
-			devVariables := dependencyVariables(object, languageName, "require-dev", "composer", topLevelEntries)
-			payload["variables"] = append(payload["variables"].([]map[string]any), devVariables...)
+			payload["variables"] = composerManifestDependencyVariables(object, languageName, topLevelEntries)
 		case isTypeScriptConfigFilename(filename):
 			payload["variables"] = tsconfigVariables(object, languageName, topLevelEntries)
 		}
@@ -215,7 +213,7 @@ func normalizeJSONSource(source []byte, filename string) string {
 }
 
 // shouldSkipJSONEntities keeps package-lock.json and composer.lock listed
-// so the generic dependencyVariables/tsconfigVariables branches do not
+// so the generic dependency and tsconfig branches do not
 // attempt to parse them; both files are routed to their own lockfile-aware
 // emitter via the switch in Parse before this guard is consulted.
 func shouldSkipJSONEntities(filename string) bool {
@@ -238,16 +236,6 @@ func isLowerTypeScriptConfigFilename(lower string) bool {
 func isJSONCConfigFilename(filename string) bool {
 	lower := strings.ToLower(filename)
 	return strings.HasSuffix(lower, ".jsonc") || isLowerTypeScriptConfigFilename(lower)
-}
-
-func dependencyVariables(
-	document map[string]any,
-	lang string,
-	section string,
-	packageManager string,
-	topLevelEntries []orderedJSONEntry,
-) []map[string]any {
-	return dependencyVariablesWithScope(document, lang, section, packageManager, topLevelEntries, "", false)
 }
 
 func dependencyVariablesWithScope(

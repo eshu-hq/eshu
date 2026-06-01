@@ -35,9 +35,10 @@ The godoc contract is in `doc.go`. Current exports are:
   looks up a single entry by lowercase filename. The matrix is the in-code
   source of truth behind
   [`docs/public/reference/dependency-coverage.md`](../../../../docs/public/reference/dependency-coverage.md);
-  guard tests in `dependency_coverage_test.go` keep JSON-owned entries aligned
-  with what `Parse` actually emits, while parent-parser fixtures cover
-  non-JSON exact-name entries listed in the same matrix.
+  guard tests in `dependency_coverage_emit_test.go` and
+  `dependency_coverage_fixtures_test.go` keep JSON-owned entries aligned with
+  what `Parse` actually emits, while parent-parser fixtures cover non-JSON
+  exact-name entries listed in the same matrix.
 
 ## Dependencies
 
@@ -76,10 +77,12 @@ source of truth even when parser execution is owned by another package.
 installed by Composer. The parser emits one row per package in the
 `packages` (runtime) and `packages-dev` (dev) arrays, preserves the
 `vendor/name` identity, sets `package_manager: "composer"` and
-`lockfile: true`, and does not yet derive a transitive dependency chain.
-Composer manifest ranges from `composer.json` stay in their own
-`require`/`require-dev` rows so downstream code can present both the
-declared range and the installed version as joined evidence.
+`lockfile: true`, and derives direct/transitive dependency paths from
+package-to-package `require` edges when the required package is present in
+the same lockfile section. Composer manifest ranges from `composer.json`
+stay in their own `require`/`require-dev` rows so downstream code can
+present both the declared range and the installed version as joined
+evidence.
 
 dbt SQL lineage stays parent-owned. Do not import `internal/parser` from this
 package; add only narrow callback fields to `Config` when parent-owned behavior

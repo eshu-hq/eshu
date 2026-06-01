@@ -15,13 +15,16 @@
 // coverage matrix that the supply-chain impact reducer relies on. Each entry
 // records whether a manifest or lockfile is parsed into content_entity
 // dependency facts (Covered) or is still a Gap; gap entries preserve the safety
-// rule that missing dependency evidence is neither safe nor affected. Guard
-// tests in dependency_coverage_test.go exercise JSON-owned covered files and
-// gap files, while parent-parser tests prove covered exact-name entries owned by
-// other parser packages. npm package manifests preserve runtime, dev, optional,
-// and peer range scopes; package-lock rows preserve exact installed versions,
-// dependency chains, and npm-recorded runtime/dev/optional/peer scope where
-// available. SwiftPM Package.resolved rows are limited to remote source-control
-// pins with an exact version; branch-only, revision-only, and local pins remain
+// rule that missing dependency evidence is neither safe nor affected. The
+// dependency coverage emit and fixture tests exercise JSON-owned covered files
+// and gap files, while parent-parser tests prove covered exact-name entries
+// owned by other parser packages. npm package manifests preserve runtime, dev,
+// optional, and peer range scopes; package-lock rows preserve exact installed
+// versions, dependency chains, and npm-recorded runtime/dev/optional/peer scope
+// where available. Composer manifests preserve runtime/dev range scopes, while
+// composer.lock rows preserve exact installed versions, runtime/dev scope, and
+// dependency paths when the lockfile proves package-to-package requirements.
+// SwiftPM Package.resolved rows are limited to remote source-control pins with
+// an exact version; branch-only, revision-only, and local pins remain
 // non-evidence.
 package json
