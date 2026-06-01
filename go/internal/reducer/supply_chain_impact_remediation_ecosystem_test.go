@@ -163,7 +163,7 @@ func TestBuildSupplyChainImpactRemediationSupportsMultipleFixedBranchesPerEcosys
 	}
 }
 
-func TestBuildSupplyChainImpactRemediationSupportsRPMButNotUnprovenOSManagers(t *testing.T) {
+func TestBuildSupplyChainImpactRemediationSupportsVendorOSManagers(t *testing.T) {
 	t.Parallel()
 
 	rpm := remediationFinding("redhat", "1:3.0.7-18.el9_2", "", "1:3.0.7-18.el9_2", "1:3.0.7-19.el9_2",
@@ -190,12 +190,18 @@ func TestBuildSupplyChainImpactRemediationSupportsRPMButNotUnprovenOSManagers(t 
 	dpkg.FixedVersionSource = "debian"
 	dpkg.FixedVersionBranches = []FixedVersionBranch{{Version: "1.2.3-2", Source: "debian"}}
 
-	unsupported := BuildSupplyChainImpactRemediation(dpkg)
-	if unsupported.Reason != SupplyChainRemediationReasonPackageManagerUnsupported {
-		t.Fatalf("dpkg Reason = %q, want package_manager_unsupported", unsupported.Reason)
+	dpkgRemediation := BuildSupplyChainImpactRemediation(dpkg)
+	if dpkgRemediation.Reason != SupplyChainRemediationReasonDirectUpgradeAllowed {
+		t.Fatalf("dpkg Reason = %q, want direct_upgrade_allowed", dpkgRemediation.Reason)
 	}
-	if !containsRemediationMissingEvidence(unsupported, SupplyChainRemediationMissingEcosystemUnsupported) {
-		t.Fatalf("dpkg MissingEvidence = %#v, want unsupported ecosystem evidence", unsupported.MissingEvidence)
+	if dpkgRemediation.Confidence != SupplyChainRemediationConfidenceExact {
+		t.Fatalf("dpkg Confidence = %q, want exact", dpkgRemediation.Confidence)
+	}
+	if dpkgRemediation.FirstPatchedVersion != "1.2.3-2" {
+		t.Fatalf("dpkg FirstPatchedVersion = %q, want dpkg fixed version", dpkgRemediation.FirstPatchedVersion)
+	}
+	if containsRemediationMissingEvidence(dpkgRemediation, SupplyChainRemediationMissingEcosystemUnsupported) {
+		t.Fatalf("dpkg MissingEvidence = %#v, did not expect unsupported ecosystem evidence", dpkgRemediation.MissingEvidence)
 	}
 }
 

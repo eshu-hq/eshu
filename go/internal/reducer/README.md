@@ -562,9 +562,13 @@ Log phase attributes: `telemetry.PhaseReduction` (main loop),
   parser. The reducer delegates manifest allowance and fixed-branch ordering
   to the same ecosystem-aware matcher families used for impact classification:
   npm, Go modules, PyPI, Maven/Gradle, NuGet, Cargo, Composer, RubyGems, and
-  vendor-gated RPM. OS package managers without proven distro version ordering
-  still report `package_manager_unsupported` rather than guessing. The reducer
-  also
+  vendor-gated RPM, Debian/dpkg, and Alpine/APK OS packages. Debian and
+  Alpine recommendations require vendor advisory provenance, parseable distro
+  version ordering, a parseable installed OS package version, and one
+  source-attributed fixed branch. OS package evidence without that provenance
+  still reports `package_manager_unsupported` with structured missing evidence
+  such as `advisory_provenance_missing`, `fixed_version_branch_ambiguous`, or
+  `version_ordering_unsupported` rather than guessing. The reducer also
   captures `VulnerableRange` from the same provenance observation that
   supplies `RangeSource`, persists it on the canonical finding payload
   (top-level `vulnerable_range` and inside the `remediation` block), and

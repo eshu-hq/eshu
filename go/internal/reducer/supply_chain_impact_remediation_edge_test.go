@@ -6,12 +6,10 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
-// TestBuildSupplyChainImpactFindingsRemediationPackageManagerUnsupported
-// proves that OS package managers without proven distro version ordering
-// report an unknown-confidence "package_manager_unsupported" remediation so
-// callers see explicitly that Eshu has not yet computed a safe upgrade path
-// for that ecosystem.
-func TestBuildSupplyChainImpactFindingsRemediationPackageManagerUnsupported(t *testing.T) {
+// TestBuildSupplyChainImpactFindingsRemediationDPKGDirectUpgrade proves that
+// vendor-proven Debian remediation uses dpkg version ordering and can emit an
+// exact direct-upgrade recommendation instead of remaining unsupported.
+func TestBuildSupplyChainImpactFindingsRemediationDPKGDirectUpgrade(t *testing.T) {
 	t.Parallel()
 
 	remediation := BuildSupplyChainImpactRemediation(SupplyChainImpactFinding{
@@ -27,20 +25,23 @@ func TestBuildSupplyChainImpactFindingsRemediationPackageManagerUnsupported(t *t
 		},
 	})
 
-	if remediation.Reason != "package_manager_unsupported" {
-		t.Fatalf("Reason = %q, want package_manager_unsupported", remediation.Reason)
+	if remediation.Reason != "direct_upgrade_allowed" {
+		t.Fatalf("Reason = %q, want direct_upgrade_allowed", remediation.Reason)
 	}
-	if remediation.Confidence != "unknown" {
-		t.Fatalf("Confidence = %q, want unknown", remediation.Confidence)
+	if remediation.Confidence != "exact" {
+		t.Fatalf("Confidence = %q, want exact", remediation.Confidence)
 	}
 	if remediation.Ecosystem != "debian" {
 		t.Fatalf("Ecosystem = %q, want debian", remediation.Ecosystem)
 	}
-	if remediation.ManifestAllowsFix != "unknown" {
-		t.Fatalf("ManifestAllowsFix = %q, want unknown for unsupported ecosystem", remediation.ManifestAllowsFix)
+	if remediation.ManifestAllowsFix != SupplyChainRemediationManifestUnknown {
+		t.Fatalf("ManifestAllowsFix = %q, want unknown for OS package remediation", remediation.ManifestAllowsFix)
 	}
-	if !containsRemediationMissingEvidence(remediation, "ecosystem_remediation_unsupported") {
-		t.Fatalf("MissingEvidence = %#v, want ecosystem_remediation_unsupported", remediation.MissingEvidence)
+	if remediation.FirstPatchedVersion != "1.2.3-2" {
+		t.Fatalf("FirstPatchedVersion = %q, want 1.2.3-2", remediation.FirstPatchedVersion)
+	}
+	if containsRemediationMissingEvidence(remediation, SupplyChainRemediationMissingEcosystemUnsupported) {
+		t.Fatalf("MissingEvidence = %#v, did not expect unsupported ecosystem", remediation.MissingEvidence)
 	}
 }
 
