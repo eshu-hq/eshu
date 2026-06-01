@@ -120,6 +120,7 @@ type APIRouter struct {
 	PackageRegistry *PackageRegistryHandler
 	CICD            *CICDHandler
 	ServiceCatalog  *ServiceCatalogHandler
+	Kubernetes      *KubernetesHandler
 	SupplyChain     *SupplyChainHandler
 	Incident        *IncidentHandler
 	Status          *StatusHandler
@@ -197,6 +198,11 @@ func (a *APIRouter) Mount(mux *http.ServeMux) {
 	// Service catalog
 	if a.ServiceCatalog != nil {
 		a.ServiceCatalog.Mount(mux)
+	}
+
+	// Kubernetes
+	if a.Kubernetes != nil {
+		a.Kubernetes.Mount(mux)
 	}
 
 	// Supply chain

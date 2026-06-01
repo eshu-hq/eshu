@@ -103,6 +103,7 @@ shipped alongside them. The pattern other aggregates must follow lives at:
 | `get_ecosystem_overview` / `GET /api/v0/ecosystem/overview` | Graph; single Cypher with composed `WITH` counts | Top-level repo / workload / platform / instance counts. |
 | `get_repo_context` / `GET /api/v0/repositories/{repo_id}/context` | Graph + Postgres read-model | Single repository scope; bounded counts via `go/internal/query/repository_context_counts.go`. |
 | `list_service_catalog_correlations` / `GET /api/v0/service-catalog/correlations` | Postgres `fact_records` | Filtered list per scope or provider; no aggregate question forces fan-out. |
+| `list_kubernetes_correlations` / `GET /api/v0/kubernetes/correlations` | Postgres `fact_records` | Filtered list per cluster, workload, namespace, image, or digest scope; no aggregate question forces fan-out. |
 | `list_indexed_repositories` / `GET /api/v0/repositories` | Graph + Postgres catalog | Bounded list with deterministic ordering. |
 | `compare_environments` / `POST /api/v0/compare/environments` | Graph | Already returns side-by-side aggregate summary. |
 | `get_repo_summary` / `get_repo_story` | Graph + Postgres | Single repository scope. |

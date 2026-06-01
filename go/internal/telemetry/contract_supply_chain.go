@@ -45,6 +45,25 @@ const (
 
 func init() {
 	for idx, name := range spanNames {
+		if name == SpanQueryKubernetesCorrelations {
+			spanNames = slices.Insert(
+				spanNames,
+				idx+1,
+				SpanQueryContainerImageIdentities,
+				SpanQuerySupplyChainSecurityAlerts,
+				SpanQuerySBOMAttestationAttachments,
+				SpanQueryAdvisoryEvidence,
+				SpanQuerySupplyChainImpactFindings,
+				SpanQuerySupplyChainImpactExplanation,
+				SpanQuerySupplyChainImpactAggregate,
+				SpanQuerySecurityAlertReconciliationAggregate,
+				SpanQueryContainerImageIdentityAggregate,
+				SpanQuerySBOMAttestationAttachmentAggregate,
+			)
+			return
+		}
+	}
+	for idx, name := range spanNames {
 		if name == SpanQueryServiceCatalogCorrelations {
 			spanNames = slices.Insert(
 				spanNames,
