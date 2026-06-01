@@ -208,7 +208,7 @@ type Instruments struct {
 	// edges are missing because policies use wildcard resources, not a reducer bug.
 	IAMEscalationSkipped       metric.Int64Counter
 	SBOMAttestationAttachments metric.Int64Counter
-	SupplyChainImpactFindings        metric.Int64Counter
+	SupplyChainImpactFindings  metric.Int64Counter
 	// SupplyChainSuppressionDecisions counts reducer suppression-state
 	// outcomes per supply-chain impact finding. Labels: domain
 	// (supply_chain_impact) and outcome (one of active, not_affected,
@@ -264,6 +264,14 @@ type Instruments struct {
 	// Lets an operator answer "which coverage signal class is materializing
 	// COVERS edges, and by which identity path?" at 3 AM.
 	ObservabilityCoverageEdges metric.Int64Counter
+	// IncidentRoutingEvidence counts PagerDuty incident-routing graph evidence
+	// projection outcomes (issue #1168). Labels: domain
+	// (incident_routing_materialization), outcome (exact / drifted / ambiguous /
+	// unresolved / stale / rejected / permission_hidden / missing), source
+	// (declared / applied / observed / provenance), and kind (intended_routing /
+	// applied_routing / live_routing / routing). It never labels incident ids,
+	// service names, PagerDuty object ids, Jira keys, commits, PRs, or image refs.
+	IncidentRoutingEvidence metric.Int64Counter
 	// IAMCanAssumeEdges counts IAM CAN_ASSUME trust-graph edge projection
 	// outcomes (issue #1134 PR2). Labels: principal_kind (role / user — the
 	// resolved assuming-principal node type) and resolution_mode (arn). It counts
@@ -1484,6 +1492,14 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register ObservabilityCoverageEdges counter: %w", err)
+	}
+
+	inst.IncidentRoutingEvidence, err = meter.Int64Counter(
+		"eshu_dp_incident_routing_evidence_total",
+		metric.WithDescription("Total PagerDuty incident-routing graph evidence projection outcomes by domain, outcome, source class, and slot kind"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register IncidentRoutingEvidence counter: %w", err)
 	}
 
 	inst.IAMCanAssumeEdges, err = meter.Int64Counter(

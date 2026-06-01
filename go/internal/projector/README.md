@@ -183,6 +183,13 @@ operational-link, scorecard, or warning facts,
 `service_catalog_correlation` reducer intent for that scope/generation. The
 projector rejects unsupported service-catalog schema versions during projection
 so stale collector payloads cannot silently reach the reducer.
+PagerDuty incident-routing follows the same reducer-owned boundary. When a
+generation contains an `incident.record` fact or any `incident_routing.*` fact,
+`buildIncidentRoutingMaterializationReducerIntent` emits one
+`incident_routing_materialization` reducer intent for the scope/generation. The
+projector does not compare declared, applied, or live routing evidence and does
+not create incident, service, runtime, image, commit, pull-request, Jira, or
+root-cause graph truth.
 
 ## Telemetry
 
@@ -309,6 +316,12 @@ No-Regression Evidence: SBOM attachment intent routing is covered by
 It adds at most one reducer intent per SBOM or attestation scope generation and
 does not change graph write cardinality, worker counts, claim ordering, batch
 size, retry timing, or backend settings.
+
+No-Regression Evidence: PagerDuty incident-routing intent routing is covered by
+`go test ./internal/projector -run 'IncidentRoutingMaterialization' -count=1`.
+It adds at most one reducer intent per incident/routing scope generation and
+does not change graph writes, worker counts, claim ordering, batch size, retry
+timing, or backend settings.
 
 No-Observability-Change: existing projector `intent_enqueue` stage logs,
 `eshu_dp_reducer_intents_enqueued_total`, reducer domain counters,

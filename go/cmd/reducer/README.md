@@ -62,9 +62,11 @@ flowchart TB
    writer publishes digest-subject attachment facts; the service-catalog
    correlation writer publishes repository-evidence-gated catalog correlation
    facts; the supply-chain impact writer publishes reducer-owned
-   vulnerability impact facts without graph writes; and the security-alert
+   vulnerability impact facts without graph writes; the security-alert
    reconciliation writer publishes provider-alert comparison facts without
-   promoting provider alert state into impact truth),
+   promoting provider alert state into impact truth; and the PagerDuty
+   incident-routing evidence loader plus graph writer materialize exact
+   `IncidentRoutingEvidence` rows only),
    `SharedProjectionRunner`, `CodeCallProjectionRunner`,
    `RepoDependencyProjectionRunner`, `GraphProjectionPhaseRepairer`, and
    the `postgres.NewReducerQueue`.

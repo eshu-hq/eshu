@@ -21,7 +21,7 @@ reducer/query adapter.
 
 - `FactStore` / `NewFactStore` — `UpsertFacts`, `LoadFacts`, `ListFacts`,
   `ListFactsByKind`, `ListFactsByKindAndPayloadValue`,
-  `ListActiveRepositoryFacts`, `CountFacts`,
+  `LoadIncidentRoutingEvidence`, `ListActiveRepositoryFacts`, `CountFacts`,
   `ListOSPackageAdvisoryTargets`, and `ListSBOMComponentAdvisoryTargets`
 - `AWSCloudRuntimeDriftFindingStore` /
   `NewAWSCloudRuntimeDriftFindingStore` — active-generation reads over

@@ -81,6 +81,7 @@ worker counts.
 | `eshu_dp_cross_repo_evidence_loaded_total` | counter | Evidence rows loaded for cross-repo resolution. |
 | `eshu_dp_cross_repo_edges_resolved_total` | counter | Cross-repo edges resolved. |
 | `eshu_dp_evidence_facts_discovered_total` | counter | Evidence facts discovered during ingestion. |
+| `eshu_dp_incident_routing_evidence_total` | counter | PagerDuty incident-routing graph evidence outcomes by reducer domain, outcome, source class, and slot kind. |
 
 `eshu_dp_drift_unresolved_module_calls_total` uses the closed reasons
 `external_registry`, `external_git`, `external_archive`, `cross_repo_local`,

@@ -195,6 +195,16 @@ func appendAdditiveDomainDefinitions(definitions []DomainDefinition, handlers De
 		}
 		definitions = append(definitions, iamEscalation)
 	}
+	if handlers.IncidentRoutingEvidenceLoader != nil && handlers.IncidentRoutingEvidenceWriter != nil {
+		incidentRouting := incidentRoutingMaterializationDomainDefinition()
+		incidentRouting.Handler = IncidentRoutingMaterializationHandler{
+			Loader:               handlers.IncidentRoutingEvidenceLoader,
+			Writer:               handlers.IncidentRoutingEvidenceWriter,
+			PriorGenerationCheck: handlers.PriorGenerationCheck,
+			Instruments:          handlers.Instruments,
+		}
+		definitions = append(definitions, incidentRouting)
+	}
 	if handlers.DeployableUnitCorrelationHandler != nil {
 		definitions = append(definitions, DomainDefinition{
 			Domain:  DomainDeployableUnitCorrelation,

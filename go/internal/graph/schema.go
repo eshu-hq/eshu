@@ -151,6 +151,7 @@ var uidConstraintLabels = []string{
 	"HelmChart",
 	"HelmValues",
 	"ImplBlock",
+	"IncidentRoutingEvidence",
 	"Interface",
 	"K8sResource",
 	"KubernetesWorkload",

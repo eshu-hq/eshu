@@ -32,4 +32,8 @@
 // identity, package identity, advisory ids, and provider evidence scope so
 // provider-only placeholders are replaced by later matched or stale rows while
 // preserving reason and evidence references for audit.
+// IncidentRoutingMaterializationHandler writes exact PagerDuty
+// IncidentRoutingEvidence graph rows only for safe declared/applied/live
+// convergence or live-only no-IaC routing evidence; unsafe routing outcomes
+// remain provenance-only.
 package reducer

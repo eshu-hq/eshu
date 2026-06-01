@@ -176,6 +176,19 @@ trigger evidence with label-scoped endpoints. Trigger rows can emit both
 part of dead-code reachability for stored routines and must stay in the
 relationship retraction set.
 
+`IncidentRoutingEvidenceWriter` is a reducer-owned graph writer for PagerDuty
+incident routing. It writes only `IncidentRoutingEvidence` nodes and static
+`HAS_INTENDED_ROUTING`, `HAS_APPLIED_ROUTING`, or `HAS_LIVE_ROUTING`
+relationships between evidence nodes. The writer rejects out-of-vocabulary or
+unsafe slot values before building Cypher, uses batched `UNWIND` statements,
+and retracts only rows owned by `evidence_source='reducer/incident-routing'`
+for the current scope.
+
+No-Regression Evidence: `go test ./internal/storage/cypher -run
+'IncidentRoutingEvidenceWriter' -count=1` proves static relationship tokens,
+slot validation, scoped retraction, and grouped execution for the
+incident-routing writer.
+
 The executor chain is composed in `cmd/` wiring. A typical production chain
 wraps a concrete driver executor with `TimeoutExecutor` → `RetryingExecutor` →
 `InstrumentedExecutor`.

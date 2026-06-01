@@ -77,6 +77,37 @@ canonical-write or bounded counter-emission requirements.
 | `DomainKubernetesWorkloadMaterialization` | Materialize `kubernetes_live.pod_template` facts into canonical `KubernetesWorkload` nodes keyed by the collector-emitted `object_id`; publishes the `kubernetes_workload_uid` canonical-nodes phase the #388 live-workload edge gates on |
 | `DomainKubernetesCorrelationMaterialization` | Project exact live-workload correlation decisions into canonical `RUNS_IMAGE` edges from a `KubernetesWorkload` node to the digest-addressed OCI source node it runs; gates on the `kubernetes_workload_uid` canonical-nodes phase, exact-only, never fabricates or dangles an edge (issue #388 PR3) |
 | `DomainIAMCanAssumeMaterialization` | Project `aws_iam_permission` trust statements into canonical `(:CloudResource)-[:CAN_ASSUME]->(:CloudResource)` edges from an assuming IAM principal (role/user) to the role whose trust policy grants the assume; gates on the `cloud_resource_uid` canonical-nodes phase (the same gate `aws_relationship_materialization` uses), `effect=Allow` only, skips external / AWS-service / wildcard / account-root / unscanned principals, never fabricates or dangles an edge (issue #1134 PR2) |
+| `DomainIncidentRoutingMaterialization` | Project exact PagerDuty incident-routing evidence into reducer-owned `IncidentRoutingEvidence` graph nodes and intended/applied/live evidence relationships without promoting runtime, image, commit, pull-request, Jira, service-health, or root-cause truth |
+
+## PagerDuty IncidentRoutingEvidence graph projection (issue #1168)
+
+`DomainIncidentRoutingMaterialization` is the conservative graph slice for
+PagerDuty incident routing. It loads incident-scoped `incident.record` anchors,
+Terraform-source `PagerDutyDeclaration` content rows, same-generation applied
+PagerDuty service facts, optional live PagerDuty service facts, and coverage
+warnings. The extractor writes graph rows only for:
+
+- declared, applied, and live routing slots that all classify as `exact`; or
+- exact live PagerDuty service evidence when declared and applied IaC evidence
+  are both missing.
+
+All drifted, stale, permission-hidden, ambiguous, unresolved, rejected, derived,
+and missing outcomes stay provenance-only and are counted. Rows use deterministic
+`IncidentRoutingEvidence` UIDs and the Cypher writer emits only
+`HAS_INTENDED_ROUTING`, `HAS_APPLIED_ROUTING`, and `HAS_LIVE_ROUTING`
+relationships between evidence nodes. This domain does not create service,
+runtime, image, commit, pull-request, Jira, blast-radius, service-health, or
+root-cause edges.
+
+No-Regression Evidence: `go test ./internal/reducer -run
+'IncidentRouting|DefaultDomainDefinitions.*IncidentRouting' -count=1` proves
+exact convergence, live-only no-IaC evidence, unsafe outcome suppression, and
+default-domain registration.
+
+Observability Evidence: `eshu_dp_incident_routing_evidence_total` is labeled by
+`domain`, bounded `outcome`, `source` (`declared`, `applied`, `observed`, or
+`provenance`), and slot `kind`. The handler completion log carries load,
+extract, retract, write, and total durations plus materialized/skipped tallies.
 
 ## Live-workload RUNS_IMAGE edge projection (issue #388 PR3)
 
@@ -360,6 +391,12 @@ Key metrics (all prefixed `eshu_dp_`):
   unresolved, stale, and rejected coverage stays provenance-only in the read
   model and fabricates no edge. See issue #391 and
   `docs/internal/design/391-observability-coverage-correlation.md` §6/§12.
+- `incident_routing_evidence_total` — PagerDuty incident-routing graph evidence
+  outcomes by reducer domain, bounded outcome, source class, and slot kind.
+  The `DomainIncidentRoutingMaterialization` domain writes exact
+  `IncidentRoutingEvidence` graph rows only for full declared/applied/live
+  convergence or exact live-only no-IaC evidence; unsafe outcomes stay
+  provenance-only and are counted with `source=provenance`.
 - `kubernetes_correlations_total` — live Kubernetes correlation decisions by
   bounded outcome (`exact`, `derived`, `ambiguous`, `unresolved`, `stale`,
   `rejected`), reducer domain, and `drift_kind` (`in_sync`, `image_drift`,

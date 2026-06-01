@@ -208,8 +208,16 @@ evidence for the incident service and reports intended, applied, and live
 routing slots without promoting root cause, service health, blast radius,
 deployable, image, commit, pull-request, or work-item truth.
 
-Broader live PagerDuty config classes, alert-route-to-service comparison, and
-graph materialization remain staged follow-up work.
+The reducer also materializes conservative graph evidence for incident routing.
+It writes `IncidentRoutingEvidence` nodes and `HAS_INTENDED_ROUTING`,
+`HAS_APPLIED_ROUTING`, or `HAS_LIVE_ROUTING` relationships only when all three
+declared/applied/live service slots converge to `exact`, or when a live
+PagerDuty service is exact and no IaC routing evidence exists. Drifted, stale,
+permission-hidden, ambiguous, unresolved, rejected, derived, and missing
+evidence remains provenance-only and is counted by reducer telemetry.
+
+Broader live PagerDuty config classes and alert-route-to-service comparison
+remain staged follow-up work.
 
 Do not add Helm production-readiness claims for the full incident-routing
 surface until the collector, reducer, fixtures, telemetry, status, and API/MCP

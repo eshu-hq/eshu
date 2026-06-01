@@ -190,6 +190,7 @@ func buildReducerService(
 	kubernetesCorrelationEdgeWriter := sourcecypher.NewKubernetesCorrelationEdgeWriter(neo4jExec, neo4jBatchSize(getenv))
 	iamEscalationEdgeWriter := sourcecypher.NewIAMEscalationEdgeWriter(neo4jExec, neo4jBatchSize(getenv))
 	observabilityCoverageEdgeWriter := sourcecypher.NewObservabilityCoverageEdgeWriter(neo4jExec, neo4jBatchSize(getenv))
+	incidentRoutingEvidenceWriter := sourcecypher.NewIncidentRoutingEvidenceWriter(neo4jExec, neo4jBatchSize(getenv))
 	iamCanAssumeEdgeWriter := sourcecypher.NewIAMCanAssumeEdgeWriter(neo4jExec, neo4jBatchSize(getenv))
 	relationshipStore := postgres.NewRelationshipStore(database)
 	factStore := postgres.NewFactStore(database)
@@ -360,6 +361,8 @@ func buildReducerService(
 		PackageCorrelationWriter: reducer.PostgresPackageCorrelationWriter{
 			DB: database,
 		},
+		IncidentRoutingEvidenceLoader: factStore,
+		IncidentRoutingEvidenceWriter: incidentRoutingEvidenceWriter,
 	})
 	if err != nil {
 		return reducer.Service{}, err
