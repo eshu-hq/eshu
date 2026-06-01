@@ -205,6 +205,22 @@ const (
 	// The escalation edges (CAN_PERFORM, CAN_ESCALATE_TO) are a follow-up design
 	// fork; see docs/internal/design/1134-iam-can-assume-trust-graph.md §8.
 	DomainIAMCanAssumeMaterialization Domain = "iam_can_assume_materialization"
+	// DomainIAMEscalationMaterialization projects merged aws_iam_permission facts
+	// into the IAM privilege-escalation graph: each principal that holds a complete,
+	// well-known escalation primitive (all required actions Allow, unconditioned,
+	// not Deny-blocked) and whose target resolves to EXACTLY ONE scanned IAM
+	// CloudResource node becomes one CAN_ESCALATE_TO edge carrying the merged
+	// primitive set as an edge property. It is EDGE-ONLY on the existing
+	// cloud_resource_uid keyspace (both endpoints are IAM CloudResource nodes #805
+	// materializes); no new node type. It gates on the
+	// GraphProjectionKeyspaceCloudResourceUID /
+	// GraphProjectionPhaseCanonicalNodesCommitted phase so an edge never resolves
+	// against an IAM node that has not committed. Wildcard/many-resource targets,
+	// Deny, condition-gated, NotAction, unresolved, and cross-account-unscanned
+	// targets materialize no edge and are counted, never dropped silently;
+	// sts:AssumeRole is deferred to the separate CAN_ASSUME trust edge. It is
+	// security-sensitive and conservative by design (issue #1134 PR3).
+	DomainIAMEscalationMaterialization Domain = "iam_escalation_materialization"
 )
 
 // IntentStatus captures the durable reducer intent lifecycle state.

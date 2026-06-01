@@ -278,6 +278,39 @@ tracks this package's broader transient graph-write retry class.
   for the InstrumentedExecutor's `eshu_dp_neo4j_query_duration_seconds` /
   `eshu_dp_neo4j_batch_size`; the reducer handler owns the
   `eshu_dp_kubernetes_correlation_edges_total` counter and completion log.
+- `IAMEscalationEdgeWriter` — writes canonical `CAN_ESCALATE_TO` privilege-
+  escalation edges between an IAM principal `CloudResource` node and the IAM
+  target `CloudResource` node it can escalate to, for the IAM escalation
+  materialization reducer domain (issue #1134 PR3); constructed with
+  `NewIAMEscalationEdgeWriter`. Batched `UNWIND` +
+  `MATCH (p:CloudResource {uid})` / `MATCH (t:CloudResource {uid})` /
+  static-type `MERGE (p)-[rel:CAN_ESCALATE_TO]->(t)` so a missing endpoint is a
+  no-op (never a fabricated node). Both endpoints are the uniform `CloudResource`
+  label and the relationship type is the static `CAN_ESCALATE_TO` token, so the
+  writer interpolates no data-driven token. The escalation primitive set lives in
+  an edge property (`rel.primitives`), never in the MERGE key — so the MERGE keys
+  on the stable `(principal_uid, CAN_ESCALATE_TO, target_uid)` identity and stays
+  on NornicDB's relationship hot path. Idempotent on that triple, with an
+  evidence-source-scoped, edge-`scope_id`-filtered retract. Security-sensitive: it
+  persists only the conservatively-resolved rows the extractor produced.
+
+  Performance Evidence: `go test ./internal/storage/cypher -run '^$' -bench
+  BenchmarkIAMEscalationEdgeWriter -benchmem` shaped 5,000 edges at batch 500 in
+  `~1.33 ms/op` (`~1.97 MB/op`, `~25,068 allocs/op`) on darwin/arm64 (Apple M4
+  Pro), no-op group executor — same shape class as the proven `RUNS_IMAGE`
+  (`1.14 ms/op`) and reachability writers; bounded by `ceil(E/batchSize)`
+  statements with no per-edge graph round trip.
+  No-Regression Evidence: the edge family adds one static-token MERGE shape over
+  two uid-indexed CloudResource anchors, identical to the already-measured #388 /
+  #1135 writers; `go test ./internal/storage/cypher -run TestIAMEscalation
+  -count=1` proves the static-type MATCH-MATCH-MERGE, the primitive-out-of-MERGE-
+  key contract, batching, scope/evidence annotation, and the edge-scoped retract.
+  Observability Evidence: statement summaries and operation metadata
+  (`phase=iam_escalation_edge`, `label=CAN_ESCALATE_TO`) ride each statement for
+  the InstrumentedExecutor's `eshu_dp_neo4j_query_duration_seconds` /
+  `eshu_dp_neo4j_batch_size`; the reducer handler owns the
+  `eshu_dp_iam_escalation_edges_total` / `eshu_dp_iam_escalation_skipped_total`
+  counters and completion log.
 - `SemanticEntityWriter` — writes semantic entity (Annotation, Module, etc.)
   nodes; five constructors select the Cypher row shape
 

@@ -188,6 +188,15 @@ type DefaultHandlers struct {
 	// endpoint, and SG node keyspaces via ReadinessLookup (#1135 PR2b).
 	SecurityGroupReachabilityWriter SecurityGroupReachabilityWriter
 
+	// IAMEscalationEdgeWriter projects merged aws_iam_permission facts into
+	// conservative IAM CAN_ESCALATE_TO privilege-escalation edges between IAM
+	// principal and target CloudResource nodes (issue #1134 PR3). It must be non-nil
+	// alongside FactLoader for the registry to register
+	// DomainIAMEscalationMaterialization; missing either one would drop every
+	// escalation intent before it reached the graph. The handler also gates on
+	// ReadinessLookup so edges never resolve against uncommitted IAM nodes.
+	IAMEscalationEdgeWriter IAMEscalationEdgeWriter
+
 	// KubernetesCorrelationEdgeWriter projects exact live-workload correlation
 	// decisions into canonical RUNS_IMAGE edges between a KubernetesWorkload node
 	// and the digest-addressed OCI source node it runs (issue #388 PR3). It must be
