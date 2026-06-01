@@ -62,6 +62,8 @@ func repositoryRoute(toolName string, args map[string]any) (*route, bool) {
 		return containerImageIdentityAggregateInventoryRoute(args), true
 	case "list_advisory_evidence":
 		return advisoryEvidenceRoute(args), true
+	case "get_vulnerability_scanner_read_contract":
+		return vulnerabilityScannerReadContractRoute(args), true
 	case "list_supply_chain_impact_findings":
 		return supplyChainImpactFindingsRoute(args), true
 	case "count_supply_chain_impact_findings":

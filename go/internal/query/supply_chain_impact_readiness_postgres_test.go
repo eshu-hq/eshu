@@ -170,7 +170,7 @@ func (r *rejectingSupplyChainImpactReadinessQueryer) QueryContext(
 	_ ...any,
 ) (*sql.Rows, error) {
 	r.called++
-	return nil, fmt.Errorf("Postgres must not be queried for impact_status-only readiness")
+	return nil, fmt.Errorf("Postgres must not be queried for derived-only readiness")
 }
 
 func TestPostgresSupplyChainImpactReadinessSkipsImpactStatusOnlyScope(t *testing.T) {
@@ -195,6 +195,26 @@ func TestPostgresSupplyChainImpactReadinessSkipsImpactStatusOnlyScope(t *testing
 	}
 	if len(snapshot.EvidenceSources) != 0 || snapshot.TargetIncomplete {
 		t.Fatalf("snapshot = %#v, want empty for impact_status-only scope", snapshot)
+	}
+}
+
+func TestPostgresSupplyChainImpactReadinessSkipsAdvisoryOnlyScope(t *testing.T) {
+	t.Parallel()
+
+	db := &rejectingSupplyChainImpactReadinessQueryer{}
+	store := NewPostgresSupplyChainImpactReadinessStore(db)
+	snapshot, err := store.ReadSupplyChainImpactReadiness(
+		context.Background(),
+		SupplyChainImpactReadinessQuery{AdvisoryID: "GHSA-aaaa-bbbb-cccc"},
+	)
+	if err != nil {
+		t.Fatalf("ReadSupplyChainImpactReadiness() error = %v, want nil", err)
+	}
+	if db.called != 0 {
+		t.Fatalf("QueryContext invocations = %d, want 0 for advisory-only scope", db.called)
+	}
+	if len(snapshot.EvidenceSources) != 0 || snapshot.TargetIncomplete {
+		t.Fatalf("snapshot = %#v, want empty for advisory-only scope", snapshot)
 	}
 }
 

@@ -29,6 +29,9 @@ func (h *SupplyChainHandler) explainImpact(w http.ResponseWriter, r *http.Reques
 		)
 		return
 	}
+	if !rejectUnsupportedVulnerabilityScannerFilters(w, r, impactExplanationScannerFilters()) {
+		return
+	}
 	repositoryID, ok := h.resolveSupplyChainRepositorySelector(w, r, QueryParam(r, "repository_id"))
 	if !ok {
 		return

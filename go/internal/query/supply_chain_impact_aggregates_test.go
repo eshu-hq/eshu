@@ -196,25 +196,25 @@ func TestSupplyChainImpactAggregateQueriesUseListProfileAndSuppressionPredicates
 		"inventory": supplyChainImpactInventoryQueryTemplate,
 	} {
 		for _, want := range []string{
-			"fact.payload->>'detection_profile' = $6",
-			"$6 = 'precise'",
-			"$6 = 'comprehensive'",
+			"fact.payload->>'detection_profile' = $12",
+			"$12 = 'precise'",
+			"$12 = 'comprehensive'",
 			"nuget_semver_affected_range",
 			"cargo_semver_known_fixed",
 			"hex_semver_affected_range",
 			"swift_semver_affected_range",
 			"swift_semver_known_fixed",
-			"fact.payload->>'priority_bucket' = $7",
-			"COALESCE(NULLIF(fact.payload->>'priority_score', '')::int, 0) >= $8",
-			"COALESCE(NULLIF(fact.payload->>'suppression_state', ''), 'active') = $9",
-			"$10::boolean OR COALESCE(NULLIF(fact.payload->>'suppression_state', ''), 'active') NOT IN ('not_affected','accepted_risk','false_positive','ignored')",
+			"fact.payload->>'priority_bucket' = $13",
+			"COALESCE(NULLIF(fact.payload->>'priority_score', '')::int, 0) >= $14",
+			"COALESCE(NULLIF(fact.payload->>'suppression_state', ''), 'active') = $15",
+			"$16::boolean OR COALESCE(NULLIF(fact.payload->>'suppression_state', ''), 'active') NOT IN ('not_affected','accepted_risk','false_positive','ignored')",
 		} {
 			if !strings.Contains(query, want) {
 				t.Fatalf("%s aggregate query missing %q:\n%s", name, want, query)
 			}
 		}
 	}
-	if !strings.Contains(supplyChainImpactInventoryQueryTemplate, "LIMIT $11 OFFSET $12") {
+	if !strings.Contains(supplyChainImpactInventoryQueryTemplate, "LIMIT $17 OFFSET $18") {
 		t.Fatalf("inventory query must keep limit/offset after filter parameters:\n%s", supplyChainImpactInventoryQueryTemplate)
 	}
 }
@@ -316,7 +316,7 @@ func TestSupplyChainImpactAggregateInventoryRejectsUnknownDimension(t *testing.T
 	mux := http.NewServeMux()
 	handler.Mount(mux)
 
-	req := httptest.NewRequest(http.MethodGet, "/api/v0/supply-chain/impact/inventory?group_by=ecosystem", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/v0/supply-chain/impact/inventory?group_by=language", nil)
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, req)
 
@@ -451,13 +451,14 @@ func TestSupplyChainImpactInventoryGroupExpressionEnumIsClosed(t *testing.T) {
 		SupplyChainImpactInventoryByPriorityBucket,
 		SupplyChainImpactInventoryBySeverity,
 		SupplyChainImpactInventoryByRepository,
+		SupplyChainImpactInventoryByEcosystem,
 	}
 	for _, dim := range cases {
 		if _, err := supplyChainImpactInventoryGroupExpression(dim); err != nil {
 			t.Fatalf("dimension %q must be supported: %v", dim, err)
 		}
 	}
-	if _, err := supplyChainImpactInventoryGroupExpression("ecosystem"); err == nil {
+	if _, err := supplyChainImpactInventoryGroupExpression("language"); err == nil {
 		t.Fatal("supplyChainImpactInventoryGroupExpression must reject unknown dimensions to keep SQL substitution safe")
 	}
 }

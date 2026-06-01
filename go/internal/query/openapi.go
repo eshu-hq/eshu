@@ -73,6 +73,7 @@ func OpenAPISpec() string {
 			openAPIPathsServiceCatalog+
 			openAPIPathsKubernetes+
 			openAPIPathsObservabilityCoverage+
+			openAPIPathsVulnerabilityScannerContract+
 			openAPIPathsSupplyChain+
 			openAPIPathsSupplyChainImpactAggregate+
 			openAPIPathsSecurityAlertAggregate+

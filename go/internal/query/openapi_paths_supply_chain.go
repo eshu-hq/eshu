@@ -56,10 +56,18 @@ const openAPIPathsSupplyChain = `
         "operationId": "listSupplyChainImpactFindings",
         "parameters": [
           {"name": "cve_id", "in": "query", "schema": {"type": "string"}},
+          {"name": "advisory_id", "in": "query", "description": "Exact source advisory identifier such as GHSA, OSV, GLAD, vendor advisory, or CVE id.", "schema": {"type": "string"}},
+          {"name": "ghsa_id", "in": "query", "description": "GHSA advisory identifier alias for advisory_id.", "schema": {"type": "string"}},
+          {"name": "osv_id", "in": "query", "description": "OSV advisory identifier alias for advisory_id.", "schema": {"type": "string"}},
           {"name": "package_id", "in": "query", "schema": {"type": "string"}},
           {"name": "repository_id", "in": "query", "description": "Canonical repository id or human repository selector (name, repo slug, indexed path, local path, or remote URL). Unknown or ambiguous selectors return a selector error instead of an empty page.", "schema": {"type": "string"}},
           {"name": "subject_digest", "in": "query", "schema": {"type": "string"}},
           {"name": "impact_status", "in": "query", "schema": {"type": "string", "enum": ["affected_exact", "affected_derived", "possibly_affected", "not_affected_known_fixed", "unknown_impact"]}},
+          {"name": "ecosystem", "in": "query", "schema": {"type": "string"}, "description": "Package ecosystem from reducer-owned impact facts."},
+          {"name": "workload_id", "in": "query", "schema": {"type": "string"}, "description": "Reducer-admitted workload anchor; missing runtime mapping remains missing evidence."},
+          {"name": "service_id", "in": "query", "schema": {"type": "string"}, "description": "Reducer-admitted service anchor derived from workload/service evidence."},
+          {"name": "environment", "in": "query", "schema": {"type": "string"}, "description": "Reducer-admitted environment anchor; the read layer does not infer aliases."},
+          {"name": "severity", "in": "query", "schema": {"type": "string", "enum": ["critical", "high", "medium", "low", "none"]}, "description": "CVSS-derived severity bucket."},
           {"name": "profile", "in": "query", "schema": {"type": "string", "enum": ["precise", "comprehensive"], "default": "precise"}, "description": "Detection profile selector. precise (default) returns only findings backed by exact installed-version anchors resolved by supported matchers such as npm, PyPI, Maven, Cargo, Pub, NuGet, Swift, or vendor-backed RPM OS packages. comprehensive also returns range-only manifest, SBOM/CPE-derived, malformed range, and missing-version rows. Unsupported non-OS package ecosystems are reported as readiness unsupported_targets, not finding rows. Each finding row keeps its truth labels (impact_status, confidence, runtime_reachability) and missing-evidence reasons."},
           {"name": "priority_bucket", "in": "query", "schema": {"type": "string", "enum": ["critical", "high", "medium", "low", "informational"]}, "description": "Reducer triage priority filter; does not change impact truth."},
           {"name": "min_priority_score", "in": "query", "schema": {"type": "integer", "minimum": 0, "maximum": 100}, "description": "Minimum reducer priority score. Zero is the default no-op value and does not bound a request by itself."},
@@ -233,11 +241,17 @@ const openAPIPathsSupplyChain = `
                         "target_scope": {
                           "type": "object",
                           "properties": {
-                            "cve_id": {"type": "string"},
-                            "package_id": {"type": "string"},
-                            "repository_id": {"type": "string"},
-                            "subject_digest": {"type": "string"},
-                            "impact_status": {"type": "string"}
+	                            "cve_id": {"type": "string"},
+	                            "advisory_id": {"type": "string"},
+	                            "package_id": {"type": "string"},
+	                            "repository_id": {"type": "string"},
+	                            "subject_digest": {"type": "string"},
+	                            "ecosystem": {"type": "string"},
+	                            "workload_id": {"type": "string"},
+	                            "service_id": {"type": "string"},
+	                            "environment": {"type": "string"},
+	                            "severity": {"type": "string"},
+	                            "impact_status": {"type": "string"}
                           }
                         },
                         "evidence_sources": {

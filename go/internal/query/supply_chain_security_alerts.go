@@ -34,6 +34,9 @@ func (h *SupplyChainHandler) listSecurityAlertReconciliations(w http.ResponseWri
 	if !ok {
 		return
 	}
+	if !rejectUnsupportedVulnerabilityScannerFilters(w, r, securityAlertScannerFilters()) {
+		return
+	}
 	repositoryID, repositoryScopeIDs, ok := h.resolveSupplyChainSecurityAlertRepositorySelector(w, r, QueryParam(r, "repository_id"))
 	if !ok {
 		return

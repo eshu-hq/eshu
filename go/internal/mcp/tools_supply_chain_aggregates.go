@@ -17,6 +17,18 @@ func supplyChainImpactAggregateTools() []ToolDefinition {
 						"type":        "string",
 						"description": "Optional CVE or advisory identifier to scope the totals.",
 					},
+					"advisory_id": map[string]any{
+						"type":        "string",
+						"description": "Optional exact source advisory identifier such as GHSA or OSV.",
+					},
+					"ghsa_id": map[string]any{
+						"type":        "string",
+						"description": "Optional GHSA advisory identifier alias for advisory_id.",
+					},
+					"osv_id": map[string]any{
+						"type":        "string",
+						"description": "Optional OSV advisory identifier alias for advisory_id.",
+					},
 					"package_id": map[string]any{
 						"type":        "string",
 						"description": "Optional normalized package identity such as pkg:npm/example.",
@@ -34,6 +46,27 @@ func supplyChainImpactAggregateTools() []ToolDefinition {
 						"description": "Optional reducer impact status filter.",
 						"enum":        []string{"affected_exact", "affected_derived", "possibly_affected", "not_affected_known_fixed", "unknown_impact"},
 					},
+					"ecosystem": map[string]any{
+						"type":        "string",
+						"description": "Optional package ecosystem filter.",
+					},
+					"workload_id": map[string]any{
+						"type":        "string",
+						"description": "Optional reducer-admitted workload anchor.",
+					},
+					"service_id": map[string]any{
+						"type":        "string",
+						"description": "Optional reducer-admitted service anchor.",
+					},
+					"environment": map[string]any{
+						"type":        "string",
+						"description": "Optional reducer-admitted environment anchor.",
+					},
+					"severity": map[string]any{
+						"type":        "string",
+						"description": "Optional CVSS-derived severity bucket.",
+						"enum":        []string{"critical", "high", "medium", "low", "none"},
+					},
 				},
 			},
 		},
@@ -45,13 +78,25 @@ func supplyChainImpactAggregateTools() []ToolDefinition {
 				"properties": map[string]any{
 					"group_by": map[string]any{
 						"type":        "string",
-						"description": "Grouping dimension. impact_status (default) groups by reducer status; priority_bucket groups by triage bucket; severity groups by CVSS severity bucket; repository_id groups by repository.",
-						"enum":        []string{"impact_status", "priority_bucket", "severity", "repository_id"},
+						"description": "Grouping dimension. impact_status (default) groups by reducer status; priority_bucket groups by triage bucket; severity groups by CVSS severity bucket; repository_id groups by repository; ecosystem groups by package ecosystem.",
+						"enum":        []string{"impact_status", "priority_bucket", "severity", "repository_id", "ecosystem"},
 						"default":     "impact_status",
 					},
 					"cve_id": map[string]any{
 						"type":        "string",
 						"description": "Optional CVE or advisory identifier to scope the inventory.",
+					},
+					"advisory_id": map[string]any{
+						"type":        "string",
+						"description": "Optional exact source advisory identifier such as GHSA or OSV.",
+					},
+					"ghsa_id": map[string]any{
+						"type":        "string",
+						"description": "Optional GHSA advisory identifier alias for advisory_id.",
+					},
+					"osv_id": map[string]any{
+						"type":        "string",
+						"description": "Optional OSV advisory identifier alias for advisory_id.",
 					},
 					"package_id": map[string]any{
 						"type":        "string",
@@ -69,6 +114,27 @@ func supplyChainImpactAggregateTools() []ToolDefinition {
 						"type":        "string",
 						"description": "Optional reducer impact status filter applied before grouping.",
 						"enum":        []string{"affected_exact", "affected_derived", "possibly_affected", "not_affected_known_fixed", "unknown_impact"},
+					},
+					"ecosystem": map[string]any{
+						"type":        "string",
+						"description": "Optional package ecosystem filter.",
+					},
+					"workload_id": map[string]any{
+						"type":        "string",
+						"description": "Optional reducer-admitted workload anchor.",
+					},
+					"service_id": map[string]any{
+						"type":        "string",
+						"description": "Optional reducer-admitted service anchor.",
+					},
+					"environment": map[string]any{
+						"type":        "string",
+						"description": "Optional reducer-admitted environment anchor.",
+					},
+					"severity": map[string]any{
+						"type":        "string",
+						"description": "Optional CVSS-derived severity bucket.",
+						"enum":        []string{"critical", "high", "medium", "low", "none"},
 					},
 					"limit": map[string]any{
 						"type":        "integer",

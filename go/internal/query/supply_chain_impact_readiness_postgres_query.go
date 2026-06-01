@@ -258,10 +258,18 @@ vulnerability_advisory AS (
         NULL::text AS source_states_json,
         NULL::text AS unsupported_targets_json
     FROM advisory_active
-    WHERE ($9 <> '' AND payload->>'cve_id' = $9)
-       OR (($10 <> '' OR $11 <> '' OR $12 <> '')
-           AND payload->>'package_id' IN (SELECT package_id FROM target_advisory_packages))
-       OR ($9 = '' AND $10 = '' AND $11 = '' AND $12 = '')
+    WHERE (
+          ($9 <> '' AND payload->>'cve_id' = $9)
+          OR (($10 <> '' OR $11 <> '' OR $12 <> '')
+              AND payload->>'package_id' IN (SELECT package_id FROM target_advisory_packages))
+          OR ($9 = '' AND $10 = '' AND $11 = '' AND $12 = '')
+      )
+      AND (
+          $13 = ''
+          OR payload->>'advisory_id' = $13
+          OR payload->>'ghsa_id' = $13
+          OR payload->>'osv_id' = $13
+      )
 ),
 vulnerability_exploitability AS (
     SELECT
@@ -274,7 +282,8 @@ vulnerability_exploitability AS (
         NULL::text AS source_states_json,
         NULL::text AS unsupported_targets_json
     FROM exploitability_active
-    WHERE ($9 = '' OR payload->>'cve_id' = $9)
+    WHERE $13 = ''
+      AND ($9 = '' OR payload->>'cve_id' = $9)
 ),
 package_consumption_correlation AS (
     SELECT

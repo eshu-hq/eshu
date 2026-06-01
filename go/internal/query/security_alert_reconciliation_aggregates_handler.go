@@ -52,6 +52,9 @@ func (h *SupplyChainHandler) countSecurityAlertReconciliations(w http.ResponseWr
 		)
 		return
 	}
+	if !rejectUnsupportedVulnerabilityScannerFilters(w, r, securityAlertScannerFilters()) {
+		return
+	}
 
 	filter, ok := h.securityAlertReconciliationAggregateFilterFromRequest(w, r)
 	if !ok {
@@ -114,6 +117,9 @@ func (h *SupplyChainHandler) securityAlertReconciliationInventory(w http.Respons
 			h.profile(),
 			requiredProfile(securityAlertReconciliationAggregateCapability),
 		)
+		return
+	}
+	if !rejectUnsupportedVulnerabilityScannerFilters(w, r, securityAlertScannerFilters()) {
 		return
 	}
 

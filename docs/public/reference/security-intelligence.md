@@ -396,11 +396,15 @@ reducer-fact counts so the answer never invents findings:
 - `readiness_state` is one of the core states above, plus
   `readiness_unavailable` when the lookup itself fails and `unsupported` when
   bounded unsupported-target evidence exists.
-- `target_scope` echoes `cve_id`, `package_id`, `repository_id`,
-  `subject_digest`, and `impact_status`. `impact_status` alone is not a
-  fact-anchor; the readiness store skips its Postgres scan for
-  impact_status-only requests because source facts do not carry that reducer
-  attribute.
+- `target_scope` echoes the bounded scanner scope: `cve_id`, `advisory_id`,
+  `package_id`, `repository_id`, `subject_digest`, `ecosystem`, `workload_id`,
+  `service_id`, `environment`, `severity`, and `impact_status`.
+  `advisory_id` narrows source-advisory evidence when another fact anchor is
+  present; advisory-only readiness avoids a broad source-evidence scan.
+  Reducer-derived fields such as `workload_id`, `service_id`, `environment`,
+  `severity`, and `impact_status` do not open a source-fact scan by themselves;
+  Eshu returns the scope in the envelope so callers can see when zero findings
+  came from a derived-only or missing-evidence question.
 - `evidence_sources[]` reports scoped counts, `latest_observed_at`, and
   freshness for `vulnerability.advisory`, `vulnerability.exploitability`,
   `package.consumption`, `package.registry`, `sbom.component`,

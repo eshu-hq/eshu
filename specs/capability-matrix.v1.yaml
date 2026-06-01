@@ -411,6 +411,13 @@ capabilities:
       local_authoritative: {status: supported, max_truth_level: exact, required_runtime: local_host_plus_graph, p95_latency_ms: 1000, max_scope_size: cve_advisory_or_package_scope, verification: [{go_test: ./internal/query}], notes: bounded source-only advisory evidence lookup anchored by CVE, advisory id, or package id; does not imply impact}
       local_full_stack: {status: supported, max_truth_level: exact, required_runtime: full_stack, p95_latency_ms: 1000, max_scope_size: cve_advisory_or_package_scope, verification: [{go_test: ./internal/query}], notes: bounded source-only advisory evidence lookup anchored by CVE, advisory id, or package id; does not imply impact}
       production: {status: supported, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 1500, max_scope_size: cve_advisory_or_package_scope, verification: [{remote_validation: prod-advisory-evidence}], notes: bounded source-only advisory evidence lookup anchored by CVE, advisory id, or package id; preserves source disagreement without implying repository or image impact}
+  - capability: supply_chain.vulnerability_scanner.contract.read
+    tools: [get_vulnerability_scanner_read_contract]
+    profiles:
+      local_lightweight: {status: supported, max_truth_level: exact, required_runtime: local_host, p95_latency_ms: 100, max_scope_size: static_contract, verification: [{go_test: ./internal/query}], notes: static scanner read contract for supported, unsupported, provider-only, and missing-evidence driven filters}
+      local_authoritative: {status: supported, max_truth_level: exact, required_runtime: local_host_plus_graph, p95_latency_ms: 100, max_scope_size: static_contract, verification: [{go_test: ./internal/query}], notes: static scanner read contract; graph sidecar unused}
+      local_full_stack: {status: supported, max_truth_level: exact, required_runtime: full_stack, p95_latency_ms: 100, max_scope_size: static_contract, verification: [{go_test: ./internal/query}], notes: static scanner read contract for HTTP, MCP, and report route consistency}
+      production: {status: supported, max_truth_level: exact, required_runtime: deployed_services, p95_latency_ms: 200, max_scope_size: static_contract, verification: [{remote_validation: prod-vulnerability-scanner-contract}], notes: static scanner read contract; route handlers own runtime evidence and readiness envelopes}
   - capability: supply_chain.impact_findings.list
     tools: [list_supply_chain_impact_findings]
     profiles:

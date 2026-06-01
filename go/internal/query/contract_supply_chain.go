@@ -1,6 +1,13 @@
 package query
 
 func init() {
+	capabilityMatrix[vulnerabilityScannerReadContractCapability] = capabilitySupport{
+		LocalLightweightMax:   &truthExact,
+		LocalAuthoritativeMax: &truthExact,
+		LocalFullStackMax:     &truthExact,
+		ProductionMax:         &truthExact,
+		RequiredProfile:       ProfileLocalLightweight,
+	}
 	capabilityMatrix[sbomAttestationAttachmentsCapability] = capabilitySupport{
 		LocalLightweightMax:   nil,
 		LocalAuthoritativeMax: &truthExact,
