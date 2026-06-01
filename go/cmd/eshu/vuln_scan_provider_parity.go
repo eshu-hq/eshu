@@ -336,7 +336,7 @@ func readinessEvidenceFamilies(readiness map[string]any) []string {
 	items, _ := readiness["evidence_sources"].([]any)
 	for _, item := range items {
 		row, _ := item.(map[string]any)
-		if factCount(row) <= 0 {
+		if factCount(row) <= 0 || !readinessEvidenceSourceFresh(row) {
 			continue
 		}
 		if family := rowString(row, "family"); family != "" {
@@ -344,6 +344,15 @@ func readinessEvidenceFamilies(readiness map[string]any) []string {
 		}
 	}
 	return out
+}
+
+func readinessEvidenceSourceFresh(row map[string]any) bool {
+	switch strings.ToLower(rowString(row, "freshness")) {
+	case "", "fresh":
+		return true
+	default:
+		return false
+	}
 }
 
 func readinessMissingEvidence(readiness map[string]any) []string {
