@@ -46,11 +46,11 @@ func newDocumentFact(input scannerworker.ClaimInput, observedAt time.Time, doc d
 		"correlation_anchors":   documentAnchors(doc.documentID, doc.subjectDigest),
 	}
 	stableKey := facts.StableID(facts.SBOMDocumentFactKind, map[string]any{
-		"document_id":     doc.documentID,
-		"format":          Format,
-		"generation_id":   input.GenerationID,
-		"scope_id":        input.Target.ScopeID,
-		"subject_digest":  strings.TrimSpace(doc.subjectDigest),
+		"document_id":    doc.documentID,
+		"format":         Format,
+		"generation_id":  input.GenerationID,
+		"scope_id":       input.Target.ScopeID,
+		"subject_digest": strings.TrimSpace(doc.subjectDigest),
 	})
 	return newEnvelope(input, observedAt, facts.SBOMDocumentFactKind, stableKey, payload)
 }
@@ -87,23 +87,29 @@ func newComponentFact(
 		componentType = "library"
 	}
 	payload := map[string]any{
-		"document_id":   documentID,
-		"component_id":  componentID,
-		"bom_ref":       bomRef,
-		"name":          name,
-		"version":       strings.TrimSpace(comp.Version),
-		"type":          componentType,
-		"purl":          purl,
-		"cpe":           "",
-		"description":   "",
-		"publisher":     "",
-		"scope":         "",
-		"hashes":        []map[string]string{},
-		"licenses":      []map[string]string{},
-		"supplier_name": "",
-		"supplier_url":  "",
-		"is_duplicate":  false,
-		"correlation_anchors": uniqueSorted([]string{purl, bomRef}),
+		"document_id":         documentID,
+		"component_id":        componentID,
+		"bom_ref":             bomRef,
+		"name":                name,
+		"version":             strings.TrimSpace(comp.Version),
+		"type":                componentType,
+		"purl":                purl,
+		"cpe":                 "",
+		"description":         "",
+		"publisher":           "",
+		"scope":               strings.TrimSpace(comp.DependencyScope),
+		"ecosystem":           strings.TrimSpace(comp.Ecosystem),
+		"evidence_source":     strings.TrimSpace(comp.EvidenceSource),
+		"lockfile_path":       strings.TrimSpace(comp.LockfilePath),
+		"dependency_scope":    strings.TrimSpace(comp.DependencyScope),
+		"dependency_type":     strings.TrimSpace(comp.DependencyType),
+		"extraction_reason":   strings.TrimSpace(comp.ExtractionReason),
+		"hashes":              []map[string]string{},
+		"licenses":            []map[string]string{},
+		"supplier_name":       "",
+		"supplier_url":        "",
+		"is_duplicate":        false,
+		"correlation_anchors": uniqueSorted([]string{purl, bomRef, strings.TrimSpace(comp.Ecosystem), strings.TrimSpace(comp.LockfilePath)}),
 	}
 	return newEnvelope(input, observedAt, facts.SBOMComponentFactKind, stableKey, payload), true
 }
@@ -125,6 +131,46 @@ func newWarningFact(
 		"generation_id": input.GenerationID,
 		"reason":        reason,
 		"summary":       summary,
+	})
+	return newEnvelope(input, observedAt, facts.SBOMWarningFactKind, stableKey, payload)
+}
+
+func newWarningFactWithEvidence(
+	input scannerworker.ClaimInput,
+	observedAt time.Time,
+	documentID string,
+	warning Warning,
+) facts.Envelope {
+	reason := strings.TrimSpace(warning.Reason)
+	summary := strings.TrimSpace(warning.Summary)
+	if summary == "" {
+		summary = reason
+	}
+	payload := map[string]any{
+		"document_id": documentID,
+		"reason":      reason,
+		"summary":     summary,
+	}
+	if ecosystem := strings.TrimSpace(warning.Ecosystem); ecosystem != "" {
+		payload["ecosystem"] = ecosystem
+	}
+	if source := strings.TrimSpace(warning.EvidenceSource); source != "" {
+		payload["evidence_source"] = source
+	}
+	if lockfilePath := strings.TrimSpace(warning.LockfilePath); lockfilePath != "" {
+		payload["lockfile_path"] = lockfilePath
+	}
+	if extractionReason := strings.TrimSpace(warning.ExtractionReason); extractionReason != "" {
+		payload["extraction_reason"] = extractionReason
+	}
+	stableKey := facts.StableID(facts.SBOMWarningFactKind, map[string]any{
+		"document_id":       documentID,
+		"ecosystem":         payload["ecosystem"],
+		"extraction_reason": payload["extraction_reason"],
+		"generation_id":     input.GenerationID,
+		"lockfile_path":     payload["lockfile_path"],
+		"reason":            reason,
+		"summary":           summary,
 	})
 	return newEnvelope(input, observedAt, facts.SBOMWarningFactKind, stableKey, payload)
 }
