@@ -39,14 +39,15 @@ const (
 // SupplyChainImpactFactFilter bounds active evidence loading for one impact
 // reducer intent.
 type SupplyChainImpactFactFilter struct {
-	PackageIDs      []string
-	PURLs           []string
-	CVEIDs          []string
-	SubjectDigests  []string
-	DocumentIDs     []string
-	ProductCriteria []string
-	RepositoryIDs   []string
-	ImageRefs       []string
+	PackageIDs        []string
+	PURLs             []string
+	CVEIDs            []string
+	SubjectDigests    []string
+	DocumentIDs       []string
+	ProductCriteria   []string
+	RepositoryIDs     []string
+	FileRepositoryIDs []string
+	ImageRefs         []string
 }
 
 // SupplyChainImpactFinding is one reducer-owned vulnerability impact finding.

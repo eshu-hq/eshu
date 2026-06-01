@@ -140,3 +140,82 @@ func TestSupplyChainImpactHandlerLoadsActiveWorkloadIdentityForRepositoryFinding
 		t.Fatalf("ServiceIDs = %#v, want no service identity without service catalog evidence", got.ServiceIDs)
 	}
 }
+
+func TestSupplyChainImpactHandlerRequestsParserFilesOnlyForNPMReachability(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name                  string
+		affected              facts.Envelope
+		consumptionPackageID  string
+		wantFileRepositoryIDs string
+	}{
+		{
+			name: "maven finding keeps repository follow-up but does not request parser files",
+			affected: vulnerabilityAffectedPackageFact(
+				"affected-maven",
+				"CVE-2026-118505",
+				"pkg:maven/org.example/vulnerable-api",
+				"maven",
+				"org.example:vulnerable-api",
+				"1.2.3",
+				"1.3.0",
+			),
+			consumptionPackageID: "pkg:maven/org.example/vulnerable-api",
+		},
+		{
+			name: "npm finding requests parser files for JS TS package API reachability",
+			affected: vulnerabilityAffectedPackageFact(
+				"affected-npm",
+				"CVE-2026-118506",
+				"pkg:npm/vulnerable-api",
+				"npm",
+				"vulnerable-api",
+				"1.2.3",
+				"1.3.0",
+			),
+			consumptionPackageID:  "pkg:npm/vulnerable-api",
+			wantFileRepositoryIDs: testImpactRepositoryID,
+		},
+	}
+
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			loader := &stubSupplyChainImpactFactLoader{
+				scopeFacts: []facts.Envelope{
+					vulnerabilityCVEFact("cve-1", payloadStr(tc.affected.Payload, "cve_id"), 7.8),
+					tc.affected,
+					packageConsumptionFactWithRange("consume-1", tc.consumptionPackageID, testImpactRepositoryID, "1.2.3"),
+				},
+			}
+			writer := &recordingSupplyChainImpactWriter{}
+			handler := SupplyChainImpactHandler{FactLoader: loader, Writer: writer}
+
+			_, err := handler.Handle(context.Background(), Intent{
+				IntentID:     "intent-impact",
+				ScopeID:      testImpactRepositoryID,
+				GenerationID: "generation-repo",
+				SourceSystem: "git",
+				Domain:       DomainSupplyChainImpact,
+				Cause:        "repository dependency observed",
+			})
+			if err != nil {
+				t.Fatalf("Handle() error = %v, want nil", err)
+			}
+
+			if got, want := len(loader.filters), 1; got != want {
+				t.Fatalf("active evidence loads = %d, want %d: %#v", got, want, loader.filters)
+			}
+			filter := loader.filters[0]
+			if got, want := strings.Join(filter.RepositoryIDs, ","), testImpactRepositoryID; got != want {
+				t.Fatalf("RepositoryIDs = %q, want %q", got, want)
+			}
+			if got := strings.Join(filter.FileRepositoryIDs, ","); got != tc.wantFileRepositoryIDs {
+				t.Fatalf("FileRepositoryIDs = %q, want %q", got, tc.wantFileRepositoryIDs)
+			}
+		})
+	}
+}
