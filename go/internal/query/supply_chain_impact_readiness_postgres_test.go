@@ -53,7 +53,6 @@ func TestPostgresSupplyChainImpactReadinessQueryShape(t *testing.T) {
 		// target_incomplete or grow response size without limit.
 		"vulnerability_source_state_candidates AS (",
 		"scope_id IN ($9, $10, $11, $12)",
-		"scope_id NOT LIKE 'vuln-intel://osv/%/%?version=%'",
 		"ORDER BY CASE WHEN scope_id IN ($9, $10, $11, $12) THEN 0 ELSE 1 END",
 		"LIMIT 200",
 		"FROM vulnerability_source_state_candidates",
@@ -109,6 +108,32 @@ func TestPostgresSupplyChainImpactReadinessQueryShape(t *testing.T) {
 		if !strings.Contains(listSupplyChainImpactReadinessQuery, want) {
 			t.Fatalf("listSupplyChainImpactReadinessQuery missing %q:\n%s", want, listSupplyChainImpactReadinessQuery)
 		}
+	}
+}
+
+func TestPostgresSupplyChainImpactReadinessScopesSourceFreshness(t *testing.T) {
+	t.Parallel()
+
+	for _, want := range []string{
+		"target_vulnerability_source_ecosystems AS (",
+		"FROM package_consumption_correlation_active AS consumption",
+		"consumption.payload->>'repository_id' = $11",
+		"registry.payload->>'package_id' = $10",
+		"component.payload->>'subject_digest' = $12",
+		"target_vulnerability_source_scopes AS (",
+		"'vuln-intel://nvd/cve' AS scope_id",
+		"'vuln-intel://cisa/kev' AS scope_id",
+		"'vuln-intel://first/epss' AS scope_id",
+		"FROM target_vulnerability_source_scopes AS target",
+		"target.ecosystem = NULLIF(LOWER(TRIM(snapshot.payload->>'ecosystem')), '')",
+		"target.ecosystem = NULLIF(LOWER(TRIM(state.ecosystem)), '')",
+	} {
+		if !strings.Contains(listSupplyChainImpactReadinessQuery, want) {
+			t.Fatalf("listSupplyChainImpactReadinessQuery missing scoped source freshness fragment %q:\n%s", want, listSupplyChainImpactReadinessQuery)
+		}
+	}
+	if strings.Contains(listSupplyChainImpactReadinessQuery, "scope_id NOT LIKE 'vuln-intel://osv/%/%?version=%'") {
+		t.Fatalf("listSupplyChainImpactReadinessQuery still has unanchored source-state fallback:\n%s", listSupplyChainImpactReadinessQuery)
 	}
 }
 
