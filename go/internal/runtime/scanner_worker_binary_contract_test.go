@@ -38,3 +38,58 @@ func TestSBOMAttestationCollectorBinaryIsBuiltInstalledAndDocumented(t *testing.
 		}
 	}
 }
+
+func TestObservabilityCollectorBinariesAreBuiltInstalledAndDocumented(t *testing.T) {
+	t.Parallel()
+
+	for _, collector := range []struct {
+		binary       string
+		commandPath  string
+		displayName  string
+		envVar       string
+		templatePath string
+	}{
+		{
+			binary:       "eshu-collector-grafana",
+			commandPath:  "./cmd/collector-grafana",
+			displayName:  "Grafana Collector",
+			envVar:       "ESHU_GRAFANA_COLLECTOR_INSTANCE_ID",
+			templatePath: "deploy/helm/eshu/templates/deployment-grafana-collector.yaml",
+		},
+		{
+			binary:       "eshu-collector-prometheus-mimir",
+			commandPath:  "./cmd/collector-prometheus-mimir",
+			displayName:  "Prometheus/Mimir Collector",
+			envVar:       "ESHU_PROMETHEUS_MIMIR_COLLECTOR_INSTANCE_ID",
+			templatePath: "deploy/helm/eshu/templates/deployment-prometheus-mimir-collector.yaml",
+		},
+		{
+			binary:       "eshu-collector-loki",
+			commandPath:  "./cmd/collector-loki",
+			displayName:  "Loki Collector",
+			envVar:       "ESHU_LOKI_COLLECTOR_INSTANCE_ID",
+			templatePath: "deploy/helm/eshu/templates/deployment-loki-collector.yaml",
+		},
+		{
+			binary:       "eshu-collector-tempo",
+			commandPath:  "./cmd/collector-tempo",
+			displayName:  "Tempo Collector",
+			envVar:       "ESHU_TEMPO_COLLECTOR_INSTANCE_ID",
+			templatePath: "deploy/helm/eshu/templates/deployment-tempo-collector.yaml",
+		},
+	} {
+		for file, want := range map[string]string{
+			"Dockerfile":                        "-o /go-bin/" + collector.binary + " " + collector.commandPath,
+			"scripts/install-local-binaries.sh": "go build -trimpath -ldflags=\"$LDFLAGS\" -o \"$INSTALL_DIR/" + collector.binary + "\" " + collector.commandPath,
+			"go/cmd/README.md":                  "`" + collector.binary + "`",
+			"docs/public/deployment/service-runtimes-collectors.md": collector.displayName,
+			"docs/public/reference/environment-collectors.md":       collector.envVar,
+			collector.templatePath:                                  "/usr/local/bin/" + collector.binary,
+		} {
+			content := readRepositoryFile(t, "../../..", file)
+			if !strings.Contains(content, want) {
+				t.Fatalf("%s missing %q", file, want)
+			}
+		}
+	}
+}

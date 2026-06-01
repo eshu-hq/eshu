@@ -193,6 +193,71 @@ Jira API tokens must come from private environment variables referenced by
 `token_env`; do not commit token values, private issue summaries, user names,
 issue URLs, or copied provider payloads to public values files or docs.
 
+## Live Grafana-Stack Collectors
+
+The Grafana, Prometheus/Mimir, Loki, and Tempo collectors are claim-only. Each
+selects one enabled collector instance from `ESHU_COLLECTOR_INSTANCES_JSON`.
+Target configuration uses `targets` and references credentials through
+environment-variable names. The runtime resolves those secrets in process
+memory and commits metadata-only source facts.
+
+Use source-controlled IaC/GitOps evidence first when it is current. Live
+provider collection is fallback and validation evidence for no-IaC
+environments, drift, freshness, and effective target, rule, log-signal, or
+trace-signal metadata. These collectors do not emit graph truth directly.
+
+Grafana targets include `provider: "grafana"`, `scope_id`, `instance_id`,
+`base_url`, required `token_env`, optional `resource_limit`, optional
+`stale_after`, optional `declared_uids`, and `enabled: true`.
+
+Prometheus/Mimir targets include `provider: "prometheus"` or `"mimir"`,
+`scope_id`, `instance_id`, `base_url`, optional `path_prefix`, optional
+`token_env`, optional `tenant_id` or `tenant_id_env`, optional
+`resource_limit`, optional `stale_after`, optional `declared_ids`, and
+`enabled: true`.
+
+Loki targets include `scope_id`, `instance_id`, `base_url`, optional
+`path_prefix`, optional `token_env`, optional `tenant_id` or `tenant_id_env`,
+optional `resource_limit`, optional `label_value_names`, optional
+`max_label_values_per_label`, optional `series_matchers`, optional
+`stale_after`, optional `declared_ids`, and `enabled: true`.
+
+Tempo targets include `scope_id`, `instance_id`, `base_url`, optional
+`path_prefix`, optional `token_env`, optional `tenant_id` or `tenant_id_env`,
+optional `resource_limit`, optional `tag_value_names`, optional
+`max_tag_values_per_tag`, optional `stale_after`, optional `lookback`,
+optional `freshness_probe_enabled`, optional `declared_ids`, and
+`enabled: true`.
+
+| Variable | Default | Read by | Purpose |
+| --- | --- | --- | --- |
+| `ESHU_GRAFANA_COLLECTOR_INSTANCE_ID` | required when more than one enabled Grafana instance exists | collector-grafana | Selects the claim-capable `grafana` instance. |
+| `ESHU_GRAFANA_COLLECTOR_POLL_INTERVAL` | `1s` | collector-grafana | Delay between empty workflow-claim polls. |
+| `ESHU_GRAFANA_COLLECTOR_CLAIM_LEASE_TTL` | workflow default | collector-grafana | Lease TTL used when claiming and refreshing work. |
+| `ESHU_GRAFANA_COLLECTOR_HEARTBEAT_INTERVAL` | workflow default | collector-grafana | Heartbeat interval for active workflow claims. Must be less than the claim lease TTL. |
+| `ESHU_GRAFANA_COLLECTOR_OWNER_ID` | host/process-derived | collector-grafana | Owner label written into workflow claim rows. |
+| `ESHU_PROMETHEUS_MIMIR_COLLECTOR_INSTANCE_ID` | required when more than one enabled Prometheus/Mimir instance exists | collector-prometheus-mimir | Selects the claim-capable `prometheus_mimir` instance. |
+| `ESHU_PROMETHEUS_MIMIR_COLLECTOR_POLL_INTERVAL` | `1s` | collector-prometheus-mimir | Delay between empty workflow-claim polls. |
+| `ESHU_PROMETHEUS_MIMIR_COLLECTOR_CLAIM_LEASE_TTL` | workflow default | collector-prometheus-mimir | Lease TTL used when claiming and refreshing work. |
+| `ESHU_PROMETHEUS_MIMIR_COLLECTOR_HEARTBEAT_INTERVAL` | workflow default | collector-prometheus-mimir | Heartbeat interval for active workflow claims. Must be less than the claim lease TTL. |
+| `ESHU_PROMETHEUS_MIMIR_COLLECTOR_OWNER_ID` | host/process-derived | collector-prometheus-mimir | Owner label written into workflow claim rows. |
+| `ESHU_LOKI_COLLECTOR_INSTANCE_ID` | required when more than one enabled Loki instance exists | collector-loki | Selects the claim-capable `loki` instance. |
+| `ESHU_LOKI_COLLECTOR_POLL_INTERVAL` | `1s` | collector-loki | Delay between empty workflow-claim polls. |
+| `ESHU_LOKI_COLLECTOR_CLAIM_LEASE_TTL` | workflow default | collector-loki | Lease TTL used when claiming and refreshing work. |
+| `ESHU_LOKI_COLLECTOR_HEARTBEAT_INTERVAL` | workflow default | collector-loki | Heartbeat interval for active workflow claims. Must be less than the claim lease TTL. |
+| `ESHU_LOKI_COLLECTOR_OWNER_ID` | host/process-derived | collector-loki | Owner label written into workflow claim rows. |
+| `ESHU_TEMPO_COLLECTOR_INSTANCE_ID` | required when more than one enabled Tempo instance exists | collector-tempo | Selects the claim-capable `tempo` instance. |
+| `ESHU_TEMPO_COLLECTOR_POLL_INTERVAL` | `1s` | collector-tempo | Delay between empty workflow-claim polls. |
+| `ESHU_TEMPO_COLLECTOR_CLAIM_LEASE_TTL` | workflow default | collector-tempo | Lease TTL used when claiming and refreshing work. |
+| `ESHU_TEMPO_COLLECTOR_HEARTBEAT_INTERVAL` | workflow default | collector-tempo | Heartbeat interval for active workflow claims. Must be less than the claim lease TTL. |
+| `ESHU_TEMPO_COLLECTOR_OWNER_ID` | host/process-derived | collector-tempo | Owner label written into workflow claim rows. |
+
+Do not commit Grafana tokens, Prometheus/Mimir bearer tokens, Loki tokens,
+Tempo tokens, tenant IDs, private URLs, query bodies, label values, tag
+values, log lines, spans, traces, or copied provider payloads to public values
+files or docs. Pass token and tenant values through private environment
+variables or Kubernetes Secrets referenced by `extraEnv`.
+
 ## Vulnerability Intelligence Collector
 
 The vulnerability intelligence collector is claim-only. It selects an enabled

@@ -140,6 +140,102 @@
 {{- end }}
 {{- end -}}
 
+{{- define "eshu.renderGrafanaCollectorEnv" -}}
+- name: ESHU_COLLECTOR_INSTANCES_JSON
+  value: {{ required "grafanaCollector.collectorInstances must contain at least one instance when grafanaCollector.enabled=true" .Values.grafanaCollector.collectorInstances | toJson | quote }}
+- name: ESHU_GRAFANA_COLLECTOR_INSTANCE_ID
+  value: {{ .Values.grafanaCollector.instanceId | quote }}
+- name: ESHU_GRAFANA_COLLECTOR_OWNER_ID
+  valueFrom:
+    fieldRef:
+      fieldPath: metadata.name
+- name: ESHU_GRAFANA_COLLECTOR_POLL_INTERVAL
+  value: {{ .Values.grafanaCollector.pollInterval | quote }}
+{{- with .Values.grafanaCollector.claimLeaseTTL }}
+- name: ESHU_GRAFANA_COLLECTOR_CLAIM_LEASE_TTL
+  value: {{ . | quote }}
+{{- end }}
+{{- with .Values.grafanaCollector.heartbeatInterval }}
+- name: ESHU_GRAFANA_COLLECTOR_HEARTBEAT_INTERVAL
+  value: {{ . | quote }}
+{{- end }}
+{{- with .Values.grafanaCollector.extraEnv }}
+{{ toYaml . }}
+{{- end }}
+{{- end -}}
+
+{{- define "eshu.renderPrometheusMimirCollectorEnv" -}}
+- name: ESHU_COLLECTOR_INSTANCES_JSON
+  value: {{ required "prometheusMimirCollector.collectorInstances must contain at least one instance when prometheusMimirCollector.enabled=true" .Values.prometheusMimirCollector.collectorInstances | toJson | quote }}
+- name: ESHU_PROMETHEUS_MIMIR_COLLECTOR_INSTANCE_ID
+  value: {{ .Values.prometheusMimirCollector.instanceId | quote }}
+- name: ESHU_PROMETHEUS_MIMIR_COLLECTOR_OWNER_ID
+  valueFrom:
+    fieldRef:
+      fieldPath: metadata.name
+- name: ESHU_PROMETHEUS_MIMIR_COLLECTOR_POLL_INTERVAL
+  value: {{ .Values.prometheusMimirCollector.pollInterval | quote }}
+{{- with .Values.prometheusMimirCollector.claimLeaseTTL }}
+- name: ESHU_PROMETHEUS_MIMIR_COLLECTOR_CLAIM_LEASE_TTL
+  value: {{ . | quote }}
+{{- end }}
+{{- with .Values.prometheusMimirCollector.heartbeatInterval }}
+- name: ESHU_PROMETHEUS_MIMIR_COLLECTOR_HEARTBEAT_INTERVAL
+  value: {{ . | quote }}
+{{- end }}
+{{- with .Values.prometheusMimirCollector.extraEnv }}
+{{ toYaml . }}
+{{- end }}
+{{- end -}}
+
+{{- define "eshu.renderLokiCollectorEnv" -}}
+- name: ESHU_COLLECTOR_INSTANCES_JSON
+  value: {{ required "lokiCollector.collectorInstances must contain at least one instance when lokiCollector.enabled=true" .Values.lokiCollector.collectorInstances | toJson | quote }}
+- name: ESHU_LOKI_COLLECTOR_INSTANCE_ID
+  value: {{ .Values.lokiCollector.instanceId | quote }}
+- name: ESHU_LOKI_COLLECTOR_OWNER_ID
+  valueFrom:
+    fieldRef:
+      fieldPath: metadata.name
+- name: ESHU_LOKI_COLLECTOR_POLL_INTERVAL
+  value: {{ .Values.lokiCollector.pollInterval | quote }}
+{{- with .Values.lokiCollector.claimLeaseTTL }}
+- name: ESHU_LOKI_COLLECTOR_CLAIM_LEASE_TTL
+  value: {{ . | quote }}
+{{- end }}
+{{- with .Values.lokiCollector.heartbeatInterval }}
+- name: ESHU_LOKI_COLLECTOR_HEARTBEAT_INTERVAL
+  value: {{ . | quote }}
+{{- end }}
+{{- with .Values.lokiCollector.extraEnv }}
+{{ toYaml . }}
+{{- end }}
+{{- end -}}
+
+{{- define "eshu.renderTempoCollectorEnv" -}}
+- name: ESHU_COLLECTOR_INSTANCES_JSON
+  value: {{ required "tempoCollector.collectorInstances must contain at least one instance when tempoCollector.enabled=true" .Values.tempoCollector.collectorInstances | toJson | quote }}
+- name: ESHU_TEMPO_COLLECTOR_INSTANCE_ID
+  value: {{ .Values.tempoCollector.instanceId | quote }}
+- name: ESHU_TEMPO_COLLECTOR_OWNER_ID
+  valueFrom:
+    fieldRef:
+      fieldPath: metadata.name
+- name: ESHU_TEMPO_COLLECTOR_POLL_INTERVAL
+  value: {{ .Values.tempoCollector.pollInterval | quote }}
+{{- with .Values.tempoCollector.claimLeaseTTL }}
+- name: ESHU_TEMPO_COLLECTOR_CLAIM_LEASE_TTL
+  value: {{ . | quote }}
+{{- end }}
+{{- with .Values.tempoCollector.heartbeatInterval }}
+- name: ESHU_TEMPO_COLLECTOR_HEARTBEAT_INTERVAL
+  value: {{ . | quote }}
+{{- end }}
+{{- with .Values.tempoCollector.extraEnv }}
+{{ toYaml . }}
+{{- end }}
+{{- end -}}
+
 {{- define "eshu.renderVulnerabilityIntelligenceCollectorEnv" -}}
 - name: ESHU_COLLECTOR_INSTANCES_JSON
   value: {{ required "vulnerabilityIntelligenceCollector.collectorInstances must contain at least one instance when vulnerabilityIntelligenceCollector.enabled=true" .Values.vulnerabilityIntelligenceCollector.collectorInstances | toJson | quote }}
