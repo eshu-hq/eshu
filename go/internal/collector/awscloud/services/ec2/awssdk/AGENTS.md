@@ -26,6 +26,10 @@
 ## What Not To Change Without An ADR
 
 - Do not add write APIs or source mutations.
-- Do not inventory EC2 instances from this adapter.
+- Do not turn the `DescribeInstances` posture read into an EC2 inventory feed,
+  and do not add a per-instance describe call (user-data via
+  `DescribeInstanceAttribute`, console output, or per-volume encryption via
+  `DescribeVolumes`) to fill posture fields; `mapInstance` leaves
+  `UserDataPresent` and `Encrypted` nil by design.
 - Do not bypass the `ec2.Client` interface by returning AWS SDK types to the
   scanner package.

@@ -146,6 +146,86 @@ func TestScannerEmitsNetworkTopologyWithoutInstanceFacts(t *testing.T) {
 	}
 }
 
+func TestScannerEmitsInstancePostureFactsWithoutInventory(t *testing.T) {
+	imdsv2 := true
+	hopLimit := int32(1)
+	userData := true
+	client := fakeClient{
+		instances: []Instance{{
+			ID:                      "i-1234567890abcdef0",
+			ARN:                     "arn:aws:ec2:us-east-1:123456789012:instance/i-1234567890abcdef0",
+			State:                   "running",
+			IMDSv2Required:          &imdsv2,
+			HTTPEndpoint:            "enabled",
+			HTTPPutResponseHopLimit: &hopLimit,
+			UserDataPresent:         &userData,
+			DetailedMonitoring:      true,
+			EBSOptimized:            true,
+			PublicIPAssociated:      true,
+			PublicIPAddress:         "203.0.113.10",
+			InstanceProfileARN:      "arn:aws:iam::123456789012:instance-profile/app",
+			Tenancy:                 "default",
+			NitroEnclaveEnabled:     true,
+			BlockDevices: []BlockDevice{{
+				DeviceName:          "/dev/xvda",
+				VolumeID:            "vol-0abc",
+				DeleteOnTermination: true,
+				Status:              "attached",
+			}},
+		}},
+	}
+
+	envelopes, err := (Scanner{Client: client}).Scan(context.Background(), testBoundary())
+	if err != nil {
+		t.Fatalf("Scan returned error: %v", err)
+	}
+
+	counts := factKindCounts(envelopes)
+	if counts[facts.EC2InstancePostureFactKind] != 1 {
+		t.Fatalf("ec2_instance_posture count = %d, want 1", counts[facts.EC2InstancePostureFactKind])
+	}
+	if counts[facts.AWSResourceFactKind] != 0 {
+		t.Fatalf("aws_resource count = %d, want 0 (instances emit no inventory fact)", counts[facts.AWSResourceFactKind])
+	}
+	assertNoResourceType(t, envelopes, "aws_ec2_instance")
+
+	posture := assertInstancePostureFact(t, envelopes)
+	if got := posture.Payload["instance_id"]; got != "i-1234567890abcdef0" {
+		t.Fatalf("posture instance_id = %#v, want i-1234567890abcdef0", got)
+	}
+	if got, _ := posture.Payload["imds_v2_required"].(bool); !got {
+		t.Fatalf("posture imds_v2_required = %#v, want true", posture.Payload["imds_v2_required"])
+	}
+	if got, _ := posture.Payload["user_data_present"].(bool); !got {
+		t.Fatalf("posture user_data_present = %#v, want true", posture.Payload["user_data_present"])
+	}
+	if got := posture.Payload["instance_profile_arn"]; got != "arn:aws:iam::123456789012:instance-profile/app" {
+		t.Fatalf("posture instance_profile_arn = %#v", got)
+	}
+	if got, _ := posture.Payload["service_kind"].(string); got != awscloud.ServiceEC2 {
+		t.Fatalf("posture service_kind = %#v, want ec2", got)
+	}
+	if _, exists := posture.Payload["relationship_type"]; exists {
+		t.Fatalf("posture fact carried a relationship_type; PR1 posture is facts-only")
+	}
+	for _, forbidden := range []string{"user_data", "user_data_content", "console_output", "environment"} {
+		if _, exists := posture.Payload[forbidden]; exists {
+			t.Fatalf("%s persisted on posture fact; EC2 posture must stay metadata-only", forbidden)
+		}
+	}
+}
+
+func assertInstancePostureFact(t *testing.T, envelopes []facts.Envelope) facts.Envelope {
+	t.Helper()
+	for _, envelope := range envelopes {
+		if envelope.FactKind == facts.EC2InstancePostureFactKind {
+			return envelope
+		}
+	}
+	t.Fatalf("missing %q fact in %#v", facts.EC2InstancePostureFactKind, envelopes)
+	return facts.Envelope{}
+}
+
 func TestScannerRejectsMismatchedServiceKind(t *testing.T) {
 	boundary := testBoundary()
 	boundary.ServiceKind = awscloud.ServiceECS
@@ -174,6 +254,7 @@ type fakeClient struct {
 	securityGroups     []SecurityGroup
 	securityGroupRules []SecurityGroupRule
 	networkInterfaces  []NetworkInterface
+	instances          []Instance
 }
 
 func (c fakeClient) ListVPCs(context.Context) ([]VPC, error) {
@@ -194,6 +275,10 @@ func (c fakeClient) ListSecurityGroupRules(context.Context) ([]SecurityGroupRule
 
 func (c fakeClient) ListNetworkInterfaces(context.Context) ([]NetworkInterface, error) {
 	return c.networkInterfaces, nil
+}
+
+func (c fakeClient) ListInstances(context.Context) ([]Instance, error) {
+	return c.instances, nil
 }
 
 func factKindCounts(envelopes []facts.Envelope) map[string]int {

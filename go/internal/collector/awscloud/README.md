@@ -134,6 +134,15 @@ See `doc.go` for the godoc contract.
   flags, default-encryption detail, versioning/MFA-delete, object-ownership /
   ACL-disabled, access-logging target, replication presence, and policy-derived
   public/cross-account booleans). It never carries the raw bucket policy.
+- `NewRDSInstancePostureEnvelope` - builds a derived metadata-only
+  `rds_instance_posture` fact from `RDSPostureObservation` for one DB instance
+  or Aurora cluster. It never carries database contents or secrets.
+- `NewEC2InstancePostureEnvelope` - builds a derived metadata-only
+  `ec2_instance_posture` fact from `EC2InstancePostureObservation` (IMDS
+  settings, user-data PRESENCE as a boolean only, detailed monitoring, EBS
+  optimization, public-IP association, instance-profile ARN, per-volume
+  block-device metadata, and tenancy / Nitro-enclave state). It never carries
+  the user-data content, console output, or any other instance payload.
 
 Envelope builders validate account, region, service kind, scope, generation,
 collector instance, and fencing token boundaries before emitting facts.

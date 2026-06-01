@@ -105,6 +105,112 @@ func mapNetworkInterface(
 	}
 }
 
+// mapInstance projects one DescribeInstances entry into the scanner-owned
+// posture model. It reads only metadata-only fields: IMDS settings, derived
+// booleans, the instance-profile ARN, tenancy, Nitro-enclave state, and
+// per-volume block-device metadata. It never reads user-data content, so
+// UserDataPresent stays nil (unknown) from this no-N+1 pass; a later bounded
+// enrichment may set it without a per-instance describe call here.
+func mapInstance(region string, accountID string, instance awsec2types.Instance) ec2service.Instance {
+	instanceID := aws.ToString(instance.InstanceId)
+	state := ""
+	if instance.State != nil {
+		state = string(instance.State.Name)
+	}
+	publicIP := aws.ToString(instance.PublicIpAddress)
+	return ec2service.Instance{
+		ID:                      instanceID,
+		ARN:                     ec2InstanceARN(region, accountID, instanceID),
+		State:                   state,
+		OwnerID:                 strings.TrimSpace(accountID),
+		InstanceType:            string(instance.InstanceType),
+		SubnetID:                aws.ToString(instance.SubnetId),
+		VPCID:                   aws.ToString(instance.VpcId),
+		IMDSv2Required:          mapIMDSv2Required(instance.MetadataOptions),
+		HTTPEndpoint:            mapIMDSHTTPEndpoint(instance.MetadataOptions),
+		HTTPPutResponseHopLimit: mapIMDSHopLimit(instance.MetadataOptions),
+		DetailedMonitoring:      mapDetailedMonitoring(instance.Monitoring),
+		EBSOptimized:            aws.ToBool(instance.EbsOptimized),
+		PublicIPAssociated:      strings.TrimSpace(publicIP) != "",
+		PublicIPAddress:         publicIP,
+		InstanceProfileARN:      mapInstanceProfileARN(instance.IamInstanceProfile),
+		Tenancy:                 mapTenancy(instance.Placement),
+		NitroEnclaveEnabled:     mapEnclaveEnabled(instance.EnclaveOptions),
+		BlockDevices:            mapInstanceBlockDevices(instance.BlockDeviceMappings),
+		Tags:                    mapTags(instance.Tags),
+	}
+}
+
+func mapIMDSv2Required(options *awsec2types.InstanceMetadataOptionsResponse) *bool {
+	if options == nil {
+		return nil
+	}
+	required := options.HttpTokens == awsec2types.HttpTokensStateRequired
+	return &required
+}
+
+func mapIMDSHTTPEndpoint(options *awsec2types.InstanceMetadataOptionsResponse) string {
+	if options == nil {
+		return ""
+	}
+	return string(options.HttpEndpoint)
+}
+
+func mapIMDSHopLimit(options *awsec2types.InstanceMetadataOptionsResponse) *int32 {
+	if options == nil {
+		return nil
+	}
+	return options.HttpPutResponseHopLimit
+}
+
+func mapDetailedMonitoring(monitoring *awsec2types.Monitoring) bool {
+	if monitoring == nil {
+		return false
+	}
+	return monitoring.State == awsec2types.MonitoringStateEnabled ||
+		monitoring.State == awsec2types.MonitoringStatePending
+}
+
+func mapInstanceProfileARN(profile *awsec2types.IamInstanceProfile) string {
+	if profile == nil {
+		return ""
+	}
+	return aws.ToString(profile.Arn)
+}
+
+func mapTenancy(placement *awsec2types.Placement) string {
+	if placement == nil {
+		return ""
+	}
+	return string(placement.Tenancy)
+}
+
+func mapEnclaveEnabled(options *awsec2types.EnclaveOptions) bool {
+	if options == nil {
+		return false
+	}
+	return aws.ToBool(options.Enabled)
+}
+
+func mapInstanceBlockDevices(input []awsec2types.InstanceBlockDeviceMapping) []ec2service.BlockDevice {
+	if len(input) == 0 {
+		return nil
+	}
+	output := make([]ec2service.BlockDevice, 0, len(input))
+	for _, mapping := range input {
+		device := ec2service.BlockDevice{
+			DeviceName: aws.ToString(mapping.DeviceName),
+		}
+		if mapping.Ebs != nil {
+			device.VolumeID = aws.ToString(mapping.Ebs.VolumeId)
+			device.DeleteOnTermination = aws.ToBool(mapping.Ebs.DeleteOnTermination)
+			device.Status = string(mapping.Ebs.Status)
+		}
+		output = append(output, device)
+	}
+	return output
+}
+
 func mapVPCCIDRBlocks(input []awsec2types.VpcCidrBlockAssociation) []ec2service.CIDRBlockAssociation {
 	if len(input) == 0 {
 		return nil

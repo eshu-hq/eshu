@@ -20,11 +20,13 @@ flowchart LR
   B --> E["DescribeSecurityGroups"]
   B --> F["DescribeSecurityGroupRules"]
   B --> G["DescribeNetworkInterfaces"]
+  B --> M["DescribeInstances"]
   C --> H["ec2.VPC"]
   D --> I["ec2.Subnet"]
   E --> J["ec2.SecurityGroup"]
   F --> K["ec2.SecurityGroupRule"]
   G --> L["ec2.NetworkInterface"]
+  M --> N["ec2.Instance"]
 ```
 
 ## Exported surface
@@ -57,15 +59,21 @@ labels.
 ## Gotchas / invariants
 
 - Use only read APIs: `DescribeVpcs`, `DescribeSubnets`,
-  `DescribeSecurityGroups`, `DescribeSecurityGroupRules`, and
-  `DescribeNetworkInterfaces`.
+  `DescribeSecurityGroups`, `DescribeSecurityGroupRules`,
+  `DescribeNetworkInterfaces`, and `DescribeInstances`.
 - Every listed API uses SDK pagination with `MaxResults=1000`.
 - `DescribeNetworkInterfaces` sets `IncludeManagedResources=true` so
   AWS-managed ENIs can support Lambda/ECS/EKS network joins when the account
   allows managed-resource visibility.
 - Attachment instance ARNs are derived from AWS-reported instance ID, owner
-  account, and claim region. They are target evidence only; no instance facts
-  are emitted.
+  account, and claim region. They are target evidence only; no instance
+  inventory facts are emitted.
+- `DescribeInstances` sources the `ec2_instance_posture` fact. The mapper reads
+  only metadata-only posture fields and never fetches user-data content
+  (`DescribeInstanceAttribute`), console output, or per-volume encryption
+  (`DescribeVolumes`), so the posture pass adds no per-instance API fan-out.
+  `mapInstance` leaves `UserDataPresent` and each block device's `Encrypted`
+  nil because `DescribeInstances` does not report them.
 
 ## Related docs
 

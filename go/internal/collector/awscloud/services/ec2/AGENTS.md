@@ -5,15 +5,22 @@
 1. `README.md` - package purpose, flow, and invariants.
 2. `types.go` - scanner-owned EC2 records and client contract.
 3. `scanner.go` - fact selection and resource envelope mapping.
-4. `relationships.go` - EC2 topology relationship construction.
-5. `awssdk/README.md` - AWS SDK pagination and response mapping.
+4. `posture.go` - EC2 instance posture observation derivation.
+5. `relationships.go` - EC2 topology relationship construction.
+6. `awssdk/README.md` - AWS SDK pagination and response mapping.
 
 ## Invariants
 
 - Do not call AWS APIs from this package. The `awssdk` adapter owns AWS SDK
   calls and telemetry.
-- Do not emit EC2 instance resource facts. ENI attachment target evidence is
-  metadata only.
+- Do not emit an `aws_ec2_instance` resource (inventory) fact. The scanner emits
+  one metadata-only `ec2_instance_posture` fact per instance; ENI attachment
+  target evidence is metadata only.
+- The `ec2_instance_posture` fact carries user-data PRESENCE only. Never read or
+  persist user-data content, console output, environment variables, or any other
+  instance payload, and never add a per-instance API fan-out (`UserDataPresent`
+  and per-volume `Encrypted` stay nil from the `DescribeInstances` pass; reducers
+  resolve them).
 - Preserve VPC, subnet, security-group, security-group-rule, and ENI identity
   as AWS reports it.
 - Emit topology edges as `aws_relationship` facts only.
@@ -31,7 +38,8 @@
   together.
 - Add a focused scanner test before changing emitted resource or relationship
   shapes.
-- Keep instance inventory, live reachability, and exposure analysis in later
+- Keep instance inventory, live reachability, exposure analysis, the
+  USES_PROFILE/KMS joins, and per-volume encryption resolution in later
   reducer/query slices, not this scanner package.
 
 ## What Not To Change Without An ADR

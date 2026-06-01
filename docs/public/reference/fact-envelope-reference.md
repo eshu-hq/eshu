@@ -64,6 +64,7 @@ current families are:
 | Terraform state | `terraform_state` for collected state, `git` for safe repo-local candidates | `terraform_state_candidate`, `terraform_state_snapshot`, `terraform_state_resource`, `terraform_state_output`, `terraform_state_module`, `terraform_state_provider_binding`, `terraform_state_tag_observation`, `terraform_state_warning` |
 | AWS cloud | `aws` | `aws_resource`, `aws_relationship`, `aws_tag_observation`, `aws_dns_record`, `aws_image_reference`, `aws_security_group_rule`, `aws_iam_permission`, `aws_warning` |
 | RDS posture | `aws` | `rds_instance_posture` |
+| EC2 posture | `aws` | `ec2_instance_posture` |
 | OCI registry | `oci_registry` | `oci_registry.repository`, `oci_registry.image_tag_observation`, `oci_registry.image_manifest`, `oci_registry.image_index`, `oci_registry.image_descriptor`, `oci_registry.image_referrer`, `oci_registry.warning` |
 | Package registry | `package_registry` | `package_registry.package`, `package_registry.package_version`, `package_registry.package_dependency`, `package_registry.package_artifact`, `package_registry.source_hint`, `package_registry.vulnerability_hint`, `package_registry.registry_event`, `package_registry.repository_hosting`, `package_registry.warning` |
 | CI/CD runs | `ci_cd_run` | `ci.pipeline_definition`, `ci.run`, `ci.job`, `ci.step`, `ci.artifact`, `ci.trigger_edge`, `ci.environment_observation`, `ci.warning` |
@@ -124,6 +125,21 @@ and the CA certificate identifier. It never carries database contents, master
 usernames, connection secrets, snapshot payloads, log bodies, or Performance
 Insights samples, and it emits no graph edges. Reducers own KMS,
 parameter/option-group, and internet-exposure projection from this evidence.
+
+`ec2_instance_posture` carries one metadata-only security and operations posture
+observation per EC2 instance, derived from the existing DescribeInstances pass:
+IMDS settings (`imds_v2_required`, `imds_http_endpoint`, `imds_http_put_hop_limit`),
+user-data PRESENCE (`user_data_present`, a boolean only), detailed monitoring,
+EBS optimization, public-IP association, the attached instance-profile ARN,
+per-volume block-device metadata, and tenancy / Nitro-enclave state. It NEVER
+carries the user-data content (which can embed secrets), instance console output,
+environment variables, or any other instance payload, and it emits no graph
+edges and no `aws_resource` inventory fact for the instance. Reducers own the
+USES_PROFILE join to the IAM instance profile (#1134), the block-device to KMS
+join, and the derived internet-exposed flag (#1135). Per-volume encryption is not
+reported by DescribeInstances, so each block device's `encrypted` stays unset
+(`null`) here; reducers resolve it from volume evidence without per-instance API
+fan-out at scan time.
 
 `security_alert.repository_alert` preserves repository-scoped provider alert
 state, Dependabot alert ID/number, dependency ecosystem/name, manifest path,

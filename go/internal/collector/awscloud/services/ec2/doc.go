@@ -9,4 +9,14 @@
 // rule data already fetched for the raw facts, so it adds no AWS API calls, and
 // it writes no graph edges: edge projection and internet-exposure analysis are
 // later reducer and query slices.
+//
+// The scanner also emits one metadata-only ec2_instance_posture fact per
+// instance from the existing DescribeInstances pass: IMDS settings
+// (IMDSv2-required, hop limit, endpoint state), user-data PRESENCE (a boolean
+// only, never the content), detailed monitoring, EBS optimization, public-IP
+// association, the attached instance-profile ARN, per-volume block-device
+// metadata, and tenancy / Nitro-enclave state. It reads no user-data content,
+// console output, or any other instance payload, adds no per-instance API
+// fan-out, emits no graph edges, and emits no aws_resource inventory fact for
+// the instance; reducers own the profile, KMS, and internet-exposure joins.
 package ec2
