@@ -105,6 +105,13 @@ type Instruments struct {
 	PrometheusMimirRetries                    metric.Int64Counter
 	PrometheusMimirRedactions                 metric.Int64Counter
 	PrometheusMimirStale                      metric.Int64Counter
+	LokiProviderRequests                      metric.Int64Counter
+	LokiFactsEmitted                          metric.Int64Counter
+	LokiRateLimited                           metric.Int64Counter
+	LokiRetries                               metric.Int64Counter
+	LokiRedactions                            metric.Int64Counter
+	LokiHighCardinalityRejected               metric.Int64Counter
+	LokiStale                                 metric.Int64Counter
 	ScannerWorkerClaims                       metric.Int64Counter
 	ScannerWorkerRetries                      metric.Int64Counter
 	ScannerWorkerDeadLetters                  metric.Int64Counter
@@ -380,6 +387,7 @@ type Instruments struct {
 	JiraFetchDuration                      metric.Float64Histogram
 	GrafanaFetchDuration                   metric.Float64Histogram
 	PrometheusMimirFetchDuration           metric.Float64Histogram
+	LokiFetchDuration                      metric.Float64Histogram
 	ScannerWorkerQueueWaitDuration         metric.Float64Histogram
 	ScannerWorkerScanDuration              metric.Float64Histogram
 	ScannerWorkerTargetCount               metric.Int64Histogram
@@ -973,6 +981,62 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 		return nil, fmt.Errorf("register PrometheusMimirStale counter: %w", err)
 	}
 
+	inst.LokiProviderRequests, err = meter.Int64Counter(
+		"eshu_dp_loki_provider_requests_total",
+		metric.WithDescription("Total Loki provider requests by provider and status class"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register LokiProviderRequests counter: %w", err)
+	}
+
+	inst.LokiFactsEmitted, err = meter.Int64Counter(
+		"eshu_dp_loki_facts_emitted_total",
+		metric.WithDescription("Total live Loki observability source facts emitted by provider and fact kind"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register LokiFactsEmitted counter: %w", err)
+	}
+
+	inst.LokiRateLimited, err = meter.Int64Counter(
+		"eshu_dp_loki_rate_limited_total",
+		metric.WithDescription("Total Loki provider requests that ended rate limited by provider"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register LokiRateLimited counter: %w", err)
+	}
+
+	inst.LokiRetries, err = meter.Int64Counter(
+		"eshu_dp_loki_retries_total",
+		metric.WithDescription("Total Loki provider retry attempts by provider"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register LokiRetries counter: %w", err)
+	}
+
+	inst.LokiRedactions, err = meter.Int64Counter(
+		"eshu_dp_loki_redactions_total",
+		metric.WithDescription("Total live Loki metadata redactions by provider and bounded reason"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register LokiRedactions counter: %w", err)
+	}
+
+	inst.LokiHighCardinalityRejected, err = meter.Int64Counter(
+		"eshu_dp_loki_high_cardinality_rejected_total",
+		metric.WithDescription("Total live Loki label values rejected as high cardinality by provider and bounded reason"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register LokiHighCardinalityRejected counter: %w", err)
+	}
+
+	inst.LokiStale, err = meter.Int64Counter(
+		"eshu_dp_loki_stale_total",
+		metric.WithDescription("Total live Loki stale observations by provider"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register LokiStale counter: %w", err)
+	}
+
 	inst.ScannerWorkerClaims, err = meter.Int64Counter(
 		"eshu_dp_scanner_worker_claims_total",
 		metric.WithDescription("Total scanner-worker workflow claims by analyzer, target kind, and outcome"),
@@ -1564,6 +1628,17 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register PrometheusMimirFetchDuration histogram: %w", err)
+	}
+
+	lokiBuckets := []float64{0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60}
+	inst.LokiFetchDuration, err = meter.Float64Histogram(
+		"eshu_dp_loki_fetch_duration_seconds",
+		metric.WithDescription("Loki observed metadata fetch duration by provider and status class"),
+		metric.WithUnit("s"),
+		metric.WithExplicitBucketBoundaries(lokiBuckets...),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register LokiFetchDuration histogram: %w", err)
 	}
 
 	scannerWorkerWaitBuckets := []float64{0.001, 0.01, 0.1, 1, 5, 10, 30, 60, 300, 900, 1800, 3600, 21600}

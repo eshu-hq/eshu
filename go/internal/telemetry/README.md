@@ -139,6 +139,13 @@ gauge when a shared-acceptance observer is available.
 | `PrometheusMimirRetries` | `eshu_dp_prometheus_mimir_retries_total` |
 | `PrometheusMimirRedactions` | `eshu_dp_prometheus_mimir_redactions_total` |
 | `PrometheusMimirStale` | `eshu_dp_prometheus_mimir_stale_total` |
+| `LokiProviderRequests` | `eshu_dp_loki_provider_requests_total` |
+| `LokiFactsEmitted` | `eshu_dp_loki_facts_emitted_total` |
+| `LokiRateLimited` | `eshu_dp_loki_rate_limited_total` |
+| `LokiRetries` | `eshu_dp_loki_retries_total` |
+| `LokiRedactions` | `eshu_dp_loki_redactions_total` |
+| `LokiHighCardinalityRejected` | `eshu_dp_loki_high_cardinality_rejected_total` |
+| `LokiStale` | `eshu_dp_loki_stale_total` |
 | `ScannerWorkerClaims` | `eshu_dp_scanner_worker_claims_total` |
 | `ScannerWorkerRetries` | `eshu_dp_scanner_worker_retries_total` |
 | `ScannerWorkerDeadLetters` | `eshu_dp_scanner_worker_dead_letters_total` |
@@ -210,6 +217,7 @@ module prefixes across generations.
 | `JiraFetchDuration` | `eshu_dp_jira_fetch_duration_seconds` | 0.01–60 s |
 | `GrafanaFetchDuration` | `eshu_dp_grafana_fetch_duration_seconds` | 0.01–60 s |
 | `PrometheusMimirFetchDuration` | `eshu_dp_prometheus_mimir_fetch_duration_seconds` | 0.01–60 s |
+| `LokiFetchDuration` | `eshu_dp_loki_fetch_duration_seconds` | 0.01–60 s |
 | `ScannerWorkerQueueWaitDuration` | `eshu_dp_scanner_worker_queue_wait_seconds` | 0.001–21600 s |
 | `ScannerWorkerScanDuration` | `eshu_dp_scanner_worker_scan_duration_seconds` | 0.05–1200 s |
 | `ScannerWorkerTargetCount` | `eshu_dp_scanner_worker_target_count` (Int64) | 1–100000 targets |
@@ -299,7 +307,8 @@ Pipeline spans: `SpanCollectorObserve`, `SpanCollectorStream`, `SpanScopeAssign`
 `SpanTerraformStateCoordinatorDone`, `SpanWebhookHandle`, `SpanWebhookStore`,
 `SpanOCIRegistryScan`, `SpanOCIRegistryAPICall`, `SpanPagerDutyObserve`,
 `SpanPagerDutyFetch`, `SpanJiraObserve`, `SpanJiraFetch`,
-`SpanPrometheusMimirObserve`, and `SpanPrometheusMimirFetch`.
+`SpanPrometheusMimirObserve`, `SpanPrometheusMimirFetch`, `SpanLokiObserve`,
+and `SpanLokiFetch`.
 
 Work-item evidence query spans use bounded `SpanAttrWorkItemEvidence*` integer
 and boolean attributes for query count, result count, stale evidence,

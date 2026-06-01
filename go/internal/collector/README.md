@@ -221,6 +221,11 @@ it.
   rules, and coverage warnings without retaining metric samples, raw PromQL,
   scrape target URLs, target label values, annotations, tenant IDs, credentials,
   or private URLs.
+- `loki` subpackage — claim-driven live Loki API metadata collection for the
+  `loki` collector family. It emits reported-confidence observed observability
+  source facts for log signals, rules, and coverage warnings without retaining
+  log lines, raw LogQL, label values, tenant IDs, credentials, private URLs, or
+  provider response bodies.
 - `scannerworker` subpackage — scanner-worker claim processing, analyzer port,
   bounded target scope, resource limits, source-fact output validation, and
   retry/dead-letter payloads. Concrete heavy analyzers plug in behind this

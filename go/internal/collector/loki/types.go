@@ -1,0 +1,224 @@
+package loki
+
+import (
+	"context"
+	"net/http"
+	"time"
+
+	"go.opentelemetry.io/otel/trace"
+
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
+)
+
+const (
+	// CollectorKind is the durable collector family identifier for live Loki
+	// log-signal metadata.
+	CollectorKind = "loki"
+	// ProviderLoki identifies Grafana Loki API evidence.
+	ProviderLoki = "loki"
+	// ScopeKindLogSource identifies one configured Loki API target.
+	ScopeKindLogSource = "log_source"
+
+	// SourceClassObserved marks live provider evidence.
+	SourceClassObserved = "observed"
+	// SourceKindLoki marks Loki provider evidence.
+	SourceKindLoki = "loki"
+
+	// RedactionVersion is the metadata-only Loki redaction policy.
+	RedactionVersion = "observability-live-loki-v1"
+)
+
+const (
+	// ResourceClassLogSignal marks a Loki log-signal observation.
+	ResourceClassLogSignal = "log_signal"
+	// ResourceClassRule marks a Loki ruler rule observation.
+	ResourceClassRule = "rule"
+	// SignalKindLabelSet marks a set of label names observed from Loki.
+	SignalKindLabelSet = "label_set"
+	// SignalKindSeries marks bounded Loki series metadata.
+	SignalKindSeries = "series"
+	// RuleTypeAlerting marks an alerting rule.
+	RuleTypeAlerting = "alerting"
+	// RuleTypeRecording marks a recording rule.
+	RuleTypeRecording = "recording"
+)
+
+const (
+	// FreshnessCurrent marks a live response observed during the current scan.
+	FreshnessCurrent = "current"
+	// FreshnessUnknown marks a source-local freshness gap.
+	FreshnessUnknown = "unknown"
+	// FreshnessStale marks live evidence older than the configured freshness window.
+	FreshnessStale = "stale"
+	// FreshnessPermissionHidden marks provider data hidden by credentials.
+	FreshnessPermissionHidden = "permission_hidden"
+)
+
+const (
+	// OutcomeObserved marks live provider evidence that was accepted.
+	OutcomeObserved = "observed"
+	// OutcomePartial marks an incomplete source-local read.
+	OutcomePartial = "partial"
+	// OutcomePermissionHidden marks evidence hidden by provider permissions.
+	OutcomePermissionHidden = "permission_hidden"
+	// OutcomeUnsupported marks a provider endpoint outside the supported API.
+	OutcomeUnsupported = "unsupported"
+	// OutcomeRejected marks malformed or unsafe source data.
+	OutcomeRejected = "rejected"
+	// OutcomeStale marks accepted evidence outside the configured freshness window.
+	OutcomeStale = "stale"
+)
+
+const (
+	// MatchStateNotCompared means reducer comparison has not run.
+	MatchStateNotCompared = "not_compared"
+	// MatchStateMatchedDeclared means a live identity has a declared counterpart.
+	MatchStateMatchedDeclared = "matched_declared"
+)
+
+const (
+	// WarningManualProviderResource marks manual provider-only resources.
+	WarningManualProviderResource = "manual_provider_resource"
+	// WarningPermissionHidden marks permission-hidden provider data.
+	WarningPermissionHidden = "permission_hidden"
+	// WarningRateLimited marks provider rate limiting.
+	WarningRateLimited = "rate_limited"
+	// WarningUnsupported marks an unsupported provider endpoint.
+	WarningUnsupported = "unsupported"
+	// WarningPartial marks a partial read.
+	WarningPartial = "partial"
+	// WarningStale marks provider evidence older than the freshness window.
+	WarningStale = "stale"
+	// WarningHighCardinality marks rejected high-cardinality label values.
+	WarningHighCardinality = "high_cardinality_rejected"
+)
+
+// EnvelopeContext carries durable fact-envelope identity for Loki facts.
+type EnvelopeContext struct {
+	ScopeID             string
+	GenerationID        string
+	CollectorInstanceID string
+	FencingToken        int64
+	ObservedAt          time.Time
+	SourceInstanceID    string
+}
+
+// SourceInstance is one bounded Loki source observation.
+type SourceInstance struct {
+	Provider          string
+	SourceInstanceID  string
+	TenantPresent     bool
+	TenantFingerprint string
+	TenantRedacted    bool
+}
+
+// LogSignal is one bounded live Loki label or series observation.
+type LogSignal struct {
+	ProviderObjectID   string
+	SignalKind         string
+	LabelKeys          []string
+	LabelValueCounts   map[string]int
+	LabelValueHashes   map[string][]string
+	SeriesFingerprint  string
+	LastSeenAt         time.Time
+	DeclaredMatchState string
+	FreshnessState     string
+	Outcome            string
+	ManuallyCreated    bool
+}
+
+// Rule is one bounded live Loki ruler rule observation.
+type Rule struct {
+	ProviderObjectID   string
+	Namespace          string
+	GroupName          string
+	RuleName           string
+	RuleType           string
+	Query              string
+	QueryRedacted      bool
+	LabelKeys          []string
+	AnnotationKeys     []string
+	LastEvaluationAt   time.Time
+	DeclaredMatchState string
+	FreshnessState     string
+	Outcome            string
+	ManuallyCreated    bool
+}
+
+// Warning is one bounded coverage or redaction warning.
+type Warning struct {
+	ResourceClass string
+	ResourceID    string
+	Reason        string
+}
+
+// CollectionStats carries bounded counters for telemetry and tests.
+type CollectionStats struct {
+	PagesFetched            int
+	Signals                 int
+	Rules                   int
+	Warnings                int
+	Redactions              int
+	RateLimits              int
+	Retries                 int
+	Stale                   int
+	HighCardinalityRejected int
+	Partial                 bool
+}
+
+// CollectionResult is one bounded Loki metadata snapshot.
+type CollectionResult struct {
+	Source     SourceInstance
+	Signals    []LogSignal
+	Rules      []Rule
+	Warnings   []Warning
+	ObservedAt time.Time
+	Stats      CollectionStats
+}
+
+// EvidenceClient fetches bounded Loki metadata for one target.
+type EvidenceClient interface {
+	CollectObservedMetadata(context.Context, TargetConfig) (CollectionResult, error)
+}
+
+// ClientFactory builds a Loki evidence client for a validated target.
+type ClientFactory func(TargetConfig) (EvidenceClient, error)
+
+// SourceConfig configures one claim-driven Loki source.
+type SourceConfig struct {
+	CollectorInstanceID string
+	Targets             []TargetConfig
+	ClientFactory       ClientFactory
+	Now                 func() time.Time
+	Tracer              trace.Tracer
+	Instruments         *telemetry.Instruments
+}
+
+// TargetConfig describes one Loki API target.
+type TargetConfig struct {
+	ScopeID                string
+	InstanceID             string
+	BaseURL                string
+	PathPrefix             string
+	Token                  string
+	TenantID               string
+	ResourceLimit          int
+	LabelValueNames        []string
+	MaxLabelValuesPerLabel int
+	SeriesMatchers         []string
+	StaleAfter             time.Duration
+	Enabled                bool
+	DeclaredIDs            map[string]struct{}
+	ObservedOnlyHint       bool
+}
+
+// HTTPClientConfig configures the bounded Loki REST client.
+type HTTPClientConfig struct {
+	BaseURL string
+	Client  HTTPDoer
+}
+
+// HTTPDoer is the subset of *http.Client used by HTTPClient.
+type HTTPDoer interface {
+	Do(*http.Request) (*http.Response, error)
+}
