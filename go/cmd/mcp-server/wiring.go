@@ -182,14 +182,13 @@ func newMCPQueryRouter(
 			Correlations: query.NewPostgresServiceCatalogCorrelationStore(db),
 			Profile:      queryProfile,
 		},
-<<<<<<< HEAD
 		Kubernetes: &query.KubernetesHandler{
 			Correlations: query.NewPostgresKubernetesCorrelationStore(db),
-=======
+			Profile:      queryProfile,
+		},
 		ObservabilityCoverage: &query.ObservabilityCoverageHandler{
 			Content:      contentReader,
 			Correlations: query.NewPostgresObservabilityCoverageCorrelationStore(db),
->>>>>>> 57b01a50 (feat: observability coverage read surface — PR2 (query/MCP) (toward #391))
 			Profile:      queryProfile,
 		},
 		SupplyChain: &query.SupplyChainHandler{
