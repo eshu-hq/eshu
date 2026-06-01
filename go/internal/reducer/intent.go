@@ -120,6 +120,17 @@ const (
 	// PR1 writes facts only; the gated canonical graph edge is a later PR. See
 	// issue #388 for the design.
 	DomainKubernetesCorrelation Domain = "kubernetes_correlation"
+	// DomainKubernetesWorkloadMaterialization materializes
+	// kubernetes_live.pod_template facts into canonical KubernetesWorkload graph
+	// nodes keyed by the collector-emitted object_id. It is the live-workload node
+	// substrate that the #388 live-workload edge projection (PR3) joins against;
+	// the edge resolves a workload's deployment-source identity to these nodes in a
+	// separate, gated stage. After the node write succeeds it publishes the
+	// GraphProjectionKeyspaceKubernetesWorkloadUID /
+	// GraphProjectionPhaseCanonicalNodesCommitted readiness phase so the later edge
+	// slice gates exactly like DomainAWSRelationshipMaterialization (#805). See
+	// issue #388 and docs/internal/design/388-kubernetes-correlation-readmodel.md.
+	DomainKubernetesWorkloadMaterialization Domain = "kubernetes_workload_materialization"
 )
 
 // IntentStatus captures the durable reducer intent lifecycle state.

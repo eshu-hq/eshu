@@ -144,6 +144,16 @@ type DefaultHandlers struct {
 	// for kubernetes_live.* facts joined to deployment-source image evidence.
 	KubernetesCorrelationWriter KubernetesCorrelationWriter
 
+	// KubernetesWorkloadNodeWriter materializes kubernetes_live.pod_template facts
+	// into canonical KubernetesWorkload graph nodes (issue #388). It must be
+	// non-nil alongside FactLoader for the registry to register
+	// DomainKubernetesWorkloadMaterialization; missing either one would drop every
+	// pod-template fact before it reaches the graph. The handler also publishes the
+	// canonical-nodes-committed phase through GraphProjectionPhasePublisher so the
+	// later live-workload edge slice can gate on it exactly like the AWS
+	// relationship edge gates on the CloudResource node phase (#805).
+	KubernetesWorkloadNodeWriter KubernetesWorkloadNodeWriter
+
 	// SBOMAttestationAttachmentWriter persists SBOM and attestation document
 	// attachment decisions for digest-keyed image evidence.
 	SBOMAttestationAttachmentWriter SBOMAttestationAttachmentWriter
@@ -383,6 +393,16 @@ func implementedDefaultDomainDefinitions(handlers DefaultHandlers) []DomainDefin
 			PhasePublisher: handlers.GraphProjectionPhasePublisher,
 		}
 		definitions = append(definitions, awsResources)
+	}
+	if handlers.FactLoader != nil && handlers.KubernetesWorkloadNodeWriter != nil {
+		kubernetesWorkloads := kubernetesWorkloadMaterializationDomainDefinition()
+		kubernetesWorkloads.Handler = KubernetesWorkloadMaterializationHandler{
+			FactLoader:     handlers.FactLoader,
+			NodeWriter:     handlers.KubernetesWorkloadNodeWriter,
+			PhasePublisher: handlers.GraphProjectionPhasePublisher,
+			Instruments:    handlers.Instruments,
+		}
+		definitions = append(definitions, kubernetesWorkloads)
 	}
 	if handlers.FactLoader != nil && handlers.CloudResourceEdgeWriter != nil {
 		awsRelationships := awsRelationshipMaterializationDomainDefinition()

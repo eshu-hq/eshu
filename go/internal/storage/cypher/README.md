@@ -240,6 +240,14 @@ tracks this package's broader transient graph-write retry class.
   missing endpoint is a no-op, idempotent on
   `(source_uid, relationship_type, target_uid)`, with an evidence-source-scoped
   retract
+- `KubernetesWorkloadNodeWriter` — writes canonical `KubernetesWorkload` nodes
+  for the live-workload materialization reducer domain (issue #388);
+  constructed with `NewKubernetesWorkloadNodeWriter`. Batched `UNWIND` +
+  `MERGE (w:KubernetesWorkload {uid: row.uid})` on the collector-emitted
+  `object_id` only, mutable properties `SET` separately, idempotent under
+  retries and duplicate facts. Mirrors the proven CloudResource node writer so
+  it engages the same schema-backed uid lookup; the #388 edge slice (PR3)
+  resolves its workload endpoint against these nodes
 - `SemanticEntityWriter` — writes semantic entity (Annotation, Module, etc.)
   nodes; five constructors select the Cypher row shape
 
@@ -441,6 +449,51 @@ materialization completed` structured log with per-stage durations and the
 resolved/unresolved tallies, so an operator can tell which AWS relationship
 target types are losing edges and whether it is because the target service was
 not scanned in this scope.
+
+### Kubernetes live-workload node writer (issue #388)
+
+`KubernetesWorkloadNodeWriter` materializes `kubernetes_live.pod_template` facts
+into canonical `KubernetesWorkload` nodes for the live-workload materialization
+reducer domain. The write is a batched `UNWIND $rows AS row` +
+`MERGE (w:KubernetesWorkload {uid: row.uid})` on the collector-emitted
+`object_id` only, with mutable properties `SET` separately, so duplicate facts
+and reducer retries converge on one node rather than fabricating or duplicating
+graph state. The node `uid` is the live object identity (`object_id`); the raw
+Kubernetes `metadata.uid` is carried as the `workload_uid` property only, never
+the node identity. The MERGE anchors on the `kubernetes_workload_uid_unique`
+constraint and the `nornicdb_kubernetes_workload_uid_lookup` index (both added
+to `go/internal/graph/schema.go`), so the upsert is a schema-backed uid lookup,
+not a label scan. The #388 edge slice (PR3) resolves its workload endpoint
+against these nodes exactly as the AWS relationship edge resolves against
+`CloudResource` nodes. Design and decision record:
+`docs/internal/design/388-kubernetes-workload-node.md`.
+
+Benchmark Evidence: `go test ./internal/storage/cypher -run '^$' -bench
+BenchmarkKubernetesWorkloadNodeWriter -benchmem -benchtime=200x` on darwin/arm64
+(Apple M3 Pro), no-op group executor so the number isolates Eshu-side statement
+construction and batching: `5,000` pod-template-backed node rows shaped into
+default `500`/UNWIND batches ran `2.73 ms/op`, `6.33 MB/op`, `25,069
+allocs/op` — within noise of the proven `BenchmarkCloudResourceNodeWriter`
+baseline on the same machine and input shape (`2.76 ms/op`, `6.33 MB/op`,
+`25,068 allocs/op`), because the writer reuses the identical UNWIND-batched
+MERGE-on-uid shape. No-Regression Evidence: the new node-write path adds no new
+per-row cost over the established CloudResource node writer; the write is bounded
+by `ceil(W/batchSize)` statements with no per-node round trip and no N+1.
+`go test ./internal/storage/cypher -run TestKubernetesWorkloadNodeWriter
+-count=1` proves the MERGE-on-uid identity, batching, atomic group dispatch,
+evidence-source annotation, and empty-rows no-op.
+
+Observability Evidence: every node statement and group flows through the
+production `InstrumentedExecutor`, recording
+`eshu_dp_neo4j_query_duration_seconds` (operation=canonical_upsert) and
+`eshu_dp_neo4j_batch_size`; each statement carries `phase=kubernetes_workload`
+and `label=KubernetesWorkload` statement metadata. The reducer handler adds the
+`eshu_dp_kubernetes_workload_nodes_total` counter (dimension: `domain`), a
+`kubernetes workload materialization completed` structured log with per-stage
+durations (fact load, extract, graph write, phase publish) and the node count,
+so an operator can see how many live-workload nodes one generation committed —
+the substrate the later edge slice resolves against — and spot a generation that
+committed zero nodes.
 
 ## Extension points
 

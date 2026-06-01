@@ -113,7 +113,14 @@ type Instruments struct {
 	// unknown). It lets an operator answer "which drift class is growing —
 	// missing_source, image_drift, or stale_source — and is it an ambiguous
 	// selector or a rejected weak ref?" at 3 AM.
-	KubernetesCorrelations     metric.Int64Counter
+	KubernetesCorrelations metric.Int64Counter
+	// KubernetesWorkloadNodes counts canonical KubernetesWorkload graph nodes
+	// committed by the live-workload node materialization reducer (issue #388).
+	// Label: domain (kubernetes_workload_materialization). It lets an operator see
+	// how many live-workload nodes one generation committed — the substrate the
+	// later live-workload edge slice resolves against — and spot a generation that
+	// produced zero nodes (every pod template lacked an object_id) at 3 AM.
+	KubernetesWorkloadNodes    metric.Int64Counter
 	SBOMAttestationAttachments metric.Int64Counter
 	SupplyChainImpactFindings  metric.Int64Counter
 	// SupplyChainSuppressionDecisions counts reducer suppression-state
@@ -857,6 +864,14 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register KubernetesCorrelations counter: %w", err)
+	}
+
+	inst.KubernetesWorkloadNodes, err = meter.Int64Counter(
+		"eshu_dp_kubernetes_workload_nodes_total",
+		metric.WithDescription("Total canonical KubernetesWorkload graph nodes committed by reducer domain"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register KubernetesWorkloadNodes counter: %w", err)
 	}
 
 	inst.SBOMAttestationAttachments, err = meter.Int64Counter(

@@ -30,6 +30,12 @@ const (
 	// GraphProjectionKeyspaceCloudResourceUID represents the canonical cloud
 	// resource identity domain.
 	GraphProjectionKeyspaceCloudResourceUID GraphProjectionKeyspace = "cloud_resource_uid"
+	// GraphProjectionKeyspaceKubernetesWorkloadUID represents the canonical live
+	// Kubernetes workload identity domain. The live-workload edge slice (#388 PR3)
+	// gates its RUNS/DRIFTS_FROM edge projection on this keyspace's
+	// canonical-nodes-committed phase exactly as the AWS relationship edge gates on
+	// GraphProjectionKeyspaceCloudResourceUID (#805).
+	GraphProjectionKeyspaceKubernetesWorkloadUID GraphProjectionKeyspace = "kubernetes_workload_uid"
 	// GraphProjectionKeyspaceWebhookEventUID represents the canonical webhook
 	// event identity domain.
 	GraphProjectionKeyspaceWebhookEventUID GraphProjectionKeyspace = "webhook_event_uid"

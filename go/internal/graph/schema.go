@@ -152,6 +152,7 @@ var uidConstraintLabels = []string{
 	"ImplBlock",
 	"Interface",
 	"K8sResource",
+	"KubernetesWorkload",
 	"KustomizeOverlay",
 	"Macro",
 	"Module",
@@ -213,6 +214,13 @@ var schemaPerformanceIndexes = []string{
 	"CREATE INDEX annotation_lang IF NOT EXISTS FOR (a:Annotation) ON (a.lang)",
 	"CREATE INDEX k8s_kind IF NOT EXISTS FOR (k:K8sResource) ON (k.kind)",
 	"CREATE INDEX k8s_namespace IF NOT EXISTS FOR (k:K8sResource) ON (k.namespace)",
+	// KubernetesWorkload lookup indexes back graph-backed reads of the live
+	// workload node (the #388 PR3 RUNS edge anchors on the uid, which the
+	// generated uid uniqueness constraint already indexes; cluster_id and
+	// namespace back scoped fan-out reads). Without these, a per-cluster or
+	// per-namespace read falls back to a KubernetesWorkload label scan.
+	"CREATE INDEX kubernetes_workload_cluster_id IF NOT EXISTS FOR (w:KubernetesWorkload) ON (w.cluster_id)",
+	"CREATE INDEX kubernetes_workload_namespace IF NOT EXISTS FOR (w:KubernetesWorkload) ON (w.namespace)",
 	// CloudResource lookup indexes back the AWS relationship edge join
 	// (issue #805). The edge projection resolves both endpoints to a
 	// CloudResource.uid using an in-memory index built from aws_resource facts,
