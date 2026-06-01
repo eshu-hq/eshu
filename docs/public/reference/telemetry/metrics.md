@@ -94,7 +94,8 @@ Use these to locate the phase that changed before opening logs or traces:
 
 - [Ingestion And Collector Metrics](metrics-ingestion-collectors.md) covers
   Git ingestion, discovery pruning, Terraform-state, OCI registry, Package
-  Registry, AWS, Confluence, Grafana, workflow coordinator, and webhook intake.
+  Registry, AWS, Confluence, Grafana, Prometheus/Mimir, workflow coordinator,
+  and webhook intake.
 - [Reducer And Storage Metrics](metrics-reducer-storage.md) covers reducer
   execution, shared follow-up, graph writes, storage, correlation, drift,
   supply-chain impact, capacity, and memory.

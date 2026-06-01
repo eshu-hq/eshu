@@ -59,6 +59,14 @@ targets or rules, when target/rule freshness matters, or when rendered
 Prometheus Operator selection turns Helm and CRD inputs into effective scrape
 jobs.
 
+Live Prometheus/Mimir metadata collection now exists as a source package for
+the observed-provider metric slice. It reads active Prometheus target metadata
+and Prometheus/Mimir rule metadata from configured API targets and emits
+`observability.source_instance`, `observability.observed_target`,
+`observability.observed_rule`, and `observability.coverage_warning` facts. The
+slice remains runtime-wiring pending: command, Helm, end-to-end status, and
+deployment proof are tracked separately.
+
 Declared Loki facts are also intent evidence. Live Loki collection must remain
 metadata-only: bounded label, series, ruler, or freshness metadata only, never
 log lines or raw LogQL. Use live Loki API reads only for no-IaC fallback,
@@ -235,6 +243,21 @@ Observability Evidence: live Grafana observed metadata collection records
 `eshu_dp_grafana_facts_emitted_total`,
 `eshu_dp_grafana_rate_limited_total`, `eshu_dp_grafana_retries_total`, and
 `eshu_dp_grafana_redactions_total` with bounded labels only.
+
+No-Regression Evidence: live Prometheus/Mimir observed metadata collection adds
+a metadata-only source package and bounded telemetry. It does not add graph
+writes, reducer phases, query handlers, Helm wiring, or a long-running runtime
+command.
+
+Observability Evidence: live Prometheus/Mimir observed metadata collection
+records `prometheus_mimir.observe`, `prometheus_mimir.fetch`,
+`eshu_dp_prometheus_mimir_provider_requests_total`,
+`eshu_dp_prometheus_mimir_fetch_duration_seconds`,
+`eshu_dp_prometheus_mimir_facts_emitted_total`,
+`eshu_dp_prometheus_mimir_rate_limited_total`,
+`eshu_dp_prometheus_mimir_retries_total`,
+`eshu_dp_prometheus_mimir_redactions_total`, and
+`eshu_dp_prometheus_mimir_stale_total` with bounded labels only.
 
 ## Related Work
 

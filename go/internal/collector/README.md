@@ -215,6 +215,12 @@ it.
   observability source facts for folders, dashboards, datasources, alert rules,
   and coverage warnings without retaining dashboard JSON, query models,
   datasource URLs, contacts, notification routes, credentials, or private URLs.
+- `prometheusmimir` subpackage — claim-driven live Prometheus-compatible API
+  metadata collection for the `prometheus_mimir` collector family. It emits
+  reported-confidence observed observability source facts for active targets,
+  rules, and coverage warnings without retaining metric samples, raw PromQL,
+  scrape target URLs, target label values, annotations, tenant IDs, credentials,
+  or private URLs.
 - `scannerworker` subpackage — scanner-worker claim processing, analyzer port,
   bounded target scope, resource limits, source-fact output validation, and
   retry/dead-letter payloads. Concrete heavy analyzers plug in behind this

@@ -170,6 +170,23 @@ folder names, dashboard titles, datasource names, URLs, alert query models,
 contact points, notification destinations, token environment names, token
 values, and provider response bodies stay out of metric labels.
 
+## Prometheus/Mimir Collector
+
+| Metric | Key labels | Use |
+| --- | --- | --- |
+| `eshu_dp_prometheus_mimir_provider_requests_total` | `provider`, `status_class` | Live Prometheus/Mimir metadata request attempts, including retryable and terminal failures. |
+| `eshu_dp_prometheus_mimir_facts_emitted_total` | `provider`, `fact_kind` | Observability source facts emitted per claimed target. |
+| `eshu_dp_prometheus_mimir_rate_limited_total` | `provider` | Prometheus/Mimir rate-limit pressure surfaced as partial observed coverage or retry pressure. |
+| `eshu_dp_prometheus_mimir_retries_total` | `provider` | Bounded provider retry attempts before the source returns or fails. |
+| `eshu_dp_prometheus_mimir_redactions_total` | `provider`, `reason` | Target URL, label value, PromQL, annotation, and tenant metadata dropped or fingerprinted before fact emission. |
+| `eshu_dp_prometheus_mimir_stale_total` | `provider` | Targets or rules older than the configured freshness window. |
+| `eshu_dp_prometheus_mimir_fetch_duration_seconds` | `provider`, `status_class` | Bounded Prometheus/Mimir fetch duration for one claimed target. |
+
+Prometheus/Mimir fetch spans are `prometheus_mimir.observe` and
+`prometheus_mimir.fetch`. Instance IDs, scrape target URLs, label values, raw
+PromQL, annotations, tenant IDs, tenant headers, token environment names, token
+values, and provider response bodies stay out of metric labels.
+
 ## Scanner-Worker Boundary
 
 Scanner-worker metrics are emitted by the hosted scanner-worker runtime for
