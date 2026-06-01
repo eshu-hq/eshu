@@ -1,0 +1,25 @@
+go/internal/coordinator/derived_target_budget.go
+  s_f2f7fbb6f30866::t_a57cbe6f902e17 15
+go/internal/coordinator/vulnerability_installed_evidence_targets_test.go
+  s_f2f7fbb6f30866::t_741cd2bdf31571 148-187
+go/internal/coordinator/vulnerability_installed_evidence_derivation.go
+  s_f2f7fbb6f30866::t_8d239396cf0223 150,155-159,198-201
+go/internal/coordinator/README.md
+  s_f2f7fbb6f30866::t_4c45011c72c2ad 141-142,239-241,320
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "6ee9db3a893e772d7686e6b65189649cb376399f",
+  "prompts": {},
+  "sessions": {
+    "s_f2f7fbb6f30866": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e360b-90eb-7472-bac7-56d488b65f77",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
