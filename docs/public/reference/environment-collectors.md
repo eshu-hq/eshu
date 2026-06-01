@@ -192,6 +192,12 @@ by this runtime.
 Jira API tokens must come from private environment variables referenced by
 `token_env`; do not commit token values, private issue summaries, user names,
 issue URLs, or copied provider payloads to public values files or docs.
+In Helm, use `jiraCollector.collectorInstances` for polling-only collection and
+`jiraCollector.extraEnv` for Secret-backed `token_env` and optional
+`email_env` values. To add webhook freshness, also enable
+`webhookListener.jira` with a `scopeId` that matches the configured Jira target;
+the webhook listener enqueues freshness work only and does not emit
+`work_item.*` facts.
 
 ## Live Grafana-Stack Collectors
 

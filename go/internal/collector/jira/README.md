@@ -89,6 +89,9 @@ values are not allowed in metric labels or status errors.
 - Signed Jira webhooks wake configured collector scopes through the shared
   webhook/workflow path; this package still treats polling as the backfill
   source of truth.
+- `TestLiveJiraWorkItemEvidence` is an opt-in maintainer smoke. It requires
+  `ESHU_JIRA_LIVE=1`, a Jira Cloud base URL, and private credential variables;
+  default package tests skip it.
 
 No-Regression Evidence: focused collector tests cover envelope redaction,
 provider failure classification, empty windows, bounded REST endpoints, search
@@ -113,6 +116,11 @@ metadata redactions, unsupported provider links, rate limits, partial failures,
 stale collection windows, and retry guidance without
 high-cardinality labels.
 
+Live-Smoke Evidence: `go test ./internal/collector/jira -run
+TestLiveJiraWorkItemEvidence -count=1 -v` exercises the claim-backed source
+against a configured Jira Cloud site when `ESHU_JIRA_LIVE=1`. It is skipped by
+default and fails if credential material appears in emitted envelopes.
+
 Collector Observability Evidence: `jira.observe` and `jira.fetch` spans,
 `eshu_dp_jira_provider_requests_total`,
 `eshu_dp_jira_facts_emitted_total`, `eshu_dp_jira_rate_limited_total`, and
@@ -122,11 +130,11 @@ partial failures, rejected links, stale windows, and retry guidance without
 site IDs, issue keys, summaries, users, URLs, or credential values in metric
 labels.
 
-Collector Deployment Evidence: no new runtime, port, Helm template, or
-ServiceMonitor is added in this slice. Existing hosted collector deployment and
-scrape coverage continue to own `collector-jira`; operators diagnose this path
-through the existing collector metrics and the `jira.observe`/`jira.fetch`
-spans.
+Collector Deployment Evidence: the hosted runtime is charted by
+`deploy/helm/eshu/templates/deployment-jira-collector.yaml` with a metrics
+Service, ServiceMonitor, NetworkPolicy, and PodDisruptionBudget. Runtime
+credentials stay in Secret-backed environment variables referenced from
+`jiraCollector.extraEnv`.
 
 ## Related docs
 

@@ -312,6 +312,32 @@ Observability Evidence: the Jira fetch span records bounded counts for
 Existing Jira metrics continue to report provider request attempts, emitted fact
 counts, rate limits, and fetch duration with bounded labels.
 
+Helm No-Regression Evidence:
+
+```bash
+go test ./internal/runtime \
+  -run 'TestHelmJiraCollectorDeployment|TestJiraCollectorBinaryIsBuiltInstalledAndDocumented' \
+  -count=1
+```
+
+This covers the charted polling-only runtime shape: disabled by default,
+claim-driven when enabled, Secret-backed Jira credential environment variables,
+metrics Service, ServiceMonitor, NetworkPolicy, PodDisruptionBudget, and
+runtime documentation pointers. Webhook-enabled mode stays on the shared
+webhook listener; webhook proof remains covered by the webhook no-regression
+gate above.
+
+Live-Smoke Evidence:
+
+```bash
+go test ./internal/collector/jira -run TestLiveJiraWorkItemEvidence -count=1 -v
+```
+
+The live smoke is opt-in with `ESHU_JIRA_LIVE=1`. It requires a Jira Cloud base
+URL and private credential environment variables, exercises the same
+claim-backed Jira source path used by the hosted collector, and fails if
+credential material appears in emitted `work_item.*` envelopes.
+
 Webhook Observability Evidence: existing webhook listener metrics and spans
 report accepted, rejected, unsupported, malformed, invalid-signature,
 duplicate/coalesced, and stored Jira freshness outcomes with bounded provider,
