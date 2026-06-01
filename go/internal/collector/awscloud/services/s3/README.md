@@ -4,7 +4,8 @@
 
 `internal/collector/awscloud/services/s3` owns the Amazon S3 scanner contract
 for the AWS cloud collector. It converts bucket control-plane metadata into
-`aws_resource` facts and emits relationship evidence when S3 reports a bucket
+`aws_resource` facts, emits a derived metadata-only `s3_bucket_posture` fact per
+bucket, and emits relationship evidence when S3 reports a bucket
 server-access-log target bucket.
 
 ## Ownership boundary
@@ -18,8 +19,10 @@ flowchart LR
   A["S3 API adapter"] --> B["Client"]
   B --> C["Scanner.Scan"]
   C --> D["aws_resource"]
+  C --> G["s3_bucket_posture"]
   C --> E["aws_relationship"]
   D --> F["facts.Envelope"]
+  G --> F
   E --> F
 ```
 
@@ -28,11 +31,12 @@ flowchart LR
 See `doc.go` for the godoc contract.
 
 - `Client` - minimal S3 bucket metadata read surface consumed by `Scanner`.
-- `Scanner` - emits bucket resources and logging-target relationship facts for
-  one boundary.
-- `Bucket` - scanner-owned bucket representation with safe metadata only.
-- `Versioning`, `Encryption`, `PublicAccessBlock`, `Website`, and `Logging` -
-  scanner-owned control-plane metadata groups.
+- `Scanner` - emits bucket resources, the derived `s3_bucket_posture` fact, and
+  logging-target relationship facts for one boundary.
+- `Bucket` - scanner-owned bucket representation with safe metadata only,
+  including replication presence and policy-derived booleans (no raw policy).
+- `Versioning`, `Encryption`, `PublicAccessBlock`, `Website`, `Logging`, and
+  `Replication` - scanner-owned control-plane metadata groups.
 
 ## Dependencies
 
@@ -57,6 +61,13 @@ spans.
 - Bucket policy JSON, ACL grants, replication rules, lifecycle rules,
   notification configuration, inventory configuration, analytics configuration,
   and metrics configuration are not persisted.
+- The `s3_bucket_posture` fact carries only derived booleans and safe
+  identifiers/ARNs. The SDK adapter reads the bucket policy document
+  transiently (`GetBucketPolicy`) to derive the public-grant and
+  cross-account-principal booleans, then discards the raw document; the policy
+  JSON never reaches the scanner-owned `Bucket` model or any fact payload.
+  Replication is reduced to a presence boolean (`GetBucketReplication`), not
+  rule detail.
 - Website configuration is reduced to status flags, redirect host, and routing
   rule count. Index and error document object keys are not persisted.
 - Logging target grants and object-key format are not persisted. The scanner
@@ -72,9 +83,11 @@ covers the bounded S3 metadata path: regional paginated ListBuckets with
 MaxBuckets set, HeadBucket,
 GetBucketTagging, GetBucketVersioning, GetBucketEncryption,
 GetPublicAccessBlock, GetBucketPolicyStatus, GetBucketOwnershipControls,
-GetBucketWebsite, and GetBucketLogging; no object inventory calls, no policy
-JSON reads, no ACL grant reads, no mutations, and no graph writes in the
-collector.
+GetBucketWebsite, GetBucketLogging, GetBucketReplication, and GetBucketPolicy;
+no object inventory calls, no persisted policy JSON, no ACL grant reads, no
+mutations, and no graph writes in the collector. Per-bucket API fan-out is a
+fixed, bounded set of control-plane describes (no N+1 against object inventory
+or pagination per bucket).
 
 No-Regression Evidence: `go test ./cmd/collector-aws-cloud ./internal/collector/awscloud/...`
 covers S3 bucket metadata fact emission, logging-target relationship emission,
@@ -136,6 +149,30 @@ consolidation with no graph-write, queue, or hot-path behavior change.
 No-Observability-Change: the change only swaps helpers; the synthesized bucket
 ARN value is unchanged for every region, and no instrument, span, metric label,
 or `aws_scan_status` row changes.
+
+### Derived bucket posture fact (#1144, PR1 facts-only)
+
+No-Regression Evidence: `go test ./internal/collector/awscloud/services/s3/... ./internal/facts -count=1`
+covers the new derived `s3_bucket_posture` fact (`TestScannerEmitsDerivedBucketPostureFact`,
+`TestScannerPostureDerivesPartition`), the partition-aware envelope builder
+(`TestNewS3BucketPostureEnvelope*`), the fact-kind registry
+(`TestS3BucketPostureFactKindRegistry`), the SDK adapter's replication-presence
+and transient policy reads (`TestClientListBucketsReadsSafeMetadataOnly`,
+`TestClientListBucketsTreatsMissingOptionalBucketConfigAsEmptyMetadata`), and
+the policy-derivation logic (`TestDeriveBucketPolicyFlags*`). The posture fact
+carries only derived booleans and safe identifiers/ARNs; redaction guards assert
+no policy JSON, ACL grants, statements, or object data reach the payload. This
+is the facts-only slice: the scanner emits the new fact kind but no graph edge
+is written. Reducer graph projection of this posture is a separate PR under
+principal review. Metadata-only; no hot-path graph-write or queue behavior
+change in this PR.
+
+No-Observability-Change: the new fact flows through the existing AWS collector
+`aws.service.scan` / `aws.service.pagination.page` spans and
+`eshu_dp_aws_api_calls_total` (now also recording the `GetBucketReplication` and
+`GetBucketPolicy` operations); no new instrument, metric label, or
+`aws_scan_status` row is introduced, and no posture booleans, ARNs, or bucket
+names enter metric labels.
 
 ## Related docs
 

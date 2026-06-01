@@ -293,6 +293,21 @@ Use `AWSFactKinds` when callers need the full accepted set, and
 AWS evidence. Reducers must corroborate workload, deployment, ownership, and
 environment truth before graph promotion.
 
+The S3 bucket posture fact kind uses schema version `1.0.0` for the first
+collector contract:
+
+- `s3_bucket_posture`
+
+Use `S3BucketPostureFactKinds` and `S3BucketPostureSchemaVersion` for the
+accepted set and version. This is a derived, metadata-only posture fact emitted
+per bucket by the AWS collector: block-public-access flags, default-encryption
+detail (SSE-KMS key ARN and bucket-key state), versioning and MFA-delete state,
+object-ownership / ACL-disabled state, access-logging target, replication
+presence, and booleans DERIVED from the bucket policy document (public grant,
+cross-account principal). It never carries the raw bucket policy JSON, ACL
+grants, or object data. It is source evidence only; reducer graph projection of
+this posture is a separate consumer.
+
 See `doc.go` for the full godoc contract.
 
 ## Dependencies

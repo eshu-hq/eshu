@@ -42,6 +42,11 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 			return nil, err
 		}
 		envelopes = append(envelopes, resource)
+		posture, err := awscloud.NewS3BucketPostureEnvelope(bucketPostureObservation(boundary, bucket))
+		if err != nil {
+			return nil, err
+		}
+		envelopes = append(envelopes, posture)
 		logging, ok := loggingRelationship(boundary, bucket)
 		if !ok {
 			continue
@@ -100,6 +105,80 @@ func bucketAttributes(bucket Bucket) map[string]any {
 		"logging_target_bucket":         strings.TrimSpace(bucket.Logging.TargetBucket),
 		"logging_target_prefix":         strings.TrimSpace(bucket.Logging.TargetPrefix),
 	}
+}
+
+// bucketPostureObservation derives the metadata-only security posture for one
+// bucket: block-public-access flags, default-encryption detail, versioning and
+// MFA-delete state, object ownership / ACL-disabled state, access-logging
+// target, replication presence, and the policy-derived booleans. It never
+// reads or stores the raw bucket policy document.
+func bucketPostureObservation(boundary awscloud.Boundary, bucket Bucket) awscloud.S3BucketPostureObservation {
+	name := strings.TrimSpace(bucket.Name)
+	arn := firstNonEmpty(bucket.ARN, arnForBucket(awscloud.PartitionForBoundary(boundary), name))
+	algorithms, keyIDs, bucketKeyEnabled := encryptionSummary(bucket.Encryption)
+	return awscloud.S3BucketPostureObservation{
+		Boundary:   boundary,
+		BucketARN:  arn,
+		BucketName: name,
+
+		BlockPublicACLs:             bucket.PublicAccessBlock.BlockPublicACLs,
+		IgnorePublicACLs:            bucket.PublicAccessBlock.IgnorePublicACLs,
+		BlockPublicPolicy:           bucket.PublicAccessBlock.BlockPublicPolicy,
+		RestrictPublicBuckets:       bucket.PublicAccessBlock.RestrictPublicBuckets,
+		BlockPublicAccessAllEnabled: blockPublicAccessAll(bucket.PublicAccessBlock),
+
+		DefaultEncryptionEnabled: len(algorithms) > 0,
+		EncryptionAlgorithms:     algorithms,
+		SSEKMSKeyARN:             firstNonEmpty(keyIDs...),
+		BucketKeyEnabled:         bucketKeyEnabled,
+
+		VersioningStatus:  strings.TrimSpace(bucket.Versioning.Status),
+		VersioningEnabled: strings.EqualFold(strings.TrimSpace(bucket.Versioning.Status), "Enabled"),
+		MFADeleteEnabled:  strings.EqualFold(strings.TrimSpace(bucket.Versioning.MFADelete), "Enabled"),
+
+		ObjectOwnership: cloneStrings(bucket.OwnershipControls),
+		ACLDisabled:     ownershipDisablesACL(bucket.OwnershipControls),
+
+		LoggingEnabled:      bucket.Logging.Enabled,
+		LoggingTargetBucket: strings.TrimSpace(bucket.Logging.TargetBucket),
+
+		ReplicationEnabled: bucket.Replication.Enabled,
+
+		PolicyPresent:            bucket.PolicyPresent,
+		PolicyGrantsPublic:       bucket.PolicyGrantsPublic,
+		PolicyGrantsCrossAccount: bucket.PolicyGrantsCrossAccount,
+	}
+}
+
+// blockPublicAccessAll reports whether all four block-public-access flags are
+// explicitly enabled. It returns nil when any flag is absent so an
+// unconfigured bucket stays distinct from one with all four disabled.
+func blockPublicAccessAll(block PublicAccessBlock) *bool {
+	flags := []*bool{
+		block.BlockPublicACLs,
+		block.IgnorePublicACLs,
+		block.BlockPublicPolicy,
+		block.RestrictPublicBuckets,
+	}
+	all := true
+	for _, flag := range flags {
+		if flag == nil {
+			return nil
+		}
+		all = all && *flag
+	}
+	return &all
+}
+
+// ownershipDisablesACL reports whether the bucket's object-ownership controls
+// disable ACLs (BucketOwnerEnforced).
+func ownershipDisablesACL(controls []string) bool {
+	for _, control := range controls {
+		if strings.EqualFold(strings.TrimSpace(control), "BucketOwnerEnforced") {
+			return true
+		}
+	}
+	return false
 }
 
 func encryptionSummary(encryption Encryption) ([]string, []string, bool) {

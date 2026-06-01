@@ -117,6 +117,126 @@ func TestScannerEmitsS3MetadataOnlyBucketFactsAndLoggingRelationships(t *testing
 	assertAttribute(t, relationshipAttributes, "target_prefix", "s3/")
 }
 
+func TestScannerEmitsDerivedBucketPostureFact(t *testing.T) {
+	created := time.Date(2026, 5, 14, 17, 0, 0, 0, time.UTC)
+	client := fakeClient{buckets: []Bucket{{
+		Name:         "orders-artifacts",
+		Region:       "us-east-1",
+		CreationTime: created,
+		Versioning: Versioning{
+			Status:    "Enabled",
+			MFADelete: "Enabled",
+		},
+		Encryption: Encryption{Rules: []EncryptionRule{{
+			Algorithm:      "aws:kms",
+			KMSMasterKeyID: "arn:aws:kms:us-east-1:123456789012:key/orders",
+			BucketKey:      true,
+		}}},
+		PublicAccessBlock: PublicAccessBlock{
+			BlockPublicACLs:       boolPtr(true),
+			IgnorePublicACLs:      boolPtr(true),
+			BlockPublicPolicy:     boolPtr(true),
+			RestrictPublicBuckets: boolPtr(true),
+		},
+		PolicyIsPublic:           boolPtr(false),
+		PolicyPresent:            true,
+		PolicyGrantsPublic:       boolPtr(false),
+		PolicyGrantsCrossAccount: boolPtr(true),
+		OwnershipControls:        []string{"BucketOwnerEnforced"},
+		Replication:              Replication{Enabled: true},
+		Logging: Logging{
+			Enabled:      true,
+			TargetBucket: "orders-logs",
+			TargetPrefix: "s3/",
+		},
+	}}}
+
+	envelopes, err := (Scanner{Client: client}).Scan(context.Background(), testBoundary())
+	if err != nil {
+		t.Fatalf("Scan() error = %v, want nil", err)
+	}
+
+	posture := postureByBucket(t, envelopes, "arn:aws:s3:::orders-artifacts")
+	wantString := map[string]string{
+		"bucket_arn":            "arn:aws:s3:::orders-artifacts",
+		"bucket_name":           "orders-artifacts",
+		"sse_kms_key_arn":       "arn:aws:kms:us-east-1:123456789012:key/orders",
+		"versioning_status":     "Enabled",
+		"logging_target_bucket": "orders-logs",
+	}
+	for key, want := range wantString {
+		if got, _ := posture.Payload[key].(string); got != want {
+			t.Fatalf("posture[%q] = %#v, want %q", key, posture.Payload[key], want)
+		}
+	}
+	wantBool := map[string]bool{
+		"block_public_acls":           true,
+		"ignore_public_acls":          true,
+		"block_public_policy":         true,
+		"restrict_public_buckets":     true,
+		"block_public_access_all":     true,
+		"default_encryption_enabled":  true,
+		"bucket_key_enabled":          true,
+		"versioning_enabled":          true,
+		"mfa_delete_enabled":          true,
+		"acl_disabled":                true,
+		"logging_enabled":             true,
+		"replication_enabled":         true,
+		"policy_present":              true,
+		"policy_grants_public":        false,
+		"policy_grants_cross_account": true,
+	}
+	for key, want := range wantBool {
+		got, ok := posture.Payload[key].(bool)
+		if !ok || got != want {
+			t.Fatalf("posture[%q] = %#v, want bool %v", key, posture.Payload[key], want)
+		}
+	}
+	for _, forbidden := range []string{
+		"policy",
+		"policy_json",
+		"policy_document",
+		"acl_grants",
+		"statements",
+		"objects",
+		"replication_rules",
+	} {
+		if _, exists := posture.Payload[forbidden]; exists {
+			t.Fatalf("posture carries forbidden key %q; posture fact must stay derived/metadata-only", forbidden)
+		}
+	}
+}
+
+// TestScannerPostureDerivesPartition pins that the posture fact's bucket
+// identity inherits the boundary partition, matching the resource node so the
+// PR2 reducer join resolves in GovCloud and China.
+func TestScannerPostureDerivesPartition(t *testing.T) {
+	cases := []struct {
+		name    string
+		region  string
+		wantARN string
+	}{
+		{name: "commercial", region: "us-east-1", wantARN: "arn:aws:s3:::my-bucket"},
+		{name: "govcloud", region: "us-gov-west-1", wantARN: "arn:aws-us-gov:s3:::my-bucket"},
+		{name: "china", region: "cn-north-1", wantARN: "arn:aws-cn:s3:::my-bucket"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			boundary := testBoundary()
+			boundary.Region = tc.region
+			client := fakeClient{buckets: []Bucket{{Name: "my-bucket"}}}
+			envelopes, err := (Scanner{Client: client}).Scan(context.Background(), boundary)
+			if err != nil {
+				t.Fatalf("Scan() error = %v, want nil", err)
+			}
+			posture := postureByBucket(t, envelopes, tc.wantARN)
+			if got, _ := posture.Payload["bucket_arn"].(string); got != tc.wantARN {
+				t.Fatalf("posture bucket_arn = %q, want %q", got, tc.wantARN)
+			}
+		})
+	}
+}
+
 func TestScannerSkipsLoggingRelationshipWithoutTargetBucket(t *testing.T) {
 	client := fakeClient{buckets: []Bucket{{
 		Name:   "orders-artifacts",
@@ -191,6 +311,20 @@ func relationshipByType(t *testing.T, envelopes []facts.Envelope, relationshipTy
 		}
 	}
 	t.Fatalf("missing relationship_type %q in %#v", relationshipType, envelopes)
+	return facts.Envelope{}
+}
+
+func postureByBucket(t *testing.T, envelopes []facts.Envelope, bucketARN string) facts.Envelope {
+	t.Helper()
+	for _, envelope := range envelopes {
+		if envelope.FactKind != facts.S3BucketPostureFactKind {
+			continue
+		}
+		if got, _ := envelope.Payload["bucket_arn"].(string); got == bucketARN {
+			return envelope
+		}
+	}
+	t.Fatalf("missing s3_bucket_posture for %q in %#v", bucketARN, envelopes)
 	return facts.Envelope{}
 }
 

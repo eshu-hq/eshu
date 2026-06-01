@@ -127,6 +127,11 @@ See `doc.go` for the godoc contract.
   source to one of the `SecurityGroupRuleSource*` kinds and deriving the
   `is_internet`, `is_all_protocols`, and `is_all_ports` booleans.
 - `NewWarningEnvelope` - builds an `aws_warning` fact.
+- `NewS3BucketPostureEnvelope` - builds a derived metadata-only
+  `s3_bucket_posture` fact from `S3BucketPostureObservation` (block-public-access
+  flags, default-encryption detail, versioning/MFA-delete, object-ownership /
+  ACL-disabled, access-logging target, replication presence, and policy-derived
+  public/cross-account booleans). It never carries the raw bucket policy.
 
 Envelope builders validate account, region, service kind, scope, generation,
 collector instance, and fencing token boundaries before emitting facts.

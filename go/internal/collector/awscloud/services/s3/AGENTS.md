@@ -30,6 +30,13 @@
 - Add a new S3 metadata field by extending the scanner-owned type, writing a
   focused scanner or adapter test first, then mapping it through `awscloud`
   envelope builders.
+- Extend the derived `s3_bucket_posture` fact by adding a derived boolean or
+  safe identifier to `awscloud.S3BucketPostureObservation` and the
+  `bucketPostureObservation` mapper, test-first. The posture fact carries only
+  derived booleans and safe identifiers/ARNs. The policy-derived booleans
+  (`PolicyGrantsPublic`, `PolicyGrantsCrossAccount`) arrive already derived on
+  the `Bucket` model; this package never sees the raw policy document. PR1 is
+  facts-only: do not add a graph edge or reducer projection for posture here.
 - Add new relationship evidence only when S3 reports both sides directly and
   the target identity is not sensitive.
 - Extend SDK pagination and optional-not-configured handling in the `awssdk`
