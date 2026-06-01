@@ -138,7 +138,8 @@ fall back to defaults rather than failing; malformed values fail fast.
   vulnerability-intelligence instances that enable
   `derive_from_installed_evidence`. OS package reads come from active
   `vulnerability.os_package` facts; SBOM component reads come from active
-  attached `sbom.component` facts.
+  attached `sbom.component` facts whose attachment evidence is active for the
+  same scope.
 - `AWSScheduledWorkPlanner` — plans scheduled AWS collection runs from the
   configured target scopes without requiring a separate provider webhook when
   the AWS collector configuration sets `scheduled_scan_enabled=true`. Each
@@ -235,7 +236,9 @@ warning (`collector_instance_drift_detected`, fields
   vendor repository/source proof, package-manager proof, exact installed
   version, package name, and image/scope subject evidence. SBOM derivation
   requires an attached subject digest plus PURL-derived ecosystem, package name,
-  and exact version. Package-registry derived npm and PyPI targets have native
+  and exact version; component payload versions that conflict with the PURL
+  version are skipped as contradictory installed evidence. Package-registry
+  derived npm and PyPI targets have native
   metadata URLs; Go module, Maven, NuGet, Composer, RubyGems, and Cargo derived
   targets intentionally surface missing metadata-source evidence until native
   adapters land. Bounded reads rotate by reconcile bucket, and the
@@ -314,7 +317,7 @@ Observability Evidence: no new metrics were required. Existing collector instanc
 
 Performance Evidence: `go test ./internal/coordinator -run '^$' -bench BenchmarkVulnerabilityDerivedQueryChunks -benchmem -count=3` on darwin/arm64 dropped derived OSV chunk planning from about `8.9 MB/op` and `48k allocs/op` to about `194 KB/op` and `2.3k allocs/op`. The planner now grows chunks in place and tracks encoded scope length incrementally instead of rebuilding candidate slices and scope IDs on every query.
 
-No-Regression Evidence: `go test ./internal/coordinator -run 'InstalledEvidence|OSPackageAdvisory|SBOMComponentAdvisory|BatchesInstalled|BatchesSBOM' -count=1` proves vulnerability-intelligence installed-evidence planning admits exact OS package and SBOM component targets, batches exact OSV queries where supported, keeps bounded single-pass reader state, and reports partial-evidence skips without leaking package coordinates.
+No-Regression Evidence: `go test ./internal/coordinator -run 'InstalledEvidence|OSPackageAdvisory|SBOMComponentAdvisory|BatchesInstalled|BatchesSBOM' -count=1` proves vulnerability-intelligence installed-evidence planning admits exact OS package and SBOM component targets, rejects conflicting SBOM PURL/component versions, batches exact OSV queries where supported, keeps bounded single-pass reader state, and reports partial-evidence skips without leaking package coordinates.
 
 No-Observability-Change: installed-evidence advisory target planning uses the
 existing workflow and collector status surfaces. It adds `target_class` and

@@ -12,6 +12,7 @@ const (
 	derivedTargetSkipReasonMissingSubject        = "derived_target_missing_subject"
 	derivedTargetSkipReasonMissingVersion        = "derived_target_missing_version"
 	derivedTargetSkipReasonNonExactVersion       = "derived_target_non_exact_version"
+	derivedTargetSkipReasonConflictingVersion    = "derived_target_conflicting_version"
 )
 
 type derivedTargetSkipEvidence struct {
