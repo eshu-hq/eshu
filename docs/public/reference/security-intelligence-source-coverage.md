@@ -264,16 +264,20 @@ Version and range matching is reducer-owned and ecosystem-aware. The supported
 matchers are npm, Go modules, Cargo, and Swift semver over OSV-style event
 ranges and GLAD-style comparator ranges, NuGet semantic versions from exact
 lockfile or pinned manifest evidence, Maven version/range ordering for Maven
-bracket and comparator ranges, PyPI PEP 440, and RPM EVR ordering for
-vendor-backed RPM-family OS package facts. Swift support is exact
-`Package.resolved` evidence only; OSV `SwiftURL` records use a Git URL as the
-source package name; Eshu normalizes that URL to the shared Swift Package
-Manager identity and can also use a `PACKAGE` reference as a fallback for source
-records that only publish a short package name. Findings preserve
-`observed_version`, `requested_range`, `fixed_version`, and `match_reason` as
-separate fields. Unsupported ecosystems and malformed installed versions or
-advisory ranges fail closed as `possibly_affected` with explicit
-missing-evidence reasons instead of being treated as affected or safely fixed.
+bracket and comparator ranges, PyPI PEP 440, RPM EVR ordering for
+vendor-backed RPM-family OS package facts, and RubyGems installed versions from
+Bundler lockfile evidence. Swift support is exact `Package.resolved` evidence
+only; OSV `SwiftURL` records use a Git URL as the source package name; Eshu
+normalizes that URL to the shared Swift Package Manager identity and can also
+use a `PACKAGE` reference as a fallback for source records that only publish a
+short package name. RubyGems matching uses the same reducer-owned exact-version
+gate as other precise lockfile ecosystems: git/path Bundler dependencies remain
+ambiguous source evidence and are not admitted as public RubyGems registry
+versions. Findings preserve `observed_version`, `requested_range`,
+`fixed_version`, and `match_reason` as separate fields. Unsupported ecosystems
+and malformed installed versions or advisory ranges fail closed as
+`possibly_affected` with explicit missing-evidence reasons instead of being
+treated as affected or safely fixed.
 
 No-Regression Evidence: `go test ./internal/collector/ospackagevulnerability
 -run 'TestParseRPM|TestBuildEnvelopesEmitsOSPackage' -count=1` and `go test
@@ -289,6 +293,24 @@ ambiguous vendor origin, and the reducer uses existing supply-chain impact
 payload fields, evidence paths, reducer run spans, reducer execution counters,
 and API/MCP readiness envelopes. No new metric label, graph write, queue
 domain, route, or runtime knob was added.
+
+No-Regression Evidence: Ruby/Bundler vulnerability parity for issue `#1013`
+is guarded by `go test ./internal/parser/ruby -run 'TestParseGemfile' -count=1`
+and `go test ./internal/reducer -run
+'TestBuildSupplyChainImpactFindings.*RubyGems|TestBuildPackageConsumptionDecisions.*RubyGems'
+-count=1`. These fixtures prove Gemfile manifest scope, Gemfile.lock exact
+versions, dependency-chain propagation, missing-chain non-guessing, git/path
+source ambiguity rejection, affected exact-version findings, known-fixed
+classification, and four-segment RubyGems version ordering without Postgres,
+graph, queue, scanner-worker, or hosted-runtime work.
+
+No-Observability-Change: the Ruby/Bundler parity change reuses existing
+parser dependency rows, package-consumption correlation facts,
+`reducer_supply_chain_impact_finding`, `match_reason`, `dependency_scope`,
+`dependency_path`, `missing_evidence`, and the supply-chain impact API/MCP
+readiness envelope. It adds no metric instrument, span, log key, queue,
+reducer lane, graph write, scanner worker, route, MCP tool, or runtime
+configuration knob.
 
 No-Regression Evidence: after rebasing PR #638 onto `origin/main`
 `1afcc154`, focused red tests reproduced the review gaps where

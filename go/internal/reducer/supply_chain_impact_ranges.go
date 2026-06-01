@@ -73,6 +73,13 @@ func semverRangeContainsDecision(
 	return versionRangeContainsDecision(affectedRange, observed, compareOSVSemver)
 }
 
+func rubyGemsRangeContainsDecision(
+	affectedRange supplyChainAffectedRange,
+	observed string,
+) (bool, bool) {
+	return versionRangeContainsDecision(affectedRange, observed, compareRubyGemsVersion)
+}
+
 func versionRangeContainsDecision(
 	affectedRange supplyChainAffectedRange,
 	observed string,
@@ -266,6 +273,9 @@ func exactConsumptionDependencyVersion(
 		if !consumption.lockfile {
 			return "", false
 		}
+	}
+	if version, ok := exactManifestDependencyVersion(consumption.installedVersion); ok {
+		return version, true
 	}
 	if consumption.lockfile {
 		version := strings.TrimSpace(consumption.dependencyRange)

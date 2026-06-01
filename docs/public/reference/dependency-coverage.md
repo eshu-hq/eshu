@@ -378,3 +378,21 @@ readback fields: `package.consumption`, `vulnerability.go_module_evidence`,
 `EvidencePath`, and `missing_evidence`. It adds no metric instrument, span, log
 key, queue, reducer lane, route, MCP tool, graph write, scanner worker, or
 runtime configuration knob.
+
+No-Regression Evidence: Ruby/Bundler vulnerability parity for issue `#1013`
+is guarded by `go test ./internal/parser/ruby -run 'TestParseGemfile' -count=1`
+and `go test ./internal/reducer -run
+'TestBuildSupplyChainImpactFindings.*RubyGems|TestBuildPackageConsumptionDecisions.*RubyGems'
+-count=1`. These in-memory parser and reducer fixtures prove Gemfile manifest
+dependencies, Gemfile.lock exact versions, runtime/dev group metadata,
+lockfile dependency chains, missing-chain non-guessing, git/path source
+ambiguity rejection, RubyGems advisory range matching, known-fixed behavior,
+and four-segment RubyGems version ordering. They do not write queue rows,
+graph rows, Postgres rows, or hosted runtime state.
+
+No-Observability-Change: Ruby/Bundler parity reuses existing parser dependency
+rows, `reducer_package_consumption_correlation`,
+`reducer_supply_chain_impact_finding`, `match_reason`, `dependency_scope`,
+`dependency_path`, `missing_evidence`, and the supply-chain impact readiness
+envelope. It adds no metric instrument, span, log key, queue, reducer lane,
+graph write, scanner worker, route, MCP tool, or runtime knob.

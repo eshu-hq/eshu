@@ -93,6 +93,8 @@ func evaluateSupplyChainVersionMatch(
 		return evaluateMavenVersionMatch(observed, fixedVersion, pkgs)
 	case "redhat", "fedora", "centos", "rocky", "alma", "amazonlinux", "rpm":
 		return evaluateRPMVersionMatch(observed, fixedVersion, pkgs)
+	case string(packageidentity.EcosystemRubyGems):
+		return evaluateRubyGemsVersionMatch(observed, fixedVersion, pkgs)
 	default:
 		return supplyChainVersionMatchDecision{
 			Status:          SupplyChainImpactPossiblyAffected,

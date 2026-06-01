@@ -52,6 +52,7 @@ type supplyChainPackageConsumption struct {
 	dependencyRange           string
 	observedVersion           string
 	requestedRange            string
+	installedVersion          string
 	dependencyPath            []string
 	dependencyDepth           int
 	directDependency          *bool
