@@ -9,7 +9,7 @@ intake. Runtime ownership lives in
 | Block | Runtime | Work source | Default |
 | --- | --- | --- | --- |
 | `workflowCoordinator` | Workflow coordinator | collector instance config and claim scheduling | disabled |
-| `webhookListener` | Webhook listener | GitHub, GitLab, Bitbucket, AWS freshness deliveries | disabled |
+| `webhookListener` | Webhook listener | GitHub, GitLab, Bitbucket, AWS, PagerDuty, and Jira freshness deliveries | disabled |
 | `confluenceCollector` | Confluence collector | direct Confluence crawl scope | disabled |
 | `ociRegistryCollector` | OCI registry collector | direct target list | disabled |
 | `terraformStateCollector` | Terraform-state collector | workflow claims | disabled |
@@ -63,21 +63,25 @@ not connect to the graph backend.
 
 Defaults: disabled, `maxBodyBytes=1048576`, empty `defaultBranch`, all
 providers disabled, provider paths `/webhooks/github`, `/webhooks/gitlab`,
-`/webhooks/bitbucket`, and `/webhooks/aws/eventbridge`.
+`/webhooks/bitbucket`, `/webhooks/aws/eventbridge`,
+`/webhooks/pagerduty`, and `/webhooks/jira`.
 
 When enabled, at least one provider must be enabled and each enabled provider
-needs its Secret name. Webhook ingress renders only enabled provider paths as
+needs its Secret name. PagerDuty and Jira also require `scopeId`, which must
+match the configured claim-driven collector target allowed to receive the
+freshness wake-up. Webhook ingress renders only enabled provider paths as
 `Exact` paths to the webhook listener Service.
 
 ## Render Checks
 
 Rendering fails for inactive workflow coordination with claim-driven collectors,
 empty collector instance lists, missing Confluence or Terraform-state required
-values, OCI registry with no targets, webhook listener with no provider, and
-enabled webhook providers without Secret names. For SBOM-attestation, provider
-security-alert, and vulnerability-intelligence collectors, rendering
-additionally fails when the collector-local instance list does not contain a
-matching enabled claim-driven instance or when
+values, OCI registry with no targets, webhook listener with no provider,
+enabled webhook providers without Secret names, and PagerDuty or Jira webhook
+providers without `scopeId`. For SBOM-attestation, provider security-alert, and
+vulnerability-intelligence collectors, rendering additionally fails when the
+collector-local instance list does not contain a matching enabled claim-driven
+instance or when
 `workflowCoordinator.collectorInstances` does not contain an enabled
 claim-driven instance for that collector kind.
 

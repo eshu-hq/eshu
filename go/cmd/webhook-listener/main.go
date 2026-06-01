@@ -84,6 +84,19 @@ func run(parent context.Context) error {
 	if err := store.EnsureSchema(parent); err != nil {
 		return err
 	}
+	var incidentFreshnessStore *postgres.IncidentFreshnessStore
+	if cfg.PagerDutySecret != "" || cfg.JiraSecret != "" {
+		incidentFreshnessDB := &postgres.InstrumentedDB{
+			Inner:       postgres.SQLDB{DB: db},
+			Tracer:      tracer,
+			Instruments: instruments,
+			StoreName:   "incident_freshness_triggers",
+		}
+		incidentFreshnessStore = postgres.NewIncidentFreshnessStore(incidentFreshnessDB)
+		if err := incidentFreshnessStore.EnsureSchema(parent); err != nil {
+			return err
+		}
+	}
 	var awsFreshnessStore *postgres.AWSFreshnessStore
 	if cfg.AWSFreshnessToken != "" {
 		awsFreshnessDB := &postgres.InstrumentedDB{
@@ -98,12 +111,13 @@ func run(parent context.Context) error {
 		}
 	}
 	webhookMux, err := newWebhookMux(webhookHandler{
-		Config:            cfg,
-		Store:             store,
-		AWSFreshnessStore: awsFreshnessStore,
-		Logger:            logger,
-		Instruments:       instruments,
-		Tracer:            tracer,
+		Config:                 cfg,
+		Store:                  store,
+		IncidentFreshnessStore: incidentFreshnessStore,
+		AWSFreshnessStore:      awsFreshnessStore,
+		Logger:                 logger,
+		Instruments:            instruments,
+		Tracer:                 tracer,
 	})
 	if err != nil {
 		return err

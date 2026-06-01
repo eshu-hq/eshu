@@ -12,6 +12,10 @@ const (
 	ProviderGitLab Provider = "gitlab"
 	// ProviderBitbucket identifies webhook events emitted by Bitbucket Cloud.
 	ProviderBitbucket Provider = "bitbucket"
+	// ProviderPagerDuty identifies webhook events emitted by PagerDuty.
+	ProviderPagerDuty Provider = "pagerduty"
+	// ProviderJira identifies webhook events emitted by Jira Cloud.
+	ProviderJira Provider = "jira_cloud"
 )
 
 // EventKind names the normalized event category that can trigger refresh work.
@@ -101,6 +105,30 @@ type StoredTrigger struct {
 	TriggerID      string
 	DeliveryKey    string
 	RefreshKey     string
+	Status         TriggerStatus
+	DuplicateCount int
+	ReceivedAt     time.Time
+	UpdatedAt      time.Time
+}
+
+// IncidentFreshnessTrigger is a verified incident-source webhook wake-up for
+// one configured collector scope.
+type IncidentFreshnessTrigger struct {
+	Provider   Provider
+	EventKind  string
+	EventID    string
+	ScopeID    string
+	ResourceID string
+	ObservedAt time.Time
+}
+
+// StoredIncidentFreshnessTrigger is the durable coalesced form of an incident
+// source freshness trigger.
+type StoredIncidentFreshnessTrigger struct {
+	IncidentFreshnessTrigger
+	TriggerID      string
+	DeliveryKey    string
+	FreshnessKey   string
 	Status         TriggerStatus
 	DuplicateCount int
 	ReceivedAt     time.Time

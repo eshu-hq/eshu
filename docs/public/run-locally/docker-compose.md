@@ -65,7 +65,7 @@ enable a profile.
 | Profile | Service | Provides | Use it when |
 | --- | --- | --- | --- |
 | `workflow-coordinator` | `workflow-coordinator` | Collector scheduling and claim ownership control plane on `18082`, with metrics on `19469`. | You need to inspect scheduler state or run an active claim proof. |
-| `webhook-listener` | `webhook-listener` | HTTP intake for GitHub, GitLab, Bitbucket, and AWS freshness events on `18083`. | You need to test webhook-driven refresh behavior. |
+| `webhook-listener` | `webhook-listener` | HTTP intake for GitHub, GitLab, Bitbucket, AWS, PagerDuty, and Jira freshness events on `18083`. | You need to test webhook-driven refresh behavior. |
 
 Start the workflow coordinator in its default dark mode:
 

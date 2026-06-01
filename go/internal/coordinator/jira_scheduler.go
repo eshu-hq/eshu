@@ -15,9 +15,11 @@ import (
 
 // JiraPlanRequest carries one Jira work-item evidence planning request.
 type JiraPlanRequest struct {
-	Instance   workflow.CollectorInstance
-	ObservedAt time.Time
-	PlanKey    string
+	Instance    workflow.CollectorInstance
+	ObservedAt  time.Time
+	PlanKey     string
+	TriggerKind workflow.TriggerKind
+	ScopeIDs    []string
 }
 
 // JiraWorkPlanner plans workflow rows for configured Jira targets without
@@ -49,11 +51,12 @@ func (p JiraWorkPlanner) PlanJiraWork(
 	if err := validateUniqueJiraTargets(targets); err != nil {
 		return workflow.Run{}, nil, err
 	}
+	targets = filterJiraTargetsByScopeIDs(targets, request.ScopeIDs)
 
 	observedAt := request.ObservedAt.UTC()
 	run := workflow.Run{
-		RunID:              jiraRunID(request.Instance, request.PlanKey),
-		TriggerKind:        jiraTriggerKind(request.Instance),
+		RunID:              jiraRunID(request.Instance, request.PlanKey, jiraRequestTriggerKind(request)),
+		TriggerKind:        jiraRequestTriggerKind(request),
 		Status:             workflow.RunStatusCollectionPending,
 		RequestedScopeSet:  jiraRequestedScopeSet(request.Instance, targets),
 		RequestedCollector: string(scope.CollectorJira),
@@ -90,6 +93,11 @@ func validateJiraPlanRequest(request JiraPlanRequest) error {
 	if err := validateSafePlanKey("jira planner", request.PlanKey); err != nil {
 		return err
 	}
+	if request.TriggerKind != "" {
+		if err := request.TriggerKind.Validate(); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
@@ -123,14 +131,21 @@ func validateUniqueJiraTargets(targets []jiraTargetConfiguration) error {
 	return nil
 }
 
-func jiraRunID(instance workflow.CollectorInstance, planKey string) string {
+func jiraRunID(instance workflow.CollectorInstance, planKey string, triggerKind workflow.TriggerKind) string {
 	return fmt.Sprintf(
 		"%s:%s:%s:%s",
 		scope.CollectorJira,
 		strings.TrimSpace(instance.InstanceID),
-		jiraTriggerKind(instance),
+		triggerKind,
 		strings.TrimSpace(planKey),
 	)
+}
+
+func jiraRequestTriggerKind(request JiraPlanRequest) workflow.TriggerKind {
+	if request.TriggerKind != "" {
+		return request.TriggerKind
+	}
+	return jiraTriggerKind(request.Instance)
 }
 
 func jiraTriggerKind(instance workflow.CollectorInstance) workflow.TriggerKind {
@@ -138,6 +153,29 @@ func jiraTriggerKind(instance workflow.CollectorInstance) workflow.TriggerKind {
 		return workflow.TriggerKindBootstrap
 	}
 	return workflow.TriggerKindSchedule
+}
+
+func filterJiraTargetsByScopeIDs(
+	targets []jiraTargetConfiguration,
+	scopeIDs []string,
+) []jiraTargetConfiguration {
+	if len(scopeIDs) == 0 {
+		return targets
+	}
+	allowed := make(map[string]struct{}, len(scopeIDs))
+	for _, scopeID := range scopeIDs {
+		scopeID = strings.TrimSpace(scopeID)
+		if scopeID != "" {
+			allowed[scopeID] = struct{}{}
+		}
+	}
+	out := make([]jiraTargetConfiguration, 0, len(targets))
+	for _, target := range targets {
+		if _, ok := allowed[strings.TrimSpace(target.ScopeID)]; ok {
+			out = append(out, target)
+		}
+	}
+	return out
 }
 
 func jiraRequestedScopeSet(

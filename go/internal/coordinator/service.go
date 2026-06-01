@@ -105,6 +105,7 @@ type Service struct {
 	AWSFreshnessTriggers             AWSFreshnessTriggerStore
 	AWSFreshnessPlanner              AWSFreshnessPlanner
 	AWSFreshnessEvents               awsFreshnessEventCounter
+	IncidentFreshnessTriggers        IncidentFreshnessTriggerStore
 	Clock                            func() time.Time
 }
 
@@ -338,6 +339,9 @@ func (s Service) runActiveMaintenance(ctx context.Context) error {
 	}
 	if err := s.runAWSFreshnessHandoff(ctx); err != nil {
 		return fmt.Errorf("handoff AWS freshness triggers: %w", err)
+	}
+	if err := s.runIncidentFreshnessHandoff(ctx); err != nil {
+		return fmt.Errorf("handoff incident freshness triggers: %w", err)
 	}
 	if err := s.runWorkflowReconciliation(ctx); err != nil {
 		return fmt.Errorf("reconcile workflow runs: %w", err)

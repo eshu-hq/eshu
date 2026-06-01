@@ -24,6 +24,39 @@ func VerifyBitbucketSignature(payload []byte, secret string, signature string) e
 	return verifySHA256Signature(payload, secret, signature, "bitbucket")
 }
 
+// VerifyJiraSignature validates Jira Cloud's X-Hub-Signature header.
+func VerifyJiraSignature(payload []byte, secret string, signature string) error {
+	return verifySHA256Signature(payload, secret, signature, "jira")
+}
+
+// VerifyPagerDutySignature validates PagerDuty's X-PagerDuty-Signature header.
+func VerifyPagerDutySignature(payload []byte, secret string, signature string) error {
+	secret = strings.TrimSpace(secret)
+	signature = strings.TrimSpace(signature)
+	if secret == "" {
+		return errors.New("pagerduty webhook secret is required")
+	}
+	mac := hmac.New(sha256.New, []byte(secret))
+	if _, err := mac.Write(payload); err != nil {
+		return err
+	}
+	want := mac.Sum(nil)
+	for _, candidate := range strings.Split(signature, ",") {
+		candidate = strings.TrimSpace(candidate)
+		if !strings.HasPrefix(candidate, "v1=") {
+			continue
+		}
+		got, err := hex.DecodeString(strings.TrimPrefix(candidate, "v1="))
+		if err != nil {
+			continue
+		}
+		if hmac.Equal(got, want) {
+			return nil
+		}
+	}
+	return errors.New("pagerduty webhook signature mismatch")
+}
+
 func verifySHA256Signature(payload []byte, secret string, signature string, provider string) error {
 	secret = strings.TrimSpace(secret)
 	signature = strings.TrimSpace(signature)

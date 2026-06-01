@@ -23,18 +23,27 @@ type triggerStore interface {
 	StoreTrigger(context.Context, webhook.Trigger, time.Time) (webhook.StoredTrigger, error)
 }
 
+type incidentFreshnessStore interface {
+	StoreIncidentFreshnessTrigger(
+		context.Context,
+		webhook.IncidentFreshnessTrigger,
+		time.Time,
+	) (webhook.StoredIncidentFreshnessTrigger, error)
+}
+
 type awsFreshnessStore interface {
 	StoreTrigger(context.Context, freshness.Trigger, time.Time) (freshness.StoredTrigger, error)
 }
 
 type webhookHandler struct {
-	Config            webhookListenerConfig
-	Store             triggerStore
-	AWSFreshnessStore awsFreshnessStore
-	Clock             func() time.Time
-	Logger            *slog.Logger
-	Instruments       *telemetry.Instruments
-	Tracer            trace.Tracer
+	Config                 webhookListenerConfig
+	Store                  triggerStore
+	IncidentFreshnessStore incidentFreshnessStore
+	AWSFreshnessStore      awsFreshnessStore
+	Clock                  func() time.Time
+	Logger                 *slog.Logger
+	Instruments            *telemetry.Instruments
+	Tracer                 trace.Tracer
 }
 
 type webhookTelemetryResult struct {
@@ -69,6 +78,9 @@ func newWebhookMux(handler webhookHandler) (*http.ServeMux, error) {
 	if handler.Store == nil && repoWebhookConfigured(handler.Config) {
 		return nil, fmt.Errorf("webhook trigger store is required")
 	}
+	if handler.IncidentFreshnessStore == nil && incidentWebhookConfigured(handler.Config) {
+		return nil, fmt.Errorf("incident freshness trigger store is required")
+	}
 	if handler.AWSFreshnessStore == nil && handler.Config.AWSFreshnessToken != "" {
 		return nil, fmt.Errorf("AWS freshness trigger store is required")
 	}
@@ -82,6 +94,12 @@ func newWebhookMux(handler webhookHandler) (*http.ServeMux, error) {
 	if handler.Config.BitbucketSecret != "" {
 		mux.HandleFunc(handler.Config.BitbucketPath, handler.handleBitbucket)
 	}
+	if handler.Config.PagerDutySecret != "" {
+		mux.HandleFunc(handler.Config.PagerDutyPath, handler.handlePagerDuty)
+	}
+	if handler.Config.JiraSecret != "" {
+		mux.HandleFunc(handler.Config.JiraPath, handler.handleJira)
+	}
 	if handler.Config.AWSFreshnessToken != "" {
 		mux.HandleFunc(handler.Config.AWSFreshnessPath, handler.handleAWSFreshnessEventBridge)
 	}
@@ -90,6 +108,10 @@ func newWebhookMux(handler webhookHandler) (*http.ServeMux, error) {
 
 func repoWebhookConfigured(config webhookListenerConfig) bool {
 	return config.GitHubSecret != "" || config.GitLabToken != "" || config.BitbucketSecret != ""
+}
+
+func incidentWebhookConfigured(config webhookListenerConfig) bool {
+	return config.PagerDutySecret != "" || config.JiraSecret != ""
 }
 
 func (h webhookHandler) handleGitHub(w http.ResponseWriter, r *http.Request) {

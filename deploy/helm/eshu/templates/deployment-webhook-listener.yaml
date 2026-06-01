@@ -81,6 +81,28 @@ spec:
                   name: {{ .Values.webhookListener.awsFreshness.secretName }}
                   key: {{ .Values.webhookListener.awsFreshness.tokenKey }}
             {{- end }}
+            {{- if .Values.webhookListener.pagerDuty.enabled }}
+            - name: ESHU_WEBHOOK_PAGERDUTY_PATH
+              value: {{ .Values.webhookListener.pagerDuty.path | quote }}
+            - name: ESHU_WEBHOOK_PAGERDUTY_SCOPE_ID
+              value: {{ .Values.webhookListener.pagerDuty.scopeId | quote }}
+            - name: ESHU_WEBHOOK_PAGERDUTY_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.webhookListener.pagerDuty.secretName }}
+                  key: {{ .Values.webhookListener.pagerDuty.secretKey }}
+            {{- end }}
+            {{- if .Values.webhookListener.jira.enabled }}
+            - name: ESHU_WEBHOOK_JIRA_PATH
+              value: {{ .Values.webhookListener.jira.path | quote }}
+            - name: ESHU_WEBHOOK_JIRA_SCOPE_ID
+              value: {{ .Values.webhookListener.jira.scopeId | quote }}
+            - name: ESHU_WEBHOOK_JIRA_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.webhookListener.jira.secretName }}
+                  key: {{ .Values.webhookListener.jira.secretKey }}
+            {{- end }}
             {{- include "eshu.renderContentStoreEnv" . | nindent 12 }}
             {{- include "eshu.renderConnectionTuningEnv" .Values.webhookListener.connectionTuning | nindent 12 }}
             {{- include "eshu.renderOtelEnv" (dict "Values" .Values "component" "webhook-listener") | nindent 12 }}

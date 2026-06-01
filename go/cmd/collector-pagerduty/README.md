@@ -21,6 +21,12 @@ work with `incident_lookback`, `incident_limit`, `log_entry_limit`,
 The token value is read only inside this process and is never copied into
 workflow run metadata, facts, metric labels, logs, or status errors.
 
+Signed PagerDuty webhooks can wake a configured target through
+`incident_freshness_triggers`, but the webhook listener does not emit PagerDuty
+facts. The workflow coordinator must authorize the trigger against this
+collector configuration and create normal PagerDuty collector work, and polling
+remains the backfill path for missed webhook deliveries.
+
 Observability Evidence: the binary exposes the shared hosted status/admin
 server plus Prometheus metrics for provider requests, emitted facts,
 rate-limit events, fetch duration, and generation lag through
