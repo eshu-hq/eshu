@@ -6,8 +6,9 @@
 // version through the test-covered printAPIVersionFlag helper and exits before
 // runtime setup. Otherwise the binary boots OTEL telemetry, wires the query
 // router and the shared runtime admin mux, including Postgres-backed supply
-// chain attachment, advisory evidence, impact finding, and impact explanation
-// reads, and listens on ESHU_API_ADDR (default :8080) wrapped in otelhttp
+// chain attachment, advisory evidence, work-item evidence, impact finding, and
+// impact explanation reads, and listens on ESHU_API_ADDR (default :8080)
+// wrapped in otelhttp
 // instrumentation. On
 // SIGINT or SIGTERM it gives the HTTP server up to five seconds for graceful
 // shutdown before exiting. The runtime serves reads only; it does not own repo

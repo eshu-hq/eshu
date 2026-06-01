@@ -21,7 +21,10 @@
 // non-canonical evidence. The supply-chain impact tool exposes
 // include_suppressed and suppression_state inputs so callers can opt in to
 // VEX/operator-suppressed findings and audit suppression reason, source,
-// justification, expiration, and evidence reference per row. Any change that
+// justification, expiration, and evidence reference per row. Work-item tools
+// expose bounded Jira source facts as ticket-first evidence while preserving the
+// source-only boundary around PR, commit, deploy, runtime, image, and service
+// truth. Any change that
 // alters request or response shape must update the MCP guide, the HTTP API
 // reference where the route is shared, and the handler tests in the same
 // change.

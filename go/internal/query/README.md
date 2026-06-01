@@ -202,6 +202,10 @@ canonical graph or reducer truth.
 - `SupplyChainHandler` — SBOM attachment, image identity, source-only advisory
   evidence, impact finding, and one-finding impact explanation routes
   (`supply_chain.go`)
+- `IncidentHandler` — bounded incident context read packets from active
+  incident source facts (`incident_context_handler.go`)
+- `WorkItemHandler` — ticket-first Jira/work-item source evidence reads from
+  active facts (`work_item_evidence_handler.go`)
 - `StatusHandler` — pipeline and ingester status routes (`status.go:14`)
 - `CompareHandler` — environment comparison (`compare.go:12`) with the
   story-packet helpers in `compare_story.go`
@@ -265,7 +269,7 @@ See `doc.go` for the full godoc contract.
   `SpanQueryRelationshipEvidence`, `SpanQueryDeadIaC`,
   `SpanQueryIaCUnmanagedResources`, `SpanQueryIaCTerraformImportPlan`, `SpanQueryInfraResourceSearch`, `SpanQueryCodeTopicInvestigation`,
   `SpanQueryHardcodedSecretInvestigation`, `SpanQueryDeadCodeInvestigation`,
-  `SpanQueryChangeSurfaceInvestigation`
+  `SpanQueryChangeSurfaceInvestigation`, `SpanQueryWorkItemEvidence`
 
 Handlers depend on the `GraphQuery` and `ContentStore` ports, not on
 `neo4jdriver.DriverWithContext` or `*sql.DB` directly. `Neo4jReader` and
@@ -311,7 +315,10 @@ wired in `cmd/api/wiring.go`, not here.
   (`query.supply_chain_impact_explanation`) on one-finding vulnerability
   explanations;
   `telemetry.SpanQueryInfraResourceSearch`
-  (`query.infra_resource_search`) on infrastructure search (`infra.go`).
+  (`query.infra_resource_search`) on infrastructure search (`infra.go`);
+  `telemetry.SpanQueryWorkItemEvidence`
+  (`query.work_item_evidence`) on source-only work-item evidence reads
+  (`work_item_evidence_handler.go`).
   Per-query spans `neo4j.query` and `postgres.query` on every graph and content
   read.
 - Metrics: `eshu_dp_neo4j_query_duration_seconds` and
@@ -482,6 +489,36 @@ SQL reads are scoped by incident service id, service-name fingerprint, or active
 PagerDuty scope and are covered by the existing Postgres query spans and
 `eshu_dp_postgres_query_duration_seconds`; no new high-cardinality metric label
 is added.
+
+## Work item evidence reads (#1124)
+
+`WorkItemHandler` exposes `GET /api/v0/work-items/evidence` and backs MCP
+`list_work_item_evidence`. The read uses active `work_item.*` source facts from
+Postgres and requires `limit` plus at least one anchor:
+`scope_id`, `project_key`, `work_item_key`, `provider_work_item_id`,
+`external_url`, `url_fingerprint`, or `observed_after`. `external_url` is
+sanitized into `url_fingerprint` before SQL, and the response never returns raw
+Jira or remote-link URLs.
+
+The route is source-only. It can show exact Jira provider facts, unsupported
+remote-link types, missing evidence, stale evidence, permission-hidden rows, or
+rejected unsafe payloads. It does not verify pull-request, commit, deployment,
+runtime artifact, image, version, service, or incident truth.
+
+No-Regression Evidence: `go test ./internal/query ./internal/mcp -run
+'TestWorkItem|TestOpenAPIIncludesWorkItemEvidenceRoute|TestResolveRouteMapsWorkItemEvidenceToBoundedQuery'
+-count=1` proves required scopes and limits, URL fingerprinting, cursor
+pagination, active fact SQL predicates, OpenAPI exposure, and MCP dispatch.
+
+Observability Evidence: the route runs under `query.work_item_evidence` with
+stable route and capability attributes plus bounded `SpanAttrWorkItemEvidence*`
+span attributes for
+`eshu.query_count`, `eshu.result_count`, `eshu.stale_evidence_count`,
+`eshu.permission_hidden_count`, `eshu.rejected_unsafe_payload_count`,
+`eshu.unsupported_link_type_count`, `eshu.missing_evidence_count`, and
+`eshu.truncated`. The bounded Postgres read is also covered by `postgres.query`
+spans and `eshu_dp_postgres_query_duration_seconds`; no raw URL, issue summary,
+user, or tenant value is added to metric labels.
 
 ## Package registry aggregate hot-path evidence (#689)
 

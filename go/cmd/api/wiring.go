@@ -264,6 +264,10 @@ func newRouter(
 			Context: query.NewPostgresIncidentContextStore(db),
 			Profile: queryProfile,
 		},
+		WorkItems: &query.WorkItemHandler{
+			Evidence: query.NewPostgresWorkItemEvidenceStore(db),
+			Profile:  queryProfile,
+		},
 		Status: &query.StatusHandler{
 			Neo4j:        neo4jReader,
 			DB:           db,

@@ -250,6 +250,20 @@ Jira-backed read surfaces must distinguish these states:
 
 Readers must not collapse these states into one "not found" result.
 
+`GET /api/v0/work-items/evidence` and MCP `list_work_item_evidence` expose
+these states directly from active work-item source facts. Calls must be bounded
+by `limit` and at least one of `scope_id`, `project_key`, `work_item_key`,
+`provider_work_item_id`, `external_url`, `url_fingerprint`, or
+`observed_after`. `external_url` is sanitized into a fingerprint before the
+Postgres read, raw URLs are not returned, and pagination uses
+`next_cursor.after_fact_id`.
+
+The direct read surface is source-only. It can prove that Jira reported an
+issue, transition, metadata row, or remote link, but it does not verify pull
+request, commit, deployment, runtime artifact, image, version, service, or
+incident truth. Those hops remain missing until provider-specific collectors or
+reducers prove them with explicit evidence.
+
 ## Completion Gates
 
 Before a Jira expansion PR is production-ready, it must prove:
@@ -263,6 +277,8 @@ Before a Jira expansion PR is production-ready, it must prove:
 5. Webhooks remain freshness triggers and polling remains the recovery path.
 6. Query or MCP surfaces keep exact provider facts separate from derived
    incident, PR, commit, deployment, runtime, image, and service truth.
+7. Work-item evidence reads stay scoped, paginated, URL-redacted, and
+   freshness-aware, with explicit missing/stale/permission-hidden states.
 
 No-Regression Evidence: `go test ./internal/collector/jira -count=1` covers
 bounded endpoint use, search and changelog pagination, duplicate-safe remote
