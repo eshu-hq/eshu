@@ -9,6 +9,12 @@ func TestWorkItemFactKinds(t *testing.T) {
 		WorkItemRecordFactKind,
 		WorkItemTransitionFactKind,
 		WorkItemExternalLinkFactKind,
+		WorkItemProjectMetadataFactKind,
+		WorkItemIssueTypeMetadataFactKind,
+		WorkItemStatusMetadataFactKind,
+		WorkItemWorkflowMetadataFactKind,
+		WorkItemFieldMetadataFactKind,
+		WorkItemMetadataWarningFactKind,
 	}
 	got := WorkItemFactKinds()
 	if len(got) != len(want) {

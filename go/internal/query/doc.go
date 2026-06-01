@@ -32,8 +32,9 @@
 // package/repository targets. It strips absent optional fields from the
 // Postgres JSON rollup before decoding. It never invents findings or
 // duplicates reducer matching: supported impact-matcher ecosystems are
-// classified from existing source and reducer facts so the answer is
-// diagnosable without re-querying. Provider security-alert reconciliation
+// classified from existing source and reducer facts, while VCS/path/URL,
+// editable, and other provenance-only dependency rows stay unsupported target
+// evidence with stable reason codes. Provider security-alert reconciliation
 // list, count, and inventory reads select one current reducer row per provider
 // alert identity before applying default status/state filters, while each
 // returned row keeps reducer reason and evidence fact ids for audit.
@@ -83,6 +84,8 @@
 // from reducer-owned CI/CD run correlations tied to the selected image digest or
 // reference; pull-request slots require provider pull-request evidence tied to
 // that commit. Jira work-item links enrich the path from explicit remote links
-// or issue-key evidence, but Jira-only pull-request URLs do not verify pull
-// request identity by themselves.
+// or issue-key evidence, and active Jira project/status metadata can explain the
+// selected work item's project visibility and status category without reading
+// raw issue bodies. Jira-only pull-request URLs do not verify pull request
+// identity by themselves.
 package query

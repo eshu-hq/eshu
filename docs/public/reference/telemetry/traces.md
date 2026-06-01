@@ -73,12 +73,16 @@ Webhook traces also use bounded attributes such as `provider`, `event_kind`,
 `decision`, `status`, `outcome`, and `reason`.
 
 Jira fetch traces use bounded integer attributes such as `jira.search_pages`,
-`jira.changelog_pages`, `jira.remote_link_pages`, `jira.issues_emitted`,
-`jira.changelog_events_emitted`, `jira.remote_links_emitted`,
-`jira.remote_links_rejected`, `jira.unsupported_provider_links`,
-`jira.partial_failures`, `jira.rate_limits`, `jira.retry_after_seconds`, and
-`jira.stale_windows`. They must not carry site IDs, issue keys, user
-identifiers, summaries, or URLs.
+`jira.changelog_pages`, `jira.remote_link_pages`, `jira.metadata_pages`,
+`jira.issues_emitted`, `jira.changelog_events_emitted`,
+`jira.remote_links_emitted`, `jira.remote_links_rejected`,
+`jira.unsupported_provider_links`, `jira.metadata_objects_scanned`,
+`jira.metadata_objects_emitted`, `jira.unsupported_metadata`,
+`jira.permission_hidden_metadata`, `jira.stale_metadata`,
+`jira.metadata_redactions`, `jira.partial_failures`, `jira.rate_limits`,
+`jira.retry_after_seconds`, and `jira.stale_windows`. They must not carry site
+IDs, issue keys, user identifiers, summaries, metadata names, custom-field IDs,
+or URLs.
 
 ## Recipes
 
