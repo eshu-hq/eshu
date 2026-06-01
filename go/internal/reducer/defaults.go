@@ -130,6 +130,11 @@ type DefaultHandlers struct {
 	// CloudWatch, CloudWatch Logs, and X-Ray facts.
 	ObservabilityCoverageCorrelationWriter ObservabilityCoverageCorrelationWriter
 
+	// KubernetesCorrelationWriter persists live Kubernetes correlation decisions
+	// (exact, derived, ambiguous, unresolved, stale, rejected) plus a drift kind
+	// for kubernetes_live.* facts joined to deployment-source image evidence.
+	KubernetesCorrelationWriter KubernetesCorrelationWriter
+
 	// SBOMAttestationAttachmentWriter persists SBOM and attestation document
 	// attachment decisions for digest-keyed image evidence.
 	SBOMAttestationAttachmentWriter SBOMAttestationAttachmentWriter
@@ -313,6 +318,15 @@ func implementedDefaultDomainDefinitions(handlers DefaultHandlers) []DomainDefin
 			Instruments: handlers.Instruments,
 		}
 		definitions = append(definitions, observability)
+	}
+	if handlers.FactLoader != nil && handlers.KubernetesCorrelationWriter != nil {
+		kubernetes := kubernetesCorrelationDomainDefinition()
+		kubernetes.Handler = KubernetesCorrelationHandler{
+			FactLoader:  handlers.FactLoader,
+			Writer:      handlers.KubernetesCorrelationWriter,
+			Instruments: handlers.Instruments,
+		}
+		definitions = append(definitions, kubernetes)
 	}
 	if handlers.FactLoader != nil && handlers.SBOMAttestationAttachmentWriter != nil {
 		attachments := sbomAttestationAttachmentDomainDefinition()

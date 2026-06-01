@@ -330,6 +330,9 @@ func buildReducerService(
 		ObservabilityCoverageCorrelationWriter: reducer.PostgresObservabilityCoverageCorrelationWriter{
 			DB: database,
 		},
+		KubernetesCorrelationWriter: reducer.PostgresKubernetesCorrelationWriter{
+			DB: database,
+		},
 		SBOMAttestationAttachmentWriter: reducer.PostgresSBOMAttestationAttachmentWriter{
 			DB: database,
 		},
