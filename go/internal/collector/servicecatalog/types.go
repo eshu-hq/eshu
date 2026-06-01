@@ -13,9 +13,21 @@ type Provider string
 const (
 	// ProviderBackstage identifies Backstage catalog-info.yaml manifests.
 	ProviderBackstage Provider = "backstage"
+<<<<<<< HEAD
 	// ProviderOpsLevel identifies OpsLevel opslevel.yml manifests.
 	ProviderOpsLevel Provider = "opslevel"
+=======
+	// ProviderCortex identifies Cortex cortex.yaml entity descriptors.
+	ProviderCortex Provider = "cortex"
+>>>>>>> b715b446 (feat(servicecatalog): Cortex manifest fact emitter (producer slice, PR-3))
 )
+
+// ProviderCortexNamespace is the entity-ref namespace segment for Cortex
+// entities. Cortex tags are globally unique within a Cortex instance but not
+// across providers, so anchoring refs under a per-provider namespace keeps
+// Cortex refs distinct from other providers' refs in the shared reducer entity
+// key (which is keyed on provider plus entity_ref).
+const ProviderCortexNamespace = "cortex"
 
 // FixtureContext carries the collector boundary fields copied into every
 // emitted service-catalog fact envelope. It mirrors the cicdrun fixture

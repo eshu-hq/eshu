@@ -4,8 +4,13 @@
 
 `internal/collector/servicecatalog` owns fixture-backed service-catalog manifest
 normalization for the `service_catalog` collector family. It turns repo-hosted
+<<<<<<< HEAD
 catalog descriptors (Backstage `catalog-info.yaml`, OpsLevel `opslevel.yml`, and
 later Cortex) into observed-confidence `service_catalog.*` fact envelopes that
+=======
+catalog descriptors (Backstage `catalog-info.yaml`, Cortex `cortex.yaml`, and
+later OpsLevel) into observed-confidence `service_catalog.*` fact envelopes that
+>>>>>>> b715b446 (feat(servicecatalog): Cortex manifest fact emitter (producer slice, PR-3))
 the already shipped `service_catalog_correlation` reducer domain consumes.
 
 This package is the **producer** side. The consumer half — projector intent
@@ -23,37 +28,60 @@ filesystem discovery, graph writes, or canonical service/workload promotion.
 
 ```mermaid
 flowchart LR
+<<<<<<< HEAD
     Manifest["offline catalog-info.yaml / opslevel.yml"]
     Context["FixtureContext"]
     Normalize["BackstageManifestEnvelopes / OpsLevelManifestEnvelopes"]
+=======
+    Manifest["offline catalog-info.yaml / cortex.yaml"]
+    Context["FixtureContext"]
+    Normalize["BackstageManifestEnvelopes / CortexManifestEnvelopes"]
+>>>>>>> b715b446 (feat(servicecatalog): Cortex manifest fact emitter (producer slice, PR-3))
     Facts["entity, ownership, repository_link, dependency, operational_link facts"]
+    Scorecards["scorecard_definition / scorecard_result facts (Cortex, carried-only)"]
     Warnings["service_catalog.warning facts"]
     Reducer["service_catalog_correlation reducer (shipped, provenance-only)"]
 
     Manifest --> Normalize
     Context --> Normalize
     Normalize --> Facts
+    Normalize --> Scorecards
     Normalize --> Warnings
     Facts --> Reducer
+    Scorecards --> Reducer
     Warnings --> Reducer
 ```
 
+<<<<<<< HEAD
 Both provider entry points normalize into the same provider-agnostic
 `catalogEntity` shape and reuse the shared envelope builders in
+=======
+Every provider entry point normalizes into the same provider-agnostic
+`catalogEntity` shape and reuses the shared envelope builders in
+>>>>>>> b715b446 (feat(servicecatalog): Cortex manifest fact emitter (producer slice, PR-3))
 `facts_builder.go`, so payload-key fidelity is identical across providers.
 
 ## Exported surface
 
 - `CollectorKind` — durable collector family name: `service_catalog`.
 - `ProviderBackstage` — provider value used for Backstage facts.
+<<<<<<< HEAD
 - `ProviderOpsLevel` — provider value used for OpsLevel facts.
 - `ProviderOpsLevelNamespace` — entity-ref namespace segment for OpsLevel
   components (`opslevel`), keeping OpsLevel refs distinct from other providers'
   refs in the shared reducer entity key.
+=======
+- `ProviderCortex` — provider value used for Cortex facts.
+- `ProviderCortexNamespace` — entity-ref namespace segment for Cortex entities
+  (`cortex`), keeping Cortex refs distinct from other providers' refs in the
+  shared reducer entity key (Cortex tags are unique per instance, not across
+  providers).
+>>>>>>> b715b446 (feat(servicecatalog): Cortex manifest fact emitter (producer slice, PR-3))
 - `FixtureContext` — scope, generation, collector instance, fencing token,
   observed time, and repo-relative source URI copied into emitted envelopes.
 - `BackstageManifestEnvelopes` — parses one offline Backstage manifest (possibly
   multi-document) and returns service-catalog fact envelopes.
+<<<<<<< HEAD
 - `OpsLevelManifestEnvelopes` — parses one offline OpsLevel `opslevel.yml`
   manifest (possibly multi-document) and returns service-catalog fact envelopes.
 
@@ -70,6 +98,39 @@ producer never fabricates a `repository_id`. The OpsLevel block is always a
 component; its free-form `type` (service, database, ...) flows into
 `entity_type`, while the entity ref is anchored on the first declared alias (or
 the slugified name) under the `opslevel` namespace.
+=======
+- `CortexManifestEnvelopes` — parses one offline Cortex `cortex.yaml` entity
+  descriptor (possibly multi-document OpenAPI) and returns service-catalog fact
+  envelopes.
+- `CortexScorecardEnvelopes` — parses one offline Cortex scorecard descriptor
+  into carried-only `scorecard_definition` (per rule) and `scorecard_result`
+  (per entity) facts.
+
+### Cortex repository resolution
+
+A Cortex entity descriptor is an OpenAPI 3 spec whose `info.x-cortex-tag` is the
+globally-unique anchor; the producer mints the entity ref as
+`<x-cortex-type>:cortex/<x-cortex-tag>`. Cortex references a repository under
+`info.x-cortex-git` by a git provider plus a name slug, never a full URL. The
+producer expands a known public provider (`github`, `gitlab`, `bitbucket` use
+`<org>/<repo>`; `azure` uses separate `project` + `repository`) into a derivable
+`repository_url`. An unknown or self-hosted provider, or a slug with no path,
+stays a name-only `repository_name` locator the reducer rejects, because a bare
+name cannot prove repository ownership. The producer never fabricates a
+`repository_id`. When a descriptor declares more than one provider, the locator
+is resolved in sorted provider order so stable fact ids stay deterministic.
+
+### Cortex scorecards (carried-only)
+
+`CortexScorecardEnvelopes` emits one `service_catalog.scorecard_definition` fact
+per rule (`scorecard_tag`, `rule_identifier`, `expression`, `level`) and one
+`service_catalog.scorecard_result` fact per declared per-entity score
+(`entity_ref`, `scorecard_tag`, `level`, `score`). Both anchor on `provider`
+plus the scorecard/entity identity. The shipped reducer index loads these kinds
+(they pass the schema-version gate) but does not classify them, so they must not
+change any entity's correlation outcome; a dedicated test asserts the outcome is
+unchanged when scorecards are added.
+>>>>>>> b715b446 (feat(servicecatalog): Cortex manifest fact emitter (producer slice, PR-3))
 
 ## Payload-key fidelity (the contract)
 
@@ -94,9 +155,18 @@ identical URL yields `exact`). The producer does not pre-canonicalize into
 `normalized_url`, because the reducer re-canonicalizes the value it reads and a
 bare host/path key would fail re-canonicalization.
 
-`dependency` facts are emitted for read-surface completeness and forward
-compatibility; the reducer index does not consume them yet, so they must not
-change an entity's correlation outcome.
+`dependency`, `scorecard_definition`, and `scorecard_result` facts are emitted
+for read-surface completeness and forward compatibility; the reducer index does
+not consume them yet, so they must not change an entity's correlation outcome.
+The carried scorecard keys are:
+
+- `service_catalog.scorecard_definition`: `provider`, `scorecard_tag`,
+  `scorecard_name`, `rule_identifier`, `rule_title`, `expression`, `level`.
+- `service_catalog.scorecard_result`: `provider`, `entity_ref`, `scorecard_tag`,
+  `level`, and `score` when declared.
+
+Cortex has no native `lifecycle` field in the entity descriptor, so the Cortex
+producer leaves `lifecycle` blank rather than inventing one from a group label.
 
 ## Invariants
 
@@ -113,6 +183,12 @@ change an entity's correlation outcome.
   artifact.
 - Catalog names and owners never mint `repository_id`, `service_id`, or
   `workload_id`. Correlation is the reducer's job.
+- Cortex-only: a repository is declared as a git `provider` plus a `name` slug,
+  not a URL. Expand only known public hosts (`github`, `gitlab`, `bitbucket`,
+  `azure`). Never guess a host for an unknown or self-hosted provider; emit the
+  slug as a name-only `repository_name` and let the reducer reject it. Guessing a
+  host would manufacture a wrong derivation and risk a false correlation. Resolve
+  multi-provider blocks in sorted provider order for deterministic fact ids.
 - Token-bearing or query-string URLs are stripped before emission; redacted
   operational links emit a warning instead of dropping the entity.
 - Degraded documents (unsupported version, missing name, duplicate entity) emit
@@ -129,12 +205,17 @@ are deferred to the telemetry + Compose-proof slice (design memo PR-4). The
 shipped downstream `ServiceCatalogCorrelations{outcome}` reducer counter remains
 the diagnosis chain for "facts emitted but zero exact correlations."
 
+<<<<<<< HEAD
 No-Regression Evidence: fixture normalization for both providers is covered by
+=======
+No-Regression Evidence: fixture normalization for every provider is covered by
+>>>>>>> b715b446 (feat(servicecatalog): Cortex manifest fact emitter (producer slice, PR-3))
 `go test ./internal/collector/servicecatalog -count=1`, which exercises typed
 contract emission, the reducer round-trip reaching exact/derived/unresolved/
 rejected/stale/ambiguous outcomes, blank `service_id`/`workload_id`/
 `repository_id` assertions, warning emission for unsupported version, missing
 ref, duplicate entity, and redacted link, empty input, and idempotent
+<<<<<<< HEAD
 re-emission — without graph writes or queue work. The OpsLevel slice adds the
 same matrix over `opslevel.yml` fixtures, including the provider-host repository
 URL derivation (known provider -> derivable URL; unknown/self-hosted provider ->
@@ -144,6 +225,19 @@ Collector Performance Evidence: this slice introduces no runtime, no claim, no
 worker, no queue, and no graph write. Both `BackstageManifestEnvelopes` and
 `OpsLevelManifestEnvelopes` are pure library functions that parse one offline
 manifest in a single linear pass: cost is linear in the number of manifest
+=======
+re-emission — without graph writes or queue work. The Cortex slice adds the same
+matrix over `cortex.yaml` fixtures, including the git-provider host derivation
+(known provider -> derivable URL; unknown/self-hosted provider -> name-only
+locator the reducer rejects; Azure project+repository split), deterministic
+multi-provider resolution, and the scorecard slice (definition + result facts
+that pass the schema-version gate and provably do not change any entity outcome).
+
+Collector Performance Evidence: this slice introduces no runtime, no claim, no
+worker, no queue, and no graph write. `CortexManifestEnvelopes` and
+`CortexScorecardEnvelopes` are pure library functions that parse one offline
+manifest in a single linear pass; cost is linear in the number of manifest
+>>>>>>> b715b446 (feat(servicecatalog): Cortex manifest fact emitter (producer slice, PR-3))
 documents and emitted facts, with no hot-path Cypher and no new query. There is
 no new hot path, so the performance contract is satisfied with this
 no-regression note rather than a benchmark, proven by

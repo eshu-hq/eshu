@@ -1,0 +1,31 @@
+# Degraded Cortex documents that must warn, never silently drop.
+# Document 1: an unsupported OpenAPI descriptor version. The entity is still
+# minimally parseable, so it is emitted plus an unsupported_descriptor_version
+# warning.
+openapi: 4.0.0
+info:
+  title: Future Shape
+  x-cortex-tag: future-shape
+  x-cortex-type: service
+  x-cortex-git:
+    github:
+      repository: eshu-hq/future-shape
+---
+# Document 2: no x-cortex-tag. Without the unique tag there is no anchor, so the
+# producer emits an invalid_ref warning and no entity.
+openapi: 3.0.1
+info:
+  title: Anchorless
+  x-cortex-type: service
+---
+# Document 3: a service whose dashboard link carries a token query string. The
+# link is redacted to a warning; the entity is still emitted.
+openapi: 3.0.1
+info:
+  title: Billing
+  x-cortex-tag: billing
+  x-cortex-type: service
+  x-cortex-link:
+    - name: Dashboard
+      type: DASHBOARD
+      url: https://grafana.example.com/d/abc?token=secret456

@@ -1,0 +1,35 @@
+# A Cortex scorecard descriptor (scorecard-as-code). The producer emits one
+# scorecard_definition fact per rule and one scorecard_result fact per declared
+# per-entity result. These fact kinds are carried for read-surface completeness
+# and forward compatibility; the shipped reducer index does not consume them yet,
+# so they MUST NOT change any entity's correlation outcome.
+tag: production-readiness
+name: Production Readiness
+description: Baseline checks every production service must pass.
+draft: false
+ladder:
+  levels:
+    - name: Bronze
+      rank: 1
+    - name: Gold
+      rank: 3
+rules:
+  - title: Has a runbook
+    identifier: has-runbook
+    expression: links(type="RUNBOOK").length > 0
+    level: Bronze
+  - title: Has an owner
+    identifier: has-owner
+    expression: ownership.length > 0
+    level: Gold
+# Per-entity scorecard scores, as exported from a Cortex catalog. Each result is
+# anchored on the evaluated entity tag and the scorecard tag.
+results:
+  - tag: checkout-api
+    type: service
+    level: Gold
+    score: 100
+  - tag: notifications
+    type: service
+    level: Bronze
+    score: 50
