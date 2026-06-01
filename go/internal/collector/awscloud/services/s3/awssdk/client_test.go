@@ -75,6 +75,18 @@ func TestClientListBucketsReadsSafeMetadataOnly(t *testing.T) {
 				}},
 			},
 		},
+		replication: &awss3.GetBucketReplicationOutput{
+			ReplicationConfiguration: &awss3types.ReplicationConfiguration{
+				Role: aws.String("arn:aws:iam::123456789012:role/replication"),
+				Rules: []awss3types.ReplicationRule{{
+					Status:      awss3types.ReplicationRuleStatusEnabled,
+					Destination: &awss3types.Destination{Bucket: aws.String("arn:aws:s3:::orders-replica")},
+				}},
+			},
+		},
+		policy: &awss3.GetBucketPolicyOutput{
+			Policy: aws.String(`{"Statement":[{"Effect":"Allow","Principal":{"AWS":"arn:aws:iam::999988887777:root"},"Action":"s3:GetObject","Resource":"arn:aws:s3:::orders-artifacts/*"}]}`),
+		},
 	}
 	adapter := &Client{
 		client: api,
@@ -101,6 +113,18 @@ func TestClientListBucketsReadsSafeMetadataOnly(t *testing.T) {
 	bucket := buckets[0]
 	if bucket.Name != "orders-artifacts" {
 		t.Fatalf("Name = %q, want orders-artifacts", bucket.Name)
+	}
+	if !bucket.Replication.Enabled {
+		t.Fatalf("Replication.Enabled = false, want true")
+	}
+	if !bucket.PolicyPresent {
+		t.Fatalf("PolicyPresent = false, want true")
+	}
+	if bucket.PolicyGrantsPublic == nil || *bucket.PolicyGrantsPublic {
+		t.Fatalf("PolicyGrantsPublic = %#v, want false pointer", bucket.PolicyGrantsPublic)
+	}
+	if bucket.PolicyGrantsCrossAccount == nil || !*bucket.PolicyGrantsCrossAccount {
+		t.Fatalf("PolicyGrantsCrossAccount = %#v, want true pointer", bucket.PolicyGrantsCrossAccount)
 	}
 	if bucket.ARN != "arn:aws:s3:::orders-artifacts" {
 		t.Fatalf("ARN = %q, want arn:aws:s3:::orders-artifacts", bucket.ARN)
@@ -210,6 +234,8 @@ func TestClientListBucketsTreatsMissingOptionalBucketConfigAsEmptyMetadata(t *te
 		policyStatusErr:      apiError("NoSuchBucketPolicy"),
 		ownershipErr:         apiError("OwnershipControlsNotFoundError"),
 		websiteErr:           apiError("NoSuchWebsiteConfiguration"),
+		replicationErr:       apiError("ReplicationConfigurationNotFoundError"),
+		policyErr:            apiError("NoSuchBucketPolicy"),
 	}
 	adapter := &Client{
 		client: api,
@@ -242,6 +268,18 @@ func TestClientListBucketsTreatsMissingOptionalBucketConfigAsEmptyMetadata(t *te
 	}
 	if bucket.Website.Enabled {
 		t.Fatalf("Website.Enabled = true, want false")
+	}
+	if bucket.Replication.Enabled {
+		t.Fatalf("Replication.Enabled = true, want false for missing replication config")
+	}
+	if bucket.PolicyPresent {
+		t.Fatalf("PolicyPresent = true, want false for missing policy")
+	}
+	if bucket.PolicyGrantsPublic != nil {
+		t.Fatalf("PolicyGrantsPublic = %#v, want nil for missing policy", bucket.PolicyGrantsPublic)
+	}
+	if bucket.PolicyGrantsCrossAccount != nil {
+		t.Fatalf("PolicyGrantsCrossAccount = %#v, want nil for missing policy", bucket.PolicyGrantsCrossAccount)
 	}
 }
 
@@ -285,6 +323,10 @@ type fakeS3API struct {
 	websiteErr                    error
 	logging                       *awss3.GetBucketLoggingOutput
 	loggingErr                    error
+	replication                   *awss3.GetBucketReplicationOutput
+	replicationErr                error
+	policy                        *awss3.GetBucketPolicyOutput
+	policyErr                     error
 }
 
 func (f *fakeS3API) ListBuckets(

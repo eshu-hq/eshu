@@ -13,6 +13,11 @@ type Client interface {
 // Bucket is the scanner-owned S3 bucket model. It contains bucket control-plane
 // metadata only and intentionally excludes object inventory, policies, ACL
 // grants, lifecycle rules, replication rules, and notification payloads.
+//
+// The policy-derived fields (PolicyPresent, PolicyGrantsPublic,
+// PolicyGrantsCrossAccount) and Replication presence carry only derived
+// booleans. The raw bucket policy document, its statements, and replication
+// rule detail are never stored on this model.
 type Bucket struct {
 	ARN               string
 	Name              string
@@ -26,6 +31,25 @@ type Bucket struct {
 	OwnershipControls []string
 	Website           Website
 	Logging           Logging
+	Replication       Replication
+
+	// PolicyPresent reports whether the bucket has an attached resource policy.
+	PolicyPresent bool
+	// PolicyGrantsPublic is the derived boolean for a policy statement granting
+	// access to a public principal ("*" / anonymous). Nil when no policy is
+	// present or the grant could not be derived from the policy document.
+	PolicyGrantsPublic *bool
+	// PolicyGrantsCrossAccount is the derived boolean for a policy statement
+	// granting access to a principal outside the bucket-owner account. Nil when
+	// no policy is present or the grant could not be derived.
+	PolicyGrantsCrossAccount *bool
+}
+
+// Replication carries only the presence of a bucket replication configuration.
+// Replication rule detail (destination buckets, filters, KMS keys) is not
+// stored.
+type Replication struct {
+	Enabled bool
 }
 
 // Versioning carries the safe bucket versioning state returned by S3.

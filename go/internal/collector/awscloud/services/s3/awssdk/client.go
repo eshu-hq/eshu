@@ -31,6 +31,8 @@ type apiClient interface {
 	GetBucketOwnershipControls(context.Context, *awss3.GetBucketOwnershipControlsInput, ...func(*awss3.Options)) (*awss3.GetBucketOwnershipControlsOutput, error)
 	GetBucketWebsite(context.Context, *awss3.GetBucketWebsiteInput, ...func(*awss3.Options)) (*awss3.GetBucketWebsiteOutput, error)
 	GetBucketLogging(context.Context, *awss3.GetBucketLoggingInput, ...func(*awss3.Options)) (*awss3.GetBucketLoggingOutput, error)
+	GetBucketReplication(context.Context, *awss3.GetBucketReplicationInput, ...func(*awss3.Options)) (*awss3.GetBucketReplicationOutput, error)
+	GetBucketPolicy(context.Context, *awss3.GetBucketPolicyInput, ...func(*awss3.Options)) (*awss3.GetBucketPolicyOutput, error)
 }
 
 // Client adapts AWS SDK S3 bucket-control-plane calls into scanner-owned
@@ -149,19 +151,31 @@ func (c *Client) bucketMetadata(ctx context.Context, listed awss3types.Bucket) (
 	if err != nil {
 		return s3service.Bucket{}, err
 	}
+	replication, err := c.getBucketReplication(ctx, name)
+	if err != nil {
+		return s3service.Bucket{}, err
+	}
+	policyPresent, policyGrantsPublic, policyGrantsCrossAccount, err := c.getBucketPolicyFlags(ctx, name)
+	if err != nil {
+		return s3service.Bucket{}, err
+	}
 	return s3service.Bucket{
-		ARN:               bucketARN(c.boundary.Region, name),
-		Name:              name,
-		Region:            firstNonEmpty(aws.ToString(listed.BucketRegion), aws.ToString(head.BucketRegion), c.boundary.Region),
-		CreationTime:      aws.ToTime(listed.CreationDate),
-		Tags:              tags,
-		Versioning:        versioning,
-		Encryption:        encryption,
-		PublicAccessBlock: publicAccessBlock,
-		PolicyIsPublic:    policyIsPublic,
-		OwnershipControls: ownership,
-		Website:           website,
-		Logging:           logging,
+		ARN:                      bucketARN(c.boundary.Region, name),
+		Name:                     name,
+		Region:                   firstNonEmpty(aws.ToString(listed.BucketRegion), aws.ToString(head.BucketRegion), c.boundary.Region),
+		CreationTime:             aws.ToTime(listed.CreationDate),
+		Tags:                     tags,
+		Versioning:               versioning,
+		Encryption:               encryption,
+		PublicAccessBlock:        publicAccessBlock,
+		PolicyIsPublic:           policyIsPublic,
+		OwnershipControls:        ownership,
+		Website:                  website,
+		Logging:                  logging,
+		Replication:              replication,
+		PolicyPresent:            policyPresent,
+		PolicyGrantsPublic:       policyGrantsPublic,
+		PolicyGrantsCrossAccount: policyGrantsCrossAccount,
 	}, nil
 }
 
@@ -336,59 +350,6 @@ func (c *Client) getBucketOwnershipControls(ctx context.Context, name string) ([
 		}
 	}
 	return controls, nil
-}
-
-func (c *Client) getBucketWebsite(ctx context.Context, name string) (s3service.Website, error) {
-	var output *awss3.GetBucketWebsiteOutput
-	err := c.recordAPICall(ctx, "GetBucketWebsite", func(callCtx context.Context) error {
-		var err error
-		output, err = c.client.GetBucketWebsite(callCtx, &awss3.GetBucketWebsiteInput{
-			Bucket:              aws.String(name),
-			ExpectedBucketOwner: expectedBucketOwner(c.boundary.AccountID),
-		})
-		if isOptionalMissingS3Config(err, "NoSuchWebsiteConfiguration") {
-			output = nil
-			return nil
-		}
-		return err
-	})
-	if err != nil || output == nil {
-		return s3service.Website{}, err
-	}
-	return s3service.Website{
-		Enabled:               true,
-		HasIndexDocument:      output.IndexDocument != nil,
-		HasErrorDocument:      output.ErrorDocument != nil,
-		RedirectAllRequestsTo: redirectHost(output.RedirectAllRequestsTo),
-		RoutingRuleCount:      len(output.RoutingRules),
-	}, nil
-}
-
-func (c *Client) getBucketLogging(ctx context.Context, name string) (s3service.Logging, error) {
-	var output *awss3.GetBucketLoggingOutput
-	err := c.recordAPICall(ctx, "GetBucketLogging", func(callCtx context.Context) error {
-		var err error
-		output, err = c.client.GetBucketLogging(callCtx, &awss3.GetBucketLoggingInput{
-			Bucket:              aws.String(name),
-			ExpectedBucketOwner: expectedBucketOwner(c.boundary.AccountID),
-		})
-		return err
-	})
-	if err != nil || output == nil || output.LoggingEnabled == nil {
-		return s3service.Logging{}, err
-	}
-	return s3service.Logging{
-		Enabled:      true,
-		TargetBucket: aws.ToString(output.LoggingEnabled.TargetBucket),
-		TargetPrefix: aws.ToString(output.LoggingEnabled.TargetPrefix),
-	}, nil
-}
-
-func redirectHost(redirect *awss3types.RedirectAllRequestsTo) string {
-	if redirect == nil {
-		return ""
-	}
-	return aws.ToString(redirect.HostName)
 }
 
 func expectedBucketOwner(accountID string) *string {
