@@ -134,14 +134,18 @@ later PR. Reads are wrapped by the `query.kubernetes_correlations` span and the
 `ObservabilityCoverageHandler` (`observability_coverage.go:16`) reads
 reducer-owned observability coverage correlation facts from Postgres
 (`reducer_observability_coverage_correlation`, produced by the issue #391 PR1
-reducer). It answers whether a monitored cloud resource or service has alarm,
-dashboard, log, or trace coverage versus which coverage gaps remain. It requires
-an explicit scope, provider, coverage-signal, observability-object, target
-resource, or target service anchor plus `limit`, surfaces the six-outcome
-contract (`exact`, `derived`, `ambiguous`, `unresolved`, `stale`, `rejected`),
-and keeps coverage strictly structural: it surfaces correlation IDs, the resolved
-target, and evidence fact IDs only, never a health assertion derived from
-telemetry values.
+reducer, expanded by #1118 for Grafana-stack evidence classes). It answers
+whether a monitored cloud resource or service has alarm, dashboard, scrape,
+rule, log, or trace coverage versus which coverage gaps remain. It requires an
+explicit scope, provider, coverage-signal, observability-object, target
+resource, or target service anchor plus `limit`; `source_class` and
+`resource_class` are filters over that anchored page. It surfaces the outcome
+contract (`exact`, `derived`, `ambiguous`, `unresolved`, `stale`, `rejected`,
+`drifted`, `permission_hidden`) plus source-class labels (`declared`,
+`applied`, `observed`, or `mixed`) and keeps coverage strictly structural:
+it surfaces correlation IDs, the resolved target, source classes, freshness,
+and evidence fact IDs only, never a health assertion derived from telemetry
+values.
 `SupplyChainHandler` (`supply_chain.go:16`) reads reducer-owned SBOM and
 attestation attachment facts from Postgres. It requires a subject digest,
 document ID, or document digest plus `limit`, and it keeps attachment status,
@@ -391,6 +395,8 @@ facts: anchor-or-400, `limit`-required, deterministic `ORDER BY fact.fact_id
 ASC` keyset paging on `fact_id`, and the active-generation join filtered to
 `is_tombstone = FALSE` and `generation.status = 'active'`, so duplicate facts,
 tombstoned (stale) coverage, and inactive generations never leak into a page.
+The same page can be filtered by `source_class` and `resource_class` without
+making either field a whole-store anchor.
 
 No-Regression Evidence: `go test ./internal/query -run
 'TestObservabilityCoverage|TestOpenAPISpecIncludesObservabilityCoverageCorrelations'
@@ -398,10 +404,9 @@ No-Regression Evidence: `go test ./internal/query -run
 with `limit+1` overfetch, `truncated` + `next_cursor.after_correlation_id`
 keyset paging, the active-fact read-model predicates (fact kind, `is_tombstone
 = FALSE`, `generation.status = 'active'`, payload anchors, and `fact_id`
-cursor), and OpenAPI wire-contract lockstep. This is a read-only query slice
-over facts already on `main`; `scripts/verify-performance-evidence.sh`
-classifies it as "no hot Cypher/concurrency/runtime files changed", so it adds
-no graph write, queue, reducer lane, worker, lease, or schema change.
+cursor), source-class/resource-class filters, and OpenAPI wire-contract
+lockstep. This is a read-only query slice over facts already on `main`; it adds
+no graph write, worker, lease, or schema change.
 
 Observability Evidence: the route adds the
 `query.observability_coverage_correlations` request span (registered in

@@ -142,10 +142,11 @@ const (
 	MetricDimensionJoinMode = "join_mode"
 	// MetricDimensionCoverageSignal labels the observability coverage correlation
 	// counter (eshu_dp_observability_coverage_correlations_total) with the closed
-	// enum of AWS-native coverage signal classes: alarm, composite_alarm,
-	// dashboard, log_group, trace_sampling. Cardinality is bounded by that closed
-	// set so an operator can answer "which observability signal class is losing
-	// coverage?" at 3 AM.
+	// enum of coverage signal classes: alarm, composite_alarm, dashboard,
+	// datasource, folder, alert_rule, log_group, trace_sampling, scrape_target,
+	// rule, metric_route, log_route, trace_route, log_signal, trace_signal, and
+	// unsupported. Cardinality is bounded by that closed set so an operator can
+	// answer "which observability signal class is losing coverage?" at 3 AM.
 	MetricDimensionCoverageSignal = "coverage_signal"
 	// MetricDimensionResolutionMode labels the observability coverage COVERS edge
 	// projection counter (eshu_dp_observability_coverage_edges_total) with the

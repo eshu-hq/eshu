@@ -197,6 +197,15 @@ Health and root-cause claims are out of scope. A dashboard, alert, target, log
 signal, or trace signal can prove coverage evidence; it does not prove the
 service is healthy or that an incident was caused by the observed signal.
 
+Implementation status: the reducer read model now adapts AWS-native coverage and
+Grafana-stack declared, applied, and observed source facts into
+`reducer_observability_coverage_correlation` facts. AWS exact matches remain the
+only source that can later project a canonical `COVERS` graph edge. Grafana,
+Prometheus, Mimir, Loki, and Tempo metadata is surfaced as provenance-only
+correlation evidence with source-class, resource-class, freshness, and evidence
+fact IDs so API and MCP callers can inspect coverage gaps and drift without
+promoting provider metadata into runtime truth.
+
 ## Fixture Matrix
 
 Provider-specific issues must add fixtures that cover these scenario IDs before

@@ -11,7 +11,9 @@ func observabilityCoverageCorrelationsRoute(args map[string]any) *route {
 		"observability_object_ref": str(args, "observability_object_ref"),
 		"outcome":                  str(args, "outcome"),
 		"provider":                 str(args, "provider"),
+		"resource_class":           str(args, "resource_class"),
 		"scope_id":                 str(args, "scope_id"),
+		"source_class":             str(args, "source_class"),
 		"target_service_ref":       str(args, "target_service_ref"),
 		"target_uid":               str(args, "target_uid"),
 	}}

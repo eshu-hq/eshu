@@ -372,13 +372,17 @@ Key metrics (all prefixed `eshu_dp_`):
   fact IDs for API/MCP freshness checks.
 - `observability_coverage_correlations_total` — observability coverage
   correlation decisions by bounded outcome (`exact`, `derived`, `ambiguous`,
-  `unresolved`, `stale`, `rejected`), reducer domain, and `coverage_signal`
-  (`alarm`, `composite_alarm`, `dashboard`, `log_group`, `trace_sampling`).
+  `unresolved`, `stale`, `rejected`, `drifted`, `permission_hidden`), reducer
+  domain, and `coverage_signal` (`alarm`, `composite_alarm`, `dashboard`,
+  `datasource`, `folder`, `alert_rule`, `log_group`, `trace_sampling`,
+  `scrape_target`, `rule`, `metric_route`, `log_route`, `trace_route`,
+  `log_signal`, `trace_signal`, `unsupported`).
   Durable `reducer_observability_coverage_correlation` facts record
-  which monitored CloudResource nodes have CloudWatch / CloudWatch Logs / X-Ray
-  coverage versus uncovered gaps. The `DomainObservabilityCoverageCorrelation`
-  domain is fact-only and is **not** gated on graph readiness, so the read model
-  populates before any edge lands.
+  which monitored CloudResource nodes have AWS-native coverage versus uncovered
+  gaps, and which Grafana-stack declared, applied, or observed metadata identities
+  are exact, drifted, stale, permission-hidden, rejected, ambiguous, or unresolved.
+  The `DomainObservabilityCoverageCorrelation` domain is fact-only and is **not**
+  gated on graph readiness, so the read model populates before any edge lands.
 - `observability_coverage_edges_total` — observability `COVERS` graph-edge
   projection outcomes by `coverage_signal` and `resolution_mode` (`arn`,
   `bare_id`, `correlation_anchor`). The separate, gated
@@ -763,18 +767,23 @@ Log phase attributes: `telemetry.PhaseReduction` (main loop),
   workload truth by themselves.
 - **Observability coverage correlation is stable-identity gated** —
   `ObservabilityCoverageCorrelationHandler` writes
-  `reducer_observability_coverage_correlation` facts for all six outcomes. A
-  coverage edge is canonical truth (`exact`, not provenance-only) only when an
-  observability object resolves to a monitored CloudResource by a stable identity
-  (an alarm whose AWS system dimension value, e.g. `InstanceId`, matches a scanned
-  resource id). X-Ray service-name matches stay `derived`/provenance-only;
-  metric-name-only alarms (e.g. `AWS/Billing`) are `rejected`; non-unique
-  dimension matches are `ambiguous`; tombstoned-only matches are `stale`;
-  monitored resources with no resolving coverage emit `unresolved` gap findings
-  (bounded to classes with a covered peer in scope). The handler reads only
-  `aws_resource` and `aws_relationship` facts through a bounded in-memory index
-  (no per-edge graph round trip), redacted dimension values never resolve a
-  target, and the correlation domain writes no graph edge.
+  `reducer_observability_coverage_correlation` facts for exact, derived,
+  ambiguous, unresolved, stale, rejected, drifted, and permission-hidden outcomes.
+  A coverage edge is canonical truth (`exact`, not provenance-only) only when an
+  AWS observability object resolves to a monitored CloudResource by a stable
+  identity (an alarm whose AWS system dimension value, e.g. `InstanceId`, matches
+  a scanned resource id). X-Ray service-name matches stay
+  `derived`/provenance-only; metric-name-only alarms (e.g. `AWS/Billing`) are
+  `rejected`; non-unique dimension matches are `ambiguous`; tombstoned-only
+  matches are `stale`; monitored resources with no resolving coverage emit
+  `unresolved` gap findings (bounded to classes with a covered peer in scope).
+  Grafana, Prometheus, Mimir, Loki, and Tempo metadata facts are source-class
+  correlated as declared/applied/observed evidence only; drifted,
+  permission-hidden, unsupported, stale, and ambiguous provider metadata never
+  creates a graph edge. The handler reads AWS facts through the existing bounded
+  in-memory index, reads observability source fact families through metadata
+  identity grouping, redacted dimension values never resolve a target, and the
+  correlation domain itself writes no graph edge.
 - **Observability `COVERS` edges are exact-only and readiness-gated** —
   `ObservabilityCoverageMaterializationHandler` (the separate
   `DomainObservabilityCoverageMaterialization` domain, issue #391 PR3) re-runs the
@@ -876,8 +885,8 @@ No-Observability-Change: Swift impact reuses existing supply-chain impact reduce
 No-Regression Evidence: `go test ./internal/reducer -run 'TestSecurityAlertReconciliationHandlerDefersProviderTriggeredPendingImpactEvidence|TestSecurityAlertReconciliationDefersPackageTriggeredUnmatchedEvidence|TestSecurityAlertReconciliationHandlerUsesRepositoryFactsForLockfileScope|TestSupplyChainImpactHandlerUsesRepositoryScopedSecurityAlertLockfileEvidence' -count=1` failed before provider-triggered reconciliation waited for pending impact evidence, then passed after the same bounded retry guard used for package-triggered repairs covered provider-alert triggers. Provider-only alerts still write provider-only when no owned dependency evidence exists, and retries stop at the existing max-attempt boundary.
 No-Observability-Change: this changes the reducer retry decision for premature reconciliation only. Existing reducer queue retry status, `failure_class=security_alert_reconciliation_waiting_for_impact`, retry delay, max attempts, reducer run spans, reducer execution counters, durable reconciliation payloads, and API/MCP read spans remain the operator-visible signals; no metric label, queue domain, graph write, route, or runtime knob was added.
 
-No-Regression Evidence: `go test ./internal/reducer -run 'ObservabilityCoverage' -count=1` and `go test ./internal/telemetry -run 'TestMetricDimensionKeys|TestNewInstruments' -count=1` pass for the new `observability_coverage_correlation` domain. `BuildObservabilityCoverageDecisions` is a pure in-memory function over the scope generation's `aws_resource` and `aws_relationship` fact envelopes: it builds one bounded coverage index (O(R) over target resources by ARN / bare resource id / correlation anchor — the #805 §5.1 join shape) and resolves each observability relationship by O(1) map lookup (O(E)), with the durable fact write going through the existing `canonicalReducerFactInsertQuery` path. There is no graph write, no new table or schema migration, no per-edge graph round trip, and no N+1; the handler reads only two fact kinds and emits provenance-only reducer facts, so the touched reducer hot path adds no measured graph or queue cost.
-Observability Evidence: the new `eshu_dp_observability_coverage_correlations_total` counter is dimensioned by `domain`, `outcome` (six values), and `coverage_signal` (`alarm` / `composite_alarm` / `dashboard` / `log_group` / `trace_sampling`), so an operator can answer at 3 AM which observability signal class is losing coverage and whether the cause is a gap, an ambiguous match, a stale tombstoned target, or a rejected weak signal. The `EvidenceSummary` and `CanonicalWrites` on the reducer `Result`, plus the existing reducer run spans, execution counters, fact-load Postgres timings, and the durable `reducer_observability_coverage_correlation` payload (`outcome`, `coverage_status`, `resolution_mode`, `candidate_target_uids`, `evidence_fact_ids`) expose per-intent progress; no graph-write metric is added because PR1 performs no graph write.
+No-Regression Evidence: `go test ./internal/reducer -run 'ObservabilityCoverage' -count=1` and `go test ./internal/telemetry -run 'TestMetricDimensionKeys|TestNewInstruments' -count=1` pass for the `observability_coverage_correlation` domain. `BuildObservabilityCoverageDecisions` is a pure in-memory function over the scope generation's AWS and observability source fact envelopes: it builds one bounded AWS coverage index (O(R) over target resources by ARN / bare resource id / correlation anchor — the #805 §5.1 join shape), resolves each AWS observability relationship by O(1) map lookup (O(E)), and groups Grafana-stack metadata by bounded provider/signal/object identity. Durable writes go through the existing `canonicalReducerFactInsertQuery` path. There is no graph write, no new table or schema migration, no per-edge graph round trip, and no N+1; metadata-only outcomes remain provenance-only reducer facts.
+Observability Evidence: the `eshu_dp_observability_coverage_correlations_total` counter is dimensioned by `domain`, `outcome` (exact, derived, ambiguous, unresolved, stale, rejected, drifted, permission-hidden), and bounded `coverage_signal`, so an operator can answer at 3 AM which observability signal class is losing coverage and whether the cause is a gap, drift, hidden data, an ambiguous match, stale evidence, or a rejected weak signal. The `EvidenceSummary` and `CanonicalWrites` on the reducer `Result`, plus the existing reducer run spans, execution counters, fact-load Postgres timings, and the durable `reducer_observability_coverage_correlation` payload (`outcome`, `coverage_status`, `source_class`, `source_classes`, `resource_class`, `freshness_state`, `resolution_mode`, `candidate_target_uids`, `evidence_fact_ids`) expose per-intent progress; no graph-write metric is added for provenance-only metadata because the correlation domain performs no graph write.
 
 ### SecurityGroup reachability graph (#1135 PR2b, Option D)
 

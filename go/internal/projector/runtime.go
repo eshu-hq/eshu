@@ -379,6 +379,9 @@ func buildProjection(scopeValue scope.IngestionScope, generation scope.ScopeGene
 		if err := validateSecurityAlertSchemaVersion(fact); err != nil {
 			return projection{}, err
 		}
+		if err := validateObservabilitySchemaVersion(fact); err != nil {
+			return projection{}, err
+		}
 
 		if record, ok := buildContentRecord(fact); ok {
 			contentMaterialization.Records = append(contentMaterialization.Records, record)
@@ -406,6 +409,9 @@ func buildProjection(scopeValue scope.IngestionScope, generation scope.ScopeGene
 		intents = append(intents, intent)
 	}
 	if intent, ok := buildObservabilityCoverageMaterializationReducerIntent(scopeValue, generation, inputFacts); ok {
+		intents = append(intents, intent)
+	}
+	if intent, ok := buildObservabilityCoverageCorrelationReducerIntent(scopeValue, generation, inputFacts); ok {
 		intents = append(intents, intent)
 	}
 	if intent, ok := buildIncidentRoutingMaterializationReducerIntent(scopeValue, generation, inputFacts); ok {

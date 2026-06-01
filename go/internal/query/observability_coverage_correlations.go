@@ -30,6 +30,8 @@ type ObservabilityCoverageCorrelationFilter struct {
 	TargetServiceRef       string
 	Outcome                string
 	CoverageStatus         string
+	SourceClass            string
+	ResourceClass          string
 	AfterCorrelationID     string
 	Limit                  int
 }
@@ -51,6 +53,14 @@ type ObservabilityCoverageCorrelationRow struct {
 	CoverageStatus         string
 	ProvenanceOnly         bool
 	ResolutionMode         string
+	SourceClass            string
+	SourceClasses          []string
+	SourceKind             string
+	SourceKinds            []string
+	SourceOutcome          string
+	SourceOutcomes         []string
+	ResourceClass          string
+	FreshnessState         string
 	CandidateTargetUIDs    []string
 	EvidenceFactIDs        []string
 }
@@ -101,6 +111,8 @@ func (s PostgresObservabilityCoverageCorrelationStore) ListObservabilityCoverage
 		filter.TargetServiceRef,
 		filter.Outcome,
 		filter.CoverageStatus,
+		filter.SourceClass,
+		filter.ResourceClass,
 		filter.AfterCorrelationID,
 		filter.Limit,
 	)
@@ -148,9 +160,11 @@ WHERE fact.fact_kind = $1
   AND ($7 = '' OR fact.payload->>'target_service_ref' = $7)
   AND ($8 = '' OR fact.payload->>'outcome' = $8)
   AND ($9 = '' OR fact.payload->>'coverage_status' = $9)
-  AND ($10 = '' OR fact.fact_id > $10)
+  AND ($10 = '' OR fact.payload->>'source_class' = $10 OR fact.payload->'source_classes' ? $10)
+  AND ($11 = '' OR fact.payload->>'resource_class' = $11)
+  AND ($12 = '' OR fact.fact_id > $12)
 ORDER BY fact.fact_id ASC
-LIMIT $11
+LIMIT $13
 `
 
 func (f ObservabilityCoverageCorrelationFilter) hasScope() bool {
@@ -183,6 +197,14 @@ func decodeObservabilityCoverageCorrelationRow(
 		CoverageStatus:         StringVal(payload, "coverage_status"),
 		ProvenanceOnly:         BoolVal(payload, "provenance_only"),
 		ResolutionMode:         StringVal(payload, "resolution_mode"),
+		SourceClass:            StringVal(payload, "source_class"),
+		SourceClasses:          StringSliceVal(payload, "source_classes"),
+		SourceKind:             StringVal(payload, "source_kind"),
+		SourceKinds:            StringSliceVal(payload, "source_kinds"),
+		SourceOutcome:          StringVal(payload, "source_outcome"),
+		SourceOutcomes:         StringSliceVal(payload, "source_outcomes"),
+		ResourceClass:          StringVal(payload, "resource_class"),
+		FreshnessState:         StringVal(payload, "freshness_state"),
 		CandidateTargetUIDs:    StringSliceVal(payload, "candidate_target_uids"),
 		EvidenceFactIDs:        StringSliceVal(payload, "evidence_fact_ids"),
 	}, nil

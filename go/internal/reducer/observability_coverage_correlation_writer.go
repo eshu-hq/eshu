@@ -139,8 +139,38 @@ func observabilityCoverageCorrelationPayload(
 		"coverage_status":            decision.CoverageStatus,
 		"provenance_only":            decision.ProvenanceOnly,
 		"resolution_mode":            decision.ResolutionMode,
+		"source_class":               decision.SourceClass,
+		"source_classes":             uniqueSortedStrings(decision.SourceClasses),
+		"source_kind":                decision.SourceKind,
+		"source_kinds":               uniqueSortedStrings(decision.SourceKinds),
+		"source_outcome":             decision.SourceOutcome,
+		"source_outcomes":            uniqueSortedStrings(decision.SourceOutcomes),
+		"resource_class":             decision.ResourceClass,
+		"freshness_state":            decision.FreshnessState,
 		"candidate_target_uids":      uniqueSortedStrings(decision.CandidateTargetUIDs),
 		"evidence_fact_ids":          uniqueSortedStrings(decision.EvidenceFactIDs),
-		"source_layers":              []string{string(truth.LayerObservedResource)},
+		"source_layers":              observabilityCoverageSourceLayers(decision),
 	}
+}
+
+func observabilityCoverageSourceLayers(decision ObservabilityCoverageCorrelationDecision) []string {
+	classes := decision.SourceClasses
+	if len(classes) == 0 && strings.TrimSpace(decision.SourceClass) != "" {
+		classes = []string{decision.SourceClass}
+	}
+	layers := make([]string, 0, len(classes))
+	for _, class := range classes {
+		switch strings.TrimSpace(class) {
+		case "declared":
+			layers = append(layers, string(truth.LayerSourceDeclaration))
+		case "applied":
+			layers = append(layers, string(truth.LayerAppliedDeclaration))
+		case "observed":
+			layers = append(layers, string(truth.LayerObservedResource))
+		}
+	}
+	if len(layers) == 0 {
+		layers = append(layers, string(truth.LayerObservedResource))
+	}
+	return uniqueSortedStrings(layers)
 }
