@@ -183,6 +183,18 @@ func appendAdditiveDomainDefinitions(definitions []DomainDefinition, handlers De
 		}
 		definitions = append(definitions, kubernetesEdges)
 	}
+	if handlers.FactLoader != nil && handlers.IAMEscalationEdgeWriter != nil {
+		iamEscalation := iamEscalationMaterializationDomainDefinition()
+		iamEscalation.Handler = IAMEscalationMaterializationHandler{
+			FactLoader:           handlers.FactLoader,
+			Writer:               handlers.IAMEscalationEdgeWriter,
+			ReadinessLookup:      handlers.ReadinessLookup,
+			PriorGenerationCheck: handlers.PriorGenerationCheck,
+			Tracer:               handlers.Tracer,
+			Instruments:          handlers.Instruments,
+		}
+		definitions = append(definitions, iamEscalation)
+	}
 	if handlers.DeployableUnitCorrelationHandler != nil {
 		definitions = append(definitions, DomainDefinition{
 			Domain:  DomainDeployableUnitCorrelation,

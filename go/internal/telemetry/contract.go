@@ -228,7 +228,17 @@ const (
 	// tally so a trace shows whether rules degraded gracefully (unscanned SG or
 	// endpoint) without fabricating or dangling edges.
 	SpanReducerSecurityGroupReachabilityMaterialization = "reducer.security_group_reachability_materialization"
-	SpanCanonicalWrite                                  = "canonical.write"
+	// SpanReducerIAMEscalationMaterialization wraps the IAM privilege-escalation
+	// CAN_ESCALATE_TO edge projection (issue #1134 PR3): fact load, the
+	// cloud_resource_uid canonical-nodes readiness gate, in-memory ARN join-index
+	// build, per-principal primitive evaluation against the curated escalation
+	// catalog, conservative single-target resolution, and the batched MERGE of
+	// CAN_ESCALATE_TO edges. The span carries materialized edge counts and the
+	// skipped/deferred tally so a trace shows why escalation edges degraded
+	// gracefully (wildcard/many target, Deny, condition, unscanned) without
+	// fabricating or dangling edges.
+	SpanReducerIAMEscalationMaterialization = "reducer.iam_escalation_materialization"
+	SpanCanonicalWrite                      = "canonical.write"
 	SpanCanonicalProjection                             = "canonical.projection"
 	SpanCanonicalRetract                                = "canonical.retract"
 

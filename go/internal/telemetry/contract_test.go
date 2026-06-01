@@ -92,6 +92,7 @@ func TestSpanNames(t *testing.T) {
 		"reducer.observability_coverage_materialization",
 		"reducer.security_group_reachability_materialization",
 		"reducer.iam_can_assume_materialization",
+		"reducer.iam_escalation_materialization",
 		"canonical.write",
 		"canonical.projection",
 		"canonical.retract",

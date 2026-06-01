@@ -190,7 +190,24 @@ type Instruments struct {
 	// missing because security groups have not been scanned, not because the
 	// reducer silently dropped rules.
 	SecurityGroupReachabilitySkipped metric.Int64Counter
-	SBOMAttestationAttachments       metric.Int64Counter
+	// IAMEscalationEdges counts canonical CAN_ESCALATE_TO privilege-escalation edges
+	// committed by the IAM escalation projection (issue #1134 PR3). No label: it is
+	// the escalation-edge throughput for one generation. A zero count is itself a
+	// signal (no principal held a complete primitive with a single resolved target),
+	// so the counter is recorded even when no edges materialized.
+	IAMEscalationEdges metric.Int64Counter
+	// IAMEscalationSkipped counts escalation-primitive evaluations that produced no
+	// edge. Label: skip_reason (skipped_ambiguous — wildcard/many-resource target;
+	// skipped_unresolved — principal or target not scanned, incl. cross-account;
+	// skipped_deny — a Deny blocked a required action; skipped_conditioned — a
+	// condition-gated grant could not be conservatively trusted;
+	// skipped_not_action_resource — a NotAction/NotResource grant; skipped_incomplete
+	// — a multi-action primitive missing an action; deferred_can_assume —
+	// sts:AssumeRole deferred to the CAN_ASSUME edge). It is the bounded, honest
+	// graceful-degradation surface: a rising skipped_ambiguous rate means escalation
+	// edges are missing because policies use wildcard resources, not a reducer bug.
+	IAMEscalationSkipped       metric.Int64Counter
+	SBOMAttestationAttachments metric.Int64Counter
 	SupplyChainImpactFindings        metric.Int64Counter
 	// SupplyChainSuppressionDecisions counts reducer suppression-state
 	// outcomes per supply-chain impact finding. Labels: domain
@@ -1227,6 +1244,22 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register SecurityGroupReachabilitySkipped counter: %w", err)
+	}
+
+	inst.IAMEscalationEdges, err = meter.Int64Counter(
+		"eshu_dp_iam_escalation_edges_total",
+		metric.WithDescription("Total canonical IAM CAN_ESCALATE_TO privilege-escalation edges committed by the escalation projection"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register IAMEscalationEdges counter: %w", err)
+	}
+
+	inst.IAMEscalationSkipped, err = meter.Int64Counter(
+		"eshu_dp_iam_escalation_skipped_total",
+		metric.WithDescription("Total IAM escalation-primitive evaluations skipped by the escalation projection by skip_reason (skipped_ambiguous/skipped_unresolved/skipped_deny/skipped_conditioned/skipped_not_action_resource/skipped_incomplete/deferred_can_assume)"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register IAMEscalationSkipped counter: %w", err)
 	}
 
 	inst.SBOMAttestationAttachments, err = meter.Int64Counter(
