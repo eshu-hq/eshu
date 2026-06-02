@@ -16,13 +16,17 @@ are never read, so this contract is stricter than ordinary metadata collectors.
 
 ## Status
 
-`secrets_iam_posture` is design-only until the collector runtime, fact schemas,
-redaction policy, reducer read models, fixtures, telemetry, and chart path land
+`secrets_iam_posture` is moving from contract into narrow implementation slices.
+Source fact schemas and envelope builders are landing first, followed by AWS IAM
+and Kubernetes RBAC/service-account source evidence. This is still not a
+deployed runtime or authoritative read-model promise until the remaining source
+lanes, reducer read models, telemetry/status path, fixtures, and chart path land
 through implementation PRs.
 
 Do not add Helm values, service-runtime rows, environment variables, graph
-labels, graph edges, or API/MCP authority claims for this family in a contract
-PR. A chart option or graph schema is an operator promise; neither exists yet.
+labels, graph edges, or API/MCP authority claims for this family unless the
+same implementation PR wires and proves that runtime surface. A chart option or
+graph schema is an operator promise; neither exists yet for this family.
 
 No-Regression Evidence: this page documents a gated contract only. It does not
 add runtime code, durable fact schemas, queue behavior, chart templates, graph
@@ -132,6 +136,7 @@ API evidence, `scope_id`, `generation_id`, `observed_at`, `source_ref`,
 | `k8s_rbac_role` | Kubernetes | Role or ClusterRole rules summarized by bounded verbs, resources, and resource-name presence. |
 | `k8s_rbac_binding` | Kubernetes | RoleBinding or ClusterRoleBinding subjects and target role reference. |
 | `k8s_workload_identity_use` | Kubernetes | Workload-to-ServiceAccount usage evidence. |
+| `k8s_service_account_token_posture` | Kubernetes | Automount and projected-token posture evidence without token values. |
 | `eks_irsa_annotation` | Kubernetes/EKS | ServiceAccount annotation that names an IAM role ARN. |
 | `eks_pod_identity_association` | AWS/EKS | EKS Pod Identity association metadata for service-account to role joins. |
 | `vault_auth_mount` | Vault | Auth method mount metadata and accessor fingerprint. |
@@ -278,7 +283,7 @@ Recommended order:
 2. AWS IAM vertical slice: source facts, redaction policy, envelope builders,
    fixtures, security tests, and telemetry. No graph writes.
 3. Kubernetes RBAC vertical slice: source facts, service-account/workload usage,
-   IRSA annotation evidence, fixtures, and security tests.
+   token posture, IRSA annotation evidence, fixtures, and security tests.
 4. Vault metadata vertical slice: auth mounts, auth roles, ACL policies,
    identity aliases, KV metadata fingerprints, fixtures, and security tests.
 5. Reducer read-model slice: `identity_trust_chain`,

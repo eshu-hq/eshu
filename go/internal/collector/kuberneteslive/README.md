@@ -8,8 +8,10 @@ correlation and drift remain reducer-owned and are not in this package.
 
 - Connect to a configured cluster through a narrow, read-only `Client` and list
   a fixed core resource set: namespaces, pods, deployments, replicasets,
-  services, ingresses.
-- Map listed objects into three typed source facts via the shared envelope:
+  services, ingresses, ServiceAccounts, Roles, ClusterRoles, RoleBindings, and
+  ClusterRoleBindings.
+- Map listed workload and topology objects into Kubernetes live source facts via
+  the shared envelope:
   - `kubernetes_live.pod_template` — container/init-container image refs,
     declared ports, environment variable NAMES, service account, selector and
     label metadata.
@@ -17,6 +19,15 @@ correlation and drift remain reducer-owned and are not in this package.
     ingress-to-service edges between durable object identities.
   - `kubernetes_live.warning` — non-fatal capability gaps (forbidden resource,
     partial list, invalid owner reference, ambiguous selector).
+- Map listed ServiceAccount and RBAC objects into `secrets_iam_posture` source
+  facts for the Kubernetes secrets/IAM evidence lane:
+  - `k8s_service_account`
+  - `k8s_service_account_token_posture`
+  - `k8s_rbac_role`
+  - `k8s_rbac_binding`
+  - `k8s_workload_identity_use`
+  - `eks_irsa_annotation`
+  - `secrets_iam_coverage_warning`
 - Yield one snapshot generation per cluster through `collector.Service`.
 
 ## What this package does not do
@@ -24,10 +35,12 @@ correlation and drift remain reducer-owned and are not in this package.
 - It never mutates the cluster (no create/update/patch/delete, exec, attach,
   portforward, or logs).
 - It never reads Secret values, ConfigMap data payloads, environment variable
-  values, or container logs. Redaction is a construction invariant: only
-  metadata is mapped.
+  values, projected tokens, or container logs. Redaction is a construction
+  invariant: only metadata is mapped.
 - It never writes graph state, resolves canonical ownership, or decides drift.
   Those are reducer responsibilities (#388).
+- It never decides effective RBAC permissions, IAM trust-chain posture, or
+  workload access paths. The collector emits source facts; reducers own joins.
 - It does not import client-go. The Kubernetes API is the `Client` interface;
   the real adapter lives in the `clientgo` subpackage.
 
@@ -36,6 +49,9 @@ correlation and drift remain reducer-owned and are not in this package.
 - Object identity follows the ADR tuple `(cluster_id, api_group, version,
   resource, namespace, name, uid)`. `metadata.uid` anchors identity so a
   recreated object with the same name but a new UID is a new identity.
+- ServiceAccount, RBAC subject, role, binding, resource-version, and namespace
+  names are fingerprinted before entering `secrets_iam_posture` facts. The
+  source keeps raw names only long enough to form deterministic local join keys.
 - Cluster scope identity is keyed on the operator-declared durable `cluster_id`,
   never the API server URL.
 - The generation id depends only on `cluster_id` plus the observation time, so
@@ -80,7 +96,8 @@ to regress. The new path is bounded by design: read-only Kubernetes list calls
 with page size 200 and continue tokens, one generation per cluster per poll, cost
 proportional to listed object count. Focused tests pass with `-count=1`:
 `go/internal/collector/kuberneteslive/...`, `go/cmd/collector-kubernetes-live`,
-`go/internal/facts`, and `go/internal/telemetry`.
+`go/internal/collector/secretsiam`, `go/internal/facts`, and
+`go/internal/telemetry`.
 
 Observability Evidence: every snapshot records `eshu_dp_kubernetes_api_calls_total`,
 `eshu_dp_kubernetes_resources_listed_total`, `eshu_dp_kubernetes_facts_emitted_total`,
@@ -99,7 +116,8 @@ proportional to listed object count. No reducer, graph write, hot-path Cypher,
 or schema DDL is touched, so there is no existing collector path to regress.
 Focused tests pass with `-count=1` for
 `go/internal/collector/kuberneteslive/...`, `go/cmd/collector-kubernetes-live`,
-`go/internal/facts`, and `go/internal/telemetry`.
+`go/internal/collector/secretsiam`, `go/internal/facts`, and
+`go/internal/telemetry`.
 
 Collector Observability Evidence: `eshu_dp_kubernetes_api_calls_total{operation,result}`,
 `eshu_dp_kubernetes_resources_listed_total{resource_scope,result}`,
@@ -123,5 +141,7 @@ proof exist (#388 follow-ups). No deployment surface changes here.
   coordinator.
 - Watch mode with bookmarks, reconnects, and `410 Gone` relist recovery.
 - Additional resource kinds (StatefulSet, DaemonSet, Job, CronJob, Service
-  endpoints, RBAC subjects, CRDs) and the richer ADR fact families.
+  endpoints, CRDs) and the richer ADR fact families.
+- Effective RBAC interpretation, AWS IAM joins, Vault joins, stale-generation
+  handling, and secrets/IAM posture read models.
 - The reducer projection and the Git/runtime correlation and drift read model.

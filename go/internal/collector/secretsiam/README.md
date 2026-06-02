@@ -5,14 +5,15 @@
 `internal/collector/secretsiam` builds source-fact envelopes for the
 `secrets_iam_posture` collector family. It records provider-native IAM identity,
 policy, attachment, boundary, instance-profile, optional Access Analyzer, and
-coverage-warning evidence without writing graph truth.
+Kubernetes ServiceAccount/RBAC/workload-identity evidence without writing graph
+truth.
 
 ## Ownership boundary
 
 This package owns source-fact shape, stable identity, collector kind, and
 redaction-safe payload construction for secrets/IAM posture facts. It does not
 call AWS, Kubernetes, Vault, Jira, PagerDuty, Postgres, or graph backends, and it
-does not decide effective permissions or trust-chain posture.
+does not decide effective permissions, effective RBAC, or trust-chain posture.
 
 ## Exported surface
 
@@ -23,8 +24,15 @@ See `doc.go` for the godoc contract.
 - `NewPrincipalEnvelope`, `NewTrustPolicyEnvelope`,
   `NewPermissionPolicyEnvelope`, `NewPolicyAttachmentEnvelope`,
   `NewPermissionBoundaryEnvelope`, `NewInstanceProfileEnvelope`,
-  `NewAccessAnalyzerFindingEnvelope`, and `NewCoverageWarningEnvelope` build
-  source facts in the `facts.SecretsIAMSchemaVersionV1` schema.
+  `NewAccessAnalyzerFindingEnvelope`, and `NewCoverageWarningEnvelope` build AWS
+  IAM source facts in the `facts.SecretsIAMSchemaVersionV1` schema.
+- `NewKubernetesServiceAccountEnvelope`,
+  `NewKubernetesServiceAccountTokenPostureEnvelope`,
+  `NewKubernetesRBACRoleEnvelope`, `NewKubernetesRBACBindingEnvelope`,
+  `NewKubernetesWorkloadIdentityUseEnvelope`, `NewEKSIRSAAnnotationEnvelope`,
+  `NewEKSPodIdentityAssociationEnvelope`, and
+  `NewKubernetesCoverageWarningEnvelope` build Kubernetes source facts in the
+  same schema.
 - Observation structs define the metadata-only inputs accepted by those
   builders.
 
@@ -49,13 +57,18 @@ warnings, and status reporting.
 - Policy payloads carry condition keys only. Raw policy JSON, statement bodies,
   condition values, AWS credentials, and session tokens stay outside the fact
   contract.
+- Kubernetes payloads carry fingerprints and bounded metadata only. Raw
+  ServiceAccount names, namespaces, RBAC subject names, Secret names,
+  resourceVersions, projected tokens, and RBAC resource-name or non-resource-URL
+  values stay outside the fact contract.
 - Stable keys for principal, policy, trust, attachment, boundary, instance
-  profile, OIDC provider, and analyzer-finding facts exclude generation IDs so
+  profile, OIDC provider, analyzer-finding, Kubernetes ServiceAccount, RBAC,
+  workload-identity, IRSA, and EKS Pod Identity facts exclude generation IDs so
   repeated source observations can be compared across generations. Coverage
   warning stable keys include generation IDs because warning state is scoped to
   the scan that observed the missing or partial surface.
 - Builders emit source facts only. Reducers own all graph promotion, trust-chain
-  joins, and effective-permission decisions.
+  joins, effective RBAC interpretation, and effective-permission decisions.
 
 ## Related docs
 

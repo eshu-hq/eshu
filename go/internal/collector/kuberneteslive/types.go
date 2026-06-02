@@ -39,6 +39,16 @@ const (
 	ResourceScopeServices = "services"
 	// ResourceScopeIngresses labels ingress list work.
 	ResourceScopeIngresses = "ingresses"
+	// ResourceScopeServiceAccounts labels ServiceAccount list work.
+	ResourceScopeServiceAccounts = "serviceaccounts"
+	// ResourceScopeRoles labels Role list work.
+	ResourceScopeRoles = "roles"
+	// ResourceScopeClusterRoles labels ClusterRole list work.
+	ResourceScopeClusterRoles = "clusterroles"
+	// ResourceScopeRoleBindings labels RoleBinding list work.
+	ResourceScopeRoleBindings = "rolebindings"
+	// ResourceScopeClusterRoleBindings labels ClusterRoleBinding list work.
+	ResourceScopeClusterRoleBindings = "clusterrolebindings"
 )
 
 // Warning reason codes are a closed enum so warning metrics stay

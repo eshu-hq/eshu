@@ -11,6 +11,13 @@ func TestSecretsIAMFactKindsAndSchemaVersions(t *testing.T) {
 		AWSIAMPermissionBoundaryFactKind,
 		AWSIAMInstanceProfileFactKind,
 		AWSIAMAccessAnalyzerFindingFactKind,
+		KubernetesServiceAccountFactKind,
+		KubernetesRBACRoleFactKind,
+		KubernetesRBACBindingFactKind,
+		KubernetesWorkloadIdentityUseFactKind,
+		KubernetesServiceAccountTokenPostureFactKind,
+		EKSIRSAAnnotationFactKind,
+		EKSPodIdentityAssociationFactKind,
 		SecretsIAMCoverageWarningFactKind,
 	}
 

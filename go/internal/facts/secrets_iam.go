@@ -23,6 +23,27 @@ const (
 	// AWSIAMAccessAnalyzerFindingFactKind identifies one optional AWS IAM Access
 	// Analyzer finding source fact.
 	AWSIAMAccessAnalyzerFindingFactKind = "aws_iam_access_analyzer_finding"
+	// KubernetesServiceAccountFactKind identifies one Kubernetes ServiceAccount
+	// source fact with redacted join identity.
+	KubernetesServiceAccountFactKind = "k8s_service_account"
+	// KubernetesRBACRoleFactKind identifies one Kubernetes Role or ClusterRole
+	// source fact with summarized RBAC rules.
+	KubernetesRBACRoleFactKind = "k8s_rbac_role"
+	// KubernetesRBACBindingFactKind identifies one Kubernetes RoleBinding or
+	// ClusterRoleBinding source fact with redacted subjects.
+	KubernetesRBACBindingFactKind = "k8s_rbac_binding"
+	// KubernetesWorkloadIdentityUseFactKind identifies one workload to
+	// ServiceAccount usage source fact.
+	KubernetesWorkloadIdentityUseFactKind = "k8s_workload_identity_use"
+	// KubernetesServiceAccountTokenPostureFactKind identifies projected and
+	// automount token posture for one ServiceAccount source identity.
+	KubernetesServiceAccountTokenPostureFactKind = "k8s_service_account_token_posture"
+	// EKSIRSAAnnotationFactKind identifies an EKS IRSA ServiceAccount annotation
+	// source fact.
+	EKSIRSAAnnotationFactKind = "eks_irsa_annotation"
+	// EKSPodIdentityAssociationFactKind identifies an EKS Pod Identity
+	// association source fact when association evidence is available.
+	EKSPodIdentityAssociationFactKind = "eks_pod_identity_association"
 	// SecretsIAMCoverageWarningFactKind identifies source-local coverage,
 	// redaction, unsupported, partial, permission-hidden, rate-limited, or stale
 	// warning evidence for the secrets/IAM posture collector family.
@@ -40,18 +61,32 @@ var secretsIAMFactKinds = []string{
 	AWSIAMPermissionBoundaryFactKind,
 	AWSIAMInstanceProfileFactKind,
 	AWSIAMAccessAnalyzerFindingFactKind,
+	KubernetesServiceAccountFactKind,
+	KubernetesRBACRoleFactKind,
+	KubernetesRBACBindingFactKind,
+	KubernetesWorkloadIdentityUseFactKind,
+	KubernetesServiceAccountTokenPostureFactKind,
+	EKSIRSAAnnotationFactKind,
+	EKSPodIdentityAssociationFactKind,
 	SecretsIAMCoverageWarningFactKind,
 }
 
 var secretsIAMSchemaVersions = map[string]string{
-	AWSIAMPrincipalFactKind:             SecretsIAMSchemaVersionV1,
-	AWSIAMTrustPolicyFactKind:           SecretsIAMSchemaVersionV1,
-	AWSIAMPermissionPolicyFactKind:      SecretsIAMSchemaVersionV1,
-	AWSIAMPolicyAttachmentFactKind:      SecretsIAMSchemaVersionV1,
-	AWSIAMPermissionBoundaryFactKind:    SecretsIAMSchemaVersionV1,
-	AWSIAMInstanceProfileFactKind:       SecretsIAMSchemaVersionV1,
-	AWSIAMAccessAnalyzerFindingFactKind: SecretsIAMSchemaVersionV1,
-	SecretsIAMCoverageWarningFactKind:   SecretsIAMSchemaVersionV1,
+	AWSIAMPrincipalFactKind:                      SecretsIAMSchemaVersionV1,
+	AWSIAMTrustPolicyFactKind:                    SecretsIAMSchemaVersionV1,
+	AWSIAMPermissionPolicyFactKind:               SecretsIAMSchemaVersionV1,
+	AWSIAMPolicyAttachmentFactKind:               SecretsIAMSchemaVersionV1,
+	AWSIAMPermissionBoundaryFactKind:             SecretsIAMSchemaVersionV1,
+	AWSIAMInstanceProfileFactKind:                SecretsIAMSchemaVersionV1,
+	AWSIAMAccessAnalyzerFindingFactKind:          SecretsIAMSchemaVersionV1,
+	KubernetesServiceAccountFactKind:             SecretsIAMSchemaVersionV1,
+	KubernetesRBACRoleFactKind:                   SecretsIAMSchemaVersionV1,
+	KubernetesRBACBindingFactKind:                SecretsIAMSchemaVersionV1,
+	KubernetesWorkloadIdentityUseFactKind:        SecretsIAMSchemaVersionV1,
+	KubernetesServiceAccountTokenPostureFactKind: SecretsIAMSchemaVersionV1,
+	EKSIRSAAnnotationFactKind:                    SecretsIAMSchemaVersionV1,
+	EKSPodIdentityAssociationFactKind:            SecretsIAMSchemaVersionV1,
+	SecretsIAMCoverageWarningFactKind:            SecretsIAMSchemaVersionV1,
 }
 
 // SecretsIAMFactKinds returns the accepted secrets/IAM posture source fact

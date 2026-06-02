@@ -14,6 +14,7 @@ type ObjectMeta struct {
 	Namespace       string
 	Name            string
 	UID             string
+	ResourceVersion string
 	Labels          map[string]string
 	OwnerReferences []OwnerReference
 }
@@ -30,10 +31,11 @@ type OwnerReference struct {
 // (Deployment, ReplicaSet, or Pod). Containers carry image refs and env var
 // names only.
 type WorkloadObject struct {
-	Meta           ObjectMeta
-	ServiceAccount string
-	Selector       map[string]string
-	Containers     []ContainerSummary
+	Meta                         ObjectMeta
+	ServiceAccount               string
+	ProjectedServiceAccountToken bool
+	Selector                     map[string]string
+	Containers                   []ContainerSummary
 }
 
 // ServiceObject is the metadata-only view of a Service.
@@ -47,6 +49,75 @@ type ServiceObject struct {
 type IngressObject struct {
 	Meta            ObjectMeta
 	BackendServices []string
+}
+
+// ServiceAccountObject is the metadata-only view of one Kubernetes
+// ServiceAccount. It carries annotation keys and bounded reference counts, not
+// token, Secret, or image-pull-secret names or values.
+type ServiceAccountObject struct {
+	Meta                    ObjectMeta
+	AnnotationKeys          []string
+	IRSAAnnotation          string
+	AutomountToken          *bool
+	SecretRefCount          int
+	ImagePullSecretRefCount int
+}
+
+// RBACRuleSummary is the metadata-only view of a Kubernetes RBAC policy rule.
+// ResourceNames and non-resource URLs are sensitive selectors, so the collector
+// keeps only presence and counts for those fields.
+type RBACRuleSummary struct {
+	Verbs                  []string
+	APIGroups              []string
+	Resources              []string
+	ResourceNameCount      int
+	ResourceNamesPresent   bool
+	NonResourceURLCount    int
+	NonResourceURLsPresent bool
+}
+
+const (
+	// RBACRoleKindRole identifies a namespace-scoped Kubernetes Role.
+	RBACRoleKindRole = "Role"
+	// RBACRoleKindClusterRole identifies a cluster-scoped Kubernetes
+	// ClusterRole.
+	RBACRoleKindClusterRole = "ClusterRole"
+	// BindingKindRoleBinding identifies a namespace-scoped RoleBinding.
+	BindingKindRoleBinding = "RoleBinding"
+	// BindingKindClusterRoleBinding identifies a cluster-wide
+	// ClusterRoleBinding.
+	BindingKindClusterRoleBinding = "ClusterRoleBinding"
+	// BindingScopeNamespace identifies namespaced binding evidence.
+	BindingScopeNamespace = "namespace"
+	// BindingScopeCluster identifies cluster-wide binding evidence.
+	BindingScopeCluster = "cluster"
+)
+
+// RBACRoleObject is the metadata-only view of a Role or ClusterRole.
+type RBACRoleObject struct {
+	Meta  ObjectMeta
+	Kind  string
+	Rules []RBACRuleSummary
+}
+
+// RBACSubject is a role binding subject. The collector source accepts raw names
+// only long enough to build deterministic redacted join keys.
+type RBACSubject struct {
+	Kind      string
+	APIGroup  string
+	Namespace string
+	Name      string
+}
+
+// RBACBindingObject is the metadata-only view of a RoleBinding or
+// ClusterRoleBinding.
+type RBACBindingObject struct {
+	Meta            ObjectMeta
+	Kind            string
+	RoleRefKind     string
+	RoleRefAPIGroup string
+	RoleRefName     string
+	Subjects        []RBACSubject
 }
 
 // ListResult carries listed objects and a Partial flag. Partial is true when
@@ -72,6 +143,11 @@ type Client interface {
 	ListReplicaSets(context.Context) (ListResult[WorkloadObject], error)
 	ListServices(context.Context) (ListResult[ServiceObject], error)
 	ListIngresses(context.Context) (ListResult[IngressObject], error)
+	ListServiceAccounts(context.Context) (ListResult[ServiceAccountObject], error)
+	ListRoles(context.Context) (ListResult[RBACRoleObject], error)
+	ListClusterRoles(context.Context) (ListResult[RBACRoleObject], error)
+	ListRoleBindings(context.Context) (ListResult[RBACBindingObject], error)
+	ListClusterRoleBindings(context.Context) (ListResult[RBACBindingObject], error)
 }
 
 // ClientFactory creates a read-only client for one configured cluster target.

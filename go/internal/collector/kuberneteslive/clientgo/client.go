@@ -220,6 +220,7 @@ func objectMeta(apiGroup, version, resource string, meta metav1.ObjectMeta) kube
 		Namespace:       meta.Namespace,
 		Name:            meta.Name,
 		UID:             string(meta.UID),
+		ResourceVersion: meta.ResourceVersion,
 		Labels:          copyStringMap(meta.Labels),
 		OwnerReferences: owners,
 	}
@@ -238,10 +239,11 @@ func workloadFromPodSpec(meta kuberneteslive.ObjectMeta, spec corev1.PodSpec, se
 		containers = append(containers, containerSummary(&spec.Containers[i], false))
 	}
 	return kuberneteslive.WorkloadObject{
-		Meta:           meta,
-		ServiceAccount: spec.ServiceAccountName,
-		Selector:       selectorLabels(selector),
-		Containers:     containers,
+		Meta:                         meta,
+		ServiceAccount:               spec.ServiceAccountName,
+		ProjectedServiceAccountToken: projectedServiceAccountToken(spec.Volumes),
+		Selector:                     selectorLabels(selector),
+		Containers:                   containers,
 	}
 }
 
