@@ -69,6 +69,20 @@ func iamCanPerformFacts() []facts.Envelope {
 	}
 }
 
+func iamCanPerformResourcePolicyFacts() []facts.Envelope {
+	return []facts.Envelope{
+		iamNodeEnvelope(iamResourceTypeUser, attackerUserARN),
+		canPerformNode(iamCanPerformResourceTypeS3Bucket, canPerformBucketARN),
+		canPerformResourcePolicyEnvelope(
+			canPerformBucketARN,
+			iamCanPerformResourceTypeS3Bucket,
+			"Allow",
+			[]string{"s3:getobject"},
+			[]string{attackerUserARN},
+		),
+	}
+}
+
 func TestIAMCanPerformHandlerRejectsMismatchedDomain(t *testing.T) {
 	t.Parallel()
 
@@ -162,6 +176,38 @@ func TestIAMCanPerformHandlerProjectsResolvedEdge(t *testing.T) {
 	}
 	if row["evaluation_scope"] != iamCanPerformEvaluationScope {
 		t.Fatalf("edge evaluation_scope = %v, want %q", row["evaluation_scope"], iamCanPerformEvaluationScope)
+	}
+}
+
+// TestIAMCanPerformHandlerProjectsResourcePolicyEdge proves the handler loads
+// aws_resource_policy_permission facts and passes resource-policy CAN_PERFORM
+// rows through the same idempotent writer path.
+func TestIAMCanPerformHandlerProjectsResourcePolicyEdge(t *testing.T) {
+	t.Parallel()
+
+	writer := &recordingIAMCanPerformWriter{}
+	handler := IAMCanPerformMaterializationHandler{
+		FactLoader:           &stubFactLoader{envelopes: iamCanPerformResourcePolicyFacts()},
+		Writer:               writer,
+		ReadinessLookup:      allKeyspacesReady(),
+		PriorGenerationCheck: func(context.Context, string, string) (bool, error) { return true, nil },
+	}
+	result, err := handler.Handle(context.Background(), iamCanPerformIntent())
+	if err != nil {
+		t.Fatalf("Handle returned error: %v", err)
+	}
+	if result.Status != ResultStatusSucceeded {
+		t.Fatalf("status = %q, want succeeded", result.Status)
+	}
+	if writer.edgeCalls != 1 || len(writer.edgeRows) != 1 {
+		t.Fatalf("resource-policy can_perform edge writes wrong: calls=%d rows=%d", writer.edgeCalls, len(writer.edgeRows))
+	}
+	row := writer.edgeRows[0]
+	if row["evaluation_scope"] != iamCanPerformEvaluationScopeResourcePolicyOnly {
+		t.Fatalf("edge evaluation_scope = %v, want %q", row["evaluation_scope"], iamCanPerformEvaluationScopeResourcePolicyOnly)
+	}
+	if got := row["grant_sources"].([]string); len(got) != 1 || got[0] != iamCanPerformGrantSourceResourcePolicy {
+		t.Fatalf("grant_sources = %v, want [resource_policy]", got)
 	}
 }
 

@@ -303,16 +303,17 @@ const (
 	// fabricating or dangling edges.
 	SpanReducerIAMEscalationMaterialization = "reducer.iam_escalation_materialization"
 	// SpanReducerIAMCanPerformMaterialization wraps the IAM CAN_PERFORM
-	// effective-permission edge projection (issue #1134 PR4a): fact load, the
+	// effective-permission edge projection (issue #1134 PR4a/PR4b reducer): fact load, the
 	// cloud_resource_uid canonical-nodes readiness gate, in-memory ARN join-index
 	// build, per-principal evaluation of the closed sensitive-action catalog against
-	// the principal's trusted-Allow identity statements, conservative
-	// exact/single-glob single-target resolution requiring the catalog-expected
-	// resource type, and the batched static-token MERGE of CAN_PERFORM edges. The
-	// span carries materialized edge counts and the skipped tally so a trace shows
-	// why CAN_PERFORM edges degraded gracefully (uncatalogued, wildcard/many target,
-	// Deny, condition, NotAction, unscanned, self-loop) without fabricating or
-	// dangling edges.
+	// the principal's trusted-Allow identity statements and exact resource-policy
+	// grantees, conservative exact/single-glob single-target resolution requiring
+	// the catalog-expected resource type, and the batched static-token MERGE of
+	// CAN_PERFORM edges. The span carries materialized edge counts and the skipped
+	// tally so a trace shows why CAN_PERFORM edges degraded gracefully
+	// (uncatalogued, wildcard/many target, public or unscanned principal, Deny,
+	// condition, NotAction/NotResource, self-loop) without fabricating or dangling
+	// edges.
 	SpanReducerIAMCanPerformMaterialization = "reducer.iam_can_perform_materialization"
 	SpanCanonicalWrite                      = "canonical.write"
 	SpanCanonicalProjection                 = "canonical.projection"

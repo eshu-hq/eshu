@@ -233,14 +233,15 @@ type Instruments struct {
 	// graceful-degradation surface: a rising skipped_ambiguous rate means escalation
 	// edges are missing because policies use wildcard resources, not a reducer bug.
 	IAMEscalationSkipped metric.Int64Counter
-	// IAMCanPerformEdges counts canonical CAN_PERFORM identity-policy-only
-	// effective-permission edges committed by the IAM CAN_PERFORM projection
-	// (issue #1134 PR4a). Label: resolution_mode (exact_arn — the resource ARN
-	// matched exactly one scanned node; single_glob — a glob/prefix matched exactly
-	// one scanned node of the catalog-expected type). A zero count is itself a
-	// signal (no principal held a catalogued action with a single resolved
-	// resource), so the counter is recorded for both modes even when no edges
-	// materialized.
+	// IAMCanPerformEdges counts canonical CAN_PERFORM effective-permission edges
+	// committed by the IAM CAN_PERFORM projection (issue #1134 PR4a/PR4b reducer).
+	// Label: resolution_mode (exact_arn — the resource ARN matched exactly one
+	// scanned node; single_glob — a glob/prefix matched exactly one scanned node of
+	// the catalog-expected type). Edge properties carry grant_sources so operators
+	// can distinguish identity-policy, resource-policy, and both-source grants. A
+	// zero count is itself a signal (no principal held a catalogued action with a
+	// single resolved resource), so the counter is recorded for both modes even when
+	// no edges materialized.
 	IAMCanPerformEdges metric.Int64Counter
 	// IAMCanPerformSkipped counts CAN_PERFORM catalog-action evaluations that
 	// produced no edge. Label: skip_reason (skipped_uncatalogued_action — action not
@@ -1434,7 +1435,7 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 
 	inst.IAMCanPerformEdges, err = meter.Int64Counter(
 		"eshu_dp_iam_can_perform_edges_total",
-		metric.WithDescription("Total canonical IAM CAN_PERFORM identity-policy-only effective-permission edges committed by the CAN_PERFORM projection by resolution_mode (exact_arn/single_glob)"),
+		metric.WithDescription("Total canonical IAM CAN_PERFORM effective-permission edges committed by the CAN_PERFORM projection by resolution_mode (exact_arn/single_glob); edge properties carry identity/resource grant_sources"),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register IAMCanPerformEdges counter: %w", err)

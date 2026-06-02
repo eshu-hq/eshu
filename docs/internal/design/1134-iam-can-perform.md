@@ -168,9 +168,10 @@ declaration naming the expected cardinality band and stop threshold.
 - **PR4a (this MVP edge):** closed sensitive-action vocabulary, exact +
   single-glob resolution among scanned nodes, identity-policy-only, full skip
   taxonomy + telemetry. Edge-only on existing nodes — no node-then-edge.
-- **PR4b:** new `aws_resource_policy_permission` scanner facts so the resource
-  side (bucket policy, KMS key policy) contributes grants — closes the largest
-  blind spot.
+- **PR4b:** resource-policy support split into scanner/fact emission and reducer
+  consumption: new `aws_resource_policy_permission` facts capture bucket and KMS
+  policy statements, then the reducer admits exact scanned IAM grantees onto the
+  existing CAN_PERFORM edge identity.
 - **PR4c:** mark permission-boundary policies in the fact stream and intersect
   them into the effective set.
 - **PR4d:** condition-aware confidence once the scanner can emit a safe
@@ -283,13 +284,67 @@ recorded in the PR body.
 count and full per-reason skip tally, so an operator can tell at 3 AM how many
 edges projected vs were skipped and why.
 
-### 12.3 Honesty boundary (identity-policy-only)
+### 12.3 Honesty boundary
 
-Every CAN_PERFORM edge carries `rel.evaluation_scope = 'identity_policy_only'`.
-A *present* edge means an identity policy grants the action on the resolved
-resource, ignoring resource-based policies, permission boundaries, SCPs,
-conditions, and session policies. A *missing* edge does NOT mean "cannot
-perform" — it can mean the action is uncatalogued, the resource was not scanned
-or was ambiguous, or a non-identity grant exists that this slice does not
-evaluate (PR4b–PR4d). This boundary is the reason the slice is conservative and
-skip-counted rather than claiming a complete effective-permission lattice.
+PR4a emitted only `rel.evaluation_scope = 'identity_policy_only'`. After the
+PR4b reducer follow-up, a CAN_PERFORM edge carries `grant_sources` plus
+`rel.evaluation_scope` as `identity_policy_only`, `resource_policy_only`, or
+`identity_and_resource_policy`. A *present* edge means one of those evaluated
+source layers grants the action on the resolved resource, ignoring permission
+boundaries, SCPs, condition values, and session policies. A *missing* edge does
+NOT mean "cannot perform" — it can mean the action is uncatalogued, the resource
+or principal was not scanned or was ambiguous, or a later evaluator slice has
+not been implemented (PR4c–PR4d). This boundary is the reason the slice is
+conservative and skip-counted rather than claiming a complete effective-permission
+lattice.
+
+## 13. PR4b Reducer Follow-Up Evidence
+
+This section records the reducer consumption of the resource-policy facts merged
+in #1326. The collector/facts PR emitted metadata-only
+`aws_resource_policy_permission` facts; this reducer follow-up consumes them
+without changing the `CAN_PERFORM` relationship identity.
+
+### 13.1 Realized scope
+
+- `IAMCanPerformMaterializationHandler` now loads `aws_resource_policy_permission`
+  with `aws_resource` and `aws_iam_permission`.
+- `ExtractIAMCanPerformEdges` evaluates resource-policy facts only when the
+  grantee principal ARN resolves to an already-scanned IAM role/user
+  `CloudResource`, the attached resource ARN resolves to the catalog-expected
+  `CloudResource`, and the statement Resource patterns apply to that attached
+  resource.
+- Public, service, federated, account-root, wildcard, cross-account-unscanned,
+  ambiguous, unsupported, conditioned, NotAction/NotResource, Deny-blocked, and
+  wrong-resource-pattern cases remain skipped/provenance-only.
+- Edge rows now carry `grant_sources` and one of three `evaluation_scope` values:
+  `identity_policy_only`, `resource_policy_only`, or
+  `identity_and_resource_policy`.
+- The graph writer still uses the same static
+  `(principal_uid)-[:CAN_PERFORM]->(resource_uid)` MERGE identity. `actions` and
+  `grant_sources` are SET properties only.
+
+### 13.2 Performance and observability
+
+No-Regression Evidence: `go test ./internal/reducer -run 'IAMCanPerform'
+-count=1` proves identity-only, resource-only, both-source merge,
+public/unscanned principal skips, conditioned/NotResource/Deny skips,
+wrong-resource-pattern refusal, readiness, and idempotent reprojection behavior.
+`go test ./internal/storage/cypher -run 'IAMCanPerformEdgeWriter' -count=1`
+proves `grant_sources` stays out of the MERGE key.
+
+Benchmark Evidence: `go test ./internal/storage/cypher -run '^$' -bench
+'BenchmarkIAMCanPerformEdgeWriter|BenchmarkIAMEscalationEdgeWriter' -benchmem
+-count=3` shaped 5,000 CAN_PERFORM rows at batch 500 on Apple M4 Pro in
+`1.25 ms/op`, `1.24 ms/op`, and `1.24 ms/op` (`~1.97 MB/op`,
+`25,068 allocs/op`) versus the escalation baseline at `1.21 ms/op`,
+`1.21 ms/op`, and `1.20 ms/op` on the same row shape. The added
+`grant_sources` property does not change statement count, endpoint anchors,
+relationship token, or MERGE identity.
+
+Observability Evidence: existing `eshu_dp_iam_can_perform_edges_total`, bounded
+`eshu_dp_iam_can_perform_skipped_total`, span
+`reducer.iam_can_perform_materialization`, readiness-gate retry errors, and the
+completion log still diagnose edge count, skip reason, fact-load count, extract
+duration, retract duration, write duration, and total duration. The completion
+log now includes `resource_policy_permission_fact_count`.

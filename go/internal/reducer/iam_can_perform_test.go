@@ -71,6 +71,9 @@ func TestIAMCanPerformPositiveExactARN(t *testing.T) {
 	if edge["evaluation_scope"] != iamCanPerformEvaluationScope {
 		t.Fatalf("evaluation_scope = %v, want %q", edge["evaluation_scope"], iamCanPerformEvaluationScope)
 	}
+	if got := edge["grant_sources"].([]string); len(got) != 1 || got[0] != iamCanPerformGrantSourceIdentityPolicy {
+		t.Fatalf("grant_sources = %v, want [identity_policy]", got)
+	}
 	if result.EdgesByMode[iamCanPerformResolutionExactARN] != 1 {
 		t.Fatalf("edges-by-mode = %v, want one exact_arn", result.EdgesByMode)
 	}

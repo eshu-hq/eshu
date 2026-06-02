@@ -26,15 +26,17 @@ const iamCanPerformEdgeLabel = "CAN_PERFORM"
 
 // canonicalIAMCanPerformEdgeUpsertCypher batches CAN_PERFORM edge upserts between
 // an already-materialized IAM principal :CloudResource node and the resource
-// :CloudResource node an identity policy grants a catalogued sensitive action on.
+// :CloudResource node an identity or resource policy grants a catalogued
+// sensitive action on.
 // The relationship type is the static CAN_PERFORM token; the granted action set is
 // written as a sorted/deduped list PROPERTY in the SET clause (never in the MERGE
 // key) so the MERGE identity is the stable (principal_uid, CAN_PERFORM,
 // resource_uid) triple and several actions to the same resource converge on one
-// idempotent edge. rel.evaluation_scope is stamped identity_policy_only — the
-// honesty boundary (a present edge ignores resource-policy/boundary/SCP/condition
-// restrictions). Two MATCHes precede the MERGE so a row whose principal or resource
-// node is absent produces no edge and no fabricated node. Both anchors are
+// idempotent edge. rel.grant_sources and rel.evaluation_scope record whether the
+// grant came from identity policy, resource policy, or both; permission
+// boundaries, SCPs, condition values, and session policies are still outside this
+// slice. Two MATCHes precede the MERGE so a row whose principal or resource node
+// is absent produces no edge and no fabricated node. Both anchors are
 // uid-indexed :CloudResource lookups (no scan, no N+1).
 const canonicalIAMCanPerformEdgeUpsertCypher = `UNWIND $rows AS row
 MATCH (p:CloudResource {uid: row.principal_uid})
@@ -43,6 +45,7 @@ MERGE (p)-[rel:CAN_PERFORM]->(r)
 SET rel.actions = row.actions,
     rel.action_count = row.action_count,
     rel.evaluation_scope = row.evaluation_scope,
+    rel.grant_sources = row.grant_sources,
     rel.scope_id = row.scope_id,
     rel.generation_id = row.generation_id,
     rel.evidence_source = row.evidence_source`
@@ -61,11 +64,11 @@ DELETE rel`
 
 // IAMCanPerformEdgeWriter materializes resolved IAM CAN_PERFORM decisions into
 // canonical CAN_PERFORM edges between an IAM principal :CloudResource node and the
-// resource :CloudResource node an identity policy grants a catalogued sensitive
-// action on. It satisfies the reducer-owned edge-writer consumer interface and
-// writes through the backend-neutral Executor seam. Security-sensitive: it only
-// persists the already-conservatively-resolved rows the extractor produced; it
-// performs no permission judgment of its own.
+// resource :CloudResource node an identity or resource policy grants a catalogued
+// sensitive action on. It satisfies the reducer-owned edge-writer consumer
+// interface and writes through the backend-neutral Executor seam.
+// Security-sensitive: it only persists the already-conservatively-resolved rows
+// the extractor produced; it performs no permission judgment of its own.
 type IAMCanPerformEdgeWriter struct {
 	executor  Executor
 	batchSize int

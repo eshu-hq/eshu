@@ -414,11 +414,12 @@ tracks this package's broader transient graph-write retry class.
   `eshu_dp_neo4j_batch_size`; the reducer handler owns the
   `eshu_dp_iam_escalation_edges_total` / `eshu_dp_iam_escalation_skipped_total`
   counters and completion log.
-- `IAMCanPerformEdgeWriter` — writes canonical identity-policy-only `CAN_PERFORM`
+- `IAMCanPerformEdgeWriter` — writes canonical `CAN_PERFORM`
   effective-permission edges between an IAM principal `CloudResource` node and the
-  resource `CloudResource` node an identity policy grants a catalogued sensitive
-  action on, for the IAM CAN_PERFORM materialization reducer domain (issue #1134
-  PR4a); constructed with `NewIAMCanPerformEdgeWriter`. Batched `UNWIND` +
+  resource `CloudResource` node an identity or resource policy grants a catalogued
+  sensitive action on, for the IAM CAN_PERFORM materialization reducer domain
+  (issue #1134 PR4a/PR4b reducer); constructed with
+  `NewIAMCanPerformEdgeWriter`. Batched `UNWIND` +
   `MATCH (p:CloudResource {uid})` / `MATCH (r:CloudResource {uid})` /
   static-type `MERGE (p)-[rel:CAN_PERFORM]->(r)` so a missing endpoint is a no-op
   (never a fabricated node). Both endpoints are the uniform `CloudResource` label
@@ -426,25 +427,26 @@ tracks this package's broader transient graph-write retry class.
   interpolates no data-driven token. The granted action set lives in an edge
   property (`rel.actions`), never in the MERGE key — so the MERGE keys on the
   stable `(principal_uid, CAN_PERFORM, resource_uid)` identity and stays on
-  NornicDB's relationship hot path; the edge also carries `rel.action_count` and
-  the honesty label `rel.evaluation_scope = identity_policy_only`. Idempotent on
-  that triple, with an evidence-source-scoped, edge-`scope_id`-filtered retract.
-  Security-sensitive: it persists only the conservatively-resolved rows the
-  extractor produced.
+  NornicDB's relationship hot path; the edge also carries `rel.action_count`,
+  `rel.grant_sources`, and the honesty label `rel.evaluation_scope`. Idempotent
+  on that triple, with an evidence-source-scoped, edge-`scope_id`-filtered
+  retract. Security-sensitive: it persists only the conservatively-resolved rows
+  the extractor produced.
 
   Benchmark Evidence: `go test ./internal/storage/cypher -run '^$' -bench
   'BenchmarkIAMCanPerformEdgeWriter|BenchmarkIAMEscalationEdgeWriter' -benchmem
-  -count=3` shaped 5,000 edges at batch 500 in `~1.28 ms/op` (`~1.97 MB/op`,
-  `25,068 allocs/op`), no-op group executor — within ~3% of the shipped
-  `CAN_ESCALATE_TO` writer baseline on the identical row shape, well under the 10%
-  stop threshold; bounded by `ceil(E/batchSize)` statements with no per-edge graph
+  -count=3` shaped 5,000 edges at batch 500 in `1.25 ms/op`, `1.24 ms/op`, and
+  `1.24 ms/op` (`~1.97 MB/op`, `25,068 allocs/op`), no-op group executor,
+  versus the shipped `CAN_ESCALATE_TO` writer baseline at `1.21 ms/op`,
+  `1.21 ms/op`, and `1.20 ms/op` on the identical row shape, under the 10% stop
+  threshold; bounded by `ceil(E/batchSize)` statements with no per-edge graph
   round trip.
   No-Regression Evidence: the edge family adds one static-token MERGE shape over
   two uid-indexed CloudResource anchors, identical to the already-measured #1134
   PR3 / #388 / #1135 writers; `go test ./internal/storage/cypher -run
   TestIAMCanPerform -count=1` proves the static-type MATCH-MATCH-MERGE, the
-  actions-out-of-MERGE-key contract, the `identity_policy_only` honesty label,
-  batching, scope/evidence annotation, and the edge-scoped retract.
+  actions/grant-sources-out-of-MERGE-key contract, the evaluation-scope honesty
+  label, batching, scope/evidence annotation, and the edge-scoped retract.
   Observability Evidence: statement summaries and operation metadata
   (`phase=iam_can_perform_edge`, `label=CAN_PERFORM`) ride each statement for the
   InstrumentedExecutor's `eshu_dp_neo4j_query_duration_seconds` /

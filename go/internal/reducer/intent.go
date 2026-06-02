@@ -233,24 +233,27 @@ const (
 	// sts:AssumeRole is deferred to the separate CAN_ASSUME trust edge. It is
 	// security-sensitive and conservative by design (issue #1134 PR3).
 	DomainIAMEscalationMaterialization Domain = "iam_escalation_materialization"
-	// DomainIAMCanPerformMaterialization projects merged aws_iam_permission facts
-	// into the IAM CAN_PERFORM effective-permission graph: each scanned principal
-	// whose trusted-Allow identity statement grants a closed-catalog sensitive
-	// action (Allow, unconditioned, no NotAction/NotResource, not Deny-blocked) on a
-	// resource ARN that resolves to EXACTLY ONE scanned CloudResource node of the
-	// catalog-expected type becomes one CAN_PERFORM edge carrying the granted action
-	// set as an edge property and evaluation_scope=identity_policy_only. It is
+	// DomainIAMCanPerformMaterialization projects merged aws_iam_permission and
+	// aws_resource_policy_permission facts into the IAM CAN_PERFORM
+	// effective-permission graph: each scanned principal whose trusted-Allow
+	// identity statement or exact resource-policy grantee grants a closed-catalog
+	// sensitive action (Allow, unconditioned, no NotAction/NotResource, not
+	// Deny-blocked) on a resource ARN that resolves to EXACTLY ONE scanned
+	// CloudResource node of the catalog-expected type becomes one CAN_PERFORM edge
+	// carrying the granted action set, grant_sources, and evaluation_scope as edge
+	// properties. It is
 	// EDGE-ONLY on the existing cloud_resource_uid keyspace (both endpoints are
 	// CloudResource nodes #805 materializes); no new node type. It gates on the
 	// GraphProjectionKeyspaceCloudResourceUID /
 	// GraphProjectionPhaseCanonicalNodesCommitted phase so an edge never resolves
 	// against a node that has not committed. Uncatalogued actions, wildcard/many
-	// resources, Deny, condition-gated, NotAction, unresolved/cross-account, and
-	// self-loops materialize no edge and are counted, never dropped silently. The
-	// honesty boundary is explicit: a PRESENT edge means an identity policy grants
-	// the action ignoring resource-policy/boundary/SCP/condition restrictions; a
-	// MISSING edge does NOT mean "cannot perform." It is security-sensitive and
-	// conservative by design (issue #1134 PR4a).
+	// resources, public or unscanned principals, Deny, condition-gated, NotAction,
+	// unresolved/cross-account, and self-loops materialize no edge and are counted,
+	// never dropped silently. The honesty boundary is explicit: a PRESENT edge
+	// means an identity policy, resource policy, or both grants the action while
+	// permission boundaries, SCPs, condition values, and session policies remain
+	// outside this slice; a MISSING edge does NOT mean "cannot perform." It is
+	// security-sensitive and conservative by design (issue #1134 PR4a/PR4b).
 	DomainIAMCanPerformMaterialization Domain = "iam_can_perform_materialization"
 	// DomainS3LogsToMaterialization projects s3_bucket_posture
 	// logging_target_bucket fields into canonical LOGS_TO edges between the S3

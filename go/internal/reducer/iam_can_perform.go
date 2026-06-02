@@ -74,6 +74,7 @@ type IAMCanPerformResult struct {
 // catalog actions reaching the same resource converge on one idempotent edge.
 type iamCanPerformEdgeAccumulator struct {
 	actions map[string]struct{}
+	sources map[string]struct{}
 	mode    string
 }
 
@@ -82,20 +83,25 @@ type iamCanPerformEdgeAccumulator struct {
 // CAN_PERFORM edge for every (principal, resource) pair where a catalog action is
 // granted (Allow, unconditioned, no NotAction/NotResource, not Deny-touched) AND
 // the action's resource ARN resolves to EXACTLY ONE scanned CloudResource node of
-// the catalog-expected type. Wildcard / many / zero / Deny / conditioned /
-// NotAction / uncatalogued / self-loop all degrade to a counted skip, never an
-// edge, and it never fabricates a node (graceful degradation).
+// the catalog-expected type. It also evaluates resource-policy facts when the
+// grantee is an exact scanned IAM role/user and the statement Resource applies to
+// the attached resource. Wildcard / many / zero / public or unscanned principal /
+// Deny / conditioned / NotAction / uncatalogued / self-loop all degrade to a
+// counted skip, never an edge, and it never fabricates a node (graceful
+// degradation).
 //
 // Returned edge rows are deduplicated by (principal_uid, resource_uid) with merged
 // sorted actions and sorted deterministically so the batched write is stable
 // across retries and reprojections (idempotent). The honesty boundary is encoded
-// by the rel.evaluation_scope = identity_policy_only property the writer stamps.
+// by the rel.grant_sources and rel.evaluation_scope properties the writer stamps.
 func ExtractIAMCanPerformEdges(
 	resourceEnvelopes []facts.Envelope,
 	permissionEnvelopes []facts.Envelope,
+	resourcePolicyEnvelopeSets ...[]facts.Envelope,
 ) IAMCanPerformResult {
 	result := IAMCanPerformResult{EdgesByMode: make(map[string]int)}
-	if len(permissionEnvelopes) == 0 {
+	resourcePolicyEnvelopes := flattenResourcePolicyEnvelopeSets(resourcePolicyEnvelopeSets)
+	if len(permissionEnvelopes) == 0 && len(resourcePolicyEnvelopes) == 0 {
 		return result
 	}
 
@@ -132,14 +138,14 @@ func ExtractIAMCanPerformEdges(
 					result.Tally.skippedSelfLoop++
 					continue
 				}
-				key := edgeKey{principalUID: principal.principalUID, targetUID: resourceUID}
-				acc := edges[key]
-				if acc == nil {
-					acc = &iamCanPerformEdgeAccumulator{actions: make(map[string]struct{})}
-					edges[key] = acc
-				}
-				acc.actions[entry.Action] = struct{}{}
-				acc.mode = strongestCanPerformMode(acc.mode, mode)
+				addIAMCanPerformEdge(
+					edges,
+					principal.principalUID,
+					resourceUID,
+					entry.Action,
+					mode,
+					iamCanPerformGrantSourceIdentityPolicy,
+				)
 			case iamTargetAmbiguous:
 				result.Tally.skippedAmbiguous++
 			default:
@@ -148,6 +154,7 @@ func ExtractIAMCanPerformEdges(
 		}
 	}
 
+	addIAMCanPerformResourcePolicyEdges(index, resourcePolicyEnvelopes, catalog, edges, &result.Tally)
 	result.Edges = buildIAMCanPerformEdgeRows(edges, result.EdgesByMode)
 	return result
 }
@@ -219,6 +226,28 @@ func groupIAMCanPerformByPrincipal(
 	return principals
 }
 
+func addIAMCanPerformEdge(
+	edges map[edgeKey]*iamCanPerformEdgeAccumulator,
+	principalUID string,
+	resourceUID string,
+	action string,
+	mode string,
+	source string,
+) {
+	key := edgeKey{principalUID: principalUID, targetUID: resourceUID}
+	acc := edges[key]
+	if acc == nil {
+		acc = &iamCanPerformEdgeAccumulator{
+			actions: make(map[string]struct{}),
+			sources: make(map[string]struct{}),
+		}
+		edges[key] = acc
+	}
+	acc.actions[action] = struct{}{}
+	acc.sources[source] = struct{}{}
+	acc.mode = strongestCanPerformMode(acc.mode, mode)
+}
+
 // buildIAMCanPerformEdgeRows turns the merged per-edge accumulators into sorted,
 // byte-stable edge rows. Each row carries the merged sorted granted action set,
 // an action_count for cheap operator filtering, and the evaluation_scope honesty
@@ -235,13 +264,15 @@ func buildIAMCanPerformEdgeRows(
 	rows := make([]map[string]any, 0, len(edges))
 	for key, acc := range edges {
 		actions := sortedCanPerformActions(acc.actions)
+		grantSources := sortedCanPerformStringSet(acc.sources)
 		modeCounts[acc.mode]++
 		rows = append(rows, map[string]any{
 			"principal_uid":    key.principalUID,
 			"resource_uid":     key.targetUID,
 			"actions":          actions,
 			"action_count":     len(actions),
-			"evaluation_scope": iamCanPerformEvaluationScope,
+			"evaluation_scope": iamCanPerformEvaluationScopeForSources(grantSources),
+			"grant_sources":    grantSources,
 		})
 	}
 	sort.Slice(rows, func(a, b int) bool {
@@ -250,6 +281,27 @@ func buildIAMCanPerformEdgeRows(
 		return left < right
 	})
 	return rows
+}
+
+func iamCanPerformEvaluationScopeForSources(sources []string) string {
+	hasIdentity := false
+	hasResource := false
+	for _, source := range sources {
+		switch source {
+		case iamCanPerformGrantSourceIdentityPolicy:
+			hasIdentity = true
+		case iamCanPerformGrantSourceResourcePolicy:
+			hasResource = true
+		}
+	}
+	switch {
+	case hasIdentity && hasResource:
+		return iamCanPerformEvaluationScopeIdentityAndResourcePolicy
+	case hasResource:
+		return iamCanPerformEvaluationScopeResourcePolicyOnly
+	default:
+		return iamCanPerformEvaluationScopeIdentityPolicyOnly
+	}
 }
 
 // strongestCanPerformMode keeps the most confident resolution mode for an edge
