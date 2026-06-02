@@ -27,7 +27,7 @@ auth fields even when the backend does not enforce auth.
 NornicDB Deployment, Service, and optional PVC.
 
 Key defaults: image repository `timothyswt/nornicdb-cpu-bge`, image tag
-`v1.1.2@sha256:b4babec00f1fe2f0dec2fddc5bc90aa20e7d69e35172a27a58cc00d32b606b63`,
+`v1.1.3@sha256:42af69852ae0f34a905a0877668025d53b3783bb864549810d868e1bf94f3752`,
 persistence enabled with `500Gi`, no server auth, async writes off, Heimdall
 off, Qdrant gRPC off, embeddings off, BM25 and vector indexes disabled,
 BM25/vector warming set to `lazy`, search index persistence off, and

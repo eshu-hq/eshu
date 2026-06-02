@@ -98,34 +98,36 @@ the canonical graph must record startup, memory, artifact-size, document-count,
 vector-count, and failure-mode evidence before changing defaults.
 
 No-Regression Evidence: Compose pins
-`timothyswt/nornicdb-cpu-bge:v1.1.2@sha256:b4babec00f1fe2f0dec2fddc5bc90aa20e7d69e35172a27a58cc00d32b606b63`.
-`docker buildx imagetools inspect timothyswt/nornicdb-cpu-bge:v1.1.2` resolves
+`timothyswt/nornicdb-cpu-bge:v1.1.3@sha256:42af69852ae0f34a905a0877668025d53b3783bb864549810d868e1bf94f3752`.
+`docker buildx imagetools inspect timothyswt/nornicdb-cpu-bge:v1.1.3` resolves
 the pinned manifest list with linux/amd64 and linux/arm64 entries. NornicDB
-release `v1.1.2` documents per-database BM25 and vector index master switches.
-Runtime build metadata in this image still reports `version=1.1.1`,
-`commit=dev`, and `build_time=unknown` in startup logs and `/admin/stats`;
-operator version checks should anchor on the pinned image tag, manifest digest,
-and behavior smoke until the upstream image metadata is corrected.
+introduced the per-database BM25 and vector index master switches in release
+`v1.1.2`; Eshu relies on those graph-only controls while pinning the newer
+available Docker Hub image `v1.1.3`.
+The GitHub `v1.1.4` release exists, but
+`docker buildx imagetools inspect timothyswt/nornicdb-cpu-bge:v1.1.4` returned
+`not found` during this update. Eshu remains pinned to the latest available
+multi-arch Docker Hub manifest instead of a GitHub release tag that is not
+published at the expected image repository.
 
-Graph-only Controls Smoke, 2026-06-02:
+Graph-only Controls Smoke, 2026-06-02 v1.1.3 refresh:
 
 - Command shape:
-  `NEO4J_HTTP_PORT=17474 NEO4J_BOLT_PORT=17687 docker compose -p eshu1262search up -d nornicdb`.
-- Clean-volume startup reached `/health` in 7s with response
+  `NEO4J_HTTP_PORT=17483 NEO4J_BOLT_PORT=17693 docker compose -p eshu430v113 up -d nornicdb`.
+- Clean-volume startup reached `/health` in 1s after the container was started,
+  with response
   `{"status":"healthy"}`.
-- Preserved-volume restart reached `/health` in 6s.
 - Disabled search returned HTTP 503 with
   `request_status=search_disabled_for_database`, `retryable=false`,
   `bm25_enabled=false`, and `vector_enabled=false`.
 - `/admin/stats` returned HTTP 200 with `node_count=0`, `edge_count=0`, and
-  per-database `nornic.node_count=0`.
+  per-database `nornic.node_count=0`; server metadata reported
+  `version=1.1.3`, `commit=dev`, and `build_time=unknown`.
 - `/nornicdb/embed/stats` returned HTTP 200 with `enabled=false`,
   `total_embeddings=0`, and `pending_nodes=0`.
-- Clean-volume runtime sample: 35.54MiB container memory, `/data` total 52 KiB.
-- Preserved-volume runtime sample: 29.98MiB container memory, `/data` total
-  56 KiB.
+- Clean-volume runtime sample: 42.94MiB container memory, `/data` total 52 KiB.
 - Failure class: none; the isolated Compose project was removed with
-  `docker compose -p eshu1262search down -v --remove-orphans`.
+  `docker compose -p eshu430v113 down -v --remove-orphans`.
 
 Observability Evidence: NornicDB logs expose `BuildIndexes progress` with
 phase and processed-node counts. Eshu graph schema bootstrap logs each graph

@@ -44,9 +44,11 @@ For NornicDB deployments, the canonical graph lane should not build BM25 or
 vector indexes over every graph node and property unless a specific proof says
 that deployment also serves a curated Eshu search lane from the same database.
 
-Eshu pins NornicDB `v1.1.2` for Compose graph startup because that release
-ships the per-database BM25/vector enable and warming controls described in
-[orneryd/NornicDB#177](https://github.com/orneryd/NornicDB/pull/177).
+Eshu pins NornicDB `v1.1.3` for Compose graph startup because v1.1.2 shipped
+the per-database BM25/vector enable and warming controls described in
+[orneryd/NornicDB#177](https://github.com/orneryd/NornicDB/pull/177), and
+v1.1.3 is the newest available multi-arch Docker Hub manifest for the
+`nornicdb-cpu-bge` image line.
 The canonical graph lane uses this graph-only policy:
 
 - `NORNICDB_SEARCH_BM25_ENABLED=false`;
