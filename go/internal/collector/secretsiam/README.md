@@ -40,6 +40,9 @@ See `doc.go` for the godoc contract.
   build Vault metadata source facts in the same schema.
 - Observation structs define the metadata-only inputs accepted by those
   builders.
+- `WebIdentitySubjectFingerprint` builds the redaction-safe join fingerprint
+  used by EKS IRSA source facts and AWS IAM trust-policy source facts. Raw
+  `system:serviceaccount:<namespace>:<name>` subjects stay out of payloads.
 
 ## Dependencies
 
@@ -82,7 +85,8 @@ introduced by this package. The Vault slice is source-fact construction only.
   AWS cloud collector envelope helpers for these facts.
 - Policy payloads carry condition keys only. Raw policy JSON, statement bodies,
   condition values, AWS credentials, and session tokens stay outside the fact
-  contract.
+  contract. The only condition-derived value this package permits is the
+  deterministic web-identity subject fingerprint required for exact IRSA joins.
 - Kubernetes payloads carry fingerprints and bounded metadata only. Raw
   ServiceAccount names, namespaces, RBAC subject names, Secret names,
   resourceVersions, projected tokens, and RBAC resource-name or non-resource-URL
@@ -91,7 +95,10 @@ introduced by this package. The Vault slice is source-fact construction only.
   only. Raw KV paths, key names, custom metadata keys or values, Vault policy
   bodies, Vault policy names, auth role names, mount accessors, entity IDs,
   alias names, Vault tokens, AppRole secret IDs, private URLs, and warning
-  messages stay outside the fact contract.
+  messages stay outside the fact contract. Vault Kubernetes auth roles emit
+  `bound_service_account_join_keys` only when both namespace/name selectors are
+  exact and the Kubernetes cluster ID is known; wildcard selectors remain broad
+  posture evidence.
 - Stable keys for principal, policy, trust, attachment, boundary, instance
   profile, OIDC provider, analyzer-finding, Kubernetes ServiceAccount, RBAC,
   workload-identity, IRSA, EKS Pod Identity, Vault mount, Vault auth role, Vault

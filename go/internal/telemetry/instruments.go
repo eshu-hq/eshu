@@ -127,6 +127,16 @@ type Instruments struct {
 	ContainerImageIdentityDecisions           metric.Int64Counter
 	CICDRunCorrelations                       metric.Int64Counter
 	ServiceCatalogCorrelations                metric.Int64Counter
+	// SecretsIAMReducerTrustChains counts reducer-owned secrets/IAM
+	// workload-to-identity read-model chains by result and confidence. Labels
+	// stay bounded; raw IAM role ARNs, ServiceAccount names, Vault role names,
+	// and Vault paths stay out of metrics.
+	SecretsIAMReducerTrustChains metric.Int64Counter
+	// SecretsIAMPostureObservations counts reducer-owned secrets/IAM posture
+	// observations such as broad web-identity trust by bounded risk type and
+	// severity. It is the 3 AM signal for why exact chains are not being
+	// admitted.
+	SecretsIAMPostureObservations metric.Int64Counter
 	// ObservabilityCoverageCorrelations counts reducer-owned observability
 	// coverage correlation decisions (issue #391). Labels: domain
 	// (observability_coverage_correlation), outcome (exact / derived / ambiguous /
@@ -1308,6 +1318,22 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register ServiceCatalogCorrelations counter: %w", err)
+	}
+
+	inst.SecretsIAMReducerTrustChains, err = meter.Int64Counter(
+		"eshu_dp_secrets_iam_reducer_trust_chains_total",
+		metric.WithDescription("Total secrets/IAM trust-chain read-model decisions by result and confidence"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register SecretsIAMReducerTrustChains counter: %w", err)
+	}
+
+	inst.SecretsIAMPostureObservations, err = meter.Int64Counter(
+		"eshu_dp_secrets_iam_posture_observations_total",
+		metric.WithDescription("Total secrets/IAM privilege posture observations by risk type and severity"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register SecretsIAMPostureObservations counter: %w", err)
 	}
 
 	inst.ObservabilityCoverageCorrelations, err = meter.Int64Counter(
@@ -2945,6 +2971,21 @@ func AttrOutcome(v string) attribute.KeyValue {
 // AttrBackendKind returns a backend_kind attribute for metric recording.
 func AttrBackendKind(v string) attribute.KeyValue {
 	return attribute.String(MetricDimensionBackendKind, v)
+}
+
+// AttrConfidence returns a confidence attribute for reducer read-model metrics.
+func AttrConfidence(v string) attribute.KeyValue {
+	return attribute.String(MetricDimensionConfidence, v)
+}
+
+// AttrRiskType returns a risk_type attribute for posture-observation metrics.
+func AttrRiskType(v string) attribute.KeyValue {
+	return attribute.String(MetricDimensionRiskType, v)
+}
+
+// AttrSeverity returns a severity attribute for posture-observation metrics.
+func AttrSeverity(v string) attribute.KeyValue {
+	return attribute.String(MetricDimensionSeverity, v)
 }
 
 // AttrResult returns a result attribute for metric recording.

@@ -103,6 +103,15 @@ func appendAdditiveDomainDefinitions(definitions []DomainDefinition, handlers De
 		}
 		definitions = append(definitions, securityAlerts)
 	}
+	if handlers.SecretsIAMTrustChainEvidenceLoader != nil && handlers.SecretsIAMTrustChainWriter != nil {
+		secretsIAM := secretsIAMTrustChainDomainDefinition()
+		secretsIAM.Handler = SecretsIAMTrustChainHandler{
+			EvidenceLoader: handlers.SecretsIAMTrustChainEvidenceLoader,
+			Writer:         handlers.SecretsIAMTrustChainWriter,
+			Instruments:    handlers.Instruments,
+		}
+		definitions = append(definitions, secretsIAM)
+	}
 	if handlers.AWSCloudRuntimeDriftEvidenceLoader != nil &&
 		handlers.AWSCloudRuntimeDriftWriter != nil {
 		awsRuntimeDrift := awsCloudRuntimeDriftDomainDefinition()

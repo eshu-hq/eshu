@@ -161,6 +161,8 @@ gauge when a shared-acceptance observer is available.
 | `ContainerImageIdentityDecisions` | `eshu_dp_container_image_identity_decisions_total` |
 | `CICDRunCorrelations` | `eshu_dp_ci_cd_run_correlations_total` |
 | `ServiceCatalogCorrelations` | `eshu_dp_service_catalog_correlations_total` |
+| `SecretsIAMReducerTrustChains` | `eshu_dp_secrets_iam_reducer_trust_chains_total` (labels: bounded `result`, `confidence`) |
+| `SecretsIAMPostureObservations` | `eshu_dp_secrets_iam_posture_observations_total` (labels: bounded `risk_type`, `severity`) |
 | `SBOMAttestationAttachments` | `eshu_dp_sbom_attestation_attachments_total` |
 | `SupplyChainImpactFindings` | `eshu_dp_supply_chain_impact_findings_total` |
 | `SupplyChainSuppressionDecisions` | `eshu_dp_supply_chain_suppression_decisions_total` (per-finding VEX/operator-policy suppression outcomes, labels: `domain`, `outcome` in active/not_affected/accepted_risk/false_positive/ignored/expired/provider_dismissed/scope_mismatch) |

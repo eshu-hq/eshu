@@ -50,6 +50,7 @@ type VaultAuthRoleObservation struct {
 	MountPath                     string
 	RoleName                      string
 	AuthMethod                    string
+	KubernetesClusterID           string
 	BoundServiceAccountNames      []string
 	BoundServiceAccountNamespaces []string
 	TokenPolicyNames              []string

@@ -23,24 +23,33 @@ const (
 // Metric dimension keys define the stable labels used by the Go data-plane
 // telemetry contract.
 const (
-	MetricDimensionScopeID        = "scope_id"
-	MetricDimensionScopeKind      = "scope_kind"
-	MetricDimensionSource         = "source"
-	MetricDimensionSourceSystem   = "source_system"
-	MetricDimensionGenerationID   = "generation_id"
-	MetricDimensionCollectorKind  = "collector_kind"
-	MetricDimensionDomain         = "domain"
-	MetricDimensionPartitionKey   = "partition_key"
-	MetricDimensionRunner         = "runner"
-	MetricDimensionLookupResult   = "lookup_result"
-	MetricDimensionErrorType      = "error_type"
-	MetricDimensionRepoSizeTier   = "repo_size_tier"
-	MetricDimensionSkipReason     = "skip_reason"
-	MetricDimensionNodeType       = "node_type"
-	MetricDimensionEdgeType       = "edge_type"
-	MetricDimensionWritePhase     = "write_phase"
-	MetricDimensionOutcome        = "outcome"
-	MetricDimensionBackendKind    = "backend_kind"
+	MetricDimensionScopeID       = "scope_id"
+	MetricDimensionScopeKind     = "scope_kind"
+	MetricDimensionSource        = "source"
+	MetricDimensionSourceSystem  = "source_system"
+	MetricDimensionGenerationID  = "generation_id"
+	MetricDimensionCollectorKind = "collector_kind"
+	MetricDimensionDomain        = "domain"
+	MetricDimensionPartitionKey  = "partition_key"
+	MetricDimensionRunner        = "runner"
+	MetricDimensionLookupResult  = "lookup_result"
+	MetricDimensionErrorType     = "error_type"
+	MetricDimensionRepoSizeTier  = "repo_size_tier"
+	MetricDimensionSkipReason    = "skip_reason"
+	MetricDimensionNodeType      = "node_type"
+	MetricDimensionEdgeType      = "edge_type"
+	MetricDimensionWritePhase    = "write_phase"
+	MetricDimensionOutcome       = "outcome"
+	MetricDimensionBackendKind   = "backend_kind"
+	// MetricDimensionConfidence labels reducer read-model metrics with a closed
+	// confidence enum such as exact, partial, or unknown.
+	MetricDimensionConfidence = "confidence"
+	// MetricDimensionRiskType labels posture-observation metrics with bounded
+	// risk classes, never raw principal, role, path, or policy identifiers.
+	MetricDimensionRiskType = "risk_type"
+	// MetricDimensionSeverity labels posture-observation metrics with bounded
+	// operator severity classes.
+	MetricDimensionSeverity       = "severity"
 	MetricDimensionResult         = "result"
 	MetricDimensionReason         = "reason"
 	MetricDimensionKind           = "kind"

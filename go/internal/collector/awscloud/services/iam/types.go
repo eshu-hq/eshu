@@ -63,6 +63,12 @@ type PolicyStatement struct {
 	// AssumePrincipals lists the principals a trust statement grants assume-role
 	// to. It is only set when Source is PolicySourceTrust.
 	AssumePrincipals []string
+	// WebIdentitySubjectFingerprints carries redaction-safe fingerprints for
+	// exact Kubernetes IRSA sub conditions on trust statements.
+	WebIdentitySubjectFingerprints []string
+	// WebIdentitySubjectWildcard marks broad or globbed web-identity subject
+	// conditions that must remain posture evidence and never prove exact trust.
+	WebIdentitySubjectWildcard bool
 }
 
 // Policy is the scanner-owned representation of an IAM managed policy.

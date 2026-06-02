@@ -381,6 +381,10 @@ func buildReducerService(
 		PackageCorrelationWriter: reducer.PostgresPackageCorrelationWriter{
 			DB: database,
 		},
+		SecretsIAMTrustChainEvidenceLoader: factStore,
+		SecretsIAMTrustChainWriter: reducer.PostgresSecretsIAMTrustChainWriter{
+			DB: database,
+		},
 		IncidentRoutingEvidenceLoader: factStore,
 		IncidentRoutingEvidenceWriter: incidentRoutingEvidenceWriter,
 	})

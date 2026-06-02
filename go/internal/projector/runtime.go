@@ -382,6 +382,9 @@ func buildProjection(scopeValue scope.IngestionScope, generation scope.ScopeGene
 		if err := validateObservabilitySchemaVersion(fact); err != nil {
 			return projection{}, err
 		}
+		if err := validateSecretsIAMSchemaVersion(fact); err != nil {
+			return projection{}, err
+		}
 
 		if record, ok := buildContentRecord(fact); ok {
 			contentMaterialization.Records = append(contentMaterialization.Records, record)
@@ -454,6 +457,9 @@ func buildProjection(scopeValue scope.IngestionScope, generation scope.ScopeGene
 		intents = append(intents, intent)
 	}
 	if intent, ok := buildServiceCatalogCorrelationReducerIntent(scopeValue, generation, inputFacts); ok {
+		intents = append(intents, intent)
+	}
+	if intent, ok := buildSecretsIAMTrustChainReducerIntent(scopeValue, generation, inputFacts); ok {
 		intents = append(intents, intent)
 	}
 	if intent, ok := buildSupplyChainImpactReducerIntent(scopeValue, generation, inputFacts); ok {
