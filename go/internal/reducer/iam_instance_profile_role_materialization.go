@@ -174,7 +174,7 @@ func (h IAMInstanceProfileRoleMaterializationHandler) Handle(
 		Domain:   DomainIAMInstanceProfileRoleMaterialization,
 		Status:   ResultStatusSucceeded,
 		EvidenceSummary: fmt.Sprintf(
-			"materialized %d HAS_ROLE edge(s) from %d aws resource fact(s); %d profile role(s) skipped (source/target unscanned)",
+			"materialized %d HAS_ROLE edge(s) from %d aws resource fact(s); %d profile role(s) skipped (missing profile identity or unscanned target role)",
 			len(rows),
 			len(envelopes),
 			tally.totalSkipped(),
