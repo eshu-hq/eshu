@@ -104,6 +104,33 @@ WITH candidate AS (
             AND aws_nodes.keyspace = 'cloud_resource_uid'
             AND aws_nodes.phase = 'canonical_nodes_committed'
       ))
+      -- The EC2 USES_PROFILE edge (#1146 PR-B) gates on TWO node families published
+      -- under DIFFERENT entity keys for the same scope/generation: the EC2 instance
+      -- source node (ec2_instance_node_materialization:<scope>, #1146 PR-A) and the
+      -- IAM instance-profile target node (aws_resource_materialization:<scope>,
+      -- #805). A single payload->>'entity_key' match cannot express a two-key
+      -- requirement, so the gate requires both literal-prefix entity keys derived
+      -- from scope_id. Keep the edge domain pending until BOTH node phases commit.
+      AND (domain <> 'ec2_uses_profile_materialization' OR (
+          EXISTS (
+              SELECT 1 FROM graph_projection_phase_state AS ec2_uses_profile_instance_node
+              WHERE ec2_uses_profile_instance_node.scope_id = fact_work_items.scope_id
+                AND ec2_uses_profile_instance_node.acceptance_unit_id = 'ec2_instance_node_materialization:' || fact_work_items.scope_id
+                AND ec2_uses_profile_instance_node.source_run_id = fact_work_items.generation_id
+                AND ec2_uses_profile_instance_node.generation_id = fact_work_items.generation_id
+                AND ec2_uses_profile_instance_node.keyspace = 'cloud_resource_uid'
+                AND ec2_uses_profile_instance_node.phase = 'canonical_nodes_committed'
+          )
+          AND EXISTS (
+              SELECT 1 FROM graph_projection_phase_state AS ec2_uses_profile_profile_node
+              WHERE ec2_uses_profile_profile_node.scope_id = fact_work_items.scope_id
+                AND ec2_uses_profile_profile_node.acceptance_unit_id = 'aws_resource_materialization:' || fact_work_items.scope_id
+                AND ec2_uses_profile_profile_node.source_run_id = fact_work_items.generation_id
+                AND ec2_uses_profile_profile_node.generation_id = fact_work_items.generation_id
+                AND ec2_uses_profile_profile_node.keyspace = 'cloud_resource_uid'
+                AND ec2_uses_profile_profile_node.phase = 'canonical_nodes_committed'
+          )
+      ))
       -- The live-workload RUNS_IMAGE edge consumes KubernetesWorkload nodes
       -- produced by the kubernetes_workload_materialization domain for the exact
       -- same scope/generation/entity-key readiness slice, but on the
@@ -197,6 +224,29 @@ WITH candidate AS (
                   AND same_kube_nodes.generation_id = same.generation_id
                   AND same_kube_nodes.keyspace = 'kubernetes_workload_uid'
                   AND same_kube_nodes.phase = 'canonical_nodes_committed'
+            ))
+            -- The EC2 USES_PROFILE edge must also pass its dual-key node-phase gate
+            -- before it can be the per-conflict-key representative of a batch claim,
+            -- or the batch could pick a row whose endpoints have not committed.
+            AND (same.domain <> 'ec2_uses_profile_materialization' OR (
+                EXISTS (
+                    SELECT 1 FROM graph_projection_phase_state AS same_ec2_uses_profile_instance_node
+                    WHERE same_ec2_uses_profile_instance_node.scope_id = same.scope_id
+                      AND same_ec2_uses_profile_instance_node.acceptance_unit_id = 'ec2_instance_node_materialization:' || same.scope_id
+                      AND same_ec2_uses_profile_instance_node.source_run_id = same.generation_id
+                      AND same_ec2_uses_profile_instance_node.generation_id = same.generation_id
+                      AND same_ec2_uses_profile_instance_node.keyspace = 'cloud_resource_uid'
+                      AND same_ec2_uses_profile_instance_node.phase = 'canonical_nodes_committed'
+                )
+                AND EXISTS (
+                    SELECT 1 FROM graph_projection_phase_state AS same_ec2_uses_profile_profile_node
+                    WHERE same_ec2_uses_profile_profile_node.scope_id = same.scope_id
+                      AND same_ec2_uses_profile_profile_node.acceptance_unit_id = 'aws_resource_materialization:' || same.scope_id
+                      AND same_ec2_uses_profile_profile_node.source_run_id = same.generation_id
+                      AND same_ec2_uses_profile_profile_node.generation_id = same.generation_id
+                      AND same_ec2_uses_profile_profile_node.keyspace = 'cloud_resource_uid'
+                      AND same_ec2_uses_profile_profile_node.phase = 'canonical_nodes_committed'
+                )
             ))
             AND (same.domain <> 'security_group_reachability_materialization' OR (
                 EXISTS (

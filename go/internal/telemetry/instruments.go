@@ -317,6 +317,25 @@ type Instruments struct {
 	// dropped facts. A blank logging_target_bucket (logging disabled) is NOT
 	// counted here — it is the normal no-edge state.
 	S3LogsToSkipped metric.Int64Counter
+	// EC2UsesProfileEdges counts EC2 USES_PROFILE instance-profile edge projection
+	// outcomes (issue #1146 PR-B). Label: resolution_mode (arn — the only
+	// resolution path, exact instance-profile ARN equality against the in-memory
+	// join index). It counts only materialized edges; cross-account, out-of-scope,
+	// and unscanned profiles never produce an edge and are surfaced by
+	// EC2UsesProfileSkipped and the "ec2 uses-profile materialization completed"
+	// completion log instead. Lets an operator answer "are USES_PROFILE edges
+	// landing, and did a generation produce zero?" at 3 AM.
+	EC2UsesProfileEdges metric.Int64Counter
+	// EC2UsesProfileSkipped counts ec2_instance_posture facts that named an
+	// instance profile but produced no USES_PROFILE edge. Label: skip_reason
+	// (source_unresolved — the posture fact carried no instance identity;
+	// target_unresolved — the named instance profile was not scanned in this scope,
+	// e.g. a cross-account profile). It is the bounded, honest graceful-degradation
+	// surface: a rising target_unresolved rate means USES_PROFILE edges are missing
+	// because the profile's account has not been scanned, not because the reducer
+	// silently dropped facts. A blank instance_profile_arn (no attached profile) is
+	// NOT counted here — it is the normal no-edge state.
+	EC2UsesProfileSkipped metric.Int64Counter
 	// AWSScanStatusStaleFence counts AWS scan-status rejections caused by a
 	// stale fencing token, labeled by service, account, region, and the
 	// operation (start, observe, commit) that was rejected. Operators read
@@ -1575,6 +1594,22 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register S3LogsToSkipped counter: %w", err)
+	}
+
+	inst.EC2UsesProfileEdges, err = meter.Int64Counter(
+		"eshu_dp_ec2_uses_profile_edges_total",
+		metric.WithDescription("Total EC2 USES_PROFILE instance-profile edge projection outcomes by resolution_mode (arn)"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register EC2UsesProfileEdges counter: %w", err)
+	}
+
+	inst.EC2UsesProfileSkipped, err = meter.Int64Counter(
+		"eshu_dp_ec2_uses_profile_skipped_total",
+		metric.WithDescription("Total ec2_instance_posture facts that named an instance profile but produced no USES_PROFILE edge, by skip_reason (source_unresolved/target_unresolved)"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register EC2UsesProfileSkipped counter: %w", err)
 	}
 
 	inst.CorrelationUnmanagedDetected, err = meter.Int64Counter(
