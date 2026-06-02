@@ -27,6 +27,19 @@ const (
 	// condition values. PR1 emits this fact; the reducer graph projection that
 	// consumes it ships separately under principal review (issue #1134).
 	AWSIAMPermissionFactKind = "aws_iam_permission"
+	// AWSResourcePolicyPermissionFactKind identifies one derived
+	// resource-based-policy permission statement.
+	//
+	// It is the resource-side analog of aws_iam_permission: the normalized,
+	// metadata-only projection of a single statement from a resource policy
+	// attached to an AWS resource (an S3 bucket policy or a KMS key policy). It
+	// captures the attached resource identity, the statement effect, the
+	// normalized action/resource patterns, a condition-key summary, and the
+	// derived grantee principal facts (principal account ids, principal types,
+	// public/anonymous, cross-account). It NEVER carries the raw policy JSON
+	// body, statement Sid/bodies, or condition values. PR4b of #1134 emits this
+	// fact; the resource-policy-aware CAN_PERFORM reducer follow-up consumes it.
+	AWSResourcePolicyPermissionFactKind = "aws_resource_policy_permission"
 	// AWSWarningFactKind identifies one non-fatal AWS scanner warning.
 	AWSWarningFactKind = "aws_warning"
 
@@ -45,6 +58,9 @@ const (
 	AWSSecurityGroupRuleSchemaVersion = "1.0.0"
 	// AWSIAMPermissionSchemaVersion is the first derived IAM permission schema.
 	AWSIAMPermissionSchemaVersion = "1.0.0"
+	// AWSResourcePolicyPermissionSchemaVersion is the first derived
+	// resource-policy permission schema.
+	AWSResourcePolicyPermissionSchemaVersion = "1.0.0"
 	// AWSWarningSchemaVersion is the first AWS warning fact schema.
 	AWSWarningSchemaVersion = "1.0.0"
 )
@@ -57,18 +73,20 @@ var awsFactKinds = []string{
 	AWSImageReferenceFactKind,
 	AWSSecurityGroupRuleFactKind,
 	AWSIAMPermissionFactKind,
+	AWSResourcePolicyPermissionFactKind,
 	AWSWarningFactKind,
 }
 
 var awsSchemaVersions = map[string]string{
-	AWSResourceFactKind:          AWSResourceSchemaVersion,
-	AWSRelationshipFactKind:      AWSRelationshipSchemaVersion,
-	AWSTagObservationFactKind:    AWSTagObservationSchemaVersion,
-	AWSDNSRecordFactKind:         AWSDNSRecordSchemaVersion,
-	AWSImageReferenceFactKind:    AWSImageReferenceSchemaVersion,
-	AWSSecurityGroupRuleFactKind: AWSSecurityGroupRuleSchemaVersion,
-	AWSIAMPermissionFactKind:     AWSIAMPermissionSchemaVersion,
-	AWSWarningFactKind:           AWSWarningSchemaVersion,
+	AWSResourceFactKind:                 AWSResourceSchemaVersion,
+	AWSRelationshipFactKind:             AWSRelationshipSchemaVersion,
+	AWSTagObservationFactKind:           AWSTagObservationSchemaVersion,
+	AWSDNSRecordFactKind:                AWSDNSRecordSchemaVersion,
+	AWSImageReferenceFactKind:           AWSImageReferenceSchemaVersion,
+	AWSSecurityGroupRuleFactKind:        AWSSecurityGroupRuleSchemaVersion,
+	AWSIAMPermissionFactKind:            AWSIAMPermissionSchemaVersion,
+	AWSResourcePolicyPermissionFactKind: AWSResourcePolicyPermissionSchemaVersion,
+	AWSWarningFactKind:                  AWSWarningSchemaVersion,
 }
 
 // AWSFactKinds returns the accepted AWS fact kinds in their emission order.

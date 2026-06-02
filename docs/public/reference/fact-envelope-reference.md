@@ -62,7 +62,7 @@ current families are:
 | --- | --- | --- |
 | Documentation | `documentation` | `documentation_source`, `documentation_document`, `documentation_section`, `documentation_link`, `documentation_entity_mention`, `documentation_claim_candidate`, `documentation_finding`, `documentation_evidence_packet` |
 | Terraform state | `terraform_state` for collected state, `git` for safe repo-local candidates | `terraform_state_candidate`, `terraform_state_snapshot`, `terraform_state_resource`, `terraform_state_output`, `terraform_state_module`, `terraform_state_provider_binding`, `terraform_state_tag_observation`, `terraform_state_warning` |
-| AWS cloud | `aws` | `aws_resource`, `aws_relationship`, `aws_tag_observation`, `aws_dns_record`, `aws_image_reference`, `aws_security_group_rule`, `aws_iam_permission`, `aws_warning` |
+| AWS cloud | `aws` | `aws_resource`, `aws_relationship`, `aws_tag_observation`, `aws_dns_record`, `aws_image_reference`, `aws_security_group_rule`, `aws_iam_permission`, `aws_resource_policy_permission`, `aws_warning` |
 | Secrets/IAM posture | `secrets_iam_posture` | `aws_iam_principal`, `aws_iam_trust_policy`, `aws_iam_permission_policy`, `aws_iam_policy_attachment`, `aws_iam_permission_boundary`, `aws_iam_instance_profile`, `aws_iam_access_analyzer_finding`, `k8s_service_account`, `k8s_rbac_role`, `k8s_rbac_binding`, `k8s_workload_identity_use`, `k8s_service_account_token_posture`, `eks_irsa_annotation`, `eks_pod_identity_association`, `vault_auth_mount`, `vault_auth_role`, `vault_acl_policy`, `vault_identity_entity`, `vault_identity_alias`, `vault_kv_metadata`, `vault_secret_engine_mount`, `secrets_iam_coverage_warning` |
 | S3 bucket posture | `aws` | `s3_bucket_posture`, `s3_external_principal_grant` |
 | RDS posture | `aws` | `rds_instance_posture` |
@@ -173,6 +173,23 @@ server-access-log target bucket identity. It never carries raw bucket policy
 JSON, ACL grant bodies, object keys, or object contents. Reducers own LOGS_TO
 edge projection and the conservative exposed / not_exposed / unknown internet
 exposure node-property projection from this evidence.
+
+`aws_resource_policy_permission` is the resource-side analog of
+`aws_iam_permission`: one derived, metadata-only statement from a resource-based
+policy (an S3 bucket policy or KMS key policy) attached to the resource it
+controls. The payload carries the attached `resource_arn` / `resource_type`,
+`policy_source = "resource"`, the statement `effect`, the normalized
+`actions` / `not_actions` / `resources` / `not_resources` patterns, a
+condition-key NAME summary (`condition_keys`, `has_conditions`), the
+`is_wildcard_action` / `is_wildcard_resource` flags, and the derived grantee
+principal facts (`principal_account_ids`, `principal_arns`, `principal_types`,
+`is_public`, `is_cross_account`). It NEVER carries the raw policy JSON body, the
+statement Sid or body, or condition VALUES. A resource with no attached policy
+emits no fact. The S3 scanner derives it from the same transient
+`GetBucketPolicy` parse that feeds `s3_bucket_posture`; the KMS scanner reads the
+key policy with `GetKeyPolicy` (one bounded control-plane read per key policy
+name). It emits no graph edge; it is the facts foundation for
+resource-policy-aware CAN_PERFORM (a later reducer follow-up under issue #1134).
 
 `ec2_instance_posture` carries one metadata-only security and operations posture
 observation per EC2 instance, derived from the existing DescribeInstances pass:

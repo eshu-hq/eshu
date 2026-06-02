@@ -346,6 +346,7 @@ contract:
 - `aws_image_reference`
 - `aws_security_group_rule`
 - `aws_iam_permission`
+- `aws_resource_policy_permission`
 - `aws_warning`
 
 `aws_security_group_rule` is a derived posture fact: one normalized EC2
@@ -360,6 +361,21 @@ resource pattern, and a condition-key summary. It never carries the raw policy
 JSON body or condition values. PR1 emits this fact; the reducer graph
 projection that consumes it ships separately under principal review (issue
 #1134).
+
+`aws_resource_policy_permission` is the resource-side analog of
+`aws_iam_permission`: the derived, metadata-only projection of one statement
+from a resource-based policy (an S3 bucket policy or KMS key policy) attached to
+the resource it controls. It carries the attached `resource_arn` /
+`resource_type`, `policy_source = "resource"`, the statement effect, the
+normalized action/resource patterns (`actions`, `not_actions`, `resources`,
+`not_resources`), a condition-key NAME summary (`condition_keys`,
+`has_conditions`), the wildcard flags, and the derived grantee principal facts
+(`principal_account_ids`, `principal_arns`, `principal_types`, `is_public`,
+`is_cross_account`). It NEVER carries the raw policy JSON body, statement
+Sid/bodies, or condition values. A resource with no attached policy emits no
+fact. PR4b of #1134 emits this fact from the S3 and KMS scanners; it is the
+facts foundation for resource-policy-aware CAN_PERFORM (a later reducer
+follow-up).
 
 Use `AWSFactKinds` when callers need the full accepted set, and
 `AWSSchemaVersion` when building AWS cloud envelopes. These facts are reported

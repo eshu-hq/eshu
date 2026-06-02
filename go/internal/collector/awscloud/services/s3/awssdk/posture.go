@@ -81,17 +81,29 @@ func (c *Client) getBucketReplication(ctx context.Context, name string) (s3servi
 	}, nil
 }
 
+// bucketPolicyMetadata is the bounded, metadata-only projection the S3 adapter
+// derives from a transient bucket-policy parse. It carries the present flag, the
+// posture booleans, the external-principal grants, and the normalized
+// resource-policy permission statements. The raw policy document, statement
+// bodies, and condition values are never represented here.
+type bucketPolicyMetadata struct {
+	present          bool
+	public           *bool
+	crossAccount     *bool
+	grants           []s3service.ExternalPrincipalGrant
+	policyStatements []s3service.ResourcePolicyStatement
+}
+
 // getBucketPolicyMetadata reads the bucket policy document, derives posture
-// booleans plus bounded external-principal metadata from it, and discards the
-// raw document. The raw policy JSON never leaves this method: only derived
-// booleans, the present flag, and metadata-only principal observations are
-// returned. A missing policy is reported as present=false with nil booleans and
-// no grants. A malformed policy is surfaced to the caller rather than silently
-// emitting a wrong posture.
-func (c *Client) getBucketPolicyMetadata(
-	ctx context.Context,
-	name string,
-) (present bool, public *bool, crossAccount *bool, grants []s3service.ExternalPrincipalGrant, err error) {
+// booleans, bounded external-principal metadata, and normalized resource-policy
+// permission statements from it, and discards the raw document. The raw policy
+// JSON never leaves this method: only derived booleans, the present flag,
+// metadata-only principal observations, and normalized statement summaries (no
+// statement body, no condition values) are returned. A missing policy is
+// reported as present=false with nil booleans and no statements. A malformed
+// policy is surfaced to the caller rather than silently emitting a wrong
+// posture.
+func (c *Client) getBucketPolicyMetadata(ctx context.Context, name string) (bucketPolicyMetadata, error) {
 	var output *awss3.GetBucketPolicyOutput
 	callErr := c.recordAPICall(ctx, "GetBucketPolicy", func(callCtx context.Context) error {
 		var getErr error
@@ -106,19 +118,26 @@ func (c *Client) getBucketPolicyMetadata(
 		return getErr
 	})
 	if callErr != nil {
-		return false, nil, nil, nil, callErr
+		return bucketPolicyMetadata{}, callErr
 	}
 	if output == nil || aws.ToString(output.Policy) == "" {
-		return false, nil, nil, nil, nil
+		return bucketPolicyMetadata{}, nil
 	}
 	document := aws.ToString(output.Policy)
 	policyDocument, err := decodeBucketPolicyDocument(document)
 	if err != nil {
-		return false, nil, nil, nil, err
+		return bucketPolicyMetadata{}, err
 	}
-	public, crossAccount = bucketPolicyFlagsFromDocument(policyDocument, c.boundary.AccountID)
+	public, crossAccount := bucketPolicyFlagsFromDocument(policyDocument, c.boundary.AccountID)
 	derivedGrants := bucketPolicyExternalPrincipalGrantsFromDocument(policyDocument, c.boundary.AccountID)
-	return true, public, crossAccount, externalPrincipalGrants(derivedGrants), nil
+	statements := bucketPolicyResourcePermissionStatementsFromDocument(policyDocument, c.boundary.AccountID)
+	return bucketPolicyMetadata{
+		present:          true,
+		public:           public,
+		crossAccount:     crossAccount,
+		grants:           externalPrincipalGrants(derivedGrants),
+		policyStatements: statements,
+	}, nil
 }
 
 func externalPrincipalGrants(grants []principalGrant) []s3service.ExternalPrincipalGrant {

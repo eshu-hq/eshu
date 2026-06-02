@@ -14,10 +14,20 @@
 - Keep S3 API access behind `Client`; do not import the AWS SDK into this
   package.
 - Never read objects, list object keys, or mutate S3 buckets.
-- Never persist bucket policy JSON, policy statement bodies, policy actions,
-  policy resources, policy conditions, ACL grants, replication rules, lifecycle
-  rules, notification configuration, inventory configuration, analytics
-  configuration, or metrics configuration.
+- The scanner MAY emit the normalized, derived `aws_resource_policy_permission`
+  fact from the bucket policy: per statement, the effect, normalized
+  action/resource patterns, condition-key NAMES, and derived grantee facts
+  (principal account ids, principal ARNs, principal types, public, cross-account)
+  — the resource-side analog of `aws_iam_permission` (PR4b of #1134,
+  owner-approved). The `awssdk` adapter parses the policy transiently and hands
+  this package only the derived `Bucket.ResourcePolicyStatements`; this package
+  never sees the raw policy document.
+- Never persist the raw bucket policy JSON, policy statement bodies, statement
+  Sids, policy CONDITION VALUES, ACL grants, replication rules, lifecycle rules,
+  notification configuration, inventory configuration, analytics configuration,
+  or metrics configuration. Normalized/derived policy actions, resources, and
+  condition-key NAMES are allowed via `aws_resource_policy_permission`; raw
+  statement bodies and condition values are not.
 - Never persist website index or error document object keys.
 - Emit reported evidence only. Do not infer deployment, workload, repository
   ownership, or deployable-unit truth from bucket names or tags.
@@ -43,6 +53,14 @@
   AWS service, and unsupported-principal outcomes are reported evidence only.
   Unsupported principal facts keep the principal type key, not the raw
   identifier.
+- Extend `aws_resource_policy_permission` only with normalized/derived statement
+  metadata already derived on `Bucket.ResourcePolicyStatements` (effect,
+  normalized actions/resources, condition-key NAMES, principal account ids /
+  ARNs / types, public / cross-account). The derivation lives in the `awssdk`
+  adapter (`deriveBucketPolicyResourcePermissionStatements`); never add raw
+  statement bodies or condition values to the statement or the fact. This fact is
+  the facts foundation for resource-policy-aware CAN_PERFORM (a later reducer
+  follow-up); do not add a graph edge or reducer projection here.
 - Add new relationship evidence only when S3 reports both sides directly and
   the target identity is not sensitive.
 - Extend SDK pagination and optional-not-configured handling in the `awssdk`

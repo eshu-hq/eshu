@@ -95,6 +95,37 @@ type Key struct {
 	// carries identity and the bounded operation list; encryption contexts
 	// are excluded.
 	Grants []Grant
+	// ResourcePolicyStatements is a normalized, derived projection of the key
+	// policy's statements: one entry per statement carrying effect, normalized
+	// action/resource patterns, condition-key NAMES, and derived grantee
+	// principal facts. It is the resource-side analog of the IAM permission
+	// statement projection. The SDK adapter reads the key policy (GetKeyPolicy)
+	// transiently to derive these fields; the raw policy Statement body and
+	// condition VALUES are never represented here. It is empty for a key with no
+	// readable policy.
+	ResourcePolicyStatements []ResourcePolicyStatement
+}
+
+// ResourcePolicyStatement is one normalized, metadata-only statement derived by
+// the SDK adapter from a transient key-policy parse. It mirrors the IAM
+// permission statement shape: effect, normalized actions/resources, condition
+// key NAMES, and derived grantee-principal facts. The StatementSID is retained
+// only so the emitted fact's source-record id stays stable; it is never written
+// into the persisted payload. Condition VALUES, the raw statement body, and the
+// raw policy document are never represented here.
+type ResourcePolicyStatement struct {
+	StatementSID        string
+	Effect              string
+	Actions             []string
+	NotActions          []string
+	Resources           []string
+	NotResources        []string
+	ConditionKeys       []string
+	PrincipalAccountIDs []string
+	PrincipalARNs       []string
+	PrincipalTypes      []string
+	IsPublic            bool
+	IsCrossAccount      bool
 }
 
 // Alias is the scanner-owned representation of one KMS alias.

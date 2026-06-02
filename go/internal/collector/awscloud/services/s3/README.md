@@ -6,8 +6,10 @@
 for the AWS cloud collector. It converts bucket control-plane metadata into
 `aws_resource` facts, emits a derived metadata-only `s3_bucket_posture` fact per
 bucket, emits bounded `s3_external_principal_grant` facts for external
-bucket-policy principals, and emits relationship evidence when S3 reports a
-bucket server-access-log target bucket.
+bucket-policy principals, emits normalized `aws_resource_policy_permission`
+facts (one per bucket-policy statement, the resource-side analog of
+`aws_iam_permission`), and emits relationship evidence when S3 reports a bucket
+server-access-log target bucket.
 
 ## Ownership boundary
 
@@ -22,10 +24,12 @@ flowchart LR
   C --> D["aws_resource"]
   C --> G["s3_bucket_posture"]
   C --> H["s3_external_principal_grant"]
+  C --> I["aws_resource_policy_permission"]
   C --> E["aws_relationship"]
   D --> F["facts.Envelope"]
   G --> F
   H --> F
+  I --> F
   E --> F
 ```
 
@@ -38,11 +42,17 @@ See `doc.go` for the godoc contract.
   bounded `s3_external_principal_grant` facts, and logging-target relationship
   facts for one boundary.
 - `Bucket` - scanner-owned bucket representation with safe metadata only,
-  including replication presence, policy-derived booleans, and bounded
-  external-principal grant metadata (no raw policy).
+  including replication presence, policy-derived booleans, bounded
+  external-principal grant metadata, and the normalized
+  `ResourcePolicyStatements` projection (no raw policy).
 - `ExternalPrincipalGrant` - scanner-owned metadata-only bucket-policy
   principal observation for public, cross-account, AWS service, and unsupported
   principal types.
+- `ResourcePolicyStatement` - scanner-owned normalized, derived bucket-policy
+  statement (effect, normalized actions/resources, condition-key NAMES, and
+  derived grantee principal facts). The raw policy Statement body and condition
+  values are never represented on it. It feeds the
+  `aws_resource_policy_permission` fact.
 - `Versioning`, `Encryption`, `PublicAccessBlock`, `Website`, `Logging`, and
   `Replication` - scanner-owned control-plane metadata groups.
 
@@ -66,18 +76,23 @@ spans.
 
 - S3 facts are metadata only. The scanner must not read objects, list object
   keys, mutate buckets, or persist object inventory.
-- Bucket policy JSON, ACL grants, replication rules, lifecycle rules,
-  notification configuration, inventory configuration, analytics configuration,
-  and metrics configuration are not persisted.
+- Raw bucket policy JSON, statement bodies, statement Sids, condition VALUES,
+  ACL grants, replication rules, lifecycle rules, notification configuration,
+  inventory configuration, analytics configuration, and metrics configuration
+  are not persisted. Normalized/derived policy actions, resources, and
+  condition-key NAMES are allowed via `aws_resource_policy_permission`.
 - The `s3_bucket_posture` fact carries only derived booleans and safe
   identifiers/ARNs. `s3_external_principal_grant` carries only bounded
   principal kind, value, account, partition, service, outcome, and statement SID
-  metadata. The SDK adapter reads the bucket policy document transiently
-  (`GetBucketPolicy`) to derive the public-grant and cross-account-principal
-  booleans plus external-principal metadata, then discards the raw document; the
-  policy JSON and statement body never reach the scanner-owned `Bucket` model
-  or any fact payload. Replication is reduced to a presence boolean
-  (`GetBucketReplication`), not rule detail.
+  metadata. `aws_resource_policy_permission` carries the normalized per-statement
+  projection (effect, normalized actions/resources, condition-key NAMES, derived
+  grantee principal facts). The SDK adapter reads the bucket policy document
+  transiently (`GetBucketPolicy`) to derive the public-grant and
+  cross-account-principal booleans, external-principal metadata, and the
+  normalized resource-policy statements, then discards the raw document; the
+  policy JSON, statement bodies, and condition values never reach the
+  scanner-owned `Bucket` model or any fact payload. Replication is reduced to a
+  presence boolean (`GetBucketReplication`), not rule detail.
 - Website configuration is reduced to status flags, redirect host, and routing
   rule count. Index and error document object keys are not persisted.
 - Logging target grants and object-key format are not persisted. The scanner
@@ -200,6 +215,26 @@ scanner and AWS collector telemetry. `GetBucketPolicy` is still one bounded
 control-plane read per bucket, now deriving both posture booleans and grant
 metadata from the same transient parse. No new metric, span, status row, metric
 label, bucket name label, principal label, or raw policy label is introduced.
+
+### Resource-policy permission fact (PR4b of #1134)
+
+No-Regression Evidence: `cd go && go test ./internal/facts ./internal/collector/awscloud ./internal/collector/awscloud/services/s3/... -count=1`
+covers the new `aws_resource_policy_permission` fact registry, the envelope
+builder normalization and redaction guard, the scanner emission (one fact per
+statement; none for a bucket with no policy), and the SDK adapter's
+`deriveBucketPolicyResourcePermissionStatements` derivation (cross-account Allow,
+public principal, Deny, conditioned, wildcard action/resource, NotAction /
+NotResource, empty, and malformed documents). This is a facts-only slice: no
+graph writes, reducer projection, or query behavior changes. No new AWS API call
+is added on the S3 path; the normalized statements are derived from the same
+transient `GetBucketPolicy` parse that already feeds the posture and
+external-principal facts.
+
+No-Observability-Change: the new fact flows through the existing S3 scanner and
+AWS collector telemetry (`eshu_dp_aws_resources_emitted_total{service="s3"}`,
+`aws.service.pagination.page` span). No new metric, span, status row, or metric
+label is introduced, and no policy actions, resources, condition values, ARNs,
+or bucket names enter metric labels.
 
 ## Related docs
 

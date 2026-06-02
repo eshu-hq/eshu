@@ -157,7 +157,7 @@ func (c *Client) bucketMetadata(ctx context.Context, listed awss3types.Bucket) (
 	if err != nil {
 		return s3service.Bucket{}, err
 	}
-	policyPresent, policyGrantsPublic, policyGrantsCrossAccount, externalPrincipalGrants, err := c.getBucketPolicyMetadata(ctx, name)
+	policyMetadata, err := c.getBucketPolicyMetadata(ctx, name)
 	if err != nil {
 		return s3service.Bucket{}, err
 	}
@@ -175,10 +175,11 @@ func (c *Client) bucketMetadata(ctx context.Context, listed awss3types.Bucket) (
 		Website:                  website,
 		Logging:                  logging,
 		Replication:              replication,
-		PolicyPresent:            policyPresent,
-		PolicyGrantsPublic:       policyGrantsPublic,
-		PolicyGrantsCrossAccount: policyGrantsCrossAccount,
-		ExternalPrincipalGrants:  externalPrincipalGrants,
+		PolicyPresent:            policyMetadata.present,
+		PolicyGrantsPublic:       policyMetadata.public,
+		PolicyGrantsCrossAccount: policyMetadata.crossAccount,
+		ExternalPrincipalGrants:  policyMetadata.grants,
+		ResourcePolicyStatements: policyMetadata.policyStatements,
 	}, nil
 }
 

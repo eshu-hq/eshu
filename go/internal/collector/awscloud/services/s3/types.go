@@ -49,6 +49,36 @@ type Bucket struct {
 	// bodies, actions, resources, conditions, ACL grants, object keys, or object
 	// data.
 	ExternalPrincipalGrants []ExternalPrincipalGrant
+	// ResourcePolicyStatements is a normalized, derived projection of the bucket
+	// policy's statements: one entry per statement carrying effect, normalized
+	// action/resource patterns, condition-key NAMES, and derived grantee
+	// principal facts. It is the resource-side analog of the IAM permission
+	// statement projection. It never carries raw policy JSON, statement
+	// Sid/bodies, or condition VALUES; the SDK adapter discards the raw document
+	// after deriving these fields.
+	ResourcePolicyStatements []ResourcePolicyStatement
+}
+
+// ResourcePolicyStatement is one normalized, metadata-only statement derived by
+// the SDK adapter from a transient bucket-policy parse. It mirrors the IAM
+// permission statement shape: effect, normalized actions/resources, condition
+// key NAMES, and derived grantee-principal facts. The StatementSID is retained
+// only so the emitted fact's source-record id stays stable; it is never written
+// into the persisted payload. Condition VALUES, the raw statement body, and the
+// raw policy document are never represented here.
+type ResourcePolicyStatement struct {
+	StatementSID        string
+	Effect              string
+	Actions             []string
+	NotActions          []string
+	Resources           []string
+	NotResources        []string
+	ConditionKeys       []string
+	PrincipalAccountIDs []string
+	PrincipalARNs       []string
+	PrincipalTypes      []string
+	IsPublic            bool
+	IsCrossAccount      bool
 }
 
 // ExternalPrincipalGrant describes one metadata-only bucket-policy principal

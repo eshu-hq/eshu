@@ -246,6 +246,61 @@ type IAMPermissionObservation struct {
 	SourceRecordID   string
 }
 
+// ResourcePolicyPermissionObservation describes one normalized, metadata-only
+// statement from a resource-based policy (an S3 bucket policy or KMS key policy)
+// attached to the AWS resource it controls. It is the resource-side analog of
+// IAMPermissionObservation: the derived projection of a single statement plus
+// the derived grantee-principal facts.
+//
+// It deliberately carries NO raw policy JSON body, NO statement Sid in the
+// persisted payload (StatementSID feeds only the stable source-record id), and
+// NO condition values (which can embed source IPs, tags, VPC ids, or other
+// sensitive selectors). The scanner normalizes the statement at the SDK
+// boundary and emits only identifiers, derived booleans, and the grantee
+// account ids / principal types.
+type ResourcePolicyPermissionObservation struct {
+	Boundary Boundary
+	// ResourceARN is the ARN of the resource the policy is attached to (the S3
+	// bucket or KMS key), i.e. the resource the grant applies to.
+	ResourceARN string
+	// ResourceType is the resource type the policy is attached to, for example
+	// ResourceTypeS3Bucket or ResourceTypeKMSKey.
+	ResourceType string
+	// StatementSID is the source statement Sid. It is used only to keep the
+	// derived fact's source-record id stable across re-observation; it is never
+	// written into the persisted payload.
+	StatementSID string
+	Effect       string
+	Actions      []string
+	NotActions   []string
+	Resources    []string
+	NotResources []string
+	// ConditionKeys lists the condition keys present on the statement (for
+	// example aws:SourceIp). Values are intentionally omitted; only the key
+	// identifiers are kept as a derived condition summary.
+	ConditionKeys []string
+	// PrincipalAccountIDs lists the 12-digit account ids derived from the
+	// statement's AWS-type principals. Public/anonymous and service/federated
+	// principals contribute no account id.
+	PrincipalAccountIDs []string
+	// PrincipalARNs lists the AWS-type principal ARNs named by the statement.
+	// Like IAMPermissionObservation.AssumePrincipals these are ARNs (never raw
+	// policy JSON); they let the CAN_PERFORM follow-up resolve the grantee when
+	// an account id alone is insufficient.
+	PrincipalARNs []string
+	// PrincipalTypes lists the principal element kinds present on the statement
+	// (aws / service / federated / canonical), derived from the Principal keys.
+	PrincipalTypes []string
+	// IsPublic reports whether the statement grants to an anonymous/public
+	// principal (Principal "*" or {"AWS":"*"}).
+	IsPublic bool
+	// IsCrossAccount reports whether any named principal account differs from the
+	// resource-owner account.
+	IsCrossAccount bool
+	SourceURI      string
+	SourceRecordID string
+}
+
 // WarningObservation describes one non-fatal AWS scan warning.
 type WarningObservation struct {
 	Boundary       Boundary
