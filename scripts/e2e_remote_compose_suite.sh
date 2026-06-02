@@ -38,6 +38,8 @@ die() {
 	exit 1
 }
 
+# shellcheck source=scripts/lib/e2e_remote_compose_suite_helpers.sh
+source "${REPO_ROOT}/scripts/lib/e2e_remote_compose_suite_helpers.sh"
 usage() {
 	cat >&2 <<'USAGE'
 Usage: scripts/e2e_remote_compose_suite.sh --run-kind clean|preserved --manifest PATH \
@@ -55,11 +57,7 @@ Options:
   --compose-files FILE[:FILE...]
   --compose-env-file PATH
 
-Environment:
-  ESHU_REMOTE_E2E_UNSUPPORTED_HOSTED_COLLECTORS
-    Comma-separated hosted collector rows to classify as unsupported instead
-    of skipped when the remote Compose profile intentionally cannot run them.
-    Valid row names are pagerduty,jira,grafana,prometheus_mimir,loki,tempo.
+Environment: set ESHU_REMOTE_E2E_UNSUPPORTED_HOSTED_COLLECTORS for unsupported hosted rows.
 USAGE
 }
 
@@ -100,21 +98,6 @@ require_non_negative_int() {
 	[[ "${value}" =~ ^[0-9]+$ ]] || die "${name} must be a non-negative integer"
 }
 
-validate_unsupported_hosted_collectors() {
-	local invalid
-	invalid="$(jq -nr --arg raw "${unsupported_hosted_collectors}" '
-		def trim: gsub("^\\s+|\\s+$"; "");
-		["pagerduty", "jira", "grafana", "prometheus_mimir", "loki", "tempo"] as $allowed |
-		$raw
-		| split(",")
-		| map(trim)
-		| map(select(length > 0))
-		| map(. as $name | select(($allowed | index($name)) | not))
-		| .[0] // ""
-	')"
-	[[ -z "${invalid}" ]] || die "unsupported hosted collector row is invalid: ${invalid}"
-}
-
 validate_args() {
 	case "${run_kind}" in
 		clean|preserved) ;;
@@ -133,7 +116,7 @@ validate_args() {
 	fi
 	require_positive_int ESHU_REMOTE_E2E_API_TIMEOUT_SECONDS "${api_timeout_seconds}"
 	require_non_negative_int ESHU_REMOTE_E2E_REPOSITORY_COUNT "${repository_count}"
-	validate_unsupported_hosted_collectors
+	remote_compose_validate_unsupported_hosted_collectors "${unsupported_hosted_collectors}"
 }
 
 configure_compose() {
@@ -267,11 +250,6 @@ json_from_tsv() {
 		| map(select(length > 0) | split("\t"))
 		| map({($c1): .[0], ($c2): .[1], count: (.[2] | tonumber)})
 	' "${input}" >"${output}"
-}
-
-json_array_from_lines() {
-	local input="$1" output="$2"
-	jq -R -s 'split("\n") | map(select(length > 0))' "${input}" >"${output}"
 }
 
 build_manifest() {
@@ -507,7 +485,7 @@ main() {
 	query_postgres_tsv "SELECT collector_kind, status, COUNT(*) FROM workflow_work_items GROUP BY collector_kind, status ORDER BY collector_kind, status" "${out_dir}/workflow-counts.tsv"
 	json_from_tsv "${out_dir}/fact-counts.tsv" "${out_dir}/fact-counts.json" source_system fact_kind
 	json_from_tsv "${out_dir}/workflow-counts.tsv" "${out_dir}/workflow-counts.json" collector_kind status
-	json_array_from_lines "${out_dir}/compose-services.txt" "${out_dir}/compose-services.json"
+	remote_compose_json_array_from_lines "${out_dir}/compose-services.txt" "${out_dir}/compose-services.json"
 	build_manifest "${out_dir}/fact-counts.json" "${out_dir}/workflow-counts.json" "${out_dir}/index-status.json" "${out_dir}/compose-services.json" "${out_dir}/docker-stats.jsonl" "${manifest}"
 	apply_preserved_guard
 	"${MANIFEST_VALIDATOR}" "${manifest}" >/dev/null
