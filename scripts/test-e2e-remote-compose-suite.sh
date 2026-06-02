@@ -312,6 +312,7 @@ run_harness() {
   write_corpus_coverage "${coverage}"
   ESHU_REMOTE_COMPOSE_SUITE_TEST_STATE="${state_dir}" \
     ESHU_E2E_RUNTIME_STATE_SCRIPT="${runtime_verifier}" \
+    ESHU_REMOTE_E2E_UNSUPPORTED_HOSTED_COLLECTORS="${ESHU_REMOTE_E2E_UNSUPPORTED_HOSTED_COLLECTORS:-}" \
     PATH="${fake_bin}:${PATH}" \
     "${HARNESS}" \
       --run-kind "${run_kind}" \
@@ -393,10 +394,66 @@ touch "${state_dir}/runtime-fail"
 expect_fail_with runtime_failure clean "runtime state verifier failed"
 
 reset_state
+export ESHU_REMOTE_E2E_UNSUPPORTED_HOSTED_COLLECTORS=unknown
+expect_fail_with invalid_unsupported_hosted_collector clean "unsupported hosted collector row is invalid: unknown"
+unset ESHU_REMOTE_E2E_UNSUPPORTED_HOSTED_COLLECTORS
+
+reset_state
 cat >"${state_dir}/fact-counts.tsv" <<'TSV'
 git	repository	10
 TSV
 expect_fail_with missing_collector clean "collector terraform_state has no source facts"
+
+reset_state
+awk 'BEGIN {FS=OFS="\t"} $1!="pagerduty" {print}' "${state_dir}/fact-counts.tsv" >"${state_dir}/fact-counts.next"
+mv "${state_dir}/fact-counts.next" "${state_dir}/fact-counts.tsv"
+expect_fail_with hosted_collector_without_facts clean "collector pagerduty: no source facts observed for enabled collector service"
+jq -e '
+  .status == "fail" and
+  .collectors.pagerduty.status == "fail" and
+  .collectors.pagerduty.facts == 0 and
+  .collectors.pagerduty.reason == "no source facts observed for enabled collector service"
+' "${TMP_DIR}/hosted_collector_without_facts.json" >/dev/null || {
+  printf 'missing hosted collector facts did not preserve an explicit failed collector reason\n' >&2
+  jq . "${TMP_DIR}/hosted_collector_without_facts.json" >&2
+  exit 1
+}
+
+reset_state
+awk '$0!="collector-pagerduty" {print}' "${state_dir}/services" >"${state_dir}/services.next"
+mv "${state_dir}/services.next" "${state_dir}/services"
+awk 'BEGIN {FS=OFS="\t"} $1!="pagerduty" {print}' "${state_dir}/fact-counts.tsv" >"${state_dir}/fact-counts.next"
+mv "${state_dir}/fact-counts.next" "${state_dir}/fact-counts.tsv"
+expect_fail_with disabled_hosted_collector clean "collector pagerduty: collector service disabled in remote Compose profile"
+jq -e '
+  .status == "partial" and
+  .collectors.pagerduty.status == "skipped" and
+  .collectors.pagerduty.facts == 0 and
+  .collectors.pagerduty.reason == "collector service disabled in remote Compose profile"
+' "${TMP_DIR}/disabled_hosted_collector.json" >/dev/null || {
+  printf 'disabled hosted collector did not preserve an explicit skipped collector reason\n' >&2
+  jq . "${TMP_DIR}/disabled_hosted_collector.json" >&2
+  exit 1
+}
+
+reset_state
+awk '$0!="collector-pagerduty" {print}' "${state_dir}/services" >"${state_dir}/services.next"
+mv "${state_dir}/services.next" "${state_dir}/services"
+awk 'BEGIN {FS=OFS="\t"} $1!="pagerduty" {print}' "${state_dir}/fact-counts.tsv" >"${state_dir}/fact-counts.next"
+mv "${state_dir}/fact-counts.next" "${state_dir}/fact-counts.tsv"
+export ESHU_REMOTE_E2E_UNSUPPORTED_HOSTED_COLLECTORS=pagerduty
+expect_fail_with unsupported_hosted_collector clean "collector pagerduty: collector explicitly unsupported in remote Compose profile"
+unset ESHU_REMOTE_E2E_UNSUPPORTED_HOSTED_COLLECTORS
+jq -e '
+  .status == "partial" and
+  .collectors.pagerduty.status == "unsupported" and
+  .collectors.pagerduty.facts == 0 and
+  .collectors.pagerduty.reason == "collector explicitly unsupported in remote Compose profile"
+' "${TMP_DIR}/unsupported_hosted_collector.json" >/dev/null || {
+  printf 'unsupported hosted collector did not preserve an explicit unsupported collector reason\n' >&2
+  jq . "${TMP_DIR}/unsupported_hosted_collector.json" >&2
+  exit 1
+}
 
 reset_state
 expect_pass preserved preserved --previous-manifest "${TMP_DIR}/clean.json"

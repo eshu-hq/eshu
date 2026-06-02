@@ -245,6 +245,32 @@ Kubernetes/IaC, image/SBOM, deployment, vulnerability, observability,
 incident, and work-item evidence. Do not derive those rows from repository
 count alone; they are part of the recorded corpus contract.
 
+### Hosted Collector Profile
+
+The all-collector prerelease gate must run every supported hosted collector
+family that is in scope for the release: PagerDuty, Jira, Grafana,
+Prometheus/Mimir, Loki, and Tempo. For those rows, a passing collector summary
+requires both a rendered Compose service and a positive source-fact count.
+
+The harness distinguishes the non-passing cases:
+
+- `fail`: the hosted collector service is enabled in the rendered Compose
+  profile, but no source facts were observed.
+- `skipped`: the hosted collector service is absent from the rendered Compose
+  profile.
+- `unsupported`: the operator explicitly listed the row in
+  `ESHU_REMOTE_E2E_UNSUPPORTED_HOSTED_COLLECTORS` because that hosted collector
+  is not runnable in this proof yet.
+
+Use only public row names in
+`ESHU_REMOTE_E2E_UNSUPPORTED_HOSTED_COLLECTORS`, separated by commas:
+`pagerduty`, `jira`, `grafana`, `prometheus_mimir`, `loki`, and `tempo`. Do not
+put provider URLs, tenant names, instance IDs, tokens, hostnames, or target
+labels in this variable or in the generated manifest. A `skipped` or
+`unsupported` hosted row makes the generated manifest `partial`, not `pass`;
+that is useful evidence for planning, but it is not a clean all-collector
+prerelease gate.
+
 The harness delegates service and queue safety to
 `scripts/verify_remote_e2e_runtime_state.sh`, then captures pprof reachability,
 Docker CPU/memory snapshots, sanitized service logs, `/api/v0/index-status`,
@@ -264,14 +290,16 @@ guard.
 No-Regression Evidence: `scripts/test-e2e-remote-compose-suite.sh` uses mocked
 Docker, pprof, API, Postgres, runtime-state, and volume-proof inputs to prove
 the harness accepts clean and preserved aggregate evidence, rejects forbidden
-logs, rejects runtime-state failure, rejects missing collector evidence, and
-rejects preserved restarts that add facts.
+logs, rejects runtime-state failure, rejects missing collector evidence,
+distinguishes enabled hosted collectors with no facts from disabled and
+explicitly unsupported hosted collectors, and rejects preserved restarts that
+add facts.
 
 Observability Evidence: `scripts/e2e_remote_compose_suite.sh` stores public-safe
 evidence beside the manifest: pprof index proof, Docker stats JSON lines,
-sanitized logs, aggregate fact counts, workflow work-item counts, and the
-validated manifest. API bearer tokens are passed through a temporary curl
-config rather than command-line arguments.
+sanitized logs, rendered Compose service names, aggregate fact counts, workflow
+work-item counts, and the validated manifest. API bearer tokens are passed
+through a temporary curl config rather than command-line arguments.
 
 ## Representative Acceptance
 
