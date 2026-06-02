@@ -151,6 +151,12 @@ explain identity joins without re-parsing collector payloads.
 `package_registry.source_hint` remains
 provenance-only until reducer correlation proves ownership, publication, or
 consumption.
+Repository content materialization is narrower than source-local projection.
+`Runtime.Project` only builds `content.Materialization` rows when the scope
+metadata carries a non-empty `repo_id`. Cloud, registry, security-alert, and
+other non-repository scopes may still carry fields named `path`, `name`, or
+similar provider-native identifiers; those fields must not mint repository
+content rows or bypass the content package's non-empty `RepoID` contract.
 When a generation contains package identity or source hints,
 `buildPackageSourceCorrelationReducerIntent` emits one
 `package_source_correlation` reducer intent for the scope so the reducer can
@@ -388,6 +394,19 @@ No-Observability-Change: existing projector `intent_enqueue` stage logs,
 `eshu_dp_reducer_intents_enqueued_total`, reducer domain counters,
 `fact_work_items` terminal state, and `/admin/status` expose whether SBOM
 attachment work was queued, drained, retried, or dead-lettered.
+
+No-Regression Evidence: non-repository content gating is covered by
+`go test ./internal/projector -run 'TestRuntimeProject(SkipsContentMaterializationForNonRepositoryScopes|CopiesRepoIDIntoContentMaterialization|MaterializesExplicitEntityRecords|MaterializesSourceLocalTruthAndReducerIntents)' -count=1`.
+It does not change worker counts, claim ordering, fact loading, graph write
+cardinality, reducer intent fan-out, batch size, retry timing, or backend
+settings; it only prevents repository content writes when scope metadata has no
+`repo_id`.
+
+No-Observability-Change: existing projector `build_projection` content row
+counts, `content_write` stage logs, projector `failure_class` logs,
+`/api/v0/index-status`, and queue terminal counters expose whether a
+non-repository scope skipped content rows while canonical and reducer work
+continued.
 
 ## Related docs
 

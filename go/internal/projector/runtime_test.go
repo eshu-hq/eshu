@@ -38,6 +38,7 @@ func TestRuntimeProjectMaterializesSourceLocalTruthAndReducerIntents(t *testing.
 		ScopeKind:     scope.KindRepository,
 		CollectorKind: scope.CollectorGit,
 		PartitionKey:  "repo-123",
+		Metadata:      map[string]string{"repo_id": "repo-123"},
 	}
 	generationValue := scope.ScopeGeneration{
 		GenerationID: "generation-456",
@@ -963,6 +964,7 @@ func TestRuntimeProjectWithTelemetry(t *testing.T) {
 		ScopeKind:     scope.KindRepository,
 		CollectorKind: scope.CollectorGit,
 		PartitionKey:  "repo-123",
+		Metadata:      map[string]string{"repo_id": "repo-123"},
 	}
 	generationValue := scope.ScopeGeneration{
 		GenerationID: "generation-456",

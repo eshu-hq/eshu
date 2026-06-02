@@ -351,12 +351,14 @@ type projection struct {
 }
 
 func buildProjection(scopeValue scope.IngestionScope, generation scope.ScopeGeneration, inputFacts []facts.Envelope) (projection, error) {
+	repoID := scopeRepoID(scopeValue)
 	contentMaterialization := content.Materialization{
-		RepoID:       scopeRepoID(scopeValue),
+		RepoID:       repoID,
 		ScopeID:      scopeValue.ScopeID,
 		GenerationID: generation.GenerationID,
 		SourceSystem: scopeValue.SourceSystem,
 	}
+	materializeContent := repoID != ""
 
 	intents := make([]ReducerIntent, 0, len(inputFacts))
 	for i := range inputFacts {
@@ -386,11 +388,13 @@ func buildProjection(scopeValue scope.IngestionScope, generation scope.ScopeGene
 			return projection{}, err
 		}
 
-		if record, ok := buildContentRecord(fact); ok {
-			contentMaterialization.Records = append(contentMaterialization.Records, record)
-		}
-		if entity, ok := buildContentEntityRecord(contentMaterialization.RepoID, fact); ok {
-			contentMaterialization.Entities = append(contentMaterialization.Entities, entity)
+		if materializeContent {
+			if record, ok := buildContentRecord(fact); ok {
+				contentMaterialization.Records = append(contentMaterialization.Records, record)
+			}
+			if entity, ok := buildContentEntityRecord(repoID, fact); ok {
+				contentMaterialization.Entities = append(contentMaterialization.Entities, entity)
+			}
 		}
 		if intent, ok := buildSemanticEntityReducerIntent(fact); ok {
 			intents = append(intents, intent)
