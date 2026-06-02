@@ -84,10 +84,12 @@ func ValidateCandidate(candidate Candidate) error {
 	}
 	if strings.TrimSpace(candidate.Algorithm) == "" {
 		problems = append(problems, "algorithm is required")
+	} else if !validAlgorithm(candidate.Algorithm) {
+		problems = append(problems, "algorithm must be a low-cardinality token")
 	}
 	if math.IsNaN(candidate.Score) || math.IsInf(candidate.Score, 0) ||
 		candidate.Score < 0 || candidate.Score > 1 {
-		problems = append(problems, "score must be between 0 and 1")
+		problems = append(problems, "score must be finite and between 0 and 1")
 	}
 	if !validHandle(candidate.Source) {
 		problems = append(problems, "source handle is required")
@@ -134,6 +136,20 @@ func validateFreshness(freshness Freshness) []string {
 
 func validHandle(handle GraphHandle) bool {
 	return strings.TrimSpace(handle.Kind) != "" && strings.TrimSpace(handle.ID) != ""
+}
+
+func validAlgorithm(algorithm string) bool {
+	algorithm = strings.TrimSpace(algorithm)
+	if algorithm == "" || len(algorithm) > 64 {
+		return false
+	}
+	for _, r := range algorithm {
+		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') || r == '_' || r == '-' || r == '.' {
+			continue
+		}
+		return false
+	}
+	return true
 }
 
 func validTruthLevel(level TruthLevel) bool {

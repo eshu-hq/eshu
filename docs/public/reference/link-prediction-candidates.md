@@ -15,7 +15,7 @@ Each candidate records:
 | Field | Meaning |
 | --- | --- |
 | `id` | Stable candidate evidence id. |
-| `algorithm` | Low-cardinality algorithm id, such as `nornicdb.adamic_adar`. |
+| `algorithm` | Low-cardinality algorithm token up to 64 characters, using lowercase letters, digits, `.`, `_`, or `-`, such as `nornicdb.adamic_adar`. |
 | `score` | Finite score from `0` to `1`. |
 | `source` | Bounded source graph handle with `kind` and `id`. |
 | `target` | Bounded target graph handle with `kind` and `id`. |

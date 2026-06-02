@@ -2,6 +2,7 @@ package linkcandidates
 
 import (
 	"encoding/json"
+	"math"
 	"strings"
 	"testing"
 	"time"
@@ -55,7 +56,7 @@ func TestValidateCandidateRejectsCanonicalOrIncompleteShape(t *testing.T) {
 	for _, want := range []string{
 		"id is required",
 		"algorithm is required",
-		"score must be between 0 and 1",
+		"score must be finite and between 0 and 1",
 		"source handle is required",
 		"target handle is required",
 		"evidence_context is required",
@@ -68,6 +69,36 @@ func TestValidateCandidateRejectsCanonicalOrIncompleteShape(t *testing.T) {
 		if !strings.Contains(err.Error(), want) {
 			t.Fatalf("ValidateCandidate() error = %q, want substring %q", err, want)
 		}
+	}
+}
+
+func TestValidateCandidateRejectsNonFiniteScore(t *testing.T) {
+	t.Parallel()
+
+	candidate := validCandidate()
+	candidate.Score = math.NaN()
+
+	err := ValidateCandidate(candidate)
+	if err == nil {
+		t.Fatal("ValidateCandidate() error = nil, want non-finite score error")
+	}
+	if want := "score must be finite and between 0 and 1"; !strings.Contains(err.Error(), want) {
+		t.Fatalf("ValidateCandidate() error = %q, want substring %q", err, want)
+	}
+}
+
+func TestValidateCandidateRejectsHighCardinalityAlgorithm(t *testing.T) {
+	t.Parallel()
+
+	candidate := validCandidate()
+	candidate.Algorithm = "nornicdb.adamic_adar/service:checkout"
+
+	err := ValidateCandidate(candidate)
+	if err == nil {
+		t.Fatal("ValidateCandidate() error = nil, want algorithm token error")
+	}
+	if want := "algorithm must be a low-cardinality token"; !strings.Contains(err.Error(), want) {
+		t.Fatalf("ValidateCandidate() error = %q, want substring %q", err, want)
 	}
 }
 

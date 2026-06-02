@@ -46,6 +46,8 @@ ids, service ids, evidence ids, or candidate ids as metric labels.
   until a separate reducer-owned admission design accepts them.
 - Ambiguous candidates remain provenance-only.
 - Suppressed candidates are counted but not shown as generated suggestions.
+- Algorithm ids are short lowercase tokens so observation dimensions stay
+  low-cardinality.
 - Scores are bounded from `0` to `1` and must be finite.
 
 ## Related docs
