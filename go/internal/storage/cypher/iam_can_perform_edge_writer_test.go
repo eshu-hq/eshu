@@ -16,6 +16,7 @@ func iamCanPerformEdgeRows() []map[string]any {
 			"actions":          []string{"s3:getobject"},
 			"action_count":     1,
 			"evaluation_scope": "identity_policy_only",
+			"grant_sources":    []string{"identity_policy"},
 		},
 		{
 			"principal_uid":    "principal-a",
@@ -23,6 +24,7 @@ func iamCanPerformEdgeRows() []map[string]any {
 			"actions":          []string{"kms:decrypt"},
 			"action_count":     1,
 			"evaluation_scope": "identity_policy_only",
+			"grant_sources":    []string{"identity_policy"},
 		},
 	}
 }
@@ -88,6 +90,9 @@ func TestIAMCanPerformEdgeWriterKeepsActionsOutOfMergeKey(t *testing.T) {
 	if strings.Contains(mergeLine, "action") {
 		t.Fatalf("actions must NOT be in the MERGE key (property-keyed MERGE perf trap):\n%s", mergeLine)
 	}
+	if strings.Contains(mergeLine, "grant_source") {
+		t.Fatalf("grant_sources must NOT be in the MERGE key:\n%s", mergeLine)
+	}
 	if !strings.Contains(cypher, "SET rel.actions = row.actions") {
 		t.Fatalf("actions must be a SET list property:\n%s", cypher)
 	}
@@ -96,6 +101,9 @@ func TestIAMCanPerformEdgeWriterKeepsActionsOutOfMergeKey(t *testing.T) {
 	}
 	if !strings.Contains(cypher, "rel.evaluation_scope = row.evaluation_scope") {
 		t.Fatalf("evaluation_scope honesty label must be set on the edge:\n%s", cypher)
+	}
+	if !strings.Contains(cypher, "rel.grant_sources = row.grant_sources") {
+		t.Fatalf("grant_sources must be a SET list property:\n%s", cypher)
 	}
 	if !strings.Contains(cypher, "rel.evidence_source = row.evidence_source") {
 		t.Fatalf("evidence_source must be stamped on the edge for scoped retract:\n%s", cypher)
@@ -120,6 +128,9 @@ func TestIAMCanPerformEdgeWriterStampsScopeFields(t *testing.T) {
 		}
 		if row["evaluation_scope"] != "identity_policy_only" {
 			t.Fatalf("row missing identity_policy_only honesty label: %v", row)
+		}
+		if got := row["grant_sources"].([]string); len(got) != 1 || got[0] != "identity_policy" {
+			t.Fatalf("row missing grant_sources: %v", row)
 		}
 	}
 }

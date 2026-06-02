@@ -1039,15 +1039,57 @@ Performance Evidence: focused Eshu-owned write-path benchmark on Apple M4 Pro, n
 
 Observability Evidence: the new `eshu_dp_iam_escalation_edges_total` (escalation edges committed) and `eshu_dp_iam_escalation_skipped_total` (`skip_reason` = `skipped_ambiguous` / `skipped_unresolved` / `skipped_deny` / `skipped_conditioned` / `skipped_not_action_resource` / `skipped_incomplete` / `deferred_can_assume`) counters, the `reducer.iam_escalation_materialization` span, and a structured completion log carrying per-stage durations (load / extract / retract / write) plus the skip tally let an operator answer at 3 AM "are escalation edges landing, and if a generation produced zero edges, is it because policies use wildcard resources (`skipped_ambiguous`) or because IAM targets were not scanned (`skipped_unresolved`)?". The `cloud_resource_uid` readiness gate is the same durable status-blockage surface the #805 / #1135 edge slices use.
 
-### IAM CAN_PERFORM effective-permission graph (#1134 PR4a, security-sensitive)
+### IAM CAN_PERFORM effective-permission graph (#1134 PR4a/PR4b, security-sensitive)
 
-`DomainIAMCanPerformMaterialization` projects the merged `aws_iam_permission` facts into conservative identity-policy-only `CAN_PERFORM` edges between an IAM principal `CloudResource` node and the resource `CloudResource` node an identity policy grants a catalogued sensitive action on. `ExtractIAMCanPerformEdges` evaluates each scanned principal's trusted-Allow identity statements against the CLOSED, curated catalog in `iam_can_perform_catalog.go` (documented in `docs/internal/design/1134-iam-can-perform.md`): an edge is written only when a catalogued action is granted (Allow, unconditioned, no `NotAction`/`NotResource`, not Deny-blocked) AND the action's resource ARN resolves to EXACTLY ONE scanned `CloudResource` node of the catalog-expected resource type. The granted action set is written as a sorted/deduped edge property `rel.actions` (never in the MERGE key), alongside `rel.action_count` and `rel.evaluation_scope = identity_policy_only`. Uncatalogued actions, wildcard/many-resource targets, `*`, Deny, condition-gated, `NotAction`/`NotResource`, unresolved/cross-account/wrong-type, and self-loops materialize no edge and are counted, never dropped silently. It is EDGE-ONLY on the existing `cloud_resource_uid` keyspace and gates on the `cloud_resource_uid` / `canonical_nodes_committed` readiness phase.
+`DomainIAMCanPerformMaterialization` projects the merged `aws_iam_permission`
+and `aws_resource_policy_permission` facts into conservative `CAN_PERFORM` edges
+between an IAM principal `CloudResource` node and the resource `CloudResource`
+node a catalogued sensitive action applies to. `ExtractIAMCanPerformEdges`
+evaluates each scanned principal's trusted-Allow identity statements and exact
+resource-policy grantees against the CLOSED catalog in
+`iam_can_perform_catalog.go` (documented in
+`docs/internal/design/1134-iam-can-perform.md`). An edge is written only when a
+catalogued action is granted (Allow, unconditioned, no `NotAction`/`NotResource`,
+not Deny-blocked) AND the target resolves to EXACTLY ONE scanned `CloudResource`
+node of the catalog-expected resource type. Resource-policy grants additionally
+require `principal_arns[]` to resolve to scanned IAM role/user nodes and the
+statement Resource patterns to apply to the attached resource. The granted action
+set is written as a sorted/deduped edge property `rel.actions` (never in the
+MERGE key), alongside `rel.action_count`, `rel.grant_sources`, and
+`rel.evaluation_scope` (`identity_policy_only`, `resource_policy_only`, or
+`identity_and_resource_policy`). Uncatalogued actions, wildcard/many-resource
+targets, `*`, public or unscanned principals, Deny, condition-gated,
+`NotAction`/`NotResource`, unresolved/cross-account/wrong-type, and self-loops
+materialize no edge and are counted, never dropped silently. It is EDGE-ONLY on
+the existing `cloud_resource_uid` keyspace and gates on the `cloud_resource_uid`
+/ `canonical_nodes_committed` readiness phase.
 
-The honesty boundary is explicit and load-bearing: a PRESENT edge means an identity policy grants the action on the resolved resource, IGNORING resource-based policies, permission boundaries, SCPs, condition values, and session policies. A MISSING edge does NOT mean "cannot perform" — it can mean the action is uncatalogued, the resource was not scanned or was ambiguous, or a non-identity grant exists that this MVP slice does not evaluate (deferred to PR4b–PR4d). This is why the slice is conservative and skip-counted rather than claiming a complete effective-permission lattice.
+The honesty boundary is explicit and load-bearing: a PRESENT edge means an
+identity policy, resource policy, or both grant the action on the resolved
+resource, IGNORING permission boundaries, SCPs, condition values, and session
+policies. A MISSING edge does NOT mean "cannot perform" — it can mean the action
+is uncatalogued, the resource or principal was not scanned or was ambiguous, or
+a later evaluator slice has not been implemented. This is why the slice is
+conservative and skip-counted rather than claiming a complete effective-permission
+lattice.
 
-Benchmark Evidence: focused Eshu-owned write-path benchmark, no-op group executor (isolates statement construction/batching from graph round trips). `go test ./internal/storage/cypher -run '^$' -bench 'BenchmarkIAMCanPerformEdgeWriter|BenchmarkIAMEscalationEdgeWriter' -benchmem -count=3` writes 5,000 `CAN_PERFORM` edges at batch 500 in ~1.28ms/op (~1.97MB/op, 25,068 allocs/op) — within ~3% of the shipped `BenchmarkIAMEscalationEdgeWriter` baseline (~1.27ms/op, identical allocs/bytes) on the identical row shape, well under the 10% stop threshold. The writer reuses the identical batched `UNWIND` + `MATCH-MATCH-MERGE`-on-uid shape with a static `CAN_PERFORM` relationship type; the granted action set lives in an edge property, never in the MERGE key, keeping the relationship MERGE on a static token so NornicDB uses its relationship hot path. Both endpoint MATCHes anchor on the existing CloudResource uid index, so no MATCH falls back to a label scan. Target resolution is bounded in-memory (the #805 §5.1 ARN join index), O(1) per exact match with no per-edge graph round trip and no N+1. `go test ./internal/reducer ./internal/storage/cypher ./internal/telemetry ./internal/projector ./internal/storage/postgres ./cmd/reducer -count=1` passes, including the readiness gate, idempotent reprojection, the conservative skip cases (uncatalogued / wildcard / many / Deny / conditioned / NotAction / unresolved / self-loop), and the multi-action merge-into-one-edge case.
+Benchmark Evidence: focused Eshu-owned write-path benchmark, no-op group executor (isolates statement construction/batching from graph round trips). `go test ./internal/storage/cypher -run '^$' -bench 'BenchmarkIAMCanPerformEdgeWriter|BenchmarkIAMEscalationEdgeWriter' -benchmem -count=3` writes 5,000 `CAN_PERFORM` edges at batch 500 in `1.25 ms/op`, `1.24 ms/op`, and `1.24 ms/op` (`~1.97 MB/op`, `25,068 allocs/op`) versus the shipped `BenchmarkIAMEscalationEdgeWriter` baseline at `1.21 ms/op`, `1.21 ms/op`, and `1.20 ms/op` on the identical row shape, staying under the 10% stop threshold. The writer reuses the identical batched `UNWIND` + `MATCH-MATCH-MERGE`-on-uid shape with a static `CAN_PERFORM` relationship type; the granted action set lives in an edge property, never in the MERGE key, keeping the relationship MERGE on a static token so NornicDB uses its relationship hot path. Both endpoint MATCHes anchor on the existing CloudResource uid index, so no MATCH falls back to a label scan. Target resolution is bounded in-memory (the #805 §5.1 ARN join index), O(1) per exact match with no per-edge graph round trip and no N+1. `go test ./internal/reducer ./internal/storage/cypher ./internal/telemetry ./internal/projector ./internal/storage/postgres ./cmd/reducer -count=1` passes, including the readiness gate, idempotent reprojection, the conservative skip cases (uncatalogued / wildcard / many / Deny / conditioned / NotAction / unresolved / self-loop), and the multi-action merge-into-one-edge case.
 
 Observability Evidence: the new `eshu_dp_iam_can_perform_edges_total` (`resolution_mode` = `exact_arn` / `single_glob`) and `eshu_dp_iam_can_perform_skipped_total` (`skip_reason` = `skipped_uncatalogued_action` / `skipped_ambiguous` / `skipped_unresolved` / `skipped_deny` / `skipped_conditioned` / `skipped_not_action_resource` / `skipped_self_loop`) counters, the `reducer.iam_can_perform_materialization` span, and a structured completion log carrying per-stage durations (load / extract / retract / write) plus the full skip tally let an operator answer at 3 AM "are CAN_PERFORM edges landing, and if a generation produced zero edges, is it because policies use wildcard resources (`skipped_ambiguous`), the resources were not scanned (`skipped_unresolved`), or the actions are outside the closed catalog (`skipped_uncatalogued_action`)?". The `cloud_resource_uid` readiness gate is the same durable status-blockage surface the #805 / #1135 edge slices use.
+
+No-Regression Evidence: PR4b reducer follow-up adds `aws_resource_policy_permission`
+fact loading and exact resource-policy grant extraction without changing the
+relationship MERGE identity. `go test ./internal/reducer -run 'IAMCanPerform'
+-count=1` proves identity-only, resource-only, both-source merge, public/unscanned
+principal skips, conditioned/NotResource/Deny skips, wrong-resource-pattern
+refusal, readiness, and idempotent reprojection behavior. `go test
+./internal/storage/cypher -run 'IAMCanPerformEdgeWriter' -count=1` proves
+`grant_sources` is a SET property and not part of the `CAN_PERFORM` MERGE key.
+The same writer benchmark remains the performance guard because row shape changed
+only by one bounded list property: `go test ./internal/storage/cypher -run '^$'
+-bench 'BenchmarkIAMCanPerformEdgeWriter|BenchmarkIAMEscalationEdgeWriter'
+-benchmem -count=3` produced CAN_PERFORM `1.25/1.24/1.24 ms/op` versus
+escalation `1.21/1.21/1.20 ms/op` for 5,000 rows at batch 500 on Apple M4 Pro.
 
 No-Regression Evidence: the review fix moves `skipped_uncatalogued_action`
 accounting into `buildIAMCanPerformGrant`, so uncatalogued Allow actions never

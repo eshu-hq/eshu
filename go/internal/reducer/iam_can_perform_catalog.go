@@ -19,13 +19,34 @@ const (
 	iamCanPerformResourceTypeRDSInstance = "aws_rds_db_instance"
 )
 
-// iamCanPerformEvaluationScope is the honesty label stamped on every CAN_PERFORM
-// edge. It documents that the edge was derived from identity-policy statements
-// ONLY: resource-based policies, permission boundaries, SCPs, condition values,
-// and session policies are not evaluated (design §3.4). A present edge therefore
-// means "an identity policy grants this action on this resource, ignoring those
-// other restrictions"; a missing edge does NOT mean "cannot perform."
-const iamCanPerformEvaluationScope = "identity_policy_only"
+const (
+	// iamCanPerformGrantSourceIdentityPolicy marks actions granted by principal
+	// identity-policy facts (`aws_iam_permission`).
+	iamCanPerformGrantSourceIdentityPolicy = "identity_policy"
+	// iamCanPerformGrantSourceResourcePolicy marks actions granted by
+	// resource-policy facts (`aws_resource_policy_permission`).
+	iamCanPerformGrantSourceResourcePolicy = "resource_policy"
+)
+
+const (
+	// iamCanPerformEvaluationScopeIdentityPolicyOnly documents that the edge was
+	// derived from identity-policy statements only: resource-based policies,
+	// permission boundaries, SCPs, condition values, and session policies were not
+	// evaluated.
+	iamCanPerformEvaluationScopeIdentityPolicyOnly = "identity_policy_only"
+	// iamCanPerformEvaluationScopeResourcePolicyOnly documents that the edge was
+	// derived from resource-policy statements only: identity policies, permission
+	// boundaries, SCPs, condition values, and session policies were not evaluated.
+	iamCanPerformEvaluationScopeResourcePolicyOnly = "resource_policy_only"
+	// iamCanPerformEvaluationScopeIdentityAndResourcePolicy documents that both
+	// identity-policy and resource-policy statements grant at least one action on
+	// the same principal/resource edge.
+	iamCanPerformEvaluationScopeIdentityAndResourcePolicy = "identity_and_resource_policy"
+)
+
+// iamCanPerformEvaluationScope is the legacy MVP honesty label kept for tests and
+// identity-only callers. New rows derive the scope from grant_sources.
+const iamCanPerformEvaluationScope = iamCanPerformEvaluationScopeIdentityPolicyOnly
 
 // iamCanPerformAction is one curated, reviewed, high-value sensitive IAM action
 // the CAN_PERFORM MVP promotes to an edge. The action token is lowercase because
@@ -95,12 +116,16 @@ func iamCanPerformCatalogActions() map[string]struct{} {
 // sorted so the edge's rel.actions property is byte-stable across retries and
 // reprojections, keeping the idempotent SET deterministic.
 func sortedCanPerformActions(actions map[string]struct{}) []string {
-	if len(actions) == 0 {
+	return sortedCanPerformStringSet(actions)
+}
+
+func sortedCanPerformStringSet(values map[string]struct{}) []string {
+	if len(values) == 0 {
 		return nil
 	}
-	out := make([]string, 0, len(actions))
-	for action := range actions {
-		out = append(out, action)
+	out := make([]string, 0, len(values))
+	for value := range values {
+		out = append(out, value)
 	}
 	sort.Strings(out)
 	return out

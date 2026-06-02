@@ -188,8 +188,9 @@ statement Sid or body, or condition VALUES. A resource with no attached policy
 emits no fact. The S3 scanner derives it from the same transient
 `GetBucketPolicy` parse that feeds `s3_bucket_posture`; the KMS scanner reads the
 key policy with `GetKeyPolicy` (one bounded control-plane read per key policy
-name). It emits no graph edge; it is the facts foundation for
-resource-policy-aware CAN_PERFORM (a later reducer follow-up under issue #1134).
+name). It emits no graph edge from the collector; the reducer consumes it as the
+resource-policy source for conservative CAN_PERFORM projection under issue
+#1134.
 
 `ec2_instance_posture` carries one metadata-only security and operations posture
 observation per EC2 instance, derived from the existing DescribeInstances pass:
