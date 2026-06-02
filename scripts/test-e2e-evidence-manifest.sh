@@ -208,6 +208,18 @@ missing_corpus="${TMP_DIR}/missing-corpus.json"
 jq 'del(.corpus.coverage.ecosystems.npm)' "${valid}" >"${missing_corpus}"
 expect_fail missing_corpus "${missing_corpus}" "missing required evidence: corpus.coverage.ecosystems.npm"
 
+zero_ecosystem_coverage="${TMP_DIR}/zero-ecosystem-coverage.json"
+jq '.corpus.coverage.ecosystems.gomod = {status: "pass", count: 0}' "${valid}" >"${zero_ecosystem_coverage}"
+expect_fail zero_ecosystem_coverage "${zero_ecosystem_coverage}" "corpus.coverage.ecosystems.gomod pass requires count > 0"
+
+zero_evidence_family_coverage="${TMP_DIR}/zero-evidence-family-coverage.json"
+jq '.corpus.coverage.evidence_families.incident = {status: "pass", count: 0}' "${valid}" >"${zero_evidence_family_coverage}"
+expect_fail zero_evidence_family_coverage "${zero_evidence_family_coverage}" "corpus.coverage.evidence_families.incident pass requires count > 0"
+
+unsupported_ecosystem_coverage="${TMP_DIR}/unsupported-ecosystem-coverage.json"
+jq '.status = "partial" | .corpus.coverage.ecosystems.gomod = {status: "unsupported", reason: "representative corpus does not yet include Go module coverage", issue_refs: ["#1249"]}' "${valid}" >"${unsupported_ecosystem_coverage}"
+expect_pass unsupported_ecosystem_coverage "${unsupported_ecosystem_coverage}"
+
 missing_pprof="${TMP_DIR}/missing-pprof.json"
 jq '.observability.pprof_status = "missing"' "${valid}" >"${missing_pprof}"
 expect_fail missing_pprof "${missing_pprof}" "observability.pprof_status must be reachable"
