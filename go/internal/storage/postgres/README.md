@@ -346,17 +346,20 @@ claim counts; no new telemetry dimension was required.
 
 No-Regression Evidence: AWS relationship readiness gating is covered by
 `go test ./internal/storage/postgres -run 'TestReducerQueueClaim(GatesAWSRelationshipsOnCanonicalCloudResourceReadiness|WaitsForAWSRelationshipReadinessBehavior|WaitsForRetryingAWSRelationshipReadinessBehavior|AWSRelationshipAlreadyReadyBehavior)|TestClaimBatchGatesAWSRelationshipsOnCanonicalCloudResourceReadiness|TestReducerQueueBlockagesReportAWSRelationshipReadinessWait' -count=1`.
-The claim path keeps pending and retrying `aws_relationship_materialization`
-rows unclaimed until the matching `cloud_resource_uid` /
+The same CloudResource readiness gate now also covers RDS posture property
+updates; `go test ./internal/storage/postgres -run RDSPosture -count=1` proves
+`rds_posture_materialization` waits for the same phase. The claim path keeps
+pending and retrying `aws_relationship_materialization` rows unclaimed until the
+matching `cloud_resource_uid` /
 `canonical_nodes_committed` phase exists, then makes the same row claimable
 without changing worker counts, retry delays, or conflict-key fencing.
 
 Observability Evidence: `/admin/status` queue blockages now include
 `conflict_domain=readiness` and a conflict key prefixed with
 `cloud_resource_uid:canonical_nodes_committed:` for AWS relationship work that
-is waiting on canonical `CloudResource` nodes. Existing queue gauges and domain
-backlog rows continue to expose pending, retrying, in-flight, and oldest-age
-counts without adding a high-cardinality metric label.
+is waiting on canonical `CloudResource` nodes, including RDS posture work. Existing
+queue gauges and domain backlog rows continue to expose pending, retrying,
+in-flight, and oldest-age counts without adding a high-cardinality metric label.
 
 No-Regression Evidence: owned dependency target selection is covered by
 `go test ./internal/storage/postgres -run 'TestListOwnedPackageDependencyTargetsQuery|TestOwnedPackageDependencyTargetLimit' -count=1`.

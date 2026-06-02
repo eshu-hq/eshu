@@ -227,6 +227,13 @@ const (
 	// skipped edge counts so a trace shows whether cross-account or unscanned log
 	// targets degraded gracefully without fabricating edges.
 	SpanReducerS3LogsToMaterialization = "reducer.s3_logs_to_materialization"
+	// SpanReducerRDSPostureMaterialization wraps the RDS posture node-property
+	// projection (issue #1233): fact load, the cloud_resource_uid canonical-nodes
+	// readiness gate, source RDS CloudResource resolution, scoped property retract,
+	// and the batched MATCH+SET posture write. It lets traces distinguish
+	// source-unresolved posture facts from graph backend latency without adding
+	// high-cardinality metric labels.
+	SpanReducerRDSPostureMaterialization = "reducer.rds_posture_materialization"
 	// SpanReducerSecurityGroupReachabilityMaterialization wraps the security-group
 	// network-reachability edge projection (issue #1135 PR2b, Option D): fact load,
 	// the triple canonical-nodes readiness gate, in-memory join-index build, SG

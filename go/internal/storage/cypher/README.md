@@ -337,6 +337,24 @@ tracks this package's broader transient graph-write retry class.
   `eshu_dp_neo4j_batch_size`; the reducer handler owns the
   `eshu_dp_iam_escalation_edges_total` / `eshu_dp_iam_escalation_skipped_total`
   counters and completion log.
+- `RDSPostureNodeWriter` — stamps RDS security and operations posture properties
+  onto existing RDS DB instance and Aurora cluster `CloudResource` nodes for the
+  RDS posture materialization reducer domain (issue #1233); constructed with
+  `NewRDSPostureNodeWriter`. Batched `UNWIND` +
+  `MATCH (r:CloudResource {uid})` + `SET` keeps the writer node-property-only:
+  a missing RDS node is a no-op and the writer never `MERGE`s or `CREATE`s a
+  CloudResource. The scoped retract matches only nodes with
+  `rds_posture_scope_id` and `rds_posture_evidence_source`, then `REMOVE`s only
+  reducer-owned `rds_*` posture fields.
+
+  No-Regression Evidence: `go test ./internal/storage/cypher -run
+  RDSPosture -count=1` proves empty-row no-op behavior, uid-anchored MATCH+SET,
+  no node fabrication, scope/evidence annotation, and property-only retract.
+  Observability Evidence: statement summaries and operation metadata
+  (`phase=rds_posture`, `label=CloudResource:RDSPosture`) ride each statement
+  for the existing InstrumentedExecutor `eshu_dp_neo4j_query_duration_seconds`
+  and `eshu_dp_neo4j_batch_size` metrics; no new metric name or label was
+  required.
 - `SemanticEntityWriter` — writes semantic entity (Annotation, Module, etc.)
   nodes; five constructors select the Cypher row shape
 

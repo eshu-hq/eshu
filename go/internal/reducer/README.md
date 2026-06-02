@@ -79,7 +79,32 @@ canonical-write or bounded counter-emission requirements.
 | `DomainKubernetesCorrelationMaterialization` | Project exact live-workload correlation decisions into canonical `RUNS_IMAGE` edges from a `KubernetesWorkload` node to the digest-addressed OCI source node it runs; gates on the `kubernetes_workload_uid` canonical-nodes phase, exact-only, never fabricates or dangles an edge (issue #388 PR3) |
 | `DomainIAMCanAssumeMaterialization` | Project `aws_iam_permission` trust statements into canonical `(:CloudResource)-[:CAN_ASSUME]->(:CloudResource)` edges from an assuming IAM principal (role/user) to the role whose trust policy grants the assume; gates on the `cloud_resource_uid` canonical-nodes phase (the same gate `aws_relationship_materialization` uses), `effect=Allow` only, skips external / AWS-service / wildcard / account-root / unscanned principals, never fabricates or dangles an edge (issue #1134 PR2) |
 | `DomainS3LogsToMaterialization` | Project `s3_bucket_posture` `logging_target_bucket` fields into canonical `(:CloudResource)-[:LOGS_TO]->(:CloudResource)` edges from a source S3 bucket to the target log bucket it delivers server-access logs to; resolves the target by bucket-name equality against an in-memory S3 join index; gates on the `cloud_resource_uid` canonical-nodes phase (the same gate `aws_relationship_materialization` uses); a blank target (logging disabled) is no edge and not a skip; a self-target (bucket logging to itself) is a legal config and DOES emit an edge; cross-account / out-of-scope / unscanned targets are counted, never fabricated or dangled (issue #1144 PR2). `GRANTS_ACCESS_TO :ExternalPrincipal` and the internet-exposure flag are deferred follow-ups; see `docs/internal/design/1144-s3-logs-to-edge.md` §8 |
+| `DomainRDSPostureMaterialization` | Project `rds_instance_posture` security/operations posture onto existing RDS DB instance and Aurora cluster `CloudResource` nodes; gates on the `cloud_resource_uid` canonical-nodes phase, writes only reducer-owned posture properties, never creates RDS nodes, and leaves KMS/security-group/subnet-group/IAM/parameter/option dependency edges to generic `aws_relationship_materialization` (issue #1233) |
 | `DomainIncidentRoutingMaterialization` | Project exact PagerDuty incident-routing evidence into reducer-owned `IncidentRoutingEvidence` graph nodes and intended/applied/live evidence relationships without promoting runtime, image, commit, pull-request, Jira, service-health, or root-cause truth |
+
+## RDS Posture Projection (issue #1233)
+
+`DomainRDSPostureMaterialization` is the RDS posture graph slice. It loads the
+same scope generation's `aws_resource` and `rds_instance_posture` facts, resolves
+only RDS DB instance and Aurora cluster posture facts whose source resource
+already exists in the CloudResource node generation, and stamps properties such
+as `rds_public_exposure_state`, `rds_storage_encrypted`,
+`rds_backup_retention_period`, `rds_deletion_protection`, IAM DB auth,
+Performance Insights, CA certificate, parameter/option group names, and curated
+security parameters onto the existing node. A `publicly_accessible=true` fact is
+only `candidate_public_endpoint`; internet reachability still requires a later
+security-group/path derivation.
+
+No-Regression Evidence: `go test ./internal/reducer -run 'RDSPosture' -count=1`
+proves source-resource gating, deterministic dedupe, first-generation retract
+skip, retryable readiness misses, additive registry wiring, and handler write
+counts.
+
+Observability Evidence: `reducer.rds_posture_materialization` wraps fact load,
+readiness, extraction, retract, and graph write. The completion log carries
+resource/posture counts, node-update count, skip tally, and stage durations; the
+Cypher writer adds `phase=rds_posture` and `label=CloudResource:RDSPosture`
+metadata for the existing graph query duration and batch-size metrics.
 
 ## PagerDuty IncidentRoutingEvidence graph projection (issue #1168)
 

@@ -18,6 +18,9 @@
 // AWS resource observations stay source-local until buildAWSCloudRuntimeDriftReducerIntent
 // emits one aws_cloud_runtime_drift reducer intent for the AWS scope
 // generation; the reducer owns ARN joins and unmanaged/orphan admission.
+// RDS posture observations emit one rds_posture_materialization reducer intent;
+// the reducer waits for CloudResource readiness and owns posture property
+// projection on existing RDS nodes.
 // Package-registry identity emits package source-correlation and supply-chain
 // impact reducer intents so manifest-backed consumption and vulnerability
 // findings can catch up when package evidence arrives after source intelligence.

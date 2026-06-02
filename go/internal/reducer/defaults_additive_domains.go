@@ -193,6 +193,17 @@ func appendAdditiveDomainDefinitions(definitions []DomainDefinition, handlers De
 		}
 		definitions = append(definitions, s3LogsTo)
 	}
+	if handlers.FactLoader != nil && handlers.RDSPostureNodeWriter != nil {
+		rdsPosture := rdsPostureMaterializationDomainDefinition()
+		rdsPosture.Handler = RDSPostureMaterializationHandler{
+			FactLoader:           handlers.FactLoader,
+			NodeWriter:           handlers.RDSPostureNodeWriter,
+			ReadinessLookup:      handlers.ReadinessLookup,
+			PriorGenerationCheck: handlers.PriorGenerationCheck,
+			Tracer:               handlers.Tracer,
+		}
+		definitions = append(definitions, rdsPosture)
+	}
 	if handlers.FactLoader != nil && handlers.KubernetesCorrelationEdgeWriter != nil {
 		kubernetesEdges := kubernetesCorrelationMaterializationDomainDefinition()
 		kubernetesEdges.Handler = KubernetesCorrelationMaterializationHandler{

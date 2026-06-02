@@ -40,6 +40,7 @@ var knownDomains = map[Domain]struct{}{
 	DomainSecurityGroupReachabilityMaterialization: {},
 	DomainIAMCanAssumeMaterialization:              {},
 	DomainS3LogsToMaterialization:                  {},
+	DomainRDSPostureMaterialization:                {},
 	DomainIAMEscalationMaterialization:             {},
 	DomainIncidentRoutingMaterialization:           {},
 }

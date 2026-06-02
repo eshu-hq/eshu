@@ -150,6 +150,14 @@ type DefaultHandlers struct {
 	// nodes.
 	S3LogsToEdgeWriter S3LogsToEdgeWriter
 
+	// RDSPostureNodeWriter projects rds_instance_posture facts onto existing RDS
+	// CloudResource nodes (issue #1233). It must be non-nil alongside FactLoader
+	// for the registry to register DomainRDSPostureMaterialization; missing either
+	// one would drop every RDS posture intent before it reaches graph truth. The
+	// handler also gates on ReadinessLookup so posture fields never write against
+	// uncommitted CloudResource nodes.
+	RDSPostureNodeWriter RDSPostureNodeWriter
+
 	// ContainerImageIdentityWriter persists digest-keyed image identity
 	// decisions for Git, OCI registry, and runtime image evidence.
 	ContainerImageIdentityWriter ContainerImageIdentityWriter

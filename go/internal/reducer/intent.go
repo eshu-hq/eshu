@@ -253,6 +253,19 @@ const (
 	// the internet-exposure node-property flag are deferred follow-ups; see
 	// docs/internal/design/1144-s3-logs-to-edge.md §8.
 	DomainS3LogsToMaterialization Domain = "s3_logs_to_materialization"
+	// DomainRDSPostureMaterialization projects rds_instance_posture facts onto
+	// existing RDS DB instance and Aurora cluster CloudResource nodes. It is a
+	// NODE-PROPERTY-ONLY slice on the cloud_resource_uid keyspace: storage
+	// encryption, public-endpoint candidacy, backup/deletion-protection, IAM DB
+	// auth, Performance Insights, CA certificate, parameter/option group names,
+	// and curated security parameters become reducer-owned properties. It gates on
+	// GraphProjectionKeyspaceCloudResourceUID /
+	// GraphProjectionPhaseCanonicalNodesCommitted so it never fabricates an RDS
+	// node or writes against uncommitted CloudResource truth. RDS dependency edges
+	// for KMS, security groups, subnet groups, IAM roles, parameter groups, and
+	// option groups stay owned by the generic aws_relationship_materialization
+	// path.
+	DomainRDSPostureMaterialization Domain = "rds_posture_materialization"
 	// DomainIncidentRoutingMaterialization projects exact PagerDuty
 	// incident-routing evidence into reducer-owned IncidentRoutingEvidence graph
 	// nodes and evidence relationships. It preserves declared/applied/observed

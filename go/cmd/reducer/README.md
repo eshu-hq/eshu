@@ -66,7 +66,8 @@ flowchart TB
    reconciliation writer publishes provider-alert comparison facts without
    promoting provider alert state into impact truth; and the PagerDuty
    incident-routing evidence loader plus graph writer materialize exact
-   `IncidentRoutingEvidence` rows only),
+   `IncidentRoutingEvidence` rows only; and the RDS posture node writer stamps
+   reducer-owned posture fields onto existing RDS CloudResource nodes),
    `SharedProjectionRunner`, `CodeCallProjectionRunner`,
    `RepoDependencyProjectionRunner`, `GraphProjectionPhaseRepairer`, and
    the `postgres.NewReducerQueue`.
