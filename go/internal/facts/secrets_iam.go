@@ -44,6 +44,25 @@ const (
 	// EKSPodIdentityAssociationFactKind identifies an EKS Pod Identity
 	// association source fact when association evidence is available.
 	EKSPodIdentityAssociationFactKind = "eks_pod_identity_association"
+	// VaultAuthMountFactKind identifies one Vault auth mount metadata source
+	// fact.
+	VaultAuthMountFactKind = "vault_auth_mount"
+	// VaultAuthRoleFactKind identifies one Vault auth role metadata source fact.
+	VaultAuthRoleFactKind = "vault_auth_role"
+	// VaultACLPolicyFactKind identifies one Vault ACL policy metadata source
+	// fact.
+	VaultACLPolicyFactKind = "vault_acl_policy"
+	// VaultIdentityEntityFactKind identifies one Vault identity entity source
+	// fact.
+	VaultIdentityEntityFactKind = "vault_identity_entity"
+	// VaultIdentityAliasFactKind identifies one Vault identity alias source fact.
+	VaultIdentityAliasFactKind = "vault_identity_alias"
+	// VaultKVMetadataFactKind identifies one Vault KV v2 metadata path source
+	// fact.
+	VaultKVMetadataFactKind = "vault_kv_metadata"
+	// VaultSecretEngineMountFactKind identifies one Vault secret engine mount
+	// metadata source fact.
+	VaultSecretEngineMountFactKind = "vault_secret_engine_mount"
 	// SecretsIAMCoverageWarningFactKind identifies source-local coverage,
 	// redaction, unsupported, partial, permission-hidden, rate-limited, or stale
 	// warning evidence for the secrets/IAM posture collector family.
@@ -68,6 +87,13 @@ var secretsIAMFactKinds = []string{
 	KubernetesServiceAccountTokenPostureFactKind,
 	EKSIRSAAnnotationFactKind,
 	EKSPodIdentityAssociationFactKind,
+	VaultAuthMountFactKind,
+	VaultAuthRoleFactKind,
+	VaultACLPolicyFactKind,
+	VaultIdentityEntityFactKind,
+	VaultIdentityAliasFactKind,
+	VaultKVMetadataFactKind,
+	VaultSecretEngineMountFactKind,
 	SecretsIAMCoverageWarningFactKind,
 }
 
@@ -86,6 +112,13 @@ var secretsIAMSchemaVersions = map[string]string{
 	KubernetesServiceAccountTokenPostureFactKind: SecretsIAMSchemaVersionV1,
 	EKSIRSAAnnotationFactKind:                    SecretsIAMSchemaVersionV1,
 	EKSPodIdentityAssociationFactKind:            SecretsIAMSchemaVersionV1,
+	VaultAuthMountFactKind:                       SecretsIAMSchemaVersionV1,
+	VaultAuthRoleFactKind:                        SecretsIAMSchemaVersionV1,
+	VaultACLPolicyFactKind:                       SecretsIAMSchemaVersionV1,
+	VaultIdentityEntityFactKind:                  SecretsIAMSchemaVersionV1,
+	VaultIdentityAliasFactKind:                   SecretsIAMSchemaVersionV1,
+	VaultKVMetadataFactKind:                      SecretsIAMSchemaVersionV1,
+	VaultSecretEngineMountFactKind:               SecretsIAMSchemaVersionV1,
 	SecretsIAMCoverageWarningFactKind:            SecretsIAMSchemaVersionV1,
 }
 

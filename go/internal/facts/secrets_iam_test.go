@@ -18,6 +18,13 @@ func TestSecretsIAMFactKindsAndSchemaVersions(t *testing.T) {
 		KubernetesServiceAccountTokenPostureFactKind,
 		EKSIRSAAnnotationFactKind,
 		EKSPodIdentityAssociationFactKind,
+		VaultAuthMountFactKind,
+		VaultAuthRoleFactKind,
+		VaultACLPolicyFactKind,
+		VaultIdentityEntityFactKind,
+		VaultIdentityAliasFactKind,
+		VaultKVMetadataFactKind,
+		VaultSecretEngineMountFactKind,
 		SecretsIAMCoverageWarningFactKind,
 	}
 
