@@ -20,7 +20,7 @@ Provider work should remain separate:
 | Provider | Collector kind | Source contract | Implementation issue |
 | --- | --- | --- | --- |
 | AWS | `aws` | Implemented claim-driven AWS control-plane metadata collection. | Existing AWS collector work. |
-| GCP | `gcp` | Design-only Cloud Asset Inventory collector. | [#21](https://github.com/eshu-hq/eshu/issues/21) |
+| GCP | `gcp` | Design-only [Cloud Asset Inventory collector](gcp-cloud-collector-contract.md). | [#21](https://github.com/eshu-hq/eshu/issues/21) |
 | Azure | `azure` | Design-only Azure Resource Graph and ARM collector. | [#22](https://github.com/eshu-hq/eshu/issues/22) |
 
 Do not hide provider differences behind one generic cloud collector. GCP and
