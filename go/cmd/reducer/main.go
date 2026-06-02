@@ -190,6 +190,7 @@ func buildReducerService(
 	securityGroupReachabilityWriter := sourcecypher.NewSecurityGroupReachabilityWriter(neo4jExec, neo4jBatchSize(getenv))
 	kubernetesCorrelationEdgeWriter := sourcecypher.NewKubernetesCorrelationEdgeWriter(neo4jExec, neo4jBatchSize(getenv))
 	iamEscalationEdgeWriter := sourcecypher.NewIAMEscalationEdgeWriter(neo4jExec, neo4jBatchSize(getenv))
+	iamCanPerformEdgeWriter := sourcecypher.NewIAMCanPerformEdgeWriter(neo4jExec, neo4jBatchSize(getenv))
 	observabilityCoverageEdgeWriter := sourcecypher.NewObservabilityCoverageEdgeWriter(neo4jExec, neo4jBatchSize(getenv))
 	incidentRoutingEvidenceWriter := sourcecypher.NewIncidentRoutingEvidenceWriter(neo4jExec, neo4jBatchSize(getenv))
 	iamCanAssumeEdgeWriter := sourcecypher.NewIAMCanAssumeEdgeWriter(neo4jExec, neo4jBatchSize(getenv))
@@ -342,6 +343,7 @@ func buildReducerService(
 		SecurityGroupReachabilityWriter:    securityGroupReachabilityWriter,
 		KubernetesCorrelationEdgeWriter:    kubernetesCorrelationEdgeWriter,
 		IAMEscalationEdgeWriter:            iamEscalationEdgeWriter,
+		IAMCanPerformEdgeWriter:            iamCanPerformEdgeWriter,
 		ObservabilityCoverageEdgeWriter:    observabilityCoverageEdgeWriter,
 		IAMCanAssumeEdgeWriter:             iamCanAssumeEdgeWriter,
 		S3LogsToEdgeWriter:                 s3LogsToEdgeWriter,

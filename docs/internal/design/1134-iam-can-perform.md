@@ -206,3 +206,90 @@ graph write.
 Approve this MVP scope (or amend §3 / §9), confirm CAN_PERFORM is claimed under
 #1134, and green-light the PR4a build. Until approved, no code lands — this is a
 design + claim artifact only.
+
+## 12. PR4a Implementation Evidence
+
+This section is appended by the PR4a build (the design above was approved and
+merged in #1316 with no fork amendments). It records the realized scope, the
+performance-impact declaration, and the proof gates run.
+
+### 12.1 Realized scope
+
+- New reducer extractor `ExtractIAMCanPerformEdges` (`go/internal/reducer/iam_can_perform.go`)
+  evaluates each scanned IAM principal's trusted-Allow identity statements against
+  the closed catalog (`go/internal/reducer/iam_can_perform_catalog.go`) and emits
+  one `(:CloudResource {principal}) -[:CAN_PERFORM]-> (:CloudResource {resource})`
+  edge per resolved `(principal, resource)` pair, with the granted action set as a
+  sorted/deduped edge property `rel.actions` (never in the MERGE key),
+  `rel.action_count`, and `rel.evaluation_scope = 'identity_policy_only'`.
+- New handler `IAMCanPerformMaterializationHandler`
+  (`go/internal/reducer/iam_can_perform_materialization.go`) gates on the existing
+  `cloud_resource_uid` / `canonical_nodes_committed` phase, loads the scope
+  generation's `aws_resource` + `aws_iam_permission` facts, retracts the prior
+  generation's `evidence_source = 'reducer/iam-can-perform'` edges, writes the
+  resolved edges, and records the skip tally.
+- New writer `IAMCanPerformEdgeWriter`
+  (`go/internal/storage/cypher/iam_can_perform_edge_writer.go`) mirrors the
+  CAN_ESCALATE_TO static-token `MERGE`-then-`SET` shape: two uid-indexed
+  `:CloudResource` MATCHes, `MERGE (p)-[rel:CAN_PERFORM]->(t)`, action set written
+  wholesale in `SET`. Edge-only: no new node type, no new keyspace, no constraint.
+- Closed catalog shipped (nine entries, §3 starter vocabulary):
+  `s3:getobject`, `s3:putobject` → `aws_s3_bucket`; `s3:deletebucket` →
+  `aws_s3_bucket`; `kms:decrypt` → `aws_kms_key`; `secretsmanager:getsecretvalue`
+  → `aws_secretsmanager_secret`; `ssm:getparameter` → `aws_ssm_parameter`;
+  `dynamodb:getitem` → `aws_dynamodb_table`; `ec2:terminateinstances` →
+  `aws_ec2_instance`; `rds:deletedbinstance` → `aws_rds_db_instance`.
+- Skip taxonomy (bounded `skip_reason`): `skipped_uncatalogued_action`,
+  `skipped_ambiguous`, `skipped_unresolved`, `skipped_deny`, `skipped_conditioned`,
+  `skipped_not_action_resource`, `skipped_self_loop`.
+
+### 12.2 Performance impact declaration
+
+- **Affected stage:** reducer shared-projection graph write (new additive domain
+  `iam_can_perform_materialization`). No change to any existing hot path; the
+  domain is only registered when its writer + fact loader are wired.
+- **Expected cardinality band:** same order as CAN_ESCALATE_TO. The closed
+  nine-action catalog + exact/single-glob-only resolution + scanned-nodes-only
+  rule bound output to `O(principals × resolved_catalog_resources)`, far below the
+  `principals × resources × actions` worst case. Per scope generation the realized
+  edge count is expected in the low thousands at the 20-25 repo corpus, matching
+  the escalation band.
+- **Proof ladder:** focused Go unit tests (extractor, handler, writer, catalog) →
+  writer micro-benchmark vs the shipped escalation-writer baseline on the same
+  5000-row shape → `scripts/verify-performance-evidence.sh`. A full-corpus wall-clock
+  run is out of scope for this edge-only PR; the write shares the proven batched
+  `UNWIND`/static-token-`MERGE` template whose corpus behavior #1134 PR3 already
+  measured.
+- **Stop threshold:** if the writer micro-benchmark regresses more than ~10%
+  against the escalation-writer baseline on the same row shape, stop and profile
+  before merge.
+
+`Benchmark Evidence:` `BenchmarkIAMCanPerformEdgeWriter` vs
+`BenchmarkIAMEscalationEdgeWriter` (shipped baseline), 5000 rows, no-op group
+executor, isolates Eshu-owned batched-statement construction (no graph round
+trip). The two writers share the static-token dual-MATCH `MERGE` template, so the
+CAN_PERFORM writer stays in the same shape class — one batched MATCH-MATCH-MERGE
+per chunk over two uid-indexed `:CloudResource` anchors, no N+1. Backend: shared
+raw Cypher/Bolt contract (NornicDB default, Neo4j compatible); input cardinality
+5000 resolved rows; index/constraint state: relies on the `:CloudResource(uid)`
+lookup the data-plane bootstrap already creates; before/after: see the run output
+recorded in the PR body.
+
+`Observability Evidence:` new counters
+`eshu_dp_iam_can_perform_edges_total{resolution_mode}` (resolution_mode ∈
+{exact_arn, single_glob}) and `eshu_dp_iam_can_perform_skipped_total{skip_reason}`
+(the seven bounded skip reasons), span
+`reducer.iam_can_perform_materialization`, and a completion log carrying the edge
+count and full per-reason skip tally, so an operator can tell at 3 AM how many
+edges projected vs were skipped and why.
+
+### 12.3 Honesty boundary (identity-policy-only)
+
+Every CAN_PERFORM edge carries `rel.evaluation_scope = 'identity_policy_only'`.
+A *present* edge means an identity policy grants the action on the resolved
+resource, ignoring resource-based policies, permission boundaries, SCPs,
+conditions, and session policies. A *missing* edge does NOT mean "cannot
+perform" — it can mean the action is uncatalogued, the resource was not scanned
+or was ambiguous, or a non-identity grant exists that this slice does not
+evaluate (PR4b–PR4d). This boundary is the reason the slice is conservative and
+skip-counted rather than claiming a complete effective-permission lattice.

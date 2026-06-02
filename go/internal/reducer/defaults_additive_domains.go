@@ -299,6 +299,18 @@ func appendAdditiveDomainDefinitions(definitions []DomainDefinition, handlers De
 		}
 		definitions = append(definitions, iamEscalation)
 	}
+	if handlers.FactLoader != nil && handlers.IAMCanPerformEdgeWriter != nil {
+		iamCanPerform := iamCanPerformMaterializationDomainDefinition()
+		iamCanPerform.Handler = IAMCanPerformMaterializationHandler{
+			FactLoader:           handlers.FactLoader,
+			Writer:               handlers.IAMCanPerformEdgeWriter,
+			ReadinessLookup:      handlers.ReadinessLookup,
+			PriorGenerationCheck: handlers.PriorGenerationCheck,
+			Tracer:               handlers.Tracer,
+			Instruments:          handlers.Instruments,
+		}
+		definitions = append(definitions, iamCanPerform)
+	}
 	if handlers.IncidentRoutingEvidenceLoader != nil && handlers.IncidentRoutingEvidenceWriter != nil {
 		incidentRouting := incidentRoutingMaterializationDomainDefinition()
 		incidentRouting.Handler = IncidentRoutingMaterializationHandler{
