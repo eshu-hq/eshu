@@ -32,7 +32,11 @@ validate_readback_proof_contract() {
             ($surface | type == "object") and
             (($surface.status // "") == "pass") and
             positive($surface.checked) and
-            (($surface.failed // -1) == 0);
+            (($surface.failed // -1) == 0) and
+            nonneg($surface.truncated) and
+            nonneg($surface.unsupported) and
+            nonneg($surface.missing_evidence) and
+            nonneg($surface.ambiguous);
         (.schema_version == 1) and
         (.proof_id | type == "string" and test("^[A-Za-z0-9._-]+$")) and
         ((.transcript_status // "") == "captured") and
@@ -62,17 +66,29 @@ write_readback_proof_summary() {
             api: {
                 status: .surfaces.api.status,
                 checked: .surfaces.api.checked,
-                failed: .surfaces.api.failed
+                failed: .surfaces.api.failed,
+                truncated: (.surfaces.api.truncated // 0),
+                unsupported: (.surfaces.api.unsupported // 0),
+                missing_evidence: (.surfaces.api.missing_evidence // 0),
+                ambiguous: (.surfaces.api.ambiguous // 0)
             },
             mcp: {
                 status: .surfaces.mcp.status,
                 checked: .surfaces.mcp.checked,
-                failed: .surfaces.mcp.failed
+                failed: .surfaces.mcp.failed,
+                truncated: (.surfaces.mcp.truncated // 0),
+                unsupported: (.surfaces.mcp.unsupported // 0),
+                missing_evidence: (.surfaces.mcp.missing_evidence // 0),
+                ambiguous: (.surfaces.mcp.ambiguous // 0)
             },
             cli: {
                 status: .surfaces.cli.status,
                 checked: .surfaces.cli.checked,
-                failed: .surfaces.cli.failed
+                failed: .surfaces.cli.failed,
+                truncated: (.surfaces.cli.truncated // 0),
+                unsupported: (.surfaces.cli.unsupported // 0),
+                missing_evidence: (.surfaces.cli.missing_evidence // 0),
+                ambiguous: (.surfaces.cli.ambiguous // 0)
             }
         },
         queue: {
