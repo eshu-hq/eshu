@@ -118,8 +118,10 @@ kubectl -n eshu describe pod -l app.kubernetes.io/instance=eshu
 ```
 
 If NornicDB is rebuilding search indexes after restart, confirm
-`NORNICDB_PERSIST_SEARCH_INDEXES=true` and `NORNICDB_EMBEDDING_ENABLED=false`
-for normal Eshu graph-only runs.
+`NORNICDB_SEARCH_BM25_ENABLED=false`,
+`NORNICDB_SEARCH_VECTOR_ENABLED=false`,
+`NORNICDB_PERSIST_SEARCH_INDEXES=false`, and
+`NORNICDB_EMBEDDING_ENABLED=false` for normal Eshu graph-only runs.
 
 ## What To Record Before Changing Knobs
 

@@ -14,7 +14,7 @@ func TestNornicDBComposeDefaultUsesPinnedMultiArchImage(t *testing.T) {
 		t.Fatalf("docker-compose.yaml still defaults to stale amd64-only image %q", oldDefault)
 	}
 
-	want := "image: ${NORNICDB_IMAGE:-timothyswt/nornicdb-cpu-bge:v1.1.0@sha256:65855ca2c9649020f7f9e29d2e0fbedf0bf9601457de233d87160ddbe4b473f0}"
+	want := "image: ${NORNICDB_IMAGE:-timothyswt/nornicdb-cpu-bge:v1.1.2@sha256:b4babec00f1fe2f0dec2fddc5bc90aa20e7d69e35172a27a58cc00d32b606b63}"
 	if !strings.Contains(content, want) {
 		t.Fatalf("docker-compose.yaml must default to a pinned multi-arch NornicDB image matching %q", want)
 	}
@@ -39,9 +39,9 @@ func TestNornicDBComposePersistsSearchIndexes(t *testing.T) {
 	t.Parallel()
 
 	content := readRepositoryFile(t, "../../..", "docker-compose.yaml")
-	want := `NORNICDB_PERSIST_SEARCH_INDEXES: "true"`
+	want := `NORNICDB_PERSIST_SEARCH_INDEXES: "false"`
 	if !strings.Contains(content, want) {
-		t.Fatalf("docker-compose.yaml must persist NornicDB search indexes for large-graph restarts, want %q", want)
+		t.Fatalf("docker-compose.yaml must not persist disabled NornicDB search indexes for graph-only startup, want %q", want)
 	}
 }
 
@@ -52,5 +52,48 @@ func TestNornicDBComposeDisablesEmbeddingsByDefault(t *testing.T) {
 	want := `NORNICDB_EMBEDDING_ENABLED: "false"`
 	if !strings.Contains(content, want) {
 		t.Fatalf("docker-compose.yaml must disable NornicDB embeddings for indexing by default, want %q", want)
+	}
+}
+
+func TestNornicDBComposeDisablesSearchIndexesByDefault(t *testing.T) {
+	t.Parallel()
+
+	doc := readComposeDocument(t, "docker-compose.yaml")
+	service := requireComposeService(t, doc, "nornicdb")
+
+	for key, want := range map[string]string{
+		"NORNICDB_SEARCH_BM25_ENABLED":   "false",
+		"NORNICDB_SEARCH_VECTOR_ENABLED": "false",
+		"NORNICDB_SEARCH_BM25_WARMING":   "lazy",
+		"NORNICDB_SEARCH_VECTOR_WARMING": "lazy",
+		"NORNICDB_ASYNC_WRITES_ENABLED":  "false",
+		"NORNICDB_HEIMDALL_ENABLED":      "false",
+		"NORNICDB_QDRANT_GRPC_ENABLED":   "false",
+		"NORNICDB_EMBEDDING_ENABLED":     "false",
+	} {
+		assertComposeEnv(t, service, key, want)
+	}
+}
+
+func TestNornicDBGraphOnlySearchStartupDocsTrackSupportedKnobs(t *testing.T) {
+	t.Parallel()
+
+	docs := readRepositoryFile(t, "../../..", "docs/public/run-locally/docker-compose.md")
+	for _, want := range []string{
+		"NORNICDB_EMBEDDING_ENABLED=false",
+		"NORNICDB_PERSIST_SEARCH_INDEXES=false",
+		"NORNICDB_SEARCH_BM25_ENABLED=false",
+		"NORNICDB_SEARCH_VECTOR_ENABLED=false",
+		"NORNICDB_SEARCH_BM25_WARMING=lazy",
+		"NORNICDB_SEARCH_VECTOR_WARMING=lazy",
+	} {
+		if !strings.Contains(docs, want) {
+			t.Fatalf("docker compose docs missing NornicDB search startup note %q", want)
+		}
+	}
+
+	compose := readRepositoryFile(t, "../../..", "docker-compose.yaml")
+	if strings.Contains(compose, "NORNICDB_SEARCH_ENABLED") {
+		t.Fatal("docker-compose.yaml must not advertise unsupported NORNICDB_SEARCH_ENABLED")
 	}
 }

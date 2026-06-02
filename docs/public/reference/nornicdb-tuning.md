@@ -141,21 +141,22 @@ letters, and terminal drain state.
 | --- | --- | --- |
 | `NORNICDB_PPROF_ENABLED` | unset / `false` | Enables NornicDB profiling when Eshu logs no longer identify an Eshu-side batching mistake. |
 | `NORNICDB_PPROF_LISTEN` | `127.0.0.1:9091` | Bind address for pprof. Use `0.0.0.0:9091` only on trusted private test hosts. |
-| `NORNICDB_PERSIST_SEARCH_INDEXES` | `true` in Eshu Compose and Helm | Keeps NornicDB from rebuilding search indexes by scanning the whole graph after normal restarts. |
+| `NORNICDB_SEARCH_BM25_ENABLED` | `false` in Eshu Compose and Helm | Keeps BM25 indexing off for the canonical graph database. |
+| `NORNICDB_SEARCH_VECTOR_ENABLED` | `false` in Eshu Compose and Helm | Keeps vector indexing off for the canonical graph database. |
+| `NORNICDB_SEARCH_BM25_WARMING` | `lazy` in Eshu Compose and Helm | Uses the supported lazy trigger if BM25 is enabled for a deliberate search proof. |
+| `NORNICDB_SEARCH_VECTOR_WARMING` | `lazy` in Eshu Compose and Helm | Uses the supported lazy trigger if vector search is enabled for a deliberate search proof. |
+| `NORNICDB_PERSIST_SEARCH_INDEXES` | `false` in Eshu Compose and Helm | Keeps disabled search indexes from creating graph-lane restart artifacts. |
 | `NORNICDB_EMBEDDING_ENABLED` | `false` in Eshu Compose and Helm | Keeps embedding generation off during Eshu indexing. Enable only for semantic-search experiments after indexing baseline is understood. |
 
 ### Search Index Gate
 
-Treat `NORNICDB_PERSIST_SEARCH_INDEXES=true` as a mitigation for the current
-canonical graph deployment, not as approval to index every graph node and
-property for user search. Eshu's graph lane owns canonical truth; BM25, vector,
-and hybrid retrieval need a curated search projection with its own proof.
+Treat disabled BM25/vector indexing as the normal canonical graph deployment.
+Eshu's graph lane owns canonical truth; BM25, vector, and hybrid retrieval need
+a curated search projection with its own proof.
 
-Do not document or wire NornicDB BM25/vector disable or lazy-warming variables
-in Eshu until the pinned NornicDB image accepts the exact variables and a focused
-Eshu proof shows the canonical graph database skips whole-graph search index
-builds. Future work must also record build state, duration, document count,
-vector count, artifact size, and failure class before changing Compose or Helm
+Do not re-enable BM25/vector indexing in Eshu until a focused proof records
+build state, duration, document count, vector count, artifact size, and failure
+class before changing Compose or Helm
 defaults.
 
 ## Hosted Defaults

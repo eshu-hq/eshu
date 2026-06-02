@@ -44,25 +44,21 @@ For NornicDB deployments, the canonical graph lane should not build BM25 or
 vector indexes over every graph node and property unless a specific proof says
 that deployment also serves a curated Eshu search lane from the same database.
 
-Current Eshu pinned NornicDB images do not provide an Eshu-supported graph-only
-search-disable contract. Eshu should keep the current mitigation
-(`NORNICDB_EMBEDDING_ENABLED=false` and
-`NORNICDB_PERSIST_SEARCH_INDEXES=true`) until a pinned NornicDB build supports
-explicit BM25/vector disable or lazy-warming controls.
+Eshu pins NornicDB `v1.1.2` for Compose graph startup because that release
+ships the per-database BM25/vector enable and warming controls described in
+[orneryd/NornicDB#177](https://github.com/orneryd/NornicDB/pull/177).
+The canonical graph lane uses this graph-only policy:
 
-When such a pinned build exists, Eshu should prefer this graph-lane policy:
+- `NORNICDB_SEARCH_BM25_ENABLED=false`;
+- `NORNICDB_SEARCH_VECTOR_ENABLED=false`;
+- `NORNICDB_SEARCH_BM25_WARMING=lazy`;
+- `NORNICDB_SEARCH_VECTOR_WARMING=lazy`;
+- `NORNICDB_EMBEDDING_ENABLED=false`;
+- `NORNICDB_PERSIST_SEARCH_INDEXES=false`.
 
-- BM25 disabled for the canonical graph database, or lazy only for a deliberate
-  graph-search proof;
-- vector indexing disabled for the canonical graph database unless embeddings
-  and a search projection are enabled deliberately;
-- no new Eshu docs or chart values should name upstream variables until the
-  pinned image and tests prove they are accepted and effective.
-
-Upstream NornicDB has an implementation candidate for this shape in
-[orneryd/NornicDB#177](https://github.com/orneryd/NornicDB/pull/177), which
-describes per-database BM25/vector enable flags and startup/lazy warming. Eshu
-must treat that as an adoption candidate, not a current deployment contract.
+BM25 or vector indexing should be re-enabled only for a deliberate curated
+search-lane proof. Search results must remain derived retrieval records, not
+canonical graph truth.
 
 ### 2.2 Search lane
 
