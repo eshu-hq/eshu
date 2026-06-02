@@ -94,6 +94,7 @@ func TestSpanNames(t *testing.T) {
 		"reducer.iam_can_assume_materialization",
 		"reducer.s3_logs_to_materialization",
 		"reducer.rds_posture_materialization",
+		"reducer.ec2_uses_profile_materialization",
 		"reducer.iam_escalation_materialization",
 		"canonical.write",
 		"canonical.projection",

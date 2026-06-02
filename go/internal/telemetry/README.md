@@ -192,6 +192,8 @@ gauge when a shared-acceptance observer is available.
 | `IAMCanAssumeEdges` | `eshu_dp_iam_can_assume_edges_total` |
 | `S3LogsToEdges` | `eshu_dp_s3_logs_to_edges_total` |
 | `S3LogsToSkipped` | `eshu_dp_s3_logs_to_skipped_total` |
+| `EC2UsesProfileEdges` | `eshu_dp_ec2_uses_profile_edges_total` |
+| `EC2UsesProfileSkipped` | `eshu_dp_ec2_uses_profile_skipped_total` |
 | `DriftUnresolvedModuleCalls` | `eshu_dp_drift_unresolved_module_calls_total` |
 | `DriftSchemaUnknownComposite` | `eshu_dp_drift_schema_unknown_composite_total` |
 | `WebhookRequests` | `eshu_dp_webhook_requests_total` |

@@ -204,6 +204,18 @@ func appendAdditiveDomainDefinitions(definitions []DomainDefinition, handlers De
 		}
 		definitions = append(definitions, rdsPosture)
 	}
+	if handlers.FactLoader != nil && handlers.EC2UsesProfileEdgeWriter != nil {
+		ec2UsesProfile := ec2UsesProfileMaterializationDomainDefinition()
+		ec2UsesProfile.Handler = EC2UsesProfileMaterializationHandler{
+			FactLoader:           handlers.FactLoader,
+			EdgeWriter:           handlers.EC2UsesProfileEdgeWriter,
+			ReadinessLookup:      handlers.ReadinessLookup,
+			PriorGenerationCheck: handlers.PriorGenerationCheck,
+			Tracer:               handlers.Tracer,
+			Instruments:          handlers.Instruments,
+		}
+		definitions = append(definitions, ec2UsesProfile)
+	}
 	if handlers.FactLoader != nil && handlers.KubernetesCorrelationEdgeWriter != nil {
 		kubernetesEdges := kubernetesCorrelationMaterializationDomainDefinition()
 		kubernetesEdges.Handler = KubernetesCorrelationMaterializationHandler{

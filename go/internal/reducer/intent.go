@@ -266,6 +266,25 @@ const (
 	// option groups stay owned by the generic aws_relationship_materialization
 	// path.
 	DomainRDSPostureMaterialization Domain = "rds_posture_materialization"
+	// DomainEC2UsesProfileMaterialization projects ec2_instance_posture
+	// instance_profile_arn into canonical USES_PROFILE edges between an EC2
+	// instance CloudResource node and the IAM instance-profile CloudResource node
+	// it uses. It is EDGE-ONLY on the existing cloud_resource_uid keyspace (no new
+	// node type): the source EC2 instance node is materialized by
+	// DomainEC2InstanceNodeMaterialization (#1146 PR-A) and the target
+	// instance-profile node by DomainAWSResourceMaterialization (#805). Because the
+	// two endpoint nodes publish their canonical_nodes_committed phase under
+	// DIFFERENT entity keys (ec2_instance_node_materialization:<scope> and
+	// aws_resource_materialization:<scope>), the edge gates on BOTH phases so it
+	// never resolves against an endpoint that has not committed — the dual-key
+	// readiness gate, generalizing the security-group reachability edge's
+	// three-phase gate (#1135). A blank instance_profile_arn (no attached profile)
+	// produces no edge and is not a skip; cross-account, out-of-scope, and
+	// unscanned profiles fabricate no edge and are counted. This is the first edge
+	// in the EC2 blast-radius chain EC2 → profile → role → CAN_ESCALATE_TO; the
+	// profile → role HAS_ROLE edge is the remaining follow-up. See issue #1146 PR-B
+	// and docs/internal/design/1146-ec2-uses-profile-edge.md.
+	DomainEC2UsesProfileMaterialization Domain = "ec2_uses_profile_materialization"
 	// DomainIncidentRoutingMaterialization projects exact PagerDuty
 	// incident-routing evidence into reducer-owned IncidentRoutingEvidence graph
 	// nodes and evidence relationships. It preserves declared/applied/observed

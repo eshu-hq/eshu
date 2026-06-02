@@ -234,6 +234,15 @@ const (
 	// source-unresolved posture facts from graph backend latency without adding
 	// high-cardinality metric labels.
 	SpanReducerRDSPostureMaterialization = "reducer.rds_posture_materialization"
+	// SpanReducerEC2UsesProfileMaterialization wraps the EC2 USES_PROFILE
+	// instance-profile edge projection (issue #1146 PR-B): fact load, the dual-key
+	// canonical-nodes readiness gate (the EC2 instance node phase plus the IAM
+	// instance-profile node phase, published under different entity keys), in-memory
+	// instance-profile ARN join-index build, source/target resolution, retract, and
+	// the batched MATCH-MATCH-MERGE USES_PROFILE edge write. The span carries
+	// materialized vs skipped edge counts so a trace shows whether cross-account or
+	// unscanned profiles degraded gracefully without fabricating edges.
+	SpanReducerEC2UsesProfileMaterialization = "reducer.ec2_uses_profile_materialization"
 	// SpanReducerSecurityGroupReachabilityMaterialization wraps the security-group
 	// network-reachability edge projection (issue #1135 PR2b, Option D): fact load,
 	// the triple canonical-nodes readiness gate, in-memory join-index build, SG

@@ -41,6 +41,7 @@ var knownDomains = map[Domain]struct{}{
 	DomainIAMCanAssumeMaterialization:              {},
 	DomainS3LogsToMaterialization:                  {},
 	DomainRDSPostureMaterialization:                {},
+	DomainEC2UsesProfileMaterialization:            {},
 	DomainIAMEscalationMaterialization:             {},
 	DomainIncidentRoutingMaterialization:           {},
 }

@@ -157,6 +157,16 @@ type DefaultHandlers struct {
 	// handler also gates on ReadinessLookup so posture fields never write against
 	// uncommitted CloudResource nodes.
 	RDSPostureNodeWriter RDSPostureNodeWriter
+	// EC2UsesProfileEdgeWriter projects ec2_instance_posture instance_profile_arn
+	// into canonical USES_PROFILE edges between an EC2 instance CloudResource node
+	// and the IAM instance-profile CloudResource node it uses (issue #1146 PR-B). It
+	// must be non-nil alongside FactLoader for the registry to register
+	// DomainEC2UsesProfileMaterialization; missing either one would drop every
+	// USES_PROFILE materialization intent before it reaches the graph. The handler
+	// gates on a DUAL readiness lookup — both the EC2 instance node phase and the
+	// IAM instance-profile node phase — so edges never resolve against an endpoint
+	// that has not committed.
+	EC2UsesProfileEdgeWriter EC2UsesProfileEdgeWriter
 
 	// ContainerImageIdentityWriter persists digest-keyed image identity
 	// decisions for Git, OCI registry, and runtime image evidence.
