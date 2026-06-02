@@ -5,17 +5,18 @@
 `searchbench` defines the benchmark evidence contract for comparing current
 Postgres content search with curated NornicDB BM25, vector, or hybrid retrieval.
 It keeps measurements tied to `searchdocs.Document` inputs so benchmark,
-decay, and reranking results cannot drift into whole-graph search or
-canonical-truth claims.
+decay, reranking, and protocol recommendation results cannot drift into
+whole-graph search or canonical-truth claims.
 
 ## Ownership boundary
 
 This package owns validation and scoring for search benchmark evidence,
 semantic retrieval query suites, decay-scoring evaluation records, and
-reranking evaluation records. It does not query Postgres, call NornicDB, invoke
-cross-encoder rerankers, write graph state, expose API/MCP routes, or change
-runtime defaults. Live benchmark adapters must measure their backend and then
-feed versioned records through this package.
+reranking evaluation records, and protocol recommendation records. It does not
+query Postgres, call NornicDB, invoke cross-encoder rerankers, open GraphQL or
+gRPC clients, write graph state, expose API/MCP routes, or change runtime
+defaults. Live benchmark adapters must measure their backend and then feed
+versioned records through this package.
 
 ## Exported surface
 
@@ -41,6 +42,9 @@ See `doc.go` for the godoc-rendered package contract.
   cost, and rank movement for one query.
 - `ValidateRerankEvaluation` rejects rerank evidence without baseline hybrid
   proof or with false canonical candidate claims.
+- `ValidateProtocolRecommendation` checks whether a protocol expansion
+  recommendation has baseline hybrid proof, explicit user value, fallback
+  behavior, and preserved API/MCP authorization.
 - `RequiredFailureClasses` returns the operator-visible failure classes every
   benchmark must report.
 
@@ -61,7 +65,10 @@ id, evidence class, and outcome through `searchdecay.Decision`; live telemetry
 bridges must keep those dimensions low-cardinality. Reranking evaluation
 records carry the prior hybrid evidence id, aggregate latency, and aggregate
 cost; live telemetry bridges must not promote document ids, query ids, or graph
-handles into high-cardinality metric labels.
+handles into high-cardinality metric labels. Protocol recommendation records
+carry only low-cardinality candidate, decision, impact, and risk categories;
+live telemetry bridges must keep protocol-specific identifiers in evidence
+records or logs, not metric labels.
 
 ## Gotchas / invariants
 
@@ -84,6 +91,9 @@ handles into high-cardinality metric labels.
 - Reranking eval query limits must stay at or below 100.
 - Reranking false canonical candidate checks cover the full baseline and
   reranked candidate sets, not only the visible top-K.
+- Protocol recommendations are decision gates only. They must preserve API/MCP
+  authorization, include fallback behavior, and show measured or explicitly
+  deferred user value before any live protocol integration is proposed.
 - NornicDB runs must record the effective search flags and both clean-volume and
   preserved-volume startup behavior.
 - Backend and mode pairs are fixed: Postgres and NornicDB BM25 use `keyword`,

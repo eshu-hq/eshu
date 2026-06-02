@@ -10,10 +10,12 @@
    scoring.
 4. `go/internal/searchbench/decay_eval.go` - decay-scoring eval gate.
 5. `go/internal/searchbench/rerank_eval.go` - reranking eval gate.
-6. `go/internal/searchdocs/README.md` - curated search-document contract.
-7. `docs/public/reference/search-benchmark-evidence.md` - public evidence
+6. `go/internal/searchbench/protocol_recommendation.go` - protocol decision
+   gate.
+7. `go/internal/searchdocs/README.md` - curated search-document contract.
+8. `docs/public/reference/search-benchmark-evidence.md` - public evidence
    format and proof requirements.
-8. `docs/internal/design/430-nornicdb-graph-search-split.md` - parent design for
+9. `docs/internal/design/430-nornicdb-graph-search-split.md` - parent design for
    keeping graph truth separate from the search lane.
 
 ## Invariants this package enforces
@@ -34,6 +36,9 @@
   before and after reranking.
 - **False claims cannot be buried** - rerank evals count false canonical
   candidates across the full baseline and reranked sets, not only top-K output.
+- **Protocol expansion must justify user value** - protocol recommendations
+  require baseline hybrid evidence, fallback behavior, preserved API/MCP
+  authorization, and measured or explicitly deferred value evidence.
 - **Operational proof** - evidence must include backend identity, effective
   search flags, startup/restart behavior, memory, index artifact size, rebuild
   behavior, failure classes, accuracy metrics, and a recommendation.
@@ -53,6 +58,9 @@
 - **Change rerank evals** - cover baseline hybrid evidence, before/after
   metrics, same-candidate-set validation, latency and cost deltas, false
   canonical candidates, and rank movement.
+- **Change protocol recommendations** - cover baseline hybrid proof, candidate
+  protocol validation, user value evidence, fallback behavior, API/MCP
+  authorization preservation, and latency/cost impact evidence.
 - **Change query-suite validation** - cover invalid suite shape, duplicate ids,
   missing scope, and aggregate scoring before changing `suite.go`.
 
@@ -71,6 +79,8 @@
 
 - Adding Postgres, graph, HTTP, or NornicDB client calls.
 - Adding live cross-encoder or protocol client calls.
+- Letting a protocol recommendation bypass API/MCP authorization or fallback
+  requirements.
 - Treating NornicDB whole-graph search as the target benchmark.
 - Making accuracy metrics optional because a run is inconvenient to score.
 - Accepting a benchmark without a clear recommendation.
