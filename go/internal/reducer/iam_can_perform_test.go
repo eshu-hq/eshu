@@ -174,9 +174,10 @@ func TestIAMCanPerformUncataloguedActionIsSkipped(t *testing.T) {
 	}
 }
 
-// TestIAMCanPerformUncataloguedExplicitlyCounted proves a statement that touches an
-// uncatalogued service wildcard contributes nothing and emits no edge. This is the
-// closed-vocabulary refusal: an out-of-catalog grant is simply not evaluated.
+// TestIAMCanPerformUncataloguedExplicitlyCounted proves an out-of-catalog granted
+// action emits no edge AND is counted skipped_uncatalogued_action, so the
+// closed-vocabulary boundary is visible in metrics/logs (design §3) rather than a
+// silent zero.
 func TestIAMCanPerformUncataloguedExplicitlyCounted(t *testing.T) {
 	t.Parallel()
 
@@ -192,8 +193,11 @@ func TestIAMCanPerformUncataloguedExplicitlyCounted(t *testing.T) {
 	if len(result.Edges) != 0 {
 		t.Fatalf("uncatalogued action must not become an edge; got %v", result.Edges)
 	}
-	if result.Tally.total() != 0 {
-		t.Fatalf("an uncatalogued, otherwise-clean grant is not a counted CAN_PERFORM skip; tally=%+v", result.Tally)
+	if result.Tally.skippedUncatalogued != 1 {
+		t.Fatalf("an uncatalogued granted action must be counted skipped_uncatalogued_action; tally=%+v", result.Tally)
+	}
+	if result.Tally.total() != 1 {
+		t.Fatalf("the uncatalogued skip is the only tallied refusal; tally=%+v", result.Tally)
 	}
 }
 

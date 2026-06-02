@@ -102,6 +102,7 @@ func ExtractIAMCanPerformEdges(
 	index := buildCloudResourceJoinIndex(resourceEnvelopes)
 	principals := groupIAMCanPerformByPrincipal(index, permissionEnvelopes, &result.Tally)
 	catalog := iamCanPerformCatalogByAction()
+	catalogActions := iamCanPerformCatalogActions()
 
 	// edge identity -> merged granted action set + strongest resolution mode, so
 	// several catalog actions to the same resource converge on one idempotent edge.
@@ -109,6 +110,10 @@ func ExtractIAMCanPerformEdges(
 
 	for _, principal := range principals {
 		grant := buildIAMCanPerformGrant(principal.envelopes, &result.Tally)
+		// The catalog-driven loop below only visits catalog actions, so a trusted
+		// action outside the closed vocabulary would be dropped without ever
+		// incrementing the tally. Count it here so the boundary is visible.
+		countIAMCanPerformUncataloguedSkips(grant, catalogActions, &result.Tally)
 
 		for _, entry := range catalog {
 			switch {
@@ -150,6 +155,48 @@ func ExtractIAMCanPerformEdges(
 
 	result.Edges = buildIAMCanPerformEdgeRows(edges, result.EdgesByMode)
 	return result
+}
+
+// countIAMCanPerformUncataloguedSkips counts each distinct trusted action that
+// maps to no catalog entry as skipped_uncatalogued_action. The catalog-driven
+// resolution loop only visits catalog actions, so an out-of-vocabulary granted
+// action would otherwise be dropped without ever incrementing the tally — making
+// the metric/log read a misleading zero (design §3: uncatalogued actions are
+// skipped AND counted).
+func countIAMCanPerformUncataloguedSkips(
+	grant iamPrincipalGrant,
+	catalogActions map[string]struct{},
+	tally *iamCanPerformTally,
+) {
+	for action := range grant.trustedActions {
+		if !iamCanPerformActionIsCatalogued(action, catalogActions) {
+			tally.skippedUncatalogued++
+		}
+	}
+}
+
+// iamCanPerformActionIsCatalogued reports whether one granted action covers at
+// least one catalog action, matching iamPrincipalGrant.allows precedence: the
+// admin wildcard "*" and a service wildcard "service:*" whose service holds a
+// catalog action are catalogued; a concrete action is catalogued only by exact
+// membership. A concrete action whose service has catalog entries but whose verb
+// is not catalogued (e.g. s3:listbucket when only s3:getobject is catalogued) is
+// NOT catalogued — that is the closed-vocabulary boundary.
+func iamCanPerformActionIsCatalogued(action string, catalogActions map[string]struct{}) bool {
+	if action == "*" {
+		return true
+	}
+	if _, ok := catalogActions[action]; ok {
+		return true
+	}
+	if service, verb, ok := strings.Cut(action, ":"); ok && verb == "*" && service != "" {
+		for catalogAction := range catalogActions {
+			if cs, _, ok := strings.Cut(catalogAction, ":"); ok && cs == service {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // groupIAMCanPerformByPrincipal buckets permission facts by principal_arn and
