@@ -252,10 +252,12 @@ semantic-retrieval-proof/v1
 `ValidateRetrievalProof` requires:
 
 - the versioned 15-query suite;
+- either a stop-only accepted reason that references issue #417, or the
+  measured run evidence below;
 - a `postgres_content_search` / `keyword` baseline run;
 - a `nornicdb_hybrid` / `hybrid` candidate run;
-- candidate recall greater than baseline recall;
-- zero false canonical claims on both runs;
+- candidate recall greater than baseline recall for measured runs;
+- zero false canonical claims on both measured runs;
 - p95 latency within the recorded threshold, or an accepted reason for the
   threshold miss;
 - per-run observation summaries with query count, mode, result-count range,
@@ -263,6 +265,15 @@ semantic-retrieval-proof/v1
 
 The proof remains an internal evidence gate. It does not call NornicDB, add a
 public search route, expose an MCP tool, or change runtime defaults.
+
+Issue #1298 records the first stopped proof artifact at
+[`searchbench-evidence/issue-1298-semantic-retrieval-proof-v1.json`](searchbench-evidence/issue-1298-semantic-retrieval-proof-v1.json).
+That file commits the public-safe 15-query suite and names why measured
+Postgres/NornicDB runs did not execute in this stack. It does not claim recall
+improvement, latency, false-canonical safety, or adoption readiness. Accepted
+stop reasons are exclusive with measured runs and latency evidence; a record
+with baseline or candidate run evidence must satisfy the normal recall,
+latency, false-canonical, and observation guardrails.
 
 ## Recommendation
 

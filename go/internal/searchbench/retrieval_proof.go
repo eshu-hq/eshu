@@ -19,6 +19,7 @@ type RetrievalProof struct {
 	Candidate             RetrievalRun  `json:"candidate"`
 	P95Threshold          time.Duration `json:"p95_threshold_ns"`
 	AcceptedLatencyReason string        `json:"accepted_latency_reason"`
+	AcceptedStopReason    string        `json:"accepted_stop_reason"`
 }
 
 // RetrievalRun records accuracy, latency, and observation evidence for one run.
@@ -60,34 +61,84 @@ func ValidateRetrievalProof(proof RetrievalProof) error {
 
 	queryCount := len(proof.Suite.Queries)
 	queryLimit := maxSuiteQueryLimit(proof.Suite)
-	problems = append(problems, validateRetrievalRun("baseline", proof.Baseline, queryCount, queryLimit)...)
-	problems = append(problems, validateRetrievalRun("candidate", proof.Candidate, queryCount, queryLimit)...)
+	acceptedStopReason := strings.TrimSpace(proof.AcceptedStopReason)
+	baselinePresent := retrievalRunPresent(proof.Baseline)
+	candidatePresent := retrievalRunPresent(proof.Candidate)
+	if acceptedStopReason != "" {
+		if !strings.Contains(strings.ToLower(acceptedStopReason), "#417") {
+			problems = append(problems, "accepted_stop_reason must reference issue #417")
+		}
+		if baselinePresent || candidatePresent {
+			problems = append(problems, "accepted_stop_reason cannot be set when measured runs are present")
+		}
+		if proof.P95Threshold != 0 || strings.TrimSpace(proof.AcceptedLatencyReason) != "" {
+			problems = append(problems, "accepted_stop_reason cannot be set with latency evidence")
+		}
+	}
 
-	if proof.Baseline.Backend != BackendPostgresContentSearch {
-		problems = append(problems, "baseline.backend must be postgres_content_search")
+	if baselinePresent {
+		problems = append(problems, validateRetrievalRun("baseline", proof.Baseline, queryCount, queryLimit)...)
+		if proof.Baseline.Backend != BackendPostgresContentSearch {
+			problems = append(problems, "baseline.backend must be postgres_content_search")
+		}
+		if proof.Baseline.Mode != ModeKeyword {
+			problems = append(problems, "baseline.mode must be keyword")
+		}
+	} else if acceptedStopReason == "" {
+		problems = append(problems, "baseline run is required unless accepted_stop_reason is set")
 	}
-	if proof.Baseline.Mode != ModeKeyword {
-		problems = append(problems, "baseline.mode must be keyword")
-	}
-	if proof.Candidate.Backend != BackendNornicDBHybrid {
-		problems = append(problems, "candidate.backend must be nornicdb_hybrid")
-	}
-	if proof.Candidate.Mode != ModeHybrid {
-		problems = append(problems, "candidate.mode must be hybrid")
-	}
-	if proof.Candidate.Metrics.Recall <= proof.Baseline.Metrics.Recall {
-		problems = append(problems, "candidate.metrics.recall must improve baseline.metrics.recall")
-	}
-	if proof.P95Threshold <= 0 {
-		problems = append(problems, "p95_threshold is required")
-	} else if proof.Candidate.Latency.P95 > proof.P95Threshold &&
-		strings.TrimSpace(proof.AcceptedLatencyReason) == "" {
-		problems = append(
-			problems,
-			"candidate.latency.p95 exceeds p95_threshold without accepted_latency_reason",
-		)
+
+	if candidatePresent {
+		problems = append(problems, validateRetrievalRun("candidate", proof.Candidate, queryCount, queryLimit)...)
+		if proof.Candidate.Backend != BackendNornicDBHybrid {
+			problems = append(problems, "candidate.backend must be nornicdb_hybrid")
+		}
+		if proof.Candidate.Mode != ModeHybrid {
+			problems = append(problems, "candidate.mode must be hybrid")
+		}
+		if !baselinePresent {
+			problems = append(problems, "baseline run is required when candidate run is present")
+		} else if proof.Candidate.Metrics.Recall <= proof.Baseline.Metrics.Recall &&
+			acceptedStopReason == "" {
+			problems = append(problems, "candidate.metrics.recall must improve baseline.metrics.recall")
+		}
+		if proof.P95Threshold <= 0 {
+			problems = append(problems, "p95_threshold is required")
+		} else if proof.Candidate.Latency.P95 > proof.P95Threshold &&
+			strings.TrimSpace(proof.AcceptedLatencyReason) == "" {
+			problems = append(
+				problems,
+				"candidate.latency.p95 exceeds p95_threshold without accepted_latency_reason",
+			)
+		}
+	} else if acceptedStopReason == "" {
+		problems = append(problems, "candidate run is required unless accepted_stop_reason is set")
 	}
 	return joinedValidationError(problems)
+}
+
+func retrievalRunPresent(run RetrievalRun) bool {
+	return run.Backend != "" ||
+		run.Mode != "" ||
+		run.QueryCount != 0 ||
+		run.Latency.P50 != 0 ||
+		run.Latency.P95 != 0 ||
+		run.Metrics.Recall != 0 ||
+		run.Metrics.Precision != 0 ||
+		run.Metrics.NDCG != 0 ||
+		run.Metrics.FalseCanonicalClaimCount != nil ||
+		retrievalObservationPresent(run.Observation)
+}
+
+func retrievalObservationPresent(observation RetrievalObservationSummary) bool {
+	return observation.Mode != "" ||
+		observation.QueryCount != 0 ||
+		observation.ResultCount.Min != 0 ||
+		observation.ResultCount.Max != 0 ||
+		observation.TruncatedCount != 0 ||
+		observation.TimeoutCount != 0 ||
+		len(observation.CandidateTruthLevelCounts) != 0 ||
+		len(observation.FailureClasses) != 0
 }
 
 func validateRetrievalRun(
