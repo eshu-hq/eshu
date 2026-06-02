@@ -135,21 +135,30 @@ writes in separate ordered phase groups because later statements `MATCH`
 identities created by earlier package-registry statements. Dependency target
 packages and primary package rows are deduplicated before the `UNWIND MERGE`
 batch so repeated rows for the same package cannot attempt the same
-`Package.uid` create more than once in a NornicDB transaction. Primary package
-duplicates keep the newest observed source fact and use source fact id, then
-stable fact key, as deterministic tie-breakers before sorting by UID.
+`Package.uid` create more than once in a NornicDB transaction. The canonical
+writer also gates package-registry package identity writes by sorted package
+UID across primary packages, package versions, dependency source packages, and
+dependency target packages before dispatching to the backend. Same-UID package
+observations therefore serialize inside one projector process while distinct
+package UIDs still reach the backend concurrently. Primary package duplicates
+keep the newest observed source fact and use source fact id, then stable fact
+key, as deterministic tie-breakers before sorting by UID.
 
 No-Regression Evidence: `go test ./internal/storage/cypher -run
-'TestCanonicalNodeWriterBuildsPackageRegistryStatements|TestCanonicalNodeWriterSeparatesPackageRegistryPhaseGroups|TestCanonicalNodeWriterDeduplicatesPackageRegistryDependencyTargets|TestCanonicalNodeWriterDeduplicatesPackageRegistryPackages'
--count=1` proves package-registry canonical writes keep package, version,
-dependency-target, and dependency phases ordered and deduplicate package and
-dependency-target package upserts before their graph-write batches.
+'TestCanonicalNodeWriter(SerializesConcurrentDuplicatePackageUIDs|SerializesDependencyTargetPackageUIDs|AllowsConcurrentDistinctPackageUIDs|BuildsPackageRegistryStatements|SeparatesPackageRegistryPhaseGroups|DeduplicatesPackageRegistryDependencyTargets|DeduplicatesPackageRegistryPackages)|TestPackageRegistryIdentityLockKeysCoverPackageSources'
+-count=1` proves duplicate primary and dependency-target package UID writes
+serialize before backend execution, distinct package UIDs still execute
+concurrently, package/version/dependency phases stay ordered, and duplicate
+package rows are deduplicated before graph-write batches.
 
-Observability Evidence: no new metrics were required. Existing
-`canonical.phase` spans, `eshu_dp_canonical_phase_duration_seconds`, phase
-failure logs, phase-group chunk summaries, and queue failure payloads expose the
-package-registry phase name, statement label, row count, scope, generation, and
-NornicDB error if duplicate package writes ever regress.
+Observability Evidence: `canonical.write` spans now include
+`package_registry_identity_lock_key_count` and
+`package_registry_identity_lock_wait_seconds` when a materialization carries
+package-registry identities. Slow same-UID waits emit a structured
+`canonical package registry identity lock acquired` log with `package_uid_min`,
+scope, repo, generation, key count, and wait seconds. Existing phase spans,
+duration metrics, phase failure logs, phase-group chunk summaries, retry logs,
+and queue failure payloads still expose true backend conflicts and retries.
 
 No-Regression Evidence: `go test ./internal/projector ./internal/storage/cypher -run 'TestBuildCanonicalMaterializationExtractsPackageRegistry|TestCanonicalNodeWriterBuildsPackageRegistryStatements' -count=1`
 proves package-registry identity fields (`purl`, `bom_ref`,
