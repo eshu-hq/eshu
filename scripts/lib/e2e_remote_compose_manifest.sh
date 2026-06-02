@@ -126,10 +126,13 @@ build_manifest() {
 		def collector_row($n):
 			if $n > 0 then {status: "pass", facts: $n}
 			else {status: "fail", facts: 0, reason: "no source facts observed"} end;
+		# Hosted collector rows depend on the rendered Compose profile as well
+		# as fact counts so disabled, unsupported, and failed proof are distinct.
 		def hosted_collector_row($name; $service; $n):
-			if $n > 0 then {status: "pass", facts: $n}
-			elif explicitly_unsupported_hosted($name) then {status: "unsupported", facts: 0, reason: "collector explicitly unsupported in remote Compose profile"}
+			if service_enabled($service) and $n > 0 then {status: "pass", facts: $n}
 			elif service_enabled($service) then {status: "fail", facts: 0, reason: "no source facts observed for enabled collector service"}
+			elif $n > 0 then {status: "fail", facts: $n, reason: "source facts observed while collector service disabled in remote Compose profile"}
+			elif explicitly_unsupported_hosted($name) then {status: "unsupported", facts: 0, reason: "collector explicitly unsupported in remote Compose profile"}
 			else {status: "skipped", facts: 0, reason: "collector service disabled in remote Compose profile"} end;
 		def reducer_row($name; $source; $reducer):
 			{source_facts: $source, reducer_facts: $reducer, count: $reducer, readback: row_readback} as $row |

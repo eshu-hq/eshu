@@ -265,11 +265,17 @@ The all-collector prerelease gate must run every supported hosted collector
 family that is in scope for the release: PagerDuty, Jira, Grafana,
 Prometheus/Mimir, Loki, and Tempo. For those rows, a passing collector summary
 requires both a rendered Compose service and a positive source-fact count.
+The checked-in `docker-compose.remote-e2e.yaml` profile does not start those
+six services by default. Without an operator-local Compose override that
+renders the hosted service and provides its private target configuration, the
+manifest classifies the row as `skipped` with
+`collector service disabled in remote Compose profile`.
 
 The harness distinguishes the non-passing cases:
 
 - `fail`: the hosted collector service is enabled in the rendered Compose
-  profile, but no source facts were observed.
+  profile, but no source facts were observed; or source facts appear even
+  though the rendered Compose profile does not include that service.
 - `skipped`: the hosted collector service is absent from the rendered Compose
   profile.
 - `unsupported`: the operator explicitly listed the row in
@@ -284,6 +290,11 @@ labels in this variable or in the generated manifest. A `skipped` or
 `unsupported` hosted row makes the generated manifest `partial`, not `pass`;
 that is useful evidence for planning, but it is not a clean all-collector
 prerelease gate.
+Do not list an enabled hosted collector as unsupported to hide missing source
+facts; enabled services with zero facts are failed proof. Do not treat source
+facts as passing evidence when the rendered Compose profile lacks the matching
+service; that is contradictory stale or out-of-profile evidence and is also a
+failed row.
 
 ### Reducer Evidence Rows
 
@@ -336,8 +347,13 @@ the harness accepts clean and preserved aggregate evidence, rejects forbidden
 logs, rejects runtime-state failure, rejects missing collector evidence,
 distinguishes enabled hosted collectors with no facts from disabled and
 explicitly unsupported hosted collectors, and rejects preserved restarts that
-add facts. `scripts/test-e2e-remote-compose-reducer-manifest.sh` proves
-Terraform relationship table mapping, vulnerability matching through
+add facts. `scripts/test-e2e-remote-compose-hosted-manifest.sh` isolates the
+hosted collector profile contract for PagerDuty, Jira, Grafana,
+Prometheus/Mimir, Loki, and Tempo: pass requires the rendered service plus
+source facts, enabled services without facts fail, disabled rows are skipped,
+explicit unsupported rows stay partial, and contradictory source facts without
+the rendered service fail. `scripts/test-e2e-remote-compose-reducer-manifest.sh`
+proves Terraform relationship table mapping, vulnerability matching through
 `reducer_supply_chain_impact_finding`, explicit missing reducer evidence,
 explicit unsupported reducer rows, and missing readback proof classification.
 
