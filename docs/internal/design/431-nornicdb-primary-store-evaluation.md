@@ -19,7 +19,8 @@ status, recovery, or migration rollback.
 Future Postgres removal is allowed only as a phased migration after these gates
 exist and pass:
 
-1. Postgres ownership inventory: #1286.
+1. Postgres ownership inventory: #1286
+   ([inventory](1286-postgres-ownership-inventory.md)).
 2. Content/read-model shadow-read comparison: #1287.
 3. Fact-family shadow-write comparison: #1288.
 4. Queue/workflow substrate evaluation: #1289.
