@@ -170,6 +170,51 @@ candidate claims truth outside `derived`. False canonical claims are counted
 across the full candidate sets, not only the bounded top-K, so reranking cannot
 bury a bad truth claim outside the visible result window.
 
+## Protocol Recommendation Gate
+
+Issue #1284 protocol evidence uses `ValidateProtocolRecommendation` from
+`go/internal/searchbench`. The gate decides whether a protocol option has
+enough user value to justify follow-on implementation. It is not a live
+GraphQL, gRPC, Qdrant, NornicDB, Postgres, graph, API, MCP, reducer, or
+telemetry integration.
+
+Candidate protocols are:
+
+| Candidate | Meaning |
+| --- | --- |
+| `current_api_mcp_search` | Keep the current API/MCP-backed search path. |
+| `graphql_query_protocol` | Evaluate a GraphQL query protocol. |
+| `grpc_query_protocol` | Evaluate a generic gRPC query protocol. |
+| `qdrant_grpc_adapter` | Evaluate a Qdrant gRPC adapter path. |
+| `nornic_native_protocol` | Evaluate a Nornic native protocol path. |
+| `defer_protocol_expansion` | Record that no protocol candidate is ready. |
+
+Each recommendation records:
+
+- baseline hybrid evidence id, backend, and mode;
+- candidate protocol;
+- decision: keep current path, add the candidate protocol, or defer expansion;
+- rationale;
+- expected user value with measured evidence or an explicit deferred-evidence
+  reason;
+- migration risk;
+- security risk;
+- operator burden;
+- latency impact;
+- cost impact;
+- fallback behavior;
+- whether API/MCP authorization is preserved.
+
+`migration_risk`, `security_risk`, and `operator_burden` are fixed
+low-cardinality categories. Valid values are `none`, `low`, `medium`, `high`,
+and `unknown`.
+
+Validation rejects recommendations that lack prior NornicDB hybrid baseline
+evidence, name an unsupported candidate protocol, bypass API/MCP
+authorization, use an unknown risk or burden category, omit fallback behavior,
+omit latency or cost impact evidence, or claim user value without measured
+evidence or a deferred-evidence reason.
+
 ## Query Suite Gate
 
 Issue #417 semantic retrieval evidence must use a versioned query suite before a

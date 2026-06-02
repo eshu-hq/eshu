@@ -265,6 +265,112 @@ type RerankEvaluationResult struct {
 	Required     bool   `json:"required"`
 }
 
+// ProtocolCandidate identifies a search protocol option under review.
+type ProtocolCandidate string
+
+const (
+	// ProtocolCandidateCurrentAPIMCP keeps the existing API/MCP search path.
+	ProtocolCandidateCurrentAPIMCP ProtocolCandidate = "current_api_mcp_search"
+	// ProtocolCandidateGraphQL evaluates a GraphQL query protocol.
+	ProtocolCandidateGraphQL ProtocolCandidate = "graphql_query_protocol"
+	// ProtocolCandidateGRPC evaluates a generic gRPC query protocol.
+	ProtocolCandidateGRPC ProtocolCandidate = "grpc_query_protocol"
+	// ProtocolCandidateQdrantGRPC evaluates a Qdrant gRPC adapter path.
+	ProtocolCandidateQdrantGRPC ProtocolCandidate = "qdrant_grpc_adapter"
+	// ProtocolCandidateNornicNative evaluates a Nornic native protocol path.
+	ProtocolCandidateNornicNative ProtocolCandidate = "nornic_native_protocol"
+	// ProtocolCandidateDeferred records that no protocol candidate is ready.
+	ProtocolCandidateDeferred ProtocolCandidate = "defer_protocol_expansion"
+)
+
+// ProtocolDecision is the protocol recommendation outcome.
+type ProtocolDecision string
+
+const (
+	// ProtocolDecisionKeepCurrentPath keeps the current API/MCP search path.
+	ProtocolDecisionKeepCurrentPath ProtocolDecision = "keep_current_api_mcp_path"
+	// ProtocolDecisionAddProtocol recommends adding the candidate protocol.
+	ProtocolDecisionAddProtocol ProtocolDecision = "add_protocol"
+	// ProtocolDecisionDeferExpansion defers protocol expansion.
+	ProtocolDecisionDeferExpansion ProtocolDecision = "defer_protocol_expansion"
+)
+
+// ProtocolUserValue identifies the user value claimed by a protocol option.
+type ProtocolUserValue string
+
+const (
+	// ProtocolUserValueLatency claims query latency value.
+	ProtocolUserValueLatency ProtocolUserValue = "latency"
+	// ProtocolUserValueCost claims cost value.
+	ProtocolUserValueCost ProtocolUserValue = "cost"
+	// ProtocolUserValueOperability claims operator usability value.
+	ProtocolUserValueOperability ProtocolUserValue = "operability"
+	// ProtocolUserValueSecurity claims security or authorization value.
+	ProtocolUserValueSecurity ProtocolUserValue = "security"
+	// ProtocolUserValueIncidentDebug claims incident-debugging value.
+	ProtocolUserValueIncidentDebug ProtocolUserValue = "incident_debug"
+)
+
+// ProtocolImpactDirection records the direction of a measured or deferred impact.
+type ProtocolImpactDirection string
+
+const (
+	// ProtocolImpactImproved records an improvement.
+	ProtocolImpactImproved ProtocolImpactDirection = "improved"
+	// ProtocolImpactRegressed records a regression.
+	ProtocolImpactRegressed ProtocolImpactDirection = "regressed"
+	// ProtocolImpactNeutral records no expected change.
+	ProtocolImpactNeutral ProtocolImpactDirection = "neutral"
+	// ProtocolImpactUnknown records deferred impact proof.
+	ProtocolImpactUnknown ProtocolImpactDirection = "unknown"
+)
+
+// ProtocolAssessmentCategory records a low-cardinality risk or burden level.
+type ProtocolAssessmentCategory string
+
+const (
+	// ProtocolAssessmentNone records no expected risk or burden.
+	ProtocolAssessmentNone ProtocolAssessmentCategory = "none"
+	// ProtocolAssessmentLow records low expected risk or burden.
+	ProtocolAssessmentLow ProtocolAssessmentCategory = "low"
+	// ProtocolAssessmentMedium records medium expected risk or burden.
+	ProtocolAssessmentMedium ProtocolAssessmentCategory = "medium"
+	// ProtocolAssessmentHigh records high expected risk or burden.
+	ProtocolAssessmentHigh ProtocolAssessmentCategory = "high"
+	// ProtocolAssessmentUnknown records deferred or unknown risk proof.
+	ProtocolAssessmentUnknown ProtocolAssessmentCategory = "unknown"
+)
+
+// ProtocolRecommendation records a bounded search protocol decision.
+type ProtocolRecommendation struct {
+	BaselineHybridEvidence       RerankBaselineEvidence     `json:"baseline_hybrid_evidence"`
+	CandidateProtocol            ProtocolCandidate          `json:"candidate_protocol"`
+	Decision                     ProtocolDecision           `json:"decision"`
+	Rationale                    string                     `json:"rationale"`
+	ExpectedUserValue            []ProtocolValueEvidence    `json:"expected_user_value"`
+	MigrationRisk                ProtocolAssessmentCategory `json:"migration_risk"`
+	SecurityRisk                 ProtocolAssessmentCategory `json:"security_risk"`
+	OperatorBurden               ProtocolAssessmentCategory `json:"operator_burden"`
+	LatencyImpact                ProtocolImpact             `json:"latency_impact"`
+	CostImpact                   ProtocolImpact             `json:"cost_impact"`
+	FallbackBehavior             string                     `json:"fallback_behavior"`
+	APIMCPAuthorizationPreserved bool                       `json:"api_mcp_authorization_preserved"`
+}
+
+// ProtocolValueEvidence records proof for one claimed user value.
+type ProtocolValueEvidence struct {
+	Value          ProtocolUserValue `json:"value"`
+	Evidence       string            `json:"evidence,omitempty"`
+	DeferredReason string            `json:"deferred_reason,omitempty"`
+}
+
+// ProtocolImpact records measured or deferred latency and cost impact.
+type ProtocolImpact struct {
+	Direction      ProtocolImpactDirection `json:"direction"`
+	Evidence       string                  `json:"evidence,omitempty"`
+	DeferredReason string                  `json:"deferred_reason,omitempty"`
+}
+
 // QueryScore records metrics for one query in a query-suite run.
 type QueryScore struct {
 	QueryID string           `json:"query_id"`
