@@ -328,6 +328,52 @@ func TestIAMCanPerformResourcePolicyServiceWildcardOnlyEvaluatesAttachedType(t *
 	}
 }
 
+// TestIAMCanPerformResourcePolicyUsesProvidedCatalog proves resource-policy
+// extraction uses its caller-supplied catalog consistently, rather than
+// consulting the package global catalog while matching or accounting statements.
+func TestIAMCanPerformResourcePolicyUsesProvidedCatalog(t *testing.T) {
+	t.Parallel()
+
+	action := "custom:readresource"
+	resources := []facts.Envelope{
+		attackerNode(),
+		canPerformNode(iamCanPerformResourceTypeS3Bucket, canPerformBucketARN),
+	}
+	catalog := map[string]iamCanPerformAction{
+		action: {Action: action, ExpectedResourceType: iamCanPerformResourceTypeS3Bucket},
+	}
+	edges := make(map[edgeKey]*iamCanPerformEdgeAccumulator)
+	var tally iamCanPerformTally
+
+	addIAMCanPerformResourcePolicyEdges(
+		buildCloudResourceJoinIndex(resources),
+		[]facts.Envelope{
+			canPerformResourcePolicyEnvelope(
+				canPerformBucketARN,
+				iamCanPerformResourceTypeS3Bucket,
+				"Allow",
+				[]string{action},
+				[]string{attackerUserARN},
+			),
+		},
+		catalog,
+		edges,
+		&tally,
+	)
+	rows := buildIAMCanPerformEdgeRows(edges, make(map[string]int))
+
+	edge := canPerformEdgeFor(rows, uidOf(iamResourceTypeUser, attackerUserARN), canPerformUID(iamCanPerformResourceTypeS3Bucket, canPerformBucketARN))
+	if edge == nil {
+		t.Fatalf("custom catalog action should emit a resource-policy edge; rows=%v tally=%+v", rows, tally)
+	}
+	if got := edge["actions"].([]string); len(got) != 1 || got[0] != action {
+		t.Fatalf("actions = %v, want [%s]", got, action)
+	}
+	if tally.total() != 0 {
+		t.Fatalf("custom catalog action must not be counted as a skip; tally=%+v", tally)
+	}
+}
+
 // TestIAMCanPerformIdentityAndResourcePolicySourcesMerge proves identity and
 // resource policy grants to the same edge identity merge actions and source
 // labels without putting the source into the relationship MERGE key.

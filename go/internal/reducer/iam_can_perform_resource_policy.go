@@ -48,7 +48,7 @@ func addIAMCanPerformResourcePolicyEdges(
 	if len(envelopes) == 0 {
 		return
 	}
-	catalogActions := iamCanPerformCatalogActions()
+	catalogActions := iamCanPerformCatalogActionsFromCatalog(catalog)
 	denied := make(map[iamCanPerformResourcePolicyDenyKey]struct{})
 	allows := make([]iamCanPerformResourcePolicyAllow, 0)
 

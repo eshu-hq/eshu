@@ -112,6 +112,21 @@ func iamCanPerformCatalogActions() map[string]struct{} {
 	return out
 }
 
+// iamCanPerformCatalogActionsFromCatalog derives the statement-matching action
+// set from the caller's catalog map so tests and future narrowed catalogs do not
+// accidentally consult the package-global vocabulary.
+func iamCanPerformCatalogActionsFromCatalog(catalog map[string]iamCanPerformAction) map[string]struct{} {
+	out := make(map[string]struct{}, len(catalog))
+	for action, entry := range catalog {
+		if entry.Action != "" {
+			out[entry.Action] = struct{}{}
+			continue
+		}
+		out[action] = struct{}{}
+	}
+	return out
+}
+
 // sortedCanPerformActions returns the granted action tokens deduplicated and
 // sorted so the edge's rel.actions property is byte-stable across retries and
 // reprojections, keeping the idempotent SET deterministic.
