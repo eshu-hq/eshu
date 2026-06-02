@@ -63,7 +63,7 @@ write_common_inputs() {
 	}' >"${runtime_volume_proof}"
 	jq -n '{queue: {pending: 0, in_flight: 0, retrying: 0, failed: 0, dead_letter: 0}}' \
 		>"${TMP_DIR}/index-status.json"
-	jq -n '["collector-pagerduty","collector-jira","collector-grafana","collector-prometheus-mimir","collector-loki","collector-tempo"]' \
+	jq -n '["scanner-worker","collector-pagerduty","collector-jira","collector-grafana","collector-prometheus-mimir","collector-loki","collector-tempo"]' \
 		>"${TMP_DIR}/services.json"
 	printf '{"Name":"eshu","CPUPerc":"1.0%%","MemUsage":"64MiB / 1GiB"}\n' \
 		>"${TMP_DIR}/stats.jsonl"
@@ -96,7 +96,7 @@ write_fact_rows() {
 		{source_system: "sbom_document", fact_kind: "sbom.component", count: 2},
 		{source_system: "security_alert", fact_kind: "security_alert.repository_alert", count: 4},
 		{source_system: "vulnerability_intelligence", fact_kind: "vulnerability.affected_package", count: 8},
-		{source_system: "scanner_worker", fact_kind: "scanner_worker.vulnerability", count: 3},
+		{source_system: "scanner_worker", fact_kind: "scanner_worker.warning", count: 3},
 		{source_system: "confluence", fact_kind: "documentation_source", count: 1},
 		{source_system: "pagerduty", fact_kind: "incident.record", count: 1},
 		{source_system: "jira", fact_kind: "work_item.record", count: 1},
@@ -140,6 +140,11 @@ jq -e '
 	.status == "pass" and
 	.reducers.terraform_iac_relationships.source_facts == 5 and
 	.reducers.terraform_iac_relationships.reducer_facts == 5 and
+	.collectors.sbom_document.status == "pass" and
+	.collectors.sbom_document.facts == 2 and
+	.collectors.scanner_worker.status == "pass" and
+	.collectors.scanner_worker.source_facts == 3 and
+	.collectors.scanner_worker.warnings == 3 and
 	.reducers.vulnerability_matching.status == "pass" and
 	.reducers.vulnerability_matching.reducer_facts == 4 and
 	.reducers.vulnerability_matching.readback.api.status == "pass"
@@ -166,6 +171,37 @@ jq -e '
 	.reducers.observability_correlation.reducer_facts == 1
 ' "${observability_aws_input_mapped}" >/dev/null \
 	|| die "observability AWS source input mapping was not counted"
+
+scanner_runtime_only="${TMP_DIR}/scanner-runtime-only.json"
+jq 'map(select(.source_system != "scanner_worker"))' "${facts}" >"${TMP_DIR}/facts-without-scanner-source.json"
+build_case_manifest "${TMP_DIR}/facts-without-scanner-source.json" "${TMP_DIR}/readback.json" "${scanner_runtime_only}"
+jq -e '
+	.status == "partial" and
+	.collectors.scanner_worker.status == "skipped" and
+	.collectors.scanner_worker.source_facts == 0 and
+	.collectors.scanner_worker.warnings == 0 and
+	.collectors.scanner_worker.runtime_status == "pass" and
+	.collectors.scanner_worker.reason == "scanner-worker runtime healthy but no source-evidence claims completed in this proof"
+' "${scanner_runtime_only}" >/dev/null || die "runtime-only scanner-worker proof was not classified as skipped source evidence"
+
+scanner_completed_without_evidence="${TMP_DIR}/scanner-completed-without-evidence.json"
+jq '. + [{collector_kind: "scanner_worker", status: "completed", count: 1}]' \
+	"${TMP_DIR}/workflow.json" >"${TMP_DIR}/workflow-scanner-completed.json"
+build_manifest \
+	"${TMP_DIR}/facts-without-scanner-source.json" \
+	"${TMP_DIR}/workflow-scanner-completed.json" \
+	"${TMP_DIR}/reducer-counts.json" \
+	"${TMP_DIR}/index-status.json" \
+	"${TMP_DIR}/services.json" \
+	"${TMP_DIR}/stats.jsonl" \
+	"${TMP_DIR}/readback.json" \
+	"${scanner_completed_without_evidence}"
+jq -e '
+	.status == "fail" and
+	.collectors.scanner_worker.status == "fail" and
+	.collectors.scanner_worker.completed_claims == 1 and
+	.collectors.scanner_worker.reason == "completed scanner-worker claims emitted no source or warning facts"
+' "${scanner_completed_without_evidence}" >/dev/null || die "completed scanner-worker claim without evidence was not classified as failed source evidence"
 
 missing="${TMP_DIR}/missing.json"
 jq 'map(select(.fact_kind != "reducer_supply_chain_impact_finding"))' "${facts}" >"${TMP_DIR}/facts-missing.json"

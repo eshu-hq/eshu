@@ -182,8 +182,11 @@ workflow names:
 - `collectors.scanner_worker` is the scanner-worker source evidence row. A
   `pass` row must count emitted source facts or explicit warning facts. A
   healthy `runtimes.scanner_worker` service with no emitted evidence is runtime
-  proof only; classify the collector row as `skipped`, `unsupported`, or
-  `fail` with a reason instead of reporting clean source coverage.
+  proof only; classify the collector row as `skipped` when no scanner-worker
+  source-evidence claim completed in the proof, or `fail` when completed
+  scanner-worker claims emitted no source or warning facts. Use `unsupported`
+  only when the proof explicitly records that scanner-worker evidence is outside
+  the current corpus or runtime profile.
 
 `status: "pass"` means every required component row is `pass`, readback
 failures are zero, retrying/failed/dead-letter queue counters are zero, pprof
