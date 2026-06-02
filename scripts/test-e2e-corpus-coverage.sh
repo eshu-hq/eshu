@@ -234,6 +234,11 @@ jq '.repository_count = 19' "${complete_input}" >"${small_input}"
 expect_fail_with small_representative "representative corpus requires repository_count between 20 and 50" \
 	"${GENERATOR}" --input "${small_input}" --output "${TMP_DIR}/small-coverage.json"
 
+decimal_count_input="${TMP_DIR}/decimal-count-discovery.json"
+jq '.repository_count = 24.2' "${complete_input}" >"${decimal_count_input}"
+expect_fail_with decimal_repository_count "repository_count must be a non-negative integer" \
+	"${GENERATOR}" --input "${decimal_count_input}" --output "${TMP_DIR}/decimal-count-coverage.json"
+
 private_input="${TMP_DIR}/private-discovery.json"
 jq '.repository_name = "private-owner/private-repo"' "${complete_input}" >"${private_input}"
 expect_fail_with private_discovery "input looks like private data" \

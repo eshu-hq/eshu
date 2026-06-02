@@ -48,6 +48,33 @@ jq -n '{
 	evidence_families: {terraform_iac: {status: "pass", count: 1}}
 }' >"${coverage}"
 
+missing_count_coverage="${TMP_DIR}/corpus-coverage-missing-count.json"
+jq 'del(.repository_count)' "${coverage}" >"${missing_count_coverage}"
+if PATH="${fake_bin}:${PATH}" "${HARNESS}" \
+	--run-kind clean \
+	--manifest "${manifest}" \
+	--api-base-url "http://127.0.0.1:18080/api/v0" \
+	--pprof-base-url "http://127.0.0.1:16060" \
+	--runtime-volume-proof "${volume_proof}" \
+	--out-dir "${TMP_DIR}/evidence-missing-count" \
+	--corpus-mode representative \
+	--repository-count 24 \
+	--corpus-coverage "${missing_count_coverage}" \
+	--readback-proof "${readback}" \
+	--image-tag-candidate v0.0.3-pre-release-test \
+	>"${TMP_DIR}/suite-missing-count.out" 2>"${TMP_DIR}/suite-missing-count.err"; then
+	printf 'expected missing corpus coverage repository_count to fail\n' >&2
+	exit 1
+fi
+
+rg --fixed-strings --quiet -- \
+	"corpus-coverage must contain schema_version, repository_count, ecosystems, and evidence_families" \
+	"${TMP_DIR}/suite-missing-count.err" || {
+	printf 'expected corpus coverage shape failure to name repository_count\n' >&2
+	sed -n '1,120p' "${TMP_DIR}/suite-missing-count.err" >&2
+	exit 1
+}
+
 if PATH="${fake_bin}:${PATH}" "${HARNESS}" \
 	--run-kind clean \
 	--manifest "${manifest}" \

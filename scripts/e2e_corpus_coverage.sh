@@ -108,11 +108,14 @@ validate_public_safe_file() {
 validate_input_contract() {
 	local file="$1"
 	jq -e '
+		.repository_count | type == "number" and . >= 0 and . == floor
+	' "${file}" >/dev/null || die "repository_count must be a non-negative integer"
+
+	jq -e '
 		def nonneg_count:
 			(type == "number" and . >= 0) or
 			(type == "object" and ((.count // 0) | type == "number" and . >= 0));
 		((.schema_version // 1) == 1) and
-		(.repository_count | type == "number" and . >= 0) and
 		((.mode // $mode) == $mode) and
 		(.ecosystems | type == "object") and
 		(.evidence_families | type == "object") and

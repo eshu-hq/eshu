@@ -233,7 +233,7 @@ validate_corpus_coverage() {
 		(.ecosystems | type == "object") and
 		(.evidence_families | type == "object") and
 		(.repository_count | type == "number" and . >= 0)
-	' "${corpus_coverage}" >/dev/null || die "corpus-coverage must contain ecosystems and evidence_families"
+	' "${corpus_coverage}" >/dev/null || die "corpus-coverage must contain schema_version, repository_count, ecosystems, and evidence_families"
 	local coverage_mode coverage_repository_count
 	coverage_mode="$(jq -r '.mode // ""' "${corpus_coverage}")"
 	[[ -z "${coverage_mode}" || "${coverage_mode}" == "${corpus_mode}" ]] \
