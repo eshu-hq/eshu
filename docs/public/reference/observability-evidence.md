@@ -1,9 +1,9 @@
 # Observability Evidence Contract
 
 This page defines the source-fact contract for Grafana-stack observability
-evidence. It is the implementation contract for the first observability
-collector-family slice; it does not by itself make Grafana, Prometheus, Mimir,
-Loki, or Tempo production-ready collector lanes.
+evidence. It is the implementation contract for declared, applied, and observed
+collector-family evidence. Runtime readiness, Helm wiring, and operator gates
+live in the collector runtime and local-testing docs.
 
 Eshu must support both IaC/GitOps-managed environments and teams that configure
 observability directly in provider UIs. The precedence is explicit:
@@ -44,13 +44,11 @@ resource class, freshness, and outcome. They never store raw status messages,
 dashboard bodies, query bodies, labels, managed fields, Secret data, raw
 Kubernetes UIDs, or raw cluster URLs.
 
-Live Grafana metadata collection now exists as a source package for the first
-observed-provider slice. It reads folder/dashboard search, datasources, and
-alert-rule provisioning metadata from configured Grafana API targets and emits
+The hosted Grafana collector is claim-driven and charted. It reads
+folder/dashboard search, datasources, and alert-rule provisioning metadata from
+configured Grafana API targets and emits
 `observability.source_instance`, `observability.observed_dashboard`,
-`observability.observed_rule`, and `observability.coverage_warning` facts. The
-slice remains runtime-wiring pending: command, Helm, end-to-end status, and
-deployment proof are tracked separately.
+`observability.observed_rule`, and `observability.coverage_warning` facts.
 
 Declared Prometheus/Mimir facts are intent evidence. Live Prometheus and Mimir
 API collection is still required when a team does not use source-controlled
@@ -59,13 +57,11 @@ targets or rules, when target/rule freshness matters, or when rendered
 Prometheus Operator selection turns Helm and CRD inputs into effective scrape
 jobs.
 
-Live Prometheus/Mimir metadata collection now exists as a source package for
-the observed-provider metric slice. It reads active Prometheus target metadata
-and Prometheus/Mimir rule metadata from configured API targets and emits
+The hosted Prometheus/Mimir collector is claim-driven and charted. It reads
+active Prometheus target metadata and Prometheus/Mimir rule metadata from
+configured API targets and emits
 `observability.source_instance`, `observability.observed_target`,
-`observability.observed_rule`, and `observability.coverage_warning` facts. The
-slice remains runtime-wiring pending: command, Helm, end-to-end status, and
-deployment proof are tracked separately.
+`observability.observed_rule`, and `observability.coverage_warning` facts.
 
 Declared Loki facts are also intent evidence. Live Loki collection must remain
 metadata-only: bounded label, series, ruler, or freshness metadata only, never
@@ -73,25 +69,23 @@ log lines or raw LogQL. Use live Loki API reads only for no-IaC fallback,
 validation, drift detection, and freshness proof after declared or applied
 evidence has been considered.
 
-Live Loki metadata collection now exists as a source package for the
-observed-provider log-signal slice. It reads label metadata, explicitly
-allowlisted bounded label-value metadata, series metadata, and Loki ruler rule
-metadata from configured API targets and emits `observability.source_instance`,
-`observability.observed_log_signal`, `observability.observed_rule`, and
-`observability.coverage_warning` facts. The slice remains runtime-wiring
-pending: command, Helm, end-to-end status, and deployment proof are tracked
-separately.
+The hosted Loki collector is claim-driven and charted. It reads label metadata,
+explicitly allowlisted bounded label-value metadata, series metadata, and Loki
+ruler rule metadata from configured API targets and emits
+`observability.source_instance`, `observability.observed_log_signal`,
+`observability.observed_rule`, and `observability.coverage_warning` facts.
 
 Declared Tempo facts are also intent evidence. Live Tempo collection must remain
 metadata-only: bounded service, tag, search, dependency, or freshness metadata
 only, never spans, traces, raw trace IDs, request attributes, or TraceQL bodies.
 Use live Tempo API reads only for no-IaC fallback, validation, drift detection,
 and freshness proof after declared or applied evidence has been considered.
-The first live Tempo slice reads only `/api/echo`, `/api/v2/search/tags`, and
-operator-allowlisted `/api/v2/search/tag/<tag>/values` metadata. It stores tag
-names, tag-value counts, value fingerprints within cardinality limits, source
-instance state, and coverage warnings. It does not call trace retrieval,
-TraceQL search, TraceQL metrics, or any endpoint that returns spans or traces.
+The hosted Tempo collector is claim-driven and charted. It reads only
+`/api/echo`, `/api/v2/search/tags`, and operator-allowlisted
+`/api/v2/search/tag/<tag>/values` metadata. It stores tag names, tag-value
+counts, value fingerprints within cardinality limits, source-instance state,
+and coverage warnings. It does not call trace retrieval, TraceQL search,
+TraceQL metrics, or any endpoint that returns spans or traces.
 
 ## Evidence Classes
 
@@ -251,6 +245,11 @@ spans, logs, or status output. The live Tempo provider slice adds bounded
 metadata calls only; it still emits source facts and does not add graph writes,
 reducer stages, query handlers, or status output.
 
+Hosted Grafana-stack collector commands and Helm deployments wrap these source
+packages in claim-driven runtimes. They still emit source facts only; reducers
+and read surfaces own graph truth, coverage correlation, and user-facing
+comparison outcomes.
+
 Observability Evidence: declared and applied observability source facts use the
 existing Git collector snapshot, parse, and fact-commit telemetry. Operators
 diagnose these slices through existing file parse counts, generation fact
@@ -263,9 +262,8 @@ source path adds `tempo.observe` and `tempo.fetch` spans plus
 `eshu_dp_tempo_stale_total`, and `eshu_dp_tempo_fetch_duration_seconds`.
 
 No-Regression Evidence: live Grafana, Prometheus/Mimir, and Loki observed
-metadata collection add metadata-only source packages and bounded telemetry.
-They do not add graph writes, reducer phases, query handlers, Helm wiring, or
-long-running runtime commands.
+metadata collection remains metadata-only source fact emission with bounded
+telemetry. It does not add graph writes, reducer phases, or query handlers.
 
 Observability Evidence: live Grafana observed metadata collection records
 `grafana.observe`, `grafana.fetch`,
@@ -276,9 +274,8 @@ Observability Evidence: live Grafana observed metadata collection records
 `eshu_dp_grafana_redactions_total` with bounded labels only.
 
 No-Regression Evidence: live Prometheus/Mimir observed metadata collection adds
-a metadata-only source package and bounded telemetry. It does not add graph
-writes, reducer phases, query handlers, Helm wiring, or a long-running runtime
-command.
+metadata-only source fact emission and bounded telemetry. It does not add graph
+writes, reducer phases, or query handlers.
 
 Observability Evidence: live Prometheus/Mimir observed metadata collection
 records `prometheus_mimir.observe`, `prometheus_mimir.fetch`,

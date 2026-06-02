@@ -151,6 +151,107 @@ you need the live config proof to target a known service. Optional
 default synthetic scope and API endpoint. The smoke fails if no facts are
 visible or if the token appears in emitted envelopes.
 
+## Grafana-Stack Observability
+
+These smokes are read-only and claim-path based. They construct the same
+claimed source used by the hosted collectors, call `NextClaimed`, and drain the
+emitted `observability.*` envelopes without requiring a local workflow queue or
+Postgres. They skip by default and run only when the matching live flag is set.
+
+Each smoke fails if the collector emits an unexpected fact family, omits the
+source-instance fact, has no provider fetch evidence, or retains configured
+token or tenant material in emitted envelopes or error paths. The tests do not
+fetch raw logs, spans, metric samples, dashboard JSON, query bodies, label
+values, tag values, tenant IDs, or provider response bodies.
+
+```bash
+set -a
+source /path/to/local/private/env
+set +a
+```
+
+Grafana requires an API token:
+
+```bash
+export ESHU_GRAFANA_LIVE=1
+export ESHU_GRAFANA_BASE_URL="${ESHU_GRAFANA_BASE_URL:?set Grafana URL}"
+export ESHU_GRAFANA_API_TOKEN="${ESHU_GRAFANA_API_TOKEN:?set Grafana token}"
+export ESHU_GRAFANA_RESOURCE_LIMIT="${ESHU_GRAFANA_RESOURCE_LIMIT:-5}"
+
+cd go
+go test ./internal/collector/grafana \
+  -run TestLiveGrafanaObservedMetadataEvidence -count=1 -v
+```
+
+Prometheus and Mimir use the same smoke. Set
+`ESHU_PROMETHEUS_MIMIR_PROVIDER` to `prometheus` or `mimir`; the default is
+`prometheus`.
+
+```bash
+export ESHU_PROMETHEUS_MIMIR_LIVE=1
+export ESHU_PROMETHEUS_MIMIR_PROVIDER="${ESHU_PROMETHEUS_MIMIR_PROVIDER:-prometheus}"
+export ESHU_PROMETHEUS_MIMIR_BASE_URL="${ESHU_PROMETHEUS_MIMIR_BASE_URL:?set Prometheus or Mimir URL}"
+export ESHU_PROMETHEUS_MIMIR_API_TOKEN="${ESHU_PROMETHEUS_MIMIR_API_TOKEN:-}"
+export ESHU_PROMETHEUS_MIMIR_TENANT_ID="${ESHU_PROMETHEUS_MIMIR_TENANT_ID:-}"
+export ESHU_PROMETHEUS_MIMIR_RESOURCE_LIMIT="${ESHU_PROMETHEUS_MIMIR_RESOURCE_LIMIT:-5}"
+
+cd go
+go test ./internal/collector/prometheusmimir \
+  -run TestLivePrometheusMimirObservedMetricEvidence -count=1 -v
+```
+
+Loki can run unauthenticated when the target allows metadata reads. Label values
+are collected only for names explicitly listed in
+`ESHU_LOKI_LABEL_VALUE_NAMES`, and values are stored as counts and hashes within
+the configured cardinality limit.
+
+```bash
+export ESHU_LOKI_LIVE=1
+export ESHU_LOKI_BASE_URL="${ESHU_LOKI_BASE_URL:?set Loki URL}"
+export ESHU_LOKI_API_TOKEN="${ESHU_LOKI_API_TOKEN:-}"
+export ESHU_LOKI_TENANT_ID="${ESHU_LOKI_TENANT_ID:-}"
+export ESHU_LOKI_LABEL_VALUE_NAMES="${ESHU_LOKI_LABEL_VALUE_NAMES:-}"
+export ESHU_LOKI_SERIES_MATCHERS="${ESHU_LOKI_SERIES_MATCHERS:-}"
+export ESHU_LOKI_RESOURCE_LIMIT="${ESHU_LOKI_RESOURCE_LIMIT:-5}"
+export ESHU_LOKI_MAX_LABEL_VALUES_PER_LABEL="${ESHU_LOKI_MAX_LABEL_VALUES_PER_LABEL:-5}"
+
+cd go
+go test ./internal/collector/loki \
+  -run TestLiveLokiObservedLogSignalEvidence -count=1 -v
+```
+
+Tempo can run unauthenticated when the target allows metadata reads. Tag values
+are collected only for names explicitly listed in
+`ESHU_TEMPO_TAG_VALUE_NAMES`, and values are stored as counts and hashes within
+the configured cardinality limit.
+
+```bash
+export ESHU_TEMPO_LIVE=1
+export ESHU_TEMPO_BASE_URL="${ESHU_TEMPO_BASE_URL:?set Tempo URL}"
+export ESHU_TEMPO_API_TOKEN="${ESHU_TEMPO_API_TOKEN:-}"
+export ESHU_TEMPO_TENANT_ID="${ESHU_TEMPO_TENANT_ID:-}"
+export ESHU_TEMPO_TAG_VALUE_NAMES="${ESHU_TEMPO_TAG_VALUE_NAMES:-}"
+export ESHU_TEMPO_LOOKBACK="${ESHU_TEMPO_LOOKBACK:-1h}"
+export ESHU_TEMPO_RESOURCE_LIMIT="${ESHU_TEMPO_RESOURCE_LIMIT:-5}"
+export ESHU_TEMPO_MAX_TAG_VALUES_PER_TAG="${ESHU_TEMPO_MAX_TAG_VALUES_PER_TAG:-5}"
+export ESHU_TEMPO_FRESHNESS_PROBE="${ESHU_TEMPO_FRESHNESS_PROBE:-false}"
+
+cd go
+go test ./internal/collector/tempo \
+  -run TestLiveTempoObservedTraceSignalEvidence -count=1 -v
+```
+
+To run all four against a prepared environment:
+
+```bash
+cd go
+go test ./internal/collector/grafana \
+  ./internal/collector/prometheusmimir \
+  ./internal/collector/loki \
+  ./internal/collector/tempo \
+  -run 'TestLive.*Observed.*Evidence' -count=1 -v
+```
+
 ## OCI Registry Smokes
 
 All smokes are read-only and skip unless their live flag is set.
