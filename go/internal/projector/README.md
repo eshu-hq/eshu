@@ -163,6 +163,13 @@ AWS resources to Terraform state; when a generation contains one or more
 `aws_resource` facts, `buildAWSCloudRuntimeDriftReducerIntent` emits one
 `aws_cloud_runtime_drift` reducer intent for the AWS scope/generation so the
 reducer can run the bounded ARN join after source-local projection succeeds.
+RDS posture facts follow that same reducer-owned handoff. When a generation
+contains an `rds_instance_posture` fact,
+`buildRDSPostureMaterializationReducerIntent` emits one
+`rds_posture_materialization` reducer intent for the scope/generation. The
+projector does not set RDS graph properties, infer exposure, or create RDS
+nodes; the reducer waits for the CloudResource canonical-nodes phase and then
+projects bounded posture metadata onto existing RDS CloudResource nodes.
 Container-image identity follows the same handoff rule: when a generation
 contains OCI digest/tag facts, AWS image-reference facts, AWS container-image
 relationships, or Git content-entity image references,

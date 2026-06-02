@@ -290,7 +290,7 @@ here before handlers use it.
 Pipeline spans: `SpanCollectorObserve`, `SpanCollectorStream`, `SpanScopeAssign`,
 `SpanFactEmit`, `SpanProjectorRun`, `SpanReducerIntentEnqueue`, `SpanReducerRun`,
 `SpanReducerBatchClaim`, `SpanReducerDriftEvidenceLoad`,
-`SpanCanonicalWrite`, `SpanCanonicalProjection`,
+`SpanReducerRDSPostureMaterialization`, `SpanCanonicalWrite`, `SpanCanonicalProjection`,
 `SpanCanonicalRetract`, `SpanEvidenceDiscovery`,
 `SpanIaCReachabilityMaterialization`, `SpanSQLRelationshipMaterialization`,
 `SpanInheritanceMaterialization`, `SpanCrossRepoResolution`,

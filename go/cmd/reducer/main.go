@@ -194,6 +194,7 @@ func buildReducerService(
 	incidentRoutingEvidenceWriter := sourcecypher.NewIncidentRoutingEvidenceWriter(neo4jExec, neo4jBatchSize(getenv))
 	iamCanAssumeEdgeWriter := sourcecypher.NewIAMCanAssumeEdgeWriter(neo4jExec, neo4jBatchSize(getenv))
 	s3LogsToEdgeWriter := sourcecypher.NewS3LogsToEdgeWriter(neo4jExec, neo4jBatchSize(getenv))
+	rdsPostureNodeWriter := sourcecypher.NewRDSPostureNodeWriter(neo4jExec, neo4jBatchSize(getenv))
 	relationshipStore := postgres.NewRelationshipStore(database)
 	factStore := postgres.NewFactStore(database)
 	codeCallIntentWriter := postgres.NewCodeCallIntentWriterWithInstruments(database, instruments)
@@ -338,6 +339,7 @@ func buildReducerService(
 		ObservabilityCoverageEdgeWriter: observabilityCoverageEdgeWriter,
 		IAMCanAssumeEdgeWriter:          iamCanAssumeEdgeWriter,
 		S3LogsToEdgeWriter:              s3LogsToEdgeWriter,
+		RDSPostureNodeWriter:            rdsPostureNodeWriter,
 		ContainerImageIdentityWriter: reducer.PostgresContainerImageIdentityWriter{
 			DB: database,
 		},
