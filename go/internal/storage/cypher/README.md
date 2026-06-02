@@ -133,21 +133,23 @@ reducer correlation supplies corroborating evidence. NornicDB phase-group
 execution commits package, version, dependency target package, and dependency
 writes in separate ordered phase groups because later statements `MATCH`
 identities created by earlier package-registry statements. Dependency target
-packages are deduplicated before the `UNWIND MERGE` batch so repeated
-dependency rows for the same package cannot attempt the same `Package.uid`
-create more than once in a NornicDB transaction.
+packages and primary package rows are deduplicated before the `UNWIND MERGE`
+batch so repeated rows for the same package cannot attempt the same
+`Package.uid` create more than once in a NornicDB transaction. Primary package
+duplicates keep the newest observed source fact and use source fact id, then
+stable fact key, as deterministic tie-breakers before sorting by UID.
 
 No-Regression Evidence: `go test ./internal/storage/cypher -run
-'TestCanonicalNodeWriterBuildsPackageRegistryStatements|TestCanonicalNodeWriterSeparatesPackageRegistryPhaseGroups|TestCanonicalNodeWriterDeduplicatesPackageRegistryDependencyTargets'
+'TestCanonicalNodeWriterBuildsPackageRegistryStatements|TestCanonicalNodeWriterSeparatesPackageRegistryPhaseGroups|TestCanonicalNodeWriterDeduplicatesPackageRegistryDependencyTargets|TestCanonicalNodeWriterDeduplicatesPackageRegistryPackages'
 -count=1` proves package-registry canonical writes keep package, version,
-dependency-target, and dependency phases ordered and deduplicate dependency
-target package upserts before the dependency edge batch.
+dependency-target, and dependency phases ordered and deduplicate package and
+dependency-target package upserts before their graph-write batches.
 
 Observability Evidence: no new metrics were required. Existing
 `canonical.phase` spans, `eshu_dp_canonical_phase_duration_seconds`, phase
 failure logs, phase-group chunk summaries, and queue failure payloads expose the
 package-registry phase name, statement label, row count, scope, generation, and
-NornicDB error if duplicate target package writes ever regress.
+NornicDB error if duplicate package writes ever regress.
 
 No-Regression Evidence: `go test ./internal/projector ./internal/storage/cypher -run 'TestBuildCanonicalMaterializationExtractsPackageRegistry|TestCanonicalNodeWriterBuildsPackageRegistryStatements' -count=1`
 proves package-registry identity fields (`purl`, `bom_ref`,

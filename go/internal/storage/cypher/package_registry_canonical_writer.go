@@ -212,8 +212,9 @@ func packageRegistryBatchedStatements(
 }
 
 func packageRegistryPackageRows(mat projector.CanonicalMaterialization) []map[string]any {
-	rows := make([]map[string]any, 0, len(mat.PackageRegistryPackages))
-	for _, row := range mat.PackageRegistryPackages {
+	packageRows := deduplicatePackageRegistryPackageRows(mat.PackageRegistryPackages)
+	rows := make([]map[string]any, 0, len(packageRows))
+	for _, row := range packageRows {
 		rows = append(rows, map[string]any{
 			"uid":                   row.UID,
 			"ecosystem":             row.Ecosystem,
@@ -241,6 +242,44 @@ func packageRegistryPackageRows(mat projector.CanonicalMaterialization) []map[st
 		})
 	}
 	return rows
+}
+
+func deduplicatePackageRegistryPackageRows(
+	rows []projector.PackageRegistryPackageRow,
+) []projector.PackageRegistryPackageRow {
+	seen := make(map[string]projector.PackageRegistryPackageRow, len(rows))
+	for _, row := range rows {
+		if existing, ok := seen[row.UID]; ok && !packageRegistryPackageRowTakesPrecedence(row, existing) {
+			continue
+		}
+		seen[row.UID] = row
+	}
+	keys := make([]string, 0, len(seen))
+	for key := range seen {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	out := make([]projector.PackageRegistryPackageRow, 0, len(keys))
+	for _, key := range keys {
+		out = append(out, seen[key])
+	}
+	return out
+}
+
+func packageRegistryPackageRowTakesPrecedence(
+	candidate projector.PackageRegistryPackageRow,
+	existing projector.PackageRegistryPackageRow,
+) bool {
+	if candidate.ObservedAt.After(existing.ObservedAt) {
+		return true
+	}
+	if existing.ObservedAt.After(candidate.ObservedAt) {
+		return false
+	}
+	if candidate.SourceFactID != existing.SourceFactID {
+		return candidate.SourceFactID > existing.SourceFactID
+	}
+	return candidate.StableFactKey > existing.StableFactKey
 }
 
 func packageRegistryVersionRows(mat projector.CanonicalMaterialization) []map[string]any {
