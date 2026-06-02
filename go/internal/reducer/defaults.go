@@ -196,6 +196,15 @@ type DefaultHandlers struct {
 	// resolve against uncommitted S3 nodes.
 	S3InternetExposureNodeWriter S3InternetExposureNodeWriter
 
+	// EC2InternetExposureNodeWriter derives ec2_instance_posture internet
+	// exposure state and writes reducer-owned properties onto existing EC2
+	// CloudResource nodes (issue #1301). It must be non-nil alongside FactLoader
+	// for the registry to register DomainEC2InternetExposureMaterialization;
+	// missing either one would drop every exposure materialization intent before
+	// it reaches the graph. The handler gates on ReadinessLookup so node
+	// properties never resolve against uncommitted EC2 nodes.
+	EC2InternetExposureNodeWriter EC2InternetExposureNodeWriter
+
 	// ContainerImageIdentityWriter persists digest-keyed image identity
 	// decisions for Git, OCI registry, and runtime image evidence.
 	ContainerImageIdentityWriter ContainerImageIdentityWriter

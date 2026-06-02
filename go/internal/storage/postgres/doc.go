@@ -130,5 +130,7 @@
 // incident_freshness_triggers, coalesces duplicate source events by
 // freshness_key, claims queued rows with FOR UPDATE SKIP LOCKED, and records
 // coordinator handoff or failure without storing provider payloads or emitting
-// facts.
+// facts. ReducerQueue readiness gates keep EC2 internet-exposure work waiting
+// for the EC2 instance CloudResource canonical-nodes phase before graph writes
+// are claimed.
 package postgres

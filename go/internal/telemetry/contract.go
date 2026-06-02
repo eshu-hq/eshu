@@ -251,6 +251,13 @@ const (
 	// skipped edge counts so a trace shows whether cross-account or unscanned roles
 	// degraded gracefully without fabricating edges.
 	SpanReducerIAMInstanceProfileRoleMaterialization = "reducer.iam_instance_profile_role_materialization"
+	// SpanReducerEC2InternetExposureMaterialization wraps EC2 internet-exposure
+	// node-property projection (issue #1301): fact load, EC2 canonical-node
+	// readiness, ENI/security-group/rule joins, conservative exposed/not_exposed/
+	// unknown derivation, scoped retract, and the batched MATCH-only CloudResource
+	// property write. The span makes missing reachability evidence visible without
+	// treating absent evidence as safe.
+	SpanReducerEC2InternetExposureMaterialization = "reducer.ec2_internet_exposure_materialization"
 	// SpanReducerS3InternetExposureMaterialization wraps S3 internet-exposure
 	// node-property projection (issue #1232): fact load, in-memory S3 bucket-name
 	// source resolution, conservative exposed/not_exposed/unknown derivation,

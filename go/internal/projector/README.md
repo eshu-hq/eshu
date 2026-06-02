@@ -206,6 +206,16 @@ The projector validates observability schema versions and identifies the trigger
 fact only; it does not compare declared, applied, or observed source classes,
 does not infer coverage from telemetry values, and does not project COVERS edges.
 
+EC2 internet exposure follows the same reducer-owned boundary. When a generation
+contains an `ec2_instance_posture` fact,
+`buildEC2InternetExposureMaterializationReducerIntent` emits one
+`ec2_internet_exposure_materialization` reducer intent for the
+scope/generation, keyed to `ec2_instance_node_materialization:<scope>` so the
+reducer waits for the EC2 instance CloudResource canonical-nodes phase. The
+projector does not derive exposure, does not inspect raw public IP addresses,
+and does not read ENI, security-group, or rule evidence beyond selecting the
+trigger fact.
+
 S3 internet exposure follows the same reducer-owned boundary. When a generation
 contains an `s3_bucket_posture` fact,
 `buildS3InternetExposureMaterializationReducerIntent` emits one

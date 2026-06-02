@@ -264,6 +264,30 @@ tracks this package's broader transient graph-write retry class.
   `s3_internet_exposed` property. Retract removes only
   `s3_internet_exposure_*` properties scoped by reducer evidence source and
   scope id.
+- `EC2InternetExposureNodeWriter` — writes reducer-owned EC2 internet-exposure
+  properties onto existing EC2 `CloudResource` nodes (issue #1301); constructed
+  with `NewEC2InternetExposureNodeWriter`. Uses batched `UNWIND` + `MATCH
+  (resource:CloudResource {uid})` and never `MERGE`, so a missing EC2 instance
+  node is a no-op rather than a fabricated node. Unknown exposure rows set
+  `ec2_internet_exposure_state=unknown` and remove the boolean
+  `ec2_internet_exposed` property. Retract removes only
+  `ec2_internet_exposure_*` properties scoped by reducer evidence source and
+  scope id.
+
+  Benchmark Evidence: `go test ./internal/storage/cypher -run '^$' -bench
+  BenchmarkEC2InternetExposureNodeWriter -benchmem -count=3` writes 5,000 rows
+  at batch 500 in `1.35 ms/op`, `1.33 ms/op`, and `1.33 ms/op` on darwin/arm64
+  Apple M4 Pro, about `1.97 MB/op` and `25,068 allocs/op`.
+  No-Regression Evidence: `go test ./internal/storage/cypher -run
+  EC2InternetExposure -count=1` proves empty-row no-op behavior, uid-anchored
+  MATCH+SET, no node fabrication, scope/evidence annotation, unknown boolean
+  removal, raw public-IP redaction, and property-only retract.
+  Observability Evidence: statement summaries and operation metadata
+  (`phase=ec2_internet_exposure`, `label=CloudResource:EC2InternetExposure`)
+  ride each statement for the existing InstrumentedExecutor
+  `eshu_dp_neo4j_query_duration_seconds` and `eshu_dp_neo4j_batch_size`
+  metrics; the reducer handler owns the EC2 exposure domain counters and
+  completion log.
 - `S3ExternalPrincipalGrantWriter` — writes metadata-only S3 bucket-policy
   access evidence as `(:CloudResource)-[:GRANTS_ACCESS_TO]->(:ExternalPrincipal)`
   graph truth for issue #1231; constructed with

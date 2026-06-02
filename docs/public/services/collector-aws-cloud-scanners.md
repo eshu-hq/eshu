@@ -460,7 +460,10 @@ network-reachability slice. The `ec2_instance_posture` fact is emitted per
 instance from the existing `DescribeInstances` pass (IMDS, user-data presence,
 encryption-relevant block-device metadata, instance-profile ARN,
 tenancy/enclave); it carries no user-data content and emits no graph edges,
-pending the reducer principal/KMS/exposure slice. Reducers must corroborate
+and the EC2 internet-exposure reducer derives conservative exposed /
+not_exposed / unknown node properties from corroborated posture, ENI, and
+security-group rule evidence without storing raw public IP addresses. Reducers
+must corroborate
 these facts before promoting workload, deployment, ownership, drift, or
 unmanaged-resource truth.
 

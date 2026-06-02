@@ -97,6 +97,7 @@ func TestSpanNames(t *testing.T) {
 		"reducer.rds_posture_materialization",
 		"reducer.ec2_uses_profile_materialization",
 		"reducer.iam_instance_profile_role_materialization",
+		"reducer.ec2_internet_exposure_materialization",
 		"reducer.s3_internet_exposure_materialization",
 		"reducer.iam_escalation_materialization",
 		"canonical.write",

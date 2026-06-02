@@ -67,10 +67,12 @@ flowchart TB
    promoting provider alert state into impact truth; and the PagerDuty
    incident-routing evidence loader plus graph writer materialize exact
    `IncidentRoutingEvidence` rows only; the RDS posture node writer stamps
-   reducer-owned posture fields onto existing RDS CloudResource nodes; and the
-   S3 internet-exposure writer derives bounded exposed / not_exposed / unknown
-   properties from `s3_bucket_posture` onto existing S3 `CloudResource` nodes
-   only),
+   reducer-owned posture fields onto existing RDS CloudResource nodes; the EC2
+   internet-exposure writer derives conservative exposed / not_exposed / unknown
+   properties from EC2 posture, ENI, and security-group evidence onto existing
+   EC2 `CloudResource` nodes only; and the S3 internet-exposure writer derives
+   bounded exposed / not_exposed / unknown properties from `s3_bucket_posture`
+   onto existing S3 `CloudResource` nodes only),
    `SharedProjectionRunner`, `CodeCallProjectionRunner`,
    `RepoDependencyProjectionRunner`, `GraphProjectionPhaseRepairer`, and
    the `postgres.NewReducerQueue`.
