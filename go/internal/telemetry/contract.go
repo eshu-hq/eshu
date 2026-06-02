@@ -243,6 +243,13 @@ const (
 	// materialized vs skipped edge counts so a trace shows whether cross-account or
 	// unscanned profiles degraded gracefully without fabricating edges.
 	SpanReducerEC2UsesProfileMaterialization = "reducer.ec2_uses_profile_materialization"
+	// SpanReducerS3InternetExposureMaterialization wraps S3 internet-exposure
+	// node-property projection (issue #1232): fact load, in-memory S3 bucket-name
+	// source resolution, conservative exposed/not_exposed/unknown derivation,
+	// scoped retract, and the batched MATCH-only CloudResource property write. The
+	// span makes unknown/partial posture visible without treating absent evidence
+	// as safe.
+	SpanReducerS3InternetExposureMaterialization = "reducer.s3_internet_exposure_materialization"
 	// SpanReducerSecurityGroupReachabilityMaterialization wraps the security-group
 	// network-reachability edge projection (issue #1135 PR2b, Option D): fact load,
 	// the triple canonical-nodes readiness gate, in-memory join-index build, SG

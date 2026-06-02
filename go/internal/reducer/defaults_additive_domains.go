@@ -216,6 +216,18 @@ func appendAdditiveDomainDefinitions(definitions []DomainDefinition, handlers De
 		}
 		definitions = append(definitions, ec2UsesProfile)
 	}
+	if handlers.FactLoader != nil && handlers.S3InternetExposureNodeWriter != nil {
+		s3Exposure := s3InternetExposureMaterializationDomainDefinition()
+		s3Exposure.Handler = S3InternetExposureMaterializationHandler{
+			FactLoader:           handlers.FactLoader,
+			NodeWriter:           handlers.S3InternetExposureNodeWriter,
+			ReadinessLookup:      handlers.ReadinessLookup,
+			PriorGenerationCheck: handlers.PriorGenerationCheck,
+			Tracer:               handlers.Tracer,
+			Instruments:          handlers.Instruments,
+		}
+		definitions = append(definitions, s3Exposure)
+	}
 	if handlers.FactLoader != nil && handlers.KubernetesCorrelationEdgeWriter != nil {
 		kubernetesEdges := kubernetesCorrelationMaterializationDomainDefinition()
 		kubernetesEdges.Handler = KubernetesCorrelationMaterializationHandler{

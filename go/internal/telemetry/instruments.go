@@ -336,6 +336,16 @@ type Instruments struct {
 	// silently dropped facts. A blank instance_profile_arn (no attached profile) is
 	// NOT counted here — it is the normal no-edge state.
 	EC2UsesProfileSkipped metric.Int64Counter
+	// S3InternetExposureDecisions counts S3 internet-exposure node-property
+	// decisions derived from s3_bucket_posture (issue #1232). Labels: outcome
+	// (exposed / not_exposed / unknown) and reason. Unknown preserves partial or
+	// absent evidence instead of converting it into a safe false.
+	S3InternetExposureDecisions metric.Int64Counter
+	// S3InternetExposureSkipped counts s3_bucket_posture facts that could not
+	// attach to an existing S3 CloudResource node. Label: skip_reason
+	// (source_unresolved). Missing bucket nodes are counted and logged, never
+	// fabricated.
+	S3InternetExposureSkipped metric.Int64Counter
 	// AWSScanStatusStaleFence counts AWS scan-status rejections caused by a
 	// stale fencing token, labeled by service, account, region, and the
 	// operation (start, observe, commit) that was rejected. Operators read
@@ -1610,6 +1620,22 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register EC2UsesProfileSkipped counter: %w", err)
+	}
+
+	inst.S3InternetExposureDecisions, err = meter.Int64Counter(
+		"eshu_dp_s3_internet_exposure_decisions_total",
+		metric.WithDescription("Total S3 internet-exposure posture decisions by outcome and reason"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register S3InternetExposureDecisions counter: %w", err)
+	}
+
+	inst.S3InternetExposureSkipped, err = meter.Int64Counter(
+		"eshu_dp_s3_internet_exposure_skipped_total",
+		metric.WithDescription("Total s3_bucket_posture facts skipped by the S3 internet-exposure projection by skip_reason (source_unresolved)"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register S3InternetExposureSkipped counter: %w", err)
 	}
 
 	inst.CorrelationUnmanagedDetected, err = meter.Int64Counter(

@@ -72,6 +72,7 @@ var spanNames = []string{
 	SpanReducerS3LogsToMaterialization,
 	SpanReducerRDSPostureMaterialization,
 	SpanReducerEC2UsesProfileMaterialization,
+	SpanReducerS3InternetExposureMaterialization,
 	SpanReducerIAMEscalationMaterialization,
 	SpanCanonicalWrite,
 	SpanCanonicalProjection,

@@ -206,6 +206,15 @@ The projector validates observability schema versions and identifies the trigger
 fact only; it does not compare declared, applied, or observed source classes,
 does not infer coverage from telemetry values, and does not project COVERS edges.
 
+S3 internet exposure follows the same reducer-owned boundary. When a generation
+contains an `s3_bucket_posture` fact,
+`buildS3InternetExposureMaterializationReducerIntent` emits one
+`s3_internet_exposure_materialization` reducer intent for the scope/generation,
+keyed to `aws_resource_materialization:<scope>` so the reducer waits for the
+same CloudResource canonical-nodes phase as AWS relationship and S3 LOGS_TO
+work. The projector does not derive exposed/not_exposed/unknown posture and
+never reads raw bucket policies or ACL grants.
+
 ## Telemetry
 
 - Metrics: `eshu_dp_projector_run_duration_seconds` — duration of one full claim-

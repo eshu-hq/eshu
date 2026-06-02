@@ -21,7 +21,9 @@
 // drift durable fact writer is wired for issue #39, the SBOM/attestation
 // attachment writer publishes digest-subject attachment facts, and the
 // supply-chain impact writer publishes reducer-owned vulnerability impact
-// facts without graph writes),
+// facts without graph writes, and the S3 internet-exposure writer sets
+// reducer-owned exposed/not_exposed/unknown properties on existing S3
+// CloudResource nodes),
 // and hosts it
 // through app.NewHostedWithStatusServer so it exposes the shared `/healthz`,
 // `/readyz`, `/metrics`, and `/admin/status` admin surface. NornicDB reducer

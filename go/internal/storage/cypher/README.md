@@ -253,6 +253,15 @@ tracks this package's broader transient graph-write retry class.
   missing endpoint is a no-op, idempotent on
   `(source_uid, relationship_type, target_uid)`, with an evidence-source-scoped
   retract
+- `S3InternetExposureNodeWriter` — writes reducer-owned S3 internet-exposure
+  properties onto existing S3 `CloudResource` nodes (issue #1232); constructed
+  with `NewS3InternetExposureNodeWriter`. Uses batched `UNWIND` + `MATCH
+  (resource:CloudResource {uid})` and never `MERGE`, so a missing bucket node is
+  a no-op rather than a fabricated node. Unknown exposure rows set
+  `s3_internet_exposure_state=unknown` and remove the boolean
+  `s3_internet_exposed` property. Retract removes only
+  `s3_internet_exposure_*` properties scoped by reducer evidence source and
+  scope id.
 - `KubernetesWorkloadNodeWriter` — writes canonical `KubernetesWorkload` nodes
   for the live-workload materialization reducer domain (issue #388);
   constructed with `NewKubernetesWorkloadNodeWriter`. Batched `UNWIND` +
