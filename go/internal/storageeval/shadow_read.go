@@ -46,7 +46,7 @@ type Scope struct {
 	ID   string    `json:"id"`
 }
 
-// Backend identifies the producer of one compared read result.
+// Backend identifies the producer of one compared result.
 type Backend string
 
 const (
@@ -145,7 +145,7 @@ const (
 type FallbackBehavior string
 
 const (
-	// FallbackKeepPostgres keeps Postgres as the production read owner.
+	// FallbackKeepPostgres keeps Postgres as the production owner.
 	FallbackKeepPostgres FallbackBehavior = "keep_postgres"
 	// FallbackFailClosed refuses a promoted read rather than returning drift.
 	FallbackFailClosed FallbackBehavior = "fail_closed"
