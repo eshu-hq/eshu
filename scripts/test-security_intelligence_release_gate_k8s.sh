@@ -58,6 +58,47 @@ JSON
     printf 'eshu-api-6bd9f-private 12m 190Mi\n'
     printf 'eshu-reducer-77dd-private 80m 512Mi\n'
     ;;
+  "-n eshu get servicemonitors -o json")
+    if [ "${ESHU_FAKE_K8S_NO_SERVICE_MONITOR:-0}" = "1" ]; then
+      printf '{"items":[]}\n'
+      exit 0
+    fi
+    cat <<'JSON'
+{"items":[
+  {"metadata":{"name":"private-release-api","labels":{"app.kubernetes.io/instance":"private-release","app.kubernetes.io/component":"api"}},"spec":{"endpoints":[{"path":"/metrics","port":"metrics"}],"selector":{"matchLabels":{"app.kubernetes.io/component":"api"}}}},
+  {"metadata":{"name":"private-release-reducer","labels":{"app.kubernetes.io/instance":"private-release","app.kubernetes.io/component":"reducer"}},"spec":{"endpoints":[{"path":"/metrics","port":"metrics"}],"selector":{"matchLabels":{"app.kubernetes.io/component":"reducer"}}}}
+]}
+JSON
+    ;;
+  "-n eshu get networkpolicies -o json")
+    cat <<'JSON'
+{"items":[
+  {"metadata":{"name":"private-release-network","labels":{"app.kubernetes.io/instance":"private-release"}},"spec":{"podSelector":{"matchLabels":{"app.kubernetes.io/name":"eshu"}},"policyTypes":["Ingress","Egress"]}}
+]}
+JSON
+    ;;
+  "-n eshu get poddisruptionbudgets -o json")
+    cat <<'JSON'
+{"items":[
+  {"metadata":{"name":"private-release-api","labels":{"app.kubernetes.io/component":"api"}},"status":{"currentHealthy":1,"desiredHealthy":1,"disruptionsAllowed":0}}
+]}
+JSON
+    ;;
+  "-n eshu get jobs -o json")
+    if [ "${ESHU_FAKE_K8S_BAD_BOOTSTRAP:-0}" = "1" ]; then
+      cat <<'JSON'
+{"items":[
+  {"metadata":{"name":"private-release-schema-bootstrap","labels":{"app.kubernetes.io/component":"schema-bootstrap"}},"status":{"active":0,"succeeded":0,"failed":1,"conditions":[{"type":"Failed","status":"True"}]}}
+]}
+JSON
+      exit 0
+    fi
+    cat <<'JSON'
+{"items":[
+  {"metadata":{"name":"private-release-schema-bootstrap","labels":{"app.kubernetes.io/component":"schema-bootstrap"}},"status":{"active":0,"succeeded":1,"failed":0,"conditions":[{"type":"Complete","status":"True"}]}}
+]}
+JSON
+    ;;
   "-n eshu logs eshu-api-6bd9f-private --all-containers --tail=200")
     printf 'level=info repository=private/repo package_name=private-package provider_url=https://provider.private.example.com/path token=ghp_abcdef path=/Users/alice/private/repo host=api.private.example.com ip=10.42.0.15 PASSWORD: hunter2 AWS_SECRET_ACCESS_KEY: aws-secret apiKey: api-key-secret client_secret: client-secret Authorization: Bearer bearer-secret role_arn=arn:aws:iam::123456789012:role/private-role\n'
     ;;
@@ -76,6 +117,39 @@ SH
 #!/usr/bin/env bash
 set -euo pipefail
 if [ "$*" != "get values eshu -n eshu" ]; then
+    if [ "$*" = "get manifest eshu -n eshu" ]; then
+        cat <<'YAML'
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: private-release-api
+spec:
+  template:
+    spec:
+      containers:
+        - name: api
+          image: registry.private.example.com/eshu/api:dev
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: private-release-api
+spec:
+  endpoints:
+    - path: /metrics
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: private-release-api
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: private-release-schema-bootstrap
+YAML
+        exit 0
+    fi
     printf 'unexpected helm args: %s\n' "$*" >&2
     exit 1
 fi
@@ -165,6 +239,20 @@ jq -e '.k8s.queue_readback_ok == true and .k8s.queue_retrying == 0 and .k8s.queu
     || { printf 'queue/admin readback summary was not recorded\n' >&2; exit 1; }
 jq -e '.k8s.resource_snapshot_ok == true and .k8s.resource_snapshot_file == "k8s/resource-snapshot.txt"' "${ev}" >/dev/null \
     || { printf 'resource snapshot summary was not recorded\n' >&2; exit 1; }
+jq -e '
+    .k8s.service_monitor_ok == true and
+    .k8s.network_policy_ok == true and
+    .k8s.pdb_ok == true and
+    .k8s.schema_bootstrap_job_ok == true and
+    .k8s.helm_manifest_ok == true and
+    .k8s.service_monitor_count >= 1 and
+    .k8s.network_policy_count >= 1 and
+    .k8s.pdb_count >= 1 and
+    .k8s.schema_bootstrap_job_count >= 1
+' "${ev}" >/dev/null \
+    || { printf 'k8s rollout shape evidence was not recorded\n' >&2; exit 1; }
+jq -e '.k8s.service_monitor_file == "k8s/servicemonitors-summary.json" and .k8s.helm_manifest_file == "k8s/helm-manifest.sanitized.yaml"' "${ev}" >/dev/null \
+    || { printf 'k8s rollout evidence file refs were not recorded\n' >&2; exit 1; }
 
 rg --fixed-strings --quiet -- '[redacted-url]' "${out_dir}/k8s/helm-values.sanitized.yaml" \
     || { printf 'expected helm values to be sanitized\n' >&2; exit 1; }
@@ -223,5 +311,49 @@ jq -e '.pass == false and .k8s.status == "fail"' "${nonterminal_ev}" >/dev/null 
     || { printf 'non-terminal queue did not fail the k8s phase\n' >&2; exit 1; }
 jq -e '.k8s.queue_terminal_ok == false and .k8s.queue_pending == 2 and .k8s.queue_in_flight == 1 and .k8s.queue_retrying == 1' "${nonterminal_ev}" >/dev/null \
     || { printf 'non-terminal queue counts were not recorded\n' >&2; exit 1; }
+
+missing_monitor_out_dir="${repo}/_evidence_missing_monitor"
+if PATH="${repo}/_bin:${PATH}" \
+    ESHU_RELEASE_GATE_REPO_ROOT="${repo}" \
+    ESHU_RELEASE_GATE_SKIP_GO_TESTS=1 \
+    ESHU_FAKE_K8S_NO_SERVICE_MONITOR=1 \
+    "${gate}" \
+        --out-dir "${missing_monitor_out_dir}" \
+        --phases state,k8s \
+        --image-tag-candidate v0.0.3-test \
+        --api-base-url "http://127.0.0.1:8080" \
+        --pprof-base-url "http://127.0.0.1:6060" \
+        --k8s-namespace eshu \
+        --helm-release eshu \
+        >"${repo}/_gate_missing_monitor.out" 2>"${repo}/_gate_missing_monitor.err"
+then
+    printf 'expected k8s gate to fail when ServiceMonitor evidence is missing\n' >&2
+    exit 1
+fi
+missing_monitor_ev="${missing_monitor_out_dir}/evidence.json"
+jq -e '.pass == false and .k8s.service_monitor_ok == false and .k8s.service_monitor_count == 0' "${missing_monitor_ev}" >/dev/null \
+    || { printf 'missing ServiceMonitor did not fail the k8s phase\n' >&2; exit 1; }
+
+bad_bootstrap_out_dir="${repo}/_evidence_bad_bootstrap"
+if PATH="${repo}/_bin:${PATH}" \
+    ESHU_RELEASE_GATE_REPO_ROOT="${repo}" \
+    ESHU_RELEASE_GATE_SKIP_GO_TESTS=1 \
+    ESHU_FAKE_K8S_BAD_BOOTSTRAP=1 \
+    "${gate}" \
+        --out-dir "${bad_bootstrap_out_dir}" \
+        --phases state,k8s \
+        --image-tag-candidate v0.0.3-test \
+        --api-base-url "http://127.0.0.1:8080" \
+        --pprof-base-url "http://127.0.0.1:6060" \
+        --k8s-namespace eshu \
+        --helm-release eshu \
+        >"${repo}/_gate_bad_bootstrap.out" 2>"${repo}/_gate_bad_bootstrap.err"
+then
+    printf 'expected k8s gate to fail when schema bootstrap job is degraded\n' >&2
+    exit 1
+fi
+bad_bootstrap_ev="${bad_bootstrap_out_dir}/evidence.json"
+jq -e '.pass == false and .k8s.schema_bootstrap_job_ok == false and .k8s.schema_bootstrap_failed == 1' "${bad_bootstrap_ev}" >/dev/null \
+    || { printf 'degraded schema bootstrap job did not fail the k8s phase\n' >&2; exit 1; }
 
 printf 'security-intelligence release gate k8s tests passed\n'
