@@ -97,6 +97,7 @@ build_manifest() {
 		($unsupported_hosted_collectors | split(",") | map(gsub("^\\s+|\\s+$"; "")) | map(select(length > 0))) as $unsupported_hosted_rows |
 		($unsupported_reducers | split(",") | map(gsub("^\\s+|\\s+$"; "")) | map(select(length > 0))) as $unsupported_reducer_rows |
 		def sum_source($names): [$fact_rows[] | select(.source_system as $s | $names | index($s)) | .count] | add // 0;
+		def sum_source_kind($names; $pattern): [$fact_rows[] | select(.source_system as $s | $names | index($s)) | select(.fact_kind | test($pattern)) | .count] | add // 0;
 		def sum_kind($pattern): [$fact_rows[] | select(.fact_kind | test($pattern)) | .count] | add // 0;
 		def reducer_count($name; $field): [$reducer_count_rows[] | select(.reducer == $name) | .[$field]] | add // 0;
 		def service_enabled($name): $service_rows | index($name) != null;
@@ -131,6 +132,46 @@ build_manifest() {
 			elif explicitly_unsupported_hosted($name) then {status: "unsupported", facts: 0, reason: "collector explicitly unsupported in remote Compose profile"}
 			elif service_enabled($service) then {status: "fail", facts: 0, reason: "no source facts observed for enabled collector service"}
 			else {status: "skipped", facts: 0, reason: "collector service disabled in remote Compose profile"} end;
+		def workflow_completed($collector):
+			[$workflow_rows[] | select(.collector_kind == $collector and .status == "completed") | .count] | add // 0;
+		def workflow_row($collector): {completed: workflow_completed($collector)};
+		def scanner_worker_row:
+			(sum_source(["scanner_worker"])) as $source |
+			(sum_source_kind(["scanner_worker"]; "\\.warning$")) as $warnings |
+			(workflow_completed("scanner_worker")) as $completed |
+			if $source > 0 then {
+				status: "pass",
+				facts: $source,
+				source_facts: $source,
+				warnings: $warnings
+			}
+			elif $completed > 0 then {
+				status: "fail",
+				facts: 0,
+				source_facts: 0,
+				warnings: 0,
+				completed_claims: $completed,
+				runtime_status: "pass",
+				reason: "completed scanner-worker claims emitted no source or warning facts"
+			}
+			elif service_enabled("scanner-worker") then {
+				status: "skipped",
+				facts: 0,
+				source_facts: 0,
+				warnings: 0,
+				completed_claims: 0,
+				runtime_status: "pass",
+				reason: "scanner-worker runtime healthy but no source-evidence claims completed in this proof"
+			}
+			else {
+				status: "skipped",
+				facts: 0,
+				source_facts: 0,
+				warnings: 0,
+				completed_claims: 0,
+				runtime_status: "skipped",
+				reason: "scanner-worker service disabled in remote Compose profile"
+			} end;
 		def reducer_row($name; $source; $reducer):
 			{source_facts: $source, reducer_facts: $reducer, count: $reducer, readback: row_readback} as $row |
 			if $source > 0 and $reducer > 0 and readback_ok then $row + {status: "pass"}
@@ -150,9 +191,6 @@ build_manifest() {
 			}
 			elif $reducer <= 0 then $row + {status: "fail", reason: "no reducer evidence observed"}
 			else $row + {status: "fail", reason: "API/MCP readback proof missing or failed"} end;
-		def workflow_completed($collector):
-			[$workflow_rows[] | select(.collector_kind == $collector and .status == "completed") | .count] | add // 0;
-		def workflow_row($collector): {completed: workflow_completed($collector)};
 		def queue_num($name): ($index[0].queue[$name] // 0);
 		{
 			schema_version: 1,
@@ -184,7 +222,7 @@ build_manifest() {
 				sbom_document: collector_row(sum_source(["sbom_document"])),
 				provider_security_alerts: collector_row(sum_source(["security_alert","security_alerts"])),
 				vulnerability_intelligence: collector_row(sum_source(["vulnerability_intelligence"])),
-				scanner_worker: collector_row(sum_source(["scanner_worker"])),
+				scanner_worker: scanner_worker_row,
 				confluence: collector_row(sum_source(["confluence"])),
 				pagerduty: hosted_collector_row("pagerduty"; "collector-pagerduty"; sum_source(["pagerduty"])),
 				jira: hosted_collector_row("jira"; "collector-jira"; sum_source(["jira"])),
