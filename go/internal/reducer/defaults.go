@@ -104,6 +104,17 @@ type DefaultHandlers struct {
 	// the graph.
 	CloudResourceNodeWriter CloudResourceNodeWriter
 
+	// EC2InstanceNodeWriter materializes ec2_instance_posture facts into canonical
+	// :CloudResource graph nodes on the existing cloud_resource_uid keyspace (issue
+	// #1146 PR-A). It must be non-nil alongside FactLoader for the registry to
+	// register DomainEC2InstanceNodeMaterialization; missing either one would drop
+	// every ec2_instance_posture fact before it reached the graph. The handler also
+	// publishes the canonical-nodes-committed phase through
+	// GraphProjectionPhasePublisher so the later USES_PROFILE edge slice (#1146
+	// PR-B) can gate on it exactly like the AWS relationship edge gates on the
+	// CloudResource node phase (#805).
+	EC2InstanceNodeWriter EC2InstanceNodeWriter
+
 	// CloudResourceEdgeWriter projects aws_relationship facts into canonical
 	// AWS relationship edges between CloudResource nodes (issue #805 PR 2). It
 	// must be non-nil alongside FactLoader for the registry to register

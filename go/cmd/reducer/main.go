@@ -183,6 +183,7 @@ func buildReducerService(
 	edgeWriterForHandlers.InheritanceGroupBatchSize = inheritanceEdgeGroupBatchSize
 	edgeWriterForHandlers.SQLRelationshipGroupBatchSize = sqlRelationshipEdgeGroupBatchSize
 	cloudResourceNodeWriter := sourcecypher.NewCloudResourceNodeWriter(neo4jExec, neo4jBatchSize(getenv))
+	ec2InstanceNodeWriter := sourcecypher.NewEC2InstanceNodeWriter(neo4jExec, neo4jBatchSize(getenv))
 	cloudResourceEdgeWriter := sourcecypher.NewCloudResourceEdgeWriter(neo4jExec, neo4jBatchSize(getenv))
 	kubernetesWorkloadNodeWriter := sourcecypher.NewKubernetesWorkloadNodeWriter(neo4jExec, neo4jBatchSize(getenv))
 	securityGroupEndpointNodeWriter := sourcecypher.NewSecurityGroupEndpointNodeWriter(neo4jExec, neo4jBatchSize(getenv))
@@ -326,6 +327,7 @@ func buildReducerService(
 		AWSCloudRuntimeDriftWriter:      reducer.PostgresAWSCloudRuntimeDriftWriter{DB: database},
 		AWSCloudRuntimeDriftLogger:      logger,
 		CloudResourceNodeWriter:         cloudResourceNodeWriter,
+		EC2InstanceNodeWriter:           ec2InstanceNodeWriter,
 		CloudResourceEdgeWriter:         cloudResourceEdgeWriter,
 		KubernetesWorkloadNodeWriter:    kubernetesWorkloadNodeWriter,
 		SecurityGroupEndpointNodeWriter: securityGroupEndpointNodeWriter,

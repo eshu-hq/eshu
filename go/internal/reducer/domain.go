@@ -28,6 +28,7 @@ var knownDomains = map[Domain]struct{}{
 	DomainSecurityAlertReconciliation:              {},
 	DomainAWSCloudRuntimeDrift:                     {},
 	DomainAWSResourceMaterialization:               {},
+	DomainEC2InstanceNodeMaterialization:           {},
 	DomainAWSRelationshipMaterialization:           {},
 	DomainObservabilityCoverageCorrelation:         {},
 	DomainObservabilityCoverageMaterialization:     {},
