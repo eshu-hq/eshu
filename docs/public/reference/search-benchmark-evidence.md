@@ -113,6 +113,30 @@ False canonical claim count is the number of ranked documents that claim a
 truth level other than `derived`. The correct fix for a nonzero count is to fix
 the producer or projection, not to suppress the metric.
 
+## Query Suite Gate
+
+Issue #417 semantic retrieval evidence must use a versioned query suite before a
+backend run can be treated as comparable baseline evidence. The first suite
+version is:
+
+```text
+semantic-retrieval-query-suite/v1
+```
+
+`ValidateQuerySuite` requires at least 15 queries. Each query must include:
+
+- stable id;
+- query text;
+- one scope anchor: service, workload, repository, or environment;
+- mode;
+- limit;
+- expected graph handles.
+
+`ScoreQuerySuite` scores queries in suite order. It macro-averages recall,
+precision, and nDCG across the suite, and sums false canonical claim counts.
+Missing results count as zero-score queries, so partial backend output cannot
+inflate recall.
+
 ## Recommendation
 
 Each completed evidence record must recommend exactly one decision:
