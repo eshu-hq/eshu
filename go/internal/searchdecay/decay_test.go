@@ -40,6 +40,34 @@ func TestScoreAppliesDecayToEligibleNonCanonicalEvidence(t *testing.T) {
 	}
 }
 
+func TestScoreMinScoreDoesNotIncreaseOriginalScore(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 6, 2, 6, 30, 0, 0, time.UTC)
+	decision, err := Scorer{Policy: Policy{
+		ID:       "freshness-v1",
+		Now:      now,
+		HalfLife: 24 * time.Hour,
+		MinScore: 0.1,
+	}}.Score(context.Background(), Evidence{
+		ID:         "ci-run:low-score",
+		Class:      EvidenceClassCIRun,
+		TruthLevel: searchdocs.TruthLevelDerived,
+		ObservedAt: now.Add(-72 * time.Hour),
+		Score:      0.05,
+	})
+	if err != nil {
+		t.Fatalf("Score() error = %v, want nil", err)
+	}
+
+	if got, want := decision.Score, 0.05; got != want {
+		t.Fatalf("decision.Score = %v, want %v", got, want)
+	}
+	if decision.Score > decision.OriginalScore {
+		t.Fatalf("decision.Score = %v, original = %v; decay must not increase score", decision.Score, decision.OriginalScore)
+	}
+}
+
 func TestScoreSkipsCanonicalEvidence(t *testing.T) {
 	t.Parallel()
 

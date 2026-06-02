@@ -47,7 +47,8 @@ repository ids, or service ids as metric labels.
   canonical.
 - The default eligible classes are CI run evidence, vulnerability observations,
   deployment events, cloud observations, and relationship candidates.
-- Scores stay bounded from `0` to `1`; `Policy.MinScore` is also bounded.
+- Scores stay bounded from `0` to `1`; `Policy.MinScore` is also bounded and
+  never raises a decayed score above the original evidence score.
 - Decay score is ranking metadata only. It must not hide evidence or rewrite
   canonical graph truth.
 

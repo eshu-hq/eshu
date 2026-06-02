@@ -36,11 +36,12 @@ Each policy includes:
 | `id` | Stable low-cardinality policy id. |
 | `now` | Clock used for deterministic scoring. |
 | `half_life` | Duration that halves score contribution. |
-| `min_score` | Lower bound after decay. |
+| `min_score` | Lower bound after decay, capped at the original evidence score. |
 | `eligible_classes` | Optional override for eligible evidence classes. |
 
-Scores are bounded from `0` to `1`. Invalid policies or evidence are rejected
-before scoring, including missing truth labels.
+Scores are bounded from `0` to `1`, and decay never raises a score above the
+original evidence score. Invalid policies or evidence are rejected before
+scoring, including missing truth labels.
 
 ## Decision Contract
 

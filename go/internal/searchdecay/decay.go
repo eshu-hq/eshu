@@ -131,7 +131,7 @@ func (scorer Scorer) Score(ctx context.Context, evidence Evidence) (Decision, er
 	factor := math.Pow(0.5, float64(decision.Age)/float64(policy.HalfLife))
 	decision.Score = clampScore(evidence.Score * factor)
 	if decision.Score < policy.MinScore {
-		decision.Score = policy.MinScore
+		decision.Score = math.Min(policy.MinScore, evidence.Score)
 	}
 	decision.Outcome = OutcomeApplied
 	decision.Reason = "decay policy applied"
