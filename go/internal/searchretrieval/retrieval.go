@@ -128,6 +128,12 @@ func BuildResponse(req Request, candidates []Candidate) (Response, error) {
 		return Response{}, err
 	}
 	for _, candidate := range candidates {
+		if strings.TrimSpace(candidate.Document.ID) == "" {
+			return Response{}, errors.New("candidate document.id is required")
+		}
+		if !hasGraphHandle(candidate.Document.GraphHandles) {
+			return Response{}, fmt.Errorf("candidate document.graph_handles are required: document_id=%q", candidate.Document.ID)
+		}
 		if math.IsNaN(candidate.Score) || math.IsInf(candidate.Score, 0) {
 			return Response{}, fmt.Errorf("candidate score must be finite: document_id=%q", candidate.Document.ID)
 		}
@@ -149,7 +155,7 @@ func BuildResponse(req Request, candidates []Candidate) (Response, error) {
 	results := make([]Result, 0, len(ordered))
 	falseCanonicalClaims := 0
 	for i, candidate := range ordered {
-		doc := candidate.Document
+		doc := cloneDocument(candidate.Document)
 		if doc.TruthScope.Level != searchdocs.TruthLevelDerived {
 			falseCanonicalClaims++
 		}
@@ -187,6 +193,22 @@ func (response Response) SearchbenchResults() []searchbench.Result {
 		})
 	}
 	return results
+}
+
+func hasGraphHandle(handles []searchdocs.GraphHandle) bool {
+	for _, handle := range handles {
+		if strings.TrimSpace(handle.Kind) != "" && strings.TrimSpace(handle.ID) != "" {
+			return true
+		}
+	}
+	return false
+}
+
+func cloneDocument(doc searchdocs.Document) searchdocs.Document {
+	doc.EntityRefs = append([]searchdocs.EntityRef(nil), doc.EntityRefs...)
+	doc.GraphHandles = append([]searchdocs.GraphHandle(nil), doc.GraphHandles...)
+	doc.Labels = append([]string(nil), doc.Labels...)
+	return doc
 }
 
 func validMode(mode searchbench.Mode) bool {

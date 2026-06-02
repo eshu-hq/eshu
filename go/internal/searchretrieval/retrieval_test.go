@@ -57,6 +57,21 @@ func TestValidateRequestRejectsInvalidModeAndEmptyQuery(t *testing.T) {
 	}
 }
 
+func TestValidateRequestRejectsLimitAboveMaximum(t *testing.T) {
+	t.Parallel()
+
+	req := validRequestFixture()
+	req.Limit = maxLimit + 1
+
+	err := ValidateRequest(req)
+	if err == nil {
+		t.Fatal("ValidateRequest() error = nil, want max-limit error")
+	}
+	if want := "limit exceeds maximum of 100"; !strings.Contains(err.Error(), want) {
+		t.Fatalf("ValidateRequest() error = %q, want substring %q", err, want)
+	}
+}
+
 func TestScopeAnchorPrefersSmallestAvailableScope(t *testing.T) {
 	t.Parallel()
 
@@ -127,6 +142,78 @@ func TestBuildResponseCountsFalseCanonicalClaims(t *testing.T) {
 	}
 	if got, want := response.Results[0].TruthScope.Level, searchdocs.TruthLevel("canonical"); got != want {
 		t.Fatalf("result truth level = %q, want %q", got, want)
+	}
+}
+
+func TestBuildResponseRejectsCandidatesWithoutDocumentIdentity(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		candidate Candidate
+		want      string
+	}{
+		{
+			name:      "missing document id",
+			candidate: Candidate{Document: documentFixture("", "service:checkout"), Score: 0.9},
+			want:      "candidate document.id is required",
+		},
+		{
+			name: "missing graph handles",
+			candidate: Candidate{
+				Document: func() searchdocs.Document {
+					doc := documentFixture("searchdoc:checkout", "service:checkout")
+					doc.GraphHandles = nil
+					return doc
+				}(),
+				Score: 0.9,
+			},
+			want: "candidate document.graph_handles are required",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			_, err := BuildResponse(validRequestFixture(), []Candidate{tt.candidate})
+			if err == nil {
+				t.Fatal("BuildResponse() error = nil, want candidate identity error")
+			}
+			if !strings.Contains(err.Error(), tt.want) {
+				t.Fatalf("BuildResponse() error = %q, want substring %q", err, tt.want)
+			}
+		})
+	}
+}
+
+func TestBuildResponseCopiesDocumentGraphHandles(t *testing.T) {
+	t.Parallel()
+
+	candidate := Candidate{Document: documentFixture("searchdoc:checkout", "service:checkout"), Score: 0.9}
+	candidate.Document.EntityRefs = []searchdocs.EntityRef{{ID: "entity:checkout", Name: "Checkout"}}
+	candidate.Document.Labels = []string{"service", "owner"}
+
+	response, err := BuildResponse(validRequestFixture(), []Candidate{candidate})
+	if err != nil {
+		t.Fatalf("BuildResponse() error = %v, want nil", err)
+	}
+
+	candidate.Document.GraphHandles[0].ID = "mutated"
+	candidate.Document.EntityRefs[0].ID = "mutated"
+	candidate.Document.Labels[0] = "mutated"
+
+	if got, want := response.Results[0].Document.GraphHandles[0].ID, "checkout"; got != want {
+		t.Fatalf("response document graph handle ID = %q, want %q", got, want)
+	}
+	if got, want := response.Results[0].Handles[0].ID, "checkout"; got != want {
+		t.Fatalf("response handles ID = %q, want %q", got, want)
+	}
+	if got, want := response.Results[0].Document.EntityRefs[0].ID, "entity:checkout"; got != want {
+		t.Fatalf("response document entity ref ID = %q, want %q", got, want)
+	}
+	if got, want := response.Results[0].Document.Labels[0], "service"; got != want {
+		t.Fatalf("response document label = %q, want %q", got, want)
 	}
 }
 

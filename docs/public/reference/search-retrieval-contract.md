@@ -42,8 +42,10 @@ Each candidate carries:
 - optional failure classes;
 - optional low-cardinality metadata.
 
-Candidates with `NaN` or infinite scores are rejected before ranking because
-they cannot produce stable top-K ordering.
+Candidate search documents must have a stable `document.id` and at least one
+non-empty graph handle. Candidates with missing document identity, missing graph
+handles, `NaN` scores, or infinite scores are rejected before ranking because
+they cannot produce stable top-K ordering or bounded graph expansion.
 
 ## Response Contract
 

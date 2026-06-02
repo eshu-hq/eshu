@@ -46,7 +46,8 @@ can be considered complete.
 - Retrieval requests must have a query, scope, limit, timeout, and valid mode.
 - Scope anchoring prefers service, then workload, then repository, then
   environment.
-- Backend candidate scores must be finite before ranking.
+- Backend candidates must have stable document ids, graph handles, and finite
+  scores before ranking.
 - Results are sorted by score descending and document id ascending for stable
   top-K behavior.
 - `false_canonical_claim_count` reports any returned result that claims a truth
