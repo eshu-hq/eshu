@@ -116,6 +116,7 @@ nav:
     - Search Benchmark Evidence: reference/search-benchmark-evidence.md
     - Search Retrieval Contract: reference/search-retrieval-contract.md
     - Search Decay Scoring: reference/search-decay-scoring.md
+    - Link Prediction Candidates: reference/link-prediction-candidates.md
     - Fact Schema Versioning: reference/fact-schema-versioning.md
     - Plugin Trust Model: reference/plugin-trust-model.md
     - Language Query DSL: reference/language-query-dsl.md
