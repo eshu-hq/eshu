@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/secretsiam"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
@@ -16,6 +17,8 @@ type Client interface {
 	ListUsers(context.Context) ([]User, error)
 	ListPolicies(context.Context) ([]Policy, error)
 	ListInstanceProfiles(context.Context) ([]InstanceProfile, error)
+	ListOIDCProviders(context.Context) ([]OIDCProvider, error)
+	ListCoverageWarnings(context.Context) ([]CoverageWarning, error)
 }
 
 // Scanner emits AWS IAM facts for one claimed account/global-region scan.
@@ -53,14 +56,40 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 	if err != nil {
 		return nil, fmt.Errorf("list IAM instance profiles: %w", err)
 	}
+	oidcProviders, err := s.Client.ListOIDCProviders(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("list IAM OIDC providers: %w", err)
+	}
+	warnings, err := s.Client.ListCoverageWarnings(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("list IAM coverage warnings: %w", err)
+	}
 
-	envelopes := make([]facts.Envelope, 0, len(roles)+len(users)+len(policies)+len(profiles))
+	envelopes := make([]facts.Envelope, 0, len(roles)+len(users)+len(policies)+len(profiles)+len(oidcProviders)+len(warnings))
+	secretsCtx := secretsIAMContext(boundary)
 	for _, role := range roles {
 		resource, err := awscloud.NewResourceEnvelope(roleObservation(boundary, role))
 		if err != nil {
 			return nil, err
 		}
 		envelopes = append(envelopes, resource)
+		principal, err := secretsiam.NewPrincipalEnvelope(rolePrincipalObservation(secretsCtx, role))
+		if err != nil {
+			return nil, err
+		}
+		envelopes = append(envelopes, principal)
+		if strings.TrimSpace(role.PermissionBoundary.PolicyARN) != "" {
+			boundaryFact, err := secretsiam.NewPermissionBoundaryEnvelope(permissionBoundaryObservation(
+				secretsCtx,
+				role.ARN,
+				secretsiam.PrincipalTypeAWSRole,
+				role.PermissionBoundary,
+			))
+			if err != nil {
+				return nil, err
+			}
+			envelopes = append(envelopes, boundaryFact)
+		}
 		for _, principal := range role.TrustPrincipals {
 			relationship, err := awscloud.NewRelationshipEnvelope(roleTrustRelationship(boundary, role, principal))
 			if err != nil {
@@ -74,12 +103,27 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 				return nil, err
 			}
 			envelopes = append(envelopes, relationship)
+			attachment, err := secretsiam.NewPolicyAttachmentEnvelope(policyAttachmentObservation(
+				secretsCtx,
+				role.ARN,
+				secretsiam.PrincipalTypeAWSRole,
+				policyARN,
+			))
+			if err != nil {
+				return nil, err
+			}
+			envelopes = append(envelopes, attachment)
 		}
 		permissions, err := permissionEnvelopes(boundary, role.ARN, awscloud.ResourceTypeIAMRole, role.PermissionStatements)
 		if err != nil {
 			return nil, err
 		}
 		envelopes = append(envelopes, permissions...)
+		secretsPolicies, err := secretsIAMPolicyEnvelopes(secretsCtx, role.ARN, secretsiam.PrincipalTypeAWSRole, role.PermissionStatements)
+		if err != nil {
+			return nil, err
+		}
+		envelopes = append(envelopes, secretsPolicies...)
 	}
 	for _, user := range users {
 		resource, err := awscloud.NewResourceEnvelope(userObservation(boundary, user))
@@ -87,11 +131,45 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 			return nil, err
 		}
 		envelopes = append(envelopes, resource)
+		principal, err := secretsiam.NewPrincipalEnvelope(userPrincipalObservation(secretsCtx, user))
+		if err != nil {
+			return nil, err
+		}
+		envelopes = append(envelopes, principal)
+		if strings.TrimSpace(user.PermissionBoundary.PolicyARN) != "" {
+			boundaryFact, err := secretsiam.NewPermissionBoundaryEnvelope(permissionBoundaryObservation(
+				secretsCtx,
+				user.ARN,
+				secretsiam.PrincipalTypeAWSUser,
+				user.PermissionBoundary,
+			))
+			if err != nil {
+				return nil, err
+			}
+			envelopes = append(envelopes, boundaryFact)
+		}
+		for _, policyARN := range user.AttachedPolicyARNs {
+			attachment, err := secretsiam.NewPolicyAttachmentEnvelope(policyAttachmentObservation(
+				secretsCtx,
+				user.ARN,
+				secretsiam.PrincipalTypeAWSUser,
+				policyARN,
+			))
+			if err != nil {
+				return nil, err
+			}
+			envelopes = append(envelopes, attachment)
+		}
 		permissions, err := permissionEnvelopes(boundary, user.ARN, awscloud.ResourceTypeIAMUser, user.PermissionStatements)
 		if err != nil {
 			return nil, err
 		}
 		envelopes = append(envelopes, permissions...)
+		secretsPolicies, err := secretsIAMPolicyEnvelopes(secretsCtx, user.ARN, secretsiam.PrincipalTypeAWSUser, user.PermissionStatements)
+		if err != nil {
+			return nil, err
+		}
+		envelopes = append(envelopes, secretsPolicies...)
 	}
 	for _, policy := range policies {
 		resource, err := awscloud.NewResourceEnvelope(policyObservation(boundary, policy))
@@ -113,6 +191,25 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 			}
 			envelopes = append(envelopes, relationship)
 		}
+		profileFact, err := secretsiam.NewInstanceProfileEnvelope(instanceProfileSecretsObservation(secretsCtx, profile))
+		if err != nil {
+			return nil, err
+		}
+		envelopes = append(envelopes, profileFact)
+	}
+	for _, provider := range oidcProviders {
+		principal, err := secretsiam.NewPrincipalEnvelope(oidcProviderPrincipalObservation(secretsCtx, provider))
+		if err != nil {
+			return nil, err
+		}
+		envelopes = append(envelopes, principal)
+	}
+	for _, warning := range warnings {
+		envelope, err := secretsiam.NewCoverageWarningEnvelope(coverageWarningObservation(secretsCtx, warning))
+		if err != nil {
+			return nil, err
+		}
+		envelopes = append(envelopes, envelope)
 	}
 	return envelopes, nil
 }
@@ -126,11 +223,14 @@ func roleObservation(boundary awscloud.Boundary, role Role) awscloud.ResourceObs
 		ResourceType: awscloud.ResourceTypeIAMRole,
 		Name:         role.Name,
 		Attributes: map[string]any{
-			"attached_policy_arns": role.AttachedPolicyARNs,
-			"inline_policy_names":  role.InlinePolicyNames,
-			"path":                 strings.TrimSpace(role.Path),
-			"trust_policy":         role.AssumeRolePolicy,
-			"trust_principals":     trustPrincipalMaps(role.TrustPrincipals),
+			"attached_policy_arns":     role.AttachedPolicyARNs,
+			"inline_policy_names":      role.InlinePolicyNames,
+			"path":                     strings.TrimSpace(role.Path),
+			"permission_boundary_arn":  strings.TrimSpace(role.PermissionBoundary.PolicyARN),
+			"permission_boundary_type": strings.TrimSpace(role.PermissionBoundary.Type),
+			"trust_policy_present":     len(role.AssumeRolePolicy) > 0,
+			"trust_principal_count":    len(role.TrustPrincipals),
+			"trust_principals":         trustPrincipalMaps(role.TrustPrincipals),
 		},
 		CorrelationAnchors: []string{roleARN, strings.TrimSpace(role.Name)},
 		SourceRecordID:     roleARN,
@@ -181,7 +281,11 @@ func userObservation(boundary awscloud.Boundary, user User) awscloud.ResourceObs
 		ResourceType: awscloud.ResourceTypeIAMUser,
 		Name:         user.Name,
 		Attributes: map[string]any{
-			"path": strings.TrimSpace(user.Path),
+			"attached_policy_arns":     user.AttachedPolicyARNs,
+			"inline_policy_names":      user.InlinePolicyNames,
+			"path":                     strings.TrimSpace(user.Path),
+			"permission_boundary_arn":  strings.TrimSpace(user.PermissionBoundary.PolicyARN),
+			"permission_boundary_type": strings.TrimSpace(user.PermissionBoundary.Type),
 		},
 		CorrelationAnchors: []string{userARN, strings.TrimSpace(user.Name)},
 		SourceRecordID:     userARN,

@@ -366,6 +366,27 @@ Use `AWSFactKinds` when callers need the full accepted set, and
 AWS evidence. Reducers must corroborate workload, deployment, ownership, and
 environment truth before graph promotion.
 
+Secrets/IAM posture fact kinds use schema version `1.0.0` for the first source
+contract:
+
+- `aws_iam_principal`
+- `aws_iam_trust_policy`
+- `aws_iam_permission_policy`
+- `aws_iam_policy_attachment`
+- `aws_iam_permission_boundary`
+- `aws_iam_instance_profile`
+- `aws_iam_access_analyzer_finding`
+- `secrets_iam_coverage_warning`
+
+Use `SecretsIAMFactKinds` when callers need the full accepted set, and
+`SecretsIAMSchemaVersion` when building `secrets_iam_posture` envelopes. These
+facts preserve provider-native IAM identity, normalized trust and permission
+policy statements, managed policy attachments, permissions boundaries, instance
+profile membership, optional Access Analyzer metadata, and explicit coverage
+warnings. They never carry raw policy JSON, statement bodies, condition values,
+AWS credentials, session tokens, or token-like fields. Reducers own trust-chain,
+effective-permission, and graph-promotion decisions.
+
 The S3 bucket posture fact kind uses schema version `1.0.0` for the first
 collector contract:
 

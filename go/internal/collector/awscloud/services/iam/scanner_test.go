@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
+	"github.com/eshu-hq/eshu/go/internal/collector/secretsiam"
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
@@ -50,6 +51,9 @@ func TestScannerEmitsIAMResourcesAndRelationships(t *testing.T) {
 		t.Fatalf("aws_relationship count = %d, want 3", counts[facts.AWSRelationshipFactKind])
 	}
 	for _, envelope := range envelopes {
+		if !isAWSCloudFact(envelope.FactKind) {
+			continue
+		}
 		if envelope.CollectorKind != awscloud.CollectorKind {
 			t.Fatalf("CollectorKind = %q, want %q", envelope.CollectorKind, awscloud.CollectorKind)
 		}
@@ -135,6 +139,129 @@ func TestScannerEmitsDerivedPermissionFacts(t *testing.T) {
 	assertNoRawPolicyJSON(t, envelopes)
 }
 
+func TestScannerEmitsSecretsIAMPostureSourceFacts(t *testing.T) {
+	client := fakeClient{
+		roles: []Role{{
+			ARN:  "arn:aws:iam::123456789012:role/eshu-runtime",
+			Name: "eshu-runtime",
+			Path: "/service/",
+			AssumeRolePolicy: map[string]any{
+				"Statement": []any{map[string]any{
+					"Condition": map[string]any{
+						"IpAddress": map[string]any{"aws:SourceIp": "10.0.0.1/32"},
+					},
+				}},
+			},
+			PermissionBoundary: PermissionBoundary{
+				PolicyARN: "arn:aws:iam::123456789012:policy/developer-boundary",
+				Type:      "PermissionsBoundaryPolicy",
+			},
+			TrustPrincipals: []TrustPrincipal{{
+				Type:       "AWS",
+				Identifier: "arn:aws:iam::111122223333:root",
+			}},
+			AttachedPolicyARNs: []string{"arn:aws:iam::123456789012:policy/eshu-read"},
+			InlinePolicyNames:  []string{"inline-escalate"},
+			PermissionStatements: []PolicyStatement{
+				{
+					Source:           PolicySourceTrust,
+					Effect:           "Allow",
+					Actions:          []string{"sts:AssumeRole"},
+					ConditionKeys:    []string{"aws:SourceIp"},
+					AssumePrincipals: []string{"arn:aws:iam::111122223333:root"},
+				},
+				{
+					Source:        PolicySourceInline,
+					PolicyName:    "inline-escalate",
+					StatementSID:  "AllowPassRole",
+					Effect:        "Allow",
+					Actions:       []string{"iam:PassRole"},
+					Resources:     []string{"arn:aws:iam::123456789012:role/*"},
+					ConditionKeys: []string{"aws:SourceIp"},
+				},
+				{
+					Source:    PolicySourceAttachedManaged,
+					PolicyARN: "arn:aws:iam::123456789012:policy/eshu-read",
+					Effect:    "Allow",
+					Actions:   []string{"s3:GetObject"},
+					Resources: []string{"arn:aws:s3:::example/*"},
+				},
+			},
+		}},
+		users: []User{{
+			ARN:  "arn:aws:iam::123456789012:user/breakglass",
+			Name: "breakglass",
+			PermissionBoundary: PermissionBoundary{
+				PolicyARN: "arn:aws:iam::123456789012:policy/user-boundary",
+				Type:      "PermissionsBoundaryPolicy",
+			},
+			AttachedPolicyARNs: []string{"arn:aws:iam::aws:policy/SecurityAudit"},
+			InlinePolicyNames:  []string{"inline-admin"},
+			PermissionStatements: []PolicyStatement{{
+				Source:     PolicySourceInline,
+				PolicyName: "inline-admin",
+				Effect:     "Allow",
+				Actions:    []string{"iam:AttachUserPolicy"},
+				Resources:  []string{"*"},
+			}},
+		}},
+		policies: []Policy{{
+			ARN:              "arn:aws:iam::123456789012:policy/eshu-read",
+			Name:             "eshu-read",
+			DefaultVersionID: "v1",
+			AttachmentCount:  1,
+		}},
+		profiles: []InstanceProfile{{
+			ARN:      "arn:aws:iam::123456789012:instance-profile/eshu-node",
+			Name:     "eshu-node",
+			Path:     "/service/",
+			RoleARNs: []string{"arn:aws:iam::123456789012:role/eshu-runtime"},
+		}},
+		oidcProviders: []OIDCProvider{{
+			ARN:             "arn:aws:iam::123456789012:oidc-provider/token.actions.githubusercontent.com",
+			URLFingerprint:  "sha256:github-actions",
+			ClientIDCount:   2,
+			ThumbprintCount: 1,
+		}},
+		warnings: []CoverageWarning{{
+			WarningKind: "access_analyzer_not_enabled",
+			SourceState: secretsiam.SourceStateUnsupported,
+			ErrorClass:  "unsupported_source",
+			Message:     "Access Analyzer source facts are not enabled for this fixture",
+		}},
+	}
+
+	envelopes, err := (Scanner{Client: client}).Scan(context.Background(), testBoundary())
+	if err != nil {
+		t.Fatalf("Scan returned error: %v", err)
+	}
+
+	counts := factKindCounts(envelopes)
+	wantCounts := map[string]int{
+		facts.AWSIAMPrincipalFactKind:           3,
+		facts.AWSIAMTrustPolicyFactKind:         1,
+		facts.AWSIAMPermissionPolicyFactKind:    3,
+		facts.AWSIAMPolicyAttachmentFactKind:    2,
+		facts.AWSIAMPermissionBoundaryFactKind:  2,
+		facts.AWSIAMInstanceProfileFactKind:     1,
+		facts.SecretsIAMCoverageWarningFactKind: 1,
+	}
+	for factKind, want := range wantCounts {
+		if counts[factKind] != want {
+			t.Fatalf("%s count = %d, want %d", factKind, counts[factKind], want)
+		}
+	}
+	for _, envelope := range envelopes {
+		if envelope.FactKind == facts.AWSIAMPermissionPolicyFactKind ||
+			envelope.FactKind == facts.AWSIAMTrustPolicyFactKind {
+			if envelope.CollectorKind != secretsiam.CollectorKind {
+				t.Fatalf("%s CollectorKind = %q, want %q", envelope.FactKind, envelope.CollectorKind, secretsiam.CollectorKind)
+			}
+		}
+		assertNoRawPolicyJSON(t, []facts.Envelope{envelope})
+	}
+}
+
 func TestScannerStopsOnClientError(t *testing.T) {
 	_, err := (Scanner{Client: fakeClient{roleErr: errBoom{}}}).Scan(context.Background(), testBoundary())
 	if err == nil {
@@ -165,11 +292,13 @@ func TestScannerRejectsMismatchedServiceKind(t *testing.T) {
 }
 
 type fakeClient struct {
-	roles    []Role
-	users    []User
-	policies []Policy
-	profiles []InstanceProfile
-	roleErr  error
+	roles         []Role
+	users         []User
+	policies      []Policy
+	profiles      []InstanceProfile
+	oidcProviders []OIDCProvider
+	warnings      []CoverageWarning
+	roleErr       error
 }
 
 func (c fakeClient) ListRoles(context.Context) ([]Role, error) {
@@ -188,6 +317,14 @@ func (c fakeClient) ListInstanceProfiles(context.Context) ([]InstanceProfile, er
 	return c.profiles, nil
 }
 
+func (c fakeClient) ListOIDCProviders(context.Context) ([]OIDCProvider, error) {
+	return c.oidcProviders, nil
+}
+
+func (c fakeClient) ListCoverageWarnings(context.Context) ([]CoverageWarning, error) {
+	return c.warnings, nil
+}
+
 type errBoom struct{}
 
 func (errBoom) Error() string { return "boom" }
@@ -198,6 +335,17 @@ func factKindCounts(envelopes []facts.Envelope) map[string]int {
 		counts[envelope.FactKind]++
 	}
 	return counts
+}
+
+func isAWSCloudFact(factKind string) bool {
+	switch factKind {
+	case facts.AWSResourceFactKind,
+		facts.AWSRelationshipFactKind,
+		facts.AWSIAMPermissionFactKind:
+		return true
+	default:
+		return false
+	}
 }
 
 func assertPermissionPresent(t *testing.T, envelopes []facts.Envelope, principalARN, policySource, action string) {
@@ -227,14 +375,44 @@ func assertPermissionPresent(t *testing.T, envelopes []facts.Envelope, principal
 // verbatim JSON or any condition values.
 func assertNoRawPolicyJSON(t *testing.T, envelopes []facts.Envelope) {
 	t.Helper()
-	forbidden := []string{"Statement", "policy_document", "document", "raw_policy", "condition_values"}
+	forbidden := []string{
+		"Statement",
+		"policy_document",
+		"document",
+		"raw_policy",
+		"condition_values",
+		"trust_policy",
+		"10.0.0.1/32",
+	}
 	for _, envelope := range envelopes {
-		if envelope.FactKind != facts.AWSIAMPermissionFactKind {
-			continue
+		assertNoForbiddenPayloadValue(t, envelope.FactKind, envelope.Payload, forbidden)
+	}
+}
+
+func assertNoForbiddenPayloadValue(t *testing.T, factKind string, value any, forbidden []string) {
+	t.Helper()
+	switch typed := value.(type) {
+	case map[string]any:
+		for key, nested := range typed {
+			for _, forbiddenValue := range forbidden {
+				if key == forbiddenValue {
+					t.Fatalf("%s payload carries forbidden raw-policy key %q: %#v", factKind, key, typed)
+				}
+			}
+			assertNoForbiddenPayloadValue(t, factKind, nested, forbidden)
 		}
-		for _, key := range forbidden {
-			if _, ok := envelope.Payload[key]; ok {
-				t.Fatalf("permission fact carries forbidden raw-policy key %q: %#v", key, envelope.Payload)
+	case []any:
+		for _, nested := range typed {
+			assertNoForbiddenPayloadValue(t, factKind, nested, forbidden)
+		}
+	case []string:
+		for _, nested := range typed {
+			assertNoForbiddenPayloadValue(t, factKind, nested, forbidden)
+		}
+	case string:
+		for _, forbiddenValue := range forbidden {
+			if typed == forbiddenValue {
+				t.Fatalf("%s payload carries forbidden raw-policy value %q", factKind, typed)
 			}
 		}
 	}

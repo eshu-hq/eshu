@@ -25,7 +25,7 @@ The Go source of truth is `go/internal/facts`. The durable envelope fields are:
 | `FactKind` | Domain kind, such as `terraform_state_resource` or `oci_registry.image_manifest`. |
 | `StableFactKey` | Idempotency key inside a scope/generation. Re-emitting the same source fact must converge to the same stable key. |
 | `SchemaVersion` | Semantic version for the fact payload contract. |
-| `CollectorKind` | Collector family that emitted the fact, such as `git`, `terraform_state`, `aws`, `oci_registry`, `package_registry`, `ci_cd_run`, or `documentation`. |
+| `CollectorKind` | Collector family that emitted the fact, such as `git`, `terraform_state`, `aws`, `secrets_iam_posture`, `oci_registry`, `package_registry`, `ci_cd_run`, or `documentation`. |
 | `FencingToken` | Claim or ownership token used by hosted collector paths to reject stale writers. |
 | `SourceConfidence` | How Eshu learned the fact: `observed`, `reported`, `inferred`, `derived`, or compatibility-only `unknown`. |
 | `ObservedAt` | Source observation time. |
@@ -63,6 +63,7 @@ current families are:
 | Documentation | `documentation` | `documentation_source`, `documentation_document`, `documentation_section`, `documentation_link`, `documentation_entity_mention`, `documentation_claim_candidate`, `documentation_finding`, `documentation_evidence_packet` |
 | Terraform state | `terraform_state` for collected state, `git` for safe repo-local candidates | `terraform_state_candidate`, `terraform_state_snapshot`, `terraform_state_resource`, `terraform_state_output`, `terraform_state_module`, `terraform_state_provider_binding`, `terraform_state_tag_observation`, `terraform_state_warning` |
 | AWS cloud | `aws` | `aws_resource`, `aws_relationship`, `aws_tag_observation`, `aws_dns_record`, `aws_image_reference`, `aws_security_group_rule`, `aws_iam_permission`, `aws_warning` |
+| Secrets/IAM posture | `secrets_iam_posture` | `aws_iam_principal`, `aws_iam_trust_policy`, `aws_iam_permission_policy`, `aws_iam_policy_attachment`, `aws_iam_permission_boundary`, `aws_iam_instance_profile`, `aws_iam_access_analyzer_finding`, `secrets_iam_coverage_warning` |
 | S3 bucket posture | `aws` | `s3_bucket_posture`, `s3_external_principal_grant` |
 | RDS posture | `aws` | `rds_instance_posture` |
 | EC2 posture | `aws` | `ec2_instance_posture` |
@@ -88,6 +89,19 @@ unsupported-principal metadata derived from a transient bucket-policy parse. It
 never carries raw policy JSON, statement bodies, actions, resources,
 conditions, ACL grants, object keys, or object data; reducers own any later
 graph projection.
+
+Secrets/IAM posture facts are source evidence emitted with
+`collector_kind=secrets_iam_posture`. The AWS IAM source lane preserves
+provider-native IAM identities, normalized role trust statements, normalized
+identity permission statements, managed-policy attachments, permissions
+boundaries, instance-profile role membership, OIDC provider identities, optional
+Access Analyzer finding metadata, and explicit coverage warnings. These facts
+never carry raw policy JSON, statement bodies, condition values, AWS
+credentials, session tokens, OIDC client IDs, OIDC thumbprints, or raw OIDC
+provider URLs. Provider URLs are represented by fingerprints and counts where
+needed. Reducers own effective-permission analysis, trust-chain joins, posture
+classification, and graph promotion; source facts alone do not assert
+privilege-escalation truth.
 
 Incident-routing facts preserve routing evidence before reducer-owned
 comparison. Terraform-state applied evidence is emitted as

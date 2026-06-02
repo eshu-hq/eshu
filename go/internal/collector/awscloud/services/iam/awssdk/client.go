@@ -2,6 +2,8 @@ package awssdk
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -136,9 +138,58 @@ func (c *Client) ListInstanceProfiles(ctx context.Context) ([]iamservice.Instanc
 	return profiles, nil
 }
 
+// ListOIDCProviders returns IAM OpenID Connect providers visible to the
+// configured AWS credentials. Provider URLs are fingerprinted before they enter
+// scanner-owned data; client IDs and thumbprints are counted only.
+func (c *Client) ListOIDCProviders(ctx context.Context) ([]iamservice.OIDCProvider, error) {
+	var page *awsiam.ListOpenIDConnectProvidersOutput
+	err := c.recordAPICall(ctx, "ListOpenIDConnectProviders", func(callCtx context.Context) error {
+		var err error
+		page, err = c.client.ListOpenIDConnectProviders(callCtx, &awsiam.ListOpenIDConnectProvidersInput{})
+		return err
+	})
+	if err != nil {
+		return nil, err
+	}
+	if page == nil {
+		return nil, nil
+	}
+	providers := make([]iamservice.OIDCProvider, 0, len(page.OpenIDConnectProviderList))
+	for _, entry := range page.OpenIDConnectProviderList {
+		providerARN := aws.ToString(entry.Arn)
+		detail, err := c.getOIDCProvider(ctx, providerARN)
+		if err != nil {
+			return nil, err
+		}
+		provider := iamservice.OIDCProvider{ARN: providerARN}
+		if detail != nil {
+			provider.URLFingerprint = fingerprintString(aws.ToString(detail.Url))
+			provider.ClientIDCount = len(detail.ClientIDList)
+			provider.ThumbprintCount = len(detail.ThumbprintList)
+		}
+		providers = append(providers, provider)
+	}
+	return providers, nil
+}
+
+// ListCoverageWarnings returns explicit partial or unsupported IAM source state
+// observed by the SDK adapter. The current adapter fails hard on IAM API errors
+// and has no non-fatal coverage warnings to report.
+func (c *Client) ListCoverageWarnings(context.Context) ([]iamservice.CoverageWarning, error) {
+	return nil, nil
+}
+
 func (c *Client) mapRole(ctx context.Context, role awsiamtypes.Role) (iamservice.Role, error) {
 	roleName := aws.ToString(role.RoleName)
-	rawTrust := aws.ToString(role.AssumeRolePolicyDocument)
+	detail, err := c.getRoleDetail(ctx, roleName)
+	if err != nil {
+		return iamservice.Role{}, err
+	}
+	roleDetail := role
+	if detail != nil {
+		roleDetail = *detail
+	}
+	rawTrust := aws.ToString(roleDetail.AssumeRolePolicyDocument)
 	trustPolicy, trustPrincipals, err := parseTrustPolicy(rawTrust)
 	if err != nil {
 		return iamservice.Role{}, fmt.Errorf("parse IAM trust policy for role %q: %w", roleName, err)
@@ -158,15 +209,34 @@ func (c *Client) mapRole(ctx context.Context, role awsiamtypes.Role) (iamservice
 	}
 
 	return iamservice.Role{
-		ARN:                  aws.ToString(role.Arn),
+		ARN:                  firstNonBlank(aws.ToString(roleDetail.Arn), aws.ToString(role.Arn)),
 		Name:                 roleName,
-		Path:                 aws.ToString(role.Path),
+		Path:                 firstNonBlank(aws.ToString(roleDetail.Path), aws.ToString(role.Path)),
 		AssumeRolePolicy:     trustPolicy,
 		TrustPrincipals:      trustPrincipals,
+		PermissionBoundary:   permissionBoundary(roleDetail.PermissionsBoundary),
 		AttachedPolicyARNs:   attached,
 		InlinePolicyNames:    inline,
 		PermissionStatements: statements,
 	}, nil
+}
+
+func (c *Client) getRoleDetail(ctx context.Context, roleName string) (*awsiamtypes.Role, error) {
+	var out *awsiam.GetRoleOutput
+	err := c.recordAPICall(ctx, "GetRole", func(callCtx context.Context) error {
+		var err error
+		out, err = c.client.GetRole(callCtx, &awsiam.GetRoleInput{
+			RoleName: aws.String(roleName),
+		})
+		return err
+	})
+	if err != nil {
+		return nil, fmt.Errorf("get IAM role %q: %w", roleName, err)
+	}
+	if out == nil {
+		return nil, nil
+	}
+	return out.Role, nil
 }
 
 func (c *Client) listAttachedRolePolicies(ctx context.Context, roleName string) ([]string, error) {
@@ -273,7 +343,7 @@ func parseTrustPolicy(raw string) (map[string]any, []iamservice.TrustPrincipal, 
 	}
 	decoded, err := url.QueryUnescape(raw)
 	if err != nil {
-		return nil, nil, err
+		decoded = raw
 	}
 	var document map[string]any
 	if err := json.Unmarshal([]byte(decoded), &document); err != nil {
@@ -348,4 +418,48 @@ func principalIdentifiers(value any) []string {
 	default:
 		return nil
 	}
+}
+
+func (c *Client) getOIDCProvider(ctx context.Context, providerARN string) (*awsiam.GetOpenIDConnectProviderOutput, error) {
+	var out *awsiam.GetOpenIDConnectProviderOutput
+	err := c.recordAPICall(ctx, "GetOpenIDConnectProvider", func(callCtx context.Context) error {
+		var err error
+		out, err = c.client.GetOpenIDConnectProvider(callCtx, &awsiam.GetOpenIDConnectProviderInput{
+			OpenIDConnectProviderArn: aws.String(providerARN),
+		})
+		return err
+	})
+	if err != nil {
+		return nil, fmt.Errorf("get OIDC provider %q: %w", providerARN, err)
+	}
+	return out, nil
+}
+
+func permissionBoundary(boundary *awsiamtypes.AttachedPermissionsBoundary) iamservice.PermissionBoundary {
+	if boundary == nil {
+		return iamservice.PermissionBoundary{}
+	}
+	return iamservice.PermissionBoundary{
+		PolicyARN: aws.ToString(boundary.PermissionsBoundaryArn),
+		Type:      string(boundary.PermissionsBoundaryType),
+	}
+}
+
+func fingerprintString(value string) string {
+	trimmed := strings.TrimSpace(value)
+	if trimmed == "" {
+		return ""
+	}
+	sum := sha256.Sum256([]byte(trimmed))
+	return "sha256:" + hex.EncodeToString(sum[:])
+}
+
+func firstNonBlank(values ...string) string {
+	for _, value := range values {
+		trimmed := strings.TrimSpace(value)
+		if trimmed != "" {
+			return trimmed
+		}
+	}
+	return ""
 }

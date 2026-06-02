@@ -51,7 +51,7 @@ ESHU_COLLECTOR_INSTANCES_JSON
   -> authorize target scope
   -> acquire credentials
   -> run scanner
-  -> commit aws_* facts
+  -> commit reported source facts
   -> write scanner and commit status
   -> heartbeat/release claim
 ```
@@ -97,6 +97,43 @@ Dashboard starting points:
 Metric labels may include account and region. They must not include ARNs, tags,
 digests, policy JSON, secret names, parameter names, queue names, object keys,
 or raw AWS error payloads.
+
+Collector Performance Evidence: IAM source-fact expansion is covered by focused
+fixture tests in `go test ./internal/collector/awscloud/services/iam ./internal/collector/awscloud/services/iam/awssdk ./internal/collector/secretsiam ./internal/facts -count=1`. The runtime API fan-out remains bounded by the existing managed-policy document cap and by one role/user/OIDC detail read per listed source identity.
+
+No-Regression Evidence: The same focused fixture gate covers the changed IAM
+scanner, SDK adapter, secrets/IAM envelope builders, and fact registry with
+metadata-only inputs; no queue, graph, Compose, Helm, or worker-concurrency
+settings changed. The after measurement is the passing package test on the
+current Go toolchain with an IAM fixture containing one role, one user, one
+managed policy, one instance profile, one OIDC provider, permissions
+boundaries, inline and attached managed policy statements, and one explicit
+coverage warning.
+
+Collector Observability Evidence: The IAM source-fact expansion stays inside the
+existing `collector-aws-cloud` scan boundary. Operators still diagnose this
+path with scanner status plus `eshu_dp_aws_scan_duration_seconds`,
+`eshu_dp_aws_api_calls_total`, `eshu_dp_aws_throttle_total`, and the per-claim
+commit status; no new metric labels carry IAM ARNs, policy JSON, OIDC URLs,
+client IDs, thumbprints, credentials, or token-like values.
+
+Observability Evidence: Existing collector status and AWS API metrics cover the
+after path. `ListRoles`, `GetRole`, `ListUsers`, `GetUser`,
+`ListOpenIDConnectProviders`, and `GetOpenIDConnectProvider` calls are recorded
+through `recordAPICall`, so operators can identify duration, API pressure,
+throttles, scanner status, and commit status without adding new high-cardinality
+metric labels.
+
+Collector Deployment Evidence: No Helm values, ServiceMonitor templates, ports,
+or runtime command shape changed. The IAM source-fact expansion runs inside the
+existing `collector-aws-cloud` Deployment and uses the current metrics endpoint.
+
+No-Observability-Change: The IAM source-fact expansion stays inside the existing
+`collector-aws-cloud` scan boundary. Operators still diagnose this path with
+scanner status plus `eshu_dp_aws_scan_duration_seconds`,
+`eshu_dp_aws_api_calls_total`, `eshu_dp_aws_throttle_total`, and the per-claim
+commit status; no new metric labels carry IAM ARNs, policy JSON, OIDC URLs,
+client IDs, thumbprints, credentials, or token-like values.
 
 ## Related Docs
 
