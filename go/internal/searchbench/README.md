@@ -32,7 +32,7 @@ See `doc.go` for the godoc-rendered package contract.
   classes, accuracy metrics, truth scope, and recommendation.
 - `ValidateQuerySuite` enforces the 15-case query-suite baseline shape.
 - `ValidateRetrievalProof` enforces the #417 recall, p95, false-canonical,
-  and observation-summary guardrails.
+  observation-summary, and explicit stopped-evidence guardrails.
 - `ScoreQueryResults` computes recall, precision, nDCG, and false canonical
   claim count from ranked `searchdocs.Document` results.
 - `ScoreQuerySuite` macro-averages per-query metrics and sums false canonical
@@ -74,7 +74,10 @@ carry only low-cardinality candidate, decision, impact, and risk categories;
 live telemetry bridges must keep protocol-specific identifiers in evidence
 records or logs, not metric labels. #417 retrieval proofs also carry
 low-cardinality observation summaries for mode, query count, result-count bounds,
-truncation, timeout, candidate truth-level counts, and failure classes.
+truncation, timeout, candidate truth-level counts, and failure classes. #1298
+stopped evidence carries only the query suite and accepted stop reason; live
+adapters still need to emit runtime observation summaries before claiming
+measured retrieval value.
 
 ## Gotchas / invariants
 
@@ -86,6 +89,9 @@ truncation, timeout, candidate truth-level counts, and failure classes.
 - #417 retrieval proof must show NornicDB hybrid recall improves the Postgres
   content-search baseline, or the proof is rejected before any recommendation
   can use it.
+- An accepted stop reason records why the #417 benchmark did not run. It must
+  reference #417, cannot be mixed with measured runs or latency evidence, and
+  does not prove recall improvement, latency, or NornicDB adoption readiness.
 - Hybrid p95 latency must stay within the recorded threshold or carry an
   accepted reason that names why the threshold was exceeded.
 - `truth_scope.level` must remain `derived`, and `truth_scope.basis` must name

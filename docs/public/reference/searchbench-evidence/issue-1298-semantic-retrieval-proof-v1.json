@@ -1,0 +1,129 @@
+{
+  "version": "semantic-retrieval-proof/v1",
+  "accepted_stop_reason": "Issue #1298 stopped the #417 proof before measured backend runs: this stack has the bounded retrieval contract and proof gate, but no live Postgres content-search adapter or NornicDB hybrid adapter. This record commits the public-safe 15-query suite and does not claim recall improvement, latency, or adoption readiness.",
+  "suite": {
+    "version": "semantic-retrieval-query-suite/v1",
+    "queries": [
+      {
+        "id": "semantic-context-001",
+        "text": "service owner for checkout api",
+        "service_id": "service:checkout-api",
+        "mode": "hybrid",
+        "limit": 10,
+        "expected_handles": ["service:checkout-api"]
+      },
+      {
+        "id": "semantic-context-002",
+        "text": "workload deployment for checkout api",
+        "workload_id": "workload:checkout-api",
+        "mode": "hybrid",
+        "limit": 10,
+        "expected_handles": ["workload:checkout-api"]
+      },
+      {
+        "id": "semantic-context-003",
+        "text": "repository that owns payment worker",
+        "repo_id": "repo:payments",
+        "mode": "hybrid",
+        "limit": 10,
+        "expected_handles": ["service:payment-worker"]
+      },
+      {
+        "id": "semantic-context-004",
+        "text": "staging workload for order service",
+        "environment": "staging",
+        "mode": "hybrid",
+        "limit": 10,
+        "expected_handles": ["workload:order-service"]
+      },
+      {
+        "id": "semantic-context-005",
+        "text": "inventory api runtime summary",
+        "service_id": "service:inventory-api",
+        "mode": "hybrid",
+        "limit": 10,
+        "expected_handles": ["service:inventory-api"]
+      },
+      {
+        "id": "semantic-context-006",
+        "text": "billing cron deployment evidence",
+        "workload_id": "workload:billing-cron",
+        "mode": "hybrid",
+        "limit": 10,
+        "expected_handles": ["workload:billing-cron"]
+      },
+      {
+        "id": "semantic-context-007",
+        "text": "repository path for notification service",
+        "repo_id": "repo:notifications",
+        "mode": "hybrid",
+        "limit": 10,
+        "expected_handles": ["service:notification-service"]
+      },
+      {
+        "id": "semantic-context-008",
+        "text": "production runtime for search api",
+        "environment": "production",
+        "mode": "hybrid",
+        "limit": 10,
+        "expected_handles": ["service:search-api"]
+      },
+      {
+        "id": "semantic-context-009",
+        "text": "cache worker owning repository",
+        "service_id": "service:cache-worker",
+        "mode": "hybrid",
+        "limit": 10,
+        "expected_handles": ["repo:cache"]
+      },
+      {
+        "id": "semantic-context-010",
+        "text": "analytics workload deployment target",
+        "workload_id": "workload:analytics-api",
+        "mode": "hybrid",
+        "limit": 10,
+        "expected_handles": ["workload:analytics-api"]
+      },
+      {
+        "id": "semantic-context-011",
+        "text": "fraud service runtime evidence",
+        "repo_id": "repo:fraud",
+        "mode": "hybrid",
+        "limit": 10,
+        "expected_handles": ["service:fraud-service"]
+      },
+      {
+        "id": "semantic-context-012",
+        "text": "development workload for catalog api",
+        "environment": "development",
+        "mode": "hybrid",
+        "limit": 10,
+        "expected_handles": ["workload:catalog-api"]
+      },
+      {
+        "id": "semantic-context-013",
+        "text": "service linked to recommendation worker",
+        "service_id": "service:recommendation-worker",
+        "mode": "hybrid",
+        "limit": 10,
+        "expected_handles": ["service:recommendation-worker"]
+      },
+      {
+        "id": "semantic-context-014",
+        "text": "runtime summary for shipping api",
+        "workload_id": "workload:shipping-api",
+        "mode": "hybrid",
+        "limit": 10,
+        "expected_handles": ["service:shipping-api"]
+      },
+      {
+        "id": "semantic-context-015",
+        "text": "repository ownership for support tools",
+        "repo_id": "repo:support-tools",
+        "mode": "hybrid",
+        "limit": 10,
+        "expected_handles": ["repo:support-tools"]
+      }
+    ]
+  }
+}

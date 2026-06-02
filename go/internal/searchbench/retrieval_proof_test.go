@@ -2,6 +2,8 @@ package searchbench
 
 import (
 	"encoding/json"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -55,6 +57,124 @@ func TestValidateRetrievalProofAllowsAcceptedLatencyReason(t *testing.T) {
 
 	if err := ValidateRetrievalProof(proof); err != nil {
 		t.Fatalf("ValidateRetrievalProof() error = %v, want nil", err)
+	}
+}
+
+func TestValidateRetrievalProofAllowsAcceptedStopReasonWithoutRuns(t *testing.T) {
+	t.Parallel()
+
+	proof := RetrievalProof{
+		Version:            RetrievalProofVersion,
+		Suite:              validQuerySuiteFixture(),
+		AcceptedStopReason: "issue #1298 stopped issue #417 proof before live adapters existed; no recall or latency claim is made",
+	}
+
+	if err := ValidateRetrievalProof(proof); err != nil {
+		t.Fatalf("ValidateRetrievalProof() error = %v, want nil", err)
+	}
+}
+
+func TestValidateRetrievalProofRejectsStopReasonWithoutIssue417Link(t *testing.T) {
+	t.Parallel()
+
+	proof := RetrievalProof{
+		Version:            RetrievalProofVersion,
+		Suite:              validQuerySuiteFixture(),
+		AcceptedStopReason: "live adapters were missing",
+	}
+
+	err := ValidateRetrievalProof(proof)
+	if err == nil {
+		t.Fatal("ValidateRetrievalProof() error = nil, want stop-reason ownership error")
+	}
+	if !strings.Contains(err.Error(), "accepted_stop_reason must reference issue #417") {
+		t.Fatalf("ValidateRetrievalProof() error = %q, want issue #417 stop-reason ownership error", err)
+	}
+}
+
+func TestValidateRetrievalProofRejectsStopReasonWithMeasuredRuns(t *testing.T) {
+	t.Parallel()
+
+	proof := validRetrievalProofFixture()
+	proof.AcceptedStopReason = "issue #1298 stopped issue #417 proof after a measured run"
+
+	err := ValidateRetrievalProof(proof)
+	if err == nil {
+		t.Fatal("ValidateRetrievalProof() error = nil, want stop-reason/run exclusivity error")
+	}
+	if !strings.Contains(err.Error(), "accepted_stop_reason cannot be set when measured runs are present") {
+		t.Fatalf("ValidateRetrievalProof() error = %q, want stop-reason/run exclusivity error", err)
+	}
+}
+
+func TestValidateRetrievalProofRejectsStopReasonWithLatencyEvidence(t *testing.T) {
+	t.Parallel()
+
+	proof := RetrievalProof{
+		Version:               RetrievalProofVersion,
+		Suite:                 validQuerySuiteFixture(),
+		AcceptedStopReason:    "issue #1298 stopped issue #417 proof before measured runs",
+		P95Threshold:          250 * time.Millisecond,
+		AcceptedLatencyReason: "latency threshold was not measured",
+	}
+
+	err := ValidateRetrievalProof(proof)
+	if err == nil {
+		t.Fatal("ValidateRetrievalProof() error = nil, want stop-reason/latency exclusivity error")
+	}
+	if !strings.Contains(err.Error(), "accepted_stop_reason cannot be set with latency evidence") {
+		t.Fatalf("ValidateRetrievalProof() error = %q, want stop-reason/latency exclusivity error", err)
+	}
+}
+
+func TestValidateRetrievalProofRejectsMissingRunsWithoutStopReason(t *testing.T) {
+	t.Parallel()
+
+	proof := RetrievalProof{
+		Version: RetrievalProofVersion,
+		Suite:   validQuerySuiteFixture(),
+	}
+
+	err := ValidateRetrievalProof(proof)
+	if err == nil {
+		t.Fatal("ValidateRetrievalProof() error = nil, want missing run errors")
+	}
+	for _, want := range []string{
+		"baseline run is required unless accepted_stop_reason is set",
+		"candidate run is required unless accepted_stop_reason is set",
+	} {
+		if !strings.Contains(err.Error(), want) {
+			t.Fatalf("ValidateRetrievalProof() error = %q, want substring %q", err, want)
+		}
+	}
+}
+
+func TestIssue1298StoppedEvidenceFileValidates(t *testing.T) {
+	t.Parallel()
+
+	path := filepath.Join(
+		"..",
+		"..",
+		"..",
+		"docs",
+		"public",
+		"reference",
+		"searchbench-evidence",
+		"issue-1298-semantic-retrieval-proof-v1.json",
+	)
+	payload, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("os.ReadFile(%q) error = %v, want nil", path, err)
+	}
+	var proof RetrievalProof
+	if err := json.Unmarshal(payload, &proof); err != nil {
+		t.Fatalf("json.Unmarshal(%q) error = %v, want nil", path, err)
+	}
+	if strings.TrimSpace(proof.AcceptedStopReason) == "" {
+		t.Fatalf("%s accepted_stop_reason is empty, want explicit stopped-run reason", path)
+	}
+	if err := ValidateRetrievalProof(proof); err != nil {
+		t.Fatalf("ValidateRetrievalProof(%q) error = %v, want nil", path, err)
 	}
 }
 
@@ -116,6 +236,7 @@ func TestRetrievalProofJSONUsesVersionedFieldNames(t *testing.T) {
 		`"semantic-retrieval-proof/v1"`,
 		`"p95_threshold_ns"`,
 		`"accepted_latency_reason"`,
+		`"accepted_stop_reason"`,
 		`"candidate_truth_level_counts"`,
 		`"false_canonical_claim_count"`,
 	} {
