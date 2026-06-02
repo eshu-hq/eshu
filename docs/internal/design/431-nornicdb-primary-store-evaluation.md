@@ -21,7 +21,8 @@ exist and pass:
 
 1. Postgres ownership inventory: #1286
    ([inventory](1286-postgres-ownership-inventory.md)).
-2. Content/read-model shadow-read comparison: #1287.
+2. Content/read-model shadow-read comparison: #1287
+   ([shadow-read gate](1287-shadow-read-comparison-gate.md)).
 3. Fact-family shadow-write comparison: #1288.
 4. Queue/workflow substrate evaluation: #1289.
 5. NornicDB backup/restore proof for every migrated durable state class: #1290.
@@ -119,7 +120,8 @@ bounded query responses.
 1. Finish the #430 graph/search split stack.
 2. Complete #1286 Postgres ownership inventory.
 3. Run #1287 shadow-read comparison for content/read models without changing
-   production reads.
+   production reads
+   ([shadow-read gate](1287-shadow-read-comparison-gate.md)).
 4. Run #1288 shadow-write comparison for one low-risk fact family.
 5. Decide queue/workflow ownership through #1289.
 6. Prove NornicDB backup/restore and rollback through #1290 for each migrated
