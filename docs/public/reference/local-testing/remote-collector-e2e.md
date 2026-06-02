@@ -184,6 +184,82 @@ URLs, hostnames, account ids, tokens, raw transcripts, and copied provider
 payloads out of the manifest. Store those only beside the private corpus/env
 files on the operator machine.
 
+## Remote Compose Suite Harness
+
+After the representative stack is running with pprof enabled, use the remote
+Compose suite harness to build the shared manifest from live aggregate
+evidence:
+
+```bash
+scripts/e2e_remote_compose_suite.sh \
+  --run-kind clean \
+  --manifest /secure/local/eshu/e2e-clean-manifest.json \
+  --api-base-url "$REMOTE_API_BASE_URL" \
+  --api-key "$REMOTE_API_KEY" \
+  --pprof-base-url "$REMOTE_PPROF_BASE_URL" \
+  --runtime-volume-proof /secure/local/eshu/clean-volume-proof.json \
+  --corpus-coverage /secure/local/eshu/public-corpus-coverage.json \
+  --corpus-mode representative \
+  --repository-count 24 \
+  --image-tag-candidate "$IMAGE_TAG" \
+  --commit "$ESHU_COMMIT"
+```
+
+Then restart the same Compose project without pruning volumes and run the
+preserved proof:
+
+```bash
+scripts/e2e_remote_compose_suite.sh \
+  --run-kind preserved \
+  --manifest /secure/local/eshu/e2e-preserved-manifest.json \
+  --previous-manifest /secure/local/eshu/e2e-clean-manifest.json \
+  --api-base-url "$REMOTE_API_BASE_URL" \
+  --api-key "$REMOTE_API_KEY" \
+  --pprof-base-url "$REMOTE_PPROF_BASE_URL" \
+  --runtime-volume-proof /secure/local/eshu/preserved-volume-proof.json \
+  --corpus-coverage /secure/local/eshu/public-corpus-coverage.json \
+  --corpus-mode representative \
+  --repository-count 24 \
+  --image-tag-candidate "$IMAGE_TAG" \
+  --commit "$ESHU_COMMIT"
+```
+
+The `public-corpus-coverage.json` file is aggregate-only. It contains
+`ecosystems` and `evidence_families` objects with the same row shape as the E2E
+manifest. The file records whether the representative corpus covered npm, Go
+modules, PyPI, Maven/Gradle, Composer, RubyGems, Cargo, NuGet, Terraform/IaC,
+Kubernetes/IaC, image/SBOM, deployment, vulnerability, observability,
+incident, and work-item evidence. Do not derive those rows from repository
+count alone; they are part of the recorded corpus contract.
+
+The harness delegates service and queue safety to
+`scripts/verify_remote_e2e_runtime_state.sh`, then captures pprof reachability,
+Docker CPU/memory snapshots, sanitized service logs, `/api/v0/index-status`,
+fact counts by collector family, workflow work-item terminal counts, reducer
+domain evidence, and the runtime volume proof. It fails on retrying, failed, or
+dead-letter queue rows, dangerous log patterns such as panics, OOM, SQLSTATE,
+NornicDB `UNWIND MERGE` errors, deadlocks, and constraint failures, or any
+collector/reducer/corpus row that cannot produce passing aggregate evidence.
+
+Preserved runs compare the clean manifest's aggregate fact, workflow-claim, and
+supply-chain finding totals against the restart run. Any increase is treated as
+duplicate or stale work until proven otherwise. This is intentionally strict:
+if a collector is expected to discover new work during a preserved restart,
+record that as a separate clean proof rather than weakening the duplicate
+guard.
+
+No-Regression Evidence: `scripts/test-e2e-remote-compose-suite.sh` uses mocked
+Docker, pprof, API, Postgres, runtime-state, and volume-proof inputs to prove
+the harness accepts clean and preserved aggregate evidence, rejects forbidden
+logs, rejects runtime-state failure, rejects missing collector evidence, and
+rejects preserved restarts that add facts.
+
+Observability Evidence: `scripts/e2e_remote_compose_suite.sh` stores public-safe
+evidence beside the manifest: pprof index proof, Docker stats JSON lines,
+sanitized logs, aggregate fact counts, workflow work-item counts, and the
+validated manifest. API bearer tokens are passed through a temporary curl
+config rather than command-line arguments.
+
 ## Representative Acceptance
 
 After a representative stack finishes the required corpus pass, run:

@@ -5,7 +5,7 @@ repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 verifier="${repo_root}/scripts/verify-package-docs.sh"
 
 tmp_root="$(mktemp -d)"
-trap 'rm -rf "${tmp_root}"' EXIT
+trap 'rm -rf "${tmp_root}" 2>/dev/null || true' EXIT
 
 init_repo() {
   local name="$1"
