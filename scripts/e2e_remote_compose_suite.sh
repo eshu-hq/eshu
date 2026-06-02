@@ -24,6 +24,7 @@ compose_files="${ESHU_REMOTE_E2E_COMPOSE_FILES:-docker-compose.remote-e2e.yaml}"
 compose_env_file="${ESHU_REMOTE_E2E_ENV_FILE:-}"
 api_timeout_seconds="${ESHU_REMOTE_E2E_API_TIMEOUT_SECONDS:-30}"
 log_tail="${ESHU_E2E_LOG_TAIL:-300}"
+unsupported_hosted_collectors="${ESHU_REMOTE_E2E_UNSUPPORTED_HOSTED_COLLECTORS:-}"
 COMPOSE_CMD=()
 RUN_TMP_DIR="$(mktemp -d)"
 
@@ -53,6 +54,12 @@ Options:
   --backend-kind KIND
   --compose-files FILE[:FILE...]
   --compose-env-file PATH
+
+Environment:
+  ESHU_REMOTE_E2E_UNSUPPORTED_HOSTED_COLLECTORS
+    Comma-separated hosted collector rows to classify as unsupported instead
+    of skipped when the remote Compose profile intentionally cannot run them.
+    Valid row names are pagerduty,jira,grafana,prometheus_mimir,loki,tempo.
 USAGE
 }
 
@@ -93,6 +100,21 @@ require_non_negative_int() {
 	[[ "${value}" =~ ^[0-9]+$ ]] || die "${name} must be a non-negative integer"
 }
 
+validate_unsupported_hosted_collectors() {
+	local invalid
+	invalid="$(jq -nr --arg raw "${unsupported_hosted_collectors}" '
+		def trim: gsub("^\\s+|\\s+$"; "");
+		["pagerduty", "jira", "grafana", "prometheus_mimir", "loki", "tempo"] as $allowed |
+		$raw
+		| split(",")
+		| map(trim)
+		| map(select(length > 0))
+		| map(. as $name | select(($allowed | index($name)) | not))
+		| .[0] // ""
+	')"
+	[[ -z "${invalid}" ]] || die "unsupported hosted collector row is invalid: ${invalid}"
+}
+
 validate_args() {
 	case "${run_kind}" in
 		clean|preserved) ;;
@@ -111,6 +133,7 @@ validate_args() {
 	fi
 	require_positive_int ESHU_REMOTE_E2E_API_TIMEOUT_SECONDS "${api_timeout_seconds}"
 	require_non_negative_int ESHU_REMOTE_E2E_REPOSITORY_COUNT "${repository_count}"
+	validate_unsupported_hosted_collectors
 }
 
 configure_compose() {
@@ -246,8 +269,13 @@ json_from_tsv() {
 	' "${input}" >"${output}"
 }
 
+json_array_from_lines() {
+	local input="$1" output="$2"
+	jq -R -s 'split("\n") | map(select(length > 0))' "${input}" >"${output}"
+}
+
 build_manifest() {
-	local facts_json="$1" workflow_json="$2" index_status="$3" stats_file="$4" output="$5"
+	local facts_json="$1" workflow_json="$2" index_status="$3" services_json="$4" stats_file="$5" output="$6"
 	local commit
 	if [[ -n "${commit_override}" ]]; then
 		commit="${commit_override}"
@@ -258,6 +286,7 @@ build_manifest() {
 		--slurpfile facts "${facts_json}" \
 		--slurpfile workflow "${workflow_json}" \
 		--slurpfile index "${index_status}" \
+		--slurpfile services "${services_json}" \
 		--slurpfile coverage "${corpus_coverage}" \
 		--slurpfile volume "${runtime_volume_proof}" \
 		--arg run_kind "${run_kind}" \
@@ -265,14 +294,27 @@ build_manifest() {
 		--arg image "${image_tag_candidate}" \
 		--arg backend "${backend_kind}" \
 		--arg corpus_mode "${corpus_mode}" \
+		--arg unsupported_hosted_collectors "${unsupported_hosted_collectors}" \
 		--argjson repository_count "${repository_count}" '
 		($facts[0] // []) as $fact_rows |
 		($workflow[0] // []) as $workflow_rows |
+		($services[0] // []) as $service_rows |
+		($unsupported_hosted_collectors
+			| split(",")
+			| map(gsub("^\\s+|\\s+$"; ""))
+			| map(select(length > 0))) as $unsupported_hosted_rows |
 		def sum_source($names): [$fact_rows[] | select(.source_system as $s | $names | index($s)) | .count] | add // 0;
 		def sum_kind($pattern): [$fact_rows[] | select(.fact_kind | test($pattern)) | .count] | add // 0;
+		def service_enabled($name): $service_rows | index($name) != null;
+		def explicitly_unsupported($name): $unsupported_hosted_rows | index($name) != null;
 		def collector_row($n):
 			if $n > 0 then {status: "pass", facts: $n}
 			else {status: "fail", facts: 0, reason: "no source facts observed"} end;
+		def hosted_collector_row($name; $service; $n):
+			if $n > 0 then {status: "pass", facts: $n}
+			elif explicitly_unsupported($name) then {status: "unsupported", facts: 0, reason: "collector explicitly unsupported in remote Compose profile"}
+			elif service_enabled($service) then {status: "fail", facts: 0, reason: "no source facts observed for enabled collector service"}
+			else {status: "skipped", facts: 0, reason: "collector service disabled in remote Compose profile"} end;
 		def reducer_row($n):
 			if $n > 0 then {status: "pass", count: $n}
 			else {status: "fail", count: 0, reason: "no reducer evidence observed"} end;
@@ -316,12 +358,12 @@ build_manifest() {
 				vulnerability_intelligence: collector_row(sum_source(["vulnerability_intelligence"])),
 				scanner_worker: collector_row(sum_source(["scanner_worker"])),
 				confluence: collector_row(sum_source(["confluence"])),
-				pagerduty: collector_row(sum_source(["pagerduty"])),
-				jira: collector_row(sum_source(["jira"])),
-				grafana: collector_row(sum_source(["grafana"])),
-				prometheus_mimir: collector_row(sum_source(["prometheus_mimir"])),
-				loki: collector_row(sum_source(["loki"])),
-				tempo: collector_row(sum_source(["tempo"]))
+				pagerduty: hosted_collector_row("pagerduty"; "collector-pagerduty"; sum_source(["pagerduty"])),
+				jira: hosted_collector_row("jira"; "collector-jira"; sum_source(["jira"])),
+				grafana: hosted_collector_row("grafana"; "collector-grafana"; sum_source(["grafana"])),
+				prometheus_mimir: hosted_collector_row("prometheus_mimir"; "collector-prometheus-mimir"; sum_source(["prometheus_mimir"])),
+				loki: hosted_collector_row("loki"; "collector-loki"; sum_source(["loki"])),
+				tempo: hosted_collector_row("tempo"; "collector-tempo"; sum_source(["tempo"]))
 			},
 			reducers: {
 				repository_dependencies: reducer_row(sum_kind("reducer_package_(ownership|consumption|publication)_correlation|reducer_package_correlation")),
@@ -387,15 +429,18 @@ build_manifest() {
 			}
 		}
 		| .status = (
+			[
+				(.collectors // {} | to_entries[] | .value.status),
+				(.reducers // {} | to_entries[] | .value.status),
+				(.corpus.coverage.ecosystems // {} | to_entries[] | .value.status),
+				(.corpus.coverage.evidence_families // {} | to_entries[] | .value.status)
+			] as $required_statuses |
+			(((.queue.retrying // 0) > 0) or ((.queue.failed // 0) > 0) or ((.queue.dead_letter // 0) > 0)) as $queue_failed |
 			if (
-				[
-					(.collectors // {} | to_entries[] | .value.status),
-					(.reducers // {} | to_entries[] | .value.status),
-					(.corpus.coverage.ecosystems // {} | to_entries[] | .value.status),
-					(.corpus.coverage.evidence_families // {} | to_entries[] | .value.status)
-				] | all(. == "pass")
-			) and ((.queue.retrying // 0) == 0) and ((.queue.failed // 0) == 0) and ((.queue.dead_letter // 0) == 0)
-			then "pass" else "fail" end
+				($required_statuses | all(. == "pass")) and ($queue_failed | not)
+			) then "pass"
+			elif (($required_statuses | any(. == "fail")) or $queue_failed) then "fail"
+			else "partial" end
 		)
 	' "${stats_file}" >"${output}"
 }
@@ -427,7 +472,11 @@ apply_preserved_guard() {
 print_nonpass_reasons() {
 	jq -r '
 		(.collectors // {} | to_entries[] | select(.value.status != "pass") |
-			"collector \(.key) has no source facts"),
+			if (.value.reason // "") == "no source facts observed" then
+				"collector \(.key) has no source facts"
+			else
+				"collector \(.key): \(.value.reason // "missing source facts")"
+			end),
 		(.reducers // {} | to_entries[] | select(.value.status != "pass") |
 			"reducer \(.key): \(.value.reason // "missing evidence")"),
 		(.corpus.coverage.ecosystems // {} | to_entries[] | select(.value.status != "pass") |
@@ -458,7 +507,8 @@ main() {
 	query_postgres_tsv "SELECT collector_kind, status, COUNT(*) FROM workflow_work_items GROUP BY collector_kind, status ORDER BY collector_kind, status" "${out_dir}/workflow-counts.tsv"
 	json_from_tsv "${out_dir}/fact-counts.tsv" "${out_dir}/fact-counts.json" source_system fact_kind
 	json_from_tsv "${out_dir}/workflow-counts.tsv" "${out_dir}/workflow-counts.json" collector_kind status
-	build_manifest "${out_dir}/fact-counts.json" "${out_dir}/workflow-counts.json" "${out_dir}/index-status.json" "${out_dir}/docker-stats.jsonl" "${manifest}"
+	json_array_from_lines "${out_dir}/compose-services.txt" "${out_dir}/compose-services.json"
+	build_manifest "${out_dir}/fact-counts.json" "${out_dir}/workflow-counts.json" "${out_dir}/index-status.json" "${out_dir}/compose-services.json" "${out_dir}/docker-stats.jsonl" "${manifest}"
 	apply_preserved_guard
 	"${MANIFEST_VALIDATOR}" "${manifest}" >/dev/null
 	if ! jq -e '.status == "pass"' "${manifest}" >/dev/null; then
