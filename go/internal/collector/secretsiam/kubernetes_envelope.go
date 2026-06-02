@@ -85,21 +85,21 @@ func NewKubernetesRBACRoleEnvelope(observation KubernetesRBACRoleObservation) (f
 	if err := validateKubernetesContext(observation.Context); err != nil {
 		return facts.Envelope{}, err
 	}
-	roleKind := strings.TrimSpace(observation.RoleKind)
-	if roleKind == "" {
-		return facts.Envelope{}, fmt.Errorf("kubernetes rbac role observation requires role_kind")
+	role, err := normalizeRBACRoleIdentity(observation.RoleKind, observation.Namespace, observation.Name)
+	if err != nil {
+		return facts.Envelope{}, err
 	}
-	roleKey := rbacRoleJoinKey(observation.Context, roleKind, observation.Namespace, observation.Name)
+	roleKey := rbacRoleJoinKey(observation.Context, role.kind, role.namespace, role.name)
 	stableKey := facts.StableID(facts.KubernetesRBACRoleFactKind, map[string]any{
 		"cluster_id": observation.Context.ClusterID,
 		"role_key":   roleKey,
 		"uid":        fingerprintKubernetesValue("uid", observation.UID),
 	})
 	payload := kubernetesPayload(observation.Context)
-	payload["role_kind"] = roleKind
-	payload["role_scope"] = bindingScopeForRole(roleKind)
-	payload["namespace_fingerprint"] = fingerprintKubernetesValue("namespace", observation.Namespace)
-	payload["role_name_fingerprint"] = fingerprintKubernetesValue("rbac_role", observation.Name)
+	payload["role_kind"] = role.kind
+	payload["role_scope"] = role.scope
+	payload["namespace_fingerprint"] = fingerprintKubernetesValue("namespace", role.namespace)
+	payload["role_name_fingerprint"] = fingerprintKubernetesValue("rbac_role", role.name)
 	payload["role_join_key"] = roleKey
 	payload["uid_fingerprint"] = fingerprintKubernetesValue("uid", observation.UID)
 	payload["resource_version_fingerprint"] = fingerprintKubernetesValue("resource_version", observation.ResourceVersion)
@@ -121,34 +121,39 @@ func NewKubernetesRBACBindingEnvelope(observation KubernetesRBACBindingObservati
 	if err := validateKubernetesContext(observation.Context); err != nil {
 		return facts.Envelope{}, err
 	}
-	bindingKind := strings.TrimSpace(observation.BindingKind)
-	if bindingKind == "" {
-		return facts.Envelope{}, fmt.Errorf("kubernetes rbac binding observation requires binding_kind")
-	}
-	bindingScope := bindingScopeForBinding(bindingKind)
-	roleRefKey := rbacRoleJoinKey(
-		observation.Context,
+	binding, err := normalizeRBACBindingIdentity(
+		observation.BindingKind,
+		observation.Namespace,
+		observation.Name,
 		observation.RoleRefKind,
-		roleRefNamespace(observation.RoleRefKind, observation.Namespace),
 		observation.RoleRefName,
 	)
+	if err != nil {
+		return facts.Envelope{}, err
+	}
+	roleRefKey := rbacRoleJoinKey(
+		observation.Context,
+		binding.roleRefKind,
+		binding.roleRefNamespace,
+		binding.roleRefName,
+	)
 	stableKey := facts.StableID(facts.KubernetesRBACBindingFactKind, map[string]any{
-		"binding_kind": bindingKind,
+		"binding_kind": binding.kind,
 		"cluster_id":   observation.Context.ClusterID,
-		"name":         fingerprintKubernetesValue("rbac_binding", observation.Name),
-		"namespace":    fingerprintKubernetesValue("namespace", observation.Namespace),
+		"name":         fingerprintKubernetesValue("rbac_binding", binding.name),
+		"namespace":    fingerprintKubernetesValue("namespace", binding.namespace),
 		"uid":          fingerprintKubernetesValue("uid", observation.UID),
 	})
 	payload := kubernetesPayload(observation.Context)
-	payload["binding_kind"] = bindingKind
-	payload["binding_scope"] = bindingScope
-	payload["namespace_fingerprint"] = fingerprintKubernetesValue("namespace", observation.Namespace)
-	payload["binding_name_fingerprint"] = fingerprintKubernetesValue("rbac_binding", observation.Name)
+	payload["binding_kind"] = binding.kind
+	payload["binding_scope"] = binding.scope
+	payload["namespace_fingerprint"] = fingerprintKubernetesValue("namespace", binding.namespace)
+	payload["binding_name_fingerprint"] = fingerprintKubernetesValue("rbac_binding", binding.name)
 	payload["uid_fingerprint"] = fingerprintKubernetesValue("uid", observation.UID)
 	payload["resource_version_fingerprint"] = fingerprintKubernetesValue("resource_version", observation.ResourceVersion)
-	payload["role_ref_kind"] = strings.TrimSpace(observation.RoleRefKind)
+	payload["role_ref_kind"] = binding.roleRefKind
 	payload["role_ref_api_group"] = strings.TrimSpace(observation.RoleRefAPIGroup)
-	payload["role_ref_name_fingerprint"] = fingerprintKubernetesValue("rbac_role_ref", observation.RoleRefName)
+	payload["role_ref_name_fingerprint"] = fingerprintKubernetesValue("rbac_role_ref", binding.roleRefName)
 	payload["role_ref_join_key"] = roleRefKey
 	payload["subject_count"] = maxInt(observation.SubjectCount, len(observation.Subjects))
 	payload["subjects"] = rbacSubjectPayloads(observation.Context, observation.Subjects)
@@ -379,27 +384,6 @@ func fingerprintKubernetesParts(kind string, parts ...string) string {
 		"kind":  strings.TrimSpace(kind),
 		"parts": normalized,
 	})
-}
-
-func bindingScopeForRole(kind string) string {
-	if strings.TrimSpace(kind) == RBACRoleKindClusterRole {
-		return BindingScopeCluster
-	}
-	return BindingScopeNamespace
-}
-
-func bindingScopeForBinding(kind string) string {
-	if strings.TrimSpace(kind) == BindingKindClusterRoleBinding {
-		return BindingScopeCluster
-	}
-	return BindingScopeNamespace
-}
-
-func roleRefNamespace(kind, bindingNamespace string) string {
-	if strings.TrimSpace(kind) == RBACRoleKindClusterRole {
-		return ""
-	}
-	return bindingNamespace
 }
 
 func rbacRulePayloads(rules []KubernetesRBACRuleSummary) []map[string]any {

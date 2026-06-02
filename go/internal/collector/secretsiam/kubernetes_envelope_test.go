@@ -121,6 +121,140 @@ func TestNewKubernetesRBACBindingEnvelopeUsesClusterRoleJoinScope(t *testing.T) 
 	}
 }
 
+func TestNewKubernetesRBACRoleEnvelopeRejectsMalformedIdentity(t *testing.T) {
+	ctx := testKubernetesContext()
+	tests := []struct {
+		name        string
+		observation KubernetesRBACRoleObservation
+	}{
+		{
+			name: "unknown role kind",
+			observation: KubernetesRBACRoleObservation{
+				Context:   ctx,
+				RoleKind:  "Secret",
+				Namespace: "payments",
+				Name:      "reader",
+			},
+		},
+		{
+			name: "role missing namespace",
+			observation: KubernetesRBACRoleObservation{
+				Context:  ctx,
+				RoleKind: RBACRoleKindRole,
+				Name:     "reader",
+			},
+		},
+		{
+			name: "role missing name",
+			observation: KubernetesRBACRoleObservation{
+				Context:   ctx,
+				RoleKind:  RBACRoleKindRole,
+				Namespace: "payments",
+			},
+		},
+		{
+			name: "clusterrole missing name",
+			observation: KubernetesRBACRoleObservation{
+				Context:  ctx,
+				RoleKind: RBACRoleKindClusterRole,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if _, err := NewKubernetesRBACRoleEnvelope(tt.observation); err == nil {
+				t.Fatalf("NewKubernetesRBACRoleEnvelope() error = nil, want non-nil")
+			}
+		})
+	}
+}
+
+func TestNewKubernetesRBACBindingEnvelopeRejectsMalformedRoleRef(t *testing.T) {
+	ctx := testKubernetesContext()
+	tests := []struct {
+		name        string
+		observation KubernetesRBACBindingObservation
+	}{
+		{
+			name: "unknown binding kind",
+			observation: KubernetesRBACBindingObservation{
+				Context:      ctx,
+				BindingKind:  "Binding",
+				Namespace:    "payments",
+				Name:         "read-secrets",
+				RoleRefKind:  RBACRoleKindClusterRole,
+				RoleRefName:  "secret-reader",
+				SubjectCount: 1,
+			},
+		},
+		{
+			name: "rolebinding missing namespace",
+			observation: KubernetesRBACBindingObservation{
+				Context:      ctx,
+				BindingKind:  BindingKindRoleBinding,
+				Name:         "read-secrets",
+				RoleRefKind:  RBACRoleKindRole,
+				RoleRefName:  "secret-reader",
+				SubjectCount: 1,
+			},
+		},
+		{
+			name: "binding missing name",
+			observation: KubernetesRBACBindingObservation{
+				Context:      ctx,
+				BindingKind:  BindingKindRoleBinding,
+				Namespace:    "payments",
+				RoleRefKind:  RBACRoleKindRole,
+				RoleRefName:  "secret-reader",
+				SubjectCount: 1,
+			},
+		},
+		{
+			name: "unknown role ref kind",
+			observation: KubernetesRBACBindingObservation{
+				Context:      ctx,
+				BindingKind:  BindingKindRoleBinding,
+				Namespace:    "payments",
+				Name:         "read-secrets",
+				RoleRefKind:  "Secret",
+				RoleRefName:  "secret-reader",
+				SubjectCount: 1,
+			},
+		},
+		{
+			name: "role ref missing name",
+			observation: KubernetesRBACBindingObservation{
+				Context:      ctx,
+				BindingKind:  BindingKindRoleBinding,
+				Namespace:    "payments",
+				Name:         "read-secrets",
+				RoleRefKind:  RBACRoleKindRole,
+				SubjectCount: 1,
+			},
+		},
+		{
+			name: "clusterrolebinding cannot reference role",
+			observation: KubernetesRBACBindingObservation{
+				Context:      ctx,
+				BindingKind:  BindingKindClusterRoleBinding,
+				Name:         "read-secrets",
+				RoleRefKind:  RBACRoleKindRole,
+				RoleRefName:  "secret-reader",
+				SubjectCount: 1,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if _, err := NewKubernetesRBACBindingEnvelope(tt.observation); err == nil {
+				t.Fatalf("NewKubernetesRBACBindingEnvelope() error = nil, want non-nil")
+			}
+		})
+	}
+}
+
 func TestNewKubernetesServiceAccountTokenPostureStableKeyIncludesUID(t *testing.T) {
 	ctx := testKubernetesContext()
 	first, err := NewKubernetesServiceAccountTokenPostureEnvelope(KubernetesServiceAccountTokenPostureObservation{
