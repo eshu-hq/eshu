@@ -111,6 +111,7 @@ nav:
     - Component Package Manager: reference/component-package-manager.md
     - Fact Envelope Reference: reference/fact-envelope-reference.md
     - Search Document Projection: reference/search-document-projection.md
+    - Search Benchmark Evidence: reference/search-benchmark-evidence.md
     - Fact Schema Versioning: reference/fact-schema-versioning.md
     - Plugin Trust Model: reference/plugin-trust-model.md
     - Language Query DSL: reference/language-query-dsl.md

@@ -1,0 +1,147 @@
+# Search Benchmark Evidence
+
+Search benchmark evidence compares current Postgres content search with
+curated NornicDB retrieval over `EshuSearchDocument` records. It is not evidence
+for whole-graph BM25, whole-graph vector search, or canonical graph truth.
+
+Use this page when preparing issue #1264 benchmark records or reviewing a PR
+that proposes NornicDB as a search lane.
+
+## Evidence Version
+
+The first evidence version is:
+
+```text
+search-benchmark-evidence/v1
+```
+
+Records are validated by `go/internal/searchbench.ValidateEvidence`.
+
+## Required Shape
+
+Every benchmark record must include:
+
+| Field | Meaning |
+| --- | --- |
+| `version` | Evidence schema version, currently `search-benchmark-evidence/v1`. |
+| `eshu_commit` | Eshu commit used for the benchmark run. |
+| `schema_bootstrap_state` | Schema and bootstrap state before query timing. |
+| `truth_scope` | Must be `derived`; search rank never becomes canonical truth. |
+| `corpus` | Repository, file, entity, document, vector, and source-kind counts. |
+| `backends` | Current Postgres content search plus at least one NornicDB search backend. |
+| `failure_classes` | Required operator-visible failure classes. |
+| `recommendation` | One of the approved benchmark decisions with rationale. |
+
+NornicDB backend records must also include:
+
+- backend image or commit;
+- effective BM25/vector/embedding/search-persistence flags;
+- clean-volume and preserved-volume startup durations in nanoseconds;
+- query count, p50 latency, and p95 latency in nanoseconds;
+- recall, precision, nDCG, and false canonical claim count;
+- memory high-water mark;
+- index artifact size;
+- rebuild behavior.
+
+## Backend And Mode Matrix
+
+The current baseline backend is `postgres_content_search`. It measures the
+existing content-store search path backed by `content_files` and
+`content_entities`.
+
+Supported NornicDB benchmark backends are:
+
+| Backend | Mode |
+| --- | --- |
+| `nornicdb_bm25` | `keyword` |
+| `nornicdb_vector` | `semantic` |
+| `nornicdb_hybrid` | `hybrid` |
+
+Benchmark only the modes supported by the measured backend. A vector or hybrid
+run must still report whether embedding generation was enabled and whether
+vector indexing was enabled.
+
+Validation rejects backend and mode mismatches. Postgres content search and
+NornicDB BM25 are keyword runs, NornicDB vector is semantic, and NornicDB
+hybrid is hybrid.
+
+## Corpus Requirements
+
+The NornicDB side must index curated `EshuSearchDocument` records. Do not index
+every canonical graph node and property as the target architecture.
+
+The corpus section must record:
+
+- repository count;
+- file count;
+- entity count;
+- search document count;
+- vector count;
+- source-kind distribution.
+
+The source-kind distribution must sum to the document count. Source kinds come
+from `go/internal/searchdocs`, such as `code_entity`, `repository_file`, and
+`runtime_summary`.
+
+## Failure Classes
+
+Every benchmark must report these classes when applicable:
+
+| Failure class | Meaning |
+| --- | --- |
+| `truncation` | A bounded top-K or page limit hid more results. |
+| `timeout` | Query, readiness, startup, or restart exceeded the budget. |
+| `disabled_search` | A backend returned disabled-search behavior. |
+| `lazy_warm` | First query triggered index warmup. |
+| `rebuild` | Search index rebuilt instead of loading a usable artifact. |
+| `missing_artifact` | Expected persisted search artifact was absent. |
+| `corruption` | Persisted search artifact was corrupt or unreadable. |
+
+## Accuracy Metrics
+
+Score benchmark queries against expected graph handles, not against raw result
+text. `ScoreQueryResults` computes:
+
+- recall;
+- precision;
+- nDCG;
+- false canonical claim count.
+
+False canonical claim count is the number of ranked documents that claim a
+truth level other than `derived`. The correct fix for a nonzero count is to fix
+the producer or projection, not to suppress the metric.
+
+## Recommendation
+
+Each completed evidence record must recommend exactly one decision:
+
+| Decision | Meaning |
+| --- | --- |
+| `keep_postgres_search` | Postgres content search remains the search lane. |
+| `add_nornicdb_search_lane` | NornicDB is worth adding as a separate search lane. |
+| `defer_search_change` | Accuracy, performance, or operability is not good enough. |
+
+Do not recommend default NornicDB search if canonical graph readiness becomes
+slower, less diagnosable, or dependent on successful search index rebuild.
+
+## Verification Gate
+
+Focused package gate:
+
+```bash
+cd go && go test ./internal/searchbench ./internal/searchdocs -count=1
+```
+
+Docs changes must also pass:
+
+```bash
+uv run --with mkdocs --with mkdocs-material --with pymdown-extensions \
+  mkdocs build --strict --clean --config-file docs/mkdocs.yml
+```
+
+## Related Docs
+
+- [Search Document Projection](search-document-projection.md)
+- [NornicDB Tuning](nornicdb-tuning.md)
+- [NornicDB Tuning Evidence](nornicdb-tuning-evidence.md)
+- [Truth Label Protocol](truth-label-protocol.md)
