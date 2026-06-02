@@ -104,6 +104,7 @@ nav:
     - Multi-Cloud Runtime Collector Contract: reference/multi-cloud-collector-contract.md
     - GCP Cloud Collector Contract: reference/gcp-cloud-collector-contract.md
     - Azure Cloud Collector Contract: reference/azure-cloud-collector-contract.md
+    - Secrets And IAM Posture Collector Contract: reference/secrets-iam-posture-collector-contract.md
     - Collector And Reducer Readiness: reference/collector-reducer-readiness.md
     - PagerDuty Evidence Contract: reference/pagerduty-evidence.md
     - Jira Evidence Contract: reference/jira-evidence.md
