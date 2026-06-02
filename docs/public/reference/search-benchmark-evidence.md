@@ -239,6 +239,31 @@ precision, and nDCG across the suite, and sums false canonical claim counts.
 Missing results count as zero-score queries, so partial backend output cannot
 inflate recall.
 
+## Semantic Retrieval Proof Gate
+
+Issue #417 also requires a versioned proof before a NornicDB hybrid retrieval
+candidate can be treated as better than the current Postgres content-search
+baseline. The first proof version is:
+
+```text
+semantic-retrieval-proof/v1
+```
+
+`ValidateRetrievalProof` requires:
+
+- the versioned 15-query suite;
+- a `postgres_content_search` / `keyword` baseline run;
+- a `nornicdb_hybrid` / `hybrid` candidate run;
+- candidate recall greater than baseline recall;
+- zero false canonical claims on both runs;
+- p95 latency within the recorded threshold, or an accepted reason for the
+  threshold miss;
+- per-run observation summaries with query count, mode, result-count range,
+  truncation count, timeout count, and candidate truth-level counts.
+
+The proof remains an internal evidence gate. It does not call NornicDB, add a
+public search route, expose an MCP tool, or change runtime defaults.
+
 ## Recommendation
 
 Each completed evidence record must recommend exactly one decision:
