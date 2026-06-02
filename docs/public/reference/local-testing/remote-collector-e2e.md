@@ -299,7 +299,13 @@ Terraform/IaC relationship evidence is counted from the reducer-owned
 from `fact_records`, because relationship resolution persists through those
 dedicated read-model tables. Vulnerability matching uses the implemented
 `reducer_supply_chain_impact_finding` fact kind as reducer evidence; there is
-not a separate durable `reducer_vulnerability_match` fact today.
+not a separate durable `reducer_vulnerability_match` fact today. Observability
+correlation source counts follow the implemented reducer input fact kinds
+(`aws_resource`, `aws_relationship`, and `observability.*`), not only hosted
+collector source-system names. Incident and work-item evidence remains
+source and API read-model evidence until a reducer-owned incident work-item
+correlation fact exists; source-only coverage stays explicit `unsupported`
+with the representative corpus follow-up issue instead of passing.
 
 If a reducer path is intentionally outside a partial proof, list its public row
 name in `ESHU_REMOTE_E2E_UNSUPPORTED_REDUCERS`. Valid row names are the

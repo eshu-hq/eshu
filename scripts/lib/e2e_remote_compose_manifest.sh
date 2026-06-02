@@ -138,6 +138,18 @@ build_manifest() {
 			elif $source <= 0 then $row + {status: "fail", reason: "no source facts observed for reducer evidence path"}
 			elif $reducer <= 0 then $row + {status: "fail", reason: "no reducer evidence observed"}
 			else $row + {status: "fail", reason: "API/MCP readback proof missing or failed"} end;
+		def incident_work_item_reducer_row($source; $reducer):
+			{source_facts: $source, reducer_facts: $reducer, count: $reducer, readback: row_readback} as $row |
+			if $source > 0 and $reducer > 0 and readback_ok then $row + {status: "pass"}
+			elif explicitly_unsupported_reducer("incident_work_item_correlation") then $row + {status: "unsupported", reason: "reducer path explicitly unsupported in remote Compose profile"}
+			elif $source <= 0 then $row + {status: "fail", reason: "no source facts observed for reducer evidence path"}
+			elif $reducer <= 0 and readback_ok then $row + {
+				status: "unsupported",
+				reason: "incident and work-item evidence is source and API read-model evidence today; no reducer-owned incident work-item correlation fact is implemented",
+				issue_refs: ["#1249"]
+			}
+			elif $reducer <= 0 then $row + {status: "fail", reason: "no reducer evidence observed"}
+			else $row + {status: "fail", reason: "API/MCP readback proof missing or failed"} end;
 		def workflow_completed($collector):
 			[$workflow_rows[] | select(.collector_kind == $collector and .status == "completed") | .count] | add // 0;
 		def workflow_row($collector): {completed: workflow_completed($collector)};
@@ -191,8 +203,8 @@ build_manifest() {
 				provider_alert_reconciliation: reducer_row("provider_alert_reconciliation"; sum_source(["security_alert","security_alerts"]); sum_kind("reducer_security_alert_reconciliation")),
 				supply_chain_impact: reducer_row("supply_chain_impact"; sum_source(["vulnerability_intelligence","scanner_worker","package_registry","security_alert"]); sum_kind("reducer_supply_chain_impact_finding")),
 				deployment_correlation: reducer_row("deployment_correlation"; sum_source(["git","terraform_state","aws","oci_registry"]); sum_kind("reducer_(deployment|kubernetes|workload|ci_cd_run|service_catalog)_correlation|reducer_workload_identity")),
-				observability_correlation: reducer_row("observability_correlation"; sum_source(["grafana","prometheus_mimir","loki","tempo"]); sum_kind("reducer_observability(_coverage)?_correlation")),
-				incident_work_item_correlation: reducer_row("incident_work_item_correlation"; sum_kind("incident\\.|change\\.record|work_item\\.|incident_routing\\."); sum_kind("reducer_incident_work_item_correlation"))
+				observability_correlation: reducer_row("observability_correlation"; sum_kind("^(aws_resource|aws_relationship|observability\\.)"); sum_kind("reducer_observability(_coverage)?_correlation")),
+				incident_work_item_correlation: incident_work_item_reducer_row(sum_kind("incident\\.|change\\.record|work_item\\.|incident_routing\\."); sum_kind("reducer_incident_work_item_correlation"))
 			},
 			readback: {api: surface_row("api"), mcp: surface_row("mcp"), cli: surface_row("cli")},
 			queue: {
