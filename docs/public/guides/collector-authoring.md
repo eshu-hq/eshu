@@ -5,6 +5,8 @@ source and emit typed facts. They do not write canonical graph truth directly.
 
 For deployed lanes and readiness gaps, see
 [Collector And Reducer Readiness](../reference/collector-reducer-readiness.md).
+For GCP and Azure cloud collector design, see
+[Multi-Cloud Runtime Collector Contract](../reference/multi-cloud-collector-contract.md).
 
 ## Contract To Lock First
 
@@ -150,6 +152,7 @@ collector, fact, projector, reducer, and runtime packages.
 
 - [System Architecture](../architecture.md)
 - [Source Layout](../reference/source-layout.md)
+- [Multi-Cloud Runtime Collector Contract](../reference/multi-cloud-collector-contract.md)
 - [Relationship Mapping](../reference/relationship-mapping.md)
 - [Local Testing](../reference/local-testing.md)
 - [Telemetry Overview](../reference/telemetry/index.md)

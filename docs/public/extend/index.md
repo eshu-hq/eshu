@@ -12,6 +12,7 @@ Reducers and graph writers own canonical graph truth.
 | --- | --- |
 | Understand package ownership | [Source Layout](../reference/source-layout.md) |
 | Author a collector | [Collector Authoring](../guides/collector-authoring.md) |
+| Design GCP or Azure runtime collection | [Multi-Cloud Runtime Collector Contract](../reference/multi-cloud-collector-contract.md) |
 | Emit facts safely | [Fact Envelope Reference](../reference/fact-envelope-reference.md) |
 | Version fact schemas | [Fact Schema Versioning](../reference/fact-schema-versioning.md) |
 | Package and trust plugins | [Plugin Trust Model](../reference/plugin-trust-model.md) |
