@@ -185,6 +185,7 @@ write_volume_proof() {
 write_corpus_coverage() {
   local path="$1"
   jq -n '{
+    schema_version: 1, mode: "representative", repository_count: 24,
     ecosystems: {
       npm: {status: "pass", count: 3},
       gomod: {status: "pass", count: 2},

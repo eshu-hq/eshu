@@ -229,9 +229,18 @@ validate_volume_proof() {
 
 validate_corpus_coverage() {
 	jq -e '
+		((.schema_version // 1) == 1) and
 		(.ecosystems | type == "object") and
-		(.evidence_families | type == "object")
-	' "${corpus_coverage}" >/dev/null || die "corpus-coverage must contain ecosystems and evidence_families"
+		(.evidence_families | type == "object") and
+		(.repository_count | type == "number" and . >= 0)
+	' "${corpus_coverage}" >/dev/null || die "corpus-coverage must contain schema_version, repository_count, ecosystems, and evidence_families"
+	local coverage_mode coverage_repository_count
+	coverage_mode="$(jq -r '.mode // ""' "${corpus_coverage}")"
+	[[ -z "${coverage_mode}" || "${coverage_mode}" == "${corpus_mode}" ]] \
+		|| die "corpus-coverage mode must match --corpus-mode"
+	coverage_repository_count="$(jq -r '.repository_count' "${corpus_coverage}")"
+	[[ "${coverage_repository_count}" == "${repository_count}" ]] \
+		|| die "corpus-coverage repository_count must match --repository-count"
 }
 
 run_runtime_state_verifier() {
