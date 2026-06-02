@@ -130,10 +130,13 @@ type Instruments struct {
 	// ObservabilityCoverageCorrelations counts reducer-owned observability
 	// coverage correlation decisions (issue #391). Labels: domain
 	// (observability_coverage_correlation), outcome (exact / derived / ambiguous /
-	// unresolved / stale / rejected), and coverage_signal (alarm /
-	// composite_alarm / dashboard / log_group / trace_sampling). It lets an
-	// operator answer "which observability signal class is losing coverage, and is
-	// it a gap, an ambiguous match, or a rejected weak signal?" at 3 AM.
+	// unresolved / stale / rejected / drifted / permission_hidden), and
+	// coverage_signal (alarm / composite_alarm / dashboard / datasource / folder /
+	// alert_rule / log_group / trace_sampling / scrape_target / rule /
+	// metric_route / log_route / trace_route / log_signal / trace_signal /
+	// unsupported). It lets an operator answer "which observability signal class
+	// is losing coverage, and is it a gap, drift, hidden data, an ambiguous match,
+	// or rejected weak signal?" at 3 AM.
 	ObservabilityCoverageCorrelations metric.Int64Counter
 	// KubernetesCorrelations counts reducer-owned live Kubernetes correlation
 	// decisions (issue #388). Labels: domain (kubernetes_correlation), outcome

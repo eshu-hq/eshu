@@ -176,6 +176,12 @@ func observabilityGapDecisions(
 				Outcome:        ObservabilityCoverageUnresolved,
 				CoverageStatus: "gap",
 				ProvenanceOnly: true,
+				SourceClass:    "observed",
+				SourceClasses:  []string{"observed"},
+				SourceKind:     "aws",
+				SourceKinds:    []string{"aws"},
+				ResourceClass:  resource.resourceType,
+				FreshnessState: "current",
 				Reason:         "monitored resource has no resolving observability coverage",
 			})
 		}
@@ -199,6 +205,12 @@ func baseCoverageDecision(object observabilityObject) ObservabilityCoverageCorre
 		ObservabilityObjectRef: object.ref,
 		ObservabilityUID:       object.uid,
 		ProvenanceOnly:         true,
+		SourceClass:            "observed",
+		SourceClasses:          []string{"observed"},
+		SourceKind:             "aws",
+		SourceKinds:            []string{"aws"},
+		ResourceClass:          object.resourceType,
+		FreshnessState:         "current",
 		EvidenceFactIDs:        compactStringSlice(object.factID),
 	}
 }

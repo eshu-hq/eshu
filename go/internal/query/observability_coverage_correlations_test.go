@@ -66,6 +66,12 @@ func TestObservabilityCoverageListCorrelationsUsesBoundedStore(t *testing.T) {
 				CoverageStatus:         "covered",
 				ProvenanceOnly:         false,
 				ResolutionMode:         "resource_id",
+				SourceClass:            "mixed",
+				SourceClasses:          []string{"declared", "observed"},
+				SourceKind:             "mixed",
+				SourceKinds:            []string{"grafana", "kubernetes"},
+				ResourceClass:          "dashboard",
+				FreshnessState:         "current",
 				EvidenceFactIDs:        []string{"aws_resource:i-abc", "aws_resource:alarm-cpu-high"},
 			},
 			{CorrelationID: "observability-coverage-2", CoverageSignal: "alarm", TargetUID: "arn:aws:ec2:us-east-1:111122223333:instance/i-def", Outcome: "unresolved", CoverageStatus: "gap", ProvenanceOnly: true},
@@ -115,6 +121,15 @@ func TestObservabilityCoverageListCorrelationsUsesBoundedStore(t *testing.T) {
 	if got, want := resp.Correlations[0].CoverageStatus, "covered"; got != want {
 		t.Fatalf("CoverageStatus = %q, want %q", got, want)
 	}
+	if got, want := resp.Correlations[0].SourceClass, "mixed"; got != want {
+		t.Fatalf("SourceClass = %q, want %q", got, want)
+	}
+	if got, want := resp.Correlations[0].SourceClasses, []string{"declared", "observed"}; len(got) != len(want) || got[0] != want[0] || got[1] != want[1] {
+		t.Fatalf("SourceClasses = %v, want %v", got, want)
+	}
+	if got, want := resp.Correlations[0].ResourceClass, "dashboard"; got != want {
+		t.Fatalf("ResourceClass = %q, want %q", got, want)
+	}
 	if !resp.Truncated {
 		t.Fatal("truncated = false, want true")
 	}
@@ -137,10 +152,39 @@ func TestObservabilityCoverageCorrelationQueryUsesActiveFactReadModel(t *testing
 		"fact.payload->>'target_service_ref' = $7",
 		"fact.payload->>'outcome' = $8",
 		"fact.payload->>'coverage_status' = $9",
-		"fact.fact_id > $10",
+		"fact.payload->>'source_class' = $10",
+		"fact.payload->>'resource_class' = $11",
+		"fact.fact_id > $12",
 	} {
 		if !strings.Contains(listObservabilityCoverageCorrelationsQuery, want) {
 			t.Fatalf("listObservabilityCoverageCorrelationsQuery missing %q:\n%s", want, listObservabilityCoverageCorrelationsQuery)
 		}
+	}
+}
+
+func TestObservabilityCoverageListCorrelationsFiltersSourceAndResourceClass(t *testing.T) {
+	t.Parallel()
+
+	store := &recordingObservabilityCoverageCorrelationStore{}
+	handler := &ObservabilityCoverageHandler{Correlations: store}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"/api/v0/observability/coverage/correlations?provider=grafana&source_class=declared&resource_class=dashboard&limit=10",
+		nil,
+	)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if got, want := w.Code, http.StatusOK; got != want {
+		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
+	}
+	if got, want := store.lastFilter.SourceClass, "declared"; got != want {
+		t.Fatalf("SourceClass = %q, want %q", got, want)
+	}
+	if got, want := store.lastFilter.ResourceClass, "dashboard"; got != want {
+		t.Fatalf("ResourceClass = %q, want %q", got, want)
 	}
 }

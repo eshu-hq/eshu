@@ -221,6 +221,8 @@ func observabilityCoverageCorrelationDomainDefinition() DomainDefinition {
 		TruthContract: truth.Contract{
 			CanonicalKind: "observability_coverage_correlation",
 			SourceLayers: []truth.Layer{
+				truth.LayerSourceDeclaration,
+				truth.LayerAppliedDeclaration,
 				truth.LayerObservedResource,
 			},
 		},

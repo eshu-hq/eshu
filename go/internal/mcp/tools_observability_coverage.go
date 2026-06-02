@@ -32,10 +32,19 @@ func observabilityCoverageTools() []ToolDefinition {
 						"type":        "string",
 						"description": "Target service reference such as an X-Ray service name to anchor coverage lookup.",
 					},
+					"source_class": map[string]any{
+						"type":        "string",
+						"description": "Optional evidence class filter: declared, applied, observed, or mixed.",
+						"enum":        []string{"declared", "applied", "observed", "mixed"},
+					},
+					"resource_class": map[string]any{
+						"type":        "string",
+						"description": "Optional provider resource class filter such as dashboard, scrape_config, log_signal, or trace_signal.",
+					},
 					"outcome": map[string]any{
 						"type":        "string",
 						"description": "Optional reducer outcome filter.",
-						"enum":        []string{"exact", "derived", "ambiguous", "unresolved", "stale", "rejected"},
+						"enum":        []string{"exact", "derived", "ambiguous", "unresolved", "stale", "rejected", "drifted", "permission_hidden"},
 					},
 					"coverage_status": map[string]any{
 						"type":        "string",

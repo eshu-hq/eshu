@@ -11,9 +11,10 @@ import (
 )
 
 // ObservabilityCoverageCorrelationOutcome names the reducer decision for one
-// observability coverage candidate. The six values are the issue #391 contract
-// and mirror ServiceCatalogCorrelationOutcome (#390) exactly so callers reuse one
-// outcome vocabulary across reducer correlation domains.
+// observability coverage candidate. The issue #391 outcomes mirror
+// ServiceCatalogCorrelationOutcome (#390), and the Grafana-stack extension adds
+// class-aware drift and permission-hidden states without promoting provider
+// metadata into graph truth.
 type ObservabilityCoverageCorrelationOutcome string
 
 const (
@@ -41,6 +42,12 @@ const (
 	// promote, such as a metric-name-only alarm with no resolvable resource
 	// dimension. Rejected decisions are suppressed, never promoted to covered.
 	ObservabilityCoverageRejected ObservabilityCoverageCorrelationOutcome = "rejected"
+	// ObservabilityCoverageDrifted means declared, applied, and observed
+	// metadata disagree or a live provider source reports a manual resource.
+	ObservabilityCoverageDrifted ObservabilityCoverageCorrelationOutcome = "drifted"
+	// ObservabilityCoveragePermissionHidden means evidence exists but the source
+	// reports that credentials or RBAC prevented reading the backing object.
+	ObservabilityCoveragePermissionHidden ObservabilityCoverageCorrelationOutcome = "permission_hidden"
 )
 
 // ObservabilityCoverageCorrelationDecision records one bounded observability
@@ -61,6 +68,14 @@ type ObservabilityCoverageCorrelationDecision struct {
 	CoverageStatus         string
 	ProvenanceOnly         bool
 	ResolutionMode         string
+	SourceClass            string
+	SourceClasses          []string
+	SourceKind             string
+	SourceKinds            []string
+	SourceOutcome          string
+	SourceOutcomes         []string
+	ResourceClass          string
+	FreshnessState         string
 	CandidateTargetUIDs    []string
 	EvidenceFactIDs        []string
 }
@@ -90,10 +105,10 @@ type ObservabilityCoverageCorrelationWriter interface {
 }
 
 // ObservabilityCoverageCorrelationHandler correlates which monitored
-// CloudResource nodes have observability coverage (CloudWatch alarms,
-// dashboards, log groups, X-Ray) versus which are uncovered, emitting durable
-// provenance-only reducer facts. It writes no graph edges: the optional COVERS
-// edge is a later gated PR. See issue #391 for the design.
+// CloudResource nodes or observability metadata sources have coverage evidence
+// versus which are uncovered, emitting durable provenance-only reducer facts. It
+// writes no graph edges; the separate materialization domain projects exact AWS
+// COVERS edges after canonical node readiness.
 type ObservabilityCoverageCorrelationHandler struct {
 	FactLoader  FactLoader
 	Writer      ObservabilityCoverageCorrelationWriter
@@ -101,10 +116,10 @@ type ObservabilityCoverageCorrelationHandler struct {
 }
 
 // Handle executes one observability coverage correlation reducer intent. It
-// loads the scope generation's aws_resource and aws_relationship facts, builds a
-// bounded in-memory coverage index, classifies each observability object into
-// one of the six outcomes plus gap findings for uncovered targets, and writes
-// durable provenance-only facts.
+// loads the scope generation's AWS and observability source facts, builds a
+// bounded in-memory coverage index, classifies each observability object or
+// metadata identity into a bounded outcome plus gap findings for uncovered
+// targets, and writes durable provenance-only facts.
 func (h ObservabilityCoverageCorrelationHandler) Handle(ctx context.Context, intent Intent) (Result, error) {
 	if intent.Domain != DomainObservabilityCoverageCorrelation {
 		return Result{}, fmt.Errorf("observability_coverage_correlation handler does not accept domain %q", intent.Domain)
@@ -146,8 +161,8 @@ func (h ObservabilityCoverageCorrelationHandler) Handle(ctx context.Context, int
 }
 
 // emitCounters records the ObservabilityCoverageCorrelations counter dimensioned
-// by domain, outcome, and coverage_signal so an operator can answer which signal
-// class (alarm / log_group / trace_sampling …) is losing coverage at 3 AM.
+// by domain, outcome, and coverage_signal so an operator can answer which
+// bounded signal class is losing coverage at 3 AM.
 func (h ObservabilityCoverageCorrelationHandler) emitCounters(
 	ctx context.Context,
 	decisions []ObservabilityCoverageCorrelationDecision,
@@ -174,17 +189,38 @@ func (h ObservabilityCoverageCorrelationHandler) emitCounters(
 
 // BuildObservabilityCoverageDecisions classifies observability coverage without
 // fabricating a covered edge from name coincidence or a metric-name-only signal.
-// It is a pure function over fact envelopes (no I/O) so the six-outcome contract
-// is table-test friendly.
+// It is a pure function over fact envelopes (no I/O) so the outcome contract is
+// table-test friendly.
 func BuildObservabilityCoverageDecisions(envelopes []facts.Envelope) []ObservabilityCoverageCorrelationDecision {
 	index := buildObservabilityCoverageIndex(envelopes)
-	return classifyObservabilityCoverage(index)
+	decisions := classifyObservabilityCoverage(index)
+	decisions = append(decisions, classifyObservabilityMetadataEvidence(envelopes)...)
+	sortObservabilityCoverageDecisions(decisions)
+	return decisions
 }
 
 func observabilityCoverageCorrelationFactKinds() []string {
 	return []string{
 		facts.AWSResourceFactKind,
 		facts.AWSRelationshipFactKind,
+		facts.ObservabilitySourceInstanceFactKind,
+		facts.ObservabilityDeclaredFolderFactKind,
+		facts.ObservabilityDeclaredDashboardFactKind,
+		facts.ObservabilityDeclaredDatasourceFactKind,
+		facts.ObservabilityDeclaredAlertRuleFactKind,
+		facts.ObservabilityDeclaredScrapeConfigFactKind,
+		facts.ObservabilityDeclaredMetricRuleFactKind,
+		facts.ObservabilityDeclaredMetricRouteFactKind,
+		facts.ObservabilityDeclaredLogRouteFactKind,
+		facts.ObservabilityDeclaredTraceRouteFactKind,
+		facts.ObservabilityAppliedResourceFactKind,
+		facts.ObservabilityAppliedSyncStateFactKind,
+		facts.ObservabilityObservedDashboardFactKind,
+		facts.ObservabilityObservedTargetFactKind,
+		facts.ObservabilityObservedRuleFactKind,
+		facts.ObservabilityObservedLogSignalFactKind,
+		facts.ObservabilityObservedTraceSignalFactKind,
+		facts.ObservabilityCoverageWarningFactKind,
 	}
 }
 
@@ -196,6 +232,8 @@ func observabilityCoverageOutcomes() []ObservabilityCoverageCorrelationOutcome {
 		ObservabilityCoverageUnresolved,
 		ObservabilityCoverageStale,
 		ObservabilityCoverageRejected,
+		ObservabilityCoverageDrifted,
+		ObservabilityCoveragePermissionHidden,
 	}
 }
 
@@ -215,7 +253,7 @@ func observabilityCoverageSummary(
 	factsWritten int,
 ) string {
 	return fmt.Sprintf(
-		"observability coverage correlation evaluated=%d exact=%d derived=%d ambiguous=%d unresolved=%d stale=%d rejected=%d facts_written=%d",
+		"observability coverage correlation evaluated=%d exact=%d derived=%d ambiguous=%d unresolved=%d stale=%d rejected=%d drifted=%d permission_hidden=%d facts_written=%d",
 		evaluated,
 		counts[ObservabilityCoverageExact],
 		counts[ObservabilityCoverageDerived],
@@ -223,6 +261,8 @@ func observabilityCoverageSummary(
 		counts[ObservabilityCoverageUnresolved],
 		counts[ObservabilityCoverageStale],
 		counts[ObservabilityCoverageRejected],
+		counts[ObservabilityCoverageDrifted],
+		counts[ObservabilityCoveragePermissionHidden],
 		factsWritten,
 	)
 }

@@ -188,8 +188,16 @@ generation contains an `incident.record` fact or any `incident_routing.*` fact,
 `buildIncidentRoutingMaterializationReducerIntent` emits one
 `incident_routing_materialization` reducer intent for the scope/generation. The
 projector does not compare declared, applied, or live routing evidence and does
-not create incident, service, runtime, image, commit, pull-request, Jira, or
-root-cause graph truth.
+not infer service truth from PagerDuty payloads. It does not create incident,
+service, runtime, image, commit, pull-request, Jira, or root-cause graph truth.
+
+Observability coverage follows the same reducer-owned boundary. When a
+generation contains an AWS observability resource or Grafana-stack source fact,
+`buildObservabilityCoverageCorrelationReducerIntent` emits one
+`observability_coverage_correlation` reducer intent for the scope/generation.
+The projector validates observability schema versions and identifies the trigger
+fact only; it does not compare declared, applied, or observed source classes,
+does not infer coverage from telemetry values, and does not project COVERS edges.
 
 ## Telemetry
 

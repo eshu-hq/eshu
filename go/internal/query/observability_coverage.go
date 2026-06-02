@@ -38,6 +38,14 @@ type ObservabilityCoverageCorrelationResult struct {
 	CoverageStatus         string   `json:"coverage_status,omitempty"`
 	ProvenanceOnly         bool     `json:"provenance_only"`
 	ResolutionMode         string   `json:"resolution_mode,omitempty"`
+	SourceClass            string   `json:"source_class,omitempty"`
+	SourceClasses          []string `json:"source_classes,omitempty"`
+	SourceKind             string   `json:"source_kind,omitempty"`
+	SourceKinds            []string `json:"source_kinds,omitempty"`
+	SourceOutcome          string   `json:"source_outcome,omitempty"`
+	SourceOutcomes         []string `json:"source_outcomes,omitempty"`
+	ResourceClass          string   `json:"resource_class,omitempty"`
+	FreshnessState         string   `json:"freshness_state,omitempty"`
 	CandidateTargetUIDs    []string `json:"candidate_target_uids,omitempty"`
 	EvidenceFactIDs        []string `json:"evidence_fact_ids,omitempty"`
 }
@@ -89,6 +97,8 @@ func (h *ObservabilityCoverageHandler) listCorrelations(w http.ResponseWriter, r
 		TargetServiceRef:       QueryParam(r, "target_service_ref"),
 		Outcome:                QueryParam(r, "outcome"),
 		CoverageStatus:         QueryParam(r, "coverage_status"),
+		SourceClass:            QueryParam(r, "source_class"),
+		ResourceClass:          QueryParam(r, "resource_class"),
 		AfterCorrelationID:     QueryParam(r, "after_correlation_id"),
 		Limit:                  limit + 1,
 	}
