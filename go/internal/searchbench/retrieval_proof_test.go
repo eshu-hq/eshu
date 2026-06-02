@@ -173,8 +173,38 @@ func TestIssue1298StoppedEvidenceFileValidates(t *testing.T) {
 	if strings.TrimSpace(proof.AcceptedStopReason) == "" {
 		t.Fatalf("%s accepted_stop_reason is empty, want explicit stopped-run reason", path)
 	}
+	for _, query := range proof.Suite.Queries {
+		assertIssue1298ExpectedHandlesUseSearchdocKeys(t, path, query)
+	}
 	if err := ValidateRetrievalProof(proof); err != nil {
 		t.Fatalf("ValidateRetrievalProof(%q) error = %v, want nil", path, err)
+	}
+}
+
+func assertIssue1298ExpectedHandlesUseSearchdocKeys(t *testing.T, path string, query Query) {
+	t.Helper()
+
+	for _, handle := range query.ExpectedHandles {
+		kind, id, ok := strings.Cut(handle, ":")
+		if !ok || kind == "" || id == "" {
+			t.Fatalf("%s query %s expected handle %q is not a search document handle key", path, query.ID, handle)
+		}
+		switch kind {
+		case "service":
+			if !strings.HasPrefix(id, "service:") {
+				t.Fatalf("%s query %s expected service handle %q omits typed service id", path, query.ID, handle)
+			}
+		case "workload":
+			if !strings.HasPrefix(id, "workload:") {
+				t.Fatalf("%s query %s expected workload handle %q omits typed workload id", path, query.ID, handle)
+			}
+		case "repository":
+			if id == "" {
+				t.Fatalf("%s query %s expected repository handle %q omits repository id", path, query.ID, handle)
+			}
+		default:
+			t.Fatalf("%s query %s expected handle %q uses unsupported kind %q", path, query.ID, handle, kind)
+		}
 	}
 }
 

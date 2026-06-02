@@ -10,7 +10,7 @@
         "service_id": "service:checkout-api",
         "mode": "hybrid",
         "limit": 10,
-        "expected_handles": ["service:checkout-api"]
+        "expected_handles": ["service:service:checkout-api"]
       },
       {
         "id": "semantic-context-002",
@@ -18,7 +18,7 @@
         "workload_id": "workload:checkout-api",
         "mode": "hybrid",
         "limit": 10,
-        "expected_handles": ["workload:checkout-api"]
+        "expected_handles": ["workload:workload:checkout-api"]
       },
       {
         "id": "semantic-context-003",
@@ -26,7 +26,7 @@
         "repo_id": "repo:payments",
         "mode": "hybrid",
         "limit": 10,
-        "expected_handles": ["service:payment-worker"]
+        "expected_handles": ["service:service:payment-worker"]
       },
       {
         "id": "semantic-context-004",
@@ -34,7 +34,7 @@
         "environment": "staging",
         "mode": "hybrid",
         "limit": 10,
-        "expected_handles": ["workload:order-service"]
+        "expected_handles": ["workload:workload:order-service"]
       },
       {
         "id": "semantic-context-005",
@@ -42,7 +42,7 @@
         "service_id": "service:inventory-api",
         "mode": "hybrid",
         "limit": 10,
-        "expected_handles": ["service:inventory-api"]
+        "expected_handles": ["service:service:inventory-api"]
       },
       {
         "id": "semantic-context-006",
@@ -50,7 +50,7 @@
         "workload_id": "workload:billing-cron",
         "mode": "hybrid",
         "limit": 10,
-        "expected_handles": ["workload:billing-cron"]
+        "expected_handles": ["workload:workload:billing-cron"]
       },
       {
         "id": "semantic-context-007",
@@ -58,7 +58,7 @@
         "repo_id": "repo:notifications",
         "mode": "hybrid",
         "limit": 10,
-        "expected_handles": ["service:notification-service"]
+        "expected_handles": ["service:service:notification-service"]
       },
       {
         "id": "semantic-context-008",
@@ -66,7 +66,7 @@
         "environment": "production",
         "mode": "hybrid",
         "limit": 10,
-        "expected_handles": ["service:search-api"]
+        "expected_handles": ["service:service:search-api"]
       },
       {
         "id": "semantic-context-009",
@@ -74,7 +74,7 @@
         "service_id": "service:cache-worker",
         "mode": "hybrid",
         "limit": 10,
-        "expected_handles": ["repo:cache"]
+        "expected_handles": ["repository:repo:cache"]
       },
       {
         "id": "semantic-context-010",
@@ -82,7 +82,7 @@
         "workload_id": "workload:analytics-api",
         "mode": "hybrid",
         "limit": 10,
-        "expected_handles": ["workload:analytics-api"]
+        "expected_handles": ["workload:workload:analytics-api"]
       },
       {
         "id": "semantic-context-011",
@@ -90,7 +90,7 @@
         "repo_id": "repo:fraud",
         "mode": "hybrid",
         "limit": 10,
-        "expected_handles": ["service:fraud-service"]
+        "expected_handles": ["service:service:fraud-service"]
       },
       {
         "id": "semantic-context-012",
@@ -98,7 +98,7 @@
         "environment": "development",
         "mode": "hybrid",
         "limit": 10,
-        "expected_handles": ["workload:catalog-api"]
+        "expected_handles": ["workload:workload:catalog-api"]
       },
       {
         "id": "semantic-context-013",
@@ -106,7 +106,7 @@
         "service_id": "service:recommendation-worker",
         "mode": "hybrid",
         "limit": 10,
-        "expected_handles": ["service:recommendation-worker"]
+        "expected_handles": ["service:service:recommendation-worker"]
       },
       {
         "id": "semantic-context-014",
@@ -114,7 +114,7 @@
         "workload_id": "workload:shipping-api",
         "mode": "hybrid",
         "limit": 10,
-        "expected_handles": ["service:shipping-api"]
+        "expected_handles": ["service:service:shipping-api"]
       },
       {
         "id": "semantic-context-015",
@@ -122,7 +122,7 @@
         "repo_id": "repo:support-tools",
         "mode": "hybrid",
         "limit": 10,
-        "expected_handles": ["repo:support-tools"]
+        "expected_handles": ["repository:repo:support-tools"]
       }
     ]
   }
