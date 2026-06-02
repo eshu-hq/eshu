@@ -255,6 +255,29 @@ e2e_manifest_validate_numeric_contracts() {
 	fi
 }
 
+e2e_manifest_validate_reducer_rows() {
+	local file="$1"
+	local invalid
+	invalid="$(jq -r '
+		def readback_pass($surface):
+			((.readback[$surface].status // "") == "pass") and
+			((.readback[$surface].checked // 0) > 0) and
+			((.readback[$surface].failed // 0) == 0);
+		.reducers // {}
+		| to_entries[]
+		| select(.value.status == "pass")
+		| select((.value.source_facts // 0) <= 0
+			or (.value.reducer_facts // 0) <= 0
+			or ((.value | readback_pass("api")) | not)
+			or ((.value | readback_pass("mcp")) | not))
+		| "reducers.\(.key) must include source_facts > 0, reducer_facts > 0, and API/MCP readback pass"
+	' "${file}" | sed -n '1p')"
+	if [[ -n "${invalid}" ]]; then
+		e2e_manifest_die "${invalid}"
+		return 1
+	fi
+}
+
 e2e_manifest_validate_observability() {
 	local file="$1"
 	jq -e '
@@ -278,6 +301,7 @@ validate_e2e_evidence_manifest() {
 	done
 	e2e_manifest_validate_source_contracts "${file}" || return 1
 	e2e_manifest_validate_component_statuses "${file}" || return 1
+	e2e_manifest_validate_reducer_rows "${file}" || return 1
 	e2e_manifest_validate_numeric_contracts "${file}" || return 1
 	e2e_manifest_validate_observability "${file}" || return 1
 	printf 'e2e-evidence-manifest: pass\n'

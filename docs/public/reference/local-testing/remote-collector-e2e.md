@@ -212,6 +212,7 @@ scripts/e2e_remote_compose_suite.sh \
   --pprof-base-url "$REMOTE_PPROF_BASE_URL" \
   --runtime-volume-proof /secure/local/eshu/clean-volume-proof.json \
   --corpus-coverage /secure/local/eshu/public-corpus-coverage.json \
+  --readback-proof /secure/local/eshu/readback-proof.json \
   --corpus-mode representative \
   --repository-count 24 \
   --image-tag-candidate "$IMAGE_TAG" \
@@ -231,6 +232,7 @@ scripts/e2e_remote_compose_suite.sh \
   --pprof-base-url "$REMOTE_PPROF_BASE_URL" \
   --runtime-volume-proof /secure/local/eshu/preserved-volume-proof.json \
   --corpus-coverage /secure/local/eshu/public-corpus-coverage.json \
+  --readback-proof /secure/local/eshu/readback-proof.json \
   --corpus-mode representative \
   --repository-count 24 \
   --image-tag-candidate "$IMAGE_TAG" \
@@ -244,6 +246,14 @@ modules, PyPI, Maven/Gradle, Composer, RubyGems, Cargo, NuGet, Terraform/IaC,
 Kubernetes/IaC, image/SBOM, deployment, vulnerability, observability,
 incident, and work-item evidence. Do not derive those rows from repository
 count alone; they are part of the recorded corpus contract.
+
+The `readback-proof.json` file is the public-safe aggregate API/MCP/CLI proof.
+Generate it from operator-local bounded readback summaries and keep raw
+transcripts outside the repository. Each surface must include status, checked,
+failed, truncated, unsupported, missing-evidence, and ambiguous counters. If
+the harness runs without this proof, reducer rows that otherwise have source
+and reducer counts remain `fail` with an API/MCP readback reason instead of
+being treated as clean evidence.
 
 ### Hosted Collector Profile
 
@@ -271,6 +281,29 @@ labels in this variable or in the generated manifest. A `skipped` or
 that is useful evidence for planning, but it is not a clean all-collector
 prerelease gate.
 
+### Reducer Evidence Rows
+
+Reducer rows must prove three aggregate signals in the same manifest row:
+
+- `source_facts`: source evidence that could feed the reducer path.
+- `reducer_facts`: durable reducer-owned evidence for that path.
+- `readback`: API and MCP aggregate readback proof copied from the public-safe
+  readback-proof file.
+
+Terraform/IaC relationship evidence is counted from the reducer-owned
+`relationship_evidence_facts` and `resolved_relationships` tables rather than
+from `fact_records`, because relationship resolution persists through those
+dedicated read-model tables. Vulnerability matching uses the implemented
+`reducer_supply_chain_impact_finding` fact kind as reducer evidence; there is
+not a separate durable `reducer_vulnerability_match` fact today.
+
+If a reducer path is intentionally outside a partial proof, list its public row
+name in `ESHU_REMOTE_E2E_UNSUPPORTED_REDUCERS`. Valid row names are the
+manifest reducer keys, including `terraform_iac_relationships`,
+`vulnerability_matching`, and `incident_work_item_correlation`. An unsupported
+reducer row makes the manifest `partial`, not `pass`. Do not use this variable
+to hide a real all-collector prerelease gap.
+
 The harness delegates service and queue safety to
 `scripts/verify_remote_e2e_runtime_state.sh`, then captures pprof reachability,
 Docker CPU/memory snapshots, sanitized service logs, `/api/v0/index-status`,
@@ -293,7 +326,10 @@ the harness accepts clean and preserved aggregate evidence, rejects forbidden
 logs, rejects runtime-state failure, rejects missing collector evidence,
 distinguishes enabled hosted collectors with no facts from disabled and
 explicitly unsupported hosted collectors, and rejects preserved restarts that
-add facts.
+add facts. `scripts/test-e2e-remote-compose-reducer-manifest.sh` proves
+Terraform relationship table mapping, vulnerability matching through
+`reducer_supply_chain_impact_finding`, explicit missing reducer evidence,
+explicit unsupported reducer rows, and missing readback proof classification.
 
 Observability Evidence: `scripts/e2e_remote_compose_suite.sh` stores public-safe
 evidence beside the manifest: pprof index proof, Docker stats JSON lines,

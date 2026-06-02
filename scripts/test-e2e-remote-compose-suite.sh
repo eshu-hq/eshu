@@ -91,6 +91,9 @@ case "${subcommand}" in
       *"workflow_work_items"*)
         cat "${state_dir}/workflow-counts.tsv"
         ;;
+      *"relationship_evidence_facts"*)
+        cat "${state_dir}/reducer-relationship-counts.tsv"
+        ;;
       *)
         echo "unexpected postgres query: ${query}" >&2
         exit 2
@@ -205,6 +208,20 @@ write_corpus_coverage() {
   }' >"${path}"
 }
 
+write_readback_proof() {
+  local path="$1"
+  jq -n '{
+    schema_version: 1,
+    proof_id: "remote-compose-suite-readback-test",
+    surfaces: {
+      api: {status: "pass", checked: 11, failed: 0, truncated: 0, unsupported: 0, missing_evidence: 0, ambiguous: 0},
+      mcp: {status: "pass", checked: 11, failed: 0, truncated: 0, unsupported: 0, missing_evidence: 0, ambiguous: 0},
+      cli: {status: "pass", checked: 11, failed: 0, truncated: 0, unsupported: 0, missing_evidence: 0, ambiguous: 0}
+    },
+    queue: {retrying: 0, failed: 0, dead_letter: 0}
+  }' >"${path}"
+}
+
 reset_state() {
   rm -f "${state_dir}/runtime-fail" "${state_dir}/curl-targets"
   rm -rf "${state_dir}/logs"
@@ -260,7 +277,7 @@ terraform_state	terraform_state.resource	5
 aws	aws_resource	7
 oci_registry	oci_registry.image_manifest	4
 package_registry	package_registry.package_version	6
-sbom_attestation	sbom.component	2
+sbom_document	sbom.component	2
 security_alert	security_alert.repository_alert	4
 vulnerability_intelligence	vulnerability.affected_package	8
 scanner_worker	scanner_worker.vulnerability	3
@@ -272,16 +289,17 @@ prometheus_mimir	observability.metric_signal	1
 loki	observability.log_signal	1
 tempo	observability.trace_signal	1
 reducer	reducer_package_correlation	10
-reducer	reducer_terraform_iac_relationship	5
 reducer	reducer_aws_cloud_relationship	5
 reducer	reducer_container_image_identity	3
 reducer	reducer_sbom_attestation_attachment	3
-reducer	reducer_vulnerability_match	4
 reducer	reducer_security_alert_reconciliation	4
 reducer	reducer_supply_chain_impact_finding	4
 reducer	reducer_deployment_correlation	2
 reducer	reducer_observability_correlation	1
 reducer	reducer_incident_work_item_correlation	1
+TSV
+  cat >"${state_dir}/reducer-relationship-counts.tsv" <<'TSV'
+terraform_iac_relationships	5	5
 TSV
   cat >"${state_dir}/workflow-counts.tsv" <<'TSV'
 git	completed	1
@@ -308,11 +326,14 @@ run_harness() {
   local manifest="$2"
   local volume_proof="$3"
   local coverage="${TMP_DIR}/corpus-coverage.json"
+  local readback_proof="${TMP_DIR}/readback-proof.json"
   shift 3
   write_corpus_coverage "${coverage}"
+  write_readback_proof "${readback_proof}"
   ESHU_REMOTE_COMPOSE_SUITE_TEST_STATE="${state_dir}" \
     ESHU_E2E_RUNTIME_STATE_SCRIPT="${runtime_verifier}" \
     ESHU_REMOTE_E2E_UNSUPPORTED_HOSTED_COLLECTORS="${ESHU_REMOTE_E2E_UNSUPPORTED_HOSTED_COLLECTORS:-}" \
+    ESHU_REMOTE_E2E_UNSUPPORTED_REDUCERS="${ESHU_REMOTE_E2E_UNSUPPORTED_REDUCERS:-}" \
     PATH="${fake_bin}:${PATH}" \
     "${HARNESS}" \
       --run-kind "${run_kind}" \
@@ -325,6 +346,7 @@ run_harness() {
       --corpus-mode representative \
       --repository-count 24 \
       --corpus-coverage "${coverage}" \
+      --readback-proof "${readback_proof}" \
       --image-tag-candidate v0.0.3-pre-release-test \
       --compose-files "docker-compose.remote-e2e.yaml:docker-compose.remote-e2e.pprof.yaml" \
       "$@"
@@ -376,6 +398,10 @@ if ! jq -e '
   .run.kind == "clean" and
   .collectors.git.status == "pass" and
   .collectors.pagerduty.facts == 1 and
+  .reducers.terraform_iac_relationships.source_facts == 5 and
+  .reducers.terraform_iac_relationships.reducer_facts == 5 and
+  .reducers.vulnerability_matching.reducer_facts == 4 and
+  .reducers.vulnerability_matching.readback.api.status == "pass" and
   .reducers.supply_chain_impact.count == 4 and
   .workflow.collector_claims.terraform_state.completed == 1 and
   .queue.retrying == 0 and .queue.dead_letter == 0
