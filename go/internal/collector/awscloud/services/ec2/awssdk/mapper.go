@@ -443,19 +443,11 @@ func attachedResourceType(instanceID string) string {
 }
 
 func boolPointer(value *bool) *bool {
-	if value == nil {
-		return nil
-	}
-	output := aws.ToBool(value)
-	return &output
+	return value
 }
 
 func int32Pointer(value *int32) *int32 {
-	if value == nil {
-		return nil
-	}
-	output := aws.ToInt32(value)
-	return &output
+	return value
 }
 
 func firstNonEmpty(values ...string) string {

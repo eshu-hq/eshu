@@ -264,6 +264,31 @@ func TestMapVolumeDerivesPartitionForGovCloud(t *testing.T) {
 	}
 }
 
+func TestMapVolumePreservesSDKPointersForOptionalScalars(t *testing.T) {
+	encrypted := aws.Bool(true)
+	iops := aws.Int32(3000)
+	ebsCardIndex := aws.Int32(1)
+
+	volume := mapVolume("us-east-1", "123456789012", awsec2types.Volume{
+		Encrypted: encrypted,
+		Iops:      iops,
+		VolumeId:  aws.String("vol-0abc"),
+		Attachments: []awsec2types.VolumeAttachment{{
+			EbsCardIndex: ebsCardIndex,
+		}},
+	})
+
+	if volume.Encrypted != encrypted {
+		t.Fatalf("Encrypted pointer = %p, want original SDK pointer %p", volume.Encrypted, encrypted)
+	}
+	if volume.IOPS != iops {
+		t.Fatalf("IOPS pointer = %p, want original SDK pointer %p", volume.IOPS, iops)
+	}
+	if volume.Attachments[0].EBSCardIndex != ebsCardIndex {
+		t.Fatalf("EBSCardIndex pointer = %p, want original SDK pointer %p", volume.Attachments[0].EBSCardIndex, ebsCardIndex)
+	}
+}
+
 func TestNetworkInterfaceInputIncludesManagedResourcesAndPagination(t *testing.T) {
 	input := networkInterfacesInput()
 

@@ -112,11 +112,11 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 		return nil, fmt.Errorf("list EC2 volumes: %w", err)
 	}
 	for _, volume := range volumes {
-		volumeEnvelopes, err := volumeEnvelopes(boundary, volume)
+		emittedVolumeEnvelopes, err := volumeEnvelopes(boundary, volume)
 		if err != nil {
 			return nil, err
 		}
-		envelopes = append(envelopes, volumeEnvelopes...)
+		envelopes = append(envelopes, emittedVolumeEnvelopes...)
 	}
 	return envelopes, nil
 }
