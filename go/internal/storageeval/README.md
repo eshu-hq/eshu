@@ -5,11 +5,15 @@
 `internal/storageeval` defines pure evidence contracts for storage migration
 evaluation gates. It currently owns the #1287 shadow-read comparison gate for
 selected content/read-model families and the #1288 shadow-write comparison gate
-for bounded fact-family migration proof.
+for bounded fact-family migration proof. It also owns the #1289 queue-substrate
+decision gate that keeps queue/workflow ownership separate from storage
+ownership.
 
 The package validates records that compare current Postgres production answers
 with NornicDB shadow answers. Passing evidence proves only parity for the
 scoped read model or fact family; it does not change production ownership.
+Queue-substrate decisions prove only that a candidate comparison covered queue
+semantics and observability; they do not implement a new queue.
 
 ## Ownership boundary
 
@@ -28,6 +32,8 @@ See `doc.go` for the godoc contract.
 - `ShadowReadComparison` is the evidence record for one bounded comparison.
 - `FactWriteComparison` is the evidence record for one bounded fact-family
   write/read-back comparison.
+- `QueueSubstrateDecision` is the evidence record for durable queue/workflow
+  substrate evaluation.
 - `ReadResult`, `TruthLabel`, `Freshness`, and `Scope` describe each side of
   the comparison.
 - `FactWriteResult` describes each side of a fact-store write and bounded
@@ -37,12 +43,19 @@ See `doc.go` for the godoc contract.
 - `ValidateFactWriteComparison` accepts only matching fact identity,
   idempotency key, scope/generation, schema version, active generation, current
   supersession, record state, digest, fallback, and rollback evidence.
+- `ValidateQueueSubstrateDecision` accepts only candidate comparisons that
+  separate storage proof from queue proof, reject worker-count reduction as a
+  fix, pass chosen-candidate queue capabilities, cover proof scenarios, and
+  include required observability.
 - `ReadModel`, `Backend`, `TruthLevel`, `TruthBasis`, `FreshnessState`,
   `Verdict`, `FallbackBehavior`, and `FailureClass` provide stable labels for
   future proof runners.
 - `FactFamily`, `FactRecordState`, `FactGenerationState`,
   `FactSupersessionState`, `FactWriteVerdict`, `FactWriteFailureClass`, and
   `RollbackBehavior` provide fact-write proof labels.
+- `QueueSurface`, `QueueSubstrate`, `QueueCapabilityStatus`,
+  `QueueProofScenario`, `QueueProofStatus`, `QueueCandidateEvaluation`, and
+  `QueueObservabilityAssessment` provide queue-substrate proof labels.
 
 ## Dependencies
 
@@ -80,6 +93,11 @@ does not alter hosted runtime signals.
   supersession, active or tombstone state, and bounded read-back count.
 - Shadow fact writes must be explicitly disposable through rollback behavior;
   this package must not grow queue, lease, retry, or dead-letter semantics.
+- Queue-substrate decisions must name conflict domain, transaction scope, retry
+  scope, and idempotency key before they can recommend a candidate.
+- Storage proof must not be treated as queue proof.
+- Worker-count reduction, batch-size one, or broad serialization is not a
+  queue-substrate fix.
 
 ## Verification
 
@@ -99,5 +117,6 @@ git diff --check
 - `docs/internal/design/1286-postgres-ownership-inventory.md`
 - `docs/internal/design/1287-shadow-read-comparison-gate.md`
 - `docs/internal/design/1288-shadow-write-comparison-gate.md`
+- `docs/internal/design/1289-queue-substrate-evaluation-gate.md`
 - `docs/public/reference/truth-label-protocol.md`
 - `docs/public/reference/search-document-projection.md`

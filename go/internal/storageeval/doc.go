@@ -10,8 +10,12 @@
 // label, capability, and fallback behavior. Shadow-write comparisons are
 // passing evidence only when the Postgres fact ledger and NornicDB shadow fact
 // writer agree on stable fact identity, idempotency key, active generation,
-// schema version, tombstone state, digest, and rollback behavior. Missing,
-// stale, divergent, truncated, unsupported, or fallback-truth shadow output is
-// rejected so storage migration work cannot silently promote incomplete read
-// models or fact families.
+// schema version, tombstone state, digest, and rollback behavior. Queue
+// substrate decisions are passing evidence only when they separate queue
+// ownership from storage ownership and compare candidates against claim, lease,
+// fencing, retry, dead-letter, backpressure, crash-recovery, fair-scheduling,
+// proof-scenario, and observability requirements. Missing, stale, divergent,
+// truncated, unsupported, or fallback-truth shadow output is rejected so storage
+// migration work cannot silently promote incomplete read models, fact families,
+// or queue/workflow substrates.
 package storageeval

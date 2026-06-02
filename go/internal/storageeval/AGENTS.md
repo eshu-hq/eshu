@@ -15,6 +15,8 @@ adapter-free, queue-free, and runtime-free.
 - MUST keep production fallback behavior explicit in every passing comparison.
 - MUST keep fact-write rollback behavior explicit and disposable; do not add
   queue, lease, retry, or dead-letter ownership here.
+- MUST keep queue-substrate decisions as evaluation records only; do not add a
+  queue adapter or workflow engine implementation here.
 
 ## Read first
 
@@ -22,7 +24,8 @@ adapter-free, queue-free, and runtime-free.
 2. `doc.go` for the godoc contract.
 3. `shadow_read.go` before changing the #1287 comparison gate.
 4. `shadow_write.go` before changing the #1288 comparison gate.
-5. `docs/internal/design/431-nornicdb-primary-store-evaluation.md` before
+5. `queue_substrate.go` before changing the #1289 decision gate.
+6. `docs/internal/design/431-nornicdb-primary-store-evaluation.md` before
    changing storage migration evidence semantics.
 
 ## Verification
