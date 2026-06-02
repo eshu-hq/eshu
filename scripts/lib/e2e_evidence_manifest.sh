@@ -38,7 +38,7 @@ e2e_manifest_required_paths=(
 	"collectors.aws_cloud"
 	"collectors.oci_registry"
 	"collectors.package_registry"
-	"collectors.sbom_attestation"
+	"collectors.sbom_document"
 	"collectors.provider_security_alerts"
 	"collectors.vulnerability_intelligence"
 	"collectors.scanner_worker"
@@ -199,6 +199,40 @@ e2e_manifest_validate_component_statuses() {
 	fi
 }
 
+e2e_manifest_validate_source_contracts() {
+	local file="$1"
+	if ! jq -e '.collectors.sbom_attestation == null' "${file}" >/dev/null; then
+		e2e_manifest_die "collectors.sbom_attestation is ambiguous; use collectors.sbom_document for SBOM source facts and reducers.sbom_attachment for attachment truth"
+		return 1
+	fi
+
+	jq -e '
+		def positive($name):
+			(.[$name] // 0) as $value
+			| ($value | type == "number" and $value > 0);
+		.collectors.sbom_document as $row
+		| if (($row.status // "") == "pass") then
+			($row | positive("source_facts") or positive("facts"))
+		  else
+			true
+		  end
+	' "${file}" >/dev/null \
+		|| { e2e_manifest_die "collectors.sbom_document pass requires source_facts > 0 or facts > 0"; return 1; }
+
+	jq -e '
+		def positive($name):
+			(.[$name] // 0) as $value
+			| ($value | type == "number" and $value > 0);
+		.collectors.scanner_worker as $row
+		| if (($row.status // "") == "pass") then
+			($row | positive("facts") or positive("source_facts") or positive("warnings"))
+		  else
+			true
+		  end
+	' "${file}" >/dev/null \
+		|| { e2e_manifest_die "collectors.scanner_worker pass requires facts > 0, source_facts > 0, or warnings > 0"; return 1; }
+}
+
 e2e_manifest_validate_numeric_contracts() {
 	local file="$1"
 	local queue_name
@@ -242,6 +276,7 @@ validate_e2e_evidence_manifest() {
 	for required_path in "${e2e_manifest_required_paths[@]}"; do
 		e2e_manifest_require_path "${file}" "${required_path}" || return 1
 	done
+	e2e_manifest_validate_source_contracts "${file}" || return 1
 	e2e_manifest_validate_component_statuses "${file}" || return 1
 	e2e_manifest_validate_numeric_contracts "${file}" || return 1
 	e2e_manifest_validate_observability "${file}" || return 1
