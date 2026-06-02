@@ -28,7 +28,7 @@ type packageRegistryIdentityLock struct {
 
 type packageRegistryIdentityLockLease struct {
 	keyCount int
-	firstKey string
+	minKey   string
 	wait     time.Duration
 	unlock   func()
 }
@@ -70,7 +70,7 @@ func (l *packageRegistryIdentityLocks) lock(keys []string) packageRegistryIdenti
 
 	return packageRegistryIdentityLockLease{
 		keyCount: len(keys),
-		firstKey: keys[0],
+		minKey:   keys[0],
 		wait:     time.Since(start),
 		unlock: func() {
 			for index := len(locked) - 1; index >= 0; index-- {
@@ -108,7 +108,7 @@ func recordPackageRegistryIdentityLock(
 		"scope_id", mat.ScopeID,
 		"repo_id", mat.RepoID,
 		"generation_id", mat.GenerationID,
-		"package_uid", lease.firstKey,
+		"package_uid_min", lease.minKey,
 		"package_uid_count", lease.keyCount,
 		"wait_s", lease.wait.Seconds(),
 	)

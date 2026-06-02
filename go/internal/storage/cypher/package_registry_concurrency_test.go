@@ -43,12 +43,17 @@ func TestCanonicalNodeWriterSerializesConcurrentDuplicatePackageUIDs(t *testing.
 		))
 	}()
 
+	if !waitForPackageRegistryIdentityRefCount(writer, "npm://registry.npmjs.org/eslint", 2, 2*time.Second) {
+		close(exec.release)
+		t.Fatal("second package write did not queue on duplicate package UID lock")
+	}
 	select {
 	case <-exec.secondEntered:
 		close(exec.release)
-	case <-time.After(150 * time.Millisecond):
-		close(exec.release)
+		t.Fatal("second duplicate package UID write entered executor before the first write released")
+	default:
 	}
+	close(exec.release)
 
 	if err := <-firstDone; err != nil {
 		t.Fatalf("first Write() error = %v", err)
@@ -91,12 +96,17 @@ func TestCanonicalNodeWriterSerializesDependencyTargetPackageUIDs(t *testing.T) 
 		))
 	}()
 
+	if !waitForPackageRegistryIdentityRefCount(writer, "npm://registry.npmjs.org/@aws-sdk/property-provider", 2, 2*time.Second) {
+		close(exec.release)
+		t.Fatal("second dependency-target package write did not queue on duplicate package UID lock")
+	}
 	select {
 	case <-exec.secondEntered:
 		close(exec.release)
-	case <-time.After(150 * time.Millisecond):
-		close(exec.release)
+		t.Fatal("second dependency-target package UID write entered executor before the first write released")
+	default:
 	}
+	close(exec.release)
 
 	if err := <-firstDone; err != nil {
 		t.Fatalf("first Write() error = %v", err)
@@ -242,6 +252,42 @@ func newBlockingPackageUIDExecutor() *blockingPackageUIDExecutor {
 		secondEntered: make(chan struct{}),
 		release:       make(chan struct{}),
 	}
+}
+
+func waitForPackageRegistryIdentityRefCount(
+	writer *CanonicalNodeWriter,
+	key string,
+	want int,
+	timeout time.Duration,
+) bool {
+	deadline := time.After(timeout)
+	ticker := time.NewTicker(5 * time.Millisecond)
+	defer ticker.Stop()
+
+	for {
+		if packageRegistryIdentityRefCount(writer, key) >= want {
+			return true
+		}
+		select {
+		case <-deadline:
+			return false
+		case <-ticker.C:
+		}
+	}
+}
+
+func packageRegistryIdentityRefCount(writer *CanonicalNodeWriter, key string) int {
+	if writer == nil || writer.packageRegistryLocks == nil {
+		return 0
+	}
+	writer.packageRegistryLocks.mu.Lock()
+	defer writer.packageRegistryLocks.mu.Unlock()
+
+	lock := writer.packageRegistryLocks.locks[key]
+	if lock == nil {
+		return 0
+	}
+	return lock.refs
 }
 
 func (e *blockingPackageUIDExecutor) Execute(context.Context, Statement) error {

@@ -155,7 +155,7 @@ Observability Evidence: `canonical.write` spans now include
 `package_registry_identity_lock_key_count` and
 `package_registry_identity_lock_wait_seconds` when a materialization carries
 package-registry identities. Slow same-UID waits emit a structured
-`canonical package registry identity lock acquired` log with package UID,
+`canonical package registry identity lock acquired` log with `package_uid_min`,
 scope, repo, generation, key count, and wait seconds. Existing phase spans,
 duration metrics, phase failure logs, phase-group chunk summaries, retry logs,
 and queue failure payloads still expose true backend conflicts and retries.
