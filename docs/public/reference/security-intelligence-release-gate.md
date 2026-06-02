@@ -271,6 +271,33 @@ rather than machine-local paths. Bearer tokens are passed to `curl` through a
 short-lived mode-600 config file outside the evidence directory, not as raw
 process arguments.
 
+### Full E2E manifest input
+
+The broader E2E suite uses a shared manifest contract that can feed the remote
+Compose harness, readback parity gate, and Kubernetes gate. Validate it with:
+
+```bash
+scripts/verify_e2e_evidence_manifest.sh /secure/local/eshu/e2e-manifest.json
+```
+
+The manifest is not a raw transcript. It stores schema version `1`, run
+identity, clean or preserved run kind, commit, image tag candidate, backend
+identity, corpus mode, repository count, required ecosystem coverage, required
+evidence-family coverage, runtime status, collector summaries, reducer
+summaries, API/MCP/CLI readback counters, queue counters, pprof/log/resource
+snapshot state, privacy status, and public follow-up issue refs.
+
+`status: "pass"` is reserved for clean evidence: every component row is
+`pass`, API/MCP/CLI failures are zero, retrying/failed/dead-letter queue
+counters are zero, pprof is reachable, and logs plus resource snapshots were
+captured. Use `status: "partial"` or `status: "fail"` for unsupported,
+skipped, or failed rows. Those classified rows must include a reason, which
+keeps explicit gaps from being mistaken for clean coverage.
+
+The validator rejects private-looking keys and values, including repository or
+package fields, provider URLs, hostnames, machine paths, tokens, account ids,
+raw transcripts, copied requests/responses, and provider payloads.
+
 ### Runtime volume proof input
 
 The `runtime` phase accepts an operator-local JSON file with public-safe volume
@@ -427,6 +454,7 @@ rejection, and follow-up issue enforcement.
 ```bash
 scripts/test-security_intelligence_release_gate.sh
 scripts/test-security_intelligence_release_gate_proof_matrix.sh
+scripts/test-e2e-evidence-manifest.sh
 ```
 
 `scripts/test-security_intelligence_release_gate_runtime.sh` proves

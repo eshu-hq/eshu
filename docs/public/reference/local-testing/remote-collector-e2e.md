@@ -147,6 +147,43 @@ with one of the release-gate gap classes and a public issue ref. The harness
 rejects repository names, package names, provider URLs, alert URLs, tokens,
 hostnames, and machine-local paths.
 
+## E2E Evidence Manifest
+
+The full E2E integration suite uses a shared public-safe manifest before the
+remote Compose, API/MCP/CLI, and Kubernetes gates diverge. Validate that
+manifest with:
+
+```bash
+scripts/verify_e2e_evidence_manifest.sh /secure/local/eshu/e2e-manifest.json
+```
+
+The manifest is aggregate-only. It records:
+
+- `schema_version: 1`, top-level `status`, run id, clean or preserved run
+  kind, Eshu commit, image tag candidate, and graph backend kind or digest.
+- corpus mode, repository count, ecosystem coverage for npm, Go modules,
+  PyPI, Maven/Gradle, Composer, RubyGems, Cargo, and NuGet.
+- evidence-family coverage for Terraform/IaC, Kubernetes/IaC, image/SBOM,
+  deployment, vulnerability, observability, incident, and work-item evidence.
+- runtime evidence for schema bootstrap, API, MCP server, ingester, resolution
+  engine, workflow coordinator, hosted collectors, and scanner worker.
+- collector and reducer summaries for every supported hosted family.
+- bounded API, MCP, and CLI readback summaries with checked and failed counts.
+- queue counters, pprof reachability, log capture, resource snapshot capture,
+  privacy status, and public follow-up issue refs.
+
+`status: "pass"` means every required component row is `pass`, readback
+failures are zero, retrying/failed/dead-letter queue counters are zero, pprof
+is reachable, and logs/resource snapshots were captured. Use
+`status: "partial"` or `status: "fail"` when a collector, ecosystem, reducer,
+or read surface is intentionally skipped, unsupported, or failed. Classified
+rows must include a reason so the evidence does not look clean by accident.
+
+Keep private repository roots, source names, package coordinates, provider
+URLs, hostnames, account ids, tokens, raw transcripts, and copied provider
+payloads out of the manifest. Store those only beside the private corpus/env
+files on the operator machine.
+
 ## Representative Acceptance
 
 After a representative stack finishes the required corpus pass, run:

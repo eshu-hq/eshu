@@ -1,0 +1,204 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+LIB="${REPO_ROOT}/scripts/lib/e2e_evidence_manifest.sh"
+WRAPPER="${REPO_ROOT}/scripts/verify_e2e_evidence_manifest.sh"
+
+if [[ ! -f "${LIB}" ]]; then
+	printf 'missing manifest validator library at %s\n' "${LIB}" >&2
+	exit 1
+fi
+
+# shellcheck source=scripts/lib/e2e_evidence_manifest.sh
+source "${LIB}"
+
+TMP_DIR="$(mktemp -d)"
+trap 'rm -rf "${TMP_DIR}"' EXIT
+
+write_valid_manifest() {
+	local path="$1"
+	jq -n '{
+		schema_version: 1,
+		status: "pass",
+		run: {
+			id: "e2e-manifest-test-run",
+			kind: "clean",
+			commit: "1234567890abcdef",
+			image_tag_candidate: "v0.0.3-pre-release-test",
+			backend: {
+				kind: "nornicdb",
+				digest: "sha256:1111111111111111111111111111111111111111111111111111111111111111"
+			}
+		},
+		corpus: {
+			mode: "representative",
+			repository_count: 24,
+			coverage: {
+				ecosystems: {
+					npm: {status: "pass", count: 3},
+					gomod: {status: "pass", count: 3},
+					pypi: {status: "pass", count: 2},
+					maven: {status: "pass", count: 2},
+					composer: {status: "pass", count: 2},
+					rubygems: {status: "pass", count: 1},
+					cargo: {status: "pass", count: 1},
+					nuget: {status: "pass", count: 1}
+				},
+				evidence_families: {
+					terraform_iac: {status: "pass", count: 3},
+					kubernetes_iac: {status: "pass", count: 2},
+					image_sbom: {status: "pass", count: 2},
+					deployment: {status: "pass", count: 2},
+					vulnerability: {status: "pass", count: 4},
+					observability: {status: "pass", count: 1},
+					incident: {status: "pass", count: 1},
+					work_item: {status: "pass", count: 1}
+				}
+			}
+		},
+		runtimes: {
+			schema_bootstrap: {status: "pass"},
+			api: {status: "pass"},
+			mcp_server: {status: "pass"},
+			ingester: {status: "pass"},
+			resolution_engine: {status: "pass"},
+			workflow_coordinator: {status: "pass"},
+			hosted_collectors: {status: "pass"},
+			scanner_worker: {status: "pass"}
+		},
+		collectors: {
+			git: {status: "pass", facts: 10},
+			terraform_state: {status: "pass", facts: 5},
+			aws_cloud: {status: "pass", facts: 7},
+			oci_registry: {status: "pass", facts: 4},
+			package_registry: {status: "pass", facts: 6},
+			sbom_attestation: {status: "pass", facts: 2},
+			provider_security_alerts: {status: "pass", facts: 4},
+			vulnerability_intelligence: {status: "pass", facts: 8},
+			scanner_worker: {status: "pass", facts: 3},
+			confluence: {status: "pass", facts: 1},
+			pagerduty: {status: "pass", facts: 1},
+			jira: {status: "pass", facts: 1},
+			grafana: {status: "pass", facts: 1},
+			prometheus_mimir: {status: "pass", facts: 1},
+			loki: {status: "pass", facts: 1},
+			tempo: {status: "pass", facts: 1}
+		},
+		reducers: {
+			repository_dependencies: {status: "pass", count: 10},
+			terraform_iac_relationships: {status: "pass", count: 5},
+			aws_cloud_relationships: {status: "pass", count: 5},
+			oci_image_identity: {status: "pass", count: 3},
+			sbom_attachment: {status: "pass", count: 3},
+			vulnerability_matching: {status: "pass", count: 4},
+			provider_alert_reconciliation: {status: "pass", count: 4},
+			supply_chain_impact: {status: "pass", count: 4},
+			deployment_correlation: {status: "pass", count: 2},
+			observability_correlation: {status: "pass", count: 1},
+			incident_work_item_correlation: {status: "pass", count: 1}
+		},
+		readback: {
+			api: {status: "pass", checked: 12, failed: 0, truncated: 0},
+			mcp: {status: "pass", checked: 12, failed: 0, truncated: 0},
+			cli: {status: "pass", checked: 6, failed: 0, truncated: 0}
+		},
+		queue: {
+			pending: 0,
+			in_flight: 0,
+			retrying: 0,
+			failed: 0,
+			dead_letter: 0
+		},
+		observability: {
+			pprof_status: "reachable",
+			logs_status: "captured",
+			resource_snapshot_status: "captured"
+		},
+		privacy: {status: "pass"},
+		follow_up_issues: []
+	}' >"${path}"
+}
+
+expect_pass() {
+	local label="$1"
+	local path="$2"
+	if ! validate_e2e_evidence_manifest "${path}" >"${TMP_DIR}/${label}.out" 2>"${TMP_DIR}/${label}.err"; then
+		printf 'expected %s to pass\n' "${label}" >&2
+		sed -n '1,120p' "${TMP_DIR}/${label}.err" >&2
+		exit 1
+	fi
+}
+
+expect_fail() {
+	local label="$1"
+	local path="$2"
+	local expected="$3"
+	if validate_e2e_evidence_manifest "${path}" >"${TMP_DIR}/${label}.out" 2>"${TMP_DIR}/${label}.err"; then
+		printf 'expected %s to fail\n' "${label}" >&2
+		exit 1
+	fi
+	rg --fixed-strings --quiet -- "${expected}" "${TMP_DIR}/${label}.err" \
+		|| { printf 'expected %s failure to include %s\n' "${label}" "${expected}" >&2; sed -n '1,120p' "${TMP_DIR}/${label}.err" >&2; exit 1; }
+}
+
+valid="${TMP_DIR}/valid.json"
+write_valid_manifest "${valid}"
+expect_pass valid "${valid}"
+if [[ ! -x "${WRAPPER}" ]]; then
+	printf 'missing executable wrapper at %s\n' "${WRAPPER}" >&2
+	exit 1
+fi
+"${WRAPPER}" "${valid}" >"${TMP_DIR}/wrapper.out" 2>"${TMP_DIR}/wrapper.err" \
+	|| { printf 'expected wrapper to validate valid manifest\n' >&2; sed -n '1,120p' "${TMP_DIR}/wrapper.err" >&2; exit 1; }
+
+missing_api="${TMP_DIR}/missing-api.json"
+jq 'del(.runtimes.api)' "${valid}" >"${missing_api}"
+expect_fail missing_api "${missing_api}" "missing required evidence: runtimes.api"
+
+missing_mcp_readback="${TMP_DIR}/missing-mcp-readback.json"
+jq 'del(.readback.mcp)' "${valid}" >"${missing_mcp_readback}"
+expect_fail missing_mcp_readback "${missing_mcp_readback}" "missing required evidence: readback.mcp"
+
+missing_collector="${TMP_DIR}/missing-collector.json"
+jq 'del(.collectors.git)' "${valid}" >"${missing_collector}"
+expect_fail missing_collector "${missing_collector}" "missing required evidence: collectors.git"
+
+missing_reducer="${TMP_DIR}/missing-reducer.json"
+jq 'del(.reducers.repository_dependencies)' "${valid}" >"${missing_reducer}"
+expect_fail missing_reducer "${missing_reducer}" "missing required evidence: reducers.repository_dependencies"
+
+missing_corpus="${TMP_DIR}/missing-corpus.json"
+jq 'del(.corpus.coverage.ecosystems.npm)' "${valid}" >"${missing_corpus}"
+expect_fail missing_corpus "${missing_corpus}" "missing required evidence: corpus.coverage.ecosystems.npm"
+
+missing_pprof="${TMP_DIR}/missing-pprof.json"
+jq '.observability.pprof_status = "missing"' "${valid}" >"${missing_pprof}"
+expect_fail missing_pprof "${missing_pprof}" "observability.pprof_status must be reachable"
+
+retrying_queue="${TMP_DIR}/retrying-queue.json"
+jq '.queue.retrying = 1' "${valid}" >"${retrying_queue}"
+expect_fail retrying_queue "${retrying_queue}" "queue.retrying must be 0"
+
+private_key="${TMP_DIR}/private-key.json"
+jq '.repository = "private-org/private-repo"' "${valid}" >"${private_key}"
+expect_fail private_key "${private_key}" "looks like private data"
+
+private_value="${TMP_DIR}/private-value.json"
+jq '.follow_up_issues = ["https://github.com/private-org/private-repo/issues/1"]' "${valid}" >"${private_value}"
+expect_fail private_value "${private_value}" "looks like private data"
+
+unsupported_partial="${TMP_DIR}/unsupported-partial.json"
+jq '.status = "partial" | .collectors.confluence = {status: "unsupported", reason: "not configured in this representative corpus", issue_refs: ["#1230"]}' "${valid}" >"${unsupported_partial}"
+expect_pass unsupported_partial "${unsupported_partial}"
+
+unsupported_pass="${TMP_DIR}/unsupported-pass.json"
+jq '.collectors.confluence = {status: "unsupported", reason: "not configured in this representative corpus", issue_refs: ["#1230"]}' "${valid}" >"${unsupported_pass}"
+expect_fail unsupported_pass "${unsupported_pass}" "top-level status pass cannot include unsupported evidence"
+
+unsupported_without_reason="${TMP_DIR}/unsupported-without-reason.json"
+jq '.status = "partial" | .collectors.confluence = {status: "unsupported"}' "${valid}" >"${unsupported_without_reason}"
+expect_fail unsupported_without_reason "${unsupported_without_reason}" "collectors.confluence classified as unsupported without reason"
+
+printf 'e2e evidence manifest tests passed\n'
