@@ -17,11 +17,11 @@ are never read, so this contract is stricter than ordinary metadata collectors.
 ## Status
 
 `secrets_iam_posture` is moving from contract into narrow implementation slices.
-Source fact schemas and envelope builders are landing first, followed by AWS IAM
-and Kubernetes RBAC/service-account source evidence. This is still not a
-deployed runtime or authoritative read-model promise until the remaining source
-lanes, reducer read models, telemetry/status path, fixtures, and chart path land
-through implementation PRs.
+Source fact schemas and envelope builders are landing first, followed by AWS
+IAM, Kubernetes RBAC/service-account, and Vault metadata source evidence. This
+is still not a deployed runtime or authoritative read-model promise until the
+remaining source lanes, reducer read models, telemetry/status path, fixtures,
+and chart path land through implementation PRs.
 
 Do not add Helm values, service-runtime rows, environment variables, graph
 labels, graph edges, or API/MCP authority claims for this family unless the

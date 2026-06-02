@@ -5,8 +5,8 @@
 `internal/collector/secretsiam` builds source-fact envelopes for the
 `secrets_iam_posture` collector family. It records provider-native IAM identity,
 policy, attachment, boundary, instance-profile, optional Access Analyzer, and
-Kubernetes ServiceAccount/RBAC/workload-identity evidence without writing graph
-truth.
+Kubernetes ServiceAccount/RBAC/workload-identity plus Vault metadata and
+coverage-warning evidence without writing graph truth.
 
 ## Ownership boundary
 
@@ -24,8 +24,8 @@ See `doc.go` for the godoc contract.
 - `NewPrincipalEnvelope`, `NewTrustPolicyEnvelope`,
   `NewPermissionPolicyEnvelope`, `NewPolicyAttachmentEnvelope`,
   `NewPermissionBoundaryEnvelope`, `NewInstanceProfileEnvelope`,
-  `NewAccessAnalyzerFindingEnvelope`, and `NewCoverageWarningEnvelope` build AWS
-  IAM source facts in the `facts.SecretsIAMSchemaVersionV1` schema.
+  `NewAccessAnalyzerFindingEnvelope`, and `NewCoverageWarningEnvelope` build
+  AWS IAM source facts in the `facts.SecretsIAMSchemaVersionV1` schema.
 - `NewKubernetesServiceAccountEnvelope`,
   `NewKubernetesServiceAccountTokenPostureEnvelope`,
   `NewKubernetesRBACRoleEnvelope`, `NewKubernetesRBACBindingEnvelope`,
@@ -33,6 +33,11 @@ See `doc.go` for the godoc contract.
   `NewEKSPodIdentityAssociationEnvelope`, and
   `NewKubernetesCoverageWarningEnvelope` build Kubernetes source facts in the
   same schema.
+- `NewVaultAuthMountEnvelope`, `NewVaultAuthRoleEnvelope`,
+  `NewVaultACLPolicyEnvelope`, `NewVaultIdentityEntityEnvelope`,
+  `NewVaultIdentityAliasEnvelope`, `NewVaultKVMetadataEnvelope`,
+  `NewVaultSecretEngineMountEnvelope`, and `NewVaultCoverageWarningEnvelope`
+  build Vault metadata source facts in the same schema.
 - Observation structs define the metadata-only inputs accepted by those
   builders.
 
@@ -50,6 +55,27 @@ This package emits no metrics, spans, or logs. Runtime adapters and hosted
 collector sources own API-call metrics, throttling counters, scan duration,
 warnings, and status reporting.
 
+Collector Performance Evidence: `go test ./internal/collector/secretsiam ./internal/facts -count=1`
+covers deterministic envelope construction, redaction, stable-key generation,
+and bounded list normalization without provider calls, graph writes, queue
+claims, or network I/O.
+
+Collector Observability Evidence: source-envelope helpers emit durable
+`secrets_iam_coverage_warning` facts when callers report hidden, partial,
+unsupported, rate-limited, or stale source coverage. Runtime adapters remain
+responsible for request spans, API-call counters, retry counters, scan duration,
+and status reporting.
+
+No-Observability-Change: this package is not a hosted runtime and adds no
+metric instruments, span names, log fields, ServiceMonitor labels, or admin
+status endpoints. The Vault source-envelope slice introduces no live Vault
+client path; future adapters must add their own runtime telemetry before
+claim-driven collection lands.
+
+Collector Deployment Evidence: no Docker Compose service, Helm Deployment,
+Service, ServiceMonitor, port, environment variable, or runtime flag changes are
+introduced by this package. The Vault slice is source-fact construction only.
+
 ## Gotchas / invariants
 
 - `CollectorKind` is always `secrets_iam_posture`; callers must not use the
@@ -61,9 +87,15 @@ warnings, and status reporting.
   ServiceAccount names, namespaces, RBAC subject names, Secret names,
   resourceVersions, projected tokens, and RBAC resource-name or non-resource-URL
   values stay outside the fact contract.
+- Vault payloads carry fingerprints, counts, and bounded capability summaries
+  only. Raw KV paths, key names, custom metadata keys or values, Vault policy
+  bodies, Vault policy names, auth role names, mount accessors, entity IDs,
+  alias names, Vault tokens, AppRole secret IDs, private URLs, and warning
+  messages stay outside the fact contract.
 - Stable keys for principal, policy, trust, attachment, boundary, instance
   profile, OIDC provider, analyzer-finding, Kubernetes ServiceAccount, RBAC,
-  workload-identity, IRSA, and EKS Pod Identity facts exclude generation IDs so
+  workload-identity, IRSA, EKS Pod Identity, Vault mount, Vault auth role, Vault
+  policy, Vault identity, and Vault KV metadata facts exclude generation IDs so
   repeated source observations can be compared across generations. Coverage
   warning stable keys include generation IDs because warning state is scoped to
   the scan that observed the missing or partial surface.

@@ -383,6 +383,13 @@ contract:
 - `k8s_service_account_token_posture`
 - `eks_irsa_annotation`
 - `eks_pod_identity_association`
+- `vault_auth_mount`
+- `vault_auth_role`
+- `vault_acl_policy`
+- `vault_identity_entity`
+- `vault_identity_alias`
+- `vault_kv_metadata`
+- `vault_secret_engine_mount`
 - `secrets_iam_coverage_warning`
 
 Use `SecretsIAMFactKinds` when callers need the full accepted set, and
@@ -391,11 +398,15 @@ facts preserve provider-native IAM identity, normalized trust and permission
 policy statements, managed policy attachments, permissions boundaries, instance
 profile membership, optional Access Analyzer metadata, Kubernetes
 ServiceAccount and RBAC metadata, workload identity usage, token posture, IRSA
-annotation evidence, EKS Pod Identity association metadata, and explicit
-coverage warnings. They never carry raw policy JSON, statement bodies,
-condition values, AWS credentials, session tokens, raw ServiceAccount names,
-RBAC subject names, Secret names, projected tokens, or token-like fields.
-Reducers own trust-chain, effective-permission, effective RBAC, and
+annotation evidence, EKS Pod Identity association metadata, Vault auth mounts
+and roles, Vault ACL policy summaries, Vault identity aliases and entities,
+Vault KV metadata, Vault secret-engine mounts, and explicit coverage warnings.
+They never carry raw policy JSON, statement bodies, condition values, AWS
+credentials, session tokens, raw ServiceAccount names, RBAC subject names,
+Secret names, projected tokens, Vault tokens, AppRole secret IDs, raw Vault
+paths, key names, Vault policy bodies, Vault policy names, custom metadata
+values, entity IDs, alias names, or private URLs. Reducers own trust-chain,
+effective-permission, effective RBAC, Vault policy interpretation, and
 graph-promotion decisions.
 
 The S3 bucket posture fact kind uses schema version `1.0.0` for the first

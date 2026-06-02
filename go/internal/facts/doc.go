@@ -38,14 +38,17 @@
 // permission policy statements, policy attachments, permissions boundaries,
 // instance profiles, optional Access Analyzer findings, Kubernetes
 // ServiceAccount and RBAC metadata, workload identity usage, token posture,
-// IRSA annotation evidence, EKS Pod Identity association metadata, and coverage
+// IRSA annotation evidence, EKS Pod Identity association metadata, Vault auth
+// mounts and roles, Vault ACL policy summaries, Vault identity aliases and
+// entities, Vault KV metadata, Vault secret-engine mounts, and coverage
 // warnings. These facts preserve provider-native identity while omitting raw
 // policy JSON, condition values, credentials, session tokens, raw Kubernetes
-// subject names, Secret names, and projected tokens; reducers own all
-// trust-chain, effective RBAC, and graph promotion decisions. CI/CD run fact
-// kind constants and schema-version helpers live here for pipeline definition,
-// run, job, step, artifact, trigger, environment, and warning evidence reported
-// by providers.
+// subject names, Secret names, projected tokens, Vault tokens, AppRole secret
+// IDs, raw Vault paths, key names, policy bodies, custom metadata values, and
+// private URLs; reducers own all trust-chain, effective RBAC, Vault policy
+// interpretation, and graph promotion decisions. CI/CD run fact kind constants
+// and schema-version helpers live here for pipeline definition, run, job, step,
+// artifact, trigger, environment, and warning evidence reported by providers.
 // SBOM and attestation fact kind constants and schema-version helpers live here
 // for document, component, dependency, external reference, statement, SLSA
 // provenance, signature verification, and warning evidence. Vulnerability
