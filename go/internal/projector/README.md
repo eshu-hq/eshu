@@ -170,6 +170,15 @@ contains an `rds_instance_posture` fact,
 projector does not set RDS graph properties, infer exposure, or create RDS
 nodes; the reducer waits for the CloudResource canonical-nodes phase and then
 projects bounded posture metadata onto existing RDS CloudResource nodes.
+EC2 block-device KMS posture follows the same reducer-owned boundary. When a
+generation contains an `ec2_instance_posture` fact,
+`buildEC2BlockDeviceKMSPostureMaterializationReducerIntent` emits one
+`ec2_block_device_kms_posture_materialization` reducer intent for the
+scope/generation. The intent has its own entity key because the reducer gates on
+two node phases: `ec2_instance_node_materialization:<scope>` for the EC2 source
+node and `aws_resource_materialization:<scope>` for the EBS/KMS facts. The
+projector does not join block devices to volumes or KMS keys and does not set
+EC2 graph properties.
 Container-image identity follows the same handoff rule: when a generation
 contains OCI digest/tag facts, AWS image-reference facts, AWS container-image
 relationships, or Git content-entity image references,

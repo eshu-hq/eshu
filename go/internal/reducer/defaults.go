@@ -187,6 +187,17 @@ type DefaultHandlers struct {
 	// resolve against uncommitted IAM nodes.
 	IAMInstanceProfileRoleEdgeWriter IAMInstanceProfileRoleEdgeWriter
 
+	// EC2BlockDeviceKMSPostureNodeWriter derives EC2 block-device KMS posture
+	// from ec2_instance_posture block devices joined to EBS volume and KMS facts,
+	// then writes reducer-owned properties onto existing EC2 CloudResource nodes
+	// (issue #1304). It must be non-nil alongside FactLoader for the registry to
+	// register DomainEC2BlockDeviceKMSPostureMaterialization; missing either one
+	// would drop every posture intent before it reaches graph truth. The handler
+	// gates on a DUAL readiness lookup — the EC2 instance node phase plus the
+	// EBS/KMS CloudResource node phase — so properties never write against
+	// uncommitted node truth.
+	EC2BlockDeviceKMSPostureNodeWriter EC2BlockDeviceKMSPostureNodeWriter
+
 	// S3InternetExposureNodeWriter derives s3_bucket_posture internet exposure
 	// state and writes reducer-owned properties onto existing S3 CloudResource
 	// nodes (issue #1232). It must be non-nil alongside FactLoader for the

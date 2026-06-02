@@ -258,6 +258,15 @@ const (
 	// property write. The span makes missing reachability evidence visible without
 	// treating absent evidence as safe.
 	SpanReducerEC2InternetExposureMaterialization = "reducer.ec2_internet_exposure_materialization"
+	// SpanReducerEC2BlockDeviceKMSPostureMaterialization wraps EC2 block-device
+	// KMS posture node-property projection (issue #1304): fact load, the dual-key
+	// canonical-nodes readiness gate (EC2 instance nodes plus EBS/KMS CloudResource
+	// nodes), in-memory volume/KMS join-index build, conservative encrypted/
+	// not_encrypted/mixed/unknown derivation, scoped retract, and the batched
+	// MATCH-only EC2 CloudResource property write. The span makes missing volume
+	// facts, missing KMS key facts, AWS-managed/default keys, and detached volumes
+	// visible without treating absent evidence as safe.
+	SpanReducerEC2BlockDeviceKMSPostureMaterialization = "reducer.ec2_block_device_kms_posture_materialization"
 	// SpanReducerS3InternetExposureMaterialization wraps S3 internet-exposure
 	// node-property projection (issue #1232): fact load, in-memory S3 bucket-name
 	// source resolution, conservative exposed/not_exposed/unknown derivation,

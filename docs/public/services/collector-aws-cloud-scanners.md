@@ -460,7 +460,7 @@ network-reachability slice. The `ec2_instance_posture` fact is emitted per
 instance from the existing `DescribeInstances` pass (IMDS, user-data presence,
 encryption-relevant block-device metadata, instance-profile ARN,
 tenancy/enclave); it carries no user-data content and emits no graph edges,
-pending the reducer principal/KMS/exposure slice. The `aws_ec2_volume` resource
+pending the reducer principal/exposure slices. The `aws_ec2_volume` resource
 facts and EC2 volume-to-KMS relationships are source evidence from
 `DescribeVolumes`; reducers must still corroborate block-device/KMS posture
 before promoting workload, deployment, ownership, drift, or unmanaged-resource
@@ -470,6 +470,11 @@ not_exposed / unknown node properties from corroborated posture, ENI, and
 security-group rule evidence without storing raw public IP addresses. Reducers
 must corroborate
 these facts before promoting workload, deployment, ownership, drift, or
+`DescribeVolumes`; the EC2 block-device KMS posture reducer joins those facts to
+EC2 posture and scanned KMS key metadata before writing bounded EC2
+CloudResource posture properties. Missing volume facts, missing KMS facts,
+AWS-managed/default keys, detached volumes, and tombstones stay conservative
+`unknown` and are not promoted into workload, deployment, ownership, drift, or
 unmanaged-resource truth.
 
 Runtime spans include `aws.collector.claim.process`,

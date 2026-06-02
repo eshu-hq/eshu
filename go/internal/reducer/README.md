@@ -84,6 +84,7 @@ canonical-write or bounded counter-emission requirements.
 | `DomainEC2UsesProfileMaterialization` | Project `ec2_instance_posture` `instance_profile_arn` into canonical `(:CloudResource)-[:USES_PROFILE]->(:CloudResource)` edges from an EC2 instance to the IAM instance profile it uses; derives the source EC2 instance uid the same way `DomainEC2InstanceNodeMaterialization` does (#1146 PR-A) and resolves the target profile by exact ARN equality against an in-memory `aws_iam_instance_profile` join index; gates on a DUAL `cloud_resource_uid` canonical-nodes readiness — the EC2 instance node phase (`ec2_instance_node_materialization:<scope>`) AND the IAM instance-profile node phase (`aws_resource_materialization:<scope>`), published under different entity keys, so the edge never resolves against a not-yet-materialized endpoint; a blank profile (no attached profile) is no edge and not a skip; cross-account / out-of-scope / unscanned profiles are counted, never fabricated or dangled (issue #1146 PR-B). The first edge in the EC2 → profile → role → `CAN_ESCALATE_TO` blast-radius chain; see `docs/internal/design/1146-ec2-uses-profile-edge.md` |
 | `DomainIAMInstanceProfileRoleMaterialization` | Project IAM instance-profile `aws_resource` `role_arns` into canonical `(:CloudResource)-[:HAS_ROLE]->(:CloudResource)` edges from an IAM instance profile to each attached IAM role; resolves role targets by exact ARN equality against an in-memory `aws_iam_role` join index; gates on the `cloud_resource_uid` canonical-nodes phase published by `aws_resource_materialization:<scope>` because both endpoint node families are `aws_resource` CloudResource nodes; profiles with no roles still run the reducer to retract stale HAS_ROLE edges but write zero new edges and are not a skip; cross-account / out-of-scope / unscanned roles are counted, never fabricated or dangled (issue #1299). The middle edge in the EC2 -> profile -> role -> `CAN_ESCALATE_TO` blast-radius chain; see `docs/internal/design/1299-iam-instance-profile-role-edge.md` |
 | `DomainEC2InternetExposureMaterialization` | Derive conservative `exposed` / `not_exposed` / `unknown` EC2 internet-exposure state from `ec2_instance_posture`, ENI relationship, and security-group rule facts, then write reducer-owned properties onto existing EC2 `CloudResource` nodes only; gates on the EC2 instance-node `cloud_resource_uid` canonical-nodes phase (`ec2_instance_node_materialization:<scope>`), never persists raw public IP addresses, never treats missing ENI/SG/rule evidence as safe false, and keeps unknown posture as `state=unknown` with no boolean exposure property (issue #1301); see `docs/internal/design/1301-ec2-internet-exposure.md` |
+| `DomainEC2BlockDeviceKMSPostureMaterialization` | Derive EC2 block-device KMS posture from `ec2_instance_posture.block_devices[]` joined to scanned `aws_ec2_volume`, `aws_kms_key`, and `ec2_volume_uses_kms_key` facts; writes bounded reducer-owned properties onto existing EC2 `CloudResource` nodes only, gates on DUAL `cloud_resource_uid` readiness for the EC2 instance-node phase (`ec2_instance_node_materialization:<scope>`) and the EBS/KMS resource-node phase (`aws_resource_materialization:<scope>`), never writes raw block-device maps, never calls AWS from the reducer, and keeps missing volume facts, missing KMS key facts, AWS-managed/default keys, detached volumes, and tombstones conservative as `state=unknown` (issue #1304) |
 | `DomainS3InternetExposureMaterialization` | Derive conservative `exposed` / `not_exposed` / `unknown` S3 internet-exposure state from `s3_bucket_posture` facts and write reducer-owned properties onto existing S3 `CloudResource` nodes only; gates on the `cloud_resource_uid` canonical-nodes phase, resolves the source bucket through the S3 in-memory join index, never reads or persists raw bucket policy, ACL grants, object keys, or object data, and keeps unknown posture as `state=unknown` with no boolean exposure property (issue #1232); see `docs/internal/design/1232-s3-internet-exposure.md` |
 | `DomainIncidentRoutingMaterialization` | Project exact PagerDuty incident-routing evidence into reducer-owned `IncidentRoutingEvidence` graph nodes and intended/applied/live evidence relationships without promoting runtime, image, commit, pull-request, Jira, service-health, or root-cause truth |
 
@@ -184,6 +185,27 @@ log tallies, stage-duration fields, Cypher statement metadata
 (`phase=ec2_internet_exposure`, `label=CloudResource:EC2InternetExposure`), and
 durable readiness blockage key let an operator distinguish truly exposed
 instances from missing topology or rule evidence.
+
+## EC2 Block-Device KMS Posture Projection (issue #1304)
+
+`DomainEC2BlockDeviceKMSPostureMaterialization` loads the same generation's
+`ec2_instance_posture`, `aws_resource`, and `aws_relationship` facts, then joins
+EC2 block-device volume ids to scanned EBS volume metadata and scanned KMS key
+metadata. The result is a bounded EC2 node-property decision:
+`encrypted`, `not_encrypted`, `mixed`, or `unknown`. `encrypted` requires every
+attached block-device volume to resolve to an encrypted `aws_ec2_volume` with an
+`ec2_volume_uses_kms_key` relationship and a scanned `aws_kms_key` whose
+`key_manager` is `CUSTOMER`; missing volume facts, missing KMS key facts,
+AWS-managed/default keys, detached volumes, tombstones, or ambiguous attachment
+evidence stay `unknown`.
+
+The domain gates on both `ec2_instance_node_materialization:<scope>` and
+`aws_resource_materialization:<scope>` readiness, writes only bounded scalar/list
+properties through `EC2BlockDeviceKMSPostureNodeWriter`, and never creates EC2,
+EBS, or KMS nodes. No raw block-device maps, volume contents, snapshots, key
+policy bodies, or live AWS calls are part of this reducer. Durable benchmark and
+operator-evidence details live in
+`docs/public/reference/local-performance-envelope.md`.
 
 ## PagerDuty IncidentRoutingEvidence graph projection (issue #1168)
 

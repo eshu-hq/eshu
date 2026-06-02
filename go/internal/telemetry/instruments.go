@@ -360,6 +360,18 @@ type Instruments struct {
 	// (missing_identity / tombstone). Missing identities are counted and logged,
 	// never fabricated.
 	EC2InternetExposureSkipped metric.Int64Counter
+	// EC2BlockDeviceKMSPostureDecisions counts EC2 block-device KMS posture
+	// decisions derived from ec2_instance_posture joined to EBS volume and KMS
+	// facts (issue #1304). Labels: outcome (encrypted / not_encrypted / mixed /
+	// unknown) and reason. Unknown preserves missing volume facts, missing KMS key
+	// facts, AWS-managed/default keys, detached volumes, and absent evidence
+	// instead of converting them into a safe encrypted value.
+	EC2BlockDeviceKMSPostureDecisions metric.Int64Counter
+	// EC2BlockDeviceKMSPostureSkipped counts ec2_instance_posture facts that
+	// could not attach to an existing EC2 CloudResource identity for posture
+	// projection. Label: skip_reason (source_unresolved / tombstone). Missing EC2
+	// identity is counted and logged, never fabricated.
+	EC2BlockDeviceKMSPostureSkipped metric.Int64Counter
 	// S3InternetExposureDecisions counts S3 internet-exposure node-property
 	// decisions derived from s3_bucket_posture (issue #1232). Labels: outcome
 	// (exposed / not_exposed / unknown) and reason. Unknown preserves partial or
@@ -1676,6 +1688,22 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register EC2InternetExposureSkipped counter: %w", err)
+	}
+
+	inst.EC2BlockDeviceKMSPostureDecisions, err = meter.Int64Counter(
+		"eshu_dp_ec2_block_device_kms_posture_decisions_total",
+		metric.WithDescription("Total EC2 block-device KMS posture decisions by outcome and reason"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register EC2BlockDeviceKMSPostureDecisions counter: %w", err)
+	}
+
+	inst.EC2BlockDeviceKMSPostureSkipped, err = meter.Int64Counter(
+		"eshu_dp_ec2_block_device_kms_posture_skipped_total",
+		metric.WithDescription("Total ec2_instance_posture facts skipped by the EC2 block-device KMS posture projection by skip_reason (source_unresolved/tombstone)"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register EC2BlockDeviceKMSPostureSkipped counter: %w", err)
 	}
 
 	inst.S3InternetExposureDecisions, err = meter.Int64Counter(

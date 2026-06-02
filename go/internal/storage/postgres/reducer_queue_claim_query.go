@@ -104,6 +104,35 @@ WITH candidate AS (
                 AND ec2_uses_profile_profile_node.phase = 'canonical_nodes_committed'
           )
       ))
+      -- EC2 block-device KMS posture (#1304) writes properties onto EC2 instance
+      -- CloudResource nodes, but derives the decision from EBS volume and KMS
+      -- CloudResource source facts. Those node families publish readiness under
+      -- different entity keys for the same scope/generation: the EC2 instance
+      -- nodes under ec2_instance_node_materialization:<scope> and the EBS/KMS
+      -- aws_resource nodes under aws_resource_materialization:<scope>. Keep the
+      -- property domain pending until BOTH phases are committed so the reducer
+      -- does not stamp stale or missing block-device posture on an uncommitted EC2
+      -- node substrate.
+      AND (domain <> 'ec2_block_device_kms_posture_materialization' OR (
+          EXISTS (
+              SELECT 1 FROM graph_projection_phase_state AS ec2_block_device_kms_instance_node
+              WHERE ec2_block_device_kms_instance_node.scope_id = fact_work_items.scope_id
+                AND ec2_block_device_kms_instance_node.acceptance_unit_id = 'ec2_instance_node_materialization:' || fact_work_items.scope_id
+                AND ec2_block_device_kms_instance_node.source_run_id = fact_work_items.generation_id
+                AND ec2_block_device_kms_instance_node.generation_id = fact_work_items.generation_id
+                AND ec2_block_device_kms_instance_node.keyspace = 'cloud_resource_uid'
+                AND ec2_block_device_kms_instance_node.phase = 'canonical_nodes_committed'
+          )
+          AND EXISTS (
+              SELECT 1 FROM graph_projection_phase_state AS ec2_block_device_kms_resource_node
+              WHERE ec2_block_device_kms_resource_node.scope_id = fact_work_items.scope_id
+                AND ec2_block_device_kms_resource_node.acceptance_unit_id = 'aws_resource_materialization:' || fact_work_items.scope_id
+                AND ec2_block_device_kms_resource_node.source_run_id = fact_work_items.generation_id
+                AND ec2_block_device_kms_resource_node.generation_id = fact_work_items.generation_id
+                AND ec2_block_device_kms_resource_node.keyspace = 'cloud_resource_uid'
+                AND ec2_block_device_kms_resource_node.phase = 'canonical_nodes_committed'
+          )
+      ))
       -- The live-workload RUNS_IMAGE edge consumes KubernetesWorkload nodes
       -- produced by the kubernetes_workload_materialization domain for the exact
       -- same scope/generation/entity-key readiness slice, but on the

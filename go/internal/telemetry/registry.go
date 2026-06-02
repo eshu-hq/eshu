@@ -74,6 +74,7 @@ var spanNames = []string{
 	SpanReducerEC2UsesProfileMaterialization,
 	SpanReducerIAMInstanceProfileRoleMaterialization,
 	SpanReducerEC2InternetExposureMaterialization,
+	SpanReducerEC2BlockDeviceKMSPostureMaterialization,
 	SpanReducerS3InternetExposureMaterialization,
 	SpanReducerIAMEscalationMaterialization,
 	SpanCanonicalWrite,
