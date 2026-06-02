@@ -21,6 +21,9 @@
 // RDS posture observations emit one rds_posture_materialization reducer intent;
 // the reducer waits for CloudResource readiness and owns posture property
 // projection on existing RDS nodes.
+// EC2 posture observations emit one ec2_internet_exposure_materialization
+// reducer intent keyed to the EC2 instance-node readiness phase; the reducer
+// owns exposure derivation from EC2, ENI, and security-group evidence.
 // Package-registry identity emits package source-correlation and supply-chain
 // impact reducer intents so manifest-backed consumption and vulnerability
 // findings can catch up when package evidence arrives after source intelligence.

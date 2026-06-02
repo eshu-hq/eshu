@@ -349,6 +349,17 @@ type Instruments struct {
 	// was not scanned in this scope, e.g. a cross-account role). Profiles with no
 	// roles are not counted here because they are the normal no-edge state.
 	IAMInstanceProfileRoleSkipped metric.Int64Counter
+	// EC2InternetExposureDecisions counts EC2 internet-exposure node-property
+	// decisions derived from ec2_instance_posture plus ENI/security-group/rule
+	// evidence (issue #1301). Labels: outcome (exposed / not_exposed / unknown)
+	// and reason. Unknown preserves missing reachability evidence instead of
+	// converting it into a safe false.
+	EC2InternetExposureDecisions metric.Int64Counter
+	// EC2InternetExposureSkipped counts ec2_instance_posture facts that could not
+	// produce a stable EC2 CloudResource uid. Label: skip_reason
+	// (missing_identity / tombstone). Missing identities are counted and logged,
+	// never fabricated.
+	EC2InternetExposureSkipped metric.Int64Counter
 	// S3InternetExposureDecisions counts S3 internet-exposure node-property
 	// decisions derived from s3_bucket_posture (issue #1232). Labels: outcome
 	// (exposed / not_exposed / unknown) and reason. Unknown preserves partial or
@@ -1649,6 +1660,22 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register IAMInstanceProfileRoleSkipped counter: %w", err)
+	}
+
+	inst.EC2InternetExposureDecisions, err = meter.Int64Counter(
+		"eshu_dp_ec2_internet_exposure_decisions_total",
+		metric.WithDescription("Total EC2 internet-exposure posture decisions by outcome and reason"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register EC2InternetExposureDecisions counter: %w", err)
+	}
+
+	inst.EC2InternetExposureSkipped, err = meter.Int64Counter(
+		"eshu_dp_ec2_internet_exposure_skipped_total",
+		metric.WithDescription("Total ec2_instance_posture facts skipped by the EC2 internet-exposure projection by skip_reason (missing_identity/tombstone)"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register EC2InternetExposureSkipped counter: %w", err)
 	}
 
 	inst.S3InternetExposureDecisions, err = meter.Int64Counter(

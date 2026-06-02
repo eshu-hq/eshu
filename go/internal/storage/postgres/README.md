@@ -356,6 +356,10 @@ updates; `go test ./internal/storage/postgres -run RDSPosture -count=1` proves
 `rds_posture_materialization` waits for the same phase. S3 internet-exposure
 readiness is covered by
 `go test ./internal/storage/postgres -run 'S3InternetExposure' -count=1`.
+EC2 internet-exposure readiness is covered by
+`go test ./internal/storage/postgres -run EC2InternetExposure -count=1` and
+uses the same `cloud_resource_uid` gate keyed to
+`ec2_instance_node_materialization:<scope>`.
 The claim path keeps pending and retrying CloudResource-consuming reducer rows
 unclaimed until the matching `cloud_resource_uid` /
 `canonical_nodes_committed` phase exists, then makes the same row claimable

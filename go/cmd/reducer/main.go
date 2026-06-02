@@ -198,6 +198,7 @@ func buildReducerService(
 	rdsPostureNodeWriter := sourcecypher.NewRDSPostureNodeWriter(neo4jExec, neo4jBatchSize(getenv))
 	ec2UsesProfileEdgeWriter := sourcecypher.NewEC2UsesProfileEdgeWriter(neo4jExec, neo4jBatchSize(getenv))
 	iamInstanceProfileRoleEdgeWriter := sourcecypher.NewIAMInstanceProfileRoleEdgeWriter(neo4jExec, neo4jBatchSize(getenv))
+	ec2InternetExposureNodeWriter := sourcecypher.NewEC2InternetExposureNodeWriter(neo4jExec, neo4jBatchSize(getenv))
 	s3InternetExposureNodeWriter := sourcecypher.NewS3InternetExposureNodeWriter(neo4jExec, neo4jBatchSize(getenv))
 	relationshipStore := postgres.NewRelationshipStore(database)
 	factStore := postgres.NewFactStore(database)
@@ -347,6 +348,7 @@ func buildReducerService(
 		RDSPostureNodeWriter:             rdsPostureNodeWriter,
 		EC2UsesProfileEdgeWriter:         ec2UsesProfileEdgeWriter,
 		IAMInstanceProfileRoleEdgeWriter: iamInstanceProfileRoleEdgeWriter,
+		EC2InternetExposureNodeWriter:    ec2InternetExposureNodeWriter,
 		S3InternetExposureNodeWriter:     s3InternetExposureNodeWriter,
 		ContainerImageIdentityWriter: reducer.PostgresContainerImageIdentityWriter{
 			DB: database,
