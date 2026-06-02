@@ -25,7 +25,8 @@ exist and pass:
    ([shadow-read gate](1287-shadow-read-comparison-gate.md)).
 3. Fact-family shadow-write comparison: #1288
    ([shadow-write gate](1288-shadow-write-comparison-gate.md)).
-4. Queue/workflow substrate evaluation: #1289.
+4. Queue/workflow substrate evaluation: #1289
+   ([queue-substrate gate](1289-queue-substrate-evaluation-gate.md)).
 5. NornicDB backup/restore proof for every migrated durable state class: #1290.
 
 Queue and workflow ownership must be decided separately from NornicDB storage.
@@ -125,7 +126,8 @@ bounded query responses.
    ([shadow-read gate](1287-shadow-read-comparison-gate.md)).
 4. Run #1288 shadow-write comparison for one low-risk fact family
    ([shadow-write gate](1288-shadow-write-comparison-gate.md)).
-5. Decide queue/workflow ownership through #1289.
+5. Decide queue/workflow ownership through #1289
+   ([queue-substrate gate](1289-queue-substrate-evaluation-gate.md)).
 6. Prove NornicDB backup/restore and rollback through #1290 for each migrated
    durable state class.
 7. Draft a production cutover ADR for one responsibility at a time.
