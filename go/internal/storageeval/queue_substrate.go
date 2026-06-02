@@ -279,6 +279,9 @@ func validateQueueProofCoverage(candidateID string, proofs []QueueProof) error {
 		if !supportedQueueProofStatus(proof.Status) {
 			return fmt.Errorf("candidate %s proof scenario %s status %q is unsupported", candidateID, proof.Scenario, proof.Status)
 		}
+		if _, ok := seen[proof.Scenario]; ok {
+			return fmt.Errorf("candidate %s proof scenario %s is duplicated", candidateID, proof.Scenario)
+		}
 		seen[proof.Scenario] = proof.Status
 	}
 	for _, scenario := range requiredQueueProofScenarios() {

@@ -90,6 +90,13 @@ func TestValidateQueueSubstrateDecisionRejectsInvalidEvidence(t *testing.T) {
 			want: "candidate retained_postgres proof scenario duplicate_delivery is required",
 		},
 		{
+			name: "duplicate proof scenario",
+			mutate: func(decision *QueueSubstrateDecision) {
+				decision.Candidates[0].Proofs = append(decision.Candidates[0].Proofs, decision.Candidates[0].Proofs[0])
+			},
+			want: "candidate retained_postgres proof scenario duplicate_delivery is duplicated",
+		},
+		{
 			name: "failed proof scenario",
 			mutate: func(decision *QueueSubstrateDecision) {
 				decision.Candidates[0].Proofs[3].Status = QueueProofFail
