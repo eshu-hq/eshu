@@ -191,6 +191,10 @@ is reachable, and logs/resource snapshots were captured. Use
 `status: "partial"` or `status: "fail"` when a collector, ecosystem, reducer,
 or read surface is intentionally skipped, unsupported, or failed. Classified
 rows must include a reason so the evidence does not look clean by accident.
+For corpus coverage, a `pass` ecosystem or evidence-family row must include a
+positive aggregate `count`; missing Go module, Maven/Gradle, RubyGems, Cargo,
+NuGet, incident, or on-call coverage must be classified as `skipped`,
+`unsupported`, or `fail` with a public issue ref instead of `pass`.
 
 Keep private repository roots, source names, package coordinates, provider
 URLs, hostnames, account ids, tokens, raw transcripts, and copied provider
@@ -414,13 +418,17 @@ public-safe E2E manifest contract for `collectors.sbom_document`,
 queue counters, observability capture, classified skipped/unsupported rows, and
 privacy rejection. It proves stale `collectors.sbom_attestation` rows are
 rejected so SBOM source facts, reducer attachment truth, and scanner-worker
-source evidence cannot be conflated.
+source evidence cannot be conflated. The validator also rejects required
+ecosystem and evidence-family rows that claim `pass` with `count=0`, while
+allowing a `partial` manifest to classify missing corpus slots with
+`unsupported`, `skipped`, or `fail` plus a reason and public follow-up issue.
 
 No-Observability-Change: this manifest validator change only classifies
 operator-submitted aggregate evidence. Runtime diagnosis still uses Docker
 service health, `/api/v0/index-status`, workflow coordinator status, fact
-source counts, queue counters, scanner-worker metrics/spans/logs, pprof
-reachability, log capture, and resource snapshot capture.
+source counts, proof-matrix ecosystem and evidence-family counts, queue
+counters, scanner-worker metrics/spans/logs, pprof reachability, log capture,
+and resource snapshot capture.
 
 ## Restart Recovery
 

@@ -233,6 +233,31 @@ e2e_manifest_validate_source_contracts() {
 		|| { e2e_manifest_die "collectors.scanner_worker pass requires facts > 0, source_facts > 0, or warnings > 0"; return 1; }
 }
 
+e2e_manifest_validate_corpus_coverage_counts() {
+	local file="$1"
+	local missing_count
+	missing_count="$(jq -r '
+		def has_positive_count:
+			(.count // 0) as $count
+			| ($count | type == "number" and $count > 0);
+		[
+			(.corpus.coverage.ecosystems // {} | to_entries[]
+				| select((.value.status // "") == "pass")
+				| select((.value | has_positive_count) | not)
+				| "corpus.coverage.ecosystems." + .key),
+			(.corpus.coverage.evidence_families // {} | to_entries[]
+				| select((.value.status // "") == "pass")
+				| select((.value | has_positive_count) | not)
+				| "corpus.coverage.evidence_families." + .key)
+		]
+		| .[0] // ""
+	' "${file}")"
+	if [[ -n "${missing_count}" ]]; then
+		e2e_manifest_die "${missing_count} pass requires count > 0"
+		return 1
+	fi
+}
+
 e2e_manifest_validate_numeric_contracts() {
 	local file="$1"
 	local queue_name
@@ -301,6 +326,7 @@ validate_e2e_evidence_manifest() {
 	done
 	e2e_manifest_validate_source_contracts "${file}" || return 1
 	e2e_manifest_validate_component_statuses "${file}" || return 1
+	e2e_manifest_validate_corpus_coverage_counts "${file}" || return 1
 	e2e_manifest_validate_reducer_rows "${file}" || return 1
 	e2e_manifest_validate_numeric_contracts "${file}" || return 1
 	e2e_manifest_validate_observability "${file}" || return 1
