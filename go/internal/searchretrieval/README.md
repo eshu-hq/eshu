@@ -9,10 +9,12 @@ backend I/O or public API/MCP routes are added.
 
 ## Ownership boundary
 
-This package owns request validation, scope anchoring, deterministic result
-normalization, truncation reporting, false canonical claim counting, and
-conversion into `searchbench` scoring input. It does not query Postgres, call
-NornicDB, write graph state, expose API/MCP routes, or decide canonical truth.
+This package owns request validation, scope anchoring, timeout-bound execution
+through a backend port, deterministic result normalization, truncation reporting,
+false canonical claim counting, observation summaries, and conversion into
+`searchbench` scoring input. It does not query Postgres, call NornicDB, write
+graph state, expose API/MCP routes, emit OTEL telemetry, or decide canonical
+truth.
 
 ## Exported surface
 
@@ -21,6 +23,12 @@ See `doc.go` for the godoc-rendered package contract.
 - `Request` is one bounded internal retrieval request.
 - `Scope` and `Anchor` select the smallest available scope before backend use.
 - `Candidate` is one backend-produced `searchdocs.Document` candidate.
+- `Backend` is the adapter port for Postgres, NornicDB, or other future search
+  backends.
+- `Runner` validates a request, applies its timeout, calls a `Backend`, builds a
+  response, and records one `Observation`.
+- `Observer`, `Observation`, and `ErrorClass` expose the internal summary that a
+  later adapter can bridge to OTEL metrics, spans, or logs.
 - `BuildResponse` validates a request and normalizes ranked top-K results.
 - `Response.SearchbenchResults` converts normalized results into benchmark
   scoring input.
@@ -36,10 +44,12 @@ the Go standard library.
 
 ## Telemetry
 
-None directly. The package is a pure contract and normalization layer. Live
-adapters must emit search request duration by mode, result count, truncation,
-timeout, failure class, and candidate truth-level summaries before issue #417
-can be considered complete.
+No OTEL telemetry directly. The package emits one `Observation` through an
+optional `Observer` interface. Live adapters must bridge those summaries to
+operator-facing search request duration, mode, result count, truncation, timeout,
+failure class, and candidate truth-level metrics/spans/logs before issue #417
+can be considered complete. Do not use high-cardinality anchor ids as metric
+labels.
 
 ## Gotchas / invariants
 
@@ -48,6 +58,10 @@ can be considered complete.
   environment.
 - Backend candidates must have stable document ids, graph handles, and finite
   scores before ranking.
+- `Runner` observes validation failures, backend errors, timeouts, normalization
+  failures, and successful responses exactly once per request.
+- `Runner` passes a timeout-bound context to the backend; adapters must return
+  promptly on cancellation.
 - Results are sorted by score descending and document id ascending for stable
   top-K behavior.
 - `false_canonical_claim_count` reports any returned result that claims a truth

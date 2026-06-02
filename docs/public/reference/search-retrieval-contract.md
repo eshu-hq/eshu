@@ -47,6 +47,39 @@ non-empty graph handle. Candidates with missing document identity, missing graph
 handles, `NaN` scores, or infinite scores are rejected before ranking because
 they cannot produce stable top-K ordering or bounded graph expansion.
 
+## Runner Contract
+
+`Runner.Retrieve` executes one bounded request through a narrow backend port. It
+does not know whether the backend is Postgres content search, NornicDB BM25,
+NornicDB vector search, or a fixture adapter.
+
+The runner:
+
+- validates the request before backend use;
+- creates a timeout-bound context from `timeout_ns`;
+- calls `Backend.Search` for curated candidates only;
+- normalizes candidates with `BuildResponse`;
+- records one `Observation` when an observer is configured.
+
+Observations carry:
+
+- query id;
+- scope anchor;
+- mode;
+- limit;
+- duration;
+- candidate count;
+- result count;
+- truncation state;
+- timeout state;
+- failure classes;
+- candidate truth-level counts;
+- error class.
+
+The observation shape is an internal summary, not an OTEL exporter. Later live
+adapters must bridge it to metrics, spans, or structured logs without using
+high-cardinality anchor ids as metric labels.
+
 ## Response Contract
 
 `BuildResponse` sorts candidates by score descending and document id ascending,
