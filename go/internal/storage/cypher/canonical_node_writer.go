@@ -26,6 +26,7 @@ type CanonicalNodeWriter struct {
 	entityContainmentBatchAcrossFiles bool
 	tracer                            trace.Tracer
 	instruments                       *telemetry.Instruments
+	packageRegistryLocks              *packageRegistryIdentityLocks
 }
 
 type canonicalWritePhase struct {
@@ -40,9 +41,10 @@ func NewCanonicalNodeWriter(executor Executor, batchSize int, instruments *telem
 		batchSize = DefaultBatchSize
 	}
 	return &CanonicalNodeWriter{
-		executor:    executor,
-		batchSize:   batchSize,
-		instruments: instruments,
+		executor:             executor,
+		batchSize:            batchSize,
+		instruments:          instruments,
+		packageRegistryLocks: newPackageRegistryIdentityLocks(),
 	}
 }
 
@@ -161,6 +163,9 @@ func (w *CanonicalNodeWriter) Write(ctx context.Context, mat projector.Canonical
 	}
 	ctx, writeSpan := w.startWriteSpan(ctx, mat, len(allStatements))
 	defer writeSpan.End()
+	packageRegistryLock := w.lockPackageRegistryIdentities(mat)
+	defer packageRegistryLock.unlock()
+	recordPackageRegistryIdentityLock(ctx, writeSpan, mat, packageRegistryLock)
 
 	// Atomic path: single transaction for all phases.
 	if ge, ok := w.executor.(GroupExecutor); ok {
