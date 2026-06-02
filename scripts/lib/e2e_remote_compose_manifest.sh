@@ -148,8 +148,8 @@ build_manifest() {
 				reason: "incident and work-item evidence is source and API read-model evidence today; no reducer-owned incident work-item correlation fact is implemented",
 				issue_refs: ["#1249"]
 			}
-			elif $reducer <= 0 then $row + {status: "fail", reason: "API and MCP readback proof missing or failed"}
-			else $row + {status: "fail", reason: "API and MCP readback proof missing or failed"} end;
+			elif $reducer <= 0 then $row + {status: "fail", reason: "no reducer evidence observed"}
+			else $row + {status: "fail", reason: "API/MCP readback proof missing or failed"} end;
 		def workflow_completed($collector):
 			[$workflow_rows[] | select(.collector_kind == $collector and .status == "completed") | .count] | add // 0;
 		def workflow_row($collector): {completed: workflow_completed($collector)};

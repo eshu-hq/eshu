@@ -190,6 +190,18 @@ jq -e '
 ' "${incident_work_item_source_only}" >/dev/null \
 	|| die "source-only incident/work-item evidence was not classified explicitly"
 
+incident_work_item_missing_reducer_and_readback="${TMP_DIR}/incident-work-item-missing-reducer-and-readback.json"
+write_missing_readback_proof "${TMP_DIR}/readback-incident-missing.json"
+build_case_manifest "${TMP_DIR}/facts-incident-source-only.json" "${TMP_DIR}/readback-incident-missing.json" "${incident_work_item_missing_reducer_and_readback}"
+jq -e '
+	.status == "fail" and
+	.reducers.incident_work_item_correlation.status == "fail" and
+	.reducers.incident_work_item_correlation.source_facts == 2 and
+	.reducers.incident_work_item_correlation.reducer_facts == 0 and
+	.reducers.incident_work_item_correlation.reason == "no reducer evidence observed"
+' "${incident_work_item_missing_reducer_and_readback}" >/dev/null \
+	|| die "missing incident/work-item reducer evidence was not classified before readback"
+
 unsupported="${TMP_DIR}/unsupported.json"
 jq 'map(select(.fact_kind != "reducer_incident_work_item_correlation"))' "${facts}" >"${TMP_DIR}/facts-unsupported.json"
 unsupported_reducers="incident_work_item_correlation"
