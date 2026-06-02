@@ -265,6 +265,19 @@ const (
 	// option groups stay owned by the generic aws_relationship_materialization
 	// path.
 	DomainRDSPostureMaterialization Domain = "rds_posture_materialization"
+	// DomainEC2BlockDeviceKMSPostureMaterialization derives EC2 instance
+	// block-device KMS posture from ec2_instance_posture block_devices joined to
+	// scanned aws_ec2_volume, aws_kms_key, and ec2_volume_uses_kms_key facts. It
+	// is NODE-PROPERTY-ONLY on the existing EC2 CloudResource node materialized by
+	// DomainEC2InstanceNodeMaterialization; no new node type and no raw block-device
+	// maps are written. It gates on BOTH the EC2 instance node phase
+	// (ec2_instance_node_materialization:<scope>) and the EBS/KMS CloudResource
+	// phase (aws_resource_materialization:<scope>) so posture never writes against
+	// uncommitted EC2, volume, or key node truth. Missing volume facts, missing KMS
+	// key facts, AWS-managed/default keys, detached volumes, tombstones, and
+	// ambiguous evidence stay conservative state=unknown rather than fabricating
+	// encryption ownership. See issue #1304.
+	DomainEC2BlockDeviceKMSPostureMaterialization Domain = "ec2_block_device_kms_posture_materialization"
 	// DomainS3InternetExposureMaterialization derives conservative internet
 	// exposure state from s3_bucket_posture facts and writes reducer-owned
 	// properties onto existing S3 CloudResource nodes. It is NODE-PROPERTY-ONLY on

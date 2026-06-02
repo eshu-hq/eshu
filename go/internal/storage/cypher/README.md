@@ -288,6 +288,13 @@ tracks this package's broader transient graph-write retry class.
   `eshu_dp_neo4j_query_duration_seconds` and `eshu_dp_neo4j_batch_size`
   metrics; the reducer handler owns the EC2 exposure domain counters and
   completion log.
+- `EC2BlockDeviceKMSPostureNodeWriter` — writes reducer-owned EC2 block-device
+  KMS posture properties onto existing EC2 `CloudResource` nodes (issue #1304);
+  constructed with `NewEC2BlockDeviceKMSPostureNodeWriter`. Uses batched
+  `UNWIND` + `MATCH (resource:CloudResource {uid})` + `SET`, never `MERGE` or
+  `CREATE`, so missing EC2 nodes are no-ops rather than fabricated nodes. Scoped
+  retract removes only `ec2_block_device_*` posture fields owned by
+  `reducer/ec2-block-device-kms-posture`.
 - `S3ExternalPrincipalGrantWriter` — writes metadata-only S3 bucket-policy
   access evidence as `(:CloudResource)-[:GRANTS_ACCESS_TO]->(:ExternalPrincipal)`
   graph truth for issue #1231; constructed with
@@ -416,6 +423,19 @@ tracks this package's broader transient graph-write retry class.
   for the existing InstrumentedExecutor `eshu_dp_neo4j_query_duration_seconds`
   and `eshu_dp_neo4j_batch_size` metrics; no new metric name or label was
   required.
+- `EC2BlockDeviceKMSPostureNodeWriter` — stamps bounded EC2 block-device KMS
+  posture properties (`ec2_block_device_kms_state`, reason, volume counts,
+  unresolved count, sorted volume ids, and sorted KMS key ids) onto existing EC2
+  `CloudResource` nodes for issue #1304. It is node-property-only: a missing EC2
+  node is a no-op, the writer never creates CloudResource nodes, and the scoped
+  retract removes only reducer-owned `ec2_block_device_*` properties.
+
+  Tests cover empty-row no-op behavior, uid-anchored MATCH+SET, no node
+  fabrication, scope/evidence annotation, and property-only retract. Statement
+  summaries and operation metadata (`phase=ec2_block_device_kms_posture`,
+  `label=CloudResource:EC2BlockDeviceKMSPosture`) ride each statement for the
+  existing graph query duration and batch-size metrics. Durable benchmark
+  evidence lives in `docs/public/reference/local-performance-envelope.md`.
 - `SemanticEntityWriter` — writes semantic entity (Annotation, Module, etc.)
   nodes; five constructors select the Cypher row shape
 

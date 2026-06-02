@@ -193,8 +193,8 @@ type EC2InstancePostureObservation struct {
 
 	// BlockDevices carries per-volume block-device metadata reported by
 	// DescribeInstances. Per-volume encryption state is NOT on this response, so
-	// Encrypted stays nil here; the reducer (#1134/#1146 PR2) joins each volume id
-	// to its encryption and KMS evidence.
+	// Encrypted stays nil here; the #1304 reducer joins each volume id to its
+	// encryption and KMS evidence.
 	BlockDevices []EC2BlockDevicePosture
 
 	SourceURI      string

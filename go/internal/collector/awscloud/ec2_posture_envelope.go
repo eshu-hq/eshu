@@ -15,8 +15,8 @@ import (
 // output, and any other instance payload never reach this builder.
 //
 // It emits no graph edges: the USES_PROFILE join to the IAM instance profile,
-// the block-device to KMS join, and the derived internet-exposed flag are
-// reducer-owned consumers (#1134, #1135, #1146 PR2).
+// the block-device KMS posture projection, and the derived internet-exposed
+// flag are reducer-owned consumers (#1134, #1304, #1135).
 func NewEC2InstancePostureEnvelope(observation EC2InstancePostureObservation) (facts.Envelope, error) {
 	if err := validateBoundary(observation.Boundary); err != nil {
 		return facts.Envelope{}, err

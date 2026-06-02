@@ -110,7 +110,8 @@ emits — and **nothing else**:
   exposure reasoning, which is the #1135-style derived-flag follow-up's job.
 - **`block_devices`** — a list of per-volume maps, not a scalar or homogeneous
   scalar list, so it is not a valid graph property value; the block-device → KMS
-  join is a reducer-owned follow-up (#1146) that reads the fact directly, not the
+  join is reducer-owned (#1304) and reads the posture, EBS volume, KMS key, and
+  volume-to-KMS facts directly instead of copying raw block-device maps onto the
   node.
 - **`instance_type`, `availability_zone`, `vpc_id`, `subnet_id`** — the
   `ec2_instance_posture` fact does **not** carry these fields (verified against

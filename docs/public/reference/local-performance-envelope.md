@@ -61,6 +61,25 @@ Hot-path PRs must use one performance marker consumed by
 They must also use either `Observability Evidence:` or
 `No-Observability-Change:`.
 
+## Current Hot-Path Evidence
+
+### EC2 Block-Device KMS Posture Writer (#1304)
+
+Benchmark Evidence: `go test ./internal/storage/cypher -run '^$' -bench
+BenchmarkEC2BlockDeviceKMSPostureNodeWriter -benchmem -count=3` on darwin/arm64
+Apple M4 Pro writes 5,000 uid-anchored EC2 posture property rows at
+2.43-2.45ms/op, 3.61MB/op, and 35,068 allocs/op with a no-op group executor,
+isolating Eshu-owned statement construction and batching from graph round trips.
+The writer uses one batched `UNWIND` + `MATCH (resource:CloudResource {uid:
+row.uid})` + `SET` shape and never performs per-volume graph lookups.
+
+Observability Evidence: `reducer.ec2_block_device_kms_posture_materialization`
+wraps fact load, dual readiness, extraction, retract, and graph write. The
+handler emits `eshu_dp_ec2_block_device_kms_posture_decisions_total` by
+`outcome`/`reason`, `eshu_dp_ec2_block_device_kms_posture_skipped_total` by
+`skip_reason`, and a completion log with resource/relationship/posture counts,
+row count, decision and skip tallies, and stage durations.
+
 ## Manual Gates
 
 ```bash

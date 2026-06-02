@@ -239,6 +239,18 @@ func appendAdditiveDomainDefinitions(definitions []DomainDefinition, handlers De
 		}
 		definitions = append(definitions, profileRole)
 	}
+	if handlers.FactLoader != nil && handlers.EC2BlockDeviceKMSPostureNodeWriter != nil {
+		ec2BlockDeviceKMS := ec2BlockDeviceKMSPostureMaterializationDomainDefinition()
+		ec2BlockDeviceKMS.Handler = EC2BlockDeviceKMSPostureMaterializationHandler{
+			FactLoader:           handlers.FactLoader,
+			NodeWriter:           handlers.EC2BlockDeviceKMSPostureNodeWriter,
+			ReadinessLookup:      handlers.ReadinessLookup,
+			PriorGenerationCheck: handlers.PriorGenerationCheck,
+			Tracer:               handlers.Tracer,
+			Instruments:          handlers.Instruments,
+		}
+		definitions = append(definitions, ec2BlockDeviceKMS)
+	}
 	if handlers.FactLoader != nil && handlers.S3InternetExposureNodeWriter != nil {
 		s3Exposure := s3InternetExposureMaterializationDomainDefinition()
 		s3Exposure.Handler = S3InternetExposureMaterializationHandler{

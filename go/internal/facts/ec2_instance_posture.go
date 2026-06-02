@@ -14,8 +14,8 @@ const (
 	// It NEVER carries the user-data content (which can embed secrets), instance
 	// console output, environment variables, command-line arguments, or any
 	// other instance payload. The fact is source evidence only; reducers own the
-	// USES_PROFILE join to the IAM instance profile (#1134), the block-device to
-	// KMS join, and the derived internet-exposed flag (#1135).
+	// USES_PROFILE join to the IAM instance profile (#1134), the block-device KMS
+	// posture projection (#1304), and the derived internet-exposed flag (#1135).
 	EC2InstancePostureFactKind = "ec2_instance_posture"
 
 	// EC2InstancePostureSchemaVersionV1 is the first EC2 instance posture fact

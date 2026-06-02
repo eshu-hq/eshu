@@ -132,6 +132,29 @@ WITH candidate AS (
                 AND ec2_uses_profile_profile_node.phase = 'canonical_nodes_committed'
           )
       ))
+      -- EC2 block-device KMS posture (#1304) consumes EC2 instance nodes and
+      -- EBS/KMS CloudResource nodes that publish readiness under different entity
+      -- keys. Keep the property domain pending until BOTH node phases commit.
+      AND (domain <> 'ec2_block_device_kms_posture_materialization' OR (
+          EXISTS (
+              SELECT 1 FROM graph_projection_phase_state AS ec2_block_device_kms_instance_node
+              WHERE ec2_block_device_kms_instance_node.scope_id = fact_work_items.scope_id
+                AND ec2_block_device_kms_instance_node.acceptance_unit_id = 'ec2_instance_node_materialization:' || fact_work_items.scope_id
+                AND ec2_block_device_kms_instance_node.source_run_id = fact_work_items.generation_id
+                AND ec2_block_device_kms_instance_node.generation_id = fact_work_items.generation_id
+                AND ec2_block_device_kms_instance_node.keyspace = 'cloud_resource_uid'
+                AND ec2_block_device_kms_instance_node.phase = 'canonical_nodes_committed'
+          )
+          AND EXISTS (
+              SELECT 1 FROM graph_projection_phase_state AS ec2_block_device_kms_resource_node
+              WHERE ec2_block_device_kms_resource_node.scope_id = fact_work_items.scope_id
+                AND ec2_block_device_kms_resource_node.acceptance_unit_id = 'aws_resource_materialization:' || fact_work_items.scope_id
+                AND ec2_block_device_kms_resource_node.source_run_id = fact_work_items.generation_id
+                AND ec2_block_device_kms_resource_node.generation_id = fact_work_items.generation_id
+                AND ec2_block_device_kms_resource_node.keyspace = 'cloud_resource_uid'
+                AND ec2_block_device_kms_resource_node.phase = 'canonical_nodes_committed'
+          )
+      ))
       -- The live-workload RUNS_IMAGE edge consumes KubernetesWorkload nodes
       -- produced by the kubernetes_workload_materialization domain for the exact
       -- same scope/generation/entity-key readiness slice, but on the
@@ -247,6 +270,28 @@ WITH candidate AS (
                       AND same_ec2_uses_profile_profile_node.generation_id = same.generation_id
                       AND same_ec2_uses_profile_profile_node.keyspace = 'cloud_resource_uid'
                       AND same_ec2_uses_profile_profile_node.phase = 'canonical_nodes_committed'
+                )
+            ))
+            -- EC2 block-device KMS posture must also pass its dual-key node-phase
+            -- gate before it can represent a conflict-key batch.
+            AND (same.domain <> 'ec2_block_device_kms_posture_materialization' OR (
+                EXISTS (
+                    SELECT 1 FROM graph_projection_phase_state AS same_ec2_block_device_kms_instance_node
+                    WHERE same_ec2_block_device_kms_instance_node.scope_id = same.scope_id
+                      AND same_ec2_block_device_kms_instance_node.acceptance_unit_id = 'ec2_instance_node_materialization:' || same.scope_id
+                      AND same_ec2_block_device_kms_instance_node.source_run_id = same.generation_id
+                      AND same_ec2_block_device_kms_instance_node.generation_id = same.generation_id
+                      AND same_ec2_block_device_kms_instance_node.keyspace = 'cloud_resource_uid'
+                      AND same_ec2_block_device_kms_instance_node.phase = 'canonical_nodes_committed'
+                )
+                AND EXISTS (
+                    SELECT 1 FROM graph_projection_phase_state AS same_ec2_block_device_kms_resource_node
+                    WHERE same_ec2_block_device_kms_resource_node.scope_id = same.scope_id
+                      AND same_ec2_block_device_kms_resource_node.acceptance_unit_id = 'aws_resource_materialization:' || same.scope_id
+                      AND same_ec2_block_device_kms_resource_node.source_run_id = same.generation_id
+                      AND same_ec2_block_device_kms_resource_node.generation_id = same.generation_id
+                      AND same_ec2_block_device_kms_resource_node.keyspace = 'cloud_resource_uid'
+                      AND same_ec2_block_device_kms_resource_node.phase = 'canonical_nodes_committed'
                 )
             ))
             AND (same.domain <> 'security_group_reachability_materialization' OR (

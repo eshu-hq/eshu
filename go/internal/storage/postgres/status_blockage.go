@@ -131,6 +131,34 @@ ec2_uses_profile_readiness_blocked AS (
             AND ec2up_nodes.phase = 'canonical_nodes_committed'
       )
 ),
+ec2_block_device_kms_posture_readiness_blocked AS (
+    -- The EC2 block-device KMS posture property projection (#1304) gates on two
+    -- node phases published under DIFFERENT entity keys: the EC2 instance node
+    -- substrate and the EBS/KMS aws_resource node substrate. Surface each missing
+    -- phase independently so operators can see which node family is blocking the
+    -- posture decision.
+    SELECT eligible.domain,
+           'readiness' AS conflict_domain,
+           'cloud_resource_uid:canonical_nodes_committed:' ||
+               missing.entity_key_prefix || eligible.scope_id AS conflict_key,
+           eligible.available_at
+    FROM eligible
+    CROSS JOIN (VALUES
+        ('ec2_instance_node_materialization:'),
+        ('aws_resource_materialization:')
+    ) AS missing(entity_key_prefix)
+    WHERE eligible.domain = 'ec2_block_device_kms_posture_materialization'
+      AND NOT EXISTS (
+          SELECT 1
+          FROM graph_projection_phase_state AS ec2bd_nodes
+          WHERE ec2bd_nodes.scope_id = eligible.scope_id
+            AND ec2bd_nodes.acceptance_unit_id = missing.entity_key_prefix || eligible.scope_id
+            AND ec2bd_nodes.source_run_id = eligible.generation_id
+            AND ec2bd_nodes.generation_id = eligible.generation_id
+            AND ec2bd_nodes.keyspace = 'cloud_resource_uid'
+            AND ec2bd_nodes.phase = 'canonical_nodes_committed'
+      )
+),
 all_blocked AS (
     SELECT domain, conflict_domain, conflict_key, available_at FROM blocked
     UNION ALL
@@ -141,6 +169,8 @@ all_blocked AS (
     SELECT domain, conflict_domain, conflict_key, available_at FROM security_group_reachability_readiness_blocked
     UNION ALL
     SELECT domain, conflict_domain, conflict_key, available_at FROM ec2_uses_profile_readiness_blocked
+    UNION ALL
+    SELECT domain, conflict_domain, conflict_key, available_at FROM ec2_block_device_kms_posture_readiness_blocked
 )
 SELECT 'reducer' AS stage,
        domain,
