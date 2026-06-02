@@ -102,6 +102,10 @@ No-Regression Evidence: Compose pins
 `docker buildx imagetools inspect timothyswt/nornicdb-cpu-bge:v1.1.2` resolves
 the pinned manifest list with linux/amd64 and linux/arm64 entries. NornicDB
 release `v1.1.2` documents per-database BM25 and vector index master switches.
+Runtime build metadata in this image still reports `version=1.1.1`,
+`commit=dev`, and `build_time=unknown` in startup logs and `/admin/stats`;
+operator version checks should anchor on the pinned image tag, manifest digest,
+and behavior smoke until the upstream image metadata is corrected.
 
 Graph-only Controls Smoke, 2026-06-02:
 
