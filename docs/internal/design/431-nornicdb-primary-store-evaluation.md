@@ -27,7 +27,8 @@ exist and pass:
    ([shadow-write gate](1288-shadow-write-comparison-gate.md)).
 4. Queue/workflow substrate evaluation: #1289
    ([queue-substrate gate](1289-queue-substrate-evaluation-gate.md)).
-5. NornicDB backup/restore proof for every migrated durable state class: #1290.
+5. NornicDB backup/restore proof for every migrated durable state class: #1290
+   ([backup/restore gate](1290-backup-restore-proof-gate.md)).
 
 Queue and workflow ownership must be decided separately from NornicDB storage.
 NornicDB must not become Eshu's claim, lease, fencing, retry, delayed retry, or

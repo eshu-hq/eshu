@@ -2,7 +2,7 @@
 //
 // The package is intentionally pure: it does not open Postgres, call NornicDB,
 // write graph state, expose API or MCP routes, enqueue reducer work, or decide
-// canonical truth. It validates comparison records that future shadow readers
+// canonical truth. It validates comparison records that future proof runners
 // produce while Postgres remains the production owner.
 //
 // Shadow-read comparisons are passing evidence only when a bounded Postgres
@@ -14,8 +14,12 @@
 // substrate decisions are passing evidence only when they separate queue
 // ownership from storage ownership and compare candidates against claim, lease,
 // fencing, retry, dead-letter, backpressure, crash-recovery, fair-scheduling,
-// proof-scenario, and observability requirements. Missing, stale, divergent,
-// truncated, unsupported, or fallback-truth shadow output is rejected so storage
-// migration work cannot silently promote incomplete read models, fact families,
+// proof-scenario, and observability requirements. Backup/restore proofs are
+// passing evidence only when a clean restore records NornicDB and Eshu versions,
+// artifact integrity, state-class consistency checks, count and digest parity,
+// fallback, rollback, required failure scenarios, and restore observability.
+// Missing, stale, divergent, truncated, unsupported, graph-only, or
+// fallback-truth shadow output is rejected so storage migration work cannot
+// silently promote incomplete read models, fact families, durable state classes,
 // or queue/workflow substrates.
 package storageeval

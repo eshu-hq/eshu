@@ -17,6 +17,11 @@ adapter-free, queue-free, and runtime-free.
   queue, lease, retry, or dead-letter ownership here.
 - MUST keep queue-substrate decisions as evaluation records only; do not add a
   queue adapter or workflow engine implementation here.
+- MUST keep backup/restore proof as an evidence contract only; do not add
+  backup tooling, restore runners, storage ownership changes, or fallback reads
+  that hide parity drift here.
+- MUST reject graph-only backup proof for content, fact-family, read-model,
+  search-document, or relationship-evidence state.
 
 ## Read first
 
@@ -25,7 +30,8 @@ adapter-free, queue-free, and runtime-free.
 3. `shadow_read.go` before changing the #1287 comparison gate.
 4. `shadow_write.go` before changing the #1288 comparison gate.
 5. `queue_substrate.go` before changing the #1289 decision gate.
-6. `docs/internal/design/431-nornicdb-primary-store-evaluation.md` before
+6. `backup_restore.go` before changing the #1290 proof gate.
+7. `docs/internal/design/431-nornicdb-primary-store-evaluation.md` before
    changing storage migration evidence semantics.
 
 ## Verification
