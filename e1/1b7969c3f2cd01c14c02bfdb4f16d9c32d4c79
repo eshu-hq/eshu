@@ -1,0 +1,31 @@
+docs/public/reference/local-testing/remote-collector-e2e.md
+  s_f2f7fbb6f30866::t_8ffbca450e6b75 302-305,307-308
+  s_f2f7fbb6f30866::t_e5c25c2ff48185 306
+scripts/lib/e2e_remote_compose_manifest.sh
+  s_f2f7fbb6f30866::t_3014af8f2e6e6b 206
+  s_f2f7fbb6f30866::t_99845be9fb346e 151-152
+  s_f2f7fbb6f30866::t_229c4177a892e2 148
+  s_f2f7fbb6f30866::t_a9967c604c4e46 141-147,149-150,207
+scripts/test-e2e-remote-compose-reducer-manifest.sh
+  s_f2f7fbb6f30866::t_d93b092737bcad 103-106,154,158-168
+  s_f2f7fbb6f30866::t_e159454e89a89f 148-153,155-157,169
+  s_f2f7fbb6f30866::t_4b31a37d3f63cd 179-181,183-187,189-192
+  s_f2f7fbb6f30866::t_3f2f37feeeba40 182
+  s_f2f7fbb6f30866::t_04516a2c49820e 188
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "e11b7969c3f2cd01c14c02bfdb4f16d9c32d4c79",
+  "prompts": {},
+  "sessions": {
+    "s_f2f7fbb6f30866": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e360b-90eb-7472-bac7-56d488b65f77",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
