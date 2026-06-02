@@ -150,6 +150,9 @@ const QuerySuiteVersion = "semantic-retrieval-query-suite/v1"
 // MinimumQuerySuiteSize is the issue #417 baseline query count.
 const MinimumQuerySuiteSize = 15
 
+// MaximumQueryLimit is the maximum top-K limit for benchmark suite queries.
+const MaximumQueryLimit = 100
+
 // QuerySuite is one versioned semantic retrieval evaluation suite.
 type QuerySuite struct {
 	Version string  `json:"version"`

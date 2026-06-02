@@ -129,7 +129,7 @@ semantic-retrieval-query-suite/v1
 - query text;
 - one scope anchor: service, workload, repository, or environment;
 - mode;
-- limit;
+- explicit top-K limit no greater than `100`;
 - expected graph handles.
 
 `ScoreQuerySuite` scores queries in suite order. It macro-averages recall,

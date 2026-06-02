@@ -51,7 +51,8 @@ claim evidence before writing a record.
 - Benchmarks compare Postgres content search against curated NornicDB search
   documents, not whole-graph BM25 or vector search.
 - Semantic retrieval suites must contain at least 15 scoped queries before they
-  can be used as #417 baseline evidence.
+  can be used as #417 baseline evidence, and every query limit must stay at or
+  below 100.
 - `truth_scope.level` must remain `derived`, and `truth_scope.basis` must name
   a known search-document evidence basis. Search rank, semantic similarity, and
   link prediction never become canonical graph truth.

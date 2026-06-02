@@ -53,10 +53,36 @@ func TestValidateQuerySuiteRejectsDuplicateIDsAndMissingScope(t *testing.T) {
 	}
 }
 
+func TestValidateQuerySuiteRejectsLimitAboveMaximum(t *testing.T) {
+	t.Parallel()
+
+	suite := validQuerySuiteFixture()
+	suite.Queries[0].Limit = MaximumQueryLimit + 1
+
+	err := ValidateQuerySuite(suite)
+	if err == nil {
+		t.Fatal("ValidateQuerySuite() error = nil, want max-limit error")
+	}
+	if want := "queries[0].limit exceeds maximum of 100"; !strings.Contains(err.Error(), want) {
+		t.Fatalf("ValidateQuerySuite() error = %q, want substring %q", err, want)
+	}
+}
+
 func TestValidateQuerySuiteAcceptsFifteenCaseSuite(t *testing.T) {
 	t.Parallel()
 
 	if err := ValidateQuerySuite(validQuerySuiteFixture()); err != nil {
+		t.Fatalf("ValidateQuerySuite() error = %v, want nil", err)
+	}
+}
+
+func TestValidateQuerySuiteAcceptsTrimmedVersion(t *testing.T) {
+	t.Parallel()
+
+	suite := validQuerySuiteFixture()
+	suite.Version = "  " + QuerySuiteVersion + "\n"
+
+	if err := ValidateQuerySuite(suite); err != nil {
 		t.Fatalf("ValidateQuerySuite() error = %v, want nil", err)
 	}
 }

@@ -8,9 +8,10 @@ import (
 // ValidateQuerySuite checks the issue #417 semantic retrieval suite contract.
 func ValidateQuerySuite(suite QuerySuite) error {
 	var problems []string
-	if strings.TrimSpace(suite.Version) == "" {
+	version := strings.TrimSpace(suite.Version)
+	if version == "" {
 		problems = append(problems, "version is required")
-	} else if suite.Version != QuerySuiteVersion {
+	} else if version != QuerySuiteVersion {
 		problems = append(problems, "version is invalid")
 	}
 	if len(suite.Queries) < MinimumQuerySuiteSize {
@@ -36,6 +37,8 @@ func ValidateQuerySuite(suite QuerySuite) error {
 		}
 		if query.Limit <= 0 {
 			problems = append(problems, prefix+".limit is required")
+		} else if query.Limit > MaximumQueryLimit {
+			problems = append(problems, fmt.Sprintf("%s.limit exceeds maximum of %d", prefix, MaximumQueryLimit))
 		}
 		if !queryHasScope(query) {
 			problems = append(problems, prefix+".scope is required")
