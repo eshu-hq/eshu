@@ -143,6 +143,7 @@ uv run --with mkdocs --with mkdocs-material --with pymdown-extensions \
 
 ## Related Docs
 
+- [Search Retrieval Contract](search-retrieval-contract.md)
 - [Search Document Projection](search-document-projection.md)
 - [NornicDB Tuning](nornicdb-tuning.md)
 - [NornicDB Tuning Evidence](nornicdb-tuning-evidence.md)
