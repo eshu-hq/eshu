@@ -447,15 +447,22 @@ persist identity, status, and the job-definition reference only.
 Scanner packages emit reported `aws_resource`, `aws_relationship`,
 `aws_image_reference`, `aws_dns_record`, `aws_security_group_rule`, and
 `aws_warning` facts, plus the metadata-only posture facts `s3_bucket_posture`,
-`rds_instance_posture`, and `ec2_instance_posture`. The `aws_security_group_rule`
-posture fact is a normalized EC2 ingress/egress rule (the reachability tuple plus
-metadata-only derived booleans); it is emitted but not yet projected, pending the
-reducer network-reachability slice. The `ec2_instance_posture` fact is emitted per
+`s3_external_principal_grant`, `rds_instance_posture`, and
+`ec2_instance_posture`. The S3 external-principal grant reducer projects bounded
+public, cross-account, and service-principal access evidence into
+`(:CloudResource)-[:GRANTS_ACCESS_TO]->(:ExternalPrincipal)` only after the
+source S3 bucket has materialized as a CloudResource, and never writes raw bucket
+policy JSON, statement bodies, ACL grants, conditions, actions, resources, object
+keys, or object data. The `aws_security_group_rule` posture fact is a normalized
+EC2 ingress/egress rule (the reachability tuple plus metadata-only derived
+booleans); it is emitted but not yet projected, pending the reducer
+network-reachability slice. The `ec2_instance_posture` fact is emitted per
 instance from the existing `DescribeInstances` pass (IMDS, user-data presence,
-encryption-relevant block-device metadata, instance-profile ARN, tenancy/enclave);
-it carries no user-data content and emits no graph edges, pending the reducer
-principal/KMS/exposure slice. Reducers must corroborate these facts before
-promoting workload, deployment, ownership, drift, or unmanaged-resource truth.
+encryption-relevant block-device metadata, instance-profile ARN,
+tenancy/enclave); it carries no user-data content and emits no graph edges,
+pending the reducer principal/KMS/exposure slice. Reducers must corroborate
+these facts before promoting workload, deployment, ownership, drift, or
+unmanaged-resource truth.
 
 Runtime spans include `aws.collector.claim.process`,
 `aws.credentials.assume_role`, `aws.service.scan`, and

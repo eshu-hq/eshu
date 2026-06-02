@@ -78,11 +78,49 @@ canonical-write or bounded counter-emission requirements.
 | `DomainKubernetesWorkloadMaterialization` | Materialize `kubernetes_live.pod_template` facts into canonical `KubernetesWorkload` nodes keyed by the collector-emitted `object_id`; publishes the `kubernetes_workload_uid` canonical-nodes phase the #388 live-workload edge gates on |
 | `DomainKubernetesCorrelationMaterialization` | Project exact live-workload correlation decisions into canonical `RUNS_IMAGE` edges from a `KubernetesWorkload` node to the digest-addressed OCI source node it runs; gates on the `kubernetes_workload_uid` canonical-nodes phase, exact-only, never fabricates or dangles an edge (issue #388 PR3) |
 | `DomainIAMCanAssumeMaterialization` | Project `aws_iam_permission` trust statements into canonical `(:CloudResource)-[:CAN_ASSUME]->(:CloudResource)` edges from an assuming IAM principal (role/user) to the role whose trust policy grants the assume; gates on the `cloud_resource_uid` canonical-nodes phase (the same gate `aws_relationship_materialization` uses), `effect=Allow` only, skips external / AWS-service / wildcard / account-root / unscanned principals, never fabricates or dangles an edge (issue #1134 PR2) |
-| `DomainS3LogsToMaterialization` | Project `s3_bucket_posture` `logging_target_bucket` fields into canonical `(:CloudResource)-[:LOGS_TO]->(:CloudResource)` edges from a source S3 bucket to the target log bucket it delivers server-access logs to; resolves the target by bucket-name equality against an in-memory S3 join index; gates on the `cloud_resource_uid` canonical-nodes phase (the same gate `aws_relationship_materialization` uses); a blank target (logging disabled) is no edge and not a skip; a self-target (bucket logging to itself) is a legal config and DOES emit an edge; cross-account / out-of-scope / unscanned targets are counted, never fabricated or dangled (issue #1144 PR2). `GRANTS_ACCESS_TO :ExternalPrincipal` remains a deferred follow-up; see `docs/internal/design/1144-s3-logs-to-edge.md` §8 |
+| `DomainS3LogsToMaterialization` | Project `s3_bucket_posture` `logging_target_bucket` fields into canonical `(:CloudResource)-[:LOGS_TO]->(:CloudResource)` edges from a source S3 bucket to the target log bucket it delivers server-access logs to; resolves the target by bucket-name equality against an in-memory S3 join index; gates on the `cloud_resource_uid` canonical-nodes phase (the same gate `aws_relationship_materialization` uses); a blank target (logging disabled) is no edge and not a skip; a self-target (bucket logging to itself) is a legal config and DOES emit an edge; cross-account / out-of-scope / unscanned targets are counted, never fabricated or dangled (issue #1144 PR2); see `docs/internal/design/1144-s3-logs-to-edge.md` |
+| `DomainS3ExternalPrincipalGrantMaterialization` | Project metadata-only `s3_external_principal_grant` facts into canonical `(:CloudResource)-[:GRANTS_ACCESS_TO]->(:ExternalPrincipal)` graph truth; resolves the source bucket by bucket-name equality against the same S3 in-memory join index, gates on the `cloud_resource_uid` canonical-nodes phase, creates only bounded `ExternalPrincipal` identities keyed by principal kind/value, skips unsupported or unresolved grants with tallies, never creates S3 `CloudResource` nodes, and never propagates raw bucket policy, statement, ACL, condition, action, resource, or object data (issue #1231); see `docs/internal/design/1231-s3-external-principal-grant-projection.md` |
 | `DomainRDSPostureMaterialization` | Project `rds_instance_posture` security/operations posture onto existing RDS DB instance and Aurora cluster `CloudResource` nodes; gates on the `cloud_resource_uid` canonical-nodes phase, writes only reducer-owned posture properties, never creates RDS nodes, and leaves KMS/security-group/subnet-group/IAM/parameter/option dependency edges to generic `aws_relationship_materialization` (issue #1233) |
 | `DomainEC2UsesProfileMaterialization` | Project `ec2_instance_posture` `instance_profile_arn` into canonical `(:CloudResource)-[:USES_PROFILE]->(:CloudResource)` edges from an EC2 instance to the IAM instance profile it uses; derives the source EC2 instance uid the same way `DomainEC2InstanceNodeMaterialization` does (#1146 PR-A) and resolves the target profile by exact ARN equality against an in-memory `aws_iam_instance_profile` join index; gates on a DUAL `cloud_resource_uid` canonical-nodes readiness — the EC2 instance node phase (`ec2_instance_node_materialization:<scope>`) AND the IAM instance-profile node phase (`aws_resource_materialization:<scope>`), published under different entity keys, so the edge never resolves against a not-yet-materialized endpoint; a blank profile (no attached profile) is no edge and not a skip; cross-account / out-of-scope / unscanned profiles are counted, never fabricated or dangled (issue #1146 PR-B). The first edge in the EC2 → profile → role → `CAN_ESCALATE_TO` blast-radius chain; the profile → role `HAS_ROLE` edge is the deferred follow-up; see `docs/internal/design/1146-ec2-uses-profile-edge.md` |
 | `DomainS3InternetExposureMaterialization` | Derive conservative `exposed` / `not_exposed` / `unknown` S3 internet-exposure state from `s3_bucket_posture` facts and write reducer-owned properties onto existing S3 `CloudResource` nodes only; gates on the `cloud_resource_uid` canonical-nodes phase, resolves the source bucket through the S3 in-memory join index, never reads or persists raw bucket policy, ACL grants, object keys, or object data, and keeps unknown posture as `state=unknown` with no boolean exposure property (issue #1232); see `docs/internal/design/1232-s3-internet-exposure.md` |
 | `DomainIncidentRoutingMaterialization` | Project exact PagerDuty incident-routing evidence into reducer-owned `IncidentRoutingEvidence` graph nodes and intended/applied/live evidence relationships without promoting runtime, image, commit, pull-request, Jira, service-health, or root-cause truth |
+
+## S3 External Principal Grant Projection (issue #1231)
+
+`DomainS3ExternalPrincipalGrantMaterialization` loads the same scope
+generation's `aws_resource` and `s3_external_principal_grant` facts, resolves
+only grants whose source S3 bucket already exists in the CloudResource node
+generation, and writes `GRANTS_ACCESS_TO` edges to bounded `ExternalPrincipal`
+nodes. Principal identity is stable on `(principal_kind, principal_value)`;
+optional account, partition, and service metadata enrich that node only when a
+row carries a non-empty value. Unsupported principals, missing identities, and
+unscanned source buckets are counted and skipped rather than fabricated.
+
+No-Regression Evidence: `go test ./internal/projector -run
+'S3ExternalPrincipalGrant' -count=1`, `go test ./internal/reducer -run
+'S3ExternalPrincipalGrant' -count=1`, `go test ./internal/storage/cypher -run
+'S3ExternalPrincipalGrant' -count=1`, `go test ./internal/graph -run
+'ExternalPrincipal' -count=1`, and `go test ./internal/storage/postgres -run
+'S3ExternalPrincipalGrant' -count=1` prove intent emission, exact extraction,
+bounded skips, raw-policy redaction, idempotent static-token writes, schema DDL,
+and the shared CloudResource readiness gate.
+
+Benchmark Evidence: `go test ./internal/storage/cypher -run '^$' -bench
+'BenchmarkS3ExternalPrincipalGrantWriter|BenchmarkS3LogsToEdgeWriter|BenchmarkCloudResourceEdgeWriter|BenchmarkCloudResourceNodeWriter'
+-benchmem -benchtime=100x` writes 5,000 node+edge rows at batch size 500 in
+`3.28 ms/op` (`6.49 MB/op`, `35,072 allocs/op`) on darwin/arm64 Apple M4 Pro.
+The writer is expectedly heavier than the S3 edge-only writer (`1.39 ms/op`)
+because it MERGEs both an `ExternalPrincipal` node and a `GRANTS_ACCESS_TO`
+edge, but it remains bounded by one batched statement per 500 rows with no
+per-edge graph round trip.
+
+Observability Evidence: `reducer.s3_external_principal_grant_materialization`
+wraps fact load, readiness, extraction, retract, and graph write. The
+completion log carries resource/grant fact counts, edge count, resolved-outcome
+and skipped-reason tallies, first-generation retract decision, and stage
+durations; the Cypher writer adds `phase=s3_external_principal_grant` and
+`label=ExternalPrincipal` metadata for the existing graph query duration and
+batch-size metrics.
 
 ## RDS Posture Projection (issue #1233)
 

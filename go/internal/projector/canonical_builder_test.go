@@ -1178,6 +1178,10 @@ func TestEntityTypeLabelMapCoversAllSchemaLabels(t *testing.T) {
 	// IncidentRoutingEvidence is materialized by the
 	// incident_routing_materialization reducer domain from incident-routing source
 	// evidence (issue #1168), not from parsed content-entity facts.
+	// ExternalPrincipal is materialized by the
+	// s3_external_principal_grant_materialization reducer domain from bounded S3
+	// external-principal grant facts (issue #1231), not from parsed
+	// content-entity facts.
 	sourceLocalNonEntityLabels := map[string]struct{}{
 		"File":                    {},
 		"CloudResource":           {},
@@ -1186,6 +1190,7 @@ func TestEntityTypeLabelMapCoversAllSchemaLabels(t *testing.T) {
 		"PrefixList":              {},
 		"SecurityGroupRule":       {},
 		"IncidentRoutingEvidence": {},
+		"ExternalPrincipal":       {},
 	}
 	var missing []string
 	for _, label := range schemaLabels {

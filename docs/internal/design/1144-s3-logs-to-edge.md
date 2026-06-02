@@ -1,10 +1,10 @@
 # S3 LOGS_TO Server-Access-Log Edge Materialization Design
 
 Status: design accepted for the LOGS_TO slice (this PR2). The
-`GRANTS_ACCESS_TO :ExternalPrincipal` node-then-edge slice remains a deferred
-follow-up; internet exposure moved to its own node-property projection design in
-`docs/internal/design/1232-s3-internet-exposure.md`. NEEDS PRINCIPAL REVIEW -
-gated graph-write (`risk:schema`).
+`GRANTS_ACCESS_TO :ExternalPrincipal` node-then-edge slice was implemented
+separately by issue #1231; internet exposure moved to its own node-property
+projection design in `docs/internal/design/1232-s3-internet-exposure.md`.
+NEEDS PRINCIPAL REVIEW - gated graph-write (`risk:schema`).
 
 Issue: #1144 (aws/deep: S3 bucket posture graph projection; parent #51). PR1
 (merged) emits the `s3_bucket_posture` fact with the `logging_target_bucket`
@@ -238,19 +238,16 @@ tally) let an operator see materialized vs. skipped edges and the reason class
 for skips. The readiness gate surfaces a `readiness` conflict-domain blockage row
 in `status_blockage.go` when canonical nodes have not committed.
 
-## 8. Deferred Follow-Ups (NOT in this PR)
+## 8. Related S3 Follow-Ups (NOT in this PR)
 
-These items from #1144's PR2 design are deliberately out of scope here because
-they need machinery this edge-only slice does not build:
+These items from #1144's PR2 design were deliberately out of scope here because
+they needed machinery this edge-only slice did not build:
 
-1. **`GRANTS_ACCESS_TO :ExternalPrincipal`** — projecting the posture fact's
-   policy-derived cross-account/public grant booleans (`policy_grants_public`,
-   `policy_grants_cross_account`) into a graph edge needs a **new node type**
-   (`:ExternalPrincipal`), which is a node-then-edge slice with its own keyspace,
-   schema, and readiness phase. It cannot ride the existing `cloud_resource_uid`
-   edge-only keyspace this slice reuses, so it is a separate PR (node
-   materialization first, then the edge), exactly like #1135 split endpoint nodes
-   from reachability edges.
+1. **`GRANTS_ACCESS_TO :ExternalPrincipal`** — implemented separately by issue
+   #1231. That slice consumes metadata-only `s3_external_principal_grant` facts,
+   creates bounded `:ExternalPrincipal` identities keyed by principal kind/value,
+   and writes `(:CloudResource)-[:GRANTS_ACCESS_TO]->(:ExternalPrincipal)` only
+   after the source S3 bucket resolves to an existing CloudResource.
 
 2. **Internet exposure** — implemented separately by
    `DomainS3InternetExposureMaterialization` in issue #1232. It is a
@@ -258,6 +255,6 @@ they need machinery this edge-only slice does not build:
    and therefore has its own conservative exposed / not_exposed / unknown model
    in `docs/internal/design/1232-s3-internet-exposure.md`.
 
-External-principal access does not resolve trivially on the edge-only keyspace,
-so it is not attempted here. The LOGS_TO edge remains the clean, reviewable first
-slice of #1144 PR2.
+External-principal access did not resolve trivially on the edge-only keyspace,
+so it was not attempted here. The LOGS_TO edge remains the clean, reviewable
+first slice of #1144 PR2.

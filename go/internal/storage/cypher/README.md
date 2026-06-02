@@ -262,6 +262,32 @@ tracks this package's broader transient graph-write retry class.
   `s3_internet_exposed` property. Retract removes only
   `s3_internet_exposure_*` properties scoped by reducer evidence source and
   scope id.
+- `S3ExternalPrincipalGrantWriter` — writes metadata-only S3 bucket-policy
+  access evidence as `(:CloudResource)-[:GRANTS_ACCESS_TO]->(:ExternalPrincipal)`
+  graph truth for issue #1231; constructed with
+  `NewS3ExternalPrincipalGrantWriter`. Uses batched `UNWIND` + `MATCH
+  (source:CloudResource {uid})` so missing source buckets cannot be fabricated,
+  `MERGE (principal:ExternalPrincipal {uid})` on a stable principal kind/value
+  identity, and a static `GRANTS_ACCESS_TO` relationship token validated against
+  a closed vocabulary before interpolation. Optional principal account,
+  partition, and service metadata update only when the incoming row carries a
+  non-empty value, so partial later facts cannot clear bounded identity
+  metadata. Retract deletes only reducer-owned edges scoped by edge `scope_id`
+  and `evidence_source`, leaving global `ExternalPrincipal` identities in place.
+
+  Benchmark Evidence: `go test ./internal/storage/cypher -run '^$' -bench
+  'BenchmarkS3ExternalPrincipalGrantWriter|BenchmarkS3LogsToEdgeWriter|BenchmarkCloudResourceEdgeWriter|BenchmarkCloudResourceNodeWriter'
+  -benchmem -benchtime=100x` shaped 5,000 node+edge rows at batch 500 in
+  `3.28 ms/op` (`6.49 MB/op`, `35,072 allocs/op`) on darwin/arm64 Apple M4 Pro,
+  with no per-row graph round trip.
+  No-Regression Evidence: `go test ./internal/storage/cypher -run
+  S3ExternalPrincipalGrant -count=1` proves the source `MATCH`, bounded
+  `ExternalPrincipal` MERGE, static relationship token, optional-metadata
+  preservation, raw-policy redaction, batching, and scoped retract.
+  Observability Evidence: statement summaries and operation metadata
+  (`phase=s3_external_principal_grant`, `label=ExternalPrincipal`) ride each
+  statement for the InstrumentedExecutor's graph query duration and batch-size
+  metrics; the reducer handler owns the domain span and completion log.
 - `KubernetesWorkloadNodeWriter` — writes canonical `KubernetesWorkload` nodes
   for the live-workload materialization reducer domain (issue #388);
   constructed with `NewKubernetesWorkloadNodeWriter`. Batched `UNWIND` +

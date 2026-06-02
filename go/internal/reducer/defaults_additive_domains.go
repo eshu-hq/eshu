@@ -193,6 +193,17 @@ func appendAdditiveDomainDefinitions(definitions []DomainDefinition, handlers De
 		}
 		definitions = append(definitions, s3LogsTo)
 	}
+	if handlers.FactLoader != nil && handlers.S3ExternalPrincipalGrantWriter != nil {
+		s3Grant := s3ExternalPrincipalGrantMaterializationDomainDefinition()
+		s3Grant.Handler = S3ExternalPrincipalGrantMaterializationHandler{
+			FactLoader:           handlers.FactLoader,
+			GrantWriter:          handlers.S3ExternalPrincipalGrantWriter,
+			ReadinessLookup:      handlers.ReadinessLookup,
+			PriorGenerationCheck: handlers.PriorGenerationCheck,
+			Tracer:               handlers.Tracer,
+		}
+		definitions = append(definitions, s3Grant)
+	}
 	if handlers.FactLoader != nil && handlers.RDSPostureNodeWriter != nil {
 		rdsPosture := rdsPostureMaterializationDomainDefinition()
 		rdsPosture.Handler = RDSPostureMaterializationHandler{
