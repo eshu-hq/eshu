@@ -325,20 +325,36 @@ const (
 	ProtocolImpactUnknown ProtocolImpactDirection = "unknown"
 )
 
+// ProtocolAssessmentCategory records a low-cardinality risk or burden level.
+type ProtocolAssessmentCategory string
+
+const (
+	// ProtocolAssessmentNone records no expected risk or burden.
+	ProtocolAssessmentNone ProtocolAssessmentCategory = "none"
+	// ProtocolAssessmentLow records low expected risk or burden.
+	ProtocolAssessmentLow ProtocolAssessmentCategory = "low"
+	// ProtocolAssessmentMedium records medium expected risk or burden.
+	ProtocolAssessmentMedium ProtocolAssessmentCategory = "medium"
+	// ProtocolAssessmentHigh records high expected risk or burden.
+	ProtocolAssessmentHigh ProtocolAssessmentCategory = "high"
+	// ProtocolAssessmentUnknown records deferred or unknown risk proof.
+	ProtocolAssessmentUnknown ProtocolAssessmentCategory = "unknown"
+)
+
 // ProtocolRecommendation records a bounded search protocol decision.
 type ProtocolRecommendation struct {
-	BaselineHybridEvidence       RerankBaselineEvidence  `json:"baseline_hybrid_evidence"`
-	CandidateProtocol            ProtocolCandidate       `json:"candidate_protocol"`
-	Decision                     ProtocolDecision        `json:"decision"`
-	Rationale                    string                  `json:"rationale"`
-	ExpectedUserValue            []ProtocolValueEvidence `json:"expected_user_value"`
-	MigrationRisk                string                  `json:"migration_risk"`
-	SecurityRisk                 string                  `json:"security_risk"`
-	OperatorBurden               string                  `json:"operator_burden"`
-	LatencyImpact                ProtocolImpact          `json:"latency_impact"`
-	CostImpact                   ProtocolImpact          `json:"cost_impact"`
-	FallbackBehavior             string                  `json:"fallback_behavior"`
-	APIMCPAuthorizationPreserved bool                    `json:"api_mcp_authorization_preserved"`
+	BaselineHybridEvidence       RerankBaselineEvidence     `json:"baseline_hybrid_evidence"`
+	CandidateProtocol            ProtocolCandidate          `json:"candidate_protocol"`
+	Decision                     ProtocolDecision           `json:"decision"`
+	Rationale                    string                     `json:"rationale"`
+	ExpectedUserValue            []ProtocolValueEvidence    `json:"expected_user_value"`
+	MigrationRisk                ProtocolAssessmentCategory `json:"migration_risk"`
+	SecurityRisk                 ProtocolAssessmentCategory `json:"security_risk"`
+	OperatorBurden               ProtocolAssessmentCategory `json:"operator_burden"`
+	LatencyImpact                ProtocolImpact             `json:"latency_impact"`
+	CostImpact                   ProtocolImpact             `json:"cost_impact"`
+	FallbackBehavior             string                     `json:"fallback_behavior"`
+	APIMCPAuthorizationPreserved bool                       `json:"api_mcp_authorization_preserved"`
 }
 
 // ProtocolValueEvidence records proof for one claimed user value.

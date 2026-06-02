@@ -27,20 +27,20 @@ func ValidateProtocolRecommendation(recommendation ProtocolRecommendation) error
 	if strings.TrimSpace(recommendation.Rationale) == "" {
 		problems = append(problems, "rationale is required")
 	}
-	if strings.TrimSpace(recommendation.MigrationRisk) == "" {
-		problems = append(problems, "migration_risk is required")
-	}
-	if strings.TrimSpace(recommendation.SecurityRisk) == "" {
-		problems = append(problems, "security_risk is required")
-	}
-	if strings.TrimSpace(recommendation.OperatorBurden) == "" {
-		problems = append(problems, "operator_burden is required")
-	}
+	problems = append(problems,
+		validateProtocolAssessment("migration_risk", recommendation.MigrationRisk)...,
+	)
+	problems = append(problems,
+		validateProtocolAssessment("security_risk", recommendation.SecurityRisk)...,
+	)
+	problems = append(problems,
+		validateProtocolAssessment("operator_burden", recommendation.OperatorBurden)...,
+	)
 	if strings.TrimSpace(recommendation.FallbackBehavior) == "" {
 		problems = append(problems, "fallback_behavior is required")
 	}
 	if !recommendation.APIMCPAuthorizationPreserved {
-		problems = append(problems, "api/mcp authorization must be preserved")
+		problems = append(problems, "api_mcp_authorization_preserved must be true")
 	}
 	problems = append(problems, validateProtocolValueEvidence(recommendation.ExpectedUserValue)...)
 	problems = append(problems, validateProtocolImpact("latency_impact", recommendation.LatencyImpact)...)
@@ -76,6 +76,19 @@ func validateProtocolImpact(prefix string, impact ProtocolImpact) []string {
 	return problems
 }
 
+func validateProtocolAssessment(
+	field string,
+	category ProtocolAssessmentCategory,
+) []string {
+	if strings.TrimSpace(string(category)) == "" {
+		return []string{field + " is required"}
+	}
+	if !validProtocolAssessmentCategory(category) {
+		return []string{field + " is invalid"}
+	}
+	return nil
+}
+
 func validProtocolCandidate(candidate ProtocolCandidate) bool {
 	switch candidate {
 	case ProtocolCandidateCurrentAPIMCP,
@@ -84,6 +97,19 @@ func validProtocolCandidate(candidate ProtocolCandidate) bool {
 		ProtocolCandidateQdrantGRPC,
 		ProtocolCandidateNornicNative,
 		ProtocolCandidateDeferred:
+		return true
+	default:
+		return false
+	}
+}
+
+func validProtocolAssessmentCategory(category ProtocolAssessmentCategory) bool {
+	switch category {
+	case ProtocolAssessmentNone,
+		ProtocolAssessmentLow,
+		ProtocolAssessmentMedium,
+		ProtocolAssessmentHigh,
+		ProtocolAssessmentUnknown:
 		return true
 	default:
 		return false

@@ -205,10 +205,15 @@ Each recommendation records:
 - fallback behavior;
 - whether API/MCP authorization is preserved.
 
+`migration_risk`, `security_risk`, and `operator_burden` are fixed
+low-cardinality categories. Valid values are `none`, `low`, `medium`, `high`,
+and `unknown`.
+
 Validation rejects recommendations that lack prior NornicDB hybrid baseline
 evidence, name an unsupported candidate protocol, bypass API/MCP
-authorization, omit fallback behavior, omit latency or cost impact evidence, or
-claim user value without measured evidence or a deferred-evidence reason.
+authorization, use an unknown risk or burden category, omit fallback behavior,
+omit latency or cost impact evidence, or claim user value without measured
+evidence or a deferred-evidence reason.
 
 ## Query Suite Gate
 

@@ -38,7 +38,7 @@ func TestValidateProtocolRecommendationRejectsAPIMCPAuthorizationBypass(t *testi
 	if err == nil {
 		t.Fatal("ValidateProtocolRecommendation() error = nil, want authorization failure")
 	}
-	if want := "api/mcp authorization must be preserved"; !strings.Contains(err.Error(), want) {
+	if want := "api_mcp_authorization_preserved must be true"; !strings.Contains(err.Error(), want) {
 		t.Fatalf("ValidateProtocolRecommendation() error = %q, want substring %q", err, want)
 	}
 }
@@ -55,6 +55,29 @@ func TestValidateProtocolRecommendationRejectsMissingFallbackBehavior(t *testing
 	}
 	if want := "fallback_behavior is required"; !strings.Contains(err.Error(), want) {
 		t.Fatalf("ValidateProtocolRecommendation() error = %q, want substring %q", err, want)
+	}
+}
+
+func TestValidateProtocolRecommendationRejectsUnsupportedRiskCategories(t *testing.T) {
+	t.Parallel()
+
+	recommendation := validProtocolRecommendation()
+	recommendation.MigrationRisk = ProtocolAssessmentCategory("sometimes")
+	recommendation.SecurityRisk = ProtocolAssessmentCategory("maybe")
+	recommendation.OperatorBurden = ProtocolAssessmentCategory("large")
+
+	err := ValidateProtocolRecommendation(recommendation)
+	if err == nil {
+		t.Fatal("ValidateProtocolRecommendation() error = nil, want risk category failures")
+	}
+	for _, want := range []string{
+		"migration_risk is invalid",
+		"security_risk is invalid",
+		"operator_burden is invalid",
+	} {
+		if !strings.Contains(err.Error(), want) {
+			t.Fatalf("ValidateProtocolRecommendation() error = %q, want substring %q", err, want)
+		}
 	}
 }
 
@@ -128,9 +151,9 @@ func validProtocolRecommendation() ProtocolRecommendation {
 		CandidateProtocol:            ProtocolCandidateCurrentAPIMCP,
 		Decision:                     ProtocolDecisionKeepCurrentPath,
 		Rationale:                    "Current API/MCP path keeps authorization and operator debugging stable.",
-		MigrationRisk:                "No migration needed.",
-		SecurityRisk:                 "No new protocol exposure.",
-		OperatorBurden:               "No new dashboards or runbooks.",
+		MigrationRisk:                ProtocolAssessmentNone,
+		SecurityRisk:                 ProtocolAssessmentNone,
+		OperatorBurden:               ProtocolAssessmentNone,
 		FallbackBehavior:             "Keep current API/MCP path.",
 		APIMCPAuthorizationPreserved: true,
 		ExpectedUserValue: []ProtocolValueEvidence{
