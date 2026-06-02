@@ -172,6 +172,19 @@ The manifest is aggregate-only. It records:
 - queue counters, pprof reachability, log capture, resource snapshot capture,
   privacy status, and public follow-up issue refs.
 
+SBOM and scanner-worker rows use source-fact ownership, not only runtime or
+workflow names:
+
+- `collectors.sbom_document` is the SBOM source-fact row. Hosted
+  `sbom_attestation` work items may fetch configured documents or attestations,
+  but parsed SBOM document source facts land as `sbom_document`; attachment
+  truth remains in `reducers.sbom_attachment`.
+- `collectors.scanner_worker` is the scanner-worker source evidence row. A
+  `pass` row must count emitted source facts or explicit warning facts. A
+  healthy `runtimes.scanner_worker` service with no emitted evidence is runtime
+  proof only; classify the collector row as `skipped`, `unsupported`, or
+  `fail` with a reason instead of reporting clean source coverage.
+
 `status: "pass"` means every required component row is `pass`, readback
 failures are zero, retrying/failed/dead-letter queue counters are zero, pprof
 is reachable, and logs/resource snapshots were captured. Use
@@ -330,6 +343,20 @@ SBOM attachment, and container-image identity counters. When configured with
 `package_registry_metadata_too_large_gaps` count from the readiness API so an
 expected size-limit coverage gap is visible without exposing private package
 names, registry URLs, or credentials.
+
+No-Regression Evidence: `scripts/test-e2e-evidence-manifest.sh` covers the
+public-safe E2E manifest contract for `collectors.sbom_document`,
+`collectors.scanner_worker`, `reducers.sbom_attachment`, readback counters,
+queue counters, observability capture, classified skipped/unsupported rows, and
+privacy rejection. It proves stale `collectors.sbom_attestation` rows are
+rejected so SBOM source facts, reducer attachment truth, and scanner-worker
+source evidence cannot be conflated.
+
+No-Observability-Change: this manifest validator change only classifies
+operator-submitted aggregate evidence. Runtime diagnosis still uses Docker
+service health, `/api/v0/index-status`, workflow coordinator status, fact
+source counts, queue counters, scanner-worker metrics/spans/logs, pprof
+reachability, log capture, and resource snapshot capture.
 
 ## Restart Recovery
 

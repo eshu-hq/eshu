@@ -74,10 +74,10 @@ write_valid_manifest() {
 			aws_cloud: {status: "pass", facts: 7},
 			oci_registry: {status: "pass", facts: 4},
 			package_registry: {status: "pass", facts: 6},
-			sbom_attestation: {status: "pass", facts: 2},
+			sbom_document: {status: "pass", source_facts: 2},
 			provider_security_alerts: {status: "pass", facts: 4},
 			vulnerability_intelligence: {status: "pass", facts: 8},
-			scanner_worker: {status: "pass", facts: 3},
+			scanner_worker: {status: "pass", warnings: 1},
 			confluence: {status: "pass", facts: 1},
 			pagerduty: {status: "pass", facts: 1},
 			jira: {status: "pass", facts: 1},
@@ -164,6 +164,22 @@ expect_fail missing_mcp_readback "${missing_mcp_readback}" "missing required evi
 missing_collector="${TMP_DIR}/missing-collector.json"
 jq 'del(.collectors.git)' "${valid}" >"${missing_collector}"
 expect_fail missing_collector "${missing_collector}" "missing required evidence: collectors.git"
+
+missing_sbom_document="${TMP_DIR}/missing-sbom-document.json"
+jq 'del(.collectors.sbom_document)' "${valid}" >"${missing_sbom_document}"
+expect_fail missing_sbom_document "${missing_sbom_document}" "missing required evidence: collectors.sbom_document"
+
+deprecated_sbom_attestation="${TMP_DIR}/deprecated-sbom-attestation.json"
+jq '.collectors.sbom_attestation = {status: "pass", facts: 2}' "${valid}" >"${deprecated_sbom_attestation}"
+expect_fail deprecated_sbom_attestation "${deprecated_sbom_attestation}" "collectors.sbom_attestation is ambiguous"
+
+sbom_document_without_facts="${TMP_DIR}/sbom-document-without-facts.json"
+jq '.collectors.sbom_document = {status: "pass", source_facts: 0}' "${valid}" >"${sbom_document_without_facts}"
+expect_fail sbom_document_without_facts "${sbom_document_without_facts}" "collectors.sbom_document pass requires source_facts > 0 or facts > 0"
+
+scanner_worker_without_evidence="${TMP_DIR}/scanner-worker-without-evidence.json"
+jq '.collectors.scanner_worker = {status: "pass", facts: 0, warnings: 0}' "${valid}" >"${scanner_worker_without_evidence}"
+expect_fail scanner_worker_without_evidence "${scanner_worker_without_evidence}" "collectors.scanner_worker pass requires facts > 0, source_facts > 0, or warnings > 0"
 
 missing_reducer="${TMP_DIR}/missing-reducer.json"
 jq 'del(.reducers.repository_dependencies)' "${valid}" >"${missing_reducer}"
