@@ -215,6 +215,16 @@ same CloudResource canonical-nodes phase as AWS relationship and S3 LOGS_TO
 work. The projector does not derive exposed/not_exposed/unknown posture and
 never reads raw bucket policies or ACL grants.
 
+S3 external-principal grants follow the same reducer-owned boundary. When a
+generation contains an `s3_external_principal_grant` fact,
+`buildS3ExternalPrincipalGrantMaterializationReducerIntent` emits one
+`s3_external_principal_grant_materialization` reducer intent for the
+scope/generation, keyed to `aws_resource_materialization:<scope>` so the
+reducer waits for the same CloudResource canonical-nodes phase before writing
+`GRANTS_ACCESS_TO` edges. The projector does not create `ExternalPrincipal`
+nodes, does not infer access from posture booleans, and never carries raw bucket
+policy, statement, ACL, condition, action, resource, or object data.
+
 ## Telemetry
 
 - Metrics: `eshu_dp_projector_run_duration_seconds` — duration of one full claim-

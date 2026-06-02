@@ -57,13 +57,14 @@ WITH candidate AS (
             AND semantic_inflight.claim_until > $1
       ) < $7)
       -- AWS relationship edges, observability COVERS edges, IAM CAN_ASSUME trust
-      -- edges, S3 LOGS_TO log-delivery edges, RDS posture node-property updates,
-      -- and S3 internet-exposure node properties all consume CloudResource nodes
+      -- edges, S3 LOGS_TO log-delivery edges, S3 external-principal grant
+      -- edges, RDS posture node-property updates, and S3 internet-exposure node
+      -- properties all consume CloudResource nodes
       -- produced by the aws_resource_materialization domain for the exact same
       -- scope/generation/entity-key readiness slice. Keep those graph-write
       -- domains pending or retrying until canonical nodes are visibly committed
       -- instead of claiming them and recording retryable reducer failures.
-      AND (domain NOT IN ('aws_relationship_materialization', 'observability_coverage_materialization', 'iam_can_assume_materialization', 's3_logs_to_materialization', 'rds_posture_materialization', 's3_internet_exposure_materialization') OR EXISTS (
+      AND (domain NOT IN ('aws_relationship_materialization', 'observability_coverage_materialization', 'iam_can_assume_materialization', 's3_logs_to_materialization', 's3_external_principal_grant_materialization', 'rds_posture_materialization', 's3_internet_exposure_materialization') OR EXISTS (
           SELECT 1
           FROM graph_projection_phase_state AS aws_nodes
           WHERE aws_nodes.scope_id = fact_work_items.scope_id

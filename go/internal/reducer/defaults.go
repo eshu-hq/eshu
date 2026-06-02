@@ -150,6 +150,16 @@ type DefaultHandlers struct {
 	// nodes.
 	S3LogsToEdgeWriter S3LogsToEdgeWriter
 
+	// S3ExternalPrincipalGrantWriter projects metadata-only
+	// s3_external_principal_grant facts into canonical ExternalPrincipal nodes
+	// and GRANTS_ACCESS_TO edges (issue #1231). It must be non-nil alongside
+	// FactLoader for the registry to register
+	// DomainS3ExternalPrincipalGrantMaterialization; missing either one would
+	// drop every external-principal grant intent before it reaches graph truth.
+	// The handler also gates on ReadinessLookup so source S3 buckets resolve only
+	// after CloudResource nodes commit.
+	S3ExternalPrincipalGrantWriter S3ExternalPrincipalGrantWriter
+
 	// RDSPostureNodeWriter projects rds_instance_posture facts onto existing RDS
 	// CloudResource nodes (issue #1233). It must be non-nil alongside FactLoader
 	// for the registry to register DomainRDSPostureMaterialization; missing either

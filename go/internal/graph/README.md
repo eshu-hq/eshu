@@ -144,6 +144,10 @@ helpers (`schemaDialectForBackend`, `nornicDBSchemaConstraint`).
   incident and routing evidence nodes by deterministic UID and never use this
   label for service, runtime, image, commit, pull-request, Jira, or root-cause
   truth.
+- `ExternalPrincipal` receives a `uid` constraint and the matching NornicDB
+  lookup index. Reducer-owned S3 external-principal grant writes key the node by
+  bounded principal kind/value and connect existing S3 `CloudResource` nodes to
+  those identities through `GRANTS_ACCESS_TO` edges.
 
 See `doc.go` for the godoc contract.
 

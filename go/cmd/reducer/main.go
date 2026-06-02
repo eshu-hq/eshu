@@ -194,6 +194,7 @@ func buildReducerService(
 	incidentRoutingEvidenceWriter := sourcecypher.NewIncidentRoutingEvidenceWriter(neo4jExec, neo4jBatchSize(getenv))
 	iamCanAssumeEdgeWriter := sourcecypher.NewIAMCanAssumeEdgeWriter(neo4jExec, neo4jBatchSize(getenv))
 	s3LogsToEdgeWriter := sourcecypher.NewS3LogsToEdgeWriter(neo4jExec, neo4jBatchSize(getenv))
+	s3ExternalPrincipalGrantWriter := sourcecypher.NewS3ExternalPrincipalGrantWriter(neo4jExec, neo4jBatchSize(getenv))
 	rdsPostureNodeWriter := sourcecypher.NewRDSPostureNodeWriter(neo4jExec, neo4jBatchSize(getenv))
 	ec2UsesProfileEdgeWriter := sourcecypher.NewEC2UsesProfileEdgeWriter(neo4jExec, neo4jBatchSize(getenv))
 	s3InternetExposureNodeWriter := sourcecypher.NewS3InternetExposureNodeWriter(neo4jExec, neo4jBatchSize(getenv))
@@ -341,6 +342,7 @@ func buildReducerService(
 		ObservabilityCoverageEdgeWriter: observabilityCoverageEdgeWriter,
 		IAMCanAssumeEdgeWriter:          iamCanAssumeEdgeWriter,
 		S3LogsToEdgeWriter:              s3LogsToEdgeWriter,
+		S3ExternalPrincipalGrantWriter:  s3ExternalPrincipalGrantWriter,
 		RDSPostureNodeWriter:            rdsPostureNodeWriter,
 		EC2UsesProfileEdgeWriter:        ec2UsesProfileEdgeWriter,
 		S3InternetExposureNodeWriter:    s3InternetExposureNodeWriter,

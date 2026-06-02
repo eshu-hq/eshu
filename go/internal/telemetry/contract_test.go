@@ -93,6 +93,7 @@ func TestSpanNames(t *testing.T) {
 		"reducer.security_group_reachability_materialization",
 		"reducer.iam_can_assume_materialization",
 		"reducer.s3_logs_to_materialization",
+		"reducer.s3_external_principal_grant_materialization",
 		"reducer.rds_posture_materialization",
 		"reducer.ec2_uses_profile_materialization",
 		"reducer.s3_internet_exposure_materialization",

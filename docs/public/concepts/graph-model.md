@@ -16,6 +16,7 @@ Common node types include:
 - **`TerraformResource`**
 - **`K8sResource`**
 - **`CloudResource`**
+- **`ExternalPrincipal`**
 - **`Image`**
 - **`Endpoint`**
 - **`Environment`**
@@ -39,6 +40,7 @@ Some edges describe deployable-system context:
 - `(:TerraformModule)-[:DEFINES]->(:TerraformResource)`
 - `(:TerraformResource)-[:PROVISIONS]->(:CloudResource)`
 - `(:WorkloadInstance)-[:USES]->(:CloudResource)`
+- `(:CloudResource)-[:GRANTS_ACCESS_TO]->(:ExternalPrincipal)`
 
 ## Repository identity
 
