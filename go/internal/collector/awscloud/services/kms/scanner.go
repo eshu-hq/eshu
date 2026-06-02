@@ -51,6 +51,13 @@ func keyEnvelopes(boundary awscloud.Boundary, key Key) ([]facts.Envelope, error)
 		return nil, err
 	}
 	envelopes := []facts.Envelope{resource}
+	for _, observation := range resourcePolicyPermissionObservations(boundary, key) {
+		permission, err := awscloud.NewResourcePolicyPermissionEnvelope(observation)
+		if err != nil {
+			return nil, err
+		}
+		envelopes = append(envelopes, permission)
+	}
 	for _, alias := range key.Aliases {
 		envelopes, err = appendResourceAndRelationship(
 			envelopes,
@@ -95,6 +102,45 @@ func appendResourceAndRelationship(
 		return nil, err
 	}
 	return append(envelopes, resourceEnvelope, relationshipEnvelope), nil
+}
+
+// resourcePolicyPermissionObservations maps the key's normalized key-policy
+// statements into aws_resource_policy_permission observations. The statements
+// arrive already derived on the Key model from a transient key-policy parse;
+// this package never sees the raw policy document. A key with no readable policy
+// carries no statements, so it emits no fact.
+func resourcePolicyPermissionObservations(
+	boundary awscloud.Boundary,
+	key Key,
+) []awscloud.ResourcePolicyPermissionObservation {
+	if len(key.ResourcePolicyStatements) == 0 {
+		return nil
+	}
+	keyARN := strings.TrimSpace(key.ARN)
+	keyID := strings.TrimSpace(key.ID)
+	resourceARN := firstNonEmpty(keyARN, keyID)
+	observations := make([]awscloud.ResourcePolicyPermissionObservation, 0, len(key.ResourcePolicyStatements))
+	for _, statement := range key.ResourcePolicyStatements {
+		observations = append(observations, awscloud.ResourcePolicyPermissionObservation{
+			Boundary:            boundary,
+			ResourceARN:         resourceARN,
+			ResourceType:        awscloud.ResourceTypeKMSKey,
+			StatementSID:        statement.StatementSID,
+			Effect:              statement.Effect,
+			Actions:             statement.Actions,
+			NotActions:          statement.NotActions,
+			Resources:           statement.Resources,
+			NotResources:        statement.NotResources,
+			ConditionKeys:       statement.ConditionKeys,
+			PrincipalAccountIDs: statement.PrincipalAccountIDs,
+			PrincipalARNs:       statement.PrincipalARNs,
+			PrincipalTypes:      statement.PrincipalTypes,
+			IsPublic:            statement.IsPublic,
+			IsCrossAccount:      statement.IsCrossAccount,
+			SourceURI:           keyARN,
+		})
+	}
+	return observations
 }
 
 func keyObservation(boundary awscloud.Boundary, key Key) awscloud.ResourceObservation {

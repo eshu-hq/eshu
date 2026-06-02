@@ -54,6 +54,13 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 			}
 			envelopes = append(envelopes, grant)
 		}
+		for _, observation := range resourcePolicyPermissionObservations(boundary, bucket) {
+			permission, err := awscloud.NewResourcePolicyPermissionEnvelope(observation)
+			if err != nil {
+				return nil, err
+			}
+			envelopes = append(envelopes, permission)
+		}
 		logging, ok := loggingRelationship(boundary, bucket)
 		if !ok {
 			continue
@@ -185,6 +192,44 @@ func externalPrincipalGrantObservations(
 			UnsupportedKey:     grant.UnsupportedKey,
 			SourceStatementID:  grant.SourceStatementID,
 			SourceURI:          s3BucketURI(name),
+		})
+	}
+	return observations
+}
+
+// resourcePolicyPermissionObservations maps the bucket's normalized resource
+// policy statements into aws_resource_policy_permission observations. The
+// statements arrive already derived on the Bucket model; this package never sees
+// the raw policy document. A bucket with no attached policy carries no
+// statements, so it emits no fact.
+func resourcePolicyPermissionObservations(
+	boundary awscloud.Boundary,
+	bucket Bucket,
+) []awscloud.ResourcePolicyPermissionObservation {
+	if len(bucket.ResourcePolicyStatements) == 0 {
+		return nil
+	}
+	name := strings.TrimSpace(bucket.Name)
+	arn := firstNonEmpty(bucket.ARN, arnForBucket(awscloud.PartitionForBoundary(boundary), name))
+	observations := make([]awscloud.ResourcePolicyPermissionObservation, 0, len(bucket.ResourcePolicyStatements))
+	for _, statement := range bucket.ResourcePolicyStatements {
+		observations = append(observations, awscloud.ResourcePolicyPermissionObservation{
+			Boundary:            boundary,
+			ResourceARN:         arn,
+			ResourceType:        awscloud.ResourceTypeS3Bucket,
+			StatementSID:        statement.StatementSID,
+			Effect:              statement.Effect,
+			Actions:             statement.Actions,
+			NotActions:          statement.NotActions,
+			Resources:           statement.Resources,
+			NotResources:        statement.NotResources,
+			ConditionKeys:       statement.ConditionKeys,
+			PrincipalAccountIDs: statement.PrincipalAccountIDs,
+			PrincipalARNs:       statement.PrincipalARNs,
+			PrincipalTypes:      statement.PrincipalTypes,
+			IsPublic:            statement.IsPublic,
+			IsCrossAccount:      statement.IsCrossAccount,
+			SourceURI:           s3BucketURI(name),
 		})
 	}
 	return observations

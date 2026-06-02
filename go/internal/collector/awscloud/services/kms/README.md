@@ -28,6 +28,7 @@ flowchart LR
   C --> G["aws_relationship (alias->key)"]
   C --> H["aws_relationship (grant->key)"]
   C --> I["aws_relationship (grant->grantee)"]
+  C --> J["aws_resource_policy_permission (key policy)"]
 ```
 
 ## Exported surface
@@ -42,7 +43,13 @@ See `doc.go` for the godoc contract.
   facts for one boundary.
 - `Key` - scanner-owned key metadata (identity, usage, origin, manager,
   state, rotation status known/value, policy revision names, multi-Region
-  configuration, supported algorithm lists).
+  configuration, supported algorithm lists, and the normalized
+  `ResourcePolicyStatements` projection of the key policy).
+- `ResourcePolicyStatement` - one normalized, derived key-policy statement
+  (effect, normalized actions/resources, condition-key NAMES, and derived
+  grantee principal facts). The raw policy Statement body and condition
+  values are never represented on it. It feeds the
+  `aws_resource_policy_permission` fact.
 - `Alias` - alias name/ARN and the target key id it points at.
 - `Grant` - grant identity, grantee principal, retiring principal, issuing
   account, and the bounded operation list. The grantee principal is either an
@@ -86,9 +93,14 @@ bounded AWS collector labels.
   DeleteImportedKeyMaterial, UpdateKeyDescription, CreateAlias,
   UpdateAlias, DeleteAlias, TagResource, UntagResource,
   RotateKeyOnDemand, UpdatePrimaryRegion.
-- It must never persist key policy Statement bodies. Only the bounded
-  list of policy revision names AWS reports through ListKeyPolicies is
-  emitted; the scanner does not call GetKeyPolicy.
+- It must never persist key policy Statement bodies, statement Sids, or
+  condition VALUES. The `awssdk` adapter reads the key policy with
+  GetKeyPolicy (owner-approved, PR4b of #1134) only to derive the
+  normalized, metadata-only `aws_resource_policy_permission` projection
+  (effect, normalized actions/resources, condition-key NAMES, derived
+  grantee principal facts). The bounded policy revision names from
+  ListKeyPolicies are still emitted as before. PutKeyPolicy (a mutation)
+  stays forbidden.
 - It must never persist grant encryption contexts. The scanner-owned
   `Grant` type has no field for `EncryptionContextSubset`,
   `EncryptionContextEquals`, or other `GrantConstraints` payload, so leak
@@ -125,6 +137,26 @@ Collector Observability Evidence: KMS uses the existing AWS collector
 
 No-Observability-Change: the existing AWS collector telemetry contract
 already diagnoses KMS scans through the bounded shared instruments.
+
+### Resource-policy permission fact (PR4b of #1134)
+
+No-Regression Evidence: `cd go && go test ./internal/facts ./internal/collector/awscloud ./internal/collector/awscloud/services/kms/... -count=1`
+covers the new `aws_resource_policy_permission` emission, the derived
+key-policy statement normalization, the GetKeyPolicy adapter call, and the
+existing metadata path. This slice is facts-only: no Cypher, graph write,
+queue, lease, or reducer change. The added work is one control-plane
+`GetKeyPolicy` call per key policy name (almost always the single `default`
+policy), bounded by the policy-name count `ListKeyPolicies` already returns,
+so the per-key API fan-out grows by one bounded read; AccessDenied on a
+policy read is treated as "no readable policy" and contributes no fact rather
+than failing the scan.
+
+No-Observability-Change: the `GetKeyPolicy` call flows through the existing
+`recordAPICall` path, so it is already counted by
+`eshu_dp_aws_api_calls_total{operation="GetKeyPolicy"}` and traced by the
+`aws.service.pagination.page` span; the derived fact flows through the
+existing `eshu_dp_aws_resources_emitted_total{service="kms"}` collector
+signal. No new metric, span, or log is introduced.
 
 Collector Deployment Evidence: KMS runs inside the existing hosted
 `collector-aws-cloud` runtime, so `/healthz`, `/readyz`, `/metrics`, and

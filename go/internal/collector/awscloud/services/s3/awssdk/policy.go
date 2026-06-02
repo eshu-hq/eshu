@@ -148,11 +148,20 @@ func (d policyDocument) Statements() []policyStatement {
 	return []policyStatement{single}
 }
 
-// policyStatement captures only the fields needed to derive principal posture.
+// policyStatement captures the fields needed to derive principal posture and the
+// normalized resource-policy permission statement. Action/Resource/Condition are
+// parsed transiently to derive metadata-only fields (normalized action/resource
+// patterns and condition KEY names); the raw statement body and condition values
+// are never retained beyond this transient parse.
 type policyStatement struct {
-	SID       string          `json:"Sid"`
-	Effect    string          `json:"Effect"`
-	Principal json.RawMessage `json:"Principal"`
+	SID         string          `json:"Sid"`
+	Effect      string          `json:"Effect"`
+	Principal   json.RawMessage `json:"Principal"`
+	Action      json.RawMessage `json:"Action"`
+	NotAction   json.RawMessage `json:"NotAction"`
+	Resource    json.RawMessage `json:"Resource"`
+	NotResource json.RawMessage `json:"NotResource"`
+	Condition   json.RawMessage `json:"Condition"`
 }
 
 func (s policyStatement) isAllow() bool {

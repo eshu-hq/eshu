@@ -12,8 +12,9 @@ import (
 
 // mapKey converts the AWS SDK KMS describe-and-list call results into the
 // scanner-owned Key. Encryption-context grant constraints are intentionally
-// dropped; only identity, usage, origin, manager, key state, rotation
-// status, policy revision names, aliases, and grant identity flow forward.
+// dropped; only identity, usage, origin, manager, key state, rotation status,
+// policy revision names, normalized resource-policy statements, aliases, and
+// grant identity flow forward.
 func mapKey(
 	keyID string,
 	metadata *kmstypes.KeyMetadata,
@@ -21,6 +22,7 @@ func mapKey(
 	grants []kmsservice.Grant,
 	tags map[string]string,
 	policyNames []string,
+	policyStatements []kmsservice.ResourcePolicyStatement,
 	rotation rotationStatus,
 ) kmsservice.Key {
 	if metadata == nil {
@@ -44,17 +46,18 @@ func mapKey(
 		// CustomerMasterKeySpec is deprecated upstream in favor of
 		// KeySpec; we already populate KeySpec above and leave the legacy
 		// alias empty rather than reach for the deprecated AWS field.
-		CustomerMasterKeySpec:  "",
-		EncryptionAlgorithms:   encryptionAlgorithms(metadata.EncryptionAlgorithms),
-		SigningAlgorithms:      signingAlgorithms(metadata.SigningAlgorithms),
-		MACAlgorithms:          macAlgorithms(metadata.MacAlgorithms),
-		KeyAgreementAlgorithms: keyAgreementAlgorithms(metadata.KeyAgreementAlgorithms),
-		RotationEnabled:        rotation.enabled,
-		RotationStatusKnown:    rotation.known,
-		PolicyRevisionNames:    cloneStrings(policyNames),
-		Tags:                   cloneStringMap(tags),
-		Aliases:                cloneAliases(aliases),
-		Grants:                 grants,
+		CustomerMasterKeySpec:    "",
+		EncryptionAlgorithms:     encryptionAlgorithms(metadata.EncryptionAlgorithms),
+		SigningAlgorithms:        signingAlgorithms(metadata.SigningAlgorithms),
+		MACAlgorithms:            macAlgorithms(metadata.MacAlgorithms),
+		KeyAgreementAlgorithms:   keyAgreementAlgorithms(metadata.KeyAgreementAlgorithms),
+		RotationEnabled:          rotation.enabled,
+		RotationStatusKnown:      rotation.known,
+		PolicyRevisionNames:      cloneStrings(policyNames),
+		Tags:                     cloneStringMap(tags),
+		Aliases:                  cloneAliases(aliases),
+		Grants:                   grants,
+		ResourcePolicyStatements: policyStatements,
 	}
 }
 

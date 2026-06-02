@@ -15,7 +15,7 @@ import (
 )
 
 // apiClient is the bounded AWS SDK surface this adapter consumes. Every
-// method is List- or Describe-class. No cryptographic operation
+// method is read-class (List/Describe/Get). No cryptographic operation
 // (Encrypt/Decrypt/Sign/Verify/Mac/GenerateDataKey/ReEncrypt/DeriveSharedSecret)
 // and no lifecycle mutation (CreateKey/ScheduleKeyDeletion/PutKeyPolicy/
 // CreateGrant/RevokeGrant/RetireGrant/ReplicateKey/ImportKeyMaterial/
@@ -24,12 +24,19 @@ import (
 // DeleteAlias/TagResource/UntagResource) is reachable from this interface.
 // The package's test asserts there is no method whose name matches a
 // forbidden operation.
+//
+// GetKeyPolicy is included (owner-approved reversal of the prior constraint, PR4b
+// of #1134): the adapter reads the key policy document only to derive the
+// normalized, metadata-only aws_resource_policy_permission statements. The raw
+// policy Statement body and condition VALUES are parsed transiently and never
+// persisted.
 type apiClient interface {
 	ListKeys(context.Context, *awskms.ListKeysInput, ...func(*awskms.Options)) (*awskms.ListKeysOutput, error)
 	DescribeKey(context.Context, *awskms.DescribeKeyInput, ...func(*awskms.Options)) (*awskms.DescribeKeyOutput, error)
 	ListAliases(context.Context, *awskms.ListAliasesInput, ...func(*awskms.Options)) (*awskms.ListAliasesOutput, error)
 	ListGrants(context.Context, *awskms.ListGrantsInput, ...func(*awskms.Options)) (*awskms.ListGrantsOutput, error)
 	ListKeyPolicies(context.Context, *awskms.ListKeyPoliciesInput, ...func(*awskms.Options)) (*awskms.ListKeyPoliciesOutput, error)
+	GetKeyPolicy(context.Context, *awskms.GetKeyPolicyInput, ...func(*awskms.Options)) (*awskms.GetKeyPolicyOutput, error)
 	GetKeyRotationStatus(context.Context, *awskms.GetKeyRotationStatusInput, ...func(*awskms.Options)) (*awskms.GetKeyRotationStatusOutput, error)
 	ListResourceTags(context.Context, *awskms.ListResourceTagsInput, ...func(*awskms.Options)) (*awskms.ListResourceTagsOutput, error)
 }
@@ -163,6 +170,10 @@ func (c *Client) keyMetadata(ctx context.Context, keyID string, aliases []kmsser
 	if err != nil {
 		return kmsservice.Key{}, err
 	}
+	policyStatements, err := c.keyPolicyStatements(ctx, keyID, policyNames)
+	if err != nil {
+		return kmsservice.Key{}, err
+	}
 	rotation, err := c.keyRotationStatus(ctx, keyID, metadata)
 	if err != nil {
 		return kmsservice.Key{}, err
@@ -171,7 +182,53 @@ func (c *Client) keyMetadata(ctx context.Context, keyID string, aliases []kmsser
 	if err != nil {
 		return kmsservice.Key{}, err
 	}
-	return mapKey(keyID, metadata, aliases, grants, tags, policyNames, rotation), nil
+	return mapKey(keyID, metadata, aliases, grants, tags, policyNames, policyStatements, rotation), nil
+}
+
+// keyPolicyStatements reads each named key policy (GetKeyPolicy) and derives the
+// normalized, metadata-only resource-policy statements. KMS key policies are
+// almost always a single "default" policy, so the per-key fan-out is bounded by
+// the policy-name count ListKeyPolicies already returned. The raw policy
+// document is parsed transiently inside the derivation and never retained. An
+// AccessDenied on a policy read is treated as "no readable policy" (the key
+// simply contributes no resource-policy facts) rather than failing the scan; any
+// other failure is surfaced so a real outage is not silently downgraded.
+func (c *Client) keyPolicyStatements(ctx context.Context, keyID string, policyNames []string) ([]kmsservice.ResourcePolicyStatement, error) {
+	var statements []kmsservice.ResourcePolicyStatement
+	for _, name := range policyNames {
+		document, err := c.getKeyPolicyDocument(ctx, keyID, name)
+		if err != nil {
+			if isAccessDeniedError(err) {
+				continue
+			}
+			return nil, err
+		}
+		derived, err := deriveKeyPolicyResourcePermissionStatements(document, c.boundary.AccountID)
+		if err != nil {
+			return nil, err
+		}
+		statements = append(statements, derived...)
+	}
+	return statements, nil
+}
+
+func (c *Client) getKeyPolicyDocument(ctx context.Context, keyID, policyName string) (string, error) {
+	var output *awskms.GetKeyPolicyOutput
+	err := c.recordAPICall(ctx, "GetKeyPolicy", func(callCtx context.Context) error {
+		var getErr error
+		output, getErr = c.client.GetKeyPolicy(callCtx, &awskms.GetKeyPolicyInput{
+			KeyId:      aws.String(keyID),
+			PolicyName: aws.String(policyName),
+		})
+		return getErr
+	})
+	if err != nil {
+		return "", err
+	}
+	if output == nil {
+		return "", nil
+	}
+	return aws.ToString(output.Policy), nil
 }
 
 func (c *Client) describeKey(ctx context.Context, keyID string) (*kmstypes.KeyMetadata, error) {

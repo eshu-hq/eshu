@@ -147,8 +147,27 @@ func TestClientListKeysEmitsMetadataAndDropsEncryptionContext(t *testing.T) {
 			}
 		}
 	}
-	if api.getKeyPolicyCalls != 0 {
-		t.Fatalf("GetKeyPolicy called %d times; scanner must never read policy bodies", api.getKeyPolicyCalls)
+	// PR4b of #1134 (owner-approved): the adapter now reads the key policy with
+	// GetKeyPolicy to derive normalized, metadata-only resource-policy
+	// statements. It is called once per policy name from ListKeyPolicies. This
+	// fixture supplies no policy document, so no statements are derived and the
+	// raw policy body never reaches the scanner-owned Key.
+	if api.getKeyPolicyCalls != 1 {
+		t.Fatalf("GetKeyPolicy called %d times; want 1 (one read per policy name)", api.getKeyPolicyCalls)
+	}
+	if len(key.ResourcePolicyStatements) != 0 {
+		t.Fatalf("ResourcePolicyStatements = %#v, want none for an empty policy document", key.ResourcePolicyStatements)
+	}
+	keyValue := reflect.ValueOf(key)
+	for i := 0; i < keyValue.NumField(); i++ {
+		field := keyValue.Type().Field(i)
+		lower := strings.ToLower(field.Name)
+		// The scanner-owned Key must never carry a raw policy document or
+		// statement body field; only the derived ResourcePolicyStatements
+		// projection and the policy-revision-name list are allowed.
+		if strings.Contains(lower, "document") || lower == "policy" || lower == "policybody" {
+			t.Fatalf("Key struct field %q exposes a raw policy-body surface", field.Name)
+		}
 	}
 }
 
@@ -323,7 +342,6 @@ func TestAdapterAPIClientInterfaceForbidsCryptoAndLifecycleMethods(t *testing.T)
 		"UpdateKeyDescription", "CreateAlias", "UpdateAlias",
 		"DeleteAlias", "TagResource", "UntagResource",
 		"RotateKeyOnDemand", "UpdatePrimaryRegion",
-		"GetKeyPolicy", // Excluded so policy Statement bodies are unreachable.
 		"GetParametersForImport",
 	}
 	iface := reflect.TypeOf((*apiClient)(nil)).Elem()
@@ -340,5 +358,18 @@ func TestAdapterAPIClientInterfaceForbidsCryptoAndLifecycleMethods(t *testing.T)
 				t.Fatalf("apiClient method %q contains forbidden operation %q; KMS adapter contract is metadata-only", method.Name, banned)
 			}
 		}
+	}
+	// GetKeyPolicy is intentionally reachable (PR4b of #1134, owner-approved): the
+	// adapter reads the key policy only to derive normalized, metadata-only
+	// resource-policy statements; the raw Statement body and condition values are
+	// never persisted. Pin it so an accidental removal is caught.
+	if _, ok := iface.MethodByName("GetKeyPolicy"); !ok {
+		t.Fatalf("apiClient must expose GetKeyPolicy for derived aws_resource_policy_permission facts")
+	}
+	// PutKeyPolicy (a mutation) must still be unreachable even though GetKeyPolicy
+	// now is. The strings.Contains scan above would not catch a removed banned
+	// entry, so assert the mutation directly.
+	if _, ok := iface.MethodByName("PutKeyPolicy"); ok {
+		t.Fatalf("apiClient exposes PutKeyPolicy; key-policy mutation is forbidden")
 	}
 }

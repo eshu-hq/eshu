@@ -36,6 +36,7 @@ type fakeKMSAPI struct {
 	listTagsByKey   map[string][]*awskms.ListResourceTagsOutput
 	listTagsCounter map[string]int
 
+	keyPolicyByKey    map[string]string
 	getKeyPolicyCalls int
 }
 
@@ -122,6 +123,19 @@ func (f *fakeKMSAPI) ListResourceTags(_ context.Context, input *awskms.ListResou
 	}
 	f.listTagsCounter[id] = index + 1
 	return pages[index], nil
+}
+
+func (f *fakeKMSAPI) GetKeyPolicy(_ context.Context, input *awskms.GetKeyPolicyInput, _ ...func(*awskms.Options)) (*awskms.GetKeyPolicyOutput, error) {
+	f.getKeyPolicyCalls++
+	id := aws.ToString(input.KeyId)
+	policy, ok := f.keyPolicyByKey[id]
+	if !ok {
+		return &awskms.GetKeyPolicyOutput{}, nil
+	}
+	return &awskms.GetKeyPolicyOutput{
+		Policy:     aws.String(policy),
+		PolicyName: input.PolicyName,
+	}, nil
 }
 
 func equalStrings(left, right []string) bool {
