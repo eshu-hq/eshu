@@ -14,7 +14,7 @@ func TestNornicDBComposeDefaultUsesPinnedMultiArchImage(t *testing.T) {
 		t.Fatalf("docker-compose.yaml still defaults to stale amd64-only image %q", oldDefault)
 	}
 
-	want := "image: ${NORNICDB_IMAGE:-timothyswt/nornicdb-cpu-bge:v1.1.2@sha256:b4babec00f1fe2f0dec2fddc5bc90aa20e7d69e35172a27a58cc00d32b606b63}"
+	want := "image: ${NORNICDB_IMAGE:-timothyswt/nornicdb-cpu-bge:v1.1.3@sha256:42af69852ae0f34a905a0877668025d53b3783bb864549810d868e1bf94f3752}"
 	if !strings.Contains(content, want) {
 		t.Fatalf("docker-compose.yaml must default to a pinned multi-arch NornicDB image matching %q", want)
 	}

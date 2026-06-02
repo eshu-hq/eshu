@@ -42,7 +42,7 @@ state, facts, queues, status, content, and recovery data.
 | `resolution-engine` | Reducer queue drain, graph projection, repair, and shared materialization. |
 
 The NornicDB service defaults to a pinned multi-arch Docker manifest:
-`timothyswt/nornicdb-cpu-bge:v1.1.2@sha256:b4babec00f1fe2f0dec2fddc5bc90aa20e7d69e35172a27a58cc00d32b606b63`.
+`timothyswt/nornicdb-cpu-bge:v1.1.3@sha256:42af69852ae0f34a905a0877668025d53b3783bb864549810d868e1bf94f3752`.
 Leave `NORNICDB_PLATFORM` unset for normal local runs. Docker selects the
 `linux/arm64` image on Apple Silicon and the `linux/amd64` image on x86 hosts.
 
