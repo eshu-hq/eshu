@@ -123,6 +123,16 @@ func appendAdditiveDomainDefinitions(definitions []DomainDefinition, handlers De
 		}
 		definitions = append(definitions, awsResources)
 	}
+	if handlers.FactLoader != nil && handlers.EC2InstanceNodeWriter != nil {
+		ec2Instances := ec2InstanceNodeMaterializationDomainDefinition()
+		ec2Instances.Handler = EC2InstanceNodeMaterializationHandler{
+			FactLoader:     handlers.FactLoader,
+			NodeWriter:     handlers.EC2InstanceNodeWriter,
+			PhasePublisher: handlers.GraphProjectionPhasePublisher,
+			Instruments:    handlers.Instruments,
+		}
+		definitions = append(definitions, ec2Instances)
+	}
 	if handlers.FactLoader != nil && handlers.KubernetesWorkloadNodeWriter != nil {
 		kubernetesWorkloads := kubernetesWorkloadMaterializationDomainDefinition()
 		kubernetesWorkloads.Handler = KubernetesWorkloadMaterializationHandler{

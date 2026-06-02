@@ -74,6 +74,7 @@ canonical-write or bounded counter-emission requirements.
 | `DomainSupplyChainImpact` | Publish vulnerability impact findings only when explicit vulnerability, package, SBOM, image, or repository evidence exists |
 | `DomainSecurityAlertReconciliation` | Compare provider repository security alerts with Eshu-owned dependency and impact evidence, including alert-seeded impact rows only when owned dependency evidence matches |
 | `DomainAWSResourceMaterialization` | Materialize `aws_resource` facts into canonical `CloudResource` nodes; publishes the `cloud_resource_uid` canonical-nodes phase the AWS relationship edge gates on (issue #805) |
+| `DomainEC2InstanceNodeMaterialization` | Materialize `ec2_instance_posture` facts into canonical EC2 instance `CloudResource` nodes keyed by `cloudResourceUID(account, region, "aws_ec2_instance", instance_id)` on the existing `cloud_resource_uid` keyspace (the EC2 scanner emits no `aws_resource` inventory fact for instances); carries metadata-only safe identifiers plus derived posture booleans (IMDS, user-data presence, monitoring, public-IP, `instance_profile_arn`) — never user-data content, the raw public IP, or block devices; publishes the `cloud_resource_uid` canonical-nodes phase under the distinct `ec2_instance_node_materialization:<scope>` entity key the future `USES_PROFILE` edge gates on (issue #1146 PR-A); see `docs/internal/design/1146-ec2-instance-node.md` |
 | `DomainKubernetesWorkloadMaterialization` | Materialize `kubernetes_live.pod_template` facts into canonical `KubernetesWorkload` nodes keyed by the collector-emitted `object_id`; publishes the `kubernetes_workload_uid` canonical-nodes phase the #388 live-workload edge gates on |
 | `DomainKubernetesCorrelationMaterialization` | Project exact live-workload correlation decisions into canonical `RUNS_IMAGE` edges from a `KubernetesWorkload` node to the digest-addressed OCI source node it runs; gates on the `kubernetes_workload_uid` canonical-nodes phase, exact-only, never fabricates or dangles an edge (issue #388 PR3) |
 | `DomainIAMCanAssumeMaterialization` | Project `aws_iam_permission` trust statements into canonical `(:CloudResource)-[:CAN_ASSUME]->(:CloudResource)` edges from an assuming IAM principal (role/user) to the role whose trust policy grants the assume; gates on the `cloud_resource_uid` canonical-nodes phase (the same gate `aws_relationship_materialization` uses), `effect=Allow` only, skips external / AWS-service / wildcard / account-root / unscanned principals, never fabricates or dangles an edge (issue #1134 PR2) |
@@ -410,6 +411,16 @@ Key metrics (all prefixed `eshu_dp_`):
   references and identity edges join to deployment-source image evidence. PR1 is
   fact-only: no graph edge is written; the gated canonical edge and the query/MCP
   read surface are follow-up PRs. See issue #388.
+- `ec2_instance_nodes_total` — canonical EC2 instance `CloudResource` graph nodes
+  committed by `DomainEC2InstanceNodeMaterialization`, dimensioned by `domain`. The
+  handler also publishes the `cloud_resource_uid` / `canonical_nodes_committed`
+  readiness phase under the distinct `ec2_instance_node_materialization:<scope>`
+  entity key only after the node write succeeds (or is a legitimate no-op for an
+  empty generation), emits `ec2_instance_nodes_skipped_total` (dimension
+  `skip_reason`: `missing_identity` / `tombstone`), and logs an `ec2 instance node
+  materialization completed` structured log with per-stage durations, node count,
+  and the skip tally. See issue #1146 PR-A and
+  `docs/internal/design/1146-ec2-instance-node.md`.
 - `kubernetes_workload_nodes_total` — canonical `KubernetesWorkload` graph nodes
   committed by `DomainKubernetesWorkloadMaterialization`, dimensioned by `domain`.
   The handler also publishes the `kubernetes_workload_uid` /

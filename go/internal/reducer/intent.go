@@ -82,6 +82,19 @@ const (
 	// relationship edge projection (issue #805) joins against; see
 	// docs/internal/aws-relationship-edge-materialization-design.md.
 	DomainAWSResourceMaterialization Domain = "aws_resource_materialization"
+	// DomainEC2InstanceNodeMaterialization materializes ec2_instance_posture facts
+	// into canonical :CloudResource graph nodes on the existing cloud_resource_uid
+	// keyspace (issue #1146 PR-A). The EC2 scanner deliberately does not emit an
+	// aws_resource inventory fact for instances, so this domain is the only path
+	// that materializes an EC2 instance as a node. After the node write succeeds it
+	// publishes the GraphProjectionKeyspaceCloudResourceUID /
+	// GraphProjectionPhaseCanonicalNodesCommitted readiness phase under its own
+	// distinct entity key (ec2_instance_node_materialization:<scope>), so the later
+	// USES_PROFILE edge slice (#1146 PR-B) gates on instance-node readiness
+	// independently of the aws_resource node phase, exactly like the security-group
+	// reachability edge gates on multiple node phases (#1135). See issue #1146 and
+	// docs/internal/design/1146-ec2-instance-node.md.
+	DomainEC2InstanceNodeMaterialization Domain = "ec2_instance_node_materialization"
 	// DomainAWSRelationshipMaterialization projects aws_relationship facts into
 	// canonical AWS relationship edges between the CloudResource nodes that
 	// DomainAWSResourceMaterialization committed. It gates on the

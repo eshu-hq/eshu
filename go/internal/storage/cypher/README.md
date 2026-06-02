@@ -261,6 +261,19 @@ tracks this package's broader transient graph-write retry class.
   retries and duplicate facts. Mirrors the proven CloudResource node writer so
   it engages the same schema-backed uid lookup; the #388 edge slice (PR3)
   resolves its workload endpoint against these nodes
+- `EC2InstanceNodeWriter` — writes canonical EC2 instance `:CloudResource` nodes
+  for the EC2 instance node materialization reducer domain (issue #1146 PR-A);
+  constructed with `NewEC2InstanceNodeWriter`. Batched `UNWIND` +
+  `MERGE (r:CloudResource {uid: row.uid})` on the canonical
+  `cloud_resource_uid` identity only, with the ten derived posture
+  booleans/scalars (IMDS, user-data presence, monitoring, public-IP,
+  `instance_profile_arn`, tenancy, Nitro) `SET` separately. Reuses the existing
+  `:CloudResource` label + `cloud_resource_uid_unique` constraint (no new schema
+  DDL); the only difference from the #805 CloudResource node writer is the extra
+  posture `SET` properties. NEVER carries user-data content (only the
+  `user_data_present` boolean), the raw public IP, or per-volume block devices.
+  The future `USES_PROFILE` edge (#1146 PR-B) resolves its instance endpoint
+  against these nodes
 - `KubernetesCorrelationEdgeWriter` — writes canonical `RUNS_IMAGE` edges from a
   `KubernetesWorkload` node to the digest-addressed OCI source node it runs, for
   the live-workload correlation materialization reducer domain (issue #388 PR3);

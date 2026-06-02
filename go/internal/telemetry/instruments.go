@@ -153,6 +153,19 @@ type Instruments struct {
 	// later live-workload edge slice resolves against — and spot a generation that
 	// produced zero nodes (every pod template lacked an object_id) at 3 AM.
 	KubernetesWorkloadNodes metric.Int64Counter
+	// EC2InstanceNodes counts canonical EC2 instance CloudResource graph nodes
+	// committed by the EC2 instance node materialization reducer (issue #1146
+	// PR-A). Label: domain (ec2_instance_node_materialization). It lets an operator
+	// see how many instance nodes one generation committed — the substrate the
+	// later USES_PROFILE edge slice resolves against — and spot a generation that
+	// produced zero nodes (every posture fact lacked an identity) at 3 AM.
+	EC2InstanceNodes metric.Int64Counter
+	// EC2InstanceNodesSkipped counts ec2_instance_posture facts that produced no
+	// node. Label: skip_reason (missing_identity — neither instance id nor arn was
+	// present to form a uid; tombstone — a terminated instance no longer running).
+	// It is the bounded, honest graceful-degradation surface: a skip is an
+	// intentional no-fabrication outcome, not a silently dropped fact.
+	EC2InstanceNodesSkipped metric.Int64Counter
 	// KubernetesCorrelationEdges counts canonical RUNS_IMAGE edges the live-workload
 	// correlation edge projection committed (issue #388 PR3). Label: resolution_mode
 	// (digest — the only edge-eligible exact join). It counts only materialized
@@ -1234,6 +1247,22 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register KubernetesWorkloadNodes counter: %w", err)
+	}
+
+	inst.EC2InstanceNodes, err = meter.Int64Counter(
+		"eshu_dp_ec2_instance_nodes_total",
+		metric.WithDescription("Total canonical EC2 instance CloudResource graph nodes committed by reducer domain"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register EC2InstanceNodes counter: %w", err)
+	}
+
+	inst.EC2InstanceNodesSkipped, err = meter.Int64Counter(
+		"eshu_dp_ec2_instance_nodes_skipped_total",
+		metric.WithDescription("Total ec2_instance_posture facts that produced no node, by skip_reason (missing_identity/tombstone)"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register EC2InstanceNodesSkipped counter: %w", err)
 	}
 
 	inst.KubernetesCorrelationEdges, err = meter.Int64Counter(
