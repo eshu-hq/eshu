@@ -404,8 +404,8 @@ Vault KV metadata, Vault secret-engine mounts, and explicit coverage warnings.
 They never carry raw policy JSON, statement bodies, condition values, AWS
 credentials, session tokens, raw ServiceAccount names, RBAC subject names,
 Secret names, projected tokens, Vault tokens, AppRole secret IDs, raw Vault
-paths, key names, policy bodies, policy names, custom metadata values, entity
-IDs, alias names, or private URLs. Reducers own trust-chain,
+paths, key names, Vault policy bodies, Vault policy names, custom metadata
+values, entity IDs, alias names, or private URLs. Reducers own trust-chain,
 effective-permission, effective RBAC, Vault policy interpretation, and
 graph-promotion decisions.
 

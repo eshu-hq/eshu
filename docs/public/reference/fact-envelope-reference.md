@@ -105,8 +105,8 @@ carry raw policy JSON, statement bodies, condition values, AWS credentials,
 session tokens, OIDC client IDs, OIDC thumbprints, raw OIDC provider URLs, raw
 ServiceAccount names, RBAC subject names, Secret names, projected tokens,
 resourceVersion values, RBAC resourceNames, nonResourceURLs, Vault tokens,
-AppRole secret IDs, raw Vault paths, key names, policy bodies, policy names,
-custom metadata values, entity IDs, alias names, private URLs, or warning
+AppRole secret IDs, raw Vault paths, key names, Vault policy bodies, Vault
+policy names, custom metadata values, entity IDs, alias names, private URLs, or warning
 messages. Provider URLs, Kubernetes identity values, and Vault metadata
 identities are represented by fingerprints, bounded counts, and join keys where
 needed. Reducers own effective-permission analysis, effective RBAC

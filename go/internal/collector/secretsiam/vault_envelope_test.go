@@ -73,6 +73,34 @@ func TestNewVaultKVMetadataEnvelopeStableAcrossRepeatedObservation(t *testing.T)
 	}
 }
 
+func TestVaultMountJoinKeysNormalizeEquivalentMountPaths(t *testing.T) {
+	ctx := testVaultContext()
+	first, err := NewVaultAuthMountEnvelope(VaultAuthMountObservation{
+		Context:    ctx,
+		MountPath:  "auth/kubernetes",
+		AuthMethod: VaultAuthMethodKubernetes,
+	})
+	if err != nil {
+		t.Fatalf("NewVaultAuthMountEnvelope(first) error = %v", err)
+	}
+	next, err := NewVaultAuthMountEnvelope(VaultAuthMountObservation{
+		Context:    ctx,
+		MountPath:  "auth/kubernetes/",
+		AuthMethod: VaultAuthMethodKubernetes,
+	})
+	if err != nil {
+		t.Fatalf("NewVaultAuthMountEnvelope(next) error = %v", err)
+	}
+	if first.StableFactKey != next.StableFactKey {
+		t.Fatalf("StableFactKey changed for equivalent mount paths: %q != %q",
+			first.StableFactKey, next.StableFactKey)
+	}
+	if first.Payload["mount_join_key"] != next.Payload["mount_join_key"] {
+		t.Fatalf("mount_join_key changed for equivalent mount paths: %q != %q",
+			first.Payload["mount_join_key"], next.Payload["mount_join_key"])
+	}
+}
+
 func TestNewVaultAuthRoleAndPolicyEnvelopesRedactNamesAndPaths(t *testing.T) {
 	ctx := testVaultContext()
 	role, err := NewVaultAuthRoleEnvelope(VaultAuthRoleObservation{
@@ -125,6 +153,37 @@ func TestNewVaultAuthRoleAndPolicyEnvelopesRedactNamesAndPaths(t *testing.T) {
 	capabilities, ok := rules[0]["capabilities"].([]string)
 	if !ok || len(capabilities) != 2 || capabilities[0] != "list" || capabilities[1] != "read" {
 		t.Fatalf("capabilities = %#v, want [list read]", rules[0]["capabilities"])
+	}
+}
+
+func TestNewVaultAuthRoleEnvelopeRequiresAuthMethod(t *testing.T) {
+	_, err := NewVaultAuthRoleEnvelope(VaultAuthRoleObservation{
+		Context:   testVaultContext(),
+		MountPath: "auth/kubernetes",
+		RoleName:  "payments-api",
+	})
+	if err == nil {
+		t.Fatalf("NewVaultAuthRoleEnvelope() error = nil, want non-nil")
+	}
+}
+
+func TestNewVaultACLPolicyEnvelopeKeepsEmptyRulesArray(t *testing.T) {
+	env, err := NewVaultACLPolicyEnvelope(VaultACLPolicyObservation{
+		Context:    testVaultContext(),
+		PolicyName: "prod-payments-read",
+	})
+	if err != nil {
+		t.Fatalf("NewVaultACLPolicyEnvelope() error = %v", err)
+	}
+	rules, ok := env.Payload["rules"].([]map[string]any)
+	if !ok {
+		t.Fatalf("rules = %#v, want []map[string]any", env.Payload["rules"])
+	}
+	if rules == nil {
+		t.Fatalf("rules = nil, want empty non-nil slice")
+	}
+	if len(rules) != 0 {
+		t.Fatalf("len(rules) = %d, want 0", len(rules))
 	}
 }
 
@@ -219,6 +278,17 @@ func TestNewVaultCoverageWarningEnvelopeRedactsMessage(t *testing.T) {
 	}
 	if payloadContains(env.Payload, "payments") || payloadContains(env.Payload, "api-key") {
 		t.Fatalf("Vault warning payload leaked raw path from message: %#v", env.Payload)
+	}
+}
+
+func TestNewVaultCoverageWarningEnvelopeRequiresResourceScope(t *testing.T) {
+	_, err := NewVaultCoverageWarningEnvelope(VaultCoverageWarningObservation{
+		Context:     testVaultContext(),
+		WarningKind: "permission_hidden",
+		SourceState: SourceStatePermissionHidden,
+	})
+	if err == nil {
+		t.Fatalf("NewVaultCoverageWarningEnvelope() error = nil, want non-nil")
 	}
 }
 

@@ -27,7 +27,7 @@ func NewVaultAuthMountEnvelope(observation VaultAuthMountObservation) (facts.Env
 	payload := vaultPayload(observation.Context)
 	payload["auth_method"] = authMethod
 	payload["mount_join_key"] = mountKey
-	payload["mount_path_fingerprint"] = fingerprintVaultValue("mount_path", observation.MountPath)
+	payload["mount_path_fingerprint"] = fingerprintVaultMountPath(observation.MountPath)
 	payload["mount_path_depth"] = vaultPathDepth(observation.MountPath)
 	payload["mount_accessor_fingerprint"] = fingerprintVaultValue("mount_accessor", observation.MountAccessor)
 	payload["local"] = observation.Local
@@ -48,18 +48,25 @@ func NewVaultAuthRoleEnvelope(observation VaultAuthRoleObservation) (facts.Envel
 	if err := validateVaultContext(observation.Context); err != nil {
 		return facts.Envelope{}, err
 	}
+	authMethod := strings.TrimSpace(observation.AuthMethod)
+	if authMethod == "" {
+		return facts.Envelope{}, fmt.Errorf("vault auth role observation requires auth_method")
+	}
 	roleKey, err := vaultRoleJoinKey(observation.Context, observation.MountPath, observation.RoleName)
 	if err != nil {
 		return facts.Envelope{}, err
 	}
-	mountKey, _ := vaultMountJoinKey(observation.Context, observation.MountPath)
+	mountKey, err := vaultMountJoinKey(observation.Context, observation.MountPath)
+	if err != nil {
+		return facts.Envelope{}, err
+	}
 	policyKeys := vaultPolicyJoinKeys(observation.Context, observation.TokenPolicyNames)
 	stableKey := facts.StableID(facts.VaultAuthRoleFactKind, map[string]any{
 		"role_join_key":    roleKey,
 		"vault_cluster_id": observation.Context.VaultClusterID,
 	})
 	payload := vaultPayload(observation.Context)
-	payload["auth_method"] = strings.TrimSpace(observation.AuthMethod)
+	payload["auth_method"] = authMethod
 	payload["mount_join_key"] = mountKey
 	payload["role_join_key"] = roleKey
 	payload["role_name_fingerprint"] = fingerprintVaultValue("auth_role", observation.RoleName)
@@ -197,7 +204,7 @@ func NewVaultKVMetadataEnvelope(observation VaultKVMetadataObservation) (facts.E
 	})
 	payload := vaultPayload(observation.Context)
 	payload["mount_join_key"] = mountKey
-	payload["mount_path_fingerprint"] = fingerprintVaultValue("mount_path", observation.MountPath)
+	payload["mount_path_fingerprint"] = fingerprintVaultMountPath(observation.MountPath)
 	payload["kv_path_fingerprint"] = pathFingerprint
 	payload["path_depth"] = vaultPathDepth(observation.Path)
 	payload["current_version"] = observation.CurrentVersion
@@ -237,7 +244,7 @@ func NewVaultSecretEngineMountEnvelope(observation VaultSecretEngineMountObserva
 	})
 	payload := vaultPayload(observation.Context)
 	payload["mount_join_key"] = mountKey
-	payload["mount_path_fingerprint"] = fingerprintVaultValue("mount_path", observation.MountPath)
+	payload["mount_path_fingerprint"] = fingerprintVaultMountPath(observation.MountPath)
 	payload["mount_path_depth"] = vaultPathDepth(observation.MountPath)
 	payload["mount_accessor_fingerprint"] = fingerprintVaultValue("mount_accessor", observation.MountAccessor)
 	payload["mount_type"] = mountType
@@ -263,10 +270,10 @@ func NewVaultCoverageWarningEnvelope(observation VaultCoverageWarningObservation
 	}
 	warningKind := strings.TrimSpace(observation.WarningKind)
 	sourceState := strings.TrimSpace(observation.SourceState)
-	if warningKind == "" || sourceState == "" {
-		return facts.Envelope{}, fmt.Errorf("vault coverage warning requires warning_kind and source_state")
-	}
 	resourceScope := strings.TrimSpace(observation.ResourceScope)
+	if warningKind == "" || sourceState == "" || resourceScope == "" {
+		return facts.Envelope{}, fmt.Errorf("vault coverage warning requires warning_kind, source_state, and resource_scope")
+	}
 	stableKey := facts.StableID(facts.SecretsIAMCoverageWarningFactKind, map[string]any{
 		"generation":       observation.Context.GenerationID,
 		"resource_scope":   resourceScope,
@@ -335,7 +342,7 @@ func vaultPayload(ctx VaultContext) map[string]any {
 }
 
 func vaultMountJoinKey(ctx VaultContext, mountPath string) (string, error) {
-	mountPath = strings.TrimSpace(mountPath)
+	mountPath = canonicalVaultPath(mountPath)
 	if mountPath == "" {
 		return "", fmt.Errorf("vault mount join requires mount_path")
 	}
@@ -384,7 +391,7 @@ func vaultPolicyJoinKeys(ctx VaultContext, policyNames []string) []string {
 
 func vaultPolicyRulePayloads(rules []VaultACLPolicyRuleSummary) []map[string]any {
 	if len(rules) == 0 {
-		return nil
+		return []map[string]any{}
 	}
 	output := make([]map[string]any, 0, len(rules))
 	for _, rule := range rules {
@@ -407,7 +414,11 @@ func fingerprintVaultValues(kind string, values []string) []string {
 }
 
 func fingerprintVaultPath(path string) string {
-	return fingerprintVaultValue("path", strings.Join(vaultPathSegments(path), "/"))
+	return fingerprintVaultValue("path", canonicalVaultPath(path))
+}
+
+func fingerprintVaultMountPath(path string) string {
+	return fingerprintVaultValue("mount_path", canonicalVaultPath(path))
 }
 
 func fingerprintVaultValue(kind, value string) string {
@@ -430,6 +441,10 @@ func fingerprintVaultParts(kind string, parts ...string) string {
 
 func vaultPathDepth(path string) int {
 	return len(vaultPathSegments(path))
+}
+
+func canonicalVaultPath(path string) string {
+	return strings.Join(vaultPathSegments(path), "/")
 }
 
 func vaultPathSegments(path string) []string {
