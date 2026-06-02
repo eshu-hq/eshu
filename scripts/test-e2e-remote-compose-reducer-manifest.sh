@@ -100,10 +100,10 @@ write_fact_rows() {
 		{source_system: "confluence", fact_kind: "documentation_source", count: 1},
 		{source_system: "pagerduty", fact_kind: "incident.record", count: 1},
 		{source_system: "jira", fact_kind: "work_item.record", count: 1},
-		{source_system: "grafana", fact_kind: "observability.grafana_dashboard", count: 1},
-		{source_system: "prometheus_mimir", fact_kind: "observability.metric_signal", count: 1},
-		{source_system: "loki", fact_kind: "observability.log_signal", count: 1},
-		{source_system: "tempo", fact_kind: "observability.trace_signal", count: 1},
+		{source_system: "grafana", fact_kind: "observability.observed_dashboard", count: 1},
+		{source_system: "prometheus_mimir", fact_kind: "observability.observed_target", count: 1},
+		{source_system: "loki", fact_kind: "observability.observed_log_signal", count: 1},
+		{source_system: "tempo", fact_kind: "observability.observed_trace_signal", count: 1},
 		{source_system: "reducer", fact_kind: "reducer_package_correlation", count: 10},
 		{source_system: "reducer", fact_kind: "reducer_aws_cloud_relationship", count: 5},
 		{source_system: "reducer", fact_kind: "reducer_container_image_identity", count: 3},
@@ -145,6 +145,28 @@ jq -e '
 	.reducers.vulnerability_matching.readback.api.status == "pass"
 ' "${present}" >/dev/null || die "present reducer classification was not preserved"
 
+observability_source_kind_mapped="${TMP_DIR}/observability-source-kind-mapped.json"
+jq 'map(if (.fact_kind | startswith("observability.")) then .source_system = "git" else . end)' \
+	"${facts}" >"${TMP_DIR}/facts-observability-source-kind-mapped.json"
+build_case_manifest "${TMP_DIR}/facts-observability-source-kind-mapped.json" "${TMP_DIR}/readback.json" "${observability_source_kind_mapped}"
+jq -e '
+	.reducers.observability_correlation.status == "pass" and
+	.reducers.observability_correlation.source_facts == 11 and
+	.reducers.observability_correlation.reducer_facts == 1
+' "${observability_source_kind_mapped}" >/dev/null \
+	|| die "observability source fact-kind mapping was not counted"
+
+observability_aws_input_mapped="${TMP_DIR}/observability-aws-input-mapped.json"
+jq 'map(select(.fact_kind | startswith("observability.") | not))' "${facts}" \
+	>"${TMP_DIR}/facts-observability-aws-input-mapped.json"
+build_case_manifest "${TMP_DIR}/facts-observability-aws-input-mapped.json" "${TMP_DIR}/readback.json" "${observability_aws_input_mapped}"
+jq -e '
+	.reducers.observability_correlation.status == "pass" and
+	.reducers.observability_correlation.source_facts == 7 and
+	.reducers.observability_correlation.reducer_facts == 1
+' "${observability_aws_input_mapped}" >/dev/null \
+	|| die "observability AWS source input mapping was not counted"
+
 missing="${TMP_DIR}/missing.json"
 jq 'map(select(.fact_kind != "reducer_supply_chain_impact_finding"))' "${facts}" >"${TMP_DIR}/facts-missing.json"
 build_case_manifest "${TMP_DIR}/facts-missing.json" "${TMP_DIR}/readback.json" "${missing}"
@@ -153,6 +175,20 @@ jq -e '
 	.reducers.vulnerability_matching.status == "fail" and
 	.reducers.vulnerability_matching.reason == "no reducer evidence observed"
 ' "${missing}" >/dev/null || die "missing reducer evidence was not explicit"
+
+incident_work_item_source_only="${TMP_DIR}/incident-work-item-source-only.json"
+jq 'map(select(.fact_kind != "reducer_incident_work_item_correlation"))' "${facts}" >"${TMP_DIR}/facts-incident-source-only.json"
+build_case_manifest "${TMP_DIR}/facts-incident-source-only.json" "${TMP_DIR}/readback.json" "${incident_work_item_source_only}"
+"${VALIDATOR}" "${incident_work_item_source_only}" >/dev/null
+jq -e '
+	.status == "partial" and
+	.reducers.incident_work_item_correlation.status == "unsupported" and
+	.reducers.incident_work_item_correlation.source_facts == 2 and
+	.reducers.incident_work_item_correlation.reducer_facts == 0 and
+	.reducers.incident_work_item_correlation.reason == "incident and work-item evidence is source and API read-model evidence today; no reducer-owned incident work-item correlation fact is implemented" and
+	(.reducers.incident_work_item_correlation.issue_refs | index("#1249"))
+' "${incident_work_item_source_only}" >/dev/null \
+	|| die "source-only incident/work-item evidence was not classified explicitly"
 
 unsupported="${TMP_DIR}/unsupported.json"
 jq 'map(select(.fact_kind != "reducer_incident_work_item_correlation"))' "${facts}" >"${TMP_DIR}/facts-unsupported.json"
