@@ -3,6 +3,7 @@ package searchbench
 import (
 	"time"
 
+	"github.com/eshu-hq/eshu/go/internal/searchdecay"
 	"github.com/eshu-hq/eshu/go/internal/searchdocs"
 )
 
@@ -176,6 +177,45 @@ type Query struct {
 type Result struct {
 	Document searchdocs.Document `json:"document"`
 	Rank     int                 `json:"rank"`
+}
+
+// DecayEvaluationInput is one pure decay-scoring benchmark evaluation.
+type DecayEvaluationInput struct {
+	Query      Query              `json:"query"`
+	Candidates []DecayCandidate   `json:"candidates"`
+	Scorer     searchdecay.Scorer `json:"-"`
+}
+
+// DecayCandidate couples one ranked result with the evidence score to decay.
+type DecayCandidate struct {
+	Result   Result               `json:"result"`
+	Evidence searchdecay.Evidence `json:"evidence"`
+}
+
+// DecayEvaluation records before/after ranking evidence for one query.
+type DecayEvaluation struct {
+	QueryID                       string                  `json:"query_id"`
+	PolicyID                      string                  `json:"policy_id"`
+	MetricsBefore                 RetrievalMetrics        `json:"metrics_before"`
+	MetricsAfter                  RetrievalMetrics        `json:"metrics_after"`
+	RecallDelta                   float64                 `json:"recall_delta"`
+	PrecisionDelta                float64                 `json:"precision_delta"`
+	NDCGDelta                     float64                 `json:"ndcg_delta"`
+	RequiredEvidenceVisibleBefore bool                    `json:"required_evidence_visible_before"`
+	RequiredEvidenceVisibleAfter  bool                    `json:"required_evidence_visible_after"`
+	FalseCanonicalCandidateCount  int                     `json:"false_canonical_candidate_count"`
+	Results                       []DecayEvaluationResult `json:"results"`
+}
+
+// DecayEvaluationResult records how decay changed one candidate's rank metadata.
+type DecayEvaluationResult struct {
+	DocumentID    string              `json:"document_id"`
+	OriginalRank  int                 `json:"original_rank"`
+	DecayedRank   int                 `json:"decayed_rank"`
+	OriginalScore float64             `json:"original_score"`
+	DecayedScore  float64             `json:"decayed_score"`
+	DecayOutcome  searchdecay.Outcome `json:"decay_outcome"`
+	Required      bool                `json:"required"`
 }
 
 // QueryScore records metrics for one query in a query-suite run.
