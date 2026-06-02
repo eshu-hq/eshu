@@ -158,7 +158,7 @@ per-volume block-device metadata, and tenancy / Nitro-enclave state. It NEVER
 carries the user-data content (which can embed secrets), instance console output,
 environment variables, or any other instance payload, and it emits no graph
 edges and no `aws_resource` inventory fact for the instance. Reducers own the
-USES_PROFILE join to the IAM instance profile (#1134), the block-device KMS
+USES_PROFILE join to the IAM instance profile (#1146), the block-device KMS
 posture projection (#1304), and the derived internet-exposed flag (#1135).
 Per-volume encryption is not reported by DescribeInstances, so each block
 device's `encrypted` stays unset (`null`) here. The EC2 scanner separately emits

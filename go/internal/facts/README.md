@@ -420,7 +420,7 @@ are metadata-only control-plane evidence: they never carry the user-data content
 (which can embed secrets), instance console output, environment variables, or any
 other instance payload. They emit no graph edges and no `aws_resource` inventory
 fact for the instance; reducers own the USES_PROFILE join to the IAM instance
-profile (#1134), the block-device KMS posture projection (#1304), and the
+profile (#1146), the block-device KMS posture projection (#1304), and the
 derived internet-exposed flag (#1135). Per-volume encryption is not reported by
 DescribeInstances, so each block device's `encrypted` stays unset; reducers
 resolve it from volume evidence without per-instance API fan-out at scan time.

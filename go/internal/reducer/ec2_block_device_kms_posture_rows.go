@@ -29,6 +29,8 @@ const (
 	ec2BlockDeviceKMSReasonVolumeDetached            = "volume_detached"
 	ec2BlockDeviceKMSReasonAttachmentMismatch        = "attachment_mismatch"
 	ec2BlockDeviceKMSReasonEncryptionUnknown         = "volume_encryption_unknown"
+	ec2BlockDeviceKMSReasonAmbiguousVolumeFact       = "ambiguous_volume_fact"
+	ec2BlockDeviceKMSReasonAmbiguousKMSRelationship  = "ambiguous_kms_relationship"
 	ec2BlockDeviceKMSSkipSourceUnresolved            = "source_unresolved"
 	ec2BlockDeviceKMSSkipTombstone                   = "tombstone"
 )
@@ -60,30 +62,6 @@ func (t ec2BlockDeviceKMSPostureTally) totalSkipped() int {
 		total += count
 	}
 	return total
-}
-
-type ec2BlockDeviceKMSVolume struct {
-	id          string
-	arn         string
-	encrypted   *bool
-	kmsKeyID    string
-	attachments []ec2BlockDeviceKMSAttachment
-}
-
-type ec2BlockDeviceKMSAttachment struct {
-	instanceID string
-	state      string
-}
-
-type ec2BlockDeviceKMSKey struct {
-	id         string
-	keyManager string
-}
-
-type ec2BlockDeviceKMSIndex struct {
-	volumesByID    map[string]ec2BlockDeviceKMSVolume
-	keysByIdentity map[string]ec2BlockDeviceKMSKey
-	kmsByVolume    map[string]string
 }
 
 type ec2BlockDeviceKMSDecision struct {
@@ -163,93 +141,6 @@ func ExtractEC2BlockDeviceKMSPostureRows(
 	return rows, tally
 }
 
-func buildEC2BlockDeviceKMSIndex(
-	resourceEnvelopes []facts.Envelope,
-	relationshipEnvelopes []facts.Envelope,
-) ec2BlockDeviceKMSIndex {
-	index := ec2BlockDeviceKMSIndex{
-		volumesByID:    make(map[string]ec2BlockDeviceKMSVolume, len(resourceEnvelopes)),
-		keysByIdentity: make(map[string]ec2BlockDeviceKMSKey, len(resourceEnvelopes)),
-		kmsByVolume:    make(map[string]string, len(relationshipEnvelopes)),
-	}
-	for _, env := range resourceEnvelopes {
-		if env.FactKind != facts.AWSResourceFactKind {
-			continue
-		}
-		switch payloadString(env.Payload, "resource_type") {
-		case ec2BlockDeviceKMSResourceTypeVolume:
-			volume, ok := ec2BlockDeviceKMSVolumeFromEnvelope(env)
-			if ok {
-				index.volumesByID[volume.id] = volume
-				if volume.arn != "" {
-					index.volumesByID[volume.arn] = volume
-				}
-			}
-		case ec2BlockDeviceKMSResourceTypeKey:
-			key, identities, ok := ec2BlockDeviceKMSKeyFromEnvelope(env)
-			if ok {
-				for _, identity := range identities {
-					index.keysByIdentity[identity] = key
-				}
-			}
-		}
-	}
-	for _, env := range relationshipEnvelopes {
-		if env.FactKind != facts.AWSRelationshipFactKind {
-			continue
-		}
-		if payloadString(env.Payload, "relationship_type") != ec2BlockDeviceKMSRelationshipType {
-			continue
-		}
-		targetID := firstTrimmed(
-			payloadString(env.Payload, "target_arn"),
-			payloadString(env.Payload, "target_resource_id"),
-		)
-		if targetID == "" {
-			continue
-		}
-		for _, sourceID := range []string{
-			payloadString(env.Payload, "source_resource_id"),
-			payloadString(env.Payload, "source_arn"),
-		} {
-			if sourceID != "" {
-				index.kmsByVolume[sourceID] = targetID
-			}
-		}
-	}
-	return index
-}
-
-func ec2BlockDeviceKMSVolumeFromEnvelope(env facts.Envelope) (ec2BlockDeviceKMSVolume, bool) {
-	resourceID := firstTrimmed(payloadString(env.Payload, "resource_id"), payloadString(env.Payload, "arn"))
-	if resourceID == "" {
-		return ec2BlockDeviceKMSVolume{}, false
-	}
-	attrs := payloadAttributes(env.Payload)
-	return ec2BlockDeviceKMSVolume{
-		id:          resourceID,
-		arn:         payloadString(env.Payload, "arn"),
-		encrypted:   payloadAttributeBool(attrs, "encrypted"),
-		kmsKeyID:    payloadString(attrs, "kms_key_id"),
-		attachments: ec2BlockDeviceKMSAttachments(attrs),
-	}, true
-}
-
-func ec2BlockDeviceKMSKeyFromEnvelope(env facts.Envelope) (ec2BlockDeviceKMSKey, []string, bool) {
-	resourceID := firstTrimmed(payloadString(env.Payload, "resource_id"), payloadString(env.Payload, "arn"))
-	if resourceID == "" {
-		return ec2BlockDeviceKMSKey{}, nil, false
-	}
-	attrs := payloadAttributes(env.Payload)
-	key := ec2BlockDeviceKMSKey{
-		id:         firstTrimmed(payloadString(env.Payload, "arn"), resourceID),
-		keyManager: strings.ToUpper(payloadString(attrs, "key_manager")),
-	}
-	identities := []string{resourceID, payloadString(env.Payload, "arn")}
-	identities = append(identities, payloadStrings(env.Payload, "", "correlation_anchors")...)
-	return key, uniqueSortedStrings(identities), true
-}
-
 func deriveEC2BlockDeviceKMSDecision(
 	env facts.Envelope,
 	index ec2BlockDeviceKMSIndex,
@@ -265,7 +156,12 @@ func deriveEC2BlockDeviceKMSDecision(
 	kmsKeys := make([]string, 0, len(volumeIDs))
 	reason := ""
 	for _, volumeID := range volumeIDs {
-		volume, ok := index.volumesByID[volumeID]
+		volume, ok, volumeReason := index.resolveVolume(volumeID)
+		if volumeReason != "" {
+			decision.unresolvedVolumeCount++
+			reason = firstTrimmed(reason, volumeReason)
+			continue
+		}
 		if !ok {
 			decision.unresolvedVolumeCount++
 			reason = firstTrimmed(reason, ec2BlockDeviceKMSReasonMissingVolumeFact)
@@ -285,10 +181,10 @@ func deriveEC2BlockDeviceKMSDecision(
 			decision.unencryptedVolumeCount++
 			continue
 		}
-		keyID, ok := ec2BlockDeviceKMSVolumeKeyID(volume, index)
-		if !ok {
+		keyID, keyReason := ec2BlockDeviceKMSVolumeKeyID(volume, index)
+		if keyReason != "" {
 			decision.unresolvedVolumeCount++
-			reason = firstTrimmed(reason, ec2BlockDeviceKMSReasonMissingKMSRelationship)
+			reason = firstTrimmed(reason, keyReason)
 			continue
 		}
 		key, ok := index.keysByIdentity[keyID]
@@ -327,15 +223,6 @@ func ec2BlockDeviceKMSAggregate(decision ec2BlockDeviceKMSDecision, unknownReaso
 	return ec2BlockDeviceKMSStateUnknown, ec2BlockDeviceKMSReasonNoBlockDevices
 }
 
-func ec2BlockDeviceKMSVolumeKeyID(volume ec2BlockDeviceKMSVolume, index ec2BlockDeviceKMSIndex) (string, bool) {
-	for _, volumeIdentity := range []string{volume.id, volume.arn} {
-		if keyID := index.kmsByVolume[volumeIdentity]; keyID != "" {
-			return keyID, true
-		}
-	}
-	return "", false
-}
-
 func ec2BlockDeviceKMSAttachmentReason(env facts.Envelope, volume ec2BlockDeviceKMSVolume) string {
 	if len(volume.attachments) == 0 {
 		return ec2BlockDeviceKMSReasonVolumeDetached
@@ -372,33 +259,6 @@ func ec2BlockDeviceKMSVolumeIDs(payload map[string]any) []string {
 		}
 	}
 	return uniqueSortedStrings(values)
-}
-
-func ec2BlockDeviceKMSAttachments(attrs map[string]any) []ec2BlockDeviceKMSAttachment {
-	raw, ok := attrs["attachments"]
-	if !ok || raw == nil {
-		return nil
-	}
-	output := make([]ec2BlockDeviceKMSAttachment, 0)
-	appendAttachment := func(entry map[string]any) {
-		output = append(output, ec2BlockDeviceKMSAttachment{
-			instanceID: payloadString(entry, "instance_id"),
-			state:      payloadString(entry, "state"),
-		})
-	}
-	switch typed := raw.(type) {
-	case []map[string]any:
-		for _, entry := range typed {
-			appendAttachment(entry)
-		}
-	case []any:
-		for _, entry := range typed {
-			if entryMap, ok := entry.(map[string]any); ok {
-				appendAttachment(entryMap)
-			}
-		}
-	}
-	return output
 }
 
 func sortedEC2BlockDeviceKMSPostures(envelopes []facts.Envelope) []facts.Envelope {

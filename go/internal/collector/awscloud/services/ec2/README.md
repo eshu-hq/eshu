@@ -111,7 +111,7 @@ AWS API call counters, throttle counters, and pagination spans.
   contents, snapshot payloads, CloudWatch metric samples, cost data, or
   user-data content.
 - The `ec2_instance_posture` fact emits no graph edges. The USES_PROFILE join to
-  the IAM instance profile (#1134), the block-device KMS posture projection
+  the IAM instance profile (#1146), the block-device KMS posture projection
   (#1304), and the derived internet-exposed flag (#1135) are reducer slices.
 - Security group rules are child `aws_resource` facts with a security-group to
   rule `aws_relationship` edge, plus one normalized `aws_security_group_rule`

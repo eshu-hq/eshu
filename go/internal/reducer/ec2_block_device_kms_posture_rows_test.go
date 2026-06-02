@@ -241,3 +241,63 @@ func TestExtractEC2BlockDeviceKMSPostureRowsDuplicateReplayAndTombstone(t *testi
 		t.Fatalf("tally.decisions[unknown] = %d, want 1 deduped decision", got)
 	}
 }
+
+func TestExtractEC2BlockDeviceKMSPostureRowsConflictingVolumeFactsStayUnknown(t *testing.T) {
+	t.Parallel()
+
+	const account = "111122223333"
+	const region = "us-east-1"
+	const keyARN = "arn:aws:kms:us-east-1:111122223333:key/customer"
+	volumeARN := "arn:aws:ec2:us-east-1:111122223333:volume/vol-ambiguous"
+	resources := []facts.Envelope{
+		ec2BlockKMSVolumeEnvelope(account, region, "vol-ambiguous", false, "", attachedTo("i-ambiguous", "vol-ambiguous")),
+		ec2BlockKMSVolumeEnvelope(account, region, "vol-ambiguous", true, keyARN, attachedTo("i-ambiguous", "vol-ambiguous")),
+		ec2BlockKMSKeyEnvelope(account, region, keyARN, "CUSTOMER"),
+	}
+	relationships := []facts.Envelope{ec2BlockKMSRelationship("vol-ambiguous", volumeARN, keyARN)}
+	postures := []facts.Envelope{ec2BlockKMSPostureEnvelope("fact-ambiguous", account, region, "i-ambiguous", "vol-ambiguous")}
+
+	rows, tally := ExtractEC2BlockDeviceKMSPostureRows(resources, relationships, postures)
+	row := requireEC2BlockKMSRow(t, rows, ec2BlockKMSUID(account, region, "i-ambiguous"))
+	if got, want := row["state"], "unknown"; got != want {
+		t.Fatalf("state = %v, want %v for conflicting volume facts", got, want)
+	}
+	if got, want := row["reason"], "ambiguous_volume_fact"; got != want {
+		t.Fatalf("reason = %v, want %v", got, want)
+	}
+	if got := tally.decisionReasons[ec2BlockDeviceKMSDecisionKey{outcome: "unknown", reason: "ambiguous_volume_fact"}]; got != 1 {
+		t.Fatalf("ambiguous volume decision tally = %d, want 1", got)
+	}
+}
+
+func TestExtractEC2BlockDeviceKMSPostureRowsConflictingKMSRelationshipsStayUnknown(t *testing.T) {
+	t.Parallel()
+
+	const account = "111122223333"
+	const region = "us-east-1"
+	const firstKeyARN = "arn:aws:kms:us-east-1:111122223333:key/customer-a"
+	const secondKeyARN = "arn:aws:kms:us-east-1:111122223333:key/customer-b"
+	volumeARN := "arn:aws:ec2:us-east-1:111122223333:volume/vol-conflict"
+	resources := []facts.Envelope{
+		ec2BlockKMSVolumeEnvelope(account, region, "vol-conflict", true, firstKeyARN, attachedTo("i-conflict", "vol-conflict")),
+		ec2BlockKMSKeyEnvelope(account, region, firstKeyARN, "CUSTOMER"),
+		ec2BlockKMSKeyEnvelope(account, region, secondKeyARN, "CUSTOMER"),
+	}
+	relationships := []facts.Envelope{
+		ec2BlockKMSRelationship("vol-conflict", volumeARN, firstKeyARN),
+		ec2BlockKMSRelationship("vol-conflict", volumeARN, secondKeyARN),
+	}
+	postures := []facts.Envelope{ec2BlockKMSPostureEnvelope("fact-conflict", account, region, "i-conflict", "vol-conflict")}
+
+	rows, tally := ExtractEC2BlockDeviceKMSPostureRows(resources, relationships, postures)
+	row := requireEC2BlockKMSRow(t, rows, ec2BlockKMSUID(account, region, "i-conflict"))
+	if got, want := row["state"], "unknown"; got != want {
+		t.Fatalf("state = %v, want %v for conflicting KMS relationships", got, want)
+	}
+	if got, want := row["reason"], "ambiguous_kms_relationship"; got != want {
+		t.Fatalf("reason = %v, want %v", got, want)
+	}
+	if got := tally.decisionReasons[ec2BlockDeviceKMSDecisionKey{outcome: "unknown", reason: "ambiguous_kms_relationship"}]; got != 1 {
+		t.Fatalf("ambiguous relationship decision tally = %d, want 1", got)
+	}
+}
