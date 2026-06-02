@@ -81,11 +81,11 @@ func (w PostgresSecretsIAMTrustChainWriter) writePayload(
 	if _, err := w.DB.ExecContext(
 		ctx,
 		canonicalReducerFactInsertQuery,
-		secretsIAMReadModelFactID(factKind, modelID),
+		secretsIAMReadModelFactID(write, factKind, modelID),
 		write.ScopeID,
 		write.GenerationID,
 		factKind,
-		secretsIAMReadModelStableFactKey(factKind, modelID),
+		secretsIAMReadModelStableFactKey(write, factKind, modelID),
 		reducerFactCollectorKind(write.SourceSystem),
 		facts.SourceConfidenceInferred,
 		write.SourceSystem,
@@ -102,17 +102,25 @@ func (w PostgresSecretsIAMTrustChainWriter) writePayload(
 	return nil
 }
 
-func secretsIAMReadModelFactID(factKind, modelID string) string {
+func secretsIAMReadModelFactID(write SecretsIAMTrustChainWrite, factKind, modelID string) string {
 	return factKind + ":" + facts.StableID(factKind, map[string]any{
-		"model_id": strings.TrimSpace(modelID),
+		"identity": secretsIAMReadModelIdentity(write, factKind, modelID),
 	})
 }
 
-func secretsIAMReadModelStableFactKey(factKind, modelID string) string {
+func secretsIAMReadModelStableFactKey(write SecretsIAMTrustChainWrite, factKind, modelID string) string {
 	return factKind + ":" + facts.StableID("SecretsIAMReadModelStableFactKey", map[string]any{
-		"fact_kind": factKind,
-		"model_id":  strings.TrimSpace(modelID),
+		"identity": secretsIAMReadModelIdentity(write, factKind, modelID),
 	})
+}
+
+func secretsIAMReadModelIdentity(write SecretsIAMTrustChainWrite, factKind, modelID string) map[string]any {
+	return map[string]any{
+		"scope_id":      strings.TrimSpace(write.ScopeID),
+		"generation_id": strings.TrimSpace(write.GenerationID),
+		"fact_kind":     strings.TrimSpace(factKind),
+		"model_id":      strings.TrimSpace(modelID),
+	}
 }
 
 func secretsIAMBasePayload(write SecretsIAMTrustChainWrite, modelKind string) map[string]any {
