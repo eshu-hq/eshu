@@ -129,3 +129,9 @@ For decision rules and evidence requirements, read [NornicDB Tuning](nornicdb-tu
 | `NORNICDB_PERSIST_SEARCH_INDEXES` | `true` in Eshu Compose and Helm | NornicDB container | Prevents expensive search-index rebuilds after normal restarts. |
 | `NORNICDB_EMBEDDING_ENABLED` | `false` in Eshu Compose and Helm | NornicDB container | Keeps embedding workers off during Eshu indexing. |
 | `NORNICDB_ASYNC_WRITES_ENABLED`, `NORNICDB_HEIMDALL_ENABLED`, `NORNICDB_QDRANT_GRPC_ENABLED` | `false` in Eshu Compose and Helm | NornicDB container | Keeps optional backend behavior off for the Eshu graph path. |
+
+Do not treat unpinned NornicDB BM25/vector disable or lazy-warming variables as
+supported Eshu environment until the pinned NornicDB image, Compose tests, and
+Helm render tests prove the exact names and behavior. The current graph path
+uses persistence plus disabled embeddings as mitigation; curated search
+projection is tracked separately from canonical graph startup.

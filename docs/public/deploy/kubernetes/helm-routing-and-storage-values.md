@@ -31,6 +31,13 @@ Key defaults: image repository `timothyswt/nornicdb-amd64-cpu`, image tag
 Heimdall off, Qdrant gRPC off, embeddings off, search index persistence on,
 and `GOMEMLIMIT=48GiB`.
 
+The bundled NornicDB deployment is the canonical graph lane. Search index
+persistence is a restart mitigation for the current pinned image, not a contract
+that BM25/vector search should index every graph node and property. Do not add
+BM25/vector disable or lazy-warming values until Eshu pins a NornicDB image that
+supports the exact variables and the deployment proof records startup, memory,
+index-size, document-count, vector-count, and failure-mode evidence.
+
 Do not combine `nornicdb.enabled=true` with
 `schemaBootstrap.useHelmHooks=true`; the chart rejects that render because the
 hook runs before bundled NornicDB exists. Use an existing NornicDB endpoint or

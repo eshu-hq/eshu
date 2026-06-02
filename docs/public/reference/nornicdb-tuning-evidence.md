@@ -87,6 +87,13 @@ Compose and Helm set:
 - `NORNICDB_PERSIST_SEARCH_INDEXES=true`
 - `NORNICDB_EMBEDDING_ENABLED=false`
 
+These settings are the current graph-lane mitigation for the pinned image, not
+a decision that the canonical graph is Eshu's BM25/vector search corpus. Issue
+#430 separates canonical graph storage from curated search projection. Future
+work that disables or lazily warms BM25/vector indexes for the canonical graph
+must pin the supporting NornicDB image and record startup, memory, artifact-size,
+document-count, vector-count, and failure-mode evidence before changing defaults.
+
 No-Regression Evidence: Compose pins
 `timothyswt/nornicdb-cpu-bge:v1.1.0@sha256:65855ca2c9649020f7f9e29d2e0fbedf0bf9601457de233d87160ddbe4b473f0`.
 
