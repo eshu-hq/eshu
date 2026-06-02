@@ -302,6 +302,106 @@ func TestCanonicalNodeWriterDeduplicatesPackageRegistryDependencyTargets(t *test
 	}
 }
 
+func TestCanonicalNodeWriterDeduplicatesPackageRegistryPackages(t *testing.T) {
+	t.Parallel()
+
+	writer := NewCanonicalNodeWriter(&recordingExecutor{}, 500, nil)
+	statements := writer.buildPackageRegistryPackageStatements(projector.CanonicalMaterialization{
+		ScopeID:      "package-registry-scope-1",
+		GenerationID: "package-registry-generation-1",
+		PackageRegistryPackages: []projector.PackageRegistryPackageRow{
+			{
+				UID:              "npm://registry.npmjs.org/graphql",
+				Ecosystem:        "npm",
+				Registry:         "https://registry.npmjs.org",
+				RawName:          "graphql-old",
+				NormalizedName:   "graphql",
+				SourceFactID:     "package-registry-package-1",
+				StableFactKey:    "package-registry-package-1",
+				SourceSystem:     "package_registry",
+				SourceConfidence: facts.SourceConfidenceReported,
+				CollectorKind:    "package_registry",
+				ObservedAt:       time.Date(2026, time.June, 1, 12, 0, 0, 0, time.UTC),
+			},
+			{
+				UID:              "npm://registry.npmjs.org/graphql",
+				Ecosystem:        "npm",
+				Registry:         "https://registry.npmjs.org",
+				RawName:          "graphql-new",
+				NormalizedName:   "graphql",
+				SourceFactID:     "package-registry-package-2",
+				StableFactKey:    "package-registry-package-2",
+				SourceSystem:     "package_registry",
+				SourceConfidence: facts.SourceConfidenceReported,
+				CollectorKind:    "package_registry",
+				ObservedAt:       time.Date(2026, time.June, 1, 12, 5, 0, 0, time.UTC),
+			},
+		},
+	})
+	if got, want := len(statements), 1; got != want {
+		t.Fatalf("buildPackageRegistryPackageStatements() count = %d, want %d", got, want)
+	}
+	rows, ok := statements[0].Parameters["rows"].([]map[string]any)
+	if !ok {
+		t.Fatalf("rows parameter type = %T, want []map[string]any", statements[0].Parameters["rows"])
+	}
+	if got, want := len(rows), 1; got != want {
+		t.Fatalf("package rows = %d, want %d", got, want)
+	}
+	if got, want := rows[0]["uid"], "npm://registry.npmjs.org/graphql"; got != want {
+		t.Fatalf("package uid = %#v, want %#v", got, want)
+	}
+	if got, want := rows[0]["raw_name"], "graphql-new"; got != want {
+		t.Fatalf("package raw_name = %#v, want newest duplicate row %#v", got, want)
+	}
+}
+
+func TestCanonicalNodeWriterDeduplicatesPackageRegistryPackagesWithDeterministicTieBreaker(t *testing.T) {
+	t.Parallel()
+
+	observedAt := time.Date(2026, time.June, 1, 12, 0, 0, 0, time.UTC)
+	writer := NewCanonicalNodeWriter(&recordingExecutor{}, 500, nil)
+	statements := writer.buildPackageRegistryPackageStatements(projector.CanonicalMaterialization{
+		ScopeID:      "package-registry-scope-1",
+		GenerationID: "package-registry-generation-1",
+		PackageRegistryPackages: []projector.PackageRegistryPackageRow{
+			{
+				UID:              "npm://registry.npmjs.org/graphql",
+				Ecosystem:        "npm",
+				Registry:         "https://registry.npmjs.org",
+				RawName:          "graphql-low-fact",
+				NormalizedName:   "graphql",
+				SourceFactID:     "package-registry-package-1",
+				StableFactKey:    "package-registry-package-z",
+				SourceSystem:     "package_registry",
+				SourceConfidence: facts.SourceConfidenceReported,
+				CollectorKind:    "package_registry",
+				ObservedAt:       observedAt,
+			},
+			{
+				UID:              "npm://registry.npmjs.org/graphql",
+				Ecosystem:        "npm",
+				Registry:         "https://registry.npmjs.org",
+				RawName:          "graphql-high-fact",
+				NormalizedName:   "graphql",
+				SourceFactID:     "package-registry-package-2",
+				StableFactKey:    "package-registry-package-a",
+				SourceSystem:     "package_registry",
+				SourceConfidence: facts.SourceConfidenceReported,
+				CollectorKind:    "package_registry",
+				ObservedAt:       observedAt,
+			},
+		},
+	})
+	rows := statements[0].Parameters["rows"].([]map[string]any)
+	if got, want := len(rows), 1; got != want {
+		t.Fatalf("package rows = %d, want %d", got, want)
+	}
+	if got, want := rows[0]["raw_name"], "graphql-high-fact"; got != want {
+		t.Fatalf("package raw_name = %#v, want source fact tie-break row %#v", got, want)
+	}
+}
+
 func packageRegistryPhaseGroupIndex(t *testing.T, groups [][]Statement, label string) int {
 	t.Helper()
 
