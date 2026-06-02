@@ -8,10 +8,11 @@
    metric scoring.
 3. `go/internal/searchbench/suite.go` - query-suite validation and aggregate
    scoring.
-4. `go/internal/searchdocs/README.md` - curated search-document contract.
-5. `docs/public/reference/search-benchmark-evidence.md` - public evidence
+4. `go/internal/searchbench/decay_eval.go` - decay-scoring eval gate.
+5. `go/internal/searchdocs/README.md` - curated search-document contract.
+6. `docs/public/reference/search-benchmark-evidence.md` - public evidence
    format and proof requirements.
-6. `docs/internal/design/430-nornicdb-graph-search-split.md` - parent design for
+7. `docs/internal/design/430-nornicdb-graph-search-split.md` - parent design for
    keeping graph truth separate from the search lane.
 
 ## Invariants this package enforces
@@ -24,6 +25,8 @@
   content search and at least one NornicDB search backend.
 - **Scoped query suites** - #417 semantic retrieval suites must contain at least
   15 scoped queries with expected graph handles.
+- **Decay is ranking metadata** - decay evals may reorder candidates, but must
+  not hide required evidence or false canonical candidate claims.
 - **Operational proof** - evidence must include backend identity, effective
   search flags, startup/restart behavior, memory, index artifact size, rebuild
   behavior, failure classes, accuracy metrics, and a recommendation.
@@ -38,6 +41,8 @@
 - **Change scoring** - write a red test with explicit expected handles and
   ranked documents. Keep false canonical claim counting independent from
   retrieval relevance.
+- **Change decay evals** - cover ranking improvement, required-evidence
+  visibility, false canonical candidate claims, and per-candidate outcomes.
 - **Change query-suite validation** - cover invalid suite shape, duplicate ids,
   missing scope, and aggregate scoring before changing `suite.go`.
 

@@ -117,6 +117,29 @@ Decay scoring, when used, is ranking metadata only. It must follow the
 [Search Decay Scoring](search-decay-scoring.md) contract and must not hide
 evidence or promote ranking output to canonical graph truth.
 
+## Decay Evaluation Gate
+
+Issue #418 decay evidence uses `ScoreDecayEvaluation` and
+`ValidateDecayEvaluation` from `go/internal/searchbench`. The gate compares the
+original ranked candidates with the same candidates after applying a
+`searchdecay.Scorer`.
+
+Each decay evaluation records:
+
+- query id and decay policy id;
+- before and after recall, precision, nDCG, and false canonical claim counts;
+- recall, precision, and nDCG deltas;
+- whether required evidence was visible before and after decay;
+- false canonical candidate count across the full candidate set;
+- per-candidate original rank, decayed rank, original score, decayed score,
+  decay outcome, and required-evidence marker.
+
+`ValidateDecayEvaluation` rejects evidence when decay hides required evidence
+that was visible before decay, when required evidence is not visible after
+decay, or when the candidate set contains false canonical claims. False
+canonical claims are counted across all candidates, not only the bounded top-K,
+so decay cannot bury the failure outside the visible result window.
+
 ## Query Suite Gate
 
 Issue #417 semantic retrieval evidence must use a versioned query suite before a
