@@ -166,11 +166,25 @@ func TestValidateBackupRestoreProofRejectsInvalidEvidence(t *testing.T) {
 			want: "state class content_read_model requires content consistency check",
 		},
 		{
+			name: "duplicate consistency check",
+			mutate: func(proof *BackupRestoreProof) {
+				proof.ConsistencyChecks = append(proof.ConsistencyChecks, proof.ConsistencyChecks[1])
+			},
+			want: "consistency check content is duplicated",
+		},
+		{
 			name: "missing proof scenario",
 			mutate: func(proof *BackupRestoreProof) {
 				proof.Proofs = proof.Proofs[1:]
 			},
 			want: "proof scenario missing_artifact is required",
+		},
+		{
+			name: "duplicate proof scenario",
+			mutate: func(proof *BackupRestoreProof) {
+				proof.Proofs = append(proof.Proofs, proof.Proofs[0])
+			},
+			want: "proof scenario missing_artifact is duplicated",
 		},
 		{
 			name: "failed proof scenario",

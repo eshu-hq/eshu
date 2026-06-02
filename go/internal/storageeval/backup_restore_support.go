@@ -106,6 +106,9 @@ func validateBackupRestoreConsistency(
 		if !supportedBackupRestoreProofStatus(check.Status) {
 			return fmt.Errorf("consistency check %s status %q is unsupported", check.Check, check.Status)
 		}
+		if _, ok := seen[check.Check]; ok {
+			return fmt.Errorf("consistency check %s is duplicated", check.Check)
+		}
 		seen[check.Check] = check.Status
 	}
 	if len(seen) == 1 {
@@ -136,6 +139,9 @@ func validateBackupRestoreProofCoverage(proofs []BackupRestoreScenarioProof) err
 		}
 		if !supportedBackupRestoreProofStatus(proof.Status) {
 			return fmt.Errorf("proof scenario %s status %q is unsupported", proof.Scenario, proof.Status)
+		}
+		if _, ok := seen[proof.Scenario]; ok {
+			return fmt.Errorf("proof scenario %s is duplicated", proof.Scenario)
 		}
 		seen[proof.Scenario] = proof.Status
 	}
