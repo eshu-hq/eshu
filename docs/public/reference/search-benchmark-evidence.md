@@ -113,6 +113,10 @@ False canonical claim count is the number of ranked documents that claim a
 truth level other than `derived`. The correct fix for a nonzero count is to fix
 the producer or projection, not to suppress the metric.
 
+Decay scoring, when used, is ranking metadata only. It must follow the
+[Search Decay Scoring](search-decay-scoring.md) contract and must not hide
+evidence or promote ranking output to canonical graph truth.
+
 ## Query Suite Gate
 
 Issue #417 semantic retrieval evidence must use a versioned query suite before a
