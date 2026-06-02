@@ -35,7 +35,7 @@ func TestNornicDBComposeDoesNotForceAmd64Platform(t *testing.T) {
 	}
 }
 
-func TestNornicDBComposePersistsSearchIndexes(t *testing.T) {
+func TestNornicDBComposeDisablesSearchIndexPersistence(t *testing.T) {
 	t.Parallel()
 
 	content := readRepositoryFile(t, "../../..", "docker-compose.yaml")
