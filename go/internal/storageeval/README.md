@@ -7,13 +7,16 @@ evaluation gates. It currently owns the #1287 shadow-read comparison gate for
 selected content/read-model families and the #1288 shadow-write comparison gate
 for bounded fact-family migration proof. It also owns the #1289 queue-substrate
 decision gate that keeps queue/workflow ownership separate from storage
-ownership.
+ownership and the #1290 backup/restore proof gate for future NornicDB-owned
+durable state classes.
 
 The package validates records that compare current Postgres production answers
 with NornicDB shadow answers. Passing evidence proves only parity for the
 scoped read model or fact family; it does not change production ownership.
 Queue-substrate decisions prove only that a candidate comparison covered queue
-semantics and observability; they do not implement a new queue.
+semantics and observability; they do not implement a new queue. Backup/restore
+proofs prove only clean restore parity for one durable state class; they do not
+implement backup tooling or change production ownership.
 
 ## Ownership boundary
 
@@ -21,9 +24,10 @@ This package owns value types and validation rules for storage evaluation
 evidence. It must not open Postgres, call NornicDB, write graph state, expose
 API/MCP routes, enqueue reducer work, or decide canonical graph truth.
 
-Future adapters may produce `ShadowReadComparison` records, but adapters remain
-outside this package. Postgres stays the baseline owner until a separate
-cutover proposal proves parity, performance, backup/restore, and rollback.
+Future proof runners may produce these evidence records, but adapters and
+runners remain outside this package. Postgres stays the baseline owner until a
+separate cutover proposal proves parity, performance, backup/restore, and
+rollback for each migrated durable state class.
 
 ## Exported surface
 
@@ -34,6 +38,8 @@ See `doc.go` for the godoc contract.
   write/read-back comparison.
 - `QueueSubstrateDecision` is the evidence record for durable queue/workflow
   substrate evaluation.
+- `BackupRestoreProof` is the evidence record for one durable-state
+  backup/restore proof.
 - `ReadResult`, `TruthLabel`, `Freshness`, and `Scope` describe each side of
   the comparison.
 - `FactWriteResult` describes each side of a fact-store write and bounded
@@ -47,6 +53,10 @@ See `doc.go` for the godoc contract.
   separate storage proof from queue proof, reject worker-count reduction as a
   fix, pass chosen-candidate queue capabilities, cover proof scenarios, and
   include required observability.
+- `ValidateBackupRestoreProof` accepts only clean restore evidence that records
+  NornicDB and Eshu versions, artifact identity, artifact integrity, baseline
+  and restored count/digest parity, state-class consistency checks, fallback,
+  rollback, required failure scenarios, and restore observability.
 - `ReadModel`, `Backend`, `TruthLevel`, `TruthBasis`, `FreshnessState`,
   `Verdict`, `FallbackBehavior`, and `FailureClass` provide stable labels for
   future proof runners.
@@ -56,6 +66,11 @@ See `doc.go` for the godoc contract.
 - `QueueSurface`, `QueueSubstrate`, `QueueCapabilityStatus`,
   `QueueProofScenario`, `QueueProofStatus`, `QueueCandidateEvaluation`, and
   `QueueObservabilityAssessment` provide queue-substrate proof labels.
+- `DurableStateClass`, `BackupArtifact`, `RestoreAttempt`,
+  `DurableStateSnapshot`, `BackupRestoreConsistencyCheck`,
+  `BackupRestoreScenarioProof`, `BackupRestoreRollbackBehavior`,
+  `BackupRestoreObservability`, `BackupRestoreVerdict`, and
+  `BackupRestoreFailureClass` provide backup/restore proof labels.
 
 ## Dependencies
 
@@ -69,6 +84,9 @@ comparison count, duration, parity drift count, latest drift time, fallback
 count by reason, and failure class. Repository ids, file paths, entity ids,
 fact ids, graph handles, and digests belong in logs or traces, not metric
 labels.
+
+Backup/restore proof runners must also expose backup artifact age, artifact
+size, restore duration, restore failure class, and parity drift.
 
 No-Observability-Change: this package defines the required evidence labels and
 does not alter hosted runtime signals.
@@ -98,6 +116,13 @@ does not alter hosted runtime signals.
 - Storage proof must not be treated as queue proof.
 - Worker-count reduction, batch-size one, or broad serialization is not a
   queue-substrate fix.
+- Backup/restore proof must record a clean target restore and count/digest
+  parity between the Postgres baseline and restored NornicDB candidate.
+- Graph backup proof is accepted for graph schema state only. It is not enough
+  to promote content, fact-family, read-model, search-document, or relationship
+  evidence state.
+- Passing backup/restore proof requires explicit `keep_postgres` fallback and a
+  rollback behavior; fallback reads must not hide parity drift.
 
 ## Verification
 
@@ -118,5 +143,6 @@ git diff --check
 - `docs/internal/design/1287-shadow-read-comparison-gate.md`
 - `docs/internal/design/1288-shadow-write-comparison-gate.md`
 - `docs/internal/design/1289-queue-substrate-evaluation-gate.md`
+- `docs/internal/design/1290-backup-restore-proof-gate.md`
 - `docs/public/reference/truth-label-protocol.md`
 - `docs/public/reference/search-document-projection.md`
