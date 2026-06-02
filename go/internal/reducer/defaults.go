@@ -283,6 +283,16 @@ type DefaultHandlers struct {
 	// ReadinessLookup so edges never resolve against uncommitted IAM nodes.
 	IAMEscalationEdgeWriter IAMEscalationEdgeWriter
 
+	// IAMCanPerformEdgeWriter projects merged aws_iam_permission facts into
+	// conservative identity-policy-only IAM CAN_PERFORM effective-permission edges
+	// between an IAM principal and the resource CloudResource node an identity
+	// policy grants a catalogued sensitive action on (issue #1134 PR4a). It must be
+	// non-nil alongside FactLoader for the registry to register
+	// DomainIAMCanPerformMaterialization; missing either one would drop every
+	// CAN_PERFORM intent before it reached the graph. The handler also gates on
+	// ReadinessLookup so edges never resolve against uncommitted nodes.
+	IAMCanPerformEdgeWriter IAMCanPerformEdgeWriter
+
 	// KubernetesCorrelationEdgeWriter projects exact live-workload correlation
 	// decisions into canonical RUNS_IMAGE edges between a KubernetesWorkload node
 	// and the digest-addressed OCI source node it runs (issue #388 PR3). It must be

@@ -222,7 +222,27 @@ type Instruments struct {
 	// sts:AssumeRole deferred to the CAN_ASSUME edge). It is the bounded, honest
 	// graceful-degradation surface: a rising skipped_ambiguous rate means escalation
 	// edges are missing because policies use wildcard resources, not a reducer bug.
-	IAMEscalationSkipped       metric.Int64Counter
+	IAMEscalationSkipped metric.Int64Counter
+	// IAMCanPerformEdges counts canonical CAN_PERFORM identity-policy-only
+	// effective-permission edges committed by the IAM CAN_PERFORM projection
+	// (issue #1134 PR4a). Label: resolution_mode (exact_arn — the resource ARN
+	// matched exactly one scanned node; single_glob — a glob/prefix matched exactly
+	// one scanned node of the catalog-expected type). A zero count is itself a
+	// signal (no principal held a catalogued action with a single resolved
+	// resource), so the counter is recorded for both modes even when no edges
+	// materialized.
+	IAMCanPerformEdges metric.Int64Counter
+	// IAMCanPerformSkipped counts CAN_PERFORM catalog-action evaluations that
+	// produced no edge. Label: skip_reason (skipped_uncatalogued_action — action not
+	// in the closed catalog; skipped_ambiguous — wildcard/many-resource target;
+	// skipped_unresolved — principal or resource not scanned, incl. cross-account or
+	// wrong-type ARN; skipped_deny — a Deny blocked the action; skipped_conditioned
+	// — a condition-gated grant could not be conservatively trusted;
+	// skipped_not_action_resource — a NotAction/NotResource grant; skipped_self_loop
+	// — the resolved resource is the principal's own node). It is the bounded, honest
+	// graceful-degradation surface: a rising skipped_ambiguous rate means CAN_PERFORM
+	// edges are missing because policies use wildcard resources, not a reducer bug.
+	IAMCanPerformSkipped       metric.Int64Counter
 	SBOMAttestationAttachments metric.Int64Counter
 	SupplyChainImpactFindings  metric.Int64Counter
 	// SupplyChainSuppressionDecisions counts reducer suppression-state
@@ -1384,6 +1404,22 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register IAMEscalationSkipped counter: %w", err)
+	}
+
+	inst.IAMCanPerformEdges, err = meter.Int64Counter(
+		"eshu_dp_iam_can_perform_edges_total",
+		metric.WithDescription("Total canonical IAM CAN_PERFORM identity-policy-only effective-permission edges committed by the CAN_PERFORM projection by resolution_mode (exact_arn/single_glob)"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register IAMCanPerformEdges counter: %w", err)
+	}
+
+	inst.IAMCanPerformSkipped, err = meter.Int64Counter(
+		"eshu_dp_iam_can_perform_skipped_total",
+		metric.WithDescription("Total IAM CAN_PERFORM catalog-action evaluations skipped by the CAN_PERFORM projection by skip_reason (skipped_uncatalogued_action/skipped_ambiguous/skipped_unresolved/skipped_deny/skipped_conditioned/skipped_not_action_resource/skipped_self_loop)"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register IAMCanPerformSkipped counter: %w", err)
 	}
 
 	inst.SBOMAttestationAttachments, err = meter.Int64Counter(
