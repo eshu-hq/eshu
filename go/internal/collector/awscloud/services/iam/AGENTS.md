@@ -17,12 +17,16 @@
   or deployable-unit truth from IAM names or policy text.
 - Preserve stable role, user, policy, profile, relationship, and permission
   identities across repeated observations in the same AWS generation.
-- Keep trust policy JSON and ARNs out of metric labels.
+- Keep trust policy JSON out of facts, metric labels, logs, status errors, and
+  graph properties. ARNs may remain provider-native source identity in facts.
 - Derived `aws_iam_permission` facts are metadata-only. Emit only the normalized
   statement (effect, action set, resource pattern, condition KEYS, trust
   assume-principals). NEVER persist the raw policy JSON body or condition values.
   The SDK adapter normalizes documents; this package consumes `PolicyStatement`
   values and never holds raw JSON.
+- `secrets_iam_posture` facts are source evidence only. Keep
+  `collector_kind=secrets_iam_posture` and do not reuse AWS cloud envelope
+  helpers for those fact kinds.
 - Do not project the permission facts into graph edges here. The CAN_ASSUME /
   escalation-primitive reducer projection is a separate principal-review PR
   (issue #1134).

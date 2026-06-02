@@ -22,6 +22,7 @@ type Role struct {
 	Path               string
 	AssumeRolePolicy   map[string]any
 	TrustPrincipals    []TrustPrincipal
+	PermissionBoundary PermissionBoundary
 	AttachedPolicyARNs []string
 	InlinePolicyNames  []string
 	// PermissionStatements are the normalized, metadata-only statements derived
@@ -33,9 +34,12 @@ type Role struct {
 
 // User is the scanner-owned representation of an IAM user principal.
 type User struct {
-	ARN  string
-	Name string
-	Path string
+	ARN                string
+	Name               string
+	Path               string
+	PermissionBoundary PermissionBoundary
+	AttachedPolicyARNs []string
+	InlinePolicyNames  []string
 	// PermissionStatements are the normalized, metadata-only statements derived
 	// from this user's inline and attached managed policy documents.
 	PermissionStatements []PolicyStatement
@@ -77,6 +81,33 @@ type InstanceProfile struct {
 	Name     string
 	Path     string
 	RoleARNs []string
+}
+
+// CoverageWarning describes explicit source-local IAM coverage state that
+// should be persisted as secrets_iam_coverage_warning evidence.
+type CoverageWarning struct {
+	WarningKind string
+	SourceState string
+	ErrorClass  string
+	Message     string
+	Attributes  map[string]any
+}
+
+// PermissionBoundary is the scanner-owned representation of one IAM
+// permissions boundary attachment to a role or user.
+type PermissionBoundary struct {
+	PolicyARN string
+	Type      string
+}
+
+// OIDCProvider is the scanner-owned representation of an IAM OpenID Connect
+// identity provider. URLFingerprint is deterministic source identity for the
+// provider URL; the raw URL stays out of secrets/IAM posture facts.
+type OIDCProvider struct {
+	ARN             string
+	URLFingerprint  string
+	ClientIDCount   int
+	ThumbprintCount int
 }
 
 // TrustPrincipal identifies one principal granted access by a role trust

@@ -3,7 +3,8 @@
 ## Read First
 
 1. `README.md` - package purpose, telemetry, and invariants.
-2. `client.go` - IAM SDK pagination, trust policy decoding, and telemetry.
+2. `client.go` - IAM SDK pagination, trust policy decoding, OIDC provider
+   metadata fingerprinting, and telemetry.
 3. `policy_documents.go` - user reads and bounded policy-document fan-out.
 4. `policy_normalize.go` - metadata-only policy-statement normalization.
 5. `../scanner.go` - scanner-owned IAM fact selection.
@@ -20,6 +21,8 @@
 - Keep metric labels bounded to service, account, region, operation, and
   result.
 - Decode IAM trust policy JSON before returning scanner-owned role records.
+- Return OIDC provider URL fingerprints and client ID/thumbprint counts only;
+  never return raw OIDC URLs, client IDs, or thumbprints.
 - Normalize policy documents to metadata-only `iam.PolicyStatement` values. Keep
   effect, action/resource patterns, statement SID, condition KEYS, and trust
   assume-principals. NEVER return the raw policy JSON body or condition values.

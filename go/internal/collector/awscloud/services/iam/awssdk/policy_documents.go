@@ -48,16 +48,45 @@ func (c *Client) mapUser(ctx context.Context, user awsiamtypes.User) (iamservice
 	if err != nil {
 		return iamservice.User{}, err
 	}
+	detail, err := c.getUserDetail(ctx, userName)
+	if err != nil {
+		return iamservice.User{}, err
+	}
+	userDetail := user
+	if detail != nil {
+		userDetail = *detail
+	}
 	statements, err := c.userStatements(ctx, userName, attached, inlineNames)
 	if err != nil {
 		return iamservice.User{}, err
 	}
 	return iamservice.User{
-		ARN:                  aws.ToString(user.Arn),
+		ARN:                  firstNonBlank(aws.ToString(userDetail.Arn), aws.ToString(user.Arn)),
 		Name:                 userName,
-		Path:                 aws.ToString(user.Path),
+		Path:                 firstNonBlank(aws.ToString(userDetail.Path), aws.ToString(user.Path)),
+		PermissionBoundary:   permissionBoundary(userDetail.PermissionsBoundary),
+		AttachedPolicyARNs:   attached,
+		InlinePolicyNames:    inlineNames,
 		PermissionStatements: statements,
 	}, nil
+}
+
+func (c *Client) getUserDetail(ctx context.Context, userName string) (*awsiamtypes.User, error) {
+	var out *awsiam.GetUserOutput
+	err := c.recordAPICall(ctx, "GetUser", func(callCtx context.Context) error {
+		var err error
+		out, err = c.client.GetUser(callCtx, &awsiam.GetUserInput{
+			UserName: aws.String(userName),
+		})
+		return err
+	})
+	if err != nil {
+		return nil, fmt.Errorf("get IAM user %q: %w", userName, err)
+	}
+	if out == nil {
+		return nil, nil
+	}
+	return out.User, nil
 }
 
 // roleStatements assembles the normalized, metadata-only permission statements

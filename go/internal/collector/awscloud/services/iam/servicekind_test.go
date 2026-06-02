@@ -30,6 +30,9 @@ func TestScannerCanonicalizesPaddedServiceKind(t *testing.T) {
 		t.Fatalf("Scan() returned no envelopes")
 	}
 	for _, envelope := range envelopes {
+		if envelope.CollectorKind != awscloud.CollectorKind {
+			continue
+		}
 		if got, want := envelope.Payload["service_kind"], awscloud.ServiceIAM; got != want {
 			t.Fatalf("envelope service_kind = %#v, want %q (padded service_kind must be canonicalized)", got, want)
 		}

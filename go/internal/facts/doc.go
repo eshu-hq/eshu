@@ -32,7 +32,14 @@
 // data, and reducers project them separately. The derived IAM permission fact
 // is metadata-only: it captures a normalized policy statement (effect, action
 // set, resource pattern, condition-key summary) and never the raw policy JSON
-// body or condition values. CI/CD run fact kind constants and
+// body or condition values. Secrets/IAM posture fact kind constants and
+// schema-version helpers live here for source facts reported by the
+// secrets_iam_posture family: IAM principals, trust policy statements,
+// permission policy statements, policy attachments, permissions boundaries,
+// instance profiles, optional Access Analyzer findings, and coverage warnings.
+// These facts preserve provider-native identity while omitting raw policy JSON,
+// condition values, credentials, and session tokens; reducers own all
+// trust-chain and graph promotion decisions. CI/CD run fact kind constants and
 // schema-version helpers live here for pipeline definition, run, job, step,
 // artifact, trigger, environment, and warning evidence reported by providers.
 // SBOM and attestation fact kind constants and schema-version helpers live here
