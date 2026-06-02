@@ -147,11 +147,10 @@ func TestIAMCanPerformWildcardResourceIsSkippedAmbiguous(t *testing.T) {
 	}
 }
 
-// TestIAMCanPerformUncataloguedActionIsSkipped proves an action that is granted but
-// not in the closed catalog produces no edge; an uncatalogued action that is the
-// only carrier statement is not counted (it never reached resolution), but a
-// statement that ALSO carries a catalogued action still resolves that one. This
-// asserts the closed-vocabulary boundary.
+// TestIAMCanPerformUncataloguedActionIsSkipped proves an action that is granted
+// but not in the closed catalog produces no edge, is counted, and does not stop
+// a catalogued action in the same statement from resolving. This asserts the
+// closed-vocabulary boundary.
 func TestIAMCanPerformUncataloguedActionIsSkipped(t *testing.T) {
 	t.Parallel()
 
@@ -171,6 +170,38 @@ func TestIAMCanPerformUncataloguedActionIsSkipped(t *testing.T) {
 	}
 	if got := edge["actions"].([]string); len(got) != 1 || got[0] != "s3:getobject" {
 		t.Fatalf("only the catalogued action belongs on the edge; got %v", got)
+	}
+	if result.Tally.skippedUncatalogued != 1 {
+		t.Fatalf("the uncatalogued action must be counted skipped_uncatalogued_action; tally=%+v", result.Tally)
+	}
+	if result.Tally.total() != 1 {
+		t.Fatalf("the uncatalogued skip is the only tallied refusal; tally=%+v", result.Tally)
+	}
+}
+
+// TestBuildIAMCanPerformGrantCountsUncataloguedActions proves the grant builder
+// owns skipped_uncatalogued_action accounting for trusted Allow statements,
+// rather than relying on a later catalog loop that never visits uncatalogued
+// actions.
+func TestBuildIAMCanPerformGrantCountsUncataloguedActions(t *testing.T) {
+	t.Parallel()
+
+	var tally iamCanPerformTally
+	grant := buildIAMCanPerformGrant(
+		[]facts.Envelope{
+			escalationPermissionEnvelope(attackerUserARN, "Allow", []string{"cloudwatch:getmetricdata"}, []string{canPerformBucketARN}),
+		},
+		&tally,
+	)
+
+	if grant.allows("cloudwatch:getmetricdata") {
+		t.Fatal("uncatalogued action must not arm the CAN_PERFORM grant")
+	}
+	if tally.skippedUncatalogued != 1 {
+		t.Fatalf("skippedUncatalogued = %d, want 1 (tally=%+v)", tally.skippedUncatalogued, tally)
+	}
+	if tally.total() != 1 {
+		t.Fatalf("the uncatalogued skip is the only tallied refusal; tally=%+v", tally)
 	}
 }
 

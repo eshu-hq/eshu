@@ -11,8 +11,9 @@ import "github.com/eshu-hq/eshu/go/internal/facts"
 // A conditioned or NotAction/NotResource Allow statement that carries a
 // catalog-relevant action is counted as the matching skip reason so an operator
 // sees why an action that "looks" granted did not arm; it does NOT contribute to
-// trustedActions (the honest under-approximation — conditions carry key names
-// only, never values, so they are uninterpretable per design §2).
+// trustedActions. Uncatalogued trusted actions are counted and do not arm the
+// grant. This is the honest under-approximation: conditions carry key names only,
+// never values, and out-of-vocabulary actions have no closed target semantics.
 //
 // It is a distinct function from buildIAMPrincipalGrant (the escalation builder)
 // because the two slices count into different tally types and against different
@@ -58,6 +59,10 @@ func buildIAMCanPerformGrant(envelopes []facts.Envelope, tally *iamCanPerformTal
 		}
 
 		for _, action := range actions {
+			if !iamCanPerformActionIsCatalogued(action, catalogActions) {
+				tally.skippedUncatalogued++
+				continue
+			}
 			grant.trustedActions[action] = struct{}{}
 			grant.statementsByAction[action] = append(grant.statementsByAction[action], env)
 		}

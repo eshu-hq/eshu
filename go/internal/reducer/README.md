@@ -1048,6 +1048,24 @@ The honesty boundary is explicit and load-bearing: a PRESENT edge means an ident
 Benchmark Evidence: focused Eshu-owned write-path benchmark, no-op group executor (isolates statement construction/batching from graph round trips). `go test ./internal/storage/cypher -run '^$' -bench 'BenchmarkIAMCanPerformEdgeWriter|BenchmarkIAMEscalationEdgeWriter' -benchmem -count=3` writes 5,000 `CAN_PERFORM` edges at batch 500 in ~1.28ms/op (~1.97MB/op, 25,068 allocs/op) — within ~3% of the shipped `BenchmarkIAMEscalationEdgeWriter` baseline (~1.27ms/op, identical allocs/bytes) on the identical row shape, well under the 10% stop threshold. The writer reuses the identical batched `UNWIND` + `MATCH-MATCH-MERGE`-on-uid shape with a static `CAN_PERFORM` relationship type; the granted action set lives in an edge property, never in the MERGE key, keeping the relationship MERGE on a static token so NornicDB uses its relationship hot path. Both endpoint MATCHes anchor on the existing CloudResource uid index, so no MATCH falls back to a label scan. Target resolution is bounded in-memory (the #805 §5.1 ARN join index), O(1) per exact match with no per-edge graph round trip and no N+1. `go test ./internal/reducer ./internal/storage/cypher ./internal/telemetry ./internal/projector ./internal/storage/postgres ./cmd/reducer -count=1` passes, including the readiness gate, idempotent reprojection, the conservative skip cases (uncatalogued / wildcard / many / Deny / conditioned / NotAction / unresolved / self-loop), and the multi-action merge-into-one-edge case.
 
 Observability Evidence: the new `eshu_dp_iam_can_perform_edges_total` (`resolution_mode` = `exact_arn` / `single_glob`) and `eshu_dp_iam_can_perform_skipped_total` (`skip_reason` = `skipped_uncatalogued_action` / `skipped_ambiguous` / `skipped_unresolved` / `skipped_deny` / `skipped_conditioned` / `skipped_not_action_resource` / `skipped_self_loop`) counters, the `reducer.iam_can_perform_materialization` span, and a structured completion log carrying per-stage durations (load / extract / retract / write) plus the full skip tally let an operator answer at 3 AM "are CAN_PERFORM edges landing, and if a generation produced zero edges, is it because policies use wildcard resources (`skipped_ambiguous`), the resources were not scanned (`skipped_unresolved`), or the actions are outside the closed catalog (`skipped_uncatalogued_action`)?". The `cloud_resource_uid` readiness gate is the same durable status-blockage surface the #805 / #1135 edge slices use.
+
+No-Regression Evidence: the review fix moves `skipped_uncatalogued_action`
+accounting into `buildIAMCanPerformGrant`, so uncatalogued Allow actions never
+arm the grant before the catalog loop. The target-resolution and graph-write
+baseline remains the CAN_PERFORM benchmark above: 5,000 edge rows at batch 500,
+static `CAN_PERFORM` relationship MERGE, CloudResource uid endpoint MATCHes, and
+bounded in-memory ARN lookup. The after measurement for this fix is focused
+unit proof, not a new graph benchmark, because no writer, queue, Cypher, batch
+size, readiness gate, or graph row shape changed: `go test ./internal/reducer -run 'TestBuildIAMCanPerformGrantCountsUncataloguedActions|TestIAMCanPerformUncatalogued' -count=1` and `go test ./internal/reducer -count=1` pass. The new regression
+proves an uncatalogued `cloudwatch:getmetricdata` action is refused and counted,
+and the mixed `s3:listbucket` plus `s3:getobject` fixture still writes only the
+catalogued action while counting the uncatalogued one.
+
+No-Observability-Change: the fix uses the existing
+`eshu_dp_iam_can_perform_skipped_total{skip_reason="skipped_uncatalogued_action"}`
+counter, span, structured completion log, and durable readiness blockage path.
+It adds no metric instrument, metric label, span name, log field, runtime flag,
+queue state, graph label, or API/MCP surface.
 ## Related docs
 
 - `docs/public/architecture.md`
