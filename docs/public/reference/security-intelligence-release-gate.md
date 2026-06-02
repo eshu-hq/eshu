@@ -121,7 +121,7 @@ inputs look like private data.
 | `proof-matrix` | Records an operator-local aggregate representative corpus proof. The phase requires every supported ecosystem to be covered or explicitly classified, requires Terraform/IaC, image/SBOM, and deployment evidence-family coverage, requires zero retrying/failed/dead-letter readback, captured CPU/memory, reachable pprof, captured logs, and public issue refs for nonzero mismatch classes. It rejects private repository/package/provider/path/token-looking data. | A JSON file passed with `--proof-matrix` or `ESHU_RELEASE_GATE_PROOF_MATRIX`. |
 | `runtime` | Wraps `scripts/verify_remote_e2e_runtime_state.sh`, records whether the proof is the clean-volume run or preserved-volume restart, validates aggregate clean/preserved Compose volume proof, calls the documented supply-chain endpoints with `limit=1`, captures normalized `/api/v0/index-status` queue fields, captures valid `docker stats --no-stream` CPU/memory evidence, and requires reachable pprof. Any endpoint readback error, non-terminal queue readback, missing verifier script, verifier non-zero exit, missing or invalid Docker CPU/memory evidence, missing pprof URL, unreachable pprof, missing volume proof, or preserved run without a prior clean evidence file fails the phase. | A running remote Compose stack. `--runtime-run-kind clean` or `--runtime-run-kind preserved`, `--runtime-volume-proof`, `--api-base-url`, and `--pprof-base-url` are required. Preserved runs also require `--previous-runtime-evidence`. `--api-key` is required when the stack uses an explicit bearer token. |
 | `readback-proof` | Records operator-local aggregate API, MCP, and CLI readback proof. Raw transcripts stay outside the public repo; the gate copies only surface status/counts, truncated/unsupported/missing/ambiguous counters, and queue-zero counters. Missing API/MCP/CLI, failed checks, nonzero retry/failed/dead-letter counts, or private-looking transcript content fails the phase. | A JSON file passed with `--readback-proof` or `ESHU_RELEASE_GATE_READBACK_PROOF`. Use `scripts/e2e_readback_parity.sh` to build it from bounded local summaries. |
-| `k8s` | Captures public-safe pod/resource summaries, sanitized Helm values, sanitized logs for Eshu pods, `/admin/status` and `/api/v0/index-status` queue readback, and required pprof reachability. Missing logs, missing queue retry/dead-letter readback, missing CPU/memory snapshots, missing or unreachable pprof, or missing Helm values are recorded as phase failures. | `--k8s-namespace`, `--api-base-url`, `--pprof-base-url`, `kubectl`, `curl`, and `helm`. |
+| `k8s` | Captures public-safe pod/resource summaries, sanitized Helm values and deployed manifest, sanitized logs for Eshu pods, ServiceMonitor, NetworkPolicy, PodDisruptionBudget, schema-bootstrap Job status, `/admin/status` and `/api/v0/index-status` queue readback, and required pprof reachability. Missing logs, missing queue retry/dead-letter readback, missing CPU/memory snapshots, missing or unreachable pprof, missing Helm values or manifest, missing ServiceMonitor, NetworkPolicy, or PDB evidence, or degraded schema-bootstrap Job state are recorded as phase failures. | `--k8s-namespace`, `--api-base-url`, `--pprof-base-url`, `kubectl`, `curl`, and `helm`. |
 | `provider` | Records an operator-supplied aggregate-only parity comparison JSON. The harness rejects anything that contains package names, alert URLs, repository names, installation ids, or known token prefixes (`ghp_`, `github_pat_`, `glpat-`). | A JSON file containing `comparison_id` and a non-empty `totals` map of classification class to count. |
 
 ### Selecting phases
@@ -229,10 +229,11 @@ record the private URL in the Kubernetes evidence.
    `/admin/status?format=json` and `/api/v0/index-status`; pass
    `--pprof-base-url` for the private pprof port-forward. The
    harness records sanitized pod/resource summaries, sanitized logs, sanitized
-   Helm values, queue retry/dead-letter counts, terminal-status summary, and
-   pprof reachability without storing private URLs, pod hostnames, IP
-   addresses, provider URLs, repository names, package names, tokens, or
-   machine-local paths.
+   Helm values and deployed manifest, ServiceMonitor, NetworkPolicy, PDB, and
+   schema-bootstrap Job summaries, queue retry/dead-letter counts,
+   terminal-status summary, and pprof reachability without storing private
+   URLs, pod hostnames, IP addresses, provider URLs, repository names, package
+   names, tokens, or machine-local paths.
 12. **Review `evidence.md` and `evidence.json` together.** The gate is green
    only when `evidence.json` has `pass: true` at the top level and every
    enabled phase has `status` set to `pass` or `skipped`. Phases that fail
@@ -259,7 +260,10 @@ wall time, CPU/memory snapshot status, pprof/log status, mismatch-class totals,
 and follow-up issue counts. The Kubernetes phase
 surfaces `pprof_status`, `logs_ok`, `queue_readback_ok`, `queue_terminal_ok`,
 queue outstanding/pending/in-flight/retry/failed/dead-letter counters,
-sanitized evidence file references, and resource snapshot status.
+sanitized evidence file references, resource snapshot status,
+`service_monitor_ok`, `network_policy_ok`, `pdb_ok`,
+`schema_bootstrap_job_ok`, `helm_manifest_ok`, and the corresponding aggregate
+counts and sanitized evidence references.
 
 The `--api-base-url` value is normalized: a trailing `/` or `/api/v0` is
 stripped so the same env value that `verify_remote_e2e_runtime_state.sh`
@@ -446,10 +450,12 @@ The harness intentionally records only public-safe data. In particular:
 - API readback uses `limit=1`; runtime bodies are sanitized before persistence
   so diagnostic files do not dump customer findings.
 - Kubernetes evidence stores sanitized summaries only. Pod snapshots remove
-  node names, pod names, IP addresses, and image references; logs and Helm
-  values redact repository names, package names, provider URLs, tokens, common
-  secret key values, authorization headers, ARNs, account ids, hostnames, IP
-  addresses, and machine-local paths before writing evidence files.
+  node names, pod names, IP addresses, and image references; ServiceMonitor,
+  NetworkPolicy, PDB, and schema-bootstrap Job evidence is reduced to counts
+  and synthetic refs; logs, Helm values, and Helm manifests redact repository
+  names, package names, provider URLs, tokens, common secret key values,
+  authorization headers, ARNs, account ids, hostnames, IP addresses, and
+  machine-local paths before writing evidence files.
 - Operator-local artefacts (private corpora paths, AWS account ids, GitHub
   installation ids) are not echoed by the gate; they live in the operator's
   own env file.
@@ -475,8 +481,9 @@ clean/preserved runtime identity, pprof, CPU/memory, queue-terminal, and
 runtime-volume-proof handling. `scripts/test-security_intelligence_release_gate_k8s.sh`
 proves the Kubernetes evidence contract with fake `kubectl`, `helm`, and
 `curl` tools. It verifies sanitized logs, required pprof reachability, queue
-retry/dead-letter readback, CPU and memory resource snapshots, and public-safe
-generated Kubernetes evidence.
+retry/dead-letter readback, CPU and memory resource snapshots, ServiceMonitor,
+NetworkPolicy, PodDisruptionBudget, schema-bootstrap Job health, Helm manifest
+capture, and public-safe generated Kubernetes evidence.
 
 The fixture parity gate and the focused security-intelligence Go tests use
 their existing per-package commands. The release gate harness wraps them so

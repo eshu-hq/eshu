@@ -350,6 +350,9 @@ source "$(dirname "$0")/lib/security_intelligence_release_gate_runtime.sh"
 # shellcheck source=scripts/lib/security_intelligence_release_gate_phases.sh
 source "$(dirname "$0")/lib/security_intelligence_release_gate_phases.sh"
 
+# shellcheck source=scripts/lib/security_intelligence_release_gate_k8s.sh
+source "$(dirname "$0")/lib/security_intelligence_release_gate_k8s.sh"
+
 # shellcheck source=scripts/lib/security_intelligence_release_gate_proof_matrix.sh
 source "$(dirname "$0")/lib/security_intelligence_release_gate_proof_matrix.sh"
 

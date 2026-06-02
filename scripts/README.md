@@ -85,5 +85,8 @@ outside the repository. The companion test harnesses
 `test-security_intelligence_release_gate_proof_matrix.sh`,
 `test-security_intelligence_release_gate_runtime.sh`, and
 `test-security_intelligence_release_gate_k8s.sh` cover the offline phases and
-mocked runtime/k8s evidence against synthesized repos. The runbook lives at
+mocked runtime/k8s evidence against synthesized repos. The Kubernetes fixture
+also covers ServiceMonitor, NetworkPolicy, PodDisruptionBudget,
+schema-bootstrap Job, Helm manifest, pprof, queue, log, and resource snapshot
+evidence. The runbook lives at
 `docs/public/reference/security-intelligence-release-gate.md`.
