@@ -64,6 +64,28 @@ Do not use source handles, target handles, repository ids, service ids,
 candidate ids, or evidence ids as metric labels. Put those values in evidence
 records or logs where bounded drilldown is appropriate.
 
+## Evaluation Gate
+
+Issue #420 evaluation uses `EvaluateCandidates` from
+`go/internal/linkcandidates`. The gate compares generated candidates with a
+fixture-defined expected-gap set and keeps suppressed or ambiguous candidates
+visible in the counts. Empty expected-gap fixtures are invalid, and duplicate
+generated candidates for the same expected gap do not improve precision.
+
+Each evaluation records:
+
+- candidate count;
+- generated, suppressed, and ambiguous counts;
+- matched expected gap count;
+- false positive count;
+- precision and recall;
+- decision counts by algorithm and decision.
+
+Precision and recall are experiment metrics only. They do not admit
+relationships into resolver output or the canonical graph. Invalid candidates,
+including candidates with canonical truth labels, fail validation before they
+can be counted.
+
 ## Relationship Mapping Boundary
 
 Candidate suggestions feed evaluation and investigation only. The relationship

@@ -10,9 +10,10 @@ admission, or telemetry exporters use candidate suggestions.
 ## Ownership boundary
 
 This package owns pure validation of candidate shape, truth labels, freshness,
-decision, and low-cardinality observation dimensions. It does not call
-NornicDB, Postgres, graph stores, API/MCP handlers, reducers, or OTEL
-exporters. It never writes canonical relationship rows or graph edges.
+relationship-gap evaluation metrics, decision counts, and low-cardinality
+observation dimensions. It does not call NornicDB, Postgres, graph stores,
+API/MCP handlers, reducers, or OTEL exporters. It never writes canonical
+relationship rows or graph edges.
 
 ## Exported surface
 
@@ -26,6 +27,10 @@ See `doc.go` for the godoc-rendered package contract.
 - `Freshness` records state and observed time for the candidate input.
 - `ValidateCandidate` rejects incomplete, canonical, or unbounded candidate
   records.
+- `ExpectedGap`, `EvaluationInput`, `Evaluation`, and `DecisionCount` define
+  the fixture-testable evaluation gate for issue #420.
+- `EvaluateCandidates` scores generated candidates against expected gaps and
+  aggregates decision counts by algorithm and decision.
 - `ObservationFor` returns the bounded algorithm and decision dimensions for
   later metrics, spans, or logs.
 
@@ -36,8 +41,9 @@ See `doc.go` for the godoc-rendered package contract.
 ## Telemetry
 
 No OTEL telemetry directly. `ObservationFor` returns only algorithm and
-decision. Live callers must not add source handles, target handles, repository
-ids, service ids, evidence ids, or candidate ids as metric labels.
+decision, and `EvaluateCandidates` aggregates the same dimensions through
+`DecisionCount`. Live callers must not add source handles, target handles,
+repository ids, service ids, evidence ids, or candidate ids as metric labels.
 
 ## Gotchas / invariants
 
@@ -48,6 +54,10 @@ ids, service ids, evidence ids, or candidate ids as metric labels.
 - Suppressed candidates are counted but not shown as generated suggestions.
 - Algorithm ids are short lowercase tokens so observation dimensions stay
   low-cardinality.
+- Evaluation precision and recall measure generated suggestions against
+  expected relationship gaps; they do not admit relationships.
+- Evaluation fixtures require at least one expected gap, and duplicate generated
+  candidates for the same gap do not improve precision.
 - Scores are bounded from `0` to `1` and must be finite.
 
 ## Related docs

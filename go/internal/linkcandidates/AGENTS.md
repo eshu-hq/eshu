@@ -5,11 +5,12 @@
 1. `go/internal/linkcandidates/README.md` - package purpose, boundaries, and
    invariants.
 2. `go/internal/linkcandidates/candidate.go` - candidate validation contract.
-3. `docs/public/reference/link-prediction-candidates.md` - public reference for
+3. `go/internal/linkcandidates/evaluate.go` - relationship-gap evaluation gate.
+4. `docs/public/reference/link-prediction-candidates.md` - public reference for
    diagnostic candidate evidence.
-4. `docs/public/reference/relationship-mapping.md` - canonical relationship
+5. `docs/public/reference/relationship-mapping.md` - canonical relationship
    stage ownership.
-5. `docs/public/reference/relationship-mapping-evidence.md` - resolver-owned
+6. `docs/public/reference/relationship-mapping-evidence.md` - resolver-owned
    evidence and materialization path.
 
 ## Invariants this package enforces
@@ -22,6 +23,8 @@
   auto-resolved here.
 - **Low-cardinality observations** - observation dimensions are algorithm and
   decision only.
+- **Evaluation is evidence only** - precision, recall, and false positives
+  guide experiments but do not admit relationships.
 - **No I/O** - this package has no NornicDB, Postgres, graph, HTTP, MCP, or
   OTEL side effects.
 
@@ -33,6 +36,8 @@
   code.
 - **Change telemetry shape** - keep observations low-cardinality and update
   tests first.
+- **Change evaluation scoring** - cover matched gaps, false positives,
+  suppressed candidates, ambiguous candidates, and invalid candidate labels.
 
 ## Failure modes and how to debug
 
