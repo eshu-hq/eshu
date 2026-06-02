@@ -110,6 +110,7 @@ nav:
     - Security Intelligence Release Gate: reference/security-intelligence-release-gate.md
     - Component Package Manager: reference/component-package-manager.md
     - Fact Envelope Reference: reference/fact-envelope-reference.md
+    - Search Document Projection: reference/search-document-projection.md
     - Fact Schema Versioning: reference/fact-schema-versioning.md
     - Plugin Trust Model: reference/plugin-trust-model.md
     - Language Query DSL: reference/language-query-dsl.md

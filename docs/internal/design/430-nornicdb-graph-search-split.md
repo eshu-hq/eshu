@@ -197,7 +197,9 @@ Recommended child slices:
 1. Adopt a pinned NornicDB build with explicit BM25/vector disable or lazy
    warming, then wire graph-lane Compose/Helm defaults with tests.
 2. Define and fixture-test `EshuSearchDocument` projection without changing API
-   or MCP contracts.
+   or MCP contracts. The first contract lives in
+   `go/internal/searchdocs` and
+   `docs/public/reference/search-document-projection.md`.
 3. Add a benchmark harness comparing current Postgres content search with
    curated NornicDB BM25/vector retrieval.
 4. Add bounded internal retrieval path for semantic-evaluation queries.
