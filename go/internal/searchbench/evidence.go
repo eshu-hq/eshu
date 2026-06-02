@@ -9,11 +9,13 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/searchdocs"
 )
 
+const evidenceVersion = "search-benchmark-evidence/v1"
+
 // ValidateEvidence checks the issue #1264 evidence contract.
 func ValidateEvidence(evidence Evidence) error {
 	var problems []string
-	if evidence.Version == "" {
-		problems = append(problems, "version is required")
+	if evidence.Version != evidenceVersion {
+		problems = append(problems, "version must be "+evidenceVersion)
 	}
 	if evidence.EshuCommit == "" {
 		problems = append(problems, "eshu_commit is required")
@@ -23,6 +25,9 @@ func ValidateEvidence(evidence Evidence) error {
 	}
 	if evidence.TruthScope.Level != searchdocs.TruthLevelDerived {
 		problems = append(problems, "truth_scope.level must be derived")
+	}
+	if !validTruthBasis(evidence.TruthScope.Basis) {
+		problems = append(problems, "truth_scope.basis is invalid")
 	}
 	problems = append(problems, validateCorpus(evidence.Corpus)...)
 
@@ -104,6 +109,16 @@ func ScoreQueryResults(query Query, results []Result) RetrievalMetrics {
 
 func validateCorpus(corpus CorpusSummary) []string {
 	var problems []string
+	for name, count := range map[string]int{
+		"repository_count": corpus.RepositoryCount,
+		"file_count":       corpus.FileCount,
+		"entity_count":     corpus.EntityCount,
+		"vector_count":     corpus.VectorCount,
+	} {
+		if count < 0 {
+			problems = append(problems, fmt.Sprintf("corpus.%s must be non-negative", name))
+		}
+	}
 	if corpus.DocumentCount <= 0 {
 		problems = append(problems, "corpus.document_count is required")
 	}
@@ -190,8 +205,8 @@ func validateNornicDBRun(prefix string, run BackendRun) []string {
 	if run.Startup.PreservedVolume <= 0 {
 		problems = append(problems, prefix+".startup.preserved_volume is required")
 	}
-	if run.IndexArtifactBytes <= 0 {
-		problems = append(problems, prefix+".index_artifact_bytes is required for nornicdb runs")
+	if run.SearchFlags.PersistSearchIndexes && run.IndexArtifactBytes <= 0 {
+		problems = append(problems, prefix+".index_artifact_bytes is required when search index persistence is enabled")
 	}
 	return problems
 }
@@ -222,6 +237,9 @@ func validateFailureClasses(classes []FailureClass) []string {
 	var problems []string
 	seen := make(map[FailureClass]struct{}, len(classes))
 	for _, class := range classes {
+		if !validFailureClass(class) {
+			problems = append(problems, fmt.Sprintf("failure_classes[%s] is invalid", class))
+		}
 		seen[class] = struct{}{}
 	}
 	for _, required := range RequiredFailureClasses() {
@@ -230,6 +248,30 @@ func validateFailureClasses(classes []FailureClass) []string {
 		}
 	}
 	return problems
+}
+
+func validTruthBasis(basis searchdocs.TruthBasis) bool {
+	switch basis {
+	case searchdocs.TruthBasisContentIndex, searchdocs.TruthBasisReadModel:
+		return true
+	default:
+		return false
+	}
+}
+
+func validFailureClass(class FailureClass) bool {
+	switch class {
+	case FailureClassTruncation,
+		FailureClassTimeout,
+		FailureClassDisabledSearch,
+		FailureClassLazyWarm,
+		FailureClassRebuild,
+		FailureClassMissingArtifact,
+		FailureClassCorruption:
+		return true
+	default:
+		return false
+	}
 }
 
 func validateRecommendation(recommendation Recommendation) []string {
@@ -286,15 +328,19 @@ func compatibleBackendMode(backend Backend, mode Mode) bool {
 }
 
 func resultMatchesExpected(result Result, expected map[string]struct{}, matched map[string]struct{}) bool {
+	matchedResult := false
 	for _, handle := range result.Document.GraphHandles {
 		key := handleKey(handle)
 		if _, ok := expected[key]; !ok {
 			continue
 		}
+		if _, ok := matched[key]; ok {
+			continue
+		}
 		matched[key] = struct{}{}
-		return true
+		matchedResult = true
 	}
-	return false
+	return matchedResult
 }
 
 func handleKey(handle searchdocs.GraphHandle) string {

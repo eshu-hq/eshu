@@ -53,6 +53,75 @@ func TestValidateEvidenceRejectsCanonicalTruthClaims(t *testing.T) {
 	}
 }
 
+func TestValidateEvidenceRejectsUnknownEvidenceVersion(t *testing.T) {
+	t.Parallel()
+
+	evidence := validEvidenceFixture()
+	evidence.Version = "search-benchmark-evidence/v2"
+
+	err := ValidateEvidence(evidence)
+	if err == nil {
+		t.Fatal("ValidateEvidence() error = nil, want evidence version error")
+	}
+	if want := "version must be search-benchmark-evidence/v1"; !strings.Contains(err.Error(), want) {
+		t.Fatalf("ValidateEvidence() error = %q, want substring %q", err, want)
+	}
+}
+
+func TestValidateEvidenceRejectsInvalidCorpusInventoryCounts(t *testing.T) {
+	t.Parallel()
+
+	evidence := validEvidenceFixture()
+	evidence.Corpus.RepositoryCount = -1
+	evidence.Corpus.FileCount = -1
+	evidence.Corpus.EntityCount = -1
+	evidence.Corpus.VectorCount = -1
+
+	err := ValidateEvidence(evidence)
+	if err == nil {
+		t.Fatal("ValidateEvidence() error = nil, want corpus inventory errors")
+	}
+	for _, want := range []string{
+		"corpus.repository_count must be non-negative",
+		"corpus.file_count must be non-negative",
+		"corpus.entity_count must be non-negative",
+		"corpus.vector_count must be non-negative",
+	} {
+		if !strings.Contains(err.Error(), want) {
+			t.Fatalf("ValidateEvidence() error = %q, want substring %q", err, want)
+		}
+	}
+}
+
+func TestValidateEvidenceRejectsMissingOrUnknownTruthBasis(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name  string
+		basis searchdocs.TruthBasis
+	}{
+		{name: "missing", basis: ""},
+		{name: "unknown", basis: searchdocs.TruthBasis("whole_graph_search")},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			evidence := validEvidenceFixture()
+			evidence.TruthScope.Basis = tt.basis
+
+			err := ValidateEvidence(evidence)
+			if err == nil {
+				t.Fatal("ValidateEvidence() error = nil, want truth basis error")
+			}
+			if want := "truth_scope.basis is invalid"; !strings.Contains(err.Error(), want) {
+				t.Fatalf("ValidateEvidence() error = %q, want substring %q", err, want)
+			}
+		})
+	}
+}
+
 func TestValidateEvidenceAcceptsPostgresAndNornicDBComparison(t *testing.T) {
 	t.Parallel()
 
@@ -73,6 +142,50 @@ func TestValidateEvidenceRejectsBackendModeMismatch(t *testing.T) {
 	}
 	want := "backends[1].mode semantic is not compatible with backend nornicdb_bm25"
 	if !strings.Contains(err.Error(), want) {
+		t.Fatalf("ValidateEvidence() error = %q, want substring %q", err, want)
+	}
+}
+
+func TestValidateEvidenceAllowsZeroNornicDBArtifactWhenPersistenceDisabled(t *testing.T) {
+	t.Parallel()
+
+	evidence := validEvidenceFixture()
+	evidence.Backends[1].SearchFlags.PersistSearchIndexes = false
+	evidence.Backends[1].IndexArtifactBytes = 0
+
+	if err := ValidateEvidence(evidence); err != nil {
+		t.Fatalf("ValidateEvidence() error = %v, want nil", err)
+	}
+}
+
+func TestValidateEvidenceRejectsMissingNornicDBArtifactWhenPersistenceEnabled(t *testing.T) {
+	t.Parallel()
+
+	evidence := validEvidenceFixture()
+	evidence.Backends[1].SearchFlags.PersistSearchIndexes = true
+	evidence.Backends[1].IndexArtifactBytes = 0
+
+	err := ValidateEvidence(evidence)
+	if err == nil {
+		t.Fatal("ValidateEvidence() error = nil, want persisted artifact error")
+	}
+	want := "backends[1].index_artifact_bytes is required when search index persistence is enabled"
+	if !strings.Contains(err.Error(), want) {
+		t.Fatalf("ValidateEvidence() error = %q, want substring %q", err, want)
+	}
+}
+
+func TestValidateEvidenceRejectsUnknownFailureClasses(t *testing.T) {
+	t.Parallel()
+
+	evidence := validEvidenceFixture()
+	evidence.FailureClasses = append(evidence.FailureClasses, FailureClass("trunaction"))
+
+	err := ValidateEvidence(evidence)
+	if err == nil {
+		t.Fatal("ValidateEvidence() error = nil, want unknown failure class error")
+	}
+	if want := "failure_classes[trunaction] is invalid"; !strings.Contains(err.Error(), want) {
 		t.Fatalf("ValidateEvidence() error = %q, want substring %q", err, want)
 	}
 }
@@ -128,6 +241,40 @@ func TestEvidenceJSONUsesVersionedFieldNames(t *testing.T) {
 	}
 }
 
+func TestEvidenceJSONDurationsMarshalAsNanoseconds(t *testing.T) {
+	t.Parallel()
+
+	payload, err := json.Marshal(validEvidenceFixture())
+	if err != nil {
+		t.Fatalf("json.Marshal() error = %v, want nil", err)
+	}
+
+	var raw struct {
+		Backends []struct {
+			Startup struct {
+				CleanVolume json.Number `json:"clean_volume_ns"`
+			} `json:"startup"`
+			Latency struct {
+				P50 json.Number `json:"p50_ns"`
+			} `json:"latency"`
+		} `json:"backends"`
+	}
+	decoder := json.NewDecoder(strings.NewReader(string(payload)))
+	decoder.UseNumber()
+	if err := decoder.Decode(&raw); err != nil {
+		t.Fatalf("json.Decode() error = %v, want nil", err)
+	}
+	if len(raw.Backends) < 2 {
+		t.Fatalf("len(raw.Backends) = %d, want at least 2", len(raw.Backends))
+	}
+	if got, want := raw.Backends[1].Startup.CleanVolume.String(), "7000000000"; got != want {
+		t.Fatalf("clean_volume_ns = %q, want %q", got, want)
+	}
+	if got, want := raw.Backends[0].Latency.P50.String(), "35000000"; got != want {
+		t.Fatalf("p50_ns = %q, want %q", got, want)
+	}
+}
+
 func TestScoreQueryResultsCountsFalseCanonicalClaims(t *testing.T) {
 	t.Parallel()
 
@@ -175,6 +322,34 @@ func TestScoreQueryResultsCountsFalseCanonicalClaims(t *testing.T) {
 	}
 	if metrics.NDCG <= 0 || metrics.NDCG > 1 {
 		t.Fatalf("NDCG = %v, want within (0, 1]", metrics.NDCG)
+	}
+}
+
+func TestScoreQueryResultsCountsAllExpectedHandlesOnOneResult(t *testing.T) {
+	t.Parallel()
+
+	metrics := ScoreQueryResults(Query{
+		ID:              "q-multi-handle",
+		ExpectedHandles: []string{"service:svc-a", "file:repo-a:cmd/api/main.go"},
+	}, []Result{
+		{
+			Document: searchdocs.Document{
+				ID: "searchdoc:runtime_summary:svc-a",
+				GraphHandles: []searchdocs.GraphHandle{
+					{Kind: "service", ID: "svc-a"},
+					{Kind: "file", ID: "repo-a:cmd/api/main.go"},
+				},
+				TruthScope: searchdocs.TruthScope{Level: searchdocs.TruthLevelDerived},
+			},
+			Rank: 1,
+		},
+	})
+
+	if got, want := metrics.Recall, 1.0; got != want {
+		t.Fatalf("Recall = %v, want %v", got, want)
+	}
+	if got, want := metrics.Precision, 1.0; got != want {
+		t.Fatalf("Precision = %v, want %v", got, want)
 	}
 }
 

@@ -26,7 +26,7 @@ Every benchmark record must include:
 | `version` | Evidence schema version, currently `search-benchmark-evidence/v1`. |
 | `eshu_commit` | Eshu commit used for the benchmark run. |
 | `schema_bootstrap_state` | Schema and bootstrap state before query timing. |
-| `truth_scope` | Must be `derived`; search rank never becomes canonical truth. |
+| `truth_scope` | Must use `level=derived` and a known basis such as `content_index` or `read_model`; search rank never becomes canonical truth. |
 | `corpus` | Repository, file, entity, document, vector, and source-kind counts. |
 | `backends` | Current Postgres content search plus at least one NornicDB search backend. |
 | `failure_classes` | Required operator-visible failure classes. |
@@ -40,7 +40,8 @@ NornicDB backend records must also include:
 - query count, p50 latency, and p95 latency in nanoseconds;
 - recall, precision, nDCG, and false canonical claim count;
 - memory high-water mark;
-- index artifact size;
+- index artifact size when search-index persistence is enabled, or `0` when
+  persistence is disabled;
 - rebuild behavior.
 
 ## Backend And Mode Matrix
@@ -85,7 +86,8 @@ from `go/internal/searchdocs`, such as `code_entity`, `repository_file`, and
 
 ## Failure Classes
 
-Every benchmark must report these classes when applicable:
+Every benchmark must report the known classes below when applicable. Unknown
+classes are rejected so typos cannot weaken the operator-facing contract.
 
 | Failure class | Meaning |
 | --- | --- |

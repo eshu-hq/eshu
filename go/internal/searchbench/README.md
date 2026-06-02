@@ -45,8 +45,9 @@ claim evidence before writing a record.
 
 - Benchmarks compare Postgres content search against curated NornicDB search
   documents, not whole-graph BM25 or vector search.
-- `truth_scope.level` must remain `derived`. Search rank, semantic similarity,
-  and link prediction never become canonical graph truth.
+- `truth_scope.level` must remain `derived`, and `truth_scope.basis` must name
+  a known search-document evidence basis. Search rank, semantic similarity, and
+  link prediction never become canonical graph truth.
 - NornicDB runs must record the effective search flags and both clean-volume and
   preserved-volume startup behavior.
 - Backend and mode pairs are fixed: Postgres and NornicDB BM25 use `keyword`,
