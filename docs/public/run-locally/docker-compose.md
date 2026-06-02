@@ -42,7 +42,7 @@ state, facts, queues, status, content, and recovery data.
 | `resolution-engine` | Reducer queue drain, graph projection, repair, and shared materialization. |
 
 The NornicDB service defaults to a pinned multi-arch Docker manifest:
-`timothyswt/nornicdb-cpu-bge:v1.1.0@sha256:65855ca2c9649020f7f9e29d2e0fbedf0bf9601457de233d87160ddbe4b473f0`.
+`timothyswt/nornicdb-cpu-bge:v1.1.2@sha256:b4babec00f1fe2f0dec2fddc5bc90aa20e7d69e35172a27a58cc00d32b606b63`.
 Leave `NORNICDB_PLATFORM` unset for normal local runs. Docker selects the
 `linux/arm64` image on Apple Silicon and the `linux/amd64` image on x86 hosts.
 
@@ -54,16 +54,19 @@ NORNICDB_PLATFORM=linux/arm64 \
 docker compose up --build bootstrap-index
 ```
 
-Eshu Compose sets `NORNICDB_EMBEDDING_ENABLED=false` and
-`NORNICDB_PERSIST_SEARCH_INDEXES=true`. These are graph-lane safeguards, not an
-Eshu semantic-search contract: embeddings stay off during indexing, and persisted
-search indexes are only a restart mitigation for the current pinned image.
-NornicDB does not currently document a supported switch that disables search/BM25 services entirely for graph-only deployments.
-Do not add unpinned NornicDB BM25/vector disable or lazy-warming variables to
-Compose until the pinned image and Eshu tests prove the exact contract. Track the
-upstream graph-only search work through
-[orneryd/NornicDB#175](https://github.com/orneryd/NornicDB/issues/175) and
-[orneryd/NornicDB#177](https://github.com/orneryd/NornicDB/pull/177).
+Eshu Compose sets these NornicDB graph-lane controls:
+
+- `NORNICDB_EMBEDDING_ENABLED=false`
+- `NORNICDB_SEARCH_BM25_ENABLED=false`
+- `NORNICDB_SEARCH_VECTOR_ENABLED=false`
+- `NORNICDB_SEARCH_BM25_WARMING=lazy`
+- `NORNICDB_SEARCH_VECTOR_WARMING=lazy`
+- `NORNICDB_PERSIST_SEARCH_INDEXES=false`
+
+These are graph-lane safeguards, not an Eshu semantic-search contract. BM25,
+vector indexing, and embedding generation stay off for the canonical graph
+database. Lazy warming remains the supported fallback if an operator enables a
+specific search index for a deliberate proof run.
 
 ## Optional Profiles
 

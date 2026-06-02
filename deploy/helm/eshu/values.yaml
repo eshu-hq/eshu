@@ -735,8 +735,8 @@ neo4j:
 nornicdb:
   enabled: false
   image:
-    repository: timothyswt/nornicdb-amd64-cpu
-    tag: "v1.1.0"
+    repository: timothyswt/nornicdb-cpu-bge
+    tag: "v1.1.2@sha256:b4babec00f1fe2f0dec2fddc5bc90aa20e7d69e35172a27a58cc00d32b606b63"
     pullPolicy: IfNotPresent
   ports:
     http: 7474
@@ -747,8 +747,12 @@ nornicdb:
     NORNICDB_ASYNC_WRITES_ENABLED: "false"
     NORNICDB_HEIMDALL_ENABLED: "false"
     NORNICDB_QDRANT_GRPC_ENABLED: "false"
-    NORNICDB_PERSIST_SEARCH_INDEXES: "true"
     NORNICDB_EMBEDDING_ENABLED: "false"
+    NORNICDB_SEARCH_BM25_ENABLED: "false"
+    NORNICDB_SEARCH_VECTOR_ENABLED: "false"
+    NORNICDB_SEARCH_BM25_WARMING: lazy
+    NORNICDB_SEARCH_VECTOR_WARMING: lazy
+    NORNICDB_PERSIST_SEARCH_INDEXES: "false"
     GOMEMLIMIT: "48GiB"
   resources:
     requests:

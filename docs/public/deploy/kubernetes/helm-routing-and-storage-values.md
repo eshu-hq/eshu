@@ -26,17 +26,17 @@ auth fields even when the backend does not enforce auth.
 `nornicdb.enabled=false` by default. When enabled, the chart renders one
 NornicDB Deployment, Service, and optional PVC.
 
-Key defaults: image repository `timothyswt/nornicdb-amd64-cpu`, image tag
-`v1.1.0`, persistence enabled with `500Gi`, no server auth, async writes off,
-Heimdall off, Qdrant gRPC off, embeddings off, search index persistence on,
-and `GOMEMLIMIT=48GiB`.
+Key defaults: image repository `timothyswt/nornicdb-cpu-bge`, image tag
+`v1.1.2@sha256:b4babec00f1fe2f0dec2fddc5bc90aa20e7d69e35172a27a58cc00d32b606b63`,
+persistence enabled with `500Gi`, no server auth, async writes off, Heimdall
+off, Qdrant gRPC off, embeddings off, BM25 and vector indexes disabled,
+BM25/vector warming set to `lazy`, search index persistence off, and
+`GOMEMLIMIT=48GiB`.
 
 The bundled NornicDB deployment is the canonical graph lane. Search index
-persistence is a restart mitigation for the current pinned image, not a contract
-that BM25/vector search should index every graph node and property. Do not add
-BM25/vector disable or lazy-warming values until Eshu pins a NornicDB image that
-supports the exact variables and the deployment proof records startup, memory,
-index-size, document-count, vector-count, and failure-mode evidence.
+persistence is off because BM25/vector indexing is disabled for the graph lane.
+Do not enable BM25/vector indexing unless a deployment proof records startup,
+memory, index-size, document-count, vector-count, and failure-mode evidence.
 
 Do not combine `nornicdb.enabled=true` with
 `schemaBootstrap.useHelmHooks=true`; the chart rejects that render because the

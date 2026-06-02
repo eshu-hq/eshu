@@ -84,18 +84,48 @@ truncated Variable rows.
 
 Compose and Helm set:
 
-- `NORNICDB_PERSIST_SEARCH_INDEXES=true`
 - `NORNICDB_EMBEDDING_ENABLED=false`
+- `NORNICDB_SEARCH_BM25_ENABLED=false`
+- `NORNICDB_SEARCH_VECTOR_ENABLED=false`
+- `NORNICDB_SEARCH_BM25_WARMING=lazy`
+- `NORNICDB_SEARCH_VECTOR_WARMING=lazy`
+- `NORNICDB_PERSIST_SEARCH_INDEXES=false`
 
-These settings are the current graph-lane mitigation for the pinned image, not
-a decision that the canonical graph is Eshu's BM25/vector search corpus. Issue
-#430 separates canonical graph storage from curated search projection. Future
-work that disables or lazily warms BM25/vector indexes for the canonical graph
-must pin the supporting NornicDB image and record startup, memory, artifact-size,
-document-count, vector-count, and failure-mode evidence before changing defaults.
+These settings make the default NornicDB container a graph-only backend, not
+Eshu's BM25/vector search corpus. Issue #430 separates canonical graph storage
+from curated search projection. Future work that enables BM25/vector indexes for
+the canonical graph must record startup, memory, artifact-size, document-count,
+vector-count, and failure-mode evidence before changing defaults.
 
 No-Regression Evidence: Compose pins
-`timothyswt/nornicdb-cpu-bge:v1.1.0@sha256:65855ca2c9649020f7f9e29d2e0fbedf0bf9601457de233d87160ddbe4b473f0`.
+`timothyswt/nornicdb-cpu-bge:v1.1.2@sha256:b4babec00f1fe2f0dec2fddc5bc90aa20e7d69e35172a27a58cc00d32b606b63`.
+`docker buildx imagetools inspect timothyswt/nornicdb-cpu-bge:v1.1.2` resolves
+the pinned manifest list with linux/amd64 and linux/arm64 entries. NornicDB
+release `v1.1.2` documents per-database BM25 and vector index master switches.
+Runtime build metadata in this image still reports `version=1.1.1`,
+`commit=dev`, and `build_time=unknown` in startup logs and `/admin/stats`;
+operator version checks should anchor on the pinned image tag, manifest digest,
+and behavior smoke until the upstream image metadata is corrected.
+
+Graph-only Controls Smoke, 2026-06-02:
+
+- Command shape:
+  `NEO4J_HTTP_PORT=17474 NEO4J_BOLT_PORT=17687 docker compose -p eshu1262search up -d nornicdb`.
+- Clean-volume startup reached `/health` in 7s with response
+  `{"status":"healthy"}`.
+- Preserved-volume restart reached `/health` in 6s.
+- Disabled search returned HTTP 503 with
+  `request_status=search_disabled_for_database`, `retryable=false`,
+  `bm25_enabled=false`, and `vector_enabled=false`.
+- `/admin/stats` returned HTTP 200 with `node_count=0`, `edge_count=0`, and
+  per-database `nornic.node_count=0`.
+- `/nornicdb/embed/stats` returned HTTP 200 with `enabled=false`,
+  `total_embeddings=0`, and `pending_nodes=0`.
+- Clean-volume runtime sample: 35.54MiB container memory, `/data` total 52 KiB.
+- Preserved-volume runtime sample: 29.98MiB container memory, `/data` total
+  56 KiB.
+- Failure class: none; the isolated Compose project was removed with
+  `docker compose -p eshu1262search down -v --remove-orphans`.
 
 Observability Evidence: NornicDB logs expose `BuildIndexes progress` with
 phase and processed-node counts. Eshu graph schema bootstrap logs each graph
@@ -119,15 +149,19 @@ counters.
 
 The Helm chart promotes proven Compose behavior to Kubernetes:
 
-- `NORNICDB_PERSIST_SEARCH_INDEXES=true`
 - `NORNICDB_EMBEDDING_ENABLED=false`
+- `NORNICDB_SEARCH_BM25_ENABLED=false`
+- `NORNICDB_SEARCH_VECTOR_ENABLED=false`
+- `NORNICDB_SEARCH_BM25_WARMING=lazy`
+- `NORNICDB_SEARCH_VECTOR_WARMING=lazy`
+- `NORNICDB_PERSIST_SEARCH_INDEXES=false`
 - startup probe window long enough for large graph startup
 - readiness probe against `/health`
 - `ESHU_CANONICAL_WRITE_TIMEOUT=120s`
 - `ESHU_SHARED_PROJECTION_WORKERS=8`
 
-Persisted search indexes plus the startup probe prevent restart loops while
-NornicDB rebuilds large search indexes. `ESHU_CANONICAL_WRITE_TIMEOUT=120s`
+Disabled search indexes plus the startup probe prevent restart loops caused by
+whole-graph BM25/vector builds. `ESHU_CANONICAL_WRITE_TIMEOUT=120s`
 covers EKS pod-to-pod graph-write latency under load; reducer worker count
 remains runtime-owned unless explicitly set.
 
