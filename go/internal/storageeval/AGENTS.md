@@ -1,7 +1,7 @@
 # storageeval Agent Rules
 
 This package defines pure storage migration proof contracts. It must stay
-adapter-free and runtime-free.
+adapter-free, queue-free, and runtime-free.
 
 ## Mandatory rules
 
@@ -13,13 +13,16 @@ adapter-free and runtime-free.
 - MUST reject missing, stale, divergent, truncated, unsupported, unbounded, or
   fallback-truth shadow evidence.
 - MUST keep production fallback behavior explicit in every passing comparison.
+- MUST keep fact-write rollback behavior explicit and disposable; do not add
+  queue, lease, retry, or dead-letter ownership here.
 
 ## Read first
 
 1. `README.md` for the package boundary and invariants.
 2. `doc.go` for the godoc contract.
 3. `shadow_read.go` before changing the #1287 comparison gate.
-4. `docs/internal/design/431-nornicdb-primary-store-evaluation.md` before
+4. `shadow_write.go` before changing the #1288 comparison gate.
+5. `docs/internal/design/431-nornicdb-primary-store-evaluation.md` before
    changing storage migration evidence semantics.
 
 ## Verification

@@ -3,12 +3,13 @@
 ## Purpose
 
 `internal/storageeval` defines pure evidence contracts for storage migration
-evaluation gates. The first contract is the #1287 shadow-read comparison gate
-for selected content and read-model families.
+evaluation gates. It currently owns the #1287 shadow-read comparison gate for
+selected content/read-model families and the #1288 shadow-write comparison gate
+for bounded fact-family migration proof.
 
-The package validates records that compare the current Postgres production
-answer with a NornicDB shadow answer. Passing evidence proves only parity for
-the scoped read model; it does not change production ownership.
+The package validates records that compare current Postgres production answers
+with NornicDB shadow answers. Passing evidence proves only parity for the
+scoped read model or fact family; it does not change production ownership.
 
 ## Ownership boundary
 
@@ -25,13 +26,23 @@ cutover proposal proves parity, performance, backup/restore, and rollback.
 See `doc.go` for the godoc contract.
 
 - `ShadowReadComparison` is the evidence record for one bounded comparison.
+- `FactWriteComparison` is the evidence record for one bounded fact-family
+  write/read-back comparison.
 - `ReadResult`, `TruthLabel`, `Freshness`, and `Scope` describe each side of
   the comparison.
+- `FactWriteResult` describes each side of a fact-store write and bounded
+  read-back comparison.
 - `ValidateShadowReadComparison` accepts only matching, fresh, non-truncated,
   supported, bounded evidence with explicit fallback behavior.
+- `ValidateFactWriteComparison` accepts only matching fact identity,
+  idempotency key, scope/generation, schema version, active generation, current
+  supersession, record state, digest, fallback, and rollback evidence.
 - `ReadModel`, `Backend`, `TruthLevel`, `TruthBasis`, `FreshnessState`,
   `Verdict`, `FallbackBehavior`, and `FailureClass` provide stable labels for
   future proof runners.
+- `FactFamily`, `FactRecordState`, `FactGenerationState`,
+  `FactSupersessionState`, `FactWriteVerdict`, `FactWriteFailureClass`, and
+  `RollbackBehavior` provide fact-write proof labels.
 
 ## Dependencies
 
@@ -64,6 +75,11 @@ does not alter hosted runtime signals.
 - Unsupported shadow capability is rejected instead of silently falling back.
 - Explicit fallback behavior is required so operators know production remains
   on Postgres, fails closed, or returns `unsupported_capability`.
+- Fact-write evidence must preserve stable fact identity, idempotency key,
+  scope/generation, semantic schema version, active generation, current
+  supersession, active or tombstone state, and bounded read-back count.
+- Shadow fact writes must be explicitly disposable through rollback behavior;
+  this package must not grow queue, lease, retry, or dead-letter semantics.
 
 ## Verification
 
@@ -81,5 +97,7 @@ git diff --check
 
 - `docs/internal/design/431-nornicdb-primary-store-evaluation.md`
 - `docs/internal/design/1286-postgres-ownership-inventory.md`
+- `docs/internal/design/1287-shadow-read-comparison-gate.md`
+- `docs/internal/design/1288-shadow-write-comparison-gate.md`
 - `docs/public/reference/truth-label-protocol.md`
 - `docs/public/reference/search-document-projection.md`
