@@ -9,22 +9,27 @@ cannot drift into whole-graph search or canonical-truth claims.
 
 ## Ownership boundary
 
-This package owns validation and scoring for search benchmark evidence. It does
-not query Postgres, call NornicDB, write graph state, expose API/MCP routes, or
-change runtime defaults. Live benchmark adapters must measure their backend and
-then feed versioned records through this package.
+This package owns validation and scoring for search benchmark evidence and
+semantic retrieval query suites. It does not query Postgres, call NornicDB,
+write graph state, expose API/MCP routes, or change runtime defaults. Live
+benchmark adapters must measure their backend and then feed versioned records
+through this package.
 
 ## Exported surface
 
 See `doc.go` for the godoc-rendered package contract.
 
 - `Evidence` is the versioned benchmark record.
+- `QuerySuite` is the versioned #417 semantic retrieval suite contract.
 - `BackendRun`, `CorpusSummary`, `LatencySummary`, `StartupSummary`,
   `RetrievalMetrics`, and `Recommendation` capture the required #1264 evidence.
 - `ValidateEvidence` enforces required backend identity, corpus shape, failure
   classes, accuracy metrics, truth scope, and recommendation.
+- `ValidateQuerySuite` enforces the 15-case query-suite baseline shape.
 - `ScoreQueryResults` computes recall, precision, nDCG, and false canonical
   claim count from ranked `searchdocs.Document` results.
+- `ScoreQuerySuite` macro-averages per-query metrics and sums false canonical
+  claims in suite order.
 - `RequiredFailureClasses` returns the operator-visible failure classes every
   benchmark must report.
 
@@ -45,6 +50,9 @@ claim evidence before writing a record.
 
 - Benchmarks compare Postgres content search against curated NornicDB search
   documents, not whole-graph BM25 or vector search.
+- Semantic retrieval suites must contain at least 15 scoped queries before they
+  can be used as #417 baseline evidence, and every query limit must stay at or
+  below 100.
 - `truth_scope.level` must remain `derived`, and `truth_scope.basis` must name
   a known search-document evidence basis. Search rank, semantic similarity, and
   link prediction never become canonical graph truth.

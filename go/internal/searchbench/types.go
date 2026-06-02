@@ -144,11 +144,29 @@ type Recommendation struct {
 	Rationale string                 `json:"rationale"`
 }
 
+// QuerySuiteVersion is the first semantic retrieval query-suite schema version.
+const QuerySuiteVersion = "semantic-retrieval-query-suite/v1"
+
+// MinimumQuerySuiteSize is the issue #417 baseline query count.
+const MinimumQuerySuiteSize = 15
+
+// MaximumQueryLimit is the maximum top-K limit for benchmark suite queries.
+const MaximumQueryLimit = 100
+
+// QuerySuite is one versioned semantic retrieval evaluation suite.
+type QuerySuite struct {
+	Version string  `json:"version"`
+	Queries []Query `json:"queries"`
+}
+
 // Query is one evaluation query scored by the harness.
 type Query struct {
 	ID              string   `json:"id"`
 	Text            string   `json:"text"`
+	ServiceID       string   `json:"service_id,omitempty"`
+	WorkloadID      string   `json:"workload_id,omitempty"`
 	RepoID          string   `json:"repo_id,omitempty"`
+	Environment     string   `json:"environment,omitempty"`
 	Mode            Mode     `json:"mode"`
 	Limit           int      `json:"limit"`
 	ExpectedHandles []string `json:"expected_handles"`
@@ -158,4 +176,17 @@ type Query struct {
 type Result struct {
 	Document searchdocs.Document `json:"document"`
 	Rank     int                 `json:"rank"`
+}
+
+// QueryScore records metrics for one query in a query-suite run.
+type QueryScore struct {
+	QueryID string           `json:"query_id"`
+	Metrics RetrievalMetrics `json:"metrics"`
+}
+
+// QuerySuiteScore records aggregate and per-query semantic retrieval metrics.
+type QuerySuiteScore struct {
+	QueryCount int              `json:"query_count"`
+	Metrics    RetrievalMetrics `json:"metrics"`
+	PerQuery   []QueryScore     `json:"per_query"`
 }
