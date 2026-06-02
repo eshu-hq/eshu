@@ -341,6 +341,8 @@ Facts are source evidence, not automatic graph truth.
 - GCP and Azure cloud collector facts remain design-only until implemented.
   Their shared source-field and provider-extension baseline is defined in
   [Multi-Cloud Runtime Collector Contract](multi-cloud-collector-contract.md).
+  The provider-specific GCP payload and redaction baseline is defined in
+  [GCP Cloud Collector Contract](gcp-cloud-collector-contract.md).
 
 ACL summaries and source-native documentation bodies are sensitive source
 evidence. Do not emit them through logs or metrics. Evidence packet APIs must
@@ -369,6 +371,7 @@ When adding or changing a fact family:
 - [Collector Authoring](../guides/collector-authoring.md)
 - [Collector And Reducer Readiness](collector-reducer-readiness.md)
 - [Multi-Cloud Runtime Collector Contract](multi-cloud-collector-contract.md)
+- [GCP Cloud Collector Contract](gcp-cloud-collector-contract.md)
 - [Jira Evidence Contract](jira-evidence.md)
 - [Component Package Manager](component-package-manager.md)
 - [Plugin Trust Model](plugin-trust-model.md)
