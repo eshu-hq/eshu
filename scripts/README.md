@@ -70,7 +70,10 @@ The runtime phase requires an explicit clean or preserved run kind, sanitized
 readback, pprof, CPU/memory, queue-terminal state, and aggregate volume proof;
 preserved runs also point at the prior clean evidence packet. The
 `readback-proof` phase accepts only aggregate API/MCP/CLI status and queue
-counters. The companion test harnesses
+counters. Use `e2e_readback_parity.sh` to turn operator-local bounded API, MCP,
+and CLI result summaries into that public-safe proof; raw transcripts stay
+outside the repository. The companion test harnesses
+`test-e2e-readback-parity.sh`,
 `test-security_intelligence_release_gate.sh` and
 `test-security_intelligence_release_gate_proof_matrix.sh`,
 `test-security_intelligence_release_gate_runtime.sh`, and

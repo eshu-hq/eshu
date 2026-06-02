@@ -120,7 +120,7 @@ inputs look like private data.
 | `fixtures` | Runs `go test ./internal/vulnerabilityparity` and `scripts/verify_vulnerability_parity_fixtures.sh`. | Go toolchain plus `jq` (already required by the verifier). |
 | `proof-matrix` | Records an operator-local aggregate representative corpus proof. The phase requires every supported ecosystem to be covered or explicitly classified, requires Terraform/IaC, image/SBOM, and deployment evidence-family coverage, requires zero retrying/failed/dead-letter readback, captured CPU/memory, reachable pprof, captured logs, and public issue refs for nonzero mismatch classes. It rejects private repository/package/provider/path/token-looking data. | A JSON file passed with `--proof-matrix` or `ESHU_RELEASE_GATE_PROOF_MATRIX`. |
 | `runtime` | Wraps `scripts/verify_remote_e2e_runtime_state.sh`, records whether the proof is the clean-volume run or preserved-volume restart, validates aggregate clean/preserved Compose volume proof, calls the documented supply-chain endpoints with `limit=1`, captures normalized `/api/v0/index-status` queue fields, captures valid `docker stats --no-stream` CPU/memory evidence, and requires reachable pprof. Any endpoint readback error, non-terminal queue readback, missing verifier script, verifier non-zero exit, missing or invalid Docker CPU/memory evidence, missing pprof URL, unreachable pprof, missing volume proof, or preserved run without a prior clean evidence file fails the phase. | A running remote Compose stack. `--runtime-run-kind clean` or `--runtime-run-kind preserved`, `--runtime-volume-proof`, `--api-base-url`, and `--pprof-base-url` are required. Preserved runs also require `--previous-runtime-evidence`. `--api-key` is required when the stack uses an explicit bearer token. |
-| `readback-proof` | Records operator-local aggregate API, MCP, and CLI readback proof. Raw transcripts stay outside the public repo; the gate copies only surface status/counts and queue-zero counters. Missing API/MCP/CLI, failed checks, nonzero retry/failed/dead-letter counts, or private-looking transcript content fails the phase. | A JSON file passed with `--readback-proof` or `ESHU_RELEASE_GATE_READBACK_PROOF`. |
+| `readback-proof` | Records operator-local aggregate API, MCP, and CLI readback proof. Raw transcripts stay outside the public repo; the gate copies only surface status/counts, truncated/unsupported/missing/ambiguous counters, and queue-zero counters. Missing API/MCP/CLI, failed checks, nonzero retry/failed/dead-letter counts, or private-looking transcript content fails the phase. | A JSON file passed with `--readback-proof` or `ESHU_RELEASE_GATE_READBACK_PROOF`. Use `scripts/e2e_readback_parity.sh` to build it from bounded local summaries. |
 | `k8s` | Captures public-safe pod/resource summaries, sanitized Helm values, sanitized logs for Eshu pods, `/admin/status` and `/api/v0/index-status` queue readback, and required pprof reachability. Missing logs, missing queue retry/dead-letter readback, missing CPU/memory snapshots, missing or unreachable pprof, or missing Helm values are recorded as phase failures. | `--k8s-namespace`, `--api-base-url`, `--pprof-base-url`, `kubectl`, `curl`, and `helm`. |
 | `provider` | Records an operator-supplied aggregate-only parity comparison JSON. The harness rejects anything that contains package names, alert URLs, repository names, installation ids, or known token prefixes (`ghp_`, `github_pat_`, `glpat-`). | A JSON file containing `comparison_id` and a non-empty `totals` map of classification class to count. |
 
@@ -201,10 +201,13 @@ record the private URL in the Kubernetes evidence.
    or machine paths is rejected before it reaches evidence.
 8. **Run API/MCP/CLI readback proof.** Drive the API, MCP tools, and CLI from
    the same release candidate and store the raw transcript outside the public
-   repo. Pass a public-safe aggregate summary with `--readback-proof`. The
-   gate requires API, MCP, and CLI surfaces to have `status: "pass"`,
-   `checked > 0`, `failed: 0`, `transcript_status: "captured"`, and zero
-   retry/failed/dead-letter counters.
+   repo. Use `scripts/e2e_readback_parity.sh --input <summary.json> --output
+   <readback-proof.json>` to compare API/MCP/CLI truth, readiness, count,
+   truncation, missing-evidence, unsupported, and ambiguity summaries for the
+   same bounded checks. Pass the generated public-safe aggregate summary with
+   `--readback-proof`. The gate requires API, MCP, and CLI surfaces to have
+   `status: "pass"`, `checked > 0`, `failed: 0`,
+   `transcript_status: "captured"`, and zero retry/failed/dead-letter counters.
 9. **Run preserved-volume restart proof.** Stop the data-plane services
    without removing volumes, start them again, then re-run the `runtime`
    phase with `--runtime-run-kind preserved` and
@@ -339,16 +342,19 @@ The preserved run proves the same backing stores survived restart without
 ### Readback proof input
 
 The `readback-proof` phase accepts a public-safe aggregate of API, MCP, and CLI
-readback. Raw transcripts must stay operator-local.
+readback. Raw transcripts must stay operator-local. Prefer generating this file
+with `scripts/e2e_readback_parity.sh`, which rejects private-looking keys or
+values, missing limits/timeouts, missing API/MCP/CLI surfaces, parity drift,
+and empty results without a readiness state.
 
 ```json
 {
   "schema_version": 1,
   "proof_id": "security-readback-proof-v1",
   "surfaces": {
-    "api": {"status": "pass", "checked": 6, "failed": 0},
-    "mcp": {"status": "pass", "checked": 4, "failed": 0},
-    "cli": {"status": "pass", "checked": 3, "failed": 0}
+    "api": {"status": "pass", "checked": 11, "failed": 0, "truncated": 1, "unsupported": 1, "missing_evidence": 1, "ambiguous": 1},
+    "mcp": {"status": "pass", "checked": 11, "failed": 0, "truncated": 1, "unsupported": 1, "missing_evidence": 1, "ambiguous": 1},
+    "cli": {"status": "pass", "checked": 11, "failed": 0, "truncated": 1, "unsupported": 1, "missing_evidence": 1, "ambiguous": 1}
   },
   "queue": {"retrying": 0, "failed": 0, "dead_letters": 0},
   "transcript_status": "captured"
