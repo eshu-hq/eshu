@@ -101,7 +101,9 @@ No-Regression Evidence: Compose pins
 `timothyswt/nornicdb-cpu-bge:v1.1.3@sha256:42af69852ae0f34a905a0877668025d53b3783bb864549810d868e1bf94f3752`.
 `docker buildx imagetools inspect timothyswt/nornicdb-cpu-bge:v1.1.3` resolves
 the pinned manifest list with linux/amd64 and linux/arm64 entries. NornicDB
-release `v1.1.2` documents per-database BM25 and vector index master switches.
+introduced the per-database BM25 and vector index master switches in release
+`v1.1.2`; Eshu relies on those graph-only controls while pinning the newer
+available Docker Hub image `v1.1.3`.
 The GitHub `v1.1.4` release exists, but
 `docker buildx imagetools inspect timothyswt/nornicdb-cpu-bge:v1.1.4` returned
 `not found` during this update. Eshu remains pinned to the latest available
