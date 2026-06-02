@@ -232,6 +232,9 @@ func NewEKSIRSAAnnotationEnvelope(observation EKSIRSAAnnotationObservation) (fac
 	payload["service_account_uid_fingerprint"] = fingerprintKubernetesValue("uid", observation.ServiceAccountUID)
 	payload["role_arn"] = roleARN
 	payload["annotation_present"] = observation.AnnotationPresent
+	payload["web_identity_subject_fingerprint"] = WebIdentitySubjectFingerprint(
+		kubernetesWebIdentitySubject(observation.Namespace, observation.ServiceAccountName),
+	)
 	return newEnvelope(
 		kubernetesEnvelopeContext(observation.Context),
 		facts.EKSIRSAAnnotationFactKind,
@@ -362,6 +365,15 @@ func serviceAccountJoinKey(ctx KubernetesContext, namespace, name string) (strin
 		return "", fmt.Errorf("kubernetes service account join requires namespace and name")
 	}
 	return fingerprintKubernetesParts("service_account_join", ctx.ClusterID, namespace, name), nil
+}
+
+func kubernetesWebIdentitySubject(namespace, name string) string {
+	namespace = strings.TrimSpace(namespace)
+	name = strings.TrimSpace(name)
+	if namespace == "" || name == "" {
+		return ""
+	}
+	return "system:serviceaccount:" + namespace + ":" + name
 }
 
 func rbacRoleJoinKey(ctx KubernetesContext, kind, namespace, name string) string {

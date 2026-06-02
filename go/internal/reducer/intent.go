@@ -67,6 +67,11 @@ const (
 	// security alerts against Eshu-owned dependency and impact evidence without
 	// promoting provider alerts into impact truth.
 	DomainSecurityAlertReconciliation Domain = "security_alert_reconciliation"
+	// DomainSecretsIAMTrustChain builds reducer-owned secrets/IAM read models
+	// from AWS IAM, Kubernetes ServiceAccount/RBAC, and Vault metadata source
+	// facts. It writes durable reducer facts only: no graph labels, edges, or DDL
+	// are part of this domain.
+	DomainSecretsIAMTrustChain Domain = "secrets_iam_trust_chain"
 	// DomainAWSCloudRuntimeDrift publishes admitted AWS runtime-vs-IaC drift
 	// findings as canonical reducer facts. The domain stays graph-neutral until
 	// the drift node and query shape are frozen.

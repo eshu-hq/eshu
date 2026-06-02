@@ -16,12 +16,12 @@ are never read, so this contract is stricter than ordinary metadata collectors.
 
 ## Status
 
-`secrets_iam_posture` is moving from contract into narrow implementation slices.
-Source fact schemas and envelope builders are landing first, followed by AWS
-IAM, Kubernetes RBAC/service-account, and Vault metadata source evidence. This
-is still not a deployed runtime or authoritative read-model promise until the
-remaining source lanes, reducer read models, telemetry/status path, fixtures,
-and chart path land through implementation PRs.
+`secrets_iam_posture` is moving from contract into narrow implementation
+slices. Source fact schemas, envelope builders, redaction-safe IRSA/Vault join
+anchors, and the first reducer-owned trust-chain read model are implemented.
+This is still not a deployed hosted collector runtime or API/MCP authority
+promise until the remaining source lanes, query surfaces, telemetry/status path,
+fixtures, and chart path land through implementation PRs.
 
 Do not add Helm values, service-runtime rows, environment variables, graph
 labels, graph edges, or API/MCP authority claims for this family unless the
@@ -150,10 +150,10 @@ API evidence, `scope_id`, `generation_id`, `observed_at`, `source_ref`,
 
 Reducer outputs are read models or reducer-owned facts, not source facts:
 
-- `identity_trust_chain`
-- `privilege_posture_observation`
-- `secret_access_path`
-- `posture_gap`
+- `reducer_secrets_iam_identity_trust_chain`
+- `reducer_secrets_iam_privilege_posture_observation`
+- `reducer_secrets_iam_secret_access_path`
+- `reducer_secrets_iam_posture_gap`
 
 Do not add canonical graph labels or edges in the first implementation slice.
 Graph promotion needs a separate ADR with fixture intent, reducer truth, graph
@@ -204,15 +204,17 @@ are not one generic allow model.
 Required reducer behavior:
 
 - Join IRSA trust policy subjects to Kubernetes service accounts through the
-  OIDC `sub` value `system:serviceaccount:<namespace>:<service-account>` and
-  the role's federated provider evidence.
+  redacted OIDC `sub` fingerprint derived from
+  `system:serviceaccount:<namespace>:<service-account>` and the role's
+  web-identity trust evidence.
 - Join EKS Pod Identity associations to Kubernetes service accounts through
-  cluster, namespace, service-account, and role evidence.
+  cluster, namespace, service-account, role evidence, and the IAM
+  `pods.eks.amazonaws.com` service-principal trust.
 - Join Kubernetes workload evidence to service accounts only when workload and
   service-account generations are current enough for the configured scope.
 - Join Vault Kubernetes auth roles to service accounts through
-  `bound_service_account_names` and `bound_service_account_namespaces` summary
-  evidence.
+  exact `bound_service_account_join_keys` when the Vault source knows the
+  Kubernetes cluster ID and the role selectors are not wildcarded.
 - Join Vault policy capabilities to KV metadata path fingerprints without
   revealing cleartext paths.
 - Treat Access Analyzer findings as source evidence that can strengthen or
@@ -226,6 +228,21 @@ collected, IAM permission simulation, Kubernetes admission controller effects,
 and provider-specific conditional semantics not represented in source facts.
 API and MCP reads that need those layers must return `unsupported_capability` or
 truth-labeled partial evidence, not a confident verdict.
+
+Current reducer implementation details:
+
+- The reducer evidence loader seeds from the trigger scope/generation and then
+  expands across active generations only through redaction-safe join anchors.
+- Name coincidence is not enough for exact trust. A ServiceAccount, Vault role,
+  or IAM role with matching raw display names but no shared join key remains
+  unresolved or partial.
+- Broad web-identity subjects produce `privilege_posture_observation` evidence
+  and do not admit exact identity chains.
+- Broad Vault Kubernetes auth-role selectors produce posture evidence and do
+  not admit exact identity chains, even when they include specific selectors
+  alongside the wildcard.
+- Missing workload, IAM principal, exact trust, Vault policy, or KV metadata
+  evidence produces explicit `posture_gap` facts.
 
 ## Telemetry Contract
 
@@ -266,7 +283,8 @@ Every implementation PR must be fixture-testable without live credentials.
 | `k8s_permission_hidden` | Partial RBAC read emits a coverage warning instead of an empty successful generation. |
 | `vault_kv_metadata_only` | KV metadata and list endpoints emit path fingerprints and version summaries without reading `/data`. |
 | `vault_kv_key_name_redacted` | Cleartext key names, custom metadata values, and paths do not enter facts, logs, metrics, or graph properties. |
-| `vault_kubernetes_auth_role` | Vault auth role selectors join to service-account evidence only when generations align. |
+| `vault_kubernetes_auth_role` | Vault auth role selectors join to service-account evidence only when generations align and selectors are exact. |
+| `vault_kubernetes_auth_role_wildcard_selector` | Wildcard Vault auth role selectors remain posture evidence and do not create an exact workload path. |
 | `stale_cross_source_generation` | Reducer emits explicit non-correlation instead of silently dropping or fabricating a hop. |
 | `unsupported_policy_layer` | Query response returns `unsupported_capability` or partial truth for uncollected SCP, Sentinel, RGP, EGP, or simulation-dependent layers. |
 | `token_like_payload_rejected` | AWS credentials, Vault tokens, JWTs, AppRole secret IDs, private keys, and bearer tokens are rejected or redacted at the envelope boundary. |

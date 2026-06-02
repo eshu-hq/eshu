@@ -74,15 +74,17 @@ type PrincipalObservation struct {
 // statement. It carries condition keys and assume principals, never raw policy
 // JSON or condition values.
 type TrustPolicyObservation struct {
-	Context          EnvelopeContext
-	RoleARN          string
-	StatementSID     string
-	Effect           string
-	Actions          []string
-	ConditionKeys    []string
-	AssumePrincipals []string
-	SourceURI        string
-	SourceRecordID   string
+	Context                       EnvelopeContext
+	RoleARN                       string
+	StatementSID                  string
+	Effect                        string
+	Actions                       []string
+	ConditionKeys                 []string
+	AssumePrincipals              []string
+	WebIdentitySubjectFingerprints []string
+	WebIdentitySubjectWildcard     bool
+	SourceURI                     string
+	SourceRecordID                string
 }
 
 // PermissionPolicyObservation describes one normalized IAM identity policy

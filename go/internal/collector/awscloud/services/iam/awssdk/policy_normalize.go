@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	iamservice "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/iam"
+	"github.com/eshu-hq/eshu/go/internal/collector/secretsiam"
 )
 
 // normalizePolicyDocument parses one IAM identity policy document (inline or
@@ -133,13 +134,78 @@ func normalizeTrustStatement(statement map[string]any) (iamservice.PolicyStateme
 	if effect == "" {
 		return iamservice.PolicyStatement{}, false
 	}
+	fingerprints, wildcard := webIdentitySubjectConditionSummary(statement["Condition"])
 	return iamservice.PolicyStatement{
-		Source:           iamservice.PolicySourceTrust,
-		Effect:           effect,
-		Actions:          stringList(statement["Action"]),
-		ConditionKeys:    conditionKeys(statement["Condition"]),
-		AssumePrincipals: trustStatementPrincipals(statement["Principal"]),
+		Source:                         iamservice.PolicySourceTrust,
+		Effect:                         effect,
+		Actions:                        stringList(statement["Action"]),
+		ConditionKeys:                  conditionKeys(statement["Condition"]),
+		AssumePrincipals:               trustStatementPrincipals(statement["Principal"]),
+		WebIdentitySubjectFingerprints: fingerprints,
+		WebIdentitySubjectWildcard:     wildcard,
 	}, true
+}
+
+func webIdentitySubjectConditionSummary(value any) ([]string, bool) {
+	operators, ok := value.(map[string]any)
+	if !ok {
+		return nil, false
+	}
+	seen := make(map[string]struct{})
+	wildcard := false
+	for _, operatorValue := range operators {
+		keyMap, ok := operatorValue.(map[string]any)
+		if !ok {
+			continue
+		}
+		for key, raw := range keyMap {
+			if !strings.HasSuffix(strings.ToLower(strings.TrimSpace(key)), ":sub") {
+				continue
+			}
+			for _, subject := range stringList(raw) {
+				fingerprint, subjectWildcard := webIdentitySubjectFingerprint(subject)
+				if subjectWildcard {
+					wildcard = true
+					continue
+				}
+				if fingerprint != "" {
+					seen[fingerprint] = struct{}{}
+				}
+			}
+		}
+	}
+	if len(seen) == 0 {
+		return nil, wildcard
+	}
+	fingerprints := make([]string, 0, len(seen))
+	for fingerprint := range seen {
+		fingerprints = append(fingerprints, fingerprint)
+	}
+	return fingerprints, wildcard
+}
+
+func webIdentitySubjectFingerprint(subject string) (string, bool) {
+	subject = strings.TrimSpace(subject)
+	if subject == "" {
+		return "", false
+	}
+	if strings.ContainsAny(subject, "*?[]") {
+		return "", true
+	}
+	if !isExactKubernetesSubject(subject) {
+		return "", false
+	}
+	return secretsiam.WebIdentitySubjectFingerprint(subject), false
+}
+
+func isExactKubernetesSubject(subject string) bool {
+	subject = strings.TrimSpace(subject)
+	parts := strings.Split(subject, ":")
+	return len(parts) == 4 &&
+		parts[0] == "system" &&
+		parts[1] == "serviceaccount" &&
+		strings.TrimSpace(parts[2]) != "" &&
+		strings.TrimSpace(parts[3]) != ""
 }
 
 // trustStatementPrincipals flattens a statement's Principal element into the

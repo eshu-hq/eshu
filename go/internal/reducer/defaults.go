@@ -315,6 +315,15 @@ type DefaultHandlers struct {
 	// state without promoting provider alerts into impact truth.
 	SecurityAlertReconciliationWriter SecurityAlertReconciliationWriter
 
+	// SecretsIAMTrustChainEvidenceLoader loads the bounded AWS IAM,
+	// Kubernetes, and Vault source-fact packet used by the secrets/IAM reducer
+	// read-model domain.
+	SecretsIAMTrustChainEvidenceLoader SecretsIAMTrustChainEvidenceLoader
+
+	// SecretsIAMTrustChainWriter persists identity-trust-chain,
+	// privilege-posture, secret-access-path, and posture-gap reducer facts.
+	SecretsIAMTrustChainWriter SecretsIAMTrustChainWriter
+
 	// PackageCorrelationWriter persists package ownership candidates and
 	// manifest-backed consumption decisions for package-registry evidence.
 	PackageCorrelationWriter PackageCorrelationWriter

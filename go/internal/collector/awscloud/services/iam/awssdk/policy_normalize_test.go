@@ -1,9 +1,11 @@
 package awssdk
 
 import (
+	"slices"
 	"testing"
 
 	iamservice "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/iam"
+	"github.com/eshu-hq/eshu/go/internal/collector/secretsiam"
 )
 
 func TestNormalizePolicyDocumentExtractsStatementsWithoutRawJSON(t *testing.T) {
@@ -112,6 +114,96 @@ func TestNormalizeTrustPolicyStatementsCaptureAssumePrincipals(t *testing.T) {
 		if !want[principal] {
 			t.Fatalf("unexpected assume principal %q", principal)
 		}
+	}
+}
+
+func TestNormalizeTrustPolicyCapturesWebIdentitySubjectFingerprintOnly(t *testing.T) {
+	raw := `{
+		"Statement": [{
+			"Effect": "Allow",
+			"Principal": {"Federated": "arn:aws:iam::123456789012:oidc-provider/oidc.eks.us-east-1.amazonaws.com/id/cluster"},
+			"Action": "sts:AssumeRoleWithWebIdentity",
+			"Condition": {
+				"StringEquals": {
+					"oidc.eks.us-east-1.amazonaws.com/id/cluster:sub": "system:serviceaccount:checkout:payments-api"
+				}
+			}
+		}]
+	}`
+	statements, err := normalizeTrustPolicyDocument(raw)
+	if err != nil {
+		t.Fatalf("normalizeTrustPolicyDocument() error = %v", err)
+	}
+	if len(statements) != 1 {
+		t.Fatalf("len(statements) = %d, want 1", len(statements))
+	}
+	want := secretsiam.WebIdentitySubjectFingerprint("system:serviceaccount:checkout:payments-api")
+	if !slices.Contains(statements[0].WebIdentitySubjectFingerprints, want) {
+		t.Fatalf("WebIdentitySubjectFingerprints = %v, want %q", statements[0].WebIdentitySubjectFingerprints, want)
+	}
+	for _, got := range statements[0].WebIdentitySubjectFingerprints {
+		if got == "system:serviceaccount:checkout:payments-api" {
+			t.Fatal("WebIdentitySubjectFingerprints leaked raw subject")
+		}
+	}
+	if statements[0].WebIdentitySubjectWildcard {
+		t.Fatal("WebIdentitySubjectWildcard = true, want false for exact subject")
+	}
+}
+
+func TestNormalizeTrustPolicyMarksWildcardWebIdentitySubject(t *testing.T) {
+	raw := `{
+		"Statement": [{
+			"Effect": "Allow",
+			"Principal": {"Federated": "arn:aws:iam::123456789012:oidc-provider/example"},
+			"Action": "sts:AssumeRoleWithWebIdentity",
+			"Condition": {
+				"StringLike": {
+					"example:sub": "system:serviceaccount:*"
+				}
+			}
+		}]
+	}`
+	statements, err := normalizeTrustPolicyDocument(raw)
+	if err != nil {
+		t.Fatalf("normalizeTrustPolicyDocument() error = %v", err)
+	}
+	if len(statements) != 1 {
+		t.Fatalf("len(statements) = %d, want 1", len(statements))
+	}
+	if !statements[0].WebIdentitySubjectWildcard {
+		t.Fatal("WebIdentitySubjectWildcard = false, want true")
+	}
+	if len(statements[0].WebIdentitySubjectFingerprints) != 0 {
+		t.Fatalf("WebIdentitySubjectFingerprints = %v, want none for wildcard", statements[0].WebIdentitySubjectFingerprints)
+	}
+}
+
+func TestNormalizeTrustPolicyDoesNotMarkExactNonKubernetesSubjectAsWildcard(t *testing.T) {
+	raw := `{
+		"Statement": [{
+			"Effect": "Allow",
+			"Principal": {"Federated": "arn:aws:iam::123456789012:oidc-provider/token.actions.githubusercontent.com"},
+			"Action": "sts:AssumeRoleWithWebIdentity",
+			"Condition": {
+				"StringEquals": {
+					"token.actions.githubusercontent.com:sub": "repo:eshu-hq/eshu:ref:refs/heads/main"
+				}
+			}
+		}]
+	}`
+	statements, err := normalizeTrustPolicyDocument(raw)
+	if err != nil {
+		t.Fatalf("normalizeTrustPolicyDocument() error = %v", err)
+	}
+	if len(statements) != 1 {
+		t.Fatalf("len(statements) = %d, want 1", len(statements))
+	}
+	if statements[0].WebIdentitySubjectWildcard {
+		t.Fatal("WebIdentitySubjectWildcard = true, want false for exact unsupported subject")
+	}
+	if len(statements[0].WebIdentitySubjectFingerprints) != 0 {
+		t.Fatalf("WebIdentitySubjectFingerprints = %v, want none for unsupported subject", statements[0].WebIdentitySubjectFingerprints)
 	}
 }
 

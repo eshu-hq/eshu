@@ -66,6 +66,7 @@ func NewTrustPolicyEnvelope(observation TrustPolicyObservation) (facts.Envelope,
 	actions := normalizeActionList(observation.Actions)
 	conditionKeys := normalizeKeyList(observation.ConditionKeys)
 	assumePrincipals := normalizePatternList(observation.AssumePrincipals)
+	webIdentitySubjects := normalizePatternList(observation.WebIdentitySubjectFingerprints)
 	statementSID := strings.TrimSpace(observation.StatementSID)
 	stableKey := facts.StableID(facts.AWSIAMTrustPolicyFactKind, map[string]any{
 		"account_id":        observation.Context.AccountID,
@@ -75,6 +76,7 @@ func NewTrustPolicyEnvelope(observation TrustPolicyObservation) (facts.Envelope,
 		"region":            observation.Context.Region,
 		"role_arn":          roleARN,
 		"statement_sid":     statementSID,
+		"web_identity_subjects": strings.Join(webIdentitySubjects, ","),
 	})
 	payload := commonPayload(observation.Context)
 	payload["role_arn"] = roleARN
@@ -85,6 +87,8 @@ func NewTrustPolicyEnvelope(observation TrustPolicyObservation) (facts.Envelope,
 	payload["condition_keys"] = conditionKeys
 	payload["assume_principals"] = assumePrincipals
 	payload["has_conditions"] = len(conditionKeys) > 0
+	payload["web_identity_subject_fingerprints"] = webIdentitySubjects
+	payload["web_identity_subject_wildcard"] = observation.WebIdentitySubjectWildcard
 	return newEnvelope(
 		observation.Context,
 		facts.AWSIAMTrustPolicyFactKind,
@@ -409,4 +413,16 @@ func normalizedObservedAt(input time.Time) time.Time {
 		return time.Now().UTC()
 	}
 	return input.UTC()
+}
+
+// WebIdentitySubjectFingerprint returns the redaction-safe join fingerprint for
+// an IAM web-identity subject such as system:serviceaccount:<ns>:<name>.
+func WebIdentitySubjectFingerprint(subject string) string {
+	subject = strings.TrimSpace(subject)
+	if subject == "" {
+		return ""
+	}
+	return "sha256:" + facts.StableID("SecretsIAMWebIdentitySubject", map[string]any{
+		"subject": subject,
+	})
 }

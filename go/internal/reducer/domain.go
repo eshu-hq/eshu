@@ -26,6 +26,7 @@ var knownDomains = map[Domain]struct{}{
 	DomainSBOMAttestationAttachment:                {},
 	DomainSupplyChainImpact:                        {},
 	DomainSecurityAlertReconciliation:              {},
+	DomainSecretsIAMTrustChain:                     {},
 	DomainAWSCloudRuntimeDrift:                     {},
 	DomainAWSResourceMaterialization:               {},
 	DomainEC2InstanceNodeMaterialization:           {},

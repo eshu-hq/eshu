@@ -270,6 +270,21 @@ func TestAttrHelpers(t *testing.T) {
 			wantKey:  MetricDimensionBackendKind,
 		},
 		{
+			name:     "AttrConfidence",
+			attrFunc: func(v string) string { return string(AttrConfidence(v).Key) },
+			wantKey:  MetricDimensionConfidence,
+		},
+		{
+			name:     "AttrRiskType",
+			attrFunc: func(v string) string { return string(AttrRiskType(v).Key) },
+			wantKey:  MetricDimensionRiskType,
+		},
+		{
+			name:     "AttrSeverity",
+			attrFunc: func(v string) string { return string(AttrSeverity(v).Key) },
+			wantKey:  MetricDimensionSeverity,
+		},
+		{
 			name:     "AttrResult",
 			attrFunc: func(v string) string { return string(AttrResult(v).Key) },
 			wantKey:  MetricDimensionResult,

@@ -127,13 +127,15 @@ func secretsIAMPolicyEnvelopes(
 	for _, statement := range statements {
 		if strings.TrimSpace(statement.Source) == PolicySourceTrust {
 			envelope, err := secretsiam.NewTrustPolicyEnvelope(secretsiam.TrustPolicyObservation{
-				Context:          ctx,
-				RoleARN:          strings.TrimSpace(principalARN),
-				StatementSID:     strings.TrimSpace(statement.StatementSID),
-				Effect:           statement.Effect,
-				Actions:          statement.Actions,
-				ConditionKeys:    statement.ConditionKeys,
-				AssumePrincipals: statement.AssumePrincipals,
+				Context:                        ctx,
+				RoleARN:                        strings.TrimSpace(principalARN),
+				StatementSID:                   strings.TrimSpace(statement.StatementSID),
+				Effect:                         statement.Effect,
+				Actions:                        statement.Actions,
+				ConditionKeys:                  statement.ConditionKeys,
+				AssumePrincipals:               statement.AssumePrincipals,
+				WebIdentitySubjectFingerprints: statement.WebIdentitySubjectFingerprints,
+				WebIdentitySubjectWildcard:     statement.WebIdentitySubjectWildcard,
 			})
 			if err != nil {
 				return nil, fmt.Errorf("build IAM trust policy fact for principal %q: %w", principalARN, err)

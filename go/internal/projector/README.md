@@ -199,6 +199,14 @@ operational-link, scorecard, or warning facts,
 `service_catalog_correlation` reducer intent for that scope/generation. The
 projector rejects unsupported service-catalog schema versions during projection
 so stale collector payloads cannot silently reach the reducer.
+Secrets/IAM posture facts follow the same reducer-owned boundary. When a
+generation contains any `aws_iam_*`, `k8s_*`, `eks_*`, `vault_*`, or
+`secrets_iam_coverage_warning` fact from `facts.SecretsIAMFactKinds`,
+`buildSecretsIAMTrustChainReducerIntent` emits one `secrets_iam_trust_chain`
+intent for the trigger scope/generation. The projector validates the
+`secrets_iam_posture` source schema version and records the trigger fact only.
+It does not join AWS IAM, Kubernetes ServiceAccount, or Vault policy evidence
+and never derives an access path.
 PagerDuty incident-routing follows the same reducer-owned boundary. When a
 generation contains an `incident.record` fact or any `incident_routing.*` fact,
 `buildIncidentRoutingMaterializationReducerIntent` emits one

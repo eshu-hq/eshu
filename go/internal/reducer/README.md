@@ -73,6 +73,7 @@ canonical-write or bounded counter-emission requirements.
 | `DomainSBOMAttestationAttachment` | Attach SBOM and attestation documents to image digests only when subject evidence is explicit |
 | `DomainSupplyChainImpact` | Publish vulnerability impact findings only when explicit vulnerability, package, SBOM, image, or repository evidence exists |
 | `DomainSecurityAlertReconciliation` | Compare provider repository security alerts with Eshu-owned dependency and impact evidence, including alert-seeded impact rows only when owned dependency evidence matches |
+| `DomainSecretsIAMTrustChain` | Build durable secrets/IAM read-model facts from redaction-safe AWS IAM, Kubernetes ServiceAccount/workload, and Vault metadata anchors; supports IRSA and EKS Pod Identity identity-provider hops, writes no graph labels/edges/DDL, and preserves unresolved/stale/partial/permission-hidden/unsupported gaps |
 | `DomainAWSResourceMaterialization` | Materialize `aws_resource` facts into canonical `CloudResource` nodes; publishes the `cloud_resource_uid` canonical-nodes phase the AWS relationship edge gates on (issue #805) |
 | `DomainEC2InstanceNodeMaterialization` | Materialize `ec2_instance_posture` facts into canonical EC2 instance `CloudResource` nodes keyed by `cloudResourceUID(account, region, "aws_ec2_instance", instance_id)` on the existing `cloud_resource_uid` keyspace (the EC2 scanner emits no `aws_resource` inventory fact for instances); carries metadata-only safe identifiers plus derived posture booleans (IMDS, user-data presence, monitoring, public-IP, `instance_profile_arn`) — never user-data content, the raw public IP, or block devices; publishes the `cloud_resource_uid` canonical-nodes phase under the distinct `ec2_instance_node_materialization:<scope>` entity key the future `USES_PROFILE` edge gates on (issue #1146 PR-A); see `docs/internal/design/1146-ec2-instance-node.md` |
 | `DomainKubernetesWorkloadMaterialization` | Materialize `kubernetes_live.pod_template` facts into canonical `KubernetesWorkload` nodes keyed by the collector-emitted `object_id`; publishes the `kubernetes_workload_uid` canonical-nodes phase the #388 live-workload edge gates on |
@@ -87,6 +88,49 @@ canonical-write or bounded counter-emission requirements.
 | `DomainEC2BlockDeviceKMSPostureMaterialization` | Derive EC2 block-device KMS posture from `ec2_instance_posture.block_devices[]` joined to scanned `aws_ec2_volume`, `aws_kms_key`, and `ec2_volume_uses_kms_key` facts; writes bounded reducer-owned properties onto existing EC2 `CloudResource` nodes only, gates on DUAL `cloud_resource_uid` readiness for the EC2 instance-node phase (`ec2_instance_node_materialization:<scope>`) and the EBS/KMS resource-node phase (`aws_resource_materialization:<scope>`), never writes raw block-device maps, never calls AWS from the reducer, and keeps missing volume facts, missing KMS key facts, AWS-managed/default keys, detached volumes, and tombstones conservative as `state=unknown` (issue #1304) |
 | `DomainS3InternetExposureMaterialization` | Derive conservative `exposed` / `not_exposed` / `unknown` S3 internet-exposure state from `s3_bucket_posture` facts and write reducer-owned properties onto existing S3 `CloudResource` nodes only; gates on the `cloud_resource_uid` canonical-nodes phase, resolves the source bucket through the S3 in-memory join index, never reads or persists raw bucket policy, ACL grants, object keys, or object data, and keeps unknown posture as `state=unknown` with no boolean exposure property (issue #1232); see `docs/internal/design/1232-s3-internet-exposure.md` |
 | `DomainIncidentRoutingMaterialization` | Project exact PagerDuty incident-routing evidence into reducer-owned `IncidentRoutingEvidence` graph nodes and intended/applied/live evidence relationships without promoting runtime, image, commit, pull-request, Jira, service-health, or root-cause truth |
+
+## Secrets/IAM Trust-Chain Read Model
+
+`DomainSecretsIAMTrustChain` owns the first reducer read model for
+`secrets_iam_posture`. Its Postgres loader starts with the trigger
+scope/generation, then expands across active generations only through
+redaction-safe anchors: `service_account_join_key`, IAM role ARN join values,
+web-identity subject fingerprints, Vault policy join keys, and Vault KV path
+fingerprints. The reducer classifier admits exact identity chains only when the
+path is explicit:
+
+- Kubernetes workload -> ServiceAccount via `k8s_workload_identity_use`
+- ServiceAccount -> IAM role through exact IRSA subject fingerprint or EKS Pod
+  Identity service-principal trust
+- ServiceAccount -> Vault Kubernetes auth role through exact bound service
+  account join keys only when the Vault role selectors are not wildcarded
+- Vault auth role -> ACL policy -> KV metadata through policy and path
+  fingerprints
+
+Wildcard web-identity subjects and wildcard Vault Kubernetes auth-role selectors
+remain `privilege_posture_observation` evidence. Missing IAM principals, missing
+exact trust, missing workload evidence, stale same-scope generations, hidden
+source evidence, unsupported policy layers, and missing Vault policy/KV metadata
+become `posture_gap` facts instead of inferred safe or unsafe verdicts. The
+writer persists reducer facts only:
+`reducer_secrets_iam_identity_trust_chain`,
+`reducer_secrets_iam_privilege_posture_observation`,
+`reducer_secrets_iam_secret_access_path`, and
+`reducer_secrets_iam_posture_gap`.
+
+No-Regression Evidence: `go test ./internal/reducer -run 'SecretsIAM|TrustChain'
+-count=1` proves exact IRSA, exact EKS Pod Identity, negative name
+coincidence, wildcard/broad trust, wildcard Vault selector rejection, stale
+generation, unsupported coverage, and handler write behavior. `go test ./internal/storage/postgres -run
+'SecretsIAMTrustChain|LoadSecretsIAMTrustChainEvidence' -count=1` proves the
+loader stays active-generation scoped, expands through bounded join anchors, and
+reports expansion-limit truncation.
+
+Observability Evidence: `eshu_dp_secrets_iam_reducer_trust_chains_total` is
+labeled by `result` and `confidence`; `eshu_dp_secrets_iam_posture_observations_total`
+is labeled by bounded `risk_type` and `severity`. The handler summary records
+seed fact count, loaded fact count, model counts, written fact count, and
+whether the loader truncated.
 
 ## S3 External Principal Grant Projection (issue #1231)
 
