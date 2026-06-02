@@ -15,9 +15,9 @@ type Client interface {
 // grants, lifecycle rules, replication rules, and notification payloads.
 //
 // The policy-derived fields (PolicyPresent, PolicyGrantsPublic,
-// PolicyGrantsCrossAccount) and Replication presence carry only derived
-// booleans. The raw bucket policy document, its statements, and replication
-// rule detail are never stored on this model.
+// PolicyGrantsCrossAccount, and ExternalPrincipalGrants) and Replication
+// presence carry only derived metadata. The raw bucket policy document, its
+// statements, and replication rule detail are never stored on this model.
 type Bucket struct {
 	ARN               string
 	Name              string
@@ -43,6 +43,32 @@ type Bucket struct {
 	// granting access to a principal outside the bucket-owner account. Nil when
 	// no policy is present or the grant could not be derived.
 	PolicyGrantsCrossAccount *bool
+	// ExternalPrincipalGrants is a metadata-only projection of bucket-policy
+	// principals that are public, cross-account, AWS service principals, or
+	// unsupported principal types. It never carries raw policy JSON, statement
+	// bodies, actions, resources, conditions, ACL grants, object keys, or object
+	// data.
+	ExternalPrincipalGrants []ExternalPrincipalGrant
+}
+
+// ExternalPrincipalGrant describes one metadata-only bucket-policy principal
+// grant derived by the SDK adapter from a transient policy parse. Exact AWS
+// identities are retained only for public, cross-account, and service
+// principals; unsupported principal types retain the type key rather than the
+// raw identifier.
+type ExternalPrincipalGrant struct {
+	PrincipalKind      string
+	PrincipalValue     string
+	PrincipalAccountID string
+	PrincipalPartition string
+	PrincipalService   string
+	GrantOutcome       string
+	Public             bool
+	CrossAccount       bool
+	ServicePrincipal   bool
+	Unsupported        bool
+	UnsupportedKey     string
+	SourceStatementID  string
 }
 
 // Replication carries only the presence of a bucket replication configuration.

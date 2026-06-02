@@ -126,6 +126,22 @@ func TestClientListBucketsReadsSafeMetadataOnly(t *testing.T) {
 	if bucket.PolicyGrantsCrossAccount == nil || !*bucket.PolicyGrantsCrossAccount {
 		t.Fatalf("PolicyGrantsCrossAccount = %#v, want true pointer", bucket.PolicyGrantsCrossAccount)
 	}
+	if got, want := len(bucket.ExternalPrincipalGrants), 1; got != want {
+		t.Fatalf("len(ExternalPrincipalGrants) = %d, want %d: %#v", got, want, bucket.ExternalPrincipalGrants)
+	}
+	grant := bucket.ExternalPrincipalGrants[0]
+	if grant.PrincipalKind != awscloud.S3ExternalPrincipalKindAWSARN {
+		t.Fatalf("ExternalPrincipalGrants[0].PrincipalKind = %q, want %q", grant.PrincipalKind, awscloud.S3ExternalPrincipalKindAWSARN)
+	}
+	if grant.PrincipalValue != "arn:aws:iam::999988887777:root" {
+		t.Fatalf("ExternalPrincipalGrants[0].PrincipalValue = %q, want cross-account root ARN", grant.PrincipalValue)
+	}
+	if grant.PrincipalAccountID != "999988887777" || grant.PrincipalPartition != "aws" {
+		t.Fatalf("ExternalPrincipalGrants[0] account/partition = %q/%q, want 999988887777/aws", grant.PrincipalAccountID, grant.PrincipalPartition)
+	}
+	if grant.GrantOutcome != awscloud.S3ExternalPrincipalGrantOutcomeCrossAccount || !grant.CrossAccount {
+		t.Fatalf("ExternalPrincipalGrants[0] outcome = %#v, want cross-account", grant)
+	}
 	if bucket.ARN != "arn:aws:s3:::orders-artifacts" {
 		t.Fatalf("ARN = %q, want arn:aws:s3:::orders-artifacts", bucket.ARN)
 	}
@@ -280,6 +296,9 @@ func TestClientListBucketsTreatsMissingOptionalBucketConfigAsEmptyMetadata(t *te
 	}
 	if bucket.PolicyGrantsCrossAccount != nil {
 		t.Fatalf("PolicyGrantsCrossAccount = %#v, want nil for missing policy", bucket.PolicyGrantsCrossAccount)
+	}
+	if len(bucket.ExternalPrincipalGrants) != 0 {
+		t.Fatalf("ExternalPrincipalGrants = %#v, want none for missing policy", bucket.ExternalPrincipalGrants)
 	}
 }
 

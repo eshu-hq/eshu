@@ -134,6 +134,12 @@ See `doc.go` for the godoc contract.
   flags, default-encryption detail, versioning/MFA-delete, object-ownership /
   ACL-disabled, access-logging target, replication presence, and policy-derived
   public/cross-account booleans). It never carries the raw bucket policy.
+- `NewS3ExternalPrincipalGrantEnvelope` - builds a metadata-only
+  `s3_external_principal_grant` fact from `S3ExternalPrincipalGrantObservation`
+  for public, cross-account, AWS service, or unsupported-principal bucket-policy
+  evidence. It carries bounded principal identity metadata only; raw policy
+  JSON, statement bodies, actions, resources, conditions, ACL grants, object
+  keys, and object data stay outside the payload.
 - `NewRDSInstancePostureEnvelope` - builds a derived metadata-only
   `rds_instance_posture` fact from `RDSPostureObservation` for one DB instance
   or Aurora cluster. It never carries database contents or secrets.
@@ -209,11 +215,14 @@ request.
   GuardDuty mutations stay outside the AWS collector fact contract. Detectors,
   member accounts, filter names, publishing destinations, set summaries, and
   aggregate finding counts may emit reported evidence.
-- S3 bucket facts are metadata only. Object inventory, bucket policy JSON, ACL
-  grants, replication rules, lifecycle rules, notification configuration,
-  inventory configuration, analytics configuration, and metrics configuration
-  stay outside the AWS collector fact contract. Server-access-log target
-  buckets may emit reported relationship evidence.
+- S3 bucket facts are metadata only. Object inventory, bucket policy JSON,
+  policy statement bodies, actions, resources, conditions, ACL grants,
+  replication rules, lifecycle rules, notification configuration, inventory
+  configuration, analytics configuration, and metrics configuration stay
+  outside the AWS collector fact contract. Server-access-log target buckets may
+  emit reported relationship evidence. Bucket-policy external-principal facts
+  may emit bounded public, cross-account, AWS service, or unsupported-principal
+  metadata derived from a transient policy parse.
 - RDS facts are metadata only. Database connections, database names, master
   usernames, passwords, snapshots, log contents, Performance Insights samples,
   schemas, tables, and row data stay outside the AWS collector fact contract.

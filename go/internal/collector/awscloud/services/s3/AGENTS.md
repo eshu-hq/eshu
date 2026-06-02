@@ -14,7 +14,8 @@
 - Keep S3 API access behind `Client`; do not import the AWS SDK into this
   package.
 - Never read objects, list object keys, or mutate S3 buckets.
-- Never persist bucket policy JSON, ACL grants, replication rules, lifecycle
+- Never persist bucket policy JSON, policy statement bodies, policy actions,
+  policy resources, policy conditions, ACL grants, replication rules, lifecycle
   rules, notification configuration, inventory configuration, analytics
   configuration, or metrics configuration.
 - Never persist website index or error document object keys.
@@ -37,6 +38,11 @@
   (`PolicyGrantsPublic`, `PolicyGrantsCrossAccount`) arrive already derived on
   the `Bucket` model; this package never sees the raw policy document. PR1 is
   facts-only: do not add a graph edge or reducer projection for posture here.
+- Extend `s3_external_principal_grant` only with bounded principal metadata
+  already derived on `Bucket.ExternalPrincipalGrants`. Public, cross-account,
+  AWS service, and unsupported-principal outcomes are reported evidence only.
+  Unsupported principal facts keep the principal type key, not the raw
+  identifier.
 - Add new relationship evidence only when S3 reports both sides directly and
   the target identity is not sensitive.
 - Extend SDK pagination and optional-not-configured handling in the `awssdk`

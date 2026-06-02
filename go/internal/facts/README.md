@@ -370,16 +370,22 @@ The S3 bucket posture fact kind uses schema version `1.0.0` for the first
 collector contract:
 
 - `s3_bucket_posture`
+- `s3_external_principal_grant`
 
-Use `S3BucketPostureFactKinds` and `S3BucketPostureSchemaVersion` for the
-accepted set and version. This is a derived, metadata-only posture fact emitted
-per bucket by the AWS collector: block-public-access flags, default-encryption
-detail (SSE-KMS key ARN and bucket-key state), versioning and MFA-delete state,
+Use `S3BucketPostureFactKinds` / `S3BucketPostureSchemaVersion` and
+`S3ExternalPrincipalGrantFactKinds` /
+`S3ExternalPrincipalGrantSchemaVersion` for the accepted sets and versions.
+These are derived, metadata-only facts emitted by the AWS collector. The
+posture fact records block-public-access flags, default-encryption detail
+(SSE-KMS key ARN and bucket-key state), versioning and MFA-delete state,
 object-ownership / ACL-disabled state, access-logging target, replication
-presence, and booleans DERIVED from the bucket policy document (public grant,
-cross-account principal). It never carries the raw bucket policy JSON, ACL
-grants, or object data. It is source evidence only; reducer graph projection of
-this posture is a separate consumer.
+presence, and booleans derived from the bucket policy document. The external
+principal grant fact records bounded public, cross-account, AWS service, and
+unsupported-principal metadata derived from the same transient policy parse.
+Neither fact carries raw bucket policy JSON, statement bodies, actions,
+resources, conditions, ACL grants, object keys, or object data. They are source
+evidence only; reducer graph projection is a separate consumer.
+
 RDS posture fact kinds use schema version `1.0.0` for the first metadata-only
 posture contract:
 

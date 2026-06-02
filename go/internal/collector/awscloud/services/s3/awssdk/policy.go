@@ -4,7 +4,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/url"
+	"sort"
 	"strings"
+
+	"github.com/eshu-hq/eshu/go/internal/collector/awscloud"
 )
 
 // deriveBucketPolicyFlags parses one bucket policy document transiently and
@@ -20,23 +23,19 @@ import (
 // an observed false (policy present, no public/cross-account grant) distinctly
 // from an unknown (no policy present, nil).
 func deriveBucketPolicyFlags(document, ownerAccountID string) (public *bool, crossAccount *bool, err error) {
-	raw := strings.TrimSpace(document)
-	if raw == "" {
-		return nil, nil, fmt.Errorf("empty bucket policy document")
+	doc, decodeErr := decodeBucketPolicyDocument(document)
+	if decodeErr != nil {
+		return nil, nil, decodeErr
 	}
-	// AWS sometimes URL-encodes inline policy documents; the same handling the
-	// IAM adapter uses for trust policies. Decode best-effort, then parse.
-	if decoded, decodeErr := url.QueryUnescape(raw); decodeErr == nil && strings.Contains(decoded, "{") {
-		raw = decoded
-	}
-	var doc policyDocument
-	if unmarshalErr := json.Unmarshal([]byte(raw), &doc); unmarshalErr != nil {
-		return nil, nil, fmt.Errorf("parse bucket policy document: %w", unmarshalErr)
-	}
+	public, crossAccount = bucketPolicyFlagsFromDocument(doc, ownerAccountID)
+	return public, crossAccount, nil
+}
+
+func bucketPolicyFlagsFromDocument(doc policyDocument, ownerAccountID string) (*bool, *bool) {
 	owner := strings.TrimSpace(ownerAccountID)
 	var grantsPublic, grantsCrossAccount bool
 	for _, statement := range doc.Statements() {
-		if !strings.EqualFold(strings.TrimSpace(statement.Effect), "Allow") {
+		if !statement.isAllow() {
 			continue
 		}
 		for _, principal := range statement.principalIdentifiers() {
@@ -48,7 +47,77 @@ func deriveBucketPolicyFlags(document, ownerAccountID string) (public *bool, cro
 			}
 		}
 	}
-	return &grantsPublic, &grantsCrossAccount, nil
+	return &grantsPublic, &grantsCrossAccount
+}
+
+// principalGrant is one bounded principal observation derived from a bucket
+// policy. It intentionally excludes actions, resources, conditions, and the raw
+// statement body.
+type principalGrant struct {
+	Kind             string
+	Value            string
+	AccountID        string
+	Partition        string
+	Service          string
+	Outcome          string
+	Public           bool
+	CrossAccount     bool
+	ServicePrincipal bool
+	Unsupported      bool
+	UnsupportedKey   string
+	StatementSID     string
+	PrincipalIsExact bool
+}
+
+// deriveBucketPolicyExternalPrincipalGrants parses one bucket policy document
+// transiently and returns only bounded external-principal identity metadata.
+// Same-account AWS principals are skipped, Deny statements are ignored, and
+// unsupported principal types retain only their type key, not the raw value.
+func deriveBucketPolicyExternalPrincipalGrants(document, ownerAccountID string) ([]principalGrant, error) {
+	doc, err := decodeBucketPolicyDocument(document)
+	if err != nil {
+		return nil, err
+	}
+	return bucketPolicyExternalPrincipalGrantsFromDocument(doc, ownerAccountID), nil
+}
+
+func bucketPolicyExternalPrincipalGrantsFromDocument(doc policyDocument, ownerAccountID string) []principalGrant {
+	owner := strings.TrimSpace(ownerAccountID)
+	var grants []principalGrant
+	seen := make(map[string]struct{})
+	for _, statement := range doc.Statements() {
+		if !statement.isAllow() {
+			continue
+		}
+		for _, entry := range statement.principalEntries() {
+			for _, grant := range grantsForPrincipalEntry(entry, owner, strings.TrimSpace(statement.SID)) {
+				key := principalGrantIdentity(grant)
+				if _, exists := seen[key]; exists {
+					continue
+				}
+				seen[key] = struct{}{}
+				grants = append(grants, grant)
+			}
+		}
+	}
+	return grants
+}
+
+func decodeBucketPolicyDocument(document string) (policyDocument, error) {
+	raw := strings.TrimSpace(document)
+	if raw == "" {
+		return policyDocument{}, fmt.Errorf("empty bucket policy document")
+	}
+	// AWS sometimes URL-encodes inline policy documents; the same handling the
+	// IAM adapter uses for trust policies. Decode best-effort, then parse.
+	if decoded, decodeErr := url.QueryUnescape(raw); decodeErr == nil && strings.Contains(decoded, "{") {
+		raw = decoded
+	}
+	var doc policyDocument
+	if err := json.Unmarshal([]byte(raw), &doc); err != nil {
+		return policyDocument{}, fmt.Errorf("parse bucket policy document: %w", err)
+	}
+	return doc, nil
 }
 
 // policyDocument is the minimal shape needed to derive posture booleans. It
@@ -81,8 +150,18 @@ func (d policyDocument) Statements() []policyStatement {
 
 // policyStatement captures only the fields needed to derive principal posture.
 type policyStatement struct {
+	SID       string          `json:"Sid"`
 	Effect    string          `json:"Effect"`
 	Principal json.RawMessage `json:"Principal"`
+}
+
+func (s policyStatement) isAllow() bool {
+	return strings.EqualFold(strings.TrimSpace(s.Effect), "Allow")
+}
+
+type principalEntry struct {
+	key    string
+	values []string
 }
 
 // principalIdentifiers flattens the Principal field into its identifier strings.
@@ -92,6 +171,18 @@ type policyStatement struct {
 // are AWS-internal trusts, not account principals, so only AWS-type and bare
 // string identifiers feed public / cross-account derivation.
 func (s policyStatement) principalIdentifiers() []string {
+	var identifiers []string
+	for _, entry := range s.principalEntries() {
+		if entry.key == "AWS" {
+			identifiers = append(identifiers, entry.values...)
+		}
+	}
+	return identifiers
+}
+
+// principalEntries flattens the Principal field into deterministic key/value
+// entries while keeping unsupported principal values out of returned metadata.
+func (s policyStatement) principalEntries() []principalEntry {
 	trimmed := strings.TrimSpace(string(s.Principal))
 	if trimmed == "" || trimmed == "null" {
 		return nil
@@ -99,17 +190,23 @@ func (s policyStatement) principalIdentifiers() []string {
 	// Principal: "*" or "arn:..." (a bare string).
 	var asString string
 	if err := json.Unmarshal(s.Principal, &asString); err == nil {
-		return []string{asString}
+		return []principalEntry{{key: "AWS", values: []string{asString}}}
+	}
+	if values := rawStringList(s.Principal); len(values) > 0 {
+		return []principalEntry{{key: "AWS", values: values}}
 	}
 	var asObject map[string]json.RawMessage
 	if err := json.Unmarshal(s.Principal, &asObject); err != nil {
 		return nil
 	}
-	values, ok := asObject["AWS"]
-	if !ok {
-		return nil
+	var entries []principalEntry
+	for _, key := range orderedPrincipalKeys(asObject) {
+		entries = append(entries, principalEntry{
+			key:    strings.TrimSpace(key),
+			values: rawStringList(asObject[key]),
+		})
 	}
-	return rawStringList(values)
+	return entries
 }
 
 // rawStringList decodes a JSON value that is either a single string or an array
@@ -124,6 +221,121 @@ func rawStringList(raw json.RawMessage) []string {
 		return many
 	}
 	return nil
+}
+
+func orderedPrincipalKeys(values map[string]json.RawMessage) []string {
+	known := []string{"AWS", "Service", "Federated", "CanonicalUser"}
+	var ordered []string
+	seen := make(map[string]struct{}, len(values))
+	for _, key := range known {
+		if _, ok := values[key]; ok {
+			ordered = append(ordered, key)
+			seen[key] = struct{}{}
+		}
+	}
+	var rest []string
+	for key := range values {
+		if _, ok := seen[key]; ok {
+			continue
+		}
+		rest = append(rest, key)
+	}
+	sort.Strings(rest)
+	return append(ordered, rest...)
+}
+
+func grantsForPrincipalEntry(entry principalEntry, owner, statementSID string) []principalGrant {
+	switch entry.key {
+	case "AWS":
+		var grants []principalGrant
+		for _, value := range entry.values {
+			if grant, ok := grantForAWSPrincipal(value, owner, statementSID); ok {
+				grants = append(grants, grant)
+			}
+		}
+		return grants
+	case "Service":
+		var grants []principalGrant
+		for _, value := range entry.values {
+			service := strings.TrimSpace(value)
+			if service == "" {
+				continue
+			}
+			grants = append(grants, principalGrant{
+				Kind:             awscloud.S3ExternalPrincipalKindAWSService,
+				Value:            service,
+				Service:          service,
+				Outcome:          awscloud.S3ExternalPrincipalGrantOutcomeAWSService,
+				ServicePrincipal: true,
+				StatementSID:     statementSID,
+				PrincipalIsExact: true,
+			})
+		}
+		return grants
+	default:
+		key := strings.TrimSpace(entry.key)
+		if key == "" {
+			return nil
+		}
+		return []principalGrant{{
+			Kind:           awscloud.S3ExternalPrincipalKindUnsupported,
+			Value:          key,
+			Outcome:        awscloud.S3ExternalPrincipalGrantOutcomeUnsupported,
+			Unsupported:    true,
+			UnsupportedKey: key,
+			StatementSID:   statementSID,
+		}}
+	}
+}
+
+func grantForAWSPrincipal(identifier, owner, statementSID string) (principalGrant, bool) {
+	identifier = strings.TrimSpace(identifier)
+	if identifier == "" {
+		return principalGrant{}, false
+	}
+	if isPublicPrincipal(identifier) {
+		return principalGrant{
+			Kind:         awscloud.S3ExternalPrincipalKindPublic,
+			Value:        "*",
+			Outcome:      awscloud.S3ExternalPrincipalGrantOutcomePublic,
+			Public:       true,
+			StatementSID: statementSID,
+		}, true
+	}
+	accountID := accountFromPrincipal(identifier)
+	if accountID != "" {
+		if owner == "" || accountID == owner {
+			return principalGrant{}, false
+		}
+		kind := awscloud.S3ExternalPrincipalKindAWSAccount
+		partition := ""
+		if strings.HasPrefix(identifier, "arn:") {
+			kind = awscloud.S3ExternalPrincipalKindAWSARN
+			partition = partitionFromPrincipal(identifier)
+		}
+		return principalGrant{
+			Kind:             kind,
+			Value:            identifier,
+			AccountID:        accountID,
+			Partition:        partition,
+			Outcome:          awscloud.S3ExternalPrincipalGrantOutcomeCrossAccount,
+			CrossAccount:     true,
+			StatementSID:     statementSID,
+			PrincipalIsExact: true,
+		}, true
+	}
+	return principalGrant{
+		Kind:           awscloud.S3ExternalPrincipalKindUnsupported,
+		Value:          "AWS",
+		Outcome:        awscloud.S3ExternalPrincipalGrantOutcomeUnsupported,
+		Unsupported:    true,
+		UnsupportedKey: "AWS",
+		StatementSID:   statementSID,
+	}, true
+}
+
+func principalGrantIdentity(grant principalGrant) string {
+	return grant.Kind + "\x00" + grant.Value + "\x00" + grant.Outcome
 }
 
 // isPublicPrincipal reports whether a principal identifier grants access to
@@ -164,6 +376,19 @@ func accountFromPrincipal(identifier string) string {
 		}
 	}
 	return ""
+}
+
+// partitionFromPrincipal extracts the ARN partition from a principal ARN.
+func partitionFromPrincipal(identifier string) string {
+	id := strings.TrimSpace(identifier)
+	if !strings.HasPrefix(id, "arn:") {
+		return ""
+	}
+	parts := strings.SplitN(id, ":", 3)
+	if len(parts) < 2 {
+		return ""
+	}
+	return strings.TrimSpace(parts[1])
 }
 
 // isAccountID reports whether value is exactly a 12-digit AWS account id.

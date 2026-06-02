@@ -207,6 +207,65 @@ func TestScannerEmitsDerivedBucketPostureFact(t *testing.T) {
 	}
 }
 
+func TestScannerEmitsExternalPrincipalGrantFacts(t *testing.T) {
+	client := fakeClient{buckets: []Bucket{{
+		Name: "orders-artifacts",
+		ExternalPrincipalGrants: []ExternalPrincipalGrant{
+			{
+				PrincipalKind:      awscloud.S3ExternalPrincipalKindAWSAccount,
+				PrincipalValue:     "999988887777",
+				PrincipalAccountID: "999988887777",
+				GrantOutcome:       awscloud.S3ExternalPrincipalGrantOutcomeCrossAccount,
+				CrossAccount:       true,
+			},
+			{
+				PrincipalKind:     awscloud.S3ExternalPrincipalKindPublic,
+				PrincipalValue:    "*",
+				GrantOutcome:      awscloud.S3ExternalPrincipalGrantOutcomePublic,
+				Public:            true,
+				SourceStatementID: "PublicRead",
+			},
+		},
+	}}}
+
+	envelopes, err := (Scanner{Client: client}).Scan(context.Background(), testBoundary())
+	if err != nil {
+		t.Fatalf("Scan() error = %v, want nil", err)
+	}
+
+	accountGrant := externalPrincipalGrantByPrincipal(t, envelopes, awscloud.S3ExternalPrincipalKindAWSAccount, "999988887777")
+	if got, want := accountGrant.Payload["bucket_arn"], "arn:aws:s3:::orders-artifacts"; got != want {
+		t.Fatalf("account grant bucket_arn = %#v, want %q", got, want)
+	}
+	if got, want := accountGrant.Payload["grant_outcome"], awscloud.S3ExternalPrincipalGrantOutcomeCrossAccount; got != want {
+		t.Fatalf("account grant outcome = %#v, want %q", got, want)
+	}
+	if got, want := accountGrant.Payload["is_cross_account"], true; got != want {
+		t.Fatalf("account grant is_cross_account = %#v, want %v", got, want)
+	}
+
+	publicGrant := externalPrincipalGrantByPrincipal(t, envelopes, awscloud.S3ExternalPrincipalKindPublic, "*")
+	if got, want := publicGrant.Payload["grant_outcome"], awscloud.S3ExternalPrincipalGrantOutcomePublic; got != want {
+		t.Fatalf("public grant outcome = %#v, want %q", got, want)
+	}
+	if got, want := publicGrant.Payload["source_statement_id"], "PublicRead"; got != want {
+		t.Fatalf("public grant source_statement_id = %#v, want %q", got, want)
+	}
+	for _, forbidden := range []string{
+		"policy",
+		"policy_json",
+		"policy_document",
+		"statement",
+		"condition",
+		"acl_grants",
+		"object_keys",
+	} {
+		if _, exists := publicGrant.Payload[forbidden]; exists {
+			t.Fatalf("external principal fact carries forbidden key %q", forbidden)
+		}
+	}
+}
+
 // TestScannerPostureDerivesPartition pins that the posture fact's bucket
 // identity inherits the boundary partition, matching the resource node so the
 // PR2 reducer join resolves in GovCloud and China.
@@ -325,6 +384,23 @@ func postureByBucket(t *testing.T, envelopes []facts.Envelope, bucketARN string)
 		}
 	}
 	t.Fatalf("missing s3_bucket_posture for %q in %#v", bucketARN, envelopes)
+	return facts.Envelope{}
+}
+
+func externalPrincipalGrantByPrincipal(t *testing.T, envelopes []facts.Envelope, kind, value string) facts.Envelope {
+	t.Helper()
+	for _, envelope := range envelopes {
+		if envelope.FactKind != facts.S3ExternalPrincipalGrantFactKind {
+			continue
+		}
+		if gotKind, _ := envelope.Payload["principal_kind"].(string); gotKind != kind {
+			continue
+		}
+		if gotValue, _ := envelope.Payload["principal_value"].(string); gotValue == value {
+			return envelope
+		}
+	}
+	t.Fatalf("missing s3_external_principal_grant kind=%q value=%q in %#v", kind, value, envelopes)
 	return facts.Envelope{}
 }
 
