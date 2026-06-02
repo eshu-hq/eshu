@@ -19,11 +19,16 @@ status, recovery, or migration rollback.
 Future Postgres removal is allowed only as a phased migration after these gates
 exist and pass:
 
-1. Postgres ownership inventory: #1286.
-2. Content/read-model shadow-read comparison: #1287.
-3. Fact-family shadow-write comparison: #1288.
-4. Queue/workflow substrate evaluation: #1289.
-5. NornicDB backup/restore proof for every migrated durable state class: #1290.
+1. Postgres ownership inventory: #1286
+   ([inventory](1286-postgres-ownership-inventory.md)).
+2. Content/read-model shadow-read comparison: #1287
+   ([shadow-read gate](1287-shadow-read-comparison-gate.md)).
+3. Fact-family shadow-write comparison: #1288
+   ([shadow-write gate](1288-shadow-write-comparison-gate.md)).
+4. Queue/workflow substrate evaluation: #1289
+   ([queue-substrate gate](1289-queue-substrate-evaluation-gate.md)).
+5. NornicDB backup/restore proof for every migrated durable state class: #1290
+   ([backup/restore gate](1290-backup-restore-proof-gate.md)).
 
 Queue and workflow ownership must be decided separately from NornicDB storage.
 NornicDB must not become Eshu's claim, lease, fencing, retry, delayed retry, or
@@ -118,9 +123,12 @@ bounded query responses.
 1. Finish the #430 graph/search split stack.
 2. Complete #1286 Postgres ownership inventory.
 3. Run #1287 shadow-read comparison for content/read models without changing
-   production reads.
-4. Run #1288 shadow-write comparison for one low-risk fact family.
-5. Decide queue/workflow ownership through #1289.
+   production reads
+   ([shadow-read gate](1287-shadow-read-comparison-gate.md)).
+4. Run #1288 shadow-write comparison for one low-risk fact family
+   ([shadow-write gate](1288-shadow-write-comparison-gate.md)).
+5. Decide queue/workflow ownership through #1289
+   ([queue-substrate gate](1289-queue-substrate-evaluation-gate.md)).
 6. Prove NornicDB backup/restore and rollback through #1290 for each migrated
    durable state class.
 7. Draft a production cutover ADR for one responsibility at a time.

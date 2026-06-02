@@ -24,11 +24,15 @@ See `doc.go` for the godoc-rendered package contract.
 
 - `Evidence` is the versioned benchmark record.
 - `QuerySuite` is the versioned #417 semantic retrieval suite contract.
+- `RetrievalProof` compares the Postgres baseline with a NornicDB hybrid
+  retrieval candidate for #417.
 - `BackendRun`, `CorpusSummary`, `LatencySummary`, `StartupSummary`,
   `RetrievalMetrics`, and `Recommendation` capture the required #1264 evidence.
 - `ValidateEvidence` enforces required backend identity, corpus shape, failure
   classes, accuracy metrics, truth scope, and recommendation.
 - `ValidateQuerySuite` enforces the 15-case query-suite baseline shape.
+- `ValidateRetrievalProof` enforces the #417 recall, p95, false-canonical,
+  and observation-summary guardrails.
 - `ScoreQueryResults` computes recall, precision, nDCG, and false canonical
   claim count from ranked `searchdocs.Document` results.
 - `ScoreQuerySuite` macro-averages per-query metrics and sums false canonical
@@ -68,7 +72,9 @@ cost; live telemetry bridges must not promote document ids, query ids, or graph
 handles into high-cardinality metric labels. Protocol recommendation records
 carry only low-cardinality candidate, decision, impact, and risk categories;
 live telemetry bridges must keep protocol-specific identifiers in evidence
-records or logs, not metric labels.
+records or logs, not metric labels. #417 retrieval proofs also carry
+low-cardinality observation summaries for mode, query count, result-count bounds,
+truncation, timeout, candidate truth-level counts, and failure classes.
 
 ## Gotchas / invariants
 
@@ -77,6 +83,11 @@ records or logs, not metric labels.
 - Semantic retrieval suites must contain at least 15 scoped queries before they
   can be used as #417 baseline evidence, and every query limit must stay at or
   below 100.
+- #417 retrieval proof must show NornicDB hybrid recall improves the Postgres
+  content-search baseline, or the proof is rejected before any recommendation
+  can use it.
+- Hybrid p95 latency must stay within the recorded threshold or carry an
+  accepted reason that names why the threshold was exceeded.
 - `truth_scope.level` must remain `derived`, and `truth_scope.basis` must name
   a known search-document evidence basis. Search rank, semantic similarity, and
   link prediction never become canonical graph truth.

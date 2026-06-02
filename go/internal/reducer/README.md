@@ -81,7 +81,9 @@ canonical-write or bounded counter-emission requirements.
 | `DomainS3LogsToMaterialization` | Project `s3_bucket_posture` `logging_target_bucket` fields into canonical `(:CloudResource)-[:LOGS_TO]->(:CloudResource)` edges from a source S3 bucket to the target log bucket it delivers server-access logs to; resolves the target by bucket-name equality against an in-memory S3 join index; gates on the `cloud_resource_uid` canonical-nodes phase (the same gate `aws_relationship_materialization` uses); a blank target (logging disabled) is no edge and not a skip; a self-target (bucket logging to itself) is a legal config and DOES emit an edge; cross-account / out-of-scope / unscanned targets are counted, never fabricated or dangled (issue #1144 PR2); see `docs/internal/design/1144-s3-logs-to-edge.md` |
 | `DomainS3ExternalPrincipalGrantMaterialization` | Project metadata-only `s3_external_principal_grant` facts into canonical `(:CloudResource)-[:GRANTS_ACCESS_TO]->(:ExternalPrincipal)` graph truth; resolves the source bucket by bucket-name equality against the same S3 in-memory join index, gates on the `cloud_resource_uid` canonical-nodes phase, creates only bounded `ExternalPrincipal` identities keyed by principal kind/value, skips unsupported or unresolved grants with tallies, never creates S3 `CloudResource` nodes, and never propagates raw bucket policy, statement, ACL, condition, action, resource, or object data (issue #1231); see `docs/internal/design/1231-s3-external-principal-grant-projection.md` |
 | `DomainRDSPostureMaterialization` | Project `rds_instance_posture` security/operations posture onto existing RDS DB instance and Aurora cluster `CloudResource` nodes; gates on the `cloud_resource_uid` canonical-nodes phase, writes only reducer-owned posture properties, never creates RDS nodes, and leaves KMS/security-group/subnet-group/IAM/parameter/option dependency edges to generic `aws_relationship_materialization` (issue #1233) |
-| `DomainEC2UsesProfileMaterialization` | Project `ec2_instance_posture` `instance_profile_arn` into canonical `(:CloudResource)-[:USES_PROFILE]->(:CloudResource)` edges from an EC2 instance to the IAM instance profile it uses; derives the source EC2 instance uid the same way `DomainEC2InstanceNodeMaterialization` does (#1146 PR-A) and resolves the target profile by exact ARN equality against an in-memory `aws_iam_instance_profile` join index; gates on a DUAL `cloud_resource_uid` canonical-nodes readiness — the EC2 instance node phase (`ec2_instance_node_materialization:<scope>`) AND the IAM instance-profile node phase (`aws_resource_materialization:<scope>`), published under different entity keys, so the edge never resolves against a not-yet-materialized endpoint; a blank profile (no attached profile) is no edge and not a skip; cross-account / out-of-scope / unscanned profiles are counted, never fabricated or dangled (issue #1146 PR-B). The first edge in the EC2 → profile → role → `CAN_ESCALATE_TO` blast-radius chain; the profile → role `HAS_ROLE` edge is the deferred follow-up; see `docs/internal/design/1146-ec2-uses-profile-edge.md` |
+| `DomainEC2UsesProfileMaterialization` | Project `ec2_instance_posture` `instance_profile_arn` into canonical `(:CloudResource)-[:USES_PROFILE]->(:CloudResource)` edges from an EC2 instance to the IAM instance profile it uses; derives the source EC2 instance uid the same way `DomainEC2InstanceNodeMaterialization` does (#1146 PR-A) and resolves the target profile by exact ARN equality against an in-memory `aws_iam_instance_profile` join index; gates on a DUAL `cloud_resource_uid` canonical-nodes readiness — the EC2 instance node phase (`ec2_instance_node_materialization:<scope>`) AND the IAM instance-profile node phase (`aws_resource_materialization:<scope>`), published under different entity keys, so the edge never resolves against a not-yet-materialized endpoint; a blank profile (no attached profile) is no edge and not a skip; cross-account / out-of-scope / unscanned profiles are counted, never fabricated or dangled (issue #1146 PR-B). The first edge in the EC2 → profile → role → `CAN_ESCALATE_TO` blast-radius chain; see `docs/internal/design/1146-ec2-uses-profile-edge.md` |
+| `DomainIAMInstanceProfileRoleMaterialization` | Project IAM instance-profile `aws_resource` `role_arns` into canonical `(:CloudResource)-[:HAS_ROLE]->(:CloudResource)` edges from an IAM instance profile to each attached IAM role; resolves role targets by exact ARN equality against an in-memory `aws_iam_role` join index; gates on the `cloud_resource_uid` canonical-nodes phase published by `aws_resource_materialization:<scope>` because both endpoint node families are `aws_resource` CloudResource nodes; profiles with no roles still run the reducer to retract stale HAS_ROLE edges but write zero new edges and are not a skip; cross-account / out-of-scope / unscanned roles are counted, never fabricated or dangled (issue #1299). The middle edge in the EC2 -> profile -> role -> `CAN_ESCALATE_TO` blast-radius chain; see `docs/internal/design/1299-iam-instance-profile-role-edge.md` |
+| `DomainEC2InternetExposureMaterialization` | Derive conservative `exposed` / `not_exposed` / `unknown` EC2 internet-exposure state from `ec2_instance_posture`, ENI relationship, and security-group rule facts, then write reducer-owned properties onto existing EC2 `CloudResource` nodes only; gates on the EC2 instance-node `cloud_resource_uid` canonical-nodes phase (`ec2_instance_node_materialization:<scope>`), never persists raw public IP addresses, never treats missing ENI/SG/rule evidence as safe false, and keeps unknown posture as `state=unknown` with no boolean exposure property (issue #1301); see `docs/internal/design/1301-ec2-internet-exposure.md` |
 | `DomainS3InternetExposureMaterialization` | Derive conservative `exposed` / `not_exposed` / `unknown` S3 internet-exposure state from `s3_bucket_posture` facts and write reducer-owned properties onto existing S3 `CloudResource` nodes only; gates on the `cloud_resource_uid` canonical-nodes phase, resolves the source bucket through the S3 in-memory join index, never reads or persists raw bucket policy, ACL grants, object keys, or object data, and keeps unknown posture as `state=unknown` with no boolean exposure property (issue #1232); see `docs/internal/design/1232-s3-internet-exposure.md` |
 | `DomainIncidentRoutingMaterialization` | Project exact PagerDuty incident-routing evidence into reducer-owned `IncidentRoutingEvidence` graph nodes and intended/applied/live evidence relationships without promoting runtime, image, commit, pull-request, Jira, service-health, or root-cause truth |
 
@@ -145,6 +147,43 @@ readiness, extraction, retract, and graph write. The completion log carries
 resource/posture counts, node-update count, skip tally, and stage durations; the
 Cypher writer adds `phase=rds_posture` and `label=CloudResource:RDSPosture`
 metadata for the existing graph query duration and batch-size metrics.
+
+## EC2 Internet Exposure Projection (issue #1301)
+
+`DomainEC2InternetExposureMaterialization` is the conservative EC2 exposure
+graph slice. It loads the same scope generation's `ec2_instance_posture`,
+`aws_relationship`, and `aws_security_group_rule` facts, derives one
+exposed/not_exposed/unknown decision per EC2 instance, and stamps only
+reducer-owned `ec2_internet_exposure_*` properties onto existing EC2
+`CloudResource` nodes. The decision is exposed only when the instance has a
+public IP and an attached security group with internet-reachable ingress.
+Missing public-IP, ENI, security-group, or rule evidence stays `unknown` rather
+than becoming a safe false; raw public IP addresses are never written.
+
+Benchmark Evidence: `go test ./internal/storage/cypher -run '^$' -bench
+BenchmarkEC2InternetExposureNodeWriter -benchmem -count=3` writes 5,000
+MATCH-only node-property rows at batch size 500 on darwin/arm64 Apple M4 Pro in
+`1.35 ms/op`, `1.33 ms/op`, and `1.33 ms/op` with about `1.97 MB/op` and
+`25,068 allocs/op`. The writer uses batched `UNWIND` + `MATCH
+(resource:CloudResource {uid})` + `SET`, so it adds no MERGE, CREATE, per-row
+graph round trip, or node fabrication path.
+
+No-Regression Evidence: `go test ./internal/reducer -run 'EC2InternetExposure'
+-count=1` proves positive, negative, unknown, missing-identity, readiness, stale
+retract, and default registry wiring behavior. `go test ./internal/projector
+-run EC2InternetExposure -count=1` proves projector enqueue routing and the
+`ec2_instance_node_materialization:<scope>` readiness entity key. `go test
+./internal/storage/postgres -run EC2InternetExposure -count=1` proves durable
+queue gating and `/admin/status` readiness blockage reporting.
+
+Observability Evidence: `reducer.ec2_internet_exposure_materialization` wraps
+fact load, readiness, extraction, retract, and graph write. The new
+`eshu_dp_ec2_internet_exposure_decisions_total{outcome,reason}` and
+`eshu_dp_ec2_internet_exposure_skipped_total{skip_reason}` counters, completion
+log tallies, stage-duration fields, Cypher statement metadata
+(`phase=ec2_internet_exposure`, `label=CloudResource:EC2InternetExposure`), and
+durable readiness blockage key let an operator distinguish truly exposed
+instances from missing topology or rule evidence.
 
 ## PagerDuty IncidentRoutingEvidence graph projection (issue #1168)
 

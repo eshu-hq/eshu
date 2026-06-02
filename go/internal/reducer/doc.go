@@ -35,6 +35,10 @@
 // S3 internet exposure materialization writes reducer-owned exposed /
 // not_exposed / unknown posture properties onto existing S3 CloudResource nodes
 // only, preserving unknown evidence as unknown rather than safe.
+// EC2 internet exposure materialization does the same for existing EC2
+// CloudResource nodes using EC2 posture, ENI topology, and security-group rule
+// evidence without storing raw public IP addresses or treating missing topology
+// as safe.
 // IncidentRoutingMaterializationHandler writes exact PagerDuty
 // IncidentRoutingEvidence graph rows only for safe declared/applied/live
 // convergence or live-only no-IaC routing evidence; unsafe routing outcomes

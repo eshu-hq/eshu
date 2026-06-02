@@ -43,5 +43,7 @@
 // ownership or publication relationship. IncidentRoutingEvidenceWriter writes
 // PagerDuty routing evidence nodes and static intended/applied/live evidence
 // relationships without creating service, runtime, image, code-review, work
-// item, or root-cause graph truth.
+// item, or root-cause graph truth. EC2InternetExposureNodeWriter stamps
+// reducer-owned exposure properties onto existing EC2 CloudResource nodes with
+// MATCH-only Cypher and never fabricates instances.
 package cypher

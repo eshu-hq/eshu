@@ -2,9 +2,9 @@
 
 Status: design accepted for the USES_PROFILE slice (this PR-B). The profile → role
 `HAS_ROLE` edge that completes the EC2 → profile → role → `CAN_ESCALATE_TO`
-(#1134 PR3) chain remains the deferred follow-up — see §8. NEEDS PRINCIPAL REVIEW
-— gated graph-write (`risk:schema`). The **dual-key readiness gate** below is the
-principal-review focus.
+(#1134 PR3) chain is implemented in the separate #1299 slice; see
+`docs/internal/design/1299-iam-instance-profile-role-edge.md`. The **dual-key
+readiness gate** below is the principal-review focus for USES_PROFILE.
 
 Issue: #1146 (aws/deep: EC2 instance blast-radius). PR-A (merged, #1236, commit
 `c6ce36e0`) materializes EC2 instances as first-class `:CloudResource` nodes on
@@ -280,15 +280,13 @@ surfaces a per-endpoint `readiness` conflict-domain blockage row in
 `status_blockage.go` when either node phase has not committed, so an operator can
 see which endpoint family (instance vs profile) is the one that has not landed.
 
-## 8. Deferred Follow-Up (NOT in this PR)
+## 8. Related Follow-Up
 
 The **profile → role `HAS_ROLE` edge**
-`(:CloudResource {instance-profile})-[:HAS_ROLE]->(:CloudResource {role})` is
-deferred to a separate slice. The `aws_iam_instance_profile` `aws_resource` fact
-already carries the profile's `role_arns` attribute, so that slice resolves each
-role ARN to a scanned IAM-role `:CloudResource` node and writes the gated edge,
-mirroring this one. With USES_PROFILE (this PR-B) plus HAS_ROLE landed, the full
-chain EC2 → instance-profile → role → `CAN_ESCALATE_TO` (#1134 PR3) becomes a
-single traversable graph path — the blast-radius arc #1146 set out to draw. That
-edge is the clean reviewable next slice; it is not attempted here because it gates
-on a different target node family (IAM role) and deserves its own review.
+`(:CloudResource {instance-profile})-[:HAS_ROLE]->(:CloudResource {role})` is the
+separate #1299 slice. The `aws_iam_instance_profile` `aws_resource` fact already
+carries the profile's `role_arns` attribute, so #1299 resolves each role ARN to a
+scanned IAM-role `:CloudResource` node and writes the gated edge, mirroring this
+one. With USES_PROFILE (this PR-B) plus HAS_ROLE (#1299), the full chain EC2 →
+instance-profile → role → `CAN_ESCALATE_TO` (#1134 PR3) becomes a single
+traversable graph path — the blast-radius arc #1146 set out to draw.

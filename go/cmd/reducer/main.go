@@ -197,6 +197,8 @@ func buildReducerService(
 	s3ExternalPrincipalGrantWriter := sourcecypher.NewS3ExternalPrincipalGrantWriter(neo4jExec, neo4jBatchSize(getenv))
 	rdsPostureNodeWriter := sourcecypher.NewRDSPostureNodeWriter(neo4jExec, neo4jBatchSize(getenv))
 	ec2UsesProfileEdgeWriter := sourcecypher.NewEC2UsesProfileEdgeWriter(neo4jExec, neo4jBatchSize(getenv))
+	iamInstanceProfileRoleEdgeWriter := sourcecypher.NewIAMInstanceProfileRoleEdgeWriter(neo4jExec, neo4jBatchSize(getenv))
+	ec2InternetExposureNodeWriter := sourcecypher.NewEC2InternetExposureNodeWriter(neo4jExec, neo4jBatchSize(getenv))
 	s3InternetExposureNodeWriter := sourcecypher.NewS3InternetExposureNodeWriter(neo4jExec, neo4jBatchSize(getenv))
 	relationshipStore := postgres.NewRelationshipStore(database)
 	factStore := postgres.NewFactStore(database)
@@ -328,24 +330,26 @@ func buildReducerService(
 			Logger:      logger,
 			Instruments: instruments,
 		},
-		AWSCloudRuntimeDriftWriter:      reducer.PostgresAWSCloudRuntimeDriftWriter{DB: database},
-		AWSCloudRuntimeDriftLogger:      logger,
-		CloudResourceNodeWriter:         cloudResourceNodeWriter,
-		EC2InstanceNodeWriter:           ec2InstanceNodeWriter,
-		CloudResourceEdgeWriter:         cloudResourceEdgeWriter,
-		KubernetesWorkloadNodeWriter:    kubernetesWorkloadNodeWriter,
-		SecurityGroupEndpointNodeWriter: securityGroupEndpointNodeWriter,
-		SecurityGroupRuleNodeWriter:     securityGroupReachabilityWriter,
-		SecurityGroupReachabilityWriter: securityGroupReachabilityWriter,
-		KubernetesCorrelationEdgeWriter: kubernetesCorrelationEdgeWriter,
-		IAMEscalationEdgeWriter:         iamEscalationEdgeWriter,
-		ObservabilityCoverageEdgeWriter: observabilityCoverageEdgeWriter,
-		IAMCanAssumeEdgeWriter:          iamCanAssumeEdgeWriter,
-		S3LogsToEdgeWriter:              s3LogsToEdgeWriter,
-		S3ExternalPrincipalGrantWriter:  s3ExternalPrincipalGrantWriter,
-		RDSPostureNodeWriter:            rdsPostureNodeWriter,
-		EC2UsesProfileEdgeWriter:        ec2UsesProfileEdgeWriter,
-		S3InternetExposureNodeWriter:    s3InternetExposureNodeWriter,
+		AWSCloudRuntimeDriftWriter:       reducer.PostgresAWSCloudRuntimeDriftWriter{DB: database},
+		AWSCloudRuntimeDriftLogger:       logger,
+		CloudResourceNodeWriter:          cloudResourceNodeWriter,
+		EC2InstanceNodeWriter:            ec2InstanceNodeWriter,
+		CloudResourceEdgeWriter:          cloudResourceEdgeWriter,
+		KubernetesWorkloadNodeWriter:     kubernetesWorkloadNodeWriter,
+		SecurityGroupEndpointNodeWriter:  securityGroupEndpointNodeWriter,
+		SecurityGroupRuleNodeWriter:      securityGroupReachabilityWriter,
+		SecurityGroupReachabilityWriter:  securityGroupReachabilityWriter,
+		KubernetesCorrelationEdgeWriter:  kubernetesCorrelationEdgeWriter,
+		IAMEscalationEdgeWriter:          iamEscalationEdgeWriter,
+		ObservabilityCoverageEdgeWriter:  observabilityCoverageEdgeWriter,
+		IAMCanAssumeEdgeWriter:           iamCanAssumeEdgeWriter,
+		S3LogsToEdgeWriter:               s3LogsToEdgeWriter,
+		S3ExternalPrincipalGrantWriter:   s3ExternalPrincipalGrantWriter,
+		RDSPostureNodeWriter:             rdsPostureNodeWriter,
+		EC2UsesProfileEdgeWriter:         ec2UsesProfileEdgeWriter,
+		IAMInstanceProfileRoleEdgeWriter: iamInstanceProfileRoleEdgeWriter,
+		EC2InternetExposureNodeWriter:    ec2InternetExposureNodeWriter,
+		S3InternetExposureNodeWriter:     s3InternetExposureNodeWriter,
 		ContainerImageIdentityWriter: reducer.PostgresContainerImageIdentityWriter{
 			DB: database,
 		},

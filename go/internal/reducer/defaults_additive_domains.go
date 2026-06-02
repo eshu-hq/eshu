@@ -227,6 +227,18 @@ func appendAdditiveDomainDefinitions(definitions []DomainDefinition, handlers De
 		}
 		definitions = append(definitions, ec2UsesProfile)
 	}
+	if handlers.FactLoader != nil && handlers.IAMInstanceProfileRoleEdgeWriter != nil {
+		profileRole := iamInstanceProfileRoleMaterializationDomainDefinition()
+		profileRole.Handler = IAMInstanceProfileRoleMaterializationHandler{
+			FactLoader:           handlers.FactLoader,
+			EdgeWriter:           handlers.IAMInstanceProfileRoleEdgeWriter,
+			ReadinessLookup:      handlers.ReadinessLookup,
+			PriorGenerationCheck: handlers.PriorGenerationCheck,
+			Tracer:               handlers.Tracer,
+			Instruments:          handlers.Instruments,
+		}
+		definitions = append(definitions, profileRole)
+	}
 	if handlers.FactLoader != nil && handlers.S3InternetExposureNodeWriter != nil {
 		s3Exposure := s3InternetExposureMaterializationDomainDefinition()
 		s3Exposure.Handler = S3InternetExposureMaterializationHandler{
@@ -238,6 +250,18 @@ func appendAdditiveDomainDefinitions(definitions []DomainDefinition, handlers De
 			Instruments:          handlers.Instruments,
 		}
 		definitions = append(definitions, s3Exposure)
+	}
+	if handlers.FactLoader != nil && handlers.EC2InternetExposureNodeWriter != nil {
+		ec2Exposure := ec2InternetExposureMaterializationDomainDefinition()
+		ec2Exposure.Handler = EC2InternetExposureMaterializationHandler{
+			FactLoader:           handlers.FactLoader,
+			NodeWriter:           handlers.EC2InternetExposureNodeWriter,
+			ReadinessLookup:      handlers.ReadinessLookup,
+			PriorGenerationCheck: handlers.PriorGenerationCheck,
+			Tracer:               handlers.Tracer,
+			Instruments:          handlers.Instruments,
+		}
+		definitions = append(definitions, ec2Exposure)
 	}
 	if handlers.FactLoader != nil && handlers.KubernetesCorrelationEdgeWriter != nil {
 		kubernetesEdges := kubernetesCorrelationMaterializationDomainDefinition()

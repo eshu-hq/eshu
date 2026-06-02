@@ -465,6 +465,12 @@ facts and EC2 volume-to-KMS relationships are source evidence from
 `DescribeVolumes`; reducers must still corroborate block-device/KMS posture
 before promoting workload, deployment, ownership, drift, or unmanaged-resource
 truth.
+and the EC2 internet-exposure reducer derives conservative exposed /
+not_exposed / unknown node properties from corroborated posture, ENI, and
+security-group rule evidence without storing raw public IP addresses. Reducers
+must corroborate
+these facts before promoting workload, deployment, ownership, drift, or
+unmanaged-resource truth.
 
 Runtime spans include `aws.collector.claim.process`,
 `aws.credentials.assume_role`, `aws.service.scan`, and

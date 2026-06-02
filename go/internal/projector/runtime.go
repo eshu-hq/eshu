@@ -435,6 +435,12 @@ func buildProjection(scopeValue scope.IngestionScope, generation scope.ScopeGene
 	if intent, ok := buildEC2UsesProfileMaterializationReducerIntent(scopeValue, generation, inputFacts); ok {
 		intents = append(intents, intent)
 	}
+	if intent, ok := buildIAMInstanceProfileRoleMaterializationReducerIntent(scopeValue, generation, inputFacts); ok {
+		intents = append(intents, intent)
+	}
+	if intent, ok := buildEC2InternetExposureMaterializationReducerIntent(scopeValue, generation, inputFacts); ok {
+		intents = append(intents, intent)
+	}
 	if intent, ok := buildS3InternetExposureMaterializationReducerIntent(scopeValue, generation, inputFacts); ok {
 		intents = append(intents, intent)
 	}
