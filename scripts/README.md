@@ -39,6 +39,16 @@ identity counts when those probes are required. Use
 `ESHU_REMOTE_E2E_COMPOSE_FILES` as a colon-separated Compose file list and
 `ESHU_REMOTE_E2E_ENV_FILE` when the stack uses a private env file.
 
+`e2e_remote_compose_suite.sh` is the aggregate remote Compose E2E harness. It
+runs the runtime-state verifier, checks pprof reachability, captures private
+local Compose logs and Docker CPU/memory stats, validates clean or preserved
+volume proof, and writes the shared public-safe E2E evidence manifest. Use a
+clean run first, then restart without pruning volumes and run a preserved proof
+with `--previous-manifest` pointing at the passing clean manifest. The script
+requires an aggregate summary JSON; do not put repository names, package
+coordinates, provider URLs, hostnames, paths, account ids, tokens, raw logs, or
+provider payloads in that summary or in the generated manifest.
+
 `remote-e2e-corpus-preflight.sh` is the one-shot corpus guard used by
 `docker-compose.remote-e2e.yaml`. Smoke mode is fixture-friendly, representative
 mode is the 20-50 repository inner-loop gate, and full mode is the release

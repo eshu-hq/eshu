@@ -184,6 +184,41 @@ URLs, hostnames, account ids, tokens, raw transcripts, and copied provider
 payloads out of the manifest. Store those only beside the private corpus/env
 files on the operator machine.
 
+After the representative stack is running and the aggregate summary JSON has
+been produced on the operator host, run the remote Compose suite wrapper for a
+clean proof:
+
+```bash
+scripts/e2e_remote_compose_suite.sh \
+  --run-kind clean \
+  --manifest /secure/local/eshu/e2e-clean-manifest.json \
+  --summary /secure/local/eshu/e2e-aggregate-summary.json \
+  --volume-proof /secure/local/eshu/clean-volume-proof.json \
+  --pprof-base-url "$REMOTE_PPROF_BASE_URL" \
+  --image-tag-candidate "$ESHU_IMAGE_TAG_CANDIDATE"
+```
+
+Then restart the same Compose project without pruning volumes and run the
+preserved proof:
+
+```bash
+scripts/e2e_remote_compose_suite.sh \
+  --run-kind preserved \
+  --manifest /secure/local/eshu/e2e-preserved-manifest.json \
+  --summary /secure/local/eshu/e2e-aggregate-summary-preserved.json \
+  --volume-proof /secure/local/eshu/preserved-volume-proof.json \
+  --previous-manifest /secure/local/eshu/e2e-clean-manifest.json \
+  --pprof-base-url "$REMOTE_PPROF_BASE_URL" \
+  --image-tag-candidate "$ESHU_IMAGE_TAG_CANDIDATE"
+```
+
+The wrapper runs `scripts/verify_remote_e2e_runtime_state.sh`, requires pprof,
+Compose logs, and Docker CPU/memory evidence, validates the same shared
+manifest contract, and fails preserved runs when the aggregate summary reports
+duplicate claims, duplicate facts, duplicate findings, or new dead letters.
+The log and stats files are private local evidence; the generated manifest must
+remain aggregate-only and public-safe.
+
 ## Representative Acceptance
 
 After a representative stack finishes the required corpus pass, run:
