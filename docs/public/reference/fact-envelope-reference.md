@@ -378,6 +378,7 @@ When adding or changing a fact family:
 - [Multi-Cloud Runtime Collector Contract](multi-cloud-collector-contract.md)
 - [GCP Cloud Collector Contract](gcp-cloud-collector-contract.md)
 - [Azure Cloud Collector Contract](azure-cloud-collector-contract.md)
+- [Secrets And IAM Posture Collector Contract](secrets-iam-posture-collector-contract.md)
 - [Jira Evidence Contract](jira-evidence.md)
 - [Component Package Manager](component-package-manager.md)
 - [Plugin Trust Model](plugin-trust-model.md)
