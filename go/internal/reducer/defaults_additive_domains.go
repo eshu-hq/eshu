@@ -227,6 +227,18 @@ func appendAdditiveDomainDefinitions(definitions []DomainDefinition, handlers De
 		}
 		definitions = append(definitions, ec2UsesProfile)
 	}
+	if handlers.FactLoader != nil && handlers.IAMInstanceProfileRoleEdgeWriter != nil {
+		profileRole := iamInstanceProfileRoleMaterializationDomainDefinition()
+		profileRole.Handler = IAMInstanceProfileRoleMaterializationHandler{
+			FactLoader:           handlers.FactLoader,
+			EdgeWriter:           handlers.IAMInstanceProfileRoleEdgeWriter,
+			ReadinessLookup:      handlers.ReadinessLookup,
+			PriorGenerationCheck: handlers.PriorGenerationCheck,
+			Tracer:               handlers.Tracer,
+			Instruments:          handlers.Instruments,
+		}
+		definitions = append(definitions, profileRole)
+	}
 	if handlers.FactLoader != nil && handlers.S3InternetExposureNodeWriter != nil {
 		s3Exposure := s3InternetExposureMaterializationDomainDefinition()
 		s3Exposure.Handler = S3InternetExposureMaterializationHandler{

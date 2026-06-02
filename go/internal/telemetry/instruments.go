@@ -336,6 +336,19 @@ type Instruments struct {
 	// silently dropped facts. A blank instance_profile_arn (no attached profile) is
 	// NOT counted here — it is the normal no-edge state.
 	EC2UsesProfileSkipped metric.Int64Counter
+	// IAMInstanceProfileRoleEdges counts IAM instance-profile HAS_ROLE edge
+	// projection outcomes (issue #1299). Label: resolution_mode (arn — the only
+	// resolution path, exact role ARN equality against the in-memory join index).
+	// It counts only materialized edges; cross-account, out-of-scope, and
+	// unscanned roles never produce an edge and are surfaced by
+	// IAMInstanceProfileRoleSkipped and the completion log instead.
+	IAMInstanceProfileRoleEdges metric.Int64Counter
+	// IAMInstanceProfileRoleSkipped counts profile role_arns that produced no
+	// HAS_ROLE edge. Label: skip_reason (source_unresolved — the instance-profile
+	// fact carried no stable profile identity; target_unresolved — the named role
+	// was not scanned in this scope, e.g. a cross-account role). Profiles with no
+	// roles are not counted here because they are the normal no-edge state.
+	IAMInstanceProfileRoleSkipped metric.Int64Counter
 	// S3InternetExposureDecisions counts S3 internet-exposure node-property
 	// decisions derived from s3_bucket_posture (issue #1232). Labels: outcome
 	// (exposed / not_exposed / unknown) and reason. Unknown preserves partial or
@@ -1620,6 +1633,22 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register EC2UsesProfileSkipped counter: %w", err)
+	}
+
+	inst.IAMInstanceProfileRoleEdges, err = meter.Int64Counter(
+		"eshu_dp_iam_instance_profile_role_edges_total",
+		metric.WithDescription("Total IAM instance-profile HAS_ROLE edge projection outcomes by resolution_mode (arn)"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register IAMInstanceProfileRoleEdges counter: %w", err)
+	}
+
+	inst.IAMInstanceProfileRoleSkipped, err = meter.Int64Counter(
+		"eshu_dp_iam_instance_profile_role_skipped_total",
+		metric.WithDescription("Total IAM instance-profile role_arns that produced no HAS_ROLE edge, by skip_reason (source_unresolved/target_unresolved)"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register IAMInstanceProfileRoleSkipped counter: %w", err)
 	}
 
 	inst.S3InternetExposureDecisions, err = meter.Int64Counter(

@@ -178,6 +178,15 @@ type DefaultHandlers struct {
 	// that has not committed.
 	EC2UsesProfileEdgeWriter EC2UsesProfileEdgeWriter
 
+	// IAMInstanceProfileRoleEdgeWriter projects IAM instance-profile role_arns
+	// into canonical HAS_ROLE edges between IAM instance-profile and role
+	// CloudResource nodes (issue #1299). It must be non-nil alongside FactLoader
+	// for the registry to register DomainIAMInstanceProfileRoleMaterialization;
+	// missing either one would drop every HAS_ROLE materialization intent before it
+	// reaches graph truth. The handler also gates on ReadinessLookup so edges never
+	// resolve against uncommitted IAM nodes.
+	IAMInstanceProfileRoleEdgeWriter IAMInstanceProfileRoleEdgeWriter
+
 	// S3InternetExposureNodeWriter derives s3_bucket_posture internet exposure
 	// state and writes reducer-owned properties onto existing S3 CloudResource
 	// nodes (issue #1232). It must be non-nil alongside FactLoader for the

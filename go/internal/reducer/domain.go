@@ -43,6 +43,7 @@ var knownDomains = map[Domain]struct{}{
 	DomainS3ExternalPrincipalGrantMaterialization:  {},
 	DomainRDSPostureMaterialization:                {},
 	DomainEC2UsesProfileMaterialization:            {},
+	DomainIAMInstanceProfileRoleMaterialization:    {},
 	DomainS3InternetExposureMaterialization:        {},
 	DomainIAMEscalationMaterialization:             {},
 	DomainIncidentRoutingMaterialization:           {},
