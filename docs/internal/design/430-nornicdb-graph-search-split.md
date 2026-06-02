@@ -212,8 +212,10 @@ Recommended child slices:
 
 Issues #417, #418, #420, #421, and #431 should stay behind this architecture
 gate. #417 can start once the bounded search document projection and backend
-startup policy have proof. #431 should not evaluate replacing Postgres until
-the search lane has at least one shadow-read and shadow-write comparison.
+startup policy have proof. #431 is tracked separately in
+[NornicDB Primary Knowledge Store Evaluation](431-nornicdb-primary-store-evaluation.md)
+and should not evaluate replacing Postgres until the search lane has at least
+one shadow-read and shadow-write comparison.
 
 ## 8. Evidence For This PR
 
