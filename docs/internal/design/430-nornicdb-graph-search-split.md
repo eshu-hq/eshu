@@ -201,7 +201,9 @@ Recommended child slices:
    `go/internal/searchdocs` and
    `docs/public/reference/search-document-projection.md`.
 3. Add a benchmark harness comparing current Postgres content search with
-   curated NornicDB BM25/vector retrieval.
+   curated NornicDB BM25/vector retrieval. The first harness contract lives in
+   `go/internal/searchbench` and
+   `docs/public/reference/search-benchmark-evidence.md`.
 4. Add bounded internal retrieval path for semantic-evaluation queries.
 5. Add public API/MCP search surfaces only after retrieval evidence proves value
    and preserves truth labels, scope, limits, and truncation.

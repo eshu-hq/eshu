@@ -112,6 +112,7 @@ labels.
 
 ## Related Docs
 
+- [Search Benchmark Evidence](search-benchmark-evidence.md)
 - [NornicDB Tuning](nornicdb-tuning.md)
 - [Truth Label Protocol](truth-label-protocol.md)
 - [Telemetry Overview](telemetry/index.md)
