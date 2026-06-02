@@ -1,9 +1,10 @@
 # S3 LOGS_TO Server-Access-Log Edge Materialization Design
 
 Status: design accepted for the LOGS_TO slice (this PR2). The
-`GRANTS_ACCESS_TO :ExternalPrincipal` node-then-edge slice and the
-internet-exposure flag remain deferred follow-ups — see §8. NEEDS PRINCIPAL
-REVIEW — gated graph-write (`risk:schema`).
+`GRANTS_ACCESS_TO :ExternalPrincipal` node-then-edge slice remains a deferred
+follow-up; internet exposure moved to its own node-property projection design in
+`docs/internal/design/1232-s3-internet-exposure.md`. NEEDS PRINCIPAL REVIEW -
+gated graph-write (`risk:schema`).
 
 Issue: #1144 (aws/deep: S3 bucket posture graph projection; parent #51). PR1
 (merged) emits the `s3_bucket_posture` fact with the `logging_target_bucket`
@@ -239,9 +240,8 @@ in `status_blockage.go` when canonical nodes have not committed.
 
 ## 8. Deferred Follow-Ups (NOT in this PR)
 
-These two items from #1144's PR2 design are deliberately out of scope here and
-deferred to separate slices, because they need machinery this edge-only slice
-does not build:
+These items from #1144's PR2 design are deliberately out of scope here because
+they need machinery this edge-only slice does not build:
 
 1. **`GRANTS_ACCESS_TO :ExternalPrincipal`** — projecting the posture fact's
    policy-derived cross-account/public grant booleans (`policy_grants_public`,
@@ -252,12 +252,12 @@ does not build:
    materialization first, then the edge), exactly like #1135 split endpoint nodes
    from reachability edges.
 
-2. **The internet-exposure flag** — deriving a bucket-level "internet-exposed"
-   property from the block-public-access flags plus the policy-derived public
-   grant is a NODE-property projection (it sets a flag on the existing
-   `:CloudResource` S3 node), not an edge, and needs the public-exposure
-   confidence model (block-public-access interaction with bucket policy and ACLs)
-   reviewed on its own. It is deferred to the node-property projection slice.
+2. **Internet exposure** — implemented separately by
+   `DomainS3InternetExposureMaterialization` in issue #1232. It is a
+   node-property projection on existing S3 `CloudResource` nodes, not an edge,
+   and therefore has its own conservative exposed / not_exposed / unknown model
+   in `docs/internal/design/1232-s3-internet-exposure.md`.
 
-Neither resolves trivially on the edge-only keyspace, so neither is attempted
-here. The LOGS_TO edge is the clean, reviewable first slice of #1144 PR2.
+External-principal access does not resolve trivially on the edge-only keyspace,
+so it is not attempted here. The LOGS_TO edge remains the clean, reviewable first
+slice of #1144 PR2.

@@ -249,9 +249,8 @@ const (
 	// (logging disabled) produces no edge and is not a skip; a self-target (a
 	// bucket logging to itself) is a legal S3 config and DOES produce an edge.
 	// Cross-account, out-of-scope, and unscanned log targets fabricate no edge and
-	// are counted. The GRANTS_ACCESS_TO :ExternalPrincipal node-then-edge slice and
-	// the internet-exposure node-property flag are deferred follow-ups; see
-	// docs/internal/design/1144-s3-logs-to-edge.md §8.
+	// are counted. The GRANTS_ACCESS_TO :ExternalPrincipal node-then-edge slice is
+	// a deferred follow-up; see docs/internal/design/1144-s3-logs-to-edge.md §8.
 	DomainS3LogsToMaterialization Domain = "s3_logs_to_materialization"
 	// DomainRDSPostureMaterialization projects rds_instance_posture facts onto
 	// existing RDS DB instance and Aurora cluster CloudResource nodes. It is a
@@ -285,6 +284,17 @@ const (
 	// profile → role HAS_ROLE edge is the remaining follow-up. See issue #1146 PR-B
 	// and docs/internal/design/1146-ec2-uses-profile-edge.md.
 	DomainEC2UsesProfileMaterialization Domain = "ec2_uses_profile_materialization"
+	// DomainS3InternetExposureMaterialization derives conservative internet
+	// exposure state from s3_bucket_posture facts and writes reducer-owned
+	// properties onto existing S3 CloudResource nodes. It is NODE-PROPERTY-ONLY on
+	// the existing cloud_resource_uid keyspace; no new node type and no raw policy,
+	// ACL, object-key, or object-data persistence. It gates on the
+	// GraphProjectionKeyspaceCloudResourceUID /
+	// GraphProjectionPhaseCanonicalNodesCommitted phase so posture never resolves
+	// against an S3 node that has not committed. Unknown or partial posture stays
+	// state=unknown with no boolean exposure property, never fabricated false.
+	// See issue #1232.
+	DomainS3InternetExposureMaterialization Domain = "s3_internet_exposure_materialization"
 	// DomainIncidentRoutingMaterialization projects exact PagerDuty
 	// incident-routing evidence into reducer-owned IncidentRoutingEvidence graph
 	// nodes and evidence relationships. It preserves declared/applied/observed

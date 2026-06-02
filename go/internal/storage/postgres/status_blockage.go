@@ -45,7 +45,7 @@ readiness_blocked AS (
                COALESCE(NULLIF(eligible.payload->>'entity_key', ''), eligible.scope_id) AS conflict_key,
            eligible.available_at
     FROM eligible
-    WHERE eligible.domain IN ('aws_relationship_materialization', 'observability_coverage_materialization', 'iam_can_assume_materialization', 's3_logs_to_materialization', 'rds_posture_materialization')
+    WHERE eligible.domain IN ('aws_relationship_materialization', 'observability_coverage_materialization', 'iam_can_assume_materialization', 's3_logs_to_materialization', 'rds_posture_materialization', 's3_internet_exposure_materialization')
       AND NOT EXISTS (
           SELECT 1
           FROM graph_projection_phase_state AS aws_nodes

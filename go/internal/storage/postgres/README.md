@@ -260,12 +260,15 @@ constructor with `InstrumentedDB{Inner: db, StoreName: "my_store", ...}`.
 - The NornicDB semantic gate in `ReducerQueue.Claim` is gated on a boolean
   parameter and must not be removed without an ADR; it prevents
   `semantic_entity_materialization` storms on NornicDB label indexes.
-- `aws_relationship_materialization` claims wait on the exact
+- `aws_relationship_materialization`, `observability_coverage_materialization`,
+  `iam_can_assume_materialization`, `s3_logs_to_materialization`, and
+  `s3_internet_exposure_materialization` claims wait on the exact
   `cloud_resource_uid` / `canonical_nodes_committed` readiness row for the
   same scope, generation, and `entity_key`. This keeps relationship work
-  pending or retrying until `aws_resource_materialization` has made
-  `CloudResource` nodes visible, while allowing the resource materialization
-  row in the same conflict key to claim and publish the phase.
+  and CloudResource node-property work pending or retrying until
+  `aws_resource_materialization` has made `CloudResource` nodes visible, while
+  allowing the resource materialization row in the same conflict key to claim
+  and publish the phase.
 - `WorkflowControlStore` claim mutations use `ErrWorkflowClaimRejected` for
   fenced writes; callers must stop processing when this error is returned.
 - `WorkflowControlStore.FailClaimTerminal` uses a dense seven-argument SQL
@@ -348,18 +351,20 @@ No-Regression Evidence: AWS relationship readiness gating is covered by
 `go test ./internal/storage/postgres -run 'TestReducerQueueClaim(GatesAWSRelationshipsOnCanonicalCloudResourceReadiness|WaitsForAWSRelationshipReadinessBehavior|WaitsForRetryingAWSRelationshipReadinessBehavior|AWSRelationshipAlreadyReadyBehavior)|TestClaimBatchGatesAWSRelationshipsOnCanonicalCloudResourceReadiness|TestReducerQueueBlockagesReportAWSRelationshipReadinessWait' -count=1`.
 The same CloudResource readiness gate now also covers RDS posture property
 updates; `go test ./internal/storage/postgres -run RDSPosture -count=1` proves
-`rds_posture_materialization` waits for the same phase. The claim path keeps
-pending and retrying `aws_relationship_materialization` rows unclaimed until the
-matching `cloud_resource_uid` /
+`rds_posture_materialization` waits for the same phase. S3 internet-exposure
+readiness is covered by
+`go test ./internal/storage/postgres -run 'S3InternetExposure' -count=1`.
+The claim path keeps pending and retrying CloudResource-consuming reducer rows
+unclaimed until the matching `cloud_resource_uid` /
 `canonical_nodes_committed` phase exists, then makes the same row claimable
 without changing worker counts, retry delays, or conflict-key fencing.
 
 Observability Evidence: `/admin/status` queue blockages now include
 `conflict_domain=readiness` and a conflict key prefixed with
-`cloud_resource_uid:canonical_nodes_committed:` for AWS relationship work that
-is waiting on canonical `CloudResource` nodes, including RDS posture work. Existing
-queue gauges and domain backlog rows continue to expose pending, retrying,
-in-flight, and oldest-age counts without adding a high-cardinality metric label.
+`cloud_resource_uid:canonical_nodes_committed:` for reducer work that is
+waiting on canonical `CloudResource` nodes. Existing queue gauges and domain
+backlog rows continue to expose pending, retrying, in-flight, and oldest-age
+counts without adding a high-cardinality metric label.
 
 No-Regression Evidence: owned dependency target selection is covered by
 `go test ./internal/storage/postgres -run 'TestListOwnedPackageDependencyTargetsQuery|TestOwnedPackageDependencyTargetLimit' -count=1`.

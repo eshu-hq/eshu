@@ -32,6 +32,9 @@
 // identity, package identity, advisory ids, and provider evidence scope so
 // provider-only placeholders are replaced by later matched or stale rows while
 // preserving reason and evidence references for audit.
+// S3 internet exposure materialization writes reducer-owned exposed /
+// not_exposed / unknown posture properties onto existing S3 CloudResource nodes
+// only, preserving unknown evidence as unknown rather than safe.
 // IncidentRoutingMaterializationHandler writes exact PagerDuty
 // IncidentRoutingEvidence graph rows only for safe declared/applied/live
 // convergence or live-only no-IaC routing evidence; unsafe routing outcomes

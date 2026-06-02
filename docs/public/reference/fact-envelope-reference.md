@@ -134,6 +134,13 @@ usernames, connection secrets, snapshot payloads, log bodies, or Performance
 Insights samples, and it emits no graph edges. Reducers own KMS,
 parameter/option-group, and internet-exposure projection from this evidence.
 
+`s3_bucket_posture` carries metadata-only S3 bucket posture, including bucket
+identity, block-public-access booleans, derived policy summary booleans, and
+server-access-log target bucket identity. It never carries raw bucket policy
+JSON, ACL grant bodies, object keys, or object contents. Reducers own LOGS_TO
+edge projection and the conservative exposed / not_exposed / unknown internet
+exposure node-property projection from this evidence.
+
 `ec2_instance_posture` carries one metadata-only security and operations posture
 observation per EC2 instance, derived from the existing DescribeInstances pass:
 IMDS settings (`imds_v2_required`, `imds_http_endpoint`, `imds_http_put_hop_limit`),
