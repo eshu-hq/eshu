@@ -290,6 +290,13 @@ evidence-family coverage, runtime status, collector summaries, reducer
 summaries, API/MCP/CLI readback counters, queue counters, pprof/log/resource
 snapshot state, privacy status, and public follow-up issue refs.
 
+Passing reducer rows must include `source_facts`, `reducer_facts`, and
+per-row API/MCP readback pass evidence. Terraform/IaC relationship reducer
+counts come from the reducer-owned relationship evidence tables, while
+vulnerability matching uses the implemented
+`reducer_supply_chain_impact_finding` fact kind unless a future dedicated
+matching fact lands.
+
 `status: "pass"` is reserved for clean evidence: every component row is
 `pass`, API/MCP/CLI failures are zero, retrying/failed/dead-letter queue
 counters are zero, pprof is reachable, and logs plus resource snapshots were

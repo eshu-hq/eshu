@@ -19,7 +19,18 @@ trap 'rm -rf "${TMP_DIR}"' EXIT
 
 write_valid_manifest() {
 	local path="$1"
-	jq -n '{
+	jq -n '
+	def reducer($source; $count): {
+		status: "pass",
+		source_facts: $source,
+		reducer_facts: $count,
+		count: $count,
+		readback: {
+			api: {status: "pass", checked: 12, failed: 0, truncated: 0},
+			mcp: {status: "pass", checked: 12, failed: 0, truncated: 0}
+		}
+	};
+	{
 		schema_version: 1,
 		status: "pass",
 		run: {
@@ -87,17 +98,17 @@ write_valid_manifest() {
 			tempo: {status: "pass", facts: 1}
 		},
 		reducers: {
-			repository_dependencies: {status: "pass", count: 10},
-			terraform_iac_relationships: {status: "pass", count: 5},
-			aws_cloud_relationships: {status: "pass", count: 5},
-			oci_image_identity: {status: "pass", count: 3},
-			sbom_attachment: {status: "pass", count: 3},
-			vulnerability_matching: {status: "pass", count: 4},
-			provider_alert_reconciliation: {status: "pass", count: 4},
-			supply_chain_impact: {status: "pass", count: 4},
-			deployment_correlation: {status: "pass", count: 2},
-			observability_correlation: {status: "pass", count: 1},
-			incident_work_item_correlation: {status: "pass", count: 1}
+			repository_dependencies: reducer(10; 10),
+			terraform_iac_relationships: reducer(5; 5),
+			aws_cloud_relationships: reducer(7; 5),
+			oci_image_identity: reducer(4; 3),
+			sbom_attachment: reducer(2; 3),
+			vulnerability_matching: reducer(8; 4),
+			provider_alert_reconciliation: reducer(4; 4),
+			supply_chain_impact: reducer(8; 4),
+			deployment_correlation: reducer(6; 2),
+			observability_correlation: reducer(4; 1),
+			incident_work_item_correlation: reducer(2; 1)
 		},
 		readback: {
 			api: {status: "pass", checked: 12, failed: 0, truncated: 0},
@@ -184,6 +195,14 @@ expect_fail scanner_worker_without_evidence "${scanner_worker_without_evidence}"
 missing_reducer="${TMP_DIR}/missing-reducer.json"
 jq 'del(.reducers.repository_dependencies)' "${valid}" >"${missing_reducer}"
 expect_fail missing_reducer "${missing_reducer}" "missing required evidence: reducers.repository_dependencies"
+
+reducer_missing_source="${TMP_DIR}/reducer-missing-source.json"
+jq 'del(.reducers.vulnerability_matching.source_facts)' "${valid}" >"${reducer_missing_source}"
+expect_fail reducer_missing_source "${reducer_missing_source}" "reducers.vulnerability_matching must include source_facts > 0, reducer_facts > 0, and API/MCP readback pass"
+
+reducer_missing_readback="${TMP_DIR}/reducer-missing-readback.json"
+jq 'del(.reducers.vulnerability_matching.readback.mcp)' "${valid}" >"${reducer_missing_readback}"
+expect_fail reducer_missing_readback "${reducer_missing_readback}" "reducers.vulnerability_matching must include source_facts > 0, reducer_facts > 0, and API/MCP readback pass"
 
 missing_corpus="${TMP_DIR}/missing-corpus.json"
 jq 'del(.corpus.coverage.ecosystems.npm)' "${valid}" >"${missing_corpus}"

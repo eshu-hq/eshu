@@ -45,6 +45,13 @@ mode is the 20-50 repository inner-loop gate, and full mode is the release
 gate. `test-remote-e2e-corpus-preflight.sh` covers those bounds without
 requiring Docker.
 
+`e2e_remote_compose_suite.sh` builds the public-safe remote Compose evidence
+manifest from live aggregate collector, reducer, readback, runtime, pprof, log,
+and volume-proof inputs. It fails closed when reducer rows have source and
+reducer counts but no API/MCP readback proof. The mocked harness tests are
+`test-e2e-remote-compose-suite.sh` and
+`test-e2e-remote-compose-reducer-manifest.sh`.
+
 `verify-performance-evidence.sh` is the CI tripwire for hot-path runtime
 changes. It inspects the actual PR diff, including brand-new collector
 packages, and fails when changed Go code introduces Cypher, graph writes,

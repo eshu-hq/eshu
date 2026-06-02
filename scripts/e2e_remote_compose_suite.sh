@@ -4,6 +4,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 MANIFEST_VALIDATOR="${REPO_ROOT}/scripts/verify_e2e_evidence_manifest.sh"
+MANIFEST_LIB="${REPO_ROOT}/scripts/lib/e2e_remote_compose_manifest.sh"
 RUNTIME_STATE_SCRIPT="${ESHU_E2E_RUNTIME_STATE_SCRIPT:-${REPO_ROOT}/scripts/verify_remote_e2e_runtime_state.sh}"
 
 run_kind=""
@@ -17,6 +18,7 @@ out_dir=""
 corpus_mode="${ESHU_REMOTE_E2E_CORPUS_MODE:-representative}"
 repository_count="${ESHU_REMOTE_E2E_REPOSITORY_COUNT:-0}"
 corpus_coverage=""
+readback_proof="${ESHU_REMOTE_E2E_READBACK_PROOF:-}"
 image_tag_candidate="${ESHU_E2E_IMAGE_TAG_CANDIDATE:-unknown}"
 backend_kind="${ESHU_GRAPH_BACKEND:-nornicdb}"
 commit_override="${ESHU_E2E_COMMIT:-}"
@@ -25,6 +27,7 @@ compose_env_file="${ESHU_REMOTE_E2E_ENV_FILE:-}"
 api_timeout_seconds="${ESHU_REMOTE_E2E_API_TIMEOUT_SECONDS:-30}"
 log_tail="${ESHU_E2E_LOG_TAIL:-300}"
 unsupported_hosted_collectors="${ESHU_REMOTE_E2E_UNSUPPORTED_HOSTED_COLLECTORS:-}"
+unsupported_reducers="${ESHU_REMOTE_E2E_UNSUPPORTED_REDUCERS:-}"
 COMPOSE_CMD=()
 RUN_TMP_DIR="$(mktemp -d)"
 
@@ -40,6 +43,9 @@ die() {
 
 # shellcheck source=scripts/lib/e2e_remote_compose_suite_helpers.sh
 source "${REPO_ROOT}/scripts/lib/e2e_remote_compose_suite_helpers.sh"
+# shellcheck source=scripts/lib/e2e_remote_compose_manifest.sh
+source "${MANIFEST_LIB}"
+
 usage() {
 	cat >&2 <<'USAGE'
 Usage: scripts/e2e_remote_compose_suite.sh --run-kind clean|preserved --manifest PATH \
@@ -56,8 +62,20 @@ Options:
   --backend-kind KIND
   --compose-files FILE[:FILE...]
   --compose-env-file PATH
+  --readback-proof PATH
 
-Environment: set ESHU_REMOTE_E2E_UNSUPPORTED_HOSTED_COLLECTORS for unsupported hosted rows.
+Environment:
+  ESHU_REMOTE_E2E_READBACK_PROOF
+    Public-safe aggregate API/MCP/CLI readback proof. If omitted, reducer rows
+    with source and reducer evidence are still classified as failed readback.
+  ESHU_REMOTE_E2E_UNSUPPORTED_HOSTED_COLLECTORS
+    Comma-separated hosted collector rows to classify as unsupported instead
+    of skipped when the remote Compose profile intentionally cannot run them.
+    Valid row names are pagerduty,jira,grafana,prometheus_mimir,loki,tempo.
+  ESHU_REMOTE_E2E_UNSUPPORTED_REDUCERS
+    Comma-separated reducer rows to classify as unsupported when that path is
+    intentionally outside the remote Compose proof. Leave blank for prerelease
+    gates. Valid row names match the manifest reducers keys.
 USAGE
 }
 
@@ -79,6 +97,7 @@ while (($# > 0)); do
 		--backend-kind) backend_kind="${2:-}"; shift 2 ;;
 		--compose-files) compose_files="${2:-}"; shift 2 ;;
 		--compose-env-file) compose_env_file="${2:-}"; shift 2 ;;
+		--readback-proof) readback_proof="${2:-}"; shift 2 ;;
 		-h|--help) usage; exit 0 ;;
 		*) die "unknown argument: $1" ;;
 	esac
@@ -96,6 +115,33 @@ require_positive_int() {
 require_non_negative_int() {
 	local name="$1" value="$2"
 	[[ "${value}" =~ ^[0-9]+$ ]] || die "${name} must be a non-negative integer"
+}
+
+validate_unsupported_reducers() {
+	local invalid
+	invalid="$(jq -nr --arg raw "${unsupported_reducers}" '
+		def trim: gsub("^\\s+|\\s+$"; "");
+		[
+			"repository_dependencies",
+			"terraform_iac_relationships",
+			"aws_cloud_relationships",
+			"oci_image_identity",
+			"sbom_attachment",
+			"vulnerability_matching",
+			"provider_alert_reconciliation",
+			"supply_chain_impact",
+			"deployment_correlation",
+			"observability_correlation",
+			"incident_work_item_correlation"
+		] as $allowed |
+		$raw
+		| split(",")
+		| map(trim)
+		| map(select(length > 0))
+		| map(. as $name | select(($allowed | index($name)) | not))
+		| .[0] // ""
+	')"
+	[[ -z "${invalid}" ]] || die "unsupported reducer row is invalid: ${invalid}"
 }
 
 validate_args() {
@@ -117,6 +163,7 @@ validate_args() {
 	require_positive_int ESHU_REMOTE_E2E_API_TIMEOUT_SECONDS "${api_timeout_seconds}"
 	require_non_negative_int ESHU_REMOTE_E2E_REPOSITORY_COUNT "${repository_count}"
 	remote_compose_validate_unsupported_hosted_collectors "${unsupported_hosted_collectors}"
+	validate_unsupported_reducers
 }
 
 configure_compose() {
@@ -243,186 +290,6 @@ query_postgres_tsv() {
 		|| die "postgres evidence query failed"
 }
 
-json_from_tsv() {
-	local input="$1" output="$2" c1="$3" c2="$4"
-	jq -R -s --arg c1 "${c1}" --arg c2 "${c2}" '
-		split("\n")
-		| map(select(length > 0) | split("\t"))
-		| map({($c1): .[0], ($c2): .[1], count: (.[2] | tonumber)})
-	' "${input}" >"${output}"
-}
-
-build_manifest() {
-	local facts_json="$1" workflow_json="$2" index_status="$3" services_json="$4" stats_file="$5" output="$6"
-	local commit
-	if [[ -n "${commit_override}" ]]; then
-		commit="${commit_override}"
-	else
-		commit="$(git -C "${REPO_ROOT}" rev-parse --short=12 HEAD)"
-	fi
-	jq -n \
-		--slurpfile facts "${facts_json}" \
-		--slurpfile workflow "${workflow_json}" \
-		--slurpfile index "${index_status}" \
-		--slurpfile services "${services_json}" \
-		--slurpfile coverage "${corpus_coverage}" \
-		--slurpfile volume "${runtime_volume_proof}" \
-		--arg run_kind "${run_kind}" \
-		--arg commit "${commit}" \
-		--arg image "${image_tag_candidate}" \
-		--arg backend "${backend_kind}" \
-		--arg corpus_mode "${corpus_mode}" \
-		--arg unsupported_hosted_collectors "${unsupported_hosted_collectors}" \
-		--argjson repository_count "${repository_count}" '
-		($facts[0] // []) as $fact_rows |
-		($workflow[0] // []) as $workflow_rows |
-		($services[0] // []) as $service_rows |
-		($unsupported_hosted_collectors
-			| split(",")
-			| map(gsub("^\\s+|\\s+$"; ""))
-			| map(select(length > 0))) as $unsupported_hosted_rows |
-		def sum_source($names): [$fact_rows[] | select(.source_system as $s | $names | index($s)) | .count] | add // 0;
-		def sum_kind($pattern): [$fact_rows[] | select(.fact_kind | test($pattern)) | .count] | add // 0;
-		def service_enabled($name): $service_rows | index($name) != null;
-		def explicitly_unsupported($name): $unsupported_hosted_rows | index($name) != null;
-		def collector_row($n):
-			if $n > 0 then {status: "pass", facts: $n}
-			else {status: "fail", facts: 0, reason: "no source facts observed"} end;
-		def hosted_collector_row($name; $service; $n):
-			if $n > 0 then {status: "pass", facts: $n}
-			elif explicitly_unsupported($name) then {status: "unsupported", facts: 0, reason: "collector explicitly unsupported in remote Compose profile"}
-			elif service_enabled($service) then {status: "fail", facts: 0, reason: "no source facts observed for enabled collector service"}
-			else {status: "skipped", facts: 0, reason: "collector service disabled in remote Compose profile"} end;
-		def reducer_row($n):
-			if $n > 0 then {status: "pass", count: $n}
-			else {status: "fail", count: 0, reason: "no reducer evidence observed"} end;
-		def workflow_completed($collector):
-			[$workflow_rows[] | select(.collector_kind == $collector and .status == "completed") | .count] | add // 0;
-		def workflow_row($collector): {completed: workflow_completed($collector)};
-		def queue_num($name): ($index[0].queue[$name] // 0);
-		{
-			schema_version: 1,
-			status: "pass",
-			run: {
-				id: ("remote-compose-" + $run_kind + "-" + $commit),
-				kind: $run_kind,
-				commit: $commit,
-				image_tag_candidate: $image,
-				backend: {kind: $backend}
-			},
-			corpus: {
-				mode: $corpus_mode,
-				repository_count: $repository_count,
-				coverage: ($coverage[0] // {})
-			},
-			runtimes: {
-				schema_bootstrap: {status: "pass"},
-				api: {status: "pass"},
-				mcp_server: {status: "pass"},
-				ingester: {status: "pass"},
-				resolution_engine: {status: "pass"},
-				workflow_coordinator: {status: "pass"},
-				hosted_collectors: {status: "pass"},
-				scanner_worker: {status: "pass"}
-			},
-			collectors: {
-				git: collector_row(sum_source(["git"])),
-				terraform_state: collector_row(sum_source(["terraform_state"])),
-				aws_cloud: collector_row(sum_source(["aws"])),
-				oci_registry: collector_row(sum_source(["oci_registry"])),
-				package_registry: collector_row(sum_source(["package_registry"])),
-				sbom_attestation: collector_row(sum_source(["sbom_attestation"])),
-				provider_security_alerts: collector_row(sum_source(["security_alert","security_alerts"])),
-				vulnerability_intelligence: collector_row(sum_source(["vulnerability_intelligence"])),
-				scanner_worker: collector_row(sum_source(["scanner_worker"])),
-				confluence: collector_row(sum_source(["confluence"])),
-				pagerduty: hosted_collector_row("pagerduty"; "collector-pagerduty"; sum_source(["pagerduty"])),
-				jira: hosted_collector_row("jira"; "collector-jira"; sum_source(["jira"])),
-				grafana: hosted_collector_row("grafana"; "collector-grafana"; sum_source(["grafana"])),
-				prometheus_mimir: hosted_collector_row("prometheus_mimir"; "collector-prometheus-mimir"; sum_source(["prometheus_mimir"])),
-				loki: hosted_collector_row("loki"; "collector-loki"; sum_source(["loki"])),
-				tempo: hosted_collector_row("tempo"; "collector-tempo"; sum_source(["tempo"]))
-			},
-			reducers: {
-				repository_dependencies: reducer_row(sum_kind("reducer_package_(ownership|consumption|publication)_correlation|reducer_package_correlation")),
-				terraform_iac_relationships: reducer_row(sum_kind("reducer_terraform|resolved_relationship|terraform.*relationship")),
-				aws_cloud_relationships: reducer_row(sum_kind("reducer_aws|aws_relationship")),
-				oci_image_identity: reducer_row(sum_kind("reducer_container_image_identity")),
-				sbom_attachment: reducer_row(sum_kind("reducer_sbom_attestation_attachment")),
-				vulnerability_matching: reducer_row(sum_kind("reducer_vulnerability_match")),
-				provider_alert_reconciliation: reducer_row(sum_kind("reducer_security_alert_reconciliation")),
-				supply_chain_impact: reducer_row(sum_kind("reducer_supply_chain_impact_finding")),
-				deployment_correlation: reducer_row(sum_kind("reducer_(deployment|kubernetes|workload|ci_cd_run|service_catalog)_correlation|reducer_workload_identity")),
-				observability_correlation: reducer_row(sum_kind("reducer_observability(_coverage)?_correlation")),
-				incident_work_item_correlation: reducer_row(sum_kind("reducer_incident_work_item_correlation"))
-			},
-			readback: {
-				api: {status: "pass", checked: 1, failed: 0, truncated: 0},
-				mcp: {status: "pass", checked: 1, failed: 0, truncated: 0},
-				cli: {status: "pass", checked: 1, failed: 0, truncated: 0}
-			},
-			queue: {
-				pending: queue_num("pending"),
-				in_flight: queue_num("in_flight"),
-				retrying: queue_num("retrying"),
-				failed: queue_num("failed"),
-				dead_letter: queue_num("dead_letter")
-			},
-			workflow: {
-				collector_claims: {
-					git: workflow_row("git"),
-					terraform_state: workflow_row("terraform_state"),
-					aws: workflow_row("aws"),
-					oci_registry: workflow_row("oci_registry"),
-					package_registry: workflow_row("package_registry"),
-					sbom_attestation: workflow_row("sbom_attestation"),
-					security_alert: workflow_row("security_alert"),
-					vulnerability_intelligence: workflow_row("vulnerability_intelligence"),
-					scanner_worker: workflow_row("scanner_worker"),
-					confluence: workflow_row("confluence"),
-					pagerduty: workflow_row("pagerduty"),
-					jira: workflow_row("jira"),
-					grafana: workflow_row("grafana"),
-					prometheus_mimir: workflow_row("prometheus_mimir"),
-					loki: workflow_row("loki"),
-					tempo: workflow_row("tempo")
-				}
-			},
-			observability: {
-				pprof_status: "reachable",
-				logs_status: "captured",
-				resource_snapshot_status: "captured",
-				resource_snapshot_count: ([inputs] | length)
-			},
-			runtime_volume_proof: ($volume[0] // {}),
-			privacy: {status: "pass"},
-			follow_up_issues: [],
-			preserved_restart: {
-				duplicate_guard_status: "not_applicable",
-				current_totals: {
-					facts: ([$fact_rows[].count] | add // 0),
-					claims: ([$workflow_rows[].count] | add // 0),
-					findings: (sum_kind("reducer_supply_chain_impact_finding"))
-				}
-			}
-		}
-		| .status = (
-			[
-				(.collectors // {} | to_entries[] | .value.status),
-				(.reducers // {} | to_entries[] | .value.status),
-				(.corpus.coverage.ecosystems // {} | to_entries[] | .value.status),
-				(.corpus.coverage.evidence_families // {} | to_entries[] | .value.status)
-			] as $required_statuses |
-			(((.queue.retrying // 0) > 0) or ((.queue.failed // 0) > 0) or ((.queue.dead_letter // 0) > 0)) as $queue_failed |
-			if (
-				($required_statuses | all(. == "pass")) and ($queue_failed | not)
-			) then "pass"
-			elif (($required_statuses | any(. == "fail")) or $queue_failed) then "fail"
-			else "partial" end
-		)
-	' "${stats_file}" >"${output}"
-}
-
 apply_preserved_guard() {
 	[[ "${run_kind}" == "preserved" ]] || return 0
 	local previous_facts previous_claims previous_findings current_facts current_claims current_findings
@@ -447,24 +314,8 @@ apply_preserved_guard() {
 	mv "${tmp}" "${manifest}"
 }
 
-print_nonpass_reasons() {
-	jq -r '
-		(.collectors // {} | to_entries[] | select(.value.status != "pass") |
-			if (.value.reason // "") == "no source facts observed" then
-				"collector \(.key) has no source facts"
-			else
-				"collector \(.key): \(.value.reason // "missing source facts")"
-			end),
-		(.reducers // {} | to_entries[] | select(.value.status != "pass") |
-			"reducer \(.key): \(.value.reason // "missing evidence")"),
-		(.corpus.coverage.ecosystems // {} | to_entries[] | select(.value.status != "pass") |
-			"ecosystem \(.key): \(.value.reason // "missing coverage")"),
-		(.corpus.coverage.evidence_families // {} | to_entries[] | select(.value.status != "pass") |
-			"evidence family \(.key): \(.value.reason // "missing coverage")")
-	' "${manifest}" >&2
-}
-
 main() {
+	local readback_manifest_proof relationship_query
 	require_tool curl
 	require_tool docker
 	require_tool jq
@@ -476,6 +327,13 @@ main() {
 
 	validate_volume_proof
 	validate_corpus_coverage
+	if [[ -n "${readback_proof}" ]]; then
+		validate_readback_proof "${readback_proof}"
+		readback_manifest_proof="${readback_proof}"
+	else
+		readback_manifest_proof="${RUN_TMP_DIR}/readback-proof-missing.json"
+		write_missing_readback_proof "${readback_manifest_proof}"
+	fi
 	run_runtime_state_verifier
 	api_get "/index-status" "${out_dir}/index-status.json"
 	capture_pprof "${out_dir}/pprof-index.txt"
@@ -483,10 +341,38 @@ main() {
 	capture_logs "${out_dir}/compose-services.txt" "${RUN_TMP_DIR}/logs.raw" "${out_dir}/logs.sanitized"
 	query_postgres_tsv "SELECT source_system, fact_kind, COUNT(*) FROM fact_records WHERE is_tombstone = false GROUP BY source_system, fact_kind ORDER BY source_system, fact_kind" "${out_dir}/fact-counts.tsv"
 	query_postgres_tsv "SELECT collector_kind, status, COUNT(*) FROM workflow_work_items GROUP BY collector_kind, status ORDER BY collector_kind, status" "${out_dir}/workflow-counts.tsv"
+	relationship_query="$(cat <<'SQL'
+WITH terraform_source AS (
+    SELECT
+        evidence_id,
+        generation_id,
+        relationship_type,
+        COALESCE(source_entity_id, source_repo_id, '') AS source_key,
+        COALESCE(target_entity_id, target_repo_id, '') AS target_key
+    FROM relationship_evidence_facts
+    WHERE evidence_kind LIKE 'TERRAFORM_%'
+       OR evidence_kind LIKE 'TERRAGRUNT_%'
+)
+SELECT
+    'terraform_iac_relationships',
+    (SELECT COUNT(*) FROM terraform_source),
+    (
+        SELECT COUNT(DISTINCT resolved.resolved_id)
+        FROM resolved_relationships AS resolved
+        JOIN terraform_source AS source
+          ON source.generation_id = resolved.generation_id
+         AND source.relationship_type = resolved.relationship_type
+         AND source.source_key = COALESCE(resolved.source_entity_id, resolved.source_repo_id, '')
+         AND source.target_key = COALESCE(resolved.target_entity_id, resolved.target_repo_id, '')
+    );
+SQL
+)"
+	query_postgres_tsv "${relationship_query}" "${out_dir}/reducer-relationship-counts.tsv"
 	json_from_tsv "${out_dir}/fact-counts.tsv" "${out_dir}/fact-counts.json" source_system fact_kind
 	json_from_tsv "${out_dir}/workflow-counts.tsv" "${out_dir}/workflow-counts.json" collector_kind status
-	remote_compose_json_array_from_lines "${out_dir}/compose-services.txt" "${out_dir}/compose-services.json"
-	build_manifest "${out_dir}/fact-counts.json" "${out_dir}/workflow-counts.json" "${out_dir}/index-status.json" "${out_dir}/compose-services.json" "${out_dir}/docker-stats.jsonl" "${manifest}"
+	json_reducer_counts_from_tsv "${out_dir}/reducer-relationship-counts.tsv" "${out_dir}/reducer-relationship-counts.json"
+	json_array_from_lines "${out_dir}/compose-services.txt" "${out_dir}/compose-services.json"
+	build_manifest "${out_dir}/fact-counts.json" "${out_dir}/workflow-counts.json" "${out_dir}/reducer-relationship-counts.json" "${out_dir}/index-status.json" "${out_dir}/compose-services.json" "${out_dir}/docker-stats.jsonl" "${readback_manifest_proof}" "${manifest}"
 	apply_preserved_guard
 	"${MANIFEST_VALIDATOR}" "${manifest}" >/dev/null
 	if ! jq -e '.status == "pass"' "${manifest}" >/dev/null; then
