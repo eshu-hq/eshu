@@ -9,9 +9,10 @@ import (
 )
 
 // generationBuilder accumulates the envelopes for one cluster snapshot. It maps
-// listed metadata-only objects into the three Kubernetes live fact kinds, marks
-// the generation partial when any resource family list was incomplete, and
-// records owner-reference and ingress-to-service relationships.
+// listed metadata-only objects into Kubernetes live and Kubernetes
+// secrets/IAM source facts, marks the generation partial when any resource
+// family list was incomplete, and records owner-reference and ingress-to-service
+// relationships.
 type generationBuilder struct {
 	source              *Source
 	target              ClusterTarget
@@ -25,11 +26,15 @@ type generationBuilder struct {
 	uidIndex map[string]ObjectIdentity
 	// serviceIndex maps namespace/name -> service identity for ingress edges.
 	serviceIndex map[string]ObjectIdentity
+	// serviceAccountIndex maps namespace/name -> ServiceAccount metadata so
+	// workload identity-use facts can include UID posture when available.
+	serviceAccountIndex map[string]ServiceAccountObject
 }
 
 func (b *generationBuilder) run(ctx context.Context, client Client) error {
 	b.uidIndex = make(map[string]ObjectIdentity)
 	b.serviceIndex = make(map[string]ObjectIdentity)
+	b.serviceAccountIndex = make(map[string]ServiceAccountObject)
 
 	if err := b.collectNamespaces(ctx, client); err != nil {
 		return err
@@ -37,6 +42,12 @@ func (b *generationBuilder) run(ctx context.Context, client Client) error {
 	// Services first so ingress backends can resolve service identities.
 	services, err := b.collectServices(ctx, client)
 	if err != nil {
+		return err
+	}
+	if err := b.collectServiceAccounts(ctx, client); err != nil {
+		return err
+	}
+	if err := b.collectRBAC(ctx, client); err != nil {
 		return err
 	}
 	if err := b.collectWorkloads(ctx, client); err != nil {
@@ -118,6 +129,9 @@ func (b *generationBuilder) addWorkload(ctx context.Context, workload WorkloadOb
 		return err
 	}
 	b.append(ctx, envelope)
+	if err := b.addWorkloadIdentityUse(ctx, identity, workload); err != nil {
+		return err
+	}
 	return b.addOwnerEdges(ctx, identity, workload.Meta.OwnerReferences)
 }
 
@@ -207,6 +221,7 @@ func (b *generationBuilder) markPartial(ctx context.Context, resourceScope strin
 		reason = WarningPartialList
 	}
 	_ = b.emitWarning(ctx, reason, resourceScope)
+	_ = b.emitSecretsCoverageWarning(ctx, reason, resourceScope)
 }
 
 func (b *generationBuilder) emitWarning(ctx context.Context, reason, resourceScope string) error {

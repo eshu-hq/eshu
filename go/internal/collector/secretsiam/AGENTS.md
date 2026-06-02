@@ -6,7 +6,9 @@
 2. `doc.go` - package contract.
 3. `types.go` - accepted source observation shapes.
 4. `envelope.go` - stable identity and payload construction.
-5. `docs/public/guides/collector-authoring.md` - collector authoring contract.
+5. `kubernetes_types.go` - accepted Kubernetes observation shapes.
+6. `kubernetes_envelope.go` - Kubernetes stable identity and payload construction.
+7. `docs/public/guides/collector-authoring.md` - collector authoring contract.
 
 ## Invariants
 
@@ -15,6 +17,10 @@
   behavior here.
 - Keep policy evidence metadata-only: no raw policy JSON, no statement bodies,
   no condition values, no credentials, and no session tokens.
+- Keep Kubernetes evidence metadata-only: no raw Secret names, projected tokens,
+  ServiceAccount names, namespaces, RBAC subject names, RBAC resourceNames, or
+  nonResourceURLs in payloads unless a test proves the value is fingerprinted or
+  represented by a bounded count.
 - Preserve provider-native identity needed for stable joins, but keep
   user-facing posture and trust-chain conclusions in reducers.
 

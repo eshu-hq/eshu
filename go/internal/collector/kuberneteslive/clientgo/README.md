@@ -14,6 +14,9 @@ with fakes.
 - Implement `kuberneteslive.Client` by listing the core resource set with
   bounded pagination (continue tokens), mapping typed objects into the
   collector's neutral metadata views.
+- List ServiceAccounts, Roles, ClusterRoles, RoleBindings, and
+  ClusterRoleBindings as metadata-only inputs for the Kubernetes secrets/IAM
+  source lane.
 
 ## Read-only and metadata-only
 
@@ -23,6 +26,13 @@ with fakes.
   NAMES only. It records that a container references a secret-backed env var
   (`EnvFromSecret`) without ever copying the value. `env.Value`, secret/configmap
   data, and logs are never read.
+- ServiceAccount mapping copies annotation keys, automount posture, and bounded
+  secret-reference counts only. It never copies referenced Secret names or token
+  values.
+- RBAC mapping copies bounded verb, API group, resource, and subject-kind
+  metadata. Resource names and non-resource URLs are reduced to presence flags;
+  role names, binding names, and subject names cross the neutral boundary only
+  so the source package can build deterministic fingerprints and join keys.
 - A `Forbidden` list result is returned as a partial result with reason
   `forbidden_resource` rather than a hard error, so RBAC gaps on one family do
   not abort the snapshot. A mid-stream failure after some pages degrades to

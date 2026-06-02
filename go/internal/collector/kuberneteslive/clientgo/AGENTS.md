@@ -5,7 +5,9 @@
 1. `go/internal/collector/kuberneteslive/clientgo/README.md` - adapter contract
 2. `go/internal/collector/kuberneteslive/clientgo/config.go` - auth modes
 3. `go/internal/collector/kuberneteslive/clientgo/client.go` - list + mapping
-4. `go/internal/collector/kuberneteslive/client.go` - the neutral Client interface
+4. `go/internal/collector/kuberneteslive/clientgo/identity_rbac.go` -
+   ServiceAccount and RBAC list + mapping
+5. `go/internal/collector/kuberneteslive/client.go` - the neutral Client interface
 
 ## Invariants This Package Enforces
 
@@ -15,7 +17,11 @@
   delete, exec, attach, portforward, or log call.
 - METADATA-ONLY. When mapping objects, never copy `env.Value`, Secret data,
   ConfigMap data, or any value-bearing field. Map image refs, ports, env var
-  NAMES, service account, selector, and labels only.
+  NAMES, service account, selector, labels, ServiceAccount annotation keys,
+  automount posture, bounded secret-reference counts, RBAC rule summaries, and
+  RBAC subject identity fields needed for downstream fingerprinting only.
+  Never copy ServiceAccount referenced Secret names, token values, RBAC
+  `resourceNames`, or `nonResourceURLs` as cleartext payload fields.
 - A `Forbidden` list becomes a partial result with reason
   `WarningForbiddenResource`; a mid-stream failure after pages becomes
   `WarningPartialList`. Do not turn a forbidden list into an empty success.

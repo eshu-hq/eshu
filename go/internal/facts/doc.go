@@ -36,12 +36,16 @@
 // schema-version helpers live here for source facts reported by the
 // secrets_iam_posture family: IAM principals, trust policy statements,
 // permission policy statements, policy attachments, permissions boundaries,
-// instance profiles, optional Access Analyzer findings, and coverage warnings.
-// These facts preserve provider-native identity while omitting raw policy JSON,
-// condition values, credentials, and session tokens; reducers own all
-// trust-chain and graph promotion decisions. CI/CD run fact kind constants and
-// schema-version helpers live here for pipeline definition, run, job, step,
-// artifact, trigger, environment, and warning evidence reported by providers.
+// instance profiles, optional Access Analyzer findings, Kubernetes
+// ServiceAccount and RBAC metadata, workload identity usage, token posture,
+// IRSA annotation evidence, EKS Pod Identity association metadata, and coverage
+// warnings. These facts preserve provider-native identity while omitting raw
+// policy JSON, condition values, credentials, session tokens, raw Kubernetes
+// subject names, Secret names, and projected tokens; reducers own all
+// trust-chain, effective RBAC, and graph promotion decisions. CI/CD run fact
+// kind constants and schema-version helpers live here for pipeline definition,
+// run, job, step, artifact, trigger, environment, and warning evidence reported
+// by providers.
 // SBOM and attestation fact kind constants and schema-version helpers live here
 // for document, component, dependency, external reference, statement, SLSA
 // provenance, signature verification, and warning evidence. Vulnerability

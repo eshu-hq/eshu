@@ -5,17 +5,21 @@
 1. `go/internal/collector/kuberneteslive/README.md` - flow, telemetry, invariants
 2. `go/internal/collector/kuberneteslive/source.go` - snapshot orchestration
 3. `go/internal/collector/kuberneteslive/builder.go` - object-to-fact mapping
-4. `go/internal/collector/kuberneteslive/envelope.go` - fact envelope contract
-5. `go/internal/collector/service.go` - shared collector commit boundary
-6. `docs/internal/design/388-kubernetes-live-collector.md` - design and scope
-7. `go/internal/telemetry/README.md` - metric and span contract
+4. `go/internal/collector/kuberneteslive/secrets_iam_observations.go` -
+   Kubernetes secrets/IAM source-fact mapping
+5. `go/internal/collector/kuberneteslive/envelope.go` - fact envelope contract
+6. `go/internal/collector/service.go` - shared collector commit boundary
+7. `docs/internal/design/388-kubernetes-live-collector.md` - design and scope
+8. `go/internal/telemetry/README.md` - metric and span contract
 
 ## Invariants This Package Enforces
 
 - METADATA-ONLY. Never emit Secret values, ConfigMap data payloads, environment
   variable values, or container logs. Only image refs, env var NAMES, ports,
-  service account, selector, and label metadata are allowed in payloads. Add a
-  redaction test for any new field.
+  service account, selector, label metadata, ServiceAccount annotation keys,
+  bounded secret-reference counts, RBAC rule summaries, and fingerprinted RBAC
+  subject metadata are allowed in payloads. Add a redaction test for any new
+  field.
 - READ-ONLY. The `Client` interface exposes only list methods. Do not add a
   create, update, patch, delete, exec, attach, portforward, or log method.
 - Do not import client-go in this package. The Kubernetes API is the `Client`
@@ -27,7 +31,7 @@
 - A forbidden or partial list emits a warning and marks the generation partial;
   it must not abort the snapshot or assert completeness.
 - This package emits facts only. It must never write graph state or decide
-  canonical ownership or drift.
+  canonical ownership, drift, effective RBAC, IAM posture, or trust-chain truth.
 - Metric labels must not contain namespace names, object names, or image names.
 
 ## Common Changes And How To Scope Them

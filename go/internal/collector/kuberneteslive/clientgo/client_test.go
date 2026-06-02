@@ -8,6 +8,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
+	rbacv1 "k8s.io/api/rbac/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -80,6 +81,158 @@ func TestAdapterMapsDeploymentMetadataOnly(t *testing.T) {
 	// The plaintext env value must not be carried anywhere on the summary.
 	if container.Image == "plain-value-should-not-leak" {
 		t.Fatalf("image field leaked an env value")
+	}
+}
+
+func TestAdapterMapsServiceAccountsMetadataOnly(t *testing.T) {
+	t.Parallel()
+
+	automount := false
+	serviceAccount := &corev1.ServiceAccount{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace:       "payments",
+			Name:            "checkout-sa",
+			UID:             "uid-sa",
+			ResourceVersion: "rv-123",
+			Annotations: map[string]string{
+				"eks.amazonaws.com/role-arn":     "arn:aws:iam::123456789012:role/checkout",
+				"vault.hashicorp.com/token-leak": "vault-token-value-should-not-leak",
+			},
+		},
+		AutomountServiceAccountToken: &automount,
+		Secrets:                      []corev1.ObjectReference{{Name: "checkout-token-secret"}},
+		ImagePullSecrets:             []corev1.LocalObjectReference{{Name: "private-registry-secret"}},
+	}
+	adapter := NewAdapter(fake.NewClientset(serviceAccount))
+
+	result, err := adapter.ListServiceAccounts(context.Background())
+	if err != nil {
+		t.Fatalf("ListServiceAccounts() error = %v", err)
+	}
+	if len(result.Items) != 1 {
+		t.Fatalf("service account count = %d, want 1", len(result.Items))
+	}
+	got := result.Items[0]
+	if got.Meta.Resource != "serviceaccounts" || got.Meta.Namespace != "payments" || got.Meta.Name != "checkout-sa" {
+		t.Fatalf("service account metadata mismatch: %+v", got.Meta)
+	}
+	if got.AutomountToken == nil || *got.AutomountToken {
+		t.Fatalf("AutomountToken = %v, want false", got.AutomountToken)
+	}
+	if got.SecretRefCount != 1 || got.ImagePullSecretRefCount != 1 {
+		t.Fatalf("secret ref counts = %d/%d, want 1/1", got.SecretRefCount, got.ImagePullSecretRefCount)
+	}
+	if got.IRSAAnnotation != "arn:aws:iam::123456789012:role/checkout" {
+		t.Fatalf("IRSAAnnotation = %q", got.IRSAAnnotation)
+	}
+	for _, value := range got.AnnotationKeys {
+		if value == "vault-token-value-should-not-leak" ||
+			value == "checkout-token-secret" ||
+			value == "private-registry-secret" {
+			t.Fatalf("metadata-only service account mapping leaked sensitive value/name %q", value)
+		}
+	}
+}
+
+func TestAdapterMapsRBACMetadataOnly(t *testing.T) {
+	t.Parallel()
+
+	role := &rbacv1.Role{
+		ObjectMeta: metav1.ObjectMeta{Namespace: "payments", Name: "secret-reader", UID: "uid-role"},
+		Rules: []rbacv1.PolicyRule{{
+			Verbs:         []string{"get", "list"},
+			APIGroups:     []string{""},
+			Resources:     []string{"secrets"},
+			ResourceNames: []string{"checkout-token-secret"},
+		}},
+	}
+	clusterRole := &rbacv1.ClusterRole{
+		ObjectMeta: metav1.ObjectMeta{Name: "cluster-reader", UID: "uid-cr"},
+		Rules:      []rbacv1.PolicyRule{{Verbs: []string{"get"}, Resources: []string{"pods"}}},
+	}
+	roleBinding := &rbacv1.RoleBinding{
+		ObjectMeta: metav1.ObjectMeta{Namespace: "payments", Name: "read-secrets", UID: "uid-rb"},
+		RoleRef:    rbacv1.RoleRef{Kind: "Role", Name: "secret-reader"},
+		Subjects:   []rbacv1.Subject{{Kind: "ServiceAccount", Namespace: "payments", Name: "checkout-sa"}},
+	}
+	clusterRoleBinding := &rbacv1.ClusterRoleBinding{
+		ObjectMeta: metav1.ObjectMeta{Name: "cluster-reader-binding", UID: "uid-crb"},
+		RoleRef:    rbacv1.RoleRef{Kind: "ClusterRole", Name: "cluster-reader"},
+		Subjects:   []rbacv1.Subject{{Kind: "Group", Name: "platform-admins"}},
+	}
+	adapter := NewAdapter(fake.NewClientset(role, clusterRole, roleBinding, clusterRoleBinding))
+
+	roles, err := adapter.ListRoles(context.Background())
+	if err != nil {
+		t.Fatalf("ListRoles() error = %v", err)
+	}
+	if len(roles.Items) != 1 || roles.Items[0].Kind != kuberneteslive.RBACRoleKindRole {
+		t.Fatalf("roles = %+v, want one Role", roles.Items)
+	}
+	if !roles.Items[0].Rules[0].ResourceNamesPresent || roles.Items[0].Rules[0].ResourceNameCount != 1 {
+		t.Fatalf("resource-name summary = %+v, want presence/count only", roles.Items[0].Rules[0])
+	}
+
+	clusterRoles, err := adapter.ListClusterRoles(context.Background())
+	if err != nil {
+		t.Fatalf("ListClusterRoles() error = %v", err)
+	}
+	if len(clusterRoles.Items) != 1 || clusterRoles.Items[0].Kind != kuberneteslive.RBACRoleKindClusterRole {
+		t.Fatalf("clusterRoles = %+v, want one ClusterRole", clusterRoles.Items)
+	}
+
+	bindings, err := adapter.ListRoleBindings(context.Background())
+	if err != nil {
+		t.Fatalf("ListRoleBindings() error = %v", err)
+	}
+	if len(bindings.Items) != 1 || bindings.Items[0].Kind != kuberneteslive.BindingKindRoleBinding {
+		t.Fatalf("bindings = %+v, want one RoleBinding", bindings.Items)
+	}
+	if bindings.Items[0].Subjects[0].Name != "checkout-sa" {
+		t.Fatalf("subject mapping lost service account join identity: %+v", bindings.Items[0].Subjects[0])
+	}
+
+	clusterBindings, err := adapter.ListClusterRoleBindings(context.Background())
+	if err != nil {
+		t.Fatalf("ListClusterRoleBindings() error = %v", err)
+	}
+	if len(clusterBindings.Items) != 1 || clusterBindings.Items[0].Kind != kuberneteslive.BindingKindClusterRoleBinding {
+		t.Fatalf("clusterBindings = %+v, want one ClusterRoleBinding", clusterBindings.Items)
+	}
+}
+
+func TestAdapterMapsProjectedServiceAccountTokenPosture(t *testing.T) {
+	t.Parallel()
+
+	deployment := &appsv1.Deployment{
+		ObjectMeta: metav1.ObjectMeta{Namespace: "payments", Name: "checkout", UID: "uid-d"},
+		Spec: appsv1.DeploymentSpec{
+			Selector: &metav1.LabelSelector{MatchLabels: map[string]string{"app": "checkout"}},
+			Template: corev1.PodTemplateSpec{
+				Spec: corev1.PodSpec{
+					ServiceAccountName: "checkout-sa",
+					Volumes: []corev1.Volume{{
+						Name: "token",
+						VolumeSource: corev1.VolumeSource{
+							Projected: &corev1.ProjectedVolumeSource{Sources: []corev1.VolumeProjection{{
+								ServiceAccountToken: &corev1.ServiceAccountTokenProjection{Audience: "api"},
+							}}},
+						},
+					}},
+				},
+			},
+		},
+	}
+	adapter := NewAdapter(fake.NewClientset(deployment))
+	result, err := adapter.ListDeployments(context.Background())
+	if err != nil {
+		t.Fatalf("ListDeployments() error = %v", err)
+	}
+	if len(result.Items) != 1 {
+		t.Fatalf("deployment count = %d, want 1", len(result.Items))
+	}
+	if !result.Items[0].ProjectedServiceAccountToken {
+		t.Fatalf("ProjectedServiceAccountToken = false, want true")
 	}
 }
 

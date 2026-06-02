@@ -13,13 +13,18 @@ import (
 // fakeClient is a read-only in-memory Kubernetes client for tests. Each field
 // is the list result for one resource family; a nil Err returns the items.
 type fakeClient struct {
-	pingErr     error
-	namespaces  ListResult[ObjectMeta]
-	pods        ListResult[WorkloadObject]
-	deployments ListResult[WorkloadObject]
-	replicasets ListResult[WorkloadObject]
-	services    ListResult[ServiceObject]
-	ingresses   ListResult[IngressObject]
+	pingErr             error
+	namespaces          ListResult[ObjectMeta]
+	pods                ListResult[WorkloadObject]
+	deployments         ListResult[WorkloadObject]
+	replicasets         ListResult[WorkloadObject]
+	services            ListResult[ServiceObject]
+	ingresses           ListResult[IngressObject]
+	serviceAccounts     ListResult[ServiceAccountObject]
+	roles               ListResult[RBACRoleObject]
+	clusterRoles        ListResult[RBACRoleObject]
+	roleBindings        ListResult[RBACBindingObject]
+	clusterRoleBindings ListResult[RBACBindingObject]
 }
 
 func (f *fakeClient) PingReadOnly(context.Context) error { return f.pingErr }
@@ -40,6 +45,21 @@ func (f *fakeClient) ListServices(context.Context) (ListResult[ServiceObject], e
 }
 func (f *fakeClient) ListIngresses(context.Context) (ListResult[IngressObject], error) {
 	return f.ingresses, nil
+}
+func (f *fakeClient) ListServiceAccounts(context.Context) (ListResult[ServiceAccountObject], error) {
+	return f.serviceAccounts, nil
+}
+func (f *fakeClient) ListRoles(context.Context) (ListResult[RBACRoleObject], error) {
+	return f.roles, nil
+}
+func (f *fakeClient) ListClusterRoles(context.Context) (ListResult[RBACRoleObject], error) {
+	return f.clusterRoles, nil
+}
+func (f *fakeClient) ListRoleBindings(context.Context) (ListResult[RBACBindingObject], error) {
+	return f.roleBindings, nil
+}
+func (f *fakeClient) ListClusterRoleBindings(context.Context) (ListResult[RBACBindingObject], error) {
+	return f.clusterRoleBindings, nil
 }
 
 func factoryFor(client Client) ClientFactory {
@@ -70,6 +90,16 @@ func countKind(envs []facts.Envelope, kind string) int {
 		}
 	}
 	return n
+}
+
+func envelopesOfKind(envs []facts.Envelope, kind string) []facts.Envelope {
+	var out []facts.Envelope
+	for _, env := range envs {
+		if env.FactKind == kind {
+			out = append(out, env)
+		}
+	}
+	return out
 }
 
 func newSource(client Client) *Source {
