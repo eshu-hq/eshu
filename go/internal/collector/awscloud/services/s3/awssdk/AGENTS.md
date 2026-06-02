@@ -27,11 +27,12 @@
   configuration, inventory configuration, analytics configuration, or metrics
   configuration.
 - The bucket policy document may be read transiently (`GetBucketPolicy`) only to
-  derive the posture booleans in `policy.go` (public grant, cross-account
-  principal). The raw policy JSON, its statements, and its principals must never
-  leave that derivation function or reach the scanner-owned `Bucket` model or a
-  fact payload. Replication is read only as a presence boolean
-  (`GetBucketReplication`), never rule detail.
+  derive posture booleans and bounded external-principal metadata in
+  `policy.go` (public grant, cross-account principal, AWS service principal, or
+  unsupported-principal type). The raw policy JSON, statement body, actions,
+  resources, conditions, ACL grants, and unsupported raw identifiers must never
+  leave that derivation path or reach a fact payload. Replication is read only
+  as a presence boolean (`GetBucketReplication`), never rule detail.
 - Do not call object APIs or mutation APIs.
 - Do not cache AWS credentials or SDK clients beyond the claim-scoped runtime
   object that created this adapter.
@@ -49,8 +50,9 @@
 
 - Do not read objects, object versions, ACL grants, lifecycle rules,
   replication rule detail, notification configuration, or inventory data. The
-  bucket policy document is read transiently for derived posture booleans only
-  (see `policy.go`); do not persist or surface the raw policy.
+  bucket policy document is read transiently for derived posture and
+  external-principal metadata only (see `policy.go`); do not persist or surface
+  the raw policy.
 - Do not infer workload, environment, deployment, or ownership truth from bucket
   names, tags, website configuration, or logging targets.
 - Do not write facts, graph rows, workflow rows, or reducer-owned state here.

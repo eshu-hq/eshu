@@ -63,14 +63,19 @@ payloads stay out of metric labels.
   configuration, public access block, ownership controls, and bucket policy
   status are mapped to empty metadata.
 - GetBucketPolicyStatus is allowed because it returns only public/not-public
-  status; GetBucketPolicy is not allowed because it returns policy JSON.
+  status. GetBucketPolicy is allowed only as a transient input to derive
+  posture booleans and bounded external-principal metadata; the raw policy JSON
+  and statement body must not leave `policy.go`.
 - GetBucketWebsite is reduced to booleans, redirect host, and routing-rule
   count. The adapter discards index and error document object keys.
 - GetBucketLogging records target bucket and prefix only. Target grants and
   object-key format are discarded.
+- GetBucketReplication is allowed only to report whether a replication
+  configuration with at least one rule exists. Destination buckets, filters,
+  and replica KMS keys are discarded.
 - The adapter must not call GetObject, ListObjects, ListObjectsV2,
-  ListObjectVersions, GetBucketPolicy, GetBucketAcl, GetBucketReplication,
-  GetBucketLifecycleConfiguration, GetBucketNotificationConfiguration,
+  ListObjectVersions, GetBucketAcl, GetBucketLifecycleConfiguration,
+  GetBucketNotificationConfiguration,
   GetBucketInventoryConfiguration, GetBucketAnalyticsConfiguration,
   GetBucketMetricsConfiguration, or mutation APIs.
 

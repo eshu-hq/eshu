@@ -81,13 +81,17 @@ func (c *Client) getBucketReplication(ctx context.Context, name string) (s3servi
 	}, nil
 }
 
-// getBucketPolicyFlags reads the bucket policy document, derives the posture
-// booleans (public grant, cross-account principal) from it, and discards the
-// raw document. The raw policy JSON never leaves this method: only the derived
-// booleans and the present flag are returned. A missing policy is reported as
-// present=false with nil booleans. A malformed policy is surfaced to the caller
-// rather than silently emitting a wrong posture.
-func (c *Client) getBucketPolicyFlags(ctx context.Context, name string) (present bool, public *bool, crossAccount *bool, err error) {
+// getBucketPolicyMetadata reads the bucket policy document, derives posture
+// booleans plus bounded external-principal metadata from it, and discards the
+// raw document. The raw policy JSON never leaves this method: only derived
+// booleans, the present flag, and metadata-only principal observations are
+// returned. A missing policy is reported as present=false with nil booleans and
+// no grants. A malformed policy is surfaced to the caller rather than silently
+// emitting a wrong posture.
+func (c *Client) getBucketPolicyMetadata(
+	ctx context.Context,
+	name string,
+) (present bool, public *bool, crossAccount *bool, grants []s3service.ExternalPrincipalGrant, err error) {
 	var output *awss3.GetBucketPolicyOutput
 	callErr := c.recordAPICall(ctx, "GetBucketPolicy", func(callCtx context.Context) error {
 		var getErr error
@@ -102,16 +106,43 @@ func (c *Client) getBucketPolicyFlags(ctx context.Context, name string) (present
 		return getErr
 	})
 	if callErr != nil {
-		return false, nil, nil, callErr
+		return false, nil, nil, nil, callErr
 	}
 	if output == nil || aws.ToString(output.Policy) == "" {
-		return false, nil, nil, nil
+		return false, nil, nil, nil, nil
 	}
-	public, crossAccount, deriveErr := deriveBucketPolicyFlags(aws.ToString(output.Policy), c.boundary.AccountID)
-	if deriveErr != nil {
-		return false, nil, nil, deriveErr
+	document := aws.ToString(output.Policy)
+	policyDocument, err := decodeBucketPolicyDocument(document)
+	if err != nil {
+		return false, nil, nil, nil, err
 	}
-	return true, public, crossAccount, nil
+	public, crossAccount = bucketPolicyFlagsFromDocument(policyDocument, c.boundary.AccountID)
+	derivedGrants := bucketPolicyExternalPrincipalGrantsFromDocument(policyDocument, c.boundary.AccountID)
+	return true, public, crossAccount, externalPrincipalGrants(derivedGrants), nil
+}
+
+func externalPrincipalGrants(grants []principalGrant) []s3service.ExternalPrincipalGrant {
+	if len(grants) == 0 {
+		return nil
+	}
+	output := make([]s3service.ExternalPrincipalGrant, 0, len(grants))
+	for _, grant := range grants {
+		output = append(output, s3service.ExternalPrincipalGrant{
+			PrincipalKind:      grant.Kind,
+			PrincipalValue:     grant.Value,
+			PrincipalAccountID: grant.AccountID,
+			PrincipalPartition: grant.Partition,
+			PrincipalService:   grant.Service,
+			GrantOutcome:       grant.Outcome,
+			Public:             grant.Public,
+			CrossAccount:       grant.CrossAccount,
+			ServicePrincipal:   grant.ServicePrincipal,
+			Unsupported:        grant.Unsupported,
+			UnsupportedKey:     grant.UnsupportedKey,
+			SourceStatementID:  grant.StatementSID,
+		})
+	}
+	return output
 }
 
 func redirectHost(redirect *awss3types.RedirectAllRequestsTo) string {

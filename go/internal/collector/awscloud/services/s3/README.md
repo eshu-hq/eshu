@@ -5,8 +5,9 @@
 `internal/collector/awscloud/services/s3` owns the Amazon S3 scanner contract
 for the AWS cloud collector. It converts bucket control-plane metadata into
 `aws_resource` facts, emits a derived metadata-only `s3_bucket_posture` fact per
-bucket, and emits relationship evidence when S3 reports a bucket
-server-access-log target bucket.
+bucket, emits bounded `s3_external_principal_grant` facts for external
+bucket-policy principals, and emits relationship evidence when S3 reports a
+bucket server-access-log target bucket.
 
 ## Ownership boundary
 
@@ -20,9 +21,11 @@ flowchart LR
   B --> C["Scanner.Scan"]
   C --> D["aws_resource"]
   C --> G["s3_bucket_posture"]
+  C --> H["s3_external_principal_grant"]
   C --> E["aws_relationship"]
   D --> F["facts.Envelope"]
   G --> F
+  H --> F
   E --> F
 ```
 
@@ -31,10 +34,15 @@ flowchart LR
 See `doc.go` for the godoc contract.
 
 - `Client` - minimal S3 bucket metadata read surface consumed by `Scanner`.
-- `Scanner` - emits bucket resources, the derived `s3_bucket_posture` fact, and
-  logging-target relationship facts for one boundary.
+- `Scanner` - emits bucket resources, derived `s3_bucket_posture` facts,
+  bounded `s3_external_principal_grant` facts, and logging-target relationship
+  facts for one boundary.
 - `Bucket` - scanner-owned bucket representation with safe metadata only,
-  including replication presence and policy-derived booleans (no raw policy).
+  including replication presence, policy-derived booleans, and bounded
+  external-principal grant metadata (no raw policy).
+- `ExternalPrincipalGrant` - scanner-owned metadata-only bucket-policy
+  principal observation for public, cross-account, AWS service, and unsupported
+  principal types.
 - `Versioning`, `Encryption`, `PublicAccessBlock`, `Website`, `Logging`, and
   `Replication` - scanner-owned control-plane metadata groups.
 
@@ -62,12 +70,14 @@ spans.
   notification configuration, inventory configuration, analytics configuration,
   and metrics configuration are not persisted.
 - The `s3_bucket_posture` fact carries only derived booleans and safe
-  identifiers/ARNs. The SDK adapter reads the bucket policy document
-  transiently (`GetBucketPolicy`) to derive the public-grant and
-  cross-account-principal booleans, then discards the raw document; the policy
-  JSON never reaches the scanner-owned `Bucket` model or any fact payload.
-  Replication is reduced to a presence boolean (`GetBucketReplication`), not
-  rule detail.
+  identifiers/ARNs. `s3_external_principal_grant` carries only bounded
+  principal kind, value, account, partition, service, outcome, and statement SID
+  metadata. The SDK adapter reads the bucket policy document transiently
+  (`GetBucketPolicy`) to derive the public-grant and cross-account-principal
+  booleans plus external-principal metadata, then discards the raw document; the
+  policy JSON and statement body never reach the scanner-owned `Bucket` model
+  or any fact payload. Replication is reduced to a presence boolean
+  (`GetBucketReplication`), not rule detail.
 - Website configuration is reduced to status flags, redirect host, and routing
   rule count. Index and error document object keys are not persisted.
 - Logging target grants and object-key format are not persisted. The scanner
@@ -173,6 +183,23 @@ No-Observability-Change: the new fact flows through the existing AWS collector
 `GetBucketPolicy` operations); no new instrument, metric label, or
 `aws_scan_status` row is introduced, and no posture booleans, ARNs, or bucket
 names enter metric labels.
+
+### S3 external-principal grant fact (#1241, PR1 facts-only)
+
+No-Regression Evidence: `go test ./internal/facts ./internal/collector/awscloud ./internal/collector/awscloud/services/s3/... -run 'S3ExternalPrincipal|ExternalPrincipal|DeriveBucketPolicyExternalPrincipal|DeriveBucketPolicyFlags|ScannerEmitsExternalPrincipal' -count=1`
+covers the new `s3_external_principal_grant` fact registry, envelope builder
+redaction guard, scanner emission, SDK adapter mapping, and transient
+bucket-policy derivation for public wildcard, cross-account account ID,
+cross-account ARN, AWS service principal, unsupported principal type,
+URL-encoded documents, Deny statements, same-account principals, and malformed
+documents. This is a facts-only slice: no graph writes, reducer projection, or
+query behavior changes.
+
+No-Observability-Change: external-principal grant facts reuse the existing S3
+scanner and AWS collector telemetry. `GetBucketPolicy` is still one bounded
+control-plane read per bucket, now deriving both posture booleans and grant
+metadata from the same transient parse. No new metric, span, status row, metric
+label, bucket name label, principal label, or raw policy label is introduced.
 
 ## Related docs
 

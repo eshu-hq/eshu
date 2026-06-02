@@ -63,6 +63,7 @@ current families are:
 | Documentation | `documentation` | `documentation_source`, `documentation_document`, `documentation_section`, `documentation_link`, `documentation_entity_mention`, `documentation_claim_candidate`, `documentation_finding`, `documentation_evidence_packet` |
 | Terraform state | `terraform_state` for collected state, `git` for safe repo-local candidates | `terraform_state_candidate`, `terraform_state_snapshot`, `terraform_state_resource`, `terraform_state_output`, `terraform_state_module`, `terraform_state_provider_binding`, `terraform_state_tag_observation`, `terraform_state_warning` |
 | AWS cloud | `aws` | `aws_resource`, `aws_relationship`, `aws_tag_observation`, `aws_dns_record`, `aws_image_reference`, `aws_security_group_rule`, `aws_iam_permission`, `aws_warning` |
+| S3 bucket posture | `aws` | `s3_bucket_posture`, `s3_external_principal_grant` |
 | RDS posture | `aws` | `rds_instance_posture` |
 | EC2 posture | `aws` | `ec2_instance_posture` |
 | OCI registry | `oci_registry` | `oci_registry.repository`, `oci_registry.image_tag_observation`, `oci_registry.image_manifest`, `oci_registry.image_index`, `oci_registry.image_descriptor`, `oci_registry.image_referrer`, `oci_registry.warning` |
@@ -80,6 +81,13 @@ Most current core families use schema version `1.0.0`.
 `documentation_section` uses `1.1.0` because section payloads can carry
 source-native content for updater diff generation. Check the fact-family helper
 before emitting rows.
+
+S3 bucket posture facts are metadata-only AWS collector evidence.
+`s3_external_principal_grant` carries public, cross-account, AWS service, and
+unsupported-principal metadata derived from a transient bucket-policy parse. It
+never carries raw policy JSON, statement bodies, actions, resources,
+conditions, ACL grants, object keys, or object data; reducers own any later
+graph projection.
 
 Incident-routing facts preserve routing evidence before reducer-owned
 comparison. Terraform-state applied evidence is emitted as

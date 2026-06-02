@@ -36,8 +36,10 @@ type apiClient interface {
 }
 
 // Client adapts AWS SDK S3 bucket-control-plane calls into scanner-owned
-// metadata. It never calls object inventory, bucket policy, ACL, notification,
-// replication, lifecycle, inventory, analytics, metrics, or mutation APIs.
+// metadata. It never calls object inventory, ACL, notification, lifecycle,
+// inventory, analytics, metrics, or mutation APIs. Bucket policy and
+// replication configuration reads are reduced inside this adapter to derived
+// policy metadata and replication presence only.
 type Client struct {
 	client      apiClient
 	boundary    awscloud.Boundary
@@ -155,7 +157,7 @@ func (c *Client) bucketMetadata(ctx context.Context, listed awss3types.Bucket) (
 	if err != nil {
 		return s3service.Bucket{}, err
 	}
-	policyPresent, policyGrantsPublic, policyGrantsCrossAccount, err := c.getBucketPolicyFlags(ctx, name)
+	policyPresent, policyGrantsPublic, policyGrantsCrossAccount, externalPrincipalGrants, err := c.getBucketPolicyMetadata(ctx, name)
 	if err != nil {
 		return s3service.Bucket{}, err
 	}
@@ -176,6 +178,7 @@ func (c *Client) bucketMetadata(ctx context.Context, listed awss3types.Bucket) (
 		PolicyPresent:            policyPresent,
 		PolicyGrantsPublic:       policyGrantsPublic,
 		PolicyGrantsCrossAccount: policyGrantsCrossAccount,
+		ExternalPrincipalGrants:  externalPrincipalGrants,
 	}, nil
 }
 

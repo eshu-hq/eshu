@@ -47,6 +47,13 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 			return nil, err
 		}
 		envelopes = append(envelopes, posture)
+		for _, observation := range externalPrincipalGrantObservations(boundary, bucket) {
+			grant, err := awscloud.NewS3ExternalPrincipalGrantEnvelope(observation)
+			if err != nil {
+				return nil, err
+			}
+			envelopes = append(envelopes, grant)
+		}
 		logging, ok := loggingRelationship(boundary, bucket)
 		if !ok {
 			continue
@@ -150,6 +157,39 @@ func bucketPostureObservation(boundary awscloud.Boundary, bucket Bucket) awsclou
 	}
 }
 
+func externalPrincipalGrantObservations(
+	boundary awscloud.Boundary,
+	bucket Bucket,
+) []awscloud.S3ExternalPrincipalGrantObservation {
+	if len(bucket.ExternalPrincipalGrants) == 0 {
+		return nil
+	}
+	name := strings.TrimSpace(bucket.Name)
+	arn := firstNonEmpty(bucket.ARN, arnForBucket(awscloud.PartitionForBoundary(boundary), name))
+	observations := make([]awscloud.S3ExternalPrincipalGrantObservation, 0, len(bucket.ExternalPrincipalGrants))
+	for _, grant := range bucket.ExternalPrincipalGrants {
+		observations = append(observations, awscloud.S3ExternalPrincipalGrantObservation{
+			Boundary:           boundary,
+			BucketARN:          arn,
+			BucketName:         name,
+			PrincipalKind:      grant.PrincipalKind,
+			PrincipalValue:     grant.PrincipalValue,
+			PrincipalAccountID: grant.PrincipalAccountID,
+			PrincipalPartition: grant.PrincipalPartition,
+			PrincipalService:   grant.PrincipalService,
+			GrantOutcome:       grant.GrantOutcome,
+			Public:             grant.Public,
+			CrossAccount:       grant.CrossAccount,
+			ServicePrincipal:   grant.ServicePrincipal,
+			Unsupported:        grant.Unsupported,
+			UnsupportedKey:     grant.UnsupportedKey,
+			SourceStatementID:  grant.SourceStatementID,
+			SourceURI:          s3BucketURI(name),
+		})
+	}
+	return observations
+}
+
 // blockPublicAccessAll reports whether all four block-public-access flags are
 // explicitly enabled. It returns nil when any flag is absent so an
 // unconfigured bucket stays distinct from one with all four disabled.
@@ -238,6 +278,14 @@ func arnForBucket(partition, name string) string {
 		return name
 	}
 	return "arn:" + partition + ":s3:::" + name
+}
+
+func s3BucketURI(bucketName string) string {
+	bucketName = strings.TrimSpace(bucketName)
+	if bucketName == "" {
+		return ""
+	}
+	return "s3://" + bucketName
 }
 
 func timeOrNil(value time.Time) any {
