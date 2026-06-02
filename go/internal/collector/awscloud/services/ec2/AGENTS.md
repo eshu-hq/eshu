@@ -6,8 +6,9 @@
 2. `types.go` - scanner-owned EC2 records and client contract.
 3. `scanner.go` - fact selection and resource envelope mapping.
 4. `posture.go` - EC2 instance posture observation derivation.
-5. `relationships.go` - EC2 topology relationship construction.
-6. `awssdk/README.md` - AWS SDK pagination and response mapping.
+5. `volume.go` - EBS volume metadata and KMS relationship fact construction.
+6. `relationships.go` - EC2 topology relationship construction.
+7. `awssdk/README.md` - AWS SDK pagination and response mapping.
 
 ## Invariants
 
@@ -16,6 +17,9 @@
 - Do not emit an `aws_ec2_instance` resource (inventory) fact. The scanner emits
   one metadata-only `ec2_instance_posture` fact per instance; ENI attachment
   target evidence is metadata only.
+- EBS volume facts come only from a boundary-scoped `DescribeVolumes` pass. Do
+  not use per-instance `DescribeVolumes` calls to fill block-device posture
+  inline, and do not let volume facts become reducer posture decisions.
 - The `ec2_instance_posture` fact carries user-data PRESENCE only. Never read or
   persist user-data content, console output, environment variables, or any other
   instance payload, and never add a per-instance API fan-out (`UserDataPresent`
@@ -38,6 +42,8 @@
   together.
 - Add a focused scanner test before changing emitted resource or relationship
   shapes.
+- Add EBS volume metadata fields in `types.go`, `volume.go`, and
+  `awssdk/mapper.go` together.
 - Keep instance inventory, live reachability, exposure analysis, the
   USES_PROFILE/KMS joins, and per-volume encryption resolution in later
   reducer/query slices, not this scanner package.

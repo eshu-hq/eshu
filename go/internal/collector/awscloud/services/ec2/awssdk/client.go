@@ -24,6 +24,7 @@ type apiClient interface {
 	awsec2.DescribeSecurityGroupRulesAPIClient
 	awsec2.DescribeSecurityGroupsAPIClient
 	awsec2.DescribeSubnetsAPIClient
+	awsec2.DescribeVolumesAPIClient
 	awsec2.DescribeVpcsAPIClient
 }
 
@@ -198,6 +199,31 @@ func (c *Client) ListInstances(ctx context.Context) ([]ec2service.Instance, erro
 		}
 	}
 	return instances, nil
+}
+
+// ListVolumes returns EBS volume metadata from one boundary-scoped
+// DescribeVolumes pass. It does not fill instance posture inline, so EC2
+// instance block-device facts remain sourced only by DescribeInstances.
+func (c *Client) ListVolumes(ctx context.Context) ([]ec2service.Volume, error) {
+	paginator := awsec2.NewDescribeVolumesPaginator(c.client, &awsec2.DescribeVolumesInput{
+		MaxResults: aws.Int32(ec2PageLimit),
+	})
+	var volumes []ec2service.Volume
+	for paginator.HasMorePages() {
+		var page *awsec2.DescribeVolumesOutput
+		err := c.recordAPICall(ctx, "DescribeVolumes", func(callCtx context.Context) error {
+			var err error
+			page, err = paginator.NextPage(callCtx)
+			return err
+		})
+		if err != nil {
+			return nil, err
+		}
+		for _, volume := range page.Volumes {
+			volumes = append(volumes, mapVolume(c.boundary.Region, c.boundary.AccountID, volume))
+		}
+	}
+	return volumes, nil
 }
 
 func networkInterfacesInput() *awsec2.DescribeNetworkInterfacesInput {

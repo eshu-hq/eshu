@@ -190,6 +190,9 @@ request.
   raw AWS error text to `APICallEvent`.
 - EC2 instance inventory stays out of EC2 network-topology facts. ENI
   attachment target ARNs are reported metadata, not instance resource facts.
+- EC2 EBS volume facts are metadata only. The EC2 scanner may report
+  `aws_ec2_volume` resources and volume-to-KMS relationship evidence from
+  `DescribeVolumes`, but reducers own block-device/KMS posture decisions.
 - Lambda function environment values must be redacted before persistence with
   `RedactString`; the payload keeps the redaction marker, reason, source, and
   `RedactionPolicyVersion`.

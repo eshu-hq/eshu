@@ -195,6 +195,75 @@ func TestMapInstanceDerivesPartitionForGovCloud(t *testing.T) {
 	}
 }
 
+func TestMapVolumePreservesEncryptionKMSAndAttachments(t *testing.T) {
+	createTime := time.Date(2026, 5, 13, 11, 0, 0, 0, time.UTC)
+	attachTime := time.Date(2026, 5, 13, 12, 0, 0, 0, time.UTC)
+	volume := mapVolume("us-east-1", "123456789012", awsec2types.Volume{
+		AvailabilityZone:         aws.String("us-east-1a"),
+		AvailabilityZoneId:       aws.String("use1-az1"),
+		CreateTime:               aws.Time(createTime),
+		Encrypted:                aws.Bool(true),
+		FastRestored:             aws.Bool(false),
+		Iops:                     aws.Int32(3000),
+		KmsKeyId:                 aws.String("arn:aws:kms:us-east-1:123456789012:key/abcd"),
+		MultiAttachEnabled:       aws.Bool(true),
+		Size:                     aws.Int32(100),
+		SnapshotId:               aws.String("snap-123"),
+		Throughput:               aws.Int32(125),
+		VolumeId:                 aws.String("vol-0abc"),
+		VolumeType:               awsec2types.VolumeTypeGp3,
+		State:                    awsec2types.VolumeStateInUse,
+		VolumeInitializationRate: aws.Int32(250),
+		Attachments: []awsec2types.VolumeAttachment{{
+			AttachTime:          aws.Time(attachTime),
+			DeleteOnTermination: aws.Bool(true),
+			Device:              aws.String("/dev/xvda"),
+			EbsCardIndex:        aws.Int32(1),
+			InstanceId:          aws.String("i-1234567890abcdef0"),
+			State:               awsec2types.VolumeAttachmentStateAttached,
+			VolumeId:            aws.String("vol-0abc"),
+		}},
+		Tags: []awsec2types.Tag{{Key: aws.String("env"), Value: aws.String("prod")}},
+	})
+
+	if volume.ID != "vol-0abc" {
+		t.Fatalf("ID = %q, want vol-0abc", volume.ID)
+	}
+	if volume.ARN != "arn:aws:ec2:us-east-1:123456789012:volume/vol-0abc" {
+		t.Fatalf("ARN = %q", volume.ARN)
+	}
+	if volume.Encrypted == nil || !*volume.Encrypted {
+		t.Fatalf("Encrypted = %#v, want true", volume.Encrypted)
+	}
+	if volume.KMSKeyID != "arn:aws:kms:us-east-1:123456789012:key/abcd" {
+		t.Fatalf("KMSKeyID = %q", volume.KMSKeyID)
+	}
+	if volume.MultiAttachEnabled == nil || !*volume.MultiAttachEnabled {
+		t.Fatalf("MultiAttachEnabled = %#v, want true", volume.MultiAttachEnabled)
+	}
+	if volume.VolumeInitializationRate == nil || *volume.VolumeInitializationRate != 250 {
+		t.Fatalf("VolumeInitializationRate = %#v, want 250", volume.VolumeInitializationRate)
+	}
+	if len(volume.Attachments) != 1 || volume.Attachments[0].InstanceID != "i-1234567890abcdef0" {
+		t.Fatalf("Attachments = %#v", volume.Attachments)
+	}
+	if volume.Attachments[0].EBSCardIndex == nil || *volume.Attachments[0].EBSCardIndex != 1 {
+		t.Fatalf("EBSCardIndex = %#v, want 1", volume.Attachments[0].EBSCardIndex)
+	}
+	if volume.Tags["env"] != "prod" {
+		t.Fatalf("tag env = %q, want prod", volume.Tags["env"])
+	}
+}
+
+func TestMapVolumeDerivesPartitionForGovCloud(t *testing.T) {
+	volume := mapVolume("us-gov-west-1", "123456789012", awsec2types.Volume{
+		VolumeId: aws.String("vol-0abc"),
+	})
+	if volume.ARN != "arn:aws-us-gov:ec2:us-gov-west-1:123456789012:volume/vol-0abc" {
+		t.Fatalf("ARN = %q, want gov partition", volume.ARN)
+	}
+}
+
 func TestNetworkInterfaceInputIncludesManagedResourcesAndPagination(t *testing.T) {
 	input := networkInterfacesInput()
 

@@ -19,4 +19,10 @@
 // console output, or any other instance payload, adds no per-instance API
 // fan-out, emits no graph edges, and emits no aws_resource inventory fact for
 // the instance; reducers own the profile, KMS, and internet-exposure joins.
+//
+// The scanner also emits metadata-only aws_ec2_volume resource facts and
+// reported volume-to-KMS relationship facts from one boundary-scoped
+// DescribeVolumes pass. Those facts are source evidence only; reducers join
+// instance block-device volume IDs to this evidence before deriving EC2
+// block-device/KMS posture.
 package ec2

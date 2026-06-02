@@ -21,12 +21,14 @@ flowchart LR
   B --> F["DescribeSecurityGroupRules"]
   B --> G["DescribeNetworkInterfaces"]
   B --> M["DescribeInstances"]
+  B --> O["DescribeVolumes"]
   C --> H["ec2.VPC"]
   D --> I["ec2.Subnet"]
   E --> J["ec2.SecurityGroup"]
   F --> K["ec2.SecurityGroupRule"]
   G --> L["ec2.NetworkInterface"]
   M --> N["ec2.Instance"]
+  O --> P["ec2.Volume"]
 ```
 
 ## Exported surface
@@ -60,7 +62,7 @@ labels.
 
 - Use only read APIs: `DescribeVpcs`, `DescribeSubnets`,
   `DescribeSecurityGroups`, `DescribeSecurityGroupRules`,
-  `DescribeNetworkInterfaces`, and `DescribeInstances`.
+  `DescribeNetworkInterfaces`, `DescribeInstances`, and `DescribeVolumes`.
 - Every listed API uses SDK pagination with `MaxResults=1000`.
 - `DescribeNetworkInterfaces` sets `IncludeManagedResources=true` so
   AWS-managed ENIs can support Lambda/ECS/EKS network joins when the account
@@ -70,10 +72,13 @@ labels.
   inventory facts are emitted.
 - `DescribeInstances` sources the `ec2_instance_posture` fact. The mapper reads
   only metadata-only posture fields and never fetches user-data content
-  (`DescribeInstanceAttribute`), console output, or per-volume encryption
-  (`DescribeVolumes`), so the posture pass adds no per-instance API fan-out.
-  `mapInstance` leaves `UserDataPresent` and each block device's `Encrypted`
-  nil because `DescribeInstances` does not report them.
+  (`DescribeInstanceAttribute`), console output, or per-instance volume
+  lookups, so the posture pass adds no per-instance API fan-out. `mapInstance`
+  leaves `UserDataPresent` and each block device's `Encrypted` nil because
+  `DescribeInstances` does not report them.
+- `DescribeVolumes` is a separate boundary-scoped pass that sources
+  `aws_ec2_volume` facts and reported volume-to-KMS relationship evidence. It
+  never reads volume contents, snapshot payloads, or user-data.
 
 ## Related docs
 

@@ -2,14 +2,14 @@
 
 ## Purpose
 
-`internal/collector/awscloud/services/ec2` owns scanner-side EC2 network fact
-selection for the AWS cloud collector. It converts VPCs, subnets, security
-groups, security group rules, and network interfaces into `aws_resource` and
-`aws_relationship` facts. Each security-group rule additionally emits one
-normalized `aws_security_group_rule` posture fact carrying the reachability
-tuple `(group_id, direction, ip_protocol, from_port, to_port, source_kind,
-source_value)` plus metadata-only derived booleans (`is_internet`,
-`is_all_protocols`, `is_all_ports`).
+`internal/collector/awscloud/services/ec2` owns scanner-side EC2 network and
+volume fact selection for the AWS cloud collector. It converts VPCs, subnets,
+security groups, security group rules, network interfaces, and EBS volumes into
+`aws_resource` and `aws_relationship` facts. Each security-group rule
+additionally emits one normalized `aws_security_group_rule` posture fact
+carrying the reachability tuple `(group_id, direction, ip_protocol, from_port,
+to_port, source_kind, source_value)` plus metadata-only derived booleans
+(`is_internet`, `is_all_protocols`, `is_all_ports`).
 
 For every EC2 instance the scanner emits one metadata-only
 `ec2_instance_posture` fact from the existing `DescribeInstances` pass: IMDS
@@ -19,6 +19,13 @@ EBS optimization, public-IP association, the attached instance-profile ARN,
 per-volume block-device metadata, and tenancy / Nitro-enclave state. The
 scanner does not emit an `aws_resource` inventory fact for instances and never
 reads user-data content.
+
+For every EBS volume the scanner emits one metadata-only `aws_ec2_volume`
+resource fact from a single boundary-scoped `DescribeVolumes` pass. It records
+reported encryption, KMS key, attachment, and operational shape metadata and
+emits a volume-to-KMS relationship only when AWS reports a non-empty KMS key
+identifier. Volume contents, snapshots, user-data, and reducer posture
+decisions stay out of this package.
 
 The package implements the EC2 network-topology slice from
 `docs/public/services/collector-aws-cloud.md`.
@@ -35,9 +42,12 @@ flowchart LR
   B --> C["VPC / Subnet / SecurityGroup"]
   B --> D["SecurityGroupRule / NetworkInterface"]
   B --> H["Instance"]
+  B --> J["Volume"]
   C --> E["aws_resource facts"]
   D --> E
+  J --> E
   D --> F["aws_relationship facts"]
+  J --> F
   D --> G["aws_security_group_rule posture facts"]
   H --> I["ec2_instance_posture facts"]
 ```
@@ -46,14 +56,17 @@ flowchart LR
 
 See `doc.go` for the godoc contract.
 
-- `Scanner` - emits EC2 network topology and instance-posture facts for one
-  claimed AWS boundary.
+- `Scanner` - emits EC2 network topology, EBS volume, and instance-posture
+  facts for one claimed AWS boundary.
 - `Client` - scanner-owned read surface implemented by `awssdk.Client`.
 - `VPC`, `Subnet`, `SecurityGroup`, `SecurityGroupRule`, `NetworkInterface`,
-  and `Instance` - scanner-owned EC2 records.
+  `Volume`, and `Instance` - scanner-owned EC2 records.
 - `BlockDevice` - one instance block-device mapping entry (device name, volume
   id, delete-on-termination, status); per-volume encryption is not reported by
   `DescribeInstances`, so it stays unset.
+- `VolumeAttachment` - one EBS volume attachment entry reported by
+  `DescribeVolumes`, including instance id or AWS-managed associated-resource
+  metadata when AWS reports it.
 - `NetworkInterfaceAttachment` - ENI attachment metadata, including attached
   resource ARN when AWS reports enough data to derive one.
 
@@ -89,9 +102,14 @@ AWS API call counters, throttle counters, and pagination spans.
   stays unset unless a later bounded enrichment fills it; PR1 adds no
   per-instance API fan-out.
 - Per-volume block-device `encrypted` is not reported by `DescribeInstances`, so
-  it stays unset on the posture fact. The reducer joins each volume id to its
-  encryption and KMS evidence (#1146 PR2); deriving it at scan time would be an
-  N+1 `DescribeVolumes` fan-out, which this slice avoids.
+  it stays unset on the posture fact. The reducer joins each volume id to the
+  boundary-wide EBS volume facts and KMS relationship evidence (#1304);
+  per-instance `DescribeVolumes` fan-out remains forbidden.
+- EBS volume facts are metadata only. They record the volume id, synthesized
+  volume ARN, state, availability zone, encrypted flag, KMS key id, attachment
+  summaries, and safe operational scalars. They never read or persist volume
+  contents, snapshot payloads, CloudWatch metric samples, cost data, or
+  user-data content.
 - The `ec2_instance_posture` fact emits no graph edges. The USES_PROFILE join to
   the IAM instance profile (#1134), the block-device to KMS join, and the
   derived internet-exposed flag (#1135) are reducer slices.
@@ -135,6 +153,34 @@ No-Observability-Change: the scanner emits facts only; it adds no instrument,
 span, metric label, or `aws_scan_status` row. The `awssdk` adapter's existing
 pagination span and API-call counter cover the new `DescribeInstances` read via
 `recordAPICall`.
+
+### EBS volume metadata facts (#1303)
+
+Collector Performance Evidence: the EBS volume path is one paginated
+`DescribeVolumes` stream per claimed account/region boundary, not a
+per-instance fan-out. `go test ./internal/collector/awscloud/services/ec2/... -count=1`
+covers scanner emission and SDK mapping for the boundary-scoped pass, including
+encrypted/KMS, missing-key, unencrypted, attached, and missing-identity cases.
+The emitted fact volume is linear in the number of volumes returned by AWS and
+adds at most one resource fact plus one optional KMS relationship fact per
+volume.
+
+No-Regression Evidence: `go test ./internal/collector/awscloud/services/ec2/... -count=1`
+covers `TestScannerEmitsEBSVolumeMetadataAndKMSRelationship` (one
+`aws_ec2_volume` resource fact, one volume-to-KMS relationship keyed to
+`aws_kms_key`, one attachment summary, and no `aws_ec2_instance` inventory fact),
+`TestScannerKeepsVolumesWithoutKMSRelationshipWhenKeyMissing` (encrypted or
+unencrypted volumes without a reported KMS key remain resource-only), and
+`TestScannerSkipsVolumeWithoutIdentity` (missing volume identity produces no
+unjoinable fact). `TestMapVolumePreservesEncryptionKMSAndAttachments` and
+`TestMapVolumeDerivesPartitionForGovCloud` prove the SDK adapter maps
+`DescribeVolumes` encryption, KMS, attachment, and partition-aware volume ARN
+metadata without reading volume contents or snapshots.
+
+No-Observability-Change: the EC2 volume path reuses the existing EC2 SDK
+adapter pagination span and AWS API call/throttle counters through
+`recordAPICall` with operation `DescribeVolumes`. The scanner emits source
+facts only and adds no new metric labels or scan-status dimensions.
 
 ### security_group_rule posture fact, PR1 facts-only (#1135)
 

@@ -61,9 +61,9 @@ behavior.
   the bare name. The analyzed group ARN is carried as an edge attribute.
 - The recommendation-to-function edge is keyed by the function ARN, matching the
   lambda scanner's published function resource_id.
-- EBS volume recommendations carry NO edge: Eshu does not scan an EBS volume
-  resource and there is no forward-reference anchor, so an edge would dangle.
-  The volume ARN and bare volume id are recorded as recommendation metadata.
+- EBS volume recommendations carry NO edge in this scanner yet. The volume ARN
+  and bare volume id are recorded as recommendation metadata; the
+  recommendation-to-`aws_ec2_volume` relationship remains a separate follow-up.
 
 ## Telemetry
 

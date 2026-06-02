@@ -16,6 +16,9 @@ type Client interface {
 	// ListInstances returns instance posture inputs read from the existing
 	// DescribeInstances pass. It carries no user-data content: presence only.
 	ListInstances(context.Context) ([]Instance, error)
+	// ListVolumes returns EBS volume metadata read from one boundary-scoped
+	// DescribeVolumes pass. It is not used to fill instance posture inline.
+	ListVolumes(context.Context) ([]Volume, error)
 }
 
 // Instance is the scanner-owned representation of EC2 instance posture inputs.
@@ -62,6 +65,48 @@ type BlockDevice struct {
 	DeleteOnTermination bool
 	Status              string
 	Encrypted           *bool
+}
+
+// Volume is the scanner-owned representation of one EBS volume returned by
+// DescribeVolumes. It carries metadata-only encryption, KMS, attachment, and
+// operational shape; it never carries volume contents or snapshot payloads.
+type Volume struct {
+	ID                       string
+	ARN                      string
+	State                    string
+	AvailabilityZone         string
+	AvailabilityZoneID       string
+	CreateTime               time.Time
+	Encrypted                *bool
+	FastRestored             *bool
+	IOPS                     *int32
+	KMSKeyID                 string
+	MultiAttachEnabled       *bool
+	OutpostARN               string
+	SizeGiB                  *int32
+	SnapshotID               string
+	SourceVolumeID           string
+	SSEType                  string
+	ThroughputMiBps          *int32
+	VolumeInitializationRate *int32
+	VolumeType               string
+	Attachments              []VolumeAttachment
+	Tags                     map[string]string
+}
+
+// VolumeAttachment is one EBS volume attachment entry reported by
+// DescribeVolumes. AWS-managed attachment targets are kept as reported metadata
+// and are not resolved into workload or service truth by this scanner.
+type VolumeAttachment struct {
+	AssociatedResource    string
+	AttachTime            time.Time
+	DeleteOnTermination   bool
+	Device                string
+	EBSCardIndex          *int32
+	InstanceID            string
+	InstanceOwningService string
+	State                 string
+	VolumeID              string
 }
 
 // VPC is the scanner-owned representation of an EC2 VPC.

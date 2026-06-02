@@ -103,9 +103,9 @@ func appendVolumeRecommendations(
 	boundary awscloud.Boundary,
 	recs []VolumeRecommendation,
 ) error {
-	// EBS volume recommendations have no graph edge: Eshu does not scan an EBS
-	// volume resource and there is no forward-reference anchor, so an edge would
-	// dangle. The volume identity is recorded as recommendation metadata instead.
+	// EBS volume recommendations have no graph edge in this scanner yet. The
+	// volume identity is recorded as recommendation metadata until a dedicated
+	// recommendation-to-volume relationship slice lands.
 	for _, rec := range recs {
 		if err := appendResource(envelopes, volumeObservation(boundary, rec)); err != nil {
 			return err
