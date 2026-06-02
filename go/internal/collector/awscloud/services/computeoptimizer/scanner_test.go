@@ -125,12 +125,12 @@ func TestScannerEmitsRecommendationMetadataAndRelationships(t *testing.T) {
 		t.Fatalf("lambda edge target_arn = %#v, want %q", got, want)
 	}
 
-	// EBS volume recommendation carries no edge (no EBS volume scanner).
+	// EBS volume recommendation carries no edge in this scanner yet.
 	for _, envelope := range envelopes {
 		if envelope.FactKind != facts.AWSRelationshipFactKind {
 			continue
 		}
-		if got, _ := envelope.Payload["target_type"].(string); got == "aws_ebs_volume" {
+		if got, _ := envelope.Payload["target_type"].(string); got == awscloud.ResourceTypeEC2Volume {
 			t.Fatalf("unexpected EBS volume edge emitted: %#v", envelope.Payload)
 		}
 	}

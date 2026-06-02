@@ -93,8 +93,8 @@ func autoScalingGroupObservation(boundary awscloud.Boundary, rec AutoScalingGrou
 
 // volumeObservation maps an EBS volume recommendation into a resource
 // observation keyed by the analyzed volume ARN. The bare volume id is recorded
-// as metadata; no graph edge is keyed because Eshu does not scan an EBS volume
-// resource.
+// as metadata; recommendation-to-volume relationship projection is a separate
+// follow-up.
 func volumeObservation(boundary awscloud.Boundary, rec VolumeRecommendation) awscloud.ResourceObservation {
 	resourceID := volumeRecommendationID(rec)
 	volumeARN := strings.TrimSpace(rec.VolumeARN)

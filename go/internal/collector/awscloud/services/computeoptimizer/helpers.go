@@ -55,7 +55,7 @@ func instanceIDFromARN(arn string) string {
 // volumeIDFromARN extracts the bare EBS volume id (vol-...) from a volume ARN of
 // the form arn:<partition>:ec2:<region>:<account>:volume/<id>. It returns "" when
 // the value is not a volume ARN. The id is recorded as recommendation metadata
-// only; Eshu does not scan an EBS volume resource, so no edge is keyed to it.
+// only until recommendation-to-volume relationship projection lands.
 func volumeIDFromARN(arn string) string {
 	arn = strings.TrimSpace(arn)
 	if arn == "" {

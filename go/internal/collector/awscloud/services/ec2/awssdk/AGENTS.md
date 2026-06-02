@@ -13,6 +13,8 @@
 - Emit AWS API telemetry through `recordAPICall` for every SDK page request.
 - Preserve AWS tags exactly as reported.
 - Set `IncludeManagedResources=true` on network interface scans.
+- `DescribeVolumes` is allowed only as a boundary-scoped EBS volume metadata
+  pass. Do not use it as a per-instance enrichment loop.
 - Do not return AWS SDK types to the scanner package.
 - Do not log or metric-label resource IDs, ARNs, descriptions, or tags.
 
@@ -28,8 +30,8 @@
 - Do not add write APIs or source mutations.
 - Do not turn the `DescribeInstances` posture read into an EC2 inventory feed,
   and do not add a per-instance describe call (user-data via
-  `DescribeInstanceAttribute`, console output, or per-volume encryption via
-  `DescribeVolumes`) to fill posture fields; `mapInstance` leaves
-  `UserDataPresent` and `Encrypted` nil by design.
+  `DescribeInstanceAttribute`, console output, or per-instance volume lookups)
+  to fill posture fields; `mapInstance` leaves `UserDataPresent` and
+  `Encrypted` nil by design.
 - Do not bypass the `ec2.Client` interface by returning AWS SDK types to the
   scanner package.

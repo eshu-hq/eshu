@@ -134,6 +134,9 @@
   topology truth.
 - Keep EC2 instance inventory out of the EC2 scanner; ENI attachment target
   ARNs are metadata only.
+- Keep EC2 EBS volume facts source-only. They may report encrypted/KMS and
+  attachment metadata from `DescribeVolumes`, but reducers own block-device/KMS
+  posture truth.
 - Keep AWS SDK calls out of this package. Runtime adapters own SDK pagination,
   retries, throttling, and credential loading.
 

@@ -10,16 +10,17 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
-// Scanner emits EC2 VPC, subnet, security group, security group rule, ENI, and
-// topology relationship facts for one claimed account and region. It also emits
-// one metadata-only ec2_instance_posture fact per instance from the existing
-// DescribeInstances pass; it does not emit an aws_resource inventory fact for
-// instances and never reads user-data content.
+// Scanner emits EC2 VPC, subnet, security group, security group rule, ENI, EBS
+// volume, and topology relationship facts for one claimed account and region.
+// It also emits one metadata-only ec2_instance_posture fact per instance from
+// the existing DescribeInstances pass; it does not emit an aws_resource
+// inventory fact for instances and never reads user-data content.
 type Scanner struct {
 	Client Client
 }
 
-// Scan observes EC2 network topology through the configured client.
+// Scan observes EC2 network, instance-posture, and volume metadata through the
+// configured client.
 func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.Envelope, error) {
 	if s.Client == nil {
 		return nil, fmt.Errorf("ec2 scanner client is required")
@@ -104,6 +105,18 @@ func (s Scanner) Scan(ctx context.Context, boundary awscloud.Boundary) ([]facts.
 			return nil, err
 		}
 		envelopes = append(envelopes, instanceEnvelopes...)
+	}
+
+	volumes, err := s.Client.ListVolumes(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("list EC2 volumes: %w", err)
+	}
+	for _, volume := range volumes {
+		emittedVolumeEnvelopes, err := volumeEnvelopes(boundary, volume)
+		if err != nil {
+			return nil, err
+		}
+		envelopes = append(envelopes, emittedVolumeEnvelopes...)
 	}
 	return envelopes, nil
 }

@@ -6,9 +6,10 @@
 // Auto Scaling groups, EBS volumes, and Lambda functions, plus
 // recommendation-to-target relationships to the analyzed EC2 instance (bare
 // instance id), Auto Scaling group (group name), and Lambda function (function
-// ARN). EBS volume recommendations carry no edge because Eshu does not scan an
-// EBS volume resource; the volume identity is recorded as metadata instead of a
-// dangling graph edge. The scanner is metadata-only: it never mutates Compute
-// Optimizer state, never changes enrollment, and never persists the CloudWatch
-// utilization metric data points behind a recommendation.
+// ARN). EBS volume recommendations currently carry no edge in this scanner; the
+// volume identity is recorded as metadata until recommendation-to-volume
+// relationship projection lands separately. The scanner is metadata-only: it
+// never mutates Compute Optimizer state, never changes enrollment, and never
+// persists the CloudWatch utilization metric data points behind a
+// recommendation.
 package computeoptimizer

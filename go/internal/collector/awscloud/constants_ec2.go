@@ -17,6 +17,9 @@ const (
 	ResourceTypeEC2SecurityGroupRule = "aws_ec2_security_group_rule"
 	// ResourceTypeEC2NetworkInterface identifies an EC2 network interface.
 	ResourceTypeEC2NetworkInterface = "aws_ec2_network_interface"
+	// ResourceTypeEC2Volume identifies an EBS volume observed through the EC2
+	// DescribeVolumes API.
+	ResourceTypeEC2Volume = "aws_ec2_volume"
 	// ResourceTypeEC2Instance identifies an EC2 instance. It is the join anchor
 	// for the metadata-only ec2_instance_posture fact; the EC2 scanner does not
 	// emit an aws_resource inventory fact for instances.
@@ -42,4 +45,7 @@ const (
 	// RelationshipEC2NetworkInterfaceAttachedToResource records ENI attachment
 	// evidence without emitting the attached resource as an inventory fact.
 	RelationshipEC2NetworkInterfaceAttachedToResource = "ec2_network_interface_attached_to_resource"
+	// RelationshipEC2VolumeUsesKMSKey records the KMS key AWS reports for EBS
+	// volume encryption.
+	RelationshipEC2VolumeUsesKMSKey = "ec2_volume_uses_kms_key"
 )

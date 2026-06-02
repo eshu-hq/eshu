@@ -124,9 +124,9 @@ type AutoScalingGroupRecommendation struct {
 
 // VolumeRecommendation is the scanner-owned Compute Optimizer EBS volume
 // recommendation model. It carries the analyzed volume identity, finding, and
-// current/recommended volume type only. Eshu does not yet scan an EBS volume
-// resource, so the scanner records the volume identity as metadata without
-// keying a dangling graph edge.
+// current/recommended volume type only. The scanner records the volume identity
+// as metadata; recommendation-to-volume relationship projection is a separate
+// follow-up.
 type VolumeRecommendation struct {
 	// VolumeARN is the Amazon Resource Name of the analyzed EBS volume.
 	VolumeARN string

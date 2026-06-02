@@ -211,6 +211,57 @@ func mapInstanceBlockDevices(input []awsec2types.InstanceBlockDeviceMapping) []e
 	return output
 }
 
+// mapVolume projects one DescribeVolumes entry into scanner-owned EBS volume
+// metadata. The EC2 scanner records reported encryption/KMS metadata only; it
+// does not read volume contents, snapshots, or per-instance payloads.
+func mapVolume(region string, accountID string, volume awsec2types.Volume) ec2service.Volume {
+	volumeID := aws.ToString(volume.VolumeId)
+	return ec2service.Volume{
+		ID:                       volumeID,
+		ARN:                      ec2VolumeARN(region, accountID, volumeID),
+		State:                    string(volume.State),
+		AvailabilityZone:         aws.ToString(volume.AvailabilityZone),
+		AvailabilityZoneID:       aws.ToString(volume.AvailabilityZoneId),
+		CreateTime:               aws.ToTime(volume.CreateTime),
+		Encrypted:                boolPointer(volume.Encrypted),
+		FastRestored:             boolPointer(volume.FastRestored),
+		IOPS:                     int32Pointer(volume.Iops),
+		KMSKeyID:                 aws.ToString(volume.KmsKeyId),
+		MultiAttachEnabled:       boolPointer(volume.MultiAttachEnabled),
+		OutpostARN:               aws.ToString(volume.OutpostArn),
+		SizeGiB:                  int32Pointer(volume.Size),
+		SnapshotID:               aws.ToString(volume.SnapshotId),
+		SourceVolumeID:           aws.ToString(volume.SourceVolumeId),
+		SSEType:                  string(volume.SseType),
+		ThroughputMiBps:          int32Pointer(volume.Throughput),
+		VolumeInitializationRate: int32Pointer(volume.VolumeInitializationRate),
+		VolumeType:               string(volume.VolumeType),
+		Attachments:              mapVolumeAttachments(volume.Attachments),
+		Tags:                     mapTags(volume.Tags),
+	}
+}
+
+func mapVolumeAttachments(input []awsec2types.VolumeAttachment) []ec2service.VolumeAttachment {
+	if len(input) == 0 {
+		return nil
+	}
+	output := make([]ec2service.VolumeAttachment, 0, len(input))
+	for _, attachment := range input {
+		output = append(output, ec2service.VolumeAttachment{
+			AssociatedResource:    aws.ToString(attachment.AssociatedResource),
+			AttachTime:            aws.ToTime(attachment.AttachTime),
+			DeleteOnTermination:   aws.ToBool(attachment.DeleteOnTermination),
+			Device:                aws.ToString(attachment.Device),
+			EBSCardIndex:          int32Pointer(attachment.EbsCardIndex),
+			InstanceID:            aws.ToString(attachment.InstanceId),
+			InstanceOwningService: aws.ToString(attachment.InstanceOwningService),
+			State:                 string(attachment.State),
+			VolumeID:              aws.ToString(attachment.VolumeId),
+		})
+	}
+	return output
+}
+
 func mapVPCCIDRBlocks(input []awsec2types.VpcCidrBlockAssociation) []ec2service.CIDRBlockAssociation {
 	if len(input) == 0 {
 		return nil
@@ -374,11 +425,29 @@ func ec2InstanceARN(region string, accountID string, instanceID string) string {
 	return "arn:" + awscloud.PartitionForRegion(region) + ":ec2:" + region + ":" + accountID + ":instance/" + instanceID
 }
 
+func ec2VolumeARN(region string, accountID string, volumeID string) string {
+	region = strings.TrimSpace(region)
+	accountID = strings.TrimSpace(accountID)
+	volumeID = strings.TrimSpace(volumeID)
+	if region == "" || accountID == "" || volumeID == "" {
+		return ""
+	}
+	return "arn:" + awscloud.PartitionForRegion(region) + ":ec2:" + region + ":" + accountID + ":volume/" + volumeID
+}
+
 func attachedResourceType(instanceID string) string {
 	if strings.TrimSpace(instanceID) == "" {
 		return ""
 	}
 	return ec2InstanceTargetType
+}
+
+func boolPointer(value *bool) *bool {
+	return value
+}
+
+func int32Pointer(value *int32) *int32 {
+	return value
 }
 
 func firstNonEmpty(values ...string) string {

@@ -255,6 +255,7 @@ type fakeClient struct {
 	securityGroupRules []SecurityGroupRule
 	networkInterfaces  []NetworkInterface
 	instances          []Instance
+	volumes            []Volume
 }
 
 func (c fakeClient) ListVPCs(context.Context) ([]VPC, error) {
@@ -279,6 +280,10 @@ func (c fakeClient) ListNetworkInterfaces(context.Context) ([]NetworkInterface, 
 
 func (c fakeClient) ListInstances(context.Context) ([]Instance, error) {
 	return c.instances, nil
+}
+
+func (c fakeClient) ListVolumes(context.Context) ([]Volume, error) {
+	return c.volumes, nil
 }
 
 func factKindCounts(envelopes []facts.Envelope) map[string]int {
@@ -315,6 +320,20 @@ func assertNoResourceType(t *testing.T, envelopes []facts.Envelope, resourceType
 	}
 }
 
+func assertResourceID(t *testing.T, envelopes []facts.Envelope, resourceID string) facts.Envelope {
+	t.Helper()
+	for _, envelope := range envelopes {
+		if envelope.FactKind != facts.AWSResourceFactKind {
+			continue
+		}
+		if got, _ := envelope.Payload["resource_id"].(string); got == resourceID {
+			return envelope
+		}
+	}
+	t.Fatalf("missing resource_id %q in %#v", resourceID, envelopes)
+	return facts.Envelope{}
+}
+
 func assertSecurityGroupRuleFact(t *testing.T, envelopes []facts.Envelope) facts.Envelope {
 	t.Helper()
 	for _, envelope := range envelopes {
@@ -342,13 +361,19 @@ func assertRelationship(t *testing.T, envelopes []facts.Envelope, relationshipTy
 
 func assertAttribute(t *testing.T, envelope facts.Envelope, key string, want any) {
 	t.Helper()
+	attributes := attributesOf(t, envelope)
+	if attributes[key] != want {
+		t.Fatalf("attribute %s = %#v, want %#v", key, attributes[key], want)
+	}
+}
+
+func attributesOf(t *testing.T, envelope facts.Envelope) map[string]any {
+	t.Helper()
 	attributes, ok := envelope.Payload["attributes"].(map[string]any)
 	if !ok {
 		t.Fatalf("attributes = %#v, want map", envelope.Payload["attributes"])
 	}
-	if attributes[key] != want {
-		t.Fatalf("attribute %s = %#v, want %#v", key, attributes[key], want)
-	}
+	return attributes
 }
 
 func assertAttachment(t *testing.T, envelope facts.Envelope) {

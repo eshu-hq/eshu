@@ -34,9 +34,9 @@
   group resource_id as the bare name.
 - Key the recommendation-to-function edge on the function ARN, matching the
   lambda scanner's published function resource_id.
-- Do NOT key an EBS volume edge. Eshu does not scan an EBS volume resource and
-  there is no forward-reference anchor; an edge would dangle. Record the volume
-  identity as metadata only.
+- Do NOT key an EBS volume edge in this scanner until the dedicated
+  recommendation-to-`aws_ec2_volume` relationship follow-up lands. Record the
+  volume identity as metadata only.
 - Every relationship sets a non-empty `target_type` naming a declared
   `awscloud.ResourceType*` constant or the documented `aws_ec2_instance`
   forward-reference anchor, and a `target_resource_id` matching how the target
