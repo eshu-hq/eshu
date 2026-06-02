@@ -44,7 +44,11 @@ func TestRunnerRecordsSuccessObservation(t *testing.T) {
 	canonical := documentFixture("searchdoc:canonical", "service:checkout")
 	canonical.TruthScope.Level = searchdocs.TruthLevel("canonical")
 	backend := &fakeRetrievalBackend{candidates: []Candidate{
-		{Document: documentFixture("searchdoc:derived-a", "workload:checkout-api"), Score: 0.8},
+		{
+			Document: documentFixture("searchdoc:derived-a", "workload:checkout-api"),
+			Score:    0.8,
+			Failures: []searchbench.FailureClass{searchbench.FailureClassLazyWarm},
+		},
 		{Document: canonical, Score: 0.7},
 		{Document: documentFixture("searchdoc:derived-b", "repo-checkout:README.md"), Score: 0.6},
 	}}
@@ -92,6 +96,9 @@ func TestRunnerRecordsSuccessObservation(t *testing.T) {
 	if !hasFailureClass(obs.FailureClasses, searchbench.FailureClassTruncation) {
 		t.Fatalf("obs.FailureClasses = %#v, want truncation", obs.FailureClasses)
 	}
+	if !hasFailureClass(obs.FailureClasses, searchbench.FailureClassLazyWarm) {
+		t.Fatalf("obs.FailureClasses = %#v, want candidate lazy-warm failure", obs.FailureClasses)
+	}
 	if obs.Duration <= 0 {
 		t.Fatalf("obs.Duration = %s, want positive duration", obs.Duration)
 	}
@@ -116,6 +123,9 @@ func TestRunnerRecordsBackendError(t *testing.T) {
 	}
 	if got, want := obs.ResultCount, 0; got != want {
 		t.Fatalf("obs.ResultCount = %d, want %d", got, want)
+	}
+	if obs.CandidateTruthLevelCounts != nil {
+		t.Fatalf("obs.CandidateTruthLevelCounts = %#v, want nil for no candidates", obs.CandidateTruthLevelCounts)
 	}
 	if obs.TimedOut {
 		t.Fatal("obs.TimedOut = true, want false")
@@ -194,6 +204,25 @@ func TestRunnerRecordsParentCancellation(t *testing.T) {
 	}
 }
 
+func TestRunnerObservesWithNonCanceledContext(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	observer := &contextRecordingObserver{}
+
+	_, err := Runner{
+		Backend:  &fakeRetrievalBackend{waitForCancel: true},
+		Observer: observer,
+	}.Retrieve(ctx, validRequestFixture())
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("Runner.Retrieve() error = %v, want context canceled", err)
+	}
+	if observer.err != nil {
+		t.Fatalf("observer context err = %v, want nil", observer.err)
+	}
+}
+
 type fakeRetrievalBackend struct {
 	candidates    []Candidate
 	err           error
@@ -219,6 +248,14 @@ type recordingRetrievalObserver struct {
 
 func (observer *recordingRetrievalObserver) ObserveRetrieval(ctx context.Context, observation Observation) {
 	observer.observations = append(observer.observations, observation)
+}
+
+type contextRecordingObserver struct {
+	err error
+}
+
+func (observer *contextRecordingObserver) ObserveRetrieval(ctx context.Context, observation Observation) {
+	observer.err = ctx.Err()
 }
 
 func (observer *recordingRetrievalObserver) only(t *testing.T) Observation {

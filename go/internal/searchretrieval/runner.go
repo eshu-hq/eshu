@@ -66,16 +66,16 @@ func (runner Runner) Retrieve(ctx context.Context, req Request) (Response, error
 	start := time.Now()
 	req = normalizedRequest(req)
 	observation := Observation{
-		QueryID:                   req.QueryID,
-		Anchor:                    req.Scope.Anchor(),
-		Mode:                      req.Mode,
-		Limit:                     req.Limit,
-		CandidateTruthLevelCounts: map[searchdocs.TruthLevel]int{},
+		QueryID: req.QueryID,
+		Anchor:  req.Scope.Anchor(),
+		Mode:    req.Mode,
+		Limit:   req.Limit,
 	}
 	observe := func(response Response, candidates []Candidate, err error) (Response, error) {
 		observation.Duration = time.Since(start)
 		observation.CandidateCount = len(candidates)
 		observation.CandidateTruthLevelCounts = candidateTruthLevelCounts(candidates)
+		observation.FailureClasses = appendCandidateFailureClasses(observation.FailureClasses, candidates)
 		if err == nil {
 			observation.ResultCount = len(response.Results)
 			observation.Truncated = response.Truncated
@@ -126,7 +126,7 @@ func (runner Runner) observe(ctx context.Context, observation Observation) {
 	if runner.Observer == nil {
 		return
 	}
-	runner.Observer.ObserveRetrieval(ctx, cloneObservation(observation))
+	runner.Observer.ObserveRetrieval(context.WithoutCancel(ctx), cloneObservation(observation))
 }
 
 func normalizedRequest(req Request) Request {
@@ -150,11 +150,26 @@ func classifyRetrievalError(ctx context.Context, err error) ErrorClass {
 }
 
 func candidateTruthLevelCounts(candidates []Candidate) map[searchdocs.TruthLevel]int {
+	if len(candidates) == 0 {
+		return nil
+	}
 	counts := make(map[searchdocs.TruthLevel]int)
 	for _, candidate := range candidates {
 		counts[candidate.Document.TruthScope.Level]++
 	}
 	return counts
+}
+
+func appendCandidateFailureClasses(
+	classes []searchbench.FailureClass,
+	candidates []Candidate,
+) []searchbench.FailureClass {
+	for _, candidate := range candidates {
+		for _, class := range candidate.Failures {
+			classes = appendFailureClass(classes, class)
+		}
+	}
+	return classes
 }
 
 func appendFailureClass(
