@@ -49,9 +49,11 @@ warnings, and status reporting.
 - Policy payloads carry condition keys only. Raw policy JSON, statement bodies,
   condition values, AWS credentials, and session tokens stay outside the fact
   contract.
-- Stable keys exclude generation IDs so repeated source observations can be
-  compared across generations. Fact IDs include generation IDs through the
-  envelope boundary.
+- Stable keys for principal, policy, trust, attachment, boundary, instance
+  profile, OIDC provider, and analyzer-finding facts exclude generation IDs so
+  repeated source observations can be compared across generations. Coverage
+  warning stable keys include generation IDs because warning state is scoped to
+  the scan that observed the missing or partial surface.
 - Builders emit source facts only. Reducers own all graph promotion, trust-chain
   joins, and effective-permission decisions.
 
