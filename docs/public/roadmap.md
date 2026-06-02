@@ -88,7 +88,9 @@ NornicDB remains the default graph backend for current Compose and Kubernetes
 work. Semantic retrieval, BM25, and vector search are separate evaluation
 tracks. They should only move into default runtime behavior after memory,
 startup, query latency, accuracy, and operator-debug evidence justify the
-trade-off.
+trade-off. The canonical graph is not the default search corpus; retrieval work
+should project curated search documents and keep graph expansion bounded to
+candidate handles.
 
 ## How To Read The Board
 
