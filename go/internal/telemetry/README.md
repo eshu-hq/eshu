@@ -194,6 +194,8 @@ gauge when a shared-acceptance observer is available.
 | `S3LogsToSkipped` | `eshu_dp_s3_logs_to_skipped_total` |
 | `EC2UsesProfileEdges` | `eshu_dp_ec2_uses_profile_edges_total` |
 | `EC2UsesProfileSkipped` | `eshu_dp_ec2_uses_profile_skipped_total` |
+| `IAMInstanceProfileRoleEdges` | `eshu_dp_iam_instance_profile_role_edges_total` |
+| `IAMInstanceProfileRoleSkipped` | `eshu_dp_iam_instance_profile_role_skipped_total` |
 | `S3InternetExposureDecisions` | `eshu_dp_s3_internet_exposure_decisions_total` |
 | `S3InternetExposureSkipped` | `eshu_dp_s3_internet_exposure_skipped_total` |
 | `DriftUnresolvedModuleCalls` | `eshu_dp_drift_unresolved_module_calls_total` |

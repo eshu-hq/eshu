@@ -261,7 +261,8 @@ constructor with `InstrumentedDB{Inner: db, StoreName: "my_store", ...}`.
   parameter and must not be removed without an ADR; it prevents
   `semantic_entity_materialization` storms on NornicDB label indexes.
 - `aws_relationship_materialization`, `observability_coverage_materialization`,
-  `iam_can_assume_materialization`, `s3_logs_to_materialization`, and
+  `iam_can_assume_materialization`, `s3_logs_to_materialization`,
+  `iam_instance_profile_role_materialization`, and
   `s3_internet_exposure_materialization` claims wait on the exact
   `cloud_resource_uid` / `canonical_nodes_committed` readiness row for the
   same scope, generation, and `entity_key`. This keeps relationship work

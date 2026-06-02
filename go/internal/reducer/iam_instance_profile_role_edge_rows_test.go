@@ -1,0 +1,135 @@
+package reducer
+
+import (
+	"testing"
+
+	"github.com/eshu-hq/eshu/go/internal/facts"
+)
+
+func iamInstanceProfileResourceEnvelope(accountID, profileName string, roleARNs ...string) facts.Envelope {
+	profileARN := "arn:aws:iam::" + accountID + ":instance-profile/" + profileName
+	roles := make([]any, 0, len(roleARNs))
+	for _, arn := range roleARNs {
+		roles = append(roles, arn)
+	}
+	return facts.Envelope{
+		FactKind: facts.AWSResourceFactKind,
+		Payload: map[string]any{
+			"account_id":          accountID,
+			"region":              "aws-global",
+			"resource_type":       "aws_iam_instance_profile",
+			"resource_id":         profileARN,
+			"arn":                 profileARN,
+			"name":                profileName,
+			"role_arns":           roles,
+			"correlation_anchors": []any{profileARN, profileName},
+		},
+	}
+}
+
+func iamInstanceProfileUID(accountID, profileName string) string {
+	arn := "arn:aws:iam::" + accountID + ":instance-profile/" + profileName
+	return cloudResourceUID(accountID, "aws-global", "aws_iam_instance_profile", arn)
+}
+
+func iamRoleUID(accountID, roleName string) string {
+	arn := "arn:aws:iam::" + accountID + ":role/" + roleName
+	return cloudResourceUID(accountID, "aws-global", "aws_iam_role", arn)
+}
+
+func TestExtractIAMInstanceProfileRoleEdgeRowsResolvesRoles(t *testing.T) {
+	t.Parallel()
+
+	const acct = "123456789012"
+	roleA := "arn:aws:iam::" + acct + ":role/app"
+	roleB := "arn:aws:iam::" + acct + ":role/breakglass"
+	envelopes := []facts.Envelope{
+		iamInstanceProfileResourceEnvelope(acct, "app-profile", roleA, roleB),
+		iamRoleEnvelope(acct, roleA),
+		iamRoleEnvelope(acct, roleB),
+	}
+
+	rows, tally := ExtractIAMInstanceProfileRoleEdgeRows(envelopes)
+	if len(rows) != 2 {
+		t.Fatalf("rows = %d, want 2", len(rows))
+	}
+	wantProfileUID := iamInstanceProfileUID(acct, "app-profile")
+	wantRoles := map[string]struct{}{
+		iamRoleUID(acct, "app"):        {},
+		iamRoleUID(acct, "breakglass"): {},
+	}
+	for _, row := range rows {
+		if got := anyToString(row["profile_uid"]); got != wantProfileUID {
+			t.Fatalf("profile_uid = %q, want %q", got, wantProfileUID)
+		}
+		roleUID := anyToString(row["role_uid"])
+		if _, ok := wantRoles[roleUID]; !ok {
+			t.Fatalf("unexpected role_uid %q", roleUID)
+		}
+		delete(wantRoles, roleUID)
+		if got := anyToString(row["relationship_type"]); got != "HAS_ROLE" {
+			t.Fatalf("relationship_type = %q, want HAS_ROLE", got)
+		}
+		if got := anyToString(row["resolution_mode"]); got != iamInstanceProfileRoleModeARN {
+			t.Fatalf("resolution_mode = %q, want %q", got, iamInstanceProfileRoleModeARN)
+		}
+	}
+	if len(wantRoles) != 0 {
+		t.Fatalf("unresolved expected role uids: %v", wantRoles)
+	}
+	if got := tally.resolved[iamInstanceProfileRoleModeARN]; got != 2 {
+		t.Fatalf("resolved[arn] = %d, want 2", got)
+	}
+	if tally.totalSkipped() != 0 {
+		t.Fatalf("totalSkipped = %d, want 0", tally.totalSkipped())
+	}
+}
+
+func TestExtractIAMInstanceProfileRoleEdgeRowsEmptyRolesNoEdge(t *testing.T) {
+	t.Parallel()
+
+	rows, tally := ExtractIAMInstanceProfileRoleEdgeRows([]facts.Envelope{
+		iamInstanceProfileResourceEnvelope("123456789012", "app-profile"),
+	})
+	if len(rows) != 0 {
+		t.Fatalf("rows = %d, want 0 for profile with no roles", len(rows))
+	}
+	if tally.totalSkipped() != 0 {
+		t.Fatalf("totalSkipped = %d, want 0 because no role is named", tally.totalSkipped())
+	}
+}
+
+func TestExtractIAMInstanceProfileRoleEdgeRowsUnscannedRoleSkipped(t *testing.T) {
+	t.Parallel()
+
+	const acct = "123456789012"
+	unscanned := "arn:aws:iam::999988887777:role/external"
+	rows, tally := ExtractIAMInstanceProfileRoleEdgeRows([]facts.Envelope{
+		iamInstanceProfileResourceEnvelope(acct, "app-profile", unscanned),
+	})
+	if len(rows) != 0 {
+		t.Fatalf("rows = %d, want 0 for unscanned target role", len(rows))
+	}
+	if got := tally.skipped[iamInstanceProfileRoleSkipTargetUnresolved]; got != 1 {
+		t.Fatalf("skipped[target_unresolved] = %d, want 1", got)
+	}
+	if tally.totalSkipped() != 1 {
+		t.Fatalf("totalSkipped = %d, want 1", tally.totalSkipped())
+	}
+}
+
+func TestExtractIAMInstanceProfileRoleEdgeRowsDuplicateInputOneEdge(t *testing.T) {
+	t.Parallel()
+
+	const acct = "123456789012"
+	roleARN := "arn:aws:iam::" + acct + ":role/app"
+	rows, _ := ExtractIAMInstanceProfileRoleEdgeRows([]facts.Envelope{
+		iamInstanceProfileResourceEnvelope(acct, "app-profile", roleARN, roleARN),
+		iamInstanceProfileResourceEnvelope(acct, "app-profile", roleARN),
+		iamRoleEnvelope(acct, roleARN),
+		iamRoleEnvelope(acct, roleARN),
+	})
+	if len(rows) != 1 {
+		t.Fatalf("rows = %d, want 1 idempotent edge", len(rows))
+	}
+}

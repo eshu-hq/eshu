@@ -25,7 +25,7 @@ func TestReducerQueueBlockagesReportAWSRelationshipReadinessWait(t *testing.T) {
 	query := queryer.queries[0]
 	for _, want := range []string{
 		"readiness_blocked AS (",
-		"eligible.domain IN ('aws_relationship_materialization', 'observability_coverage_materialization', 'iam_can_assume_materialization', 's3_logs_to_materialization', 's3_external_principal_grant_materialization', 'rds_posture_materialization', 's3_internet_exposure_materialization')",
+		"eligible.domain IN ('aws_relationship_materialization', 'observability_coverage_materialization', 'iam_can_assume_materialization', 's3_logs_to_materialization', 's3_external_principal_grant_materialization', 'rds_posture_materialization', 'iam_instance_profile_role_materialization', 's3_internet_exposure_materialization')",
 		"FROM graph_projection_phase_state AS aws_nodes",
 		"aws_nodes.acceptance_unit_id = COALESCE(NULLIF(eligible.payload->>'entity_key', ''), eligible.scope_id)",
 		"aws_nodes.keyspace = 'cloud_resource_uid'",
