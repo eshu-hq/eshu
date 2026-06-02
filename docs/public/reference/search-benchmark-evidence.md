@@ -140,6 +140,36 @@ decay, or when the candidate set contains false canonical claims. False
 canonical claims are counted across all candidates, not only the bounded top-K,
 so decay cannot bury the failure outside the visible result window.
 
+## Reranking Evaluation Gate
+
+Issue #1282 reranking evidence uses `ScoreRerankEvaluation` and
+`ValidateRerankEvaluation` from `go/internal/searchbench`. The gate compares a
+prior NornicDB hybrid baseline with the same candidate set after reranking. It
+is a measurement contract, not a live cross-encoder, GraphQL, gRPC, Postgres,
+NornicDB, graph, API, MCP, or telemetry integration.
+
+Each reranking evaluation records:
+
+- query id;
+- baseline hybrid evidence id, backend, and mode;
+- baseline and reranked recall, precision, nDCG, and false canonical claim
+  counts;
+- recall, precision, nDCG, and false-canonical deltas;
+- baseline and reranked latency in nanoseconds;
+- latency delta in nanoseconds;
+- baseline and reranked cost in micro USD;
+- cost delta in micro USD;
+- false canonical candidate count across the full baseline and reranked sets;
+- per-document baseline rank, reranked rank, and required-evidence marker.
+
+The gate rejects reranked output that changes the candidate set. Final
+validation rejects evidence when the prior baseline hybrid record is missing,
+when the baseline is not `nornicdb_hybrid` with `hybrid` mode, when latency or
+cost values are negative, when the query top-K limit exceeds `100`, or when any
+candidate claims truth outside `derived`. False canonical claims are counted
+across the full candidate sets, not only the bounded top-K, so reranking cannot
+bury a bad truth claim outside the visible result window.
+
 ## Query Suite Gate
 
 Issue #417 semantic retrieval evidence must use a versioned query suite before a

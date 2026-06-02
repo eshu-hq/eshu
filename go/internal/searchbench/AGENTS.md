@@ -9,10 +9,11 @@
 3. `go/internal/searchbench/suite.go` - query-suite validation and aggregate
    scoring.
 4. `go/internal/searchbench/decay_eval.go` - decay-scoring eval gate.
-5. `go/internal/searchdocs/README.md` - curated search-document contract.
-6. `docs/public/reference/search-benchmark-evidence.md` - public evidence
+5. `go/internal/searchbench/rerank_eval.go` - reranking eval gate.
+6. `go/internal/searchdocs/README.md` - curated search-document contract.
+7. `docs/public/reference/search-benchmark-evidence.md` - public evidence
    format and proof requirements.
-7. `docs/internal/design/430-nornicdb-graph-search-split.md` - parent design for
+8. `docs/internal/design/430-nornicdb-graph-search-split.md` - parent design for
    keeping graph truth separate from the search lane.
 
 ## Invariants this package enforces
@@ -27,6 +28,12 @@
   15 scoped queries with expected graph handles.
 - **Decay is ranking metadata** - decay evals may reorder candidates, but must
   not hide required evidence or false canonical candidate claims.
+- **Reranking depends on hybrid evidence** - rerank evals require a prior
+  NornicDB hybrid baseline evidence id before any reranked metrics are valid.
+- **Reranking is reorder-only** - rerank evals must use the same candidate set
+  before and after reranking.
+- **False claims cannot be buried** - rerank evals count false canonical
+  candidates across the full baseline and reranked sets, not only top-K output.
 - **Operational proof** - evidence must include backend identity, effective
   search flags, startup/restart behavior, memory, index artifact size, rebuild
   behavior, failure classes, accuracy metrics, and a recommendation.
@@ -43,6 +50,9 @@
   retrieval relevance.
 - **Change decay evals** - cover ranking improvement, required-evidence
   visibility, false canonical candidate claims, and per-candidate outcomes.
+- **Change rerank evals** - cover baseline hybrid evidence, before/after
+  metrics, same-candidate-set validation, latency and cost deltas, false
+  canonical candidates, and rank movement.
 - **Change query-suite validation** - cover invalid suite shape, duplicate ids,
   missing scope, and aggregate scoring before changing `suite.go`.
 
@@ -60,6 +70,7 @@
 ## Anti-patterns specific to this package
 
 - Adding Postgres, graph, HTTP, or NornicDB client calls.
+- Adding live cross-encoder or protocol client calls.
 - Treating NornicDB whole-graph search as the target benchmark.
 - Making accuracy metrics optional because a run is inconvenient to score.
 - Accepting a benchmark without a clear recommendation.

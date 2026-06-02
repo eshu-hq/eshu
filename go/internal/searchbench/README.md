@@ -4,16 +4,18 @@
 
 `searchbench` defines the benchmark evidence contract for comparing current
 Postgres content search with curated NornicDB BM25, vector, or hybrid retrieval.
-It keeps measurements tied to `searchdocs.Document` inputs so benchmark results
-cannot drift into whole-graph search or canonical-truth claims.
+It keeps measurements tied to `searchdocs.Document` inputs so benchmark,
+decay, and reranking results cannot drift into whole-graph search or
+canonical-truth claims.
 
 ## Ownership boundary
 
 This package owns validation and scoring for search benchmark evidence,
-semantic retrieval query suites, and decay-scoring evaluation records. It does
-not query Postgres, call NornicDB, write graph state, expose API/MCP routes, or
-change runtime defaults. Live benchmark adapters must measure their backend and
-then feed versioned records through this package.
+semantic retrieval query suites, decay-scoring evaluation records, and
+reranking evaluation records. It does not query Postgres, call NornicDB, invoke
+cross-encoder rerankers, write graph state, expose API/MCP routes, or change
+runtime defaults. Live benchmark adapters must measure their backend and then
+feed versioned records through this package.
 
 ## Exported surface
 
@@ -35,6 +37,10 @@ See `doc.go` for the godoc-rendered package contract.
 - `ValidateDecayEvaluation` rejects decay evidence that hides required results,
   fails to show required results after decay, or contains false canonical
   candidate claims.
+- `ScoreRerankEvaluation` records baseline-hybrid and reranked metrics, latency,
+  cost, and rank movement for one query.
+- `ValidateRerankEvaluation` rejects rerank evidence without baseline hybrid
+  proof or with false canonical candidate claims.
 - `RequiredFailureClasses` returns the operator-visible failure classes every
   benchmark must report.
 
@@ -52,7 +58,10 @@ high-water mark, index artifact size, rebuild behavior, truncation, timeout,
 disabled-search, lazy-warm, missing-artifact, corruption, and false canonical
 claim evidence before writing a record. Decay evaluation records carry policy
 id, evidence class, and outcome through `searchdecay.Decision`; live telemetry
-bridges must keep those dimensions low-cardinality.
+bridges must keep those dimensions low-cardinality. Reranking evaluation
+records carry the prior hybrid evidence id, aggregate latency, and aggregate
+cost; live telemetry bridges must not promote document ids, query ids, or graph
+handles into high-cardinality metric labels.
 
 ## Gotchas / invariants
 
@@ -67,6 +76,14 @@ bridges must keep those dimensions low-cardinality.
 - Decay scoring can change ranking metadata, but required evidence must remain
   visible after decay and false canonical candidate claims cannot be buried
   outside the top-K.
+- Reranking can only be evaluated after a NornicDB hybrid baseline evidence
+  record exists. Missing baseline evidence is a failed evaluation, not an
+  implicit approval to run a reranker.
+- Reranking evals compare the same candidate set before and after reranking; a
+  changed candidate set is a retrieval experiment, not reranking evidence.
+- Reranking eval query limits must stay at or below 100.
+- Reranking false canonical candidate checks cover the full baseline and
+  reranked candidate sets, not only the visible top-K.
 - NornicDB runs must record the effective search flags and both clean-volume and
   preserved-volume startup behavior.
 - Backend and mode pairs are fixed: Postgres and NornicDB BM25 use `keyword`,

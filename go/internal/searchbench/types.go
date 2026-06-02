@@ -218,6 +218,53 @@ type DecayEvaluationResult struct {
 	Required      bool                `json:"required"`
 }
 
+// RerankEvaluationInput is one pure reranking benchmark evaluation.
+type RerankEvaluationInput struct {
+	Query                  Query                  `json:"query"`
+	Baseline               []Result               `json:"baseline"`
+	Reranked               []Result               `json:"reranked"`
+	BaselineHybridEvidence RerankBaselineEvidence `json:"baseline_hybrid_evidence"`
+	BaselineLatency        time.Duration          `json:"baseline_latency_ns"`
+	RerankedLatency        time.Duration          `json:"reranked_latency_ns"`
+	BaselineCostMicrosUSD  int64                  `json:"baseline_cost_micros_usd"`
+	RerankedCostMicrosUSD  int64                  `json:"reranked_cost_micros_usd"`
+}
+
+// RerankBaselineEvidence ties a rerank eval to prior hybrid retrieval evidence.
+type RerankBaselineEvidence struct {
+	EvidenceID string  `json:"evidence_id"`
+	Backend    Backend `json:"backend"`
+	Mode       Mode    `json:"mode"`
+}
+
+// RerankEvaluation records baseline and reranked evidence for one query.
+type RerankEvaluation struct {
+	QueryID                      string                   `json:"query_id"`
+	BaselineHybridEvidence       RerankBaselineEvidence   `json:"baseline_hybrid_evidence"`
+	BaselineMetrics              RetrievalMetrics         `json:"baseline_metrics"`
+	RerankedMetrics              RetrievalMetrics         `json:"reranked_metrics"`
+	RecallDelta                  float64                  `json:"recall_delta"`
+	PrecisionDelta               float64                  `json:"precision_delta"`
+	NDCGDelta                    float64                  `json:"ndcg_delta"`
+	FalseCanonicalClaimDelta     int                      `json:"false_canonical_claim_delta"`
+	FalseCanonicalCandidateCount int                      `json:"false_canonical_candidate_count"`
+	BaselineLatency              time.Duration            `json:"baseline_latency_ns"`
+	RerankedLatency              time.Duration            `json:"reranked_latency_ns"`
+	LatencyDelta                 time.Duration            `json:"latency_delta_ns"`
+	BaselineCostMicrosUSD        int64                    `json:"baseline_cost_micros_usd"`
+	RerankedCostMicrosUSD        int64                    `json:"reranked_cost_micros_usd"`
+	CostDeltaMicrosUSD           int64                    `json:"cost_delta_micros_usd"`
+	Results                      []RerankEvaluationResult `json:"results"`
+}
+
+// RerankEvaluationResult records how reranking changed one result rank.
+type RerankEvaluationResult struct {
+	DocumentID   string `json:"document_id"`
+	BaselineRank int    `json:"baseline_rank,omitempty"`
+	RerankedRank int    `json:"reranked_rank,omitempty"`
+	Required     bool   `json:"required"`
+}
+
 // QueryScore records metrics for one query in a query-suite run.
 type QueryScore struct {
 	QueryID string           `json:"query_id"`
