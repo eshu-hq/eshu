@@ -204,7 +204,9 @@ Recommended child slices:
    curated NornicDB BM25/vector retrieval. The first harness contract lives in
    `go/internal/searchbench` and
    `docs/public/reference/search-benchmark-evidence.md`.
-4. Add bounded internal retrieval path for semantic-evaluation queries.
+4. Add bounded internal retrieval path for semantic-evaluation queries. The
+   first request/response contract lives in `go/internal/searchretrieval` and
+   `docs/public/reference/search-retrieval-contract.md`.
 5. Add public API/MCP search surfaces only after retrieval evidence proves value
    and preserves truth labels, scope, limits, and truncation.
 
