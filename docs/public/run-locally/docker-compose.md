@@ -193,7 +193,10 @@ proof runs.
 
 Jira and PagerDuty are disabled by default and render only when
 `--profile jira` or `--profile pagerduty` is selected with a private env file
-that enables the matching collector instance. Missing rendered services remain
+that enables the matching collector instance. Their disabled registrations can
+keep blank private target fields and the claim-capable flag, so
+preserved-volume restarts do not need placeholder Jira or PagerDuty values.
+Missing rendered services remain
 `skipped` proof rows; rendered services with zero source facts fail the hosted
 collector proof.
 

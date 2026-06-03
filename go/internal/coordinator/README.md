@@ -218,6 +218,11 @@ warning (`collector_instance_drift_detected`, fields
 - `last_reaped_claims` spiking above `ExpiredClaimLimit` is not possible; that
   limit caps each reap pass. Repeated spikes at the limit indicate collectors
   are not completing claims within the lease TTL.
+- Disabled PagerDuty and Jira collector instances are accepted as registrations
+  when their identity, kind, mode, and JSON shape are valid. Private target
+  fields and the claim-capable flag may remain set while disabled; enabled
+  instances are still fully target-validated before reconciliation and
+  planning.
 - Derived package and vulnerability target planning is visible in
   `workflow_runs.requested_scope_set`. Planned entries include a
   `target_class`: `configured_direct` for explicit package or advisory scopes,
@@ -385,6 +390,16 @@ No-Regression Evidence: `go test ./internal/coordinator -run 'TestLoadConfigPars
 proves workflow-run status reconciliation can tick faster than scheduled-work
 planning, which keeps remote all-collector Compose from waiting up to the
 scheduled scan interval after all claims complete.
+
+No-Regression Evidence: `go test ./internal/workflow ./internal/coordinator ./internal/storage/postgres ./internal/runtime -run 'DisabledHosted|HostedRegistration|HostedCollectors|RemoteE2EComposeDefaultsAllowDisabledHostedCoordinatorStartup|PagerDutyMissing|JiraMissing|PagerDutyClaimsEnabled|JiraClaimsEnabled' -count=1`
+proves disabled PagerDuty and Jira registrations can preserve blank private
+target fields through config load and reconciliation while enabled hosted
+instances still fail strict target validation.
+
+No-Observability-Change: hosted registration validation changes startup gating
+only. Existing coordinator reconcile counters, collector-instance drift gauges,
+and startup errors still expose invalid enabled configuration and durable
+reconciliation failures.
 
 No-Regression Evidence: `go test ./internal/coordinator ./internal/storage/postgres -run 'TestServiceRunActiveModeSkipsAWSWorkWhenPriorScheduledTargetIsOpen|TestServiceRunActiveModeSchedulesAWSWorkWithoutFreshnessTriggers|TestServiceRunActiveModeSchedulesOCIRegistryWork|TestServiceRunActiveModeSchedulesPackageRegistryWork|TestServiceRunActiveModeSkipsAWSFreshnessWhenPriorTargetIsOpen|TestRunAWSFreshnessHandoffUsesDurableInstancesBetweenReconciles|TestRunActiveMaintenanceReconcilesWorkflowRunsBetweenReconciles|TestWorkflowControlStoreGuardedRunSkipsOpenScheduledTarget|TestWorkflowControlStoreGuardedRunCreatesEligibleScheduledTarget' -count=1`
 covers the open-target admission guard, AWS freshness handoff on the reap

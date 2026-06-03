@@ -36,45 +36,8 @@ func (d DesiredCollectorInstance) Validate() error {
 	if err := validateJSONDocument("configuration", d.Configuration); err != nil {
 		return err
 	}
-	if d.CollectorKind == scope.CollectorTerraformState {
-		if err := ValidateTerraformStateCollectorConfiguration(d.Configuration); err != nil {
-			return err
-		}
-	}
-	if d.CollectorKind == scope.CollectorOCIRegistry {
-		if err := ValidateOCIRegistryCollectorConfiguration(d.Configuration); err != nil {
-			return err
-		}
-	}
-	if d.CollectorKind == scope.CollectorPackageRegistry {
-		if err := ValidatePackageRegistryCollectorConfiguration(d.Configuration); err != nil {
-			return err
-		}
-	}
-	if d.CollectorKind == scope.CollectorVulnerabilityIntelligence {
-		if err := ValidateVulnerabilityIntelligenceCollectorConfiguration(d.Configuration); err != nil {
-			return err
-		}
-	}
-	if d.CollectorKind == scope.CollectorSBOMAttestation {
-		if err := ValidateSBOMAttestationCollectorConfiguration(d.Configuration); err != nil {
-			return err
-		}
-	}
-	if d.CollectorKind == scope.CollectorSecurityAlert {
-		if err := ValidateSecurityAlertCollectorConfiguration(d.Configuration); err != nil {
-			return err
-		}
-	}
-	if d.CollectorKind == scope.CollectorPagerDuty {
-		if err := ValidatePagerDutyCollectorConfiguration(d.Configuration); err != nil {
-			return err
-		}
-	}
-	if d.CollectorKind == scope.CollectorJira {
-		if err := ValidateJiraCollectorConfiguration(d.Configuration); err != nil {
-			return err
-		}
+	if err := validateDesiredCollectorConfiguration(d.CollectorKind, d.Enabled, d.Configuration); err != nil {
+		return err
 	}
 	return nil
 }
@@ -110,40 +73,8 @@ func (i CollectorInstance) Validate() error {
 	if err := validateJSONDocument("configuration", i.Configuration); err != nil {
 		return err
 	}
-	if i.CollectorKind == scope.CollectorOCIRegistry {
-		if err := ValidateOCIRegistryCollectorConfiguration(i.Configuration); err != nil {
-			return err
-		}
-	}
-	if i.CollectorKind == scope.CollectorPackageRegistry {
-		if err := ValidatePackageRegistryCollectorConfiguration(i.Configuration); err != nil {
-			return err
-		}
-	}
-	if i.CollectorKind == scope.CollectorVulnerabilityIntelligence {
-		if err := ValidateVulnerabilityIntelligenceCollectorConfiguration(i.Configuration); err != nil {
-			return err
-		}
-	}
-	if i.CollectorKind == scope.CollectorSBOMAttestation {
-		if err := ValidateSBOMAttestationCollectorConfiguration(i.Configuration); err != nil {
-			return err
-		}
-	}
-	if i.CollectorKind == scope.CollectorSecurityAlert {
-		if err := ValidateSecurityAlertCollectorConfiguration(i.Configuration); err != nil {
-			return err
-		}
-	}
-	if i.CollectorKind == scope.CollectorPagerDuty {
-		if err := ValidatePagerDutyCollectorConfiguration(i.Configuration); err != nil {
-			return err
-		}
-	}
-	if i.CollectorKind == scope.CollectorJira {
-		if err := ValidateJiraCollectorConfiguration(i.Configuration); err != nil {
-			return err
-		}
+	if err := validateDurableCollectorConfiguration(i.CollectorKind, i.Enabled, i.Configuration); err != nil {
+		return err
 	}
 	if err := validateTime("last_observed_at", i.LastObservedAt); err != nil {
 		return err
@@ -162,6 +93,41 @@ func (i CollectorInstance) Validate() error {
 	}
 	if !i.DeactivatedAt.IsZero() && i.DeactivatedAt.Before(i.CreatedAt) {
 		return fmt.Errorf("deactivated_at must not be before created_at")
+	}
+	return nil
+}
+
+func validateDesiredCollectorConfiguration(kind scope.CollectorKind, enabled bool, raw string) error {
+	if kind == scope.CollectorTerraformState {
+		return ValidateTerraformStateCollectorConfiguration(raw)
+	}
+	return validateDurableCollectorConfiguration(kind, enabled, raw)
+}
+
+func validateDurableCollectorConfiguration(kind scope.CollectorKind, enabled bool, raw string) error {
+	if kind == scope.CollectorOCIRegistry {
+		return ValidateOCIRegistryCollectorConfiguration(raw)
+	}
+	if kind == scope.CollectorPackageRegistry {
+		return ValidatePackageRegistryCollectorConfiguration(raw)
+	}
+	if kind == scope.CollectorVulnerabilityIntelligence {
+		return ValidateVulnerabilityIntelligenceCollectorConfiguration(raw)
+	}
+	if kind == scope.CollectorSBOMAttestation {
+		return ValidateSBOMAttestationCollectorConfiguration(raw)
+	}
+	if kind == scope.CollectorSecurityAlert {
+		return ValidateSecurityAlertCollectorConfiguration(raw)
+	}
+	if !enabled {
+		return nil
+	}
+	if kind == scope.CollectorPagerDuty {
+		return ValidatePagerDutyCollectorConfiguration(raw)
+	}
+	if kind == scope.CollectorJira {
+		return ValidateJiraCollectorConfiguration(raw)
 	}
 	return nil
 }

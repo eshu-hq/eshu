@@ -26,6 +26,11 @@ scanner-worker, and vulnerability-intelligence Deployments require:
 - `workflowCoordinator.claimsEnabled=true`
 - at least one matching collector instance
 
+Disabled PagerDuty and Jira collector instances may remain declared with blank
+private target fields and the claim-capable flag. The workflow coordinator
+validates those rows as durable registrations only; enabling the instance makes
+target validation strict before work can be planned.
+
 The chart fails at render time when those prerequisites are missing.
 For observability, source-controlled IaC/GitOps evidence is preferred when it
 is current. Live Grafana, Prometheus/Mimir, Loki, and Tempo collection is the

@@ -21,9 +21,10 @@
 // ecosystems, mirror URLs, source-cache modes, and cache freshness durations,
 // and security-alert collector instances validate repository allowlists plus
 // HTTPS credentialed API base URLs before the coordinator plans claimable work
-// items. PagerDuty collector instances validate bounded account or
-// service-allowlist targets with credential environment references before the
-// coordinator plans claimable incident evidence work; optional
+// items. Disabled PagerDuty and Jira collector instances validate only durable
+// registration shape while enabled instances validate bounded account,
+// service-allowlist, or site targets with credential environment references
+// before the coordinator plans claimable evidence work. Optional PagerDuty
 // live-configuration validation fields are checked at the same workflow
-// boundary so PagerDuty service and integration reads stay bounded.
+// boundary so service and integration reads stay bounded.
 package workflow
