@@ -145,6 +145,7 @@ func TestSpanNames(t *testing.T) {
 		"query.service_catalog_correlations",
 		"query.kubernetes_correlations",
 		"query.observability_coverage_correlations",
+		"query.secrets_iam_identity_trust_chains",
 		"query.container_image_identities",
 		"query.supply_chain_security_alerts",
 		"query.sbom_attestation_attachments",

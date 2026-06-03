@@ -186,6 +186,10 @@ func newMCPQueryRouter(
 			Correlations: query.NewPostgresKubernetesCorrelationStore(db),
 			Profile:      queryProfile,
 		},
+		SecretsIAM: &query.SecretsIAMHandler{
+			IdentityTrustChains: query.NewPostgresSecretsIAMIdentityTrustChainStore(db),
+			Profile:             queryProfile,
+		},
 		ObservabilityCoverage: &query.ObservabilityCoverageHandler{
 			Content:      contentReader,
 			Correlations: query.NewPostgresObservabilityCoverageCorrelationStore(db),

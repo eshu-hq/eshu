@@ -121,6 +121,7 @@ type APIRouter struct {
 	CICD                  *CICDHandler
 	ServiceCatalog        *ServiceCatalogHandler
 	Kubernetes            *KubernetesHandler
+	SecretsIAM            *SecretsIAMHandler
 	ObservabilityCoverage *ObservabilityCoverageHandler
 	SupplyChain           *SupplyChainHandler
 	Incident              *IncidentHandler
@@ -205,6 +206,11 @@ func (a *APIRouter) Mount(mux *http.ServeMux) {
 	// Kubernetes
 	if a.Kubernetes != nil {
 		a.Kubernetes.Mount(mux)
+	}
+
+	// Secrets / IAM posture
+	if a.SecretsIAM != nil {
+		a.SecretsIAM.Mount(mux)
 	}
 
 	// Observability coverage

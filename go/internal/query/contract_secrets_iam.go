@@ -1,0 +1,15 @@
+package query
+
+// init registers secrets/IAM trust-chain query capabilities (issue #25). The
+// read model is reducer-owned and lives in Postgres, so the capability requires
+// at least the local authoritative profile; the lightweight profile cannot
+// serve it and returns unsupported_capability rather than a confident answer.
+func init() {
+	capabilityMatrix[secretsIAMIdentityTrustChainsCapability] = capabilitySupport{
+		LocalLightweightMax:   nil,
+		LocalAuthoritativeMax: &truthExact,
+		LocalFullStackMax:     &truthExact,
+		ProductionMax:         &truthExact,
+		RequiredProfile:       ProfileLocalAuthoritative,
+	}
+}
