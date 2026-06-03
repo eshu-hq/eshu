@@ -29,6 +29,13 @@
 - Bound the per-principal managed policy document fan-out
   (`maxPolicyDocumentsPerPrincipal`); do not loop one `GetPolicy` +
   `GetPolicyVersion` pair per attachment without a cap.
+- When a principal has a permission boundary, fetch and normalize the boundary
+  document through the existing managed-policy read (`getManagedPolicyDocument`)
+  and the existing `normalizePolicyDocument`, tagging the statements
+  `iam.PolicySourceBoundary` (issue #1331 PR4c). A boundary is a managed policy by
+  ARN, so it stays on the metadata-only path; do NOT add a bespoke boundary
+  document read or a new redaction rule. A blank boundary ARN is a no-op; a fetch
+  error must stop the scan, not silently drop the ceiling.
 - Do not cache AWS credentials or SDK clients beyond the claim-scoped runtime
   object that created this adapter.
 

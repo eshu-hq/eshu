@@ -348,3 +348,93 @@ Observability Evidence: existing `eshu_dp_iam_can_perform_edges_total`, bounded
 completion log still diagnose edge count, skip reason, fact-load count, extract
 duration, retract duration, write duration, and total duration. The completion
 log now includes `resource_policy_permission_fact_count`.
+
+## 14. PR4c Permission-Boundary Intersection Evidence (#1331)
+
+This section records the permission-boundary slice: the collector emits boundary
+policy STATEMENTS (not just the boundary ARN reference), and the reducer intersects
+identity-policy allows with boundary allows before promoting an edge.
+
+### 14.1 Realized scope
+
+- **Collector (metadata-only).** A permission boundary is a managed policy by ARN.
+  The IAM SDK adapter (`boundaryPolicyStatements`, wired into `roleStatements` /
+  `userStatements`) fetches the boundary document through the EXISTING
+  `getManagedPolicyDocument` read and normalizes it through the EXISTING
+  `normalizePolicyDocument`, tagging the statements `policy_source = "boundary"`
+  (`iam.PolicySourceBoundary` / `awscloud.IAMPolicySourceBoundary`). The scanner's
+  `permissionEnvelopes` maps them into `aws_iam_permission` facts with
+  `principal_arn` = the bounded role/user. No raw policy JSON, statement bodies, or
+  condition values are emitted — only derived effect / actions / resources /
+  not-actions / not-resources / condition-key NAMES, identical to inline / managed
+  identity statements. The honesty boundary fetch therefore stays within the
+  established metadata-only contract; no new control-plane read shape or redaction
+  rule was needed.
+- **Reducer (intersection).** `splitIAMCanPerformBoundary` partitions each
+  principal's statements into identity statements (which grant) and boundary
+  statements (which only ceiling). A boundary statement never contributes to the
+  identity grant. `boundaryAllowsIAMCanPerform` keeps a candidate identity edge ONLY
+  when the boundary does not Deny the action AND has a clean Allow
+  (unconditioned, no `NotAction`/`NotResource`) covering the action whose resource
+  patterns cover the resolved resource (`iamCanPerformBoundaryCoversResource`, a
+  ceiling check so wildcard / prefix boundary resources legitimately cover the
+  specific node). A principal with NO boundary is unaffected.
+- **Honesty signals.** A surviving bounded edge carries
+  `rel.boundary_evaluated = true` and `rel.evaluation_scope =
+  identity_policy_and_boundary` (both SET properties, never in the MERGE key).
+- **Skip taxonomy.** Extended with `skipped_boundary_no_allow`,
+  `skipped_boundary_deny`, `skipped_boundary_conditioned`,
+  `skipped_boundary_not_action_resource`, `skipped_boundary_unresolved`. All are
+  fixed tokens; no policy value or secret-like string enters a metric label.
+
+### 14.2 Conservative cases (per #1331)
+
+| Boundary condition on a bounded principal's identity allow | Outcome | Count |
+|---|---|---|
+| Boundary clean-Allow covers action + resolved resource | EDGE (`boundary_evaluated=true`) | — |
+| Boundary explicit Deny on the action | suppressed | `skipped_boundary_deny` |
+| Boundary does not allow the action / allows it only on another resource | suppressed | `skipped_boundary_no_allow` |
+| Boundary's only coverage is a conditioned Allow | suppressed | `skipped_boundary_conditioned` |
+| Boundary's only coverage is a `NotAction`/`NotResource` Allow | suppressed | `skipped_boundary_not_action_resource` |
+| Boundary attached but document yielded no usable statement | suppressed | `skipped_boundary_unresolved` |
+| Principal has NO boundary | unaffected (identity-only) | — |
+
+### 14.3 Performance impact declaration
+
+- **Affected stage:** reducer shared-projection graph write
+  (`iam_can_perform_materialization`) and the IAM collector boundary read. The
+  boundary read reuses the existing managed-policy `GetPolicy` + `GetPolicyVersion`
+  pair (one extra document read per BOUNDED principal only); unbounded principals
+  cost nothing new.
+- **Expected cardinality band:** unchanged edge-count band — the intersection can
+  only REMOVE candidate edges, never add them, so the realized edge count for a
+  bounded fleet is ≤ the PR4b band. The boundary read adds at most one document per
+  principal that has a boundary attached, bounded by the principal count.
+- **Stop threshold:** if the writer micro-benchmark regresses more than ~10% on the
+  same row shape, or the boundary read materially changes per-principal collector
+  fan-out, stop and profile before merge.
+
+Benchmark Evidence: `go test ./internal/storage/cypher -run '^$' -bench
+'BenchmarkIAMCanPerformEdgeWriter' -benchmem -count=3` on the production row shape
+(now carrying `grant_sources` + `boundary_evaluated`) measures `~1.8 ms/op` /
+`35,070 allocs/op` for 5,000 rows at batch 500; with the pre-PR4c row shape held
+constant against the current writer the same harness measures `~1.28 ms/op` /
+`25,068 allocs/op`, statistically identical to the origin/main `~1.25 ms/op`
+baseline — the writer-code change (one SET property) is not a regression and the
+absolute delta is the two extra per-row map keys.
+
+No-Regression Evidence: `go test ./internal/reducer ./internal/storage/cypher
+./internal/telemetry ./internal/projector ./internal/storage/postgres
+./cmd/reducer ./internal/facts ./internal/collector/awscloud
+./internal/collector/awscloud/services/iam/... -count=1` and the
+`./internal/query ./internal/status ./internal/runtime` no-regression set pass,
+including the full boundary proof matrix and the handler graph-truth/skip-metric
+agreement.
+
+Observability Evidence: `eshu_dp_iam_can_perform_skipped_total` gains the five
+bounded boundary `skip_reason` members and the completion log gains the matching
+counts, so an operator can distinguish a boundary-suppressed edge
+(`skipped_boundary_no_allow` / `_deny` / `_unresolved`) from an uncatalogued or
+unresolved one. No new instrument, span, runtime flag, queue state, or graph label
+is added; `rel.boundary_evaluated` and `identity_policy_and_boundary` ride the
+existing edge write.

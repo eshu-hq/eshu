@@ -268,6 +268,11 @@ func (h IAMCanPerformMaterializationHandler) recordTally(ctx context.Context, re
 	h.recordSkip(ctx, iamCanPerformSkipConditioned, result.Tally.skippedConditioned)
 	h.recordSkip(ctx, iamCanPerformSkipNotActionResource, result.Tally.skippedNotActionResource)
 	h.recordSkip(ctx, iamCanPerformSkipSelfLoop, result.Tally.skippedSelfLoop)
+	h.recordSkip(ctx, iamCanPerformSkipBoundaryNoAllow, result.Tally.skippedBoundaryNoAllow)
+	h.recordSkip(ctx, iamCanPerformSkipBoundaryDeny, result.Tally.skippedBoundaryDeny)
+	h.recordSkip(ctx, iamCanPerformSkipBoundaryConditioned, result.Tally.skippedBoundaryConditioned)
+	h.recordSkip(ctx, iamCanPerformSkipBoundaryNotActionResource, result.Tally.skippedBoundaryNotActionResource)
+	h.recordSkip(ctx, iamCanPerformSkipBoundaryUnresolved, result.Tally.skippedBoundaryUnresolved)
 }
 
 // recordEdgeMode emits one resolution_mode edge data point. A zero count is still
@@ -359,6 +364,11 @@ func logIAMCanPerformCompleted(ctx context.Context, timing iamCanPerformTiming) 
 		slog.Int("skipped_conditioned", timing.tally.skippedConditioned),
 		slog.Int("skipped_not_action_resource", timing.tally.skippedNotActionResource),
 		slog.Int("skipped_self_loop", timing.tally.skippedSelfLoop),
+		slog.Int("skipped_boundary_no_allow", timing.tally.skippedBoundaryNoAllow),
+		slog.Int("skipped_boundary_deny", timing.tally.skippedBoundaryDeny),
+		slog.Int("skipped_boundary_conditioned", timing.tally.skippedBoundaryConditioned),
+		slog.Int("skipped_boundary_not_action_resource", timing.tally.skippedBoundaryNotActionResource),
+		slog.Int("skipped_boundary_unresolved", timing.tally.skippedBoundaryUnresolved),
 		slog.Bool("skip_retract", timing.skipRetract),
 		slog.Float64("load_facts_duration_seconds", timing.loadDuration.Seconds()),
 		slog.Float64("extract_duration_seconds", timing.extractDuration.Seconds()),

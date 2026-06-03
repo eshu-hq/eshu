@@ -1083,7 +1083,7 @@ Performance Evidence: focused Eshu-owned write-path benchmark on Apple M4 Pro, n
 
 Observability Evidence: the new `eshu_dp_iam_escalation_edges_total` (escalation edges committed) and `eshu_dp_iam_escalation_skipped_total` (`skip_reason` = `skipped_ambiguous` / `skipped_unresolved` / `skipped_deny` / `skipped_conditioned` / `skipped_not_action_resource` / `skipped_incomplete` / `deferred_can_assume`) counters, the `reducer.iam_escalation_materialization` span, and a structured completion log carrying per-stage durations (load / extract / retract / write) plus the skip tally let an operator answer at 3 AM "are escalation edges landing, and if a generation produced zero edges, is it because policies use wildcard resources (`skipped_ambiguous`) or because IAM targets were not scanned (`skipped_unresolved`)?". The `cloud_resource_uid` readiness gate is the same durable status-blockage surface the #805 / #1135 edge slices use.
 
-### IAM CAN_PERFORM effective-permission graph (#1134 PR4a/PR4b, security-sensitive)
+### IAM CAN_PERFORM effective-permission graph (#1134 PR4a/PR4b/PR4c, security-sensitive)
 
 `DomainIAMCanPerformMaterialization` projects the merged `aws_iam_permission`
 and `aws_resource_policy_permission` facts into conservative `CAN_PERFORM` edges
@@ -1099,23 +1099,87 @@ node of the catalog-expected resource type. Resource-policy grants additionally
 require `principal_arns[]` to resolve to scanned IAM role/user nodes and the
 statement Resource patterns to apply to the attached resource. The granted action
 set is written as a sorted/deduped edge property `rel.actions` (never in the
-MERGE key), alongside `rel.action_count`, `rel.grant_sources`, and
-`rel.evaluation_scope` (`identity_policy_only`, `resource_policy_only`, or
-`identity_and_resource_policy`). Uncatalogued actions, wildcard/many-resource
+MERGE key), alongside `rel.action_count`, `rel.grant_sources`,
+`rel.evaluation_scope` (`identity_policy_only`, `resource_policy_only`,
+`identity_and_resource_policy`, or `identity_policy_and_boundary`), and
+`rel.boundary_evaluated`. Uncatalogued actions, wildcard/many-resource
 targets, `*`, public or unscanned principals, Deny, condition-gated,
 `NotAction`/`NotResource`, unresolved/cross-account/wrong-type, and self-loops
 materialize no edge and are counted, never dropped silently. It is EDGE-ONLY on
 the existing `cloud_resource_uid` keyspace and gates on the `cloud_resource_uid`
 / `canonical_nodes_committed` readiness phase.
 
+#### Permission-boundary intersection (PR4c, #1331)
+
+PR4c adds the next IAM ceiling: a principal's identity-policy allow becomes
+effective only if the principal's permission boundary ALSO allows that action on
+a covering resource. The IAM scanner emits the boundary policy document's
+statements as ordinary metadata-only `aws_iam_permission` facts tagged
+`policy_source = "boundary"` with `principal_arn` set to the bounded role/user
+(the boundary is just a managed policy by ARN, normalized through the same
+identity-statement path — no raw policy JSON or condition values). The reducer
+(`iam_can_perform_boundary.go`) splits each principal's statements into identity
+statements (which grant) and boundary statements (which only ceiling), then
+intersects: a candidate identity edge survives ONLY when the boundary does not
+explicitly Deny the action AND has a clean Allow (unconditioned, no
+`NotAction`/`NotResource`) covering the action whose resource patterns cover the
+resolved resource. A boundary is a ceiling, so a wildcard/prefix boundary resource
+legitimately covers the specific resolved node. A principal with NO boundary is
+unaffected (identity-only, exactly as PR4a/PR4b). Surviving bounded edges carry
+`rel.boundary_evaluated = true` and `rel.evaluation_scope =
+identity_policy_and_boundary`. Conservative suppressions extend the bounded skip
+taxonomy: `skipped_boundary_no_allow`, `skipped_boundary_deny`,
+`skipped_boundary_conditioned`, `skipped_boundary_not_action_resource`,
+`skipped_boundary_unresolved`. The labels are fixed tokens — no policy values or
+secret-like strings enter metric labels.
+
 The honesty boundary is explicit and load-bearing: a PRESENT edge means an
 identity policy, resource policy, or both grant the action on the resolved
-resource, IGNORING permission boundaries, SCPs, condition values, and session
-policies. A MISSING edge does NOT mean "cannot perform" — it can mean the action
-is uncatalogued, the resource or principal was not scanned or was ambiguous, or
-a later evaluator slice has not been implemented. This is why the slice is
-conservative and skip-counted rather than claiming a complete effective-permission
-lattice.
+resource — and, when `boundary_evaluated` is true, that the action also survived
+the principal's permission boundary. It still IGNORES SCPs, condition values, and
+session policies. A MISSING edge does NOT mean "cannot perform" — it can mean the
+action is uncatalogued, the resource or principal was not scanned or was
+ambiguous, the boundary suppressed it, or a later evaluator slice has not been
+implemented. This is why the slice is conservative and skip-counted rather than
+claiming a complete effective-permission lattice.
+
+Performance Evidence: PR4c adds one SET property (`rel.boundary_evaluated`) to the
+CAN_PERFORM upsert and a bounded in-memory boundary intersection per principal; no
+new Cypher statement, MATCH anchor, MERGE key, or graph round trip. The relationship
+MERGE identity `(principal_uid, CAN_PERFORM, resource_uid)` is unchanged.
+
+No-Regression Evidence: with the pre-PR4c row shape held constant against the
+current writer code, `go test ./internal/storage/cypher -run '^$' -bench
+'BenchmarkIAMCanPerformEdgeWriter…BaselineShape' -benchmem -count=3` ran 5,000
+rows at batch 500 on Apple M-series in `1.27/1.28/1.30 ms/op`
+(`1,967,371 B/op`, `25,068 allocs/op`) versus the origin/main CAN_PERFORM writer
+baseline of `~1.25 ms/op` on the same shape — statistically identical, well under
+the 10% stop threshold, so the writer-code change is not a regression. The
+production-shape benchmark (`BenchmarkIAMCanPerformEdgeWriter`, which now carries
+`grant_sources` + `boundary_evaluated`) measures `~1.8 ms/op` / `35,070
+allocs/op`; the delta over the baseline shape is entirely the two extra per-row
+map keys (cloning/marshalling cost), an expected bounded additive-capability cost,
+not a writer-code regression. The boundary intersection itself is proved by
+focused unit tests rather than a graph benchmark because it is bounded in-memory
+work with no Cypher, queue, batch, readiness-gate, or graph-row-shape change:
+`go test ./internal/reducer -run 'IAMCanPerform' -count=1` covers identity+boundary
+allow, no-boundary-allow suppression, boundary explicit Deny, boundary-allows-action-
+not-resource, wildcard/service-wildcard boundary coverage, conditioned/NotAction
+boundary suppression, unbounded-principal-unaffected, duplicate-idempotent, and
+per-action deny-one-keep-other.
+
+Observability Evidence: the existing `eshu_dp_iam_can_perform_skipped_total`
+counter gains five bounded `skip_reason` members
+(`skipped_boundary_no_allow`, `skipped_boundary_deny`,
+`skipped_boundary_conditioned`, `skipped_boundary_not_action_resource`,
+`skipped_boundary_unresolved`) and the structured completion log gains the matching
+per-reason counts, so an operator can tell at 3 AM whether a generation produced
+zero edges because the principal's boundary did not allow the action
+(`skipped_boundary_no_allow`), the boundary denied it (`skipped_boundary_deny`),
+or the boundary document was unresolved (`skipped_boundary_unresolved`). No new
+metric instrument, span, runtime flag, queue state, or graph label is added; the
+new `rel.boundary_evaluated` / `identity_policy_and_boundary` honesty signals ride
+the existing edge write.
 
 Benchmark Evidence: focused Eshu-owned write-path benchmark, no-op group executor (isolates statement construction/batching from graph round trips). `go test ./internal/storage/cypher -run '^$' -bench 'BenchmarkIAMCanPerformEdgeWriter|BenchmarkIAMEscalationEdgeWriter' -benchmem -count=3` writes 5,000 `CAN_PERFORM` edges at batch 500 in `1.25 ms/op`, `1.24 ms/op`, and `1.24 ms/op` (`~1.97 MB/op`, `25,068 allocs/op`) versus the shipped `BenchmarkIAMEscalationEdgeWriter` baseline at `1.21 ms/op`, `1.21 ms/op`, and `1.20 ms/op` on the identical row shape, staying under the 10% stop threshold. The writer reuses the identical batched `UNWIND` + `MATCH-MATCH-MERGE`-on-uid shape with a static `CAN_PERFORM` relationship type; the granted action set lives in an edge property, never in the MERGE key, keeping the relationship MERGE on a static token so NornicDB uses its relationship hot path. Both endpoint MATCHes anchor on the existing CloudResource uid index, so no MATCH falls back to a label scan. Target resolution is bounded in-memory (the #805 §5.1 ARN join index), O(1) per exact match with no per-edge graph round trip and no N+1. `go test ./internal/reducer ./internal/storage/cypher ./internal/telemetry ./internal/projector ./internal/storage/postgres ./cmd/reducer -count=1` passes, including the readiness gate, idempotent reprojection, the conservative skip cases (uncatalogued / wildcard / many / Deny / conditioned / NotAction / unresolved / self-loop), and the multi-action merge-into-one-edge case.
 

@@ -30,6 +30,13 @@ const (
 	// IAMPolicySourceTrust marks a derived permission from a role trust /
 	// assume-role policy document.
 	IAMPolicySourceTrust = "trust"
+	// IAMPolicySourceBoundary marks a derived permission from a principal's
+	// permission-boundary policy document. The statement is a ceiling, not a grant:
+	// the reducer intersects identity-policy allows with boundary allows before
+	// promoting a CAN_PERFORM edge (issue #1331). It carries the same metadata-only
+	// shape as any other aws_iam_permission statement; no raw policy JSON or
+	// condition values are emitted.
+	IAMPolicySourceBoundary = "boundary"
 )
 
 const (

@@ -28,6 +28,14 @@ const (
 	iamCanPerformGrantSourceResourcePolicy = "resource_policy"
 )
 
+// iamCanPerformPolicySourceBoundary is the policy_source value on an
+// aws_iam_permission fact that carries a statement from a principal's permission
+// boundary (PR4c). It is NOT a grant source: a boundary never positively grants an
+// action, it only intersects (ceilings) the identity-policy grant set. The
+// collector mirrors this token via awscloud.IAMPolicySourceBoundary; the reducer
+// duplicates it because the reducer must not import the collector package.
+const iamCanPerformPolicySourceBoundary = "boundary"
+
 const (
 	// iamCanPerformEvaluationScopeIdentityPolicyOnly documents that the edge was
 	// derived from identity-policy statements only: resource-based policies,
@@ -42,6 +50,12 @@ const (
 	// identity-policy and resource-policy statements grant at least one action on
 	// the same principal/resource edge.
 	iamCanPerformEvaluationScopeIdentityAndResourcePolicy = "identity_and_resource_policy"
+	// iamCanPerformEvaluationScopeIdentityPolicyBoundary documents that the edge
+	// was derived from identity-policy statements AND survived intersection with the
+	// principal's permission boundary (PR4c): the boundary also allows the action on
+	// a covering resource. SCPs, condition values, and session policies remain
+	// unevaluated.
+	iamCanPerformEvaluationScopeIdentityPolicyBoundary = "identity_policy_and_boundary"
 )
 
 // iamCanPerformEvaluationScope is the legacy MVP honesty label kept for tests and

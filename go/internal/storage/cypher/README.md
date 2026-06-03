@@ -418,7 +418,7 @@ tracks this package's broader transient graph-write retry class.
   effective-permission edges between an IAM principal `CloudResource` node and the
   resource `CloudResource` node an identity or resource policy grants a catalogued
   sensitive action on, for the IAM CAN_PERFORM materialization reducer domain
-  (issue #1134 PR4a/PR4b reducer); constructed with
+  (issue #1134 PR4a/PR4b/PR4c reducer); constructed with
   `NewIAMCanPerformEdgeWriter`. Batched `UNWIND` +
   `MATCH (p:CloudResource {uid})` / `MATCH (r:CloudResource {uid})` /
   static-type `MERGE (p)-[rel:CAN_PERFORM]->(r)` so a missing endpoint is a no-op
@@ -428,7 +428,10 @@ tracks this package's broader transient graph-write retry class.
   property (`rel.actions`), never in the MERGE key — so the MERGE keys on the
   stable `(principal_uid, CAN_PERFORM, resource_uid)` identity and stays on
   NornicDB's relationship hot path; the edge also carries `rel.action_count`,
-  `rel.grant_sources`, and the honesty label `rel.evaluation_scope`. Idempotent
+  `rel.grant_sources`, the honesty label `rel.evaluation_scope`, and
+  `rel.boundary_evaluated` (issue #1331 PR4c — true when the principal's permission
+  boundary was intersected before the edge was promoted). All of these are SET
+  properties, never part of the MERGE key. Idempotent
   on that triple, with an evidence-source-scoped, edge-`scope_id`-filtered
   retract. Security-sensitive: it persists only the conservatively-resolved rows
   the extractor produced.

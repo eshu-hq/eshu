@@ -174,6 +174,15 @@ JSON, ACL grant bodies, object keys, or object contents. Reducers own LOGS_TO
 edge projection and the conservative exposed / not_exposed / unknown internet
 exposure node-property projection from this evidence.
 
+`aws_iam_permission` is one derived, metadata-only IAM policy statement attached
+to a principal: the effect, normalized `actions` / `not_actions` / `resources` /
+`not_resources` patterns, a condition-key NAME summary, and a `policy_source` ∈
+{`inline`, `attached_managed`, `trust`, `boundary`}. A `boundary` statement is the
+metadata-only projection of the principal's permission-boundary policy document (a
+managed policy by ARN, normalized through the same path) with `principal_arn` =
+the bounded role/user; the reducer intersects it as a ceiling before promoting a
+`CAN_PERFORM` edge. It NEVER carries the raw policy JSON body or condition values.
+
 `aws_resource_policy_permission` is the resource-side analog of
 `aws_iam_permission`: one derived, metadata-only statement from a resource-based
 policy (an S3 bucket policy or KMS key policy) attached to the resource it

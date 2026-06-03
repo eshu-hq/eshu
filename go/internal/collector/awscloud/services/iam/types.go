@@ -13,6 +13,11 @@ const (
 	PolicySourceAttachedManaged = "attached_managed"
 	// PolicySourceTrust marks a statement from a role trust / assume-role policy.
 	PolicySourceTrust = "trust"
+	// PolicySourceBoundary marks a statement from a principal's permission-boundary
+	// policy document. A boundary is a managed policy by ARN; its statements are a
+	// ceiling, not a grant. Downstream CAN_PERFORM evaluation intersects identity
+	// allows with boundary allows before promoting an effective-permission edge.
+	PolicySourceBoundary = "boundary"
 )
 
 // Role is the scanner-owned representation of an IAM role.

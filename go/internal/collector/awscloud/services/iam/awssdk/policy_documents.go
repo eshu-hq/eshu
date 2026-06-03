@@ -56,7 +56,8 @@ func (c *Client) mapUser(ctx context.Context, user awsiamtypes.User) (iamservice
 	if detail != nil {
 		userDetail = *detail
 	}
-	statements, err := c.userStatements(ctx, userName, attached, inlineNames)
+	boundary := permissionBoundary(userDetail.PermissionsBoundary)
+	statements, err := c.userStatements(ctx, userName, boundary.PolicyARN, attached, inlineNames)
 	if err != nil {
 		return iamservice.User{}, err
 	}
@@ -64,7 +65,7 @@ func (c *Client) mapUser(ctx context.Context, user awsiamtypes.User) (iamservice
 		ARN:                  firstNonBlank(aws.ToString(userDetail.Arn), aws.ToString(user.Arn)),
 		Name:                 userName,
 		Path:                 firstNonBlank(aws.ToString(userDetail.Path), aws.ToString(user.Path)),
-		PermissionBoundary:   permissionBoundary(userDetail.PermissionsBoundary),
+		PermissionBoundary:   boundary,
 		AttachedPolicyARNs:   attached,
 		InlinePolicyNames:    inlineNames,
 		PermissionStatements: statements,
@@ -90,9 +91,11 @@ func (c *Client) getUserDetail(ctx context.Context, userName string) (*awsiamtyp
 }
 
 // roleStatements assembles the normalized, metadata-only permission statements
-// for one role: the trust policy, every inline policy document, and the attached
-// managed policy documents up to the per-principal fan-out cap.
-func (c *Client) roleStatements(ctx context.Context, roleName, rawTrust string, attached, inlineNames []string) ([]iamservice.PolicyStatement, error) {
+// for one role: the trust policy, every inline policy document, the attached
+// managed policy documents up to the per-principal fan-out cap, and — when a
+// permission boundary is attached — the boundary policy document's statements
+// (tagged PolicySourceBoundary so the reducer can intersect them as a ceiling).
+func (c *Client) roleStatements(ctx context.Context, roleName, rawTrust, boundaryARN string, attached, inlineNames []string) ([]iamservice.PolicyStatement, error) {
 	var statements []iamservice.PolicyStatement
 
 	trust, err := normalizeTrustPolicyDocument(rawTrust)
@@ -117,12 +120,21 @@ func (c *Client) roleStatements(ctx context.Context, roleName, rawTrust string, 
 	if err != nil {
 		return nil, err
 	}
-	return append(statements, managed...), nil
+	statements = append(statements, managed...)
+
+	boundary, err := boundaryPolicyStatements(boundaryARN, func(arn string) (string, error) {
+		return c.getManagedPolicyDocument(ctx, arn)
+	})
+	if err != nil {
+		return nil, err
+	}
+	return append(statements, boundary...), nil
 }
 
 // userStatements assembles the normalized inline and attached managed policy
-// statements for one user, bounding the managed-policy fan-out.
-func (c *Client) userStatements(ctx context.Context, userName string, attached, inlineNames []string) ([]iamservice.PolicyStatement, error) {
+// statements for one user, bounding the managed-policy fan-out, plus the user's
+// permission boundary statements when a boundary is attached (PolicySourceBoundary).
+func (c *Client) userStatements(ctx context.Context, userName, boundaryARN string, attached, inlineNames []string) ([]iamservice.PolicyStatement, error) {
 	var statements []iamservice.PolicyStatement
 	for _, name := range inlineNames {
 		document, err := c.getUserPolicyDocument(ctx, userName, name)
@@ -139,7 +151,15 @@ func (c *Client) userStatements(ctx context.Context, userName string, attached, 
 	if err != nil {
 		return nil, err
 	}
-	return append(statements, managed...), nil
+	statements = append(statements, managed...)
+
+	boundary, err := boundaryPolicyStatements(boundaryARN, func(arn string) (string, error) {
+		return c.getManagedPolicyDocument(ctx, arn)
+	})
+	if err != nil {
+		return nil, err
+	}
+	return append(statements, boundary...), nil
 }
 
 func (c *Client) listAttachedUserPolicies(ctx context.Context, userName string) ([]string, error) {
@@ -220,6 +240,31 @@ func boundedManagedPolicyStatements(policyARNs []string, maxDocuments int, fetch
 		statements = append(statements, normalized...)
 	}
 	return statements, nil
+}
+
+// boundaryPolicyStatements fetches and normalizes one principal's permission
+// boundary policy document into metadata-only statements tagged
+// PolicySourceBoundary. A permission boundary is a managed policy referenced by
+// ARN, so it reuses the SAME identity-policy normalization (effect, action/resource
+// patterns, condition KEY names only) — no raw policy JSON or condition values are
+// ever retained. A blank boundary ARN (no boundary attached) yields no fetch and no
+// statements. fetch is the bounded document reader; splitting it out keeps the
+// boundary read unit-testable without an AWS client, mirroring
+// boundedManagedPolicyStatements.
+func boundaryPolicyStatements(boundaryARN string, fetch func(policyARN string) (string, error)) ([]iamservice.PolicyStatement, error) {
+	boundaryARN = strings.TrimSpace(boundaryARN)
+	if boundaryARN == "" {
+		return nil, nil
+	}
+	document, err := fetch(boundaryARN)
+	if err != nil {
+		return nil, fmt.Errorf("get permission boundary %q: %w", boundaryARN, err)
+	}
+	normalized, err := normalizePolicyDocument(document, iamservice.PolicySourceBoundary, boundaryARN, "")
+	if err != nil {
+		return nil, fmt.Errorf("normalize permission boundary %q: %w", boundaryARN, err)
+	}
+	return normalized, nil
 }
 
 func (c *Client) getRolePolicyDocument(ctx context.Context, roleName, policyName string) (string, error) {

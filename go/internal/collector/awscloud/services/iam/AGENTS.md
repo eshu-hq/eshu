@@ -24,6 +24,14 @@
   assume-principals). NEVER persist the raw policy JSON body or condition values.
   The SDK adapter normalizes documents; this package consumes `PolicyStatement`
   values and never holds raw JSON.
+- `policy_source` distinguishes the originating document: `inline`,
+  `attached_managed`, `trust`, and `boundary` (a principal's permission boundary,
+  issue #1331 PR4c). A permission boundary is a managed policy by ARN, so its
+  statements are fetched and normalized through the SAME metadata-only path as any
+  other identity policy and carry `principal_arn` = the bounded role/user. A
+  `boundary` statement is a ceiling for downstream CAN_PERFORM intersection, not a
+  grant; this package still emits source evidence only and performs no
+  intersection.
 - `secrets_iam_posture` facts are source evidence only. Keep
   `collector_kind=secrets_iam_posture` and do not reuse AWS cloud envelope
   helpers for those fact kinds.

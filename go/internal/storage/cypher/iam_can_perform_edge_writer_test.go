@@ -11,20 +11,22 @@ const iamCanPerformEvidence = "reducer/iam-can-perform"
 func iamCanPerformEdgeRows() []map[string]any {
 	return []map[string]any{
 		{
-			"principal_uid":    "principal-a",
-			"resource_uid":     "bucket-a",
-			"actions":          []string{"s3:getobject"},
-			"action_count":     1,
-			"evaluation_scope": "identity_policy_only",
-			"grant_sources":    []string{"identity_policy"},
+			"principal_uid":      "principal-a",
+			"resource_uid":       "bucket-a",
+			"actions":            []string{"s3:getobject"},
+			"action_count":       1,
+			"evaluation_scope":   "identity_policy_only",
+			"grant_sources":      []string{"identity_policy"},
+			"boundary_evaluated": false,
 		},
 		{
-			"principal_uid":    "principal-a",
-			"resource_uid":     "key-b",
-			"actions":          []string{"kms:decrypt"},
-			"action_count":     1,
-			"evaluation_scope": "identity_policy_only",
-			"grant_sources":    []string{"identity_policy"},
+			"principal_uid":      "principal-a",
+			"resource_uid":       "key-b",
+			"actions":            []string{"kms:decrypt"},
+			"action_count":       1,
+			"evaluation_scope":   "identity_policy_and_boundary",
+			"grant_sources":      []string{"identity_policy"},
+			"boundary_evaluated": true,
 		},
 	}
 }
@@ -93,6 +95,12 @@ func TestIAMCanPerformEdgeWriterKeepsActionsOutOfMergeKey(t *testing.T) {
 	if strings.Contains(mergeLine, "grant_source") {
 		t.Fatalf("grant_sources must NOT be in the MERGE key:\n%s", mergeLine)
 	}
+	if strings.Contains(mergeLine, "boundary_evaluated") {
+		t.Fatalf("boundary_evaluated must NOT be in the MERGE key:\n%s", mergeLine)
+	}
+	if !strings.Contains(cypher, "rel.boundary_evaluated = row.boundary_evaluated") {
+		t.Fatalf("boundary_evaluated must be a SET property (PR4c honesty signal):\n%s", cypher)
+	}
 	if !strings.Contains(cypher, "SET rel.actions = row.actions") {
 		t.Fatalf("actions must be a SET list property:\n%s", cypher)
 	}
@@ -126,11 +134,19 @@ func TestIAMCanPerformEdgeWriterStampsScopeFields(t *testing.T) {
 		if row["scope_id"] != "scope-7" || row["generation_id"] != "gen-9" || row["evidence_source"] != iamCanPerformEvidence {
 			t.Fatalf("row missing stamped scope fields: %v", row)
 		}
-		if row["evaluation_scope"] != "identity_policy_only" {
-			t.Fatalf("row missing identity_policy_only honesty label: %v", row)
+		// The honesty label is carried verbatim by the writer; the extractor decides
+		// the value. The fixture exercises both an identity-only row and a
+		// boundary-intersected row to prove the writer does not flatten the label.
+		switch row["evaluation_scope"] {
+		case "identity_policy_only", "identity_policy_and_boundary":
+		default:
+			t.Fatalf("row carries an unexpected honesty label: %v", row)
 		}
 		if got := row["grant_sources"].([]string); len(got) != 1 || got[0] != "identity_policy" {
 			t.Fatalf("row missing grant_sources: %v", row)
+		}
+		if _, ok := row["boundary_evaluated"].(bool); !ok {
+			t.Fatalf("row missing boundary_evaluated signal: %v", row)
 		}
 	}
 }

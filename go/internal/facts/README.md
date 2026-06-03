@@ -358,8 +358,13 @@ observation; the reducer projects it into network-reachability edges.
 `aws_iam_permission` is the derived, metadata-only projection of one IAM policy
 statement attached to a principal: effect, normalized action set,
 resource pattern, and a condition-key summary. It never carries the raw policy
-JSON body or condition values. PR1 emits this fact; the reducer graph
-projection that consumes it ships separately under principal review (issue
+JSON body or condition values. `policy_source` records the originating document:
+`inline`, `attached_managed`, `trust`, or `boundary`. A `boundary` statement
+(issue #1331 PR4c) is the metadata-only projection of a principal's
+permission-boundary policy document — a managed policy by ARN normalized through
+the same path — and carries `principal_arn` = the bounded role/user; the reducer
+intersects it as a ceiling, it is not a grant. PR1 emits this fact; the reducer
+graph projection that consumes it ships separately under principal review (issue
 #1134).
 
 `aws_resource_policy_permission` is the resource-side analog of

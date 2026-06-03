@@ -262,6 +262,48 @@ func TestScannerEmitsSecretsIAMPostureSourceFacts(t *testing.T) {
 	}
 }
 
+// TestScannerEmitsBoundaryPermissionFacts proves a permission-boundary statement
+// (PolicySourceBoundary) for a bounded role or user maps to an aws_iam_permission
+// fact carrying policy_source = "boundary" and principal_arn = the bounded
+// principal's ARN, so the reducer can intersect identity allows with the boundary
+// ceiling. The boundary statements reuse the same metadata-only normalization, so
+// no raw policy JSON is emitted.
+func TestScannerEmitsBoundaryPermissionFacts(t *testing.T) {
+	client := fakeClient{
+		roles: []Role{{
+			ARN:  "arn:aws:iam::123456789012:role/eshu-runtime",
+			Name: "eshu-runtime",
+			PermissionBoundary: PermissionBoundary{
+				PolicyARN: "arn:aws:iam::123456789012:policy/developer-boundary",
+				Type:      "PermissionsBoundaryPolicy",
+			},
+			PermissionStatements: []PolicyStatement{
+				{
+					Source:    PolicySourceInline,
+					Effect:    "Allow",
+					Actions:   []string{"s3:GetObject"},
+					Resources: []string{"arn:aws:s3:::team-bucket"},
+				},
+				{
+					Source:    PolicySourceBoundary,
+					PolicyARN: "arn:aws:iam::123456789012:policy/developer-boundary",
+					Effect:    "Allow",
+					Actions:   []string{"s3:GetObject"},
+					Resources: []string{"arn:aws:s3:::team-bucket"},
+				},
+			},
+		}},
+	}
+
+	envelopes, err := (Scanner{Client: client}).Scan(context.Background(), testBoundary())
+	if err != nil {
+		t.Fatalf("Scan returned error: %v", err)
+	}
+
+	assertPermissionPresent(t, envelopes, "arn:aws:iam::123456789012:role/eshu-runtime", awscloud.IAMPolicySourceBoundary, "s3:getobject")
+	assertNoRawPolicyJSON(t, envelopes)
+}
+
 func TestScannerStopsOnClientError(t *testing.T) {
 	_, err := (Scanner{Client: fakeClient{roleErr: errBoom{}}}).Scan(context.Background(), testBoundary())
 	if err == nil {

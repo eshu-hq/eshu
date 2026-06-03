@@ -10,11 +10,13 @@ func benchIAMCanPerformEdgeRows(n int) []map[string]any {
 	rows := make([]map[string]any, 0, n)
 	for i := 0; i < n; i++ {
 		rows = append(rows, map[string]any{
-			"principal_uid":    fmt.Sprintf("principal-%d", i%256),
-			"resource_uid":     fmt.Sprintf("resource-%d", i),
-			"actions":          []string{"s3:getobject", "s3:putobject"},
-			"action_count":     2,
-			"evaluation_scope": "identity_policy_only",
+			"principal_uid":      fmt.Sprintf("principal-%d", i%256),
+			"resource_uid":       fmt.Sprintf("resource-%d", i),
+			"actions":            []string{"s3:getobject", "s3:putobject"},
+			"action_count":       2,
+			"evaluation_scope":   "identity_policy_and_boundary",
+			"grant_sources":      []string{"identity_policy"},
+			"boundary_evaluated": true,
 		})
 	}
 	return rows

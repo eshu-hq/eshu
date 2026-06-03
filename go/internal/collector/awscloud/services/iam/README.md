@@ -102,6 +102,15 @@ credential, or token labels.
 - Per-principal managed policy document fan-out is bounded in the SDK adapter to
   avoid an N+1 against IAM (each managed document costs a GetPolicy +
   GetPolicyVersion pair). The scanner consumes already-normalized statements.
+- `aws_iam_permission` statements carry `policy_source` ∈ {`inline`,
+  `attached_managed`, `trust`, `boundary`}. A `boundary` statement is the
+  metadata-only projection of a principal's permission-boundary policy document
+  (issue #1331 PR4c). The boundary is a managed policy by ARN, so the SDK adapter
+  reads it through the same bounded `GetPolicy`/`GetPolicyVersion` path and
+  normalizes it through the same identity-statement normalizer; the boundary
+  statement's `principal_arn` is the bounded role/user. The reducer intersects
+  boundary allows with identity allows before promoting a CAN_PERFORM edge — this
+  package still emits source evidence only.
 - These facts are emitted but not yet consumed. The reducer graph projection
   (CAN_ASSUME / escalation-primitive edges) is a separate principal-review PR
   under issue #1134.

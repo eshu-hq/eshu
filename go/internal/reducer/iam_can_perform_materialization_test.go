@@ -312,6 +312,101 @@ func TestIAMCanPerformHandlerWildcardTargetIsGracefulNoEdge(t *testing.T) {
 	}
 }
 
+// iamCanPerformBoundaryAllowedFacts builds a scope where the principal carries a
+// permission boundary that ALSO allows the catalogued action on the resolved
+// bucket, so the identity allow survives intersection (PR4c) and the edge records
+// the boundary was evaluated.
+func iamCanPerformBoundaryAllowedFacts() []facts.Envelope {
+	return []facts.Envelope{
+		iamNodeEnvelope(iamResourceTypeUser, attackerUserARN),
+		canPerformNode(iamCanPerformResourceTypeS3Bucket, canPerformBucketARN),
+		escalationPermissionEnvelope(attackerUserARN, "Allow", []string{"s3:getobject"}, []string{canPerformBucketARN}),
+		boundaryPermissionEnvelope(attackerUserARN, "Allow", []string{"s3:getobject"}, []string{canPerformBucketARN}),
+	}
+}
+
+// TestIAMCanPerformHandlerProjectsBoundaryIntersectedEdge proves the handler writes
+// an edge for a bounded principal whose boundary allows the action, stamping
+// boundary_evaluated=true and the identity_policy_and_boundary scope through the
+// real writer path (reducer graph truth agrees with the extractor).
+func TestIAMCanPerformHandlerProjectsBoundaryIntersectedEdge(t *testing.T) {
+	t.Parallel()
+
+	writer := &recordingIAMCanPerformWriter{}
+	handler := IAMCanPerformMaterializationHandler{
+		FactLoader:           &stubFactLoader{envelopes: iamCanPerformBoundaryAllowedFacts()},
+		Writer:               writer,
+		ReadinessLookup:      allKeyspacesReady(),
+		PriorGenerationCheck: func(context.Context, string, string) (bool, error) { return true, nil },
+	}
+	result, err := handler.Handle(context.Background(), iamCanPerformIntent())
+	if err != nil {
+		t.Fatalf("Handle returned error: %v", err)
+	}
+	if result.Status != ResultStatusSucceeded {
+		t.Fatalf("status = %q, want succeeded", result.Status)
+	}
+	if writer.edgeCalls != 1 || len(writer.edgeRows) != 1 {
+		t.Fatalf("boundary-intersected edge writes wrong: calls=%d rows=%d", writer.edgeCalls, len(writer.edgeRows))
+	}
+	row := writer.edgeRows[0]
+	if got, ok := row["boundary_evaluated"].(bool); !ok || !got {
+		t.Fatalf("edge boundary_evaluated = %v, want true", row["boundary_evaluated"])
+	}
+	if row["evaluation_scope"] != iamCanPerformEvaluationScopeIdentityPolicyBoundary {
+		t.Fatalf("edge evaluation_scope = %v, want %q", row["evaluation_scope"], iamCanPerformEvaluationScopeIdentityPolicyBoundary)
+	}
+}
+
+// TestIAMCanPerformHandlerBoundarySuppressionIsGracefulNoEdge proves a bounded
+// principal whose boundary does NOT allow the catalogued action produces no edge
+// but still succeeds, and the bounded skip_reason=skipped_boundary_no_allow counter
+// records the suppression so the boundary intersection is operator-visible.
+func TestIAMCanPerformHandlerBoundarySuppressionIsGracefulNoEdge(t *testing.T) {
+	t.Parallel()
+
+	reader := sdkmetric.NewManualReader()
+	provider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader))
+	instruments, err := telemetry.NewInstruments(provider.Meter("test"))
+	if err != nil {
+		t.Fatalf("NewInstruments: %v", err)
+	}
+
+	envs := []facts.Envelope{
+		iamNodeEnvelope(iamResourceTypeUser, attackerUserARN),
+		canPerformNode(iamCanPerformResourceTypeS3Bucket, canPerformBucketARN),
+		escalationPermissionEnvelope(attackerUserARN, "Allow", []string{"s3:getobject"}, []string{canPerformBucketARN}),
+		// Boundary allows a different action only: s3:getobject is non-effective.
+		boundaryPermissionEnvelope(attackerUserARN, "Allow", []string{"s3:putobject"}, []string{canPerformBucketARN}),
+	}
+	writer := &recordingIAMCanPerformWriter{}
+	handler := IAMCanPerformMaterializationHandler{
+		FactLoader:           &stubFactLoader{envelopes: envs},
+		Writer:               writer,
+		ReadinessLookup:      allKeyspacesReady(),
+		PriorGenerationCheck: func(context.Context, string, string) (bool, error) { return false, nil },
+		Instruments:          instruments,
+	}
+	result, err := handler.Handle(context.Background(), iamCanPerformIntent())
+	if err != nil {
+		t.Fatalf("Handle returned error: %v", err)
+	}
+	if result.Status != ResultStatusSucceeded {
+		t.Fatalf("status = %q, want succeeded", result.Status)
+	}
+	if writer.edgeCalls != 0 {
+		t.Fatalf("boundary suppression must write no edge, got %d", writer.edgeCalls)
+	}
+
+	var rm metricdata.ResourceMetrics
+	if err := reader.Collect(context.Background(), &rm); err != nil {
+		t.Fatalf("collect metrics: %v", err)
+	}
+	if !metricHasAttrs(rm, "eshu_dp_iam_can_perform_skipped_total", map[string]string{"skip_reason": iamCanPerformSkipBoundaryNoAllow}) {
+		t.Fatal("expected eshu_dp_iam_can_perform_skipped_total{skip_reason=skipped_boundary_no_allow}")
+	}
+}
+
 // TestIAMCanPerformHandlerRecordsEdgeResolutionMode proves the resolved happy path
 // records eshu_dp_iam_can_perform_edges_total{resolution_mode=exact_arn}.
 func TestIAMCanPerformHandlerRecordsEdgeResolutionMode(t *testing.T) {

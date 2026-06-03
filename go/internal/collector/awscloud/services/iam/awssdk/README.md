@@ -75,7 +75,15 @@ labels.
   assume-principals; it discards the raw JSON and every condition value. The raw
   policy body is never returned from this package.
 - Role and user detail reads expose permissions boundary metadata. The adapter
-  returns only the boundary policy ARN and AWS boundary attachment type.
+  returns the boundary policy ARN and AWS boundary attachment type, and — when a
+  boundary is attached — fetches the boundary policy document and normalizes it
+  into `PolicyStatement`s tagged `PolicySourceBoundary` (issue #1331 PR4c). A
+  permission boundary is a managed policy by ARN, so the read reuses
+  `getManagedPolicyDocument` (the same bounded `GetPolicy` + `GetPolicyVersion`
+  pair) and `normalizePolicyDocument` (the same metadata-only normalizer); no raw
+  policy JSON or condition values are returned. `boundaryPolicyStatements` makes
+  the boundary read unit-testable without an AWS client (a blank boundary ARN is a
+  no-op; a fetch error stops the scan rather than silently dropping the ceiling).
 - OIDC provider detail reads return a deterministic URL fingerprint plus client
   ID and thumbprint counts. Raw provider URLs, client IDs, and thumbprints are
   not returned.

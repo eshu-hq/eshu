@@ -33,10 +33,13 @@ const iamCanPerformEdgeLabel = "CAN_PERFORM"
 // key) so the MERGE identity is the stable (principal_uid, CAN_PERFORM,
 // resource_uid) triple and several actions to the same resource converge on one
 // idempotent edge. rel.grant_sources and rel.evaluation_scope record whether the
-// grant came from identity policy, resource policy, or both; permission
-// boundaries, SCPs, condition values, and session policies are still outside this
-// slice. Two MATCHes precede the MERGE so a row whose principal or resource node
-// is absent produces no edge and no fabricated node. Both anchors are
+// grant came from identity policy, resource policy, or both; rel.boundary_evaluated
+// records whether the principal's permission boundary was intersected before the
+// edge was promoted (issue #1331 PR4c). SCPs, condition values, and session
+// policies are still outside this slice. All of these are SET properties, never
+// part of the MERGE key, so the relationship identity is unchanged and the write
+// stays idempotent. Two MATCHes precede the MERGE so a row whose principal or
+// resource node is absent produces no edge and no fabricated node. Both anchors are
 // uid-indexed :CloudResource lookups (no scan, no N+1).
 const canonicalIAMCanPerformEdgeUpsertCypher = `UNWIND $rows AS row
 MATCH (p:CloudResource {uid: row.principal_uid})
@@ -46,6 +49,7 @@ SET rel.actions = row.actions,
     rel.action_count = row.action_count,
     rel.evaluation_scope = row.evaluation_scope,
     rel.grant_sources = row.grant_sources,
+    rel.boundary_evaluated = row.boundary_evaluated,
     rel.scope_id = row.scope_id,
     rel.generation_id = row.generation_id,
     rel.evidence_source = row.evidence_source`

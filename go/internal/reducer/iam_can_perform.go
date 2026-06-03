@@ -22,6 +22,34 @@ const (
 	iamCanPerformSkipSelfLoop          = "skipped_self_loop"
 )
 
+// Permission-boundary skip reasons (PR4c). They extend the bounded skip taxonomy
+// with the precise conservative reason a candidate identity-policy edge did NOT
+// survive intersection with the principal's permission boundary. A principal with
+// NO boundary is unaffected and never lands in these counters. None of the labels
+// carry policy values or secret-like strings — they are fixed tokens.
+const (
+	// iamCanPerformSkipBoundaryNoAllow: the principal has a boundary, but the
+	// boundary does not allow this action on a resource covering the resolved
+	// target. The identity allow is therefore non-effective.
+	iamCanPerformSkipBoundaryNoAllow = "skipped_boundary_no_allow"
+	// iamCanPerformSkipBoundaryDeny: the boundary explicitly Denies this action, so
+	// the candidate edge is removed regardless of any boundary allow.
+	iamCanPerformSkipBoundaryDeny = "skipped_boundary_deny"
+	// iamCanPerformSkipBoundaryConditioned: the only boundary statement covering
+	// this action is condition-gated, so it cannot be conservatively treated as a
+	// permissive boundary.
+	iamCanPerformSkipBoundaryConditioned = "skipped_boundary_conditioned"
+	// iamCanPerformSkipBoundaryNotActionResource: the only boundary statement
+	// covering this action uses NotAction/NotResource, which inverts the match space
+	// and is not a positive boundary allow.
+	iamCanPerformSkipBoundaryNotActionResource = "skipped_boundary_not_action_resource"
+	// iamCanPerformSkipBoundaryUnresolved: the principal carries a boundary whose
+	// document yielded no usable statements (missing/unresolved boundary document),
+	// so the boundary ceiling cannot be proven permissive and the edge is dropped
+	// conservatively.
+	iamCanPerformSkipBoundaryUnresolved = "skipped_boundary_unresolved"
+)
+
 // Resolution modes for the CAN_PERFORM edges counter. They are the bounded
 // resolution_mode metric dimension members for eshu_dp_iam_can_perform_edges_total
 // — the two confident ways a catalog action's resource ARN resolves to exactly one
@@ -43,13 +71,23 @@ type iamCanPerformTally struct {
 	skippedConditioned       int
 	skippedNotActionResource int
 	skippedSelfLoop          int
+	// Permission-boundary intersection skips (PR4c). A candidate identity-policy
+	// edge for a principal that has a boundary is counted here when the boundary
+	// fails to make the action effective on the resolved resource.
+	skippedBoundaryNoAllow           int
+	skippedBoundaryDeny              int
+	skippedBoundaryConditioned       int
+	skippedBoundaryNotActionResource int
+	skippedBoundaryUnresolved        int
 }
 
 // total returns the count of evaluations that produced no edge.
 func (t iamCanPerformTally) total() int {
 	return t.skippedUncatalogued + t.skippedAmbiguous + t.skippedUnresolved +
 		t.skippedDeny + t.skippedConditioned + t.skippedNotActionResource +
-		t.skippedSelfLoop
+		t.skippedSelfLoop + t.skippedBoundaryNoAllow + t.skippedBoundaryDeny +
+		t.skippedBoundaryConditioned + t.skippedBoundaryNotActionResource +
+		t.skippedBoundaryUnresolved
 }
 
 // IAMCanPerformResult is the bounded, deterministic output of one generation's
@@ -76,6 +114,12 @@ type iamCanPerformEdgeAccumulator struct {
 	actions map[string]struct{}
 	sources map[string]struct{}
 	mode    string
+	// boundaryEvaluated is true when at least one identity-policy action on this
+	// edge survived intersection with a principal permission boundary (PR4c). It is
+	// false for unbounded principals and for resource-policy-only edges, so the
+	// edge's boundary_evaluated property tells a query user whether the boundary
+	// layer was considered for this edge.
+	boundaryEvaluated bool
 }
 
 // ExtractIAMCanPerformEdges resolves each scanned IAM principal's trusted-Allow
@@ -114,7 +158,12 @@ func ExtractIAMCanPerformEdges(
 	edges := make(map[edgeKey]*iamCanPerformEdgeAccumulator)
 
 	for _, principal := range principals {
-		grant := buildIAMCanPerformGrant(principal.envelopes, &result.Tally)
+		// Split a principal's statements into identity-policy statements (which can
+		// positively grant) and permission-boundary statements (which only intersect /
+		// ceiling, PR4c). A boundary statement never contributes to trustedActions, so
+		// the identity grant is built from identity statements only.
+		identityStmts, boundary := splitIAMCanPerformBoundary(principal.envelopes)
+		grant := buildIAMCanPerformGrant(identityStmts, &result.Tally)
 
 		for _, entry := range catalog {
 			switch {
@@ -138,6 +187,13 @@ func ExtractIAMCanPerformEdges(
 					result.Tally.skippedSelfLoop++
 					continue
 				}
+				// Permission-boundary intersection (PR4c): a principal WITH a boundary
+				// needs both an identity allow AND a boundary allow on a covering
+				// resource. An unbounded principal is unaffected (identity-only). A
+				// conservative refusal is counted with its precise boundary reason.
+				if !boundaryAllowsIAMCanPerform(boundary, entry, resourceUID, index, &result.Tally) {
+					continue
+				}
 				addIAMCanPerformEdge(
 					edges,
 					principal.principalUID,
@@ -146,6 +202,9 @@ func ExtractIAMCanPerformEdges(
 					mode,
 					iamCanPerformGrantSourceIdentityPolicy,
 				)
+				if boundary.present {
+					edges[edgeKey{principalUID: principal.principalUID, targetUID: resourceUID}].boundaryEvaluated = true
+				}
 			case iamTargetAmbiguous:
 				result.Tally.skippedAmbiguous++
 			default:
@@ -267,12 +326,13 @@ func buildIAMCanPerformEdgeRows(
 		grantSources := sortedCanPerformStringSet(acc.sources)
 		modeCounts[acc.mode]++
 		rows = append(rows, map[string]any{
-			"principal_uid":    key.principalUID,
-			"resource_uid":     key.targetUID,
-			"actions":          actions,
-			"action_count":     len(actions),
-			"evaluation_scope": iamCanPerformEvaluationScopeForSources(grantSources),
-			"grant_sources":    grantSources,
+			"principal_uid":      key.principalUID,
+			"resource_uid":       key.targetUID,
+			"actions":            actions,
+			"action_count":       len(actions),
+			"evaluation_scope":   iamCanPerformEvaluationScopeForSources(grantSources, acc.boundaryEvaluated),
+			"grant_sources":      grantSources,
+			"boundary_evaluated": acc.boundaryEvaluated,
 		})
 	}
 	sort.Slice(rows, func(a, b int) bool {
@@ -283,7 +343,15 @@ func buildIAMCanPerformEdgeRows(
 	return rows
 }
 
-func iamCanPerformEvaluationScopeForSources(sources []string) string {
+// iamCanPerformEvaluationScopeForSources derives the honesty label from the grant
+// sources that armed the edge and whether the principal's permission boundary was
+// intersected (PR4c). When a resource policy is one of the sources, the
+// resource-policy scope labels take precedence and boundary intersection is not
+// expressed (a boundary ceilings identity grants, not resource-policy grants). For
+// an identity-only edge, a boundary that was evaluated promotes the label to
+// identity_policy_and_boundary so a query user can tell the boundary layer was
+// considered.
+func iamCanPerformEvaluationScopeForSources(sources []string, boundaryEvaluated bool) string {
 	hasIdentity := false
 	hasResource := false
 	for _, source := range sources {
@@ -299,6 +367,8 @@ func iamCanPerformEvaluationScopeForSources(sources []string) string {
 		return iamCanPerformEvaluationScopeIdentityAndResourcePolicy
 	case hasResource:
 		return iamCanPerformEvaluationScopeResourcePolicyOnly
+	case boundaryEvaluated:
+		return iamCanPerformEvaluationScopeIdentityPolicyBoundary
 	default:
 		return iamCanPerformEvaluationScopeIdentityPolicyOnly
 	}
@@ -313,131 +383,4 @@ func strongestCanPerformMode(existing, candidate string) string {
 		return iamCanPerformResolutionExactARN
 	}
 	return iamCanPerformResolutionSingleGlob
-}
-
-// iamCanPerformResourceTypeOfARN classifies a non-IAM AWS resource ARN to the
-// matching CAN_PERFORM resource_type token, so target resolution can require the
-// resolved node be the right service family. It generalizes the escalation
-// iamResourceTypeOfARN classifier from IAM to the S3/KMS/SecretsManager/SSM/
-// DynamoDB/EC2/RDS services the catalog covers. Returns "" for an unrecognized or
-// out-of-catalog ARN. Resolution still requires the ARN be a scanned node, so a
-// classification alone never fabricates an edge.
-func iamCanPerformResourceTypeOfARN(arn string) string {
-	// ARN form: arn:partition:service:region:account:resource (S3 omits region and
-	// account, so the resource segment is everything after the service's colons).
-	parts := strings.SplitN(arn, ":", 6)
-	if len(parts) < 6 || parts[0] != "arn" {
-		return ""
-	}
-	service := parts[2]
-	resource := parts[5]
-	switch service {
-	case "s3":
-		// arn:aws:s3:::bucket[/key] — a bucket node is keyed on the bucket ARN with
-		// no object key, so only a bucket-shaped ARN (no "/") classifies.
-		if resource != "" && !strings.Contains(resource, "/") {
-			return iamCanPerformResourceTypeS3Bucket
-		}
-	case "kms":
-		if strings.HasPrefix(resource, "key/") {
-			return iamCanPerformResourceTypeKMSKey
-		}
-	case "secretsmanager":
-		if strings.HasPrefix(resource, "secret:") {
-			return iamCanPerformResourceTypeSecret
-		}
-	case "ssm":
-		if strings.HasPrefix(resource, "parameter/") {
-			return iamCanPerformResourceTypeSSMParam
-		}
-	case "dynamodb":
-		// arn:aws:dynamodb:region:acct:table/Name — only the table itself (not an
-		// index or stream sub-resource) is a scanned CloudResource node.
-		if strings.HasPrefix(resource, "table/") && !strings.Contains(strings.TrimPrefix(resource, "table/"), "/") {
-			return iamCanPerformResourceTypeDynamoDB
-		}
-	case "ec2":
-		if strings.HasPrefix(resource, "instance/") {
-			return iamCanPerformResourceTypeEC2Instance
-		}
-	case "rds":
-		if strings.HasPrefix(resource, "db:") {
-			return iamCanPerformResourceTypeRDSInstance
-		}
-	}
-	return ""
-}
-
-// resolveIAMCanPerformTarget reads the resource ARNs from the statements that
-// granted a catalog action and resolves them against the scanned CloudResource
-// join index, requiring the matched node classify as the catalog entry's expected
-// resource type. The resolution ladder mirrors CAN_ESCALATE_TO: exact ARN ->
-// single prefix/glob -> wildcard/many (ambiguous) -> zero (unresolved). It returns
-// the resolved uid, the resolution mode (exact_arn / single_glob), and the status.
-func resolveIAMCanPerformTarget(
-	index cloudResourceJoinIndex,
-	grant iamPrincipalGrant,
-	entry iamCanPerformAction,
-) (string, string, iamTargetStatus) {
-	resources := collectTrustedResources(grant.statementsCovering(entry.Action))
-	if len(resources) == 0 {
-		return "", "", iamTargetUnresolved
-	}
-
-	exactMatches := make(map[string]struct{})
-	globMatches := make(map[string]struct{})
-	sawWildcard := false
-	for _, pattern := range resources {
-		if pattern == "*" {
-			sawWildcard = true
-			continue
-		}
-		if strings.ContainsAny(pattern, "*?") {
-			for arn, uid := range index.byARN {
-				if iamCanPerformResourceTypeOfARN(arn) != entry.ExpectedResourceType {
-					continue
-				}
-				if globMatch(pattern, arn) {
-					globMatches[uid] = struct{}{}
-				}
-			}
-			continue
-		}
-		if uid, ok := index.byARN[pattern]; ok && iamCanPerformResourceTypeOfARN(pattern) == entry.ExpectedResourceType {
-			exactMatches[uid] = struct{}{}
-		}
-	}
-
-	// An exact-ARN match is the most confident resolution: prefer it and report
-	// exact_arn. Only when there is no exact match do glob matches decide.
-	switch {
-	case len(exactMatches) == 1:
-		return singleUID(exactMatches), iamCanPerformResolutionExactARN, iamTargetResolved
-	case len(exactMatches) > 1:
-		return "", "", iamTargetAmbiguous
-	}
-
-	merged := make(map[string]struct{}, len(globMatches))
-	for uid := range globMatches {
-		merged[uid] = struct{}{}
-	}
-	switch {
-	case len(merged) == 1:
-		return singleUID(merged), iamCanPerformResolutionSingleGlob, iamTargetResolved
-	case len(merged) > 1:
-		return "", "", iamTargetAmbiguous
-	case sawWildcard:
-		// A bare "*" (or only-glob with no scanned match) names no single node.
-		return "", "", iamTargetAmbiguous
-	}
-	return "", "", iamTargetUnresolved
-}
-
-// singleUID returns the only uid in a single-element set. The caller guarantees
-// len(set) == 1.
-func singleUID(set map[string]struct{}) string {
-	for uid := range set {
-		return uid
-	}
-	return ""
 }
