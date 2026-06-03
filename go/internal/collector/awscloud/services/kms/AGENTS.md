@@ -33,7 +33,7 @@
   GetKeyPolicy, owner-approved reversal, PR4b of #1134) to emit the
   normalized, derived `aws_resource_policy_permission` fact: per
   statement, the effect, normalized action/resource patterns,
-  condition-key NAMES, and derived grantee facts (principal account ids,
+  condition key/operator NAMES, and derived grantee facts (principal account ids,
   principal ARNs, principal types, public, cross-account) — the
   resource-side analog of `aws_iam_permission`. The adapter parses the
   policy transiently and hands this package only the derived
@@ -42,7 +42,7 @@
 - Never persist key policy Statement bodies, statement Sids, or condition
   VALUES. The bounded list of policy revision names from ListKeyPolicies
   is still emitted as before; normalized/derived policy actions,
-  resources, and condition-key NAMES are allowed via
+  resources, and condition key/operator NAMES are allowed via
   `aws_resource_policy_permission`, but raw statement bodies and condition
   values are not.
 - Never persist grant encryption contexts. The scanner-owned `Grant`
@@ -86,7 +86,7 @@
   `aws_resource_policy_permission` fact (owner-approved, PR4b of #1134).
   Do not persist the raw policy Statement bodies or condition values that
   it returns: only the derived effect, normalized actions/resources,
-  condition-key NAMES, and grantee principal facts may leave the adapter.
+  condition key/operator NAMES, and grantee principal facts may leave the adapter.
 - Do not persist grant encryption contexts. They can carry tenant or
   workload metadata.
 - Do not add graph writes, reducer logic, or query behavior.

@@ -20,6 +20,11 @@ func TestNewIAMPermissionEnvelopeNormalizesStatement(t *testing.T) {
 		Actions:       []string{"iam:passrole", "iam:PassRole", "  sts:AssumeRole  "},
 		Resources:     []string{"arn:aws:iam::123456789012:role/*"},
 		ConditionKeys: []string{"aws:SourceIp", "aws:SourceIp"},
+		ConditionOperators: []string{
+			"StringEquals",
+			" IpAddress ",
+			"StringEquals",
+		},
 	})
 	if err != nil {
 		t.Fatalf("NewIAMPermissionEnvelope returned error: %v", err)
@@ -60,6 +65,16 @@ func TestNewIAMPermissionEnvelopeNormalizesStatement(t *testing.T) {
 	}
 	if len(keys) != 1 || keys[0] != "aws:SourceIp" {
 		t.Fatalf("condition_keys = %v, want [aws:SourceIp] (de-duplicated, no values)", keys)
+	}
+	operators, ok := envelope.Payload["condition_operators"].([]string)
+	if !ok {
+		t.Fatalf("condition_operators = %T, want []string", envelope.Payload["condition_operators"])
+	}
+	if len(operators) != 2 || operators[0] != "IpAddress" || operators[1] != "StringEquals" {
+		t.Fatalf("condition_operators = %v, want [IpAddress StringEquals]", operators)
+	}
+	if got, _ := envelope.Payload["condition_operator_count"].(int); got != 2 {
+		t.Fatalf("condition_operator_count = %v, want 2", got)
 	}
 }
 

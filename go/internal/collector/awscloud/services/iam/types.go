@@ -52,8 +52,8 @@ type User struct {
 
 // PolicyStatement is the scanner-owned, normalized projection of a single IAM
 // policy statement. It carries identifiers, the action/resource patterns, and a
-// condition-key summary only. It deliberately holds no raw policy JSON body and
-// no condition values.
+// condition summary only. It deliberately holds no raw policy JSON body and no
+// condition values.
 type PolicyStatement struct {
 	Source        string
 	PolicyARN     string
@@ -65,6 +65,9 @@ type PolicyStatement struct {
 	Resources     []string
 	NotResources  []string
 	ConditionKeys []string
+	// ConditionOperators lists the condition operators present on the statement
+	// (for example StringEquals or ForAnyValue:StringLike). Values are omitted.
+	ConditionOperators []string
 	// AssumePrincipals lists the principals a trust statement grants assume-role
 	// to. It is only set when Source is PolicySourceTrust.
 	AssumePrincipals []string

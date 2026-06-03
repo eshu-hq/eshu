@@ -357,8 +357,8 @@ observation; the reducer projects it into network-reachability edges.
 
 `aws_iam_permission` is the derived, metadata-only projection of one IAM policy
 statement attached to a principal: effect, normalized action set,
-resource pattern, and a condition-key summary. It never carries the raw policy
-JSON body or condition values. PR1 emits this fact; the reducer graph
+resource pattern, and a condition key/operator summary. It never carries the raw
+policy JSON body or condition values. PR1 emits this fact; the reducer graph
 projection that consumes it ships separately under principal review (issue
 #1134).
 
@@ -368,8 +368,9 @@ from a resource-based policy (an S3 bucket policy or KMS key policy) attached to
 the resource it controls. It carries the attached `resource_arn` /
 `resource_type`, `policy_source = "resource"`, the statement effect, the
 normalized action/resource patterns (`actions`, `not_actions`, `resources`,
-`not_resources`), a condition-key NAME summary (`condition_keys`,
-`has_conditions`), the wildcard flags, and the derived grantee principal facts
+`not_resources`), a condition key/operator NAME summary (`condition_keys`,
+`condition_operators`, `condition_operator_count`, `has_conditions`), the
+wildcard flags, and the derived grantee principal facts
 (`principal_account_ids`, `principal_arns`, `principal_types`, `is_public`,
 `is_cross_account`). It NEVER carries the raw policy JSON body, statement
 Sid/bodies, or condition values. A resource with no attached policy emits no

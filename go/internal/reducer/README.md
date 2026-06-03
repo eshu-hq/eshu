@@ -1119,17 +1119,19 @@ readiness phase.
 The honesty boundary is explicit and load-bearing: a PRESENT edge means an
 identity policy, resource policy, or both grant the action on the resolved
 resource, and when `evaluation_scope` includes `permission_boundary` the attached
-permissions boundary was intersected with that identity grant. SCPs, condition
-values, and session policies are still ignored. A MISSING edge does NOT mean
-"cannot perform" — it can mean the action is uncatalogued, the resource or
-principal was not scanned or was ambiguous, a boundary did not allow it, or a
-later evaluator slice has not been implemented. This is why the slice is
-conservative and skip-counted rather than claiming a complete effective-permission
-lattice.
+permissions boundary was intersected with that identity grant. Conditioned
+statements are source provenance only: the scanner stores condition key/operator
+names but not values or request context, so no conditioned statement is promoted
+to an exact CAN_PERFORM edge. SCPs and session policies are still ignored. A
+MISSING edge does NOT mean "cannot perform" — it can mean the action is
+uncatalogued, the resource or principal was not scanned or was ambiguous, a
+boundary did not allow it, a condition made the grant provenance-only, or a later
+evaluator slice has not been implemented. This is why the slice is conservative
+and skip-counted rather than claiming a complete effective-permission lattice.
 
 Benchmark Evidence: focused Eshu-owned write-path benchmark, no-op group executor (isolates statement construction/batching from graph round trips). `go test ./internal/storage/cypher -run '^$' -bench 'BenchmarkIAMCanPerformEdgeWriter|BenchmarkIAMEscalationEdgeWriter' -benchmem -count=3` writes 5,000 `CAN_PERFORM` edges at batch 500 in `1.25 ms/op`, `1.24 ms/op`, and `1.24 ms/op` (`~1.97 MB/op`, `25,068 allocs/op`) versus the shipped `BenchmarkIAMEscalationEdgeWriter` baseline at `1.21 ms/op`, `1.21 ms/op`, and `1.20 ms/op` on the identical row shape, staying under the 10% stop threshold. The writer reuses the identical batched `UNWIND` + `MATCH-MATCH-MERGE`-on-uid shape with a static `CAN_PERFORM` relationship type; the granted action set lives in an edge property, never in the MERGE key, keeping the relationship MERGE on a static token so NornicDB uses its relationship hot path. Both endpoint MATCHes anchor on the existing CloudResource uid index, so no MATCH falls back to a label scan. Target resolution is bounded in-memory (the #805 §5.1 ARN join index), O(1) per exact match with no per-edge graph round trip and no N+1. `go test ./internal/reducer ./internal/storage/cypher ./internal/telemetry ./internal/projector ./internal/storage/postgres ./cmd/reducer -count=1` passes, including the readiness gate, idempotent reprojection, the conservative skip cases (uncatalogued / wildcard / many / Deny / conditioned / NotAction / unresolved / self-loop), and the multi-action merge-into-one-edge case.
 
-Observability Evidence: the new `eshu_dp_iam_can_perform_edges_total` (`resolution_mode` = `exact_arn` / `single_glob`) and `eshu_dp_iam_can_perform_skipped_total` (`skip_reason` = `skipped_uncatalogued_action` / `skipped_ambiguous` / `skipped_unresolved` / `skipped_deny` / `skipped_conditioned` / `skipped_not_action_resource` / `skipped_self_loop` / `skipped_permission_boundary`) counters, the `reducer.iam_can_perform_materialization` span, and a structured completion log carrying per-stage durations (load / extract / retract / write), `permission_boundary_fact_count`, and the full skip tally let an operator answer at 3 AM "are CAN_PERFORM edges landing, and if a generation produced zero edges, is it because policies use wildcard resources (`skipped_ambiguous`), the resources were not scanned (`skipped_unresolved`), actions are outside the closed catalog (`skipped_uncatalogued_action`), or a permissions boundary did not allow the identity grant (`skipped_permission_boundary`)?". The `cloud_resource_uid` readiness gate is the same durable status-blockage surface the #805 / #1135 edge slices use.
+Observability Evidence: the new `eshu_dp_iam_can_perform_edges_total` (`resolution_mode` = `exact_arn` / `single_glob`), `eshu_dp_iam_can_perform_skipped_total` (`skip_reason` = `skipped_uncatalogued_action` / `skipped_ambiguous` / `skipped_unresolved` / `skipped_deny` / `skipped_conditioned` / `skipped_not_action_resource` / `skipped_self_loop` / `skipped_permission_boundary`), and `eshu_dp_iam_can_perform_conditioned_total` (`confidence` = `provenance_only`) counters, the `reducer.iam_can_perform_materialization` span, and a structured completion log carrying per-stage durations (load / extract / retract / write), `permission_boundary_fact_count`, `conditioned_provenance_only`, and the full skip tally let an operator answer at 3 AM "are CAN_PERFORM edges landing, and if a generation produced zero edges, is it because policies use wildcard resources (`skipped_ambiguous`), the resources were not scanned (`skipped_unresolved`), actions are outside the closed catalog (`skipped_uncatalogued_action`), a permissions boundary did not allow the identity grant (`skipped_permission_boundary`), or conditioned grants were withheld as provenance-only (`conditioned_provenance_only`)?". The `cloud_resource_uid` readiness gate is the same durable status-blockage surface the #805 / #1135 edge slices use.
 
 No-Regression Evidence: PR4c intersects identity-policy CAN_PERFORM grants with
 permissions-boundary policy evidence without changing the writer MERGE identity,
@@ -1175,6 +1177,16 @@ No-Observability-Change: the fix uses the existing
 counter, span, structured completion log, and durable readiness blockage path.
 It adds no metric instrument, metric label, span name, log field, runtime flag,
 queue state, graph label, or API/MCP surface.
+
+No-Regression Evidence: PR4d adds redaction-safe condition operator summaries
+to IAM and resource-policy source facts and classifies every conditioned
+CAN_PERFORM candidate as provenance-only. Focused tests cover IAM policy
+normalization, `aws_iam_permission`, `aws_iam_permission_policy`,
+`aws_resource_policy_permission`, S3/KMS resource-policy adapters, conditioned
+identity/resource-policy graph refusal, unknown operators, and
+`eshu_dp_iam_can_perform_conditioned_total{confidence="provenance_only"}`. The
+change is metadata normalization plus in-memory tallying only: no graph schema,
+Cypher, queue, readiness gate, MERGE key, or writer row-shape change.
 ## Related docs
 
 - `docs/public/architecture.md`

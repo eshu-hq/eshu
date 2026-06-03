@@ -255,7 +255,12 @@ type Instruments struct {
 	// identity-policy grant). It is the bounded, honest graceful-degradation surface:
 	// a rising skipped_ambiguous rate means CAN_PERFORM edges are missing because
 	// policies use wildcard resources, not a reducer bug.
-	IAMCanPerformSkipped       metric.Int64Counter
+	IAMCanPerformSkipped metric.Int64Counter
+	// IAMCanPerformConditioned counts condition-gated CAN_PERFORM evidence by
+	// bounded confidence. Label: confidence (provenance_only). The reducer never
+	// promotes conditioned evidence into exact CAN_PERFORM edges because scanner
+	// facts omit condition values and request context.
+	IAMCanPerformConditioned   metric.Int64Counter
 	SBOMAttestationAttachments metric.Int64Counter
 	SupplyChainImpactFindings  metric.Int64Counter
 	// SupplyChainSuppressionDecisions counts reducer suppression-state
@@ -1449,6 +1454,14 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register IAMCanPerformSkipped counter: %w", err)
+	}
+
+	inst.IAMCanPerformConditioned, err = meter.Int64Counter(
+		"eshu_dp_iam_can_perform_conditioned_total",
+		metric.WithDescription("Total condition-gated IAM CAN_PERFORM evidence classified by bounded confidence (provenance_only)"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register IAMCanPerformConditioned counter: %w", err)
 	}
 
 	inst.SBOMAttestationAttachments, err = meter.Int64Counter(

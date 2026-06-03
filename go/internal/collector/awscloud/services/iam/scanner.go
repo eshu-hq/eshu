@@ -303,20 +303,21 @@ func permissionEnvelopes(boundary awscloud.Boundary, principalARN, principalType
 	envelopes := make([]facts.Envelope, 0, len(statements))
 	for _, statement := range statements {
 		envelope, err := awscloud.NewIAMPermissionEnvelope(awscloud.IAMPermissionObservation{
-			Boundary:         boundary,
-			PrincipalARN:     strings.TrimSpace(principalARN),
-			PrincipalType:    principalType,
-			PolicySource:     strings.TrimSpace(statement.Source),
-			PolicyARN:        strings.TrimSpace(statement.PolicyARN),
-			PolicyName:       strings.TrimSpace(statement.PolicyName),
-			StatementSID:     strings.TrimSpace(statement.StatementSID),
-			Effect:           statement.Effect,
-			Actions:          statement.Actions,
-			NotActions:       statement.NotActions,
-			Resources:        statement.Resources,
-			NotResources:     statement.NotResources,
-			ConditionKeys:    statement.ConditionKeys,
-			AssumePrincipals: statement.AssumePrincipals,
+			Boundary:           boundary,
+			PrincipalARN:       strings.TrimSpace(principalARN),
+			PrincipalType:      principalType,
+			PolicySource:       strings.TrimSpace(statement.Source),
+			PolicyARN:          strings.TrimSpace(statement.PolicyARN),
+			PolicyName:         strings.TrimSpace(statement.PolicyName),
+			StatementSID:       strings.TrimSpace(statement.StatementSID),
+			Effect:             statement.Effect,
+			Actions:            statement.Actions,
+			NotActions:         statement.NotActions,
+			Resources:          statement.Resources,
+			NotResources:       statement.NotResources,
+			ConditionKeys:      statement.ConditionKeys,
+			ConditionOperators: statement.ConditionOperators,
+			AssumePrincipals:   statement.AssumePrincipals,
 		})
 		if err != nil {
 			return nil, fmt.Errorf("build IAM permission fact for principal %q: %w", principalARN, err)

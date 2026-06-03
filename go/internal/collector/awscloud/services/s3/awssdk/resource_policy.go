@@ -44,6 +44,7 @@ func bucketPolicyResourcePermissionStatementsFromDocument(doc policyDocument, ow
 			Resources:           rawStringList(statement.Resource),
 			NotResources:        rawStringList(statement.NotResource),
 			ConditionKeys:       statementConditionKeys(statement.Condition),
+			ConditionOperators:  statementConditionOperators(statement.Condition),
 			PrincipalAccountIDs: accountIDs,
 			PrincipalARNs:       principalARNs,
 			PrincipalTypes:      principalTypes,
@@ -156,8 +157,30 @@ func statementConditionKeys(raw json.RawMessage) []string {
 	return keys.sorted()
 }
 
+// statementConditionOperators returns the de-duplicated, sorted condition
+// operator names present on a statement's Condition element. It records only the
+// top-level operator keys (for example StringEquals or ForAnyValue:StringLike);
+// condition values are intentionally dropped.
+func statementConditionOperators(raw json.RawMessage) []string {
+	trimmed := strings.TrimSpace(string(raw))
+	if trimmed == "" || trimmed == "null" {
+		return nil
+	}
+	var operators map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &operators); err != nil {
+		return nil
+	}
+	operatorSet := newStringSet()
+	for operator := range operators {
+		if trimmedOperator := strings.TrimSpace(operator); trimmedOperator != "" {
+			operatorSet.add(trimmedOperator)
+		}
+	}
+	return operatorSet.sorted()
+}
+
 // stringSet is a small de-duplicating ordered-output set used while deriving
-// the bounded principal and condition-key projections.
+// the bounded principal and condition-summary projections.
 type stringSet struct {
 	seen map[string]struct{}
 }

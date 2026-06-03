@@ -73,9 +73,9 @@ labels.
 - SDK adapters translate AWS records into scanner-owned types; scanner tests
   should not mock AWS SDK paginators.
 - Policy-document normalization is metadata-only. `policy_normalize.go` keeps the
-  effect, action/resource patterns, statement SID, condition KEYS, and trust
-  assume-principals; it discards the raw JSON and every condition value. The raw
-  policy body is never returned from this package.
+  effect, action/resource patterns, statement SID, condition key/operator names,
+  and trust assume-principals; it discards the raw JSON and every condition
+  value. The raw policy body is never returned from this package.
 - Role and user detail reads expose permissions boundary metadata. The adapter
   returns only the boundary policy ARN and AWS boundary attachment type, plus
   normalized metadata-only statements from the boundary policy document tagged as

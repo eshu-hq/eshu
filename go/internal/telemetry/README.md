@@ -192,6 +192,9 @@ gauge when a shared-acceptance observer is available.
 | `CorrelationUnmanagedDetected` | `eshu_dp_correlation_unmanaged_detected_total` |
 | `AWSRelationshipEdges` | `eshu_dp_aws_relationship_edges_total` |
 | `IAMCanAssumeEdges` | `eshu_dp_iam_can_assume_edges_total` |
+| `IAMCanPerformEdges` | `eshu_dp_iam_can_perform_edges_total` |
+| `IAMCanPerformSkipped` | `eshu_dp_iam_can_perform_skipped_total` |
+| `IAMCanPerformConditioned` | `eshu_dp_iam_can_perform_conditioned_total` |
 | `S3LogsToEdges` | `eshu_dp_s3_logs_to_edges_total` |
 | `S3LogsToSkipped` | `eshu_dp_s3_logs_to_skipped_total` |
 | `EC2UsesProfileEdges` | `eshu_dp_ec2_uses_profile_edges_total` |

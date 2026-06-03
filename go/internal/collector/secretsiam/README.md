@@ -86,9 +86,9 @@ introduced by this package. The Vault slice is source-fact construction only.
 
 - `CollectorKind` is always `secrets_iam_posture`; callers must not use the
   AWS cloud collector envelope helpers for these facts.
-- Policy payloads carry condition keys only. Raw policy JSON, statement bodies,
-  condition values, AWS credentials, and session tokens stay outside the fact
-  contract. The only condition-derived value this package permits is the
+- Policy payloads carry condition key/operator names only. Raw policy JSON,
+  statement bodies, condition values, AWS credentials, and session tokens stay
+  outside the fact contract. The only condition-derived value this package permits is the
   deterministic web-identity subject fingerprint required for exact IRSA joins.
 - Kubernetes payloads carry fingerprints and bounded metadata only. Raw
   ServiceAccount names, namespaces, RBAC subject names, Secret names,

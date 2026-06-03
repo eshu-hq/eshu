@@ -60,6 +60,9 @@ func TestClientListKeysDerivesResourcePolicyStatements(t *testing.T) {
 	if !equalStrings(stmt.ConditionKeys, []string{"kms:ViaService"}) {
 		t.Fatalf("condition_keys = %#v, want [kms:ViaService] (names only)", stmt.ConditionKeys)
 	}
+	if !equalStrings(stmt.ConditionOperators, []string{"StringEquals"}) {
+		t.Fatalf("condition_operators = %#v, want [StringEquals]", stmt.ConditionOperators)
+	}
 	if api.getKeyPolicyCalls != 1 {
 		t.Fatalf("GetKeyPolicy calls = %d, want 1 (one read per policy name)", api.getKeyPolicyCalls)
 	}
@@ -97,6 +100,9 @@ func TestDeriveKeyPolicyResourcePermissionStatements(t *testing.T) {
 	// Condition KEY only, never the value "s3.us-east-1.amazonaws.com".
 	if !equalStrings(partner.ConditionKeys, []string{"kms:ViaService"}) {
 		t.Fatalf("AllowPartnerDecrypt condition_keys = %#v, want [kms:ViaService]", partner.ConditionKeys)
+	}
+	if !equalStrings(partner.ConditionOperators, []string{"StringEquals"}) {
+		t.Fatalf("AllowPartnerDecrypt condition_operators = %#v, want [StringEquals]", partner.ConditionOperators)
 	}
 
 	service := statementBySID(t, statements, "AllowService")

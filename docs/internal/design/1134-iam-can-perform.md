@@ -26,7 +26,8 @@ copied from the shipped IAM edge slices, not reinvented.
 PR1 (merged, #1155) emits `aws_iam_permission` facts — normalized,
 metadata-only IAM policy statements per principal: `effect`, `actions[]`,
 `resources[]`, `not_actions[]`, `not_resources[]`, `condition_keys[]`,
-`has_conditions`, `is_wildcard_action`, `is_wildcard_resource`,
+`condition_operators[]`, `condition_operator_count`, `has_conditions`,
+`is_wildcard_action`, `is_wildcard_resource`,
 `policy_source`. The IAM scanner materializes principals (`aws_iam_role`,
 `aws_iam_user`) and many AWS resource types (S3 buckets, KMS keys, etc.) as
 `:CloudResource` nodes via #805 (`DomainAWSResourceMaterialization`), keyed
@@ -56,7 +57,7 @@ emits today:
 | Resource `*` | yes, as a skip | names no single node → `skipped_ambiguous` |
 | `NotAction` / `NotResource` | refuse | inverts the match space; not a positive grant |
 | Explicit-Deny precedence | conservative | any Deny touching the action removes the grant (sound for "cannot", over-removes for "can") |
-| Condition keys | refuse | facts carry key **names only, never values** → uninterpretable |
+| Condition keys/operators | provenance only | names only, no values or request context → not exact |
 | Permission boundaries | no (new facts) | not distinguished from attached policies in the fact stream |
 | SCPs (Organizations) | no (no scanner) | account-wide deny ceiling; out of scope |
 | Resource-based policies | no (new facts) | a resource can grant a principal with no identity statement |
@@ -149,11 +150,12 @@ declaration naming the expected cardinality band and stop threshold.
 - **Readiness-gated** on the existing `cloud_resource_uid`
   (`GraphProjectionPhaseCanonicalNodesCommitted`) phase — same gate the other
   IAM edges use — so the edge never resolves against uncommitted nodes.
-- **Telemetry:** `eshu_dp_iam_can_perform_edges_total{resolution_mode}` and
-  `eshu_dp_iam_can_perform_skipped_total{skip_reason}`, a
+- **Telemetry:** `eshu_dp_iam_can_perform_edges_total{resolution_mode}`,
+  `eshu_dp_iam_can_perform_skipped_total{skip_reason}`, and
+  `eshu_dp_iam_can_perform_conditioned_total{confidence}`, a
   `reducer.iam_can_perform_materialization` span, and a completion log with the
-  skip tally, so an operator can tell at 3 AM how many edges projected vs were
-  skipped and why.
+  skip tally plus conditioned provenance-only count, so an operator can tell at
+  3 AM how many edges projected vs were skipped and why.
 
 ## 7. Reused Machinery (already shipped, proven)
 
@@ -282,11 +284,12 @@ recorded in the PR body.
 
 `Observability Evidence:` new counters
 `eshu_dp_iam_can_perform_edges_total{resolution_mode}` (resolution_mode ∈
-{exact_arn, single_glob}) and `eshu_dp_iam_can_perform_skipped_total{skip_reason}`
-(the seven bounded skip reasons), span
+{exact_arn, single_glob}), `eshu_dp_iam_can_perform_skipped_total{skip_reason}`
+(the bounded skip reasons), and
+`eshu_dp_iam_can_perform_conditioned_total{confidence="provenance_only"}`, span
 `reducer.iam_can_perform_materialization`, and a completion log carrying the edge
-count and full per-reason skip tally, so an operator can tell at 3 AM how many
-edges projected vs were skipped and why.
+count, full per-reason skip tally, and conditioned provenance-only count, so an
+operator can tell at 3 AM how many edges projected vs were skipped and why.
 
 ### 12.3 Honesty boundary
 
@@ -295,12 +298,14 @@ PR4b reducer follow-up, a CAN_PERFORM edge carries `grant_sources` plus
 `rel.evaluation_scope` as `identity_policy_only`, `resource_policy_only`, or
 `identity_and_resource_policy`. A *present* edge means one of those evaluated
 source layers grants the action on the resolved resource, ignoring permission
-boundaries, SCPs, condition values, and session policies. A *missing* edge does
-NOT mean "cannot perform" — it can mean the action is uncatalogued, the resource
-or principal was not scanned or was ambiguous, or a later evaluator slice has
-not been implemented (PR4c–PR4d). This boundary is the reason the slice is
-conservative and skip-counted rather than claiming a complete effective-permission
-lattice.
+boundaries, SCPs, condition values, and session policies. Conditioned statements
+remain provenance-only because the scanner carries condition key/operator names
+but no values or request context. A *missing* edge does NOT mean "cannot perform"
+— it can mean the action is uncatalogued, the resource or principal was not
+scanned or was ambiguous, a condition made the grant non-exact, or a later
+evaluator slice has not been implemented (PR4d+). This boundary is the reason
+the slice is conservative and skip-counted rather than claiming a complete
+effective-permission lattice.
 
 ## 13. PR4b Reducer Follow-Up Evidence
 
@@ -377,3 +382,43 @@ records the new bounded skip reason `skipped_permission_boundary` in
 NotAction/NotResource, unresolved, and missing-allow cases remain visible through
 the existing skip counter, `reducer.iam_can_perform_materialization` span, and
 completion log stage durations.
+
+### 13.4 PR4d condition-aware confidence
+
+The PR4d decision is **provenance-only for every conditioned IAM statement**.
+The scanner now emits redaction-safe condition key/operator names on
+`aws_iam_permission`, `aws_iam_permission_policy`,
+`aws_resource_policy_permission`, and trust-policy source facts, but it still
+never emits raw condition values or request context. AWS condition evaluation
+depends on the request context, operator semantics, and condition values, so no
+condition operator/key family is eligible for exact CAN_PERFORM graph promotion
+in this slice. Unknown future operators, multiple operators, duplicate keys,
+empty values, and service-specific keys are all treated the same: they remain
+source provenance and keep the corresponding catalog action out of exact
+`CAN_PERFORM` edges.
+
+Reducer behavior stays conservative. A conditioned identity, boundary, or
+resource-policy statement that touches the closed catalog is still counted under
+`skipped_conditioned`; it also increments
+`eshu_dp_iam_can_perform_conditioned_total{confidence="provenance_only"}` and
+the structured completion log field `conditioned_provenance_only`. The
+condition operator/key names are not metric labels, graph properties, or raw log
+fields, so the signal stays bounded and redaction-safe.
+
+No-Regression Evidence: `go test ./internal/collector/awscloud/services/iam/awssdk
+-run 'ConditionOperators|ExtractsStatements' -count=1`,
+`go test ./internal/collector/awscloud ./internal/collector/secretsiam -run
+'IAMPermissionEnvelope|ResourcePolicyPermissionEnvelopeCondition|PermissionPolicyEnvelope'
+-count=1`, `go test ./internal/collector/awscloud/services/s3/awssdk
+./internal/collector/awscloud/services/kms/awssdk -run
+'Derive.*ResourcePermissionStatements|ClientListKeysDerivesResourcePolicyStatements'
+-count=1`, and `go test ./internal/reducer -run
+'Conditioned.*Provenance|ConditionedGrantRecordsProvenanceOnlyMetric' -count=1`
+cover operator/key redaction, unknown operators, resource-policy source facts,
+withheld conditioned graph edges, and the new bounded condition-confidence
+metric.
+
+No-Performance-Regression: PR4d adds scalar list normalization on already-parsed
+policy statements plus one in-memory counter increment when a conditioned
+statement is skipped. It does not change fact loading, queue gates, graph write
+shape, Cypher, MERGE identity, or per-edge row shape.

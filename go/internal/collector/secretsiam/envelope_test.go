@@ -20,6 +20,11 @@ func TestNewPermissionPolicyEnvelopeRedactsPolicyBodyAndConditionValues(t *testi
 		Actions:       []string{"iam:PassRole", " sts:AssumeRole ", "iam:passrole"},
 		Resources:     []string{"arn:aws:iam::123456789012:role/*"},
 		ConditionKeys: []string{"aws:SourceIp", "aws:SourceIp"},
+		ConditionOperators: []string{
+			"StringEquals",
+			" IpAddress ",
+			"StringEquals",
+		},
 	})
 	if err != nil {
 		t.Fatalf("NewPermissionPolicyEnvelope() error = %v", err)
@@ -59,6 +64,16 @@ func TestNewPermissionPolicyEnvelopeRedactsPolicyBodyAndConditionValues(t *testi
 	}
 	if len(keys) != 1 || keys[0] != "aws:SourceIp" {
 		t.Fatalf("condition_keys = %v, want [aws:SourceIp]", keys)
+	}
+	operators, ok := env.Payload["condition_operators"].([]string)
+	if !ok {
+		t.Fatalf("condition_operators = %T, want []string", env.Payload["condition_operators"])
+	}
+	if len(operators) != 2 || operators[0] != "IpAddress" || operators[1] != "StringEquals" {
+		t.Fatalf("condition_operators = %v, want [IpAddress StringEquals]", operators)
+	}
+	if got, _ := env.Payload["condition_operator_count"].(int); got != 2 {
+		t.Fatalf("condition_operator_count = %v, want 2", got)
 	}
 	assertNoForbiddenPayloadKeys(t, env.Payload)
 }

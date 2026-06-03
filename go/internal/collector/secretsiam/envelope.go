@@ -65,17 +65,18 @@ func NewTrustPolicyEnvelope(observation TrustPolicyObservation) (facts.Envelope,
 	}
 	actions := normalizeActionList(observation.Actions)
 	conditionKeys := normalizeKeyList(observation.ConditionKeys)
+	conditionOperators := normalizeKeyList(observation.ConditionOperators)
 	assumePrincipals := normalizePatternList(observation.AssumePrincipals)
 	webIdentitySubjects := normalizePatternList(observation.WebIdentitySubjectFingerprints)
 	statementSID := strings.TrimSpace(observation.StatementSID)
 	stableKey := facts.StableID(facts.AWSIAMTrustPolicyFactKind, map[string]any{
-		"account_id":        observation.Context.AccountID,
-		"actions":           strings.Join(actions, ","),
-		"assume_principals": strings.Join(assumePrincipals, ","),
-		"effect":            effect,
-		"region":            observation.Context.Region,
-		"role_arn":          roleARN,
-		"statement_sid":     statementSID,
+		"account_id":            observation.Context.AccountID,
+		"actions":               strings.Join(actions, ","),
+		"assume_principals":     strings.Join(assumePrincipals, ","),
+		"effect":                effect,
+		"region":                observation.Context.Region,
+		"role_arn":              roleARN,
+		"statement_sid":         statementSID,
 		"web_identity_subjects": strings.Join(webIdentitySubjects, ","),
 	})
 	payload := commonPayload(observation.Context)
@@ -85,8 +86,10 @@ func NewTrustPolicyEnvelope(observation TrustPolicyObservation) (facts.Envelope,
 	payload["effect"] = effect
 	payload["actions"] = actions
 	payload["condition_keys"] = conditionKeys
+	payload["condition_operators"] = conditionOperators
+	payload["condition_operator_count"] = len(conditionOperators)
 	payload["assume_principals"] = assumePrincipals
-	payload["has_conditions"] = len(conditionKeys) > 0
+	payload["has_conditions"] = len(conditionKeys) > 0 || len(conditionOperators) > 0
 	payload["web_identity_subject_fingerprints"] = webIdentitySubjects
 	payload["web_identity_subject_wildcard"] = observation.WebIdentitySubjectWildcard
 	return newEnvelope(
@@ -123,6 +126,7 @@ func NewPermissionPolicyEnvelope(observation PermissionPolicyObservation) (facts
 	resources := normalizePatternList(observation.Resources)
 	notResources := normalizePatternList(observation.NotResources)
 	conditionKeys := normalizeKeyList(observation.ConditionKeys)
+	conditionOperators := normalizeKeyList(observation.ConditionOperators)
 	policyARN := strings.TrimSpace(observation.PolicyARN)
 	policyName := strings.TrimSpace(observation.PolicyName)
 	statementSID := strings.TrimSpace(observation.StatementSID)
@@ -154,7 +158,9 @@ func NewPermissionPolicyEnvelope(observation PermissionPolicyObservation) (facts
 	payload["resources"] = resources
 	payload["not_resources"] = notResources
 	payload["condition_keys"] = conditionKeys
-	payload["has_conditions"] = len(conditionKeys) > 0
+	payload["condition_operators"] = conditionOperators
+	payload["condition_operator_count"] = len(conditionOperators)
+	payload["has_conditions"] = len(conditionKeys) > 0 || len(conditionOperators) > 0
 	payload["is_wildcard_action"] = containsValue(actions, wildcardAction)
 	payload["is_wildcard_resource"] = containsValue(resources, wildcardAction)
 	return newEnvelope(

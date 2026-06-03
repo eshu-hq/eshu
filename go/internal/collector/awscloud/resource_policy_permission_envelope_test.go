@@ -115,13 +115,18 @@ func TestNewResourcePolicyPermissionEnvelopeDenyStatement(t *testing.T) {
 func TestNewResourcePolicyPermissionEnvelopeConditionKeysCarryNamesOnly(t *testing.T) {
 	boundary := resourcePolicyBoundary(time.Date(2026, 5, 31, 12, 0, 0, 0, time.UTC))
 	envelope, err := NewResourcePolicyPermissionEnvelope(ResourcePolicyPermissionObservation{
-		Boundary:       boundary,
-		ResourceARN:    "arn:aws:s3:::eshu-conditioned",
-		ResourceType:   ResourceTypeS3Bucket,
-		Effect:         "Allow",
-		Actions:        []string{"s3:GetObject"},
-		Resources:      []string{"arn:aws:s3:::eshu-conditioned/*"},
-		ConditionKeys:  []string{"aws:SourceIp", "aws:SourceIp", "  aws:SecureTransport  "},
+		Boundary:      boundary,
+		ResourceARN:   "arn:aws:s3:::eshu-conditioned",
+		ResourceType:  ResourceTypeS3Bucket,
+		Effect:        "Allow",
+		Actions:       []string{"s3:GetObject"},
+		Resources:     []string{"arn:aws:s3:::eshu-conditioned/*"},
+		ConditionKeys: []string{"aws:SourceIp", "aws:SourceIp", "  aws:SecureTransport  "},
+		ConditionOperators: []string{
+			"IpAddress",
+			" Bool ",
+			"IpAddress",
+		},
 		PrincipalTypes: []string{ResourcePolicyPrincipalTypeAWS},
 	})
 	if err != nil {
@@ -131,6 +136,11 @@ func TestNewResourcePolicyPermissionEnvelopeConditionKeysCarryNamesOnly(t *testi
 	keys := payloadStrings(t, envelope.Payload, "condition_keys")
 	// De-duplicated, trimmed, sorted: names only, never values.
 	assertStringSlice(t, "condition_keys", keys, []string{"aws:SecureTransport", "aws:SourceIp"})
+	operators := payloadStrings(t, envelope.Payload, "condition_operators")
+	assertStringSlice(t, "condition_operators", operators, []string{"Bool", "IpAddress"})
+	if got, _ := envelope.Payload["condition_operator_count"].(int); got != 2 {
+		t.Fatalf("condition_operator_count = %v, want 2", got)
+	}
 }
 
 func TestNewResourcePolicyPermissionEnvelopeWildcardActionAndResource(t *testing.T) {

@@ -72,9 +72,9 @@ func addIAMCanPerformResourcePolicyEdges(
 		hasNotResources := len(payloadStringSlice(env.Payload, "not_resources")) > 0
 		if hasConditions || hasNotActions || hasNotResources {
 			if hasConditions {
-				tally.skippedConditioned++
+				tally.recordSkip(iamCanPerformSkipConditioned)
 			} else {
-				tally.skippedNotActionResource++
+				tally.recordSkip(iamCanPerformSkipNotActionResource)
 			}
 			continue
 		}

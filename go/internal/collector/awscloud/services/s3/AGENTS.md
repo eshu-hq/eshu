@@ -16,7 +16,7 @@
 - Never read objects, list object keys, or mutate S3 buckets.
 - The scanner MAY emit the normalized, derived `aws_resource_policy_permission`
   fact from the bucket policy: per statement, the effect, normalized
-  action/resource patterns, condition-key NAMES, and derived grantee facts
+  action/resource patterns, condition key/operator NAMES, and derived grantee facts
   (principal account ids, principal ARNs, principal types, public, cross-account)
   — the resource-side analog of `aws_iam_permission` (PR4b of #1134,
   owner-approved). The `awssdk` adapter parses the policy transiently and hands
@@ -26,7 +26,7 @@
   Sids, policy CONDITION VALUES, ACL grants, replication rules, lifecycle rules,
   notification configuration, inventory configuration, analytics configuration,
   or metrics configuration. Normalized/derived policy actions, resources, and
-  condition-key NAMES are allowed via `aws_resource_policy_permission`; raw
+  condition key/operator NAMES are allowed via `aws_resource_policy_permission`; raw
   statement bodies and condition values are not.
 - Never persist website index or error document object keys.
 - Emit reported evidence only. Do not infer deployment, workload, repository
@@ -55,7 +55,7 @@
   identifier.
 - Extend `aws_resource_policy_permission` only with normalized/derived statement
   metadata already derived on `Bucket.ResourcePolicyStatements` (effect,
-  normalized actions/resources, condition-key NAMES, principal account ids /
+  normalized actions/resources, condition key/operator NAMES, principal account ids /
   ARNs / types, public / cross-account). The derivation lives in the `awssdk`
   adapter (`deriveBucketPolicyResourcePermissionStatements`); never add raw
   statement bodies or condition values to the statement or the fact. This fact is

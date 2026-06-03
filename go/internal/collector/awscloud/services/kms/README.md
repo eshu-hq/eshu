@@ -46,8 +46,8 @@ See `doc.go` for the godoc contract.
   configuration, supported algorithm lists, and the normalized
   `ResourcePolicyStatements` projection of the key policy).
 - `ResourcePolicyStatement` - one normalized, derived key-policy statement
-  (effect, normalized actions/resources, condition-key NAMES, and derived
-  grantee principal facts). The raw policy Statement body and condition
+  (effect, normalized actions/resources, condition key/operator NAMES, and
+  derived grantee principal facts). The raw policy Statement body and condition
   values are never represented on it. It feeds the
   `aws_resource_policy_permission` fact.
 - `Alias` - alias name/ARN and the target key id it points at.
@@ -97,7 +97,7 @@ bounded AWS collector labels.
   condition VALUES. The `awssdk` adapter reads the key policy with
   GetKeyPolicy (owner-approved, PR4b of #1134) only to derive the
   normalized, metadata-only `aws_resource_policy_permission` projection
-  (effect, normalized actions/resources, condition-key NAMES, derived
+  (effect, normalized actions/resources, condition key/operator NAMES, derived
   grantee principal facts). The bounded policy revision names from
   ListKeyPolicies are still emitted as before. PutKeyPolicy (a mutation)
   stays forbidden.

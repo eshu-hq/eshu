@@ -49,9 +49,9 @@ See `doc.go` for the godoc contract.
   principal observation for public, cross-account, AWS service, and unsupported
   principal types.
 - `ResourcePolicyStatement` - scanner-owned normalized, derived bucket-policy
-  statement (effect, normalized actions/resources, condition-key NAMES, and
-  derived grantee principal facts). The raw policy Statement body and condition
-  values are never represented on it. It feeds the
+  statement (effect, normalized actions/resources, condition key/operator NAMES,
+  and derived grantee principal facts). The raw policy Statement body and
+  condition values are never represented on it. It feeds the
   `aws_resource_policy_permission` fact.
 - `Versioning`, `Encryption`, `PublicAccessBlock`, `Website`, `Logging`, and
   `Replication` - scanner-owned control-plane metadata groups.
@@ -80,13 +80,13 @@ spans.
   ACL grants, replication rules, lifecycle rules, notification configuration,
   inventory configuration, analytics configuration, and metrics configuration
   are not persisted. Normalized/derived policy actions, resources, and
-  condition-key NAMES are allowed via `aws_resource_policy_permission`.
+  condition key/operator NAMES are allowed via `aws_resource_policy_permission`.
 - The `s3_bucket_posture` fact carries only derived booleans and safe
   identifiers/ARNs. `s3_external_principal_grant` carries only bounded
   principal kind, value, account, partition, service, outcome, and statement SID
   metadata. `aws_resource_policy_permission` carries the normalized per-statement
-  projection (effect, normalized actions/resources, condition-key NAMES, derived
-  grantee principal facts). The SDK adapter reads the bucket policy document
+  projection (effect, normalized actions/resources, condition key/operator
+  NAMES, derived grantee principal facts). The SDK adapter reads the bucket policy document
   transiently (`GetBucketPolicy`) to derive the public-grant and
   cross-account-principal booleans, external-principal metadata, and the
   normalized resource-policy statements, then discards the raw document; the
@@ -233,8 +233,8 @@ external-principal facts.
 No-Observability-Change: the new fact flows through the existing S3 scanner and
 AWS collector telemetry (`eshu_dp_aws_resources_emitted_total{service="s3"}`,
 `aws.service.pagination.page` span). No new metric, span, status row, or metric
-label is introduced, and no policy actions, resources, condition values, ARNs,
-or bucket names enter metric labels.
+label is introduced, and no policy actions, resources, condition key/operator
+names, condition values, ARNs, or bucket names enter metric labels.
 
 ## Related docs
 

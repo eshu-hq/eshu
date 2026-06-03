@@ -75,41 +75,43 @@ type PrincipalObservation struct {
 }
 
 // TrustPolicyObservation describes one normalized IAM role trust policy
-// statement. It carries condition keys and assume principals, never raw policy
-// JSON or condition values.
+// statement. It carries condition summaries and assume principals, never raw
+// policy JSON or condition values.
 type TrustPolicyObservation struct {
-	Context                       EnvelopeContext
-	RoleARN                       string
-	StatementSID                  string
-	Effect                        string
-	Actions                       []string
-	ConditionKeys                 []string
-	AssumePrincipals              []string
+	Context                        EnvelopeContext
+	RoleARN                        string
+	StatementSID                   string
+	Effect                         string
+	Actions                        []string
+	ConditionKeys                  []string
+	ConditionOperators             []string
+	AssumePrincipals               []string
 	WebIdentitySubjectFingerprints []string
 	WebIdentitySubjectWildcard     bool
-	SourceURI                     string
-	SourceRecordID                string
+	SourceURI                      string
+	SourceRecordID                 string
 }
 
 // PermissionPolicyObservation describes one normalized IAM identity policy
-// statement. It carries action/resource patterns and condition keys, never raw
-// policy JSON or condition values.
+// statement. It carries action/resource patterns and condition summaries, never
+// raw policy JSON or condition values.
 type PermissionPolicyObservation struct {
-	Context        EnvelopeContext
-	PrincipalARN   string
-	PrincipalType  string
-	PolicySource   string
-	PolicyARN      string
-	PolicyName     string
-	StatementSID   string
-	Effect         string
-	Actions        []string
-	NotActions     []string
-	Resources      []string
-	NotResources   []string
-	ConditionKeys  []string
-	SourceURI      string
-	SourceRecordID string
+	Context            EnvelopeContext
+	PrincipalARN       string
+	PrincipalType      string
+	PolicySource       string
+	PolicyARN          string
+	PolicyName         string
+	StatementSID       string
+	Effect             string
+	Actions            []string
+	NotActions         []string
+	Resources          []string
+	NotResources       []string
+	ConditionKeys      []string
+	ConditionOperators []string
+	SourceURI          string
+	SourceRecordID     string
 }
 
 // PolicyAttachmentObservation describes one managed IAM policy attachment.

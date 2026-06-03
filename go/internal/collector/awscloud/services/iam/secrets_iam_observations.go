@@ -133,6 +133,7 @@ func secretsIAMPolicyEnvelopes(
 				Effect:                         statement.Effect,
 				Actions:                        statement.Actions,
 				ConditionKeys:                  statement.ConditionKeys,
+				ConditionOperators:             statement.ConditionOperators,
 				AssumePrincipals:               statement.AssumePrincipals,
 				WebIdentitySubjectFingerprints: statement.WebIdentitySubjectFingerprints,
 				WebIdentitySubjectWildcard:     statement.WebIdentitySubjectWildcard,
@@ -144,19 +145,20 @@ func secretsIAMPolicyEnvelopes(
 			continue
 		}
 		envelope, err := secretsiam.NewPermissionPolicyEnvelope(secretsiam.PermissionPolicyObservation{
-			Context:       ctx,
-			PrincipalARN:  strings.TrimSpace(principalARN),
-			PrincipalType: principalType,
-			PolicySource:  strings.TrimSpace(statement.Source),
-			PolicyARN:     strings.TrimSpace(statement.PolicyARN),
-			PolicyName:    strings.TrimSpace(statement.PolicyName),
-			StatementSID:  strings.TrimSpace(statement.StatementSID),
-			Effect:        statement.Effect,
-			Actions:       statement.Actions,
-			NotActions:    statement.NotActions,
-			Resources:     statement.Resources,
-			NotResources:  statement.NotResources,
-			ConditionKeys: statement.ConditionKeys,
+			Context:            ctx,
+			PrincipalARN:       strings.TrimSpace(principalARN),
+			PrincipalType:      principalType,
+			PolicySource:       strings.TrimSpace(statement.Source),
+			PolicyARN:          strings.TrimSpace(statement.PolicyARN),
+			PolicyName:         strings.TrimSpace(statement.PolicyName),
+			StatementSID:       strings.TrimSpace(statement.StatementSID),
+			Effect:             statement.Effect,
+			Actions:            statement.Actions,
+			NotActions:         statement.NotActions,
+			Resources:          statement.Resources,
+			NotResources:       statement.NotResources,
+			ConditionKeys:      statement.ConditionKeys,
+			ConditionOperators: statement.ConditionOperators,
 		})
 		if err != nil {
 			return nil, fmt.Errorf("build IAM permission policy fact for principal %q: %w", principalARN, err)

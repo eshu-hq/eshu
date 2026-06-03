@@ -20,8 +20,8 @@
 - Keep trust policy JSON out of facts, metric labels, logs, status errors, and
   graph properties. ARNs may remain provider-native source identity in facts.
 - Derived `aws_iam_permission` facts are metadata-only. Emit only the normalized
-  statement (effect, action set, resource pattern, condition KEYS, trust
-  assume-principals). NEVER persist the raw policy JSON body or condition values.
+  statement (effect, action set, resource pattern, condition key/operator names,
+  trust assume-principals). NEVER persist the raw policy JSON body or condition values.
   The SDK adapter normalizes documents; this package consumes `PolicyStatement`
   values and never holds raw JSON.
 - `secrets_iam_posture` facts are source evidence only. Keep

@@ -48,7 +48,8 @@ See `doc.go` for the godoc contract.
   `secrets_iam_coverage_warning`.
 - `TrustPrincipal` - normalized principal from a role trust policy.
 - `PolicyStatement` - normalized, metadata-only IAM policy statement (effect,
-  action set, resource pattern, condition-key summary; no raw JSON or values).
+  action set, resource pattern, condition key/operator summary; no raw JSON or
+  values).
   `Source` distinguishes inline, attached managed, trust, and
   permissions-boundary policy documents.
 
@@ -95,11 +96,11 @@ credential, or token labels.
 - Trust policy JSON is transient parse input only. Do not persist it in facts,
   metric labels, logs, status errors, or graph properties.
 - Derived `aws_iam_permission` facts are metadata-only. The scanner emits only
-  the normalized statement (effect, action set, resource pattern, condition
-  KEYS, and trust assume-principals). It never persists the raw policy JSON body
-  or condition values, which can embed source IPs, tags, or other sensitive
-  selectors. The SDK adapter normalizes documents at the wiring boundary so this
-  package never holds raw policy JSON.
+  the normalized statement (effect, action set, resource pattern, condition key
+  and operator names, and trust assume-principals). It never persists the raw
+  policy JSON body or condition values, which can embed source IPs, tags, or
+  other sensitive selectors. The SDK adapter normalizes documents at the wiring
+  boundary so this package never holds raw policy JSON.
 - `secrets_iam_posture` facts use their own `collector_kind` and remain source
   facts only; reducers own trust-chain, posture, and graph promotion decisions.
 - Per-principal managed policy document fan-out is bounded in the SDK adapter to

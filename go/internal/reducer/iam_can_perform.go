@@ -23,6 +23,8 @@ const (
 	iamCanPerformSkipPermissionBoundary = "skipped_permission_boundary"
 )
 
+const iamCanPerformConditionConfidenceProvenanceOnly = "provenance_only"
+
 // Resolution modes for the CAN_PERFORM edges counter. They are the bounded
 // resolution_mode metric dimension members for eshu_dp_iam_can_perform_edges_total
 // — the two confident ways a catalog action's resource ARN resolves to exactly one
@@ -42,6 +44,7 @@ type iamCanPerformTally struct {
 	skippedUnresolved         int
 	skippedDeny               int
 	skippedConditioned        int
+	conditionedProvenanceOnly int
 	skippedNotActionResource  int
 	skippedSelfLoop           int
 	skippedPermissionBoundary int
