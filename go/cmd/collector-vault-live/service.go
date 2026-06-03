@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 
+	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/eshu-hq/eshu/go/internal/collector"
@@ -32,7 +33,7 @@ func buildCollectorService(
 	return collector.Service{
 		Source: &vaultlive.SnapshotSource{
 			Config:        config.Collector,
-			ClientFactory: vaultClientFactory{auth: config.Auth},
+			ClientFactory: vaultClientFactory{auth: config.Auth, instruments: instruments},
 			Tracer:        tracer,
 			Instruments:   instruments,
 			Logger:        logger,
@@ -59,7 +60,8 @@ type vaultAuth struct {
 // keyed by (cluster, namespace) because the scope identity is namespace-scoped:
 // one cluster may host multiple namespace targets with distinct tokens.
 type vaultClientFactory struct {
-	auth map[string]vaultAuth
+	auth        map[string]vaultAuth
+	instruments *telemetry.Instruments
 }
 
 // authKey is the (cluster, namespace) key shared by config parsing and the
@@ -78,9 +80,28 @@ func (f vaultClientFactory) Client(_ context.Context, target vaultlive.ClusterTa
 		Address:   auth.Address,
 		Token:     auth.Token,
 		Namespace: auth.Namespace,
+		OnAPICall: f.apiCallObserver(),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("build vault client for cluster %q namespace %q: %w", target.VaultClusterID, target.Namespace, err)
 	}
 	return client, nil
+}
+
+// apiCallObserver records each Vault list operation outcome to the
+// secrets/IAM source api-call counter (source="vault"). Labels are bounded
+// enums only — no path, token, or address. Returns nil when no instruments are
+// wired.
+func (f vaultClientFactory) apiCallObserver() func(operation, result string) {
+	if f.instruments == nil {
+		return nil
+	}
+	instruments := f.instruments
+	return func(operation, result string) {
+		instruments.SecretsIAMSourceAPICalls.Add(context.Background(), 1, metric.WithAttributes(
+			telemetry.AttrSource("vault"),
+			telemetry.AttrOperation(operation),
+			telemetry.AttrResult(result),
+		))
+	}
 }

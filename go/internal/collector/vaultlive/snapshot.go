@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/eshu-hq/eshu/go/internal/collector"
@@ -19,6 +20,10 @@ import (
 // CollectorKind is the source-system / scope collector-kind identifier for the
 // live Vault metadata collector.
 const CollectorKind = "vault_live"
+
+// secretsIAMSourceVault is the bounded `source` label value for the Vault lane's
+// secrets/IAM source telemetry.
+const secretsIAMSourceVault = "vault"
 
 // ClusterTarget is one configured Vault collection boundary: a Vault cluster
 // and namespace. It carries durable, non-secret identity only; connection
@@ -137,6 +142,15 @@ func (s *SnapshotSource) collectTarget(ctx context.Context, config Config, targe
 	}, client)
 	if err != nil {
 		return collector.CollectedGeneration{}, fmt.Errorf("collect vault metadata: %w", err)
+	}
+
+	if s.Instruments != nil {
+		for _, env := range envelopes {
+			s.Instruments.SecretsIAMSourceFactsEmitted.Add(ctx, 1, metric.WithAttributes(
+				telemetry.AttrSource(secretsIAMSourceVault),
+				telemetry.AttrFactKind(env.FactKind),
+			))
+		}
 	}
 
 	if s.Logger != nil {

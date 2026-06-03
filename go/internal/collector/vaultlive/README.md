@@ -50,10 +50,17 @@ deterministic per-target scope/generation id. The live `vaultapi` client (a
 `cmd/collector-vault-live` binary runs the driver over the shared
 `collector.Service` commit boundary.
 
-Remaining under #1356: the bespoke `eshu_dp_secrets_iam_*{source="vault"}` source
-counters (the lane is already observable via the shared
+Source telemetry: the lane emits `eshu_dp_secrets_iam_source_facts_emitted_total`
+`{source="vault",fact_kind}` (per emitted fact family) and, via the `vaultapi`
+client's `OnAPICall` hook wired in the collector binary,
+`eshu_dp_secrets_iam_source_api_calls_total{source="vault",operation,result}`
+(per Vault list operation and outcome). These complement the shared
 `collector_kind="vault_live"` facts-emitted/commit/duration metrics and the
-`vault_live.snapshot` span), per-family partial-coverage warnings, and
+`vault_live.snapshot` span.
+
+Remaining under #1356: the `redactions_total` / `partial_scope_total` /
+`scope_freshness_seconds` source counters (these need redaction-level and
+partial-coverage modeling that the fail-fast lane does not yet produce) and
 validation against a live/dev Vault.
 
 ## Evidence
@@ -76,10 +83,15 @@ validation, and deterministic namespace-scoped scope ids) and
 throughput against a real Vault is validated as part of the remaining #1356
 integration step.
 
-Observability Evidence: the lane is observable through the shared
+Observability Evidence: the lane emits the secrets/IAM source counters
+`eshu_dp_secrets_iam_source_facts_emitted_total{source="vault",fact_kind}` (in
+`SnapshotSource`) and `eshu_dp_secrets_iam_source_api_calls_total`
+`{source="vault",operation,result}` (via the `vaultapi` `OnAPICall` hook,
+asserted by `TestAdapterReportsAPICallObservations`). All metric labels are
+bounded enums — no path, token, ARN, or address. These complement the shared
 `collector.Service` metrics labeled `collector_kind="vault_live"`
 (`eshu_dp_facts_emitted_total`, `eshu_dp_facts_committed_total`, the collector
-observe duration) plus the `vault_live.snapshot` span (registered in the frozen
-telemetry span contract). The bespoke `eshu_dp_secrets_iam_*{source="vault"}`
-source counters (api calls, redactions, facts emitted, scope freshness, partial
-scope) are a tracked #1356 follow-up.
+observe duration) and the `vault_live.snapshot` span. The remaining
+`redactions_total` / `partial_scope_total` / `scope_freshness_seconds` counters
+are a tracked #1356 follow-up (they need redaction-level and partial-coverage
+modeling the fail-fast lane does not yet produce).

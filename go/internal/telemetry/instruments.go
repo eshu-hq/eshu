@@ -74,6 +74,8 @@ type Instruments struct {
 	KubernetesLiveResourcesListed             metric.Int64Counter
 	KubernetesLiveFactsEmitted                metric.Int64Counter
 	KubernetesLiveWarnings                    metric.Int64Counter
+	SecretsIAMSourceAPICalls                  metric.Int64Counter
+	SecretsIAMSourceFactsEmitted              metric.Int64Counter
 	PackageRegistryRequests                   metric.Int64Counter
 	PackageRegistryFactsEmitted               metric.Int64Counter
 	PackageRegistryRateLimited                metric.Int64Counter
@@ -902,6 +904,22 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register KubernetesLiveWarnings counter: %w", err)
+	}
+
+	inst.SecretsIAMSourceAPICalls, err = meter.Int64Counter(
+		"eshu_dp_secrets_iam_source_api_calls_total",
+		metric.WithDescription("Total secrets/IAM source-collector API calls by source, operation, and result"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register SecretsIAMSourceAPICalls counter: %w", err)
+	}
+
+	inst.SecretsIAMSourceFactsEmitted, err = meter.Int64Counter(
+		"eshu_dp_secrets_iam_source_facts_emitted_total",
+		metric.WithDescription("Total secrets/IAM source facts emitted by source and fact kind"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register SecretsIAMSourceFactsEmitted counter: %w", err)
 	}
 
 	inst.PackageRegistryRequests, err = meter.Int64Counter(

@@ -247,3 +247,44 @@ func TestNewValidatesConfig(t *testing.T) {
 		t.Fatal("New with empty token: want error")
 	}
 }
+
+func TestAdapterReportsAPICallObservations(t *testing.T) {
+	t.Parallel()
+	srv, _ := newMockVault(t)
+	var mu sync.Mutex
+	got := map[string]string{}
+	a, err := New(Config{
+		Address: srv.URL, Token: "test-token", HTTPClient: srv.Client(),
+		OnAPICall: func(operation, result string) {
+			mu.Lock()
+			got[operation] = result
+			mu.Unlock()
+		},
+	})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	ctx := context.Background()
+	for _, call := range []func() error{
+		func() error { _, e := a.ListAuthMounts(ctx); return e },
+		func() error { _, e := a.ListAuthRoles(ctx); return e },
+		func() error { _, e := a.ListACLPolicies(ctx); return e },
+		func() error { _, e := a.ListIdentityEntities(ctx); return e },
+		func() error { _, e := a.ListIdentityAliases(ctx); return e },
+		func() error { _, e := a.ListKVMetadata(ctx); return e },
+		func() error { _, e := a.ListSecretEngineMounts(ctx); return e },
+	} {
+		if e := call(); e != nil {
+			t.Fatalf("list call: %v", e)
+		}
+	}
+	for _, op := range []string{
+		"list_auth_mounts", "list_auth_roles", "list_acl_policies",
+		"list_identity_entities", "list_identity_aliases", "list_kv_metadata",
+		"list_secret_engine_mounts",
+	} {
+		if got[op] != "success" {
+			t.Fatalf("operation %q result = %q, want success (all: %v)", op, got[op], got)
+		}
+	}
+}
