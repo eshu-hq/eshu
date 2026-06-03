@@ -104,6 +104,27 @@ func TestExtractSkipsNonExactStates(t *testing.T) {
 	}
 }
 
+func TestExtractSkipsSecretAccessPathWithBlankMountJoinKey(t *testing.T) {
+	t.Parallel()
+
+	// A blank vault_mount_join_key would collapse the SecretMetadataPath uid to
+	// kv_path_fingerprint alone, colliding unrelated paths across mounts/clusters
+	// into one node and GRANTS_SECRET_READ edge. Such a row is missing secret-path
+	// identity and must be skipped+counted, never projected.
+	rows := ExtractSecretsIAMGraphRows([]facts.Envelope{exactPathFact(map[string]any{
+		"scope_id": "scope-1", "generation_id": "gen-1", "confidence": "exact",
+		"vault_policy_join_key": "sha256:pol1", "vault_mount_join_key": "",
+		"kv_path_fingerprint": "sha256:kv", "capabilities": []string{"read"},
+	})})
+
+	if len(rows.SecretMetadataPathNodes) != 0 || len(rows.GrantsSecretReadEdges) != 0 {
+		t.Fatalf("blank mount join key projected rows: nodes=%d edges=%d", len(rows.SecretMetadataPathNodes), len(rows.GrantsSecretReadEdges))
+	}
+	if rows.Tally.SkippedByReason[secretsIAMSkipMissingSecretPath] != 1 {
+		t.Fatalf("missing-secret-path skip = %d, want 1 (tally=%+v)", rows.Tally.SkippedByReason[secretsIAMSkipMissingSecretPath], rows.Tally)
+	}
+}
+
 func TestExtractMissingWorkloadStillProjectsServiceAccount(t *testing.T) {
 	t.Parallel()
 

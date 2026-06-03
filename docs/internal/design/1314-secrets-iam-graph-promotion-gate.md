@@ -159,8 +159,11 @@ endpoint cannot be resolved would force a fabricated join, which §4 forbids.
   absent.
 - **IAM-role `CloudResource` endpoint — NOT RESOLVABLE from the current read
   model.** The read model carries only `iam_role_fingerprint`, defined as
-  `secretsIAMFingerprint("iam_role", role_arn)` — a one-way HMAC of the role
-  ARN. The IAM-role `CloudResource` `uid` is built from
+  `secretsIAMFingerprint("iam_role", role_arn)` — a deterministic, unkeyed
+  SHA-256 hash of a canonical JSON payload (via `facts.StableID`), not a keyed
+  HMAC. It is one-way (irreversible) but reproducible by anyone with the same
+  role ARN, so it provides redaction (no raw ARN in the graph) without
+  unlinkability. The IAM-role `CloudResource` `uid` is built from
   `(account_id, region, resource_type, resource_id)` (`cloudResourceUID(...)`).
   A fingerprint cannot join to that uid, and the read model carries neither the
   `CloudResource` uid nor the `(account, region, role-name)` needed to compute

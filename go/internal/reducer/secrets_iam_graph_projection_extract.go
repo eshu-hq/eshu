@@ -212,7 +212,10 @@ func (b *secretsIAMGraphRowBuilder) addSecretAccessPath(envelope facts.Envelope)
 	policyKey := payloadString(envelope.Payload, "vault_policy_join_key")
 	mountKey := payloadString(envelope.Payload, "vault_mount_join_key")
 	kvFingerprint := payloadString(envelope.Payload, "kv_path_fingerprint")
-	if policyKey == "" || kvFingerprint == "" {
+	// A blank mount join key would collapse the SecretMetadataPath uid to
+	// kv_path_fingerprint alone, colliding unrelated paths across mounts/clusters
+	// into one node. Treat it as missing secret-path identity: skip and count.
+	if policyKey == "" || mountKey == "" || kvFingerprint == "" {
 		b.tally.SkippedByReason[secretsIAMSkipMissingSecretPath]++
 		return
 	}
