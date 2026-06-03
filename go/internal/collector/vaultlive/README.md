@@ -36,5 +36,12 @@ correlation and graph promotion.
 
 ## Status
 
-Implements the auth-mount path end to end. The remaining `vault_*` fact families
-and the live `Client` adapter (Vault API) follow the same pattern under #1344.
+Maps all seven Vault metadata fact families (`vault_auth_mount`,
+`vault_auth_role`, `vault_acl_policy`, `vault_identity_entity`,
+`vault_identity_alias`, `vault_kv_metadata`, `vault_secret_engine_mount`) from a
+read-only `Client` through the `secretsiam` envelope builders. Collection is
+fail-fast per family so a partial generation is never emitted as if complete.
+
+The live `Client` adapter (`hashicorp/vault/api`), `runtimebind` registration,
+the `secrets_iam_posture` CollectorKind, claim-driven scheduling, per-family
+partial-coverage warnings, and source telemetry instruments land in #1356.

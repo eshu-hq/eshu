@@ -10,14 +10,44 @@ import (
 	"github.com/eshu-hq/eshu/go/internal/facts"
 )
 
-// fakeVaultClient is a metadata-only test double. It records whether any read
-// method was called and returns canned auth-mount metadata.
+// fakeVaultClient is a metadata-only test double returning canned metadata for
+// each Vault fact family.
 type fakeVaultClient struct {
-	authMounts []AuthMount
+	authMounts   []AuthMount
+	authRoles    []AuthRole
+	aclPolicies  []ACLPolicy
+	entities     []IdentityEntity
+	aliases      []IdentityAlias
+	kvMetadata   []KVMetadata
+	engineMounts []SecretEngineMount
 }
 
 func (c *fakeVaultClient) ListAuthMounts(context.Context) ([]AuthMount, error) {
 	return append([]AuthMount(nil), c.authMounts...), nil
+}
+
+func (c *fakeVaultClient) ListAuthRoles(context.Context) ([]AuthRole, error) {
+	return append([]AuthRole(nil), c.authRoles...), nil
+}
+
+func (c *fakeVaultClient) ListACLPolicies(context.Context) ([]ACLPolicy, error) {
+	return append([]ACLPolicy(nil), c.aclPolicies...), nil
+}
+
+func (c *fakeVaultClient) ListIdentityEntities(context.Context) ([]IdentityEntity, error) {
+	return append([]IdentityEntity(nil), c.entities...), nil
+}
+
+func (c *fakeVaultClient) ListIdentityAliases(context.Context) ([]IdentityAlias, error) {
+	return append([]IdentityAlias(nil), c.aliases...), nil
+}
+
+func (c *fakeVaultClient) ListKVMetadata(context.Context) ([]KVMetadata, error) {
+	return append([]KVMetadata(nil), c.kvMetadata...), nil
+}
+
+func (c *fakeVaultClient) ListSecretEngineMounts(context.Context) ([]SecretEngineMount, error) {
+	return append([]SecretEngineMount(nil), c.engineMounts...), nil
 }
 
 func testTarget() VaultTarget {
@@ -66,20 +96,107 @@ func TestCollectEmitsAuthMountFact(t *testing.T) {
 	}
 }
 
-// TestCollectNeverEmitsRawSecretMaterial proves the redaction boundary: the raw
-// mount path and accessor must never appear verbatim in any emitted payload,
-// because the envelope builders fingerprint them.
-func TestCollectNeverEmitsRawSecretMaterial(t *testing.T) {
+// TestCollectEmitsAllSevenFactFamilies proves Source.Collect maps every Vault
+// metadata fact family through the secretsiam envelope builders.
+func TestCollectEmitsAllSevenFactFamilies(t *testing.T) {
 	t.Parallel()
 
-	const rawPath = "kubernetes/"
-	const rawAccessor = "auth_kubernetes_abc"
 	client := &fakeVaultClient{
-		authMounts: []AuthMount{{Path: rawPath, Accessor: rawAccessor, Method: "kubernetes"}},
+		authMounts: []AuthMount{{Path: "kubernetes/", Accessor: "auth_k8s_a", Method: "kubernetes"}},
+		authRoles: []AuthRole{{
+			MountPath: "kubernetes/", RoleName: "payments-api", Method: "kubernetes",
+			KubernetesClusterID:           "cluster-prod",
+			BoundServiceAccountNames:      []string{"payments"},
+			BoundServiceAccountNamespaces: []string{"prod"},
+			TokenPolicyNames:              []string{"payments-read"},
+		}},
+		aclPolicies: []ACLPolicy{{
+			PolicyName: "payments-read", PolicyHash: "sha256:pol",
+			Rules: []ACLRule{{Path: "secret/metadata/payments", Capabilities: []string{"read", "list"}}},
+		}},
+		entities:     []IdentityEntity{{EntityID: "ent-1", EntityName: "payments", AliasCount: 1}},
+		aliases:      []IdentityAlias{{AliasID: "alias-1", EntityID: "ent-1", MountPath: "kubernetes/", MountAccessor: "auth_k8s_a", AliasName: "payments"}},
+		kvMetadata:   []KVMetadata{{MountPath: "secret/", Path: "payments/db", CurrentVersion: 3, MaxVersions: 10, CustomMetadataKeys: []string{"owner"}}},
+		engineMounts: []SecretEngineMount{{MountPath: "secret/", MountAccessor: "kv_a", MountType: "kv-v2", KVVersion: "2"}},
 	}
 	source := Source{CollectorInstanceID: "vaultlive-1"}
 
 	envelopes, err := source.Collect(context.Background(), testTarget(), client)
+	if err != nil {
+		t.Fatalf("Collect() error = %v, want nil", err)
+	}
+
+	got := map[string]int{}
+	for _, env := range envelopes {
+		got[env.FactKind]++
+	}
+	for _, kind := range []string{
+		facts.VaultAuthMountFactKind,
+		facts.VaultAuthRoleFactKind,
+		facts.VaultACLPolicyFactKind,
+		facts.VaultIdentityEntityFactKind,
+		facts.VaultIdentityAliasFactKind,
+		facts.VaultKVMetadataFactKind,
+		facts.VaultSecretEngineMountFactKind,
+	} {
+		if got[kind] != 1 {
+			t.Fatalf("fact kind %q emitted %d times, want 1 (got: %v)", kind, got[kind], got)
+		}
+	}
+}
+
+// TestCollectNeverEmitsRawSecretMaterial proves the redaction boundary across
+// every Vault fact family: raw mount paths, accessors, role names, policy
+// names, ACL rule paths, identity ids/names, KV paths, custom-metadata key
+// names, bound ServiceAccount names/namespaces, and the Vault namespace must
+// never appear verbatim in any emitted payload, because the envelope builders
+// fingerprint them. It scans nested values (slices, maps) so a leak in a
+// fingerprint list or the ACL rules slice cannot slip past a top-level scan.
+func TestCollectNeverEmitsRawSecretMaterial(t *testing.T) {
+	t.Parallel()
+
+	// Each sentinel is a raw value the builders must fingerprint. None is a
+	// low-cardinality enum (auth_method, mount_type, kv_version, capabilities),
+	// which are intentionally cleartext and excluded here.
+	sentinels := []string{
+		"RAWNAMESPACE-team", "RAWMOUNT-kubernetes/", "RAWACCESSOR-k8s",
+		"RAWROLE-payments", "RAWSA-payments", "RAWNS-prod", "RAWPOLICY-read",
+		"RAWACLNAME-payments", "RAWACLPATH-secret/metadata/payments",
+		"RAWENTID-1", "RAWENTNAME-payments", "RAWALIASID-1", "RAWALIASNAME-payments",
+		"RAWKVMOUNT-secret/", "RAWKVPATH-payments/db", "RAWCMK-owner",
+		"RAWENGMOUNT-secret/", "RAWENGACC-kv",
+	}
+
+	client := &fakeVaultClient{
+		authMounts: []AuthMount{{Path: "RAWMOUNT-kubernetes/", Accessor: "RAWACCESSOR-k8s", Method: "kubernetes"}},
+		authRoles: []AuthRole{{
+			MountPath: "RAWMOUNT-kubernetes/", RoleName: "RAWROLE-payments", Method: "kubernetes",
+			KubernetesClusterID:           "cluster-prod",
+			BoundServiceAccountNames:      []string{"RAWSA-payments"},
+			BoundServiceAccountNamespaces: []string{"RAWNS-prod"},
+			TokenPolicyNames:              []string{"RAWPOLICY-read"},
+		}},
+		aclPolicies: []ACLPolicy{{
+			PolicyName: "RAWACLNAME-payments", PolicyHash: "sha256:abc",
+			Rules: []ACLRule{{Path: "RAWACLPATH-secret/metadata/payments", Capabilities: []string{"read"}}},
+		}},
+		entities: []IdentityEntity{{EntityID: "RAWENTID-1", EntityName: "RAWENTNAME-payments", AliasCount: 1}},
+		aliases: []IdentityAlias{{
+			AliasID: "RAWALIASID-1", EntityID: "RAWENTID-1", MountPath: "RAWMOUNT-kubernetes/",
+			MountAccessor: "RAWACCESSOR-k8s", AliasName: "RAWALIASNAME-payments",
+		}},
+		kvMetadata: []KVMetadata{{
+			MountPath: "RAWKVMOUNT-secret/", Path: "RAWKVPATH-payments/db",
+			CurrentVersion: 3, MaxVersions: 10, CustomMetadataKeys: []string{"RAWCMK-owner"},
+		}},
+		engineMounts: []SecretEngineMount{{MountPath: "RAWENGMOUNT-secret/", MountAccessor: "RAWENGACC-kv", MountType: "kv-v2", KVVersion: "2"}},
+	}
+	source := Source{CollectorInstanceID: "vaultlive-1"}
+
+	target := testTarget()
+	target.Namespace = "RAWNAMESPACE-team"
+
+	envelopes, err := source.Collect(context.Background(), target, client)
 	if err != nil {
 		t.Fatalf("Collect() error = %v, want nil", err)
 	}
@@ -88,20 +205,48 @@ func TestCollectNeverEmitsRawSecretMaterial(t *testing.T) {
 	}
 	for _, env := range envelopes {
 		for key, val := range env.Payload {
-			s, ok := val.(string)
-			if !ok {
-				continue
-			}
-			if strings.Contains(s, rawAccessor) {
-				t.Fatalf("payload[%q] = %q leaks the raw Vault accessor", key, s)
-			}
-			// The mount path fingerprint differs from the raw path; the raw
-			// path itself must not appear as a cleartext value.
-			if s == rawPath {
-				t.Fatalf("payload[%q] = %q leaks the raw Vault mount path", key, s)
+			for _, sentinel := range sentinels {
+				if payloadContains(val, sentinel) {
+					t.Fatalf("fact %q payload[%q] leaks raw Vault material %q", env.FactKind, key, sentinel)
+				}
 			}
 		}
 	}
+}
+
+// payloadContains reports whether needle appears verbatim in any string nested
+// anywhere within v (strings, slices, and maps), so a leak in a fingerprint
+// list or the ACL rules slice-of-maps cannot evade a top-level-only scan.
+func payloadContains(v any, needle string) bool {
+	switch typed := v.(type) {
+	case string:
+		return strings.Contains(typed, needle)
+	case []string:
+		for _, s := range typed {
+			if strings.Contains(s, needle) {
+				return true
+			}
+		}
+	case []any:
+		for _, item := range typed {
+			if payloadContains(item, needle) {
+				return true
+			}
+		}
+	case []map[string]any:
+		for _, item := range typed {
+			if payloadContains(item, needle) {
+				return true
+			}
+		}
+	case map[string]any:
+		for _, item := range typed {
+			if payloadContains(item, needle) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // TestClientSurfaceIsMetadataOnly proves, structurally, that the Vault Client
