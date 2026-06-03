@@ -121,6 +121,10 @@ func buildVulnScanScopePlan(mode string, readiness map[string]any) vulnScanScope
 	}
 	plan.PackageRegistryComplete = plan.PackageRegistryFacts > 0 &&
 		strings.EqualFold(plan.PackageRegistryFreshness, "fresh")
+	if plan.ObservedDependencyFacts > 0 && plan.PackageRegistryFacts == 0 &&
+		strings.TrimSpace(plan.PackageRegistryFreshness) == "" {
+		plan.PackageRegistryFreshness = "missing"
+	}
 	if freshness, ok := readiness["freshness"].(string); ok {
 		plan.Freshness = strings.TrimSpace(freshness)
 	}

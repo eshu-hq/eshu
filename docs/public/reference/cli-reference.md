@@ -100,9 +100,12 @@ advisory fact count, package-registry fact count, cache freshness, scope
 mode, and the readiness state the scan stopped at. The
 `*_facts` fields are counts of source facts (the same
 `evidence_sources[].fact_count` the server reports), not unique packages or
-advisory sources. `package_registry_facts` is typically `0` for `vuln-scan
-repo` because the readiness store only counts registry metadata when the
-request is anchored on a specific `package_id`.
+advisory sources. `package_registry_facts` counts scoped registry metadata for
+the requested package, or for packages tied to the requested repository by
+consumption evidence. When dependency facts require registry metadata and no
+scoped registry facts are present, JSON output reports
+`package_registry_freshness = "missing"` instead of omitting the freshness
+field.
 
 With `--json`, `eshu vuln-scan repo` returns the normal Eshu envelope and a
 stable scanner report at `data.report`. The report schema version is

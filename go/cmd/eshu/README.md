@@ -117,11 +117,14 @@ No-Regression Evidence: provider-parity lifecycle behavior is covered by
   of source facts (the same `evidence_sources[].fact_count` the server
   reports); `package_registry_facts` counts metadata only for the requested
   package or for packages already tied to the requested repository by
-  consumption evidence. Every run attaches a
-  `data.scan_performance` block with started_at, completed_at, wall_time_ms,
-  repository_size_bytes, repository_file_count, observed_dependency_facts,
-  advisory_facts, package_registry_facts, package_registry_freshness,
-  package_registry_complete, cache_freshness, scope_mode, and stop_threshold
+  consumption evidence. When dependency facts require package-registry
+  metadata and no scoped registry facts are present, the scope plan and
+  performance block report `package_registry_freshness = "missing"`.
+  Every run attaches a `data.scan_performance` block with started_at,
+  completed_at, wall_time_ms, repository_size_bytes, repository_file_count,
+  observed_dependency_facts, advisory_facts, package_registry_facts,
+  package_registry_freshness, package_registry_complete, cache_freshness,
+  scope_mode, and stop_threshold
   so the local one-shot scan ships its own performance evidence without a
   separate measurement step. JSON output also includes
   `data.report.schema_version = "eshu.vulnerability_report.v1"` with the

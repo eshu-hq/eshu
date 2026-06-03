@@ -631,7 +631,8 @@ The scope plan exposes:
   package metadata joined to the requested `repository_id` through owned
   package-consumption evidence.
 - `package_registry_freshness`: `evidence_sources[package.registry].freshness`
-  for the scoped package metadata.
+  for the scoped package metadata, or `missing` when dependency facts require
+  scoped package-registry metadata but no scoped registry facts are present.
 - `package_registry_complete`: true only when scoped package-registry metadata
   exists and is fresh.
 - `freshness`: `readiness.freshness`, the worst-of per-family aggregate.
