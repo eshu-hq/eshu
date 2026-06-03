@@ -375,22 +375,33 @@ write code.
 No-Observability-Change: design-only gate. Existing telemetry is unchanged; the
 future implementation telemetry requirements are listed in section 13.
 
-### 5.2. Evidence for the gated step-1 PR (extraction + DDL)
+### 5.2. Evidence for the gated steps 1–2 PR (extraction + DDL + writer)
 
-No-Regression Evidence: this step is pure in-memory extraction plus additive
-schema DDL — no Cypher executes and no graph write happens in this PR (the
-writer is the next gated step). `ExtractSecretsIAMGraphRows` is a single linear
-pass over the reducer read-model facts (bounded by read-model output, not by raw
-source-fact cross-products), building deduped, sorted node/edge rows with no I/O.
-The DDL additions are `CREATE CONSTRAINT/INDEX ... IF NOT EXISTS` for the four
-`SecretsIAM*` labels only — additive, no drop/create, applied idempotently by
-schema bootstrap before any write. There is no hot-path query or graph behavior
-to regress. Correctness is covered by `go test ./internal/reducer -run Extract`
-(exact-only admission, all five non-exact states, missing-endpoint skip+count,
-IAM-role-unresolved skip, duplicate-delivery idempotency, empty, tombstone/
-foreign-kind, JSON `[]any` wire format, redaction allowlist) and
-`go test ./internal/graph` (schema statements). The §12 writer benchmark and the
-NornicDB/Neo4j conformance proof land with the writer PR.
+No-Regression Evidence: this PR is pure in-memory extraction, additive schema
+DDL, and a backend-neutral Cypher writer that **does not execute against a graph
+backend in this PR** — the reducer domain that calls it (load → extract →
+retract → write → readiness) is the next gated step.
+`ExtractSecretsIAMGraphRows` is a single linear pass over the reducer read-model
+facts (bounded by read-model output, not by raw source-fact cross-products),
+building deduped, sorted node/edge rows with no I/O. The DDL additions are
+`CREATE CONSTRAINT/INDEX ... IF NOT EXISTS` for the four `SecretsIAM*` labels
+only — additive, no drop/create, applied idempotently by schema bootstrap before
+any write. `SecretsIAMGraphWriter` mirrors the shipped `iam_can_perform`
+writer: static labels/relationship tokens (no data-driven Cypher), uid-only node
+`MERGE`, `MATCH`/`MATCH`/`MERGE` edges (a missing endpoint is a no-op, never a
+fabricated node), `UNWIND` batches with uid anchors, scope+evidence-scoped
+retract (`DETACH DELETE` on reducer-owned `SecretsIAM*` nodes only; never on
+`CloudResource`/`KubernetesWorkload`), and `WrapRetryableNeo4jError` idempotent
+dispatch. There is no hot-path query or graph behavior to regress. Correctness is
+covered by `go test ./internal/reducer -run Extract` (exact-only admission, all
+five non-exact states, missing-endpoint skip+count, IAM-role-unresolved skip,
+duplicate-delivery idempotency, empty, tombstone/foreign-kind, JSON `[]any` wire
+format, redaction allowlist), `go test ./internal/storage/cypher -run
+SecretsIAMGraph` (node/edge Cypher shape, uid-only MERGE identity, scoped
+retract with no endpoint deletion, batching), and `go test ./internal/graph`
+(schema statements). The §12 writer benchmark on the shipped node/edge writer
+shape and the NornicDB/Neo4j conformance proof land with the reducer-domain PR
+that executes the writer.
 
 No-Observability-Change: this step adds no metrics, spans, logs, or status
 fields. The graph-projection telemetry (nodes/edges written, skipped+reason,
