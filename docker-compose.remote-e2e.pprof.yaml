@@ -89,3 +89,15 @@ services:
       ESHU_PPROF_ADDR: 0.0.0.0:6060
     ports:
       - "127.0.0.1:19668:6060"
+
+  collector-pagerduty:
+    environment:
+      ESHU_PPROF_ADDR: 0.0.0.0:6060
+    ports:
+      - "127.0.0.1:19674:6060"
+
+  collector-jira:
+    environment:
+      ESHU_PPROF_ADDR: 0.0.0.0:6060
+    ports:
+      - "127.0.0.1:19675:6060"

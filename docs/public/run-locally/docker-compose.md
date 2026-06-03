@@ -169,8 +169,9 @@ the single-generation proof.
 Use `docker-compose.remote-e2e.yaml` on a VPN-attached or account-local test
 machine for the default runtime plus claim-driven Terraform state, OCI
 registry, package registry, provider security alerts, vulnerability
-intelligence, scanner-worker, AWS cloud, and optional Confluence collectors. It
-is standalone and defaults the Compose project to `eshu-remote-e2e`.
+intelligence, scanner-worker, AWS cloud, and optional Confluence, Jira, and
+PagerDuty collectors. It is standalone and defaults the Compose project to
+`eshu-remote-e2e`.
 Its package-registry and vulnerability-intelligence derived target planners run
 with `planning_mode=single_pass` so representative proofs stay bounded by the
 configured derived target budget instead of rotating through a new owned-package
@@ -189,6 +190,12 @@ and [Profiling And Concurrency](../reference/local-testing/profiling-and-concurr
 The optional `docker-compose.remote-e2e.pprof.yaml` overlay binds host pprof
 ports to `127.0.0.1`; keep profiler access private and use it only for focused
 proof runs.
+
+Jira and PagerDuty are disabled by default and render only when
+`--profile jira` or `--profile pagerduty` is selected with a private env file
+that enables the matching collector instance. Missing rendered services remain
+`skipped` proof rows; rendered services with zero source facts fail the hosted
+collector proof.
 
 ## Point CLI Commands At Compose
 

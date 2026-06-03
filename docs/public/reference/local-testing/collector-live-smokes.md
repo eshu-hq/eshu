@@ -8,6 +8,13 @@ For fixture-backed collector checks, prefer
 [Verification gates](verification-gates.md). For hosted all-collector proof, use
 [Remote collector E2E](remote-collector-e2e.md).
 
+Jira and PagerDuty standalone live smokes prove the read-only provider fetch
+and source-fact envelope path only. They do not prove hosted Compose lifecycle,
+workflow claim handoff, container health, or queue-zero. Provider errors such
+as PagerDuty `auth_denied` with the current private token are credential proof
+failures unless the same target fails with a valid token; keep that evidence
+separate from remote Compose service coverage.
+
 ## Confluence
 
 Use this when testing the Confluence collector against a real Atlassian site.
