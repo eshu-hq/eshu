@@ -187,8 +187,11 @@ func newMCPQueryRouter(
 			Profile:      queryProfile,
 		},
 		SecretsIAM: &query.SecretsIAMHandler{
-			IdentityTrustChains: query.NewPostgresSecretsIAMIdentityTrustChainStore(db),
-			Profile:             queryProfile,
+			IdentityTrustChains:          query.NewPostgresSecretsIAMIdentityTrustChainStore(db),
+			PrivilegePostureObservations: query.NewPostgresSecretsIAMPrivilegePostureObservationStore(db),
+			SecretAccessPaths:            query.NewPostgresSecretsIAMSecretAccessPathStore(db),
+			PostureGaps:                  query.NewPostgresSecretsIAMPostureGapStore(db),
+			Profile:                      queryProfile,
 		},
 		ObservabilityCoverage: &query.ObservabilityCoverageHandler{
 			Content:      contentReader,

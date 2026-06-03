@@ -20,8 +20,11 @@ const (
 // states, and evidence IDs only, so no secret value, raw path, or token claim
 // crosses the wire.
 type SecretsIAMHandler struct {
-	IdentityTrustChains SecretsIAMIdentityTrustChainStore
-	Profile             QueryProfile
+	IdentityTrustChains          SecretsIAMIdentityTrustChainStore
+	PrivilegePostureObservations SecretsIAMPrivilegePostureObservationStore
+	SecretAccessPaths            SecretsIAMSecretAccessPathStore
+	PostureGaps                  SecretsIAMPostureGapStore
+	Profile                      QueryProfile
 }
 
 // SecretsIAMIdentityTrustChainResult is one reducer-owned identity trust-chain
@@ -48,6 +51,9 @@ type SecretsIAMIdentityTrustChainResult struct {
 // Mount registers secrets/IAM query routes.
 func (h *SecretsIAMHandler) Mount(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/v0/secrets-iam/identity-trust-chains", h.listIdentityTrustChains)
+	mux.HandleFunc("GET /api/v0/secrets-iam/privilege-posture-observations", h.listPrivilegePostureObservations)
+	mux.HandleFunc("GET /api/v0/secrets-iam/secret-access-paths", h.listSecretAccessPaths)
+	mux.HandleFunc("GET /api/v0/secrets-iam/posture-gaps", h.listPostureGaps)
 }
 
 func (h *SecretsIAMHandler) profile() QueryProfile {
