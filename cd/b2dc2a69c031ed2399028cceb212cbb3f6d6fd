@@ -1,0 +1,35 @@
+docker-compose.remote-e2e.yaml
+  s_f2f7fbb6f30866::t_5c270bb1c728e5 258-306,816-863
+docker-compose.remote-e2e.pprof.yaml
+  s_f2f7fbb6f30866::t_5cdc405571262a 92-103
+.env.remote-e2e.example
+  s_f2f7fbb6f30866::t_06812394b2ecbf 34,66-92
+scripts/test-remote-e2e-hosted-compose-render.sh
+  s_f2f7fbb6f30866::t_3901b3bd481e92 109-112
+  s_f2f7fbb6f30866::t_51cce982486611 1-14,17-26,36-48,70,75-99,115-118
+  s_f2f7fbb6f30866::t_fdf4cafb5b8bc1 27-35,56-57,60-63,100-108,113-114
+  s_f2f7fbb6f30866::t_0bb5aec7c6109a 15-16,49-55,58-59,64-69,71-74
+docs/public/run-locally/docker-compose.md
+  s_f2f7fbb6f30866::t_f63a1e270f51c7 172-174,194-198
+docs/public/reference/local-testing/collector-live-smokes.md
+  s_f2f7fbb6f30866::t_3416820e9516e5 11-17
+docs/public/reference/local-testing/remote-collector-e2e.md
+  s_f2f7fbb6f30866::t_e7436886620ff9 272-275,279,282-293,295-301,383-386,396-399
+  s_f2f7fbb6f30866::t_189dd271d3c823 280-281,294
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.2",
+  "base_commit_sha": "cdb2dc2a69c031ed2399028cceb212cbb3f6d6fd",
+  "prompts": {},
+  "sessions": {
+    "s_f2f7fbb6f30866": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e360b-90eb-7472-bac7-56d488b65f77",
+        "model": "gpt-5.5"
+      },
+      "human_author": null
+    }
+  }
+}
