@@ -374,3 +374,25 @@ write code.
 
 No-Observability-Change: design-only gate. Existing telemetry is unchanged; the
 future implementation telemetry requirements are listed in section 13.
+
+### 5.2. Evidence for the gated step-1 PR (extraction + DDL)
+
+No-Regression Evidence: this step is pure in-memory extraction plus additive
+schema DDL — no Cypher executes and no graph write happens in this PR (the
+writer is the next gated step). `ExtractSecretsIAMGraphRows` is a single linear
+pass over the reducer read-model facts (bounded by read-model output, not by raw
+source-fact cross-products), building deduped, sorted node/edge rows with no I/O.
+The DDL additions are `CREATE CONSTRAINT/INDEX ... IF NOT EXISTS` for the four
+`SecretsIAM*` labels only — additive, no drop/create, applied idempotently by
+schema bootstrap before any write. There is no hot-path query or graph behavior
+to regress. Correctness is covered by `go test ./internal/reducer -run Extract`
+(exact-only admission, all five non-exact states, missing-endpoint skip+count,
+IAM-role-unresolved skip, duplicate-delivery idempotency, empty, tombstone/
+foreign-kind, JSON `[]any` wire format, redaction allowlist) and
+`go test ./internal/graph` (schema statements). The §12 writer benchmark and the
+NornicDB/Neo4j conformance proof land with the writer PR.
+
+No-Observability-Change: this step adds no metrics, spans, logs, or status
+fields. The graph-projection telemetry (nodes/edges written, skipped+reason,
+phase durations, readiness-block reason) lands with the reducer-domain writer
+PR, where there is a runtime path to observe.
