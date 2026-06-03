@@ -34,8 +34,11 @@ variables:
 | `ESHU_JIRA_COLLECTOR_OWNER_ID` | Optional claim owner label. |
 
 Each target inside `ESHU_COLLECTOR_INSTANCES_JSON` names credentials with
-`token_env` and optional `email_env`. The runtime resolves those variables at
-startup and never persists the resolved values.
+`token_env` and optional `email_env`. Targets may set either direct `jql` or a
+`jql_env` variable name; use `jql_env` for hosted Compose and Kubernetes
+deployments so operators can keep normal JQL strings out of embedded JSON. The
+runtime resolves those variables at startup and never persists the resolved
+values.
 
 Target shape:
 
@@ -47,7 +50,7 @@ Target shape:
   "base_url": "https://example.atlassian.net",
   "email_env": "JIRA_EMAIL",
   "token_env": "JIRA_API_TOKEN",
-  "jql": "project = OPS ORDER BY updated ASC",
+  "jql_env": "ESHU_JIRA_JQL",
   "issue_limit": 50,
   "updated_lookback": "24h",
   "changelog_limit": 50,

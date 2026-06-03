@@ -293,11 +293,14 @@ docker compose --env-file "${ESHU_REMOTE_E2E_ENV_FILE}" \
 The private env file sets only generic runtime knobs in public evidence and
 keeps provider URLs, tenant names, service names, account IDs, tokens, and raw
 source details local. Use `ESHU_REMOTE_E2E_JIRA_ENABLED=true` with
-`ESHU_JIRA_SITE_ID`, `ESHU_JIRA_EMAIL`, `ESHU_JIRA_API_TOKEN`, and optional
-bounded Jira limits. Use `ESHU_REMOTE_E2E_PAGERDUTY_ENABLED=true` with
-`ESHU_PAGERDUTY_ACCOUNT_ID`, `ESHU_PAGERDUTY_API_TOKEN`, and optional bounded
-PagerDuty limits. Default checked-in values leave both collectors disabled and
-blank.
+`ESHU_JIRA_SITE_ID`, `ESHU_JIRA_EMAIL`, `ESHU_JIRA_API_TOKEN`,
+`ESHU_JIRA_JQL`, and optional bounded Jira limits. The checked-in Compose
+profile passes the JQL variable name through `jql_env`, so a normal private JQL
+string with spaces or operators stays in the operator env file instead of
+being interpolated into `ESHU_COLLECTOR_INSTANCES_JSON`. Use
+`ESHU_REMOTE_E2E_PAGERDUTY_ENABLED=true` with `ESHU_PAGERDUTY_ACCOUNT_ID`,
+`ESHU_PAGERDUTY_API_TOKEN`, and optional bounded PagerDuty limits. Default
+checked-in values leave both collectors disabled and blank.
 
 The harness distinguishes the non-passing cases:
 

@@ -182,14 +182,17 @@ facts.
 The Jira collector is claim-only. It selects an enabled `jira` instance from
 `ESHU_COLLECTOR_INSTANCES_JSON`. Targets currently support Jira Cloud and must
 include `provider: "jira_cloud"`, `scope_id`, `site_id`, `token_env`, and a
-bounded `jql` scope such as a project or label filter. `base_url` defaults to
-`https://<site_id>` when omitted. The runtime resolves the API token from the
-named environment variable, resolves optional basic-auth email from
-`email_env`, and emits only `work_item.*` source facts. The optional
-`metadata_limit` target setting bounds project, issue-type, status, workflow,
-and field definition reads; omitted values use the collector default. PagerDuty
-incidents, GitHub pull requests, deployments, and graph truth are not collected
-by this runtime.
+bounded JQL scope such as a project or label filter. Set either direct `jql` or
+`jql_env`; prefer `jql_env` for hosted Compose and Helm values so normal JQL
+with spaces, quotes, and operators is resolved from the runtime environment
+instead of interpolated into JSON. `base_url` defaults to `https://<site_id>`
+when omitted. The runtime resolves the API token from the named environment
+variable, resolves optional basic-auth email from `email_env`, resolves JQL
+from `jql_env` when configured, and emits only `work_item.*` source facts. The
+optional `metadata_limit` target setting bounds project, issue-type, status,
+workflow, and field definition reads; omitted values use the collector default.
+PagerDuty incidents, GitHub pull requests, deployments, and graph truth are not
+collected by this runtime.
 
 | Variable | Default | Read by | Purpose |
 | --- | --- | --- | --- |
@@ -200,11 +203,13 @@ by this runtime.
 | `ESHU_JIRA_COLLECTOR_OWNER_ID` | host/process-derived | collector-jira | Owner label written into workflow claim rows. |
 
 Jira API tokens must come from private environment variables referenced by
-`token_env`; do not commit token values, private issue summaries, user names,
-issue URLs, or copied provider payloads to public values files or docs.
+`token_env`. JQL referenced by `jql_env` is resolved by `collector-jira` at
+startup; a missing value fails the enabled runtime before provider calls. Do
+not commit token values, private issue summaries, user names, issue URLs, JQL
+queries, or copied provider payloads to public values files or docs.
 In Helm, use `jiraCollector.collectorInstances` for polling-only collection and
 `jiraCollector.extraEnv` for Secret-backed `token_env` and optional
-`email_env` values. To add webhook freshness, also enable
+`email_env` and `jql_env` values. To add webhook freshness, also enable
 `webhookListener.jira` with a `scopeId` that matches the configured Jira target;
 the webhook listener enqueues freshness work only and does not emit
 `work_item.*` facts.

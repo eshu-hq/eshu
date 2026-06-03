@@ -294,7 +294,7 @@ x-collector-env: &remote_e2e_collector_env
               "base_url": "${ESHU_JIRA_BASE_URL:-}",
               "email_env": "JIRA_EMAIL",
               "token_env": "JIRA_API_TOKEN",
-              "jql": "${ESHU_JIRA_JQL:-}",
+              "jql_env": "ESHU_JIRA_JQL",
               "issue_limit": ${ESHU_JIRA_ISSUE_LIMIT:-1},
               "updated_lookback": "${ESHU_JIRA_UPDATED_LOOKBACK:-168h}",
               "changelog_limit": ${ESHU_JIRA_CHANGELOG_LIMIT:-25},

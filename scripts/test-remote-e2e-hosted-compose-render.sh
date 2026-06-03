@@ -53,6 +53,7 @@ assert_static_contract() {
 		'^  collector-pagerduty:$' \
 		'ESHU_JIRA_COLLECTOR_INSTANCE_ID: remote-e2e-jira' \
 		'ESHU_PAGERDUTY_COLLECTOR_INSTANCE_ID: remote-e2e-pagerduty' \
+		'"jql_env": "ESHU_JIRA_JQL"' \
 		'127.0.0.1:19675:6060' \
 		'127.0.0.1:19674:6060' \
 		'ESHU_REMOTE_E2E_JIRA_ENABLED=false' \

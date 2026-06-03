@@ -34,6 +34,18 @@ func TestRemoteE2EComposeDefaultsAllowDisabledHostedCoordinatorStartup(t *testin
 	assertRemoteE2EHostedInstanceDisabled(t, cfg, "remote-e2e-jira", `"site_id": ""`)
 }
 
+func TestRemoteE2EComposeJiraUsesJQLEnvReference(t *testing.T) {
+	t.Parallel()
+
+	compose := readRepositoryFile(t, "../../..", "docker-compose.remote-e2e.yaml")
+	if !strings.Contains(compose, `"jql_env": "ESHU_JIRA_JQL"`) {
+		t.Fatal(`docker-compose.remote-e2e.yaml must configure Jira with "jql_env": "ESHU_JIRA_JQL"`)
+	}
+	if strings.Contains(compose, `"jql": "${ESHU_JIRA_JQL`) {
+		t.Fatal("docker-compose.remote-e2e.yaml must not interpolate ESHU_JIRA_JQL directly inside collector JSON")
+	}
+}
+
 func remoteE2ECollectorInstancesJSON(t *testing.T) string {
 	t.Helper()
 

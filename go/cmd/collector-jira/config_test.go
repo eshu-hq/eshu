@@ -60,8 +60,86 @@ func TestLoadClaimedRuntimeConfigSelectsJiraInstanceAndResolvesCredential(t *tes
 	if got := config.Source.Targets[0].Email; got != "user@example.com" {
 		t.Fatalf("resolved email = %q, want user@example.com", got)
 	}
+	if got := config.Source.Targets[0].JQL; got != "project = OPS ORDER BY updated ASC" {
+		t.Fatalf("JQL = %q, want direct JQL", got)
+	}
 	if got := config.Source.Targets[0].MetadataLimit; got != 25 {
 		t.Fatalf("MetadataLimit = %d, want 25", got)
+	}
+}
+
+func TestLoadClaimedRuntimeConfigResolvesJQLEnv(t *testing.T) {
+	t.Parallel()
+
+	env := map[string]string{
+		envCollectorInstances: `[{
+			"instance_id":"jira-primary",
+			"collector_kind":"jira",
+			"mode":"continuous",
+			"enabled":true,
+			"claims_enabled":true,
+			"configuration":{
+				"targets":[{
+					"provider":"jira_cloud",
+					"scope_id":"jira:site:example",
+					"site_id":"example.atlassian.net",
+					"base_url":"https://example.atlassian.net",
+					"token_env":"JIRA_API_TOKEN",
+					"jql_env":"ESHU_JIRA_JQL",
+					"issue_limit":25,
+					"updated_lookback":"24h",
+					"changelog_limit":25,
+					"remote_link_limit":25
+				}]
+			}
+		}]`,
+		"JIRA_API_TOKEN": "secret-token",
+		"ESHU_JIRA_JQL":  "project = OPS AND updated >= -7d ORDER BY updated ASC",
+	}
+
+	config, err := loadClaimedRuntimeConfig(func(key string) string { return env[key] })
+	if err != nil {
+		t.Fatalf("loadClaimedRuntimeConfig() error = %v, want nil", err)
+	}
+	if got := config.Source.Targets[0].JQL; got != "project = OPS AND updated >= -7d ORDER BY updated ASC" {
+		t.Fatalf("JQL = %q, want env-backed JQL", got)
+	}
+}
+
+func TestLoadClaimedRuntimeConfigRejectsMissingJQLEnv(t *testing.T) {
+	t.Parallel()
+
+	env := map[string]string{
+		envCollectorInstances: `[{
+			"instance_id":"jira-primary",
+			"collector_kind":"jira",
+			"mode":"continuous",
+			"enabled":true,
+			"claims_enabled":true,
+			"configuration":{
+				"targets":[{
+					"provider":"jira_cloud",
+					"scope_id":"jira:site:example",
+					"site_id":"example.atlassian.net",
+					"base_url":"https://example.atlassian.net",
+					"token_env":"JIRA_API_TOKEN",
+					"jql_env":"ESHU_JIRA_JQL",
+					"issue_limit":25,
+					"updated_lookback":"24h",
+					"changelog_limit":25,
+					"remote_link_limit":25
+				}]
+			}
+		}]`,
+		"JIRA_API_TOKEN": "secret-token",
+	}
+
+	_, err := loadClaimedRuntimeConfig(func(key string) string { return env[key] })
+	if err == nil {
+		t.Fatal("loadClaimedRuntimeConfig() error = nil, want missing JQL env")
+	}
+	if got := err.Error(); got != "targets[0]: jql_env ESHU_JIRA_JQL did not resolve a JQL query" {
+		t.Fatalf("loadClaimedRuntimeConfig() error = %q, want missing JQL env message", got)
 	}
 }
 
