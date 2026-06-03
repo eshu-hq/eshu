@@ -51,26 +51,35 @@ That reducer layer is the accuracy boundary. It performs cross-source joins,
 freshness comparison, exact-vs-partial classification, and unsupported-layer
 labeling before any graph projection is allowed.
 
-### 2.1. Prerequisite status (decision-ready)
+### 2.1. Prerequisite status
 
-The non-graph prerequisites this gate depends on are now landed, so the gate is
-ready for the principal and security decision in section 14:
+The non-graph prerequisites this gate depends on are either merged or in open,
+reviewed PRs. This subsection is a status snapshot, not a claim that every item
+is merged; the gate is ready for the principal and security decision in section
+14 once the merged-or-in-review prerequisites land.
+
+Merged to `main`:
 
 - Source lanes emit redacted facts: AWS IAM (`awscloud/services/iam`,
   `accessanalyzer`), Kubernetes RBAC (`kuberneteslive`), and Vault metadata
-  (`secretsiam` builders + the `vaultlive` source). A `net/http` Vault metadata
-  adapter (#1356) and the seven Vault fact families (#1355) are implemented.
+  (the `secretsiam` builders + `vaultlive` source, all seven Vault fact families,
+  #1355).
 - The reducer read model (#1313/#1327) builds and persists the four
   `reducer_secrets_iam_*` fact kinds with the six-state vocabulary
   (`exact`/`partial`/`unresolved`/`stale`/`permission_hidden`/`unsupported`).
-- The bounded, truth-labeled query + MCP read surface over those read models is
-  implemented (identity trust chains, privilege posture observations, secret
-  access paths, posture gaps, and a posture summary), with all non-exact states
-  surfaced as provenance-only — exactly the invariant admission rule §4 relies
-  on.
-- A cross-family secret-leakage guard (#1348) and the confused-deputy posture
-  rule (#1346) are in place, and the metadata-only redaction contract this
-  ADR's §7 requires is enforced and tested at the envelope chokepoint.
+- The identity-trust-chain query + MCP endpoint over that read model.
+- The metadata-only redaction contract this ADR's §7 requires, enforced at the
+  `secretsiam` envelope chokepoint.
+
+In open, reviewed PRs (tracked, not yet merged):
+
+- The remaining query/MCP read surface — privilege posture observations, secret
+  access paths, posture gaps, and a posture summary — with all non-exact states
+  surfaced as provenance-only (the invariant admission rule §4 relies on).
+- A live Vault metadata client (`vaultlive/vaultapi`, #1356); the runtime wiring
+  (CollectorKind + claim scheduling) and live validation remain open under #1356.
+- The cross-family secret-leakage guard (#1348) and the confused-deputy
+  `sts:ExternalId` posture rule (#1346).
 
 What remains gated and **not** started, pending the section 14 decision: the
 graph DDL, node/edge promotion writer, and any API/MCP claim of graph authority.
@@ -317,11 +326,11 @@ Approve this gate only if reviewers accept:
 
 Until this is approved, no Secrets/IAM graph DDL or graph writes should land.
 
-The non-graph prerequisites are now in place (see section 2.1), so this gate is
-decision-ready: a principal and security sign-off on the six points above is the
-only thing blocking the first (separately-reviewed) implementation PR. Issue
-#1347 tracks that gated implementation and stays blocked on this decision; it is
-not an implementation task until the gate is approved.
+The non-graph prerequisites are merged or in open reviewed PRs (see section
+2.1). Once those land, a principal and security sign-off on the six points above
+is the remaining thing blocking the first (separately-reviewed) implementation
+PR. Issue #1347 tracks that gated implementation and stays blocked on this
+decision; it is not an implementation task until the gate is approved.
 
 No-Regression Evidence: design-only gate. This PR changes only an internal
 design document and adds no Go, Cypher, DDL, queue, runtime, API, MCP, or graph
