@@ -58,35 +58,21 @@ validation against a live/dev Vault.
 
 ## Evidence
 
-No-Regression Evidence: this package is pure in-memory mapping from a read-only
-`Client` to `secretsiam` fact envelopes. It issues no Cypher, performs no graph
-or canonical writes, holds no locks/leases, and runs no concurrent workers or
-queues — collection is single-pass and fail-fast per family, with `slices.Grow`
-pre-sizing the one accumulation slice. There is no hot-path or backend behavior
-to regress; correctness is covered by `go test ./internal/collector/vaultlive`
-(all-seven-family emission, the full redaction canary, SourceURI sanitization,
-and the metadata-only Client surface guard). The live `hashicorp/vault/api`
-adapter, its API pagination/throttle profile, and benchmarks land in #1356,
-which owns the performance contract for live Vault scans.
-
-No-Observability-Change: this PR adds no telemetry instruments, spans, logs, or
-status fields. The `eshu_dp_secrets_iam_*` source metrics (API calls,
-redactions, facts emitted, scope freshness, partial scope) are introduced with
-the live adapter in #1356; until then there is no runtime path to observe.
-
-## Evidence
-
-No-Regression Evidence: `SnapshotSource` is a serial snapshot iterator driven by
-`collector.Service.Next` — one generation per configured target, the per-target
-scope id as the durable conflict domain. It issues no Cypher, performs no graph
-or canonical writes, holds no locks/leases, and runs no queue or concurrent
-workers; the only fan-out is the bounded per-target Vault metadata read in the
-already-merged `vaultapi` client (depth/total-paths/body-size capped). It reuses
-the shared `collector.Service` commit boundary unchanged, so there is no new
-hot-path or backend behavior to regress. Correctness is covered by
-`go test ./internal/collector/vaultlive` (per-target generation scope/identity,
-batch drain/reset, config validation, deterministic namespace-scoped scope ids)
-and `go test ./cmd/collector-vault-live` (config + token-from-env parsing). Live
+No-Regression Evidence: the package is a read-only mapping lane plus a serial
+snapshot driver. The mapping (`Source.Collect`) is single-pass and fail-fast per
+family with `slices.Grow` pre-sizing; `SnapshotSource` is driven serially by
+`collector.Service.Next` (one generation per target, the per-target scope id as
+the durable conflict domain) and reuses the shared `collector.Service` commit
+boundary unchanged. It issues no Cypher, performs no graph or canonical writes,
+holds no locks/leases, and runs no queue or concurrent workers; the only fan-out
+is the bounded per-target Vault metadata read in the merged `vaultapi` client
+(depth/total-paths/body-size capped). So there is no new hot-path or backend
+behavior to regress. Correctness is covered by
+`go test ./internal/collector/vaultlive` (all-seven-family emission, the full
+redaction canary, SourceURI sanitization, the metadata-only Client surface
+guard, per-target generation scope/identity, batch drain/reset, config
+validation, and deterministic namespace-scoped scope ids) and
+`go test ./cmd/collector-vault-live` (config + token-from-env parsing). Live
 throughput against a real Vault is validated as part of the remaining #1356
 integration step.
 
@@ -95,4 +81,5 @@ Observability Evidence: the lane is observable through the shared
 (`eshu_dp_facts_emitted_total`, `eshu_dp_facts_committed_total`, the collector
 observe duration) plus the `vault_live.snapshot` span (registered in the frozen
 telemetry span contract). The bespoke `eshu_dp_secrets_iam_*{source="vault"}`
-source counters are a tracked #1356 follow-up.
+source counters (api calls, redactions, facts emitted, scope freshness, partial
+scope) are a tracked #1356 follow-up.

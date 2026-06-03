@@ -80,7 +80,7 @@ func (f vaultClientFactory) Client(_ context.Context, target vaultlive.ClusterTa
 		Namespace: auth.Namespace,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("build vault client for cluster %q: %w", target.VaultClusterID, err)
+		return nil, fmt.Errorf("build vault client for cluster %q namespace %q: %w", target.VaultClusterID, target.Namespace, err)
 	}
 	return client, nil
 }
