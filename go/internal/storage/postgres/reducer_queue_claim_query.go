@@ -1,11 +1,17 @@
 package postgres
 
 const claimReducerWorkQuery = `
-WITH candidate AS (
+WITH ` + supersedeInactiveReducerGenerationsCTE + `,
+candidate AS (
     SELECT work_item_id
     FROM fact_work_items
     WHERE stage = 'reducer'
       AND status IN ('pending', 'retrying', 'claimed', 'running')
+      AND NOT EXISTS (
+          SELECT 1
+          FROM superseded_stale_reducer_generations AS superseded
+          WHERE superseded.work_item_id = fact_work_items.work_item_id
+      )
       AND (visible_at IS NULL OR visible_at <= $1)
       AND (claim_until IS NULL OR claim_until <= $1)
       AND ($2::text[] IS NULL OR domain = ANY($2::text[]))

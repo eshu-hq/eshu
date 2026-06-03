@@ -66,10 +66,17 @@ High-signal invariants for this package:
   the scope pointer, and marking work succeeded.
 - Reducer claims share the lease/retry contract and add domain filters plus the
   NornicDB semantic gate for `semantic_entity_materialization` while
-  source-local projection is in flight.
+  source-local projection is in flight. A reducer claim also supersedes
+  unleased older-generation reducer rows once the same scope has a newer active
+  generation, and status/drain/observer reads exclude those inactive rows from
+  live readiness while preserving the durable work item for audit history.
 - Workflow, AWS pagination, AWS scan-status, webhook, and incident freshness
   stores use fencing or coalescing keys so stale workers or replayed deliveries
   cannot overwrite newer durable truth.
+
+No-Regression Evidence: `go test ./internal/storage/postgres -run 'Test(StatusQueriesExcludeInactiveReducerGenerationsFromLiveReadiness|ReducerQueueClaimSupersedesInactiveGenerationReducerWork|ReducerGraphDrainHasActiveReducerGraphWork|ReducerQueueBlockagesReportAWSRelationshipReadinessWait|QueueObserverQueriesExcludeInactiveReducerGenerations)' -count=1` failed before status/drain/observer predicates joined active scope generation truth, then passed after stale unleased inactive-generation reducer rows were superseded or excluded from live readiness. `go test ./internal/storage/postgres -count=1` passed with the proof-domain harness updated for the audit-total queue snapshot.
+
+No-Observability-Change: existing status fields (`queue`, `domain_backlogs`, `queue_blockages`, `latest_failure`) and queue observer gauges still expose pending, retrying, failed, dead-letter, in-flight, and overdue current-generation work; the Postgres instrumentation wrapper still emits `eshu_dp_postgres_query_duration_seconds{store=...,operation=...}` for these reads and claims.
 
 ## Exported surface
 

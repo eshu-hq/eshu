@@ -10,6 +10,7 @@ import (
 )
 
 const latestQueueFailureQuery = `
+WITH ` + activeFactWorkItemsCTE + `
 SELECT stage,
        domain,
        status,
@@ -20,7 +21,7 @@ SELECT stage,
        COALESCE(failure_message, '') AS failure_message,
        COALESCE(failure_details, '') AS failure_details,
        updated_at
-FROM fact_work_items
+FROM active_fact_work_items
 WHERE status IN ('retrying', 'failed', 'dead_letter')
   AND (
     NULLIF(BTRIM(COALESCE(failure_class, '')), '') IS NOT NULL

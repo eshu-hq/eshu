@@ -6,9 +6,10 @@ import (
 )
 
 const activeReducerGraphWorkQuery = `
+WITH ` + activeFactWorkItemsCTE + `
 SELECT EXISTS (
     SELECT 1
-    FROM fact_work_items
+    FROM active_fact_work_items
     WHERE stage = 'reducer'
       AND status IN ('pending', 'retrying', 'claimed', 'running')
       AND domain IN (

@@ -54,13 +54,15 @@ ORDER BY COALESCE(generation.superseded_at, generation.activated_at, generation.
 LIMIT 5
 `
 	stageCountsQuery = `
+WITH ` + activeFactWorkItemsCTE + `
 SELECT stage, status, COUNT(*) AS count
-FROM fact_work_items
+FROM active_fact_work_items
 GROUP BY stage, status
 ORDER BY stage, status
 `
 	domainBacklogQuery = `
-WITH fact_domain_backlogs AS (
+WITH ` + activeFactWorkItemsCTE + `,
+fact_domain_backlogs AS (
   SELECT domain,
          COUNT(*) FILTER (WHERE status IN ('pending', 'claimed', 'running', 'retrying')) AS outstanding_count,
          COUNT(*) FILTER (WHERE status IN ('claimed', 'running')) AS in_flight_count,
@@ -81,7 +83,7 @@ WITH fact_domain_backlogs AS (
            ),
            0
          ) AS oldest_outstanding_age_seconds
-  FROM fact_work_items
+  FROM active_fact_work_items
   GROUP BY domain
   HAVING COUNT(*) FILTER (WHERE status IN ('pending', 'claimed', 'running', 'retrying', 'dead_letter', 'failed')) > 0
 ),
@@ -226,7 +228,8 @@ ORDER BY locator_hash ASC, warning_kind ASC, observed_at DESC
 `
 
 	queueSnapshotQuery = `
-SELECT COUNT(*) AS total_count,
+WITH ` + activeFactWorkItemsCTE + `
+SELECT (SELECT COUNT(*) FROM fact_work_items) AS total_count,
        COUNT(*) FILTER (WHERE status IN ('pending', 'claimed', 'running', 'retrying')) AS outstanding_count,
        COUNT(*) FILTER (WHERE status = 'pending') AS pending_count,
        COUNT(*) FILTER (WHERE status IN ('claimed', 'running')) AS in_flight_count,
@@ -253,6 +256,6 @@ SELECT COUNT(*) AS total_count,
            AND claim_until IS NOT NULL
            AND claim_until < $1
        ) AS overdue_claim_count
-FROM fact_work_items
+FROM active_fact_work_items
 `
 )

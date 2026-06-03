@@ -24,6 +24,15 @@ func TestReducerQueueBlockagesReportAWSRelationshipReadinessWait(t *testing.T) {
 
 	query := queryer.queries[0]
 	for _, want := range []string{
+		"active_fact_work_items AS (",
+		"FROM fact_work_items AS work",
+		"JOIN ingestion_scopes AS scope",
+		"scope.active_generation_id = active_generation.generation_id",
+		"work.stage = 'reducer'",
+		"work.status IN ('pending', 'retrying', 'failed', 'dead_letter')",
+		"stale_generation.ingested_at < active_generation.ingested_at",
+		"stale_generation.generation_id < active_generation.generation_id",
+		"FROM active_fact_work_items",
 		"readiness_blocked AS (",
 		"eligible.domain IN ('aws_relationship_materialization', 'observability_coverage_materialization', 'iam_can_assume_materialization', 's3_logs_to_materialization', 's3_external_principal_grant_materialization', 'rds_posture_materialization', 'iam_instance_profile_role_materialization', 'ec2_internet_exposure_materialization', 's3_internet_exposure_materialization')",
 		"FROM graph_projection_phase_state AS aws_nodes",

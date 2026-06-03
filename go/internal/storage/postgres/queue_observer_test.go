@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 )
 
@@ -97,6 +98,31 @@ func TestQueueObserverStoreQueueDepthsMergesClaimedAndRunning(t *testing.T) {
 	}
 	if _, has := depths["projector"]["running"]; has {
 		t.Fatal("running status should be merged into in_flight, not present separately")
+	}
+}
+
+func TestQueueObserverQueriesExcludeInactiveReducerGenerations(t *testing.T) {
+	t.Parallel()
+
+	for name, query := range map[string]string{
+		"queueDepthQuery":     queueDepthQuery,
+		"queueOldestAgeQuery": queueOldestAgeQuery,
+	} {
+		for _, want := range []string{
+			"active_fact_work_items AS (",
+			"FROM fact_work_items AS work",
+			"JOIN ingestion_scopes AS scope",
+			"scope.active_generation_id = active_generation.generation_id",
+			"work.stage = 'reducer'",
+			"work.status IN ('pending', 'retrying', 'failed', 'dead_letter')",
+			"stale_generation.ingested_at < active_generation.ingested_at",
+			"stale_generation.generation_id < active_generation.generation_id",
+			"FROM active_fact_work_items",
+		} {
+			if !strings.Contains(query, want) {
+				t.Fatalf("%s missing inactive-generation observer predicate %q:\n%s", name, want, query)
+			}
+		}
 	}
 }
 
