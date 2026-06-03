@@ -370,6 +370,7 @@ const (
 	SpanOCIRegistryAPICall               = "oci_registry.api_call"
 	SpanKubernetesLiveSnapshot           = "kubernetes_live.snapshot"
 	SpanKubernetesLiveAPICall            = "kubernetes_live.api_call"
+	SpanVaultLiveSnapshot                = "vault_live.snapshot"
 	SpanPackageRegistryObserve           = "package_registry.observe"
 	SpanPackageRegistryFetch             = "package_registry.fetch"
 	SpanAWSCollectorClaimProcess         = "aws.collector.claim.process"
