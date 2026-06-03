@@ -5,11 +5,18 @@ package query
 // at least the local authoritative profile; the lightweight profile cannot
 // serve it and returns unsupported_capability rather than a confident answer.
 func init() {
-	capabilityMatrix[secretsIAMIdentityTrustChainsCapability] = capabilitySupport{
-		LocalLightweightMax:   nil,
-		LocalAuthoritativeMax: &truthExact,
-		LocalFullStackMax:     &truthExact,
-		ProductionMax:         &truthExact,
-		RequiredProfile:       ProfileLocalAuthoritative,
+	for _, capability := range []string{
+		secretsIAMIdentityTrustChainsCapability,
+		secretsIAMPrivilegePostureObservationsCapability,
+		secretsIAMSecretAccessPathsCapability,
+		secretsIAMPostureGapsCapability,
+	} {
+		capabilityMatrix[capability] = capabilitySupport{
+			LocalLightweightMax:   nil,
+			LocalAuthoritativeMax: &truthExact,
+			LocalFullStackMax:     &truthExact,
+			ProductionMax:         &truthExact,
+			RequiredProfile:       ProfileLocalAuthoritative,
+		}
 	}
 }

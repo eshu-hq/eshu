@@ -54,6 +54,12 @@ func repositoryRoute(toolName string, args map[string]any) (*route, bool) {
 		return kubernetesCorrelationsRoute(args), true
 	case "list_secrets_iam_identity_trust_chains":
 		return secretsIAMIdentityTrustChainsRoute(args), true
+	case "list_secrets_iam_privilege_posture_observations":
+		return secretsIAMPrivilegePostureObservationsRoute(args), true
+	case "list_secrets_iam_secret_access_paths":
+		return secretsIAMSecretAccessPathsRoute(args), true
+	case "list_secrets_iam_posture_gaps":
+		return secretsIAMPostureGapsRoute(args), true
 	case "list_observability_coverage_correlations":
 		return observabilityCoverageCorrelationsRoute(args), true
 	case "list_container_image_identities":
