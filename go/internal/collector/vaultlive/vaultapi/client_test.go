@@ -50,7 +50,7 @@ func newMockVault(t *testing.T) (*httptest.Server, *mockVault) {
 		"LIST /v1/identity/entity/id":               `{"data":{"keys":["ent-1"]}}`,
 		"GET /v1/identity/entity/id/ent-1":          `{"data":{"name":"payments","aliases":[{}],"group_ids":["g1"],"disabled":false}}`,
 		"LIST /v1/identity/entity-alias/id":         `{"data":{"keys":["alias-1"]}}`,
-		"GET /v1/identity/entity-alias/id/alias-1":  `{"data":{"canonical_id":"ent-1","mount_accessor":"auth_k8s","name":"payments"}}`,
+		"GET /v1/identity/entity-alias/id/alias-1":  `{"data":{"canonical_id":"ent-1","mount_accessor":"auth_k8s","mount_path":"auth/kubernetes/","name":"payments"}}`,
 		"LIST /v1/secret/metadata":                  `{"data":{"keys":["db","app/"]}}`,
 		"LIST /v1/secret/metadata/app":              `{"data":{"keys":["config"]}}`,
 		"GET /v1/secret/metadata/db":                `{"data":{"current_version":3,"max_versions":10,"cas_required":true,"delete_version_after":"0s","custom_metadata":{"owner":"team"}}}`,
@@ -106,8 +106,9 @@ func TestAdapterMapsAllFamiliesAndNeverReadsData(t *testing.T) {
 		t.Fatalf("ListIdentityEntities = %+v, err=%v", entities, err)
 	}
 	aliases, err := a.ListIdentityAliases(ctx)
-	if err != nil || len(aliases) != 1 || aliases[0].EntityID != "ent-1" {
-		t.Fatalf("ListIdentityAliases = %+v, err=%v", aliases, err)
+	if err != nil || len(aliases) != 1 || aliases[0].EntityID != "ent-1" ||
+		aliases[0].MountAccessor != "auth_k8s" || aliases[0].MountPath != "auth/kubernetes/" {
+		t.Fatalf("ListIdentityAliases = %+v, err=%v (mount anchors are the downstream join fields)", aliases, err)
 	}
 	engines, err := a.ListSecretEngineMounts(ctx)
 	if err != nil || len(engines) != 1 || engines[0].MountType != "kv" || engines[0].KVVersion != "2" {

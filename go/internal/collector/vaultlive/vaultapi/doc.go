@@ -8,7 +8,7 @@
 // The adapter holds a short-lived read-only token supplied by the caller and
 // bound to the secrets/IAM read-only policy; Eshu never persists it. Vault
 // addresses, paths, names, and policy bodies are handed to the vaultlive source
-// and secretsiam envelope builders, which fingerprint them before emission — the
-// adapter performs no redaction itself beyond hashing ACL policy bodies so the
-// raw body never leaves this package.
+// and secretsiam envelope builders, which fingerprint them before emission. The
+// adapter hashes ACL policy bodies itself so the raw policy body never leaves
+// this package; it performs no other redaction.
 package vaultapi

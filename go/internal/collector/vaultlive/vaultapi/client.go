@@ -122,11 +122,14 @@ func (a *Adapter) doRequest(ctx context.Context, path string, list bool, out any
 }
 
 // isKVDataPath reports whether a Vault path addresses a KV secret-data
-// operation (which must never be read). The KV v2 data operation is the segment
-// "data" immediately after the mount; the metadata operation is "metadata". The
-// check is positional, not a substring scan: a "data" segment seen before any
-// "metadata" segment is a data operation, while a secret legitimately named
-// "data" under .../metadata/... is allowed (the "metadata" segment precedes it).
+// operation (which must never be read). It scans segments left to right and is
+// positional, not a substring match: a "data" segment seen before any
+// "metadata" segment is treated as a KV data operation, while a "metadata"
+// segment seen first means any later "data" is just a secret legitimately named
+// "data" under .../metadata/... and is allowed. (This adapter only ever builds
+// .../metadata/... paths for KV, so the guard is a defense-in-depth backstop;
+// the broader "data before metadata" rule is intentional so a buggy or hostile
+// caller that constructs a bare <mount>/data/... path is still rejected.)
 func isKVDataPath(path string) bool {
 	for _, segment := range strings.Split(strings.ToLower(path), "/") {
 		switch segment {

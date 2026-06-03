@@ -73,13 +73,16 @@ func (a *Adapter) ListSecretEngineMounts(ctx context.Context) ([]vaultlive.Secre
 }
 
 // ListACLPolicies returns ACL policy metadata. The raw policy body is hashed,
-// never stored; rule parsing is intentionally deferred (the hash + name are the
-// posture evidence).
+// never stored. Per-rule capability summaries (ACLPolicy.Rules) are left empty
+// in this slice — parsing the Vault ACL HCL/JSON policy grammar is deferred to
+// the #1356 runtime-wiring follow-up; until then the policy name plus content
+// hash are the emitted posture evidence (downstream emits no per-rule summary).
 func (a *Adapter) ListACLPolicies(ctx context.Context) ([]vaultlive.ACLPolicy, error) {
 	names, err := a.listKeys(ctx, "sys/policies/acl")
 	if err != nil {
 		return nil, err
 	}
+	sort.Strings(names)
 	out := make([]vaultlive.ACLPolicy, 0, len(names))
 	for _, name := range names {
 		var payload struct {
@@ -118,6 +121,7 @@ func (a *Adapter) ListAuthRoles(ctx context.Context) ([]vaultlive.AuthRole, erro
 		if err != nil {
 			return nil, err
 		}
+		sort.Strings(names)
 		for _, name := range names {
 			var payload struct {
 				Data struct {
@@ -152,6 +156,7 @@ func (a *Adapter) ListIdentityEntities(ctx context.Context) ([]vaultlive.Identit
 	if err != nil {
 		return nil, err
 	}
+	sort.Strings(ids)
 	out := make([]vaultlive.IdentityEntity, 0, len(ids))
 	for _, id := range ids {
 		var payload struct {
@@ -184,6 +189,7 @@ func (a *Adapter) ListIdentityAliases(ctx context.Context) ([]vaultlive.Identity
 	if err != nil {
 		return nil, err
 	}
+	sort.Strings(ids)
 	out := make([]vaultlive.IdentityAlias, 0, len(ids))
 	for _, id := range ids {
 		var payload struct {
