@@ -171,6 +171,10 @@ var uidConstraintLabels = []string{
 	"ProtocolImplementation",
 	"QueryExecution",
 	"Record",
+	"SecretsIAMSecretMetadataPath",
+	"SecretsIAMServiceAccount",
+	"SecretsIAMVaultAuthRole",
+	"SecretsIAMVaultPolicy",
 	"SecurityGroupRule",
 	"SqlColumn",
 	"SqlFunction",
@@ -235,6 +239,12 @@ var schemaPerformanceIndexes = []string{
 	"CREATE INDEX cloud_resource_arn IF NOT EXISTS FOR (r:CloudResource) ON (r.arn)",
 	"CREATE INDEX cloud_resource_resource_id IF NOT EXISTS FOR (r:CloudResource) ON (r.resource_id)",
 	"CREATE INDEX cloud_resource_type IF NOT EXISTS FOR (r:CloudResource) ON (r.resource_type)",
+	// Secrets/IAM graph-projection node scope lookups back the scoped
+	// retract-before-reproject of reducer-owned SecretsIAM* nodes (ADR #1314 §8).
+	"CREATE INDEX secrets_iam_service_account_scope_id IF NOT EXISTS FOR (s:SecretsIAMServiceAccount) ON (s.scope_id)",
+	"CREATE INDEX secrets_iam_vault_auth_role_scope_id IF NOT EXISTS FOR (v:SecretsIAMVaultAuthRole) ON (v.scope_id)",
+	"CREATE INDEX secrets_iam_vault_policy_scope_id IF NOT EXISTS FOR (p:SecretsIAMVaultPolicy) ON (p.scope_id)",
+	"CREATE INDEX secrets_iam_secret_metadata_path_scope_id IF NOT EXISTS FOR (s:SecretsIAMSecretMetadataPath) ON (s.scope_id)",
 	// CidrBlock and PrefixList lookup indexes back the security-group
 	// network-reachability edge join (issue #1135 PR2b) and the internet-exposure
 	// read. The edge projection resolves a rule's CIDR/prefix endpoint to a

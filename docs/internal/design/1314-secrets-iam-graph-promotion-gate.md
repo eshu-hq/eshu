@@ -144,6 +144,42 @@ lookup indexes for only the new `SecretsIAM*` labels. It should reuse existing
 endpoints. DDL must run before writes through schema bootstrap and must not use
 drop/create cycles on a live NornicDB store.
 
+### 5.1. Endpoint join feasibility (implementation finding, #1347)
+
+A read of the current read-model build (`secrets_iam_trust_chain_build.go`) and
+the canonical node keyspaces establishes which external endpoints are resolvable
+from the read model today. This corrects the build plan; promoting an edge whose
+endpoint cannot be resolved would force a fabricated join, which §4 forbids.
+
+- **`KubernetesWorkload` endpoint — RESOLVABLE.** The read model's
+  `workload_object_id` is the same keyspace as the live `KubernetesWorkload`
+  node `uid` (the Kubernetes correlation edge writer already treats
+  `workload_uid = workload_object_id`). So `SECRETS_IAM_USES_SERVICE_ACCOUNT`
+  can `MATCH (:KubernetesWorkload {uid: workload_object_id})` and skip-count when
+  absent.
+- **IAM-role `CloudResource` endpoint — NOT RESOLVABLE from the current read
+  model.** The read model carries only `iam_role_fingerprint`, defined as
+  `secretsIAMFingerprint("iam_role", role_arn)` — a one-way HMAC of the role
+  ARN. The IAM-role `CloudResource` `uid` is built from
+  `(account_id, region, resource_type, resource_id)` (`cloudResourceUID(...)`).
+  A fingerprint cannot join to that uid, and the read model carries neither the
+  `CloudResource` uid nor the `(account, region, role-name)` needed to compute
+  it. **Therefore `SECRETS_IAM_ASSUMES_IAM_ROLE` cannot promote until the
+  read-model `identity_trust_chain` row additionally carries a
+  CloudResource-joinable IAM-role identity** (the role's `cloud_resource_uid`,
+  or the account/region/resource-id to recompute it). That is an upstream
+  reducer/read-model change (and depends on the IAM trust fact carrying the
+  role's resource identity in a joinable form), tracked as the prerequisite for
+  the IAM-role edge.
+
+Consequently the first graph build implements the resolvable subgraph — the four
+`SecretsIAM*` nodes and the four edges `USES_SERVICE_ACCOUNT`,
+`AUTHENTICATES_TO_VAULT_ROLE`, `USES_VAULT_POLICY`, `GRANTS_SECRET_READ` (all
+endpoints resolve from read-model join keys or the workload uid). The IAM-role
+edge is extracted and **counted as a skip** with reason
+`iam_role_endpoint_unresolved_pending_read_model` until the upstream field
+lands, so the chain is never fabricated.
+
 ## 6. Relationship Contract
 
 | Relationship | Source row | Endpoint rule | Mutable properties |
