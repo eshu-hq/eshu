@@ -269,10 +269,35 @@ family that is in scope for the release: PagerDuty, Jira, Grafana,
 Prometheus/Mimir, Loki, and Tempo. For those rows, a passing collector summary
 requires both a rendered Compose service and a positive source-fact count.
 The checked-in `docker-compose.remote-e2e.yaml` profile does not start those
-six services by default. Without an operator-local Compose override that
-renders the hosted service and provides its private target configuration, the
+six services by default. Jira and PagerDuty have built-in opt-in Compose
+profiles; Grafana, Prometheus/Mimir, Loki, and Tempo still require an
+operator-local Compose override that renders the hosted service and provides
+its private target configuration. Without a rendered hosted service, the
 manifest classifies the row as `skipped` with
 `collector service disabled in remote Compose profile`.
+
+For Jira and PagerDuty, keep private target values in the operator-local env
+file, set the matching enable flag, and render only the intended profile or
+profiles:
+
+```bash
+export ESHU_REMOTE_E2E_ENV_FILE=path/to/private-remote-e2e.env
+
+docker compose --env-file "${ESHU_REMOTE_E2E_ENV_FILE}" \
+  -f docker-compose.remote-e2e.yaml \
+  --profile jira \
+  --profile pagerduty \
+  config --services
+```
+
+The private env file sets only generic runtime knobs in public evidence and
+keeps provider URLs, tenant names, service names, account IDs, tokens, and raw
+source details local. Use `ESHU_REMOTE_E2E_JIRA_ENABLED=true` with
+`ESHU_JIRA_SITE_ID`, `ESHU_JIRA_EMAIL`, `ESHU_JIRA_API_TOKEN`, and optional
+bounded Jira limits. Use `ESHU_REMOTE_E2E_PAGERDUTY_ENABLED=true` with
+`ESHU_PAGERDUTY_ACCOUNT_ID`, `ESHU_PAGERDUTY_API_TOKEN`, and optional bounded
+PagerDuty limits. Default checked-in values leave both collectors disabled and
+blank.
 
 The harness distinguishes the non-passing cases:
 
@@ -355,7 +380,10 @@ hosted collector profile contract for PagerDuty, Jira, Grafana,
 Prometheus/Mimir, Loki, and Tempo: pass requires the rendered service plus
 source facts, enabled services without facts fail, disabled rows are skipped,
 explicit unsupported rows stay partial, and contradictory source facts without
-the rendered service fail. `scripts/test-e2e-remote-compose-reducer-manifest.sh`
+the rendered service fail. `scripts/test-remote-e2e-hosted-compose-render.sh`
+proves the checked-in remote Compose file keeps Jira and PagerDuty disabled by
+default while rendering `collector-jira` and `collector-pagerduty` under their
+explicit profiles with only public-safe placeholder env. `scripts/test-e2e-remote-compose-reducer-manifest.sh`
 proves Terraform relationship table mapping, vulnerability matching through
 `reducer_supply_chain_impact_finding`, explicit missing reducer evidence,
 explicit unsupported reducer rows, and missing readback proof classification.
@@ -365,6 +393,10 @@ evidence beside the manifest: pprof index proof, Docker stats JSON lines,
 sanitized logs, rendered Compose service names, aggregate fact counts, workflow
 work-item counts, and the validated manifest. API bearer tokens are passed
 through a temporary curl config rather than command-line arguments.
+Jira and PagerDuty hosted profile runs use the same service health,
+`/admin/status`, Prometheus metrics, pprof overlay, rendered-service list,
+source-fact count, workflow-count, and queue-zero evidence as the other remote
+Compose hosted collectors.
 
 ## Representative Acceptance
 

@@ -255,6 +255,56 @@ x-collector-env: &remote_e2e_collector_env
         }
       },
       {
+        "instance_id": "remote-e2e-pagerduty",
+        "collector_kind": "pagerduty",
+        "mode": "continuous",
+        "enabled": ${ESHU_REMOTE_E2E_PAGERDUTY_ENABLED:-false},
+        "claims_enabled": true,
+        "configuration": {
+          "targets": [
+            {
+              "provider": "pagerduty",
+              "scope_id": "pagerduty://remote-e2e",
+              "account_id": "${ESHU_PAGERDUTY_ACCOUNT_ID:-}",
+              "token_env": "PAGERDUTY_API_TOKEN",
+              "api_base_url": "${ESHU_PAGERDUTY_API_BASE_URL:-}",
+              "source_uri": "${ESHU_PAGERDUTY_SOURCE_URI:-}",
+              "incident_limit": ${ESHU_PAGERDUTY_INCIDENT_LIMIT:-1},
+              "incident_lookback": "${ESHU_PAGERDUTY_INCIDENT_LOOKBACK:-24h}",
+              "log_entry_limit": ${ESHU_PAGERDUTY_LOG_ENTRY_LIMIT:-1},
+              "change_event_limit": ${ESHU_PAGERDUTY_CHANGE_EVENT_LIMIT:-1},
+              "config_validation_enabled": ${ESHU_PAGERDUTY_CONFIG_VALIDATION_ENABLED:-true},
+              "config_resource_limit": ${ESHU_PAGERDUTY_CONFIG_RESOURCE_LIMIT:-2}
+            }
+          ]
+        }
+      },
+      {
+        "instance_id": "remote-e2e-jira",
+        "collector_kind": "jira",
+        "mode": "continuous",
+        "enabled": ${ESHU_REMOTE_E2E_JIRA_ENABLED:-false},
+        "claims_enabled": true,
+        "configuration": {
+          "targets": [
+            {
+              "provider": "jira_cloud",
+              "scope_id": "jira://remote-e2e",
+              "site_id": "${ESHU_JIRA_SITE_ID:-}",
+              "base_url": "${ESHU_JIRA_BASE_URL:-}",
+              "email_env": "JIRA_EMAIL",
+              "token_env": "JIRA_API_TOKEN",
+              "jql": "${ESHU_JIRA_JQL:-}",
+              "issue_limit": ${ESHU_JIRA_ISSUE_LIMIT:-1},
+              "updated_lookback": "${ESHU_JIRA_UPDATED_LOOKBACK:-168h}",
+              "changelog_limit": ${ESHU_JIRA_CHANGELOG_LIMIT:-25},
+              "remote_link_limit": ${ESHU_JIRA_REMOTE_LINK_LIMIT:-25},
+              "metadata_limit": ${ESHU_JIRA_METADATA_LIMIT:-25}
+            }
+          ]
+        }
+      },
+      {
         "instance_id": "remote-e2e-scanner-worker-source",
         "collector_kind": "scanner_worker",
         "mode": "continuous",
@@ -752,6 +802,65 @@ services:
       ESHU_AWS_COLLECTOR_CLAIM_LEASE_TTL: ${ESHU_AWS_COLLECTOR_CLAIM_LEASE_TTL:-60s}
       ESHU_AWS_COLLECTOR_HEARTBEAT_INTERVAL: ${ESHU_AWS_COLLECTOR_HEARTBEAT_INTERVAL:-10s}
       ESHU_AWS_REDACTION_KEY: ${ESHU_AWS_REDACTION_KEY:?set ESHU_AWS_REDACTION_KEY}
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/healthz"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+    depends_on:
+      projector:
+        condition: service_healthy
+      workflow-coordinator:
+        condition: service_healthy
+
+  collector-pagerduty:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    profiles:
+      - pagerduty
+    restart: on-failure
+    command: ["/usr/local/bin/eshu-collector-pagerduty"]
+    ports:
+      - "${ESHU_COLLECTOR_PAGERDUTY_METRICS_PORT:-19480}:9464"
+    environment:
+      <<: [*remote_e2e_runtime_env, *remote_e2e_collector_env]
+      ESHU_PAGERDUTY_COLLECTOR_INSTANCE_ID: remote-e2e-pagerduty
+      ESHU_PAGERDUTY_COLLECTOR_OWNER_ID: remote-e2e-pagerduty-worker
+      ESHU_PAGERDUTY_POLL_INTERVAL: ${ESHU_PAGERDUTY_POLL_INTERVAL:-2s}
+      ESHU_PAGERDUTY_CLAIM_LEASE_TTL: ${ESHU_PAGERDUTY_CLAIM_LEASE_TTL:-60s}
+      ESHU_PAGERDUTY_HEARTBEAT_INTERVAL: ${ESHU_PAGERDUTY_HEARTBEAT_INTERVAL:-10s}
+      PAGERDUTY_API_TOKEN: ${ESHU_PAGERDUTY_API_TOKEN:-}
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/healthz"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+    depends_on:
+      projector:
+        condition: service_healthy
+      workflow-coordinator:
+        condition: service_healthy
+
+  collector-jira:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    profiles:
+      - jira
+    restart: on-failure
+    command: ["/usr/local/bin/eshu-collector-jira"]
+    ports:
+      - "${ESHU_COLLECTOR_JIRA_METRICS_PORT:-19481}:9464"
+    environment:
+      <<: [*remote_e2e_runtime_env, *remote_e2e_collector_env]
+      ESHU_JIRA_COLLECTOR_INSTANCE_ID: remote-e2e-jira
+      ESHU_JIRA_COLLECTOR_OWNER_ID: remote-e2e-jira-worker
+      ESHU_JIRA_POLL_INTERVAL: ${ESHU_JIRA_POLL_INTERVAL:-2s}
+      ESHU_JIRA_CLAIM_LEASE_TTL: ${ESHU_JIRA_CLAIM_LEASE_TTL:-60s}
+      ESHU_JIRA_HEARTBEAT_INTERVAL: ${ESHU_JIRA_HEARTBEAT_INTERVAL:-10s}
+      JIRA_EMAIL: ${ESHU_JIRA_EMAIL:-}
+      JIRA_API_TOKEN: ${ESHU_JIRA_API_TOKEN:-}
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://localhost:8080/healthz"]
       interval: 15s
