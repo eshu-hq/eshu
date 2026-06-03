@@ -1234,16 +1234,22 @@ surface changes.
 No-Regression Evidence: the `secrets_iam_graph_projection` domain is pure
 in-memory extraction (`ExtractSecretsIAMGraphRows`, a single linear pass bounded
 by read-model output) plus an orchestration handler that calls the
-backend-neutral `cypher.SecretsIAMGraphWriter`. The domain is defined but NOT
-registered into the live reducer registry, so no graph write executes in
-production from this PR — it runs only against a recording writer in tests. The
-handler writes all node families before all edge families (so each edge `MATCH`
-resolves an already-committed node), retracts-before-reproject (skipped only on
-a first-generation first attempt), and counts skipped rows. Covered by
-`go test ./internal/reducer -run 'Extract|GraphProjection'` and
-`go test ./internal/storage/cypher -run SecretsIAMGraph`. Live-backend execution,
-registry wiring, cross-scope readiness gating, and the §12 benchmark are the next
-gated step (ADR #1314).
+backend-neutral `cypher.SecretsIAMGraphWriter`. The domain is wired into the
+additive registry but stays OFF by default: `DomainSecretsIAMGraphProjection`
+registers only when `cmd/reducer` constructs a live writer, and that writer is
+nil unless `ESHU_REDUCER_SECRETS_IAM_GRAPH_PROJECTION_ENABLED` is set truthy. So
+no graph write executes in production from this PR — the registry gate sees a nil
+writer and skips the domain, and the handler runs only against a recording writer
+in tests. The handler writes all node families before all edge families (so each
+edge `MATCH` resolves an already-committed node), retracts-before-reproject
+(skipped only on a first-generation first attempt), and counts skipped rows.
+Covered by `go test ./internal/reducer -run 'Extract|GraphProjection|AppendAdditiveDomains.*SecretsIAM'`,
+`go test ./internal/storage/cypher -run SecretsIAMGraph`, and
+`go test ./cmd/reducer -run SecretsIAMGraphProjectionWriter` (flag default-off,
+enabled, and malformed-value cases). Activating the flag for live-backend
+execution, cross-scope readiness gating, and the §12 benchmark remain the next
+gated step behind ADR #1314 §11/§12 proofs and the §14 principal+security
+sign-off.
 
 Observability Evidence: the domain emits the `reducer.secrets_iam_graph_projection`
 span and three bounded-enum counters — `eshu_dp_secrets_iam_graph_nodes_written_total`
