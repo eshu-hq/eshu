@@ -127,6 +127,7 @@ var spanNames = []string{
 	SpanOCIRegistryAPICall,
 	SpanKubernetesLiveSnapshot,
 	SpanKubernetesLiveAPICall,
+	SpanVaultLiveSnapshot,
 	SpanAWSCollectorClaimProcess,
 	SpanAWSCredentialsAssumeRole,
 	SpanAWSServiceScan,

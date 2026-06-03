@@ -40,6 +40,9 @@ const (
 	KindJiraSite ScopeKind = "jira_site"
 	// KindScannerWorker represents a bounded security analyzer work scope.
 	KindScannerWorker ScopeKind = "scanner_worker"
+	// KindVaultCluster represents a HashiCorp Vault cluster (and namespace)
+	// metadata scope for the secrets/IAM posture lane.
+	KindVaultCluster ScopeKind = "vault_cluster"
 )
 
 // CollectorKind identifies the collector family that owns the scope.
@@ -76,6 +79,11 @@ const (
 	// collector. It observes a configured cluster's API server with read-only
 	// credentials and emits typed source facts; it never mutates the cluster.
 	CollectorKubernetesLive CollectorKind = "kubernetes_live"
+	// CollectorVaultLive represents the read-only Vault metadata collector for
+	// the secrets/IAM posture lane. It observes a configured Vault cluster's
+	// metadata endpoints with a read-only token and emits redacted source facts;
+	// it never reads a secret value.
+	CollectorVaultLive CollectorKind = "vault_live"
 )
 
 // TriggerKind identifies how a generation was produced.

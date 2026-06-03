@@ -42,9 +42,19 @@ Maps all seven Vault metadata fact families (`vault_auth_mount`,
 read-only `Client` through the `secretsiam` envelope builders. Collection is
 fail-fast per family so a partial generation is never emitted as if complete.
 
-The live `Client` adapter (`hashicorp/vault/api`), `runtimebind` registration,
-the `secrets_iam_posture` CollectorKind, claim-driven scheduling, per-family
-partial-coverage warnings, and source telemetry instruments land in #1356.
+`SnapshotSource` (`snapshot.go`) is the runtime driver: it implements
+`collector.Source.Next`, yielding one snapshot generation per configured Vault
+target (scope kind `vault_cluster`, collector kind `vault_live`) with a
+deterministic per-target scope/generation id. The live `vaultapi` client (a
+`net/http`, no-SDK adapter) implements the `Client` seam, and the
+`cmd/collector-vault-live` binary runs the driver over the shared
+`collector.Service` commit boundary.
+
+Remaining under #1356: the bespoke `eshu_dp_secrets_iam_*{source="vault"}` source
+counters (the lane is already observable via the shared
+`collector_kind="vault_live"` facts-emitted/commit/duration metrics and the
+`vault_live.snapshot` span), per-family partial-coverage warnings, and
+validation against a live/dev Vault.
 
 ## Evidence
 
@@ -63,3 +73,26 @@ No-Observability-Change: this PR adds no telemetry instruments, spans, logs, or
 status fields. The `eshu_dp_secrets_iam_*` source metrics (API calls,
 redactions, facts emitted, scope freshness, partial scope) are introduced with
 the live adapter in #1356; until then there is no runtime path to observe.
+
+## Evidence
+
+No-Regression Evidence: `SnapshotSource` is a serial snapshot iterator driven by
+`collector.Service.Next` — one generation per configured target, the per-target
+scope id as the durable conflict domain. It issues no Cypher, performs no graph
+or canonical writes, holds no locks/leases, and runs no queue or concurrent
+workers; the only fan-out is the bounded per-target Vault metadata read in the
+already-merged `vaultapi` client (depth/total-paths/body-size capped). It reuses
+the shared `collector.Service` commit boundary unchanged, so there is no new
+hot-path or backend behavior to regress. Correctness is covered by
+`go test ./internal/collector/vaultlive` (per-target generation scope/identity,
+batch drain/reset, config validation, deterministic namespace-scoped scope ids)
+and `go test ./cmd/collector-vault-live` (config + token-from-env parsing). Live
+throughput against a real Vault is validated as part of the remaining #1356
+integration step.
+
+Observability Evidence: the lane is observable through the shared
+`collector.Service` metrics labeled `collector_kind="vault_live"`
+(`eshu_dp_facts_emitted_total`, `eshu_dp_facts_committed_total`, the collector
+observe duration) plus the `vault_live.snapshot` span (registered in the frozen
+telemetry span contract). The bespoke `eshu_dp_secrets_iam_*{source="vault"}`
+source counters are a tracked #1356 follow-up.
