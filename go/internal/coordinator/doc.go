@@ -7,7 +7,8 @@
 // collector work, drains expired claims on the reap interval, and advances
 // workflow run progress. Config is loaded from workflow-coordinator
 // environment variables; deployment mode is "dark" or "active" and active mode
-// requires claims enabled with at least one claim-capable collector instance.
+// requires claims enabled with at least one enabled claim-capable collector
+// instance.
 //
 // TerraformStateWorkPlanner plans Terraform-state collection runs from resolved
 // discovery candidates. OCIRegistryWorkPlanner, PackageRegistryWorkPlanner,

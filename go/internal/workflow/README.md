@@ -146,7 +146,7 @@ S3 seeds must include bucket, key, and region; any S3 seed also requires
 `aws.role_arn`. This keeps unsafe or incomplete state-reader config out of the
 durable `collector_instances` table.
 
-`pagerduty` collector instances must declare at least one target with
+Enabled `pagerduty` collector instances must declare at least one target with
 `provider`, `scope_id`, `account_id`, and `token_env`. Optional `api_base_url`
 overrides must use HTTPS and must not include credentials. Request limits,
 lookback duration, source URIs, and optional live-configuration validation
@@ -155,6 +155,9 @@ limits are validated before the instance reaches durable storage.
 service-integration metadata collection, and `config_resource_limit` keeps that
 read bounded to the same 0-100 page limit family as incident, log-entry, and
 change-event reads.
+Disabled `pagerduty` and `jira` instances are registration-only. Their durable
+identity, kind, mode, and JSON shape must be valid, but private target fields
+can stay blank until the instance is enabled.
 
 `oci_registry` collector instances are claim-capable. The coordinator plans one
 bounded work item per configured registry repository target, and the
@@ -240,13 +243,14 @@ a configured target before fetching incidents, incident log entries, and
 related change events. PagerDuty instances are fact-only until incident-context
 correlation and query contracts land.
 
-`jira` collector instances are claim-capable. The coordinator plans one bounded
-work item per configured Jira site target, and the `collector-jira` runtime
-resolves each claimed `scope_id` back to a configured Jira target before
-fetching updated issues, changelogs, and remote links. The collector contract
-declares no canonical keyspaces and no required reducer phases. Jira commits
-work-item source facts only; reducers and query surfaces own incident, runtime,
-code, and pull-request correlation truth.
+`jira` collector instances are claim-capable. Enabled instances must declare
+configured Jira Cloud site targets before reaching durable storage. The
+coordinator plans one bounded work item per configured target, and the
+`collector-jira` runtime resolves each claimed `scope_id` back to a configured
+Jira target before fetching updated issues, changelogs, and remote links. The
+collector contract declares no canonical keyspaces and no required reducer
+phases. Jira commits work-item source facts only; reducers and query surfaces
+own incident, runtime, code, and pull-request correlation truth.
 
 `aws` collector instances are claim-capable. The coordinator plans one bounded
 work item per authorized `(account_id, region, service_kind)` tuple, and the
