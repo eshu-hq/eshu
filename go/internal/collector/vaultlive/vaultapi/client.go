@@ -23,6 +23,21 @@ type Adapter struct {
 	address    string
 	token      string
 	namespace  string
+	onAPICall  func(operation, result string)
+}
+
+// recordAPICall reports one Vault API operation outcome to the optional
+// observer. operation is a bounded enum (the list-method name); result is
+// "success" or "error". It carries no path, token, or address.
+func (a *Adapter) recordAPICall(operation string, err error) {
+	if a.onAPICall == nil {
+		return
+	}
+	result := "success"
+	if err != nil {
+		result = "error"
+	}
+	a.onAPICall(operation, result)
 }
 
 // Config configures the adapter. Address is the Vault API base (for example
@@ -33,6 +48,10 @@ type Config struct {
 	Token      string
 	Namespace  string
 	HTTPClient *http.Client
+	// OnAPICall, if set, is invoked once per list operation with a bounded
+	// operation enum and a "success"/"error" result. It carries no secret,
+	// path, token, or address — only the operation label and outcome.
+	OnAPICall func(operation, result string)
 }
 
 // New creates a metadata-only Vault adapter. It does not validate the token; the
@@ -54,6 +73,7 @@ func New(cfg Config) (*Adapter, error) {
 		address:    address,
 		token:      strings.TrimSpace(cfg.Token),
 		namespace:  strings.TrimSpace(cfg.Namespace),
+		onAPICall:  cfg.OnAPICall,
 	}, nil
 }
 

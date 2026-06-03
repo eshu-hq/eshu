@@ -36,7 +36,8 @@ func (a *Adapter) listMounts(ctx context.Context, path string) (map[string]mount
 }
 
 // ListAuthMounts returns auth method mount metadata from sys/auth.
-func (a *Adapter) ListAuthMounts(ctx context.Context) ([]vaultlive.AuthMount, error) {
+func (a *Adapter) ListAuthMounts(ctx context.Context) (_ []vaultlive.AuthMount, err error) {
+	defer func() { a.recordAPICall("list_auth_mounts", err) }()
 	mounts, err := a.listMounts(ctx, "sys/auth")
 	if err != nil {
 		return nil, err
@@ -54,7 +55,8 @@ func (a *Adapter) ListAuthMounts(ctx context.Context) ([]vaultlive.AuthMount, er
 }
 
 // ListSecretEngineMounts returns secret-engine mount metadata from sys/mounts.
-func (a *Adapter) ListSecretEngineMounts(ctx context.Context) ([]vaultlive.SecretEngineMount, error) {
+func (a *Adapter) ListSecretEngineMounts(ctx context.Context) (_ []vaultlive.SecretEngineMount, err error) {
+	defer func() { a.recordAPICall("list_secret_engine_mounts", err) }()
 	mounts, err := a.listMounts(ctx, "sys/mounts")
 	if err != nil {
 		return nil, err
@@ -77,7 +79,8 @@ func (a *Adapter) ListSecretEngineMounts(ctx context.Context) ([]vaultlive.Secre
 // in this slice — parsing the Vault ACL HCL/JSON policy grammar is deferred to
 // the #1356 runtime-wiring follow-up; until then the policy name plus content
 // hash are the emitted posture evidence (downstream emits no per-rule summary).
-func (a *Adapter) ListACLPolicies(ctx context.Context) ([]vaultlive.ACLPolicy, error) {
+func (a *Adapter) ListACLPolicies(ctx context.Context) (_ []vaultlive.ACLPolicy, err error) {
+	defer func() { a.recordAPICall("list_acl_policies", err) }()
 	names, err := a.listKeys(ctx, "sys/policies/acl")
 	if err != nil {
 		return nil, err
@@ -106,7 +109,8 @@ func (a *Adapter) ListACLPolicies(ctx context.Context) ([]vaultlive.ACLPolicy, e
 // ListAuthRoles returns auth role metadata for Kubernetes auth mounts (the
 // IAM-Vault join anchor). Other auth methods are skipped; their role shapes do
 // not carry the ServiceAccount selectors the trust chain needs.
-func (a *Adapter) ListAuthRoles(ctx context.Context) ([]vaultlive.AuthRole, error) {
+func (a *Adapter) ListAuthRoles(ctx context.Context) (_ []vaultlive.AuthRole, err error) {
+	defer func() { a.recordAPICall("list_auth_roles", err) }()
 	mounts, err := a.ListAuthMounts(ctx)
 	if err != nil {
 		return nil, err
@@ -151,7 +155,8 @@ func (a *Adapter) ListAuthRoles(ctx context.Context) ([]vaultlive.AuthRole, erro
 }
 
 // ListIdentityEntities returns identity entity metadata.
-func (a *Adapter) ListIdentityEntities(ctx context.Context) ([]vaultlive.IdentityEntity, error) {
+func (a *Adapter) ListIdentityEntities(ctx context.Context) (_ []vaultlive.IdentityEntity, err error) {
+	defer func() { a.recordAPICall("list_identity_entities", err) }()
 	ids, err := a.listKeys(ctx, "identity/entity/id")
 	if err != nil {
 		return nil, err
@@ -184,7 +189,8 @@ func (a *Adapter) ListIdentityEntities(ctx context.Context) ([]vaultlive.Identit
 }
 
 // ListIdentityAliases returns identity alias metadata and mount/entity anchors.
-func (a *Adapter) ListIdentityAliases(ctx context.Context) ([]vaultlive.IdentityAlias, error) {
+func (a *Adapter) ListIdentityAliases(ctx context.Context) (_ []vaultlive.IdentityAlias, err error) {
+	defer func() { a.recordAPICall("list_identity_aliases", err) }()
 	ids, err := a.listKeys(ctx, "identity/entity-alias/id")
 	if err != nil {
 		return nil, err

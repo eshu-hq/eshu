@@ -19,7 +19,8 @@ const (
 // ListKVMetadata returns KV v2 metadata-path descriptions for every kv-v2
 // secret engine, sourced from the metadata endpoint only. It never reads a KV
 // data value (doRequest also rejects any /data/ path defensively).
-func (a *Adapter) ListKVMetadata(ctx context.Context) ([]vaultlive.KVMetadata, error) {
+func (a *Adapter) ListKVMetadata(ctx context.Context) (_ []vaultlive.KVMetadata, err error) {
+	defer func() { a.recordAPICall("list_kv_metadata", err) }()
 	mounts, err := a.ListSecretEngineMounts(ctx)
 	if err != nil {
 		return nil, err
