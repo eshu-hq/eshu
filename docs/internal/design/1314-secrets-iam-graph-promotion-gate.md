@@ -375,12 +375,20 @@ write code.
 No-Observability-Change: design-only gate. Existing telemetry is unchanged; the
 future implementation telemetry requirements are listed in section 13.
 
-### 5.2. Evidence for the gated steps 1–2 PR (extraction + DDL + writer)
+### 5.2. Evidence for the gated steps 1–3 PR (extraction + DDL + writer + domain)
 
 No-Regression Evidence: this PR is pure in-memory extraction, additive schema
-DDL, and a backend-neutral Cypher writer that **does not execute against a graph
-backend in this PR** — the reducer domain that calls it (load → extract →
-retract → write → readiness) is the next gated step.
+DDL, a backend-neutral Cypher writer, and the reducer projection domain that
+orchestrates them — **the domain is defined but not registered into the live
+reducer registry**, so no graph write executes in production from this PR (it
+runs only against a recording writer in tests). The domain handler is the
+established load → extract → retract → write orchestration (mirroring
+`iam_can_perform`): it writes all four node families before the four edge
+families (so each edge `MATCH` resolves an already-committed node), retracts the
+prior generation before reprojecting (skipped only on a first-generation first
+attempt), and counts skipped rows. Registration into the live registry — which
+needs the Postgres fact loader and the Cypher writer wired — plus cross-scope
+endpoint-readiness gating and the §12 backend benchmark are the next gated step.
 `ExtractSecretsIAMGraphRows` is a single linear pass over the reducer read-model
 facts (bounded by read-model output, not by raw source-fact cross-products),
 building deduped, sorted node/edge rows with no I/O. The DDL additions are
@@ -403,7 +411,14 @@ retract with no endpoint deletion, batching), and `go test ./internal/graph`
 shape and the NornicDB/Neo4j conformance proof land with the reducer-domain PR
 that executes the writer.
 
-No-Observability-Change: this step adds no metrics, spans, logs, or status
-fields. The graph-projection telemetry (nodes/edges written, skipped+reason,
-phase durations, readiness-block reason) lands with the reducer-domain writer
-PR, where there is a runtime path to observe.
+Observability Evidence: the projection domain emits the `reducer.secrets_iam_
+graph_projection` span and three bounded-enum counters —
+`eshu_dp_secrets_iam_graph_nodes_written_total{node_type}`,
+`eshu_dp_secrets_iam_graph_edges_written_total{edge_type}`, and
+`eshu_dp_secrets_iam_graph_skipped_total{skip_reason}` — plus a structured
+completion log with per-phase durations (load/extract/retract/write) and node/
+edge/skip counts. All metric labels are static extractor constants (node labels,
+relationship tokens, skip reasons); no path, ARN, namespace, or identifier is a
+label. `node_type`/`edge_type`/`skip_reason` are in the frozen
+`TestMetricDimensionKeys` allowlist and the span is in the frozen span contract,
+both asserted by `go test ./internal/telemetry`.
