@@ -24,6 +24,13 @@ import (
 // that — (1) every builder stamps the redaction policy version, and (2) no
 // payload key names a raw secret value — plus positive canary checks proving the
 // fields that must be fingerprinted are.
+//
+// Scope: this guard covers the FACT payloads, which is where #25 forbids secret
+// material. The envelope builders are pure functions that emit no logs or
+// metrics, so there is nothing to scan there. Log/metric canary scanning
+// belongs at the source-collector layer (awscloud, kuberneteslive, vaultlive),
+// which is where logging and metric emission actually happen; that layer's
+// own tests own that assertion.
 
 func leakAWSContext() EnvelopeContext {
 	return EnvelopeContext{
@@ -111,7 +118,7 @@ func secretsIAMBuilderCases(t *testing.T) map[string]facts.Envelope {
 		},
 		"vault_auth_mount": func() (facts.Envelope, error) {
 			return NewVaultAuthMountEnvelope(VaultAuthMountObservation{
-				Context: vault, MountPath: "kubernetes/", MountAccessor: "acc", AuthMethod: VaultAuthMethodKubernetes,
+				Context: vault, MountPath: "kubernetes/", MountAccessor: "accessor-canary", AuthMethod: VaultAuthMethodKubernetes,
 			})
 		},
 		"vault_auth_role": func() (facts.Envelope, error) {
@@ -134,7 +141,7 @@ func secretsIAMBuilderCases(t *testing.T) map[string]facts.Envelope {
 		},
 		"vault_identity_alias": func() (facts.Envelope, error) {
 			return NewVaultIdentityAliasEnvelope(VaultIdentityAliasObservation{
-				Context: vault, AliasID: "alias-1", EntityID: "ent-1", MountPath: "kubernetes/", MountAccessor: "acc", AliasName: "payments",
+				Context: vault, AliasID: "alias-1", EntityID: "ent-1", MountPath: "kubernetes/", MountAccessor: "accessor-canary", AliasName: "payments",
 			})
 		},
 		"vault_kv_metadata": func() (facts.Envelope, error) {
@@ -145,7 +152,7 @@ func secretsIAMBuilderCases(t *testing.T) map[string]facts.Envelope {
 		},
 		"vault_secret_engine_mount": func() (facts.Envelope, error) {
 			return NewVaultSecretEngineMountEnvelope(VaultSecretEngineMountObservation{
-				Context: vault, MountPath: "secret/", MountAccessor: "acc", MountType: VaultSecretEngineKVV2, KVVersion: "2",
+				Context: vault, MountPath: "secret/", MountAccessor: "accessor-canary", MountType: VaultSecretEngineKVV2, KVVersion: "2",
 			})
 		},
 		"vault_coverage_warning": func() (facts.Envelope, error) {
@@ -155,18 +162,18 @@ func secretsIAMBuilderCases(t *testing.T) map[string]facts.Envelope {
 			return NewVaultCoverageWarningEnvelope(VaultCoverageWarningObservation{
 				Context: vault, WarningKind: "partial", SourceState: SourceStatePartial, ResourceScope: "auth_roles",
 				ErrorClass: "throttle", Message: "rate limited",
-				Attributes: map[string]any{"operation": "list_roles"},
+				Attributes: map[string]any{"access_token-canary": "tokenvalue-canary"},
 			})
 		},
 		"k8s_service_account": func() (facts.Envelope, error) {
 			return NewKubernetesServiceAccountEnvelope(KubernetesServiceAccountObservation{
 				Context: k8s, Namespace: "prod", Name: "payments", UID: "uid-1", AnnotationKeys: []string{"eks.amazonaws.com/role-arn"},
-				AutomountToken: "true", ResourceVersion: "100",
+				AutomountToken: BoolStateTrue, ResourceVersion: "100",
 			})
 		},
 		"k8s_token_posture": func() (facts.Envelope, error) {
 			return NewKubernetesServiceAccountTokenPostureEnvelope(KubernetesServiceAccountTokenPostureObservation{
-				Context: k8s, Namespace: "prod", ServiceAccountName: "payments", ServiceAccountUID: "uid-1", AutomountToken: "true",
+				Context: k8s, Namespace: "prod", ServiceAccountName: "payments", ServiceAccountUID: "uid-1", AutomountToken: BoolStateTrue,
 			})
 		},
 		"k8s_rbac_role": func() (facts.Envelope, error) {
@@ -202,7 +209,7 @@ func secretsIAMBuilderCases(t *testing.T) map[string]facts.Envelope {
 		},
 		"k8s_coverage_warning": func() (facts.Envelope, error) {
 			return NewKubernetesCoverageWarningEnvelope(KubernetesCoverageWarningObservation{
-				Context: k8s, WarningKind: "partial", SourceState: "partial", ErrorClass: "forbidden", Message: "m",
+				Context: k8s, WarningKind: "partial", SourceState: SourceStatePartial, ErrorClass: "forbidden", Message: "m",
 			})
 		},
 	}
@@ -280,7 +287,8 @@ func TestBuildersFingerprintRawSensitiveValues(t *testing.T) {
 
 	cases := secretsIAMBuilderCases(t)
 
-	// AWS trust policy: the raw web-identity subject must be fingerprinted.
+	// assertAbsent fails if raw appears in any payload value (recursively),
+	// proving the field was fingerprinted rather than echoed cleartext.
 	assertAbsent := func(t *testing.T, name string, env facts.Envelope, raw string) {
 		t.Helper()
 		for key, val := range env.Payload {
@@ -289,29 +297,39 @@ func TestBuildersFingerprintRawSensitiveValues(t *testing.T) {
 			}
 		}
 	}
+
 	// The Vault builders fingerprint their raw inputs in-package (unlike the AWS
 	// builders, which intentionally retain ARNs/names for graph joins), so the
-	// raw inputs must never survive cleartext.
-	// Vault ACL policy: policy name and rule path are fingerprinted.
-	for _, raw := range []string{"payments-read", "secret/metadata/payments"} {
-		assertAbsent(t, "vault_acl_policy", cases["vault_acl_policy"], raw)
+	// raw inputs must never survive cleartext. Canaries are distinctive and
+	// non-hex so they cannot collide with cleartext enums or sha256 fingerprint
+	// hex.
+	checks := map[string][]string{
+		// policy name, rule path.
+		"vault_acl_policy": {"payments-read", "secret/metadata/payments"},
+		// mount path, key path, custom-metadata key name.
+		"vault_kv_metadata": {"secret/", "payments/db", "owner"},
+		// role name and bound ServiceAccount selectors.
+		"vault_auth_role": {"rolename-canary", "saname-canary", "sans-canary", "policyname-canary"},
+		// mount accessor is fingerprinted (mount_accessor_fingerprint).
+		"vault_auth_mount":          {"accessor-canary"},
+		"vault_identity_alias":      {"accessor-canary"},
+		"vault_secret_engine_mount": {"accessor-canary"},
+		// coverage-warning attribute keys are fingerprinted and values dropped,
+		// so neither the secret-shaped key nor its value may survive cleartext.
+		"vault_coverage_warning": {"access_token-canary", "tokenvalue-canary"},
 	}
-	// Vault KV metadata: mount path, key path, and custom-metadata key names.
-	for _, raw := range []string{"secret/", "payments/db", "owner"} {
-		assertAbsent(t, "vault_kv_metadata", cases["vault_kv_metadata"], raw)
-	}
-	// Vault auth role: role name and bound ServiceAccount selectors are
-	// fingerprinted/join-keyed; distinctive canaries avoid colliding with the
-	// legitimately-cleartext vault_cluster_id.
-	for _, raw := range []string{"rolename-canary", "saname-canary", "sans-canary", "policyname-canary"} {
-		assertAbsent(t, "vault_auth_role", cases["vault_auth_role"], raw)
+	for name, raws := range checks {
+		for _, raw := range raws {
+			assertAbsent(t, name, cases[name], raw)
+		}
 	}
 }
 
 // TestEveryEnvelopeBuilderIsCovered parses the package source and fails if the
-// leakage guard's builder-cases map does not cover every exported
-// New<Kind>Envelope function. This is the meta-guard that keeps the leak test
-// from silently developing a blind spot when a new fact family is added.
+// leakage guard does not call every exported New<Kind>Envelope function (or
+// calls one that no longer exists). It compares identifier SETS, not counts, so
+// a builder covered twice cannot mask another builder being missing — the
+// blind-spot the meta-guard exists to prevent.
 func TestEveryEnvelopeBuilderIsCovered(t *testing.T) {
 	t.Parallel()
 
@@ -321,29 +339,52 @@ func TestEveryEnvelopeBuilderIsCovered(t *testing.T) {
 	}
 
 	fset := token.NewFileSet()
-	var builders []string
+	exported := map[string]bool{} // declared in non-test package files
+	covered := map[string]bool{}  // actually called by this leak guard
+	isBuilderName := func(s string) bool {
+		return strings.HasPrefix(s, "New") && strings.HasSuffix(s, "Envelope")
+	}
 	for _, entry := range entries {
 		name := entry.Name()
-		if !strings.HasSuffix(name, ".go") || strings.HasSuffix(name, "_test.go") {
+		if !strings.HasSuffix(name, ".go") {
 			continue
 		}
 		file, err := parser.ParseFile(fset, name, nil, 0)
 		if err != nil {
 			t.Fatalf("parse %s: %v", name, err)
 		}
-		for _, decl := range file.Decls {
-			fn, ok := decl.(*ast.FuncDecl)
-			if !ok || fn.Recv != nil || !fn.Name.IsExported() {
-				continue
+		if !strings.HasSuffix(name, "_test.go") {
+			for _, decl := range file.Decls {
+				fn, ok := decl.(*ast.FuncDecl)
+				if ok && fn.Recv == nil && fn.Name.IsExported() && isBuilderName(fn.Name.Name) {
+					exported[fn.Name.Name] = true
+				}
 			}
-			if strings.HasPrefix(fn.Name.Name, "New") && strings.HasSuffix(fn.Name.Name, "Envelope") {
-				builders = append(builders, fn.Name.Name)
-			}
+			continue
+		}
+		if name == "leakage_test.go" {
+			ast.Inspect(file, func(n ast.Node) bool {
+				call, ok := n.(*ast.CallExpr)
+				if !ok {
+					return true
+				}
+				if id, ok := call.Fun.(*ast.Ident); ok && isBuilderName(id.Name) {
+					covered[id.Name] = true
+				}
+				return true
+			})
 		}
 	}
 
-	if got, want := len(secretsIAMBuilderCases(t)), len(builders); got != want {
-		t.Fatalf("leakage guard covers %d builders but the package exports %d (%v); add a case for each New*Envelope", got, want, builders)
+	for builder := range exported {
+		if !covered[builder] {
+			t.Errorf("leakage guard never calls exported builder %s; add a case", builder)
+		}
+	}
+	for builder := range covered {
+		if !exported[builder] {
+			t.Errorf("leakage guard calls %s which is not an exported package builder", builder)
+		}
 	}
 }
 
