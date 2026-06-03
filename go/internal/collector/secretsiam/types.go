@@ -25,6 +25,10 @@ const (
 	PolicySourceAttachedManaged = "attached_managed"
 	// PolicySourceTrust marks a statement from an IAM role trust policy.
 	PolicySourceTrust = "trust"
+	// PolicySourcePermissionBoundary marks a statement from a managed policy
+	// attached as a permissions boundary. It is a ceiling on identity grants, not
+	// an attached managed identity-policy grant.
+	PolicySourcePermissionBoundary = "permission_boundary"
 
 	// SourceStateUnsupported marks evidence the collector cannot observe in the
 	// current runtime slice.

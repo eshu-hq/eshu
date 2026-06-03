@@ -49,6 +49,8 @@ See `doc.go` for the godoc contract.
 - `TrustPrincipal` - normalized principal from a role trust policy.
 - `PolicyStatement` - normalized, metadata-only IAM policy statement (effect,
   action set, resource pattern, condition-key summary; no raw JSON or values).
+  `Source` distinguishes inline, attached managed, trust, and
+  permissions-boundary policy documents.
 
 ## Dependencies
 
@@ -72,8 +74,9 @@ No-Regression Evidence: The #1310 IAM source-fact expansion is covered by
 
 Observability Evidence: The scanner remains inside the existing
 `collector-aws-cloud` runtime boundary. The SDK adapter records the new
-`GetRole`, `GetUser`, `ListOpenIDConnectProviders`, and
-`GetOpenIDConnectProvider` reads through `recordAPICall`, so operators can use
+`GetRole`, `GetUser`, permission-boundary `GetPolicy`/`GetPolicyVersion`,
+`ListOpenIDConnectProviders`, and `GetOpenIDConnectProvider` reads through
+`recordAPICall`, so operators can use
 scanner status, commit status, `eshu_dp_aws_scan_duration_seconds`,
 `eshu_dp_aws_api_calls_total`, and `eshu_dp_aws_throttle_total` without adding
 high-cardinality IAM ARN, policy JSON, OIDC URL, client ID, thumbprint,

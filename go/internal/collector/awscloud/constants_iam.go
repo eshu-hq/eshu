@@ -30,6 +30,10 @@ const (
 	// IAMPolicySourceTrust marks a derived permission from a role trust /
 	// assume-role policy document.
 	IAMPolicySourceTrust = "trust"
+	// IAMPolicySourcePermissionBoundary marks a derived permission from a managed
+	// policy attached as a permissions boundary. It is a ceiling, not an identity
+	// grant source.
+	IAMPolicySourcePermissionBoundary = "permission_boundary"
 )
 
 const (

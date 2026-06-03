@@ -101,6 +101,13 @@ func TestScannerEmitsDerivedPermissionFacts(t *testing.T) {
 					Actions:   []string{"*"},
 					Resources: []string{"*"},
 				},
+				{
+					Source:    PolicySourcePermissionBoundary,
+					PolicyARN: "arn:aws:iam::123456789012:policy/developer-boundary",
+					Effect:    "Allow",
+					Actions:   []string{"s3:GetObject"},
+					Resources: []string{"arn:aws:s3:::prod-data-bucket"},
+				},
 			},
 		}},
 		users: []User{{
@@ -122,8 +129,8 @@ func TestScannerEmitsDerivedPermissionFacts(t *testing.T) {
 	}
 
 	counts := factKindCounts(envelopes)
-	if counts[facts.AWSIAMPermissionFactKind] != 4 {
-		t.Fatalf("aws_iam_permission count = %d, want 4", counts[facts.AWSIAMPermissionFactKind])
+	if counts[facts.AWSIAMPermissionFactKind] != 5 {
+		t.Fatalf("aws_iam_permission count = %d, want 5", counts[facts.AWSIAMPermissionFactKind])
 	}
 
 	// The user resource and its permission fact are emitted; the user principal
@@ -134,6 +141,7 @@ func TestScannerEmitsDerivedPermissionFacts(t *testing.T) {
 
 	assertPermissionPresent(t, envelopes, "arn:aws:iam::123456789012:role/eshu-runtime", awscloud.IAMPolicySourceTrust, "sts:assumerole")
 	assertPermissionPresent(t, envelopes, "arn:aws:iam::123456789012:role/eshu-runtime", awscloud.IAMPolicySourceInline, "iam:passrole")
+	assertPermissionPresent(t, envelopes, "arn:aws:iam::123456789012:role/eshu-runtime", awscloud.IAMPolicySourcePermissionBoundary, "s3:getobject")
 	assertPermissionPresent(t, envelopes, "arn:aws:iam::123456789012:user/breakglass", awscloud.IAMPolicySourceInline, "iam:attachuserpolicy")
 
 	assertNoRawPolicyJSON(t, envelopes)
@@ -182,6 +190,13 @@ func TestScannerEmitsSecretsIAMPostureSourceFacts(t *testing.T) {
 				{
 					Source:    PolicySourceAttachedManaged,
 					PolicyARN: "arn:aws:iam::123456789012:policy/eshu-read",
+					Effect:    "Allow",
+					Actions:   []string{"s3:GetObject"},
+					Resources: []string{"arn:aws:s3:::example/*"},
+				},
+				{
+					Source:    PolicySourcePermissionBoundary,
+					PolicyARN: "arn:aws:iam::123456789012:policy/developer-boundary",
 					Effect:    "Allow",
 					Actions:   []string{"s3:GetObject"},
 					Resources: []string{"arn:aws:s3:::example/*"},
@@ -240,7 +255,7 @@ func TestScannerEmitsSecretsIAMPostureSourceFacts(t *testing.T) {
 	wantCounts := map[string]int{
 		facts.AWSIAMPrincipalFactKind:           3,
 		facts.AWSIAMTrustPolicyFactKind:         1,
-		facts.AWSIAMPermissionPolicyFactKind:    3,
+		facts.AWSIAMPermissionPolicyFactKind:    4,
 		facts.AWSIAMPolicyAttachmentFactKind:    2,
 		facts.AWSIAMPermissionBoundaryFactKind:  2,
 		facts.AWSIAMInstanceProfileFactKind:     1,

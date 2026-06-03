@@ -13,6 +13,10 @@ const (
 	PolicySourceAttachedManaged = "attached_managed"
 	// PolicySourceTrust marks a statement from a role trust / assume-role policy.
 	PolicySourceTrust = "trust"
+	// PolicySourcePermissionBoundary marks a statement from a managed policy
+	// attached as a permissions boundary. It is a ceiling on identity grants, not
+	// an attached managed identity-policy grant.
+	PolicySourcePermissionBoundary = "permission_boundary"
 )
 
 // Role is the scanner-owned representation of an IAM role.
@@ -26,9 +30,9 @@ type Role struct {
 	AttachedPolicyARNs []string
 	InlinePolicyNames  []string
 	// PermissionStatements are the normalized, metadata-only statements derived
-	// from this role's trust, inline, and attached managed policy documents. The
-	// adapter normalizes them at the SDK boundary; this package never holds the
-	// raw policy JSON.
+	// from this role's trust, inline, attached managed, and permission-boundary
+	// policy documents. The adapter normalizes them at the SDK boundary; this
+	// package never holds the raw policy JSON.
 	PermissionStatements []PolicyStatement
 }
 
@@ -41,7 +45,8 @@ type User struct {
 	AttachedPolicyARNs []string
 	InlinePolicyNames  []string
 	// PermissionStatements are the normalized, metadata-only statements derived
-	// from this user's inline and attached managed policy documents.
+	// from this user's inline, attached managed, and permission-boundary policy
+	// documents.
 	PermissionStatements []PolicyStatement
 }
 

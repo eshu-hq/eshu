@@ -26,6 +26,9 @@ See `doc.go` for the godoc contract.
   `NewPermissionBoundaryEnvelope`, `NewInstanceProfileEnvelope`,
   `NewAccessAnalyzerFindingEnvelope`, and `NewCoverageWarningEnvelope` build
   AWS IAM source facts in the `facts.SecretsIAMSchemaVersionV1` schema.
+  Permission-policy facts accept inline, attached managed, and
+  permissions-boundary policy sources; trust policies use the dedicated trust
+  envelope.
 - `NewKubernetesServiceAccountEnvelope`,
   `NewKubernetesServiceAccountTokenPostureEnvelope`,
   `NewKubernetesRBACRoleEnvelope`, `NewKubernetesRBACBindingEnvelope`,

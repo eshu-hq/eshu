@@ -143,6 +143,7 @@ func addIAMCanPerformResourcePolicyEdges(
 			allow.action,
 			allow.mode,
 			iamCanPerformGrantSourceResourcePolicy,
+			false,
 		)
 	}
 }

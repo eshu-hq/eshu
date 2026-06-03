@@ -67,14 +67,15 @@ var iamCanPerformGateKeyspaces = []GraphProjectionKeyspace{
 
 // IAMCanPerformMaterializationHandler reduces one IAM CAN_PERFORM follow-up into
 // the CAN_PERFORM graph. It gates on the cloud_resource_uid canonical-nodes phase,
-// loads the scope generation's aws_resource, aws_iam_permission, and
-// aws_resource_policy_permission facts, resolves trusted-Allow identity statements
-// and exact resource-policy grantees against the closed CAN_PERFORM catalog
-// through a bounded in-memory ARN join index (no per-edge graph round trip),
-// writes the resolved edges, and counts skipped evaluations instead of dropping
-// them silently. Every edge carries grant_sources and an evaluation_scope honesty
-// label that distinguishes identity-policy, resource-policy, and both-source
-// grants.
+// loads the scope generation's aws_resource, aws_iam_permission,
+// aws_iam_permission_boundary, and aws_resource_policy_permission facts, resolves
+// trusted-Allow identity statements and exact resource-policy grantees against
+// the closed CAN_PERFORM catalog through a bounded in-memory ARN join index (no
+// per-edge graph round trip), intersects identity grants with permissions-boundary
+// evidence when present, writes the resolved edges, and counts skipped
+// evaluations instead of dropping them silently. Every edge carries grant_sources
+// and an evaluation_scope honesty label that distinguishes identity-policy,
+// boundary-evaluated identity-policy, resource-policy, and both-source grants.
 type IAMCanPerformMaterializationHandler struct {
 	FactLoader FactLoader
 	Writer     IAMCanPerformEdgeWriter
@@ -139,17 +140,24 @@ func (h IAMCanPerformMaterializationHandler) Handle(
 		h.FactLoader,
 		intent.ScopeID,
 		intent.GenerationID,
-		[]string{facts.AWSResourceFactKind, facts.AWSIAMPermissionFactKind, facts.AWSResourcePolicyPermissionFactKind},
+		[]string{
+			facts.AWSResourceFactKind,
+			facts.AWSIAMPermissionFactKind,
+			facts.AWSIAMPermissionBoundaryFactKind,
+			facts.AWSResourcePolicyPermissionFactKind,
+		},
 	)
 	if err != nil {
 		return Result{}, fmt.Errorf("load facts for iam can_perform materialization: %w", err)
 	}
 	loadDuration := time.Since(loadStart)
 
-	resourceEnvelopes, permissionEnvelopes, resourcePolicyEnvelopes := splitIAMCanPerformEnvelopes(envelopes)
+	resourceEnvelopes, permissionEnvelopes, permissionBoundaryEnvelopes, resourcePolicyEnvelopes := splitIAMCanPerformEnvelopes(envelopes)
+	permissionInputs := append([]facts.Envelope{}, permissionEnvelopes...)
+	permissionInputs = append(permissionInputs, permissionBoundaryEnvelopes...)
 
 	extractStart := time.Now()
-	result := ExtractIAMCanPerformEdges(resourceEnvelopes, permissionEnvelopes, resourcePolicyEnvelopes)
+	result := ExtractIAMCanPerformEdges(resourceEnvelopes, permissionInputs, resourcePolicyEnvelopes)
 	extractDuration := time.Since(extractStart)
 
 	skipRetract, err := h.shouldSkipRetract(ctx, intent)
@@ -180,18 +188,19 @@ func (h IAMCanPerformMaterializationHandler) Handle(
 
 	h.recordTally(ctx, result)
 	logIAMCanPerformCompleted(ctx, iamCanPerformTiming{
-		intent:              intent,
-		resourceCount:       len(resourceEnvelopes),
-		permissionCount:     len(permissionEnvelopes),
-		resourcePolicyCount: len(resourcePolicyEnvelopes),
-		edgeCount:           len(result.Edges),
-		tally:               result.Tally,
-		skipRetract:         skipRetract,
-		loadDuration:        loadDuration,
-		extractDuration:     extractDuration,
-		retractDuration:     retractDuration,
-		writeDuration:       writeDuration,
-		totalDuration:       time.Since(totalStart),
+		intent:                  intent,
+		resourceCount:           len(resourceEnvelopes),
+		permissionCount:         len(permissionEnvelopes),
+		permissionBoundaryCount: len(permissionBoundaryEnvelopes),
+		resourcePolicyCount:     len(resourcePolicyEnvelopes),
+		edgeCount:               len(result.Edges),
+		tally:                   result.Tally,
+		skipRetract:             skipRetract,
+		loadDuration:            loadDuration,
+		extractDuration:         extractDuration,
+		retractDuration:         retractDuration,
+		writeDuration:           writeDuration,
+		totalDuration:           time.Since(totalStart),
 	})
 
 	return Result{
@@ -199,9 +208,10 @@ func (h IAMCanPerformMaterializationHandler) Handle(
 		Domain:   DomainIAMCanPerformMaterialization,
 		Status:   ResultStatusSucceeded,
 		EvidenceSummary: fmt.Sprintf(
-			"materialized %d CAN_PERFORM edge(s) from %d iam permission fact(s) and %d resource policy permission fact(s); %d skipped",
+			"materialized %d CAN_PERFORM edge(s) from %d iam permission fact(s), %d permission boundary fact(s), and %d resource policy permission fact(s); %d skipped",
 			len(result.Edges),
 			len(permissionEnvelopes),
+			len(permissionBoundaryEnvelopes),
 			len(resourcePolicyEnvelopes),
 			result.Tally.total(),
 		),
@@ -268,6 +278,7 @@ func (h IAMCanPerformMaterializationHandler) recordTally(ctx context.Context, re
 	h.recordSkip(ctx, iamCanPerformSkipConditioned, result.Tally.skippedConditioned)
 	h.recordSkip(ctx, iamCanPerformSkipNotActionResource, result.Tally.skippedNotActionResource)
 	h.recordSkip(ctx, iamCanPerformSkipSelfLoop, result.Tally.skippedSelfLoop)
+	h.recordSkip(ctx, iamCanPerformSkipPermissionBoundary, result.Tally.skippedPermissionBoundary)
 }
 
 // recordEdgeMode emits one resolution_mode edge data point. A zero count is still
@@ -286,21 +297,23 @@ func (h IAMCanPerformMaterializationHandler) recordSkip(ctx context.Context, rea
 	))
 }
 
-// splitIAMCanPerformEnvelopes partitions a mixed envelope slice into resource and
-// iam-permission facts in one pass so the join index and the permission facts are
-// built from a single bounded load.
-func splitIAMCanPerformEnvelopes(envelopes []facts.Envelope) (resources, permissions, resourcePolicies []facts.Envelope) {
+// splitIAMCanPerformEnvelopes partitions a mixed envelope slice in one pass so
+// the join index, identity/boundary permission facts, boundary attachment facts,
+// and resource-policy facts are built from a single bounded load.
+func splitIAMCanPerformEnvelopes(envelopes []facts.Envelope) (resources, permissions, permissionBoundaries, resourcePolicies []facts.Envelope) {
 	for _, env := range envelopes {
 		switch env.FactKind {
 		case facts.AWSResourceFactKind:
 			resources = append(resources, env)
 		case facts.AWSIAMPermissionFactKind:
 			permissions = append(permissions, env)
+		case facts.AWSIAMPermissionBoundaryFactKind:
+			permissionBoundaries = append(permissionBoundaries, env)
 		case facts.AWSResourcePolicyPermissionFactKind:
 			resourcePolicies = append(resourcePolicies, env)
 		}
 	}
-	return resources, permissions, resourcePolicies
+	return resources, permissions, permissionBoundaries, resourcePolicies
 }
 
 // iamCanPerformNotReadyError marks a readiness-gate miss as retryable so the
@@ -329,18 +342,19 @@ func (iamCanPerformNotReadyError) FailureClass() string {
 // completion log identifies fact-load, extraction, retract, and graph-write time,
 // plus why catalog-action evaluations lost edges.
 type iamCanPerformTiming struct {
-	intent              Intent
-	resourceCount       int
-	permissionCount     int
-	resourcePolicyCount int
-	edgeCount           int
-	tally               iamCanPerformTally
-	skipRetract         bool
-	loadDuration        time.Duration
-	extractDuration     time.Duration
-	retractDuration     time.Duration
-	writeDuration       time.Duration
-	totalDuration       time.Duration
+	intent                  Intent
+	resourceCount           int
+	permissionCount         int
+	permissionBoundaryCount int
+	resourcePolicyCount     int
+	edgeCount               int
+	tally                   iamCanPerformTally
+	skipRetract             bool
+	loadDuration            time.Duration
+	extractDuration         time.Duration
+	retractDuration         time.Duration
+	writeDuration           time.Duration
+	totalDuration           time.Duration
 }
 
 func logIAMCanPerformCompleted(ctx context.Context, timing iamCanPerformTiming) {
@@ -350,6 +364,7 @@ func logIAMCanPerformCompleted(ctx context.Context, timing iamCanPerformTiming) 
 		slog.String(telemetry.LogKeyDomain, string(timing.intent.Domain)),
 		slog.Int("resource_fact_count", timing.resourceCount),
 		slog.Int("iam_permission_fact_count", timing.permissionCount),
+		slog.Int("permission_boundary_fact_count", timing.permissionBoundaryCount),
 		slog.Int("resource_policy_permission_fact_count", timing.resourcePolicyCount),
 		slog.Int("can_perform_edge_count", timing.edgeCount),
 		slog.Int("skipped_uncatalogued_action", timing.tally.skippedUncatalogued),
@@ -359,6 +374,7 @@ func logIAMCanPerformCompleted(ctx context.Context, timing iamCanPerformTiming) 
 		slog.Int("skipped_conditioned", timing.tally.skippedConditioned),
 		slog.Int("skipped_not_action_resource", timing.tally.skippedNotActionResource),
 		slog.Int("skipped_self_loop", timing.tally.skippedSelfLoop),
+		slog.Int("skipped_permission_boundary", timing.tally.skippedPermissionBoundary),
 		slog.Bool("skip_retract", timing.skipRetract),
 		slog.Float64("load_facts_duration_seconds", timing.loadDuration.Seconds()),
 		slog.Float64("extract_duration_seconds", timing.extractDuration.Seconds()),
