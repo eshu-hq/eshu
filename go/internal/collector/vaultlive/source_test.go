@@ -2,6 +2,7 @@ package vaultlive
 
 import (
 	"context"
+	"errors"
 	"reflect"
 	"strings"
 	"testing"
@@ -294,5 +295,64 @@ func TestClientSurfaceIsMetadataOnly(t *testing.T) {
 				t.Fatalf("Client exposes value-reading method %q (contains %q); the lane must stay metadata-only", clientType.Method(i).Name, bad)
 			}
 		}
+	}
+}
+
+// aclFailClient errors only on ListACLPolicies to exercise per-family resilience.
+type aclFailClient struct{ *fakeVaultClient }
+
+func (c aclFailClient) ListACLPolicies(context.Context) ([]ACLPolicy, error) {
+	return nil, errors.New("permission denied reading /sys/policies/acl at https://vault.example.com")
+}
+
+func TestCollectIsResilientToOneFamilyFailure(t *testing.T) {
+	t.Parallel()
+
+	base := &fakeVaultClient{authMounts: []AuthMount{{Path: "kubernetes/", Accessor: "acc", Method: "kubernetes"}}}
+	envelopes, err := Source{CollectorInstanceID: "vaultlive-1"}.Collect(context.Background(), testTarget(), aclFailClient{base})
+	if err != nil {
+		t.Fatalf("Collect() error = %v, want nil (one family failure must not fail the generation)", err)
+	}
+
+	var sawAuthMount, sawWarning bool
+	for _, env := range envelopes {
+		switch env.FactKind {
+		case facts.VaultAuthMountFactKind:
+			sawAuthMount = true
+		case facts.SecretsIAMCoverageWarningFactKind:
+			sawWarning = true
+			if got := payloadStringValue(env.Payload, "resource_scope"); got != vaultFamilyACLPolicies {
+				t.Fatalf("coverage warning resource_scope = %q, want %q", got, vaultFamilyACLPolicies)
+			}
+		}
+		// The raw Vault error (path + address) must never reach the fact.
+		for key, val := range env.Payload {
+			if s, ok := val.(string); ok && (strings.Contains(s, "/sys/policies/acl") || strings.Contains(s, "vault.example.com")) {
+				t.Fatalf("payload[%q] = %q leaks the raw Vault error", key, s)
+			}
+		}
+	}
+	if !sawAuthMount {
+		t.Fatal("other families were not collected after the ACL family failed")
+	}
+	if !sawWarning {
+		t.Fatal("no vault_coverage_warning emitted for the failed family")
+	}
+}
+
+type allFailClient struct{ *fakeVaultClient }
+
+func (c allFailClient) ListAuthMounts(ctx context.Context) ([]AuthMount, error) {
+	return nil, ctx.Err()
+}
+
+func TestCollectContextCancellationIsFatal(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	_, err := Source{CollectorInstanceID: "vaultlive-1"}.Collect(ctx, testTarget(), allFailClient{&fakeVaultClient{}})
+	if err == nil {
+		t.Fatal("Collect() error = nil, want fatal on context cancellation")
 	}
 }

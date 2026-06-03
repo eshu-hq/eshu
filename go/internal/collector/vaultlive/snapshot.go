@@ -150,6 +150,14 @@ func (s *SnapshotSource) collectTarget(ctx context.Context, config Config, targe
 				telemetry.AttrSource(secretsIAMSourceVault),
 				telemetry.AttrFactKind(env.FactKind),
 			))
+			// A coverage warning marks a family with partial coverage; the
+			// resource_scope (a bounded family enum) is the partial reason.
+			if env.FactKind == facts.SecretsIAMCoverageWarningFactKind {
+				s.Instruments.SecretsIAMSourcePartialScope.Add(ctx, 1, metric.WithAttributes(
+					telemetry.AttrSource(secretsIAMSourceVault),
+					telemetry.AttrReason(payloadStringValue(env.Payload, "resource_scope")),
+				))
+			}
 		}
 	}
 

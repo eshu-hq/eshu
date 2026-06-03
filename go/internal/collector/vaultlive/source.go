@@ -23,9 +23,12 @@ type Source struct {
 // envelopes for the target scope, covering all seven Vault metadata fact
 // families. It performs no graph writes and never reads a secret value.
 //
-// Collection is fail-fast per family: a read error is wrapped and returned so a
-// partial generation is never silently emitted as if complete. (Per-family
-// partial-coverage warnings are added with the live adapter in #1356.)
+// Collection is per-family resilient: a single family's list failure (for
+// example a permission-scoped read) emits a redacted vault_coverage_warning
+// fact (source_state=partial, resource_scope=<family>) and collection
+// continues, so one denied family does not lose the whole generation. The
+// partial state is therefore explicit in the facts, never silently complete.
+// Context cancellation and a malformed observation (a build error) remain fatal.
 func (s Source) Collect(ctx context.Context, target VaultTarget, client Client) ([]facts.Envelope, error) {
 	if client == nil {
 		return nil, fmt.Errorf("vault client is required")
@@ -36,78 +39,104 @@ func (s Source) Collect(ctx context.Context, target VaultTarget, client Client) 
 	uri := sanitizeVaultSourceURI(target.SourceURI)
 	vaultCtx := s.vaultContext(target, uri)
 	var envelopes []facts.Envelope
+	var err error
 
-	authMounts, err := client.ListAuthMounts(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("list vault auth mounts: %w", err)
-	}
-	if envelopes, err = collectInto(envelopes, "vault auth mount", authMounts, func(m AuthMount) (facts.Envelope, error) {
-		return mapAuthMount(vaultCtx, uri, m)
-	}); err != nil {
+	if envelopes, err = collectFamily(ctx, envelopes, vaultCtx, uri, vaultFamilyAuthMounts,
+		func() ([]AuthMount, error) { return client.ListAuthMounts(ctx) },
+		func(m AuthMount) (facts.Envelope, error) { return mapAuthMount(vaultCtx, uri, m) }); err != nil {
 		return nil, err
 	}
-
-	authRoles, err := client.ListAuthRoles(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("list vault auth roles: %w", err)
-	}
-	if envelopes, err = collectInto(envelopes, "vault auth role", authRoles, func(r AuthRole) (facts.Envelope, error) {
-		return mapAuthRole(vaultCtx, uri, r)
-	}); err != nil {
+	if envelopes, err = collectFamily(ctx, envelopes, vaultCtx, uri, vaultFamilyAuthRoles,
+		func() ([]AuthRole, error) { return client.ListAuthRoles(ctx) },
+		func(r AuthRole) (facts.Envelope, error) { return mapAuthRole(vaultCtx, uri, r) }); err != nil {
 		return nil, err
 	}
-
-	aclPolicies, err := client.ListACLPolicies(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("list vault acl policies: %w", err)
-	}
-	if envelopes, err = collectInto(envelopes, "vault acl policy", aclPolicies, func(p ACLPolicy) (facts.Envelope, error) {
-		return mapACLPolicy(vaultCtx, uri, p)
-	}); err != nil {
+	if envelopes, err = collectFamily(ctx, envelopes, vaultCtx, uri, vaultFamilyACLPolicies,
+		func() ([]ACLPolicy, error) { return client.ListACLPolicies(ctx) },
+		func(p ACLPolicy) (facts.Envelope, error) { return mapACLPolicy(vaultCtx, uri, p) }); err != nil {
 		return nil, err
 	}
-
-	entities, err := client.ListIdentityEntities(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("list vault identity entities: %w", err)
-	}
-	if envelopes, err = collectInto(envelopes, "vault identity entity", entities, func(e IdentityEntity) (facts.Envelope, error) {
-		return mapIdentityEntity(vaultCtx, uri, e)
-	}); err != nil {
+	if envelopes, err = collectFamily(ctx, envelopes, vaultCtx, uri, vaultFamilyIdentityEntities,
+		func() ([]IdentityEntity, error) { return client.ListIdentityEntities(ctx) },
+		func(e IdentityEntity) (facts.Envelope, error) { return mapIdentityEntity(vaultCtx, uri, e) }); err != nil {
 		return nil, err
 	}
-
-	aliases, err := client.ListIdentityAliases(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("list vault identity aliases: %w", err)
-	}
-	if envelopes, err = collectInto(envelopes, "vault identity alias", aliases, func(a IdentityAlias) (facts.Envelope, error) {
-		return mapIdentityAlias(vaultCtx, uri, a)
-	}); err != nil {
+	if envelopes, err = collectFamily(ctx, envelopes, vaultCtx, uri, vaultFamilyIdentityAliases,
+		func() ([]IdentityAlias, error) { return client.ListIdentityAliases(ctx) },
+		func(a IdentityAlias) (facts.Envelope, error) { return mapIdentityAlias(vaultCtx, uri, a) }); err != nil {
 		return nil, err
 	}
-
-	kvMetadata, err := client.ListKVMetadata(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("list vault kv metadata: %w", err)
-	}
-	if envelopes, err = collectInto(envelopes, "vault kv metadata", kvMetadata, func(m KVMetadata) (facts.Envelope, error) {
-		return mapKVMetadata(vaultCtx, uri, m)
-	}); err != nil {
+	if envelopes, err = collectFamily(ctx, envelopes, vaultCtx, uri, vaultFamilyKVMetadata,
+		func() ([]KVMetadata, error) { return client.ListKVMetadata(ctx) },
+		func(m KVMetadata) (facts.Envelope, error) { return mapKVMetadata(vaultCtx, uri, m) }); err != nil {
 		return nil, err
 	}
-
-	engineMounts, err := client.ListSecretEngineMounts(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("list vault secret engine mounts: %w", err)
-	}
-	if envelopes, err = collectInto(envelopes, "vault secret engine mount", engineMounts, func(m SecretEngineMount) (facts.Envelope, error) {
-		return mapSecretEngineMount(vaultCtx, uri, m)
-	}); err != nil {
+	if envelopes, err = collectFamily(ctx, envelopes, vaultCtx, uri, vaultFamilySecretEngineMounts,
+		func() ([]SecretEngineMount, error) { return client.ListSecretEngineMounts(ctx) },
+		func(m SecretEngineMount) (facts.Envelope, error) { return mapSecretEngineMount(vaultCtx, uri, m) }); err != nil {
 		return nil, err
 	}
 
 	return envelopes, nil
+}
+
+// Vault fact-family identifiers. They are the bounded resource_scope / reason
+// labels for coverage warnings and the partial-scope counter — never a path or
+// secret.
+const (
+	vaultFamilyAuthMounts         = "auth_mounts"
+	vaultFamilyAuthRoles          = "auth_roles"
+	vaultFamilyACLPolicies        = "acl_policies"
+	vaultFamilyIdentityEntities   = "identity_entities"
+	vaultFamilyIdentityAliases    = "identity_aliases"
+	vaultFamilyKVMetadata         = "kv_metadata"
+	vaultFamilySecretEngineMounts = "secret_engine_mounts"
+)
+
+// collectFamily lists one Vault fact family and maps it to envelopes. A list
+// error emits a redacted vault_coverage_warning (resource_scope=family) and
+// returns it instead of failing the whole generation, except for context
+// cancellation, which is fatal. A build (mapping) error is fatal — it signals a
+// malformed observation, not a source-coverage gap.
+func collectFamily[T any](
+	ctx context.Context,
+	dst []facts.Envelope,
+	vaultCtx secretsiam.VaultContext,
+	uri string,
+	family string,
+	list func() ([]T, error),
+	build func(T) (facts.Envelope, error),
+) ([]facts.Envelope, error) {
+	items, err := list()
+	if err != nil {
+		if ctx.Err() != nil {
+			return nil, fmt.Errorf("list vault %s: %w", family, ctx.Err())
+		}
+		warning, werr := secretsiam.NewVaultCoverageWarningEnvelope(secretsiam.VaultCoverageWarningObservation{
+			Context:       vaultCtx,
+			WarningKind:   "partial_family",
+			SourceState:   secretsiam.SourceStatePartial,
+			ResourceScope: family,
+			ErrorClass:    "list_failed",
+			SourceURI:     uri,
+			// Message is intentionally omitted: a raw Vault error can carry the
+			// path or address, so only the bounded family/class is recorded.
+		})
+		if werr != nil {
+			return nil, fmt.Errorf("build vault %s coverage warning: %w", family, werr)
+		}
+		return append(dst, warning), nil
+	}
+	return collectInto(dst, family, items, build)
+}
+
+// payloadStringValue reads a string fact-payload field, returning "" when
+// absent or not a string.
+func payloadStringValue(payload map[string]any, key string) string {
+	if v, ok := payload[key].(string); ok {
+		return v
+	}
+	return ""
 }
 
 // collectInto builds one envelope per item via build and appends it to dst,

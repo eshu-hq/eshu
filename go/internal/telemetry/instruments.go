@@ -76,6 +76,7 @@ type Instruments struct {
 	KubernetesLiveWarnings                    metric.Int64Counter
 	SecretsIAMSourceAPICalls                  metric.Int64Counter
 	SecretsIAMSourceFactsEmitted              metric.Int64Counter
+	SecretsIAMSourcePartialScope              metric.Int64Counter
 	PackageRegistryRequests                   metric.Int64Counter
 	PackageRegistryFactsEmitted               metric.Int64Counter
 	PackageRegistryRateLimited                metric.Int64Counter
@@ -920,6 +921,14 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register SecretsIAMSourceFactsEmitted counter: %w", err)
+	}
+
+	inst.SecretsIAMSourcePartialScope, err = meter.Int64Counter(
+		"eshu_dp_secrets_iam_partial_scope_total",
+		metric.WithDescription("Total secrets/IAM source families with partial coverage by source and reason"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register SecretsIAMSourcePartialScope counter: %w", err)
 	}
 
 	inst.PackageRegistryRequests, err = meter.Int64Counter(

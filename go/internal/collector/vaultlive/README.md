@@ -40,7 +40,12 @@ Maps all seven Vault metadata fact families (`vault_auth_mount`,
 `vault_auth_role`, `vault_acl_policy`, `vault_identity_entity`,
 `vault_identity_alias`, `vault_kv_metadata`, `vault_secret_engine_mount`) from a
 read-only `Client` through the `secretsiam` envelope builders. Collection is
-fail-fast per family so a partial generation is never emitted as if complete.
+per-family resilient: a single family's list failure (for example a
+permission-scoped read) emits a redacted `vault_coverage_warning` fact
+(`source_state=partial`, `resource_scope=<family>`) and collection continues, so
+one denied family never loses the whole generation — the partial state is
+explicit in the facts, never silently complete. Context cancellation and a
+malformed observation remain fatal.
 
 `SnapshotSource` (`snapshot.go`) is the runtime driver: it implements
 `collector.Source.Next`, yielding one snapshot generation per configured Vault
@@ -51,23 +56,25 @@ deterministic per-target scope/generation id. The live `vaultapi` client (a
 `collector.Service` commit boundary.
 
 Source telemetry: the lane emits `eshu_dp_secrets_iam_source_facts_emitted_total`
-`{source="vault",fact_kind}` (per emitted fact family) and, via the `vaultapi`
-client's `OnAPICall` hook wired in the collector binary,
+`{source="vault",fact_kind}` (per emitted fact family),
 `eshu_dp_secrets_iam_source_api_calls_total{source="vault",operation,result}`
-(per Vault list operation and outcome). These complement the shared
-`collector_kind="vault_live"` facts-emitted/commit/duration metrics and the
-`vault_live.snapshot` span.
+(per Vault list operation and outcome, via the `vaultapi` `OnAPICall` hook), and
+`eshu_dp_secrets_iam_partial_scope_total{source="vault",reason}` (per family with
+partial coverage, where `reason` is the bounded family name). These complement
+the shared `collector_kind="vault_live"` facts-emitted/commit/duration metrics
+and the `vault_live.snapshot` span.
 
-Remaining under #1356: the `redactions_total` / `partial_scope_total` /
-`scope_freshness_seconds` source counters (these need redaction-level and
-partial-coverage modeling that the fail-fast lane does not yet produce) and
-validation against a live/dev Vault.
+Remaining under #1356: the `redactions_total` and `scope_freshness_seconds`
+source counters (redactions belong at the `redact`/builder layer; freshness is a
+status-surface gauge, not a collector hot-path counter) and validation against a
+live/dev Vault.
 
 ## Evidence
 
 No-Regression Evidence: the package is a read-only mapping lane plus a serial
-snapshot driver. The mapping (`Source.Collect`) is single-pass and fail-fast per
-family with `slices.Grow` pre-sizing; `SnapshotSource` is driven serially by
+snapshot driver. The mapping (`Source.Collect`) is single-pass and per-family
+resilient (a family list error becomes a coverage-warning fact, not a generation
+failure) with `slices.Grow` pre-sizing; `SnapshotSource` is driven serially by
 `collector.Service.Next` (one generation per target, the per-target scope id as
 the durable conflict domain) and reuses the shared `collector.Service` commit
 boundary unchanged. It issues no Cypher, performs no graph or canonical writes,
@@ -91,7 +98,10 @@ asserted by `TestAdapterReportsAPICallObservations`). All metric labels are
 bounded enums — no path, token, ARN, or address. These complement the shared
 `collector.Service` metrics labeled `collector_kind="vault_live"`
 (`eshu_dp_facts_emitted_total`, `eshu_dp_facts_committed_total`, the collector
-observe duration) and the `vault_live.snapshot` span. The remaining
-`redactions_total` / `partial_scope_total` / `scope_freshness_seconds` counters
-are a tracked #1356 follow-up (they need redaction-level and partial-coverage
-modeling the fail-fast lane does not yet produce).
+observe duration) and the `vault_live.snapshot` span. It also emits
+`eshu_dp_secrets_iam_partial_scope_total{source="vault",reason}` from the
+per-family coverage warnings (`reason` = bounded family name), asserted by
+`TestCollectIsResilientToOneFamilyFailure`. The remaining `redactions_total` and
+`scope_freshness_seconds` counters are a tracked follow-up (redactions belong at
+the `redact`/builder layer; freshness is a status-surface gauge, not a
+collector hot-path counter).
