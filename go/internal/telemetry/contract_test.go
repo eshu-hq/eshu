@@ -149,6 +149,7 @@ func TestSpanNames(t *testing.T) {
 		"query.secrets_iam_privilege_posture_observations",
 		"query.secrets_iam_secret_access_paths",
 		"query.secrets_iam_posture_gaps",
+		"query.secrets_iam_posture_summary",
 		"query.container_image_identities",
 		"query.supply_chain_security_alerts",
 		"query.sbom_attestation_attachments",

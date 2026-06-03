@@ -24,6 +24,7 @@ type SecretsIAMHandler struct {
 	PrivilegePostureObservations SecretsIAMPrivilegePostureObservationStore
 	SecretAccessPaths            SecretsIAMSecretAccessPathStore
 	PostureGaps                  SecretsIAMPostureGapStore
+	Summary                      SecretsIAMPostureSummaryStore
 	Profile                      QueryProfile
 }
 
@@ -54,6 +55,7 @@ func (h *SecretsIAMHandler) Mount(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/v0/secrets-iam/privilege-posture-observations", h.listPrivilegePostureObservations)
 	mux.HandleFunc("GET /api/v0/secrets-iam/secret-access-paths", h.listSecretAccessPaths)
 	mux.HandleFunc("GET /api/v0/secrets-iam/posture-gaps", h.listPostureGaps)
+	mux.HandleFunc("GET /api/v0/secrets-iam/posture-summary", h.summary)
 }
 
 func (h *SecretsIAMHandler) profile() QueryProfile {

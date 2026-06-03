@@ -98,5 +98,16 @@ func secretsIAMTools() []ToolDefinition {
 				},
 			},
 		},
+		{
+			Name:        "count_secrets_iam_posture",
+			Description: "Summarize reducer-owned secrets/IAM posture for one scope as provenance-only grouped counts: identity trust chains by state, privilege posture observations by risk type and severity, secret access paths by state, and posture gaps by gap type. Returns counts only — no fingerprints, paths, or evidence. Requires scope_id.",
+			InputSchema: map[string]any{
+				"type":     "object",
+				"required": []string{"scope_id"},
+				"properties": map[string]any{
+					"scope_id": map[string]any{"type": "string", "description": "Reducer scope ID to summarize."},
+				},
+			},
+		},
 	}
 }

@@ -244,6 +244,7 @@ func newRouter(
 			PrivilegePostureObservations: query.NewPostgresSecretsIAMPrivilegePostureObservationStore(db),
 			SecretAccessPaths:            query.NewPostgresSecretsIAMSecretAccessPathStore(db),
 			PostureGaps:                  query.NewPostgresSecretsIAMPostureGapStore(db),
+			Summary:                      query.NewPostgresSecretsIAMPostureSummaryStore(db),
 			Profile:                      queryProfile,
 		},
 		ObservabilityCoverage: &query.ObservabilityCoverageHandler{

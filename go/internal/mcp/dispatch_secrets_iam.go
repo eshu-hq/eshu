@@ -46,6 +46,14 @@ func secretsIAMSecretAccessPathsRoute(args map[string]any) *route {
 	}}
 }
 
+// secretsIAMPostureSummaryRoute maps the count_secrets_iam_posture tool to the
+// bounded scope-anchored summary route.
+func secretsIAMPostureSummaryRoute(args map[string]any) *route {
+	return &route{method: "GET", path: "/api/v0/secrets-iam/posture-summary", query: map[string]string{
+		"scope_id": str(args, "scope_id"),
+	}}
+}
+
 // secretsIAMPostureGapsRoute maps the list_secrets_iam_posture_gaps tool to its
 // bounded route.
 func secretsIAMPostureGapsRoute(args map[string]any) *route {

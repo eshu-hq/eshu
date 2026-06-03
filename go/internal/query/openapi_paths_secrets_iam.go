@@ -1,6 +1,36 @@
 package query
 
 const openAPIPathsSecretsIAM = `
+    "/api/v0/secrets-iam/posture-summary": {
+      "get": {
+        "tags": ["secrets-iam"],
+        "summary": "Summarize secrets/IAM posture for a scope",
+        "description": "Returns a bounded, scope-anchored rollup of the secrets/IAM reducer read models as provenance-only grouped counts: identity trust chains by state, privilege posture observations by risk type and severity, secret access paths by state, and posture gaps by gap type. No fingerprints, paths, or evidence are exposed.",
+        "operationId": "summarizeSecretsIAMPosture",
+        "parameters": [
+          {"name": "scope_id", "in": "query", "required": true, "schema": {"type": "string"}, "description": "Reducer scope ID to summarize."}
+        ],
+        "responses": {
+          "200": {
+            "description": "Posture summary counts",
+            "content": {"application/json": {"schema": {"type": "object", "properties": {
+              "scope_id": {"type": "string"},
+              "summary": {"type": "object", "properties": {
+                "identity_trust_chains_by_state": {"type": "array", "items": {"type": "object", "properties": {"bucket": {"type": "string"}, "count": {"type": "integer"}}, "required": ["bucket", "count"]}},
+                "privilege_observations_by_risk_type": {"type": "array", "items": {"type": "object", "properties": {"bucket": {"type": "string"}, "count": {"type": "integer"}}, "required": ["bucket", "count"]}},
+                "privilege_observations_by_severity": {"type": "array", "items": {"type": "object", "properties": {"bucket": {"type": "string"}, "count": {"type": "integer"}}, "required": ["bucket", "count"]}},
+                "secret_access_paths_by_state": {"type": "array", "items": {"type": "object", "properties": {"bucket": {"type": "string"}, "count": {"type": "integer"}}, "required": ["bucket", "count"]}},
+                "posture_gaps_by_gap_type": {"type": "array", "items": {"type": "object", "properties": {"bucket": {"type": "string"}, "count": {"type": "integer"}}, "required": ["bucket", "count"]}}
+              }}
+            }, "required": ["scope_id", "summary"]}}}
+          },
+          "400": {"$ref": "#/components/responses/BadRequest"},
+          "500": {"$ref": "#/components/responses/InternalError"},
+          "501": {"$ref": "#/components/responses/NotImplemented"},
+          "503": {"$ref": "#/components/responses/ServiceUnavailable"}
+        }
+      }
+    },
     "/api/v0/secrets-iam/identity-trust-chains": {
       "get": {
         "tags": ["secrets-iam"],

@@ -20,6 +20,7 @@ var secretsIAMEndpoints = []struct {
 	{secretsIAMPrivilegePostureObservationsCapability, "/api/v0/secrets-iam/privilege-posture-observations", "list_secrets_iam_privilege_posture_observations"},
 	{secretsIAMSecretAccessPathsCapability, "/api/v0/secrets-iam/secret-access-paths", "list_secrets_iam_secret_access_paths"},
 	{secretsIAMPostureGapsCapability, "/api/v0/secrets-iam/posture-gaps", "list_secrets_iam_posture_gaps"},
+	{secretsIAMPostureSummaryCapability, "/api/v0/secrets-iam/posture-summary", "count_secrets_iam_posture"},
 }
 
 func fullSecretsIAMHandler(profile QueryProfile) *SecretsIAMHandler {
@@ -28,6 +29,7 @@ func fullSecretsIAMHandler(profile QueryProfile) *SecretsIAMHandler {
 		PrivilegePostureObservations: &recordingPrivilegePostureStore{},
 		SecretAccessPaths:            &recordingSecretAccessPathStore{},
 		PostureGaps:                  &recordingPostureGapStore{},
+		Summary:                      &recordingPostureSummaryStore{},
 		Profile:                      profile,
 	}
 }
