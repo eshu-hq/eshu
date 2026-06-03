@@ -27,6 +27,7 @@ type jiraTargetConfiguration struct {
 	EmailEnv        string `json:"email_env"`
 	TokenEnv        string `json:"token_env"`
 	JQL             string `json:"jql"`
+	JQLEnv          string `json:"jql_env"`
 	IssueLimit      int    `json:"issue_limit"`
 	UpdatedLookback string `json:"updated_lookback"`
 	ChangelogLimit  int    `json:"changelog_limit"`
@@ -74,8 +75,8 @@ func validateJiraTargetConfiguration(target jiraTargetConfiguration) error {
 	if strings.TrimSpace(target.TokenEnv) == "" {
 		return fmt.Errorf("token_env is required")
 	}
-	if strings.TrimSpace(target.JQL) == "" {
-		return fmt.Errorf("jql is required")
+	if err := validateJiraJQLSource(target); err != nil {
+		return err
 	}
 	if err := validateJiraLimit("issue_limit", target.IssueLimit, maxJiraIssueLimit); err != nil {
 		return err
@@ -90,6 +91,19 @@ func validateJiraTargetConfiguration(target jiraTargetConfiguration) error {
 		return err
 	}
 	return validateJiraUpdatedLookback(target.UpdatedLookback)
+}
+
+func validateJiraJQLSource(target jiraTargetConfiguration) error {
+	hasDirectJQL := strings.TrimSpace(target.JQL) != ""
+	hasJQLEnv := strings.TrimSpace(target.JQLEnv) != ""
+	switch {
+	case hasDirectJQL && hasJQLEnv:
+		return fmt.Errorf("only one of jql or jql_env may be set")
+	case hasDirectJQL || hasJQLEnv:
+		return nil
+	default:
+		return fmt.Errorf("jql or jql_env is required")
+	}
 }
 
 func validateJiraLimit(field string, value int, max int) error {

@@ -196,6 +196,9 @@ Jira and PagerDuty are disabled by default and render only when
 that enables the matching collector instance. Their disabled registrations can
 keep blank private target fields and the claim-capable flag, so
 preserved-volume restarts do not need placeholder Jira or PagerDuty values.
+The Jira registration uses `jql_env` for `ESHU_JIRA_JQL`; keep private JQL in
+the env file so spaces, quotes, and operators are not interpolated into the
+collector instance JSON.
 Missing rendered services remain
 `skipped` proof rows; rendered services with zero source facts fail the hosted
 collector proof.

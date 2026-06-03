@@ -41,6 +41,7 @@ type targetJSON struct {
 	EmailEnv        string `json:"email_env"`
 	TokenEnv        string `json:"token_env"`
 	JQL             string `json:"jql"`
+	JQLEnv          string `json:"jql_env"`
 	IssueLimit      int    `json:"issue_limit"`
 	UpdatedLookback string `json:"updated_lookback"`
 	ChangelogLimit  int    `json:"changelog_limit"`
@@ -172,6 +173,10 @@ func mapTarget(target targetJSON, getenv func(string) string) (jira.TargetConfig
 	if err != nil {
 		return jira.TargetConfig{}, err
 	}
+	jql, err := resolveJQL(target, getenv)
+	if err != nil {
+		return jira.TargetConfig{}, err
+	}
 	return jira.TargetConfig{
 		Provider:        strings.TrimSpace(target.Provider),
 		ScopeID:         strings.TrimSpace(target.ScopeID),
@@ -179,13 +184,32 @@ func mapTarget(target targetJSON, getenv func(string) string) (jira.TargetConfig
 		BaseURL:         strings.TrimRight(strings.TrimSpace(target.BaseURL), "/"),
 		Email:           email,
 		Token:           token,
-		JQL:             strings.TrimSpace(target.JQL),
+		JQL:             jql,
 		IssueLimit:      target.IssueLimit,
 		UpdatedLookback: lookback,
 		ChangelogLimit:  target.ChangelogLimit,
 		RemoteLinkLimit: target.RemoteLinkLimit,
 		MetadataLimit:   target.MetadataLimit,
 	}, nil
+}
+
+func resolveJQL(target targetJSON, getenv func(string) string) (string, error) {
+	directJQL := strings.TrimSpace(target.JQL)
+	jqlEnv := strings.TrimSpace(target.JQLEnv)
+	switch {
+	case directJQL != "" && jqlEnv != "":
+		return "", fmt.Errorf("only one of jql or jql_env may be set")
+	case directJQL != "":
+		return directJQL, nil
+	case jqlEnv != "":
+		jql := strings.TrimSpace(getenv(jqlEnv))
+		if jql == "" {
+			return "", fmt.Errorf("jql_env %s did not resolve a JQL query", jqlEnv)
+		}
+		return jql, nil
+	default:
+		return "", fmt.Errorf("jql or jql_env is required")
+	}
 }
 
 func parseOptionalDuration(raw string) (time.Duration, error) {

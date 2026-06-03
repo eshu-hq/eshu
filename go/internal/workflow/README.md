@@ -244,13 +244,16 @@ related change events. PagerDuty instances are fact-only until incident-context
 correlation and query contracts land.
 
 `jira` collector instances are claim-capable. Enabled instances must declare
-configured Jira Cloud site targets before reaching durable storage. The
-coordinator plans one bounded work item per configured target, and the
-`collector-jira` runtime resolves each claimed `scope_id` back to a configured
-Jira target before fetching updated issues, changelogs, and remote links. The
-collector contract declares no canonical keyspaces and no required reducer
-phases. Jira commits work-item source facts only; reducers and query surfaces
-own incident, runtime, code, and pull-request correlation truth.
+configured Jira Cloud site targets before reaching durable storage. The target
+JQL source may be a direct `jql` string or a `jql_env` variable name; workflow
+validation accepts the variable name without resolving it, and `collector-jira`
+resolves the actual query at runtime. The coordinator plans one bounded work
+item per configured target, and the `collector-jira` runtime resolves each
+claimed `scope_id` back to a configured Jira target before fetching updated
+issues, changelogs, and remote links. The collector contract declares no
+canonical keyspaces and no required reducer phases. Jira commits work-item
+source facts only; reducers and query surfaces own incident, runtime, code,
+and pull-request correlation truth.
 
 `aws` collector instances are claim-capable. The coordinator plans one bounded
 work item per authorized `(account_id, region, service_kind)` tuple, and the
