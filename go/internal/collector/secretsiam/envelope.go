@@ -65,19 +65,22 @@ func NewTrustPolicyEnvelope(observation TrustPolicyObservation) (facts.Envelope,
 	}
 	actions := normalizeActionList(observation.Actions)
 	conditionKeys := normalizeKeyList(observation.ConditionKeys)
+	conditionOperators := normalizeKeyList(observation.ConditionOperators)
 	assumePrincipals := normalizePatternList(observation.AssumePrincipals)
 	webIdentitySubjects := normalizePatternList(observation.WebIdentitySubjectFingerprints)
 	statementSID := strings.TrimSpace(observation.StatementSID)
-	stableKey := facts.StableID(facts.AWSIAMTrustPolicyFactKind, map[string]any{
-		"account_id":        observation.Context.AccountID,
-		"actions":           strings.Join(actions, ","),
-		"assume_principals": strings.Join(assumePrincipals, ","),
-		"effect":            effect,
-		"region":            observation.Context.Region,
-		"role_arn":          roleARN,
-		"statement_sid":     statementSID,
+	stableIdentity := map[string]any{
+		"account_id":            observation.Context.AccountID,
+		"actions":               strings.Join(actions, ","),
+		"assume_principals":     strings.Join(assumePrincipals, ","),
+		"effect":                effect,
+		"region":                observation.Context.Region,
+		"role_arn":              roleARN,
+		"statement_sid":         statementSID,
 		"web_identity_subjects": strings.Join(webIdentitySubjects, ","),
-	})
+	}
+	addConditionSummaryIdentity(stableIdentity, conditionKeys, conditionOperators)
+	stableKey := facts.StableID(facts.AWSIAMTrustPolicyFactKind, stableIdentity)
 	payload := commonPayload(observation.Context)
 	payload["role_arn"] = roleARN
 	payload["statement_sid"] = statementSID
@@ -85,8 +88,10 @@ func NewTrustPolicyEnvelope(observation TrustPolicyObservation) (facts.Envelope,
 	payload["effect"] = effect
 	payload["actions"] = actions
 	payload["condition_keys"] = conditionKeys
+	payload["condition_operators"] = conditionOperators
+	payload["condition_operator_count"] = len(conditionOperators)
 	payload["assume_principals"] = assumePrincipals
-	payload["has_conditions"] = len(conditionKeys) > 0
+	payload["has_conditions"] = len(conditionKeys) > 0 || len(conditionOperators) > 0
 	payload["web_identity_subject_fingerprints"] = webIdentitySubjects
 	payload["web_identity_subject_wildcard"] = observation.WebIdentitySubjectWildcard
 	return newEnvelope(
@@ -123,11 +128,12 @@ func NewPermissionPolicyEnvelope(observation PermissionPolicyObservation) (facts
 	resources := normalizePatternList(observation.Resources)
 	notResources := normalizePatternList(observation.NotResources)
 	conditionKeys := normalizeKeyList(observation.ConditionKeys)
+	conditionOperators := normalizeKeyList(observation.ConditionOperators)
 	policyARN := strings.TrimSpace(observation.PolicyARN)
 	policyName := strings.TrimSpace(observation.PolicyName)
 	statementSID := strings.TrimSpace(observation.StatementSID)
 
-	stableKey := facts.StableID(facts.AWSIAMPermissionPolicyFactKind, map[string]any{
+	stableIdentity := map[string]any{
 		"account_id":    observation.Context.AccountID,
 		"actions":       strings.Join(actions, ","),
 		"effect":        effect,
@@ -140,7 +146,9 @@ func NewPermissionPolicyEnvelope(observation PermissionPolicyObservation) (facts
 		"region":        observation.Context.Region,
 		"resources":     strings.Join(resources, ","),
 		"statement_sid": statementSID,
-	})
+	}
+	addConditionSummaryIdentity(stableIdentity, conditionKeys, conditionOperators)
+	stableKey := facts.StableID(facts.AWSIAMPermissionPolicyFactKind, stableIdentity)
 	payload := commonPayload(observation.Context)
 	payload["principal_arn"] = principalARN
 	payload["principal_type"] = strings.TrimSpace(observation.PrincipalType)
@@ -154,7 +162,9 @@ func NewPermissionPolicyEnvelope(observation PermissionPolicyObservation) (facts
 	payload["resources"] = resources
 	payload["not_resources"] = notResources
 	payload["condition_keys"] = conditionKeys
-	payload["has_conditions"] = len(conditionKeys) > 0
+	payload["condition_operators"] = conditionOperators
+	payload["condition_operator_count"] = len(conditionOperators)
+	payload["has_conditions"] = len(conditionKeys) > 0 || len(conditionOperators) > 0
 	payload["is_wildcard_action"] = containsValue(actions, wildcardAction)
 	payload["is_wildcard_resource"] = containsValue(resources, wildcardAction)
 	return newEnvelope(

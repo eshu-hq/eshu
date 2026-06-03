@@ -53,9 +53,9 @@ func buildIAMCanPerformGrant(envelopes []facts.Envelope, tally *iamCanPerformTal
 			// reported skipped_conditioned) to match the escalation slice's precedence.
 			if statementTouchesCatalog(actions, catalogActions) {
 				if hasConditions {
-					tally.skippedConditioned++
+					tally.recordSkip(iamCanPerformSkipConditioned)
 				} else {
-					tally.skippedNotActionResource++
+					tally.recordSkip(iamCanPerformSkipNotActionResource)
 				}
 			}
 			continue

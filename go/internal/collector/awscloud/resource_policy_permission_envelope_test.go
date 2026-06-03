@@ -115,13 +115,18 @@ func TestNewResourcePolicyPermissionEnvelopeDenyStatement(t *testing.T) {
 func TestNewResourcePolicyPermissionEnvelopeConditionKeysCarryNamesOnly(t *testing.T) {
 	boundary := resourcePolicyBoundary(time.Date(2026, 5, 31, 12, 0, 0, 0, time.UTC))
 	envelope, err := NewResourcePolicyPermissionEnvelope(ResourcePolicyPermissionObservation{
-		Boundary:       boundary,
-		ResourceARN:    "arn:aws:s3:::eshu-conditioned",
-		ResourceType:   ResourceTypeS3Bucket,
-		Effect:         "Allow",
-		Actions:        []string{"s3:GetObject"},
-		Resources:      []string{"arn:aws:s3:::eshu-conditioned/*"},
-		ConditionKeys:  []string{"aws:SourceIp", "aws:SourceIp", "  aws:SecureTransport  "},
+		Boundary:      boundary,
+		ResourceARN:   "arn:aws:s3:::eshu-conditioned",
+		ResourceType:  ResourceTypeS3Bucket,
+		Effect:        "Allow",
+		Actions:       []string{"s3:GetObject"},
+		Resources:     []string{"arn:aws:s3:::eshu-conditioned/*"},
+		ConditionKeys: []string{"aws:SourceIp", "aws:SourceIp", "  aws:SecureTransport  "},
+		ConditionOperators: []string{
+			"IpAddress",
+			" Bool ",
+			"IpAddress",
+		},
 		PrincipalTypes: []string{ResourcePolicyPrincipalTypeAWS},
 	})
 	if err != nil {
@@ -131,6 +136,11 @@ func TestNewResourcePolicyPermissionEnvelopeConditionKeysCarryNamesOnly(t *testi
 	keys := payloadStrings(t, envelope.Payload, "condition_keys")
 	// De-duplicated, trimmed, sorted: names only, never values.
 	assertStringSlice(t, "condition_keys", keys, []string{"aws:SecureTransport", "aws:SourceIp"})
+	operators := payloadStrings(t, envelope.Payload, "condition_operators")
+	assertStringSlice(t, "condition_operators", operators, []string{"Bool", "IpAddress"})
+	if got, _ := envelope.Payload["condition_operator_count"].(int); got != 2 {
+		t.Fatalf("condition_operator_count = %v, want 2", got)
+	}
 }
 
 func TestNewResourcePolicyPermissionEnvelopeWildcardActionAndResource(t *testing.T) {
@@ -190,6 +200,11 @@ func TestNewResourcePolicyPermissionEnvelopeStableIdentityIgnoresActionCasing(t 
 		Effect:       "Allow",
 		Actions:      []string{"s3:GetObject"},
 		Resources:    []string{"arn:aws:s3:::eshu-shared-bucket/*"},
+		ConditionKeys: []string{
+			"aws:SourceIp",
+			"aws:PrincipalOrgID",
+		},
+		ConditionOperators: []string{"IpAddress", "StringEquals"},
 	}
 	first, err := NewResourcePolicyPermissionEnvelope(base)
 	if err != nil {
@@ -197,6 +212,8 @@ func TestNewResourcePolicyPermissionEnvelopeStableIdentityIgnoresActionCasing(t 
 	}
 	reordered := base
 	reordered.Actions = []string{"S3:GETOBJECT"}
+	reordered.ConditionKeys = []string{"aws:PrincipalOrgID", "aws:SourceIp", "aws:SourceIp"}
+	reordered.ConditionOperators = []string{"StringEquals", "IpAddress", "StringEquals"}
 	second, err := NewResourcePolicyPermissionEnvelope(reordered)
 	if err != nil {
 		t.Fatalf("second envelope error: %v", err)
@@ -207,6 +224,66 @@ func TestNewResourcePolicyPermissionEnvelopeStableIdentityIgnoresActionCasing(t 
 	if first.StableFactKey != second.StableFactKey {
 		t.Fatalf("StableFactKey changed with action casing: %q != %q", first.StableFactKey, second.StableFactKey)
 	}
+}
+
+func TestNewResourcePolicyPermissionEnvelopeStableIdentityIncludesConditionSummary(t *testing.T) {
+	boundary := resourcePolicyBoundary(time.Date(2026, 5, 31, 12, 0, 0, 0, time.UTC))
+	base := ResourcePolicyPermissionObservation{
+		Boundary:            boundary,
+		ResourceARN:         "arn:aws:s3:::eshu-shared-bucket",
+		ResourceType:        ResourceTypeS3Bucket,
+		Effect:              "Allow",
+		Actions:             []string{"s3:GetObject"},
+		Resources:           []string{"arn:aws:s3:::eshu-shared-bucket/*"},
+		PrincipalARNs:       []string{"arn:aws:iam::111122223333:role/partner"},
+		PrincipalAccountIDs: []string{"111122223333"},
+		PrincipalTypes:      []string{ResourcePolicyPrincipalTypeAWS},
+	}
+	unconditional, err := NewResourcePolicyPermissionEnvelope(base)
+	if err != nil {
+		t.Fatalf("unconditional envelope error: %v", err)
+	}
+	wantUnconditionalKey := facts.StableID(facts.AWSResourcePolicyPermissionFactKind, map[string]any{
+		"account_id":            boundary.AccountID,
+		"actions":               "s3:getobject",
+		"effect":                "Allow",
+		"not_actions":           "",
+		"not_resources":         "",
+		"policy_source":         ResourcePolicySourceResource,
+		"principal_account_ids": "111122223333",
+		"principal_arns":        "arn:aws:iam::111122223333:role/partner",
+		"region":                boundary.Region,
+		"resource_arn":          "arn:aws:s3:::eshu-shared-bucket",
+		"resource_type":         ResourceTypeS3Bucket,
+		"resources":             "arn:aws:s3:::eshu-shared-bucket/*",
+		"statement_sid":         "",
+	})
+	if unconditional.StableFactKey != wantUnconditionalKey {
+		t.Fatalf("unconditional StableFactKey = %q, want legacy key %q", unconditional.StableFactKey, wantUnconditionalKey)
+	}
+
+	sourceIPCondition := base
+	sourceIPCondition.ConditionKeys = []string{"aws:SourceIp"}
+	sourceIPCondition.ConditionOperators = []string{"IpAddress"}
+	sourceIP, err := NewResourcePolicyPermissionEnvelope(sourceIPCondition)
+	if err != nil {
+		t.Fatalf("source-ip envelope error: %v", err)
+	}
+	stringCondition := base
+	stringCondition.ConditionKeys = []string{"aws:SourceIp"}
+	stringCondition.ConditionOperators = []string{"StringEquals"}
+	stringEquals, err := NewResourcePolicyPermissionEnvelope(stringCondition)
+	if err != nil {
+		t.Fatalf("string-equals envelope error: %v", err)
+	}
+	orgCondition := base
+	orgCondition.ConditionKeys = []string{"aws:PrincipalOrgID"}
+	orgCondition.ConditionOperators = []string{"IpAddress"}
+	org, err := NewResourcePolicyPermissionEnvelope(orgCondition)
+	if err != nil {
+		t.Fatalf("org envelope error: %v", err)
+	}
+	assertDistinctFactIdentity(t, sourceIP, stringEquals, org)
 }
 
 // TestNewResourcePolicyPermissionEnvelopeNeverPersistsForbiddenFields proves the
@@ -252,6 +329,20 @@ func assertStringSlice(t *testing.T, name string, got, want []string) {
 	for i := range want {
 		if got[i] != want[i] {
 			t.Fatalf("%s[%d] = %q, want %q", name, i, got[i], want[i])
+		}
+	}
+}
+
+func assertDistinctFactIdentity(t *testing.T, envelopes ...facts.Envelope) {
+	t.Helper()
+	for left := 0; left < len(envelopes); left++ {
+		for right := left + 1; right < len(envelopes); right++ {
+			if envelopes[left].StableFactKey == envelopes[right].StableFactKey {
+				t.Fatalf("StableFactKey[%d] = StableFactKey[%d] = %q", left, right, envelopes[left].StableFactKey)
+			}
+			if envelopes[left].FactID == envelopes[right].FactID {
+				t.Fatalf("FactID[%d] = FactID[%d] = %q", left, right, envelopes[left].FactID)
+			}
 		}
 	}
 }

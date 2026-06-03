@@ -208,12 +208,13 @@ func (h IAMCanPerformMaterializationHandler) Handle(
 		Domain:   DomainIAMCanPerformMaterialization,
 		Status:   ResultStatusSucceeded,
 		EvidenceSummary: fmt.Sprintf(
-			"materialized %d CAN_PERFORM edge(s) from %d iam permission fact(s), %d permission boundary fact(s), and %d resource policy permission fact(s); %d skipped",
+			"materialized %d CAN_PERFORM edge(s) from %d iam permission fact(s), %d permission boundary fact(s), and %d resource policy permission fact(s); %d skipped, %d conditioned provenance-only",
 			len(result.Edges),
 			len(permissionEnvelopes),
 			len(permissionBoundaryEnvelopes),
 			len(resourcePolicyEnvelopes),
 			result.Tally.total(),
+			result.Tally.conditionedProvenanceOnly,
 		),
 		CanonicalWrites: len(result.Edges),
 	}, nil
@@ -257,9 +258,10 @@ func (h IAMCanPerformMaterializationHandler) shouldSkipRetract(ctx context.Conte
 }
 
 // recordTally emits the CAN_PERFORM edge counters: edges committed keyed by
-// resolution_mode, and skipped evaluations split by skip_reason. Each reason is
-// recorded even at zero so the time series exists and an operator can chart a
-// rising skip rate from zero.
+// resolution_mode, skipped evaluations split by skip_reason, and condition-gated
+// evidence split by bounded confidence. Each reason/confidence is recorded even
+// at zero so the time series exists and an operator can chart a rising rate from
+// zero.
 func (h IAMCanPerformMaterializationHandler) recordTally(ctx context.Context, result IAMCanPerformResult) {
 	if h.Instruments == nil {
 		return
@@ -268,17 +270,23 @@ func (h IAMCanPerformMaterializationHandler) recordTally(ctx context.Context, re
 		h.recordEdgeMode(ctx, iamCanPerformResolutionExactARN, result.EdgesByMode[iamCanPerformResolutionExactARN])
 		h.recordEdgeMode(ctx, iamCanPerformResolutionSingleGlob, result.EdgesByMode[iamCanPerformResolutionSingleGlob])
 	}
-	if h.Instruments.IAMCanPerformSkipped == nil {
-		return
+	if h.Instruments.IAMCanPerformSkipped != nil {
+		h.recordSkip(ctx, iamCanPerformSkipUncatalogued, result.Tally.skippedUncatalogued)
+		h.recordSkip(ctx, iamCanPerformSkipAmbiguous, result.Tally.skippedAmbiguous)
+		h.recordSkip(ctx, iamCanPerformSkipUnresolved, result.Tally.skippedUnresolved)
+		h.recordSkip(ctx, iamCanPerformSkipDeny, result.Tally.skippedDeny)
+		h.recordSkip(ctx, iamCanPerformSkipConditioned, result.Tally.skippedConditioned)
+		h.recordSkip(ctx, iamCanPerformSkipNotActionResource, result.Tally.skippedNotActionResource)
+		h.recordSkip(ctx, iamCanPerformSkipSelfLoop, result.Tally.skippedSelfLoop)
+		h.recordSkip(ctx, iamCanPerformSkipPermissionBoundary, result.Tally.skippedPermissionBoundary)
 	}
-	h.recordSkip(ctx, iamCanPerformSkipUncatalogued, result.Tally.skippedUncatalogued)
-	h.recordSkip(ctx, iamCanPerformSkipAmbiguous, result.Tally.skippedAmbiguous)
-	h.recordSkip(ctx, iamCanPerformSkipUnresolved, result.Tally.skippedUnresolved)
-	h.recordSkip(ctx, iamCanPerformSkipDeny, result.Tally.skippedDeny)
-	h.recordSkip(ctx, iamCanPerformSkipConditioned, result.Tally.skippedConditioned)
-	h.recordSkip(ctx, iamCanPerformSkipNotActionResource, result.Tally.skippedNotActionResource)
-	h.recordSkip(ctx, iamCanPerformSkipSelfLoop, result.Tally.skippedSelfLoop)
-	h.recordSkip(ctx, iamCanPerformSkipPermissionBoundary, result.Tally.skippedPermissionBoundary)
+	if h.Instruments.IAMCanPerformConditioned != nil {
+		h.recordConditionConfidence(
+			ctx,
+			iamCanPerformConditionConfidenceProvenanceOnly,
+			result.Tally.conditionedProvenanceOnly,
+		)
+	}
 }
 
 // recordEdgeMode emits one resolution_mode edge data point. A zero count is still
@@ -294,6 +302,14 @@ func (h IAMCanPerformMaterializationHandler) recordEdgeMode(ctx context.Context,
 func (h IAMCanPerformMaterializationHandler) recordSkip(ctx context.Context, reason string, count int) {
 	h.Instruments.IAMCanPerformSkipped.Add(ctx, int64(count), metric.WithAttributes(
 		telemetry.AttrSkipReason(reason),
+	))
+}
+
+// recordConditionConfidence emits one condition-confidence data point. A zero
+// count is still recorded so the provenance-only time series exists.
+func (h IAMCanPerformMaterializationHandler) recordConditionConfidence(ctx context.Context, confidence string, count int) {
+	h.Instruments.IAMCanPerformConditioned.Add(ctx, int64(count), metric.WithAttributes(
+		telemetry.AttrConfidence(confidence),
 	))
 }
 
@@ -372,6 +388,7 @@ func logIAMCanPerformCompleted(ctx context.Context, timing iamCanPerformTiming) 
 		slog.Int("skipped_unresolved", timing.tally.skippedUnresolved),
 		slog.Int("skipped_deny", timing.tally.skippedDeny),
 		slog.Int("skipped_conditioned", timing.tally.skippedConditioned),
+		slog.Int("conditioned_provenance_only", timing.tally.conditionedProvenanceOnly),
 		slog.Int("skipped_not_action_resource", timing.tally.skippedNotActionResource),
 		slog.Int("skipped_self_loop", timing.tally.skippedSelfLoop),
 		slog.Int("skipped_permission_boundary", timing.tally.skippedPermissionBoundary),

@@ -239,6 +239,9 @@ type IAMPermissionObservation struct {
 	// example aws:SourceIp). Values are intentionally omitted; only the key
 	// identifiers are kept as a derived condition summary.
 	ConditionKeys []string
+	// ConditionOperators lists the condition operators present on the statement
+	// (for example StringEquals or ForAnyValue:StringLike). Values are omitted.
+	ConditionOperators []string
 	// AssumePrincipals lists the principals a trust statement grants assume-role
 	// to. It is only meaningful when PolicySource is IAMPolicySourceTrust.
 	AssumePrincipals []string
@@ -279,6 +282,9 @@ type ResourcePolicyPermissionObservation struct {
 	// example aws:SourceIp). Values are intentionally omitted; only the key
 	// identifiers are kept as a derived condition summary.
 	ConditionKeys []string
+	// ConditionOperators lists the condition operators present on the statement
+	// (for example StringEquals or ForAnyValue:StringLike). Values are omitted.
+	ConditionOperators []string
 	// PrincipalAccountIDs lists the 12-digit account ids derived from the
 	// statement's AWS-type principals. Public/anonymous and service/federated
 	// principals contribute no account id.

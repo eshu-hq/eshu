@@ -11,8 +11,8 @@
 // AWS service, or unsupported-principal metadata. The
 // aws_resource_policy_permission fact is the normalized, derived projection of
 // each bucket-policy statement (effect, normalized action/resource patterns,
-// condition-key NAMES, and derived grantee principal facts) — the resource-side
-// analog of aws_iam_permission (PR4b of #1134). Object inventory, the raw
+// condition key/operator NAMES, and derived grantee principal facts) — the
+// resource-side analog of aws_iam_permission (PR4b of #1134). Object inventory, the raw
 // bucket policy JSON, statement bodies, statement Sids, condition VALUES, ACL
 // grants, replication rule detail, lifecycle rules, notification configuration,
 // and mutation APIs stay outside this package contract.

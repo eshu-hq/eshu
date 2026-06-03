@@ -53,6 +53,9 @@ func TestNormalizePolicyDocumentExtractsStatementsWithoutRawJSON(t *testing.T) {
 	if got := first.ConditionKeys; len(got) != 1 || got[0] != "aws:RequestedRegion" {
 		t.Fatalf("ConditionKeys = %v, want [aws:RequestedRegion] (key only, no value)", got)
 	}
+	if got := first.ConditionOperators; len(got) != 1 || got[0] != "StringEquals" {
+		t.Fatalf("ConditionOperators = %v, want [StringEquals] (operator only, no value)", got)
+	}
 
 	second := statements[1]
 	if second.Effect != "Deny" {
@@ -63,6 +66,51 @@ func TestNormalizePolicyDocumentExtractsStatementsWithoutRawJSON(t *testing.T) {
 	}
 	if len(second.NotResources) != 1 || second.NotResources[0] != "arn:aws:s3:::secret/*" {
 		t.Fatalf("NotResources = %v, want [arn:aws:s3:::secret/*]", second.NotResources)
+	}
+}
+
+func TestNormalizePolicyDocumentSummarizesConditionOperatorsWithoutValues(t *testing.T) {
+	raw := `{
+		"Statement": [{
+			"Effect": "Allow",
+			"Action": "s3:GetObject",
+			"Resource": "arn:aws:s3:::prod-data/*",
+			"Condition": {
+				"StringEquals": {
+					"aws:PrincipalTag/team": "payments",
+					"aws:RequestedRegion": ["us-east-1", "us-west-2"]
+				},
+				"ForAnyValue:StringLike": {
+					"aws:ResourceTag/env": "prod-*"
+				},
+				"ArnLike": {
+					"aws:SourceArn": "arn:aws:lambda:us-east-1:123456789012:function:secret"
+				}
+			}
+		}]
+	}`
+	statements, err := normalizePolicyDocument(raw, iamservice.PolicySourceInline, "", "inline-conditioned")
+	if err != nil {
+		t.Fatalf("normalizePolicyDocument() error = %v", err)
+	}
+	if len(statements) != 1 {
+		t.Fatalf("len(statements) = %d, want 1", len(statements))
+	}
+
+	gotKeys := statements[0].ConditionKeys
+	wantKeys := []string{"aws:PrincipalTag/team", "aws:RequestedRegion", "aws:ResourceTag/env", "aws:SourceArn"}
+	if !slices.Equal(gotKeys, wantKeys) {
+		t.Fatalf("ConditionKeys = %v, want %v", gotKeys, wantKeys)
+	}
+	gotOperators := statements[0].ConditionOperators
+	wantOperators := []string{"ArnLike", "ForAnyValue:StringLike", "StringEquals"}
+	if !slices.Equal(gotOperators, wantOperators) {
+		t.Fatalf("ConditionOperators = %v, want %v", gotOperators, wantOperators)
+	}
+	for _, leaked := range []string{"payments", "us-east-1", "prod-*", "arn:aws:lambda"} {
+		if slices.Contains(gotOperators, leaked) || slices.Contains(gotKeys, leaked) {
+			t.Fatalf("condition summary leaked value %q: keys=%v operators=%v", leaked, gotKeys, gotOperators)
+		}
 	}
 }
 

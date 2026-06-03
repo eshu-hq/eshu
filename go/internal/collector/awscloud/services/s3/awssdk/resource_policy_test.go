@@ -44,6 +44,9 @@ func TestDeriveBucketPolicyResourcePermissionStatements(t *testing.T) {
 	if !equalStrings(allow.ConditionKeys, []string{"aws:SourceVpc"}) {
 		t.Fatalf("AllowPartner condition_keys = %#v, want [aws:SourceVpc] (names only)", allow.ConditionKeys)
 	}
+	if !equalStrings(allow.ConditionOperators, []string{"StringEquals"}) {
+		t.Fatalf("AllowPartner condition_operators = %#v, want [StringEquals]", allow.ConditionOperators)
+	}
 	if !allow.IsCrossAccount {
 		t.Fatalf("AllowPartner is_cross_account = false, want true")
 	}
@@ -70,6 +73,9 @@ func TestDeriveBucketPolicyResourcePermissionStatements(t *testing.T) {
 	}
 	if !equalStrings(deny.ConditionKeys, []string{"aws:SecureTransport"}) {
 		t.Fatalf("DenyInsecure condition_keys = %#v, want [aws:SecureTransport]", deny.ConditionKeys)
+	}
+	if !equalStrings(deny.ConditionOperators, []string{"Bool"}) {
+		t.Fatalf("DenyInsecure condition_operators = %#v, want [Bool]", deny.ConditionOperators)
 	}
 }
 

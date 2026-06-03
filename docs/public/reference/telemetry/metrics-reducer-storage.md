@@ -81,6 +81,9 @@ worker counts.
 | `eshu_dp_cross_repo_evidence_loaded_total` | counter | Evidence rows loaded for cross-repo resolution. |
 | `eshu_dp_cross_repo_edges_resolved_total` | counter | Cross-repo edges resolved. |
 | `eshu_dp_evidence_facts_discovered_total` | counter | Evidence facts discovered during ingestion. |
+| `eshu_dp_iam_can_perform_edges_total` | counter | IAM CAN_PERFORM edges committed by bounded resolution mode. |
+| `eshu_dp_iam_can_perform_skipped_total` | counter | IAM CAN_PERFORM catalog-action evaluations withheld by bounded skip reason. |
+| `eshu_dp_iam_can_perform_conditioned_total` | counter | Condition-gated IAM CAN_PERFORM evidence classified by bounded confidence. |
 | `eshu_dp_incident_routing_evidence_total` | counter | PagerDuty incident-routing graph evidence outcomes by reducer domain, outcome, source class, and slot kind. |
 
 `eshu_dp_drift_unresolved_module_calls_total` uses the closed reasons

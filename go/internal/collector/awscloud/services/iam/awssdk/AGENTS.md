@@ -24,8 +24,9 @@
 - Return OIDC provider URL fingerprints and client ID/thumbprint counts only;
   never return raw OIDC URLs, client IDs, or thumbprints.
 - Normalize policy documents to metadata-only `iam.PolicyStatement` values. Keep
-  effect, action/resource patterns, statement SID, condition KEYS, and trust
-  assume-principals. NEVER return the raw policy JSON body or condition values.
+  effect, action/resource patterns, statement SID, condition key/operator names,
+  and trust assume-principals. NEVER return the raw policy JSON body or condition
+  values.
 - Bound the per-principal managed policy document fan-out
   (`maxPolicyDocumentsPerPrincipal`); do not loop one `GetPolicy` +
   `GetPolicyVersion` pair per attachment without a cap.

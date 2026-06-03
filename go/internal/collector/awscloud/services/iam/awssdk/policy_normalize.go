@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/url"
+	"sort"
 	"strings"
 
 	iamservice "github.com/eshu-hq/eshu/go/internal/collector/awscloud/services/iam"
@@ -14,9 +15,9 @@ import (
 // attached managed) into normalized, metadata-only PolicyStatement values.
 //
 // It captures only identifiers and patterns: effect, action/resource strings,
-// statement SID, and the condition KEYS (never the condition values, which can
-// embed source IPs, tags, or other sensitive selectors). The raw JSON body is
-// parsed and discarded; it is never returned or persisted.
+// statement SID, and the condition key/operator names (never the condition
+// values, which can embed source IPs, tags, or other sensitive selectors). The
+// raw JSON body is parsed and discarded; it is never returned or persisted.
 func normalizePolicyDocument(raw, source, policyARN, policyName string) ([]iamservice.PolicyStatement, error) {
 	document, err := decodePolicyDocument(raw)
 	if err != nil {
@@ -113,16 +114,17 @@ func normalizeIdentityStatement(statement map[string]any, source, policyARN, pol
 		return iamservice.PolicyStatement{}, false
 	}
 	return iamservice.PolicyStatement{
-		Source:        source,
-		PolicyARN:     policyARN,
-		PolicyName:    policyName,
-		StatementSID:  stringField(statement["Sid"]),
-		Effect:        effect,
-		Actions:       stringList(statement["Action"]),
-		NotActions:    stringList(statement["NotAction"]),
-		Resources:     stringList(statement["Resource"]),
-		NotResources:  stringList(statement["NotResource"]),
-		ConditionKeys: conditionKeys(statement["Condition"]),
+		Source:             source,
+		PolicyARN:          policyARN,
+		PolicyName:         policyName,
+		StatementSID:       stringField(statement["Sid"]),
+		Effect:             effect,
+		Actions:            stringList(statement["Action"]),
+		NotActions:         stringList(statement["NotAction"]),
+		Resources:          stringList(statement["Resource"]),
+		NotResources:       stringList(statement["NotResource"]),
+		ConditionKeys:      conditionKeys(statement["Condition"]),
+		ConditionOperators: conditionOperators(statement["Condition"]),
 	}, true
 }
 
@@ -140,6 +142,7 @@ func normalizeTrustStatement(statement map[string]any) (iamservice.PolicyStateme
 		Effect:                         effect,
 		Actions:                        stringList(statement["Action"]),
 		ConditionKeys:                  conditionKeys(statement["Condition"]),
+		ConditionOperators:             conditionOperators(statement["Condition"]),
 		AssumePrincipals:               trustStatementPrincipals(statement["Principal"]),
 		WebIdentitySubjectFingerprints: fingerprints,
 		WebIdentitySubjectWildcard:     wildcard,
@@ -252,7 +255,35 @@ func conditionKeys(value any) []string {
 	for key := range seen {
 		keys = append(keys, key)
 	}
+	sort.Strings(keys)
 	return keys
+}
+
+// conditionOperators returns the sorted, de-duplicated set of top-level
+// Condition operators present on a statement. It records only operator names
+// (for example StringEquals or ForAnyValue:StringLike); condition values and
+// request-context values are intentionally dropped.
+func conditionOperators(value any) []string {
+	operators, ok := value.(map[string]any)
+	if !ok {
+		return nil
+	}
+	seen := make(map[string]struct{})
+	for operator := range operators {
+		operator = strings.TrimSpace(operator)
+		if operator != "" {
+			seen[operator] = struct{}{}
+		}
+	}
+	if len(seen) == 0 {
+		return nil
+	}
+	out := make([]string, 0, len(seen))
+	for operator := range seen {
+		out = append(out, operator)
+	}
+	sort.Strings(out)
+	return out
 }
 
 // normalizeEffect canonicalizes a statement Effect to "Allow" or "Deny", or ""

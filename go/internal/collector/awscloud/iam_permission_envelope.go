@@ -45,13 +45,14 @@ func NewIAMPermissionEnvelope(observation IAMPermissionObservation) (facts.Envel
 	resources := normalizePatternList(observation.Resources)
 	notResources := normalizePatternList(observation.NotResources)
 	conditionKeys := normalizeKeyList(observation.ConditionKeys)
+	conditionOperators := normalizeKeyList(observation.ConditionOperators)
 	assumePrincipals := normalizePatternList(observation.AssumePrincipals)
 
 	policyARN := strings.TrimSpace(observation.PolicyARN)
 	policyName := strings.TrimSpace(observation.PolicyName)
 	statementSID := strings.TrimSpace(observation.StatementSID)
 
-	stableKey := facts.StableID(facts.AWSIAMPermissionFactKind, map[string]any{
+	stableIdentity := map[string]any{
 		"account_id":    observation.Boundary.AccountID,
 		"actions":       strings.Join(actions, ","),
 		"effect":        effect,
@@ -64,29 +65,33 @@ func NewIAMPermissionEnvelope(observation IAMPermissionObservation) (facts.Envel
 		"region":        observation.Boundary.Region,
 		"resources":     strings.Join(resources, ","),
 		"statement_sid": statementSID,
-	})
+	}
+	addConditionSummaryIdentity(stableIdentity, conditionKeys, conditionOperators)
+	stableKey := facts.StableID(facts.AWSIAMPermissionFactKind, stableIdentity)
 
 	payload := map[string]any{
-		"account_id":            observation.Boundary.AccountID,
-		"region":                observation.Boundary.Region,
-		"service_kind":          observation.Boundary.ServiceKind,
-		"collector_instance_id": observation.Boundary.CollectorInstanceID,
-		"principal_arn":         principalARN,
-		"principal_type":        strings.TrimSpace(observation.PrincipalType),
-		"policy_source":         policySource,
-		"policy_arn":            policyARN,
-		"policy_name":           policyName,
-		"statement_sid":         statementSID,
-		"effect":                effect,
-		"actions":               actions,
-		"not_actions":           notActions,
-		"resources":             resources,
-		"not_resources":         notResources,
-		"condition_keys":        conditionKeys,
-		"assume_principals":     assumePrincipals,
-		"has_conditions":        len(conditionKeys) > 0,
-		"is_wildcard_action":    containsValue(actions, wildcardAction),
-		"is_wildcard_resource":  containsValue(resources, wildcardAction),
+		"account_id":               observation.Boundary.AccountID,
+		"region":                   observation.Boundary.Region,
+		"service_kind":             observation.Boundary.ServiceKind,
+		"collector_instance_id":    observation.Boundary.CollectorInstanceID,
+		"principal_arn":            principalARN,
+		"principal_type":           strings.TrimSpace(observation.PrincipalType),
+		"policy_source":            policySource,
+		"policy_arn":               policyARN,
+		"policy_name":              policyName,
+		"statement_sid":            statementSID,
+		"effect":                   effect,
+		"actions":                  actions,
+		"not_actions":              notActions,
+		"resources":                resources,
+		"not_resources":            notResources,
+		"condition_keys":           conditionKeys,
+		"condition_operators":      conditionOperators,
+		"condition_operator_count": len(conditionOperators),
+		"assume_principals":        assumePrincipals,
+		"has_conditions":           len(conditionKeys) > 0 || len(conditionOperators) > 0,
+		"is_wildcard_action":       containsValue(actions, wildcardAction),
+		"is_wildcard_resource":     containsValue(resources, wildcardAction),
 	}
 
 	return newEnvelope(

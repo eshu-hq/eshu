@@ -12,6 +12,7 @@ func (t *iamCanPerformTally) recordSkip(reason string) {
 		t.skippedDeny++
 	case iamCanPerformSkipConditioned:
 		t.skippedConditioned++
+		t.conditionedProvenanceOnly++
 	case iamCanPerformSkipNotActionResource:
 		t.skippedNotActionResource++
 	case iamCanPerformSkipSelfLoop:

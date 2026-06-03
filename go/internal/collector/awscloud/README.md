@@ -154,6 +154,9 @@ Envelope builders validate account, region, service kind, scope, generation,
 collector instance, and fencing token boundaries before emitting facts.
 `FactID` includes scope and generation so repeated scans preserve history, and
 `StableFactKey` remains the source-stable identity inside a generation.
+Conditioned IAM and resource-policy permission statements include normalized
+condition key/operator names in that stable identity; unconditioned statements
+keep the historical identity.
 
 ## Dependencies
 

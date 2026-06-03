@@ -45,13 +45,14 @@ func NewResourcePolicyPermissionEnvelope(observation ResourcePolicyPermissionObs
 	resources := normalizePatternList(observation.Resources)
 	notResources := normalizePatternList(observation.NotResources)
 	conditionKeys := normalizeKeyList(observation.ConditionKeys)
+	conditionOperators := normalizeKeyList(observation.ConditionOperators)
 	principalAccountIDs := normalizeKeyList(observation.PrincipalAccountIDs)
 	principalARNs := normalizePatternList(observation.PrincipalARNs)
 	principalTypes := normalizeKeyList(observation.PrincipalTypes)
 
 	statementSID := strings.TrimSpace(observation.StatementSID)
 
-	stableKey := facts.StableID(facts.AWSResourcePolicyPermissionFactKind, map[string]any{
+	stableIdentity := map[string]any{
 		"account_id":            observation.Boundary.AccountID,
 		"actions":               strings.Join(actions, ","),
 		"effect":                effect,
@@ -65,30 +66,34 @@ func NewResourcePolicyPermissionEnvelope(observation ResourcePolicyPermissionObs
 		"resource_type":         resourceType,
 		"resources":             strings.Join(resources, ","),
 		"statement_sid":         statementSID,
-	})
+	}
+	addConditionSummaryIdentity(stableIdentity, conditionKeys, conditionOperators)
+	stableKey := facts.StableID(facts.AWSResourcePolicyPermissionFactKind, stableIdentity)
 
 	payload := map[string]any{
-		"account_id":            observation.Boundary.AccountID,
-		"region":                observation.Boundary.Region,
-		"service_kind":          observation.Boundary.ServiceKind,
-		"collector_instance_id": observation.Boundary.CollectorInstanceID,
-		"resource_arn":          resourceARN,
-		"resource_type":         resourceType,
-		"policy_source":         ResourcePolicySourceResource,
-		"effect":                effect,
-		"actions":               actions,
-		"not_actions":           notActions,
-		"resources":             resources,
-		"not_resources":         notResources,
-		"condition_keys":        conditionKeys,
-		"principal_account_ids": principalAccountIDs,
-		"principal_arns":        principalARNs,
-		"principal_types":       principalTypes,
-		"has_conditions":        len(conditionKeys) > 0,
-		"is_wildcard_action":    containsValue(actions, wildcardAction),
-		"is_wildcard_resource":  containsValue(resources, wildcardAction),
-		"is_public":             observation.IsPublic,
-		"is_cross_account":      observation.IsCrossAccount,
+		"account_id":               observation.Boundary.AccountID,
+		"region":                   observation.Boundary.Region,
+		"service_kind":             observation.Boundary.ServiceKind,
+		"collector_instance_id":    observation.Boundary.CollectorInstanceID,
+		"resource_arn":             resourceARN,
+		"resource_type":            resourceType,
+		"policy_source":            ResourcePolicySourceResource,
+		"effect":                   effect,
+		"actions":                  actions,
+		"not_actions":              notActions,
+		"resources":                resources,
+		"not_resources":            notResources,
+		"condition_keys":           conditionKeys,
+		"condition_operators":      conditionOperators,
+		"condition_operator_count": len(conditionOperators),
+		"principal_account_ids":    principalAccountIDs,
+		"principal_arns":           principalARNs,
+		"principal_types":          principalTypes,
+		"has_conditions":           len(conditionKeys) > 0 || len(conditionOperators) > 0,
+		"is_wildcard_action":       containsValue(actions, wildcardAction),
+		"is_wildcard_resource":     containsValue(resources, wildcardAction),
+		"is_public":                observation.IsPublic,
+		"is_cross_account":         observation.IsCrossAccount,
 	}
 
 	return newEnvelope(

@@ -224,6 +224,7 @@ func resourcePolicyPermissionObservations(
 			Resources:           statement.Resources,
 			NotResources:        statement.NotResources,
 			ConditionKeys:       statement.ConditionKeys,
+			ConditionOperators:  statement.ConditionOperators,
 			PrincipalAccountIDs: statement.PrincipalAccountIDs,
 			PrincipalARNs:       statement.PrincipalARNs,
 			PrincipalTypes:      statement.PrincipalTypes,
