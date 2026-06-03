@@ -72,16 +72,19 @@ path "sys/mounts" {
   capabilities = ["read", "list"]
 }
 
-# KV v2 METADATA ONLY — never grant read on <mount>/data/*
-# `+/metadata` lists the mount root; `+/metadata/*` covers nested key paths
-# recursively. The trailing `*` glob is required so nested paths are not missed.
-path "+/metadata" {
+# KV v2 METADATA ONLY — never grant read on <kv_mount>/data/*
+# Repeat these stanzas for each KV v2 mount the collector may inspect.
+# Example mount paths:
+#   - secret
+#   - kv/team
+# The trailing `*` glob covers nested metadata keys under that mount.
+path "<kv_mount>/metadata" {
   capabilities = ["list"]
 }
-path "+/metadata/*" {
+path "<kv_mount>/metadata/*" {
   capabilities = ["read", "list"]
 }
-path "+/config" {
+path "<kv_mount>/config" {
   capabilities = ["read"]
 }
 ```
@@ -97,7 +100,7 @@ Bind the policy to whatever auth method the collector authenticates with
 short-lived, read-only token; Eshu never stores it.
 
 !!! danger "Never grant data read"
-    Do **not** add `path "<mount>/data/+" { capabilities = ["read"] }`. The lane
+    Do **not** add `path "<kv_mount>/data/*" { capabilities = ["read"] }`. The lane
     has no code path that reads secret values, and granting data read would
     expand the blast radius of the collector token for no benefit.
 
