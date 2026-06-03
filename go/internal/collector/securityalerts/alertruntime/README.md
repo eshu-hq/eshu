@@ -9,6 +9,9 @@ The first provider is GitHub Dependabot repository alerts. `ClaimedSource`
 returns only `security_alert.repository_alert` facts from
 `go/internal/collector/securityalerts`; reducer-owned impact/readiness truth
 stays outside this package.
+`ClaimedSource.PreflightProviderAccess` uses the same target map and provider
+client to prove configured provider access before workflow claims are processed.
+It makes one bounded provider request per target and never emits facts.
 
 ```mermaid
 flowchart LR
@@ -39,6 +42,9 @@ proves a capped open-alert provider read marks emitted facts with
 `source_freshness=partial`, `collection_coverage_state=incomplete`, the open
 state filter, bounded pages fetched, and the incomplete reason instead of
 looking complete.
+`TestClaimedSourcePreflightProviderAccessIsBoundedAndRedacted` proves the
+preflight path requests exactly one provider page and returns the bounded
+`auth_denied` class without leaking token or repository values.
 
 No-Regression Evidence: security-alert refreshes include a stable freshness
 digest over the bounded Dependabot alert snapshot, provider pagination status,
@@ -57,3 +63,6 @@ telemetry for skipped refreshes (`refresh_skipped=true` logs and
 coverage summaries for partial provider reads. It does not add new metric
 labels. The digest value is not emitted as a label, so alert, repository,
 package, and URL values remain out of metrics.
+Preflight provider requests reuse the existing `security_alert.observe` and
+`security_alert.fetch` spans plus provider request and fetch-duration metrics
+with provider and status-class labels only.

@@ -25,6 +25,14 @@ func main() {
 		}
 		return
 	}
+	if hasProviderAccessPreflightFlag(os.Args[1:]) {
+		if err := runProviderAccessPreflight(context.Background(), os.Getenv); err != nil {
+			_, _ = fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		_, _ = fmt.Fprintln(os.Stdout, "security alert provider access preflight passed")
+		return
+	}
 
 	bootstrap, err := telemetry.NewBootstrap("collector-security-alerts")
 	if err != nil {

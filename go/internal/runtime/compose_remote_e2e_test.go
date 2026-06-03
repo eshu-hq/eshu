@@ -249,6 +249,16 @@ func TestRemoteE2EComposeIncludesSecurityAlertCollector(t *testing.T) {
 	t.Parallel()
 
 	doc := readComposeDocument(t, "docker-compose.remote-e2e.yaml")
+	coordinator := requireComposeService(t, doc, "workflow-coordinator")
+	assertComposeDependency(t, coordinator, "collector-security-alerts-preflight")
+
+	preflight := requireComposeService(t, doc, "collector-security-alerts-preflight")
+	if fmt.Sprint(preflight.Command) != "[/usr/local/bin/eshu-collector-security-alerts --preflight-provider-access]" {
+		t.Fatalf("preflight command = %#v, want eshu-collector-security-alerts provider preflight", preflight.Command)
+	}
+	assertComposeEnv(t, preflight, "ESHU_SECURITY_ALERT_COLLECTOR_INSTANCE_ID", "remote-e2e-security-alert")
+	assertComposeEnv(t, preflight, "GITHUB_TOKEN", "${ESHU_SECURITY_ALERT_GITHUB_TOKEN:?set ESHU_SECURITY_ALERT_GITHUB_TOKEN}")
+
 	service := requireComposeService(t, doc, "collector-security-alerts")
 	if fmt.Sprint(service.Command) != "[/usr/local/bin/eshu-collector-security-alerts]" {
 		t.Fatalf("collector command = %#v, want eshu-collector-security-alerts", service.Command)

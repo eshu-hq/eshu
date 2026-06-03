@@ -139,6 +139,12 @@ Provider tokens must come from private environment variables referenced by
 `token_env`; do not commit token values, private repository names, alert URLs,
 or copied provider payloads to public values files or docs.
 
+`eshu-collector-security-alerts --preflight-provider-access` can be run as a
+one-shot access check before starting workflow fanout. It uses the same
+collector instance JSON, token env resolution, repository allowlist, and
+provider client as the hosted runtime, makes one bounded request per target,
+and reports only sanitized failure classes.
+
 ## PagerDuty Collector
 
 The PagerDuty collector is claim-only. It selects an enabled `pagerduty`

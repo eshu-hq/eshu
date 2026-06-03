@@ -218,6 +218,53 @@ func TestClaimedSourceReturnsBoundedFailureWithoutRepositoryOrToken(t *testing.T
 	}
 }
 
+func TestClaimedSourcePreflightProviderAccessIsBoundedAndRedacted(t *testing.T) {
+	t.Parallel()
+
+	client := &recordingAlertClient{
+		err: securityalerts.GitHubDependabotError{
+			StatusCode: 403,
+			Message:    "raw upstream error mentions github-token and example-org/example-repo",
+		},
+	}
+	source, err := NewClaimedSource(SourceConfig{
+		CollectorInstanceID: "security-alert-primary",
+		Targets: []TargetConfig{{
+			Provider:            ProviderGitHubDependabot,
+			ScopeID:             "security-alert:github:example-org/example-repo",
+			Repository:          "example-org/example-repo",
+			Token:               "github-token",
+			AllowedRepositories: []string{"example-org/example-repo"},
+			MaxPages:            25,
+		}},
+		ClientFactory: func(TargetConfig) (RepositoryAlertClient, error) { return client, nil },
+	})
+	if err != nil {
+		t.Fatalf("NewClaimedSource() error = %v, want nil", err)
+	}
+
+	result, err := source.PreflightProviderAccess(context.Background())
+	if err == nil {
+		t.Fatal("PreflightProviderAccess() error = nil, want auth-denied failure")
+	}
+	if got, want := result.TargetCount, 1; got != want {
+		t.Fatalf("TargetCount = %d, want %d", got, want)
+	}
+	if got, want := client.maxPages, 1; got != want {
+		t.Fatalf("preflight maxPages = %d, want %d", got, want)
+	}
+	if strings.Contains(err.Error(), "github-token") || strings.Contains(err.Error(), "example-org/example-repo") {
+		t.Fatalf("PreflightProviderAccess() error = %q, want bounded redacted message", err)
+	}
+	var classified interface{ FailureClass() string }
+	if !errors.As(err, &classified) {
+		t.Fatalf("PreflightProviderAccess() error = %T, want FailureClass", err)
+	}
+	if got, want := classified.FailureClass(), FailureAuthDenied; got != want {
+		t.Fatalf("FailureClass = %q, want %q", got, want)
+	}
+}
+
 type staticAlertClient struct {
 	result securityalerts.GitHubDependabotAlertResult
 	err    error
@@ -228,6 +275,23 @@ func (c staticAlertClient) ListRepositoryAlertsPages(
 	string,
 	int,
 ) (securityalerts.GitHubDependabotAlertResult, error) {
+	return c.result, c.err
+}
+
+type recordingAlertClient struct {
+	result     securityalerts.GitHubDependabotAlertResult
+	err        error
+	repository string
+	maxPages   int
+}
+
+func (c *recordingAlertClient) ListRepositoryAlertsPages(
+	_ context.Context,
+	repository string,
+	maxPages int,
+) (securityalerts.GitHubDependabotAlertResult, error) {
+	c.repository = repository
+	c.maxPages = maxPages
 	return c.result, c.err
 }
 

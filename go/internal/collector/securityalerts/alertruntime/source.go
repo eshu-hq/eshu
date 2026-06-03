@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/url"
+	"sort"
 	"strings"
 	"time"
 
@@ -44,6 +45,7 @@ const (
 
 	collectionOpenStateFilter            = "open"
 	collectionOpenPageLimitReachedReason = "provider_open_alert_page_limit_reached"
+	providerAccessPreflightMaxPages      = 1
 )
 
 // RepositoryAlertClient fetches provider repository alerts for one target.
@@ -89,6 +91,12 @@ type targetRuntime struct {
 type repositoryAlertCollectionCoverage struct {
 	pagesFetched int
 	truncated    bool
+}
+
+// PreflightResult summarizes a bounded provider-access preflight without
+// exposing provider target identifiers.
+type PreflightResult struct {
+	TargetCount int
 }
 
 // ClaimedSource resolves security-alert workflow claims into source facts.
@@ -139,6 +147,50 @@ func NewClaimedSource(config SourceConfig) (*ClaimedSource, error) {
 		tracer:              config.Tracer,
 		instruments:         config.Instruments,
 	}, nil
+}
+
+// PreflightProviderAccess verifies each configured provider target with one
+// bounded request before workflow claims are processed.
+func (s *ClaimedSource) PreflightProviderAccess(ctx context.Context) (PreflightResult, error) {
+	result := PreflightResult{TargetCount: len(s.targets)}
+	targets := s.sortedTargets()
+	for _, target := range targets {
+		startedAt := time.Now()
+		observeCtx, observeSpan := s.startObserve(ctx, target.config)
+		fetchCtx, fetchSpan := s.startFetch(observeCtx)
+		_, err := target.client.ListRepositoryAlertsPages(
+			fetchCtx,
+			target.config.Repository,
+			providerAccessPreflightMaxPages,
+		)
+		if err != nil {
+			failure := classifiedProviderFailure(err)
+			s.recordFetch(observeCtx, target.config, failure.FailureClass(), startedAt)
+			s.recordRateLimit(observeCtx, target.config, failure)
+			recordSpanError(fetchSpan, failure)
+			recordSpanError(observeSpan, failure)
+			fetchSpan.End()
+			observeSpan.End()
+			return result, failure
+		}
+		fetchSpan.End()
+		s.recordFetch(observeCtx, target.config, "success", startedAt)
+		observeSpan.End()
+	}
+	return result, nil
+}
+
+func (s *ClaimedSource) sortedTargets() []targetRuntime {
+	scopeIDs := make([]string, 0, len(s.targets))
+	for scopeID := range s.targets {
+		scopeIDs = append(scopeIDs, scopeID)
+	}
+	sort.Strings(scopeIDs)
+	targets := make([]targetRuntime, 0, len(scopeIDs))
+	for _, scopeID := range scopeIDs {
+		targets = append(targets, s.targets[scopeID])
+	}
+	return targets
 }
 
 // NextClaimed collects the provider target named by item.ScopeID.
