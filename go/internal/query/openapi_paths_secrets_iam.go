@@ -71,4 +71,125 @@ const openAPIPathsSecretsIAM = `
         }
       }
     },
+    "/api/v0/secrets-iam/privilege-posture-observations": {
+      "get": {
+        "tags": ["secrets-iam"],
+        "summary": "List secrets/IAM privilege posture observations",
+        "description": "Lists reducer-owned risky broad or partial posture observations (for example a role with external trust and no sts:ExternalId). Provenance-only; the reducer never promotes these to an exact path. Subject identifiers are fingerprints.",
+        "operationId": "listSecretsIAMPrivilegePostureObservations",
+        "parameters": [
+          {"name": "scope_id", "in": "query", "schema": {"type": "string"}, "description": "Reducer scope ID to anchor lookup."},
+          {"name": "observation_id", "in": "query", "schema": {"type": "string"}, "description": "Observation ID to anchor lookup."},
+          {"name": "risk_type", "in": "query", "schema": {"type": "string"}, "description": "Optional risk type filter."},
+          {"name": "severity", "in": "query", "schema": {"type": "string"}, "description": "Optional severity filter."},
+          {"name": "state", "in": "query", "schema": {"type": "string", "enum": ["exact", "partial", "unresolved", "stale", "permission_hidden", "unsupported"]}},
+          {"name": "after_observation_id", "in": "query", "schema": {"type": "string"}, "description": "Observation ID from next_cursor when continuing a truncated page."},
+          {"name": "limit", "in": "query", "required": true, "schema": {"type": "integer", "minimum": 1, "maximum": 200}}
+        ],
+        "responses": {
+          "200": {
+            "description": "Privilege posture observation rows",
+            "content": {"application/json": {"schema": {"type": "object", "properties": {
+              "privilege_posture_observations": {"type": "array", "items": {"type": "object", "properties": {
+                "observation_id": {"type": "string"},
+                "risk_type": {"type": "string"},
+                "severity": {"type": "string"},
+                "state": {"type": "string", "enum": ["exact", "partial", "unresolved", "stale", "permission_hidden", "unsupported"]},
+                "confidence": {"type": "string"},
+                "subject_fingerprint": {"type": "string"},
+                "reason": {"type": "string"},
+                "evidence_fact_ids": {"type": "array", "items": {"type": "string"}}
+              }, "required": ["observation_id", "state"]}},
+              "count": {"type": "integer"}, "limit": {"type": "integer"}, "truncated": {"type": "boolean"},
+              "next_cursor": {"type": "object", "properties": {"after_observation_id": {"type": "string"}}, "required": ["after_observation_id"]}
+            }, "required": ["privilege_posture_observations", "count", "limit", "truncated"]}}}
+          },
+          "400": {"$ref": "#/components/responses/BadRequest"},
+          "500": {"$ref": "#/components/responses/InternalError"},
+          "501": {"$ref": "#/components/responses/NotImplemented"},
+          "503": {"$ref": "#/components/responses/ServiceUnavailable"}
+        }
+      }
+    },
+    "/api/v0/secrets-iam/secret-access-paths": {
+      "get": {
+        "tags": ["secrets-iam"],
+        "summary": "List secrets/IAM secret access paths",
+        "description": "Lists reducer-owned Vault policy-to-KV metadata access paths reachable from an exact identity chain. Paths are fingerprints and capabilities only; no secret value is ever returned.",
+        "operationId": "listSecretsIAMSecretAccessPaths",
+        "parameters": [
+          {"name": "scope_id", "in": "query", "schema": {"type": "string"}, "description": "Reducer scope ID to anchor lookup."},
+          {"name": "path_id", "in": "query", "schema": {"type": "string"}, "description": "Secret access path ID to anchor lookup."},
+          {"name": "chain_id", "in": "query", "schema": {"type": "string"}, "description": "Parent identity trust-chain ID to anchor lookup."},
+          {"name": "vault_mount_join_key", "in": "query", "schema": {"type": "string"}, "description": "Vault mount join-key fingerprint to anchor lookup."},
+          {"name": "state", "in": "query", "schema": {"type": "string", "enum": ["exact", "partial", "unresolved", "stale", "permission_hidden", "unsupported"]}},
+          {"name": "after_path_id", "in": "query", "schema": {"type": "string"}, "description": "Path ID from next_cursor when continuing a truncated page."},
+          {"name": "limit", "in": "query", "required": true, "schema": {"type": "integer", "minimum": 1, "maximum": 200}}
+        ],
+        "responses": {
+          "200": {
+            "description": "Secret access path rows",
+            "content": {"application/json": {"schema": {"type": "object", "properties": {
+              "secret_access_paths": {"type": "array", "items": {"type": "object", "properties": {
+                "path_id": {"type": "string"},
+                "chain_id": {"type": "string"},
+                "state": {"type": "string", "enum": ["exact", "partial", "unresolved", "stale", "permission_hidden", "unsupported"]},
+                "confidence": {"type": "string"},
+                "kv_path_fingerprint": {"type": "string"},
+                "vault_mount_join_key": {"type": "string"},
+                "vault_policy_join_key": {"type": "string"},
+                "capabilities": {"type": "array", "items": {"type": "string"}},
+                "evidence_fact_ids": {"type": "array", "items": {"type": "string"}}
+              }, "required": ["path_id", "state"]}},
+              "count": {"type": "integer"}, "limit": {"type": "integer"}, "truncated": {"type": "boolean"},
+              "next_cursor": {"type": "object", "properties": {"after_path_id": {"type": "string"}}, "required": ["after_path_id"]}
+            }, "required": ["secret_access_paths", "count", "limit", "truncated"]}}}
+          },
+          "400": {"$ref": "#/components/responses/BadRequest"},
+          "500": {"$ref": "#/components/responses/InternalError"},
+          "501": {"$ref": "#/components/responses/NotImplemented"},
+          "503": {"$ref": "#/components/responses/ServiceUnavailable"}
+        }
+      }
+    },
+    "/api/v0/secrets-iam/posture-gaps": {
+      "get": {
+        "tags": ["secrets-iam"],
+        "summary": "List secrets/IAM posture gaps",
+        "description": "Lists reducer-owned missing, stale, permission_hidden, or unsupported evidence that blocks exact trust-chain truth. Gaps are surfaced rather than silently dropped.",
+        "operationId": "listSecretsIAMPostureGaps",
+        "parameters": [
+          {"name": "scope_id", "in": "query", "schema": {"type": "string"}, "description": "Reducer scope ID to anchor lookup."},
+          {"name": "gap_id", "in": "query", "schema": {"type": "string"}, "description": "Posture gap ID to anchor lookup."},
+          {"name": "gap_type", "in": "query", "schema": {"type": "string"}, "description": "Optional gap type filter."},
+          {"name": "service_account_join_key", "in": "query", "schema": {"type": "string"}, "description": "ServiceAccount join-key fingerprint to anchor lookup."},
+          {"name": "state", "in": "query", "schema": {"type": "string", "enum": ["exact", "partial", "unresolved", "stale", "permission_hidden", "unsupported"]}},
+          {"name": "after_gap_id", "in": "query", "schema": {"type": "string"}, "description": "Gap ID from next_cursor when continuing a truncated page."},
+          {"name": "limit", "in": "query", "required": true, "schema": {"type": "integer", "minimum": 1, "maximum": 200}}
+        ],
+        "responses": {
+          "200": {
+            "description": "Posture gap rows",
+            "content": {"application/json": {"schema": {"type": "object", "properties": {
+              "posture_gaps": {"type": "array", "items": {"type": "object", "properties": {
+                "gap_id": {"type": "string"},
+                "gap_type": {"type": "string"},
+                "state": {"type": "string", "enum": ["exact", "partial", "unresolved", "stale", "permission_hidden", "unsupported"]},
+                "reason": {"type": "string"},
+                "service_account_join_key": {"type": "string"},
+                "evidence_fact_ids": {"type": "array", "items": {"type": "string"}},
+                "missing_evidence": {"type": "array", "items": {"type": "string"}},
+                "unsupported_layers": {"type": "array", "items": {"type": "string"}}
+              }, "required": ["gap_id", "state"]}},
+              "count": {"type": "integer"}, "limit": {"type": "integer"}, "truncated": {"type": "boolean"},
+              "next_cursor": {"type": "object", "properties": {"after_gap_id": {"type": "string"}}, "required": ["after_gap_id"]}
+            }, "required": ["posture_gaps", "count", "limit", "truncated"]}}}
+          },
+          "400": {"$ref": "#/components/responses/BadRequest"},
+          "500": {"$ref": "#/components/responses/InternalError"},
+          "501": {"$ref": "#/components/responses/NotImplemented"},
+          "503": {"$ref": "#/components/responses/ServiceUnavailable"}
+        }
+      }
+    },
 `
