@@ -336,7 +336,7 @@ func TestCollectIsResilientToOneFamilyFailure(t *testing.T) {
 		t.Fatal("other families were not collected after the ACL family failed")
 	}
 	if !sawWarning {
-		t.Fatal("no vault_coverage_warning emitted for the failed family")
+		t.Fatal("no secrets_iam_coverage_warning emitted for the failed family")
 	}
 }
 

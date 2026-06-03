@@ -41,11 +41,13 @@ Maps all seven Vault metadata fact families (`vault_auth_mount`,
 `vault_identity_alias`, `vault_kv_metadata`, `vault_secret_engine_mount`) from a
 read-only `Client` through the `secretsiam` envelope builders. Collection is
 per-family resilient: a single family's list failure (for example a
-permission-scoped read) emits a redacted `vault_coverage_warning` fact
-(`source_state=partial`, `resource_scope=<family>`) and collection continues, so
-one denied family never loses the whole generation — the partial state is
-explicit in the facts, never silently complete. Context cancellation and a
-malformed observation remain fatal.
+permission-scoped read) emits a redacted `secrets_iam_coverage_warning` fact
+(`facts.SecretsIAMCoverageWarningFactKind`; `source_state=partial`,
+`resource_scope=<family>`) and collection continues, so one denied family never
+loses the whole generation — the partial state is explicit in the facts, both as
+the coverage-warning fact and as a `partial` generation freshness hint, never
+silently complete. Context cancellation and a malformed observation remain
+fatal.
 
 `SnapshotSource` (`snapshot.go`) is the runtime driver: it implements
 `collector.Source.Next`, yielding one snapshot generation per configured Vault

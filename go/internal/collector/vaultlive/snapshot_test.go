@@ -88,6 +88,41 @@ func TestSnapshotSourceYieldsGenerationPerTarget(t *testing.T) {
 	}
 }
 
+func TestSnapshotSourceMarksPartialFreshnessOnCoverageWarning(t *testing.T) {
+	t.Parallel()
+
+	base := &fakeVaultClient{authMounts: []AuthMount{{Path: "kubernetes/", Accessor: "acc", Method: "kubernetes"}}}
+
+	// Complete coverage: a fully-listing client yields a complete generation.
+	complete := &SnapshotSource{
+		Config:        Config{CollectorInstanceID: "ci", Targets: []ClusterTarget{{VaultClusterID: "vault-a", Namespace: "admin", FencingToken: 1}}},
+		ClientFactory: &fakeClientFactory{client: base},
+		Clock:         fixedClock(),
+	}
+	gen, ok, err := complete.Next(context.Background())
+	if err != nil || !ok {
+		t.Fatalf("complete Next ok=%v err=%v", ok, err)
+	}
+	if gen.Generation.FreshnessHint != "complete" {
+		t.Fatalf("complete coverage FreshnessHint = %q, want complete", gen.Generation.FreshnessHint)
+	}
+
+	// Partial coverage: one failing family must mark the generation partial so
+	// status surfaces do not read it as complete.
+	partial := &SnapshotSource{
+		Config:        Config{CollectorInstanceID: "ci", Targets: []ClusterTarget{{VaultClusterID: "vault-b", Namespace: "team", FencingToken: 1}}},
+		ClientFactory: &fakeClientFactory{client: aclFailClient{base}},
+		Clock:         fixedClock(),
+	}
+	gen, ok, err = partial.Next(context.Background())
+	if err != nil || !ok {
+		t.Fatalf("partial Next ok=%v err=%v", ok, err)
+	}
+	if gen.Generation.FreshnessHint != "partial" {
+		t.Fatalf("partial coverage FreshnessHint = %q, want partial", gen.Generation.FreshnessHint)
+	}
+}
+
 func TestSnapshotSourceValidatesConfig(t *testing.T) {
 	t.Parallel()
 

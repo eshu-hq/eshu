@@ -24,8 +24,9 @@ type Source struct {
 // families. It performs no graph writes and never reads a secret value.
 //
 // Collection is per-family resilient: a single family's list failure (for
-// example a permission-scoped read) emits a redacted vault_coverage_warning
-// fact (source_state=partial, resource_scope=<family>) and collection
+// example a permission-scoped read) emits a redacted secrets_iam_coverage_warning
+// fact (facts.SecretsIAMCoverageWarningFactKind; source_state=partial,
+// resource_scope=<family>) and collection
 // continues, so one denied family does not lose the whole generation. The
 // partial state is therefore explicit in the facts, never silently complete.
 // Context cancellation and a malformed observation (a build error) remain fatal.
@@ -94,7 +95,7 @@ const (
 )
 
 // collectFamily lists one Vault fact family and maps it to envelopes. A list
-// error emits a redacted vault_coverage_warning (resource_scope=family) and
+// error emits a redacted secrets_iam_coverage_warning (resource_scope=family) and
 // returns it instead of failing the whole generation, except for context
 // cancellation, which is fatal. A build (mapping) error is fatal — it signals a
 // malformed observation, not a source-coverage gap.

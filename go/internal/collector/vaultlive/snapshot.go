@@ -144,6 +144,15 @@ func (s *SnapshotSource) collectTarget(ctx context.Context, config Config, targe
 		return collector.CollectedGeneration{}, fmt.Errorf("collect vault metadata: %w", err)
 	}
 
+	// A coverage-warning fact means at least one Vault family list failed and the
+	// generation covers only part of the cluster. Surface that as a partial
+	// freshness hint (mirroring the kuberneteslive lane) so status surfaces never
+	// read a partial snapshot as complete. Detection is independent of Instruments
+	// so the hint is correct whether or not metrics are wired.
+	if hasCoverageWarning(envelopes) {
+		generationValue.FreshnessHint = "partial"
+	}
+
 	if s.Instruments != nil {
 		for _, env := range envelopes {
 			s.Instruments.SecretsIAMSourceFactsEmitted.Add(ctx, 1, metric.WithAttributes(
@@ -211,6 +220,18 @@ func (s *SnapshotSource) now() time.Time {
 		return s.Clock().UTC()
 	}
 	return time.Now().UTC()
+}
+
+// hasCoverageWarning reports whether the collected envelopes include a
+// secrets/IAM coverage-warning fact, which marks the generation as covering only
+// part of the cluster (one or more Vault family lists failed).
+func hasCoverageWarning(envelopes []facts.Envelope) bool {
+	for _, env := range envelopes {
+		if env.FactKind == facts.SecretsIAMCoverageWarningFactKind {
+			return true
+		}
+	}
+	return false
 }
 
 // VaultScopeID returns the deterministic durable scope id for one Vault cluster
