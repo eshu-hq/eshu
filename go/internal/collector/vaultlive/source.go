@@ -3,7 +3,9 @@ package vaultlive
 import (
 	"context"
 	"fmt"
+	"net/url"
 	"slices"
+	"strings"
 
 	"github.com/eshu-hq/eshu/go/internal/collector/secretsiam"
 	"github.com/eshu-hq/eshu/go/internal/facts"
@@ -28,8 +30,11 @@ func (s Source) Collect(ctx context.Context, target VaultTarget, client Client) 
 	if client == nil {
 		return nil, fmt.Errorf("vault client is required")
 	}
-	vaultCtx := s.vaultContext(target)
-	uri := target.SourceURI
+	// Sanitize the Vault endpoint URL once: a credential-bearing address
+	// (basic-auth userinfo or a token query param) must never reach a fact's
+	// SourceRef. Every family and the context use the sanitized form.
+	uri := sanitizeVaultSourceURI(target.SourceURI)
+	vaultCtx := s.vaultContext(target, uri)
 	var envelopes []facts.Envelope
 
 	authMounts, err := client.ListAuthMounts(ctx)
@@ -125,8 +130,10 @@ func collectInto[T any](
 	return dst, nil
 }
 
-// vaultContext builds the secretsiam VaultContext for the target scope.
-func (s Source) vaultContext(target VaultTarget) secretsiam.VaultContext {
+// vaultContext builds the secretsiam VaultContext for the target scope. The
+// caller passes an already-sanitized sourceURI so no credential-bearing Vault
+// address reaches the fact context.
+func (s Source) vaultContext(target VaultTarget, sourceURI string) secretsiam.VaultContext {
 	return secretsiam.VaultContext{
 		VaultClusterID:      target.VaultClusterID,
 		Namespace:           target.Namespace,
@@ -135,6 +142,24 @@ func (s Source) vaultContext(target VaultTarget) secretsiam.VaultContext {
 		CollectorInstanceID: s.CollectorInstanceID,
 		FencingToken:        target.FencingToken,
 		ObservedAt:          target.ObservedAt,
-		SourceURI:           target.SourceURI,
+		SourceURI:           sourceURI,
 	}
+}
+
+// sanitizeVaultSourceURI returns a provenance-safe form of a Vault endpoint URL
+// with any userinfo, query, and fragment removed, so a credential-bearing Vault
+// address (basic-auth userinfo or token query parameters) can never be
+// persisted in a fact's SourceRef. It returns "" when the value is not a
+// parseable absolute URL, so an unexpected shape is omitted rather than leaked.
+func sanitizeVaultSourceURI(raw string) string {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return ""
+	}
+	parsed, err := url.Parse(trimmed)
+	if err != nil || parsed.Scheme == "" || parsed.Host == "" {
+		return ""
+	}
+	safe := url.URL{Scheme: parsed.Scheme, Host: parsed.Host, Path: parsed.Path}
+	return safe.String()
 }

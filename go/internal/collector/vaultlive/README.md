@@ -45,3 +45,21 @@ fail-fast per family so a partial generation is never emitted as if complete.
 The live `Client` adapter (`hashicorp/vault/api`), `runtimebind` registration,
 the `secrets_iam_posture` CollectorKind, claim-driven scheduling, per-family
 partial-coverage warnings, and source telemetry instruments land in #1356.
+
+## Evidence
+
+No-Regression Evidence: this package is pure in-memory mapping from a read-only
+`Client` to `secretsiam` fact envelopes. It issues no Cypher, performs no graph
+or canonical writes, holds no locks/leases, and runs no concurrent workers or
+queues — collection is single-pass and fail-fast per family, with `slices.Grow`
+pre-sizing the one accumulation slice. There is no hot-path or backend behavior
+to regress; correctness is covered by `go test ./internal/collector/vaultlive`
+(all-seven-family emission, the full redaction canary, SourceURI sanitization,
+and the metadata-only Client surface guard). The live `hashicorp/vault/api`
+adapter, its API pagination/throttle profile, and benchmarks land in #1356,
+which owns the performance contract for live Vault scans.
+
+No-Observability-Change: this PR adds no telemetry instruments, spans, logs, or
+status fields. The `eshu_dp_secrets_iam_*` source metrics (API calls,
+redactions, facts emitted, scope freshness, partial scope) are introduced with
+the live adapter in #1356; until then there is no runtime path to observe.

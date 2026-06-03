@@ -249,6 +249,35 @@ func payloadContains(v any, needle string) bool {
 	return false
 }
 
+// TestCollectSanitizesCredentialBearingSourceURI proves a Vault endpoint URL
+// carrying basic-auth userinfo or a token query parameter is stripped to
+// scheme://host/path before it can reach a fact's SourceRef.
+func TestCollectSanitizesCredentialBearingSourceURI(t *testing.T) {
+	t.Parallel()
+
+	target := testTarget()
+	target.SourceURI = "https://vaultuser:s3cr3t-token@vault.example.com:8200/v1/sys/auth?token=abcd1234#frag"
+	client := &fakeVaultClient{authMounts: []AuthMount{{Path: "kubernetes/", Accessor: "acc", Method: "kubernetes"}}}
+
+	envelopes, err := Source{CollectorInstanceID: "vaultlive-1"}.Collect(context.Background(), target, client)
+	if err != nil {
+		t.Fatalf("Collect() error = %v, want nil", err)
+	}
+	if len(envelopes) == 0 {
+		t.Fatal("Collect() emitted no envelopes")
+	}
+	for _, leak := range []string{"s3cr3t-token", "vaultuser", "token=abcd1234", "abcd1234"} {
+		for _, env := range envelopes {
+			if strings.Contains(env.SourceRef.SourceURI, leak) {
+				t.Fatalf("SourceRef.SourceURI %q leaks credential material %q", env.SourceRef.SourceURI, leak)
+			}
+		}
+	}
+	if got, want := envelopes[0].SourceRef.SourceURI, "https://vault.example.com:8200/v1/sys/auth"; got != want {
+		t.Fatalf("sanitized SourceURI = %q, want %q", got, want)
+	}
+}
+
 // TestClientSurfaceIsMetadataOnly proves, structurally, that the Vault Client
 // seam exposes no operation that reads a secret value. This guards the
 // metadata-only contract against future methods that would read KV /data,
