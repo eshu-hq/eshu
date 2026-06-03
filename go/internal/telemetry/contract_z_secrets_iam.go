@@ -19,15 +19,19 @@ const (
 	// SpanQuerySecretsIAMPostureGaps wraps reducer-owned posture gap reads
 	// (missing, stale, hidden, or unsupported evidence blocking exact truth).
 	SpanQuerySecretsIAMPostureGaps = "query.secrets_iam_posture_gaps"
+	// SpanQuerySecretsIAMPostureSummary wraps the bounded posture summary rollup
+	// (grouped counts over the secrets/IAM read models for one scope).
+	SpanQuerySecretsIAMPostureSummary = "query.secrets_iam_posture_summary"
 )
 
 // secretsIAMQuerySpans is the frozen-order set of secrets/IAM query spans, with
-// the identity trust-chain span first.
+// the identity trust-chain span first and the summary rollup last.
 var secretsIAMQuerySpans = []string{
 	SpanQuerySecretsIAMIdentityTrustChains,
 	SpanQuerySecretsIAMPrivilegePostureObservations,
 	SpanQuerySecretsIAMSecretAccessPaths,
 	SpanQuerySecretsIAMPostureGaps,
+	SpanQuerySecretsIAMPostureSummary,
 }
 
 // init lands the secrets/IAM query spans after the observability coverage

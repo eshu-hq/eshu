@@ -10,6 +10,7 @@ func init() {
 		secretsIAMPrivilegePostureObservationsCapability,
 		secretsIAMSecretAccessPathsCapability,
 		secretsIAMPostureGapsCapability,
+		secretsIAMPostureSummaryCapability,
 	} {
 		capabilityMatrix[capability] = capabilitySupport{
 			LocalLightweightMax:   nil,

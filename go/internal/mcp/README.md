@@ -1,7 +1,7 @@
 # internal/mcp
 
 `mcp` owns the Model Context Protocol tool surface for Eshu. It implements the
-MCP server, the JSON-RPC dispatcher, the SSE session model, and the 100
+MCP server, the JSON-RPC dispatcher, the SSE session model, and the 105
 read-only tool definitions. Tool dispatch calls into the same `http.Handler`
 chain the HTTP API uses, so a tool response and the corresponding HTTP query
 response share the same truth.
@@ -59,7 +59,7 @@ flowchart TB
 
 ## Tool groups
 
-`ReadOnlyTools` assembles 100 tools from the tool definition files.
+`ReadOnlyTools` assembles 105 tools from the tool definition files.
 
 | Group | Count | Source file |
 |---|---|---|
@@ -73,6 +73,7 @@ flowchart TB
 | `cicdRunCorrelationAggregateTools` | 2 | `tools_cicd_aggregates.go` |
 | `serviceCatalogTools` | 1 | `tools_service_catalog.go` |
 | `kubernetesTools` | 1 | `tools_kubernetes.go` |
+| `secretsIAMTools` | 5 | `tools_secrets_iam.go` |
 | `observabilityCoverageTools` | 1 | `tools_observability_coverage.go` |
 | `supplyChainTools` | 7 | `tools_supply_chain.go` |
 | `supplyChainImpactAggregateTools` | 2 | `tools_supply_chain_aggregates.go` |
@@ -116,6 +117,11 @@ Representative tool-to-route mappings from `resolveRoute` (`dispatch.go:173`):
 | `list_ci_cd_run_correlations` | GET | `/api/v0/ci-cd/run-correlations` |
 | `list_service_catalog_correlations` | GET | `/api/v0/service-catalog/correlations` |
 | `list_kubernetes_correlations` | GET | `/api/v0/kubernetes/correlations` |
+| `list_secrets_iam_identity_trust_chains` | GET | `/api/v0/secrets-iam/identity-trust-chains` |
+| `list_secrets_iam_privilege_posture_observations` | GET | `/api/v0/secrets-iam/privilege-posture-observations` |
+| `list_secrets_iam_secret_access_paths` | GET | `/api/v0/secrets-iam/secret-access-paths` |
+| `list_secrets_iam_posture_gaps` | GET | `/api/v0/secrets-iam/posture-gaps` |
+| `count_secrets_iam_posture` | GET | `/api/v0/secrets-iam/posture-summary` |
 | `get_incident_context` | GET | `/api/v0/incidents/{incident_id}/context` |
 | `list_work_item_evidence` | GET | `/api/v0/work-items/evidence` |
 | `get_vulnerability_scanner_read_contract` | GET | `/api/v0/supply-chain/vulnerability-scanner/contract` |
@@ -204,7 +210,7 @@ callers.
 | `Server.Run` (`Run`) | `server.go:288` | stdio transport; reads stdin, writes stdout |
 | `Server.RunHTTP` (`RunHTTP`) | `server.go:128` | HTTP+SSE transport; listens on `addr` |
 | `ToolDefinition` | `types.go:4` | `Name`, `Description`, `InputSchema` |
-| `ReadOnlyTools` | `types.go:11` | returns all 100 tool definitions |
+| `ReadOnlyTools` | `types.go:11` | returns all 105 tool definitions |
 
 ## SSE session model
 

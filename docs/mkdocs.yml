@@ -134,6 +134,7 @@ nav:
         - Overview: reference/http-api.md
         - Status And Admin: reference/http-api/status-admin.md
         - Evidence And Supply Chain: reference/http-api/evidence-and-supply-chain.md
+        - Secrets/IAM: reference/http-api/secrets-iam.md
         - Context And Stories: reference/http-api/context-and-stories.md
         - Code: reference/http-api/code.md
         - IaC, Content, And Infra: reference/http-api/iac-content-infra.md

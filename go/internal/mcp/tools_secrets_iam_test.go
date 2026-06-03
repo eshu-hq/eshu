@@ -13,6 +13,7 @@ func TestSecretsIAMToolsRegisteredAndRoutable(t *testing.T) {
 		"list_secrets_iam_privilege_posture_observations",
 		"list_secrets_iam_secret_access_paths",
 		"list_secrets_iam_posture_gaps",
+		"count_secrets_iam_posture",
 	}
 
 	registered := map[string]bool{}

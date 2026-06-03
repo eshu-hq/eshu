@@ -60,6 +60,8 @@ func repositoryRoute(toolName string, args map[string]any) (*route, bool) {
 		return secretsIAMSecretAccessPathsRoute(args), true
 	case "list_secrets_iam_posture_gaps":
 		return secretsIAMPostureGapsRoute(args), true
+	case "count_secrets_iam_posture":
+		return secretsIAMPostureSummaryRoute(args), true
 	case "list_observability_coverage_correlations":
 		return observabilityCoverageCorrelationsRoute(args), true
 	case "list_container_image_identities":
