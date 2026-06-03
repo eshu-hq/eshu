@@ -91,7 +91,9 @@ func TestIAMCanPerformResourceTypeOfARN(t *testing.T) {
 		{"arn:aws:dynamodb:us-east-1:111122223333:table/orders/index/by_status", ""}, // sub-resource
 		{"arn:aws:ec2:us-east-1:111122223333:instance/i-0abc", iamCanPerformResourceTypeEC2Instance},
 		{"arn:aws:rds:us-east-1:111122223333:db:prod", iamCanPerformResourceTypeRDSInstance},
-		{"arn:aws:iam::111122223333:role/x", ""}, // not a CAN_PERFORM resource type
+		{"arn:aws:lambda:us-east-1:111122223333:function:orders-api", iamCanPerformResourceTypeLambdaFunc},
+		{"arn:aws:lambda:us-east-1:111122223333:function:orders-api:prod", ""}, // alias/version is not the base function node
+		{"arn:aws:iam::111122223333:role/x", ""},                               // not a CAN_PERFORM resource type
 		{"not-an-arn", ""},
 	}
 	for _, tc := range cases {

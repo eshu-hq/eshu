@@ -161,9 +161,10 @@ func TestIAMCanPerformUncataloguedActionIsSkipped(t *testing.T) {
 		attackerNode(),
 		canPerformNode(iamCanPerformResourceTypeS3Bucket, canPerformBucketARN),
 	}
-	// s3:listbucket is NOT in the catalog; s3:getobject is. Only getobject resolves.
+	// cloudwatch:getmetricdata is NOT in the catalog; s3:getobject is. Only
+	// getobject resolves.
 	perms := []facts.Envelope{
-		escalationPermissionEnvelope(attackerUserARN, "Allow", []string{"s3:listbucket", "s3:getobject"}, []string{canPerformBucketARN}),
+		escalationPermissionEnvelope(attackerUserARN, "Allow", []string{"cloudwatch:getmetricdata", "s3:getobject"}, []string{canPerformBucketARN}),
 	}
 
 	result := ExtractIAMCanPerformEdges(resources, perms)
@@ -443,10 +444,10 @@ func TestIAMCanPerformServiceWildcardCoversAction(t *testing.T) {
 	if edge == nil {
 		t.Fatalf("s3:* must arm catalogued s3: actions; rows=%v", result.Edges)
 	}
-	// s3:* covers s3:getobject, s3:putobject, s3:deletebucket -> all to the same
-	// bucket -> merged into one edge.
+	// s3:* covers the reviewed bucket-target S3 catalog actions -> all to the
+	// same bucket -> merged into one edge.
 	got := edge["actions"].([]string)
-	want := []string{"s3:deletebucket", "s3:getobject", "s3:putobject"}
+	want := []string{"s3:deletebucket", "s3:getobject", "s3:listbucket", "s3:putobject"}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("s3:* bucket actions = %v, want %v", got, want)
 	}

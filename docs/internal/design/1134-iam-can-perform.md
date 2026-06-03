@@ -422,3 +422,59 @@ No-Performance-Regression: PR4d adds scalar list normalization on already-parsed
 policy statements plus one in-memory counter increment when a conditioned
 statement is skipped. It does not change fact loading, queue gates, graph write
 shape, Cypher, MERGE identity, or per-edge row shape.
+
+### 13.5 PR4e reviewed action-vocabulary expansion
+
+PR4e expands the closed CAN_PERFORM catalog from 9 to 21 reviewed actions. The
+expansion stays inside the existing confidence model: every new action maps to an
+already-scanned `CloudResource` family, resolves by exact ARN or single glob
+only, refuses wildcard / ambiguous / unresolved targets, and keeps the static
+`CAN_PERFORM` relationship identity unchanged. It does not add raw action or
+resource identifiers to metric labels.
+
+| Service | Canonical action | Expected `CloudResource` type | Accepted ARN pattern | Resolution strategy | Why it matters |
+| --- | --- | --- | --- | --- | --- |
+| S3 | `s3:listbucket` | `aws_s3_bucket` | `arn:${Partition}:s3:::${BucketName}` | Exact bucket ARN or single bucket glob among scanned bucket nodes. | Bucket object listing is a common data-discovery precursor and uses the bucket ARN shape the graph already materializes. |
+| KMS | `kms:generatedatakey` | `aws_kms_key` | `arn:${Partition}:kms:${Region}:${Account}:key/${KeyId}` | Exact key ARN or single key glob among scanned KMS key nodes. | Data-key issuance can expose plaintext data keys for client-side encryption workflows. |
+| Secrets Manager | `secretsmanager:putsecretvalue` | `aws_secretsmanager_secret` | `arn:${Partition}:secretsmanager:${Region}:${Account}:secret:${SecretName}` | Exact secret ARN or single secret glob among scanned secret nodes. | Updating secret material is a high-impact mutation path, not just metadata access. |
+| Systems Manager | `ssm:getparameters` | `aws_ssm_parameter` | `arn:${Partition}:ssm:${Region}:${Account}:parameter/${Name}` | Exact parameter ARN or single parameter glob among scanned parameter nodes. | Batch parameter reads expose the same sensitive values as single-parameter reads while using the same target family. |
+| DynamoDB | `dynamodb:query`, `dynamodb:scan`, `dynamodb:putitem`, `dynamodb:updateitem`, `dynamodb:deleteitem` | `aws_dynamodb_table` | `arn:${Partition}:dynamodb:${Region}:${Account}:table/${TableName}` | Exact table ARN or single table glob among scanned table nodes; table indexes remain out of scope. | Query/Scan widen item reads beyond `GetItem`; Put/Update/Delete cover direct table data mutation. |
+| EC2 | `ec2:stopinstances` | `aws_ec2_instance` | `arn:${Partition}:ec2:${Region}:${Account}:instance/${InstanceId}` | Exact instance ARN or single instance glob among scanned EC2 instance nodes. | Stopping instances is an availability-impacting compute action distinct from termination. |
+| RDS | `rds:stopdbinstance` | `aws_rds_db_instance` | `arn:${Partition}:rds:${Region}:${Account}:db:${DBInstanceName}` | Exact DB-instance ARN or single DB-instance glob among scanned RDS instance nodes. | Stopping a database instance is an availability-impacting data-plane action. |
+| Lambda | `lambda:invokefunction` | `aws_lambda_function` | `arn:${Partition}:lambda:${Region}:${Account}:function:${FunctionName}` | Exact base function ARN or single base-function glob among scanned Lambda function nodes. Alias/version ARNs stay out of scope because they are separate target families. | Invoking a function can execute workload code that reads, mutates, or exfiltrates data through the function role. |
+
+Explicit deferrals: S3 object actions beyond the already-shipped starter entries
+remain outside this expansion because the graph currently materializes bucket
+nodes, not object nodes, and object-ARN-to-bucket normalization would change the
+resolution confidence model. DynamoDB index ARNs, Lambda alias/version ARNs, RDS
+cluster actions, wildcard action expansion, partial action wildcards, SCPs, and
+session policies also remain out of PR4e.
+
+Cardinality impact: the catalog loop grows from 9 to 21 actions per scanned
+principal. Output cardinality remains bounded by the same `(principal,
+resolved-resource)` edge identity because multiple actions on the same resource
+merge into one edge's sorted `actions[]` property. The graph writer still writes
+one static-token relationship row per resolved principal/resource pair; no
+Cypher, MERGE key, graph schema, queue gate, or per-edge row shape changes.
+
+Benchmark Evidence: `go test ./internal/storage/cypher -run '^$' -bench
+'BenchmarkIAMCanPerformEdgeWriter|BenchmarkIAMEscalationEdgeWriter' -benchmem
+-benchtime=100x -count=3` keeps the unchanged CAN_PERFORM writer at about
+`1.25-1.33 ms/op`, `1.97 MB/op`, and `25,068 allocs/op` for 5,000 rows.
+
+No-Regression Evidence: `go test ./internal/reducer -run
+'IAMCanPerform(Catalog|PR4e|ResourceTypeOfARN|UncataloguedAction)' -count=1`
+failed before the PR4e catalog and Lambda base-function ARN classifier were
+added, then passed. `go test ./internal/reducer -run 'IAMCanPerform' -count=1`
+keeps the broader exact, single-glob, ambiguous, wildcard, unresolved, deny,
+conditioned, NotAction/NotResource, duplicate, resource-policy, permission
+boundary, self-loop, and handler cases green.
+
+No-Observability-Change: existing
+`eshu_dp_iam_can_perform_edges_total{resolution_mode}`,
+`eshu_dp_iam_can_perform_skipped_total{skip_reason}`,
+`eshu_dp_iam_can_perform_conditioned_total{confidence}`,
+`reducer.iam_can_perform_materialization`, and the structured completion log
+continue to diagnose projected edges and refusals. PR4e adds no metric
+instrument, metric label, span name, graph label, graph property, queue state, or
+API/MCP surface.

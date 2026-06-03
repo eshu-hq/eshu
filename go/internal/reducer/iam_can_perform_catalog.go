@@ -17,6 +17,7 @@ const (
 	iamCanPerformResourceTypeDynamoDB    = "aws_dynamodb_table"
 	iamCanPerformResourceTypeEC2Instance = "aws_ec2_instance"
 	iamCanPerformResourceTypeRDSInstance = "aws_rds_db_instance"
+	iamCanPerformResourceTypeLambdaFunc  = "aws_lambda_function"
 )
 
 const (
@@ -91,16 +92,28 @@ var iamCanPerformCatalog = []iamCanPerformAction{
 	{Action: "s3:getobject", ExpectedResourceType: iamCanPerformResourceTypeS3Bucket},
 	{Action: "s3:putobject", ExpectedResourceType: iamCanPerformResourceTypeS3Bucket},
 	{Action: "s3:deletebucket", ExpectedResourceType: iamCanPerformResourceTypeS3Bucket},
-	// KMS decrypt (data-at-rest exposure).
+	{Action: "s3:listbucket", ExpectedResourceType: iamCanPerformResourceTypeS3Bucket},
+	// KMS data-at-rest exposure and data-key issuance.
 	{Action: "kms:decrypt", ExpectedResourceType: iamCanPerformResourceTypeKMSKey},
-	// Secret / parameter exfiltration.
+	{Action: "kms:generatedatakey", ExpectedResourceType: iamCanPerformResourceTypeKMSKey},
+	// Secret / parameter exfiltration or value mutation.
 	{Action: "secretsmanager:getsecretvalue", ExpectedResourceType: iamCanPerformResourceTypeSecret},
+	{Action: "secretsmanager:putsecretvalue", ExpectedResourceType: iamCanPerformResourceTypeSecret},
 	{Action: "ssm:getparameter", ExpectedResourceType: iamCanPerformResourceTypeSSMParam},
-	// DynamoDB item read.
+	{Action: "ssm:getparameters", ExpectedResourceType: iamCanPerformResourceTypeSSMParam},
+	// DynamoDB item/table read and mutation.
 	{Action: "dynamodb:getitem", ExpectedResourceType: iamCanPerformResourceTypeDynamoDB},
-	// Destructive compute / database actions.
+	{Action: "dynamodb:query", ExpectedResourceType: iamCanPerformResourceTypeDynamoDB},
+	{Action: "dynamodb:scan", ExpectedResourceType: iamCanPerformResourceTypeDynamoDB},
+	{Action: "dynamodb:putitem", ExpectedResourceType: iamCanPerformResourceTypeDynamoDB},
+	{Action: "dynamodb:updateitem", ExpectedResourceType: iamCanPerformResourceTypeDynamoDB},
+	{Action: "dynamodb:deleteitem", ExpectedResourceType: iamCanPerformResourceTypeDynamoDB},
+	// Destructive or workload-executing compute / database actions.
 	{Action: "ec2:terminateinstances", ExpectedResourceType: iamCanPerformResourceTypeEC2Instance},
+	{Action: "ec2:stopinstances", ExpectedResourceType: iamCanPerformResourceTypeEC2Instance},
 	{Action: "rds:deletedbinstance", ExpectedResourceType: iamCanPerformResourceTypeRDSInstance},
+	{Action: "rds:stopdbinstance", ExpectedResourceType: iamCanPerformResourceTypeRDSInstance},
+	{Action: "lambda:invokefunction", ExpectedResourceType: iamCanPerformResourceTypeLambdaFunc},
 }
 
 // iamCanPerformCatalogByAction indexes the catalog by lowercase action so the
