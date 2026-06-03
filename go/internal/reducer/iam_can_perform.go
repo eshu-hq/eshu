@@ -352,9 +352,9 @@ func strongestCanPerformMode(existing, candidate string) string {
 // matching CAN_PERFORM resource_type token, so target resolution can require the
 // resolved node be the right service family. It generalizes the escalation
 // iamResourceTypeOfARN classifier from IAM to the S3/KMS/SecretsManager/SSM/
-// DynamoDB/EC2/RDS services the catalog covers. Returns "" for an unrecognized or
-// out-of-catalog ARN. Resolution still requires the ARN be a scanned node, so a
-// classification alone never fabricates an edge.
+// DynamoDB/EC2/RDS/Lambda services the catalog covers. Returns "" for an
+// unrecognized or out-of-catalog ARN. Resolution still requires the ARN be a
+// scanned node, so a classification alone never fabricates an edge.
 func iamCanPerformResourceTypeOfARN(arn string) string {
 	// ARN form: arn:partition:service:region:account:resource (S3 omits region and
 	// account, so the resource segment is everything after the service's colons).
@@ -396,6 +396,11 @@ func iamCanPerformResourceTypeOfARN(arn string) string {
 	case "rds":
 		if strings.HasPrefix(resource, "db:") {
 			return iamCanPerformResourceTypeRDSInstance
+		}
+	case "lambda":
+		functionName := strings.TrimPrefix(resource, "function:")
+		if functionName != resource && functionName != "" && !strings.Contains(functionName, ":") {
+			return iamCanPerformResourceTypeLambdaFunc
 		}
 	}
 	return ""

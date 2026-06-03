@@ -22,6 +22,7 @@ func TestIAMCanPerformCatalogIsWellFormed(t *testing.T) {
 		iamCanPerformResourceTypeDynamoDB:    {},
 		iamCanPerformResourceTypeEC2Instance: {},
 		iamCanPerformResourceTypeRDSInstance: {},
+		iamCanPerformResourceTypeLambdaFunc:  {},
 	}
 	for _, entry := range iamCanPerformCatalog {
 		if strings.TrimSpace(entry.Action) == "" {
@@ -58,8 +59,8 @@ func TestIAMCanPerformCatalogShipsStarterVocabulary(t *testing.T) {
 		"rds:deletedbinstance":          iamCanPerformResourceTypeRDSInstance,
 	}
 	byAction := iamCanPerformCatalogByAction()
-	if len(byAction) != len(want) {
-		t.Fatalf("catalog has %d entries, want the %d starter actions", len(byAction), len(want))
+	if len(byAction) < len(want) {
+		t.Fatalf("catalog has %d entries, fewer than the %d starter actions", len(byAction), len(want))
 	}
 	for action, typ := range want {
 		entry, ok := byAction[action]

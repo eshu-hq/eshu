@@ -1188,6 +1188,32 @@ identity/resource-policy graph refusal, unknown operators, and
 `eshu_dp_iam_can_perform_conditioned_total{confidence="provenance_only"}`. The
 change is metadata normalization plus in-memory tallying only: no graph schema,
 Cypher, queue, readiness gate, MERGE key, or writer row-shape change.
+
+No-Regression Evidence: PR4e expands the reviewed CAN_PERFORM catalog from 9 to
+21 actions: `s3:listbucket`, `kms:generatedatakey`,
+`secretsmanager:putsecretvalue`, `ssm:getparameters`, `dynamodb:query`,
+`dynamodb:scan`, `dynamodb:putitem`, `dynamodb:updateitem`,
+`dynamodb:deleteitem`, `ec2:stopinstances`, `rds:stopdbinstance`, and
+`lambda:invokefunction`. `go test ./internal/reducer -run
+'IAMCanPerform(Catalog|PR4e|ResourceTypeOfARN|UncataloguedAction)' -count=1`
+failed before the new catalog entries and Lambda base-function classifier, then
+passed. `go test ./internal/reducer -run 'IAMCanPerform' -count=1` keeps the
+broader skip taxonomy, duplicate merge, resource-policy, permission-boundary,
+conditioned provenance-only, and handler coverage green.
+
+Performance Evidence: `go test ./internal/storage/cypher -run '^$' -bench
+'BenchmarkIAMCanPerformEdgeWriter|BenchmarkIAMEscalationEdgeWriter' -benchmem
+-benchtime=100x -count=3` keeps the unchanged CAN_PERFORM writer at about
+`1.25-1.33 ms/op`, `1.97 MB/op`, and `25,068 allocs/op` for 5,000 rows.
+
+No-Observability-Change: the expansion adds only closed catalog entries and one
+base Lambda function ARN classifier. Existing edge, skipped, and conditioned
+counters, the `reducer.iam_can_perform_materialization` span, readiness retry
+errors, and the completion log still expose projected edge count, bounded skip
+reasons, conditioned provenance-only count, fact counts, and stage durations. No
+metric label, graph writer shape, Cypher, queue gate, graph property, or API/MCP
+surface changes.
+
 ## Related docs
 
 - `docs/public/architecture.md`
