@@ -35,6 +35,10 @@ func BuildSecretsIAMTrustChainReadModels(envelopes []facts.Envelope) SecretsIAMT
 		models.PrivilegePostureObservations,
 		secretsIAMWildcardVaultAuthRoleObservations(index.vaultAuthRoles)...,
 	)
+	models.PrivilegePostureObservations = append(
+		models.PrivilegePostureObservations,
+		secretsIAMExternalTrustObservations(index.iamTrusts)...,
+	)
 	chains, paths, gaps := secretsIAMExactChains(index)
 	models.IdentityTrustChains = append(models.IdentityTrustChains, chains...)
 	models.SecretAccessPaths = append(models.SecretAccessPaths, paths...)
