@@ -114,6 +114,12 @@ interpretation, Vault policy interpretation, trust-chain joins, posture
 classification, and graph promotion; source facts alone do not assert
 privilege-escalation truth.
 
+Conditioned IAM trust and permission-policy statement facts include normalized
+condition key/operator names in their stable identity so duplicate or blank Sid
+statements stay distinct without persisting condition values. Unconditioned
+statement facts keep the same stable identity they had before condition
+summaries were added.
+
 Incident-routing facts preserve routing evidence before reducer-owned
 comparison. Terraform-state applied evidence is emitted as
 `incident_routing.applied_pagerduty_resource` for allowlisted PagerDuty
@@ -180,7 +186,8 @@ policy (an S3 bucket policy or KMS key policy) attached to the resource it
 controls. The payload carries the attached `resource_arn` / `resource_type`,
 `policy_source = "resource"`, the statement `effect`, the normalized
 `actions` / `not_actions` / `resources` / `not_resources` patterns, a
-condition-key NAME summary (`condition_keys`, `has_conditions`), the
+condition key/operator NAME summary (`condition_keys`, `condition_operators`,
+`condition_operator_count`, `has_conditions`), the
 `is_wildcard_action` / `is_wildcard_resource` flags, and the derived grantee
 principal facts (`principal_account_ids`, `principal_arns`, `principal_types`,
 `is_public`, `is_cross_account`). It NEVER carries the raw policy JSON body, the
@@ -191,6 +198,12 @@ key policy with `GetKeyPolicy` (one bounded control-plane read per key policy
 name). It emits no graph edge from the collector; the reducer consumes it as the
 resource-policy source for conservative CAN_PERFORM projection under issue
 #1134.
+
+Conditioned `aws_iam_permission` and `aws_resource_policy_permission` facts
+include the normalized condition key/operator summary in their stable identity
+so statements with the same action/resource patterns and empty or duplicate Sid
+values remain separate facts. Unconditioned statement facts keep their existing
+stable identity.
 
 `ec2_instance_posture` carries one metadata-only security and operations posture
 observation per EC2 instance, derived from the existing DescribeInstances pass:

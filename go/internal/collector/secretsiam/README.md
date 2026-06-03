@@ -108,7 +108,10 @@ introduced by this package. The Vault slice is source-fact construction only.
   policy, Vault identity, and Vault KV metadata facts exclude generation IDs so
   repeated source observations can be compared across generations. Coverage
   warning stable keys include generation IDs because warning state is scoped to
-  the scan that observed the missing or partial surface.
+  the scan that observed the missing or partial surface. Conditioned IAM trust
+  and permission-policy statement facts include normalized condition key/operator
+  names in the stable key; unconditioned statements keep the historical
+  identity.
 - Builders emit source facts only. Reducers own all graph promotion, trust-chain
   joins, effective RBAC interpretation, and effective-permission decisions.
 

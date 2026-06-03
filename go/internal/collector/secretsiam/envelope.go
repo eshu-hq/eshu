@@ -69,7 +69,7 @@ func NewTrustPolicyEnvelope(observation TrustPolicyObservation) (facts.Envelope,
 	assumePrincipals := normalizePatternList(observation.AssumePrincipals)
 	webIdentitySubjects := normalizePatternList(observation.WebIdentitySubjectFingerprints)
 	statementSID := strings.TrimSpace(observation.StatementSID)
-	stableKey := facts.StableID(facts.AWSIAMTrustPolicyFactKind, map[string]any{
+	stableIdentity := map[string]any{
 		"account_id":            observation.Context.AccountID,
 		"actions":               strings.Join(actions, ","),
 		"assume_principals":     strings.Join(assumePrincipals, ","),
@@ -78,7 +78,9 @@ func NewTrustPolicyEnvelope(observation TrustPolicyObservation) (facts.Envelope,
 		"role_arn":              roleARN,
 		"statement_sid":         statementSID,
 		"web_identity_subjects": strings.Join(webIdentitySubjects, ","),
-	})
+	}
+	addConditionSummaryIdentity(stableIdentity, conditionKeys, conditionOperators)
+	stableKey := facts.StableID(facts.AWSIAMTrustPolicyFactKind, stableIdentity)
 	payload := commonPayload(observation.Context)
 	payload["role_arn"] = roleARN
 	payload["statement_sid"] = statementSID
@@ -131,7 +133,7 @@ func NewPermissionPolicyEnvelope(observation PermissionPolicyObservation) (facts
 	policyName := strings.TrimSpace(observation.PolicyName)
 	statementSID := strings.TrimSpace(observation.StatementSID)
 
-	stableKey := facts.StableID(facts.AWSIAMPermissionPolicyFactKind, map[string]any{
+	stableIdentity := map[string]any{
 		"account_id":    observation.Context.AccountID,
 		"actions":       strings.Join(actions, ","),
 		"effect":        effect,
@@ -144,7 +146,9 @@ func NewPermissionPolicyEnvelope(observation PermissionPolicyObservation) (facts
 		"region":        observation.Context.Region,
 		"resources":     strings.Join(resources, ","),
 		"statement_sid": statementSID,
-	})
+	}
+	addConditionSummaryIdentity(stableIdentity, conditionKeys, conditionOperators)
+	stableKey := facts.StableID(facts.AWSIAMPermissionPolicyFactKind, stableIdentity)
 	payload := commonPayload(observation.Context)
 	payload["principal_arn"] = principalARN
 	payload["principal_type"] = strings.TrimSpace(observation.PrincipalType)

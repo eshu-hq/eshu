@@ -52,7 +52,7 @@ func NewIAMPermissionEnvelope(observation IAMPermissionObservation) (facts.Envel
 	policyName := strings.TrimSpace(observation.PolicyName)
 	statementSID := strings.TrimSpace(observation.StatementSID)
 
-	stableKey := facts.StableID(facts.AWSIAMPermissionFactKind, map[string]any{
+	stableIdentity := map[string]any{
 		"account_id":    observation.Boundary.AccountID,
 		"actions":       strings.Join(actions, ","),
 		"effect":        effect,
@@ -65,7 +65,9 @@ func NewIAMPermissionEnvelope(observation IAMPermissionObservation) (facts.Envel
 		"region":        observation.Boundary.Region,
 		"resources":     strings.Join(resources, ","),
 		"statement_sid": statementSID,
-	})
+	}
+	addConditionSummaryIdentity(stableIdentity, conditionKeys, conditionOperators)
+	stableKey := facts.StableID(facts.AWSIAMPermissionFactKind, stableIdentity)
 
 	payload := map[string]any{
 		"account_id":               observation.Boundary.AccountID,

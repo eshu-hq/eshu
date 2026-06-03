@@ -78,6 +78,115 @@ func TestNewPermissionPolicyEnvelopeRedactsPolicyBodyAndConditionValues(t *testi
 	assertNoForbiddenPayloadKeys(t, env.Payload)
 }
 
+func TestNewPermissionPolicyEnvelopeStableIdentityIncludesConditionSummary(t *testing.T) {
+	ctx := testContext()
+	base := PermissionPolicyObservation{
+		Context:       ctx,
+		PrincipalARN:  "arn:aws:iam::123456789012:role/eshu-runtime",
+		PrincipalType: PrincipalTypeAWSRole,
+		PolicySource:  PolicySourceInline,
+		PolicyName:    "inline-escalate",
+		Effect:        "allow",
+		Actions:       []string{"iam:PassRole"},
+		Resources:     []string{"arn:aws:iam::123456789012:role/*"},
+	}
+	unconditional, err := NewPermissionPolicyEnvelope(base)
+	if err != nil {
+		t.Fatalf("unconditional envelope error: %v", err)
+	}
+	wantUnconditionalKey := facts.StableID(facts.AWSIAMPermissionPolicyFactKind, map[string]any{
+		"account_id":    ctx.AccountID,
+		"actions":       "iam:passrole",
+		"effect":        "Allow",
+		"not_actions":   "",
+		"not_resources": "",
+		"policy_arn":    "",
+		"policy_name":   "inline-escalate",
+		"policy_source": PolicySourceInline,
+		"principal_arn": "arn:aws:iam::123456789012:role/eshu-runtime",
+		"region":        ctx.Region,
+		"resources":     "arn:aws:iam::123456789012:role/*",
+		"statement_sid": "",
+	})
+	if unconditional.StableFactKey != wantUnconditionalKey {
+		t.Fatalf("unconditional StableFactKey = %q, want legacy key %q", unconditional.StableFactKey, wantUnconditionalKey)
+	}
+
+	sourceIPCondition := base
+	sourceIPCondition.ConditionKeys = []string{"aws:SourceIp"}
+	sourceIPCondition.ConditionOperators = []string{"IpAddress"}
+	sourceIP, err := NewPermissionPolicyEnvelope(sourceIPCondition)
+	if err != nil {
+		t.Fatalf("source-ip envelope error: %v", err)
+	}
+	stringCondition := base
+	stringCondition.ConditionKeys = []string{"aws:SourceIp"}
+	stringCondition.ConditionOperators = []string{"StringEquals"}
+	stringEquals, err := NewPermissionPolicyEnvelope(stringCondition)
+	if err != nil {
+		t.Fatalf("string-equals envelope error: %v", err)
+	}
+	orgCondition := base
+	orgCondition.ConditionKeys = []string{"aws:PrincipalOrgID"}
+	orgCondition.ConditionOperators = []string{"IpAddress"}
+	org, err := NewPermissionPolicyEnvelope(orgCondition)
+	if err != nil {
+		t.Fatalf("org envelope error: %v", err)
+	}
+	assertDistinctFactIdentity(t, sourceIP, stringEquals, org)
+}
+
+func TestNewTrustPolicyEnvelopeStableIdentityIncludesConditionSummary(t *testing.T) {
+	ctx := testContext()
+	base := TrustPolicyObservation{
+		Context:          ctx,
+		RoleARN:          "arn:aws:iam::123456789012:role/eshu-runtime",
+		Effect:           "allow",
+		Actions:          []string{"sts:AssumeRole"},
+		AssumePrincipals: []string{"arn:aws:iam::111122223333:root"},
+	}
+	unconditional, err := NewTrustPolicyEnvelope(base)
+	if err != nil {
+		t.Fatalf("unconditional envelope error: %v", err)
+	}
+	wantUnconditionalKey := facts.StableID(facts.AWSIAMTrustPolicyFactKind, map[string]any{
+		"account_id":            ctx.AccountID,
+		"actions":               "sts:assumerole",
+		"assume_principals":     "arn:aws:iam::111122223333:root",
+		"effect":                "Allow",
+		"region":                ctx.Region,
+		"role_arn":              "arn:aws:iam::123456789012:role/eshu-runtime",
+		"statement_sid":         "",
+		"web_identity_subjects": "",
+	})
+	if unconditional.StableFactKey != wantUnconditionalKey {
+		t.Fatalf("unconditional StableFactKey = %q, want legacy key %q", unconditional.StableFactKey, wantUnconditionalKey)
+	}
+
+	sourceIPCondition := base
+	sourceIPCondition.ConditionKeys = []string{"aws:SourceIp"}
+	sourceIPCondition.ConditionOperators = []string{"IpAddress"}
+	sourceIP, err := NewTrustPolicyEnvelope(sourceIPCondition)
+	if err != nil {
+		t.Fatalf("source-ip envelope error: %v", err)
+	}
+	stringCondition := base
+	stringCondition.ConditionKeys = []string{"aws:SourceIp"}
+	stringCondition.ConditionOperators = []string{"StringEquals"}
+	stringEquals, err := NewTrustPolicyEnvelope(stringCondition)
+	if err != nil {
+		t.Fatalf("string-equals envelope error: %v", err)
+	}
+	orgCondition := base
+	orgCondition.ConditionKeys = []string{"aws:PrincipalOrgID"}
+	orgCondition.ConditionOperators = []string{"IpAddress"}
+	org, err := NewTrustPolicyEnvelope(orgCondition)
+	if err != nil {
+		t.Fatalf("org envelope error: %v", err)
+	}
+	assertDistinctFactIdentity(t, sourceIP, stringEquals, org)
+}
+
 func TestNewPrincipalBoundaryAndAttachmentEnvelopes(t *testing.T) {
 	ctx := testContext()
 	principal, err := NewPrincipalEnvelope(PrincipalObservation{
@@ -196,6 +305,20 @@ func assertNoForbiddenPayloadKeys(t *testing.T, payload map[string]any) {
 	for _, key := range forbidden {
 		if _, ok := payload[key]; ok {
 			t.Fatalf("payload carries forbidden key %q: %#v", key, payload)
+		}
+	}
+}
+
+func assertDistinctFactIdentity(t *testing.T, envelopes ...facts.Envelope) {
+	t.Helper()
+	for left := 0; left < len(envelopes); left++ {
+		for right := left + 1; right < len(envelopes); right++ {
+			if envelopes[left].StableFactKey == envelopes[right].StableFactKey {
+				t.Fatalf("StableFactKey[%d] = StableFactKey[%d] = %q", left, right, envelopes[left].StableFactKey)
+			}
+			if envelopes[left].FactID == envelopes[right].FactID {
+				t.Fatalf("FactID[%d] = FactID[%d] = %q", left, right, envelopes[left].FactID)
+			}
 		}
 	}
 }

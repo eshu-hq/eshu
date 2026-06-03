@@ -161,6 +161,11 @@ func TestNewIAMPermissionEnvelopeStableIdentityIgnoresConditionOrder(t *testing.
 		Effect:        "Allow",
 		Actions:       []string{"iam:PassRole"},
 		Resources:     []string{"arn:aws:iam::123456789012:role/*"},
+		ConditionKeys: []string{"aws:SourceIp", "aws:PrincipalOrgID"},
+		ConditionOperators: []string{
+			"IpAddress",
+			"StringEquals",
+		},
 	}
 	first, err := NewIAMPermissionEnvelope(base)
 	if err != nil {
@@ -168,6 +173,8 @@ func TestNewIAMPermissionEnvelopeStableIdentityIgnoresConditionOrder(t *testing.
 	}
 	reordered := base
 	reordered.Actions = []string{"IAM:PassRole"}
+	reordered.ConditionKeys = []string{"aws:PrincipalOrgID", "aws:SourceIp", "aws:SourceIp"}
+	reordered.ConditionOperators = []string{"StringEquals", "IpAddress", "StringEquals"}
 	second, err := NewIAMPermissionEnvelope(reordered)
 	if err != nil {
 		t.Fatalf("second envelope error: %v", err)
@@ -178,4 +185,62 @@ func TestNewIAMPermissionEnvelopeStableIdentityIgnoresConditionOrder(t *testing.
 	if first.StableFactKey != second.StableFactKey {
 		t.Fatalf("StableFactKey changed with action casing: %q != %q", first.StableFactKey, second.StableFactKey)
 	}
+}
+
+func TestNewIAMPermissionEnvelopeStableIdentityIncludesConditionSummary(t *testing.T) {
+	boundary := testBoundary(time.Date(2026, 5, 13, 12, 0, 0, 0, time.UTC))
+	base := IAMPermissionObservation{
+		Boundary:      boundary,
+		PrincipalARN:  "arn:aws:iam::123456789012:role/eshu-runtime",
+		PrincipalType: ResourceTypeIAMRole,
+		PolicySource:  IAMPolicySourceInline,
+		PolicyName:    "inline-escalate",
+		Effect:        "Allow",
+		Actions:       []string{"iam:PassRole"},
+		Resources:     []string{"arn:aws:iam::123456789012:role/*"},
+	}
+	unconditional, err := NewIAMPermissionEnvelope(base)
+	if err != nil {
+		t.Fatalf("unconditional envelope error: %v", err)
+	}
+	wantUnconditionalKey := facts.StableID(facts.AWSIAMPermissionFactKind, map[string]any{
+		"account_id":    boundary.AccountID,
+		"actions":       "iam:passrole",
+		"effect":        "Allow",
+		"not_actions":   "",
+		"not_resources": "",
+		"policy_arn":    "",
+		"policy_name":   "inline-escalate",
+		"policy_source": IAMPolicySourceInline,
+		"principal_arn": "arn:aws:iam::123456789012:role/eshu-runtime",
+		"region":        boundary.Region,
+		"resources":     "arn:aws:iam::123456789012:role/*",
+		"statement_sid": "",
+	})
+	if unconditional.StableFactKey != wantUnconditionalKey {
+		t.Fatalf("unconditional StableFactKey = %q, want legacy key %q", unconditional.StableFactKey, wantUnconditionalKey)
+	}
+
+	sourceIPCondition := base
+	sourceIPCondition.ConditionKeys = []string{"aws:SourceIp"}
+	sourceIPCondition.ConditionOperators = []string{"IpAddress"}
+	sourceIP, err := NewIAMPermissionEnvelope(sourceIPCondition)
+	if err != nil {
+		t.Fatalf("source-ip envelope error: %v", err)
+	}
+	stringCondition := base
+	stringCondition.ConditionKeys = []string{"aws:SourceIp"}
+	stringCondition.ConditionOperators = []string{"StringEquals"}
+	stringEquals, err := NewIAMPermissionEnvelope(stringCondition)
+	if err != nil {
+		t.Fatalf("string-equals envelope error: %v", err)
+	}
+	orgCondition := base
+	orgCondition.ConditionKeys = []string{"aws:PrincipalOrgID"}
+	orgCondition.ConditionOperators = []string{"IpAddress"}
+	org, err := NewIAMPermissionEnvelope(orgCondition)
+	if err != nil {
+		t.Fatalf("org envelope error: %v", err)
+	}
+	assertDistinctFactIdentity(t, sourceIP, stringEquals, org)
 }

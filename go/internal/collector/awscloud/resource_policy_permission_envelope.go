@@ -52,7 +52,7 @@ func NewResourcePolicyPermissionEnvelope(observation ResourcePolicyPermissionObs
 
 	statementSID := strings.TrimSpace(observation.StatementSID)
 
-	stableKey := facts.StableID(facts.AWSResourcePolicyPermissionFactKind, map[string]any{
+	stableIdentity := map[string]any{
 		"account_id":            observation.Boundary.AccountID,
 		"actions":               strings.Join(actions, ","),
 		"effect":                effect,
@@ -66,7 +66,9 @@ func NewResourcePolicyPermissionEnvelope(observation ResourcePolicyPermissionObs
 		"resource_type":         resourceType,
 		"resources":             strings.Join(resources, ","),
 		"statement_sid":         statementSID,
-	})
+	}
+	addConditionSummaryIdentity(stableIdentity, conditionKeys, conditionOperators)
+	stableKey := facts.StableID(facts.AWSResourcePolicyPermissionFactKind, stableIdentity)
 
 	payload := map[string]any{
 		"account_id":               observation.Boundary.AccountID,
