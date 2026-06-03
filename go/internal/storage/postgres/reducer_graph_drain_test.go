@@ -26,7 +26,15 @@ func TestReducerGraphDrainHasActiveReducerGraphWork(t *testing.T) {
 	}
 	query := db.queries[0].query
 	for _, want := range []string{
+		"active_fact_work_items AS (",
 		"FROM fact_work_items",
+		"JOIN ingestion_scopes AS scope",
+		"scope.active_generation_id = active_generation.generation_id",
+		"work.stage = 'reducer'",
+		"work.status IN ('pending', 'retrying', 'failed', 'dead_letter')",
+		"stale_generation.ingested_at < active_generation.ingested_at",
+		"stale_generation.generation_id < active_generation.generation_id",
+		"FROM active_fact_work_items",
 		"stage = 'reducer'",
 		"status IN ('pending', 'retrying', 'claimed', 'running')",
 		"domain IN (",

@@ -9,7 +9,8 @@ import (
 )
 
 const reducerConflictBlockageQuery = `
-WITH eligible AS (
+WITH ` + activeFactWorkItemsCTE + `,
+eligible AS (
     SELECT work_item_id,
            scope_id,
            generation_id,
@@ -18,7 +19,7 @@ WITH eligible AS (
            COALESCE(conflict_key, scope_id) AS conflict_key,
            COALESCE(visible_at, created_at) AS available_at,
            payload
-    FROM fact_work_items
+    FROM active_fact_work_items
     WHERE stage = 'reducer'
       AND status IN ('pending', 'retrying', 'claimed', 'running')
       AND (visible_at IS NULL OR visible_at <= $1)

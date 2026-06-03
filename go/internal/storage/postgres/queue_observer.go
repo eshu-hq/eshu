@@ -7,16 +7,18 @@ import (
 )
 
 const queueDepthQuery = `
+WITH ` + activeFactWorkItemsCTE + `
 SELECT stage,
        status,
        COUNT(*) AS count
-FROM fact_work_items
+FROM active_fact_work_items
 WHERE status IN ('pending', 'claimed', 'running', 'retrying')
 GROUP BY stage, status
 ORDER BY stage, status
 `
 
 const queueOldestAgeQuery = `
+WITH ` + activeFactWorkItemsCTE + `
 SELECT stage,
        COALESCE(
          EXTRACT(
@@ -27,7 +29,7 @@ SELECT stage,
          ),
          0
        ) AS oldest_age_seconds
-FROM fact_work_items
+FROM active_fact_work_items
 WHERE status IN ('pending', 'claimed', 'running', 'retrying')
 GROUP BY stage
 `

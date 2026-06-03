@@ -198,7 +198,7 @@ func (db *proofDomainDB) QueryContext(_ context.Context, query string, args ...a
 		return newProofRows(
 			proofDomainBacklogRows(db.state.workItems, args[0].(time.Time)),
 		), nil
-	case strings.Contains(query, "SELECT COUNT(*) AS total_count"):
+	case strings.Contains(query, "AS total_count"):
 		if len(args) != 1 {
 			return nil, fmt.Errorf("queue snapshot args = %d, want 1", len(args))
 		}
