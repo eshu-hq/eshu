@@ -51,6 +51,30 @@ That reducer layer is the accuracy boundary. It performs cross-source joins,
 freshness comparison, exact-vs-partial classification, and unsupported-layer
 labeling before any graph projection is allowed.
 
+### 2.1. Prerequisite status (decision-ready)
+
+The non-graph prerequisites this gate depends on are now landed, so the gate is
+ready for the principal and security decision in section 14:
+
+- Source lanes emit redacted facts: AWS IAM (`awscloud/services/iam`,
+  `accessanalyzer`), Kubernetes RBAC (`kuberneteslive`), and Vault metadata
+  (`secretsiam` builders + the `vaultlive` source). A `net/http` Vault metadata
+  adapter (#1356) and the seven Vault fact families (#1355) are implemented.
+- The reducer read model (#1313/#1327) builds and persists the four
+  `reducer_secrets_iam_*` fact kinds with the six-state vocabulary
+  (`exact`/`partial`/`unresolved`/`stale`/`permission_hidden`/`unsupported`).
+- The bounded, truth-labeled query + MCP read surface over those read models is
+  implemented (identity trust chains, privilege posture observations, secret
+  access paths, posture gaps, and a posture summary), with all non-exact states
+  surfaced as provenance-only — exactly the invariant admission rule §4 relies
+  on.
+- A cross-family secret-leakage guard (#1348) and the confused-deputy posture
+  rule (#1346) are in place, and the metadata-only redaction contract this
+  ADR's §7 requires is enforced and tested at the envelope chokepoint.
+
+What remains gated and **not** started, pending the section 14 decision: the
+graph DDL, node/edge promotion writer, and any API/MCP claim of graph authority.
+
 ## 3. Non-Goals
 
 This ADR does not approve:
@@ -292,6 +316,12 @@ Approve this gate only if reviewers accept:
    conformance, performance evidence, and security review
 
 Until this is approved, no Secrets/IAM graph DDL or graph writes should land.
+
+The non-graph prerequisites are now in place (see section 2.1), so this gate is
+decision-ready: a principal and security sign-off on the six points above is the
+only thing blocking the first (separately-reviewed) implementation PR. Issue
+#1347 tracks that gated implementation and stays blocked on this decision; it is
+not an implementation task until the gate is approved.
 
 No-Regression Evidence: design-only gate. This PR changes only an internal
 design document and adds no Go, Cypher, DDL, queue, runtime, API, MCP, or graph
