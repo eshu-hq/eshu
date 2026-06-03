@@ -58,3 +58,66 @@ func TestBoundedManagedPolicyStatementsSkipsBlankARNs(t *testing.T) {
 		t.Fatalf("fetched = %d, want 0 (blank ARNs must not trigger a fetch)", fetched)
 	}
 }
+
+// TestBoundedPermissionBoundaryStatementsFetchesOneBoundaryDocument proves a
+// permissions boundary is read as one managed policy document and tagged as a
+// ceiling source, not as an attached identity grant.
+func TestBoundedPermissionBoundaryStatementsFetchesOneBoundaryDocument(t *testing.T) {
+	const boundaryARN = "arn:aws:iam::123456789012:policy/developer-boundary"
+
+	var fetched int
+	doc := `{"Statement":[{"Effect":"Allow","Action":"s3:GetObject","Resource":"arn:aws:s3:::prod-data/*"}]}`
+	statements, err := boundedPermissionBoundaryStatements(boundaryARN, func(policyARN string) (string, error) {
+		fetched++
+		if policyARN != boundaryARN {
+			t.Fatalf("policyARN = %q, want %q", policyARN, boundaryARN)
+		}
+		return doc, nil
+	})
+	if err != nil {
+		t.Fatalf("boundedPermissionBoundaryStatements() error = %v", err)
+	}
+	if fetched != 1 {
+		t.Fatalf("fetched = %d, want 1", fetched)
+	}
+	if len(statements) != 1 {
+		t.Fatalf("len(statements) = %d, want 1", len(statements))
+	}
+	if statements[0].Source != "permission_boundary" {
+		t.Fatalf("Source = %q, want permission_boundary", statements[0].Source)
+	}
+	if statements[0].PolicyARN != boundaryARN {
+		t.Fatalf("PolicyARN = %q, want %q", statements[0].PolicyARN, boundaryARN)
+	}
+}
+
+// TestBoundedPermissionBoundaryStatementsSkipsBlankBoundaryARN proves missing
+// boundary references do not waste a policy document fetch.
+func TestBoundedPermissionBoundaryStatementsSkipsBlankBoundaryARN(t *testing.T) {
+	var fetched int
+	statements, err := boundedPermissionBoundaryStatements("  ", func(string) (string, error) {
+		fetched++
+		return "", nil
+	})
+	if err != nil {
+		t.Fatalf("boundedPermissionBoundaryStatements() error = %v", err)
+	}
+	if fetched != 0 {
+		t.Fatalf("fetched = %d, want 0", fetched)
+	}
+	if len(statements) != 0 {
+		t.Fatalf("len(statements) = %d, want 0", len(statements))
+	}
+}
+
+// TestBoundedPermissionBoundaryStatementsPropagatesFetchError proves an
+// unresolved boundary policy document remains visible to the caller instead of
+// being silently dropped.
+func TestBoundedPermissionBoundaryStatementsPropagatesFetchError(t *testing.T) {
+	_, err := boundedPermissionBoundaryStatements("arn:aws:iam::123456789012:policy/developer-boundary", func(string) (string, error) {
+		return "", fmt.Errorf("access denied")
+	})
+	if err == nil {
+		t.Fatal("boundedPermissionBoundaryStatements() error = nil, want fetch error")
+	}
+}

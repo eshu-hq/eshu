@@ -202,8 +202,9 @@ func (c *Client) mapRole(ctx context.Context, role awsiamtypes.Role) (iamservice
 	if err != nil {
 		return iamservice.Role{}, err
 	}
+	boundary := permissionBoundary(roleDetail.PermissionsBoundary)
 
-	statements, err := c.roleStatements(ctx, roleName, rawTrust, attached, inline)
+	statements, err := c.roleStatements(ctx, roleName, rawTrust, attached, inline, boundary.PolicyARN)
 	if err != nil {
 		return iamservice.Role{}, err
 	}
@@ -214,7 +215,7 @@ func (c *Client) mapRole(ctx context.Context, role awsiamtypes.Role) (iamservice
 		Path:                 firstNonBlank(aws.ToString(roleDetail.Path), aws.ToString(role.Path)),
 		AssumeRolePolicy:     trustPolicy,
 		TrustPrincipals:      trustPrincipals,
-		PermissionBoundary:   permissionBoundary(roleDetail.PermissionsBoundary),
+		PermissionBoundary:   boundary,
 		AttachedPolicyARNs:   attached,
 		InlinePolicyNames:    inline,
 		PermissionStatements: statements,

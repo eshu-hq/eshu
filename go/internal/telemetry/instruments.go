@@ -250,9 +250,11 @@ type Instruments struct {
 	// wrong-type ARN; skipped_deny — a Deny blocked the action; skipped_conditioned
 	// — a condition-gated grant could not be conservatively trusted;
 	// skipped_not_action_resource — a NotAction/NotResource grant; skipped_self_loop
-	// — the resolved resource is the principal's own node). It is the bounded, honest
-	// graceful-degradation surface: a rising skipped_ambiguous rate means CAN_PERFORM
-	// edges are missing because policies use wildcard resources, not a reducer bug.
+	// — the resolved resource is the principal's own node;
+	// skipped_permission_boundary — an attached permission boundary did not allow the
+	// identity-policy grant). It is the bounded, honest graceful-degradation surface:
+	// a rising skipped_ambiguous rate means CAN_PERFORM edges are missing because
+	// policies use wildcard resources, not a reducer bug.
 	IAMCanPerformSkipped       metric.Int64Counter
 	SBOMAttestationAttachments metric.Int64Counter
 	SupplyChainImpactFindings  metric.Int64Counter
@@ -1443,7 +1445,7 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 
 	inst.IAMCanPerformSkipped, err = meter.Int64Counter(
 		"eshu_dp_iam_can_perform_skipped_total",
-		metric.WithDescription("Total IAM CAN_PERFORM catalog-action evaluations skipped by the CAN_PERFORM projection by skip_reason (skipped_uncatalogued_action/skipped_ambiguous/skipped_unresolved/skipped_deny/skipped_conditioned/skipped_not_action_resource/skipped_self_loop)"),
+		metric.WithDescription("Total IAM CAN_PERFORM catalog-action evaluations skipped by the CAN_PERFORM projection by skip_reason (skipped_uncatalogued_action/skipped_ambiguous/skipped_unresolved/skipped_deny/skipped_conditioned/skipped_not_action_resource/skipped_self_loop/skipped_permission_boundary)"),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register IAMCanPerformSkipped counter: %w", err)

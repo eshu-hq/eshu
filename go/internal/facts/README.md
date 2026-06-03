@@ -417,6 +417,9 @@ ServiceAccount and RBAC metadata, workload identity usage, token posture, IRSA
 annotation evidence, EKS Pod Identity association metadata, Vault auth mounts
 and roles, Vault ACL policy summaries, Vault identity aliases and entities,
 Vault KV metadata, Vault secret-engine mounts, and explicit coverage warnings.
+Permission-policy statement facts may carry `policy_source = "permission_boundary"`
+when the statement came from the managed policy document attached as a boundary;
+the separate `aws_iam_permission_boundary` fact records the attachment itself.
 They never carry raw policy JSON, statement bodies, condition values, AWS
 credentials, session tokens, raw ServiceAccount names, RBAC subject names,
 Secret names, projected tokens, Vault tokens, AppRole secret IDs, raw Vault

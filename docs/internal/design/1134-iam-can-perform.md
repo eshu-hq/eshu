@@ -90,20 +90,24 @@ else:
    grant union (`iam_escalation_grant.go`). Conditioned → `skipped_conditioned`;
    NotAction/NotResource → `skipped_not_action_resource`; Deny on the action →
    `skipped_deny`.
-4. **Identity-policy statements only.** Document explicitly via an edge property
-   `evaluation_scope = "identity_policy_only"` that resource-based policies,
-   permission boundaries, SCPs, conditions, and session policies are **not**
-   evaluated — so a *missing* edge does not mean "cannot perform," and a
-   *present* edge means "an identity policy grants this, ignoring
-   resource-policy / boundary / SCP / condition restrictions."
+4. **Identity-policy statements intersect permission boundaries when present.**
+   Boundary managed-policy statements are evidence with
+   `policy_source = "permission_boundary"` and are ceilings, not grant sources.
+   A scanned principal with a boundary emits an identity-policy edge only when
+   both the identity grant and every attached boundary policy allow the
+   candidate action/resource; boundary Deny, missing docs, conditions,
+   `NotAction`, and `NotResource` suppress the edge conservatively. Document via
+   `evaluation_scope = "identity_policy_with_permission_boundary"` when a
+   boundary was evaluated. SCPs, condition values, and session policies remain
+   out of scope.
 
 ### Skip rules (no fabrication, no dangle)
 
 Bounded `skip_reason` counter dimensions: `skipped_uncatalogued_action` (action
 not in the MVP vocabulary), `skipped_ambiguous`, `skipped_unresolved`,
 `skipped_deny`, `skipped_conditioned`, `skipped_not_action_resource`,
-`skipped_self_loop`. Every refusal is counted; a grant is never dropped
-silently.
+`skipped_self_loop`, `skipped_permission_boundary`. Every refusal is counted; a
+grant is never dropped silently.
 
 ## 4. Graph Contract And Keying
 
@@ -317,9 +321,10 @@ without changing the `CAN_PERFORM` relationship identity.
 - Public, service, federated, account-root, wildcard, cross-account-unscanned,
   ambiguous, unsupported, conditioned, NotAction/NotResource, Deny-blocked, and
   wrong-resource-pattern cases remain skipped/provenance-only.
-- Edge rows now carry `grant_sources` and one of three `evaluation_scope` values:
-  `identity_policy_only`, `resource_policy_only`, or
-  `identity_and_resource_policy`.
+- Edge rows now carry `grant_sources` and one of five `evaluation_scope` values:
+  `identity_policy_only`, `identity_policy_with_permission_boundary`,
+  `resource_policy_only`, `identity_and_resource_policy`, or
+  `identity_and_resource_policy_with_permission_boundary`.
 - The graph writer still uses the same static
   `(principal_uid)-[:CAN_PERFORM]->(resource_uid)` MERGE identity. `actions` and
   `grant_sources` are SET properties only.
@@ -348,3 +353,27 @@ Observability Evidence: existing `eshu_dp_iam_can_perform_edges_total`, bounded
 completion log still diagnose edge count, skip reason, fact-load count, extract
 duration, retract duration, write duration, and total duration. The completion
 log now includes `resource_policy_permission_fact_count`.
+
+### 13.3 PR4c permission-boundary intersection
+
+No-Regression Evidence: `go test ./internal/reducer -run
+'PermissionBoundary|NoPermissionBoundary|TestIAMCanPerformHandlerLoadsPermissionBoundaryFacts'
+-count=1` proves identity grants are emitted only when an attached boundary
+allows them, boundary Deny/conditioned/NotResource/missing-doc cases suppress the
+edge, duplicate boundary evidence converges, and boundary statements without an
+attachment do not grant. `go test ./internal/collector/awscloud/services/iam/awssdk
+-run 'PermissionBoundary|BoundedManagedPolicyStatements' -count=1` proves the
+SDK helper fetches one boundary managed-policy document and preserves the
+existing attached-policy fan-out cap. `go test ./internal/reducer -run
+'IAMCanPerform' -count=1` keeps the broader CAN_PERFORM extractor/handler suite
+green. This slice adds in-memory boundary evaluation after the existing
+principal/resource join; it does not change the static `CAN_PERFORM` MERGE key,
+writer batch shape, queue gate, or graph schema.
+
+Observability Evidence: the materializer now loads
+`aws_iam_permission_boundary` facts, logs `permission_boundary_fact_count`, and
+records the new bounded skip reason `skipped_permission_boundary` in
+`eshu_dp_iam_can_perform_skipped_total`. Boundary Deny, conditioned,
+NotAction/NotResource, unresolved, and missing-allow cases remain visible through
+the existing skip counter, `reducer.iam_can_perform_materialization` span, and
+completion log stage durations.

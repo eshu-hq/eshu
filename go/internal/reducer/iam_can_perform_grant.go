@@ -27,6 +27,9 @@ func buildIAMCanPerformGrant(envelopes []facts.Envelope, tally *iamCanPerformTal
 	catalogActions := iamCanPerformCatalogActions()
 
 	for _, env := range envelopes {
+		if !iamCanPerformIdentityPolicySource(payloadString(env.Payload, "policy_source")) {
+			continue
+		}
 		effect := payloadString(env.Payload, "effect")
 		actions := payloadStringSlice(env.Payload, "actions")
 		hasConditions := payloadBool(env.Payload, "has_conditions")
@@ -68,4 +71,13 @@ func buildIAMCanPerformGrant(envelopes []facts.Envelope, tally *iamCanPerformTal
 		}
 	}
 	return grant
+}
+
+func iamCanPerformIdentityPolicySource(policySource string) bool {
+	switch policySource {
+	case iamCanPerformPolicySourceInline, iamCanPerformPolicySourceAttachedManaged:
+		return true
+	default:
+		return false
+	}
 }

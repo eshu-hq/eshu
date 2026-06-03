@@ -42,6 +42,20 @@ const (
 	// identity-policy and resource-policy statements grant at least one action on
 	// the same principal/resource edge.
 	iamCanPerformEvaluationScopeIdentityAndResourcePolicy = "identity_and_resource_policy"
+	// iamCanPerformEvaluationScopeIdentityPolicyWithPermissionBoundary documents
+	// that identity-policy grants were intersected with a permission-boundary
+	// policy before the edge was emitted.
+	iamCanPerformEvaluationScopeIdentityPolicyWithPermissionBoundary = "identity_policy_with_permission_boundary"
+	// iamCanPerformEvaluationScopeIdentityAndResourcePolicyWithPermissionBoundary
+	// documents that identity-policy grants were boundary-evaluated and a
+	// resource-policy grant also contributes at least one action on the edge.
+	iamCanPerformEvaluationScopeIdentityAndResourcePolicyWithPermissionBoundary = "identity_and_resource_policy_with_permission_boundary"
+)
+
+const (
+	iamCanPerformPolicySourceInline             = "inline"
+	iamCanPerformPolicySourceAttachedManaged    = "attached_managed"
+	iamCanPerformPolicySourcePermissionBoundary = "permission_boundary"
 )
 
 // iamCanPerformEvaluationScope is the legacy MVP honesty label kept for tests and

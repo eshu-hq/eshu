@@ -40,6 +40,7 @@ const (
 // trust-boundary rule, design §10.3).
 type cloudResourceJoinIndex struct {
 	byARN        map[string]string
+	byUID        map[string]string
 	byResourceID map[string]string
 	byAnchor     map[string]string
 }
@@ -49,6 +50,7 @@ type cloudResourceJoinIndex struct {
 func buildCloudResourceJoinIndex(envelopes []facts.Envelope) cloudResourceJoinIndex {
 	index := cloudResourceJoinIndex{
 		byARN:        make(map[string]string, len(envelopes)),
+		byUID:        make(map[string]string, len(envelopes)),
 		byResourceID: make(map[string]string, len(envelopes)),
 		byAnchor:     make(map[string]string, len(envelopes)),
 	}
@@ -73,6 +75,7 @@ func buildCloudResourceJoinIndex(envelopes []facts.Envelope) cloudResourceJoinIn
 		uid := cloudResourceUID(accountID, region, resourceType, resourceID)
 		if arn != "" {
 			index.byARN[arn] = uid
+			index.byUID[uid] = arn
 		}
 		index.byResourceID[resourceID] = uid
 		for _, anchor := range payloadStrings(env.Payload, "", "correlation_anchors") {
@@ -86,6 +89,11 @@ func buildCloudResourceJoinIndex(envelopes []facts.Envelope) cloudResourceJoinIn
 		}
 	}
 	return index
+}
+
+func (i cloudResourceJoinIndex) arnForUID(uid string) (string, bool) {
+	arn, ok := i.byUID[uid]
+	return arn, ok
 }
 
 // resolveSource resolves the relationship source endpoint to a uid. The scanner

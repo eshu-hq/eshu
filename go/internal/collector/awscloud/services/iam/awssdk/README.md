@@ -10,8 +10,10 @@ fingerprinting, and per-page AWS API telemetry. It reads role/user detail
 (`GetRole`, `GetUser`), inline and attached managed policy documents
 (`GetRolePolicy`, `GetUserPolicy`, `GetPolicy` + `GetPolicyVersion`), and OIDC
 provider metadata (`ListOpenIDConnectProviders`, `GetOpenIDConnectProvider`).
-It normalizes policy documents into metadata-only `iam.PolicyStatement` values;
-it never returns the raw policy JSON body or condition values.
+It also reads the single managed policy document referenced by a role/user
+permissions boundary when present. It normalizes policy documents into
+metadata-only `iam.PolicyStatement` values; it never returns the raw policy JSON
+body or condition values.
 
 ## Ownership boundary
 
@@ -75,7 +77,9 @@ labels.
   assume-principals; it discards the raw JSON and every condition value. The raw
   policy body is never returned from this package.
 - Role and user detail reads expose permissions boundary metadata. The adapter
-  returns only the boundary policy ARN and AWS boundary attachment type.
+  returns only the boundary policy ARN and AWS boundary attachment type, plus
+  normalized metadata-only statements from the boundary policy document tagged as
+  `permission_boundary`.
 - OIDC provider detail reads return a deterministic URL fingerprint plus client
   ID and thumbprint counts. Raw provider URLs, client IDs, and thumbprints are
   not returned.
@@ -84,6 +88,9 @@ labels.
   `GetPolicyVersion` pair, so the cap stops an N+1 against IAM for principals
   with many attachments. `boundedManagedPolicyStatements` makes the bound unit
   testable without an AWS client.
+- A permissions boundary fetch is one additional managed policy document for the
+  principal that has a boundary. It is not counted as an attached managed policy
+  grant and does not widen the attached-policy fan-out cap.
 
 ## Related docs
 

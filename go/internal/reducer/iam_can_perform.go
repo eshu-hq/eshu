@@ -13,13 +13,14 @@ import (
 // distinct conservative refusal so an operator can tell why CAN_PERFORM edges are
 // missing rather than guessing. A grant is never dropped silently.
 const (
-	iamCanPerformSkipUncatalogued      = "skipped_uncatalogued_action"
-	iamCanPerformSkipAmbiguous         = "skipped_ambiguous"
-	iamCanPerformSkipUnresolved        = "skipped_unresolved"
-	iamCanPerformSkipDeny              = "skipped_deny"
-	iamCanPerformSkipConditioned       = "skipped_conditioned"
-	iamCanPerformSkipNotActionResource = "skipped_not_action_resource"
-	iamCanPerformSkipSelfLoop          = "skipped_self_loop"
+	iamCanPerformSkipUncatalogued       = "skipped_uncatalogued_action"
+	iamCanPerformSkipAmbiguous          = "skipped_ambiguous"
+	iamCanPerformSkipUnresolved         = "skipped_unresolved"
+	iamCanPerformSkipDeny               = "skipped_deny"
+	iamCanPerformSkipConditioned        = "skipped_conditioned"
+	iamCanPerformSkipNotActionResource  = "skipped_not_action_resource"
+	iamCanPerformSkipSelfLoop           = "skipped_self_loop"
+	iamCanPerformSkipPermissionBoundary = "skipped_permission_boundary"
 )
 
 // Resolution modes for the CAN_PERFORM edges counter. They are the bounded
@@ -36,20 +37,21 @@ const (
 // evaluations that did not become an edge. Each counter names a conservative
 // refusal reason; a grant is never dropped silently (design §3 skip rules).
 type iamCanPerformTally struct {
-	skippedUncatalogued      int
-	skippedAmbiguous         int
-	skippedUnresolved        int
-	skippedDeny              int
-	skippedConditioned       int
-	skippedNotActionResource int
-	skippedSelfLoop          int
+	skippedUncatalogued       int
+	skippedAmbiguous          int
+	skippedUnresolved         int
+	skippedDeny               int
+	skippedConditioned        int
+	skippedNotActionResource  int
+	skippedSelfLoop           int
+	skippedPermissionBoundary int
 }
 
 // total returns the count of evaluations that produced no edge.
 func (t iamCanPerformTally) total() int {
 	return t.skippedUncatalogued + t.skippedAmbiguous + t.skippedUnresolved +
 		t.skippedDeny + t.skippedConditioned + t.skippedNotActionResource +
-		t.skippedSelfLoop
+		t.skippedSelfLoop + t.skippedPermissionBoundary
 }
 
 // IAMCanPerformResult is the bounded, deterministic output of one generation's
@@ -73,9 +75,10 @@ type IAMCanPerformResult struct {
 // the merged granted action set and the strongest resolution mode seen, so two
 // catalog actions reaching the same resource converge on one idempotent edge.
 type iamCanPerformEdgeAccumulator struct {
-	actions map[string]struct{}
-	sources map[string]struct{}
-	mode    string
+	actions                     map[string]struct{}
+	sources                     map[string]struct{}
+	mode                        string
+	permissionBoundaryEvaluated bool
 }
 
 // ExtractIAMCanPerformEdges resolves each scanned IAM principal's trusted-Allow
@@ -83,12 +86,13 @@ type iamCanPerformEdgeAccumulator struct {
 // CAN_PERFORM edge for every (principal, resource) pair where a catalog action is
 // granted (Allow, unconditioned, no NotAction/NotResource, not Deny-touched) AND
 // the action's resource ARN resolves to EXACTLY ONE scanned CloudResource node of
-// the catalog-expected type. It also evaluates resource-policy facts when the
-// grantee is an exact scanned IAM role/user and the statement Resource applies to
-// the attached resource. Wildcard / many / zero / public or unscanned principal /
-// Deny / conditioned / NotAction / uncatalogued / self-loop all degrade to a
-// counted skip, never an edge, and it never fabricates a node (graceful
-// degradation).
+// the catalog-expected type, and any attached permissions boundary also allows
+// that action/resource. It also evaluates resource-policy facts when the grantee
+// is an exact scanned IAM role/user and the statement Resource applies to the
+// attached resource. Wildcard / many / zero / public or unscanned principal /
+// Deny / conditioned / NotAction / uncatalogued / boundary-missing-allow /
+// self-loop all degrade to a counted skip, never an edge, and it never fabricates
+// a node (graceful degradation).
 //
 // Returned edge rows are deduplicated by (principal_uid, resource_uid) with merged
 // sorted actions and sorted deterministically so the batched write is stable
@@ -107,6 +111,7 @@ func ExtractIAMCanPerformEdges(
 
 	index := buildCloudResourceJoinIndex(resourceEnvelopes)
 	principals := groupIAMCanPerformByPrincipal(index, permissionEnvelopes, &result.Tally)
+	boundariesByPrincipal := groupIAMCanPerformBoundaryEvidence(index, permissionEnvelopes)
 	catalog := iamCanPerformCatalogByAction()
 
 	// edge identity -> merged granted action set + strongest resolution mode, so
@@ -138,6 +143,21 @@ func ExtractIAMCanPerformEdges(
 					result.Tally.skippedSelfLoop++
 					continue
 				}
+				resourceARN, ok := index.arnForUID(resourceUID)
+				if !ok {
+					result.Tally.skippedUnresolved++
+					continue
+				}
+				boundaryDecision := evaluateIAMCanPerformPermissionBoundary(
+					boundariesByPrincipal[principal.principalUID],
+					entry.Action,
+					resourceARN,
+					entry.ExpectedResourceType,
+				)
+				if boundaryDecision.skipReason != "" {
+					result.Tally.recordSkip(boundaryDecision.skipReason)
+					continue
+				}
 				addIAMCanPerformEdge(
 					edges,
 					principal.principalUID,
@@ -145,6 +165,7 @@ func ExtractIAMCanPerformEdges(
 					entry.Action,
 					mode,
 					iamCanPerformGrantSourceIdentityPolicy,
+					boundaryDecision.evaluated,
 				)
 			case iamTargetAmbiguous:
 				result.Tally.skippedAmbiguous++
@@ -200,6 +221,9 @@ func groupIAMCanPerformByPrincipal(
 			continue
 		}
 		principalARN := payloadString(env.Payload, "principal_arn")
+		if !iamCanPerformIdentityPolicySource(payloadString(env.Payload, "policy_source")) {
+			continue
+		}
 		if principalARN == "" {
 			continue
 		}
@@ -233,6 +257,7 @@ func addIAMCanPerformEdge(
 	action string,
 	mode string,
 	source string,
+	permissionBoundaryEvaluated bool,
 ) {
 	key := edgeKey{principalUID: principalUID, targetUID: resourceUID}
 	acc := edges[key]
@@ -246,6 +271,7 @@ func addIAMCanPerformEdge(
 	acc.actions[action] = struct{}{}
 	acc.sources[source] = struct{}{}
 	acc.mode = strongestCanPerformMode(acc.mode, mode)
+	acc.permissionBoundaryEvaluated = acc.permissionBoundaryEvaluated || permissionBoundaryEvaluated
 }
 
 // buildIAMCanPerformEdgeRows turns the merged per-edge accumulators into sorted,
@@ -271,7 +297,7 @@ func buildIAMCanPerformEdgeRows(
 			"resource_uid":     key.targetUID,
 			"actions":          actions,
 			"action_count":     len(actions),
-			"evaluation_scope": iamCanPerformEvaluationScopeForSources(grantSources),
+			"evaluation_scope": iamCanPerformEvaluationScopeForSources(grantSources, acc.permissionBoundaryEvaluated),
 			"grant_sources":    grantSources,
 		})
 	}
@@ -283,7 +309,7 @@ func buildIAMCanPerformEdgeRows(
 	return rows
 }
 
-func iamCanPerformEvaluationScopeForSources(sources []string) string {
+func iamCanPerformEvaluationScopeForSources(sources []string, permissionBoundaryEvaluated bool) string {
 	hasIdentity := false
 	hasResource := false
 	for _, source := range sources {
@@ -295,8 +321,12 @@ func iamCanPerformEvaluationScopeForSources(sources []string) string {
 		}
 	}
 	switch {
+	case hasIdentity && hasResource && permissionBoundaryEvaluated:
+		return iamCanPerformEvaluationScopeIdentityAndResourcePolicyWithPermissionBoundary
 	case hasIdentity && hasResource:
 		return iamCanPerformEvaluationScopeIdentityAndResourcePolicy
+	case hasIdentity && permissionBoundaryEvaluated:
+		return iamCanPerformEvaluationScopeIdentityPolicyWithPermissionBoundary
 	case hasResource:
 		return iamCanPerformEvaluationScopeResourcePolicyOnly
 	default:
