@@ -72,6 +72,7 @@ func OpenAPISpec() string {
 			openAPIPathsCICDRunCorrelationAggregate+
 			openAPIPathsServiceCatalog+
 			openAPIPathsKubernetes+
+			openAPIPathsSecretsIAM+
 			openAPIPathsObservabilityCoverage+
 			openAPIPathsVulnerabilityScannerContract+
 			openAPIPathsSupplyChain+
