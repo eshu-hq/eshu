@@ -102,7 +102,7 @@ func TestScannerEmitsDerivedPermissionFacts(t *testing.T) {
 					Resources: []string{"*"},
 				},
 				{
-					Source:    "permission_boundary",
+					Source:    PolicySourcePermissionBoundary,
 					PolicyARN: "arn:aws:iam::123456789012:policy/developer-boundary",
 					Effect:    "Allow",
 					Actions:   []string{"s3:GetObject"},
@@ -141,7 +141,7 @@ func TestScannerEmitsDerivedPermissionFacts(t *testing.T) {
 
 	assertPermissionPresent(t, envelopes, "arn:aws:iam::123456789012:role/eshu-runtime", awscloud.IAMPolicySourceTrust, "sts:assumerole")
 	assertPermissionPresent(t, envelopes, "arn:aws:iam::123456789012:role/eshu-runtime", awscloud.IAMPolicySourceInline, "iam:passrole")
-	assertPermissionPresent(t, envelopes, "arn:aws:iam::123456789012:role/eshu-runtime", "permission_boundary", "s3:getobject")
+	assertPermissionPresent(t, envelopes, "arn:aws:iam::123456789012:role/eshu-runtime", awscloud.IAMPolicySourcePermissionBoundary, "s3:getobject")
 	assertPermissionPresent(t, envelopes, "arn:aws:iam::123456789012:user/breakglass", awscloud.IAMPolicySourceInline, "iam:attachuserpolicy")
 
 	assertNoRawPolicyJSON(t, envelopes)
@@ -195,7 +195,7 @@ func TestScannerEmitsSecretsIAMPostureSourceFacts(t *testing.T) {
 					Resources: []string{"arn:aws:s3:::example/*"},
 				},
 				{
-					Source:    "permission_boundary",
+					Source:    PolicySourcePermissionBoundary,
 					PolicyARN: "arn:aws:iam::123456789012:policy/developer-boundary",
 					Effect:    "Allow",
 					Actions:   []string{"s3:GetObject"},
