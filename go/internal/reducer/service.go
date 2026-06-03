@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"slices"
+	"strings"
 	"sync"
 	"time"
 
@@ -384,8 +385,8 @@ func (s Service) recordReducerResult(ctx context.Context, intent Intent, duratio
 		logAttrs = append(logAttrs, telemetry.PhaseAttr(telemetry.PhaseReduction))
 		switch status {
 		case "failed", "ack_failed":
-			failureClass := "reducer_failure"
 			message := "reducer execution failed"
+			failureClass := reducerExecutionFailureClass(execErr)
 			if status == "ack_failed" {
 				failureClass = "ack_failure"
 				message = "reducer ack failed"
@@ -402,6 +403,20 @@ func (s Service) recordReducerResult(ctx context.Context, intent Intent, duratio
 			s.Logger.InfoContext(ctx, "reducer execution succeeded", logAttrs...)
 		}
 	}
+}
+
+type reducerClassifiedFailure interface {
+	FailureClass() string
+}
+
+func reducerExecutionFailureClass(err error) string {
+	var classified reducerClassifiedFailure
+	if errors.As(err, &classified) {
+		if failureClass := strings.TrimSpace(classified.FailureClass()); failureClass != "" {
+			return failureClass
+		}
+	}
+	return "reducer_failure"
 }
 
 type reducerHeartbeatStop func() error

@@ -101,6 +101,54 @@ func TestServiceRunLogsAckFailureWithQueueContext(t *testing.T) {
 	}
 }
 
+func TestServiceRunLogsClassifiedExecutionFailure(t *testing.T) {
+	t.Parallel()
+
+	intent := Intent{
+		IntentID:        "intent-waiting-impact",
+		ScopeID:         "scope-security-alert",
+		GenerationID:    "generation-security-alert",
+		SourceSystem:    "security_alert",
+		Domain:          DomainSecurityAlertReconciliation,
+		Cause:           "provider security alert evidence observed",
+		EntityKeys:      []string{"security-alert:github:acme/api"},
+		RelatedScopeIDs: []string{"repo://github/acme/api"},
+		EnqueuedAt:      time.Date(2026, time.April, 16, 11, 0, 0, 0, time.UTC),
+		AvailableAt:     time.Date(2026, time.April, 16, 11, 0, 0, 0, time.UTC),
+		Status:          IntentStatusPending,
+	}
+
+	var logs bytes.Buffer
+	logger := slog.New(slog.NewJSONHandler(&logs, nil))
+	wantErr := classifiedReducerExecutionError{
+		message:      "security alert reconciliation waiting for package impact evidence: npm://registry.npmjs.org/pending-lib",
+		failureClass: "security_alert_reconciliation_waiting_for_impact",
+	}
+	service := Service{
+		PollInterval: 10 * time.Millisecond,
+		WorkSource:   &stubReducerWorkSource{intents: []Intent{intent}},
+		Executor:     &stubReducerExecutor{executeErr: wantErr},
+		WorkSink:     &stubReducerWorkSink{},
+		Wait:         func(context.Context, time.Duration) error { return context.Canceled },
+		Logger:       logger,
+	}
+
+	if err := service.Run(context.Background()); err != nil {
+		t.Fatalf("Run() error = %v, want nil", err)
+	}
+
+	logOutput := logs.String()
+	if !strings.Contains(logOutput, `"msg":"reducer execution failed"`) {
+		t.Fatalf("logs missing reducer failure message in %s", logOutput)
+	}
+	if !strings.Contains(logOutput, `"failure_class":"security_alert_reconciliation_waiting_for_impact"`) {
+		t.Fatalf("logs missing classified readiness failure in %s", logOutput)
+	}
+	if strings.Contains(logOutput, `"failure_class":"reducer_failure"`) {
+		t.Fatalf("logs used generic reducer failure for classified readiness wait: %s", logOutput)
+	}
+}
+
 func TestServiceRunRecordsReducerQueueWait(t *testing.T) {
 	t.Parallel()
 
@@ -235,4 +283,17 @@ func hasAttrs(actual []attribute.KeyValue, want map[string]string) bool {
 	}
 
 	return true
+}
+
+type classifiedReducerExecutionError struct {
+	message      string
+	failureClass string
+}
+
+func (e classifiedReducerExecutionError) Error() string {
+	return e.message
+}
+
+func (e classifiedReducerExecutionError) FailureClass() string {
+	return e.failureClass
 }
