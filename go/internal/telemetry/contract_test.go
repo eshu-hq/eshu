@@ -105,6 +105,7 @@ func TestSpanNames(t *testing.T) {
 		"reducer.s3_internet_exposure_materialization",
 		"reducer.iam_escalation_materialization",
 		"reducer.iam_can_perform_materialization",
+		"reducer.secrets_iam_graph_projection",
 		"canonical.write",
 		"canonical.projection",
 		"canonical.retract",
