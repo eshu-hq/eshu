@@ -6,7 +6,7 @@ const openAPIPathsSecretsIAM = `
         "tags": ["secrets-iam"],
         "summary": "Summarize secrets/IAM posture for a scope",
         "description": "Returns a bounded, scope-anchored rollup of the secrets/IAM reducer read models as provenance-only grouped counts: identity trust chains by state, privilege posture observations by risk type and severity, secret access paths by state, and posture gaps by gap type. No fingerprints, paths, or evidence are exposed.",
-        "operationId": "summarizeSecretsIAMPosture",
+        "operationId": "countSecretsIAMPosture",
         "parameters": [
           {"name": "scope_id", "in": "query", "required": true, "schema": {"type": "string"}, "description": "Reducer scope ID to summarize."}
         ],

@@ -110,11 +110,13 @@ func (s PostgresSecretsIAMPostureSummaryStore) bucketCounts(
 	var out []SecretsIAMBucketCount
 	for rows.Next() {
 		var bucket string
-		var count int
+		// COUNT(*) is int64 in Postgres; scan into int64 (consistent with the
+		// repo's other aggregate queries and safe on 32-bit) and narrow on use.
+		var count int64
 		if err := rows.Scan(&bucket, &count); err != nil {
 			return nil, fmt.Errorf("summarize secrets/IAM posture: %w", err)
 		}
-		out = append(out, SecretsIAMBucketCount{Bucket: bucket, Count: count})
+		out = append(out, SecretsIAMBucketCount{Bucket: bucket, Count: int(count)})
 	}
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("summarize secrets/IAM posture: %w", err)
