@@ -1,6 +1,6 @@
 // Package projector owns source-local projection stages that turn committed
-// facts into canonical graph writes and publish readiness for shared,
-// reducer-owned domains.
+// facts into canonical graph writes, repository-scoped content rows, and
+// readiness for shared, reducer-owned domains.
 //
 // Stages in this package read fact envelopes, build canonical node and edge
 // payloads, classify durable failure metadata, and hand writes to the Cypher
@@ -10,6 +10,10 @@
 // fail when its heartbeat returns ErrWorkSuperseded, which means a newer
 // same-scope generation replaced stale local polling work. Projector code does
 // not make cross-source admission decisions; those belong to internal/reducer.
+// Content materialization only runs for scopes whose metadata carries an
+// explicit repo_id; cloud, registry, and provider scopes without repository
+// ownership still project canonical and reducer-owned evidence but do not write
+// repository content rows.
 // OCI registry projection keeps digest-addressed manifests, indexes, and
 // descriptors as canonical identity while treating tags as mutable weak
 // observations that can enrich queries but do not mint image identity.
