@@ -26,6 +26,7 @@ type SecretsIAMGraphWriter interface {
 	WriteVaultPolicyNodes(ctx context.Context, rows []map[string]any) error
 	WriteSecretMetadataPathNodes(ctx context.Context, rows []map[string]any) error
 	WriteUsesServiceAccountEdges(ctx context.Context, rows []map[string]any) error
+	WriteAssumesIAMRoleEdges(ctx context.Context, rows []map[string]any) error
 	WriteAuthenticatesVaultRoleEdges(ctx context.Context, rows []map[string]any) error
 	WriteUsesVaultPolicyEdges(ctx context.Context, rows []map[string]any) error
 	WriteGrantsSecretReadEdges(ctx context.Context, rows []map[string]any) error
@@ -132,7 +133,7 @@ func (h SecretsIAMGraphProjectionHandler) Handle(ctx context.Context, intent Int
 
 	h.recordTally(ctx, rows.Tally)
 	nodeCount := totalRows(rows.ServiceAccountNodes, rows.VaultAuthRoleNodes, rows.VaultPolicyNodes, rows.SecretMetadataPathNodes)
-	edgeCount := totalRows(rows.UsesServiceAccountEdges, rows.AuthenticatesVaultRoleEdges, rows.UsesVaultPolicyEdges, rows.GrantsSecretReadEdges)
+	edgeCount := totalRows(rows.UsesServiceAccountEdges, rows.AssumesIAMRoleEdges, rows.AuthenticatesVaultRoleEdges, rows.UsesVaultPolicyEdges, rows.GrantsSecretReadEdges)
 	h.logCompleted(ctx, intent, nodeCount, edgeCount, rows.Tally, skipRetract,
 		loadDuration, extractDuration, retractDuration, writeDuration, time.Since(totalStart))
 
@@ -170,6 +171,7 @@ func (h SecretsIAMGraphProjectionHandler) writeRows(ctx context.Context, rows Se
 		rows []map[string]any
 	}{
 		{h.Writer.WriteUsesServiceAccountEdges, rows.UsesServiceAccountEdges},
+		{h.Writer.WriteAssumesIAMRoleEdges, rows.AssumesIAMRoleEdges},
 		{h.Writer.WriteAuthenticatesVaultRoleEdges, rows.AuthenticatesVaultRoleEdges},
 		{h.Writer.WriteUsesVaultPolicyEdges, rows.UsesVaultPolicyEdges},
 		{h.Writer.WriteGrantsSecretReadEdges, rows.GrantsSecretReadEdges},

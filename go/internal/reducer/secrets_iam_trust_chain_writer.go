@@ -154,6 +154,8 @@ func secretsIAMIdentityTrustChainPayload(
 	payload["workload_object_id"] = chain.WorkloadObjectID
 	payload["workload_kind"] = chain.WorkloadKind
 	payload["iam_role_fingerprint"] = chain.IAMRoleFingerprint
+	payload["iam_role_cloud_resource_uid"] = chain.IAMRoleCloudResourceUID
+	payload["iam_role_assume_mode"] = chain.IAMRoleAssumeMode
 	payload["vault_role_join_key"] = chain.VaultRoleJoinKey
 	payload["vault_mount_join_key"] = chain.VaultMountJoinKey
 	payload["vault_policy_join_keys"] = uniqueSortedStrings(chain.VaultPolicyJoinKeys)

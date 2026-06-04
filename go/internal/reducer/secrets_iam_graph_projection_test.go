@@ -21,6 +21,7 @@ type recordingGraphWriter struct {
 	vaultPolicyNodes    [][]map[string]any
 	secretPathNodes     [][]map[string]any
 	usesSAEdges         [][]map[string]any
+	assumesIAMRoleEdges [][]map[string]any
 	authVaultRoleEdges  [][]map[string]any
 	usesVaultPolicyEdge [][]map[string]any
 	grantsSecretEdges   [][]map[string]any
@@ -54,6 +55,12 @@ func (w *recordingGraphWriter) WriteSecretMetadataPathNodes(_ context.Context, r
 func (w *recordingGraphWriter) WriteUsesServiceAccountEdges(_ context.Context, r []map[string]any) error {
 	if len(r) > 0 {
 		w.usesSAEdges = append(w.usesSAEdges, r)
+	}
+	return nil
+}
+func (w *recordingGraphWriter) WriteAssumesIAMRoleEdges(_ context.Context, r []map[string]any) error {
+	if len(r) > 0 {
+		w.assumesIAMRoleEdges = append(w.assumesIAMRoleEdges, r)
 	}
 	return nil
 }
@@ -116,6 +123,45 @@ func TestGraphProjectionHandleWritesExactRowsAndRetracts(t *testing.T) {
 	}
 	if res.CanonicalWrites == 0 {
 		t.Fatal("CanonicalWrites = 0")
+	}
+}
+
+func TestGraphProjectionHandleWritesAssumesIAMRoleEdgeWhenResolvable(t *testing.T) {
+	t.Parallel()
+
+	p := fullExactChainPayload()
+	p["iam_role_cloud_resource_uid"] = "cr-uid-iam-role"
+	p["iam_role_assume_mode"] = "web_identity"
+	loader := fakeFactLoader{envelopes: []facts.Envelope{exactChainFact(p)}}
+	writer := &recordingGraphWriter{}
+	h := SecretsIAMGraphProjectionHandler{FactLoader: loader, Writer: writer}
+
+	if _, err := h.Handle(context.Background(), graphProjectionIntent()); err != nil {
+		t.Fatalf("Handle error = %v", err)
+	}
+	if len(writer.assumesIAMRoleEdges) != 1 || len(writer.assumesIAMRoleEdges[0]) != 1 {
+		t.Fatalf("ASSUMES_IAM_ROLE edge not written: %+v", writer.assumesIAMRoleEdges)
+	}
+	edge := writer.assumesIAMRoleEdges[0][0]
+	if edge["service_account_uid"] != "sha256:sa" || edge["cloud_resource_uid"] != "cr-uid-iam-role" {
+		t.Fatalf("edge endpoints = %+v", edge)
+	}
+}
+
+func TestGraphProjectionHandleSkipsAssumesIAMRoleEdgeWithoutJoinableUID(t *testing.T) {
+	t.Parallel()
+
+	// The default exact chain carries only iam_role_fingerprint, so the IAM-role
+	// endpoint is unresolved: no edge is written and the skip is counted.
+	loader := fakeFactLoader{envelopes: []facts.Envelope{exactChainFact(fullExactChainPayload())}}
+	writer := &recordingGraphWriter{}
+	h := SecretsIAMGraphProjectionHandler{FactLoader: loader, Writer: writer}
+
+	if _, err := h.Handle(context.Background(), graphProjectionIntent()); err != nil {
+		t.Fatalf("Handle error = %v", err)
+	}
+	if len(writer.assumesIAMRoleEdges) != 0 {
+		t.Fatalf("ASSUMES_IAM_ROLE edge written without joinable uid: %+v", writer.assumesIAMRoleEdges)
 	}
 }
 

@@ -71,6 +71,17 @@ SET rel.scope_id = row.scope_id,
     rel.confidence = row.confidence,
     rel.evidence_fact_ids = row.evidence_fact_ids`
 
+	secretsIAMAssumesIAMRoleEdgeUpsertCypher = `UNWIND $rows AS row
+MATCH (s:SecretsIAMServiceAccount {uid: row.service_account_uid})
+MATCH (c:CloudResource {uid: row.cloud_resource_uid})
+MERGE (s)-[rel:SECRETS_IAM_ASSUMES_IAM_ROLE]->(c)
+SET rel.assume_mode = row.assume_mode,
+    rel.scope_id = row.scope_id,
+    rel.generation_id = row.generation_id,
+    rel.evidence_source = row.evidence_source,
+    rel.confidence = row.confidence,
+    rel.evidence_fact_ids = row.evidence_fact_ids`
+
 	secretsIAMAuthenticatesVaultRoleEdgeUpsertCypher = `UNWIND $rows AS row
 MATCH (s:SecretsIAMServiceAccount {uid: row.service_account_uid})
 MATCH (v:SecretsIAMVaultAuthRole {uid: row.vault_auth_role_uid})
@@ -177,6 +188,16 @@ func (w *SecretsIAMGraphWriter) WriteSecretMetadataPathNodes(ctx context.Context
 // WriteUsesServiceAccountEdges upserts KubernetesWorkload->ServiceAccount edges.
 func (w *SecretsIAMGraphWriter) WriteUsesServiceAccountEdges(ctx context.Context, rows []map[string]any) error {
 	return w.writeBatched(ctx, secretsIAMUsesServiceAccountEdgeUpsertCypher, "SECRETS_IAM_USES_SERVICE_ACCOUNT", rows)
+}
+
+// WriteAssumesIAMRoleEdges upserts SecretsIAMServiceAccount->CloudResource
+// (IAM role) edges. The CloudResource MATCH resolves the existing IAM-role node
+// by uid; a row whose CloudResource endpoint is absent is a no-op, never a
+// fabricated CloudResource node. The edge's START node is the reducer-owned
+// ServiceAccount, so the node DETACH DELETE retract removes it (no separate edge
+// retract needed, unlike the workload edge).
+func (w *SecretsIAMGraphWriter) WriteAssumesIAMRoleEdges(ctx context.Context, rows []map[string]any) error {
+	return w.writeBatched(ctx, secretsIAMAssumesIAMRoleEdgeUpsertCypher, "SECRETS_IAM_ASSUMES_IAM_ROLE", rows)
 }
 
 // WriteAuthenticatesVaultRoleEdges upserts ServiceAccount->VaultAuthRole edges.

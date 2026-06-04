@@ -82,6 +82,9 @@ func TestSecretsIAMGraphWriterEdgeCypherMatchesEndpoints(t *testing.T) {
 		{"grants_secret_read", func(w *SecretsIAMGraphWriter) error {
 			return w.WriteGrantsSecretReadEdges(context.Background(), []map[string]any{{"vault_policy_uid": "sha256:pol", "secret_path_uid": "sha256:path", "scope_id": "scope-1", "capabilities": []string{"read"}}})
 		}, []string{"MATCH (p:SecretsIAMVaultPolicy {uid: row.vault_policy_uid})", "MATCH (s:SecretsIAMSecretMetadataPath {uid: row.secret_path_uid})", "MERGE (p)-[rel:SECRETS_IAM_GRANTS_SECRET_READ]->(s)", "rel.capabilities = row.capabilities"}},
+		{"assumes_iam_role", func(w *SecretsIAMGraphWriter) error {
+			return w.WriteAssumesIAMRoleEdges(context.Background(), []map[string]any{{"service_account_uid": "sha256:sa1", "cloud_resource_uid": "cr-uid", "assume_mode": "web_identity", "scope_id": "scope-1"}})
+		}, []string{"MATCH (s:SecretsIAMServiceAccount {uid: row.service_account_uid})", "MATCH (c:CloudResource {uid: row.cloud_resource_uid})", "MERGE (s)-[rel:SECRETS_IAM_ASSUMES_IAM_ROLE]->(c)", "rel.assume_mode = row.assume_mode"}},
 		{"authenticates_vault_role", func(w *SecretsIAMGraphWriter) error {
 			return w.WriteAuthenticatesVaultRoleEdges(context.Background(), []map[string]any{{"service_account_uid": "sha256:sa1", "vault_auth_role_uid": "sha256:vr", "scope_id": "scope-1"}})
 		}, []string{"MATCH (s:SecretsIAMServiceAccount {uid: row.service_account_uid})", "MATCH (v:SecretsIAMVaultAuthRole {uid: row.vault_auth_role_uid})", "MERGE (s)-[rel:SECRETS_IAM_AUTHENTICATES_TO_VAULT_ROLE]->(v)"}},

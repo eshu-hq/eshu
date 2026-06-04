@@ -130,7 +130,8 @@ func secretsIAMExactChains(index secretsIAMIndex) (
 		}
 		for _, roleEvidence := range roles {
 			roleARN := payloadString(roleEvidence.Payload, "role_arn")
-			if len(index.iamPrincipals[roleARN]) == 0 {
+			principals := index.iamPrincipals[roleARN]
+			if len(principals) == 0 {
 				gaps = append(gaps, secretsIAMGap(
 					"missing_iam_principal",
 					SecretsIAMTrustChainStateUnresolved,
@@ -155,9 +156,10 @@ func secretsIAMExactChains(index secretsIAMIndex) (
 				))
 				continue
 			}
+			roleUID := secretsIAMRoleCloudResourceUID(roleARN, principals)
 			for _, vaultRole := range vaultRoles {
 				for _, workload := range workloads {
-					chain := secretsIAMChain(serviceAccountKey, workload, roleEvidence, trust, vaultRole)
+					chain := secretsIAMChain(serviceAccountKey, workload, roleEvidence, trust, vaultRole, roleUID)
 					chains = append(chains, chain)
 					chainPaths, pathGaps := secretsIAMVaultPaths(chain, vaultRole, index)
 					paths = append(paths, chainPaths...)
@@ -219,24 +221,27 @@ func secretsIAMChain(
 	roleEvidence facts.Envelope,
 	trust facts.Envelope,
 	vaultRole facts.Envelope,
+	iamRoleCloudResourceUID string,
 ) SecretsIAMIdentityTrustChain {
 	roleFingerprint := secretsIAMFingerprint("iam_role", payloadString(roleEvidence.Payload, "role_arn"))
 	policyKeys := payloadStrings(vaultRole.Payload, "", "token_policy_join_keys")
 	evidence := []string{workload.FactID, roleEvidence.FactID, trust.FactID, vaultRole.FactID}
 	return SecretsIAMIdentityTrustChain{
-		ChainID:               secretsIAMID("identity_trust_chain", serviceAccountKey, payloadString(workload.Payload, "workload_object_id"), roleFingerprint, payloadString(vaultRole.Payload, "role_join_key")),
-		State:                 SecretsIAMTrustChainStateExact,
-		Confidence:            "exact",
-		ServiceAccountJoinKey: serviceAccountKey,
-		WorkloadObjectID:      payloadString(workload.Payload, "workload_object_id"),
-		WorkloadKind:          payloadString(workload.Payload, "workload_kind"),
-		IAMRoleFingerprint:    roleFingerprint,
-		VaultRoleJoinKey:      payloadString(vaultRole.Payload, "role_join_key"),
-		VaultMountJoinKey:     payloadString(vaultRole.Payload, "mount_join_key"),
-		VaultPolicyJoinKeys:   policyKeys,
-		EvidenceFactIDs:       uniqueSortedStrings(evidence),
-		SourceScopes:          uniqueSortedStrings([]string{workload.ScopeID, roleEvidence.ScopeID, trust.ScopeID, vaultRole.ScopeID}),
-		SourceGenerations:     uniqueSortedStrings([]string{workload.GenerationID, roleEvidence.GenerationID, trust.GenerationID, vaultRole.GenerationID}),
+		ChainID:                 secretsIAMID("identity_trust_chain", serviceAccountKey, payloadString(workload.Payload, "workload_object_id"), roleFingerprint, payloadString(vaultRole.Payload, "role_join_key")),
+		State:                   SecretsIAMTrustChainStateExact,
+		Confidence:              "exact",
+		ServiceAccountJoinKey:   serviceAccountKey,
+		WorkloadObjectID:        payloadString(workload.Payload, "workload_object_id"),
+		WorkloadKind:            payloadString(workload.Payload, "workload_kind"),
+		IAMRoleFingerprint:      roleFingerprint,
+		IAMRoleCloudResourceUID: iamRoleCloudResourceUID,
+		IAMRoleAssumeMode:       secretsIAMRoleAssumeMode(roleEvidence.FactKind),
+		VaultRoleJoinKey:        payloadString(vaultRole.Payload, "role_join_key"),
+		VaultMountJoinKey:       payloadString(vaultRole.Payload, "mount_join_key"),
+		VaultPolicyJoinKeys:     policyKeys,
+		EvidenceFactIDs:         uniqueSortedStrings(evidence),
+		SourceScopes:            uniqueSortedStrings([]string{workload.ScopeID, roleEvidence.ScopeID, trust.ScopeID, vaultRole.ScopeID}),
+		SourceGenerations:       uniqueSortedStrings([]string{workload.GenerationID, roleEvidence.GenerationID, trust.GenerationID, vaultRole.GenerationID}),
 	}
 }
 

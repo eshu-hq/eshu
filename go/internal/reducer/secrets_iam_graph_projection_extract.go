@@ -40,11 +40,21 @@ const (
 	secretsIAMSkipMissingWorkload   = "missing_workload_endpoint"
 	secretsIAMSkipMissingSecretPath = "missing_secret_path_identity"
 	// secretsIAMSkipIAMRoleUnresolved marks the ASSUMES_IAM_ROLE edge that
-	// cannot resolve its CloudResource endpoint from the current read model
-	// (iam_role_fingerprint is a one-way hash, not the CloudResource uid). It is
-	// counted, never fabricated, until the read model carries a
-	// CloudResource-joinable IAM-role identity (ADR #1314 §5.1).
+	// cannot resolve its CloudResource endpoint from the current read model. It is
+	// counted, never fabricated, when the read-model row carries only the one-way
+	// iam_role_fingerprint and no CloudResource-joinable IAM-role identity
+	// (iam_role_cloud_resource_uid). When that joinable uid is present the edge
+	// promotes instead (ADR #1314 §5.1).
 	secretsIAMSkipIAMRoleUnresolved = "iam_role_endpoint_unresolved_pending_read_model"
+)
+
+// Bounded assume-mode enum for the ASSUMES_IAM_ROLE edge. The reducer derives it
+// from the IAM-role evidence kind; it never encodes a role name, ARN, or
+// account-specific value. An empty value is allowed when the read-model row does
+// not classify the assume mode.
+const (
+	secretsIAMAssumeModeWebIdentity = "web_identity"
+	secretsIAMAssumeModePodIdentity = "pod_identity"
 )
 
 // SecretsIAMGraphTally is the bounded-enum projection accounting used for
@@ -74,6 +84,7 @@ type SecretsIAMGraphRows struct {
 	SecretMetadataPathNodes []map[string]any
 
 	UsesServiceAccountEdges     []map[string]any
+	AssumesIAMRoleEdges         []map[string]any
 	AuthenticatesVaultRoleEdges []map[string]any
 	UsesVaultPolicyEdges        []map[string]any
 	GrantsSecretReadEdges       []map[string]any
@@ -110,6 +121,7 @@ type secretsIAMGraphRowBuilder struct {
 	secretPaths     map[string]map[string]any
 
 	usesServiceAccount     map[string]map[string]any
+	assumesIAMRole         map[string]map[string]any
 	authenticatesVaultRole map[string]map[string]any
 	usesVaultPolicy        map[string]map[string]any
 	grantsSecretRead       map[string]map[string]any
@@ -124,6 +136,7 @@ func newSecretsIAMGraphRowBuilder() *secretsIAMGraphRowBuilder {
 		vaultPolicies:          map[string]map[string]any{},
 		secretPaths:            map[string]map[string]any{},
 		usesServiceAccount:     map[string]map[string]any{},
+		assumesIAMRole:         map[string]map[string]any{},
 		authenticatesVaultRole: map[string]map[string]any{},
 		usesVaultPolicy:        map[string]map[string]any{},
 		grantsSecretRead:       map[string]map[string]any{},
@@ -166,9 +179,22 @@ func (b *secretsIAMGraphRowBuilder) addIdentityTrustChain(envelope facts.Envelop
 		b.tally.SkippedByReason[secretsIAMSkipMissingWorkload]++
 	}
 
-	// ASSUMES_IAM_ROLE endpoint is not resolvable from the current read model
-	// (ADR §5.1): count it, never fabricate the CloudResource endpoint.
-	if payloadString(envelope.Payload, "iam_role_fingerprint") != "" {
+	// ASSUMES_IAM_ROLE: ServiceAccount -> existing IAM-role CloudResource node.
+	// The edge promotes only when the read-model row carries a
+	// CloudResource-joinable IAM-role identity (iam_role_cloud_resource_uid). When
+	// the row carries only the one-way iam_role_fingerprint the endpoint is not
+	// resolvable, so the edge is counted and never fabricated (ADR §5.1). A blank
+	// cloud_resource_uid is endpoint-no-op-safe: the writer MATCH skips a missing
+	// node, so a stale uid cannot fabricate a CloudResource.
+	if cloudResourceUID := payloadString(envelope.Payload, "iam_role_cloud_resource_uid"); cloudResourceUID != "" {
+		b.putEdge(b.assumesIAMRole, secretsIAMRelAssumesIAMRole, saKey, cloudResourceUID, map[string]any{
+			"service_account_uid": saKey, "cloud_resource_uid": cloudResourceUID,
+			"assume_mode": secretsIAMAssumeMode(payloadString(envelope.Payload, "iam_role_assume_mode")),
+			"scope_id":    scopeID, "generation_id": generationID,
+			"evidence_source": SecretsIAMGraphEvidenceSource, "confidence": confidence,
+			"evidence_fact_ids": evidence,
+		})
+	} else if payloadString(envelope.Payload, "iam_role_fingerprint") != "" {
 		b.tally.SkippedByReason[secretsIAMSkipIAMRoleUnresolved]++
 	}
 
@@ -247,6 +273,20 @@ func (b *secretsIAMGraphRowBuilder) addSecretAccessPath(envelope facts.Envelope)
 	})
 }
 
+// secretsIAMAssumeMode maps the read-model assume-mode value onto the bounded
+// edge enum. An unrecognized or empty value yields "" so the edge carries no
+// out-of-vocabulary mode rather than leaking an unexpected source string.
+func secretsIAMAssumeMode(mode string) string {
+	switch mode {
+	case secretsIAMAssumeModeWebIdentity:
+		return secretsIAMAssumeModeWebIdentity
+	case secretsIAMAssumeModePodIdentity:
+		return secretsIAMAssumeModePodIdentity
+	default:
+		return ""
+	}
+}
+
 // putNode dedupes a node by uid and counts the first insertion per label.
 func (b *secretsIAMGraphRowBuilder) putNode(set map[string]map[string]any, label string, row map[string]any) {
 	uid, _ := row["uid"].(string)
@@ -279,6 +319,7 @@ func (b *secretsIAMGraphRowBuilder) finish() SecretsIAMGraphRows {
 		SecretMetadataPathNodes: sortedRowsByUID(b.secretPaths),
 
 		UsesServiceAccountEdges:     sortedEdgeRows(b.usesServiceAccount),
+		AssumesIAMRoleEdges:         sortedEdgeRows(b.assumesIAMRole),
 		AuthenticatesVaultRoleEdges: sortedEdgeRows(b.authenticatesVaultRole),
 		UsesVaultPolicyEdges:        sortedEdgeRows(b.usesVaultPolicy),
 		GrantsSecretReadEdges:       sortedEdgeRows(b.grantsSecretRead),

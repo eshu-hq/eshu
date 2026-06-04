@@ -59,6 +59,70 @@ func TestExtractExactChainProducesResolvableSubgraph(t *testing.T) {
 	}
 }
 
+func TestExtractEmitsAssumesIAMRoleWhenCloudResourceUIDResolves(t *testing.T) {
+	t.Parallel()
+
+	// When the read-model row carries a CloudResource-joinable IAM-role identity
+	// (iam_role_cloud_resource_uid), the ASSUMES_IAM_ROLE edge promotes from the
+	// ServiceAccount node to the existing IAM-role CloudResource node. The raw ARN
+	// never appears; only the precomputed redaction-safe uid is the endpoint.
+	p := fullExactChainPayload()
+	p["iam_role_cloud_resource_uid"] = "cr-uid-iam-role"
+	p["iam_role_assume_mode"] = "web_identity"
+	rows := ExtractSecretsIAMGraphRows([]facts.Envelope{exactChainFact(p)})
+
+	if rows.Tally.EdgesByType[secretsIAMRelAssumesIAMRole] != 1 {
+		t.Fatalf("ASSUMES_IAM_ROLE edge = %d, want 1 (tally=%+v)", rows.Tally.EdgesByType[secretsIAMRelAssumesIAMRole], rows.Tally)
+	}
+	if rows.Tally.SkippedByReason[secretsIAMSkipIAMRoleUnresolved] != 0 {
+		t.Fatalf("resolvable endpoint must not be counted as a skip: %+v", rows.Tally)
+	}
+	if len(rows.AssumesIAMRoleEdges) != 1 {
+		t.Fatalf("assumes-iam-role edges = %+v", rows.AssumesIAMRoleEdges)
+	}
+	edge := rows.AssumesIAMRoleEdges[0]
+	if edge["service_account_uid"] != "sha256:sa" || edge["cloud_resource_uid"] != "cr-uid-iam-role" {
+		t.Fatalf("edge endpoints = %+v", edge)
+	}
+	if edge["assume_mode"] != "web_identity" {
+		t.Fatalf("assume_mode = %v, want web_identity", edge["assume_mode"])
+	}
+}
+
+func TestExtractSkipsAssumesIAMRoleWhenOnlyFingerprintPresent(t *testing.T) {
+	t.Parallel()
+
+	// Today's behavior: a chain with only the one-way iam_role_fingerprint (no
+	// CloudResource-joinable uid) cannot resolve the IAM-role endpoint. It is
+	// counted, never fabricated.
+	rows := ExtractSecretsIAMGraphRows([]facts.Envelope{exactChainFact(fullExactChainPayload())})
+
+	if rows.Tally.EdgesByType[secretsIAMRelAssumesIAMRole] != 0 {
+		t.Fatal("ASSUMES_IAM_ROLE must not be emitted without a joinable uid")
+	}
+	if rows.Tally.SkippedByReason[secretsIAMSkipIAMRoleUnresolved] != 1 {
+		t.Fatalf("iam-role skip = %d, want 1", rows.Tally.SkippedByReason[secretsIAMSkipIAMRoleUnresolved])
+	}
+	if len(rows.AssumesIAMRoleEdges) != 0 {
+		t.Fatalf("no edge expected: %+v", rows.AssumesIAMRoleEdges)
+	}
+}
+
+func TestExtractAssumesIAMRoleEdgeIsDedupedAndDeterministic(t *testing.T) {
+	t.Parallel()
+
+	p := fullExactChainPayload()
+	p["iam_role_cloud_resource_uid"] = "cr-uid-iam-role"
+	fact := exactChainFact(p)
+	rows := ExtractSecretsIAMGraphRows([]facts.Envelope{fact, fact})
+
+	if len(rows.AssumesIAMRoleEdges) != 1 || rows.Tally.EdgesByType[secretsIAMRelAssumesIAMRole] != 1 {
+		t.Fatalf("duplicate delivery not deduped: edges=%d tally=%d", len(rows.AssumesIAMRoleEdges), rows.Tally.EdgesByType[secretsIAMRelAssumesIAMRole])
+	}
+	// assume_mode defaults to the bounded "web_identity" when unspecified is not
+	// asserted here; an absent mode simply carries an empty bounded value.
+}
+
 func TestExtractExactSecretAccessPath(t *testing.T) {
 	t.Parallel()
 
@@ -212,10 +276,13 @@ func TestExtractRowsCarryNoForbiddenProperties(t *testing.T) {
 		"confidence": true, "vault_mount_join_key": true, "kv_path_fingerprint": true,
 		"workload_uid": true, "service_account_uid": true, "vault_auth_role_uid": true,
 		"vault_policy_uid": true, "secret_path_uid": true, "evidence_fact_ids": true,
-		"capabilities": true, "assume_mode": true,
+		"capabilities": true, "assume_mode": true, "cloud_resource_uid": true,
 	}
+	chainPayload := fullExactChainPayload()
+	chainPayload["iam_role_cloud_resource_uid"] = "sha256:cr-uid"
+	chainPayload["iam_role_assume_mode"] = "web_identity"
 	rows := ExtractSecretsIAMGraphRows([]facts.Envelope{
-		exactChainFact(fullExactChainPayload()),
+		exactChainFact(chainPayload),
 		exactPathFact(map[string]any{
 			"scope_id": "scope-1", "generation_id": "gen-1", "confidence": "exact",
 			"vault_policy_join_key": "sha256:pol1", "vault_mount_join_key": "sha256:mount",
@@ -224,7 +291,7 @@ func TestExtractRowsCarryNoForbiddenProperties(t *testing.T) {
 	})
 	all := [][]map[string]any{
 		rows.ServiceAccountNodes, rows.VaultAuthRoleNodes, rows.VaultPolicyNodes, rows.SecretMetadataPathNodes,
-		rows.UsesServiceAccountEdges, rows.AuthenticatesVaultRoleEdges, rows.UsesVaultPolicyEdges, rows.GrantsSecretReadEdges,
+		rows.UsesServiceAccountEdges, rows.AssumesIAMRoleEdges, rows.AuthenticatesVaultRoleEdges, rows.UsesVaultPolicyEdges, rows.GrantsSecretReadEdges,
 	}
 	for _, set := range all {
 		for _, row := range set {
