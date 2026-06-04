@@ -76,8 +76,11 @@ a cap of 10000.
 `resource_service`, `resource_category`, and `limit`. `category=cloud`
 searches canonical `CloudResource` nodes from cloud collector evidence;
 cloud results may include `arn`, `resource_id`, `account_id`, `region`, and
-`service_kind`. Raw tag and evidence payload values are not returned by this
-generic search route. `limit` defaults to 50 and is capped at 200.
+`service_kind`. Provider filters treat `source_system` as a provider fallback
+only for `CloudResource` rows; source-system provenance on Terraform-state or
+other non-cloud nodes is not returned as a cloud provider. Raw tag and
+evidence payload values are not returned by this generic search route.
+`limit` defaults to 50 and is capped at 200.
 
 Legacy impact routes accept `limit` with default 50 and cap 200, probe one
 extra row, and return `truncated`.

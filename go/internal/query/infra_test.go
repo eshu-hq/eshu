@@ -164,6 +164,14 @@ func TestSearchInfraResourcesFiltersTerraformClassification(t *testing.T) {
 			t.Fatalf("cypher = %q, want fragment %q", reader.lastCypher, fragment)
 		}
 	}
+	for _, forbidden := range []string{
+		"coalesce(n.provider, n.source_system, '') = $provider",
+		"n.source_system = $provider",
+	} {
+		if strings.Contains(reader.lastCypher, forbidden) {
+			t.Fatalf("cypher = %q, must not use provenance source_system as Terraform provider filter", reader.lastCypher)
+		}
+	}
 	for key, want := range map[string]any{
 		"kind":              "aws_s3_bucket",
 		"provider":          "aws",
@@ -284,7 +292,7 @@ func TestSearchInfraResourcesIncludesCloudResources(t *testing.T) {
 		"coalesce(n.arn, '') CONTAINS $query",
 		"coalesce(n.resource_id, '') CONTAINS $query",
 		"coalesce(n.service_kind, '') CONTAINS $query",
-		"coalesce(n.provider, n.source_system, '') = $provider",
+		"n.source_system = $provider",
 		"coalesce(n.resource_service, n.service_kind, '') = $resource_service",
 	} {
 		if !strings.Contains(reader.lastCypher, fragment) {
@@ -312,6 +320,76 @@ func TestSearchInfraResourcesIncludesCloudResources(t *testing.T) {
 		if got := resource[key]; got != want {
 			t.Fatalf("%s = %#v, want %#v", key, got, want)
 		}
+	}
+}
+
+func TestSearchInfraResourcesScopesSourceSystemProviderFallbackToCloudResources(t *testing.T) {
+	t.Parallel()
+
+	reader := &recordingInfraGraphReader{
+		runRows: []map[string]any{
+			{
+				"id":            "cloud-resource:ssm",
+				"name":          "cloud ssm",
+				"labels":        []any{"CloudResource"},
+				"source_system": "aws",
+			},
+			{
+				"id":            "terraform:state-resource",
+				"name":          "tf state resource",
+				"labels":        []any{"TerraformResource"},
+				"source_system": "terraform_state",
+			},
+		},
+	}
+	handler := &InfraHandler{Neo4j: reader}
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v0/infra/resources/search",
+		bytes.NewBufferString(`{"query":"sample-service","provider":"aws","limit":5}`),
+	)
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if got, want := w.Code, http.StatusOK; got != want {
+		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
+	}
+	for _, want := range []string{
+		"n.provider = $provider",
+		"(n:CloudResource AND n.source_system = $provider)",
+		"n.source_system as source_system",
+	} {
+		if !strings.Contains(reader.lastCypher, want) {
+			t.Fatalf("cypher = %q, want CloudResource-scoped provider fallback fragment %q", reader.lastCypher, want)
+		}
+	}
+	for _, forbidden := range []string{
+		"coalesce(n.provider, n.source_system, '') = $provider",
+		"coalesce(n.provider, n.source_system, '') as provider",
+	} {
+		if strings.Contains(reader.lastCypher, forbidden) {
+			t.Fatalf("cypher = %q, must not let source_system masquerade as provider for non-cloud nodes", reader.lastCypher)
+		}
+	}
+	var resp map[string]any
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("json.Unmarshal: %v", err)
+	}
+	results := resp["results"].([]any)
+	if got, want := len(results), 2; got != want {
+		t.Fatalf("results len = %d, want %d", got, want)
+	}
+	cloud := results[0].(map[string]any)
+	if got, want := cloud["provider"], "aws"; got != want {
+		t.Fatalf("cloud provider = %#v, want %#v", got, want)
+	}
+	terraform := results[1].(map[string]any)
+	if got, want := terraform["provider"], ""; got != want {
+		t.Fatalf("terraform provider = %#v, want no provider fallback from source_system", got)
 	}
 }
 

@@ -142,12 +142,15 @@ func TestGraphInfraResourceAggregateDefaultScopeKeepsCloudFiltersReachable(t *te
 	for _, want := range []string{
 		"n:CloudResource",
 		"n.service_kind = $kind",
-		"(n.provider = $provider OR n.source_system = $provider)",
+		"(n.provider = $provider OR (n:CloudResource AND n.source_system = $provider))",
 		"(n.resource_service = $resource_service OR n.service_kind = $resource_service)",
 	} {
 		if !strings.Contains(where, want) {
 			t.Fatalf("where = %q, want fragment %q", where, want)
 		}
+	}
+	if strings.Contains(where, "(n.provider = $provider OR n.source_system = $provider)") {
+		t.Fatalf("where = %q, must scope source_system provider fallback to CloudResource", where)
 	}
 }
 
@@ -165,6 +168,12 @@ func TestInfraResourceInventoryDefaultScopeCoalescesCloudAndTerraformGroups(t *t
 		if !strings.Contains(providerExpr, want) {
 			t.Fatalf("provider group expression = %q, want %s", providerExpr, want)
 		}
+	}
+	if !strings.Contains(providerExpr, "WHEN n:CloudResource") {
+		t.Fatalf("provider group expression = %q, want source_system fallback gated to CloudResource", providerExpr)
+	}
+	if strings.Contains(providerExpr, "coalesce(n.provider, n.source_system") {
+		t.Fatalf("provider group expression = %q, must not coalesce source_system into provider for non-cloud nodes", providerExpr)
 	}
 
 	serviceExpr, err := infraResourceInventoryGroupExpression(

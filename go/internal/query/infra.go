@@ -203,7 +203,7 @@ func (h *InfraHandler) searchResources(w http.ResponseWriter, r *http.Request) {
 		cypher += " AND (n.kind = $kind OR n.resource_type = $kind OR n.data_type = $kind OR n.service_kind = $kind)"
 	}
 	if provider != "" {
-		cypher += " AND coalesce(n.provider, n.source_system, '') = $provider"
+		cypher += " AND " + infraSearchProviderFilterPredicate(labels)
 	}
 	if resourceService != "" {
 		cypher += " AND coalesce(n.resource_service, n.service_kind, '') = $resource_service"
@@ -214,7 +214,7 @@ func (h *InfraHandler) searchResources(w http.ResponseWriter, r *http.Request) {
 
 	cypher += `
 		RETURN n.id as id, n.name as name, labels(n) as labels,
-		       n.kind as kind, coalesce(n.provider, n.source_system, '') as provider, n.environment as environment,
+		       n.kind as kind, n.provider as provider, n.source_system as source_system, n.environment as environment,
 		       coalesce(n.source, n.source_system, '') as source, n.config_path as config_path,
 		       coalesce(n.resource_type, n.data_type, '') as resource_type,
 		       coalesce(n.resource_service, n.service_kind, '') as resource_service,
@@ -255,12 +255,13 @@ func (h *InfraHandler) searchResources(w http.ResponseWriter, r *http.Request) {
 		if len(results) >= req.Limit {
 			break
 		}
+		labels := StringSliceVal(row, "labels")
 		result := map[string]any{
 			"id":          StringVal(row, "id"),
 			"name":        StringVal(row, "name"),
-			"labels":      StringSliceVal(row, "labels"),
+			"labels":      labels,
 			"kind":        StringVal(row, "kind"),
-			"provider":    StringVal(row, "provider"),
+			"provider":    infraSearchProviderFromRow(row, labels),
 			"environment": StringVal(row, "environment"),
 			"source":      StringVal(row, "source"),
 			"config_path": StringVal(row, "config_path"),
@@ -311,6 +312,39 @@ func infraLabelPredicate(labels []string) string {
 		parts = append(parts, "n:"+label)
 	}
 	return "(" + strings.Join(parts, " OR ") + ")"
+}
+
+func infraSearchProviderFilterPredicate(labels []string) string {
+	if infraLabelsAreCloudOnly(labels) {
+		return "n.source_system = $provider"
+	}
+	if infraLabelsInclude(labels, "CloudResource") {
+		return "(n.provider = $provider OR (n:CloudResource AND n.source_system = $provider))"
+	}
+	return "n.provider = $provider"
+}
+
+func infraSearchProviderFromRow(row map[string]any, labels []string) string {
+	if provider := StringVal(row, "provider"); provider != "" {
+		return provider
+	}
+	if infraLabelsInclude(labels, "CloudResource") {
+		return StringVal(row, "source_system")
+	}
+	return ""
+}
+
+func infraLabelsAreCloudOnly(labels []string) bool {
+	return len(labels) == 1 && labels[0] == "CloudResource"
+}
+
+func infraLabelsInclude(labels []string, want string) bool {
+	for _, label := range labels {
+		if label == want {
+			return true
+		}
+	}
+	return false
 }
 
 // getRelationships returns all relationships for a given entity.

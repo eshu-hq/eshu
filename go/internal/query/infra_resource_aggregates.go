@@ -278,7 +278,7 @@ func infraResourceAggregateWhereClause(labels []string, filter InfraResourceAggr
 		if infraResourceAggregateCloudCategory(filter) {
 			clauses = append(clauses, "n.source_system = $provider")
 		} else if infraResourceAggregateAllCategories(filter) {
-			clauses = append(clauses, "(n.provider = $provider OR n.source_system = $provider)")
+			clauses = append(clauses, "(n.provider = $provider OR (n:CloudResource AND n.source_system = $provider))")
 		} else {
 			clauses = append(clauses, "n.provider = $provider")
 		}
@@ -341,7 +341,7 @@ func infraResourceProviderGroupExpression(filter InfraResourceAggregateFilter) s
 		return "CASE WHEN n.source_system IS NULL OR n.source_system = '' THEN 'unknown' ELSE n.source_system END"
 	}
 	if infraResourceAggregateAllCategories(filter) {
-		return "CASE WHEN coalesce(n.provider, n.source_system, '') = '' THEN 'unknown' ELSE coalesce(n.provider, n.source_system, '') END"
+		return "CASE WHEN n.provider IS NULL OR n.provider = '' THEN CASE WHEN n:CloudResource THEN CASE WHEN n.source_system IS NULL OR n.source_system = '' THEN 'unknown' ELSE n.source_system END ELSE 'unknown' END ELSE n.provider END"
 	}
 	return "CASE WHEN n.provider IS NULL OR n.provider = '' THEN 'unknown' ELSE n.provider END"
 }
