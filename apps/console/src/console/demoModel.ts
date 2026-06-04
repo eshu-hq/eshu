@@ -85,7 +85,7 @@ export const demoModel: ConsoleModel = {
     { id: "vuln-intel", kind: "vulnerability_intelligence", state: "healthy", facts: 8810, freshness: "fresh" }
   ],
   findings: [
-    { id: "d1", type: "Vulnerability", entity: "checkout-service", title: "CVE-2024-0001 reachable in prod image", detail: "checkout:1.4.2 ships an affected dependency.", truth: "inferred" },
+    { id: "d1", type: "Vulnerability", entity: "checkout-service", title: "CVE-2024-0001 reachable in prod image", detail: "checkout:1.4.2 ships an affected dependency.", truth: "fallback" },
     { id: "d2", type: "Dead code", entity: "checkout-service", title: "Unreferenced symbol legacyDiscount", detail: "src/discounts.ts · no callers", truth: "derived" }
   ],
   vulnerabilities: [

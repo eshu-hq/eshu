@@ -70,8 +70,9 @@ export async function loadEntityGraph(client: EshuApiClient, name: string): Prom
   return { nodes: [...nodes.values()], edges };
 }
 
-// Blast radius: dependents that break if `name` fails. Tries the live API, with
-// a graceful fallback to walking the in-memory model graph.
+// Blast radius: dependents that break if `name` fails. `loadBlastGraph` queries
+// the live API and throws if it is unavailable; callers that need an offline
+// path fall back to `blastFromModel`, which reverse-walks the in-memory graph.
 interface ImpactEntity { readonly id?: string; readonly name?: string; readonly type?: string; readonly distance?: number; readonly hops?: number; }
 interface BlastResponse {
   readonly target?: RelEntity; readonly entity?: RelEntity;

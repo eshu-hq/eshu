@@ -21,8 +21,12 @@ export function Sparkline({ data, color = "#14b8a6", w = 86, h = 30 }: {
 }): React.JSX.Element {
   const gid = useId().replace(/:/g, "");
   if (data.length === 0) return <svg width={w} height={h} />;
-  const min = Math.min(...data), max = Math.max(...data), range = max - min || 1;
-  const pts = data.map((v, i): [number, number] => [(i / (data.length - 1)) * w, h - 4 - ((v - min) / range) * (h - 8)]);
+  // A single datapoint can't form a line: duplicate it so the path spans the
+  // width as a flat line instead of dividing by (length - 1) === 0 and emitting
+  // an invalid SVG path.
+  const series = data.length === 1 ? [data[0], data[0]] : data;
+  const min = Math.min(...series), max = Math.max(...series), range = max - min || 1;
+  const pts = series.map((v, i): [number, number] => [(i / (series.length - 1)) * w, h - 4 - ((v - min) / range) * (h - 8)]);
   return (
     <svg className="spark" viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" width={w} height={h}>
       <defs>
@@ -45,16 +49,20 @@ export function AreaChart({ data, color = "#14b8a6", h = 170, unit = "" }: {
   const gid = useId().replace(/:/g, "");
   const W = 600, padB = 22, padT = 10, padL = 4;
   if (data.length === 0) return <div className="empty">No series available from this source.</div>;
-  const max = Math.max(...data) * 1.12 || 1, innerH = h - padB - padT;
-  const x = (i: number): number => padL + (i / (data.length - 1)) * (W - padL - 8);
+  // A single datapoint can't form a line: duplicate it so the path spans the
+  // width as a flat line instead of dividing by (length - 1) === 0 and emitting
+  // an invalid SVG path.
+  const series = data.length === 1 ? [data[0], data[0]] : data;
+  const max = Math.max(...series) * 1.12 || 1, innerH = h - padB - padT;
+  const x = (i: number): number => padL + (i / (series.length - 1)) * (W - padL - 8);
   const y = (v: number): number => padT + innerH - (v / max) * innerH;
-  const pts = data.map((v, i): [number, number] => [x(i), y(v)]);
+  const pts = series.map((v, i): [number, number] => [x(i), y(v)]);
   const ticks = [0, 1, 2, 3, 4].map((i) => Math.round((max / 4) * i));
   function onMove(e: React.MouseEvent): void {
     if (!ref.current) return;
     const r = ref.current.getBoundingClientRect();
-    const idx = Math.round((((e.clientX - r.left) / r.width) * W - padL) / (W - padL - 8) * (data.length - 1));
-    setHover(Math.max(0, Math.min(data.length - 1, idx)));
+    const idx = Math.round((((e.clientX - r.left) / r.width) * W - padL) / (W - padL - 8) * (series.length - 1));
+    setHover(Math.max(0, Math.min(series.length - 1, idx)));
   }
   return (
     <div className="chart-wrap">
@@ -66,12 +74,12 @@ export function AreaChart({ data, color = "#14b8a6", h = 170, unit = "" }: {
           </linearGradient>
         </defs>
         {ticks.map((t, i) => <line key={i} className="chart-grid" x1={padL} x2={W - 8} y1={y(t)} y2={y(t)} />)}
-        <path d={`${smoothPath(pts)} L${x(data.length - 1)} ${padT + innerH} L${padL} ${padT + innerH} Z`} fill={`url(#ac${gid})`} />
+        <path d={`${smoothPath(pts)} L${x(series.length - 1)} ${padT + innerH} L${padL} ${padT + innerH} Z`} fill={`url(#ac${gid})`} />
         <path d={smoothPath(pts)} fill="none" stroke={color} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
-        {hover !== null ? <g><line className="chart-cursor" x1={x(hover)} x2={x(hover)} y1={padT} y2={padT + innerH} /><circle cx={x(hover)} cy={y(data[hover])} r="3.5" fill={color} stroke="var(--bg-panel)" strokeWidth="2" /></g> : null}
+        {hover !== null ? <g><line className="chart-cursor" x1={x(hover)} x2={x(hover)} y1={padT} y2={padT + innerH} /><circle cx={x(hover)} cy={y(series[hover])} r="3.5" fill={color} stroke="var(--bg-panel)" strokeWidth="2" /></g> : null}
       </svg>
       <div className="chart-yaxis">{ticks.slice().reverse().map((t, i) => <span key={i}>{fmt(t)}</span>)}</div>
-      {hover !== null ? <div className="chart-tip" style={{ left: `${(x(hover) / W) * 100}%` }}><strong>{fmt(data[hover])}{unit}</strong><span>t-{data.length - 1 - hover}</span></div> : null}
+      {hover !== null ? <div className="chart-tip" style={{ left: `${(x(hover) / W) * 100}%` }}><strong>{fmt(series[hover])}{unit}</strong><span>t-{series.length - 1 - hover}</span></div> : null}
     </div>
   );
 }

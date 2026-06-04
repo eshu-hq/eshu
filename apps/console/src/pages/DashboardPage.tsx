@@ -1,7 +1,7 @@
 // pages/DashboardPage.tsx
 import { useState } from "react";
 import type { ConsoleModel, GraphNode } from "../console/types";
-import { fmt, LAYER_COLOR, SEVERITY_COLOR } from "../console/types";
+import { fmt, LAYER_COLOR, SEVERITY_COLOR, uiTruth } from "../console/types";
 import { StatTile, Panel, TruthChip } from "../components/atoms";
 import { AreaChart, Donut, BarRows } from "../components/charts";
 import { GraphCanvas } from "../components/GraphCanvas";
@@ -15,6 +15,7 @@ export function DashboardPage({ model, onOpenService }: { readonly model: Consol
   );
   const relRows = model.relationships.slice().sort((a, b) => b.count - a.count).slice(0, 7)
     .map((x) => ({ label: x.verb, value: x.count, color: LAYER_COLOR[x.layer], detail: x.detail }));
+  const serviceNames = new Set(model.services.map((s) => s.name));
 
   return (
     <div className="page">
@@ -68,14 +69,19 @@ export function DashboardPage({ model, onOpenService }: { readonly model: Consol
         <table className="tbl">
           <thead><tr><th>Finding</th><th>Type</th><th>Entity</th><th>Truth</th></tr></thead>
           <tbody>
-            {model.findings.map((f) => (
-              <tr key={f.id} onClick={() => onOpenService?.(f.entity)} style={{ cursor: "pointer" }}>
-                <td className="cell-stack"><span style={{ color: "var(--bone)", fontWeight: 600 }}>{f.title}</span><small>{f.detail}</small></td>
-                <td className="t-mut">{f.type}</td>
-                <td className="t-name">{f.entity}</td>
-                <td><TruthChip level={f.truth} /></td>
-              </tr>
-            ))}
+            {model.findings.map((f) => {
+              // Only services/workloads have a spotlight drawer. Findings keyed by
+              // a repo or other entity (e.g. dead code) must not open an empty one.
+              const canOpen = onOpenService !== undefined && serviceNames.has(f.entity);
+              return (
+                <tr key={f.id} onClick={canOpen ? () => onOpenService(f.entity) : undefined} style={canOpen ? { cursor: "pointer" } : undefined}>
+                  <td className="cell-stack"><span style={{ color: "var(--bone)", fontWeight: 600 }}>{f.title}</span><small>{f.detail}</small></td>
+                  <td className="t-mut">{f.type}</td>
+                  <td className="t-name">{f.entity}</td>
+                  <td><TruthChip level={uiTruth(f.truth)} /></td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </Panel>
