@@ -204,9 +204,24 @@ func TestIncidentContextQueriesStayBoundedToActiveFacts(t *testing.T) {
 		"fact.fact_kind = 'change.record'",
 		"fact.scope_id = $2",
 		"fact.generation_id = $3",
-		"($4::timestamptz IS NULL OR NULLIF(fact.payload->>'timestamp', '')::timestamptz >= $4)",
-		"($5::timestamptz IS NULL OR NULLIF(fact.payload->>'timestamp', '')::timestamptz <= $5)",
+		"($4::timestamptz IS NULL OR NULLIF(fact.payload->>'timestamp', '')::timestamptz >= $4::timestamptz)",
+		"($5::timestamptz IS NULL OR NULLIF(fact.payload->>'timestamp', '')::timestamptz <= $5::timestamptz)",
 		"LIMIT $6",
+	} {
+		if !strings.Contains(listIncidentContextChangeCandidatesQuery, want) {
+			t.Fatalf("listIncidentContextChangeCandidatesQuery missing %q:\n%s", want, listIncidentContextChangeCandidatesQuery)
+		}
+	}
+}
+
+func TestIncidentContextChangeCandidateQueryCastsNullableTimeParametersEverywhere(t *testing.T) {
+	t.Parallel()
+
+	for _, want := range []string{
+		"$4::timestamptz IS NULL",
+		"NULLIF(fact.payload->>'timestamp', '')::timestamptz >= $4::timestamptz",
+		"$5::timestamptz IS NULL",
+		"NULLIF(fact.payload->>'timestamp', '')::timestamptz <= $5::timestamptz",
 	} {
 		if !strings.Contains(listIncidentContextChangeCandidatesQuery, want) {
 			t.Fatalf("listIncidentContextChangeCandidatesQuery missing %q:\n%s", want, listIncidentContextChangeCandidatesQuery)
