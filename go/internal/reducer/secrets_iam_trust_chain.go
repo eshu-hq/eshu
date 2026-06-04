@@ -55,13 +55,25 @@ type SecretsIAMIdentityTrustChain struct {
 	WorkloadObjectID      string
 	WorkloadKind          string
 	IAMRoleFingerprint    string
-	VaultRoleJoinKey      string
-	VaultMountJoinKey     string
-	VaultPolicyJoinKeys   []string
-	EvidenceFactIDs       []string
-	MissingEvidence       []string
-	SourceScopes          []string
-	SourceGenerations     []string
+	// IAMRoleCloudResourceUID is the redaction-safe CloudResource node uid for the
+	// assumed IAM role, when it is resolvable at trust-chain build time. It lets
+	// the graph projection promote SECRETS_IAM_ASSUMES_IAM_ROLE to the existing
+	// IAM-role CloudResource node. It is empty when the build site cannot resolve a
+	// joinable identity, in which case the edge stays skipped+counted (ADR #1314
+	// §5.1). The raw role ARN is never stored; this is the same one-way uid the AWS
+	// resource projection computes.
+	IAMRoleCloudResourceUID string
+	// IAMRoleAssumeMode is the bounded assume-mode classification
+	// (web_identity / pod_identity) for the IAM-role edge, or empty when
+	// unclassified. It never encodes a role name, ARN, or account value.
+	IAMRoleAssumeMode   string
+	VaultRoleJoinKey    string
+	VaultMountJoinKey   string
+	VaultPolicyJoinKeys []string
+	EvidenceFactIDs     []string
+	MissingEvidence     []string
+	SourceScopes        []string
+	SourceGenerations   []string
 }
 
 // SecretsIAMPrivilegePostureObservation records risky broad or partial posture

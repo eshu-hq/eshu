@@ -157,38 +157,57 @@ endpoint cannot be resolved would force a fabricated join, which §4 forbids.
   `workload_uid = workload_object_id`). So `SECRETS_IAM_USES_SERVICE_ACCOUNT`
   can `MATCH (:KubernetesWorkload {uid: workload_object_id})` and skip-count when
   absent.
-- **IAM-role `CloudResource` endpoint — NOT RESOLVABLE from the current read
-  model.** The read model carries only `iam_role_fingerprint`, defined as
-  `secretsIAMFingerprint("iam_role", role_arn)` — a deterministic, unkeyed
-  SHA-256 hash of a canonical JSON payload (via `facts.StableID`), not a keyed
-  HMAC. It is one-way (irreversible) but reproducible by anyone with the same
-  role ARN, so it provides redaction (no raw ARN in the graph) without
-  unlinkability. The IAM-role `CloudResource` `uid` is built from
-  `(account_id, region, resource_type, resource_id)` (`cloudResourceUID(...)`).
-  A fingerprint cannot join to that uid, and the read model carries neither the
-  `CloudResource` uid nor the `(account, region, role-name)` needed to compute
-  it. **Therefore `SECRETS_IAM_ASSUMES_IAM_ROLE` cannot promote until the
-  read-model `identity_trust_chain` row additionally carries a
-  CloudResource-joinable IAM-role identity** (the role's `cloud_resource_uid`,
-  or the account/region/resource-id to recompute it). That is an upstream
-  reducer/read-model change (and depends on the IAM trust fact carrying the
-  role's resource identity in a joinable form), tracked as the prerequisite for
-  the IAM-role edge.
+- **IAM-role `CloudResource` endpoint — RESOLVABLE (issue #1379), with one
+  bounded caveat.** The `iam_role_fingerprint` is `secretsIAMFingerprint(
+  "iam_role", role_arn)` — a deterministic, unkeyed SHA-256 over canonical JSON
+  (via `facts.StableID`). It provides redaction (no raw ARN in the graph) but
+  cannot join to the IAM-role `CloudResource` `uid`, built from
+  `cloudResourceUID(account_id, region, "aws_iam_role", role_arn)` where the AWS
+  resource collector sets `resource_id = role_arn` (`services/iam`
+  `roleObservation`). The only uid inputs not in the role ARN are the AWS scan
+  boundary `account_id` and `region`. Both are carried by the `aws_iam_principal`
+  source fact that the trust-chain build (`secretsIAMExactChains`) already
+  requires for the chain to be exact, so the read model now **additionally
+  carries `iam_role_cloud_resource_uid`** — the redaction-safe CloudResource uid
+  recomputed at the existing build site from a fact already in hand (no new
+  collector, no new source field, no new cross-source join). The raw ARN is never
+  stored; it is only hashed into the one-way uid, exactly as the AWS resource
+  projection and the `iam_can_assume` edge slice compute it. When the principal
+  fact omits `account_id`/`region` the uid stays blank and the edge keeps the
+  skip+count behavior.
 
-Consequently the first graph build implements the resolvable subgraph — the four
-`SecretsIAM*` nodes and the four edges `USES_SERVICE_ACCOUNT`,
-`AUTHENTICATES_TO_VAULT_ROLE`, `USES_VAULT_POLICY`, `GRANTS_SECRET_READ` (all
-endpoints resolve from read-model join keys or the workload uid). The IAM-role
+  Caveat (bounded, deliberately conservative): the canonical CloudResource uid
+  uses the **`awscloud` IAM resource collector's** boundary `region`, while
+  `iam_role_cloud_resource_uid` is recomputed from the **`secretsiam`
+  collector's** boundary `region`. IAM is global, so both lanes are expected to
+  emit the same region literal; the build does **not** parse account/region out
+  of the ARN string (a parsed region could diverge from the boundary literal and
+  fabricate a non-matching uid). If a deployment's two source lanes ever emit
+  divergent region literals for IAM, the recomputed uid will not match the
+  CloudResource node and the writer `MATCH` is a no-op (no fabricated node, no
+  wrong edge) — it degrades to the prior skip behavior, never to a wrong join.
+  The strictly-canonical alternative — having the trust-chain evidence loader
+  also load the `aws_resource` IAM-role facts and resolve the uid by ARN the way
+  `iam_can_assume` does — remains the upstream follow-up if region-literal
+  equality across the two IAM lanes is ever not guaranteed.
+
+Consequently the first graph build implements **five** edges: the four that
+always resolve from read-model join keys or the workload uid
+(`USES_SERVICE_ACCOUNT`, `AUTHENTICATES_TO_VAULT_ROLE`, `USES_VAULT_POLICY`,
+`GRANTS_SECRET_READ`) plus `SECRETS_IAM_ASSUMES_IAM_ROLE` from the
+ServiceAccount node to the existing IAM-role `CloudResource` node, emitted only
+when `iam_role_cloud_resource_uid` is present. When it is absent the IAM-role
 edge is extracted and **counted as a skip** with reason
-`iam_role_endpoint_unresolved_pending_read_model` until the upstream field
-lands, so the chain is never fabricated.
+`iam_role_endpoint_unresolved_pending_read_model`, so the chain is never
+fabricated. The edge carries a bounded `assume_mode`
+(`web_identity` / `pod_identity`).
 
 ## 6. Relationship Contract
 
 | Relationship | Source row | Endpoint rule | Mutable properties |
 | --- | --- | --- | --- |
 | `SECRETS_IAM_USES_SERVICE_ACCOUNT` | exact `identity_trust_chain` | `KubernetesWorkload` to `SecretsIAMServiceAccount`, only when workload node resolves | `scope_id`, `generation_id`, `evidence_source`, `confidence`, `evidence_fact_ids` |
-| `SECRETS_IAM_ASSUMES_IAM_ROLE` | exact `identity_trust_chain` | `SecretsIAMServiceAccount` to existing IAM role `CloudResource` | `assume_mode`, `scope_id`, `generation_id`, `evidence_source`, `confidence`, `evidence_fact_ids` |
+| `SECRETS_IAM_ASSUMES_IAM_ROLE` | exact `identity_trust_chain` | `SecretsIAMServiceAccount` to existing IAM role `CloudResource`, only when `iam_role_cloud_resource_uid` resolves | `assume_mode`, `scope_id`, `generation_id`, `evidence_source`, `confidence`, `evidence_fact_ids` |
 | `SECRETS_IAM_AUTHENTICATES_TO_VAULT_ROLE` | exact `identity_trust_chain` | `SecretsIAMServiceAccount` to `SecretsIAMVaultAuthRole` | `scope_id`, `generation_id`, `evidence_source`, `confidence`, `evidence_fact_ids` |
 | `SECRETS_IAM_USES_VAULT_POLICY` | exact `identity_trust_chain` | `SecretsIAMVaultAuthRole` to `SecretsIAMVaultPolicy` | `scope_id`, `generation_id`, `evidence_source`, `confidence`, `evidence_fact_ids` |
 | `SECRETS_IAM_GRANTS_SECRET_READ` | exact `secret_access_path` | `SecretsIAMVaultPolicy` to `SecretsIAMSecretMetadataPath` | `capabilities`, `scope_id`, `generation_id`, `evidence_source`, `confidence`, `evidence_fact_ids` |
@@ -462,3 +481,43 @@ relationship tokens, skip reasons); no path, ARN, namespace, or identifier is a
 label. `node_type`/`edge_type`/`skip_reason` are in the frozen
 `TestMetricDimensionKeys` allowlist and the span is in the frozen span contract,
 both asserted by `go test ./internal/telemetry`.
+
+### 5.3. Evidence for the IAM-role edge promotion (issue #1379)
+
+This change makes `SECRETS_IAM_ASSUMES_IAM_ROLE` the fifth promotable edge by
+carrying a CloudResource-joinable IAM-role identity in the read model (see the
+RESOLVABLE finding in §5.1). It adds two optional read-model fields
+(`iam_role_cloud_resource_uid`, `iam_role_assume_mode`), recomputed at the
+existing trust-chain build site from the `aws_iam_principal` fact already
+required for the chain, and extends the extractor + Cypher writer to emit the
+edge when the uid is present (skip+count otherwise).
+
+No-Regression Evidence: the read-model build remains a single pass over facts
+already loaded — the new `secretsIAMRoleCloudResourceUID` is one map lookup plus
+one `cloudResourceUID` hash per exact chain, no new fact load, collector, or
+cross-source join. The extractor adds one bounded edge family to the same linear
+`ExtractSecretsIAMGraphRows` pass (deduped by endpoint-pair, no I/O). The writer
+adds one static-token `MATCH/MATCH/MERGE` Cypher template
+(`SecretsIAMServiceAccount`→existing `CloudResource`); a missing CloudResource
+endpoint is a writer no-op (no fabricated node), and the edge's reducer-owned
+START node is removed by the existing `DETACH DELETE` retract (no new retract
+statement, no `CloudResource` deletion). The change is endpoint-no-op-safe and
+exact-only; absence of the uid preserves the prior skip behavior, so there is no
+hot-path regression. Correctness is covered by `go test ./internal/reducer`
+(build resolves the uid from the principal fact's account/region and matches
+`cloudResourceUID`; blank uid without account/region; web-identity vs
+pod-identity assume mode; extractor emits the edge when resolvable and skips+
+counts when only the fingerprint is present; duplicate-delivery dedupe;
+projection handler writes/omits the edge end-to-end), `go test
+./internal/storage/cypher -run SecretsIAMGraph` (ASSUMES_IAM_ROLE Cypher shape,
+endpoint `MATCH`es, `assume_mode` SET, retract unchanged), and `go test -race
+./internal/reducer`.
+
+Observability Evidence: no new telemetry surface. The new edge flows through the
+existing `eshu_dp_secrets_iam_graph_edges_written_total{edge_type}` counter with
+`edge_type=SECRETS_IAM_ASSUMES_IAM_ROLE`, and the existing
+`eshu_dp_secrets_iam_graph_skipped_total{skip_reason=
+iam_role_endpoint_unresolved_pending_read_model}` counter still fires when the
+uid is absent, so an operator can see resolved-vs-skipped IAM-role edges per
+generation. The frozen `edge_type`/`skip_reason` dimension keys are unchanged
+(`go test ./internal/telemetry`).

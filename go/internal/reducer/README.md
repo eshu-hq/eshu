@@ -1259,6 +1259,49 @@ completion log. All labels are static extractor constants (no path/ARN/namespace
 and `node_type`/`edge_type`/`skip_reason` plus the span are in the frozen
 telemetry contracts asserted by `go test ./internal/telemetry`.
 
+## Secrets/IAM ASSUMES_IAM_ROLE edge promotion (#1379)
+
+The fifth trust-chain edge, `SECRETS_IAM_ASSUMES_IAM_ROLE`, now promotes. The
+trust-chain read-model row (`SecretsIAMIdentityTrustChain`) additionally carries
+an optional `IAMRoleCloudResourceUID` — the redaction-safe IAM-role
+`CloudResource` node uid — and a bounded `IAMRoleAssumeMode`
+(`web_identity` / `pod_identity`). The build recomputes the uid at the existing
+site (`secretsIAMRoleCloudResourceUID`) as
+`cloudResourceUID(account_id, region, "aws_iam_role", role_arn)` from the
+`aws_iam_principal` fact the chain already requires (the AWS resource collector
+sets `resource_id = role_arn`), so no new collector, source field, or
+cross-source join is introduced. The raw ARN is never stored; it is only hashed
+into the one-way uid, identical to the AWS resource projection and the
+`iam_can_assume` edge slice. When the principal fact omits `account_id`/`region`
+the uid stays blank and the extractor keeps the prior skip+count behavior
+(`iam_role_endpoint_unresolved_pending_read_model`). The Cypher writer adds a
+static-token `MATCH (SecretsIAMServiceAccount)` / `MATCH (CloudResource)` /
+`MERGE ...SECRETS_IAM_ASSUMES_IAM_ROLE...` template; a missing `CloudResource`
+endpoint is a no-op (never a fabricated node), and the edge's reducer-owned START
+node is removed by the existing `DETACH DELETE` retract. See ADR #1314 §5.1/§5.3.
+
+No-Regression Evidence: the read-model build stays a single pass over facts
+already loaded (one map lookup + one `cloudResourceUID` hash per exact chain — no
+new fact load). The extractor adds one endpoint-pair-deduped edge family to the
+same linear `ExtractSecretsIAMGraphRows` pass; the writer adds one no-op-safe
+edge template and no new retract statement. The change is exact-only and
+endpoint-no-op-safe, so absence of the uid preserves prior behavior and there is
+no hot-path regression. Proven by `go test ./internal/reducer ./internal/projector ./internal/storage/cypher ./internal/telemetry ./internal/graph -count=1`,
+`go test -race ./internal/reducer -count=1`, and
+`golangci-lint run ./internal/reducer/... ./internal/storage/cypher/...` (0 issues)
+on Go 1.26.x: build resolves and matches `cloudResourceUID`, blank uid without
+account/region, web-identity vs pod-identity assume mode, extractor emits when
+resolvable and skips+counts when only the fingerprint is present, duplicate
+dedupe, and the projection handler writes/omits the edge end-to-end.
+
+Observability Evidence: no new telemetry surface. The new edge flows through the
+existing `eshu_dp_secrets_iam_graph_edges_written_total{edge_type=
+SECRETS_IAM_ASSUMES_IAM_ROLE}` counter, and the existing
+`eshu_dp_secrets_iam_graph_skipped_total{skip_reason=
+iam_role_endpoint_unresolved_pending_read_model}` counter still fires when the
+uid is absent, so an operator can chart resolved-vs-skipped IAM-role edges per
+generation. The frozen `edge_type`/`skip_reason` dimension keys are unchanged
+(`go test ./internal/telemetry`).
 ### §11/§12 activation proofs (#1381)
 
 The ADR #1314 §11 fixture-truth and §12 performance proofs now exist so
