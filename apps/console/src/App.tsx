@@ -142,7 +142,7 @@ function SourcePopover({ source, onDemo, onConnect, onClose }: {
           {source.mode === "live" && source.status === "unavailable" ? <span className="src-err">⚠ {source.msg || "unreachable"} — showing demo</span> : null}
           {source.mode === "live" && source.status === "connected" ? <span className="src-ok">✓ connected</span> : null}
         </div>
-        <p className="t-mut" style={{ fontSize: ".7rem", margin: "4px 2px 0", lineHeight: 1.5 }}>The console dev server proxies <span className="mono">/eshu-api/</span> → <span className="mono">127.0.0.1:8080</span>. Key is stored only in the browser.</p>
+        <p className="t-mut" style={{ fontSize: ".7rem", margin: "4px 2px 0", lineHeight: 1.5 }}>The console dev server proxies <span className="mono">/eshu-api/</span> → <span className="mono">127.0.0.1:8080</span>. Key is kept in memory for this session only.</p>
       </div>
     </>
   );
