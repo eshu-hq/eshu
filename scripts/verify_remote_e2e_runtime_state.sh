@@ -405,6 +405,13 @@ verify_package_registry_metadata_gap() {
 		"${gap_count}"
 }
 
+verify_target_story() {
+	ESHU_REMOTE_E2E_API_BASE_URL="${API_BASE_URL}" \
+		ESHU_REMOTE_E2E_API_KEY="${API_KEY}" \
+		ESHU_REMOTE_E2E_API_TIMEOUT_SECONDS="${API_TIMEOUT_SECONDS}" \
+		"${SCRIPT_DIR}/verify_remote_e2e_target_story.sh"
+}
+
 verify_workflow_completion() {
 	echo "Checking workflow coordinator completion..."
 	if jq -e '
@@ -447,12 +454,14 @@ main() {
 	if is_representative_mode; then
 		verify_representative_runtime_safety
 		verify_aggregate_counts
+		verify_target_story
 		verify_package_registry_metadata_gap
 		verify_representative_runtime_safety
 	else
 		verify_queue_completion
 		verify_workflow_completion
 		verify_aggregate_counts
+		verify_target_story
 		verify_package_registry_metadata_gap
 	fi
 }
