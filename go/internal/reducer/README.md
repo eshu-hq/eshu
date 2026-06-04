@@ -1258,3 +1258,56 @@ span and three bounded-enum counters — `eshu_dp_secrets_iam_graph_nodes_writte
 completion log. All labels are static extractor constants (no path/ARN/namespace),
 and `node_type`/`edge_type`/`skip_reason` plus the span are in the frozen
 telemetry contracts asserted by `go test ./internal/telemetry`.
+
+### §11/§12 activation proofs (#1381)
+
+The ADR #1314 §11 fixture-truth and §12 performance proofs now exist so
+activation is ready the moment the §14 principal+security sign-off lands. The
+flag stays OFF by default and is unchanged; these are proof artifacts only.
+
+Benchmark Evidence (§12): `BenchmarkSecretsIAMGraphWriter`
+(`go/internal/storage/cypher/secrets_iam_graph_writer_bench_test.go`) writes all
+four `SecretsIAM*` node families and all four resolvable `SECRETS_IAM_*` edge
+families at 5,000 rows each through the no-op group executor, isolating
+statement construction and `UNWIND` batching from graph round trips. Measured on
+an Apple M4 Pro (`darwin/arm64`), `go test ./internal/storage/cypher -run '^$'
+-bench BenchmarkSecretsIAMGraph -benchmem -benchtime=50x`:
+
+| Writer | ns/op | B/op | allocs/op |
+| --- | --- | --- | --- |
+| `BenchmarkSecretsIAMGraphWriter` (8 surfaces × 5,000 rows) | ~16,600–22,100 | 47,778 | 680 |
+| `BenchmarkCloudResourceNodeWriter` (1 node surface × 5,000) | ~2,867,595 | 6,327,775 | 25,068 |
+| `BenchmarkKubernetesCorrelationEdgeWriter` (1 edge surface × 5,000) | ~1,095,590 | 2,164,620 | 25,097 |
+| `BenchmarkObservabilityCoverageEdgeWriter` (1 edge surface × 5,000) | ~1,660,936 | 3,885,912 | 40,100 |
+| `BenchmarkSecurityGroupReachabilityWriter` (3 surfaces × 5,000) | ~3,978,295 | 7,759,556 | 75,367 |
+
+The secrets/IAM writer is faster than every shipped baseline because each of its
+eight surfaces is one homogeneous static template streamed directly into `UNWIND`
+batches (80 batch statements per op, ~680 allocs total), with no per-row
+token-grouping and no per-edge graph read. This is the §12 "build in-memory once
+per scope, no N+1" contract proven: the write side is in the same shape class as
+the proven node/edge writers and is far below the §12 ~10% regression stop
+threshold against them.
+
+No-Regression Evidence (§11): `TestGraphProjectionFixtureTruth*`
+(`go/internal/reducer/secrets_iam_graph_projection_fixture_truth_test.go`) drives
+the full load → extract → write orchestration through
+`SecretsIAMGraphProjectionHandler` against the in-memory recording writer and
+asserts the exact node/edge rows handed to all four node-family and all four
+edge-family writer surfaces, plus the skip-counted cases (missing-workload,
+missing-vault-hop, missing-secret-path, non-exact states, pod-identity
+IAM-role-unresolved) and duplicate-delivery idempotency. The TRUE live-backend
+conformance is the BACKEND-GATED
+`TestSecretsIAMGraphWriterLiveConformance`
+(`go/internal/storage/cypher/secrets_iam_graph_live_test.go`), which writes all
+four node families and four edges, reads them back, and proves scoped retract
+leaves the retained `KubernetesWorkload` endpoint intact — it SKIPs cleanly
+unless `ESHU_SECRETS_IAM_GRAPH_LIVE=1` and Bolt env are configured, so the
+default test run never fabricates a live proof. Run with
+`go test ./internal/storage/cypher ./internal/reducer -run
+'SecretsIAMGraph|GraphProjection' -count=1`.
+
+Activation remains blocked: enabling
+`ESHU_REDUCER_SECRETS_IAM_GRAPH_PROJECTION_ENABLED` for live execution still
+requires the ADR #1314 §14 principal+security sign-off, which these proofs do not
+grant.
