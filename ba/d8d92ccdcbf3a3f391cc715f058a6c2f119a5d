@@ -1,0 +1,29 @@
+go/internal/projector/tfstate_canonical_test.go
+  s_f2f7fbb6f30866::t_21d1201a1432d5 174-176
+  s_f2f7fbb6f30866::t_239698b526854b 198-215
+go/internal/projector/AGENTS.md
+  s_f2f7fbb6f30866::t_5b3973277816f0 11-13,17-19,27-29,61
+go/internal/projector/runtime_phase.go
+  s_f2f7fbb6f30866::t_c0989ea500edea 1-146
+go/internal/projector/README.md
+  s_f2f7fbb6f30866::t_d5edf453ba4c6f 330-335,367-369,371-372,378-379
+  s_f2f7fbb6f30866::t_d5895da1de311a 365
+go/internal/projector/runtime_logging.go
+  s_f2f7fbb6f30866::t_c0989ea500edea 1-41
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "bad8d92ccdcbf3a3f391cc715f058a6c2f119a5d",
+  "prompts": {},
+  "sessions": {
+    "s_f2f7fbb6f30866": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e360b-90eb-7472-bac7-56d488b65f77",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
