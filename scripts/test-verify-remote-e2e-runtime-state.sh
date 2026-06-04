@@ -135,6 +135,9 @@ case "$*" in
   *"/api/v0/index-status"*)
     cat "${state_dir}/index-status.json"
     ;;
+  *"/api/v0/status/index"*)
+    cat "${state_dir}/status-index.json"
+    ;;
   *"/api/v0/package-registry/packages/count"*)
     cat "${state_dir}/package-count.json"
     ;;
@@ -184,27 +187,12 @@ collector-vulnerability-intelligence
 collector-aws-cloud
 scanner-worker
 SERVICES
-  cat >"${state_dir}/index-status.json" <<'JSON'
-{
-  "status": "healthy",
-  "queue": {
-    "outstanding": 0,
-    "in_flight": 0,
-    "pending": 0,
-    "retrying": 0,
-    "failed": 0,
-    "dead_letter": 0
-  },
-  "coordinator": {
-    "run_status_counts": [
-      {"name": "complete", "count": 4}
-    ],
-    "completeness_counts": []
-  }
-}
-JSON
+  printf '%s\n' '{"status":"healthy","queue":{"outstanding":0,"in_flight":0,"pending":0,"retrying":0,"failed":0,"dead_letter":0},"coordinator":{"run_status_counts":[{"name":"complete","count":4}],"completeness_counts":[]}}' >"${state_dir}/index-status.json"
   cat >"${state_dir}/package-count.json" <<'JSON'
 {"total_packages": 3}
+JSON
+  cat >"${state_dir}/status-index.json" <<'JSON'
+{"terraform_state":{"warning_summary":[]}}
 JSON
   cat >"${state_dir}/advisory-evidence.json" <<'JSON'
 {"count": 1, "truncated": false}
@@ -212,22 +200,7 @@ JSON
   cat >"${state_dir}/impact-count.json" <<'JSON'
 {"total_findings": 2, "affected_findings": 2}
 JSON
-  cat >"${state_dir}/package-registry-gap-readiness.json" <<'JSON'
-{
-  "findings": [],
-  "readiness": {
-    "readiness_state": "unsupported",
-    "unsupported_targets": [
-      {
-        "target_kind": "package_registry_metadata",
-        "reason": "metadata_too_large",
-        "ecosystem": "npm",
-        "count": 1
-      }
-    ]
-  }
-}
-JSON
+  printf '%s\n' '{"findings":[],"readiness":{"readiness_state":"unsupported","unsupported_targets":[{"target_kind":"package_registry_metadata","reason":"metadata_too_large","ecosystem":"npm","count":1}]}}' >"${state_dir}/package-registry-gap-readiness.json"
   cat >"${state_dir}/security-alert-count.json" <<'JSON'
 {"total_reconciliations": 1}
 JSON

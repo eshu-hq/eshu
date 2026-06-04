@@ -45,6 +45,13 @@ public query API status.
 - `GET /api/v0/repositories/{repo_id}/coverage` returns durable repository
   coverage rows for one repository.
 
+The index status payload includes `terraform_state.warning_summary[]`, empty
+when no recent Terraform-state warnings exist. Each row carries `warning_kind`,
+`reason`, `scope_class`, and `count`. `scope_class` is the public backend class
+such as `s3`, `local`, or `unknown`; raw state locators, bucket names, object
+keys, local paths, and warning sources are not included in the public status
+payload.
+
 Run-scoped completeness routes such as `/api/v0/index-runs/{run_id}` are not
 part of the shipped public contract.
 

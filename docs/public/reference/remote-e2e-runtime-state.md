@@ -81,6 +81,15 @@ Set `ESHU_REMOTE_E2E_API_BASE_URL` and `ESHU_REMOTE_E2E_API_KEY` when the API
 is not discoverable through the `eshu` Compose service port and generated
 token.
 
+Set `ESHU_REMOTE_E2E_TFSTATE_STATE_MISSING_MAX` to the maximum allowed
+Terraform-state `state_missing` warning count for the proof. The default is
+`0`, so a release-gate run fails when any configured Terraform-state source was
+missing. The verifier reads `/api/v0/status/index`, prints public-safe
+`terraform_state.warning_summary[]` rows grouped by warning kind, reason, and
+scope class, and fails if the status payload does not expose that summary
+array. It does not print raw state locators, bucket names, S3 object keys,
+local paths, or warning sources.
+
 Set `ESHU_REMOTE_E2E_PACKAGE_REGISTRY_GAP_PACKAGE_ID` to a bounded package ID
 when a representative corpus intentionally includes package metadata that
 exceeds the configured package-registry byte cap. The verifier calls the
@@ -176,6 +185,11 @@ When `ESHU_REMOTE_E2E_PACKAGE_REGISTRY_GAP_PACKAGE_ID` is set, the verifier
 also prints `package_registry_metadata_too_large_gaps` from the bounded
 readiness response without printing package names, metadata URLs, or feed
 credentials.
+The verifier also prints Terraform-state warning summary rows from
+`/api/v0/status/index` and fails when total `state_missing` warnings exceed
+`ESHU_REMOTE_E2E_TFSTATE_STATE_MISSING_MAX`. This turns queue-zero plus healthy
+containers into a real evidence-completeness check for exact Terraform-state
+sources.
 When `ESHU_REMOTE_E2E_TARGET_STORY_FILE` is set, the verifier prints
 `remote E2E target story proof counts` with repository-story, impact,
 security-alert, container-image, SBOM, service-catalog, and CI/CD counts. It
@@ -215,3 +229,18 @@ No-Observability-Change: authenticated validation still uses API and MCP
 `/healthz`, mounted `/api/*` routes, Docker health state, and the verifier's
 status payload. The token location is an operator contract, not a new runtime
 signal, so no metric label or span attribute was added.
+
+No-Regression Evidence: Terraform-state warning summary validation is a
+verifier/status-readback change only. It reads the existing bounded
+Terraform-state warning status projection and does not change collector source
+selection, S3 reads, worker claims, queue writes, graph writes, retry behavior,
+or NornicDB settings. Focused coverage is
+`scripts/test-verify-remote-e2e-tfstate-warnings.sh`,
+`scripts/test-verify-remote-e2e-runtime-state.sh`, and
+`go test ./internal/status ./internal/query -run 'TestBuildReportSummarizesTerraformStateWarnings|TestStatusHandlerStatusIndexExposesTerraformStateWarningSummary' -count=1`.
+
+Observability Evidence: `/api/v0/status/index` and `/api/v0/index-status`
+surface `terraform_state.warning_summary[]` rows with `warning_kind`, `reason`,
+`scope_class`, and `count`. The remote verifier prints those same aggregate
+rows and the configured `state_missing` threshold outcome, so operators can see
+missing Terraform-state evidence without scanning raw facts or logs.

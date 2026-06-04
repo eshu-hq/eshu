@@ -151,7 +151,24 @@ const openAPIPathsStatusAndCompare = `
                     "reasons": {"type": "array", "items": {"type": "string"}},
                     "repository_count": {"type": "integer"},
                     "queue": {"type": "object"},
-                    "scope_activity": {"type": "object"}
+                    "scope_activity": {"type": "object"},
+                    "terraform_state": {
+                      "type": "object",
+                      "properties": {
+                        "warning_summary": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "warning_kind": {"type": "string"},
+                              "reason": {"type": "string"},
+                              "scope_class": {"type": "string"},
+                              "count": {"type": "integer"}
+                            }
+                          }
+                        }
+                      }
+                    }
                   }
                 }
               }
@@ -180,7 +197,24 @@ const openAPIPathsStatusAndCompare = `
                     "reasons": {"type": "array", "items": {"type": "string"}},
                     "repository_count": {"type": "integer"},
                     "queue": {"type": "object"},
-                    "scope_activity": {"type": "object"}
+                    "scope_activity": {"type": "object"},
+                    "terraform_state": {
+                      "type": "object",
+                      "properties": {
+                        "warning_summary": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "warning_kind": {"type": "string"},
+                              "reason": {"type": "string"},
+                              "scope_class": {"type": "string"},
+                              "count": {"type": "integer"}
+                            }
+                          }
+                        }
+                      }
+                    }
                   }
                 }
               }

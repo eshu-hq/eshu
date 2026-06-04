@@ -254,6 +254,7 @@ func BuildReport(raw RawSnapshot, opts Options) Report {
 			LastSerials:    SortTerraformStateSerials(raw.TerraformStateLastSerials),
 			RecentWarnings: SortTerraformStateWarnings(raw.TerraformStateRecentWarnings),
 			WarningsByKind: GroupTerraformStateWarningsByKind(raw.TerraformStateRecentWarnings),
+			WarningSummary: SummarizeTerraformStateWarnings(raw.TerraformStateRecentWarnings),
 		},
 	}
 }

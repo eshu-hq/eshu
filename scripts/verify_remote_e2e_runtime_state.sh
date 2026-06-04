@@ -4,6 +4,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 RUNTIME_LIB="${REPO_ROOT}/scripts/lib/compose_verification_runtime_common.sh"
+TFSTATE_WARNINGS_LIB="${REPO_ROOT}/scripts/lib/remote_e2e_tfstate_warnings.sh"
 
 COMPOSE_FILES="${ESHU_REMOTE_E2E_COMPOSE_FILES:-docker-compose.remote-e2e.yaml}"
 COMPOSE_ENV_FILE="${ESHU_REMOTE_E2E_ENV_FILE:-}"
@@ -24,6 +25,8 @@ COMPOSE_CMD=()
 
 # shellcheck source=scripts/lib/compose_verification_runtime_common.sh disable=SC1091
 source "${RUNTIME_LIB}"
+# shellcheck source=scripts/lib/remote_e2e_tfstate_warnings.sh disable=SC1091
+source "${TFSTATE_WARNINGS_LIB}"
 
 cleanup() {
 	rm -rf "${TMP_DIR}"
@@ -453,6 +456,7 @@ main() {
 	resolve_api_key
 	if is_representative_mode; then
 		verify_representative_runtime_safety
+		verify_tfstate_warning_summary
 		verify_aggregate_counts
 		verify_target_story
 		verify_package_registry_metadata_gap
@@ -460,6 +464,7 @@ main() {
 	else
 		verify_queue_completion
 		verify_workflow_completion
+		verify_tfstate_warning_summary
 		verify_aggregate_counts
 		verify_target_story
 		verify_package_registry_metadata_gap

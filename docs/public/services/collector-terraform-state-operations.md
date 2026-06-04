@@ -33,6 +33,13 @@ keyed by safe locator hash and includes recent lineage, serial, generation, and
 warning data. Recent warnings are capped at 50 rows per safe locator hash;
 Postgres remains the source of truth for full history.
 
+For release validation, use `GET /api/v0/status/index` or
+`GET /api/v0/index-status` and read
+`terraform_state.warning_summary[]`. Each row reports `warning_kind`, `reason`,
+`scope_class`, and `count`. Treat `state_missing` as incomplete evidence unless
+the proof explicitly raises `ESHU_REMOTE_E2E_TFSTATE_STATE_MISSING_MAX` for a
+known partial run.
+
 Trace spans: `tfstate.collector.claim.process`, `tfstate.discovery.resolve`,
 `tfstate.source.open`, `tfstate.parser.stream`, `tfstate.fact.emit_batch`, and
 `tfstate.coordinator.complete`.
