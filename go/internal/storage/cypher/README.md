@@ -200,6 +200,44 @@ No-Regression Evidence: `go test ./internal/storage/cypher -run
 slot validation, scoped retraction, and grouped execution for the
 incident-routing writer.
 
+`SecretsIAMGraphWriter` is the reducer-owned secrets/IAM graph projection writer
+(ADR #1314): four `SecretsIAM*` node families (uid-only `MERGE`) and four
+resolvable `SECRETS_IAM_*` edge families (`MATCH`/`MATCH`/`MERGE`, so a missing
+endpoint is a no-op never a fabricated node), plus scope+evidence-scoped retract.
+It interpolates no data-driven Cypher token: identity is always the uid (nodes)
+or the two endpoint uids plus the static relationship token (edges). The live
+reducer projection that drives it stays OFF by default behind
+`ESHU_REDUCER_SECRETS_IAM_GRAPH_PROJECTION_ENABLED`, pending the ADR #1314 §14
+sign-off.
+
+Benchmark Evidence: `BenchmarkSecretsIAMGraphWriter`
+(`secrets_iam_graph_writer_bench_test.go`) measures statement construction and
+`UNWIND` batching for all four node families and four edges at 5,000 rows each
+through the no-op group executor (ADR #1314 §12). On an Apple M4 Pro
+(`darwin/arm64`, `-benchtime=50x`) it runs ~16.6–22.1 µs/op, 47,778 B/op, 680
+allocs/op — faster than `BenchmarkCloudResourceNodeWriter` (~2.87 ms/op),
+`BenchmarkKubernetesCorrelationEdgeWriter` (~1.10 ms/op), and
+`BenchmarkSecurityGroupReachabilityWriter` (~3.98 ms/op) because each surface is
+one homogeneous static template streamed straight into batches with no per-row
+token-grouping and no per-edge graph read. The write side has no N+1 and stays in
+the proven node/edge writer shape class, far under the §12 ~10% regression stop
+threshold. Reproduce with `go test ./internal/storage/cypher -run '^$' -bench
+BenchmarkSecretsIAMGraph -benchmem -benchtime=50x`.
+
+No-Regression Evidence: `go test ./internal/storage/cypher -run SecretsIAMGraph
+-count=1` proves node/edge Cypher shape, uid-only MERGE identity, scoped retract
+with no endpoint deletion, and batching. The ADR #1314 §11 TRUE live-backend
+conformance is the BACKEND-GATED `TestSecretsIAMGraphWriterLiveConformance`
+(`secrets_iam_graph_live_test.go`): it writes all four node families and four
+edges, reads them back, and proves scoped retract leaves the retained
+`KubernetesWorkload` endpoint intact. It SKIPs cleanly unless
+`ESHU_SECRETS_IAM_GRAPH_LIVE=1` and Bolt env are set, so the default run never
+fabricates a live proof.
+
+Observability Evidence: no new metric name is introduced by the writer; the
+reducer projection domain owns the bounded-enum node/edge/skip counters and the
+per-phase-duration completion log documented in `go/internal/reducer/README.md`.
+
 The executor chain is composed in `cmd/` wiring. A typical production chain
 wraps a concrete driver executor with `TimeoutExecutor` → `RetryingExecutor` →
 `InstrumentedExecutor`.
