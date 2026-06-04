@@ -1,67 +1,34 @@
-import { fireEvent, render, screen } from "@testing-library/react";
-import { MemoryRouter } from "react-router-dom";
-import { vi } from "vitest";
+import { render, screen } from "@testing-library/react";
 import { FindingsPage } from "./FindingsPage";
+import { demoModel } from "../console/demoModel";
+import type { ConsoleModel } from "../console/types";
 
 describe("FindingsPage", () => {
-  it("starts findings with live dead-code results", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async (input: RequestInfo | URL) =>
-        new Request(input).url.endsWith("/api/v0/repositories")
-          ? Response.json({
-              repositories: [
-                {
-                  id: "repository:r_1",
-                  name: "boats-chatgpt-app"
-                }
-              ]
-            })
-          : Response.json({
-              data: {
-                results: [
-                  {
-                    classification: "unused",
-                    file_path: "server/src/api/boatsClient.ts",
-                    name: "parseRange",
-                    repo_id: "repository:r_1"
-                  },
-                  {
-                    classification: "unused",
-                    file_path: "src/intake/base.ts",
-                    name: "getList",
-                    repo_name: "mobius-tools"
-                  }
-                ]
-              },
-              error: null,
-              truth: {
-                capability: "code_quality.dead_code",
-                freshness: { state: "fresh" },
-                level: "derived",
-                profile: "local_authoritative"
-              }
-            })
-      )
-    );
-
-    render(
-      <MemoryRouter>
-        <FindingsPage />
-      </MemoryRouter>
-    );
+  it("summarizes findings from the model", () => {
+    render(<FindingsPage model={demoModel} />);
 
     expect(screen.getByRole("heading", { name: "Findings" })).toBeInTheDocument();
-    expect(await screen.findAllByText("Dead code")).toHaveLength(2);
-    expect(screen.getByText("parseRange")).toBeInTheDocument();
-    expect(screen.getAllByText("derived")).toHaveLength(2);
-    expect(screen.getByText("2 findings")).toBeInTheDocument();
+    expect(screen.getByText("Open findings")).toBeInTheDocument();
 
-    fireEvent.change(screen.getByLabelText("Search findings"), {
-      target: { value: "mobius" }
-    });
+    // Finding titles render once each in the table.
+    expect(
+      screen.getByText("CVE-2024-0001 reachable in prod image")
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Unreferenced symbol legacyDiscount")
+    ).toBeInTheDocument();
 
-    expect(screen.queryByText("parseRange")).not.toBeInTheDocument();
-    expect(screen.getByText("getList")).toBeInTheDocument();
+    // Each type shows once as a summary tile label and once as a row badge.
+    expect(screen.getAllByText("Dead code").length).toBeGreaterThan(1);
+    expect(screen.getAllByText("Vulnerability").length).toBeGreaterThan(1);
+  });
+
+  it("renders the empty state when the model has no findings", () => {
+    const empty: ConsoleModel = { ...demoModel, findings: [] };
+    render(<FindingsPage model={empty} />);
+
+    expect(
+      screen.getByText("No findings from this source.")
+    ).toBeInTheDocument();
   });
 });
