@@ -876,6 +876,7 @@ services:
       ESHU_JIRA_HEARTBEAT_INTERVAL: ${ESHU_JIRA_HEARTBEAT_INTERVAL:-10s}
       JIRA_EMAIL: ${ESHU_JIRA_EMAIL:-}
       JIRA_API_TOKEN: ${ESHU_JIRA_API_TOKEN:-}
+      ESHU_JIRA_JQL: ${ESHU_JIRA_JQL:-}
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://localhost:8080/healthz"]
       interval: 15s
