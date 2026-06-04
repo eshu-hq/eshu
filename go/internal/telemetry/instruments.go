@@ -932,6 +932,8 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register SecretsIAMSourcePartialScope counter: %w", err)
+	}
+
 	inst.SecretsIAMGraphNodesWritten, err = meter.Int64Counter(
 		"eshu_dp_secrets_iam_graph_nodes_written_total",
 		metric.WithDescription("Total secrets/IAM graph projection nodes written by node type"),
