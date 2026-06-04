@@ -183,6 +183,18 @@ func TestSupplyChainImpactHandlerUsesRepositoryScopedSecurityAlertLockfileEviden
 				"updated_at":            "2026-05-26T12:00:00Z",
 			}),
 		},
+		activeFacts: []facts.Envelope{
+			workloadIdentityImpactFact("workload-provider-lockfile", canonicalRepoID, "workload:api"),
+			serviceCatalogCorrelationImpactFact(
+				"catalog-provider-lockfile",
+				canonicalRepoID,
+				"service:api",
+				"workload:api",
+				string(ServiceCatalogCorrelationExact),
+				"matches",
+				false,
+			),
+		},
 		repositoryFacts: []facts.Envelope{
 			packageSourceRepositoryFact(
 				canonicalRepoID,
@@ -246,6 +258,12 @@ func TestSupplyChainImpactHandlerUsesRepositoryScopedSecurityAlertLockfileEviden
 	if finding.ObservedVersion != "3.0.3" {
 		t.Fatalf("ObservedVersion = %q, want lockfile version 3.0.3", finding.ObservedVersion)
 	}
+	assertContainsString(t, finding.WorkloadIDs, "workload:api")
+	assertContainsString(t, finding.ServiceIDs, "service:api")
+	assertContainsString(t, finding.EvidenceFactIDs, "workload-provider-lockfile")
+	assertContainsString(t, finding.EvidenceFactIDs, "catalog-provider-lockfile")
+	assertNotContainsString(t, finding.MissingEvidence, "workload evidence missing")
+	assertNotContainsString(t, finding.MissingEvidence, "service evidence missing")
 	if !strings.Contains(strings.Join(finding.EvidencePath, " -> "), factKindContentEntity) {
 		t.Fatalf("EvidencePath = %#v, want manifest dependency evidence", finding.EvidencePath)
 	}

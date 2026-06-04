@@ -215,6 +215,62 @@ func TestBuildSupplyChainImpactFindingsUsesProviderAlertWithOwnedLockfileEvidenc
 	}
 }
 
+func TestBuildSupplyChainImpactFindingsConnectsProviderAlertRuntimeContext(t *testing.T) {
+	t.Parallel()
+
+	repoID := "repo://github/example/api"
+	packageID := "npm://registry.npmjs.org/fast-uri"
+	alert := securityAlertEnvelope("alert-runtime-context", repoID, map[string]any{
+		"provider":              "github_dependabot",
+		"provider_alert_number": int64(171),
+		"provider_state":        "open",
+		"package_id":            packageID,
+		"ecosystem":             "npm",
+		"package_name":          "fast-uri",
+		"manifest_path":         "package-lock.json",
+		"dependency_scope":      "runtime",
+		"relationship":          "transitive",
+		"ghsa_ids":              []string{"GHSA-provider-runtime"},
+		"cve_ids":               []string{"CVE-2026-47140"},
+		"vulnerable_range":      "< 3.1.0",
+		"patched_version":       "3.1.0",
+		"severity":              "high",
+		"updated_at":            "2026-05-26T12:00:00Z",
+	})
+	consumption := packageConsumptionCorrelationEnvelope("consume-runtime-context", repoID, packageID, "package-lock.json")
+	consumption.Payload["dependency_range"] = "3.0.3"
+	consumption.Payload["dependency_scope"] = "runtime"
+
+	findings := BuildSupplyChainImpactFindings([]facts.Envelope{
+		alert,
+		consumption,
+		workloadIdentityImpactFact("workload-runtime-context", repoID, testImpactWorkloadID),
+		serviceCatalogCorrelationImpactFact(
+			"catalog-runtime-context",
+			repoID,
+			testImpactServiceID,
+			testImpactWorkloadID,
+			string(ServiceCatalogCorrelationExact),
+			"matches",
+			false,
+		),
+	})
+
+	if got, want := len(findings), 1; got != want {
+		t.Fatalf("len(findings) = %d, want %d: %#v", got, want, findings)
+	}
+	got := findings[0]
+	assertSupplyChainImpactStatus(t, got, SupplyChainImpactAffectedExact)
+	assertContainsString(t, got.WorkloadIDs, testImpactWorkloadID)
+	assertContainsString(t, got.ServiceIDs, testImpactServiceID)
+	assertContainsString(t, got.EvidencePath, workloadIdentityFactKind)
+	assertContainsString(t, got.EvidencePath, serviceCatalogCorrelationFactKind)
+	assertContainsString(t, got.EvidenceFactIDs, "workload-runtime-context")
+	assertContainsString(t, got.EvidenceFactIDs, "catalog-runtime-context")
+	assertNotContainsString(t, got.MissingEvidence, "workload evidence missing")
+	assertNotContainsString(t, got.MissingEvidence, "service evidence missing")
+}
+
 func TestBuildSupplyChainImpactFindingsResolvesProviderAlertRepositoryScope(t *testing.T) {
 	t.Parallel()
 
