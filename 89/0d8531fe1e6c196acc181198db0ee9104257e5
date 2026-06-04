@@ -1,0 +1,57 @@
+docs/public/reference/http-api/iac-content-infra.md
+  s_f2f7fbb6f30866::t_6db4a0579fb311 76-80
+go/internal/query/infra.go
+  s_f2f7fbb6f30866::t_f9b6b0a3b7b460 177-178,181
+  s_f2f7fbb6f30866::t_b2a264da82dc35 179-180,186-187,191-195
+  s_f2f7fbb6f30866::t_301e5ab5c62e0e 57-59,63,203,206,209,217-218,220-224,277-290
+go/internal/mcp/tools_ecosystem.go
+  s_f2f7fbb6f30866::t_6db4a0579fb311 100,111
+go/internal/query/infra_resource_aggregates_category_test.go
+  s_f2f7fbb6f30866::t_05fcfd0984bbd9 133-182
+  s_f2f7fbb6f30866::t_b2a264da82dc35 4,7,69-130
+  s_f2f7fbb6f30866::t_b53f3f564bcef7 1-3,5-6,8-68,131-132
+go/internal/query/infra_resource_aggregates.go
+  s_f2f7fbb6f30866::t_8788afedb2a7b5 256
+  s_f2f7fbb6f30866::t_465bfa5871dee6 257-258
+  s_f2f7fbb6f30866::t_c196c0fd33f593 12
+  s_f2f7fbb6f30866::t_911765cc5f4d4c 10-11,21
+  s_f2f7fbb6f30866::t_552daad69be1f2 259-264,268,280-281,292-293,329-332,335-338,343-345,352-354
+  s_f2f7fbb6f30866::t_b2a264da82dc35 155,209,269-272,278-279,282-284,290-291,294-296,327-328,333-334,339-342,346-351,355-358,367,371,377
+go/internal/query/openapi_paths_infra_resource_aggregate.go
+  s_f2f7fbb6f30866::t_911765cc5f4d4c 9,44
+go/internal/query/infra_resource_aggregates_handler.go
+  s_f2f7fbb6f30866::t_911765cc5f4d4c 165,172
+go/internal/query/infra_test.go
+  s_f2f7fbb6f30866::t_df7e0347d23587 379-414,417-431
+  s_f2f7fbb6f30866::t_9e460b04306c6d 245-283,287-378
+  s_f2f7fbb6f30866::t_b2a264da82dc35 284-286,415-416
+docs/public/reference/mcp-tool-contract-matrix.md
+  s_f2f7fbb6f30866::t_6db4a0579fb311 65
+go/internal/query/README.md
+  s_f2f7fbb6f30866::t_ce3e114ddab223 570-594
+  s_f2f7fbb6f30866::t_6db4a0579fb311 602,632-635
+go/internal/query/infra_resource_aggregates_test.go
+  s_f2f7fbb6f30866::t_f810c25c9b9e83 56
+  s_f2f7fbb6f30866::t_b53f3f564bcef7 412-415
+  s_f2f7fbb6f30866::t_b2a264da82dc35 394,398
+go/internal/query/openapi_paths_infrastructure.go
+  s_f2f7fbb6f30866::t_911765cc5f4d4c 8,28,44-61
+go/internal/mcp/tools_infra_resource_aggregates.go
+  s_f2f7fbb6f30866::t_6db4a0579fb311 9,17,23-24,50
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "890d8531fe1e6c196acc181198db0ee9104257e5",
+  "prompts": {},
+  "sessions": {
+    "s_f2f7fbb6f30866": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e360b-90eb-7472-bac7-56d488b65f77",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
