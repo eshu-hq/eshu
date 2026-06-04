@@ -64,6 +64,7 @@ func TestMetricDimensionKeys(t *testing.T) {
 		"resolution_mode",
 		"endpoint_kind",
 		"principal_kind",
+		"field_class",
 	}
 
 	got := MetricDimensionKeys()

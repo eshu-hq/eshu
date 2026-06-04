@@ -252,9 +252,9 @@ Future runtime signals must stay low-cardinality and source-safe:
 | --- | --- |
 | `eshu_dp_secrets_iam_scan_total` | `source`, `scope_kind`, `result`, `failure_class` |
 | `eshu_dp_secrets_iam_source_api_calls_total` | `source`, `operation`, `result` |
-| `eshu_dp_secrets_iam_redactions_total` | `source`, `field_class` |
+| `eshu_dp_secrets_iam_source_redactions_total` | `source`, `field_class` |
 | `eshu_dp_secrets_iam_facts_emitted_total` | `fact_kind` |
-| `eshu_dp_secrets_iam_scope_freshness_seconds` | `source`, `scope_kind` |
+| `eshu_dp_secrets_iam_source_scope_freshness_seconds` | `source`, `scope_kind` |
 | `eshu_dp_secrets_iam_partial_scope_total` | `source`, `reason` |
 | `eshu_dp_secrets_iam_reducer_trust_chains_total` | `result`, `confidence` |
 | `eshu_dp_secrets_iam_posture_observations_total` | `risk_type`, `severity` |

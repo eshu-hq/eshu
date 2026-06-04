@@ -305,6 +305,24 @@ the shared contract.
 
 ## 11. Fixture And Proof Matrix
 
+Status (#1381): the in-memory fixture-truth proof for every row below EXCEPT the
+live cross-backend Cypher check is built and green. The full load → extract →
+write orchestration runs through `SecretsIAMGraphProjectionHandler` against the
+recording writer in
+`go/internal/reducer/secrets_iam_graph_projection_fixture_truth_test.go`,
+asserting the exact node/edge rows for all four node families and all four edge
+families plus the skip-counted cases (missing workload, missing vault hop,
+missing secret path, non-exact states, pod-identity IAM-role-unresolved) and
+duplicate-delivery idempotency. The TRUE live-backend conformance is the
+BACKEND-GATED `TestSecretsIAMGraphWriterLiveConformance` in
+`go/internal/storage/cypher/secrets_iam_graph_live_test.go`; it writes all four
+node families and four edges, reads them back, and proves scoped retract leaves
+the retained `KubernetesWorkload` endpoint intact, but SKIPs cleanly unless
+`ESHU_SECRETS_IAM_GRAPH_LIVE=1` and Bolt env are configured (no fabricated live
+proof). Running the gated live check against both NornicDB and Neo4j profiles,
+and the API/MCP read-surface agreement, remain part of the §14-gated activation
+step — they are not a precondition the build PR can satisfy without a backend.
+
 The implementation must prove each row below before graph writes can merge.
 
 | Fixture | Required proof |
@@ -328,6 +346,25 @@ with the graph and still surface unsupported/provenance-only states from the
 Postgres read model.
 
 ## 12. Performance Impact Declaration For The Build PR
+
+Status (#1381): proof-ladder steps 1–3 are built and green. Step 3, the writer
+benchmark, ships as `BenchmarkSecretsIAMGraphWriter`
+(`go/internal/storage/cypher/secrets_iam_graph_writer_bench_test.go`): it writes
+all four `SecretsIAM*` node families and all four resolvable `SECRETS_IAM_*`
+edge families at 5,000 rows each through the no-op group executor, isolating
+statement construction and `UNWIND` batching from graph round trips. Measured on
+an Apple M4 Pro (`darwin/arm64`, `-benchtime=50x`): ~16.6–22.1 µs/op, 47,778
+B/op, 680 allocs/op — faster than the shipped `BenchmarkCloudResourceNodeWriter`
+(~2.87 ms/op), `BenchmarkKubernetesCorrelationEdgeWriter` (~1.10 ms/op),
+`BenchmarkObservabilityCoverageEdgeWriter` (~1.66 ms/op), and
+`BenchmarkSecurityGroupReachabilityWriter` (~3.98 ms/op) on the same 5,000-row
+shape. The writer builds in-memory batches once per scope with no per-row
+token-grouping and no per-edge graph read, satisfying the §12 "no N+1" contract
+and staying far below the ~10% regression stop threshold against the same-shape
+baselines. Step 4 (NornicDB/Neo4j schema/bootstrap conformance) and step 5
+(API/MCP truth check) require a live backend and remain part of the §14-gated
+activation; the BACKEND-GATED live writer conformance test skips cleanly without
+one and never fabricates a passing live proof.
 
 Affected stage: reducer-owned graph projection after the
 `secrets_iam_trust_chain` read model.

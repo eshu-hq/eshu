@@ -60,16 +60,25 @@ deterministic per-target scope/generation id. The live `vaultapi` client (a
 Source telemetry: the lane emits `eshu_dp_secrets_iam_source_facts_emitted_total`
 `{source="vault",fact_kind}` (per emitted fact family),
 `eshu_dp_secrets_iam_source_api_calls_total{source="vault",operation,result}`
-(per Vault list operation and outcome, via the `vaultapi` `OnAPICall` hook), and
+(per Vault list operation and outcome, via the `vaultapi` `OnAPICall` hook),
 `eshu_dp_secrets_iam_partial_scope_total{source="vault",reason}` (per family with
-partial coverage, where `reason` is the bounded family name). These complement
-the shared `collector_kind="vault_live"` facts-emitted/commit/duration metrics
-and the `vault_live.snapshot` span.
+partial coverage, where `reason` is the bounded family name),
+`eshu_dp_secrets_iam_source_redactions_total{source="vault",field_class}` (one
+increment per credential-bearing URI component stripped at the
+`sanitizeVaultSourceURI` redaction site, where `field_class` is one of
+`uri_userinfo`, `uri_query`, `uri_fragment`), and the
+`eshu_dp_secrets_iam_source_scope_freshness_seconds{source="vault",scope_kind}`
+gauge (generation age — `now` minus the generation `observed_at` — recorded at
+finalization in `SnapshotSource`, complementing the `partial` freshness hint).
+These complement the shared `collector_kind="vault_live"`
+facts-emitted/commit/duration metrics and the `vault_live.snapshot` span.
 
-Remaining under #1356: the `redactions_total` and `scope_freshness_seconds`
-source counters (redactions belong at the `redact`/builder layer; freshness is a
-status-surface gauge, not a collector hot-path counter) and validation against a
-live/dev Vault.
+The `field_class` and freshness labels are bounded enums: the redaction counter
+names the stripped field *shape*, never its value, and the freshness gauge is
+labeled by the bounded `scope_kind` (`vault_cluster`), never a cluster id,
+namespace, or path.
+
+Remaining under #1356: validation against a live/dev Vault.
 
 ## Evidence
 
@@ -103,7 +112,15 @@ bounded enums — no path, token, ARN, or address. These complement the shared
 observe duration) and the `vault_live.snapshot` span. It also emits
 `eshu_dp_secrets_iam_partial_scope_total{source="vault",reason}` from the
 per-family coverage warnings (`reason` = bounded family name), asserted by
-`TestCollectIsResilientToOneFamilyFailure`. The remaining `redactions_total` and
-`scope_freshness_seconds` counters are a tracked follow-up (redactions belong at
-the `redact`/builder layer; freshness is a status-surface gauge, not a
-collector hot-path counter).
+`TestCollectIsResilientToOneFamilyFailure`. It emits
+`eshu_dp_secrets_iam_source_redactions_total{source="vault",field_class}` at the
+`sanitizeVaultSourceURI` redaction site (asserted by
+`TestCollectRecordsURIRedactionsByFieldClass`, with
+`TestCollectRecordsNoRedactionForCleanURI` proving a clean URI redacts nothing)
+and the `eshu_dp_secrets_iam_source_scope_freshness_seconds{source="vault",scope_kind}`
+gauge at generation finalization (asserted by `TestSnapshotRecordsScopeFreshness`).
+All labels are bounded enums — no path, token, ARN, address, cluster id, or
+namespace. The freshness gauge lives in `SnapshotSource`, where generations are
+finalized, because the lane's freshness signal is produced there; the status
+surface consumes generation freshness through the shared status report rather
+than this collector-owned gauge.
