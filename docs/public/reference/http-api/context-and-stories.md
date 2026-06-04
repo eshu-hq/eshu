@@ -85,6 +85,21 @@ pull-request identity. Fallback change candidates are labeled separately from
 exact provider evidence and from derived reducer edges, and name-only service or
 tag matches are not promoted.
 
+No-Regression Evidence:
+
+```bash
+cd go && go test ./internal/query -run 'TestIncidentContext(ChangeCandidateQueryCastsNullableTimeParametersEverywhere|QueriesStayBoundedToActiveFacts|HandlerUsesBoundedStore|HandlerReturnsAmbiguousCandidates|HandlerRequiresIncidentIDAndLimit|RuntimeQueriesStayBoundedToExplicitEvidence)' -count=1
+```
+
+This proves incident context reads keep bounded active-fact queries and cast
+nullable fallback-change time parameters everywhere they are used.
+
+No-Observability-Change: the route still runs under `query.incident_context`
+with stable `http.route` and `eshu.capability` span attributes, existing
+Postgres query instrumentation, envelope error reporting, and explicit
+missing-evidence slots. No graph write, collector call, queue worker, metric
+instrument, or deployment knob changes.
+
 ## Work-Item Evidence
 
 `GET /api/v0/work-items/evidence` lists active Jira/work-item source facts.

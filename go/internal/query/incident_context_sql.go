@@ -46,8 +46,8 @@ FROM fact_records AS fact
 WHERE fact.payload @> jsonb_build_object('services', jsonb_build_array(jsonb_build_object('id', $1)))
   AND fact.scope_id = $2
   AND fact.generation_id = $3
-  AND ($4::timestamptz IS NULL OR NULLIF(fact.payload->>'timestamp', '')::timestamptz >= $4)
-  AND ($5::timestamptz IS NULL OR NULLIF(fact.payload->>'timestamp', '')::timestamptz <= $5)
+  AND ($4::timestamptz IS NULL OR NULLIF(fact.payload->>'timestamp', '')::timestamptz >= $4::timestamptz)
+  AND ($5::timestamptz IS NULL OR NULLIF(fact.payload->>'timestamp', '')::timestamptz <= $5::timestamptz)
   AND fact.fact_kind = 'change.record'
   AND fact.is_tombstone = FALSE
 ORDER BY fact.payload->>'timestamp' ASC, fact.fact_id ASC
