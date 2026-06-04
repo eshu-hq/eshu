@@ -41,7 +41,7 @@ jobs:
           # The full module build is covered by the normal build workflow.
           # CodeQL traces the status/query packages touched by this PR so the
           # scanner remains stable while generated collectors compile elsewhere.
-          go test -run '^$' ./internal/status ./internal/query
+          go test -run '^$' -count=1 -a ./internal/status ./internal/query
 
       - name: Perform CodeQL analysis
         uses: github/codeql-action/analyze@v4
