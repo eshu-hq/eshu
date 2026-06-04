@@ -327,12 +327,12 @@ backend-specific adapters.
   converge on the same graph truth, not create second paths.
 - `PhasePublisher.PublishGraphProjectionPhases` must succeed before the projector
   acks a work item. If publish fails and `RepairQueue` is wired, a repair row is
-  enqueued so reducer can re-gate on phase state (`runtime.go:191`).
-- Terraform-state warning-only generations such as missing exact S3 state
-  objects still publish the `terraform_resource_uid` and
-  `terraform_module_uid` `canonical_nodes_committed` checkpoints. They write no
-  graph nodes, but the checkpoints are the durable "zero rows projected" signal
-  workflow completion needs.
+  enqueued so reducer can re-gate on phase state (`runtime_phase.go`).
+- Terraform-state snapshot-only and warning-only generations still publish the
+  `terraform_resource_uid` and `terraform_module_uid`
+  `canonical_nodes_committed` checkpoints. Empty state snapshots and missing
+  state warnings may write no graph nodes, but the checkpoints are the durable
+  "zero rows projected" signal workflow completion needs.
 - `Module` and `Parameter` entity types are excluded from the generic
   `EntityRow` extraction path because they use different MERGE keys in the graph
   schema; they get their own extraction phases (`canonical_builder.go:227`).
@@ -362,21 +362,21 @@ backend-specific adapters.
   by `Depth` so parent nodes exist before children during ordered writes
   (`canonical_builder.go:191`).
 - `ReducerIntent` values are sorted by `Domain`, `EntityKey`, and `FactID`
-  before enqueue to produce a stable queue order (`runtime.go:382`).
+  before enqueue to produce a stable queue order.
 
-No-Regression Evidence: Terraform-state warning-only phase publication is
-covered by
-`go test ./internal/projector -run TestRuntimeProjectPublishesTerraformStateWarningOnlyCanonicalPhases -count=1`.
+No-Regression Evidence: Terraform-state snapshot-only and warning-only phase
+publication is covered by
+`go test ./internal/projector -run 'TestRuntimeProjectPublishesTerraformStateCanonicalCheckpointsForSnapshotOnly|TestRuntimeProjectPublishesTerraformStateWarningOnlyCanonicalPhases' -count=1`.
 It changes no worker count, claim ordering, fact fan-out, graph write
-cardinality, batch size, retry timing, or NornicDB setting; it only publishes
-the already-required reducer phase rows for warning-only generations that have
+cardinality, batch size, retry timing, or NornicDB setting; it publishes the
+already-required reducer phase rows for Terraform-state generations that have
 zero canonical graph nodes.
 
 No-Observability-Change: existing projector `build_projection` stage logs,
 `graph_projection_phase_state` rows, workflow completeness rows,
 `/api/v0/index-status`, and queue terminal counters expose whether warning-only
-Terraform-state work reached the durable zero-row checkpoint or remains in
-reducer convergence.
+or snapshot-only Terraform-state work reached the durable zero-row checkpoint
+or remains in reducer convergence.
 
 No-Regression Evidence: SBOM attachment intent routing is covered by
 `go test ./internal/projector -run 'TestBuildProjectionQueuesSBOMAttestationAttachment|TestBuildSBOMAttestationAttachmentReducerIntentSkipsComponentOnlyEvidence' -count=1`.

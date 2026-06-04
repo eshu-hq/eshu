@@ -171,6 +171,51 @@ func TestRuntimeProjectPublishesTerraformStateCanonicalCheckpoints(t *testing.T)
 	if got, want := len(publisher.calls), 1; got != want {
 		t.Fatalf("publisher calls = %d, want %d", got, want)
 	}
+	if got, want := len(publisher.calls[0]), 2; got != want {
+		t.Fatalf("published rows = %d, want %d", got, want)
+	}
+
+	gotKeyspaces := map[reducer.GraphProjectionKeyspace]bool{}
+	for _, row := range publisher.calls[0] {
+		gotKeyspaces[row.Key.Keyspace] = true
+		if got, want := row.Phase, reducer.GraphProjectionPhaseCanonicalNodesCommitted; got != want {
+			t.Fatalf("published phase = %q, want %q", got, want)
+		}
+		if got, want := row.Key.AcceptanceUnitID, "tf-scope-1"; got != want {
+			t.Fatalf("published acceptance unit = %q, want %q", got, want)
+		}
+	}
+	for _, want := range []reducer.GraphProjectionKeyspace{
+		reducer.GraphProjectionKeyspaceTerraformResourceUID,
+		reducer.GraphProjectionKeyspaceTerraformModuleUID,
+	} {
+		if !gotKeyspaces[want] {
+			t.Fatalf("published keyspaces = %#v, missing %q", gotKeyspaces, want)
+		}
+	}
+}
+
+func TestRuntimeProjectPublishesTerraformStateCanonicalCheckpointsForSnapshotOnly(t *testing.T) {
+	t.Parallel()
+
+	publisher := &recordingGraphProjectionPhasePublisher{}
+	runtime := Runtime{
+		CanonicalWriter: &recordingCanonicalWriter{},
+		ContentWriter:   &recordingContentWriter{},
+		PhasePublisher:  publisher,
+	}
+	input := terraformStateFacts()[:1]
+
+	_, err := runtime.Project(context.Background(), terraformStateScope(), terraformStateGeneration(), input)
+	if err != nil {
+		t.Fatalf("Project() error = %v, want nil", err)
+	}
+	if got, want := len(publisher.calls), 1; got != want {
+		t.Fatalf("publisher calls = %d, want %d", got, want)
+	}
+	if got, want := len(publisher.calls[0]), 2; got != want {
+		t.Fatalf("published rows = %d, want %d", got, want)
+	}
 
 	gotKeyspaces := map[reducer.GraphProjectionKeyspace]bool{}
 	for _, row := range publisher.calls[0] {
