@@ -162,14 +162,14 @@ func (h *InfraHandler) infraResourceInventory(w http.ResponseWriter, r *http.Req
 
 // infraResourceAggregateFilterFromRequest parses the request, validates the
 // category against the closed enum (k8s / terraform / argocd / crossplane /
-// helm), and returns false after writing a 400 when the category is
+// helm / cloud), and returns false after writing a 400 when the category is
 // unknown. Other filter values pass through as bound parameters at Cypher
 // time and don't need a Go-side enum.
 func infraResourceAggregateFilterFromRequest(w http.ResponseWriter, r *http.Request) (InfraResourceAggregateFilter, bool) {
 	category := strings.ToLower(strings.TrimSpace(QueryParam(r, "category")))
 	if category != "" {
 		if _, ok := infraCategoryLabels[category]; !ok {
-			WriteError(w, http.StatusBadRequest, "category must be one of k8s, terraform, argocd, crossplane, helm")
+			WriteError(w, http.StatusBadRequest, "category must be one of k8s, terraform, argocd, crossplane, helm, cloud")
 			return InfraResourceAggregateFilter{}, false
 		}
 	}

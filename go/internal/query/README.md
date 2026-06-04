@@ -567,6 +567,31 @@ Observability Evidence: the aggregate routes add the
 capability attributes. They re-use the existing `Neo4jReader.Run` tracing
 and the `neo4j.query` graph span; no new metric instrument is added.
 
+## Infra resource cloud search evidence (#1400)
+
+The infrastructure search route includes canonical `CloudResource` nodes in
+the same bounded `POST /api/v0/infra/resources/search` graph query used for
+Terraform, Kubernetes, Argo CD, Crossplane, Helm, and CloudFormation resources.
+`category=cloud` narrows the label predicate to `CloudResource`. Generic
+search text checks stable cloud identity fields (`arn`, `resource_id`,
+`resource_type`, `name`, `service_kind`, account, and region) and provider or
+resource-service filters map to `source_system` and `service_kind` when a
+CloudResource row has no Terraform-style `provider` or `resource_service`
+property. The result shape keeps cloud identity fields visible while leaving
+raw tag maps and reducer evidence payloads out of the generic search response.
+
+No-Regression Evidence: `go test ./internal/query -run
+'TestSearchInfraResources|TestInfraResourceAggregate|TestInfraResourceInventoryGroup|TestGraphInfraResourceAggregate'
+-count=1` proves CloudResource label selection, provider/resource-service
+filter mapping, explicit multiple-candidate results, redaction of raw tags and
+evidence payloads, truncation, and the aggregate category guard.
+
+No-Observability-Change: the route still runs under
+`query.infra_resource_search` with stable `http.route` and `eshu.capability`
+span attributes, existing `Neo4jReader.Run` tracing, and the `neo4j.query`
+graph span. No collector, reducer, graph write, queue worker, metric
+instrument, or deployment knob changes.
+
 ## Infra resource aggregate hot-path evidence (#690)
 
 The graph-backed infrastructure resource aggregate
@@ -574,7 +599,7 @@ The graph-backed infrastructure resource aggregate
 emits the same Area 5 "Grouped Count" Cypher shape as the package-registry
 aggregate, narrowed across the existing infra label families instead of the
 single `Package` label. The handler resolves a single optional `category`
-input (`k8s`, `terraform`, `argocd`, `crossplane`, `helm`) to a closed label
+input (`k8s`, `terraform`, `argocd`, `crossplane`, `helm`, `cloud`) to a closed label
 set via `resolveInfraLabels`, then emits `MATCH (n) WHERE n:<Label1> OR
 n:<Label2> ... [AND n.<indexed_prop> = $value] RETURN <bucket_expr> AS
 bucket, count(n) AS bucket_count ORDER BY bucket_count DESC SKIP $offset
@@ -604,7 +629,10 @@ property would block planner index selection (Copilot fix #702). The
 test guards this — a future refactor that reintroduces coalesce in the
 WHERE clause fails the suite. K8sResource exposes `k8s_kind`, so
 `category=k8s` + `kind=<value>` is the other supported hot path today.
-Aggregates over Argo CD, Crossplane, Helm, or CloudFormation labels still
+`category=cloud` narrows to canonical `CloudResource` nodes; provider and
+resource-service filters map to the CloudResource `source_system` and
+`service_kind` properties when Terraform-style fields are absent. Aggregates
+over Argo CD, Crossplane, Helm, CloudResource, or CloudFormation labels still
 answer but fall back to a label-set scan until matching indexes ship. A
 `PROFILE` proof against the pinned NornicDB binary is the operator gate
 for promoting the routes once `eshu-bootstrap-data-plane` re-runs the

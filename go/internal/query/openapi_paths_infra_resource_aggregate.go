@@ -6,7 +6,7 @@ const openAPIPathsInfraResourceAggregate = `
         "summary": "Count graph-backed infrastructure resources without paging the search endpoint",
         "operationId": "countInfraResources",
         "parameters": [
-          {"name": "category", "in": "query", "schema": {"type": "string", "enum": ["k8s", "terraform", "argocd", "crossplane", "helm"]}},
+          {"name": "category", "in": "query", "schema": {"type": "string", "enum": ["k8s", "terraform", "argocd", "crossplane", "helm", "cloud"]}},
           {"name": "kind", "in": "query", "schema": {"type": "string"}},
           {"name": "resource_type", "in": "query", "schema": {"type": "string"}},
           {"name": "provider", "in": "query", "schema": {"type": "string"}},
@@ -41,7 +41,7 @@ const openAPIPathsInfraResourceAggregate = `
         "operationId": "getInfraResourceInventory",
         "parameters": [
           {"name": "group_by", "in": "query", "schema": {"type": "string", "enum": ["provider", "environment", "resource_category", "resource_service", "label"], "default": "provider"}},
-          {"name": "category", "in": "query", "schema": {"type": "string", "enum": ["k8s", "terraform", "argocd", "crossplane", "helm"]}},
+          {"name": "category", "in": "query", "schema": {"type": "string", "enum": ["k8s", "terraform", "argocd", "crossplane", "helm", "cloud"]}},
           {"name": "kind", "in": "query", "schema": {"type": "string"}},
           {"name": "resource_type", "in": "query", "schema": {"type": "string"}},
           {"name": "provider", "in": "query", "schema": {"type": "string"}},

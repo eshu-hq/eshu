@@ -62,7 +62,7 @@ Cypher.
 | `trace_deployment_chain` | service name required | singleton trace | yes | prompt-ready after service is resolved |
 | `investigate_deployment_config` | service name or workload id plus optional environment | per-section `limit` | yes | prompt-ready for image tags, runtime settings, resource limits, values layers, rendered targets, and read-first file handles |
 | `find_blast_radius` | target id required | `limit` | yes | prompt-ready after target is resolved; returns `truncated` |
-| `find_infra_resources` | query plus optional category | `limit` | yes | prompt-ready for bounded infra search |
+| `find_infra_resources` | query plus optional category, including `cloud` | `limit` | yes | prompt-ready for bounded infra search, including canonical cloud resource graph nodes |
 | `count_infra_resources` | optional category/kind/resource_type/provider/environment/resource_service/resource_category scope | scope-only, no `limit` | yes | prompt-ready for bounded infra rollups by provider, environment, and label |
 | `get_infra_resource_inventory` | optional scope filters plus `group_by` (provider / environment / resource_category / resource_service / label) | `limit` (default 100, max 500), bounded `offset` (max 10000) | yes | prompt-ready for bounded infra inventory grouped by one dimension |
 | `investigate_resource` | query or canonical resource id plus optional resource family/environment | per-section `limit` and `max_depth` | yes | prompt-ready for resource-first prompts; resolves ambiguity before traversal and returns workloads, repository provenance paths, source handles, limitations, and next calls |

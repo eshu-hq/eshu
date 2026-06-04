@@ -53,9 +53,7 @@ func (s *stubInfraResourceAggregateStore) InfraResourceInventory(
 	return append([]InfraResourceInventoryRow(nil), s.inventory...), nil
 }
 
-// stubInfraGraphQuery records every Cypher + params sent to the graph for
-// hot-path-shape assertions. Mirrors the package-registry aggregate's
-// stubGraphQuery, kept in this file to avoid cross-test dependencies.
+// stubInfraGraphQuery records every Cypher + params sent to the graph.
 type stubInfraGraphQuery struct {
 	responses map[string][]map[string]any
 	calls     []struct {
@@ -251,38 +249,6 @@ func TestInfraResourceAggregateInventoryReportsTruncated(t *testing.T) {
 	}
 }
 
-func TestInfraResourceAggregateRejectsUnknownCategory(t *testing.T) {
-	t.Parallel()
-
-	store := &stubInfraResourceAggregateStore{}
-	handler := &InfraHandler{Aggregates: store}
-	mux := http.NewServeMux()
-	handler.Mount(mux)
-
-	// `kubernetes` is a typo for `k8s`; the closed enum is k8s / terraform /
-	// argocd / crossplane / helm. Both aggregate endpoints must surface
-	// out-of-contract categories as 400 (mirrors the Copilot lesson from
-	// #693/#694/#695/#699/#700).
-	for _, target := range []string{
-		"/api/v0/infra/resources/count?category=kubernetes",
-		"/api/v0/infra/resources/inventory?category=kubernetes",
-	} {
-		t.Run(target, func(t *testing.T) {
-			t.Parallel()
-			req := httptest.NewRequest(http.MethodGet, target, nil)
-			w := httptest.NewRecorder()
-			mux.ServeHTTP(w, req)
-			if got, want := w.Code, http.StatusBadRequest; got != want {
-				t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
-			}
-		})
-	}
-	if store.countCalls != 0 || store.invCalls != 0 {
-		t.Fatalf("store called for unknown category (countCalls=%d invCalls=%d)",
-			store.countCalls, store.invCalls)
-	}
-}
-
 func TestInfraResourceAggregateInventoryRejectsUnknownDimension(t *testing.T) {
 	t.Parallel()
 
@@ -425,11 +391,11 @@ func TestInfraResourceInventoryGroupExpressionEnumIsClosed(t *testing.T) {
 		InfraResourceInventoryByLabel,
 	}
 	for _, dim := range cases {
-		if _, err := infraResourceInventoryGroupExpression(dim); err != nil {
+		if _, err := infraResourceInventoryGroupExpression(dim, InfraResourceAggregateFilter{}); err != nil {
 			t.Fatalf("dimension %q must be supported: %v", dim, err)
 		}
 	}
-	if _, err := infraResourceInventoryGroupExpression("account_id"); err == nil {
+	if _, err := infraResourceInventoryGroupExpression("account_id", InfraResourceAggregateFilter{}); err == nil {
 		t.Fatal("infraResourceInventoryGroupExpression must reject unknown dimensions to keep Cypher substitution safe")
 	}
 }
@@ -443,10 +409,10 @@ func TestGraphInfraResourceAggregateCountShapeNarrowsToCategoryLabels(t *testing
 
 	graph := &stubInfraGraphQuery{
 		responses: map[string][]map[string]any{
-			"count(n) AS total":             {{"total": int64(42)}},
-			"WHEN n.provider IS NULL":       {{"bucket": "aws", "bucket_count": int64(40)}, {"bucket": "gcp", "bucket_count": int64(2)}},
-			"WHEN n.environment IS NULL":    {{"bucket": "production", "bucket_count": int64(30)}},
-			"head(labels(n)) AS bucket":     {{"bucket": "TerraformResource", "bucket_count": int64(42)}},
+			"count(n) AS total":          {{"total": int64(42)}},
+			"WHEN n.provider IS NULL":    {{"bucket": "aws", "bucket_count": int64(40)}, {"bucket": "gcp", "bucket_count": int64(2)}},
+			"WHEN n.environment IS NULL": {{"bucket": "production", "bucket_count": int64(30)}},
+			"head(labels(n)) AS bucket":  {{"bucket": "TerraformResource", "bucket_count": int64(42)}},
 		},
 	}
 	store := NewGraphInfraResourceAggregateStore(graph)

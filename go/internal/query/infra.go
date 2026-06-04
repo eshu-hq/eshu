@@ -54,9 +54,13 @@ var infraCategoryLabels = map[string][]string{
 		"HelmChart",
 		"HelmValues",
 	},
+	"cloud": {
+		"CloudResource",
+	},
 }
 
 var allInfraLabels = []string{
+	"CloudResource",
 	"K8sResource",
 	"KustomizeOverlay",
 	"TerraformResource",
@@ -170,16 +174,25 @@ func (h *InfraHandler) searchResources(w http.ResponseWriter, r *http.Request) {
 		WHERE ` + infraLabelPredicate(labels)
 	if strings.Contains(req.Query, "::") {
 		cypher += `
-		  AND coalesce(n.resource_type, n.data_type, '') = $resource_type_query
+		  AND (
+		       coalesce(n.resource_type, n.data_type, '') = $resource_type_query
+		       OR coalesce(n.arn, '') = $query
+		       OR coalesce(n.resource_id, '') = $query
+		)
 	`
 	} else {
 		cypher += `
 		  AND (
-		       n.name CONTAINS $query
-		       OR n.id CONTAINS $query
+		       coalesce(n.name, '') CONTAINS $query
+		       OR coalesce(n.id, '') CONTAINS $query
 		       OR coalesce(n.kind, '') CONTAINS $query
 		       OR coalesce(n.resource_type, n.data_type, '') = $resource_type_query
 		       OR coalesce(n.resource_type, n.data_type, '') CONTAINS $resource_type_query
+		       OR coalesce(n.arn, '') CONTAINS $query
+		       OR coalesce(n.resource_id, '') CONTAINS $query
+		       OR coalesce(n.service_kind, '') CONTAINS $query
+		       OR coalesce(n.account_id, '') CONTAINS $query
+		       OR coalesce(n.region, '') CONTAINS $query
 		       OR coalesce(n.source, '') CONTAINS $query
 		       OR coalesce(n.config_path, '') CONTAINS $query
 		)
@@ -187,13 +200,13 @@ func (h *InfraHandler) searchResources(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if kind != "" {
-		cypher += " AND (n.kind = $kind OR coalesce(n.resource_type, n.data_type, '') = $kind)"
+		cypher += " AND (n.kind = $kind OR n.resource_type = $kind OR n.data_type = $kind OR n.service_kind = $kind)"
 	}
 	if provider != "" {
-		cypher += " AND coalesce(n.provider, '') = $provider"
+		cypher += " AND coalesce(n.provider, n.source_system, '') = $provider"
 	}
 	if resourceService != "" {
-		cypher += " AND coalesce(n.resource_service, '') = $resource_service"
+		cypher += " AND coalesce(n.resource_service, n.service_kind, '') = $resource_service"
 	}
 	if resourceCategory != "" {
 		cypher += " AND coalesce(n.resource_category, '') = $resource_category"
@@ -201,11 +214,14 @@ func (h *InfraHandler) searchResources(w http.ResponseWriter, r *http.Request) {
 
 	cypher += `
 		RETURN n.id as id, n.name as name, labels(n) as labels,
-		       n.kind as kind, n.provider as provider, n.environment as environment,
-		       n.source as source, n.config_path as config_path,
+		       n.kind as kind, coalesce(n.provider, n.source_system, '') as provider, n.environment as environment,
+		       coalesce(n.source, n.source_system, '') as source, n.config_path as config_path,
 		       coalesce(n.resource_type, n.data_type, '') as resource_type,
-		       n.resource_service as resource_service,
-		       n.resource_category as resource_category
+		       coalesce(n.resource_service, n.service_kind, '') as resource_service,
+		       n.resource_category as resource_category,
+		       n.resource_id as resource_id, n.arn as arn,
+		       n.account_id as account_id, n.region as region,
+		       n.service_kind as service_kind
 		ORDER BY n.name
 		LIMIT $limit
 	`
@@ -257,6 +273,21 @@ func (h *InfraHandler) searchResources(w http.ResponseWriter, r *http.Request) {
 		}
 		if resourceCategory := StringVal(row, "resource_category"); resourceCategory != "" {
 			result["resource_category"] = resourceCategory
+		}
+		if resourceID := StringVal(row, "resource_id"); resourceID != "" {
+			result["resource_id"] = resourceID
+		}
+		if arn := StringVal(row, "arn"); arn != "" {
+			result["arn"] = arn
+		}
+		if accountID := StringVal(row, "account_id"); accountID != "" {
+			result["account_id"] = accountID
+		}
+		if region := StringVal(row, "region"); region != "" {
+			result["region"] = region
+		}
+		if serviceKind := StringVal(row, "service_kind"); serviceKind != "" {
+			result["service_kind"] = serviceKind
 		}
 		results = append(results, result)
 	}

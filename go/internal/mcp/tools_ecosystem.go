@@ -97,7 +97,7 @@ func ecosystemTools() []ToolDefinition {
 		},
 		{
 			Name:        "find_infra_resources",
-			Description: "Search infrastructure resources (K8s, Terraform, ArgoCD, Crossplane, Helm) by name or type.",
+			Description: "Search infrastructure resources (cloud, K8s, Terraform, ArgoCD, Crossplane, Helm) by name or type.",
 			InputSchema: map[string]any{
 				"type": "object",
 				"properties": map[string]any{
@@ -108,7 +108,7 @@ func ecosystemTools() []ToolDefinition {
 					"category": map[string]any{
 						"type":        "string",
 						"description": "Category of infrastructure to search",
-						"enum":        []string{"k8s", "terraform", "argocd", "crossplane", "helm"},
+						"enum":        []string{"k8s", "terraform", "argocd", "crossplane", "helm", "cloud"},
 						"default":     "",
 					},
 					"limit": map[string]any{

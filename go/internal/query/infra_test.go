@@ -242,6 +242,193 @@ func TestSearchInfraResourcesMatchesResourceTypeAsFreeText(t *testing.T) {
 	}
 }
 
+func TestSearchInfraResourcesIncludesCloudResources(t *testing.T) {
+	t.Parallel()
+
+	reader := &recordingInfraGraphReader{
+		runRows: []map[string]any{
+			{
+				"id":            "cloud-resource:ssm-parameter",
+				"name":          "/configd/sample-service/database",
+				"labels":        []any{"CloudResource"},
+				"provider":      "aws",
+				"resource_type": "aws_ssm_parameter",
+				"resource_id":   "/configd/sample-service/database",
+				"arn":           "arn:aws:ssm:us-east-1:111122223333:parameter/configd/sample-service/database",
+				"account_id":    "111122223333",
+				"region":        "us-east-1",
+				"service_kind":  "ssm",
+				"source":        "aws",
+			},
+		},
+	}
+	handler := &InfraHandler{Neo4j: reader}
+
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v0/infra/resources/search",
+		bytes.NewBufferString(`{"query":"sample-service","category":"cloud","provider":"aws","resource_service":"ssm","limit":5}`),
+	)
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if got, want := w.Code, http.StatusOK; got != want {
+		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
+	}
+	for _, fragment := range []string{
+		"n:CloudResource",
+		"coalesce(n.arn, '') CONTAINS $query",
+		"coalesce(n.resource_id, '') CONTAINS $query",
+		"coalesce(n.service_kind, '') CONTAINS $query",
+		"coalesce(n.provider, n.source_system, '') = $provider",
+		"coalesce(n.resource_service, n.service_kind, '') = $resource_service",
+	} {
+		if !strings.Contains(reader.lastCypher, fragment) {
+			t.Fatalf("cypher = %q, want fragment %q", reader.lastCypher, fragment)
+		}
+	}
+
+	var resp map[string]any
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("json.Unmarshal: %v", err)
+	}
+	results := resp["results"].([]any)
+	if got, want := len(results), 1; got != want {
+		t.Fatalf("results len = %d, want %d", got, want)
+	}
+	resource := results[0].(map[string]any)
+	for key, want := range map[string]any{
+		"provider":      "aws",
+		"resource_type": "aws_ssm_parameter",
+		"resource_id":   "/configd/sample-service/database",
+		"account_id":    "111122223333",
+		"region":        "us-east-1",
+		"service_kind":  "ssm",
+	} {
+		if got := resource[key]; got != want {
+			t.Fatalf("%s = %#v, want %#v", key, got, want)
+		}
+	}
+}
+
+func TestSearchInfraResourcesKeepsCloudResourceCandidatesExplicitAndRedacted(t *testing.T) {
+	t.Parallel()
+
+	reader := &recordingInfraGraphReader{
+		runRows: []map[string]any{
+			{
+				"id":            "cloud-resource:ssm-parameter",
+				"name":          "/configd/sample-service/database",
+				"labels":        []any{"CloudResource"},
+				"provider":      "aws",
+				"resource_type": "aws_ssm_parameter",
+				"resource_id":   "/configd/sample-service/database",
+				"tags":          map[string]any{"password": "must-not-leak"},
+				"evidence":      []any{"must-not-leak"},
+			},
+			{
+				"id":            "cloud-resource:secret",
+				"name":          "sample-service/runtime",
+				"labels":        []any{"CloudResource"},
+				"provider":      "aws",
+				"resource_type": "aws_secretsmanager_secret",
+				"resource_id":   "sample-service/runtime",
+			},
+		},
+	}
+	handler := &InfraHandler{Neo4j: reader}
+
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v0/infra/resources/search",
+		bytes.NewBufferString(`{"query":"sample-service","category":"cloud","limit":5}`),
+	)
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if got, want := w.Code, http.StatusOK; got != want {
+		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
+	}
+	var resp map[string]any
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("json.Unmarshal: %v", err)
+	}
+	if got, want := int(resp["count"].(float64)), 2; got != want {
+		t.Fatalf("count = %d, want %d", got, want)
+	}
+	results := resp["results"].([]any)
+	for i, result := range results {
+		resource := result.(map[string]any)
+		if _, ok := resource["tags"]; ok {
+			t.Fatalf("results[%d] exposed tags: %#v", i, resource)
+		}
+		if _, ok := resource["evidence"]; ok {
+			t.Fatalf("results[%d] exposed evidence: %#v", i, resource)
+		}
+	}
+}
+
+func TestSearchInfraResourcesMatchesCloudARNWithDoubleColon(t *testing.T) {
+	t.Parallel()
+
+	arn := "arn:aws:iam::111122223333:role/sample-service"
+	reader := &recordingInfraGraphReader{
+		runRows: []map[string]any{
+			{
+				"id":            "cloud-resource:iam-role",
+				"name":          "sample-service",
+				"labels":        []any{"CloudResource"},
+				"provider":      "aws",
+				"resource_type": "aws_iam_role",
+				"resource_id":   arn,
+				"arn":           arn,
+			},
+		},
+	}
+	handler := &InfraHandler{Neo4j: reader}
+
+	mux := http.NewServeMux()
+	handler.Mount(mux)
+
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/api/v0/infra/resources/search",
+		bytes.NewBufferString(`{"query":"`+arn+`","category":"cloud","limit":5}`),
+	)
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if got, want := w.Code, http.StatusOK; got != want {
+		t.Fatalf("status = %d, want %d; body = %s", got, want, w.Body.String())
+	}
+	for _, fragment := range []string{
+		"coalesce(n.resource_type, n.data_type, '') = $resource_type_query",
+		"coalesce(n.arn, '') = $query",
+		"coalesce(n.resource_id, '') = $query",
+	} {
+		if !strings.Contains(reader.lastCypher, fragment) {
+			t.Fatalf("cypher = %q, want fragment %q", reader.lastCypher, fragment)
+		}
+	}
+
+	var resp map[string]any
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("json.Unmarshal: %v", err)
+	}
+	if got, want := int(resp["count"].(float64)), 1; got != want {
+		t.Fatalf("count = %d, want %d", got, want)
+	}
+}
+
 func TestSearchInfraResourcesRejectsUnknownCategory(t *testing.T) {
 	t.Parallel()
 
