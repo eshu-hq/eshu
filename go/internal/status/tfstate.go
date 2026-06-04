@@ -31,6 +31,15 @@ type TerraformStateLocatorWarning struct {
 	ObservedAt      time.Time
 }
 
+// TerraformStateWarningSummary reports bounded Terraform-state warning totals
+// by warning kind, reason, and scope class for release-gate readback.
+type TerraformStateWarningSummary struct {
+	WarningKind string
+	Reason      string
+	ScopeClass  string
+	Count       int
+}
+
 // MaxTerraformStateRecentWarnings caps the number of recent warning rows the
 // admin status surface will return per safe_locator_hash. Postgres still owns
 // the canonical history; this bound prevents the JSON projection from growing
@@ -112,4 +121,62 @@ func GroupTerraformStateWarningsByKind(
 		grouped[hash][kind] = append(grouped[hash][kind], row)
 	}
 	return grouped
+}
+
+// SummarizeTerraformStateWarnings returns deterministic aggregate warning
+// totals. ScopeClass is currently the sanitized backend kind because that is
+// the stable public class for a Terraform-state scope without exposing raw
+// locators.
+func SummarizeTerraformStateWarnings(rows []TerraformStateLocatorWarning) []TerraformStateWarningSummary {
+	if len(rows) == 0 {
+		return nil
+	}
+	type key struct {
+		warningKind string
+		reason      string
+		scopeClass  string
+	}
+	counts := map[key]int{}
+	for _, row := range rows {
+		warningKind := strings.TrimSpace(row.WarningKind)
+		reason := strings.TrimSpace(row.Reason)
+		if warningKind == "" || reason == "" {
+			continue
+		}
+		scopeClass := strings.ToLower(strings.TrimSpace(row.BackendKind))
+		if scopeClass == "" {
+			scopeClass = "unknown"
+		}
+		counts[key{
+			warningKind: warningKind,
+			reason:      reason,
+			scopeClass:  scopeClass,
+		}]++
+	}
+	if len(counts) == 0 {
+		return nil
+	}
+	keys := make([]key, 0, len(counts))
+	for summaryKey := range counts {
+		keys = append(keys, summaryKey)
+	}
+	sort.Slice(keys, func(i, j int) bool {
+		if keys[i].warningKind != keys[j].warningKind {
+			return keys[i].warningKind < keys[j].warningKind
+		}
+		if keys[i].reason != keys[j].reason {
+			return keys[i].reason < keys[j].reason
+		}
+		return keys[i].scopeClass < keys[j].scopeClass
+	})
+	summaries := make([]TerraformStateWarningSummary, 0, len(keys))
+	for _, summaryKey := range keys {
+		summaries = append(summaries, TerraformStateWarningSummary{
+			WarningKind: summaryKey.warningKind,
+			Reason:      summaryKey.reason,
+			ScopeClass:  summaryKey.scopeClass,
+			Count:       counts[summaryKey],
+		})
+	}
+	return summaries
 }

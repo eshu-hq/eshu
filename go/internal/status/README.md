@@ -96,9 +96,12 @@ See `doc.go` for the godoc contract. Key types and functions:
   raw bucket names, S3 keys, or local paths
 - `TerraformStateLocatorWarning` — recent `terraform_state_warning` fact row,
   bounded per locator by `MaxTerraformStateRecentWarnings`
+- `TerraformStateWarningSummary` — aggregate warning totals by warning kind,
+  reason, and public scope class for release-gate readback
 - `TerraformStateReport` — operator-facing tfstate section attached to
   `Report.TerraformState`; carries sorted serial rows, recent warnings, and
-  warnings grouped by safe locator hash and warning kind
+  warnings grouped by safe locator hash and warning kind plus a compact warning
+  summary
 
 ### Projection functions
 
@@ -208,6 +211,10 @@ strings.
 - **`RetryPolicySummary` is normalized.** Both `cloneRetryPolicies` and
   `MergeRetryPolicies` deduplicate by stage and sort alphabetically before
   returning. Do not rely on insertion order.
+- **Terraform-state warning summaries are public-safe.** Use
+  `TerraformStateReport.WarningSummary` for release-gate or public API readback.
+  Raw warning rows carry safe locator hashes and source strings and belong only
+  in bounded admin status, not broad public gate output.
 - **`evaluateHealth` returns `stalled` before `degraded`.** Overdue claims and
   stalled queues take priority over dead-letter state in the health verdict.
 

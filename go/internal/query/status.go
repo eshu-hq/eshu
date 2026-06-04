@@ -176,7 +176,7 @@ func (h *StatusHandler) getIndexStatus(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	WriteJSON(w, http.StatusOK, map[string]any{
+	payload := map[string]any{
 		"version":          buildinfo.AppVersion(),
 		"status":           report.Health.State,
 		"reasons":          report.Health.Reasons,
@@ -184,7 +184,9 @@ func (h *StatusHandler) getIndexStatus(w http.ResponseWriter, r *http.Request) {
 		"queue":            queueToMap(report.Queue),
 		"coordinator":      coordinatorToMap(report.Coordinator),
 		"scope_activity":   scopeActivityToMap(report.ScopeActivity),
-	})
+	}
+	payload["terraform_state"] = terraformStateStatusToMap(report.TerraformState)
+	WriteJSON(w, http.StatusOK, payload)
 }
 
 // statusReportToMap converts a status.Report to a JSON-friendly map.
@@ -205,6 +207,7 @@ func statusReportToMap(r status.Report) map[string]any {
 		"flow_summaries":         flowSummariesToSlice(r.FlowSummaries),
 		"retry_policies":         retryPoliciesToSlice(r.RetryPolicies),
 	}
+	result["terraform_state"] = terraformStateStatusToMap(r.TerraformState)
 
 	return result
 }

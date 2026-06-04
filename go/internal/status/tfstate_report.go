@@ -7,4 +7,5 @@ type TerraformStateReport struct {
 	LastSerials    []TerraformStateLocatorSerial
 	RecentWarnings []TerraformStateLocatorWarning
 	WarningsByKind map[string]map[string][]TerraformStateLocatorWarning
+	WarningSummary []TerraformStateWarningSummary
 }

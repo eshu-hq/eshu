@@ -11,6 +11,7 @@ type terraformStateJSON struct {
 	LastSerials    []terraformStateSerialJSON                        `json:"last_serials"`
 	RecentWarnings []terraformStateWarningJSON                       `json:"recent_warnings"`
 	WarningsByKind map[string]map[string][]terraformStateWarningJSON `json:"warnings_by_kind"`
+	WarningSummary []terraformStateWarningSummaryJSON                `json:"warning_summary"`
 }
 
 type terraformStateSerialJSON struct {
@@ -32,17 +33,25 @@ type terraformStateWarningJSON struct {
 	ObservedAt      string `json:"observed_at,omitempty"`
 }
 
+type terraformStateWarningSummaryJSON struct {
+	WarningKind string `json:"warning_kind"`
+	Reason      string `json:"reason"`
+	ScopeClass  string `json:"scope_class"`
+	Count       int    `json:"count"`
+}
+
 // terraformStateReportJSON projects the report-side TerraformStateReport into
 // the wire JSON shape. Returns nil when the report carries no evidence so the
 // admin status response stays compact for runtimes that never observe tfstate.
 func terraformStateReportJSON(report TerraformStateReport) *terraformStateJSON {
-	if len(report.LastSerials) == 0 && len(report.RecentWarnings) == 0 {
+	if len(report.LastSerials) == 0 && len(report.RecentWarnings) == 0 && len(report.WarningSummary) == 0 {
 		return nil
 	}
 	out := &terraformStateJSON{
 		LastSerials:    make([]terraformStateSerialJSON, 0, len(report.LastSerials)),
 		RecentWarnings: make([]terraformStateWarningJSON, 0, len(report.RecentWarnings)),
 		WarningsByKind: map[string]map[string][]terraformStateWarningJSON{},
+		WarningSummary: make([]terraformStateWarningSummaryJSON, 0, len(report.WarningSummary)),
 	}
 	for _, row := range report.LastSerials {
 		out.LastSerials = append(out.LastSerials, terraformStateSerialJSON{
@@ -56,6 +65,9 @@ func terraformStateReportJSON(report TerraformStateReport) *terraformStateJSON {
 	}
 	for _, row := range report.RecentWarnings {
 		out.RecentWarnings = append(out.RecentWarnings, warningRowJSON(row))
+	}
+	for _, row := range report.WarningSummary {
+		out.WarningSummary = append(out.WarningSummary, warningSummaryRowJSON(row))
 	}
 
 	// Project WarningsByKind into stable JSON-friendly nested maps. Iteration
@@ -90,5 +102,14 @@ func warningRowJSON(row TerraformStateLocatorWarning) terraformStateWarningJSON 
 		Source:          row.Source,
 		GenerationID:    row.GenerationID,
 		ObservedAt:      nullableRFC3339Value(row.ObservedAt),
+	}
+}
+
+func warningSummaryRowJSON(row TerraformStateWarningSummary) terraformStateWarningSummaryJSON {
+	return terraformStateWarningSummaryJSON{ //nolint:staticcheck // keep the public JSON projection explicit and decoupled from the internal summary type.
+		WarningKind: row.WarningKind,
+		Reason:      row.Reason,
+		ScopeClass:  row.ScopeClass,
+		Count:       row.Count,
 	}
 }

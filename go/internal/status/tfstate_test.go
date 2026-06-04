@@ -96,6 +96,48 @@ func TestBuildReportGroupsRecentWarningsByLocatorAndKind(t *testing.T) {
 	}
 }
 
+func TestBuildReportSummarizesTerraformStateWarnings(t *testing.T) {
+	t.Parallel()
+
+	base := time.Date(2026, 5, 2, 8, 0, 0, 0, time.UTC)
+	raw := status.RawSnapshot{
+		AsOf: base,
+		TerraformStateRecentWarnings: []status.TerraformStateLocatorWarning{
+			{SafeLocatorHash: "hash-1", BackendKind: "s3", WarningKind: "state_missing", Reason: "s3_not_found", Source: "source", ObservedAt: base},
+			{SafeLocatorHash: "hash-2", BackendKind: "s3", WarningKind: "state_missing", Reason: "s3_not_found", Source: "source", ObservedAt: base.Add(time.Minute)},
+			{SafeLocatorHash: "hash-3", BackendKind: "local", WarningKind: "state_missing", Reason: "path_not_found", Source: "source", ObservedAt: base.Add(2 * time.Minute)},
+			{SafeLocatorHash: "hash-4", BackendKind: "", WarningKind: "state_too_large", Reason: "size_limit", Source: "source", ObservedAt: base.Add(3 * time.Minute)},
+		},
+	}
+
+	report := status.BuildReport(raw, status.DefaultOptions())
+
+	if got := len(report.TerraformState.WarningSummary); got != 3 {
+		t.Fatalf("WarningSummary = %d rows, want 3: %+v", got, report.TerraformState.WarningSummary)
+	}
+	first := report.TerraformState.WarningSummary[0]
+	if first.WarningKind != "state_missing" ||
+		first.Reason != "path_not_found" ||
+		first.ScopeClass != "local" ||
+		first.Count != 1 {
+		t.Fatalf("WarningSummary[0] = %+v, want local state_missing/path_not_found count=1", first)
+	}
+	second := report.TerraformState.WarningSummary[1]
+	if second.WarningKind != "state_missing" ||
+		second.Reason != "s3_not_found" ||
+		second.ScopeClass != "s3" ||
+		second.Count != 2 {
+		t.Fatalf("WarningSummary[1] = %+v, want s3 state_missing/s3_not_found count=2", second)
+	}
+	third := report.TerraformState.WarningSummary[2]
+	if third.WarningKind != "state_too_large" ||
+		third.Reason != "size_limit" ||
+		third.ScopeClass != "unknown" ||
+		third.Count != 1 {
+		t.Fatalf("WarningSummary[2] = %+v, want unknown state_too_large/size_limit count=1", third)
+	}
+}
+
 func TestRenderJSONIncludesTerraformStateSection(t *testing.T) {
 	t.Parallel()
 
@@ -135,6 +177,12 @@ func TestRenderJSONIncludesTerraformStateSection(t *testing.T) {
 				SafeLocatorHash string `json:"safe_locator_hash"`
 				Serial          int64  `json:"serial"`
 			} `json:"last_serials"`
+			WarningSummary []struct {
+				WarningKind string `json:"warning_kind"`
+				Reason      string `json:"reason"`
+				ScopeClass  string `json:"scope_class"`
+				Count       int    `json:"count"`
+			} `json:"warning_summary"`
 			WarningsByKind map[string]map[string][]struct {
 				WarningKind string `json:"warning_kind"`
 			} `json:"warnings_by_kind"`
@@ -150,6 +198,36 @@ func TestRenderJSONIncludesTerraformStateSection(t *testing.T) {
 	}
 	if len(decoded.TerraformState.WarningsByKind["abc123"]["state_in_vcs"]) != 1 {
 		t.Fatalf("decoded warnings_by_kind = %+v", decoded.TerraformState.WarningsByKind)
+	}
+	if len(decoded.TerraformState.WarningSummary) != 1 ||
+		decoded.TerraformState.WarningSummary[0].WarningKind != "state_in_vcs" ||
+		decoded.TerraformState.WarningSummary[0].Reason != "approved_local" ||
+		decoded.TerraformState.WarningSummary[0].ScopeClass != "s3" ||
+		decoded.TerraformState.WarningSummary[0].Count != 1 {
+		t.Fatalf("decoded warning_summary = %+v", decoded.TerraformState.WarningSummary)
+	}
+}
+
+func TestRenderJSONIncludesTerraformStateSummaryOnly(t *testing.T) {
+	t.Parallel()
+
+	report := status.Report{
+		AsOf: time.Date(2026, 5, 3, 11, 0, 0, 0, time.UTC),
+		TerraformState: status.TerraformStateReport{
+			WarningSummary: []status.TerraformStateWarningSummary{{
+				WarningKind: "state_missing",
+				Reason:      "s3_not_found",
+				ScopeClass:  "s3",
+				Count:       2,
+			}},
+		},
+	}
+	body, err := status.RenderJSON(report)
+	if err != nil {
+		t.Fatalf("RenderJSON() error = %v, want nil", err)
+	}
+	if !strings.Contains(string(body), `"terraform_state"`) {
+		t.Fatalf("RenderJSON() missing summary-only terraform_state section: %s", body)
 	}
 }
 
