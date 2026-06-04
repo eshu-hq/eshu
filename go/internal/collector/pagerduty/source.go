@@ -140,7 +140,7 @@ func (s *ClaimedSource) NextClaimed(
 	}
 	s.recordFacts(observeCtx, target.config, envs)
 	s.recordConfigTelemetry(observeCtx, target.config, configResult)
-	s.recordFetch(observeCtx, target.config, "success", startedAt)
+	s.recordFetch(observeCtx, target.config, fetchStatusClass(result, configResult), startedAt)
 	s.recordGenerationLag(observeCtx, target.config, observedAt)
 	return collector.FactsFromSlice(
 		ingestionScope(target.config),
@@ -216,7 +216,11 @@ func (s *ClaimedSource) envelopes(
 		ObservedAt:          observedAt,
 		SourceURI:           target.SourceURI,
 	}
-	envs := make([]facts.Envelope, 0, len(result.Incidents)+len(configResult.Services)+len(configResult.Integrations)+len(configResult.Warnings))
+	envs := make(
+		[]facts.Envelope,
+		0,
+		len(result.Incidents)+len(configResult.Services)+len(configResult.Integrations)+len(result.Warnings)+len(configResult.Warnings),
+	)
 	for _, incident := range result.Incidents {
 		incidentCtx := ctx
 		incidentCtx.SourceURI = firstNonBlank(incident.HTMLURL, target.SourceURI)
@@ -258,6 +262,13 @@ func (s *ClaimedSource) envelopes(
 		}
 		envs = append(envs, env)
 	}
+	for _, warning := range result.Warnings {
+		env, err := NewPagerDutyConfigCoverageWarningEnvelope(ctx, warning)
+		if err != nil {
+			return nil, err
+		}
+		envs = append(envs, env)
+	}
 	for _, warning := range configResult.Warnings {
 		env, err := NewPagerDutyConfigCoverageWarningEnvelope(ctx, warning)
 		if err != nil {
@@ -288,6 +299,13 @@ func collectionWindow(target TargetConfig, now time.Time) CollectionWindow {
 		Since: until.Add(-target.IncidentLookback),
 		Until: until,
 	}
+}
+
+func fetchStatusClass(result CollectionResult, configResult ConfigCollectionResult) string {
+	if len(result.Warnings) > 0 || len(configResult.Warnings) > 0 || configResult.Partial {
+		return "partial"
+	}
+	return "success"
 }
 
 func freshnessHint(envs []facts.Envelope) string {

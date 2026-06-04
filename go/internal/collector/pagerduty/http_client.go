@@ -75,6 +75,13 @@ func (c *HTTPClient) CollectIncidentEvidence(
 		result.LifecycleEvents[incident.ID] = logs
 		changes, err := c.listRelatedChangeEvents(ctx, incident.ID, target.ChangeEventLimit)
 		if err != nil {
+			if retryableConfigError(err) {
+				return CollectionResult{}, err
+			}
+			if warning, ok := configWarningFromError(ConfigResourceClassRelatedChangeEvent, incident.ID, err); ok {
+				result.Warnings = append(result.Warnings, warning)
+				continue
+			}
 			return CollectionResult{}, err
 		}
 		result.RelatedChangeEvents[incident.ID] = changes

@@ -104,6 +104,73 @@ func TestClaimedSourceEmitsPagerDutyIncidentLifecycleAndChangeFacts(t *testing.T
 	}
 }
 
+func TestClaimedSourceEmitsCoverageWarningForDeniedRelatedChangeEvents(t *testing.T) {
+	t.Parallel()
+
+	now := testObservedAt()
+	client := staticEvidenceClient{result: CollectionResult{
+		Incidents: []Incident{testIncident("P123")},
+		LifecycleEvents: map[string][]LifecycleEvent{
+			"P123": {{
+				ID:         "R1",
+				IncidentID: "P123",
+				Type:       "acknowledge_log_entry",
+				CreatedAt:  now.Add(-4 * time.Minute),
+			}},
+		},
+		Warnings: []ConfigWarning{{
+			ResourceClass: ConfigResourceClassRelatedChangeEvent,
+			ResourceID:    "P123",
+			Reason:        ConfigWarningPermissionHidden,
+		}},
+		ObservedAt: now,
+	}}
+	source, err := NewClaimedSource(SourceConfig{
+		CollectorInstanceID: "pagerduty-primary",
+		Targets: []TargetConfig{{
+			Provider:         ProviderPagerDuty,
+			ScopeID:          "pagerduty:account:example",
+			AccountID:        "example",
+			Token:            "pd-token",
+			IncidentLookback: time.Hour,
+		}},
+		ClientFactory: func(TargetConfig) (EvidenceClient, error) { return client, nil },
+		Now:           func() time.Time { return now },
+	})
+	if err != nil {
+		t.Fatalf("NewClaimedSource() error = %v, want nil", err)
+	}
+
+	collected, ok, err := source.NextClaimed(context.Background(), testPagerDutyWorkItem(now))
+	if err != nil || !ok {
+		t.Fatalf("NextClaimed() = ok %v err %v, want ok true nil", ok, err)
+	}
+	envs := drainFacts(collected.Facts)
+	counts := factKindCounts(envs)
+	if got, want := counts[facts.IncidentRecordFactKind], 1; got != want {
+		t.Fatalf("incident facts = %d, want %d; counts %#v", got, want, counts)
+	}
+	if got, want := counts[facts.IncidentLifecycleEventFactKind], 1; got != want {
+		t.Fatalf("lifecycle facts = %d, want %d; counts %#v", got, want, counts)
+	}
+	if got, want := counts[facts.IncidentRoutingCoverageWarningFactKind], 1; got != want {
+		t.Fatalf("coverage warning facts = %d, want %d; counts %#v", got, want, counts)
+	}
+	for _, env := range envs {
+		if env.FactKind != facts.IncidentRoutingCoverageWarningFactKind {
+			continue
+		}
+		if got, want := env.Payload["resource_class"], ConfigResourceClassRelatedChangeEvent; got != want {
+			t.Fatalf("warning resource_class = %#v, want %#v", got, want)
+		}
+		if got, want := env.Payload["reason"], ConfigWarningPermissionHidden; got != want {
+			t.Fatalf("warning reason = %#v, want %#v", got, want)
+		}
+		return
+	}
+	t.Fatal("coverage warning fact not found")
+}
+
 func TestClaimedSourceUsesProviderNativeStableKeysAcrossDuplicateWindows(t *testing.T) {
 	t.Parallel()
 

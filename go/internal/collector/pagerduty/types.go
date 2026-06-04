@@ -22,6 +22,9 @@ const (
 	ConfigResourceClassService = "service"
 	// ConfigResourceClassServiceIntegration marks a PagerDuty integration.
 	ConfigResourceClassServiceIntegration = "service_integration"
+	// ConfigResourceClassRelatedChangeEvent marks related change-event
+	// enrichment coverage for a PagerDuty incident.
+	ConfigResourceClassRelatedChangeEvent = "related_change_event"
 
 	// ConfigMatchStateNotCompared means reducer comparison has not run.
 	ConfigMatchStateNotCompared = "not_compared"
@@ -142,7 +145,7 @@ type ConfigIntegration struct {
 	RoutingKeyRedacted bool
 }
 
-// ConfigWarning is one bounded live-configuration coverage warning.
+// ConfigWarning is one bounded PagerDuty coverage warning.
 type ConfigWarning struct {
 	ResourceClass string
 	ResourceID    string
@@ -160,6 +163,7 @@ type CollectionResult struct {
 	Incidents           []Incident
 	LifecycleEvents     map[string][]LifecycleEvent
 	RelatedChangeEvents map[string][]ChangeEvent
+	Warnings            []ConfigWarning
 	ObservedAt          time.Time
 	PagesFetched        int
 	Truncated           bool

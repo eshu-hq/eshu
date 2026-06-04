@@ -119,6 +119,81 @@ func TestHTTPClientCollectIncidentEvidenceUsesBoundedPagerDutyEndpoints(t *testi
 	}
 }
 
+func TestHTTPClientKeepsIncidentEvidenceWhenRelatedChangeEventsArePermissionHidden(t *testing.T) {
+	t.Parallel()
+
+	now := testObservedAt()
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/incidents":
+			writeJSON(t, w, map[string]any{
+				"incidents": []map[string]any{{
+					"id":              "P123",
+					"incident_number": 123,
+					"title":           "checkout-api latency",
+					"status":          "triggered",
+					"created_at":      now.Add(-15 * time.Minute).Format(time.RFC3339),
+					"updated_at":      now.Format(time.RFC3339),
+				}},
+			})
+		case "/incidents/P123/log_entries":
+			writeJSON(t, w, map[string]any{
+				"log_entries": []map[string]any{{
+					"id":         "R1",
+					"type":       "acknowledge_log_entry",
+					"created_at": now.Add(-4 * time.Minute).Format(time.RFC3339),
+				}},
+			})
+		case "/incidents/P123/related_change_events":
+			w.WriteHeader(http.StatusForbidden)
+			writeJSON(t, w, map[string]any{"error": map[string]any{"message": "permission denied"}})
+		default:
+			t.Fatalf("unexpected request path %q", r.URL.Path)
+		}
+	}))
+	defer server.Close()
+
+	client, err := NewHTTPClient(HTTPClientConfig{
+		BaseURL: server.URL,
+		Token:   "pd-token",
+		Client:  server.Client(),
+	})
+	if err != nil {
+		t.Fatalf("NewHTTPClient() error = %v, want nil", err)
+	}
+
+	result, err := client.CollectIncidentEvidence(context.Background(), TargetConfig{
+		Provider:         ProviderPagerDuty,
+		ScopeID:          "pagerduty:account:example",
+		AccountID:        "example",
+		Token:            "pd-token",
+		IncidentLimit:    1,
+		LogEntryLimit:    1,
+		ChangeEventLimit: 1,
+	}, CollectionWindow{Since: now.Add(-time.Hour), Until: now})
+	if err != nil {
+		t.Fatalf("CollectIncidentEvidence() error = %v, want nil partial result", err)
+	}
+	if got, want := len(result.Incidents), 1; got != want {
+		t.Fatalf("len(Incidents) = %d, want %d", got, want)
+	}
+	if got, want := len(result.LifecycleEvents["P123"]), 1; got != want {
+		t.Fatalf("len(LifecycleEvents[P123]) = %d, want %d", got, want)
+	}
+	if got, want := len(result.RelatedChangeEvents["P123"]), 0; got != want {
+		t.Fatalf("len(RelatedChangeEvents[P123]) = %d, want %d", got, want)
+	}
+	if got, want := len(result.Warnings), 1; got != want {
+		t.Fatalf("len(Warnings) = %d, want %d", got, want)
+	}
+	if got, want := result.Warnings[0].ResourceClass, ConfigResourceClassRelatedChangeEvent; got != want {
+		t.Fatalf("warning ResourceClass = %q, want %q", got, want)
+	}
+	if got, want := result.Warnings[0].Reason, ConfigWarningPermissionHidden; got != want {
+		t.Fatalf("warning Reason = %q, want %q", got, want)
+	}
+}
+
 func TestHTTPClientClassifiesProviderStatus(t *testing.T) {
 	t.Parallel()
 
