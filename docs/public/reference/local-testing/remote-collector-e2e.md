@@ -40,6 +40,14 @@ For provider security-alert proof, keep `ESHU_SECURITY_ALERT_REPOSITORY` and
 `ESHU_SECURITY_ALERT_GITHUB_TOKEN` in that private env file. Public examples use
 generic placeholders only.
 
+Remote Compose runs `collector-security-alerts-preflight` before
+`workflow-coordinator`. That one-shot command loads the same collector instance
+JSON and token env reference as the hosted collector, makes one bounded
+provider request per configured target, and fails early with a sanitized
+failure class such as `auth_denied` when provider access is wrong. This keeps a
+known-bad provider credential from creating a long collector/reducer run that
+can only end degraded.
+
 ## Acceptance Evidence
 
 Capture:
@@ -56,9 +64,10 @@ Capture:
   bytes, retry count, dead-letter count, queue state, and private pprof
   availability when scanner-worker wiring changes
 - security-alert claim handoff, provider request count, rate-limit or
-  success-class metrics, emitted `security_alert.repository_alert` fact count,
-  reducer drain, API/MCP security-alert reconciliation reads, and redaction
-  proof for repository names, alert URLs, package names, and tokens
+  success-class metrics, one-shot provider-access preflight result, emitted
+  `security_alert.repository_alert` fact count, reducer drain, API/MCP
+  security-alert reconciliation reads, and redaction proof for repository
+  names, alert URLs, package names, and tokens
 - NornicDB logs filtered for `UNWIND MERGE`, SQLSTATE, constraint, panic,
   fatal, and OOM failures
 - queue-zero after reducer projection

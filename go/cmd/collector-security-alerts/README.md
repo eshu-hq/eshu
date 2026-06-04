@@ -17,6 +17,27 @@ Configuration requires a repository allowlist and a token env reference per
 target. The token value is read only inside this process and is never copied
 into workflow run metadata.
 
-Observability Evidence: the binary exposes the shared hosted status/admin
-server plus Prometheus metrics for provider requests, emitted facts, rate-limit
-events, and fetch duration through `telemetry.Instruments`.
+`--preflight-provider-access` runs a one-shot provider access check using the
+same collector instance JSON, token env resolution, allowlist validation, and
+provider client as the hosted runtime. The preflight makes at most one bounded
+request per configured target, prints only a generic success line, and returns
+sanitized failure classes such as `auth_denied` without opening Postgres or
+claiming workflow work. It uses the `collector-security-alerts-preflight`
+telemetry service name and flushes OTLP signals before exiting when an exporter
+is configured.
+
+Observability Evidence: hosted mode exposes the shared status/admin server plus
+Prometheus metrics for provider requests, emitted facts, rate-limit events, and
+fetch duration through `telemetry.Instruments`. Preflight mode does not start a
+status server, but it passes tracer and instruments into
+`alertruntime.ClaimedSource` so `security_alert.observe`,
+`security_alert.fetch`, `eshu_dp_security_alert_provider_requests_total`, and
+`eshu_dp_security_alert_fetch_duration_seconds` still describe the bounded
+provider check.
+
+No-Regression Evidence: `TestRunProviderAccessPreflightReportsSanitizedAuthDenied`
+proves the binary preflight resolves the same private token env, asks the
+runtime for one provider page, and returns an `auth_denied` failure without
+leaking token or repository values.
+`TestRunProviderAccessPreflightRecordsProviderTelemetry` proves the preflight
+path records the existing security-alert provider metric and spans.

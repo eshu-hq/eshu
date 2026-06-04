@@ -468,6 +468,19 @@ services:
     environment:
       <<: *remote_e2e_runtime_env
 
+  collector-security-alerts-preflight:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: "no"
+    command:
+      - "/usr/local/bin/eshu-collector-security-alerts"
+      - "--preflight-provider-access"
+    environment:
+      <<: *remote_e2e_collector_env
+      ESHU_SECURITY_ALERT_COLLECTOR_INSTANCE_ID: remote-e2e-security-alert
+      GITHUB_TOKEN: ${ESHU_SECURITY_ALERT_GITHUB_TOKEN:?set ESHU_SECURITY_ALERT_GITHUB_TOKEN}
+
   workflow-coordinator:
     build:
       context: .
@@ -490,6 +503,8 @@ services:
       retries: 10
     depends_on:
       remote-e2e-corpus-preflight:
+        condition: service_completed_successfully
+      collector-security-alerts-preflight:
         condition: service_completed_successfully
       db-migrate:
         condition: service_completed_successfully

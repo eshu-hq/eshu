@@ -49,6 +49,9 @@ assert_service_present() {
 
 assert_static_contract() {
 	for want in \
+		'^  collector-security-alerts-preflight:$' \
+		'preflight-provider-access' \
+		'collector-security-alerts-preflight:' \
 		'^  collector-jira:$' \
 		'^  collector-pagerduty:$' \
 		'ESHU_JIRA_COLLECTOR_INSTANCE_ID: remote-e2e-jira' \
@@ -76,6 +79,7 @@ fi
 
 default_services="${TMP_DIR}/default-services.txt"
 compose_services "${default_services}"
+assert_service_present "${default_services}" collector-security-alerts-preflight
 assert_service_absent "${default_services}" collector-jira
 assert_service_absent "${default_services}" collector-pagerduty
 
