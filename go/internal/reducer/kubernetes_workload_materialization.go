@@ -76,6 +76,12 @@ type KubernetesWorkloadMaterializationHandler struct {
 	// gates the live-workload edge projection. A nil publisher is a no-op so the
 	// additive domain stays safe to register before the edge slice is wired.
 	PhasePublisher GraphProjectionPhasePublisher
+	// PresenceWriter records uid-exact endpoint presence for committed
+	// KubernetesWorkload nodes so the cross-scope secrets/IAM projection gate can
+	// prove a specific node committed (issue #1380). It is nil unless the
+	// secrets/IAM graph projection feature is enabled, so the default hot path
+	// carries no extra write.
+	PresenceWriter EndpointPresenceWriter
 	// Instruments records the nodes-materialized counter. Nil-safe.
 	Instruments *telemetry.Instruments
 }
@@ -123,6 +129,16 @@ func (h KubernetesWorkloadMaterializationHandler) Handle(
 			return Result{}, fmt.Errorf("write canonical kubernetes workload nodes: %w", err)
 		}
 		writeDuration = time.Since(writeStart)
+
+		// Record uid-exact presence for the committed KubernetesWorkload nodes so
+		// the cross-scope secrets/IAM projection gate can prove these endpoints
+		// exist. Flag-gated: a nil PresenceWriter (the default) makes this a no-op.
+		if err := publishEndpointPresence(
+			ctx, h.PresenceWriter,
+			GraphProjectionKeyspaceKubernetesWorkloadUID, intent.ScopeID, rows, time.Now().UTC(),
+		); err != nil {
+			return Result{}, fmt.Errorf("record kubernetes workload endpoint presence: %w", err)
+		}
 	}
 
 	// Publish the canonical-nodes-committed readiness phase only after the node

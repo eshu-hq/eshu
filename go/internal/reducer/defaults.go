@@ -335,6 +335,18 @@ type DefaultHandlers struct {
 	// writer through cmd/reducer's opt-in flag.
 	SecretsIAMGraphWriter SecretsIAMGraphWriter
 
+	// EndpointPresenceWriter records uid-exact presence for committed
+	// CloudResource and KubernetesWorkload nodes so the cross-scope secrets/IAM
+	// projection gate can prove an endpoint committed (issue #1380). It is nil
+	// unless the secrets/IAM graph projection feature is enabled, so the default
+	// hot materializer paths carry no extra write.
+	EndpointPresenceWriter EndpointPresenceWriter
+
+	// EndpointPresenceLookup answers uid-exact cross-scope endpoint readiness for
+	// the secrets/IAM projection gate (issue #1380). Nil disables gating; it is
+	// wired only when the projection feature is enabled.
+	EndpointPresenceLookup EndpointPresenceLookup
+
 	// PackageCorrelationWriter persists package ownership candidates and
 	// manifest-backed consumption decisions for package-registry evidence.
 	PackageCorrelationWriter PackageCorrelationWriter

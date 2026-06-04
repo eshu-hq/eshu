@@ -242,6 +242,32 @@ Unknown new fields default to "do not project."
 
 ## 8. Readiness, Ordering, And Rollback
 
+Status (#1380): cross-scope endpoint readiness is implemented as a **uid-exact**
+presence primitive rather than a scope/generation phase, because the endpoint
+nodes (`CloudResource`, `KubernetesWorkload`) commit in different reducer scopes
+than the projection intent, and the scope/generation-keyed
+`graph_projection_phase_state` gate cannot prove a *specific* cross-scope node
+committed. The `graph_endpoint_presence(keyspace, uid)` table (Postgres migration
+`024`) is written idempotently by the CloudResource and KubernetesWorkload node
+materializers (flag-gated, so the default hot path is unchanged), and
+`SecretsIAMGraphProjectionHandler` gates on `MissingUIDs` before retract/write,
+returning a retryable `secrets_iam_endpoint_not_ready` error so the queue
+re-enqueues rather than dropping edges.
+
+Open liveness gap (must close before §14 activation): the reducer queue retry is
+bounded (`ESHU_REDUCER_MAX_ATTEMPTS`, default 3). The same-scope
+`aws_relationship_nodes_not_ready` gate is safe because its sibling node phase
+commits within the same scope generation, inside the retry window. This gate
+waits on an independent cross-scope endpoint scope with no such timing guarantee,
+so at cold start (or whenever an endpoint scope is quiescent) the projection
+intent can exhaust its attempts and fail terminally, dropping the generation's
+edges — the very failure the gate prevents. Enabling the flag is therefore
+blocked on one of: (a) a non-counting "blocked/deferred" retry disposition for
+`secrets_iam_endpoint_not_ready` that re-drives without exhausting `maxAttempts`,
+or (b) a presence-backfill trigger that re-enqueues projection generations
+referencing a newly-committed endpoint uid. Tracked in #1391; the lane
+stays OFF until it lands. See `go/internal/reducer/README.md`.
+
 The first implementation PR must publish a new canonical-node readiness phase
 for the `SecretsIAM*` node keyspace only after node writes commit. Edge writes
 must gate on:

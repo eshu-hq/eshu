@@ -1354,3 +1354,63 @@ Activation remains blocked: enabling
 `ESHU_REDUCER_SECRETS_IAM_GRAPH_PROJECTION_ENABLED` for live execution still
 requires the ADR #1314 §14 principal+security sign-off, which these proofs do not
 grant.
+
+## Cross-scope endpoint-readiness gate (#1380)
+
+The secrets/IAM graph projection writes `SECRETS_IAM_*` edges to endpoint nodes
+(`KubernetesWorkload` for `USES_SERVICE_ACCOUNT`, `CloudResource` for
+`ASSUMES_IAM_ROLE`) that are materialized in **different** reducer
+scopes/generations. The same-scope/same-generation `graph_projection_phase_state`
+gate cannot prove a specific cross-scope node committed, so this adds a
+**uid-exact** presence primitive: `graph_endpoint_presence(keyspace, uid)`
+(Postgres, migration `024`). The CloudResource and KubernetesWorkload node
+materializers upsert one presence row per committed node uid, and
+`SecretsIAMGraphProjectionHandler` confirms — before retract/write — that every
+referenced endpoint uid is present (`EndpointPresenceLookup.MissingUIDs`, one
+bounded `uid = ANY($2)` query, no N+1). If any are missing it returns a retryable
+`secrets_iam_endpoint_not_ready` error so the durable queue re-enqueues the
+intent instead of silently dropping edges.
+
+No-Regression Evidence: the presence write and the gate are **flag-gated** — both
+the materializers' `PresenceWriter` and the handler's `PresenceLookup` are nil
+unless `ESHU_REDUCER_SECRETS_IAM_GRAPH_PROJECTION_ENABLED` is on, so the default
+hot CloudResource/KubernetesWorkload node-commit paths carry **zero** extra write
+and the projection keeps its current behavior. Proven by
+`TestAWSResourceMaterializationNoPresenceWhenWriterNil`,
+`TestPublishEndpointPresenceNilWriterIsNoOp`, and
+`TestGraphProjectionGateDisabledWhenLookupNil`. The upsert is idempotent
+(`ON CONFLICT (keyspace, uid)`) and safe under concurrent materializer workers —
+no worker/batch reduction — verified by
+`go test -race ./internal/reducer ./internal/storage/postgres`. Gate behavior is
+proven by `TestGraphProjectionGateReEnqueuesWhenEndpointNotReady` (retryable, no
+write before retract) and `TestGraphProjectionGateWritesWhenEndpointsReady`.
+
+Observability Evidence: a readiness miss surfaces as the retryable error's
+`FailureClass() = "secrets_iam_endpoint_not_ready"`, which the reducer service's
+classified-execution log records (the same path as `aws_relationship_nodes_not_ready`),
+so an operator can see projection intents waiting on cross-scope endpoints. The
+error message names only the bounded keyspace and a missing-count — never a
+redactable uid.
+
+Cold-start LIMITATION (must close before enabling the flag): when the flag is
+first enabled, already-committed CloudResource and KubernetesWorkload nodes have
+no presence rows until they next re-materialize. The gate returns the retryable
+not-ready error, but the reducer queue retry is **bounded**
+(`ESHU_REDUCER_MAX_ATTEMPTS`, default 3, ~30s apart). Unlike the same-scope
+`aws_relationship_nodes_not_ready` gate — whose sibling node phase is published
+within the same scope generation and so always lands inside the retry window —
+this gate waits on an **independent cross-scope** endpoint materializer with no
+such timing guarantee. If that endpoint scope does not re-materialize within the
+attempt budget, the projection intent fails terminally (`reducer_failed`) and the
+generation's edges are dropped until the secrets/IAM scope itself produces a new
+generation. That is the same silent-drop class this gate exists to prevent, so it
+is a real liveness gap, not self-healing.
+
+Because the projection lane is OFF by default and live activation is gated on the
+ADR #1314 §14 sign-off (#1381), this lands safely disabled. **Enabling the flag is
+blocked on the cross-scope liveness fix** (tracked in #1391): either a
+non-counting "blocked/deferred" retry disposition for
+`secrets_iam_endpoint_not_ready` that re-drives indefinitely without exhausting
+`maxAttempts`, or a presence-backfill trigger that re-enqueues the projection
+generations referencing a newly-committed endpoint uid. Until one lands, the flag
+must stay off.

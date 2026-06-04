@@ -142,3 +142,38 @@ type GraphProjectionReadinessPrefetch func(ctx context.Context, keys []GraphProj
 type GraphProjectionPhasePublisher interface {
 	PublishGraphProjectionPhases(context.Context, []GraphProjectionPhaseState) error
 }
+
+// EndpointPresenceRow records that one endpoint node uid is committed in the
+// canonical graph, keyed by its bounded keyspace. It is the uid-exact,
+// cross-scope readiness primitive (issue #1380, ADR #1314 §6/§8): a presence row
+// proves the specific node X is committed, which the same-scope/same-generation
+// graph_projection_phase_state gate cannot express. CommittedAt is the node
+// materializer's commit instant; an empty value defers to the store's clock.
+type EndpointPresenceRow struct {
+	Keyspace    GraphProjectionKeyspace
+	UID         string
+	ScopeID     string
+	CommittedAt time.Time
+}
+
+// EndpointPresenceWriter records and retracts endpoint-node presence. The
+// CloudResource and KubernetesWorkload node materializers call Upsert with one
+// row per committed node uid (idempotent: re-upserting the same (keyspace, uid)
+// converges on one row), and RetractScope removes a scope's presence rows so a
+// node retract removes its presence. Implementations MUST be safe under
+// concurrent materializer workers (the upsert is ON CONFLICT idempotent); the
+// contract forbids reducing workers or batch size to dodge a race.
+type EndpointPresenceWriter interface {
+	Upsert(ctx context.Context, rows []EndpointPresenceRow) error
+	RetractScope(ctx context.Context, scopeIDs []string) error
+}
+
+// EndpointPresenceLookup answers the uid-exact cross-scope readiness question
+// for the secrets/IAM graph projection gate (issue #1380). MissingUIDs returns
+// the subset of uids that have no presence row for the keyspace, computed with
+// ONE bounded query (WHERE keyspace=$1 AND uid = ANY($2)) and an in-memory
+// set-difference — never an N+1 per-uid probe, which the §performance contract
+// forbids. An empty input yields an empty result and no query.
+type EndpointPresenceLookup interface {
+	MissingUIDs(ctx context.Context, keyspace GraphProjectionKeyspace, uids []string) ([]string, error)
+}
