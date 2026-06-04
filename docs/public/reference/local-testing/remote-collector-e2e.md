@@ -40,6 +40,26 @@ For provider security-alert proof, keep `ESHU_SECURITY_ALERT_REPOSITORY` and
 `ESHU_SECURITY_ALERT_GITHUB_TOKEN` in that private env file. Public examples use
 generic placeholders only.
 
+For Jira profile proof, keep `ESHU_JIRA_JQL`, `ESHU_JIRA_EMAIL`, and
+`ESHU_JIRA_API_TOKEN` in the private env file. The workflow coordinator stores
+only the `jql_env` reference in collector instance JSON, and the enabled
+`collector-jira` container must receive the referenced `ESHU_JIRA_JQL`
+environment variable so private JQL is resolved inside the worker process.
+
+No-Regression Evidence: the Jira JQL pass-through change is Compose
+environment wiring only. It does not change provider calls, queue claims,
+worker concurrency, graph writes, or query behavior. The remote hosted Compose
+render contract checks the checked-in service environment and the profiled
+render, and the focused runtime test
+`TestRemoteE2EComposeJiraUsesJQLEnvReference` verifies the worker receives the
+same env key named by the coordinator `jql_env` target.
+
+No-Observability-Change: existing Jira collector startup errors,
+`/healthz`, `/readyz`, `/metrics`, pprof, workflow status, and Jira
+provider/fact/fetch-duration metrics remain the diagnostic surface. Missing
+operator-local JQL still fails before provider execution with a target-indexed
+startup error instead of silently running an unscoped query.
+
 Remote Compose runs `collector-security-alerts-preflight` before
 `workflow-coordinator`. That one-shot command loads the same collector instance
 JSON and token env reference as the hosted collector, makes one bounded

@@ -44,6 +44,10 @@ func TestRemoteE2EComposeJiraUsesJQLEnvReference(t *testing.T) {
 	if strings.Contains(compose, `"jql": "${ESHU_JIRA_JQL`) {
 		t.Fatal("docker-compose.remote-e2e.yaml must not interpolate ESHU_JIRA_JQL directly inside collector JSON")
 	}
+
+	doc := readComposeDocument(t, "docker-compose.remote-e2e.yaml")
+	service := requireComposeService(t, doc, "collector-jira")
+	assertComposeEnv(t, service, "ESHU_JIRA_JQL", "${ESHU_JIRA_JQL:-}")
 }
 
 func remoteE2ECollectorInstancesJSON(t *testing.T) string {

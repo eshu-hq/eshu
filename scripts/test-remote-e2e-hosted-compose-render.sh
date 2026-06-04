@@ -55,6 +55,7 @@ assert_static_contract() {
 		'^  collector-jira:$' \
 		'^  collector-pagerduty:$' \
 		'ESHU_JIRA_COLLECTOR_INSTANCE_ID: remote-e2e-jira' \
+		'ESHU_JIRA_JQL:' \
 		'ESHU_PAGERDUTY_COLLECTOR_INSTANCE_ID: remote-e2e-pagerduty' \
 		'"jql_env": "ESHU_JIRA_JQL"' \
 		'127.0.0.1:19675:6060' \
@@ -98,6 +99,7 @@ docker compose --env-file "${REPO_ROOT}/.env.remote-e2e.example" \
 for want in \
 	'ESHU_JIRA_COLLECTOR_INSTANCE_ID: remote-e2e-jira' \
 	'ESHU_PAGERDUTY_COLLECTOR_INSTANCE_ID: remote-e2e-pagerduty' \
+	'ESHU_JIRA_JQL:' \
 	'JIRA_API_TOKEN:' \
 	'PAGERDUTY_API_TOKEN:'; do
 	if ! rg -q "${want}" "${rendered}"; then
