@@ -443,6 +443,19 @@ dialect differences belong in `internal/storage/cypher` adapters behind the
   that do not send `Accept: application/eshu.envelope+json` receive the legacy
   payload shape. MCP tool dispatch relies on the envelope format; do not break
   this negotiation logic.
+- Repository story and stats handlers use `WriteSuccess` so MCP can preserve
+  `ResponseEnvelope` truth metadata while plain HTTP clients keep the legacy
+  JSON body. No-Regression Evidence: `go test ./internal/query -run
+  'TestGetRepository(Story|Stats)ReturnsEnvelopeWhenRequested' -count=1`,
+  `go test ./internal/mcp -run
+  'TestDispatchToolRepo(Story|sitoryStats)ReturnsStructuredEnvelopeData'
+  -count=1`, `go test ./cmd/api ./cmd/mcp-server ./internal/query
+  ./internal/mcp -count=1`, `golangci-lint run ./...`, and `go test ./...`
+  covered the same bounded repository lookup and content coverage input shape;
+  there is no graph query, queue, reducer, or runtime path change.
+  No-Observability-Change: existing repository story/stats timer stages,
+  structured logs, MCP envelope parsing, and HTTP status output remain the
+  diagnostic surface.
 - The OpenAPI spec is assembled from string fragments in Go source, not from
   runtime reflection. When a handler changes its request or response shape,
   update the matching `openapi_paths_*.go` fragment in the same PR.

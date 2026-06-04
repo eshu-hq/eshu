@@ -556,7 +556,18 @@ func (h *RepositoryHandler) getRepositoryStory(w http.ResponseWriter, r *http.Re
 	)
 	enrichRepositoryStoryResponseWithEvidence(response, semanticOverview, narrativeFiles)
 
-	WriteJSON(w, http.StatusOK, response)
+	WriteSuccess(
+		w,
+		r,
+		http.StatusOK,
+		response,
+		BuildTruthEnvelope(
+			h.profile(),
+			"platform_impact.context_overview",
+			TruthBasisHybrid,
+			"resolved from bounded repository story, content coverage, and platform evidence",
+		),
+	)
 }
 
 // getRepositoryCoverage returns content store coverage for the repository.
