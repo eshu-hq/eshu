@@ -70,6 +70,12 @@ type AWSResourceMaterializationHandler struct {
 	// gates the AWS relationship edge projection. A nil publisher is a no-op so
 	// the additive domain stays safe to register before Stage B is wired.
 	PhasePublisher GraphProjectionPhasePublisher
+	// PresenceWriter records uid-exact endpoint presence for committed
+	// CloudResource nodes so the cross-scope secrets/IAM projection gate can prove
+	// a specific node committed (issue #1380). It is nil unless the secrets/IAM
+	// graph projection feature is enabled, so the default hot path carries no
+	// extra write.
+	PresenceWriter EndpointPresenceWriter
 }
 
 // Handle executes one AWS resource materialization intent.
@@ -115,6 +121,16 @@ func (h AWSResourceMaterializationHandler) Handle(
 			return Result{}, fmt.Errorf("write canonical cloud resource nodes: %w", err)
 		}
 		writeDuration = time.Since(writeStart)
+
+		// Record uid-exact presence for the committed CloudResource nodes so the
+		// cross-scope secrets/IAM projection gate can prove these endpoints exist.
+		// Flag-gated: a nil PresenceWriter (the default) makes this a no-op.
+		if err := publishEndpointPresence(
+			ctx, h.PresenceWriter,
+			GraphProjectionKeyspaceCloudResourceUID, intent.ScopeID, rows, time.Now().UTC(),
+		); err != nil {
+			return Result{}, fmt.Errorf("record cloud resource endpoint presence: %w", err)
+		}
 	}
 
 	// Publish the canonical-nodes-committed readiness phase only after the node

@@ -149,6 +149,14 @@ constructor with `InstrumentedDB{Inner: db, StoreName: "my_store", ...}`.
 - `graph_projection_phase_state` rows gate reducer edge domains. If missing
   for a scope generation, check `GraphProjectionPhaseRepairQueueStore` depth and
   projector logs for `publish_phases` stage errors.
+- `graph_endpoint_presence` (migration `024`, `GraphEndpointPresenceStore`) is
+  the uid-exact, **cross-scope** endpoint-readiness primitive for the secrets/IAM
+  graph projection (issue #1380). Keyed by `(keyspace, uid)`, it is written
+  idempotently by the CloudResource and KubernetesWorkload node materializers
+  only when the projection feature is enabled, and read via `MissingUIDs` (one
+  bounded `uid = ANY(...)` query). Unlike `graph_projection_phase_state` it proves
+  a *specific node* committed, which the scope/generation-keyed phase table
+  cannot express across scopes.
 
 ## Extension points
 

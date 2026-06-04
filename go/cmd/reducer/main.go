@@ -177,11 +177,7 @@ func buildReducerService(
 		}
 	}
 
-	edgeWriterForHandlers := sourcecypher.NewEdgeWriter(neo4jExec, neo4jBatchSize(getenv))
-	edgeWriterForHandlers.Instruments = instruments
-	edgeWriterForHandlers.Logger = logger
-	edgeWriterForHandlers.InheritanceGroupBatchSize = inheritanceEdgeGroupBatchSize
-	edgeWriterForHandlers.SQLRelationshipGroupBatchSize = sqlRelationshipEdgeGroupBatchSize
+	edgeWriterForHandlers := newHandlerEdgeWriter(neo4jExec, neo4jBatchSize(getenv), instruments, logger, inheritanceEdgeGroupBatchSize, sqlRelationshipEdgeGroupBatchSize)
 	cloudResourceNodeWriter := sourcecypher.NewCloudResourceNodeWriter(neo4jExec, neo4jBatchSize(getenv))
 	ec2InstanceNodeWriter := sourcecypher.NewEC2InstanceNodeWriter(neo4jExec, neo4jBatchSize(getenv))
 	cloudResourceEdgeWriter := sourcecypher.NewCloudResourceEdgeWriter(neo4jExec, neo4jBatchSize(getenv))
@@ -195,6 +191,7 @@ func buildReducerService(
 	if err != nil {
 		return reducer.Service{}, err
 	}
+	endpointPresenceWriter, endpointPresenceLookup := endpointPresenceWiring(secretsIAMGraphWriter != nil, database)
 	observabilityCoverageEdgeWriter := sourcecypher.NewObservabilityCoverageEdgeWriter(neo4jExec, neo4jBatchSize(getenv))
 	incidentRoutingEvidenceWriter := sourcecypher.NewIncidentRoutingEvidenceWriter(neo4jExec, neo4jBatchSize(getenv))
 	iamCanAssumeEdgeWriter := sourcecypher.NewIAMCanAssumeEdgeWriter(neo4jExec, neo4jBatchSize(getenv))
@@ -349,6 +346,8 @@ func buildReducerService(
 		IAMEscalationEdgeWriter:            iamEscalationEdgeWriter,
 		IAMCanPerformEdgeWriter:            iamCanPerformEdgeWriter,
 		SecretsIAMGraphWriter:              secretsIAMGraphWriter,
+		EndpointPresenceWriter:             endpointPresenceWriter,
+		EndpointPresenceLookup:             endpointPresenceLookup,
 		ObservabilityCoverageEdgeWriter:    observabilityCoverageEdgeWriter,
 		IAMCanAssumeEdgeWriter:             iamCanAssumeEdgeWriter,
 		S3LogsToEdgeWriter:                 s3LogsToEdgeWriter,

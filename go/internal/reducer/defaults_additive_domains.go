@@ -118,6 +118,7 @@ func appendAdditiveDomainDefinitions(definitions []DomainDefinition, handlers De
 			FactLoader:           handlers.FactLoader,
 			Writer:               handlers.SecretsIAMGraphWriter,
 			PriorGenerationCheck: handlers.PriorGenerationCheck,
+			PresenceLookup:       handlers.EndpointPresenceLookup,
 			Tracer:               handlers.Tracer,
 			Instruments:          handlers.Instruments,
 		}
@@ -140,6 +141,7 @@ func appendAdditiveDomainDefinitions(definitions []DomainDefinition, handlers De
 			FactLoader:     handlers.FactLoader,
 			NodeWriter:     handlers.CloudResourceNodeWriter,
 			PhasePublisher: handlers.GraphProjectionPhasePublisher,
+			PresenceWriter: handlers.EndpointPresenceWriter,
 		}
 		definitions = append(definitions, awsResources)
 	}
@@ -159,6 +161,7 @@ func appendAdditiveDomainDefinitions(definitions []DomainDefinition, handlers De
 			FactLoader:     handlers.FactLoader,
 			NodeWriter:     handlers.KubernetesWorkloadNodeWriter,
 			PhasePublisher: handlers.GraphProjectionPhasePublisher,
+			PresenceWriter: handlers.EndpointPresenceWriter,
 			Instruments:    handlers.Instruments,
 		}
 		definitions = append(definitions, kubernetesWorkloads)

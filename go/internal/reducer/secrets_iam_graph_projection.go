@@ -62,16 +62,27 @@ func secretsIAMGraphProjectionDomainDefinition() DomainDefinition {
 // §4), retracts the prior generation's reducer-owned SecretsIAM* graph state,
 // writes nodes then edges (so edges MATCH already-committed nodes), and counts
 // skipped rows instead of dropping them. A missing CloudResource or
-// KubernetesWorkload endpoint is a writer-side no-op, never a fabricated node;
-// cross-scope endpoint-readiness gating is a tracked follow-up.
+// KubernetesWorkload endpoint is a writer-side no-op, never a fabricated node.
+//
+// When PresenceLookup is wired, the handler gates the projection on uid-exact
+// cross-scope endpoint readiness (issue #1380): before retracting or writing, it
+// confirms every cross-scope endpoint node the rows reference (KubernetesWorkload
+// for USES_SERVICE_ACCOUNT, CloudResource for ASSUMES_IAM_ROLE) is committed. If
+// any is missing it returns a retryable not-ready error so the intent re-enqueues
+// instead of silently dropping edges to not-yet-committed endpoints.
 type SecretsIAMGraphProjectionHandler struct {
 	FactLoader FactLoader
 	Writer     SecretsIAMGraphWriter
 	// PriorGenerationCheck reports whether the scope has any prior generation.
 	// Nil keeps retract conservative (always retract before write).
 	PriorGenerationCheck PriorGenerationCheck
-	Tracer               trace.Tracer
-	Instruments          *telemetry.Instruments
+	// PresenceLookup answers uid-exact cross-scope endpoint readiness. Nil
+	// disables gating (the projection writes whatever resolves, leaving any
+	// not-yet-committed endpoint edge as a writer no-op). It is wired only when
+	// the secrets/IAM graph projection feature is enabled.
+	PresenceLookup EndpointPresenceLookup
+	Tracer         trace.Tracer
+	Instruments    *telemetry.Instruments
 }
 
 // Handle executes one secrets/IAM graph projection intent.
@@ -111,6 +122,15 @@ func (h SecretsIAMGraphProjectionHandler) Handle(ctx context.Context, intent Int
 	extractStart := time.Now()
 	rows := ExtractSecretsIAMGraphRows(envelopes)
 	extractDuration := time.Since(extractStart)
+
+	// Gate on uid-exact cross-scope endpoint readiness before touching graph
+	// state. If any referenced KubernetesWorkload or CloudResource endpoint is not
+	// yet committed, re-enqueue (retryable) rather than retracting and rewriting a
+	// projection that would silently drop those edges. Returning before retract
+	// leaves the prior generation's edges intact until the endpoints land.
+	if err := h.checkEndpointReadiness(ctx, intent, rows); err != nil {
+		return Result{}, err
+	}
 
 	skipRetract, err := h.shouldSkipRetract(ctx, intent)
 	if err != nil {
