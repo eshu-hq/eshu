@@ -8,11 +8,15 @@
    loop; understand `processWork` before touching concurrency
 3. `go/internal/projector/runtime.go` — `Runtime.Project`; the four write
    stages and their ordering
-4. `go/internal/projector/canonical.go` and `canonical_builder.go` — the
+4. `go/internal/projector/runtime_phase.go` — canonical phase publication and
+   repair enqueue behavior
+5. `go/internal/projector/canonical.go` and `canonical_builder.go` — the
    `CanonicalMaterialization` shape and how it is built from facts. Read
    `tfstate_canonical.go` when touching Terraform-state projection and
    `oci_registry_canonical.go` when touching OCI registry projection.
-5. `go/internal/telemetry/instruments.go` and `contract.go` — metric and span
+6. `go/internal/projector/runtime_logging.go` — stage log attributes and
+   operator-facing runtime stage messages
+7. `go/internal/telemetry/instruments.go` and `contract.go` — metric and span
    names before adding new telemetry
 
 ## Invariants this package enforces
@@ -20,10 +24,9 @@
 - **Idempotency** — every write path must converge on the same graph truth on
   retries. `doc.go` states this as a package invariant; `runtime_retry_test.go`
   tests it.
-- **Phase publish before ack** — `publishCanonicalGraphPhases` (defined in
-  `runtime.go:181`) must succeed before the work item acks. The publish call
-  itself is at `runtime.go:190`; if it fails and `RepairQueue` is non-nil, a
-  repair row is enqueued.
+- **Phase publish before ack** — `publishCanonicalGraphPhases` in
+  `runtime_phase.go` must succeed before the work item acks. If publish fails
+  and `RepairQueue` is non-nil, a repair row is enqueued.
 - **Module/Parameter exclusion from generic entity phase** — `Module` and
   `Parameter` labels are skipped in `extractEntities` because they use different
   graph MERGE keys. Enforced at `canonical_builder.go:227-229`.
@@ -55,8 +58,7 @@
   parent directories exist before children during graph writes
   (`canonical_builder.go:191`).
 - **ReducerIntent stable ordering** — `intents` are sorted by `Domain`,
-  `EntityKey`, then `FactID` before enqueue (`runtime.go:382`). Do not remove
-  this sort.
+  `EntityKey`, then `FactID` before enqueue. Do not remove this sort.
 - **CanonicalWriter interface boundary** — no caller in this package calls a Neo4j
   or NornicDB driver directly. All canonical writes go through `CanonicalWriter`.
   Backend-specific logic belongs in `internal/storage/cypher` adapters.
