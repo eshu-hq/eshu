@@ -144,6 +144,45 @@ lookup indexes for only the new `SecretsIAM*` labels. It should reuse existing
 endpoints. DDL must run before writes through schema bootstrap and must not use
 drop/create cycles on a live NornicDB store.
 
+### 5.1. Endpoint join feasibility (implementation finding, #1347)
+
+A read of the current read-model build (`secrets_iam_trust_chain_build.go`) and
+the canonical node keyspaces establishes which external endpoints are resolvable
+from the read model today. This corrects the build plan; promoting an edge whose
+endpoint cannot be resolved would force a fabricated join, which §4 forbids.
+
+- **`KubernetesWorkload` endpoint — RESOLVABLE.** The read model's
+  `workload_object_id` is the same keyspace as the live `KubernetesWorkload`
+  node `uid` (the Kubernetes correlation edge writer already treats
+  `workload_uid = workload_object_id`). So `SECRETS_IAM_USES_SERVICE_ACCOUNT`
+  can `MATCH (:KubernetesWorkload {uid: workload_object_id})` and skip-count when
+  absent.
+- **IAM-role `CloudResource` endpoint — NOT RESOLVABLE from the current read
+  model.** The read model carries only `iam_role_fingerprint`, defined as
+  `secretsIAMFingerprint("iam_role", role_arn)` — a deterministic, unkeyed
+  SHA-256 hash of a canonical JSON payload (via `facts.StableID`), not a keyed
+  HMAC. It is one-way (irreversible) but reproducible by anyone with the same
+  role ARN, so it provides redaction (no raw ARN in the graph) without
+  unlinkability. The IAM-role `CloudResource` `uid` is built from
+  `(account_id, region, resource_type, resource_id)` (`cloudResourceUID(...)`).
+  A fingerprint cannot join to that uid, and the read model carries neither the
+  `CloudResource` uid nor the `(account, region, role-name)` needed to compute
+  it. **Therefore `SECRETS_IAM_ASSUMES_IAM_ROLE` cannot promote until the
+  read-model `identity_trust_chain` row additionally carries a
+  CloudResource-joinable IAM-role identity** (the role's `cloud_resource_uid`,
+  or the account/region/resource-id to recompute it). That is an upstream
+  reducer/read-model change (and depends on the IAM trust fact carrying the
+  role's resource identity in a joinable form), tracked as the prerequisite for
+  the IAM-role edge.
+
+Consequently the first graph build implements the resolvable subgraph — the four
+`SecretsIAM*` nodes and the four edges `USES_SERVICE_ACCOUNT`,
+`AUTHENTICATES_TO_VAULT_ROLE`, `USES_VAULT_POLICY`, `GRANTS_SECRET_READ` (all
+endpoints resolve from read-model join keys or the workload uid). The IAM-role
+edge is extracted and **counted as a skip** with reason
+`iam_role_endpoint_unresolved_pending_read_model` until the upstream field
+lands, so the chain is never fabricated.
+
 ## 6. Relationship Contract
 
 | Relationship | Source row | Endpoint rule | Mutable properties |
@@ -338,3 +377,51 @@ write code.
 
 No-Observability-Change: design-only gate. Existing telemetry is unchanged; the
 future implementation telemetry requirements are listed in section 13.
+
+### 5.2. Evidence for the gated steps 1–3 PR (extraction + DDL + writer + domain)
+
+No-Regression Evidence: this PR is pure in-memory extraction, additive schema
+DDL, a backend-neutral Cypher writer, and the reducer projection domain that
+orchestrates them — **the domain is defined but not registered into the live
+reducer registry**, so no graph write executes in production from this PR (it
+runs only against a recording writer in tests). The domain handler is the
+established load → extract → retract → write orchestration (mirroring
+`iam_can_perform`): it writes all four node families before the four edge
+families (so each edge `MATCH` resolves an already-committed node), retracts the
+prior generation before reprojecting (skipped only on a first-generation first
+attempt), and counts skipped rows. Registration into the live registry — which
+needs the Postgres fact loader and the Cypher writer wired — plus cross-scope
+endpoint-readiness gating and the §12 backend benchmark are the next gated step.
+`ExtractSecretsIAMGraphRows` is a single linear pass over the reducer read-model
+facts (bounded by read-model output, not by raw source-fact cross-products),
+building deduped, sorted node/edge rows with no I/O. The DDL additions are
+`CREATE CONSTRAINT/INDEX ... IF NOT EXISTS` for the four `SecretsIAM*` labels
+only — additive, no drop/create, applied idempotently by schema bootstrap before
+any write. `SecretsIAMGraphWriter` mirrors the shipped `iam_can_perform`
+writer: static labels/relationship tokens (no data-driven Cypher), uid-only node
+`MERGE`, `MATCH`/`MATCH`/`MERGE` edges (a missing endpoint is a no-op, never a
+fabricated node), `UNWIND` batches with uid anchors, scope+evidence-scoped
+retract (`DETACH DELETE` on reducer-owned `SecretsIAM*` nodes only; never on
+`CloudResource`/`KubernetesWorkload`), and `WrapRetryableNeo4jError` idempotent
+dispatch. There is no hot-path query or graph behavior to regress. Correctness is
+covered by `go test ./internal/reducer -run Extract` (exact-only admission, all
+five non-exact states, missing-endpoint skip+count, IAM-role-unresolved skip,
+duplicate-delivery idempotency, empty, tombstone/foreign-kind, JSON `[]any` wire
+format, redaction allowlist), `go test ./internal/storage/cypher -run
+SecretsIAMGraph` (node/edge Cypher shape, uid-only MERGE identity, scoped
+retract with no endpoint deletion, batching), and `go test ./internal/graph`
+(schema statements). The §12 writer benchmark on the shipped node/edge writer
+shape and the NornicDB/Neo4j conformance proof land with the reducer-domain PR
+that executes the writer.
+
+Observability Evidence: the projection domain emits the `reducer.secrets_iam_
+graph_projection` span and three bounded-enum counters —
+`eshu_dp_secrets_iam_graph_nodes_written_total{node_type}`,
+`eshu_dp_secrets_iam_graph_edges_written_total{edge_type}`, and
+`eshu_dp_secrets_iam_graph_skipped_total{skip_reason}` — plus a structured
+completion log with per-phase durations (load/extract/retract/write) and node/
+edge/skip counts. All metric labels are static extractor constants (node labels,
+relationship tokens, skip reasons); no path, ARN, namespace, or identifier is a
+label. `node_type`/`edge_type`/`skip_reason` are in the frozen
+`TestMetricDimensionKeys` allowlist and the span is in the frozen span contract,
+both asserted by `go test ./internal/telemetry`.

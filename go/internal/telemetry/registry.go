@@ -81,6 +81,7 @@ var spanNames = []string{
 	SpanReducerS3InternetExposureMaterialization,
 	SpanReducerIAMEscalationMaterialization,
 	SpanReducerIAMCanPerformMaterialization,
+	SpanReducerSecretsIAMGraphProjection,
 	SpanCanonicalWrite,
 	SpanCanonicalProjection,
 	SpanCanonicalRetract,

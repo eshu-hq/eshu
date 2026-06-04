@@ -315,7 +315,10 @@ const (
 	// condition, NotAction/NotResource, self-loop) without fabricating or dangling
 	// edges.
 	SpanReducerIAMCanPerformMaterialization = "reducer.iam_can_perform_materialization"
-	SpanCanonicalWrite                      = "canonical.write"
+	// SpanReducerSecretsIAMGraphProjection wraps the secrets/IAM graph projection
+	// (exact read-model rows into SecretsIAM* nodes and SECRETS_IAM_* edges).
+	SpanReducerSecretsIAMGraphProjection = "reducer.secrets_iam_graph_projection"
+	SpanCanonicalWrite                   = "canonical.write"
 	SpanCanonicalProjection                 = "canonical.projection"
 	SpanCanonicalRetract                    = "canonical.retract"
 
