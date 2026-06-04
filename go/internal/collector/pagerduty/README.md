@@ -5,10 +5,10 @@
 `internal/collector/pagerduty` owns PagerDuty incident-context collection and
 optional live PagerDuty configuration validation for the `pagerduty` collector
 family. It turns PagerDuty incidents, incident log entries, related change
-events, and opt-in service/integration configuration observations into
-reported-confidence source facts that incident-context reducers and read models
-can correlate later with runtime, image, commit, pull-request, and work-item
-evidence.
+events, optional related-change coverage warnings, and opt-in
+service/integration configuration observations into reported-confidence source
+facts that incident-context reducers and read models can correlate later with
+runtime, image, commit, pull-request, and work-item evidence.
 
 This package intentionally does not write graph truth, create Jira work items,
 or infer deployment impact. PagerDuty is the alerting source: it can say what
@@ -72,6 +72,10 @@ flowchart LR
 - The HTTP client requires a token and a configured target before sending a
   request. Runtime configuration stores only `token_env`; the token value is
   resolved by the command process.
+- Related change-event evidence is optional enrichment. If PagerDuty allows
+  incident and lifecycle reads but hides related change events, the collector
+  emits a coverage warning and keeps the readable incident evidence. Retryable
+  related-change failures still retry the claim.
 - PagerDuty facts never emit Jira work-item facts, GitHub pull-request facts,
   deployment truth, image truth, or code truth.
 - Collection is bounded by a time window, incident limit, log-entry limit,
@@ -110,11 +114,15 @@ Collector Performance Evidence: request work is bounded by
 `go test ./internal/collector/pagerduty -count=1` proof covers envelope
 identity, redaction, claimed-source idempotency, provider failure classes, HTTP
 request shape, service allowlist query parameters, optional live config
-collection, partial failures, and rate-limit classification.
+collection, permission-hidden related-change enrichment, partial failures, and
+rate-limit classification.
 
 Collector Observability Evidence: the hosted runtime exposes the shared
 `/healthz`, `/readyz`, `/metrics`, and `/admin/status` surface through
-`collector.ClaimedService`.
+`collector.ClaimedService`. Partial claims emit
+`incident_routing.coverage_warning` facts, increment
+`eshu_dp_pagerduty_facts_emitted_total` by fact kind, and record
+`status_class=partial` on provider request and fetch-duration metrics.
 
 Collector Deployment Evidence: this package is wired by the
 `collector-pagerduty` binary and the public Helm `pagerDutyCollector` runtime.
