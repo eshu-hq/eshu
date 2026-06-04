@@ -41,7 +41,11 @@ export interface RelationshipEdge {
   readonly target: string;
 }
 
-export interface LayoutNode extends RelationshipNode, SimulationNodeDatum {}
+// RelationshipNode keeps x/y as required numbers (the workbench reads them for
+// edge/label geometry); d3's SimulationNodeDatum types them as optional. Drop
+// the simulation's x/y so the required ones win while still inheriting
+// vx/vy/fx/fy/index for force layout.
+export interface LayoutNode extends Omit<SimulationNodeDatum, "x" | "y">, RelationshipNode {}
 
 export interface LayoutEdge extends SimulationLinkDatum<LayoutNode> {
   readonly detail: string;

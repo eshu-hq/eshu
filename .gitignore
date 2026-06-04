@@ -74,6 +74,7 @@ docs/site/
 node_modules/
 dist/
 site-dist/
+*.tsbuildinfo
 .mcp.json
 .vercel/
 mcp.json

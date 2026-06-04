@@ -141,6 +141,7 @@ export interface ServiceContextResponse extends ServiceTrafficPathContext {
     readonly references?: number;
   };
   readonly deployment_evidence?: {
+    readonly artifact_count?: number;
     readonly artifacts?: readonly DeploymentArtifactRecord[];
   };
   readonly deployment_lanes?: readonly ServiceDeploymentLaneRecord[];
@@ -408,10 +409,6 @@ function spotlightSummary(
   consumers: number
 ): string {
   return `${name} exposes ${endpoints} endpoint(s), runs through ${lanes} deployment lane(s), has ${dependencies} upstream relationship(s), and ${consumers} downstream relationship(s).`;
-}
-
-function unique(values: readonly string[]): readonly string[] {
-  return [...new Set(values.filter((value) => value.trim().length > 0))];
 }
 
 function nonEmpty(...values: readonly (string | undefined)[]): string {
