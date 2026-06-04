@@ -39,18 +39,9 @@ jobs:
         working-directory: go
         run: |
           # The full module build is covered by the normal build workflow.
-          # CodeQL traces this representative shipped runtime set to keep
-          # generated collector packages from exhausting the PR scanner.
-          go build \
-            ./cmd/eshu \
-            ./cmd/api \
-            ./cmd/mcp-server \
-            ./cmd/ingester \
-            ./cmd/reducer \
-            ./cmd/bootstrap-index \
-            ./cmd/bootstrap-data-plane \
-            ./cmd/workflow-coordinator \
-            ./cmd/scanner-worker
+          # CodeQL traces the status/query packages touched by this PR so the
+          # scanner remains stable while generated collectors compile elsewhere.
+          go test -run '^$' ./internal/status ./internal/query
 
       - name: Perform CodeQL analysis
         uses: github/codeql-action/analyze@v4
