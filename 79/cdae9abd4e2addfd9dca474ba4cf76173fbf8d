@@ -1,0 +1,32 @@
+scripts/test-remote-e2e-confluence-preflight.sh
+  s_f2f7fbb6f30866::t_50a5ce04c9c445 1-85
+scripts/remote-e2e-confluence-preflight.sh
+  s_f2f7fbb6f30866::t_50a5ce04c9c445 1-53
+.env.remote-e2e.example
+  s_f2f7fbb6f30866::t_8f8aae5159519b 97-100
+docs/public/reference/local-testing/remote-collector-e2e.md
+  s_f2f7fbb6f30866::t_8fe2eeccca309c 57-74
+  s_f2f7fbb6f30866::t_8f8aae5159519b 49-56
+scripts/test-remote-e2e-hosted-compose-render.sh
+  s_f2f7fbb6f30866::t_21f21eb6f1eeba 130-132
+  s_f2f7fbb6f30866::t_5ae1a55690d256 55-57,60,64-67,71,95-96,99,102-103,110,117-121,134,138,143-144
+  s_f2f7fbb6f30866::t_ee2c17db7a5834 129
+docker-compose.remote-e2e.yaml
+  s_f2f7fbb6f30866::t_e0ed692c2d6eea 891-909,937-938
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "79cdae9abd4e2addfd9dca474ba4cf76173fbf8d",
+  "prompts": {},
+  "sessions": {
+    "s_f2f7fbb6f30866": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e360b-90eb-7472-bac7-56d488b65f77",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
