@@ -77,6 +77,8 @@ type Instruments struct {
 	SecretsIAMSourceAPICalls                  metric.Int64Counter
 	SecretsIAMSourceFactsEmitted              metric.Int64Counter
 	SecretsIAMSourcePartialScope              metric.Int64Counter
+	SecretsIAMSourceRedactions                metric.Int64Counter
+	SecretsIAMSourceScopeFreshness            metric.Float64Gauge
 	SecretsIAMGraphNodesWritten               metric.Int64Counter
 	SecretsIAMGraphEdgesWritten               metric.Int64Counter
 	SecretsIAMGraphSkipped                    metric.Int64Counter
@@ -932,6 +934,23 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register SecretsIAMSourcePartialScope counter: %w", err)
+	}
+
+	inst.SecretsIAMSourceRedactions, err = meter.Int64Counter(
+		"eshu_dp_secrets_iam_source_redactions_total",
+		metric.WithDescription("Total secrets/IAM source-collector redactions applied by source and bounded field class"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register SecretsIAMSourceRedactions counter: %w", err)
+	}
+
+	inst.SecretsIAMSourceScopeFreshness, err = meter.Float64Gauge(
+		"eshu_dp_secrets_iam_source_scope_freshness_seconds",
+		metric.WithDescription("Age in seconds of the latest secrets/IAM source generation at finalization, by source and scope kind"),
+		metric.WithUnit("s"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register SecretsIAMSourceScopeFreshness gauge: %w", err)
 	}
 
 	inst.SecretsIAMGraphNodesWritten, err = meter.Int64Counter(
@@ -2912,6 +2931,13 @@ func AttrSource(v string) attribute.KeyValue {
 // AttrSourceSystem returns a source_system attribute for metric recording.
 func AttrSourceSystem(v string) attribute.KeyValue {
 	return attribute.String(MetricDimensionSourceSystem, v)
+}
+
+// AttrFieldClass returns a field_class attribute for redaction metrics. Callers
+// MUST pass a bounded FieldClass* value naming the redacted field shape, never
+// the redacted content.
+func AttrFieldClass(v string) attribute.KeyValue {
+	return attribute.String(MetricDimensionFieldClass, v)
 }
 
 // AttrGenerationID returns a generation_id attribute for metric recording.

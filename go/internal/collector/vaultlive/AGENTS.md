@@ -18,6 +18,14 @@ Scoped agent instructions for the live Vault source lane (issue #25, #1344).
   cross-source joins, or graph writes here.
 - Apply TDD: add the failing test before the mapping for each new `vault_*` fact
   family.
+- Keep telemetry labels bounded. The redaction counter
+  (`eshu_dp_secrets_iam_source_redactions_total`) is keyed by `field_class`, a
+  closed enum (`telemetry.FieldClass*`) naming the stripped field *shape* — never
+  the redacted value. The freshness gauge
+  (`eshu_dp_secrets_iam_source_scope_freshness_seconds`) is labeled by `source`
+  and the bounded `scope_kind`; never a cluster id, namespace, path, or address.
+  Record redactions only at the actual redaction site; do not count redactions
+  that did not happen.
 
 ## Patterns to follow
 

@@ -7,8 +7,11 @@ import (
 	"slices"
 	"strings"
 
+	"go.opentelemetry.io/otel/metric"
+
 	"github.com/eshu-hq/eshu/go/internal/collector/secretsiam"
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/telemetry"
 )
 
 // Source maps read-only Vault metadata into redacted secretsiam source facts
@@ -17,6 +20,12 @@ import (
 type Source struct {
 	// CollectorInstanceID identifies the collector instance for fact provenance.
 	CollectorInstanceID string
+	// Instruments is optional. When set, the source records
+	// eshu_dp_secrets_iam_source_redactions_total at the redaction site so an
+	// operator can see which credential-bearing field classes are being stripped
+	// from Vault source provenance. A nil value disables redaction metrics while
+	// keeping redaction itself intact.
+	Instruments *telemetry.Instruments
 }
 
 // Collect reads metadata from the Vault Client and returns redacted source-fact
@@ -36,8 +45,11 @@ func (s Source) Collect(ctx context.Context, target VaultTarget, client Client) 
 	}
 	// Sanitize the Vault endpoint URL once: a credential-bearing address
 	// (basic-auth userinfo or a token query param) must never reach a fact's
-	// SourceRef. Every family and the context use the sanitized form.
-	uri := sanitizeVaultSourceURI(target.SourceURI)
+	// SourceRef. Every family and the context use the sanitized form. The
+	// redacted field classes are recorded as a metric at this single redaction
+	// site so the counter reflects what was actually stripped, never a value.
+	uri, redactedClasses := sanitizeVaultSourceURI(target.SourceURI)
+	s.recordRedactions(ctx, redactedClasses)
 	vaultCtx := s.vaultContext(target, uri)
 	var envelopes []facts.Envelope
 	var err error
@@ -181,15 +193,47 @@ func (s Source) vaultContext(target VaultTarget, sourceURI string) secretsiam.Va
 // address (basic-auth userinfo or token query parameters) can never be
 // persisted in a fact's SourceRef. It returns "" when the value is not a
 // parseable absolute URL, so an unexpected shape is omitted rather than leaked.
-func sanitizeVaultSourceURI(raw string) string {
+//
+// The second return value is the bounded set of telemetry field-class labels
+// (telemetry.FieldClass*) for the components that were actually stripped, so a
+// redaction counter can be keyed by field class without ever recording the
+// redacted value. An unparseable URL reports no field classes: the whole value
+// is dropped, not field-redacted, so it would be misleading to attribute it to
+// a userinfo/query/fragment class.
+func sanitizeVaultSourceURI(raw string) (string, []string) {
 	trimmed := strings.TrimSpace(raw)
 	if trimmed == "" {
-		return ""
+		return "", nil
 	}
 	parsed, err := url.Parse(trimmed)
 	if err != nil || parsed.Scheme == "" || parsed.Host == "" {
-		return ""
+		return "", nil
+	}
+	var redacted []string
+	if parsed.User != nil {
+		redacted = append(redacted, telemetry.FieldClassURIUserinfo)
+	}
+	if parsed.RawQuery != "" || parsed.ForceQuery {
+		redacted = append(redacted, telemetry.FieldClassURIQuery)
+	}
+	if parsed.Fragment != "" || parsed.RawFragment != "" {
+		redacted = append(redacted, telemetry.FieldClassURIFragment)
 	}
 	safe := url.URL{Scheme: parsed.Scheme, Host: parsed.Host, Path: parsed.Path}
-	return safe.String()
+	return safe.String(), redacted
+}
+
+// recordRedactions increments eshu_dp_secrets_iam_source_redactions_total once
+// per stripped field class. It is a no-op when Instruments is nil or no field
+// was redacted, so the metric reflects real redactions only.
+func (s Source) recordRedactions(ctx context.Context, fieldClasses []string) {
+	if s.Instruments == nil {
+		return
+	}
+	for _, fieldClass := range fieldClasses {
+		s.Instruments.SecretsIAMSourceRedactions.Add(ctx, 1, metric.WithAttributes(
+			telemetry.AttrSource(secretsIAMSourceVault),
+			telemetry.AttrFieldClass(fieldClass),
+		))
+	}
 }

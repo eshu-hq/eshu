@@ -40,6 +40,8 @@ func TestNewInstrumentsNoError(t *testing.T) {
 	assert.NotNil(t, inst.TerraformStateWarningsEmitted, "TerraformStateWarningsEmitted counter should be registered")
 	assert.NotNil(t, inst.TerraformStateRedactionsApplied, "TerraformStateRedactionsApplied counter should be registered")
 	assert.NotNil(t, inst.TerraformStateS3ConditionalGetNotModified, "TerraformStateS3ConditionalGetNotModified counter should be registered")
+	assert.NotNil(t, inst.SecretsIAMSourceRedactions, "SecretsIAMSourceRedactions counter should be registered")
+	assert.NotNil(t, inst.SecretsIAMSourceScopeFreshness, "SecretsIAMSourceScopeFreshness gauge should be registered")
 	assert.NotNil(t, inst.PackageRegistryRequests, "PackageRegistryRequests counter should be registered")
 	assert.NotNil(t, inst.PackageRegistryFactsEmitted, "PackageRegistryFactsEmitted counter should be registered")
 	assert.NotNil(t, inst.PackageRegistryRateLimited, "PackageRegistryRateLimited counter should be registered")
