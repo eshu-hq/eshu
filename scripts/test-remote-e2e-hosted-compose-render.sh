@@ -52,14 +52,23 @@ assert_static_contract() {
 		'^  collector-security-alerts-preflight:$' \
 		'preflight-provider-access' \
 		'collector-security-alerts-preflight:' \
+		'^  collector-confluence-preflight:$' \
+		'remote-e2e-confluence-preflight.sh' \
+		'collector-confluence-preflight:' \
 		'^  collector-jira:$' \
 		'^  collector-pagerduty:$' \
+		'^  collector-confluence:$' \
 		'ESHU_JIRA_COLLECTOR_INSTANCE_ID: remote-e2e-jira' \
 		'ESHU_JIRA_JQL:' \
 		'ESHU_PAGERDUTY_COLLECTOR_INSTANCE_ID: remote-e2e-pagerduty' \
+		'ESHU_CONFLUENCE_BASE_URL:' \
+		'ESHU_CONFLUENCE_SPACE_ID:' \
+		'ESHU_CONFLUENCE_SPACE_IDS:' \
+		'ESHU_CONFLUENCE_ROOT_PAGE_ID:' \
 		'"jql_env": "ESHU_JIRA_JQL"' \
 		'127.0.0.1:19675:6060' \
 		'127.0.0.1:19674:6060' \
+		'127.0.0.1:19668:6060' \
 		'ESHU_REMOTE_E2E_JIRA_ENABLED=false' \
 		'ESHU_REMOTE_E2E_PAGERDUTY_ENABLED=false'; do
 		if ! rg -q "${want}" \
@@ -83,23 +92,33 @@ compose_services "${default_services}"
 assert_service_present "${default_services}" collector-security-alerts-preflight
 assert_service_absent "${default_services}" collector-jira
 assert_service_absent "${default_services}" collector-pagerduty
+assert_service_absent "${default_services}" collector-confluence
+assert_service_absent "${default_services}" collector-confluence-preflight
 
 profiled_services="${TMP_DIR}/profiled-services.txt"
-compose_services "${profiled_services}" --profile jira --profile pagerduty
+compose_services "${profiled_services}" --profile jira --profile pagerduty --profile confluence
 assert_service_present "${profiled_services}" collector-jira
 assert_service_present "${profiled_services}" collector-pagerduty
+assert_service_present "${profiled_services}" collector-confluence
+assert_service_present "${profiled_services}" collector-confluence-preflight
 
 rendered="${TMP_DIR}/profiled-config.yaml"
 docker compose --env-file "${REPO_ROOT}/.env.remote-e2e.example" \
 	-f "${REPO_ROOT}/docker-compose.remote-e2e.yaml" \
 	--profile jira \
 	--profile pagerduty \
+	--profile confluence \
 	config >"${rendered}"
 
 for want in \
 	'ESHU_JIRA_COLLECTOR_INSTANCE_ID: remote-e2e-jira' \
 	'ESHU_PAGERDUTY_COLLECTOR_INSTANCE_ID: remote-e2e-pagerduty' \
 	'ESHU_JIRA_JQL:' \
+	'ESHU_CONFLUENCE_BASE_URL:' \
+	'ESHU_CONFLUENCE_SPACE_ID:' \
+	'ESHU_CONFLUENCE_SPACE_IDS:' \
+	'ESHU_CONFLUENCE_ROOT_PAGE_ID:' \
+	'remote-e2e-confluence-preflight.sh' \
 	'JIRA_API_TOKEN:' \
 	'PAGERDUTY_API_TOKEN:'; do
 	if ! rg -q "${want}" "${rendered}"; then
@@ -107,16 +126,22 @@ for want in \
 	fi
 done
 
+if ! rg -q -U 'collector-confluence:\n    profiles:\n(?:.*\n)*    depends_on:\n      collector-confluence-preflight:\n        condition: service_completed_successfully' "${rendered}"; then
+	die "profiled Confluence render does not gate collector startup on collector-confluence-preflight"
+fi
+
 pprof_rendered="${TMP_DIR}/profiled-pprof-config.yaml"
-compose_pprof_config "${pprof_rendered}" --profile jira --profile pagerduty
+compose_pprof_config "${pprof_rendered}" --profile jira --profile pagerduty --profile confluence
 for want in \
 	'collector-jira:' \
 	'collector-pagerduty:' \
+	'collector-confluence:' \
 	'ESHU_PPROF_ADDR: 0.0.0.0:6060' \
 	'host_ip: 127.0.0.1' \
 	'target: 6060' \
 	'published: "19675"' \
-	'published: "19674"'; do
+	'published: "19674"' \
+	'published: "19668"'; do
 	if ! rg -q "${want}" "${pprof_rendered}"; then
 		die "profiled pprof render missing ${want}"
 	fi

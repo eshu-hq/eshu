@@ -888,6 +888,25 @@ services:
       workflow-coordinator:
         condition: service_healthy
 
+  collector-confluence-preflight:
+    image: alpine:3.21
+    profiles:
+      - confluence
+    restart: "no"
+    environment:
+      ESHU_CONFLUENCE_BASE_URL: ${ESHU_CONFLUENCE_BASE_URL:-}
+      ESHU_CONFLUENCE_SPACE_ID: ${ESHU_CONFLUENCE_SPACE_ID:-}
+      ESHU_CONFLUENCE_SPACE_IDS: ${ESHU_CONFLUENCE_SPACE_IDS:-}
+      ESHU_CONFLUENCE_ROOT_PAGE_ID: ${ESHU_CONFLUENCE_ROOT_PAGE_ID:-}
+      ESHU_CONFLUENCE_BEARER_TOKEN: ${ESHU_CONFLUENCE_BEARER_TOKEN:-}
+      ESHU_CONFLUENCE_EMAIL: ${ESHU_CONFLUENCE_EMAIL:-}
+      ESHU_CONFLUENCE_API_TOKEN: ${ESHU_CONFLUENCE_API_TOKEN:-}
+    volumes:
+      - ./scripts/remote-e2e-confluence-preflight.sh:/usr/local/bin/remote-e2e-confluence-preflight.sh:ro
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - /bin/sh /usr/local/bin/remote-e2e-confluence-preflight.sh
+
   collector-confluence:
     build:
       context: .
@@ -915,6 +934,8 @@ services:
       timeout: 5s
       retries: 10
     depends_on:
+      collector-confluence-preflight:
+        condition: service_completed_successfully
       db-migrate:
         condition: service_completed_successfully
 

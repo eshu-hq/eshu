@@ -46,6 +46,32 @@ only the `jql_env` reference in collector instance JSON, and the enabled
 `collector-jira` container must receive the referenced `ESHU_JIRA_JQL`
 environment variable so private JQL is resolved inside the worker process.
 
+For Confluence profile proof, keep `ESHU_CONFLUENCE_BASE_URL`, read-only
+credentials, and the bounded crawl selector in the private env file. The
+profile runs `collector-confluence-preflight` before the collector starts and
+fails once when no bounded selector is configured. Set exactly one of
+`ESHU_CONFLUENCE_SPACE_ID`, `ESHU_CONFLUENCE_SPACE_IDS`, or
+`ESHU_CONFLUENCE_ROOT_PAGE_ID`; a missing selector is a configuration failure,
+not a collector restart loop.
+
+No-Regression Evidence: the Confluence preflight change is remote Compose
+configuration validation only. It adds a one-shot Alpine preflight before
+collector startup and does not change Confluence provider calls, queue claims,
+worker concurrency, graph writes, or query behavior. The focused checks
+`scripts/test-remote-e2e-confluence-preflight.sh` and
+`scripts/test-remote-e2e-hosted-compose-render.sh` cover the selector/auth
+failures, profile-gated render, and preflight dependency shape. A remote
+Compose scratch proof rendered the Confluence profile, failed the missing
+selector case with the accepted selector names, and passed the single-selector
+case.
+
+No-Observability-Change: existing Confluence collector startup errors,
+`/healthz`, `/readyz`, `/metrics`, `/admin/status`, pprof, workflow status,
+and Confluence provider/fact metrics remain the diagnostic surface. The
+preflight prevents a known bad bounded-scope configuration from entering a
+collector restart loop, so operators see one sanitized configuration error
+before source reads begin.
+
 No-Regression Evidence: the Jira JQL pass-through change is Compose
 environment wiring only. It does not change provider calls, queue claims,
 worker concurrency, graph writes, or query behavior. The remote hosted Compose
