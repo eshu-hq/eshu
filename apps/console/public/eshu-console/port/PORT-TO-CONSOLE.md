@@ -1,0 +1,109 @@
+# Porting the redesigned console into `apps/console` + live API
+
+This package contains the redesigned Eshu console (dark graph-first UI) and a
+TypeScript adapter that maps the **real Eshu HTTP API (`/api/v0/*`)** into the
+view-models the UI renders. Two ways to run it against your live stack.
+
+---
+
+## The one hard constraint: serving origin
+
+A browser can only call the Eshu API without CORS when the page is **served from
+an origin that proxies to it**. Your `apps/console` already does this — `vite.config.ts`
+proxies `"/eshu-api" → http://127.0.0.1:8080`. So the page must be served by that
+dev server (or any host that proxies `/eshu-api/`). Opening the HTML from `file://`
+or a sandbox preview cannot reach `localhost:8080` (mixed-content + CORS + opaque origin).
+
+The MCP endpoint (`:8081/sse`) is the **assistant** protocol (JSON-RPC/SSE) and is
+not the surface a dashboard should consume — use the HTTP API on `:8080`.
+
+---
+
+## Path A — run the prototype behind the existing proxy (fastest, ~2 min)
+
+1. Copy these into the console's static dir:
+   ```
+   cp "Eshu Console.html"  apps/console/public/index-console.html
+   cp -r console            apps/console/public/console
+   cp -r assets             apps/console/public/assets
+   ```
+2. Start the console dev server (it proxies `/eshu-api/`):
+   ```
+   npm run --prefix apps/console dev
+   ```
+3. Open `http://localhost:5174/index-console.html`.
+4. Click the **Demo data** pill (top-right) → **Live Eshu API** → base `/eshu-api/`,
+   paste your **API key**, **Connect**.
+   - The key lives only in memory + `localStorage` (`eshu.console.environment`),
+     matching the real console. It is never written to source.
+5. Live sections (runtime, catalog, languages, ingesters, dead-code findings,
+   supply-chain vulnerabilities) hydrate from the graph; panels without a live
+   endpoint keep demo facts and say so in the banner.
+
+The client + mappers already live in `console/data.js` (`ESHU.EshuApiClient`,
+`ESHU.loadLive`). Endpoints used:
+
+| Console panel        | Endpoint |
+| -------------------- | -------- |
+| Dashboard / Ops stats| `GET /api/v0/ecosystem/overview`, `GET /api/v0/index-status` |
+| Catalog              | `GET /api/v0/catalog?limit=2000` |
+| Language chart       | `GET /api/v0/repositories/by-language` |
+| Collectors           | `GET /api/v0/status/ingesters` |
+| Findings             | `POST /api/v0/code/dead-code` |
+| Vulnerabilities      | `GET /api/v0/supply-chain/impact/findings` |
+| Graph drill (next)   | `POST /api/v0/code/relationships`, `POST /api/v0/impact/blast-radius` |
+
+---
+
+## Path B — adopt the design into the real `apps/console` (production)
+
+The prototype is structured to make this mechanical:
+
+1. **API layer.** Copy `eshuConsoleLive.ts` → `apps/console/src/api/`. It uses the
+   existing `EshuApiClient` and `envelope.ts` types and returns a typed
+   `ConsoleSnapshot`. Call it from a page loader the way `DashboardPage.tsx`
+   already calls `loadDashboardSnapshot`:
+   ```ts
+   const client = environment.mode === "private"
+     ? new EshuApiClient({ apiKey: environment.apiKey, baseUrl: environment.apiBaseUrl })
+     : undefined;
+   const snapshot = client ? await loadConsoleSnapshot(client) : demoSnapshot;
+   ```
+   It preserves `truth.level` (`exact|derived|fallback`) and
+   `freshness.state` (`fresh|stale|building|unavailable`) per section, and reports
+   `provenance` so panels render "live" vs "not available" instead of failing.
+
+2. **Visual system.** `console/styles.css` is framework-agnostic CSS (tokens +
+   component classes). Drop it in and replace the current console CSS, or port the
+   `:root` token block first and migrate panel-by-panel.
+
+3. **Components.** The pages in `console/*.jsx` are plain React (no app-specific
+   deps) — port them to `.tsx` and swap the `ESHU` global for the `ConsoleSnapshot`
+   loader above. Suggested order: Dashboard → Catalog → Findings → Operations →
+   Vulnerabilities → Graph Explorer.
+
+4. **Truth mapping.** UI chips expect `exact | derived | inferred`; the API emits
+   `fallback` where the prototype shows `inferred`. `chipTruth()` in `data.js`
+   (and the `TruthLevel` passthrough in `eshuConsoleLive.ts`) is the single place
+   that mapping lives.
+
+---
+
+## What stays representative until wired
+
+- **Graph Explorer edges** — the focus/estate graph is still the static
+  sample dependency graph. Live-wire it with `POST /api/v0/code/relationships`
+  (per-node `IMPORTS`/`CALLS`) and `POST /api/v0/impact/blast-radius`.
+- **Time-series** (ingestion rate, query latency) — no historical series endpoint;
+  these stay demo sparklines unless you scrape Prometheus.
+- **Vuln CVSS/EPSS/KEV detail** depends on the vulnerability-intelligence collector
+  being enabled; otherwise `supply-chain/impact/findings` returns an empty/limited set.
+
+---
+
+## Security note
+
+The API key is a bearer credential. It is entered at runtime into the data-source
+panel and persisted only in the browser's `localStorage` (same as the real
+console's `eshu.console.environment`). It is **not** committed to any file in this
+package. Rotate it if it has been shared in plaintext anywhere.

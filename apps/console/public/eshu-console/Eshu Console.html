@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Eshu Console</title>
+  <link rel="icon" href="assets/eshu-favicon.svg" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="console/styles.css" />
+  <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+  <script src="console/data.js"></script>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="text/babel" src="console/icons.jsx"></script>
+  <script type="text/babel" src="console/viz.jsx"></script>
+  <script type="text/babel" src="console/graph.jsx"></script>
+  <script type="text/babel" src="console/tweaks-panel.jsx"></script>
+  <script type="text/babel" src="console/pages-core.jsx"></script>
+  <script type="text/babel" src="console/pages-data.jsx"></script>
+  <script type="text/babel" src="console/app.jsx"></script>
+
+  <template id="__bundler_thumbnail">
+    <svg viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+      <rect width="512" height="512" fill="#0a0e13" />
+      <g stroke="#FF8A00" stroke-width="42" stroke-linecap="round" stroke-linejoin="round" transform="translate(100 56) scale(0.78)">
+        <path d="M152 112H344" /><path d="M152 112V190" /><path d="M152 322V400" /><path d="M198 256H304" /><path d="M152 400H344" />
+      </g>
+      <g fill="#14B8A6" transform="translate(100 56) scale(0.78)">
+        <circle cx="152" cy="112" r="32" /><circle cx="344" cy="112" r="32" /><circle cx="304" cy="256" r="32" /><circle cx="152" cy="400" r="32" /><circle cx="344" cy="400" r="32" />
+      </g>
+      <circle cx="219" cy="256" r="37" fill="none" stroke="#14B8A6" stroke-width="27" />
+    </svg>
+  </template>
+</body>
+</html>
