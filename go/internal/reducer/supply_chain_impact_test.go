@@ -271,6 +271,95 @@ func TestBuildSupplyChainImpactFindingsConnectsProviderAlertRuntimeContext(t *te
 	assertNotContainsString(t, got.MissingEvidence, "service evidence missing")
 }
 
+func TestBuildSupplyChainImpactFindingsConnectsProviderAlertRuntimeContextFromRepositoryScope(t *testing.T) {
+	t.Parallel()
+
+	repoID := "repository:r_api"
+	packageID := "npm://registry.npmjs.org/fast-uri"
+	alert := securityAlertEnvelope("alert-runtime-repository-scope", repoID, map[string]any{
+		"provider":              "github_dependabot",
+		"provider_alert_number": int64(172),
+		"provider_state":        "open",
+		"package_id":            packageID,
+		"ecosystem":             "npm",
+		"package_name":          "fast-uri",
+		"manifest_path":         "package-lock.json",
+		"dependency_scope":      "runtime",
+		"relationship":          "transitive",
+		"ghsa_ids":              []string{"GHSA-provider-runtime-scope"},
+		"cve_ids":               []string{"CVE-2026-47141"},
+		"vulnerable_range":      "< 3.1.0",
+		"patched_version":       "3.1.0",
+		"severity":              "high",
+		"updated_at":            "2026-05-26T12:00:00Z",
+	})
+	consumption := packageConsumptionCorrelationEnvelope("consume-runtime-repository-scope", repoID, packageID, "package-lock.json")
+	consumption.Payload["dependency_range"] = "3.0.3"
+	consumption.Payload["dependency_scope"] = "runtime"
+	workload := workloadIdentityRepositoryScopeImpactFact("workload-runtime-repository-scope", repoID, testImpactWorkloadID)
+
+	findings := BuildSupplyChainImpactFindings([]facts.Envelope{
+		alert,
+		consumption,
+		workload,
+	})
+
+	if got, want := len(findings), 1; got != want {
+		t.Fatalf("len(findings) = %d, want %d: %#v", got, want, findings)
+	}
+	got := findings[0]
+	assertSupplyChainImpactStatus(t, got, SupplyChainImpactAffectedExact)
+	assertContainsString(t, got.WorkloadIDs, testImpactWorkloadID)
+	assertContainsString(t, got.EvidencePath, workloadIdentityFactKind)
+	assertContainsString(t, got.EvidenceFactIDs, "workload-runtime-repository-scope")
+	assertNotContainsString(t, got.MissingEvidence, "workload evidence missing")
+	assertContainsString(t, got.MissingEvidence, "service evidence missing")
+}
+
+func TestBuildSupplyChainImpactFindingsConnectsProviderAlertRuntimeContextFromRelatedRepositoryScope(t *testing.T) {
+	t.Parallel()
+
+	repoID := "repository:r_api"
+	packageID := "npm://registry.npmjs.org/fast-uri"
+	alert := securityAlertEnvelope("alert-runtime-related-repository-scope", repoID, map[string]any{
+		"provider":              "github_dependabot",
+		"provider_alert_number": int64(173),
+		"provider_state":        "open",
+		"package_id":            packageID,
+		"ecosystem":             "npm",
+		"package_name":          "fast-uri",
+		"manifest_path":         "package-lock.json",
+		"dependency_scope":      "runtime",
+		"relationship":          "transitive",
+		"ghsa_ids":              []string{"GHSA-provider-runtime-related-scope"},
+		"vulnerable_range":      "< 3.1.0",
+		"patched_version":       "3.1.0",
+		"severity":              "high",
+		"updated_at":            "2026-05-26T12:00:00Z",
+	})
+	consumption := packageConsumptionCorrelationEnvelope("consume-runtime-related-repository-scope", repoID, packageID, "package-lock.json")
+	consumption.Payload["dependency_range"] = "3.0.3"
+	consumption.Payload["dependency_scope"] = "runtime"
+	workload := workloadIdentityRepositoryScopeImpactFact("workload-runtime-related-repository-scope", repoID, testImpactWorkloadID)
+	workload.ScopeID = "workload-identity-scope:temporary"
+	workload.Payload["scope_id"] = workload.ScopeID
+
+	findings := BuildSupplyChainImpactFindings([]facts.Envelope{
+		alert,
+		consumption,
+		workload,
+	})
+
+	if got, want := len(findings), 1; got != want {
+		t.Fatalf("len(findings) = %d, want %d: %#v", got, want, findings)
+	}
+	got := findings[0]
+	assertSupplyChainImpactStatus(t, got, SupplyChainImpactAffectedExact)
+	assertContainsString(t, got.WorkloadIDs, testImpactWorkloadID)
+	assertNotContainsString(t, got.MissingEvidence, "workload evidence missing")
+	assertContainsString(t, got.MissingEvidence, "service evidence missing")
+}
+
 func TestBuildSupplyChainImpactFindingsResolvesProviderAlertRepositoryScope(t *testing.T) {
 	t.Parallel()
 

@@ -304,6 +304,20 @@ func workloadIdentityImpactFact(factID string, repositoryID string, workloadID s
 	}
 }
 
+func workloadIdentityRepositoryScopeImpactFact(factID string, repositoryID string, workloadID string) facts.Envelope {
+	scopeID := "git-repository-scope:" + repositoryID
+	return facts.Envelope{
+		FactID:   factID,
+		FactKind: workloadIdentityFactKind,
+		ScopeID:  scopeID,
+		Payload: map[string]any{
+			"scope_id":          scopeID,
+			"related_scope_ids": []any{scopeID},
+			"entity_keys":       []any{workloadID},
+		},
+	}
+}
+
 func containerImageIdentityImpactFactWithOutcome(
 	factID string,
 	digest string,
