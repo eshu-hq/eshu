@@ -42,7 +42,18 @@ func (h *RepositoryHandler) getRepositoryStats(w http.ResponseWriter, r *http.Re
 	coverageMap := repositoryStatsCoverageMap(coverage, coverageErr, h.Content != nil)
 	timer.Done(ctx, repositoryStatsCoverageLogAttrs(coverageMap, coverageErr)...)
 
-	WriteJSON(w, http.StatusOK, repositoryStatsResponse(repo, coverage, coverageMap))
+	WriteSuccess(
+		w,
+		r,
+		http.StatusOK,
+		repositoryStatsResponse(repo, coverage, coverageMap),
+		BuildTruthEnvelope(
+			h.profile(),
+			"platform_impact.context_overview",
+			repositoryStatsTruthBasis(coverageMap),
+			"resolved from bounded repository identity and content coverage; missing coverage remains explicit",
+		),
+	)
 }
 
 func (h *RepositoryHandler) repositoryStatsRepositoryRef(
@@ -108,6 +119,13 @@ func repositoryStatsResponse(
 	stats["entity_count"] = coverage.EntityCount
 	stats["entity_types"] = repositoryStatsEntityTypeNames(coverage.EntityTypes)
 	return stats
+}
+
+func repositoryStatsTruthBasis(coverageMap map[string]any) TruthBasis {
+	if StringVal(coverageMap, "source_backend") == "content_store" {
+		return TruthBasisContentIndex
+	}
+	return TruthBasisHybrid
 }
 
 func repositoryStatsCoverageMap(
