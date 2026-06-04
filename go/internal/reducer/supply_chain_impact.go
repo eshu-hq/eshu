@@ -388,7 +388,7 @@ func BuildSupplyChainImpactFindings(envelopes []facts.Envelope) []SupplyChainImp
 			continue
 		}
 	}
-	findings = appendSecurityAlertImpactFindings(findings, envelopes)
+	findings = appendSecurityAlertImpactFindings(findings, envelopes, index)
 	sort.SliceStable(findings, func(i, j int) bool {
 		if findings[i].CVEID != findings[j].CVEID {
 			return findings[i].CVEID < findings[j].CVEID

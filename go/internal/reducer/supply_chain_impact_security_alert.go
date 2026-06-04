@@ -10,6 +10,7 @@ import (
 func appendSecurityAlertImpactFindings(
 	findings []SupplyChainImpactFinding,
 	envelopes []facts.Envelope,
+	index supplyChainImpactIndex,
 ) []SupplyChainImpactFinding {
 	alerts := extractProviderSecurityAlerts(envelopes)
 	if len(alerts) == 0 {
@@ -18,7 +19,7 @@ func appendSecurityAlertImpactFindings(
 	consumptions := extractSecurityAlertConsumptions(envelopes)
 	consumptions = append(consumptions, extractSecurityAlertManifestConsumptions(alerts, envelopes)...)
 	for _, alert := range alerts {
-		finding, ok := buildSecurityAlertImpactFinding(alert, consumptions, findings)
+		finding, ok := buildSecurityAlertImpactFinding(alert, consumptions, findings, index)
 		if !ok {
 			continue
 		}
@@ -31,6 +32,7 @@ func buildSecurityAlertImpactFinding(
 	alert providerSecurityAlert,
 	consumptions []securityAlertConsumption,
 	existing []SupplyChainImpactFinding,
+	index supplyChainImpactIndex,
 ) (SupplyChainImpactFinding, bool) {
 	if !securityAlertCanSeedImpact(alert) {
 		return SupplyChainImpactFinding{}, false
@@ -99,6 +101,7 @@ func buildSecurityAlertImpactFinding(
 		}},
 	}
 	applySupplyChainVersionDecision(&finding, decision)
+	finalizeSupplyChainImpactFinding(&finding, index, decision.MissingEvidence)
 	return finding, true
 }
 
