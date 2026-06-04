@@ -7,9 +7,9 @@ import (
 )
 
 // InfraResourceAggregateStore reads cheap-summary aggregates over the
-// graph-backed infrastructure resource corpus (TerraformResource,
-// K8sResource, CloudFormationResource, ArgoCDApplication, CrossplaneXRD,
-// HelmChart, and friends — see `allInfraLabels` in infra.go). It replaces
+// graph-backed infrastructure resource corpus (CloudResource,
+// TerraformResource, K8sResource, CloudFormationResource, ArgoCDApplication,
+// CrossplaneXRD, HelmChart, and friends; see `allInfraLabels` in infra.go). It replaces
 // the page-and-iterate caller workflow for ecosystem-level questions like
 // "how many resources per provider?" or "how many Terraform resources per
 // account?" exposed by find_infra_resources.
@@ -18,7 +18,7 @@ import (
 // anchor with an indexed property. The list endpoint and this aggregate
 // both `MATCH (n)` filtered by an OR of the documented infrastructure
 // labels (see `infraLabelPredicate`). The `category` filter narrows the
-// label set to one of {k8s, terraform, argocd, crossplane, helm}; when
+// label set to one of {k8s, terraform, argocd, crossplane, helm, cloud}; when
 // combined with an indexed property predicate that label exposes, the
 // aggregate hits the cookbook Area-5 hot path. Without a category filter
 // the aggregate falls back to a label-set scan. The PR description names
@@ -152,7 +152,7 @@ func (s GraphInfraResourceAggregateStore) CountInfraResources(
 		ByLabel:        map[string]int{},
 	}
 	if err := s.fillBuckets(ctx, whereClause, params,
-		"CASE WHEN n.provider IS NULL OR n.provider = '' THEN 'unknown' ELSE n.provider END",
+		infraResourceProviderGroupExpression(filter),
 		out.ByProvider); err != nil {
 		return InfraResourceAggregateCount{}, err
 	}
@@ -206,7 +206,7 @@ func (s GraphInfraResourceAggregateStore) InfraResourceInventory(
 	if s.Graph == nil {
 		return nil, fmt.Errorf("infra resource aggregate graph is required")
 	}
-	groupExpr, err := infraResourceInventoryGroupExpression(dimension)
+	groupExpr, err := infraResourceInventoryGroupExpression(dimension, filter)
 	if err != nil {
 		return nil, err
 	}
@@ -253,30 +253,47 @@ func (s GraphInfraResourceAggregateStore) InfraResourceInventory(
 // parameters; only the label list is interpolated, and it comes from the
 // closed `allInfraLabels` / `infraCategoryLabels` enums (no user input).
 //
-// Property predicates use direct equality (`n.provider = $provider`) rather
-// than `coalesce(n.provider, '') = $provider`. The clauses only render when
-// the caller passed a non-empty filter value, so the coalesce-wrapped form
-// is semantically equivalent to direct equality (Cypher equality is
-// null-rejecting). Direct equality keeps the predicate eligible for the
-// `tf_resource_provider` / `tf_resource_environment` / `tf_resource_service`
-// / `tf_resource_category` indexes on TerraformResource; the coalesce
-// wrapper would block planner index selection.
+// Property predicates use direct equality on TerraformResource fields for
+// category-specific Terraform reads. The clauses only render when the caller
+// passed a non-empty filter value, so the coalesce-wrapped form is semantically
+// equivalent to direct equality (Cypher equality is null-rejecting). Direct
+// equality keeps the predicate eligible for the `tf_resource_provider` /
+// `tf_resource_environment` / `tf_resource_service` / `tf_resource_category`
+// indexes on TerraformResource; the coalesce wrapper would block planner
+// index selection. The all-category scope uses an OR across equivalent
+// provider/service fields so CloudResource rows remain reachable.
 func infraResourceAggregateWhereClause(labels []string, filter InfraResourceAggregateFilter) string {
 	clauses := []string{infraLabelPredicate(labels)}
 	if filter.Kind != "" {
-		clauses = append(clauses, "(n.kind = $kind OR n.resource_type = $kind OR n.data_type = $kind)")
+		if infraResourceAggregateCanReachCloud(filter) {
+			clauses = append(clauses, "(n.kind = $kind OR n.resource_type = $kind OR n.data_type = $kind OR n.service_kind = $kind)")
+		} else {
+			clauses = append(clauses, "(n.kind = $kind OR n.resource_type = $kind OR n.data_type = $kind)")
+		}
 	}
 	if filter.ResourceType != "" {
 		clauses = append(clauses, "(n.resource_type = $resource_type OR n.data_type = $resource_type)")
 	}
 	if filter.Provider != "" {
-		clauses = append(clauses, "n.provider = $provider")
+		if infraResourceAggregateCloudCategory(filter) {
+			clauses = append(clauses, "n.source_system = $provider")
+		} else if infraResourceAggregateAllCategories(filter) {
+			clauses = append(clauses, "(n.provider = $provider OR (n:CloudResource AND n.source_system = $provider))")
+		} else {
+			clauses = append(clauses, "n.provider = $provider")
+		}
 	}
 	if filter.Environment != "" {
 		clauses = append(clauses, "n.environment = $environment")
 	}
 	if filter.ResourceService != "" {
-		clauses = append(clauses, "n.resource_service = $resource_service")
+		if infraResourceAggregateCloudCategory(filter) {
+			clauses = append(clauses, "n.service_kind = $resource_service")
+		} else if infraResourceAggregateAllCategories(filter) {
+			clauses = append(clauses, "(n.resource_service = $resource_service OR n.service_kind = $resource_service)")
+		} else {
+			clauses = append(clauses, "n.resource_service = $resource_service")
+		}
 	}
 	if filter.ResourceCategory != "" {
 		clauses = append(clauses, "n.resource_category = $resource_category")
@@ -307,6 +324,38 @@ func infraResourceAggregateParams(filter InfraResourceAggregateFilter) map[strin
 	return params
 }
 
+func infraResourceAggregateCloudCategory(filter InfraResourceAggregateFilter) bool {
+	return strings.EqualFold(strings.TrimSpace(filter.Category), "cloud")
+}
+
+func infraResourceAggregateAllCategories(filter InfraResourceAggregateFilter) bool {
+	return strings.TrimSpace(filter.Category) == ""
+}
+
+func infraResourceAggregateCanReachCloud(filter InfraResourceAggregateFilter) bool {
+	return infraResourceAggregateCloudCategory(filter) || infraResourceAggregateAllCategories(filter)
+}
+
+func infraResourceProviderGroupExpression(filter InfraResourceAggregateFilter) string {
+	if infraResourceAggregateCloudCategory(filter) {
+		return "CASE WHEN n.source_system IS NULL OR n.source_system = '' THEN 'unknown' ELSE n.source_system END"
+	}
+	if infraResourceAggregateAllCategories(filter) {
+		return "CASE WHEN n.provider IS NULL OR n.provider = '' THEN CASE WHEN n:CloudResource THEN CASE WHEN n.source_system IS NULL OR n.source_system = '' THEN 'unknown' ELSE n.source_system END ELSE 'unknown' END ELSE n.provider END"
+	}
+	return "CASE WHEN n.provider IS NULL OR n.provider = '' THEN 'unknown' ELSE n.provider END"
+}
+
+func infraResourceServiceGroupExpression(filter InfraResourceAggregateFilter) string {
+	if infraResourceAggregateCloudCategory(filter) {
+		return "CASE WHEN n.service_kind IS NULL OR n.service_kind = '' THEN 'unknown' ELSE n.service_kind END"
+	}
+	if infraResourceAggregateAllCategories(filter) {
+		return "CASE WHEN coalesce(n.resource_service, n.service_kind, '') = '' THEN 'unknown' ELSE coalesce(n.resource_service, n.service_kind, '') END"
+	}
+	return "CASE WHEN n.resource_service IS NULL OR n.resource_service = '' THEN 'unknown' ELSE n.resource_service END"
+}
+
 // infraResourceInventoryGroupExpression maps the dimension enum to the safe
 // Cypher property reference substituted into the inventory query. Only
 // known enum values are accepted, so the substitution stays parameter-safe;
@@ -315,16 +364,17 @@ func infraResourceAggregateParams(filter InfraResourceAggregateFilter) map[strin
 // property never surfaces as `""` in the bucket key.
 func infraResourceInventoryGroupExpression(
 	dimension InfraResourceInventoryDimension,
+	filter InfraResourceAggregateFilter,
 ) (string, error) {
 	switch dimension {
 	case InfraResourceInventoryByProvider:
-		return "CASE WHEN n.provider IS NULL OR n.provider = '' THEN 'unknown' ELSE n.provider END", nil
+		return infraResourceProviderGroupExpression(filter), nil
 	case InfraResourceInventoryByEnvironment:
 		return "CASE WHEN n.environment IS NULL OR n.environment = '' THEN 'unknown' ELSE n.environment END", nil
 	case InfraResourceInventoryByResourceCategory:
 		return "CASE WHEN n.resource_category IS NULL OR n.resource_category = '' THEN 'unknown' ELSE n.resource_category END", nil
 	case InfraResourceInventoryByResourceService:
-		return "CASE WHEN n.resource_service IS NULL OR n.resource_service = '' THEN 'unknown' ELSE n.resource_service END", nil
+		return infraResourceServiceGroupExpression(filter), nil
 	case InfraResourceInventoryByLabel:
 		// `labels(n)` is a small list (1-2 labels per node); head() picks the
 		// canonical primary label. No empty-string normalization needed since

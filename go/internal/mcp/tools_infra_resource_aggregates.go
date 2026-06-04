@@ -6,7 +6,7 @@ package mcp
 // resources per provider?" without paging through the search endpoint.
 //
 // Hot-path performance requires the caller to narrow scope with at least a
-// `category` filter (k8s / terraform / argocd / crossplane / helm) and one
+// `category` filter (k8s / terraform / argocd / crossplane / helm / cloud) and one
 // indexed-property predicate. Without scope the aggregate falls back to a
 // multi-label scan across all documented infrastructure labels — correct,
 // but slower; operators should treat that mode as a one-off check.
@@ -14,14 +14,14 @@ func infraResourceAggregateTools() []ToolDefinition {
 	return []ToolDefinition{
 		{
 			Name:        "count_infra_resources",
-			Description: "Return graph-backed infrastructure resource totals for one optional scope without paging through individual resources. Provides total resources and rollups by provider, environment, and label (TerraformResource / K8sResource / CloudFormationResource / ArgoCDApplication / CrossplaneXRD / HelmChart / etc.). Pass `category` (k8s / terraform / argocd / crossplane / helm) to narrow to one label-set for hot-path performance.",
+			Description: "Return graph-backed infrastructure resource totals for one optional scope without paging through individual resources. Provides total resources and rollups by provider, environment, and label (CloudResource / TerraformResource / K8sResource / CloudFormationResource / ArgoCDApplication / CrossplaneXRD / HelmChart / etc.). Pass `category` (k8s / terraform / argocd / crossplane / helm / cloud) to narrow to one label-set for hot-path performance.",
 			InputSchema: map[string]any{
 				"type": "object",
 				"properties": map[string]any{
 					"category": map[string]any{
 						"type":        "string",
-						"description": "Optional category to narrow the label set (k8s / terraform / argocd / crossplane / helm). Recommended for hot-path performance.",
-						"enum":        []string{"k8s", "terraform", "argocd", "crossplane", "helm"},
+						"description": "Optional category to narrow the label set (k8s / terraform / argocd / crossplane / helm / cloud). Recommended for hot-path performance.",
+						"enum":        []string{"k8s", "terraform", "argocd", "crossplane", "helm", "cloud"},
 					},
 					"kind":              map[string]any{"type": "string", "description": "Optional resource kind / resource_type filter."},
 					"resource_type":     map[string]any{"type": "string", "description": "Optional Terraform/CloudFormation resource_type filter."},
@@ -47,7 +47,7 @@ func infraResourceAggregateTools() []ToolDefinition {
 					"category": map[string]any{
 						"type":        "string",
 						"description": "Optional category to narrow the label set. Recommended for hot-path performance.",
-						"enum":        []string{"k8s", "terraform", "argocd", "crossplane", "helm"},
+						"enum":        []string{"k8s", "terraform", "argocd", "crossplane", "helm", "cloud"},
 					},
 					"kind":              map[string]any{"type": "string"},
 					"resource_type":     map[string]any{"type": "string"},

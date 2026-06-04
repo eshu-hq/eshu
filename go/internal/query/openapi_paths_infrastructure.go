@@ -5,7 +5,7 @@ const openAPIPathsInfrastructure = `
       "post": {
         "tags": ["infrastructure"],
         "summary": "Search infrastructure resources",
-        "description": "Searches infrastructure resources by name or ID.",
+        "description": "Searches graph-backed infrastructure resources by name, ID, resource type, cloud ARN, or cloud resource ID.",
         "operationId": "searchInfraResources",
         "requestBody": {
           "required": true,
@@ -25,7 +25,7 @@ const openAPIPathsInfrastructure = `
                   },
                   "category": {
                     "type": "string",
-                    "enum": ["k8s", "terraform", "argocd", "crossplane", "helm"]
+                    "enum": ["k8s", "terraform", "argocd", "crossplane", "helm", "cloud"]
                   },
                   "limit": {"type": "integer", "default": 50, "maximum": 200}
                 }
@@ -41,7 +41,24 @@ const openAPIPathsInfrastructure = `
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "results": {"type": "array", "items": {"type": "object"}},
+                    "results": {"type": "array", "items": {"type": "object", "properties": {
+                      "id": {"type": "string"},
+                      "name": {"type": "string"},
+                      "labels": {"type": "array", "items": {"type": "string"}},
+                      "kind": {"type": "string"},
+                      "provider": {"type": "string"},
+                      "environment": {"type": "string"},
+                      "source": {"type": "string"},
+                      "config_path": {"type": "string"},
+                      "resource_type": {"type": "string"},
+                      "resource_service": {"type": "string"},
+                      "resource_category": {"type": "string"},
+                      "resource_id": {"type": "string"},
+                      "arn": {"type": "string"},
+                      "account_id": {"type": "string"},
+                      "region": {"type": "string"},
+                      "service_kind": {"type": "string"}
+                    }}},
                     "count": {"type": "integer"},
                     "limit": {"type": "integer"},
                     "truncated": {"type": "boolean"}
