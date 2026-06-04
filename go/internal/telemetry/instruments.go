@@ -77,6 +77,9 @@ type Instruments struct {
 	SecretsIAMSourceAPICalls                  metric.Int64Counter
 	SecretsIAMSourceFactsEmitted              metric.Int64Counter
 	SecretsIAMSourcePartialScope              metric.Int64Counter
+	SecretsIAMGraphNodesWritten               metric.Int64Counter
+	SecretsIAMGraphEdgesWritten               metric.Int64Counter
+	SecretsIAMGraphSkipped                    metric.Int64Counter
 	PackageRegistryRequests                   metric.Int64Counter
 	PackageRegistryFactsEmitted               metric.Int64Counter
 	PackageRegistryRateLimited                metric.Int64Counter
@@ -929,6 +932,28 @@ func NewInstruments(meter metric.Meter) (*Instruments, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("register SecretsIAMSourcePartialScope counter: %w", err)
+	inst.SecretsIAMGraphNodesWritten, err = meter.Int64Counter(
+		"eshu_dp_secrets_iam_graph_nodes_written_total",
+		metric.WithDescription("Total secrets/IAM graph projection nodes written by node type"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register SecretsIAMGraphNodesWritten counter: %w", err)
+	}
+
+	inst.SecretsIAMGraphEdgesWritten, err = meter.Int64Counter(
+		"eshu_dp_secrets_iam_graph_edges_written_total",
+		metric.WithDescription("Total secrets/IAM graph projection edges written by edge type"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register SecretsIAMGraphEdgesWritten counter: %w", err)
+	}
+
+	inst.SecretsIAMGraphSkipped, err = meter.Int64Counter(
+		"eshu_dp_secrets_iam_graph_skipped_total",
+		metric.WithDescription("Total secrets/IAM graph projection rows skipped by skip reason"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register SecretsIAMGraphSkipped counter: %w", err)
 	}
 
 	inst.PackageRegistryRequests, err = meter.Int64Counter(

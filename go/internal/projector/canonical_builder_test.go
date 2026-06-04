@@ -1182,15 +1182,24 @@ func TestEntityTypeLabelMapCoversAllSchemaLabels(t *testing.T) {
 	// s3_external_principal_grant_materialization reducer domain from bounded S3
 	// external-principal grant facts (issue #1231), not from parsed
 	// content-entity facts.
+	// SecretsIAMServiceAccount, SecretsIAMVaultAuthRole, SecretsIAMVaultPolicy,
+	// and SecretsIAMSecretMetadataPath are materialized by the
+	// secrets_iam_graph_projection reducer domain from reducer-owned secrets/IAM
+	// read-model facts (issue #1347, ADR #1314), not from parsed content-entity
+	// facts, so they have no entity_type mapping in this source-local map.
 	sourceLocalNonEntityLabels := map[string]struct{}{
-		"File":                    {},
-		"CloudResource":           {},
-		"KubernetesWorkload":      {},
-		"CidrBlock":               {},
-		"PrefixList":              {},
-		"SecurityGroupRule":       {},
-		"IncidentRoutingEvidence": {},
-		"ExternalPrincipal":       {},
+		"File":                         {},
+		"CloudResource":                {},
+		"KubernetesWorkload":           {},
+		"CidrBlock":                    {},
+		"PrefixList":                   {},
+		"SecurityGroupRule":            {},
+		"IncidentRoutingEvidence":      {},
+		"ExternalPrincipal":            {},
+		"SecretsIAMServiceAccount":     {},
+		"SecretsIAMVaultAuthRole":      {},
+		"SecretsIAMVaultPolicy":        {},
+		"SecretsIAMSecretMetadataPath": {},
 	}
 	var missing []string
 	for _, label := range schemaLabels {

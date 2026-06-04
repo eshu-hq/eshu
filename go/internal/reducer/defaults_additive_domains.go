@@ -112,6 +112,17 @@ func appendAdditiveDomainDefinitions(definitions []DomainDefinition, handlers De
 		}
 		definitions = append(definitions, secretsIAM)
 	}
+	if handlers.FactLoader != nil && handlers.SecretsIAMGraphWriter != nil {
+		secretsIAMGraph := secretsIAMGraphProjectionDomainDefinition()
+		secretsIAMGraph.Handler = SecretsIAMGraphProjectionHandler{
+			FactLoader:           handlers.FactLoader,
+			Writer:               handlers.SecretsIAMGraphWriter,
+			PriorGenerationCheck: handlers.PriorGenerationCheck,
+			Tracer:               handlers.Tracer,
+			Instruments:          handlers.Instruments,
+		}
+		definitions = append(definitions, secretsIAMGraph)
+	}
 	if handlers.AWSCloudRuntimeDriftEvidenceLoader != nil &&
 		handlers.AWSCloudRuntimeDriftWriter != nil {
 		awsRuntimeDrift := awsCloudRuntimeDriftDomainDefinition()
