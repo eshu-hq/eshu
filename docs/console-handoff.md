@@ -1,12 +1,16 @@
 # Eshu Console — work handoff for Claude Code
 
 Goal: finish porting the redesigned console into `apps/console/src` (native TSX,
-**live API data only — no mock/demo data**), and create the missing backend API
-endpoints the UI needs. This doc is split so you can paste each section into
-Claude Code (or have it create GitHub issues first, then work them).
+**live by default**), and create the missing backend API endpoints the UI needs.
+The console currently hydrates from the live API and falls back to a
+clearly-labeled demo fixture only when the API is unreachable; removing that demo
+path in favor of explicit loading/empty/error states is tracked below ("console:
+remove all demo/mock data; live-only with states"). This doc is split so you can
+paste each section into Claude Code (or have it create GitHub issues first, then
+work them).
 
 The reference implementation is the working prototype at
-`apps/console/public/console-v2/Eshu Console.html` (+ `console/*.jsx`). It shows
+`apps/console/prototype/eshu-console/Eshu Console.html` (+ `console/*.jsx`). It shows
 the exact intended UX. The in-progress TSX port lives in `apps/console/src`
 (adapter `api/eshuConsoleLive.ts`, `api/eshuGraph.ts`, `api/eshuService.ts`,
 pages, components). Port the prototype's behavior onto **real endpoints**; where
@@ -102,8 +106,8 @@ relationship layers.
 ## Frontend — native TSX port (live-only, no mock)
 
 All under `apps/console/src`. Spec = the prototype in
-`apps/console/public/console-v2`. Match its visuals/interactions exactly (dark
-graphite/bone/teal/ember theme, the same component classes already in
+`apps/console/prototype/eshu-console`. Match its visuals/interactions exactly
+(dark graphite/bone/teal/ember theme, the same component classes already in
 `src/styles.css`).
 
 ### ISSUE: console: remove all demo/mock data; live-only with states
