@@ -131,7 +131,10 @@ func (s *SnapshotSource) collectTarget(ctx context.Context, config Config, targe
 		return collector.CollectedGeneration{}, err
 	}
 
-	envelopes, err := Source{CollectorInstanceID: config.CollectorInstanceID}.Collect(ctx, VaultTarget{
+	envelopes, err := Source{
+		CollectorInstanceID: config.CollectorInstanceID,
+		Instruments:         s.Instruments,
+	}.Collect(ctx, VaultTarget{
 		VaultClusterID: target.VaultClusterID,
 		Namespace:      target.Namespace,
 		ScopeID:        scopeValue.ScopeID,
@@ -168,6 +171,14 @@ func (s *SnapshotSource) collectTarget(ctx context.Context, config Config, targe
 				))
 			}
 		}
+		// Record generation freshness age at finalization (now minus the
+		// observed-at the generation was stamped with). The scope kind is a
+		// bounded enum; never a cluster id, namespace, or path. A clock skew that
+		// yields a negative age is clamped to 0 so the gauge stays non-negative.
+		s.Instruments.SecretsIAMSourceScopeFreshness.Record(ctx, scopeFreshnessSeconds(s.now(), observedAt), metric.WithAttributes(
+			telemetry.AttrSource(secretsIAMSourceVault),
+			telemetry.AttrScopeKind(string(scopeValue.ScopeKind)),
+		))
 	}
 
 	if s.Logger != nil {
@@ -220,6 +231,18 @@ func (s *SnapshotSource) now() time.Time {
 		return s.Clock().UTC()
 	}
 	return time.Now().UTC()
+}
+
+// scopeFreshnessSeconds returns the non-negative age in seconds of a generation
+// stamped at observedAt as measured at now. A negative result (clock skew or a
+// fixed test clock) is clamped to 0 so the freshness gauge never reports a
+// nonsensical negative age.
+func scopeFreshnessSeconds(now, observedAt time.Time) float64 {
+	age := now.Sub(observedAt).Seconds()
+	if age < 0 {
+		return 0
+	}
+	return age
 }
 
 // hasCoverageWarning reports whether the collected envelopes include a
