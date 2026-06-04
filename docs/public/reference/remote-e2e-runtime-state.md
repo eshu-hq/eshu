@@ -89,6 +89,44 @@ supply-chain impact API for that package and requires
 `reason=metadata_too_large`, distinguishing an expected coverage gap from a
 collector crash, transient provider outage, or retry storm.
 
+Set `ESHU_REMOTE_E2E_TARGET_STORY_FILE` to an operator-local JSON manifest
+when a focused proof is meant to validate one repository-to-runtime story. The
+manifest stays outside the public repository and may contain private target
+selectors. The verifier reads the manifest, calls bounded API routes, and
+prints only aggregate target counts. This prevents aggregate collector counts
+from passing a run where repository, security-alert, image, SBOM, service, or
+CI/CD evidence belongs to different targets.
+
+Public-safe manifest shape:
+
+```json
+{
+  "target_repository_id": "repo-or-selector",
+  "expected_security_alert_repository": "provider/repository",
+  "expected_service_id": "service-id",
+  "expected_workload_id": "workload-id",
+  "expected_oci_repository_id": "oci-registry://registry.example/team/api",
+  "expected_image_digest": "sha256:...",
+  "expected_image_ref": "registry.example/team/api:tag",
+  "expected_sbom_subject_digest": "sha256:...",
+  "minimums": {
+    "impact_findings": 1,
+    "security_alert_reconciliations": 1,
+    "container_image_identities": 1,
+    "sbom_attachments": 1,
+    "service_catalog_correlations": 1,
+    "ci_cd_run_correlations": 1
+  }
+}
+```
+
+Use only the minimums that the focused proof is supposed to prove. For example,
+a vulnerability-only target may leave image and SBOM minimums at `0`, while a
+code-to-cloud release gate should require positive image, SBOM, service, and
+CI/CD evidence. Positive image, SBOM, and CI/CD minimums require a shared
+`expected_image_digest` or `expected_image_ref` so the verifier proves a single
+artifact chain instead of unrelated aggregate evidence.
+
 Remote E2E Compose supports either an explicit `ESHU_API_KEY` in the env file
 or an auto-generated local token. When `ESHU_API_KEY` is blank, the API writes
 the generated token under the shared `/data/.eshu/.env` volume, and the MCP
@@ -138,6 +176,24 @@ When `ESHU_REMOTE_E2E_PACKAGE_REGISTRY_GAP_PACKAGE_ID` is set, the verifier
 also prints `package_registry_metadata_too_large_gaps` from the bounded
 readiness response without printing package names, metadata URLs, or feed
 credentials.
+When `ESHU_REMOTE_E2E_TARGET_STORY_FILE` is set, the verifier prints
+`remote E2E target story proof counts` with repository-story, impact,
+security-alert, container-image, SBOM, service-catalog, and CI/CD counts. It
+does not print raw repository selectors, image references, service IDs,
+workload IDs, provider repository names, hostnames, package names, URLs, or
+credentials. API reads request the Eshu truth envelope and reject successful
+responses that omit it, keeping truth level and freshness part of the proof
+contract.
+Additional No-Regression Evidence: `scripts/test-verify-remote-e2e-target-story.sh`
+proves the target-story helper accepts aligned repository, vulnerability,
+security-alert, image, SBOM, service-catalog, and CI/CD counts; rejects missing
+target image evidence; rejects provider-alert repository mismatches; rejects
+missing artifact anchors; rejects missing target service evidence; fails a
+missing configured manifest file; skips only when no target-story file is
+configured; requires Eshu envelope readback; and keeps API bearer tokens out of
+curl arguments. This is a verifier-only change and does not alter collector
+scheduling, worker counts, graph writes, NornicDB settings, fact emission, or
+reducer behavior.
 Additional Observability Evidence: the existing `/index-status` health reason now names
 recent producer activity when it is the reason an old idle fact queue remains
 `progressing` instead of `stalled`. Operators can correlate that reason with

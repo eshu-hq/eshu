@@ -356,6 +356,36 @@ facts as passing evidence when the rendered Compose profile lacks the matching
 service; that is contradictory stale or out-of-profile evidence and is also a
 failed row.
 
+### Focused Target Story Proof
+
+When a remote proof is meant to validate a single repository's code-to-cloud
+story, set `ESHU_REMOTE_E2E_TARGET_STORY_FILE` to an operator-local JSON
+manifest before running `scripts/verify_remote_e2e_runtime_state.sh`. The file
+may contain private repository selectors, provider repository names, image
+references, digests, service IDs, or workload IDs, so keep it beside the
+private env file and out of public issues, docs, PRs, and release notes.
+
+The target-story verifier calls bounded API routes for the configured target:
+
+- repository story
+- impact finding count
+- security-alert reconciliation count
+- container-image identity count
+- SBOM attachment count
+- service-catalog correlation count
+- CI/CD run correlation count
+
+Only configure positive minimums for evidence the proof is expected to cover.
+If a code-to-cloud proof requires image, SBOM, service, and CI/CD evidence,
+those minimums must be positive. If the run is vulnerability-only, leave the
+runtime minimums at `0` and record that as a partial proof. The verifier prints
+only count labels and sanitized missing-evidence reasons, never raw target
+values. Use `expected_image_digest` or `expected_image_ref` to tie
+container-image, SBOM, and CI/CD evidence to the same artifact. Use
+`expected_service_id` or `expected_workload_id` when the proof must validate a
+specific deployed service rather than any reducer-owned service-catalog row for
+the repository.
+
 ### Reducer Evidence Rows
 
 Reducer rows must prove three aggregate signals in the same manifest row:
@@ -470,6 +500,7 @@ ESHU_REMOTE_E2E_MIN_SECURITY_ALERT_RECONCILIATION_COUNT=
 ESHU_REMOTE_E2E_MIN_SBOM_ATTACHMENT_COUNT=
 ESHU_REMOTE_E2E_MIN_CONTAINER_IMAGE_IDENTITY_COUNT=
 ESHU_REMOTE_E2E_PACKAGE_REGISTRY_GAP_PACKAGE_ID=
+ESHU_REMOTE_E2E_TARGET_STORY_FILE=
 ```
 
 Set `ESHU_REMOTE_E2E_PACKAGE_REGISTRY_GAP_PACKAGE_ID` only when the recorded
