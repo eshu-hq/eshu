@@ -1,0 +1,19 @@
+.github/workflows/codeql-go.yml
+  s_f2f7fbb6f30866::t_7d956c8ca19f52 42-44
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "22959a2ad3ca2b791764ecaa9083b88118fbbdb9",
+  "prompts": {},
+  "sessions": {
+    "s_f2f7fbb6f30866": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e360b-90eb-7472-bac7-56d488b65f77",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
