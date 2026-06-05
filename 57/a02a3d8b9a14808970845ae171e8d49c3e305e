@@ -1,0 +1,37 @@
+go/internal/collector/scannerworker/README.md
+  s_f2f7fbb6f30866::t_714ccf27ad6f06 99-101
+  s_f2f7fbb6f30866::t_8cc3433bcfce7e 79-83,96-98
+go/cmd/scanner-worker/README.md
+  s_f2f7fbb6f30866::t_6d9b4a0d62a0fd 163-170
+go/internal/collector/scannerworker/service_commit_failure_test.go
+  s_f2f7fbb6f30866::t_54708ec5e60c02 132-136
+  s_f2f7fbb6f30866::t_175843f0c520dc 66-85
+  s_f2f7fbb6f30866::t_2e80f10987c715 1-65,86-111
+  s_f2f7fbb6f30866::t_c51ba2d92fd812 112-131,137-157
+go/internal/collector/scannerworker/service_test.go
+  s_f2f7fbb6f30866::t_06c30857d76a07 397,414
+go/internal/collector/scannerworker/service.go
+  s_f2f7fbb6f30866::t_4e9456f60572be 11,391-392,395,401-411,414-421,423-430,447,450,452,454,460,463,465,467-485,487
+  s_f2f7fbb6f30866::t_3734d12ef8f0e9 432-434,436-445,455-456
+  s_f2f7fbb6f30866::t_3e54f9a01a94fc 191-192,386-390,393-394,396-400,412-413,422,431,446,448-449,451,453,457-459,461-462,464,466,486,488
+  s_f2f7fbb6f30866::t_5e262c8ac709dc 435
+  s_f2f7fbb6f30866::t_e0104f70ecef0b 324-327,332
+go/internal/collector/scannerworker/failure.go
+  s_f2f7fbb6f30866::t_cc9cda457c1bfd 44-46,127-128
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "57a02a3d8b9a14808970845ae171e8d49c3e305e",
+  "prompts": {},
+  "sessions": {
+    "s_f2f7fbb6f30866": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e360b-90eb-7472-bac7-56d488b65f77",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
