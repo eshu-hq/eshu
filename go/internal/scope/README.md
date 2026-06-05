@@ -50,7 +50,8 @@ this. `TransitionTo` enforces the table; forbidden transitions return an error.
   `CollectorPackageRegistry`, `CollectorVulnerabilityIntelligence`,
   `CollectorSBOMAttestation`, `CollectorSecurityAlert`, `CollectorPagerDuty`,
   `CollectorJira`, `CollectorScannerWorker`, `CollectorKubernetesLive`,
-  `CollectorVaultLive`, `CollectorPrometheusMimir`
+  `CollectorVaultLive`, `CollectorPrometheusMimir`, `CollectorTempo`,
+  `CollectorGrafana`, `CollectorLoki`
 - `TriggerKind` — `TriggerKindSnapshot`
 - `GenerationStatus` — `GenerationStatusPending`, `GenerationStatusActive`,
   `GenerationStatusSuperseded`, `GenerationStatusCompleted`,

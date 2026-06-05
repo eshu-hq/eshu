@@ -96,6 +96,12 @@ type GrafanaPlanner interface {
 	PlanGrafanaWork(context.Context, GrafanaPlanRequest) (workflow.Run, []workflow.WorkItem, error)
 }
 
+// LokiPlanner plans Loki observability workflow rows from collector instance
+// configuration.
+type LokiPlanner interface {
+	PlanLokiWork(context.Context, LokiPlanRequest) (workflow.Run, []workflow.WorkItem, error)
+}
+
 // OwnedPackageTargetReader loads active dependency evidence that can bound
 // derived package-registry and vulnerability-intelligence work.
 type OwnedPackageTargetReader interface {
@@ -128,6 +134,7 @@ type Service struct {
 	PrometheusMimirPlanner            PrometheusMimirPlanner
 	TempoPlanner                      TempoPlanner
 	GrafanaPlanner                    GrafanaPlanner
+	LokiPlanner                       LokiPlanner
 	OwnedPackageTargetReader          OwnedPackageTargetReader
 	OSPackageAdvisoryTargetReader     OSPackageAdvisoryTargetReader
 	SBOMComponentAdvisoryTargetReader SBOMComponentAdvisoryTargetReader
@@ -344,6 +351,15 @@ func (s Service) runReconcile(ctx context.Context) error {
 		return err
 	}
 	if err := s.scheduleGrafanaWork(ctx, observedAt, instances); err != nil {
+		s.recordReconcile(ctx, ReconcileObservation{
+			Outcome:      reconcileOutcomeReconcileError,
+			Duration:     time.Since(startedAt),
+			DesiredCount: desiredCount,
+			DurableCount: durableCount,
+		})
+		return err
+	}
+	if err := s.scheduleLokiWork(ctx, observedAt, instances); err != nil {
 		s.recordReconcile(ctx, ReconcileObservation{
 			Outcome:      reconcileOutcomeReconcileError,
 			Duration:     time.Since(startedAt),

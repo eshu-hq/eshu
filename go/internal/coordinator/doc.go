@@ -12,8 +12,10 @@
 //
 // TerraformStateWorkPlanner plans Terraform-state collection runs from resolved
 // discovery candidates. OCIRegistryWorkPlanner, PackageRegistryWorkPlanner,
-// VulnerabilityIntelligenceWorkPlanner, and JiraWorkPlanner each plan bounded
-// work items without opening provider connections; package and vulnerability
+// VulnerabilityIntelligenceWorkPlanner, JiraWorkPlanner, and LokiWorkPlanner
+// each plan bounded work items without opening provider connections; the Loki
+// planner emits one work item per enabled configured Loki target and partitions
+// claims by a per-target fairness key. Package and vulnerability
 // planners preserve direct and owned target priority ahead of broad fanout and
 // report aggregate skipped-target evidence when an owned-package derivation
 // budget is exhausted or partial dependency evidence cannot safely become an

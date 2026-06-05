@@ -152,6 +152,11 @@ fall back to defaults rather than failing; malformed values fail fast.
   keyed by `scope_id`; disabled targets are skipped, the per-target fairness key
   is `grafana:<instance_id>:<target instance_id|scope_id>`, and
   `requested_scope_set` omits `token_env`, `base_url`, and resource limits.
+- `LokiWorkPlanner` — plans Grafana Loki observability collection runs from the
+  `configuration.targets[]` array. Each `enabled` target becomes one claimable
+  work item keyed by `scope_id` with a per-target fairness key
+  (`loki:<instance_id>:<scope_id>`); disabled targets are skipped and
+  `requested_scope_set` omits token environment references.
 - `OwnedPackageTargetReader` — optional active-mode dependency target reader
   used by `Service` when package-registry or vulnerability-intelligence
   instances enable `derive_from_owned_packages`.

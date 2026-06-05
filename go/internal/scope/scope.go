@@ -97,6 +97,11 @@ const (
 	// token and emits bounded folder, dashboard, datasource, and alert-rule
 	// source facts; it never mutates the Grafana instance.
 	CollectorGrafana CollectorKind = "grafana"
+	// CollectorLoki represents the read-only Grafana Loki observability
+	// collector. It polls a configured Loki API target with read-only
+	// credentials and emits bounded, redacted log-signal metadata facts; it
+	// never reads log payloads.
+	CollectorLoki CollectorKind = "loki"
 )
 
 // TriggerKind identifies how a generation was produced.
