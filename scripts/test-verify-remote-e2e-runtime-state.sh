@@ -349,21 +349,19 @@ cat >"${state_dir}/index-status.json" <<'JSON'
   "coordinator": {
     "run_status_counts": [
       {"name": "complete", "count": 12},
+      {"name": "collection_active", "count": 2},
+      {"name": "collection_pending", "count": 1},
       {"name": "reducer_converging", "count": 4}
     ],
-    "completeness_counts": [
-      {"name": "pending", "count": 7}
-    ]
+    "work_item_status_counts": [{"name": "pending", "count": 6}, {"name": "claimed", "count": 2}],
+    "completeness_counts": [{"name": "pending", "count": 7}]
   }
 }
 JSON
 export ESHU_REMOTE_E2E_CORPUS_MODE=representative
 expect_pass
-if ! rg -q 'remote E2E representative scoped terminal state:' /tmp/eshu-remote-e2e-runtime.out; then
-  printf 'expected representative scoped terminal state in verifier output\n' >&2
-  sed -n '1,260p' /tmp/eshu-remote-e2e-runtime.out >&2
-  exit 1
-fi
+rg -q 'remote E2E representative proof safety state:' /tmp/eshu-remote-e2e-runtime.out || { printf 'expected representative proof safety state in verifier output\n' >&2; sed -n '1,260p' /tmp/eshu-remote-e2e-runtime.out >&2; exit 1; }
+rg -q 'remote E2E representative background workflow activity:' /tmp/eshu-remote-e2e-runtime.out || { printf 'expected representative background workflow activity in verifier output\n' >&2; sed -n '1,260p' /tmp/eshu-remote-e2e-runtime.out >&2; exit 1; }
 unset ESHU_REMOTE_E2E_CORPUS_MODE
 reset_state
 set_all_services_healthy

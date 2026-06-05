@@ -285,7 +285,8 @@ verify_representative_runtime_safety() {
 				else
 					0
 				end;
-			"remote E2E representative scoped terminal state: status=\(.status // "unknown") outstanding=\(.queue.outstanding // 0) in_flight=\(.queue.in_flight // 0) pending=\(.queue.pending // 0) retrying=\(.queue.retrying // 0) failed=\(.queue.failed // 0) dead_letter=\(.queue.dead_letter // 0) reducer_converging=\(count_value("run_status_counts"; "reducer_converging")) pending_completeness=\(count_value("completeness_counts"; "pending")) blocked_completeness=\(count_value("completeness_counts"; "blocked"))"
+			"remote E2E representative proof safety state: status=\(.status // "unknown") retrying=\(.queue.retrying // 0) failed=\(.queue.failed // 0) dead_letter=\(.queue.dead_letter // 0) failed_runs=\(count_value("run_status_counts"; "failed")) blocked_completeness=\(count_value("completeness_counts"; "blocked"))",
+			"remote E2E representative background workflow activity: outstanding=\(.queue.outstanding // 0) in_flight=\(.queue.in_flight // 0) pending=\(.queue.pending // 0) collection_pending=\(count_value("run_status_counts"; "collection_pending")) collection_active=\(count_value("run_status_counts"; "collection_active")) reducer_converging=\(count_value("run_status_counts"; "reducer_converging")) work_items_pending=\(count_value("work_item_status_counts"; "pending")) work_items_claimed=\(count_value("work_item_status_counts"; "claimed")) pending_completeness=\(count_value("completeness_counts"; "pending")) active_claims=\(.coordinator.active_claims // 0)"
 		' "${INDEX_STATUS_FILE}"
 		echo "remote E2E representative runtime safety verified"
 		return 0

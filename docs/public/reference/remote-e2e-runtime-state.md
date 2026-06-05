@@ -68,11 +68,13 @@ representative fanout guard. The guard defaults to
 `ESHU_REMOTE_E2E_REPRESENTATIVE_MAX_QUEUE_OUTSTANDING`. Workflow coordinator
 `failed` or blocked-completeness counts must be zero. The verifier still
 requires the representative aggregate proof counters before accepting the run,
-while printing outstanding, in-flight, pending, `reducer_converging`, and
-pending-completeness counts as active follow-up work. A representative aggregate
-minimum explicitly set to `0` is not required evidence, so the verifier skips
-that probe. Each API probe is bounded by `ESHU_REMOTE_E2E_API_TIMEOUT_SECONDS`,
-which defaults to `30`.
+while printing two separate lines: `representative proof safety state` for the
+failure gates that make the proof unsafe, and `representative background
+workflow activity` for scheduled collector and work-item activity observed
+outside the proof-safety gates. A representative aggregate minimum explicitly
+set to `0` is not required evidence, so the verifier skips that probe. Each API
+probe is bounded by `ESHU_REMOTE_E2E_API_TIMEOUT_SECONDS`, which defaults to
+`30`.
 
 Set `ESHU_REMOTE_E2E_REQUIRED_SERVICES`,
 `ESHU_REMOTE_E2E_COLLECTOR_SERVICES`, or `ESHU_REMOTE_E2E_EXTRA_SERVICES` to
@@ -153,7 +155,8 @@ pending-completeness state all fail before a run can be accepted, while a
 healthy runtime set with queue-zero and workflow completion passes. It also
 proves representative mode can accept scheduled follow-up work only when
 required aggregate evidence has landed and `retrying`, `failed`, `dead_letter`,
-failed workflow, and blocked-completeness counts are zero. It also proves an
+failed workflow, and blocked-completeness counts are zero, while labeling that
+follow-up work separately from proof safety. It also proves an
 explicit package-registry too-large metadata gap is accepted only when the
 impact-readiness envelope reports
 `package_registry_metadata/metadata_too_large`. Focused status and Postgres
@@ -170,11 +173,11 @@ Observability Evidence: the verifier prints each checked service with Docker
 runtime state and health state, keeps API bearer tokens out of process
 arguments, bounds API probes with a max-time, and records the checkpointed
 `/index-status` payload on queue, workflow-completion, or representative
-runtime-safety failure. Representative scoped terminal output includes queue
-counts, the configured queue fanout guard, `reducer_converging`, pending
-completeness, and blocked completeness so operators can distinguish active
-scheduled work from retry storms, terminal failures, and blocked evidence. The
-existing `/api/v0/index-status`,
+runtime-safety failure. Representative output now separates unsafe proof
+signals (`retrying`, `failed`, `dead_letter`, failed workflow runs, and blocked
+completeness) from background workflow activity (`outstanding`, `in_flight`,
+`pending`, collection run counts, claimed work items, pending completeness, and
+active claims). The existing `/api/v0/index-status`,
 `/api/v0/status/index`, and admin status report now carry workflow coordinator
 `run_status_counts`, `work_item_status_counts`, `completeness_counts`, active
 and overdue claim counts, queue/domain ages, and health reasons that
