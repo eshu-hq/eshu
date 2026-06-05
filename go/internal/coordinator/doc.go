@@ -21,7 +21,10 @@
 // Service reads one bounded owned-package lookahead beyond each planning budget
 // so requested scope sets can show exhaustion without widening admitted work.
 // PagerDutyWorkPlanner plans incident-evidence work from configured PagerDuty
-// targets. ScannerWorkerWorkPlanner plans explicit scanner-worker source
+// targets. PrometheusMimirWorkPlanner plans bounded metric-metadata work, one
+// item per enabled Prometheus or Grafana Mimir target, partitioned by target
+// scope so concurrent reconciles never contend for one metric source.
+// ScannerWorkerWorkPlanner plans explicit scanner-worker source
 // evidence targets so a healthy worker must still have claimable work before a
 // proof can count source evidence. AWSScheduledWorkPlanner and
 // AWSFreshnessWorkPlanner plan ordinary AWS collector work from configured

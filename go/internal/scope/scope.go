@@ -84,6 +84,10 @@ const (
 	// metadata endpoints with a read-only token and emits redacted source facts;
 	// it never reads a secret value.
 	CollectorVaultLive CollectorKind = "vault_live"
+	// CollectorPrometheusMimir represents the read-only Prometheus/Grafana Mimir
+	// metric metadata collector. It polls configured metric API targets for
+	// bounded target and rule metadata and emits redacted source facts.
+	CollectorPrometheusMimir CollectorKind = "prometheus_mimir"
 )
 
 // TriggerKind identifies how a generation was produced.
