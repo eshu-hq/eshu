@@ -96,6 +96,10 @@ uses `failure_class=commit_failed` and the log adds a bounded
 - `source_unavailable` means the analyzer could not read its configured source;
   `commit_failed` means analysis produced source facts but persistence failed
   under the workflow claim fence.
+- Scanner-worker source generations start as `pending`; the source-local
+  projector ack path owns activation and supersession. Do not mark scanner
+  generations active during source-fact commit, or preserved-volume restarts can
+  retry a new same-scope generation into the active-generation uniqueness guard.
 - Scanner-worker ingestion scopes omit `parent_scope_id` when the workflow
   acceptance unit equals the scanner scope. Workflow rows may use the same
   value for both, but storage forbids a scope from parenting itself.
@@ -114,6 +118,13 @@ covers claim processing, repository/image/artifact target kind derivation,
 source-fact output, configured image rootfs/layer package extraction,
 configured repository SBOM generation, OS package analyzer apk/dpkg parsing,
 retry/dead-letter handling, and deployment render contracts.
+No-Regression Evidence:
+`go test ./internal/collector/scannerworker -run 'TestScopeAndGenerationForInput(StartsPendingForProjectorActivation|OmitsSelfParent)|TestServiceRecordsRetryableCommitFailure|TestClassifyCommitFailure' -count=1`
+failed before scanner-worker source generations entered the normal
+pending-to-active projector lifecycle, then passed after scanner-worker stopped
+marking new source generations active at fact-commit time. This preserves
+source-fact emission while preventing preserved-volume restarts from retrying a
+new same-scope scanner generation into `scope_generations_active_scope_idx`.
 Analyzer rollout still needs target count, fact count, runtime, CPU, memory,
 queue state, retry count, dead-letter count, and pprof evidence from the target
 environment before it becomes a default.

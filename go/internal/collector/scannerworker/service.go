@@ -342,7 +342,7 @@ func scopeAndGenerationForInput(input ClaimInput, observedAt time.Time) (scope.I
 			ScopeID:       input.Target.ScopeID,
 			ObservedAt:    input.ObservedAt,
 			IngestedAt:    observedAt.UTC(),
-			Status:        scope.GenerationStatusActive,
+			Status:        scope.GenerationStatusPending,
 			TriggerKind:   scope.TriggerKindSnapshot,
 			FreshnessHint: fmt.Sprintf("scanner_worker:%s:%d", input.WorkItemID, input.FencingToken),
 		}

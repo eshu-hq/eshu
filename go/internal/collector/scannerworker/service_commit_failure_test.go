@@ -11,6 +11,7 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 
 	"github.com/eshu-hq/eshu/go/internal/facts"
+	"github.com/eshu-hq/eshu/go/internal/scope"
 )
 
 func TestServiceRecordsRetryableCommitFailure(t *testing.T) {
@@ -80,6 +81,22 @@ func TestScopeAndGenerationForInputOmitsSelfParent(t *testing.T) {
 	}
 	if err := generation.ValidateForScope(scopeValue); err != nil {
 		t.Fatalf("generation.ValidateForScope() error = %v, want nil", err)
+	}
+}
+
+func TestScopeAndGenerationForInputStartsPendingForProjectorActivation(t *testing.T) {
+	t.Parallel()
+
+	item := testScannerWorkItem()
+	claim := testScannerClaim(item)
+	input, err := NewClaimInput(item, claim, AnalyzerSBOMGeneration, testTargetScope(item), testResourceLimits())
+	if err != nil {
+		t.Fatalf("NewClaimInput() error = %v, want nil", err)
+	}
+
+	_, generation := scopeAndGenerationForInput(input, input.ObservedAt)
+	if generation.Status != scope.GenerationStatusPending {
+		t.Fatalf("generation.Status = %q, want %q", generation.Status, scope.GenerationStatusPending)
 	}
 }
 
