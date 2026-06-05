@@ -146,6 +146,12 @@ fall back to defaults rather than failing; malformed values fail fast.
   omits token environment references. The per-target `FairnessKey` is
   `tempo:<instance_id>:<scope_id>` so concurrent reconciles cannot admit two
   open claims for the same target.
+- `GrafanaWorkPlanner` — plans Grafana observability metadata collection runs
+  from configured `configuration.targets[]` without resolving credential
+  environment variables. Each `enabled` target becomes one claimable work item
+  keyed by `scope_id`; disabled targets are skipped, the per-target fairness key
+  is `grafana:<instance_id>:<target instance_id|scope_id>`, and
+  `requested_scope_set` omits `token_env`, `base_url`, and resource limits.
 - `OwnedPackageTargetReader` — optional active-mode dependency target reader
   used by `Service` when package-registry or vulnerability-intelligence
   instances enable `derive_from_owned_packages`.
@@ -441,6 +447,10 @@ metrics, `workflow_runs`, `workflow_run_completeness`, and
 `/api/v0/index-status`. Duplicate target suppression emits
 `reason=target_already_planned`, `planned_work_items`, `enqueued_work_items`,
 `skipped_work_items`, and `trigger_kind` in structured coordinator logs.
+
+No-Regression Evidence: `go test ./internal/coordinator ./internal/scope ./internal/runtime -run Grafana -count=1` (plus the full `go test ./internal/coordinator ./internal/scope ./internal/runtime -count=1` suite) proves the grafana scheduler plans one claimable work item per enabled `configuration.targets[]` entry, skips disabled targets, filters by requested scope IDs, derives deterministic `RunID`/`WorkItemID`/`GenerationID` from the instance and plan key so repeated reconciles are idempotent, and rejects wrong collector kinds. The change adds a planner that produces workflow rows only; it does not alter claim lease timing, worker counts, queue ordering, reducer graph writes, or fact emission. The grafana planner partitions concurrent work by the per-target fairness key `grafana:<instance_id>:<target instance_id|scope_id>` and reuses the existing `(collector_kind, collector_instance_id, scope_id, acceptance_unit_id)` open-target admission guard, so no two concurrent reconciles claim the same Grafana target.
+
+No-Observability-Change: grafana scheduling reuses the existing coordinator reconcile counters, `workflow_runs`, `workflow_work_items`, `requested_scope_set`, and `/api/v0/index-status` surfaces. `requested_scope_set` carries only `scope_id`, `provider`, and target `instance_id`; it never exposes `token_env`, `base_url`, or resource limits, and no new metric, span, or log field was added.
 
 ## Related docs
 

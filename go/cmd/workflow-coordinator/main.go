@@ -136,6 +136,7 @@ func run(parent context.Context) error {
 		JiraPlanner:                       coordinator.JiraWorkPlanner{},
 		PrometheusMimirPlanner:            coordinator.PrometheusMimirWorkPlanner{},
 		TempoPlanner:                      coordinator.TempoWorkPlanner{},
+		GrafanaPlanner:                    coordinator.GrafanaWorkPlanner{},
 		OwnedPackageTargetReader:          postgres.NewFactStore(ownedPackageTargetsDB),
 		OSPackageAdvisoryTargetReader:     factStore,
 		SBOMComponentAdvisoryTargetReader: factStore,
