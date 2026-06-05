@@ -374,7 +374,6 @@ var defaultIgnoredDirs = []string{
 	"blib",
 	"local",
 	// C / C#
-	"packages",
 	"obj",
 	"bin",
 	// Ansible

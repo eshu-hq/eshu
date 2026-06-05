@@ -297,6 +297,13 @@ it.
 - Repo-local `.eshu/discovery.json` and `.eshu/vendor-roots.json` override default
   discovery options before the operator-level `ESHU_DISCOVERY_IGNORED_PATH_GLOBS`
   overlay is applied.
+- Default discovery prunes generated dependency/cache directories by precise
+  names such as `node_modules`, `vendor`, `.gradle`, and `.m2`, but it does not
+  prune a generic `packages` directory. npm, pnpm, Yarn, and many polyglot
+  monorepos use `packages/<workspace>` for authored source, manifests, and
+  lockfiles. Generated package caches under that name need repo-local
+  `.eshuignore`, `.eshu/discovery.json`, or operator ignored-path globs so the
+  exclusion is visible in discovery stats.
 - Filesystem manifest fingerprints include `.gitignore` and `.eshuignore` rule
   files but exclude paths filtered by those rules. Changing an ignore rule
   reselects the repository; changing only ignored output does not.
@@ -321,6 +328,18 @@ it.
   `eshu_dp_facts_emitted_total`, and `eshu_dp_facts_committed_total`. No new
   runtime, worker, queue, graph write, span, metric label, or status field is
   introduced by this slice.
+- No-Regression Evidence: nested npm workspace package manifests and lockfiles
+  under `packages/<workspace>` remain discoverable by default. The focused gate
+  is
+  `go test ./internal/collector -run TestResolveNativeSnapshotFileSetKeepsNestedNPMWorkspaceManifests -count=1`,
+  which proves root and nested `package.json` / `package-lock.json` files land
+  in discovery while `packages` is not counted as a pruned directory.
+- No-Observability-Change: keeping authored `packages/<workspace>` trees in
+  discovery uses the existing discovery stats, `collector snapshot stage
+  completed` logs, `collector.observe`, `collector.stream`,
+  `eshu_dp_repos_snapshotted_total`, `eshu_dp_file_parse_duration_seconds`,
+  and generation/fact counters. It adds no new runtime, worker, queue, graph
+  write, span, metric label, or status field.
 - Performance Evidence: On 2026-05-15, pprof from the remote full-corpus
   Compose run showed bootstrap startup CPU in filesystem repository copy and
   ignore matching before graph projection began. A focused local benchmark for
