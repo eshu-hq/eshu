@@ -350,17 +350,25 @@ func buildIngesterProjectorRuntime(
 		WithEntityBatchSize(contentConfig.EntityBatchSize)
 
 	return projector.Runtime{
-		CanonicalWriter:        canonicalWriter,
-		ContentWriter:          contentWriter,
-		IntentWriter:           intentWriter,
-		PhasePublisher:         postgres.NewGraphProjectionPhaseStateStore(database),
-		RepairQueue:            postgres.NewGraphProjectionPhaseRepairQueueStore(database),
-		RetryInjector:          retryInjector,
-		ContentBeforeCanonical: ingesterContentBeforeCanonical(getenv),
-		Tracer:                 tracer,
-		Instruments:            instruments,
-		Logger:                 logger,
+		CanonicalWriter:               canonicalWriter,
+		ContentWriter:                 contentWriter,
+		IntentWriter:                  intentWriter,
+		PhasePublisher:                postgres.NewGraphProjectionPhaseStateStore(database),
+		RepairQueue:                   postgres.NewGraphProjectionPhaseRepairQueueStore(database),
+		RetryInjector:                 retryInjector,
+		PackageRegistryIdentityLocker: packageRegistryIdentityLocker(database),
+		ContentBeforeCanonical:        ingesterContentBeforeCanonical(getenv),
+		Tracer:                        tracer,
+		Instruments:                   instruments,
+		Logger:                        logger,
 	}, nil
+}
+
+func packageRegistryIdentityLocker(database postgres.ExecQueryer) projector.PackageRegistryIdentityLocker {
+	if beginner, ok := database.(postgres.Beginner); ok {
+		return postgres.PackageRegistryIdentityLocker{DB: beginner}
+	}
+	return nil
 }
 
 func openIngesterCanonicalWriter(

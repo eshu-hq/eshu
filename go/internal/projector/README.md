@@ -304,6 +304,28 @@ policy, statement, ACL, condition, action, resource, or object data.
 - On `/admin/status`, `queue_blockages` indicates work is eligible but held due
   to a conflict key; distinguish this from graph backend slowness before
   changing concurrency settings.
+- Package-registry canonical writes collect package UIDs from package, version,
+  dependency-source, and dependency-target rows. When the runtime is backed by
+  Postgres, `PackageRegistryIdentityLocker` takes sorted transaction-scoped
+  advisory locks for those UIDs around `CanonicalWriter.Write`. This coordinates
+  the ingester embedded projector, standalone projector, and bootstrap-index
+  across process boundaries while preserving concurrency for unrelated package
+  identities. NornicDB MERGE retry remains the safety net for backend-level
+  commit races and changed error formats.
+
+No-Regression Evidence: `go test ./internal/projector -run
+'TestRuntimeProject.*PackageRegistryIdentity' -count=1` and `go test
+./cmd/ingester ./cmd/projector ./cmd/bootstrap-index -run
+'TestBuild(IngesterProjectorRuntime|ProjectorRuntime|BootstrapProjector)'
+-count=1` prove projector package UID locks wrap canonical writes only when
+package-registry rows are present and that every Postgres-backed projector
+runtime wires the durable locker.
+
+Observability Evidence: `go/internal/storage/postgres.PackageRegistryIdentityLocker`
+logs `package registry identity advisory locks acquired` with
+`package_uid_count`, `lock_key_sample`, and `wait_s` when lock acquisition exceeds
+100ms; existing projector `canonical_write` stage metrics and NornicDB retry
+metrics still distinguish backend write time from recovered graph conflicts.
 
 ## Extension points
 

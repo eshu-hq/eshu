@@ -275,6 +275,18 @@ constructor with `InstrumentedDB{Inner: db, StoreName: "my_store", ...}`.
 - The NornicDB semantic gate in `ReducerQueue.Claim` is gated on a boolean
   parameter and must not be removed without an ADR; it prevents
   `semantic_entity_materialization` storms on NornicDB label indexes.
+- `PackageRegistryIdentityLocker` uses transaction-scoped
+  `pg_advisory_xact_lock` keys to coordinate package UID canonical writes
+  across ingester, standalone projector, and bootstrap-index processes. It
+  de-duplicates and sorts package IDs before acquiring locks, commits after the
+  protected canonical write succeeds, and rolls back on callback failure so
+  Postgres releases the lock automatically. No-Regression Evidence: `go test
+  ./internal/storage/postgres -run 'TestPackageRegistryIdentityLocker' -count=1`
+  proves sorted/de-duplicated lock acquisition and rollback-on-error behavior.
+  Observability Evidence: waits over 100ms emit a structured
+  `package registry identity advisory locks acquired` log with
+  `package_uid_count`, `lock_key_sample`, and `wait_s`; existing Postgres
+  transaction failures still surface as wrapped callback or commit errors.
 - `aws_relationship_materialization`, `observability_coverage_materialization`,
   `iam_can_assume_materialization`, `s3_logs_to_materialization`,
   `s3_external_principal_grant_materialization`,

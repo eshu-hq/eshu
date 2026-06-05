@@ -105,12 +105,13 @@ func buildBootstrapProjector(
 		ContentWriter: postgres.NewContentWriter(instrumentedDB).
 			WithLogger(logger).
 			WithEntityBatchSize(contentConfig.EntityBatchSize),
-		IntentWriter:   reducerQueue,
-		PhasePublisher: postgres.NewGraphProjectionPhaseStateStore(instrumentedDB),
-		RepairQueue:    postgres.NewGraphProjectionPhaseRepairQueueStore(instrumentedDB),
-		Tracer:         tracer,
-		Instruments:    instruments,
-		Logger:         logger,
+		IntentWriter:                  reducerQueue,
+		PhasePublisher:                postgres.NewGraphProjectionPhaseStateStore(instrumentedDB),
+		RepairQueue:                   postgres.NewGraphProjectionPhaseRepairQueueStore(instrumentedDB),
+		PackageRegistryIdentityLocker: postgres.PackageRegistryIdentityLocker{DB: instrumentedDB},
+		Tracer:                        tracer,
+		Instruments:                   instruments,
+		Logger:                        logger,
 	}
 
 	return projectorDeps{

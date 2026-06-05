@@ -95,6 +95,12 @@ through the retrying phase-group executor. If the error reappears, verify
 `retryable_error_test.go` and `retrying_executor_test.go` before changing queue
 or worker knobs.
 
+For package-registry identity specifically, Eshu also coordinates package UID
+writes with Postgres transaction-scoped advisory locks in the projector runtime.
+That lock narrows cross-process overlap for `Package.uid` without reducing
+global worker counts; the retrying executor still remains the backend safety
+net for other MERGE-shaped races and changed NornicDB error wrapping.
+
 ## Pitfall: Persisted Graph Store Fails To Reopen After Dictionary Corruption
 
 ### Observed shape

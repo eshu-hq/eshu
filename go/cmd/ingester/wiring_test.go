@@ -244,6 +244,9 @@ func TestBuildIngesterProjectorRuntimeWiresPhasePublisherAndRepairQueue(t *testi
 	if runtime.RepairQueue == nil {
 		t.Fatal("buildIngesterProjectorRuntime() RepairQueue = nil, want non-nil")
 	}
+	if runtime.PackageRegistryIdentityLocker == nil {
+		t.Fatal("buildIngesterProjectorRuntime() PackageRegistryIdentityLocker = nil, want non-nil")
+	}
 }
 
 func TestCompositeRunnerCancelsOnFirstError(t *testing.T) {

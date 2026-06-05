@@ -114,15 +114,16 @@ func buildProjectorRuntime(
 	}
 
 	return projector.Runtime{
-		CanonicalWriter: canonicalWriter,
-		ContentWriter:   postgres.NewContentWriter(database).WithEntityBatchSize(contentConfig.EntityBatchSize),
-		IntentWriter:    intentWriter,
-		PhasePublisher:  postgres.NewGraphProjectionPhaseStateStore(database),
-		RepairQueue:     postgres.NewGraphProjectionPhaseRepairQueueStore(database),
-		RetryInjector:   retryInjector,
-		Tracer:          tracer,
-		Instruments:     instruments,
-		Logger:          logger,
+		CanonicalWriter:               canonicalWriter,
+		ContentWriter:                 postgres.NewContentWriter(database).WithEntityBatchSize(contentConfig.EntityBatchSize),
+		IntentWriter:                  intentWriter,
+		PhasePublisher:                postgres.NewGraphProjectionPhaseStateStore(database),
+		RepairQueue:                   postgres.NewGraphProjectionPhaseRepairQueueStore(database),
+		RetryInjector:                 retryInjector,
+		PackageRegistryIdentityLocker: postgres.PackageRegistryIdentityLocker{DB: database},
+		Tracer:                        tracer,
+		Instruments:                   instruments,
+		Logger:                        logger,
 	}, nil
 }
 
