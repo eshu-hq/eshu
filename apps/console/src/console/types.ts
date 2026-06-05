@@ -4,12 +4,12 @@
 
 import type {
   ConsoleSnapshot, RuntimeSummary, ServiceRow, LanguageRow,
-  IngesterRow, FindingRow, VulnRow
+  IngesterRow, FindingRow, VulnRow, SectionProvenance
 } from "../api/eshuConsoleLive";
 
 export type {
   ConsoleSnapshot, RuntimeSummary, ServiceRow, LanguageRow,
-  IngesterRow, FindingRow, VulnRow
+  IngesterRow, FindingRow, VulnRow, SectionProvenance
 };
 
 export type Severity = "critical" | "high" | "medium" | "low" | "info";

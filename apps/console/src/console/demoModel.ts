@@ -1,12 +1,13 @@
 // console/demoModel.ts
-// Neutral demo fixture (generic sample workspace — no company data) and a helper
-// that lifts a live ConsoleSnapshot into the UI model. Swap freely; nothing here
-// is part of the product.
+// Neutral demo fixture (generic sample workspace — no company data) used ONLY as
+// a test fixture for page components. It is NOT a runtime data source: the app
+// renders live API data exclusively (see App.tsx and console/liveModel.ts).
 
 import type {
-  ConsoleModel, ConsoleSnapshot, GraphModel, RelationshipRow, SeriesBundle
+  ConsoleModel, GraphModel, RelationshipRow, SeriesBundle
 } from "./types";
 import { uiTruth, uiFresh } from "./types";
+import { modelFromSnapshot } from "./liveModel";
 
 function ramp(seed: number, n: number, base: number, amp: number, drift: number): number[] {
   let s = seed | 0; const out: number[] = []; let v = base;
@@ -98,12 +99,7 @@ export const demoModel: ConsoleModel = {
   series: demoSeries
 };
 
-const emptySeries: SeriesBundle = { ingestRate: [], queueDepth: [], graphNodes: [], graphEdges: [], queryP99: [], newVulns: [] };
-
-// Wrap a live snapshot into the UI model. Graph + series are not yet provided by
-// the API (see eshuConsoleLive notes), so they stay empty until those are wired.
-export function modelFromSnapshot(snap: ConsoleSnapshot): ConsoleModel {
-  return { ...snap, source: "live", graph: { nodes: [], edges: [] }, relationships: [], series: emptySeries };
-}
-
 export { uiTruth, uiFresh };
+// Re-exported for any caller that imported it here historically; the live-only
+// implementation now lives in console/liveModel.ts.
+export { modelFromSnapshot };
