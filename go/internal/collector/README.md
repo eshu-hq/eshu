@@ -110,6 +110,12 @@ per repository:
 
 `buildStreamingGeneration` launches a background goroutine that streams
 `facts.Envelope` values through a buffered channel (`factStreamBuffer = 500`).
+When the stream re-reads repo-hosted service-catalog descriptors
+(`catalog-info.yaml`, `opslevel.yml`, or `cortex.yaml`), it delegates to the
+`servicecatalog` normalizer and emits observed `service_catalog.*` facts under
+the same scope and generation. The Git collector does not mint service,
+workload, or repository identity from those manifests; projector and reducer
+stages own correlation truth.
 `AfterBatchDrained` runs only after the service has committed at least one
 generation and then observes the source batch drain. Idle polls do not trigger
 it.
@@ -215,6 +221,10 @@ it.
 - `cicdrun` subpackage — fixture-backed CI/CD provider normalization and
   reported-confidence run, job, step, artifact, trigger, environment, and
   warning fact-envelope construction for the `ci_cd_run` collector family
+- `servicecatalog` subpackage — Backstage, OpsLevel, and Cortex manifest
+  normalization for the `service_catalog` collector family. The Git collector
+  calls it only for repo-hosted catalog descriptors and emits provenance-only
+  facts that downstream projector/reducer code correlates.
 - `grafana` subpackage — claim-driven live Grafana API metadata collection for
   the `grafana` collector family. It emits reported-confidence observed
   observability source facts for folders, dashboards, datasources, alert rules,
@@ -294,6 +304,23 @@ it.
   re-reads file bodies from disk at emit time. The OS page cache keeps re-reads
   fast. Do not change this design to in-memory bodies without accounting for
   `O(repo_size)` memory growth on large repositories.
+- Repo-hosted service-catalog manifests are detected by exact descriptor
+  filename (`catalog-info.yaml`/`.yml`, `opslevel.yml`/`.yaml`,
+  `cortex.yaml`/`.yml`) during the same content streaming pass. Ordinary YAML
+  files and Cortex scorecard descriptors stay ordinary content until a dedicated
+  runtime slice opens that contract.
+- No-Regression Evidence: service-catalog manifest emission adds only a bounded
+  basename check per content file and parses matching descriptors with the
+  existing pure normalizer. The focused gate is
+  `go test ./internal/collector -run 'TestGitSourceEmitsRepoHostedBackstageCatalogFacts|TestGitSourceEmitsRepoHostedServiceCatalogFactsFromLegacyContentFiles|TestServiceCatalogProviderForPathIsNarrow|TestStreamFactsReReadsBodyFromDisk|TestStreamFactsSkipsMissingFile' -count=1`,
+  which proves catalog facts emit from two-phase and legacy content paths while
+  non-catalog files remain narrow.
+- No-Observability-Change: repo-hosted service-catalog facts use the existing
+  Git collector signals listed in this section: `collector.observe`,
+  `collector.stream`, `fact.emit`, `eshu_dp_generation_fact_count`,
+  `eshu_dp_facts_emitted_total`, and `eshu_dp_facts_committed_total`. No new
+  runtime, worker, queue, graph write, span, metric label, or status field is
+  introduced by this slice.
 - Performance Evidence: On 2026-05-15, pprof from the remote full-corpus
   Compose run showed bootstrap startup CPU in filesystem repository copy and
   ignore matching before graph projection began. A focused local benchmark for
