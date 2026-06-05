@@ -426,56 +426,6 @@ func (h *InfraHandler) getRelationships(w http.ResponseWriter, r *http.Request) 
 	}, BuildTruthEnvelope(h.profile(), "platform_impact.deployment_chain", TruthBasisHybrid, "resolved from infrastructure relationship graph"))
 }
 
-// getEcosystemOverview returns high-level counts of graph entities.
-// GET /api/v0/ecosystem/overview
-func (h *InfraHandler) getEcosystemOverview(w http.ResponseWriter, r *http.Request) {
-	if capabilityUnsupported(h.profile(), "platform_impact.context_overview") {
-		WriteContractError(
-			w,
-			r,
-			http.StatusNotImplemented,
-			"ecosystem overview requires authoritative platform context truth",
-			"unsupported_capability",
-			"platform_impact.context_overview",
-			h.profile(),
-			requiredProfile("platform_impact.context_overview"),
-		)
-		return
-	}
-
-	cypher := `
-		MATCH (r:Repository) WITH count(r) as repo_count
-		MATCH (w:Workload) WITH repo_count, count(w) as workload_count
-		MATCH (p:Platform) WITH repo_count, workload_count, count(p) as platform_count
-		OPTIONAL MATCH (i:WorkloadInstance)
-		WITH repo_count, workload_count, platform_count, count(i) as instance_count
-		RETURN repo_count, workload_count, platform_count, instance_count
-	`
-
-	row, err := h.Neo4j.RunSingle(r.Context(), cypher, nil)
-	if err != nil {
-		WriteError(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-	if row == nil {
-		// No data yet, return zeros
-		WriteSuccess(w, r, http.StatusOK, map[string]any{
-			"repo_count":     0,
-			"workload_count": 0,
-			"platform_count": 0,
-			"instance_count": 0,
-		}, BuildTruthEnvelope(h.profile(), "platform_impact.context_overview", TruthBasisHybrid, "resolved from ecosystem summary counters"))
-		return
-	}
-
-	WriteSuccess(w, r, http.StatusOK, map[string]any{
-		"repo_count":     IntVal(row, "repo_count"),
-		"workload_count": IntVal(row, "workload_count"),
-		"platform_count": IntVal(row, "platform_count"),
-		"instance_count": IntVal(row, "instance_count"),
-	}, BuildTruthEnvelope(h.profile(), "platform_impact.context_overview", TruthBasisHybrid, "resolved from ecosystem summary counters"))
-}
-
 // filterNullRelationships removes entries where type is nil (from OPTIONAL MATCH with no matches).
 func filterNullRelationships(v any) []map[string]any {
 	switch slice := v.(type) {
