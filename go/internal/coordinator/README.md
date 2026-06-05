@@ -134,6 +134,12 @@ fall back to defaults rather than failing; malformed values fail fast.
 - `JiraWorkPlanner` — plans Jira work-item evidence collection runs from
   configured Jira Cloud site targets without resolving credential environment
   variables. Each target becomes one claimable work item keyed by `scope_id`.
+- `PrometheusMimirWorkPlanner` — plans Prometheus/Grafana Mimir metric-metadata
+  collection runs from the instance `configuration.targets[]` list. Each
+  `enabled` target becomes one claimable work item keyed by `scope_id`; disabled
+  targets, empty configuration, and an empty target list plan no work. The
+  fairness key partitions per target scope, and `requested_scope_set` omits
+  token and tenant environment references.
 - `OwnedPackageTargetReader` — optional active-mode dependency target reader
   used by `Service` when package-registry or vulnerability-intelligence
   instances enable `derive_from_owned_packages`.

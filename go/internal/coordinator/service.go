@@ -78,6 +78,12 @@ type JiraPlanner interface {
 	PlanJiraWork(context.Context, JiraPlanRequest) (workflow.Run, []workflow.WorkItem, error)
 }
 
+// PrometheusMimirPlanner plans Prometheus/Mimir metric-metadata workflow rows
+// from collector instance configuration.
+type PrometheusMimirPlanner interface {
+	PlanPrometheusMimirWork(context.Context, PrometheusMimirPlanRequest) (workflow.Run, []workflow.WorkItem, error)
+}
+
 // OwnedPackageTargetReader loads active dependency evidence that can bound
 // derived package-registry and vulnerability-intelligence work.
 type OwnedPackageTargetReader interface {
@@ -107,6 +113,7 @@ type Service struct {
 	SecurityAlertPlanner              SecurityAlertPlanner
 	PagerDutyPlanner                  PagerDutyPlanner
 	JiraPlanner                       JiraPlanner
+	PrometheusMimirPlanner            PrometheusMimirPlanner
 	OwnedPackageTargetReader          OwnedPackageTargetReader
 	OSPackageAdvisoryTargetReader     OSPackageAdvisoryTargetReader
 	SBOMComponentAdvisoryTargetReader SBOMComponentAdvisoryTargetReader
@@ -296,6 +303,15 @@ func (s Service) runReconcile(ctx context.Context) error {
 		return err
 	}
 	if err := s.scheduleJiraWork(ctx, observedAt, instances); err != nil {
+		s.recordReconcile(ctx, ReconcileObservation{
+			Outcome:      reconcileOutcomeReconcileError,
+			Duration:     time.Since(startedAt),
+			DesiredCount: desiredCount,
+			DurableCount: durableCount,
+		})
+		return err
+	}
+	if err := s.schedulePrometheusMimirWork(ctx, observedAt, instances); err != nil {
 		s.recordReconcile(ctx, ReconcileObservation{
 			Outcome:      reconcileOutcomeReconcileError,
 			Duration:     time.Since(startedAt),
