@@ -406,6 +406,13 @@ h1, h2, h3, h4 { margin: 0; letter-spacing: -0.02em; font-weight: 700; }
 @keyframes conn-spin { to { transform: rotate(360deg); } }
 .link-btn { background: none; border: none; padding: 0; color: var(--teal); font: inherit; font-weight: 600; cursor: pointer; text-decoration: underline; }
 
+/* CVE detail key/value + plain lists */
+.kv { display: grid; gap: 8px; }
+.kv > div { display: flex; justify-content: space-between; gap: 12px; font-size: 0.8rem; }
+.kv .t-mut { color: var(--subtle); }
+.plain-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.plain-list li { font-size: 0.82rem; }
+
 .popover-scrim { position: fixed; inset: 0; z-index: 40; }
 .popover { position: absolute; top: 46px; right: 0; width: 340px; z-index: 41; background: var(--bg-panel); border: 1px solid var(--line-2); border-radius: 12px; box-shadow: var(--shadow); padding: 14px; display: grid; gap: 9px; }
 .popover-head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 2px; }

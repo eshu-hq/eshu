@@ -16,6 +16,7 @@ import { CatalogPage } from "./pages/CatalogPage";
 import { FindingsPage } from "./pages/FindingsPage";
 import { OperationsPage } from "./pages/OperationsPage";
 import { VulnerabilitiesPage } from "./pages/VulnerabilitiesPage";
+import { VulnDetailPage } from "./pages/VulnDetailPage";
 import { ExplorerPage } from "./pages/ExplorerPage";
 import { ServiceDrawer } from "./components/ServiceDrawer";
 import "./styles.css";
@@ -124,6 +125,7 @@ export function App(): React.JSX.Element {
             <Route path="/catalog" element={<CatalogPage model={model} onOpenService={openService} />} />
             <Route path="/findings" element={<FindingsPage model={model} />} />
             <Route path="/vulnerabilities" element={<VulnerabilitiesPage model={model} />} />
+            <Route path="/vulnerabilities/:id" element={<VulnDetailPage model={model} client={client} />} />
             <Route path="/operations" element={<OperationsPage model={model} />} />
           </Routes>
         ) : (
