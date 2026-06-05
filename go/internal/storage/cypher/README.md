@@ -65,10 +65,14 @@ metadata such as `dead_code_root_kinds` and `exactness_blockers` out of
 canonical graph rows; the dead-code API merges that evidence from the content
 store by entity ID.
 
-Current-file structural edge refreshes seed from indexed `File.path` before
-expanding `IMPORTS` or directory `CONTAINS` relationships. This keeps the
-cleanup candidate set path-first instead of relationship-scan-first on NornicDB
-while preserving the same Cypher semantics for Neo4j-compatible backends.
+Current-file structural edge refresh statements `UNWIND` the bounded file-path
+chunk and then seed from indexed `File.path` with
+`MATCH (f:File {path: file_path})` before expanding `IMPORTS` or directory
+`CONTAINS` relationships. This keeps the cleanup candidate set path-first
+instead of relationship-scan-first on NornicDB while preserving the same Cypher
+semantics for Neo4j-compatible backends. The file-path list is de-duplicated
+before chunking so duplicate input rows cannot repeat the same relationship
+delete inside one statement.
 Positive string-slice retract statements can be chunked through
 `ChunkPositiveStringSliceRetractStatement`; negative `NOT IN` stale cleanup is
 intentionally excluded from chunking.
@@ -78,9 +82,11 @@ from the full `File` label population when a webhook-triggered re-index needs
 to remove files that disappeared from one repository.
 
 No-Regression Evidence: `go test ./internal/storage/cypher -run
-'TestChunkPositiveStringSliceRetractStatement|TestCanonicalNodeRefreshStructuralEdgesSeedsFromFilePath'
--count=1` proves the indexed seed shape and protects current-file keep-list
-semantics.
+'TestChunkPositiveStringSliceRetractStatement|TestCanonicalNodeRefreshStructuralEdgesSeedsFromFilePath|TestCanonicalNodeRefreshStructuralEdgesKeepFilePathChunks|TestCanonicalNodeWriterDeduplicatesRetractFilePaths|TestCanonicalNodeWriterKeepsEmptyDirectoryPathList'
+-count=1` proves the indexed `UNWIND` seed shape, protects the current-file
+structural refresh chunk budget, de-duplicates repeated current-file identities,
+keeps empty directory identity lists encoded as Cypher lists, and preserves
+current-file keep-list semantics.
 
 No-Regression Evidence: `go test ./internal/storage/cypher ./cmd/ingester
 ./cmd/bootstrap-index ./cmd/projector -count=1` keeps canonical writer, NornicDB

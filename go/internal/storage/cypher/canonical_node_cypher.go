@@ -23,13 +23,13 @@ WHERE d.repo_id = $repo_id AND d.generation_id <> $generation_id
   AND (d.path IS NULL OR NOT (d.path IN $directory_paths))
 DETACH DELETE d`
 
-const canonicalNodeRefreshCurrentFileImportEdgesCypher = `MATCH (f:File)
-WHERE f.path IN $file_paths
+const canonicalNodeRefreshCurrentFileImportEdgesCypher = `UNWIND $file_paths AS file_path
+MATCH (f:File {path: file_path})
 MATCH (f)-[r:IMPORTS]->(:Module)
 DELETE r`
 
-const canonicalNodeRefreshCurrentDirectoryFileEdgesCypher = `MATCH (f:File)
-WHERE f.path IN $file_paths
+const canonicalNodeRefreshCurrentDirectoryFileEdgesCypher = `UNWIND $file_paths AS file_path
+MATCH (f:File {path: file_path})
 MATCH (:Directory)-[r:CONTAINS]->(f)
 DELETE r`
 
