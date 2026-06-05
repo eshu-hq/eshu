@@ -1,0 +1,29 @@
+docs/public/reference/remote-e2e-runtime-state.md
+  s_f2f7fbb6f30866::t_04edc2ee21067e 71-72,159
+  s_f2f7fbb6f30866::t_0631159c1e30a8 73-77
+  s_f2f7fbb6f30866::t_d304561c2e6b7e 158,176-180
+scripts/verify_remote_e2e_runtime_state.sh
+  s_f2f7fbb6f30866::t_72613ce81a2adb 289
+  s_f2f7fbb6f30866::t_0e3fac881d5ab3 288
+scripts/test-verify-remote-e2e-runtime-state.sh
+  s_f2f7fbb6f30866::t_0631159c1e30a8 363-364
+  s_f2f7fbb6f30866::t_4d8b5e0f50554d 357
+  s_f2f7fbb6f30866::t_f688f1bbd7433a 352-353
+  s_f2f7fbb6f30866::t_d41b0a038429ec 356
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "c1fedee8fa90a01f69b6617a161e832971432bcf",
+  "prompts": {},
+  "sessions": {
+    "s_f2f7fbb6f30866": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e360b-90eb-7472-bac7-56d488b65f77",
+        "model": "gpt-5.5"
+      },
+      "human_author": null
+    }
+  }
+}
