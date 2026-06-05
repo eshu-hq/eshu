@@ -131,14 +131,26 @@ provider_repository_match_count() {
 	jq -r --arg expected "${expected}" '
 		(.data // .) as $body |
 		($expected | ascii_downcase) as $expected_lower |
+		def repository_anchor_matches($actual):
+			$actual == $expected_lower
+			or ($actual | endswith(":" + $expected_lower))
+			or ($actual | endswith("/" + $expected_lower));
+		def provider_repository_candidates($alert):
+			[
+				$alert.repository_id?,
+				$alert.repository_slug?,
+				$alert.repository_name?,
+				$alert.repository_full_name?,
+				$alert.provider_repository?,
+				$alert.provider_repository_id?,
+				$alert.provider_repository_name?,
+				(($alert.provider_alert_id? // "") | capture("security-alert:[^:]+:(?<repository>[^:]+)")? | .repository)
+			]
+			| map(select(type == "string" and length > 0) | ascii_downcase);
 		[
 			$body.reconciliations[]?
-			| (.provider_alert.repository_id // "" | ascii_downcase) as $actual
-			| select(
-				$actual == $expected_lower
-				or ($actual | endswith(":" + $expected_lower))
-				or ($actual | endswith("/" + $expected_lower))
-			)
+			| provider_repository_candidates(.provider_alert // {}) as $anchors
+			| select(any($anchors[]; repository_anchor_matches(.)))
 		] | length
 	' "${file}"
 }

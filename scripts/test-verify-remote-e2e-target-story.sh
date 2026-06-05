@@ -104,7 +104,8 @@ JSON
       {
         "reconciliation_id": "rec-1",
         "provider_alert": {
-          "repository_id": "security-alert:github:example/api"
+          "provider_alert_id": "github_dependabot:security-alert:github:example/api:42",
+          "repository_id": "repository:r_example_api"
         }
       }
     ]
@@ -165,6 +166,12 @@ if rg -q 'repo://example/api|oci-registry://registry.example/team/api' /tmp/eshu
   sed -n '1,200p' /tmp/eshu-remote-e2e-target-story.out >&2
   exit 1
 fi
+
+reset_state
+jq '.expected_security_alert_repository = "repository:r_example_api"' "${state_dir}/target-story.json" >"${state_dir}/target-story-next.json"
+mv "${state_dir}/target-story-next.json" "${state_dir}/target-story.json"
+export ESHU_REMOTE_E2E_TARGET_STORY_FILE="${state_dir}/target-story.json"
+expect_pass
 
 reset_state
 export ESHU_REMOTE_E2E_TARGET_STORY_FILE="${state_dir}/target-story.json"
