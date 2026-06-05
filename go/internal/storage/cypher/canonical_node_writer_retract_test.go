@@ -29,7 +29,7 @@ func TestCanonicalNodeWriterRetractLeavesRemovedIdentitiesEligibleForDeletion(t 
 	var directoryRetract Statement
 	for _, stmt := range writer.buildRetractStatements(mat) {
 		switch {
-		case strings.Contains(stmt.Cypher, "MATCH (f:File)"):
+		case strings.Contains(stmt.Cypher, "DETACH DELETE f"):
 			fileRetract = stmt
 		case strings.Contains(stmt.Cypher, "MATCH (d:Directory)"):
 			directoryRetract = stmt
@@ -149,6 +149,49 @@ func TestCanonicalNodeWriterRefreshesCurrentFileStructuralEdges(t *testing.T) {
 	}
 	if !foundClassRefresh {
 		t.Fatal("missing class containment refresh statement")
+	}
+}
+
+func TestCanonicalNodeWriterDeduplicatesRetractFilePaths(t *testing.T) {
+	t.Parallel()
+
+	writer := NewCanonicalNodeWriter(&mockExecutor{}, 500, nil)
+	mat := projector.CanonicalMaterialization{
+		GenerationID: "gen-2",
+		RepoID:       "repo-1",
+		Files: []projector.FileRow{
+			{Path: "/repos/my-repo/main.go"},
+			{Path: "/repos/my-repo/main.go"},
+			{Path: "/repos/my-repo/routes.go"},
+		},
+	}
+
+	var fileRetract Statement
+	var importRefresh Statement
+	for _, stmt := range writer.buildRetractStatements(mat) {
+		switch {
+		case strings.Contains(stmt.Cypher, "DETACH DELETE f"):
+			fileRetract = stmt
+		case strings.Contains(stmt.Cypher, "-[r:IMPORTS]->"):
+			importRefresh = stmt
+		}
+	}
+
+	want := []string{"/repos/my-repo/main.go", "/repos/my-repo/routes.go"}
+	for _, tt := range []struct {
+		name string
+		stmt Statement
+	}{
+		{name: "file retract", stmt: fileRetract},
+		{name: "import refresh", stmt: importRefresh},
+	} {
+		got, ok := tt.stmt.Parameters["file_paths"].([]string)
+		if !ok {
+			t.Fatalf("%s file_paths type = %T, want []string", tt.name, tt.stmt.Parameters["file_paths"])
+		}
+		if !slices.Equal(got, want) {
+			t.Fatalf("%s file_paths = %v, want %v", tt.name, got, want)
+		}
 	}
 }
 

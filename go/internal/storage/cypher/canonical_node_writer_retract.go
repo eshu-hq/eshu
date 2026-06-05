@@ -21,14 +21,16 @@ func (w *CanonicalNodeWriter) buildRetractStatements(mat projector.CanonicalMate
 		"generation_id": mat.GenerationID,
 	}
 
-	filePaths := make([]string, len(mat.Files))
-	for i, f := range mat.Files {
-		filePaths[i] = f.Path
+	filePaths := make([]string, 0, len(mat.Files))
+	for _, f := range mat.Files {
+		filePaths = append(filePaths, f.Path)
 	}
-	directoryPaths := make([]string, len(mat.Directories))
-	for i, directory := range mat.Directories {
-		directoryPaths[i] = directory.Path
+	filePaths = dedupeStringValues(filePaths)
+	directoryPaths := make([]string, 0, len(mat.Directories))
+	for _, directory := range mat.Directories {
+		directoryPaths = append(directoryPaths, directory.Path)
 	}
+	directoryPaths = dedupeStringValues(directoryPaths)
 
 	stmts := make([]Statement, 0, 3)
 	fileRetractCypher := canonicalNodeRetractFilesCypher
@@ -111,6 +113,24 @@ func (w *CanonicalNodeWriter) buildEntityRetractStatements(mat projector.Canonic
 
 func hasRepositoryScopedRetract(mat projector.CanonicalMaterialization) bool {
 	return strings.TrimSpace(mat.RepoID) != ""
+}
+
+// dedupeStringValues preserves first-seen order so retract chunking stays
+// deterministic while positive UNWIND cleanups avoid duplicate deletes.
+func dedupeStringValues(values []string) []string {
+	if len(values) == 0 {
+		return nil
+	}
+	seen := make(map[string]struct{}, len(values))
+	deduped := make([]string, 0, len(values))
+	for _, value := range values {
+		if _, ok := seen[value]; ok {
+			continue
+		}
+		seen[value] = struct{}{}
+		deduped = append(deduped, value)
+	}
+	return deduped
 }
 
 func canonicalNodeRetractEntityLabels() []string {

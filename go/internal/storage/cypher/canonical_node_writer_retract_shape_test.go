@@ -1,6 +1,7 @@
 package cypher
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
@@ -174,16 +175,16 @@ func TestCanonicalNodeRefreshStructuralEdgesSeedsFromFilePath(t *testing.T) {
 		{
 			name:   "imports",
 			cypher: canonicalNodeRefreshCurrentFileImportEdgesCypher,
-			want: `MATCH (f:File)
-WHERE f.path IN $file_paths
+			want: `UNWIND $file_paths AS file_path
+MATCH (f:File {path: file_path})
 MATCH (f)-[r:IMPORTS]->(:Module)
 DELETE r`,
 		},
 		{
 			name:   "directory contains",
 			cypher: canonicalNodeRefreshCurrentDirectoryFileEdgesCypher,
-			want: `MATCH (f:File)
-WHERE f.path IN $file_paths
+			want: `UNWIND $file_paths AS file_path
+MATCH (f:File {path: file_path})
 MATCH (:Directory)-[r:CONTAINS]->(f)
 DELETE r`,
 		},
@@ -193,6 +194,49 @@ DELETE r`,
 			want := strings.TrimSpace(tt.want)
 			if got != want {
 				t.Fatalf("Cypher = %q, want indexed file seed shape %q", got, want)
+			}
+		})
+	}
+}
+
+func TestCanonicalNodeRefreshStructuralEdgesKeepFilePathChunks(t *testing.T) {
+	t.Parallel()
+
+	filePaths := make([]string, canonicalNodeRefreshFilePathBatchSize+1)
+	for i := range filePaths {
+		filePaths[i] = fmt.Sprintf("/repo/file-%03d.go", i)
+	}
+
+	for _, tt := range []struct {
+		name   string
+		cypher string
+	}{
+		{name: "imports", cypher: canonicalNodeRefreshCurrentFileImportEdgesCypher},
+		{name: "directory contains", cypher: canonicalNodeRefreshCurrentDirectoryFileEdgesCypher},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			stmts := buildStringSliceRetractStatements(
+				tt.cypher,
+				"file_paths",
+				filePaths,
+				canonicalNodeRefreshFilePathBatchSize,
+			)
+			if len(stmts) != 2 {
+				t.Fatalf("statements = %d, want 2 chunks", len(stmts))
+			}
+			first, ok := stmts[0].Parameters["file_paths"].([]string)
+			if !ok {
+				t.Fatalf("first file_paths type = %T, want []string", stmts[0].Parameters["file_paths"])
+			}
+			second, ok := stmts[1].Parameters["file_paths"].([]string)
+			if !ok {
+				t.Fatalf("second file_paths type = %T, want []string", stmts[1].Parameters["file_paths"])
+			}
+			if len(first) != canonicalNodeRefreshFilePathBatchSize {
+				t.Fatalf("first chunk length = %d, want %d", len(first), canonicalNodeRefreshFilePathBatchSize)
+			}
+			if len(second) != 1 {
+				t.Fatalf("second chunk length = %d, want 1", len(second))
 			}
 		})
 	}
