@@ -86,6 +86,26 @@ provider/fact/fetch-duration metrics remain the diagnostic surface. Missing
 operator-local JQL still fails before provider execution with a target-indexed
 startup error instead of silently running an unscoped query.
 
+Remote Compose configures scanner-worker with an explicit `sbom_generation`
+target against the mounted corpus fixture path. The workflow coordinator plans
+that target as normal `scanner_worker` claimable work; the worker still owns
+claim execution and source-fact emission. A healthy scanner-worker container
+with no completed claim is runtime proof only and must not satisfy the
+collector evidence row.
+
+No-Regression Evidence: the scanner-worker planning change only creates one
+work item per explicit analyzer target. It does not read source files in the
+coordinator, does not call providers, does not write graph rows, and uses the
+same duplicate-open-target guard as other scheduled hosted collectors. Focused
+tests cover the scheduler target contract, service active-mode admission, and
+remote Compose render shape.
+
+No-Observability-Change: existing scanner-worker `/healthz`, `/readyz`,
+`/metrics`, pprof overlay, workflow state, fact source counts, queue counters,
+runtime logs, CPU/memory snapshots, retry counters, and dead-letter counters
+remain the diagnostic surface. The evidence manifest still requires positive
+source or warning facts before `collectors.scanner_worker` can pass.
+
 Remote Compose runs `collector-security-alerts-preflight` before
 `workflow-coordinator`. That one-shot command loads the same collector instance
 JSON and token env reference as the hosted collector, makes one bounded
@@ -617,12 +637,14 @@ guarded work admission path suppresses already-open targets instead of relying
 on a long interval. The workflow coordinator starts after the bootstrap-index
 container completes so its initial active-mode reconcile can see active
 dependency facts and enqueue derived package/vulnerability work without waiting
-for a later hourly refresh. Derived target reads rotate by reconcile bucket, so a
-bounded full-corpus run should show package-registry package identities and OSV
-package-version targets advancing beyond the first sorted page. OSV targets may
-carry multiple exact package-version queries in a single storage-safe querybatch
-claim; that is expected and keeps full-corpus vulnerability collection inside
-the remote E2E runtime budget.
+for a later hourly refresh. Scanner-worker targets are not derived from facts in
+this proof; each configured analyzer target becomes one guarded work item.
+Derived target reads rotate by reconcile bucket, so a bounded full-corpus run
+should show package-registry package identities and OSV package-version targets
+advancing beyond the first sorted page. OSV targets may carry multiple exact
+package-version queries in a single storage-safe querybatch claim; that is
+expected and keeps full-corpus vulnerability collection inside the remote E2E
+runtime budget.
 
 ## Terraform-State Warning-Only Generations
 

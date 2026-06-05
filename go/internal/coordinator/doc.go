@@ -21,8 +21,11 @@
 // Service reads one bounded owned-package lookahead beyond each planning budget
 // so requested scope sets can show exhaustion without widening admitted work.
 // PagerDutyWorkPlanner plans incident-evidence work from configured PagerDuty
-// targets. AWSScheduledWorkPlanner and AWSFreshnessWorkPlanner plan ordinary
-// AWS collector work from configured schedules or webhook freshness triggers.
+// targets. ScannerWorkerWorkPlanner plans explicit scanner-worker source
+// evidence targets so a healthy worker must still have claimable work before a
+// proof can count source evidence. AWSScheduledWorkPlanner and
+// AWSFreshnessWorkPlanner plan ordinary AWS collector work from configured
+// schedules or webhook freshness triggers.
 // Incident freshness handoff narrows PagerDuty and Jira webhook wake-ups to
 // authorized configured scope IDs before creating normal collector work. Planners
 // produce workflow rows only; claim ownership and fact emission stay with the

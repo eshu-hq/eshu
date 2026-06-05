@@ -55,6 +55,12 @@ type SBOMAttestationPlanner interface {
 	PlanSBOMAttestationWork(context.Context, SBOMAttestationPlanRequest) (workflow.Run, []workflow.WorkItem, error)
 }
 
+// ScannerWorkerPlanner plans scanner-worker workflow rows from collector
+// instance configuration.
+type ScannerWorkerPlanner interface {
+	PlanScannerWorkerWork(context.Context, ScannerWorkerPlanRequest) (workflow.Run, []workflow.WorkItem, error)
+}
+
 // SecurityAlertPlanner plans provider security-alert workflow rows from
 // collector instance configuration.
 type SecurityAlertPlanner interface {
@@ -97,6 +103,7 @@ type Service struct {
 	PackageRegistryPlanner            PackageRegistryPlanner
 	VulnerabilityIntelligencePlanner  VulnerabilityIntelligencePlanner
 	SBOMAttestationPlanner            SBOMAttestationPlanner
+	ScannerWorkerPlanner              ScannerWorkerPlanner
 	SecurityAlertPlanner              SecurityAlertPlanner
 	PagerDutyPlanner                  PagerDutyPlanner
 	JiraPlanner                       JiraPlanner
@@ -253,6 +260,15 @@ func (s Service) runReconcile(ctx context.Context) error {
 		return err
 	}
 	if err := s.scheduleSBOMAttestationWork(ctx, observedAt, instances); err != nil {
+		s.recordReconcile(ctx, ReconcileObservation{
+			Outcome:      reconcileOutcomeReconcileError,
+			Duration:     time.Since(startedAt),
+			DesiredCount: desiredCount,
+			DurableCount: durableCount,
+		})
+		return err
+	}
+	if err := s.scheduleScannerWorkerWork(ctx, observedAt, instances); err != nil {
 		s.recordReconcile(ctx, ReconcileObservation{
 			Outcome:      reconcileOutcomeReconcileError,
 			Duration:     time.Since(startedAt),
