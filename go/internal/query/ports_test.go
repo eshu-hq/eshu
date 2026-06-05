@@ -36,6 +36,7 @@ type fakePortContentStore struct {
 	documentationFreshnessModel documentationEvidencePacketFreshnessReadModel
 	documentationFreshnessErr   error
 	entities                    []EntityContent
+	repoFiles                   []FileContent
 	repositories                []RepositoryCatalogEntry
 	languageRepos               []RepositoryLanguageRepository
 	languageCounts              map[string]RepositoryLanguageAggregate
@@ -87,8 +88,18 @@ func (f fakePortContentStore) SearchEntitiesReferencingComponent(context.Context
 	return nil, nil
 }
 
-func (f fakePortContentStore) ListRepoFiles(context.Context, string, int) ([]FileContent, error) {
-	return nil, nil
+func (f fakePortContentStore) ListRepoFiles(_ context.Context, repoID string, limit int) ([]FileContent, error) {
+	files := make([]FileContent, 0, len(f.repoFiles))
+	for _, file := range f.repoFiles {
+		if file.RepoID != "" && repoID != "" && file.RepoID != repoID {
+			continue
+		}
+		files = append(files, file)
+		if limit > 0 && len(files) >= limit {
+			break
+		}
+	}
+	return files, nil
 }
 
 func (f fakePortContentStore) ListRepoEntities(_ context.Context, _ string, limit int) ([]EntityContent, error) {

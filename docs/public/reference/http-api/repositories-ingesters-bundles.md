@@ -12,6 +12,7 @@ ingester status, and indexed bundle candidate search.
 - `GET /api/v0/repositories/{repo_id}/context`
 - `GET /api/v0/repositories/{repo_id}/story`
 - `GET /api/v0/repositories/{repo_id}/stats`
+- `GET /api/v0/repositories/{repo_id}/tree`
 - `GET /api/v0/repositories/{repo_id}/coverage`
 
 Repository routes accept a repository selector in `{repo_id}`. The selector may
@@ -81,6 +82,19 @@ with `stage=repository_lookup` and `stage=content_coverage`, including
 coverage query in a `postgres.query` span with
 `db.operation=repository_coverage` and
 `db.sql.table=content_files,content_entities`.
+
+`GET /api/v0/repositories/{repo_id}/tree` reconstructs the repository directory
+layout from the content-store file index (`content_files`). It resolves the
+selector, verifies repository identity, and lists one directory level by default.
+Use `path` to list a subdirectory, and `recursive=true` to return the full
+subtree. Each entry is `{name, type, path}`; file entries add `size` (line
+count) and `language` when indexed, and directory entries add `child_count` (the
+number of descendant files in that subtree). The response `ref` reports the
+single indexed commit SHA the tree was built from, and `truncated=true` signals
+that the file cap was reached for a very large repository. An indexed repository
+with no files returns an empty `entries` array; an unknown repository or
+subpath returns a `404` envelope. The endpoint never returns source bytes; use
+the repository content route for file contents.
 
 Repository responses should be treated as:
 

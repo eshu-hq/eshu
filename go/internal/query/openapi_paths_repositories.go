@@ -357,6 +357,54 @@ const openAPIPathsRepositories = `
         }
       }
     },
+    "/api/v0/repositories/{repo_id}/tree": {
+      "get": {
+        "tags": ["repositories"],
+        "summary": "Get repository file tree",
+        "description": "Lists one directory level (or the full subtree with recursive=true) reconstructed from the content-store file index. Returns directory and file entries; child_count on a directory is the number of descendant files. The ref reflects the single indexed commit SHA the tree was built from.",
+        "operationId": "getRepositoryTree",
+        "parameters": [
+          {"$ref": "#/components/parameters/RepoId"},
+          {"name": "path", "in": "query", "required": false, "schema": {"type": "string"}, "description": "Directory subpath to list, relative to the repository root."},
+          {"name": "ref", "in": "query", "required": false, "schema": {"type": "string"}, "description": "Informational ref selector. The tree is built from the indexed commit; the response ref reports the indexed SHA."},
+          {"name": "recursive", "in": "query", "required": false, "schema": {"type": "boolean"}, "description": "When true, return the full subtree instead of a single directory level."}
+        ],
+        "responses": {
+          "200": {
+            "description": "Repository file tree",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ref": {"type": "string"},
+                    "path": {"type": "string"},
+                    "truncated": {"type": "boolean"},
+                    "entries": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "name": {"type": "string"},
+                          "type": {"type": "string", "enum": ["dir", "file"]},
+                          "path": {"type": "string"},
+                          "size": {"type": "integer"},
+                          "language": {"type": "string"},
+                          "child_count": {"type": "integer"}
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {"$ref": "#/components/responses/BadRequest"},
+          "404": {"$ref": "#/components/responses/NotFound"},
+          "500": {"$ref": "#/components/responses/InternalError"}
+        }
+      }
+    },
     "/api/v0/repositories/{repo_id}/coverage": {
       "get": {
         "tags": ["repositories"],
