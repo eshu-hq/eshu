@@ -215,6 +215,20 @@ scripts/security_intelligence_release_gate.sh \
   --proof-matrix /secure/local/eshu/proof-matrix.json
 ```
 
+When a private target-story manifest is used, `proof_mode` defaults to
+`code_to_cloud`. That mode requires positive, target-aligned
+`container_image_identities` and `sbom_attachments` minimums plus the matching
+digest or image-reference anchors. Aggregate OCI or SBOM rows from unrelated
+repositories do not satisfy the target story.
+
+Use `proof_mode: "vulnerability_only"` or `proof_mode: "partial"` only when the
+run intentionally cannot observe the artifact hop, such as a registry account
+outside the current read-only credentials. Those modes require a
+`proof_mode_reason` in the private manifest so missing image/SBOM coverage is
+classified instead of silently passing as a full code-to-cloud proof. Keep that
+manifest outside the public repository when it contains repository names,
+image refs, account ids, hostnames, provider URLs, or local paths.
+
 The proof matrix must cover npm, Go modules, PyPI, Maven/Gradle, Composer,
 RubyGems, Cargo, and NuGet. It must also cover Terraform/IaC evidence,
 image/SBOM evidence, and deployment evidence, or classify the missing coverage

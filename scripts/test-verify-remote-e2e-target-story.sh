@@ -69,6 +69,7 @@ chmod +x "${fake_bin}/curl"
 write_manifest() {
   cat >"${state_dir}/target-story.json" <<'JSON'
 {
+  "proof_mode": "code_to_cloud",
   "target_repository_id": "repo://example/api",
   "expected_security_alert_repository": "example/api",
   "expected_service_id": "service:api",
@@ -179,6 +180,48 @@ cat >"${state_dir}/image-count.json" <<'JSON'
 {"data":{"total_identities":0},"truth":{"level":"exact","freshness":{"state":"fresh"}},"error":null}
 JSON
 expect_fail_with 'target container_image_identities=0 below required minimum 1'
+
+reset_state
+export ESHU_REMOTE_E2E_TARGET_STORY_FILE="${state_dir}/target-story.json"
+jq '
+  .minimums.container_image_identities = 0 |
+  .minimums.sbom_attachments = 0
+' "${state_dir}/target-story.json" >"${state_dir}/target-story-next.json"
+mv "${state_dir}/target-story-next.json" "${state_dir}/target-story.json"
+expect_fail_with 'target proof_mode=code_to_cloud requires minimums.container_image_identities >= 1'
+
+reset_state
+export ESHU_REMOTE_E2E_TARGET_STORY_FILE="${state_dir}/target-story.json"
+jq '
+  .proof_mode = "vulnerability_only" |
+  .proof_mode_reason = "artifact registry intentionally outside this proof" |
+  del(.expected_oci_repository_id) |
+  del(.expected_image_digest) |
+  del(.expected_sbom_subject_digest) |
+  .minimums.container_image_identities = 0 |
+  .minimums.sbom_attachments = 0 |
+  .minimums.service_catalog_correlations = 0 |
+  .minimums.ci_cd_run_correlations = 0
+' "${state_dir}/target-story.json" >"${state_dir}/target-story-next.json"
+mv "${state_dir}/target-story-next.json" "${state_dir}/target-story.json"
+expect_pass
+if ! rg -q 'proof_mode=vulnerability_only' /tmp/eshu-remote-e2e-target-story.out; then
+  printf 'expected target-story proof mode in output\n' >&2
+  sed -n '1,200p' /tmp/eshu-remote-e2e-target-story.out >&2
+  exit 1
+fi
+
+reset_state
+export ESHU_REMOTE_E2E_TARGET_STORY_FILE="${state_dir}/target-story.json"
+jq '.proof_mode = "partial" | del(.proof_mode_reason)' "${state_dir}/target-story.json" >"${state_dir}/target-story-next.json"
+mv "${state_dir}/target-story-next.json" "${state_dir}/target-story.json"
+expect_fail_with 'target story proof_mode=partial requires proof_mode_reason'
+
+reset_state
+export ESHU_REMOTE_E2E_TARGET_STORY_FILE="${state_dir}/target-story.json"
+jq '.proof_mode = "artifactish"' "${state_dir}/target-story.json" >"${state_dir}/target-story-next.json"
+mv "${state_dir}/target-story-next.json" "${state_dir}/target-story.json"
+expect_fail_with 'target story proof_mode must be one of code_to_cloud, vulnerability_only, partial'
 
 reset_state
 export ESHU_REMOTE_E2E_TARGET_STORY_FILE="${state_dir}/target-story.json"

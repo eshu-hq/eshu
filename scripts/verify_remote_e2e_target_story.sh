@@ -75,6 +75,49 @@ manifest_int() {
 	jq -r "${filter} // ${default_value}" "${TARGET_STORY_FILE}"
 }
 
+target_story_proof_mode() {
+	local mode
+	mode="$(manifest_string '.proof_mode')"
+	if [[ -z "${mode}" ]]; then
+		mode="code_to_cloud"
+	fi
+	case "${mode}" in
+		code_to_cloud | vulnerability_only | partial)
+			printf '%s' "${mode}"
+			;;
+		*)
+			echo "target story proof_mode must be one of code_to_cloud, vulnerability_only, partial" >&2
+			return 1
+			;;
+	esac
+}
+
+validate_target_story_proof_mode() {
+	local mode="$1"
+	local image_min="$2"
+	local sbom_min="$3"
+	local reason
+	case "${mode}" in
+		code_to_cloud)
+			if ((image_min < 1)); then
+				echo "target proof_mode=code_to_cloud requires minimums.container_image_identities >= 1" >&2
+				return 1
+			fi
+			if ((sbom_min < 1)); then
+				echo "target proof_mode=code_to_cloud requires minimums.sbom_attachments >= 1" >&2
+				return 1
+			fi
+			;;
+		vulnerability_only | partial)
+			reason="$(manifest_string '.proof_mode_reason')"
+			if [[ -z "${reason}" ]]; then
+				echo "target story proof_mode=${mode} requires proof_mode_reason" >&2
+				return 1
+			fi
+			;;
+	esac
+}
+
 json_int() {
 	local file="$1"
 	local filter="$2"
@@ -184,9 +227,10 @@ main() {
 		return 1
 	fi
 
-	local repo_selector expected_security_repo expected_service_id expected_workload_id
+	local proof_mode repo_selector expected_security_repo expected_service_id expected_workload_id
 	local expected_image_repo expected_image_digest expected_image_ref
 	local expected_sbom_digest
+	proof_mode="$(target_story_proof_mode)"
 	repo_selector="$(manifest_string '.target_repository_id')"
 	expected_security_repo="$(manifest_string '.expected_security_alert_repository')"
 	expected_service_id="$(manifest_string '.expected_service_id')"
@@ -213,8 +257,9 @@ main() {
 	require_non_negative_integer minimums.sbom_attachments "${sbom_min}"
 	require_non_negative_integer minimums.service_catalog_correlations "${catalog_min}"
 	require_non_negative_integer minimums.ci_cd_run_correlations "${cicd_min}"
+	validate_target_story_proof_mode "${proof_mode}" "${image_min}" "${sbom_min}"
 
-	echo "Checking remote E2E target story proof..."
+	echo "Checking remote E2E target story proof (proof_mode=${proof_mode})..."
 	local repo_file="${TMP_DIR}/repo-story.json"
 	check_repository_story "${repo_selector}" "${repo_file}"
 
@@ -309,7 +354,8 @@ main() {
 		require_min_count ci_cd_run_correlations "${cicd_count}" "${cicd_min}"
 	fi
 
-	printf 'remote E2E target story proof counts: repository_story=1 impact_findings=%s security_alert_reconciliations=%s container_image_identities=%s sbom_attachments=%s service_catalog_correlations=%s ci_cd_run_correlations=%s\n' \
+	printf 'remote E2E target story proof counts: proof_mode=%s repository_story=1 impact_findings=%s security_alert_reconciliations=%s container_image_identities=%s sbom_attachments=%s service_catalog_correlations=%s ci_cd_run_correlations=%s\n' \
+		"${proof_mode}" \
 		"${impact_count}" \
 		"${security_count}" \
 		"${image_count}" \
