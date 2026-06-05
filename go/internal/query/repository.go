@@ -35,6 +35,7 @@ func (h *RepositoryHandler) Mount(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/v0/repositories/{repo_id}/stats", h.getRepositoryStats)
 	mux.HandleFunc("GET /api/v0/repositories/{repo_id}/coverage", h.getRepositoryCoverage)
 	mux.HandleFunc("GET /api/v0/repositories/{repo_id}/tree", h.getRepositoryTree)
+	mux.HandleFunc("GET /api/v0/repositories/{repo_id}/content", h.getRepositoryContent)
 }
 
 func (h *RepositoryHandler) profile() QueryProfile {

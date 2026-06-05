@@ -13,6 +13,7 @@ ingester status, and indexed bundle candidate search.
 - `GET /api/v0/repositories/{repo_id}/story`
 - `GET /api/v0/repositories/{repo_id}/stats`
 - `GET /api/v0/repositories/{repo_id}/tree`
+- `GET /api/v0/repositories/{repo_id}/content`
 - `GET /api/v0/repositories/{repo_id}/coverage`
 
 Repository routes accept a repository selector in `{repo_id}`. The selector may
@@ -95,6 +96,17 @@ that the file cap was reached for a very large repository. An indexed repository
 with no files returns an empty `entries` array; an unknown repository or
 subpath returns a `404` envelope. The endpoint never returns source bytes; use
 the repository content route for file contents.
+
+`GET /api/v0/repositories/{repo_id}/content?path={file}` returns the indexed
+bytes of a single repository file from the content store. `path` is required.
+Text files are returned as `encoding=utf-8` with the file in `content`; bytes
+that are not valid UTF-8 are returned as `encoding=base64`. `size` is the
+original byte length and `truncated=true` signals the response was capped at the
+byte limit (cut on a UTF-8 rune boundary for text). `ref` reports the single
+indexed commit SHA, and `language` is included when the content store recorded
+it. A missing path or unknown repository returns a `404` envelope. This endpoint
+returns the same redacted content the content store holds; it never reveals
+secrets the collectors strip during indexing.
 
 Repository responses should be treated as:
 

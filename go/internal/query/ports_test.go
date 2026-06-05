@@ -44,7 +44,16 @@ type fakePortContentStore struct {
 	workloadIdentities          []CatalogWorkloadIdentityEntry
 }
 
-func (f fakePortContentStore) GetFileContent(context.Context, string, string) (*FileContent, error) {
+func (f fakePortContentStore) GetFileContent(_ context.Context, repoID, relativePath string) (*FileContent, error) {
+	for i := range f.repoFiles {
+		file := f.repoFiles[i]
+		if file.RepoID != "" && repoID != "" && file.RepoID != repoID {
+			continue
+		}
+		if file.RelativePath == relativePath {
+			return &file, nil
+		}
+	}
 	return nil, nil
 }
 
