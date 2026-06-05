@@ -1,0 +1,21 @@
+go/internal/collector/git_service_catalog_facts.go
+  s_f2f7fbb6f30866::t_39de803d4c1573 57-61,65,71,100-104,113,134-138,151-156
+go/internal/collector/git_service_catalog_facts_test.go
+  s_f2f7fbb6f30866::t_d6b406a6726e02 198-212
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.3",
+  "base_commit_sha": "c542bec47a6d4dddb5d01e9b6344e3731aecbb5b",
+  "prompts": {},
+  "sessions": {
+    "s_f2f7fbb6f30866": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e360b-90eb-7472-bac7-56d488b65f77",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Allen Sanabria <asanabria6910@gmail.com>"
+    }
+  }
+}
