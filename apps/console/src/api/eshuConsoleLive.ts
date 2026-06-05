@@ -78,6 +78,8 @@ export interface VulnRow {
 
 // ---- endpoint response shapes (partial; see GET /api/v0/openapi.json) ----
 interface EcosystemOverview {
+  // The API field is repo_count; repository_count is kept as a defensive alias.
+  readonly repo_count?: number;
   readonly repository_count?: number;
   readonly workload_count?: number;
   readonly platform_count?: number;
@@ -134,7 +136,7 @@ export async function loadConsoleSnapshot(client: EshuApiClient): Promise<Consol
     if (env.truth) truth.runtime = env.truth;
     return {
       indexStatus: st.status ?? "unknown",
-      repositories: st.repository_count ?? overview.repository_count ?? 0,
+      repositories: st.repository_count ?? overview.repo_count ?? overview.repository_count ?? 0,
       workloads: overview.workload_count ?? 0,
       platforms: overview.platform_count ?? 0,
       instances: overview.instance_count ?? 0,
